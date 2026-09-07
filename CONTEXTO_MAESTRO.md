@@ -4,7 +4,12 @@
 > Es la fuente de verdad del proyecto. No dependas de memoria de conversaciones: todo lo acordado vive aquí y en `DECISIONES.md`.
 
 Última actualización: 7 de septiembre de 2026
-Fase actual: **Fase 0 — planeación. CERO código escrito. Cero desarrollo autorizado.**
+Fase actual: **Fase 0 CERRADA. Fase 1 planeada y lista para ejecutar.**
+
+> **El plan completo de la Fase 1 está en [`docs/fase-1/`](docs/fase-1/00-INDICE-Y-COMO-USAR.md).**
+> Fase 1 = fusionar los dos sistemas fuente en una sola aplicación, erradicar Base44 y corregir los defectos de auditoría. Seis cortes, ~74–101 jornadas.
+> La ejecuta **Claude Code**, con el prompt de [`docs/fase-1/14-PROMPT-CLAUDE-CODE.md`](docs/fase-1/14-PROMPT-CLAUDE-CODE.md).
+> **Sigue sin escribirse código** hasta que Miguel abra la sesión de desarrollo.
 
 ---
 
