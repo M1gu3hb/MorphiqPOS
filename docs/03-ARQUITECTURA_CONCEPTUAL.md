@@ -18,7 +18,7 @@ Coincido con `ARQUITECTURA_OBJETIVO_REQUISITOS.md` y lo suscribo sin cambios de 
         │  (autenticada)  │                   │  (token, rate   │    contrato estrecho,
         └────────┬────────┘                   │   limit, deny)  │    sin acceso a entidades
                  │                            └────────┬────────┘
-                 └──────────────┬─────────────────────┘
+                 └──────────────┬──────────────────────┘
                                 │
                     ┌───────────▼────────────┐
                     │   Casos de uso         │  ← toda la lógica de negocio
