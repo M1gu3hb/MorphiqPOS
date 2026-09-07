@@ -60,7 +60,7 @@ Capa 1 · Fundación         monorepo, tooling, CI, Docker         ← primero
 Y sobre esas capas, los cortes verticales:
 
 ```
-F1.0  Fundación         ────────────────────────────────  capa 1
+F1.0  Fundación         ──────────────────────────────────  capa 1
 F1.1  Núcleo            ──────────────────────  capas 2·3·4 (tenant, identidad, permisos)
 F1.2  Catálogo y venta  ──────────────────────  capas 2·3·4·5 → TIENDA OPERANDO
 F1.3  Inventario        ──────────────────────  capas 2·3·4·5 → RETAIL VENDIBLE
