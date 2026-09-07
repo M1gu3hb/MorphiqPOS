@@ -199,7 +199,7 @@ Regla R25: **una capacidad no importa otra capacidad.** `restaurante` no importa
 
 ```
 Navegador                    │  Servidor
-─────────────────────────────┼────────────────────────────────────
+─────────────────────────────┼──────────────────────────────────
 componentes 'use client'     │  app/api/*/route.ts
   ↓                          │    ↓
 hooks (TanStack Query)       │  packages/app  (comandos y consultas)
