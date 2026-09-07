@@ -37,7 +37,7 @@ Cada módulo declara —y esto lo verifica CI, no la buena voluntad— exactamen
 ### Diagrama mental
 
 ```
-                    ┌────────────────────────────────┐
+                    ┌──────────────────────────────────┐
                     │        MASTER POS (1 repo)       │
                     │                                  │
                     │   NÚCLEO (siempre presente)      │
@@ -50,7 +50,7 @@ Cada módulo declara —y esto lo verifica CI, no la buena voluntad— exactamen
                     │   catálogo · ventas · caja       │
                     │   inventario · compras · KDS     │
                     │   portal QR · CRM · citas · ...  │
-                    └───────────────┬──────────────────
+                    └───────────────┬──────────────────┘
                                     │
               ┌─────────────────────┼─────────────────────┐
               │                     │                     │
