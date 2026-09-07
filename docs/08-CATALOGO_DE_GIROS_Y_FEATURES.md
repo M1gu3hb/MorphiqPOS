@@ -93,7 +93,7 @@ Aquí está lo que realmente distingue a un giro de otro. Nueve familias.
 ---
 
 ### RAMA A — Retail de mostrador
-*Abarrotes · ferretería · farmacia · papelería · vinatería · refaccionaria · boutique · celulares · mascotas · juguetía · materiales*
+*Abarrotes · ferretería · farmacia · papelería · vinatería · refaccionaria · boutique · celulares · mascotas · juguetería · materiales*
 
 **Lo que define esta rama:** el catálogo es grande, se identifica por código, y **lo que se descuenta del inventario es el mismo producto que se vende**.
 
