@@ -10,7 +10,8 @@
   },
   "scripts": {
     "verify:estructura": "node scripts/verificar-estructura.mjs",
-    "verify": "pnpm verify:estructura"
+    "verify:historico": "node scripts/verificar-historico.mjs",
+    "verify": "pnpm verify:estructura && pnpm verify:historico"
   },
   "devDependencies": {
     "turbo": "2.10.12"
