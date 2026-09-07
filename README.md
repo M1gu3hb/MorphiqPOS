@@ -22,12 +22,23 @@ Por eso, en este repositorio:
 
 ## Empieza aquí
 
+> **¿Vienes de un chat nuevo o vas a abrir Claude Code?**
+> Usa uno de los dos prompts de arranque de [`docs/fase-1/14-PROMPT-CLAUDE-CODE.md`](docs/fase-1/14-PROMPT-CLAUDE-CODE.md). No improvises el contexto: ese archivo existe precisamente porque una sesión nueva sin él se pierde.
+
 | Archivo | Qué es |
 |---|---|
 | **[`CONTEXTO_MAESTRO.md`](CONTEXTO_MAESTRO.md)** | **Léelo completo antes de responder nada.** Quién es Miguel, qué es MorphiqPOS, de dónde sale, la arquitectura acordada, la secuencia y los riesgos vivos |
 | [`DECISIONES.md`](DECISIONES.md) | Registro de decisiones con fecha, alternativas y consecuencias. Incluye las superadas y las pendientes |
-| [`REGLAS.md`](REGLAS.md) | Reglas no negociables. Si una propuesta las viola, se rechaza |
-| [`docs/`](docs/) | Los documentos completos de Fase 0 |
+| [`REGLAS.md`](REGLAS.md) | 34 reglas no negociables. Si una propuesta las viola, se rechaza |
+| **[`docs/fase-1/`](docs/fase-1/00-INDICE-Y-COMO-USAR.md)** | **El plan de ejecución.** Estrategia de fusión, modelo de datos, arquitectura, diseño, defectos, y los 6 cortes con sus tareas |
+| [`docs/fase-1/BITACORA.md`](docs/fase-1/BITACORA.md) | Dónde quedó la última sesión. **Primer lugar donde mira un agente nuevo** |
+| [`docs/`](docs/) | Los documentos de Fase 0 — el análisis que llevó a este plan |
+
+## Estado
+
+**Fase 0 — cerrada.** Auditoría, decisiones, arquitectura y catálogo de capacidades.
+**Fase 1 — planeada, lista para ejecutar.** Fusionar los dos sistemas fuente en una sola aplicación, erradicar Base44 y corregir los defectos. Seis cortes, ~74–101 jornadas, la ejecuta Claude Code.
+**Código escrito hasta hoy: cero.**
 
 ---
 
