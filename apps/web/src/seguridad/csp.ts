@@ -1,3 +1,6 @@
+/** Cabecera con la que el servidor pasa el nonce de la peticion a la aplicacion. */
+export const CABECERA_NONCE = 'x-morphiqpos-nonce';
+
 /**
  * Construccion de la Content-Security-Policy.
  *

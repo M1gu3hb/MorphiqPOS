@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { construirCsp } from '@/seguridad/csp';
+import { CABECERA_NONCE, construirCsp } from '@/seguridad/csp';
 
 /**
  * Middleware de la aplicacion.
@@ -17,9 +17,6 @@ import { construirCsp } from '@/seguridad/csp';
  *    escrito para que no se resuelva improvisando dentro de una pagina.
  */
 
-/** Cabecera con la que las capas de abajo leen el nonce de esta peticion. */
-export const CABECERA_NONCE = 'x-morphiqpos-nonce';
-
 /** Identificador que hila una peticion con sus escrituras en `auditoria`. */
 export const CABECERA_CORRELACION = 'x-morphiqpos-correlacion';
 
@@ -28,13 +25,20 @@ export function middleware(peticion: NextRequest): NextResponse {
   const correlacion = crypto.randomUUID();
   const esDesarrollo = process.env.NODE_ENV === 'development';
 
+  const csp = construirCsp(nonce, esDesarrollo);
+
   const cabeceras = new Headers(peticion.headers);
   cabeceras.set(CABECERA_NONCE, nonce);
   cabeceras.set(CABECERA_CORRELACION, correlacion);
+  // Next lee el nonce de ESTA cabecera de peticion para firmar los <script>
+  // que emite. Sin ella la politica se envia igual, la pagina se ve... y no
+  // hidrata: el navegador bloquea todos los scripts y no queda ni un boton
+  // funcionando. Es un fallo silencioso desde el lado del servidor.
+  cabeceras.set('Content-Security-Policy', csp);
 
   const respuesta = NextResponse.next({ request: { headers: cabeceras } });
 
-  respuesta.headers.set('Content-Security-Policy', construirCsp(nonce, esDesarrollo));
+  respuesta.headers.set('Content-Security-Policy', csp);
   respuesta.headers.set(CABECERA_CORRELACION, correlacion);
 
   // --- Punto de enganche de la sesion (F1.1) -------------------------------

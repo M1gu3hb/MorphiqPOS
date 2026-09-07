@@ -39,7 +39,18 @@ function crearClienteConsultas(): QueryClient {
   });
 }
 
-export function Proveedores({ children }: { children: ReactNode }) {
+interface Props {
+  readonly children: ReactNode;
+  /**
+   * Nonce de la peticion. next-themes inyecta un <script> en linea para
+   * aplicar el tema ANTES del primer pintado y evitar el parpadeo; sin el
+   * nonce la CSP lo bloquea y la pagina parpadea de claro a oscuro en cada
+   * carga.
+   */
+  readonly nonce?: string;
+}
+
+export function Proveedores({ children, nonce }: Props) {
   // Se crea dentro del estado, no en el modulo: en el servidor un cliente por
   // modulo se compartiria entre peticiones de organizaciones distintas.
   const [clienteConsultas] = useState(crearClienteConsultas);
@@ -47,6 +58,7 @@ export function Proveedores({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={clienteConsultas}>
       <ThemeProvider
+        {...(nonce === undefined ? {} : { nonce })}
         attribute="class"
         // La clase es "oscuro", no "dark": el CSS del sistema de diseno la usa
         // asi, y el idioma del codigo de dominio es espanol.

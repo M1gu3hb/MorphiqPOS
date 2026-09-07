@@ -49,6 +49,9 @@
   --grafico-5: 320 56% 22%;
   --grafico-6: 44 55% 44%;
 
+  /* Velo del modal: el tinte, no la opacidad. */
+  --velo: 30 30% 14%;
+
   --lateral-fondo: 40 22% 95%;
   --lateral-texto: 30 14% 16%;
   --lateral-activo: 18 68% 38%;
@@ -91,6 +94,8 @@
   --grafico-4: 96 40% 42%;
   --grafico-5: 320 63% 73%;
   --grafico-6: 44 78% 57%;
+
+  --velo: 30 40% 4%;
 
   --lateral-fondo: 30 12% 11%;
   --lateral-texto: 40 20% 90%;

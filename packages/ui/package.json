@@ -7,6 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./tokens": "./src/tokens/index.ts",
+    "./hooks": "./src/hooks/index.ts",
+    "./utilidades": "./src/utilidades/cn.ts",
+    "./primitivas/*": "./src/primitivas/*.tsx",
     "./estilos.css": "./src/estilos/index.css"
   },
   "scripts": {
@@ -14,11 +17,25 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
-    "@morphiqpos/contracts": "workspace:*"
+    "@morphiqpos/contracts": "workspace:*",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "cn": "^0.2.6",
+    "lucide-react": "catalog:",
+    "radix-ui": "^1.4.3",
+    "tailwind-merge": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
   }
 }

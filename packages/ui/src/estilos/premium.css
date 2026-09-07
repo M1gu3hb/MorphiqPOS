@@ -54,6 +54,11 @@
   --grafico-5: 96 92% 35%;
   --grafico-6: 344 63% 30%;
 
+  /* Velo del modal. Se usa siempre con opacidad; el token guarda el TINTE,
+     no la opacidad, para que un dialogo sobre fondo claro y otro sobre fondo
+     oscuro se sientan del mismo sistema. */
+  --velo: 224 40% 12%;
+
   --lateral-fondo: 224 32% 10%;
   --lateral-texto: 220 20% 92%;
   --lateral-activo: 231 84% 66%;
@@ -96,6 +101,8 @@
   --grafico-4: 292 84% 78%;
   --grafico-5: 96 94% 50%;
   --grafico-6: 344 65% 50%;
+
+  --velo: 224 60% 3%;
 
   --lateral-fondo: 224 32% 9%;
   --lateral-texto: 220 20% 90%;

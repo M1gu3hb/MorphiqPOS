@@ -47,6 +47,7 @@ export const TOKENS_COLOR = [
   'grafico-4',
   'grafico-5',
   'grafico-6',
+  'velo',
   'lateral-fondo',
   'lateral-texto',
   'lateral-activo',

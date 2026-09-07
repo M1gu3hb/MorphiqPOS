@@ -133,6 +133,26 @@ for (const prohibida of PROHIBIDAS) {
   }
 }
 
+// La politica puede estar perfecta y la aplicacion no funcionar: si Next no
+// firma sus <script> con el nonce, el navegador los bloquea todos y la pagina
+// se sirve pero no hidrata. Se ve bien en una captura y no responde a un clic.
+const html = await respuesta.clone().text();
+const scriptsDeNext = [...html.matchAll(/<script[^>]*src="\/_next\/[^"]*"[^>]*>/g)];
+
+if (scriptsDeNext.length === 0) {
+  fallos.push('La pagina no incluye ningun script de Next: no se puede comprobar el nonce.');
+} else {
+  const sinNonce = scriptsDeNext.filter((etiqueta) => !etiqueta[0].includes('nonce='));
+  if (sinNonce.length > 0) {
+    fallos.push(
+      `${sinNonce.length} de ${scriptsDeNext.length} scripts de Next salen SIN nonce. ` +
+        'La CSP los bloqueara y la pagina no hidratara: se vera bien y no respondera ' +
+        'a un solo clic. Comprueba que el middleware pone la CSP tambien en las ' +
+        'cabeceras de la peticion.',
+    );
+  }
+}
+
 // El nonce debe cambiar entre peticiones, o no sirve de nada.
 const segunda = await fetch(url, { redirect: 'manual' });
 const nonce = (texto) => /'nonce-([^']+)'/.exec(texto ?? '')?.[1];
