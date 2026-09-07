@@ -9,14 +9,23 @@
     "node": ">=20.11.0"
   },
   "scripts": {
+    "db:up": "node scripts/db.mjs up",
+    "db:down": "node scripts/db.mjs down",
+    "db:reset": "node scripts/db.mjs reset",
+    "db:logs": "node scripts/db.mjs logs",
+    "db:estado": "node scripts/db.mjs estado",
+    "db:migrate": "node scripts/db.mjs migrate",
+    "db:seed": "node scripts/db.mjs seed",
     "typecheck": "turbo run typecheck",
     "verify:estructura": "node scripts/verificar-estructura.mjs",
     "verify:historico": "node scripts/verificar-historico.mjs",
     "verify:tsconfig": "node scripts/verificar-tsconfig.mjs",
-    "verify": "pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm typecheck"
+    "verify:entorno": "node scripts/verificar-entorno.mjs",
+    "verify": "pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm typecheck"
   },
   "devDependencies": {
     "turbo": "2.10.12",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "yaml": "^2.9.0"
   }
 }
