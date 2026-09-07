@@ -1,7 +1,7 @@
 import { CODIGOS_ERROR, ErrorDominio } from '@morphiqpos/contracts/errores';
 
-import { type Centavos } from './centavos.js';
-import { redondear } from './redondeo.js';
+import { type Centavos } from './centavos';
+import { redondear } from './redondeo';
 
 /**
  * Las dos fronteras del dinero: texto que entra y texto que sale.

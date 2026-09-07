@@ -11,12 +11,12 @@ export {
   esCero,
   esNegativo,
   type Centavos,
-} from './centavos.js';
+} from './centavos';
 
-export { comparar, negar, restar, sumar } from './aritmetica.js';
+export { comparar, negar, restar, sumar } from './aritmetica';
 
-export { PUNTOS_BASE_100, aplicarPorcentaje, redondear } from './redondeo.js';
+export { PUNTOS_BASE_100, aplicarPorcentaje, redondear } from './redondeo';
 
-export { repartir } from './reparto.js';
+export { repartir } from './reparto';
 
-export { MONEDAS, desdeTexto, formatear, type Moneda } from './formato.js';
+export { MONEDAS, desdeTexto, formatear, type Moneda } from './formato';

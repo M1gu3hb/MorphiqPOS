@@ -10,6 +10,8 @@
     "node": ">=20.11.0"
   },
   "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
     "db:up": "node scripts/db.mjs up",
     "db:down": "node scripts/db.mjs down",
     "db:reset": "node scripts/db.mjs reset",
@@ -24,7 +26,8 @@
     "verify:historico": "node scripts/verificar-historico.mjs",
     "verify:tsconfig": "node scripts/verificar-tsconfig.mjs",
     "verify:entorno": "node scripts/verificar-entorno.mjs",
-    "verify": "pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm typecheck && pnpm test:unit"
+    "verify:cabeceras": "node scripts/verificar-cabeceras.mjs",
+    "verify": "pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm typecheck && pnpm test:unit && pnpm build && pnpm verify:cabeceras"
   },
   "devDependencies": {
     "@types/node": "catalog:",

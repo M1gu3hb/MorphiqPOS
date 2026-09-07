@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -12,10 +14,20 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
-    include: ['packages/*/src/**/*.test.ts', 'capabilities/*/**/*.test.ts'],
+    include: [
+      'packages/*/src/**/*.test.ts',
+      'apps/*/src/**/*.test.ts',
+      'capabilities/*/**/*.test.ts',
+    ],
     exclude: ['**/node_modules/**', 'historico/**'],
     environment: 'node',
     // Una prueba que tarda mas de 5 s en una capa sin I/O esta mal escrita.
     testTimeout: 5_000,
+  },
+  resolve: {
+    alias: {
+      // El alias de apps/web, para que sus pruebas resuelvan igual que Next.
+      '@': fileURLToPath(new URL('./apps/web/src', import.meta.url)),
+    },
   },
 });

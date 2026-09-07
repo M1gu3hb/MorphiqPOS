@@ -1,6 +1,6 @@
 import { CODIGOS_ERROR, ErrorDominio } from '@morphiqpos/contracts/errores';
 
-import type { Centavos } from './centavos.js';
+import type { Centavos } from './centavos';
 
 /**
  * Reparte un importe en partes iguales sin perder ni inventar centavos.

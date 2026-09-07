@@ -1,0 +1,98 @@
+/* Punto de entrada de estilos de la aplicacion.
+   El sistema de diseno vive en @morphiqpos/ui; aqui solo se importa y se
+   conecta con Tailwind. Ningun color, radio ni sombra se define en este archivo. */
+
+@import 'tailwindcss';
+@import '@morphiqpos/ui/estilos.css';
+
+/* Le enseña a Tailwind los tokens del sistema, para que existan utilidades
+   como bg-fondo, text-texto-sutil, rounded-md o shadow-2 y NADIE tenga que
+   escribir un color literal (05-SISTEMA-DE-DISENO §2, regla dura). */
+@theme inline {
+  --color-fondo: hsl(var(--fondo));
+  --color-fondo-sutil: hsl(var(--fondo-sutil));
+  --color-superficie: hsl(var(--superficie));
+  --color-superficie-elevada: hsl(var(--superficie-elevada));
+  --color-texto: hsl(var(--texto));
+  --color-texto-sutil: hsl(var(--texto-sutil));
+  --color-texto-tenue: hsl(var(--texto-tenue));
+  --color-borde: hsl(var(--borde));
+  --color-borde-fuerte: hsl(var(--borde-fuerte));
+  --color-anillo: hsl(var(--anillo));
+  --color-primario: hsl(var(--primario));
+  --color-primario-texto: hsl(var(--primario-texto));
+  --color-acento: hsl(var(--acento));
+  --color-acento-texto: hsl(var(--acento-texto));
+  --color-exito: hsl(var(--exito));
+  --color-exito-texto: hsl(var(--exito-texto));
+  --color-advertencia: hsl(var(--advertencia));
+  --color-advertencia-texto: hsl(var(--advertencia-texto));
+  --color-peligro: hsl(var(--peligro));
+  --color-peligro-texto: hsl(var(--peligro-texto));
+  --color-info: hsl(var(--info));
+  --color-info-texto: hsl(var(--info-texto));
+  --color-grafico-1: hsl(var(--grafico-1));
+  --color-grafico-2: hsl(var(--grafico-2));
+  --color-grafico-3: hsl(var(--grafico-3));
+  --color-grafico-4: hsl(var(--grafico-4));
+  --color-grafico-5: hsl(var(--grafico-5));
+  --color-grafico-6: hsl(var(--grafico-6));
+  --color-lateral-fondo: hsl(var(--lateral-fondo));
+  --color-lateral-texto: hsl(var(--lateral-texto));
+  --color-lateral-activo: hsl(var(--lateral-activo));
+  --color-lateral-borde: hsl(var(--lateral-borde));
+
+  --radius-sm: var(--radio-sm);
+  --radius-md: var(--radio-md);
+  --radius-lg: var(--radio-lg);
+  --radius-full: var(--radio-completo);
+
+  --shadow-1: var(--sombra-1);
+  --shadow-2: var(--sombra-2);
+  --shadow-3: var(--sombra-3);
+  --shadow-4: var(--sombra-4);
+
+  --font-ui: var(--fuente-ui);
+  --font-numeros: var(--fuente-numeros);
+  --font-display: var(--fuente-display);
+
+  --spacing-1: var(--espacio-1);
+  --spacing-2: var(--espacio-2);
+  --spacing-3: var(--espacio-3);
+  --spacing-4: var(--espacio-4);
+  --spacing-5: var(--espacio-5);
+  --spacing-6: var(--espacio-6);
+  --spacing-8: var(--espacio-8);
+  --spacing-10: var(--espacio-10);
+  --spacing-12: var(--espacio-12);
+  --spacing-16: var(--espacio-16);
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--borde));
+  }
+
+  body {
+    background-color: hsl(var(--fondo));
+    color: hsl(var(--texto));
+    font-family: var(--fuente-ui);
+    line-height: var(--interlinea-normal);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* El foco SIEMPRE visible. Sin esto la navegacion por teclado no existe, y
+     la caja se opera con teclado diez horas al dia (05 §9). */
+  :focus-visible {
+    outline: 2px solid hsl(var(--anillo));
+    outline-offset: 2px;
+  }
+
+  /* Todo lo que sea dinero o cantidad usa cifras de ancho fijo, para que los
+     importes no bailen al leerlos en columna. */
+  .numeros,
+  [data-numeros] {
+    font-family: var(--fuente-numeros);
+    font-variant-numeric: var(--variante-numerica);
+  }
+}

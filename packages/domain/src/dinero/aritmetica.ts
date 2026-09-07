@@ -1,4 +1,4 @@
-import type { Centavos } from './centavos.js';
+import type { Centavos } from './centavos';
 
 /**
  * Aritmetica de importes.

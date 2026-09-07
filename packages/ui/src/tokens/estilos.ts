@@ -1,4 +1,4 @@
-import type { Densidad, Elevacion, Movimiento, Redondeo } from './contrato.js';
+import type { Densidad, Elevacion, Movimiento, Redondeo } from './contrato';
 
 /**
  * Capa 3: los estilos.

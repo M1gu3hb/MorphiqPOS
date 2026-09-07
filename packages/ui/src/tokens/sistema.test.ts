@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { contrasteLegible, distanciaPerceptual, leerHsl } from './color.js';
+import { contrasteLegible, distanciaPerceptual, leerHsl } from './color';
 import {
   DISTANCIA_MINIMA_ENTRE_GRAFICOS,
   ESTILOS_F1_0,
@@ -14,9 +14,9 @@ import {
   TOKENS_COLOR,
   type EstiloF1_0,
   type Modo,
-} from './contrato.js';
-import { CLAVES_ESTILO, ESTILOS, atributosDeEstilo } from './estilos.js';
-import { leerArchivo, resolverTokens, type BloqueCss } from './leerCss.js';
+} from './contrato';
+import { CLAVES_ESTILO, ESTILOS, atributosDeEstilo } from './estilos';
+import { leerArchivo, resolverTokens, type BloqueCss } from './leerCss';
 
 /**
  * El contrato del sistema de diseno, comprobado sin navegador.

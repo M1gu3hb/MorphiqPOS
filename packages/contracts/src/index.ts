@@ -5,4 +5,4 @@
  * Sin dependencias: si algo aqui necesita importar otro paquete del monorepo,
  * es senal de que no pertenece a contracts.
  */
-export * from './errores/index.js';
+export * from './errores/index';
