@@ -1,0 +1,104 @@
+/**
+ * Estilo `premium` — Apple / Linear.
+ *
+ * Neutros frios con un acento saturado. Perillas: densidad normal, redondeo
+ * amplio, elevacion doble-bisel, movimiento expresivo (ver tokens/estilos.ts).
+ *
+ * Para: login, panel del dueno, reportes. Es el que vende en una demostracion,
+ * porque es la primera pantalla que ve el prospecto (escena 1 del guion).
+ *
+ * Los colores van en HSL sin la funcion `hsl()`, que es la convencion que ambos
+ * sistemas fuente ya usaban. Permite componer `hsl(var(--fondo) / 0.5)` sin
+ * duplicar un token por cada opacidad.
+ *
+ * NINGUN valor de aqui se elige "porque se ve bien": todos pasan por el auditor
+ * de contraste de tokens/sistema.test.ts, en claro y en oscuro.
+ */
+
+[data-estilo='premium'] {
+  --sombra-tinte: 224 40% 12%;
+
+  --fondo: 0 0% 100%;
+  --fondo-sutil: 220 24% 97%;
+  --superficie: 0 0% 100%;
+  --superficie-elevada: 0 0% 100%;
+
+  --texto: 224 32% 10%;
+  --texto-sutil: 224 12% 34%;
+  --texto-tenue: 224 10% 44%;
+
+  --borde: 220 16% 90%;
+  --borde-fuerte: 220 12% 55%;
+  --anillo: 231 84% 48%;
+
+  --primario: 231 84% 48%;
+  --primario-texto: 0 0% 100%;
+  --acento: 265 68% 46%;
+  --acento-texto: 0 0% 100%;
+
+  --exito: 152 62% 26%;
+  --exito-texto: 0 0% 100%;
+  /* Ambar con texto oscuro: blanco sobre ambar no llega a 4.5 sin ensuciar el
+     color hasta que deja de leerse como advertencia. */
+  --advertencia: 43 96% 56%;
+  --advertencia-texto: 30 70% 12%;
+  --peligro: 0 72% 42%;
+  --peligro-texto: 0 0% 100%;
+  --info: 205 84% 32%;
+  --info-texto: 0 0% 100%;
+
+  --grafico-1: 231 90% 52%;
+  --grafico-2: 173 50% 30%;
+  --grafico-3: 32 79% 46%;
+  --grafico-4: 292 68% 45%;
+  --grafico-5: 96 92% 35%;
+  --grafico-6: 344 63% 30%;
+
+  --lateral-fondo: 224 32% 10%;
+  --lateral-texto: 220 20% 92%;
+  --lateral-activo: 231 84% 66%;
+  --lateral-borde: 224 22% 20%;
+}
+
+[data-estilo='premium'].oscuro {
+  --sombra-tinte: 224 60% 2%;
+
+  --fondo: 224 34% 7%;
+  --fondo-sutil: 224 30% 10%;
+  --superficie: 224 28% 11%;
+  --superficie-elevada: 224 26% 14%;
+
+  --texto: 220 24% 96%;
+  --texto-sutil: 220 14% 74%;
+  --texto-tenue: 220 12% 62%;
+
+  --borde: 224 20% 20%;
+  --borde-fuerte: 220 14% 52%;
+  --anillo: 231 90% 72%;
+
+  --primario: 231 90% 72%;
+  --primario-texto: 224 44% 10%;
+  --acento: 265 84% 76%;
+  --acento-texto: 265 44% 12%;
+
+  --exito: 152 58% 64%;
+  --exito-texto: 152 44% 8%;
+  --advertencia: 43 96% 62%;
+  --advertencia-texto: 30 70% 10%;
+  --peligro: 0 84% 72%;
+  --peligro-texto: 0 50% 10%;
+  --info: 205 84% 68%;
+  --info-texto: 205 60% 8%;
+
+  --grafico-1: 231 56% 59%;
+  --grafico-2: 173 50% 50%;
+  --grafico-3: 32 94% 56%;
+  --grafico-4: 292 84% 78%;
+  --grafico-5: 96 94% 50%;
+  --grafico-6: 344 65% 50%;
+
+  --lateral-fondo: 224 32% 9%;
+  --lateral-texto: 220 20% 90%;
+  --lateral-activo: 231 90% 72%;
+  --lateral-borde: 224 20% 18%;
+}

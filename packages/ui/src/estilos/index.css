@@ -1,0 +1,5 @@
+/* Punto de entrada del sistema de diseno.
+   La app lo importa una sola vez en su layout raiz. */
+@import './base.css';
+@import './premium.css';
+@import './editorial.css';

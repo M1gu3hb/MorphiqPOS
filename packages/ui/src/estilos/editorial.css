@@ -1,0 +1,99 @@
+/**
+ * Estilo `editorial` — Notion / Craft.
+ *
+ * Monocromo calido con acentos apagados. Perillas: densidad normal, redondeo
+ * sutil, elevacion plana, movimiento sutil (ver tokens/estilos.ts). Mucho aire y
+ * contraste tipografico fuerte en vez de sombras.
+ *
+ * Para: clientes que quieren algo serio y sobrio. Es el mas rapido de construir
+ * y el que mejor envejece.
+ *
+ * La separacion entre superficies aqui la hace el BORDE, no la sombra: por eso
+ * `borde` tiene mas presencia que en `premium`.
+ */
+
+[data-estilo='editorial'] {
+  --sombra-tinte: 30 30% 12%;
+
+  --fondo: 40 30% 98%;
+  --fondo-sutil: 40 22% 95%;
+  --superficie: 40 40% 99%;
+  --superficie-elevada: 0 0% 100%;
+
+  --texto: 30 14% 11%;
+  --texto-sutil: 30 9% 32%;
+  --texto-tenue: 30 8% 44%;
+
+  --borde: 36 18% 85%;
+  --borde-fuerte: 33 14% 52%;
+  --anillo: 18 68% 38%;
+
+  --primario: 18 68% 38%;
+  --primario-texto: 40 40% 99%;
+  --acento: 176 42% 26%;
+  --acento-texto: 40 40% 99%;
+
+  --exito: 148 46% 26%;
+  --exito-texto: 40 40% 99%;
+  --advertencia: 38 88% 58%;
+  --advertencia-texto: 28 66% 12%;
+  --peligro: 4 66% 40%;
+  --peligro-texto: 40 40% 99%;
+  --info: 212 52% 34%;
+  --info-texto: 40 40% 99%;
+
+  --grafico-1: 18 56% 39%;
+  --grafico-2: 176 56% 35%;
+  --grafico-3: 212 56% 34%;
+  --grafico-4: 96 56% 23%;
+  --grafico-5: 320 56% 22%;
+  --grafico-6: 44 55% 44%;
+
+  --lateral-fondo: 40 22% 95%;
+  --lateral-texto: 30 14% 16%;
+  --lateral-activo: 18 68% 38%;
+  --lateral-borde: 36 18% 85%;
+}
+
+[data-estilo='editorial'].oscuro {
+  --sombra-tinte: 30 40% 3%;
+
+  --fondo: 30 12% 9%;
+  --fondo-sutil: 30 11% 12%;
+  --superficie: 30 11% 13%;
+  --superficie-elevada: 30 10% 16%;
+
+  --texto: 40 24% 94%;
+  --texto-sutil: 38 12% 72%;
+  --texto-tenue: 38 10% 60%;
+
+  --borde: 30 10% 22%;
+  --borde-fuerte: 34 10% 52%;
+  --anillo: 20 78% 64%;
+
+  --primario: 20 78% 64%;
+  --primario-texto: 20 50% 10%;
+  --acento: 176 46% 58%;
+  --acento-texto: 176 46% 8%;
+
+  --exito: 148 46% 62%;
+  --exito-texto: 148 44% 8%;
+  --advertencia: 38 88% 62%;
+  --advertencia-texto: 28 66% 10%;
+  --peligro: 4 78% 68%;
+  --peligro-texto: 4 50% 10%;
+  --info: 212 72% 68%;
+  --info-texto: 212 52% 8%;
+
+  --grafico-1: 18 78% 42%;
+  --grafico-2: 176 78% 50%;
+  --grafico-3: 212 55% 48%;
+  --grafico-4: 96 40% 42%;
+  --grafico-5: 320 63% 73%;
+  --grafico-6: 44 78% 57%;
+
+  --lateral-fondo: 30 12% 11%;
+  --lateral-texto: 40 20% 90%;
+  --lateral-activo: 20 78% 64%;
+  --lateral-borde: 30 10% 20%;
+}

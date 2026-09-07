@@ -1,0 +1,230 @@
+/**
+ * Capa 1 y capa 2 del sistema de diseno: los tokens que no dependen del estilo,
+ * y las cuatro perillas estructurales.
+ *
+ * Ver docs/fase-1/05-SISTEMA-DE-DISENO-Y-ESTILOS.md §3 y §4.
+ *
+ * Regla dura: ningun componente contiene un color, un tamano, un radio o una
+ * sombra literal. Todo sale de aqui. Un `className="bg-blue-600"` hace fallar
+ * la revision y el lint.
+ */
+
+:root {
+  /* ---------------------------------------------------------------- tipografia
+     Dos familias, no mas (05 §, presupuesto de rendimiento). La tercera es la
+     misma pila con otro peso, no otra descarga. */
+  --fuente-ui: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --fuente-display: var(--fuente-ui);
+
+  /* OBLIGATORIA y tabular. En un POS los importes se leen en columna: sin
+     cifras de ancho fijo los totales bailan y el cajero se equivoca. Ninguno de
+     los dos sistemas fuente lo tenia. */
+  --fuente-numeros: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono',
+    Menlo, Consolas, monospace;
+  --variante-numerica: tabular-nums lining-nums;
+
+  --tamano-xs: 0.75rem;
+  --tamano-sm: 0.875rem;
+  --tamano-base: 1rem;
+  --tamano-lg: 1.125rem;
+  --tamano-xl: 1.375rem;
+  --tamano-2xl: 1.75rem;
+  --tamano-3xl: 2.25rem;
+
+  --peso-normal: 400;
+  --peso-medio: 500;
+  --peso-fuerte: 650;
+
+  --interlinea-compacta: 1.2;
+  --interlinea-normal: 1.5;
+  --interlinea-amplia: 1.75;
+
+  --tracking-compacto: -0.015em;
+  --tracking-normal: 0em;
+
+  /* ------------------------------------------------------------------ espacio
+     Escala base de 4 px multiplicada por la perilla de densidad. Cambiar la
+     densidad reescala TODA la interfaz de una vez, sin tocar componentes. */
+  --espacio-unidad: 0.25rem;
+  --factor-espacio: 1;
+
+  --espacio-0: 0;
+  --espacio-1: calc(var(--espacio-unidad) * 1 * var(--factor-espacio));
+  --espacio-2: calc(var(--espacio-unidad) * 2 * var(--factor-espacio));
+  --espacio-3: calc(var(--espacio-unidad) * 3 * var(--factor-espacio));
+  --espacio-4: calc(var(--espacio-unidad) * 4 * var(--factor-espacio));
+  --espacio-5: calc(var(--espacio-unidad) * 5 * var(--factor-espacio));
+  --espacio-6: calc(var(--espacio-unidad) * 6 * var(--factor-espacio));
+  --espacio-8: calc(var(--espacio-unidad) * 8 * var(--factor-espacio));
+  --espacio-10: calc(var(--espacio-unidad) * 10 * var(--factor-espacio));
+  --espacio-12: calc(var(--espacio-unidad) * 12 * var(--factor-espacio));
+  --espacio-16: calc(var(--espacio-unidad) * 16 * var(--factor-espacio));
+
+  /* -------------------------------------------------------------------- borde */
+  --borde-ancho: 1px;
+  --borde-estilo: solid;
+
+  /* --------------------------------------------------------------- movimiento
+     Las curvas no cambian con la perilla; las duraciones si. */
+  --curva-entrada: cubic-bezier(0.32, 0.72, 0, 1);
+  --curva-salida: cubic-bezier(0.4, 0, 1, 1);
+  --curva-resorte: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Valores por omision de las cuatro perillas. Se sobrescriben con los
+     atributos data-* en <html>. */
+  --altura-control: 2.5rem;
+  --radio-sm: 0.25rem;
+  --radio-md: 0.5rem;
+  --radio-lg: 0.75rem;
+  --radio-completo: 9999px;
+  --sombra-0: none;
+  --sombra-1: 0 1px 2px 0 hsl(var(--sombra-tinte) / 0.05);
+  --sombra-2: 0 1px 3px 0 hsl(var(--sombra-tinte) / 0.1), 0 1px 2px -1px hsl(var(--sombra-tinte) / 0.1);
+  --sombra-3: 0 4px 6px -1px hsl(var(--sombra-tinte) / 0.1), 0 2px 4px -2px hsl(var(--sombra-tinte) / 0.1);
+  --sombra-4: 0 10px 15px -3px hsl(var(--sombra-tinte) / 0.1), 0 4px 6px -4px hsl(var(--sombra-tinte) / 0.1);
+  --duracion-rapida: 120ms;
+  --duracion-normal: 200ms;
+  --duracion-lenta: 320ms;
+}
+
+/* =========================================================== PERILLA 1
+   Densidad. Se elige por layout, y el usuario puede sobrescribir.
+   (operacion) en tablet -> comoda. (operacion) en escritorio -> compacta.
+   (gestion) -> normal.
+
+   Nota de accesibilidad (§4): "compacta" nunca baja de 44x44 px de objetivo
+   tactil efectivo aunque el control se vea de 32 px. Se logra con area de toque
+   extendida, no agrandando el control. */
+[data-densidad='comoda'] {
+  --factor-espacio: 1.25;
+  --altura-control: 3rem;
+  --area-tactil-minima: 3rem;
+}
+
+[data-densidad='normal'] {
+  --factor-espacio: 1;
+  --altura-control: 2.5rem;
+  --area-tactil-minima: 2.75rem;
+}
+
+[data-densidad='compacta'] {
+  --factor-espacio: 0.75;
+  --altura-control: 2rem;
+  --area-tactil-minima: 2.75rem;
+}
+
+/* =========================================================== PERILLA 2
+   Escala de redondeo. Tres niveles distintos a proposito: el radio uniforme en
+   todo es una de las senales de "plantilla" que §8 prohibe. */
+[data-redondeo='nula'] {
+  --radio-sm: 0;
+  --radio-md: 0;
+  --radio-lg: 0;
+  --radio-completo: 0;
+}
+
+[data-redondeo='sutil'] {
+  --radio-sm: 0.125rem;
+  --radio-md: 0.25rem;
+  --radio-lg: 0.375rem;
+  --radio-completo: 9999px;
+}
+
+[data-redondeo='media'] {
+  --radio-sm: 0.25rem;
+  --radio-md: 0.5rem;
+  --radio-lg: 0.75rem;
+  --radio-completo: 9999px;
+}
+
+[data-redondeo='amplia'] {
+  --radio-sm: 0.5rem;
+  --radio-md: 0.875rem;
+  --radio-lg: 1.25rem;
+  --radio-completo: 9999px;
+}
+
+[data-redondeo='pastilla'] {
+  --radio-sm: 9999px;
+  --radio-md: 9999px;
+  --radio-lg: 9999px;
+  --radio-completo: 9999px;
+}
+
+/* =========================================================== PERILLA 3
+   Tipo de elevacion: como se separa una superficie de otra. */
+[data-elevacion='plana'] {
+  --sombra-0: none;
+  --sombra-1: none;
+  --sombra-2: none;
+  --sombra-3: none;
+  --sombra-4: none;
+  --borde-ancho: 1px;
+}
+
+[data-elevacion='sombra'] {
+  --sombra-0: none;
+  --sombra-1: 0 1px 2px 0 hsl(var(--sombra-tinte) / 0.06);
+  --sombra-2: 0 2px 6px -1px hsl(var(--sombra-tinte) / 0.1);
+  --sombra-3: 0 8px 20px -6px hsl(var(--sombra-tinte) / 0.14);
+  --sombra-4: 0 20px 40px -12px hsl(var(--sombra-tinte) / 0.2);
+}
+
+/* Luz interior arriba, sombra interior abajo, sombra exterior. Es el look que
+   hoy conocen la ferreteria y la tienda; sobrevive como perilla en vez de
+   quedarse en clases skeu-* dentro de globals.css. */
+[data-elevacion='doble-bisel'] {
+  --sombra-0: none;
+  --sombra-1: inset 0 1px 0 0 hsl(0 0% 100% / 0.12), 0 1px 2px 0 hsl(var(--sombra-tinte) / 0.14);
+  --sombra-2: inset 0 1px 0 0 hsl(0 0% 100% / 0.14), inset 0 -1px 0 0 hsl(var(--sombra-tinte) / 0.1),
+    0 2px 6px -1px hsl(var(--sombra-tinte) / 0.16);
+  --sombra-3: inset 0 1px 0 0 hsl(0 0% 100% / 0.16), inset 0 -1px 0 0 hsl(var(--sombra-tinte) / 0.12),
+    0 8px 18px -6px hsl(var(--sombra-tinte) / 0.22);
+  --sombra-4: inset 0 1px 0 0 hsl(0 0% 100% / 0.18), 0 22px 44px -14px hsl(var(--sombra-tinte) / 0.3);
+}
+
+[data-elevacion='linea-dura'] {
+  --sombra-0: none;
+  --sombra-1: 2px 2px 0 0 hsl(var(--sombra-tinte) / 1);
+  --sombra-2: 3px 3px 0 0 hsl(var(--sombra-tinte) / 1);
+  --sombra-3: 5px 5px 0 0 hsl(var(--sombra-tinte) / 1);
+  --sombra-4: 8px 8px 0 0 hsl(var(--sombra-tinte) / 1);
+  --borde-ancho: 2px;
+}
+
+/* =========================================================== PERILLA 4
+   Intensidad de movimiento. */
+[data-movimiento='nula'] {
+  --duracion-rapida: 0ms;
+  --duracion-normal: 0ms;
+  --duracion-lenta: 0ms;
+}
+
+[data-movimiento='sutil'] {
+  --duracion-rapida: 90ms;
+  --duracion-normal: 140ms;
+  --duracion-lenta: 200ms;
+}
+
+[data-movimiento='normal'] {
+  --duracion-rapida: 120ms;
+  --duracion-normal: 200ms;
+  --duracion-lenta: 320ms;
+}
+
+[data-movimiento='expresiva'] {
+  --duracion-rapida: 160ms;
+  --duracion-normal: 280ms;
+  --duracion-lenta: 460ms;
+}
+
+/* La preferencia del sistema gana SIEMPRE, sin importar la perilla (§4).
+   No es negociable ni por estilo ni por configuracion del cliente. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duracion-rapida: 0ms;
+    --duracion-normal: 0ms;
+    --duracion-lenta: 0ms;
+  }
+}
