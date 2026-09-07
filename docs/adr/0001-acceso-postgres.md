@@ -1,6 +1,6 @@
 # ADR 0001 — Cómo accede MorphiqPOS a Postgres
 
-- **Estado:** PROPUESTO — pendiente de aprobación de Miguel
+- **Estado:** **ACEPTADO** — aprobado por Miguel el 7-sep-2026. Registrado como **A-37** en `/DECISIONES.md`
 - **Fecha:** 2026-09-07
 - **Tarea:** F1.0-T04
 - **Bloquea:** la primera migración (F1.1). No se escribe una línea de SQL antes de aprobar esto.
@@ -207,7 +207,9 @@ monorepo. Es justo lo que garantiza la regla de dependencia entre capas.
 
 ---
 
-## 7. Qué necesito de Miguel
+## 7. Aprobación
 
-Aprobar, o elegir otra opción. Si apruebas, este ADR pasa a **ACEPTADO**, se registra
-como decisión **A-37** en `/DECISIONES.md`, y F1.1 puede escribir la primera migración.
+Miguel aprobó la Opción C el **7 de septiembre de 2026**, en la sesión de desarrollo del
+corte F1.0. Queda registrada como decisión **A-37** en `/DECISIONES.md`.
+
+Con esto se levanta el bloqueo: F1.1 puede escribir la primera migración.
