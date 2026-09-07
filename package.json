@@ -9,11 +9,14 @@
     "node": ">=20.11.0"
   },
   "scripts": {
+    "typecheck": "turbo run typecheck",
     "verify:estructura": "node scripts/verificar-estructura.mjs",
     "verify:historico": "node scripts/verificar-historico.mjs",
-    "verify": "pnpm verify:estructura && pnpm verify:historico"
+    "verify:tsconfig": "node scripts/verificar-tsconfig.mjs",
+    "verify": "pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm typecheck"
   },
   "devDependencies": {
-    "turbo": "2.10.12"
+    "turbo": "2.10.12",
+    "typescript": "6.0.3"
   }
 }

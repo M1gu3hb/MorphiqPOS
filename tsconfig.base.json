@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    // --- Salida y modulos ---
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "incremental": true,
+
+    // --- Windows es case-insensitive, Linux no. Sin esto un import con
+    //     mayuscula distinta pasa aqui y rompe en CI. ---
+    "forceConsistentCasingInFileNames": true,
+
+    // --- R19: cero errores de tipos desde el primer commit ---
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "useUnknownInCatchVariables": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
+    // --- allowJs NO se activa nunca (F1.0-T03). Rompe a proposito con la
+    //     mezcla .jsx/.tsx de la tiendita: todo el codigo nuevo es .ts/.tsx. ---
+    "allowJs": false,
+    "checkJs": false
+  },
+  "exclude": ["node_modules", "dist", "build", ".next", ".turbo", "coverage", "historico"]
+}

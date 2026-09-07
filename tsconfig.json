@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
+  "//": "Configuracion raiz para el editor. Cada workspace se comprueba con su propio tsconfig.json.",
+  "files": [],
+  "exclude": ["node_modules", "dist", "build", ".next", ".turbo", "coverage", "historico"]
+}
