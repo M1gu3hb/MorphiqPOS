@@ -4,6 +4,7 @@
   "private": true,
   "description": "Plataforma madre de puntos de venta de Morphiq. Monorepo de la Fase 1.",
   "license": "UNLICENSED",
+  "type": "module",
   "packageManager": "pnpm@12.3.4",
   "engines": {
     "node": ">=20.11.0"
@@ -17,15 +18,20 @@
     "db:migrate": "node scripts/db.mjs migrate",
     "db:seed": "node scripts/db.mjs seed",
     "typecheck": "turbo run typecheck",
+    "test:unit": "vitest run",
+    "test": "vitest run",
     "verify:estructura": "node scripts/verificar-estructura.mjs",
     "verify:historico": "node scripts/verificar-historico.mjs",
     "verify:tsconfig": "node scripts/verificar-tsconfig.mjs",
     "verify:entorno": "node scripts/verificar-entorno.mjs",
-    "verify": "pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm typecheck"
+    "verify": "pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm typecheck && pnpm test:unit"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "turbo": "2.10.12",
     "typescript": "6.0.3",
+    "vitest": "catalog:",
     "yaml": "^2.9.0"
   }
 }

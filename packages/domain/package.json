@@ -1,0 +1,22 @@
+{
+  "name": "@morphiqpos/domain",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reglas puras. Entra un objeto, sale un objeto. Cero I/O, cero React, cero SQL.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dinero": "./src/dinero/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@morphiqpos/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

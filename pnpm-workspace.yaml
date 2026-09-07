@@ -7,3 +7,13 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'capabilities/*'
+
+# Catalogo de versiones. Un paquete escribe "catalog:" y hereda de aqui.
+# Con 15 paquetes por venir, es lo que impide que dos usen versiones distintas
+# de la misma herramienta y que las pruebas se comporten distinto segun donde
+# se corran.
+catalog:
+  typescript: 6.0.3
+  vitest: 5.0.0
+  '@vitest/coverage-v8': 5.0.0
+  '@types/node': 24.13.3
