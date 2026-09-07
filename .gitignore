@@ -1,0 +1,49 @@
+# --- Dependencias ---
+node_modules
+.pnpm-store
+
+# --- Build ---
+dist
+build
+.next
+out
+.turbo
+*.tsbuildinfo
+
+# --- Pruebas ---
+coverage
+.nyc_output
+playwright-report
+test-results
+blob-report
+.playwright
+
+# --- Entorno · R31: cero secretos en el repositorio ---
+.env
+.env.*
+!.env.example
+
+# --- Sistema operativo y editores ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.recomendado.json
+
+# --- Registros ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# --- Datos locales de Docker ---
+infra/docker/datos
+
+# --- historico/ es evidencia, no codigo (04-ARQUITECTURA §1, R30, R34) ---
+# No se compila, no se lintea, no se importa y no se versiona:
+# contiene el ZIP del POS de restaurante y el clon de la tiendita,
+# que describen sistemas hoy en produccion con clientes reales.
+historico/*
+!historico/README.md

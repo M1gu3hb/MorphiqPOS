@@ -1,0 +1,9 @@
+# Workspaces del monorepo. Ver docs/fase-1/04-ARQUITECTURA-Y-MONOREPO.md §1
+# del repositorio de documentacion (M1gu3hb/MorphiqPOS).
+#
+# historico/ NO es un workspace a proposito: es evidencia, no codigo.
+# No se compila, no se lintea, no se importa.
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'capabilities/*'

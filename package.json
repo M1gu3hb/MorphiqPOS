@@ -1,0 +1,18 @@
+{
+  "name": "morphiqpos",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Plataforma madre de puntos de venta de Morphiq. Monorepo de la Fase 1.",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@12.3.4",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "verify:estructura": "node scripts/verificar-estructura.mjs",
+    "verify": "pnpm verify:estructura"
+  },
+  "devDependencies": {
+    "turbo": "2.10.12"
+  }
+}

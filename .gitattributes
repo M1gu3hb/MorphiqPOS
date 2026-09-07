@@ -1,0 +1,22 @@
+# Fin de linea normalizado a LF en el repositorio.
+# Evita que Windows meta CRLF en migraciones SQL y scripts de shell.
+* text=auto eol=lf
+
+*.sh      text eol=lf
+*.mjs     text eol=lf
+*.sql     text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.webp    binary
+*.avif    binary
+*.ico     binary
+*.woff    binary
+*.woff2   binary
+*.pdf     binary
+*.zip     binary
+
+pnpm-lock.yaml -diff linguist-generated=true
