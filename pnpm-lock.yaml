@@ -335,6 +335,9 @@ importers:
       '@node-rs/argon2':
         specifier: 'catalog:'
         version: 2.2.0
+      kysely:
+        specifier: 'catalog:'
+        version: 0.29.5
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
