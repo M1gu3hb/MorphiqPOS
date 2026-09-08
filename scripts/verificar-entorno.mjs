@@ -23,7 +23,13 @@ const EJEMPLO = join(RAIZ, '.env.example');
 
 /** Servicios que el entorno local debe ofrecer, con lo que se exige de cada uno. */
 const SERVICIOS = {
-  postgres: { imagen: /^postgres:16\./, sano: true, volumen: true },
+  // Postgres 17 y no 16: el proyecto gestionado de Supabase (A-39) corre 17.6, y
+  // la prueba de portabilidad sirve justo para eso — comprobar que el MISMO
+  // esquema aplica igual en el Postgres de un cliente sin internet (A-27). Con
+  // motores distintos a los dos lados, la prueba diria que si y no probaria nada:
+  // `on delete set null (columna)`, que 004 usa en once restricciones, no existe
+  // antes de Postgres 15.
+  postgres: { imagen: /^postgres:17\./, sano: true, volumen: true },
   almacenamiento: { imagen: /^minio\/minio:RELEASE\./, sano: true, volumen: true },
 };
 
