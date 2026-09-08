@@ -67,12 +67,12 @@ function probar() {
       'run',
       raiz,
       '--reporter=json',
-      '--outputFile=coverage/codex-catalogo-mutacion.json',
+      '--outputFile=coverage/catalogo-mutacion.json',
     ],
     { encoding: 'utf8', timeout: 30_000 },
   );
   if (resultado.error) throw resultado.error;
-  const informe = JSON.parse(readFileSync('coverage/codex-catalogo-mutacion.json', 'utf8'));
+  const informe = JSON.parse(readFileSync('coverage/catalogo-mutacion.json', 'utf8'));
   // Un import roto, error de sintaxis o timeout no cuenta como prueba de negocio.
   const fallos = informe.testResults
     .flatMap((suite) => suite.assertionResults)
