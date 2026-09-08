@@ -1,5 +1,15 @@
 # Bitácora de ejecución — Fase 1
 
+## Carril B · B-01 · 2026-09-07 · Implementación publicada, cierre pendiente
+
+- **Qué se hizo:** worktree `morphiqpos-codex`, rama `carril-b`; dominio de catálogo con cuatro tipos, cantidades exactas, unidades, porciones y mayoreo.
+- **Archivos:** `packages/domain/src/catalogo/`, exportación del paquete, tres códigos de error y verificador de mutaciones. Contrato: `B01-CATALOGO-CONTRATO.md`.
+- **Pruebas:** 62 de catálogo; 220 unitarias globales; lint, tipos y build pasan.
+- **Verificado con:** 18 mutaciones detectadas por aserciones fallidas, restauradas y con suite verde posterior.
+- **Pendiente:** `pnpm verify` rechaza referencias históricas de la documentación; falta el estándar completo PRS. B-02/B-03 aún pendientes; `.env` sin DATABASE_URL ni credenciales de almacenamiento.
+- **Reclasificaciones:** reimplementación TypeScript desde la especificación histórica, sin copiar archivos.
+- **Evidencia y decisiones:** `../reports/001-codex-f1.1-catalogo.md`. Implementación en `27940c3`; no integrada a main.
+
 > **Este archivo es lo que permite que otra sesión retome el trabajo sin preguntar.**
 > Se escribe una entrada **por cada tarea terminada**, antes de empezar la siguiente.
 > Si una tarea queda a medias, también se anota — con qué falta.
