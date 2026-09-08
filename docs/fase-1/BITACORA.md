@@ -1,5 +1,29 @@
 # Bitácora de ejecución — Fase 1
 
+## Carril A · A-02, A-03, A-05 a A-10, A-12 y X-01 · 2026-09-08 · Se puede vender
+
+- **Qué se hizo:** el puente HTTP que faltaba y, encima, la venta completa. Miguel
+  abre el navegador, entra con PIN, agrega productos, cobra en efectivo y le sale
+  un ticket.
+- **Archivos:** `packages/app/src/{http,sesion,identidad,venta,caja}/`,
+  `packages/domain/src/venta/totales.ts`,
+  `packages/data/src/repos/{sesion,identidad,folios,caja,venta-catalogo,ordenes/}`,
+  `apps/web/src/{cliente,servidor,venta,identidad}/`, 16 rutas bajo
+  `apps/web/app/api/`, y las páginas `/venta`, `/entrar`, `/enrolar`.
+- **Decisiones:** el stock se descuenta ANTES de tomar el folio, para que una
+  venta sin inventario no deje hueco en el consecutivo. El carrito ES la orden en
+  borrador, persistida por línea (P1-10). El arqueo se DERIVA de los movimientos
+  y no se guarda ningún total (P2-10).
+- **Pruebas:** 361 en verde. 15 contratos de venta y 26 mutaciones en
+  `verify:venta`, enganchado a `pnpm verify`.
+- **Verificado con:** `pnpm verify` completa —lint, typecheck, primitivas,
+  residuos, 28 archivos de prueba, `verify:venta` y build de Next.
+- **Pendiente o riesgo:** sin `DATABASE_URL` no se ha ejecutado NADA contra
+  Postgres. Todo lo transaccional está verificado por tipos, contratos y
+  mutación estática, no en vivo. `cerrarCaja` no tiene pantalla; el corte se
+  invoca por API. Detalle en `docs/reports/004-claude-code-f1.1-venta.md`.
+- **Reclasificaciones:** ninguna.
+
 ## Carril B · B-07 · 2026-09-08 · Pantalla de configuración
 
 - **Qué se hizo:** ruta `(gestion)/configuracion` con selector visual de los cinco
@@ -122,7 +146,7 @@
 | Corte | Estado | Tareas | Última actualización |
 |---|---|---|---|
 | F1.0 Fundación | 🟨 12 de 13 · falta T05 en vivo | 12 / 13 | 2026-09-07 |
-| F1.1 Núcleo | 🟨 dos carriles en paralelo (A-45) · catálogo y gestión en curso | A: 1/22 · B: 7/24 | 2026-09-08 |
+| F1.1 Núcleo | 🟨 dos carriles en paralelo (A-45) · **se puede vender de punta a punta** | A: 10/22 · B: 7/24 | 2026-09-08 |
 | F1.2 Catálogo y venta | ⬜ No iniciado | 0 / 17 | — |
 | F1.3 Inventario y compras | ⬜ No iniciado | 0 / 16 | — |
 | F1.4 Restaurante | ⬜ No iniciado | 0 / 17 | — |

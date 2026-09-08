@@ -25,7 +25,8 @@
     "@morphiqpos/domain": "workspace:*",
     "server-only": "^0.0.1",
     "zod": "catalog:",
-    "@node-rs/argon2": "catalog:"
+    "@node-rs/argon2": "catalog:",
+    "kysely": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
