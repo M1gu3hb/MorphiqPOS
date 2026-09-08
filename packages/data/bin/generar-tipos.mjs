@@ -1,0 +1,165 @@
+#!/usr/bin/env node
+/**
+ * Genera `src/esquema.ts` desde la base YA MIGRADA (F1.1-T03).
+ *
+ *   pnpm db:tipos
+ *
+ * Los tipos NO se escriben a mano. Esa es la mitad del ADR 0001: el esquema
+ * vive entero en los `.sql`, la base es la autoridad, y los tipos son un
+ * reflejo suyo. Un tipo escrito a mano se desincroniza en la primera migración
+ * que a alguien se le olvide propagar, y a partir de ahí el compilador da
+ * garantías falsas — que es peor que no dar ninguna.
+ *
+ * La consulta que produce el TypeScript vive AQUÍ y se ejecuta tal cual, sea
+ * por este script o por cualquier otro camino que llegue a la misma base. Si
+ * el mapeo de tipos viviera en JavaScript y la consulta sólo trajera metadatos,
+ * habría dos sitios donde equivocarse.
+ *
+ * El mapeo refleja los parsers de `cliente.ts`. Si cambia uno, cambia el otro:
+ *
+ *   int8      → bigint   (dinero en centavos, R15)
+ *   numeric   → string   (cantidades de inventario, hasta 4 decimales)
+ *   date      → string   (día del calendario, no instante)
+ *   jsonb     → unknown  (obliga a validar con zod antes de usarlo)
+ */
+import { writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { config } from 'dotenv';
+
+config({ path: ['.env.local', '.env'], quiet: true });
+
+const AQUI = dirname(fileURLToPath(import.meta.url));
+const DESTINO = join(AQUI, '..', 'src', 'esquema.ts');
+
+/**
+ * Devuelve el contenido completo de `esquema.ts` como un solo valor de texto.
+ *
+ * Se exporta para que el mismo SQL se pueda ejecutar por otra vía cuando no hay
+ * `DATABASE_URL` a mano —por ejemplo desde una consola administrada— y el
+ * resultado sea idéntico byte a byte.
+ */
+export const CONSULTA = /* sql */ `
+with columnas as (
+  select c.table_name as tabla,
+         c.ordinal_position as pos,
+         c.column_name as columna,
+         c.udt_name as tipo_pg,
+         c.is_nullable = 'YES' as nulo,
+         c.column_default is not null or c.is_identity = 'YES' as generada
+    from information_schema.columns c
+    join information_schema.tables t
+      on t.table_schema = c.table_schema and t.table_name = c.table_name
+   where c.table_schema = 'public'
+     and t.table_type = 'BASE TABLE'
+     -- El ledger de migraciones lo posee el ejecutor, no el dominio.
+     and c.table_name <> '_migraciones'
+),
+mapeadas as (
+  select tabla, pos, columna, generada, nulo,
+         case tipo_pg
+           when 'uuid'        then 'string'
+           when 'text'        then 'string'
+           when 'varchar'     then 'string'
+           when 'bpchar'      then 'string'
+           when 'inet'        then 'string'
+           when 'bool'        then 'boolean'
+           when 'int2'        then 'number'
+           when 'int4'        then 'number'
+           when 'int8'        then 'bigint'
+           when 'numeric'     then 'string'
+           when 'float4'      then 'number'
+           when 'float8'      then 'number'
+           when 'date'        then 'string'
+           when 'timestamptz' then 'Date'
+           when 'timestamp'   then 'Date'
+           when 'jsonb'       then 'unknown'
+           when 'json'        then 'unknown'
+           else '__TIPO_SIN_MAPEAR_' || tipo_pg || '__'
+         end as tipo_ts
+    from columnas
+),
+lineas as (
+  select tabla, pos,
+         '  ' || columna || ': ' ||
+         case
+           when generada and nulo then 'Generated<' || tipo_ts || ' | null>'
+           when generada          then 'Generated<' || tipo_ts || '>'
+           when nulo              then tipo_ts || ' | null'
+           else tipo_ts
+         end || ';' as linea
+    from mapeadas
+),
+interfaces as (
+  select tabla,
+         'export interface ' ||
+         -- snake_case → PascalCase
+         (select string_agg(initcap(p), '') from unnest(string_to_array(tabla, '_')) p) ||
+         ' {' || chr(10) ||
+         string_agg(linea, chr(10) order by pos) || chr(10) || '}' as bloque
+    from lineas
+   group by tabla
+),
+mapa as (
+  select string_agg('  ' || tabla || ': ' ||
+           (select string_agg(initcap(p), '') from unnest(string_to_array(tabla, '_')) p) ||
+           ';', chr(10) order by tabla) as filas
+    from interfaces
+)
+select
+  '/**' || chr(10) ||
+  ' * Tipos del esquema de la base.' || chr(10) ||
+  ' *' || chr(10) ||
+  ' * ARCHIVO GENERADO por \`pnpm db:tipos\` (packages/data/bin/generar-tipos.mjs).' || chr(10) ||
+  ' * NO se edita a mano: se regenera desde la base ya migrada. Una edicion manual' || chr(10) ||
+  ' * sobrevive hasta la siguiente regeneracion y, mientras tanto, hace que el' || chr(10) ||
+  ' * compilador afirme cosas que la base no cumple.' || chr(10) ||
+  ' *' || chr(10) ||
+  ' * \`Generated<T>\` marca las columnas con valor por omision: opcionales al' || chr(10) ||
+  ' * insertar, siempre presentes al leer.' || chr(10) ||
+  ' */' || chr(10) ||
+  'import type { Generated } from ''kysely'';' || chr(10) || chr(10) ||
+  (select string_agg(bloque, chr(10) || chr(10) order by tabla) from interfaces) ||
+  chr(10) || chr(10) ||
+  'export interface Esquema {' || chr(10) ||
+  (select filas from mapa) || chr(10) ||
+  '}' || chr(10)
+  as fuente;
+`;
+
+const url = process.env['DATABASE_URL'];
+if (url === undefined || url === '') {
+  console.error('✗ Falta DATABASE_URL. Sin base migrada no hay tipos que generar:');
+  console.error('  los tipos son un reflejo del esquema aplicado, no una declaración aparte.');
+  process.exit(2);
+}
+
+const { obtenerPool, cerrarDb } = await import('../src/cliente.ts');
+
+try {
+  const { rows } = await obtenerPool().query(CONSULTA);
+  const fuente = rows[0]?.fuente;
+
+  if (typeof fuente !== 'string' || fuente.length === 0) {
+    throw new Error('La consulta no devolvió fuente. ¿La base está migrada?');
+  }
+  if (fuente.includes('__TIPO_SIN_MAPEAR_')) {
+    const sinMapear = [...fuente.matchAll(/__TIPO_SIN_MAPEAR_(\w+?)__/g)].map((m) => m[1]);
+    throw new Error(
+      `Tipos de Postgres sin mapear: ${[...new Set(sinMapear)].join(', ')}.\n` +
+        'Añádelos a CONSULTA junto con su parser en cliente.ts. No se genera un\n' +
+        'esquema a medias: `any` disfrazado es peor que un fallo.',
+    );
+  }
+
+  writeFileSync(DESTINO, fuente, 'utf8');
+  const tablas = (fuente.match(/^export interface /gm) ?? []).length - 1;
+  console.log(`✓ src/esquema.ts regenerado desde la base: ${tablas} tablas.`);
+} catch (error) {
+  console.error('\n✗ No se pudieron generar los tipos.\n');
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+} finally {
+  await cerrarDb();
+}
