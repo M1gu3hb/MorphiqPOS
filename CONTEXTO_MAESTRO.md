@@ -3,15 +3,17 @@
 > **Lee este archivo completo antes de responder cualquier cosa sobre MorphiqPOS.**
 > Es la fuente de verdad del proyecto. No dependas de memoria de conversaciones: todo lo acordado vive aquí y en `DECISIONES.md`.
 
-Última actualización: 7 de septiembre de 2026
-Fase actual: **Fase 1 EN EJECUCIÓN. Corte F1.0 a una tarea de firmarse.**
+Última actualización: 8 de septiembre de 2026
+Fase actual: **Fase 1 en ejecución. F1.0 hecha. Corte activo: F1.1 — POS que vende.**
 
-> **El plan completo de la Fase 1 está en [`docs/fase-1/`](docs/fase-1/00-INDICE-Y-COMO-USAR.md).**
-> Fase 1 = fusionar los dos sistemas fuente en una sola aplicación, erradicar Base44 y corregir los defectos de auditoría. Seis cortes, ~74–101 jornadas.
-> La ejecuta **Claude Code**, con el prompt de [`docs/fase-1/14-PROMPT-CLAUDE-CODE.md`](docs/fase-1/14-PROMPT-CLAUDE-CODE.md).
-> **El desarrollo se abrió el 7 de septiembre de 2026.** El código vive en el repositorio
-> `morphiqpos` (local, sin remoto — A-35). El corte F1.0 está construido y verificado;
-> falta levantar el entorno con Docker para firmarlo. Ver `docs/fase-1/BITACORA.md`.
+> **MorphiqPOS ES UN PUNTO DE VENTA.** No una plataforma modular que algún día tendrá un POS. Se abre, se opera como POS, se cobra con él, y se le enseña a un cliente para venderlo. Con todas las funciones activas al mismo tiempo, y un **selector de paquete en configuración** que cambia el tipo de negocio (A-42).
+>
+> **F1.0 está hecha** (fundación: monorepo, TypeScript estricto, sistema de diseño, CI). Entregó una base sólida **y cero producto** — culpa del plan, no de la ejecución.
+> **La secuencia se replanteó** el 8-sep: producto vendible al final de **F1.1**, no de F1.3. Ver [`docs/fase-1/15-AUDITORIA-F1.0-Y-REPLANTEAMIENTO.md`](docs/fase-1/15-AUDITORIA-F1.0-Y-REPLANTEAMIENTO.md).
+> **Corte activo:** [`docs/fase-1/16-CORTE-F1.1-POS-QUE-VENDE.md`](docs/fase-1/16-CORTE-F1.1-POS-QUE-VENDE.md) · **Prompt:** [`17-PROMPT-F1.1-AUTONOMO.md`](docs/fase-1/17-PROMPT-F1.1-AUTONOMO.md)
+>
+> **Infraestructura:** Supabase `wyqmzhliurwyxuyxznpb` (Postgres 17.6, us-east-2) + un proyecto en Vercel. Docker queda como prueba de portabilidad en CI.
+> ⚠️ En la misma cuenta de Supabase está **`Pasteleria Confetti`** (`ivqcxdpqxwjxfohiswqb`), que **opera con un cliente real y no se toca**.
 
 ---
 
@@ -69,7 +71,7 @@ MorphiqPOS **no se construye desde cero**. Nace de extraer y endurecer dos siste
 - **Qué se toma de aquí: las features, los flujos y las reglas de negocio.** Es conocimiento de operación real que sólo se obtiene construyendo.
 - **Qué NO se toma: su arquitectura.** Lógica de negocio dentro de pantallas, 359 accesos directos a datos en 68 archivos, PIN comparado en el navegador, cobro sin transacción, 1,592 errores de tipos, cero pruebas.
 - **Base44 queda erradicado por completo.** Sólo se conserva como evidencia histórica.
-- Evidencia: paquete `POSMH_FASE_0_CLOUD_COWORK_2026-09-06` (local, no publicado). SHA-256 del ZIP: `1BF6FC7C26E460B7FE763E80074716BA7FA231B999870CB0EF6174102B72BFF3` — **verificado el 7-sep-2026** con `Get-FileHash` sobre el ZIP original: coincide. Se comprobaron además las cifras de la auditoría: 288 entradas, 244 archivos en `src/`.
+- Evidencia: paquete `POSMH_FASE_0_CLOUD_COWORK_2026-09-06` (local, no publicado). SHA-256 del ZIP: `1BF6FC7C26E460B7FE763E80074716BA7FA231B999870CB0EF6174102B72BFF3` — **verificación independiente todavía pendiente**.
 
 ### Fuente B — POS-MH-Tiendita (repo público `M1gu3hb/POS-MH-Tiendita`)
 - POS de tienda/abarrotes. **Ya migrado de Base44 a Next.js + Supabase.**
@@ -271,11 +273,10 @@ Revisar una vez al mes. Si aparecen dos, se para y se corrige:
 ## 9. Estado y qué sigue
 
 ### Pendiente de Miguel
-1. ~~Verificar el SHA-256 del ZIP~~ — **hecho el 7-sep-2026. Coincide.** Se comprobaron además las cifras de la auditoría: 288 entradas, 244 archivos en `src/`.
-2. **Instalar Docker Desktop** (y mover *Disk image location* al disco D). Es lo único que bloquea la firma del corte F1.0.
-3. **Decidir si este repositorio se vuelve privado** — ver la advertencia en `README.md`.
-4. Formato de ticket en v1: carta / 80 mm / 58 mm / combinación.
-5. Nombres de los perfiles: ¿se conservan Esencial / Operativo / Restaurante Pro, o se renombran a `retail` / `restaurante` / `servicios`?
+1. **Verificar el SHA-256 del ZIP** (`Get-FileHash`, 30 segundos). Bloqueo formal de Fase 0.1.
+2. **Decidir si este repositorio se vuelve privado** — ver la advertencia en `README.md`.
+3. Formato de ticket en v1: carta / 80 mm / 58 mm / combinación.
+4. Nombres de los perfiles: ¿se conservan Esencial / Operativo / Restaurante Pro, o se renombran a `retail` / `restaurante` / `servicios`?
 
 ### Pendiente del asistente, cuando Miguel lo autorice
 1. ADR de arquitectura con alternativas evaluadas.
@@ -296,7 +297,7 @@ Miguel usa **tres agentes de IA**: Claude Code, Codex y Antigravity. Este reposi
 **Reglas para cualquier agente que trabaje aquí:**
 
 1. **Lee `CONTEXTO_MAESTRO.md`, `DECISIONES.md` y `REGLAS.md` antes de proponer nada.** No dependas de memoria de conversación.
-2. **Se ejecuta un corte a la vez** (R21), con el prompt de `docs/fase-1/14-PROMPT-CLAUDE-CODE.md`. Antes de escribir una línea, lee `docs/fase-1/BITACORA.md`.
+2. **No escribas código.** Seguimos en Fase 0. El desarrollo requiere autorización expresa de Miguel.
 3. **Toda decisión nueva se registra en `DECISIONES.md`** con fecha, alternativas evaluadas, elección y consecuencia. Si no está escrita, no existe.
 4. Cuando una decisión previa quede superada, **no borres la anterior**: márcala como superada y apunta a la nueva. La trazabilidad importa más que la limpieza.
 5. **Responde en español**, conciso y directo.

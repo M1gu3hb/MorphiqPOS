@@ -1,5 +1,15 @@
 # FASE 1 — Índice y cómo usar estos documentos
 
+> ## ⚠️ ACTUALIZADO EL 8-SEP-2026 — LA SECUENCIA CAMBIÓ
+>
+> F1.0 se ejecutó y entregó una fundación excelente **y cero producto**: 2 rutas navegables, sin base de datos, sin autenticación, sin ninguna pantalla de negocio. Fue culpa de este plan, no de la ejecución.
+>
+> **Lee primero [`15-AUDITORIA-F1.0-Y-REPLANTEAMIENTO.md`](15-AUDITORIA-F1.0-Y-REPLANTEAMIENTO.md)** — explica qué pasó y qué cambió.
+> **El corte activo es [`16-CORTE-F1.1-POS-QUE-VENDE.md`](16-CORTE-F1.1-POS-QUE-VENDE.md)**, no el `08`.
+> **El prompt para arrancar es [`17-PROMPT-F1.1-AUTONOMO.md`](17-PROMPT-F1.1-AUTONOMO.md)**, no el `14`.
+>
+> Los documentos `08` a `12` conservan su contenido técnico y siguen siendo válidos como especificación, pero **su orden de ejecución quedó superado** por la decisión A-41. Los documentos `01` a `06` y `13` siguen vigentes tal cual.
+
 > **Objetivo de la Fase 1:** fusionar el POS de restaurante y el POS de tiendita en **una sola aplicación** llamada MorphiqPOS, erradicando Base44, corrigiendo los defectos confirmados en auditoría, y dejando una cimentación sobre la que se puedan agregar todos los giros del catálogo.
 >
 > **Fase 1 termina cuando** un mismo sistema, en un mismo despliegue, opera una tienda de mostrador **y** un restaurante completo, sin cambiar de aplicación, y pasa el estándar `morphiq-prs` sin BLOCKERS.
@@ -82,8 +92,8 @@ Cada tarea lleva un identificador estable, por ejemplo `F1.1-T07`. Ese identific
 
 | Corte | Estado | Notas |
 |---|---|---|
-| F1.0 Fundación | 🟨 12 de 13 | Todo construido y verificado. **Falta levantar el entorno en vivo (T05): Docker no está instalado.** Acta de sign-off: 0 BLOCKERS, 2 CRITICAL declarados |
-| F1.1 Núcleo | ⬜ No iniciado | Bloqueado por T05 de F1.0. El ADR 0001 ya está aceptado (A-37): la primera migración puede escribirse en cuanto se firme F1.0 |
+| F1.0 Fundación | ⬜ No iniciado | |
+| F1.1 Núcleo | ⬜ No iniciado | Bloqueado por F1.0 |
 | F1.2 Catálogo y venta | ⬜ No iniciado | Bloqueado por F1.1 |
 | F1.3 Inventario y compras | ⬜ No iniciado | Bloqueado por F1.2 |
 | F1.4 Restaurante | ⬜ No iniciado | Bloqueado por F1.3 |
