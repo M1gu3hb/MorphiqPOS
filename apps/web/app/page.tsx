@@ -1,14 +1,15 @@
 import { redirect } from 'next/navigation';
 
 /**
- * Raiz de la aplicacion.
+ * Raíz de la aplicación.
  *
- * En F1.0 no hay panel todavia, y una pantalla de bienvenida generada seria
- * exactamente el "componente de andamiaje visible" que prohibe el gate PRS §03.
- * Asi que la raiz lleva a lo unico que ya existe y sirve: el sistema de diseno.
+ * Lleva a la venta, que es para lo que existe un punto de venta. Si la terminal
+ * no tiene sesión, la propia pantalla pide el PIN; si no está enrolada, ofrece
+ * darla de alta. Ese encadenamiento vive en las pantallas y no aquí, porque
+ * decidirlo en la raíz exigiría leer la sesión dos veces.
  *
- * En F1.1 esto pasa a ser el panel del negocio.
+ * El sistema de diseño sigue en `/estilos`, pero ya no es la puerta de entrada.
  */
 export default function Raiz() {
-  redirect('/estilos');
+  redirect('/venta');
 }
