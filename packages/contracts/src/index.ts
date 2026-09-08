@@ -6,3 +6,4 @@
  * es senal de que no pertenece a contracts.
  */
 export * from './errores/index';
+export * from './entorno/index';

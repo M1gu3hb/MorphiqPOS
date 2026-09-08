@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./errores": "./src/errores/index.ts"
+    "./errores": "./src/errores/index.ts",
+    "./entorno": "./src/entorno/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -15,5 +16,8 @@
   "devDependencies": {
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "zod": "catalog:"
   }
 }
