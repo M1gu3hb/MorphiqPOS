@@ -19,4 +19,5 @@ export {
 export type { Esquema } from './esquema.ts';
 
 export * as repoComandos from './repos/comandos.ts';
+export * as repoCatalogo from './repos/catalogo.ts';
 export * as repoStock from './repos/stock.ts';

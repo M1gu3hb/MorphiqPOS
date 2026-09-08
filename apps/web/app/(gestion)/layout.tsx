@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { NavegacionGestion } from './NavegacionGestion';
+
 /**
  * Layout de gestion: inicio, productos, inventario, compras, configuracion.
  *
@@ -9,7 +11,8 @@ import type { ReactNode } from 'react';
 export default function LayoutGestion({ children }: { children: ReactNode }) {
   return (
     <div data-densidad="normal" className="min-h-dvh bg-fondo">
-      {children}
+      <NavegacionGestion />
+      <main className="lg:pl-64">{children}</main>
     </div>
   );
 }

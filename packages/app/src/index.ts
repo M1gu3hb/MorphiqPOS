@@ -24,3 +24,6 @@ export type {
   FilaAuditoria,
   Reclamacion,
 } from './repositorio.ts';
+
+export * as catalogo from './catalogo/index.ts';
+export * as configuracion from './configuracion/index.ts';

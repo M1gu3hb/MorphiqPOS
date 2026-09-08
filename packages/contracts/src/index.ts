@@ -8,3 +8,4 @@
 export * from './errores/index';
 export * from './entorno/index';
 export * from './comandos/index';
+export * from './configuracion/index';

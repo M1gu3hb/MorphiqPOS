@@ -350,6 +350,7 @@ export interface Productos {
   nombre_porcion: string | null;
   precio_por_porcion_centavos: bigint | null;
   estrategia_consumo: Generated<string>;
+  insumo_base_id: string | null;
   permite_venta_sin_stock: Generated<boolean>;
   stock_minimo: Generated<string>;
   visible_en_pos: Generated<boolean>;

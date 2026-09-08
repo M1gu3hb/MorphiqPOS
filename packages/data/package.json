@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./migraciones": "./src/migraciones/ejecutor.ts",
+    "./catalogo": "./src/repos/catalogo.ts",
     "./stock": "./src/repos/stock.ts"
   },
   "scripts": {

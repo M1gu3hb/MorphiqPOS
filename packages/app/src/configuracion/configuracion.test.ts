@@ -1,0 +1,150 @@
+import { ESTADO_HTTP } from '@morphiqpos/contracts';
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+
+import { crearComando, definirComando } from '../comando';
+import { crearFabrica } from '../pruebas/dobles';
+import { contextoCatalogo } from '../catalogo/pruebas';
+import {
+  guardarConfiguracion,
+  leerConfiguracion,
+  type ConfiguracionOrganizacion,
+} from './configuracion';
+
+const entrada = {
+  version: 3,
+  nombreNegocio: 'Ferretería La Broca',
+  telefono: '55 1234 5678',
+  direccion: 'Av. Hidalgo 214, Col. Centro',
+  logoUrl: 'https://imagenes.morphiq.test/la-broca.webp',
+  colorPrimario: '#0f766e',
+  colorAcento: '#f59e0b',
+  estilo: 'editorial',
+  paquete: 'ferreteria',
+} as const;
+
+describe('B-05 · configuración por organización', () => {
+  it('cambia identidad, paquete y apariencia con versión optimista', async () => {
+    const { ctx, operaciones, auditorias } = contextoCatalogo([{ id: ctxId() }, { version: 4 }]);
+
+    const salida = await guardarConfiguracion.ejecutar(
+      ctx,
+      guardarConfiguracion.entrada.parse(entrada),
+    );
+
+    expect(salida).toEqual({ version: 4, paquete: 'ferreteria' });
+    expect(operaciones[0]).toMatchObject({
+      tipo: 'update',
+      tabla: 'organizaciones',
+      valores: { nombre: entrada.nombreNegocio, paquete: 'ferreteria' },
+      filtros: [{ columna: 'id', operador: '=', valor: ctx.ambito.organizacionId }],
+    });
+    expect(operaciones[1]).toMatchObject({
+      tipo: 'update',
+      tabla: 'configuracion',
+      valores: {
+        version: 4,
+        valores: {
+          contacto: { telefono: entrada.telefono, direccion: entrada.direccion },
+          apariencia: {
+            logoUrl: entrada.logoUrl,
+            colorPrimario: entrada.colorPrimario,
+            colorAcento: entrada.colorAcento,
+            estilo: entrada.estilo,
+          },
+        },
+      },
+      filtros: [
+        { columna: 'organizacion_id', operador: '=', valor: ctx.ambito.organizacionId },
+        { columna: 'version', operador: '=', valor: 3 },
+      ],
+    });
+    expect(auditorias).toHaveLength(1);
+  });
+
+  it('crea la configuración inicial si la organización aún usa defaults', async () => {
+    const { ctx, operaciones } = contextoCatalogo([{ id: ctxId() }, { version: 1 }]);
+    await guardarConfiguracion.ejecutar(
+      ctx,
+      guardarConfiguracion.entrada.parse({ ...entrada, version: 0 }),
+    );
+    expect(operaciones[1]).toMatchObject({
+      tipo: 'insert',
+      tabla: 'configuracion',
+      valores: { organizacion_id: ctx.ambito.organizacionId, version: 1 },
+    });
+  });
+
+  it('falla ante edición concurrente para que la transacción revierta también el paquete', async () => {
+    const { ctx, auditorias } = contextoCatalogo([{ id: ctxId() }, undefined]);
+    await expect(
+      guardarConfiguracion.ejecutar(ctx, guardarConfiguracion.entrada.parse(entrada)),
+    ).rejects.toMatchObject({ codigo: 'CONFIGURACION_CONFLICTO' });
+    expect(auditorias).toHaveLength(0);
+  });
+
+  it('lee una sola fila y completa valores ausentes con defaults versionados', async () => {
+    const { ctx, operaciones } = contextoCatalogo([
+      {
+        nombre: 'Cafetería Jacaranda',
+        paquete: 'cafeteria',
+        version: 7,
+        valores: { contacto: { telefono: '33 2000 1000' } },
+      },
+    ]);
+
+    const salida: ConfiguracionOrganizacion = await leerConfiguracion(
+      ctx.tx,
+      ctx.ambito.organizacionId,
+    );
+
+    expect(salida).toMatchObject({
+      nombreNegocio: 'Cafetería Jacaranda',
+      paquete: 'cafeteria',
+      version: 7,
+      telefono: '33 2000 1000',
+      direccion: null,
+      estilo: 'base',
+    });
+    expect(operaciones).toHaveLength(1);
+    expect(operaciones[0]?.tabla).toBe('organizaciones as o');
+  });
+
+  it('el paquete se niega en el servidor con 403 antes del caso de uso', async () => {
+    const fabrica = crearFabrica('tienda');
+    const ejecutar = crearComando(fabrica);
+    let ejecutado = false;
+    const soloRestaurante = definirComando({
+      nombre: 'configuracion.demo_restaurante',
+      entidad: 'configuracion',
+      escribe: false,
+      roles: ['dueno'],
+      paquetes: ['restaurante'],
+      entrada: z.object({}),
+      async ejecutar() {
+        ejecutado = true;
+        return { ok: true };
+      },
+    });
+
+    const resultado = await ejecutar(soloRestaurante, {
+      entrada: {},
+      ambito: { ...contextoCatalogo().ctx.ambito, rol: 'dueno' },
+    });
+
+    expect(resultado).toMatchObject({ ok: false, error: { codigo: 'PAQUETE_NO_INCLUYE' } });
+    expect(resultado.ok ? 200 : ESTADO_HTTP[resultado.error.codigo]).toBe(403);
+    expect(ejecutado).toBe(false);
+  });
+
+  it('no acepta ámbito ni paquete fuera del catálogo en el cuerpo', () => {
+    expect(Object.hasOwn(guardarConfiguracion.entrada.shape, 'organizacionId')).toBe(false);
+    expect(guardarConfiguracion.entrada.safeParse({ ...entrada, paquete: 'spa' }).success).toBe(
+      false,
+    );
+  });
+});
+
+function ctxId(): string {
+  return '11111111-1111-4111-8111-111111111111';
+}

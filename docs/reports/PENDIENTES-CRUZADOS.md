@@ -6,6 +6,7 @@ implementa en zona ajena (TEAM.md §6).
 | # | Quién necesita | Qué | De quién | Para qué tarea | Estado |
 |---|---|---|---|---|---|
 | X-01 | Carril A | `packages/domain/src/inventario/consumo.ts` → `calcularConsumo(lineas)` y `packages/data/src/repos/stock.ts` → `aplicarMovimientos(movimientos, tx)`, con el decremento atómico dentro | Codex (B-02, B-03) | **A-09** `cobrarOrden` | ✅ Cerrado en `carril-b`; publicado a `main` al terminar el gate |
+| X-02 | Carril B | Resolvedor de `Ambito` desde la cookie de sesión y exportación real `@morphiqpos/app/produccion` (el reporte 002 la documenta, pero falta en `packages/app/package.json`) | Claude Code (A-03) | B-05, B-06 y B-07: enlazar comandos y consultas desde Next sin confiar en cuerpo ni cabeceras del cliente | ⬜ Abierto; UI, consultas y comandos listos, sin stub inseguro |
 
 ---
 

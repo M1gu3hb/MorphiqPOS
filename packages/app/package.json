@@ -6,7 +6,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./comando": "./src/comando.ts"
+    "./comando": "./src/comando.ts",
+    "./catalogo": "./src/catalogo/index.ts",
+    "./configuracion": "./src/configuracion/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

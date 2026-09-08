@@ -1,5 +1,58 @@
 # Bitácora de ejecución — Fase 1
 
+## Carril B · B-07 · 2026-09-08 · Pantalla de configuración
+
+- **Qué se hizo:** ruta `(gestion)/configuracion` con selector visual de los cinco
+  paquetes, identidad, contacto, logo, colores, estilo y vista previa inmediata.
+- **Archivos:** `apps/web/app/(gestion)/configuracion/`, navegación de gestión y
+  colores por defecto compartidos desde `packages/contracts`.
+- **Pruebas:** contrato de los cinco paquetes; revisión real en navegador del cambio
+  Ferretería → Cafetería y confirmación visible del guardado.
+- **Verificado con:** `verify:primitivas`, lint, typecheck y navegador a 1044 px.
+- **Pendiente:** conectar el formulario al comando B-05 cuando A-03 publique el
+  resolvedor de ámbito de la sesión. No se agregó un atajo que acepte organización o rol del cliente.
+- **Reclasificaciones:** reimplementación visual basada en el sistema de diseño del proyecto.
+
+## Carril B · B-06 · 2026-09-08 · Pantalla de productos
+
+- **Qué se hizo:** ruta `(gestion)/productos` con alta, edición, imagen, precios,
+  mayoreo, SKU, código de barras, filtros y estados vacíos; búsqueda tolerante a errores.
+  La consulta de servidor usa `pg_trgm`, columnas explícitas y cursor `(updated_at,id)`.
+- **Archivos:** `apps/web/app/(gestion)/productos/`, `packages/data/src/repos/catalogo.ts`
+  y `packages/app/src/catalogo/consulta.ts`.
+- **Pruebas:** 4 de consulta/paginación y 3 de presentación/filtrado; alta y búsqueda
+  `tornilo` → `Tornillo` verificadas en navegador.
+- **Verificado con:** UI real, datos coherentes de ferretería, cero `SELECT *`, cero
+  `OFFSET`, máximo 50 filas por página.
+- **Pendiente:** el enlace de la página a Postgres espera el resolvedor de ámbito A-03;
+  los componentes trabajan hoy con la muestra local declarada.
+- **Reclasificaciones:** reimplementación; no se copió UI del histórico.
+
+## Carril B · B-05 · 2026-09-08 · Configuración y paquete
+
+- **Qué se hizo:** lectura con defaults y guardado transaccional de identidad, apariencia
+  y paquete por organización, con versión optimista. Los cinco paquetes se verifican por
+  `comando()` en el servidor y producen `403 PAQUETE_NO_INCLUYE` antes del caso de uso.
+- **Archivos:** `packages/app/src/configuracion/` y dos códigos de dominio estables.
+- **Pruebas:** 6 unitarias de alta, actualización, conflicto, defaults, aislamiento y 403.
+- **Verificado con:** 2 mutaciones de versión y paquete, detectadas y restauradas.
+- **Pendiente:** ruta HTTP de producción, cruzada con A-03.
+- **Reclasificaciones:** lógica reimplementada como comando, sin estado de sesión en navegador.
+
+## Carril B · B-04 · 2026-09-08 · Comandos de catálogo
+
+- **Qué se hizo:** crear, actualizar, cambiar precio, asignar código y archivar productos;
+  alta del insumo espejo SKU, vínculo explícito de insumo base y modificadores normalizados.
+- **Archivos:** `packages/app/src/catalogo/`; migración `040_producto_insumo_base.sql`;
+  esquema y exportaciones de app/data.
+- **Migración:** 040 ensayada con `ROLLBACK`, aplicada a Supabase MorphiqPOS y registrada
+  en `_migraciones` con hash `02664d7e6a00e913`; FK de misma organización y check verificados.
+- **Pruebas:** 12 unitarias de comandos; dinero entra como texto y se convierte a `bigint`
+  en el servidor.
+- **Verificado con:** 6 mutaciones de importes y aislamiento, detectadas y restauradas.
+- **Pendiente:** carga real de archivos pertenece a la tarea posterior de almacenamiento.
+- **Reclasificaciones:** reimplementación TypeScript de reglas observadas en el histórico.
+
 ## Carril B · B-03 · 2026-09-08 · Repositorio de stock publicado
 
 - **Qué se hizo:** `aplicarMovimientos(movimientos, tx)` toma bloqueos en orden estable,
@@ -69,7 +122,7 @@
 | Corte | Estado | Tareas | Última actualización |
 |---|---|---|---|
 | F1.0 Fundación | 🟨 12 de 13 · falta T05 en vivo | 12 / 13 | 2026-09-07 |
-| F1.1 Núcleo | 🟨 dos carriles en paralelo (A-45) · envoltorio `comando()` listo | A: 1/22 · B: 1/24 | 2026-09-08 |
+| F1.1 Núcleo | 🟨 dos carriles en paralelo (A-45) · catálogo y gestión en curso | A: 1/22 · B: 7/24 | 2026-09-08 |
 | F1.2 Catálogo y venta | ⬜ No iniciado | 0 / 17 | — |
 | F1.3 Inventario y compras | ⬜ No iniciado | 0 / 16 | — |
 | F1.4 Restaurante | ⬜ No iniciado | 0 / 17 | — |
