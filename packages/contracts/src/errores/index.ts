@@ -12,6 +12,10 @@
 
 /** Codigos estables. Nunca se renombra uno: se marca obsoleto y se agrega otro. */
 export const CODIGOS_ERROR = {
+  // --- catálogo: códigos aditivos del carril B ---
+  CANTIDAD_INVALIDA: 'CANTIDAD_INVALIDA',
+  UNIDAD_INCOMPATIBLE: 'UNIDAD_INCOMPATIBLE',
+  CATALOGO_INVALIDO: 'CATALOGO_INVALIDO',
   // --- dinero ---
   /** Se intento construir un importe que no es un entero de centavos. */
   DINERO_NO_ENTERO: 'DINERO_NO_ENTERO',
