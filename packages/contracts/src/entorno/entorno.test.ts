@@ -46,19 +46,17 @@ describe('validacion del entorno', () => {
     'APP_URL',
   ] as const;
 
-  it.each(OBLIGATORIAS)('sin %s, el proceso no arranca', (variable) => {
-    const incompleto: Record<string, string | undefined> = { ...VALIDO };
-    delete incompleto[variable];
+  /** Copia el entorno valido quitando las variables indicadas. */
+  const sin = (...quitar: readonly string[]): Record<string, string | undefined> =>
+    Object.fromEntries(Object.entries(VALIDO).filter(([clave]) => !quitar.includes(clave)));
 
-    expect(() => validarEntorno(incompleto)).toThrow(ErrorDeEntorno);
+  it.each(OBLIGATORIAS)('sin %s, el proceso no arranca', (variable) => {
+    expect(() => validarEntorno(sin(variable))).toThrow(ErrorDeEntorno);
   });
 
   it('el mensaje nombra la variable que falta y como arreglarlo', () => {
-    const incompleto: Record<string, string | undefined> = { ...VALIDO };
-    delete incompleto['PIN_PEPPER'];
-
     try {
-      validarEntorno(incompleto);
+      validarEntorno(sin('PIN_PEPPER'));
       expect.unreachable('deberia haber lanzado');
     } catch (error) {
       expect(error).toBeInstanceOf(ErrorDeEntorno);
@@ -93,10 +91,7 @@ describe('validacion del entorno', () => {
   });
 
   it('reporta TODOS los problemas de una vez, no el primero', () => {
-    const roto: Record<string, string | undefined> = { ...VALIDO };
-    delete roto['DATABASE_URL'];
-    delete roto['APP_URL'];
-    roto['PIN_PEPPER'] = 'corto';
+    const roto = { ...sin('DATABASE_URL', 'APP_URL'), PIN_PEPPER: 'corto' };
 
     try {
       validarEntorno(roto);

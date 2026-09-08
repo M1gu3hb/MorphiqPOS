@@ -21,20 +21,25 @@ const MARCADORES = ['cambia-esto', 'cambiar', 'todo', 'xxx', 'placeholder'];
 /**
  * URL http o https.
  *
- * `z.url()` sola NO basta: acepta `localhost:3000` porque lo interpreta como
- * el protocolo `localhost:`. Y una direccion sin esquema en APP_URL produce
- * enlaces rotos en los tickets y en el portal QR, que es justo el tipo de fallo
- * que aparece delante de un cliente.
+ * `z.url()` sola NO basta: acepta `localhost:3000` porque lo interpreta como el
+ * protocolo `localhost:`. Una direccion sin esquema en APP_URL produce enlaces
+ * rotos en los tickets y en el portal QR — el tipo de fallo que aparece delante
+ * de un cliente.
+ *
+ * Se valida con expresion regular y no con `new URL()` porque este paquete no
+ * tiene los tipos de Node ni del DOM: `contracts` no depende de nada, y eso
+ * incluye el entorno de ejecucion. La restriccion la impuso el compilador, y
+ * esta bien que asi sea.
  */
+const URL_HTTP = /^https?:\/\/[^\s/?#]+\S*$/;
+
 const urlHttp = (nombre: string) =>
-  z.string().refine((valor) => {
-    try {
-      const url = new URL(valor);
-      return url.protocol === 'http:' || url.protocol === 'https:';
-    } catch {
-      return false;
-    }
-  }, `${nombre} debe ser una URL http o https completa, con esquema. Ejemplo: http://localhost:3000`);
+  z
+    .string()
+    .regex(
+      URL_HTTP,
+      `${nombre} debe ser una URL http o https completa, con esquema. Ejemplo: http://localhost:3000`,
+    );
 
 const secreto = (nombre: string, para: string) =>
   z
