@@ -88,7 +88,7 @@ function BreadcrumbEllipsis({
       data-slot="breadcrumb-ellipsis"
       role="presentation"
       aria-hidden="true"
-      className={cn("flex size-[var(--altura-control)] items-center justify-center", className)}
+      className={cn("flex size-(--altura-control) items-center justify-center", className)}
       {...props}
     >
       <MoreHorizontal className="size-4" />

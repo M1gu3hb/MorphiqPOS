@@ -27,7 +27,7 @@ export function restar(minuendo: Centavos, sustraendo: Centavos): Centavos {
 }
 
 export function negar(monto: Centavos): Centavos {
-  return -monto as Centavos;
+  return -(monto as bigint) as Centavos;
 }
 
 /** -1 si a < b, 0 si son iguales, 1 si a > b. Sirve para ordenar. */

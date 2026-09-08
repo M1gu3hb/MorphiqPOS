@@ -19,7 +19,14 @@ export default defineConfig({
       'apps/*/src/**/*.test.ts',
       'capabilities/*/**/*.test.ts',
     ],
-    exclude: ['**/node_modules/**', 'historico/**'],
+    exclude: [
+      '**/node_modules/**',
+      'historico/**',
+      // Las de integracion viven aparte y necesitan Postgres: si se colaran
+      // aqui, `pnpm test:unit` fallaria sin base y la reaccion seria
+      // saltarselas. Corren con `pnpm test:integracion`.
+      '**/*.integracion.test.ts',
+    ],
     environment: 'node',
     // Una prueba que tarda mas de 5 s en una capa sin I/O esta mal escrita.
     testTimeout: 5_000,

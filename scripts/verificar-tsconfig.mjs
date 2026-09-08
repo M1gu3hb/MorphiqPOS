@@ -32,8 +32,8 @@ const OBLIGATORIAS = {
   isolatedModules: true,
   skipLibCheck: true,
   forceConsistentCasingInFileNames: true, // Windows es case-insensitive: sin esto,
-                                          // un import con mayúscula distinta pasa
-                                          // aquí y rompe en CI (Linux)
+  // un import con mayúscula distinta pasa
+  // aquí y rompe en CI (Linux)
 };
 
 /** Banderas prohibidas: si aparecen con estos valores, se relajó la puerta. */
@@ -65,13 +65,17 @@ const opciones = base.compilerOptions ?? {};
 
 for (const [bandera, esperado] of Object.entries(OBLIGATORIAS)) {
   if (opciones[bandera] !== esperado) {
-    fallos.push(`${BASE}: "${bandera}" debe ser ${esperado}, es ${JSON.stringify(opciones[bandera])}`);
+    fallos.push(
+      `${BASE}: "${bandera}" debe ser ${esperado}, es ${JSON.stringify(opciones[bandera])}`,
+    );
   }
 }
 
 for (const [bandera, prohibido] of Object.entries(PROHIBIDAS)) {
   if (bandera in opciones && opciones[bandera] === prohibido) {
-    fallos.push(`${BASE}: "${bandera}": ${JSON.stringify(prohibido)} relaja la puerta de tipos (R19)`);
+    fallos.push(
+      `${BASE}: "${bandera}": ${JSON.stringify(prohibido)} relaja la puerta de tipos (R19)`,
+    );
   }
 }
 
@@ -115,7 +119,9 @@ for (const contenedor of CONTENEDORES) {
     const propias = hija.compilerOptions ?? {};
     for (const [bandera, esperado] of Object.entries(OBLIGATORIAS)) {
       if (bandera in propias && propias[bandera] !== esperado) {
-        fallos.push(`${rel}/tsconfig.json: relaja "${bandera}" a ${JSON.stringify(propias[bandera])}`);
+        fallos.push(
+          `${rel}/tsconfig.json: relaja "${bandera}" a ${JSON.stringify(propias[bandera])}`,
+        );
       }
     }
     for (const bandera of Object.keys(PROHIBIDAS)) {

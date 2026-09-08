@@ -1,0 +1,25 @@
+{
+  "name": "@morphiqpos/testing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fabricas de datos, ayudantes y el mecanismo de inyeccion de fallos.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fallos": "./src/fallos.ts",
+    "./datos": "./src/datos.ts",
+    "./postgres": "./src/postgres.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@morphiqpos/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

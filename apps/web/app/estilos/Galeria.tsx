@@ -1,7 +1,6 @@
 'use client';
 
 import { useApariencia } from '@morphiqpos/ui/hooks';
-import { useTheme } from 'next-themes';
 
 import { Controles } from './Controles';
 import { SeccionColor } from './SeccionColor';
@@ -21,7 +20,6 @@ import { SeccionTipografia } from './SeccionTipografia';
  */
 export function Galeria() {
   const { apariencia, cambiarEstilo, ajustar } = useApariencia('premium');
-  const { resolvedTheme } = useTheme();
 
   return (
     <>
@@ -30,8 +28,8 @@ export function Galeria() {
       <main className="mx-auto max-w-6xl space-y-16 px-6 py-12">
         <section className="max-w-prose space-y-3">
           <p className="text-[length:var(--tamano-sm)] text-texto-tenue">
-            Estilo activo: <strong className="text-texto">{apariencia.estilo}</strong> ·
-            densidad {apariencia.densidad} · redondeo {apariencia.redondeo} · elevación{' '}
+            Estilo activo: <strong className="text-texto">{apariencia.estilo}</strong> · densidad{' '}
+            {apariencia.densidad} · redondeo {apariencia.redondeo} · elevación{' '}
             {apariencia.elevacion} · movimiento {apariencia.movimiento}
           </p>
           <h2 className="text-[length:var(--tamano-3xl)] leading-[var(--interlinea-compacta)] font-[var(--peso-fuerte)] tracking-[var(--tracking-compacto)]">
@@ -40,14 +38,14 @@ export function Galeria() {
             Cuatro perillas que lo cambian entero.
           </h2>
           <p className="text-texto-sutil">
-            Cambiar de estilo aquí arriba no carga otra hoja ni otro componente: mueve los
-            tokens y las cuatro perillas estructurales. Es la misma operación que hará
-            Miguel delante de un cliente para preguntarle cuál le late.
+            Cambiar de estilo aquí arriba no carga otra hoja ni otro componente: mueve los tokens y
+            las cuatro perillas estructurales. Es la misma operación que hará Miguel delante de un
+            cliente para preguntarle cuál le late.
           </p>
         </section>
 
         <SeccionTipografia />
-        <SeccionColor clave={`${apariencia.estilo}-${resolvedTheme ?? 'claro'}`} />
+        <SeccionColor />
         <SeccionComponentes />
       </main>
 

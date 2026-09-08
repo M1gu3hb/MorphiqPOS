@@ -13,7 +13,7 @@ function Menubar({
     <MenubarPrimitive.Root
       data-slot="menubar"
       className={cn(
-        "flex h-[var(--altura-control)] items-center gap-1 rounded-md border bg-background p-1 shadow-1",
+        "flex h-(--altura-control) items-center gap-1 rounded-md border bg-background p-1 shadow-1",
         className
       )}
       {...props}

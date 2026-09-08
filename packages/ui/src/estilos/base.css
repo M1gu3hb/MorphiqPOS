@@ -13,15 +13,15 @@
   /* ---------------------------------------------------------------- tipografia
      Dos familias, no mas (05 §, presupuesto de rendimiento). La tercera es la
      misma pila con otro peso, no otra descarga. */
-  --fuente-ui: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+  --fuente-ui:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --fuente-display: var(--fuente-ui);
 
   /* OBLIGATORIA y tabular. En un POS los importes se leen en columna: sin
      cifras de ancho fijo los totales bailan y el cajero se equivoca. Ninguno de
      los dos sistemas fuente lo tenia. */
-  --fuente-numeros: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono',
-    Menlo, Consolas, monospace;
+  --fuente-numeros:
+    ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
   --variante-numerica: tabular-nums lining-nums;
 
   --tamano-xs: 0.75rem;
@@ -80,9 +80,12 @@
   --radio-completo: 9999px;
   --sombra-0: none;
   --sombra-1: 0 1px 2px 0 hsl(var(--sombra-tinte) / 0.05);
-  --sombra-2: 0 1px 3px 0 hsl(var(--sombra-tinte) / 0.1), 0 1px 2px -1px hsl(var(--sombra-tinte) / 0.1);
-  --sombra-3: 0 4px 6px -1px hsl(var(--sombra-tinte) / 0.1), 0 2px 4px -2px hsl(var(--sombra-tinte) / 0.1);
-  --sombra-4: 0 10px 15px -3px hsl(var(--sombra-tinte) / 0.1), 0 4px 6px -4px hsl(var(--sombra-tinte) / 0.1);
+  --sombra-2:
+    0 1px 3px 0 hsl(var(--sombra-tinte) / 0.1), 0 1px 2px -1px hsl(var(--sombra-tinte) / 0.1);
+  --sombra-3:
+    0 4px 6px -1px hsl(var(--sombra-tinte) / 0.1), 0 2px 4px -2px hsl(var(--sombra-tinte) / 0.1);
+  --sombra-4:
+    0 10px 15px -3px hsl(var(--sombra-tinte) / 0.1), 0 4px 6px -4px hsl(var(--sombra-tinte) / 0.1);
   --duracion-rapida: 120ms;
   --duracion-normal: 200ms;
   --duracion-lenta: 320ms;
@@ -177,11 +180,14 @@
 [data-elevacion='doble-bisel'] {
   --sombra-0: none;
   --sombra-1: inset 0 1px 0 0 hsl(0 0% 100% / 0.12), 0 1px 2px 0 hsl(var(--sombra-tinte) / 0.14);
-  --sombra-2: inset 0 1px 0 0 hsl(0 0% 100% / 0.14), inset 0 -1px 0 0 hsl(var(--sombra-tinte) / 0.1),
+  --sombra-2:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.14), inset 0 -1px 0 0 hsl(var(--sombra-tinte) / 0.1),
     0 2px 6px -1px hsl(var(--sombra-tinte) / 0.16);
-  --sombra-3: inset 0 1px 0 0 hsl(0 0% 100% / 0.16), inset 0 -1px 0 0 hsl(var(--sombra-tinte) / 0.12),
+  --sombra-3:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.16), inset 0 -1px 0 0 hsl(var(--sombra-tinte) / 0.12),
     0 8px 18px -6px hsl(var(--sombra-tinte) / 0.22);
-  --sombra-4: inset 0 1px 0 0 hsl(0 0% 100% / 0.18), 0 22px 44px -14px hsl(var(--sombra-tinte) / 0.3);
+  --sombra-4:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.18), 0 22px 44px -14px hsl(var(--sombra-tinte) / 0.3);
 }
 
 [data-elevacion='linea-dura'] {

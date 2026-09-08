@@ -1,0 +1,19 @@
+{
+  "name": "@morphiqpos/data",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  },
+  "description": "El unico lugar del monorepo que conoce SQL. Repositorios, migraciones y acceso a Postgres.",
+  "dependencies": {
+    "server-only": "^0.0.1"
+  }
+}

@@ -117,7 +117,10 @@ function registrar(declaracion: string, tokens: Map<string, string>): void {
  * especificidad igual: el ultimo que coincide gana. Las hojas del sistema estan
  * escritas para depender de ese orden y no de trucos de especificidad.
  */
-export function resolverTokens(bloques: readonly BloqueCss[], activos: readonly string[]): Map<string, string> {
+export function resolverTokens(
+  bloques: readonly BloqueCss[],
+  activos: readonly string[],
+): Map<string, string> {
   const resueltos = new Map<string, string>();
 
   for (const bloque of bloques) {

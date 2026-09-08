@@ -1,0 +1,11 @@
+# historico/ es evidencia, no codigo (R30)
+historico/
+node_modules/
+.next/
+dist/
+coverage/
+.turbo/
+pnpm-lock.yaml
+# Las primitivas se generan y se tokenizan con un codemod: reformatearlas
+# a mano rompe la posibilidad de volver a generarlas.
+packages/ui/src/primitivas/

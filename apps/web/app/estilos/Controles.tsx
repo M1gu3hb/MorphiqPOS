@@ -2,7 +2,7 @@
 
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 import { ESTILOS, PERILLAS } from '@morphiqpos/ui';
 import type { Apariencia } from '@morphiqpos/ui/hooks';
@@ -36,11 +36,14 @@ const PERILLAS_AJUSTABLES = [
 
 export function Controles({ apariencia, onEstilo, onPerilla }: Props) {
   const { resolvedTheme, setTheme } = useTheme();
-  const [montado, setMontado] = useState(false);
 
-  // El tema real solo se conoce en el cliente. Sin esto el icono parpadea del
-  // valor del servidor al del navegador en cada carga.
-  useEffect(() => setMontado(true), []);
+  // El tema real solo se conoce en el cliente. Sin esperar a la hidratacion, el
+  // icono parpadea del valor del servidor al del navegador en cada carga.
+  const montado = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
 
   const esOscuro = resolvedTheme === 'dark';
 
@@ -63,7 +66,9 @@ export function Controles({ apariencia, onEstilo, onPerilla }: Props) {
               <Button
                 key={estilo.clave}
                 variant={apariencia.estilo === estilo.clave ? 'default' : 'outline'}
-                onClick={() => onEstilo(estilo.clave)}
+                onClick={() => {
+                  onEstilo(estilo.clave);
+                }}
                 aria-pressed={apariencia.estilo === estilo.clave}
                 title={`${estilo.referencia} — ${estilo.para}`}
               >
@@ -78,7 +83,9 @@ export function Controles({ apariencia, onEstilo, onPerilla }: Props) {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => setTheme(esOscuro ? 'light' : 'dark')}
+            onClick={() => {
+              setTheme(esOscuro ? 'light' : 'dark');
+            }}
             aria-label={esOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           >
             {montado && esOscuro ? <Sun aria-hidden /> : <Moon aria-hidden />}
@@ -100,7 +107,9 @@ export function Controles({ apariencia, onEstilo, onPerilla }: Props) {
                     key={valor}
                     type="button"
                     aria-pressed={activo}
-                    onClick={() => onPerilla(perilla.clave, valor)}
+                    onClick={() => {
+                      onPerilla(perilla.clave, valor);
+                    }}
                     className={[
                       'rounded-sm border px-2 py-1 text-[length:var(--tamano-xs)] transition-colors',
                       'duration-[var(--duracion-rapida)]',

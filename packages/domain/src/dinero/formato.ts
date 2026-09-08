@@ -62,7 +62,7 @@ export function desdeTexto(texto: string, moneda: Moneda = 'MXN'): Centavos {
   const numerador = BigInt(`${digitosEnteros}${digitosDecimales}` || '0') * escala;
 
   const magnitud = redondear(numerador, denominador);
-  return (signo === '-' ? -magnitud : magnitud) as Centavos;
+  return (signo === '-' ? -(magnitud as bigint) : magnitud) as Centavos;
 }
 
 /**
@@ -76,7 +76,7 @@ export function formatear(monto: Centavos, moneda: Moneda): string {
   const escala = 10n ** BigInt(decimales);
 
   const negativo = monto < 0n;
-  const magnitud = negativo ? -monto : monto;
+  const magnitud = negativo ? -(monto as bigint) : monto;
 
   const enteros = magnitud / escala;
   const fraccion = magnitud % escala;

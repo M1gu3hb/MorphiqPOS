@@ -104,11 +104,9 @@ function esperarSanos() {
       const contenedor = id.stdout.trim();
       if (contenedor.length === 0) return true;
 
-      const salud = spawnSync(
-        'docker',
-        ['inspect', '-f', '{{.State.Health.Status}}', contenedor],
-        { encoding: 'utf8' },
-      );
+      const salud = spawnSync('docker', ['inspect', '-f', '{{.State.Health.Status}}', contenedor], {
+        encoding: 'utf8',
+      });
       return salud.stdout.trim() !== 'healthy';
     });
 
@@ -157,6 +155,7 @@ switch (accion) {
   case 'down':
     exigirDocker();
     process.exit(compose('down'));
+    break;
 
   case 'reset': {
     exigirDocker();
@@ -172,10 +171,12 @@ switch (accion) {
   case 'logs':
     exigirDocker();
     process.exit(compose('logs', '-f', '--tail', '100'));
+    break;
 
   case 'estado':
     exigirDocker();
     process.exit(compose('ps'));
+    break;
 
   case 'migrate':
     delegarEnData('migrate');

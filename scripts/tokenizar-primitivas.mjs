@@ -37,18 +37,40 @@ const ALTURAS = new Map([
   ['h-6', 'h-[calc(var(--altura-control)*0.6)]'],
   ['h-7', 'h-[calc(var(--altura-control)*0.7)]'],
   ['h-8', 'h-[calc(var(--altura-control)*0.85)]'],
-  ['h-9', 'h-[var(--altura-control)]'],
+  // OJO: Tailwind 4 NO genera `h-[var(--x)]` — descarta el var() desnudo
+  // dentro de corchetes. Su sintaxis para variables es `h-(--x)`. Con la forma
+  // equivocada la clase queda en el HTML, no existe en el CSS, y la perilla de
+  // densidad no hace nada sin que falle nada. Lo detecto la prueba E2E.
+  ['h-9', 'h-(--altura-control)'],
   ['h-10', 'h-[calc(var(--altura-control)*1.15)]'],
   ['h-11', 'h-[calc(var(--altura-control)*1.25)]'],
   ['size-6', 'size-[calc(var(--altura-control)*0.6)]'],
   ['size-7', 'size-[calc(var(--altura-control)*0.7)]'],
   ['size-8', 'size-[calc(var(--altura-control)*0.85)]'],
-  ['size-9', 'size-[var(--altura-control)]'],
+  ['size-9', 'size-(--altura-control)'],
   ['size-10', 'size-[calc(var(--altura-control)*1.15)]'],
   ['min-h-16', 'min-h-[calc(var(--altura-control)*1.8)]'],
   ['size-12', 'size-[calc(var(--altura-control)*1.4)]'],
   ['size-14', 'size-[calc(var(--altura-control)*1.6)]'],
   ['size-16', 'size-[calc(var(--altura-control)*1.8)]'],
+]);
+
+/**
+ * Transiciones.
+ *
+ * shadcn usa `transition-all`, que anima TODO — incluida la altura. Eso choca
+ * con dos cosas: la regla de rendimiento del proyecto ("prefiere propiedades
+ * amigables con el compositor; evita animar width, height, padding") y la
+ * perilla de densidad, porque un control que anima su altura no cambia de golpe
+ * al cambiar la densidad, sino que se arrastra.
+ *
+ * Se sustituye por la lista explicita de lo que si conviene animar.
+ */
+const TRANSICIONES = new Map([
+  [
+    'transition-all',
+    'transition-[color,background-color,border-color,box-shadow,opacity,transform]',
+  ],
 ]);
 
 /**
@@ -136,6 +158,14 @@ export function tokenizar(fuente) {
 
   // 6 · Sombras contra la perilla de elevacion.
   for (const [literal, token] of SOMBRAS) {
+    salida = salida.replaceAll(
+      new RegExp(`(^|[\\s"'\`:])${literal}(?=[\\s"'\`]|$)`, 'g'),
+      `$1${token}`,
+    );
+  }
+
+  // 7 · Transiciones: nunca animar propiedades que provocan reflujo.
+  for (const [literal, token] of TRANSICIONES) {
     salida = salida.replaceAll(
       new RegExp(`(^|[\\s"'\`:])${literal}(?=[\\s"'\`]|$)`, 'g'),
       `$1${token}`,

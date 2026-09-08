@@ -29,15 +29,48 @@ const VIGILADAS = [
 
 /** Paleta de Tailwind. Ninguna de estas familias es un token del sistema. */
 const FAMILIAS = [
-  'slate', 'gray', 'zinc', 'neutral', 'stone', 'red', 'orange', 'amber',
-  'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue',
-  'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose',
+  'slate',
+  'gray',
+  'zinc',
+  'neutral',
+  'stone',
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'purple',
+  'fuchsia',
+  'pink',
+  'rose',
 ];
 
 /** Utilidades que aceptan color. */
 const PREFIJOS = [
-  'bg', 'text', 'border', 'ring', 'fill', 'stroke', 'from', 'via', 'to',
-  'shadow', 'outline', 'decoration', 'accent', 'caret', 'divide', 'placeholder',
+  'bg',
+  'text',
+  'border',
+  'ring',
+  'fill',
+  'stroke',
+  'from',
+  'via',
+  'to',
+  'shadow',
+  'outline',
+  'decoration',
+  'accent',
+  'caret',
+  'divide',
+  'placeholder',
 ];
 
 const REGLAS = [

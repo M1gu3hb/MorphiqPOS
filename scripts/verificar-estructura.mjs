@@ -119,4 +119,6 @@ if (fallos.length > 0) {
   process.exit(1);
 }
 
-console.log(`✓ Estructura del monorepo correcta (${CARPETAS.length} carpetas, ${ARCHIVOS_RAIZ.length} manifiestos).`);
+console.log(
+  `✓ Estructura del monorepo correcta (${CARPETAS.length} carpetas, ${ARCHIVOS_RAIZ.length} manifiestos).`,
+);

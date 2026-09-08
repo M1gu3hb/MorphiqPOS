@@ -38,7 +38,8 @@ services:
     volumes:
       - postgres-datos:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-morphiqpos} -d ${POSTGRES_DB:-morphiqpos}']
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-morphiqpos} -d ${POSTGRES_DB:-morphiqpos}']
       interval: 5s
       timeout: 5s
       retries: 20

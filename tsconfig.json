@@ -1,7 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "./tsconfig.base.json",
-  "//": "Configuracion raiz para el editor. Cada workspace se comprueba con su propio tsconfig.json.",
-  "files": [],
-  "exclude": ["node_modules", "dist", "build", ".next", ".turbo", "coverage", "historico"]
+  "//": "Configuracion raiz. Recoge los archivos de configuracion en TypeScript que no pertenecen a ningun paquete, para que el lint con informacion de tipos pueda analizarlos.",
+  "files": ["vitest.config.ts", "vitest.integracion.config.ts", "playwright.config.ts"],
+  "exclude": ["node_modules", "dist", "build", ".next", ".turbo", "coverage", "historico"],
+  "compilerOptions": {
+    "types": ["node"]
+  }
 }

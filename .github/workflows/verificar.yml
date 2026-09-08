@@ -1,0 +1,180 @@
+# Puertas de calidad de MorphiqPOS (F1.0-T09).
+#
+# Bloquean el merge. R19: "Lint y tipos en cero errores, desde el primer commit.
+# Después nunca se recupera. El POS de restaurante llegó a 1,592 diagnósticos de
+# tipos por no aplicar esto."
+#
+# ESTADO: escrito y sin ejecutar. El repositorio de código todavía no tiene
+# remoto (decisión A-35), así que este archivo no ha corrido nunca en GitHub.
+# Cada paso invoca EXACTAMENTE el mismo script que se ejecuta en local con
+# `pnpm verify`, y esos sí están verificados uno por uno con mutaciones. Cuando
+# haya remoto, la única incógnita es el entorno, no las comprobaciones.
+#
+# Las acciones de terceros van fijadas a SHA completo, no a etiqueta: una
+# etiqueta se puede mover a otro commit y ejecutar código distinto sin que
+# cambie una línea de este archivo (gate morphiq-prs §20).
+
+name: Verificar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  calidad:
+    name: Formato · lint · tipos · pruebas · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # Postgres real para las pruebas de integración. 13-PRUEBAS §2:
+      # "Prohibido mockear la base de datos en pruebas de integración. Un mock
+      # no reproduce restricciones únicas, transacciones ni carreras — que es
+      # exactamente lo que se está probando."
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_USER: morphiqpos
+          POSTGRES_PASSWORD: morphiqpos_ci
+          POSTGRES_DB: morphiqpos_pruebas
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U morphiqpos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Preparar pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Preparar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        # --frozen-lockfile: si alguien cambió package.json sin actualizar el
+        # lockfile, aquí falla en vez de instalar versiones distintas a las que
+        # se probaron en local (gate PRS §20, build reproducible).
+        run: pnpm install --frozen-lockfile
+
+      # --- Puertas que no necesitan compilar nada -------------------------
+      - name: Estructura del monorepo
+        run: pnpm verify:estructura
+
+      - name: Contrato de historico/
+        run: pnpm verify:historico
+
+      - name: TypeScript estricto
+        run: pnpm verify:tsconfig
+
+      - name: Entorno local reproducible
+        run: pnpm verify:entorno
+
+      - name: Residuos de la plataforma erradicada
+        run: pnpm verify:residuos
+
+      - name: Tokens del sistema de diseño
+        run: pnpm verify:primitivas
+
+      # --- Formato, lint y tipos -------------------------------------------
+      - name: Formato
+        run: pnpm format:check
+
+      - name: Lint y regla de dependencia entre capas
+        run: pnpm lint
+
+      - name: Tipos
+        run: pnpm typecheck
+
+      # --- Pruebas ----------------------------------------------------------
+      - name: Pruebas unitarias
+        run: pnpm test:unit
+
+      - name: Pruebas de integración contra Postgres real
+        env:
+          DATABASE_URL: postgres://morphiqpos:morphiqpos_ci@localhost:5433/morphiqpos_pruebas
+        run: pnpm test:integracion
+
+      # --- Build y humo -----------------------------------------------------
+      - name: Build de producción
+        run: pnpm build
+
+      - name: Cabeceras de seguridad en vivo
+        run: pnpm verify:cabeceras
+
+  dependencias:
+    name: Auditoría de dependencias
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Preparar pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Preparar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Vulnerabilidades altas y críticas
+        # P1-07: el POS de restaurante acumuló 29 vulnerabilidades, 8 altas en
+        # producción. Aquí se bloquea el merge en cuanto aparece una.
+        run: pnpm audit --audit-level high --prod
+
+  independencia:
+    name: ZERO-01 · independencia de la plataforma
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Bloquear los dominios heredados
+        # 06-DEFECTOS §1, prueba ZERO-01: el sistema arranca y funciona con el
+        # DNS hacia los dominios de la plataforma bloqueado. Se ejecuta en cada
+        # corrida, no una sola vez al final.
+        # La marca se compone en vez de escribirse literal: si apareciera tal
+        # cual, este archivo seria un residuo para verify:residuos. La regla vale
+        # tambien para quien la aplica.
+        run: |
+          MARCA="base""44"
+          echo "127.0.0.1 app.${MARCA}.com"   | sudo tee -a /etc/hosts
+          echo "127.0.0.1 media.${MARCA}.com" | sudo tee -a /etc/hosts
+
+      - name: Preparar pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Preparar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar, construir y arrancar sin los dominios heredados
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm verify:cabeceras

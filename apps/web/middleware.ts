@@ -53,5 +53,7 @@ export function middleware(peticion: NextRequest): NextResponse {
 export const config = {
   // Se excluyen los archivos estaticos: no necesitan CSP ni sesion, y pasarlos
   // por el middleware cuesta latencia en cada icono.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif)$).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif)$).*)',
+  ],
 };

@@ -53,12 +53,12 @@ export function useApariencia(estiloInicial: string) {
   }, []);
 
   /** Ajustar una perilla suelta, sin tocar las demas. */
-  const ajustar = useCallback(<C extends keyof Omit<Apariencia, 'estilo'>>(
-    perilla: C,
-    valor: Apariencia[C],
-  ) => {
-    setApariencia((previa) => ({ ...previa, [perilla]: valor }));
-  }, []);
+  const ajustar = useCallback(
+    <C extends keyof Omit<Apariencia, 'estilo'>>(perilla: C, valor: Apariencia[C]) => {
+      setApariencia((previa) => ({ ...previa, [perilla]: valor }));
+    },
+    [],
+  );
 
   return { apariencia, cambiarEstilo, ajustar };
 }

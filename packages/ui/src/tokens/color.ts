@@ -56,19 +56,23 @@ export function hslARgb({ matiz, saturacion, luminosidad }: ColorHsl): ColorRgb 
   const hp = (((matiz % 360) + 360) % 360) / 60;
   const x = c * (1 - Math.abs((hp % 2) - 1));
 
-  let r = 0;
-  let g = 0;
-  let b = 0;
-
-  if (hp < 1) [r, g, b] = [c, x, 0];
-  else if (hp < 2) [r, g, b] = [x, c, 0];
-  else if (hp < 3) [r, g, b] = [0, c, x];
-  else if (hp < 4) [r, g, b] = [0, x, c];
-  else if (hp < 5) [r, g, b] = [x, 0, c];
-  else [r, g, b] = [c, 0, x];
+  // Tupla explicita: con noUncheckedIndexedAccess, desestructurar un
+  // number[] daria number | undefined y obligaria a comprobaciones falsas.
+  const canales: readonly [number, number, number] =
+    hp < 1
+      ? [c, x, 0]
+      : hp < 2
+        ? [x, c, 0]
+        : hp < 3
+          ? [0, c, x]
+          : hp < 4
+            ? [0, x, c]
+            : hp < 5
+              ? [x, 0, c]
+              : [c, 0, x];
 
   const m = l - c / 2;
-  return { rojo: r + m, verde: g + m, azul: b + m };
+  return { rojo: canales[0] + m, verde: canales[1] + m, azul: canales[2] + m };
 }
 
 /** Linealiza un canal sRGB. WCAG 2.2, definicion de luminancia relativa. */

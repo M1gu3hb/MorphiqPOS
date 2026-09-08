@@ -54,7 +54,7 @@ describe('el contrato de tokens', () => {
 
   for (const estilo of ESTILOS_F1_0) {
     for (const modo of MODOS) {
-      it(`${estilo} en ${modo} declara los ${TOKENS_COLOR.length} tokens de color`, () => {
+      it(`${estilo} en ${modo} declara los ${String(TOKENS_COLOR.length)} tokens de color`, () => {
         const tokens = tokensDe(estilo, modo);
         const faltantes = TOKENS_COLOR.filter((token) => !tokens.has(token));
         expect(faltantes).toEqual([]);
@@ -62,7 +62,9 @@ describe('el contrato de tokens', () => {
 
       it(`${estilo} en ${modo} tiene todos los colores en formato HSL sin funcion`, () => {
         const tokens = tokensDe(estilo, modo);
-        const malformados = TOKENS_COLOR.filter((token) => leerHsl(tokens.get(token) ?? '') === null);
+        const malformados = TOKENS_COLOR.filter(
+          (token) => leerHsl(tokens.get(token) ?? '') === null,
+        );
         expect(malformados).toEqual([]);
       });
     }
@@ -72,8 +74,8 @@ describe('el contrato de tokens', () => {
     for (const estilo of ESTILOS_F1_0) {
       const claro = tokensDe(estilo, 'claro');
       const oscuro = tokensDe(estilo, 'oscuro');
-      expect(oscuro.get('fondo'), `${estilo}`).not.toBe(claro.get('fondo'));
-      expect(oscuro.get('texto'), `${estilo}`).not.toBe(claro.get('texto'));
+      expect(oscuro.get('fondo'), estilo).not.toBe(claro.get('fondo'));
+      expect(oscuro.get('texto'), estilo).not.toBe(claro.get('texto'));
     }
   });
 
@@ -182,8 +184,10 @@ describe('contraste AA en los 2 estilos x 2 modos (F1.0-P5)', () => {
           expect(frente, `token ${par.frente} ausente o malformado`).not.toBeNull();
           expect(fondo, `token ${par.fondo} ausente o malformado`).not.toBeNull();
 
-          const razon = contrasteLegible(frente as NonNullable<typeof frente>, fondo as NonNullable<typeof fondo>);
-          expect(razon, `${par.porque}. Contraste real ${razon}:1`).toBeGreaterThanOrEqual(par.minimo);
+          const razon = contrasteLegible(frente!, fondo!);
+          expect(razon, `${par.porque}. Contraste real ${razon}:1`).toBeGreaterThanOrEqual(
+            par.minimo,
+          );
         });
       }
 

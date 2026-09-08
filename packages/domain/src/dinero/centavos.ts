@@ -69,5 +69,5 @@ export function esNegativo(monto: Centavos): boolean {
  * presentan con el mismo formato aunque uno sea negativo.
  */
 export function absoluto(monto: Centavos): Centavos {
-  return (monto < 0n ? -monto : monto) as Centavos;
+  return (monto < 0n ? -(monto as bigint) : monto) as Centavos;
 }

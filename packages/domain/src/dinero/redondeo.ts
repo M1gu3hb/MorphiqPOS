@@ -30,7 +30,7 @@ export function redondear(numerador: bigint, denominador: bigint): Centavos {
 
   // Se trabaja con magnitudes y se le devuelve el signo al final: asi la regla
   // "la mitad se aleja del cero" sale sola, sin ramas por signo.
-  const signo = (numerador < 0n) !== (denominador < 0n) ? -1n : 1n;
+  const signo = numerador < 0n !== denominador < 0n ? -1n : 1n;
   const n = numerador < 0n ? -numerador : numerador;
   const d = denominador < 0n ? -denominador : denominador;
 

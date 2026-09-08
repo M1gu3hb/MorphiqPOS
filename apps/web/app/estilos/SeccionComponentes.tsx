@@ -5,16 +5,35 @@ import { AlertTriangle, Check, Printer, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@morphiqpos/ui/primitivas/alert';
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@morphiqpos/ui/primitivas/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@morphiqpos/ui/primitivas/card';
 import { Checkbox } from '@morphiqpos/ui/primitivas/checkbox';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { RadioGroup, RadioGroupItem } from '@morphiqpos/ui/primitivas/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@morphiqpos/ui/primitivas/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@morphiqpos/ui/primitivas/select';
 import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Switch } from '@morphiqpos/ui/primitivas/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@morphiqpos/ui/primitivas/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@morphiqpos/ui/primitivas/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primitivas/tabs';
 import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
 
@@ -64,9 +83,10 @@ export function SeccionComponentes() {
           </Button>
         </div>
         <p className="max-w-prose text-texto-sutil">
-          Los tamaños salen de <code className="font-[family-name:var(--fuente-numeros)]">--altura-control</code>,
-          que mueve la perilla de densidad. Cambia arriba a <strong>compacta</strong> y todo
-          encoge junto, sin tocar un solo componente.
+          Los tamaños salen de{' '}
+          <code className="font-[family-name:var(--fuente-numeros)]">--altura-control</code>, que
+          mueve la perilla de densidad. Cambia arriba a <strong>compacta</strong> y todo encoge
+          junto, sin tocar un solo componente.
         </p>
       </section>
 
@@ -133,7 +153,10 @@ export function SeccionComponentes() {
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-texto-sutil">Consumo</span>
-                <span data-numeros className="text-[length:var(--tamano-lg)] font-[var(--peso-fuerte)]">
+                <span
+                  data-numeros
+                  className="text-[length:var(--tamano-lg)] font-[var(--peso-fuerte)]"
+                >
                   $405.50
                 </span>
               </div>
@@ -173,8 +196,8 @@ export function SeccionComponentes() {
           Datos y dinero
         </h2>
         <p className="max-w-prose text-texto-sutil">
-          Los importes van alineados a la derecha y con cifras de ancho fijo. Sin eso los
-          totales bailan al leerlos en columna y el cajero se equivoca.
+          Los importes van alineados a la derecha y con cifras de ancho fijo. Sin eso los totales
+          bailan al leerlos en columna y el cajero se equivoca.
         </p>
         <Tabs defaultValue="cuenta">
           <TabsList>
@@ -195,8 +218,12 @@ export function SeccionComponentes() {
                 {RENGLONES.map((renglon) => (
                   <TableRow key={renglon.producto}>
                     <TableCell>{renglon.producto}</TableCell>
-                    <TableCell data-numeros className="text-right">{renglon.cantidad}</TableCell>
-                    <TableCell data-numeros className="text-right">{renglon.precio}</TableCell>
+                    <TableCell data-numeros className="text-right">
+                      {renglon.cantidad}
+                    </TableCell>
+                    <TableCell data-numeros className="text-right">
+                      {renglon.precio}
+                    </TableCell>
                     <TableCell data-numeros className="text-right font-[var(--peso-medio)]">
                       {renglon.total}
                     </TableCell>
@@ -217,8 +244,8 @@ export function SeccionComponentes() {
             </Table>
           </TabsContent>
           <TabsContent value="pagos" className="mt-4 text-texto-sutil">
-            Un pago mixto son varias filas en la tabla <code>pagos</code>, no columnas dentro
-            de la venta. Llega en F1.2.
+            Un pago mixto son varias filas en la tabla <code>pagos</code>, no columnas dentro de la
+            venta. Llega en F1.2.
           </TabsContent>
         </Tabs>
       </section>

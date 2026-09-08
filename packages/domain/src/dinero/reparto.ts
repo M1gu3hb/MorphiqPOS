@@ -34,7 +34,7 @@ export function repartir(monto: Centavos, partes: number): Centavos[] {
 
   const divisor = BigInt(partes);
   const signo = monto < 0n ? -1n : 1n;
-  const magnitud = monto < 0n ? -monto : monto;
+  const magnitud = monto < 0n ? -(monto as bigint) : monto;
 
   const base = magnitud / divisor;
   const resto = magnitud % divisor;

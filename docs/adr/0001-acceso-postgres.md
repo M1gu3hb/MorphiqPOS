@@ -17,18 +17,18 @@ lugar donde vive lógica de negocio (R7).
 Esa elección le deja a la capa de datos una responsabilidad estrecha pero exigente.
 Los requisitos no son negociables porque salen de reglas ya escritas:
 
-| # | Requisito | De dónde sale |
-|---|---|---|
-| 1 | Transacciones reales **anidables** (savepoints), componibles desde un comando | R10, `04-ARQUITECTURA §3` |
-| 2 | **SQL legible en revisión** — se debe poder leer lo que le llega a Postgres | F1.0-T04 |
-| 3 | **Tipos generados del esquema, no escritos a mano** | `04-ARQUITECTURA §3` (`contracts`) |
-| 4 | **Migraciones versionadas** `NNN_snake_case.sql`, reproducibles | `04-ARQUITECTURA §7`, gate PRS §12 |
-| 5 | Cero dependencia de servicios propietarios; todo corre en Docker local sin internet | A-27, R7 |
-| 6 | Decremento **atómico con guarda** sobre el saldo de existencias | R13, P1-03 |
-| 7 | `UPDATE … RETURNING` dentro de la transacción para el folio consecutivo | P1-09 |
-| 8 | Índices **parciales únicos** (una sola orden activa por mesa) | P0-05, `03-MODELO §6` |
-| 9 | `bigint` de centavos **sin pérdida de precisión** en el driver | R15, `03-MODELO` |
-| 10 | Triggers propios (`historial_precios`) y `check` explícitos en vez de tipos `enum` | `03-MODELO §2` y convenciones |
+| #   | Requisito                                                                           | De dónde sale                      |
+| --- | ----------------------------------------------------------------------------------- | ---------------------------------- |
+| 1   | Transacciones reales **anidables** (savepoints), componibles desde un comando       | R10, `04-ARQUITECTURA §3`          |
+| 2   | **SQL legible en revisión** — se debe poder leer lo que le llega a Postgres         | F1.0-T04                           |
+| 3   | **Tipos generados del esquema, no escritos a mano**                                 | `04-ARQUITECTURA §3` (`contracts`) |
+| 4   | **Migraciones versionadas** `NNN_snake_case.sql`, reproducibles                     | `04-ARQUITECTURA §7`, gate PRS §12 |
+| 5   | Cero dependencia de servicios propietarios; todo corre en Docker local sin internet | A-27, R7                           |
+| 6   | Decremento **atómico con guarda** sobre el saldo de existencias                     | R13, P1-03                         |
+| 7   | `UPDATE … RETURNING` dentro de la transacción para el folio consecutivo             | P1-09                              |
+| 8   | Índices **parciales únicos** (una sola orden activa por mesa)                       | P0-05, `03-MODELO §6`              |
+| 9   | `bigint` de centavos **sin pérdida de precisión** en el driver                      | R15, `03-MODELO`                   |
+| 10  | Triggers propios (`historial_precios`) y `check` explícitos en vez de tipos `enum`  | `03-MODELO §2` y convenciones      |
 
 El punto 10 importa más de lo que parece, y es el que decide este ADR. Volvemos a él en §4.
 
@@ -67,17 +67,17 @@ herramienta genera las migraciones SQL.
 
 **En contra**
 
-- **Invierte el requisito 2.** El SQL pasa a ser *salida generada*, no la fuente. Se
+- **Invierte el requisito 2.** El SQL pasa a ser _salida generada_, no la fuente. Se
   revisa el `.sql` que produjo la herramienta, no el que se escribió.
 - Pre-1.0 (`0.45.x`): la API todavía se mueve, y este proyecto va a vivir 8–11 meses de
   Fase 1 y años después.
 - **El problema de fondo:** Drizzle no expresa triggers, funciones ni ciertas
-  restricciones. Esas van en migraciones SQL crudas *aparte*. Resultado: **dos fuentes
+  restricciones. Esas van en migraciones SQL crudas _aparte_. Resultado: **dos fuentes
   de verdad del esquema** —el TS y el SQL crudo— que pueden desincronizarse sin que nada
   avise. Es exactamente la clase de deriva silenciosa que este proyecto está tratando de
   no repetir.
 
-### Opción C — Kysely sobre `pg`, con el esquema en SQL · *propuesta*
+### Opción C — Kysely sobre `pg`, con el esquema en SQL · _propuesta_
 
 `kysely@0.29.5` sobre `pg@8.23.0`. Kysely **no es un ORM**: es un constructor de
 consultas tipado. No posee el esquema, no genera migraciones y no esconde SQL. Los
@@ -107,20 +107,20 @@ tipos salen de `kysely-codegen@0.20.0`, que **lee la base ya migrada**.
 
 ## 3. Cómo puntúa cada opción
 
-| Requisito | A · `pg` a mano | B · Drizzle | C · Kysely |
-|---|:---:|:---:|:---:|
-| 1 · Transacciones anidables | ✅ | ✅ | ✅ |
-| 2 · SQL legible en revisión | ✅ | ⚠️ generado | ✅ |
-| 3 · Tipos generados del esquema | ⚠️ hay que montarlo | ✅ | ✅ |
-| 4 · Migraciones `NNN_*.sql` versionadas | ✅ | ⚠️ nombra y numera a su manera | ✅ |
-| 5 · Portabilidad, cero propietario | ✅ | ✅ | ✅ |
-| 6 · Decremento atómico con guarda | ✅ | ⚠️ vía escape hatch | ✅ |
-| 7 · `UPDATE … RETURNING` | ✅ | ✅ | ✅ |
-| 8 · Índices parciales únicos | ✅ | ✅ | ✅ |
-| 9 · `bigint` sin pérdida | ⚠️ configurar el driver | ⚠️ igual | ⚠️ igual |
-| 10 · **Una sola fuente de verdad del esquema** | ✅ | ❌ **dos** | ✅ |
-| — Refactor asistido por el compilador | ❌ | ✅ | ✅ |
-| — Plomería a mano | ❌ mucha | ✅ poca | ✅ poca |
+| Requisito                                      |     A · `pg` a mano     |          B · Drizzle           | C · Kysely |
+| ---------------------------------------------- | :---------------------: | :----------------------------: | :--------: |
+| 1 · Transacciones anidables                    |           ✅            |               ✅               |     ✅     |
+| 2 · SQL legible en revisión                    |           ✅            |          ⚠️ generado           |     ✅     |
+| 3 · Tipos generados del esquema                |   ⚠️ hay que montarlo   |               ✅               |     ✅     |
+| 4 · Migraciones `NNN_*.sql` versionadas        |           ✅            | ⚠️ nombra y numera a su manera |     ✅     |
+| 5 · Portabilidad, cero propietario             |           ✅            |               ✅               |     ✅     |
+| 6 · Decremento atómico con guarda              |           ✅            |      ⚠️ vía escape hatch       |     ✅     |
+| 7 · `UPDATE … RETURNING`                       |           ✅            |               ✅               |     ✅     |
+| 8 · Índices parciales únicos                   |           ✅            |               ✅               |     ✅     |
+| 9 · `bigint` sin pérdida                       | ⚠️ configurar el driver |            ⚠️ igual            |  ⚠️ igual  |
+| 10 · **Una sola fuente de verdad del esquema** |           ✅            |           ❌ **dos**           |     ✅     |
+| — Refactor asistido por el compilador          |           ❌            |               ✅               |     ✅     |
+| — Plomería a mano                              |        ❌ mucha         |            ✅ poca             |  ✅ poca   |
 
 El requisito 9 es empate: **los tres usan `pg` por debajo**, y `pg` devuelve `int8` como
 cadena por omisión. Se resuelve una sola vez configurando el parser de tipos en
@@ -182,12 +182,12 @@ viene en una dependencia que sí usamos (R8).
 
 **Riesgos y cómo se controlan**
 
-| Riesgo | Control |
-|---|---|
-| Kysely es pre-1.0 y rompe la API | Se fija la versión exacta. La superficie que usamos es pequeña y la reversa a `pg` crudo es mecánica |
-| Los tipos generados se desincronizan | Comprobación en CI: regenerar y comparar. Si difiere, falla |
-| `bigint` vuelve como cadena y el dinero se corrompe en silencio | Parser configurado una vez, más una prueba de F1.0-T06 que falla si `int8` no llega como `bigint` |
-| Escribir SQL a mano invita a olvidar `organizacion_id` | R16 más las pruebas generadas `TEN-*` de `13-PRUEBAS §3`, que recorren todo comando y consulta |
+| Riesgo                                                          | Control                                                                                              |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Kysely es pre-1.0 y rompe la API                                | Se fija la versión exacta. La superficie que usamos es pequeña y la reversa a `pg` crudo es mecánica |
+| Los tipos generados se desincronizan                            | Comprobación en CI: regenerar y comparar. Si difiere, falla                                          |
+| `bigint` vuelve como cadena y el dinero se corrompe en silencio | Parser configurado una vez, más una prueba de F1.0-T06 que falla si `int8` no llega como `bigint`    |
+| Escribir SQL a mano invita a olvidar `organizacion_id`          | R16 más las pruebas generadas `TEN-*` de `13-PRUEBAS §3`, que recorren todo comando y consulta       |
 
 ---
 

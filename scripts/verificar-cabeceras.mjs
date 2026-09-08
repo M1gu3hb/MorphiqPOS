@@ -24,7 +24,8 @@ const PUERTO = 3199;
 const EXIGIDAS = [
   {
     nombre: 'content-security-policy',
-    valida: (v) => v.includes("frame-ancestors 'none'") && !/script-src[^;]*'unsafe-inline'/.test(v),
+    valida: (v) =>
+      v.includes("frame-ancestors 'none'") && !/script-src[^;]*'unsafe-inline'/.test(v),
     porque: "CSP con nonce y sin 'unsafe-inline' en script-src (SEC-XSS)",
   },
   {
@@ -171,5 +172,7 @@ if (fallos.length > 0) {
   terminar(1);
 }
 
-console.log(`✓ Cabeceras de seguridad: ${EXIGIDAS.length} presentes y correctas, nonce por peticion.`);
+console.log(
+  `✓ Cabeceras de seguridad: ${EXIGIDAS.length} presentes y correctas, nonce por peticion.`,
+);
 terminar(0);

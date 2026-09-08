@@ -23,6 +23,10 @@ export const CODIGOS_ERROR = {
   DINERO_DIVISOR_CERO: 'DINERO_DIVISOR_CERO',
   /** Los puntos base de un porcentaje no son un entero. */
   DINERO_PORCENTAJE_INVALIDO: 'DINERO_PORCENTAJE_INVALIDO',
+
+  // --- andamiaje de pruebas ---
+  /** Se pidio interrumpir despues de un paso que no existe (inyeccion de fallos). */
+  PASO_INEXISTENTE: 'PASO_INEXISTENTE',
 } as const;
 
 export type CodigoError = (typeof CODIGOS_ERROR)[keyof typeof CODIGOS_ERROR];

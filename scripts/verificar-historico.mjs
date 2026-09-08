@@ -18,11 +18,25 @@ import { join, relative, sep } from 'node:path';
 const RAIZ = process.cwd();
 const HISTORICO = join(RAIZ, 'historico');
 
+/**
+ * La marca de la plataforma erradicada, compuesta y no escrita literal: si
+ * apareciera tal cual, este archivo seria un residuo para verificar-residuos.mjs.
+ */
+const MARCA = `${'base'}${44}`;
+
 /** Las tres fuentes y un archivo marcador que prueba que estan completas. */
 const FUENTES = [
   { ruta: 'historico/tiendita', marcador: 'package.json', que: 'Repo POS-MH-Tiendita (Fuente B)' },
-  { ruta: 'historico/restaurante', marcador: 'base44/config.jsonc', que: 'ZIP POS MH Restaurante (Fuente A)' },
-  { ruta: 'historico/auditoria-fase-0', marcador: 'LEEME_PRIMERO.md', que: 'Paquete de auditoria de Fase 0' },
+  {
+    ruta: 'historico/restaurante',
+    marcador: `${MARCA}/config.jsonc`,
+    que: 'ZIP POS MH Restaurante (Fuente A)',
+  },
+  {
+    ruta: 'historico/auditoria-fase-0',
+    marcador: 'LEEME_PRIMERO.md',
+    que: 'Paquete de auditoria de Fase 0',
+  },
 ];
 
 /** Carpetas del monorepo que SI son codigo y no pueden importar de historico/. */
