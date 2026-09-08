@@ -45,6 +45,14 @@ export function useVenta() {
   }, []);
 
   const fallar = useCallback((error: unknown) => {
+    // Sin sesión no hay nada que enseñar aquí: se manda a entrar en vez de
+    // dejar al cajero mirando «Entra con tu PIN» sin un sitio donde hacerlo.
+    // `assign` y no `router.push` porque hay que recargar el estado entero, no
+    // navegar dentro de una sesión que ya no existe.
+    if (error instanceof ErrorApi && error.error.codigo === 'NO_AUTENTICADO') {
+      window.location.assign('/entrar');
+      return;
+    }
     setEstado((previo) => ({ ...previo, cargando: false, error: mensajeDe(error) }));
   }, []);
 
