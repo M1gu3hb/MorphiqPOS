@@ -2,7 +2,6 @@ import {
   esErrorDominio,
   type Ambito,
   type CodigoComando,
-  type ErrorComando,
   type Resultado,
 } from '@morphiqpos/contracts';
 import type { ZodType } from 'zod';
@@ -10,7 +9,8 @@ import type { ZodType } from 'zod';
 import { auditar } from './auditoria.ts';
 import { type ContextoComando, type DefinicionComando } from './definicion.ts';
 import { fallo, mensajeDe, validar } from './errores.ts';
-import type { EjecucionGuardada, RepositorioComandos } from './repositorio.ts';
+import { atenderReintento, PasoInexistente, Rechazo, Reintento, SinRastro } from './fallos.ts';
+import type { RepositorioComandos } from './repositorio.ts';
 import { huella } from './saneado.ts';
 
 export { definirComando } from './definicion.ts';
@@ -60,25 +60,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CLAVE_MINIMA = 8;
 
 /** Rechazo decidido dentro de la transacción: aborta y viaja con su código. */
-class Rechazo extends Error {
-  constructor(
-    readonly codigo: CodigoComando,
-    readonly auditable: 'denegado' | 'conflicto' | 'error' | null,
-    readonly error?: ErrorComando,
-  ) {
-    super(codigo);
-    this.name = 'Rechazo';
-  }
-}
-
-/** La clave ya tenía una ejecución confirmada: se devuelve aquélla. */
-class Reintento extends Error {
-  constructor(readonly previa: EjecucionGuardada) {
-    super('reintento');
-    this.name = 'Reintento';
-  }
-}
-
 export function crearComando<TX>(deps: Dependencias<TX>) {
   const ahora = deps.ahora ?? (() => new Date());
   const nuevoId = deps.nuevoId ?? (() => crypto.randomUUID());
@@ -278,42 +259,4 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
       return { ok: false, error: fallo('ERROR_INTERNO'), correlationId };
     }
   };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class SinRastro extends Error {
-  constructor(nombre: string) {
-    super(
-      `El comando "${nombre}" declara escribir y no llamó a ctx.auditar(). ` +
-        'Declarar sensible algo que no deja rastro convierte la auditoría en un adorno.',
-    );
-    this.name = 'SinRastro';
-  }
-}
-
-class PasoInexistente extends Error {
-  constructor(nombre: string) {
-    super(
-      `Se pidió interrumpir el paso "${nombre}" y el comando nunca lo ejecutó. ` +
-        'Una inyección de fallo que no interrumpe nada afirma una atomicidad que nadie probó.',
-    );
-    this.name = 'PasoInexistente';
-  }
-}
-
-async function atenderReintento<S>(
-  previa: EjecucionGuardada,
-  contexto: { huellaEntrada: string; correlationId: string; contar: () => Promise<void> },
-): Promise<Resultado<S>> {
-  const { huellaEntrada, correlationId } = contexto;
-
-  // Misma clave con otra entrada es un error del cliente, no un reintento.
-  // Devolver la respuesta guardada escondería que pidió una cosa distinta.
-  if (previa.huellaEntrada !== huellaEntrada) {
-    return { ok: false, error: fallo('IDEMPOTENCIA_CONFLICTO'), correlationId };
-  }
-
-  await contexto.contar();
-  return { ok: true, datos: previa.respuesta as S, correlationId, reintento: true };
 }

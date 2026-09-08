@@ -190,7 +190,8 @@ INMEDIATAMENTE» como subirlo también a `main`, no sólo a `carril-a`, porque d
 - **Archivos creados:**
   `packages/app/package.json` · `tsconfig.json` ·
   `packages/app/src/comando.ts` · `definicion.ts` · `repositorio.ts` ·
-  `auditoria.ts` · `errores.ts` · `saneado.ts` · `produccion.ts` · `index.ts` ·
+  `auditoria.ts` · `errores.ts` · `fallos.ts` · `saneado.ts` · `produccion.ts` ·
+  `index.ts` ·
   `pruebas/dobles.ts` ·
   `comando.autorizacion.test.ts` · `comando.idempotencia.test.ts` ·
   `comando.transaccion.test.ts` · `comando.auditoria.test.ts` ·
@@ -326,7 +327,20 @@ INMEDIATAMENTE» como subirlo también a `main`, no sólo a `carril-a`, porque d
 - **Cómo lo resolví:** reescribí el comentario con comillas dobles.
 - **Prueba que impide que vuelva:** `pnpm lint`, que ya lo cazó.
 
-### Error 5 — La fusión de los dos repositorios rompió dos puertas
+### Error 5 — `comando.ts` llegó a 319 líneas y se pasó del límite
+
+- **Qué pasaba:** el archivo del envoltorio superaba las 300 líneas que la regla
+  fija sin excepción.
+- **Cómo lo detecté:** lo vi yo, en la revisión final. **Ninguna puerta lo mira**:
+  no hay contrato que cuente líneas.
+- **Causa raíz:** las clases de señal y el atendedor de reintentos vivían en el
+  mismo archivo que la orquestación, siendo otra responsabilidad.
+- **Cómo lo resolví:** salieron a `packages/app/src/fallos.ts`. `comando.ts` quedó
+  en 268 líneas y el arnés de mutación volvió a pasar 17/17 después del corte.
+- **Prueba que impide que vuelva:** **ninguna.** Es un hueco declarado: el límite
+  de 300 líneas no tiene contrato automático en este repositorio. Va a §8.
+
+### Error 6 — La fusión de los dos repositorios rompió dos puertas
 
 - **Qué pasaba:** al unir código y documentación, `format:check` marcó 32
   documentos de prosa y `verificar-residuos` marcó los documentos que **analizan**
@@ -468,7 +482,13 @@ dos de sus tres niveles, no en los tres.**
    devolverlo pero ninguna prueba lo provoca; sólo se puede provocar de verdad con
    dos conexiones simultáneas, que es la prueba de integración que no corrí.
 
-9. **No leí `06-DEFECTOS-Y-ERRADICACION.md` ni `11-CORTE-F1.4-RESTAURANTE.md` de
+9. **No escribí un contrato que haga cumplir el límite de 300 líneas.** Lo
+   descubrí por revisión manual, no por una puerta. Cualquiera puede pasarse otra
+   vez sin que nada avise. Es barato de escribir y no lo hice: `scripts/` es zona
+   neutral y no quise agregar un contrato que también le fallara a Codex sin
+   habérselo avisado antes.
+
+10. **No leí `06-DEFECTOS-Y-ERRADICACION.md` ni `11-CORTE-F1.4-RESTAURANTE.md` de
    forma directa.** Los leí a través de agentes que extrajeron su contenido. Para
    `03-MODELO-DE-DATOS` y `BITACORA` igual. Los cuatro documentos que sí leí
    completos y literales son TEAM.md, REGLAS.md, DECISIONES.md,
