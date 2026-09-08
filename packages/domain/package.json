@@ -9,8 +9,7 @@
     "./dinero": "./src/dinero/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test:unit": "vitest run"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@morphiqpos/contracts": "workspace:*"

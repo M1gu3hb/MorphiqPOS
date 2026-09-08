@@ -140,6 +140,9 @@ catalogs:
     clsx:
       specifier: 2.1.1
       version: 2.1.1
+    dotenv:
+      specifier: 17.4.2
+      version: 17.4.2
     eslint:
       specifier: 10.10.0
       version: 10.10.0
@@ -340,6 +343,9 @@ importers:
       '@types/pg':
         specifier: 'catalog:'
         version: 8.23.1
+      dotenv:
+        specifier: 'catalog:'
+        version: 17.4.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -1993,6 +1999,10 @@ packages:
 
   detect-node-es@1.1.0:
     resolution: {integrity: sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ==}
+
+  dotenv@17.4.2:
+    resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
+    engines: {node: '>=12'}
 
   electron-to-chromium@1.5.422:
     resolution: {integrity: sha512-UvA/32XqrLDdZSn7Jllo1AYNcWji/G0d5M0GTViE7KoGBiMunw3a34Sb2KO4ZZyrSEhqsxFoVhWWJshdyfKqJA==}
@@ -4428,6 +4438,8 @@ snapshots:
   detect-libc@2.1.2: {}
 
   detect-node-es@1.1.0: {}
+
+  dotenv@17.4.2: {}
 
   electron-to-chromium@1.5.422: {}
 

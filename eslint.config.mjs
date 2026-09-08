@@ -252,7 +252,7 @@ export default tseslint.config(
   // tsconfig de los paquetes a proposito (no forman parte del producto), y
   // meterlos solo para lintearlos ensuciaria el type-check de verdad.
   {
-    files: ['scripts/**/*.mjs', '**/*.config.{mjs,js}'],
+    files: ['scripts/**/*.mjs', '**/bin/*.mjs', '**/*.config.{mjs,js}'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: { globals: { ...globals.node } },
     rules: {

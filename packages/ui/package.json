@@ -13,8 +13,7 @@
     "./estilos.css": "./src/estilos/index.css"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test:unit": "vitest run"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@morphiqpos/contracts": "workspace:*",

@@ -47,3 +47,6 @@ infra/docker/datos
 # que describen sistemas hoy en produccion con clientes reales.
 historico/*
 !historico/README.md
+
+# Generado por next build.
+apps/web/next-env.d.ts

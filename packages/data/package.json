@@ -4,16 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./migraciones": "./src/migraciones/ejecutor.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "migrate": "node bin/migrar.mjs",
+    "ensayo": "node bin/migrar.mjs --ensayo",
+    "tipos": "node bin/generar-tipos.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "dotenv": "catalog:"
   },
   "description": "El unico lugar del monorepo que conoce SQL. Pool, transacciones, repositorios y migraciones.",
   "dependencies": {

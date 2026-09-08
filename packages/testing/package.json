@@ -11,8 +11,7 @@
     "./postgres": "./src/postgres.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test:unit": "vitest run"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@morphiqpos/contracts": "workspace:*"

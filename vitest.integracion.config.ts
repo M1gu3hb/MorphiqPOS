@@ -27,8 +27,19 @@ export default defineConfig({
     fileParallelism: false,
   },
   resolve: {
+    // `server-only` lanza al importarse fuera de un componente de servidor: es
+    // su trabajo, y es lo que impide que packages/data acabe en el navegador.
+    // Bajo esta condición resuelve a un módulo vacío, que es como lo ve Next en
+    // el servidor. Sin ella, cualquier prueba que toque la capa de datos revienta
+    // en el import — y la reacción sería quitar el guardián.
+    conditions: ['react-server'],
     alias: {
       '@': fileURLToPath(new URL('./apps/web/src', import.meta.url)),
     },
+  },
+  // Vite externaliza las dependencias CommonJS en modo SSR y resuelve sus
+  // exports por SU propia lista de condiciones, no por la de `resolve`.
+  ssr: {
+    resolve: { conditions: ['react-server'] },
   },
 });

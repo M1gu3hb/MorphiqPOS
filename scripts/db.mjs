@@ -50,8 +50,22 @@ function correr(comando, argumentos, opciones = {}) {
  * inyeccion.
  */
 function correrShim(comando, argumentos) {
-  const esWindows = process.platform === 'win32';
-  return correr(esWindows ? `${comando}.cmd` : comando, argumentos, { shell: false });
+  if (process.platform !== 'win32') {
+    return correr(comando, argumentos, { shell: false });
+  }
+
+  // En Windows `pnpm` es `pnpm.cmd`, y desde Node 18.20.2 lanzar un `.cmd` o un
+  // `.bat` SIN shell se rechaza con EINVAL: es la mitigacion de CVE-2024-27980
+  // ("BatBadBut"). El `shell: false` que habia aqui hacia que `pnpm db:migrate`
+  // reventara siempre en Windows, que es donde se desarrolla hoy.
+  //
+  // Con shell, cmd.exe vuelve a partir la linea, asi que los argumentos se
+  // entrecomillan. Los de hoy no llevan espacios, pero uno que si los lleve
+  // debe seguir llegando entero en vez de partirse en silencio.
+  const seguros = argumentos.map((argumento) =>
+    /[\s"^&|<>]/.test(argumento) ? `"${argumento.replaceAll('"', '""')}"` : argumento,
+  );
+  return correr(`${comando}.cmd`, seguros, { shell: true });
 }
 
 /** Comprueba que Docker esta instalado y su motor responde. */
@@ -209,7 +223,11 @@ switch (accion) {
     delegarEnData('seed');
     break;
 
+  case 'tipos':
+    delegarEnData('tipos');
+    break;
+
   default:
-    console.log('Uso: node scripts/db.mjs <up|down|reset|logs|estado|migrate|seed>');
+    console.log('Uso: node scripts/db.mjs <up|down|reset|logs|estado|migrate|seed|tipos>');
     process.exit(accion === 'ayuda' ? 0 : 1);
 }

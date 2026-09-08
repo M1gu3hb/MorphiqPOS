@@ -9,3 +9,8 @@ pnpm-lock.yaml
 # Las primitivas se generan y se tokenizan con un codemod: reformatearlas
 # a mano rompe la posibilidad de volver a generarlas.
 packages/ui/src/primitivas/
+
+# Lo regenera `next build` en cada corrida, con su propio formato. Sin esta
+# linea la puerta se pelea consigo misma: `pnpm build` lo reescribe y el
+# `format:check` siguiente lo rechaza, sobre un archivo que nadie edita.
+apps/web/next-env.d.ts

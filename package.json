@@ -19,6 +19,7 @@
     "db:estado": "node scripts/db.mjs estado",
     "db:migrate": "node scripts/db.mjs migrate",
     "db:seed": "node scripts/db.mjs seed",
+    "db:tipos": "node scripts/db.mjs tipos",
     "typecheck": "turbo run typecheck",
     "test:unit": "vitest run",
     "test": "vitest run",
@@ -28,7 +29,7 @@
     "verify:tsconfig": "node scripts/verificar-tsconfig.mjs",
     "verify:entorno": "node scripts/verificar-entorno.mjs",
     "verify:cabeceras": "node scripts/verificar-cabeceras.mjs",
-    "verify": "pnpm verify:arranque && pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm verify:residuos && pnpm verify:primitivas && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build && pnpm verify:cabeceras",
+    "verify": "pnpm verify:arranque && pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm verify:residuos && pnpm verify:primitivas && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:pruebas && pnpm test:unit && pnpm build && pnpm verify:cabeceras",
     "ui:tokenizar": "node scripts/tokenizar-primitivas.mjs",
     "verify:primitivas": "node scripts/tokenizar-primitivas.mjs --verificar && node scripts/verificar-primitivas.mjs",
     "lint": "eslint .",
@@ -38,7 +39,8 @@
     "verify:residuos": "node scripts/verificar-residuos.mjs",
     "test:integracion": "vitest run --config vitest.integracion.config.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "verify:pruebas": "node scripts/verificar-pruebas.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
