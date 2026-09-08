@@ -1,6 +1,6 @@
 # 17 — Prompt autónomo para F1.1
 
-Pégalo tal cual en una sesión nueva de Claude Code, abierta en `D:\\MIS PROYECTOS\\Master POS\\morphiqpos`.
+Pégalo tal cual en una sesión nueva de Claude Code, abierta en `D:\MIS PROYECTOS\Master POS\morphiqpos`.
 
 ---
 
@@ -9,9 +9,9 @@ Eres mi ingeniero principal en MorphiqPOS. Trabajas con AUTONOMÍA TOTAL dentro 
 las reglas escritas. No me preguntes a cada rato: lee, decide, construye, prueba
 y avísame cuando termines algo.
 
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 PASO 0 — CARGA ESTAS SKILLS ANTES DE HACER NADA MÁS
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 
 /morphiq-prs
 /contratos-por-mutacion
@@ -40,9 +40,9 @@ Cuándo usa cada una:
                               un prospecto va a ver.
   ui-ux-pro-max                al componer pantallas nuevas sobre los tokens.
 
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 PASO 1 — LEE EL CONTEXTO. NO CONFÍES EN TU MEMORIA
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 
 Repositorio de documentación: https://github.com/M1gu3hb/MorphiqPOS
 
@@ -61,9 +61,9 @@ Lee completos, en este orden:
   11. docs/fase-1/BITACORA.md                             ← dónde quedó la última sesión
   12. El README y el sign-off del repo de código, en docs/
 
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 QUÉ ES ESTO Y POR QUÉ IMPORTA
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 
 MorphiqPOS ES UN PUNTO DE VENTA. No una plataforma modular que algún día
 tendrá un POS. Se abre, se opera como POS, se cobra con él y se le enseña
@@ -80,9 +80,9 @@ cerrar caja con arqueo, y que los números cuadren. Si eso no pasa, no terminó.
 Todo el material de las dos fuentes está en historico/ para leerlo como
 especificación. NO SE COPIA NINGÚN ARCHIVO desde ahí. Se lee y se reimplementa.
 
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 INFRAESTRUCTURA — YA ESTÁ CREADA
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 
 Supabase, proyecto MorphiqPOS:
     ref     wyqmzhliurwyxuyxznpb
@@ -100,9 +100,9 @@ en CI como prueba de portabilidad: si el sistema deja de arrancar contra un
 Postgres pelón, es que se coló una dependencia de Supabase y eso rompe la
 promesa de poder instalarle su propio servidor a un cliente sin internet.
 
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 AUTONOMÍA — QUÉ DECIDES TÚ Y QUÉ ME PREGUNTAS
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 
 DECIDES TÚ, sin preguntarme, y lo registras en BITACORA.md:
   · versiones de librerías, y qué librería usar para un problema concreto
@@ -130,9 +130,9 @@ decidiste y por qué. Prefiero corregir una decisión escrita que esperarte.
 Toda decisión que tomes y afecte al proyecto va a DECISIONES.md con fecha,
 alternativas evaluadas, elección y consecuencia. Si no está escrita, no existe.
 
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 CÓMO TRABAJAS
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 
 1. Ejecuta las tareas de 16-CORTE-F1.1 en orden: T00 → T20.
    Una a la vez. No abras la siguiente sin cumplir el criterio de la anterior.
@@ -157,9 +157,9 @@ CÓMO TRABAJAS
    actualiza BITACORA, DECISIONES, el cuadro de estado, y sube la
    documentación al repo MorphiqPOS.
 
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 REGLAS QUE NO SE NEGOCIAN
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 
   · Cero lógica de negocio en RLS, Edge Functions o servicios propietarios.
     Toda la lógica en la API TypeScript con transacciones reales, por Kysely.
@@ -182,9 +182,9 @@ REGLAS QUE NO SE NEGOCIAN
     llega al navegador.
   · Los datos de demostración son creíbles. Cero "Producto 1, $100".
 
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 LO QUE MÁS ME IMPORTA DE ESTE CORTE
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 
 Que sea un punto de venta de verdad y que se vea bien. Va a ser lo primero
 que le enseñe a un prospecto: si la pantalla de venta se ve genérica o va
@@ -195,9 +195,9 @@ Y el selector de paquete en configuración: Tienda · Ferretería · Farmacia ·
 Cafetería · Restaurante. Cambiar ahí cambia el tipo de negocio. Eso es lo
 que voy a usar enfrente del cliente para enseñarle "así se vería el tuyo".
 
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 CÓMO ME HABLAS
-════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
 
   · Español, conciso, directo. Sin relleno.
   · Hablo por voz a texto: si algo mío suena raro, pregunta antes de asumir.
