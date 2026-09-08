@@ -1,5 +1,32 @@
 # Bitácora de ejecución — Fase 1
 
+## Carril B · B-03 · 2026-09-08 · Repositorio de stock publicado
+
+- **Qué se hizo:** `aplicarMovimientos(movimientos, tx)` toma bloqueos en orden estable,
+  decrementa `existencias` con guarda atómica por organización/almacén/insumo y escribe
+  todos los renglones de `movimientos_stock` en un solo insert dentro de la transacción recibida.
+- **Archivos:** `packages/data/src/repos/stock.ts`, prueba y exportaciones del paquete.
+- **Pruebas:** 7 unitarias del SQL compilado; 286 unitarias globales.
+- **Verificado con:** 9 mutaciones del decremento, aislamiento, guarda, signo del ledger,
+  política negativa, orden de bloqueos, inserción completa y cantidad cero; todas detectadas.
+- **Pendiente:** el pegamento Kysely → PostgreSQL real no se ejecutó porque falta
+  `DATABASE_URL`; el gate completo, tipos, lint y build sí pasan.
+- **Reclasificaciones:** reimplementación TypeScript desde el comportamiento histórico;
+  se eliminan `Math.max(0, …)`, lectura previa y escrituras separadas.
+
+## Carril B · B-02 · 2026-09-08 · Consumo de inventario publicado
+
+- **Qué se hizo:** `calcularConsumo` puro para `sku`, `receta`, `insumo_base` y `ninguno`;
+  convierte unidades con `bigint`, aplica merma exacta, usa `calcularMlPorPorcion` y agrupa
+  por insumo con la política de stock más restrictiva.
+- **Archivos:** `packages/domain/src/inventario/`, exportaciones raíz y subruta del paquete.
+- **Pruebas:** 11 unitarias, incluidas cantidades mayores que `Number.MAX_SAFE_INTEGER`.
+- **Verificado con:** 10 mutaciones de estrategia, unidad, cantidad, merma, agrupación,
+  política y referencia; todas detectadas y restauradas.
+- **Pendiente:** las exclusiones `SIN` pertenecen a B-13; no forman parte de este contrato.
+- **Reclasificaciones:** reimplementación TypeScript desde `tipoVentaUtils.js` e
+  `inventarioValidation.js`, usados sólo como especificación.
+
 ## Carril B · B-01 · 2026-09-07 · Implementación publicada, cierre pendiente
 
 - **Qué se hizo:** worktree `morphiqpos-codex`, rama `carril-b`; dominio de catálogo con cuatro tipos, cantidades exactas, unidades, porciones y mayoreo.

@@ -5,7 +5,7 @@ implementa en zona ajena (TEAM.md §6).
 
 | # | Quién necesita | Qué | De quién | Para qué tarea | Estado |
 |---|---|---|---|---|---|
-| X-01 | Carril A | `packages/domain/inventario/consumo.ts` → `calcularConsumo(lineas)` y `packages/data/repos/stock.ts` → `aplicarMovimientos(movimientos, tx)`, con el decremento atómico dentro | Codex (B-02, B-03) | **A-09** `cobrarOrden` | ⬜ Abierto — A-09 está a siete tareas, todavía no bloquea |
+| X-01 | Carril A | `packages/domain/src/inventario/consumo.ts` → `calcularConsumo(lineas)` y `packages/data/src/repos/stock.ts` → `aplicarMovimientos(movimientos, tx)`, con el decremento atómico dentro | Codex (B-02, B-03) | **A-09** `cobrarOrden` | ✅ Cerrado en `carril-b`; publicado a `main` al terminar el gate |
 
 ---
 
@@ -78,7 +78,8 @@ if (!salida.ok) return Response.json(salida, { status: ESTADO_HTTP[salida.error.
 
 - `@morphiqpos/domain/catalogo` está disponible desde `27940c3`: cuatro tipos de
   producto, cantidades exactas, porciones y mayoreo.
-- B-02 y B-03 cerrarán X-01 con el cálculo puro de consumo y el decremento atómico.
+- B-02 y B-03 cerraron X-01 con cálculo puro exacto, agrupación por insumo,
+  decremento atómico y ledger dentro de la transacción recibida.
 - Los gates completos de `morphiq-prs` están expresados como tablas en la
   documentación del proyecto; no se requiere un archivo o skill separado.
 - La CLI confirmó 26 tablas operativas y `_migraciones`, todas con RLS, en el proyecto

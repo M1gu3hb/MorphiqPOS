@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./migraciones": "./src/migraciones/ejecutor.ts"
+    "./migraciones": "./src/migraciones/ejecutor.ts",
+    "./stock": "./src/repos/stock.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -22,6 +23,8 @@
   },
   "description": "El unico lugar del monorepo que conoce SQL. Pool, transacciones, repositorios y migraciones.",
   "dependencies": {
+    "@morphiqpos/contracts": "workspace:*",
+    "@morphiqpos/domain": "workspace:*",
     "kysely": "catalog:",
     "pg": "catalog:",
     "server-only": "^0.0.1"

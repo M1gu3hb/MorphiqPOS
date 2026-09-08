@@ -355,6 +355,12 @@ importers:
 
   packages/data:
     dependencies:
+      '@morphiqpos/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@morphiqpos/domain':
+        specifier: workspace:*
+        version: link:../domain
       kysely:
         specifier: 'catalog:'
         version: 0.29.5
