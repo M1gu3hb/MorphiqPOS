@@ -3,15 +3,22 @@
 Punto de venta de **Morphiq**. Un solo sistema que opera una tienda de mostrador y un
 restaurante completo, sin cambiar de aplicación.
 
-> **La planeación no vive aquí.** Está en [`M1gu3hb/MorphiqPOS`](https://github.com/M1gu3hb/MorphiqPOS):
-> contexto, las decisiones con su razón, las 34 reglas no negociables y el plan de los
-> seis cortes de Fase 1. Este repositorio es sólo el código.
+> **La planeación vive aquí también, desde el 8 de septiembre de 2026** (decisión A-46).
+> Código y documentación comparten repositorio: tenerlos separados era justo la causa del
+> problema de contexto que motivó el cambio.
 >
-> Antes de tocar nada, lee `CONTEXTO_MAESTRO.md`, `DECISIONES.md` y `REGLAS.md` de ese
-> repositorio. Si algo no está escrito ahí, no está decidido.
+> Antes de tocar nada, lee [`CONTEXTO_MAESTRO.md`](CONTEXTO_MAESTRO.md),
+> [`DECISIONES.md`](DECISIONES.md) y [`REGLAS.md`](REGLAS.md). Si algo no está escrito ahí,
+> no está decidido. Si vas a escribir código, lee además [`TEAM.md`](TEAM.md): hay **dos
+> agentes trabajando en paralelo** y cada uno tiene su zona.
+>
+> El README anterior de planeación se conserva en
+> [`docs/README-PLANEACION.md`](docs/README-PLANEACION.md).
 
-**Corte actual: F1.0 — Fundación.** Monorepo, puertas de calidad, entorno local y sistema
-de diseño. Cero features de negocio todavía: eso empieza en F1.1.
+**Corte actual: F1.1 — POS que vende.** F1.0 (fundación, puertas de calidad, sistema de
+diseño) está construido. F1.1 lleva 4 de 21 tareas: esquema de 26 tablas aplicado a
+Supabase y tipos generados. Ver [`docs/fase-1/16-CORTE-F1.1-POS-QUE-VENDE.md`](docs/fase-1/16-CORTE-F1.1-POS-QUE-VENDE.md)
+y el reparto en dos carriles en [`docs/fase-1/18-REPARTO-DOS-CARRILES.md`](docs/fase-1/18-REPARTO-DOS-CARRILES.md).
 
 ---
 
@@ -26,7 +33,9 @@ corepack enable                 # habilita pnpm en la versión que fija el repos
 pnpm install
 
 cp .env.example .env            # y GENERA tus secretos, no uses los de ejemplo
-pnpm db:up                      # Postgres 16 + almacenamiento, en contenedores
+                                # DATABASE_URL apunta a Supabase (A-39); el compose
+                                # de abajo es la prueba de portabilidad de A-27
+pnpm db:up                      # Postgres 17 + almacenamiento, en contenedores
 
 pnpm dev                        # http://localhost:3000
 ```
