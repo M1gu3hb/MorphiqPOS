@@ -32,7 +32,7 @@
 | Corte | Estado | Tareas | Última actualización |
 |---|---|---|---|
 | F1.0 Fundación | 🟨 12 de 13 · falta T05 en vivo | 12 / 13 | 2026-09-07 |
-| F1.1 Núcleo | ⬜ No iniciado | 0 / 16 | — |
+| F1.1 Núcleo | 🟨 dos carriles en paralelo (A-45) · envoltorio `comando()` listo | A: 1/22 · B: 1/24 | 2026-09-08 |
 | F1.2 Catálogo y venta | ⬜ No iniciado | 0 / 17 | — |
 | F1.3 Inventario y compras | ⬜ No iniciado | 0 / 16 | — |
 | F1.4 Restaurante | ⬜ No iniciado | 0 / 17 | — |
@@ -55,17 +55,17 @@ Se llena conforme avanza. Formato de `06-DEFECTOS-Y-ERRADICACION.md` §7.
 | P0-05 | Mesa y venta huérfanas o duplicadas | F1.4 | — | — | ⬜ | — |
 | P0-06 | QR confía en datos del cliente | F1.5 | — | — | ⬜ | — |
 | P0-07 | Precios calculados en el cliente | F1.2 | — | — | ⬜ | — |
-| P0-08 | Aislamiento por organización | F1.1 | — | — | ⬜ | — |
-| P1-01 | Configuración múltiple ambigua | F1.1 | — | — | ⬜ | — |
-| P1-03 | Stock read-then-write | F1.2 | — | — | ⬜ | — |
+| P0-08 | Aislamiento por organización | F1.1 | T02 | 34 llaves compuestas; 2 mutaciones contra la base real fallan como deben | 🟨 | 2026-09-08 |
+| P1-01 | Configuración múltiple ambigua | F1.1 | T02 | `organizacion_id` único; el segundo registro viola unicidad | ✅ | 2026-09-08 |
+| P1-03 | Stock read-then-write | F1.2 | T02 | ledger sin `stock_anterior`/`stock_nuevo`: la variante peligrosa no se puede expresar. El decremento atómico y INV-03 son T14 | 🟨 | 2026-09-08 |
 | P1-04 | Relaciones duplicadas | F1.4 | — | — | ⬜ | — |
 | P1-05 | Lint y tipos rojos | F1.0 | T03 · T09 | `verify:tsconfig` · `pnpm lint` · `pnpm typecheck` | ✅ | 2026-09-07 |
 | P1-06 | Sin pruebas ni CI | F1.0 | T06 · T09 · T10 | 149 unitarias + 10 E2E; workflow escrito | 🟨 | 2026-09-07 |
 | P1-07 | Dependencias vulnerables | F1.0 | T09 | `pnpm audit --audit-level high --prod`: ninguna | ✅ | 2026-09-07 |
 | P1-08 | Polling y respuestas fuera de orden | F1.4 | — | — | ⬜ | — |
-| P1-09 | Folio con colisión | F1.1 | — | — | ⬜ | — |
-| P1-10 | Carrito se cierra al final | F1.2 | — | — | ⬜ | — |
-| P1-11 | Sync offline mapea todo a efectivo | F1.2 | — | — | ⬜ | — |
+| P1-09 | Folio con colisión | F1.1 | T02 | tabla `folios` + índice único parcial; el incremento atómico llega en T13 | 🟨 | 2026-09-08 |
+| P1-10 | Carrito se cierra al final | F1.1 | T02 | un solo borrador por terminal; el segundo viola unicidad | ✅ | 2026-09-08 |
+| P1-11 | Sync offline mapea todo a efectivo | F1.2 | T02 | `pagos` es tabla, no columnas; falta el cobro que la use (T13) | 🟨 | 2026-09-08 |
 | P1-12 | Sin alta de empleados | F1.1 | — | — | ⬜ | — |
 | P1-13 | Renglones del mismo producto se pisan | F1.3 | — | — | ⬜ | — |
 | P1-15 | Idempotencia del escáner en memoria | F1.2 | — | — | ⬜ | — |
@@ -83,6 +83,215 @@ Se llena conforme avanza. Formato de `06-DEFECTOS-Y-ERRADICACION.md` §7.
 ## Entradas
 
 *(Aquí van las entradas por tarea, la más reciente arriba.)*
+
+### F1.1-A-01 · Envoltorio `comando()` — carril A
+- **Fecha:** 2026-09-08 (commit `0a5a57f`, integrado a `main`)
+- **Qué se hizo:** el envoltorio que resuelve, una vez y para todos los comandos, las
+  ocho responsabilidades de `04-ARQUITECTURA §3`: validación zod, rol, paquete,
+  transacción, clave de idempotencia, auditoría, correlation id y errores tipados.
+  Migración **010** `comandos_ejecutados`, aplicada a Supabase. Reporte completo en
+  `docs/reports/002-claude-code-f1.1-envoltorio-comando.md`.
+- **Archivos tocados:** `packages/app/` (nuevo, 11 archivos) ·
+  `packages/contracts/src/comandos/` · `packages/data/src/repos/comandos.ts` ·
+  `packages/data/src/migraciones/sql/010_comandos_ejecutados.sql` ·
+  `packages/data/bin/generar-tipos.mjs` · `scripts/verificar-estructura.mjs` ·
+  `scripts/verificar-residuos.mjs` · `eslint.config.mjs` · `.prettierignore`
+- **Decisiones tomadas:** ver **A-49** en `/DECISIONES.md`. La que más consecuencias
+  tiene: **la clave de idempotencia se reclama DENTRO de la transacción.** Si el cobro
+  se revierte, la reversión libera la clave y el reintento vuelve a cobrar de verdad.
+  Reclamarla fuera la quemaría, y el reintento devolvería un éxito guardado sin haber
+  cobrado nada — el peor error posible en una caja.
+- **Pruebas que pasan:** 48 unitarias nuevas (206 en total).
+- **Verificado con — 17 mutaciones automatizadas:**
+  - **Destructivas que FALLAN (14):** quitar la comprobación de rol · quitar la de
+    paquete · validar la entrada antes del rol · quitar la transacción · reclamar la
+    clave fuera de la transacción · no comparar la huella de la entrada · no sanear el
+    payload · permitir que un comando que escribe no deje rastro · aceptar cualquier
+    correlation id · filtrar el mensaje de Postgres · permitir claves de ámbito en la
+    entrada · no avisar de un paso inexistente · no exigir clave de idempotencia ·
+    auditar el rechazo dentro de la transacción revertida.
+  - **Inocuas que PASAN (3):** renombrar una variable · agregar un comentario ·
+    reordenar dos campos de la fila de auditoría.
+  - **Contra la base real** (transacción revertida, 0 filas al terminar): 8 escenarios,
+    incluido **«revertir LIBERA la clave»**. ✅
+- **Pendiente o riesgo:** **`pnpm test:integracion` NO se ha ejecutado nunca.** El
+  archivo está escrito, typecheckeado y linteado, pero falta `DATABASE_URL`. El
+  pegamento `comando() → Kysely → Postgres` está tipado y no ha corrido. Es el hueco
+  declarado de esta tarea.
+- **Reclasificaciones:** ninguna.
+
+### F1.1-T03 · Tipos generados desde la base
+- **Fecha:** 2026-09-08
+- **Qué se hizo:** `packages/data/src/esquema.ts` dejó de ser un marcador de posición y
+  pasó a generarse desde la base ya migrada: 26 interfaces, 336 columnas, `Generated<T>`
+  en toda columna con valor por omisión. El generador es una consulta SQL que **emite el
+  TypeScript entero**, no metadatos que luego JavaScript interpreta: con dos sitios donde
+  decidir el mapeo, habría dos sitios donde equivocarse.
+- **Archivos tocados:** `packages/data/bin/generar-tipos.mjs` · `packages/data/src/esquema.ts`
+  (generado) · `packages/data/src/cliente.ts` · `scripts/db.mjs` · `.env.example` ·
+  `package.json` · `packages/data/package.json`
+- **Decisiones tomadas:**
+  - **El mapeo de tipos refleja los parsers de `cliente.ts`, y se dice en los dos lados.**
+    `int8 → bigint` (R15), `numeric → string` (cantidades con 4 decimales), `jsonb →
+    unknown` (obliga a validar con zod antes de usarlo, en vez de un `any` disfrazado).
+  - **`date → string`, y para eso hizo falta un parser nuevo.** `pg` convierte `date` a
+    un `Date` a medianoche **en la zona del servidor**: un empleo que empieza el 1 de marzo
+    se lee como el 28 de febrero a las 18:00 en cuanto el proceso corre en UTC y el negocio
+    está en Ciudad de México. `vigente_desde` es un día del calendario, no un instante.
+  - **El generador falla en vez de generar a medias.** Un tipo de Postgres sin mapear
+    produce `__TIPO_SIN_MAPEAR_x__`, y el script lo detecta y aborta.
+- **Pruebas que pasan:** `pnpm typecheck` en los 6 paquetes con el esquema real cargado;
+  `pnpm verify` completo en verde (salida 0).
+- **Verificado con:** la cadena entera `pnpm db:tipos` → `scripts/db.mjs` → `packages/data`
+  se ejecutó y llegó hasta el punto exacto donde falta `DATABASE_URL`. Al arreglar
+  `correrShim` apareció un defecto real: ver T01.
+- **Pendiente o riesgo:** el archivo se escribió con la salida verificada de la consulta,
+  pero **`pnpm db:tipos` no se ha podido ejecutar de punta a punta** por falta de
+  `DATABASE_URL`. Es lo primero que hay que correr cuando Miguel dé la contraseña; si el
+  resultado difiere en un solo byte, el generador y el archivo no están sincronizados.
+- **Reclasificaciones:** ninguna.
+
+### F1.1-T02 · Esquema completo, con las correcciones dentro de la base
+- **Fecha:** 2026-09-08
+- **Qué se hizo:** 26 tablas en 6 migraciones, aplicadas al proyecto de Supabase
+  `wyqmzhliurwyxuyxznpb` (PostgreSQL 17.6). Casi toda restricción existe para corregir un
+  defecto concreto de las fuentes, **y lo corrige desde la base**: una regla que sólo vive
+  en el código se salta la primera vez que alguien escribe por otro camino.
+- **Archivos tocados:** `packages/data/src/migraciones/sql/001_plataforma.sql` ·
+  `002_catalogo.sql` · `003_venta_caja_inventario.sql` ·
+  `004_integridad_multi_inquilino.sql` · `005_rls.sql` · `006_endurecimiento.sql` ·
+  `scripts/verificar-esquema-aplicado.mjs` · `scripts/verificar-entorno.mjs`
+- **Decisiones tomadas:**
+  - **Llaves foráneas COMPUESTAS contra la fuga entre organizaciones (004).** Con
+    `organizacion_id` y una llave simple al padre, nada impedía insertar una línea de venta
+    de la Ferretería dentro de una orden de la Cafetería: las dos llaves se cumplen y la
+    fila está mal. Un `where organizacion_id = $1` no protege de eso — la fila **ya** está
+    mal escrita. Ahora la hija referencia `padre(id, organizacion_id)`: 34 restricciones.
+    Obligó a añadir `organizacion_id` a `producto_modificadores`, que permitía enganchar
+    los modificadores —**con sus precios**— de un negocio a los productos de otro.
+  - **`existencias` NO lleva `check (cantidad >= 0)`, y el comentario que decía que sí era
+    falso.** `permite_venta_sin_stock` hace del negativo un estado legítimo e informativo
+    (dice cuánto se debe al conteo físico). Un CHECK rígido convertiría esa venta en error y
+    el cajero acabaría apagando el inventario entero. La defensa real es el decremento
+    atómico con guarda en el `where`, y que **cero filas afectadas es un error**. Queda un
+    hueco declarado: nada impide a nivel de tabla un `set cantidad = 5`. Se cierra en T14
+    con INV-03 y un contrato estático. **Está escrito en el archivo en vez de fingir que un
+    CHECK inexistente lo cubre.**
+  - **RLS niega todo a `anon` y `authenticated`, sin una sola policy (005).** La aplicación
+    no usa PostgREST: habla por Kysely con credenciales de servidor. Los 27 avisos
+    `rls_enabled_no_policy` del linter son la postura buscada, no un descuido. El bloque
+    consulta `pg_roles` antes de revocar, porque esos roles no existen en un Postgres pelón
+    y la migración abortaría — rompiendo la prueba de portabilidad que es la única defensa
+    de A-27.
+  - **006 cierra los dos avisos reales del linter:** `search_path` fijo en
+    `tocar_updated_at` y `pg_trgm` movida al esquema `extensions`. Va en migración aparte
+    porque 001 y 002 ya estaban aplicadas y su hash está en el ledger: editarlas haría que
+    el ejecutor avisara, con razón, de una migración modificada después de aplicarse. **El
+    ledger sólo sirve si se le hace caso cuando estorba.**
+  - **`verificar-entorno.mjs` pasa a exigir Postgres 17.** T00 subió el compose a 17.11 para
+    igualar a Supabase y no actualizó este contrato. Importa de verdad:
+    `on delete set null (columna)`, que 004 usa once veces, no existe antes de Postgres 15.
+- **Pruebas que pasan:** 14 casos ejecutados contra la base real dentro de una transacción
+  revertida: 13 escrituras que **deben** fallar fallan (segunda caja abierta en la misma
+  terminal, segundo carrito, línea de otra organización dentro de una orden, caja abierta
+  por empleado ajeno, segunda configuración, cambio devuelto con tarjeta, efectivo recibido
+  menor que el cobro, servicio que descuenta inventario, producto por medida sin precio,
+  orden pagada sin folio, `salida_venta` positiva, retiro positivo) y **la venta legítima
+  pasa** (2 martillos, efectivo con cambio). Comprobado después: 0 filas, 0 policies,
+  0 permisos a roles públicos.
+- **Verificado con:** `scripts/verificar-esquema-aplicado.mjs`, escrito **porque el error
+  ya había ocurrido**. Al aplicar 003 a mano transcribí mal `ordenes`: `impuesto_centavos`
+  en vez de `impuestos_centavos`, dos columnas inventadas y cinco que faltaban. El ledger
+  guarda el hash del ARCHIVO, así que afirmaba que la migración correcta estaba aplicada
+  mientras la base tenía otra cosa — **un ledger que miente es peor que no tener ledger**.
+  Se revirtió 003 entero y se rehízo. El contrato se validó mutando:
+  - **Destructivas que FALLAN:** `impuestos_centavos`→`impuesto_centavos` · quitar
+    `margen_bp` · inventar `propina_centavos` · borrar la tabla `pagos`.
+  - **Inocuas que PASAN:** reordenar tablas y columnas · reformatear el JSON · añadir un
+    `-- create table impostora (...)` comentado dentro de un `.sql` (el contrato lee sin
+    comentarios, para no encontrarse a sí mismo).
+- **Pendiente o riesgo:**
+  - Las migraciones se aplicaron **por el MCP de Supabase, no por el ejecutor propio**,
+    porque falta `DATABASE_URL`. El ledger `_migraciones` se rellenó a mano con los hashes
+    reales de los archivos, así que `pnpm db:migrate` no verá nada pendiente. La primera
+    corrida real con la contraseña es la confirmación que falta.
+  - La prueba de portabilidad contra el compose (A-27) sigue **sin ejecutarse**: Docker no
+    está instalado.
+- **Reclasificaciones:** ninguna.
+
+### F1.1-T01 · `packages/data` — Kysely, `pg` y el ejecutor de migraciones
+- **Fecha:** 2026-09-08
+- **Qué se hizo:** el único punto del sistema que abre una conexión a Postgres, con los
+  parsers de tipo puestos antes del pool, y un ejecutor de migraciones forward-only con
+  ledger, hash y detección de archivos editados después de aplicarse.
+- **Archivos tocados:** `packages/data/src/cliente.ts` · `src/migraciones/ejecutor.ts` ·
+  `src/migraciones/lectura.ts` · `src/migraciones/lectura.test.ts` ·
+  `packages/data/bin/migrar.mjs` · `scripts/db.mjs` · `scripts/verificar-pruebas.mjs` ·
+  `vitest.config.ts` · `vitest.integracion.config.ts` · `eslint.config.mjs` ·
+  `.prettierignore` · `turbo.json`
+- **Decisiones tomadas:**
+  - **La tanda entera corre en UNA transacción.** Postgres tiene DDL transaccional, así que
+    si la tercera migración falla las dos anteriores se revierten de verdad.
+  - **El ejecutor usa el cliente crudo de `pg`, no Kysely**, porque Kysely envía por el
+    protocolo extendido, que admite una sola sentencia por mensaje, y un archivo de
+    migración tiene decenas.
+  - **El hash normaliza CRLF.** Sin eso, un `checkout` en Windows con `core.autocrlf` haría
+    que el ejecutor gritara que TODAS las migraciones fueron editadas.
+  - **`lectura.ts` se separó de `ejecutor.ts`.** Leer archivos y ordenarlos no necesita una
+    conexión, y mientras vivían juntos la prueba unitaria arrastraba `cliente.ts` —y con él
+    `server-only`, que lanza fuera de un contexto de servidor— sólo para comprobar que
+    "010" va después de "002".
+  - **Imports relativos con extensión `.ts` explícita.** Sin ella Node ESM no resuelve, y
+    `typecheck` y `vitest` sí: las dos puertas pasaban sobre un CLI que reventaba al
+    importar.
+- **Pruebas que pasan:** 9 unitarias de lectura de migraciones (orden por prefijo numérico,
+  nombres inválidos, versiones duplicadas, y que el hash **no** cambie por CRLF).
+- **Verificado con — tres defectos que ninguna puerta veía:**
+  1. **`ejecutor.ts` importaba `./cliente` sin extensión.** `typecheck` y `vitest` lo
+     resuelven; Node ESM no. `pnpm db:migrate` reventaba antes de leer `DATABASE_URL`.
+  2. **`correrShim` lanzaba `pnpm.cmd` con `shell: false`.** Desde Node 18.20.2, lanzar un
+     `.cmd` sin shell se rechaza con `EINVAL` — es la mitigación de CVE-2024-27980
+     ("BatBadBut"). `pnpm db:migrate` fallaba **siempre** en Windows, que es donde se
+     desarrolla hoy.
+  3. **Cinco paquetes declaraban su propio `test:unit` con un `vitest run` pelado.** Vitest
+     toma la configuración del directorio donde se invoca, así que esos scripts no veían la
+     exclusión de la raíz: `pnpm --filter @morphiqpos/testing test:unit` arrastraba una
+     prueba de integración y fallaba por falta de Postgres. La reacción natural habría sido
+     saltarse la prueba. Se retiraron los cinco scripts y la raíz quedó como única entrada.
+
+  Se escribió `scripts/verificar-pruebas.mjs`, que **no mira la configuración**: le pregunta
+  a Vitest qué archivos recoge. Validado mutando:
+  - **Destructivas que FALLAN:** devolver `test:unit` a un paquete · quitar la exclusión de
+    `*.integracion.test.ts` de la config raíz · excluirlas también de su propia puerta (una
+    prueba que no corre en ninguna parte es peor que no tenerla).
+  - **Inocuas que PASAN:** añadir un script no-test a un paquete · reformatear la config raíz.
+- **Pendiente o riesgo:** `migrar()` **no se ha ejecutado nunca contra una base**. Su mitad
+  pura está probada; la que abre transacciones, no. Bloqueado por `DATABASE_URL`.
+- **Reclasificaciones:** ninguna.
+
+### F1.1-T00 · Correcciones de arranque de la auditoría de F1.0
+- **Fecha:** 2026-09-08 (commit `93870a1`)
+- **Qué se hizo:** las cinco correcciones que `15-AUDITORIA-F1.0-Y-REPLANTEAMIENTO.md`
+  exige antes de tocar código nuevo.
+- **Archivos tocados:** `scripts/db.mjs` · `scripts/verificar-arranque.mjs` ·
+  `scripts/verificar-estructura.mjs` · `infra/docker/docker-compose.yml` ·
+  `apps/web/src/consultas/claves.ts` · `docs/auditorias/F1.0-sign-off.md` · y el borrado de
+  `apps/worker/`, `capabilities/`, `packages/app/`, `packages/registry/`, `infra/ci/`
+- **Decisiones tomadas:**
+  - **La guarda de `delegarEnData` comprobaba el archivo, no el script.** Miraba si existía
+    `packages/data/package.json` — cierto desde F1.0 — así que nunca disparó. Ahora
+    comprueba que la tarea **esté** en `scripts` y sale con código 3. Es el error de manual
+    de `contratos-por-mutacion`: atarse al identificador en vez de al uso.
+  - **Postgres 17.11 en el compose**, para igualar el 17.6 de Supabase.
+  - **El acta de F1.0 lleva una corrección fechada** admitiendo que exageró sobre las
+    pruebas de integración. El acta se corrige, no se reescribe.
+- **Pruebas que pasan:** `scripts/verificar-arranque.mjs`, que extrae el cuerpo de
+  `delegarEnData` contando llaves y lo lee **sin comentarios**, para no encontrarse a sí
+  mismo.
+- **Verificado con:** `pnpm db:seed` → `✗ packages/data no implementa el script "seed"`,
+  salida 3. Con la guarda vieja, pasaba en silencio. ✅
+- **Pendiente o riesgo:** ninguno.
+- **Reclasificaciones:** ninguna.
 
 ### F1.0-T09 · Puertas de CI
 - **Fecha:** 2026-09-07
@@ -577,6 +786,7 @@ Las que aparezcan durante la ejecución. Formato: `[FECHA] pregunta — bloquea 
 
 | Fecha | Pregunta | Bloquea | Estado |
 |---|---|---|---|
+| 2026-09-08 | **BLOQUEA HOY** `DATABASE_URL`. La contraseña **no es recuperable**: Supabase la guarda hasheada y el CLI sólo la acepta como entrada. Regenerarla por la API exige leer el token del Credential Manager de Windows, y esa lectura está bloqueada en el entorno del agente. **Lo tiene que hacer Miguel**: Supabase → MorphiqPOS → Database → Reset password → Session pooler → pegar en `.env`. Sin esto NINGUNA prueba de integración corre. | Todas las de integración · A-05 · A-08 · A-09 | ⬜ Abierta |
 | 2026-09-07 | **A-31** ¿Formato de ticket en v1: carta, 80 mm, 58 mm o combinación? | F1.2-T15 | ⬜ Abierta |
 | 2026-09-07 | **A-32** ¿Los perfiles se llaman Esencial/Operativo/Restaurante Pro o `retail`/`restaurante`/`servicios`? | F1.4-T16 | ⬜ Abierta |
 | 2026-09-07 | **A-33** ¿El repositorio MorphiqPOS se vuelve privado? | Publicar la auditoría completa | ⬜ Abierta |
