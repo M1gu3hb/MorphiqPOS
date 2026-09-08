@@ -22,6 +22,14 @@ export async function aplicarMovimientos(
   if (validados.length === 0) return;
 
   for (const { movimiento, cantidad: consumo } of validados) {
+    if (movimiento.permiteNegativo) {
+      await sql`
+        insert into existencias (organizacion_id, almacen_id, insumo_id, cantidad)
+        values (${movimiento.organizacionId}, ${movimiento.almacenId}, ${movimiento.insumoId}, 0)
+        on conflict (almacen_id, insumo_id) do nothing
+      `.execute(tx);
+    }
+
     const resultado = await sql<{ cantidad: string }>`
       update existencias
          set cantidad = cantidad - ${consumo},
