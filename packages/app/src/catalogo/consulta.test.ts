@@ -18,6 +18,7 @@ describe('B-06 · consulta de catálogo para la pantalla', () => {
       productos: [
         {
           id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          categoria_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
           nombre: 'Taladro percutor 1/2 pulgada',
           descripcion: 'Velocidad variable y reversa',
           imagen_url: null,
@@ -30,6 +31,8 @@ describe('B-06 · consulta de catálogo para la pantalla', () => {
           cantidad_minima_mayoreo: '3.0000',
           tipo_venta: 'precio_fijo',
           unidad_venta: 'pieza',
+          permite_venta_sin_stock: false,
+          stock_minimo: '2.0000',
           visible_en_pos: true,
           updated_at: new Date('2026-09-07T20:15:00.000Z'),
           categoria_nombre: 'Herramienta eléctrica',

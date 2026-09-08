@@ -1,7 +1,7 @@
 'use client';
 
 import { Building2, Check, Palette, Save, Store } from 'lucide-react';
-import { useState, type ReactNode, type SyntheticEvent } from 'react';
+import { useEffect, useState, type SyntheticEvent } from 'react';
 import { toast } from 'sonner';
 
 import { COLOR_ACENTO_DEFAULT, COLOR_PRIMARIO_DEFAULT, type Paquete } from '@morphiqpos/contracts';
@@ -27,28 +27,86 @@ import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
 
 import { SelectorPaquete } from './SelectorPaquete';
 import { PAQUETES_NEGOCIO } from './paquetes';
+import { Campo, Color, VistaPrevia } from './CamposConfiguracion';
+import { ejecutarApi, obtenerApi } from '../../../src/cliente/api';
+
+interface ConfiguracionApi {
+  readonly version: number;
+  readonly nombreNegocio: string;
+  readonly telefono: string | null;
+  readonly direccion: string | null;
+  readonly logoUrl: string | null;
+  readonly colorPrimario: string;
+  readonly colorAcento: string;
+  readonly estilo: 'base' | 'editorial' | 'premium';
+  readonly paquete: Paquete;
+}
 
 export function ConfiguracionPantalla() {
-  const [paquete, setPaquete] = useState<Paquete>('ferreteria');
-  const [nombre, setNombre] = useState('Ferretería La Broca');
+  const [paquete, setPaquete] = useState<Paquete>('tienda');
+  const [nombre, setNombre] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [direccion, setDireccion] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [primario, setPrimario] = useState(COLOR_PRIMARIO_DEFAULT);
   const [acento, setAcento] = useState(COLOR_ACENTO_DEFAULT);
-  const [version, setVersion] = useState(3);
-  const { apariencia, cambiarEstilo } = useApariencia('premium');
+  const [version, setVersion] = useState(0);
+  const [guardando, setGuardando] = useState(false);
+  const { apariencia, cambiarEstilo } = useApariencia('base');
   const paqueteActivo = PAQUETES_NEGOCIO.find(({ id }) => id === paquete);
 
-  function guardar(evento: SyntheticEvent<HTMLFormElement, SubmitEvent>) {
+  useEffect(() => {
+    void obtenerApi<ConfiguracionApi>('/api/catalogo/configuracion')
+      .then((configuracion) => {
+        setPaquete(configuracion.paquete);
+        setNombre(configuracion.nombreNegocio);
+        setTelefono(configuracion.telefono ?? '');
+        setDireccion(configuracion.direccion ?? '');
+        setLogoUrl(configuracion.logoUrl ?? '');
+        setPrimario(configuracion.colorPrimario);
+        setAcento(configuracion.colorAcento);
+        setVersion(configuracion.version);
+        cambiarEstilo(configuracion.estilo);
+      })
+      .catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : 'No se pudo leer la configuración');
+      });
+  }, [cambiarEstilo]);
+
+  async function guardar(evento: SyntheticEvent<HTMLFormElement, SubmitEvent>) {
     evento.preventDefault();
-    setVersion((actual) => actual + 1);
-    toast.success('Configuración guardada', {
-      description: `${nombre} ahora usa el paquete ${paqueteActivo?.nombre ?? paquete}.`,
-    });
+    setGuardando(true);
+    try {
+      const salida = await ejecutarApi<{ version: number; paquete: Paquete }>(
+        '/api/catalogo/configuracion',
+        {
+          version,
+          nombreNegocio: nombre,
+          telefono: telefono || null,
+          direccion: direccion || null,
+          logoUrl: logoUrl || null,
+          colorPrimario: primario,
+          colorAcento: acento,
+          estilo: apariencia.estilo,
+          paquete,
+        },
+      );
+      setVersion(salida.version);
+      toast.success('Configuración guardada', {
+        description: `${nombre} ahora usa el paquete ${paqueteActivo?.nombre ?? paquete}.`,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar la configuración');
+    } finally {
+      setGuardando(false);
+    }
   }
 
   return (
     <form
-      onSubmit={guardar}
+      onSubmit={(evento) => {
+        void guardar(evento);
+      }}
       className="mx-auto grid w-full max-w-[92rem] gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-10"
     >
       <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -65,8 +123,28 @@ export function ConfiguracionPantalla() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-texto-sutil">Versión {version}</span>
-          <Button type="submit" size="lg">
+          <Button type="submit" size="lg" disabled={guardando}>
             <Save aria-hidden="true" /> Guardar cambios
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (
+                !window.confirm('Se reemplazarán los productos e inventario de esta demostración.')
+              )
+                return;
+              void ejecutarApi('/api/catalogo/demostracion/resetear', { confirmacion: 'RESETEAR' })
+                .then(() => {
+                  toast.success('Demostración restablecida');
+                  window.location.reload();
+                })
+                .catch((error: unknown) => {
+                  toast.error(error instanceof Error ? error.message : 'No se pudo restablecer');
+                });
+            }}
+          >
+            Restablecer demo
           </Button>
         </div>
       </header>
@@ -111,14 +189,25 @@ export function ConfiguracionPantalla() {
                 />
               </Campo>
               <Campo id="telefono" etiqueta="Teléfono">
-                <Input id="telefono" name="telefono" type="tel" defaultValue="55 1234 5678" />
+                <Input
+                  id="telefono"
+                  name="telefono"
+                  type="tel"
+                  value={telefono}
+                  onChange={(evento) => {
+                    setTelefono(evento.target.value);
+                  }}
+                />
               </Campo>
             </div>
             <Campo id="direccion" etiqueta="Dirección">
               <Textarea
                 id="direccion"
                 name="direccion"
-                defaultValue="Av. Hidalgo 214, Col. Centro, Ciudad de México"
+                value={direccion}
+                onChange={(evento) => {
+                  setDireccion(evento.target.value);
+                }}
               />
             </Campo>
             <Campo id="logoUrl" etiqueta="URL del logotipo">
@@ -171,83 +260,5 @@ export function ConfiguracionPantalla() {
         </Card>
       </section>
     </form>
-  );
-}
-
-function Campo({ id, etiqueta, children }: { id: string; etiqueta: string; children: ReactNode }) {
-  return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>{etiqueta}</Label>
-      {children}
-    </div>
-  );
-}
-
-function Color({
-  id,
-  etiqueta,
-  valor,
-  alCambiar,
-}: {
-  id: string;
-  etiqueta: string;
-  valor: string;
-  alCambiar: (valor: string) => void;
-}) {
-  return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>{etiqueta}</Label>
-      <div className="flex items-center gap-2 rounded-md border p-2">
-        <Input
-          id={id}
-          className="size-[calc(var(--altura-control)*0.8)] shrink-0 border-0 p-0 shadow-none"
-          type="color"
-          value={valor}
-          onChange={(evento) => {
-            alCambiar(evento.target.value);
-          }}
-        />
-        <span className="numeros text-xs text-texto-sutil">{valor.toUpperCase()}</span>
-      </div>
-    </div>
-  );
-}
-
-function VistaPrevia({
-  nombre,
-  logoUrl,
-  paquete,
-  primario,
-  acento,
-}: {
-  nombre: string;
-  logoUrl: string;
-  paquete: string;
-  primario: string;
-  acento: string;
-}) {
-  return (
-    <div className="overflow-hidden rounded-xl border bg-fondo-sutil">
-      <div
-        className="h-1.5"
-        style={{ background: `linear-gradient(90deg, ${primario}, ${acento})` }}
-      />
-      <div className="flex items-center gap-3 p-4">
-        <div className="grid size-[calc(var(--altura-control)*1.2)] place-items-center overflow-hidden rounded-lg bg-superficie shadow-1">
-          {logoUrl === '' ? (
-            <Store
-              aria-hidden="true"
-              className="size-[calc(var(--altura-control)*0.6)] text-primario"
-            />
-          ) : (
-            <span className="text-xs font-bold">LOGO</span>
-          )}
-        </div>
-        <div>
-          <p className="font-display font-semibold">{nombre || 'Tu negocio'}</p>
-          <p className="text-xs text-texto-sutil">MorphiqPOS · {paquete}</p>
-        </div>
-      </div>
-    </div>
   );
 }

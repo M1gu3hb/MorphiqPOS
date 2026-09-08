@@ -6,9 +6,17 @@ const pruebas = [
   'packages/app/src/catalogo/productos.test.ts',
   'packages/app/src/catalogo/modificadores.test.ts',
   'packages/app/src/configuracion/configuracion.test.ts',
+  'packages/app/src/comando.autorizacion.test.ts',
 ];
 
 const mutaciones = [
+  {
+    ruta: 'packages/app/src/catalogo/modificadores.ts',
+    antes: "paquetes: ['cafeteria', 'restaurante']",
+    despues: "paquetes: ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante']",
+    indice: 0,
+    nombre: 'modificadores habilitados en todos los paquetes',
+  },
   {
     ruta: 'packages/app/src/catalogo/productos.ts',
     antes: 'precio_venta_centavos: desdeTexto(entrada.precioVenta)',

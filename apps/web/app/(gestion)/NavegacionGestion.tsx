@@ -1,16 +1,42 @@
 'use client';
 
-import { Boxes, Settings2, Sparkles } from 'lucide-react';
+import { Boxes, CookingPot, House, Settings2, Sparkles, Warehouse } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-const DESTINOS = [
-  { href: '/productos', nombre: 'Productos', icono: Boxes },
-  { href: '/configuracion', nombre: 'Configuración', icono: Settings2 },
-] as const;
+import { navegacionParaPaquete, type Paquete } from '@morphiqpos/contracts';
+import { obtenerApi } from '../../src/cliente/api';
+
+const ICONOS = {
+  inicio: House,
+  productos: Boxes,
+  inventario: Warehouse,
+  recetas: CookingPot,
+  configuracion: Settings2,
+} as const;
+
+interface SesionApi {
+  readonly paquete: Paquete;
+  readonly nombreNegocio: string;
+  readonly nombreSucursal: string | null;
+  readonly rol: string;
+}
 
 export function NavegacionGestion() {
   const ruta = usePathname();
+  const [sesion, setSesion] = useState<SesionApi>({
+    paquete: 'tienda',
+    nombreNegocio: 'MorphiqPOS',
+    nombreSucursal: null,
+    rol: '',
+  });
+  useEffect(() => {
+    void obtenerApi<SesionApi>('/api/catalogo/sesion')
+      .then(setSesion)
+      .catch(() => undefined);
+  }, []);
+  const destinos = navegacionParaPaquete(sesion.paquete);
   return (
     <>
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r bg-superficie lg:flex">
@@ -24,9 +50,9 @@ export function NavegacionGestion() {
           </span>
         </Link>
         <nav aria-label="Gestión" className="grid gap-1 p-4">
-          {DESTINOS.map((destino) => {
+          {destinos.map((destino) => {
             const activo = ruta === destino.href;
-            const Icono = destino.icono;
+            const Icono = ICONOS[destino.icono];
             return (
               <Link
                 key={destino.href}
@@ -34,14 +60,16 @@ export function NavegacionGestion() {
                 aria-current={activo ? 'page' : undefined}
                 className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-texto-sutil transition hover:bg-fondo-sutil hover:text-texto aria-[current=page]:bg-primario aria-[current=page]:text-primario-texto"
               >
-                <Icono aria-hidden="true" /> {destino.nombre}
+                <Icono aria-hidden="true" /> {destino.etiqueta}
               </Link>
             );
           })}
         </nav>
         <div className="mt-auto border-t p-5 text-xs leading-relaxed text-texto-sutil">
-          <p className="font-medium text-texto">Ferretería La Broca</p>
-          <p>Sucursal Centro · Administrador</p>
+          <p className="font-medium text-texto">{sesion.nombreNegocio}</p>
+          <p>
+            {sesion.nombreSucursal ?? 'Alcance general'} · {sesion.rol || 'Sesión pendiente'}
+          </p>
         </div>
       </aside>
 
@@ -53,13 +81,13 @@ export function NavegacionGestion() {
           MorphiqPOS
         </Link>
         <nav aria-label="Gestión móvil" className="flex items-center gap-1">
-          {DESTINOS.map((destino) => {
-            const Icono = destino.icono;
+          {destinos.map((destino) => {
+            const Icono = ICONOS[destino.icono];
             return (
               <Link
                 key={destino.href}
                 href={destino.href}
-                aria-label={destino.nombre}
+                aria-label={destino.etiqueta}
                 aria-current={ruta === destino.href ? 'page' : undefined}
                 className="grid size-[var(--altura-control)] place-items-center rounded-md text-texto-sutil aria-[current=page]:bg-primario aria-[current=page]:text-primario-texto"
               >

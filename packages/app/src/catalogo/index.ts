@@ -1,4 +1,5 @@
 export { entradaBuscarProductos, listarProductos } from './consulta';
+export { consultarInicioProduccion } from './inicio';
 export type { PaginaProductos, ProductoResumen } from './consulta';
 export {
   actualizarProducto,

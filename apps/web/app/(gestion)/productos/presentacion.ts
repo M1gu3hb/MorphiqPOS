@@ -2,6 +2,7 @@ export type TipoVentaVista = 'precio_fijo' | 'variable_medida' | 'porcion_conten
 
 export interface ProductoVista {
   readonly id: string;
+  readonly categoriaId?: string | null;
   readonly nombre: string;
   readonly descripcion: string;
   readonly imagenUrl: string;
@@ -14,7 +15,54 @@ export interface ProductoVista {
   readonly precioMayoreoCentavos: string;
   readonly cantidadMinimaMayoreo: string;
   readonly tipoVenta: TipoVentaVista;
+  readonly unidadVenta?: string;
+  readonly permiteVentaSinStock?: boolean;
+  readonly stockMinimo?: string;
   readonly visibleEnPos: boolean;
+}
+
+export interface ProductoDesdeApi {
+  readonly id: string;
+  readonly categoriaId: string | null;
+  readonly nombre: string;
+  readonly descripcion: string | null;
+  readonly imagenUrl: string | null;
+  readonly categoriaNombre: string | null;
+  readonly marca: string | null;
+  readonly sku: string | null;
+  readonly codigoBarras: string | null;
+  readonly precioVentaCentavos: string;
+  readonly costoUnitarioCentavos: string;
+  readonly precioMayoreoCentavos: string | null;
+  readonly cantidadMinimaMayoreo: string | null;
+  readonly tipoVenta: string;
+  readonly unidadVenta: string;
+  readonly permiteVentaSinStock: boolean;
+  readonly stockMinimo: string;
+  readonly visibleEnPos: boolean;
+}
+
+export function productoDesdeApi(producto: ProductoDesdeApi): ProductoVista {
+  return {
+    id: producto.id,
+    categoriaId: producto.categoriaId,
+    nombre: producto.nombre,
+    descripcion: producto.descripcion ?? '',
+    imagenUrl: producto.imagenUrl ?? '',
+    categoria: producto.categoriaNombre ?? 'Sin categoría',
+    marca: producto.marca ?? '',
+    sku: producto.sku ?? '',
+    codigoBarras: producto.codigoBarras ?? '',
+    precioVentaCentavos: producto.precioVentaCentavos,
+    costoUnitarioCentavos: producto.costoUnitarioCentavos,
+    precioMayoreoCentavos: producto.precioMayoreoCentavos ?? '',
+    cantidadMinimaMayoreo: producto.cantidadMinimaMayoreo ?? '',
+    tipoVenta: tipoVista(producto.tipoVenta),
+    unidadVenta: producto.unidadVenta,
+    permiteVentaSinStock: producto.permiteVentaSinStock,
+    stockMinimo: producto.stockMinimo,
+    visibleEnPos: producto.visibleEnPos,
+  };
 }
 
 const TIPOS: Readonly<Record<TipoVentaVista, string>> = {
@@ -52,6 +100,17 @@ export function centavosDesdePesos(valor: string): string {
   const enteros = coincidencia[1] ?? '0';
   const decimales = (coincidencia[2] ?? '').padEnd(2, '0');
   return (BigInt(enteros) * 100n + BigInt(decimales === '' ? '0' : decimales)).toString();
+}
+
+export function pesosSinSimboloDesdeCentavos(valor: string): string {
+  const centavos = BigInt(valor || '0');
+  return `${centavos / 100n}.${(centavos % 100n).toString().padStart(2, '0')}`;
+}
+
+function tipoVista(tipo: string): TipoVentaVista {
+  return tipo === 'variable_medida' || tipo === 'porcion_contenedor' || tipo === 'servicio'
+    ? tipo
+    : 'precio_fijo';
 }
 
 function normalizarBusqueda(valor: string): string {

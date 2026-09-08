@@ -7,8 +7,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./comando": "./src/comando.ts",
+    "./produccion": "./src/produccion.ts",
+    "./puente-desarrollo": "./src/puente-desarrollo.ts",
     "./catalogo": "./src/catalogo/index.ts",
-    "./configuracion": "./src/configuracion/index.ts"
+    "./configuracion": "./src/configuracion/index.ts",
+    "./inventario": "./src/inventario/index.ts",
+    "./demostracion": "./src/demostracion/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -17,6 +21,7 @@
     "@morphiqpos/contracts": "workspace:*",
     "@morphiqpos/data": "workspace:*",
     "@morphiqpos/domain": "workspace:*",
+    "kysely": "catalog:",
     "server-only": "^0.0.1",
     "zod": "catalog:"
   },
