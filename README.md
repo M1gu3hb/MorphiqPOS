@@ -56,7 +56,7 @@ PIN** y obliga a reenrolar a todo el mundo, así que se fija una vez y no se toc
 | `pnpm dev`                                        | Levanta la aplicación                                           |
 | `pnpm verify`                                     | **La puerta completa.** Es lo que decide si algo está terminado |
 | `pnpm test:unit`                                  | Pruebas unitarias. Menos de un segundo, sin base de datos       |
-| `pnpm test:integracion`                           | Contra Postgres real. Necesita Docker                           |
+| `pnpm test:integracion`                           | Contra Postgres real. Necesita Docker o `DATABASE_URL_PRUEBAS`  |
 | `pnpm test:e2e`                                   | Playwright. Necesita un build                                   |
 | `pnpm lint` · `pnpm typecheck`                    | Cero errores, siempre                                           |
 | `pnpm db:up` · `db:down` · `db:reset` · `db:logs` | El entorno local                                                |

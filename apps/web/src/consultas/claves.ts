@@ -8,6 +8,11 @@
  * Se construye en F1.0, **antes de que haya 200 usos**. Ese es el punto: montarla
  * despues cuesta diez veces mas y para entonces ya hay claves duplicadas.
  *
+ * Alcance: solo los namespaces que F1.1 CONSUME. `mesas` y `comandas` se
+ * retiraron en F1.1-T00 y vuelven con el corte de restaurante (F1.2): un
+ * namespace sin consumidor es codigo especulativo, y la auditoria de F1.0 lo
+ * conto como andamiaje muerto.
+ *
  * Reglas de uso:
  *   - Ningun `useQuery` escribe un arreglo literal. Siempre sale de aqui.
  *   - Las claves van de lo general a lo especifico, para poder invalidar por
@@ -51,18 +56,6 @@ export const claves = {
     todo: ['morphiqpos', 'inventario'] as const,
     existencias: (almacenId: string) =>
       ['morphiqpos', 'inventario', 'existencias', almacenId] as const,
-  },
-
-  mesas: {
-    todo: ['morphiqpos', 'mesas'] as const,
-    mapa: (sucursalId: string) => ['morphiqpos', 'mesas', 'mapa', sucursalId] as const,
-    detalle: (id: string) => ['morphiqpos', 'mesas', 'detalle', id] as const,
-  },
-
-  comandas: {
-    todo: ['morphiqpos', 'comandas'] as const,
-    porEstacion: (estacionId: string) =>
-      ['morphiqpos', 'comandas', 'estacion', estacionId] as const,
   },
 
   configuracion: {

@@ -10,10 +10,15 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "typescript": "catalog:"
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
-  "description": "El unico lugar del monorepo que conoce SQL. Repositorios, migraciones y acceso a Postgres.",
+  "description": "El unico lugar del monorepo que conoce SQL. Pool, transacciones, repositorios y migraciones.",
   "dependencies": {
+    "kysely": "catalog:",
+    "pg": "catalog:",
     "server-only": "^0.0.1"
   }
 }

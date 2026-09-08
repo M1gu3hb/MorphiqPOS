@@ -15,7 +15,7 @@
  * codigo distinto de cero. Nunca finge exito.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -127,14 +127,37 @@ function esperarSanos() {
   }
 }
 
-/** Delega en packages/data, que todavia no existe en F1.0. */
+/**
+ * Delega una tarea de base de datos en packages/data.
+ *
+ * La guarda comprueba que packages/data **declare el script** que se le va a
+ * delegar, no que su package.json exista.
+ *
+ * La version anterior comprobaba la existencia del archivo, y desde F1.0 ese
+ * archivo existe con 17 lineas y ningun script. La guarda dejo de disparar sin
+ * que nada lo dijera, y `pnpm db:migrate` moria con un error criptico de pnpm
+ * en vez del mensaje que explicaba lo que faltaba. Es el ejemplo de manual de
+ * una comprobacion atada al identificador y no al uso.
+ */
 function delegarEnData(tarea) {
-  if (!existsSync(join(DATA, 'package.json'))) {
-    console.error(`✗ "${tarea}" necesita packages/data, que llega en F1.1.`);
-    console.error('  El ejecutor de migraciones esta decidido en docs/adr/0001-acceso-postgres.md');
-    console.error('  (Kysely con proveedor de archivos .sql). Todavia no hay ninguna migracion.');
+  const manifiesto = join(DATA, 'package.json');
+
+  const scripts = existsSync(manifiesto)
+    ? (JSON.parse(readFileSync(manifiesto, 'utf8')).scripts ?? {})
+    : {};
+
+  if (!(tarea in scripts)) {
+    console.error(`✗ packages/data no implementa el script "${tarea}".`);
+    console.error('');
+    console.error('  El acceso a Postgres esta decidido en docs/adr/0001-acceso-postgres.md:');
+    console.error('  Kysely sobre pg, con las migraciones como archivos .sql numerados.');
+    console.error('');
+    console.error(
+      `  Scripts que packages/data si declara: ${Object.keys(scripts).join(', ') || 'ninguno'}`,
+    );
     process.exit(3);
   }
+
   process.exit(correrShim('pnpm', ['--filter', '@morphiqpos/data', tarea]));
 }
 

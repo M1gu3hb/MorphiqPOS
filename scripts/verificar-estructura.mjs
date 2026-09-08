@@ -16,23 +16,34 @@ import { join } from 'node:path';
 
 const RAIZ = process.cwd();
 
-/** Carpetas obligatorias de 04-ARQUITECTURA §1. */
+/**
+ * Carpetas que deben existir HOY, con contenido real.
+ *
+ * `04-ARQUITECTURA §1` describe la estructura completa del monorepo, pero una
+ * carpeta vacia con un .gitkeep no es estructura: es andamiaje que aparenta
+ * avance donde no hay nada. La auditoria de F1.0 las conto como ruido y F1.1-T00
+ * las retiro.
+ *
+ * Cada carpeta diferida vuelve cuando el corte que la llena la necesite:
+ *   apps/worker         F1.3 · jobs, outbox y reconciliadores
+ *   capabilities/       F1.5 · registry completo con grafo de dependencias
+ *   packages/app        cuando haya un SEGUNDO consumidor de los comandos.
+ *                       Hasta entonces viven en apps/web (A-41: se difiere lo
+ *                       que se puede agregar despues sin reescribir lo anterior)
+ *   packages/registry   F1.5
+ *   infra/ci            el workflow vive en .github/workflows
+ */
 const CARPETAS = [
   'apps',
   'apps/web',
-  'apps/worker',
   'packages',
   'packages/contracts',
   'packages/domain',
   'packages/data',
-  'packages/app',
   'packages/ui',
-  'packages/registry',
   'packages/testing',
-  'capabilities',
   'infra',
   'infra/docker',
-  'infra/ci',
   'docs',
   'docs/adr',
   'historico',
@@ -86,7 +97,7 @@ if (existsSync(join(RAIZ, 'pnpm-workspace.yaml'))) {
     !/^\s*-\s*['"]?historico/m.test(ws),
     'pnpm-workspace.yaml no debe incluir historico/ como workspace',
   );
-  for (const glob of ['apps/*', 'packages/*', 'capabilities/*']) {
+  for (const glob of ['apps/*', 'packages/*']) {
     comprobar(ws.includes(glob), `pnpm-workspace.yaml debe declarar el glob ${glob}`);
   }
 }

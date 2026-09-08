@@ -19,7 +19,7 @@ name: morphiqpos
 
 services:
   postgres:
-    image: postgres:16.15-alpine
+    image: postgres:17.11-alpine
     container_name: morphiqpos-postgres
     restart: unless-stopped
     environment:

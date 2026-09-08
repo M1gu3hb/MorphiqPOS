@@ -6,7 +6,6 @@
 packages:
   - 'apps/*'
   - 'packages/*'
-  - 'capabilities/*'
 
 # Catalogo de versiones. Un paquete escribe "catalog:" y hereda de aqui.
 # Con 15 paquetes por venir, es lo que impide que dos usen versiones distintas
@@ -40,6 +39,11 @@ catalog:
   prettier: 3.9.6
   '@playwright/test': 1.63.0
   zod: 4.5.4
+  kysely: 0.29.5
+  pg: 8.23.0
+  '@types/pg': 8.23.1
+  argon2: 0.45.1
+  'kysely-codegen': 0.20.0
 
 minimumReleaseAgeExclude:
   - lucide-react@1.42.0
