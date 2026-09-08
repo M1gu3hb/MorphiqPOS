@@ -262,11 +262,17 @@ export default tseslint.config(
 
   // --- Pruebas -------------------------------------------------------------
   {
-    files: ['**/*.test.{ts,tsx}'],
+    files: ['**/*.test.{ts,tsx}', '**/pruebas/**/*.ts'],
     rules: {
       // Una prueba SI puede afirmar cosas sobre valores no nulos.
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-unnecessary-condition': 'off',
+      // Un doble implementa un puerto asincrono: sus metodos DEBEN devolver una
+      // promesa aunque no esperen nada dentro, o no satisfacen la interfaz. Lo
+      // mismo el cuerpo de un comando de juguete. La regla sigue entera en el
+      // codigo de produccion, que es donde un `async` de mas si esconde un
+      // `await` olvidado.
+      '@typescript-eslint/require-await': 'off',
     },
   },
 

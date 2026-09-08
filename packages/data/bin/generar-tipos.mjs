@@ -84,6 +84,10 @@ lineas as (
   select tabla, pos,
          '  ' || columna || ': ' ||
          case
+           -- El tipo "unknown" ya incluye null, asi que "unknown | null" es
+           -- redundante y el lint lo rechaza. Es el unico caso del mapeo.
+           when tipo_ts = 'unknown' and generada then 'Generated<unknown>'
+           when tipo_ts = 'unknown'              then 'unknown'
            when generada and nulo then 'Generated<' || tipo_ts || ' | null>'
            when generada          then 'Generated<' || tipo_ts || '>'
            when nulo              then tipo_ts || ' | null'

@@ -1,0 +1,26 @@
+{
+  "name": "@morphiqpos/app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Casos de uso: comandos y consultas. Aqui vive toda la logica critica (A-21).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./comando": "./src/comando.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@morphiqpos/contracts": "workspace:*",
+    "@morphiqpos/data": "workspace:*",
+    "@morphiqpos/domain": "workspace:*",
+    "server-only": "^0.0.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -67,6 +67,20 @@ export interface Clientes {
   updated_at: Generated<Date>;
 }
 
+export interface ComandosEjecutados {
+  id: Generated<string>;
+  organizacion_id: string;
+  comando: string;
+  idempotency_key: string;
+  huella_entrada: string;
+  identidad_id: string | null;
+  correlation_id: string;
+  respuesta: unknown;
+  reintentos: Generated<number>;
+  completado_en: Date | null;
+  created_at: Generated<Date>;
+}
+
 export interface Configuracion {
   id: Generated<string>;
   organizacion_id: string;
@@ -393,6 +407,7 @@ export interface Esquema {
   auditoria: Auditoria;
   categorias: Categorias;
   clientes: Clientes;
+  comandos_ejecutados: ComandosEjecutados;
   configuracion: Configuracion;
   credenciales_pin: CredencialesPin;
   empleos: Empleos;
