@@ -1,97 +1,166 @@
 # MorphiqPOS
 
-Plataforma madre de puntos de venta y sistemas de negocio de **Morphiq**.
+Punto de venta de **Morphiq**. Un solo sistema que opera una tienda de mostrador y un
+restaurante completo, sin cambiar de aplicación.
 
-**Fase actual: 1 — ejecución. El corte F1.0 está construido y a una tarea de firmarse.**
+> **La planeación vive aquí también, desde el 8 de septiembre de 2026** (decisión A-46).
+> Código y documentación comparten repositorio: tenerlos separados era justo la causa del
+> problema de contexto que motivó el cambio.
+>
+> Antes de tocar nada, lee [`CONTEXTO_MAESTRO.md`](CONTEXTO_MAESTRO.md),
+> [`DECISIONES.md`](DECISIONES.md) y [`REGLAS.md`](REGLAS.md). Si algo no está escrito ahí,
+> no está decidido. Si vas a escribir código, lee además [`TEAM.md`](TEAM.md): hay **dos
+> agentes trabajando en paralelo** y cada uno tiene su zona.
+>
+> El README anterior de planeación se conserva en
+> [`docs/README-PLANEACION.md`](docs/README-PLANEACION.md).
 
-El código vive en un repositorio aparte: `morphiqpos` (local, sin remoto todavía — decisión A-35).
-Lo que queda de F1.0 es levantar el entorno con Docker; todo lo demás está verificado.
-
----
-
-## ⚠️ Antes que nada: este repositorio es público
-
-Contiene la planeación de sistemas que **hoy operan con clientes reales que pagan** (una pastelería, una ferretería y una tienda). Parte del material de origen describe defectos de seguridad concretos de esos sistemas en producción.
-
-Por eso, en este repositorio:
-
-- **Sí está** toda la estrategia, arquitectura, decisiones y catálogo de capacidades.
-- **No está** la auditoría de seguridad detallada, con archivos y líneas de los sistemas en producción. Publicarla equivale a repartir el mapa para atacar a los clientes de Miguel.
-- Tampoco está el ZIP histórico del POS de restaurante ni ningún dato de clientes.
-
-**Recomendación: cambiar este repositorio a privado.** Un repositorio privado funciona igual para conversar con los agentes desde la nube y no tiene ninguna desventaja para este proyecto. Una vez privado, se sube la auditoría completa. Decisión pendiente **A-33**.
-
----
-
-## Empieza aquí
-
-> **¿Vienes de un chat nuevo o vas a abrir Claude Code?**
-> Usa uno de los dos prompts de arranque de [`docs/fase-1/14-PROMPT-CLAUDE-CODE.md`](docs/fase-1/14-PROMPT-CLAUDE-CODE.md). No improvises el contexto: ese archivo existe precisamente porque una sesión nueva sin él se pierde.
-
-| Archivo | Qué es |
-|---|---|
-| **[`CONTEXTO_MAESTRO.md`](CONTEXTO_MAESTRO.md)** | **Léelo completo antes de responder nada.** Quién es Miguel, qué es MorphiqPOS, de dónde sale, la arquitectura acordada, la secuencia y los riesgos vivos |
-| [`DECISIONES.md`](DECISIONES.md) | Registro de decisiones con fecha, alternativas y consecuencias. Incluye las superadas y las pendientes |
-| [`REGLAS.md`](REGLAS.md) | 34 reglas no negociables. Si una propuesta las viola, se rechaza |
-| **[`docs/fase-1/`](docs/fase-1/00-INDICE-Y-COMO-USAR.md)** | **El plan de ejecución.** Estrategia de fusión, modelo de datos, arquitectura, diseño, defectos, y los 6 cortes con sus tareas |
-| [`docs/fase-1/BITACORA.md`](docs/fase-1/BITACORA.md) | Dónde quedó la última sesión. **Primer lugar donde mira un agente nuevo** |
-| [`docs/`](docs/) | Los documentos de Fase 0 — el análisis que llevó a este plan |
-
-## Estado
-
-**Fase 0 — cerrada.** Auditoría, decisiones, arquitectura y catálogo de capacidades.
-**Fase 1 — planeada, lista para ejecutar.** Fusionar los dos sistemas fuente en una sola aplicación, erradicar Base44 y corregir los defectos. Seis cortes, ~74–101 jornadas, la ejecuta Claude Code.
-**Código escrito hasta hoy: cero.**
+**Corte actual: F1.1 — POS que vende.** F1.0 (fundación, puertas de calidad, sistema de
+diseño) está construido. F1.1 lleva 4 de 21 tareas: esquema de 26 tablas aplicado a
+Supabase y tipos generados. Ver [`docs/fase-1/16-CORTE-F1.1-POS-QUE-VENDE.md`](docs/fase-1/16-CORTE-F1.1-POS-QUE-VENDE.md)
+y el reparto en dos carriles en [`docs/fase-1/18-REPARTO-DOS-CARRILES.md`](docs/fase-1/18-REPARTO-DOS-CARRILES.md).
 
 ---
 
-## Qué es MorphiqPOS en una frase
+## Levantarlo en cinco minutos
 
-> Primero es la herramienta de venta que hoy falta para cerrar tratos —el prospecto necesita **ver**— y después la fábrica de capacidades que evita ahogarse cuando los clientes se multipliquen.
+Necesitas **Node 20.11 o superior**, **Docker Desktop** y nada más. Sin cuentas, sin claves
+de terceros, sin internet después de la primera instalación — es el requisito A-27: el
+sistema completo tiene que correr en la PC de un cliente que no quiere depender de nadie.
 
-**No es un SaaS.** Morphiq es boutique: no vende sacos, toma medidas.
+```bash
+corepack enable                 # habilita pnpm en la versión que fija el repositorio
+pnpm install
 
-**La meta que ordena toda la arquitectura:** firmar el viernes y **entregar el sistema del cliente en 2–3 semanas.**
+cp .env.example .env            # y GENERA tus secretos, no uses los de ejemplo
+                                # DATABASE_URL apunta a Supabase (A-39); el compose
+                                # de abajo es la prueba de portabilidad de A-27
+pnpm db:up                      # Postgres 17 + almacenamiento, en contenedores
+
+pnpm dev                        # http://localhost:3000
+```
+
+La aplicación abre en **`/estilos`**: el sistema de diseño en vivo. Cambia de estilo, de
+modo y de densidad desde ahí y verás la interfaz entera cambiar. En F1.1 la raíz pasa a
+ser el panel del negocio.
+
+### Genera tus secretos
+
+`SESSION_SECRET` y `PIN_PEPPER` **no tienen valor por defecto**: el proceso no arranca sin
+ellos, a propósito.
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+`PIN_PEPPER` es la pimienta del hash de los PIN de empleado. **Rotarla invalida todos los
+PIN** y obliga a reenrolar a todo el mundo, así que se fija una vez y no se toca.
 
 ---
 
-## Estado del proyecto
+## Los comandos que vas a usar
 
-**De dónde sale:** de dos sistemas reales ya construidos y vendidos, no de cero.
+| Comando                                           | Qué hace                                                        |
+| ------------------------------------------------- | --------------------------------------------------------------- |
+| `pnpm dev`                                        | Levanta la aplicación                                           |
+| `pnpm verify`                                     | **La puerta completa.** Es lo que decide si algo está terminado |
+| `pnpm test:unit`                                  | Pruebas unitarias. Menos de un segundo, sin base de datos       |
+| `pnpm test:integracion`                           | Contra Postgres real. Necesita Docker o `DATABASE_URL_PRUEBAS`  |
+| `pnpm test:e2e`                                   | Playwright. Necesita un build                                   |
+| `pnpm lint` · `pnpm typecheck`                    | Cero errores, siempre                                           |
+| `pnpm db:up` · `db:down` · `db:reset` · `db:logs` | El entorno local                                                |
+| `pnpm ui:tokenizar`                               | Tokeniza una primitiva recién agregada de shadcn                |
 
-- **POS MH Restaurante** (Base44, se erradica) → aporta las **features y las reglas de negocio**: mesas, mesero, cocina/KDS, comandas, propinas, recetas, portal QR.
-- **[POS-MH-Tiendita](https://github.com/M1gu3hb/POS-MH-Tiendita)** (Next.js + Supabase) → aporta la **arquitectura**: repositorios, RLS multi-tenant, sesión de servidor, y features fuertes como el escáner de tres vías y la báscula.
+### `pnpm verify` es la definición de terminado
 
-**El hallazgo que define el núcleo:** comparando ambos, los giros sólo divergen en dos cosas — **cómo se llena el carrito** (escaneo vs. mesa) y **qué se descuenta al cobrar** (el SKU mismo vs. una receta). Todo lo demás coincide. Ese núcleo está validado por dos implementaciones reales, no inventado.
+No es un atajo de conveniencia: encadena todas las puertas, en el mismo orden que CI.
+
+```
+estructura · histórico · tsconfig · entorno · residuos · primitivas
+   → formato · lint · tipos → pruebas → build → cabeceras en vivo
+```
+
+Si `pnpm verify` no está en verde desde un clon limpio, el corte no se firma.
 
 ---
 
-## Secuencia
+## Cómo está organizado
 
-| Corte | Qué construye | Qué desbloquea |
-|---|---|---|
-| **Fase 0** | ADR, baseline, matrices, backlog | — |
-| **Corte 0** | Núcleo endurecido + motor de diseño | Demos de tienda, ferretería y farmacia |
-| **Corte 1** | Restaurante: mesas, mesero, cocina, comandas | La demo más fuerte |
-| **Corte 2** | Completar retail: variantes, lotes, series | Farmacia, boutique, calzado, celulares |
-| **Corte 3** | Servicios y citas | Estéticas, barberías, spas, dentistas |
-| Posteriores | Espacios · producción · omnicanal · membresías · franquicias · hardware · IA y MCP | |
+```
+apps/web/            La aplicación. Next.js App Router único
+packages/
+  contracts/         Tipos, errores tipados y validación del entorno. Sin dependencias
+  domain/            Reglas puras. Cero I/O, cero React, cero SQL
+  data/              El único lugar que conoce SQL          (contenido: F1.1)
+  app/               Casos de uso: comandos y consultas     (contenido: F1.1)
+  ui/                Tokens, las 4 perillas y 36 primitivas
+  registry/          Motor de capacidades                   (contenido: F1.2)
+  testing/           Inyección de fallos, datos sintéticos, arranque de Postgres
+capabilities/        Una carpeta por capacidad activable    (contenido: F1.2)
+infra/docker/        Postgres + almacenamiento
+historico/           Las dos fuentes. Evidencia, no plantilla. NO se versiona
+```
 
-**Regla que ordena el roadmap:** cada corte debe agregar un capítulo al guion de demostración, o ser cimentación obligatoria de algo que sí lo hace.
+### Las reglas que hace cumplir el código, no la buena voluntad
+
+Cada una tiene una puerta automática detrás. No son recordatorios:
+
+| Regla                                                               | Quién la hace cumplir                                                                                                         |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| La interfaz nunca importa `packages/data`                           | `pnpm lint` — y `import 'server-only'` rompe el build                                                                         |
+| `packages/domain` no hace I/O                                       | `pnpm lint` **y el compilador**: su `tsconfig` no incluye los tipos de Node ni el DOM, así que ahí no existe ni `console.log` |
+| Ningún componente escribe un color, una altura o una sombra literal | `pnpm verify:primitivas`                                                                                                      |
+| Cero residuos de la plataforma erradicada                           | `pnpm verify:residuos`                                                                                                        |
+| El dinero nunca pasa por punto flotante                             | El tipo `Centavos` es un `bigint` con marca: una suma escrita fuera de `domain/dinero` **no compila**                         |
+| Un `await` olvidado en una transacción                              | `no-floating-promises`, con información de tipos                                                                              |
+| `historico/` no se compila, no se lintea, no se importa             | `pnpm verify:historico`                                                                                                       |
 
 ---
 
-## Para agentes de IA (Claude Code · Codex · Antigravity)
+## Antes de escribir código
 
-Este repositorio es la **fuente de verdad compartida**. No dependas de memoria de conversación.
+1. **La prueba va primero** (R17). No "compila" ni "la pantalla se ve".
+2. **Si corriges un defecto, quita la corrección y comprueba que la prueba falla.** Una
+   prueba que pasa igual con y sin el arreglo no prueba nada.
+3. **Ningún archivo pasa de 300 líneas.** Si crece, se parte.
+4. **Cero `any`, cero `@ts-ignore`.** Si no conoces el tipo, usa `unknown` y estréchalo.
+5. **Los mensajes de commit llevan el identificador de tarea:** `F1.1-T07: …`
+6. **Al terminar una tarea, escribe su entrada en `docs/fase-1/BITACORA.md`** del
+   repositorio de documentación. Es lo que permite que otra sesión retome sin preguntar.
 
-1. Lee `CONTEXTO_MAESTRO.md`, `DECISIONES.md` y `REGLAS.md` **antes** de proponer nada.
-2. **No escribas código.** Fase 0. El desarrollo requiere autorización expresa de Miguel.
-3. Registra toda decisión nueva en `DECISIONES.md` con fecha, alternativas, elección y consecuencia. Si no está escrita, no existe.
-4. Una decisión superada **no se borra**: se marca y se apunta a la nueva.
-5. Responde en **español**, conciso y directo.
-6. Miguel habla por **voz a texto**: ante una frase ambigua, pregunta antes de asumir.
-7. Marca siempre qué es **confirmado por evidencia**, qué es **inferido**, qué es **propuesta** y qué es **decisión pendiente**.
-8. Nunca copies PINs, contraseñas, tokens ni datos de clientes a este repositorio.
+### Agregar una primitiva de shadcn
 
-Al cerrar una sesión con acuerdos nuevos, **actualiza `DECISIONES.md` y `CONTEXTO_MAESTRO.md`** y anota la sesión en el registro del final de `DECISIONES.md`.
+```bash
+cd packages/ui
+pnpm dlx shadcn@latest add <nombre>
+cd ../.. && pnpm ui:tokenizar && pnpm verify:primitivas
+```
+
+El codemod es obligatorio. Lo que genera shadcn trae alturas fijas que puentean la perilla
+de densidad, `transition-all` que anima la altura, y la variante `dark:` en vez de la
+nuestra. `pnpm verify:primitivas` lo rechaza si te lo saltas.
+
+---
+
+## Documentación técnica
+
+- **[`docs/adr/`](docs/adr/)** — decisiones de arquitectura con sus alternativas, sus
+  consecuencias y su salida de reversa.
+  - [`0001-acceso-postgres.md`](docs/adr/0001-acceso-postgres.md) — por qué Kysely sobre
+    `pg` y no Drizzle.
+- La estrategia, el modelo de datos y el plan por cortes viven en el repositorio de
+  documentación, no aquí.
+
+---
+
+## Qué falta en este corte
+
+Escrito para que nadie lo descubra a la mala:
+
+- **`pnpm db:migrate` y `db:seed` fallan a propósito**: necesitan `packages/data`, que
+  llega en F1.1. No hay ninguna migración todavía.
+- **El workflow de CI no se ha ejecutado nunca.** Este repositorio no tiene remoto
+  (decisión A-35). Cada paso invoca el mismo script que corre en local, y esos sí están
+  verificados.
+- **Las pruebas E2E emulan la tablet sobre Chromium.** El iPad real (WebKit) entra en
+  F1.4, con la pantalla de mesero.

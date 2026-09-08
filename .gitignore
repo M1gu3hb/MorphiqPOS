@@ -50,3 +50,6 @@ historico/*
 
 # Generado por next build.
 apps/web/next-env.d.ts
+
+# Scratch del CLI de Supabase. No es configuracion del proyecto.
+supabase/.temp/

@@ -1,26 +1,92 @@
-# Pendientes cruzados · Codex / Claude Code
+# Pendientes cruzados
 
-## 2026-09-07 · Carril B, arranque y B-01
+Lo que un carril necesita del otro. Se anota aquí y se sigue con otra tarea; no se
+implementa en zona ajena (TEAM.md §6).
 
-| Necesito / entrego                                     | Responsable                     | Motivo                                                                                                                          | STUB |
-| ------------------------------------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| `comando()` y su contrato final                        | A                               | B-04 y B-05 deben consumirlo sin duplicarlo                                                                                     | No   |
-| `@morphiqpos/domain/catalogo`                          | B, disponible en `carril-b`     | Cuatro tipos, cantidades exactas y precio base para la cotización A                                                             | No   |
-| `consumo.ts` y `stock.ts`                              | B, pendientes B-02/B-03         | Cobro y decremento atómico; todavía no están implementados                                                                      | No   |
-| Unificar gates de documentación y código               | Zona neutral, coordinar con A   | `verify:residuos` detecta 14 referencias en documentos históricos de planeación; el formateador rechaza documentación integrada | No   |
-| Ruta del estándar completo `morphiq-prs`               | Miguel / quien tenga el archivo | Sólo se encontraron gates resumidos por corte; no se puede afirmar aprobación completa                                          | No   |
-| `DATABASE_URL` y credenciales reales de almacenamiento | Infraestructura compartida      | La CLI recuperó claves API, pero no completan una conexión PostgreSQL ni credenciales S3                                        | No   |
+| # | Quién necesita | Qué | De quién | Para qué tarea | Estado |
+|---|---|---|---|---|---|
+| X-01 | Carril A | `packages/domain/inventario/consumo.ts` → `calcularConsumo(lineas)` y `packages/data/repos/stock.ts` → `aplicarMovimientos(movimientos, tx)`, con el decremento atómico dentro | Codex (B-02, B-03) | **A-09** `cobrarOrden` | ⬜ Abierto — A-09 está a siete tareas, todavía no bloquea |
 
-Avisos de zona neutral: se agregaron tres códigos a `packages/contracts/src/errores/index.ts`,
-la exportación `./catalogo` al manifiesto de domain y el verificador nuevo
-`scripts/verificar-catalogo-codex.mjs`. Se preservaron todas las exportaciones existentes.
+---
 
-Integración: se unieron las historias locales y remotas únicamente en `carril-b`.
-El único conflicto fue README; se conservó la versión remota y el contenido de
-arranque local se conservó completo en `docs/ARRANQUE-CODEX.md`. No se cambió de
-rama ni se trabajó dentro de la carpeta de A. No se integra a `main` con gate rojo.
+## Lo que el carril A ya entregó y el B puede consumir
 
-La CLI confirmó 26 tablas operativas y `_migraciones`, todas con RLS. Sólo se
-consultó el proyecto de MorphiqPOS. `.env` local contiene claves API recuperadas
-y secretos nuevos de sesión/PIN; está ignorado por Git y sigue incompleto.
-No reutilizar esos secretos entre entornos sin coordinar la sesión y el enrolamiento.
+**`comando()` — disponible en `main` desde `0a5a57f`.**
+
+```ts
+import { definirComando } from '@morphiqpos/app';
+import { comando } from '@morphiqpos/app/produccion';
+
+export const crearProducto = definirComando({
+  nombre: 'catalogo.crear_producto',   // forma dominio.verbo, obligatoria
+  entidad: 'producto',                 // va a auditoria.entidad
+  escribe: true,                       // ⇒ transacción + clave de idempotencia + auditoría
+  roles: ['dueno', 'administrador', 'gerente'],
+  paquetes: ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'],
+  entrada: z.object({ nombre: z.string().min(1), precioVentaCentavos: z.number().int() }),
+  async ejecutar(ctx, entrada) {
+    const fila = await ctx.paso('insertar_producto', () =>
+      ctx.tx.insertInto('productos')
+        .values({ organizacion_id: ctx.ambito.organizacionId, nombre: entrada.nombre })
+        .returning('id')
+        .executeTakeFirstOrThrow(),
+    );
+    ctx.auditar({ entidadId: fila.id, payload: { nombre: entrada.nombre } });
+    return { id: fila.id };
+  },
+});
+```
+
+Y desde una ruta:
+
+```ts
+const salida = await comando(crearProducto, {
+  entrada: await peticion.json(),
+  ambito,                                   // de la sesión del servidor, NUNCA del cuerpo
+  idempotencyKey: peticion.headers.get('Idempotency-Key') ?? undefined,
+  correlationId: peticion.headers.get('x-correlation-id') ?? undefined,
+});
+if (!salida.ok) return Response.json(salida, { status: ESTADO_HTTP[salida.error.codigo] });
+```
+
+### Tres cosas que sorprenden si no se saben
+
+1. **Un comando con `escribe: true` DEBE llamar a `ctx.auditar`.** Si no, falla a
+   propósito: declarar sensible algo que no deja rastro convierte la auditoría en un
+   adorno.
+2. **La entrada no puede declarar `organizacion_id`, `sucursal_id`, `identidad_id`,
+   `empleo_id`, `terminal_id` ni `rol`** — en ninguna de las dos ortografías. El
+   comando **lanza al definirse** y el módulo no carga. Es R16: el ámbito viene de la
+   sesión del servidor.
+3. **`comando()` nunca lanza por un fallo de negocio.** Devuelve
+   `{ ok: false, error: { codigo, mensaje } }`. Los códigos y su estado HTTP están en
+   `@morphiqpos/contracts` (`CODIGOS_COMANDO`, `ESTADO_HTTP`).
+
+### Lo que todavía no tiene
+
+- **`emitir()` / outbox de eventos.** La tabla no existe en F1.1. Cuando llegue, se
+  agrega al contexto sin tocar ningún comando.
+- **Matriz de permisos configurable.** Los roles se declaran en cada comando; la tabla
+  `permisos_rol` llega en F1.5 y la sustituirá sin tocar los comandos (A-49).
+- **Verificación contra Postgres de punta a punta.** Falta `DATABASE_URL`. La lógica
+  está probada con dobles y las restricciones de base con SQL real, pero el pegamento
+  Kysely no ha corrido nunca. Ver el reporte 002 §8.
+
+---
+
+## Notas del carril B
+
+- `@morphiqpos/domain/catalogo` está disponible desde `27940c3`: cuatro tipos de
+  producto, cantidades exactas, porciones y mayoreo.
+- B-02 y B-03 cerrarán X-01 con el cálculo puro de consumo y el decremento atómico.
+- Los gates completos de `morphiq-prs` están expresados como tablas en la
+  documentación del proyecto; no se requiere un archivo o skill separado.
+- La CLI confirmó 26 tablas operativas y `_migraciones`, todas con RLS, en el proyecto
+  MorphiqPOS. No se consultó ni modificó ningún otro proyecto.
+- `.env` local contiene las claves API y secretos locales, está ignorado por Git y
+  sigue sin `DATABASE_URL` ni credenciales S3.
+
+Avisos de zona neutral del carril B: se agregaron tres códigos a
+`packages/contracts/src/errores/index.ts`, la exportación `./catalogo` al manifiesto
+de domain y un verificador de mutaciones de catálogo. Se preservaron las
+exportaciones existentes.

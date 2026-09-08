@@ -14,3 +14,20 @@ packages/ui/src/primitivas/
 # linea la puerta se pelea consigo misma: `pnpm build` lo reescribe y el
 # `format:check` siguiente lo rechaza, sobre un archivo que nadie edita.
 apps/web/next-env.d.ts
+
+# --- Documentacion de planeacion y decisiones -------------------------------
+# Prettier formatea CODIGO. Estos son documentos de prosa escritos a mano: al
+# reformatearlos reacomoda saltos de linea, tablas y vinetas, y el diff resultante
+# —32 archivos— no aporta nada y garantiza conflictos con el otro carril, que
+# trabaja sobre los mismos documentos (TEAM.md §3: en zona neutral se agrega, no
+# se modifica lo ajeno).
+#
+# El codigo, sus comentarios y su propia documentacion tecnica SI se formatean:
+# README.md y docs/adr/ quedan fuera de esta exclusion a proposito.
+CONTEXTO_MAESTRO.md
+DECISIONES.md
+REGLAS.md
+TEAM.md
+docs/*.md
+docs/fase-1/
+docs/reports/

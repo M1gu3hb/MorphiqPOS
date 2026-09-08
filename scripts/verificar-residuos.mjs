@@ -21,7 +21,7 @@
  * Se ejecuta con: pnpm verify:residuos
  */
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -71,6 +71,29 @@ const EXTENSIONES = new Set([
 /** Lo unico excluido: la evidencia, donde SI debe aparecer. */
 const EXCLUIDO = new Set(['node_modules', '.git', 'historico', '.turbo']);
 
+/**
+ * Documentos donde la plataforma erradicada SI puede nombrarse.
+ *
+ * R6 lo dice literal: sólo puede aparecer «en evidencia histórica y en documentos
+ * de auditoría que expliquen la retirada». Estos son exactamente esos: el análisis
+ * de las dos fuentes, la estrategia de fusión y el mapa de defectos. Un análisis de
+ * la retirada que no puede nombrar lo que se retiró no sirve de nada.
+ *
+ * Este contrato se escribió cuando la documentación vivía en OTRO repositorio, así
+ * que nunca la vio. Al unirse los dos repos (A-46) empezó a marcar como residuo la
+ * prosa que la propia regla permite.
+ *
+ * Se excluye por PREFIJO DE RUTA, no por nombre de carpeta: excluir el nombre
+ * «fase-1» apagaría el escáner en cualquier carpeta que se llamara así, en
+ * cualquier punto del árbol. El código no se exceptúa nunca — ni una línea.
+ */
+const DOCUMENTACION_DE_AUDITORIA = ['docs/fase-1/', 'docs/auditorias/', 'docs/reports/'];
+
+function esDocumentacionDeAuditoria(ruta) {
+  const normalizada = ruta.split(sep).join('/');
+  return DOCUMENTACION_DE_AUDITORIA.some((prefijo) => normalizada.includes(prefijo));
+}
+
 const hallazgos = [];
 
 function recorrer(dir) {
@@ -94,6 +117,9 @@ function recorrer(dir) {
 
     // Un artefacto de build enorme se lee igual: es donde se esconde un residuo.
     if (statSync(ruta).size > 20 * 1024 * 1024) continue;
+
+    // Sólo la documentación de auditoría puede nombrarla (R6). Nada de código.
+    if (esDocumentacionDeAuditoria(ruta) && extension === '.md') continue;
 
     const contenido = readFileSync(ruta, 'utf8');
     for (const prohibido of PROHIBIDOS) {

@@ -40,6 +40,8 @@ const CARPETAS = [
   'packages/contracts',
   'packages/domain',
   'packages/data',
+  // Los casos de uso (A-21). La trae F1.1-A-01 con el envoltorio `comando()`.
+  'packages/app',
   'packages/ui',
   'packages/testing',
   'infra',

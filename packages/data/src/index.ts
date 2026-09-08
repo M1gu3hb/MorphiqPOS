@@ -17,3 +17,5 @@ export {
 } from './migraciones/ejecutor.ts';
 
 export type { Esquema } from './esquema.ts';
+
+export * as repoComandos from './repos/comandos.ts';
