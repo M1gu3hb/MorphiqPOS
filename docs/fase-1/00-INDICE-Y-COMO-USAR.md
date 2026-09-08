@@ -82,8 +82,8 @@ Cada tarea lleva un identificador estable, por ejemplo `F1.1-T07`. Ese identific
 
 | Corte | Estado | Notas |
 |---|---|---|
-| F1.0 Fundación | ⬜ No iniciado | |
-| F1.1 Núcleo | ⬜ No iniciado | Bloqueado por F1.0 |
+| F1.0 Fundación | 🟨 12 de 13 | Todo construido y verificado. **Falta levantar el entorno en vivo (T05): Docker no está instalado.** Acta de sign-off: 0 BLOCKERS, 2 CRITICAL declarados |
+| F1.1 Núcleo | ⬜ No iniciado | Bloqueado por T05 de F1.0. El ADR 0001 ya está aceptado (A-37): la primera migración puede escribirse en cuanto se firme F1.0 |
 | F1.2 Catálogo y venta | ⬜ No iniciado | Bloqueado por F1.1 |
 | F1.3 Inventario y compras | ⬜ No iniciado | Bloqueado por F1.2 |
 | F1.4 Restaurante | ⬜ No iniciado | Bloqueado por F1.3 |

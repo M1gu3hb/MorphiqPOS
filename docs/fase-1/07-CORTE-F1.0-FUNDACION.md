@@ -129,15 +129,38 @@ Mapa de superficies aplicable: **S5** (backend propio), **S14** (DB propia). Tod
 
 ## Definición de terminado
 
-Se firma sólo si **todas** son ciertas:
+Se firma sólo si **todas** son ciertas.
+Estado al 7 de septiembre de 2026 — **9 de 10. El corte NO está firmado.**
 
-- [ ] Un clon limpio llega de cero a `build` verde sin intervención manual.
-- [ ] `pnpm typecheck` y `pnpm lint` en **cero** errores.
-- [ ] Las 6 pruebas del corte pasan.
-- [ ] Las dos meta-pruebas de CI se verificaron creando PRs que fallan a propósito.
-- [ ] `/estilos` funciona y Miguel cambió de estilo en vivo.
-- [ ] El módulo `dinero/` está completo y probado.
-- [ ] Todo corre sin internet y sin cuentas de terceros.
-- [ ] Los ADR de F1.0 están escritos y aprobados.
-- [ ] `BITACORA.md` tiene una entrada por tarea.
-- [ ] Ningún check BLOCKER de `morphiq-prs` aplicable queda abierto.
+- [x] Un clon limpio llega de cero a `build` verde sin intervención manual.
+- [x] `pnpm typecheck` y `pnpm lint` en **cero** errores.
+- [ ] **Las 6 pruebas del corte pasan.** → 5 de 6. `F1.0-P1` (clon limpio → `docker compose up` → `db:migrate` → test → build) **no se ha ejecutado: Docker no está instalado.** `F1.0-P6` (`ZERO-01`, arrancar con el DNS heredado bloqueado) está escrita en CI y tampoco se ha ejecutado.
+- [x] Las dos meta-pruebas se verificaron creando el fallo a propósito. **No como PR** —el repositorio no tiene remoto (A-35)— sino en local, con el import prohibido y el residuo reales. **La primera encontró un defecto verdadero en la configuración de lint:** la quinta prohibición desactivaba en silencio a las otras cuatro.
+- [x] `/estilos` funciona. Verificado en navegador: cambiar de `premium` a `editorial` cambia colores, redondeo y elevación en vivo, y el contraste se recalcula solo. **Falta que Miguel lo abra y cambie de estilo él.**
+- [x] El módulo `dinero/` está completo y probado. 30 pruebas, 5 mutaciones.
+- [x] Todo corre sin cuentas de terceros. **Sin internet no se ha comprobado**, porque la comprobación es levantar el compose (ver arriba).
+- [x] Los ADR de F1.0 están escritos y aprobados. ADR 0001 → **A-37**.
+- [x] `BITACORA.md` tiene una entrada por tarea. 12 entradas.
+- [x] Ningún check BLOCKER de `morphiq-prs` aplicable queda abierto. Acta en `morphiqpos/docs/auditorias/F1.0-sign-off.md`: **0 BLOCKERS, 2 CRITICAL aceptados**.
+
+### Lo único que bloquea la firma
+
+Instalar Docker Desktop y ejecutar:
+
+```bash
+pnpm db:up          # levanta Postgres 16 + almacenamiento
+pnpm verify         # la cadena completa, ahora con la comprobación en vivo
+```
+
+Con eso se cierran `F1.0-P1`, `F1.0-P6` y el CRITICAL C-1 del acta, y **F1.0 queda firmado**.
+
+### Corrección propuesta al gate de este corte
+
+Dos checks del gate de arriba piden algo del corte siguiente y no pueden cumplirse aquí:
+
+| Check | Por qué no aplica en F1.0 |
+|---|---|
+| §12 · Migraciones versionadas y reproducibles | No existe ninguna migración ni el ejecutor. El ADR 0001 los sitúa en F1.1, y el alcance de este corte dice "cero features de negocio" |
+| §12A · Pool de conexiones dimensionado | No hay conexión a la base todavía; `packages/data` está vacío a propósito |
+
+**Propuesta:** moverlos al gate de F1.1. Pendiente de la decisión de Miguel.

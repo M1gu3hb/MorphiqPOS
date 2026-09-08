@@ -2,7 +2,10 @@
 
 Plataforma madre de puntos de venta y sistemas de negocio de **Morphiq**.
 
-**Fase actual: 0 — planeación. Cero código escrito. Desarrollo no autorizado todavía.**
+**Fase actual: 1 — ejecución. El corte F1.0 está construido y a una tarea de firmarse.**
+
+El código vive en un repositorio aparte: `morphiqpos` (local, sin remoto todavía — decisión A-35).
+Lo que queda de F1.0 es levantar el entorno con Docker; todo lo demás está verificado.
 
 ---
 
