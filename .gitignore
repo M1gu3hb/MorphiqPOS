@@ -57,3 +57,5 @@ supabase/.temp/
 # Vinculo local con el proyecto de Vercel. Lleva ids de organizacion y de
 # proyecto, y el token OIDC que descarga la CLI: no va al repositorio publico.
 .vercel/
+.vercel
+.env*
