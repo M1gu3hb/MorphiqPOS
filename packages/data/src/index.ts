@@ -28,3 +28,4 @@ export * as repoOrdenes from './repos/ordenes/index.ts';
 export * as repoFolios from './repos/folios.ts';
 export * as repoCaja from './repos/caja.ts';
 export * as repoVentaCatalogo from './repos/venta-catalogo.ts';
+export * as repoLimite from './repos/limite.ts';

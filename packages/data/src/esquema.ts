@@ -154,6 +154,12 @@ export interface Insumos {
   updated_at: Generated<Date>;
 }
 
+export interface LimiteTasa {
+  clave: string;
+  ventana_en: Generated<Date>;
+  intentos: Generated<number>;
+}
+
 export interface ModificadorOpciones {
   id: Generated<string>;
   modificador_id: string;
@@ -430,6 +436,7 @@ export interface Esquema {
   folios: Folios;
   identidades: Identidades;
   insumos: Insumos;
+  limite_tasa: LimiteTasa;
   modificador_opciones: ModificadorOpciones;
   modificadores: Modificadores;
   movimientos_caja: MovimientosCaja;

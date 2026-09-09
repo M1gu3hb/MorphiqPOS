@@ -159,7 +159,42 @@ export const resetearDemo = definirComando<
   },
 });
 
+/**
+ * Borra los datos de demostración de una organización.
+ *
+ * ── Por qué se borra también la OPERACIÓN, y no sólo el catálogo ──────────
+ * La primera versión borraba catálogo e inventario y dejaba las ventas. El
+ * resultado, comprobado ejecutándolo: la clave foránea de `orden_lineas` es
+ * `on delete set null`, así que **las nueve líneas de órdenes ya cobradas se
+ * quedaron con `producto_id` en nulo**, en silencio. El ticket seguía
+ * reimprimiéndose porque la línea guarda su propia foto del producto, pero el
+ * rastro hacia el catálogo se perdía sin que nadie lo pidiera.
+ *
+ * Y además el folio seguía subiendo sobre unas ventas que ya no existían.
+ *
+ * Un reseteo de demostración devuelve el negocio a su punto de partida: eso
+ * incluye las ventas. Es destructivo a conciencia — por eso pide la palabra
+ * `RESETEAR` y sólo lo puede hacer un dueño o un administrador.
+ *
+ * El orden importa: hijos antes que padres, o la clave foránea lo impide.
+ */
 async function limpiar(tx: Transaccion, organizacionId: string): Promise<void> {
+  // ── Operación: ventas, cobros y caja ──────────────────────────────────────
+  await sql`delete from pagos where organizacion_id = ${organizacionId}`.execute(tx);
+  // Esta tabla NO lleva `organizacion_id`: cuelga de la línea, que sí lo lleva.
+  // Se filtra por la línea, no por la organización, y por eso va antes que ella.
+  await sql`delete from orden_linea_modificadores where orden_linea_id in (
+    select id from orden_lineas where organizacion_id = ${organizacionId}
+  )`.execute(tx);
+  await sql`delete from orden_lineas where organizacion_id = ${organizacionId}`.execute(tx);
+  await sql`delete from ordenes where organizacion_id = ${organizacionId}`.execute(tx);
+  await sql`delete from movimientos_caja where organizacion_id = ${organizacionId}`.execute(tx);
+  await sql`delete from sesiones_caja where organizacion_id = ${organizacionId}`.execute(tx);
+  // El consecutivo vuelve a empezar. Si no, la demostración arrancaría en el
+  // folio 47 y la primera venta que se le enseña a un cliente no sería la 1.
+  await sql`delete from folios where organizacion_id = ${organizacionId}`.execute(tx);
+
+  // ── Catálogo e inventario ─────────────────────────────────────────────────
   await sql`delete from movimientos_stock where organizacion_id = ${organizacionId}`.execute(tx);
   await sql`delete from existencias where organizacion_id = ${organizacionId}`.execute(tx);
   await sql`delete from recetas where organizacion_id = ${organizacionId}`.execute(tx);

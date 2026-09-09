@@ -1,9 +1,10 @@
 import { validarEntorno } from '@morphiqpos/contracts';
-import { cookieDeSesion, leerCookie } from '@morphiqpos/app/http';
+import { cookieDeSesion, leerCookie, permitir } from '@morphiqpos/app/http';
 import { entrarConPin } from '@morphiqpos/app/identidad';
 import { z } from 'zod';
 
 import { NOMBRE_COOKIE_DISPOSITIVO } from '@/servidor/dispositivo';
+import { peticionDeEscrituraValida } from '@/servidor/seguridad-http';
 
 /**
  * Entrada con PIN (F1.1-A-03).
@@ -22,6 +23,29 @@ const Entrada = z.object({
 
 export async function POST(peticion: Request): Promise<Response> {
   const entorno = validarEntorno(process.env);
+
+  // Origen propio y cabecera de la aplicación: un formulario de otro sitio no
+  // puede montar esta petición sin disparar el preflight de CORS.
+  if (!peticionDeEscrituraValida(peticion)) {
+    return json(403, {
+      ok: false,
+      error: { codigo: 'SIN_PERMISO', mensaje: 'Petición rechazada.' },
+    });
+  }
+
+  // Límite por IP (gate PRS §09). El bloqueo del PIN cuenta por credencial y
+  // frena a quien ataca una cuenta; esto frena a quien barre la plantilla
+  // entera probando el mismo PIN en cada empleado.
+  const permiso = await permitir('entrar', peticion.headers, entorno.PIN_PEPPER);
+  if (!permiso.ok) {
+    return json(429, {
+      ok: false,
+      error: {
+        codigo: 'LIMITE_DE_TASA',
+        mensaje: `Demasiados intentos desde esta red. Espera ${String(Math.ceil(permiso.esperaSegundos / 60))} minuto(s).`,
+      },
+    });
+  }
 
   let cuerpo: unknown;
   try {

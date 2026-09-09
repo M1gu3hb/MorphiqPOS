@@ -9,3 +9,5 @@ export {
 } from './ruta.ts';
 
 export { cookieDeCierre, cookieDeSesion, type OpcionesCookie } from './cookies.ts';
+
+export { LIMITES, origenDe, permitir, type AccionLimitada, type Permiso } from './limite.ts';

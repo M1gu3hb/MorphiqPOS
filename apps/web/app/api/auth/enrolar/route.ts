@@ -1,8 +1,10 @@
 import { validarEntorno } from '@morphiqpos/contracts';
+import { permitir } from '@morphiqpos/app/http';
 import { enrolarTerminal, VIGENCIA_DISPOSITIVO_SEGUNDOS } from '@morphiqpos/app/identidad';
 import { z } from 'zod';
 
 import { cookieDeDispositivo } from '@/servidor/dispositivo';
+import { peticionDeEscrituraValida } from '@/servidor/seguridad-http';
 
 /**
  * Enrolamiento de terminal (F1.1-A-02).
@@ -23,6 +25,26 @@ const MENSAJES = {
 
 export async function POST(peticion: Request): Promise<Response> {
   const entorno = validarEntorno(process.env);
+
+  if (!peticionDeEscrituraValida(peticion)) {
+    return json(403, {
+      ok: false,
+      error: { codigo: 'SIN_PERMISO', mensaje: 'Peticion rechazada.' },
+    });
+  }
+
+  // Seis digitos son un millon de combinaciones: sin limite por IP, un barrido
+  // encuentra un codigo vigente en minutos y se lleva la terminal de un negocio.
+  const permiso = await permitir('enrolar', peticion.headers, entorno.PIN_PEPPER);
+  if (!permiso.ok) {
+    return json(429, {
+      ok: false,
+      error: {
+        codigo: 'LIMITE_DE_TASA',
+        mensaje: `Demasiados intentos desde esta red. Espera ${String(Math.ceil(permiso.esperaSegundos / 60))} minuto(s).`,
+      },
+    });
+  }
 
   let cuerpo: unknown;
   try {
