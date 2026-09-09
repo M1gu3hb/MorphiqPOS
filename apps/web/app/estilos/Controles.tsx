@@ -1,8 +1,8 @@
 'use client';
 
 import { Moon, Sun } from 'lucide-react';
-import { useTheme } from 'next-themes';
-import { useSyncExternalStore } from 'react';
+
+import { useTheme } from '@/mh/lib/ThemeContext';
 
 import { ESTILOS, PERILLAS } from '@morphiqpos/ui';
 import type { Apariencia } from '@morphiqpos/ui/hooks';
@@ -35,17 +35,12 @@ const PERILLAS_AJUSTABLES = [
 ] as const;
 
 export function Controles({ apariencia, onEstilo, onPerilla }: Props) {
-  const { resolvedTheme, setTheme } = useTheme();
-
-  // El tema real solo se conoce en el cliente. Sin esperar a la hidratacion, el
-  // icono parpadea del valor del servidor al del navegador en cada carga.
-  const montado = useSyncExternalStore(
-    () => () => undefined,
-    () => true,
-    () => false,
-  );
-
-  const esOscuro = resolvedTheme === 'dark';
+  // El tema lo lleva su `ThemeContext`, que es el unico del sistema desde el
+  // port del restaurante. El parpadeo del icono ya no hace falta cubrirlo con
+  // `useSyncExternalStore`: el estado arranca en claro en servidor y cliente, y
+  // el guion en linea del layout es quien pinta la clase antes del primer
+  // pintado.
+  const { isDark: esOscuro, toggle } = useTheme();
 
   return (
     <div className="sticky top-0 z-40 border-b border-borde bg-superficie/85 backdrop-blur">
@@ -83,12 +78,10 @@ export function Controles({ apariencia, onEstilo, onPerilla }: Props) {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => {
-              setTheme(esOscuro ? 'light' : 'dark');
-            }}
+            onClick={toggle}
             aria-label={esOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           >
-            {montado && esOscuro ? <Sun aria-hidden /> : <Moon aria-hidden />}
+            {esOscuro ? <Sun aria-hidden /> : <Moon aria-hidden />}
           </Button>
         </fieldset>
       </div>

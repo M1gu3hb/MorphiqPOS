@@ -69,30 +69,34 @@ export interface EmpleadoParaEntrar {
 }
 
 /**
- * Lista quién puede entrar en esta terminal.
+ * Lista quién puede entrar.
  *
  * Devuelve nombre y rol, jamás el hash ni el número de intentos. Enumerar los
- * empleados de una sucursal en la propia terminal no es una fuga: quien está
- * frente a la caja los ve por la puerta. El PIN sigue siendo el secreto.
+ * empleados del negocio en su propia pantalla de acceso no es una fuga: quien
+ * está frente a la caja los ve por la puerta. El PIN sigue siendo el secreto.
+ *
+ * `sucursalId` es opcional desde que se retiró el enrolamiento de terminal: un
+ * dispositivo nuevo todavía no tiene sucursal asignada, así que la lista es la
+ * del negocio entero. Con sucursal, se acota a ella.
  */
 export async function empleadosConPin(
   db: Kysely<Esquema>,
   organizacionId: string,
-  sucursalId: string,
+  sucursalId: string | null,
 ): Promise<EmpleadoParaEntrar[]> {
-  return db
+  let consulta = db
     .selectFrom('empleos')
     .innerJoin('personas', 'personas.id', 'empleos.persona_id')
     .innerJoin('identidades', 'identidades.persona_id', 'personas.id')
     .innerJoin('credenciales_pin', 'credenciales_pin.identidad_id', 'identidades.id')
     .select(['empleos.id as empleoId', 'personas.nombre as nombre', 'empleos.rol as rol'])
     .where('empleos.organizacion_id', '=', organizacionId)
-    .where('empleos.sucursal_id', '=', sucursalId)
     .where('empleos.activo', '=', true)
-    .where('identidades.activa', '=', true)
-    .orderBy('personas.nombre')
-    .limit(50)
-    .execute();
+    .where('identidades.activa', '=', true);
+
+  if (sucursalId !== null) consulta = consulta.where('empleos.sucursal_id', '=', sucursalId);
+
+  return consulta.orderBy('personas.nombre').limit(50).execute();
 }
 
 export async function registrarIntentoFallido(
@@ -120,71 +124,79 @@ export async function limpiarIntentos(tx: Transaccion, credencialId: string): Pr
 
 // ── Terminales ─────────────────────────────────────────────────────────────
 
-export interface TerminalPendiente {
-  readonly terminalId: string;
-  readonly organizacionId: string;
-  readonly sucursalId: string;
-  readonly codigoHash: string | null;
-  readonly expiraEn: Date | null;
-  readonly enroladaEn: Date | null;
-}
-
-/** Busca una terminal por su código de enrolamiento, en toda la instalación. */
-export async function terminalPorCodigo(
+/**
+ * Cuántas terminales tiene una sucursal. Sirve para nombrar la siguiente.
+ */
+export async function contarTerminales(
   db: Kysely<Esquema>,
-  codigoHash: string,
-): Promise<TerminalPendiente | null> {
+  organizacionId: string,
+  sucursalId: string,
+): Promise<number> {
   const fila = await db
     .selectFrom('terminales')
-    .select([
-      'id as terminalId',
-      'organizacion_id as organizacionId',
-      'sucursal_id as sucursalId',
-      'codigo_enrolamiento_hash as codigoHash',
-      'codigo_expira_en as expiraEn',
-      'enrolada_en as enroladaEn',
-    ])
-    .where('codigo_enrolamiento_hash', '=', codigoHash)
-    .where('activa', '=', true)
+    .select((eb) => eb.fn.countAll<string>().as('total'))
+    .where('organizacion_id', '=', organizacionId)
+    .where('sucursal_id', '=', sucursalId)
     .executeTakeFirst();
 
-  return fila ?? null;
+  return Number(fila?.total ?? 0);
 }
 
 /**
- * Marca la terminal como enrolada y **quema el código**.
-
- * Poner `codigo_enrolamiento_hash` a null es lo que hace que sea de un solo uso.
- * Sin eso, el papelito con el código sirve para enrolar diez dispositivos.
+ * Da de alta el dispositivo que acaba de entrar, sin código de por medio.
+ *
+ * Sustituye al enrolamiento de seis dígitos, que era un paso que nadie pidió y
+ * que dejaba una caja nueva sin poder vender hasta que alguien fuera a gestión
+ * a generar un número. Ahora el dispositivo se da de alta SOLO, y sólo después
+ * de que el PIN se verificó: sin credencial correcta no se crea nada.
+ *
+ * Nace ya enrolada porque el paso que faltaba —probar quién eres— acaba de
+ * ocurrir. El token sigue guardándose hasheado, igual que antes.
  */
-export async function completarEnrolamiento(
+export async function crearTerminalParaDispositivo(
   tx: Transaccion,
-  terminalId: string,
-  deviceTokenHash: string,
-  ahora: Date,
-): Promise<void> {
-  await tx
-    .updateTable('terminales')
-    .set({
-      device_token_hash: deviceTokenHash,
-      codigo_enrolamiento_hash: null,
-      codigo_expira_en: null,
-      enrolada_en: ahora,
-      ultima_actividad: ahora,
-    })
-    .where('id', '=', terminalId)
-    .execute();
+  datos: {
+    readonly organizacionId: string;
+    readonly sucursalId: string;
+    readonly nombre: string;
+    readonly deviceTokenHash: string;
+    readonly ahora: Date;
+  },
+): Promise<string | null> {
+  try {
+    const fila = await tx
+      .insertInto('terminales')
+      .values({
+        organizacion_id: datos.organizacionId,
+        sucursal_id: datos.sucursalId,
+        nombre: datos.nombre,
+        device_token_hash: datos.deviceTokenHash,
+        enrolada_en: datos.ahora,
+        ultima_actividad: datos.ahora,
+        activa: true,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+
+    return fila.id;
+  } catch (error) {
+    // `terminales_nombre_unico` es `(sucursal_id, lower(nombre))`. Dos cajas
+    // que entran por primera vez a la vez cuentan las mismas terminales y
+    // proponen el mismo «Caja 3»: la segunda choca. Devolver `null` en vez de
+    // reventar deja que quien llama pruebe con el siguiente numero — que es
+    // exactamente lo que haria una persona.
+    //
+    // SOLO ese conflicto. Cualquier otro fallo de la base sube: tragarlos aqui
+    // convertiria una caida de Postgres en «no se pudo dar de alta la caja».
+    if (esNombreDuplicado(error)) return null;
+    throw error;
+  }
 }
 
-export async function guardarCodigoDeEnrolamiento(
-  tx: Transaccion,
-  terminalId: string,
-  codigoHash: string,
-  expiraEn: Date,
-): Promise<void> {
-  await tx
-    .updateTable('terminales')
-    .set({ codigo_enrolamiento_hash: codigoHash, codigo_expira_en: expiraEn })
-    .where('id', '=', terminalId)
-    .execute();
+/** `23505` es `unique_violation` en Postgres. */
+function esNombreDuplicado(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const codigo = (error as { code?: unknown }).code;
+  const restriccion = (error as { constraint?: unknown }).constraint;
+  return codigo === '23505' && restriccion === 'terminales_nombre_unico';
 }

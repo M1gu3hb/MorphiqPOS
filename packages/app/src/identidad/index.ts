@@ -1,37 +1,21 @@
 export {
-  codigoCoincide,
   esperaTrasFallo,
   FORMA_PIN,
-  hashearCodigo,
   hashearPin,
   INTENTOS_ANTES_DE_BLOQUEAR,
-  nuevoCodigoDeEnrolamiento,
   verificarPin,
 } from './pin.ts';
 
-export {
-  enrolarTerminal,
-  generarCodigoDeEnrolamiento,
-  hashearDispositivo,
-  VIGENCIA_CODIGO_MINUTOS,
-  VIGENCIA_DISPOSITIVO_SEGUNDOS,
-  type ResultadoEnrolamiento,
-} from './enrolar.ts';
+export { hashearDispositivo, VIGENCIA_DISPOSITIVO_SEGUNDOS } from './dispositivo.ts';
 
 export {
-  empleadosDeLaTerminal,
+  empleadosParaEntrar,
   entrarConPin,
   type PeticionEntrar,
   type ResultadoEntrar,
 } from './entrar.ts';
 
-export {
-  entradaEstablecerPin,
-  entradaGenerarCodigo,
-  establecerPin,
-  generarCodigoDeTerminal,
-  type CodigoGenerado,
-} from './comandos.ts';
+export { entradaEstablecerPin, establecerPin } from './comandos.ts';
 
 export {
   empleadosConAcceso,

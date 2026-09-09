@@ -2,10 +2,10 @@
 /**
  * Humo de la venta de punta a punta, contra un servidor REAL (F1.1-C-08/C-18).
  *
- *   node scripts/humo-venta.mjs <codigo-enrolamiento> [--base http://localhost:3000] [--pin 4821]
+ *   node scripts/humo-venta.mjs [--base http://localhost:3000] [--pin 4821]
  *
- * Recorre la cadena entera por HTTP, como lo haría el navegador: enrolar,
- * entrar, abrir caja, agregar, cobrar, ticket. **No importa una sola línea del
+ * Recorre la cadena entera por HTTP, como lo haría el navegador: entrar, abrir
+ * caja, agregar, cobrar, ticket. **No importa una sola línea del
  * servidor**: si el bundle de producción se rompe, esto se entera; una prueba
  * que importa el módulo, no.
  *
@@ -19,48 +19,39 @@ function bandera(nombre, porOmision) {
   return i === -1 ? porOmision : process.argv[i + 1];
 }
 
-const codigo = process.argv[2];
 const BASE = bandera('base', 'http://localhost:3000');
 const PIN = bandera('pin', '4821');
 
-if (codigo === undefined || !/^\d{6}$/.test(codigo)) {
-  console.error('Uso: node scripts/humo-venta.mjs <codigo-6-digitos> [--base URL] [--pin NNNN]');
-  process.exit(1);
-}
-
 const llamar = (ruta, cuerpo, opciones) => llamarBase(BASE, ruta, cuerpo, opciones);
 
-paso(1, 'Enrolar la terminal');
-exigir('POST /api/auth/enrolar', await llamar('/api/auth/enrolar', { codigo }));
-
-paso(2, 'Listar quién puede entrar');
+paso(1, 'Listar quién puede entrar');
 const { empleados } = exigir('GET /api/auth/empleados', await llamar('/api/auth/empleados'));
 if (!Array.isArray(empleados) || empleados.length === 0) {
-  console.error('✗ La terminal no lista a nadie. Corre `pnpm db:bootstrap` primero.');
+  console.error('✗ El servidor no lista a nadie. Corre `pnpm db:bootstrap` primero.');
   process.exit(1);
 }
 console.log(
   `  ${String(empleados.length)} empleado(s): ${empleados.map((e) => e.nombre).join(', ')}`,
 );
 
-paso(3, 'Entrar con PIN');
+paso(2, 'Entrar con PIN');
 const primero = empleados[0];
 exigir(
   'POST /api/auth/entrar',
   await llamar('/api/auth/entrar', { empleoId: primero.empleoId, pin: PIN }),
 );
 
-paso(4, 'Estado de la venta (la sesión existe)');
+paso(3, 'Estado de la venta (la sesión existe)');
 const estado = exigir('POST /api/venta/estado', await llamar('/api/venta/estado', {}));
 
-paso(5, 'Abrir caja');
+paso(4, 'Abrir caja');
 if (estado.sesionCajaId === null) {
   exigir('POST /api/caja/abrir', await llamar('/api/caja/abrir', { fondoInicialCentavos: 50000 }));
 } else {
   console.log('✓ ya había una caja abierta');
 }
 
-paso(6, 'Buscar en el catálogo');
+paso(5, 'Buscar en el catálogo');
 const { productos } = exigir(
   'POST /api/venta/buscar',
   await llamar('/api/venta/buscar', { limite: 5 }),
@@ -71,7 +62,7 @@ if (productos.length === 0) {
 }
 console.log(`  ${String(productos.length)} producto(s). Se venderá: ${productos[0].nombre}`);
 
-paso(7, 'Crear la orden y agregar una línea');
+paso(6, 'Crear la orden y agregar una línea');
 const { ordenId } = exigir(
   'POST /api/venta/crear-orden',
   await llamar('/api/venta/crear-orden', {}),
@@ -81,14 +72,14 @@ exigir(
   await llamar('/api/venta/agregar-linea', { ordenId, productoId: productos[0].id, cantidad: '2' }),
 );
 
-paso(8, 'Cotizar en el servidor');
+paso(7, 'Cotizar en el servidor');
 const conLinea = exigir('POST /api/venta/estado', await llamar('/api/venta/estado', { ordenId }));
 const total = conLinea.cotizacion.totalCentavos;
 console.log(
   `  total del servidor: ${total} centavos · ${String(conLinea.cotizacion.lineas.length)} línea(s)`,
 );
 
-paso(9, 'Cobrar en efectivo');
+paso(8, 'Cobrar en efectivo');
 /** La MISMA clave en el cobro y en su reintento: es lo que se está probando. */
 const clave = crypto.randomUUID();
 const cobro = exigir(
@@ -111,7 +102,7 @@ const cobro = exigir(
 );
 console.log(`  folio ${cobro.serie}-${cobro.folio} · cambio ${cobro.cambioCentavos} centavos`);
 
-paso(10, 'Reintentar el MISMO cobro con la MISMA clave (idempotencia)');
+paso(9, 'Reintentar el MISMO cobro con la MISMA clave (idempotencia)');
 const repetido = await llamar(
   '/api/venta/cobrar',
   {
@@ -132,7 +123,7 @@ if (repetido.estado === 200 && repetido.datos?.datos?.folio === cobro.folio) {
   process.exit(1);
 }
 
-paso(11, 'Ticket');
+paso(10, 'Ticket');
 const ticket = exigir('POST /api/venta/ticket', await llamar('/api/venta/ticket', { ordenId }));
 console.log(
   `  ${ticket.organizacionNombre} · ${ticket.serie}-${ticket.folio} · total ${ticket.totalCentavos}`,

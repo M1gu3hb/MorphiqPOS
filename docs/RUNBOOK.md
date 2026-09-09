@@ -11,17 +11,23 @@ apuro. Escrito para leerse a las once de la noche con un cliente esperando.
 pnpm db:bootstrap --org <slug> --persona "<nombre>" --pin <4-8 dígitos>
 ```
 
-Crea o reusa persona, identidad y empleo de **dueño**, guarda el PIN con
-Argon2id, **libera la terminal** y escupe un código de seis dígitos. Ese código
-se teclea una vez en `/enrolar` desde la caja. Caduca en quince minutos.
+Crea o reusa persona, identidad y empleo de **dueño**, y guarda el PIN con
+Argon2id. Eso es todo: se abre `/login-pos`, se toca el nombre y se teclea el
+PIN. **Ya no hay código de enrolamiento** — la caja se da de alta sola la
+primera vez que alguien entra desde ese dispositivo.
 
-A partir de ahí no vuelve a hacer falta: dar de alta cajeros y generar códigos
-se hace desde **`/accesos`**.
+A partir de ahí no vuelve a hacer falta: dar de alta cajeros se hace desde
+**`/accesos`**.
 
-Para sembrar las tres organizaciones de demostración de golpe:
+Un despliegue sirve a UN negocio. Si la base tiene más de una organización
+activa, hay que decir cuál con `ORGANIZACION=<slug>` en el entorno; con una
+sola, se resuelve sola. Sin eso, la pantalla de acceso responde 500 y el
+servidor dice en su log exactamente qué falta.
+
+Para sembrar la organización de demostración de este despliegue:
 
 ```bash
-node scripts/sembrar-demo.mjs
+node scripts/sembrar-demo.mjs --org demo-ferreteria-la-broca
 ```
 
 ---
@@ -71,7 +77,7 @@ vercel inspect --logs <url> --scope mh-astral-systems
 
 ```bash
 pnpm db:bootstrap --org demo-ferreteria-la-broca --persona "Elena" --pin 4821
-node scripts/humo-venta.mjs <código> --base https://pos-mh-astral-systems.com
+node scripts/humo-venta.mjs --base https://pos-mh-astral-systems.com
 ```
 
 Recorre los once pasos por HTTP sin importar una línea del servidor: si el
@@ -115,6 +121,8 @@ vuelta atrás ANTES de aplicarla.
 | «tenant/user not found» del pooler | El usuario del pooler es `<rol>.<ref>` y el host de esta región es `aws-0-us-east-2.pooler.supabase.com`. |
 | «Demasiados intentos desde esta red» | El límite por IP de C-13. Veinte entradas por cinco minutos, veinte enrolamientos por diez. Se espera o se cambia `LIMITES` en `packages/app/src/http/limite.ts`. |
 | «Esta terminal ya tiene una caja abierta» | Hay un turno sin cerrar. Se cierra en `/corte`. |
+| La pantalla de acceso dice «No pudimos cargar los usuarios» | El servidor no sabe a qué negocio sirve. El log lo dice: o falta `ORGANIZACION`, o su slug no existe. |
+| Entra desde un navegador nuevo y aparece una caja de más | Es correcto: un dispositivo sin cookie es una caja nueva. La cookie dura un año; borrarla crea otra. Se ven todas en `/accesos`. |
 | Un PIN correcto no entra | Antes de tocar nada, `pnpm vitest run packages/app/src/identidad`. La prueba del viaje redondo es la que caza el fallo que costó tres sesiones. |
 | «No Next.js version detected» en Vercel | El Root Directory del proyecto no es `apps/web`. |
 

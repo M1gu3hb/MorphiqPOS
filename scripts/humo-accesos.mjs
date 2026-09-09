@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /**
- * Humo de accesos: poner un PIN y generar un código desde la aplicación
- * (F1.1-C-05 y C-06), contra un servidor REAL.
+ * Humo de accesos: poner un PIN desde la aplicación (F1.1-C-05), contra un
+ * servidor REAL.
  *
- *   node scripts/humo-accesos.mjs <codigo-enrolamiento> [--base URL] [--pin 4821]
+ *   node scripts/humo-accesos.mjs [--base URL] [--pin 4821]
  *
- * Comprueba además lo que más importa de estos dos comandos: que **la respuesta
- * nunca contiene el PIN ni su hash**, y que el código nuevo sirve para entrar.
+ * Comprueba lo que más importa: que **la respuesta nunca contiene el PIN ni su
+ * hash**, que el PIN nuevo sirve y el viejo deja de servir, y que un navegador
+ * SIN cookie de dispositivo puede entrar — que es lo que se ganó al retirar el
+ * enrolamiento por código de seis dígitos.
  */
 import { llamar, exigir, paso, tarro } from './lib/cliente-humo.mjs';
 
@@ -15,18 +17,11 @@ function bandera(nombre, porOmision) {
   return i === -1 ? porOmision : process.argv[i + 1];
 }
 
-const codigo = process.argv[2];
 const BASE = bandera('base', 'http://localhost:3000');
 const PIN = bandera('pin', '4821');
 const PIN_NUEVO = '735192';
 
-if (codigo === undefined || !/^\d{6}$/.test(codigo)) {
-  console.error('Uso: node scripts/humo-accesos.mjs <codigo-6-digitos> [--base URL] [--pin NNNN]');
-  process.exit(1);
-}
-
 paso(1, 'Entrar como dueño');
-exigir('enrolar', await llamar(BASE, '/api/auth/enrolar', { codigo }));
 const { empleados } = exigir('empleados', await llamar(BASE, '/api/auth/empleados'));
 exigir(
   'entrar',
@@ -60,36 +55,18 @@ console.log(
   `  ${objetivo.nombre}: ${cambio.rotado ? 'PIN rotado' : 'PIN creado'}, sin eco del PIN`,
 );
 
-paso(4, 'Generar código de alta para una caja');
-const terminal = accesos.terminales[0];
-const generado = exigir(
-  'POST /api/identidad/codigo',
-  await llamar(BASE, '/api/identidad/codigo', { terminal: terminal.terminalId }),
-);
-if (!/^\d{6}$/.test(generado.codigo)) {
-  console.error(`✗ el código no son seis dígitos: ${String(generado.codigo)}`);
-  process.exit(1);
-}
-console.log(
-  `  ${generado.terminal}: código nuevo, reemplaza dispositivo = ${String(generado.reemplazaDispositivo)}`,
-);
-
-paso(5, 'El código nuevo sirve, y el PIN nuevo también');
-tarro.clear(); // dispositivo nuevo: se empieza de cero
-exigir(
-  'enrolar con el código nuevo',
-  await llamar(BASE, '/api/auth/enrolar', { codigo: generado.codigo }),
-);
+paso(4, 'Un navegador SIN cookie de dispositivo entra, y se da de alta solo');
+tarro.clear(); // dispositivo nuevo: se empieza de cero, sin código que teclear
 const nuevos = exigir('empleados', await llamar(BASE, '/api/auth/empleados'));
 exigir(
-  'entrar con el PIN nuevo',
+  'entrar con el PIN nuevo desde un dispositivo nuevo',
   await llamar(BASE, '/api/auth/entrar', {
     empleoId: nuevos.empleados[0].empleoId,
     pin: PIN_NUEVO,
   }),
 );
 
-paso(6, 'El PIN viejo ya no sirve');
+paso(5, 'El PIN viejo ya no sirve');
 const viejo = await llamar(BASE, '/api/auth/entrar', {
   empleoId: nuevos.empleados[0].empleoId,
   pin: PIN,

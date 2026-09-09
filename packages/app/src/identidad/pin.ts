@@ -1,4 +1,4 @@
-import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 
 import { hash, verify } from '@node-rs/argon2';
 
@@ -105,27 +105,4 @@ export function esperaTrasFallo(intentosFallidos: number): number {
   if (intentosFallidos < INTENTOS_ANTES_DE_BLOQUEAR) return 0;
   const excedentes = intentosFallidos - INTENTOS_ANTES_DE_BLOQUEAR;
   return Math.min(30 * 2 ** excedentes, 300);
-}
-
-/** Código de enrolamiento: seis dígitos, de un solo uso. */
-export function nuevoCodigoDeEnrolamiento(): string {
-  return String(randomInt(0, 1_000_000)).padStart(6, '0');
-}
-
-/**
- * Hash del código de enrolamiento.
- *
- * Se guarda hasheado igual que el PIN: `terminales.codigo_enrolamiento_hash` lo
- * dice en su nombre. Un código en claro en la base deja enrolar una terminal
- * pirata a quien lea esa tabla.
- */
-export function hashearCodigo(codigo: string, pimienta: string): string {
-  return createHmac('sha256', pimienta).update(`enrolamiento:${codigo}`, 'utf8').digest('hex');
-}
-
-export function codigoCoincide(codigo: string, hashGuardado: string, pimienta: string): boolean {
-  const calculado = Buffer.from(hashearCodigo(codigo, pimienta), 'utf8');
-  const guardado = Buffer.from(hashGuardado, 'utf8');
-  if (calculado.length !== guardado.length) return false;
-  return timingSafeEqual(calculado, guardado);
 }

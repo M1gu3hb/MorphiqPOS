@@ -2,7 +2,6 @@ import 'server-only';
 
 import { conTransaccion, type Transaccion } from '@morphiqpos/data';
 
-import { generarCodigoDeEnrolamiento } from '../identidad/enrolar.ts';
 import { FORMA_PIN, hashearPin } from '../identidad/pin.ts';
 
 /**
@@ -17,8 +16,12 @@ import { FORMA_PIN, hashearPin } from '../identidad/pin.ts';
  * Que sea una excepción no lo exime de nada:
  *   · el PIN se guarda con Argon2id y pimienta, igual que por el camino normal;
  *   · **el PIN no se imprime nunca**, ni siquiera aquí;
- *   · el código de enrolamiento se muestra una vez y en la base queda su hash;
  *   · todo ocurre en UNA transacción, así que no deja medio dueño creado.
+ *
+ * ── Ya no genera código de enrolamiento ────────────────────────────────────
+ * Se retiró en T2 del port del restaurante: la terminal se da de alta sola la
+ * primera vez que alguien entra con su PIN. Este script deja la cuenta lista y
+ * se acabó; el dueño abre `/login-pos`, toca su nombre y teclea su PIN.
  *
  * ── Idempotente a propósito ────────────────────────────────────────────────
  * Correrlo dos veces no duplica personas ni empleos: reusa lo que encuentra y
@@ -32,19 +35,20 @@ export interface PeticionPrimerAcceso {
   readonly nombrePersona: string;
   readonly pin: string;
   readonly pimienta: string;
-  /** Terminal a preparar. Si no se da, se toma la primera activa. */
+  /**
+   * Terminal a preparar. Si no se da, se toma la primera activa —y si el
+   * negocio todavía no tiene ninguna, no pasa nada: se crea sola al entrar.
+   */
   readonly nombreTerminal?: string | undefined;
 }
 
 export interface ResultadoPrimerAcceso {
   readonly organizacion: string;
   readonly sucursal: string;
-  readonly terminal: string;
+  /** `null` cuando el negocio todavía no tiene ninguna caja dada de alta. */
+  readonly terminal: string | null;
   readonly persona: string;
   readonly empleoId: string;
-  /** En claro y una sola vez. En la base sólo queda su hash. */
-  readonly codigoEnrolamiento: string;
-  readonly expiraEn: Date;
   readonly pinRotado: boolean;
 }
 
@@ -66,18 +70,9 @@ export async function prepararPrimerAcceso(
     const identidadId = await asegurarIdentidad(tx, personaId);
     const empleoId = await asegurarEmpleo(tx, negocio, personaId);
     const pinRotado = await guardarPin(tx, identidadId, hash);
-    await liberarTerminal(tx, negocio.terminalId);
 
     return { ...negocio, personaId, identidadId, empleoId, pinRotado };
   });
-
-  // Fuera de la transacción anterior a propósito: `generarCodigoDeEnrolamiento`
-  // abre la suya, y anidarlas con este cliente daría una transacción dentro de
-  // otra. Si esto fallara, el dueño ya existe y basta con volver a correrlo.
-  const { codigo, expiraEn } = await generarCodigoDeEnrolamiento(
-    preparado.terminalId,
-    peticion.pimienta,
-  );
 
   return {
     organizacion: preparado.organizacion,
@@ -85,31 +80,8 @@ export async function prepararPrimerAcceso(
     terminal: preparado.terminal,
     persona: peticion.nombrePersona,
     empleoId: preparado.empleoId,
-    codigoEnrolamiento: codigo,
-    expiraEn,
     pinRotado: preparado.pinRotado,
   };
-}
-
-/**
- * Suelta el dispositivo que tuviera la terminal, para que el código nuevo sirva.
- *
- * `enrolarTerminal` rechaza una terminal que ya tiene dispositivo —y hace bien:
- * si no, cualquiera con el código se lleva la caja de otro—. Pero entonces el
- * código que este script acaba de generar sería inútil, y "vuelve a correr el
- * arranque" dejaría de ser la salida cuando algo se atora.
- *
- * Así que el arranque es también el **reseteo** de la terminal, y sólo él puede
- * serlo: corre en el servidor, con acceso directo a la base, y no hay ninguna
- * ruta HTTP que llegue aquí. Desde la aplicación, dar de baja un dispositivo
- * seguirá exigiendo un comando con su rol y su auditoría.
- */
-async function liberarTerminal(tx: Transaccion, terminalId: string): Promise<void> {
-  await tx
-    .updateTable('terminales')
-    .set({ device_token_hash: null, enrolada_en: null })
-    .where('id', '=', terminalId)
-    .execute();
 }
 
 interface Negocio {
@@ -117,8 +89,7 @@ interface Negocio {
   readonly organizacion: string;
   readonly sucursalId: string;
   readonly sucursal: string;
-  readonly terminalId: string;
-  readonly terminal: string;
+  readonly terminal: string | null;
 }
 
 async function localizarNegocio(
@@ -131,7 +102,10 @@ async function localizarNegocio(
     .innerJoin('sucursales as s', (union) =>
       union.onRef('s.organizacion_id', '=', 'o.id').on('s.activa', '=', true),
     )
-    .innerJoin('terminales as t', (union) =>
+    // `leftJoin` desde que la terminal se da de alta sola: un negocio recién
+    // sembrado no tiene ninguna, y con `innerJoin` el arranque fallaba diciendo
+    // que «no hay organización activa», que apunta al sitio equivocado.
+    .leftJoin('terminales as t', (union) =>
       union.onRef('t.sucursal_id', '=', 's.id').on('t.activa', '=', true),
     )
     .select([
@@ -139,7 +113,6 @@ async function localizarNegocio(
       'o.nombre as organizacion',
       's.id as sucursalId',
       's.nombre as sucursal',
-      't.id as terminalId',
       't.nombre as terminal',
     ])
     .where('o.slug', '=', slug)
@@ -151,7 +124,7 @@ async function localizarNegocio(
 
   if (fila === undefined) {
     throw new Error(
-      `No hay una organización activa con slug "${slug}" que tenga sucursal y terminal activas` +
+      `No hay una organización activa con slug "${slug}" que tenga una sucursal activa` +
         (nombreTerminal === undefined ? '.' : ` y una terminal llamada "${nombreTerminal}".`),
     );
   }

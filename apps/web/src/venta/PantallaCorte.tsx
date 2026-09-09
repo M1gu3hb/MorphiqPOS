@@ -44,7 +44,7 @@ export function PantallaCorte() {
           // quiere: la sesión dejó de existir y hay que tirar todo lo que se leyó con
           // ella. Una recarga completa es la intención, no un descuido.
           // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-          window.location.assign('/entrar');
+          window.location.assign('/login-pos');
           return;
         }
         setError(fallo instanceof ErrorApi ? fallo.error.mensaje : 'No se pudo leer la caja.');

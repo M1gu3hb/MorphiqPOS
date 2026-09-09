@@ -5,8 +5,9 @@
  *   pnpm db:bootstrap --org demo-ferreteria-la-broca --persona "Elena" --pin 4821
  *   pnpm db:bootstrap --org demo-cafe-jacaranda --persona "Mariana" --pin 1357 --terminal Barra
  *
- * Deja lista una cuenta de dueño con PIN y escupe el código de enrolamiento de
- * seis dígitos que hay que teclear una vez en `/enrolar`.
+ * Deja lista una cuenta de dueño con PIN. Eso es todo lo que hace falta: desde
+ * T2 del port del restaurante ya no hay código de enrolamiento que teclear —la
+ * caja se da de alta sola la primera vez que alguien entra con su PIN—.
  *
  * **El PIN se pasa por argumento y eso deja rastro en el historial del shell.**
  * Es aceptable porque este script se corre una vez, en la máquina del
@@ -58,17 +59,11 @@ try {
   console.log('');
   console.log(`  Negocio ....... ${r.organizacion}`);
   console.log(`  Sucursal ...... ${r.sucursal}`);
-  console.log(`  Terminal ...... ${r.terminal}`);
+  console.log(`  Terminal ...... ${r.terminal ?? 'ninguna todavía (se crea sola al entrar)'}`);
   console.log(`  Dueño ......... ${r.persona}`);
   console.log(`  PIN ........... ${r.pinRotado ? 'ROTADO' : 'creado'} (${pin.length} dígitos)`);
   console.log('');
-  console.log(`  ┌──────────────────────────────────────────┐`);
-  console.log(`  │  Código de enrolamiento:  ${r.codigoEnrolamiento}          │`);
-  console.log(`  └──────────────────────────────────────────┘`);
-  console.log(`  Caduca ${r.expiraEn.toLocaleTimeString('es-MX')}. Tecléalo en /enrolar.`);
-  console.log(
-    '  (La terminal quedó libre: el dispositivo anterior tendrá que enrolarse otra vez.)',
-  );
+  console.log('  Abre /login-pos, toca tu nombre y teclea el PIN.');
   console.log('');
 } catch (error) {
   console.error('');

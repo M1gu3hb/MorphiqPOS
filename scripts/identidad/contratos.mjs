@@ -37,6 +37,7 @@ const COMANDOS = 'packages/app/src/identidad/comandos.ts';
 const CONSULTAS = 'packages/app/src/identidad/consultas.ts';
 const REPO = 'packages/data/src/repos/identidad.ts';
 const ARRANQUE = 'packages/app/src/arranque/primer-acceso.ts';
+const RUTA_ENTRAR = 'apps/web/app/api/auth/entrar/route.ts';
 
 function leer(ruta) {
   return sinComentarios(readFileSync(ruta, 'utf8'));
@@ -60,17 +61,29 @@ export const contratos = [
     },
   },
   {
-    nombre: 'la_terminal_decide_la_organizacion',
+    nombre: 'la_organizacion_no_viene_del_cliente',
+    ruta: RUTA_ENTRAR,
+    porque:
+      'R16. Al retirarse el enrolamiento, la organización dejó de decidirla la terminal y pasó a decidirla el despliegue. Si se colara en el cuerpo de la petición, quien llama elegiría en qué negocio entra probando slugs.',
+    comprobar() {
+      const c = leer(RUTA_ENTRAR);
+      const entrada = cuerpo(c, 'const Entrada = z.object(');
+      // El esquema NO admite organización, y el id sale de `negocioDelDespliegue`.
+      return (
+        entrada !== null &&
+        !/organizacion/i.test(entrada) &&
+        /organizacionId = \(await negocioDelDespliegue\(entorno\.ORGANIZACION\)\)/.test(c)
+      );
+    },
+  },
+  {
+    nombre: 'la_terminal_se_crea_despues_de_verificar_el_pin',
     ruta: ENTRAR,
     porque:
-      'R16. Si la organización viniera del cuerpo, quien llama elegiría en qué negocio entra.',
+      'Dar de alta la caja ANTES de comprobar el PIN convertiría la pantalla de acceso en un formulario para crear terminales: cualquiera que teclee cuatro dígitos equivocados dejaría una fila y una cookie.',
     comprobar() {
       const c = cuerpo(leer(ENTRAR), 'export async function entrarConPin');
-      return (
-        c !== null &&
-        ordena(c, 'terminalPorToken(', 'credencialParaVerificar(') &&
-        /credencialParaVerificar\(\s*db,\s*terminal\.organizacionId/.test(c)
-      );
+      return c !== null && ordena(c, 'await verificarPin(', 'resolverTerminal(');
     },
   },
   {
@@ -125,17 +138,22 @@ export const contratos = [
     },
   },
   {
-    nombre: 'generar_codigo_suelta_el_dispositivo',
-    ruta: COMANDOS,
+    nombre: 'el_token_del_dispositivo_se_guarda_hasheado',
+    ruta: ENTRAR,
     porque:
-      '«Se me perdió la tableta» tiene que resolverse desde la pantalla. Si el aparato viejo siguiera valiendo, el código nuevo no serviría de nada.',
+      'El token de dispositivo autoriza a una caja durante un anio. En claro en la base, quien lea `terminales` se lleva la caja de otro. Con el enrolamiento por codigo retirado, esta es la unica ruta que lo escribe.',
     comprobar() {
-      const c = cuerpo(leer(COMANDOS), 'entrada: entradaGenerarCodigo');
+      const c = cuerpo(leer(ENTRAR), 'async function resolverTerminal');
       if (c === null) return false;
-      const set = cuerpo(c, '.set(');
-      return (
-        set !== null && set.includes('device_token_hash: null') && set.includes('enrolada_en: null')
-      );
+      // Se afirma sobre las DOS mitades: que el hash se calcula, y que lo que
+      // llega al repositorio es el hash. Sólo la primera dejaría pasar un
+      // `deviceTokenHash: deviceToken` con el hash calculado y sin usar.
+      const calcula =
+        /const deviceTokenHash = hashearDispositivo\(\s*deviceToken\s*,\s*peticion\.pimienta\s*\)/.test(
+          c,
+        );
+      const enClaro = /deviceTokenHash:\s*deviceToken(?![A-Za-z0-9_])/.test(c);
+      return calcula && !enClaro;
     },
   },
   {

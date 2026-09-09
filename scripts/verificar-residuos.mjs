@@ -69,7 +69,25 @@ const EXTENSIONES = new Set([
 ]);
 
 /** Lo unico excluido: la evidencia, donde SI debe aparecer. */
-const EXCLUIDO = new Set(['node_modules', '.git', 'docs', 'historico', '.turbo']);
+/**
+ * Lo que no se mira.
+ *
+ * `.next`, `dist` y `coverage` son SALIDA de compilacion, no codigo fuente.
+ * Se agregaron cuando un `.next` viejo hizo fallar la puerta con un mapa de
+ * fuentes de una version anterior: el residuo estaba en un artefacto que nadie
+ * versiona y que el siguiente build iba a tirar. Una puerta que depende de si
+ * has corrido `pnpm dev` no dice nada sobre el codigo.
+ */
+const EXCLUIDO = new Set([
+  'node_modules',
+  '.git',
+  'docs',
+  'historico',
+  '.turbo',
+  '.next',
+  'dist',
+  'coverage',
+]);
 
 const hallazgos = [];
 

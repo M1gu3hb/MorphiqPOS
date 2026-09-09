@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 /**
  * DIA-01 · El día del cajero, en el navegador (F1.1-C-19).
  *
- * Enrolar → entrar con PIN → abrir caja → vender → cobrar → ticket → corte.
+ * Entrar con PIN → abrir caja → vender → cobrar → ticket → corte.
  * Es el guion que Miguel ejecuta delante de un cliente.
  *
  * ── Por qué esto no duplica a `humo-venta.mjs` ─────────────────────────────
@@ -21,11 +21,16 @@ import { execFileSync } from 'node:child_process';
  * que se está probando.
  *
  * ── Una sola terminal para las tres pruebas ────────────────────────────────
- * El enrolamiento ocurre UNA vez y las tres pruebas comparten el contexto. No
- * es una optimización: enrolar en cada prueba agotaba el límite de tasa por IP
- * que puso C-13, y la suite se bloqueaba a sí misma con «demasiados intentos
- * desde esta red». Además una caja real se enrola una vez en su vida, así que
- * esto se parece más a lo que pasa de verdad.
+ * Se entra UNA vez y las tres pruebas comparten el contexto. No es una
+ * optimización: entrar en cada prueba agotaba el límite de tasa por IP que puso
+ * C-13, y la suite se bloqueaba a sí misma con «demasiados intentos desde esta
+ * red». Además una caja real se abre una vez por jornada, así que esto se
+ * parece más a lo que pasa de verdad.
+ *
+ * ── Ya no hay paso de enrolamiento ─────────────────────────────────────────
+ * Se retiró en T2 del port del restaurante. El navegador entra con su PIN y el
+ * servidor le da de alta la caja solo, así que la prueba empieza donde empieza
+ * el cajero: en la pantalla de acceso.
  */
 
 const PIN = '4821';
@@ -47,9 +52,9 @@ function cabeceras(): Record<string, string> {
   };
 }
 
-/** Corre `db:bootstrap` y devuelve el código de enrolamiento en claro. */
-function codigoDeEnrolamiento(): string {
-  const salida = execFileSync(
+/** Corre `db:bootstrap` para dejar a Elena con su PIN. */
+function darDeAltaAlDueno(): void {
+  execFileSync(
     process.execPath,
     [
       '--conditions=react-server',
@@ -63,23 +68,28 @@ function codigoDeEnrolamiento(): string {
     ],
     { encoding: 'utf8', timeout: 120_000 },
   );
-  const codigo = /Código de enrolamiento:\s+(\d{6})/.exec(salida)?.[1];
-  if (codigo === undefined) throw new Error(`El arranque no dio código:\n${salida}`);
-  return codigo;
 }
 
-/** Enrola el dispositivo y entra. Deja la pantalla en `/venta`. */
+/**
+ * Entra por SU pantalla de acceso: se toca el nombre y se teclea el PIN.
+ *
+ * El teclado en pantalla se usa a proposito y no un `fill()`: es el gesto real
+ * del cajero, y de paso comprueba que el cuarto digito dispara la entrada sola.
+ */
 async function entrar(pagina: Page): Promise<void> {
-  await pagina.goto('/enrolar');
-  await pagina.getByLabel('Código de enrolamiento').fill(codigoDeEnrolamiento());
-  await pagina.getByRole('button', { name: 'Dar de alta' }).click();
+  darDeAltaAlDueno();
 
-  await expect(pagina).toHaveURL(/\/entrar/);
-  await pagina.getByLabel('¿Quién eres?').selectOption({ index: 1 });
-  await pagina.getByLabel('Tu PIN').fill(PIN);
-  await pagina.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await pagina.goto('/login-pos');
+  await pagina.getByRole('button', { name: 'Elena' }).click();
+  await expect(pagina.getByText('Iniciando como: Elena')).toBeVisible();
 
-  await expect(pagina).toHaveURL(/\/venta/);
+  for (const digito of PIN) {
+    await pagina.getByRole('button', { name: digito, exact: true }).click();
+  }
+
+  // Un dueno no tiene ruta propia en su tabla, asi que cae en la raiz: su
+  // cascaron, con su barra lateral. Desde ahi la prueba se va a `/venta`.
+  await expect(pagina).toHaveURL(/\/$/);
 }
 
 /**

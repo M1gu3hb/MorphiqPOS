@@ -80,6 +80,22 @@ export const esquemaEntorno = z.object({
 
   // --- Aplicacion ---
   APP_URL: urlHttp('APP_URL'),
+
+  /**
+   * A que negocio sirve ESTE despliegue, por su `slug`.
+   *
+   * La pantalla de acceso ensena la lista de empleados ANTES de que exista
+   * sesion, asi que el servidor tiene que saber de que organizacion son sin
+   * preguntarle al navegador: quien elige la organizacion nunca es el cliente
+   * (R16). Antes eso lo decia la terminal enrolada con un codigo de seis
+   * digitos; ese codigo no lo pidio nadie y se ha retirado.
+   *
+   * Es OPCIONAL a proposito: si la base tiene UNA sola organizacion activa
+   * —el caso de un negocio con su propio dominio— se resuelve sola. Con varias
+   * y sin esta variable, el arranque falla diciendo cual falta, en vez de
+   * elegir una por su cuenta.
+   */
+  ORGANIZACION: z.string().trim().min(1).optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   TZ: z.string().default('America/Mexico_City'),
 });

@@ -24,6 +24,7 @@ import { verificarSesion, type Verificacion } from './token.ts';
  */
 export interface SesionDeNegocio extends Ambito {
   readonly paquete: Paquete;
+  readonly nombrePersona: string;
   readonly nombreNegocio: string;
   readonly nombreSucursal: string | null;
 }
@@ -97,6 +98,7 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
     sesion: {
       ...ambito,
       paquete: fila.paquete,
+      nombrePersona: fila.nombrePersona,
       nombreNegocio: fila.nombreNegocio,
       nombreSucursal: fila.nombreSucursal,
     },

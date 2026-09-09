@@ -13,9 +13,12 @@ import { ALTO_CONTROL } from '@/venta/controles';
  * la vida del negocio. Dar de alta a un cajero, desbloquear a quien se equivocó
  * cinco veces y mover la caja a otra tableta se hacen aquí.
  *
- * Los dos avisos que la pantalla da en voz alta, porque sorprenden:
- *   · el PIN **no se puede consultar**, sólo reemplazar;
- *   · pedir un código nuevo **desconecta la tableta actual**.
+ * El aviso que la pantalla da en voz alta, porque sorprende: el PIN **no se
+ * puede consultar**, sólo reemplazar.
+ *
+ * Ya no tiene botón de «código de alta»: el enrolamiento de terminal por código
+ * de seis dígitos se retiró en T2 del port del restaurante. Una caja se da de
+ * alta sola la primera vez que alguien entra con su PIN desde ese dispositivo.
  */
 
 interface Empleado {
@@ -33,7 +36,6 @@ interface Terminal {
   readonly sucursal: string;
   readonly enrolada: boolean;
   readonly ultimaActividad: string | null;
-  readonly codigoVigente: boolean;
 }
 
 interface AccesosApi {
@@ -47,7 +49,6 @@ const PUEDE_ADMINISTRAR = new Set(['dueno', 'administrador']);
 export function AccesosPantalla() {
   const [datos, setDatos] = useState<AccesosApi | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [codigo, setCodigo] = useState<{ terminal: string; codigo: string } | null>(null);
 
   /** Recarga tras una acción del usuario. Aquí sí hay un evento detrás. */
   const cargar = useCallback(async () => {
@@ -96,28 +97,6 @@ export function AccesosPantalla() {
     }
   }
 
-  async function pedirCodigo(terminalId: string, nombre: string, enrolada: boolean) {
-    if (
-      enrolada &&
-      !window.confirm(
-        `“${nombre}” ya está en uso en un dispositivo.\n\n` +
-          'Generar un código nuevo lo desconecta: esa tableta tendrá que volver a enrolarse. ¿Seguir?',
-      )
-    ) {
-      return;
-    }
-    setError(null);
-    try {
-      const r = await ejecutarApi<{ codigo: string; terminal: string }>('/api/identidad/codigo', {
-        terminal: terminalId,
-      });
-      setCodigo({ terminal: r.terminal, codigo: r.codigo });
-      await cargar();
-    } catch (fallo) {
-      setError(fallo instanceof ErrorApi ? fallo.error.mensaje : 'No se pudo generar el código.');
-    }
-  }
-
   return (
     <div className="space-y-8">
       <header>
@@ -136,16 +115,6 @@ export function AccesosPantalla() {
           <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           {error}
         </p>
-      )}
-
-      {codigo !== null && (
-        <CodigoReciente
-          terminal={codigo.terminal}
-          codigo={codigo.codigo}
-          onCerrar={() => {
-            setCodigo(null);
-          }}
-        />
       )}
 
       <section aria-labelledby="titulo-empleados" className="space-y-3">
@@ -193,8 +162,18 @@ export function AccesosPantalla() {
           Cajas
         </h2>
 
+        <p className="max-w-2xl text-sm text-texto-sutil">
+          Ya no hay código de alta. Una caja se da de alta sola la primera vez que alguien entra con
+          su PIN desde ese dispositivo, así que esta lista es sólo para ver cuántas hay y cuándo se
+          usaron.
+        </p>
+
         {datos === null ? (
           <Cargando />
+        ) : datos.terminales.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-borde px-4 py-8 text-center text-texto-sutil">
+            Todavía no hay ninguna caja. La primera se crea al entrar.
+          </p>
         ) : (
           <ul className="divide-y divide-borde overflow-hidden rounded-lg border border-borde bg-superficie">
             {datos.terminales.map((t) => (
@@ -212,20 +191,8 @@ export function AccesosPantalla() {
                     t.enrolada ? 'bg-exito/15 text-exito' : 'bg-advertencia/15 text-advertencia'
                   }`}
                 >
-                  {t.enrolada ? 'en uso' : t.codigoVigente ? 'código pendiente' : 'sin dispositivo'}
+                  {t.enrolada ? 'en uso' : 'sin dispositivo'}
                 </span>
-
-                {administra && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void pedirCodigo(t.terminalId, t.nombre, t.enrolada);
-                    }}
-                    className={`${ALTO_CONTROL} shrink-0 rounded-md border border-borde px-4 text-sm font-medium text-texto transition-colors hover:bg-fondo-sutil focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none`}
-                  >
-                    Código de alta
-                  </button>
-                )}
               </li>
             ))}
           </ul>
@@ -251,36 +218,6 @@ function EstadoDelPin({ empleado }: { readonly empleado: Empleado }) {
     );
   }
   return <span className="shrink-0 text-xs text-texto-tenue">con PIN</span>;
-}
-
-function CodigoReciente({
-  terminal,
-  codigo,
-  onCerrar,
-}: {
-  readonly terminal: string;
-  readonly codigo: string;
-  readonly onCerrar: () => void;
-}) {
-  return (
-    <div className="rounded-lg border border-primario bg-primario/5 px-6 py-5">
-      <p className="text-sm text-texto-sutil">
-        Código para <strong className="text-texto">{terminal}</strong>. Tecléalo en{' '}
-        <code className="rounded-sm bg-fondo-sutil px-1">/enrolar</code> desde esa caja. Caduca en
-        15 minutos y sirve una sola vez.
-      </p>
-      <p className="mt-3 font-mono text-5xl font-semibold tracking-[0.3em] tabular-nums text-texto">
-        {codigo}
-      </p>
-      <button
-        type="button"
-        onClick={onCerrar}
-        className={`${ALTO_CONTROL} mt-4 rounded-md border border-borde px-4 text-sm font-medium text-texto transition-colors hover:bg-fondo-sutil focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none`}
-      >
-        Ya lo anoté
-      </button>
-    </div>
-  );
 }
 
 function Cargando() {

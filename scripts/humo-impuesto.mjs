@@ -2,7 +2,7 @@
 /**
  * Humo del impuesto configurable (F1.1-C-12), contra un servidor REAL.
  *
- *   node scripts/humo-impuesto.mjs <codigo-enrolamiento> [--base URL] [--pin 4821]
+ *   node scripts/humo-impuesto.mjs [--base URL] [--pin 4821]
  *
  * Prueba lo único que importa de C-12: **cambiar el IVA en /configuracion cambia
  * el total de la siguiente cotización.** Con el impuesto incluido en el precio,
@@ -19,14 +19,8 @@ function bandera(nombre, porOmision) {
   return i === -1 ? porOmision : process.argv[i + 1];
 }
 
-const codigo = process.argv[2];
 const BASE = bandera('base', 'http://localhost:3000');
 const PIN = bandera('pin', '4821');
-
-if (codigo === undefined || !/^\d{6}$/.test(codigo)) {
-  console.error('Uso: node scripts/humo-impuesto.mjs <codigo-6-digitos> [--base URL] [--pin NNNN]');
-  process.exit(1);
-}
 
 const llamar = (ruta, cuerpo, opciones) => llamarBase(BASE, ruta, cuerpo, opciones);
 
@@ -38,7 +32,6 @@ async function guardarIva(configuracion, puntosBase) {
 }
 
 paso(1, 'Entrar');
-exigir('enrolar', await llamar('/api/auth/enrolar', { codigo }));
 const { empleados } = exigir('empleados', await llamar('/api/auth/empleados'));
 exigir('entrar', await llamar('/api/auth/entrar', { empleoId: empleados[0].empleoId, pin: PIN }));
 

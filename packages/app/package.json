@@ -17,7 +17,8 @@
     "./sesion": "./src/sesion/index.ts",
     "./venta": "./src/venta/index.ts",
     "./caja": "./src/caja/index.ts",
-    "./identidad": "./src/identidad/index.ts"
+    "./identidad": "./src/identidad/index.ts",
+    "./negocio": "./src/negocio/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

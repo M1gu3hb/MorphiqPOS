@@ -15,6 +15,7 @@ const COMANDOS = 'packages/app/src/identidad/comandos.ts';
 const CONSULTAS = 'packages/app/src/identidad/consultas.ts';
 const REPO = 'packages/data/src/repos/identidad.ts';
 const ARRANQUE = 'packages/app/src/arranque/primer-acceso.ts';
+const RUTA_ENTRAR = 'apps/web/app/api/auth/entrar/route.ts';
 
 /** Destructivas que deben hacer FALLAR a un contrato con nombre. */
 export const contraContratos = [
@@ -26,11 +27,24 @@ export const contraContratos = [
     despues: '',
   },
   {
-    nombre: 'buscar la credencial antes de saber la organización',
+    nombre: 'dejar que el cliente diga en que negocio entra',
+    ruta: RUTA_ENTRAR,
+    contrato: 'la_organizacion_no_viene_del_cliente',
+    antes: '  pin: z.string().min(4).max(8),',
+    despues: '  pin: z.string().min(4).max(8),' + BR + '  organizacion: z.string(),',
+  },
+  {
+    nombre: 'dar de alta la caja ANTES de comprobar el PIN',
     ruta: ENTRAR,
-    contrato: 'la_terminal_decide_la_organizacion',
-    antes: '    terminal.organizacionId,\n    peticion.empleoId,',
-    despues: '    peticion.empleoId,\n    peticion.empleoId,',
+    contrato: 'la_terminal_se_crea_despues_de_verificar_el_pin',
+    antes:
+      '  const correcto = await verificarPin(peticion.pin, credencial.pinHash, peticion.pimienta);',
+    despues:
+      '  const adelantada = await resolverTerminal(peticion, null, ahora);' +
+      BR +
+      '  void adelantada;' +
+      BR +
+      '  const correcto = await verificarPin(peticion.pin, credencial.pinHash, peticion.pimienta);',
   },
   {
     nombre: 'comprobar el PIN aunque la credencial esté bloqueada',
@@ -46,7 +60,7 @@ export const contraContratos = [
     antes:
       'const ambito = await repoSesion.resolverAmbito(db, credencial.identidadId, credencial.empleoId);',
     despues:
-      'const ambito = { organizacionId: terminal.organizacionId, rol: credencial.rol ?? "dueno" };',
+      'const ambito = { organizacionId: peticion.organizacionId, sucursalId: null, rol: "dueno", nombrePersona: "" };',
   },
   {
     nombre: 'poner PIN a un empleado de otra organización',
@@ -63,11 +77,11 @@ export const contraContratos = [
     despues: '        rotado: previa !== undefined,' + BR + '        pinHash: hash,',
   },
   {
-    nombre: 'generar el código dejando vivo el dispositivo anterior',
-    ruta: COMANDOS,
-    contrato: 'generar_codigo_suelta_el_dispositivo',
-    antes: '          device_token_hash: null,\n          enrolada_en: null,\n',
-    despues: '',
+    nombre: 'guardar el token del dispositivo en claro',
+    ruta: ENTRAR,
+    contrato: 'el_token_del_dispositivo_se_guarda_hasheado',
+    antes: 'const deviceTokenHash = hashearDispositivo(deviceToken, peticion.pimienta);',
+    despues: 'const deviceTokenHash = deviceToken;',
   },
   {
     nombre: 'devolver el hash del PIN en la lista de accesos',
@@ -134,18 +148,6 @@ export const contraPruebas = [
     ruta: PIN,
     antes: 'Math.min(',
     despues: 'Math.max(',
-  },
-  {
-    nombre: 'el código de enrolamiento deja de ser de seis dígitos',
-    ruta: PIN,
-    antes: 'padStart(6',
-    despues: 'padStart(5',
-  },
-  {
-    nombre: 'comparar el código de enrolamiento con ==',
-    ruta: PIN,
-    antes: 'timingSafeEqual(',
-    despues: 'Buffer.compare(',
   },
 ];
 

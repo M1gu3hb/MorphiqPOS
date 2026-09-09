@@ -1,5 +1,55 @@
 # Bitácora de ejecución — Fase 1
 
+## Port del restaurante · T1 y T2 · 2026-09-09 · Su diseño y su login, de vuelta
+
+- **Qué se hizo:** se **copió** el frontend del POS de restaurante de Miguel, en
+  vez de seguir tratándolo como especificación. Su `index.css` entero, su
+  `ThemeContext`, `brandColors`, `darkPalettes`, `AppLayout`, `Sidebar`,
+  `BrandedBackground`, `BrandColorsApplier`, `ThemeToggle`, `POSLogin`,
+  `ConfigContext`, `POSAuthContext`, `permissions`, `packageConfig`,
+  `constants`, `useRouteCleanup`, `PageHeader`, `EmptyState` y `LoadingState`.
+  Vive en `apps/web/src/mh/`.
+- **Su diseño manda.** Los tokens del `@theme inline` apuntan a los suyos, la
+  clase de modo oscuro es la suya (`dark`, con `oscuro` de alias para las 36
+  primitivas), y `next-themes` se retiró para que no haya dos sistemas de tema.
+- **Su login, con el PIN en el SERVIDOR.** Era el agujero P0-01:
+  `usuarios.find(u => u.pin === pinToUse)` en el navegador. Ahora Argon2id con
+  pimienta contra un hash que no sale de la base.
+- **Se retiró el enrolamiento de terminal**, que él nunca pidió: la pantalla, la
+  ruta, el comando `identidad.generar_codigo`, los tres helpers de código y las
+  tres funciones de repositorio. La caja se da de alta **sola**, y sólo después
+  de verificar el PIN.
+- **Dos fallos que sólo aparecieron ejecutando:** la barra lateral salía vacía
+  porque los roles de la base (`dueno`, `cajero`) no son los de su
+  `permissions.js` (`administrador`, `caja`); y dos navegadores entrando a la vez
+  chocaban contra `terminales_nombre_unico` proponiendo el mismo «Caja 3». El
+  segundo lo encontró el E2E corriendo escritorio y tablet en paralelo.
+- **Archivos:** `apps/web/src/mh/**` (24 archivos), `apps/web/app/mh-*.css`,
+  `apps/web/app/globals.css`, `apps/web/app/layout.tsx`,
+  `apps/web/app/(mh)/`, `apps/web/app/login-pos/`,
+  `packages/app/src/identidad/{entrar,dispositivo,comandos,pin}.ts`,
+  `packages/app/src/negocio/`, `packages/data/src/repos/{identidad,negocio,sesion}.ts`,
+  `packages/contracts/src/entorno/index.ts`.
+- **Decisiones:** un despliegue sirve a UN negocio (`ORGANIZACION`, opcional si
+  hay una sola organización activa, y **falla nombrando la variable** si hay
+  varias); las fuentes se autohospedan con `next/font` porque la CSP bloquea
+  `fonts.googleapis.com`; `verify:primitivas` exime `apps/web/src/mh` porque su
+  parche dark es quien resuelve sus literales; las pantallas provisionales
+  siguen vivas hasta que la suya ocupe su lugar.
+- **Pruebas:** 391 unitarias · 7 arneses · 79 mutaciones · **E2E 16 de 16** en
+  escritorio y tablet contra Postgres real. Tres contratos de identidad nuevos o
+  reescritos, los tres validados mutando.
+- **Verificado con:** `pnpm verify` completa, `pnpm test:e2e` completa, y la
+  pantalla abierta en el navegador —claro, oscuro, escritorio y móvil— con la
+  sesión real de Elena.
+- **Pendiente o riesgo:** los enlaces de su barra lateral a `/mesero`,
+  `/cocina`, `/ventas`, `/compras`, `/registros` y `/portal-qr` dan 404 hasta
+  T3-T6. Cuatro componentes de su `AppLayout` no se portaron porque escuchan
+  entidades que este backend no tiene. No hay una organización de restaurante
+  sembrada. Detalle completo en `docs/reports/007-port-restaurante-t1-t2.md`.
+- **Reclasificaciones:** `historico/restaurante/src/**` deja de leerse como
+  especificación y pasa a **copiarse**. Lo pidió Miguel el 2026-09-09.
+
 ## Cierre F1.1 · C-01 a C-20 · 2026-09-08 · El POS vende de verdad
 
 - **Qué se hizo:** las 20 tareas del plan de cierre. `carril-b` integrado, la

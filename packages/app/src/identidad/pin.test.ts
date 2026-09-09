@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  codigoCoincide,
   esperaTrasFallo,
   FORMA_PIN,
-  hashearCodigo,
   hashearPin,
   INTENTOS_ANTES_DE_BLOQUEAR,
-  nuevoCodigoDeEnrolamiento,
   verificarPin,
 } from './pin.ts';
 
@@ -16,7 +13,7 @@ import {
  *
  * La primera es la que faltaba y costó tres sesiones: **hashear y verificar
  * tienen que cerrar el círculo.** Había pruebas de la forma del PIN, del
- * bloqueo progresivo y del código de enrolamiento, pero ninguna que hiciera
+ * bloqueo progresivo y de la forma del PIN, pero ninguna que hiciera
  * `hashearPin` → `verificarPin`. Y no cerraban: `hash()` acepta un Buffer y
  * `verify()` decodifica UTF-8, así que el HMAC crudo lo hacía lanzar y el
  * `catch` lo devolvía como «PIN incorrecto». Nadie podía entrar nunca.
@@ -102,29 +99,5 @@ describe('esperaTrasFallo', () => {
     // servicio: sin él, quien falla a propósito deja al cajero fuera del turno.
     expect(esperaTrasFallo(20)).toBe(300);
     expect(esperaTrasFallo(200)).toBe(300);
-  });
-});
-
-describe('código de enrolamiento', () => {
-  it('son seis dígitos', () => {
-    for (let i = 0; i < 25; i += 1) expect(nuevoCodigoDeEnrolamiento()).toMatch(/^\d{6}$/);
-  });
-
-  it('cierra el círculo: lo que se hashea, coincide', () => {
-    const codigo = nuevoCodigoDeEnrolamiento();
-    const hash = hashearCodigo(codigo, PIMIENTA);
-    expect(codigoCoincide(codigo, hash, PIMIENTA)).toBe(true);
-  });
-
-  it('no coincide con otro código ni con otra pimienta', () => {
-    const hash = hashearCodigo('123456', PIMIENTA);
-    expect(codigoCoincide('123457', hash, PIMIENTA)).toBe(false);
-    expect(codigoCoincide('123456', hash, 'otra-pimienta-distinta-larga')).toBe(false);
-  });
-
-  it('un hash de longitud distinta no revienta la comparación', () => {
-    // `timingSafeEqual` lanza si los buffers no miden lo mismo, y esa excepción
-    // saldría como un 500 en vez de como «código inválido».
-    expect(codigoCoincide('123456', 'corto', PIMIENTA)).toBe(false);
   });
 });

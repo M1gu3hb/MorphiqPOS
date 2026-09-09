@@ -1,0 +1,404 @@
+/* Parte de EL DISEÑO DE MIGUEL — ver `mh-tokens.css` para la nota completa.
+   Portado de historico/restaurante/src/index.css sin cambiar declaraciones:
+   el archivo original se partió en tres SÓLO para respetar el límite de 300
+   líneas por archivo. Juntos son su index.css, línea por línea. */
+
+/* =====================================================
+   DOCUMENTOS IMPRIMIBLES — SIEMPRE BLANCOS Y LEGIBLES
+   =====================================================
+   Blindaje visual para tickets, PDFs de cierre, PDFs de corte y fichas
+   de producto. Sin importar si el sistema está en dark mode, estos
+   documentos DEBEN salir con fondo blanco y texto negro/gris oscuro.
+   Esta capa anula cualquier override de dark mode dentro de estos
+   contenedores y también aplica en @media print.
+
+   Clases protegidas: .ticket-printable .cash-cut-pdf .pdf-corte-caja .printable-doc
+   No cambia lógica funcional. Solo asegura legibilidad de impresión. */
+
+/* 1) Contenedores raíz — fondo blanco fijo, texto oscuro */
+.ticket-printable,
+.cash-cut-pdf,
+.pdf-corte-caja,
+.printable-doc,
+html.dark .ticket-printable,
+html.dark .cash-cut-pdf,
+html.dark .pdf-corte-caja,
+html.dark .printable-doc {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+/* 2) Todo el árbol — texto oscuro legible y sin fondos oscuros */
+.ticket-printable *,
+.cash-cut-pdf *,
+.pdf-corte-caja *,
+.printable-doc *,
+html.dark .ticket-printable *,
+html.dark .cash-cut-pdf *,
+html.dark .pdf-corte-caja *,
+html.dark .printable-doc * {
+  color: #111827 !important;
+  border-color: #d1d5db;
+}
+
+/* 3) Anular cualquier clase de "texto claro" usada para dark mode */
+.ticket-printable .text-white,
+.ticket-printable .text-slate-50,
+.ticket-printable .text-slate-100,
+.ticket-printable .text-slate-200,
+.ticket-printable .text-gray-50,
+.ticket-printable .text-gray-100,
+.ticket-printable .text-gray-200,
+.ticket-printable .text-zinc-50,
+.ticket-printable .text-zinc-100,
+.ticket-printable .text-neutral-50,
+.ticket-printable .text-neutral-100,
+.cash-cut-pdf .text-white,
+.cash-cut-pdf .text-slate-50,
+.cash-cut-pdf .text-slate-100,
+.cash-cut-pdf .text-slate-200,
+.cash-cut-pdf .text-gray-50,
+.cash-cut-pdf .text-gray-100,
+.cash-cut-pdf .text-gray-200,
+.pdf-corte-caja .text-white,
+.pdf-corte-caja .text-slate-50,
+.pdf-corte-caja .text-slate-100,
+.pdf-corte-caja .text-slate-200,
+.pdf-corte-caja .text-gray-50,
+.pdf-corte-caja .text-gray-100,
+.pdf-corte-caja .text-gray-200,
+.printable-doc .text-white,
+.printable-doc .text-slate-50,
+.printable-doc .text-slate-100,
+.printable-doc .text-slate-200,
+.printable-doc .text-gray-50,
+.printable-doc .text-gray-100,
+.printable-doc .text-gray-200 {
+  color: #111827 !important;
+}
+
+/* 4) Anular cualquier sufijo dark: dentro de imprimibles */
+html.dark .ticket-printable [class*='dark:text-white'],
+html.dark .ticket-printable [class*='dark:text-slate-'],
+html.dark .ticket-printable [class*='dark:text-gray-'],
+html.dark .ticket-printable [class*='dark:text-zinc-'],
+html.dark .ticket-printable [class*='dark:text-neutral-'],
+html.dark .cash-cut-pdf [class*='dark:text-white'],
+html.dark .cash-cut-pdf [class*='dark:text-slate-'],
+html.dark .cash-cut-pdf [class*='dark:text-gray-'],
+html.dark .pdf-corte-caja [class*='dark:text-white'],
+html.dark .pdf-corte-caja [class*='dark:text-slate-'],
+html.dark .pdf-corte-caja [class*='dark:text-gray-'],
+html.dark .printable-doc [class*='dark:text-white'],
+html.dark .printable-doc [class*='dark:text-slate-'],
+html.dark .printable-doc [class*='dark:text-gray-'] {
+  color: #111827 !important;
+}
+
+/* 5) Texto secundario / notas / footers — gris oscuro legible */
+.ticket-printable .text-gray-400,
+.ticket-printable .text-gray-500,
+.ticket-printable .text-gray-600,
+.ticket-printable .text-gray-700,
+.ticket-printable .text-slate-400,
+.ticket-printable .text-slate-500,
+.ticket-printable .text-slate-600,
+.ticket-printable .text-muted-foreground,
+.cash-cut-pdf .text-gray-400,
+.cash-cut-pdf .text-gray-500,
+.cash-cut-pdf .text-gray-600,
+.cash-cut-pdf .text-gray-700,
+.cash-cut-pdf .text-slate-400,
+.cash-cut-pdf .text-slate-500,
+.cash-cut-pdf .text-slate-600,
+.cash-cut-pdf .text-muted-foreground,
+.pdf-corte-caja .text-gray-400,
+.pdf-corte-caja .text-gray-500,
+.pdf-corte-caja .text-gray-600,
+.pdf-corte-caja .text-gray-700,
+.pdf-corte-caja .text-muted-foreground,
+.printable-doc .text-gray-400,
+.printable-doc .text-gray-500,
+.printable-doc .text-gray-600,
+.printable-doc .text-gray-700,
+.printable-doc .text-muted-foreground {
+  color: #4b5563 !important;
+}
+
+/* 6) Fondos: por defecto transparente (heredan blanco del contenedor) */
+.ticket-printable
+  *:not(.bg-gray-50):not(.bg-gray-100):not(.bg-gray-200):not(.bg-slate-50):not(.bg-slate-100):not(
+    .bg-black
+  ):not([style*='background']),
+.cash-cut-pdf
+  *:not(.bg-gray-50):not(.bg-gray-100):not(.bg-gray-200):not(.bg-slate-50):not(.bg-slate-100):not(
+    .bg-black
+  ):not([style*='background']),
+.pdf-corte-caja
+  *:not(.bg-gray-50):not(.bg-gray-100):not(.bg-gray-200):not(.bg-slate-50):not(.bg-slate-100):not(
+    .bg-black
+  ):not([style*='background']),
+.printable-doc
+  *:not(.bg-gray-50):not(.bg-gray-100):not(.bg-gray-200):not(.bg-slate-50):not(.bg-slate-100):not(
+    .bg-black
+  ):not([style*='background']) {
+  background-color: transparent !important;
+}
+
+/* 7) Fondos grises claros permitidos (tablas, encabezados de sección) */
+.ticket-printable .bg-gray-50,
+.ticket-printable .bg-slate-50,
+.cash-cut-pdf .bg-gray-50,
+.cash-cut-pdf .bg-slate-50,
+.pdf-corte-caja .bg-gray-50,
+.pdf-corte-caja .bg-slate-50,
+.printable-doc .bg-gray-50,
+.printable-doc .bg-slate-50 {
+  background-color: #f9fafb !important;
+}
+.ticket-printable .bg-gray-100,
+.ticket-printable .bg-slate-100,
+.cash-cut-pdf .bg-gray-100,
+.cash-cut-pdf .bg-slate-100,
+.pdf-corte-caja .bg-gray-100,
+.pdf-corte-caja .bg-slate-100,
+.printable-doc .bg-gray-100,
+.printable-doc .bg-slate-100 {
+  background-color: #f3f4f6 !important;
+}
+.ticket-printable .bg-gray-200,
+.cash-cut-pdf .bg-gray-200,
+.pdf-corte-caja .bg-gray-200,
+.printable-doc .bg-gray-200 {
+  background-color: #e5e7eb !important;
+}
+
+/* 8) Bordes — negros se respetan, los demás van a gris claro legible */
+.ticket-printable .border-black,
+.cash-cut-pdf .border-black,
+.pdf-corte-caja .border-black,
+.printable-doc .border-black {
+  border-color: #000000 !important;
+}
+
+/* 9) Anular tokens HSL (border, muted, etc.) que vendrían del tema dark */
+.ticket-printable [class*='border-border'],
+.ticket-printable [class*='border-muted'],
+.cash-cut-pdf [class*='border-border'],
+.cash-cut-pdf [class*='border-muted'],
+.pdf-corte-caja [class*='border-border'],
+.pdf-corte-caja [class*='border-muted'],
+.printable-doc [class*='border-border'],
+.printable-doc [class*='border-muted'] {
+  border-color: #d1d5db !important;
+}
+
+/* 10) Mismas reglas dentro de @media print — protección final */
+@media print {
+  .ticket-printable,
+  .cash-cut-pdf,
+  .pdf-corte-caja,
+  .printable-doc {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    color-scheme: light !important;
+  }
+  .ticket-printable *,
+  .cash-cut-pdf *,
+  .pdf-corte-caja *,
+  .printable-doc * {
+    color: #111827 !important;
+  }
+  .ticket-printable .text-white,
+  .ticket-printable [class*='text-slate-1'],
+  .ticket-printable [class*='text-slate-2'],
+  .ticket-printable [class*='text-gray-1'],
+  .ticket-printable [class*='text-gray-2'],
+  .cash-cut-pdf .text-white,
+  .cash-cut-pdf [class*='text-slate-1'],
+  .cash-cut-pdf [class*='text-slate-2'],
+  .cash-cut-pdf [class*='text-gray-1'],
+  .cash-cut-pdf [class*='text-gray-2'],
+  .pdf-corte-caja .text-white,
+  .pdf-corte-caja [class*='text-slate-1'],
+  .pdf-corte-caja [class*='text-slate-2'],
+  .printable-doc .text-white,
+  .printable-doc [class*='text-slate-1'],
+  .printable-doc [class*='text-slate-2'] {
+    color: #111827 !important;
+  }
+  .ticket-printable .text-gray-400,
+  .ticket-printable .text-gray-500,
+  .ticket-printable .text-gray-600,
+  .ticket-printable .text-muted-foreground,
+  .cash-cut-pdf .text-gray-400,
+  .cash-cut-pdf .text-gray-500,
+  .cash-cut-pdf .text-gray-600,
+  .cash-cut-pdf .text-muted-foreground,
+  .pdf-corte-caja .text-gray-400,
+  .pdf-corte-caja .text-gray-500,
+  .pdf-corte-caja .text-gray-600,
+  .printable-doc .text-gray-400,
+  .printable-doc .text-gray-500,
+  .printable-doc .text-gray-600 {
+    color: #4b5563 !important;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* =====================================================
+   IMPRESIÓN — Reglas globales
+   Modo "thermal" (80mm) y modo "letter" (carta) son
+   mutuamente excluyentes a nivel de @page.
+   El JS añade <html data-print-mode="thermal|letter">
+   antes de window.print() para activar el correcto.
+   ===================================================== */
+
+@media print {
+  /* Ocultar todo por defecto */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Solo el contenedor imprimible es visible */
+  .ticket-printable,
+  .ticket-printable * {
+    visibility: visible;
+  }
+  .cash-cut-pdf,
+  .cash-cut-pdf * {
+    visibility: visible;
+  }
+
+  .ticket-printable,
+  .cash-cut-pdf {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+
+  /* Nunca imprimir UI/chrome del navegador */
+  .no-print,
+  .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Evitar que iframes o stickys impriman fondos */
+  body {
+    background: white !important;
+  }
+}
+
+/* ----- Térmico 80 mm ----- */
+@media print {
+  html[data-print-mode='thermal'] .ticket-printable.thermal-80 {
+    width: 72mm !important;
+    max-width: 72mm !important;
+    margin: 0 auto !important;
+    padding: 2mm !important;
+    font-size: 11px !important;
+    color: #000 !important;
+    page-break-inside: auto !important;
+  }
+  html[data-print-mode='thermal'] .ticket-printable.thermal-80 img {
+    max-width: 38mm !important;
+    max-height: 18mm !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain !important;
+    display: block !important;
+    margin: 0 auto 1.5mm !important;
+  }
+  /* Evitar saltos de página dentro del ticket */
+  html[data-print-mode='thermal'] .ticket-printable.thermal-80 > div {
+    page-break-inside: avoid !important;
+  }
+}
+@page thermal-page {
+  size: 80mm auto;
+  margin: 4mm;
+}
+
+/* ----- Documento A4/carta ----- */
+@media print {
+  html[data-print-mode='letter'] body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  html[data-print-mode='letter'] .cash-cut-pdf,
+  html[data-print-mode='letter'] .ticket-printable.letter-doc,
+  html[data-print-mode='letter'] .pdf-corte-caja {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 8mm !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    transform: none !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    position: static !important;
+  }
+  html[data-print-mode='letter'] table {
+    page-break-inside: auto;
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  html[data-print-mode='letter'] tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  html[data-print-mode='letter'] thead {
+    display: table-header-group;
+  }
+  html[data-print-mode='letter'] tfoot {
+    display: table-footer-group;
+  }
+  html[data-print-mode='letter'] .avoid-break,
+  html[data-print-mode='letter'] h1,
+  html[data-print-mode='letter'] h2,
+  html[data-print-mode='letter'] h3 {
+    page-break-inside: avoid;
+    page-break-after: avoid;
+  }
+  html[data-print-mode='letter'] .page-break {
+    page-break-before: always;
+  }
+  /* Asegurar que el contenedor padre no recorte */
+  html[data-print-mode='letter'] [role='dialog'],
+  html[data-print-mode='letter'] [data-radix-portal] {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    position: static !important;
+  }
+}
+
+/* @page por defecto = A4. El modo térmico fija size desde JS */
+@page {
+  size: A4;
+  margin: 12mm;
+}

@@ -1,9 +1,12 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from 'next-themes';
 import { useState, type ReactNode } from 'react';
 import { Toaster } from 'sonner';
+
+import { ConfigProvider } from '@/mh/lib/ConfigContext';
+import { POSAuthProvider } from '@/mh/lib/POSAuthContext';
+import { ThemeProvider } from '@/mh/lib/ThemeContext';
 
 /**
  * Los proveedores de la aplicacion, en un solo sitio.
@@ -11,6 +14,12 @@ import { Toaster } from 'sonner';
  * `sonner` es el UNICO sistema de avisos (P2-07): la tiendita llego a tener
  * tres conviviendo —sonner activo, react-hot-toast y el toast de Radix— y nadie
  * sabia cual saldria.
+ *
+ * ── El tema ya no lo lleva next-themes ────────────────────────────────────
+ * Lo lleva SU `ThemeContext`, con su clave `mh_theme` y su clase `.dark`. Dos
+ * sistemas de tema conviviendo es la misma trampa que los tres sistemas de
+ * avisos: uno pone la clase, el otro la quita, y nadie sabe cuál gana. El
+ * guion que evita el parpadeo lo inyecta `layout.tsx` con el nonce de la CSP.
  */
 
 function crearClienteConsultas(): QueryClient {
@@ -41,41 +50,29 @@ function crearClienteConsultas(): QueryClient {
 
 interface Props {
   readonly children: ReactNode;
-  /**
-   * Nonce de la peticion. next-themes inyecta un <script> en linea para
-   * aplicar el tema ANTES del primer pintado y evitar el parpadeo; sin el
-   * nonce la CSP lo bloquea y la pagina parpadea de claro a oscuro en cada
-   * carga.
-   */
-  readonly nonce?: string;
 }
 
-export function Proveedores({ children, nonce }: Props) {
+export function Proveedores({ children }: Props) {
   // Se crea dentro del estado, no en el modulo: en el servidor un cliente por
   // modulo se compartiria entre peticiones de organizaciones distintas.
   const [clienteConsultas] = useState(crearClienteConsultas);
 
   return (
     <QueryClientProvider client={clienteConsultas}>
-      <ThemeProvider
-        {...(nonce === undefined ? {} : { nonce })}
-        attribute="class"
-        // La clase es "oscuro", no "dark": el CSS del sistema de diseno la usa
-        // asi, y el idioma del codigo de dominio es espanol.
-        value={{ light: 'claro', dark: 'oscuro' }}
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
-        {children}
-        <Toaster
-          position="top-right"
-          richColors
-          closeButton
-          // Un aviso que se va solo en 3 segundos no sirve en una caja con
-          // ruido y prisa. Los errores no se van solos.
-          duration={6000}
-        />
+      <ThemeProvider>
+        <POSAuthProvider>
+          <ConfigProvider>
+            {children}
+            <Toaster
+              position="top-right"
+              richColors
+              closeButton
+              // Un aviso que se va solo en 3 segundos no sirve en una caja con
+              // ruido y prisa. Los errores no se van solos.
+              duration={6000}
+            />
+          </ConfigProvider>
+        </POSAuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

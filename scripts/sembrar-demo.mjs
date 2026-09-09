@@ -1,22 +1,26 @@
 #!/usr/bin/env node
 /**
- * Siembra las organizaciones de demostración con el comando REAL (F1.1-C-14).
+ * Siembra una organización de demostración con el comando REAL (F1.1-C-14).
  *
- *   node scripts/sembrar-demo.mjs [--base URL] [--pin 4821]
+ *   node scripts/sembrar-demo.mjs [--org <slug>] [--base URL] [--pin 4821]
  *
- * Hasta hoy los datos de Supabase eran atrezzo insertado por SQL directo en las
- * migraciones 042 y 043: ni una fila había pasado por un comando, y `auditoria`
- * lo delataba con cero filas. Esto los siembra por la puerta de siempre —
- * sesión, rol, transacción, idempotencia y rastro— y deja las tres cajas
- * enroladas con su PIN.
+ * Hasta F1.1 los datos de Supabase eran atrezzo insertado por SQL directo en
+ * las migraciones 042 y 043: ni una fila había pasado por un comando, y
+ * `auditoria` lo delataba con cero filas. Esto los siembra por la puerta de
+ * siempre — sesión, rol, transacción, idempotencia y rastro.
  *
- * Corre `db:bootstrap` por cada organización, entra, y ejecuta `resetearDemo`.
- * Al terminar imprime el código de enrolamiento de cada caja para que Miguel
- * pueda dar de alta un dispositivo desde el teléfono.
+ * ── Por qué ya no siembra las tres de golpe ────────────────────────────────
+ * Al retirarse el enrolamiento de terminal (T2 del port del restaurante), la
+ * pantalla de acceso necesita saber a qué negocio sirve el despliegue, y eso lo
+ * dice `ORGANIZACION` en el servidor. Un mismo servidor ya no puede atender a
+ * tres organizaciones distintas por HTTP, así que este script siembra la que le
+ * digas — y esa tiene que ser la misma que tenga el servidor.
+ *
+ * Corre `db:bootstrap`, entra y ejecuta `resetearDemo`.
  */
 import { spawnSync } from 'node:child_process';
 
-import { exigir, llamar as llamarBase, paso, tarro } from './lib/cliente-humo.mjs';
+import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
 
 function bandera(nombre, porOmision) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -25,15 +29,18 @@ function bandera(nombre, porOmision) {
 
 const BASE = bandera('base', 'http://localhost:3000');
 const PIN = bandera('pin', '4821');
+const SLUG = bandera('org', 'demo-ferreteria-la-broca');
 
-const NEGOCIOS = [
-  { slug: 'demo-ferreteria-la-broca', persona: 'Elena' },
-  { slug: 'demo-abarrotes-don-chuy', persona: 'Jesús' },
-  { slug: 'demo-cafe-jacaranda', persona: 'Mariana' },
-];
+const PERSONAS = {
+  'demo-ferreteria-la-broca': 'Elena',
+  'demo-abarrotes-don-chuy': 'Jesús',
+  'demo-cafe-jacaranda': 'Mariana',
+};
 
-/** Corre `pnpm db:bootstrap` y devuelve el código de enrolamiento. */
-function arrancar(slug, persona) {
+const persona = bandera('persona', PERSONAS[SLUG] ?? 'Encargada');
+
+/** Corre `pnpm db:bootstrap`. Falla ruidosamente si el arranque no pudo. */
+function arrancar(slug, nombrePersona) {
   // `node` directo y no `pnpm`: en Windows `spawnSync` con un `.cmd` necesita
   // shell, y con shell el nombre con acento de la persona se rompe. El binario
   // del arranque es el mismo que ejecuta `pnpm db:bootstrap`.
@@ -45,58 +52,44 @@ function arrancar(slug, persona) {
       '--org',
       slug,
       '--persona',
-      persona,
+      nombrePersona,
       '--pin',
       PIN,
     ],
     { encoding: 'utf8', timeout: 120_000 },
   );
-  const codigo = /Código de enrolamiento:\s+(\d{6})/.exec(salida.stdout ?? '')?.[1];
-  if (codigo === undefined) {
-    console.error(`✗ el arranque de ${slug} no dio código:\n${salida.stdout}${salida.stderr}`);
+  if (salida.status !== 0) {
+    console.error(`✗ el arranque de ${slug} falló:\n${salida.stdout ?? ''}${salida.stderr ?? ''}`);
     process.exit(1);
   }
-  return codigo;
+  console.log(`  dueño ${nombrePersona} con PIN listo`);
 }
 
-const resumen = [];
+const llamar = (ruta, cuerpo) => llamarBase(BASE, ruta, cuerpo);
 
-for (const [i, negocio] of NEGOCIOS.entries()) {
-  paso(i + 1, `${negocio.slug}`);
+paso(1, `Dar de alta al dueño de ${SLUG}`);
+arrancar(SLUG, persona);
 
-  const codigo = arrancar(negocio.slug, negocio.persona);
-  // Tarro limpio por negocio: cada uno es un dispositivo distinto, y arrastrar
-  // la cookie del anterior haría que el segundo entrara con la sesión del
-  // primero y sembrara dos veces la misma organización.
-  tarro.clear();
-
-  const llamar = (ruta, cuerpo) => llamarBase(BASE, ruta, cuerpo);
-  exigir('enrolar', await llamar('/api/auth/enrolar', { codigo }));
-  const { empleados } = exigir('empleados', await llamar('/api/auth/empleados'));
-  exigir('entrar', await llamar('/api/auth/entrar', { empleoId: empleados[0].empleoId, pin: PIN }));
-
-  const sembrado = exigir(
-    'resetear demostración',
-    await llamar('/api/catalogo/demostracion/resetear', { confirmacion: 'RESETEAR' }),
+paso(2, 'Entrar');
+const { empleados } = exigir('empleados', await llamar('/api/auth/empleados'));
+if (!Array.isArray(empleados) || empleados.length === 0) {
+  console.error(
+    `✗ El servidor no lista a nadie. ¿Tiene ORGANIZACION=${SLUG}?\n` +
+      '  La pantalla de acceso sirve a UN negocio, y tiene que ser el mismo que siembras.',
   );
-  console.log(
-    `  ${String(sembrado.productos)} producto(s) y ${String(sembrado.insumos)} insumo(s), con rastro en auditoría`,
-  );
-
-  // El reseteo borró la sesión, así que se pide un código nuevo para dejar la
-  // caja lista. Se hace por el comando, no por el arranque: es el camino que
-  // usará Miguel desde /accesos.
-  const nuevo = exigir(
-    'código de alta para la caja',
-    await llamar('/api/identidad/codigo', {
-      terminal: exigir('accesos', await llamar('/api/identidad/accesos')).terminales[0].terminalId,
-    }),
-  );
-  resumen.push({ negocio: negocio.slug, persona: negocio.persona, codigo: nuevo.codigo });
+  process.exit(1);
 }
+exigir('entrar', await llamar('/api/auth/entrar', { empleoId: empleados[0].empleoId, pin: PIN }));
+
+paso(3, 'Sembrar el catálogo con el comando real');
+const sembrado = exigir(
+  'resetear demostración',
+  await llamar('/api/catalogo/demostracion/resetear', { confirmacion: 'RESETEAR' }),
+);
+console.log(
+  `  ${String(sembrado.productos)} producto(s) y ${String(sembrado.insumos)} insumo(s), con rastro en auditoría`,
+);
 
 console.log('\n═══ Listo para la demostración ═══\n');
-for (const r of resumen) {
-  console.log(`  ${r.negocio.padEnd(28)} ${r.persona.padEnd(10)} código ${r.codigo}`);
-}
-console.log(`\n  PIN de todos: ${PIN}. Los códigos caducan en 15 minutos.\n`);
+console.log(`  ${SLUG.padEnd(28)} ${persona.padEnd(10)} PIN ${PIN}`);
+console.log('\n  Abre /login-pos, toca el nombre y teclea el PIN.\n');

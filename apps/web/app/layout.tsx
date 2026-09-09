@@ -1,13 +1,37 @@
 import type { Metadata, Viewport } from 'next';
+import { DM_Sans, Inter } from 'next/font/google';
 import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
 
 import { atributosDeEstilo } from '@morphiqpos/ui';
 
 import { CABECERA_NONCE } from '@/seguridad/csp';
+import { GUION_SIN_PARPADEO } from '@/mh/lib/temaArranque';
 import { Proveedores } from '@/proveedores/Proveedores';
 
 import './globals.css';
+
+/**
+ * Sus dos fuentes, servidas desde nuestro propio origen.
+ *
+ * Su `index.css` las pedía a `fonts.googleapis.com` con un `@import`. Aquí eso
+ * no funciona: la CSP es `style-src 'self'` y `font-src 'self' data:`, así que
+ * el navegador lo bloquearía y la tipografía caería al `sans-serif` del
+ * sistema. `next/font` las descarga en el build, las sirve desde `/_next` y
+ * expone la variable que consume `mh-tokens.css`. Mismas familias, mismo
+ * aspecto, y sin una petición de terceros que bloquee el pintado.
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--mh-fuente-inter',
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--mh-fuente-dm-sans',
+});
 
 export const metadata: Metadata = {
   title: 'MorphiqPOS',
@@ -28,10 +52,6 @@ export const viewport: Viewport = {
 /**
  * Layout raiz.
  *
- * El estilo activo se decide aqui y se aplica como atributos `data-*` en
- * `<html>`. En F1.1 saldra de `configuracion.apariencia` de la organizacion;
- * hoy es el valor por omision.
- *
  * Leer las cabeceras vuelve DINAMICO el renderizado, y eso es a proposito:
  * un nonce por peticion no cabe en HTML prerenderizado en el build. Sin esto
  * la CSP bloquea todos los scripts de Next y la pagina se sirve sin hidratar
@@ -46,12 +66,26 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
   // inyectan las librerias.
   const nonce = (await headers()).get(CABECERA_NONCE) ?? undefined;
 
+  // Los tokens en español de `@morphiqpos/ui` siguen alimentando a las 36
+  // primitivas y a las pantallas que aún no se reemplazan. Se retiran cuando
+  // se retire la última que los use.
   const estilo = atributosDeEstilo('premium');
 
   return (
-    <html lang="es-MX" suppressHydrationWarning {...estilo}>
+    <html
+      lang="es-MX"
+      suppressHydrationWarning
+      className={`${inter.variable} ${dmSans.variable}`}
+      {...estilo}
+    >
+      <head>
+        {/* Pone la clase del tema ANTES del primer pintado. Sin esto la página
+            se ve clara y salta a oscura en cada carga: el servidor no puede
+            saber qué eligió este dispositivo. */}
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: GUION_SIN_PARPADEO }} />
+      </head>
       <body>
-        <Proveedores {...(nonce === undefined ? {} : { nonce })}>{children}</Proveedores>
+        <Proveedores>{children}</Proveedores>
       </body>
     </html>
   );

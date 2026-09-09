@@ -65,7 +65,6 @@ export interface TerminalDeGestion {
   readonly enrolada: boolean;
   readonly enroladaEn: string | null;
   readonly ultimaActividad: string | null;
-  readonly codigoVigente: boolean;
 }
 
 export async function terminalesDeGestion(
@@ -80,7 +79,6 @@ export async function terminalesDeGestion(
       'sucursales.nombre as sucursal',
       'terminales.enrolada_en as enroladaEn',
       'terminales.ultima_actividad as ultimaActividad',
-      'terminales.codigo_expira_en as codigoExpiraEn',
     ])
     .where('terminales.organizacion_id', '=', organizacionId)
     .where('terminales.activa', '=', true)
@@ -89,7 +87,6 @@ export async function terminalesDeGestion(
     .limit(200)
     .execute();
 
-  const ahora = Date.now();
   return filas.map((f) => ({
     terminalId: f.terminalId,
     nombre: f.nombre,
@@ -97,6 +94,5 @@ export async function terminalesDeGestion(
     enrolada: f.enroladaEn !== null,
     enroladaEn: f.enroladaEn === null ? null : f.enroladaEn.toISOString(),
     ultimaActividad: f.ultimaActividad === null ? null : f.ultimaActividad.toISOString(),
-    codigoVigente: f.codigoExpiraEn !== null && f.codigoExpiraEn.getTime() > ahora,
   }));
 }

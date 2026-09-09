@@ -17,6 +17,12 @@ export interface AmbitoResuelto {
   readonly identidadId: string;
   readonly empleoId: string;
   readonly rol: string;
+  /**
+   * Nombre de la persona. Lo pide la barra lateral para saludar y para la
+   * inicial del avatar; viaja aqui porque `personas` YA esta en el join y
+   * pedirlo aparte seria una consulta mas en el camino caliente.
+   */
+  readonly nombrePersona: string;
   /** Paquete contratado. Decide qué comandos existen para este negocio (A-42). */
   readonly paquete: string;
   readonly nombreNegocio: string;
@@ -50,6 +56,7 @@ export async function resolverAmbito(
       'identidades.id as identidadId',
       'empleos.id as empleoId',
       'empleos.rol as rol',
+      'personas.nombre as nombrePersona',
       'organizaciones.paquete as paquete',
       'organizaciones.nombre as nombreNegocio',
       'sucursales.nombre as nombreSucursal',

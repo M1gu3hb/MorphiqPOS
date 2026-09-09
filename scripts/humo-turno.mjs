@@ -2,7 +2,7 @@
 /**
  * El día completo del cajero (F1.1-C-10 y C-11), contra un servidor REAL.
  *
- *   node scripts/humo-turno.mjs <codigo-enrolamiento> [--base URL] [--pin 4821]
+ *   node scripts/humo-turno.mjs [--base URL] [--pin 4821]
  *
  * Abre caja, cobra tres ventas con métodos distintos —una de ellas MIXTA—,
  * registra un gasto y cierra cuadrando. La comprobación que vale es la última:
@@ -16,21 +16,14 @@ function bandera(nombre, porOmision) {
   return i === -1 ? porOmision : process.argv[i + 1];
 }
 
-const codigo = process.argv[2];
 const BASE = bandera('base', 'http://localhost:3000');
 const PIN = bandera('pin', '4821');
-
-if (codigo === undefined || !/^\d{6}$/.test(codigo)) {
-  console.error('Uso: node scripts/humo-turno.mjs <codigo-6-digitos> [--base URL] [--pin NNNN]');
-  process.exit(1);
-}
 
 const llamar = (ruta, cuerpo, opciones) => llamarBase(BASE, ruta, cuerpo, opciones);
 const FONDO = 50_000;
 const GASTO = 7_500;
 
 paso(1, 'Entrar y dejar la caja cerrada');
-exigir('enrolar', await llamar('/api/auth/enrolar', { codigo }));
 const { empleados } = exigir('empleados', await llamar('/api/auth/empleados'));
 exigir('entrar', await llamar('/api/auth/entrar', { empleoId: empleados[0].empleoId, pin: PIN }));
 

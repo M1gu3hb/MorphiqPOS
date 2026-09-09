@@ -54,7 +54,7 @@ export function useVenta() {
       // quiere: la sesión dejó de existir y hay que tirar todo lo que se leyó con
       // ella. Una recarga completa es la intención, no un descuido.
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.assign('/entrar');
+      window.location.assign('/login-pos');
       return;
     }
     setEstado((previo) => ({ ...previo, cargando: false, error: mensajeDe(error) }));
