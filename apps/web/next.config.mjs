@@ -55,6 +55,16 @@ const nextConfig = {
   // dependencias en vez de copiar codigo (A-01, R3).
   transpilePackages: ['@morphiqpos/ui', '@morphiqpos/contracts', '@morphiqpos/domain'],
 
+  /**
+   * La raiz del trazado de archivos es el MONOREPO, no `apps/web`.
+   *
+   * Sin esto, Next decide que la raiz es la carpeta de la aplicacion y la
+   * funcion serverless sale sin los paquetes del workspace. En local no se
+   * nota —el enlace simbolico de pnpm resuelve igual— y en Vercel la primera
+   * peticion muere con «Cannot find module '@morphiqpos/data'».
+   */
+  outputFileTracingRoot: join(dirname(fileURLToPath(import.meta.url)), '..', '..'),
+
   // R19: el build NO se completa con errores de tipos. Next permite apagarlo;
   // aqui se deja explicito para que nadie lo apague "temporalmente".
   //
