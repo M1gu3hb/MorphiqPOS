@@ -19,7 +19,8 @@
     "./caja": "./src/caja/index.ts",
     "./identidad": "./src/identidad/index.ts",
     "./negocio": "./src/negocio/index.ts",
-    "./puente": "./src/puente/index.ts"
+    "./puente": "./src/puente/index.ts",
+    "./puente-comandos": "./src/puente/comandos.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

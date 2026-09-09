@@ -12,6 +12,16 @@
 
 /** Codigos estables. Nunca se renombra uno: se marca obsoleto y se agrega otro. */
 export const CODIGOS_ERROR = {
+  // --- puente de compatibilidad (F1-02 §3) ---
+  /** La entidad no está en la lista blanca del puente. */
+  PUENTE_ENTIDAD_DESCONOCIDA: 'PUENTE_ENTIDAD_DESCONOCIDA',
+  /** Campo que no existe, o que lo calcula el servidor y no se acepta. */
+  PUENTE_CAMPO_INVALIDO: 'PUENTE_CAMPO_INVALIDO',
+  /** El rol no puede leer o escribir esa entidad. */
+  PUENTE_SIN_PERMISO: 'PUENTE_SIN_PERMISO',
+  /** No existe — o es de otra organización, que se ve igual. */
+  PUENTE_NO_ENCONTRADO: 'PUENTE_NO_ENCONTRADO',
+
   // --- catálogo: códigos aditivos del carril B ---
   CANTIDAD_INVALIDA: 'CANTIDAD_INVALIDA',
   UNIDAD_INCOMPATIBLE: 'UNIDAD_INCOMPATIBLE',

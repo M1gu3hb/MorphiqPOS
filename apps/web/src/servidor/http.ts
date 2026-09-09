@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ESTADO_HTTP, validarEntorno, type Paquete } from '@morphiqpos/contracts';
+import { esErrorDominio, ESTADO_HTTP, validarEntorno, type Paquete } from '@morphiqpos/contracts';
 import { comando } from '@morphiqpos/app/produccion';
 import { leerCookie, NOMBRE_COOKIE } from '@morphiqpos/app/http';
 import { resolverSesion, type SesionDeNegocio } from '@morphiqpos/app/sesion';
@@ -89,6 +89,60 @@ export async function ejecutarComandoHttp<E extends ZodType, S>(
   } catch (error) {
     return responderError(error);
   }
+}
+
+/**
+ * Una LECTURA por POST, con la sesión ya resuelta (E3-4).
+ *
+ * `responderConsulta` lee la cookie del contexto de Next porque las rutas GET
+ * no reciben el `Request`. El puente sí lo recibe —es un POST con cuerpo—, así
+ * que la lee de ahí y de paso evita el `headers()` asíncrono por petición.
+ *
+ * El callback puede devolver los datos, o una `Response` ya armada cuando
+ * necesita un código distinto de 200. Devolver la respuesta en vez de lanzar
+ * obliga a quien llama a decidir qué hacer con ella.
+ */
+export async function conSesion<T>(
+  peticion: Request,
+  fn: (sesion: SesionDeNegocio) => Promise<T | Response>,
+): Promise<Response> {
+  const sesion = await sesionDeLaPeticion(peticion.headers.get('cookie'));
+  if (!sesion.ok) return sesion.respuesta;
+
+  try {
+    const salida = await fn(sesion.sesion);
+    if (salida instanceof Response) return salida;
+    return Response.json({ ok: true, datos: salida }, { headers: { 'cache-control': 'no-store' } });
+  } catch (error) {
+    return respuestaDeDominio(error) ?? responderError(error);
+  }
+}
+
+/**
+ * Un `ErrorDominio` del puente con su estado HTTP de verdad.
+ *
+ * Sin esto, pedir un campo que no existe devolvía 500 y el registro del
+ * servidor se llenaba de «fallo no controlado» por un error del cliente. Un 500
+ * dice «se rompió el servidor»; aquí lo que pasó es que la petición estaba mal,
+ * y decirlo bien es lo que permite arreglarla.
+ */
+function respuestaDeDominio(error: unknown): Response | null {
+  if (!esErrorDominio(error)) return null;
+  const estados: Readonly<Record<string, number>> = {
+    PUENTE_ENTIDAD_DESCONOCIDA: 400,
+    PUENTE_CAMPO_INVALIDO: 400,
+    PUENTE_SIN_PERMISO: 403,
+    PUENTE_NO_ENCONTRADO: 404,
+  };
+  const estado = estados[error.codigo] ?? 422;
+  return Response.json(
+    {
+      ok: false,
+      error: { codigo: error.codigo, mensaje: error.message },
+      correlationId: crypto.randomUUID(),
+    },
+    { status: estado, headers: { 'cache-control': 'no-store' } },
+  );
 }
 
 export async function responderConsulta<T>(

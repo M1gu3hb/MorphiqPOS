@@ -144,6 +144,13 @@ function entidad(nombre: string): EntidadApi {
 /**
  * Las 25 entidades de su sistema.
  *
+ * La lista NO se inventa: sale de contar los nombres que su código usa de
+ * verdad (`grep -o 'entidades\.[A-Za-z]*'`). Tres estuvieron a punto de
+ * quedarse fuera por llamarse distinto de lo que uno esperaría —`CompraInsumo`
+ * en vez de `Compra`, `DetalleCompra` en vez de `CompraLinea`, y
+ * `CategoriaIngrediente`, que sólo aparece UNA vez, en Inventario—. Cualquiera
+ * de las tres habría reventado una pantalla al montar.
+ *
  * Los nombres son los SUYOS. La traducción a las tablas del backend vive en un
  * solo archivo, `packages/app/src/puente/mapa.ts`, y cada entidad lleva una
  * prueba de ida y vuelta: se construye un objeto con la forma vieja, se
@@ -155,21 +162,20 @@ const NOMBRES = [
   'Venta',
   'DetalleVenta',
   'Mesa',
-  'Zona',
   'PedidoPreparacion',
   'EstacionPreparacion',
   'UsuarioPOS',
   'ConfiguracionNegocio',
   'Ingrediente',
+  'CategoriaIngrediente',
   'ProductoTerminado',
   'CategoriaProducto',
   'RecetaEscandallo',
   'MovimientoInventario',
   'DescuentoInventarioVenta',
   'CorteCaja',
-  'SesionCaja',
-  'Compra',
-  'CompraLinea',
+  'CompraInsumo',
+  'DetalleCompra',
   'Proveedor',
   'GastoOperativo',
   'PlantillaGasto',
@@ -177,7 +183,6 @@ const NOMBRES = [
   'SolicitudQR',
   'MenuQRSeccion',
   'LiquidacionPropina',
-  'UnidadMedida',
   'IntegrationSyncLog',
 ] as const;
 
