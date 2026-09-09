@@ -21,6 +21,7 @@
     "db:seed": "node scripts/db.mjs seed",
     "db:tipos": "node scripts/db.mjs tipos",
     "db:bootstrap": "pnpm --filter @morphiqpos/app bootstrap",
+    "db:alta-negocio": "pnpm --filter @morphiqpos/app alta-negocio",
     "typecheck": "turbo run typecheck",
     "test:unit": "vitest run",
     "test": "vitest run",

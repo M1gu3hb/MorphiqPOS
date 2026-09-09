@@ -22,7 +22,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "bootstrap": "node --conditions=react-server bin/bootstrap.mjs"
+    "bootstrap": "node --conditions=react-server bin/bootstrap.mjs",
+    "alta-negocio": "node --conditions=react-server bin/alta-negocio.mjs"
   },
   "dependencies": {
     "@morphiqpos/contracts": "workspace:*",
