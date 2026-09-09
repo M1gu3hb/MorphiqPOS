@@ -1,8 +1,8 @@
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 
-import { CERO, centavos, type Centavos } from '../dinero/centavos';
-import { restar, sumar } from '../dinero/aritmetica';
-import { PUNTOS_BASE_100, aplicarPorcentaje } from '../dinero/redondeo';
+import { CERO, centavos, type Centavos } from '../dinero/centavos.ts';
+import { restar, sumar } from '../dinero/aritmetica.ts';
+import { PUNTOS_BASE_100, aplicarPorcentaje } from '../dinero/redondeo.ts';
 
 /**
  * Totales de una orden (F1.1-A-07).

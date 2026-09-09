@@ -3,8 +3,11 @@ import 'server-only';
 import { esPaquete, esRol, type Ambito, type Paquete } from '@morphiqpos/contracts';
 import { conTransaccion, obtenerDb } from '@morphiqpos/data';
 
-import { listarProductos, type PaginaProductos } from './catalogo/consulta';
-import { leerConfiguracion, type ConfiguracionOrganizacion } from './configuracion/configuracion';
+import { listarProductos, type PaginaProductos } from './catalogo/consulta.ts';
+import {
+  leerConfiguracion,
+  type ConfiguracionOrganizacion,
+} from './configuracion/configuracion.ts';
 
 export interface SesionServidor extends Ambito {
   readonly paquete: Paquete;

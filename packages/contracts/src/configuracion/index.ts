@@ -2,7 +2,7 @@
 export const COLOR_PRIMARIO_DEFAULT = '#0f766e';
 export const COLOR_ACENTO_DEFAULT = '#f59e0b';
 
-import type { Paquete } from '../comandos/ambito';
+import type { Paquete } from '../comandos/ambito.ts';
 
 export interface ItemNavegacionGestion {
   readonly href: '/inicio' | '/productos' | '/inventario' | '/recetas' | '/configuracion';

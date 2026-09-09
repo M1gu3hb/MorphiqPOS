@@ -1,15 +1,15 @@
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 
-import { redondear, type Centavos } from '../dinero';
-import { cantidad, ESCALA_CANTIDAD, type Cantidad } from './cantidades';
+import { redondear, type Centavos } from '../dinero/index.ts';
+import { cantidad, ESCALA_CANTIDAD, type Cantidad } from './cantidades.ts';
 import {
   resolverTipoVenta,
   type CapturaCantidad,
   type PrecioLinea,
   type ProductoParaPrecio,
-} from './tipos';
-import { convertirUnidad } from './unidades';
-import { calcularMlPorPorcion } from './porciones';
+} from './tipos.ts';
+import { convertirUnidad } from './unidades.ts';
+import { calcularMlPorPorcion } from './porciones.ts';
 
 function invalido(mensaje: string): never {
   throw new ErrorDominio('CATALOGO_INVALIDO', mensaje);

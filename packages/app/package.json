@@ -20,7 +20,8 @@
     "./identidad": "./src/identidad/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bootstrap": "node --conditions=react-server bin/bootstrap.mjs"
   },
   "dependencies": {
     "@morphiqpos/contracts": "workspace:*",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "dotenv": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

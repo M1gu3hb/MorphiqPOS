@@ -9,7 +9,7 @@ import {
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
-import { definirComando } from '../comando';
+import { definirComando } from '../comando.ts';
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const urlONull = z.url().nullable();

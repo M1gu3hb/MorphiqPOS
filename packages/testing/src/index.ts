@@ -1,2 +1,2 @@
-export * from './fallos';
-export * from './datos';
+export * from './fallos.ts';
+export * from './datos.ts';

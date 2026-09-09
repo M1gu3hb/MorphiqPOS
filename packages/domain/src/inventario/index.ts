@@ -5,4 +5,4 @@ export {
   type LineaParaConsumo,
   type MovimientoPlaneado,
   type UnidadInventario,
-} from './consumo';
+} from './consumo.ts';

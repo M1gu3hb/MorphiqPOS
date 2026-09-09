@@ -11,9 +11,9 @@ import {
 } from 'kysely';
 import { describe, expect, it } from 'vitest';
 
-import type { ContextoComando } from '../comando';
-import { ajustarStock, inventarioInicial } from './inventario';
-import { recalcularCostosRecetas } from './recetas';
+import type { ContextoComando } from '../comando.ts';
+import { ajustarStock, inventarioInicial } from './inventario.ts';
+import { recalcularCostosRecetas } from './recetas.ts';
 
 class ConexionGrabadora implements DatabaseConnection {
   readonly consultas: CompiledQuery[] = [];

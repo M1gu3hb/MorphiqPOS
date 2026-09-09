@@ -5,7 +5,7 @@ import { desdeTexto } from '@morphiqpos/domain/dinero';
 import { sql } from 'kysely';
 import { z } from 'zod';
 
-import { definirComando } from '../comando';
+import { definirComando } from '../comando.ts';
 
 const ROLES = ['dueno', 'administrador', 'gerente', 'almacen'] as const;
 const id = z.uuid();

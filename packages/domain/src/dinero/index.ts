@@ -4,12 +4,12 @@
  * R15 · dinero en unidades menores enteras, con moneda explicita en las fronteras.
  * 04-ARQUITECTURA §3 · el redondeo se define una vez.
  */
-export { CERO, absoluto, centavos, esCero, esNegativo, type Centavos } from './centavos';
+export { CERO, absoluto, centavos, esCero, esNegativo, type Centavos } from './centavos.ts';
 
-export { comparar, negar, restar, sumar } from './aritmetica';
+export { comparar, negar, restar, sumar } from './aritmetica.ts';
 
-export { PUNTOS_BASE_100, aplicarPorcentaje, redondear } from './redondeo';
+export { PUNTOS_BASE_100, aplicarPorcentaje, redondear } from './redondeo.ts';
 
-export { repartir } from './reparto';
+export { repartir } from './reparto.ts';
 
-export { MONEDAS, desdeTexto, formatear, type Moneda } from './formato';
+export { MONEDAS, desdeTexto, formatear, type Moneda } from './formato.ts';

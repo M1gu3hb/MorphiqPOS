@@ -13,8 +13,7 @@
     "typecheck": "tsc --noEmit",
     "migrate": "node --conditions=react-server bin/migrar.mjs",
     "ensayo": "node --conditions=react-server bin/migrar.mjs --ensayo",
-    "tipos": "node --conditions=react-server bin/generar-tipos.mjs",
-    "bootstrap": "node --conditions=react-server bin/bootstrap.mjs"
+    "tipos": "node --conditions=react-server bin/generar-tipos.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

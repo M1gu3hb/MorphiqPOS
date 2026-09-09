@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { navegacionParaPaquete } from './index';
+import { navegacionParaPaquete } from './index.ts';
 
 describe('B-08 · capacidades visibles por paquete', () => {
   it('muestra recetas únicamente en cafetería y restaurante', () => {

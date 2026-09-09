@@ -1,7 +1,7 @@
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 import { describe, expect, it } from 'vitest';
 
-import { cantidad, cantidadATexto, convertirUnidad, normalizarUnidad } from './index';
+import { cantidad, cantidadATexto, convertirUnidad, normalizarUnidad } from './index.ts';
 
 describe('CAT-02 · cantidades exactas y unidades', () => {
   it.each(['0', '0.0001', '1.2345', '9999999999.9999'])('conserva %s', (texto) => {

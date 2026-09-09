@@ -5,8 +5,8 @@ export {
   desdeDiezmilesimas,
   ESCALA_CANTIDAD,
   type Cantidad,
-} from './cantidades';
-export { convertirUnidad, normalizarUnidad, type Unidad } from './unidades';
+} from './cantidades.ts';
+export { convertirUnidad, normalizarUnidad, type Unidad } from './unidades.ts';
 export {
   resolverTipoVenta,
   TIPOS_VENTA,
@@ -14,6 +14,6 @@ export {
   type ProductoParaPrecio,
   type CapturaCantidad,
   type PrecioLinea,
-} from './tipos';
-export { precioDeLinea } from './precio';
-export { calcularMlPorPorcion, type ConfiguracionPorcion } from './porciones';
+} from './tipos.ts';
+export { precioDeLinea } from './precio.ts';
+export { calcularMlPorPorcion, type ConfiguracionPorcion } from './porciones.ts';

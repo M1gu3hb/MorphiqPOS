@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ErrorDeEntorno, validarEntorno } from './index';
+import { ErrorDeEntorno, validarEntorno } from './index.ts';
 
 /**
  * El criterio de aceptacion de F1.0-T12, dicho tal cual:

@@ -11,6 +11,13 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
+
+    // Los paquetes son código fuente: nadie los compila a `dist`, los consume
+    // directamente Next y, ahora, Node. Sin esta bandera los imports tienen que
+    // ir sin extensión, y entonces `node bin/algo.mjs` no resuelve nada: el
+    // código compila y no se ejecuta, que es como se llegó a tres sesiones sin
+    // que una sola consulta tocara Postgres.
+    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "skipLibCheck": true,

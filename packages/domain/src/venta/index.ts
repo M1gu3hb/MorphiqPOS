@@ -3,4 +3,4 @@ export {
   type LineaValorada,
   type ReglaImpuesto,
   type TotalesOrden,
-} from './totales';
+} from './totales.ts';

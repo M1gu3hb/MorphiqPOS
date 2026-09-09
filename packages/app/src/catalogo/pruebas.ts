@@ -1,4 +1,4 @@
-import type { ContextoComando } from '../comando';
+import type { ContextoComando } from '../comando.ts';
 import type { Transaccion } from '@morphiqpos/data';
 
 export interface OperacionSqlFalsa {

@@ -1,6 +1,6 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 
-import type { Esquema } from '../esquema';
+import type { Esquema } from '../esquema.ts';
 
 type Conexion = Kysely<Esquema> | Transaction<Esquema>;
 

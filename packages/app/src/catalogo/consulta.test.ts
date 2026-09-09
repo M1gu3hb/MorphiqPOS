@@ -2,7 +2,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { repoCatalogo } from '@morphiqpos/data';
 import { describe, expect, it, vi } from 'vitest';
 
-import { entradaBuscarProductos, listarProductos } from './consulta';
+import { entradaBuscarProductos, listarProductos } from './consulta.ts';
 
 vi.mock('@morphiqpos/data', async () => {
   const original = await vi.importActual<typeof import('@morphiqpos/data')>('@morphiqpos/data');

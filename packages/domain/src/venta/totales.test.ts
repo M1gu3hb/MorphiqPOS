@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { centavos } from '../dinero/centavos';
-import { calcularTotales, type LineaValorada, type ReglaImpuesto } from './totales';
+import { centavos } from '../dinero/centavos.ts';
+import { calcularTotales, type LineaValorada, type ReglaImpuesto } from './totales.ts';
 
 /**
  * Totales de una orden.

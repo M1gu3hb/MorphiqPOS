@@ -1,8 +1,8 @@
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 import { describe, expect, it } from 'vitest';
 
-import { centavos } from '../dinero';
-import { precioDeLinea, resolverTipoVenta } from './index';
+import { centavos } from '../dinero/index.ts';
+import { precioDeLinea, resolverTipoVenta } from './index.ts';
 
 const fijo = {
   tipoVenta: 'precio_fijo',

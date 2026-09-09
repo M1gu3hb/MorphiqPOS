@@ -1,7 +1,7 @@
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 
-import type { Centavos } from '../dinero';
-import type { Unidad } from './unidades';
+import type { Centavos } from '../dinero/index.ts';
+import type { Unidad } from './unidades.ts';
 
 export const TIPOS_VENTA = [
   'precio_fijo',

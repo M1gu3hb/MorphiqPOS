@@ -3,9 +3,9 @@ import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { z } from 'zod';
 
-import { definirComando } from '../comando';
-import { recalcularCostosRecetas } from '../inventario/recetas';
-import { semillaParaPaquete } from './datos';
+import { definirComando } from '../comando.ts';
+import { recalcularCostosRecetas } from '../inventario/recetas.ts';
+import { semillaParaPaquete } from './datos.ts';
 
 export const entradaResetearDemo = z.object({ confirmacion: z.literal('RESETEAR') });
 

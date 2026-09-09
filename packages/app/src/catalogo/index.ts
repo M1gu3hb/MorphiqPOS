@@ -1,14 +1,14 @@
-export { entradaBuscarProductos, listarProductos } from './consulta';
-export { consultarInicioProduccion } from './inicio';
-export type { PaginaProductos, ProductoResumen } from './consulta';
+export { entradaBuscarProductos, listarProductos } from './consulta.ts';
+export { consultarInicioProduccion } from './inicio.ts';
+export type { PaginaProductos, ProductoResumen } from './consulta.ts';
 export {
   actualizarProducto,
   archivarProducto,
   asignarCodigoBarras,
   cambiarPrecioProducto,
   crearProducto,
-} from './productos';
-export { crearModificadorProducto } from './modificadores';
+} from './productos.ts';
+export { crearModificadorProducto } from './modificadores.ts';
 export {
   entradaActualizarProducto,
   entradaArchivarProducto,
@@ -16,4 +16,4 @@ export {
   entradaCambiarPrecio,
   entradaCrearModificador,
   entradaCrearProducto,
-} from './esquemas';
+} from './esquemas.ts';

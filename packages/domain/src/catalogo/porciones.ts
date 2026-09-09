@@ -1,6 +1,6 @@
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 
-import { cantidad, cantidadExacta, ESCALA_CANTIDAD, type Cantidad } from './cantidades';
+import { cantidad, cantidadExacta, ESCALA_CANTIDAD, type Cantidad } from './cantidades.ts';
 
 export interface ConfiguracionPorcion {
   readonly capacidadMl: string;

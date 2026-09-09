@@ -3,7 +3,6 @@
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
-    "allowImportingTsExtensions": true,
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./src/*"] },
     "types": ["node"]

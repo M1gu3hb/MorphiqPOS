@@ -1,3 +1,3 @@
-export * from './inventario';
-export * from './recetas';
-export * from './consultas';
+export * from './inventario.ts';
+export * from './recetas.ts';
+export * from './consultas.ts';

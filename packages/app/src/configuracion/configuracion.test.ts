@@ -2,14 +2,14 @@ import { ESTADO_HTTP } from '@morphiqpos/contracts';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { crearComando, definirComando } from '../comando';
-import { crearFabrica } from '../pruebas/dobles';
-import { contextoCatalogo } from '../catalogo/pruebas';
+import { crearComando, definirComando } from '../comando.ts';
+import { crearFabrica } from '../pruebas/dobles.ts';
+import { contextoCatalogo } from '../catalogo/pruebas.ts';
 import {
   guardarConfiguracion,
   leerConfiguracion,
   type ConfiguracionOrganizacion,
-} from './configuracion';
+} from './configuracion.ts';
 
 const entrada = {
   version: 3,

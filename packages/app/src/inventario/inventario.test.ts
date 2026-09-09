@@ -7,9 +7,9 @@ import {
   entradaAjustarStock,
   entradaInventarioInicial,
   inventarioInicial,
-} from './inventario';
-import { actualizarCostoInsumo, guardarReceta } from './recetas';
-import { resetearDemo } from '../demostracion/resetear';
+} from './inventario.ts';
+import { actualizarCostoInsumo, guardarReceta } from './recetas.ts';
+import { resetearDemo } from '../demostracion/resetear.ts';
 
 describe('B-11 · comandos de insumos y almacenes', () => {
   it('declara los cinco paquetes y nombres de comando estables', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { crearModificadorProducto } from './modificadores';
-import { contextoCatalogo } from './pruebas';
+import { crearModificadorProducto } from './modificadores.ts';
+import { contextoCatalogo } from './pruebas.ts';
 
 const PRODUCTO = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const MODIFICADOR = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

@@ -2,8 +2,8 @@ import { ErrorDominio } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { desdeTexto } from '@morphiqpos/domain/dinero';
 
-import { definirComando } from '../comando';
-import { entradaCrearModificador } from './esquemas';
+import { definirComando } from '../comando.ts';
+import { entradaCrearModificador } from './esquemas.ts';
 
 export const crearModificadorProducto = definirComando<
   Transaccion,
