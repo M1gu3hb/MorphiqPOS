@@ -350,11 +350,25 @@ export interface Productos {
   nombre_porcion: string | null;
   precio_por_porcion_centavos: bigint | null;
   estrategia_consumo: Generated<string>;
-  insumo_base_id: string | null;
   permite_venta_sin_stock: Generated<boolean>;
   stock_minimo: Generated<string>;
   visible_en_pos: Generated<boolean>;
   activo: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+  insumo_base_id: string | null;
+  utilidad_unitaria_centavos: bigint | null;
+  margen_bp: bigint | null;
+}
+
+export interface Recetas {
+  id: Generated<string>;
+  organizacion_id: string;
+  producto_id: string;
+  insumo_id: string;
+  cantidad: string;
+  unidad: string;
+  merma_bp: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -428,6 +442,7 @@ export interface Esquema {
   personas: Personas;
   producto_modificadores: ProductoModificadores;
   productos: Productos;
+  recetas: Recetas;
   sesiones_caja: SesionesCaja;
   sucursales: Sucursales;
   terminales: Terminales;

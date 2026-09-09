@@ -9,9 +9,28 @@
  *   node bin/migrar.mjs            aplica
  *   node bin/migrar.mjs --ensayo   aplica y revierte, para validar el SQL
  */
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { config } from 'dotenv';
 
-config({ path: ['.env.local', '.env'], quiet: true });
+/**
+ * El `.env` vive en la RAÍZ del monorepo, no junto a cada paquete.
+ *
+ * Cargarlo por ruta relativa al cwd hacía que `pnpm -r db:tipos` no lo
+ * encontrara: turbo ejecuta el script con el cwd en `packages/data` y desde
+ * ahí `.env` no existe. El síntoma era «Falta DATABASE_URL» con la variable
+ * perfectamente puesta, que es de los errores que más tiempo hacen perder.
+ */
+config({
+  path: [
+    join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env.local'),
+    join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env'),
+    '.env.local',
+    '.env',
+  ],
+  quiet: true,
+});
 
 const ensayo = process.argv.includes('--ensayo');
 

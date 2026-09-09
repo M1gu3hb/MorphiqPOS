@@ -1,5 +1,7 @@
 import 'server-only';
 
+import type pg from 'pg';
+
 import { obtenerPool } from '../cliente.ts';
 import { leerMigraciones, type Migracion } from './lectura.ts';
 
@@ -92,27 +94,61 @@ function comprobarIntegridad(
  *   la práctica que pide `supabase-vercel-produccion §3`. Se ensaya la cadena
  *   completa, no migración por migración: la 002 suele depender de la 001.
  */
+interface FilaLedger {
+  readonly version: number;
+  readonly nombre: string;
+  readonly hash: string;
+}
+
+/**
+ * Lee el ledger. Si la tabla no existe todavía, devuelve vacío.
+ *
+ * Se distingue «no existe» (`42P01`) de cualquier otro fallo: un
+ * «permission denied» tiene que propagarse, no confundirse con una base nueva
+ * y disparar una migración desde cero contra un esquema que sí estaba.
+ */
+async function leerLedger(cliente: pg.PoolClient): Promise<readonly FilaLedger[]> {
+  try {
+    const resultado = await cliente.query<FilaLedger>(
+      'select version, nombre, hash from _migraciones order by version',
+    );
+    return resultado.rows;
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === '42P01') {
+      return [];
+    }
+    throw error;
+  }
+}
+
 export async function migrar(opciones: { ensayo?: boolean } = {}): Promise<ResultadoMigracion> {
   const ensayo = opciones.ensayo ?? false;
   const cliente = await obtenerPool().connect();
 
   try {
-    await cliente.query(LEDGER);
-
-    const registradas = await cliente.query<{ version: number; nombre: string; hash: string }>(
-      'select version, nombre, hash from _migraciones order by version',
-    );
+    // Se LEE antes de crear. `create table if not exists` parece inofensivo,
+    // pero Postgres exige CREATE sobre el schema aunque la tabla ya exista, y
+    // eso convertía «no hay nada que aplicar» en «permission denied» para el
+    // rol de aplicación, que a propósito no puede hacer DDL.
+    //
+    // Con este orden, comprobar que la base está al día es una operación de
+    // sólo lectura: cualquiera puede verificar, sólo un rol con DDL puede
+    // cambiar. Que es exactamente el reparto que se quiere.
+    const registradas = await leerLedger(cliente);
 
     const enDisco = leerMigraciones();
-    comprobarIntegridad(enDisco, registradas.rows);
+    comprobarIntegridad(enDisco, registradas);
 
-    const yaEstaban = registradas.rows.length;
-    const aplicadas = new Set(registradas.rows.map((fila) => fila.version));
+    const yaEstaban = registradas.length;
+    const aplicadas = new Set(registradas.map((fila) => fila.version));
     const pendientes = enDisco.filter((m) => !aplicadas.has(m.version));
 
     if (pendientes.length === 0) {
       return { aplicadas: [], yaEstaban, ensayo };
     }
+
+    // Sólo a partir de aquí hace falta DDL.
+    await cliente.query(LEDGER);
 
     // Una sola transacción para toda la tanda: si la tercera falla, las dos
     // anteriores se revierten. Postgres tiene DDL transaccional.

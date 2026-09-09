@@ -4,6 +4,7 @@ import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import pg from 'pg';
 
 import type { Esquema } from './esquema.ts';
+import { tlsPara } from './tls.ts';
 
 /**
  * El único punto del sistema que abre una conexión a Postgres (F1.1-T01).
@@ -59,7 +60,7 @@ let db: Kysely<Esquema> | undefined;
  * se hace cola en una terminal de caja y todavía no se agota el proveedor.
  */
 function configuracion(cadena: string): pg.PoolConfig {
-  const esLocal = cadena.includes('localhost') || cadena.includes('127.0.0.1');
+  const ssl = tlsPara(cadena);
 
   return {
     connectionString: cadena,
@@ -68,9 +69,10 @@ function configuracion(cadena: string): pg.PoolConfig {
     // Un cajero no puede quedarse esperando media hora a que la base responda.
     // Falla rápido y la pantalla lo dice (R12).
     connectionTimeoutMillis: 10_000,
-    // Supabase exige TLS. El Postgres del compose no lo tiene, y forzarlo ahí
-    // rompería la prueba de portabilidad que protege A-27.
-    ...(esLocal ? {} : { ssl: { rejectUnauthorized: true } }),
+    // Supabase exige TLS y firma con su propia raíz; `tlsPara` la fija. El
+    // Postgres del compose no tiene TLS, y forzarlo ahí rompería la prueba de
+    // portabilidad que protege A-27.
+    ...(ssl === false ? {} : { ssl }),
     application_name: 'morphiqpos',
   };
 }
