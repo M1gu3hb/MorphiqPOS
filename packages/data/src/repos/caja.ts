@@ -210,3 +210,33 @@ function aBigint(valor: string | null | undefined): bigint {
   if (valor === null || valor === undefined || valor === '') return 0n;
   return BigInt(valor.split('.')[0] ?? '0');
 }
+
+export interface MovimientoDeCorte {
+  readonly tipo: string;
+  readonly montoCentavos: bigint;
+  readonly motivo: string | null;
+  readonly registradoEn: Date;
+}
+
+/**
+ * Los movimientos manuales de la sesión: gastos, retiros, depósitos, ajustes.
+ *
+ * **Las ventas se excluyen a propósito.** Son cientos en un turno y no aportan
+ * nada al corte una por una: para eso está el total. Lo que el cajero necesita
+ * revisar renglón a renglón es lo que él mismo metió o sacó del cajón.
+ */
+export async function movimientosDeCorte(
+  db: Kysely<Esquema> | Transaccion,
+  organizacionId: string,
+  sesionCajaId: string,
+): Promise<readonly MovimientoDeCorte[]> {
+  return db
+    .selectFrom('movimientos_caja')
+    .select(['tipo', 'monto_centavos as montoCentavos', 'motivo', 'created_at as registradoEn'])
+    .where('organizacion_id', '=', organizacionId)
+    .where('sesion_caja_id', '=', sesionCajaId)
+    .where('tipo', '!=', 'venta')
+    .orderBy('created_at')
+    .limit(200)
+    .execute();
+}

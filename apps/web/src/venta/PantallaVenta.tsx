@@ -74,7 +74,10 @@ export function PantallaVenta() {
 
         <p className="hidden text-xs text-texto-tenue lg:block">
           <Tecla>↑ ↓</Tecla> elegir · <Tecla>Enter</Tecla> agregar · <Tecla>F2</Tecla> cobrar ·{' '}
-          <Tecla>F4</Tecla> caja · <Tecla>Esc</Tecla> limpiar
+          <Tecla>F4</Tecla> caja · <Tecla>Esc</Tecla> limpiar ·{' '}
+          <a href="/corte" className="underline underline-offset-2 hover:text-texto-sutil">
+            cerrar turno
+          </a>
         </p>
       </section>
 

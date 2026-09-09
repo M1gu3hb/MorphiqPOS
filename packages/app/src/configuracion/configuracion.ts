@@ -24,6 +24,16 @@ export const entradaGuardarConfiguracion = z.object({
   colorAcento: color,
   estilo: z.enum(['base', 'editorial', 'premium']),
   paquete: z.enum(PAQUETES),
+  /**
+   * IVA en puntos base: 1600 = 16 %. Entero para que no exista un 16.000000001.
+   *
+   * El tope de 3500 no es arbitrario: no hay impuesto al consumo del 100 %, y
+   * un dedo de más en el formulario no puede triplicar el precio de la próxima
+   * venta sin que nadie lo pare.
+   */
+  impuestoPuntosBase: z.number().int().min(0).max(3500),
+  /** En México el precio de mostrador YA lleva IVA: se extrae, no se suma. */
+  impuestoIncluidoEnPrecio: z.boolean(),
 });
 
 const valoresGuardados = z.object({
@@ -41,6 +51,12 @@ const valoresGuardados = z.object({
       estilo: z.enum(['base', 'editorial', 'premium']).optional(),
     })
     .optional(),
+  impuesto: z
+    .object({
+      puntosBase: z.number().int().min(0).max(3500).optional(),
+      incluidoEnPrecio: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export interface ConfiguracionOrganizacion {
@@ -53,6 +69,8 @@ export interface ConfiguracionOrganizacion {
   readonly colorAcento: string;
   readonly estilo: 'base' | 'editorial' | 'premium';
   readonly paquete: Paquete;
+  readonly impuestoPuntosBase: number;
+  readonly impuestoIncluidoEnPrecio: boolean;
 }
 
 const DEFAULTS = {
@@ -62,6 +80,9 @@ const DEFAULTS = {
   colorPrimario: COLOR_PRIMARIO_DEFAULT,
   colorAcento: COLOR_ACENTO_DEFAULT,
   estilo: 'base',
+  /** IVA general de México. Es el punto de partida, no una constante. */
+  impuestoPuntosBase: 1600,
+  impuestoIncluidoEnPrecio: true,
 } as const;
 
 export async function leerConfiguracion(
@@ -96,6 +117,9 @@ export async function leerConfiguracion(
     colorAcento: guardados.apariencia?.colorAcento ?? DEFAULTS.colorAcento,
     estilo: guardados.apariencia?.estilo ?? DEFAULTS.estilo,
     paquete: fila.paquete,
+    impuestoPuntosBase: guardados.impuesto?.puntosBase ?? DEFAULTS.impuestoPuntosBase,
+    impuestoIncluidoEnPrecio:
+      guardados.impuesto?.incluidoEnPrecio ?? DEFAULTS.impuestoIncluidoEnPrecio,
   };
 }
 
@@ -132,6 +156,10 @@ export const guardarConfiguracion = definirComando<
         colorAcento: entrada.colorAcento,
         estilo: entrada.estilo,
       },
+      impuesto: {
+        puntosBase: entrada.impuestoPuntosBase,
+        incluidoEnPrecio: entrada.impuestoIncluidoEnPrecio,
+      },
     };
     const configuracion = await ctx.paso('guardar_configuracion', () =>
       entrada.version === 0
@@ -162,7 +190,14 @@ export const guardarConfiguracion = definirComando<
 
     ctx.auditar({
       entidadId: organizacion.id,
-      payload: { version: configuracion.version, paquete: entrada.paquete },
+      // El impuesto va al rastro: cambia el total de toda venta posterior, y
+      // «¿desde cuándo cobramos 8 %?» tiene que tener respuesta.
+      payload: {
+        version: configuracion.version,
+        paquete: entrada.paquete,
+        impuestoPuntosBase: entrada.impuestoPuntosBase,
+        impuestoIncluidoEnPrecio: entrada.impuestoIncluidoEnPrecio,
+      },
     });
     return { version: configuracion.version, paquete: entrada.paquete };
   },

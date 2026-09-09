@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { aCentavos, CLASE_IMPORTE, pesos } from './dinero';
+import { RenglonesDePago, RENGLONES_INICIALES, repartir, type Renglon } from './RenglonesDePago';
 import type { Cotizacion, ResultadoCobro } from './tipos';
 import { ALTO_ACCION, ALTO_CONTROL } from './controles';
 
@@ -31,14 +32,22 @@ interface Props {
 export function DialogoCobro({ cotizacion, cobrando, error, onCerrar, onCobrar }: Props) {
   const [metodo, setMetodo] = useState<'efectivo' | 'tarjeta' | 'transferencia'>('efectivo');
   const [recibido, setRecibido] = useState('');
+  // El pago dividido está detrás de un interruptor y no es lo primero que se
+  // ve: el 95 % de los cobros son una sola forma, y cobrar rápido es lo que se
+  // hace todo el día.
+  const [dividido, setDividido] = useState(false);
+  const [renglones, setRenglones] = useState<readonly Renglon[]>(RENGLONES_INICIALES);
   const dialogo = useRef<HTMLDivElement>(null);
   const primerControl = useRef<HTMLButtonElement>(null);
 
   const total = BigInt(cotizacion.totalCentavos);
   const puesto = aCentavos(recibido);
-  const alcanza =
+  const simpleAlcanza =
     metodo !== 'efectivo' || recibido === '' || (puesto !== null && BigInt(puesto) >= total);
   const cambio = metodo === 'efectivo' && puesto !== null ? BigInt(puesto) - total : 0n;
+
+  const pagosDivididos = useMemo(() => repartir(renglones, total).pagos, [renglones, total]);
+  const alcanza = dividido ? pagosDivididos !== null : simpleAlcanza;
 
   useEffect(() => {
     primerControl.current?.focus();
@@ -72,6 +81,11 @@ export function DialogoCobro({ cotizacion, cobrando, error, onCerrar, onCobrar }
 
   function confirmar() {
     if (cobrando || !alcanza) return;
+    if (dividido) {
+      if (pagosDivididos === null) return;
+      void onCobrar(pagosDivididos);
+      return;
+    }
     const pago: Record<string, unknown> = {
       metodo,
       montoCentavos: Number(total),
@@ -103,7 +117,7 @@ export function DialogoCobro({ cotizacion, cobrando, error, onCerrar, onCobrar }
         </header>
 
         <div className="space-y-5 px-6 py-5">
-          <fieldset>
+          <fieldset disabled={dividido} className="disabled:opacity-40">
             <legend className="mb-2 text-sm font-medium text-texto-sutil">Forma de pago</legend>
             <div className="grid grid-cols-3 gap-2">
               {(['efectivo', 'tarjeta', 'transferencia'] as const).map((m, i) => (
@@ -123,7 +137,7 @@ export function DialogoCobro({ cotizacion, cobrando, error, onCerrar, onCobrar }
             </div>
           </fieldset>
 
-          {metodo === 'efectivo' && (
+          {!dividido && metodo === 'efectivo' && (
             <div className="space-y-2">
               <label htmlFor="recibido" className="block text-sm font-medium text-texto-sutil">
                 ¿Con cuánto paga?
@@ -178,6 +192,31 @@ export function DialogoCobro({ cotizacion, cobrando, error, onCerrar, onCobrar }
               )}
             </div>
           )}
+
+          <div className="border-t border-borde pt-4">
+            <label className="flex items-center gap-3 text-sm font-medium text-texto">
+              <input
+                type="checkbox"
+                checked={dividido}
+                onChange={(e) => {
+                  setDividido(e.target.checked);
+                  setRenglones(RENGLONES_INICIALES);
+                }}
+                className="size-5 accent-primario focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none"
+              />
+              Paga con más de una forma
+            </label>
+
+            {dividido && (
+              <div className="mt-3">
+                <RenglonesDePago
+                  totalCentavos={total}
+                  renglones={renglones}
+                  onRenglones={setRenglones}
+                />
+              </div>
+            )}
+          </div>
 
           {error !== null && (
             <p

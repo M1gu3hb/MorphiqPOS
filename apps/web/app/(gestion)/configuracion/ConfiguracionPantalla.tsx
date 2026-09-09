@@ -28,6 +28,7 @@ import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
 import { SelectorPaquete } from './SelectorPaquete';
 import { PAQUETES_NEGOCIO } from './paquetes';
 import { Campo, Color, VistaPrevia } from './CamposConfiguracion';
+import { TarjetaImpuestos } from './TarjetaImpuestos';
 import { ejecutarApi, obtenerApi } from '../../../src/cliente/api';
 
 interface ConfiguracionApi {
@@ -40,6 +41,8 @@ interface ConfiguracionApi {
   readonly colorAcento: string;
   readonly estilo: 'base' | 'editorial' | 'premium';
   readonly paquete: Paquete;
+  readonly impuestoPuntosBase: number;
+  readonly impuestoIncluidoEnPrecio: boolean;
 }
 
 export function ConfiguracionPantalla() {
@@ -51,6 +54,10 @@ export function ConfiguracionPantalla() {
   const [primario, setPrimario] = useState(COLOR_PRIMARIO_DEFAULT);
   const [acento, setAcento] = useState(COLOR_ACENTO_DEFAULT);
   const [version, setVersion] = useState(0);
+  // El IVA se teclea en por ciento —«16»— y viaja en puntos base. La conversión
+  // vive aquí y no en el servidor porque es presentación: el contrato es entero.
+  const [iva, setIva] = useState('16');
+  const [ivaIncluido, setIvaIncluido] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const { apariencia, cambiarEstilo } = useApariencia('base');
   const paqueteActivo = PAQUETES_NEGOCIO.find(({ id }) => id === paquete);
@@ -66,6 +73,8 @@ export function ConfiguracionPantalla() {
         setPrimario(configuracion.colorPrimario);
         setAcento(configuracion.colorAcento);
         setVersion(configuracion.version);
+        setIva((configuracion.impuestoPuntosBase / 100).toString());
+        setIvaIncluido(configuracion.impuestoIncluidoEnPrecio);
         cambiarEstilo(configuracion.estilo);
       })
       .catch((error: unknown) => {
@@ -89,6 +98,8 @@ export function ConfiguracionPantalla() {
           colorAcento: acento,
           estilo: apariencia.estilo,
           paquete,
+          impuestoPuntosBase: Math.round(Number(iva.replace(',', '.')) * 100),
+          impuestoIncluidoEnPrecio: ivaIncluido,
         },
       );
       setVersion(salida.version);
@@ -223,6 +234,13 @@ export function ConfiguracionPantalla() {
             </Campo>
           </CardContent>
         </Card>
+
+        <TarjetaImpuestos
+          iva={iva}
+          ivaIncluido={ivaIncluido}
+          onIva={setIva}
+          onIvaIncluido={setIvaIncluido}
+        />
 
         <Card>
           <CardHeader>

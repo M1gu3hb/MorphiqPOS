@@ -85,3 +85,37 @@ export interface Empleado {
   readonly nombre: string;
   readonly rol: string;
 }
+
+export interface MovimientoVisible {
+  readonly tipo: string;
+  readonly montoCentavos: string;
+  readonly motivo: string | null;
+  readonly registradoEn: string;
+}
+
+/**
+ * El estado del turno.
+ *
+ * No trae `efectivoEsperadoCentavos` y no es un olvido: el conteo del corte es
+ * a ciegas. Ver lo esperado antes de contar convierte el corte en un trámite.
+ */
+export interface EstadoCaja {
+  readonly abierta: boolean;
+  readonly sesionCajaId: string | null;
+  readonly abiertaEn: string | null;
+  readonly fondoInicialCentavos: string;
+  readonly ventasCentavos: string;
+  readonly numeroVentas: number;
+  readonly movimientos: readonly MovimientoVisible[];
+}
+
+export interface ResultadoCorte {
+  readonly sesionCajaId: string;
+  readonly fondoInicialCentavos: string;
+  readonly efectivoEsperadoCentavos: string;
+  readonly efectivoContadoCentavos: string;
+  /** Positiva = sobra dinero; negativa = falta. */
+  readonly diferenciaCentavos: string;
+  readonly ventasCentavos: string;
+  readonly numeroVentas: number;
+}
