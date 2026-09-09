@@ -2,6 +2,7 @@ import { validarEntorno } from '@morphiqpos/contracts';
 import { cookieDeSesion, leerCookie, permitir } from '@morphiqpos/app/http';
 import { entrarConPin } from '@morphiqpos/app/identidad';
 import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
+import { etiquetaDeRol, rolMH } from '@morphiqpos/app/puente';
 import { z } from 'zod';
 
 import { cookieDeDispositivo, NOMBRE_COOKIE_DISPOSITIVO } from '~/servidor/dispositivo';
@@ -132,10 +133,17 @@ export async function POST(peticion: Request): Promise<Response> {
     200,
     {
       ok: true,
+      // La forma que espera su `POSAuthContext`: `id`, `nombre` y `rol` en SU
+      // vocabulario, que es el que entienden su `permissions.js` y su
+      // `ROLE_HOME_ROUTES`. El identificador que devuelve es el del EMPLEO,
+      // que es lo que su pantalla mandó — no un identificador interno nuevo.
       datos: {
-        organizacionId: resultado.organizacionId,
-        rol: resultado.rol,
+        id: validada.data.empleoId,
         nombre: resultado.nombre,
+        rol: rolMH(resultado.rol) ?? resultado.rol,
+        etiqueta: etiquetaDeRol(resultado.rol),
+        activo: true,
+        organizacionId: resultado.organizacionId,
       },
     },
     cookies,

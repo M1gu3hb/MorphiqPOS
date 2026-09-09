@@ -8,7 +8,6 @@ import { ROLE_HOME_ROUTES, ROLE_LABELS } from '@/lib/constants';
 import { Delete, User, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import LoginBrandColors from '@/components/common/LoginBrandColors';
-import { ensureDefaultAdmin, isUsingDefaultAdminPin } from '@/lib/ensureDefaultAdmin';
 
 export default function POSLogin() {
   const [pin, setPin] = useState('');
@@ -28,20 +27,18 @@ export default function POSLogin() {
     if (posUser) navigate(ROLE_HOME_ROUTES[posUser.rol] || '/');
   }, [posUser, navigate]);
 
-  // Garantiza que SIEMPRE haya un admin para que el login con PIN funcione.
-  // Si ya hay usuarios, no crea nada (ensureDefaultAdmin es idempotente).
-  // Después carga la lista de usuarios activos para el panel inferior.
+  // Carga la lista de usuarios activos para el panel inferior.
   // 6A.3: reintento ligero si la primera carga falla (móvil con red lenta).
+  //
+  // Aquí NO se llama a `ensureDefaultAdmin()`. Creaba un administrador con PIN
+  // `1234` desde el navegador si la plantilla estaba vacía: un alta de
+  // credenciales que puede disparar cualquiera que abra la página. El primer
+  // acceso lo da `pnpm db:bootstrap`, del lado del servidor (E2-3).
   const cargarUsuarios = useCallback(async () => {
     setUsuariosCargando(true);
     setUsuariosError(false);
     try {
-      await ensureDefaultAdmin();
-    } catch {
-      /* falla silenciosa, abajo igual intentamos cargar */
-    }
-    try {
-      const list = await api.entidades.UsuarioPOS.filter({ activo: true });
+      const list = await api.auth.usuarios();
       setUsuarios(Array.isArray(list) ? list : []);
       setUsuariosError(false);
     } catch (err) {
@@ -63,32 +60,50 @@ export default function POSLogin() {
     };
   }, [cargarUsuarios]);
 
-  // Aviso discreto: admin sigue usando PIN default 1234.
-  const usingDefaultPin = isUsingDefaultAdminPin(usuarios);
+  // El aviso de «sigues usando el PIN 1234» desaparece: dependía de leer los
+  // PIN desde el cliente. Con el hash en la base el navegador no puede saberlo,
+  // y mandarle una pista sobre la credencial sería reabrir el mismo agujero.
+  const usingDefaultPin = false;
 
   // Foco persistente
   useEffect(() => {
     hiddenInputRef.current?.focus();
   }, [selectedUser]);
 
+  // ── LO ÚNICO QUE CAMBIA DE ESTA PANTALLA, Y NO SE NEGOCIA ────────────────
+  // Antes esto era `usuarios.find(u => u.pin === pinToUse)`: los PIN de toda
+  // la plantilla descargados al navegador y comparados ahí. Es el defecto
+  // D-01. Ahora el PIN viaja al servidor, que lo verifica con Argon2id y
+  // pimienta contra un hash que no sale de la base, cuenta los intentos
+  // fallidos y bloquea.
+  //
+  // Consecuencia visible, y hay que decirla: el servidor necesita saber DE
+  // QUIÉN es el PIN. Probarlo contra cada empleado sería el barrido que el
+  // límite por IP existe para frenar, así que hay que tocar el nombre antes de
+  // teclear. Cuando el negocio tiene una sola persona dada de alta, se
+  // selecciona sola y el flujo queda idéntico al suyo.
   const tryLogin = async (pinToUse) => {
     if (!pinToUse || pinToUse.length < 4) return;
-    setLoading(true);
-    const found = usuarios.find(
-      (u) =>
-        u.pin === pinToUse &&
-        u.activo !== false &&
-        (selectedUser ? u.id === selectedUser.id : true),
-    );
-    if (found) {
-      login(found);
-      navigate(ROLE_HOME_ROUTES[found.rol] || '/');
-      toast.success(`Bienvenido, ${found.nombre}`);
-    } else {
-      toast.error('PIN incorrecto');
+    const quien = selectedUser ?? (usuarios.length === 1 ? usuarios[0] : null);
+    if (!quien) {
+      toast.error('Toca tu nombre para entrar');
       setPin('');
+      return;
     }
-    setLoading(false);
+    setLoading(true);
+    try {
+      const entrado = await api.auth.entrar({ id: quien.id, pin: pinToUse });
+      login(entrado);
+      toast.success(`Bienvenido, ${entrado.nombre}`);
+      navigate(ROLE_HOME_ROUTES[entrado.rol] || '/');
+    } catch (err) {
+      // El servidor ya decidió qué se puede decir: PIN incorrecto, demasiados
+      // intentos, o el bloqueo con sus minutos. Aquí no se reinterpreta.
+      toast.error(err?.message || 'PIN incorrecto');
+      setPin('');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

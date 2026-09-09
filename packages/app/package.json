@@ -18,7 +18,8 @@
     "./venta": "./src/venta/index.ts",
     "./caja": "./src/caja/index.ts",
     "./identidad": "./src/identidad/index.ts",
-    "./negocio": "./src/negocio/index.ts"
+    "./negocio": "./src/negocio/index.ts",
+    "./puente": "./src/puente/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

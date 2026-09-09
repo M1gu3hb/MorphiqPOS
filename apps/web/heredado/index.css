@@ -839,12 +839,19 @@ html.dark .printable-doc [class*='dark:text-gray-'] {
   size: A4;
   margin: 12mm;
 }
-html[data-print-mode='thermal'] {
-  /* placeholder */
-}
-@media print {
-  html[data-print-mode='thermal'] @page {
-    size: 80mm auto;
-    margin: 4mm;
-  }
-}
+/* Aquí había esto, y es un fallo suyo que hay que contar:
+
+     @media print {
+       html[data-print-mode='thermal'] @page { size: 80mm auto; margin: 4mm; }
+     }
+
+   `@page` es un CONTEXTO DE PÁGINA, no un selector descendiente: no se puede
+   condicionar a un selector. El navegador lo descartaba en silencio y la regla
+   nunca aplicó — el ticket térmico salía en tamaño carta—. El PostCSS de
+   Tailwind 3 también lo tragaba; el de la 4 se niega a parsear la hoja entera,
+   así que aquí bloqueaba TODO el CSS.
+
+   Quitarlo no cambia nada de lo que se veía. Lo que sí cambia es que ahora su
+   intención funciona: `lib/print.js` inyecta la regla `@page` correcta —a nivel
+   raíz, que es donde vale— antes de imprimir y la retira después. Lo mismo
+   pasaba con `@page thermal-page`, una página con nombre que nada usaba. */

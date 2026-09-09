@@ -220,8 +220,31 @@ const archivos = {
   },
 };
 
-/** Quién está dentro, según el SERVIDOR. Nunca según el navegador. */
+/**
+ * El acceso. Es la ÚNICA parte del puente que existe antes de que haya sesión.
+ *
+ * `usuarios()` devuelve nombre, rol y color — nunca el PIN ni su hash.
+ * Enumerar la plantilla en la propia pantalla de acceso no es una fuga: quien
+ * está frente a la caja los ve por la puerta. El secreto es el PIN, y el PIN
+ * se verifica en el servidor.
+ */
 const auth = {
+  usuarios: (): Promise<Registro[]> =>
+    fetch('/api/auth/empleados', { cache: 'no-store', credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((d: { ok?: boolean; datos?: { usuarios?: Registro[] } }) => {
+        if (d.ok !== true) {
+          throw new ErrorPuente('ERROR_INTERNO', 'No pudimos cargar los usuarios.', 500);
+        }
+        return d.datos?.usuarios ?? [];
+      }),
+
+  /** El PIN viaja al servidor. Nunca al revés. */
+  entrar: ({ id, pin }: { id: string; pin: string }): Promise<Registro> =>
+    pedir<Registro>('/api/auth/entrar', { empleoId: id, pin }, nuevaClave()),
+
+  salir: (): Promise<null> => pedir<null>('/api/auth/salir', {}, nuevaClave()),
+
   me: (): Promise<Registro> =>
     fetch('/api/catalogo/sesion', { cache: 'no-store', credentials: 'same-origin' })
       .then((r) => r.json())

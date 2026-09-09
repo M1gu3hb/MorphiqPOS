@@ -2,6 +2,7 @@ import { validarEntorno } from '@morphiqpos/contracts';
 import { leerCookie } from '@morphiqpos/app/http';
 import { empleadosParaEntrar } from '@morphiqpos/app/identidad';
 import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
+import { colorDePersona, etiquetaDeRol, rolMH } from '@morphiqpos/app/puente';
 
 import { NOMBRE_COOKIE_DISPOSITIVO } from '~/servidor/dispositivo';
 
@@ -28,9 +29,22 @@ export async function GET(peticion: Request): Promise<Response> {
     const negocio = await negocioDelDespliegue(entorno.ORGANIZACION);
     const empleados = await empleadosParaEntrar(negocio.organizacionId, token, entorno.PIN_PEPPER);
 
+    // Se devuelve con la forma que espera SU pantalla —`UsuarioPOS`— para que
+    // su `POSLogin.jsx` no cambie: id, nombre, rol en su vocabulario, la
+    // etiqueta real y un color estable para la tarjeta. Nunca el PIN, nunca su
+    // hash, nunca los intentos fallidos.
+    const usuarios = empleados.map((e) => ({
+      id: e.empleoId,
+      nombre: e.nombre,
+      rol: rolMH(e.rol) ?? e.rol,
+      etiqueta: etiquetaDeRol(e.rol),
+      color: colorDePersona(e.empleoId),
+      activo: true,
+    }));
+
     return json(200, {
       ok: true,
-      datos: { negocio: negocio.nombre, empleados },
+      datos: { negocio: negocio.nombre, usuarios, empleados },
     });
   } catch (error) {
     // Un despliegue mal configurado tiene que decirlo en la consola del
