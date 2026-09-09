@@ -65,6 +65,10 @@ function conMutacion(mutacion, accion) {
   if (!original.includes(mutacion.antes)) {
     throw new Error(`No se encontró el texto a mutar (${mutacion.nombre}): ${mutacion.ruta}`);
   }
+  // `antes` sustituye la PRIMERA aparición; `tambien` sustituye TODAS. La
+  // diferencia importa cuando el archivo declara dos comandos parecidos: mutar
+  // sólo uno deja el otro apuntando a algo que ya no existe, el módulo no carga
+  // y la señal se degrada de «la prueba lo caza» a «el compilador lo caza».
   let mutado = original.replace(mutacion.antes, mutacion.despues);
   for (const [antes, despues] of mutacion.tambien ?? []) {
     mutado = mutado.split(antes).join(despues);
@@ -135,8 +139,19 @@ export function correrArnes(config) {
   // ── Fase 2 · destructivas contra pruebas ──────────────────────────────────
   for (const mutacion of contraPruebas) {
     const resultado = conMutacion(mutacion, probar);
-    if (resultado.estado === 0 || resultado.fallos.length === 0) {
+    if (resultado.estado === 0) {
       fallar(`Mutación SOBREVIVIENTE: «${mutacion.nombre}» no rompió ninguna prueba.`);
+    }
+    // Una suite que ni siquiera CARGA también sale con estado distinto de cero,
+    // pero sin aserciones fallidas. Eso no es una mutación bien validada: prueba
+    // que el compilador la caza, no que la prueba la caza. Se exige el arreglo
+    // en vez de aceptar la señal débil.
+    if (resultado.fallos.length === 0) {
+      fallar(
+        `Mutación «${mutacion.nombre}»: la suite falló SIN aserciones rojas. ` +
+          'Probablemente el módulo no carga (import roto). Haz que la mutación compile ' +
+          '—con `tambien`— para que lo que la cace sea la prueba y no el compilador.',
+      );
     }
     console.log(
       `✓ destructiva «${mutacion.nombre}» → ${String(resultado.fallos.length)} prueba(s) en rojo`,

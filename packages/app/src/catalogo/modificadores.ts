@@ -1,4 +1,4 @@
-import { ErrorDominio } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { desdeTexto } from '@morphiqpos/domain/dinero';
 
@@ -14,7 +14,7 @@ export const crearModificadorProducto = definirComando<
   entidad: 'modificador',
   escribe: true,
   roles: ['dueno', 'administrador', 'gerente'],
-  paquetes: ['cafeteria', 'restaurante'],
+  paquetes: PAQUETES_PREPARACION,
   entrada: entradaCrearModificador,
   async ejecutar(ctx, entrada) {
     const producto = await ctx.paso('verificar_producto', () =>

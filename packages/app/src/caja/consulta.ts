@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja } from '@morphiqpos/data';
 import { z } from 'zod';
@@ -22,8 +23,6 @@ import { definirComando } from '../definicion.ts';
  */
 
 const ROLES = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
-const TODOS = ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'] as const;
-
 export const entradaEstadoCaja = z.object({});
 
 export interface MovimientoVisible {
@@ -48,7 +47,7 @@ export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja
   entidad: 'sesion_caja',
   escribe: false,
   roles: [...ROLES],
-  paquetes: [...TODOS],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaEstadoCaja,
   async ejecutar(ctx) {
     const { organizacionId, terminalId } = ctx.ambito;

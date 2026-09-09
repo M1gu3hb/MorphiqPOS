@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import { calcularConsumo, type LineaParaConsumo } from '@morphiqpos/domain/inventario';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja, repoFolios, repoOrdenes, repoStock, repoVentaCatalogo } from '@morphiqpos/data';
@@ -40,7 +40,7 @@ export const cobrarOrden = definirComando<Transaccion, typeof entradaCobrarOrden
   entidad: 'orden',
   escribe: true,
   roles: ['cajero', 'gerente', 'administrador', 'dueno'],
-  paquetes: ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaCobrarOrden,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;

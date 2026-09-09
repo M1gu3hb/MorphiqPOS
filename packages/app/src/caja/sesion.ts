@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja } from '@morphiqpos/data';
 
@@ -22,8 +22,6 @@ import { entradaAbrirCaja, entradaCerrarCaja, entradaMovimientoCaja } from '../v
  */
 
 const ROLES_DE_CAJA = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
-const TODOS = ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'] as const;
-
 export const abrirCaja = definirComando<
   Transaccion,
   typeof entradaAbrirCaja,
@@ -33,7 +31,7 @@ export const abrirCaja = definirComando<
   entidad: 'sesion_caja',
   escribe: true,
   roles: [...ROLES_DE_CAJA],
-  paquetes: [...TODOS],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaAbrirCaja,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;
@@ -89,7 +87,7 @@ export const registrarMovimientoCaja = definirComando<
   entidad: 'sesion_caja',
   escribe: true,
   roles: [...ROLES_DE_CAJA],
-  paquetes: [...TODOS],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaMovimientoCaja,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId, empleoId } = ctx.ambito;
@@ -146,7 +144,7 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
   entidad: 'sesion_caja',
   escribe: true,
   roles: [...ROLES_DE_CAJA],
-  paquetes: [...TODOS],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaCerrarCaja,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId, empleoId } = ctx.ambito;

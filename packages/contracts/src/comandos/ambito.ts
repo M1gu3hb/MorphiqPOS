@@ -37,6 +37,34 @@ export const PAQUETES = ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'resta
 
 export type Paquete = (typeof PAQUETES)[number];
 
+/**
+ * Los subconjuntos de paquetes que declaran los comandos (A-42, F1.1-C-15).
+ *
+ * Viven aquí y no en cada archivo porque había CINCO copias del mismo arreglo
+ * —`TODOS`, `TODOS_LOS_PAQUETES`, `PAQUETES` y dos literales sueltos— y basta
+ * con que una se quede corta al añadir un giro para que un comando desaparezca
+ * de un paquete entero sin que nada avise. Un contrato de `verify:paquetes`
+ * exige que ningún comando escriba la lista a mano.
+ */
+export const PAQUETES_TODOS = PAQUETES;
+
+/**
+ * Donde una receta significa algo: se prepara comida.
+ *
+ * En una ferretería un producto no se compone de ingredientes, así que costear
+ * recetas ahí no es una función que falte — es una que no aplica.
+ */
+export const PAQUETES_PREPARACION = ['cafeteria', 'restaurante'] as const;
+
+/**
+ * Donde se vende de mostrador con caja.
+ *
+ * Hoy son los cinco. Está nombrado igual porque `venta` y `catálogo` no
+ * significan lo mismo, y cuando llegue un paquete de servicios sin caja —una
+ * estética que sólo agenda— cambiará éste y no el otro.
+ */
+export const PAQUETES_MOSTRADOR = PAQUETES;
+
 export function esRol(valor: unknown): valor is Rol {
   return typeof valor === 'string' && (ROLES as readonly string[]).includes(valor);
 }

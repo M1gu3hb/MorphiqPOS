@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, validarEntorno } from '@morphiqpos/contracts';
+import { ErrorDominio, validarEntorno, PAQUETES_TODOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
@@ -35,8 +35,6 @@ const SOLO_MANDOS = ['dueno', 'administrador'] as const;
 function pimienta(): string {
   return validarEntorno(process.env).PIN_PEPPER;
 }
-const TODOS = ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'] as const;
-
 export const entradaEstablecerPin = z.object({
   /** A quién. `empleoId` y no `identidadId`: es lo que ve quien administra. */
   empleado: z.uuid(),
@@ -52,7 +50,7 @@ export const establecerPin = definirComando<
   entidad: 'credencial_pin',
   escribe: true,
   roles: [...SOLO_MANDOS],
-  paquetes: [...TODOS],
+  paquetes: PAQUETES_TODOS,
   entrada: entradaEstablecerPin,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -149,7 +147,7 @@ export const generarCodigoDeTerminal = definirComando<
   entidad: 'terminal',
   escribe: true,
   roles: [...SOLO_MANDOS],
-  paquetes: [...TODOS],
+  paquetes: PAQUETES_TODOS,
   entrada: entradaGenerarCodigo,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

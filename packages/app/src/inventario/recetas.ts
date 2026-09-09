@@ -1,4 +1,4 @@
-import { ErrorDominio } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { cantidad, cantidadATexto } from '@morphiqpos/domain/catalogo';
 import { desdeTexto } from '@morphiqpos/domain/dinero';
@@ -7,7 +7,6 @@ import { z } from 'zod';
 
 import { definirComando } from '../comando.ts';
 
-const PAQUETES_RECETAS = ['cafeteria', 'restaurante'] as const;
 const ROLES = ['dueno', 'administrador', 'gerente', 'almacen'] as const;
 const unidad = z.enum(['pieza', 'kg', 'g', 'l', 'ml', 'm']);
 const ingrediente = z.object({
@@ -35,7 +34,7 @@ export const guardarReceta = definirComando<
   entidad: 'receta',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES_RECETAS,
+  paquetes: PAQUETES_PREPARACION,
   entrada: entradaGuardarReceta,
   async ejecutar(ctx, entrada) {
     const producto = await ctx.tx
@@ -102,7 +101,7 @@ export const actualizarCostoInsumo = definirComando<
   entidad: 'insumo',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES_RECETAS,
+  paquetes: PAQUETES_PREPARACION,
   entrada: entradaActualizarCostoInsumo,
   async ejecutar(ctx, entrada) {
     const insumo = await ctx.paso('actualizar_costo_insumo', () =>
