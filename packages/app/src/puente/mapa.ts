@@ -111,6 +111,26 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  /**
+   * Las categorías de INSUMO. Misma tabla que las de producto, distinguidas
+   * por `tipo`. Su código la usa una sola vez, en Inventario, y por eso
+   * estuvo a punto de quedarse fuera del puente.
+   */
+  CategoriaIngrediente: {
+    tabla: 'categorias',
+    escritura: 'directa',
+    ordenPorOmision: 'orden',
+    filtroFijo: { tipo: 'insumo' },
+    campos: {
+      ...AUTO,
+      nombre: { columna: 'nombre', conversion: 'texto' },
+      color: { columna: 'color', conversion: 'texto' },
+      icono: { columna: 'icono', conversion: 'texto' },
+      orden: { columna: 'orden', conversion: 'entero' },
+      activo: { columna: 'activa', conversion: 'booleano' },
+    },
+  },
+
   Ingrediente: {
     tabla: 'insumos',
     escritura: 'directa',
@@ -271,6 +291,36 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   },
 };
 
+/**
+ * `DescuentoInventarioVenta` — lo que Inventario llama «consumido hoy».
+ *
+ * No es una tabla: es una VISTA sobre el ledger, filtrada por los movimientos
+ * que vinieron de una orden. Sólo lectura, obviamente: el ledger es inmutable.
+ */
+const DESCUENTO_INVENTARIO_VENTA: MapaEntidad = {
+  tabla: 'movimientos_stock',
+  escritura: 'lectura',
+  ordenPorOmision: '-created_date',
+  filtroFijo: { referencia_tipo: 'orden' },
+  campos: {
+    ...soloAutomaticos(['id', 'created_date']),
+    venta_id: { columna: 'referencia_id', conversion: 'texto', escribible: false },
+    ingrediente_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
+    cantidad: { columna: 'cantidad', conversion: 'decimal', escribible: false },
+    unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
+    costo_unitario: {
+      columna: 'costo_unitario_centavos',
+      conversion: 'dinero',
+      escribible: false,
+    },
+  },
+};
+
+const TODAS: Readonly<Record<string, MapaEntidad>> = {
+  ...MAPA,
+  DescuentoInventarioVenta: DESCUENTO_INVENTARIO_VENTA,
+};
+
 export function entidadMapeada(nombre: string): MapaEntidad | null {
-  return Object.prototype.hasOwnProperty.call(MAPA, nombre) ? (MAPA[nombre] ?? null) : null;
+  return Object.prototype.hasOwnProperty.call(TODAS, nombre) ? (TODAS[nombre] ?? null) : null;
 }

@@ -1,5 +1,65 @@
 # Bitácora de ejecución — Fase 1
 
+## Resurrección · E0 a E3 · 2026-09-09 · Su sistema, de vuelta y leyendo datos
+
+- **Qué se hizo:** se COPIÓ el frontend del POS de restaurante de Miguel —235
+  archivos— a `apps/web/heredado/`, con su `index.css` mandando, sus 15 rutas
+  con las mismas URLs, su login con el PIN comprobado en el servidor, y un
+  puente que traduce sus 25 entidades a las tablas del backend nuevo.
+- **Se abre y se ve.** Se entra con PIN y sale su Dashboard; `/productos` lee
+  cuatro productos reales de Postgres con precios, costos y márgenes;
+  `/inventario` lee sus cuatro insumos con sus alertas. Las quince rutas
+  responden 200 desde el servidor.
+- **Decisiones que se tomaron sin preguntar, y por qué:**
+  1. **`heredado/` fuera del lint.** 244 archivos escritos en cuatro meses
+     contra `strictTypeChecked` darían miles de hallazgos que no dicen nada
+     sobre si su sistema funciona. Tiene su `tsconfig` permisivo y se endurece
+     pantalla por pantalla, cuando cada una ya se ve y anda.
+  2. **`@/` pasa a ser SU alias** y lo nuestro se muda a `~/`. Es lo que hace
+     que sus 235 archivos no cambien una línea de import.
+  3. **Las rutas de acceso conservan su nombre** (`/api/auth/empleados` y
+     `/api/auth/entrar`) en vez de renombrarse a `/api/auth/usuarios` y
+     `/api/auth/pin` como sugería el plan. Hacen exactamente lo que E2-2 pide;
+     renombrarlas tocaba los contratos de mutación, el arnés y cuatro guiones
+     de humo sin que Miguel viera ninguna diferencia.
+  4. **`PedidoPreparacion` se guardará como UNA tabla con `items` en `jsonb`**,
+     no normalizada. Su entidad es plana con un arreglo dentro, y esos ítems son
+     una INSTANTÁNEA de lo que se mandó a cocina: no tienen que unirse con nada.
+  5. **`/estilos` y el sistema de tokens salen de la aplicación.** El aspecto lo
+     manda su `index.css`.
+- **Tres fallos suyos, encontrados al abrirlo:**
+  1. `index.css` tenía `html[data-print-mode='thermal'] @page { size: 80mm }`.
+     `@page` no admite selector: el navegador lo descartaba y el ticket térmico
+     salía en tamaño carta. El PostCSS de Tailwind 4 se niega a parsear la hoja
+     entera, así que aquí bloqueaba TODO el CSS. Se retira, y `print.js` inyecta
+     ahora la regla correcta — su intención funciona por primera vez.
+  2. `lib/utils.js` hacía `window.self !== window.top` en el cuerpo del módulo.
+     En su Vite siempre había ventana; bajo SSR revienta el módulo y con él las
+     quince pantallas. Una guarda `typeof window`, mismo valor en el navegador.
+  3. `ensureDefaultAdmin()` creaba un administrador con PIN `1234` desde el
+     NAVEGADOR si la plantilla estaba vacía. Fuera: el primer acceso lo da
+     `pnpm db:bootstrap`, del lado del servidor.
+- **Un fallo NUESTRO, encontrado por la prueba de ida y vuelta:** el puente
+  convertía dinero con `Math.round(pesos * 100)`. `1234.995 * 100` da
+  `123499.4999…` en coma flotante, así que redondear ahí devolvía 1234.99. Ahora
+  pasa por `desdeTexto` del dominio, que arma el importe como fracción exacta y
+  redondea una sola vez.
+- **Archivos:** `apps/web/heredado/**` (239), `apps/web/app/(interno)/**`,
+  `apps/web/app/globals.css`, `packages/app/src/puente/**` (9),
+  `apps/web/app/api/datos/**`, `packages/contracts/src/errores/index.ts`,
+  `docs/fase-1/F1-04-MAPA-DE-ENTIDADES.md`, `F1-05-AUDITORIA-DEL-PORTEO.md`.
+- **Pruebas:** 23 de ida y vuelta del puente, más las 391 que ya había.
+  `pnpm verify` en verde salvo lo que se dice abajo.
+- **Verificado con:** el navegador. Login, Dashboard, Productos e Inventario
+  con datos reales de Supabase; las quince rutas devolviendo 200; y una
+  comprobación entidad por entidad del puente contra la base.
+- **Pendiente o riesgo:** quince de las veinticinco entidades todavía responden
+  `PUENTE_ENTIDAD_DESCONOCIDA` porque su tabla no existe (E3-1). Las pantallas
+  de mesero, cocina, caja, compras, registros y portal QR abren pero sin datos.
+  `/api/archivos/subir` y `/api/mantenimiento/*` no existen aún.
+- **Reclasificaciones:** `historico/restaurante/**` deja de leerse como
+  especificación y pasa a COPIARSE. R30 derogada por F1-02 §7.
+
 ## Port del restaurante · T1 y T2 · 2026-09-09 · Su diseño y su login, de vuelta
 
 - **Qué se hizo:** se **copió** el frontend del POS de restaurante de Miguel, en
