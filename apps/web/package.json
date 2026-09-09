@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@morphiqpos/app": "workspace:*",
     "@morphiqpos/contracts": "workspace:*",
     "@morphiqpos/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
@@ -23,7 +24,6 @@
     "react-dom": "catalog:",
     "sonner": "catalog:",
     "tailwind-merge": "catalog:",
-    "@morphiqpos/app": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

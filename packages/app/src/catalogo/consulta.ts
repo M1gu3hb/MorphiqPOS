@@ -12,6 +12,7 @@ export const entradaBuscarProductos = z.object({
 
 export interface ProductoResumen {
   readonly id: string;
+  readonly categoriaId: string | null;
   readonly nombre: string;
   readonly descripcion: string | null;
   readonly imagenUrl: string | null;
@@ -24,6 +25,8 @@ export interface ProductoResumen {
   readonly cantidadMinimaMayoreo: string | null;
   readonly tipoVenta: string;
   readonly unidadVenta: string;
+  readonly permiteVentaSinStock: boolean;
+  readonly stockMinimo: string;
   readonly visibleEnPos: boolean;
   readonly categoriaNombre: string | null;
   readonly updatedAt: string;
@@ -49,6 +52,7 @@ export async function listarProductos(
   return {
     productos: resultado.productos.map((producto) => ({
       id: producto.id,
+      categoriaId: producto.categoria_id,
       nombre: producto.nombre,
       descripcion: producto.descripcion,
       imagenUrl: producto.imagen_url,
@@ -61,6 +65,8 @@ export async function listarProductos(
       cantidadMinimaMayoreo: producto.cantidad_minima_mayoreo,
       tipoVenta: producto.tipo_venta,
       unidadVenta: producto.unidad_venta,
+      permiteVentaSinStock: producto.permite_venta_sin_stock,
+      stockMinimo: producto.stock_minimo,
       visibleEnPos: producto.visible_en_pos,
       categoriaNombre: producto.categoria_nombre,
       updatedAt: producto.updated_at.toISOString(),

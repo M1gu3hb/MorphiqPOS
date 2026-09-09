@@ -10,6 +10,12 @@ import type { ErrorComando, Resultado } from '@morphiqpos/contracts';
  *
  * Aquí la clave se genera sola y se conserva entre reintentos, así que
  * olvidarla no es una opción disponible.
+ *
+ * ── Sobre la fusión de los dos carriles ────────────────────────────────────
+ * Había dos clientes distintos, uno por carril. Este es el que conserva la
+ * idempotencia; `obtenerApi` y `ejecutarApi` sobreviven como envoltorios finos
+ * sobre él para que las pantallas de gestión no cambien, y así **hay un solo
+ * sitio donde se decide qué cabeceras lleva una escritura**.
  */
 
 export class ErrorApi extends Error {
@@ -34,6 +40,16 @@ export interface OpcionesComando {
 }
 
 /**
+ * Cabecera que marca la petición como propia de la aplicación.
+ *
+ * Un formulario de otro origen no puede ponerla —añadirla dispara el preflight
+ * de CORS y el servidor no lo autoriza—, así que su presencia distingue una
+ * escritura nuestra de un CSRF por formulario. Es defensa en profundidad junto
+ * a la validación de `Origin`, no en lugar de ella.
+ */
+export const CABECERA_PETICION_PROPIA = 'x-morphiqpos-request';
+
+/**
  * Invoca un comando del servidor.
  *
  * Devuelve los datos, o lanza `ErrorApi` con el código estable. Lanzar aquí sí
@@ -51,6 +67,7 @@ export async function invocarComando<T>(
     headers: {
       'content-type': 'application/json',
       'idempotency-key': opciones.idempotencyKey ?? nuevaClave(),
+      [CABECERA_PETICION_PROPIA]: '1',
     },
     body: JSON.stringify(entrada),
     // La cookie es `HttpOnly`: el navegador la adjunta, el script no la ve.
@@ -58,19 +75,28 @@ export async function invocarComando<T>(
     ...(opciones.signal === undefined ? {} : { signal: opciones.signal }),
   });
 
-  const correlationId = respuesta.headers.get('x-correlation-id');
-  const cuerpo: unknown = await respuesta.json().catch(() => null);
+  return leerResultado<T>(respuesta);
+}
 
-  if (!esResultado<T>(cuerpo)) {
-    throw new ErrorApi(
-      { codigo: 'ERROR_INTERNO', mensaje: 'El servidor respondió algo inesperado.' },
-      respuesta.status,
-      correlationId,
-    );
-  }
+/** Alias histórico del carril B. Misma función, mismas garantías. */
+export const ejecutarApi = <T>(ruta: string, entrada: unknown): Promise<T> =>
+  invocarComando<T>(ruta, entrada);
 
-  if (!cuerpo.ok) throw new ErrorApi(cuerpo.error, respuesta.status, correlationId);
-  return cuerpo.datos;
+/**
+ * Una lectura. No lleva clave de idempotencia porque no cambia nada.
+ *
+ * `cache: 'no-store'` no es opcional: son datos del negocio y de la sesión, y
+ * el `bfcache` del navegador mostraría los de la organización anterior tras un
+ * cambio de sesión.
+ */
+export async function obtenerApi<T>(ruta: string, signal?: AbortSignal): Promise<T> {
+  const respuesta = await fetch(ruta, {
+    cache: 'no-store',
+    credentials: 'same-origin',
+    ...(signal === undefined ? {} : { signal }),
+  });
+
+  return leerResultado<T>(respuesta);
 }
 
 /**
@@ -84,6 +110,22 @@ export function nuevaClave(): string {
     return crypto.randomUUID();
   }
   return `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+async function leerResultado<T>(respuesta: Response): Promise<T> {
+  const correlationId = respuesta.headers.get('x-correlation-id');
+  const cuerpo: unknown = await respuesta.json().catch(() => null);
+
+  if (!esResultado<T>(cuerpo)) {
+    throw new ErrorApi(
+      { codigo: 'ERROR_INTERNO', mensaje: 'El servidor respondió algo inesperado.' },
+      respuesta.status,
+      correlationId,
+    );
+  }
+
+  if (!cuerpo.ok) throw new ErrorApi(cuerpo.error, respuesta.status, correlationId);
+  return cuerpo.datos;
 }
 
 function esResultado<T>(valor: unknown): valor is Resultado<T> {

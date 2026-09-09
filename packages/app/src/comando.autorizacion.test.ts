@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import type { Transaccion } from '@morphiqpos/data';
 
+import { crearModificadorProducto } from './catalogo/modificadores.ts';
 import { crearComando, definirComando } from './comando.ts';
+import type { RepositorioComandos } from './repositorio.ts';
 import { ambitoDeCajero, crearFabrica, type TxFalsa } from './pruebas/dobles.ts';
 
 /**
@@ -136,6 +139,26 @@ describe('comando() · permiso por rol (R11)', () => {
 });
 
 describe('comando() · paquete de la organización (A-42, prueba PAQ-01)', () => {
+  it('un comando real de modificadores devuelve 403 fuera de cafetería/restaurante', async () => {
+    const fabrica = crearFabrica('tienda');
+    const ejecutar = crearComando<Transaccion>({
+      repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
+      conTransaccion: fabrica.conTransaccion as unknown as <T>(
+        fn: (tx: Transaccion) => Promise<T>,
+      ) => Promise<T>,
+    });
+
+    const salida = await ejecutar(crearModificadorProducto, {
+      entrada: {},
+      ambito: ambitoDeCajero({ rol: 'dueno' }),
+      idempotencyKey: CLAVE,
+    });
+
+    expect(salida.ok).toBe(false);
+    if (salida.ok) return;
+    expect(salida.error.codigo).toBe('PAQUETE_NO_INCLUYE');
+  });
+
   it('devuelve PAQUETE_NO_INCLUYE antes de ejecutar el caso de uso', async () => {
     const fabrica = crearFabrica('tienda');
     const { definicion, corridas } = comandoDeJuguete({ paquetes: ['restaurante'] });

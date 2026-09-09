@@ -7,9 +7,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./comando": "./src/comando.ts",
+    "./produccion": "./src/produccion.ts",
+    "./puente-desarrollo": "./src/puente-desarrollo.ts",
     "./catalogo": "./src/catalogo/index.ts",
     "./configuracion": "./src/configuracion/index.ts",
-    "./produccion": "./src/produccion.ts",
+    "./inventario": "./src/inventario/index.ts",
+    "./demostracion": "./src/demostracion/index.ts",
     "./http": "./src/http/index.ts",
     "./sesion": "./src/sesion/index.ts",
     "./venta": "./src/venta/index.ts",
@@ -23,10 +26,10 @@
     "@morphiqpos/contracts": "workspace:*",
     "@morphiqpos/data": "workspace:*",
     "@morphiqpos/domain": "workspace:*",
-    "server-only": "^0.0.1",
-    "zod": "catalog:",
     "@node-rs/argon2": "catalog:",
-    "kysely": "catalog:"
+    "kysely": "catalog:",
+    "server-only": "^0.0.1",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

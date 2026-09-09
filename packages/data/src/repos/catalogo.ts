@@ -35,6 +35,7 @@ export function construirBusquedaProductos(
     )
     .select([
       'p.id',
+      'p.categoria_id',
       'p.nombre',
       'p.descripcion',
       'p.imagen_url',
@@ -47,6 +48,8 @@ export function construirBusquedaProductos(
       'p.cantidad_minima_mayoreo',
       'p.tipo_venta',
       'p.unidad_venta',
+      'p.permite_venta_sin_stock',
+      'p.stock_minimo',
       'p.visible_en_pos',
       'p.updated_at',
       'c.nombre as categoria_nombre',

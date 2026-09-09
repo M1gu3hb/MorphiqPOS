@@ -134,11 +134,34 @@ describe('INV-03 · repositorio de stock', () => {
   });
 
   it('envía la política de negativo como parámetro de la misma guarda', async () => {
-    const { tx, conexion } = crearTx(['fila', 'vacia']);
+    const { tx, conexion } = crearTx(['vacia', 'fila', 'vacia']);
 
     await aplicarMovimientos([{ ...movimiento, permiteNegativo: true }], tx);
 
-    expect(conexion.consultas[0]!.parameters.at(-1)).toBe(true);
+    expect(conexion.consultas[1]!.parameters.at(-1)).toBe(true);
+  });
+
+  it('crea la existencia ausente y permite dejarla negativa cuando la política lo autoriza', async () => {
+    const { tx, conexion } = crearTx(['vacia', 'fila', 'vacia']);
+
+    await aplicarMovimientos([{ ...movimiento, permiteNegativo: true }], tx);
+
+    expect(conexion.consultas).toHaveLength(3);
+    const inicializacion = conexion.consultas[0]!;
+    expect(inicializacion.sql).toMatch(/insert\s+into\s+existencias/i);
+    expect(inicializacion.sql).toMatch(
+      /on\s+conflict\s*\(almacen_id,\s*insumo_id\)\s+do\s+nothing/i,
+    );
+    expect(inicializacion.parameters).toEqual([
+      movimiento.organizacionId,
+      movimiento.almacenId,
+      movimiento.insumoId,
+    ]);
+
+    const decremento = conexion.consultas[1]!;
+    expect(decremento.sql).toMatch(/cantidad\s*=\s*cantidad\s*-\s*\$1/i);
+    expect(decremento.parameters.at(-1)).toBe(true);
+    expect(conexion.consultas[2]!.sql).toMatch(/insert\s+into\s+movimientos_stock/i);
   });
 
   it('ordena los bloqueos por saldo y escribe todos los movimientos en un solo insert', async () => {

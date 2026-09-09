@@ -24,6 +24,70 @@
   invoca por API. Detalle en `docs/reports/004-claude-code-f1.1-venta.md`.
 - **Reclasificaciones:** ninguna.
 
+## Carril B · B-12 · 2026-09-09 · Recetas y rentabilidad
+
+- **Qué se hizo:** comandos y pantalla de recetas; costo por insumos con merma y
+  utilidad/margen derivados en PostgreSQL.
+- **Pruebas:** SQL de costeo y 5 mutaciones de saldo, ledger, cantidad y merma.
+- **Verificado con:** migración 041 aplicada; cuatro costos de Cafetería consultados.
+- **Pendiente:** E2E Kysely y regeneración de tipos esperan `DATABASE_URL`.
+
+## Carril B · B-11 · 2026-09-09 · Insumos, almacenes y movimientos
+
+- **Qué se hizo:** altas, inventario inicial y ajuste con saldo atómico y ledger
+  inmutable, más `/inventario` conectado a rutas reales.
+- **Pruebas:** comandos, SQL compilado y mutaciones contra sobreescritura y saldo negativo.
+- **Verificado con:** lint, tipos, build y suite unitaria.
+- **Pendiente:** integración PostgreSQL mediante Kysely espera `DATABASE_URL`.
+
+## Carril B · B-10 · 2026-09-09 · Demostraciones creíbles
+
+- **Qué se hizo:** semillas de abarrotes, ferretería y cafetería, más `resetearDemo`
+  transaccional, confirmado, acotado a la organización y auditable.
+- **Pruebas:** migraciones 042–043 ensayadas con rollback, aplicadas y consultadas.
+- **Verificado con:** productos, insumos, recetas, ventas y caja reales en MorphiqPOS.
+- **Pendiente:** no se ejecutó el comando de reset por falta de `DATABASE_URL`.
+
+## Carril B · B-09 · 2026-09-09 · Inicio desde operación real
+
+- **Qué se hizo:** `/inicio` consulta venta del día en zona del negocio, caja abierta,
+  cinco ventas recientes y existencias bajo mínimo.
+- **Pruebas:** consulta tipada, build de ruta y datos operativos sembrados en 043.
+- **Verificado con:** $347.00, dos operaciones, caja abierta y Martillo bajo mínimo.
+- **Pendiente:** prueba en navegador espera la conexión de aplicación.
+
+## Carril B · B-08 · 2026-09-09 · Paquete efectivo
+
+- **Qué se hizo:** navegación derivada del paquete activo y autorización de paquete en
+  comandos reales; recetas sólo aparecen en Cafetería/Restaurante.
+- **Pruebas:** contrato de cinco paquetes y 403 con `crearModificadorProducto` real.
+- **Verificado con:** mutación que habilita modificadores para todos los paquetes.
+- **Pendiente:** sesión real desde cookie sigue en X-02/A-03.
+
+## Carril B · B-07b · 2026-09-09 · Configuración conectada
+
+- **Qué se hizo:** lectura/escritura HTTP real de identidad, contacto, apariencia y
+  paquete; la pantalla conserva y actualiza la versión optimista.
+- **Pruebas:** alta, actualización, conflicto, aislamiento y autorización.
+- **Verificado con:** recarga posterior al comando implementada; lint, tipos y build.
+- **Pendiente:** E2E de persistencia espera `DATABASE_URL` y el resolvedor A-03.
+
+## Carril B · B-06b · 2026-09-09 · Productos conectados
+
+- **Qué se hizo:** `/productos` dejó la muestra local y usa consulta, alta, edición,
+  precio y código reales; recarga la base tras cada operación.
+- **Pruebas:** presentación, paginación, búsqueda difusa y comandos auditados.
+- **Verificado con:** dinero `bigint`, mutaciones de importes/ámbito y build de API.
+- **Pendiente:** alta combinada de medida/porción, categorías y E2E con `DATABASE_URL`.
+
+## Carril B · BUG-01 · 2026-09-09 · Existencia ausente con negativo autorizado
+
+- **Qué se hizo:** stock crea en cero la existencia faltante antes del decremento
+  cuando la política permite negativo; la venta conserva el ledger completo.
+- **Pruebas:** caso rojo antes del arreglo y verde después.
+- **Verificado con:** retirar el insert vuelve a romper la prueba de fila ausente.
+- **Pendiente:** prueba de integración real espera `DATABASE_URL`.
+
 ## Carril B · B-07 · 2026-09-08 · Pantalla de configuración
 
 - **Qué se hizo:** ruta `(gestion)/configuracion` con selector visual de los cinco
@@ -146,7 +210,7 @@
 | Corte | Estado | Tareas | Última actualización |
 |---|---|---|---|
 | F1.0 Fundación | 🟨 12 de 13 · falta T05 en vivo | 12 / 13 | 2026-09-07 |
-| F1.1 Núcleo | 🟨 dos carriles en paralelo (A-45) · **se puede vender de punta a punta** | A: 10/22 · B: 7/24 | 2026-09-08 |
+| F1.1 Núcleo | 🟨 carriles fusionados en `main` · **integración y primera venta real en curso** | 22 / 46 | 2026-09-09 |
 | F1.2 Catálogo y venta | ⬜ No iniciado | 0 / 17 | — |
 | F1.3 Inventario y compras | ⬜ No iniciado | 0 / 16 | — |
 | F1.4 Restaurante | ⬜ No iniciado | 0 / 17 | — |

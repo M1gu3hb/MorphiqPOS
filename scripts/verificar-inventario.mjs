@@ -9,6 +9,12 @@ const pruebas = [
 
 const mutaciones = [
   [
+    'packages/data/src/repos/stock.ts',
+    'if (movimiento.permiteNegativo) {',
+    'if (false) {',
+    'no crear existencia para venta negativa autorizada',
+  ],
+  [
     'packages/domain/src/inventario/consumo.ts',
     'convertirUnidad(cantidadLinea, linea.unidadVenta, linea.unidadBase)',
     'cantidadLinea',
