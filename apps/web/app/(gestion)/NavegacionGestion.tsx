@@ -1,6 +1,6 @@
 'use client';
 
-import { Boxes, CookingPot, House, Settings2, Sparkles, Warehouse } from 'lucide-react';
+import { Boxes, CookingPot, House, KeyRound, Settings2, Sparkles, Warehouse } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -13,6 +13,7 @@ const ICONOS = {
   productos: Boxes,
   inventario: Warehouse,
   recetas: CookingPot,
+  accesos: KeyRound,
   configuracion: Settings2,
 } as const;
 

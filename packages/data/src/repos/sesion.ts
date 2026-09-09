@@ -17,6 +17,10 @@ export interface AmbitoResuelto {
   readonly identidadId: string;
   readonly empleoId: string;
   readonly rol: string;
+  /** Paquete contratado. Decide qué comandos existen para este negocio (A-42). */
+  readonly paquete: string;
+  readonly nombreNegocio: string;
+  readonly nombreSucursal: string | null;
 }
 
 /**
@@ -36,12 +40,19 @@ export async function resolverAmbito(
     .innerJoin('personas', 'personas.id', 'identidades.persona_id')
     .innerJoin('empleos', 'empleos.persona_id', 'personas.id')
     .innerJoin('organizaciones', 'organizaciones.id', 'empleos.organizacion_id')
+    // El nombre de la sucursal exige un `leftJoin` y no un `innerJoin`: un dueño
+    // puede tener empleo sin sucursal asignada, y un `innerJoin` lo dejaría sin
+    // ámbito — es decir, sin poder entrar.
+    .leftJoin('sucursales', 'sucursales.id', 'empleos.sucursal_id')
     .select([
       'empleos.organizacion_id as organizacionId',
       'empleos.sucursal_id as sucursalId',
       'identidades.id as identidadId',
       'empleos.id as empleoId',
       'empleos.rol as rol',
+      'organizaciones.paquete as paquete',
+      'organizaciones.nombre as nombreNegocio',
+      'sucursales.nombre as nombreSucursal',
     ])
     .where('identidades.id', '=', identidadId)
     .where('identidades.activa', '=', true)

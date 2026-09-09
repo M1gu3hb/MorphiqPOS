@@ -7,4 +7,9 @@ export {
   type Verificacion,
 } from './token.ts';
 
-export { resolverSesion, type OpcionesResolver, type ResultadoSesion } from './resolver.ts';
+export {
+  resolverSesion,
+  type OpcionesResolver,
+  type ResultadoSesion,
+  type SesionDeNegocio,
+} from './resolver.ts';

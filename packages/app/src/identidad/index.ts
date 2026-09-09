@@ -24,3 +24,18 @@ export {
   type PeticionEntrar,
   type ResultadoEntrar,
 } from './entrar.ts';
+
+export {
+  entradaEstablecerPin,
+  entradaGenerarCodigo,
+  establecerPin,
+  generarCodigoDeTerminal,
+  type CodigoGenerado,
+} from './comandos.ts';
+
+export {
+  empleadosConAcceso,
+  terminalesDeGestion,
+  type EmpleadoConAcceso,
+  type TerminalDeGestion,
+} from './consultas.ts';

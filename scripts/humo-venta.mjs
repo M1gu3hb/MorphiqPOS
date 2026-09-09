@@ -12,6 +12,7 @@
  * Sirve para localhost y para la URL pública. Es el `smoke test post-deploy`
  * que pide `morphiq-prs §23`.
  */
+import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
 
 function bandera(nombre, porOmision) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -27,57 +28,7 @@ if (codigo === undefined || !/^\d{6}$/.test(codigo)) {
   process.exit(1);
 }
 
-/** Las cookies se guardan a mano: `fetch` de Node no tiene tarro. */
-const tarro = new Map();
-
-function cabeceraCookie() {
-  return [...tarro].map(([k, v]) => `${k}=${v}`).join('; ');
-}
-
-function guardarCookies(respuesta) {
-  for (const linea of respuesta.headers.getSetCookie?.() ?? []) {
-    const par = linea.split(';', 1)[0] ?? '';
-    const igual = par.indexOf('=');
-    if (igual > 0) tarro.set(par.slice(0, igual).trim(), par.slice(igual + 1).trim());
-  }
-}
-
-let clave = crypto.randomUUID();
-
-async function llamar(ruta, cuerpo, opciones = {}) {
-  const respuesta = await fetch(`${BASE}${ruta}`, {
-    method: cuerpo === undefined ? 'GET' : 'POST',
-    headers: {
-      ...(cuerpo === undefined ? {} : { 'content-type': 'application/json' }),
-      'idempotency-key': opciones.clave ?? crypto.randomUUID(),
-      'x-morphiqpos-request': '1',
-      origin: BASE,
-      ...(tarro.size === 0 ? {} : { cookie: cabeceraCookie() }),
-    },
-    ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) }),
-    redirect: 'manual',
-  });
-  guardarCookies(respuesta);
-  const texto = await respuesta.text();
-  let datos = null;
-  try {
-    datos = JSON.parse(texto);
-  } catch {
-    datos = { crudo: texto.slice(0, 200) };
-  }
-  return { estado: respuesta.status, datos };
-}
-
-function exigir(nombre, r, predicado = (x) => x.estado === 200 && x.datos?.ok !== false) {
-  if (!predicado(r)) {
-    console.error(`✗ ${nombre}: HTTP ${String(r.estado)} ${JSON.stringify(r.datos).slice(0, 300)}`);
-    process.exit(1);
-  }
-  console.log(`✓ ${nombre}`);
-  return r.datos?.datos ?? r.datos;
-}
-
-const paso = (n, t) => console.log(`\n── ${String(n)} · ${t} ─────────────────────────`);
+const llamar = (ruta, cuerpo, opciones) => llamarBase(BASE, ruta, cuerpo, opciones);
 
 paso(1, 'Enrolar la terminal');
 exigir('POST /api/auth/enrolar', await llamar('/api/auth/enrolar', { codigo }));
@@ -138,7 +89,8 @@ console.log(
 );
 
 paso(9, 'Cobrar en efectivo');
-clave = crypto.randomUUID();
+/** La MISMA clave en el cobro y en su reintento: es lo que se está probando. */
+const clave = crypto.randomUUID();
 const cobro = exigir(
   'POST /api/venta/cobrar',
   await llamar(

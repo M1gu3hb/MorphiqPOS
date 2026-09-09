@@ -1,0 +1,174 @@
+/**
+ * Las mutaciones que validan los contratos y las pruebas de identidad.
+ *
+ * La primera de la lista **es el fallo real**, reintroducido tal cual: cambiar
+ * `digest('hex')` por `digest()` devuelve el código al estado en el que nadie
+ * podía entrar. Si la prueba del viaje redondo no lo caza, no sirve.
+ */
+
+/** Un salto de línea literal, para mutaciones multilinea sin escapes raros. */
+const BR = String.fromCharCode(10);
+
+const PIN = 'packages/app/src/identidad/pin.ts';
+const ENTRAR = 'packages/app/src/identidad/entrar.ts';
+const COMANDOS = 'packages/app/src/identidad/comandos.ts';
+const CONSULTAS = 'packages/app/src/identidad/consultas.ts';
+const REPO = 'packages/data/src/repos/identidad.ts';
+const ARRANQUE = 'packages/app/src/arranque/primer-acceso.ts';
+
+/** Destructivas que deben hacer FALLAR a un contrato con nombre. */
+export const contraContratos = [
+  {
+    nombre: 'quitar la guarda de forma y volver al catch que lo traga todo',
+    ruta: PIN,
+    contrato: 'verificar_no_traga_errores_de_llamada',
+    antes: '  if (!FORMA_HASH.test(hashGuardado)) return false;\n',
+    despues: '',
+  },
+  {
+    nombre: 'buscar la credencial antes de saber la organización',
+    ruta: ENTRAR,
+    contrato: 'la_terminal_decide_la_organizacion',
+    antes: '    terminal.organizacionId,\n    peticion.empleoId,',
+    despues: '    peticion.empleoId,\n    peticion.empleoId,',
+  },
+  {
+    nombre: 'comprobar el PIN aunque la credencial esté bloqueada',
+    ruta: ENTRAR,
+    contrato: 'bloqueo_antes_de_comprobar_el_pin',
+    antes: 'credencial.bloqueadaHasta.getTime() > ahora.getTime()',
+    despues: 'false',
+  },
+  {
+    nombre: 'firmar la sesión sin releer el ámbito',
+    ruta: ENTRAR,
+    contrato: 'el_ambito_se_relee_de_la_base',
+    antes:
+      'const ambito = await repoSesion.resolverAmbito(db, credencial.identidadId, credencial.empleoId);',
+    despues:
+      'const ambito = { organizacionId: terminal.organizacionId, rol: credencial.rol ?? "dueno" };',
+  },
+  {
+    nombre: 'poner PIN a un empleado de otra organización',
+    ruta: COMANDOS,
+    contrato: 'establecer_pin_filtra_por_organizacion',
+    antes: "        .where('empleos.organizacion_id', '=', organizacionId)\n",
+    despues: '',
+  },
+  {
+    nombre: 'auditar el hash del PIN junto al cambio',
+    ruta: COMANDOS,
+    contrato: 'establecer_pin_no_audita_el_pin',
+    antes: '        rotado: previa !== undefined,',
+    despues: '        rotado: previa !== undefined,' + BR + '        pinHash: hash,',
+  },
+  {
+    nombre: 'generar el código dejando vivo el dispositivo anterior',
+    ruta: COMANDOS,
+    contrato: 'generar_codigo_suelta_el_dispositivo',
+    antes: '          device_token_hash: null,\n          enrolada_en: null,\n',
+    despues: '',
+  },
+  {
+    nombre: 'devolver el hash del PIN en la lista de accesos',
+    ruta: CONSULTAS,
+    contrato: 'la_consulta_de_accesos_no_devuelve_el_hash',
+    antes: "      'credenciales_pin.id as credencialId',",
+    despues:
+      "      'credenciales_pin.id as credencialId',\n      'credenciales_pin.pin_hash as pinHash',",
+  },
+  {
+    nombre: 'seleccionar el hash también en la lista de empleados',
+    ruta: REPO,
+    contrato: 'solo_credencial_para_verificar_lee_el_hash',
+    antes: ".select(['empleos.id as empleoId', 'personas.nombre as nombre', 'empleos.rol as rol'])",
+    despues:
+      ".select(['empleos.id as empleoId', 'personas.nombre as nombre', 'empleos.rol as rol', 'credenciales_pin.pin_hash as pinHash'])",
+  },
+  {
+    nombre: 'guardar el PIN del arranque sin hashear',
+    ruta: ARRANQUE,
+    contrato: 'el_arranque_hashea_con_argon2',
+    antes: 'const hash = await hashearPin(peticion.pin, peticion.pimienta);',
+    despues: 'const hash = peticion.pin;',
+  },
+];
+
+/** Destructivas que deben hacer FALLAR la suite de pruebas. */
+export const contraPruebas = [
+  {
+    // ESTE es el fallo real, tal cual estaba. `digest()` devuelve Buffer y
+    // `verify()` decodifica UTF-8: lanza, el catch lo traga y NINGÚN PIN
+    // verifica. Es la mutación más importante del repositorio.
+    nombre: 'devolver la pimienta a Buffer (el fallo que impidió entrar)',
+    ruta: PIN,
+    antes: ".update(pin, 'utf8').digest('hex')",
+    despues: ".update(pin, 'utf8').digest()",
+  },
+  {
+    nombre: 'la pimienta deja de mezclarse (el hash no depende de ella)',
+    ruta: PIN,
+    antes: "return createHmac('sha256', pimienta).update(pin, 'utf8').digest('hex');",
+    despues: "return createHmac('sha256', 'fija').update(pin, 'utf8').digest('hex');",
+  },
+  {
+    nombre: 'verificar acepta cualquier PIN',
+    ruta: PIN,
+    antes: 'return await verify(hashGuardado, conPimienta(pin, pimienta), PARAMETROS);',
+    despues: 'return true;',
+  },
+  {
+    nombre: 'bajar Argon2id a parámetros de juguete',
+    ruta: PIN,
+    antes: 'memoryCost: 19_456',
+    despues: 'memoryCost: 8',
+  },
+  {
+    nombre: 'aceptar PIN de tres dígitos',
+    ruta: PIN,
+    antes: 'export const FORMA_PIN = /^\\d{4,8}$/;',
+    despues: 'export const FORMA_PIN = /^\\d{3,8}$/;',
+  },
+  {
+    nombre: 'quitar el tope del bloqueo (lockout como negación de servicio)',
+    ruta: PIN,
+    antes: 'Math.min(',
+    despues: 'Math.max(',
+  },
+  {
+    nombre: 'el código de enrolamiento deja de ser de seis dígitos',
+    ruta: PIN,
+    antes: 'padStart(6',
+    despues: 'padStart(5',
+  },
+  {
+    nombre: 'comparar el código de enrolamiento con ==',
+    ruta: PIN,
+    antes: 'timingSafeEqual(',
+    despues: 'Buffer.compare(',
+  },
+];
+
+/** Inocuas: si una de éstas rompiera algo, el contrato mira la forma y no la propiedad. */
+export const inocuas = [
+  {
+    nombre: 'una línea en blanco de más en pin.ts',
+    ruta: PIN,
+    antes: 'export async function hashearPin',
+    despues: '\nexport async function hashearPin',
+  },
+  {
+    nombre: 'partir el where de la organización en cuatro líneas',
+    ruta: COMANDOS,
+    antes: "        .where('empleos.organizacion_id', '=', organizacionId)",
+    despues:
+      "        .where(\n          'empleos.organizacion_id',\n          '=',\n          organizacionId,\n        )",
+  },
+  {
+    nombre: 'renombrar un local del arranque',
+    ruta: ARRANQUE,
+    antes: 'const hash = await hashearPin(peticion.pin, peticion.pimienta);',
+    despues: 'const huella = await hashearPin(peticion.pin, peticion.pimienta);',
+    tambien: [['guardarPin(tx, identidadId, hash)', 'guardarPin(tx, identidadId, huella)']],
+  },
+];

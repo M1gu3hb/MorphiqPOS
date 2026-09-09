@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { esRol, type Ambito } from '@morphiqpos/contracts';
+import { esPaquete, esRol, type Ambito, type Paquete } from '@morphiqpos/contracts';
 import { obtenerDb, repoSesion } from '@morphiqpos/data';
 
 import { verificarSesion, type Verificacion } from './token.ts';
@@ -14,8 +14,22 @@ import { verificarSesion, type Verificacion } from './token.ts';
  * los comandos la heredan sin tocarse.
  */
 
+/**
+ * El ámbito más lo que la interfaz necesita para saludar: paquete y nombres.
+ *
+ * Viaja junto y no en una consulta aparte porque `resolverAmbito` ya toca
+ * `organizaciones` para comprobar que está activa: traerlo cuesta cero
+ * consultas más, y pedirlo aparte sería el N+1 que `12A` prohíbe, en el camino
+ * caliente de CADA petición autenticada.
+ */
+export interface SesionDeNegocio extends Ambito {
+  readonly paquete: Paquete;
+  readonly nombreNegocio: string;
+  readonly nombreSucursal: string | null;
+}
+
 export type ResultadoSesion =
-  | { readonly ok: true; readonly ambito: Ambito }
+  | { readonly ok: true; readonly ambito: Ambito; readonly sesion: SesionDeNegocio }
   | {
       readonly ok: false;
       /**
@@ -52,6 +66,10 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
   // `string`. Se estrecha en vez de aseverar: un rol desconocido no autoriza.
   if (!esRol(fila.rol)) return { ok: false, motivo: 'revocada' };
 
+  // Igual con el paquete: si la organización tiene uno que este código no
+  // conoce, no se adivina el más permisivo. Sin paquete válido no hay comandos.
+  if (!esPaquete(fila.paquete)) return { ok: false, motivo: 'revocada' };
+
   const terminalId = verificado.carga.terminalId;
   let sucursalId = fila.sucursalId;
 
@@ -64,15 +82,23 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
     sucursalId = terminal.sucursalId;
   }
 
+  const ambito: Ambito = {
+    organizacionId: fila.organizacionId,
+    sucursalId,
+    terminalId,
+    identidadId: fila.identidadId,
+    empleoId: fila.empleoId,
+    rol: fila.rol,
+  };
+
   return {
     ok: true,
-    ambito: {
-      organizacionId: fila.organizacionId,
-      sucursalId,
-      terminalId,
-      identidadId: fila.identidadId,
-      empleoId: fila.empleoId,
-      rol: fila.rol,
+    ambito,
+    sesion: {
+      ...ambito,
+      paquete: fila.paquete,
+      nombreNegocio: fila.nombreNegocio,
+      nombreSucursal: fila.nombreSucursal,
     },
   };
 }

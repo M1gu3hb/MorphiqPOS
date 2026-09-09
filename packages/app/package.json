@@ -8,7 +8,7 @@
     ".": "./src/index.ts",
     "./comando": "./src/comando.ts",
     "./produccion": "./src/produccion.ts",
-    "./puente-desarrollo": "./src/puente-desarrollo.ts",
+    "./consultas-produccion": "./src/consultas-produccion.ts",
     "./catalogo": "./src/catalogo/index.ts",
     "./configuracion": "./src/configuracion/index.ts",
     "./inventario": "./src/inventario/index.ts",

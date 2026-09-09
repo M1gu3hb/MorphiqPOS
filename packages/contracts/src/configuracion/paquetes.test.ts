@@ -21,7 +21,14 @@ describe('B-08 · capacidades visibles por paquete', () => {
     ] as const) {
       const rutas = navegacionParaPaquete(paquete).map((item) => item.href);
       expect(rutas).toEqual(
-        expect.arrayContaining(['/inicio', '/productos', '/inventario', '/configuracion']),
+        expect.arrayContaining([
+          '/inicio',
+          '/productos',
+          '/inventario',
+          // Accesos va en los cinco: sin poder poner un PIN no hay quien cobre.
+          '/accesos',
+          '/configuracion',
+        ]),
       );
     }
   });

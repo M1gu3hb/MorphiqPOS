@@ -51,6 +51,10 @@ export const CODIGOS_ERROR = {
   CAJA_CERRADA: 'CAJA_CERRADA',
   CAJA_YA_ABIERTA: 'CAJA_YA_ABIERTA',
 
+  // --- accesos (C-05, C-06) ---
+  /** El empleado o la terminal no existen DENTRO de la organizacion de quien pide. */
+  ACCESO_NO_ENCONTRADO: 'ACCESO_NO_ENCONTRADO',
+
   // --- andamiaje de pruebas ---
   /** Se pidio interrumpir despues de un paso que no existe (inyeccion de fallos). */
   PASO_INEXISTENTE: 'PASO_INEXISTENTE',
