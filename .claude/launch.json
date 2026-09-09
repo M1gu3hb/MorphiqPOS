@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "morphiqpos",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@morphiqpos/web", "dev"],
+      "port": 3000
+    }
+  ]
+}

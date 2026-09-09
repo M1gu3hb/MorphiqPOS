@@ -66,6 +66,7 @@ try {
   console.log(`  │  Código de enrolamiento:  ${r.codigoEnrolamiento}          │`);
   console.log(`  └──────────────────────────────────────────┘`);
   console.log(`  Caduca ${r.expiraEn.toLocaleTimeString('es-MX')}. Tecléalo en /enrolar.`);
+  console.log('  (La terminal quedó libre: el dispositivo anterior tendrá que enrolarse otra vez.)');
   console.log('');
 } catch (error) {
   console.error('');

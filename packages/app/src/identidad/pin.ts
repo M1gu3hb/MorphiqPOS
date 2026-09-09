@@ -48,27 +48,43 @@ export const FORMA_PIN = /^\d{4,8}$/;
  * Concatenar (`pin + pimienta`) también «funciona», pero deja que la longitud
  * del PIN se filtre en la del mensaje y no tiene separación de dominios. El
  * HMAC produce siempre 32 bytes y ata el resultado a esta pimienta concreta.
+ *
+ * **Devuelve hexadecimal, no el Buffer.** `hash()` de `@node-rs/argon2` acepta
+ * un Buffer, pero `verify()` decodifica su argumento como UTF-8 y revienta con
+ * `invalid utf-8 sequence` ante bytes crudos. Con el Buffer, el hash se creaba
+ * bien y NINGÚN PIN podía verificarse jamás: la excepción caía en el `catch` y
+ * salía como «PIN incorrecto». Nadie lo vio porque ninguna prueba hacía el
+ * viaje redondo hash → verify.
  */
-function conPimienta(pin: string, pimienta: string): Buffer {
-  return createHmac('sha256', pimienta).update(pin, 'utf8').digest();
+function conPimienta(pin: string, pimienta: string): string {
+  return createHmac('sha256', pimienta).update(pin, 'utf8').digest('hex');
 }
 
 export async function hashearPin(pin: string, pimienta: string): Promise<string> {
   return hash(conPimienta(pin, pimienta), PARAMETROS);
 }
 
+/** Toda cadena de Argon2 empieza así. Lo que no, no se le pasa a la librería. */
+const FORMA_HASH = /^\$argon2(?:id|i|d)\$/;
+
 /**
  * Comprueba un PIN. Devuelve un booleano y nada más.
  *
- * Nunca lanza por un hash malformado: una fila corrupta debe leerse como «PIN
- * incorrecto», no como un 500 que le dice al atacante que ese usuario existe y
- * su registro está roto.
+ * Una fila corrupta se lee como «PIN incorrecto», no como un 500 que le diría
+ * al atacante que ese usuario existe y su registro está roto. Pero el `catch`
+ * ya no es una red para todo: **la forma del hash se comprueba antes**, así el
+ * único fallo que puede llegar aquí es de datos.
+ *
+ * Eso importa porque este `catch` escondió durante tres sesiones un error de
+ * llamada —el HMAC crudo, que `verify` no sabe decodificar— y lo devolvía como
+ * PIN incorrecto. Nadie podía entrar y nada lo delataba.
  */
 export async function verificarPin(
   pin: string,
   hashGuardado: string,
   pimienta: string,
 ): Promise<boolean> {
+  if (!FORMA_HASH.test(hashGuardado)) return false;
   try {
     return await verify(hashGuardado, conPimienta(pin, pimienta), PARAMETROS);
   } catch {

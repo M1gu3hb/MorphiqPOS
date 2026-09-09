@@ -1,6 +1,25 @@
 /** @type {import('next').NextConfig} */
 
 /**
+ * El `.env` vive en la RAÍZ del monorepo y Next sólo mira el de `apps/web`.
+ *
+ * Sin esto, `next dev` arrancaba y toda ruta que tocara la base moría con
+ * «DATABASE_URL: expected string, received undefined» — con la variable
+ * perfectamente puesta dos carpetas más arriba. Duplicar el archivo habría
+ * dejado dos sitios donde rotar un secreto, que es peor.
+ *
+ * `override: false`: lo que ya venga del entorno manda. En Vercel las
+ * variables llegan por el entorno y ahí no hay `.env` que leer.
+ */
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { config as cargarEnv } from 'dotenv';
+
+const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+cargarEnv({ path: [join(RAIZ, '.env.local'), join(RAIZ, '.env')], override: false, quiet: true });
+
+/**
  * Cabeceras de seguridad que no dependen de la peticion.
  * La CSP se pone en middleware.ts porque necesita un nonce por peticion.
  *
@@ -36,10 +55,14 @@ const nextConfig = {
   // dependencias en vez de copiar codigo (A-01, R3).
   transpilePackages: ['@morphiqpos/ui', '@morphiqpos/contracts', '@morphiqpos/domain'],
 
-  // R19: el build NO se completa con errores de tipos o de lint. Next permite
-  // apagarlo; aqui se deja explicito para que nadie lo apague "temporalmente".
+  // R19: el build NO se completa con errores de tipos. Next permite apagarlo;
+  // aqui se deja explicito para que nadie lo apague "temporalmente".
+  //
+  // La clave `eslint` desapareció en Next 16 y el config avisaba de ella en cada
+  // arranque. El lint no se perdió: `pnpm verify` corre `eslint .` sobre el
+  // monorepo entero antes del build, que además cubre los paquetes y no sólo
+  // apps/web.
   typescript: { ignoreBuildErrors: false },
-  eslint: { ignoreDuringBuilds: false },
 
   // No anunciar la version del framework.
   poweredByHeader: false,

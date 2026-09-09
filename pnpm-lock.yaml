@@ -314,6 +314,9 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.2.7(@types/react@19.2.18)
+      dotenv:
+        specifier: 'catalog:'
+        version: 17.4.2
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3

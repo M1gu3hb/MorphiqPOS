@@ -66,6 +66,7 @@ export async function prepararPrimerAcceso(
     const identidadId = await asegurarIdentidad(tx, personaId);
     const empleoId = await asegurarEmpleo(tx, negocio, personaId);
     const pinRotado = await guardarPin(tx, identidadId, hash);
+    await liberarTerminal(tx, negocio.terminalId);
 
     return { ...negocio, personaId, identidadId, empleoId, pinRotado };
   });
@@ -88,6 +89,27 @@ export async function prepararPrimerAcceso(
     expiraEn,
     pinRotado: preparado.pinRotado,
   };
+}
+
+/**
+ * Suelta el dispositivo que tuviera la terminal, para que el código nuevo sirva.
+ *
+ * `enrolarTerminal` rechaza una terminal que ya tiene dispositivo —y hace bien:
+ * si no, cualquiera con el código se lleva la caja de otro—. Pero entonces el
+ * código que este script acaba de generar sería inútil, y "vuelve a correr el
+ * arranque" dejaría de ser la salida cuando algo se atora.
+ *
+ * Así que el arranque es también el **reseteo** de la terminal, y sólo él puede
+ * serlo: corre en el servidor, con acceso directo a la base, y no hay ninguna
+ * ruta HTTP que llegue aquí. Desde la aplicación, dar de baja un dispositivo
+ * seguirá exigiendo un comando con su rol y su auditoría.
+ */
+async function liberarTerminal(tx: Transaccion, terminalId: string): Promise<void> {
+  await tx
+    .updateTable('terminales')
+    .set({ device_token_hash: null, enrolada_en: null })
+    .where('id', '=', terminalId)
+    .execute();
 }
 
 interface Negocio {
