@@ -1,5 +1,45 @@
 # Bitácora de ejecución — Fase 1
 
+## Cierre F1.1 · C-01 a C-20 · 2026-09-08 · El POS vende de verdad
+
+- **Qué se hizo:** las 20 tareas del plan de cierre. `carril-b` integrado, la
+  primera conexión real a Postgres, el bucle del primer PIN roto, la primera
+  venta real, el día completo del cajero, y el proyecto en línea en Vercel.
+- **El criterio del hito 1 se cumplió:** `select count(*) from auditoria` pasó
+  de 0 —tres sesiones en cero— a 36. La cadena sesión → comando → transacción →
+  Kysely → Postgres corrió de punta a punta, en local y desde el despliegue.
+- **Cinco fallos que ninguna puerta veía porque ninguna ejecutaba nada:**
+  1. Nadie podía entrar: `verify()` de Argon2 decodifica UTF-8 y le pasábamos
+     el HMAC crudo; el `catch` lo devolvía como «PIN incorrecto».
+  2. Las 17 rutas de gestión colgaban de un puente de desarrollo que lanzaba en
+     producción y en local daba el ámbito del dueño a cualquiera.
+  3. `resetearDemo` orfanaba en silencio las líneas de ventas ya cobradas.
+  4. El buscador le robaba el foco a los diálogos: el fondo de caja se escribía
+     en la búsqueda.
+  5. 102 imports relativos sin extensión: TypeScript los resolvía, Node no.
+- **Archivos:** `packages/app/src/{arranque,identidad,caja,venta,http}/`,
+  `packages/data/src/{tls.ts,certificados,repos/limite.ts}`,
+  `apps/web/app/(gestion)/accesos/`, `apps/web/src/venta/`, migración 044,
+  cuatro guiones de humo, `scripts/lib/arnes.mjs`, `pruebas/e2e/dia-01-venta.spec.ts`,
+  `docs/RUNBOOK.md`.
+- **Decisiones:** el rol de base de la aplicación tiene DML y NO DDL, así que
+  las migraciones se aplican por consola administrada y se registran a mano; el
+  certificado raíz de Supabase va embebido en el código, no leído del disco,
+  porque el trazado serverless no garantiza copiarlo; el corte de caja se cuenta
+  a ciegas; `TEAM.md` queda suspendido.
+- **Pruebas:** 395 unitarias, 7 arneses con 79 mutaciones, E2E DIA-01 contra
+  base real. Cuatro guiones de humo que recorren la API por HTTP y valen para
+  localhost y para producción.
+- **Verificado con:** `pnpm verify` completa —incluidos `verify:identidad`,
+  `verify:paquetes` y `verify:certificado`, nuevos— más ejecución real contra
+  Supabase y contra el despliegue de Vercel.
+- **Pendiente o riesgo:** el dominio espera los registros DNS, que sólo puede
+  poner Miguel. La restauración de la base nunca se ensayó. `PIN_PEPPER` no se
+  puede rotar sin invalidar todos los PIN. `resetearDemo` borra ventas y no
+  distingue una organización de demostración de una real. Detalle completo en
+  `docs/reports/006-cierre-f1.1.md`.
+- **Reclasificaciones:** ninguna.
+
 ## Carril A · A-02, A-03, A-05 a A-10, A-12 y X-01 · 2026-09-08 · Se puede vender
 
 - **Qué se hizo:** el puente HTTP que faltaba y, encima, la venta completa. Miguel
@@ -210,7 +250,7 @@
 | Corte | Estado | Tareas | Última actualización |
 |---|---|---|---|
 | F1.0 Fundación | 🟨 12 de 13 · falta T05 en vivo | 12 / 13 | 2026-09-07 |
-| F1.1 Núcleo | 🟨 carriles fusionados en `main` · **integración y primera venta real en curso** | 22 / 46 | 2026-09-09 |
+| F1.1 Núcleo | ✅ **cierra: el POS vende de verdad y está desplegado** | 20 / 20 del cierre | 2026-09-08 |
 | F1.2 Catálogo y venta | ⬜ No iniciado | 0 / 17 | — |
 | F1.3 Inventario y compras | ⬜ No iniciado | 0 / 16 | — |
 | F1.4 Restaurante | ⬜ No iniciado | 0 / 17 | — |
