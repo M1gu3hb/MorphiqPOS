@@ -23,9 +23,18 @@ import { ALTO_ACCION } from './controles';
 interface Props {
   readonly onAgregar: (productoId: string) => void;
   readonly deshabilitado: boolean;
+  /**
+   * `false` mientras hay un diálogo abierto.
+   *
+   * Sin esto el buscador recupera el foco en cuanto lo pierde —incluso si quien
+   * se lo quitó fue el diálogo de cobro— y todo lo que el cajero teclea acaba
+   * en la búsqueda. Lo encontró la prueba de extremo a extremo: el fondo de
+   * caja se escribía en el buscador y la caja nunca se abría.
+   */
+  readonly activo: boolean;
 }
 
-export function Buscador({ onAgregar, deshabilitado }: Props) {
+export function Buscador({ onAgregar, deshabilitado, activo }: Props) {
   const [texto, setTexto] = useState('');
   const [productos, setProductos] = useState<readonly ProductoEnRejilla[]>([]);
   const [resaltado, setResaltado] = useState(0);
@@ -61,6 +70,14 @@ export function Buscador({ onAgregar, deshabilitado }: Props) {
   useEffect(() => {
     lista.current?.querySelector('[data-resaltado="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [resaltado]);
+
+  // Al cerrarse un diálogo, el foco VUELVE aquí. No es cosmético: es la mitad
+  // que faltaba de no robárselo. Sin esto, después de abrir la caja el cajero
+  // tiene que hacer clic en el buscador antes de poder escanear, y en una fila
+  // de gente eso es exactamente el clic que no debería existir.
+  useEffect(() => {
+    if (activo) campo.current?.focus();
+  }, [activo]);
 
   function alTeclear(evento: React.KeyboardEvent<HTMLInputElement>) {
     if (evento.key === 'ArrowDown') {
@@ -98,7 +115,13 @@ export function Buscador({ onAgregar, deshabilitado }: Props) {
             setTexto(e.target.value);
           }}
           onKeyDown={alTeclear}
-          onBlur={() => setTimeout(() => campo.current?.focus(), 0)}
+          onBlur={() => {
+            // Devolver el foco es lo que hace que un escáner nunca falle una
+            // lectura. Pero sólo cuando esta pantalla manda: si hay un diálogo
+            // abierto, quitarle el foco lo vuelve inoperable.
+            if (!activo) return;
+            setTimeout(() => campo.current?.focus(), 0);
+          }}
           placeholder="Escanea o escribe el producto…"
           aria-label="Buscar producto"
           aria-controls="resultados-venta"

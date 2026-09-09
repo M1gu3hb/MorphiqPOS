@@ -33,6 +33,16 @@ function interpretar(texto) {
   }
 }
 
+/**
+ * Secreto para saltarse la protección de despliegue de Vercel.
+ *
+ * Las URL `.vercel.app` están detrás de la autenticación del equipo —así lo
+ * pide `morphiq-prs §14` para previews— y un guion no puede iniciar sesión.
+ * Vercel publica esta cabecera exactamente para esto. Se lee del entorno y
+ * nunca se escribe en el repositorio.
+ */
+const BYPASS = process.env['VERCEL_AUTOMATION_BYPASS_SECRET'];
+
 export async function llamar(base, ruta, cuerpo, opciones = {}) {
   const respuesta = await fetch(`${base}${ruta}`, {
     method: cuerpo === undefined ? 'GET' : 'POST',
@@ -43,6 +53,7 @@ export async function llamar(base, ruta, cuerpo, opciones = {}) {
       // Un formulario de otro origen no puede ponerla sin disparar el preflight.
       'x-morphiqpos-request': '1',
       origin: base,
+      ...(BYPASS === undefined ? {} : { 'x-vercel-protection-bypass': BYPASS }),
       ...(tarro.size === 0 ? {} : { cookie: cabeceraCookie() }),
     },
     ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) }),

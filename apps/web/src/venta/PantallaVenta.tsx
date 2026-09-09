@@ -70,7 +70,11 @@ export function PantallaVenta() {
           />
         </div>
 
-        <Buscador onAgregar={(id) => void venta.agregar(id)} deshabilitado={venta.cargando} />
+        <Buscador
+          onAgregar={(id) => void venta.agregar(id)}
+          deshabilitado={venta.cargando}
+          activo={modal === 'ninguno' && cobro === null}
+        />
 
         <p className="hidden text-xs text-texto-tenue lg:block">
           <Tecla>↑ ↓</Tecla> elegir · <Tecla>Enter</Tecla> agregar · <Tecla>F2</Tecla> cobrar ·{' '}

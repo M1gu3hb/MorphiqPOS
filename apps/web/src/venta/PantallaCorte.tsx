@@ -40,6 +40,10 @@ export function PantallaCorte() {
       .catch((fallo: unknown) => {
         if (control.signal.aborted) return;
         if (fallo instanceof ErrorApi && fallo.error.codigo === 'NO_AUTENTICADO') {
+          // `router.push` conserva el estado del cliente, y aquí eso es lo que NO se
+          // quiere: la sesión dejó de existir y hay que tirar todo lo que se leyó con
+          // ella. Una recarga completa es la intención, no un descuido.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.assign('/entrar');
           return;
         }

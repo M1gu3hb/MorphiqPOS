@@ -21,10 +21,21 @@ import { repoLimite } from '@morphiqpos/data';
  * sobrescribe siempre. Se prefiere esa cuando está.
  */
 
-/** Ventanas por acción. Cortas: frenan el barrido sin estorbar a nadie real. */
+/**
+ * Ventanas por acción. Frenan el barrido sin estorbar a nadie real.
+ *
+ * El de enrolamiento empezó en 10 por diez minutos y lo subió la realidad: el
+ * primer día de una instalación se dan de alta varias cajas desde la misma red,
+ * y la prueba de extremo a extremo se bloqueó a sí misma. Veinte sigue siendo
+ * nada frente al millón de combinaciones de seis dígitos —un barrido necesita
+ * decenas de miles de intentos— y deja trabajar a quien está instalando.
+ *
+ * El de entrada no se toca: veinte PIN fallidos en cinco minutos desde la misma
+ * red ya no es un cajero con prisa.
+ */
 export const LIMITES = {
   entrar: { intentos: 20, ventanaSegundos: 300 },
-  enrolar: { intentos: 10, ventanaSegundos: 600 },
+  enrolar: { intentos: 20, ventanaSegundos: 600 },
 } as const;
 
 export type AccionLimitada = keyof typeof LIMITES;

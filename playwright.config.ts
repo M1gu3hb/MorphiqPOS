@@ -56,9 +56,19 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'pnpm --filter @morphiqpos/web exec next start -p 3200',
+    /**
+     * Se CONSTRUYE antes de arrancar.
+     *
+     * `next start` sirve lo que haya en `.next`, así que sin el build la suite
+     * corría contra la versión anterior del código. Costó una hora de perseguir
+     * un fallo que ya estaba arreglado: la prueba fallaba de verdad, sobre un
+     * bundle viejo. Con `reuseExistingServer` en local hay que acordarse de
+     * matar el 3200 si se quiere forzar una reconstrucción.
+     */
+    command:
+      'pnpm turbo run build --filter=@morphiqpos/web && pnpm --filter @morphiqpos/web exec next start -p 3200',
     url: 'http://localhost:3200/estilos',
     reuseExistingServer: process.env['CI'] === undefined,
-    timeout: 120_000,
+    timeout: 300_000,
   },
 });
