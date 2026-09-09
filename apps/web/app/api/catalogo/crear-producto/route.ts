@@ -1,6 +1,6 @@
 import { crearProducto } from '@morphiqpos/app/catalogo';
 
-import { manejadorDeComando } from '@/servidor/ruta';
+import { manejadorDeComando } from '~/servidor/ruta';
 
 /**
  * Ruta de ejemplo del patron de comando (F1.1-X-01).

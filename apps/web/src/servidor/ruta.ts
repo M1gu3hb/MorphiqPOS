@@ -19,7 +19,7 @@ import { peticionDeEscrituraValida } from './seguridad-http';
  *
  * ```ts
  * // apps/web/app/api/venta/cobrar/route.ts
- * import { manejadorDeComando } from '@/servidor/ruta';
+ * import { manejadorDeComando } from '~/servidor/ruta';
  * import { cobrarOrden } from '@morphiqpos/app/venta';
  *
  * export const POST = manejadorDeComando(cobrarOrden);

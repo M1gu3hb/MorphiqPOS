@@ -1,6 +1,6 @@
 import { buscarCatalogo } from '@morphiqpos/app/venta';
 
-import { manejadorDeComando } from '@/servidor/ruta';
+import { manejadorDeComando } from '~/servidor/ruta';
 
 export const POST = manejadorDeComando(buscarCatalogo);
 

@@ -1,6 +1,6 @@
 import { empleadosConAcceso, terminalesDeGestion } from '@morphiqpos/app/identidad';
 
-import { responderConsulta } from '@/servidor/http';
+import { responderConsulta } from '~/servidor/http';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

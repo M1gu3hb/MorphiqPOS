@@ -4,8 +4,8 @@ import { entrarConPin } from '@morphiqpos/app/identidad';
 import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
 import { z } from 'zod';
 
-import { cookieDeDispositivo, NOMBRE_COOKIE_DISPOSITIVO } from '@/servidor/dispositivo';
-import { peticionDeEscrituraValida } from '@/servidor/seguridad-http';
+import { cookieDeDispositivo, NOMBRE_COOKIE_DISPOSITIVO } from '~/servidor/dispositivo';
+import { peticionDeEscrituraValida } from '~/servidor/seguridad-http';
 
 /**
  * Entrada con PIN (F1.1-A-03, revisada en T2 del port del restaurante).

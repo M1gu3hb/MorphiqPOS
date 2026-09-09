@@ -3,7 +3,7 @@ import { leerCookie } from '@morphiqpos/app/http';
 import { empleadosParaEntrar } from '@morphiqpos/app/identidad';
 import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
 
-import { NOMBRE_COOKIE_DISPOSITIVO } from '@/servidor/dispositivo';
+import { NOMBRE_COOKIE_DISPOSITIVO } from '~/servidor/dispositivo';
 
 /**
  * Quien puede entrar (F1.1-A-03, revisada en T2 del port del restaurante).

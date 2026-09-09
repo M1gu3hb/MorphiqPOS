@@ -1,52 +1,35 @@
-/* Punto de entrada de estilos de la aplicación.
+/* El puente de Tailwind (E1-1).
    ---------------------------------------------------------------------------
-   Desde el port del restaurante, EL DISEÑO ES EL DE MIGUEL. Sus tokens viven
-   en `mh-tokens.css` / `mh-oscuro.css` / `mh-impresion.css`, que son su
-   `index.css` partido en tres nada más que para respetar el límite de 300
-   líneas por archivo.
+   EL DISEÑO ES EL DE MIGUEL. Su hoja entera es `heredado/index.css`, y este
+   archivo no define ni un color: sólo traduce a Tailwind 4 lo que su
+   `tailwind.config.js` declaraba en Tailwind 3, para que sus 244 archivos
+   sigan escribiendo `bg-card`, `text-muted-foreground`, `bg-sidebar` y
+   `rounded-lg` sin cambiar una clase.
 
-   Este archivo no inventa ningún color: sólo importa y hace de puente con
-   Tailwind 4, que a diferencia de la 3 no lee un `tailwind.config.js` — los
-   nombres de utilidad se declaran en `@theme`.
-
-   Los tokens en español de `@morphiqpos/ui` siguen aquí porque las 36
-   primitivas y las pantallas que aún no se han reemplazado los usan
-   (`bg-superficie`, `text-texto-sutil`, `shadow-1`…). Se retiran cuando se
-   retire la última pantalla que los use, no antes: primero lo aditivo, luego
-   se despliega, y sólo entonces se quita lo viejo. */
+   Su configuración de Tailwind 3 se reproduce aquí entera: los colores, los
+   dos radios derivados, sus dos familias tipográficas, el modo oscuro por
+   clase y la animación del acordeón. Nada más y nada menos. */
 
 @import 'tailwindcss';
-@import '@morphiqpos/ui/estilos.css';
+@import 'tw-animate-css';
+@import '../heredado/index.css';
 
-/* El diseño de Miguel. Va DESPUÉS del sistema en español a propósito: donde
-   los dos digan algo del mismo elemento, manda el suyo.
-
-   Única colisión de nombres entre los dos sistemas: `--info`. Hoy es inerte
-   —ni una utilidad `bg-info`/`text-info` en todo el repositorio, de ninguno de
-   los dos lados— y se deja anotada para que si alguna vez se usa, se sepa que
-   el valor que gana es el de `@morphiqpos/ui` y no el suyo. */
-@import './mh-tokens.css';
-@import './mh-oscuro.css';
-@import './mh-impresion.css';
-
-/* Tailwind 4 descubre las clases escaneando archivos. Las primitivas viven en
-   otro paquete del monorepo, asi que hay que senalarlo explicitamente. */
+/* Tailwind escanea archivos para descubrir clases. Su código vive en
+   `heredado/` y las primitivas del sistema anterior en otro paquete. */
+@source '../heredado';
 @source '../../../packages/ui/src';
 
-/* La clase de modo oscuro es `dark`, la que escribe su `ThemeContext` en el
-   <html>. `oscuro:` se conserva como ALIAS de la misma clase para que las
-   primitivas de `@morphiqpos/ui` —que usan `oscuro:` en 36 archivos— sigan
-   funcionando sin tocarlas. Las dos variantes apuntan al mismo sitio, así que
-   no hay dos modos oscuros: hay uno con dos nombres. */
+/* `darkMode: ["class"]` de su configuración. La clase la pone su
+   `ThemeContext`, que es el único sistema de tema de la aplicación. */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* `oscuro:` es como escriben el modo oscuro las 36 primitivas de
+   `@morphiqpos/ui`, que siguen vivas donde ya estaban. Apunta a la MISMA
+   clase: no hay dos modos oscuros, hay uno con dos nombres. */
 @custom-variant oscuro (&:where(.dark, .dark *));
 
 @theme inline {
-  /* --- SUS TOKENS ------------------------------------------------------
-     Los nombres son los de shadcn porque son los que él escribió en sus
-     pantallas: `bg-background`, `bg-card`, `text-muted-foreground`,
-     `bg-sidebar`, `border-sidebar-border`. En Tailwind 3 los declaraba su
-     `tailwind.config.js`; aquí los declara esto. */
+  /* --- colors, de su tailwind.config.js ------------------------------- */
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -63,14 +46,15 @@
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-
   --color-success: hsl(var(--success));
   --color-success-foreground: hsl(var(--success-foreground));
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
 
   --color-chart-1: hsl(var(--chart-1));
   --color-chart-2: hsl(var(--chart-2));
@@ -78,9 +62,6 @@
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
 
-  /* La barra lateral es su pieza más reconocible: negro profundo con acento
-     azul. `bg-sidebar` sale de `--sidebar-background`, igual que en su
-     configuración de Tailwind 3. */
   --color-sidebar: hsl(var(--sidebar-background));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
@@ -90,76 +71,38 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
-  /* Su escala de radios: `--radius` manda, y md/sm se derivan de ella. Es
-     exactamente lo que hacía su `tailwind.config.js`. `rounded-xl` y
-     `rounded-2xl` siguen siendo los de Tailwind, como en su proyecto. */
+  /* --- borderRadius: los tres derivados de --radius -------------------- */
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
-  /* --- Tokens en español de @morphiqpos/ui -----------------------------
-     Siguen vivos mientras queden pantallas y primitivas que los usen. */
-  --color-fondo: hsl(var(--fondo));
-  --color-fondo-sutil: hsl(var(--fondo-sutil));
-  --color-superficie: hsl(var(--superficie));
-  --color-superficie-elevada: hsl(var(--superficie-elevada));
-  --color-texto: hsl(var(--texto));
-  --color-texto-sutil: hsl(var(--texto-sutil));
-  --color-texto-tenue: hsl(var(--texto-tenue));
-  --color-borde: hsl(var(--borde));
-  --color-borde-fuerte: hsl(var(--borde-fuerte));
-  --color-anillo: hsl(var(--anillo));
-  --color-primario: hsl(var(--primario));
-  --color-primario-texto: hsl(var(--primario-texto));
-  --color-acento: hsl(var(--acento));
-  --color-acento-texto: hsl(var(--acento-texto));
-  --color-exito: hsl(var(--exito));
-  --color-exito-texto: hsl(var(--exito-texto));
-  --color-advertencia: hsl(var(--advertencia));
-  --color-advertencia-texto: hsl(var(--advertencia-texto));
-  --color-peligro: hsl(var(--peligro));
-  --color-peligro-texto: hsl(var(--peligro-texto));
-  --color-info: hsl(var(--info));
-  --color-info-texto: hsl(var(--info-texto));
-  --color-grafico-1: hsl(var(--grafico-1));
-  --color-grafico-2: hsl(var(--grafico-2));
-  --color-grafico-3: hsl(var(--grafico-3));
-  --color-grafico-4: hsl(var(--grafico-4));
-  --color-grafico-5: hsl(var(--grafico-5));
-  --color-grafico-6: hsl(var(--grafico-6));
-  --color-velo: hsl(var(--velo));
-  --color-lateral-fondo: hsl(var(--lateral-fondo));
-  --color-lateral-texto: hsl(var(--lateral-texto));
-  --color-lateral-activo: hsl(var(--lateral-activo));
-  --color-lateral-borde: hsl(var(--lateral-borde));
-
-  --radius-full: var(--radio-completo);
-
-  --shadow-1: var(--sombra-1);
-  --shadow-2: var(--sombra-2);
-  --shadow-3: var(--sombra-3);
-  --shadow-4: var(--sombra-4);
-
-  --font-ui: var(--fuente-ui);
-  --font-numeros: var(--fuente-numeros);
-  --font-display: var(--fuente-display);
-
-  --spacing-1: var(--espacio-1);
-  --spacing-2: var(--espacio-2);
-  --spacing-3: var(--espacio-3);
-  --spacing-4: var(--espacio-4);
-  --spacing-5: var(--espacio-5);
-  --spacing-6: var(--espacio-6);
-  --spacing-8: var(--espacio-8);
-  --spacing-10: var(--espacio-10);
-  --spacing-12: var(--espacio-12);
-  --spacing-16: var(--espacio-16);
+  /* --- animation: el acordeón de Radix --------------------------------- */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
 }
 
-/* `font-heading` y `font-body` como utilidades explícitas y no como claves de
-   `@theme`: sus variables ya se llaman `--font-heading` y `--font-body`, y
-   declararlas dentro de `@theme` sería una definición que se referencia a sí
-   misma. Así el resultado es el mismo sin ambigüedad. */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+/* `fontFamily.heading` y `.body` de su configuración. Van como utilidades
+   explícitas y no como claves de `@theme` porque sus variables ya se llaman
+   `--font-heading` y `--font-body`: declararlas dentro de `@theme` sería una
+   definición que se referencia a sí misma. */
 @utility font-heading {
   font-family: var(--font-heading);
 }
@@ -168,19 +111,15 @@
   font-family: var(--font-body);
 }
 
+/* Tailwind 4 dejó de aplicar el color de borde por omisión. Su hoja lo da por
+   hecho —`border` a secas en decenas de sitios— así que se restituye. Es lo
+   mismo que hacía la capa base de Tailwind 3. */
 @layer base {
-  /* El foco SIEMPRE visible. Sin esto la navegacion por teclado no existe, y
-     la caja se opera con teclado diez horas al dia (05 §9). */
-  :focus-visible {
-    outline: 2px solid hsl(var(--ring));
-    outline-offset: 2px;
-  }
-
-  /* Todo lo que sea dinero o cantidad usa cifras de ancho fijo, para que los
-     importes no bailen al leerlos en columna. */
-  .numeros,
-  [data-numeros] {
-    font-family: var(--fuente-numeros);
-    font-variant-numeric: var(--variante-numerica);
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: hsl(var(--border));
   }
 }

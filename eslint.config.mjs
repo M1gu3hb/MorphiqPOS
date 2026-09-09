@@ -29,8 +29,15 @@ const IGNORADO = [
   '**/dist/**',
   '**/coverage/**',
   '**/.turbo/**',
-  // historico/ es evidencia, no codigo (R30). No se compila ni se lintea.
+  // historico/ es la FUENTE del frontend (F1-02 §7: R30 derogada). Se copia a
+  // apps/web/heredado y se portea; el original no se compila ni se lintea.
   'historico/**',
+  // El codigo portado de Miguel. Se lintea con SUS reglas, no con las nuestras:
+  // 244 archivos escritos en cuatro meses contra una configuracion
+  // `strictTypeChecked` darian miles de hallazgos que no dicen nada sobre si su
+  // sistema funciona. Tiene su propio tsconfig permisivo (F1-02 §4) y se
+  // endurece despues, pantalla por pantalla, cuando cada una ya se ve y anda.
+  'apps/web/heredado/**',
 ];
 
 /**
@@ -132,7 +139,9 @@ const PROHIBICIONES = [
  */
 const PROHIBICION_HISTORICO = {
   group: ['**/historico/**', '../historico/*', '../../historico/*', '../../../historico/*'],
-  message: 'historico/ es evidencia, no plantilla (R30). Se lee al lado; no se importa.',
+  message:
+    'historico/ se COPIA a apps/web/heredado, no se importa. Un import cruzado ' +
+    'volveria a atar el producto a una carpeta que no se compila.',
 };
 
 export default tseslint.config(

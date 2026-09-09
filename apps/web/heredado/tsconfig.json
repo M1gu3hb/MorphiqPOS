@@ -1,0 +1,20 @@
+{
+  "//": "El tsconfig PERMISIVO de su código (F1-02 §4). El núcleo de packages/* sigue estricto; tipar 244 archivos antes de que nada funcione es lo que haría que la sesión se atore. Se portan, funcionan, y se endurecen después.",
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitReturns": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "verbatimModuleSyntax": false,
+    "paths": { "@/*": ["./*"] }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+}

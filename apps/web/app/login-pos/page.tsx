@@ -1,13 +1,8 @@
-import POSLogin from '@/mh/pages/POSLogin';
+import POSLogin from '@/pages/POSLogin';
 
-/**
- * Su pantalla de acceso, en la ruta que ella misma usaba: `/login-pos`.
- *
- * `force-dynamic` porque la lista de empleados y la sesión salen del servidor
- * en cada visita: una versión prerenderizada enseñaría la plantilla de ayer.
- */
+/** Su pantalla de acceso: tarjetas de usuario y teclado de PIN. */
 export const dynamic = 'force-dynamic';
 
-export default function PaginaLoginPos() {
+export default function Pagina() {
   return <POSLogin />;
 }

@@ -1,6 +1,6 @@
 import { establecerPin } from '@morphiqpos/app/identidad';
 
-import { ejecutarComandoHttp } from '@/servidor/http';
+import { ejecutarComandoHttp } from '~/servidor/http';
 
 /**
  * Poner o cambiar el PIN de un empleado (F1.1-C-05).
