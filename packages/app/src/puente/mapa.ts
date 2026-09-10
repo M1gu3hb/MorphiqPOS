@@ -67,12 +67,16 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
         escribible: false,
       },
-      utilidad_unitaria: {
+      // Los nombres son LOS SUYOS, no los que uno elegiría. `utilidad_unitaria`
+      // y `margen_porcentaje` no existen en su esquema: se llaman así. Las dos
+      // son columnas generadas en la base, así que no pueden desincronizarse
+      // del costo aunque alguien lo intente.
+      utilidad_bruta_actual: {
         columna: 'utilidad_unitaria_centavos',
         conversion: 'dinero',
         escribible: false,
       },
-      margen_porcentaje: { columna: 'margen_bp', conversion: 'puntos_base', escribible: false },
+      margen_bruto_actual: { columna: 'margen_bp', conversion: 'puntos_base', escribible: false },
       tipo_venta: { columna: 'tipo_venta', conversion: 'texto', publico: true },
       unidad_venta: { columna: 'unidad_venta', conversion: 'texto', publico: true },
       unidad_variable: { columna: 'unidad_variable', conversion: 'texto', publico: true },
@@ -100,7 +104,20 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // Borrado suave: los registros históricos guardan el nombre en instantánea,
       // así que un producto nunca desaparece de verdad (F1-01 §3, regla 8).
       activo: { columna: 'activo', conversion: 'booleano' },
-      insumo_base_id: { columna: 'insumo_base_id', conversion: 'texto' },
+      ingrediente_base_id: { columna: 'insumo_base_id', conversion: 'texto' },
+      // Lo que el restaurante añade (migración 045). Trece archivos suyos leen
+      // `ingrediente_base_id`, diez `tipo_venta_snapshot` y cuatro
+      // `visible_en_menu_digital`: sin estos campos, todos veían `undefined`.
+      area_preparacion: { columna: 'area_preparacion', conversion: 'texto' },
+      visible_en_menu_digital: {
+        columna: 'visible_en_menu_digital',
+        conversion: 'booleano',
+        publico: true,
+      },
+      tiempo_preparacion_estimado: { columna: 'minutos_preparacion', conversion: 'entero' },
+      notas: { columna: 'notas', conversion: 'texto' },
+      presets_variable_qr: { columna: 'presets_variable', conversion: 'json', publico: true },
+      presets_porcion_qr: { columna: 'presets_porcion', conversion: 'json', publico: true },
     },
     derivados: {
       // `Productos.jsx:249` lo lee y sin él la tarjeta dice «Sin categoría»
@@ -111,6 +128,14 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         columna: 'nombre',
         conversion: 'texto',
         publico: true,
+      },
+      // Sin instantánea: `on delete restrict` impide que el insumo desaparezca
+      // mientras un producto lo use como base.
+      ingrediente_base_nombre: {
+        tabla: 'insumos',
+        porColumna: 'insumo_base_id',
+        columna: 'nombre',
+        conversion: 'texto',
       },
     },
   },
@@ -402,12 +427,15 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       codigo_barras: { columna: 'codigo_barras', conversion: 'texto', escribible: false },
       cantidad: { columna: 'cantidad', conversion: 'decimal', escribible: false },
       unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
-      precio_unitario: {
+      // El sufijo `_snapshot` es SUYO y se conserva. Diez archivos leen
+      // `tipo_venta_snapshot` y cinco `ingrediente_base_id_snapshot`: llamarlos
+      // como uno querría dejaría a los quince viendo `undefined`.
+      precio_unitario_snapshot: {
         columna: 'precio_unitario_centavos',
         conversion: 'dinero',
         escribible: false,
       },
-      costo_unitario: {
+      costo_unitario_snapshot: {
         columna: 'costo_unitario_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -416,16 +444,28 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       subtotal: { columna: 'subtotal_centavos', conversion: 'dinero', escribible: false },
       total: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
       utilidad: { columna: 'utilidad_centavos', conversion: 'dinero', escribible: false },
-      tipo_venta: { columna: 'tipo_venta', conversion: 'texto', escribible: false },
-      cantidad_variable: { columna: 'cantidad_variable', conversion: 'decimal', escribible: false },
-      unidad_variable: { columna: 'unidad_variable', conversion: 'texto', escribible: false },
-      nombre_porcion: { columna: 'nombre_porcion', conversion: 'texto', escribible: false },
-      cantidad_porciones: {
+      tipo_venta_snapshot: { columna: 'tipo_venta', conversion: 'texto', escribible: false },
+      cantidad_variable_snapshot: {
+        columna: 'cantidad_variable',
+        conversion: 'decimal',
+        escribible: false,
+      },
+      unidad_variable_snapshot: {
+        columna: 'unidad_variable',
+        conversion: 'texto',
+        escribible: false,
+      },
+      nombre_porcion_snapshot: {
+        columna: 'nombre_porcion',
+        conversion: 'texto',
+        escribible: false,
+      },
+      cantidad_porciones_snapshot: {
         columna: 'cantidad_porciones',
         conversion: 'decimal',
         escribible: false,
       },
-      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+      notas_producto: { columna: 'notas', conversion: 'texto', escribible: false },
       orden_visual: { columna: 'orden_visual', conversion: 'entero', escribible: false },
 
       // ── El contrato de trazabilidad del restaurante (migración 045) ──────
@@ -434,7 +474,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'texto',
         escribible: false,
       },
-      area_preparacion: {
+      area_preparacion_snapshot: {
         columna: 'area_preparacion_snapshot',
         conversion: 'texto',
         escribible: false,
@@ -447,14 +487,26 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'decimal',
         escribible: false,
       },
-      insumo_base_id: { columna: 'insumo_base_id', conversion: 'texto', escribible: false },
-      insumo_base_nombre: { columna: 'insumo_base_nombre', conversion: 'texto', escribible: false },
-      precio_por_unidad: {
+      ingrediente_base_id_snapshot: {
+        columna: 'insumo_base_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      ingrediente_base_nombre_snapshot: {
+        columna: 'insumo_base_nombre',
+        conversion: 'texto',
+        escribible: false,
+      },
+      precio_por_unidad_snapshot: {
         columna: 'precio_por_unidad_centavos',
         conversion: 'dinero',
         escribible: false,
       },
-      ml_por_porcion: { columna: 'ml_por_porcion', conversion: 'decimal', escribible: false },
+      ml_por_porcion_snapshot: {
+        columna: 'ml_por_porcion',
+        conversion: 'decimal',
+        escribible: false,
+      },
     },
   },
 
@@ -467,13 +519,18 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       ...soloAutomaticos(['id', 'created_date']),
       ingrediente_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
       almacen_id: { columna: 'almacen_id', conversion: 'texto', escribible: false },
-      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
-      // El signo se unifica en E4-7: negativo salidas, positivo entradas. Hoy
-      // su POS de precio fijo guarda positivo y su Caja negativo, así que
-      // cualquier reporte que sume da un número sin sentido (defecto D-10).
+      // Sus nombres, no los de la tabla: nueve archivos leen `tipo_movimiento`
+      // y treinta leen `unidad_base`.
+      tipo_movimiento: { columna: 'tipo', conversion: 'texto', escribible: false },
+      // El signo ya lo impone la base desde `003_venta_caja_inventario.sql`:
+      // entradas positivas, salidas negativas, con un `check` que lo ata al
+      // tipo. Es lo que cierra D-10 de raíz —su POS guardaba positivo y su Caja
+      // negativo, y cualquier reporte que sumara daba un número sin sentido—,
+      // y por eso E4-7 no necesita migrar datos: en este esquema nunca pudo
+      // escribirse mal.
       cantidad: { columna: 'cantidad', conversion: 'decimal', escribible: false },
-      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
-      costo_unitario: {
+      unidad_base: { columna: 'unidad', conversion: 'texto', escribible: false },
+      costo_unitario_en_momento: {
         columna: 'costo_unitario_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -482,6 +539,20 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       referencia_id: { columna: 'referencia_id', conversion: 'texto', escribible: false },
       motivo: { columna: 'motivo', conversion: 'texto', escribible: false },
       usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      ingrediente_nombre: {
+        tabla: 'insumos',
+        porColumna: 'insumo_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      usuario_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
     },
   },
 
