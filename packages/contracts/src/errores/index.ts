@@ -61,6 +61,23 @@ export const CODIGOS_ERROR = {
   CAJA_CERRADA: 'CAJA_CERRADA',
   CAJA_YA_ABIERTA: 'CAJA_YA_ABIERTA',
 
+  // --- restaurante: mesas, comandas y preparación (F1-02 E6) ---
+  /** La mesa no existe, está dada de baja, o es de otra organización. */
+  MESA_NO_ENCONTRADA: 'MESA_NO_ENCONTRADA',
+  /**
+   * Ya hay una venta viva en esa mesa.
+   *
+   * Lo impone la base con `ordenes_una_activa_por_mesa` (F1-04 §35.5). El
+   * código existe para que ese 23505 llegue al mesero como «esa mesa ya está
+   * abierta» y no como un 500 sin explicación.
+   */
+  MESA_YA_ABIERTA: 'MESA_YA_ABIERTA',
+  /** Se intentó liberar una mesa cuya venta todavía no se ha cobrado. */
+  MESA_NO_LIBERABLE: 'MESA_NO_LIBERABLE',
+  COMANDA_NO_ENCONTRADA: 'COMANDA_NO_ENCONTRADA',
+  /** El estado pedido no sigue a la tabla de transiciones, o retrocede. */
+  TRANSICION_INVALIDA: 'TRANSICION_INVALIDA',
+
   // --- accesos (C-05, C-06) ---
   /** El empleado o la terminal no existen DENTRO de la organizacion de quien pide. */
   ACCESO_NO_ENCONTRADO: 'ACCESO_NO_ENCONTRADO',

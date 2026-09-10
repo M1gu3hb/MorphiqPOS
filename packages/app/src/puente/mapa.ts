@@ -102,6 +102,17 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       activo: { columna: 'activo', conversion: 'booleano' },
       insumo_base_id: { columna: 'insumo_base_id', conversion: 'texto' },
     },
+    derivados: {
+      // `Productos.jsx:249` lo lee y sin él la tarjeta dice «Sin categoría»
+      // con la categoría bien puesta en la base.
+      categoria_nombre: {
+        tabla: 'categorias',
+        porColumna: 'categoria_id',
+        columna: 'nombre',
+        conversion: 'texto',
+        publico: true,
+      },
+    },
   },
 
   CategoriaProducto: {
@@ -156,6 +167,17 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       categoria_id: { columna: 'categoria_id', conversion: 'texto' },
       activo: { columna: 'activo', conversion: 'booleano' },
     },
+    derivados: {
+      // `Inventario.jsx:122` resuelve hoy el nombre en el navegador contra una
+      // lista que descarga entera. Aquí sale del `join` y de paso deja de
+      // depender de que esa lista esté cargada.
+      categoria_nombre: {
+        tabla: 'categorias',
+        porColumna: 'categoria_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
   },
 
   RecetaEscandallo: {
@@ -165,11 +187,54 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     escritura: 'comando',
     campos: {
       ...AUTO,
-      producto_id: { columna: 'producto_id', conversion: 'texto' },
-      ingrediente_id: { columna: 'insumo_id', conversion: 'texto' },
-      cantidad: { columna: 'cantidad', conversion: 'decimal' },
-      unidad: { columna: 'unidad', conversion: 'texto' },
-      merma_porcentaje: { columna: 'merma_bp', conversion: 'puntos_base' },
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      ingrediente_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
+      // Lo que el usuario TECLEÓ, tal como lo tecleó, para poder reeditarlo.
+      cantidad_usada: { columna: 'cantidad_capturada', conversion: 'decimal', escribible: false },
+      unidad_usada: { columna: 'unidad_capturada', conversion: 'texto', escribible: false },
+      // Lo CONVERTIDO, que es lo que consume el inventario. Que sean dos
+      // columnas distintas es lo que cierra el error de 1000×: hoy
+      // `RecetaFormDialog.jsx:225` guarda la cantidad sin convertir y la unidad
+      // es un input de texto libre, así que escribir «kg» en un insumo medido
+      // en gramos multiplica por mil el consumo y el costo. La conversión la
+      // hace `guardarReceta` en el servidor, y lanza si las dimensiones no
+      // coinciden en vez de dejar pasar el valor.
+      cantidad_convertida_unidad_base: {
+        columna: 'cantidad',
+        conversion: 'decimal',
+        escribible: false,
+      },
+      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
+      merma_porcentaje: { columna: 'merma_bp', conversion: 'puntos_base', escribible: false },
+      // «Receta» es femenino: la columna es `activa`.
+      activo: { columna: 'activa', conversion: 'booleano', escribible: false },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      // Sin instantánea a propósito: `on delete restrict` impide que el insumo
+      // desaparezca mientras una receta lo use.
+      ingrediente_nombre: {
+        tabla: 'insumos',
+        porColumna: 'insumo_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      // EN VIVO, no instantánea. Es la mitad de D-09: hoy es una copia del
+      // costo del ingrediente al guardar la receta y nada la refresca, así que
+      // al subir el precio del café el costo del capuchino se queda como
+      // estaba. Derivándolo, cambia en la siguiente lectura.
+      costo_unitario_base_snapshot: {
+        tabla: 'insumos',
+        porColumna: 'insumo_id',
+        columna: 'costo_unitario_centavos',
+        conversion: 'dinero',
+      },
+    },
+    calculados: {
+      // Lo que su pantalla de Productos suma para enseñar el costo de cada
+      // producto. Sin esto, Productos enseña COSTO $0.00 y MARGEN 100 % con la
+      // base llena de costos correctos.
+      costo_linea_calculado: { formula: 'costoDeLineaDeReceta', conversion: 'dinero' },
     },
   },
 

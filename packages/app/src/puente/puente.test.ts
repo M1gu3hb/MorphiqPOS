@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CONFIG_POR_OMISION, PUBLICOS } from './configuracion.ts';
+import { calcular } from './consultar.ts';
 import { entidadMapeada, MAPA } from './mapa.ts';
 import { haciaEl, haciaLaBase, LIMITE_MAXIMO, type Conversion } from './tipos.ts';
 
@@ -319,7 +320,7 @@ describe('los campos derivados', () => {
     // `credenciales_pin`. Que un derivado apunte a `empleos` o a `personas`
     // sería un `join` de dos saltos que el puente no sabe hacer; que apuntara a
     // `credenciales_pin` sería sacar el hash del PIN por una lista de mesas.
-    const permitidas = new Set(['empleados_visibles', 'mesas', 'zonas']);
+    const permitidas = new Set(['empleados_visibles', 'mesas', 'zonas', 'insumos', 'categorias']);
     for (const [entidad, mapa] of Object.entries(MAPA)) {
       for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {
         expect(permitidas.has(derivado.tabla), `${entidad}.${clave} → ${derivado.tabla}`).toBe(
@@ -327,6 +328,67 @@ describe('los campos derivados', () => {
         );
       }
     }
+    // Y lo que de verdad importa: ninguna tabla de credenciales, por si mañana
+    // alguien amplía la lista de arriba sin pensarlo.
+    for (const mapa of Object.values(MAPA)) {
+      for (const derivado of Object.values(mapa.derivados ?? {})) {
+        expect(derivado.tabla).not.toMatch(/credencial|pin|sesion|identidad/i);
+      }
+    }
+  });
+});
+
+/**
+ * El costo de una línea de receta es lo que su pantalla de Productos SUMA para
+ * enseñar el costo, la utilidad y el margen de cada producto. Si esta fórmula
+ * se desvía de la de `recalcularCostosRecetas` (`inventario/recetas.ts:131`),
+ * la pantalla y el producto guardado dirían números distintos, y la pantalla
+ * ganaría porque es la que se ve.
+ */
+describe('el costo de una línea de receta', () => {
+  const linea = (costoCentavos: string, cantidad: string, mermaBp: string) =>
+    calcular('costoDeLineaDeReceta', {
+      costo_unitario_base_snapshot: costoCentavos,
+      cantidad_convertida_unidad_base: cantidad,
+      merma_porcentaje: mermaBp,
+    });
+
+  it('multiplica costo por cantidad y suma la merma', () => {
+    // 8.10 el gramo × 100 g × 1.05 = 850.50 → 850.50 pesos.
+    expect(linea('810', '100.0000', '500')).toBe(850.5);
+    // Sin merma.
+    expect(linea('2100', '1.0000', '0')).toBe(21);
+  });
+
+  it('redondea UNA vez y al final, no en cada paso', () => {
+    // 0.07 × 3 × 1.05 = 0.2205 → 0.22. Redondeando por pasos daría 0.24.
+    expect(linea('7', '3.0000', '500')).toBe(0.22);
+    // El caso que rompe la coma flotante: 1234.995 en centavos.
+    expect(linea('123500', '1.0000', '0')).toBe(1235);
+  });
+
+  it('la cantidad admite los cuatro decimales de `numeric(14,4)`', () => {
+    // 1000 centavos × 0.0001 = 0.1 centavos → 0 tras redondear.
+    expect(linea('1000', '0.0001', '0')).toBe(0);
+    expect(linea('1000', '0.5000', '0')).toBe(5);
+  });
+
+  it('sin costo o sin cantidad devuelve nulo, no cero', () => {
+    // Cero y «no sé» son cosas distintas: un cero se suma en la pantalla y
+    // hace creer que el ingrediente es gratis.
+    expect(linea('810', '', '0')).toBeNull();
+    expect(
+      calcular('costoDeLineaDeReceta', { cantidad_convertida_unidad_base: '1.0000' }),
+    ).toBeNull();
+  });
+
+  it('un objeto donde se esperaba un número no se vuelve «[object Object]»', () => {
+    expect(
+      calcular('costoDeLineaDeReceta', {
+        costo_unitario_base_snapshot: { x: 1 },
+        cantidad_convertida_unidad_base: '1.0000',
+      }),
+    ).toBeNull();
   });
 });
 

@@ -12,6 +12,7 @@ import {
   haciaLaBase,
   LIMITE_MAXIMO,
   LIMITE_POR_OMISION,
+  type Calculo,
   type MapaEntidad,
 } from './tipos.ts';
 
@@ -205,5 +206,82 @@ function traducirFila(fila: Fila, mapa: MapaEntidad): Fila {
     const id = claveDelId === undefined ? null : salida[claveDelId];
     salida[suyo] = typeof id === 'string' && id !== '' ? colorDePersona(id) : null;
   }
+  for (const [suyo, calculado] of Object.entries(mapa.calculados ?? {})) {
+    salida[suyo] = calcular(calculado.formula, fila);
+  }
   return salida;
+}
+
+const PUNTOS_BASE = 10_000n;
+const CENTAVOS_POR_PESO = 100;
+/** Cuatro decimales: es la escala de `numeric(14,4)` en `recetas.cantidad`. */
+const ESCALA_CANTIDAD = 10_000n;
+
+/**
+ * Las fórmulas de los campos calculados.
+ *
+ * Se hacen sobre la fila CRUDA y en enteros, no sobre la fila ya traducida a
+ * pesos: `8.1 * 1.05` en coma flotante no da lo mismo que `810 * 10500 / 10000`
+ * redondeado una vez, y el que sale mal es el que acaba en un ticket.
+ *
+ * Es la misma aritmética que `recalcularCostosRecetas`
+ * (`inventario/recetas.ts:131`), a propósito: si las dos difirieran, el costo
+ * que enseña Productos y el que guarda el producto dirían cosas distintas.
+ */
+/**
+ * Una tabla y no un `switch`: el tipo `Record<Calculo, …>` obliga a que toda
+ * fórmula nueva tenga implementación para compilar, sin ramas muertas que el
+ * analizador tenga que perdonar.
+ */
+const FORMULAS: Readonly<Record<Calculo, (fila: Fila) => unknown>> = {
+  costoDeLineaDeReceta(fila) {
+    const centavos = enteroDe(fila['costo_unitario_base_snapshot']);
+    const cantidad = escalarDe(fila['cantidad_convertida_unidad_base']);
+    const mermaBp = enteroDe(fila['merma_porcentaje']) ?? 0n;
+    if (centavos === null || cantidad === null) return null;
+
+    const bruto = centavos * cantidad * (PUNTOS_BASE + mermaBp);
+    const divisor = ESCALA_CANTIDAD * PUNTOS_BASE;
+    // Redondeo al centavo más cercano, UNA sola vez y al final.
+    const redondeado = (bruto + divisor / 2n) / divisor;
+    return Number(redondeado) / CENTAVOS_POR_PESO;
+  },
+};
+
+export function calcular(formula: Calculo, fila: Fila): unknown {
+  return FORMULAS[formula](fila);
+}
+
+/**
+ * El valor tal como llega de Postgres, como texto.
+ *
+ * `String(valor)` sobre un objeto da `[object Object]`, y aquí eso se
+ * convertiría en un `null` silencioso en vez de en un fallo visible. Un tipo que
+ * no sea número, texto o `bigint` no es un número de la base: se descarta.
+ */
+function textoDeNumero(valor: unknown): string | null {
+  if (typeof valor === 'string') return valor;
+  if (typeof valor === 'number' || typeof valor === 'bigint') return valor.toString();
+  return null;
+}
+
+/** Un entero de la base —`bigint`, `number` o cadena— o `null`. */
+function enteroDe(valor: unknown): bigint | null {
+  if (typeof valor === 'bigint') return valor;
+  const texto = textoDeNumero(valor);
+  if (texto === null) return null;
+  const limpio = texto.split('.')[0] ?? '';
+  return /^-?\d+$/.test(limpio) ? BigInt(limpio) : null;
+}
+
+/** Un `numeric(14,4)` como entero escalado por 10 000, sin pasar por `Number`. */
+function escalarDe(valor: unknown): bigint | null {
+  const texto = textoDeNumero(valor);
+  if (texto === null) return null;
+  const coincide = /^(-?)(\d+)(?:\.(\d{0,4}))?$/.exec(texto);
+  if (coincide === null) return null;
+  const signo = coincide[1] === '-' ? -1n : 1n;
+  const entera = BigInt(coincide[2] ?? '0');
+  const decimales = (coincide[3] ?? '').padEnd(4, '0');
+  return signo * (entera * ESCALA_CANTIDAD + BigInt(decimales));
 }

@@ -92,6 +92,20 @@ export interface CampoDerivado {
   readonly respaldo?: 'colorDePersona';
 }
 
+/**
+ * Un campo que no está en ninguna tabla: se calcula al leer.
+ *
+ * Igual que `respaldo`, es un conjunto CERRADO de nombres y no una función. La
+ * fórmula vive en `consultar.ts`, junto a la aritmética que la hace exacta, y
+ * el mapa sólo dice cuál se aplica. Una función aquí volvería el mapa código.
+ */
+export type Calculo = 'costoDeLineaDeReceta';
+
+export interface CampoCalculado {
+  readonly formula: Calculo;
+  readonly conversion: Conversion;
+}
+
 export type PoliticaDeEscritura =
   /** Escrituras simples de catálogo: pasan por un comando delgado. */
   | 'directa'
@@ -117,6 +131,8 @@ export interface MapaEntidad {
    * error, no un campo que se ignora en silencio.
    */
   readonly derivados?: Readonly<Record<string, CampoDerivado>>;
+  /** Campos que no existen en ninguna tabla: se calculan al leer. */
+  readonly calculados?: Readonly<Record<string, CampoCalculado>>;
   readonly escritura: PoliticaDeEscritura;
   /**
    * Filtro que SIEMPRE se aplica, además del ámbito. Sirve para las tablas que
