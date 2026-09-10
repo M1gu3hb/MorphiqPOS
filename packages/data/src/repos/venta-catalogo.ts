@@ -182,3 +182,67 @@ export async function productoPorCodigo(
 
   return fila ?? null;
 }
+
+export interface IngredienteDeReceta {
+  readonly insumoId: string;
+  readonly cantidad: string;
+  readonly unidad: string;
+  readonly unidadBase: string;
+  readonly mermaBp: number;
+}
+
+/**
+ * Las lineas de receta de varios productos, en UNA consulta.
+ *
+ * En una consulta y no en un bucle porque esto corre DENTRO de la transaccion
+ * del cobro: una mesa de ocho con doce platos serian doce viajes con la
+ * transaccion abierta, y cada uno mantiene el bloqueo de las existencias un
+ * poco mas. Es la regla de `12A` sobre el N+1, y aqui el coste no es latencia
+ * sino contencion.
+ *
+ * Solo las lineas ACTIVAS: una receta desactivada es una que dejo de usarse, y
+ * seguir descontando por ella dejaria el inventario en negativo sin causa
+ * visible en ninguna pantalla.
+ */
+export async function recetasDeProductos(
+  db: Kysely<Esquema> | Transaccion,
+  organizacionId: string,
+  productoIds: readonly string[],
+): Promise<Map<string, IngredienteDeReceta[]>> {
+  const mapa = new Map<string, IngredienteDeReceta[]>();
+  if (productoIds.length === 0) return mapa;
+
+  const filas = await db
+    .selectFrom('recetas')
+    .innerJoin('insumos', (union) =>
+      union
+        .onRef('insumos.id', '=', 'recetas.insumo_id')
+        .onRef('insumos.organizacion_id', '=', 'recetas.organizacion_id'),
+    )
+    .select([
+      'recetas.producto_id as productoId',
+      'recetas.insumo_id as insumoId',
+      'recetas.cantidad as cantidad',
+      'recetas.unidad as unidad',
+      'recetas.merma_bp as mermaBp',
+      'insumos.unidad_base as unidadBase',
+    ])
+    .where('recetas.organizacion_id', '=', organizacionId)
+    .where('recetas.producto_id', 'in', [...productoIds])
+    .where('recetas.activa', '=', true)
+    .where('insumos.activo', '=', true)
+    .execute();
+
+  for (const fila of filas) {
+    const lista = mapa.get(fila.productoId) ?? [];
+    lista.push({
+      insumoId: fila.insumoId,
+      cantidad: fila.cantidad,
+      unidad: fila.unidad,
+      unidadBase: fila.unidadBase,
+      mermaBp: fila.mermaBp,
+    });
+    mapa.set(fila.productoId, lista);
+  }
+  return mapa;
+}

@@ -3,6 +3,12 @@ import type { Paquete } from '@morphiqpos/contracts';
 export interface ProductoDemo {
   readonly nombre: string;
   readonly categoria: string;
+  /**
+   * A donde va la comanda. Sin esto la cocina no recibe NADA: `areasDe`
+   * devuelve una lista vacia, no se crea ninguna comanda, y la mesa anuncia
+   * «pedido enviado» sin una sola fila en `comandas`.
+   */
+  readonly area?: 'cocina' | 'barra' | 'ambos' | 'ninguno';
   readonly sku: string;
   readonly codigoBarras?: string;
   readonly precioCentavos: bigint;
@@ -21,6 +27,7 @@ export interface InsumoDemo {
 export interface ProductoRecetaDemo {
   readonly nombre: string;
   readonly categoria: string;
+  readonly area?: 'cocina' | 'barra' | 'ambos' | 'ninguno';
   readonly precioCentavos: bigint;
   readonly ingredientes: readonly { readonly clave: string; readonly cantidad: string }[];
 }
@@ -215,6 +222,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Agua embotellada 600 ml',
       categoria: 'Bebidas',
+      area: 'barra',
       sku: 'BEB-001',
       codigoBarras: '7501055300012',
       precioCentavos: 2500n,
@@ -224,6 +232,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Refresco de cola 355 ml',
       categoria: 'Bebidas',
+      area: 'barra',
       sku: 'BEB-002',
       codigoBarras: '7501055363513',
       precioCentavos: 3500n,
@@ -233,6 +242,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Cerveza clara 355 ml',
       categoria: 'Cervezas',
+      area: 'barra',
       sku: 'CER-001',
       codigoBarras: '7501064191114',
       precioCentavos: 5500n,
@@ -242,6 +252,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Cerveza oscura 355 ml',
       categoria: 'Cervezas',
+      area: 'barra',
       sku: 'CER-002',
       codigoBarras: '7501064191121',
       precioCentavos: 6000n,
@@ -273,6 +284,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Guacamole con totopos',
       categoria: 'Entradas',
+      area: 'cocina',
       precioCentavos: 12500n,
       ingredientes: [
         { clave: 'aguacate', cantidad: '180' },
@@ -285,6 +297,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Queso fundido',
       categoria: 'Entradas',
+      area: 'cocina',
       precioCentavos: 14500n,
       ingredientes: [
         { clave: 'queso', cantidad: '220' },
@@ -294,6 +307,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Arrachera al carbón',
       categoria: 'Platos fuertes',
+      area: 'cocina',
       precioCentavos: 32900n,
       ingredientes: [
         { clave: 'arrachera', cantidad: '280' },
@@ -305,6 +319,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Pollo a la plancha',
       categoria: 'Platos fuertes',
+      area: 'cocina',
       precioCentavos: 21500n,
       ingredientes: [
         { clave: 'pollo', cantidad: '260' },
@@ -315,6 +330,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Enchiladas de pollo',
       categoria: 'Platos fuertes',
+      area: 'cocina',
       precioCentavos: 18900n,
       ingredientes: [
         { clave: 'pollo', cantidad: '150' },
@@ -327,6 +343,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Orden de tacos al pastor',
       categoria: 'Tacos',
+      area: 'cocina',
       precioCentavos: 11900n,
       ingredientes: [
         { clave: 'pastor', cantidad: '180' },
@@ -338,6 +355,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Orden de tacos de arrachera',
       categoria: 'Tacos',
+      area: 'cocina',
       precioCentavos: 16500n,
       ingredientes: [
         { clave: 'arrachera', cantidad: '160' },
@@ -348,6 +366,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Agua de jamaica 1 L',
       categoria: 'Bebidas',
+      area: 'barra',
       precioCentavos: 7500n,
       ingredientes: [
         { clave: 'jamaica', cantidad: '30' },
@@ -357,6 +376,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Churros con chocolate',
       categoria: 'Postres',
+      area: 'cocina',
       precioCentavos: 9900n,
       ingredientes: [
         { clave: 'harina', cantidad: '120' },
@@ -368,6 +388,7 @@ const RESTAURANTE: SemillaDemo = {
     {
       nombre: 'Flan de la casa',
       categoria: 'Postres',
+      area: 'cocina',
       precioCentavos: 8500n,
       ingredientes: [
         { clave: 'huevo', cantidad: '2' },

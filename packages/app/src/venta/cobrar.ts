@@ -237,10 +237,24 @@ export const cobrarOrden = definirComando<
 /**
  * Traduce las líneas de la orden al contrato de consumo del carril B.
  *
- * Sólo entran los productos con estrategia `sku`: recetas llegan en F1.3, y un
- * servicio no descuenta nada. Lo que no se puede traducir se omite en vez de
- * inventarle un insumo — descontar del almacén equivocado es peor que no
- * descontar.
+ * ── Por qué las RECETAS entran aquí y no «en F1.3» ─────────────────────────
+ * Este código decía «recetas llegan en F1.3» y sólo traducía `sku`. En una
+ * tiendita eso basta: un producto es un artículo del almacén. En un restaurante
+ * NO: vender una arrachera tiene que descontar 280 g de arrachera, 150 g de
+ * frijol, 150 g de arroz y 4 tortillas, y con sólo `sku` no se descontaba nada.
+ * El inventario no se movía, y la pantalla de Inventario era decoración.
+ *
+ * Lo comprobé cobrando una mesa de verdad: la cerveza —que sí es `sku`— bajó
+ * dos; la arrachera y el guacamole no movieron un gramo.
+ *
+ * El dominio ya sabía hacerlo (`calcularConsumo` admite `receta` desde F1.2 y
+ * tiene sus pruebas): lo que faltaba era leer las líneas de receta y pasárselas.
+ *
+ * ── Lo que se omite, y por qué omitir es lo correcto ───────────────────────
+ * Un producto sin insumo ni receta —un servicio, una propina de barra— no
+ * descuenta nada. Lo que no se puede traducir se OMITE en vez de inventarle un
+ * insumo: descontar del almacén equivocado es peor que no descontar, porque el
+ * error se propaga a todos los costos y nadie lo ve.
  */
 async function planearConsumo(
   tx: Transaccion,
@@ -254,6 +268,14 @@ async function planearConsumo(
   const lineas = await repoOrdenes.lineasDeOrden(tx, organizacionId, ordenId);
   const paraConsumo: LineaParaConsumo[] = [];
 
+  // Las dos lecturas de catálogo se hacen ANTES del bucle y en una consulta
+  // cada una: esto corre dentro de la transacción del cobro, y cada viaje de
+  // más mantiene el bloqueo de las existencias abierto un poco más.
+  const productoIds = [
+    ...new Set(lineas.map((l) => l.productoId).filter((id): id is string => id !== null)),
+  ];
+  const recetas = await repoVentaCatalogo.recetasDeProductos(tx, organizacionId, productoIds);
+
   for (const linea of lineas) {
     if (linea.productoId === null) continue;
     const producto = await repoVentaCatalogo.productoParaVender(
@@ -262,21 +284,49 @@ async function planearConsumo(
       linea.productoId,
     );
     if (producto === null) continue;
-    if (producto.estrategiaConsumo !== 'sku') continue;
-    if (producto.insumoId === null || producto.unidadBaseInsumo === null) continue;
 
-    paraConsumo.push({
+    const comun = {
       organizacionId,
       almacenId,
       ordenId,
       lineaId: linea.id,
       cantidad: linea.cantidad,
       permiteVentaSinStock: producto.permiteVentaSinStock,
-      estrategiaConsumo: 'sku',
-      insumoId: producto.insumoId,
-      unidadVenta: linea.unidad,
-      unidadBase: producto.unidadBaseInsumo,
-    });
+    };
+
+    if (producto.estrategiaConsumo === 'sku') {
+      if (producto.insumoId === null || producto.unidadBaseInsumo === null) continue;
+      paraConsumo.push({
+        ...comun,
+        estrategiaConsumo: 'sku',
+        insumoId: producto.insumoId,
+        unidadVenta: linea.unidad,
+        unidadBase: producto.unidadBaseInsumo,
+      });
+      continue;
+    }
+
+    if (producto.estrategiaConsumo === 'receta') {
+      const ingredientes = recetas.get(linea.productoId) ?? [];
+      // Un producto marcado «receta» SIN líneas activas no descuenta nada. Es
+      // un estado legítimo —una receta recién vaciada— y no un error: la venta
+      // no se bloquea por eso.
+      if (ingredientes.length === 0) continue;
+      paraConsumo.push({
+        ...comun,
+        estrategiaConsumo: 'receta',
+        receta: ingredientes.map((i) => ({
+          insumoId: i.insumoId,
+          cantidad: i.cantidad,
+          unidad: i.unidad,
+          unidadBase: i.unidadBase,
+          // La base guarda la merma en PUNTOS BASE (500 = 5 %) y el dominio la
+          // espera en por ciento. Confundirlas sería descontar cien veces más.
+          mermaPorcentaje: (i.mermaBp / 100).toString(),
+        })),
+      });
+      continue;
+    }
   }
 
   return calcularConsumo(paraConsumo);

@@ -130,6 +130,16 @@ export interface CampoCalculado {
   readonly conversion: Conversion;
 }
 
+/** Un arreglo de filas hijas que se adjunta al padre tras leerlo. */
+export interface Hijos {
+  /** La entidad hija, tal como se llama en el mapa. */
+  readonly entidad: string;
+  /** El campo de la hija que apunta al padre. */
+  readonly porCampo: string;
+  /** Cuántas hijas como mucho por padre. Una comanda no tiene sesenta platos. */
+  readonly limite: number;
+}
+
 export type PoliticaDeEscritura =
   /** Escrituras simples de catálogo: pasan por un comando delgado. */
   | 'directa'
@@ -157,6 +167,20 @@ export interface MapaEntidad {
   readonly derivados?: Readonly<Record<string, CampoDerivado>>;
   /** Campos que no existen en ninguna tabla: se calculan al leer. */
   readonly calculados?: Readonly<Record<string, CampoCalculado>>;
+  /**
+   * Un arreglo de filas HIJAS que viaja dentro del padre.
+   *
+   * Su `PedidoPreparacion` lleva `items` como arreglo embebido y su pantalla de
+   * Cocina lo pinta directamente. Aquí esos items son filas de `comanda_items`
+   —porque cocina marca UN plato como listo sin tocar los demás, con dos
+   * pantallas abiertas (F1-04 §10.1)—, y sin esto la comanda llega a la cocina
+   * diciendo «0 items · Sin productos» con los tres platos en la base.
+   *
+   * NO es un `left join`: eso multiplicaría la fila del padre por cada hijo. Es
+   * UNA consulta más para todos los padres de la página, agrupada por el
+   * identificador del padre. Una consulta, no una por comanda.
+   */
+  readonly hijos?: Readonly<Record<string, Hijos>>;
   readonly escritura: PoliticaDeEscritura;
   /**
    * Filtro que SIEMPRE se aplica, además del ámbito. Sirve para las tablas que

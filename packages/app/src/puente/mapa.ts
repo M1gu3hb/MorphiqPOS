@@ -838,6 +838,18 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'entero',
       },
     },
+    hijos: {
+      /**
+       * Su pantalla de Cocina pinta `pedido.items` directamente. Sin esto la
+       * comanda le llega diciendo «0 items · Sin productos» con los tres platos
+       * en la base — comprobado abriendo la pantalla.
+       *
+       * Sesenta es el tope de líneas de un pedido; una comanda de una estación
+       * nunca las tiene todas, pero el tope va donde está el dato y no donde
+       * uno cree que estará.
+       */
+      items: { entidad: 'PedidoPreparacionItem', porCampo: 'pedido_id', limite: 60 },
+    },
   },
 
   /**

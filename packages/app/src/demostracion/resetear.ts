@@ -77,6 +77,10 @@ export const resetearDemo = definirComando<
           costo_unitario_centavos: dato.costoCentavos,
           estrategia_consumo: 'sku',
           stock_minimo: '2',
+          // Sin area de preparacion la cocina no recibe NADA: no se crea
+          // ninguna comanda y la mesa anuncia «pedido enviado» con la pantalla
+          // de Cocina vacia. Una botella va a la barra, un plato a la cocina.
+          area_preparacion: dato.area ?? 'ninguno',
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -139,6 +143,7 @@ export const resetearDemo = definirComando<
           precio_venta_centavos: dato.precioCentavos,
           estrategia_consumo: 'receta',
           permite_venta_sin_stock: false,
+          area_preparacion: dato.area ?? 'ninguno',
         })
         .returning('id')
         .executeTakeFirstOrThrow();

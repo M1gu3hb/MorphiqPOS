@@ -113,6 +113,35 @@ describe('la forma del mapa', () => {
     }
   });
 
+  /**
+   * `PedidoPreparacion.items` es un arreglo embebido en su esquema y filas de
+   * `comanda_items` aquí. Sin la relación de hijos, la comanda llega a la
+   * cocina diciendo «0 items · Sin productos» con los tres platos en la base
+   * —comprobado abriendo la pantalla—, y nadie ve un error: sólo una comanda
+   * vacía que el cocinero no sabe preparar.
+   */
+  it('la comanda lleva sus items dentro, como su pantalla los espera', () => {
+    const hijos = MAPA['PedidoPreparacion']?.hijos?.['items'];
+    expect(hijos, 'la comanda no lleva items').toBeDefined();
+    expect(hijos?.entidad).toBe('PedidoPreparacionItem');
+    // El campo por el que se agrupan tiene que existir en la HIJA, o la
+    // consulta devolvería todo y se repartiría al azar.
+    expect(Object.keys(MAPA['PedidoPreparacionItem']?.campos ?? {})).toContain(hijos?.porCampo);
+  });
+
+  it('toda relación de hijos apunta a una entidad que existe y tiene tope', () => {
+    for (const [entidad, mapa] of Object.entries(MAPA)) {
+      for (const [campo, hijos] of Object.entries(mapa.hijos ?? {})) {
+        expect(entidadMapeada(hijos.entidad), `${entidad}.${campo}`).not.toBeNull();
+        // Sin tope, una comanda con mil items tumbaría la pantalla de cocina.
+        expect(hijos.limite, `${entidad}.${campo} sin tope`).toBeGreaterThan(0);
+        expect(hijos.limite).toBeLessThanOrEqual(LIMITE_MAXIMO);
+        // Y el nombre del arreglo no puede chocar con un campo real.
+        expect(mapa.campos[campo], `${entidad}.${campo} existe dos veces`).toBeUndefined();
+      }
+    }
+  });
+
   it('la caja abierta se lee con SU vocabulario, no con el de la base', () => {
     // `useCajaAbierta.js:43` busca `estado === 'abierto'` y `tipo_corte ===
     // 'cierre_diario'`. La base guarda `'abierta'` y no tiene `tipo_corte`.

@@ -62,6 +62,11 @@ export interface PeticionConsulta {
   readonly entidad: string;
   readonly operacion: 'list' | 'filter' | 'get';
   readonly filtro?: Readonly<Record<string, unknown>>;
+  /**
+   * Un `in` sobre un campo. NO viene del cliente: lo usa el puente para traer
+   * los hijos de todos los padres de una página en una sola consulta.
+   */
+  readonly filtroEn?: { readonly campo: string; readonly valores: readonly string[] };
   readonly rango?: Rango;
   readonly id?: string;
   /** `'-created_date'` es descendente, igual que en su código. */
@@ -194,6 +199,21 @@ export async function consultar(
         : consulta.where(`${BASE}.${campo.columna}`, '=', valorHaciaLaBase(valor, campo));
   }
 
+  // 4a · El `in` de los hijos. Es interno del puente y por eso no pasa por la
+  //      validación del filtro de arriba, pero SÍ por la lista blanca de
+  //      campos: un campo que no esté en el mapa no llega a la consulta.
+  if (peticion.filtroEn !== undefined) {
+    const campo = mapa.campos[peticion.filtroEn.campo];
+    if (campo === undefined) {
+      throw new ErrorDominio(
+        'PUENTE_CAMPO_INVALIDO',
+        `«${peticion.filtroEn.campo}» no es un campo de ${peticion.entidad}.`,
+      );
+    }
+    if (peticion.filtroEn.valores.length === 0) return [];
+    consulta = consulta.where(`${BASE}.${campo.columna}`, 'in', [...peticion.filtroEn.valores]);
+  }
+
   // 4b · El rango, si lo hay. Sólo sobre campos de fecha o de día: pedir un
   //      rango sobre un texto o un booleano no significa nada y se rechaza en
   //      vez de devolver algo que parezca una respuesta.
@@ -252,7 +272,50 @@ export async function consultar(
   consulta = consulta.limit(peticion.operacion === 'get' ? 1 : limite);
 
   const filas = await consulta.execute();
-  return filas.map((fila) => traducirFila(fila, mapa));
+  const traducidas = filas.map((fila) => traducirFila(fila, mapa));
+
+  // 7 · Los hijos. UNA consulta por relación para TODA la página, no una por
+  //     padre: dentro de una pantalla de cocina que refresca cada pocos
+  //     segundos, un N+1 aquí se nota.
+  await adjuntarHijos(ambito, mapa, traducidas);
+  return traducidas;
+}
+
+/**
+ * Adjunta los arreglos de filas hijas a cada padre.
+ *
+ * Se reusa `consultar` con un filtro `in` implícito —una llamada por relación
+ * con el conjunto de identificadores de los padres—, así que los hijos pasan
+ * por las MISMAS garantías que cualquier otra lectura: ámbito de sesión, lista
+ * blanca de campos y tope de filas. Un camino aparte que las esquivara sería la
+ * puerta de atrás del puente.
+ */
+async function adjuntarHijos(
+  ambito: Ambito,
+  mapa: MapaEntidad,
+  padres: Fila[],
+): Promise<void> {
+  const relaciones = Object.entries(mapa.hijos ?? {});
+  if (relaciones.length === 0 || padres.length === 0) return;
+
+  const ids = padres.map((p) => String(p['id'])).filter((id) => id !== '');
+  for (const [campo, relacion] of relaciones) {
+    // Se piden todos los hijos de todos los padres de la página de una vez.
+    const todos = await consultar(ambito, {
+      entidad: relacion.entidad,
+      operacion: 'filter',
+      filtroEn: { campo: relacion.porCampo, valores: ids },
+      limite: Math.min(relacion.limite * padres.length, LIMITE_MAXIMO),
+    });
+    const porPadre = new Map<string, Fila[]>();
+    for (const hijo of todos) {
+      const clave = String(hijo[relacion.porCampo]);
+      const lista = porPadre.get(clave) ?? [];
+      if (lista.length < relacion.limite) lista.push(hijo);
+      porPadre.set(clave, lista);
+    }
+    for (const padre of padres) padre[campo] = porPadre.get(String(padre['id'])) ?? [];
+  }
 }
 
 function traducirFila(fila: Fila, mapa: MapaEntidad): Fila {
