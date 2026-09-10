@@ -9,6 +9,7 @@ import { definirComando, type ContextoComando } from '../definicion.ts';
 import { recalcularCostosRecetas } from '../inventario/recetas.ts';
 import { entradaRegistrarCompra, entradaUsarPlantillaCompra } from './esquemas.ts';
 import type { LineaDeCompra } from './esquemas.ts';
+import { exigirUnidadesBaseDelGiro } from './insumos.ts';
 import { escribirLinea, resolverProveedor, type CabeceraDeCompra } from './linea.ts';
 import { lineasDePlantilla, marcarPlantillaUsada } from './plantillas.ts';
 
@@ -104,6 +105,12 @@ async function escribirCompra(
     );
   }
 
+  // Antes de escribir NADA: si la tercera línea crea un insumo en `kg` y la
+  // organización es un restaurante, el trigger de la 046 la va a rechazar. Que
+  // lo diga aquí, con la regla en la mano, y no un `check_violation` crudo
+  // después de haber insertado cabecera y dos líneas.
+  await exigirUnidadesBaseDelGiro(ctx.tx, organizacionId, lineas);
+
   const almacenId = await repoVentaCatalogo.almacenPrincipal(ctx.tx, organizacionId, sucursalId);
   if (almacenId === null) {
     throw new ErrorDominio(
@@ -140,16 +147,21 @@ async function escribirCompra(
   // Cada línea es su propio paso NUMERADO: es lo que permite a la prueba de
   // inyección interrumpir `registrar_linea_3` —el escenario exacto de D-12— y
   // comprobar que no queda ni la cabecera.
+  const insumosTocados: string[] = [];
   for (const [indice, linea] of lineas.entries()) {
-    await ctx.paso(`registrar_linea_${indice + 1}`, () =>
-      escribirLinea(ctx, { almacenId, compraId: compra.id, linea }),
+    insumosTocados.push(
+      await ctx.paso(`registrar_linea_${indice + 1}`, () =>
+        escribirLinea(ctx, { almacenId, compraId: compra.id, linea }),
+      ),
     );
   }
 
   // El costo de los insumos acaba de moverse: los productos que los usan tienen
   // el margen obsoleto hasta que se recalculan. Es D-09, y no recalcular aquí
-  // lo deja exactamente igual de roto que hoy.
-  await ctx.paso('recalcular_costos', () => recalcularCostosRecetas(ctx.tx, organizacionId));
+  // lo deja exactamente igual de roto que hoy. Sólo los que los usan.
+  await ctx.paso('recalcular_costos', () =>
+    recalcularCostosDeLosInsumos(ctx.tx, organizacionId, insumosTocados),
+  );
 
   if (plantillaId !== null) {
     await ctx.paso('marcar_plantilla_usada', () =>
@@ -168,4 +180,60 @@ async function escribirCompra(
   });
 
   return { compraId: compra.id, totalCentavos: total.toString(), lineas: lineas.length };
+}
+
+/**
+ * Ids sin repetir y en un orden que no depende del planificador.
+ *
+ * El orden es la mitad importante: dos compras simultáneas que acaben tocando
+ * filas comunes de `productos` las toman en la MISMA secuencia, así que una
+ * espera a la otra en vez de cruzarse. Si cada transacción las tomara en el
+ * orden que le diera el plan de la consulta, Postgres cortaría una con un
+ * deadlock y el usuario perdería la captura entera de su compra con un error
+ * interno que no explica nada.
+ *
+ * Se exporta por lo mismo que `totalDeLineas`: es una regla, y una regla que
+ * sólo se puede mirar desde dentro de un comando que necesita Postgres es una
+ * regla sin prueba. No sale al índice del módulo: la usa su prueba y nadie más.
+ */
+export function ordenDeBloqueo(ids: readonly string[]): readonly string[] {
+  return [...new Set(ids)].sort();
+}
+
+/**
+ * Recalcula el costo de los productos que usan los insumos que ESTA compra movió.
+ *
+ * Antes se recalculaba la organización entera en cada compra: dos gerentes
+ * registrando a la vez compras de insumos distintos reescribían las mismas
+ * filas de `productos` y se bloqueaban mutuamente durante toda la transacción,
+ * con `for update` sobre `insumos` ya tomado. El comando hermano de recetas
+ * (`inventario/recetas.ts`) ya pasa `productoId` por esta razón.
+ *
+ * Se recalcula producto por producto reutilizando `recalcularCostosRecetas`, en
+ * vez de repetir aquí su fórmula: el costeo copiado en tres sitios es el defecto
+ * D-13 y no se va a introducir un cuarto. Acotar el recálculo a un solo
+ * enunciado exigiría que esa función aceptara una lista de productos, y vive en
+ * otro módulo.
+ */
+async function recalcularCostosDeLosInsumos(
+  tx: Transaccion,
+  organizacionId: string,
+  insumoIds: readonly string[],
+): Promise<number> {
+  const insumos = ordenDeBloqueo(insumoIds);
+  if (insumos.length === 0) return 0;
+
+  const filas = await tx
+    .selectFrom('recetas')
+    .select('producto_id')
+    .distinct()
+    .where('organizacion_id', '=', organizacionId)
+    .where('insumo_id', 'in', insumos)
+    .execute();
+
+  let recalculados = 0;
+  for (const productoId of ordenDeBloqueo(filas.map((fila) => fila.producto_id))) {
+    recalculados += await recalcularCostosRecetas(tx, organizacionId, productoId);
+  }
+  return recalculados;
 }

@@ -146,7 +146,14 @@ export const liberarMesa = definirComando<
       );
 
       if (!(ORDEN_YA_CERRADA as readonly string[]).includes(orden.estado)) {
-        const consumida = await tieneLineas(ctx.tx, organizacionId, ordenActivaId);
+        // Va envuelta en `ctx.paso` porque es la LECTURA QUE DECIDE: de ella
+        // sale MESA_NO_LIBERABLE o la cancelación de la orden vacía. Sin nombre
+        // de paso, el arnés de inyección de fallos no la puede interrumpir, y
+        // como los pasos se identifican por nombre y no por índice el hueco no
+        // se nota (`definicion.ts:45-52`).
+        const consumida = await ctx.paso('mirar_consumo', () =>
+          tieneLineas(ctx.tx, organizacionId, ordenActivaId),
+        );
 
         // La regla que no se negocia: liberar con la venta sin cobrar FALLA.
         // Limpiar la mesa aquí sería borrar de la vista una cuenta que el

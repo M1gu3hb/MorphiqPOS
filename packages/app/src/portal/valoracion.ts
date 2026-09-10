@@ -3,6 +3,8 @@ import 'server-only';
 import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
 
 import { definirComandoPublico, type ContextoPortal } from './definicion-publica.ts';
+import { guardarValoracionDelPortal } from './escrituras.ts';
+import { ORDEN_VALORABLE } from './estados.ts';
 import { entradaValorar } from './esquemas.ts';
 
 /**
@@ -41,14 +43,6 @@ const EMOJIS: Readonly<Record<number, string>> = {
 const VENTANA_HORAS = 6;
 const MILISEGUNDOS_POR_HORA = 3_600_000;
 
-const ESTADOS_VALORABLES = [
-  'confirmada',
-  'en_preparacion',
-  'lista',
-  'cuenta_solicitada',
-  'pagada',
-] as const;
-
 export const valorarVisita = definirComandoPublico<typeof entradaValorar, ResultadoValoracion>({
   nombre: 'portal.valorar',
   entidad: 'orden',
@@ -65,22 +59,26 @@ export const valorarVisita = definirComandoPublico<typeof entradaValorar, Result
       return { ventaId: orden.id, score: orden.satisfaccion_score, yaValorada: true };
     }
 
-    await ctx.paso('guardar_valoracion', () =>
-      ctx.tx
-        .updateTable('ordenes')
-        .set({
-          satisfaccion_score: entrada.score,
-          satisfaccion_emoji: EMOJIS[entrada.score] ?? null,
-          satisfaccion_comentario: entrada.comentario === '' ? null : entrada.comentario,
-          // El `check orden_satisfaccion_completa` exige que la fecha y la
-          // calificación existan o falten a la vez.
-          satisfaccion_en: ctx.ahora,
-          updated_at: ctx.ahora,
-        })
-        .where('organizacion_id', '=', ctx.ambito.organizacionId)
-        .where('id', '=', orden.id)
-        .execute(),
+    const guardada = await ctx.paso('guardar_valoracion', () =>
+      guardarValoracionDelPortal(ctx.tx, {
+        organizacionId: ctx.ambito.organizacionId,
+        ordenId: orden.id,
+        score: entrada.score,
+        emoji: EMOJIS[entrada.score] ?? null,
+        comentario: entrada.comentario === '' ? null : entrada.comentario,
+        ahora: ctx.ahora,
+      }),
     );
+
+    // Cero filas aquí significa que otro teléfono de la misma mesa valoró en el
+    // hueco entre la lectura y la escritura. Se devuelve LA QUE QUEDÓ, no la
+    // que este comensal mandó: antes ganaba el último y la respuesta que el
+    // primero ya había visto dejaba de ser cierta en la base (hallazgo 5).
+    if (!guardada) {
+      const score = await ctx.paso('releer_valoracion', () => scoreDeLaVenta(ctx, orden.id));
+      ctx.auditar({ entidadId: orden.id, payload: { yaValorada: true, carrera: true } });
+      return { ventaId: orden.id, score, yaValorada: true };
+    }
 
     ctx.auditar({
       entidadId: orden.id,
@@ -104,7 +102,7 @@ async function ventaValorable(ctx: ContextoPortal): Promise<VentaValorable> {
     .select(['id', 'satisfaccion_score'])
     .where('organizacion_id', '=', ctx.ambito.organizacionId)
     .where('mesa_id', '=', ctx.ambito.mesaId)
-    .where('estado', 'in', ESTADOS_VALORABLES)
+    .where('estado', 'in', ORDEN_VALORABLE)
     .where('created_at', '>=', desde)
     .orderBy('created_at', 'desc')
     .executeTakeFirst();
@@ -116,4 +114,24 @@ async function ventaValorable(ctx: ContextoPortal): Promise<VentaValorable> {
     );
   }
   return orden;
+}
+
+/** La calificación que quedó escrita, para responder con ella tras una carrera. */
+async function scoreDeLaVenta(ctx: ContextoPortal, ordenId: string): Promise<number> {
+  const fila = await ctx.tx
+    .selectFrom('ordenes')
+    .select('satisfaccion_score')
+    .where('organizacion_id', '=', ctx.ambito.organizacionId)
+    .where('id', '=', ordenId)
+    .executeTakeFirst();
+
+  if (fila?.satisfaccion_score == null) {
+    // Ni se escribió ni había una previa: la fila cambió de estado bajo los
+    // pies. Se falla en vez de inventar un número que nadie dejó.
+    throw new ErrorDominio(
+      'ORDEN_NO_ENCONTRADA',
+      'Esa visita cambió mientras la valorabas. Actualiza la pantalla.',
+    );
+  }
+  return fila.satisfaccion_score;
 }

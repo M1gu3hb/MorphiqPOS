@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio } from '@morphiqpos/contracts';
-import type { Transaccion, repoVentaCatalogo } from '@morphiqpos/data';
+import type { Transaccion } from '@morphiqpos/data';
 
 import type { EstacionCandidata } from './estaciones.ts';
 import { ESTADOS_COMANDA_ACTIVOS, type EstadoComanda, type EstadoMesa } from './transiciones.ts';
@@ -91,6 +91,14 @@ export interface OrdenDeMesa {
   readonly tipoCelebracion: string | null;
 }
 
+/**
+ * Los dos canales por los que nace una cuenta de MESA (F1-04 §6.5): `mesa`, que
+ * abre el mesero (`mesas-escrituras.ts`), y `qr`, que abre el comensal desde su
+ * teléfono (`portal/mesa.ts`). Las dos escriben `mesa_id`. Lo demás
+ * —`mostrador`, `escaner`, `cita`, `tienda_en_linea`— es otro flujo.
+ */
+const ESTRATEGIAS_DE_SALA = ['mesa', 'qr'] as const;
+
 export async function ordenDeMesa(
   tx: Transaccion,
   organizacionId: string,
@@ -118,6 +126,33 @@ export async function ordenDeMesa(
   if (fila === undefined) {
     throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Esa cuenta ya no existe.');
   }
+
+  // ACOTAR AL FLUJO DE RESTAURANTE. Sin esta guarda el cargador devolvía
+  // CUALQUIER orden de la organización, y bastaba teclear el id del carrito de
+  // MOSTRADOR en /api/restaurante/solicitar-cuenta para sacarlo de 'borrador',
+  // pisarle subtotal, total, costo, utilidad y margen, y estamparle un
+  // `codigo_caja` «M00-####» de una mesa que no existe. Esa venta quedaba
+  // después sin poder cobrarse, editarse ni cancelarse.
+  //
+  // Se comprueban los DOS ejes: `estrategia_captura` dice por dónde entró y
+  // `mesa_id` a qué mesa pertenece. Se escriben aparte, así que exigir sólo uno
+  // deja el otro sin cubrir.
+  //
+  // Mismo código que «no existe», a propósito: para un cargador que se llama
+  // `ordenDeMesa`, una venta que no es de mesa NO existe. `contracts` no tiene
+  // hoy un código para «orden de otro flujo» y ese paquete no se toca aquí
+  // (queda en el informe); el mensaje sí dice dónde buscarla.
+  if (
+    fila.mesaId === null ||
+    !(ESTRATEGIAS_DE_SALA as readonly string[]).includes(fila.estrategiaCaptura)
+  ) {
+    throw new ErrorDominio(
+      'ORDEN_NO_ENCONTRADA',
+      'Esa venta no es la cuenta de una mesa: se capturó por otro camino. Búscala en Caja.',
+      { estrategiaCaptura: fila.estrategiaCaptura },
+    );
+  }
+
   return fila;
 }
 
@@ -137,87 +172,6 @@ export async function estacionesActivas(
   return filas;
 }
 
-/**
- * El producto con todo lo que la comanda necesita, en UNA consulta.
- *
- * Extiende el contrato de precio del carril A —para poder pasárselo tal cual a
- * `valorarLinea` y que el precio lo calcule el mismo código que en mostrador—
- * y le añade lo que el restaurante necesita: el área, la estación heredada de
- * la categoría y el insumo base con su nombre para la instantánea del ticket.
- *
- * Una sola consulta con `in` y no una por línea: pedir producto por producto es
- * el N+1 que `morphiq-prs §12A` marca como bloqueante, y una comanda de doce
- * platos son doce viajes dentro de la transacción del pedido.
- */
-export interface ProductoDeComanda extends repoVentaCatalogo.ProductoParaVender {
-  readonly areaPreparacion: string;
-  readonly estacionDeCategoriaId: string | null;
-  readonly nombrePorcion: string | null;
-  readonly insumoBaseId: string | null;
-  readonly insumoBaseNombre: string | null;
-}
-
-export async function productosDeComanda(
-  tx: Transaccion,
-  organizacionId: string,
-  productoIds: readonly string[],
-): Promise<ReadonlyMap<string, ProductoDeComanda>> {
-  if (productoIds.length === 0) return new Map();
-
-  const filas = await tx
-    .selectFrom('productos as p')
-    .leftJoin('categorias as c', (join) =>
-      join
-        .onRef('c.id', '=', 'p.categoria_id')
-        .onRef('c.organizacion_id', '=', 'p.organizacion_id'),
-    )
-    // El insumo que ESTE producto es (`insumos.producto_id`), igual que
-    // `repoVentaCatalogo.productoParaVender`: un servicio no tiene y se vende igual.
-    .leftJoin('insumos as i', (join) =>
-      join.onRef('i.producto_id', '=', 'p.id').onRef('i.organizacion_id', '=', 'p.organizacion_id'),
-    )
-    .leftJoin('insumos as ib', (join) =>
-      join
-        .onRef('ib.id', '=', 'p.insumo_base_id')
-        .onRef('ib.organizacion_id', '=', 'p.organizacion_id'),
-    )
-    .select([
-      'p.id as id',
-      'p.nombre as nombre',
-      'p.sku as sku',
-      'p.codigo_barras as codigoBarras',
-      'p.tipo_venta as tipoVenta',
-      'p.unidad_venta as unidadVenta',
-      'p.precio_venta_centavos as precioVentaCentavos',
-      'p.costo_unitario_centavos as costoUnitarioCentavos',
-      'p.precio_mayoreo_centavos as precioMayoreoCentavos',
-      'p.cantidad_minima_mayoreo as cantidadMinimaMayoreo',
-      'p.unidad_variable as unidadVariable',
-      'p.precio_por_unidad_variable_centavos as precioPorUnidadVariableCentavos',
-      'p.cantidad_minima_variable as cantidadMinimaVariable',
-      'p.cantidad_maxima_variable as cantidadMaximaVariable',
-      'p.incremento_variable as incrementoVariable',
-      'p.capacidad_contenedor_ml as capacidadContenedorMl',
-      'p.ml_por_porcion as mlPorPorcion',
-      'p.porciones_por_contenedor as porcionesPorContenedor',
-      'p.precio_por_porcion_centavos as precioPorPorcionCentavos',
-      'p.nombre_porcion as nombrePorcion',
-      'p.estrategia_consumo as estrategiaConsumo',
-      'p.permite_venta_sin_stock as permiteVentaSinStock',
-      'p.area_preparacion as areaPreparacion',
-      'c.estacion_preparacion_id as estacionDeCategoriaId',
-      'p.insumo_base_id as insumoBaseId',
-      'ib.nombre as insumoBaseNombre',
-      'i.id as insumoId',
-      'i.unidad_base as unidadBaseInsumo',
-    ])
-    .where('p.organizacion_id', '=', organizacionId)
-    .where('p.id', 'in', [...productoIds])
-    .where('p.activo', '=', true)
-    .execute();
-
-  return new Map(filas.map((fila) => [fila.id, fila]));
-}
 
 /**
  * Cuántas comandas de la orden siguen vivas, sin contar las que se acaban de

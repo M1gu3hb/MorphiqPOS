@@ -51,12 +51,57 @@ export const ORIGENES_DE_PROPINA = [
  */
 const puntosBase = z.number().int().min(0).max(10_000);
 
+/**
+ * Tope absoluto de una propina, por renglón de pago: cien mil pesos.
+ *
+ * ── El defecto que cierra ──────────────────────────────────────────────────
+ * `propinaCentavos` era el único importe del cobro sin cota: `montoCentavos`
+ * queda atado porque `repartirPagos` exige que los montos sumen EXACTAMENTE el
+ * total (`venta/pagos.ts`), pero la propina no se contrasta con nada. Con
+ * `.max(Number.MAX_SAFE_INTEGER)` un cajero podía cobrar la venta correcta y
+ * colar `propinaCentavos: 9007199254740991`: el cobro se confirma, entra una
+ * fila de `pagos` con esa cifra y —por el movimiento `tipo='propina'` de
+ * `venta/cobrar.ts`— un `movimientos_caja` que hace que `arqueoDeSesion` pida
+ * noventa billones de pesos en el cajón. El corte de ese turno queda inservible
+ * y la cifra se arrastra a `liquidaciones_propina.total_centavos`.
+ *
+ * Cien mil pesos no es una cifra bonita: es lo bastante alta para que ninguna
+ * propina real la roce y lo bastante baja para que, si alguien se equivoca de
+ * dos ceros, el error quepa en un arqueo y se pueda corregir el mismo día.
+ */
+export const MAXIMO_PROPINA_CENTAVOS = 10_000_000;
+
+/**
+ * Cuántas veces el renglón de venta puede caber en su propina, y su piso.
+ *
+ * El tope absoluto solo no basta: en una cuenta de $80 una propina de $99 999
+ * sigue siendo absurda y sigue pasando. Pero la propina SÍ puede superar a la
+ * cuenta —dejar $50 sobre un café de $20 es normal—, así que la cota es
+ * relativa y generosa: diez veces el renglón, con un piso de mil pesos para que
+ * una cuenta pequeña no impida una propina grande de verdad.
+ */
+export const FACTOR_PROPINA_SOBRE_VENTA = 10;
+export const PISO_PROPINA_CENTAVOS = 100_000;
+
 const centavosNoNegativos = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
 /** Un renglón de pago que además lleva su propina, exacta para ese método. */
-export const entradaPagoConPropina = entradaPago.extend({
-  propinaCentavos: centavosNoNegativos.optional(),
-});
+export const entradaPagoConPropina = entradaPago
+  .extend({
+    propinaCentavos: centavosNoNegativos.max(MAXIMO_PROPINA_CENTAVOS).optional(),
+  })
+  .superRefine((pago, ctx) => {
+    const propina = pago.propinaCentavos ?? 0;
+    const tope = Math.max(pago.montoCentavos * FACTOR_PROPINA_SOBRE_VENTA, PISO_PROPINA_CENTAVOS);
+    if (propina <= tope) return;
+    ctx.addIssue({
+      code: 'custom',
+      path: ['propinaCentavos'],
+      message:
+        `La propina de este pago es desproporcionada respecto a lo que se cobra por ` +
+        `${pago.metodo}. Revisa el importe antes de cobrar.`,
+    });
+  });
 
 /**
  * El cobro, con la propina por método.
@@ -80,6 +125,15 @@ export const entradaCobrarOrdenConPropina = entradaCobrarOrden.extend({
  * liquidan exactamente esas y ninguna más: es lo que el administrador aprobó al
  * ver el total en pantalla. Cuando no viene, se liquida todo lo pendiente del
  * periodo. En los dos casos el importe lo suma el servidor.
+ *
+ * ── Por qué `.min(1)` ──────────────────────────────────────────────────────
+ * Sin él, `[]` validaba y el comando lo colapsaba en «sin filtro de ids», o sea
+ * liquidaba el periodo ENTERO. La administradora que desmarca todas las casillas
+ * para revisar antes de liquidar, o un cliente viejo que manda `ordenIds: []`,
+ * marcaba las tres mil órdenes del mes con un total que nadie aprobó y que no
+ * hay comando para revertir. Una lista vacía es una petición vacía: se rechaza
+ * con ENTRADA_INVALIDA. «Todo el periodo» se pide omitiendo el campo, que es una
+ * decisión explícita y distinta.
  */
 export const entradaLiquidarPropinas = z.object({
   rangoTipo: z.enum(RANGOS_DE_LIQUIDACION),
@@ -87,7 +141,7 @@ export const entradaLiquidarPropinas = z.object({
   hasta: z.string().min(4).max(40),
   /** Nulo o ausente = liquidación global de varios meseros (F1-04 §30). */
   meseroId: identificador.nullish(),
-  ordenIds: z.array(identificador).max(500).optional(),
+  ordenIds: z.array(identificador).min(1).max(500).optional(),
   notas: z.string().trim().max(500).optional(),
 });
 

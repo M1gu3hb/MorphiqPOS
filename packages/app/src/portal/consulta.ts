@@ -8,6 +8,7 @@ import { buscadorDeProduccion, resolverAmbitoPortal, type AmbitoPortal } from '.
 import { banderasDe } from './banderas.ts';
 import { permitirPortal } from './limite.ts';
 import { cuentaPublica, type CuentaPublica, type MesaPublica } from './cuenta-publica.ts';
+import { esUnoDe, ORDEN_ACTIVA, ORDEN_ADMITE_PEDIDO } from './estados.ts';
 import {
   categoriaDeMenu,
   negocioPublico,
@@ -42,18 +43,6 @@ export interface PayloadPortal {
   /** La venta viva de ESTA mesa, sólo para la precuenta. `null` si no hay. */
   readonly cuenta: CuentaPublica | null;
 }
-
-/** Los cinco de `ESTADOS_VENTA_ACTIVA` (qrPedidoFlow.js:20-25), traducidos. */
-const ESTADOS_ACTIVOS = [
-  'borrador',
-  'confirmada',
-  'en_preparacion',
-  'lista',
-  'cuenta_solicitada',
-] as const;
-
-/** Con la cuenta pedida o cerrada ya no se agregan productos. */
-const ESTADOS_SIN_AGREGAR: readonly string[] = ['cuenta_solicitada', 'pagada', 'cancelada'];
 
 /** Topes de `F1-04` §36.6. Nada de `list(10000)` ni siquiera aquí. */
 const TOPE_CATALOGO = 1000;
@@ -96,11 +85,16 @@ export async function payloadDelPortal(
   const usaCatalogo = banderas.modoMenu === 'productos_pos' || banderas.modoMenu === 'mixto';
   const usaSecciones = banderas.modoMenu === 'menu_subido' || banderas.modoMenu === 'mixto';
 
+  // Las dos banderas de presentación DECIDEN aquí, en el servidor, y no sólo
+  // viajan: con los precios apagados no salen precios, y con la precuenta
+  // apagada no salen ni totales ni líneas (hallazgo 7).
   const [productos, categorias, secciones, cuenta] = await Promise.all([
-    usaCatalogo ? productosVisibles(ambito.organizacionId) : Promise.resolve([]),
+    usaCatalogo
+      ? productosVisibles(ambito.organizacionId, banderas.mostrarPrecios)
+      : Promise.resolve([]),
     usaCatalogo ? categoriasVisibles(ambito.organizacionId) : Promise.resolve([]),
     usaSecciones ? seccionesVisibles(ambito.organizacionId) : Promise.resolve([]),
-    cuentaDeLaMesa(ambito),
+    cuentaDeLaMesa(ambito, banderas.mostrarPrecuenta),
   ]);
 
   return {
@@ -142,14 +136,14 @@ function mesaPublica(
     // aquí daría dos sitios donde decidir lo mismo, y con el tiempo dirían cosas
     // distintas.
     puede_pedir:
-      puedeOrdenar &&
-      tieneMesero &&
-      cuenta !== null &&
-      !ESTADOS_SIN_AGREGAR.includes(cuenta.estado),
+      puedeOrdenar && tieneMesero && cuenta !== null && esUnoDe(ORDEN_ADMITE_PEDIDO, cuenta.estado),
   };
 }
 
-async function productosVisibles(organizacionId: string): Promise<readonly ProductoDeMenu[]> {
+async function productosVisibles(
+  organizacionId: string,
+  conPrecios: boolean,
+): Promise<readonly ProductoDeMenu[]> {
   const filas = await obtenerDb()
     .selectFrom('productos as p')
     .leftJoin('categorias as c', 'c.id', 'p.categoria_id')
@@ -177,7 +171,7 @@ async function productosVisibles(organizacionId: string): Promise<readonly Produ
     .limit(TOPE_CATALOGO)
     .execute();
 
-  return filas.map(productoDeMenu);
+  return filas.map((fila) => productoDeMenu(fila, conPrecios));
 }
 
 async function categoriasVisibles(organizacionId: string): Promise<readonly CategoriaDeMenu[]> {
@@ -214,7 +208,10 @@ async function seccionesVisibles(organizacionId: string): Promise<readonly Secci
  * `§36.2` nota 2: el ámbito público lee «únicamente la venta activa de su
  * propia mesa, resuelta por `token_mesa`, y sólo para la precuenta».
  */
-export async function cuentaDeLaMesa(ambito: AmbitoPortal): Promise<CuentaPublica | null> {
+export async function cuentaDeLaMesa(
+  ambito: AmbitoPortal,
+  conPrecuenta: boolean,
+): Promise<CuentaPublica | null> {
   const db = obtenerDb();
 
   const orden = await db
@@ -236,12 +233,17 @@ export async function cuentaDeLaMesa(ambito: AmbitoPortal): Promise<CuentaPublic
     ])
     .where('organizacion_id', '=', ambito.organizacionId)
     .where('mesa_id', '=', ambito.mesaId)
-    .where('estado', 'in', ESTADOS_ACTIVOS)
+    .where('estado', 'in', ORDEN_ACTIVA)
     .orderBy('created_at', 'desc')
     .limit(1)
     .executeTakeFirst();
 
   if (orden === undefined) return null;
+
+  // Con la precuenta apagada las líneas ni se traen. Filtrar después sería la
+  // segunda mitad; la primera es no leerlas nunca — la misma regla que encabeza
+  // `lista-blanca.ts`.
+  if (!conPrecuenta) return cuentaPublica(orden, [], false);
 
   const lineas = await db
     .selectFrom('orden_lineas')
@@ -261,5 +263,5 @@ export async function cuentaDeLaMesa(ambito: AmbitoPortal): Promise<CuentaPublic
     .limit(TOPE_LINEAS)
     .execute();
 
-  return cuentaPublica(orden, lineas);
+  return cuentaPublica(orden, lineas, conPrecuenta);
 }

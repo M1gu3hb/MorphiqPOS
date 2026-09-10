@@ -1,4 +1,4 @@
-import { aNumero, aPesos } from './conversion.ts';
+import { aCentavos, aNumero, aPesos } from './conversion.ts';
 
 /**
  * La mesa y su cuenta, recortadas para el comensal (`F1-04` §36.2, nota 2).
@@ -46,7 +46,10 @@ export interface LineaDeCuenta {
   readonly cantidad: number | null;
   readonly unidad: string;
   readonly precio_unitario: number | null;
+  readonly precio_unitario_centavos: string | null;
   readonly total: number | null;
+  /** El entero exacto. Es el que su pantalla debe sumar, no el flotante. */
+  readonly total_centavos: string | null;
   readonly notas: string;
   readonly estado_preparacion: string;
 }
@@ -65,7 +68,9 @@ export function lineaDeCuenta(fila: FilaLineaCuenta): LineaDeCuenta {
     cantidad: aNumero(fila.cantidad),
     unidad: fila.unidad,
     precio_unitario: aPesos(fila.precio_unitario_centavos),
+    precio_unitario_centavos: aCentavos(fila.precio_unitario_centavos),
     total: aPesos(fila.total_centavos),
+    total_centavos: aCentavos(fila.total_centavos),
     notas: fila.notas ?? '',
     estado_preparacion: fila.estado_preparacion,
   };
@@ -93,9 +98,14 @@ export interface CuentaPublica {
   readonly folio: string;
   readonly personas: number;
   readonly subtotal: number | null;
+  readonly subtotal_centavos: string | null;
   readonly descuento: number | null;
+  readonly descuento_centavos: string | null;
   readonly impuestos: number | null;
+  readonly impuestos_centavos: string | null;
   readonly total: number | null;
+  /** Sin propina (regla 1 de `F1-01` §3), y exacto. */
+  readonly total_centavos: string | null;
   readonly propina_porcentaje: number;
   readonly propina_tipo: string;
   readonly propina_origen: string;
@@ -112,20 +122,40 @@ const PUNTOS_BASE_POR_PUNTO = 100;
  * son las tres columnas por las que un competidor sabría el margen del negocio
  * escaneando un código pegado en una mesa.
  */
-export function cuentaPublica(fila: FilaCuenta, lineas: readonly FilaLineaCuenta[]): CuentaPublica {
+/**
+ * La cuenta de ESTA mesa, con la precuenta sólo si el negocio la enseña.
+ *
+ * `conPrecuenta` es `portal_qr_mostrar_precuenta` ya decidido en el servidor.
+ * Apagada, no salen ni los totales ni las líneas —que es lo que ES la
+ * precuenta—, y lo demás sí: el estado y `ya_valorada` no son dinero y su
+ * pantalla los necesita para saber qué puede hacer el comensal. Hasta el
+ * hallazgo 7 la bandera se publicaba y no gobernaba nada: la cuenta entera
+ * salía igual y ocultarla era cosa del navegador.
+ */
+export function cuentaPublica(
+  fila: FilaCuenta,
+  lineas: readonly FilaLineaCuenta[],
+  conPrecuenta: boolean,
+): CuentaPublica {
+  const importe = (centavos: bigint): bigint | null => (conPrecuenta ? centavos : null);
+
   return {
     id: fila.id,
     estado: fila.estado,
     folio: fila.folio === null ? '' : `${fila.serie}-${fila.folio.toString()}`,
     personas: fila.personas,
-    subtotal: aPesos(fila.subtotal_centavos),
-    descuento: aPesos(fila.descuento_centavos),
-    impuestos: aPesos(fila.impuestos_centavos),
-    total: aPesos(fila.total_centavos),
+    subtotal: aPesos(importe(fila.subtotal_centavos)),
+    subtotal_centavos: aCentavos(importe(fila.subtotal_centavos)),
+    descuento: aPesos(importe(fila.descuento_centavos)),
+    descuento_centavos: aCentavos(importe(fila.descuento_centavos)),
+    impuestos: aPesos(importe(fila.impuestos_centavos)),
+    impuestos_centavos: aCentavos(importe(fila.impuestos_centavos)),
+    total: aPesos(importe(fila.total_centavos)),
+    total_centavos: aCentavos(importe(fila.total_centavos)),
     propina_porcentaje: fila.propina_puntos_base / PUNTOS_BASE_POR_PUNTO,
     propina_tipo: fila.propina_tipo ?? '',
     propina_origen: fila.propina_origen ?? '',
     ya_valorada: fila.satisfaccion_score !== null,
-    lineas: lineas.map(lineaDeCuenta),
+    lineas: conPrecuenta ? lineas.map(lineaDeCuenta) : [],
   };
 }

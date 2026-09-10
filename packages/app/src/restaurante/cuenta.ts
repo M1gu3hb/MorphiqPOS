@@ -85,8 +85,14 @@ export const solicitarCuenta = definirComando<
       );
     }
 
+    // Con nombre de paso: de esta lectura salen el número que se imprime en el
+    // código de caja y el estado al que avanza la mesa. Una lectura decisiva
+    // sin nombre es invisible al arnés de inyección de fallos.
+    const mesaId = orden.mesaId;
     const mesa =
-      orden.mesaId === null ? null : await mesaOperable(ctx.tx, organizacionId, orden.mesaId);
+      mesaId === null
+        ? null
+        : await ctx.paso('cargar_mesa', () => mesaOperable(ctx.tx, organizacionId, mesaId));
 
     const codigoCaja = await ctx.paso('marcar_cuenta_solicitada', () =>
       marcarCuentaSolicitada(ctx.tx, {

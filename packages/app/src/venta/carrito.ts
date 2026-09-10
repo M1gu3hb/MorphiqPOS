@@ -226,6 +226,13 @@ async function exigirBorrador(
   }
   // R14: los estados cambian por transición declarada. Tocar las líneas de una
   // orden ya cobrada alteraría un ticket impreso y un arqueo cerrado.
+  //
+  // 'borrador' a secas es lo correcto AQUÍ y no un descuido: estos comandos son
+  // el carril de MOSTRADOR, donde el carrito ES la orden y no sale de 'borrador'
+  // hasta que se cobra. Una cuenta de mesa que ya pasó por cocina no se edita
+  // por aquí —añadir un plato es `restaurante.enviar_pedido`, que sí admite
+  // 'confirmada', y quitarlo dejaría huérfano su `comanda_items`—; lo que se
+  // hace con ella es cobrarla o cancelarla entera con `restaurante.cancelar_orden`.
   if (orden.estado !== 'borrador') {
     throw new ErrorDominio(
       'ORDEN_NO_EDITABLE',

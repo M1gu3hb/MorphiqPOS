@@ -22,9 +22,14 @@ export {
   entradaLiquidarPropinas,
   entradaPagoConPropina,
   entradaPropinasPendientes,
+  FACTOR_PROPINA_SOBRE_VENTA,
+  MAXIMO_PROPINA_CENTAVOS,
   ORIGENES_DE_PROPINA,
+  PISO_PROPINA_CENTAVOS,
   TIPOS_DE_PROPINA,
 } from './esquemas.ts';
+
+export { tomarFolioDeLiquidacion, CLASE_DE_CERROJO, type FolioDeLiquidacion } from './folio.ts';
 
 export {
   marcarPropinaDeOrden,

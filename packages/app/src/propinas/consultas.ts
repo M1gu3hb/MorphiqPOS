@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
@@ -68,9 +68,31 @@ export const propinasPendientes = definirComando<
   paquetes: PAQUETES_PREPARACION,
   entrada: entradaPropinasPendientes,
   async ejecutar(ctx, entrada) {
+    const { organizacionId, sucursalId } = ctx.ambito;
+    // Exactamente el mismo requisito que `liquidar`, y no por simetría estética:
+    // esta consulta y aquel `UPDATE` comparten `condicionPendiente` porque tienen
+    // que cubrir lo mismo. Si la lectura fuera de toda la organización y la
+    // escritura de una sucursal, la pantalla volvería a enseñar ocho ventas
+    // mientras el botón liquida siete — el defecto que este módulo existe para
+    // cerrar, sólo que del otro lado.
+    //
+    // `empleos.sucursal_id` es nulable (`001_plataforma.sql:159`), así que un
+    // empleo sin sucursal existe. Para ése se falla en voz alta en vez de
+    // ensancharle el alcance en silencio: sin este corte, un cajero de Norte
+    // recibía el nombre y el importe de propina de cada mesero de Centro. Un
+    // panel de toda la organización es otra pregunta —agregada POR sucursal— y
+    // necesita su propio comando, no el ensanchamiento accidental de éste.
+    if (sucursalId === null) {
+      throw new ErrorDominio(
+        'LIQUIDACION_INVALIDA',
+        'Para ver las propinas pendientes hace falta estar en una sucursal.',
+      );
+    }
+
     const rango = resolverRango(entrada.desde, entrada.hasta);
     const filtro = {
-      organizacionId: ctx.ambito.organizacionId,
+      organizacionId,
+      sucursalId,
       meseroId: entrada.meseroId ?? null,
       ...rango,
     };

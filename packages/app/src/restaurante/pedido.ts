@@ -8,12 +8,13 @@ import type { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
 import { cotizar } from '../venta/cotizar.ts';
-import { estacionesActivas, mesaOperable, ordenDeMesa, productosDeComanda } from './datos.ts';
+import { estacionesActivas, mesaOperable, ordenDeMesa } from './datos.ts';
+import { productosDeComanda } from './catalogo-comanda.ts';
 import { insertarComandas, insertarItems } from './comandas.ts';
 import { agruparEnComandas, resolverEstacion } from './estaciones.ts';
 import { entradaEnviarPedido } from './esquemas.ts';
 import { insertarLineas, prepararLinea, type LineaPreparada } from './lineas.ts';
-import { mesaTrasComanda } from './transiciones.ts';
+import { mesaTrasComanda, type EstadoMesa } from './transiciones.ts';
 
 /**
  * `restaurante.enviar_pedido` — E6-4, el comando más importante del módulo.
@@ -123,7 +124,9 @@ export const enviarPedido = definirComando<
 
     const mesaId = orden.mesaId;
     if (mesaId !== null) {
-      await ctx.paso('avanzar_mesa', () => avanzarMesa(ctx.tx, organizacionId, mesaId));
+      await ctx.paso('avanzar_mesa', () =>
+        avanzarMesa(ctx.tx, organizacionId, mesaId, comandas.length > 0),
+      );
     }
 
     const emitidas = comandas.map(({ id, grupo }) => ({
@@ -230,12 +233,19 @@ async function confirmarOrden(
   }
 }
 
-async function avanzarMesa(tx: Transaccion, organizacionId: string, mesaId: string): Promise<void> {
+async function avanzarMesa(
+  tx: Transaccion,
+  organizacionId: string,
+  mesaId: string,
+  hayComandas: boolean,
+): Promise<void> {
   const mesa = await mesaOperable(tx, organizacionId, mesaId);
   // `nuevo` es el estado con el que nace la comanda; la tabla de F1-04 §8.2 lo
   // traduce a `pedido_enviado`, y devuelve `null` si la mesa ya está en un
   // estado que la cocina no manda (cuenta solicitada, pagada…).
-  const destino = mesaTrasComanda(mesa.estado, 'nuevo', false);
+  const destino = hayComandas
+    ? mesaTrasComanda(mesa.estado, 'nuevo', false)
+    : mesaSinComanda(mesa.estado);
   if (destino === null) return;
 
   await tx
@@ -244,4 +254,22 @@ async function avanzarMesa(tx: Transaccion, organizacionId: string, mesaId: stri
     .where('organizacion_id', '=', organizacionId)
     .where('id', '=', mesaId)
     .execute();
+}
+
+/**
+ * A dónde va la mesa cuando el pedido NO generó ninguna comanda.
+ *
+ * Dos refrescos de botella tienen `area_preparacion='ninguno'`: `areasDe`
+ * devuelve `[]`, `agruparEnComandas` no produce ningún grupo y no se inserta ni
+ * una fila en `comandas`. Anunciar «pedido enviado» ahí era mentir sobre el
+ * salón: ninguna pantalla de cocina veía esa mesa, así que ningún evento de
+ * cocina la sacaba nunca de ese estado — sólo `solicitar_cuenta`.
+ *
+ * Se avanza únicamente desde `esperando_orden`, que es el único hecho nuevo que
+ * hay: la mesa ya consumió algo. Desde cualquier otro estado se deja quieta,
+ * porque un pedido de sólo bebidas no puede devolver a `ocupada` una mesa que
+ * está `en_preparacion` con otros platos en el fuego.
+ */
+function mesaSinComanda(estado: EstadoMesa): EstadoMesa | null {
+  return estado === 'esperando_orden' ? 'ocupada' : null;
 }

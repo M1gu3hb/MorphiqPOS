@@ -5,6 +5,7 @@ import type { z } from 'zod';
 
 import { definirComandoPublico, type ContextoPortal } from './definicion-publica.ts';
 import { violaIndice } from './errores-sql.ts';
+import { ORDEN_ACTIVA } from './estados.ts';
 import { entradaAbrirMesa } from './esquemas.ts';
 import { puedeOrdenarDesdeQR } from './negocio.ts';
 
@@ -35,15 +36,6 @@ export interface ResultadoAbrirMesa {
   readonly reutilizada: boolean;
 }
 
-/** Los cinco de `ESTADOS_VENTA_ACTIVA`, que son los del índice único. */
-const ESTADOS_ACTIVOS = [
-  'borrador',
-  'confirmada',
-  'en_preparacion',
-  'lista',
-  'cuenta_solicitada',
-] as const;
-
 export const abrirMesaDesdeQR = definirComandoPublico<typeof entradaAbrirMesa, ResultadoAbrirMesa>({
   nombre: 'portal.abrir_mesa',
   entidad: 'orden',
@@ -70,7 +62,7 @@ export const abrirMesaDesdeQR = definirComandoPublico<typeof entradaAbrirMesa, R
         .select('id')
         .where('organizacion_id', '=', ambito.organizacionId)
         .where('mesa_id', '=', ambito.mesaId)
-        .where('estado', 'in', ESTADOS_ACTIVOS)
+        .where('estado', 'in', ORDEN_ACTIVA)
         .executeTakeFirst(),
     );
 

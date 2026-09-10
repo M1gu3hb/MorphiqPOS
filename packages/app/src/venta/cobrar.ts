@@ -65,8 +65,16 @@ export const cobrarOrden = definirComando<
       repoOrdenes.ordenPorId(ctx.tx, organizacionId, entrada.ordenId),
     );
     if (orden === null) throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Esa venta ya no existe.');
-    if (orden.estado !== 'borrador') {
-      throw new ErrorDominio('ORDEN_NO_EDITABLE', 'Esa venta ya se cobró.', {
+    // Los estados VIVOS, no sólo 'borrador'. Un restaurante cobra cuentas que
+    // ya pasaron por cocina: `restaurante.enviar_pedido` deja la orden en
+    // 'confirmada' y `restaurante.solicitar_cuenta` en 'cuenta_solicitada'.
+    // Exigir 'borrador' aquí respondía «esa venta ya se cobró» a una cuenta que
+    // nadie había cobrado, y como tampoco se podía editar ni liberar la mesa,
+    // la mesa quedaba fuera de servicio hasta que alguien corriera SQL a mano.
+    // La lista es una sola y vive en el repositorio, junto al `where` del
+    // `update` que la impone: dos listas separadas se desincronizan.
+    if (!(repoOrdenes.ESTADOS_COBRABLES as readonly string[]).includes(orden.estado)) {
+      throw new ErrorDominio('ORDEN_NO_EDITABLE', 'Esa venta ya se cobró o se canceló.', {
         estado: orden.estado,
       });
     }
@@ -179,6 +187,11 @@ export const cobrarOrden = definirComando<
         serie: folio.serie,
         folio: folio.folio,
         totales,
+        // La MISMA hora que el resto de la transacción. `ctx.ahora` y no
+        // `now()`: el pago, el movimiento de caja y el cierre de la orden
+        // tienen que caer en el mismo instante, o un corte acotado al minuto
+        // los repartiría entre dos.
+        ahora: ctx.ahora,
       }),
     );
 

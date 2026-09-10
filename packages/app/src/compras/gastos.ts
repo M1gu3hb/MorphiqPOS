@@ -8,6 +8,7 @@ import { sql } from 'kysely';
 import { definirComando } from '../definicion.ts';
 import { entradaGuardarPlantillaGasto, entradaRegistrarGasto } from './esquemas.ts';
 import { reconocerNotasHeredadas } from './notas.ts';
+import { fechaDelGastoEnEfectivo, sesionAbierta } from './sesion-de-caja.ts';
 
 /**
  * Gastos operativos: `gastos` (+ `movimientos_caja` si salió del cajón).
@@ -19,7 +20,10 @@ import { reconocerNotasHeredadas } from './notas.ts';
  *   efectivo esperado sale de otra fuente. Aquí el gasto en efectivo inserta
  *   además su `movimientos_caja` de tipo `gasto` con monto negativo, en la misma
  *   transacción, así que `total_gastos` y `efectivo_esperado` no pueden
- *   discrepar. Un gasto con tarjeta no lo genera: no salieron billetes.
+ *   discrepar. Un gasto con tarjeta no lo genera: no salieron billetes. Y la
+ *   **fecha** de ese gasto es la de su sesión, no la que teclee el cliente: la
+ *   discrepancia que §25.2 cierra volvía a entrar por ahí (ver
+ *   `sesion-de-caja.ts`).
  *
  * · **§25.1 — `es_recurrente` y `plantilla_gasto_id` son columnas.** Hoy viajan
  *   dentro del texto de `notas` y se pierden al editarla.
@@ -71,9 +75,16 @@ export const registrarGasto = definirComando<
     );
 
     const enEfectivo = entrada.metodoPago === 'efectivo';
-    const sesionCajaId = enEfectivo
+    const sesion = enEfectivo
       ? await ctx.paso('cargar_caja', () => sesionAbierta(ctx.tx, organizacionId, sucursalId))
       : null;
+    const sesionCajaId = sesion?.id ?? null;
+
+    // Un gasto que mueve el cajón se fecha con SU sesión, no con lo que teclee
+    // el cliente: si no, el movimiento de caja cuelga de la sesión de hoy y el
+    // gasto aparece en el reporte de otro día (§25.2). Un gasto con tarjeta no
+    // toca la caja, así que ahí la fecha de la factura sigue siendo del cliente.
+    const fecha = sesion === null ? entrada.fecha : fechaDelGastoEnEfectivo(entrada.fecha, sesion);
 
     const gasto = await ctx.paso('crear_gasto', () =>
       ctx.tx
@@ -90,7 +101,7 @@ export const registrarGasto = definirComando<
           es_recurrente: esRecurrente,
           empleado_id: empleoId,
           notas: heredado.notas,
-          ...(entrada.fecha === undefined ? {} : { fecha: entrada.fecha }),
+          ...(fecha === undefined ? {} : { fecha }),
         })
         .returning('id')
         .executeTakeFirstOrThrow(),
@@ -131,6 +142,7 @@ export const registrarGasto = definirComando<
         esRecurrente,
         plantillaGastoId: plantillaId,
         sesionCajaId,
+        fecha: fecha ?? null,
       },
     });
 
@@ -195,37 +207,6 @@ export const guardarPlantillaGasto = definirComando<
     return { plantillaId: creada.id };
   },
 });
-
-/**
- * La caja abierta de la sucursal.
- *
- * Es una sola: lo impone `sesiones_caja_una_abierta_por_sucursal` (046:85), y
- * por eso no hace falta la terminal. Si no hay ninguna, el gasto en efectivo no
- * se registra: sin sesión, el dinero sale del cajón sin quedar en ningún arqueo
- * y el corte del día nace con un faltante que nadie sabe explicar.
- */
-async function sesionAbierta(
-  tx: Transaccion,
-  organizacionId: string,
-  sucursalId: string,
-): Promise<string> {
-  const fila = await tx
-    .selectFrom('sesiones_caja')
-    .select('id')
-    .where('organizacion_id', '=', organizacionId)
-    .where('sucursal_id', '=', sucursalId)
-    .where('estado', '=', 'abierta')
-    .executeTakeFirst();
-
-  if (fila === undefined) {
-    throw new ErrorDominio(
-      'CAJA_CERRADA',
-      'No hay una caja abierta. Ábrela antes de pagar este gasto en efectivo, ' +
-        'o regístralo con tarjeta o transferencia si no salió del cajón.',
-    );
-  }
-  return fila.id;
-}
 
 /**
  * Qué plantilla generó el gasto.

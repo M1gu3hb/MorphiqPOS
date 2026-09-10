@@ -32,10 +32,19 @@ export interface DatosDeLinea {
   readonly linea: LineaDeCompra;
 }
 
+/**
+ * Escribe la línea y devuelve el id del insumo que tocó.
+ *
+ * Lo devuelve porque quien lo llama necesita saber QUÉ insumos se movieron para
+ * recalcular sólo los productos que los usan: recalcular la organización entera
+ * en cada compra hace que dos compras simultáneas de insumos distintos peleen
+ * por las mismas filas de `productos`. Con una línea que crea un insumo nuevo,
+ * el id no se conoce hasta aquí.
+ */
 export async function escribirLinea(
   ctx: ContextoComando<Transaccion>,
   datos: DatosDeLinea,
-): Promise<void> {
+): Promise<string> {
   const { organizacionId, empleoId } = ctx.ambito;
   const { linea } = datos;
 
@@ -130,6 +139,8 @@ export async function escribirLinea(
     .where('id', '=', insumo.id)
     .where('organizacion_id', '=', organizacionId)
     .execute();
+
+  return insumo.id;
 }
 
 /** Lo que la cabecera acepta. Nunca el total: ése sale de las líneas. */

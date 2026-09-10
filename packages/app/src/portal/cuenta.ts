@@ -2,9 +2,13 @@ import 'server-only';
 
 import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
 import { aplicarPorcentaje, centavos, CERO } from '@morphiqpos/domain/dinero';
+import type { TotalesOrden } from '@morphiqpos/domain/venta';
 import type { z } from 'zod';
 
+import { cotizar } from '../venta/cotizar.ts';
 import { definirComandoPublico, type ContextoPortal } from './definicion-publica.ts';
+import { marcarCuentaSolicitadaDesdeQR, moverMesaDelPortal } from './escrituras.ts';
+import { ORDEN_ACTIVA } from './estados.ts';
 import { entradaPedirCuenta } from './esquemas.ts';
 import {
   actualizarSolicitudDeCuenta,
@@ -22,13 +26,22 @@ import {
  * importe.** Hoy `PedirCuentaQR.jsx:257` escribe `subtotal_consumo`,
  * `propina_monto_sugerida` y `total_estimado` calculados en el navegador: tres
  * importes del cliente escritos tal cual en la base. Aquí el subtotal sale de
- * la orden y la propina de `aplicarPorcentaje`, en centavos enteros.
+ * `cotizar` y la propina de `aplicarPorcentaje`, en centavos enteros.
+ *
+ * ── El total se recalcula, no se lee de la fila ───────────────────────────
+ * Hallazgo 3 del veredicto: este comando usaba `ordenes.total_centavos`, un
+ * campo que sólo refrescan los comandos de pedido. Si el mesero añadía una
+ * botella desde el carrito de mostrador, el 15 % salía sobre el total viejo y
+ * la instantánea que el mesero lee en su pantalla decía un consumo que no era.
+ * Ahora se cotiza sobre las líneas persistidas —la misma `cotizar` del cobro—
+ * y los totales frescos se congelan en la orden, «para que Caja lea el mismo
+ * número que se imprimió en la precuenta» (`restaurante/cuenta.ts:172`).
  *
  * ── La regla 1 de `F1-01` §3, que este comando no puede romper ────────────
  * La propina NO entra en `Venta.total`. Se guarda como puntos base en la orden
- * y como instantánea informativa en la solicitud; `total_centavos` no se toca.
- * Quien cobre en caja suma la propina aparte, que es lo que hace que ventas,
- * utilidad y margen sigan significando lo que dicen.
+ * y como instantánea informativa en la solicitud; `total_centavos` lleva la
+ * venta sin propina. Quien cobre en caja suma la propina aparte, que es lo que
+ * hace que ventas, utilidad y margen sigan significando lo que dicen.
  *
  * ── Lo que falta, y no me toca inventar ───────────────────────────────────
  * `monto_manual` no está en la entrada porque `ordenes` no tiene columna para
@@ -41,15 +54,9 @@ export interface ResultadoCuenta {
   readonly subtotalCentavos: string;
   readonly propinaCentavos: string;
   readonly propinaTipo: string;
+  /** El código que el comensal lleva a la caja (`F1-04` §6.3). */
+  readonly codigoCaja: string;
 }
-
-const ESTADOS_ACTIVOS = [
-  'borrador',
-  'confirmada',
-  'en_preparacion',
-  'lista',
-  'cuenta_solicitada',
-] as const;
 
 const PUNTOS_BASE_POR_PUNTO = 100;
 
@@ -63,44 +70,45 @@ export const pedirCuentaQR = definirComandoPublico<typeof entradaPedirCuenta, Re
     const orden = await ctx.paso('cargar_venta', () => ordenParaCobrar(ctx));
     exigirQuePuedaPedirla(ctx, orden);
 
-    const cuenta = calcularPropina(ctx, orden.total_centavos, entrada);
+    const { totales } = await ctx.paso('cotizar', () =>
+      cotizar(ctx.tx, ctx.ambito.organizacionId, orden.id),
+    );
 
-    await ctx.paso('marcar_venta', () =>
-      ctx.tx
-        .updateTable('ordenes')
-        .set({
-          estado: 'cuenta_solicitada',
-          propina_puntos_base: cuenta.propinaBp,
-          propina_tipo: cuenta.propinaTipo,
-          // Una vez que el comensal eligió algo, el origen es el portal —
-          // incluso si eligió «sin propina» o «decidir en caja». Sobrescribe el
-          // `pendiente_portal_qr` que dejó el mesero al disparar la cuenta.
-          propina_origen: 'portal_qr',
-          version: orden.version + 1,
-          updated_at: ctx.ahora,
-        })
-        .where('organizacion_id', '=', ctx.ambito.organizacionId)
-        .where('id', '=', orden.id)
-        .execute(),
+    const cuenta = calcularPropina(ctx, totales.totalCentavos, entrada);
+
+    const codigoCaja = await ctx.paso('marcar_venta', () =>
+      marcarCuentaSolicitadaDesdeQR(ctx.tx, {
+        organizacionId: ctx.ambito.organizacionId,
+        ordenId: orden.id,
+        version: orden.version,
+        ahora: ctx.ahora,
+        mesaNumero: ctx.ambito.mesaNumero,
+        codigoPrevio: orden.codigo_caja,
+        totales,
+        propinaPuntosBase: cuenta.propinaBp,
+        propinaTipo: cuenta.propinaTipo,
+      }),
     );
 
     await ctx.paso('avisar_al_mesero', () => avisar(ctx, orden, cuenta));
 
     await ctx.paso('marcar_mesa', () =>
-      ctx.tx
-        .updateTable('mesas')
-        .set({ estado: 'cuenta_solicitada', updated_at: ctx.ahora })
-        .where('organizacion_id', '=', ctx.ambito.organizacionId)
-        .where('id', '=', ctx.ambito.mesaId)
-        .execute(),
+      moverMesaDelPortal(ctx.tx, {
+        organizacionId: ctx.ambito.organizacionId,
+        mesaId: ctx.ambito.mesaId,
+        estado: 'cuenta_solicitada',
+        ahora: ctx.ahora,
+      }),
     );
 
     ctx.auditar({
       entidadId: orden.id,
       payload: {
+        codigoCaja,
         propinaTipo: cuenta.propinaTipo,
         propinaBp: cuenta.propinaBp,
         propinaCentavos: cuenta.propinaCentavos.toString(),
+        totalCentavos: totales.totalCentavos.toString(),
       },
     });
 
@@ -109,6 +117,7 @@ export const pedirCuentaQR = definirComandoPublico<typeof entradaPedirCuenta, Re
       subtotalCentavos: cuenta.subtotalCentavos.toString(),
       propinaCentavos: cuenta.propinaCentavos.toString(),
       propinaTipo: cuenta.propinaTipo,
+      codigoCaja,
     };
   },
 });
@@ -117,7 +126,7 @@ interface OrdenParaCobrar {
   readonly id: string;
   readonly estado: string;
   readonly version: number;
-  readonly total_centavos: bigint;
+  readonly codigo_caja: string | null;
   readonly propina_tipo: string | null;
   readonly propina_origen: string | null;
 }
@@ -125,10 +134,10 @@ interface OrdenParaCobrar {
 async function ordenParaCobrar(ctx: ContextoPortal): Promise<OrdenParaCobrar> {
   const orden = await ctx.tx
     .selectFrom('ordenes')
-    .select(['id', 'estado', 'version', 'total_centavos', 'propina_tipo', 'propina_origen'])
+    .select(['id', 'estado', 'version', 'codigo_caja', 'propina_tipo', 'propina_origen'])
     .where('organizacion_id', '=', ctx.ambito.organizacionId)
     .where('mesa_id', '=', ctx.ambito.mesaId)
-    .where('estado', 'in', ESTADOS_ACTIVOS)
+    .where('estado', 'in', ORDEN_ACTIVA)
     .executeTakeFirst();
 
   if (orden === undefined) {
@@ -137,6 +146,9 @@ async function ordenParaCobrar(ctx: ContextoPortal): Promise<OrdenParaCobrar> {
       'No hay una cuenta abierta en esta mesa. Llama al mesero.',
     );
   }
+  // `total_centavos` NO se lee aquí a propósito: es el campo obsoleto del
+  // hallazgo 3. El importe sobre el que se calcula la propina sale de
+  // `cotizar`, unas líneas más abajo y dentro de la misma transacción.
   return orden;
 }
 
@@ -171,7 +183,7 @@ interface PropinaCalculada extends SnapshotDeCuenta {
 }
 
 /**
- * La propina, en centavos enteros, calculada sobre el total de la orden.
+ * La propina, en centavos enteros, calculada sobre el total recién cotizado.
  *
  * `aplicarPorcentaje` redondea una sola vez con la regla única del sistema. No
  * hay `Math.round(x * 100)` en ningún punto del camino: ahí es donde se pierde
@@ -183,7 +195,7 @@ interface PropinaCalculada extends SnapshotDeCuenta {
  */
 function calcularPropina(
   ctx: ContextoPortal,
-  totalCentavos: bigint,
+  totalCentavos: TotalesOrden['totalCentavos'],
   entrada: z.output<typeof entradaPedirCuenta>,
 ): PropinaCalculada {
   const subtotal = centavos(totalCentavos);

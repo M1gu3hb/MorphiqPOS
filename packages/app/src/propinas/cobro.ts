@@ -75,22 +75,40 @@ export interface MetadatosDePropina {
  * No escribe nada si la pantalla no mandó nada. Un `update` que pone tres nulos
  * encima de tres nulos sólo sirve para mover `updated_at`, y `Configuracion.jsx`
  * rehidrata formularios con esa columna.
+ *
+ * ── Se escribe SÓLO lo que vino, campo por campo ───────────────────────────
+ * Antes bastaba con que llegara UNO de los tres para escribir los tres, con
+ * `?? 0` y `?? null` rellenando los que faltaban. Y estas columnas tienen otro
+ * escritor: `portal.pedir_cuenta` (`portal/cuenta.ts:68-78`) las pone cuando el
+ * comensal elige la propina en el QR. El caso real: el comensal toca «15 %» y la
+ * orden queda con `puntos_base=1500, tipo='porcentaje', origen='portal_qr'`;
+ * después el cajero cobra y su pantalla manda sólo `propinaOrigen: 'caja'`
+ * porque la propina se dejó en efectivo en el mostrador. El `update` de tres
+ * columnas dejaba `puntos_base=0` y `tipo=NULL`, destruía el «cómo se decidió la
+ * propina» que este archivo existe para preservar, y `portal/cuenta-publica.ts`
+ * empezaba a servir `propina_porcentaje: 0`.
+ *
+ * `updated_at` no se escribe a mano a propósito: `ordenes` tiene el trigger
+ * `ordenes_tocar_updated_at` (`003_venta_caja_inventario.sql:444-452`), así que
+ * la fila sí deja rastro. `version` tampoco se toca: incrementarla sin haber
+ * leído la actual no es bloqueo optimista, es pisar el contador de quien sí lo
+ * usa, y el cobro que llama aquí ya cierra la orden por su cuenta.
  */
 export async function marcarPropinaDeOrden(
   tx: Transaccion,
   datos: MetadatosDePropina,
 ): Promise<void> {
-  if (datos.puntosBase === undefined && datos.tipo === undefined && datos.origen === undefined) {
-    return;
-  }
+  const cambios = {
+    ...(datos.puntosBase === undefined ? {} : { propina_puntos_base: datos.puntosBase }),
+    ...(datos.tipo === undefined ? {} : { propina_tipo: datos.tipo }),
+    ...(datos.origen === undefined ? {} : { propina_origen: datos.origen }),
+  };
+
+  if (Object.keys(cambios).length === 0) return;
 
   await tx
     .updateTable('ordenes')
-    .set({
-      propina_puntos_base: datos.puntosBase ?? 0,
-      propina_tipo: datos.tipo ?? null,
-      propina_origen: datos.origen ?? null,
-    })
+    .set(cambios)
     .where('organizacion_id', '=', datos.organizacionId)
     .where('id', '=', datos.ordenId)
     .execute();

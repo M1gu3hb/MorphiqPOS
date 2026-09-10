@@ -4,6 +4,7 @@ import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
 
 import { definirComandoPublico, type ContextoPortal } from './definicion-publica.ts';
 import { violaIndice } from './errores-sql.ts';
+import { ORDEN_ACTIVA } from './estados.ts';
 import { entradaCrearSolicitud } from './esquemas.ts';
 
 /**
@@ -24,14 +25,6 @@ export interface ResultadoSolicitud {
   readonly solicitudId: string;
   readonly tipo: string;
 }
-
-const ESTADOS_ACTIVOS = [
-  'borrador',
-  'confirmada',
-  'en_preparacion',
-  'lista',
-  'cuenta_solicitada',
-] as const;
 
 export const crearSolicitudQR = definirComandoPublico<
   typeof entradaCrearSolicitud,
@@ -101,7 +94,7 @@ export async function ordenActiva(ctx: ContextoPortal): Promise<string | null> {
     .select('id')
     .where('organizacion_id', '=', ctx.ambito.organizacionId)
     .where('mesa_id', '=', ctx.ambito.mesaId)
-    .where('estado', 'in', ESTADOS_ACTIVOS)
+    .where('estado', 'in', ORDEN_ACTIVA)
     .executeTakeFirst();
 
   return fila?.id ?? null;

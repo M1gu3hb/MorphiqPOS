@@ -38,8 +38,12 @@ const VIOLACION_DE_UNICIDAD = '23505';
  */
 export function violaIndice(error: unknown, indice: string): boolean {
   if (sqlstate(error) !== VIOLACION_DE_UNICIDAD) return false;
-  const restriccion = restriccionDe(error);
-  // Si `pg` no informó el nombre, se acepta el código: es preferible el mensaje
-  // correcto en el 99 % de los casos a un 500 sin explicación.
-  return restriccion === null || restriccion === indice;
+  // El nombre se EXIGE. Aceptar un 23505 sin `constraint` como si fuera éste
+  // convertía cualquier duplicado desconocido —el de otra sentencia del mismo
+  // comando, con la transacción ya abortada— en «Ya avisamos al mesero»
+  // (`solicitudes.ts:158`) o «Esta mesa acaba de abrirse» (`mesa.ts:151`): dos
+  // mensajes falsos que tapan un fallo real. Sin nombre no se sabe qué pasó, y
+  // decirlo es un 500 con su correlation id en el registro, no una mentira
+  // tranquilizadora.
+  return restriccionDe(error) === indice;
 }

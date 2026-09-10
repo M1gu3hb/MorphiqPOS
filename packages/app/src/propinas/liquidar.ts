@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
-import { repoFolios, type Transaccion } from '@morphiqpos/data';
+import type { Transaccion } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
 import {
@@ -11,6 +11,7 @@ import {
   type PropinaDeMesero,
 } from './desglose.ts';
 import { entradaLiquidarPropinas } from './esquemas.ts';
+import { tomarFolioDeLiquidacion } from './folio.ts';
 import {
   desgloseDeOrdenes,
   ordenesDeOtraLiquidacion,
@@ -84,16 +85,24 @@ export const liquidarPropinas = definirComando<
 
     const rango = resolverRango(entrada.desde, entrada.hasta);
     const meseroId = entrada.meseroId ?? null;
-    const solicitadas = entrada.ordenIds ?? [];
-    // `null` y no un arreglo vacío: dentro del SQL, «sin filtro de ids» se
-    // distingue de «una lista vacía», que no debería reclamar nada.
-    const filtroIds = solicitadas.length === 0 ? null : [...solicitadas];
+    // Sin repetidos. Un identificador repetido —una lista construida por
+    // concatenación, un doble render— hacía `solicitadas.length` 2 contra
+    // `reclamadas.length` 1, y `explicarReclamo` abortaba con
+    // LIQUIDACION_INVALIDA una liquidación que estaba perfectamente bien.
+    const solicitadas = [...new Set(entrada.ordenIds ?? [])];
+    // `undefined` (no `length === 0`) es lo único que significa «sin filtro de
+    // ids». Colapsar `[]` en `null` liquidaba TODO el periodo cuando la pantalla
+    // mandaba una lista vacía, que es exactamente lo contrario de lo que una
+    // lista vacía pide. Hoy el esquema ya rechaza `[]` con `.min(1)`
+    // (`esquemas.ts`), y esto lo vuelve a decir aquí para que quitar una de las
+    // dos guardas no reabra el hueco en silencio.
+    const filtroIds = entrada.ordenIds === undefined ? null : solicitadas;
 
-    // 1 · El folio, DENTRO de la transacción y con la misma secuencia atómica
-    //     que la venta. Si algo revienta después, el consecutivo vuelve atrás
-    //     con la reversión y no deja hueco (`repos/folios.ts:20-22`).
+    // 1 · El folio, DENTRO de la transacción y consecutivo POR ORGANIZACIÓN,
+    //     que es lo que exige `liquidaciones_folio_unico`. El porqué —y por qué
+    //     no puede salir de `folios`— está en `folio.ts`.
     const folio = await ctx.paso('tomar_folio', () =>
-      repoFolios.tomarFolio(ctx.tx, organizacionId, sucursalId, SERIE_LIQUIDACION),
+      tomarFolioDeLiquidacion(ctx.tx, organizacionId, SERIE_LIQUIDACION),
     );
 
     // 2 · La cabecera nace con total cero a propósito: el importe se sabe DESPUÉS
@@ -126,7 +135,12 @@ export const liquidarPropinas = definirComando<
     //     `if` previo que otra transacción pueda invalidar.
     const ids = await ctx.paso('reclamar_ordenes', () =>
       reclamarOrdenes(ctx.tx, {
-        filtro: { organizacionId, meseroId, ...rango },
+        // `sucursalId` va en el filtro y no sólo en la cabecera: la fila se
+        // sella con la sucursal de la SESIÓN, así que reclamar órdenes de otra
+        // sucursal dejaba las ventas de Norte apuntando a una liquidación de
+        // Centro — sus meseros veían «$0.00 pendiente» y su propina figuraba en
+        // la caja de la otra sucursal.
+        filtro: { organizacionId, sucursalId, meseroId, ...rango },
         liquidacionId: liquidacion.id,
         ahora: ctx.ahora,
         ordenIds: filtroIds,
@@ -163,7 +177,14 @@ export const liquidarPropinas = definirComando<
     // `venta_ids` y `desglose_meseros` NO se guardan como JSON (F1-04 §30.1):
     // se derivan de `ordenes.propina_liquidacion_id`, que además hace
     // consultable qué ventas entraron, que es lo que hace falta para revertirla.
-    const meseros = await propinasPorMeseroDeOrdenes(ctx.tx, organizacionId, ids);
+    //
+    // Va envuelta en `ctx.paso` como todo lo demás: era la única lectura del
+    // comando sin nombre, y sin nombre no se puede interrumpir desde
+    // `peticion.interrumpirEn` (`comando.ts:170-176`), que es el mecanismo con
+    // el que este repositorio prueba que la reversión se lleva TODO.
+    const meseros = await ctx.paso('desglose_meseros', () =>
+      propinasPorMeseroDeOrdenes(ctx.tx, organizacionId, ids),
+    );
 
     ctx.auditar({
       entidadId: liquidacion.id,

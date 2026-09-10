@@ -52,11 +52,37 @@ export interface TotalesParaCongelar {
 }
 
 /**
+ * Los estados desde los que una venta TODAVIA se puede cobrar.
+ *
+ * Son exactamente los cinco del indice parcial `ordenes_una_activa_por_mesa`
+ * (046_restricciones_restaurante.sql:64-67): mientras la base considera que esa
+ * orden ocupa la mesa, la caja tiene que poder cobrarla.
+ *
+ * Antes aqui solo estaba 'borrador', y esa lista de uno dejaba la mesa FUERA DE
+ * SERVICIO: `restaurante.enviar_pedido` escribe `estado='confirmada'`, y a
+ * partir de ahi la orden no se podia cobrar (esta funcion), ni editar
+ * (`venta/carrito.ts`), ni liberar la mesa (`restaurante/mesas.ts`, porque la
+ * orden tiene lineas). 'borrador' solo es correcto para el carril de mostrador,
+ * donde el carrito ES la orden y nunca sale de ahi hasta cobrarse.
+ *
+ * 'parcialmente_pagada' NO entra: cerrar con un solo folio una orden que ya
+ * tiene pagos parciales exigiria conciliar lo ya cobrado, y eso es otro caso de
+ * uso. 'pagada', 'cancelada' y los reembolsos tampoco: esos ya estan cerrados.
+ */
+export const ESTADOS_COBRABLES = [
+  'borrador',
+  'confirmada',
+  'en_preparacion',
+  'lista',
+  'cuenta_solicitada',
+] as const;
+
+/**
  * Congela la orden: totales, folio y estado `pagada`.
  *
- * El `where estado = 'borrador'` no es decorativo: es lo que hace que dos
- * cobros concurrentes de la misma orden no se pisen. El segundo actualiza cero
- * filas y esta funcion lanza, revirtiendo su transaccion entera.
+ * El `where estado in (...)` no es decorativo: es lo que hace que dos cobros
+ * concurrentes de la misma orden no se pisen. El segundo actualiza cero filas y
+ * esta funcion lanza, revirtiendo su transaccion entera.
  */
 export async function marcarPagada(
   tx: Transaccion,
@@ -68,14 +94,29 @@ export async function marcarPagada(
     readonly serie: string;
     readonly folio: bigint;
     readonly totales: TotalesParaCongelar;
+    /**
+     * El instante del cobro. Viene del comando (`ctx.ahora`) y no de `now()`
+     * para que todo lo que escribe una transaccion lleve la MISMA hora: el
+     * pago, el movimiento de caja y el cierre de la orden.
+     */
+    readonly ahora: Date;
   },
 ): Promise<void> {
   const resultado = await tx
     .updateTable('ordenes')
     .set({
       estado: 'pagada',
-      serie: datos.serie,
+      // SIN ESTO NINGUN COBRO PASA. El `check orden_cerrada_con_fecha` de la
+      // migracion 045 exige que una orden pagada o cancelada tenga fecha de
+      // cierre, y esta funcion nunca la escribia: contra Postgres real, TODO
+      // cobro abortaba con 23514 —comprobado—, de mesa y de mostrador.
+      //
+      // No lo vio ninguna prueba porque el doble en memoria no modela `check`.
+      // Es el hueco del que avisa `contratos-por-mutacion`: una suite en verde
+      // sobre un sistema que no arranca.
+      cerrada_en: datos.ahora,
       folio: datos.folio,
+      serie: datos.serie,
       sesion_caja_id: datos.sesionCajaId,
       empleado_cobra_id: datos.empleadoCobraId,
       subtotal_centavos: datos.totales.subtotalCentavos,
@@ -88,10 +129,10 @@ export async function marcarPagada(
     })
     .where('organizacion_id', '=', datos.organizacionId)
     .where('id', '=', datos.ordenId)
-    .where('estado', '=', 'borrador')
+    .where('estado', 'in', [...ESTADOS_COBRABLES])
     .executeTakeFirst();
 
   if (Number(resultado.numUpdatedRows) !== 1) {
-    throw new Error(`La orden ${datos.ordenId} ya no estaba en borrador al cobrarla.`);
+    throw new Error(`La orden ${datos.ordenId} ya no estaba cobrable al cobrarla.`);
   }
 }

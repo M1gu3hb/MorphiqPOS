@@ -87,6 +87,17 @@ export const entradaEntregarPedidos = z.object({
   ordenId: z.uuid(),
 });
 
+export const entradaCancelarOrden = z.object({
+  ordenId: z.uuid(),
+  /**
+   * OBLIGATORIO, y por dos razones. La primera es el `check
+   * orden_cancelada_con_motivo` (003:162): una cancelación sin motivo no entra
+   * en la base. La segunda es que cancelar una cuenta con consumo hace
+   * desaparecer dinero del corte, y el corte tiene que poder decir por qué.
+   */
+  motivo: z.string().trim().min(3).max(300),
+});
+
 export const entradaSolicitarCuenta = z.object({
   ordenId: z.uuid(),
   /**

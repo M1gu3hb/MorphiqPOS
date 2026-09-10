@@ -7,20 +7,18 @@ import { resolverAmbitoPortal, type FilaMesaPorToken } from './ambito.ts';
 import { banderasDe, porcentajesValidos } from './banderas.ts';
 import { definirComandoPublico } from './definicion-publica.ts';
 import { entradaEnviarPedido, entradaPedirCuenta, entradaValorar } from './esquemas.ts';
-import { cuentaPublica } from './cuenta-publica.ts';
-import { negocioPublico, productoDeMenu } from './lista-blanca.ts';
 import { puedeOrdenarDesdeQR } from './negocio.ts';
 import { valorarParaPedido } from './productos.ts';
 
 /**
- * Las pruebas del portal público, sin base de datos.
+ * Qué PUEDE HACER un desconocido con el token de una mesa.
  *
- * Lo que se afirma aquí es lo que un desconocido puede obtener y lo que puede
- * hacer. Son las dos preguntas del módulo, y las dos se pueden contestar con
- * funciones puras: la lista blanca es una proyección, y la resolución del
- * ámbito es una decisión sobre una fila. Lo que necesita Postgres —que la
- * transacción revierta, que el índice único rechace la segunda solicitud— vive
- * en las pruebas de integración y está declarado como hueco en el informe.
+ * El ámbito, la forma de la entrada y los interruptores del negocio: tres
+ * decisiones puras, comprobables sin base de datos. Sus dos hermanas son
+ * `portal.proyeccion.test.ts` —qué se lleva— y `portal.escrituras.test.ts`
+ * —con qué guardas escribe—. Lo que necesita Postgres de verdad —que el índice
+ * único rechace la segunda solicitud, que la transacción revierta— vive en las
+ * pruebas de integración y sigue declarado como hueco en el informe.
  */
 
 const ORG = '00000000-0000-4000-8000-000000000001';
@@ -29,172 +27,10 @@ const MESA = '00000000-0000-4000-8000-000000000002';
 const SUCURSAL = '00000000-0000-4000-8000-000000000003';
 const PRODUCTO = '00000000-0000-4000-8000-00000000000a';
 
-/** La configuración COMPLETA, como la descarga hoy `PortalCliente.jsx:65`. */
-const CONFIGURACION_ENTERA = {
-  id: 'cfg-1',
-  nombre_negocio: 'Cantina La Mezcalera',
-  logo_url: 'https://ejemplo.mx/logo.png',
-  background_logo_url: 'https://ejemplo.mx/marca.png',
-  // Lo que hoy se fuga, y que esta prueba existe para impedir.
-  presentacion_password: '2797',
-  paquete_modo: 'restaurante_pro',
-  mostrar_costos_a_caja: true,
-  modo_presentacion_activo: true,
-  google_sheets_spreadsheet_id: '1AbCdEfGhIjK',
-  google_drive_folder_id: '0BxYzZz',
-  last_sync_error: 'ECONNREFUSED en /var/task/sync.js:41',
-  direccion: 'Av. Juárez 120, Puebla',
-  telefono: '2221234567',
-  correo: 'miguel@ejemplo.mx',
-  iva_porcentaje: 16,
-  permitir_venta_sin_stock: true,
-  hora_inicio_dia_operativo: '06:00',
-} as const;
-
-/** Los tres campos de identidad que `§36.3` autoriza. TODO lo demás sobra. */
-const PERMITIDOS: readonly string[] = ['nombre_negocio', 'logo_url', 'background_logo_url'];
-
-/**
- * Lo que no puede salir, DERIVADO de la configuración completa.
- *
- * Escribir la lista a mano dejaría fuera lo que se añada mañana al esquema, que
- * es exactamente cómo aparecen las fugas. Aquí, cualquier campo nuevo en el
- * documento cuenta como prohibido mientras nadie lo autorice a propósito.
- */
-const SECRETOS = Object.keys(CONFIGURACION_ENTERA).filter(
-  (clave) => clave !== 'id' && !PERMITIDOS.includes(clave),
-);
-
 const BANDERAS_ABIERTAS = banderasDe({
   portal_qr_activo: true,
   portal_qr_permitir_pedidos_cliente: true,
   asignacion_mesas_activa: true,
-});
-
-describe('D-14 · la respuesta pública se construye eligiendo, no quitando', () => {
-  const negocio = negocioPublico(CONFIGURACION_ENTERA, BANDERAS_ABIERTAS, true);
-
-  it('no deja salir la contraseña de presentación ni el plan contratado', () => {
-    for (const prohibido of SECRETOS) {
-      expect(Object.keys(negocio), prohibido).not.toContain(prohibido);
-    }
-  });
-
-  it('tampoco deja salir sus VALORES por otro nombre', () => {
-    // Comprobar las claves no basta: alguien podría copiar el valor a un campo
-    // que sí sale. Se busca el secreto en la respuesta serializada entera.
-    const serializada = JSON.stringify(negocio);
-    expect(serializada).not.toContain('2797');
-    expect(serializada).not.toContain('1AbCdEfGhIjK');
-    expect(serializada).not.toContain('0BxYzZz');
-    expect(serializada).not.toContain('ECONNREFUSED');
-    expect(serializada).not.toContain('2221234567');
-  });
-
-  it('sustituye `paquete_modo` por un booleano derivado', () => {
-    expect(negocio.puede_ordenar).toBe(true);
-    expect(JSON.stringify(negocio)).not.toContain('restaurante_pro');
-  });
-
-  it('no publica si la cocina usa estaciones: es operación interna', () => {
-    expect(Object.keys(negocio)).not.toContain('estaciones_preparacion_activas');
-  });
-
-  it('deja salir lo justo para que el menú se vea del negocio', () => {
-    expect(negocio.nombre_negocio).toBe('Cantina La Mezcalera');
-    expect(negocio.logo_url).toBe('https://ejemplo.mx/logo.png');
-    expect(negocio.portal_qr_mostrar_precios).toBe(true);
-  });
-});
-
-describe('el menú no lleva costos, márgenes ni receta', () => {
-  const producto = productoDeMenu({
-    id: PRODUCTO,
-    nombre: 'Mole poblano',
-    descripcion: 'Con ajonjolí',
-    imagen_url: 'https://ejemplo.mx/mole.jpg',
-    categoria_id: 'cat-1',
-    categoria_nombre: 'Fuertes',
-    precio_venta_centavos: 21500n,
-    tipo_venta: 'precio_fijo',
-    unidad_venta: 'pieza',
-    unidad_variable: null,
-    precio_por_unidad_variable_centavos: null,
-    nombre_porcion: null,
-    precio_por_porcion_centavos: null,
-  });
-
-  it('la proyección tiene EXACTAMENTE los campos declarados', () => {
-    // Un `toEqual` sobre las claves y no un `not.toContain`: así, añadir un
-    // campo al menú es una decisión que rompe esta prueba, no un descuido.
-    expect(Object.keys(producto).sort()).toEqual(
-      [
-        'categoria_id',
-        'categoria_nombre',
-        'descripcion',
-        'id',
-        'imagen_url',
-        'nombre',
-        'nombre_porcion',
-        'precio_por_porcion',
-        'precio_por_unidad_variable',
-        'precio_venta',
-        'tipo_venta',
-        'unidad_venta',
-        'unidad_variable',
-      ].sort(),
-    );
-  });
-
-  it('ni costo, ni utilidad, ni margen, ni receta, ni insumo', () => {
-    const claves = Object.keys(producto).join(' ');
-    for (const prohibido of ['costo', 'utilidad', 'margen', 'receta', 'insumo', 'estrategia']) {
-      expect(claves, prohibido).not.toContain(prohibido);
-    }
-  });
-
-  it('el precio sale en pesos, como lo espera su frontend', () => {
-    expect(producto.precio_venta).toBe(215);
-  });
-
-  it('la precuenta tampoco enseña lo que le cuesta al negocio', () => {
-    const cuenta = cuentaPublica(
-      {
-        id: 'orden-1',
-        estado: 'cuenta_solicitada',
-        serie: 'A',
-        folio: 42n,
-        personas: 2,
-        subtotal_centavos: 21500n,
-        descuento_centavos: 0n,
-        impuestos_centavos: 2966n,
-        total_centavos: 21500n,
-        propina_puntos_base: 1500,
-        propina_tipo: 'porcentaje',
-        propina_origen: 'portal_qr',
-        satisfaccion_score: null,
-      },
-      [
-        {
-          id: 'linea-1',
-          producto_nombre: 'Mole poblano',
-          cantidad: '1.0000',
-          unidad: 'pieza',
-          precio_unitario_centavos: 21500n,
-          total_centavos: 21500n,
-          notas: null,
-          estado_preparacion: 'listo',
-        },
-      ],
-    );
-
-    const serializada = JSON.stringify(cuenta);
-    for (const prohibido of ['costo', 'utilidad', 'margen']) {
-      expect(serializada, prohibido).not.toContain(prohibido);
-    }
-    expect(cuenta.total).toBe(215);
-    expect(cuenta.folio).toBe('A-42');
-  });
 });
 
 describe('D-17 · el precio lo pone el servidor, no el comensal', () => {

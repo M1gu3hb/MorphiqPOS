@@ -215,6 +215,14 @@ export const entregarPedidos = definirComando<
 
     const ids = listas.map((c) => c.id);
 
+    // La sincronía de la mesa va DENTRO de la guarda, no fuera. Un comando que
+    // no hizo nada no debe escribir estado: con la lista vacía,
+    // `mesaTrasComanda(estado,'entregado',false)` devolvía 'ocupada' y se
+    // escribía en `mesas` una entrega que no entregó nada — la mesa que sólo
+    // pidió refrescos pasaba de «pedido enviado» a «ocupada» porque alguien
+    // pulsó «entregar» sin que hubiera un solo plato listo.
+    let estadoMesa: string | null = null;
+
     if (ids.length > 0) {
       await ctx.paso('marcar_entregadas', () =>
         marcarEntregadas(ctx.tx, organizacionId, ids, ctx.ahora),
@@ -225,17 +233,16 @@ export const entregarPedidos = definirComando<
       await ctx.paso('recalcular_lineas', () =>
         recalcularEstadoDeLineas(ctx.tx, organizacionId, ids),
       );
+      estadoMesa = await ctx.paso('avanzar_mesa', () =>
+        sincronizarMesa(ctx.tx, {
+          organizacionId,
+          ordenId: entrada.ordenId,
+          mesaId: orden.mesaId,
+          comandasMovidas: ids,
+          estadoComanda: 'entregado',
+        }),
+      );
     }
-
-    const estadoMesa = await ctx.paso('avanzar_mesa', () =>
-      sincronizarMesa(ctx.tx, {
-        organizacionId,
-        ordenId: entrada.ordenId,
-        mesaId: orden.mesaId,
-        comandasMovidas: ids,
-        estadoComanda: 'entregado',
-      }),
-    );
 
     const estaciones = [
       ...new Set(listas.map((c) => c.estacionNombre).filter((n): n is string => n !== null)),

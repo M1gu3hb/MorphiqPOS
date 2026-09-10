@@ -1,5 +1,5 @@
 import type { BanderasPortal } from './banderas.ts';
-import { aPesos } from './conversion.ts';
+import { aCentavos, aPesos } from './conversion.ts';
 
 /**
  * LA LISTA BLANCA DEL PORTAL PÚBLICO — cierre de D-14 (`F1-04` §13.4 y §36.3).
@@ -142,15 +142,32 @@ export interface ProductoDeMenu {
   readonly categoria_id: string | null;
   readonly categoria_nombre: string;
   readonly precio_venta: number | null;
+  /** El mismo importe, exacto y en centavos, para que el teléfono pueda sumar. */
+  readonly precio_venta_centavos: string | null;
   readonly tipo_venta: string;
   readonly unidad_venta: string;
   readonly unidad_variable: string;
   readonly precio_por_unidad_variable: number | null;
+  readonly precio_por_unidad_variable_centavos: string | null;
   readonly nombre_porcion: string;
   readonly precio_por_porcion: number | null;
+  readonly precio_por_porcion_centavos: string | null;
 }
 
-export function productoDeMenu(fila: FilaProductoMenu): ProductoDeMenu {
+/**
+ * Un producto del menú, con precios sólo si el negocio los enseña.
+ *
+ * `conPrecios` es `portal_qr_mostrar_precios` YA DECIDIDO en el servidor. Hasta
+ * el hallazgo 7 del veredicto esa bandera se publicaba pero no gobernaba nada:
+ * el dueño la apagaba en su panel y la respuesta seguía llevando los tres
+ * precios, así que ocultarlos volvía a ser decisión del navegador — justo el
+ * reparto de responsabilidades que este módulo viene a corregir. Ahora, con la
+ * bandera apagada, el precio **no sale**; la bandera sigue viajando porque su
+ * pantalla la necesita para maquetar (`PortalCliente.jsx:608`).
+ */
+export function productoDeMenu(fila: FilaProductoMenu, conPrecios: boolean): ProductoDeMenu {
+  const importe = (centavos: bigint | null): bigint | null => (conPrecios ? centavos : null);
+
   return {
     id: fila.id,
     nombre: fila.nombre,
@@ -158,13 +175,18 @@ export function productoDeMenu(fila: FilaProductoMenu): ProductoDeMenu {
     imagen_url: fila.imagen_url ?? '',
     categoria_id: fila.categoria_id,
     categoria_nombre: fila.categoria_nombre ?? '',
-    precio_venta: aPesos(fila.precio_venta_centavos),
+    precio_venta: aPesos(importe(fila.precio_venta_centavos)),
+    precio_venta_centavos: aCentavos(importe(fila.precio_venta_centavos)),
     tipo_venta: fila.tipo_venta,
     unidad_venta: fila.unidad_venta,
     unidad_variable: fila.unidad_variable ?? '',
-    precio_por_unidad_variable: aPesos(fila.precio_por_unidad_variable_centavos),
+    precio_por_unidad_variable: aPesos(importe(fila.precio_por_unidad_variable_centavos)),
+    precio_por_unidad_variable_centavos: aCentavos(
+      importe(fila.precio_por_unidad_variable_centavos),
+    ),
     nombre_porcion: fila.nombre_porcion ?? '',
-    precio_por_porcion: aPesos(fila.precio_por_porcion_centavos),
+    precio_por_porcion: aPesos(importe(fila.precio_por_porcion_centavos)),
+    precio_por_porcion_centavos: aCentavos(importe(fila.precio_por_porcion_centavos)),
   };
 }
 

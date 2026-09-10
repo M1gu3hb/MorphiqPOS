@@ -86,6 +86,14 @@ export async function enviarACocina(
     else grupo.items.push(item);
   }
 
+  // Los items de TODAS las comandas se juntan y se insertan de una vez. Antes
+  // era un `insert` por línea dentro de la transacción del comando: con el tope
+  // de 40 líneas de `esquemas.ts:23`, cuarenta viajes secuenciales a la base
+  // con las filas de `ordenes` y `mesas` a punto de bloquearse. Es el mismo N+1
+  // que este módulo señala como defecto del código que sustituye, y aquí estaba
+  // en la ruta de ESCRITURA (hallazgo 9).
+  const filasDeItems: FilaComandaItem[] = [];
+
   for (const { destino, items: delGrupo } of grupos.values()) {
     const comanda = await ctx.tx
       .insertInto('comandas')
@@ -112,25 +120,40 @@ export async function enviarACocina(
     let visual = 0;
     for (const item of delGrupo) {
       visual += 1;
-      await ctx.tx
-        .insertInto('comanda_items')
-        .values({
-          organizacion_id: ctx.ambito.organizacionId,
-          comanda_id: comanda.id,
-          orden_linea_id: item.ordenLineaId,
-          producto_id: item.productoId,
-          producto_nombre: item.productoNombre,
-          cantidad: item.cantidad,
-          notas: item.notas === '' ? null : item.notas,
-          estado: 'pendiente',
-          tipo_venta: item.tipoVenta,
-          orden_visual: visual,
-        })
-        .execute();
+      filasDeItems.push({
+        organizacion_id: ctx.ambito.organizacionId,
+        comanda_id: comanda.id,
+        orden_linea_id: item.ordenLineaId,
+        producto_id: item.productoId,
+        producto_nombre: item.productoNombre,
+        cantidad: item.cantidad,
+        notas: item.notas === '' ? null : item.notas,
+        estado: 'pendiente',
+        tipo_venta: item.tipoVenta,
+        orden_visual: visual,
+      });
     }
   }
 
+  if (filasDeItems.length > 0) {
+    await ctx.tx.insertInto('comanda_items').values(filasDeItems).execute();
+  }
+
   return grupos.size;
+}
+
+/** Una fila de `comanda_items` ya armada, esperando al `insert` único. */
+interface FilaComandaItem {
+  readonly organizacion_id: string;
+  readonly comanda_id: string;
+  readonly orden_linea_id: string;
+  readonly producto_id: string;
+  readonly producto_nombre: string;
+  readonly cantidad: string;
+  readonly notas: string | null;
+  readonly estado: string;
+  readonly tipo_venta: string;
+  readonly orden_visual: number;
 }
 
 function porArea(area: string): Destino {

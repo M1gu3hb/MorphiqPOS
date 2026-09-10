@@ -125,6 +125,50 @@ export async function tieneLineas(
   return fila !== undefined;
 }
 
+export interface DatosDeCancelacion {
+  readonly organizacionId: string;
+  readonly ordenId: string;
+  /** Va a `motivo_cancelacion`: el `check` lo exige y el corte lo lee. */
+  readonly motivo: string;
+  readonly empleoId: string;
+  readonly ahora: Date;
+}
+
+/**
+ * Cierra la orden como `cancelada`. Devuelve cuántas filas cambió.
+ *
+ * Devuelve el número en vez de lanzar porque los dos que la usan fallan con
+ * códigos distintos: liberar una mesa que cambió es `MESA_NO_LIBERABLE`, y
+ * cancelar una cuenta que otro acaba de cobrar es `ORDEN_NO_EDITABLE`. Cero
+ * filas significa siempre lo mismo —alguien la cerró primero— pero no significa
+ * lo mismo para quien está mirando la pantalla.
+ *
+ * El `where estado not in ('pagada','cancelada')` es lo que hace que cancelar y
+ * cobrar a la vez no se pisen: el segundo cambia cero filas y revierte.
+ */
+export async function cerrarOrdenCancelada(
+  tx: Transaccion,
+  datos: DatosDeCancelacion,
+): Promise<number> {
+  const resultado = await tx
+    .updateTable('ordenes')
+    .set({
+      estado: 'cancelada',
+      // Los `check` de la tabla exigen las columnas juntas:
+      // `orden_cancelada_con_motivo` y `orden_cerrada_con_fecha`.
+      motivo_cancelacion: datos.motivo,
+      cancelada_en: datos.ahora,
+      cancelada_por: datos.empleoId,
+      cerrada_en: datos.ahora,
+    })
+    .where('organizacion_id', '=', datos.organizacionId)
+    .where('id', '=', datos.ordenId)
+    .where('estado', 'not in', [...ORDEN_YA_CERRADA])
+    .executeTakeFirst();
+
+  return Number(resultado.numUpdatedRows);
+}
+
 export async function cancelarOrdenVacia(
   tx: Transaccion,
   organizacionId: string,
@@ -132,23 +176,15 @@ export async function cancelarOrdenVacia(
   empleoId: string,
   ahora: Date,
 ): Promise<void> {
-  const resultado = await tx
-    .updateTable('ordenes')
-    .set({
-      estado: 'cancelada',
-      // Los `check` de la tabla exigen las columnas juntas:
-      // `orden_cancelada_con_motivo` y `orden_cerrada_con_fecha`.
-      motivo_cancelacion: 'Mesa liberada sin consumo',
-      cancelada_en: ahora,
-      cancelada_por: empleoId,
-      cerrada_en: ahora,
-    })
-    .where('organizacion_id', '=', organizacionId)
-    .where('id', '=', ordenId)
-    .where('estado', 'not in', [...ORDEN_YA_CERRADA])
-    .executeTakeFirst();
+  const filas = await cerrarOrdenCancelada(tx, {
+    organizacionId,
+    ordenId,
+    motivo: 'Mesa liberada sin consumo',
+    empleoId,
+    ahora,
+  });
 
-  if (Number(resultado.numUpdatedRows) !== 1) {
+  if (filas !== 1) {
     throw new ErrorDominio(
       'MESA_NO_LIBERABLE',
       'La cuenta de esa mesa cambió mientras se liberaba. Vuelve a intentarlo.',

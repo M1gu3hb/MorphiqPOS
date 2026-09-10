@@ -43,6 +43,18 @@ const categoriaGasto = z.enum([
 const nota = z.string().trim().max(500);
 
 /**
+ * Cuántas líneas admite UNA compra.
+ *
+ * Se exporta porque el tope tiene que valer en los DOS caminos que acaban en
+ * `escribirCompra`. Estaba declarado sólo aquí, y la plantilla —cuyo `jsonb` de
+ * líneas es escribible directo por el puente— entraba por el gemelo sin tope:
+ * una plantilla de 50 000 líneas y un «usar plantilla» abrían una transacción
+ * con 50 000 `select … for update` sobre `insumos` que dejaba la caja esperando.
+ * Un límite que sólo protege una de las dos puertas no es un límite.
+ */
+export const MAXIMO_LINEAS_DE_COMPRA = 60;
+
+/**
  * Una línea de compra.
  *
  * `equivalencia` es obligatoria: cuántas unidades base trae UNA unidad de
@@ -61,6 +73,14 @@ export const lineaDeCompra = z
     nuevo: z
       .object({
         nombre: z.string().trim().min(2).max(160),
+        // Las seis del catálogo, porque una ferretería sí compra en metros. El
+        // recorte a g/ml/pieza NO se puede hacer aquí: lo impone el giro de la
+        // organización (trigger `insumos_unidad_base_por_giro`, migración 046)
+        // y el esquema no sabe en qué organización se está escribiendo (R16).
+        // Esa comprobación vive en `exigirUnidadesBaseDelGiro` (insumos.ts),
+        // que la traduce a un `ErrorDominio` antes de escribir nada, en vez de
+        // dejar que Postgres reviente con un `check_violation` crudo y se
+        // pierdan las cinco líneas ya tecleadas.
         unidadBase: z.enum(['g', 'ml', 'pieza', 'kg', 'l', 'm']),
         stockMinimo: cantidadPositiva.optional(),
         stockCritico: cantidadPositiva.optional(),
@@ -95,7 +115,7 @@ export const entradaRegistrarCompra = z.object({
   ...cabeceraDeCompra,
   /** Si la compra sale de una plantilla, sus contadores suben en esta misma transacción. */
   plantillaCompraId: z.uuid().optional(),
-  lineas: z.array(lineaDeCompra).min(1).max(60),
+  lineas: z.array(lineaDeCompra).min(1).max(MAXIMO_LINEAS_DE_COMPRA),
 });
 
 export const entradaUsarPlantillaCompra = z.object({
@@ -119,7 +139,7 @@ export const entradaGuardarPlantillaCompra = z.object({
   proveedorNombre: z.string().trim().max(160).optional(),
   notas: nota.optional(),
   activa: z.boolean().optional(),
-  lineas: z.array(lineaDePlantillaCompra).min(1).max(60),
+  lineas: z.array(lineaDePlantillaCompra).min(1).max(MAXIMO_LINEAS_DE_COMPRA),
 });
 
 /**

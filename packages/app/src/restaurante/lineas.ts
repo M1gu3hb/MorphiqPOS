@@ -5,7 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import type { z } from 'zod';
 
 import { valorarLinea, type LineaValorada } from '../venta/valorar.ts';
-import type { ProductoDeComanda } from './datos.ts';
+import type { ProductoDeComanda } from './catalogo-comanda.ts';
 import type { EstacionResuelta } from './estaciones.ts';
 import type { entradaEnviarPedido } from './esquemas.ts';
 

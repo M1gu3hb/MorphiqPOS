@@ -4,11 +4,15 @@ import { ErrorDominio, PAQUETES } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { cantidad, cantidadATexto } from '@morphiqpos/domain/catalogo';
 import { sql } from 'kysely';
-import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
-import { equivalenciaCanonica, equivalenciaDeLinea } from './costeo.ts';
+import { equivalenciaDeLinea } from './costeo.ts';
 import { entradaGuardarPlantillaCompra, type LineaDeCompra } from './esquemas.ts';
+import {
+  equivalenciaDeLineaGuardada,
+  leerLineasGuardadas,
+  type InsumoDePlantilla,
+} from './plantilla-lineas.ts';
 
 /**
  * Plantillas de compra: `plantillas_compra`, con `lineas` en `jsonb`.
@@ -26,23 +30,6 @@ import { entradaGuardarPlantillaCompra, type LineaDeCompra } from './esquemas.ts
  */
 
 const ROLES = ['dueno', 'administrador', 'gerente'] as const;
-
-const decimal = /^\d{1,10}(?:\.\d{1,4})?$/;
-
-/** Un número guardado en el `jsonb`. Se acepta `number` por las plantillas viejas. */
-const numeroGuardado = z
-  .union([z.string(), z.number()])
-  .transform((valor) => (typeof valor === 'number' ? String(valor) : valor.trim()))
-  .refine((texto) => decimal.test(texto), 'La plantilla guarda un número que no se puede leer.');
-
-const lineaGuardada = z.object({
-  ingrediente_id: z.uuid(),
-  ingrediente_nombre: z.string().optional(),
-  cantidad: numeroGuardado,
-  unidad_compra: z.string().trim().min(1).max(30),
-  costo_total: numeroGuardado,
-  equivalencia: numeroGuardado.optional(),
-});
 
 export const guardarPlantillaCompra = definirComando<
   Transaccion,
@@ -149,30 +136,39 @@ export async function lineasDePlantilla(
     throw new ErrorDominio('PLANTILLA_NO_ENCONTRADA', 'Esa plantilla de compra ya no existe.');
   }
 
-  const guardadas = z.array(lineaGuardada).min(1).safeParse(fila.lineas);
-  if (!guardadas.success) {
-    throw new ErrorDominio(
-      'COMPRA_INVALIDA',
-      `La plantilla «${fila.nombre}» no tiene líneas que se puedan leer. Vuelve a guardarla.`,
-    );
-  }
+  // Acotadas al mismo tope que `entradaRegistrarCompra.lineas`: es lo que
+  // impide que el `jsonb` —escribible directo por el puente— sirva de rodeo.
+  const guardadas = leerLineasGuardadas(fila.lineas, fila.nombre);
 
   const insumos = await insumosDeLaOrganizacion(
     tx,
     organizacionId,
-    guardadas.data.map((linea) => linea.ingrediente_id),
+    guardadas.map((linea) => linea.ingrediente_id),
   );
 
-  return guardadas.data.map((linea) => ({
+  return guardadas.map((linea) => ({
     insumoId: linea.ingrediente_id,
     cantidadCapturada: linea.cantidad,
     unidadCapturada: linea.unidad_compra,
-    equivalencia: linea.equivalencia ?? respaldoDeEquivalencia(insumos, linea, fila.nombre),
+    equivalencia: equivalenciaDeLineaGuardada(
+      linea,
+      insumos.get(linea.ingrediente_id),
+      fila.nombre,
+    ),
     costoTotal: linea.costo_total,
   }));
 }
 
-/** Sube `veces_usada` y `ultimo_uso_en`. Corrige los contadores congelados de §27.2. */
+/**
+ * Sube `veces_usada` y `ultimo_uso_en`. Corrige los contadores congelados de §27.2.
+ *
+ * Exige `activa` por coherencia con `lineasDePlantilla`, que ya la exigía: sin
+ * este filtro, `compras.registrar` aceptaba un `plantillaCompraId` de una
+ * plantilla dada de baja y le seguía subiendo el contador, así que el ranking
+ * de «plantillas más usadas» contaba una plantilla que ya nadie ve. Por el
+ * camino `usar_plantilla` era imposible; por el gemelo, no. Un tope o un estado
+ * que sólo se comprueba en una de las dos puertas no se está comprobando.
+ */
 export async function marcarPlantillaUsada(
   tx: Transaccion,
   organizacionId: string,
@@ -190,21 +186,28 @@ export async function marcarPlantillaUsada(
     })
     .where('id', '=', plantillaId)
     .where('organizacion_id', '=', organizacionId)
+    .where('activa', '=', true)
     .returning('id')
     .executeTakeFirst();
 
   if (fila === undefined) {
-    throw new ErrorDominio('PLANTILLA_NO_ENCONTRADA', 'Esa plantilla de compra ya no existe.');
+    throw new ErrorDominio(
+      'PLANTILLA_NO_ENCONTRADA',
+      'Esa plantilla de compra ya no existe o está dada de baja. Reactívala, o registra ' +
+        'la compra sin vincularla a una plantilla.',
+    );
   }
 }
 
-interface InsumoDePlantilla {
-  readonly id: string;
-  readonly nombre: string;
-  readonly unidadBase: string;
-  readonly equivalenciaPorDefecto: string | null;
-}
-
+/**
+ * Los insumos de las líneas, con lo justo para leerlas.
+ *
+ * **No se lee `cantidad_por_compra_default`.** Esa columna es la que el módulo
+ * documenta como corrompida por la pantalla vieja —le escribe la cantidad
+ * comprada, no la equivalencia— y usarla de respaldo era el defecto bloqueante:
+ * repetir «3 cajas de jitomate» guardaba 9 g en vez de 36 000 y propagaba el
+ * costo envenenado a toda la carta. No leerla es lo que impide reintroducirlo.
+ */
 async function insumosDeLaOrganizacion(
   tx: Transaccion,
   organizacionId: string,
@@ -212,7 +215,7 @@ async function insumosDeLaOrganizacion(
 ): Promise<ReadonlyMap<string, InsumoDePlantilla>> {
   const filas = await tx
     .selectFrom('insumos')
-    .select(['id', 'nombre', 'unidad_base', 'cantidad_por_compra_default'])
+    .select(['id', 'nombre', 'unidad_base'])
     .where('organizacion_id', '=', organizacionId)
     .where('id', 'in', [...new Set(ids)])
     .execute();
@@ -220,46 +223,7 @@ async function insumosDeLaOrganizacion(
   return new Map(
     filas.map((fila) => [
       fila.id,
-      {
-        id: fila.id,
-        nombre: fila.nombre,
-        unidadBase: fila.unidad_base,
-        equivalenciaPorDefecto: fila.cantidad_por_compra_default,
-      },
+      { id: fila.id, nombre: fila.nombre, unidadBase: fila.unidad_base },
     ]),
-  );
-}
-
-/**
- * Qué equivalencia usar cuando la plantilla no la trae.
- *
- * Pasa con las plantillas que ya existen: el formato de Miguel guarda cinco
- * claves y ninguna es la equivalencia. Se resuelve por el catálogo —3 kg de un
- * insumo en gramos son 3000 g— y, si la unidad es de empaque, por el respaldo
- * que su propio diálogo consulta (`RegistrarCompraDialog.jsx:301`). Si tampoco
- * lo hay, se PARA: inventar un 1 convertiría «3 cajas» en 3 gramos.
- */
-function respaldoDeEquivalencia(
-  insumos: ReadonlyMap<string, InsumoDePlantilla>,
-  linea: { readonly ingrediente_id: string; readonly unidad_compra: string },
-  nombrePlantilla: string,
-): string {
-  const insumo = insumos.get(linea.ingrediente_id);
-  if (insumo === undefined) {
-    throw new ErrorDominio(
-      'INVENTARIO_INVALIDO',
-      `La plantilla «${nombrePlantilla}» apunta a un insumo que ya no existe.`,
-    );
-  }
-
-  const canonica = equivalenciaCanonica(linea.unidad_compra, insumo.unidadBase);
-  if (canonica !== null) return cantidadATexto(canonica);
-  if (insumo.equivalenciaPorDefecto !== null) return insumo.equivalenciaPorDefecto;
-
-  throw new ErrorDominio(
-    'COMPRA_INVALIDA',
-    `La plantilla «${nombrePlantilla}» no dice cuántas ${insumo.unidadBase} trae una ` +
-      `${linea.unidad_compra} de «${insumo.nombre}». Regístrala desde «Repetir compra» ` +
-      'capturando la equivalencia.',
   );
 }

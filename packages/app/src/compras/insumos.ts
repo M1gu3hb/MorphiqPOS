@@ -23,6 +23,69 @@ import type { LineaDeCompra } from './esquemas.ts';
  * el promedio igual que dos cajas se pisaban el stock (D-06).
  */
 
+/**
+ * Las únicas unidades base de un restaurante (regla 7 de F1-01 §3).
+ *
+ * No es una preferencia de este módulo: es el trigger
+ * `insumos_unidad_base_por_giro` de la migración 046, que lanza
+ * `check_violation` si el paquete de la organización es `restaurante` y la
+ * unidad base no es una de estas tres.
+ */
+const UNIDADES_BASE_DE_RESTAURANTE: readonly string[] = ['g', 'ml', 'pieza'];
+
+/**
+ * La misma comprobación que hace el trigger, hecha antes de escribir.
+ *
+ * Sin ella, capturar «Harina» en `kg` desde el diálogo de un restaurante hacía
+ * reventar el `insert into insumos` con una excepción cruda de Postgres: la
+ * transacción se deshacía —correcto— pero el usuario veía un error interno en
+ * vez de la regla, y se perdían las cinco líneas ya tecleadas sin saber cuál
+ * era la mala. Validar en el borde lo que la base va a rechazar es lo que
+ * convierte un `check_violation` en una frase que dice qué corregir (R12).
+ */
+export function exigirUnidadBaseDelGiro(
+  paquete: string,
+  unidadBase: string,
+  nombreInsumo: string,
+): void {
+  if (paquete !== 'restaurante') return;
+  if (UNIDADES_BASE_DE_RESTAURANTE.includes(unidadBase)) return;
+  throw new ErrorDominio(
+    'COMPRA_INVALIDA',
+    `«${nombreInsumo}» no se puede medir en ${unidadBase}: un insumo de restaurante se mide ` +
+      'en g, ml o pieza. Captura la compra en la unidad de empaque que traiga la factura ' +
+      `(por ejemplo ${unidadBase === 'kg' ? 'kg' : unidadBase}) y deja la unidad base en g o ml.`,
+  );
+}
+
+/**
+ * Comprueba de una vez todas las líneas que crean un insumo nuevo.
+ *
+ * Se llama ANTES de insertar la cabecera: una compra que va a ser rechazada por
+ * la unidad base de su tercera línea no debería haber escrito nada antes.
+ */
+export async function exigirUnidadesBaseDelGiro(
+  tx: Transaccion,
+  organizacionId: string,
+  lineas: readonly LineaDeCompra[],
+): Promise<void> {
+  const nuevos = lineas.flatMap((linea) => (linea.nuevo === undefined ? [] : [linea.nuevo]));
+  if (nuevos.length === 0) return;
+
+  const organizacion = await tx
+    .selectFrom('organizaciones')
+    .select('paquete')
+    .where('id', '=', organizacionId)
+    .executeTakeFirst();
+  if (organizacion === undefined) {
+    throw new ErrorDominio('COMPRA_INVALIDA', 'La organización de la compra ya no existe.');
+  }
+
+  for (const nuevo of nuevos) {
+    exigirUnidadBaseDelGiro(organizacion.paquete, nuevo.unidadBase, nuevo.nombre);
+  }
+}
+
 export interface InsumoDeCompra {
   readonly id: string;
   readonly nombre: string;

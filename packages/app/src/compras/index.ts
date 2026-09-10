@@ -27,6 +27,7 @@ export {
   entradaUsarPlantillaCompra,
   lineaDeCompra,
   lineaDePlantillaCompra,
+  MAXIMO_LINEAS_DE_COMPRA,
   type LineaDeCompra,
 } from './esquemas.ts';
 
@@ -41,8 +42,13 @@ export {
 } from './costeo.ts';
 
 /**
- * Se exporta para el puente: al LEER un gasto viejo, el prefijo de las notas
- * tiene que volver a verse como `recurrente` y `plantilla_id` (F1-04 §25.1).
- * Esa mitad vive en `packages/app/src/puente`, que no es de este módulo.
+ * `reconocerNotasHeredadas` NO se exporta.
+ *
+ * Estaba exportada «para el puente», describiendo una mitad de lectura que no
+ * existe: nadie fuera de esta carpeta la importa, y el mapa del puente ya expone
+ * `recurrente` y `plantilla_id` como columnas de verdad. Un export muerto que
+ * promete trabajo hecho es peor que ningún export. La mitad que sí hace falta
+ * —reconocer el prefijo al ESCRIBIR un gasto de una pantalla sin portar— la usa
+ * `gastos.ts` aquí dentro. Si el puente llega a necesitarla al leer, se exporta
+ * entonces, con quien la importe.
  */
-export { reconocerNotasHeredadas, type NotasDeGasto } from './notas.ts';

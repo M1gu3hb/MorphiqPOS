@@ -28,6 +28,17 @@ import {
 
 export interface FiltroDePropinas {
   readonly organizacionId: string;
+  /**
+   * La sucursal de la SESIÓN. Nunca nula y nunca «todas».
+   *
+   * `ordenes.sucursal_id` es `not null` (`003:109`) y la fila de liquidación se
+   * sella con la sucursal del ámbito, así que el predicado tiene que acotarse a
+   * ella o el reclamo se lleva las ventas de la otra sucursal. Se declara
+   * obligatorio —y no `string | null` con «nulo = toda la organización»— porque
+   * un opcional se olvida: quien añada la próxima consulta no tiene que
+   * acordarse de nada, no compila sin la sucursal.
+   */
+  readonly sucursalId: string;
   readonly inicio: Date;
   readonly fin: Date;
   /** Nulo = todos los meseros. */
@@ -35,7 +46,16 @@ export interface FiltroDePropinas {
 }
 
 /**
- * Las órdenes pendientes del periodo.
+ * Las órdenes pendientes del periodo, en la sucursal de la sesión.
+ *
+ * ── Por qué también filtra `sucursal_id` ───────────────────────────────────
+ * Sin ese filtro, este mismo predicado —que usan las tres lecturas del diálogo y
+ * el `UPDATE` que reclama— cruzaba la frontera de sucursal en las dos
+ * direcciones: la administradora de Centro liquidaba las propinas de los meseros
+ * de Norte contra la caja de Centro, y un cajero de Norte leía el nombre y el
+ * importe de propina de cada mesero de Centro en su corte. La liquidación se
+ * graba con `sucursal_id` del ámbito (`liquidar.ts`); lo que se reclama tiene
+ * que ser de esa misma sucursal o la fila miente sobre lo que contiene.
  *
  * ── Por qué `coalesce(cerrada_en, created_at)` ─────────────────────────────
  * Es el mismo respaldo que `tipsUtils.js:41` (`fecha_cierre || fecha_apertura ||
@@ -43,11 +63,15 @@ export interface FiltroDePropinas {
  * (`packages/data/src/repos/ordenes/cierre.ts:71-86`) **no escribe `cerrada_en`**,
  * aunque `045_restaurante.sql:51-53` lo exija con un `check`. Sin el `coalesce`,
  * una venta cobrada por un camino que deje esa columna nula desaparecería del
- * periodo y su propina no se liquidaría nunca. Queda anotado en el informe.
+ * periodo y su propina no se liquidaría nunca. Cuesta el índice
+ * `ordenes_propina_pendiente` (`045:63-65`) y queda anotado en el informe: el
+ * arreglo correcto es que `marcarPagada` escriba `cerrada_en`, y ese archivo es
+ * de otro módulo.
  */
 export function condicionPendiente(filtro: FiltroDePropinas) {
   return sql`
     o.organizacion_id = ${filtro.organizacionId}
+    and o.sucursal_id = ${filtro.sucursalId}::uuid
     and o.estado = 'pagada'
     and o.propina_liquidacion_id is null
     and coalesce(o.cerrada_en, o.created_at) >= ${filtro.inicio}
