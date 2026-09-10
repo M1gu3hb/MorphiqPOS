@@ -200,19 +200,6 @@ const entidades = Object.fromEntries(NOMBRES.map((n) => [n, entidad(n)])) as Rec
   EntidadApi
 >;
 
-/**
- * Las funciones de mantenimiento (E10-4).
- *
- * Sus cinco funciones autorizaban leyendo un `rol` del cuerpo de la petición:
- * cualquiera podía mandar `{"rol":"administrador"}` y borrar el negocio
- * entero. Es el defecto más grave del sistema (D-03). Aquí el `rol` que venga
- * en el cuerpo se ignora: manda la sesión.
- */
-const funciones = {
-  invocar: (nombre: string, cuerpo: Registro = {}): Promise<Registro> =>
-    pedir<Registro>(`/api/mantenimiento/${nombre}`, cuerpo, nuevaClave()),
-};
-
 const archivos = {
   subir: ({ file }: { file: File }): Promise<{ file_url: string }> => {
     const cuerpo = new FormData();
@@ -271,14 +258,19 @@ const auth = {
 /**
  * Los comandos transaccionales.
  *
- * Se llenan etapa por etapa conforme se portan las pantallas que los usan. La
- * clave de idempotencia la pone `pedir`, y `conClave` deja reusarla mientras un
- * diálogo esté abierto.
+ * Sustituyen a `api.funciones.invocar`, que ya no existe: aquella mandaba un
+ * `rol` en el cuerpo y el servidor lo creía. Aquí no hay nada que mandar — el
+ * rol sale de la sesión, y un comando que declarara `rol` en su entrada ni
+ * siquiera compila.
+ *
+ * La clave de idempotencia la pone `pedir`. `clave` deja REUSAR la misma
+ * mientras un diálogo esté abierto, que es lo que impide que un doble clic en
+ * «Cobrar» cobre dos veces, o que un reintento de red duplique el inventario.
  */
 const comandos = {
   ejecutar: <T>(ruta: string, cuerpo: Registro, clave?: string): Promise<T> =>
     pedir<T>(ruta, cuerpo, clave ?? nuevaClave()),
 };
 
-export const api = { entidades, funciones, archivos, auth, comandos };
+export const api = { entidades, archivos, auth, comandos };
 export default api;

@@ -347,16 +347,20 @@ export default function Configuracion() {
   const eliminarMesasDemo = async () => {
     setEliminando(true);
     try {
-      const res = await api.funciones.invocar('eliminarMesasDemo', { rol: posUser?.rol });
-      if (res?.data?.ok) {
-        queryClient.invalidateQueries({ queryKey: ['mesas'] });
-        toast.success('Mesas eliminadas correctamente. Ahora puedes crear tu mapa desde cero.');
-        setShowEliminarMesas(false);
-      } else {
-        toast.error(res?.data?.error || 'Error al eliminar mesas');
-      }
+      // Ya no manda `rol`: lo decide la sesión en el servidor. Y ya no borra
+      // físicamente hasta 500 mesas sin mirar si tienen venta abierta — ahora
+      // es borrado suave y el comando SE NIEGA si alguna está ocupada, así que
+      // deja de producir ventas huérfanas.
+      const res = await api.comandos.ejecutar('/api/mantenimiento/vaciar-mesas', {});
+      queryClient.invalidateQueries({ queryKey: ['mesas'] });
+      const cuantas = res?.borrado?.mesas ?? 0;
+      toast.success(`${cuantas} mesas retiradas. Ahora puedes crear tu mapa desde cero.`);
+      setShowEliminarMesas(false);
     } catch (e) {
-      toast.error('Error: ' + (e.message || ''));
+      // El error llega con su mensaje de dominio: si hay mesas con venta
+      // abierta, dice cuáles. Antes esto era un `ok:false` que la pantalla
+      // resumía como «Error al eliminar mesas».
+      toast.error(e?.message || 'No se pudieron retirar las mesas.');
     }
     setEliminando(false);
   };

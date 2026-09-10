@@ -49,15 +49,26 @@ export default function LimpiarSeccionButton({ seccion, onCleared }) {
   if (posUser?.rol !== 'administrador') return null;
 
   const handle = async () => {
-    if (confirmText.trim().toUpperCase() !== 'ELIMINAR') {
-      toast.error('Escribe ELIMINAR para confirmar');
+    // Antes se comparaba contra la palabra «ELIMINAR», impresa en esta misma
+    // pantalla. Ahora se manda el nombre del negocio y lo compara el SERVIDOR
+    // contra el que lee de la base, en la misma transacción que va a borrar.
+    // La comprobación del cliente se queda como ergonomía, no como seguridad:
+    // evita un viaje de red cuando el campo está vacío.
+    if (confirmText.trim() === '') {
+      toast.error('Escribe el nombre del negocio para confirmar');
       return;
     }
     setWorking(true);
     try {
-      const res = await api.funciones.invocar('limpiarHistorialSeccion', { seccion });
-      const data = res?.data || res;
-      toast.success(`Se eliminaron ${data?.deleted || 0} registros de ${LABELS[seccion]}`);
+      // `res` YA es `datos`: `pedir()` desenvuelve el sobre. Leer `res.data.ok`
+      // —como hacía este código— daba «error» DESPUÉS de un borrado correcto, y
+      // alguien lo intentaría dos veces.
+      const res = await api.comandos.ejecutar('/api/mantenimiento/purgar-seccion', {
+        seccion,
+        confirmacionNombreNegocio: confirmText.trim(),
+      });
+      const total = Object.values(res?.borrado || {}).reduce((s, n) => s + (Number(n) || 0), 0);
+      toast.success(`Se eliminaron ${total} registros de ${LABELS[seccion]}`);
       // Invalida caches relevantes
       [
         'registros_cortes',
@@ -101,15 +112,19 @@ export default function LimpiarSeccionButton({ seccion, onCleared }) {
               Esta acción NO afecta datos maestros (productos, recetas, ingredientes,
               configuración).
             </span>
+            <span className="block font-medium text-destructive">
+              Esto no se puede deshacer. El único rescate es un punto de restauración de la
+              base de datos.
+            </span>
             <span className="block">
-              Para confirmar escribe <strong>ELIMINAR</strong>:
+              Para confirmar escribe el <strong>nombre de tu negocio</strong>:
             </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <Input
           value={confirmText}
           onChange={(e) => setConfirmText(e.target.value)}
-          placeholder="ELIMINAR"
+          placeholder="Nombre del negocio"
           className="font-mono"
         />
         <AlertDialogFooter>

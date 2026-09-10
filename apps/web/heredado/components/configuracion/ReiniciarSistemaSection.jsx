@@ -40,8 +40,12 @@ export default function ReiniciarSistemaSection() {
   const [loading, setLoading] = useState(false);
 
   const open = mode !== null;
-  const expectedText = mode === 'all' ? 'BORRAR TODO' : 'BORRAR PRUEBAS';
-  const isConfirmValid = confirmText.trim() === expectedText;
+  // Antes se comparaba contra «BORRAR TODO» o «BORRAR PRUEBAS», dos constantes
+  // impresas en esta misma pantalla. Ahora se escribe el NOMBRE DEL NEGOCIO y
+  // lo compara el servidor contra el que lee de la base, en la transacción que
+  // va a borrar. Aquí sólo se comprueba que el campo no esté vacío: es
+  // ergonomía para ahorrar un viaje de red, no la seguridad.
+  const isConfirmValid = confirmText.trim() !== '';
 
   const closeDialog = () => {
     if (loading) return; // no cerrar mientras corre
@@ -101,19 +105,25 @@ export default function ReiniciarSistemaSection() {
       return;
     }
     if (!isConfirmValid) {
-      toast.error(`Debes escribir exactamente "${expectedText}".`);
+      toast.error('Escribe el nombre de tu negocio para confirmar.');
       return;
     }
     setLoading(true);
     try {
-      const res = await api.funciones.invocar('reiniciarSistema', {
-        mode,
-        confirm: confirmText.trim(),
-        posRol: posUser?.rol,
-        posUserId: posUser?.id,
+      // Dos rutas y no una con `mode`. La diferencia entre borrar el histórico
+      // y borrar el negocio es tan grande que compartir ruta, rol y palabra de
+      // confirmación era un error de diseño heredado.
+      //
+      // Y ya no viaja `posRol`: el rol lo decide la sesión. Un comando que
+      // aceptara ese campo no compilaría.
+      const ruta =
+        mode === 'all'
+          ? '/api/mantenimiento/reiniciar-todo'
+          : '/api/mantenimiento/reiniciar-pruebas';
+      await api.comandos.ejecutar(ruta, {
+        confirmacionNombreNegocio: confirmText.trim(),
       });
-      const data = res?.data || {};
-      if (data?.ok) {
+      {
         invalidateAllQueries();
         // limpiamos algunos caches visuales no críticos (NO tocamos auth Base44)
         try {
@@ -141,11 +151,13 @@ export default function ReiniciarSistemaSection() {
         setTimeout(() => {
           navigate('/');
         }, 600);
-      } else {
-        toast.error(data?.error || 'No se pudo reiniciar el sistema.');
       }
     } catch (e) {
-      toast.error('Error al reiniciar: ' + (e?.message || ''));
+      // El mensaje viene del dominio: si el nombre no coincide, lo dice. Antes
+      // se leía `res.data.error`, que con el sobre nuevo sale siempre
+      // `undefined` — la pantalla habría dicho «error» DESPUÉS de un borrado
+      // correcto, y alguien lo intentaría dos veces.
+      toast.error(e?.message || 'No se pudo reiniciar el sistema.');
     } finally {
       setLoading(false);
     }
@@ -280,20 +292,20 @@ export default function ReiniciarSistemaSection() {
 
             <div>
               <Label className="text-xs">
-                Para confirmar, escribe exactamente: <strong>{expectedText}</strong>
+                Para confirmar, escribe el <strong>nombre de tu negocio</strong>
               </Label>
               <Input
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
-                placeholder={expectedText}
+                placeholder="Nombre del negocio"
                 autoFocus
                 disabled={loading}
               />
             </div>
 
             <p className="text-[11px] text-muted-foreground">
-              Sesión actual: <strong>{posUser?.nombre}</strong> ({posUser?.rol}). Solo el rol
-              administrador puede ejecutar esta acción.
+              Sesión actual: <strong>{posUser?.nombre}</strong> ({posUser?.rol}). Esto no se
+              puede deshacer: el único rescate es un punto de restauración de la base de datos.
             </p>
           </div>
 

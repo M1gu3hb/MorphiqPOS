@@ -90,11 +90,15 @@ export default function Ventas() {
   const handleLimpiar = async () => {
     setLimpiando(true);
     try {
-      const res = await api.funciones.invocar('limpiarVentas', {
-        rol: posUser?.rol,
+      // Sin `rol` en el cuerpo: lo decide la sesión. Y con clave de
+      // idempotencia, que aquí no es burocracia — el `limpiarVentas` anterior
+      // sumaba el stock SIN marca, así que un reintento de red duplicaba el
+      // inventario del negocio entero.
+      await api.comandos.ejecutar('/api/mantenimiento/purgar-ventas', {
+        confirmacionNombreNegocio: confirmText.trim(),
         revertirInventario,
       });
-      if (res?.data?.ok) {
+      {
         toast.success('Ventas de prueba limpiadas correctamente');
         [
           'ventas_all',
@@ -113,11 +117,12 @@ export default function Ventas() {
           'registros_cortes',
           'registros_movimientos',
         ].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
-      } else {
-        toast.error(res?.data?.error || 'Error al limpiar');
       }
     } catch (e) {
-      toast.error('Error: ' + (e.message || ''));
+      // El mensaje viene del dominio y dice qué pasó: si el nombre no coincide,
+      // lo dice. Antes esto era `res.data.error`, que con el sobre nuevo salía
+      // siempre `undefined` y se leía como «Error al limpiar» sin más.
+      toast.error(e?.message || 'No se pudieron limpiar las ventas.');
     }
     setLimpiando(false);
     setShowLimpiar(false);
@@ -283,12 +288,12 @@ export default function Ventas() {
             </label>
             <div>
               <p className="text-xs mb-1">
-                Escribe <span className="font-mono font-bold">LIMPIAR</span> para confirmar:
+                Escribe el <span className="font-mono font-bold">nombre de tu negocio</span> para confirmar:
               </p>
               <Input
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
-                placeholder="LIMPIAR"
+                placeholder="Nombre del negocio"
                 className="font-mono"
               />
             </div>
@@ -305,7 +310,7 @@ export default function Ventas() {
             </Button>
             <Button
               variant="destructive"
-              disabled={confirmText !== 'LIMPIAR' || limpiando}
+              disabled={confirmText.trim() === '' || limpiando}
               onClick={handleLimpiar}
             >
               {limpiando ? 'Limpiando...' : 'Confirmar limpieza'}
