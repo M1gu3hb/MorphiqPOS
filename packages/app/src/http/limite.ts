@@ -36,6 +36,14 @@ import { repoLimite } from '@morphiqpos/data';
 export const LIMITES = {
   entrar: { intentos: 20, ventanaSegundos: 300 },
   enrolar: { intentos: 20, ventanaSegundos: 600 },
+  /**
+   * Mantenimiento destructivo. Tres por hora y por origen.
+   *
+   * Nadie borra el histórico de su negocio cuatro veces en una hora. Son los
+   * endpoints a los que iría una sesión robada, y tres intentos bastan para
+   * quien se equivoca de sección y lo repite.
+   */
+  mantenimiento: { intentos: 3, ventanaSegundos: 3600 },
 } as const;
 
 export type AccionLimitada = keyof typeof LIMITES;
