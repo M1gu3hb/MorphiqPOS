@@ -332,15 +332,31 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // `total` es la venta REAL, SIN propina. Nunca se infla (regla 1).
       total: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
       subtotal: { columna: 'subtotal_centavos', conversion: 'dinero', escribible: false },
-      descuento: { columna: 'descuento_centavos', conversion: 'dinero', escribible: false },
+      // LOS NOMBRES SON LOS SUYOS. Nueve archivos leen `costo_total_snapshot`,
+      // nueve `utilidad_bruta_snapshot`, seis `usuario_mesero_id` y cinco
+      // `corte_caja_id`. Llamarlos como uno querría dejaría a los veintinueve
+      // viendo `undefined`, sin error y sin aviso.
+      descuentos: { columna: 'descuento_centavos', conversion: 'dinero', escribible: false },
       impuestos: { columna: 'impuestos_centavos', conversion: 'dinero', escribible: false },
-      costo_total: { columna: 'costo_total_centavos', conversion: 'dinero', escribible: false },
-      utilidad: { columna: 'utilidad_centavos', conversion: 'dinero', escribible: false },
-      margen_porcentaje: { columna: 'margen_bp', conversion: 'puntos_base', escribible: false },
-      mesero_id: { columna: 'empleado_atiende_id', conversion: 'texto', escribible: false },
-      cajero_id: { columna: 'empleado_cobra_id', conversion: 'texto', escribible: false },
+      costo_total_snapshot: {
+        columna: 'costo_total_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      utilidad_bruta_snapshot: {
+        columna: 'utilidad_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      margen_snapshot: { columna: 'margen_bp', conversion: 'puntos_base', escribible: false },
+      usuario_mesero_id: {
+        columna: 'empleado_atiende_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      usuario_cajero_id: { columna: 'empleado_cobra_id', conversion: 'texto', escribible: false },
       cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
-      sesion_caja_id: { columna: 'sesion_caja_id', conversion: 'texto', escribible: false },
+      corte_caja_id: { columna: 'sesion_caja_id', conversion: 'texto', escribible: false },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
       motivo_cancelacion: { columna: 'motivo_cancelacion', conversion: 'texto', escribible: false },
       cancelada_en: { columna: 'cancelada_en', conversion: 'fecha', escribible: false },
@@ -563,22 +579,50 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     campos: {
       ...AUTO,
       estado: { columna: 'estado', conversion: 'texto', escribible: false },
-      fondo_inicial: { columna: 'fondo_inicial_centavos', conversion: 'dinero', escribible: false },
+      // Sus nombres. Dieciséis archivos leen `fecha_apertura` y tres
+      // `efectivo_inicial_contado`.
+      serie: { columna: 'serie', conversion: 'texto', escribible: false },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      efectivo_inicial_contado: {
+        columna: 'fondo_inicial_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      fondo_esperado_apertura: {
+        columna: 'fondo_esperado_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      notas_apertura: { columna: 'notas_apertura', conversion: 'texto', escribible: false },
       efectivo_contado: {
         columna: 'efectivo_contado_centavos',
         conversion: 'dinero',
         escribible: false,
       },
-      efectivo_retirado: {
+      dinero_dejado_en_caja: {
         columna: 'efectivo_retirado_centavos',
         conversion: 'dinero',
         escribible: false,
       },
-      abierta_en: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
-      cerrada_en: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
+      fecha_apertura: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
+      fecha_cierre: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
       usuario_apertura_id: { columna: 'empleado_abre_id', conversion: 'texto', escribible: false },
-      usuario_cierre_id: { columna: 'empleado_cierra_id', conversion: 'texto', escribible: false },
+      usuario_cajero_id: { columna: 'empleado_cierra_id', conversion: 'texto', escribible: false },
       notas: { columna: 'notas_cierre', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      usuario_apertura_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_abre_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      usuario_cajero_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_cierra_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
     },
   },
 
@@ -1128,12 +1172,22 @@ const DESCUENTO_INVENTARIO_VENTA: MapaEntidad = {
     ...soloAutomaticos(['id', 'created_date']),
     venta_id: { columna: 'referencia_id', conversion: 'texto', escribible: false },
     ingrediente_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
-    cantidad: { columna: 'cantidad', conversion: 'decimal', escribible: false },
-    unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
-    costo_unitario: {
+    // Sus nombres. El signo: el ledger guarda las salidas en negativo, y esta
+    // vista es «lo consumido», que su pantalla enseña en positivo.
+    cantidad_total_descontada: { columna: 'cantidad', conversion: 'decimal', escribible: false },
+    unidad_base: { columna: 'unidad', conversion: 'texto', escribible: false },
+    costo_unitario_snapshot: {
       columna: 'costo_unitario_centavos',
       conversion: 'dinero',
       escribible: false,
+    },
+  },
+  derivados: {
+    ingrediente_nombre: {
+      tabla: 'insumos',
+      porColumna: 'insumo_id',
+      columna: 'nombre',
+      conversion: 'texto',
     },
   },
 };

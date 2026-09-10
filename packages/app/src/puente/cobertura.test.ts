@@ -60,16 +60,6 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
     satisfaccion_origen: 'constante «portal_qr» en v1, no columna',
     fecha_apertura: 'es `created_at`: el mismo instante',
     tipo_venta: 'se abre en estrategia_captura + estrategia_cumplimiento (F1-04 §6.5)',
-    usuario_mesero_id: 'se llama mesero_id en el puente',
-    usuario_cajero_id: 'se llama cajero_id en el puente',
-    descuentos: 'se llama descuento en el puente',
-    costo_total_snapshot: 'se llama costo_total en el puente',
-    utilidad_bruta_snapshot: 'se llama utilidad en el puente',
-    margen_snapshot: 'se llama margen_porcentaje en el puente',
-    corte_caja_id: 'se llama sesion_caja_id en el puente',
-    mesa_numero: 'derivado por join con mesas (F1-04 §38.1)',
-    usuario_mesero_nombre: 'derivado por join',
-    usuario_cajero_nombre: 'derivado por join',
   },
   DetalleVenta: {
     costo_total_linea_snapshot: 'derivado: costo_unitario × cantidad (F1-04 §7.3)',
@@ -77,28 +67,16 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
     margen_linea_snapshot: 'derivado de subtotal y costo',
     modificadores_snapshot: 'se normaliza a filas de orden_linea_modificadores (F1-04 §7.4)',
   },
-  Mesa: {
-    zona: 'derivado por join con zonas: dejó de ser texto libre (F1-04 §9)',
-    mesero_asignado_nombre: 'derivado por join',
-    mesero_asignado_color: 'derivado por join',
-    atendido_por_nombre: 'derivado por join',
-    atendido_por_color: 'derivado por join',
-  },
+  Mesa: {},
   PedidoPreparacion: {
     items: 'se normaliza a comanda_items, que cocina actualiza fila por fila (F1-04 §10.1)',
     venta_folio: 'derivado del serie+folio de la orden',
-    mesa_numero: 'derivado por join',
     fecha_creacion: 'es `created_at`: el mismo instante',
-    estacion_preparacion_nombre: 'se llama estacion_preparacion_nombre y SÍ está',
   },
   Ingrediente: {
     // `stock_actual` sí está, pero como DERIVADO: es la diferencia que importa.
   },
-  RecetaEscandallo: {
-    ingrediente_nombre: 'derivado por join con insumos',
-    costo_unitario_base_snapshot: 'derivado EN VIVO de insumos (F1-04 §17.2, mitad de D-09)',
-    costo_linea_calculado: 'calculado al leer',
-  },
+  RecetaEscandallo: {},
   MovimientoInventario: {
     stock_anterior: 'se descarta a propósito: el ledger es la verdad (F1-04 §18.3)',
     stock_nuevo: 'se descarta a propósito: el ledger es la verdad (F1-04 §18.3)',
@@ -115,19 +93,10 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
    * su código y no coinciden entre sí (§20.4).
    */
   CorteCaja: {
-    folio: 'columna `folio` con serie CC; el puente la compone al leer',
     tipo_corte: 'se parte en sesiones_caja y cortes_turno (F1-04 §20.1)',
     corte_padre_id: 'un corte de turno apunta a su sesión con sesion_caja_id',
-    fecha_inicio: 'es abierta_en para la sesión, rango_inicio para el corte de turno',
-    fecha_apertura: 'es abierta_en, ya mapeado como abierta_en',
-    fecha_cierre: 'es cerrada_en, ya mapeado como cerrada_en',
-    usuario_cajero_id: 'se parte en usuario_apertura_id y usuario_cierre_id',
-    usuario_cajero_nombre: 'derivado por join con empleados_visibles',
-    usuario_apertura_nombre: 'derivado por join con empleados_visibles',
-    efectivo_inicial_contado: 'es fondo_inicial, ya mapeado como fondo_inicial',
-    fondo_esperado_apertura: 'columna fondo_esperado_centavos, añadida en la migración 045',
+    fecha_inicio: 'para la sesión coincide con fecha_apertura; el corte de turno tiene rango propio',
     diferencia_apertura: 'derivado: fondo contado menos fondo esperado',
-    notas_apertura: 'columna notas_apertura, añadida en la migración 045',
     efectivo_esperado: 'derivado de movimientos_caja; tenía TRES fórmulas (F1-04 §20.4)',
     total_efectivo: 'derivado de pagos acotados al rango (F1-04 §20.2)',
     total_tarjeta: 'derivado de pagos acotados al rango',
@@ -143,32 +112,23 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
     margen_promedio: 'derivado de utilidad y total',
     utilidad_neta_estimada: 'derivado: utilidad bruta menos gastos del rango',
     diferencia_efectivo: 'derivado: contado menos esperado',
-    dinero_dejado_en_caja: 'derivado: contado menos retirado',
     total_gastos: 'derivado de gastos del rango',
     propinas_por_mesero: 'derivado por empleado (F1-04 §20.8)',
     resumen_ingredientes: 'no existe: se deriva del ledger si hace falta (F1-04 §20.7)',
   },
-  CompraInsumo: { usuario_nombre: 'derivado por join' },
+  CompraInsumo: {},
   DetalleCompra: {
     costo_unitario_base_calculado: 'derivado: costo_total / cantidad (F1-04 §23)',
-    cantidad_comprada: 'se llama cantidad_comprada y SÍ está',
   },
-  GastoOperativo: { usuario_nombre: 'derivado por join' },
+  GastoOperativo: {},
   SolicitudQR: {
-    mesa_nombre: 'derivado por join',
-    mesa_numero: 'derivado por join',
-    atendido_por_nombre: 'derivado por join',
-    mesero_destino_nombre: 'derivado por join',
     fecha_creacion: 'es `created_at`: el mismo instante',
     total_estimado: 'derivado: subtotal + propina sugerida',
-    propina_monto_sugerida: 'se llama propina_monto_sugerida y SÍ está',
   },
   MenuQRSeccion: {
     archivo_url: 'MUERTO: ni se escribe ni se lee en los 244 archivos (F1-04 §29)',
   },
   LiquidacionPropina: {
-    mesero_nombre: 'derivado por join',
-    usuario_liquido_nombre: 'derivado por join',
     numero_ventas: 'derivado: count de órdenes con este propina_liquidacion_id',
     venta_ids: 'derivado de ordenes.propina_liquidacion_id (F1-04 §30.1)',
     desglose_meseros: 'derivado (F1-04 §30.1)',
@@ -198,12 +158,8 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
     producto_id: 'la vista agrega por insumo y no puede reconstruirlo (F1-04 §19.1)',
     cantidad_producto: 'la vista agrega por insumo y no puede reconstruirlo (F1-04 §19.1)',
     cantidad_ingrediente_por_producto: 'la vista agrega por insumo y no lo reconstruye (F1-04 §19.1)',
-    ingrediente_nombre: 'la vista lo trae; el mapa lo expondrá cuando alguna pantalla lo lea',
     costo_total_descontado: 'derivado: cantidad × costo_unitario',
-    unidad_base: 'se llama unidad en el puente',
-    costo_unitario_snapshot: 'se llama costo_unitario en el puente',
-    cantidad_total_descontada: 'se llama cantidad en el puente',
-    fecha: 'es `created_date`',
+    fecha: 'coincide con created_date: el movimiento del ledger tiene un solo instante',
   },
 };
 
@@ -281,10 +237,62 @@ describe('el puente cubre lo que su esquema declaraba', () => {
     }
   });
 
+  /**
+   * Y el caso contrario: un motivo sobre un campo que SÍ está mapeado.
+   *
+   * Es peor que sobrar, porque miente en la dirección cómoda: dice «esto no
+   * está y da igual» sobre algo que sí está, y esconde el mapeo de quien lea la
+   * lista para saber qué falta.
+   */
+  it('ningún motivo describe un campo que sí está mapeado', () => {
+    for (const [entidad, motivos] of Object.entries(DESCARTADOS)) {
+      const mapa = entidadMapeada(entidad);
+      if (mapa === null) continue;
+      const mapeados = new Set([
+        ...Object.keys(mapa.campos),
+        ...Object.keys(mapa.derivados ?? {}),
+        ...Object.keys(mapa.calculados ?? {}),
+      ]);
+      const contradictorios = Object.keys(motivos).filter((p) => mapeados.has(p));
+      expect(
+        contradictorios,
+        `${entidad}: descartados pero mapeados → ${contradictorios.join(', ')}`,
+      ).toEqual([]);
+    }
+  });
+
   it('todo motivo de descarte explica algo, no es un hueco en blanco', () => {
     for (const [entidad, motivos] of Object.entries(DESCARTADOS)) {
       for (const [propiedad, motivo] of Object.entries(motivos)) {
         expect(motivo.trim().length, `${entidad}.${propiedad} sin motivo`).toBeGreaterThan(10);
+      }
+    }
+  });
+
+  /**
+   * EL AGUJERO QUE ESTE CONTRATO TENÍA, Y QUE SE CIERRA AQUÍ.
+   *
+   * «Se llama X en el puente» PARECE un motivo y no lo es: su código lee el
+   * nombre DECLARADO, no el que a uno le guste más. Aceptarlo dejó pasar
+   * `utilidad_bruta_snapshot` —que leen nueve archivos—, `costo_total_snapshot`
+   * —otros nueve— y `fecha_apertura` —dieciséis—, todos devolviendo `undefined`
+   * mientras el contrato decía que estaba todo cubierto.
+   *
+   * Un renombrado no es un descarte. Si el campo existe, se mapea CON SU
+   * NOMBRE; si no existe, el motivo tiene que decir qué lo sustituye.
+   */
+  it('«se llama de otra forma» NO es un motivo de descarte', () => {
+    const excusas = /^(se llama|es \w+_|se renombr)/i;
+    for (const [entidad, motivos] of Object.entries(DESCARTADOS)) {
+      for (const [propiedad, motivo] of Object.entries(motivos)) {
+        // Se permite «es `created_at`: …» y similares SÓLO cuando explican que
+        // el dato es el mismo instante o el mismo valor, no un alias distinto.
+        const esAliasPuro = excusas.test(motivo.trim()) && !motivo.includes(':');
+        expect(
+          esAliasPuro,
+          `${entidad}.${propiedad}: «${motivo}» es un renombrado, no un descarte. ` +
+            'Su código lee el nombre declarado: mapéalo CON SU NOMBRE.',
+        ).toBe(false);
       }
     }
   });
