@@ -50,7 +50,8 @@
     "test:integracion": "vitest run --config vitest.integracion.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "verify:pruebas": "node scripts/verificar-pruebas.mjs"
+    "verify:pruebas": "node scripts/verificar-pruebas.mjs",
+    "docs:comandos": "node scripts/generar-catalogo-comandos.mjs > docs/fase-1/F1-08-COMANDOS-Y-RUTAS.md"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
