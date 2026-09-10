@@ -25,7 +25,8 @@
     "./compras": "./src/compras/index.ts",
     "./propinas": "./src/propinas/index.ts",
     "./portal": "./src/portal/index.ts",
-    "./mantenimiento": "./src/mantenimiento/index.ts"
+    "./mantenimiento": "./src/mantenimiento/index.ts",
+    "./puente-presentacion": "./src/puente/presentacion.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

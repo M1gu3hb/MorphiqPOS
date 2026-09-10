@@ -94,6 +94,19 @@ export const PUBLICOS = [
  */
 const NUNCA_SALEN = new Set(['presentacion_password', 'presentacion_password_hash']);
 
+/**
+ * Campos que NO se escriben por el camino genérico, aunque salgan al leer.
+ *
+ * `paquete_modo` decide qué funciones existen y qué se cobra. Su
+ * `ModoPresentacion.jsx:80` lo escribía con un `update` cualquiera, que este
+ * camino admite para un GERENTE. Tiene su comando, `configuracion.cambiar_paquete`,
+ * y ése exige dueño.
+ *
+ * `presentacion_ultimo_acceso` lo pone el servidor al desbloquear: aceptarlo
+ * del cliente permitiría falsificar el registro de quién entró.
+ */
+const SOLO_POR_COMANDO = new Set(['paquete_modo', 'presentacion_ultimo_acceso']);
+
 type Registro = Record<string, unknown>;
 
 function esObjeto(v: unknown): v is Registro {
@@ -158,6 +171,7 @@ export async function guardarConfiguracionParcial(
   tx: Transaccion,
   organizacionId: string,
   parche: Readonly<Record<string, unknown>>,
+  opciones: { readonly desdeComando?: boolean } = {},
 ): Promise<Registro> {
   for (const prohibido of NUNCA_SALEN) {
     if (prohibido in parche) {
@@ -165,6 +179,16 @@ export async function guardarConfiguracionParcial(
         'PUENTE_CAMPO_INVALIDO',
         `«${prohibido}» no se guarda por aquí: se compara en el servidor contra un hash.`,
       );
+    }
+  }
+  if (opciones.desdeComando !== true) {
+    for (const acotado of SOLO_POR_COMANDO) {
+      if (acotado in parche) {
+        throw new ErrorDominio(
+          'PUENTE_CAMPO_INVALIDO',
+          `«${acotado}» tiene su propio comando y exige un rol más estricto.`,
+        );
+      }
     }
   }
 

@@ -47,7 +47,9 @@ const DEFAULT_CONFIG = {
   colorear_importes_monetarios: true,
   paquete_modo: 'restaurante_pro',
   modo_presentacion_activo: false,
-  presentacion_password: '2797',
+  //  NO está aquí, y es a propósito: era una contraseña
+  // por omisión escrita en el código de un repositorio público. La contraseña
+  // vive hasheada en la base y la compara el servidor (E10-3, defecto D-19).
 };
 
 const ConfigContext = createContext({ config: DEFAULT_CONFIG, isLoading: false });
@@ -88,7 +90,6 @@ export function ConfigProvider({ children }) {
   // Helpers de paquete expuestos globalmente
   const paquete_modo = getCurrentPackage(config);
   const modo_presentacion_activo = !!config.modo_presentacion_activo;
-  const presentacion_password = config.presentacion_password || '2797';
   const canAccessModule = (moduleName) => canAccessModuleHelper(moduleName, paquete_modo);
   const packageLabel = getPackageLabel(paquete_modo);
   const packageFeatures = getPackageFeatures(paquete_modo);
@@ -100,7 +101,6 @@ export function ConfigProvider({ children }) {
         isLoading,
         paquete_modo,
         modo_presentacion_activo,
-        presentacion_password,
         canAccessModule,
         packageLabel,
         packageFeatures,

@@ -47,48 +47,58 @@ function CompareCell({ value }) {
 
 export default function ModoPresentacion({ cfg }) {
   const queryClient = useQueryClient();
-  const expectedPassword = cfg?.presentacion_password || '2797';
 
   const [unlocked, setUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [error, setError] = useState('');
   const [seleccion, setSeleccion] = useState(cfg?.paquete_modo || 'restaurante_pro');
   const [guardando, setGuardando] = useState(false);
+  const [comprobando, setComprobando] = useState(false);
 
   const handleUnlock = async () => {
-    if (passwordInput.trim() === String(expectedPassword)) {
+    // Antes esto comparaba `passwordInput === (cfg.presentacion_password ||
+    // '2797')` EN EL NAVEGADOR. Dos agujeros: la contraseña real viajaba en
+    // texto plano dentro de la configuración —estaba en la consola de
+    // cualquiera—, y sin una configurada valía «2797», escrito en el código
+    // fuente de un repositorio público.
+    //
+    // Ahora la compara el servidor con Argon2id y pimienta, y `setUnlocked`
+    // deja de ser una decisión del cliente. La contraseña ya no sale de la base
+    // por ningún camino.
+    if (!passwordInput.trim()) {
+      setError('Escribe la contraseña');
+      return;
+    }
+    setComprobando(true);
+    try {
+      await api.comandos.ejecutar('/api/configuracion/presentacion', {
+        contrasena: passwordInput.trim(),
+      });
       setUnlocked(true);
       setError('');
       setPasswordInput('');
-      // Registrar acceso (no crítico)
-      try {
-        if (cfg?.id) {
-          await api.entidades.ConfiguracionNegocio.update(cfg.id, {
-            presentacion_ultimo_acceso: new Date().toISOString(),
-          });
-          queryClient.invalidateQueries({ queryKey: ['config'] });
-        }
-      } catch {}
-    } else {
-      setError('Contraseña incorrecta');
+      queryClient.invalidateQueries({ queryKey: ['config'] });
+    } catch (e) {
+      setError(e?.message || 'Contraseña incorrecta');
+    } finally {
+      setComprobando(false);
     }
   };
 
   const handleGuardar = async () => {
     setGuardando(true);
     try {
-      if (cfg?.id) {
-        await api.entidades.ConfiguracionNegocio.update(cfg.id, { paquete_modo: seleccion });
-      } else {
-        await api.entidades.ConfiguracionNegocio.create({
-          nombre_negocio: cfg?.nombre_negocio || 'MH Astral Systems',
-          paquete_modo: seleccion,
-        });
-      }
+      // El paquete decide qué funciones existen y qué se cobra: no es un campo
+      // más de la configuración. Tiene su comando y ése exige DUEÑO, mientras
+      // que el `update` genérico lo admitía para un gerente.
+      //
+      // Y ya no hay rama `create`: la base impone una configuración por
+      // organización, así que el registro siempre existe (corrige D-15).
+      await api.comandos.ejecutar('/api/configuracion/paquete', { paquete: seleccion });
       queryClient.invalidateQueries({ queryKey: ['config'] });
       toast.success('Modo de paquete actualizado correctamente');
     } catch (e) {
-      toast.error('No se pudo guardar: ' + (e.message || ''));
+      toast.error(e?.message || 'No se pudo guardar el paquete.');
     }
     setGuardando(false);
   };
