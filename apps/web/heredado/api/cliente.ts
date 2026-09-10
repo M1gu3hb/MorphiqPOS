@@ -30,11 +30,27 @@
  */
 
 /** Las seis operaciones que su código usa, con su semántica exacta. */
+/** Un rango cerrado sobre un campo de fecha. Los dos extremos son inclusivos. */
+export interface Rango {
+  campo: string;
+  desde?: string;
+  hasta?: string;
+}
+
 export interface EntidadApi {
   /** `list('-created_date', 500)` — el prefijo `-` es descendente. */
   list(orden?: string, limite?: number): Promise<Registro[]>;
   /** Igualdad exacta, AND entre claves. */
   filter(donde: Filtro, orden?: string, limite?: number): Promise<Registro[]>;
+  /**
+   * Como `filter`, pero acotando un campo de fecha EN LA BASE.
+   *
+   * No existía en su plataforma, y por eso `Registros.jsx` descarga 1 000
+   * ventas, 500 movimientos, 300 compras, 300 gastos y 200 cortes en cada carga
+   * para después filtrar el periodo en el navegador. Con un restaurante de
+   * verdad eso es traerse el año entero para enseñar el mes.
+   */
+  enRango(rango: Rango, donde?: Filtro, orden?: string, limite?: number): Promise<Registro[]>;
   /** Devuelve el objeto o lanza. */
   get(id: string): Promise<Registro>;
   /** Devuelve el registro creado, CON su `id`. */
@@ -116,6 +132,15 @@ function entidad(nombre: string): EntidadApi {
         entidad: nombre,
         operacion: 'filter',
         filtro: donde,
+        orden,
+        limite,
+      }),
+    enRango: (rango, donde, orden, limite) =>
+      pedir<Registro[]>(RUTA_LECTURA, {
+        entidad: nombre,
+        operacion: 'filter',
+        filtro: donde ?? {},
+        rango,
         orden,
         limite,
       }),

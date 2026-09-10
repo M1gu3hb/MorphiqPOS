@@ -38,10 +38,29 @@ export interface Ambito {
   readonly rol: string;
 }
 
+/**
+ * Un rango cerrado sobre un campo de fecha o de día.
+ *
+ * Su plataforma no tenía rangos: `Registros.jsx` descarga 1 000 ventas, 500
+ * movimientos, 300 compras, 300 gastos y 200 cortes EN CADA CARGA, y luego
+ * filtra por periodo en el navegador. Con un restaurante de verdad eso es
+ * descargar el año entero para enseñar el mes.
+ *
+ * El rango se aplica en la base. Los dos extremos son opcionales y ambos
+ * INCLUSIVOS: `{desde: '2026-09-01', hasta: '2026-09-30'}` es septiembre entero,
+ * que es lo que alguien espera al escribir esas dos fechas.
+ */
+export interface Rango {
+  readonly campo: string;
+  readonly desde?: string;
+  readonly hasta?: string;
+}
+
 export interface PeticionConsulta {
   readonly entidad: string;
   readonly operacion: 'list' | 'filter' | 'get';
   readonly filtro?: Readonly<Record<string, unknown>>;
+  readonly rango?: Rango;
   readonly id?: string;
   /** `'-created_date'` es descendente, igual que en su código. */
   readonly orden?: string;
@@ -161,6 +180,44 @@ export async function consultar(
       valor === null
         ? consulta.where(`${BASE}.${campo.columna}`, 'is', null)
         : consulta.where(`${BASE}.${campo.columna}`, '=', haciaLaBase(valor, campo.conversion));
+  }
+
+  // 4b · El rango, si lo hay. Sólo sobre campos de fecha o de día: pedir un
+  //      rango sobre un texto o un booleano no significa nada y se rechaza en
+  //      vez de devolver algo que parezca una respuesta.
+  if (peticion.rango !== undefined) {
+    const { campo: clave, desde, hasta } = peticion.rango;
+    const campo = mapa.campos[clave];
+    if (campo === undefined) {
+      throw new ErrorDominio(
+        'PUENTE_CAMPO_INVALIDO',
+        `«${clave}» no es un campo de ${peticion.entidad}.`,
+      );
+    }
+    if (campo.conversion !== 'fecha' && campo.conversion !== 'dia') {
+      throw new ErrorDominio(
+        'PUENTE_CAMPO_INVALIDO',
+        `«${clave}» no es una fecha: no se puede pedir un rango sobre él.`,
+      );
+    }
+    if (desde !== undefined && desde !== '') {
+      consulta = consulta.where(
+        `${BASE}.${campo.columna}`,
+        '>=',
+        haciaLaBase(desde, campo.conversion),
+      );
+    }
+    if (hasta !== undefined && hasta !== '') {
+      // `<=` y no `<`: los dos extremos son inclusivos. Para un `timestamptz`,
+      // el cliente manda el final del día en ISO; para un `date`, la fecha
+      // basta. Un `<` aquí dejaría fuera las ventas del último día del mes, que
+      // es justo el error que nadie nota hasta que el corte no cuadra.
+      consulta = consulta.where(
+        `${BASE}.${campo.columna}`,
+        '<=',
+        haciaLaBase(hasta, campo.conversion),
+      );
+    }
   }
 
   // 5 · El orden. El prefijo `-` es descendente, como en su código.

@@ -245,6 +245,30 @@ describe('la forma del mapa', () => {
     expect(MAPA['EstacionPreparacion']?.campos['es_general']?.escribible).toBe(false);
   });
 
+  /**
+   * Un rango se pide sobre un campo de FECHA. Las entidades que Registros
+   * acota por periodo tienen que tener uno, o la pantalla vuelve a descargarlo
+   * todo para filtrar en el navegador.
+   */
+  it('las entidades del histórico se pueden acotar por fecha', () => {
+    const porFecha: Readonly<Record<string, string>> = {
+      Venta: 'created_date',
+      CorteCaja: 'created_date',
+      MovimientoInventario: 'created_date',
+      CompraInsumo: 'fecha',
+      GastoOperativo: 'fecha',
+      LiquidacionPropina: 'fecha_liquidacion',
+    };
+    for (const [entidad, clave] of Object.entries(porFecha)) {
+      const campo = MAPA[entidad]?.campos[clave];
+      expect(campo, `${entidad}.${clave} no existe`).toBeDefined();
+      expect(
+        campo?.conversion === 'fecha' || campo?.conversion === 'dia',
+        `${entidad}.${clave} es «${String(campo?.conversion)}», no una fecha`,
+      ).toBe(true);
+    }
+  });
+
   it('el tope de filas existe y no es absurdo', () => {
     expect(LIMITE_MAXIMO).toBeGreaterThan(0);
     expect(LIMITE_MAXIMO).toBeLessThanOrEqual(1000);

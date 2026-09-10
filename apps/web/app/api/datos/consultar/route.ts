@@ -18,9 +18,26 @@ interface Cuerpo {
   readonly entidad?: unknown;
   readonly operacion?: unknown;
   readonly filtro?: unknown;
+  readonly rango?: unknown;
   readonly id?: unknown;
   readonly orden?: unknown;
   readonly limite?: unknown;
+}
+
+/**
+ * Estrecha el rango que llega del cliente.
+ *
+ * Se comprueba aquí y no se pasa tal cual porque el campo del rango acaba en un
+ * `where` sobre una columna: aunque `consultar` lo valide contra el mapa, dejar
+ * pasar un objeto sin forma haría que el error saliera del sitio equivocado.
+ */
+function esRango(valor: unknown): valor is { campo: string; desde?: string; hasta?: string } {
+  if (typeof valor !== 'object' || valor === null) return false;
+  const r = valor as Record<string, unknown>;
+  if (typeof r['campo'] !== 'string' || r['campo'] === '') return false;
+  if (r['desde'] !== undefined && typeof r['desde'] !== 'string') return false;
+  if (r['hasta'] !== undefined && typeof r['hasta'] !== 'string') return false;
+  return true;
 }
 
 export function POST(peticion: Request): Promise<Response> {
@@ -58,6 +75,7 @@ export function POST(peticion: Request): Promise<Response> {
       ...(typeof cuerpo.filtro === 'object' && cuerpo.filtro !== null
         ? { filtro: cuerpo.filtro as Record<string, unknown> }
         : {}),
+      ...(esRango(cuerpo.rango) ? { rango: cuerpo.rango } : {}),
       ...(typeof cuerpo.id === 'string' ? { id: cuerpo.id } : {}),
       ...(typeof cuerpo.orden === 'string' ? { orden: cuerpo.orden } : {}),
       ...(typeof cuerpo.limite === 'number' ? { limite: cuerpo.limite } : {}),
