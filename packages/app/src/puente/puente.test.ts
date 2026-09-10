@@ -216,6 +216,20 @@ describe('la forma del mapa', () => {
    * desde el navegador es lo que hoy obliga a `detectarHuerfano` y sus cuatro
    * reglas heurísticas a existir.
    */
+  /**
+   * `F1-04` §14.3 y el defecto D-06. `stock_actual` tiene que ser DERIVADO y no
+   * un campo: en su sistema es una columna que se lee, se calcula y se escribe,
+   * y dos cajas cobrando a la vez se pisan el número. Si alguien lo moviera a
+   * `campos`, `Ingrediente.update(id, {stock_actual})` volvería a compilar y a
+   * corromper el inventario sin dar error.
+   */
+  it('el stock no se escribe desde el navegador', () => {
+    expect(MAPA['Ingrediente']?.campos['stock_actual']).toBeUndefined();
+    expect(MAPA['Ingrediente']?.derivados?.['stock_actual']).toBeDefined();
+    // Y el costo tampoco: lo pondera el comando de compra (D-13).
+    expect(MAPA['Ingrediente']?.campos['costo_por_unidad_base']?.escribible).toBe(false);
+  });
+
   it('el estado de la mesa no se escribe a mano', () => {
     for (const clave of ['estado', 'venta_activa_id', 'personas_actuales']) {
       expect(MAPA['Mesa']?.campos[clave]?.escribible, `Mesa.${clave}`).toBe(false);
@@ -320,7 +334,14 @@ describe('los campos derivados', () => {
     // `credenciales_pin`. Que un derivado apunte a `empleos` o a `personas`
     // sería un `join` de dos saltos que el puente no sabe hacer; que apuntara a
     // `credenciales_pin` sería sacar el hash del PIN por una lista de mesas.
-    const permitidas = new Set(['empleados_visibles', 'mesas', 'zonas', 'insumos', 'categorias']);
+    const permitidas = new Set([
+      'empleados_visibles',
+      'mesas',
+      'zonas',
+      'insumos',
+      'categorias',
+      'existencias_por_insumo',
+    ]);
     for (const [entidad, mapa] of Object.entries(MAPA)) {
       for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {
         expect(permitidas.has(derivado.tabla), `${entidad}.${clave} → ${derivado.tabla}`).toBe(

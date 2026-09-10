@@ -161,13 +161,67 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       ...AUTO,
       nombre: { columna: 'nombre', conversion: 'texto' },
       unidad_base: { columna: 'unidad_base', conversion: 'texto' },
-      // Las unidades base son sólo g, ml y pieza. No se amplían (regla 7).
-      costo_por_unidad_base: { columna: 'costo_unitario_centavos', conversion: 'dinero' },
+      // Las unidades base son sólo g, ml y pieza. No se amplían (regla 7), y
+      // desde la migración 046 lo impone la base para el giro restaurante.
+      // El costo lo calcula el promedio ponderado del comando `registrarCompra`
+      // sobre el stock anterior y el que entra. Aceptarlo del cliente es el
+      // defecto D-13: hoy `importExecutors.js:44` lo sobrescribe con el valor
+      // del CSV, sin ponderar, y pisa el costo histórico.
+      costo_por_unidad_base: {
+        columna: 'costo_unitario_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
       stock_minimo: { columna: 'stock_minimo', conversion: 'decimal' },
+      // `STOCK_STATUS` (`constants.js:26`) tiene cinco niveles y necesita los
+      // dos umbrales, no uno.
+      stock_critico: { columna: 'stock_critico', conversion: 'decimal' },
       categoria_id: { columna: 'categoria_id', conversion: 'texto' },
       activo: { columna: 'activo', conversion: 'booleano' },
+      unidad_compra_default: { columna: 'unidad_compra_default', conversion: 'texto' },
+      cantidad_por_compra_default: {
+        columna: 'cantidad_por_compra_default',
+        conversion: 'decimal',
+      },
+      costo_compra_default: { columna: 'costo_compra_default_centavos', conversion: 'dinero' },
+      proveedor_default_id: { columna: 'proveedor_id', conversion: 'texto' },
+      notas: { columna: 'notas', conversion: 'texto' },
+      tipo_ingrediente: { columna: 'tipo_insumo', conversion: 'texto' },
+      capacidad_contenedor_ml: { columna: 'capacidad_contenedor_ml', conversion: 'decimal' },
+      porciones_por_contenedor_default: {
+        columna: 'porciones_por_contenedor',
+        conversion: 'decimal',
+      },
+      ml_por_porcion_default: { columna: 'ml_por_porcion', conversion: 'decimal' },
+      nombre_porcion_default: { columna: 'nombre_porcion', conversion: 'texto' },
     },
     derivados: {
+      /**
+       * EL CAMBIO CONCEPTUAL MÁS GRANDE DE ESTA ENTIDAD (F1-04 §14.3).
+       *
+       * En su sistema `stock_actual` es una columna que se lee, se calcula y se
+       * ESCRIBE, y es el defecto D-06: dos cajas cobrando a la vez se pisan el
+       * número. Aquí es la proyección del ledger, sumada por la vista
+       * `existencias_por_insumo` (migración 048), y sólo se puede LEER.
+       *
+       * `Ingrediente.update(id, {stock_actual})` deja de funcionar a propósito:
+       * es exactamente la operación que corrompe el inventario. Los tres sitios
+       * que la hacen pasan a `ajustarInventario` e `inventarioInicial`.
+       */
+      stock_actual: {
+        tabla: 'existencias_por_insumo',
+        porColumna: 'id',
+        emparejaCon: 'insumo_id',
+        columna: 'cantidad',
+        conversion: 'decimal',
+      },
+      valor_inventario: {
+        tabla: 'existencias_por_insumo',
+        porColumna: 'id',
+        emparejaCon: 'insumo_id',
+        columna: 'valor_centavos',
+        conversion: 'dinero',
+      },
       // `Inventario.jsx:122` resuelve hoy el nombre en el navegador contra una
       // lista que descarga entera. Aquí sale del `join` y de paso deja de
       // depender de que esa lista esté cargada.

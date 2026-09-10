@@ -77,6 +77,46 @@ export const CODIGOS_ERROR = {
   COMANDA_NO_ENCONTRADA: 'COMANDA_NO_ENCONTRADA',
   /** El estado pedido no sigue a la tabla de transiciones, o retrocede. */
   TRANSICION_INVALIDA: 'TRANSICION_INVALIDA',
+  /** No hay estación de preparación a la que mandar la comanda, ni general. */
+  ESTACION_NO_ENCONTRADA: 'ESTACION_NO_ENCONTRADA',
+
+  // --- restaurante: compras, gastos y propinas (F1-02 E4-5 y E6-7) ---
+  PROVEEDOR_NO_ENCONTRADO: 'PROVEEDOR_NO_ENCONTRADO',
+  /** La compra no existe, o es de otra organización. */
+  COMPRA_NO_ENCONTRADA: 'COMPRA_NO_ENCONTRADA',
+  /**
+   * La compra no se puede registrar tal como viene.
+   *
+   * Cubre la línea sin equivalencia —sin ella, «3 cajas» no se puede auditar
+   * seis meses después (F1-04 §23.1)— y la conversión que no cuadra.
+   */
+  COMPRA_INVALIDA: 'COMPRA_INVALIDA',
+  GASTO_INVALIDO: 'GASTO_INVALIDO',
+  PLANTILLA_NO_ENCONTRADA: 'PLANTILLA_NO_ENCONTRADA',
+  /** Se intentó liquidar una propina que ya está liquidada. */
+  PROPINA_YA_LIQUIDADA: 'PROPINA_YA_LIQUIDADA',
+  /** El rango no tiene propinas pendientes, o está al revés. */
+  LIQUIDACION_INVALIDA: 'LIQUIDACION_INVALIDA',
+
+  // --- portal QR público (F1-02 E7) ---
+  /** El token de la mesa no existe, está desactivado, o caducó. */
+  QR_TOKEN_INVALIDO: 'QR_TOKEN_INVALIDO',
+  /** El portal está apagado para este negocio. */
+  QR_PORTAL_CERRADO: 'QR_PORTAL_CERRADO',
+  /** Ya hay una solicitud pendiente de ese tipo en esa mesa (D-17). */
+  QR_SOLICITUD_DUPLICADA: 'QR_SOLICITUD_DUPLICADA',
+  /** Demasiadas peticiones desde el mismo código en poco tiempo. */
+  QR_DEMASIADAS_PETICIONES: 'QR_DEMASIADAS_PETICIONES',
+
+  // --- mantenimiento destructivo (F1-02 E10-4) ---
+  /**
+   * La confirmación no coincide.
+   *
+   * Se compara contra el NOMBRE DEL NEGOCIO leído en el servidor, no contra una
+   * constante impresa en la pantalla: hoy `reiniciarSistema` compara `confirm`
+   * con «BORRAR TODO», que es texto que el atacante ya conoce.
+   */
+  MANTENIMIENTO_NO_CONFIRMADO: 'MANTENIMIENTO_NO_CONFIRMADO',
 
   // --- accesos (C-05, C-06) ---
   /** El empleado o la terminal no existen DENTRO de la organizacion de quien pide. */
