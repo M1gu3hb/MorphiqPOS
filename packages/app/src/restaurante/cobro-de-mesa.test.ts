@@ -47,9 +47,7 @@ const baseDe = (estadoOrden: string) =>
     filasCrudas: PRIMER_FOLIO,
   });
 
-const UN_PAGO = [
-  { metodo: 'efectivo' as const, montoCentavos: 10_000, recibidoCentavos: 10_000 },
-];
+const UN_PAGO = [{ metodo: 'efectivo' as const, montoCentavos: 10_000, recibidoCentavos: 10_000 }];
 
 describe('cobrar una cuenta de mesa · los estados vivos, no sólo borrador', () => {
   for (const estado of ['confirmada', 'en_preparacion', 'lista', 'cuenta_solicitada']) {

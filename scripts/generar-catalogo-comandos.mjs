@@ -106,8 +106,17 @@ for (const f of archivos(RAIZ, (e) => e.endsWith('.ts') && !e.includes('.test.')
         }
       }
     }
-    const cuerpo = t.slice(m.index, fin + 1).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    esquemas.set(m[1], cuerpo.split('\n').filter((l) => l.trim()).join('\n'));
+    const cuerpo = t
+      .slice(m.index, fin + 1)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    esquemas.set(
+      m[1],
+      cuerpo
+        .split('\n')
+        .filter((l) => l.trim())
+        .join('\n'),
+    );
   }
 }
 

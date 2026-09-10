@@ -108,9 +108,7 @@ export const cancelarOrden = definirComando<
     // Todas las líneas, no sólo las que tenían comanda: un refresco de botella
     // no genera comanda (`area_preparacion='ninguno'`) y sigue siendo consumo
     // capturado que deja de estar pendiente de preparar.
-    await ctx.paso('cancelar_lineas', () =>
-      cancelarLineas(ctx.tx, organizacionId, orden.id),
-    );
+    await ctx.paso('cancelar_lineas', () => cancelarLineas(ctx.tx, organizacionId, orden.id));
 
     const filas = await ctx.paso('cerrar_orden', () =>
       cerrarOrdenCancelada(ctx.tx, {

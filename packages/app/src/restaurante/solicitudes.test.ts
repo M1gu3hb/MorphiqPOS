@@ -394,7 +394,9 @@ describe('atender_solicitud · la atribución sale de la sesión', () => {
     // dos inquilinos aquí: el id es un uuid, pero conocerlo —de un enlace, de
     // un registro, de una captura— no puede bastar para mover el aviso de otro
     // restaurante. Sin esta prueba, quitar ese `where` no ponía nada en rojo.
-    const base = baseDe({ solicitudes_qr: [solicitud('pendiente', { organizacion_id: OTRA_ORG })] });
+    const base = baseDe({
+      solicitudes_qr: [solicitud('pendiente', { organizacion_id: OTRA_ORG })],
+    });
     const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
 
     const fallo = await falla(
@@ -435,7 +437,6 @@ describe('atender_solicitud · la atribución sale de la sesión', () => {
     expect(base.campo('solicitudes_qr', 'estado')).toBe('resuelta');
     expect(base.campo('solicitudes_qr', 'empleado_atiende_id')).toBe(OTRO_EMPLEO);
   });
-
 });
 
 describe('atender_solicitud · el rol se comprueba en el servidor', () => {
@@ -457,7 +458,12 @@ describe('atender_solicitud · el rol se comprueba en el servidor', () => {
   });
 
   it('los cuatro comandos excluyen a cocina y a almacén, y exigen idempotencia', () => {
-    for (const comando of [atenderSolicitud, limpiarSolicitudes, vaciarSolicitudes, asignarMesero]) {
+    for (const comando of [
+      atenderSolicitud,
+      limpiarSolicitudes,
+      vaciarSolicitudes,
+      asignarMesero,
+    ]) {
       expect(comando.roles, comando.nombre).not.toContain('cocina');
       expect(comando.roles, comando.nombre).not.toContain('almacen');
       // `escribe: true` es lo que obliga a la clave de ocho caracteres (R10).

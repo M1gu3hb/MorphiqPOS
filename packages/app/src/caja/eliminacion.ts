@@ -76,10 +76,7 @@ export const eliminarCorte = definirComando<
     );
 
     if (corte === null) {
-      throw new ErrorDominio(
-        'CORTE_NO_ENCONTRADO',
-        'Ese corte de caja no existe en este negocio.',
-      );
+      throw new ErrorDominio('CORTE_NO_ENCONTRADO', 'Ese corte de caja no existe en este negocio.');
     }
 
     // Regla 1: sólo un corte CERRADO. La caja abierta no se elimina, se cierra

@@ -147,11 +147,18 @@ function archivos(raiz) {
  */
 function sinComentarios(texto) {
   const SALTO = String.fromCharCode(10);
-  return texto
-    // Se reemplaza por espacios, no se borra: así los números de línea que
-    // luego se cuentan siguen siendo los del archivo de verdad.
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.split(SALTO).map((l) => ' '.repeat(l.length)).join(SALTO))
-    .replace(/^(\s*)\/\/.*$/gm, (m, sangria) => sangria + ' '.repeat(m.length - sangria.length));
+  return (
+    texto
+      // Se reemplaza por espacios, no se borra: así los números de línea que
+      // luego se cuentan siguen siendo los del archivo de verdad.
+      .replace(/\/\*[\s\S]*?\*\//g, (m) =>
+        m
+          .split(SALTO)
+          .map((l) => ' '.repeat(l.length))
+          .join(SALTO),
+      )
+      .replace(/^(\s*)\/\/.*$/gm, (m, sangria) => sangria + ' '.repeat(m.length - sangria.length))
+  );
 }
 
 /** Recorta los argumentos de una llamada, contando paréntesis. */

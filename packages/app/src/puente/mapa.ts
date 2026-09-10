@@ -45,7 +45,6 @@ function soloAutomaticos(claves: readonly string[]): Record<string, CampoMapeado
   return salida;
 }
 
-
 /**
  * Quién ve lo que el negocio GANA.
  *
@@ -87,7 +86,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       precio_venta: { columna: 'precio_venta_centavos', conversion: 'dinero', publico: true },
       // El costo lo recalcula la receta en cascada (E4-4). Aceptarlo del
       // cliente dejaría márgenes inventados en toda la aplicación.
-      costo_calculado_actual: { rolesLectura: [...VE_MARGENES],
+      costo_calculado_actual: {
+        rolesLectura: [...VE_MARGENES],
         columna: 'costo_unitario_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -96,12 +96,18 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // y `margen_porcentaje` no existen en su esquema: se llaman así. Las dos
       // son columnas generadas en la base, así que no pueden desincronizarse
       // del costo aunque alguien lo intente.
-      utilidad_bruta_actual: { rolesLectura: [...VE_MARGENES],
+      utilidad_bruta_actual: {
+        rolesLectura: [...VE_MARGENES],
         columna: 'utilidad_unitaria_centavos',
         conversion: 'dinero',
         escribible: false,
       },
-      margen_bruto_actual: { rolesLectura: [...VE_MARGENES], columna: 'margen_bp', conversion: 'puntos_base', escribible: false },
+      margen_bruto_actual: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'margen_bp',
+        conversion: 'puntos_base',
+        escribible: false,
+      },
       tipo_venta: { columna: 'tipo_venta', conversion: 'texto', publico: true },
       unidad_venta: { columna: 'unidad_venta', conversion: 'texto', publico: true },
       unidad_variable: { columna: 'unidad_variable', conversion: 'texto', publico: true },
@@ -217,7 +223,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // sobre el stock anterior y el que entra. Aceptarlo del cliente es el
       // defecto D-13: hoy `importExecutors.js:44` lo sobrescribe con el valor
       // del CSV, sin ponderar, y pisa el costo histórico.
-      costo_por_unidad_base: { rolesLectura: [...VE_COSTOS_DE_INSUMO],
+      costo_por_unidad_base: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
         columna: 'costo_unitario_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -233,7 +240,11 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         columna: 'cantidad_por_compra_default',
         conversion: 'decimal',
       },
-      costo_compra_default: { rolesLectura: [...VE_COSTOS_DE_INSUMO], columna: 'costo_compra_default_centavos', conversion: 'dinero' },
+      costo_compra_default: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'costo_compra_default_centavos',
+        conversion: 'dinero',
+      },
       proveedor_default_id: { columna: 'proveedor_id', conversion: 'texto' },
       notas: { columna: 'notas', conversion: 'texto' },
       tipo_ingrediente: { columna: 'tipo_insumo', conversion: 'texto' },
@@ -265,7 +276,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         columna: 'cantidad',
         conversion: 'decimal',
       },
-      valor_inventario: { rolesLectura: [...VE_COSTOS_DE_INSUMO],
+      valor_inventario: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
         tabla: 'existencias_por_insumo',
         porColumna: 'id',
         emparejaCon: 'insumo_id',
@@ -294,7 +306,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
       ingrediente_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
       // Lo que el usuario TECLEÓ, tal como lo tecleó, para poder reeditarlo.
-      cantidad_usada: { rolesLectura: [...VE_COSTOS_DE_INSUMO], columna: 'cantidad_capturada', conversion: 'decimal', escribible: false },
+      cantidad_usada: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'cantidad_capturada',
+        conversion: 'decimal',
+        escribible: false,
+      },
       unidad_usada: { columna: 'unidad_capturada', conversion: 'texto', escribible: false },
       // Lo CONVERTIDO, que es lo que consume el inventario. Que sean dos
       // columnas distintas es lo que cierra el error de 1000×: hoy
@@ -309,7 +326,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
       unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
-      merma_porcentaje: { rolesLectura: [...VE_COSTOS_DE_INSUMO], columna: 'merma_bp', conversion: 'puntos_base', escribible: false },
+      merma_porcentaje: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'merma_bp',
+        conversion: 'puntos_base',
+        escribible: false,
+      },
       // «Receta» es femenino: la columna es `activa`.
       activo: { columna: 'activa', conversion: 'booleano', escribible: false },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
@@ -327,7 +349,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // costo del ingrediente al guardar la receta y nada la refresca, así que
       // al subir el precio del café el costo del capuchino se queda como
       // estaba. Derivándolo, cambia en la siguiente lectura.
-      costo_unitario_base_snapshot: { rolesLectura: [...VE_COSTOS_DE_INSUMO],
+      costo_unitario_base_snapshot: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
         tabla: 'insumos',
         porColumna: 'insumo_id',
         columna: 'costo_unitario_centavos',
@@ -338,7 +361,11 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // Lo que su pantalla de Productos suma para enseñar el costo de cada
       // producto. Sin esto, Productos enseña COSTO $0.00 y MARGEN 100 % con la
       // base llena de costos correctos.
-      costo_linea_calculado: { rolesLectura: [...VE_COSTOS_DE_INSUMO], formula: 'costoDeLineaDeReceta', conversion: 'dinero' },
+      costo_linea_calculado: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        formula: 'costoDeLineaDeReceta',
+        conversion: 'dinero',
+      },
     },
   },
 
@@ -376,17 +403,24 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // viendo `undefined`, sin error y sin aviso.
       descuentos: { columna: 'descuento_centavos', conversion: 'dinero', escribible: false },
       impuestos: { columna: 'impuestos_centavos', conversion: 'dinero', escribible: false },
-      costo_total_snapshot: { rolesLectura: [...VE_MARGENES],
+      costo_total_snapshot: {
+        rolesLectura: [...VE_MARGENES],
         columna: 'costo_total_centavos',
         conversion: 'dinero',
         escribible: false,
       },
-      utilidad_bruta_snapshot: { rolesLectura: [...VE_MARGENES],
+      utilidad_bruta_snapshot: {
+        rolesLectura: [...VE_MARGENES],
         columna: 'utilidad_centavos',
         conversion: 'dinero',
         escribible: false,
       },
-      margen_snapshot: { rolesLectura: [...VE_MARGENES], columna: 'margen_bp', conversion: 'puntos_base', escribible: false },
+      margen_snapshot: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'margen_bp',
+        conversion: 'puntos_base',
+        escribible: false,
+      },
       usuario_mesero_id: {
         columna: 'empleado_atiende_id',
         conversion: 'texto',
@@ -431,7 +465,11 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'fecha',
         escribible: false,
       },
-      satisfaccion_score: { columna: 'satisfaccion_score', conversion: 'entero', escribible: false },
+      satisfaccion_score: {
+        columna: 'satisfaccion_score',
+        conversion: 'entero',
+        escribible: false,
+      },
       satisfaccion_emoji: { columna: 'satisfaccion_emoji', conversion: 'texto', escribible: false },
       satisfaccion_comentario: {
         columna: 'satisfaccion_comentario',
@@ -489,7 +527,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
         escribible: false,
       },
-      costo_unitario_snapshot: { rolesLectura: [...VE_MARGENES],
+      costo_unitario_snapshot: {
+        rolesLectura: [...VE_MARGENES],
         columna: 'costo_unitario_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -497,7 +536,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       descuento: { columna: 'descuento_centavos', conversion: 'dinero', escribible: false },
       subtotal: { columna: 'subtotal_centavos', conversion: 'dinero', escribible: false },
       total: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
-      utilidad: { rolesLectura: [...VE_MARGENES], columna: 'utilidad_centavos', conversion: 'dinero', escribible: false },
+      utilidad: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'utilidad_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
       tipo_venta_snapshot: { columna: 'tipo_venta', conversion: 'texto', escribible: false },
       cantidad_variable_snapshot: {
         columna: 'cantidad_variable',
@@ -584,7 +628,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // escribirse mal.
       cantidad: { columna: 'cantidad', conversion: 'decimal', escribible: false },
       unidad_base: { columna: 'unidad', conversion: 'texto', escribible: false },
-      costo_unitario_en_momento: { rolesLectura: [...VE_COSTOS_DE_INSUMO],
+      costo_unitario_en_momento: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
         columna: 'costo_unitario_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -1045,7 +1090,11 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       ingrediente_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
       ingrediente_nombre: { columna: 'insumo_nombre', conversion: 'texto', escribible: false },
       // Lo que el usuario tecleó, EN SU UNIDAD.
-      cantidad_comprada: { columna: 'cantidad_capturada', conversion: 'decimal', escribible: false },
+      cantidad_comprada: {
+        columna: 'cantidad_capturada',
+        conversion: 'decimal',
+        escribible: false,
+      },
       unidad_compra: { columna: 'unidad_capturada', conversion: 'texto', escribible: false },
       // Cuántas unidades base trae UNA unidad capturada. Hoy se usa para
       // calcular y NO se guarda, así que una compra de «3 cajas» queda sin
@@ -1056,7 +1105,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'decimal',
         escribible: false,
       },
-      costo_total: { rolesLectura: [...VE_COSTOS_DE_INSUMO], columna: 'costo_total_centavos', conversion: 'dinero', escribible: false },
+      costo_total: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'costo_total_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
       fecha_caducidad: { columna: 'caduca_el', conversion: 'dia', escribible: false },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
     },

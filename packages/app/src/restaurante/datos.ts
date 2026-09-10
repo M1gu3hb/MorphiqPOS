@@ -219,7 +219,6 @@ export async function estacionesActivas(
   return filas;
 }
 
-
 /**
  * Cuántas comandas de la orden siguen vivas, sin contar las que se acaban de
  * mover en esta misma transacción.

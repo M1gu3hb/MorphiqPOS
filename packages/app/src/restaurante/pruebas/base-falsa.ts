@@ -2,7 +2,14 @@ import type { Ambito } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 
 import type { ContextoComando } from '../../definicion.ts';
-import { actualizacion, borrado, insercion, lectura, origen, type Fila } from './constructor-falso.ts';
+import {
+  actualizacion,
+  borrado,
+  insercion,
+  lectura,
+  origen,
+  type Fila,
+} from './constructor-falso.ts';
 
 /**
  * Una base de datos de mentira con la forma del constructor de Kysely.

@@ -161,7 +161,8 @@ function proyectar(fila: Fila, selectores: readonly Selector[]): Fila {
   if (expresiones.length === 0) return { ...fila };
 
   const salida: Fila = {};
-  for (const expresion of expresiones) salida[destino(expresion)] = valorDe(fila, expresion) ?? null;
+  for (const expresion of expresiones)
+    salida[destino(expresion)] = valorDe(fila, expresion) ?? null;
   return salida;
 }
 

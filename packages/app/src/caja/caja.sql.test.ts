@@ -208,10 +208,7 @@ describe('E8-2 · el SQL de caja.eliminar_corte', () => {
   it('con una sola referencia NO se emite ningún DELETE', async () => {
     // La prueba de contraste. Sin ella, una guarda que no mirara el conteo
     // «pasaría» las tres de arriba igual de bien.
-    const { ctx, conexion } = contexto([
-      [CORTE_CERRADO],
-      [{ ...SIN_REFERENCIAS, pagos: 3 }],
-    ]);
+    const { ctx, conexion } = contexto([[CORTE_CERRADO], [{ ...SIN_REFERENCIAS, pagos: 3 }]]);
 
     await expect(eliminarCorte.ejecutar(ctx, { corteId: CORTE })).rejects.toThrow(/3 pagos/i);
 

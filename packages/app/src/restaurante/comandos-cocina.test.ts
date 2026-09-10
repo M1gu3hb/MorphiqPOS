@@ -63,9 +63,7 @@ describe('enviar_pedido · una transacción, cuatro efectos', () => {
     expect(base.filas('comandas')).toHaveLength(1);
     expect(base.filas('comanda_items')).toHaveLength(1);
     // El item apunta a SU línea: es el vínculo que hoy no existe (F1-04 §10.3).
-    expect(base.campo('comanda_items', 'orden_linea_id')).toBe(
-      base.campo('orden_lineas', 'id'),
-    );
+    expect(base.campo('comanda_items', 'orden_linea_id')).toBe(base.campo('orden_lineas', 'id'));
     expect(base.campo('ordenes', 'estado')).toBe('confirmada');
     expect(base.campo('mesas', 'estado')).toBe('pedido_enviado');
   });

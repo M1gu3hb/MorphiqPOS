@@ -55,7 +55,10 @@ function columnasPorTabla(): ReadonlyMap<string, readonly string[]> {
       fuente,
     )?.[1];
     if (cuerpo === undefined) continue;
-    salida.set(tabla, [...cuerpo.matchAll(/^\s*(\w+)[?]?:/gm)].map((m) => m[1] ?? ''));
+    salida.set(
+      tabla,
+      [...cuerpo.matchAll(/^\s*(\w+)[?]?:/gm)].map((m) => m[1] ?? ''),
+    );
   }
   return salida;
 }
@@ -64,8 +67,9 @@ const COLUMNAS = columnasPorTabla();
 /** Las tablas que la purga declara acotadas por su padre, leídas del código. */
 const POR_PADRE = new Set(
   [
-    ...(/const SIN_ORGANIZACION_PROPIA[\s\S]*?\n\};/.exec(readFileSync(PURGAS, 'utf8'))?.[0] ?? '')
-      .matchAll(/^\s{2}(\w+):/gm),
+    ...(
+      /const SIN_ORGANIZACION_PROPIA[\s\S]*?\n\};/.exec(readFileSync(PURGAS, 'utf8'))?.[0] ?? ''
+    ).matchAll(/^\s{2}(\w+):/gm),
   ].map((m) => m[1] ?? ''),
 );
 

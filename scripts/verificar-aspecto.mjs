@@ -307,7 +307,9 @@ for (const ruta of cambiados) {
     // motivo. Que desaparezca una pantalla es el mayor cambio de aspecto que
     // hay, y no puede colarse dentro de un diff grande.
     if (BORRADOS_PERMITIDOS.has(ruta.split('\\').join('/'))) continue;
-    informe.push(`\n${ruta}\n  BORRADO. Una pantalla que desaparece es el mayor cambio de aspecto.`);
+    informe.push(
+      `\n${ruta}\n  BORRADO. Una pantalla que desaparece es el mayor cambio de aspecto.`,
+    );
     total += 1;
     continue;
   }
@@ -318,7 +320,8 @@ for (const ruta of cambiados) {
   if (perdidos.length === 0 && nuevos.length === 0) continue;
 
   total += perdidos.filter(esEstructura).length + nuevos.filter(esEstructura).length;
-  avisos += perdidos.filter((t) => !esEstructura(t)).length + nuevos.filter((t) => !esEstructura(t)).length;
+  avisos +=
+    perdidos.filter((t) => !esEstructura(t)).length + nuevos.filter((t) => !esEstructura(t)).length;
   informe.push(`\n${ruta}`);
   for (const t of perdidos.slice(0, 40)) informe.push(`  - ${t}`);
   if (perdidos.length > 40) informe.push(`  … y ${perdidos.length - 40} más que se perdieron`);

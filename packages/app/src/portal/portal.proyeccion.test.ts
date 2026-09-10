@@ -178,8 +178,9 @@ describe('el menú no lleva costos, márgenes ni receta', () => {
     // volvería a tener un precio que no pasó por `mostrarPrecios`.
     const texto = JSON.stringify(producto.presets_variable_qr);
     expect(texto).not.toMatch(/precio|importe|centavos|costo/i);
-    expect(productoDeMenu({ ...FILA_PRODUCTO, presets_variable: null }, true).presets_variable_qr)
-      .toEqual([]);
+    expect(
+      productoDeMenu({ ...FILA_PRODUCTO, presets_variable: null }, true).presets_variable_qr,
+    ).toEqual([]);
   });
 
   it('ni costo, ni utilidad, ni margen, ni receta, ni insumo', () => {

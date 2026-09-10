@@ -174,7 +174,7 @@ function arnes(respuestas: readonly (readonly unknown[])[]) {
   const fabrica = crearFabrica('restaurante');
   const ejecutar = crearComando<Transaccion>({
     repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
-    conTransaccion: <T,>(fn: (tx: Transaccion) => Promise<T>): Promise<T> =>
+    conTransaccion: <T>(fn: (tx: Transaccion) => Promise<T>): Promise<T> =>
       fabrica.conTransaccion(() => fn(db as unknown as Transaccion)),
   });
   return { ejecutar, conexion, fabrica };
@@ -298,7 +298,8 @@ describe('B-12 · inventario.eliminar_receta', () => {
     const consultasTrasLaPrimera = conexion.consultas.length;
     const segunda = await ejecutar(eliminarReceta, peticion);
 
-    if (!primera.ok) expect.unreachable(`la primera tenía que salir bien: ${primera.error.mensaje}`);
+    if (!primera.ok)
+      expect.unreachable(`la primera tenía que salir bien: ${primera.error.mensaje}`);
     if (!segunda.ok) expect.unreachable(`la segunda tenía que servirse: ${segunda.error.mensaje}`);
 
     expect(primera.reintento).toBe(false);

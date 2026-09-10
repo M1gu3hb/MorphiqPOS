@@ -176,8 +176,11 @@ describe('hallazgo 3 · la propina se calcula sobre lo que se consumió, no sobr
       'monto_manual sin importe',
     ).toBe(false);
     expect(
-      pedirCuentaQR.entrada.safeParse({ propinaTipo: 'porcentaje', propinaPorcentaje: 10, propinaSugeridaCentavos: 5000 })
-        .success,
+      pedirCuentaQR.entrada.safeParse({
+        propinaTipo: 'porcentaje',
+        propinaPorcentaje: 10,
+        propinaSugeridaCentavos: 5000,
+      }).success,
       'importe con porcentaje',
     ).toBe(false);
   });

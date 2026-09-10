@@ -27,12 +27,7 @@ import type { Transaccion } from '@morphiqpos/data';
 
 /** La misma normalización que `clave_texto()` en la base (migración 046). */
 export function claveDeTexto(valor: string): string {
-  return valor
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
+  return valor.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 /**

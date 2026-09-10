@@ -31,3 +31,16 @@ TEAM.md
 docs/*.md
 docs/fase-1/
 docs/reports/
+
+# --- El frontend heredado de Miguel -----------------------------------------
+# Su codigo, copiado tal cual desde `historico/` (R30 derogada) y con su
+# `packageConfig.js` gobernando sin tocar (cambio 4 de Fase 1). Prettier lo
+# reescribe a `printWidth: 100`, que no es el suyo: 23 archivos y ~600 lineas
+# movidas sin que cambie una sola conducta, sobre codigo que el conoce y del que
+# esta puerta no es duena.
+#
+# Es la misma razon por la que `historico/` esta arriba, y la misma logica del
+# tsconfig permisivo de `apps/web/heredado/`: lo heredado se respeta, lo nuevo
+# se somete al estandar. El codigo NUEVO de `apps/web` —`src/`, `app/`— si se
+# formatea, y queda fuera de esta exclusion a proposito.
+apps/web/heredado/

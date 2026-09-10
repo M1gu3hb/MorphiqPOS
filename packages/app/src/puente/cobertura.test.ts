@@ -94,7 +94,8 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
    */
   CorteCaja: {
     corte_padre_id: 'un corte de turno apunta a su sesión con sesion_caja_id',
-    fecha_inicio: 'para la sesión coincide con fecha_apertura; el corte de turno tiene rango propio',
+    fecha_inicio:
+      'para la sesión coincide con fecha_apertura; el corte de turno tiene rango propio',
     diferencia_apertura: 'derivado: fondo contado menos fondo esperado',
     efectivo_esperado: 'derivado de movimientos_caja; tenía TRES fórmulas (F1-04 §20.4)',
     total_efectivo: 'derivado de pagos acotados al rango (F1-04 §20.2)',
@@ -156,7 +157,8 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
     detalle_venta_id: 'la vista agrega por insumo y no puede reconstruirlo (F1-04 §19.1)',
     producto_id: 'la vista agrega por insumo y no puede reconstruirlo (F1-04 §19.1)',
     cantidad_producto: 'la vista agrega por insumo y no puede reconstruirlo (F1-04 §19.1)',
-    cantidad_ingrediente_por_producto: 'la vista agrega por insumo y no lo reconstruye (F1-04 §19.1)',
+    cantidad_ingrediente_por_producto:
+      'la vista agrega por insumo y no lo reconstruye (F1-04 §19.1)',
     costo_total_descontado: 'derivado: cantidad × costo_unitario',
     fecha: 'coincide con created_date: el movimiento del ledger tiene un solo instante',
   },

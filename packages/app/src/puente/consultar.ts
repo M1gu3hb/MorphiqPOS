@@ -298,11 +298,7 @@ export async function consultar(
  * blanca de campos y tope de filas. Un camino aparte que las esquivara sería la
  * puerta de atrás del puente.
  */
-async function adjuntarHijos(
-  ambito: Ambito,
-  mapa: MapaEntidad,
-  padres: Fila[],
-): Promise<void> {
+async function adjuntarHijos(ambito: Ambito, mapa: MapaEntidad, padres: Fila[]): Promise<void> {
   const relaciones = Object.entries(mapa.hijos ?? {});
   if (relaciones.length === 0 || padres.length === 0) return;
 

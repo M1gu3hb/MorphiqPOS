@@ -202,7 +202,12 @@ function calcularPropina(
   const propinasHabilitadas = ctx.banderas.propinasActivas && ctx.banderas.permitirPropinaCliente;
 
   if (!propinasHabilitadas) {
-    return { subtotalCentavos: subtotal, propinaCentavos: CERO, propinaBp: 0, propinaTipo: 'sin_propina' };
+    return {
+      subtotalCentavos: subtotal,
+      propinaCentavos: CERO,
+      propinaBp: 0,
+      propinaTipo: 'sin_propina',
+    };
   }
 
   /**
@@ -220,7 +225,12 @@ function calcularPropina(
   if (entrada.propinaTipo === 'monto_manual') {
     const pedidos = centavos(BigInt(entrada.propinaSugeridaCentavos ?? 0));
     if (pedidos === CERO) {
-      return { subtotalCentavos: subtotal, propinaCentavos: CERO, propinaBp: 0, propinaTipo: 'sin_propina' };
+      return {
+        subtotalCentavos: subtotal,
+        propinaCentavos: CERO,
+        propinaBp: 0,
+        propinaTipo: 'sin_propina',
+      };
     }
     /**
      * Los puntos base se RECORTAN al 100 %. El importe, no.
