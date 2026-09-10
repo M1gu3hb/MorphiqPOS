@@ -50,7 +50,11 @@ export const escribirDatos = definirComando<
   paquetes: PAQUETES_TODOS,
   entrada: entradaEscribir,
   async ejecutar(ctx, entrada) {
-    const ambito = { organizacionId: ctx.ambito.organizacionId, rol: ctx.ambito.rol };
+    const ambito = {
+      organizacionId: ctx.ambito.organizacionId,
+      sucursalId: ctx.ambito.sucursalId,
+      rol: ctx.ambito.rol,
+    };
 
     // `ConfiguracionNegocio` no es una tabla con columnas: es un documento
     // JSON con versión más el nombre del negocio. Tiene su propio camino.

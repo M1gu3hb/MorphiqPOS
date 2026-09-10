@@ -36,6 +36,23 @@ export interface Auditoria {
   created_at: Generated<Date>;
 }
 
+export interface BitacoraSincronizacion {
+  id: Generated<string>;
+  organizacion_id: string;
+  tipo_registro: string;
+  registro_id: string;
+  destino: string;
+  estado: Generated<string>;
+  intentos: Generated<number>;
+  ultimo_intento_en: Date | null;
+  mensaje_error: string | null;
+  archivo_url: string | null;
+  pestana_hoja: string | null;
+  payload: unknown;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Categorias {
   id: Generated<string>;
   organizacion_id: string;
@@ -47,6 +64,10 @@ export interface Categorias {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  descripcion: string | null;
+  estacion_preparacion_id: string | null;
+  estacion_nombre: string | null;
+  estacion_color: string | null;
 }
 
 export interface Clientes {
@@ -67,6 +88,49 @@ export interface Clientes {
   updated_at: Generated<Date>;
 }
 
+export interface ComandaItems {
+  id: Generated<string>;
+  organizacion_id: string;
+  comanda_id: string;
+  orden_linea_id: string | null;
+  producto_id: string | null;
+  producto_nombre: string;
+  cantidad: string;
+  notas: string | null;
+  estado: Generated<string>;
+  tipo_venta: string | null;
+  unidad_variable: string | null;
+  cantidad_variable: string | null;
+  nombre_porcion: string | null;
+  cantidad_porciones: string | null;
+  orden_visual: Generated<number>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface Comandas {
+  id: Generated<string>;
+  organizacion_id: string;
+  orden_id: string;
+  mesa_id: string | null;
+  estacion_preparacion_id: string | null;
+  area: string | null;
+  estado: Generated<string>;
+  iniciada_en: Date | null;
+  lista_en: Date | null;
+  entregada_en: Date | null;
+  empleado_responsable_id: string | null;
+  notas: string | null;
+  estacion_nombre: string | null;
+  estacion_color: string | null;
+  origen: Generated<string>;
+  notas_alergias: string | null;
+  celebracion_especial: Generated<boolean>;
+  tipo_celebracion: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface ComandosEjecutados {
   id: Generated<string>;
   organizacion_id: string;
@@ -81,11 +145,62 @@ export interface ComandosEjecutados {
   created_at: Generated<Date>;
 }
 
+export interface CompraLineas {
+  id: Generated<string>;
+  organizacion_id: string;
+  compra_id: string;
+  insumo_id: string;
+  insumo_nombre: string;
+  cantidad_capturada: string;
+  unidad_capturada: string;
+  equivalencia: Generated<string>;
+  cantidad: string;
+  costo_total_centavos: bigint;
+  caduca_el: string | null;
+  notas: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface Compras {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  proveedor_id: string | null;
+  proveedor_nombre: Generated<string>;
+  fecha: Generated<string>;
+  total_centavos: Generated<bigint>;
+  metodo_pago: string | null;
+  factura_folio: string | null;
+  notas: string | null;
+  empleado_id: string | null;
+  idempotency_key: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Configuracion {
   id: Generated<string>;
   organizacion_id: string;
   valores: Generated<unknown>;
   version: Generated<number>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface CortesTurno {
+  id: Generated<string>;
+  organizacion_id: string;
+  sesion_caja_id: string;
+  serie: Generated<string>;
+  folio: bigint;
+  rango_inicio: Date;
+  cortado_en: Generated<Date>;
+  empleado_id: string;
+  efectivo_contado_centavos: bigint;
+  efectivo_retirado_centavos: Generated<bigint>;
+  notas: string | null;
+  idempotency_key: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -113,6 +228,23 @@ export interface Empleos {
   activo: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  color: string | null;
+  estacion_preparacion_id: string | null;
+  ve_todas_las_estaciones: Generated<boolean>;
+}
+
+export interface EstacionesPreparacion {
+  id: Generated<string>;
+  organizacion_id: string;
+  nombre: string;
+  descripcion: string | null;
+  color: Generated<string>;
+  icono: string | null;
+  orden: Generated<number>;
+  activa: Generated<boolean>;
+  es_general: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }
 
 export interface Existencias {
@@ -128,6 +260,25 @@ export interface Folios {
   sucursal_id: string;
   serie: string;
   siguiente: Generated<bigint>;
+}
+
+export interface Gastos {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  sesion_caja_id: string | null;
+  plantilla_gasto_id: string | null;
+  fecha: Generated<string>;
+  categoria: string;
+  descripcion: string;
+  monto_centavos: bigint;
+  metodo_pago: string;
+  es_recurrente: Generated<boolean>;
+  empleado_id: string | null;
+  notas: string | null;
+  idempotency_key: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }
 
 export interface Identidades {
@@ -152,12 +303,83 @@ export interface Insumos {
   activo: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  unidad_compra_default: string | null;
+  cantidad_por_compra_default: string | null;
+  costo_compra_default_centavos: Generated<bigint>;
+  stock_critico: Generated<string>;
+  proveedor_id: string | null;
+  notas: string | null;
+  tipo_insumo: Generated<string>;
+  capacidad_contenedor_ml: string | null;
+  porciones_por_contenedor: string | null;
+  ml_por_porcion: string | null;
+  nombre_porcion: string | null;
 }
 
 export interface LimiteTasa {
   clave: string;
   ventana_en: Generated<Date>;
   intentos: Generated<number>;
+}
+
+export interface LiquidacionesPropina {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  serie: Generated<string>;
+  folio: bigint;
+  liquidada_en: Generated<Date>;
+  rango_inicio: Date;
+  rango_fin: Date;
+  rango_tipo: Generated<string>;
+  empleado_id: string | null;
+  total_centavos: Generated<bigint>;
+  empleado_liquida_id: string;
+  notas: string | null;
+  idempotency_key: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface MenuQrSecciones {
+  id: Generated<string>;
+  organizacion_id: string;
+  nombre: string;
+  descripcion: string | null;
+  imagen_url: string | null;
+  orden: Generated<number>;
+  activa: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface Mesas {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  zona_id: string | null;
+  numero: number;
+  nombre: string | null;
+  capacidad: Generated<number>;
+  forma: Generated<string>;
+  tamano: Generated<string>;
+  posicion_x: Generated<number>;
+  posicion_y: Generated<number>;
+  orden: Generated<number>;
+  estado: Generated<string>;
+  orden_activa_id: string | null;
+  personas_actuales: Generated<number>;
+  cliente_temporal: string | null;
+  notas_alergias: string | null;
+  celebracion_especial: Generated<boolean>;
+  tipo_celebracion: string | null;
+  qr_token: string | null;
+  qr_activa: Generated<boolean>;
+  empleado_asignado_id: string | null;
+  empleado_atiende_id: string | null;
+  activa: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }
 
 export interface ModificadorOpciones {
@@ -249,6 +471,13 @@ export interface OrdenLineas {
   orden_visual: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  estado_preparacion: Generated<string>;
+  area_preparacion_snapshot: string | null;
+  cantidad_base_consumo: string | null;
+  insumo_base_id: string | null;
+  insumo_base_nombre: string | null;
+  precio_por_unidad_centavos: bigint | null;
+  ml_por_porcion: string | null;
 }
 
 export interface Ordenes {
@@ -280,6 +509,23 @@ export interface Ordenes {
   version: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  cerrada_en: Date | null;
+  mesa_id: string | null;
+  personas: Generated<number>;
+  cliente_nombre: string | null;
+  notas_alergias: string | null;
+  celebracion_especial: Generated<boolean>;
+  tipo_celebracion: string | null;
+  codigo_caja: string | null;
+  propina_puntos_base: Generated<number>;
+  propina_tipo: string | null;
+  propina_origen: string | null;
+  propina_liquidacion_id: string | null;
+  propina_liquidada_en: Date | null;
+  satisfaccion_score: number | null;
+  satisfaccion_emoji: string | null;
+  satisfaccion_comentario: string | null;
+  satisfaccion_en: Date | null;
 }
 
 export interface Organizaciones {
@@ -318,6 +564,37 @@ export interface Personas {
   telefono: string | null;
   correo: string | null;
   notas: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PlantillasCompra {
+  id: Generated<string>;
+  organizacion_id: string;
+  nombre: string;
+  proveedor_nombre: string | null;
+  lineas: Generated<unknown>;
+  activa: Generated<boolean>;
+  notas: string | null;
+  ultimo_uso_en: Date | null;
+  veces_usada: Generated<number>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PlantillasGasto {
+  id: Generated<string>;
+  organizacion_id: string;
+  nombre: string;
+  categoria: Generated<string>;
+  monto_sugerido_centavos: Generated<bigint>;
+  metodo_pago: Generated<string>;
+  periodicidad: Generated<string>;
+  dia_pago_sugerido: number | null;
+  notas: string | null;
+  activa: Generated<boolean>;
+  ultimo_uso_en: Date | null;
+  veces_usada: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -365,6 +642,27 @@ export interface Productos {
   insumo_base_id: string | null;
   utilidad_unitaria_centavos: bigint | null;
   margen_bp: bigint | null;
+  area_preparacion: Generated<string>;
+  visible_en_menu_digital: Generated<boolean>;
+  minutos_preparacion: number | null;
+  notas: string | null;
+  presets_variable: unknown;
+  presets_porcion: unknown;
+}
+
+export interface Proveedores {
+  id: Generated<string>;
+  organizacion_id: string;
+  nombre: string;
+  contacto: string | null;
+  telefono: string | null;
+  whatsapp: string | null;
+  correo: string | null;
+  direccion: string | null;
+  notas: string | null;
+  activo: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }
 
 export interface Recetas {
@@ -377,6 +675,10 @@ export interface Recetas {
   merma_bp: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  cantidad_capturada: string | null;
+  unidad_capturada: string | null;
+  activa: Generated<boolean>;
+  notas: string | null;
 }
 
 export interface SesionesCaja {
@@ -393,6 +695,33 @@ export interface SesionesCaja {
   efectivo_contado_centavos: bigint | null;
   efectivo_retirado_centavos: bigint | null;
   notas_cierre: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+  serie: Generated<string>;
+  folio: bigint | null;
+  fondo_esperado_centavos: Generated<bigint>;
+  notas_apertura: string | null;
+}
+
+export interface SolicitudesQr {
+  id: Generated<string>;
+  organizacion_id: string;
+  mesa_id: string;
+  orden_id: string | null;
+  tipo: string;
+  estado: Generated<string>;
+  atendida_en: Date | null;
+  resuelta_en: Date | null;
+  empleado_atiende_id: string | null;
+  empleado_destino_id: string | null;
+  ruteo_modo: Generated<string>;
+  origen: Generated<string>;
+  token_mesa: string | null;
+  notas: string | null;
+  subtotal_consumo_centavos: bigint | null;
+  propina_sugerida_centavos: bigint | null;
+  propina_sugerida_bp: number | null;
+  propina_tipo: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -423,20 +752,41 @@ export interface Terminales {
   updated_at: Generated<Date>;
 }
 
+export interface Zonas {
+  id: Generated<string>;
+  organizacion_id: string;
+  nombre: string;
+  orden: Generated<number>;
+  activa: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Esquema {
   almacenes: Almacenes;
   auditoria: Auditoria;
+  bitacora_sincronizacion: BitacoraSincronizacion;
   categorias: Categorias;
   clientes: Clientes;
+  comanda_items: ComandaItems;
+  comandas: Comandas;
   comandos_ejecutados: ComandosEjecutados;
+  compra_lineas: CompraLineas;
+  compras: Compras;
   configuracion: Configuracion;
+  cortes_turno: CortesTurno;
   credenciales_pin: CredencialesPin;
   empleos: Empleos;
+  estaciones_preparacion: EstacionesPreparacion;
   existencias: Existencias;
   folios: Folios;
+  gastos: Gastos;
   identidades: Identidades;
   insumos: Insumos;
   limite_tasa: LimiteTasa;
+  liquidaciones_propina: LiquidacionesPropina;
+  menu_qr_secciones: MenuQrSecciones;
+  mesas: Mesas;
   modificador_opciones: ModificadorOpciones;
   modificadores: Modificadores;
   movimientos_caja: MovimientosCaja;
@@ -447,10 +797,15 @@ export interface Esquema {
   organizaciones: Organizaciones;
   pagos: Pagos;
   personas: Personas;
+  plantillas_compra: PlantillasCompra;
+  plantillas_gasto: PlantillasGasto;
   producto_modificadores: ProductoModificadores;
   productos: Productos;
+  proveedores: Proveedores;
   recetas: Recetas;
   sesiones_caja: SesionesCaja;
+  solicitudes_qr: SolicitudesQr;
   sucursales: Sucursales;
   terminales: Terminales;
+  zonas: Zonas;
 }

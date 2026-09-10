@@ -142,7 +142,7 @@ function entidad(nombre: string): EntidadApi {
 }
 
 /**
- * Las 25 entidades de su sistema.
+ * Las 27 entidades del puente: sus 25 más dos que la base ahora sí tiene.
  *
  * La lista NO se inventa: sale de contar los nombres que su código usa de
  * verdad (`grep -o 'entidades\.[A-Za-z]*'`). Tres estuvieron a punto de
@@ -162,7 +162,14 @@ const NOMBRES = [
   'Venta',
   'DetalleVenta',
   'Mesa',
+  // `Zona` no era una entidad suya: era un arreglo literal en
+  // `lib/constants.js:118`. Ahora es una tabla, porque una mesa con una zona
+  // fuera de las cinco desaparecía de la interfaz sin decir nada.
+  'Zona',
   'PedidoPreparacion',
+  // Las líneas de la comanda como entidad propia: cocina marca UNA lista sin
+  // tocar las demás, y hoy eso obliga a reescribir el arreglo entero.
+  'PedidoPreparacionItem',
   'EstacionPreparacion',
   'UsuarioPOS',
   'ConfiguracionNegocio',

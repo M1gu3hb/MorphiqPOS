@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CONFIG_POR_OMISION, PUBLICOS } from './configuracion.ts';
-import { MAPA } from './mapa.ts';
+import { entidadMapeada, MAPA } from './mapa.ts';
 import { haciaEl, haciaLaBase, LIMITE_MAXIMO, type Conversion } from './tipos.ts';
 
 /**
@@ -113,7 +113,15 @@ describe('la forma del mapa', () => {
    * dejaría de ser quien decide cuánto se cobra.
    */
   it('ningún importe de una venta se acepta del cliente', () => {
-    for (const entidad of ['Venta', 'DetalleVenta'] as const) {
+    for (const entidad of [
+      'Venta',
+      'DetalleVenta',
+      'CompraInsumo',
+      'DetalleCompra',
+      'GastoOperativo',
+      'LiquidacionPropina',
+      'SolicitudQR',
+    ] as const) {
       const mapa = MAPA[entidad];
       expect(mapa).toBeDefined();
       for (const [clave, campo] of Object.entries(mapa?.campos ?? {})) {
@@ -134,14 +142,191 @@ describe('la forma del mapa', () => {
       'MovimientoInventario',
       'CorteCaja',
       'RecetaEscandallo',
+      // Enviar el pedido escribe comanda, items y el estado de las líneas de
+      // venta a la vez. Hoy `POS.jsx:462` se traga el error del `create` y el
+      // pedido no llega a cocina sin que nadie se entere.
+      'PedidoPreparacion',
+      'PedidoPreparacionItem',
+      // La compra escribe cabecera, líneas, stock, existencias y el costo
+      // promedio ponderado. Hoy la cabecera va primero y el bucle después: si
+      // falla la línea 3 de 5 queda una compra con el total mal (D-12).
+      'CompraInsumo',
+      'DetalleCompra',
+      // Un gasto en efectivo sale del cajón: mueve la caja.
+      'GastoOperativo',
+      // Liquidar marca N ventas y crea la liquidación.
+      'LiquidacionPropina',
+      // Crear, atender y resolver mueven mesa y venta, y el anti-duplicado era
+      // un TOCTOU (D-17).
+      'SolicitudQR',
     ] as const) {
       expect(MAPA[entidad]?.escritura, entidad).toBe('comando');
     }
   });
 
+  /**
+   * Lo recíproco: el catálogo SÍ se escribe por el puente. Si alguien marcara
+   * `Proveedor` como comando «por si acaso», la sección de proveedores dejaría
+   * de guardar y el error sólo aparecería al pulsar el botón.
+   */
+  it('el catálogo se escribe por el puente, sin comando propio', () => {
+    for (const entidad of [
+      'ProductoTerminado',
+      'CategoriaProducto',
+      'CategoriaIngrediente',
+      'Ingrediente',
+      'Zona',
+      'Mesa',
+      'EstacionPreparacion',
+      'Proveedor',
+      'PlantillaGasto',
+      'PlantillaCompra',
+      'MenuQRSeccion',
+      'IntegrationSyncLog',
+    ] as const) {
+      expect(MAPA[entidad]?.escritura, entidad).toBe('directa');
+    }
+  });
+
+  /**
+   * `F1-01` §3, regla 8: los registros históricos guardan el nombre en
+   * instantánea, así que borrar de verdad rompería un ticket de hace seis
+   * meses. Si una entidad de catálogo perdiera su campo `activo`, `borrar()`
+   * pasaría a hacer un `delete` físico sin que nadie cambiara esa línea.
+   */
+  it('el catálogo se apaga, no se borra', () => {
+    for (const entidad of [
+      'ProductoTerminado',
+      'CategoriaProducto',
+      'Ingrediente',
+      'Zona',
+      'Mesa',
+      'EstacionPreparacion',
+      'Proveedor',
+      'MenuQRSeccion',
+    ] as const) {
+      expect(MAPA[entidad]?.campos['activo'], `${entidad} sin borrado suave`).toBeDefined();
+    }
+  });
+
+  /**
+   * Las transiciones de la mesa —abrir, ocupar, pedir la cuenta, liberar— son
+   * comandos, no campos. Poder escribir `estado` y `venta_activa_id` sueltos
+   * desde el navegador es lo que hoy obliga a `detectarHuerfano` y sus cuatro
+   * reglas heurísticas a existir.
+   */
+  it('el estado de la mesa no se escribe a mano', () => {
+    for (const clave of ['estado', 'venta_activa_id', 'personas_actuales']) {
+      expect(MAPA['Mesa']?.campos[clave]?.escribible, `Mesa.${clave}`).toBe(false);
+    }
+  });
+
+  /**
+   * La estación general es el respaldo obligatorio (regla 10). Que haya una
+   * sola y que no se pueda apagar lo imponen ahora un índice único parcial y
+   * un `check`; el puente no puede dejar que se marque otra desde un formulario.
+   */
+  it('`es_general` no se acepta del cliente', () => {
+    expect(MAPA['EstacionPreparacion']?.campos['es_general']?.escribible).toBe(false);
+  });
+
   it('el tope de filas existe y no es absurdo', () => {
     expect(LIMITE_MAXIMO).toBeGreaterThan(0);
     expect(LIMITE_MAXIMO).toBeLessThanOrEqual(1000);
+  });
+
+  /**
+   * La lista NO se inventa: son los nombres que su código usa de verdad, más
+   * `Zona` y `PedidoPreparacionItem`, que la base ahora sí tiene.
+   *
+   * Si alguien añade una pantalla que consulta una entidad que el puente no
+   * conoce, la pantalla devuelve `PUENTE_ENTIDAD_DESCONOCIDA` en producción y
+   * nadie se entera hasta que un usuario la abre. Esta prueba lo caza antes.
+   */
+  it('las 27 entidades de su frontend tienen destino', () => {
+    const suyas = [
+      'Venta',
+      'DetalleVenta',
+      'Mesa',
+      'Zona',
+      'PedidoPreparacion',
+      'PedidoPreparacionItem',
+      'EstacionPreparacion',
+      'Ingrediente',
+      'CategoriaIngrediente',
+      'ProductoTerminado',
+      'CategoriaProducto',
+      'RecetaEscandallo',
+      'MovimientoInventario',
+      'DescuentoInventarioVenta',
+      'CorteCaja',
+      'CompraInsumo',
+      'DetalleCompra',
+      'Proveedor',
+      'GastoOperativo',
+      'PlantillaGasto',
+      'PlantillaCompra',
+      'SolicitudQR',
+      'MenuQRSeccion',
+      'LiquidacionPropina',
+      'IntegrationSyncLog',
+    ];
+    for (const nombre of suyas) {
+      expect(entidadMapeada(nombre), `${nombre} no está en el puente`).not.toBeNull();
+    }
+    // `UsuarioPOS` y `ConfiguracionNegocio` NO están en el mapa a propósito: no
+    // son una tabla con columnas. Viven en `usuarios.ts` y `configuracion.ts`,
+    // y las rutas las despachan aparte.
+    expect(entidadMapeada('UsuarioPOS')).toBeNull();
+    expect(entidadMapeada('ConfiguracionNegocio')).toBeNull();
+  });
+
+  it('una entidad que no existe se rechaza, no devuelve vacío', () => {
+    expect(entidadMapeada('Inventada')).toBeNull();
+    // Y no se puede llegar a una tabla por su nombre real: el mapa es la única
+    // puerta, y sus llaves son los nombres de él.
+    expect(entidadMapeada('ordenes')).toBeNull();
+    expect(entidadMapeada('credenciales_pin')).toBeNull();
+  });
+});
+
+describe('los campos derivados', () => {
+  it('nunca chocan con un campo real de la misma entidad', () => {
+    for (const [entidad, mapa] of Object.entries(MAPA)) {
+      for (const clave of Object.keys(mapa.derivados ?? {})) {
+        // Si un derivado se llamara igual que un campo, la fila traducida
+        // pisaría el valor de la columna con el del `join` — y sólo se notaría
+        // cuando el `join` diera nulo.
+        expect(mapa.campos[clave], `${entidad}.${clave} existe dos veces`).toBeUndefined();
+      }
+    }
+  });
+
+  it('cada derivado apunta a una columna que ESTA entidad tiene', () => {
+    for (const [entidad, mapa] of Object.entries(MAPA)) {
+      const columnas = new Set(Object.values(mapa.campos).map((c) => c.columna));
+      for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {
+        expect(
+          columnas.has(derivado.porColumna),
+          `${entidad}.${clave} se une por «${derivado.porColumna}», que no está en el mapa`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('el nombre del mesero sale de la vista, no de las tablas del PIN', () => {
+    // `empleados_visibles` existe justo para esto y NO incluye
+    // `credenciales_pin`. Que un derivado apunte a `empleos` o a `personas`
+    // sería un `join` de dos saltos que el puente no sabe hacer; que apuntara a
+    // `credenciales_pin` sería sacar el hash del PIN por una lista de mesas.
+    const permitidas = new Set(['empleados_visibles', 'mesas', 'zonas']);
+    for (const [entidad, mapa] of Object.entries(MAPA)) {
+      for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {
+        expect(permitidas.has(derivado.tabla), `${entidad}.${clave} → ${derivado.tabla}`).toBe(
+          true,
+        );
+      }
+    }
   });
 });
 

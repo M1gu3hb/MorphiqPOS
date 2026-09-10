@@ -57,6 +57,41 @@ export interface CampoMapeado {
   readonly publico?: boolean;
 }
 
+/**
+ * Un campo que NO es una columna de la entidad: se trae de otra tabla.
+ *
+ * Su frontend lee `mesa.mesero_asignado_nombre` y `venta.mesa_numero` como si
+ * fueran columnas. En el esquema nuevo no lo son —el nombre vive en `personas`
+ * y el número en `mesas`—, así que el puente los resuelve con un `left join`.
+ *
+ * Es UN salto, a propósito. La vista `empleados_visibles` (migración 047)
+ * existe justo para que «el nombre del mesero» no sean dos.
+ *
+ * Un derivado NUNCA se escribe: no tiene columna propia donde guardarlo.
+ */
+export interface CampoDerivado {
+  /** Tabla o vista de la que se lee. */
+  readonly tabla: string;
+  /** La columna de ESTA entidad que apunta allí. */
+  readonly porColumna: string;
+  /** La columna de la otra tabla con la que empareja. Por omisión, `id`. */
+  readonly emparejaCon?: string;
+  /** La columna cuyo valor se devuelve. */
+  readonly columna: string;
+  readonly conversion: Conversion;
+  readonly publico?: boolean;
+  /**
+   * Qué hacer cuando el `join` devuelve nulo pero la interfaz necesita un valor.
+   *
+   * Hoy sólo hay uno: el color del mesero. `empleos.color` es opcional y su
+   * pantalla pinta un punto de color al lado de cada nombre; sin respaldo, el
+   * punto sale transparente y dos meseros distintos se ven igual. Es un
+   * conjunto CERRADO de nombres, no una función: una función aquí convertiría
+   * el mapa en código y dejaría de poder comprobarse de un vistazo.
+   */
+  readonly respaldo?: 'colorDePersona';
+}
+
 export type PoliticaDeEscritura =
   /** Escrituras simples de catálogo: pasan por un comando delgado. */
   | 'directa'
@@ -76,6 +111,12 @@ export interface MapaEntidad {
   /** Alias de la tabla en las consultas. */
   readonly alias?: string;
   readonly campos: Readonly<Record<string, CampoMapeado>>;
+  /**
+   * Campos que su frontend lee pero que no son columnas de esta tabla. Salen
+   * de un `left join` y son de SÓLO LECTURA: mandarlos en una escritura es un
+   * error, no un campo que se ignora en silencio.
+   */
+  readonly derivados?: Readonly<Record<string, CampoDerivado>>;
   readonly escritura: PoliticaDeEscritura;
   /**
    * Filtro que SIEMPRE se aplica, además del ámbito. Sirve para las tablas que
@@ -83,6 +124,15 @@ export interface MapaEntidad {
    * producto y las de insumo en la misma tabla, distinguidas por `tipo`—.
    */
   readonly filtroFijo?: Readonly<Record<string, string | boolean>>;
+  /**
+   * `true` cuando la tabla tiene `sucursal_id not null`.
+   *
+   * La sucursal la pone el SERVIDOR, igual que la organización, y sale de la
+   * sesión. Se declara aquí en vez de adivinarse mirando si el `insert` falla:
+   * una mesa sin sucursal no es un caso a corregir después, es un `not null`
+   * que revienta la creación de la primera mesa del negocio.
+   */
+  readonly conSucursal?: boolean;
   /** Orden por omisión cuando él no pide ninguno. */
   readonly ordenPorOmision?: string;
   /** Roles que pueden LEER esta entidad. `undefined` = cualquiera con sesión. */
@@ -154,7 +204,7 @@ export function haciaLaBase(valor: unknown, conversion: Conversion): unknown {
       // ahí devuelve 1234.99 en vez de 1235.00. `desdeTexto` arma el importe
       // como fracción exacta y redondea UNA vez, con la regla única del sistema.
       // Lo cazó la prueba de ida y vuelta.
-      return desdeTexto(aTexto(valor)) as bigint;
+      return desdeTexto(aTexto(valor));
     case 'puntos_base':
       return Math.round(Number(valor) * CENTAVOS_POR_PESO);
     case 'decimal':

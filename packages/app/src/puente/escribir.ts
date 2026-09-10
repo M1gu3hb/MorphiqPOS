@@ -38,6 +38,12 @@ export interface PeticionEscritura {
 
 export interface AmbitoEscritura {
   readonly organizacionId: string;
+  /**
+   * La sucursal de la sesión. Es `null` para un actor de alcance organizacional
+   * —un dueño entrando desde su teléfono, sin terminal—, y por eso las tablas
+   * que la exigen lo declaran y fallan con un mensaje que se entiende.
+   */
+  readonly sucursalId: string | null;
   readonly rol: string;
 }
 
@@ -93,6 +99,15 @@ function aColumnas(mapa: MapaEntidad, datos: Readonly<Record<string, unknown>>):
   for (const [clave, valor] of Object.entries(datos)) {
     const campo = mapa.campos[clave];
     if (campo === undefined) {
+      // Un derivado no tiene columna propia donde guardarse. Mandarlo es un
+      // error del que llama, no un campo que se ignora en silencio: si se
+      // ignorara, la pantalla creería haber guardado el nombre del mesero.
+      if (Object.prototype.hasOwnProperty.call(mapa.derivados ?? {}, clave)) {
+        throw new ErrorDominio(
+          'PUENTE_CAMPO_INVALIDO',
+          `«${clave}» se calcula al leer y no se guarda.`,
+        );
+      }
       throw new ErrorDominio('PUENTE_CAMPO_INVALIDO', `«${clave}» no es un campo escribible.`);
     }
     if (campo.escribible === false) {
@@ -124,12 +139,22 @@ async function crear(
   mapa: MapaEntidad,
   peticion: PeticionEscritura,
 ): Promise<Fila> {
-  const valores = {
+  const valores: Fila = {
     ...aColumnas(mapa, peticion.datos ?? {}),
     ...(mapa.filtroFijo ?? {}),
     // El ámbito lo pone el servidor. Siempre.
     organizacion_id: ambito.organizacionId,
   };
+
+  if (mapa.conSucursal === true) {
+    if (ambito.sucursalId === null) {
+      throw new ErrorDominio(
+        'PUENTE_SIN_PERMISO',
+        `Para crear ${peticion.entidad} hay que estar en una sucursal, y esta sesión no tiene ninguna.`,
+      );
+    }
+    valores['sucursal_id'] = ambito.sucursalId;
+  }
 
   // La tabla sale del MAPA, nunca del cliente. Ver `db-dinamica.ts`.
   const fila = (await transaccionLibre(tx)

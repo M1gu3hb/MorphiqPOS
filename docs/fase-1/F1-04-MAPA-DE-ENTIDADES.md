@@ -26,7 +26,7 @@ Cada entidad lleva una tabla con esta forma:
 `campo de Miguel | tipo que usa él | columna destino | tipo destino | transformación`
 
 - **tipo que usa él** es el tipo **de JavaScript en tiempo de ejecución**, no el declarado en el `.jsonc`. Donde el código hace `Number(x) || 0` el tipo real es `number` y nunca `null`; donde hace `x || ''` es `string` y nunca `null`. Está anotado cuando difiere del declarado.
-- **columna destino** puede ser: una columna real, `DERIVADO` (se calcula al leer), `NUEVA` (hay que crear la columna — el DDL está en §29), o `SE DESCARTA`.
+- **columna destino** puede ser: una columna real, `DERIVADO` (se calcula al leer), `NUEVA` (hay que crear la columna — el DDL está en §34), o `SE DESCARTA`.
 - **transformación** es la operación exacta en las dos direcciones. `→` es escritura (Miguel al backend), `←` es lectura (backend a Miguel).
 
 ### 0.2 Las seis transformaciones estándar
@@ -73,9 +73,9 @@ Y duplicado como validación en `utils/importValidators.js:20`.
 
 **Problema con el destino.** `insumos.unidad_base` acepta seis valores (`002_catalogo.sql` → `003:47`): `'pieza','kg','g','l','ml','m'`. Es más permisivo que la regla. Un insumo con `unidad_base = 'kg'` rompe todo el consumo del restaurante, que asume gramos.
 
-**Decisión:** la restricción se estrecha en la base, no en el puente — §30.4. `insumos` de una organización con `paquete = 'restaurante'` sólo admite `g`, `ml`, `pieza`.
+**Decisión:** la restricción se estrecha en la base, no en el puente — §35.12. `insumos` de una organización con `paquete = 'restaurante'` sólo admite `g`, `ml`, `pieza`.
 
-**Las 9 unidades de COMPRA** (`DEFAULT_UNIDADES_COMPRA`, `unidadesMedida.js:10-12`) son otra cosa y no se tocan: `kg, g, litro, ml, pieza, caja, paquete, bolsa, unidad`. `getUnidadesCompra()` (`:169-181`) **las re-fusiona siempre**, aunque el admin las borre — regla §3.7, respetada en §26.
+**Las 9 unidades de COMPRA** (`DEFAULT_UNIDADES_COMPRA`, `unidadesMedida.js:10-12`) son otra cosa y no se tocan: `kg, g, litro, ml, pieza, caja, paquete, bolsa, unidad`. `getUnidadesCompra()` (`:169-181`) **las re-fusiona siempre**, aunque el admin las borre — regla §3.7, respetada en §31.
 
 Factores de conversión vivos (`unidadesMedida.js:133-144`): `kg`→`g` ×1000 · `litro`→`ml` ×1000 · `g`,`ml`,`pieza` ×1 · cualquier otra (`caja`, `paquete`, `bolsa`) × equivalencia capturada por el usuario. Coinciden con `packages/domain/src/catalogo/unidades.ts:6-13`, salvo que el dominio nuevo llama `l` a lo que él llama `litro` — lo resuelve `normalizarUnidad` (`:53`), que ya acepta `litro` como alias.
 
@@ -99,18 +99,18 @@ Factores de conversión vivos (`unidadesMedida.js:133-144`): `kg`→`g` ×1000 �
 
 | # | Entidad de Miguel | Destino en el esquema nuevo | Estado |
 |---|---|---|---|
-| 1 | `Venta` | `ordenes` (+ `pagos` para dinero y propina) | Existe, **faltan 11 columnas** |
+| 1 | `Venta` | `ordenes` (+ `pagos` para dinero y propina) | Existe, **faltan 17 columnas** |
 | 2 | `DetalleVenta` | `orden_lineas` (+ `orden_linea_modificadores`) | Existe, **faltan 7 columnas** |
 | 3 | `Mesa` | `mesas` | **NO EXISTE — E3-1** |
 | 4 | `Zona` | `zonas` | **NO EXISTE — E3-1.** Hoy es una constante, no una entidad |
 | 5 | `PedidoPreparacion` | `comandas` + `comanda_items` | **NO EXISTEN — E3-1** |
 | 6 | `EstacionPreparacion` | `estaciones_preparacion` | **NO EXISTE — E3-1** |
-| 7 | `UsuarioPOS` | `personas` + `identidades` + `empleos` + `credenciales_pin` | Existen, **faltan 4 columnas** |
+| 7 | `UsuarioPOS` | `personas` + `identidades` + `empleos` + `credenciales_pin` | Existen, **faltan 3 columnas** |
 | 8 | `ConfiguracionNegocio` | `configuracion.valores` (jsonb) + `organizaciones` | Existe |
-| 9 | `Ingrediente` | `insumos` + `existencias` | Existen, **faltan 6 columnas** |
-| 10 | `ProductoTerminado` | `productos` | Existe, **faltan 3 columnas** |
-| 11 | `CategoriaProducto` | `categorias` con `tipo='producto'` | Existe, **faltan 3 columnas** |
-| 12 | `RecetaEscandallo` | `recetas` | Existe, **faltan 2 columnas** |
+| 9 | `Ingrediente` | `insumos` + `existencias` | Existen, **faltan 11 columnas** |
+| 10 | `ProductoTerminado` | `productos` | Existe, **faltan 6 columnas** |
+| 11 | `CategoriaProducto` | `categorias` con `tipo='producto'` | Existe, **faltan 4 columnas** |
+| 12 | `RecetaEscandallo` | `recetas` | Existe, **faltan 4 columnas** |
 | 13 | `MovimientoInventario` | `movimientos_stock` | Existe. **`stock_anterior`/`stock_nuevo` se descartan a propósito** |
 | 14 | `DescuentoInventarioVenta` | **VISTA** sobre `movimientos_stock` | **NO EXISTE la vista — E3-1** |
 | 15 | `CorteCaja` | `sesiones_caja` (`cierre_diario`) **+** `cortes_turno` (`turno`) | Una existe, **la otra no — E3-1** |
@@ -126,11 +126,11 @@ Factores de conversión vivos (`unidadesMedida.js:133-144`): `kg`→`g` ×1000 �
 | 25 | `LiquidacionPropina` | `liquidaciones_propina` | **NO EXISTE — E3-1** |
 | 26 | `UnidadMedida` | `configuracion.valores.unidades.compra` (arreglo jsonb) | Existe. **No es entidad suya**: es un campo de texto separado por comas |
 | 27 | `IntegrationSyncLog` | `bitacora_sincronizacion` | **NO EXISTE — E3-1** |
-| — | `CategoriaIngrediente` | `categorias` con `tipo='insumo'` | Existe. **Entidad zombi** — ver §28 |
+| — | `CategoriaIngrediente` | `categorias` con `tipo='insumo'` | Existe. **Entidad zombi** — ver §33 |
 
-**16 tablas nuevas · 1 vista nueva · 6 tablas existentes con columnas nuevas.**
+**16 tablas nuevas · 1 vista nueva · 8 tablas existentes con columnas nuevas.**
 
-Tres nombres de la lista de 27 **no son entidades de Base44**: `Zona`, `SesionCaja` y `UnidadMedida`. No hay `Zona.jsonc`, ni `SesionCaja.jsonc`, ni `UnidadMedida.jsonc`, y `grep "entities.Zona\|entities.SesionCaja\|entities.UnidadMedida"` sobre los 244 archivos devuelve cero. Están en la lista porque son **conceptos** que el sistema maneja, y el mapa tiene que decir dónde viven. Se documentan igual, en §10, §21 y §26.
+Tres nombres de la lista de 27 **no son entidades de Base44**: `Zona`, `SesionCaja` y `UnidadMedida`. No hay `Zona.jsonc`, ni `SesionCaja.jsonc`, ni `UnidadMedida.jsonc`, y `grep "entities.Zona\|entities.SesionCaja\|entities.UnidadMedida"` sobre los 244 archivos devuelve cero. Están en la lista porque son **conceptos** que el sistema maneja, y el mapa tiene que decir dónde viven. Se documentan igual, en §9, §21 y §31.
 
 Las entidades reales de Base44 son **25**, no 27: las 24 de la lista que sí existen, más `CategoriaIngrediente`, que la lista de 27 no menciona.
 
@@ -143,21 +143,21 @@ Se anotan aquí y se repiten **en el sitio donde aplican**, para que nadie las l
 | Regla (`F1-01` §3) | Dónde se hace cumplir en este mapa |
 |---|---|
 | **1. `Venta.total` es la venta SIN propina** | §6. `ordenes.total_centavos` **nunca** incluye propina. La propina vive en `pagos.propina_centavos`, en otra tabla. La regla deja de depender de que nadie sume mal: es **estructuralmente imposible** inflar el total con una propina |
-| **2. Las propinas no entran en ventas, utilidad, costos, inventario, recetas ni margen** | §6 y §22. `calcularTotales` (`packages/domain/src/venta/totales.ts:59`) no recibe propinas. `movimientos_stock` no las conoce |
-| **3. El desglose de propinas por método es EXACTO, nunca proporcional** | §6.4. Cada fila de `pagos` lleva `metodo` **y** `propina_centavos`. El desglose es un `group by metodo`. **El fallback de `desgloseMetodosPagoExacto` deja de existir**, porque deja de existir la venta sin desglose |
-| **4. `efectivo_esperado` = ventas en efectivo + propinas en efectivo** | §22.4. Se deriva de `movimientos_caja`. **Exige que `cobrarOrden` registre un movimiento `tipo='propina'`, que hoy no registra** — ver §33.2 |
-| **5. El inventario se descuenta SÓLO al cobrar** | §13 y §14. `movimientos_stock` con `referencia_tipo='orden'` los escribe únicamente `cobrarOrden`. `comandas` no toca stock |
-| **6. Un producto de precio fijo sin receta NO bloquea el cobro** | §12. `productos.estrategia_consumo='ninguno'` es un valor legítimo, no un error |
-| **7. Las unidades base son sólo `g`, `ml`, `pieza`** | §0.4 y §30.4 |
+| **2. Las propinas no entran en ventas, utilidad, costos, inventario, recetas ni margen** | §6 y §20. `calcularTotales` (`packages/domain/src/venta/totales.ts:59`) no recibe propinas. `movimientos_stock` no las conoce |
+| **3. El desglose de propinas por método es EXACTO, nunca proporcional** | §6.1. Cada fila de `pagos` lleva `metodo` **y** `propina_centavos`. El desglose es un `group by metodo`. **El fallback de `desgloseMetodosPagoExacto` deja de existir**, porque deja de existir la venta sin desglose |
+| **4. `efectivo_esperado` = ventas en efectivo + propinas en efectivo** | §20.4. Se deriva de `movimientos_caja`. **Exige que `cobrarOrden` registre un movimiento `tipo='propina'`, que hoy no registra** — ver §38.2 |
+| **5. El inventario se descuenta SÓLO al cobrar** | §18 y §19. `movimientos_stock` con `referencia_tipo='orden'` los escribe únicamente `cobrarOrden`. `comandas` no toca stock |
+| **6. Un producto de precio fijo sin receta NO bloquea el cobro** | §15. `productos.estrategia_consumo='ninguno'` es un valor legítimo, no un error |
+| **7. Las unidades base son sólo `g`, `ml`, `pieza`** | §0.4 y §35.12 |
 | **8. Borrado suave en todo catálogo** | §0.3 |
-| **9. Cocina nunca ve costos, márgenes ni gramajes** | §31. La lista blanca del rol `cocina` excluye toda columna terminada en `_centavos`, `_bp` y la cantidad de receta |
-| **10. La estación «Cocina general» (`es_general`) es el fallback obligatorio y no se puede desactivar** | §11 y §30.8 |
+| **9. Cocina nunca ve costos, márgenes ni gramajes** | §36. La lista blanca del rol `cocina` excluye toda columna terminada en `_centavos`, `_bp` y la cantidad de receta |
+| **10. La estación «Cocina general» (`es_general`) es el fallback obligatorio y no se puede desactivar** | §11 y §35.8 |
 | **11. Los campos de snapshot de `DetalleVenta` son el contrato de trazabilidad** | §7. Los **24**, uno por uno, con su destino |
-| **12. Los modificadores son informativos** | §7.4 y §12. **Cambia a propósito** (`F1-01` §7.1): `orden_linea_modificadores.precio_extra_centavos` ya existe y sí entra al total |
+| **12. Los modificadores son informativos** | §7.4 y §15. **Cambia a propósito** (`F1-01` §7.1): `orden_linea_modificadores.precio_extra_centavos` ya existe y sí entra al total |
 
 ---
 
-## 3 · Convenciones del DDL que sigue §29
+## 3 · Convenciones del DDL que sigue §34
 
 Extraídas de `001_plataforma.sql:12-19` y verificadas contra las 12 migraciones aplicadas. Toda tabla nueva las cumple.
 
@@ -329,11 +329,11 @@ El nombre engaña. `codigo_caja` es **el código que el comensal lleva a la caja
 | `satisfaccion_score` | `number` 1-5 | **NUEVA** `ordenes.satisfaccion_score` | `smallint` | `check between 1 and 5` |
 | `satisfaccion_emoji` | `string` | **NUEVA** `ordenes.satisfaccion_emoji` | `text` | |
 | `satisfaccion_label` | `string` | `DERIVADO` | — | Tabla fija de cinco etiquetas por `score`. Guardar la etiqueta y el número es guardar el mismo dato dos veces |
-| `satisfaccion_comentario` | `string` | **NUEVA** `ordenes.satisfaccion_comentario` | `text` | **No se imprime en ticket ni PDF** (`Venta.jsonc:191`). La lista blanca del §31 lo reserva al administrador |
+| `satisfaccion_comentario` | `string` | **NUEVA** `ordenes.satisfaccion_comentario` | `text` | **No se imprime en ticket ni PDF** (`Venta.jsonc:191`). La lista blanca del §36 lo reserva al administrador |
 | `satisfaccion_fecha` | `string` ISO | **NUEVA** `ordenes.satisfaccion_en` | `timestamptz` | **T-FECHA** |
 | `satisfaccion_origen` | `string` | `DERIVADO` | — | Siempre `portal_qr` en v1 (`Venta.jsonc:196`). Constante, no columna |
 
-**Nota sobre `mesa_numero`.** Se deriva por `join`, no se copia. Riesgo asumido: si alguien renumera la mesa 5 como 7, un ticket viejo pasará a decir 7. Se acepta porque el número de mesa **no es dinero ni identidad de producto**, y porque `mesas` usa borrado suave: la mesa no desaparece. Si se decide que debe ser snapshot, la columna es `ordenes.mesa_numero smallint` y el coste es una columna. **Queda como decisión abierta en §33.**
+**Nota sobre `mesa_numero`.** Se deriva por `join`, no se copia. Riesgo asumido: si alguien renumera la mesa 5 como 7, un ticket viejo pasará a decir 7. Se acepta porque el número de mesa **no es dinero ni identidad de producto**, y porque `mesas` usa borrado suave: la mesa no desaparece. Si se decide que debe ser snapshot, la columna es `ordenes.mesa_numero smallint` y el coste es una columna. **Queda como decisión abierta en §38.1.**
 
 ### 6.5 `tipo_venta` se abre en dos ejes
 
@@ -377,7 +377,7 @@ Su razón es correcta para mostrador: el borrador **es** el carrito, y dos carri
 
 **Pero un restaurante tiene ocho mesas abiertas a la vez, y cada mesa abierta es una `Venta` en estado `abierta`, o sea `borrador`.** Con `terminal_id` puesto, la segunda mesa que se abra revienta con violación de unicidad. **Es un bloqueo total del flujo de mesero, y no está reportado en `F1-01`.**
 
-**Corrección (§30.9):** estrechar el índice con `and estrategia_captura = 'mostrador'`. El carrito de mostrador sigue siendo único por terminal; las mesas y el QR quedan libres. La alternativa —dejar `terminal_id` nulo en las mesas— se descarta: perdería la trazabilidad de qué dispositivo abrió la mesa, que es justo para lo que sirve `terminal_id` según la trampa T6.
+**Corrección (§35.9):** estrechar el índice con `and estrategia_captura = 'mostrador'`. El carrito de mostrador sigue siendo único por terminal; las mesas y el QR quedan libres. La alternativa —dejar `terminal_id` nulo en las mesas— se descarta: perdería la trazabilidad de qué dispositivo abrió la mesa, que es justo para lo que sirve `terminal_id` según la trampa T6.
 
 ### 6.7 Campos de `Venta` sin destino propio
 
@@ -942,7 +942,7 @@ Al migrar, el `2797` por omisión **no se copia**: se genera una contraseña nue
 | `created_date` / `updated_date` | `string` ISO | `created_at` / `updated_at` | `timestamptz` | **T-FECHA** |
 | `nombre` | `string` | `insumos.nombre` | `text` | `not null`. **Único sin acentos ni mayúsculas** — §35.10 |
 | `categoria_id` | `string` | `insumos.categoria_id` | `uuid` | FK a `categorias` con `tipo='insumo'`. **NUNCA SE ESCRIBE** — §33 |
-| `unidad_base` | `g`\|`ml`\|`pieza` | `insumos.unidad_base` | `text` | **T-ENUM**. `check` estrechado — §35.4 |
+| `unidad_base` | `g`\|`ml`\|`pieza` | `insumos.unidad_base` | `text` | **T-ENUM**. `check` estrechado — §35.12 |
 | `unidad_compra_default` | 7 valores | **NUEVA** `insumos.unidad_compra_default` | `text` | directo |
 | `cantidad_por_compra_default` | `number` | **NUEVA** `insumos.cantidad_por_compra_default` | `numeric(14,4)` | **T-CANTIDAD**. Es la **equivalencia** de un empaque: cuántas unidades base trae una caja |
 | `costo_compra_default` | `number` pesos | **NUEVA** `insumos.costo_compra_default_centavos` | `bigint` | **T-DINERO** |
@@ -959,7 +959,7 @@ Al migrar, el `2797` por omisión **no se copia**: se genera una contraseña nue
 | `ml_por_porcion_default` | `number` | **NUEVA** `insumos.ml_por_porcion` | `numeric(14,4)` | **T-CANTIDAD** |
 | `nombre_porcion_default` | `string` | **NUEVA** `insumos.nombre_porcion` | `text` | Texto visual: shot, copa, vaso |
 
-**Nueve columnas nuevas.** El DDL está en §34.3.
+**Once columnas nuevas.** El DDL está en §34.3.
 
 ### 14.2 `costo_por_unidad_base` — el promedio ponderado, y D-13
 
@@ -1010,7 +1010,7 @@ Ingrediente.stock_actual  ->  SE IGNORA. Sólo lo mueve un movimiento de stock.
 
 ### 14.4 Campos sin destino
 
-Ninguno se descarta. Pero **`categoria_id` es un campo huérfano**: se lee en `Inventario.jsx:122` para resolver el nombre contra `CategoriaIngrediente`, y **ningún `create` ni `update` lo escribe** (verificado sobre los tres puntos de alta). La columna existe en el destino; hoy siempre resuelve a cadena vacía. Ver §33.
+Ninguno se descarta. Pero **`categoria_id` es un campo huérfano**: se lee en `Inventario.jsx:122` para resolver el nombre contra `CategoriaIngrediente`, y **ningún `create` ni `update` lo escribe** (verificado sobre los tres puntos de alta). La columna existe en el destino; hoy siempre resuelve a cadena vacía. Ver §33.1.
 
 ---
 
@@ -1833,7 +1833,7 @@ Las unidades viven en **un campo de texto separado por comas**: `ConfiguracionNe
 
 **La regla 7 de `F1-01` §3 se conserva textualmente:** las nueve de `DEFAULT_UNIDADES_COMPRA` **se re-fusionan siempre**, aunque el admin las borre, porque la conversión depende de ellas. Eso lo hace hoy `getUnidadesCompra()` (`unidadesMedida.js:169-181`) y pasa al servidor sin cambiar la semántica: se deduplica con `normalizeUnidad` —minúsculas, sin acentos, espacios colapsados— conservando la forma visible que escribió el usuario.
 
-Las **unidades base** (`g`, `ml`, `pieza`) son otra cosa y **no son configurables**: van al `check` de `insumos.unidad_base` (§35.4).
+Las **unidades base** (`g`, `ml`, `pieza`) son otra cosa y **no son configurables**: van al `check` de `insumos.unidad_base` (§35.12).
 
 > **Tres funciones distintas se llaman `convertirAUnidadBase`**, con firmas y dominios incompatibles: `unidadesMedida.js:133` (3 argumentos, con equivalencia), `tipoVentaUtils.js:52` (2 argumentos, conjunto cerrado `g/kg/ml/l`), y la muerta de `unitConversions.js:10`. Además `unitConversions.js` y `UNIT_CONVERSIONS` de `constants.js:2-12` son **código muerto verificado**: `convertToBaseUnits`, `calculateWeightedAvgCost`, `formatUnit` y `UNIT_LABELS` no tienen ningún consumidor. Al portar, sólo sobrevive `convertirUnidad` del dominio (`packages/domain/src/catalogo/unidades.ts:70`).
 
@@ -1949,7 +1949,7 @@ Reproduce exactamente lo que hoy hace el cliente en dos sitios:
 nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/\s+/g, ' ').toLowerCase()
 ```
 
-## 34.1 · `alter table ordenes` — 16 columnas
+## 34.1 · `alter table ordenes` — 17 columnas
 
 ```sql
 alter table ordenes
@@ -2038,7 +2038,7 @@ comment on column orden_lineas.cantidad_base_consumo is
   'ese ledger agrega por insumo y su referencia apunta a la orden, no a la línea. Ver F1-04 §7.6.';
 ```
 
-## 34.3 · `alter table insumos` — 9 columnas
+## 34.3 · `alter table insumos` — 11 columnas
 
 ```sql
 alter table insumos
@@ -2267,7 +2267,7 @@ create index mesas_por_organizacion on mesas (organizacion_id, zona_id, orden) w
 create index mesas_por_estado on mesas (organizacion_id, estado) where activa;
 ```
 
-> **Referencia circular, resuelta a propósito.** `mesas.orden_activa_id` apunta a `ordenes` y `ordenes.mesa_id` apunta a `mesas`. No se pueden declarar las dos llaves en el `create table`. Las dos se añaden con `alter table` en §34.24, cuando ambas tablas existen.
+> **Referencia circular, resuelta a propósito.** `mesas.orden_activa_id` apunta a `ordenes` y `ordenes.mesa_id` apunta a `mesas`. No se pueden declarar las dos llaves en el `create table`. Las dos se añaden con `alter table` en §34.25, cuando ambas tablas existen.
 
 ## 34.12 · `comandas`
 
@@ -2916,3 +2916,520 @@ values ($1, 'Cocina general', 'Estación por defecto', '#4A5568', 0, true);
 ```
 
 Los cinco nombres son los de `lib/constants.js:118`; el nombre y el color de la estación, los de `utils/estacionUtils.js:49-50`.
+
+---
+
+# 35 · Restricciones que la base debe imponer
+
+Es la tarea **E3-2**. Cada una corresponde a una línea de `F1-01` §6, y cada una sustituye una comprobación que hoy vive en el navegador y es TOCTOU.
+
+Criterio de aceptación de `F1-02`: *«Intentar dos ventas activas en la misma mesa lo rechaza la base.»*
+
+## 35.1 · Folio de venta único
+
+```sql
+-- Ya existe (003_venta_caja_inventario.sql:178-180). Se documenta por completitud:
+-- es lo que corrige D-20, y no hace falta añadir nada.
+--
+--   create unique index ordenes_folio_unico
+--     on ordenes (organizacion_id, sucursal_id, serie, folio)
+--     where folio is not null;
+```
+
+Con `tomarFolio` (`repos/folios.ts:38`) tomando el consecutivo por `update ... returning` **dentro** de la transacción del cobro, cien cobros simultáneos salen con folios distintos y sin huecos: si la transacción se revierte, el consecutivo vuelve atrás con ella.
+
+## 35.2 · Folio de corte único
+
+```sql
+create unique index cortes_folio_unico
+  on sesiones_caja (organizacion_id, sucursal_id, serie, folio)
+  where folio is not null;
+
+create unique index cortes_turno_folio_unico
+  on cortes_turno (organizacion_id, serie, folio);
+
+create unique index liquidaciones_folio_unico
+  on liquidaciones_propina (organizacion_id, serie, folio);
+```
+
+Los tres usan la misma tabla `folios` con series `CC`, `CT` y `LIQ`. Hoy los tres son `Math.random()` de cuatro caracteres (`financialUtils.js:64`) salvo el de liquidación, que es un sello de tiempo (`LiquidarPropinasDialog.jsx:92`).
+
+## 35.3 · Número de mesa único
+
+```sql
+create unique index mesas_numero_unico
+  on mesas (organizacion_id, numero);
+```
+
+**No parcial.** Una mesa desactivada conserva su número: reutilizarlo mientras existe un ticket viejo que dice «Mesa 5» haría que dos mesas distintas compartieran identidad en el histórico.
+
+## 35.4 · Token QR único
+
+```sql
+create unique index mesas_qr_token_unico
+  on mesas (organizacion_id, qr_token)
+  where qr_token is not null;
+```
+
+Parcial: una mesa sin token es normal (el token se genera al abrir «Ver QR», `MesasQRTab.jsx:32-33`) y no debe chocar con las otras que tampoco lo tienen. Mismo patrón que `productos_codigo_barras_unico`.
+
+## 35.5 · Una sola venta activa por mesa — corrige D-16
+
+```sql
+create unique index mesas_una_orden_activa
+  on mesas (id)
+  where orden_activa_id is not null;
+```
+
+Y el lado recíproco, que es el que de verdad impide la doble apertura concurrente:
+
+```sql
+-- Dos meseros abriendo la misma mesa a la vez: el segundo INSERT choca aquí.
+-- Hoy eso se "resuelve" cancelando la venta duplicada a posteriori
+-- (qrPedidoFlow.js:122-134, motivo 'duplicado_apertura_qr'), que es limpiar
+-- después en vez de impedir antes.
+create unique index ordenes_una_activa_por_mesa
+  on ordenes (organizacion_id, mesa_id)
+  where mesa_id is not null
+    and estado in ('borrador','confirmada','en_preparacion','lista','cuenta_solicitada');
+```
+
+Los cinco estados son exactamente los de `ESTADOS_VENTA_ACTIVA` (`qrPedidoFlow.js:20-25`, duplicado en `entregaPedidos.js:46`), traducidos con la tabla de §6.6.
+
+**Esto convierte `detectarHuerfano` y sus cuatro reglas heurísticas (`F1-01` §4) en código sin causa.** Se quita cuando la prueba de concurrencia lo demuestre, no antes.
+
+## 35.6 · Una sola caja abierta
+
+```sql
+-- Ya existe (003_venta_caja_inventario.sql:96-98):
+--
+--   create unique index sesiones_caja_una_abierta_por_terminal
+--     on sesiones_caja (terminal_id) where estado = 'abierta';
+```
+
+**Pero no basta para el restaurante.** Su sistema no tiene terminales: `useCajaAbierta.js` busca **una caja abierta en todo el negocio**, y `Caja.jsx:913-922` aborta si encuentra cualquier otra. Con el índice por terminal, dos dispositivos podrían abrir dos cajas y su interfaz tomaría una al azar.
+
+```sql
+-- Una sola caja abierta por SUCURSAL, que es lo que su sistema asume.
+-- Convive con el índice por terminal: el más estrecho gana.
+create unique index sesiones_caja_una_abierta_por_sucursal
+  on sesiones_caja (organizacion_id, sucursal_id)
+  where estado = 'abierta';
+```
+
+## 35.7 · Una sola configuración por organización — corrige D-15
+
+```sql
+-- Ya existe (001_plataforma.sql:195): `organizacion_id uuid not null unique`.
+```
+
+Es lo que hace imposible el segundo registro, y por tanto lo que hace que los seis `list()[0]` del cliente dejen de depender del orden que devuelva la base. **No hay que añadir nada**, sólo dejar de crear filas: los cinco sitios que hacen `create` cuando `!cfg?.id` pasan por un comando que hace `insert ... on conflict (organizacion_id) do update`.
+
+## 35.8 · Una sola estación general, y no se puede desactivar
+
+```sql
+create unique index estaciones_una_general
+  on estaciones_preparacion (organizacion_id)
+  where es_general;
+```
+
+Más el `check estacion_general_siempre_activa` de §34.10, que impone la segunda mitad de la regla 10.
+
+Las dos juntas sustituyen `crearCocinaGeneral` (`EstacionesPreparacionSection.jsx:190-199`), que lee la lista y luego escribe —TOCTOU—, y el `if` de `:218-221`.
+
+## 35.9 · Estrechar `ordenes_borrador_por_terminal`
+
+**Sin esto, el flujo de mesero no arranca.** Ver §6.6.
+
+```sql
+drop index ordenes_borrador_por_terminal;
+
+-- El borrador ES el carrito de mostrador, y ahí la unicidad por terminal es
+-- correcta: si hubiera dos, el cajero vería uno y cobraría el otro.
+--
+-- Pero un restaurante tiene ocho mesas abiertas a la vez, y cada mesa abierta
+-- es una orden en 'borrador'. Sin acotar a mostrador, la segunda mesa que se
+-- abra en la misma terminal choca con violación de unicidad.
+create unique index ordenes_carrito_por_terminal
+  on ordenes (terminal_id)
+  where estado = 'borrador'
+    and terminal_id is not null
+    and estrategia_captura = 'mostrador';
+```
+
+## 35.10 · Únicos sin acentos ni mayúsculas
+
+`F1-01` §6: *«para que el anti-duplicado deje de vivir en el cliente»*.
+
+Usan `clave_texto()` de §34.0.
+
+```sql
+-- Ingrediente.nombre. Sustituye normalizarNombreIngrediente()
+-- (utils/ingredienteMatcher.js:20), que hoy compara contra la lista completa
+-- descargada al navegador.
+create unique index insumos_nombre_unico
+  on insumos (organizacion_id, clave_texto(nombre));
+
+-- CategoriaProducto.nombre y CategoriaIngrediente.nombre.
+-- Reemplaza `categorias_nombre_unico`, que sólo aplicaba lower() y por tanto
+-- dejaba pasar "Café" junto a "Cafe".
+drop index categorias_nombre_unico;
+create unique index categorias_nombre_unico
+  on categorias (organizacion_id, tipo, clave_texto(nombre));
+
+-- EstacionPreparacion.nombre. Sustituye findExistingEstacion()
+-- (utils/estacionUtils.js:37-43).
+create unique index estaciones_nombre_unico
+  on estaciones_preparacion (organizacion_id, clave_texto(nombre));
+```
+
+> **Los tres son índices totales, no parciales.** Un insumo desactivado sigue ocupando su nombre: reactivarlo es la operación correcta, y `Inventario.jsx:141` ya tiene el botón. Crear un segundo «Jitomate» porque el primero está desactivado es exactamente el duplicado que estos índices existen para impedir. `EstacionesPreparacionSection.jsx:127-131` ya hace lo correcto —reactiva la duplicada inactiva— y con el índice deja de ser opcional.
+
+## 35.11 · Una sola solicitud QR pendiente por mesa y tipo — corrige D-17
+
+No está en la lista de `F1-01` §6, pero cierra un TOCTOU real: `PortalCliente.jsx:524-532` consulta antes de crear.
+
+```sql
+create unique index solicitudes_qr_una_pendiente
+  on solicitudes_qr (organizacion_id, mesa_id, tipo)
+  where estado = 'pendiente';
+```
+
+## 35.12 · Unidades base: sólo `g`, `ml`, `pieza` — regla 7
+
+`insumos.unidad_base` admite seis valores (`003_venta_caja_inventario.sql:47`): `pieza`, `kg`, `g`, `l`, `ml`, `m`. Es correcto para la tiendita, y **más permisivo que la regla 7 del restaurante**.
+
+Un insumo con `unidad_base = 'kg'` rompe todo el consumo: `convertirAUnidadBase` produce gramos (`unidadesMedida.js:136`), `UNIDADES_BASE` sólo ofrece tres opciones (`:15-19`), y `validarCompatibilidad` (`:98-121`) compara contra la base esperando una de las tres. El error no aparece al capturar; aparece al cobrar, multiplicado por mil.
+
+No se puede estrechar el `check` de la columna sin romper a la tiendita, que sí vende por kilos. Se acota **por giro**:
+
+```sql
+-- Las unidades base del restaurante son tres y no se amplían (F1-01 §3.7).
+-- La comprobación no puede ser un `check` de columna porque la tiendita usa
+-- las seis legítimamente: se acota a las organizaciones de giro restaurante.
+create or replace function insumo_unidad_base_valida() returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $$
+declare
+  giro text;
+begin
+  select paquete into giro from organizaciones where id = new.organizacion_id;
+  if giro = 'restaurante' and new.unidad_base not in ('g', 'ml', 'pieza') then
+    raise exception
+      'Un insumo de restaurante sólo se mide en g, ml o pieza (recibido: %)', new.unidad_base
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger insumos_unidad_base_por_giro
+  before insert or update of unidad_base, organizacion_id on insumos
+  for each row execute function insumo_unidad_base_valida();
+```
+
+> **Es la única excepción a la regla «cero lógica de negocio en la base» (R7, A-27).** Y se declara como tal. La alternativa —dejarlo sólo en el comando— fallaría en cuanto alguien escriba por otro camino: una importación CSV, una semilla, un `psql`. Es exactamente el tipo de regla que `002_catalogo.sql:105-124` ya defiende con `check` de coherencia del tipo de venta, y aquí no cabe en un `check` porque depende de otra tabla.
+>
+> Si esa excepción no se acepta, la alternativa sin trigger es una **columna redundante** `insumos.giro text` mantenida por la aplicación, con `check (giro <> 'restaurante' or unidad_base in ('g','ml','pieza'))`. Cuesta una columna y una escritura, y no depende de otra tabla. **Queda a decisión de quien implemente E3-2**; las dos cumplen la regla y ninguna la deja en el navegador.
+
+## 35.13 · Prueba de aceptación por restricción
+
+Cada índice necesita una prueba de concurrencia, no sólo una de camino feliz. `F1-01` §8 dice que hay ~78 mutaciones enganchadas a `pnpm verify`; estas son las que faltan.
+
+| Restricción | Prueba |
+|---|---|
+| §35.1, §35.2 | 100 cobros y 100 cortes concurrentes, cero colisiones, cero huecos |
+| §35.3, §35.4 | Insertar mesa duplicada por número y por token, rechazada |
+| §35.5 | **Dos meseros abren la misma mesa a la vez: uno gana, el otro recibe conflicto tipado** |
+| §35.6 | Dos aperturas de caja simultáneas en la misma sucursal: una falla |
+| §35.7 | Segundo `insert` en `configuracion` para la misma organización: falla |
+| §35.8 | Segunda estación con `es_general`: falla. `update ... set activa=false` sobre la general: falla |
+| §35.9 | **Ocho mesas abiertas a la vez desde la misma terminal: las ocho se abren.** Dos carritos de mostrador en la misma terminal: el segundo falla |
+| §35.10 | Insertar «Café» y «cafe» y «CAFÉ »: sólo el primero entra |
+| §35.11 | Dos toques al botón de «pedir cuenta»: una sola solicitud |
+
+---
+
+# 36 · Lista blanca de campos por entidad y por rol
+
+Es lo que implementa la tarea **E3-4**: *«`POST /api/datos/consultar` con ámbito de sesión, listas blancas de entidad y campo, y límite de filas.»*
+
+## 36.1 · Los cinco ámbitos
+
+Cuatro roles de su sistema (`constants.js:75-80`) más uno que su sistema no nombra pero que existe desde que hay portal QR.
+
+| Ámbito | Quién es | Cómo se autentica |
+|---|---|---|
+| `administrador` | Dueño, administrador, gerente | PIN, rol de `empleos` |
+| `caja` | Cajero | PIN |
+| `mesero` | Mesero | PIN |
+| `cocina` | Cocina y barra | PIN |
+| **`publico_qr`** | **El comensal que escanea un código** | **Ninguna.** Sólo el token de mesa |
+
+`publico_qr` es el que importa, porque es donde está D-14.
+
+## 36.2 · Entidades legibles por ámbito
+
+`L` = lectura · `E` = escritura por comando · `—` = no aparece
+
+| Entidad | admin | caja | mesero | cocina | publico_qr |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `Venta` | L E | L E | L E | L¹ | L² |
+| `DetalleVenta` | L E | L E | L E | L¹ | L² |
+| `Mesa` | L E | L | L E | L¹ | L³ |
+| `Zona` | L E | L | L | — | — |
+| `PedidoPreparacion` | L | L | L E | **L E** | — |
+| `EstacionPreparacion` | L E | L | L | L | — |
+| `UsuarioPOS` | L E | L⁴ | L⁴ | L⁴ | — |
+| `ConfiguracionNegocio` | L E | L | L | L | **L⁵** |
+| `Ingrediente` | L E | L⁶ | — | L⁷ | — |
+| `ProductoTerminado` | L E | L | L | L⁷ | **L⁸** |
+| `CategoriaProducto` | L E | L | L | L | **L⁸** |
+| `RecetaEscandallo` | L E | L⁶ | — | L⁷ | — |
+| `MovimientoInventario` | L E | L | — | — | — |
+| `DescuentoInventarioVenta` | L | L | — | — | — |
+| `CorteCaja` | L E | L E | — | — | — |
+| `SesionCaja` | L | L | — | — | — |
+| `Compra` / `CompraLinea` | L E | — | — | — | — |
+| `Proveedor` | L E | — | — | — | — |
+| `GastoOperativo` | L E | L E | — | — | — |
+| `PlantillaGasto` / `PlantillaCompra` | L E | — | — | — | — |
+| `SolicitudQR` | L E | L | L E | — | **L E³** |
+| `MenuQRSeccion` | L E | — | — | — | **L** |
+| `LiquidacionPropina` | L E | L | — | — | — |
+| `UnidadMedida` | L E | L | — | — | — |
+| `IntegrationSyncLog` | L | — | — | — | — |
+| `CategoriaIngrediente` | L | L | — | — | — |
+
+1. Cocina lee la venta y sus líneas **sólo por los campos de §36.4**: nombre, cantidad, notas, alergias. Nunca dinero.
+2. `publico_qr` lee **únicamente la venta activa de su propia mesa**, resuelta por `token_mesa`, y sólo para la precuenta. Nunca `list()`.
+3. Acotado al `qr_token` de la petición. El comensal **no puede enumerar mesas**: `Mesa.filter({qr_token})` devuelve como mucho una fila y sólo si `qr_activa`.
+4. Sólo `id`, `nombre`, `rol`, `color`, `activo` — lo que `POSLogin.jsx` necesita para pintar las tarjetas. **Nunca `pin`.**
+5. §36.3. Es la fuga.
+6. Sólo si `configuracion.valores.operacion.mostrarCostosACaja` es verdadero. Es la regla que hoy vive en `mostrar_costos_a_caja`.
+7. Sólo nombres de ingredientes, **sin costos, sin márgenes y sin gramajes** — regla 9. §36.4.
+8. Sólo si `portal_qr_activo` y el producto tiene `visible_en_menu_digital`. **Sin `costo_calculado_actual`, sin `utilidad_bruta_actual`, sin `margen_bruto_actual`.**
+
+## 36.3 · `ConfiguracionNegocio` en el portal QR público — cierre de D-14
+
+Ésta es la sección que la tarea pide marcar explícitamente.
+
+### PUEDEN salir — los 22 que el portal usa de verdad
+
+Cada uno con el archivo y la línea donde se lee. Si un campo no está en esta lista y alguien lo necesita, **se añade a la lista, no se quita la lista**.
+
+| # | Campo | Se lee en |
+|---|---|---|
+| 1 | `portal_qr_activo` | `PortalCliente.jsx:88`, `:492` |
+| 2 | `portal_qr_modo_menu` | `PortalCliente.jsx:87` |
+| 3 | `portal_qr_mostrar_precios` | `PortalCliente.jsx:570` |
+| 4 | `portal_qr_mostrar_sin_imagen` | `PortalCliente.jsx:571` |
+| 5 | `portal_qr_permitir_ordenar` | `qrUtils.js:32` vía `getTiposSolicitudHabilitados` |
+| 6 | `portal_qr_permitir_cuenta` | `qrUtils.js:33` |
+| 7 | `portal_qr_permitir_ayuda` | `qrUtils.js:34` |
+| 8 | `portal_qr_mensaje_bienvenida` | `PortalCliente.jsx:642`, `:647` |
+| 9 | `portal_qr_cuenta_modo` | `PortalCliente.jsx:93` |
+| 10 | `portal_qr_permitir_pedidos_cliente` | `PortalCliente.jsx:265` |
+| 11 | `portal_qr_mostrar_precuenta` | `PedirCuentaQR.jsx:39` |
+| 12 | `portal_qr_permitir_propina_cliente` | `PedirCuentaQR.jsx:41` |
+| 13 | `propinas_activas` | `tipsUtils.js:11` vía `tipsEnabled` |
+| 14 | `propina_porcentajes_sugeridos` | `tipsUtils.js:18` vía `getPorcentajesSugeridos` |
+| 15 | `asignacion_mesas_activa` | `PortalCliente.jsx:263`, `:536`, `:722`; `PedirCuentaQR.jsx:219` |
+| 16 | `nombre_negocio` | `PortalCliente.jsx:622`, `:630` |
+| 17 | `logo_url` | `PortalCliente.jsx:584` |
+| 18 | `logo_ticket_url` | `PortalCliente.jsx:585`, respaldo del logo |
+| 19 | `logo_pdf_url` | `PortalCliente.jsx:586`, respaldo |
+| 20 | `background_logo_url` | `PortalCliente.jsx:587`, respaldo |
+| 21 | `paquete_modo` | `PortalCliente.jsx:262` |
+| 22 | `estaciones_preparacion_activas` | `qrPedidoFlow.js:259` |
+
+> **Dos que conviene mirar de nuevo aunque hoy se usen.**
+> - **`paquete_modo`** revela qué plan comercial tiene contratado el negocio. `PortalCliente.jsx:262` lo usa sólo para decidir si se permiten pedidos del cliente. **Mejor sustituirlo por un booleano derivado** —`puedeOrdenarDesdeQR`— calculado en servidor. Así el plan comercial deja de ser público sin perder la función.
+> - **`estaciones_preparacion_activas`** es un detalle de operación interna, y `qrPedidoFlow.js:255` **descarga la configuración entera una segunda vez** sólo para leerlo. Debe resolverse **dentro del comando `enviarPedidoQR`**, en servidor, y desaparecer de la respuesta pública. Ninguna de las dos es una fuga grave; las dos son innecesarias.
+
+### NO PUEDEN salir — nunca, para ningún ámbito
+
+| Campo | Qué expone |
+|---|---|
+| **`presentacion_password`** | **La contraseña del modo presentación, hoy en claro con `2797` por omisión** (`ConfiguracionNegocio.jsonc:219-222`), comparada en el cliente (`ModoPresentacion.jsx:48`). **Ni siquiera al administrador**: pasa a `passwordHash` (§13.5) y el hash tampoco se lee |
+
+### NO PUEDEN salir al portal público — los 53 restantes
+
+**Integraciones Google (11) — secretos operativos**
+`google_sheets_enabled` · `google_drive_enabled` · `google_sheets_status` · `google_drive_status` · **`google_sheets_spreadsheet_id`** · **`google_drive_folder_id`** · `auto_sync_on_cash_cut` · `auto_save_pdf_to_drive` · `auto_update_daily_summary` · `last_sync_at` · `last_sync_status` · **`last_sync_error`** (puede llevar trazas y rutas)
+
+**Modo presentación (3)**
+`modo_presentacion_activo` · `presentacion_ultimo_acceso` · `presentacion_notas`
+
+**Datos personales y de contacto (6)**
+`direccion` · `telefono` · `whatsapp` · `correo` · `horario` · `redes_sociales`
+*Anotación:* algunos podrían tener sentido en un pie de página del menú. **Hoy no se leen**, así que no salen. Si Miguel los quiere en el portal, se añaden uno a uno y con motivo.
+
+**Operación interna (10)**
+**`mostrar_costos_a_caja`** · **`permitir_venta_sin_stock`** · `usa_mesas` · `usa_cocina` · `usa_barra` · `hora_inicio_dia_operativo` · `iva_porcentaje` · `silenciar_notificaciones_admin` · `descargar_pdf_corte_auto` · `formato_export_default` · `unidades_medida_lista`
+
+**Apariencia no usada por el portal (20)**
+`nombre_sistema` · `platform_brand` · `background_image_url` · `background_fit` · `background_opacity` · `color_primario` · `color_secundario` · `color_acento` · `color_exito` · `color_alerta` · `colorear_importes_monetarios` · `moneda` · `simbolo_moneda` · `mensaje_ticket` · `ticket_footer` · `pdf_footer` · `footer_text` · `mostrar_logo_ticket` · `sonidos_activos` · `volumen_sonido`
+
+*No son secretos, pero tampoco se leen.* `PortalCliente.jsx` no aplica los colores de marca; y `simbolo_moneda` no se usa **ni siquiera donde parecería**: `formatCurrency` tiene `symbol = '$'` por omisión (`financialUtils.js:30`) y el portal lo llama sin argumento (`PortalCliente.jsx:934`, `PedirCuentaQR.jsx:480`).
+
+**La regla, escrita para que no haya que decidir cada vez:** la respuesta pública se construye **eligiendo** los 22, no **quitando** los 54. Una lista de exclusión se queda obsoleta en cuanto alguien añade un campo al esquema; una de inclusión, no.
+
+## 36.4 · Cocina nunca ve dinero — regla 9
+
+`F1-01` §3.9: *«Cocina nunca ve costos, márgenes ni gramajes. Sólo nombres de ingredientes.»* Hoy lo imponen `CocinaProductoDialog` y `ProductoFichaExpandible`, es decir **el componente que dibuja**.
+
+En la lista blanca deja de ser una cuestión de qué se dibuja y pasa a ser qué se envía.
+
+**El ámbito `cocina` NO recibe ninguna columna que:**
+
+- termine en `_centavos` — ningún precio, ningún costo, ningún total;
+- termine en `_bp` o se llame `margen_*` — ningún margen;
+- sea `cantidad` de `recetas` — ningún gramaje.
+
+**Sí recibe** de `Ingrediente`: `id`, `nombre`, `unidad_base`. Nada más.
+**Sí recibe** de `RecetaEscandallo`: `producto_id`, `ingrediente_id`, `ingrediente_nombre`. **Sin `cantidad`, sin `merma`, sin `costo_*`.**
+**Sí recibe** de `Venta` y `DetalleVenta`: `producto_nombre`, `cantidad`, `notas_producto`, `estado_preparacion`, `notas_alergias`, `celebracion_especial`, `tipo_celebracion`, `mesa_numero`, `folio`.
+
+La alergia sí se envía, y en primer lugar: es información de seguridad y por eso `PedidoPreparacion` la lleva como snapshot.
+
+## 36.5 · Campos que no salen para NINGÚN ámbito
+
+| Campo | Entidad | Motivo |
+|---|---|---|
+| `pin` | `UsuarioPOS` | D-01. Sólo existe como `credenciales_pin.pin_hash`, y el hash no sale de la base (`001_plataforma.sql:145-146`) |
+| `presentacion_password` | `ConfiguracionNegocio` | D-19. Sólo como hash |
+| `organizacion_id` | todas | El ámbito lo pone el servidor; devolverlo invita a mandarlo |
+| `idempotency_key` | `ordenes`, `pagos`, `compras`, `gastos` | Detalle del protocolo |
+| `device_token_hash`, `codigo_enrolamiento_hash` | `terminales` | Ni siquiera son entidades suyas |
+
+## 36.6 · Límite de filas
+
+`F1-01` §6 lista las consultas que hoy descargan miles de filas al navegador. El puente las topa:
+
+| Entidad | Tope | Qué sustituye |
+|---|---|---|
+| `Venta` | 200 | `Caja.jsx:229` pide **5000** para buscar un folio → `GET /ventas/buscar?q=` |
+| `DetalleVenta` | 500 | Se pide por venta, nunca en bloque |
+| `RecetaEscandallo` | 500 | `Caja.jsx` pide **2000 dos veces por cobro** → resuelto dentro de `cobrarVenta` |
+| `DescuentoInventarioVenta` | 500 | `CorteViewerDialog.jsx:35` pide **3000** → `GET /cortes/:id/reporte` |
+| `MovimientoInventario` | 500 | |
+| Catálogo (`ProductoTerminado`, `Ingrediente`, `CategoriaProducto`) | 1000 | |
+| Resto | 200 | |
+
+---
+
+# 37 · Contradicciones detectadas contra `F1-01`
+
+Cinco afirmaciones de la auditoría que este mapa **no pudo confirmar leyendo el código**. Se anotan porque `F1-01` es la fuente que gobierna la fase y conviene que quede corregida.
+
+| # | `F1-01` dice | El código dice | Evidencia |
+|---|---|---|---|
+| **C-1** | «los **26** campos de snapshot de `DetalleVenta`» (§3.11 y §9) | Son **24** | `DetalleVenta.jsonc:5-101` declara 24; el máximo por un `create` es 23; la unión de los cuatro puntos de escritura es 24; cero campos fuera de esquema |
+| **C-2** | «`efectivo_esperado` del cierre = ventas en efectivo + propinas en efectivo» (§3.4) | **Hay tres fórmulas y no coinciden.** La que se **persiste** no incluye propinas | Persiste: `Caja.jsx:974`, `:1053` → `metodosPagoExacto.efectivo.ventas`. Muestra: `CierreDiarioDialog.jsx:61,67` → `totalEfectivo + efPropinas`. Legacy: `CorteCaja.jsx:60,75` |
+| **C-3** | «Listas blancas de campos por pestaña en Configuración» (§4) | **No existe ninguna constante ni objeto de lista blanca.** Son objetos de estado de formulario, uno por sección, que se envían tal cual | `Configuracion.jsx:92-107` (14 campos), `IdentidadNegocio.jsx:110-125` (14), `ColoresSistemaSection.jsx:44` (2), `ConfiguracionQRTab.jsx:18-30` (11). El único comentario que declara la intención es `IdentidadNegocio.jsx:104-109` |
+| **C-4** | D-14 expone «`presentacion_password`, todos los IDs de Google, `paquete_modo` y `mostrar_costos_a_caja`» (§5) | Expone **54 campos** de 76 | `PortalCliente.jsx:63-68` sin proyección, más una **segunda** descarga completa en `qrPedidoFlow.js:255` |
+| **C-5** | «25 entidades» (§1, §6, y E3-6 «prueba de ida y vuelta por cada una de las 25») | **Hay 25 archivos de entidad**, pero el encargo enumera 27 nombres, de los cuales **3 no son entidades** (`Zona`, `SesionCaja`, `UnidadMedida`) y **1 entidad real falta de la lista** (`CategoriaIngrediente`) | `historico/restaurante/base44/entities/` tiene 25 `.jsonc`. Las pruebas de ida y vuelta de E3-6 deben ser **25**, sobre las entidades reales |
+
+**Defectos nuevos encontrados al escribir el mapa**, que no están en la lista D-01 a D-21 de `F1-01` §5:
+
+| # | Defecto | Dónde | Gravedad |
+|---|---|---|---|
+| **N-1** | `RecetaFormDialog.jsx:225` guarda `cantidad_convertida_unidad_base: cant` **sin convertir**, y la unidad es un `<Input>` de texto libre (`:365-366`). Escribir «kg» en un insumo medido en gramos produce un **error de 1000×** en consumo y costo | `RecetaFormDialog.jsx` | **Alta.** Corrompe inventario y márgenes |
+| **N-2** | `ordenes_borrador_por_terminal` (`003:183-185`) permite **un solo borrador por terminal**. Cada mesa abierta es un borrador → la segunda mesa no se puede abrir | Esquema nuevo | **Bloqueante.** Impide el flujo de mesero |
+| **N-3** | `resumen_ingredientes` está declarado en `CorteCaja.jsonc:172` y **nunca se escribe**. El PDF de un corte antiguo se recalcula al vuelo y puede dar cifras distintas hoy | `CorteViewerDialog.jsx:72-101` | Media. Un reporte histórico no es reproducible |
+| **N-4** | `compra_lineas` no persiste la equivalencia del empaque (`piezas_por_paquete`, usada en `RegistrarCompraDialog.jsx:301`). Una compra en cajas **no es auditable** | `RegistrarCompraDialog.jsx` | Media |
+| **N-5** | `PortalCliente.jsx:165` no detecta `estado === 'cancelada'`: si el administrador cancela una solicitud, el comensal espera para siempre | `PortalCliente.jsx` | Baja |
+| **N-6** | `importExecutors.js:65` escribe `Math.abs(delta)` — **pierde el signo del ajuste**. Un ajuste a la baja se registra como si subiera | `importExecutors.js` | Media. Agrava D-10 |
+| **N-7** | `ProveedoresSection.jsx:67` escribe `activo: true` incondicionalmente al editar: **reactiva proveedores desactivados sin avisar** | `ProveedoresSection.jsx` | Baja |
+| **N-8** | `ProductoSimpleDialog` fuerza `area_preparacion: 'ninguno'` (`:132`) y `RecetaFormDialog` fuerza `'cocina'` (`:190`). Editar con el diálogo «equivocado» **reescribe el área en silencio**, y el área decide a qué comanda va | dos diálogos | Media |
+| **N-9** | `ProductoSimpleDialog.jsx:125-136` **no escribe ninguno de los tres campos financieros**. Un producto creado por esa vía queda con costo `undefined`, que `POS.jsx:112` lee como 0 → **margen 100 %** | `ProductoSimpleDialog.jsx` | Media. Agrava D-09 |
+| **N-10** | `ConfiguracionQRTab.jsx:58` invalida la clave `['config_remote']`, **que no existe en ningún otro archivo**. Guardar la configuración del QR no refresca el `ConfigProvider` | `ConfiguracionQRTab.jsx` | Baja |
+| **N-11** | `POS.jsx:378-390` omite `detalle_venta_id` en el `DescuentoInventarioVenta` del camino de precio fijo, que sí escriben `POS.jsx:334` y `Caja.jsx:766` | `POS.jsx` | Baja |
+| **N-12** | `POS.jsx:271-285` **no escribe `modificadores_snapshot`**, que sí escriben Mesero y QR. Los modificadores de una venta de mostrador no quedan en el ticket | `POS.jsx` | Media, y crece con `F1-01` §7.1 |
+
+---
+
+# 38 · SIN DETERMINAR y decisiones abiertas
+
+Lo que este mapa **no** pudo resolver leyendo el código, y qué haría falta para cerrarlo.
+
+## 38.1 · `mesa_numero`: ¿derivado o snapshot?
+
+**SIN DETERMINAR.** El mapa lo deriva por `join` (§6.4). No encontré ningún sitio del código que exija que sea snapshot, pero tampoco encontré una decisión escrita.
+
+**Qué haría falta:** preguntarle a Miguel si renumera mesas alguna vez. Si la respuesta es sí, la columna `ordenes.mesa_numero smallint` entra y cuesta una columna. Si es no, se queda derivado.
+
+## 38.2 · La propina no existe en el backend nuevo — hueco confirmado
+
+**No es «sin determinar»: está verificado y falta.**
+
+`pagos.propina_centavos` existe en el esquema (`003:262`, `esquema.ts:304`). Y `grep -rn "propina" packages/app/src packages/contracts/src packages/data/src` devuelve **una sola línea**, que es la declaración de la columna en `esquema.ts`.
+
+Es decir:
+
+- **`cobrarOrden` no escribe propinas.** `packages/app/src/venta/cobrar.ts` no las menciona.
+- **`repartirPagos` no las admite.** `packages/app/src/venta/pagos.ts:88` exige `suma !== totalCentavos → error`, sin margen para propina.
+- **`arqueoDeSesion` no las cuenta**, porque nadie inserta el `movimientos_caja` de `tipo='propina'` que sí está previsto en el `check` (`003:306`).
+
+**Sin esto, las reglas 1 a 4 de `F1-01` §3 no se pueden cumplir en el backend nuevo, por bien que esté el mapa.** Es trabajo de la etapa E6, no de E3, pero el mapa depende de ello y hay que decirlo.
+
+Lo que hace falta, en concreto:
+
+1. `PagoEntrante` gana `propinaCentavos`.
+2. `repartirPagos` valida `Σ monto === total` **y** acumula las propinas aparte, sin mezclarlas.
+3. `cobrarOrden` inserta un `movimientos_caja` con `tipo='propina'` y monto positivo por cada propina **en efectivo**. Las de tarjeta y transferencia no mueven el cajón y no generan movimiento.
+4. `arqueoDeSesion` las incluye porque suma `movimientos_caja`; no hay que tocarla.
+
+## 38.3 · `DescuentoInventarioVenta` por línea
+
+**Decidido, con reserva.** La vista devuelve `null` en `detalle_venta_id`, `producto_id`, `cantidad_producto` y `cantidad_ingrediente_por_producto` porque el ledger agrega por insumo (§19.1). Ninguno se lee hoy.
+
+Si más adelante se quiere el desglose por línea, la vía es `movimientos_stock.orden_linea_id` y dejar de agregar. **Cuesta multiplicar las filas del ledger** y no se hace ahora.
+
+## 38.4 · Rotación del token QR
+
+**Fuera de alcance de Fase 1.** `generarTokenMesa` es una función pura del `id` (`qrUtils.js:8-16`), así que «regenerar» da el mismo valor y `MesasQRTab.jsx:45` sólo genera donde falta. Un token filtrado no se puede invalidar sin cambiar el `id` de la mesa.
+
+El índice único de §35.4 impide el duplicado, que es lo que pedía `F1-01` §6. La rotación necesita un token aleatorio y una pantalla, y eso es Fase 2.
+
+## 38.5 · Formato del folio visible
+
+**Decidido en §6.2, y es un cambio que Miguel ve.** `M5-20260909-K3F2` pasa a `M-000042`.
+
+**Qué haría falta para cerrarlo del todo:** que Miguel lo vea en un ticket impreso. Es la clase de decisión que se confirma enseñando, no preguntando. Si prefiere conservar el número de mesa dentro del folio, la alternativa es una columna `sufijo_folio text` que el puente concatene — **no** una serie por mesa, que `folios.serie ~ '^[A-Z]{1,6}$'` no admite.
+
+## 38.6 · Qué pasa con las tablas `orden_ajustes` y `orden_linea_exclusiones`
+
+`F1-02` §5, tarea E3-1, las lista entre las tablas a crear. **Ninguna de las 27 entidades de este mapa las necesita.**
+
+Corresponden a `F1-01` §7.1 —extras y aditivos con precio— y el mapa muestra que **ese caso ya lo cubre `orden_linea_modificadores`**, que existe y tiene `precio_extra_centavos` (§7.4). Una «exclusión» (*sin cebolla*) es una opción de modificador con precio cero.
+
+**Recomendación: no se crean.** Si al implementar E9 aparece un caso que `orden_linea_modificadores` no cubra, se crean entonces y con el caso delante. Crearlas ahora sería generalidad especulativa.
+
+## 38.7 · Migración de datos históricos
+
+**No aplica, y conviene decirlo en voz alta.** `DECISIONES.md` A-04: *«Sistema Base44: erradicación total. No hay nada que congelar ni migrar.»*
+
+Este mapa es una **capa de traducción para código vivo**, no un plan de migración de datos. Los datos históricos del restaurante no se importan. Si en algún momento se decidiera importarlos, este documento serviría de base pero haría falta además: resolver los folios duplicados que D-20 pudo generar, unificar el signo de `MovimientoInventario` (D-10), y decidir qué se hace con las ventas de mostrador sin `total_cobrado_con_propina`.
+
+## 38.8 · Lo que el mapa NO cubre
+
+Para que no se lea como más completo de lo que es:
+
+- **No define los comandos.** Las 14 operaciones transaccionales de `F1-01` §6 son las tareas E4 a E8 de `F1-02`. Aquí sólo se dice dónde acaban sus escrituras.
+- **No define los cinco canales de tiempo real.** Los índices de §34.12 los soportan; el transporte es otra tarea.
+- **No traduce `User` de la plataforma.** `F1-02` §8, trampa T4, ya lo zanjó: desaparece, su rol lo da `empleos`.
+- **No cubre el escáner de código de barras** (`F1-01` §7.2). `productos.codigo_barras` y su índice único parcial ya existen (`002_catalogo.sql:148-150`); no hace falta traducir nada porque no hay entidad de Miguel que lo use.
+- **No decide el formato del ticket.** Es A-31, pendiente.
+
+---
+
+## Cierre
+
+**27 nombres mapeados** — 24 entidades reales de Base44, más `CategoriaIngrediente` que faltaba en la lista, más 3 conceptos (`Zona`, `SesionCaja`, `UnidadMedida`) que no son entidades y ahora tienen destino escrito.
+
+**16 tablas nuevas · 1 vista · 8 tablas existentes con 56 columnas nuevas · 12 restricciones.**
+
+Cada afirmación sobre un campo de este documento sale de haber leído el archivo y la línea que se cita. Donde no pude determinar algo, dice **SIN DETERMINAR** y dice qué haría falta leer o preguntar.

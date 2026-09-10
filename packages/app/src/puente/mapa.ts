@@ -14,9 +14,18 @@ import { CAMPOS_AUTOMATICOS, type CampoMapeado, type MapaEntidad } from './tipos
  * electrónico. El puente cuesta este archivo y sus pruebas.
  *
  * ── Lo que este archivo NO mapea ───────────────────────────────────────────
- * Cuatro entidades no son una tabla con columnas y viven en `especiales.ts`:
- * `ConfiguracionNegocio` (un documento JSON), `UsuarioPOS` (tres tablas),
- * `DescuentoInventarioVenta` (una vista) y `UnidadMedida` (constantes suyas).
+ * Tres entidades no son una tabla con columnas y viven aparte:
+ * `ConfiguracionNegocio` es un documento JSON y está en `configuracion.ts`;
+ * `UsuarioPOS` sale de cuatro tablas y está en `usuarios.ts`; `UnidadMedida`
+ * no es una entidad, es un campo de texto separado por comas dentro de la
+ * configuración. `DescuentoInventarioVenta` sí está aquí, al final, porque es
+ * una vista sobre el ledger y se lee como cualquier otra cosa.
+ *
+ * ── Campos que su frontend lee y no son columnas ───────────────────────────
+ * `mesa.mesero_asignado_nombre`, `venta.mesa_numero`, `gasto.usuario_nombre`…
+ * Van en `derivados`, se resuelven con un `left join` de un salto y son de
+ * sólo lectura. La vista `empleados_visibles` (migración 047) existe para que
+ * «el nombre del mesero» sea un salto y no dos.
  */
 
 const AUTO = CAMPOS_AUTOMATICOS;
@@ -191,6 +200,71 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
       motivo_cancelacion: { columna: 'motivo_cancelacion', conversion: 'texto', escribible: false },
       cancelada_en: { columna: 'cancelada_en', conversion: 'fecha', escribible: false },
+
+      // ── Lo que el restaurante añade (migración 045) ──────────────────────
+      fecha_cierre: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
+      mesa_id: { columna: 'mesa_id', conversion: 'texto', escribible: false },
+      personas: { columna: 'personas', conversion: 'entero', escribible: false },
+      cliente_nombre: { columna: 'cliente_nombre', conversion: 'texto', escribible: false },
+      notas_alergias: { columna: 'notas_alergias', conversion: 'texto', escribible: false },
+      celebracion_especial: {
+        columna: 'celebracion_especial',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      tipo_celebracion: { columna: 'tipo_celebracion', conversion: 'texto', escribible: false },
+      // El código que el comensal lleva impreso a la caja (M05-4821). NO es
+      // una terminal: la inscripción de terminales se eliminó del plan.
+      codigo_caja: { columna: 'codigo_caja', conversion: 'texto', escribible: false },
+      propina_porcentaje: {
+        columna: 'propina_puntos_base',
+        conversion: 'puntos_base',
+        escribible: false,
+      },
+      propina_tipo: { columna: 'propina_tipo', conversion: 'texto', escribible: false },
+      propina_origen: { columna: 'propina_origen', conversion: 'texto', escribible: false },
+      propina_liquidacion_id: {
+        columna: 'propina_liquidacion_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      propina_liquidada_fecha: {
+        columna: 'propina_liquidada_en',
+        conversion: 'fecha',
+        escribible: false,
+      },
+      satisfaccion_score: { columna: 'satisfaccion_score', conversion: 'entero', escribible: false },
+      satisfaccion_emoji: { columna: 'satisfaccion_emoji', conversion: 'texto', escribible: false },
+      satisfaccion_comentario: {
+        columna: 'satisfaccion_comentario',
+        conversion: 'texto',
+        escribible: false,
+      },
+      satisfaccion_fecha: { columna: 'satisfaccion_en', conversion: 'fecha', escribible: false },
+    },
+    derivados: {
+      // El número de mesa se DERIVA, no se copia. Riesgo asumido y anotado en
+      // `F1-04` §38.1: si alguien renumera la mesa 5 como 7, un ticket viejo
+      // pasará a decir 7. Se acepta porque no es dinero ni identidad de
+      // producto, y `mesas` usa borrado suave.
+      mesa_numero: {
+        tabla: 'mesas',
+        porColumna: 'mesa_id',
+        columna: 'numero',
+        conversion: 'entero',
+      },
+      usuario_mesero_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_atiende_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      usuario_cajero_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_cobra_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
     },
   },
 
@@ -234,6 +308,34 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
       orden_visual: { columna: 'orden_visual', conversion: 'entero', escribible: false },
+
+      // ── El contrato de trazabilidad del restaurante (migración 045) ──────
+      estado_preparacion: {
+        columna: 'estado_preparacion',
+        conversion: 'texto',
+        escribible: false,
+      },
+      area_preparacion: {
+        columna: 'area_preparacion_snapshot',
+        conversion: 'texto',
+        escribible: false,
+      },
+      // Lo que se descuenta del inventario, en unidad base. NO coincide con la
+      // cantidad vendida cuando el producto se vende por peso o por porción, y
+      // confundirlas es un error de 1000× en el consumo.
+      cantidad_base_consumo: {
+        columna: 'cantidad_base_consumo',
+        conversion: 'decimal',
+        escribible: false,
+      },
+      insumo_base_id: { columna: 'insumo_base_id', conversion: 'texto', escribible: false },
+      insumo_base_nombre: { columna: 'insumo_base_nombre', conversion: 'texto', escribible: false },
+      precio_por_unidad: {
+        columna: 'precio_por_unidad_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      ml_por_porcion: { columna: 'ml_por_porcion', conversion: 'decimal', escribible: false },
     },
   },
 
@@ -287,6 +389,536 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       usuario_apertura_id: { columna: 'empleado_abre_id', conversion: 'texto', escribible: false },
       usuario_cierre_id: { columna: 'empleado_cierra_id', conversion: 'texto', escribible: false },
       notas: { columna: 'notas_cierre', conversion: 'texto', escribible: false },
+    },
+  },
+
+  // ── Restaurante: sala ────────────────────────────────────────────────────
+  /**
+   * `Zona` no es una entidad suya: hoy es un arreglo literal en
+   * `lib/constants.js:118` y `Mesa.zona` es texto libre sin llave foránea.
+   *
+   * Por eso una mesa con una zona fuera de las cinco DESAPARECE de la interfaz:
+   * el filtrado hace `(m.zona || 'Interior') === zonaFiltro` en cuatro sitios y
+   * no hay pestaña que la muestre. Como tabla, esa zona deja de poder
+   * escribirse, y el defecto se cierra sin tocar una línea de sus pantallas.
+   */
+  Zona: {
+    tabla: 'zonas',
+    escritura: 'directa',
+    ordenPorOmision: 'orden',
+    campos: {
+      ...AUTO,
+      nombre: { columna: 'nombre', conversion: 'texto', publico: true },
+      orden: { columna: 'orden', conversion: 'entero', publico: true },
+      activo: { columna: 'activa', conversion: 'booleano' },
+    },
+  },
+
+  Mesa: {
+    tabla: 'mesas',
+    escritura: 'directa',
+    // `mesas.sucursal_id` es `not null`: la pone el servidor desde la sesión.
+    conSucursal: true,
+    ordenPorOmision: 'numero',
+    campos: {
+      ...AUTO,
+      numero: { columna: 'numero', conversion: 'entero', publico: true },
+      nombre: { columna: 'nombre', conversion: 'texto', publico: true },
+      zona_id: { columna: 'zona_id', conversion: 'texto' },
+      capacidad: { columna: 'capacidad', conversion: 'entero' },
+      forma: { columna: 'forma', conversion: 'texto' },
+      tamano: { columna: 'tamano', conversion: 'texto' },
+      posicion_x: { columna: 'posicion_x', conversion: 'entero' },
+      posicion_y: { columna: 'posicion_y', conversion: 'entero' },
+      orden: { columna: 'orden', conversion: 'entero' },
+      // Abrir, ocupar, pedir la cuenta y liberar son TRANSICIONES, no campos.
+      // Cada una tiene su comando (E6); el puente no las deja escribir sueltas,
+      // porque «mesa libre con venta viva» es exactamente lo que hoy obliga a
+      // `detectarHuerfano` a existir.
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      venta_activa_id: { columna: 'orden_activa_id', conversion: 'texto', escribible: false },
+      personas_actuales: { columna: 'personas_actuales', conversion: 'entero', escribible: false },
+      cliente_temporal: { columna: 'cliente_temporal', conversion: 'texto', escribible: false },
+      notas_alergias: { columna: 'notas_alergias', conversion: 'texto', escribible: false },
+      celebracion_especial: {
+        columna: 'celebracion_especial',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      tipo_celebracion: { columna: 'tipo_celebracion', conversion: 'texto', escribible: false },
+      qr_token: { columna: 'qr_token', conversion: 'texto' },
+      qr_activo: { columna: 'qr_activa', conversion: 'booleano' },
+      mesero_asignado_id: { columna: 'empleado_asignado_id', conversion: 'texto' },
+      atendido_por_id: { columna: 'empleado_atiende_id', conversion: 'texto', escribible: false },
+      // «Mesa» es femenino: la columna es `activa` y su campo es `activo`.
+      activo: { columna: 'activa', conversion: 'booleano' },
+    },
+    derivados: {
+      zona: { tabla: 'zonas', porColumna: 'zona_id', columna: 'nombre', conversion: 'texto' },
+      mesero_asignado_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_asignado_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      mesero_asignado_color: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_asignado_id',
+        columna: 'color',
+        conversion: 'texto',
+        respaldo: 'colorDePersona',
+      },
+      atendido_por_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_atiende_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      atendido_por_color: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_atiende_id',
+        columna: 'color',
+        conversion: 'texto',
+        respaldo: 'colorDePersona',
+      },
+    },
+  },
+
+  EstacionPreparacion: {
+    tabla: 'estaciones_preparacion',
+    escritura: 'directa',
+    ordenPorOmision: 'orden',
+    campos: {
+      ...AUTO,
+      nombre: { columna: 'nombre', conversion: 'texto' },
+      descripcion: { columna: 'descripcion', conversion: 'texto' },
+      color: { columna: 'color', conversion: 'texto' },
+      icono: { columna: 'icono', conversion: 'texto' },
+      orden: { columna: 'orden', conversion: 'entero' },
+      // «Estación» es femenino: columna `activa`, campo `activo`.
+      activo: { columna: 'activa', conversion: 'booleano' },
+      // La estación general es el respaldo obligatorio (regla 10). Que haya
+      // una sola y que no se pueda apagar lo imponen ahora un índice único
+      // parcial y un `check`, no tres comprobaciones del navegador.
+      es_general: { columna: 'es_general', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  /**
+   * `PedidoPreparacion` es la comanda. Se parte en `comandas` (la cabecera) y
+   * `comanda_items` (las líneas) porque cocina consulta y actualiza item por
+   * item, en vivo, con dos pantallas abiertas.
+   *
+   * Es transaccional: enviar el pedido escribe la comanda, sus items y el
+   * estado de las líneas de venta en la MISMA transacción. Hoy `POS.jsx:462`
+   * se traga el error del `create` y el pedido no llega a cocina sin que nadie
+   * se entere.
+   */
+  PedidoPreparacion: {
+    tabla: 'comandas',
+    escritura: 'comando',
+    ordenPorOmision: '-created_date',
+    campos: {
+      ...AUTO,
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      mesa_id: { columna: 'mesa_id', conversion: 'texto', escribible: false },
+      // `area` se conserva por compatibilidad declarada: `Cocina` filtra por
+      // ella (`PedidoPreparacion.jsonc:24`).
+      area: { columna: 'area', conversion: 'texto', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      fecha_inicio: { columna: 'iniciada_en', conversion: 'fecha', escribible: false },
+      fecha_listo: { columna: 'lista_en', conversion: 'fecha', escribible: false },
+      fecha_entregado: { columna: 'entregada_en', conversion: 'fecha', escribible: false },
+      usuario_responsable_id: {
+        columna: 'empleado_responsable_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+      estacion_preparacion_id: {
+        columna: 'estacion_preparacion_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      // Instantáneas: la cocina las pinta y la estación puede desactivarse.
+      estacion_preparacion_nombre: {
+        columna: 'estacion_nombre',
+        conversion: 'texto',
+        escribible: false,
+      },
+      estacion_preparacion_color: {
+        columna: 'estacion_color',
+        conversion: 'texto',
+        escribible: false,
+      },
+      origen_pedido: { columna: 'origen', conversion: 'texto', escribible: false },
+      notas_alergias: { columna: 'notas_alergias', conversion: 'texto', escribible: false },
+      celebracion_especial: {
+        columna: 'celebracion_especial',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      tipo_celebracion: { columna: 'tipo_celebracion', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      mesa_numero: {
+        tabla: 'mesas',
+        porColumna: 'mesa_id',
+        columna: 'numero',
+        conversion: 'entero',
+      },
+    },
+  },
+
+  /**
+   * Las líneas de la comanda. Su código las lee dentro de
+   * `PedidoPreparacion.items`; el puente las expone también como entidad
+   * propia porque cocina marca UNA línea como lista sin tocar las demás.
+   */
+  PedidoPreparacionItem: {
+    tabla: 'comanda_items',
+    escritura: 'comando',
+    ordenPorOmision: 'orden_visual',
+    campos: {
+      ...AUTO,
+      pedido_id: { columna: 'comanda_id', conversion: 'texto', escribible: false },
+      detalle_venta_id: { columna: 'orden_linea_id', conversion: 'texto', escribible: false },
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      producto_nombre: { columna: 'producto_nombre', conversion: 'texto', escribible: false },
+      cantidad: { columna: 'cantidad', conversion: 'decimal', escribible: false },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      tipo_venta: { columna: 'tipo_venta', conversion: 'texto', escribible: false },
+      unidad_variable: { columna: 'unidad_variable', conversion: 'texto', escribible: false },
+      cantidad_variable: { columna: 'cantidad_variable', conversion: 'decimal', escribible: false },
+      nombre_porcion: { columna: 'nombre_porcion', conversion: 'texto', escribible: false },
+      cantidad_porciones: {
+        columna: 'cantidad_porciones',
+        conversion: 'decimal',
+        escribible: false,
+      },
+      orden_visual: { columna: 'orden_visual', conversion: 'entero', escribible: false },
+    },
+  },
+
+  // ── Restaurante: portal QR ───────────────────────────────────────────────
+  SolicitudQR: {
+    tabla: 'solicitudes_qr',
+    // Crear una solicitud, atenderla y resolverla mueven mesa y venta. Y el
+    // anti-duplicado de `PortalCliente.jsx:524-532` es un TOCTOU (D-17) que
+    // ahora cierra un índice único parcial.
+    escritura: 'comando',
+    ordenPorOmision: '-created_date',
+    campos: {
+      ...AUTO,
+      mesa_id: { columna: 'mesa_id', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      fecha_atendida: { columna: 'atendida_en', conversion: 'fecha', escribible: false },
+      fecha_resuelta: { columna: 'resuelta_en', conversion: 'fecha', escribible: false },
+      atendido_por_id: { columna: 'empleado_atiende_id', conversion: 'texto', escribible: false },
+      mesero_destino_id: {
+        columna: 'empleado_destino_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      ruteo_modo: { columna: 'ruteo_modo', conversion: 'texto', escribible: false },
+      origen: { columna: 'origen', conversion: 'texto', escribible: false },
+      token_mesa: { columna: 'token_mesa', conversion: 'texto', escribible: false },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+      subtotal_consumo: {
+        columna: 'subtotal_consumo_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      propina_monto_sugerida: {
+        columna: 'propina_sugerida_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      propina_porcentaje_sugerido: {
+        columna: 'propina_sugerida_bp',
+        conversion: 'puntos_base',
+        escribible: false,
+      },
+      propina_tipo: { columna: 'propina_tipo', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      mesa_numero: {
+        tabla: 'mesas',
+        porColumna: 'mesa_id',
+        columna: 'numero',
+        conversion: 'entero',
+      },
+      mesa_nombre: {
+        tabla: 'mesas',
+        porColumna: 'mesa_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      atendido_por_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_atiende_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      mesero_destino_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_destino_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
+  },
+
+  /**
+   * Una de las tres entidades legibles SIN sesión: el comensal que escanea el
+   * código todavía no ha entrado a ningún sitio. Por eso cada campo lleva
+   * `publico`, y por eso `archivo_url` no existe: está muerto en su código.
+   */
+  MenuQRSeccion: {
+    tabla: 'menu_qr_secciones',
+    escritura: 'directa',
+    ordenPorOmision: 'orden',
+    campos: {
+      ...AUTO,
+      nombre: { columna: 'nombre', conversion: 'texto', publico: true },
+      descripcion: { columna: 'descripcion', conversion: 'texto', publico: true },
+      imagen_url: { columna: 'imagen_url', conversion: 'texto', publico: true },
+      orden: { columna: 'orden', conversion: 'entero', publico: true },
+      // «Sección» es femenino: columna `activa`, campo `activo`.
+      activo: { columna: 'activa', conversion: 'booleano', publico: true },
+    },
+  },
+
+  // ── Restaurante: compras y gastos ────────────────────────────────────────
+  /**
+   * Su nombre es `CompraInsumo`, no `Compra`. Estuvo a punto de quedarse fuera
+   * del puente por eso.
+   *
+   * Es un comando: hoy `RegistrarCompraDialog.jsx:229` crea la cabecera y el
+   * bucle de líneas va después, sin transacción. Si falla la línea 3 de 5,
+   * queda la cabecera con el total correcto y tres líneas. Es el defecto D-12.
+   */
+  CompraInsumo: {
+    tabla: 'compras',
+    escritura: 'comando',
+    ordenPorOmision: '-fecha',
+    campos: {
+      ...AUTO,
+      proveedor_id: { columna: 'proveedor_id', conversion: 'texto', escribible: false },
+      // Instantánea: es lo que justifica el borrado suave del proveedor.
+      proveedor_nombre: { columna: 'proveedor_nombre', conversion: 'texto', escribible: false },
+      fecha: { columna: 'fecha', conversion: 'dia', escribible: false },
+      total_compra: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
+      metodo_pago: { columna: 'metodo_pago', conversion: 'texto', escribible: false },
+      factura_folio: { columna: 'factura_folio', conversion: 'texto', escribible: false },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      usuario_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
+  },
+
+  /** Su nombre es `DetalleCompra`, no `CompraLinea`. */
+  DetalleCompra: {
+    tabla: 'compra_lineas',
+    escritura: 'comando',
+    ordenPorOmision: '-created_date',
+    campos: {
+      ...AUTO,
+      compra_id: { columna: 'compra_id', conversion: 'texto', escribible: false },
+      ingrediente_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
+      ingrediente_nombre: { columna: 'insumo_nombre', conversion: 'texto', escribible: false },
+      // Lo que el usuario tecleó, EN SU UNIDAD.
+      cantidad_comprada: { columna: 'cantidad_capturada', conversion: 'decimal', escribible: false },
+      unidad_compra: { columna: 'unidad_capturada', conversion: 'texto', escribible: false },
+      // Cuántas unidades base trae UNA unidad capturada. Hoy se usa para
+      // calcular y NO se guarda, así que una compra de «3 cajas» queda sin
+      // decir en ningún lado que una caja traía 12 kg: inauditable.
+      piezas_por_paquete: { columna: 'equivalencia', conversion: 'decimal', escribible: false },
+      cantidad_convertida_unidad_base: {
+        columna: 'cantidad',
+        conversion: 'decimal',
+        escribible: false,
+      },
+      costo_total: { columna: 'costo_total_centavos', conversion: 'dinero', escribible: false },
+      fecha_caducidad: { columna: 'caduca_el', conversion: 'dia', escribible: false },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+    },
+  },
+
+  Proveedor: {
+    tabla: 'proveedores',
+    escritura: 'directa',
+    ordenPorOmision: 'nombre',
+    campos: {
+      ...AUTO,
+      nombre: { columna: 'nombre', conversion: 'texto' },
+      contacto: { columna: 'contacto', conversion: 'texto' },
+      telefono: { columna: 'telefono', conversion: 'texto' },
+      whatsapp: { columna: 'whatsapp', conversion: 'texto' },
+      correo: { columna: 'correo', conversion: 'texto' },
+      direccion: { columna: 'direccion', conversion: 'texto' },
+      notas: { columna: 'notas', conversion: 'texto' },
+      activo: { columna: 'activo', conversion: 'booleano' },
+    },
+  },
+
+  /**
+   * Un gasto en efectivo SALE DEL CAJÓN: por eso es un comando, y por eso
+   * escribe también el movimiento de caja y el contador de la plantilla en la
+   * misma transacción.
+   */
+  GastoOperativo: {
+    tabla: 'gastos',
+    escritura: 'comando',
+    ordenPorOmision: '-fecha',
+    campos: {
+      ...AUTO,
+      fecha: { columna: 'fecha', conversion: 'dia', escribible: false },
+      categoria: { columna: 'categoria', conversion: 'texto', escribible: false },
+      descripcion: { columna: 'descripcion', conversion: 'texto', escribible: false },
+      monto: { columna: 'monto_centavos', conversion: 'dinero', escribible: false },
+      metodo_pago: { columna: 'metodo_pago', conversion: 'texto', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+      // Hoy no es un booleano: `RegistrarGastoDialog.jsx:51-53` antepone el
+      // texto «[RECURRENTE/FIJO MENSUAL]» a las notas, y se pierde en cuanto
+      // alguien edita la nota.
+      recurrente: { columna: 'es_recurrente', conversion: 'booleano', escribible: false },
+      // Ídem con el vínculo a la plantilla, que hoy vive dentro del texto
+      // «[Desde plantilla: X]» y sostiene el anti-duplicado de `:81`.
+      plantilla_id: { columna: 'plantilla_gasto_id', conversion: 'texto', escribible: false },
+      sesion_caja_id: { columna: 'sesion_caja_id', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      usuario_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
+  },
+
+  PlantillaGasto: {
+    tabla: 'plantillas_gasto',
+    escritura: 'directa',
+    ordenPorOmision: 'nombre',
+    campos: {
+      ...AUTO,
+      nombre: { columna: 'nombre', conversion: 'texto' },
+      categoria: { columna: 'categoria', conversion: 'texto' },
+      monto_sugerido: { columna: 'monto_sugerido_centavos', conversion: 'dinero' },
+      metodo_pago: { columna: 'metodo_pago', conversion: 'texto' },
+      periodicidad: { columna: 'periodicidad', conversion: 'texto' },
+      dia_pago_sugerido: { columna: 'dia_pago_sugerido', conversion: 'entero' },
+      notas: { columna: 'notas', conversion: 'texto' },
+      activa: { columna: 'activa', conversion: 'booleano' },
+      // Los contadores los mueve el comando que crea el gasto, en su misma
+      // transacción. Aceptarlos del cliente los volvería adorno.
+      ultima_fecha_uso: { columna: 'ultimo_uso_en', conversion: 'fecha', escribible: false },
+      veces_usada: { columna: 'veces_usada', conversion: 'entero', escribible: false },
+    },
+  },
+
+  PlantillaCompra: {
+    tabla: 'plantillas_compra',
+    escritura: 'directa',
+    ordenPorOmision: 'nombre',
+    campos: {
+      ...AUTO,
+      nombre: { columna: 'nombre', conversion: 'texto' },
+      proveedor_nombre: { columna: 'proveedor_nombre', conversion: 'texto' },
+      // Es la excepción a normalizar los arreglos embebidos, y la diferencia
+      // es real: `lineas` se lee ENTERA para precargar un formulario y nunca
+      // se actualiza parcialmente. `comanda_items`, en cambio, se consulta y
+      // se actualiza fila por fila desde cocina, en vivo.
+      lineas: { columna: 'lineas', conversion: 'json' },
+      activa: { columna: 'activa', conversion: 'booleano' },
+      notas: { columna: 'notas', conversion: 'texto' },
+      ultima_fecha_uso: { columna: 'ultimo_uso_en', conversion: 'fecha', escribible: false },
+      veces_usada: { columna: 'veces_usada', conversion: 'entero', escribible: false },
+    },
+  },
+
+  /**
+   * Liquidar propinas marca N ventas y crea la liquidación. Hoy
+   * `LiquidarPropinasDialog.jsx:122` se traga los errores de esos `update`, así
+   * que el booleano `propina_liquidada` se desincroniza del puntero de verdad.
+   * Por eso `propina_liquidada` se DERIVA y esto es un comando.
+   */
+  LiquidacionPropina: {
+    tabla: 'liquidaciones_propina',
+    escritura: 'comando',
+    // El orden se declara con SU nombre de campo, no con el de la columna: es
+    // lo que el frontend manda en `list('-fecha_liquidacion')`. Lo cazó la
+    // prueba de forma del mapa.
+    ordenPorOmision: '-fecha_liquidacion',
+    campos: {
+      ...AUTO,
+      serie: { columna: 'serie', conversion: 'texto', escribible: false },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      fecha_liquidacion: { columna: 'liquidada_en', conversion: 'fecha', escribible: false },
+      rango_inicio: { columna: 'rango_inicio', conversion: 'fecha', escribible: false },
+      rango_fin: { columna: 'rango_fin', conversion: 'fecha', escribible: false },
+      rango_tipo: { columna: 'rango_tipo', conversion: 'texto', escribible: false },
+      mesero_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+      total_liquidado: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
+      usuario_liquido_id: {
+        columna: 'empleado_liquida_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      mesero_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      usuario_liquido_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_liquida_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
+  },
+
+  /**
+   * La bitácora de sincronización. Su forma es correcta; lo que falta es el
+   * trabajador que la consuma, y eso NO se construye en Fase 1. Hoy `intentos`
+   * y `ultimo_intento_en` se escriben una vez y jamás se actualizan, y el botón
+   * «Reintentar» es un `setTimeout` de 800 ms más un aviso.
+   */
+  IntegrationSyncLog: {
+    tabla: 'bitacora_sincronizacion',
+    escritura: 'directa',
+    ordenPorOmision: '-created_date',
+    campos: {
+      ...AUTO,
+      record_type: { columna: 'tipo_registro', conversion: 'texto' },
+      record_id: { columna: 'registro_id', conversion: 'texto' },
+      destination: { columna: 'destino', conversion: 'texto' },
+      status: { columna: 'estado', conversion: 'texto' },
+      attempts: { columna: 'intentos', conversion: 'entero' },
+      last_attempt_at: { columna: 'ultimo_intento_en', conversion: 'fecha' },
+      error_message: { columna: 'mensaje_error', conversion: 'texto' },
+      file_url: { columna: 'archivo_url', conversion: 'texto' },
+      sheet_tab: { columna: 'pestana_hoja', conversion: 'texto' },
+      // A `jsonb`, no a `text`: si algún día se escribe, será consultable.
+      payload_snapshot: { columna: 'payload', conversion: 'json' },
     },
   },
 };
