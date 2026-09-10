@@ -23,6 +23,13 @@ import { describe, expect, it } from 'vitest';
  * vengan: LEE LOS `check` DE LAS MIGRACIONES y deriva la regla de ahí, así que
  * el día que alguien añada el tercero, el contrato ya lo vigila sin tocarlo.
  *
+ * Lee las DOS formas en que el esquema declara un `check`: el `alter table …
+ * add constraint` de las migraciones tardías y el `constraint … check (…)`
+ * escrito dentro del `create table` original. Su primera versión sólo miraba la
+ * primera y por eso no veía tres reglas —«una orden cancelada necesita motivo y
+ * fecha» entre ellas—, que son de la misma familia que ya rompió el sistema dos
+ * veces.
+ *
  * ── Lo que este contrato NO puede ver, y hay que decirlo ───────────────────
  * Sólo mira `check` con la forma «estado ⇒ columna». Un `check` sobre importes,
  * un `not null` de columna o una llave foránea no entran aquí. Y sólo mira
@@ -61,30 +68,68 @@ function reglasDeLasMigraciones(): ReglaDeEstado[] {
   const reglas: ReglaDeEstado[] = [];
   for (const archivo of readdirSync(MIGRACIONES).filter((e) => e.endsWith('.sql'))) {
     const sql = sinComentarios(readFileSync(join(MIGRACIONES, archivo), 'utf8'));
-    const patron =
+
+    // 1 · `alter table X add constraint Y check ( … );`
+    const porAlter =
       /alter\s+table\s+(?:only\s+)?"?(\w+)"?\s+add\s+constraint\s+"?(\w+)"?\s+check\s*\(([\s\S]*?)\);/gi;
-    let coincidencia: RegExpExecArray | null;
-    while ((coincidencia = patron.exec(sql)) !== null) {
-      const [, tabla, restriccion, cuerpo] = coincidencia;
-      if (tabla === undefined || restriccion === undefined || cuerpo === undefined) continue;
+    for (const m of sql.matchAll(porAlter)) {
+      reglas.push(...leerRegla(m[1], m[2], m[3]));
+    }
 
-      const columna = /or\s+"?(\w+)"?\s+is\s+not\s+null/i.exec(cuerpo)?.[1];
-      if (columna === undefined) continue;
-
-      const enLista = /estado\s+not\s+in\s*\(([^)]*)\)/i.exec(cuerpo)?.[1];
-      const distinto = /estado\s*(?:<>|!=)\s*'(\w+)'/i.exec(cuerpo)?.[1];
-
-      const estados =
-        enLista !== undefined
-          ? [...enLista.matchAll(/'(\w+)'/g)].map((m) => m[1] ?? '')
-          : distinto !== undefined
-            ? [distinto]
-            : [];
-
-      if (estados.length > 0) reglas.push({ tabla, restriccion, estados, columna });
+    // 2 · `constraint Y check ( … )` DENTRO de un `create table X ( … );`
+    //
+    //     La primera versión de este contrato sólo miraba `alter table`, y así
+    //     se le escapaban tres reglas del esquema original —entre ellas «una
+    //     orden cancelada necesita motivo y fecha»—, que son exactamente la
+    //     familia que ya rompió el sistema dos veces. Un contrato que mira la
+    //     mitad de su dominio afirma en su nombre algo que no comprobó.
+    const porCreate = /create\s+table\s+(?:if\s+not\s+exists\s+)?"?(\w+)"?\s*\(([\s\S]*?)\n\);/gi;
+    for (const tabla of sql.matchAll(porCreate)) {
+      const cuerpo = tabla[2] ?? '';
+      // `\)\s*(?:,|$)` con la bandera `m`: el cuerpo de un `check` trae sus
+      // propios paréntesis —`or (a is not null and b is not null)`— así que el
+      // cierre bueno es el que va seguido de coma o de fin de LÍNEA, no el
+      // primero que aparece. Sin la `m`, una restricción que fuera la última de
+      // su tabla (sin coma detrás) no se leería.
+      const enLinea = /constraint\s+"?(\w+)"?\s+check\s*\(([\s\S]*?)\)\s*(?:,|$)/gim;
+      for (const c of cuerpo.matchAll(enLinea)) {
+        reglas.push(...leerRegla(tabla[1], c[1], c[2]));
+      }
     }
   }
   return reglas;
+}
+
+/**
+ * Una restricción `check` → cero o más reglas «estado ⇒ columna».
+ *
+ * Cero cuando no habla de estados. VARIAS cuando exige más de una columna:
+ * `caja_cerrada_completa` pide `cerrada_en` Y `efectivo_contado_centavos`, y
+ * mirar sólo la primera dejaba la segunda sin vigilar — que es cómo un contrato
+ * se convierte en media puerta.
+ */
+function leerRegla(
+  tabla: string | undefined,
+  restriccion: string | undefined,
+  cuerpo: string | undefined,
+): ReglaDeEstado[] {
+  if (tabla === undefined || restriccion === undefined || cuerpo === undefined) return [];
+
+  const columnas = [...cuerpo.matchAll(/"?(\w+)"?\s+is\s+not\s+null/gi)].map((m) => m[1] ?? '');
+  if (columnas.length === 0) return [];
+
+  const enLista = /estado\s+not\s+in\s*\(([^)]*)\)/i.exec(cuerpo)?.[1];
+  const distinto = /estado\s*(?:<>|!=)\s*'(\w+)'/i.exec(cuerpo)?.[1];
+
+  const estados =
+    enLista !== undefined
+      ? [...enLista.matchAll(/'(\w+)'/g)].map((m) => m[1] ?? '')
+      : distinto !== undefined
+        ? [distinto]
+        : [];
+  if (estados.length === 0) return [];
+
+  return columnas.map((columna) => ({ tabla, restriccion, estados, columna }));
 }
 
 function archivosTs(raiz: string): string[] {
@@ -146,13 +191,30 @@ describe('todo estado que la base exige acompañado escribe su columna', () => {
     // Sin esto, el contrato pasaría vacío el día que el patrón deje de encajar
     // —un `check` escrito en otro orden, una migración movida de carpeta— y
     // afirmaría en su nombre algo que ya no mira.
-    expect(REGLAS.length).toBeGreaterThanOrEqual(2);
+    expect(REGLAS.length).toBeGreaterThanOrEqual(7);
 
     const nombres = REGLAS.map((r) => r.restriccion);
     // Las dos que ya rompieron el sistema en producción. Si desaparecen del
-    // esquema, que sea una decisión y no un descuido.
+    // esquema, que sea una decisión y no un descuido. Vienen de `alter table`.
     expect(nombres).toContain('orden_cerrada_con_fecha');
     expect(nombres).toContain('caja_cerrada_con_folio');
+    // Y las tres que viven DENTRO del `create table` original. Nombrarlas aquí
+    // es lo que ata la segunda forma de lectura: si el patrón de `create table`
+    // dejara de encajar, el contrato seguiría en verde con las dos de arriba y
+    // volvería a vigilar la mitad de lo que dice vigilar.
+    expect(nombres).toContain('caja_cerrada_completa');
+    expect(nombres).toContain('orden_pagada_con_folio');
+    expect(nombres).toContain('orden_cancelada_con_motivo');
+
+    // Una restricción puede exigir DOS columnas —`caja_cerrada_completa` pide
+    // `cerrada_en` y `efectivo_contado_centavos`— y quedarse con la primera
+    // dejaba la otra sin vigilar.
+    const columnasDeCajaCompleta = REGLAS.filter(
+      (r) => r.restriccion === 'caja_cerrada_completa',
+    ).map((r) => r.columna);
+    expect(columnasDeCajaCompleta).toEqual(
+      expect.arrayContaining(['cerrada_en', 'efectivo_contado_centavos']),
+    );
   });
 
   for (const regla of REGLAS) {
