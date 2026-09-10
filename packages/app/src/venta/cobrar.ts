@@ -6,15 +6,17 @@ import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja, repoFolios, repoOrdenes, repoStock, repoVentaCatalogo } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
+import { marcarPropinaDeOrden, registrarPagoConPropina } from '../propinas/cobro.ts';
+import { entradaCobrarOrdenConPropina } from '../propinas/esquemas.ts';
 import { cotizar, exigirTotalVigente } from './cotizar.ts';
-import { entradaCobrarOrden } from './esquemas.ts';
 import { repartirPagos } from './pagos.ts';
 
 /**
  * `cobrarOrden` — la tarea más importante del corte (F1.1-A-09).
  *
- * UNA transacción escribe los ocho efectos: totales de la orden, estado, folio,
- * pagos, movimiento de caja, movimientos de stock, existencias y auditoría.
+ * UNA transacción escribe todos los efectos: totales de la orden, estado, folio,
+ * pagos con su propina, movimientos de caja —venta y propina en efectivo—,
+ * movimientos de stock, existencias y auditoría.
  * O confirma todo, o no persiste nada (R10).
  *
  * El orden de los pasos no es arbitrario. El stock se descuenta ANTES de tomar
@@ -30,18 +32,25 @@ export interface ResultadoCobro {
   readonly ordenId: string;
   readonly serie: string;
   readonly folio: string;
+  /** La VENTA, sin propina. Regla 1 de `F1-01` §3: nunca se infla. */
   readonly totalCentavos: string;
   readonly pagadoCentavos: string;
+  /** Aparte, jamás dentro de `totalCentavos`. Ni en utilidad, ni en margen. */
+  readonly propinaCentavos: string;
   readonly cambioCentavos: string;
 }
 
-export const cobrarOrden = definirComando<Transaccion, typeof entradaCobrarOrden, ResultadoCobro>({
+export const cobrarOrden = definirComando<
+  Transaccion,
+  typeof entradaCobrarOrdenConPropina,
+  ResultadoCobro
+>({
   nombre: 'venta.cobrar',
   entidad: 'orden',
   escribe: true,
   roles: ['cajero', 'gerente', 'administrador', 'dueno'],
   paquetes: PAQUETES_MOSTRADOR,
-  entrada: entradaCobrarOrden,
+  entrada: entradaCobrarOrdenConPropina,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;
     if (sucursalId === null || terminalId === null) {
@@ -102,21 +111,29 @@ export const cobrarOrden = definirComando<Transaccion, typeof entradaCobrarOrden
       repoFolios.tomarFolio(ctx.tx, organizacionId, sucursalId),
     );
 
-    // 7 · Pagos y movimiento de caja.
+    // 7 · Pagos y movimiento de caja. La propina va en su propia columna de
+    //     `pagos`, con su método, exacta: si el comensal dejó 50 en efectivo y
+    //     30 en tarjeta, son 50 y 30 (regla 3 de `F1-01` §3).
     let efectivo = 0n;
+    let propinaEfectivo = 0n;
+    let propinaTotal = 0n;
     for (const pago of pagos) {
-      await repoOrdenes.registrarPago(ctx.tx, {
+      await registrarPagoConPropina(ctx.tx, {
         organizacionId,
         ordenId: entrada.ordenId,
         sesionCajaId: sesion.id,
         metodo: pago.metodo,
         montoCentavos: pago.montoCentavos,
+        propinaCentavos: pago.propinaCentavos,
         recibidoCentavos: pago.recibidoCentavos,
         cambioCentavos: pago.cambioCentavos,
         referencia: pago.referencia,
         idempotencyKey: null,
       });
-      if (pago.metodo === 'efectivo') efectivo += pago.montoCentavos;
+      propinaTotal += pago.propinaCentavos;
+      if (pago.metodo !== 'efectivo') continue;
+      efectivo += pago.montoCentavos;
+      propinaEfectivo += pago.propinaCentavos;
     }
 
     if (efectivo > 0n) {
@@ -125,6 +142,26 @@ export const cobrarOrden = definirComando<Transaccion, typeof entradaCobrarOrden
         sesionCajaId: sesion.id,
         tipo: 'venta',
         montoCentavos: efectivo,
+        referenciaTipo: 'orden',
+        referenciaId: entrada.ordenId,
+        empleadoId: empleoId,
+        motivo: null,
+      });
+    }
+
+    // La propina en efectivo mueve el cajón: está físicamente ahí. Va como
+    // movimiento propio —`tipo='propina'`, previsto en el `check` desde
+    // `003:306` y hasta hoy nunca escrito— y NO sumada a la venta, porque el
+    // arqueo deriva el esperado de la suma de `movimientos_caja`
+    // (`repos/caja.ts:134`). Así el efectivo esperado del corte incluye la
+    // propina en efectivo sin que nadie tenga que acordarse de sumarla, que es
+    // la regla 4 de `F1-01` §3. Tarjeta y transferencia no mueven el cajón.
+    if (propinaEfectivo > 0n) {
+      await repoCaja.registrarMovimiento(ctx.tx, {
+        organizacionId,
+        sesionCajaId: sesion.id,
+        tipo: 'propina',
+        montoCentavos: propinaEfectivo,
         referenciaTipo: 'orden',
         referenciaId: entrada.ordenId,
         empleadoId: empleoId,
@@ -145,6 +182,19 @@ export const cobrarOrden = definirComando<Transaccion, typeof entradaCobrarOrden
       }),
     );
 
+    // 9 · Cómo se decidió la propina (porcentaje, monto a mano, desde dónde).
+    //     Sólo metadatos: en `ordenes` no cabe ningún importe de propina, y por
+    //     eso `total_centavos` no se puede inflar con una (F1-04 §6.1).
+    await ctx.paso('registrar_propina', () =>
+      marcarPropinaDeOrden(ctx.tx, {
+        organizacionId,
+        ordenId: entrada.ordenId,
+        puntosBase: entrada.propinaPuntosBase,
+        tipo: entrada.propinaTipo,
+        origen: entrada.propinaOrigen,
+      }),
+    );
+
     const cambio = pagos.reduce((suma, p) => suma + p.cambioCentavos, 0n);
 
     ctx.auditar({
@@ -152,6 +202,7 @@ export const cobrarOrden = definirComando<Transaccion, typeof entradaCobrarOrden
       payload: {
         folio: `${folio.serie}-${folio.folio.toString()}`,
         totalCentavos: totales.totalCentavos.toString(),
+        propinaCentavos: propinaTotal.toString(),
         metodos: pagos.map((p) => p.metodo),
         lineas: cotizacion.lineas.length,
         movimientosStock: movimientos.length,
@@ -164,6 +215,7 @@ export const cobrarOrden = definirComando<Transaccion, typeof entradaCobrarOrden
       folio: folio.folio.toString(),
       totalCentavos: totales.totalCentavos.toString(),
       pagadoCentavos: pagos.reduce((s, p) => s + p.montoCentavos, 0n).toString(),
+      propinaCentavos: propinaTotal.toString(),
       cambioCentavos: cambio.toString(),
     };
   },
