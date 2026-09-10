@@ -169,7 +169,9 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
     const cerradas = await ctx.paso('cerrar_sesion', () =>
       repoCaja.cerrarSesion(ctx.tx, {
         organizacionId,
+        sucursalId: sesion.sucursalId,
         sesionCajaId: sesion.id,
+        serie: sesion.serie,
         empleadoCierraId: empleoId,
         efectivoContadoCentavos: contado,
         notasCierre: entrada.notas ?? null,

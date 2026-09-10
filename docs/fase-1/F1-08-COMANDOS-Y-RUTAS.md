@@ -7,6 +7,7 @@ ejecutarlo POR SESION, y la ruta HTTP que lo expone.
 |---|---|---|---|
 | `caja.abrir` | cajero, gerente, administrador, dueno | `/api/caja/abrir` | `entradaAbrirCaja` |
 | `caja.cerrar` | cajero, gerente, administrador, dueno | `/api/caja/cerrar` | `entradaCerrarCaja` |
+| `caja.eliminar_corte` | dueno | `/api/caja/eliminar-corte` | `entradaEliminarCorte` |
 | `caja.estado` | cajero, gerente, administrador, dueno | `/api/caja/estado` | `entradaEstadoCaja` |
 | `caja.movimiento` | cajero, gerente, administrador, dueno | `/api/caja/movimiento` | `entradaMovimientoCaja` |
 | `catalogo.actualizar_producto` | dueno, administrador, gerente | `/api/catalogo/productos/actualizar` | `entradaActualizarProducto` |
@@ -30,6 +31,7 @@ ejecutarlo POR SESION, y la ruta HTTP que lo expone.
 | `inventario.ajustar` | dueno, administrador, gerente, almacen | `/api/inventario/ajustar` | `entradaAjustarStock` |
 | `inventario.crear_almacen` | dueno, administrador, gerente, almacen | `/api/inventario/almacenes/crear` | `entradaCrearAlmacen` |
 | `inventario.crear_insumo` | dueno, administrador, gerente, almacen | `/api/inventario/insumos/crear` | `entradaCrearInsumo` |
+| `inventario.eliminar_receta` | dueno, administrador, gerente | `/api/inventario/recetas/eliminar` | `entradaEliminarReceta` |
 | `inventario.guardar_receta` | dueno, administrador, gerente, almacen | `/api/inventario/recetas` | `entradaGuardarReceta` |
 | `inventario.inicial` | dueno, administrador, gerente, almacen | `/api/inventario/inicial` | `entradaInventarioInicial` |
 | `mantenimiento.purgar_seccion` | dueno | `/api/mantenimiento/purgar-seccion` | `entradaSeccion` |
@@ -46,12 +48,16 @@ ejecutarlo POR SESION, y la ruta HTTP que lo expone.
 | `propinas.pendientes` | dueno, administrador, gerente, cajero | `/api/propinas/pendientes` | `entradaPropinasPendientes` |
 | `puente.escribir` | dueno, administrador, gerente | `/api/datos/escribir` | `entradaEscribir` |
 | `restaurante.abrir_mesa` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/abrir-mesa` | `entradaAbrirMesa` |
+| `restaurante.asignar_mesero` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/asignar-mesero` | `entradaAsignarMesero` |
+| `restaurante.atender_solicitud` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/atender-solicitud` | `entradaAtenderSolicitud` |
 | `restaurante.cancelar_orden` | cajero, gerente, administrador, dueno | `/api/restaurante/cancelar-orden` | `entradaCancelarOrden` |
 | `restaurante.entregar_pedidos` | cocina, mesero, cajero, gerente, administrador, dueno | `/api/restaurante/entregar-pedidos` | `entradaEntregarPedidos` |
 | `restaurante.enviar_pedido` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/enviar-pedido` | `entradaEnviarPedido` |
 | `restaurante.liberar_mesa` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/liberar-mesa` | `entradaLiberarMesa` |
+| `restaurante.limpiar_solicitudes` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/limpiar-solicitudes` | `entradaLimpiarSolicitudes` |
 | `restaurante.solicitar_cuenta` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/solicitar-cuenta` | `entradaSolicitarCuenta` |
 | `restaurante.transicionar_pedido` | cocina, mesero, cajero, gerente, administrador, dueno | `/api/restaurante/transicionar-pedido` | `entradaTransicionarPedido` |
+| `restaurante.vaciar_solicitudes` | dueno, administrador | `/api/restaurante/vaciar-solicitudes` | `entradaVaciarSolicitudes` |
 | `venta.agregar_linea` | cajero, mesero, gerente, administrador, dueno | `/api/venta/agregar-linea` | `entradaAgregarLinea` |
 | `venta.buscar` | cajero, mesero, gerente, administrador, dueno | `/api/venta/buscar` | `entradaBuscarCatalogo` |
 | `venta.cambiar_cantidad` | cajero, mesero, gerente, administrador, dueno | `/api/venta/cambiar-cantidad` | `entradaCambiarCantidad` |
@@ -147,6 +153,23 @@ export const entradaAsignarCodigo = z.object({
   productoId: id,
   codigoBarras: z.string().trim().min(6).max(80).nullable(),
   sku: z.string().trim().min(1).max(80).nullable(),
+}
+```
+
+### `entradaAsignarMesero`
+
+```ts
+export const entradaAsignarMesero = z.object({
+  mesaId: z.uuid(),
+}
+```
+
+### `entradaAtenderSolicitud`
+
+```ts
+export const entradaAtenderSolicitud = z.object({
+  solicitudId: z.uuid(),
+  estado: z.enum(['atendida', 'resuelta', 'cancelada']),
 }
 ```
 
@@ -253,6 +276,18 @@ export const entradaCrearSolicitud = z.object({
 const entradaDesbloquear = z.object({
   contrasena: z.string().min(1).max(200),
 }
+```
+
+### `entradaEliminarCorte`
+
+```ts
+export const entradaEliminarCorte = z.object({ corteId: z.uuid() }
+```
+
+### `entradaEliminarReceta`
+
+```ts
+export const entradaEliminarReceta = z.object({ productoId: z.uuid() }
 ```
 
 ### `entradaEntregarPedidos`
@@ -386,6 +421,12 @@ export const entradaInventarioInicial = z.object({
 export const entradaLiberarMesa = z.object({
   mesaId: z.uuid(),
 }
+```
+
+### `entradaLimpiarSolicitudes`
+
+```ts
+export const entradaLimpiarSolicitudes = z.object({}
 ```
 
 ### `entradaLiquidarPropinas`
@@ -539,6 +580,12 @@ export const entradaUsarPlantillaCompra = z.object({
 
 ```ts
 const entradaVacia = z.object({}
+```
+
+### `entradaVaciarSolicitudes`
+
+```ts
+export const entradaVaciarSolicitudes = z.object({}
 ```
 
 ### `entradaValorar`

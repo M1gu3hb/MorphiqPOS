@@ -47,3 +47,29 @@ export {
   type EstadoItem,
   type EstadoMesa,
 } from './transiciones.ts';
+
+/**
+ * El lado del PERSONAL del portal QR y la asignación de mesero (E7-3, E6-2).
+ *
+ * Los tres cierran el mismo defecto por tres caminos: la pantalla decidía en el
+ * navegador a quién se acredita el trabajo, cuántas filas se borraron y de quién
+ * es la mesa. Ahora las tres cosas las decide el servidor.
+ */
+export {
+  asignarMesero,
+  atenderSolicitud,
+  limpiarSolicitudes,
+  vaciarSolicitudes,
+} from './solicitudes.ts';
+export type {
+  ResultadoAsignarMesero,
+  ResultadoAtenderSolicitud,
+  ResultadoLimpiarSolicitudes,
+} from './solicitudes.ts';
+
+export {
+  esTransicionDeSolicitudValida,
+  evaluarSolicitud,
+  ESTADOS_SOLICITUD,
+  type EstadoSolicitud,
+} from './solicitudes.ts';

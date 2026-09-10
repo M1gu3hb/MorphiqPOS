@@ -60,6 +60,18 @@ export const CODIGOS_ERROR = {
   TOTAL_DESACTUALIZADO: 'TOTAL_DESACTUALIZADO',
   CAJA_CERRADA: 'CAJA_CERRADA',
   CAJA_YA_ABIERTA: 'CAJA_YA_ABIERTA',
+  /** El corte no existe, o es de otra organización, que se ve igual. */
+  CORTE_NO_ENCONTRADO: 'CORTE_NO_ENCONTRADO',
+  /**
+   * Se intentó eliminar un corte al que todavía apunta algo.
+   *
+   * Ventas, pagos, movimientos que no son la apertura, gastos, cortes de turno
+   * o liquidaciones de propina. El mensaje dice QUÉ y CUÁNTO: «ese corte tiene
+   * 34 ventas registradas». Sin este código el comando reutilizaba
+   * `MESA_NO_LIBERABLE`, cuya regla es la misma pero cuyo nombre habla de mesas,
+   * y `auditoria.datos.regla` guardaba un código que mentía sobre lo ocurrido.
+   */
+  CORTE_NO_ELIMINABLE: 'CORTE_NO_ELIMINABLE',
 
   // --- restaurante: mesas, comandas y preparación (F1-02 E6) ---
   /** La mesa no existe, está dada de baja, o es de otra organización. */
@@ -107,6 +119,14 @@ export const CODIGOS_ERROR = {
   QR_SOLICITUD_DUPLICADA: 'QR_SOLICITUD_DUPLICADA',
   /** Demasiadas peticiones desde el mismo código en poco tiempo. */
   QR_DEMASIADAS_PETICIONES: 'QR_DEMASIADAS_PETICIONES',
+  /**
+   * El aviso no existe, o es de otra organización, que se ve igual.
+   *
+   * Es el lado del PERSONAL: `restaurante.atender_solicitud`. Antes reutilizaba
+   * `PUENTE_NO_ENCONTRADO`, que describe lo mismo pero nombra un camino —el del
+   * puente— por el que esta lectura no pasa.
+   */
+  SOLICITUD_NO_ENCONTRADA: 'SOLICITUD_NO_ENCONTRADA',
 
   // --- mantenimiento destructivo (F1-02 E10-4) ---
   /**

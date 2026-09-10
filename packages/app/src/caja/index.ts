@@ -4,6 +4,8 @@ import 'server-only';
 
 export { abrirCaja, cerrarCaja, registrarMovimientoCaja, type ResultadoCorte } from './sesion.ts';
 
+export { eliminarCorte, entradaEliminarCorte, type ResultadoEliminarCorte } from './eliminacion.ts';
+
 export {
   entradaEstadoCaja,
   estadoDeCaja,
