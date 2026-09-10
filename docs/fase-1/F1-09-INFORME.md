@@ -92,8 +92,56 @@ tu interfaz.
 referencia. La estructura tumba la puerta; los textos de aviso se listan siempre
 y sólo tumban con `--estricto`. Las excepciones exigen un motivo escrito.
 
-**Medido: 40 archivos tocados —11 de ellos pantallas—, tres excepciones
-escritas, cero cambios de estructura.**
+**Medido: 64 archivos tocados de `apps/web/heredado/`. 58 comparados contra tu
+código original: cero cambios de estructura, ocho excepciones declaradas con su
+motivo, 98 textos de aviso cambiados y listados uno a uno. Los otros 6 son
+archivos que creé yo —los del escáner, `dinero.js`, `comandos.js`— y no tienen
+aspecto tuyo que preservar; la puerta los nombra en vez de contarlos como
+comparados.**
+
+---
+
+## Lo que encontró la verificación de cierre
+
+Ejecuté `pnpm verify` **entero**, no por partes. **Llevaba en rojo desde
+89830e5** — el commit que copió tu código. Todo este tiempo verifiqué con `tsc`,
+`eslint`, `vitest` y los verificadores sueltos, y la cadena completa se caía en
+el cuarto eslabón, así que los veinte siguientes no llegaban a correr nunca.
+
+Cuatro eslabones rotos, y ninguno era un fallo de tu sistema:
+
+1. **`verify:tsconfig` prohibía `allowJs` en todo el monorepo.** Sin esa bandera
+   Next no compila ni uno de tus `.jsx`. La puerta se escribió antes de que se
+   decidiera que tu código viviría en `apps/web/heredado/` con reglas
+   permisivas. Acotada, no borrada: la excepción está declarada, dice su razón y
+   deja de valer sola si esa carpeta desaparece.
+2. **`verify:residuos` denunciaba la ruta a los esquemas viejos** en el contrato
+   que comprueba que el puente cubre tus 27 entidades — una ruta que apunta a la
+   cuarentena, que es justo donde esa regla permite que aparezca. Al arreglarla
+   encontré algo peor en esa misma puerta: **sólo denunciaba la primera
+   aparición de cada archivo.** Arreglar una dejaba las demás invisibles.
+3. **`format:check` fallaba en 74 archivos.** 51 eran míos y se formatearon. Los
+   otros 23 eran tuyos, y Prettier los reescribía a un ancho que no es el tuyo:
+   600 líneas movidas sin cambiar una conducta. Tu código sale de esa puerta,
+   igual que sale de la de tipos.
+4. **`verify:venta` no ejercitaba NINGUNA de sus 27 mutaciones.** Abortaba antes
+   de la primera porque un contrato miraba una forma del código que había
+   cambiado tres commits atrás. El arnés que existe para demostrar que las
+   pruebas del dinero muerden llevaba semanas sin morder nada.
+
+Y dos afirmaciones mías que no se sostenían:
+
+- El contrato de «estado ⇒ columna» —el que nació de que ningún cobro pasara y
+  ninguna caja cerrara— **miraba la mitad de su dominio**: sólo leía las reglas
+  declaradas por `alter table`, y tres vivían dentro del `create table`
+  original. Una de ellas es «una orden cancelada necesita motivo y fecha»: la
+  misma familia, otra vez.
+- `verify:aspecto` decía haber comparado 64 archivos cuando había comparado 58.
+
+**Todo esto lo encontró ejecutar la puerta completa, no leer el código.** Es
+exactamente el argumento del propio informe: una suite en verde sobre algo que
+nadie corrió entero no dice lo que parece decir. Hoy `pnpm verify` termina en
+verde en sus 24 eslabones.
 
 ---
 
@@ -125,7 +173,7 @@ Esto es lo importante de este informe.
   intermedio en el tablero.
 - **Los textos de error cambiaron.** Donde antes leías «No se pudo abrir la
   mesa», ahora lees «esa mesa ya está abierta». Es a propósito: el mensaje viene
-  del servidor y dice qué pasó. Son 72 avisos, todos en caminos de error, y
+  del servidor y dice qué pasó. Son 98 avisos, todos en caminos de error, y
   `pnpm verify:aspecto` los lista uno a uno.
 - **La propina escrita a mano en el portal QR viaja al servidor.** Roza la regla
   «el endpoint no acepta importes del cliente». Lo hice porque esa regla protege
@@ -137,10 +185,14 @@ Esto es lo importante de este informe.
 - **Sin pruebas de extremo a extremo.** No hay Playwright. Lo que está
   verificado, lo verifiqué yo abriendo el navegador — que es mejor que nada y
   peor que una suite.
-- **`apps/web/heredado/` no tiene NINGUNA prueba automática.** 843 pruebas y
+- **`apps/web/heredado/` no tiene NINGUNA prueba automática.** 891 pruebas y
   ninguna toca tus pantallas: `tsconfig` no comprueba `.jsx` y el `include` de
-  vitest no llega a esa carpeta. `verify:aspecto` cubre el aspecto; la lógica de
-  esos 40 archivos sólo la cubre haberla ejecutado yo en el navegador.
+  vitest no llega a esa carpeta. `verify:aspecto` cubre el aspecto y
+  `verify:escrituras` cubre a quién le hablan; la lógica de esos 64 archivos
+  sólo la cubre haberla ejecutado yo en el navegador.
+- **Ocho escrituras que la puerta no puede analizar.** Las que construyen el
+  cuerpo antes de mandarlo (`Mesa.update(soloEditables(rest))` y siete más). No
+  están mal: están sin comprobar automáticamente, que es distinto.
 - **Tiempo real.** Cocina y Caja se refrescan por sondeo cada 2‑8 s, no por
   suscripción.
 - **Un solo restaurante, un solo día.** No probé varios turnos, ni dos cajas a
@@ -166,10 +218,17 @@ para leer.
 
 ## Números
 
-843 pruebas en 59 archivos · **62 comandos** · **27 entidades** en el puente ·
-40 archivos de tu frontend cableados, **cero escrituras bloqueadas**.
+891 pruebas en 60 archivos · **65 comandos** · **27 entidades** en el puente ·
+64 archivos de tu frontend tocados.
 
-Las puertas: `tsc` · `eslint` · `vitest` · `verify:aspecto`. El catálogo de
-comandos (`F1-08`) se genera del código con `pnpm docs:comandos`, no se escribe
-a mano: un documento que miente sobre quién puede borrar el negocio es peor que
-no tener documento.
+Escrituras: la puerta mira **55**, analiza **47** y **ninguna la rechaza el
+puente**. Las **8 restantes no las puede analizar** porque el cuerpo no es un
+objeto literal —`Mesa.update(soloEditables(rest))`, `Ingrediente.update(payload)`—
+y sin ejecutar el programa no se sabe qué campos manda. **Eso no es «están
+bien»: es el borde de la puerta**, y va escrito para que nadie lo confunda. Las
+verifiqué abriéndolas en el navegador; no hay nada automático que las cubra.
+
+La puerta es `pnpm verify`: **24 eslabones**, del arranque al `build`, con cinco
+arneses de mutación dentro. El catálogo de comandos (`F1-08`) se genera del
+código con `pnpm docs:comandos`, no se escribe a mano: un documento que miente
+sobre quién puede borrar el negocio es peor que no tener documento.

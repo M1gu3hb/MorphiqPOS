@@ -1,11 +1,72 @@
 # Bitácora de ejecución — Fase 1
 
+## Resurrección · La verificación de cierre · 2026-09-10 · Lo que sólo se ve ejecutando la puerta entera
+
+- **Qué se hizo:** ejecutar `pnpm verify` **completo**, y arreglar lo que
+  apareció. Es la entrada más incómoda de esta bitácora y por eso va primero.
+
+### `pnpm verify` llevaba en rojo desde `89830e5`
+
+`89830e5` es el commit que copió el código de Miguel. Desde entonces verifiqué
+con `tsc`, `eslint`, `vitest` y los verificadores sueltos —todos en verde— y la
+cadena completa se caía en el **cuarto** eslabón de 24, así que los veinte
+siguientes no llegaron a correr **ni una vez** en todas las etapas E.
+
+| Eslabón | Por qué caía | Qué se hizo |
+|---|---|---|
+| `verify:tsconfig` | Prohibía `allowJs` en todo el monorepo. Sin esa bandera Next no compila un solo `.jsx` de Miguel. La puerta se escribió antes del cambio 7, que manda tsconfig permisivo para `apps/web/heredado/` | Acotada, no borrada. La excepción se declara, dice su razón y está atada a que exista la carpeta que la justifica |
+| `verify:residuos` | Denunciaba `historico/…/entities` en `cobertura.test.ts` — una ruta que apunta a la cuarentena, que es donde R6 permite la marca | Acotada a rutas que pasen por `historico/` **y** al patrón de carpeta. Y se arregló que sólo denunciara la PRIMERA aparición por archivo |
+| `format:check` | 74 archivos | 51 míos, formateados. 23 de Miguel, a `.prettierignore`: Prettier los reescribía a un ancho que no es el suyo |
+| `verify:venta` | «Contratos rotos antes de mutar». Un contrato miraba `.where('estado','=','borrador')`, forma que cambió en `922cc23` | Reescrito sobre el invariante. **Sus 27 mutaciones llevaban desde entonces sin ejercitarse** |
+
+### Dos afirmaciones mías que no se sostenían
+
+1. **El contrato de «estado ⇒ columna» miraba la mitad de su dominio.** Sólo
+   leía los `check` de `alter table`; tres viven dentro del `create table`
+   original, entre ellos «una orden cancelada necesita motivo y fecha». Es la
+   misma familia que ya tumbó todos los cobros y todos los cierres de caja. De
+   2 reglas a 7. Segundo defecto: una restricción con DOS columnas se leía
+   quedándose con la primera.
+2. **`verify:aspecto` decía haber comparado 64 archivos cuando comparó 58.** Los
+   otros 6 no existían en la referencia —los creé yo— y se saltaban en silencio,
+   con un `fatal:` crudo de git por cada uno. Ahora los nombra aparte.
+
+### Y una cota que faltaba
+
+`centavosNoNegativos` aceptaba hasta `MAX_SAFE_INTEGER`: noventa billones de
+pesos cuadraban un arqueo. `TOPE_DE_IMPORTE_CENTAVOS = 1 000 000 000` acota los
+dos lados; un movimiento de caja puede ser negativo, pero no salirse de la
+escala de un negocio real.
+
+- **Validado por mutación, una por una:** quitar `motivo_cancelacion` de
+  `cerrarOrdenCancelada` y `efectivo_contado_centavos` de `cerrarSesion` ponen
+  el contrato en rojo · colar `allowJs` en un paquete falla · renombrar
+  `heredado/` invalida la excepción · un SDK escrito junto a una ruta legítima
+  se denuncia igual · admitir `pagada` como estado cobrable cae. Árbol
+  restaurado tras cada una.
+- **Estado final:** `pnpm verify` en verde en sus **24 eslabones**, con `build`
+  incluido. 891 pruebas en 60 archivos.
+- **Lo que NO se cerró:** las 8 escrituras cuyo cuerpo no es un objeto literal
+  siguen sin comprobación automática; `apps/web/heredado/` sigue sin una sola
+  prueba; sigue sin haber Playwright. Está todo en `F1-09-INFORME.md`.
+- **Lección, escrita para no repetirla:** todo esto lo encontró **ejecutar**,
+  no leer. Verificar por partes es cómodo y dice menos de lo que parece: cada
+  parte estaba en verde y la suma llevaba semanas rota.
+
+---
+
 ## Resurrección · E5 a E9 · 2026-09-10 · Sus pantallas escriben, y la puerta que faltaba
 
 - **Qué se hizo:** las 36 pantallas de `apps/web/heredado/` pasaron de leer a
-  ESCRIBIR por comando. Cero escrituras bloqueadas: las que quedan son campos
-  que el puente sí acepta. Se construyeron los siete comandos que faltaban y se
-  añadió la puerta que vigila que su interfaz no cambie.
+  ESCRIBIR por comando. ~~Cero escrituras bloqueadas: las que quedan son campos
+  que el puente sí acepta.~~ Se construyeron los siete comandos que faltaban y
+  se añadió la puerta que vigila que su interfaz no cambie.
+
+  > **CORRECCIÓN (2026-09-10).** «Cero escrituras bloqueadas» era **falso**. Lo
+  > afirmé apoyado en un `grep` estrecho; la verificación de cierre encontró
+  > **15 escrituras que el puente seguía rechazando**. Se repararon todas y se
+  > construyó `verify:escrituras` para que la afirmación deje de depender de mi
+  > palabra. Ver la entrada del 2026-09-10 «La verificación de cierre».
 - **Se abre y se ve.** El circuito entero, en el navegador y contra Postgres:
   abrir la mesa 3 con «Familia Ramírez» y «Alergia al cacahuate» → añadir
   arrachera y dos cervezas → «Enviar a Cocina» → la comanda aparece en Cocina
