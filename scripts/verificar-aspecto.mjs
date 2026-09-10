@@ -141,7 +141,15 @@ function sinLosPermitidos(ruta, lista, signo) {
 }
 
 function git(...args) {
-  return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  return execFileSync('git', args, {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    // Sin esto, el `git show` de un archivo que aún no existía en la referencia
+    // escupe su «fatal: path … exists on disk, but not in …» directo a la
+    // terminal. El caso está contemplado —`versionAnterior` devuelve null— pero
+    // la puerta se leía como si estuviera rota, seis veces seguidas.
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 }
 
 /** El contenido en la referencia, o null si el archivo no existía. */
@@ -295,10 +303,22 @@ const esEstructura = (testigo) => !testigo.startsWith('aviso:');
 let total = 0;
 let avisos = 0;
 const informe = [];
+/**
+ * Los que no existían en la referencia.
+ *
+ * No tienen aspecto anterior que romper, así que saltárselos es correcto. Lo
+ * que NO era correcto es contarlos en el «los N archivos tocados» del resumen:
+ * la puerta decía haber comparado 64 cuando había comparado 58, que es la misma
+ * clase de afirmación de más que ya tuve que corregir dos veces en esta fase.
+ */
+const nuevosSinBase = [];
 
 for (const ruta of cambiados) {
   const antes = versionAnterior(ruta);
-  if (antes === null) continue; // archivo nuevo: no hay aspecto anterior que romper
+  if (antes === null) {
+    nuevosSinBase.push(ruta);
+    continue;
+  }
   let despues;
   try {
     despues = readFileSync(ruta, 'utf8');
@@ -334,7 +354,13 @@ const cabecera =
     ? `LA ESTRUCTURA CAMBIÓ. ${total} testigos distintos respecto de ${REFERENCIA}.\n` +
       'Miguel tiene que abrir su sistema y ver EL SUYO: ni una clase, ni un texto,\n' +
       'ni un icono. Cada «-» es algo que él veía y ya no está.'
-    : `La estructura NO cambió en los ${cambiados.length} archivos tocados de ${CARPETA}.` +
+    : `La estructura NO cambió en los ${cambiados.length - nuevosSinBase.length} archivos ` +
+      `comparados de ${CARPETA}.` +
+      (nuevosSinBase.length > 0
+        ? `\n${nuevosSinBase.length} archivo(s) más se tocaron pero NO existían en ` +
+          `${REFERENCIA}, así que no hay aspecto suyo que preservar:\n` +
+          nuevosSinBase.map((r) => `  · ${r}`).join('\n')
+        : '') +
       (avisos > 0 ? `\n${avisos} textos de aviso sí cambiaron; van listados abajo.` : '');
 
 process.stdout.write(`${cabecera}\n${informe.join('\n')}\n`);
