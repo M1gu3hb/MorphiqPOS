@@ -1,5 +1,164 @@
 # Bitácora de ejecución — Fase 1
 
+## Resurrección · E3 cerrada, E4 y E10-4 · 2026-09-09 · Las 27 entidades, y el peor defecto cerrado
+
+- **Qué se hizo:** se aplicaron las cuatro migraciones que le faltaban al
+  restaurante (56 columnas sobre ocho tablas existentes, 16 tablas nuevas, tres
+  vistas y las restricciones de `F1-01` §6), el puente pasó de 11 a 27
+  entidades, y el mantenimiento destructivo dejó de autorizarse por el cuerpo de
+  la petición.
+- **Se abre y se ve.** Las CATORCE pantallas cargan con datos reales de
+  Supabase: Productos con costo, utilidad y margen por producto; Inventario con
+  stock, valor de inventario y alertas; Recetas con su desglose; Mesas y Portal
+  QR con las mesas y sus zonas; Caja, Cocina, POS, Ventas, Registros, Compras y
+  Configuración con sus estados vacíos correctos. Las 27 entidades del puente
+  responden 200.
+
+### Las migraciones (E3-1 y E3-2)
+
+`045` las columnas y las tablas, `046` las restricciones, `047` la vista
+`empleados_visibles`, `048` la vista `existencias_por_insumo`.
+
+Lo que ahora impone la base y antes vivía en un `if` del navegador: una sola
+venta activa por mesa, una sola caja abierta por sucursal, una sola estación
+general, folios únicos de corte y de liquidación, una sola solicitud QR
+pendiente por mesa y tipo, y los tres únicos de nombre sin acentos ni
+mayúsculas. Un `if` se salta abriendo la consola; una restricción no.
+
+**Dos correcciones al DDL del mapa**, las dos escritas donde se aplican:
+
+1. `mesas_una_orden_activa on mesas (id)` no imponía NADA: `id` ya es la clave
+   primaria, así que ese índice es trivialmente único siempre. Va sobre
+   `orden_activa_id`, que es lo que hay que impedir: que dos mesas apunten a la
+   misma venta.
+2. Las cajas cerradas antes de que el folio existiera se rellenan ANTES de
+   añadir el `check`. Sin eso la restricción no se podía imponer sobre lo que ya
+   estaba en la base, y una restricción que no se puede imponer acaba fuera.
+
+**Una excepción declarada a «cero lógica de negocio en la base»**: el trigger
+que limita las unidades base del restaurante a `g`, `ml` y `pieza` (regla 7). No
+cabe en un `check` de columna porque depende de OTRA tabla —el giro de la
+organización— y la tiendita usa las seis legítimamente. Dejarlo sólo en el
+comando falla en cuanto alguien escriba por otro camino: una importación, una
+semilla, un `psql`.
+
+### El contrato de cobertura, y quince campos mal nombrados (E3-6)
+
+`cobertura.test.ts` lee los `.jsonc` de su plataforma —que siguen en
+`historico/restaurante/`— y afirma que **cada propiedad declarada tiene
+destino**: una columna, un derivado, un calculado, o un descarte con el motivo
+escrito. Un contrato que compara NÚMEROS pasa igual cuando el campo que falta es
+justo el que una pantalla lee.
+
+Encontró **quince campos con el nombre equivocado en cuatro entidades**, todos
+inventados por mí en vez de leídos de su esquema. Cada uno habría llegado a la
+pantalla como `undefined`, sin error y sin aviso:
+
+| Yo escribí | Se llama | Lo leen |
+|---|---|---|
+| `utilidad_unitaria` | `utilidad_bruta_actual` | 2 archivos |
+| `margen_porcentaje` | `margen_bruto_actual` | 2 archivos |
+| `insumo_base_id` | `ingrediente_base_id` | **13 archivos** |
+| `tipo_venta` (en línea) | `tipo_venta_snapshot` | **10 archivos** |
+| `unidad` (en el ledger) | `unidad_base` | **30 archivos** |
+| `tipo` (en el ledger) | `tipo_movimiento` | 9 archivos |
+
+Más `CorteCaja`, con dieciocho propiedades sin destino ni motivo.
+
+### Lo que las pantallas enseñaban mal, y ya no
+
+- **Productos decía COSTO $0.00 y MARGEN 100 %** en los cuatro productos, con la
+  base llena de costos correctos. `Productos.jsx:103` no lee el costo del
+  producto: SUMA `costo_linea_calculado` de las líneas de receta, y ese campo no
+  existe en ninguna tabla. Ahora es un campo *calculado*, con aritmética en
+  enteros y un solo redondeo al final, idéntica a la de `recalcularCostosRecetas`
+  para que la pantalla y el producto guardado no puedan decir cosas distintas.
+- **Inventario decía «Valor de inventario $0.00» y cuatro «Agotado»** con 5 kg de
+  café y 12 L de leche en la base. `stock_actual` no es una columna del esquema
+  nuevo: es la proyección del ledger. Ahora entra como DERIVADO, y eso es lo
+  importante — `Ingrediente.update(id, {stock_actual})` deja de funcionar. Es
+  exactamente la operación que corrompe el inventario cuando dos cajas cobran a
+  la vez (D-06).
+- **Las tarjetas decían «Sin categoría»** con la categoría bien puesta.
+
+### Las cinco lecturas que decidían con un dato inventado
+
+De los 188 `catch` de relleno que cuenta `F1-06` —no los 116 que suponía el
+plan—, cinco no son degradación: son lecturas cuyo resultado DECIDE algo.
+
+- `Caja.jsx:1160` + `mesasPendientesCierre.js:19`: dos redes de seguridad que
+  devolvían lo mismo, «no hay mesas pendientes». Un 429 del pooler bastaba para
+  cerrar el día con la mesa 7 abierta y $840 sin cobrar.
+- `Inventario.jsx:179`: un fallo de lectura se convertía en «no tiene
+  historial», que es el permiso para el borrado FÍSICO de la línea siguiente.
+- `ImportarDatosDialog.jsx:109`: contra un catálogo vacío, las 300 filas del CSV
+  se marcan NUEVAS. Vista previa limpia, cero errores, 300 duplicados. En la
+  pantalla cuyo criterio de aceptación es «una importación con errores no aplica
+  nada».
+- `qrPedidoFlow.js:370`: escribía `total: 0` sobre una cuenta de $1 240 con sus
+  cuatro líneas intactas.
+
+### E10-4 · La autorización deja de venir del cuerpo
+
+Sus cinco funciones decidían el permiso con `if (body?.rol !== 'administrador')`.
+Y `limpiarHistorialSeccion` preguntaba `posUser.some(u => u.rol ===
+'administrador')` — «¿existe algún administrador en este negocio?» y no «¿es
+administrador quien llama?». La respuesta es siempre sí: **ese endpoint nunca
+rechazó a nadie**, y bastaba `{"seccion":"ventas"}` para llevarse cinco mil
+ventas.
+
+Seis comandos, cinco rutas, y el cierre no es disciplina sino el tipo:
+`definirComando` rechaza AL CARGAR EL MÓDULO cualquier comando que declare `rol`
+o un campo de ámbito. Verificado con cuatro peticiones reales desde el
+navegador: sin confirmar → 400; con «BORRAR TODO» → 422; **con
+`{"rol":"administrador"}` → 400**; a la cuarta → 429, tres por hora.
+
+La confirmación pasa a ser el NOMBRE DEL NEGOCIO, leído de la base en la misma
+transacción. `BORRAR TODO` y compañía eran constantes impresas en la pantalla:
+las dos mitades de la comprobación las escribía el atacante.
+
+### Decisiones tomadas sin preguntar
+
+1. **`stock_actual` es derivado y no campo.** Escribirlo deja de funcionar a
+   propósito. Los tres sitios que lo hacen pasan a `ajustarInventario` e
+   `inventarioInicial`.
+2. **La vista de existencias SUMA todos los almacenes** en vez del principal,
+   que es lo que pedía `F1-04` §14.3. Su sistema no tiene almacenes —hay un
+   número por ingrediente y ya— y con uno solo las dos definiciones coinciden.
+3. **Las cinco operaciones irreversibles exigen DUEÑO, no administrador.**
+   `roles.ts` traduce dueno, administrador y gerente al «administrador» de su
+   interfaz: aceptar `administrador` dejaría a un gerente borrar el negocio.
+4. **`reiniciar_todo` NO crea un usuario con PIN `1234`.** El suyo lo hacía
+   cuando el padrón quedaba vacío.
+5. **La semilla de zonas y estación general se escribe POR GIRO**, no por
+   identificador: el DDL del mapa la dejaba con `$1`, que no es ejecutable en
+   una migración.
+
+### Lo que E4-7 y E4-4 resultaron ser
+
+Ninguna de las dos necesitaba código. El `check` de
+`003_venta_caja_inventario.sql` ya ata el signo del movimiento a su tipo, así
+que D-10 no puede ocurrir en este esquema; y `utilidad_unitaria_centavos` y
+`margen_bp` son columnas GENERADAS, así que no pueden desincronizarse del costo.
+Se verificó una por una en vez de escribir código que no hacía falta.
+
+- **Archivos:** `packages/data/src/migraciones/sql/045..048`,
+  `packages/app/src/puente/**`, `packages/app/src/mantenimiento/**`,
+  `apps/web/app/api/mantenimiento/**`, `apps/web/src/servidor/mantenimiento.ts`,
+  y cinco de `apps/web/heredado/`.
+- **Pruebas:** 66 del puente (37 de traducción y forma, 29 de cobertura contra
+  su esquema) y 15 de mantenimiento. Las tres puertas en verde.
+- **Verificado con:** el navegador, en las catorce pantallas y con peticiones
+  reales contra las rutas nuevas.
+- **Pendiente o riesgo:** los comandos transaccionales de mesa, comanda, compra,
+  gasto, propina y portal público están en curso; hasta que estén, las 96
+  escrituras de las pantallas a entidades marcadas `comando` fallan con
+  `PUENTE_SIN_PERMISO`, que es lo correcto pero todavía no es útil.
+  `/api/archivos/subir` sigue sin existir (3 sitios), y
+  `peticionDeEscrituraValida` exige `application/json`, así que habrá que
+  abrirle paso al `multipart` antes de escribirla.
+
+
 ## Resurrección · E0 a E3 · 2026-09-09 · Su sistema, de vuelta y leyendo datos
 
 - **Qué se hizo:** se COPIÓ el frontend del POS de restaurante de Miguel —235
