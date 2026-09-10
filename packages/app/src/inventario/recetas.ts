@@ -41,7 +41,25 @@ const ingrediente = z.object({
 
 export const entradaGuardarReceta = z.object({
   productoId: z.uuid(),
-  ingredientes: z.array(ingrediente).min(1).max(50),
+  /**
+   * VACÍO SÍ SE ADMITE, y significa «este producto ya no lleva receta».
+   *
+   * Estuvo en `.min(1)`, y eso rompió una función que Miguel tenía:
+   * `RecetaFormDialog` permitía quitar todos los ingredientes y guardar, y el
+   * producto se quedaba sin escandallo pero seguía a la venta —un refresco de
+   * lata que se compra hecho, por ejemplo—. Con el mínimo en uno, la pantalla
+   * tenía que negarse («Agrega al menos un ingrediente») y el único camino que
+   * quedaba era «Eliminar receta», que además ARCHIVA el producto: retirarlo
+   * de la carta para dejar de descontar gramos es un precio desproporcionado.
+   *
+   * Sin líneas no se descuenta nada al cobrar —`planearConsumo` no encuentra
+   * receta y no mueve el ledger, que es exactamente lo correcto— y el costo del
+   * producto se queda en el último real que tuvo: `recalcularCostosRecetas`
+   * agrupa sobre `recetas` y un producto sin líneas no entra en el `from`.
+   * Ponerlo en cero haría que `margen_bp` —columna generada— dijera 100 % de
+   * margen sobre un producto que sí cuesta.
+   */
+  ingredientes: z.array(ingrediente).max(50),
 });
 export const entradaActualizarCostoInsumo = z.object({
   insumoId: z.uuid(),
@@ -95,6 +113,12 @@ export const guardarReceta = definirComando<
       await sql`delete from recetas where organizacion_id = ${ctx.ambito.organizacionId} and producto_id = ${entrada.productoId}`.execute(
         ctx.tx,
       );
+      // Con la lista vacía el `delete` de arriba ES todo el trabajo: el
+      // producto se queda sin receta. Sin esta salida, `sql.join([])` deja el
+      // `values` a secas y Postgres responde «syntax error at end of input»,
+      // que es lo que veía el usuario al quitar el último ingrediente.
+      if (filas.length === 0) return;
+
       const valores = filas.map(
         (item) =>
           sql`(${ctx.ambito.organizacionId}, ${entrada.productoId}, ${item.insumoId}, ${item.cantidad}, ${item.unidad}, ${item.mermaBp})`,
@@ -105,7 +129,13 @@ export const guardarReceta = definirComando<
     });
     await ctx.tx
       .updateTable('productos')
-      .set({ estrategia_consumo: 'receta', updated_at: ctx.ahora })
+      // Sin líneas, el producto deja de consumir: `sku` y no `receta`. Marcarlo
+      // igualmente como `receta` lo dejaría con una estrategia de consumo que
+      // no tiene con qué cumplirse.
+      .set({
+        estrategia_consumo: filas.length === 0 ? 'sku' : 'receta',
+        updated_at: ctx.ahora,
+      })
       .where('id', '=', entrada.productoId)
       .where('organizacion_id', '=', ctx.ambito.organizacionId)
       .execute();

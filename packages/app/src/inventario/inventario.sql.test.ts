@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ContextoComando } from '../comando.ts';
 import { ajustarStock, inventarioInicial } from './inventario.ts';
-import { recalcularCostosRecetas } from './recetas.ts';
+import { guardarReceta, recalcularCostosRecetas } from './recetas.ts';
 
 class ConexionGrabadora implements DatabaseConnection {
   readonly consultas: CompiledQuery[] = [];
@@ -141,5 +141,39 @@ describe('B-12 · SQL de costeo por receta', () => {
     expect(conexion.consultas[0]?.sql).toMatch(
       /set\s+costo_unitario_centavos\s*=\s*costos\.costo/i,
     );
+  });
+});
+
+describe('B-12 · quitar el último ingrediente deja el producto SIN receta', () => {
+  it('con la lista vacía no se emite ningún INSERT, sólo el DELETE', async () => {
+    // Aquí `sql.join([])` dejaba el `values` a secas y Postgres respondía
+    // «syntax error at end of input» (42601). No lo veía ninguna prueba porque
+    // la base falsa no compila el SQL crudo: el usuario quitaba el último
+    // ingrediente, guardaba, y leía «Algo falló de nuestro lado».
+    const { ctx, conexion } = contexto([[{ id: crypto.randomUUID() }], [], [], []]);
+
+    await guardarReceta.ejecutar(
+      ctx,
+      guardarReceta.entrada.parse({ productoId: crypto.randomUUID(), ingredientes: [] }),
+    );
+
+    const sentencias = conexion.consultas.map((c) => c.sql);
+    expect(sentencias.some((q) => /delete\s+from\s+recetas/i.test(q))).toBe(true);
+    expect(sentencias.some((q) => /insert\s+into\s+recetas/i.test(q))).toBe(false);
+    // Y ninguna con un `values` vacío, que es la forma exacta del defecto.
+    expect(sentencias.some((q) => /values\s*$/i.test(q.trim()))).toBe(false);
+  });
+
+  it('el producto pasa a `sku`: sin líneas no hay nada que consumir', async () => {
+    const { ctx, conexion } = contexto([[{ id: crypto.randomUUID() }], [], [], []]);
+
+    await guardarReceta.ejecutar(
+      ctx,
+      guardarReceta.entrada.parse({ productoId: crypto.randomUUID(), ingredientes: [] }),
+    );
+
+    const actualiza = conexion.consultas.find((c) => /update\s+"productos"/i.test(c.sql));
+    expect(actualiza?.parameters).toContain('sku');
+    expect(actualiza?.parameters).not.toContain('receta');
   });
 });

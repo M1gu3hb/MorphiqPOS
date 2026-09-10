@@ -67,6 +67,8 @@ const FILA_PRODUCTO: FilaProductoMenu = {
   tipo_venta: 'precio_fijo',
   unidad_venta: 'pieza',
   unidad_variable: null,
+  presets_variable: [{ etiqueta: '1/2 kg', cantidad: '0.5' }],
+  presets_porcion: null,
   precio_por_unidad_variable_centavos: null,
   nombre_porcion: null,
   precio_por_porcion_centavos: null,
@@ -156,11 +158,28 @@ describe('el menú no lleva costos, márgenes ni receta', () => {
         'precio_por_unidad_variable_centavos',
         'precio_venta',
         'precio_venta_centavos',
+        // Los atajos de cantidad que el comensal toca en vez de teclear. Son
+        // los dos únicos campos que se añadieron a esta lista después del
+        // hallazgo 7, y entraron a propósito: el mapa del puente ya los marca
+        // `publico: true` para este portal y `ProductoQRDialog.jsx:157` los
+        // pinta. Al pasar el portal a la lectura pública se quedaron fuera y
+        // los botones desaparecieron sin que nada fallara.
+        'presets_porcion_qr',
+        'presets_variable_qr',
         'tipo_venta',
         'unidad_venta',
         'unidad_variable',
       ].sort(),
     );
+  });
+
+  it('los atajos no llevan precio, ni siquiera con los precios encendidos', () => {
+    // Son cantidades y etiquetas. Si alguien mete un importe dentro, el portal
+    // volvería a tener un precio que no pasó por `mostrarPrecios`.
+    const texto = JSON.stringify(producto.presets_variable_qr);
+    expect(texto).not.toMatch(/precio|importe|centavos|costo/i);
+    expect(productoDeMenu({ ...FILA_PRODUCTO, presets_variable: null }, true).presets_variable_qr)
+      .toEqual([]);
   });
 
   it('ni costo, ni utilidad, ni margen, ni receta, ni insumo', () => {

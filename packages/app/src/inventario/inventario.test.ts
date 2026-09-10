@@ -82,10 +82,31 @@ describe('B-12 · recetas por paquete', () => {
       ingredientes: [{ insumoId: crypto.randomUUID(), cantidad: '18', unidad: 'g', mermaBp: 250 }],
     });
     expect(entrada.success).toBe(true);
+
+    // La lista VACÍA se admite: significa «este producto ya no lleva receta»,
+    // y es lo que `RecetaFormDialog` hace cuando el usuario quita todos los
+    // ingredientes y guarda. Estuvo prohibida y eso le quitó a Miguel una
+    // función: el único camino que quedaba era «Eliminar receta», que además
+    // archiva el producto.
     expect(
       guardarReceta.entrada.safeParse({ productoId: crypto.randomUUID(), ingredientes: [] })
         .success,
-    ).toBe(false);
+    ).toBe(true);
+
+    // Lo que SÍ se sigue rechazando: una cantidad que no es un decimal exacto,
+    // una unidad inventada y una merma fuera de rango.
+    const malas = [
+      { insumoId: crypto.randomUUID(), cantidad: '18,5', unidad: 'g', mermaBp: 0 },
+      { insumoId: crypto.randomUUID(), cantidad: '18', unidad: 'cucharadas', mermaBp: 0 },
+      { insumoId: crypto.randomUUID(), cantidad: '18', unidad: 'g', mermaBp: 10_001 },
+    ];
+    for (const mala of malas) {
+      expect(
+        guardarReceta.entrada.safeParse({ productoId: crypto.randomUUID(), ingredientes: [mala] })
+          .success,
+        JSON.stringify(mala),
+      ).toBe(false);
+    }
   });
 });
 

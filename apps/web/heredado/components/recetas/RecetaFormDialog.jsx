@@ -243,14 +243,6 @@ export default function RecetaFormDialog({
         return false;
       }
     }
-    // Vaciar del todo una receta que ya existía dejaría la vieja viva:
-    // `guardar_receta` exige al menos un ingrediente y desde aquí no hay forma
-    // de borrarla sin más. Para retirarla entera está «Eliminar receta», que
-    // además archiva el producto en la misma transacción.
-    if (lineas.length === 0 && (recetaLinesToEdit || []).length > 0) {
-      toast.error('Agrega al menos un ingrediente para calcular el costo');
-      return false;
-    }
     // 6B / 1.B — Validación adicional si es variable.
     if (esProductoVariable(tipoVentaState)) {
       const { ok, errores } = validarProductoVariable(tipoVentaState);
@@ -337,7 +329,12 @@ export default function RecetaFormDialog({
       // Lo que se manda es la cantidad YA EN LA UNIDAD BASE del insumo, que es
       // la única que el comando acepta; y la merma en puntos base, que es como
       // la guarda la base (`merma_bp`), no en porcentaje.
-      if (lineas.length > 0) {
+      // Se llama SIEMPRE, también con la lista vacía: eso es «este producto ya
+      // no lleva receta», y el comando borra las líneas viejas en la misma
+      // transacción. Saltar la llamada cuando no hay líneas dejaba la receta
+      // anterior viva y el producto costeado sobre ingredientes que el usuario
+      // acababa de quitar de la pantalla.
+      {
         await api.comandos.ejecutar(
           '/api/inventario/recetas',
           {

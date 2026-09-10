@@ -182,7 +182,54 @@ function itemParaComando(item) {
     throw new Error(`No pudimos preparar «${item?.nombre || 'un producto'}» de tu pedido.`);
   }
 
-  return { productoId: item.id, cantidad, notas: (item?.notas || '').trim() };
+  return { productoId: item.id, cantidad, notas: notaConModificadores(item) };
+}
+
+/** El tope de `notaCorta` en el esquema del comando. */
+const LARGO_MAXIMO_DE_NOTA = 300;
+
+/**
+ * La nota del comensal CON los modificadores que eligió.
+ *
+ * ── Por qué van dentro de la nota ─────────────────────────────────────────
+ * `ProductoQRDialog` deja elegir «sin cebolla», «término medio», y los guarda
+ * en `item._modificadores`; `CarritoQR` se los pinta de vuelta. Pero el esquema
+ * del comando público sólo acepta `{productoId, cantidad, notas}` y es
+ * `.strict()`, así que mandarlos como campo aparte RECHAZA el pedido entero.
+ * Construir el objeto sin ellos, que es lo que había, los perdía en silencio:
+ * el comensal veía «sin cebolla» en su carrito y a la cocina llegaba el plato
+ * con cebolla.
+ *
+ * Se pliegan en la nota, y no es un apaño: `comanda_items.notas` es justamente
+ * lo que el cocinero lee en su ficha, y estos modificadores NO afectan precio,
+ * costo ni inventario —lo dice el propio `ProductoQRDialog.jsx:18`—. Los
+ * modificadores CON precio son otra cosa y necesitan su columna; eso es E9-3 y
+ * no está hecho.
+ *
+ * Si no cabe, se recorta con puntos suspensivos en vez de que el comando
+ * rechace el pedido: perder el final de una nota larga es malo, no poder pedir
+ * es peor.
+ */
+function notaConModificadores(item) {
+  const propia = (item?.notas || '').trim();
+  const grupos = Array.isArray(item?._modificadores) ? item._modificadores : [];
+
+  const elegidos = grupos
+    .map((g) => {
+      const opciones = (Array.isArray(g?.opciones) ? g.opciones : [])
+        .map((o) => String(o?.nombre || '').trim())
+        .filter(Boolean);
+      if (opciones.length === 0) return null;
+      const grupo = String(g?.grupo_nombre || '').trim();
+      return grupo ? `${grupo}: ${opciones.join(', ')}` : opciones.join(', ');
+    })
+    .filter(Boolean)
+    .join(' · ');
+
+  const completa = [elegidos, propia].filter(Boolean).join(' — ');
+  return completa.length <= LARGO_MAXIMO_DE_NOTA
+    ? completa
+    : `${completa.slice(0, LARGO_MAXIMO_DE_NOTA - 1)}…`;
 }
 
 /**

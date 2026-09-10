@@ -123,6 +123,8 @@ export interface FilaProductoMenu {
   readonly precio_por_unidad_variable_centavos: bigint | null;
   readonly nombre_porcion: string | null;
   readonly precio_por_porcion_centavos: bigint | null;
+  readonly presets_variable: unknown;
+  readonly presets_porcion: unknown;
 }
 
 /**
@@ -152,6 +154,19 @@ export interface ProductoDeMenu {
   readonly nombre_porcion: string;
   readonly precio_por_porcion: number | null;
   readonly precio_por_porcion_centavos: string | null;
+  /**
+   * Los atajos que el comensal toca en vez de teclear («1/2 kg», «un vaso»).
+   *
+   * Van en la lista blanca porque el mapa del puente ya los marca
+   * `publico: true` (`mapa.ts:119-120`) EXACTAMENTE para este portal, y
+   * `ProductoQRDialog.jsx:157` los pinta. Al pasar el portal a la lectura
+   * pública se quedaron fuera y los botones desaparecieron sin que nada
+   * fallara: el comensal tenía que teclear los gramos a mano.
+   *
+   * No llevan precio: son cantidades y etiquetas.
+   */
+  readonly presets_variable_qr: readonly unknown[];
+  readonly presets_porcion_qr: readonly unknown[];
 }
 
 /**
@@ -187,7 +202,21 @@ export function productoDeMenu(fila: FilaProductoMenu, conPrecios: boolean): Pro
     nombre_porcion: fila.nombre_porcion ?? '',
     precio_por_porcion: aPesos(importe(fila.precio_por_porcion_centavos)),
     precio_por_porcion_centavos: aCentavos(importe(fila.precio_por_porcion_centavos)),
+    presets_variable_qr: comoLista(fila.presets_variable),
+    presets_porcion_qr: comoLista(fila.presets_porcion),
   };
+}
+
+/**
+ * La columna `jsonb` como lista, o vacía.
+ *
+ * Postgres la entrega ya parseada, pero un producto viejo puede tener `null` o
+ * un objeto suelto. Lo que la pantalla espera es un arreglo
+ * (`ProductoQRDialog.jsx:157` hace `Array.isArray(...) ? … : []`), y devolver
+ * otra cosa la deja en blanco sin decir por qué.
+ */
+function comoLista(valor: unknown): readonly unknown[] {
+  return Array.isArray(valor) ? valor : [];
 }
 
 export interface FilaCategoriaMenu {

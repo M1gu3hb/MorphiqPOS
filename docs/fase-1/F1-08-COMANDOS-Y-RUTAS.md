@@ -7,6 +7,7 @@ ejecutarlo POR SESION, y la ruta HTTP que lo expone.
 |---|---|---|---|
 | `caja.abrir` | cajero, gerente, administrador, dueno | `/api/caja/abrir` | `entradaAbrirCaja` |
 | `caja.cerrar` | cajero, gerente, administrador, dueno | `/api/caja/cerrar` | `entradaCerrarCaja` |
+| `caja.corte_turno` | cajero, gerente, administrador, dueno | `/api/caja/corte-turno` | `entradaCorteTurno` |
 | `caja.eliminar_corte` | dueno | `/api/caja/eliminar-corte` | `entradaEliminarCorte` |
 | `caja.estado` | cajero, gerente, administrador, dueno | `/api/caja/estado` | `entradaEstadoCaja` |
 | `caja.movimiento` | cajero, gerente, administrador, dueno | `/api/caja/movimiento` | `entradaMovimientoCaja` |
@@ -224,6 +225,15 @@ export const entradaCerrarCaja = z.object({
 const entradaConfirmada = z.object({ confirmacionNombreNegocio: confirmacion }
 ```
 
+### `entradaCorteTurno`
+
+```ts
+export const entradaCorteTurno = z.object({
+  efectivoContadoCentavos: z.number().int().min(0).max(1_000_000_000),
+  notas: z.string().trim().max(500).nullable().default(null),
+}
+```
+
 ### `entradaCrearAlmacen`
 
 ```ts
@@ -401,7 +411,7 @@ export const entradaGuardarPlantillaGasto = z.object({
 ```ts
 export const entradaGuardarReceta = z.object({
   productoId: z.uuid(),
-  ingredientes: z.array(ingrediente).min(1).max(50),
+  ingredientes: z.array(ingrediente).max(50),
 }
 ```
 
@@ -449,15 +459,6 @@ export const entradaMovimientoCaja = z.object({
   tipo: z.enum(['gasto', 'retiro', 'deposito', 'ajuste']),
   montoCentavos: z.number().int().max(Number.MAX_SAFE_INTEGER),
   motivo: z.string().min(3).max(200),
-}
-```
-
-### `entradaPedirCuenta`
-
-```ts
-export const entradaPedirCuenta = z.object({
-  propinaTipo: z.enum(['sin_propina', 'porcentaje', 'decidir_en_caja']),
-  propinaPorcentaje: z.number().int().min(0).max(100).default(0),
 }
 ```
 
