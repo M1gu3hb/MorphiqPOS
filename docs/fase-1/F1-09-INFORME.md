@@ -165,6 +165,20 @@ Esto es lo importante de este informe.
 
 ### Funciona distinto, y hay que saberlo
 
+- **El diálogo de cierre le dice al cajero que sobra dinero cuando no sobra.**
+  Es lo más serio de esta lista y es **de tu código, no del port**: lo comprobé
+  contra tu versión original y la fórmula es idéntica. `CierreDiarioDialog.jsx`
+  calcula el efectivo esperado como «ventas en efectivo + propinas en
+  efectivo», **sin el fondo inicial y sin los movimientos de caja**.
+
+  Medido, abriendo la caja de verdad: fondo de $1 500, un retiro de $200 para
+  pagar tortillas, cero ventas. En el cajón hay $1 300. Rosa los cuenta, teclea
+  1300, y la pantalla le responde **«Sobra $1,300.00 en caja»**.
+
+  El servidor sí lo calcula bien —suma el fondo y resta los retiros, y hay un
+  contrato que lo vigila—, así que **lo que se guarda es correcto**; lo que está
+  mal es lo que el cajero ve mientras cuenta. No lo cambié porque cambiar cómo
+  se calcula un arqueo es una decisión tuya, no mía. Dime y es media hora.
 - **Caja no se refresca si la ventana no tiene el foco.** Su consulta usa
   `refetchInterval` sin `refetchIntervalInBackground`: en un segundo monitor sin
   foco, una cuenta solicitada no aparece hasta que alguien toca la pantalla. Es
@@ -185,7 +199,7 @@ Esto es lo importante de este informe.
 - **Sin pruebas de extremo a extremo.** No hay Playwright. Lo que está
   verificado, lo verifiqué yo abriendo el navegador — que es mejor que nada y
   peor que una suite.
-- **`apps/web/heredado/` no tiene NINGUNA prueba automática.** 891 pruebas y
+- **`apps/web/heredado/` no tiene NINGUNA prueba automática.** 893 pruebas y
   ninguna toca tus pantallas: `tsconfig` no comprueba `.jsx` y el `include` de
   vitest no llega a esa carpeta. `verify:aspecto` cubre el aspecto y
   `verify:escrituras` cubre a quién le hablan; la lógica de esos 64 archivos
@@ -218,7 +232,7 @@ para leer.
 
 ## Números
 
-891 pruebas en 60 archivos · **65 comandos** · **27 entidades** en el puente ·
+893 pruebas en 61 archivos · **65 comandos** · **27 entidades** en el puente ·
 64 archivos de tu frontend tocados.
 
 Escrituras: la puerta mira **55**, analiza **47** y **ninguna la rechaza el

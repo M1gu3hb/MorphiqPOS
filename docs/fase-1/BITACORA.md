@@ -49,9 +49,30 @@ escala de un negocio real.
 - **Lo que NO se cerró:** las 8 escrituras cuyo cuerpo no es un objeto literal
   siguen sin comprobación automática; `apps/web/heredado/` sigue sin una sola
   prueba; sigue sin haber Playwright. Está todo en `F1-09-INFORME.md`.
+### Y dos cosas que sólo aparecieron abriendo la caja en el navegador
+
+Con `pnpm verify` ya en verde, abrí una caja con fondo de $1 500, registré un
+retiro de $200 y la cerré. Dos hallazgos que ninguna de las 891 pruebas veía:
+
+1. **El folio del corte volvía en blanco a la pantalla.** Regresión MÍA del
+   port: `Caja.jsx` lo leía de `cajaAbierta.folio`, que es siempre nulo porque
+   el folio se asigna justo al cerrar. `cerrarSesion` lo tomaba y no lo
+   devolvía. Arreglado en las tres capas, con dos pruebas nuevas validadas por
+   mutación. Comprobado: cerrar → «Folio del corte CC-4» en pantalla, y la base
+   devuelve serie CC folio 4.
+2. **El diálogo de cierre dice que sobra dinero cuando no sobra.** Calcula el
+   esperado como «ventas + propinas en efectivo», sin el fondo ni los
+   movimientos: el cajero que cuenta los $1 300 exactos lee «Sobra $1,300.00 en
+   caja». **NO es del port** —comprobado línea a línea contra 89830e5, es
+   idéntico a su original— y el servidor sí lo calcula bien, así que lo
+   guardado es correcto. No lo cambié: cómo se calcula un arqueo es decisión de
+   Miguel. Queda escrito en `F1-09-INFORME.md`.
+
 - **Lección, escrita para no repetirla:** todo esto lo encontró **ejecutar**,
   no leer. Verificar por partes es cómodo y dice menos de lo que parece: cada
-  parte estaba en verde y la suma llevaba semanas rota.
+  parte estaba en verde y la suma llevaba semanas rota. Y la suma en verde
+  tampoco basta: el folio en blanco y el arqueo engañoso pasaron las 24 puertas
+  y sólo se vieron cerrando una caja de verdad.
 
 ---
 
