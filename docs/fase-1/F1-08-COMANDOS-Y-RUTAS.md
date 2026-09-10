@@ -17,6 +17,7 @@ ejecutarlo POR SESION, y la ruta HTTP que lo expone.
 | `catalogo.cambiar_precio` | dueno, administrador, gerente | `/api/catalogo/productos/precio` | `entradaCambiarPrecio` |
 | `catalogo.crear_modificador` | dueno, administrador, gerente | `(sin ruta HTTP)` | `entradaCrearModificador` |
 | `catalogo.crear_producto` | dueno, administrador, gerente | `/api/catalogo/crear-producto` | `entradaCrearProducto` |
+| `catalogo.guardar_modificadores` | dueno, administrador, gerente | `/api/catalogo/modificadores` | `entradaGuardarModificadores` |
 | `compras.guardar_plantilla` | dueno, administrador, gerente | `/api/compras/plantilla` | `entradaGuardarPlantillaCompra` |
 | `compras.registrar` | dueno, administrador, gerente | `/api/compras/registrar` | `entradaRegistrarCompra` |
 | `compras.usar_plantilla` | dueno, administrador, gerente | `/api/compras/plantilla/usar` | `entradaUsarPlantillaCompra` |
@@ -28,6 +29,7 @@ ejecutarlo POR SESION, y la ruta HTTP que lo expone.
 | `gastos.guardar_plantilla` | dueno, administrador, gerente | `/api/gastos/plantilla` | `entradaGuardarPlantillaGasto` |
 | `gastos.registrar` | dueno, administrador, gerente | `/api/gastos/registrar` | `entradaRegistrarGasto` |
 | `identidad.establecer_pin` | dueno, administrador | `/api/identidad/pin` | `entradaEstablecerPin` |
+| `identidad.guardar_empleado` | dueno, administrador | `/api/identidad/empleados` | `entradaGuardarEmpleado` |
 | `inventario.actualizar_costo` | dueno, administrador, gerente, almacen | `/api/inventario/insumos/costo` | `entradaActualizarCostoInsumo` |
 | `inventario.ajustar` | dueno, administrador, gerente, almacen | `/api/inventario/ajustar` | `entradaAjustarStock` |
 | `inventario.crear_almacen` | dueno, administrador, gerente, almacen | `/api/inventario/almacenes/crear` | `entradaCrearAlmacen` |
@@ -52,6 +54,7 @@ ejecutarlo POR SESION, y la ruta HTTP que lo expone.
 | `restaurante.asignar_mesero` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/asignar-mesero` | `entradaAsignarMesero` |
 | `restaurante.atender_solicitud` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/atender-solicitud` | `entradaAtenderSolicitud` |
 | `restaurante.cancelar_orden` | cajero, gerente, administrador, dueno | `/api/restaurante/cancelar-orden` | `entradaCancelarOrden` |
+| `restaurante.crear_estacion` | dueno, administrador, gerente | `/api/restaurante/crear-estacion` | `entradaCrearEstacion` |
 | `restaurante.entregar_pedidos` | cocina, mesero, cajero, gerente, administrador, dueno | `/api/restaurante/entregar-pedidos` | `entradaEntregarPedidos` |
 | `restaurante.enviar_pedido` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/enviar-pedido` | `entradaEnviarPedido` |
 | `restaurante.liberar_mesa` | mesero, cajero, gerente, administrador, dueno | `/api/restaurante/liberar-mesa` | `entradaLiberarMesa` |
@@ -240,6 +243,22 @@ export const entradaCorteTurno = z.object({
 export const entradaCrearAlmacen = z.object({ nombre: z.string().trim().min(2).max(120) }
 ```
 
+### `entradaCrearEstacion`
+
+```ts
+export const entradaCrearEstacion = z.object({
+  nombre: z.string().trim().min(2).max(80),
+  descripcion: z.string().trim().max(300).default(''),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default('#64748b'),
+  orden: z.number().int().min(0).max(999).default(0),
+  esGeneral: z.boolean().default(false),
+}
+```
+
 ### `entradaCrearInsumo`
 
 ```ts
@@ -374,6 +393,36 @@ export const entradaGuardarConfiguracion = z.object({
   paquete: z.enum(PAQUETES),
   impuestoPuntosBase: z.number().int().min(0).max(3500),
   impuestoIncluidoEnPrecio: z.boolean(),
+}
+```
+
+### `entradaGuardarEmpleado`
+
+```ts
+export const entradaGuardarEmpleado = z.object({
+  empleado: z.uuid().optional(),
+  nombre: z.string().trim().min(2).max(120),
+  puesto: z.string().trim().min(2).max(20),
+  telefono: z.string().trim().max(40).nullable().default(null),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable()
+    .default(null),
+  estacionPreparacionId: z.uuid().nullable().default(null),
+  veTodasLasEstaciones: z.boolean().default(false),
+  activo: z.boolean().default(true),
+  pin: z.string().regex(FORMA_PIN, 'El PIN son de 4 a 8 dígitos.').optional(),
+}
+```
+
+### `entradaGuardarModificadores`
+
+```ts
+export const entradaGuardarModificadores = z.object({
+  productoId: z.uuid(),
+  grupos: z.array(grupo).max(20),
 }
 ```
 

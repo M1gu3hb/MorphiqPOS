@@ -10,8 +10,15 @@
     "",
     "`testigos` es la lista literal que `verificar-aspecto.mjs` imprime, tal cual,",
     "con su signo. Nada de comodines: una excepción que cubre de más deja de ser",
-    "una excepción."
+    "una excepción.",
+    "",
+    "`base` es el commit donde el código de Miguel se copió al repositorio. Es",
+    "la ÚNICA referencia que responde a la pregunta que importa —«¿ve Miguel SU",
+    "sistema?»— y por eso es la de por omisión. Comparar contra HEAD, como hacía",
+    "esta puerta al principio, la deja INERTE en un árbol comprometido: no hay",
+    "nada que comparar y sale verde sin haber mirado un solo archivo."
   ],
+  "base": "89830e59aed8688042d98c06d3521c35e95a9906",
   "permitidos": [
     {
       "archivo": "apps/web/heredado/components/portalqr/PedirCuentaQR.jsx",
@@ -51,6 +58,66 @@
         "+ clase:text-muted-foreground",
         "+ clase:py-8",
         "+ texto:) : error ? ("
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/lib/ensureDefaultAdmin.js",
+      "borrado": true,
+      "porque": "No es una pantalla: es código MUERTO con un agujero dentro. Creaba un usuario administrador con PIN «1234» desde el navegador cuando la plantilla estaba vacía — un alta de credenciales que podía disparar cualquiera que abriera la página de acceso. Nadie lo llama: su propio POSLogin.jsx:33 explica por qué dejó de llamarlo y que el primer acceso lo da `pnpm db:bootstrap`, del lado del servidor. Dejarlo en el árbol es dejar la trampa puesta para quien venga después."
+    },
+    {
+      "archivo": "apps/web/heredado/components/configuracion/ReiniciarSistemaSection.jsx",
+      "porque": "E10-4, y es un cambio de texto DELIBERADO con motivo de seguridad. Su sistema pedía escribir «BORRAR TODO» o «ELIMINAR»: constantes PÚBLICAS impresas en la propia pantalla, que además reiniciarSistema comparaba contra otra constante del cliente — las dos mitades de la comprobación las escribía quien atacara. Ahora se pide el NOMBRE DEL NEGOCIO, un valor por inquilino leído de la base DENTRO de la misma transacción que va a borrar. Es el patrón con el que GitHub borra un repositorio, y por lo mismo. La línea añadida sobre el punto de restauración dice en voz alta lo que antes no se decía.",
+      "testigos": [
+        "- texto:Para confirmar, escribe exactamente:",
+        "+ texto:Para confirmar, escribe el",
+        "+ texto:nombre de tu negocio",
+        "+ placeholder:Nombre del negocio"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/registros/LimpiarSeccionButton.jsx",
+      "porque": "Mismo caso que ReiniciarSistemaSection y por la misma razón: «ELIMINAR» era una palabra impresa en el diálogo que la pedía. Se sustituye por el nombre del negocio, que sólo conoce quien tiene acceso legítimo. El aviso nuevo en rojo dice lo que antes no decía: que no hay vuelta atrás salvo un punto de restauración de la base.",
+      "testigos": [
+        "- texto:Para confirmar escribe",
+        "- texto:ELIMINAR",
+        "- placeholder:ELIMINAR",
+        "+ clase:text-destructive",
+        "+ clase:block",
+        "+ clase:font-medium",
+        "+ texto:Esto no se puede deshacer. El único rescate es un punto de restauración de la base de datos.",
+        "+ texto:Para confirmar escribe el",
+        "+ texto:nombre de tu negocio",
+        "+ placeholder:Nombre del negocio"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/POS.jsx",
+      "porque": "E9-1, el escáner de códigos de barras traído de la tiendita y planificado en F1-02. Es una BARRA NUEVA en el POS, no un cambio de lo que había: el resto de la pantalla no pierde ni un testigo. Va detrás de canAccessModule(escaner_codigo_barras), así que en los paquetes que no lo incluyen no se pinta. Es la única adición de interfaz de toda la entrega y va aquí escrita para poder revocarla de un vistazo.",
+      "testigos": [
+        "+ clase:flex",
+        "+ clase:items-center",
+        "+ clase:gap-2",
+        "+ clase:w-4",
+        "+ clase:h-4",
+        "+ clase:flex-1",
+        "+ clase:h-10",
+        "+ clase:shrink-0",
+        "+ clase:w-10",
+        "+ title:Escanear código de barras",
+        "+ icono:ScanLine"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Ventas.jsx",
+      "porque": "Mismo caso: «LIMPIAR» era la palabra impresa en la propia pantalla que la pedía. Ahora es el nombre del negocio, que no está escrito en el HTML.",
+      "testigos": [
+        "- texto:Escribe",
+        "- texto:LIMPIAR",
+        "- placeholder:LIMPIAR",
+        "+ texto:Escribe el",
+        "+ texto:nombre de tu negocio",
+        "+ placeholder:Nombre del negocio"
       ]
     }
   ]

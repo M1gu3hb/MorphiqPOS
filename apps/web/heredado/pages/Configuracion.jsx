@@ -166,7 +166,13 @@ export default function Configuracion() {
     if (!cfgListo && !configLoading) {
       // Caso "primera vez" — backend vacío. Permitimos crear con bizForm + nombre mínimo.
       try {
-        await api.entidades.ConfiguracionNegocio.create({
+        // `ConfiguracionNegocio` NO se crea: es un documento, no una fila, y
+        // `guardarConfiguracionParcial` INSERTA solo cuando el negocio todavía
+        // no tiene ninguno (`configuracion.ts:220`). `update` cubre las dos
+        // veces. La rama `create` que había aquí no sólo sobraba: el puente la
+        // rechaza —«sólo se actualiza, no se crea ni se borra»— así que este
+        // camino de «primera vez» fallaba siempre.
+        await api.entidades.ConfiguracionNegocio.update(cfg?.id, {
           nombre_negocio: 'Mi Negocio',
           ...bizForm,
         });
@@ -214,13 +220,31 @@ export default function Configuracion() {
         }
       }
 
-      let saved = null;
-      if (prevUser?.id) {
-        await api.entidades.UsuarioPOS.update(prevUser.id, payload);
-        saved = { ...prevUser, ...payload };
-      } else {
-        saved = await api.entidades.UsuarioPOS.create({ ...payload, activo: true });
-      }
+      // `UsuarioPOS` es una entidad que el puente sólo sabe LEER: lo que su
+      // sistema guardaba en una fila aquí son CUATRO tablas —persona, empleo,
+      // identidad y credencial—, y no había ningún camino de escritura. Crear o
+      // editar un usuario no funcionaba, ni siquiera mal: moría en el puente.
+      //
+      // `identidad.guardar_empleado` escribe las cuatro en la MISMA transacción
+      // —un empleado a medias es uno que sale en la lista y no puede entrar— y
+      // el PIN se hashea en el servidor con Argon2id: viaja hacia allá y no
+      // vuelve nunca.
+      //
+      // Y comprueba lo que esta pantalla no puede: que nadie reparta un puesto
+      // por encima del suyo. Ocultar el rol en el desplegable no es
+      // autorización.
+      const guardado = await api.comandos.ejecutar('/api/identidad/empleados', {
+        ...(prevUser?.id ? { empleado: prevUser.id } : {}),
+        nombre: payload.nombre,
+        puesto: payload.rol,
+        telefono: payload.telefono || null,
+        color: payload.color || null,
+        estacionPreparacionId: payload.estacion_preparacion_id || null,
+        veTodasLasEstaciones: payload.puede_ver_todas_estaciones === true,
+        activo: prevUser?.id ? payload.activo !== false : true,
+        ...(payload.pin ? { pin: String(payload.pin) } : {}),
+      });
+      const saved = { ...(prevUser || {}), ...payload, id: guardado.empleoId };
 
       // Aquí se copiaba el color del usuario a CADA mesa que atendía, una
       // escritura por mesa y todas con `.catch(() => {})` encima. Sobra entero,
@@ -248,9 +272,28 @@ export default function Configuracion() {
   };
 
   const deleteUser = async (id) => {
-    await api.entidades.UsuarioPOS.update(id, { activo: false });
-    queryClient.invalidateQueries({ queryKey: ['usuarios_pos'] });
-    toast.success('Usuario desactivado');
+    // Dar de baja es una edición del empleo, no un borrado: sus ventas, sus
+    // cortes y sus propinas lo siguen referenciando.
+    const usuario = (Array.isArray(usuarios) ? usuarios : []).find((u) => u?.id === id);
+    try {
+      await api.comandos.ejecutar('/api/identidad/empleados', {
+        empleado: id,
+        nombre: usuario?.nombre || 'Usuario',
+        puesto: usuario?.rol || 'mesero',
+        telefono: usuario?.telefono || null,
+        color: usuario?.color || null,
+        estacionPreparacionId: usuario?.estacion_preparacion_id || null,
+        veTodasLasEstaciones: usuario?.puede_ver_todas_estaciones === true,
+        activo: false,
+      });
+      queryClient.invalidateQueries({ queryKey: ['usuarios_pos'] });
+      queryClient.invalidateQueries({ queryKey: ['usuarios_pos_all'] });
+      toast.success('Usuario desactivado');
+    } catch (e) {
+      // «Tu puesto no puede modificar a un dueno», «No puedes darte de baja a
+      // ti mismo»: el dominio ya lo dice en español.
+      toast.error(e?.message || 'No se pudo desactivar el usuario');
+    }
   };
 
   const handleSaveMesa = async (data) => {

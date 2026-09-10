@@ -42,10 +42,16 @@ export default function ColoresSistemaSection({ cfg }) {
     setSaving(true);
     try {
       const payload = { color_primario: primario, color_acento: acento };
+        // `ConfiguracionNegocio` NO se crea: es un documento, no una fila, y
+        // `guardarConfiguracionParcial` INSERTA solo cuando el negocio todavía
+        // no tiene ninguno (`configuracion.ts:220`). `update` cubre las dos
+        // veces. La rama `create` que había aquí no sólo sobraba: el puente la
+        // rechaza —«sólo se actualiza, no se crea ni se borra»— así que este
+        // camino de «primera vez» fallaba siempre.
       if (cfg?.id) {
         await api.entidades.ConfiguracionNegocio.update(cfg.id, payload);
       } else {
-        await api.entidades.ConfiguracionNegocio.create({
+        await api.entidades.ConfiguracionNegocio.update(undefined, {
           nombre_negocio: 'Mi Negocio',
           ...payload,
         });

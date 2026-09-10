@@ -152,7 +152,11 @@ export default function ProductoSimpleDialog({ open, onClose, producto = null })
         visible_en_pos: true,
         area_preparacion: 'ninguno',
         categoria_id: catId,
-        categoria_nombre: catNombre || '',
+        // `categoria_nombre` NO se manda. Es un DERIVADO: el puente lo saca del
+        // `join` con `categorias` al leer, así que no tiene columna donde caer y
+        // mandarlo RECHAZA la petición entera —crear o editar un producto desde
+        // esta pantalla fallaba siempre—. Renombrar la categoría cambia el
+        // nombre en todos sus productos a la vez, que es lo que se quiere.
         ...tipoVentaPayload,
       };
       if (producto?.id) {

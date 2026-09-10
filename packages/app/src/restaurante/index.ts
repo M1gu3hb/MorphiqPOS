@@ -73,3 +73,9 @@ export {
   ESTADOS_SOLICITUD,
   type EstadoSolicitud,
 } from './solicitudes.ts';
+
+export {
+  crearEstacion,
+  entradaCrearEstacion,
+  type ResultadoCrearEstacion,
+} from './estacion-crear.ts';

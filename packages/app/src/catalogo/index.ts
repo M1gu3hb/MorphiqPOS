@@ -17,3 +17,9 @@ export {
   entradaCrearModificador,
   entradaCrearProducto,
 } from './esquemas.ts';
+
+export {
+  guardarModificadores,
+  entradaGuardarModificadores,
+  type ResultadoGuardarModificadores,
+} from './modificadores-guardar.ts';

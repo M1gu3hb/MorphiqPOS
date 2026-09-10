@@ -91,6 +91,15 @@ export const CODIGOS_ERROR = {
   TRANSICION_INVALIDA: 'TRANSICION_INVALIDA',
   /** No hay estación de preparación a la que mandar la comanda, ni general. */
   ESTACION_NO_ENCONTRADA: 'ESTACION_NO_ENCONTRADA',
+  /**
+   * Se intentó crear una segunda estación GENERAL.
+   *
+   * Sólo puede haber una: es a donde van las comandas que no encuentran
+   * estación propia (regla 10). Lo impone el índice único parcial
+   * `estaciones_una_general` de la migración 046; este código existe para que
+   * ese 23505 llegue al cocinero como una frase.
+   */
+  ESTACION_YA_EXISTE: 'ESTACION_YA_EXISTE',
 
   // --- restaurante: compras, gastos y propinas (F1-02 E4-5 y E6-7) ---
   PROVEEDOR_NO_ENCONTRADO: 'PROVEEDOR_NO_ENCONTRADO',
@@ -141,6 +150,17 @@ export const CODIGOS_ERROR = {
   // --- accesos (C-05, C-06) ---
   /** El empleado o la terminal no existen DENTRO de la organizacion de quien pide. */
   ACCESO_NO_ENCONTRADO: 'ACCESO_NO_ENCONTRADO',
+  /**
+   * Se intentó dar de alta —o modificar— a alguien de un puesto que quien
+   * manda no puede repartir.
+   *
+   * Es la guarda contra la escalada: sin ella, un administrador se crea un
+   * usuario `dueno`, entra con él y ya no hay nada por encima suyo. Que la
+   * pantalla no ofrezca ese puesto no cuenta: el botón se salta con la consola.
+   */
+  PUESTO_NO_OTORGABLE: 'PUESTO_NO_OTORGABLE',
+  /** El puesto que llegó no es ninguno de los siete del sistema. */
+  PUESTO_INVALIDO: 'PUESTO_INVALIDO',
 
   // --- andamiaje de pruebas ---
   /** Se pidio interrumpir despues de un paso que no existe (inyeccion de fallos). */

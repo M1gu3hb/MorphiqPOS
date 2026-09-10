@@ -50,7 +50,13 @@ export default function UnidadesMedidaSection() {
       if (cfg?.id) {
         await api.entidades.ConfiguracionNegocio.update(cfg.id, { unidades_medida_lista: limpio });
       } else {
-        await api.entidades.ConfiguracionNegocio.create({
+        // `ConfiguracionNegocio` NO se crea: es un documento, no una fila, y
+        // `guardarConfiguracionParcial` INSERTA solo cuando el negocio todavía
+        // no tiene ninguno (`configuracion.ts:220`). `update` cubre las dos
+        // veces. La rama `create` que había aquí no sólo sobraba: el puente la
+        // rechaza —«sólo se actualiza, no se crea ni se borra»— así que este
+        // camino de «primera vez» fallaba siempre.
+        await api.entidades.ConfiguracionNegocio.update(undefined, {
           nombre_negocio: 'Mi negocio',
           unidades_medida_lista: limpio,
         });

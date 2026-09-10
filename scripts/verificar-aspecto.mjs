@@ -46,9 +46,39 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-const REFERENCIA = process.argv[2] ?? 'HEAD';
 const CARPETA = 'apps/web/heredado';
 const PERMITIDOS = 'scripts/aspecto-permitido.json';
+
+/**
+ * Contra QUÉ se compara, y por qué no contra `HEAD`.
+ *
+ * La primera versión de esta puerta usaba `HEAD` por omisión, y eso la dejaba
+ * INERTE justo donde tiene que trabajar: en un árbol comprometido no hay nada
+ * que comparar, así que `pnpm verify:aspecto` imprimía «Sin cambios» y salía 0
+ * sin haber mirado un solo archivo. Una puerta que sale verde sin mirar es peor
+ * que ninguna, porque además tranquiliza.
+ *
+ * La referencia correcta es el commit donde el código de Miguel se copió al
+ * repositorio: es la única que responde a la pregunta que importa —«¿ve Miguel
+ * SU sistema?»— y no a «¿cambió algo desde ayer?». Vive en el JSON, junto a las
+ * excepciones, para que mover la línea base sea tan visible como añadir una.
+ */
+function baseDeclarada() {
+  try {
+    const base = JSON.parse(readFileSync(PERMITIDOS, 'utf8')).base;
+    if (typeof base === 'string' && base.trim() !== '') return base.trim();
+  } catch {
+    /* sin archivo: se cae a HEAD, y el aviso de abajo lo dice */
+  }
+  process.stderr.write(
+    `${PERMITIDOS} no declara «base». Comparando contra HEAD, que en un árbol ` +
+      'comprometido no compara NADA. Declara el commit donde se copió heredado/.' +
+      String.fromCharCode(10),
+  );
+  return 'HEAD';
+}
+
+const REFERENCIA = process.argv[2] ?? baseDeclarada();
 
 /**
  * Las excepciones, cada una con su motivo escrito.
@@ -82,6 +112,19 @@ function permitidos() {
 }
 
 const PERMITIDO = permitidos();
+
+/** Los archivos cuyo BORRADO está declarado, con su motivo, en el mismo JSON. */
+const BORRADOS_PERMITIDOS = new Set(
+  (() => {
+    try {
+      return (JSON.parse(readFileSync(PERMITIDOS, 'utf8')).permitidos ?? [])
+        .filter((e) => e.borrado === true)
+        .map((e) => e.archivo);
+    } catch {
+      return [];
+    }
+  })(),
+);
 
 /** Descuenta los testigos permitidos de este archivo, uno a uno. */
 function sinLosPermitidos(ruta, lista, signo) {
@@ -260,6 +303,10 @@ for (const ruta of cambiados) {
   try {
     despues = readFileSync(ruta, 'utf8');
   } catch {
+    // Un archivo borrado sólo pasa si está declarado con `borrado: true` y su
+    // motivo. Que desaparezca una pantalla es el mayor cambio de aspecto que
+    // hay, y no puede colarse dentro de un diff grande.
+    if (BORRADOS_PERMITIDOS.has(ruta.split('\\').join('/'))) continue;
     informe.push(`\n${ruta}\n  BORRADO. Una pantalla que desaparece es el mayor cambio de aspecto.`);
     total += 1;
     continue;

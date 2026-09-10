@@ -57,8 +57,27 @@ export default function ModificadoresDialog({ open, onClose, producto = null }) 
     setGuardando(true);
     try {
       const limpio = sanitizeModificadores(grupos);
-      await api.entidades.ProductoTerminado.update(producto.id, {
-        modificadores: limpio,
+      // `modificadores` NO es un campo de `productos`: son dos tablas y una de
+      // unión (`modificadores`, `modificador_opciones`, `producto_modificadores`).
+      // El puente lo rechazaba, así que guardar las opciones de un producto no
+      // funcionaba NUNCA, y el `catch` de abajo lo convertía en «Intenta de
+      // nuevo» — un mensaje que invita a repetir algo que no puede salir bien.
+      //
+      // `guardar_modificadores` reemplaza el juego entero dentro de UNA
+      // transacción: o queda el nuevo o queda el viejo, nunca la mitad. Los
+      // `id` que el editor genera en el navegador no viajan: los pone la base.
+      await api.comandos.ejecutar('/api/catalogo/modificadores', {
+        productoId: producto.id,
+        grupos: limpio.map((g) => ({
+          nombre: g.nombre,
+          obligatorio: !!g.obligatorio,
+          tipo: g.tipo,
+          activo: g.activo !== false,
+          opciones: g.opciones.map((o) => ({
+            nombre: o.nombre,
+            activa: o.activo !== false,
+          })),
+        })),
       });
       queryClient.invalidateQueries({ queryKey: ['productos_all'] });
       queryClient.invalidateQueries({ queryKey: ['productos_pos'] });

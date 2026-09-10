@@ -23,3 +23,9 @@ export {
   type EmpleadoConAcceso,
   type TerminalDeGestion,
 } from './consultas.ts';
+
+export {
+  guardarEmpleado,
+  entradaGuardarEmpleado,
+  type ResultadoGuardarEmpleado,
+} from './empleados.ts';

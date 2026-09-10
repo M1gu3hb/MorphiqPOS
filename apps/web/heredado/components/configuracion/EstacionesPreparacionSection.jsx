@@ -166,19 +166,18 @@ export default function EstacionesPreparacionSection({ embedded = false }) {
           descripcion: form.descripcion || '',
           color: form.color || COCINA_GENERAL_COLOR,
         });
-        // Si esta estación tiene categorías asignadas, refrescar sus snapshots
-        // de nombre/color para que badges no queden desfasados.
-        const cats = (Array.isArray(categorias) ? categorias : []).filter(
-          (c) => c?.estacion_preparacion_id === editing.id,
-        );
-        await Promise.all(
-          cats.map((c) =>
-            api.entidades.CategoriaProducto.update(c.id, {
-              estacion_preparacion_nombre: nombre,
-              estacion_preparacion_color: form.color || COCINA_GENERAL_COLOR,
-            }).catch(() => {}),
-          ),
-        );
+        // Aquí se copiaba el nombre y el color de la estación a CADA categoría
+        // asignada, para que sus insignias no quedaran desfasadas. Sobra entero,
+        // y por partida doble:
+        //
+        // · `estacion_preparacion_nombre` y `estacion_preparacion_color` son
+        //   DERIVADOS: el puente los saca del `join` con `estaciones_preparacion`
+        //   al leer, así que renombrar la estación ya cambia lo que pintan todas
+        //   sus categorías, sin tocar ninguna. Copiarlos creaba una segunda
+        //   verdad que envejecía sola.
+        // · Al ser derivados, el puente los RECHAZA al escribir. Con el
+        //   `.catch(() => {})` eso no se veía: fallaban todas, en silencio, y
+        //   los «snapshots» se refrescaban sin que nada se refrescara.
         toast.success('Estación actualizada');
       } else {
         // Crear nueva
@@ -186,13 +185,17 @@ export default function EstacionesPreparacionSection({ embedded = false }) {
           (m, e) => Math.max(m, Number(e?.orden) || 0),
           0,
         );
-        await api.entidades.EstacionPreparacion.create({
+        // Por comando, y no por el puente, porque `es_general` está declarado
+        // `escribible: false` (mapa.ts:773): es la regla 10 —una sola estación
+        // de respaldo, y no se puede apagar— y eso no lo decide el navegador.
+        // Mandarlo RECHAZABA la petición entera, así que crear una estación no
+        // funcionaba nunca.
+        await api.comandos.ejecutar('/api/restaurante/crear-estacion', {
           nombre,
           descripcion: form.descripcion || '',
           color: form.color || COCINA_GENERAL_COLOR,
           orden: maxOrden + 1,
-          activo: true,
-          es_general: false,
+          esGeneral: false,
         });
         toast.success(`Estación "${nombre}" creada`);
       }
@@ -220,14 +223,17 @@ export default function EstacionesPreparacionSection({ embedded = false }) {
         toast.success('Cocina general lista');
         return;
       }
-      await api.entidades.EstacionPreparacion.create({
+      // Igual que arriba, y aquí importa más: pedir ser la estación GENERAL es
+      // afirmar que el negocio no tiene ninguna, y quien concede eso es el
+      // índice único parcial `estaciones_una_general` de la migración 046. El
+      // comando traduce su 23505 a una frase en vez de un 500.
+      await api.comandos.ejecutar('/api/restaurante/crear-estacion', {
         nombre: COCINA_GENERAL_NOMBRE,
         descripcion:
           'Estación por defecto. Las categorías sin estación específica se preparan aquí.',
         color: COCINA_GENERAL_COLOR,
         orden: 0,
-        activo: true,
-        es_general: true,
+        esGeneral: true,
       });
       invalidar();
       toast.success('Cocina general creada');
