@@ -153,20 +153,44 @@ export const contratos = [
     },
   },
   {
-    nombre: 'marcar_pagada_guarda_borrador',
+    nombre: 'marcar_pagada_guarda_estado_cobrable',
     ruta: CIERRE,
     porque:
       'Sin la guarda en el WHERE, dos cobros concurrentes de la misma orden se pisan y el segundo cobra otra vez.',
+    /**
+     * Este contrato se llamaba `marcar_pagada_guarda_borrador` y comprobaba
+     * `.where('estado', '=', 'borrador')`. En 922cc23 la guarda se amplió a
+     * `in ESTADOS_COBRABLES` para admitir el cobro parcial, y el contrato se
+     * quedó mirando una forma que ya no existía: `verify:venta` llevaba desde
+     * entonces cayéndose con «contratos rotos antes de mutar», así que las
+     * NUEVE mutaciones de venta no se ejercitaban.
+     *
+     * Ahora afirma sobre el invariante, no sobre la sintaxis: hay guarda, se
+     * comprueba el resultado, y el conjunto de estados cobrables no admite uno
+     * ya cerrado —que es la forma silenciosa de reabrir el cobro doble, porque
+     * la guarda seguiría estando ahí, de adorno—.
+     */
     comprobar() {
-      const c = cuerpo(leer(CIERRE), 'export async function marcarPagada', '): Promise<void>');
-      return (
-        c !== null &&
-        // La coma final opcional no es un capricho: partir la llamada en
-        // varias líneas es un cambio legítimo, y un contrato que lo castiga
-        // acaba desactivado por quien formatea el archivo.
-        /\.where\(\s*'estado'\s*,\s*'='\s*,\s*'borrador'\s*,?\s*\)/.test(c) &&
-        /numUpdatedRows\)\s*!==\s*1/.test(c)
-      );
+      const fuente = leer(CIERRE);
+      const c = cuerpo(fuente, 'export async function marcarPagada', '): Promise<void>');
+      if (c === null) return false;
+
+      // La coma final opcional no es un capricho: partir la llamada en varias
+      // líneas es un cambio legítimo, y un contrato que lo castiga acaba
+      // desactivado por quien formatea el archivo.
+      const hayGuarda = /\.where\(\s*'estado'\s*,\s*'in'\s*,\s*\[[^\]]*\]\s*,?\s*\)/.test(c);
+      // Filtrar sin mirar cuántas filas cambiaron es no filtrar: el segundo
+      // cobro no actualizaría nada y seguiría adelante como si hubiera cobrado.
+      const seComprueba = /numUpdatedRows\)\s*!==\s*1/.test(c);
+
+      const lista = /export const ESTADOS_COBRABLES\s*=\s*\[([\s\S]*?)\]\s*as const;/.exec(
+        fuente,
+      )?.[1];
+      const YA_CERRADOS = ['pagada', 'parcialmente_pagada', 'cancelada'];
+      const conjuntoLimpio =
+        lista !== undefined && !YA_CERRADOS.some((estado) => lista.includes(`'${estado}'`));
+
+      return hayGuarda && seComprueba && conjuntoLimpio;
     },
   },
   {
