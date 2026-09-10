@@ -28,16 +28,36 @@ export default function Barra() {
 
   const activos = pedidos.filter((p) => !['entregado', 'cancelado'].includes(p.estado));
 
+  /**
+   * ESTA PANTALLA NO TIENE RUTA y nadie la importa.
+   *
+   * Su propio `lib/constants.js` lo dice: «Barra deja de ser rol principal —
+   * ahora es una estación de la cocina». Cocina.jsx la cubre entera, filtrando
+   * por estación. Se cablea igualmente porque dejar en el árbol un archivo con
+   * una escritura que el puente rechaza es una trampa para quien venga después,
+   * y porque si algún día vuelve a tener ruta, funcionará.
+   *
+   * Las tres fechas —`fecha_inicio`, `fecha_listo`, `fecha_entregado`— salían
+   * del reloj del NAVEGADOR. Ahora las pone el servidor, con el suyo, dentro de
+   * la transacción de la transición, que además es monotónica: el toque que
+   * llega tarde pidiendo `en_preparacion` sobre una comanda ya lista se rechaza
+   * en vez de devolver el plato al fuego.
+   */
   const avanzar = async (pedido) => {
     const next = NEXT_ESTADO[pedido.estado];
     if (!next) return;
-    const update = { estado: next };
-    if (next === 'en_preparacion') update.fecha_inicio = new Date().toISOString();
-    if (next === 'listo') update.fecha_listo = new Date().toISOString();
-    if (next === 'entregado') update.fecha_entregado = new Date().toISOString();
-    await api.entidades.PedidoPreparacion.update(pedido.id, update);
-    queryClient.invalidateQueries({ queryKey: ['pedidos_barra'] });
-    toast.success(`Pedido marcado como ${next.replace('_', ' ')}`);
+    try {
+      await api.comandos.ejecutar('/api/restaurante/transicionar-pedido', {
+        comandaId: pedido.id,
+        estado: next,
+      });
+      queryClient.invalidateQueries({ queryKey: ['pedidos_barra'] });
+      toast.success(`Pedido marcado como ${next.replace('_', ' ')}`);
+    } catch (err) {
+      // «Esa comanda está en "listo" y ya no puede pasar a "en_preparacion"»:
+      // el dominio ya lo dice en español, y hay que enseñarlo.
+      toast.error(err?.message || 'No se pudo cambiar el estado del pedido.');
+    }
   };
 
   const byEstado = ESTADOS.reduce((acc, s) => {

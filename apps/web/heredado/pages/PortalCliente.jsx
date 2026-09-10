@@ -1,7 +1,7 @@
 'use client';
 import React, { useMemo, useState, useEffect } from 'react';
 import { useParams } from '@/enrutado';
-import { api } from '@/api/cliente';
+import { nuevaClave } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatCurrency } from '@/utils/financialUtils';
 import { Bell, Sparkles, CheckCircle2, AlertTriangle, Receipt } from 'lucide-react';
@@ -14,7 +14,12 @@ import AbrirMesaQRDialog from '@/components/portalqr/AbrirMesaQRDialog';
 import ProductoQRDialog from '@/components/portalqr/ProductoQRDialog';
 import CarritoQR from '@/components/portalqr/CarritoQR';
 import ValoracionEmoji from '@/components/portalqr/ValoracionEmoji';
-import { abrirMesaDesdeQR, enviarPedidoQR, findVentaActivaMesa } from '@/utils/qrPedidoFlow';
+import {
+  abrirMesaDesdeQR,
+  crearSolicitudQR,
+  enviarPedidoQR,
+  leerPortalPublico,
+} from '@/utils/qrPedidoFlow';
 import { getTiposSolicitudHabilitados, TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import ThemeToggle from '@/components/common/ThemeToggle';
@@ -34,16 +39,14 @@ export default function PortalClienteWithBoundary() {
   );
 }
 
-const SPAM_WINDOW_MS = 90 * 1000; // 90 seg entre solicitudes del mismo tipo
-
 function PortalCliente() {
   const { token } = useParams();
   const [tabSeccion, setTabSeccion] = useState('todas');
   const [enviado, setEnviado] = useState(null); // {tipo, time}
+  // Qué aviso descartó el comensal con «OK». Se guarda el id y no un booleano:
+  // con un booleano, tocar OK dejaba mudo también el SIGUIENTE aviso.
+  const [avisoDescartadoId, setAvisoDescartadoId] = useState(null);
   const [enviandoTipo, setEnviandoTipo] = useState(null);
-  const [lastSentMap, setLastSentMap] = useState({});
-  const [solicitudActivaId, setSolicitudActivaId] = useState(null);
-  const [solicitudAtendida, setSolicitudAtendida] = useState(false);
   // Vista "Pedir cuenta" con precuenta + propina (solo tipo='cuenta')
   const [showPedirCuenta, setShowPedirCuenta] = useState(false);
 
@@ -57,44 +60,60 @@ function PortalCliente() {
   const [showValoracion, setShowValoracion] = useState(false);
   const [valoracionVentaId, setValoracionVentaId] = useState(null);
 
-  // Cliente de queries para sincronizar updates locales tras abrir mesa.
+  // Claves de idempotencia por DIÁLOGO (F1-02 §8, trampa T5). Se generan al
+  // abrir y se reusan mientras el diálogo siga abierto: un doble toque en
+  // «Confirmar» con mala cobertura no abre dos mesas ni manda dos pedidos.
+  const [claveAbrirMesa, setClaveAbrirMesa] = useState(null);
+  const [claveEnviarPedido, setClaveEnviarPedido] = useState(() => nuevaClave());
+
+  // Cliente de queries para refrescar el portal tras cada comando.
   const queryClient = useQueryClient();
 
-  // Config pública
+  // === LA LECTURA PÚBLICA, ÚNICA — cierre de D-14 ===
+  // Aquí había CINCO consultas anónimas por el puente, y una era
+  // `ConfiguracionNegocio.list()` COMPLETA: entregaba `presentacion_password`
+  // en texto plano y los identificadores de Google a cualquiera que escaneara
+  // el código de una mesa. El endpoint público devuelve sólo la lista blanca y
+  // resuelve negocio, mesa, menú, secciones y cuenta en una sola petición.
+  //
+  // El sondeo se queda en 4 s por lo mismo de antes: si el mesero abre la mesa
+  // desde el salón, el teléfono tiene que verla abierta sin refrescar.
   const {
-    data: configs = [],
-    isLoading: loadingConfig,
-    isFetched: configFetched,
+    data: portal,
+    isLoading: cargandoPortal,
+    isFetched: portalFetched,
+    error: errorPortal,
   } = useQuery({
-    queryKey: ['config_publica_qr'],
-    queryFn: () => api.entidades.ConfiguracionNegocio.list(),
-    initialData: [],
-  });
-  const config = configs?.[0] || null;
-
-  // Mesa por token. HOTFIX 6A.3: refetchInterval bajo para que cambios hechos
-  // por mesero/cocina lleguen rápido al QR (mesero abre la mesa antes del
-  // cliente → QR debe verla abierta en ≤3s sin refrescar).
-  const {
-    data: mesas = [],
-    isLoading: loadingMesa,
-    isFetched: mesaFetched,
-  } = useQuery({
-    queryKey: ['mesa_por_token', token],
-    queryFn: () => api.entidades.Mesa.filter({ qr_token: token }),
-    initialData: [],
+    queryKey: ['portal_publico', token],
+    queryFn: () => leerPortalPublico(token),
     enabled: !!token,
     refetchInterval: 4000,
     staleTime: 2000,
   });
-  const mesa = mesas?.[0] || null;
 
-  // Hasta que NO termine el primer fetch de config y mesa, no decidimos
-  // si el portal está disponible (antes parpadeaba "Portal no disponible").
-  const cargando = loadingConfig || loadingMesa || !configFetched || (!!token && !mesaFetched);
+  const config = portal?.negocio || null;
+  const mesa = portal?.mesa || null;
+  const productos = useMemo(() => portal?.productos || [], [portal]);
+  const categorias = useMemo(() => portal?.categorias || [], [portal]);
+  const secciones = useMemo(() => portal?.secciones || [], [portal]);
+  // La venta viva de ESTA mesa, resuelta por el token, CON sus líneas dentro.
+  // Ya no se consulta una lista de ventas desde el navegador para quedarse con
+  // la más reciente, ni se sondea `DetalleVenta` aparte —que era lo que dejaba
+  // «Mi consumo» vacío unos segundos con el total ya pintado.
+  const ventaActivaMesa = portal?.cuenta || null;
+  // El aviso de ESTA mesa, con su estado ya decidido en el servidor. Antes se
+  // sondeaba con `SolicitudQR.get` cada 4 s desde el navegador —una lectura sin
+  // sesión, que siempre fallaba— y sólo se daba por cerrada si estaba `atendida`
+  // o `resuelta`: si el administrador la CANCELABA, el comensal esperaba para
+  // siempre. `cerrada` cubre los tres finales.
+  const solicitudEnCurso = portal?.solicitud || null;
+  const solicitudAtendida = solicitudEnCurso?.estado === 'atendida';
+
+  // Hasta que NO termine el primer fetch no decidimos nada: antes parpadeaba
+  // "Portal no disponible" mientras cargaban las cinco consultas.
+  const cargando = cargandoPortal || (!!token && !portalFetched);
 
   const modoMenu = config?.portal_qr_modo_menu || 'productos_pos';
-  const portalActivo = config?.portal_qr_activo === true;
   // FLUJO PRINCIPAL: el mesero dispara la cuenta y el QR muestra propina en vivo.
   // 'mesero_dispara' (default): el cliente NO ve botón "Pedir cuenta" en el FAB.
   // 'cliente_solicita': el cliente sí puede pedir cuenta desde el QR.
@@ -111,40 +130,12 @@ function PortalCliente() {
     return getTiposSolicitudHabilitados(config) || [];
   }, [config]);
 
-  // Productos visibles
-  // HOTFIX 6A.2: usar isFetched para distinguir "todavía cargando" de "ya cargó y está vacío".
-  // Removemos initialData:[] porque generaba el flash "sin productos" antes del primer fetch.
-  const productosQueryEnabled =
-    portalActivo && !!mesa && (modoMenu === 'productos_pos' || modoMenu === 'mixto');
-  const {
-    data: productos = [],
-    isFetched: productosFetched,
-    isLoading: productosLoading,
-  } = useQuery({
-    queryKey: ['productos_menu_qr'],
-    queryFn: () =>
-      api.entidades.ProductoTerminado.filter({ activo: true, visible_en_menu_digital: true }),
-    enabled: productosQueryEnabled,
-  });
-  const { data: categorias = [] } = useQuery({
-    queryKey: ['categorias_menu_qr'],
-    // FIX: filtrar activo:true para que categorías eliminadas no sigan apareciendo
-    // como pills en el Portal QR del cliente.
-    queryFn: () => api.entidades.CategoriaProducto.filter({ activo: true }, 'orden'),
-    initialData: [],
-    enabled: productosQueryEnabled,
-  });
-  // Solo consideramos "productos listos para mostrar vacío" cuando la query
-  // está habilitada Y ya terminó el primer fetch.
-  const productosListos = !productosQueryEnabled || (productosFetched && !productosLoading);
-
-  // Secciones de menú subido
-  const { data: secciones = [] } = useQuery({
-    queryKey: ['menu_qr_secciones_publico'],
-    queryFn: () => api.entidades.MenuQRSeccion.filter({ activo: true }),
-    initialData: [],
-    enabled: portalActivo && !!mesa && (modoMenu === 'menu_subido' || modoMenu === 'mixto'),
-  });
+  // El menú llega ya filtrado por el servidor: `activo`,
+  // `visible_en_menu_digital` y, cuando el negocio apaga los precios, SIN
+  // precio. Y llega en la misma respuesta que la mesa, así que «productos
+  // listos» es simplemente «el portal ya cargó»: el flash de «sin productos»
+  // que obligaba a mirar `isFetched` de tres queries distintas ya no existe.
+  const productosListos = portalFetched;
 
   const productosFiltrados = useMemo(() => {
     const arr = Array.isArray(productos) ? productos : [];
@@ -169,113 +160,22 @@ function PortalCliente() {
     return () => clearTimeout(t);
   }, [enviado]);
 
-  // Polling: si tenemos una solicitudActivaId y aún no fue atendida, revisar cada 4s.
-  useEffect(() => {
-    if (!solicitudActivaId || solicitudAtendida) return;
-    let cancel = false;
-    const interval = setInterval(async () => {
-      try {
-        const s = await api.entidades.SolicitudQR.get(solicitudActivaId).catch(() => null);
-        if (cancel) return;
-        if (s && (s.estado === 'atendida' || s.estado === 'resuelta')) {
-          setSolicitudAtendida(true);
-        }
-      } catch {}
-    }, 4000);
-    return () => {
-      cancel = true;
-      clearInterval(interval);
-    };
-  }, [solicitudActivaId, solicitudAtendida]);
-
-  // === POLLING DE VENTA: detecta cuando el mesero solicita la cuenta ===
-  // Cada 4 segundos consulta la venta activa de la mesa. Mantiene en estado
-  // la última venta vista (para mostrar tarjeta persistente y permitir
-  // reabrir PedirCuentaQR aunque el cliente cierre el modal).
-  // - Auto-abre PedirCuentaQR UNA SOLA VEZ por venta.id (no en loop).
-  // - Si el cliente cierra, queda visible una tarjeta para reabrirlo.
+  // Auto-abre PedirCuentaQR UNA SOLA VEZ por venta cuando el mesero disparó la
+  // cuenta y delegó la propina al teléfono. Ya no hace falta sondear la venta
+  // aparte: viene en la lectura pública, con su `propina_tipo` y su
+  // `propina_origen`.
   const [autoOpenedVentaId, setAutoOpenedVentaId] = useState(null);
-  const [ventaActivaMesa, setVentaActivaMesa] = useState(null);
-  // HOTFIX 6A.2: indica si ya hicimos el primer chequeo de venta activa.
-  // Antes de esto, NO debemos decidir "mesa libre" (causaba que QR pidiera
-  // abrir mesa aunque ya estuviera abierta desde Mesero).
-  const [ventaCheckDone, setVentaCheckDone] = useState(false);
   useEffect(() => {
-    if (!portalActivo || !mesa?.id) return;
-    let cancel = false;
-    const checkVenta = async () => {
-      try {
-        const estadosActivos = [
-          'abierta',
-          'enviada',
-          'en_preparacion',
-          'lista',
-          'cuenta_solicitada',
-        ];
-        const ventas = await api.entidades.Venta.filter({ mesa_id: mesa.id }).catch(() => []);
-        const safe = Array.isArray(ventas) ? ventas : [];
-        const v =
-          safe
-            .filter((x) => x && estadosActivos.includes(x.estado))
-            .sort(
-              (a, b) =>
-                new Date(b?.fecha_apertura || b?.created_date || 0) -
-                new Date(a?.fecha_apertura || a?.created_date || 0),
-            )[0] || null;
-        if (cancel) return;
-        setVentaActivaMesa(v || null);
-        // Marcar primer chequeo completado SIEMPRE (haya o no venta).
-        setVentaCheckDone(true);
-        if (!v) return;
-        // ¿El mesero solicitó cuenta y delegó la propina al QR?
-        const esperandoCliente =
-          v.estado === 'cuenta_solicitada' &&
-          (v.propina_tipo === 'pendiente_cliente' || v.propina_origen === 'pendiente_portal_qr');
-        if (esperandoCliente && autoOpenedVentaId !== v.id && !showPedirCuenta) {
-          setAutoOpenedVentaId(v.id);
-          setShowPedirCuenta(true);
-        }
-      } catch {}
-    };
-    // Primer chequeo inmediato + intervalo cada 2.5s para detección rápida.
-    checkVenta();
-    const interval = setInterval(checkVenta, 2500);
-    return () => {
-      cancel = true;
-      clearInterval(interval);
-    };
-  }, [portalActivo, mesa?.id, autoOpenedVentaId, showPedirCuenta]);
-
-  // HOTFIX 6A.3 — Cargar DetalleVenta de la venta activa en vivo y pasarlos
-  // como hint a PedirCuentaQR. Sin esto, el QR mostraba "total $150" pero
-  // la lista de "Mi consumo" vacía por unos segundos. Ahora cuando el cliente
-  // abre la cuenta, ya tiene los productos listos sin esperar a la query interna.
-  const [detallesActivosMesa, setDetallesActivosMesa] = useState([]);
-  useEffect(() => {
-    if (!ventaActivaMesa?.id) {
-      setDetallesActivosMesa([]);
-      return;
-    }
-    let cancel = false;
-    const load = async () => {
-      try {
-        const det = await api.entidades.DetalleVenta.filter({ venta_id: ventaActivaMesa.id }).catch(
-          () => [],
-        );
-        if (cancel) return;
-        setDetallesActivosMesa(Array.isArray(det) ? det : []);
-      } catch (e) {
-        if (!cancel) console.warn('[PortalCliente] cargar detalles activos:', e);
-      }
-    };
-    load();
-    // Refrescar cada 3s mientras haya venta activa (el cliente pidió/agregó).
-    const interval = setInterval(load, 3000);
-    return () => {
-      cancel = true;
-      clearInterval(interval);
-    };
-  }, [ventaActivaMesa?.id]);
+    if (!ventaActivaMesa?.id || showPedirCuenta) return;
+    if (autoOpenedVentaId === ventaActivaMesa.id) return;
+    const esperandoCliente =
+      ventaActivaMesa.estado === 'cuenta_solicitada' &&
+      (ventaActivaMesa.propina_tipo === 'pendiente_cliente' ||
+        ventaActivaMesa.propina_origen === 'pendiente_portal_qr');
+    if (!esperandoCliente) return;
+    setAutoOpenedVentaId(ventaActivaMesa.id);
+    setShowPedirCuenta(true);
+  }, [ventaActivaMesa, autoOpenedVentaId, showPedirCuenta]);
 
   // Tarjeta persistente "Tu cuenta fue solicitada" — visible cuando el mesero
   // disparó la cuenta y el cliente todavía no ha elegido propina (o la cerró).
@@ -292,50 +192,36 @@ function PortalCliente() {
   const cuentaDecideEnCaja = yaEligioCliente && ventaActivaMesa?.propina_tipo === 'decidir_en_caja';
 
   // === Flags para Pedido QR (Prompt 6C) ===
-  // Solo si el paquete es Restaurante Pro, asignación de mesas activa, portal activo
-  // y el switch "Permitir pedidos desde Portal QR" está encendido.
-  const pedidosQRActivos =
-    (config?.paquete_modo || 'restaurante_pro') === 'restaurante_pro' &&
-    config?.asignacion_mesas_activa === true &&
-    portalActivo &&
-    config?.portal_qr_permitir_pedidos_cliente === true;
+  // Las cuatro condiciones —paquete, asignación de mesas, portal activo y el
+  // switch «permitir pedidos»— las resuelve el servidor y llegan como
+  // `puede_ordenar`. `paquete_modo` ya no viaja: publicaba el plan comercial
+  // contratado a cualquiera que escaneara.
+  const pedidosQRActivos = config?.puede_ordenar === true;
 
-  const tieneMeseroAsignado = !!mesa?.mesero_asignado_id;
-  // HOTFIX 6A.3: "mesa ya abierta" se detecta por MÚLTIPLES señales para
-  // que el QR no vuelva a pedir abrir mesa después de abrirla:
-  //   1. ventaActivaMesa (polling)
-  //   2. mesa.venta_activa_id (estado de la mesa según BD)
-  //   3. mesa.estado !== 'libre'
-  // Si CUALQUIERA indica que hay mesa abierta, NO se debe pedir abrir.
-  const mesaYaAbierta =
-    !!ventaActivaMesa || !!mesa?.venta_activa_id || (mesa?.estado && mesa.estado !== 'libre');
-  // Solo declaramos "mesa libre" cuando YA terminó el primer chequeo de venta
-  // activa Y todas las señales coinciden en que no hay venta.
-  const mesaLibreParaAbrir =
-    ventaCheckDone && !mesaYaAbierta && pedidosQRActivos && tieneMeseroAsignado;
-  const cuentaYaSolicitada =
-    !!ventaActivaMesa &&
-    (ventaActivaMesa.estado === 'cuenta_solicitada' ||
-      ventaActivaMesa.estado === 'pagada' ||
-      ventaActivaMesa.estado === 'cancelada');
-  const mesaPermitePedirAhora =
-    !!ventaActivaMesa && !cuentaYaSolicitada && tieneMeseroAsignado && pedidosQRActivos;
+  const tieneMeseroAsignado = mesa?.tiene_mesero === true;
+  // "Mesa ya abierta" se miraba por TRES señales porque el navegador no podía
+  // fiarse de ninguna: la venta del sondeo, el puntero de la mesa y su estado,
+  // cada una de una consulta distinta y llegando en momentos distintos. Ahora
+  // las tres se leen en la misma consulta del servidor y la respuesta es un
+  // booleano, así que el latch anti-parpadeo deja de hacer falta.
+  const mesaLibreParaAbrir = mesa?.puede_abrir === true;
+  // Sólo `cuenta_solicitada` puede verse aquí: una venta pagada o cancelada no
+  // es la venta activa de la mesa y el endpoint público ya no la devuelve.
+  const cuentaYaSolicitada = ventaActivaMesa?.estado === 'cuenta_solicitada';
+  const mesaPermitePedirAhora = mesa?.puede_pedir === true;
 
   // === HANDLERS PEDIDO QR ===
   const handleClickProducto = (producto) => {
     if (!pedidosQRActivos) return;
-    // HOTFIX 6A.2: si aún no terminó el primer chequeo de venta, esperar.
-    // Evita que el dialog "Abrir mesa" salga falsamente sobre una mesa ya abierta.
-    if (!ventaCheckDone) {
-      toast.info('Cargando estado de la mesa…');
-      return;
-    }
+    // El «espera, aún no sé si la mesa está abierta» desaparece: la pantalla no
+    // se pinta hasta que la lectura pública responde, y esa respuesta ya trae
+    // decidido si se puede abrir o pedir.
     if (cuentaYaSolicitada) {
       toast.info('La cuenta ya fue solicitada. Llama al mesero si necesitas algo más.');
       return;
     }
     if (mesaLibreParaAbrir) {
-      setShowAbrirMesaQR(true);
+      abrirDialogoMesa();
       return;
     }
     if (!mesaPermitePedirAhora) {
@@ -363,9 +249,11 @@ function PortalCliente() {
         _uid,
         id: producto.id,
         nombre: producto.nombre || '',
+        // Sólo para pintar el carrito. Lo que se cobra lo decide el catálogo
+        // dentro del comando: `precio_venta` NO viaja al servidor (D-17).
+        // El costo y el área de preparación tampoco están aquí — el costo es
+        // del negocio y el ruteo a cocina lo resuelve `portal.enviar_pedido`.
         precio_venta: precioEfectivo,
-        costo_calculado_actual: Number(producto.costo_calculado_actual) || 0,
-        area_preparacion: producto.area_preparacion || 'cocina',
         cantidad: Math.max(1, parseInt(cantidad, 10) || 1),
         notas: (notas || '').trim(),
         _modificadores: Array.isArray(modificadores) ? modificadores : [],
@@ -388,66 +276,39 @@ function PortalCliente() {
     setCarrito((prev) => prev.filter((i) => i._uid !== uid));
   };
 
+  const abrirDialogoMesa = () => {
+    setClaveAbrirMesa(nuevaClave());
+    setShowAbrirMesaQR(true);
+  };
+
   const handleConfirmarAbrirMesa = async (datos) => {
     if (!mesa?.id) return;
     setAbriendoMesa(true);
     try {
-      // HOTFIX 6A.2: el dialog QR captura alergia/celebración. Hay que
-      // propagar TODOS los campos a abrirMesaDesdeQR para que se guarden
-      // en Mesa + Venta (snapshot). De lo contrario, Mesero/Cocina no las verán.
-      const { venta } = await abrirMesaDesdeQR({
-        mesa,
+      // El diálogo captura alergia y celebración: viajan al comando para que
+      // queden en la mesa Y en la venta, que es lo que ven mesero y cocina.
+      await abrirMesaDesdeQR({
+        token,
         personas: datos?.personas,
         cliente_nombre: datos?.cliente_nombre,
         notas: datos?.notas,
         notas_alergias: datos?.notas_alergias,
         celebracion_especial: datos?.celebracion_especial,
         tipo_celebracion: datos?.tipo_celebracion,
+        clave: claveAbrirMesa,
       });
 
-      // HOTFIX 6A.3 — ACTUALIZACIÓN LOCAL INMEDIATA tras abrir mesa.
-      // Sin esto, el QR esperaba al siguiente polling (hasta 3s) y mientras
-      // tanto pensaba que la mesa seguía "libre", volviendo a pedir abrir.
-      //
-      // 1) Marcar venta activa local.
-      setVentaActivaMesa(venta || null);
-      // 2) Marcar primer chequeo como completo (por si aún no había corrido).
-      setVentaCheckDone(true);
-      // 3) Inyectar el patch de la mesa en el cache de la query 'mesa_por_token'
-      //    para que mesa.estado y mesa.venta_activa_id se actualicen al instante.
-      const personasNum = Math.max(1, parseInt(datos?.personas, 10) || 1);
-      const clienteClean = (datos?.cliente_nombre || '').trim();
-      const alergiasClean = (datos?.notas_alergias || '').trim();
-      const celeb = !!datos?.celebracion_especial;
-      const tipoCele = celeb ? (datos?.tipo_celebracion || '').trim() : '';
-      try {
-        queryClient.setQueryData(['mesa_por_token', token], (prev) => {
-          const arr = Array.isArray(prev) ? prev : [];
-          if (arr.length === 0) return prev;
-          return arr.map((m) => {
-            if (m?.id !== mesa.id) return m;
-            return {
-              ...m,
-              estado: m.estado === 'libre' ? 'esperando_orden' : m.estado,
-              venta_activa_id: venta?.id || m.venta_activa_id,
-              personas_actuales: personasNum,
-              cliente_temporal: clienteClean,
-              notas_alergias: alergiasClean,
-              celebracion_especial: celeb,
-              tipo_celebracion: tipoCele,
-            };
-          });
-        });
-        // 4) Disparar refetch para sincronizar con BD en el próximo tick.
-        queryClient.invalidateQueries({ queryKey: ['mesa_por_token', token] });
-      } catch (e) {
-        console.warn('[PortalCliente] sync mesa local:', e);
-      }
+      // Aquí había un parche optimista que reescribía la mesa en la caché con
+      // lo que el navegador SUPONÍA que había quedado en la base. Sobraba y
+      // mentía: la mesa y la venta se abren en una sola transacción, así que
+      // basta con volver a leer. Si el comando no responde OK, no se pinta nada.
+      queryClient.invalidateQueries({ queryKey: ['portal_publico', token] });
 
       setShowAbrirMesaQR(false);
       toast.success(`¡Mesa ${mesa.numero || ''} abierta! Ahora puedes agregar productos.`);
     } catch (err) {
-      console.error('[PortalCliente] abrir mesa QR:', err);
+      // El mensaje viene traducido por el dominio («Esta mesa acaba de
+      // abrirse…», «Esta mesa todavía no tiene mesero asignado…»).
       toast.error(err?.message || 'No pudimos abrir la mesa. Intenta de nuevo.');
     } finally {
       setAbriendoMesa(false);
@@ -466,43 +327,23 @@ function PortalCliente() {
     }
     setEnviandoPedido(true);
     try {
-      // Re-validar venta activa antes de enviar
-      let ventaParaPedido = ventaActivaMesa;
-      if (!ventaParaPedido) {
-        ventaParaPedido = await findVentaActivaMesa(mesa.id);
-      }
-      if (!ventaParaPedido) {
-        toast.error('La mesa ya no tiene venta activa. Pide al mesero que te ayude.');
-        return;
-      }
-      if (['cuenta_solicitada', 'pagada', 'cancelada'].includes(ventaParaPedido.estado)) {
-        toast.info('La cuenta ya fue solicitada. Llama al mesero si necesitas algo más.');
-        return;
-      }
+      // La re-validación de la venta activa se fue con el comando: buscarla
+      // aquí era leer, decidir y escribir en tres momentos distintos, y entre
+      // ellos cabía el mesero cerrando la cuenta. `portal.enviar_pedido` la
+      // resuelve dentro de su transacción y devuelve el motivo en español.
       await enviarPedidoQR({
-        mesa,
-        venta: ventaParaPedido,
+        token,
         items: carrito,
         notaGeneral: notaGeneralCarrito,
+        clave: claveEnviarPedido,
       });
       setCarrito([]);
       setNotaGeneralCarrito('');
-      // BLOQUE 0 — Invalidar lo que necesita ver el pedido en vivo:
-      // Cocina (pedidos_cocina), Mesero (pedidos_listos_watcher), Mesas, Caja
-      // (ventas_pendientes_caja por si la venta sumó productos) y el propio
-      // QR (mesa_por_token y los detalles activos).
-      try {
-        queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
-        queryClient.invalidateQueries({ queryKey: ['pedidos_listos_watcher'] });
-        queryClient.invalidateQueries({ queryKey: ['mesas'] });
-        queryClient.invalidateQueries({ queryKey: ['ventas_pendientes_caja'] });
-        queryClient.invalidateQueries({ queryKey: ['mesa_por_token', token] });
-      } catch (e) {
-        console.warn('[PortalCliente] invalidar tras enviar pedido:', e);
-      }
+      // Pedido enviado: el siguiente es OTRO pedido y necesita su propia clave.
+      setClaveEnviarPedido(nuevaClave());
+      queryClient.invalidateQueries({ queryKey: ['portal_publico', token] });
       toast.success('¡Pedido enviado a cocina!');
     } catch (err) {
-      console.error('[PortalCliente] enviar pedido QR:', err);
       toast.error(err?.message || 'No pudimos enviar tu pedido. Intenta de nuevo.');
     } finally {
       setEnviandoPedido(false);
@@ -517,21 +358,37 @@ function PortalCliente() {
   if (cargando) {
     return <ScreenLoading />;
   }
-  if (!mesa) {
-    return <ScreenError titulo="Mesa no encontrada" texto="Llama a un mesero para que te ayude." />;
-  }
-  if (!portalActivo) {
+  // El servidor distingue UNA sola cosa: el portal apagado —que no filtra nada,
+  // quien escanea ya está sentado en el local— del código que no vale. Mesa
+  // inexistente, de otro negocio, dada de baja o con el QR apagado responden lo
+  // mismo, y a propósito: distinguirlas dejaría enumerar mesas ajenas probando
+  // tokens. Un fallo de red NO se pinta como «mesa no encontrada»: eso es
+  // exactamente confundir «no hay datos» con «no pude leer». Y sólo se pinta
+  // cuando NO hay nada que enseñar: un sondeo que falla con el menú ya cargado
+  // no puede borrarle la carta al comensal de la mano.
+  if (errorPortal && !portal) {
+    if (errorPortal.codigo === 'QR_PORTAL_CERRADO') {
+      return (
+        <ScreenError
+          titulo="Portal no disponible"
+          texto="El menú digital está temporalmente desactivado. Llama a un mesero."
+        />
+      );
+    }
+    if (errorPortal.codigo === 'QR_TOKEN_INVALIDO') {
+      return (
+        <ScreenError titulo="Mesa no encontrada" texto="Llama a un mesero para que te ayude." />
+      );
+    }
     return (
       <ScreenError
-        titulo="Portal no disponible"
-        texto="El menú digital está temporalmente desactivado. Llama a un mesero."
+        titulo="No se pudo cargar el menú."
+        texto="Por favor, llama a un mesero para que te ayude."
       />
     );
   }
-  if (mesa && mesa.qr_activo === false) {
-    return (
-      <ScreenError titulo="QR de esta mesa inactivo" texto="Llama a un mesero para que te ayude." />
-    );
+  if (!mesa) {
+    return <ScreenError titulo="Mesa no encontrada" texto="Llama a un mesero para que te ayude." />;
   }
 
   const enviarSolicitud = async (tipo) => {
@@ -548,58 +405,28 @@ function PortalCliente() {
         return;
       }
       // Modo mesero_dispara: caer al flujo de aviso normal (no abrir propina).
-      // El polling de venta abrirá PedirCuentaQR cuando el mesero confirme.
+      // Cuando el mesero confirme, la lectura pública traerá la venta con
+      // `pendiente_portal_qr` y PedirCuentaQR se abrirá solo.
       // (continúa abajo con el flujo estándar de SolicitudQR)
     }
 
-    const ahora = Date.now();
-
     setEnviandoTipo(tipo);
     try {
-      // Bloquear SOLO si existe una solicitud ACTIVA (pendiente) del mismo tipo.
-      // Si la última quedó atendida/resuelta/cancelada, permitir nueva normalmente.
-      // La fuente de verdad es la BD, no el lastSentMap local.
-      const pendientes = await api.entidades.SolicitudQR.filter({
-        mesa_id: mesa.id,
-        tipo,
-        estado: 'pendiente',
-      }).catch(() => []);
-      if (Array.isArray(pendientes) && pendientes.length > 0) {
-        toast.info('Tu solicitud ya fue enviada. Un mesero la atenderá pronto.');
-        return;
-      }
-      // Ruteo:
-      // Si asignacion_mesas_activa y la mesa tiene mesero_asignado_id, se setea destino.
-      // Si no, queda como "general" (cualquier mesero la verá).
-      const asign = config?.asignacion_mesas_activa === true;
-      const tieneAsignado = !!mesa.mesero_asignado_id;
-      const ruteo = asign && tieneAsignado ? 'asignado' : 'general';
-      const creada = await api.entidades.SolicitudQR.create({
-        mesa_id: mesa.id,
-        mesa_nombre: mesa.nombre || '',
-        mesa_numero: mesa.numero || 0,
-        tipo,
-        estado: 'pendiente',
-        fecha_creacion: new Date().toISOString(),
-        origen: 'portal_qr',
-        token_mesa: mesa.qr_token || token,
-        mesero_destino_id: ruteo === 'asignado' ? mesa.mesero_asignado_id : '',
-        mesero_destino_nombre: ruteo === 'asignado' ? mesa.mesero_asignado_nombre || '' : '',
-        ruteo_modo: ruteo,
-      });
-      setLastSentMap((prev) => ({ ...prev, [tipo]: ahora }));
+      // El anti-duplicado dejó de vivir aquí. Consultar «¿hay una pendiente?» y
+      // luego crear son dos momentos, y entre ellos cabe otro teléfono de la
+      // misma mesa haciendo lo mismo: dos avisos idénticos en la pantalla del
+      // mesero. Ahora lo impide el índice único parcial
+      // `solicitudes_qr_una_pendiente` y el comando responde «Ya avisamos al
+      // mesero. Llegará en un momento.». El ruteo al mesero asignado también se
+      // decide en el servidor: el navegador ya no elige a quién le llega.
+      await crearSolicitudQR({ token, tipo });
       setEnviado({ tipo });
-      if (creada?.id) {
-        setSolicitudActivaId(creada.id);
-        setSolicitudAtendida(false);
-      }
       // Mensaje específico si el cliente tocó "Pedir cuenta" en modo mesero_dispara.
       if (tipo === 'cuenta' && !clientePuedeIniciarCuenta) {
         toast.info('Avisamos al mesero. La cuenta se activará cuando el mesero la confirme.');
       }
     } catch (err) {
-      console.error('[PortalCliente] enviarSolicitud:', err);
-      toast.error('No pudimos enviar tu solicitud. Intenta de nuevo.');
+      toast.error(err?.message || 'No pudimos enviar tu solicitud. Intenta de nuevo.');
     } finally {
       setEnviandoTipo(null);
     }
@@ -611,15 +438,13 @@ function PortalCliente() {
   const usarSecciones = modoMenu === 'menu_subido' || modoMenu === 'mixto';
 
   // Logo del negocio para marca de agua + header.
-  // Campos REALES de ConfiguracionNegocio (verificados en el schema):
+  // La lista blanca del portal sólo publica dos de los cuatro logos:
   //   logo_url            → logo principal (sidebar, login, fallback general)
-  //   logo_ticket_url     → logo de tickets térmicos
-  //   logo_pdf_url        → logo de PDFs / cortes
   //   background_logo_url → logo de marca de agua (configurado en IdentidadNegocio)
-  // Prioridad: usamos el logo principal y, si está vacío, el de tickets / PDF /
-  // background. Helper inline para mantener el componente autosuficiente.
-  const getBrandLogo = (cfg) =>
-    cfg?.logo_url || cfg?.logo_ticket_url || cfg?.logo_pdf_url || cfg?.background_logo_url || '';
+  // Los de ticket y PDF son de la operación interna y no salen al público, así
+  // que el orden de preferencia se queda sin dos escalones que aquí nunca
+  // llegaban a usarse.
+  const getBrandLogo = (cfg) => cfg?.logo_url || cfg?.background_logo_url || '';
   const brandLogo = getBrandLogo(config);
 
   // Ocultar imagen rota si la URL deja de existir / falla CORS.
@@ -775,13 +600,15 @@ function PortalCliente() {
       {(() => {
         const asign = config?.asignacion_mesas_activa === true;
         if (!asign) return null; // oculto si no hay asignación
-        const tieneMesero = !!mesa?.mesero_asignado_id;
+        // `tiene_mesero` es un booleano: quién atiende la mesa es dato de la
+        // operación y no sale al público. Lo que el portal necesita saber es si
+        // hay alguien a quien avisar, no a quién le toca.
         return (
           <AtencionFAB
             tiposHabilitados={tiposHabilitados}
             onPedir={enviarSolicitud}
             disabled={!!enviandoTipo}
-            bloqueado={!tieneMesero}
+            bloqueado={!tieneMeseroAsignado}
             mensajeBloqueado="Esta mesa aún no tiene un mesero asignado. Por favor, acércate a un mesero del salón."
           />
         );
@@ -824,7 +651,7 @@ function PortalCliente() {
 
       {/* Confirmación: solicitud atendida por el mesero */}
       <AnimatePresence>
-        {solicitudAtendida && (
+        {solicitudAtendida && avisoDescartadoId !== solicitudEnCurso?.id && (
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -838,10 +665,7 @@ function PortalCliente() {
                 <p className="text-xs opacity-90">Pasará a tu mesa en breve.</p>
               </div>
               <button
-                onClick={() => {
-                  setSolicitudAtendida(false);
-                  setSolicitudActivaId(null);
-                }}
+                onClick={() => setAvisoDescartadoId(solicitudEnCurso?.id || null)}
                 className="text-white/80 hover:text-white text-xs underline"
               >
                 OK
@@ -855,10 +679,10 @@ function PortalCliente() {
       <AnimatePresence>
         {showPedirCuenta && mesa && (
           <PedirCuentaQR
+            token={token}
             mesa={mesa}
             config={config}
-            ventaHint={ventaActivaMesa}
-            detallesHint={detallesActivosMesa}
+            cuenta={ventaActivaMesa}
             onClose={() => {
               setShowPedirCuenta(false);
               // Tras cerrar (post-confirmación): si la venta tiene venta_id real
@@ -919,8 +743,10 @@ function PortalCliente() {
       <AnimatePresence>
         {showValoracion && valoracionVentaId && (
           <ValoracionEmoji
+            token={token}
             ventaId={valoracionVentaId}
             mesa={mesa}
+            yaValorada={ventaActivaMesa?.ya_valorada === true}
             onClose={() => setShowValoracion(false)}
           />
         )}

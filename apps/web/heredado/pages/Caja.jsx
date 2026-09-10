@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useMemo } from 'react';
-import { api } from '@/api/cliente';
+import React, { useState, useMemo, useEffect } from 'react';
+import { api, nuevaClave } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
@@ -45,12 +45,11 @@ import { obtenerMesasPendientesCierre } from '@/utils/mesasPendientesCierre';
 import { useCajaAbierta } from '@/lib/useCajaAbierta';
 import { tipsEnabled, getPorcentajesSugeridos } from '@/utils/tipsUtils';
 import { sumarSubtotalDetalles } from '@/utils/ventaTotales';
-import {
-  TIPO_VENTA,
-  calcularCantidadBaseConsumo,
-  calcularCostoVariable,
-} from '@/utils/tipoVentaUtils';
-import { validarStockParaCobro, mensajeFaltanteStock } from '@/utils/inventarioValidation';
+import { TIPO_VENTA } from '@/utils/tipoVentaUtils';
+// El cobro entero es una transacción del servidor (`venta.cobrar`), así que el
+// costeo por línea variable y la validación de stock del navegador ya no se
+// usan aquí: los hace el comando, sobre las líneas que está congelando.
+import { aCentavos, aPesos } from '@/components/caja/dinero';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import NumericInput from '@/components/common/NumericInput';
@@ -93,6 +92,50 @@ const METODOS = [
   },
 ];
 
+/**
+ * Los valores que `venta.cobrar` acepta como metadato de la propina.
+ *
+ * Son los seis del `check propina_tipo` y los cinco del `check propina_origen`.
+ * Se filtra contra estas listas antes de mandar: una venta vieja con un valor
+ * fuera del `check` haría fallar el cobro ENTERO con ENTRADA_INVALIDA, y lo que
+ * está en juego es el cobro, no la etiqueta de cómo se decidió la propina.
+ */
+const TIPOS_DE_PROPINA = [
+  'sin_propina',
+  'porcentaje',
+  'monto_manual',
+  'pendiente',
+  'pendiente_cliente',
+  'decidir_en_caja',
+];
+const ORIGENES_DE_PROPINA = ['mesero', 'caja', 'tradicional', 'portal_qr', 'pendiente_portal_qr'];
+
+/**
+ * La propina que el comensal YA decidió, en pesos.
+ *
+ * `ordenes` no tiene columna con el importe de la propina, y es a propósito: es
+ * lo que impide que `total` se pueda inflar con una (F1-04 §6.1). Así que el
+ * puente no puede traer `propina_monto` y llega `undefined`. Lo que sí persiste
+ * es el PORCENTAJE que el comensal eligió en el portal QR o que el mesero
+ * registró al pedir la cuenta (`ordenes.propina_puntos_base`).
+ *
+ * El importe se deriva de ese porcentaje AL COBRAR, que es cuando se conoce el
+ * total definitivo. Sin esta derivación la propina del mesero se perdía entera
+ * y en silencio: la caja enseñaba «sin propina» sobre una cuenta que el cliente
+ * había dejado al 15 %, y el pago viajaba con propina cero.
+ *
+ * Se redondea en CENTAVOS y una sola vez: `total * 0.15` en coma flotante deja
+ * medios centavos, y el renglón de pago sólo acepta enteros.
+ */
+function propinaDerivada(venta) {
+  const yaElegida = Number(venta?.propina_monto);
+  if (Number.isFinite(yaElegida) && yaElegida > 0) return yaElegida;
+  if (venta?.propina_tipo !== 'porcentaje') return 0;
+  const porcentaje = Number(venta?.propina_porcentaje) || 0;
+  if (porcentaje <= 0) return 0;
+  return aPesos(Math.round((aCentavos(venta?.total) * porcentaje) / 100));
+}
+
 export default function Caja() {
   const { posUser } = usePOSAuth();
   const { config, paquete_modo } = useConfig();
@@ -133,6 +176,17 @@ export default function Caja() {
 
   // Caja abierta global (fuente única de verdad)
   const { cajaAbierta, hayCaja, fondoEsperado } = useCajaAbierta();
+
+  // Clave de idempotencia del cobro: se genera al ABRIR el diálogo de cobro y
+  // se reusa mientras siga abierto (F1-02 §8, trampa T5). Es lo que impide que
+  // un doble clic en «Cobrar» —o un reintento de red— cobre dos veces y
+  // descuente el inventario dos veces. Al cerrar el diálogo se descarta, para
+  // que el siguiente cobro no herede la clave del anterior.
+  const [claveCobro, setClaveCobro] = useState(null);
+  const ventaEnCobroId = ventaSeleccionada?.id || null;
+  useEffect(() => {
+    setClaveCobro(ventaEnCobroId === null ? null : nuevaClave());
+  }, [ventaEnCobroId]);
 
   // BLOQUE 0: refetch cada 2s para que QR/Mesero → Caja sea casi en vivo.
   // Sin esto, una cuenta solicitada podía tardar hasta 6s en aparecer en Caja.
@@ -277,15 +331,17 @@ export default function Caja() {
       const lista = [];
       // En Pro priorizamos las pendientes para no chocar con búsqueda activa,
       // pero igualmente cargamos historial completo para soportar "venta vieja".
+      // Sin `.catch(() => [])`: era una lectura que DECIDE. Si fallaba, la lista
+      // de candidatas quedaba coja y el cajero leía «No se encontró una venta
+      // con ese folio» sobre una venta que existe (F1-06 §4.1, `:281` y `:288`).
+      // Ahora el fallo sube al `catch` de abajo, que lo dice.
       if (!isCajaDirecta) {
-        const pend = await api.entidades.Venta.filter({ estado: 'cuenta_solicitada' }).catch(
-          () => [],
-        );
+        const pend = await api.entidades.Venta.filter({ estado: 'cuenta_solicitada' });
         lista.push(...(Array.isArray(pend) ? pend : []));
       }
       // Historial extenso. Si el negocio tiene más de 5000 ventas, el cliente
       // puede reportar al cajero el ticket exacto; el límite cubre meses normales.
-      const hist = await api.entidades.Venta.list('-created_date', 5000).catch(() => []);
+      const hist = await api.entidades.Venta.list('-created_date', 5000);
       lista.push(...(Array.isArray(hist) ? hist : []));
       // Deduplicar
       const seen = new Set();
@@ -295,8 +351,7 @@ export default function Caja() {
         return true;
       });
     } catch (err) {
-      console.error('[Caja] buscarVenta carga:', err);
-      toast.error('No se pudo cargar el historial. Intenta de nuevo.');
+      toast.error(err?.message || 'No se pudo cargar el historial. Intenta de nuevo.');
       return;
     }
 
@@ -314,9 +369,9 @@ export default function Caja() {
     }
 
     try {
-      const detalles = await api.entidades.DetalleVenta.filter({ venta_id: found.id }).catch(
-        () => [],
-      );
+      // Idem `:317`: con `.catch(() => [])` la cuenta se abría SIN líneas y el
+      // cajero veía un ticket en $0.00 de una venta que sí tiene productos.
+      const detalles = await api.entidades.DetalleVenta.filter({ venta_id: found.id });
       // Ventas pagadas/canceladas → modo consulta (ticket histórico).
       // Caja no debe permitir cobrar dos veces (handleCobrar valida total > 0).
       if (found.estado === 'pagada' || found.estado === 'cancelada') {
@@ -327,12 +382,11 @@ export default function Caja() {
         }
       } else {
         // Pendientes (cuenta_solicitada, abierta, etc.) → flujo de cobro.
-        setVentaSeleccionada(found);
+        setVentaSeleccionada({ ...found, propina_monto: propinaDerivada(found) });
         setDetallesSeleccionados(Array.isArray(detalles) ? detalles : []);
       }
     } catch (err) {
-      console.error('[Caja] buscarVenta detalle:', err);
-      toast.error('Se encontró la venta pero no se pudieron cargar los productos.');
+      toast.error(err?.message || 'Se encontró la venta pero no se pudieron cargar los productos.');
     }
   };
 
@@ -342,35 +396,42 @@ export default function Caja() {
 
     // HOTFIX 6A — Rescate de totales en CERO al abrir cobro.
     // Si la venta llega con total <= 0 pero los detalles tienen subtotal real,
-    // recalculamos y persistimos antes de mostrar el modal. Así el cajero ve
+    // pedimos el total al servidor antes de mostrar el modal. Así el cajero ve
     // el total correcto y puede cobrar normalmente.
+    //
+    // Antes esto SUMABA las líneas en el navegador y escribía el resultado en
+    // `Venta` (subtotal, total, costo, utilidad y margen). Dos cosas mal: la
+    // escritura ya no existe —los totales de una orden los pone el servidor— y
+    // el número era el del navegador, sin impuestos ni descuentos. `venta.estado`
+    // devuelve la cotización recalculada sobre las líneas persistidas, que es la
+    // misma que `venta.cobrar` usará para cobrar; usar otra sería enseñar en
+    // pantalla un total distinto del que se va a cobrar.
     let ventaFinal = venta;
     const ventaTotal = Number(venta?.total) || 0;
     const subtotalReal = sumarSubtotalDetalles(detallesArr);
     if (subtotalReal > 0 && ventaTotal <= 0) {
       try {
-        const costoTotal = detallesArr.reduce(
-          (s, d) => s + (Number(d?.costo_total_linea_snapshot) || 0),
-          0,
-        );
-        await api.entidades.Venta.update(venta.id, {
-          subtotal: subtotalReal,
-          total: subtotalReal,
-          costo_total_snapshot: costoTotal,
-          utilidad_bruta_snapshot: subtotalReal - costoTotal,
-          margen_snapshot:
-            subtotalReal > 0 ? ((subtotalReal - costoTotal) / subtotalReal) * 100 : 0,
-        });
-        ventaFinal = { ...venta, subtotal: subtotalReal, total: subtotalReal };
-        toast.info('Totales recalculados desde los productos.');
+        const estado = await api.comandos.ejecutar('/api/venta/estado', { ordenId: venta.id });
+        const totalServidor = aPesos(estado?.cotizacion?.totalCentavos);
+        if (totalServidor > 0) {
+          ventaFinal = {
+            ...venta,
+            subtotal: aPesos(estado?.cotizacion?.subtotalCentavos),
+            total: totalServidor,
+          };
+          toast.info('Totales recalculados desde los productos.');
+        }
       } catch (err) {
-        console.error('[Caja] abrirVenta rescate totales:', err);
         // No bloqueamos — el cajero verá $0 y el botón "Borrar ticket en cero"
-        // como ya estaba antes. Mejor que pantalla blanca.
+        // como ya estaba antes. Pero el motivo se dice, no se traga.
+        toast.error(err?.message || 'No se pudieron recalcular los totales de la cuenta.');
       }
     }
 
-    setVentaSeleccionada(ventaFinal);
+    // La propina del porcentaje se deriva del total ya resuelto, no del que la
+    // venta traía: si el total se acaba de recalcular, un 15 % sobre el viejo
+    // sería una propina que no corresponde a lo que se va a cobrar.
+    setVentaSeleccionada({ ...ventaFinal, propina_monto: propinaDerivada(ventaFinal) });
     setDetallesSeleccionados(detallesArr);
     setMontoEfectivo('');
     setMontoTarjeta('');
@@ -405,26 +466,26 @@ export default function Caja() {
   };
 
   // Guarda la propina elegida en caja sobre la venta actual.
-  const aplicarPropinaCaja = async (propinaData) => {
+  //
+  // Ya NO viaja al servidor por su cuenta. La propina va DENTRO del cobro, en
+  // cada pago y con su método (`venta.cobrar`, regla 3 de `F1-01` §3): mandarla
+  // antes en un `Venta.update` suelto abría la ventana en la que la propina
+  // quedaba escrita y el cobro fallaba, y `ordenes` ni siquiera tiene columna de
+  // importe de propina — precisamente para que `total` no se pueda inflar con
+  // una (F1-04 §6.1). Aquí sólo se recuerda lo que el cajero eligió.
+  const aplicarPropinaCaja = (propinaData) => {
     if (!ventaSeleccionada?.id) {
       setShowPropinaCaja(false);
       return;
     }
-    try {
-      const payload = {
-        propina_monto: Number(propinaData?.propina_monto) || 0,
-        propina_porcentaje: Number(propinaData?.propina_porcentaje) || 0,
-        propina_tipo: propinaData?.propina_tipo || 'sin_propina',
-        propina_origen: 'caja',
-      };
-      await api.entidades.Venta.update(ventaSeleccionada.id, payload);
-      setVentaSeleccionada((prev) => (prev ? { ...prev, ...payload } : prev));
-      setShowPropinaCaja(false);
-    } catch (err) {
-      console.error('[Caja] aplicarPropinaCaja:', err);
-      toast.error('No se pudo guardar la propina');
-      setShowPropinaCaja(false);
-    }
+    const payload = {
+      propina_monto: Number(propinaData?.propina_monto) || 0,
+      propina_porcentaje: Number(propinaData?.propina_porcentaje) || 0,
+      propina_tipo: propinaData?.propina_tipo || 'sin_propina',
+      propina_origen: 'caja',
+    };
+    setVentaSeleccionada((prev) => (prev ? { ...prev, ...payload } : prev));
+    setShowPropinaCaja(false);
   };
 
   // Eliminar/cancelar tickets en CERO ($0.00) — para limpiar caja sin afectar ventas reales.
@@ -442,24 +503,23 @@ export default function Caja() {
     )
       return;
     try {
-      await api.entidades.Venta.update(venta.id, {
-        estado: 'cancelada',
-        motivo_cancelacion: 'Ticket en $0.00 eliminado desde Caja',
-        fecha_cierre: new Date().toISOString(),
-        usuario_cajero_id: posUser?.id,
-        usuario_cajero_nombre: posUser?.nombre,
-      });
-      // Liberar mesa si aplica
+      // Cancelar la venta y liberar la mesa eran DOS escrituras sueltas, y la
+      // de la mesa iba con `.catch(() => {})` (F1-06 §4.1, `:462`): el ticket se
+      // cancelaba y la mesa se quedaba ocupada apuntando a una venta que ya no
+      // existe. Mesa huérfana, y el cierre del día bloqueado por ella.
+      //
+      // Con mesa va `restaurante.liberar_mesa`, que en UNA transacción cancela
+      // la orden vacía y deja la mesa libre —es la transición «ticket en cero →
+      // libre» de F1-04 §8.2— y que además REHÚSA si la cuenta tiene consumo,
+      // que es justo lo que este botón nunca debe borrar. Sin mesa (venta
+      // directa de mostrador) no hay mesa que liberar: se cancela la orden.
       if (venta.mesa_id) {
-        await api.entidades.Mesa.update(venta.mesa_id, {
-          estado: 'libre',
-          venta_activa_id: null,
-          personas_actuales: 0,
-          cliente_temporal: '',
-          atendido_por_id: '',
-          atendido_por_nombre: '',
-          atendido_por_color: '',
-        }).catch(() => {});
+        await api.comandos.ejecutar('/api/restaurante/liberar-mesa', { mesaId: venta.mesa_id });
+      } else {
+        await api.comandos.ejecutar('/api/restaurante/cancelar-orden', {
+          ordenId: venta.id,
+          motivo: 'Ticket en $0.00 eliminado desde Caja',
+        });
       }
       queryClient.invalidateQueries({ queryKey: ['ventas_pendientes_caja'] });
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
@@ -467,8 +527,10 @@ export default function Caja() {
       setDetallesSeleccionados([]);
       toast.success('Ticket en cero eliminado');
     } catch (err) {
-      console.error('[Caja] Error eliminando ticket en cero:', err);
-      toast.error('No se pudo eliminar el ticket');
+      // El dominio ya lo dice en español: «La mesa 4 tiene una cuenta sin
+      // cobrar…». Se enseña tal cual en vez de un «No se pudo» que no explica
+      // nada y hace que el cajero lo intente otra vez.
+      toast.error(err?.message || 'No se pudo eliminar el ticket');
     }
   };
 
@@ -558,384 +620,138 @@ export default function Caja() {
       }
     }
 
-    const cambio = metodoPago === 'efectivo' ? calcularCambio() : 0;
-    // 6B / 1.G: costo_total se recalcula DESPUÉS del descuento de inventario
-    // (más abajo) porque las líneas variables actualizan su costo en ese paso.
-    // Aquí inicializamos con el costo actual (precio_fijo ya viene completo).
-    let costoTotal = (detallesSeleccionados || []).reduce(
-      (s, d) => s + (d?.costo_total_linea_snapshot || 0),
-      0,
-    );
-    let utilidadBruta = total - costoTotal;
-    let margen = total > 0 ? (utilidadBruta / total) * 100 : 0;
+    // === El cuerpo del cobro ================================================
+    // Un renglón de pago por método, cada uno con SU propina, exacta (regla 3
+    // de `F1-01` §3): si el comensal dejó 50 en efectivo y 30 en tarjeta, son
+    // 50 y 30, nunca un reparto proporcional. `montoCentavos` es la VENTA; la
+    // propina viaja en su propio campo y NO cuenta para cubrir el total, que es
+    // la regla 1 — `Venta.total` es la venta SIN propina.
+    const pagos = [];
+    const agregarPago = (metodo, ventaPesos, propinaPesos, recibidoPesos) => {
+      const montoCentavos = aCentavos(ventaPesos);
+      if (montoCentavos <= 0) return;
+      const pago = { metodo, montoCentavos };
+      const propinaCentavos = aCentavos(propinaPesos);
+      if (propinaCentavos > 0) pago.propinaCentavos = propinaCentavos;
+      // El «Recibido» sólo se manda si de verdad cubre venta + propina: es de
+      // donde el servidor saca el cambio, y si no alcanza rechaza el cobro. El
+      // campo vacío significa importe exacto, igual que hasta hoy.
+      if (metodo === 'efectivo' && recibidoPesos !== undefined) {
+        const recibidoCentavos = aCentavos(recibidoPesos);
+        if (recibidoCentavos >= montoCentavos + propinaCentavos) {
+          pago.recibidoCentavos = recibidoCentavos;
+        }
+      }
+      pagos.push(pago);
+    };
 
-    // Asociar al corte abierto (caja del día) para que el PDF lo encuentre
-    const corteAbiertoId = cajaAbierta?.id || null;
+    if (metodoPago === 'mixto') {
+      agregarPago('efectivo', parseFloat(montoEfectivo) || 0, propEf);
+      agregarPago('tarjeta', parseFloat(montoTarjeta) || 0, propTa);
+      agregarPago('transferencia', parseFloat(montoTransferencia) || 0, propTr);
+    } else {
+      agregarPago(
+        metodoPago,
+        total,
+        propinaMonto,
+        metodoPago === 'efectivo' ? parseFloat(montoEfectivo) || 0 : undefined,
+      );
+    }
+
+    // Sólo puede pasar en mixto, con los tres campos vacíos. Se dice aquí en vez
+    // de mandar un cobro sin pagos y que vuelva un ENTRADA_INVALIDA de esquema.
+    if (pagos.length === 0) {
+      toast.error('Escribe cuánto se pagó con cada método.');
+      setProcesando(false);
+      setProcesandoMsg('');
+      return;
+    }
+
+    const cuerpoCobro = {
+      ordenId: ventaSeleccionada.id,
+      pagos,
+      // Lo que ESTA pantalla creía que costaba. No cobra: el servidor recalcula
+      // y, si no coincide, rechaza con el total correcto en vez de cobrar otro
+      // número en silencio. El cajero ya le dijo una cifra al cliente.
+      totalEsperadoCentavos: aCentavos(total),
+    };
+    // Metadatos de cómo se decidió la propina. No son importes —en `ordenes` no
+    // cabe ninguno de propina, y por eso `total` no se puede inflar con una— y
+    // se filtran contra la lista válida para que un valor viejo no tumbe el
+    // cobro entero con ENTRADA_INVALIDA.
+    const puntosBase = Math.round((Number(ventaSeleccionada.propina_porcentaje) || 0) * 100);
+    if (puntosBase > 0 && puntosBase <= 10000) cuerpoCobro.propinaPuntosBase = puntosBase;
+    if (TIPOS_DE_PROPINA.includes(ventaSeleccionada.propina_tipo)) {
+      cuerpoCobro.propinaTipo = ventaSeleccionada.propina_tipo;
+    }
+    if (ORIGENES_DE_PROPINA.includes(ventaSeleccionada.propina_origen)) {
+      cuerpoCobro.propinaOrigen = ventaSeleccionada.propina_origen;
+    }
 
     // 🟡 HOTFIX bandera amarilla #2: bandera declarada FUERA del try para que
     // el catch final pueda leerla y diferenciar errores pre/post-cobro.
     // (Las `let` declaradas dentro de un try NO son visibles desde el catch.)
     let ventaQuedoPagada = false;
+    let cambio = 0;
 
     try {
-      // ====================================================
-      // 6B / 1.J — VALIDACIÓN DE STOCK ANTES DE COBRAR
-      // ====================================================
-      // Cargamos inventario y recetas FRESCOS (no caché) y validamos.
-      // Si falla y `permitir_venta_sin_stock` NO está activo:
-      //   - BLOQUEAMOS el cobro (return + toast).
-      //   - NO tocamos la venta, NO descontamos nada → cero stock negativo.
-      // Si la carga falla por red, también bloqueamos: nunca cobrar sin validar.
-      const permitirSinStock = config?.permitir_venta_sin_stock === true;
-      setProcesandoMsg('Validando inventario…');
-      let recetasAll = [];
-      let ingredientesAll = [];
-      // HOTFIX intermitente: reintento + fallback al caché de react-query.
-      // Antes: si la primera llamada fallaba (429, red lenta), bloqueaba el cobro
-      // aunque al reintentar segundos después sí funcionara. Ahora:
-      //   1) intenta cargar fresco
-      //   2) si falla, espera 800ms y reintenta UNA vez
-      //   3) si vuelve a fallar, usa el caché existente (ingredientes_all)
-      //   4) solo bloquea si AÚN así no hay datos.
-      const cargarInventarioConRetry = async () => {
-        const intentar = () =>
-          Promise.all([
-            api.entidades.RecetaEscandallo.list('-created_date', 2000),
-            api.entidades.Ingrediente.list('-created_date', 1000),
-          ]);
-        try {
-          return await intentar();
-        } catch (e1) {
-          console.warn('[Caja 1.J] Reintentando carga de inventario:', e1?.message || e1);
-          await new Promise((res) => setTimeout(res, 800));
-          try {
-            return await intentar();
-          } catch (e2) {
-            console.warn('[Caja 1.J] Falló reintento, usando caché:', e2?.message || e2);
-            const cachedIng = queryClient.getQueryData(['ingredientes_all']);
-            // Recetas: si el caché tampoco está, recetasAll queda [] y los
-            // productos precio_fijo se tratarán como "sin receta" (no bloquea).
-            return [[], Array.isArray(cachedIng) ? cachedIng : []];
-          }
-        }
-      };
-      try {
-        const [r, i] = await cargarInventarioConRetry();
-        recetasAll = Array.isArray(r) ? r : [];
-        ingredientesAll = Array.isArray(i) ? i : [];
-      } catch (errCarga) {
-        console.error('[Caja 1.J] No se pudo cargar inventario para validar:', errCarga);
-        if (!permitirSinStock) {
-          toast.error('No se pudo validar inventario. Intenta de nuevo en un momento.');
-          setProcesando(false);
-          setProcesandoMsg('');
-          return;
-        }
-      }
-      // Si después de reintento + caché seguimos sin ingredientes, y la venta
-      // necesita validar (tiene líneas variables o detalles), avisamos pero
-      // NO bloqueamos por error de red transitorio si NO hay líneas a validar.
-      if (ingredientesAll.length === 0 && !permitirSinStock) {
-        const necesitaValidar = (detallesSeleccionados || []).some((d) => {
-          const t = d?.tipo_venta_snapshot;
-          return t === TIPO_VENTA.VARIABLE_MEDIDA || t === TIPO_VENTA.PORCION_CONTENEDOR;
-        });
-        if (necesitaValidar) {
-          toast.error('No se pudo cargar inventario para validar productos variables. Reintenta.');
-          setProcesando(false);
-          setProcesandoMsg('');
-          return;
-        }
-      }
-      const val = validarStockParaCobro({
-        detalles: detallesSeleccionados,
-        recetasAll,
-        ingredientesAll,
-      });
-      if (!val.ok) {
-        // Reportar a consola la lista completa (útil para soporte).
-        console.warn('[Caja 1.J] Stock insuficiente:', val);
-        if (!permitirSinStock) {
-          toast.error(mensajeFaltanteStock(val));
-          setProcesando(false);
-          setProcesandoMsg('');
-          return;
-        } else {
-          // Modo explícito: el negocio aceptó vender sin stock → solo advertencia.
-          toast.warning(
-            mensajeFaltanteStock(val) + ' (Se cobrará igual: venta sin stock permitida).',
-          );
-        }
-      }
-
       setProcesandoMsg('Guardando venta…');
-      await api.entidades.Venta.update(ventaSeleccionada.id, {
-        estado: 'pagada',
-        fecha_cierre: new Date().toISOString(),
-        metodo_pago: metodoPago,
-        monto_efectivo: mEfec,
-        monto_tarjeta: mTar,
-        monto_transferencia: mTrans,
-        // Desglose EXACTO de propinas por método de pago.
-        propina_efectivo: propEf,
-        propina_tarjeta: propTa,
-        propina_transferencia: propTr,
-        total_cobrado_con_propina: totalACobrar,
-        cambio,
-        usuario_cajero_id: posUser?.id,
-        usuario_cajero_nombre: posUser?.nombre,
-        costo_total_snapshot: costoTotal,
-        utilidad_bruta_snapshot: utilidadBruta,
-        margen_snapshot: margen,
-        corte_caja_id: corteAbiertoId,
-      });
-      ventaQuedoPagada = true;
-
-      // === Descontar inventario — PARALELIZADO para reducir tiempo ===
-      // Antes: cada Ingrediente.update / MovimientoInventario.create /
-      // DescuentoInventarioVenta.create se hacía con `await` secuencial dentro
-      // de loops `for`. Para una venta con 5 ingredientes y 10 descuentos eso
-      // eran ~25 round-trips al backend en serie. Ahora cada bloque por
-      // ingrediente se ejecuta en paralelo con Promise.all.
+      // ── D-07, y es el motivo de este archivo ────────────────────────────
+      // Aquí había dos pasos y medio: se marcaba la venta `pagada` y DESPUÉS se
+      // lanzaban en paralelo el descuento de stock, el movimiento de inventario
+      // y los descuentos de venta, los tres con `.catch(() => {})` y bajo un
+      // `catch` exterior que sólo hacía `console.warn`. Si el lote fallaba no
+      // fallaba nada visible: quedaba una venta pagada de $1 180 con el stock
+      // intacto y el ledger vacío, y se descubría a media noche del viernes.
       //
-      // 6B / 1.G — Soporte para productos VARIABLES.
-      //   - precio_fijo: descuenta vía RecetaEscandallo (flujo histórico, intacto).
-      //   - variable_medida / porcion_contenedor: descuenta el ingrediente_base
-      //     por cantidad_base_consumo (g o ml). NO usa receta.
-      // Ambos caminos agregan al mismo bucket consumoPorIng → un solo
-      // Ingrediente.update + MovimientoInventario por ingrediente.
-      try {
-        setProcesandoMsg('Actualizando inventario…');
-        // Cargar recetas e ingredientes en paralelo
-        const [recetasAll, ingredientesAll] = await Promise.all([
-          api.entidades.RecetaEscandallo.list('-created_date', 2000),
-          api.entidades.Ingrediente.list('-created_date', 1000),
-        ]);
-        const ingMap = Object.fromEntries(ingredientesAll.map((i) => [i.id, i]));
-        const fechaIso = new Date().toISOString();
-
-        // 6B / 1.G — Recalculo de costo/utilidad para líneas variables.
-        // Si una línea es variable y aún no tiene costo_total_linea_snapshot,
-        // lo recalculamos aquí (con el costo_por_unidad_base actual del ingrediente)
-        // y actualizamos el DetalleVenta. Esto se refleja en costo_total_snapshot
-        // y utilidad_bruta_snapshot de la Venta más abajo.
-        const detalleUpdates = [];
-
-        // Aggregate per ingrediente (in memory, rápido)
-        const consumoPorIng = {};
-        for (const det of detallesSeleccionados) {
-          const tipoSnap = det?.tipo_venta_snapshot;
-          const esVariable =
-            tipoSnap === TIPO_VENTA.VARIABLE_MEDIDA || tipoSnap === TIPO_VENTA.PORCION_CONTENEDOR;
-
-          if (esVariable && det?.ingrediente_base_id_snapshot) {
-            // ----- PATH VARIABLE -----
-            const ing = ingMap[det.ingrediente_base_id_snapshot];
-            if (!ing) continue;
-
-            // Cantidad en unidad base (g o ml). Si se guardó en el snapshot,
-            // lo usamos. Si no, lo recalculamos de los snapshots disponibles.
-            let cantBase = Number(det?.cantidad_base_consumo) || 0;
-            if (cantBase <= 0) {
-              cantBase = calcularCantidadBaseConsumo({
-                tipo_venta: tipoSnap,
-                cantidad_variable: det?.cantidad_variable_snapshot,
-                unidad_variable: det?.unidad_variable_snapshot,
-                cantidad_porciones: det?.cantidad_porciones_snapshot,
-                ml_por_porcion: det?.ml_por_porcion_snapshot,
-              });
-            }
-            if (cantBase <= 0) continue;
-
-            const costoUnitBase = Number(ing.costo_por_unidad_base) || 0;
-            const costoLinea = Math.round(cantBase * costoUnitBase * 100) / 100;
-
-            if (!consumoPorIng[ing.id]) {
-              consumoPorIng[ing.id] = { ing, cantidadTotal: 0, costoTotal: 0, detalles: [] };
-            }
-            consumoPorIng[ing.id].cantidadTotal += cantBase;
-            consumoPorIng[ing.id].costoTotal += costoLinea;
-            consumoPorIng[ing.id].detalles.push({
-              det,
-              l: null, // sin receta
-              totalCant: cantBase,
-              costoLinea,
-              cantPorProd: cantBase, // por unidad lógica (cantidad=1)
-            });
-
-            // Si el detalle aún no tiene costo persistido, lo actualizamos.
-            const costoActual = Number(det?.costo_total_linea_snapshot) || 0;
-            if (Math.abs(costoActual - costoLinea) > 0.005) {
-              const precioLinea = Number(det?.subtotal) || 0;
-              const { utilidad_linea, margen_linea } = calcularCostoVariable({
-                precio_total_linea: precioLinea,
-                cantidad_base_consumo: cantBase,
-                costo_por_unidad_base: costoUnitBase,
-              });
-              detalleUpdates.push(
-                api.entidades.DetalleVenta.update(det.id, {
-                  costo_total_linea_snapshot: costoLinea,
-                  costo_unitario_snapshot: costoUnitBase,
-                  utilidad_linea_snapshot: utilidad_linea,
-                  margen_linea_snapshot: margen_linea,
-                  cantidad_base_consumo: cantBase,
-                }).catch(() => {}),
-              );
-              // Reflejar en memoria para que el cálculo de costoTotal abajo lo tome.
-              det.costo_total_linea_snapshot = costoLinea;
-              det.utilidad_linea_snapshot = utilidad_linea;
-              det.margen_linea_snapshot = margen_linea;
-              det.cantidad_base_consumo = cantBase;
-            }
-            continue;
-          }
-
-          // ----- PATH precio_fijo (LEGACY, intacto) -----
-          const lineas = recetasAll.filter(
-            (r) => r.producto_id === det.producto_id && r.activo !== false,
-          );
-          for (const l of lineas) {
-            const merma = 1 + (l.merma_porcentaje || 0) / 100;
-            const cantPorProd = (l.cantidad_convertida_unidad_base || 0) * merma;
-            const totalCant = cantPorProd * (det.cantidad || 0);
-            if (totalCant <= 0) continue;
-            const ing = ingMap[l.ingrediente_id];
-            if (!ing) continue;
-            if (!consumoPorIng[l.ingrediente_id]) {
-              consumoPorIng[l.ingrediente_id] = {
-                ing,
-                cantidadTotal: 0,
-                costoTotal: 0,
-                detalles: [],
-              };
-            }
-            const costoLinea = totalCant * (ing.costo_por_unidad_base || 0);
-            consumoPorIng[l.ingrediente_id].cantidadTotal += totalCant;
-            consumoPorIng[l.ingrediente_id].costoTotal += costoLinea;
-            consumoPorIng[l.ingrediente_id].detalles.push({
-              det,
-              l,
-              totalCant,
-              costoLinea,
-              cantPorProd,
-            });
-          }
-        }
-
-        // Persistir los updates de costo/utilidad de líneas variables (en paralelo).
-        if (detalleUpdates.length > 0) {
-          await Promise.all(detalleUpdates);
-        }
-
-        // 6B / 1.G — Si hubo líneas variables con costo recalculado, refrescar
-        // los snapshots de la Venta. Solo si la diferencia con lo guardado arriba
-        // es relevante (>1¢). Esto NO toca total/subtotal — solo costo/utilidad.
-        try {
-          const costoTotalFinal = (detallesSeleccionados || []).reduce(
-            (s, d) => s + (Number(d?.costo_total_linea_snapshot) || 0),
-            0,
-          );
-          if (Math.abs(costoTotalFinal - costoTotal) > 0.005) {
-            costoTotal = costoTotalFinal;
-            utilidadBruta = total - costoTotal;
-            margen = total > 0 ? (utilidadBruta / total) * 100 : 0;
-            await api.entidades.Venta.update(ventaSeleccionada.id, {
-              costo_total_snapshot: costoTotal,
-              utilidad_bruta_snapshot: utilidadBruta,
-              margen_snapshot: margen,
-            }).catch(() => {});
-          }
-        } catch (e) {
-          console.warn('[Caja 1.G] refresh costo Venta:', e);
-        }
-
-        // Ejecutar TODAS las operaciones de inventario en paralelo.
-        // Cada ingrediente: stock + movimiento + sus N descuentos detallados.
-        const ops = [];
-        for (const key of Object.keys(consumoPorIng)) {
-          const { ing, cantidadTotal, costoTotal, detalles } = consumoPorIng[key];
-          const stockAnterior = ing.stock_actual || 0;
-          const stockNuevo = Math.max(0, stockAnterior - cantidadTotal);
-
-          ops.push(
-            api.entidades.Ingrediente.update(ing.id, { stock_actual: stockNuevo }).catch(() => {}),
-          );
-          ops.push(
-            api.entidades.MovimientoInventario.create({
-              ingrediente_id: ing.id,
-              ingrediente_nombre: ing.nombre,
-              tipo_movimiento: 'salida_venta',
-              cantidad: -cantidadTotal,
-              unidad_base: ing.unidad_base,
-              stock_anterior: stockAnterior,
-              stock_nuevo: stockNuevo,
-              costo_unitario_en_momento: ing.costo_por_unidad_base || 0,
-              costo_total_movimiento: costoTotal,
-              referencia_tipo: 'venta',
-              referencia_id: ventaSeleccionada.id,
-              motivo: `Venta ${ventaSeleccionada.folio}`,
-              usuario_id: posUser?.id,
-              usuario_nombre: posUser?.nombre,
-              fecha: fechaIso,
-            }).catch(() => {}),
-          );
-          for (const d of detalles) {
-            ops.push(
-              api.entidades.DescuentoInventarioVenta.create({
-                venta_id: ventaSeleccionada.id,
-                detalle_venta_id: d.det.id,
-                producto_id: d.det.producto_id,
-                ingrediente_id: ing.id,
-                ingrediente_nombre: ing.nombre,
-                cantidad_producto: d.det.cantidad || 0,
-                cantidad_ingrediente_por_producto: d.cantPorProd,
-                cantidad_total_descontada: d.totalCant,
-                unidad_base: ing.unidad_base,
-                costo_unitario_snapshot: ing.costo_por_unidad_base || 0,
-                costo_total_descontado: d.costoLinea,
-                fecha: fechaIso,
-              }).catch(() => {}),
-            );
-          }
-        }
-        await Promise.all(ops);
-
-        queryClient.invalidateQueries({ queryKey: ['ingredientes_all'] });
-        queryClient.invalidateQueries({ queryKey: ['descuentos_hoy'] });
-        queryClient.invalidateQueries({ queryKey: ['movimientos_inv'] });
-      } catch (err) {
-        console.warn('Error descontando inventario:', err);
-      }
-      // === Fin inventario ===
+      // `venta.cobrar` hace TODO eso en UNA transacción —totales, folio, pagos,
+      // propina por método, movimiento de caja, stock y ledger— y o confirma
+      // todo o no persiste nada. Por eso también desaparece la validación de
+      // stock del navegador: el servidor la hace con la guarda en el `WHERE` de
+      // las existencias, dentro de la misma transacción que descuenta, y una
+      // comprobación previa sobre una lectura anterior no puede ser exacta.
+      //
+      // Y desaparece el costeo del cliente: costo, utilidad y margen los calcula
+      // el servidor sobre las líneas que está congelando.
+      //
+      // `claveCobro` se generó al ABRIR el diálogo y se reusa mientras siga
+      // abierto: es lo que impide que un doble clic en «Cobrar» cobre dos veces.
+      const cobro = await api.comandos.ejecutar(
+        '/api/venta/cobrar',
+        cuerpoCobro,
+        claveCobro || undefined,
+      );
+      ventaQuedoPagada = true;
+      // El cambio que se le da al cliente es el del servidor, no el de la resta
+      // del navegador: allí es donde se sabe qué se cobró de verdad.
+      cambio = aPesos(cobro?.cambioCentavos);
 
       if (ventaSeleccionada.mesa_id) {
-        // Limpiar "atendido_por" al cerrar la mesa (modo sin asignación).
-        // El mesero_asignado_* fijo NO se toca: persiste entre sesiones.
-        // No bloqueante: si tarda, no detiene el ticket.
-        api.entidades.Mesa.update(ventaSeleccionada.mesa_id, {
-          estado: 'limpieza',
-          venta_activa_id: null,
-          personas_actuales: 0,
-          cliente_temporal: '',
-          atendido_por_id: '',
-          atendido_por_nombre: '',
-          atendido_por_color: '',
-        }).catch(() => {});
+        // La mesa se libera con su comando, no con un `Mesa.update` suelto y
+        // silencioso (`:923`): «se cobró la mesa y sigue marcada como ocupada»
+        // es exactamente lo que bloquea el cierre del día. La venta YA está
+        // cobrada, así que un fallo aquí no puede tirar el cobro — pero sí se
+        // dice, porque la mesa se queda ocupada y alguien tiene que liberarla.
+        try {
+          await api.comandos.ejecutar('/api/restaurante/liberar-mesa', {
+            mesaId: ventaSeleccionada.mesa_id,
+          });
+        } catch (errMesa) {
+          toast.warning(errMesa?.message || 'La venta se cobró, pero la mesa sigue ocupada.', {
+            duration: 10000,
+          });
+        }
       }
 
       // BLOQUE 0 — OPTIMISTIC UPDATE:
       // Quitar la venta cobrada del listado de pendientes INMEDIATAMENTE,
       // sin esperar al próximo refetch. Si por algún motivo el cobro falla más
       // adelante, el siguiente refetch automático corregirá el estado.
-      try {
-        const ventaCobradaId = ventaSeleccionada.id;
-        queryClient.setQueryData(['ventas_pendientes_caja'], (prev) => {
-          const arr = Array.isArray(prev) ? prev : [];
-          return arr.filter((v) => v?.id !== ventaCobradaId);
-        });
-      } catch (e) {
-        console.warn('[Caja] optimistic pendientes:', e);
-      }
+      const ventaCobradaId = ventaSeleccionada.id;
+      queryClient.setQueryData(['ventas_pendientes_caja'], (prev) => {
+        const arr = Array.isArray(prev) ? prev : [];
+        return arr.filter((v) => v?.id !== ventaCobradaId);
+      });
 
       // Invalidar TODO lo que se refleja en Caja, Ventas, Registros y Dashboard.
       queryClient.invalidateQueries({ queryKey: ['ventas_pendientes_caja'] });
@@ -947,6 +763,12 @@ export default function Caja() {
       queryClient.invalidateQueries({ queryKey: ['propinas_dashboard_ventas'] });
       queryClient.invalidateQueries({ queryKey: ['cortes_caja_estado'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard_data'] });
+      // El stock y el ledger los movió la misma transacción del cobro: las tres
+      // vistas de inventario se refrescan igual que antes lo hacía el bloque
+      // que descontaba a mano.
+      queryClient.invalidateQueries({ queryKey: ['ingredientes_all'] });
+      queryClient.invalidateQueries({ queryKey: ['descuentos_hoy'] });
+      queryClient.invalidateQueries({ queryKey: ['movimientos_inv'] });
       // Refetch activo de pendientes para que el badge en el header baje al instante.
       queryClient
         .refetchQueries({ queryKey: ['ventas_pendientes_caja'], type: 'active' })
@@ -960,6 +782,12 @@ export default function Caja() {
         const ventaPagada = {
           ...(ventaSeleccionada || {}),
           estado: 'pagada',
+          // El folio lo pone el servidor con un consecutivo atómico AL COBRAR:
+          // `ordenes.folio` es nulo hasta entonces (`orden_pagada_con_folio`),
+          // así que sin esto el ticket salía sin número. Se enseña el folio a
+          // secas —sin la serie— porque es lo que la misma venta enseña luego en
+          // Ventas y en Registros, y es el número que el cliente va a citar.
+          folio: cobro?.folio ? String(cobro.folio) : ventaSeleccionada?.folio,
           metodo_pago: metodoPago,
           monto_efectivo: mEfec,
           monto_tarjeta: mTar,
@@ -970,8 +798,10 @@ export default function Caja() {
         setTicketFinalData({ venta: ventaPagada, detalles: detallesSnap });
         setShowTicketFinal(true);
       } catch (errTicket) {
-        console.error('[Caja] No se pudo preparar ticket final:', errTicket);
-        toast.error('Venta cobrada, pero no se pudo mostrar el ticket. Búscalo en historial.');
+        toast.error(
+          errTicket?.message ||
+            'Venta cobrada, pero no se pudo mostrar el ticket. Búscalo en historial.',
+        );
       }
 
       // Limpieza de estados del cobro (independiente del ticket)
@@ -986,19 +816,22 @@ export default function Caja() {
       setPropinaTransferencia('');
       toast.success(`¡Venta cobrada! Cambio: ${formatCurrency(cambio)}`);
     } catch (err) {
-      console.error('[Caja] Error al cobrar venta:', err);
       // 🟡 HOTFIX bandera amarilla #2: mensaje correcto según el momento del fallo.
-      // - Si venta NO quedó pagada → "No se pudo cobrar" (cajero puede reintentar).
-      // - Si venta SÍ quedó pagada → confirmar cobro y avisar que el problema fue
-      //   en un paso posterior (inventario/ticket). La venta YA está en Ventas/Registros.
+      // - Si venta NO quedó pagada → el motivo TAL CUAL lo dice el dominio, que
+      //   ya viene en español: «No hay inventario suficiente para completar la
+      //   venta», «Abre la caja antes de cobrar», «Esa venta ya se cobró». Un
+      //   «no se pudo, intenta de nuevo» hace que el cajero lo intente otra vez
+      //   sin arreglar lo que falla.
+      // - Si venta SÍ quedó pagada → confirmar cobro y avisar que el problema
+      //   fue posterior. La venta YA está en Ventas/Registros.
       if (ventaQuedoPagada) {
         toast.warning(
-          'Venta cobrada correctamente. Hubo un problema con inventario o ticket. ' +
+          'Venta cobrada correctamente. Hubo un problema con el ticket. ' +
             'Búscala en Ventas o Registros — no la cobres de nuevo.',
           { duration: 10000 },
         );
       } else {
-        toast.error('No se pudo cobrar la venta. Intenta de nuevo.');
+        toast.error(err?.message || 'No se pudo cobrar la venta. Intenta de nuevo.');
       }
     } finally {
       setProcesando(false);
@@ -1035,45 +868,44 @@ export default function Caja() {
     }
     setAccionLoading(true);
     try {
-      // Validar que NO haya otra caja abierta (defensivo)
-      const cortesFresh = await api.entidades.CorteCaja.list('-created_date', 50);
-      const yaAbierta = (Array.isArray(cortesFresh) ? cortesFresh : []).find(
-        (c) => c?.estado === 'abierto' && (c?.tipo_corte === 'cierre_diario' || !c?.tipo_corte),
-      );
-      if (yaAbierta) {
-        toast.error('Ya existe una caja abierta. Ciérrala antes de abrir otra.');
-        invalidarCajaQueries();
-        setShowAbrirCaja(false);
-        return;
-      }
-      const ahora = new Date().toISOString();
-      await api.entidades.CorteCaja.create({
-        folio: generateFolio('CC'),
-        tipo_corte: 'cierre_diario',
-        estado: 'abierto',
-        fecha_inicio: ahora,
-        fecha_apertura: ahora,
-        usuario_cajero_id: posUser.id,
-        usuario_cajero_nombre: posUser.nombre,
-        usuario_apertura_id: posUser.id,
-        usuario_apertura_nombre: posUser.nombre,
-        efectivo_inicial_contado: form.efectivo_inicial_contado,
-        fondo_esperado_apertura: form.fondo_esperado_apertura,
-        diferencia_apertura: form.diferencia_apertura,
-        notas_apertura: form.notas_apertura,
+      // La comprobación «¿ya hay otra caja abierta?» que había aquí era una
+      // lectura del navegador entre dos cajeros: los dos leían «no hay» y los
+      // dos abrían. Ahora la impone el índice único parcial
+      // `sesiones_caja_una_abierta_por_terminal`, y `caja.abrir` traduce esa
+      // colisión a «Esta terminal ya tiene una caja abierta» — una frase que ya
+      // viene en español y se enseña tal cual.
+      //
+      // Del formulario sólo viaja el efectivo contado: el fondo esperado y la
+      // diferencia los deriva el servidor, y el folio lo pone el consecutivo
+      // atómico, no `generateFolio` en el navegador.
+      await api.comandos.ejecutar('/api/caja/abrir', {
+        fondoInicialCentavos: aCentavos(form.efectivo_inicial_contado),
       });
       invalidarCajaQueries();
       setShowAbrirCaja(false);
       toast.success('Caja abierta. Ya puedes cobrar.');
     } catch (err) {
-      console.error('[Caja] handleAbrirCaja:', err);
-      toast.error('No se pudo abrir la caja');
+      toast.error(err?.message || 'No se pudo abrir la caja');
     } finally {
       setAccionLoading(false);
     }
   };
 
-  // 2) CORTE DE TURNO — crea registro independiente, NO cierra la caja.
+  // 2) CORTE DE TURNO — registro independiente, NO cierra la caja.
+  //
+  // Aquí había un `api.entidades.CorteCaja.create({ folio: generateFolio('CT'),
+  // usuario_cajero_id: posUser?.id, total_general: resumen.totalGeneral, … })`
+  // con tres defectos en una llamada: el folio lo inventaba el navegador —dos
+  // terminales cortando a la vez producían el mismo—, la atribución viajaba en
+  // el cuerpo, y los cuatro totales los sumaba la pantalla sobre lo que tuviera
+  // cargado. Y encima `CorteCaja` mapea `sesiones_caja`, no `cortes_turno`, así
+  // que el puente la rechazaba y el botón FALLABA SIEMPRE.
+  //
+  // `caja.corte_turno` lo hace entero en el servidor: folio de la serie `CT`,
+  // el firmante de la sesión, y el arqueo derivado dentro de la transacción,
+  // con el rango arrancando donde acabó el corte anterior —sin eso, el segundo
+  // corte del día vuelve a contar las ventas del primero—. Lo único que el
+  // cajero aporta sigue siendo lo que CONTÓ.
   const handleCorteTurno = async (form) => {
     if (accionLoading) return;
     if (!cajaAbierta?.id) {
@@ -1082,37 +914,15 @@ export default function Caja() {
     }
     setAccionLoading(true);
     try {
-      await api.entidades.CorteCaja.create({
-        folio: generateFolio('CT'),
-        tipo_corte: 'turno',
-        estado: 'registrado',
-        corte_padre_id: cajaAbierta.id,
-        fecha_inicio:
-          cajaAbierta.fecha_apertura || cajaAbierta.fecha_inicio || new Date().toISOString(),
-        fecha_cierre: new Date().toISOString(),
-        usuario_cajero_id: posUser?.id,
-        usuario_cajero_nombre: posUser?.nombre,
-        total_efectivo: resumen.totalEfectivo,
-        total_tarjeta: resumen.totalTarjeta,
-        total_transferencia: resumen.totalTransferencia,
-        total_general: resumen.totalGeneral,
-        total_propinas: resumen.totalPropinas || 0,
-        propinas_por_mesero: JSON.stringify(resumen.propinasPorMesero || []),
-        numero_ventas: resumen.numVentas,
-        ticket_promedio: resumen.ticketPromedio,
-        total_gastos: resumen.totalGastos,
-        efectivo_esperado: resumen.totalEfectivo,
-        efectivo_contado: form.efectivo_contado,
-        diferencia_efectivo: form.diferencia_efectivo,
-        dinero_dejado_en_caja: form.dinero_dejado_en_caja,
-        notas: form.notas,
+      await api.comandos.ejecutar('/api/caja/corte-turno', {
+        efectivoContadoCentavos: aCentavos(form.efectivo_contado),
+        notas: form.notas || null,
       });
       invalidarCajaQueries();
       setShowCorteTurno(false);
       toast.success('Corte de turno registrado');
     } catch (err) {
-      console.error('[Caja] handleCorteTurno:', err);
-      toast.error('No se pudo registrar el corte de turno');
+      toast.error(err?.message || 'No se pudo registrar el corte de turno');
     } finally {
       setAccionLoading(false);
     }
@@ -1137,12 +947,13 @@ export default function Caja() {
       // Sin mesas pendientes → permitir cierre
       setShowCierreDiario(true);
     } catch (e) {
-      console.error('[Caja] verificar mesas pendientes:', e);
       // Antes esto abría el diálogo igual, «mejor permitir que el cajero cierre
       // que dejarlo varado». Pero cerrar el día sin saber si hay mesas abiertas
       // no es permitir: es cerrar a ciegas, y lo que queda mal en la base no lo
       // arregla nadie al día siguiente. Si no se pudo comprobar, no se cierra.
-      toast.error('No se pudo comprobar si quedan mesas abiertas. Reintenta antes de cerrar.');
+      toast.error(
+        e?.message || 'No se pudo comprobar si quedan mesas abiertas. Reintenta antes de cerrar.',
+      );
     } finally {
       setVerificandoMesas(false);
     }
@@ -1171,9 +982,34 @@ export default function Caja() {
         return;
       }
       const fechaCierreIso = new Date().toISOString();
+      const corteId = cajaAbierta.id;
+
+      // El cierre entero es UNA transacción del servidor. Antes eran tres pasos
+      // sueltos: el `CorteCaja.update` con veinte totales calculados en el
+      // navegador, el lote de `Venta.update({corte_caja_id})` con
+      // `.catch(() => {})` —ventas pagadas que se quedaban sin corte y no salían
+      // ni en el PDF ni cuadraban con el efectivo (F1-06 §4.1, `:1211`)— y la
+      // cola de sincronización.
+      //
+      // `caja.cerrar` deriva el arqueo DENTRO de su propia transacción, así que
+      // una venta cobrada mientras el diálogo estaba abierto entra en el corte
+      // en vez de quedarse fuera. Y por eso no se le manda ningún total: lo
+      // único que el servidor no puede saber es cuánto dinero hay físicamente
+      // en el cajón, y eso es lo que viaja.
+      const arqueo = await api.comandos.ejecutar('/api/caja/cerrar', {
+        efectivoContadoCentavos: aCentavos(form.efectivo_contado),
+        ...(form.notas ? { notas: form.notas } : {}),
+      });
+
+      // Lo que se enseña y se imprime. El esperado, la diferencia y el número de
+      // ventas son los del SERVIDOR —los del navegador se calculaban sobre una
+      // lista que llevaba minutos en pantalla—; el resto del desglose sigue
+      // siendo el mismo resumen que el cajero acaba de ver en el diálogo.
       const data = {
         tipo_corte: 'cierre_diario',
         estado: 'cerrado',
+        fecha_inicio:
+          cajaAbierta.fecha_apertura || cajaAbierta.fecha_inicio || cajaAbierta.created_date,
         fecha_cierre: fechaCierreIso,
         usuario_cajero_id: posUser?.id,
         usuario_cajero_nombre: posUser?.nombre,
@@ -1186,40 +1022,16 @@ export default function Caja() {
         costo_total_estimado: resumen.costoTotal,
         utilidad_bruta_total: resumen.utilidadBruta,
         margen_promedio: margenProm,
-        numero_ventas: resumen.numVentas,
+        numero_ventas: arqueo?.numeroVentas ?? resumen.numVentas,
         ticket_promedio: resumen.ticketPromedio,
         total_gastos: resumen.totalGastos,
-        efectivo_esperado: resumen.totalEfectivo,
-        efectivo_contado: form.efectivo_contado,
-        diferencia_efectivo: form.diferencia_efectivo,
+        efectivo_esperado: aPesos(arqueo?.efectivoEsperadoCentavos),
+        efectivo_contado: aPesos(arqueo?.efectivoContadoCentavos),
+        diferencia_efectivo: aPesos(arqueo?.diferenciaCentavos),
         dinero_dejado_en_caja: form.dinero_dejado_en_caja,
         utilidad_neta_estimada: form.utilidad_neta_estimada,
         notas: form.notas,
       };
-
-      const cerrado = await api.entidades.CorteCaja.update(cajaAbierta.id, data);
-      const corteId = cajaAbierta.id;
-
-      // Asociar al corte ventas sueltas pagadas tras la apertura sin corte_caja_id
-      try {
-        const aperturaIso =
-          cajaAbierta.fecha_apertura || cajaAbierta.fecha_inicio || cajaAbierta.created_date;
-        const apertura = aperturaIso ? new Date(aperturaIso).getTime() : 0;
-        const ventasSueltas = (Array.isArray(ventasHoy) ? ventasHoy : []).filter(
-          (v) =>
-            v?.estado === 'pagada' &&
-            !v?.corte_caja_id &&
-            v?.fecha_cierre &&
-            new Date(v.fecha_cierre).getTime() >= apertura,
-        );
-        await Promise.all(
-          ventasSueltas.map((v) =>
-            api.entidades.Venta.update(v.id, { corte_caja_id: corteId }).catch(() => {}),
-          ),
-        );
-      } catch (err) {
-        console.warn('[Caja] asociar ventas al cierre:', err);
-      }
 
       // Cola de sincronización (no bloqueante)
       try {
@@ -1244,14 +1056,16 @@ export default function Caja() {
         ]);
         queryClient.invalidateQueries({ queryKey: ['integration_sync_logs_pending'] });
       } catch (err) {
-        console.warn('[Caja] IntegrationSyncLog:', err);
+        // La caja YA está cerrada: esto es una cola externa, y no encolar un
+        // envío a Sheets no invalida el corte. Pero se dice, en vez de tragarlo.
+        toast.warning(err?.message || 'La caja se cerró; la cola de sincronización no se encoló.');
       }
 
       invalidarCajaQueries();
       queryClient.invalidateQueries({ queryKey: ['ventas_pagadas_caja'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
 
-      const corteFinal = cerrado || { ...data, id: corteId, folio: cajaAbierta.folio };
+      const corteFinal = { ...data, id: corteId, folio: cajaAbierta.folio };
       setCorteCerrado(corteFinal);
       setShowCierreDiario(false);
 
@@ -1262,8 +1076,11 @@ export default function Caja() {
       setShowCierreExito(true);
       toast.success('¡Caja cerrada correctamente!');
     } catch (err) {
-      console.error('[Caja] handleCierreDiario:', err);
-      toast.error('No se pudo cerrar la caja. Intenta de nuevo.');
+      // «No hay una caja abierta», «Esa caja ya se había cerrado», «Cierra la
+      // caja desde la terminal»: el dominio ya lo dice en español y con el
+      // motivo. Un «intenta de nuevo» genérico haría reintentar un cierre que
+      // no va a funcionar hasta que se arregle lo que falla.
+      toast.error(err?.message || 'No se pudo cerrar la caja. Intenta de nuevo.');
     } finally {
       setAccionLoading(false);
     }

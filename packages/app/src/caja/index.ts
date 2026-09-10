@@ -12,3 +12,5 @@ export {
   type EstadoCaja,
   type MovimientoVisible,
 } from './consulta.ts';
+
+export { corteDeTurno, entradaCorteTurno, type ResultadoCorteTurno } from './turno.ts';

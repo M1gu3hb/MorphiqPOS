@@ -1,546 +1,268 @@
 'use client';
 // =====================================================
-// utils/qrPedidoFlow.js — Lógica pura del flujo de pedido desde Portal QR.
+// utils/qrPedidoFlow.js — El portal del comensal contra los comandos PÚBLICOS.
 // =====================================================
-// Reglas críticas:
+// Quien usa estas funciones NO tiene sesión: entró escaneando un código. Su
+// única credencial es el token de la mesa, y por eso todo vive bajo
+// `/api/publico/qr/:token/`, nunca en el puente (que exige cookie).
+//
+// Reglas críticas, las mismas de siempre:
 //  - NO descuenta inventario (eso ocurre solo al cobrar en Caja).
 //  - NO cobra ni mueve dinero.
-//  - NO usa prefijos "[QR]" en notas visibles. La trazabilidad se guarda
-//    en campos separados (origen_pedido, area_preparacion_snapshot).
-//  - F3: Si `estaciones_preparacion_activas` está activo, agrupa por
-//    EstacionPreparacion (Producto → Categoría → Estación). Si está
-//    apagado, mantiene el comportamiento legacy: agrupa por
-//    `producto.area_preparacion` ('cocina' | 'barra').
-//  - Estructura DetalleVenta/Venta idéntica a la del flujo Mesero.
-//  - Valida producto activo + visible antes de crear cualquier registro.
+//  - NO manda precios. Ni uno.
+//
+// ── Lo que este archivo dejó de hacer, y por qué ──────────────────────────
+// D-17 · `enviarPedidoQR` tomaba `item.precio_venta` del carrito del NAVEGADOR
+//   y lo escribía en `DetalleVenta` con su costo, su utilidad y su margen.
+//   Quien supiera abrir las herramientas del navegador se ponía la comida a un
+//   peso. Ahora se manda QUÉ y CUÁNTO; el importe sale del catálogo dentro de
+//   la transacción del comando (`portal/pedido.ts`), con la misma `valorarLinea`
+//   que usa la venta de mostrador.
+//
+// El re-totalizado del cliente · La relectura de `DetalleVenta` para sumar el
+//   total podía fallar y ESCRIBÍA `total: 0` sobre una cuenta de $1 240 con sus
+//   cuatro líneas intactas. El comando devuelve `totalCentavos` calculado sobre
+//   las líneas ya persistidas, en la misma transacción: no hay relectura que
+//   pueda fallar.
+//
+// El anti-carrera de apertura · Se creaba la venta, se volvía a consultar y, si
+//   aparecían dos, se cancelaba la perdedora con `motivo_cancelacion`. Eso es
+//   limpiar después en vez de impedir antes. Ahora lo impide el índice único
+//   parcial `ordenes_una_activa_por_mesa`: el segundo teléfono recibe
+//   «MESA_YA_ABIERTA» y su transacción revierte entera.
+//
+// La validación producto a producto · `validarCarritoQR` pedía cada producto en
+//   un bucle con un `await` por vuelta (N+1) y un `.catch(() => null)` que
+//   convertía un fallo de red en «este producto ya no está disponible». El
+//   comando carga los productos del menú en UNA consulta y comprueba
+//   `visible_en_menu_digital` en el servidor, que es donde no se puede falsear.
 // =====================================================
 
 import { api } from '@/api/cliente';
-import { agruparItemsPorEstacion } from '@/utils/preparacionEstacionUtils';
 
-const ESTADOS_VENTA_ACTIVA = ['abierta', 'enviada', 'en_preparacion', 'lista', 'cuenta_solicitada'];
-
-const ESTADOS_BLOQUEADOS_PARA_AGREGAR = ['cuenta_solicitada', 'pagada', 'cancelada'];
+/** La escala de `numeric(14,4)` y el tope de `cantidadPedida` del esquema. */
+const MAXIMO_CANTIDAD = 999;
 
 /**
- * Busca la venta activa de una mesa. Devuelve null si no hay ninguna.
- * Fuente de verdad: la BD. No depende de caché frontal.
+ * Las cinco rutas públicas, en un solo sitio.
+ *
+ * El token va codificado porque llega de la URL: `resolverAmbitoPortal` lo
+ * valida contra `/^[A-Za-z0-9_-]{6,120}$/`, pero componer una ruta con texto
+ * sin codificar es la clase de descuido que no se detecta hasta que alguien
+ * pega un código raro en la barra de direcciones.
  */
-export async function findVentaActivaMesa(mesaId) {
-  if (!mesaId) return null;
-  try {
-    const ventas = await api.entidades.Venta.filter({ mesa_id: mesaId }).catch(() => []);
-    const arr = Array.isArray(ventas) ? ventas : [];
-    const activas = arr
-      .filter((v) => v && ESTADOS_VENTA_ACTIVA.includes(v.estado))
-      .sort(
-        (a, b) =>
-          new Date(b?.fecha_apertura || b?.created_date || 0) -
-          new Date(a?.fecha_apertura || a?.created_date || 0),
-      );
-    return activas[0] || null;
-  } catch (err) {
-    console.error('[qrPedidoFlow] findVentaActivaMesa:', err);
-    return null;
-  }
+function rutaPublica(token, sufijo) {
+  return `/api/publico/qr/${encodeURIComponent(token || '')}${sufijo}`;
 }
 
 /**
- * Abre una mesa libre desde el QR del comensal.
- * Reglas:
- *  - La mesa debe tener mesero_asignado_id (asignación de mesas activa).
- *  - Re-chequea venta activa ANTES Y DESPUÉS de crear para evitar duplicados.
- *  - Si se detecta carrera, devuelve la venta existente y descarta la nueva.
+ * La lectura combinada — cierre de D-14.
  *
- * @returns {Promise<{venta: object, reused: boolean}>}
+ * Antes el portal hacía cinco consultas anónimas por el puente, una de ellas
+ * `ConfiguracionNegocio.list()` COMPLETA: eso entregaba `presentacion_password`
+ * en texto plano y los identificadores de Google a cualquiera que escaneara un
+ * código. Este endpoint devuelve sólo la lista blanca escrita a mano en
+ * `portal/lista-blanca.ts`, y de paso resuelve negocio, mesa, menú, secciones y
+ * cuenta en UNA petición.
+ *
+ * Devuelve `{negocio, mesa, productos, categorias, secciones, cuenta}`.
  */
-export async function abrirMesaDesdeQR({
-  mesa,
+export async function leerPortalPublico(token) {
+  if (!token) throw new Error('Este enlace no es válido.');
+
+  const respuesta = await fetch(rutaPublica(token, ''), {
+    method: 'GET',
+    headers: { 'x-morphiqpos-request': '1' },
+    cache: 'no-store',
+    credentials: 'same-origin',
+  });
+
+  // El `catch` de un `json()` que ya viene mal no traga nada: alimenta el
+  // `throw` explícito de tres líneas más abajo. Es el mismo caso que
+  // `api/cliente.ts:95`, y por eso se queda.
+  const cuerpo = await respuesta.json().catch(() => null);
+  if (!cuerpo || cuerpo.ok !== true) {
+    throw errorDelPortal(cuerpo);
+  }
+  return cuerpo.datos;
+}
+
+/**
+ * Traduce el sobre de error del portal a una excepción con mensaje en español.
+ *
+ * El mensaje ya viene escrito para el comensal desde el dominio («Este código QR
+ * ya no es válido», «El menú digital de este negocio no está disponible ahora
+ * mismo»). `codigo` lleva la REGLA —`QR_TOKEN_INVALIDO`, `QR_PORTAL_CERRADO`—
+ * para que la pantalla elija qué cara poner, no para reescribir el texto.
+ */
+function errorDelPortal(cuerpo) {
+  const detalle = cuerpo?.error || null;
+  const error = new Error(detalle?.mensaje || 'No pudimos cargar el menú.');
+  error.codigo = detalle?.datos?.regla || detalle?.codigo || 'ERROR_INTERNO';
+  return error;
+}
+
+/**
+ * Abre la mesa desde el teléfono del comensal.
+ *
+ * `clave` es la clave de idempotencia del DIÁLOGO: se genera al abrirlo y se
+ * reusa mientras siga abierto, así un doble toque en «Confirmar» no abre dos
+ * mesas. Un fallo libera la clave dentro de la propia transacción, de modo que
+ * un reintento legítimo vuelve a ejecutar.
+ *
+ * Devuelve `{ventaId, reutilizada}`. `reutilizada: true` NO es un error: la
+ * mesa ya estaba abierta y el comensal quería justamente eso.
+ */
+export function abrirMesaDesdeQR({
+  token,
   personas,
   cliente_nombre,
   notas,
   notas_alergias,
   celebracion_especial,
   tipo_celebracion,
+  clave,
 }) {
-  if (!mesa?.id) throw new Error('Mesa inválida');
-  if (!mesa?.mesero_asignado_id) {
-    throw new Error('Esta mesa aún no tiene un mesero asignado.');
-  }
-  // 6A: normalizar campos opcionales
-  const notasAlergiasClean = (notas_alergias || '').trim();
   const celebracion = !!celebracion_especial;
-  const tipoCelebClean = celebracion ? (tipo_celebracion || '').trim() : '';
-
-  // ----- Anti-race 1: re-chequear venta activa antes de crear -----
-  const previa = await findVentaActivaMesa(mesa.id);
-  if (previa) {
-    return { venta: previa, reused: true };
-  }
-
-  const personasNum = Math.max(1, parseInt(personas, 10) || 1);
-  const fechaApertura = new Date().toISOString();
-
-  // Folio compacto. Prefijo Q para distinguir origen QR.
-  const folio = `Q${String(mesa.numero || 0).padStart(2, '0')}-${Date.now().toString(36).slice(-5).toUpperCase()}`;
-
-  const nuevaVenta = await api.entidades.Venta.create({
-    folio,
-    fecha_apertura: fechaApertura,
-    tipo_venta: 'mesa',
-    mesa_id: mesa.id,
-    mesa_numero: mesa.numero || 0,
-    personas: personasNum,
-    cliente_nombre: (cliente_nombre || '').trim(),
-    usuario_mesero_id: mesa.mesero_asignado_id,
-    usuario_mesero_nombre: mesa.mesero_asignado_nombre || '',
-    estado: 'abierta',
-    subtotal: 0,
-    total: 0,
-    notas: (notas || '').trim(), // SIN prefijo [QR]
-    // 6A: snapshot en la venta
-    notas_alergias: notasAlergiasClean,
-    celebracion_especial: celebracion,
-    tipo_celebracion: tipoCelebClean,
-  });
-
-  // ----- Anti-race 2: revisar si otro flujo creó venta entre la consulta y el create -----
-  // Si encontramos OTRA venta activa además de la nuestra, conservamos la más antigua
-  // y cancelamos la nueva. La trazabilidad queda en motivo_cancelacion.
-  try {
-    const ventasMesa = await api.entidades.Venta.filter({ mesa_id: mesa.id }).catch(() => []);
-    const activas = (Array.isArray(ventasMesa) ? ventasMesa : [])
-      .filter((v) => v && ESTADOS_VENTA_ACTIVA.includes(v.estado))
-      .sort(
-        (a, b) =>
-          new Date(a?.fecha_apertura || a?.created_date || 0) -
-          new Date(b?.fecha_apertura || b?.created_date || 0),
-      );
-    if (activas.length > 1) {
-      const ganadora = activas[0];
-      const perdedores = activas.slice(1);
-      const esNuestraGanadora = ganadora.id === nuevaVenta.id;
-      if (!esNuestraGanadora) {
-        // Cancelar la nuestra (es la perdedora) — quedó duplicada.
-        await api.entidades.Venta.update(nuevaVenta.id, {
-          estado: 'cancelada',
-          motivo_cancelacion: 'duplicado_apertura_qr',
-        }).catch(() => {});
-        return { venta: ganadora, reused: true };
-      }
-      // Si la ganadora SÍ es la nuestra, cancelar las que llegaron después.
-      await Promise.all(
-        perdedores.map((v) =>
-          api.entidades.Venta.update(v.id, {
-            estado: 'cancelada',
-            motivo_cancelacion: 'duplicado_apertura_qr',
-          }).catch(() => {}),
-        ),
-      );
-    }
-  } catch (err) {
-    console.warn('[qrPedidoFlow] anti-race apertura:', err);
-  }
-
-  // Actualizar mesa
-  try {
-    await api.entidades.Mesa.update(mesa.id, {
-      estado: 'esperando_orden',
-      venta_activa_id: nuevaVenta.id,
-      personas_actuales: personasNum,
-      cliente_temporal: (cliente_nombre || '').trim(),
-      // 6A: indicaciones críticas visibles para mesero/cocina
-      notas_alergias: notasAlergiasClean,
-      celebracion_especial: celebracion,
-      tipo_celebracion: tipoCelebClean,
-    });
-  } catch (err) {
-    console.warn('[qrPedidoFlow] update mesa:', err);
-  }
-
-  return { venta: nuevaVenta, reused: false };
+  return api.comandos.ejecutar(
+    rutaPublica(token, '/mesa'),
+    {
+      personas: Math.max(1, parseInt(personas, 10) || 1),
+      clienteNombre: (cliente_nombre || '').trim(),
+      notas: (notas || '').trim(),
+      // Información de seguridad: viaja primero y en instantánea.
+      notasAlergias: (notas_alergias || '').trim(),
+      celebracionEspecial: celebracion,
+      tipoCelebracion: celebracion ? (tipo_celebracion || '').trim() : '',
+    },
+    clave,
+  );
 }
 
 /**
- * Valida que un producto siga activo y disponible para el menú digital.
- * Lee la BD fresca (no caché). Devuelve {ok, producto, motivo}.
- */
-async function validarProductoActivo(productoId) {
-  if (!productoId) return { ok: false, motivo: 'sin_id' };
-  try {
-    const p = await api.entidades.ProductoTerminado.get(productoId).catch(() => null);
-    if (!p) return { ok: false, motivo: 'no_existe' };
-    if (p.activo === false) return { ok: false, motivo: 'desactivado', producto: p };
-    if (p.visible_en_menu_digital === false) {
-      return { ok: false, motivo: 'oculto_menu', producto: p };
-    }
-    if (!Number.isFinite(Number(p.precio_venta)) || Number(p.precio_venta) <= 0) {
-      return { ok: false, motivo: 'sin_precio', producto: p };
-    }
-    return { ok: true, producto: p };
-  } catch (err) {
-    console.error('[qrPedidoFlow] validarProductoActivo:', err);
-    return { ok: false, motivo: 'error' };
-  }
-}
-
-/**
- * Valida todos los items del carrito QR contra BD.
- * Devuelve {ok, invalidos:[{id, nombre, motivo}], productosFrescos:Map}.
- */
-export async function validarCarritoQR(items) {
-  const arr = Array.isArray(items) ? items : [];
-  const invalidos = [];
-  const productosFrescos = new Map();
-  for (const it of arr) {
-    if (!it?.id) continue;
-    if (productosFrescos.has(it.id)) continue;
-    // eslint-disable-next-line no-await-in-loop
-    const r = await validarProductoActivo(it.id);
-    if (!r.ok) {
-      invalidos.push({
-        id: it.id,
-        nombre: it.nombre || r.producto?.nombre || 'Producto',
-        motivo: r.motivo,
-      });
-    } else {
-      productosFrescos.set(it.id, r.producto);
-    }
-  }
-  return { ok: invalidos.length === 0, invalidos, productosFrescos };
-}
-
-/**
- * Construye el texto de modificadores legible para mostrar en cocina/ticket.
- * Mismo formato que SeleccionModificadoresDialog en flujo Mesero.
- */
-function formatearModificadoresLegible(modificadoresArr) {
-  if (!Array.isArray(modificadoresArr) || modificadoresArr.length === 0) return '';
-  return modificadoresArr
-    .map((g) => {
-      const opciones = Array.isArray(g?.opciones) ? g.opciones : [];
-      const nombres = opciones
-        .map((o) => o?.nombre || '')
-        .filter(Boolean)
-        .join(', ');
-      // Compatibilidad: nombre real del grupo es `grupo_nombre` (estándar
-      // Cocina/Mesero). Fallback a `grupo` o `nombre` por si llega legacy.
-      const grupoNombre = g?.grupo_nombre || g?.grupo || g?.nombre || '';
-      if (!nombres) return '';
-      return grupoNombre ? `${grupoNombre}: ${nombres}` : nombres;
-    })
-    .filter(Boolean)
-    .join(' · ');
-}
-
-/**
- * Envía un pedido del carrito QR a preparación.
+ * La cantidad, como texto y con la escala que el esquema acepta.
  *
- * @param {Object} args
- *  - mesa, venta: objetos.
- *  - items: array del carrito QR, cada item con:
- *      {id, nombre, precio_venta, costo_calculado_actual, area_preparacion,
- *       cantidad, notas, _modificadores}
- *  - notaGeneral: nota general del pedido (sin prefijo).
+ * `cantidadPedida` es `/^\d{1,3}(?:\.\d{1,4})?$/`: hasta 999 unidades con
+ * cuatro decimales. Un número JavaScript con cola binaria (0.1 + 0.2) escrito
+ * tal cual rechazaría la petición entera, así que se fija la escala aquí y se
+ * recortan los ceros de relleno.
+ *
+ * Lo que pasa el tope NO se recorta a 999: devuelve `null` y el pedido falla
+ * con el nombre del producto. Acotarlo en silencio cambiaría lo que el comensal
+ * pidió —y lo que va a pagar— sin que nadie se entere.
  */
-export async function enviarPedidoQR({
-  mesa,
-  venta,
-  items,
-  notaGeneral,
-  config: configArg,
-  categorias: categoriasArg,
-  estaciones: estacionesArg,
-}) {
-  if (!mesa?.id) throw new Error('Mesa inválida');
-  if (!venta?.id) throw new Error('Venta inválida');
-  const carrito = Array.isArray(items) ? items.filter((i) => i && Number(i.cantidad) > 0) : [];
-  if (carrito.length === 0) throw new Error('El carrito está vacío');
-  if (ESTADOS_BLOQUEADOS_PARA_AGREGAR.includes(venta.estado)) {
-    throw new Error('La cuenta ya fue solicitada para esta mesa.');
-  }
-
-  // F3: si el caller no pasó config/categorias/estaciones, los cargamos desde BD.
-  // Esto preserva compatibilidad con llamadas legacy del portal y nos asegura
-  // que la lógica de estaciones funcione siempre que estén configuradas.
-  let config = configArg;
-  if (!config) {
-    try {
-      const lista = await api.entidades.ConfiguracionNegocio.list().catch(() => []);
-      config = (Array.isArray(lista) ? lista : [])[0] || null;
-    } catch {
-      config = null;
-    }
-  }
-  const estacionesActivasGlobal = config?.estaciones_preparacion_activas === true;
-  let categorias = Array.isArray(categoriasArg) ? categoriasArg : null;
-  let estaciones = Array.isArray(estacionesArg) ? estacionesArg : null;
-  if (estacionesActivasGlobal) {
-    if (!categorias) {
-      try {
-        categorias = await api.entidades.CategoriaProducto.filter({ activo: true }).catch(() => []);
-      } catch {
-        categorias = [];
-      }
-    }
-    if (!estaciones) {
-      try {
-        estaciones = await api.entidades.EstacionPreparacion.filter({ activo: true }).catch(
-          () => [],
-        );
-      } catch {
-        estaciones = [];
-      }
-    }
-  }
-
-  // ----- 1) Validar productos activos -----
-  const validacion = await validarCarritoQR(carrito);
-  if (!validacion.ok) {
-    const nombres = validacion.invalidos.map((x) => x.nombre).join(', ');
-    const err = new Error(
-      `Estos productos ya no están disponibles: ${nombres}. Quítalos del carrito para enviar.`,
-    );
-    err.invalidos = validacion.invalidos;
-    throw err;
-  }
-
-  // ----- 2) Crear DetalleVenta por línea -----
-  // SIN prefijos [QR]. Trazabilidad va en area_preparacion_snapshot y a través de la Venta (folio Q*).
-  const nuevosDetalles = await Promise.all(
-    carrito.map((item) => {
-      const productoFresco = validacion.productosFrescos.get(item.id) || {};
-      const modificadoresArr = Array.isArray(item?._modificadores) ? item._modificadores : [];
-      // 6B / 1.E — Si la línea es VARIABLE, el precio (precio_venta efectivo) ya viene
-      // calculado desde el cliente como precio_total_linea. cantidad = 1.
-      // Para precio_fijo: comportamiento histórico intacto (precio * cantidad).
-      const variableSnap = item?._variable || null;
-      const cantidad = Number(item.cantidad) || 0;
-      const precio = variableSnap
-        ? Number(item.precio_venta) || 0
-        : Number(productoFresco.precio_venta ?? item.precio_venta) || 0;
-      const costoUnit =
-        Number(productoFresco.costo_calculado_actual ?? item.costo_calculado_actual) || 0;
-      const subtotal = precio * cantidad;
-      // En variable, el costo lo recalcula 1.G a partir de cantidad_base * costo_por_unidad_base.
-      // Hasta entonces dejamos costo_linea = 0 si es variable (no propagamos costo unitario erróneo).
-      const costoLinea = variableSnap ? 0 : costoUnit * cantidad;
-      const utilidadLinea = subtotal - costoLinea;
-      const margen = precio > 0 ? (utilidadLinea / subtotal) * 100 : 0;
-      const areaItem = productoFresco.area_preparacion || item.area_preparacion || 'cocina';
-
-      // 6B / 1.E — Snapshots del schema 6B (solo si la línea es variable).
-      const variableFields = variableSnap
-        ? {
-            tipo_venta_snapshot: variableSnap.tipo_venta,
-            unidad_variable_snapshot: variableSnap.unidad_variable || '',
-            cantidad_variable_snapshot: Number(variableSnap.cantidad_variable) || 0,
-            ingrediente_base_id_snapshot: variableSnap.ingrediente_base_id || '',
-            ingrediente_base_nombre_snapshot: variableSnap.ingrediente_base_nombre || '',
-            precio_por_unidad_snapshot: Number(variableSnap.precio_por_unidad_snapshot) || 0,
-            nombre_porcion_snapshot: variableSnap.nombre_porcion || '',
-            ml_por_porcion_snapshot: Number(variableSnap.ml_por_porcion) || 0,
-            cantidad_porciones_snapshot: Number(variableSnap.cantidad_porciones) || 0,
-          }
-        : {};
-
-      return api.entidades.DetalleVenta.create({
-        venta_id: venta.id,
-        producto_id: item.id,
-        producto_nombre: productoFresco.nombre || item.nombre || '',
-        cantidad,
-        precio_unitario_snapshot: precio,
-        costo_unitario_snapshot: variableSnap ? 0 : costoUnit,
-        subtotal,
-        costo_total_linea_snapshot: costoLinea,
-        utilidad_linea_snapshot: utilidadLinea,
-        margen_linea_snapshot: margen,
-        notas_producto: (item.notas || '').trim(), // SIN prefijo [QR]
-        modificadores_snapshot: modificadoresArr.length > 0 ? JSON.stringify(modificadoresArr) : '',
-        estado_preparacion: 'pendiente',
-        area_preparacion_snapshot: areaItem,
-        ...variableFields,
-      });
-    }),
-  );
-
-  // ----- 3) Re-totalizar la venta a partir de TODOS los DetalleVenta -----
-  //
-  // Aquí había DOS redes de seguridad y ninguna servía: el `.catch(() => [])`
-  // interno se comía el rechazo, así que el `catch` externo —el que restauraba
-  // `nuevosDetalles`— era código muerto que aparentaba proteger. Cuando la
-  // lectura fallaba, `todosDetalles` quedaba en `[]`, el subtotal salía 0, y la
-  // línea de abajo ESCRIBÍA `total: 0` sobre una cuenta de $1 240 que sí tenía
-  // sus cuatro líneas. Es el mismo síntoma que Miguel parcheó a mano en
-  // `Mesero.jsx:882` («HOTFIX 6A — Rescate de totales en CERO»), pero en el
-  // camino del QR nadie lo rescataba.
-  //
-  // Ahora la red de seguridad es UNA y funciona: si la relectura falla, se
-  // totaliza con las líneas que se acaban de crear, que están en memoria y son
-  // ciertas. Un total nunca se calcula sobre una lista vacía.
-  let todosDetalles;
-  try {
-    const fresh = await api.entidades.DetalleVenta.filter({ venta_id: venta.id });
-    todosDetalles = Array.isArray(fresh) && fresh.length > 0 ? fresh : nuevosDetalles;
-  } catch (e) {
-    console.error('[qrPedidoFlow] releer detalles para re-totalizar:', e);
-    todosDetalles = nuevosDetalles;
-  }
-  const subtotal = todosDetalles.reduce((s, d) => s + (Number(d?.subtotal) || 0), 0);
-  const costoTotal = todosDetalles.reduce(
-    (s, d) => s + (Number(d?.costo_total_linea_snapshot) || 0),
-    0,
-  );
-  await api.entidades.Venta.update(venta.id, {
-    estado: 'enviada',
-    subtotal,
-    total: subtotal,
-    costo_total_snapshot: costoTotal,
-    utilidad_bruta_snapshot: subtotal - costoTotal,
-    margen_snapshot: subtotal > 0 ? ((subtotal - costoTotal) / subtotal) * 100 : 0,
-  });
-
-  // ----- 4) Agrupar items y crear PedidoPreparacion -----
-  // F3: si estaciones están activas → agrupar por EstacionPreparacion
-  //     (Producto → Categoría → Estación). Si está apagado → legacy
-  //     (agrupar por producto.area_preparacion 'cocina'|'barra').
-  const notaLimpia = (notaGeneral || '').trim(); // SIN prefijo [QR]
-  const fechaCreacion = new Date().toISOString();
-  const estacionesActivas = estacionesActivasGlobal;
-  const areasDeUso = [];
-
-  // 6A: snapshot de alergias/celebración para cocina. Preferimos la venta
-  // (fuente más estable), con fallback a la mesa (lo que vea el mesero ahora).
-  const alergiasSnap = (venta?.notas_alergias || mesa?.notas_alergias || '').trim();
-  const celebSnap = !!(venta?.celebracion_especial || mesa?.celebracion_especial);
-  const tipoCelebSnap = celebSnap
-    ? (venta?.tipo_celebracion || mesa?.tipo_celebracion || '').trim()
-    : '';
-
-  const buildItemsParaPedido = (itemsArea, normalizarArea = false) =>
-    itemsArea.map((item) => {
-      const pFresco = item._productoFresco || validacion.productosFrescos.get(item.id) || {};
-      const modificadoresArr = Array.isArray(item?._modificadores) ? item._modificadores : [];
-      const variableSnap = item?._variable || null;
-      const baseItem = {
-        producto_id: item.id,
-        producto_nombre: pFresco.nombre || item.nombre || '',
-        cantidad: Number(item.cantidad) || 0,
-        notas: (item.notas || '').trim(),
-        modificadores: modificadoresArr,
-        estado: 'pendiente',
-        origen: 'portal_qr',
-        area_preparacion_snapshot: pFresco.area_preparacion || item.area_preparacion || 'cocina',
-      };
-      // 6B / 1.E — Snapshot variable para Cocina (1.F lo renderizará).
-      if (variableSnap) {
-        baseItem.tipo_venta = variableSnap.tipo_venta;
-        if (variableSnap.tipo_venta === 'variable_medida') {
-          baseItem.unidad_variable = variableSnap.unidad_variable || '';
-          baseItem.cantidad_variable = Number(variableSnap.cantidad_variable) || 0;
-        } else if (variableSnap.tipo_venta === 'porcion_contenedor') {
-          baseItem.nombre_porcion = variableSnap.nombre_porcion || '';
-          baseItem.cantidad_porciones = Number(variableSnap.cantidad_porciones) || 0;
-        }
-      }
-      return baseItem;
-    });
-
-  if (!estacionesActivas) {
-    // === MODO LEGACY ===
-    const normalizarArea = (a) => (a === 'barra' ? 'barra' : 'cocina');
-    const itemsPorArea = new Map();
-    carrito.forEach((item) => {
-      const productoFresco = validacion.productosFrescos.get(item.id) || {};
-      const areaItem = normalizarArea(
-        productoFresco.area_preparacion || item.area_preparacion || 'cocina',
-      );
-      if (!itemsPorArea.has(areaItem)) itemsPorArea.set(areaItem, []);
-      itemsPorArea.get(areaItem).push({ ...item, _productoFresco: productoFresco });
-    });
-
-    await Promise.all(
-      Array.from(itemsPorArea.entries()).map(([area, itemsArea]) => {
-        areasDeUso.push(area);
-        return api.entidades.PedidoPreparacion.create({
-          venta_id: venta.id,
-          venta_folio: venta.folio || '',
-          mesa_id: mesa.id,
-          mesa_numero: mesa.numero || 0,
-          area,
-          estado: 'nuevo',
-          fecha_creacion: fechaCreacion,
-          notas: notaLimpia,
-          origen_pedido: 'portal_qr',
-          // 6A: snapshot visible en cocina
-          notas_alergias: alergiasSnap,
-          celebracion_especial: celebSnap,
-          tipo_celebracion: tipoCelebSnap,
-          items: buildItemsParaPedido(itemsArea),
-        });
-      }),
-    );
-  } else {
-    // === MODO ESTACIONES ===
-    // Usar producto fresco como base para resolver la categoría correcta.
-    const carritoConFreshProd = carrito.map((item) => {
-      const pFresco = validacion.productosFrescos.get(item.id) || {};
-      return {
-        ...item,
-        ...pFresco,
-        _productoFresco: pFresco,
-        cantidad: item.cantidad,
-        notas: item.notas,
-        _modificadores: item._modificadores,
-      };
-    });
-    const grupos = agruparItemsPorEstacion(
-      carritoConFreshProd,
-      null,
-      categorias,
-      estaciones,
-      config,
-    );
-    await Promise.all(
-      Array.from(grupos.values()).map((grp) => {
-        const info = grp?.info || null;
-        areasDeUso.push(info?.estacion_preparacion_nombre || 'general');
-        return api.entidades.PedidoPreparacion.create({
-          venta_id: venta.id,
-          venta_folio: venta.folio || '',
-          mesa_id: mesa.id,
-          mesa_numero: mesa.numero || 0,
-          // Mantener 'area' como fallback legacy.
-          area: 'cocina',
-          estado: 'nuevo',
-          fecha_creacion: fechaCreacion,
-          notas: notaLimpia,
-          origen_pedido: 'portal_qr',
-          estacion_preparacion_id: info?.estacion_preparacion_id || '',
-          estacion_preparacion_nombre: info?.estacion_preparacion_nombre || '',
-          estacion_preparacion_color: info?.estacion_preparacion_color || '',
-          // 6A: snapshot visible en cocina
-          notas_alergias: alergiasSnap,
-          celebracion_especial: celebSnap,
-          tipo_celebracion: tipoCelebSnap,
-          items: buildItemsParaPedido(grp.items || []),
-        });
-      }),
-    );
-  }
-
-  // ----- 5) Actualizar estado visual de la mesa -----
-  try {
-    await api.entidades.Mesa.update(mesa.id, {
-      estado: 'pedido_enviado',
-      venta_activa_id: venta.id,
-    });
-  } catch (err) {
-    console.warn('[qrPedidoFlow] update mesa estado:', err);
-  }
-
-  return { subtotal, costoTotal, areas: areasDeUso };
+function cantidadTexto(valor) {
+  const numero = Number(valor);
+  if (!Number.isFinite(numero) || numero <= 0 || numero > MAXIMO_CANTIDAD) return null;
+  const texto = numero.toFixed(4).replace(/\.?0+$/, '');
+  return texto === '' ? null : texto;
 }
 
-// Export utilitario para textos legibles si alguna UI lo necesita.
-export { formatearModificadoresLegible };
+/**
+ * Una línea del carrito traducida a lo ÚNICO que el comando acepta.
+ *
+ * `itemDelCarrito` es `.strict()`: un `precio_venta` dentro del item no se
+ * ignora, **rechaza la petición entera**. Por eso aquí se construye el objeto
+ * campo por campo en vez de reenviar el item del carrito con un `...spread`.
+ *
+ * En los productos variables la cantidad real vive en `_variable` —la cantidad
+ * lógica del carrito es 1— y es la que el servidor valora con la regla del tipo
+ * de venta: por medida o por porción.
+ */
+function itemParaComando(item) {
+  const variable = item?._variable || null;
+  const cruda = variable
+    ? variable.tipo_venta === 'porcion_contenedor'
+      ? variable.cantidad_porciones
+      : variable.cantidad_variable
+    : item?.cantidad;
+
+  const cantidad = cantidadTexto(cruda);
+  if (!item?.id || cantidad === null) {
+    throw new Error(`No pudimos preparar «${item?.nombre || 'un producto'}» de tu pedido.`);
+  }
+
+  return { productoId: item.id, cantidad, notas: (item?.notas || '').trim() };
+}
+
+/**
+ * Envía el carrito a cocina.
+ *
+ * Devuelve `{ventaId, lineas, comandas, totalCentavos}`. El total es el del
+ * servidor, cotizado sobre TODAS las líneas persistidas —la mesa pudo pedir dos
+ * veces— con la misma función que usa el cobro.
+ */
+export function enviarPedidoQR({ token, items, notaGeneral, clave }) {
+  const carrito = (Array.isArray(items) ? items : []).filter(
+    (item) => item && Number(item.cantidad) > 0,
+  );
+  if (carrito.length === 0) throw new Error('El carrito está vacío');
+
+  return api.comandos.ejecutar(
+    rutaPublica(token, '/pedido'),
+    { items: carrito.map(itemParaComando), notaGeneral: (notaGeneral || '').trim() },
+    clave,
+  );
+}
+
+/**
+ * «Llama al mesero», sin la carrera que tenía el navegador.
+ *
+ * El anti-duplicado dejó de ser una consulta previa que envejece en el camino:
+ * lo impone el índice único parcial `solicitudes_qr_una_pendiente`. Si ya
+ * avisaste, el comando responde `QR_SOLICITUD_DUPLICADA` con su mensaje —«Ya
+ * avisamos al mesero. Llegará en un momento.»— y eso ES la respuesta.
+ */
+export function crearSolicitudQR({ token, tipo, clave }) {
+  return api.comandos.ejecutar(rutaPublica(token, '/solicitud'), { tipo }, clave);
+}
+
+/**
+ * Pide la cuenta y elige la propina.
+ *
+ * Sólo viaja el TIPO de propina y, si es porcentaje, el porcentaje. Nunca un
+ * importe: `PedirCuentaQR.jsx` escribía `subtotal_consumo`,
+ * `propina_monto_sugerida` y `total_estimado` calculados en el navegador y los
+ * guardaba tal cual. El subtotal sale ahora de `cotizar` y la propina de
+ * `aplicarPorcentaje`, en centavos enteros.
+ *
+ * Devuelve `{ventaId, subtotalCentavos, propinaCentavos, propinaTipo, codigoCaja}`.
+ */
+export function pedirCuentaQR({ token, propinaTipo, propinaPorcentaje, propinaMonto, clave }) {
+  const cuerpo = {
+    propinaTipo,
+    propinaPorcentaje: Math.max(0, Math.min(100, parseInt(propinaPorcentaje, 10) || 0)),
+  };
+  // El importe escrito a mano SÓLO viaja con `monto_manual`: el esquema del
+  // comando rechaza la petición entera si llega con cualquier otro tipo, y eso
+  // es a propósito —pedir una cosa y mandar otra no se ignora en silencio—.
+  //
+  // Se convierte a centavos con `Math.round` sobre el valor ya en pesos y no
+  // sobre una cadena: aquí no hay `desdeTexto`, y el campo es un número que el
+  // comensal teclea con dos decimales como mucho.
+  if (propinaTipo === 'monto_manual') {
+    const pesos = Number.parseFloat(propinaMonto);
+    cuerpo.propinaSugeridaCentavos = Number.isFinite(pesos) && pesos > 0 ? Math.round(pesos * 100) : 0;
+  }
+  return api.comandos.ejecutar(rutaPublica(token, '/cuenta'), cuerpo, clave);
+}
+
+/**
+ * Deja la valoración de la visita.
+ *
+ * El emoji NO viaja. `ValoracionEmoji.jsx` mandaba `satisfaccion_emoji` y
+ * `satisfaccion_label` desde el navegador: dos campos de texto libre que
+ * acababan en un reporte, así que cualquiera podía escribir lo que quisiera en
+ * la carita de una venta. Ahora va el número del 1 al 5 y el emoji lo pone el
+ * servidor.
+ *
+ * Devuelve `{ventaId, score, yaValorada}`. Insistir no es un error: si ya
+ * estaba valorada se devuelve la que quedó escrita.
+ */
+export function valorarVisitaQR({ token, score, comentario, clave }) {
+  return api.comandos.ejecutar(
+    rutaPublica(token, '/valoracion'),
+    { score: Number(score), comentario: (comentario || '').trim() },
+    clave,
+  );
+}

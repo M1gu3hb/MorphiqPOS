@@ -42,6 +42,30 @@ export interface PayloadPortal {
   readonly secciones: readonly SeccionDeMenu[];
   /** La venta viva de ESTA mesa, sólo para la precuenta. `null` si no hay. */
   readonly cuenta: CuentaPublica | null;
+  /** El último aviso de ESTA mesa, para que el comensal sepa si ya lo vieron. */
+  readonly solicitud: SolicitudPublica | null;
+}
+
+/**
+ * El aviso del comensal, con lo justo para pintar su tarjeta.
+ *
+ * ── Por qué se publica ─────────────────────────────────────────────────────
+ * `PortalCliente.jsx` enseña «Tu mesero ya vio la solicitud» y para eso sondeaba
+ * `SolicitudQR.get` cada 4 s desde el navegador: una lectura que en el portal
+ * NO tiene sesión y por tanto siempre fallaba en silencio. Y su condición de
+ * cierre miraba sólo `atendida` y `resuelta`, así que si el administrador la
+ * CANCELABA el comensal se quedaba esperando para siempre.
+ *
+ * Aquí el estado llega ya resuelto por el servidor, en la misma petición que el
+ * resto del portal, y `cerrada` cubre los tres finales. Ni id de empleado, ni
+ * nombre, ni notas: el comensal no tiene por qué saber quién le atiende.
+ */
+export interface SolicitudPublica {
+  readonly id: string;
+  readonly tipo: string;
+  readonly estado: string;
+  /** `true` cuando ya no hay nada que esperar: resuelta o cancelada. */
+  readonly cerrada: boolean;
 }
 
 /** Topes de `F1-04` §36.6. Nada de `list(10000)` ni siquiera aquí. */
@@ -88,13 +112,14 @@ export async function payloadDelPortal(
   // Las dos banderas de presentación DECIDEN aquí, en el servidor, y no sólo
   // viajan: con los precios apagados no salen precios, y con la precuenta
   // apagada no salen ni totales ni líneas (hallazgo 7).
-  const [productos, categorias, secciones, cuenta] = await Promise.all([
+  const [productos, categorias, secciones, cuenta, solicitud] = await Promise.all([
     usaCatalogo
       ? productosVisibles(ambito.organizacionId, banderas.mostrarPrecios)
       : Promise.resolve([]),
     usaCatalogo ? categoriasVisibles(ambito.organizacionId) : Promise.resolve([]),
     usaSecciones ? seccionesVisibles(ambito.organizacionId) : Promise.resolve([]),
     cuentaDeLaMesa(ambito, banderas.mostrarPrecuenta),
+    solicitudDeLaMesa(ambito),
   ]);
 
   return {
@@ -104,7 +129,32 @@ export async function payloadDelPortal(
     categorias,
     secciones,
     cuenta,
+    solicitud,
   };
+}
+
+/** Los estados en los que el aviso ya no espera a nadie. */
+const SOLICITUD_CERRADA = ['resuelta', 'cancelada'];
+
+/**
+ * El último aviso de ESTA mesa. Nunca una lista, nunca el de otra mesa.
+ *
+ * Se acota al mismo ámbito que la cuenta —organización y mesa del token— y se
+ * devuelve sólo el más reciente: al comensal le importa el suyo, y publicar el
+ * historial de la mesa sería contar lo que pidieron los de antes.
+ */
+async function solicitudDeLaMesa(ambito: AmbitoPortal): Promise<SolicitudPublica | null> {
+  const fila = await obtenerDb()
+    .selectFrom('solicitudes_qr')
+    .select(['id', 'tipo', 'estado'])
+    .where('organizacion_id', '=', ambito.organizacionId)
+    .where('mesa_id', '=', ambito.mesaId)
+    .orderBy('created_at', 'desc')
+    .limit(1)
+    .executeTakeFirst();
+
+  if (fila === undefined) return null;
+  return { ...fila, cerrada: SOLICITUD_CERRADA.includes(fila.estado) };
 }
 
 /**

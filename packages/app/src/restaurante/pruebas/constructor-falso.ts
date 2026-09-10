@@ -73,21 +73,75 @@ function igual(a: unknown, b: unknown): boolean {
   return a === b;
 }
 
+/**
+ * Los tres agregados que estos comandos usan: `max`, `sum` y `count`.
+ *
+ * `sum` y `count` entraron con el arqueo de caja (`arqueoDeSesion`): sin ellos
+ * el cuerpo de `caja.cerrar` y `caja.corte_turno` no podía correr contra esta
+ * base y sus pruebas tenían que declarar el resultado en vez de derivarlo, que
+ * es justo lo que deja pasar un error de suma.
+ *
+ * `sum` devuelve CADENA, no número, igual que Postgres con `numeric`: el
+ * repositorio la parte por el punto y la convierte a `bigint`, y si aquí
+ * llegara un `number` esa conversión no se probaría nunca.
+ */
 interface Agregado {
-  readonly funcion: 'max';
+  readonly funcion: 'max' | 'sum' | 'count';
   readonly columna: string;
   readonly alias: string;
+  readonly distinto: boolean;
 }
 
-type Selector = string | readonly string[] | ((eb: ConstructorExpresion) => Agregado);
+type Selector = string | readonly string[] | ((eb: ConstructorExpresion) => Agregado | Agregado[]);
+
+interface Funcion {
+  as(alias: string): Agregado;
+  distinct(): { as(alias: string): Agregado };
+}
 
 interface ConstructorExpresion {
-  readonly fn: { max(columna: string): { as(alias: string): Agregado } };
+  readonly fn: {
+    max(columna: string): Funcion;
+    sum(columna: string): Funcion;
+    count(columna: string): Funcion;
+  };
+}
+
+function funcion(nombre: Agregado['funcion'], columna: string): Funcion {
+  return {
+    as: (alias) => ({ funcion: nombre, columna, alias, distinto: false }),
+    distinct: () => ({ as: (alias) => ({ funcion: nombre, columna, alias, distinto: true }) }),
+  };
 }
 
 const EXPRESION: ConstructorExpresion = {
-  fn: { max: (columna) => ({ as: (alias) => ({ funcion: 'max', columna, alias }) }) },
+  fn: {
+    max: (columna) => funcion('max', columna),
+    sum: (columna) => funcion('sum', columna),
+    count: (columna) => funcion('count', columna),
+  },
 };
+
+/** El valor que Postgres devolvería para este agregado sobre estas filas. */
+function agregar(agregado: Agregado, filas: readonly Fila[]): unknown {
+  const { funcion: nombre, columna, distinto } = agregado;
+
+  if (nombre === 'count') {
+    const valores = filas.map((f) => f[columna]).filter((v) => v !== null && v !== undefined);
+    const cuantos = distinto ? new Set(valores.map(String)).size : valores.length;
+    // `count` de Kysely llega como cadena, igual que en Postgres.
+    return String(cuantos);
+  }
+
+  const numeros = filas.map((f) => Number(f[columna] ?? 0));
+  // Un agregado sobre cero filas devuelve UNA fila con `null`, como Postgres:
+  // `siguienteOrdenVisual` depende de eso para empezar en 1, y `arqueoDeSesion`
+  // trata ese null como cero a propósito.
+  if (numeros.length === 0) return null;
+  if (nombre === 'max') return Math.max(...numeros);
+  // `sum` sobre `numeric` vuelve como CADENA para no perder precisión.
+  return String(numeros.reduce((a, b) => a + b, 0));
+}
 
 function proyectar(fila: Fila, selectores: readonly Selector[]): Fila {
   const expresiones: string[] = [];
@@ -131,13 +185,16 @@ export function lectura(filas: Fila[]) {
     }
     if (tope !== null) vivas = vivas.slice(0, tope);
 
-    const agregado = selectores.find((s) => typeof s === 'function');
-    if (typeof agregado === 'function') {
-      const { columna, alias } = agregado(EXPRESION);
-      const numeros = vivas.map((f) => Number(f[columna] ?? 0));
-      // Un agregado sobre cero filas devuelve UNA fila con `null`, como
-      // Postgres: `siguienteOrdenVisual` depende de eso para empezar en 1.
-      return [{ [alias]: numeros.length === 0 ? null : Math.max(...numeros) }];
+    const funciones = selectores.filter((s) => typeof s === 'function');
+    if (funciones.length > 0) {
+      const fila: Fila = {};
+      for (const selector of funciones) {
+        const resultado = selector(EXPRESION);
+        for (const agregado of Array.isArray(resultado) ? resultado : [resultado]) {
+          fila[agregado.alias] = agregar(agregado, vivas);
+        }
+      }
+      return [fila];
     }
 
     return vivas.map((fila) => proyectar(fila, selectores));

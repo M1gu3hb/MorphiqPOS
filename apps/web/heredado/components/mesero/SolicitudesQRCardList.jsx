@@ -10,11 +10,9 @@ import { es } from 'date-fns/locale';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
-import {
-  filtrarSolicitudesParaUsuario,
-  asignacionActiva,
-  colorParaUsuario,
-} from '@/lib/asignacionMesas';
+// `colorParaUsuario` ya no se importa: `atendido_por_color` es un DERIVADO que
+// el puente calcula al leer la mesa, no una columna que esta pantalla escriba.
+import { filtrarSolicitudesParaUsuario, asignacionActiva } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
 
 const TIPO_ICON = { ordenar: Bell, cuenta: Receipt, ayuda: HelpCircle };
@@ -61,42 +59,32 @@ export default function SolicitudesQRCardList() {
   const accion = async (s, accionTipo) => {
     if (!s?.id) return;
     try {
-      const ahora = new Date().toISOString();
-      if (accionTipo === 'atender') {
-        await api.entidades.SolicitudQR.update(s.id, {
-          estado: 'atendida',
-          fecha_atendida: ahora,
-          atendido_por_id: posUser?.id,
-          atendido_por_nombre: posUser?.nombre,
-        });
-        if (!asign && s.mesa_id && posUser?.id && posUser?.rol === ROLES.WAITER) {
-          try {
-            const mesa = await api.entidades.Mesa.get(s.mesa_id).catch(() => null);
-            if (mesa && !mesa.atendido_por_id) {
-              await api.entidades.Mesa.update(mesa.id, {
-                atendido_por_id: posUser.id,
-                atendido_por_nombre: posUser.nombre || '',
-                atendido_por_color: colorParaUsuario(posUser),
-              }).catch(() => {});
-              queryClient.invalidateQueries({ queryKey: ['mesas'] });
-            }
-          } catch {}
+      // Mismo cambio que en SolicitudesQRPanel, que es este mismo componente en
+      // versión panel: `atendido_por_id` y `atendido_por_nombre` NO se mandan.
+      // Los pone la sesión dentro de `atender_solicitud`, así que ya nadie se
+      // puede atribuir el trabajo de otro desde el navegador.
+      await api.comandos.ejecutar('/api/restaurante/atender-solicitud', {
+        solicitudId: s.id,
+        estado: accionTipo === 'atender' ? 'atendida' : 'resuelta',
+      });
+
+      if (accionTipo === 'atender' && !asign && s.mesa_id && posUser?.rol === ROLES.WAITER) {
+        // Sin `.catch(() => null)` y sin `.catch(() => {})`: cuando esos dos
+        // fallaban, la mesa se quedaba sin dueño y su propina sin destinatario.
+        const mesa = await api.entidades.Mesa.get(s.mesa_id);
+        if (mesa && !mesa.atendido_por_id) {
+          await api.comandos.ejecutar('/api/restaurante/asignar-mesero', { mesaId: mesa.id });
+          queryClient.invalidateQueries({ queryKey: ['mesas'] });
         }
-      } else if (accionTipo === 'resolver') {
-        await api.entidades.SolicitudQR.update(s.id, {
-          estado: 'resuelta',
-          fecha_resuelta: ahora,
-          atendido_por_id: s.atendido_por_id || posUser?.id,
-          atendido_por_nombre: s.atendido_por_nombre || posUser?.nombre,
-        });
       }
+
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero'] });
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero_count'] });
       toast.success('Solicitud actualizada');
     } catch (err) {
       console.error('[SolicitudesQRCardList] accion:', err);
-      toast.error('No se pudo actualizar');
+      toast.error(err?.message || 'No se pudo actualizar');
     }
   };
 

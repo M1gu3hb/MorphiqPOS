@@ -1,6 +1,6 @@
 'use client';
-import React, { useState } from 'react';
-import { api } from '@/api/cliente';
+import React, { useState, useRef } from 'react';
+import { api, nuevaClave } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,8 +17,8 @@ import {
 import { Plus, Pencil, Trash2, Repeat, AlertTriangle, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/utils/financialUtils';
-import { usePOSAuth } from '@/lib/POSAuthContext';
 import PlantillaGastoDialog from '@/components/compras/PlantillaGastoDialog';
+import { textoDecimal } from '@/components/inventario/comandos';
 
 const PERIODICIDAD_LABEL = {
   mensual: 'Mensual',
@@ -45,12 +45,30 @@ const PERIODICIDAD_LABEL = {
  */
 export default function PlantillasGastoSection() {
   const queryClient = useQueryClient();
-  const { posUser } = usePOSAuth();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmDup, setConfirmDup] = useState(null); // { plantilla, existente }
   const [registrando, setRegistrando] = useState(false);
+
+  /**
+   * Una clave de idempotencia por plantilla, viva hasta que el pago entra.
+   *
+   * El botón «Registrar pago» saca dinero del cajón, y su camino tiene una ida
+   * y vuelta por el aviso de duplicado: primer intento → aviso → el admin
+   * confirma → segundo intento con `forzar`. Ese segundo intento tiene que
+   * llevar LA MISMA clave, porque el primero no escribió nada; si llevara una
+   * nueva, un doble clic en «Registrar de todas formas» pagaría dos veces.
+   * Cuando el pago entra, la clave se retira: el mes siguiente es otro gasto.
+   */
+  const clavesDePago = useRef(new Map());
+  const claveDelPago = (plantillaId) => {
+    const existente = clavesDePago.current.get(plantillaId);
+    if (existente !== undefined) return existente;
+    const clave = nuevaClave();
+    clavesDePago.current.set(plantillaId, clave);
+    return clave;
+  };
 
   const { data: plantillas = [] } = useQuery({
     queryKey: ['plantillas_gasto'],
@@ -108,24 +126,36 @@ export default function PlantillasGastoSection() {
         }
       }
 
-      await api.entidades.GastoOperativo.create({
-        fecha: fechaIso,
-        categoria: plantilla.categoria || 'servicios',
-        descripcion: plantilla.nombre,
-        monto: Number(plantilla.monto_sugerido) || 0,
-        metodo_pago: plantilla.metodo_pago || 'efectivo',
-        usuario_id: posUser?.id,
-        usuario_nombre: posUser?.nombre,
-        notas: `[Desde plantilla: ${plantilla.nombre}] ${plantilla.notas || ''}`.trim(),
-      });
+      // `plantilla_gasto_id` es una COLUMNA. Viajaba como el prefijo «[Desde
+      // plantilla: X]» dentro de las notas y se perdía al editarlas (F1-04
+      // §25.1); ahora se manda tal cual y el gasto queda ligado a su plantilla.
+      //
+      // Con ese enlace, `gastos.registrar` sube `veces_usada` y
+      // `ultima_fecha_uso` EN LA MISMA TRANSACCIÓN. El `update` que se hacía
+      // aquí detrás, con un `catch {}` vacío, dejaba el gasto registrado y el
+      // contador sin mover, así que las plantillas más usadas nunca subían en
+      // la lista y nadie se enteraba. Además esas dos columnas ya no se
+      // aceptan del cliente: son un contador, no un dato de formulario.
+      await api.comandos.ejecutar(
+        '/api/gastos/registrar',
+        {
+          fecha: fechaIso,
+          categoria: plantilla.categoria || 'servicios',
+          descripcion: plantilla.nombre,
+          monto: textoDecimal(Number(plantilla.monto_sugerido) || 0),
+          metodoPago: plantilla.metodo_pago || 'efectivo',
+          esRecurrente: true,
+          plantillaGastoId: plantilla.id,
+          ...(String(plantilla.notas || '').trim()
+            ? { notas: String(plantilla.notas).trim() }
+            : {}),
+        },
+        claveDelPago(plantilla.id),
+      );
 
-      // Actualizar metadatos de uso
-      try {
-        await api.entidades.PlantillaGasto.update(plantilla.id, {
-          ultima_fecha_uso: new Date().toISOString(),
-          veces_usada: (Number(plantilla.veces_usada) || 0) + 1,
-        });
-      } catch {}
+      // El pago quedó: la clave de esta plantilla se retira para que el mes que
+      // viene el mismo botón registre un gasto nuevo y no un reintento.
+      clavesDePago.current.delete(plantilla.id);
 
       toast.success(
         `Gasto "${plantilla.nombre}" registrado por ${formatCurrency(plantilla.monto_sugerido)}`,

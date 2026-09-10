@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { textoDecimal } from '@/components/inventario/comandos';
 
 const CATEGORIAS = [
   { value: 'servicios', label: 'Servicios (luz, agua, gas, internet)' },
@@ -97,27 +98,33 @@ export default function PlantillaGastoDialog({ open, onClose, plantilla = null }
     }
     setSaving(true);
     try {
-      const payload = {
+      // `veces_usada` ya no viaja: es un contador que sube `gastos.registrar`
+      // cuando el gasto apunta a esta plantilla, no un campo del formulario.
+      //
+      // Y `activa` sólo se manda al DAR DE ALTA. Se mandaba en `true` también
+      // al editar, así que abrir una plantilla eliminada y guardar la resucitaba
+      // sin que nadie lo pidiera. Reactivar es una acción propia.
+      const diaPago = parseInt(form.dia_pago_sugerido, 10);
+      const esAlta = !plantilla?.id;
+      await api.comandos.ejecutar('/api/gastos/plantilla', {
+        ...(esAlta ? { activa: true } : { plantillaId: plantilla.id }),
         nombre,
         categoria: form.categoria,
-        monto_sugerido: monto,
-        metodo_pago: form.metodo_pago,
+        montoSugerido: textoDecimal(monto),
+        metodoPago: form.metodo_pago,
         periodicidad: form.periodicidad,
-        dia_pago_sugerido: parseInt(form.dia_pago_sugerido, 10) || 0,
-        notas: form.notas.trim(),
-        activa: true,
-      };
-      if (plantilla?.id) {
-        await api.entidades.PlantillaGasto.update(plantilla.id, payload);
-        toast.success('Plantilla actualizada');
-      } else {
-        await api.entidades.PlantillaGasto.create({ ...payload, veces_usada: 0 });
-        toast.success('Plantilla creada');
-      }
+        // El día del mes va de 1 a 31: un 0 no es «sin día», es un día que no
+        // existe. Cuando no se captura, el campo sencillamente no se manda.
+        ...(Number.isFinite(diaPago) && diaPago >= 1 && diaPago <= 31
+          ? { diaPagoSugerido: diaPago }
+          : {}),
+        ...(form.notas.trim() ? { notas: form.notas.trim() } : {}),
+      });
+      toast.success(esAlta ? 'Plantilla creada' : 'Plantilla actualizada');
       queryClient.invalidateQueries({ queryKey: ['plantillas_gasto'] });
       close();
     } catch (e) {
-      toast.error('Error: ' + (e?.message || ''));
+      toast.error(e?.message || 'No se pudo guardar la plantilla.');
     }
     setSaving(false);
   };

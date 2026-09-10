@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
-import { api } from '@/api/cliente';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { api, nuevaClave } from '@/api/cliente';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -14,6 +14,13 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save } from 'lucide-react';
 import { formatCurrency, formatPercent, calculateMargin } from '@/utils/financialUtils';
@@ -22,6 +29,49 @@ import CategoriaSelect from '@/components/productos/CategoriaSelect';
 import ImageUploader from '@/components/common/ImageUploader';
 import TipoVentaSection from '@/components/productos/TipoVentaSection';
 import { TIPO_VENTA, validarProductoVariable, esProductoVariable } from '@/utils/tipoVentaUtils';
+import { canonicalUnidad, convertirAUnidadBase } from '@/utils/unidadesMedida';
+import { textoDecimal } from '@/components/inventario/comandos';
+
+/**
+ * En qué unidades se puede expresar el gramaje de una receta, por unidad base
+ * del insumo.
+ *
+ * Esto existe porque `unidad_usada` era un INPUT DE TEXTO LIBRE y la cantidad
+ * se guardaba SIN convertir en `cantidad_convertida_unidad_base`, que es el
+ * campo del que el inventario descuenta. Escribir «kg» en un insumo medido en
+ * gramos multiplicaba por mil el consumo y el costo de ese platillo: 200 g de
+ * queso se convertían en 200 kg descontados de la bodega y en un costo de
+ * producción mil veces mayor, con el margen que cuelga de él.
+ *
+ * Con un selector no se puede teclear una unidad de otra dimensión, y lo que se
+ * manda al comando ya va en la unidad base del insumo —que es lo único que
+ * `inventario.guardar_receta` acepta: exige que `unidad` sea la del insumo y
+ * lanza `UNIDAD_INCOMPATIBLE` si no lo es.
+ */
+const UNIDADES_DE_RECETA = {
+  g: ['g', 'kg'],
+  ml: ['ml', 'litro'],
+  pieza: ['pieza'],
+};
+
+/** Las opciones válidas para un insumo, o sólo su unidad base si es otra. */
+function opcionesDeUnidad(unidadBase) {
+  return UNIDADES_DE_RECETA[unidadBase] || (unidadBase ? [unidadBase] : []);
+}
+
+/**
+ * La unidad guardada, traída a una de las opciones del selector.
+ *
+ * Una receta vieja puede tener «kilogramos», «KG» o —peor— una unidad de otra
+ * dimensión escrita a mano. Los alias se reconocen y se muestran en su forma
+ * canónica; lo que no encaje cae a la unidad base del insumo, que es la única
+ * que el comando va a aceptar de todas formas.
+ */
+function unidadDeLinea(unidadGuardada, unidadBase) {
+  const opciones = opcionesDeUnidad(unidadBase);
+  const canon = canonicalUnidad(unidadGuardada);
+  return opciones.find((o) => canonicalUnidad(o) === canon) || opciones[0] || '';
+}
 
 const EMPTY_PRODUCTO = {
   nombre: '',
@@ -63,6 +113,10 @@ export default function RecetaFormDialog({
   const [producto, setProducto] = useState(EMPTY_PRODUCTO);
   const [lineas, setLineas] = useState([]);
   const [saving, setSaving] = useState(false);
+  // Clave de idempotencia del diálogo: se genera al abrirlo y se reusa mientras
+  // siga abierto, para que un doble clic en «Crear receta» no cree dos
+  // productos gemelos ni guarde la receta dos veces.
+  const claveDelDialogo = useRef(null);
   // 6B / 1.B — Estado del tipo de venta. Independiente del flujo de receta.
   const [tipoVentaState, setTipoVentaState] = useState(EMPTY_TIPO_VENTA);
 
@@ -71,6 +125,7 @@ export default function RecetaFormDialog({
   // del padre y reseteaba las líneas al pulsar "Agregar ingrediente").
   useEffect(() => {
     if (!open) return;
+    claveDelDialogo.current = nuevaClave();
     if (productoToEdit) {
       setProducto({
         nombre: productoToEdit.nombre || '',
@@ -85,17 +140,22 @@ export default function RecetaFormDialog({
       const safeIngs = Array.isArray(ingredientes) ? ingredientes : [];
       const initialLineas = safeLines.map((l) => {
         const ing = safeIngs.find((i) => i.id === l.ingrediente_id);
+        const respaldo = {
+          id: l.ingrediente_id,
+          nombre: l.ingrediente_nombre,
+          unidad_base: l.unidad_usada,
+          costo_por_unidad_base: l.costo_unitario_base_snapshot,
+          stock_actual: 0,
+        };
+        const ingrediente = ing || respaldo;
         return {
           id: l.id,
-          ingrediente: ing || {
-            id: l.ingrediente_id,
-            nombre: l.ingrediente_nombre,
-            unidad_base: l.unidad_usada,
-            costo_por_unidad_base: l.costo_unitario_base_snapshot,
-            stock_actual: 0,
-          },
+          ingrediente,
           cantidad_usada: l.cantidad_usada,
-          unidad_usada: l.unidad_usada || ing?.unidad_base || '',
+          // Se normaliza al abrir: una línea vieja guardada con «kilogramos» o
+          // con una unidad de otra dimensión tiene que caer en una opción real
+          // del selector, no dejarlo en blanco.
+          unidad_usada: unidadDeLinea(l.unidad_usada, ingrediente.unidad_base),
           merma_porcentaje: l.merma_porcentaje || 0,
         };
       });
@@ -134,7 +194,15 @@ export default function RecetaFormDialog({
     let costo = 0;
     const detalle = lineas.map((l) => {
       if (!l.ingrediente) return { ...l, costoLinea: 0 };
-      const cant = parseFloat(l.cantidad_usada) || 0;
+      // La cantidad se lleva a la unidad base ANTES de multiplicar por el
+      // costo, que está por unidad base. Sin esta conversión la vista previa
+      // de «0.2 kg» de un insumo en gramos enseñaba un costo mil veces menor
+      // que el real — el mismo error de mil que se guardaba en la receta.
+      const cant = convertirAUnidadBase(
+        parseFloat(l.cantidad_usada) || 0,
+        l.unidad_usada || l.ingrediente.unidad_base,
+        1,
+      );
       const merma = 1 + (parseFloat(l.merma_porcentaje) || 0) / 100;
       const costoUnit = l.ingrediente.costo_por_unidad_base || 0;
       const costoLinea = cant * merma * costoUnit;
@@ -153,7 +221,7 @@ export default function RecetaFormDialog({
     setLineas((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
 
   const handleSelectIng = (idx, ing) => {
-    updateLinea(idx, { ingrediente: ing, unidad_usada: ing.unidad_base });
+    updateLinea(idx, { ingrediente: ing, unidad_usada: unidadDeLinea(ing.unidad_base, ing.unidad_base) });
   };
 
   const validate = () => {
@@ -175,6 +243,14 @@ export default function RecetaFormDialog({
         return false;
       }
     }
+    // Vaciar del todo una receta que ya existía dejaría la vieja viva:
+    // `guardar_receta` exige al menos un ingrediente y desde aquí no hay forma
+    // de borrarla sin más. Para retirarla entera está «Eliminar receta», que
+    // además archiva el producto en la misma transacción.
+    if (lineas.length === 0 && (recetaLinesToEdit || []).length > 0) {
+      toast.error('Agrega al menos un ingrediente para calcular el costo');
+      return false;
+    }
     // 6B / 1.B — Validación adicional si es variable.
     if (esProductoVariable(tipoVentaState)) {
       const { ok, errores } = validarProductoVariable(tipoVentaState);
@@ -190,23 +266,21 @@ export default function RecetaFormDialog({
     if (!validate()) return;
     setSaving(true);
     try {
-      // Resolver nombre de categoría: del cache local primero; si la categoría
-      // se acaba de crear inline y aún no llegó al cache, buscamos en BD.
-      let catNombre = categorias.find((c) => c.id === producto.categoria_id)?.nombre || '';
-      if (!catNombre && producto.categoria_id) {
-        try {
-          const fresco = await api.entidades.CategoriaProducto.get(producto.categoria_id);
-          catNombre = fresco?.nombre || '';
-        } catch {}
-      }
+      // `categoria_nombre` ya NO se manda. Es un derivado del puente: sale del
+      // `join` con `categorias` al leer, así que no tiene columna donde
+      // guardarse y mandarlo se rechaza. Con él se va la lectura de respaldo
+      // que tenía un `.catch {}` y que, al fallar, guardaba una instantánea de
+      // categoría vacía para siempre (F1-06 §4).
+      //
       // 6B / 1.B — Campos de tipo_venta. Solo se incluyen si el producto
       // es variable; en caso contrario se persiste 'precio_fijo' explícito
       // para limpiar valores antiguos al cambiar de variable → fijo.
       const tipoVentaPayload = esProductoVariable(tipoVentaState)
         ? {
             tipo_venta: tipoVentaState.tipo_venta,
-            ingrediente_base_id: tipoVentaState.ingrediente_base_id || '',
-            ingrediente_base_nombre: tipoVentaState.ingrediente_base_nombre || '',
+            // `null`, no cadena vacía: la columna es un uuid y '' no lo es.
+            // `ingrediente_base_nombre` tampoco viaja — es otro derivado.
+            ingrediente_base_id: tipoVentaState.ingrediente_base_id || null,
             unidad_variable: tipoVentaState.unidad_variable || '',
             precio_por_unidad_variable: tipoVentaState.precio_por_unidad_variable,
             cantidad_minima_variable: tipoVentaState.cantidad_minima_variable,
@@ -226,10 +300,14 @@ export default function RecetaFormDialog({
           }
         : { tipo_venta: TIPO_VENTA.PRECIO_FIJO };
 
+      // El costo, la utilidad y el margen NO viajan. Son columnas que el
+      // servidor calcula —`margen_bp` y `utilidad_unitaria` son generadas en la
+      // base— y `inventario.guardar_receta` las recalcula sumando las líneas al
+      // guardarlas. Mandarlas desde el navegador era D-09: márgenes inventados
+      // en coma flotante que dejaban de corresponder a la receta guardada.
       const productoData = {
         nombre: producto.nombre.trim(),
-        categoria_id: producto.categoria_id || '',
-        categoria_nombre: catNombre,
+        categoria_id: producto.categoria_id || null,
         descripcion: producto.descripcion || '',
         precio_venta: parseFloat(producto.precio_venta),
         imagen_url: producto.imagen_url || '',
@@ -237,9 +315,6 @@ export default function RecetaFormDialog({
         visible_en_pos: producto.visible_en_pos,
         visible_en_menu_digital: true,
         activo: producto.activo,
-        costo_calculado_actual: Math.round(calc.costo * 100) / 100,
-        utilidad_bruta_actual: Math.round(calc.utilidad * 100) / 100,
-        margen_bruto_actual: Math.round(calc.margen * 100) / 100,
         ...tipoVentaPayload,
       };
 
@@ -247,33 +322,44 @@ export default function RecetaFormDialog({
       if (productoToEdit) {
         await api.entidades.ProductoTerminado.update(productoToEdit.id, productoData);
         productoId = productoToEdit.id;
-        // Borrar líneas previas
-        for (const old of recetaLinesToEdit || []) {
-          await api.entidades.RecetaEscandallo.delete(old.id);
-        }
       } else {
         const created = await api.entidades.ProductoTerminado.create(productoData);
         productoId = created.id;
       }
 
-      // Crear líneas nuevas
-      for (const l of lineas) {
-        const cant = parseFloat(l.cantidad_usada) || 0;
-        const merma = parseFloat(l.merma_porcentaje) || 0;
-        const costoUnit = l.ingrediente.costo_por_unidad_base || 0;
-        const costoLinea = cant * (1 + merma / 100) * costoUnit;
-        await api.entidades.RecetaEscandallo.create({
-          producto_id: productoId,
-          ingrediente_id: l.ingrediente.id,
-          ingrediente_nombre: l.ingrediente.nombre,
-          cantidad_usada: cant,
-          unidad_usada: l.unidad_usada || l.ingrediente.unidad_base,
-          cantidad_convertida_unidad_base: cant,
-          merma_porcentaje: merma,
-          costo_unitario_base_snapshot: costoUnit,
-          costo_linea_calculado: costoLinea,
-          activo: true,
-        });
+      // ── D-11: la receta se reemplaza entera o no se toca ──────────────────
+      // Antes esto era «borrar las N líneas viejas, después crear las M
+      // nuevas», sin transacción. Si fallaba a mitad, el producto se quedaba
+      // con media receta —o con ninguna— y su costo, su utilidad y su margen
+      // pasaban a describir algo que no existía. `guardar_receta` borra e
+      // inserta dentro de la misma transacción y recalcula el costo al final.
+      //
+      // Lo que se manda es la cantidad YA EN LA UNIDAD BASE del insumo, que es
+      // la única que el comando acepta; y la merma en puntos base, que es como
+      // la guarda la base (`merma_bp`), no en porcentaje.
+      if (lineas.length > 0) {
+        await api.comandos.ejecutar(
+          '/api/inventario/recetas',
+          {
+            productoId,
+            ingredientes: lineas.map((l) => ({
+              insumoId: l.ingrediente.id,
+              cantidad: textoDecimal(
+                convertirAUnidadBase(
+                  parseFloat(l.cantidad_usada) || 0,
+                  l.unidad_usada || l.ingrediente.unidad_base,
+                  1,
+                ),
+              ),
+              unidad: l.ingrediente.unidad_base,
+              mermaBp: Math.min(
+                10000,
+                Math.max(0, Math.round((parseFloat(l.merma_porcentaje) || 0) * 100)),
+              ),
+            })),
+          },
+          claveDelDialogo.current,
+        );
       }
 
       queryClient.invalidateQueries({ queryKey: ['productos_all'] });
@@ -284,7 +370,10 @@ export default function RecetaFormDialog({
       );
       onClose();
     } catch (e) {
-      toast.error('Error al guardar: ' + e.message);
+      // El mensaje del dominio ya viene en español y dice exactamente qué pasó
+      // («La unidad de la receta debe coincidir con la del insumo»). Se enseña
+      // tal cual: el genérico de antes no dejaba corregir nada.
+      toast.error(e?.message || 'No se pudo guardar la receta.');
     } finally {
       setSaving(false);
     }
@@ -441,11 +530,25 @@ export default function RecetaFormDialog({
                     </div>
                     <div className="col-span-4 sm:col-span-2">
                       <Label className="text-[10px] uppercase text-muted-foreground">Unidad</Label>
-                      <Input
+                      {/* Selector, no texto libre: es lo que impide escribir
+                          «kg» en un insumo medido en gramos y multiplicar por
+                          mil el consumo y el costo del platillo. */}
+                      <Select
                         value={l.unidad_usada || l.ingrediente?.unidad_base || ''}
-                        onChange={(e) => updateLinea(idx, { unidad_usada: e.target.value })}
+                        onValueChange={(v) => updateLinea(idx, { unidad_usada: v })}
                         disabled={!l.ingrediente}
-                      />
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {opcionesDeUnidad(l.ingrediente?.unidad_base).map((u) => (
+                            <SelectItem key={u} value={u}>
+                              {u}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="col-span-3 sm:col-span-2">
                       <Label className="text-[10px] uppercase text-muted-foreground">

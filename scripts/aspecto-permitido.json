@@ -1,0 +1,57 @@
+{
+  "_comentario": [
+    "Las ÚNICAS diferencias de aspecto admitidas en apps/web/heredado/, cada una",
+    "con su motivo escrito. Sin este archivo la puerta se queda roja para siempre",
+    "y deja de mirarse, que es la forma en que muere una puerta.",
+    "",
+    "Añadir una entrada aquí es una DECISIÓN, no un trámite: quien la añade está",
+    "diciendo que Miguel no va a echar de menos eso. `porque` es obligatorio y la",
+    "puerta rechaza el archivo si falta.",
+    "",
+    "`testigos` es la lista literal que `verificar-aspecto.mjs` imprime, tal cual,",
+    "con su signo. Nada de comodines: una excepción que cubre de más deja de ser",
+    "una excepción."
+  ],
+  "permitidos": [
+    {
+      "archivo": "apps/web/heredado/components/portalqr/PedirCuentaQR.jsx",
+      "porque": "El bloque «Cargando tu cuenta…» cubría un `api.entidades.Venta.get` que este diálogo hacía al abrirse. Esa lectura ya no existe: la cuenta llega con el resto del portal en la lectura pública única, y el diálogo sólo se abre cuando el padre ya la tiene. Mantener el bloque sería dejar un giro de carga que no puede pintarse nunca.",
+      "testigos": [
+        "- clase:py-10",
+        "- clase:text-center",
+        "- clase:w-7",
+        "- clase:h-7",
+        "- clase:mx-auto",
+        "- clase:animate-spin",
+        "- clase:text-muted-foreground",
+        "- clase:text-muted-foreground",
+        "- clase:text-xs",
+        "- clase:mt-2",
+        "- texto:Cargando tu cuenta…"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/ValoracionEmoji.jsx",
+      "porque": "Mismo caso: el giro cubría un `Venta.get(ventaId)` cuyo `.catch(() => null)` además dejaba `yaValorada` en falso ante un fallo de red y permitía valorar dos veces la misma visita. Ahora `ya_valorada` viene en la lectura pública, resuelto por el servidor, antes de que el modal se abra.",
+      "testigos": [
+        "- clase:py-10",
+        "- clase:text-center",
+        "- clase:w-7",
+        "- clase:h-7",
+        "- clase:mx-auto",
+        "- clase:animate-spin",
+        "- clase:text-muted-foreground"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/tickets/TicketViewerDialog.jsx",
+      "porque": "Es una rama de ERROR que antes no existía, no un rediseño. El diálogo leía las líneas con `.catch(() => [])`, así que una lectura caída se veía igual que una venta sin productos: pintaba el ticket con su folio y su total y CERO líneas, y ofrecía imprimirlo. Ahora, si no puede leer, lo dice y no imprime. Sólo se pinta cuando algo falla; en el camino normal el diálogo es idéntico.",
+      "testigos": [
+        "+ clase:text-sm",
+        "+ clase:text-muted-foreground",
+        "+ clase:py-8",
+        "+ texto:) : error ? ("
+      ]
+    }
+  ]
+}

@@ -17,23 +17,40 @@ export default function TicketViewerDialog({ venta, open, onClose }) {
   const [detalles, setDetalles] = useState([]);
   const [mesa, setMesa] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!open || !venta?.id) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const dets = await api.entidades.DetalleVenta.filter({ venta_id: venta.id }).catch(() => []);
-      let m = null;
-      if (venta.mesa_id) {
-        m = await api.entidades.Mesa.list()
-          .then((list) => list.find((x) => x.id === venta.mesa_id))
-          .catch(() => null);
-      }
-      if (!cancelled) {
+      setError(null);
+      try {
+        // Sin `.catch(() => [])`. Esa lista vacía significaba dos cosas a la
+        // vez y el diálogo no podía separarlas: «esta venta no tenía
+        // productos» y «no pude preguntar». Con la segunda, el ticket se
+        // pintaba con su encabezado, su folio y su total pero CERO líneas, y
+        // encima ofrecía imprimirlo (F1-06 §4.7). Un documento incompleto que
+        // parece completo es peor que no tener documento; si no se puede leer,
+        // no se imprime.
+        const dets = await api.entidades.DetalleVenta.filter({ venta_id: venta.id });
+        // La mesa entra en la MISMA suerte, y no en un `.catch(() => null)`
+        // aparte: en el ticket es un renglón impreso, no un adorno. «Sin mesa»
+        // es `venta.mesa_id` vacío, que es un hecho; una consulta que falló no
+        // lo es.
+        const m = venta.mesa_id
+          ? (await api.entidades.Mesa.list()).find((x) => x.id === venta.mesa_id) || null
+          : null;
+        if (cancelled) return;
         setDetalles(dets);
         setMesa(m);
-        setLoading(false);
+      } catch (e) {
+        if (cancelled) return;
+        setDetalles([]);
+        setMesa(null);
+        setError(e?.message || 'No se pudo cargar el ticket.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -51,9 +68,12 @@ export default function TicketViewerDialog({ venta, open, onClose }) {
         <DialogHeader className="no-print px-5 pt-4 pb-3 border-b sticky top-0 bg-white z-10 flex-row items-center justify-between">
           <DialogTitle className="font-heading">Ticket · {venta?.folio}</DialogTitle>
           <div className="flex gap-2">
-            <Button size="sm" onClick={handlePrint}>
-              <Printer className="w-4 h-4 mr-1" /> Imprimir
-            </Button>
+            {/* Si el ticket no se pudo leer entero, no se ofrece imprimirlo. */}
+            {!error && (
+              <Button size="sm" onClick={handlePrint}>
+                <Printer className="w-4 h-4 mr-1" /> Imprimir
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={onClose}>
               <X className="w-4 h-4" />
             </Button>
@@ -62,6 +82,8 @@ export default function TicketViewerDialog({ venta, open, onClose }) {
         <div className="p-4 bg-gray-100 flex justify-center">
           {loading ? (
             <p className="text-sm text-muted-foreground py-8">Cargando ticket...</p>
+          ) : error ? (
+            <p className="text-sm text-muted-foreground py-8">{error}</p>
           ) : (
             <PreCuentaTicket
               venta={venta}

@@ -156,6 +156,53 @@ export async function ordenDeMesa(
   return fila;
 }
 
+/**
+ * La MISMA orden, pero sin exigir que sea de sala.
+ *
+ * `ordenDeMesa` rechaza mostrador a propósito y con razón: sin esa guarda,
+ * teclear el id del carrito de mostrador en `/api/restaurante/solicitar-cuenta`
+ * lo sacaba de borrador y le estampaba un código de caja de una mesa que no
+ * existe. Esa protección se queda donde está.
+ *
+ * Pero mandar un plato a la cocina NO es una operación de sala: una hamburguesa
+ * cobrada en la barra tiene que llegar a la plancha igual que una de la mesa 7.
+ * Reutilizar `ordenDeMesa` aquí es lo que dejó al mostrador sin cocina, y
+ * relajar `ordenDeMesa` habría reabierto el hueco del código de caja. Son dos
+ * preguntas distintas y ahora tienen dos lectores distintos.
+ *
+ * Éste no decide nada: sólo entrega las instantáneas que la comanda copia
+ * —alergias, celebración, canal de captura—. Quien decide si se puede comandar
+ * es el comando que lo llama.
+ */
+export async function ordenParaComandar(
+  tx: Transaccion,
+  organizacionId: string,
+  ordenId: string,
+): Promise<OrdenDeMesa> {
+  const fila = await tx
+    .selectFrom('ordenes')
+    .select([
+      'id',
+      'estado',
+      'sucursal_id as sucursalId',
+      'mesa_id as mesaId',
+      'estrategia_captura as estrategiaCaptura',
+      'codigo_caja as codigoCaja',
+      'notas_alergias as notasAlergias',
+      'celebracion_especial as celebracionEspecial',
+      'tipo_celebracion as tipoCelebracion',
+    ])
+    // El filtro por organización va SIEMPRE, aunque el id sea un uuid.
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', ordenId)
+    .executeTakeFirst();
+
+  if (fila === undefined) {
+    throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Esa cuenta ya no existe.');
+  }
+  return fila;
+}
+
 /** Las estaciones que pueden recibir comandas. Apagada no recibe (regla 10). */
 export async function estacionesActivas(
   tx: Transaccion,

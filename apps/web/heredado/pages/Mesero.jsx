@@ -1,10 +1,12 @@
 'use client';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { api } from '@/api/cliente';
+import { api, nuevaClave } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
-import { formatCurrency, generateFolio } from '@/utils/financialUtils';
+// `generateFolio` se fue con `Venta.create`: el folio lo pone `abrir_mesa`
+// dentro de su transacción, y dos pestañas ya no pueden inventar el mismo.
+import { formatCurrency } from '@/utils/financialUtils';
 import { toast } from 'sonner';
 import {
   UtensilsCrossed,
@@ -16,7 +18,10 @@ import {
   Printer,
   Sparkles,
 } from 'lucide-react';
-import { getVentaSubtotal, sumarSubtotalDetalles } from '@/utils/ventaTotales';
+// `ventaTotales` ya no se importa aquí: el subtotal, el costo y el margen los
+// devuelve `enviar_pedido` calculados sobre las líneas que acaba de escribir,
+// en la misma transacción. Sumar detalles en el navegador era la mitad del
+// defecto D-05 y todo el «HOTFIX 6A — rescate de totales en CERO».
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -57,7 +62,9 @@ import {
   filtrarMesasParaUsuario,
   responsableTexto,
   responsableColor,
-  colorParaUsuario,
+  // `colorParaUsuario` ya no se importa: el color de quien atiende lo DERIVA el
+  // puente de `empleos.color` al leer la mesa. Mandarlo desde aquí creaba una
+  // tercera copia del mismo dato que envejecía sola.
 } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
 
@@ -74,8 +81,24 @@ const useIsMobile = () => {
   }, []);
   return isMobile;
 };
-const generarCodigoCaja = (numMesa) =>
-  `M${String(numMesa).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
+// `generarCodigoCaja` se fue: el código de caja lo genera `solicitar_cuenta` en
+// el servidor con `crypto.getRandomValues`, y REUSA el anterior si la cuenta ya
+// se pidió una vez. Generarlo aquí con `Math.random` daba un código nuevo en
+// cada intento y dejaba al cajero buscando un número que ya no existía.
+
+/**
+ * Convierte una cantidad a la cadena decimal que aceptan los comandos.
+ *
+ * `orden_lineas.cantidad` es `numeric(14,4)`: viaja como texto porque un float
+ * en JSON ya no es el número que se capturó. Devuelve `null` cuando la cantidad
+ * no es positiva, para que la línea no llegue a salir.
+ */
+const cantidadParaComando = (valor) => {
+  const numero = Number(valor);
+  if (!Number.isFinite(numero) || numero <= 0) return null;
+  const texto = numero.toFixed(4);
+  return texto.replace(/0+$/, '').replace(/\.$/, '');
+};
 
 export default function MeseroWithBoundary() {
   return (
@@ -152,6 +175,16 @@ function Mesero() {
   const cartFabRef = useRef(null);
   const isClosingRef = useRef(false);
 
+  // Claves de idempotencia (F1-02 §8, trampa T5). Una por diálogo abierto y
+  // reusada mientras siga abierto: el segundo toque en «Abrir mesa», «Enviar a
+  // Cocina» o «Solicitar cuenta» describe el MISMO hecho, y con la misma clave
+  // el servidor devuelve el primer resultado en vez de crear una segunda cuenta,
+  // duplicar las líneas del pedido o emitir otro código de caja. Se limpian al
+  // terminar bien para que el siguiente envío de la misma mesa sea uno nuevo.
+  const claveAbrirRef = useRef(null);
+  const claveEnvioRef = useRef(null);
+  const claveCuentaRef = useRef(null);
+
   // Sin initialData:[] (evita "no hay mesas" antes del primer fetch).
   const { data: mesasRaw, isPending: mesasLoading } = useQuery({
     queryKey: ['mesas'],
@@ -207,14 +240,11 @@ function Mesero() {
     initialData: [],
   });
 
-  // F3: estaciones activas — solo si la feature está activa. Si está apagada,
-  // la query queda deshabilitada y enviarPedido toma el path legacy intacto.
-  const { data: estaciones = [] } = useQuery({
-    queryKey: ['estaciones_preparacion_activas'],
-    queryFn: () => api.entidades.EstacionPreparacion.filter({ activo: true }),
-    initialData: [],
-    enabled: config?.estaciones_preparacion_activas === true,
-  });
+  // F3: la lista de estaciones ya no se descarga aquí. El ruteo producto →
+  // categoría → estación lo resuelve `enviar_pedido` con `resolverEstacion`
+  // dentro de su transacción, y con la estación general como respaldo
+  // obligatorio. Cuando ese ruteo vivía en el navegador, una lectura fallida
+  // mandaba el pedido entero a la cocina genérica en vez de a la barra.
 
   const productosFiltrados = useMemo(() => {
     let list = productosArr;
@@ -260,25 +290,19 @@ function Mesero() {
         return;
       }
       if (mesa.estado === 'libre') {
+        claveAbrirRef.current = nuevaClave();
         setMesaParaAbrir(mesa);
         setShowAbrirMesa(true);
         return;
       }
       if (mesa.estado === 'limpieza') {
         if (!confirm('¿Marcar mesa como limpia y disponible?')) return;
-        await api.entidades.Mesa.update(mesa.id, {
-          estado: 'libre',
-          venta_activa_id: null,
-          personas_actuales: 0,
-          cliente_temporal: '',
-          atendido_por_id: '',
-          atendido_por_nombre: '',
-          atendido_por_color: '',
-          // 6A: limpieza de datos temporales del cliente anterior
-          notas_alergias: '',
-          celebracion_especial: false,
-          tipo_celebracion: '',
-        });
+        // `liberar_mesa` deja la mesa igual que estos diez campos sueltos, pero
+        // en una transacción: `Mesa.estado` y `Mesa.venta_activa_id` ya no se
+        // escriben desde el navegador, que es lo que permitía «mesa libre con
+        // venta viva». Y si falla, falla — antes el `.catch(() => {})` de
+        // Caja.jsx:462 dejaba la mesa ocupada apuntando a una venta cancelada.
+        await api.comandos.ejecutar('/api/restaurante/liberar-mesa', { mesaId: mesa.id });
         queryClient.invalidateQueries({ queryKey: ['mesas'] });
         toast.success(`Mesa ${mesa.numero} lista`);
         return;
@@ -295,11 +319,13 @@ function Mesero() {
       setCategoriaFiltro('todas');
       setMesaActiva(mesa);
       if (mesa.venta_activa_id) {
-        const venta = await api.entidades.Venta.get(mesa.venta_activa_id).catch(() => null);
-        const detalles = venta
-          ? await api.entidades.DetalleVenta.filter({ venta_id: venta.id }).catch(() => [])
-          : [];
-        setVentaActiva(venta || null);
+        // Sin `.catch(() => null)` ni `.catch(() => [])`: el puente ya
+        // distingue «no hay cuenta» de «no pude leerla», y esos dos rellenos
+        // volvían a confundirlo — la mesa ocupada se abría como si no tuviera
+        // cuenta y el mesero creía que no se había pedido nada (F1-06 §4.3).
+        const venta = await api.entidades.Venta.get(mesa.venta_activa_id);
+        const detalles = await api.entidades.DetalleVenta.filter({ venta_id: venta.id });
+        setVentaActiva(venta);
         setDetallesVenta(Array.isArray(detalles) ? detalles : []);
       } else {
         setVentaActiva(null);
@@ -307,7 +333,7 @@ function Mesero() {
       }
     } catch (err) {
       console.error('[Mesero] onMesaClick error:', err);
-      toast.error('No se pudo abrir la mesa');
+      toast.error(err?.message || 'No se pudo abrir la mesa');
       setVentaActiva(null);
       setDetallesVenta([]);
     } finally {
@@ -329,55 +355,52 @@ function Mesero() {
       const alergias = (formData?.notas_alergias || '').trim();
       const celebracion = formData?.celebracion_especial === true;
       const tipoCele = (formData?.tipo_celebracion || '').trim();
-      const folio = generateFolio('M' + (mesaParaAbrir.numero || '0'));
-      const venta = await api.entidades.Venta.create({
-        folio,
-        tipo_venta: 'mesa',
-        estado: 'abierta',
-        mesa_id: mesaParaAbrir.id,
-        mesa_numero: mesaParaAbrir.numero,
-        personas,
-        cliente_nombre: cliente,
-        notas: formData?.notas || '',
-        notas_alergias: alergias,
-        celebracion_especial: celebracion,
-        tipo_celebracion: celebracion ? tipoCele : '',
-        usuario_mesero_id: posUser?.id,
-        usuario_mesero_nombre: posUser?.nombre,
-        fecha_apertura: new Date().toISOString(),
-        subtotal: 0,
-        total: 0,
-      });
-      if (!venta?.id) throw new Error('No se pudo crear la venta');
-      // En modo SIN asignación: registrar al mesero como "atendido_por" si no había nadie.
-      // En modo CON asignación: NO sobrescribimos mesero_asignado_*.
-      const updateMesa = {
-        estado: 'esperando_orden',
-        venta_activa_id: venta.id,
+      // D-16, la mesa huérfana: la venta se creaba y el `Mesa.update` que la
+      // ataba iba detrás con un `.catch(() => {})`. Si fallaba quedaba una
+      // cuenta abierta que ninguna mesa referenciaba y un toast que decía
+      // «Mesa N abierta». `abrir_mesa` escribe orden y mesa en UNA transacción:
+      // o las dos, o ninguna. El folio, el mesero que atiende y el estado los
+      // pone el servidor — de ahí que ya no se manden.
+      if (claveAbrirRef.current === null) claveAbrirRef.current = nuevaClave();
+      const r = await api.comandos.ejecutar(
+        '/api/restaurante/abrir-mesa',
+        {
+          mesaId: mesaParaAbrir.id,
+          personas,
+          clienteNombre: cliente,
+          notas: formData?.notas || '',
+          notasAlergias: alergias,
+          celebracionEspecial: celebracion,
+          tipoCelebracion: celebracion ? tipoCele : '',
+        },
+        claveAbrirRef.current,
+      );
+      // La cuenta se relee por el puente para pintarla tal como quedó en la
+      // base (folio incluido) en vez de fabricarla en memoria.
+      const venta = await api.entidades.Venta.get(r.ordenId);
+      claveAbrirRef.current = null;
+      queryClient.invalidateQueries({ queryKey: ['mesas'] });
+      setShowAbrirMesa(false);
+      // Open the sale dialog directly
+      setMesaActiva({
+        ...mesaParaAbrir,
+        estado: r.estadoMesa,
+        venta_activa_id: r.ordenId,
         personas_actuales: personas,
         cliente_temporal: cliente,
         notas_alergias: alergias,
         celebracion_especial: celebracion,
         tipo_celebracion: celebracion ? tipoCele : '',
-      };
-      if (!asignActiva && posUser?.id && posUser?.rol === ROLES.WAITER) {
-        updateMesa.atendido_por_id = posUser.id;
-        updateMesa.atendido_por_nombre = posUser.nombre || '';
-        updateMesa.atendido_por_color = colorParaUsuario(posUser);
-      }
-      await api.entidades.Mesa.update(mesaParaAbrir.id, updateMesa).catch(() => {});
-      queryClient.invalidateQueries({ queryKey: ['mesas'] });
-      setShowAbrirMesa(false);
-      // Open the sale dialog directly
-      setMesaActiva({ ...mesaParaAbrir, ...updateMesa });
+      });
       setVentaActiva(venta);
       setDetallesVenta([]);
-      const numeroOk = mesaParaAbrir.numero;
       setMesaParaAbrir(null);
-      toast.success(`Mesa ${numeroOk} abierta`);
+      toast.success(`Mesa ${r.mesaNumero} abierta`);
     } catch (err) {
       console.error('[Mesero] confirmarAbrirMesa error:', err);
-      toast.error('No se pudo abrir la mesa. Intenta de nuevo.');
+      // El dominio ya traduce: «esa mesa ya está abierta» dice más que
+      // «No se pudo abrir la mesa».
+      toast.error(err?.message || 'No se pudo abrir la mesa. Intenta de nuevo.');
       setShowAbrirMesa(false);
     } finally {
       setAbriendoMesa(false);
@@ -577,193 +600,71 @@ function Mesero() {
 
     setLoading(true);
     try {
-      // HOTFIX 6A — Robustez ante 429/timeout en DetalleVenta.create:
-      // 1. Cada create se hace con catch individual (no rompe el Promise.all).
-      // 2. Si un create falla, conservamos el "shadow" del carrito como fuente
-      //    de verdad para el cálculo de subtotal (precios reales del POS).
-      // 3. La venta SIEMPRE se actualiza con el subtotal calculado a partir
-      //    del carrito + detalles previos. Así NUNCA queda en $0.00.
-      const carritoSnapshots = carrito.map((item) => {
-        const modificadoresArr = Array.isArray(item?._modificadores) ? item._modificadores : [];
-        const precio = Number(item.precio_venta) || 0;
-        const cantidad = Number(item.cantidad) || 0;
-        const costo = Number(item.costo_calculado_actual) || 0;
-        // 6B / 1.D — Snapshots variable. Si el item viene con _variable, agregamos
-        // los campos del schema 6B. NO cambia el cálculo financiero: subtotal sigue
-        // siendo precio_venta * cantidad (con cantidad=1 y precio_venta=precio_total_linea).
+      // D-05, los «detalles shadow»: cada `DetalleVenta.create` iba con su
+      // propio catch y, cuando uno fallaba, la línea que NO se pudo crear se
+      // conservaba en memoria y se sumaba al total. La cuenta enseñaba
+      // productos que no existían en la base y el toast decía «tardaron en
+      // guardarse» — no tardaron: fallaron.
+      //
+      // `enviar_pedido` escribe líneas, comandas e items en UNA transacción: o
+      // entran todas o no entra ninguna, así que no hay estado intermedio que
+      // rescatar. Con ello se van también el `PedidoPreparacion.create` por
+      // estación (lo agrupa el servidor), el `Venta.update` de totales (los
+      // calcula sobre las líneas que acaba de escribir) y el `Mesa.update` a
+      // `pedido_enviado` con `.catch(() => {})` que hacía mentir al mapa.
+      //
+      // NINGÚN precio viaja: el catálogo lo pone dentro de la transacción.
+      const lineas = [];
+      for (const item of carrito) {
         const variableSnap = item?._variable || null;
-        const variableFields = variableSnap
-          ? {
-              tipo_venta_snapshot: variableSnap.tipo_venta,
-              unidad_variable_snapshot: variableSnap.unidad_variable || '',
-              cantidad_variable_snapshot: Number(variableSnap.cantidad_variable) || 0,
-              // cantidad_base_consumo se llena en el cobro (1.G) — aquí solo el snapshot visual
-              ingrediente_base_id_snapshot: variableSnap.ingrediente_base_id || '',
-              ingrediente_base_nombre_snapshot: variableSnap.ingrediente_base_nombre || '',
-              precio_por_unidad_snapshot: Number(variableSnap.precio_por_unidad_snapshot) || 0,
-              nombre_porcion_snapshot: variableSnap.nombre_porcion || '',
-              ml_por_porcion_snapshot: Number(variableSnap.ml_por_porcion) || 0,
-              cantidad_porciones_snapshot: Number(variableSnap.cantidad_porciones) || 0,
-            }
-          : {};
-        return {
-          payload: {
-            venta_id: ventaRef.id,
-            producto_id: item.id,
-            producto_nombre: item.nombre,
-            cantidad,
-            precio_unitario_snapshot: precio,
-            costo_unitario_snapshot: costo,
-            subtotal: precio * cantidad,
-            costo_total_linea_snapshot: costo * cantidad,
-            utilidad_linea_snapshot: (precio - costo) * cantidad,
-            margen_linea_snapshot: precio > 0 ? ((precio - costo) / precio) * 100 : 0,
-            notas_producto: item.notas || '',
-            modificadores_snapshot:
-              modificadoresArr.length > 0 ? JSON.stringify(modificadoresArr) : '',
-            estado_preparacion: 'pendiente',
-            area_preparacion_snapshot: item.area_preparacion || 'cocina',
-            ...variableFields,
-          },
-          // Shadow para el cálculo si el create falla
-          shadow: { subtotal: precio * cantidad, costo_total_linea_snapshot: costo * cantidad },
+        // Para un producto variable la cantidad REAL es la del snapshot (peso o
+        // porciones), no el 1 lógico con el que el carrito lo agrupa. Mandar 1
+        // haría que el servidor cobrara una unidad en vez de los 350 g.
+        const cantidadCruda =
+          variableSnap?.tipo_venta === TIPO_VENTA.VARIABLE_MEDIDA
+            ? variableSnap.cantidad_variable
+            : variableSnap?.tipo_venta === TIPO_VENTA.PORCION_CONTENEDOR
+              ? variableSnap.cantidad_porciones
+              : item.cantidad;
+        const cantidad = cantidadParaComando(cantidadCruda);
+        if (cantidad === null) {
+          toast.error(`La cantidad de ${item?.nombre || 'un producto'} no es válida.`);
+          return;
+        }
+        const linea = {
+          productoId: item.id,
+          cantidad,
+          // `notas` ya trae los modificadores en texto plano (los arma
+          // `confirmarPersonalizacion`), que es lo que cocina lee.
+          notas: item.notas || '',
         };
-      });
-
-      const results = await Promise.all(
-        carritoSnapshots.map(({ payload }) =>
-          api.entidades.DetalleVenta.create(payload).catch((err) => {
-            console.error('[Mesero] DetalleVenta.create falló:', err);
-            return null;
-          }),
-        ),
-      );
-
-      // Detectar fallos para avisar al usuario (pero no abortar — la venta
-      // sigue siendo válida, los detalles que sí se guardaron están en BD,
-      // y los totales se calculan desde shadow para reflejar la realidad).
-      const fallidos = results.filter((r) => !r).length;
-      if (fallidos > 0) {
-        toast.warning(`${fallidos} producto(s) tardaron en guardarse. Sigo con el pedido.`);
+        if (
+          variableSnap?.tipo_venta === TIPO_VENTA.VARIABLE_MEDIDA &&
+          variableSnap.unidad_variable
+        ) {
+          linea.unidad = variableSnap.unidad_variable;
+        }
+        lineas.push(linea);
       }
 
-      // Detalles "efectivos": los creados en BD + shadow para los que fallaron.
-      const nuevosDetallesEfectivos = results.map(
-        (r, i) => r || { ...carritoSnapshots[i].payload, _fallback: true },
+      if (claveEnvioRef.current === null) claveEnvioRef.current = nuevaClave();
+      await api.comandos.ejecutar(
+        '/api/restaurante/enviar-pedido',
+        { ordenId: ventaRef.id, lineas, notas: notaMesa || '' },
+        claveEnvioRef.current,
       );
+      // Clave consumida: el siguiente tiempo que mande esta misma mesa es otro
+      // hecho y necesita su propia clave.
+      claveEnvioRef.current = null;
 
-      const detallesPrev = Array.isArray(detallesVenta) ? detallesVenta : [];
-      const todosDetalles = [...detallesPrev, ...nuevosDetallesEfectivos];
-      // Usar suma defensiva — tolera detalles con shape distinto.
-      const subtotal = sumarSubtotalDetalles(todosDetalles);
-      const costoTotal = todosDetalles.reduce(
-        (s, d) => s + (Number(d?.costo_total_linea_snapshot) || 0),
-        0,
-      );
-      await api.entidades.Venta.update(ventaRef.id, {
-        estado: 'enviada',
-        subtotal,
-        total: subtotal,
-        costo_total_snapshot: costoTotal,
-        utilidad_bruta_snapshot: subtotal - costoTotal,
-        margen_snapshot: subtotal > 0 ? ((subtotal - costoTotal) / subtotal) * 100 : 0,
-      }).catch((err) => {
-        console.error('[Mesero] Venta.update totales falló:', err);
-        toast.error('No se pudieron guardar los totales. Revisa la cuenta en Caja.');
-      });
+      // Releemos cuenta y líneas por el puente. El total viene ya calculado por
+      // el servidor y convertido a pesos por el mapa, así que la pantalla no
+      // vuelve a sumar dinero.
+      const [ventaFresca, detallesFrescos] = await Promise.all([
+        api.entidades.Venta.get(ventaRef.id),
+        api.entidades.DetalleVenta.filter({ venta_id: ventaRef.id }),
+      ]);
 
-      // F3: si estaciones están activas, agrupar carrito por estación
-      // y crear UN PedidoPreparacion por estación. Si está apagado,
-      // comportamiento legacy idéntico (un único pedido con area:'cocina').
-      const estacionesActivasNow = config?.estaciones_preparacion_activas === true;
-      const buildItemsParaPedido = (items) =>
-        items.map((item) => {
-          const variableSnap = item?._variable || null;
-          const baseItem = {
-            producto_id: item.id,
-            producto_nombre: item.nombre,
-            cantidad: item.cantidad,
-            notas: item.notas || '',
-            // Modificadores elegidos — viajan al pedido para que Cocina los vea
-            // como líneas estructuradas (sin JSON crudo).
-            modificadores: Array.isArray(item?._modificadores) ? item._modificadores : [],
-            estado: 'pendiente',
-          };
-          // 6B / 1.D — Si es variable, añadir snapshot para que Cocina lo vea legible.
-          if (variableSnap) {
-            baseItem.tipo_venta = variableSnap.tipo_venta;
-            if (variableSnap.tipo_venta === TIPO_VENTA.VARIABLE_MEDIDA) {
-              baseItem.unidad_variable = variableSnap.unidad_variable || '';
-              baseItem.cantidad_variable = Number(variableSnap.cantidad_variable) || 0;
-            } else if (variableSnap.tipo_venta === TIPO_VENTA.PORCION_CONTENEDOR) {
-              baseItem.nombre_porcion = variableSnap.nombre_porcion || '';
-              baseItem.cantidad_porciones = Number(variableSnap.cantidad_porciones) || 0;
-            }
-          }
-          return baseItem;
-        });
-
-      // 6A: snapshot de alergias/celebración de la mesa (fuente: mesa o venta).
-      const alergiasSnap = (mesaRef?.notas_alergias || ventaRef?.notas_alergias || '').trim();
-      const celebSnap =
-        mesaRef?.celebracion_especial === true || ventaRef?.celebracion_especial === true;
-      const tipoCeleSnap = (mesaRef?.tipo_celebracion || ventaRef?.tipo_celebracion || '').trim();
-
-      if (!estacionesActivasNow) {
-        // === MODO LEGACY (igual que antes) ===
-        await api.entidades.PedidoPreparacion.create({
-          venta_id: ventaRef.id,
-          venta_folio: ventaRef.folio,
-          mesa_id: mesaRef.id,
-          mesa_numero: mesaRef.numero,
-          area: 'cocina',
-          estado: 'nuevo',
-          fecha_creacion: new Date().toISOString(),
-          notas: notaMesa || '',
-          origen_pedido: 'mesero',
-          notas_alergias: alergiasSnap,
-          celebracion_especial: celebSnap,
-          tipo_celebracion: celebSnap ? tipoCeleSnap : '',
-          items: buildItemsParaPedido(carrito),
-        });
-      } else {
-        // === MODO ESTACIONES ===
-        // Agrupar por estación resuelta desde Producto → Categoría → Estación.
-        const { agruparItemsPorEstacion } = await import('@/utils/preparacionEstacionUtils');
-        // Resolver por producto en memoria — los productos del carrito ya tienen
-        // categoria_id/categoria_nombre porque vienen del listado de productos POS.
-        const grupos = agruparItemsPorEstacion(carrito, null, categorias, estaciones, config);
-        const fechaCreacion = new Date().toISOString();
-        await Promise.all(
-          Array.from(grupos.values()).map((grp) => {
-            const info = grp?.info || null;
-            return api.entidades.PedidoPreparacion.create({
-              venta_id: ventaRef.id,
-              venta_folio: ventaRef.folio,
-              mesa_id: mesaRef.id,
-              mesa_numero: mesaRef.numero,
-              // Mantener 'area' como fallback legacy — Cocina vieja sigue filtrando por area.
-              area: 'cocina',
-              estado: 'nuevo',
-              fecha_creacion: fechaCreacion,
-              notas: notaMesa || '',
-              origen_pedido: 'mesero',
-              estacion_preparacion_id: info?.estacion_preparacion_id || '',
-              estacion_preparacion_nombre: info?.estacion_preparacion_nombre || '',
-              estacion_preparacion_color: info?.estacion_preparacion_color || '',
-              notas_alergias: alergiasSnap,
-              celebracion_especial: celebSnap,
-              tipo_celebracion: celebSnap ? tipoCeleSnap : '',
-              items: buildItemsParaPedido(grp.items || []),
-            });
-          }),
-        );
-      }
-
-      await api.entidades.Mesa.update(mesaRef.id, {
-        estado: 'pedido_enviado',
-        venta_activa_id: ventaRef.id,
-      }).catch(() => {});
       // F3.1 + BLOQUE 0: invalidar+refetch para que el pedido aparezca en vivo
       // en Cocina y en el watcher de "listos" del propio Mesero, sin polling.
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
@@ -773,37 +674,38 @@ function Mesero() {
       toast.success('¡Pedido enviado a cocina!');
       setCarrito([]);
       setNotaMesa('');
-      setVentaActiva({ ...ventaRef, total: subtotal, subtotal });
-      // Estado local sincronizado con detalles efectivos (incluyendo shadow).
-      setDetallesVenta(todosDetalles);
+      setVentaActiva(ventaFresca);
+      setDetallesVenta(Array.isArray(detallesFrescos) ? detallesFrescos : []);
     } catch (err) {
       console.error('[Mesero] enviarPedido error:', err);
-      toast.error('No se pudo enviar el pedido. Intenta de nuevo.');
+      // El mensaje llega traducido por el dominio («no hay inventario
+      // suficiente», «esa cuenta ya se cerró»). Se muestra tal cual.
+      toast.error(err?.message || 'No se pudo enviar el pedido. Intenta de nuevo.');
     } finally {
       setLoading(false);
     }
   };
 
   // F3.2: callback tras entregar desde ListosParaRecogerCard.
-  // El card hace el update real (solo pedidos 'listo' → 'entregado'). Aquí
-  // solo refrescamos el estado local de la mesa si la BD ya la cambió.
+  // El card llama al comando de entrega. Aquí solo reflejamos el estado que el
+  // SERVIDOR dice que tiene ahora la mesa: `null` significa que no la tocó
+  // (queda otra estación cocinando, o la cuenta ya está pedida), y en ese caso
+  // no la pisamos con 'ocupada' como hacía la versión anterior.
   const handleAfterEntregar = useCallback((res) => {
-    if (res?.mesaCambiada) {
-      setMesaActiva((prev) => (prev ? { ...prev, estado: 'ocupada' } : prev));
+    if (res?.mesaCambiada && res?.estadoMesa) {
+      setMesaActiva((prev) => (prev ? { ...prev, estado: res.estadoMesa } : prev));
     }
   }, []);
 
   // pedirCuenta: PRIMERO mostramos modal de propina, después se confirma en finalizarCuenta.
   //
-  // FIX BUG PC: La validación NO depende solo del estado local `detallesVenta` que
-  // en PC puede quedar desincronizado tras refetchs. Si el estado local está vacío
-  // pero existe `ventaActiva`, re-consultamos a la BD (DetalleVenta + PedidoPreparacion)
-  // como fuente de verdad. Si encontramos consumo real, refrescamos el estado local
-  // y continuamos. Solo bloqueamos cuando confirmamos que la mesa realmente está vacía.
+  // El «FIX BUG PC» que revalidaba el consumo contra la BD desaparece: la
+  // validación vive dentro de `solicitar_cuenta`, que cotiza las líneas
+  // persistidas antes de marcar nada. El estado local ya no decide si la mesa
+  // consumió, y por eso tampoco puede equivocarse cuando va desincronizado.
   const pedirCuenta = async () => {
     const mesaRef = mesaActiva;
     const ventaRef = ventaActiva;
-    let detallesRef = Array.isArray(detallesVenta) ? detallesVenta : [];
 
     if (!mesaRef?.id) {
       toast.error('No hay mesa activa');
@@ -840,78 +742,26 @@ function Mesero() {
       toast.info('La cuenta ya fue solicitada para esta mesa.');
       return;
     }
-    try {
-      const ventaFresca = await api.entidades.Venta.get(ventaRef.id).catch(() => null);
-      if (ventaFresca?.estado === 'cuenta_solicitada' || ventaFresca?.estado === 'pagada') {
-        toast.info('La cuenta ya fue solicitada para esta mesa.');
-        setVentaActiva(ventaFresca);
-        queryClient.invalidateQueries({ queryKey: ['mesas'] });
-        return;
-      }
-    } catch {}
+    // Las tres redes que había aquí se van con el comando:
+    //
+    //  1. La relectura de la venta con .catch(() => null) (anti-doble
+    //     solicitud): solicitar_cuenta REUSA el código de caja anterior si la
+    //     cuenta ya se pidió, así que un segundo toque no genera un código
+    //     nuevo que deje al cajero buscando un número que ya no existe.
+    //  2. La validación de consumo contra DetalleVenta + PedidoPreparacion con
+    //     .catch(() => []): el comando lanza ORDEN_VACIA cuando la mesa no ha
+    //     consumido nada. Cuando esa lectura fallaba, el [] decía «esta mesa
+    //     aún no tiene productos enviados a cocina» con la mesa llena.
+    //  3. El «HOTFIX 6A — Rescate de totales en CERO»: existía porque el total
+    //     se calculaba releyendo los detalles y la relectura podía fallar.
+    //     solicitar_cuenta congela los totales que cotizar calcula DENTRO de la
+    //     misma transacción en la que marca la cuenta solicitada, así que ya no
+    //     hay una cuenta en cero que rescatar ni un Venta.update que lo intente.
 
-    // Si el estado local no tiene detalles, validamos contra la BD antes de bloquear.
-    // Esto corrige el bug en PC donde un refetch dejaba el estado local vacío aunque
-    // la venta sí tuviera productos y pedidos enviados a cocina.
-    if (detallesRef.length === 0) {
-      try {
-        const [detallesBD, pedidosBD] = await Promise.all([
-          api.entidades.DetalleVenta.filter({ venta_id: ventaRef.id }).catch(() => []),
-          api.entidades.PedidoPreparacion.filter({ venta_id: ventaRef.id }).catch(() => []),
-        ]);
-        const detallesArr = Array.isArray(detallesBD) ? detallesBD : [];
-        const pedidosArr = Array.isArray(pedidosBD) ? pedidosBD : [];
-        if (detallesArr.length > 0) {
-          // Hay consumo real → sincronizar estado y continuar
-          detallesRef = detallesArr;
-          setDetallesVenta(detallesArr);
-        } else if (pedidosArr.length > 0) {
-          // Hay pedido en cocina pero sin detalles guardados (caso raro) → permitir
-          detallesRef = detallesArr;
-        } else {
-          toast.error('Esta mesa aún no tiene productos enviados a cocina');
-          return;
-        }
-      } catch (err) {
-        console.error('[Mesero] pedirCuenta validación BD:', err);
-        toast.error('No se pudo validar el consumo. Intenta de nuevo.');
-        return;
-      }
-    }
-
-    // HOTFIX 6A — Rescate de totales en CERO antes de generar precuenta.
-    // Si la venta tiene detalles con subtotal real pero `ventaActiva.total`
-    // está en 0 (por 429, refetch, o venta vieja), recalculamos y persistimos
-    // antes de pasar a precuenta/caja. NO duplica detalles. Solo actualiza
-    // los campos numéricos de la Venta. Sin esto, precuenta y caja muestran $0.
-    try {
-      const ventaTotal = Number(ventaRef?.total) || 0;
-      const ventaSubtotal = Number(ventaRef?.subtotal) || 0;
-      const subtotalReal = sumarSubtotalDetalles(detallesRef);
-      if (subtotalReal > 0 && (ventaTotal <= 0 || ventaSubtotal <= 0)) {
-        const costoTotal = (detallesRef || []).reduce(
-          (s, d) => s + (Number(d?.costo_total_linea_snapshot) || 0),
-          0,
-        );
-        await api.entidades.Venta.update(ventaRef.id, {
-          subtotal: subtotalReal,
-          total: subtotalReal,
-          costo_total_snapshot: costoTotal,
-          utilidad_bruta_snapshot: subtotalReal - costoTotal,
-          margen_snapshot:
-            subtotalReal > 0 ? ((subtotalReal - costoTotal) / subtotalReal) * 100 : 0,
-        });
-        // Reflejar en estado local para que el resto del flujo use el total correcto.
-        ventaRef.total = subtotalReal;
-        ventaRef.subtotal = subtotalReal;
-        setVentaActiva((prev) =>
-          prev ? { ...prev, total: subtotalReal, subtotal: subtotalReal } : prev,
-        );
-      }
-    } catch (errFix) {
-      console.error('[Mesero] pedirCuenta rescate totales:', errFix);
-      // No bloqueamos — seguimos con el flujo. El precuenta tiene fallback propio.
-    }
+    // Una clave por intento de pedir la cuenta, compartida por los tres caminos
+    // (sin propinas, delegada al QR y modal de propina): dos toques seguidos son
+    // el mismo hecho y no deben emitir dos códigos de caja.
+    claveCuentaRef.current = nuevaClave();
 
     // Si propinas están desactivadas, saltar el modal y solicitar cuenta directo.
     if (!tipsEnabled(config)) {
@@ -953,28 +803,39 @@ function Mesero() {
   const finalizarPedirCuenta = async (propinaData) => {
     const mesaRef = mesaActiva;
     const ventaRef = ventaActiva;
-    const detallesRef = Array.isArray(detallesVenta) ? detallesVenta : [];
 
     setLoading(true);
     setShowPropinaMesero(false);
     try {
-      const numeroMesa = mesaRef?.numero || 0;
-      const codigo = generarCodigoCaja(numeroMesa);
-      const notasPrev = ventaRef?.notas || '';
-      const nuevasNotas = notasPrev ? `${notasPrev} | COD: ${codigo}` : `COD: ${codigo}`;
+      // El `Venta.update` con el código y los totales y el `Mesa.update` con
+      // `.catch(() => {})` detrás eran dos escrituras sueltas: la venta pasaba a
+      // `cuenta_solicitada` y la mesa no, y Caja y el mapa discrepaban.
+      // `solicitar_cuenta` mueve las dos en una transacción.
+      //
+      // La propina viaja en PUNTOS BASE enteros: 10 % es 1000. `0.1` no existe
+      // exacto en punto flotante y los puntos base sí. Y el importe NO se manda:
+      // el comando lo calcula sobre el total que acaba de cotizar.
+      if (claveCuentaRef.current === null) claveCuentaRef.current = nuevaClave();
+      const r = await api.comandos.ejecutar(
+        '/api/restaurante/solicitar-cuenta',
+        {
+          ordenId: ventaRef.id,
+          propinaPuntosBase: Math.round((Number(propinaData?.propina_porcentaje) || 0) * 100),
+          propinaTipo: propinaData?.propina_tipo || 'sin_propina',
+        },
+        claveCuentaRef.current,
+      );
+      claveCuentaRef.current = null;
 
-      const payloadVenta = {
-        estado: 'cuenta_solicitada',
-        codigo_caja: codigo,
-        notas: nuevasNotas,
-        propina_monto: Number(propinaData?.propina_monto) || 0,
-        propina_porcentaje: Number(propinaData?.propina_porcentaje) || 0,
-        propina_tipo: propinaData?.propina_tipo || 'sin_propina',
-        propina_origen: propinaData?.propina_origen || 'mesero',
-      };
+      // La cuenta y sus líneas se releen por el puente para que la precuenta
+      // imprima lo que quedó en la base —totales incluidos— y no lo que este
+      // navegador creía tener. Antes el ticket se armaba con `{...ventaRef,
+      // ...payloadVenta}`, es decir, con números de memoria.
+      const [ventaFresca, detallesFrescos] = await Promise.all([
+        api.entidades.Venta.get(r.ordenId),
+        api.entidades.DetalleVenta.filter({ venta_id: r.ordenId }),
+      ]);
 
-      await api.entidades.Venta.update(ventaRef.id, payloadVenta);
-      await api.entidades.Mesa.update(mesaRef.id, { estado: 'cuenta_solicitada' }).catch(() => {});
       // BLOQUE 0: que Caja vea la cuenta solicitada en ≤2s.
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_pendientes_caja'] });
@@ -982,8 +843,20 @@ function Mesero() {
         .refetchQueries({ queryKey: ['ventas_pendientes_caja'], type: 'active' })
         .catch(() => {});
 
-      const ventaActualizada = { ...ventaRef, ...payloadVenta };
-      setPreCuentaData({ venta: ventaActualizada, detalles: detallesRef, mesa: mesaRef, codigo });
+      const ventaActualizada = {
+        ...ventaFresca,
+        // `propina_monto` no es columna de `ordenes` —la propina vive en `pagos`
+        // y se registra al cobrar—, así que el importe que enseña la precuenta
+        // es el que devuelve el comando, en centavos.
+        propina_monto: Number(r.propinaSugeridaCentavos) / 100,
+      };
+      const codigo = r.codigoCaja;
+      setPreCuentaData({
+        venta: ventaActualizada,
+        detalles: Array.isArray(detallesFrescos) ? detallesFrescos : [],
+        mesa: mesaRef,
+        codigo,
+      });
       cerrarDialog();
       setTimeout(() => setShowPreCuenta(true), 200);
 
@@ -997,7 +870,9 @@ function Mesero() {
       }
     } catch (err) {
       console.error('[Mesero] finalizarPedirCuenta error:', err);
-      toast.error('No se pudo solicitar la cuenta. Intenta de nuevo.');
+      // «Esa mesa todavía no ha consumido nada», «esa cuenta ya se cerró en
+      // caja»: el dominio ya lo dice en español y mejor que un genérico.
+      toast.error(err?.message || 'No se pudo solicitar la cuenta. Intenta de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -1016,25 +891,18 @@ function Mesero() {
     }
     setLiberandoHuerfana(true);
     try {
-      await api.entidades.Mesa.update(mesaRef.id, {
-        estado: 'libre',
-        venta_activa_id: null,
-        personas_actuales: 0,
-        cliente_temporal: '',
-        atendido_por_id: '',
-        atendido_por_nombre: '',
-        atendido_por_color: '',
-        // 6A: limpiar datos temporales al liberar mesa huérfana
-        notas_alergias: '',
-        celebracion_especial: false,
-        tipo_celebracion: '',
-      });
+      // Mismo comando que la mesa en limpieza. Y trae una garantía que estos
+      // diez campos sueltos no daban: si la mesa SÍ tuviera una cuenta con
+      // consumo, `liberar_mesa` se niega con MESA_NO_LIBERABLE en vez de
+      // borrarla de la vista. La reparación deja de poder tapar una venta sin
+      // cobrar.
+      await api.comandos.ejecutar('/api/restaurante/liberar-mesa', { mesaId: mesaRef.id });
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       toast.success(`Mesa ${mesaRef.numero} liberada`);
       setMesaHuerfana(null);
     } catch (err) {
       console.error('[Mesero] liberarMesaHuerfana error:', err);
-      toast.error('No se pudo liberar la mesa. Intenta de nuevo.');
+      toast.error(err?.message || 'No se pudo liberar la mesa. Intenta de nuevo.');
     } finally {
       setLiberandoHuerfana(false);
     }

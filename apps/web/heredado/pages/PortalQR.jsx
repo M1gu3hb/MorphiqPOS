@@ -54,7 +54,9 @@ export default function PortalQRPage() {
             <MenuQRTab />
           </TabsContent>
           <TabsContent value="solicitudes" className="mt-4">
-            <SolicitudesQRTab posUser={posUser} />
+            {/* Sin `posUser`: la atribución de quién atendió el aviso sale de la
+                sesión en el servidor, no de quien hace la llamada. */}
+            <SolicitudesQRTab />
           </TabsContent>
           <TabsContent value="config" className="mt-4">
             <ConfiguracionQRTab config={config} />

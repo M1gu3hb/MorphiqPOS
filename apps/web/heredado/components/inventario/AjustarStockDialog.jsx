@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useMemo, useEffect } from 'react';
-import { api } from '@/api/cliente';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { api, nuevaClave } from '@/api/cliente';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -23,7 +23,6 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Save, Sliders, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import {
   getUnidadesCompra,
@@ -33,13 +32,17 @@ import {
   canonicalUnidad,
 } from '@/utils/unidadesMedida';
 import StockMinCritInput from '@/components/inventario/StockMinCritInput';
+import { obtenerAlmacenPrincipalId, textoDecimal } from '@/components/inventario/comandos';
+
+/** Lo que cabe en `entradaAjustarStock.motivo` (`.max(300)`). */
+const MAXIMO_MOTIVO = 300;
 
 /**
  * AjustarStockDialog
  * ------------------
  * Ajuste MANUAL de stock — NO crea compra, NO crea gasto, NO crea venta.
- * Solo actualiza Ingrediente.stock_actual y registra un MovimientoInventario
- * tipo `ajuste_manual` con motivo y referencia_tipo `ajuste_inventario`.
+ * Registra un movimiento de ajuste en el ledger, con motivo y referencia
+ * manual, y la existencia se mueve con él.
  *
  * Casos: conteo físico, merma, entrada/salida manual, corrección.
  *
@@ -49,9 +52,20 @@ import StockMinCritInput from '@/components/inventario/StockMinCritInput';
  *  - Equivalencia obligatoria para unidades personalizadas o empaques.
  *  - Motivo obligatorio.
  *  - Stock resultante no negativo (salvo `permitir_venta_sin_stock`).
+ *
+ * ── D-06: el stock ya no se escribe ────────────────────────────────────────
+ * Este diálogo hacía `Ingrediente.update({stock_actual})` y después creaba el
+ * `MovimientoInventario` a mano, con un rollback del stock si el movimiento
+ * fallaba. Eran dos escrituras sin transacción sobre un número que dos cajas
+ * cobrando a la vez se pisan: el clásico leer-calcular-escribir. Ahora va
+ * `inventario.ajustar`, que suma el delta a la existencia con un `update ... set
+ * cantidad = cantidad + delta` y escribe el movimiento en la MISMA transacción.
+ * No hay rollback que hacer desde el navegador porque no hay medio camino.
  */
 export default function AjustarStockDialog({ open, onClose, ingrediente }) {
-  const { posUser } = usePOSAuth();
+  // `posUser` ya no se manda: quién ajusta lo pone el servidor con el empleo de
+  // la sesión (`ctx.ambito.empleoId`). Un `usuario_id` que viaja en el cuerpo
+  // es un dato que el cliente puede escribir, y el ledger no acepta eso.
   const { config } = useConfig();
   const queryClient = useQueryClient();
 
@@ -73,9 +87,15 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
   // null = no se tocan en este guardado. Solo se persisten si el usuario los edita.
   const [alertas, setAlertas] = useState(null); // { stock_minimo, stock_critico } en base, o null
 
+  // La clave de idempotencia del diálogo: se genera al abrirlo y se reusa
+  // mientras siga abierto. Es lo que hace que un doble clic en «Guardar
+  // ajuste» —o un reintento de red— descuente una vez y no dos.
+  const claveDelDialogo = useRef(null);
+
   // Reset cuando se abre / cambia ingrediente
   useEffect(() => {
     if (open && ingrediente) {
+      claveDelDialogo.current = nuevaClave();
       setTipoAjuste('correccion');
       setMetodo('final');
       setSigno('sumar');
@@ -92,7 +112,6 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
 
   const stockActual = Number(ingrediente.stock_actual) || 0;
   const unidadBase = ingrediente.unidad_base;
-  const costoUnit = Number(ingrediente.costo_por_unidad_base) || 0;
 
   // ¿Esta unidad requiere equivalencia? (no es estándar directa)
   const necesitaEquivalencia = (() => {
@@ -204,25 +223,22 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
 
     setSaving(true);
 
-    // Capturamos referencias antes de cualquier mutación — necesario para rollback.
-    const stockAnteriorRef = stockActual;
     const ingredienteIdRef = ingrediente.id;
-    let stockActualizado = false;
 
     try {
-      // 1) Actualizar Ingrediente.stock_actual (no tocamos costo: ajuste manual
-      //    no recalibra costo ponderado — costo solo cambia con compras).
-      //    Si el admin también editó las alertas, las persistimos en el mismo update.
-      const updatePayload = { stock_actual: stockNuevo };
+      // 1) Las alertas SÍ siguen siendo columnas escribibles del insumo, así que
+      //    van por el puente. Primero: si fallan, no ha pasado nada más y el
+      //    error que ve el usuario es el de verdad.
       if (alertas !== null) {
-        updatePayload.stock_minimo = Math.max(0, Number(alertas.stock_minimo) || 0);
-        updatePayload.stock_critico = Math.max(0, Number(alertas.stock_critico) || 0);
+        await api.entidades.Ingrediente.update(ingredienteIdRef, {
+          stock_minimo: Math.max(0, Number(alertas.stock_minimo) || 0),
+          stock_critico: Math.max(0, Number(alertas.stock_critico) || 0),
+        });
       }
-      await api.entidades.Ingrediente.update(ingredienteIdRef, updatePayload);
-      stockActualizado = true;
 
-      // 2) Registrar MovimientoInventario — OBLIGATORIO. Si falla,
-      //    hacemos rollback del stock para mantener trazabilidad consistente.
+      // 2) El ajuste. Una sola llamada mueve la existencia Y escribe el
+      //    movimiento del ledger dentro de la misma transacción, así que ya no
+      //    hay «stock movido sin movimiento que lo respalde» que revertir.
       const tipoLegible =
         {
           correccion: 'Corrección de conteo',
@@ -232,61 +248,23 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
           otro: 'Otro ajuste',
         }[tipoAjuste] || 'Ajuste manual';
 
-      const motivoFinal = `${tipoLegible}: ${motivo.trim()}`;
-      const cantidadAbs = Math.abs(cambio);
+      const motivoFinal = `${tipoLegible}: ${motivo.trim()}`.slice(0, MAXIMO_MOTIVO);
+      const almacenId = await obtenerAlmacenPrincipalId();
 
-      try {
-        await api.entidades.MovimientoInventario.create({
-          ingrediente_id: ingredienteIdRef,
-          ingrediente_nombre: ingrediente.nombre,
-          tipo_movimiento: 'ajuste_manual',
-          cantidad: cambio, // negativo si baja, positivo si sube
-          unidad_base: unidadBase,
-          stock_anterior: stockAnteriorRef,
-          stock_nuevo: stockNuevo,
-          costo_unitario_en_momento: costoUnit,
-          // Costo informativo de la diferencia ajustada — NO es gasto financiero.
-          costo_total_movimiento: cantidadAbs * costoUnit,
-          referencia_tipo: 'ajuste_inventario',
-          referencia_id: '',
+      // Se manda el DELTA con signo, no el stock final: sumar es lo que dos
+      // ajustes simultáneos pueden hacer sin pisarse. El costo del movimiento
+      // lo pone el servidor con el costo del insumo — un ajuste manual no
+      // recalibra el costo ponderado, igual que antes.
+      const resultado = await api.comandos.ejecutar(
+        '/api/inventario/ajustar',
+        {
+          almacenId,
+          insumoId: ingredienteIdRef,
+          cantidad: textoDecimal(cambio),
           motivo: motivoFinal,
-          usuario_id: posUser?.id,
-          usuario_nombre: posUser?.nombre,
-          fecha: new Date().toISOString(),
-        });
-      } catch (movErr) {
-        // Rollback: el movimiento es obligatorio. Si falla, devolvemos el stock
-        // al valor anterior para no dejar una mutación huérfana sin trazabilidad.
-        console.error(
-          '[AjustarStockDialog] MovimientoInventario falló — rollback de stock:',
-          movErr,
-        );
-        try {
-          await api.entidades.Ingrediente.update(ingredienteIdRef, {
-            stock_actual: stockAnteriorRef,
-          });
-        } catch (rollbackErr) {
-          // Si incluso el rollback falla, el admin debe revisarlo manualmente.
-          console.error('[AjustarStockDialog] rollback falló:', rollbackErr);
-          toast.error(
-            'No se pudo registrar el movimiento de inventario y el rollback de stock falló. Revisa el inventario manualmente.',
-          );
-          // Invalidamos para que la UI muestre el estado real (lo que sea).
-          try {
-            queryClient.invalidateQueries({ queryKey: ['ingredientes_all'] });
-          } catch {}
-          setSaving(false);
-          return;
-        }
-        toast.error(
-          'No se pudo registrar el movimiento de inventario. El ajuste no quedó confirmado.',
-        );
-        try {
-          queryClient.invalidateQueries({ queryKey: ['ingredientes_all'] });
-        } catch {}
-        setSaving(false);
-        return;
-      }
+        },
+        claveDelDialogo.current,
+      );
 
       // 3) Invalidar caches relevantes — refrescar la cantidad sin recargar.
       [
@@ -302,23 +280,19 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
         } catch {}
       });
 
+      // El saldo que se enseña es el que devolvió la transacción, no el que
+      // había calculado la pantalla: si otra caja movió el mismo insumo entre
+      // la carga y el guardado, éste es el número que quedó en la base.
+      const saldoFinal = Number(resultado?.cantidad ?? stockNuevo);
       toast.success(
-        `Stock actualizado — ${ingrediente.nombre}: ${stockNuevo.toLocaleString()} ${unidadBase}`,
+        `Stock actualizado — ${ingrediente.nombre}: ${saldoFinal.toLocaleString()} ${unidadBase}`,
       );
       onClose();
     } catch (e) {
-      console.error('[AjustarStockDialog] error:', e);
-      // Si el error fue en el primer update, no hay nada que revertir.
-      // Si fue después de actualizar stock (caso raro: error fuera del bloque
-      // del movimiento), intentamos rollback por seguridad.
-      if (stockActualizado) {
-        try {
-          await api.entidades.Ingrediente.update(ingredienteIdRef, {
-            stock_actual: stockAnteriorRef,
-          });
-        } catch {}
-      }
-      toast.error('Error al ajustar stock: ' + (e?.message || ''));
+      // El dominio ya trae el mensaje en español —«El ajuste dejaría una
+      // existencia negativa», «El insumo o almacén no existe»— y decirlo tal
+      // cual es lo que permite corregir. El genérico de antes no decía nada.
+      toast.error(e?.message || 'No se pudo ajustar el stock.');
       try {
         queryClient.invalidateQueries({ queryKey: ['ingredientes_all'] });
       } catch {}

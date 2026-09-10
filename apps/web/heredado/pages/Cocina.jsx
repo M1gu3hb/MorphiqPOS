@@ -218,21 +218,34 @@ export default function Cocina() {
     }
   };
 
+  /**
+   * Mover una comanda de estado — el único camino de los tres botones (E6-6).
+   *
+   * `transicionar_pedido` mueve la comanda, arrastra sus items, recalcula el
+   * estado de las líneas de venta y SINCRONIZA LA MESA dentro de la misma
+   * transacción. Por eso aquí ya no queda ni un `Mesa.update`: los dos que
+   * había (`:232` y `:273` de F1-06 §4.4) iban con `.catch(() => {})` encima,
+   * así que cocina empezaba a cocinar —o dejaba el plato listo— y el mesero no
+   * se enteraba nunca. Además `Mesa.estado` es un campo que el puente ya no
+   * deja escribir: quien decide el estado del salón son las comandas.
+   *
+   * La versión es monotónica y vive en el rango del estado, no en una columna:
+   * un toque que llega tarde pidiendo `en_preparacion` sobre una comanda que ya
+   * está `listo` se RECHAZA con `TRANSICION_INVALIDA` en vez de devolver el
+   * plato al fuego. Cuando eso pasa se enseña el mensaje del dominio tal cual y
+   * se recarga de la base — no se reintenta, porque el rechazo es la respuesta
+   * correcta.
+   */
+  const transicionar = (comandaId, estado) =>
+    api.comandos.ejecutar('/api/restaurante/transicionar-pedido', { comandaId, estado });
+
   const iniciarPedido = async (pedido) => {
     if (!pedido?.id) return;
     const ahora = new Date().toISOString();
     // 1) UI optimista: mover a "en_preparacion" inmediatamente.
     optimisticPatchPedido(pedido.id, { estado: 'en_preparacion', fecha_inicio: ahora });
     try {
-      await api.entidades.PedidoPreparacion.update(pedido.id, {
-        estado: 'en_preparacion',
-        fecha_inicio: ahora,
-      });
-      if (pedido.mesa_id) {
-        await api.entidades.Mesa.update(pedido.mesa_id, { estado: 'en_preparacion' }).catch(
-          () => {},
-        );
-      }
+      await transicionar(pedido.id, 'en_preparacion');
       // 2) Refetch inmediato para confirmar contra BD (no esperamos polling).
       queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
       queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});
@@ -251,33 +264,14 @@ export default function Cocina() {
     // 1) UI optimista: mover a "listo" inmediatamente.
     optimisticPatchPedido(pedido.id, { estado: 'listo', fecha_listo: ahora });
     try {
-      await api.entidades.PedidoPreparacion.update(pedido.id, {
-        estado: 'listo',
-        fecha_listo: ahora,
-      });
-      // F3: solo movemos la mesa a 'en_espera_entrega' si TODOS los pedidos
-      // de esa mesa están listos. Si una estación termina pero otra sigue,
-      // la mesa no debe cambiar de estado todavía.
-      if (pedido.mesa_id && pedido.venta_id) {
-        try {
-          const pedidosMesa = await api.entidades.PedidoPreparacion.filter({
-            venta_id: pedido.venta_id,
-          }).catch(() => []);
-          const arr = Array.isArray(pedidosMesa) ? pedidosMesa : [];
-          const otrosActivos = arr.filter(
-            (p) =>
-              p && p.id !== pedido.id && !['entregado', 'cancelado', 'listo'].includes(p?.estado),
-          );
-          if (otrosActivos.length === 0) {
-            // Todos los demás están listos/entregados/cancelados → marcar mesa lista.
-            await api.entidades.Mesa.update(pedido.mesa_id, { estado: 'en_espera_entrega' }).catch(
-              () => {},
-            );
-          }
-        } catch (e) {
-          console.warn('[Cocina] revisar pedidos mesa:', e);
-        }
-      }
+      // F3: la mesa sólo avanza si TODAS sus comandas están listas. Esa cuenta
+      // la hace ahora `sincronizarMesa` DENTRO de la transacción del comando,
+      // sobre las comandas de la orden. Aquí se hacía leyendo
+      // `PedidoPreparacion.filter({venta_id})` con `.catch(() => [])`: cuando la
+      // lectura fallaba, la lista vacía se leía como «no queda nadie
+      // cocinando», la mesa se marcaba lista con la otra estación todavía en el
+      // fuego y el mesero recogía media charola (F1-06 §4.4, `:265`).
+      await transicionar(pedido.id, 'listo');
       // 2) Refetch inmediato para reflejar en BD.
       queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
       queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});
@@ -305,11 +299,10 @@ export default function Cocina() {
       ...(pedido.fecha_listo ? {} : { fecha_listo: ahora }),
     });
     try {
-      await api.entidades.PedidoPreparacion.update(pedido.id, {
-        estado: 'entregado',
-        fecha_entregado: ahora,
-        ...(pedido.fecha_listo ? {} : { fecha_listo: ahora }),
-      });
+      // Las fechas las pone el servidor con la hora de la transacción; el
+      // parche de arriba es sólo para que la tarjeta desaparezca sin esperar al
+      // refetch.
+      await transicionar(pedido.id, 'entregado');
       // 2) Refetch inmediato.
       queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
       queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});

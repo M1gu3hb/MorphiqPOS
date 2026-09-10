@@ -87,12 +87,27 @@ export default function Registros() {
   }, [location.search]);
 
   const eliminarCorte = async (c) => {
+    // `isAdmin` es una variable del NAVEGADOR: quien abra las herramientas de
+    // desarrollo y la ponga en `true` borraba la contabilidad del negocio, y el
+    // `confirm` se cancela desde la consola sin tocarlo. Esta comprobación se
+    // QUEDA porque sirve para no enseñar un botón que va a fallar —es
+    // presentación—, pero la que manda es la del comando: `caja.eliminar_corte`
+    // es de DUEÑO, y el rol sale de la cookie de sesión, no de aquí.
     if (!isAdmin) return;
     if (!confirm(`¿Eliminar corte ${c.folio}? Esta acción no se puede deshacer.`)) return;
-    await api.entidades.CorteCaja.delete(c.id);
-    queryClient.invalidateQueries({ queryKey: ['registros_cortes'] });
-    queryClient.invalidateQueries({ queryKey: ['cortes_historial'] });
-    toast.success('Corte eliminado');
+    try {
+      await api.comandos.ejecutar('/api/caja/eliminar-corte', { corteId: c.id });
+      queryClient.invalidateQueries({ queryKey: ['registros_cortes'] });
+      queryClient.invalidateQueries({ queryKey: ['cortes_historial'] });
+      queryClient.invalidateQueries({ queryKey: ['cortes'] });
+      queryClient.invalidateQueries({ queryKey: ['cortes_caja_estado'] });
+      toast.success('Corte eliminado');
+    } catch (err) {
+      // El comando cuenta lo que impide el borrado con números: «Ese corte tiene
+      // 34 ventas registradas y no se puede eliminar…». Eso es lo que se enseña.
+      // Tragarlo dejaba al dueño creyendo que el corte se borró.
+      toast.error(err?.message || 'No se pudo eliminar el corte');
+    }
   };
 
   const q = search.trim().toLowerCase();
@@ -569,8 +584,13 @@ function ExportarDetallesButton({ ventas }) {
       const CHUNK = 5;
       for (let i = 0; i < lista.length; i += CHUNK) {
         const slice = lista.slice(i, i + CHUNK);
+        // Sin `.catch(() => [])`: con él, el CSV se descargaba COMPLETO en
+        // apariencia y con ventas sin sus productos dentro (F1-06 §4.11). Un
+        // archivo incompleto que se descarga solo es peor que uno que no se
+        // descarga: nadie vuelve a comprobarlo. Ahora el fallo aborta la
+        // exportación y lo dice.
         const results = await Promise.all(
-          slice.map((v) => api.entidades.DetalleVenta.filter({ venta_id: v.id }).catch(() => [])),
+          slice.map((v) => api.entidades.DetalleVenta.filter({ venta_id: v.id })),
         );
         results.forEach((arr, idx) => {
           const venta = slice[idx];
@@ -591,8 +611,7 @@ function ExportarDetallesButton({ ventas }) {
       exportToCSV(detalles, COLUMNS_DETALLES_VENTA, `productos-vendidos-${stamp}`);
       toast.success(`Exportadas ${detalles.length} líneas de venta`);
     } catch (err) {
-      console.error('[Registros 1.I] Error export detalles:', err);
-      toast.error('No se pudo exportar el desglose por producto.');
+      toast.error(err?.message || 'No se pudo exportar el desglose por producto.');
     }
     setBusy(false);
   };

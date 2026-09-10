@@ -1,6 +1,6 @@
 'use client';
-import React, { useState } from 'react';
-import { api } from '@/api/cliente';
+import React, { useState, useRef } from 'react';
+import { api, nuevaClave } from '@/api/cliente';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { usePOSAuth } from '@/lib/POSAuthContext';
+import { textoDecimal } from '@/components/inventario/comandos';
 
 const CATEGORIAS = [
   { value: 'servicios', label: 'Servicios (luz, agua, gas, internet)' },
@@ -34,10 +34,14 @@ const CATEGORIAS = [
 ];
 
 export default function RegistrarGastoDialog({ open, onClose }) {
-  const { posUser } = usePOSAuth();
+  // Quién registra el gasto sale de la sesión, no del cuerpo de la petición.
   const queryClient = useQueryClient();
   const [form, setForm] = useState(empty());
   const [saving, setSaving] = useState(false);
+  // Un gasto en efectivo saca dinero del cajón: un doble clic lo sacaría dos
+  // veces. La clave vive mientras el diálogo esté abierto.
+  const claveDelDialogo = useRef(null);
+  if (claveDelDialogo.current === null) claveDelDialogo.current = nuevaClave();
 
   function empty() {
     return {
@@ -53,6 +57,7 @@ export default function RegistrarGastoDialog({ open, onClose }) {
 
   const close = () => {
     setForm(empty());
+    claveDelDialogo.current = null;
     onClose();
   };
 
@@ -64,20 +69,27 @@ export default function RegistrarGastoDialog({ open, onClose }) {
     }
     setSaving(true);
     try {
-      const notas = form.recurrente
-        ? `[RECURRENTE/FIJO MENSUAL] ${form.notas || ''}`.trim()
-        : form.notas;
-
-      await api.entidades.GastoOperativo.create({
-        fecha: form.fecha,
-        categoria: form.categoria,
-        descripcion: form.descripcion.trim(),
-        monto,
-        metodo_pago: form.metodo_pago,
-        usuario_id: posUser?.id,
-        usuario_nombre: posUser?.nombre,
-        notas,
-      });
+      // `es_recurrente` es una COLUMNA, no un prefijo dentro del texto de las
+      // notas. Viajaba como «[RECURRENTE/FIJO MENSUAL] …» y se perdía en cuanto
+      // alguien editaba la nota (F1-04 §25.1). El comando lo recibe aparte —y
+      // de paso sigue reconociendo el prefijo viejo en los gastos ya guardados.
+      //
+      // Un gasto en efectivo, además, mueve la caja: `gastos.registrar` escribe
+      // el movimiento de salida en la misma transacción y lo fecha con SU
+      // sesión de caja, no con lo que teclee la pantalla.
+      await api.comandos.ejecutar(
+        '/api/gastos/registrar',
+        {
+          fecha: form.fecha,
+          categoria: form.categoria,
+          descripcion: form.descripcion.trim(),
+          monto: textoDecimal(monto),
+          metodoPago: form.metodo_pago,
+          esRecurrente: form.recurrente === true,
+          ...(form.notas.trim() ? { notas: form.notas.trim() } : {}),
+        },
+        claveDelDialogo.current,
+      );
 
       ['gastos_hoy', 'registros_gastos'].forEach((k) =>
         queryClient.invalidateQueries({ queryKey: [k] }),
@@ -85,7 +97,9 @@ export default function RegistrarGastoDialog({ open, onClose }) {
       toast.success('Gasto registrado');
       close();
     } catch (e) {
-      toast.error('Error: ' + (e?.message || ''));
+      // «Abre la caja antes de registrar un gasto en efectivo» sólo sirve si se
+      // lee: el «Error: » de antes escondía la única frase útil.
+      toast.error(e?.message || 'No se pudo registrar el gasto.');
     }
     setSaving(false);
   };

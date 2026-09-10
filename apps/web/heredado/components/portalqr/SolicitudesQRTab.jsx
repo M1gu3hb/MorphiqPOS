@@ -8,8 +8,6 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
-import { cleanupOldSolicitudes } from '@/lib/asignacionMesas';
-import { useConfig } from '@/lib/ConfigContext';
 
 const ESTADOS_LABEL = {
   pendiente: 'Pendiente',
@@ -32,12 +30,33 @@ const TIPO_COLOR = {
 
 /**
  * Pestaña "Solicitudes" del Portal QR (vista admin) — historial completo.
+ *
+ * ── La atribución dejó de viajar en el cuerpo ─────────────────────────────
+ * Atender y resolver mandaban `atendido_por_id`, `atendido_por_nombre` y la
+ * `fecha_atendida` del reloj del NAVEGADOR. Con eso cualquiera se atribuía el
+ * trabajo de otro —o se lo endosaba— desde la consola, y un teléfono con la
+ * hora mal puesta escribía una atención en el futuro. `restaurante.atender_solicitud`
+ * ni siquiera acepta esos campos: el empleo sale de la sesión y la fecha del
+ * reloj del servidor. La regla de «quien lo tomó primero lo conserva» sigue,
+ * pero ahora es la única forma de que salga.
+ *
+ * ── Y borrar dejó de ser un bucle ─────────────────────────────────────────
+ * "Vaciar todas" bajaba 500 solicitudes al navegador y las borraba una por una
+ * dentro de un `try {…} catch {}` VACÍO, contando sólo las que salían bien: si
+ * fallaba la número 200, la pantalla decía «Solicitudes borradas: 199», las 301
+ * restantes se quedaban a medias y no había transacción que revertir. Ahora son
+ * dos comandos con un `delete` cada uno, y el número que se enseña es el que la
+ * base dice que borró.
  */
-export default function SolicitudesQRTab({ posUser }) {
+export default function SolicitudesQRTab() {
   const queryClient = useQueryClient();
-  const { config } = useConfig();
   const [filtroEstado, setFiltroEstado] = useState('todas');
   const [limpiando, setLimpiando] = useState(false);
+
+  const refrescarListas = () => {
+    queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
+    queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero'] });
+  };
 
   const limpiarAntiguas = async () => {
     if (limpiando) return;
@@ -49,10 +68,13 @@ export default function SolicitudesQRTab({ posUser }) {
       return;
     setLimpiando(true);
     try {
-      const r = await cleanupOldSolicitudes(api, config);
+      // Sólo las CERRADAS de hace más de 24 h. El corte por
+      // `hora_inicio_dia_operativo` se leía en el navegador y se llevaba también
+      // las PENDIENTES: el aviso que nadie atendió desaparecía sin dejar
+      // constancia de que nadie lo atendió.
+      const r = await api.comandos.ejecutar('/api/restaurante/limpiar-solicitudes', {});
       toast.success(`Solicitudes antiguas borradas: ${r?.borradas || 0}`);
-      queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
-      queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero'] });
+      refrescarListas();
     } catch (err) {
       toast.error('No se pudo limpiar: ' + (err?.message || ''));
     } finally {
@@ -70,17 +92,11 @@ export default function SolicitudesQRTab({ posUser }) {
       return;
     setLimpiando(true);
     try {
-      const todas = await api.entidades.SolicitudQR.list('-created_date', 500).catch(() => []);
-      let borradas = 0;
-      for (const s of todas || []) {
-        try {
-          await api.entidades.SolicitudQR.delete(s.id);
-          borradas++;
-        } catch {}
-      }
-      toast.success(`Solicitudes borradas: ${borradas}`);
-      queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
-      queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero'] });
+      // Comando aparte del anterior, y no un `alcance: 'todas'`, porque
+      // llevarse el historial entero del negocio es de dueño y administrador.
+      const r = await api.comandos.ejecutar('/api/restaurante/vaciar-solicitudes', {});
+      toast.success(`Solicitudes borradas: ${r?.borradas || 0}`);
+      refrescarListas();
     } catch (err) {
       toast.error('No se pudo vaciar: ' + (err?.message || ''));
     } finally {
@@ -105,32 +121,23 @@ export default function SolicitudesQRTab({ posUser }) {
 
   const accion = async (s, accionTipo) => {
     if (!s?.id) return;
+    if (accionTipo === 'cancelar' && !confirm('¿Cancelar esta solicitud?')) return;
+    const estado =
+      accionTipo === 'atender' ? 'atendida' : accionTipo === 'resolver' ? 'resuelta' : 'cancelada';
     try {
-      const ahora = new Date().toISOString();
-      if (accionTipo === 'atender') {
-        await api.entidades.SolicitudQR.update(s.id, {
-          estado: 'atendida',
-          fecha_atendida: ahora,
-          atendido_por_id: posUser?.id,
-          atendido_por_nombre: posUser?.nombre,
-        });
-      } else if (accionTipo === 'resolver') {
-        await api.entidades.SolicitudQR.update(s.id, {
-          estado: 'resuelta',
-          fecha_resuelta: ahora,
-          atendido_por_id: s.atendido_por_id || posUser?.id,
-          atendido_por_nombre: s.atendido_por_nombre || posUser?.nombre,
-        });
-      } else if (accionTipo === 'cancelar') {
-        if (!confirm('¿Cancelar esta solicitud?')) return;
-        await api.entidades.SolicitudQR.update(s.id, { estado: 'cancelada' });
-      }
-      queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
-      queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero'] });
+      // La transición es monotónica en el servidor: un toque que se quedó en la
+      // red y llega tarde pidiendo «atendida» sobre un aviso ya resuelto NO lo
+      // devuelve a la lista de pendientes del compañero.
+      await api.comandos.ejecutar('/api/restaurante/atender-solicitud', {
+        solicitudId: s.id,
+        estado,
+      });
+      refrescarListas();
       toast.success('Solicitud actualizada');
     } catch (err) {
-      console.error('[SolicitudesQRTab] accion:', err);
-      toast.error('No se pudo actualizar');
+      // «Un compañero movió ese aviso mientras lo atendías», «Esa solicitud está
+      // en "resuelta" y ya no puede pasar a…»: el dominio ya lo explica.
+      toast.error(err?.message || 'No se pudo actualizar');
     }
   };
 

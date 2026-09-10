@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useMemo } from 'react';
-import { api } from '@/api/cliente';
+import React, { useState, useMemo, useRef } from 'react';
+import { api, nuevaClave } from '@/api/cliente';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/select';
 import { Plus, Trash2, Save, PackagePlus, Info } from 'lucide-react';
 import { toast } from 'sonner';
-import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { formatCurrency } from '@/utils/financialUtils';
 import { calculateCostPerBaseUnit } from '@/utils/unitConversions';
@@ -37,6 +36,12 @@ import {
 import IngredienteAutocomplete from '@/components/recetas/IngredienteAutocomplete';
 import { normalizarNombreIngrediente, construirMapaIngredientes } from '@/utils/ingredienteMatcher';
 import StockMinCritInput from '@/components/inventario/StockMinCritInput';
+import {
+  claveDeContenido,
+  obtenerAlmacenPrincipalId,
+  textoDecimal,
+  textoImporte,
+} from '@/components/inventario/comandos';
 
 /**
  * REGISTRAR INVENTARIO EXISTENTE / INICIAL
@@ -50,18 +55,36 @@ import StockMinCritInput from '@/components/inventario/StockMinCritInput';
  *  - NO crea DetalleCompra
  *  - NO aparece en Compras del día ni en reportes financieros de gasto
  *  - SÍ crea/actualiza Ingrediente
- *  - SÍ crea MovimientoInventario tipo `ajuste_manual` con motivo "Inventario inicial"
- *    y referencia_tipo "inventario_inicial" (trazabilidad sin tocar schema)
- *  - SÍ calcula costo por unidad base de forma idéntica a una compra
+ *  - SÍ registra el movimiento `inventario_inicial` en el ledger
+ *  - SÍ deja el costo por unidad base del insumo listo para costear recetas
  *
  * NO toca: ventas, caja, cortes, propinas, tickets, PDFs.
+ *
+ * ── D-06: la existencia se suma, no se escribe ─────────────────────────────
+ * Cada línea hacía `Ingrediente.update({stock_actual, costo_por_unidad_base})`
+ * y luego `MovimientoInventario.create`, con un rollback a mano —incluso un
+ * `Ingrediente.delete` del insumo recién creado— cuando el movimiento fallaba.
+ * Ahora son comandos: `inventario.crear_insumo` da de alta el insumo con su
+ * costo, e `inventario.inicial` suma la cantidad a la existencia del almacén y
+ * escribe el movimiento en la MISMA transacción. Si una línea falla, esa línea
+ * no dejó nada a medias y las anteriores siguen en pie.
+ *
+ * El costo ponderado ya no se calcula aquí. Sobrescribir el costo histórico de
+ * un insumo que ya tenía uno es D-13, y el promedio ponderado de verdad lo hace
+ * `compras.registrar` en el servidor con enteros. Aquí el costo sólo se fija
+ * cuando el insumo todavía no tiene ninguno: nace con el que dice la línea.
  */
 export default function RegistrarInventarioInicialDialog({ open, onClose, ingredientes = [] }) {
-  const { posUser } = usePOSAuth();
   const { config } = useConfig();
   const queryClient = useQueryClient();
   const [lines, setLines] = useState([emptyLine()]);
   const [saving, setSaving] = useState(false);
+  // Semilla de las claves de idempotencia mientras el diálogo esté abierto: un
+  // doble clic en «Guardar» no puede cargar el inventario dos veces. Se crea
+  // perezosamente para no gastar un uuid en cada tecla, y `reset()` la anula
+  // para que la siguiente apertura empiece con una nueva.
+  const semillaDelDialogo = useRef(null);
+  if (semillaDelDialogo.current === null) semillaDelDialogo.current = nuevaClave();
 
   const unidadesCompra = useMemo(() => getUnidadesCompra(config), [config]);
 
@@ -82,6 +105,7 @@ export default function RegistrarInventarioInicialDialog({ open, onClose, ingred
 
   const reset = () => {
     setLines([emptyLine()]);
+    semillaDelDialogo.current = null;
   };
 
   const close = () => {
@@ -164,25 +188,34 @@ export default function RegistrarInventarioInicialDialog({ open, onClose, ingred
     let fallidos = 0;
     let primerErrorMsg = '';
 
-    // Para detectar duplicados contra ingredientes inactivos también:
+    // Para detectar duplicados contra ingredientes inactivos también.
+    //
+    // El `.catch(() => {})` que envolvía esta lectura la degradaba a la lista de
+    // sólo activos que llega por prop, y entonces el inventario inicial creaba
+    // un insumo duplicado del que estaba desactivado (F1-06 §4.10). Si el
+    // catálogo no se puede leer, no se adivina: no se registra nada.
+    //
+    // El almacén se resuelve UNA vez, no una por línea: los comandos de
+    // existencias lo exigen y el frontend heredado no conocía el concepto.
     let baseList = ingredientes;
+    let almacenId;
     try {
       const all = await api.entidades.Ingrediente.list('-created_date', 5000);
       if (Array.isArray(all) && all.length > 0) baseList = all;
-    } catch {}
+      almacenId = await obtenerAlmacenPrincipalId();
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo preparar el registro de inventario. Reintenta.');
+      setSaving(false);
+      return;
+    }
 
     // MAPA EN-VUELO: detecta duplicados entre líneas de la misma operación
     // (ej. Línea 1 = "Pan", Línea 2 = "PAN", Línea 3 = "Pán" → mismo ingrediente).
     const mapaIng = construirMapaIngredientes(baseList);
 
     try {
-      for (const line of validLines) {
+      for (const [indice, line] of validLines.entries()) {
         let ing = line.ingrediente;
-        // Snapshot del estado anterior del ingrediente — necesario para rollback si falla
-        // MovimientoInventario después de haber actualizado el ingrediente.
-        let snapshotPrevio = null;
-        // Si creamos el ingrediente nuevo en esta iteración, lo marcamos para limpiar
-        // en caso de que el movimiento falle.
         let creadoEnEstaIteracion = false;
 
         try {
@@ -192,6 +225,36 @@ export default function RegistrarInventarioInicialDialog({ open, onClose, ingred
             const k = normalizarNombreIngrediente(ing.nombre);
             if (k && mapaIng.has(k)) ing = mapaIng.get(k);
           }
+
+          const qty = parseFloat(line.cantidad) || 0;
+          const cost = parseFloat(line.costo_total) || 0;
+          const equivalencia = parseFloat(line.piezas_por_paquete) || 1;
+
+          // Helper central: convierte cualquier alias estándar (kg, kilogramos, l, lt, …)
+          // o unidad personalizada (con equivalencia) a la unidad base correcta.
+          const qtyBase = convertirAUnidadBase(qty, line.unidad_compra, equivalencia);
+          const costPerBase = calculateCostPerBaseUnit(cost, qtyBase);
+          // Cuántas unidades base trae UNA unidad de compra. Es lo que la columna
+          // `cantidad_por_compra_default` significa (F1-04 §14.1) y lo que la
+          // siguiente compra vuelve a leer; escribir ahí la cantidad comprada,
+          // como se hacía, deja la conversión de la compra anterior.
+          const equivalenciaBase = convertirAUnidadBase(1, line.unidad_compra, equivalencia);
+
+          // Una clave de idempotencia por línea, atada a la apertura del diálogo
+          // y al CONTENIDO de la línea: si el usuario reintenta, las líneas que
+          // ya entraron se resuelven como reintento y no suman dos veces, y la
+          // que corrija cambia de clave y sí vuelve a entrar.
+          const claveLinea = (paso) =>
+            claveDeContenido(`inv-ini-${paso}`, {
+              semilla: semillaDelDialogo.current,
+              indice,
+              insumo:
+                line.tipo === 'nuevo'
+                  ? normalizarNombreIngrediente(line.nuevo_nombre)
+                  : line.ingrediente?.id || '',
+              cantidad: qtyBase,
+              costo: cost,
+            });
 
           // 1) Línea "nueva". ANTI-DUPLICADO con mapa en-vuelo:
           //    detecta variantes normalizadas y duplicados entre líneas + inactivos.
@@ -216,135 +279,89 @@ export default function RegistrarInventarioInicialDialog({ open, onClose, ingred
                 `"${String(line.nuevo_nombre || '').trim()}" ya existía — sumando al ingrediente existente.`,
               );
             } else {
-              ing = await api.entidades.Ingrediente.create({
-                nombre: String(line.nuevo_nombre || '').trim(),
+              // El insumo nace con su costo por unidad base: `crear_insumo` lo
+              // acepta porque es el primero que tiene, no una sobrescritura.
+              const nombreNuevo = String(line.nuevo_nombre || '').trim();
+              const minimoNuevo = Math.max(0, parseFloat(line.stock_minimo) || 0);
+              const creado = await api.comandos.ejecutar(
+                '/api/inventario/insumos/crear',
+                {
+                  nombre: nombreNuevo,
+                  unidad: line.nuevo_unidad_base,
+                  costoUnitario: textoImporte(costPerBase),
+                  stockMinimo: textoDecimal(minimoNuevo),
+                },
+                claveLinea('alta'),
+              );
+              ing = {
+                id: creado.id,
+                nombre: nombreNuevo,
                 unidad_base: line.nuevo_unidad_base,
-                unidad_compra_default: line.unidad_compra,
-                stock_actual: 0,
-                stock_minimo: parseFloat(line.stock_minimo) || 0,
-                stock_critico: parseFloat(line.stock_critico) || 0,
+                costo_por_unidad_base: costPerBase,
+                stock_minimo: minimoNuevo,
+                stock_critico: 0,
                 activo: true,
-              });
+              };
               creadoEnEstaIteracion = true;
             }
           }
           if (!ing) continue;
 
-          // 2) Capturar snapshot ANTES de mutar el ingrediente — necesario para rollback.
-          snapshotPrevio = {
-            stock_actual: ing.stock_actual ?? 0,
-            costo_por_unidad_base: ing.costo_por_unidad_base ?? 0,
-            costo_compra_default: ing.costo_compra_default ?? 0,
-            unidad_compra_default: ing.unidad_compra_default ?? '',
-            cantidad_por_compra_default: ing.cantidad_por_compra_default ?? 0,
-            stock_minimo: ing.stock_minimo ?? 0,
-            stock_critico: ing.stock_critico ?? 0,
-          };
+          // 2) La existencia. Suma al saldo del almacén y escribe el movimiento
+          //    `inventario_inicial` en la misma transacción: ya no hay «stock
+          //    movido sin movimiento que lo respalde» que revertir a mano.
+          await api.comandos.ejecutar(
+            '/api/inventario/inicial',
+            { almacenId, insumoId: ing.id, cantidad: textoDecimal(qtyBase) },
+            claveLinea('saldo'),
+          );
 
-          const qty = parseFloat(line.cantidad) || 0;
-          const cost = parseFloat(line.costo_total) || 0;
-          const equivalencia = parseFloat(line.piezas_por_paquete) || 1;
+          // 3) El costo, SÓLO si el insumo todavía no tenía uno. Pisar el costo
+          //    de un insumo con historial sin ponderar es D-13; el promedio
+          //    ponderado de verdad lo hace `compras.registrar` en el servidor.
+          const teniaCosto = Number(ing.costo_por_unidad_base) > 0;
+          if (!creadoEnEstaIteracion && !teniaCosto && costPerBase > 0) {
+            await api.comandos.ejecutar(
+              '/api/inventario/insumos/costo',
+              { insumoId: ing.id, costoUnitario: textoImporte(costPerBase) },
+              claveLinea('costo'),
+            );
+          }
 
-          // Helper central: convierte cualquier alias estándar (kg, kilogramos, l, lt, …)
-          // o unidad personalizada (con equivalencia) a la unidad base correcta.
-          const qtyBase = convertirAUnidadBase(qty, line.unidad_compra, equivalencia);
-          const costPerBase = calculateCostPerBaseUnit(cost, qtyBase);
-
-          const oldStock = snapshotPrevio.stock_actual;
-          const oldCost = snapshotPrevio.costo_por_unidad_base;
-          const newStock = oldStock + qtyBase;
-          // Costo ponderado (igual a compras): conserva la base de costo histórica si ya había stock.
-          const newAvgCost =
-            newStock > 0 ? (oldStock * oldCost + qtyBase * costPerBase) / newStock : costPerBase;
-
-          // Construimos payload de actualización
-          const updatePayload = {
-            stock_actual: newStock,
-            costo_por_unidad_base: Math.round(newAvgCost * 10000) / 10000,
-            costo_compra_default: cost / qty,
+          // 4) Los datos maestros que SIGUEN siendo columnas escribibles del
+          //    insumo. `stock_actual` y `costo_por_unidad_base` ya no están aquí
+          //    a propósito: son proyección y costo, y los escribe el servidor.
+          const maestros = {
             unidad_compra_default: line.unidad_compra,
-            cantidad_por_compra_default: qty,
+            cantidad_por_compra_default: equivalenciaBase,
           };
           const stockMinLinea = parseFloat(line.stock_minimo);
           const stockCritLinea = parseFloat(line.stock_critico);
           if (Number.isFinite(stockMinLinea) && stockMinLinea > 0 && !(ing.stock_minimo > 0)) {
-            updatePayload.stock_minimo = stockMinLinea;
+            maestros.stock_minimo = stockMinLinea;
           }
           if (Number.isFinite(stockCritLinea) && stockCritLinea > 0 && !(ing.stock_critico > 0)) {
-            updatePayload.stock_critico = stockCritLinea;
+            maestros.stock_critico = stockCritLinea;
           }
+          await api.entidades.Ingrediente.update(ing.id, maestros);
 
-          // 3) Actualizar Ingrediente
-          await api.entidades.Ingrediente.update(ing.id, updatePayload);
-
-          // Refrescar mapa en-vuelo para que próximas líneas con el mismo
-          // nombre normalizado acumulen sobre los valores NUEVOS, no los iniciales.
+          // Refrescar mapa en-vuelo: la cantidad la acumula el servidor, así que
+          // aquí sólo importa que la próxima línea con el mismo nombre encuentre
+          // el insumo, sepa que ya tiene costo y no vuelva a fijarlo.
           const keyAct = normalizarNombreIngrediente(ing.nombre);
-          if (keyAct) mapaIng.set(keyAct, { ...ing, ...updatePayload });
-
-          // 4) Movimiento OBLIGATORIO. Si falla, hacemos rollback.
-          try {
-            await api.entidades.MovimientoInventario.create({
-              ingrediente_id: ing.id,
-              ingrediente_nombre: ing.nombre,
-              tipo_movimiento: 'ajuste_manual',
-              cantidad: qtyBase,
-              unidad_base: ing.unidad_base,
-              stock_anterior: oldStock,
-              stock_nuevo: newStock,
-              costo_unitario_en_momento: costPerBase,
-              costo_total_movimiento: cost,
-              referencia_tipo: 'inventario_inicial',
-              referencia_id: '',
-              motivo: 'Inventario inicial / existente',
-              usuario_id: posUser?.id,
-              usuario_nombre: posUser?.nombre,
-              fecha: new Date().toISOString(),
+          if (keyAct) {
+            mapaIng.set(keyAct, {
+              ...ing,
+              ...maestros,
+              costo_por_unidad_base:
+                teniaCosto || creadoEnEstaIteracion ? ing.costo_por_unidad_base : costPerBase,
             });
-            exitosos++;
-          } catch (movErr) {
-            // ROLLBACK: el movimiento es obligatorio para trazabilidad.
-            console.error(
-              '[RegistrarInventarioInicialDialog] MovimientoInventario falló — rollback:',
-              movErr,
-            );
-            if (creadoEnEstaIteracion) {
-              // Era ingrediente nuevo: intentar eliminarlo. Si no se puede, desactivarlo.
-              let limpiado = false;
-              try {
-                await api.entidades.Ingrediente.delete(ing.id);
-                limpiado = true;
-              } catch {
-                try {
-                  await api.entidades.Ingrediente.update(ing.id, { activo: false });
-                  limpiado = true;
-                } catch {}
-              }
-              if (!limpiado) {
-                console.error(
-                  '[RegistrarInventarioInicialDialog] no se pudo limpiar ingrediente nuevo huérfano:',
-                  ing.id,
-                );
-              }
-            } else {
-              // Ya existía: revertir TODOS los campos modificados a su valor previo.
-              try {
-                await api.entidades.Ingrediente.update(ing.id, snapshotPrevio);
-              } catch (rollbackErr) {
-                console.error(
-                  '[RegistrarInventarioInicialDialog] rollback de ingrediente falló:',
-                  rollbackErr,
-                );
-              }
-            }
-            fallidos++;
-            if (!primerErrorMsg) {
-              primerErrorMsg = `${ing.nombre || line.nuevo_nombre || 'línea'}: no se pudo registrar el movimiento`;
-            }
           }
+          exitosos++;
         } catch (lineErr) {
-          // Error fuera del bloque movimiento (creación de ingrediente o update fallaron).
-          console.error('[RegistrarInventarioInicialDialog] error en línea:', lineErr);
+          // La línea entera falló y no dejó nada a medias: el comando es una
+          // transacción. Se guarda el mensaje del dominio —ya en español— para
+          // enseñarlo al final y se sigue con las demás.
           fallidos++;
           if (!primerErrorMsg) {
             primerErrorMsg = lineErr?.message || 'error desconocido';

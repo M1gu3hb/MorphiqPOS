@@ -74,17 +74,51 @@ export const entradaEnviarPedido = z.object({
 /**
  * La propina que elige el comensal.
  *
- * **`monto_manual` no está**, y no es un olvido: `ordenes` no tiene columna
- * donde guardar un importe de propina —sólo `propina_puntos_base`— y `pagos`
- * la recibe hasta el cobro. Inventar la columna no me toca. Queda anotado en
- * el informe; mientras tanto, el comensal elige porcentaje, nada, o decidir en
- * la caja, que es lo que la base sabe representar hoy.
+ * ── Sobre `monto_manual`, y por qué SÍ está ────────────────────────────────
+ * Estuvo fuera un tiempo con este motivo: «`ordenes` no tiene columna donde
+ * guardar un importe de propina». Cierto, pero la tabla era la equivocada. La
+ * propina que el comensal escribe no es de la orden, es de SU AVISO, y
+ * `solicitudes_qr.propina_sugerida_centavos` existe desde la migración 045 —el
+ * comando ya escribe ahí la que calcula del porcentaje—. Sin esto, el campo
+ * seguía en pantalla, seguía habilitando «Confirmar» y siempre acababa en un
+ * error rojo: una función que Miguel tenía y dejaba de funcionar.
+ *
+ * ── Y sobre «el endpoint no acepta importes del cliente» ───────────────────
+ * Esa regla protege lo que se COBRA. Aquí no se cobra nada: `Venta.total` no
+ * incluye propina (regla 1) y el importe real lo teclea la caja al cobrar.
+ * Esto es lo que el comensal PIDE, guardado como sugerencia en su aviso, y el
+ * servidor deriva de él los puntos base con SU propio subtotal. Es una decisión
+ * de criterio y va dicha en el informe para que Miguel pueda revocarla.
  */
-export const entradaPedirCuenta = z.object({
-  propinaTipo: z.enum(['sin_propina', 'porcentaje', 'decidir_en_caja']),
-  /** Sólo se usa con `porcentaje`; el importe lo calcula el servidor. */
-  propinaPorcentaje: z.number().int().min(0).max(100).default(0),
-});
+export const entradaPedirCuenta = z
+  .object({
+    propinaTipo: z.enum(['sin_propina', 'porcentaje', 'decidir_en_caja', 'monto_manual']),
+    /** Sólo se usa con `porcentaje`; el importe lo calcula el servidor. */
+    propinaPorcentaje: z.number().int().min(0).max(100).default(0),
+    /**
+     * Sólo con `monto_manual`. Acotado: una propina de más de cien mil pesos no
+     * es una propina, es alguien probando qué acepta el formulario.
+     */
+    propinaSugeridaCentavos: z.number().int().min(0).max(10_000_000).optional(),
+  })
+  .superRefine((valor, ctx) => {
+    if (valor.propinaTipo === 'monto_manual' && valor.propinaSugeridaCentavos === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['propinaSugeridaCentavos'],
+        message: 'Falta el importe de la propina.',
+      });
+    }
+    // Al revés también: mandar un importe con otro tipo sería pedir una cosa y
+    // escribir otra, y aquí se rechaza en vez de ignorarlo en silencio.
+    if (valor.propinaTipo !== 'monto_manual' && valor.propinaSugeridaCentavos !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['propinaSugeridaCentavos'],
+        message: 'Ese importe sólo se manda con una propina escrita a mano.',
+      });
+    }
+  });
 
 export const entradaValorar = z.object({
   score: z.number().int().min(1).max(5),

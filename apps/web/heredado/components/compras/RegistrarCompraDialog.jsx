@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { api } from '@/api/cliente';
+import React, { useState, useRef } from 'react';
+import { api, nuevaClave } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -21,10 +21,8 @@ import {
 } from '@/components/ui/select';
 import { Plus, Trash2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { formatCurrency } from '@/utils/financialUtils';
-import { calculateCostPerBaseUnit } from '@/utils/unitConversions';
 import {
   getUnidadesCompra,
   UNIDADES_BASE,
@@ -36,12 +34,14 @@ import {
 import IngredienteAutocomplete from '@/components/recetas/IngredienteAutocomplete';
 import RepetirCompraDialog from '@/components/compras/RepetirCompraDialog';
 import { History, Star, ChevronDown, ChevronUp, Bell } from 'lucide-react';
-import { normalizarNombreIngrediente, construirMapaIngredientes } from '@/utils/ingredienteMatcher';
 import StockMinCritInput from '@/components/inventario/StockMinCritInput';
+import { textoDecimal } from '@/components/inventario/comandos';
 
 /** Cada línea: ingrediente existente o nuevo; cantidad/unidad/costo. */
 export default function RegistrarCompraDialog({ open, onClose, ingredientes = [] }) {
-  const { posUser } = usePOSAuth();
+  // Ni `posUser` ni el costo por unidad base se calculan aquí: quién compra sale
+  // de la sesión y el costo promedio ponderado lo hace `compras.registrar` con
+  // enteros. La fórmula estaba copiada en tres pantallas y en una, mal (D-13).
   const { config } = useConfig();
   const queryClient = useQueryClient();
   // Unidades disponibles — combinan las del admin (Configuración) + defaults inalterables.
@@ -57,6 +57,12 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
   const [showRepetir, setShowRepetir] = useState(false);
   const [guardarPlantilla, setGuardarPlantilla] = useState(false);
   const [nombrePlantilla, setNombrePlantilla] = useState('');
+  // Clave de idempotencia mientras el diálogo esté abierto: una compra mueve
+  // dinero y stock, y un doble clic en «Guardar compra» —o un reintento de red
+  // sobre una petición que sí llegó— la registraría dos veces. Se crea
+  // perezosamente y `reset()` la anula al cerrar.
+  const claveDelDialogo = useRef(null);
+  if (claveDelDialogo.current === null) claveDelDialogo.current = nuevaClave();
 
   // Proveedores activos para el selector. Solo se cargan cuando el dialog está abierto.
   const { data: proveedoresActivos = [] } = useQuery({
@@ -98,6 +104,7 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
     setFecha(new Date().toISOString().slice(0, 10));
     setGuardarPlantilla(false);
     setNombrePlantilla('');
+    claveDelDialogo.current = null;
   };
 
   // Al repetir compra, intenta mapear el nombre histórico al proveedor activo
@@ -196,43 +203,6 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
 
     setSaving(true);
     try {
-      // Para detectar duplicados contra ingredientes inactivos también, traemos
-      // la lista completa una sola vez. Si falla, caemos al prop `ingredientes`
-      // (que solo trae activos pero ya cubre 99% de los casos).
-      let baseList = ingredientes;
-      try {
-        const all = await api.entidades.Ingrediente.list('-created_date', 5000);
-        if (Array.isArray(all) && all.length > 0) baseList = all;
-      } catch {}
-
-      // MAPA EN-VUELO: clave = nombre normalizado, valor = ingrediente vivo.
-      // Se actualiza durante el bucle para que líneas posteriores con el mismo
-      // nombre normalizado reutilicen el ingrediente recién creado/usado y
-      // acumulen stock+costo sobre la VERSIÓN ACTUALIZADA, no la inicial.
-      const mapaIng = construirMapaIngredientes(baseList);
-
-      // PRE-VALIDACIÓN DE INACTIVOS: revisamos TODAS las líneas "nuevas" contra el
-      // mapa antes de crear la CompraInsumo. Si alguna apunta a un ingrediente
-      // desactivado, bloqueamos antes de tocar BD para no dejar una compra
-      // huérfana sin detalles.
-      const inactivosBloqueantes = [];
-      for (const l of validLines) {
-        if (l.tipo !== 'nuevo') continue;
-        const k = normalizarNombreIngrediente(l.nuevo_nombre);
-        const match = k ? mapaIng.get(k) : null;
-        if (match && match.activo === false) {
-          inactivosBloqueantes.push(match.nombre);
-        }
-      }
-      if (inactivosBloqueantes.length > 0) {
-        toast.error(
-          `Existe ${inactivosBloqueantes.length === 1 ? 'un ingrediente desactivado' : 'ingredientes desactivados'}: ` +
-            `${inactivosBloqueantes.join(', ')}. Reactívalo(s) desde Inventario o cambia el nombre.`,
-        );
-        setSaving(false);
-        return;
-      }
-
       // Resolver proveedor antes de guardar:
       //  - 'directa'      → sin proveedor, snapshot = 'Compra directa'
       //  - id de Proveedor → guardar id + nombre como snapshot (para que sobreviva si lo desactivan)
@@ -250,161 +220,119 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
         }
       }
 
-      const compra = await api.entidades.CompraInsumo.create({
-        proveedor_id: provIdFinal,
-        proveedor_nombre: provNombreFinal,
-        fecha,
-        total_compra: totalCompra,
-        metodo_pago: metodoPago,
-        usuario_id: posUser?.id,
-        usuario_nombre: posUser?.nombre,
-        notas,
-      });
+      // ── D-12: cabecera y líneas, o nada ──────────────────────────────────
+      // Antes esto creaba la `CompraInsumo` con el total de las cinco líneas y
+      // el bucle de líneas iba DESPUÉS: si fallaba la línea 3 de 5 quedaba una
+      // compra con el total correcto y tres líneas, un asiento que no cuadra
+      // consigo mismo. Y cada línea hacía además su `Ingrediente.update(stock)`
+      // y su `MovimientoInventario.create` a mano — los dos se van, porque
+      // `compras.registrar` mueve la existencia y escribe el ledger él mismo;
+      // dejarlos aquí descontaría dos veces.
+      //
+      // El total tampoco viaja: es Σ de las líneas y lo suma el servidor. El
+      // endpoint no acepta importes de cabecera.
+      const lineasDeLaCompra = validLines.map((l) => {
+        // La equivalencia —cuántas unidades base trae UNA unidad de compra— es
+        // obligatoria y ahora SE GUARDA, así que dentro de seis meses «3 cajas»
+        // sigue diciendo que una caja traía 12 kg. Para una unidad estándar la
+        // fija el catálogo (1 kg = 1000 g) y el servidor rechaza una distinta;
+        // para un empaque la captura quien compra.
+        const equivalencia = requiereEquivalencia(l.unidad_compra)
+          ? parseFloat(l.piezas_por_paquete)
+          : convertirAUnidadBase(1, l.unidad_compra, 1);
 
-      for (const line of validLines) {
-        let ing = line.ingrediente;
-
-        // CASO 1: usuario seleccionó "existente" desde autocomplete.
-        // Si dentro de la misma compra ya procesamos ese mismo ingrediente,
-        // usamos la versión del mapa (que tiene stock/costo actualizados).
-        if (ing) {
-          const key = normalizarNombreIngrediente(ing.nombre);
-          if (key && mapaIng.has(key)) {
-            ing = mapaIng.get(key);
-          }
-        }
-
-        // CASO 2: línea "nueva". ANTI-DUPLICADO:
-        //  a) buscar en el mapa en-vuelo (cubre activos, inactivos y los recién
-        //     creados/usados en esta misma compra).
-        //  b) si existe → reusar (refrescando desde BD la primera vez).
-        //     Si el match estaba inactivo, lo reactivamos para que vuelva a
-        //     estar disponible en recetas/compras.
-        //  c) si no existe → crear nuevo.
-        if (line.tipo === 'nuevo') {
-          const key = normalizarNombreIngrediente(line.nuevo_nombre);
-          const yaExiste = key ? mapaIng.get(key) : null;
-          if (yaExiste) {
-            try {
-              const fresco = await api.entidades.Ingrediente.get(yaExiste.id);
-              ing = fresco || yaExiste;
-            } catch {
-              ing = yaExiste;
-            }
-            // Defensa secundaria: la pre-validación ya bloquea inactivos antes de
-            // crear la cabecera. Esta guardia es un cinturón extra por si algo
-            // cambió entre la validación y este momento.
-            if (ing && ing.activo === false) {
-              toast.error(`"${ing.nombre}" está desactivado. Saltando esta línea.`);
-              continue;
-            }
-            toast.info(
-              `"${line.nuevo_nombre.trim()}" ya existe — sumando al ingrediente existente.`,
-            );
-          } else {
-            // Ingrediente NUEVO real. Si el usuario capturó alertas, las
-            // persistimos ya convertidas a unidad base (StockMinCritInput).
-            // Si no, quedan en 0 (sin alertas), igual que antes.
-            ing = await api.entidades.Ingrediente.create({
-              nombre: line.nuevo_nombre.trim(),
-              unidad_base: line.nuevo_unidad_base,
-              unidad_compra_default: line.unidad_compra,
-              stock_actual: 0,
-              stock_minimo: Math.max(0, Number(line.stock_minimo_base) || 0),
-              stock_critico: Math.max(0, Number(line.stock_critico_base) || 0),
-              activo: true,
-            });
-          }
-          // OJO: en la rama anti-duplicado (yaExiste) NO tocamos stock_minimo
-          // ni stock_critico — respetamos lo que ya tenía configurado el admin.
-        }
-        if (!ing) continue;
-
-        const qty = parseFloat(line.cantidad) || 0;
-        const cost = parseFloat(line.costo_total) || 0;
-        const equivalencia =
-          parseFloat(line.piezas_por_paquete) || ing.cantidad_por_compra_default || 1;
-
-        // Conversión central — soporta alias (kg/kilogramo/kilo, l/lt/litro, etc.) y
-        // unidades personalizadas con equivalencia. Para estándar se ignora el segundo arg.
-        const qtyBase = convertirAUnidadBase(qty, line.unidad_compra, equivalencia);
-        const costPerBase = calculateCostPerBaseUnit(cost, qtyBase);
-
-        const oldStock = ing.stock_actual || 0;
-        const oldCost = ing.costo_por_unidad_base || 0;
-        const newStock = oldStock + qtyBase;
-        const newAvgCost =
-          newStock > 0 ? (oldStock * oldCost + qtyBase * costPerBase) / newStock : costPerBase;
-
-        await api.entidades.DetalleCompra.create({
-          compra_id: compra.id,
-          ingrediente_id: ing.id,
-          ingrediente_nombre: ing.nombre,
-          cantidad_comprada: qty,
-          unidad_compra: line.unidad_compra,
-          cantidad_convertida_unidad_base: qtyBase,
-          costo_total: cost,
-          costo_unitario_base_calculado: costPerBase,
-        });
-
-        const ingActualizado = {
-          ...ing,
-          stock_actual: newStock,
-          costo_por_unidad_base: Math.round(newAvgCost * 10000) / 10000,
-          costo_compra_default: cost / qty,
-          unidad_compra_default: line.unidad_compra,
-          cantidad_por_compra_default: qty,
+        const comun = {
+          cantidadCapturada: textoDecimal(parseFloat(l.cantidad)),
+          unidadCapturada: l.unidad_compra,
+          equivalencia: textoDecimal(equivalencia),
+          costoTotal: textoDecimal(parseFloat(l.costo_total)),
         };
 
-        await api.entidades.Ingrediente.update(ing.id, {
-          stock_actual: ingActualizado.stock_actual,
-          costo_por_unidad_base: ingActualizado.costo_por_unidad_base,
-          costo_compra_default: ingActualizado.costo_compra_default,
-          unidad_compra_default: ingActualizado.unidad_compra_default,
-          cantidad_por_compra_default: ingActualizado.cantidad_por_compra_default,
-        });
+        if (l.tipo !== 'nuevo') return { ...comun, insumoId: l.ingrediente.id };
 
-        // Actualizamos el mapa en-vuelo con el estado nuevo del ingrediente
-        // para que líneas posteriores con el mismo nombre normalizado
-        // acumulen sobre estos valores y NO sobre los originales.
-        const keyAct = normalizarNombreIngrediente(ing.nombre);
-        if (keyAct) mapaIng.set(keyAct, ingActualizado);
+        // Un insumo que todavía no existe se declara aquí y lo resuelve el
+        // servidor DENTRO de la transacción, contra `insumos_nombre_unico`
+        // —sin acentos, sin mayúsculas—. Es lo que sustituye al anti-duplicado
+        // que descargaba el catálogo entero al navegador: entre aquella lectura
+        // y la escritura cabía otra caja creando el mismo insumo. El servidor
+        // también es quien frena si el nombre pertenece a uno desactivado.
+        const nuevo = {
+          nombre: l.nuevo_nombre.trim(),
+          unidadBase: l.nuevo_unidad_base,
+        };
+        const minimo = Math.max(0, Number(l.stock_minimo_base) || 0);
+        const critico = Math.max(0, Number(l.stock_critico_base) || 0);
+        if (minimo > 0) nuevo.stockMinimo = textoDecimal(minimo);
+        if (critico > 0) nuevo.stockCritico = textoDecimal(critico);
+        return { ...comun, nuevo };
+      });
 
-        await api.entidades.MovimientoInventario.create({
-          ingrediente_id: ing.id,
-          ingrediente_nombre: ing.nombre,
-          tipo_movimiento: 'entrada_compra',
-          cantidad: qtyBase,
-          unidad_base: ing.unidad_base,
-          stock_anterior: oldStock,
-          stock_nuevo: newStock,
-          costo_unitario_en_momento: costPerBase,
-          costo_total_movimiento: cost,
-          referencia_tipo: 'compra',
-          referencia_id: compra.id,
-          motivo: line.tipo === 'nuevo' ? 'Compra de ingrediente nuevo' : 'Reabasto',
-          usuario_id: posUser?.id,
-          usuario_nombre: posUser?.nombre,
-          fecha: new Date().toISOString(),
-        });
-      }
+      const cabecera = {
+        fecha,
+        metodoPago,
+        ...(provIdFinal ? { proveedorId: provIdFinal } : {}),
+        // Sólo cuando la compra NO apunta a un proveedor del catálogo: con id,
+        // el nombre lo pone el servidor con el del catálogo.
+        ...(!provIdFinal && provNombreFinal ? { proveedorNombre: provNombreFinal } : {}),
+        ...(notas.trim() ? { notas: notas.trim() } : {}),
+      };
 
-      // Guardar como plantilla recurrente
+      const resultado = await api.comandos.ejecutar(
+        '/api/compras/registrar',
+        { ...cabecera, lineas: lineasDeLaCompra },
+        claveDelDialogo.current,
+      );
+
+      // Guardar como plantilla recurrente.
+      //
+      // Va después y con su propia llamada porque son dos decisiones distintas:
+      // la compra ya está registrada pase lo que pase con la plantilla. El
+      // `.catch(() => {})` que envolvía esto hacía que el usuario marcara
+      // «guardar como plantilla», la compra entrara y la plantilla no, sin un
+      // solo aviso. Ahora, si falla, se dice.
+      //
+      // `veces_usada` y `ultima_fecha_uso` ya no se mandan: son contadores que
+      // sube `compras.usar_plantilla` en la misma transacción que registra la
+      // compra repetida. Escribirlos desde aquí los dejaba clavados en 1.
       if (guardarPlantilla && nombrePlantilla.trim()) {
-        await api.entidades.PlantillaCompra.create({
-          nombre: nombrePlantilla.trim(),
-          proveedor_nombre: provNombreFinal === 'Compra directa' ? '' : provNombreFinal,
-          activa: true,
-          ultima_fecha_uso: new Date().toISOString(),
-          veces_usada: 1,
-          lineas: validLines.map((l) => ({
-            ingrediente_id: l.ingrediente?.id || '',
-            ingrediente_nombre: l.ingrediente?.nombre || l.nuevo_nombre,
-            cantidad: parseFloat(l.cantidad) || 0,
-            unidad_compra: l.unidad_compra,
-            costo_total: parseFloat(l.costo_total) || 0,
-          })),
-        }).catch(() => {});
+        // Una plantilla apunta a insumos que ya existen: es una sugerencia para
+        // precargar el formulario, no un asiento, y no puede referirse a un
+        // insumo que se acaba de crear en esta compra y cuyo id no vuelve.
+        const lineasDePlantilla = validLines
+          .filter((l) => l.ingrediente?.id)
+          .map((l) => ({
+            insumoId: l.ingrediente.id,
+            cantidad: textoDecimal(parseFloat(l.cantidad)),
+            unidadCompra: l.unidad_compra,
+            equivalencia: textoDecimal(
+              requiereEquivalencia(l.unidad_compra)
+                ? parseFloat(l.piezas_por_paquete)
+                : convertirAUnidadBase(1, l.unidad_compra, 1),
+            ),
+            costoTotal: textoDecimal(parseFloat(l.costo_total)),
+          }));
+
+        if (lineasDePlantilla.length === 0) {
+          toast.error(
+            'La compra se registró, pero la plantilla no: sus líneas son insumos nuevos. Vuelve a guardarla cuando ya existan en el inventario.',
+          );
+        } else {
+          try {
+            await api.comandos.ejecutar('/api/compras/plantilla', {
+              nombre: nombrePlantilla.trim(),
+              ...(provNombreFinal === 'Compra directa' ? {} : { proveedorNombre: provNombreFinal }),
+              activa: true,
+              lineas: lineasDePlantilla,
+            });
+          } catch (errPlantilla) {
+            // Se captura aquí, y no en el `catch` de abajo, para no decirle al
+            // usuario que falló la compra cuando la compra sí entró. Lo que
+            // falló fue la plantilla, y se dice cuál de las dos cosas fue.
+            toast.error(
+              `La compra se registró, pero la plantilla no se guardó: ${errPlantilla?.message || 'error desconocido'}`,
+            );
+          }
+        }
       }
 
       [
@@ -414,12 +342,18 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
         'registros_compras',
         'registros_movimientos',
       ].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+      // El total que se enseña es el que sumó y guardó la transacción, en
+      // centavos exactos, no el que la pantalla acumuló en coma flotante.
+      const totalGuardado = Number(resultado?.totalCentavos ?? 0) / 100;
       toast.success(
-        `Compra registrada — ${validLines.length} línea(s) · ${formatCurrency(totalCompra)}`,
+        `Compra registrada — ${resultado?.lineas ?? validLines.length} línea(s) · ${formatCurrency(totalGuardado)}`,
       );
       close();
     } catch (e) {
-      toast.error('Error al registrar: ' + (e?.message || ''));
+      // El dominio ya dice qué línea y por qué —«Una unidad de kg son 1000 g,
+      // no 12», ««Harina» está desactivado. Reactívalo desde Inventario»—, y
+      // ese texto es lo único que permite corregir la captura.
+      toast.error(e?.message || 'No se pudo registrar la compra.');
     }
     setSaving(false);
   };

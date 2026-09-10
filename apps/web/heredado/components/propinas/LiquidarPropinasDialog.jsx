@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
-import { api } from '@/api/cliente';
-import { useQueryClient } from '@tanstack/react-query';
+import { api, nuevaClave } from '@/api/cliente';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -33,8 +33,7 @@ import {
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/utils/financialUtils';
-import { filtrarVentasEnRango, agruparPropinasPorMesero, sumarPropinas } from '@/utils/tipsUtils';
-import { usePOSAuth } from '@/lib/POSAuthContext';
+import { aPesos } from '@/components/caja/dinero';
 
 /**
  * Dialog de liquidación de propinas.
@@ -54,19 +53,23 @@ const RANGOS = [
 export default function LiquidarPropinasDialog({
   open,
   onClose,
-  ventas = [],
+  // `ventas` ya no se recibe: lo pendiente lo deriva `propinas.pendientes`
+  // en la base, no un filtro sobre la lista que la pantalla padre tenga cargada.
   meseros = [],
   rangoInicial = 'today',
   meseroInicialId = '',
 }) {
   const queryClient = useQueryClient();
-  const { posUser } = usePOSAuth();
   const [rango, setRango] = useState(rangoInicial);
   const [desde, setDesde] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [hasta, setHasta] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [meseroId, setMeseroId] = useState(meseroInicialId);
   const [notas, setNotas] = useState('');
   const [loading, setLoading] = useState(false);
+  // La clave de idempotencia se genera al ABRIR el diálogo y se reusa mientras
+  // siga abierto: es lo que impide que un doble clic en «Liquidar» registre dos
+  // liquidaciones del mismo dinero (F1-02 §8, trampa T5).
+  const [claveLiquidacion, setClaveLiquidacion] = useState(null);
 
   useEffect(() => {
     if (open) {
@@ -75,6 +78,7 @@ export default function LiquidarPropinasDialog({
       setNotas('');
       setDesde(format(new Date(), 'yyyy-MM-dd'));
       setHasta(format(new Date(), 'yyyy-MM-dd'));
+      setClaveLiquidacion(nuevaClave());
     }
   }, [open, rangoInicial, meseroInicialId]);
 
@@ -95,87 +99,134 @@ export default function LiquidarPropinasDialog({
     }
   }, [rango, desde, hasta]);
 
-  // Ventas pendientes de liquidar en el rango (y opcionalmente del mesero)
-  const ventasFiltradas = useMemo(() => {
-    const safe = Array.isArray(ventas) ? ventas : [];
-    const enRango = filtrarVentasEnRango(safe, range.from, range.to);
-    return enRango.filter((v) => {
-      if (v?.estado !== 'pagada') return false;
-      if ((Number(v?.propina_monto) || 0) <= 0) return false;
-      if (v?.propina_liquidada === true) return false;
-      if (meseroId && meseroId !== '__all__' && v?.usuario_mesero_id !== meseroId) return false;
-      return true;
-    });
-  }, [ventas, range, meseroId]);
+  // Ventas pendientes de liquidar en el rango (y opcionalmente del mesero).
+  //
+  // ── Por qué esto ya no se filtra en el navegador ──────────────────────────
+  // El filtro anterior era `propina_monto > 0 && propina_liquidada !== true`, y
+  // ninguno de esos dos campos existe: `ordenes` no tiene columna con el importe
+  // de la propina —es lo que impide inflar `total` con una (F1-04 §6.1)— y
+  // «liquidada» se DERIVA de `propina_liquidacion_id is not null` (F1-04 §6.4),
+  // que es lo que hace que no pueda desincronizarse. Sobre esos dos campos
+  // ausentes el filtro devolvía SIEMPRE cero, y el diálogo decía «no hay
+  // propinas pendientes» con las propinas del turno sin pagar.
+  //
+  // `propinas.pendientes` lo deriva en la base, con el mismo `condicionPendiente`
+  // que usa el `UPDATE` de liquidar: así la pantalla no puede enseñar ocho
+  // ventas mientras el botón liquida siete.
+  const { data: pendientes, isError: pendientesFallaron } = useQuery({
+    queryKey: [
+      'propinas_pendientes',
+      range.from.toISOString(),
+      range.to.toISOString(),
+      meseroId || '__all__',
+    ],
+    queryFn: () =>
+      api.comandos.ejecutar('/api/propinas/pendientes', {
+        desde: range.from.toISOString(),
+        hasta: range.to.toISOString(),
+        meseroId: meseroId && meseroId !== '__all__' ? meseroId : null,
+        limite: 200,
+      }),
+    enabled: open,
+    staleTime: 5000,
+  });
 
-  const desglose = useMemo(() => agruparPropinasPorMesero(ventasFiltradas), [ventasFiltradas]);
-  const total = useMemo(() => sumarPropinas(ventasFiltradas), [ventasFiltradas]);
+  useEffect(() => {
+    if (pendientesFallaron) {
+      toast.error('No se pudieron cargar las propinas pendientes del periodo.');
+    }
+  }, [pendientesFallaron]);
+
+  // El número de ventas del PERIODO ENTERO, no el de la página: `ventas` va
+  // topada por `limite` y contarla enseñaría «200 ventas» de un mes con mil.
+  const numeroVentas = Number(pendientes?.numeroVentas) || 0;
+  const total = aPesos(pendientes?.totalCentavos);
+  // Se remapea a los nombres que este diálogo ya dibujaba, para no tocar el JSX.
+  const desglose = useMemo(
+    () =>
+      (Array.isArray(pendientes?.meseros) ? pendientes.meseros : []).map((m) => ({
+        mesero_id: m?.meseroId ?? null,
+        mesero_nombre: m?.meseroNombre || '',
+        num_ventas: Number(m?.numeroVentas) || 0,
+        total: aPesos(m?.propinaCentavos),
+      })),
+    [pendientes],
+  );
 
   const liquidar = async () => {
-    if (ventasFiltradas.length === 0) {
+    if (numeroVentas === 0) {
       toast.error('No hay propinas pendientes en ese periodo');
       return;
     }
     setLoading(true);
     try {
-      const folio = `LIQ-${format(new Date(), 'yyyyMMdd-HHmmss')}`;
-      const liquidacion = await api.entidades.LiquidacionPropina.create({
-        folio,
-        fecha_liquidacion: new Date().toISOString(),
-        rango_inicio: range.from.toISOString(),
-        rango_fin: range.to.toISOString(),
-        rango_tipo:
-          rango === 'custom'
-            ? 'personalizado'
-            : rango === 'today'
-              ? 'dia'
-              : rango === 'week'
-                ? 'semana'
-                : rango === 'quincena'
-                  ? 'quincena'
-                  : rango === 'month'
-                    ? 'mes'
-                    : 'personalizado',
-        mesero_id: meseroId && meseroId !== '__all__' ? meseroId : null,
-        mesero_nombre:
-          meseroId && meseroId !== '__all__'
-            ? meseros.find((m) => m.id === meseroId)?.nombre || ''
-            : 'Todos los meseros',
-        total_liquidado: total,
-        numero_ventas: ventasFiltradas.length,
-        venta_ids: JSON.stringify(ventasFiltradas.map((v) => v.id)),
-        desglose_meseros: JSON.stringify(desglose),
-        usuario_liquido_id: posUser?.id || '',
-        usuario_liquido_nombre: posUser?.nombre || '',
-        notas: notas || '',
-      });
-
-      // Marcar cada venta como liquidada (en paralelo, batch de 5)
-      const batchSize = 5;
-      const ahora = new Date().toISOString();
-      for (let i = 0; i < ventasFiltradas.length; i += batchSize) {
-        const batch = ventasFiltradas.slice(i, i + batchSize);
-        await Promise.all(
-          batch.map((v) =>
-            api.entidades.Venta.update(v.id, {
-              propina_liquidada: true,
-              propina_liquidacion_id: liquidacion?.id || folio,
-              propina_liquidada_fecha: ahora,
-            }).catch((err) => {
-              console.error('[Liquidar] error en venta', v.id, err);
-            }),
-          ),
-        );
+      // ── Lo que desaparece aquí ──────────────────────────────────────────
+      // Antes: crear la `LiquidacionPropina` y DESPUÉS marcar las ventas en
+      // lotes de cinco, cada `Venta.update` con su `.catch` que sólo escribía
+      // en consola. Un fallo a mitad dejaba la liquidación hecha y ventas sin
+      // marcar, la pantalla decía «liquidado» y esa propina se volvía a
+      // liquidar mañana. Y el `total_liquidado` iba calculado en el navegador
+      // sobre una lista que podía llevar minutos abierta.
+      //
+      // `propinas.liquidar` hace las dos cosas en UNA transacción y SUMA el
+      // importe él mismo, de `pagos.propina_centavos`, sobre las órdenes que
+      // esa misma transacción reclamó. Por eso no se manda ningún total.
+      //
+      // El rango SÍ viaja: es el que el administrador vio en pantalla antes de
+      // pulsar, y volver a derivarlo en el servidor liquidaría otro periodo.
+      const cuerpo = {
+        rangoTipo:
+          rango === 'today'
+            ? 'dia'
+            : rango === 'week'
+              ? 'semana'
+              : rango === 'quincena'
+                ? 'quincena'
+                : rango === 'month'
+                  ? 'mes'
+                  : 'personalizado',
+        desde: range.from.toISOString(),
+        hasta: range.to.toISOString(),
+        meseroId: meseroId && meseroId !== '__all__' ? meseroId : null,
+      };
+      if (notas) cuerpo.notas = notas;
+      // Exactamente las ventas que el diálogo LISTÓ, que son las que el
+      // administrador vio al aprobar el total — pero sólo cuando la lista está
+      // completa. Si el periodo tiene más ventas de las que cupieron en la
+      // página (`hayMasVentas`), mandar los ids de la página liquidaría una
+      // parte y dejaría el resto pendiente sin decirlo: en ese caso se omite el
+      // campo, que es como se pide «todo el periodo», y es lo que el diálogo
+      // acaba de sumar en pantalla. Una lista VACÍA nunca se manda: el comando
+      // la interpretaría como el periodo entero, que es otra cosa.
+      const ordenIds = (Array.isArray(pendientes?.ventas) ? pendientes.ventas : [])
+        .map((v) => v?.ordenId)
+        .filter(Boolean);
+      if (!pendientes?.hayMasVentas && ordenIds.length > 0 && ordenIds.length <= 500) {
+        cuerpo.ordenIds = ordenIds;
       }
+
+      // Clave propia: el diálogo se abre una vez y liquida una vez. Sin ella,
+      // un doble clic en «Liquidar» crearía dos liquidaciones del mismo dinero.
+      const liquidacion = await api.comandos.ejecutar(
+        '/api/propinas/liquidar',
+        cuerpo,
+        claveLiquidacion,
+      );
 
       queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
       queryClient.invalidateQueries({ queryKey: ['registros_ventas'] });
       queryClient.invalidateQueries({ queryKey: ['liquidaciones_propinas'] });
-      toast.success(`Liquidación ${folio} registrada · ${formatCurrency(total)}`);
+      queryClient.invalidateQueries({ queryKey: ['propinas_dashboard_ventas'] });
+      // Folio e importe son los del servidor: `LIQ-000042` del consecutivo
+      // atómico, y el total sumado dentro de la transacción.
+      toast.success(
+        `Liquidación ${liquidacion?.folio || ''} registrada · ${formatCurrency(aPesos(liquidacion?.totalCentavos))}`,
+      );
       onClose?.();
     } catch (err) {
-      console.error('[LiquidarPropinasDialog]', err);
-      toast.error('No se pudo registrar la liquidación: ' + (err?.message || ''));
+      // «El periodo está al revés», «El periodo no puede pasar de 366 días»:
+      // el dominio ya lo dice, y con el motivo.
+      toast.error(err?.message || 'No se pudo registrar la liquidación');
     } finally {
       setLoading(false);
     }
@@ -269,7 +320,7 @@ export default function LiquidarPropinasDialog({
                 {format(range.from, 'd MMM', { locale: es })} –{' '}
                 {format(range.to, 'd MMM yyyy', { locale: es })}
               </p>
-              <p className="text-[10px] text-muted-foreground">{ventasFiltradas.length} ventas</p>
+              <p className="text-[10px] text-muted-foreground">{numeroVentas} ventas</p>
             </div>
             <p className="text-[10px] uppercase font-semibold text-emerald-700">Total a liquidar</p>
             <p className="font-heading font-black text-3xl text-emerald-700">
@@ -315,7 +366,7 @@ export default function LiquidarPropinasDialog({
           </Button>
           <Button
             onClick={liquidar}
-            disabled={loading || ventasFiltradas.length === 0}
+            disabled={loading || numeroVentas === 0}
             className="gap-2"
             style={{
               background: 'linear-gradient(135deg, hsl(152,60%,40%) 0%, hsl(152,60%,32%) 100%)',

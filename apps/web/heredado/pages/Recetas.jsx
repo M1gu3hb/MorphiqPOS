@@ -134,25 +134,35 @@ export default function Recetas() {
 
   const handlePrint = () => window.print();
 
+  /**
+   * Eliminar una receta y retirar su producto, en UNA transacción.
+   *
+   * Antes esto eran N+1 escrituras sueltas: un `RecetaEscandallo.delete` por
+   * línea dentro de un `Promise.all`, cada uno con un `.catch(() => {})` que se
+   * tragaba el fallo, y después el archivado del producto. Si una línea fallaba
+   * el archivado seguía adelante igual, y el producto quedaba retirado con
+   * media receta viva — media receta que sigue contando en el costeo, así que
+   * `costo_unitario_centavos`, `utilidad_unitaria` y `margen_bp` pasaban a ser
+   * cifras que no correspondían a ninguna receta existente (F1-06 §4).
+   *
+   * `inventario.eliminar_receta` borra las líneas, archiva el producto y su
+   * insumo espejo y lo saca del menú digital en la misma transacción, y frena
+   * si otra receta usa este producto como ingrediente. O pasa todo, o nada.
+   */
   const handleDeleteReceta = async (producto) => {
     try {
-      // Eliminar líneas de receta
-      const lines = recetas.filter((r) => r.producto_id === producto.id);
-      await Promise.all(
-        lines.map((l) => api.entidades.RecetaEscandallo.delete(l.id).catch(() => {})),
-      );
-      // Retirar producto del catálogo (no borrar — preservar ventas históricas)
-      await api.entidades.ProductoTerminado.update(producto.id, {
-        activo: false,
-        visible_en_pos: false,
-        visible_en_menu_digital: false,
+      await api.comandos.ejecutar('/api/inventario/recetas/eliminar', {
+        productoId: producto.id,
       });
       queryClient.invalidateQueries({ queryKey: ['recetas_all'] });
       queryClient.invalidateQueries({ queryKey: ['productos_all'] });
       queryClient.invalidateQueries({ queryKey: ['productos_pos'] });
       toast.success('Receta eliminada. El producto fue retirado del catálogo.');
     } catch (e) {
-      toast.error('Error al eliminar: ' + (e?.message || ''));
+      // El dominio ya explica en español por qué no se puede —«la receta de
+      // «Tacos» usa este producto como ingrediente»—, y ese mensaje es la única
+      // forma de que el usuario sepa qué corregir.
+      toast.error(e?.message || 'No se pudo eliminar la receta.');
     }
   };
 

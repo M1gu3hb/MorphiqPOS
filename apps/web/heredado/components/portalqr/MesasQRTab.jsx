@@ -26,34 +26,35 @@ export default function MesasQRTab({ config }) {
     initialData: [],
   });
 
-  // Mesas sin token: las inicializa con uno automáticamente la primera vez que se abren.
+  // Mesas sin token: las inicializa con uno automáticamente la primera vez que
+  // se abren. `qr_token` y `qr_activo` NO son campos bloqueados del puente:
+  // esta escritura se queda como está. Lo que se va es el `catch` que devolvía
+  // la mesa SIN token como si nada hubiera pasado, y detrás se abría el diálogo
+  // con un QR que no existía.
   const asegurarToken = async (mesa) => {
     if (!mesa?.id || mesa.qr_token) return mesa;
-    try {
-      const token = generarTokenMesa(mesa.id);
-      await api.entidades.Mesa.update(mesa.id, { qr_token: token });
-      queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
-      return { ...mesa, qr_token: token };
-    } catch (err) {
-      console.warn('[MesasQRTab] asegurarToken:', err);
-      return mesa;
-    }
+    const token = generarTokenMesa(mesa.id);
+    await api.entidades.Mesa.update(mesa.id, { qr_token: token });
+    queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
+    return { ...mesa, qr_token: token };
   };
 
   const regenerarTokens = async () => {
     if (!confirm('¿Generar token QR para todas las mesas que no lo tengan?')) return;
     try {
       const pendientes = (mesas || []).filter((m) => m && !m.qr_token);
+      // Sin `.catch(() => {})` por mesa: contaba las que se INTENTARON, no las
+      // que se guardaron, así que el toast decía «Tokens generados (12)» con
+      // doce mesas sin QR. Si una falla, falla el lote y se dice.
       await Promise.all(
         pendientes.map((m) =>
-          api.entidades.Mesa.update(m.id, { qr_token: generarTokenMesa(m.id) }).catch(() => {}),
+          api.entidades.Mesa.update(m.id, { qr_token: generarTokenMesa(m.id) }),
         ),
       );
       queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
       toast.success(`Tokens generados (${pendientes.length})`);
     } catch (err) {
-      console.error('[MesasQRTab] regenerar:', err);
-      toast.error('No se pudo generar tokens');
+      toast.error(err?.message || 'No se pudo generar tokens');
     }
   };
 
@@ -63,14 +64,18 @@ export default function MesasQRTab({ config }) {
       await api.entidades.Mesa.update(mesa.id, { qr_activo: !!value });
       queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
     } catch (err) {
-      console.error('[MesasQRTab] toggle:', err);
-      toast.error('No se pudo actualizar');
+      toast.error(err?.message || 'No se pudo actualizar');
     }
   };
 
   const verQR = async (mesa) => {
-    const m = await asegurarToken(mesa);
-    setMesaActiva(m);
+    try {
+      setMesaActiva(await asegurarToken(mesa));
+    } catch (err) {
+      // Sin token no hay QR que enseñar: se dice, en vez de abrir el diálogo
+      // con un código vacío.
+      toast.error(err?.message || 'No se pudo generar el QR de esta mesa');
+    }
   };
 
   const filtradas = useMemo(() => {

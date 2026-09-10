@@ -1,6 +1,7 @@
 'use client';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { api } from '@/api/cliente';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -65,11 +66,21 @@ export default function PropinasRegistros() {
     initialData: [],
   });
 
-  const { data: liquidaciones = [] } = useQuery({
+  // El `.catch(() => [])` que había en este `queryFn` anulaba el estado de
+  // error de react-query: la pantalla decía «no hay liquidaciones» y el mesero
+  // creía que no le habían pagado (F1-06 §4.9). Ahora el fallo llega a
+  // `isError` y se dice en voz alta, con el motivo del servidor.
+  const { data: liquidaciones = [], isError: liquidacionesFallaron } = useQuery({
     queryKey: ['liquidaciones_propinas'],
-    queryFn: () => api.entidades.LiquidacionPropina.list('-fecha_liquidacion', 200).catch(() => []),
+    queryFn: () => api.entidades.LiquidacionPropina.list('-fecha_liquidacion', 200),
     initialData: [],
   });
+
+  useEffect(() => {
+    if (liquidacionesFallaron) {
+      toast.error('No se pudieron cargar las liquidaciones de propinas.');
+    }
+  }, [liquidacionesFallaron]);
 
   const range = useMemo(() => {
     const now = new Date();
@@ -347,7 +358,6 @@ export default function PropinasRegistros() {
       <LiquidarPropinasDialog
         open={showLiquidar}
         onClose={() => setShowLiquidar(false)}
-        ventas={ventas}
         meseros={meseros}
         rangoInicial={rango === 'custom' ? 'today' : rango}
         meseroInicialId={meseroId === '__all__' ? '' : meseroId}

@@ -222,29 +222,19 @@ export default function Configuracion() {
         saved = await api.entidades.UsuarioPOS.create({ ...payload, activo: true });
       }
 
-      // Sincronizar color en mesas (solo si es mesero y cambió el color).
-      const colorAntes = prevUser?.color || '';
-      const colorDespues = payload?.color || '';
-      const esMesero = payload?.rol === 'mesero';
-      if (esMesero && prevUser?.id && colorAntes !== colorDespues) {
-        try {
-          const mesasArr = Array.isArray(mesas) ? mesas : [];
-          const afectadas = mesasArr.filter(
-            (m) => m?.mesero_asignado_id === prevUser.id || m?.atendido_por_id === prevUser.id,
-          );
-          await Promise.all(
-            afectadas.map((m) => {
-              const upd = {};
-              if (m.mesero_asignado_id === prevUser.id) upd.mesero_asignado_color = colorDespues;
-              if (m.atendido_por_id === prevUser.id) upd.atendido_por_color = colorDespues;
-              if (Object.keys(upd).length === 0) return null;
-              return api.entidades.Mesa.update(m.id, upd).catch(() => {});
-            }),
-          );
-        } catch (e) {
-          console.warn('[Configuracion] sync color mesas:', e);
-        }
-      }
+      // Aquí se copiaba el color del usuario a CADA mesa que atendía, una
+      // escritura por mesa y todas con `.catch(() => {})` encima. Sobra entero,
+      // y por partida doble:
+      //
+      // · `mesero_asignado_color` y `atendido_por_color` son DERIVADOS: el
+      //   puente los saca de `empleos.color` al leer (`mapa.ts`), así que
+      //   cambiar el color del usuario ya cambia lo que pintan todas sus mesas,
+      //   sin tocar ninguna. Copiarlo creaba una segunda verdad que envejecía
+      //   sola: la mesa que se abriera después del cambio mostraba el color
+      //   nuevo y las de antes el viejo.
+      // · Al ser derivados, el puente los RECHAZA al escribir. Con el `.catch`
+      //   vacío eso no se veía: las escrituras fallaban todas, en silencio, y
+      //   el color «se sincronizaba» sin que nada se sincronizara.
 
       queryClient.invalidateQueries({ queryKey: ['usuarios_pos'] });
       queryClient.invalidateQueries({ queryKey: ['usuarios_pos_all'] });
@@ -268,13 +258,51 @@ export default function Configuracion() {
       toast.error('El número de mesa es obligatorio');
       return;
     }
+    // Crear, renombrar y mover una mesa siguen siendo escrituras directas del
+    // puente. Pero el diálogo reenvía LA FILA ENTERA (`{ ...empty, ...mesa }`),
+    // y esa fila trae de vuelta todo lo que la lectura añadió.
+    //
+    // ── Por qué una lista BLANCA y no una negra ─────────────────────────────
+    // Aquí hubo una lista negra de los ocho campos de ocupación, y no bastaba:
+    // el puente rechaza TODO campo que no sepa escribir, y lo hace lanzando, no
+    // ignorando. Además de los ocho, la fila leída trae los cinco DERIVADOS
+    // —`zona`, `mesero_asignado_nombre`, `mesero_asignado_color`,
+    // `atendido_por_nombre`, `atendido_por_color`, que salen de un left join— y
+    // las dos fechas de sólo lectura. Con la lista negra, guardar una mesa
+    // fallaba SIEMPRE con «"zona" se calcula al leer y no se guarda».
+    //
+    // Una lista blanca no tiene ese problema: lo que el servidor añada mañana
+    // simplemente no viaja. Son los trece campos que el mapa del puente declara
+    // escribibles para Mesa.
+    const CAMPOS_EDITABLES = [
+      'numero',
+      'nombre',
+      'zona_id',
+      'capacidad',
+      'forma',
+      'tamano',
+      'posicion_x',
+      'posicion_y',
+      'orden',
+      'qr_token',
+      'qr_activo',
+      'mesero_asignado_id',
+      'activo',
+    ];
+    // Abrir, ocupar, pedir la cuenta y liberar son TRANSICIONES con su comando:
+    // que no quepan aquí es lo que impide «mesa libre con venta viva».
+    const soloEditables = (fila) =>
+      Object.fromEntries(
+        Object.entries(fila).filter(([k, v]) => CAMPOS_EDITABLES.includes(k) && v !== undefined),
+      );
+
     try {
       if (data.id) {
         const { id, ...rest } = data;
-        await api.entidades.Mesa.update(id, rest);
+        await api.entidades.Mesa.update(id, soloEditables(rest));
         toast.success(`Mesa ${data.numero} actualizada`);
       } else {
-        await api.entidades.Mesa.create({ ...data, estado: data.estado || 'libre' });
+        await api.entidades.Mesa.create(soloEditables(data));
         toast.success(`Mesa ${data.numero} creada`);
       }
       queryClient.invalidateQueries({ queryKey: ['mesas'] });

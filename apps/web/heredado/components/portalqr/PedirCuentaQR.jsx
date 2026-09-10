@@ -1,13 +1,13 @@
 'use client';
-import React, { useEffect, useMemo, useState } from 'react';
-import { api } from '@/api/cliente';
+import React, { useMemo, useState } from 'react';
+import { nuevaClave } from '@/api/cliente';
 import { useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Receipt, X, Heart, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '@/utils/financialUtils';
 import { tipsEnabled, getPorcentajesSugeridos } from '@/utils/tipsUtils';
-import { getVentaTotal } from '@/utils/ventaTotales';
 import { formatearCantidadVariable } from '@/utils/tipoVentaUtils';
+import { pedirCuentaQR } from '@/utils/qrPedidoFlow';
 import { toast } from 'sonner';
 
 /**
@@ -19,30 +19,30 @@ import { toast } from 'sonner';
  * - Si precuenta está apagada: solo botón "Solicitar cuenta" sin ver detalle.
  * - Si propina QR está apagada: no muestra opciones de propina.
  * - Si propinas globales están apagadas: ignora completamente la propina QR.
- * - Anti-duplicado: si ya existe SolicitudQR tipo:'cuenta' pendiente para
- *   la misma mesa, ACTUALIZA la propina/snapshot en lugar de crear otra.
- * - Si la venta cambia de estado a "cuenta_solicitada" la marcamos también
- *   para que Mesero/Caja vean el indicador.
+ * - Anti-duplicado y ruteo del aviso: los resuelve `portal.pedir_cuenta`. Si ya
+ *   había una solicitud pendiente, actualiza su instantánea; y si fue el mesero
+ *   quien disparó la cuenta, NO crea aviso —ya lo sabe él, que lo pidió.
+ * - Marcar la venta y la mesa como "cuenta_solicitada" ocurre en la MISMA
+ *   transacción. Antes eran dos escrituras sueltas con el `catch` vacío puesto:
+ *   el comensal leía «un mesero viene con tu cuenta» y Caja no recibía nada.
  * - NO cobra, NO cierra mesa, NO descuenta inventario.
  *
+ * ── El dinero lo calcula el servidor ──────────────────────────────────────
+ * Esta pantalla escribía `subtotal_consumo`, `propina_monto_sugerida` y
+ * `total_estimado` calculados en el navegador. Ahora manda el TIPO de propina y
+ * el porcentaje; el importe sale de `cotizar` + `aplicarPorcentaje` en centavos
+ * enteros, dentro de la transacción. Lo que se pinta aquí antes de confirmar es
+ * una vista previa sobre el total que ya publicó el servidor.
+ *
  * Props:
- *  - mesa: objeto Mesa (con id, numero, nombre, qr_token, mesero_asignado_*)
- *  - config: ConfiguracionNegocio
- *  - ventaHint: (opcional) venta activa ya detectada por el padre. Sirve para
- *    evitar el "flash" de "no hay consumo activo" mientras carga la query interna.
- *  - detallesHint: (opcional) detalles ya cargados por el padre. Evita el flash
- *    "Aún no hay productos registrados" mientras la query interna carga.
+ *  - token: el código de la mesa. Es la única credencial del comensal.
+ *  - mesa: la mesa pública (id, numero, nombre, tiene_mesero…).
+ *  - config: el bloque `negocio` de la respuesta pública.
+ *  - cuenta: la venta viva de la mesa, con sus líneas. `null` si no hay.
  *  - onClose(): cerrar la vista.
  *  - onConfirmed(): callback cuando se solicitó la cuenta con éxito.
  */
-export default function PedirCuentaQR({
-  mesa,
-  config,
-  ventaHint,
-  detallesHint,
-  onClose,
-  onConfirmed,
-}) {
+export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, onConfirmed }) {
   const queryClient = useQueryClient();
   const verPrecuenta = config?.portal_qr_mostrar_precuenta !== false;
   const propinasGlobales = tipsEnabled(config);
@@ -50,147 +50,32 @@ export default function PedirCuentaQR({
   const propinaActiva = propinasGlobales && propinaQRPermitida;
   const porcentajes = getPorcentajesSugeridos(config);
 
-  // HOTFIX 6A.2: si el padre nos pasó la venta detectada por su polling,
-  // la usamos como estado inicial para evitar el flash "sin consumo activo".
-  const [venta, setVenta] = useState(ventaHint || null);
-  // HOTFIX 6A.3: usar detallesHint como estado inicial para que la lista
-  // "Mi consumo" muestre productos desde el primer frame, sin esperar query.
-  const [detalles, setDetalles] = useState(Array.isArray(detallesHint) ? detallesHint : []);
-  const [loading, setLoading] = useState(true);
+  // La cuenta y sus líneas llegan de la lectura pública del padre. Ya no hay
+  // query interna que dupliques —eran otras dos consultas anónimas— ni "hints"
+  // que conservar para tapar el flash de «sin consumo activo».
+  const venta = cuenta || null;
+  const detalles = useMemo(() => venta?.lineas || [], [venta]);
+
+  // Una clave de idempotencia por apertura del diálogo: un doble toque en
+  // «Confirmar» con mala cobertura no pide la cuenta dos veces.
+  const [clave] = useState(() => nuevaClave());
   // null = aún no eligió. 0 = "Sin propina". -1 = monto manual. >0 = porcentaje.
-  // -2 = "Decidir en caja".
-  const [pctActivo, setPctActivo] = useState(null);
+  const [pctActivo, setPctActivo] = useState(() => propinaPreviaPct(cuenta));
   const [montoManual, setMontoManual] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
-  const [decidirEnCaja, setDecidirEnCaja] = useState(false);
+  const [decidirEnCaja, setDecidirEnCaja] = useState(
+    () => cuenta?.propina_origen === 'portal_qr' && cuenta?.propina_tipo === 'decidir_en_caja',
+  );
 
-  // HOTFIX 6A.3: cuando el padre nos pasa detalles frescos (cliente agregó
-  // productos mientras este modal está abierto), reflejarlos aquí.
-  useEffect(() => {
-    if (Array.isArray(detallesHint) && detallesHint.length > 0) {
-      setDetalles(detallesHint);
-    }
-  }, [detallesHint]);
-
-  // HOTFIX 6A.3: reintento automático de detalles si están vacíos pero la
-  // venta tiene total > 0. Polling discreto cada 2.5s mientras esté abierto.
-  useEffect(() => {
-    const ventaActual = venta || ventaHint;
-    if (!ventaActual?.id) return;
-    if (Array.isArray(detalles) && detalles.length > 0) return;
-    const total = Number(ventaActual?.total) || Number(ventaActual?.subtotal) || 0;
-    if (total <= 0) return;
-    // Hay total pero no detalles → reintentar.
-    let cancel = false;
-    const tick = async () => {
-      try {
-        const det = await api.entidades.DetalleVenta.filter({ venta_id: ventaActual.id }).catch(
-          () => [],
-        );
-        if (cancel) return;
-        const arr = Array.isArray(det) ? det : [];
-        if (arr.length > 0) setDetalles(arr);
-      } catch (e) {
-        if (!cancel) console.warn('[PedirCuentaQR] reintento detalles:', e);
-      }
-    };
-    // Reintento corto inmediato + interval.
-    tick();
-    const interval = setInterval(tick, 2500);
-    return () => {
-      cancel = true;
-      clearInterval(interval);
-    };
-  }, [venta?.id, ventaHint?.id, detalles.length]);
-
-  // Cargar venta activa de la mesa
-  useEffect(() => {
-    let cancel = false;
-    (async () => {
-      if (!mesa?.id) {
-        setLoading(false);
-        return;
-      }
-      try {
-        // Estados que cuentan como "consumo activo"
-        const estadosActivos = [
-          'abierta',
-          'enviada',
-          'en_preparacion',
-          'lista',
-          'cuenta_solicitada',
-        ];
-        const ventas = await api.entidades.Venta.filter({ mesa_id: mesa.id }).catch(() => []);
-        const v =
-          (Array.isArray(ventas) ? ventas : [])
-            .filter((x) => x && estadosActivos.includes(x.estado))
-            .sort(
-              (a, b) =>
-                new Date(b?.fecha_apertura || b?.created_date || 0) -
-                new Date(a?.fecha_apertura || a?.created_date || 0),
-            )[0] || null;
-        if (cancel) return;
-        // HOTFIX 6A.2: si la query no encontró venta pero tenemos un hint válido
-        // del padre, conservar el hint en vez de "limpiar" → evita flash "sin consumo".
-        if (v) {
-          setVenta(v);
-        } else if (!ventaHint) {
-          setVenta(null);
-        }
-        // Cargar detalles desde la venta encontrada por la query o, si no hay,
-        // desde el hint del padre.
-        // HOTFIX 6A.3: si la query no devuelve nada pero el padre nos pasó
-        // detallesHint, NO los pisamos con [] — los preservamos.
-        const ventaParaDetalles = v?.id ? v : ventaHint;
-        if (ventaParaDetalles?.id) {
-          const det = await api.entidades.DetalleVenta.filter({
-            venta_id: ventaParaDetalles.id,
-          }).catch(() => []);
-          const detArr = Array.isArray(det) ? det : [];
-          if (!cancel) {
-            if (detArr.length > 0) {
-              setDetalles(detArr);
-            } else if (Array.isArray(detallesHint) && detallesHint.length > 0) {
-              // Conservar hint del padre si la query interna no encontró.
-              setDetalles(detallesHint);
-            } else {
-              setDetalles([]);
-            }
-          }
-        } else if (!Array.isArray(detallesHint) || detallesHint.length === 0) {
-          setDetalles([]);
-        }
-        // Pre-seleccionar la opción que el cliente ya eligió antes (si volvió a entrar).
-        // No resetear su elección previa.
-        if (!cancel && v && v.propina_origen === 'portal_qr') {
-          const tipo = v.propina_tipo;
-          if (tipo === 'decidir_en_caja') {
-            setDecidirEnCaja(true);
-            setPctActivo(null);
-          } else if (tipo === 'porcentaje' && Number(v.propina_porcentaje) > 0) {
-            setPctActivo(Number(v.propina_porcentaje));
-          } else if (tipo === 'monto_manual' && Number(v.propina_monto) > 0) {
-            setMontoManual(String(Number(v.propina_monto)));
-            setPctActivo(-1);
-          } else if (tipo === 'sin_propina') {
-            setPctActivo(0);
-          }
-        }
-      } catch (err) {
-        console.error('[PedirCuentaQR] cargar venta:', err);
-      } finally {
-        if (!cancel) setLoading(false);
-      }
-    })();
-    return () => {
-      cancel = true;
-    };
-  }, [mesa?.id]);
-
-  // HOTFIX 6A.2: usar getVentaTotal — defensa contra venta con total=0 cuando
-  // hay detalles reales (rate-limit en envío). Igual que Caja y Mesero.
-  const subtotal = getVentaTotal(venta, detalles);
+  // El total sale del SERVIDOR. Aquí se sumaban las líneas del navegador con
+  // `getVentaTotal` como defensa contra la venta que quedaba en total 0 —el
+  // defecto que este mismo módulo provocaba al re-totalizar sobre una lectura
+  // fallida—. Esa causa ya no existe: `total` viene cotizado en la respuesta
+  // pública, con impuestos y descuentos aplicados, y sin la propina (regla 1 de
+  // `F1-01` §3). Con la precuenta apagada el servidor no publica importes y
+  // llega `null`, que es lo que hay que respetar, no rellenar.
+  const subtotal = Number(venta?.total) || 0;
 
   const propinaCalculada = useMemo(() => {
     if (!propinaActiva) return 0;
@@ -218,6 +103,13 @@ export default function PedirCuentaQR({
   })();
 
   const yaEligio = decidirEnCaja || pctActivo !== null || Number.parseFloat(montoManual) > 0;
+
+  // Las opciones de propina sólo se pueden pintar si hay un importe sobre el
+  // que calcularlas. Con la precuenta apagada el servidor no publica ninguno
+  // —y hace bien: es lo que el dueño pidió esconder—, así que el botón no
+  // puede exigir una elección que la pantalla no ofrece, ni un subtotal que no
+  // recibe. Quien decide si hay cuenta abierta es el comando.
+  const puedeElegirPropina = propinaActiva && subtotal > 0;
 
   const elegirPorcentaje = (pct) => {
     setDecidirEnCaja(false);
@@ -249,121 +141,36 @@ export default function PedirCuentaQR({
     }
     setEnviando(true);
     try {
-      const ahora = new Date().toISOString();
-      const asign = config?.asignacion_mesas_activa === true;
-      const tieneAsignado = !!mesa.mesero_asignado_id;
-      const ruteo = asign && tieneAsignado ? 'asignado' : 'general';
-
-      // === FIX 6B-C: No crear "notificación falsa" cuando el mesero inició la cuenta ===
-      // Caso "mesero disparó la cuenta":
-      //   - venta.propina_origen === 'pendiente_portal_qr', o
-      //   - venta.propina_tipo === 'pendiente_cliente'
-      // En ese caso, el comensal SOLO está confirmando su propina desde el QR;
-      // NO está creando una solicitud nueva. La cuenta YA fue solicitada por
-      // el mesero. Solo actualizamos solicitud existente (si hubiera) sin crear.
+      // Aquí había NUEVE escrituras sueltas desde el navegador: la solicitud
+      // (con su anti-duplicado leído antes, su ruteo elegido aquí y tres
+      // importes calculados aquí), la venta y la mesa, las tres últimas con el
+      // `catch` vacío puesto. Cuando la venta fallaba, el comensal leía «un
+      // mesero viene con tu cuenta» y Caja no recibía nada: la venta seguía en
+      // `enviada`, sin `codigo_caja`, y la mesa ocupada hasta que alguien
+      // preguntaba.
       //
-      // Caso "comensal inició la cuenta": no hay esos flags → SÍ creamos
-      // SolicitudQR como notificación entrante para el mesero asignado.
-      const meseroDisparoLaCuenta =
-        venta?.propina_origen === 'pendiente_portal_qr' ||
-        venta?.propina_tipo === 'pendiente_cliente';
+      // `portal.pedir_cuenta` hace las tres en UNA transacción: cotiza sobre las
+      // líneas persistidas, calcula la propina en centavos enteros, congela los
+      // totales, marca la venta con su código de caja, avisa al mesero sólo si
+      // hace falta y mueve la mesa. O queda todo, o no queda nada.
+      await pedirCuentaQR({
+        token,
+        propinaTipo,
+        propinaPorcentaje: pctActivo > 0 ? pctActivo : 0,
+        propinaMonto: montoManual,
+        clave,
+      });
 
-      // ----- Anti-duplicado: buscar solicitud pendiente -----
-      const pendientes = await api.entidades.SolicitudQR.filter({
-        mesa_id: mesa.id,
-        tipo: 'cuenta',
-        estado: 'pendiente',
-      }).catch(() => []);
-      const yaPendiente = Array.isArray(pendientes) && pendientes.length > 0 ? pendientes[0] : null;
+      // Que el portal vuelva a leer: la venta ya está en `cuenta_solicitada`.
+      queryClient.invalidateQueries({ queryKey: ['portal_publico', token] });
 
-      const payloadBase = {
-        mesa_id: mesa.id,
-        mesa_nombre: mesa.nombre || '',
-        mesa_numero: mesa.numero || 0,
-        tipo: 'cuenta',
-        estado: 'pendiente',
-        origen: 'portal_qr',
-        token_mesa: mesa.qr_token || '',
-        mesero_destino_id: ruteo === 'asignado' ? mesa.mesero_asignado_id : '',
-        mesero_destino_nombre: ruteo === 'asignado' ? mesa.mesero_asignado_nombre || '' : '',
-        ruteo_modo: ruteo,
-        venta_id: venta?.id || '',
-        subtotal_consumo: subtotal,
-        propina_monto_sugerida: propinaCalculada,
-        propina_porcentaje_sugerido: pctActivo > 0 ? pctActivo : 0,
-        propina_tipo: propinaTipo,
-        total_estimado: totalEstimado,
-      };
-
-      if (yaPendiente?.id) {
-        // Ya hay solicitud — actualizamos snapshot sin crear duplicada.
-        await api.entidades.SolicitudQR.update(yaPendiente.id, {
-          ...payloadBase,
-          fecha_creacion: yaPendiente.fecha_creacion || ahora,
-        });
-      } else if (!meseroDisparoLaCuenta) {
-        // Solo creamos solicitud si el COMENSAL inició el flujo.
-        // Si el mesero ya solicitó la cuenta, esto NO debe crear notificación falsa.
-        await api.entidades.SolicitudQR.create({
-          ...payloadBase,
-          fecha_creacion: ahora,
-        });
-      }
-      // Si meseroDisparoLaCuenta y no hay solicitud previa → NO crear. El mesero
-      // ya sabe (porque él mismo apretó "Solicitar cuenta"). El estado se ve en
-      // la mesa con el badge "Cuenta solicitada / Esperando propina del comensal".
-
-      // ----- Actualizar la VENTA con la propina sugerida -----
-      // Caja la cobra desde la venta (no desde la solicitud). Origen 'portal_qr'.
-      // Si propinas globales están apagadas, NO tocamos la venta.
-      if (venta?.id && propinasGlobales) {
-        try {
-          const update = {
-            estado: 'cuenta_solicitada',
-          };
-          if (propinaActiva) {
-            update.propina_monto = propinaCalculada;
-            update.propina_porcentaje = pctActivo > 0 ? pctActivo : 0;
-            update.propina_tipo = propinaTipo;
-            // Siempre 'portal_qr' una vez que el cliente eligió algo (incluso
-            // "decidir en caja" o "sin propina"). Esto sobrescribe el
-            // estado intermedio 'pendiente_portal_qr' que dejó el mesero.
-            update.propina_origen = 'portal_qr';
-          }
-          await api.entidades.Venta.update(venta.id, update);
-        } catch (errV) {
-          console.warn('[PedirCuentaQR] no se pudo actualizar venta:', errV);
-        }
-      } else if (venta?.id && venta.estado !== 'cuenta_solicitada') {
-        // Sin propinas: solo marcar la venta como cuenta_solicitada
-        try {
-          await api.entidades.Venta.update(venta.id, { estado: 'cuenta_solicitada' });
-        } catch {}
-      }
-
-      // Marcar mesa con estado cuenta_solicitada (solo si la venta existe)
-      if (venta?.id && mesa?.id) {
-        try {
-          await api.entidades.Mesa.update(mesa.id, { estado: 'cuenta_solicitada' });
-        } catch {}
-      }
-
-      // BLOQUE 0 — Que Caja vea la cuenta solicitada en ≤2s desde QR.
-      try {
-        queryClient.invalidateQueries({ queryKey: ['ventas_pendientes_caja'] });
-        queryClient.invalidateQueries({ queryKey: ['mesas'] });
-        queryClient
-          .refetchQueries({ queryKey: ['ventas_pendientes_caja'], type: 'active' })
-          .catch(() => {});
-      } catch (e) {
-        console.warn('[PedirCuentaQR] invalidar caja:', e);
-      }
-
+      // `setEnviado(true)` SÓLO tras respuesta OK del servidor.
       setEnviado(true);
       if (typeof onConfirmed === 'function') onConfirmed();
     } catch (err) {
-      console.error('[PedirCuentaQR] confirmar:', err);
-      toast.error('No pudimos enviar tu solicitud. Intenta de nuevo.');
+      // «No hay una cuenta abierta en esta mesa», «El mesero es quien pide la
+      // cuenta en este negocio»: el dominio ya lo dice en español.
+      toast.error(err?.message || 'No pudimos enviar tu solicitud. Intenta de nuevo.');
     } finally {
       setEnviando(false);
     }
@@ -404,33 +211,23 @@ export default function PedirCuentaQR({
         </div>
 
         <div className="p-4 space-y-4">
-          {loading && (
-            <div className="py-10 text-center">
-              <Loader2 className="w-7 h-7 mx-auto animate-spin text-muted-foreground" />
-              <p className="text-xs text-muted-foreground mt-2">Cargando tu cuenta…</p>
+          {/* Ni «cargando tu cuenta» ni el enjambre de condiciones que tenía
+              debajo: la cuenta llega con la pantalla, así que «no hay consumo
+              activo» ya no puede salir como flash falso mientras cargaba. */}
+          {!venta && (
+            <div className="rounded-xl p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-bold">Esta mesa no tiene consumo activo</p>
+                <p className="text-xs opacity-90 mt-1">
+                  Llama a un mesero para iniciar tu cuenta. Si ya pediste y aún no aparece, espera
+                  un momento.
+                </p>
+              </div>
             </div>
           )}
 
-          {/* HOTFIX 6A.3: "Sin consumo activo" SOLO si NO hay venta, NO hay hint,
-              NO hay total > 0 y NO hay detalles. Antes salía como flash falso. */}
-          {!loading &&
-            !venta &&
-            !ventaHint &&
-            (Number(subtotal) || 0) <= 0 &&
-            detalles.length === 0 && (
-              <div className="rounded-xl p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-bold">Esta mesa no tiene consumo activo</p>
-                  <p className="text-xs opacity-90 mt-1">
-                    Llama a un mesero para iniciar tu cuenta. Si ya pediste y aún no aparece, espera
-                    un momento.
-                  </p>
-                </div>
-              </div>
-            )}
-
-          {!loading && venta && enviado && (
+          {venta && enviado && (
             <div className="rounded-xl p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <div className="text-sm">
@@ -442,13 +239,12 @@ export default function PedirCuentaQR({
             </div>
           )}
 
-          {!loading && venta && !enviado && (
+          {venta && !enviado && (
             <>
-              {/* Precuenta — diseño premium, jerarquía clara
-                  FIX BUG: el precio unitario se lee de `precio_unitario_snapshot`
-                  (campo real en DetalleVenta). Antes leíamos `precio_unitario`
-                  que no existe → mostraba $0.00 aunque el subtotal sí salía bien.
-                  Fallback: si no hay snapshot, derivamos de subtotal/cantidad. */}
+              {/* Precuenta — diseño premium, jerarquía clara.
+                  La línea pública trae `total` y `precio_unitario` ya convertidos
+                  a pesos desde los centavos exactos del servidor. Se conserva el
+                  fallback derivado por si el negocio apaga los precios. */}
               {verPrecuenta ? (
                 <div
                   className="rounded-2xl overflow-hidden bg-card border shadow-sm"
@@ -466,9 +262,9 @@ export default function PedirCuentaQR({
                     {Array.isArray(detalles) && detalles.length > 0 ? (
                       detalles.map((d, i) => {
                         const qty = Number(d?.cantidad) || 0;
-                        const lineSubtotal = Number(d?.subtotal) || 0;
-                        // Precio unitario: snapshot real, con fallback derivado.
-                        const snap = Number(d?.precio_unitario_snapshot);
+                        const lineSubtotal = Number(d?.total) || 0;
+                        // Precio unitario: el del servidor, con fallback derivado.
+                        const snap = Number(d?.precio_unitario);
                         const unit =
                           Number.isFinite(snap) && snap > 0
                             ? snap
@@ -534,7 +330,7 @@ export default function PedirCuentaQR({
               )}
 
               {/* Propina — premium con icono destacado */}
-              {propinaActiva && subtotal > 0 && (
+              {puedeElegirPropina && (
                 <div
                   className="rounded-2xl border bg-card p-4 space-y-3 shadow-sm"
                   style={{
@@ -656,12 +452,14 @@ export default function PedirCuentaQR({
             <button
               type="button"
               onClick={confirmar}
-              disabled={enviando || subtotal <= 0 || (propinaActiva && !yaEligio)}
+              disabled={
+                enviando || (verPrecuenta && subtotal <= 0) || (puedeElegirPropina && !yaEligio)
+              }
               className="flex-1 h-12 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-50 active:scale-95 transition-transform"
             >
               {enviando
                 ? 'Enviando…'
-                : propinaActiva && !yaEligio
+                : puedeElegirPropina && !yaEligio
                   ? 'Elige una opción'
                   : 'Confirmar'}
             </button>
@@ -687,4 +485,21 @@ function PropinaBtn({ label, sub, active, onClick }) {
       <p className="text-[10px] mt-1 truncate">{sub}</p>
     </button>
   );
+}
+
+/**
+ * La propina que el comensal ya había elegido, si volvió a entrar.
+ *
+ * Sólo se respeta cuando la eligió ÉL (`propina_origen === 'portal_qr'`): lo que
+ * dejó el mesero es el estado intermedio `pendiente_portal_qr`, que significa
+ * justo lo contrario —que falta por elegir—. `monto_manual` ya no se
+ * preselecciona porque `ordenes` no guarda importes de propina.
+ */
+function propinaPreviaPct(cuenta) {
+  if (cuenta?.propina_origen !== 'portal_qr') return null;
+  if (cuenta.propina_tipo === 'sin_propina') return 0;
+  if (cuenta.propina_tipo === 'porcentaje' && Number(cuenta.propina_porcentaje) > 0) {
+    return Number(cuenta.propina_porcentaje);
+  }
+  return null;
 }

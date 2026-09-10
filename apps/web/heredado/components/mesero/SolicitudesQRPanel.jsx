@@ -12,11 +12,9 @@ import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import AlertasMeseroDialog from './AlertasMeseroDialog';
 import { TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
-import {
-  filtrarSolicitudesParaUsuario,
-  asignacionActiva,
-  colorParaUsuario,
-} from '@/lib/asignacionMesas';
+// `colorParaUsuario` ya no se importa: `atendido_por_color` es un DERIVADO que
+// el puente calcula al leer la mesa, no una columna que esta pantalla escriba.
+import { filtrarSolicitudesParaUsuario, asignacionActiva } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
 
 const TIPO_ICON = { ordenar: Bell, cuenta: Receipt, ayuda: HelpCircle };
@@ -61,43 +59,39 @@ export default function SolicitudesQRPanel() {
   const accion = async (s, accionTipo) => {
     if (!s?.id) return;
     try {
-      const ahora = new Date().toISOString();
-      if (accionTipo === 'atender') {
-        await api.entidades.SolicitudQR.update(s.id, {
-          estado: 'atendida',
-          fecha_atendida: ahora,
-          atendido_por_id: posUser?.id,
-          atendido_por_nombre: posUser?.nombre,
-        });
-        // Sin asignación: si la mesa no tiene atendido_por, asignárselo al que atiende.
-        if (!asign && s.mesa_id && posUser?.id && posUser?.rol === ROLES.WAITER) {
-          try {
-            const mesa = await api.entidades.Mesa.get(s.mesa_id).catch(() => null);
-            if (mesa && !mesa.atendido_por_id) {
-              await api.entidades.Mesa.update(mesa.id, {
-                atendido_por_id: posUser.id,
-                atendido_por_nombre: posUser.nombre || '',
-                atendido_por_color: colorParaUsuario(posUser),
-              }).catch(() => {});
-              queryClient.invalidateQueries({ queryKey: ['mesas'] });
-            }
-          } catch {}
+      // `atendido_por_id` y `atendido_por_nombre` YA NO VIAJAN en el cuerpo.
+      // Los mandaba el navegador, así que cualquiera podía atribuirse el
+      // trabajo de otro y la fecha la ponía el reloj del dispositivo.
+      // `atender_solicitud` los toma de la SESIÓN y sella la hora en el
+      // servidor, y su tabla de transiciones rechaza los retrocesos.
+      await api.comandos.ejecutar('/api/restaurante/atender-solicitud', {
+        solicitudId: s.id,
+        estado: accionTipo === 'atender' ? 'atendida' : 'resuelta',
+      });
+
+      // Sin asignación: si la mesa no tiene atendido_por, asignárselo al que atiende.
+      if (accionTipo === 'atender' && !asign && s.mesa_id && posUser?.rol === ROLES.WAITER) {
+        // La lectura ya no lleva `.catch(() => null)`: cuando fallaba, nadie
+        // quedaba como responsable de la mesa y la propina de esa mesa no se
+        // atribuía a nadie (F1-06 §4.12).
+        const mesa = await api.entidades.Mesa.get(s.mesa_id);
+        if (mesa && !mesa.atendido_por_id) {
+          // `asignar_mesero` no acepta a QUIÉN se asigna: es siempre quien
+          // llama. Y su `update` lleva `where empleado_atiende_id is null`, así
+          // que dos meseros a la vez no pueden robarse la mesa. El color no se
+          // manda porque el puente lo deriva de `empleos.color` al leer.
+          await api.comandos.ejecutar('/api/restaurante/asignar-mesero', { mesaId: mesa.id });
+          queryClient.invalidateQueries({ queryKey: ['mesas'] });
         }
-      } else if (accionTipo === 'resolver') {
-        await api.entidades.SolicitudQR.update(s.id, {
-          estado: 'resuelta',
-          fecha_resuelta: ahora,
-          atendido_por_id: s.atendido_por_id || posUser?.id,
-          atendido_por_nombre: s.atendido_por_nombre || posUser?.nombre,
-        });
       }
+
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero'] });
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero_count'] });
       toast.success('Solicitud actualizada');
     } catch (err) {
       console.error('[SolicitudesQRPanel] accion:', err);
-      toast.error('No se pudo actualizar');
+      toast.error(err?.message || 'No se pudo actualizar');
     }
   };
 

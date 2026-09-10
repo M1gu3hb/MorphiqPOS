@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { api } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { usePOSAuth } from '@/lib/POSAuthContext';
-import { formatCurrency, formatPercent, generateFolio } from '@/utils/financialUtils';
+import { formatCurrency, formatPercent } from '@/utils/financialUtils';
+import { aCentavos } from '@/components/caja/dinero';
 import PageHeader from '@/components/common/PageHeader';
 import StatCard from '@/components/common/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +23,6 @@ import { safeFormatDate } from '@/lib/safeFormat';
 import CorteViewerDialog from '@/components/cortes/CorteViewerDialog';
 
 export default function CorteCaja() {
-  const { posUser } = usePOSAuth();
   const queryClient = useQueryClient();
   const [showCierre, setShowCierre] = useState(false);
   const [efectivoContado, setEfectivoContado] = useState('');
@@ -88,55 +87,51 @@ export default function CorteCaja() {
   const diferencia = efectivoContadoNum - efectivoEsperado;
 
   const handleAbrirCorte = async () => {
-    const folio = generateFolio('CC');
-    await api.entidades.CorteCaja.create({
-      folio,
-      estado: 'abierto',
-      fecha_inicio: new Date().toISOString(),
-      usuario_cajero_id: posUser?.id,
-      usuario_cajero_nombre: posUser?.nombre,
-    });
-    queryClient.invalidateQueries({ queryKey: ['cortes'] });
-    toast.success('Corte de caja abierto');
+    try {
+      // `CorteCaja.create` ya no existe: abrir caja es un comando. El folio lo
+      // pone el consecutivo del servidor, no `generateFolio` en el navegador —
+      // dos terminales podían generar el mismo `CC-…` y el corte del día se
+      // partía en dos con el mismo número.
+      //
+      // Esta pantalla no pide fondo inicial, así que abre con fondo cero. El
+      // fondo real se cuenta en Caja, con `AbrirCajaDialog`.
+      await api.comandos.ejecutar('/api/caja/abrir', { fondoInicialCentavos: 0 });
+      queryClient.invalidateQueries({ queryKey: ['cortes'] });
+      queryClient.invalidateQueries({ queryKey: ['cortes_caja_estado'] });
+      toast.success('Corte de caja abierto');
+    } catch (err) {
+      // «Esta terminal ya tiene una caja abierta» sale del dominio, en español.
+      toast.error(err?.message || 'No se pudo abrir el corte de caja');
+    }
   };
 
   const handleCerrar = async () => {
     if (procesando) return;
     setProcesando(true);
     try {
-      const folio = corteAbierto ? corteAbierto.folio : generateFolio('CC');
-      const data = {
-        folio,
-        estado: 'cerrado',
-        fecha_cierre: new Date().toISOString(),
-        usuario_cajero_id: posUser?.id,
-        usuario_cajero_nombre: posUser?.nombre,
-        total_efectivo: resumen.totalEfectivo,
-        total_tarjeta: resumen.totalTarjeta,
-        total_transferencia: resumen.totalTransferencia,
-        total_general: resumen.totalGeneral,
-        costo_total_estimado: resumen.costoTotal,
-        utilidad_bruta_total: resumen.utilidadBruta,
-        margen_promedio: margenProm,
-        numero_ventas: resumen.numVentas,
-        ticket_promedio: resumen.ticketPromedio,
-        total_gastos: resumen.totalGastos,
-        efectivo_esperado: efectivoEsperado,
-        efectivo_contado: efectivoContadoNum,
-        diferencia_efectivo: diferencia,
-        notas,
-      };
-      if (corteAbierto) {
-        await api.entidades.CorteCaja.update(corteAbierto.id, data);
-      } else {
-        await api.entidades.CorteCaja.create({ ...data, fecha_inicio: new Date().toISOString() });
-      }
+      // Cerrar caja es UNA transacción del servidor: deriva el arqueo de
+      // `movimientos_caja` y `pagos` en el mismo instante en que cierra la
+      // sesión, así que una venta cobrada mientras este diálogo estaba abierto
+      // entra en el corte. De aquí sólo sale lo que el servidor no puede saber:
+      // cuánto dinero hay físicamente en el cajón.
+      //
+      // Los veinte totales que este objeto mandaba —esperado, diferencia,
+      // utilidad, margen, ticket promedio— los calculaba el navegador sobre una
+      // lista de ventas ya leída; ninguno se manda, y ninguno se pierde: el
+      // corte cerrado los trae al releerse.
+      //
+      // La rama «no hay corte abierto → créalo cerrado» desaparece: no se puede
+      // cerrar una caja que nunca se abrió, y `caja.cerrar` lo dice así.
+      await api.comandos.ejecutar('/api/caja/cerrar', {
+        efectivoContadoCentavos: aCentavos(efectivoContadoNum),
+        ...(notas ? { notas } : {}),
+      });
       queryClient.invalidateQueries({ queryKey: ['cortes'] });
+      queryClient.invalidateQueries({ queryKey: ['cortes_caja_estado'] });
       setShowCierre(false);
       toast.success('Corte de caja cerrado exitosamente');
     } catch (err) {
-      console.error('[CorteCaja] Error al cerrar:', err);
-      toast.error('No se pudo cerrar el corte. Intenta de nuevo.');
+      toast.error(err?.message || 'No se pudo cerrar el corte. Intenta de nuevo.');
     } finally {
       setProcesando(false);
     }

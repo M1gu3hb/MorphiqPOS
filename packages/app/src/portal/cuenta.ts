@@ -201,12 +201,40 @@ function calcularPropina(
   const subtotal = centavos(totalCentavos);
   const propinasHabilitadas = ctx.banderas.propinasActivas && ctx.banderas.permitirPropinaCliente;
 
-  const bp =
-    propinasHabilitadas && entrada.propinaTipo === 'porcentaje'
-      ? entrada.propinaPorcentaje * PUNTOS_BASE_POR_PUNTO
-      : 0;
+  if (!propinasHabilitadas) {
+    return { subtotalCentavos: subtotal, propinaCentavos: CERO, propinaBp: 0, propinaTipo: 'sin_propina' };
+  }
 
-  const tipo = tipoDePropina(entrada.propinaTipo, propinasHabilitadas, bp);
+  /**
+   * El importe escrito a mano manda TAL CUAL; los puntos base se derivan de él.
+   *
+   * Al revés que el porcentaje, donde el importe se deriva de los puntos. Si se
+   * guardaran sólo los puntos, una propina de $50 sobre una cuenta de $1 210
+   * volvería a la caja como 4,13 % = $49,97, y el comensal que escribió 50
+   * vería 49,97. Se guardan los dos: el importe es lo que pidió, y los puntos
+   * son para los reportes que agrupan por porcentaje.
+   *
+   * `subtotal` en cero —una cuenta sin líneas— no puede dividir: los puntos se
+   * quedan en cero y el importe se conserva igual.
+   */
+  if (entrada.propinaTipo === 'monto_manual') {
+    const pedidos = centavos(BigInt(entrada.propinaSugeridaCentavos ?? 0));
+    if (pedidos === CERO) {
+      return { subtotalCentavos: subtotal, propinaCentavos: CERO, propinaBp: 0, propinaTipo: 'sin_propina' };
+    }
+    const base = subtotal === CERO ? 0 : Number((pedidos * 10_000n) / subtotal);
+    return {
+      subtotalCentavos: subtotal,
+      propinaCentavos: pedidos,
+      propinaBp: base,
+      propinaTipo: 'monto_manual',
+    };
+  }
+
+  const bp =
+    entrada.propinaTipo === 'porcentaje' ? entrada.propinaPorcentaje * PUNTOS_BASE_POR_PUNTO : 0;
+
+  const tipo = tipoDePropina(entrada.propinaTipo, bp);
 
   return {
     subtotalCentavos: subtotal,
@@ -216,8 +244,7 @@ function calcularPropina(
   };
 }
 
-function tipoDePropina(pedido: string, habilitadas: boolean, bp: number): string {
-  if (!habilitadas) return 'sin_propina';
+function tipoDePropina(pedido: string, bp: number): string {
   if (pedido === 'decidir_en_caja') return 'decidir_en_caja';
   return bp > 0 ? 'porcentaje' : 'sin_propina';
 }

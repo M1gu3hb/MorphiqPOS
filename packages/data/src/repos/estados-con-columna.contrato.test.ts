@@ -180,7 +180,7 @@ describe('todo estado que la base exige acompañado escribe su columna', () => {
       it(`cada una escribe «${regla.columna}» en el MISMO objeto`, () => {
         for (const { archivo, bloque } of sospechosos) {
           expect(
-            bloque.includes(`${regla.columna}`),
+            bloque.includes(regla.columna),
             `${archivo}: pone el estado sin escribir «${regla.columna}». El check ` +
               `\`${regla.restriccion}\` lo rechaza con 23514 contra Postgres, y ` +
               'ninguna prueba con doble en memoria lo vería.',

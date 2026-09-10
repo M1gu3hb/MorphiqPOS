@@ -166,42 +166,29 @@ export function resolverMeseroResponsable(mesa, config) {
 }
 
 /**
- * Limpia solicitudes QR de días anteriores (estado terminal o no).
- * - Borra solicitudes cuyo fecha_creacion sea anterior al inicio del día operativo de hoy.
- * - Respeta hora_inicio_dia_operativo de config si existe; si no, usa medianoche local.
- * - No toca ventas, mesas, pedidos ni cortes.
- * Devuelve { borradas: number }
+ * Limpia el historial de solicitudes QR viejas.
+ *
+ * Antes esto era: leer 500 solicitudes con `.catch(() => [])`, calcular el
+ * corte del día operativo en el reloj del navegador, y borrarlas una a una con
+ * un `.catch {}` por fila. Tres defectos en veinte líneas:
+ *
+ *  - Si la lectura fallaba devolvía `{ borradas: 0 }` como si el día estuviera
+ *    limpio, cuando quería decir «no pude preguntar» (F1-06 §4.15).
+ *  - Cada borrado que fallaba no se contaba como fallido, así que el total
+ *    salía bajo sin explicación.
+ *  - Borraba TODAS las viejas, atendidas o no: un aviso que nadie atendió
+ *    desaparecía sin que quedara constancia de que nadie lo atendió.
+ *
+ * `limpiar_solicitudes` lo hace en UNA sentencia, sólo sobre las CERRADAS de
+ * hace más de 24 h, y devuelve las filas que la base dice que borró — no un
+ * contador de intentos. `config` ya no se usa: el corte lo fija el servidor y
+ * no el reloj de este dispositivo. Se conserva en la firma porque quien llama
+ * (`SolicitudesQRWatcher`) sigue pasándolo.
+ *
+ * Devuelve { borradas: number }. Si falla, LANZA.
  */
 export async function cleanupOldSolicitudes(api, config) {
-  try {
-    const horaIni = (config?.hora_inicio_dia_operativo || '00:00').split(':');
-    const hh = parseInt(horaIni[0]) || 0;
-    const mm = parseInt(horaIni[1]) || 0;
-    const ahora = new Date();
-    const inicioHoy = new Date(ahora);
-    inicioHoy.setHours(hh, mm, 0, 0);
-    // Si la hora de inicio de hoy es futura (ej. 06:00 y son las 02:00),
-    // el día operativo actual empezó ayer a esa hora.
-    if (inicioHoy.getTime() > ahora.getTime()) {
-      inicioHoy.setDate(inicioHoy.getDate() - 1);
-    }
-    const cutoff = inicioHoy.toISOString();
-    // Pedimos lote acotado (las viejas suelen ser pocas; protegemos memoria).
-    const todas = await api.entidades.SolicitudQR.list('-created_date', 500).catch(() => []);
-    const viejas = (Array.isArray(todas) ? todas : []).filter((s) => {
-      const f = s?.fecha_creacion || s?.created_date;
-      return f && f < cutoff;
-    });
-    let borradas = 0;
-    for (const s of viejas) {
-      try {
-        await api.entidades.SolicitudQR.delete(s.id);
-        borradas++;
-      } catch {}
-    }
-    return { borradas };
-  } catch (err) {
-    console.warn('[cleanupOldSolicitudes] falló:', err);
-    return { borradas: 0 };
-  }
+  void config;
+  const resultado = await api.comandos.ejecutar('/api/restaurante/limpiar-solicitudes', {});
+  return { borradas: Number(resultado?.borradas) || 0 };
 }

@@ -1,11 +1,11 @@
 'use client';
 import React, { useState, useMemo } from 'react';
-import { api } from '@/api/cliente';
+import { api, nuevaClave } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { hasPermission } from '@/lib/permissions';
-import { formatCurrency, generateFolio, calculateMargin } from '@/utils/financialUtils';
+import { formatCurrency } from '@/utils/financialUtils';
 import ProductCard from '@/components/pos/ProductCard';
 import CartPanel from '@/components/pos/CartPanel';
 import PaymentModal from '@/components/pos/PaymentModal';
@@ -29,16 +29,99 @@ import { useCajaAbierta } from '@/lib/useCajaAbierta';
 import { Link } from '@/enrutado';
 import { printDocument } from '@/lib/print';
 import { tipsEnabled, getPorcentajesSugeridos } from '@/utils/tipsUtils';
-import {
-  TIPO_VENTA,
-  esProductoVariable,
-  calcularCantidadBaseConsumo,
-  calcularCostoVariable,
-} from '@/utils/tipoVentaUtils';
-import { validarStockParaCobro, mensajeFaltanteStock } from '@/utils/inventarioValidation';
+import { TIPO_VENTA, esProductoVariable } from '@/utils/tipoVentaUtils';
+
+/** Centavos del servidor (llegan como cadena) a los pesos que la interfaz pinta. */
+const centavosAPesos = (valor) => (Number(valor) || 0) / 100;
+
+/** Pesos de la interfaz a los centavos enteros que exige el comando. */
+const aCentavos = (pesos) => Math.round((Number(pesos) || 0) * 100);
+
+/**
+ * Una cantidad para el comando: `numeric(14,4)`, nunca un float suelto.
+ *
+ * `String(0.1 + 0.2)` es «0.30000000000000004» y el esquema —cuatro decimales
+ * como mucho— lo rechazaría. Cuatro decimales fijos es justo la escala de la
+ * columna, así que ni se pierde precisión ni se inventa.
+ */
+const aCantidad = (valor) => (Number(valor) || 0).toFixed(4);
+
+/**
+ * El ticket del servidor con la forma que `PreCuentaTicket` ya pinta.
+ *
+ * Los importes son los CONGELADOS de la orden, no un recálculo: reimprimir con
+ * el precio de hoy no reproduce el documento que se le dio al cliente. Y el
+ * folio ya no se inventa en el navegador con `generateFolio` — lo asigna el
+ * servidor con `UPDATE … RETURNING`, que es lo que impide dos ventas con el
+ * mismo número.
+ *
+ * `impuestos` y `descuentos` no se pasan a propósito: el ticket de mostrador
+ * nunca los ha enseñado —el precio de anaquel ya lleva el IVA— y añadir un
+ * renglón cambiaría el documento de Miguel.
+ */
+function ventaDelTicket(ticket, cobro, folio, propina, cajero) {
+  const pagos = Array.isArray(ticket?.pagos) ? ticket.pagos : [];
+  const metodo = pagos[0]?.metodo || '';
+  const propinaCentavos = Number(cobro?.propinaCentavos) || 0;
+  // La propina se cobró con el mismo método que la venta, y este ticket siempre
+  // ha enseñado en «Efectivo» lo que el cliente entregó, propina incluida.
+  const cobradoPor = (m) =>
+    centavosAPesos(
+      pagos
+        .filter((p) => p?.metodo === m)
+        .reduce((s, p) => s + (Number(p?.montoCentavos) || 0), 0) +
+        (m === metodo ? propinaCentavos : 0),
+    );
+
+  return {
+    folio,
+    fecha_cierre: ticket?.emitidoEn,
+    estado: 'pagada',
+    subtotal: centavosAPesos(ticket?.totalCentavos),
+    total: centavosAPesos(ticket?.totalCentavos),
+    metodo_pago: metodo,
+    monto_efectivo: cobradoPor('efectivo'),
+    monto_tarjeta: cobradoPor('tarjeta'),
+    monto_transferencia: cobradoPor('transferencia'),
+    cambio: centavosAPesos(cobro?.cambioCentavos),
+    propina_monto: centavosAPesos(cobro?.propinaCentavos),
+    propina_porcentaje: Number(propina?.propina_porcentaje) || 0,
+    propina_tipo: propina?.propina_tipo || 'sin_propina',
+    usuario_cajero_nombre: cajero?.nombre,
+  };
+}
+
+/**
+ * Las líneas del ticket, con los rótulos de una línea variable.
+ *
+ * `venta.ticket` devuelve los importes congelados pero no `tipo_venta`, y sin
+ * él `formatearCantidadVariable` imprimiría «500×» donde hoy dice «500 g ×».
+ * Se completan desde el carrito que se acaba de cobrar: las dos listas salen de
+ * `orden_lineas` ordenadas por `orden_visual`, así que el índice casa.
+ */
+function detallesDelTicket(ticket, carrito) {
+  const lineas = Array.isArray(ticket?.lineas) ? ticket.lineas : [];
+  return lineas.map((l, i) => {
+    const item = carrito?.[i];
+    return {
+      producto_nombre: l?.nombre,
+      cantidad: Number(l?.cantidad) || 0,
+      precio_unitario_snapshot: centavosAPesos(l?.precioUnitarioCentavos),
+      subtotal: centavosAPesos(l?.importeCentavos),
+      ...(item?.tipo_venta
+        ? {
+            tipo_venta_snapshot: item.tipo_venta,
+            cantidad_variable_snapshot: item.cantidad_variable,
+            unidad_variable_snapshot: item.unidad_variable,
+            cantidad_porciones_snapshot: item.cantidad_porciones,
+            nombre_porcion_snapshot: item.nombre_porcion,
+          }
+        : {}),
+    };
+  });
+}
 
 export default function POS() {
-  const [cart, setCart] = useState([]);
   const [search, setSearch] = useState('');
   const [escanerAbierto, setEscanerAbierto] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
@@ -57,12 +140,20 @@ export default function POS() {
     propina_tipo: 'sin_propina',
     propina_origen: 'tradicional',
   });
+  /**
+   * La clave de idempotencia del cobro, viva mientras el diálogo esté abierto.
+   *
+   * Se genera al ABRIR «Cobrar» y se reusa en cada intento: así un doble clic
+   * en «Confirmar cobro», o un reintento de red, cobran UNA vez (F1-02 §8,
+   * trampa T5). Una clave nueva por llamada no serviría de nada.
+   */
+  const [claveCobro, setClaveCobro] = useState(null);
 
   const { posUser } = usePOSAuth();
   const { config, canAccessModule } = useConfig();
   const queryClient = useQueryClient();
   const showCost = hasPermission(posUser?.rol, 'ver_costos');
-  const { hayCaja, cajaAbierta } = useCajaAbierta();
+  const { hayCaja } = useCajaAbierta();
 
   const { data: productos = [] } = useQuery({
     queryKey: ['productos_pos'],
@@ -76,17 +167,71 @@ export default function POS() {
     initialData: [],
   });
 
-  const { data: recetas = [] } = useQuery({
-    queryKey: ['recetas_all'],
-    queryFn: () => api.entidades.RecetaEscandallo.filter({ activo: true }),
-    initialData: [],
+  /**
+   * El carrito, que es la orden en BORRADOR de esta terminal (P1-10).
+   *
+   * Ya no vive en un `useState`. Cada línea se persiste al agregarse y el
+   * índice parcial `ordenes_borrador_por_terminal` garantiza UN solo borrador
+   * por terminal, así que cerrar la pestaña y volver recupera exactamente lo
+   * que había en vez de obligar al cajero a rehacer la venta de memoria.
+   *
+   * Sin `ordenId` el comando devuelve el borrador vivo de la terminal, o `null`
+   * si todavía no hay ninguno: la orden no se crea hasta el primer producto.
+   */
+  const { data: estadoVenta } = useQuery({
+    queryKey: ['venta_borrador'],
+    queryFn: () => api.comandos.ejecutar('/api/venta/estado', {}),
+    placeholderData: (prev) => prev,
   });
+  const cotizacion = estadoVenta?.cotizacion ?? null;
+  const ordenId = cotizacion?.ordenId ?? null;
 
-  const { data: ingredientes = [] } = useQuery({
-    queryKey: ['ingredientes_all'],
-    queryFn: () => api.entidades.Ingrediente.filter({ activo: true }),
-    initialData: [],
-  });
+  const productosPorId = useMemo(() => {
+    const m = new Map();
+    (Array.isArray(productos) ? productos : []).forEach((p) => {
+      if (p?.id) m.set(p.id, p);
+    });
+    return m;
+  }, [productos]);
+
+  /**
+   * Las líneas del servidor con la forma que `CartPanel` ya pinta.
+   *
+   * El precio, el subtotal y la cantidad son los del servidor: `precio_venta`
+   * del carrito del navegador ya no se escribe en ninguna línea. Del catálogo
+   * sólo se toma lo que la línea no trae y es PRESENTACIÓN —si es variable y
+   * cómo se llama su porción—, nunca un importe.
+   */
+  const cart = useMemo(() => {
+    const lineas = Array.isArray(cotizacion?.lineas) ? cotizacion.lineas : [];
+    return lineas.map((l) => {
+      const producto = productosPorId.get(l.productoId);
+      const tipo = producto?.tipo_venta;
+      const esMedida = tipo === TIPO_VENTA.VARIABLE_MEDIDA;
+      const esPorcion = tipo === TIPO_VENTA.PORCION_CONTENEDOR;
+      const cantidad = Number(l.cantidad) || 0;
+      return {
+        linea_id: l.id,
+        producto_id: l.productoId,
+        nombre: l.productoNombre,
+        precio_venta: centavosAPesos(l.precioUnitarioCentavos),
+        cantidad,
+        notas: '',
+        ...(esMedida || esPorcion
+          ? {
+              tipo_venta: tipo,
+              subtotal_linea: centavosAPesos(l.subtotalCentavos),
+              cantidad_variable: esMedida ? cantidad : 0,
+              unidad_variable: esMedida ? l.unidad : '',
+              cantidad_porciones: esPorcion ? cantidad : 0,
+              nombre_porcion: esPorcion ? producto?.nombre_porcion || 'porción' : '',
+            }
+          : {}),
+      };
+    });
+  }, [cotizacion, productosPorId]);
+
+  const refrescarCarrito = () => queryClient.invalidateQueries({ queryKey: ['venta_borrador'] });
 
   const filtered = useMemo(() => {
     return productos.filter((p) => {
@@ -96,45 +241,56 @@ export default function POS() {
     });
   }, [productos, search, activeCategory]);
 
-  // 6B / 1.K — Total considerando líneas variables (subtotal_linea fijo) y precio_fijo.
-  const total = useMemo(() => {
-    return (Array.isArray(cart) ? cart : []).reduce((s, i) => {
-      if (
-        i?.tipo_venta === TIPO_VENTA.VARIABLE_MEDIDA ||
-        i?.tipo_venta === TIPO_VENTA.PORCION_CONTENEDOR
-      ) {
-        return s + (Number(i?.subtotal_linea) || 0);
-      }
-      return s + (Number(i?.precio_venta) || 0) * (Number(i?.cantidad) || 0);
-    }, 0);
-  }, [cart]);
+  // El total lo derivó el servidor de las líneas persistidas, con la regla de
+  // impuesto del negocio. Sumarlo otra vez aquí sería el segundo sitio donde se
+  // calcula un total, y en cuanto los dos discrepen el cajero cobra un número
+  // que la pantalla nunca enseñó.
+  const total = centavosAPesos(cotizacion?.totalCentavos);
 
-  const addToCart = (product) => {
+  /** Abre el borrador de la terminal si aún no existe, y devuelve su id. */
+  const asegurarOrden = async () => {
+    if (ordenId) return ordenId;
+    const orden = await api.comandos.ejecutar('/api/venta/crear-orden', {});
+    return orden.ordenId;
+  };
+
+  /**
+   * Devuelve si el producto se aceptó: la línea entró, o se abrió el diálogo de
+   * cantidad. El escáner lo necesita para no cantar «agregado» sobre una línea
+   * que el servidor rechazó —antes de esto el carrito era local y no podía
+   * rechazar nada, así que el aviso siempre era cierto.
+   */
+  const addToCart = async (product) => {
     // 6B / 1.K — Si es variable, abrir modal de captura. NO se agrupa con
     // líneas anteriores (cada línea variable es independiente).
     if (esProductoVariable(product)) {
       setProductoVariable(product);
-      return;
+      return true;
     }
-    // ---- precio_fijo (flujo histórico, intacto) ----
-    const idx = cart.findIndex((i) => i.producto_id === product.id && !i.tipo_venta);
-    if (idx >= 0) {
-      const updated = [...cart];
-      updated[idx].cantidad += 1;
-      setCart(updated);
-    } else {
-      setCart([
-        ...cart,
-        {
-          producto_id: product.id,
-          nombre: product.nombre,
-          precio_venta: product.precio_venta,
-          costo: product.costo_calculado_actual || 0,
-          area_preparacion: product.area_preparacion,
-          cantidad: 1,
-          notas: '',
-        },
-      ]);
+    try {
+      // ---- precio_fijo (flujo histórico, intacto) ----
+      // Se sigue agrupando: repetir un producto sube la cantidad de SU línea en
+      // vez de abrir otra, que es lo que el cajero ve hoy. Lo que cambia es
+      // quién lo escribe y quién pone el precio.
+      const existente = cart.find((i) => i.producto_id === product.id && !i.tipo_venta);
+      if (existente) {
+        await api.comandos.ejecutar('/api/venta/cambiar-cantidad', {
+          ordenId,
+          lineaId: existente.linea_id,
+          cantidad: aCantidad(existente.cantidad + 1),
+        });
+      } else {
+        await api.comandos.ejecutar('/api/venta/agregar-linea', {
+          ordenId: await asegurarOrden(),
+          productoId: product.id,
+          cantidad: aCantidad(1),
+        });
+      }
+      await refrescarCarrito();
+      return true;
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo agregar el producto.');
+      return false;
     }
   };
 
@@ -150,7 +306,7 @@ export default function POS() {
    * delante, para que quien está en la caja pueda teclearlo o darlo de alta,
    * en vez de un «no encontrado» a secas que no dice cuál.
    */
-  const handleCodigoEscaneado = (codigo) => {
+  const handleCodigoEscaneado = async (codigo) => {
     const limpio = String(codigo ?? '').trim();
     if (!limpio) return;
     const producto = (Array.isArray(productos) ? productos : []).find(
@@ -160,60 +316,46 @@ export default function POS() {
       toast.error(`Código ${limpio} no está en el catálogo`);
       return;
     }
-    addToCart(producto);
-    toast.success(`${producto.nombre} agregado`);
+    // El aviso espera a que la línea esté escrita. Cantarlo antes dejaba al
+    // cajero escaneando la compra entera con la certeza de que iba entrando.
+    if (await addToCart(producto)) toast.success(`${producto.nombre} agregado`);
   };
 
-  // 6B / 1.K — Recibe snapshot del CantidadVariableDialog y crea línea variable.
-  const handleConfirmVariable = (snap) => {
-    if (!productoVariable || !snap) {
-      setProductoVariable(null);
-      return;
-    }
+  /**
+   * 6B / 1.K — Recibe snapshot del CantidadVariableDialog y crea línea variable.
+   *
+   * Al comando sólo viajan CANTIDAD y UNIDAD. El precio de la línea, el costo y
+   * el consumo del insumo base los pone el catálogo dentro de la transacción:
+   * `precio_total_linea` del diálogo se quedaba escrito tal cual en la venta, y
+   * el costo salía de `Ingrediente.costo_por_unidad_base` leído en el navegador
+   * —un campo que el puente ya no deja ni escribir.
+   *
+   * `porcion` como unidad no es capricho: el dominio exige un número entero de
+   * porciones y con la unidad por omisión (`ml`) rechazaría la línea.
+   */
+  const handleConfirmVariable = async (snap) => {
     const producto = productoVariable;
-    // Costo unitario base: tomado del ingrediente_base si está en la lista cargada.
-    const ing = (Array.isArray(ingredientes) ? ingredientes : []).find(
-      (i) => i?.id === snap.ingrediente_base_id,
-    );
-    const costoUnitBase = Number(ing?.costo_por_unidad_base) || 0;
-    const cantBase = calcularCantidadBaseConsumo({
-      tipo_venta: snap.tipo_venta,
-      cantidad_variable: snap.cantidad_variable,
-      unidad_variable: snap.unidad_variable,
-      cantidad_porciones: snap.cantidad_porciones,
-      ml_por_porcion: snap.ml_por_porcion,
-    });
-    const { costo_linea } = calcularCostoVariable({
-      precio_total_linea: snap.precio_total_linea,
-      cantidad_base_consumo: cantBase,
-      costo_por_unidad_base: costoUnitBase,
-    });
-    const item = {
-      producto_id: producto.id,
-      nombre: producto.nombre,
-      precio_venta: snap.precio_total_linea, // se usa como precio_unitario_snapshot (cantidad=1)
-      costo: costo_linea, // costo total de la línea (cantidad=1)
-      area_preparacion: producto.area_preparacion,
-      cantidad: 1, // cantidad lógica = 1 (la "cantidad real" es la variable)
-      notas: '',
-      // ----- snapshots variables -----
-      tipo_venta: snap.tipo_venta,
-      cantidad_variable: snap.cantidad_variable || 0,
-      unidad_variable: snap.unidad_variable || '',
-      cantidad_porciones: snap.cantidad_porciones || 0,
-      nombre_porcion: snap.nombre_porcion || '',
-      ml_por_porcion: snap.ml_por_porcion || 0,
-      ingrediente_base_id: snap.ingrediente_base_id || '',
-      ingrediente_base_nombre: snap.ingrediente_base_nombre || ing?.nombre || '',
-      precio_por_unidad_snapshot: snap.precio_por_unidad_snapshot || 0,
-      cantidad_base_consumo: cantBase,
-      subtotal_linea: snap.precio_total_linea,
-    };
-    setCart((prev) => [...(Array.isArray(prev) ? prev : []), item]);
     setProductoVariable(null);
+    if (!producto || !snap) return;
+
+    const esPorcion = snap.tipo_venta === TIPO_VENTA.PORCION_CONTENEDOR;
+    // Sin unidad, la decide el catálogo. Mandarla vacía es distinto: el esquema
+    // pide al menos un carácter y rechazaría la línea entera.
+    const unidad = esPorcion ? 'porcion' : snap.unidad_variable || '';
+    try {
+      await api.comandos.ejecutar('/api/venta/agregar-linea', {
+        ordenId: await asegurarOrden(),
+        productoId: producto.id,
+        cantidad: aCantidad(esPorcion ? snap.cantidad_porciones : snap.cantidad_variable),
+        ...(unidad ? { unidad } : {}),
+      });
+      await refrescarCarrito();
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo agregar el producto.');
+    }
   };
 
-  const updateQty = (idx, qty) => {
+  const updateQty = async (idx, qty) => {
     // En líneas variables no permitimos +/- (la cantidad real es la "variable").
     const item = cart?.[idx];
     if (
@@ -223,17 +365,100 @@ export default function POS() {
     ) {
       return;
     }
+    if (!item) return;
     if (qty <= 0) {
       removeItem(idx);
       return;
     }
-    const updated = [...cart];
-    updated[idx].cantidad = qty;
-    setCart(updated);
+    try {
+      // El subtotal NO se reescala: el comando revalora la línea contra el
+      // catálogo, porque el mayoreo cambia el precio unitario al cruzar su
+      // mínimo y multiplicar el subtotal viejo se saltaría ese salto.
+      await api.comandos.ejecutar('/api/venta/cambiar-cantidad', {
+        ordenId,
+        lineaId: item.linea_id,
+        cantidad: aCantidad(qty),
+      });
+      await refrescarCarrito();
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo cambiar la cantidad.');
+    }
   };
 
-  const removeItem = (idx) => setCart(cart.filter((_, i) => i !== idx));
+  const removeItem = async (idx) => {
+    const item = cart?.[idx];
+    if (!item) return;
+    try {
+      await api.comandos.ejecutar('/api/venta/quitar-linea', {
+        ordenId,
+        lineaId: item.linea_id,
+      });
+      await refrescarCarrito();
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo quitar el producto.');
+    }
+  };
 
+  /**
+   * «Limpiar»: quita las líneas una a una.
+   *
+   * No hay comando de «vaciar orden» y no se inventa uno desde el navegador. Si
+   * una línea no se puede quitar se para ahí y se dice por qué, en vez de dejar
+   * la pantalla vacía con la orden a medias en la base.
+   */
+  const limpiarCarrito = async () => {
+    try {
+      for (const item of cart) {
+        await api.comandos.ejecutar('/api/venta/quitar-linea', {
+          ordenId,
+          lineaId: item.linea_id,
+        });
+      }
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo limpiar la orden.');
+    }
+    await refrescarCarrito();
+  };
+
+  /**
+   * Abrir el diálogo de cobro, y con él la clave de idempotencia de ESTA venta.
+   *
+   * La clave se genera aquí, al abrir, no en cada llamada: es lo único que hace
+   * que un doble clic en «Confirmar cobro» —o un reintento tras un timeout de
+   * red que sí llegó al servidor— cobre una vez y no dos.
+   */
+  const abrirCobro = () => {
+    setClaveCobro(nuevaClave());
+    setShowPayment(true);
+  };
+
+  const cerrarCobro = () => {
+    setShowPayment(false);
+    setClaveCobro(null);
+  };
+
+  /**
+   * El cobro (F1.1-A-09). UNA llamada, UNA transacción.
+   *
+   * `venta.cobrar` congela los totales sobre las líneas que está cerrando, toma
+   * el folio, reparte los pagos con su propina, mueve la caja Y DESCUENTA EL
+   * INVENTARIO contra el ledger inmutable. O confirma todo, o no persiste nada.
+   *
+   * ── Lo que desapareció de aquí, y por qué ─────────────────────────────────
+   * · El descuento de stock a mano —`Ingrediente.update({stock_actual})` más
+   *   `MovimientoInventario.create`, seis `.catch(() => {})` entre las dos
+   *   ramas (F1-06 §4.2)—. El comando ya lo hace dentro de su transacción, así
+   *   que dejarlo aquí descontaría DOS VECES lo mismo. Y `stock_actual` es un
+   *   campo que el puente ya no deja escribir: el stock se mueve por el ledger.
+   * · La validación de stock del navegador. La hace el servidor dentro de la
+   *   transacción, producto a producto y con el `permite_venta_sin_stock` de
+   *   cada uno; su mensaje —«No hay inventario suficiente para completar la
+   *   venta.»— es el que se enseña. La del navegador leía `stock_actual` y con
+   *   un `config.permitir_venta_sin_stock` global podía frenar una venta que el
+   *   servidor sí permite.
+   * · El folio inventado con `generateFolio`, y `costoTotal`, `utilidad` y
+   *   `margen` calculados en el carrito. Los cuatro los devuelve el servidor.
+   */
   const handleCheckout = async (paymentData) => {
     // Bloqueo: no permitir cobrar si la caja está cerrada.
     if (!hayCaja) {
@@ -241,283 +466,67 @@ export default function POS() {
       return;
     }
     if (processing) return; // evitar doble cobro
-    if (!Array.isArray(cart) || cart.length === 0) {
+    if (!ordenId || cart.length === 0) {
       toast.error('El carrito está vacío.');
       return;
     }
     setProcessing(true);
 
+    // El carrito de ANTES de cobrar: el ticket lo necesita para los rótulos de
+    // las líneas variables, y después de cobrar el borrador ya no existe.
+    const carritoCobrado = cart;
+
     try {
-      // 6B / 1.J — Validación unificada de stock (precio_fijo + variables).
-      // Construimos "detalles simulados" desde el cart y reutilizamos el helper
-      // que ya usa Caja. Esto evita dos sistemas de validación paralelos.
-      const detallesParaValidar = (Array.isArray(cart) ? cart : []).map((it) => ({
-        producto_id: it?.producto_id,
-        producto_nombre: it?.nombre,
-        cantidad: Number(it?.cantidad) || 0,
-        tipo_venta_snapshot: it?.tipo_venta || null,
-        cantidad_variable_snapshot: it?.cantidad_variable,
-        unidad_variable_snapshot: it?.unidad_variable,
-        cantidad_porciones_snapshot: it?.cantidad_porciones,
-        ml_por_porcion_snapshot: it?.ml_por_porcion,
-        ingrediente_base_id_snapshot: it?.ingrediente_base_id,
-        cantidad_base_consumo: it?.cantidad_base_consumo,
-      }));
-      const val = validarStockParaCobro({
-        detalles: detallesParaValidar,
-        recetasAll: Array.isArray(recetas) ? recetas : [],
-        ingredientesAll: Array.isArray(ingredientes) ? ingredientes : [],
-      });
-      if (!val.ok) {
-        console.warn('[POS 1.J] Stock insuficiente:', val);
-        if (!config?.permitir_venta_sin_stock) {
-          toast.error(mensajeFaltanteStock(val));
-          setProcessing(false);
-          return;
-        } else {
-          toast.warning(
-            mensajeFaltanteStock(val) + ' (Se cobrará igual: venta sin stock permitida).',
-          );
-        }
-      }
+      // Los centavos del servidor, tal cual llegaron. No se reconstruyen desde
+      // los pesos de la pantalla: `total` es sólo su representación para pintar.
+      const totalCentavos = Number(cotizacion?.totalCentavos) || 0;
+      const propinaCentavos = aCentavos(propina?.propina_monto);
+      const esEfectivo = paymentData?.metodo_pago === 'efectivo';
+      const recibidoCentavos = aCentavos(paymentData?.monto_recibido);
 
-      const folio = generateFolio('V');
-      const costoTotal = cart.reduce(
-        (s, i) => s + (Number(i?.costo) || 0) * (Number(i?.cantidad) || 0),
-        0,
+      const cobro = await api.comandos.ejecutar(
+        '/api/venta/cobrar',
+        {
+          ordenId,
+          // Lo que la pantalla enseñó. NO decide el cobro: si no coincide con
+          // lo que el servidor recalcula, el comando lo RECHAZA con el total
+          // correcto en vez de cobrar otro número en silencio, porque al
+          // cliente ya se le dijo una cifra en voz alta.
+          totalEsperadoCentavos: totalCentavos,
+          pagos: [
+            {
+              metodo: paymentData.metodo_pago,
+              // La VENTA, sin propina. La propina viaja aparte y jamás se suma
+              // al total (regla 1 de F1-01 §3).
+              montoCentavos: totalCentavos,
+              ...(propinaCentavos > 0 ? { propinaCentavos } : {}),
+              ...(esEfectivo && recibidoCentavos > 0 ? { recibidoCentavos } : {}),
+            },
+          ],
+          propinaTipo: propina?.propina_tipo || 'sin_propina',
+          propinaOrigen: propina?.propina_origen || 'tradicional',
+          // En PUNTOS BASE enteros: 15 % es 1500. `0.15` no existe exacto en
+          // punto flotante y en una propina se nota.
+          propinaPuntosBase: Math.round((Number(propina?.propina_porcentaje) || 0) * 100),
+        },
+        claveCobro,
       );
-      const utilidad = total - costoTotal;
-      const margen = calculateMargin(total, costoTotal);
 
-      // Asociar al corte abierto (cierre_diario) actual
-      const corteAbiertoId = cajaAbierta?.id || null;
+      const ticket = await api.comandos.ejecutar('/api/venta/ticket', { ordenId: cobro.ordenId });
+      const folio = ticket?.folio ? `${ticket.serie}-${ticket.folio}` : ticket?.serie || '';
 
-      // IMPORTANTE: `total` = venta real SIN propina (no infla utilidad/ventas).
-      // La propina se guarda en propina_monto y se cobra aparte en paymentData.
-      const venta = await api.entidades.Venta.create({
-        folio,
-        fecha_apertura: new Date().toISOString(),
-        fecha_cierre: new Date().toISOString(),
-        tipo_venta: 'mostrador',
-        estado: 'pagada',
-        subtotal: total,
-        total,
-        propina_monto: Number(propina?.propina_monto) || 0,
-        propina_porcentaje: Number(propina?.propina_porcentaje) || 0,
-        propina_tipo: propina?.propina_tipo || 'sin_propina',
-        propina_origen: propina?.propina_origen || 'tradicional',
-        costo_total_snapshot: costoTotal,
-        utilidad_bruta_snapshot: utilidad,
-        margen_snapshot: margen,
-        usuario_cajero_id: posUser?.id,
-        usuario_cajero_nombre: posUser?.nombre,
-        corte_caja_id: corteAbiertoId,
-        ...paymentData,
-      });
-
-      // Snapshot de detalles para el ticket (lo construimos en paralelo)
-      const detallesParaTicket = [];
-
-      // Create sale details
-      for (const item of cart) {
-        const esVariable =
-          item?.tipo_venta === TIPO_VENTA.VARIABLE_MEDIDA ||
-          item?.tipo_venta === TIPO_VENTA.PORCION_CONTENEDOR;
-
-        // Subtotal real de la línea (variables ya traen subtotal_linea fijo).
-        const subtotalLinea = esVariable
-          ? Number(item?.subtotal_linea) || 0
-          : (Number(item?.precio_venta) || 0) * (Number(item?.cantidad) || 0);
-        const costoLinea = esVariable
-          ? Number(item?.costo) || 0
-          : (Number(item?.costo) || 0) * (Number(item?.cantidad) || 0);
-        const utilidadLinea = subtotalLinea - costoLinea;
-        const margenLinea = calculateMargin(subtotalLinea, costoLinea);
-
-        // Payload base de DetalleVenta — precio_fijo y variable comparten estructura.
-        const detallePayload = {
-          venta_id: venta.id,
-          producto_id: item.producto_id,
-          producto_nombre: item.nombre,
-          cantidad: item.cantidad,
-          precio_unitario_snapshot: item.precio_venta, // en variables = precio_total_linea (cantidad=1)
-          costo_unitario_snapshot: item.costo,
-          subtotal: subtotalLinea,
-          costo_total_linea_snapshot: costoLinea,
-          utilidad_linea_snapshot: utilidadLinea,
-          margen_linea_snapshot: margenLinea,
-          notas_producto: item.notas,
-          estado_preparacion: 'pendiente',
-          area_preparacion_snapshot: item.area_preparacion,
-        };
-        // 6B / 1.K — Snapshots adicionales si la línea es variable.
-        if (esVariable) {
-          detallePayload.tipo_venta_snapshot = item.tipo_venta;
-          detallePayload.unidad_variable_snapshot = item.unidad_variable || '';
-          detallePayload.cantidad_variable_snapshot = Number(item.cantidad_variable) || 0;
-          detallePayload.cantidad_porciones_snapshot = Number(item.cantidad_porciones) || 0;
-          detallePayload.nombre_porcion_snapshot = item.nombre_porcion || '';
-          detallePayload.ml_por_porcion_snapshot = Number(item.ml_por_porcion) || 0;
-          detallePayload.ingrediente_base_id_snapshot = item.ingrediente_base_id || '';
-          detallePayload.ingrediente_base_nombre_snapshot = item.ingrediente_base_nombre || '';
-          detallePayload.precio_por_unidad_snapshot = Number(item.precio_por_unidad_snapshot) || 0;
-          detallePayload.cantidad_base_consumo = Number(item.cantidad_base_consumo) || 0;
-        }
-
-        const detalle = await api.entidades.DetalleVenta.create(detallePayload);
-        detallesParaTicket.push(detalle || { ...detallePayload });
-
-        // ====== Discount inventory ======
-        if (esVariable) {
-          // 6B / 1.K — Descontar el ingrediente_base por cantidad_base_consumo.
-          const ing = (Array.isArray(ingredientes) ? ingredientes : []).find(
-            (i) => i?.id === item.ingrediente_base_id,
-          );
-          const cantBase = Number(item?.cantidad_base_consumo) || 0;
-          if (ing && cantBase > 0) {
-            const stockAnt = Number(ing.stock_actual) || 0;
-            const stockNew = Math.max(0, stockAnt - cantBase);
-            const costoUnit = Number(ing.costo_por_unidad_base) || 0;
-            const costoTotalMov = Math.round(cantBase * costoUnit * 100) / 100;
-            await api.entidades.Ingrediente.update(ing.id, { stock_actual: stockNew }).catch(
-              () => {},
-            );
-            await api.entidades.MovimientoInventario.create({
-              ingrediente_id: ing.id,
-              ingrediente_nombre: ing.nombre,
-              tipo_movimiento: 'salida_venta',
-              cantidad: -cantBase,
-              unidad_base: ing.unidad_base,
-              stock_anterior: stockAnt,
-              stock_nuevo: stockNew,
-              costo_unitario_en_momento: costoUnit,
-              costo_total_movimiento: costoTotalMov,
-              referencia_tipo: 'venta',
-              referencia_id: venta.id,
-              motivo: `Venta ${folio}`,
-              usuario_id: posUser?.id,
-              usuario_nombre: posUser?.nombre,
-              fecha: new Date().toISOString(),
-            }).catch(() => {});
-            await api.entidades.DescuentoInventarioVenta.create({
-              venta_id: venta.id,
-              detalle_venta_id: detalle?.id,
-              producto_id: item.producto_id,
-              ingrediente_id: ing.id,
-              ingrediente_nombre: ing.nombre,
-              cantidad_producto: item.cantidad,
-              cantidad_ingrediente_por_producto: cantBase, // cantidad lógica=1
-              cantidad_total_descontada: cantBase,
-              unidad_base: ing.unidad_base,
-              costo_unitario_snapshot: costoUnit,
-              costo_total_descontado: costoTotalMov,
-              fecha: new Date().toISOString(),
-            }).catch(() => {});
-          }
-        } else {
-          // ---- precio_fijo (LEGACY, intacto) ----
-          const productRecipes = (Array.isArray(recetas) ? recetas : []).filter(
-            (r) => r.producto_id === item.producto_id,
-          );
-          for (const recipe of productRecipes) {
-            const ing = (Array.isArray(ingredientes) ? ingredientes : []).find(
-              (i) => i.id === recipe.ingrediente_id,
-            );
-            if (!ing) continue;
-
-            const mermaFactor = 1 + (recipe.merma_porcentaje || 0) / 100;
-            const qtyPerProduct = (recipe.cantidad_convertida_unidad_base || 0) * mermaFactor;
-            const totalDiscount = qtyPerProduct * item.cantidad;
-            const newStock = Math.max(0, (ing.stock_actual || 0) - totalDiscount);
-
-            await api.entidades.Ingrediente.update(ing.id, { stock_actual: newStock }).catch(
-              () => {},
-            );
-
-            await api.entidades.MovimientoInventario.create({
-              ingrediente_id: ing.id,
-              ingrediente_nombre: ing.nombre,
-              tipo_movimiento: 'salida_venta',
-              cantidad: totalDiscount,
-              unidad_base: ing.unidad_base,
-              stock_anterior: ing.stock_actual,
-              stock_nuevo: newStock,
-              costo_unitario_en_momento: ing.costo_por_unidad_base,
-              costo_total_movimiento: totalDiscount * (ing.costo_por_unidad_base || 0),
-              referencia_tipo: 'venta',
-              referencia_id: venta.id,
-              usuario_id: posUser?.id,
-              usuario_nombre: posUser?.nombre,
-              fecha: new Date().toISOString(),
-            }).catch(() => {});
-
-            await api.entidades.DescuentoInventarioVenta.create({
-              venta_id: venta.id,
-              producto_id: item.producto_id,
-              ingrediente_id: ing.id,
-              ingrediente_nombre: ing.nombre,
-              cantidad_producto: item.cantidad,
-              cantidad_ingrediente_por_producto: qtyPerProduct,
-              cantidad_total_descontada: totalDiscount,
-              unidad_base: ing.unidad_base,
-              costo_unitario_snapshot: ing.costo_por_unidad_base,
-              costo_total_descontado: totalDiscount * (ing.costo_por_unidad_base || 0),
-              fecha: new Date().toISOString(),
-            }).catch(() => {});
-          }
-        }
-
-        // Send to kitchen/bar if needed
-        if (item.area_preparacion && item.area_preparacion !== 'ninguno') {
-          const areas =
-            item.area_preparacion === 'ambos' ? ['cocina', 'barra'] : [item.area_preparacion];
-          // 6B / 1.K — Item de cocina con campos variables si aplica.
-          const itemCocina = {
-            producto_id: item.producto_id,
-            producto_nombre: item.nombre,
-            cantidad: item.cantidad,
-            notas: item.notas,
-            estado: 'nuevo',
-          };
-          if (esVariable) {
-            itemCocina.tipo_venta = item.tipo_venta;
-            itemCocina.unidad_variable = item.unidad_variable || '';
-            itemCocina.cantidad_variable = Number(item.cantidad_variable) || 0;
-            itemCocina.nombre_porcion = item.nombre_porcion || '';
-            itemCocina.cantidad_porciones = Number(item.cantidad_porciones) || 0;
-          }
-          for (const area of areas) {
-            await api.entidades.PedidoPreparacion.create({
-              venta_id: venta.id,
-              venta_folio: folio,
-              area,
-              estado: 'nuevo',
-              fecha_creacion: new Date().toISOString(),
-              items: [itemCocina],
-            }).catch(() => {});
-          }
-        }
-      }
-
+      queryClient.invalidateQueries({ queryKey: ['venta_borrador'] });
       queryClient.invalidateQueries({ queryKey: ['ingredientes_all'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
 
       // Mostrar ticket final (snapshot defensivo)
-      try {
-        setTicketFinal({
-          venta: { ...venta, ...paymentData, total, subtotal: total, estado: 'pagada' },
-          detalles: detallesParaTicket,
-        });
-        setShowTicket(true);
-      } catch (errTicket) {
-        console.error('[POS] No se pudo mostrar ticket:', errTicket);
-        toast.error(
-          'La venta se cobró, pero no se pudo mostrar el ticket. Puedes verlo en Ventas/Registros.',
-        );
-      }
+      setTicketFinal({
+        venta: ventaDelTicket(ticket, cobro, folio, propina, posUser),
+        detalles: detallesDelTicket(ticket, carritoCobrado),
+      });
+      setShowTicket(true);
 
-      setCart([]);
-      setShowPayment(false);
+      cerrarCobro();
       // Reset propina para la próxima venta
       setPropina({
         propina_monto: 0,
@@ -525,10 +534,16 @@ export default function POS() {
         propina_tipo: 'sin_propina',
         propina_origen: 'tradicional',
       });
-      toast.success(`Venta ${folio} cobrada: ${formatCurrency(total)}`);
+      toast.success(
+        `Venta ${folio} cobrada: ${formatCurrency(centavosAPesos(ticket?.totalCentavos))}`,
+      );
     } catch (err) {
-      console.error('[POS] Error al cobrar:', err);
-      toast.error('No se pudo completar la venta. Intenta de nuevo.');
+      // El mensaje llega del dominio, en español y diciendo QUÉ pasó: «Abre la
+      // caja antes de cobrar.», «No hay inventario suficiente para completar la
+      // venta.», «El total cambió desde que se mostró en pantalla.». Antes esto
+      // era un «No se pudo completar la venta» que no distinguía ninguno de los
+      // tres, y el cajero volvía a intentarlo sin saber qué corregir.
+      toast.error(err?.message || 'No se pudo completar la venta. Intenta de nuevo.');
     } finally {
       setProcessing(false);
     }
@@ -651,9 +666,9 @@ export default function POS() {
           total={total}
           onCheckout={() => {
             if (tipsEnabled(config)) setShowPropina(true);
-            else setShowPayment(true);
+            else abrirCobro();
           }}
-          onClear={() => setCart([])}
+          onClear={limpiarCarrito}
         />
       </div>
 
@@ -670,9 +685,9 @@ export default function POS() {
               onCheckout={() => {
                 setShowCartMobile(false);
                 if (tipsEnabled(config)) setShowPropina(true);
-                else setShowPayment(true);
+                else abrirCobro();
               }}
-              onClear={() => setCart([])}
+              onClear={limpiarCarrito}
             />
           </div>
         </div>
@@ -715,13 +730,13 @@ export default function POS() {
         onConfirm={(data) => {
           setPropina(data);
           setShowPropina(false);
-          setShowPayment(true);
+          abrirCobro();
         }}
       />
 
       <PaymentModal
         open={showPayment}
-        onClose={() => setShowPayment(false)}
+        onClose={cerrarCobro}
         total={total}
         propinaMonto={Number(propina?.propina_monto) || 0}
         onConfirm={handleCheckout}

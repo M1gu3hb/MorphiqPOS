@@ -57,15 +57,24 @@ export default function RepetirCompraDialog({ open, onClose, onSelected }) {
     let cancel = false;
     (async () => {
       setLoading(true);
-      const [comps, plants] = await Promise.all([
-        api.entidades.CompraInsumo.list('-created_date', 60).catch(() => []),
-        api.entidades.PlantillaCompra.filter({ activa: true }).catch(() => []),
-      ]);
-      if (!cancel) {
+      // Los `.catch(() => [])` que envolvían estas dos lecturas las convertían
+      // en «no hay compras previas» y «no hay plantillas»: exactamente lo mismo
+      // que ve alguien que de verdad no tiene ninguna. Un fallo de red se
+      // disfrazaba de negocio vacío, y el usuario capturaba a mano una compra
+      // que podía repetir. Ahora un fallo se dice.
+      try {
+        const [comps, plants] = await Promise.all([
+          api.entidades.CompraInsumo.list('-created_date', 60),
+          api.entidades.PlantillaCompra.filter({ activa: true }),
+        ]);
+        if (cancel) return;
         setCompras(Array.isArray(comps) ? comps : []);
         setPlantillas(Array.isArray(plants) ? plants : []);
-        setLoading(false);
+      } catch (e) {
+        if (cancel) return;
+        toast.error(e?.message || 'No se pudieron cargar las compras anteriores.');
       }
+      if (!cancel) setLoading(false);
     })();
     return () => {
       cancel = true;

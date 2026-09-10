@@ -199,7 +199,6 @@ export default function PropinasDashboardSection() {
       <LiquidarPropinasDialog
         open={showLiquidar}
         onClose={() => setShowLiquidar(false)}
-        ventas={ventas}
         meseros={meseros}
         rangoInicial="week"
       />

@@ -66,7 +66,20 @@ export default function SolicitudesQRWatcher() {
     if (!watch || cleanupDoneRef.current) return;
     cleanupDoneRef.current = true;
     // Ejecutar sin bloquear render.
-    cleanupOldSolicitudes(api, config).catch(() => {});
+    //
+    // El `.catch(() => {})` que había aquí anulaba el trabajo de
+    // `cleanupOldSolicitudes`, que se reescribió para LANZAR en vez de tragarse
+    // el fallo: el silencio sólo cambió de sitio. Ahora se anota.
+    //
+    // No sale un aviso en pantalla A PROPÓSITO: esto es mantenimiento de fondo
+    // que corre solo al montar, y el mesero no puede hacer nada con «no se
+    // pudieron limpiar los avisos antiguos» mientras atiende una mesa. Que no
+    // se limpien no rompe nada —la lista sigue funcionando, sólo más larga—,
+    // así que degradar en silencio VISIBLE y ruidoso en la consola es lo
+    // correcto. Lo que no vale es que no quede rastro en ninguna parte.
+    cleanupOldSolicitudes(api, config).catch((e) => {
+      console.warn('[SolicitudesQRWatcher] limpieza de avisos antiguos:', e);
+    });
   }, [watch, config]);
 
   const { data: solicitudes = [] } = useQuery({

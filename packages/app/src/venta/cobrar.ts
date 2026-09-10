@@ -6,6 +6,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja, repoFolios, repoOrdenes, repoStock, repoVentaCatalogo } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
+import { comandarLineasPendientes } from '../restaurante/comandar-pendientes.ts';
 import { marcarPropinaDeOrden, registrarPagoConPropina } from '../propinas/cobro.ts';
 import { entradaCobrarOrdenConPropina } from '../propinas/esquemas.ts';
 import { cotizar, exigirTotalVigente } from './cotizar.ts';
@@ -208,6 +209,21 @@ export const cobrarOrden = definirComando<
       }),
     );
 
+    // 10 · A la cocina lo que todavía no salió.
+    //
+    //      En una MESA no hace nada: las líneas ya llevan su `comanda_items`
+    //      desde `restaurante.enviar_pedido`. En el MOSTRADOR no hay ese paso
+    //      —se arma el carrito y se cobra— y aquí es donde el plato tiene que
+    //      llegar a la plancha.
+    //
+    //      `POS.jsx:462` lo hacía después del cobro, en un bucle por área y con
+    //      `.catch(() => {})` encima: si fallaba, el cajero veía su ticket
+    //      impreso y en cocina no había nada. Dentro de la transacción, o hay
+    //      venta y comanda o no hay ninguna de las dos.
+    const comandas = await ctx.paso('comandar_pendientes', () =>
+      comandarLineasPendientes(ctx.tx, organizacionId, entrada.ordenId),
+    );
+
     const cambio = pagos.reduce((suma, p) => suma + p.cambioCentavos, 0n);
 
     ctx.auditar({
@@ -219,6 +235,7 @@ export const cobrarOrden = definirComando<
         metodos: pagos.map((p) => p.metodo),
         lineas: cotizacion.lineas.length,
         movimientosStock: movimientos.length,
+        comandasEmitidas: comandas.length,
       },
     });
 
@@ -230,6 +247,7 @@ export const cobrarOrden = definirComando<
       pagadoCentavos: pagos.reduce((s, p) => s + p.montoCentavos, 0n).toString(),
       propinaCentavos: propinaTotal.toString(),
       cambioCentavos: cambio.toString(),
+      comandas,
     };
   },
 });

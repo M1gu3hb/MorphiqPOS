@@ -32,101 +32,126 @@ export default function CorteAutoDownloader({ corte, onDone }) {
       const cierre = corte.fecha_cierre ? new Date(corte.fecha_cierre).getTime() : Date.now();
       const corteId = corte.id;
 
-      const [allVentas, allGastos, allDescuentos, allIngredientes, allRecetas] = await Promise.all([
-        api.entidades.Venta.list('-fecha_cierre', 2000).catch(() => []),
-        api.entidades.GastoOperativo.list('-created_date', 500).catch(() => []),
-        api.entidades.DescuentoInventarioVenta.list('-created_date', 3000).catch(() => []),
-        api.entidades.Ingrediente.list().catch(() => []),
-        api.entidades.RecetaEscandallo.list('-created_date', 2000).catch(() => []),
-      ]);
+      try {
+        // Las cinco lecturas iban con `.catch(() => [])` (F1-06 §4.8), y este
+        // componente DESCARGA SOLO. Sin ventas el PDF salía con totales en cero,
+        // sin descuentos con margen del 100 %, y se guardaba en el disco del
+        // negocio como si fuera el corte del día. Aquí un fallo NO produce
+        // archivo: `data` se queda nulo, el auto-disparo no ocurre y queda el
+        // botón de reintento que ya existía.
+        const [allVentas, allGastos, allDescuentos, allIngredientes, allRecetas] =
+          await Promise.all([
+            api.entidades.Venta.list('-fecha_cierre', 2000),
+            api.entidades.GastoOperativo.list('-created_date', 500),
+            api.entidades.DescuentoInventarioVenta.list('-created_date', 3000),
+            api.entidades.Ingrediente.list(),
+            api.entidades.RecetaEscandallo.list('-created_date', 2000),
+          ]);
 
-      const matchVenta = (v) => {
-        if (corteId && v.corte_caja_id === corteId) return true;
-        const t = v.fecha_cierre ? new Date(v.fecha_cierre).getTime() : 0;
-        if (t >= inicio && t <= cierre) return true;
-        if (!v.corte_caja_id && corte.fecha_inicio) {
-          const dayCorte = corte.fecha_inicio.slice(0, 10);
-          const dayVenta = (v.fecha_apertura || v.fecha_cierre || '').slice(0, 10);
-          if (dayCorte && dayCorte === dayVenta) return true;
-        }
-        return false;
-      };
+        const matchVenta = (v) => {
+          if (corteId && v.corte_caja_id === corteId) return true;
+          const t = v.fecha_cierre ? new Date(v.fecha_cierre).getTime() : 0;
+          if (t >= inicio && t <= cierre) return true;
+          if (!v.corte_caja_id && corte.fecha_inicio) {
+            const dayCorte = corte.fecha_inicio.slice(0, 10);
+            const dayVenta = (v.fecha_apertura || v.fecha_cierre || '').slice(0, 10);
+            if (dayCorte && dayCorte === dayVenta) return true;
+          }
+          return false;
+        };
 
-      const ventasCorte = allVentas.filter((v) => v.estado === 'pagada' && matchVenta(v));
-      const cancelaciones = allVentas.filter(
-        (v) =>
-          v.estado === 'cancelada' &&
-          ((corteId && v.corte_caja_id === corteId) ||
-            (v.fecha_cierre &&
-              new Date(v.fecha_cierre).getTime() >= inicio &&
-              new Date(v.fecha_cierre).getTime() <= cierre)),
-      );
-      const ventaIds = ventasCorte.map((v) => v.id);
-      const detalles = ventaIds.length
-        ? (
-            await Promise.all(
-              ventaIds.map((id) =>
-                api.entidades.DetalleVenta.filter({ venta_id: id }).catch(() => []),
-              ),
-            )
-          ).flat()
-        : [];
-      const gastosCorte = allGastos.filter((g) => {
-        const t = g.created_date ? new Date(g.created_date).getTime() : 0;
-        return t >= inicio && t <= cierre;
-      });
-
-      const descuentosCorte = allDescuentos.filter((d) => ventaIds.includes(d.venta_id));
-      const ingMap = {};
-      const ingPorId = Object.fromEntries(allIngredientes.map((i) => [i.id, i]));
-      const addIng = (ingId, nombre, unidad, qty, costoUnit) => {
-        if (!ingId || !qty) return;
-        if (!ingMap[ingId])
-          ingMap[ingId] = { nombre, unidad, cantidad: 0, costoUnit: costoUnit || 0, costoTotal: 0 };
-        ingMap[ingId].cantidad += qty;
-        ingMap[ingId].costoTotal += qty * (costoUnit || 0);
-      };
-      if (descuentosCorte.length > 0) {
-        descuentosCorte.forEach((d) =>
-          addIng(
-            d.ingrediente_id,
-            d.ingrediente_nombre,
-            d.unidad_base,
-            d.cantidad_total_descontada || 0,
-            d.costo_unitario_snapshot || 0,
-          ),
+        const ventasCorte = allVentas.filter((v) => v.estado === 'pagada' && matchVenta(v));
+        const cancelaciones = allVentas.filter(
+          (v) =>
+            v.estado === 'cancelada' &&
+            ((corteId && v.corte_caja_id === corteId) ||
+              (v.fecha_cierre &&
+                new Date(v.fecha_cierre).getTime() >= inicio &&
+                new Date(v.fecha_cierre).getTime() <= cierre)),
         );
-      } else {
-        detalles.forEach((det) => {
-          const recetaLines = allRecetas.filter(
-            (r) => r.producto_id === det.producto_id && r.activo !== false,
-          );
-          recetaLines.forEach((l) => {
-            const ing = ingPorId[l.ingrediente_id];
-            if (!ing) return;
-            const merma = 1 + (l.merma_porcentaje || 0) / 100;
-            const cantPorProd = (l.cantidad_convertida_unidad_base || 0) * merma;
-            const totalCant = cantPorProd * (det.cantidad || 0);
-            addIng(ing.id, ing.nombre, ing.unidad_base, totalCant, ing.costo_por_unidad_base || 0);
-          });
+        const ventaIds = ventasCorte.map((v) => v.id);
+        const detalles = ventaIds.length
+          ? (
+              await Promise.all(
+                ventaIds.map((id) => api.entidades.DetalleVenta.filter({ venta_id: id })),
+              )
+            ).flat()
+          : [];
+        const gastosCorte = allGastos.filter((g) => {
+          const t = g.created_date ? new Date(g.created_date).getTime() : 0;
+          return t >= inicio && t <= cierre;
         });
-      }
-      const ingredientesConsumidos = Object.values(ingMap).sort(
-        (a, b) => b.costoTotal - a.costoTotal,
-      );
-      const alertas = allIngredientes
-        .map((i) => ({ ...i, status: getStockStatus(i) }))
-        .filter((i) => ['critico', 'agotado', 'bajo'].includes(i.status));
 
-      if (!cancelled) {
-        setData({
-          ventas: ventasCorte,
-          detalles,
-          gastos: gastosCorte,
-          ingredientes: ingredientesConsumidos,
-          cancelaciones,
-          alertas,
-        });
+        const descuentosCorte = allDescuentos.filter((d) => ventaIds.includes(d.venta_id));
+        const ingMap = {};
+        const ingPorId = Object.fromEntries(allIngredientes.map((i) => [i.id, i]));
+        const addIng = (ingId, nombre, unidad, qty, costoUnit) => {
+          if (!ingId || !qty) return;
+          if (!ingMap[ingId])
+            ingMap[ingId] = {
+              nombre,
+              unidad,
+              cantidad: 0,
+              costoUnit: costoUnit || 0,
+              costoTotal: 0,
+            };
+          ingMap[ingId].cantidad += qty;
+          ingMap[ingId].costoTotal += qty * (costoUnit || 0);
+        };
+        if (descuentosCorte.length > 0) {
+          descuentosCorte.forEach((d) =>
+            addIng(
+              d.ingrediente_id,
+              d.ingrediente_nombre,
+              d.unidad_base,
+              d.cantidad_total_descontada || 0,
+              d.costo_unitario_snapshot || 0,
+            ),
+          );
+        } else {
+          detalles.forEach((det) => {
+            const recetaLines = allRecetas.filter(
+              (r) => r.producto_id === det.producto_id && r.activo !== false,
+            );
+            recetaLines.forEach((l) => {
+              const ing = ingPorId[l.ingrediente_id];
+              if (!ing) return;
+              const merma = 1 + (l.merma_porcentaje || 0) / 100;
+              const cantPorProd = (l.cantidad_convertida_unidad_base || 0) * merma;
+              const totalCant = cantPorProd * (det.cantidad || 0);
+              addIng(
+                ing.id,
+                ing.nombre,
+                ing.unidad_base,
+                totalCant,
+                ing.costo_por_unidad_base || 0,
+              );
+            });
+          });
+        }
+        const ingredientesConsumidos = Object.values(ingMap).sort(
+          (a, b) => b.costoTotal - a.costoTotal,
+        );
+        const alertas = allIngredientes
+          .map((i) => ({ ...i, status: getStockStatus(i) }))
+          .filter((i) => ['critico', 'agotado', 'bajo'].includes(i.status));
+
+        if (!cancelled) {
+          setData({
+            ventas: ventasCorte,
+            detalles,
+            gastos: gastosCorte,
+            ingredientes: ingredientesConsumidos,
+            cancelaciones,
+            alertas,
+          });
+        }
+      } catch (err) {
+        if (cancelled) return;
+        // `setError(true)` corta el auto-disparo y deja visible el botón de
+        // descarga que este componente ya tenía como respaldo.
+        setError(true);
+        toast.error(err?.message || 'No se pudo cargar el corte para generar el PDF.');
       }
     })();
     return () => {

@@ -1,8 +1,9 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Heart, CheckCircle2, Loader2 } from 'lucide-react';
-import { api } from '@/api/cliente';
+import { nuevaClave } from '@/api/cliente';
+import { valorarVisitaQR } from '@/utils/qrPedidoFlow';
 import { toast } from 'sonner';
 
 const EMOJIS = [
@@ -15,42 +16,43 @@ const EMOJIS = [
 
 /**
  * Modal de valoración del comensal.
- * - Recibe `ventaId` real (no objeto stale). Antes de mostrar el selector,
- *   lee la venta de BD y verifica si ya tiene `satisfaccion_score`.
- *   Si ya tiene, muestra "Gracias por valorar".
- * - Comentario opcional, máx 500 chars.
- * - Guarda en Venta: satisfaccion_score, _emoji, _label, _comentario, _fecha, _origen.
- * - NO toca tickets/PDFs.
+ *
+ * ── El emoji lo pone el SERVIDOR ──────────────────────────────────────────
+ * Esta pantalla mandaba `satisfaccion_emoji` y `satisfaccion_label` desde el
+ * navegador: dos campos de texto libre que acababan en la base y de ahí en un
+ * reporte, así que cualquiera podía escribir lo que quisiera en la carita de
+ * una venta. Ahora viaja el número del 1 al 5 y la carita sale de la tabla del
+ * comando. `satisfaccion_label` no se guarda: es el mismo dato con letra.
+ *
+ * ── Qué venta se valora ───────────────────────────────────────────────────
+ * La resuelve el token: la viva de la mesa, o la que se cerró hace menos de un
+ * turno. Se acabó el `Venta.get(ventaId)` previo cuyo `.catch(() => null)`
+ * dejaba `yaValorada` en falso y permitía valorar dos veces la misma visita
+ * por un fallo de red. Insistir tampoco es un error: el comando devuelve
+ * `yaValorada` y con él la calificación que quedó escrita.
+ *
+ * Props:
+ *  - token: el código de la mesa.
+ *  - ventaId: la venta que el portal ya vio. Aquí sólo sirve de guardia; quién
+ *    se valora lo decide el servidor.
+ *  - mesa: para el título.
+ *  - yaValorada: lo que dijo la lectura pública (`cuenta.ya_valorada`).
+ *  - onClose(): cerrar.
  */
-export default function ValoracionEmoji({ ventaId, mesa, onClose }) {
+export default function ValoracionEmoji({
+  token,
+  ventaId,
+  mesa,
+  yaValorada: yaValoradaInicial,
+  onClose,
+}) {
   const [seleccion, setSeleccion] = useState(null);
   const [comentario, setComentario] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
-  const [yaValorada, setYaValorada] = useState(false);
-  const [verificando, setVerificando] = useState(true);
-
-  useEffect(() => {
-    let cancel = false;
-    (async () => {
-      if (!ventaId) {
-        setVerificando(false);
-        return;
-      }
-      try {
-        const v = await api.entidades.Venta.get(ventaId).catch(() => null);
-        if (cancel) return;
-        if (v && Number(v.satisfaccion_score) > 0) {
-          setYaValorada(true);
-        }
-      } finally {
-        if (!cancel) setVerificando(false);
-      }
-    })();
-    return () => {
-      cancel = true;
-    };
-  }, [ventaId]);
+  const [yaValorada, setYaValorada] = useState(!!yaValoradaInicial);
+  // Clave del diálogo: dos toques seguidos son la misma valoración.
+  const [clave] = useState(() => nuevaClave());
 
   const submit = async () => {
     if (enviando) return;
@@ -64,18 +66,18 @@ export default function ValoracionEmoji({ ventaId, mesa, onClose }) {
     }
     setEnviando(true);
     try {
-      await api.entidades.Venta.update(ventaId, {
-        satisfaccion_score: seleccion.score,
-        satisfaccion_emoji: seleccion.emoji,
-        satisfaccion_label: seleccion.label,
-        satisfaccion_comentario: comentario.trim(),
-        satisfaccion_fecha: new Date().toISOString(),
-        satisfaccion_origen: 'portal_qr',
+      const resultado = await valorarVisitaQR({
+        token,
+        score: seleccion.score,
+        comentario,
+        clave,
       });
-      setEnviado(true);
+      // Otro teléfono de la misma mesa pudo valorar antes: el comando devuelve
+      // LA QUE QUEDÓ, no la que este comensal mandó.
+      if (resultado?.yaValorada) setYaValorada(true);
+      else setEnviado(true);
     } catch (err) {
-      console.error('[ValoracionEmoji] submit:', err);
-      toast.error('No pudimos guardar tu valoración. Intenta de nuevo.');
+      toast.error(err?.message || 'No pudimos guardar tu valoración. Intenta de nuevo.');
     } finally {
       setEnviando(false);
     }
@@ -112,13 +114,7 @@ export default function ValoracionEmoji({ ventaId, mesa, onClose }) {
         </div>
 
         <div className="p-4 space-y-4">
-          {verificando && (
-            <div className="py-10 text-center">
-              <Loader2 className="w-7 h-7 mx-auto animate-spin text-muted-foreground" />
-            </div>
-          )}
-
-          {!verificando && yaValorada && (
+          {yaValorada && (
             <div className="rounded-xl p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <div className="text-sm">
@@ -130,7 +126,7 @@ export default function ValoracionEmoji({ ventaId, mesa, onClose }) {
             </div>
           )}
 
-          {!verificando && !yaValorada && enviado && (
+          {!yaValorada && enviado && (
             <div className="rounded-xl p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <div className="text-sm">
@@ -140,7 +136,7 @@ export default function ValoracionEmoji({ ventaId, mesa, onClose }) {
             </div>
           )}
 
-          {!verificando && !yaValorada && !enviado && (
+          {!yaValorada && !enviado && (
             <>
               <p className="text-sm text-muted-foreground">
                 Toca un emoji para valorar tu visita. Si quieres, déjanos un comentario.
@@ -189,7 +185,7 @@ export default function ValoracionEmoji({ ventaId, mesa, onClose }) {
         </div>
 
         <div className="sticky bottom-0 bg-card border-t px-4 py-3 flex gap-2">
-          {!verificando && (yaValorada || enviado) ? (
+          {yaValorada || enviado ? (
             <button
               type="button"
               onClick={onClose}

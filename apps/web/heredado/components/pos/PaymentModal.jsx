@@ -64,6 +64,12 @@ export default function PaymentModal({
       monto_tarjeta: method === 'tarjeta' ? totalACobrar : 0,
       monto_transferencia: method === 'transferencia' ? totalACobrar : 0,
       cambio: method === 'efectivo' ? cambio : 0,
+      // El BILLETE que puso el cliente, tal cual se tecleó. Va al comando para
+      // que el CAMBIO lo calcule el servidor: es él quien comprueba que alcance
+      // para la venta y para la propina, y quien lo escribe en el ticket. El
+      // `cambio` de arriba se queda porque es lo que este diálogo ya enseñaba
+      // en pantalla mientras se teclea.
+      monto_recibido: method === 'efectivo' ? parseFloat(montoRecibido) || 0 : 0,
     });
   };
 

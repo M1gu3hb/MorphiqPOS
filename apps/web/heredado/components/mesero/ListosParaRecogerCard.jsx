@@ -20,7 +20,8 @@ import { entregarPedidosListosDeMesa } from '@/utils/entregaPedidos';
  *  - tickets / PDFs
  *  - finanzas
  *
- * Solo actualiza PedidoPreparacion → 'entregado' y opcionalmente Mesa → 'ocupada'.
+ * Solo mueve comandas a 'entregado'. El estado al que queda la mesa lo decide y
+ * lo escribe el servidor en la misma transacción; esta pantalla ya no lo elige.
  *
  * Si no hay pedidos listos, NO se renderiza (devuelve null).
  */
@@ -36,12 +37,12 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
     queryKey: ['pedidos_listos_mesero', ventaId || 'none'],
     queryFn: async () => {
       if (!ventaId) return [];
-      try {
-        const arr = await api.entidades.PedidoPreparacion.filter({ venta_id: ventaId });
-        return Array.isArray(arr) ? arr : [];
-      } catch {
-        return [];
-      }
+      // Sin `catch { return [] }`: ese relleno convertía «no pude leer» en «no
+      // hay nada listo» y react-query daba la consulta por buena, así que ni
+      // reintentaba ni marcaba error. Ahora el fallo se propaga y la consulta
+      // reintenta sola.
+      const arr = await api.entidades.PedidoPreparacion.filter({ venta_id: ventaId });
+      return Array.isArray(arr) ? arr : [];
     },
     enabled: !!ventaId,
     refetchInterval: 1500,
@@ -209,7 +210,9 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
       }
     } catch (e) {
       console.error('[ListosParaRecogerCard] handleEntregar:', e);
-      toast.error('No se pudo entregar el pedido. Intenta de nuevo.');
+      // El comando ya traduce: «ese pedido está en "en preparación" y no puede
+      // pasar a "entregado"» dice qué ocurrió; el genérico no.
+      toast.error(e?.message || 'No se pudo entregar el pedido. Intenta de nuevo.');
       // Restaurar query si falló.
       refrescarTodo();
     } finally {
@@ -233,6 +236,10 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
         mesaId: mesa?.id,
         ventaId,
         pedidoIds: grupo.pedidoIds,
+        // `transicionar_pedido` mueve una comanda y no devuelve el nombre de su
+        // estación; el card ya lo tiene y lo pasa para que el toast diga
+        // «Entregado: Barra.» igual que antes.
+        estaciones: [grupo.nombre],
       });
       if (res.ok) {
         toast.success(res.mensaje || `Entregado: ${grupo.nombre}`);
@@ -249,7 +256,7 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
       }
     } catch (e) {
       console.error('[ListosParaRecogerCard] handleEntregarGrupo:', e);
-      toast.error('No se pudo entregar. Intenta de nuevo.');
+      toast.error(e?.message || 'No se pudo entregar. Intenta de nuevo.');
       refrescarTodo();
     } finally {
       setEntregando(false);

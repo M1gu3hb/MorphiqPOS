@@ -471,3 +471,86 @@ export async function borrarCorteCerrado(
 
   return Number(resultado.numDeletedRows);
 }
+
+// ─────────────────────────────────────────────────── cortes de turno (E8-3)
+
+/**
+ * Dónde empieza el turno que se está cortando.
+ *
+ * Donde acabó el corte de turno anterior, y sólo si no hay ninguno, en la
+ * apertura de la caja. Sin esto, dos cortes seguidos contarían las mismas
+ * ventas las dos veces y el segundo diría que entró el doble.
+ */
+export async function inicioDelTurno(
+  db: Kysely<Esquema> | Transaccion,
+  organizacionId: string,
+  sesionCajaId: string,
+  abiertaEn: Date,
+): Promise<Date> {
+  const ultimo = await db
+    .selectFrom('cortes_turno')
+    .select(['cortado_en as cortadoEn'])
+    .where('organizacion_id', '=', organizacionId)
+    .where('sesion_caja_id', '=', sesionCajaId)
+    .orderBy('cortado_en', 'desc')
+    .limit(1)
+    .executeTakeFirst();
+
+  return ultimo?.cortadoEn ?? abiertaEn;
+}
+
+export interface CorteDeTurnoRegistrado {
+  readonly id: string;
+  readonly serie: string;
+  readonly folio: bigint;
+}
+
+/**
+ * Escribe el arqueo parcial. NO toca `sesiones_caja`.
+ *
+ * El folio sale de `tomarFolio` con serie propia, `CT`, y no de la de la caja:
+ * son dos numeraciones distintas y compartirlas dejaría huecos en las dos.
+ * `Caja.jsx:916` lo generaba en el navegador con `generateFolio('CT')`, así que
+ * dos terminales cortando turno a la vez producían el mismo número.
+ */
+export async function registrarCorteDeTurno(
+  tx: Transaccion,
+  datos: {
+    readonly organizacionId: string;
+    readonly sesionCajaId: string;
+    readonly sucursalId: string;
+    readonly empleadoId: string;
+    readonly rangoInicio: Date;
+    readonly efectivoContadoCentavos: bigint;
+    readonly notas: string | null;
+    readonly ahora: Date;
+  },
+): Promise<CorteDeTurnoRegistrado> {
+  const { serie, folio } = await tomarFolio(
+    tx,
+    datos.organizacionId,
+    datos.sucursalId,
+    SERIE_CORTE_TURNO,
+  );
+
+  const fila = await tx
+    .insertInto('cortes_turno')
+    .values({
+      organizacion_id: datos.organizacionId,
+      sesion_caja_id: datos.sesionCajaId,
+      serie,
+      folio,
+      rango_inicio: datos.rangoInicio,
+      cortado_en: datos.ahora,
+      empleado_id: datos.empleadoId,
+      efectivo_contado_centavos: datos.efectivoContadoCentavos,
+      notas: datos.notas,
+    })
+    .returning(['id'])
+    .executeTakeFirstOrThrow();
+
+  return { id: fila.id, serie, folio };
+}
+
+/** La serie de los cortes de turno, distinta de la de la caja (`CC`). */
+const SERIE_CORTE_TURNO = 'CT';
