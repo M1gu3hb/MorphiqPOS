@@ -124,6 +124,64 @@ describe('hallazgo 3 · la propina se calcula sobre lo que se consumió, no sobr
     expect(solicitud['propina_sugerida_bp']).toBe(1500);
   });
 
+  it('la propina escrita a mano se guarda EXACTA, no reconstruida', async () => {
+    // El campo de importe manual estuvo fuera del esquema y la pantalla acababa
+    // siempre en un error rojo: el comensal escribía 50 y no podía pedir la
+    // cuenta. Lo que se guarda es lo que escribió, al centavo.
+    const { ctx, base } = montar();
+
+    const salida = await pedirCuentaQR.ejecutar(
+      ctx,
+      pedirCuentaQR.entrada.parse({ propinaTipo: 'monto_manual', propinaSugeridaCentavos: 5_000 }),
+    );
+
+    expect(salida.propinaCentavos).toBe('5000');
+    expect(salida.propinaTipo).toBe('monto_manual');
+    const solicitud = valoresDe(base.escrituraEn('solicitudes_qr'));
+    expect(solicitud['propina_sugerida_centavos']).toBe(5_000n);
+    // 5000 sobre 103000 son 485 puntos base, redondeados hacia abajo.
+    expect(solicitud['propina_sugerida_bp']).toBe(485);
+  });
+
+  it('una propina MAYOR que la cuenta no revienta: los puntos se recortan al 100 %', async () => {
+    // `ordenes.propina_puntos_base` y `solicitudes_qr.propina_sugerida_bp`
+    // llevan `check (… between 0 and 10000)`. Sin el recorte, $2000 sobre una
+    // cuenta de $1030 dan 19417 puntos y el `insert` aborta con 23514: la
+    // petición entera se cae y el comensal no puede pedir la cuenta. Un
+    // porcentaje inexacto es preferible a una pantalla que no funciona.
+    const { ctx, base } = montar();
+
+    const salida = await pedirCuentaQR.ejecutar(
+      ctx,
+      pedirCuentaQR.entrada.parse({
+        propinaTipo: 'monto_manual',
+        propinaSugeridaCentavos: 200_000,
+      }),
+    );
+
+    // El IMPORTE se conserva entero: es lo que la caja lee.
+    expect(salida.propinaCentavos).toBe('200000');
+    const solicitud = valoresDe(base.escrituraEn('solicitudes_qr'));
+    expect(solicitud['propina_sugerida_centavos']).toBe(200_000n);
+    // Y los puntos, recortados al tope que la base admite.
+    expect(solicitud['propina_sugerida_bp']).toBe(10_000);
+    expect(valoresDe(base.escrituraEn('ordenes'))['propina_puntos_base']).toBe(10_000);
+  });
+
+  it('el importe manual SÓLO viaja con `monto_manual`', () => {
+    // Pedir una cosa y mandar otra no se ignora en silencio: si llega un
+    // importe con un tipo que no lo usa, la petición se rechaza.
+    expect(
+      pedirCuentaQR.entrada.safeParse({ propinaTipo: 'monto_manual' }).success,
+      'monto_manual sin importe',
+    ).toBe(false);
+    expect(
+      pedirCuentaQR.entrada.safeParse({ propinaTipo: 'porcentaje', propinaPorcentaje: 10, propinaSugeridaCentavos: 5000 })
+        .success,
+      'importe con porcentaje',
+    ).toBe(false);
+  });
+
   it('sin propina no se calcula ninguna, y el total sigue siendo el cotizado', async () => {
     const { ctx, base } = montar();
 

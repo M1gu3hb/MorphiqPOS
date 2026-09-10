@@ -130,7 +130,17 @@ const ORIGENES_DE_PROPINA = ['mesero', 'caja', 'tradicional', 'portal_qr', 'pend
 function propinaDerivada(venta) {
   const yaElegida = Number(venta?.propina_monto);
   if (Number.isFinite(yaElegida) && yaElegida > 0) return yaElegida;
-  if (venta?.propina_tipo !== 'porcentaje') return 0;
+  // `monto_manual` entra con `porcentaje`, y hasta ahora no entraba: quedaba
+  // fuera del `if` y la función devolvía CERO, así que una propina que el
+  // comensal escribió a mano en el portal QR no se cobraba nunca. El servidor
+  // guarda los dos —el importe exacto en la solicitud y su equivalente en
+  // puntos base en la orden—, y esto reconstruye el segundo.
+  //
+  // El importe reconstruido puede diferir en UN CENTAVO del que tecleó el
+  // comensal, porque los puntos base son enteros y se recortan al 100 %. Por
+  // eso `monto_manual` fuerza el diálogo de propina más abajo: el cajero VE la
+  // cifra y la confirma antes de cobrar, en vez de que el sistema decida solo.
+  if (venta?.propina_tipo !== 'porcentaje' && venta?.propina_tipo !== 'monto_manual') return 0;
   const porcentaje = Number(venta?.propina_porcentaje) || 0;
   if (porcentaje <= 0) return 0;
   return aPesos(Math.round((aCentavos(venta?.total) * porcentaje) / 100));
@@ -556,8 +566,19 @@ export default function Caja() {
     // Si la venta quedó marcada "decidir en caja" y aún no se eligió propina, forzar el modal.
     // Solo si propinas están activas; si están desactivadas, ignoramos el pendiente.
     // Se aplica a: 'pendiente' (mesero), 'pendiente_cliente' (QR sin elección),
-    // y 'decidir_en_caja' (cliente delegó explícitamente en caja).
-    const tiposQueForzanModal = ['pendiente', 'pendiente_cliente', 'decidir_en_caja'];
+    // 'decidir_en_caja' (cliente delegó explícitamente en caja) y 'monto_manual'.
+    //
+    // `monto_manual` se añadió porque el importe que se reconstruye de los
+    // puntos base puede diferir en un centavo del que el comensal escribió: el
+    // cajero lo ve prellenado y lo confirma, que es exactamente lo que este
+    // diálogo existe para hacer. Antes ese caso ni forzaba el diálogo ni se
+    // derivaba, así que la propina del portal se perdía entera.
+    const tiposQueForzanModal = [
+      'pendiente',
+      'pendiente_cliente',
+      'decidir_en_caja',
+      'monto_manual',
+    ];
     if (tiposQueForzanModal.includes(ventaSeleccionada.propina_tipo) && tipsEnabled(config)) {
       setShowPropinaCaja(true);
       toast.error('Define la propina antes de cobrar (o "Sin propina").');

@@ -534,3 +534,79 @@ describe('la lista blanca del portal QR cierra la fuga D-14', () => {
     }
   });
 });
+
+describe('la regla 12 se cumple en el PUENTE, no en la pantalla', () => {
+  /**
+   * «Cocina nunca ve costos, márgenes ni gramajes» (`F1-01` §3, regla 12).
+   *
+   * Estaba aplicada donde no se puede hacer cumplir: Cocina no los PINTA. Pero
+   * el puente de lectura los servía a cualquiera con sesión, así que un mesero
+   * los pedía desde la consola del navegador con una sola petición. Ahora cada
+   * campo de dinero declara quién puede leerlo, y el que no puede ni siquiera
+   * lo ve seleccionado.
+   */
+  /** Un campo puede ser columna, derivado de un `join`, o fórmula. */
+  const rolesDeclarados = (
+    mapa: ReturnType<typeof entidadMapeada>,
+    campo: string,
+  ): readonly string[] | undefined =>
+    mapa?.campos?.[campo]?.rolesLectura ??
+    mapa?.derivados?.[campo]?.rolesLectura ??
+    mapa?.calculados?.[campo]?.rolesLectura;
+
+  const DE_DINERO: Readonly<Record<string, readonly string[]>> = {
+    ProductoTerminado: ['costo_calculado_actual', 'utilidad_bruta_actual', 'margen_bruto_actual'],
+    Venta: ['costo_total_snapshot', 'utilidad_bruta_snapshot', 'margen_snapshot'],
+    DetalleVenta: ['costo_unitario_snapshot', 'utilidad'],
+    Ingrediente: ['costo_por_unidad_base', 'costo_compra_default', 'valor_inventario'],
+    RecetaEscandallo: ['costo_unitario_base_snapshot', 'costo_linea_calculado'],
+    MovimientoInventario: ['costo_unitario_en_momento'],
+    DetalleCompra: ['costo_total'],
+  };
+
+  it('TODO campo de costo, utilidad o margen declara quién puede leerlo', () => {
+    // Sin esta prueba, añadir mañana `costo_promedio` al mapa lo dejaría
+    // abierto a la plantilla entera sin que nada avisara.
+    const abiertos: string[] = [];
+    for (const [entidad, campos] of Object.entries(DE_DINERO)) {
+      const mapa = entidadMapeada(entidad);
+      expect(mapa, `«${entidad}» no está en el mapa`).not.toBeNull();
+      for (const campo of campos) {
+        // Los tres sitios donde puede vivir un campo: columna propia, valor
+        // traído de un `join`, o fórmula. Mirar sólo dos daba por «abierto» lo
+        // que sí estaba declarado, que es cómo una prueba se vuelve ruido.
+        const declarado = rolesDeclarados(mapa, campo);
+        if (declarado === undefined) abiertos.push(`${entidad}.${campo}`);
+      }
+    }
+    expect(abiertos, `estos campos de dinero los lee cualquiera: ${abiertos.join(', ')}`).toEqual(
+      [],
+    );
+  });
+
+  it('ni cocina ni mesero están en ninguna de esas listas', () => {
+    for (const [entidad, campos] of Object.entries(DE_DINERO)) {
+      const mapa = entidadMapeada(entidad);
+      for (const campo of campos) {
+        const roles = rolesDeclarados(mapa, campo);
+        expect(roles, `${entidad}.${campo}`).toBeDefined();
+        expect(roles, `${entidad}.${campo} · cocina`).not.toContain('cocina');
+        expect(roles, `${entidad}.${campo} · mesero`).not.toContain('mesero');
+        expect(roles, `${entidad}.${campo} · cajero`).not.toContain('cajero');
+        // Y el dueño SÍ, en todas: una restricción que dejara fuera a quien
+        // manda no sería una restricción, sería un fallo.
+        expect(roles, `${entidad}.${campo} · dueno`).toContain('dueno');
+      }
+    }
+  });
+
+  it('lo que el mesero SÍ necesita sigue abierto', () => {
+    // El contraste. Una restricción demasiado ancha deja su pantalla en blanco,
+    // y eso se nota tarde: el nombre y el precio del producto son justo lo que
+    // hace falta para tomar una comanda.
+    const producto = entidadMapeada('ProductoTerminado');
+    for (const campo of ['nombre', 'precio_venta', 'categoria_id', 'activo']) {
+      expect(rolesDeclarados(producto, campo), `ProductoTerminado.${campo}`).toBeUndefined();
+    }
+  });
+});

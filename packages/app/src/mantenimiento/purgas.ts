@@ -47,6 +47,12 @@ export type Conteos = Readonly<Record<string, number>>;
 const SIN_ORGANIZACION_PROPIA: Readonly<Record<string, (org: string) => RawBuilder<unknown>>> = {
   orden_linea_modificadores: (org) =>
     sql`orden_linea_id in (select id from orden_lineas where organizacion_id = ${org})`,
+  // `modificador_opciones` cuelga de su modificador, igual. Estaba en
+  // `TABLAS_DEL_CATALOGO` y no en `TABLAS_POR_SECCION`, así que el contrato
+  // —que sólo miraba las secciones— la dejaba pasar y `reiniciar_todo` seguía
+  // muriendo con «column "organizacion_id" does not exist».
+  modificador_opciones: (org) =>
+    sql`modificador_id in (select id from modificadores where organizacion_id = ${org})`,
 };
 
 /** El `where` que acota esta tabla a esta organización, venga de donde venga. */

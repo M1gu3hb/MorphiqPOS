@@ -43,6 +43,26 @@ export interface CampoMapeado {
   readonly columna: string;
   readonly conversion: Conversion;
   /**
+   * Quién puede LEER este campo. `undefined` = cualquiera con sesión.
+   *
+   * ── Por qué por CAMPO y no por entidad ─────────────────────────────────
+   * `rolesLectura` a nivel de entidad ya existía y no lo usaba nadie: era
+   * demasiado grueso. Un mesero TIENE que leer `ProductoTerminado` —necesita
+   * el nombre y el precio para tomar la comanda— pero no tiene por qué leer su
+   * costo, su utilidad ni su margen. Cerrar la entidad entera dejaría la
+   * pantalla de mesero en blanco; dejarla abierta reparte los márgenes del
+   * negocio a toda la plantilla.
+   *
+   * Es la regla 12 —«Cocina nunca ve costos, márgenes ni gramajes»— aplicada
+   * donde se puede hacer cumplir: en el puente, y no en el `if` de una pantalla
+   * que se salta abriendo la consola.
+   *
+   * El campo restringido NO SE SELECCIONA de la base para quien no puede
+   * verlo, así que ni siquiera viaja: filtrarlo después dejaría el dato en el
+   * registro de la consulta y en la memoria del servidor sin necesidad.
+   */
+  readonly rolesLectura?: readonly string[];
+  /**
    * Traducción de VALORES, no de nombres. `base → suyo`.
    *
    * Traducir el nombre del campo no basta cuando el enumerado también cambió.
@@ -94,6 +114,8 @@ export interface CampoMapeado {
  * Un derivado NUNCA se escribe: no tiene columna propia donde guardarlo.
  */
 export interface CampoDerivado {
+  /** Igual que en `CampoMapeado`: quién puede leerlo. `undefined` = cualquiera. */
+  readonly rolesLectura?: readonly string[];
   /** Tabla o vista de la que se lee. */
   readonly tabla: string;
   /** La columna de ESTA entidad que apunta allí. */
@@ -126,6 +148,8 @@ export interface CampoDerivado {
 export type Calculo = 'costoDeLineaDeReceta';
 
 export interface CampoCalculado {
+  /** Igual que en `CampoMapeado`: quién puede leerlo. `undefined` = cualquiera. */
+  readonly rolesLectura?: readonly string[];
   readonly formula: Calculo;
   readonly conversion: Conversion;
 }

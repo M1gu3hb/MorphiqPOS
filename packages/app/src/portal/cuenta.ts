@@ -222,7 +222,22 @@ function calcularPropina(
     if (pedidos === CERO) {
       return { subtotalCentavos: subtotal, propinaCentavos: CERO, propinaBp: 0, propinaTipo: 'sin_propina' };
     }
-    const base = subtotal === CERO ? 0 : Number((pedidos * 10_000n) / subtotal);
+    /**
+     * Los puntos base se RECORTAN al 100 %. El importe, no.
+     *
+     * `ordenes.propina_puntos_base` y `solicitudes_qr.propina_sugerida_bp`
+     * llevan `check (… between 0 and 10000)` (045 §32 y §425). Un comensal que
+     * deja más propina que la cuenta —$500 sobre un café de $50— produce 100 000
+     * puntos y el `insert` aborta con 23514: la petición entera se cae y el
+     * comensal no puede pedir la cuenta. Eso es peor que un porcentaje inexacto.
+     *
+     * Lo que se guarda EXACTO es `propina_sugerida_centavos`, que no tiene tope
+     * y es lo que la caja lee. Los puntos base son para los reportes que agrupan
+     * por porcentaje, y ahí «100 % o más» es la respuesta correcta de todos
+     * modos. Cuando difieren, manda el importe.
+     */
+    const crudos = subtotal === CERO ? 0 : Number((pedidos * 10_000n) / subtotal);
+    const base = Math.min(10_000, Math.max(0, crudos));
     return {
       subtotalCentavos: subtotal,
       propinaCentavos: pedidos,

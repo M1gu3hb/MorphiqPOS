@@ -121,16 +121,24 @@ export async function consultar(
     throw new ErrorDominio('PUENTE_SIN_PERMISO', 'Tu rol no puede leer esa información.');
   }
 
+  /** Si este rol puede ver el campo. Sin `rolesLectura`, cualquiera con sesión. */
+  const puedeVer = (campo: { readonly rolesLectura?: readonly string[] }): boolean =>
+    campo.rolesLectura === undefined || campo.rolesLectura.includes(ambito.rol);
+
   const columnas = Object.entries(mapa.campos)
     // Un campo CONSTANTE no tiene columna que seleccionar: lo pone la
     // traducción de la fila.
     .filter(([, campo]) => campo.constante === undefined)
+    // Y un campo que este rol no puede ver NI SIQUIERA SE SELECCIONA: quitarlo
+    // después dejaría el costo del producto en el registro de la consulta y en
+    // la memoria del servidor sin ninguna necesidad.
+    .filter(([, campo]) => puedeVer(campo))
     .map(([suyo, campo]) => `${BASE}.${campo.columna} as ${suyo}`);
 
   // Los campos que su frontend lee y no son columnas de esta tabla: el nombre
   // del mesero, el número de la mesa, la zona. Un `left join` por campo, y
   // `left` a propósito: un pedido sin mesa es normal y no debe desaparecer.
-  const derivados = Object.entries(mapa.derivados ?? {});
+  const derivados = Object.entries(mapa.derivados ?? {}).filter(([, d]) => puedeVer(d));
   derivados.forEach(([suyo, derivado], indice) => {
     columnas.push(`${aliasDerivado(indice)}.${derivado.columna} as ${suyo}`);
   });
@@ -272,7 +280,7 @@ export async function consultar(
   consulta = consulta.limit(peticion.operacion === 'get' ? 1 : limite);
 
   const filas = await consulta.execute();
-  const traducidas = filas.map((fila) => traducirFila(fila, mapa));
+  const traducidas = filas.map((fila) => traducirFila(fila, mapa, ambito.rol));
 
   // 7 · Los hijos. UNA consulta por relación para TODA la página, no una por
   //     padre: dentro de una pantalla de cocina que refresca cada pocos
@@ -318,7 +326,15 @@ async function adjuntarHijos(
   }
 }
 
-function traducirFila(fila: Fila, mapa: MapaEntidad): Fila {
+/**
+ * `rol` decide qué campos calculados salen.
+ *
+ * Los `calculados` no vienen de una columna: se derivan de la fila cruda, así
+ * que filtrarlos en el `select` no basta. `costoDeLineaDeReceta` es el ejemplo:
+ * quien no puede ver el costo del insumo tampoco puede ver el de la línea, o el
+ * filtro de arriba sería teatro.
+ */
+function traducirFila(fila: Fila, mapa: MapaEntidad, rol: string): Fila {
   const salida: Fila = {};
   for (const [suyo, campo] of Object.entries(mapa.campos)) {
     salida[suyo] = valorHaciaEl(fila[suyo], campo);
@@ -339,6 +355,7 @@ function traducirFila(fila: Fila, mapa: MapaEntidad): Fila {
     salida[suyo] = typeof id === 'string' && id !== '' ? colorDePersona(id) : null;
   }
   for (const [suyo, calculado] of Object.entries(mapa.calculados ?? {})) {
+    if (calculado.rolesLectura !== undefined && !calculado.rolesLectura.includes(rol)) continue;
     salida[suyo] = calcular(calculado.formula, fila);
   }
   return salida;

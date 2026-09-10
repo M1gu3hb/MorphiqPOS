@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { TABLAS_POR_SECCION } from './purgas.ts';
+import { TABLAS_DEL_CATALOGO, TABLAS_POR_SECCION } from './purgas.ts';
 
 /**
  * TODA tabla que una purga toca tiene que saber acotarse a UNA organización.
@@ -69,13 +69,28 @@ const POR_PADRE = new Set(
   ].map((m) => m[1] ?? ''),
 );
 
-const TODAS = [...new Set(Object.values(TABLAS_POR_SECCION).flat())].sort();
+/**
+ * TODAS las tablas que una purga toca, no sólo las de las secciones.
+ *
+ * La primera versión de este contrato miraba únicamente `TABLAS_POR_SECCION` y
+ * dejaba fuera `TABLAS_DEL_CATALOGO`, que es lo que borra `reiniciar_todo`. Ahí
+ * dentro estaba `modificador_opciones`, que tampoco tiene `organizacion_id`, así
+ * que el contrato pasaba en verde con el mismo defecto que decía vigilar — una
+ * tabla más allá de donde miraba.
+ */
+const TODAS = [
+  ...new Set([...Object.values(TABLAS_POR_SECCION).flat(), ...TABLAS_DEL_CATALOGO]),
+].sort();
 
 describe('las purgas saben acotar TODAS sus tablas a una organización', () => {
   it('el esquema se pudo leer: si no, el contrato pasaría vacío', () => {
     expect(COLUMNAS.size).toBeGreaterThan(20);
     expect(COLUMNAS.get('ordenes')).toContain('organizacion_id');
     expect(TODAS.length).toBeGreaterThanOrEqual(13);
+    // Y que las dos listas estén de verdad dentro: si una desapareciera del
+    // `import`, el contrato seguiría en verde vigilando la mitad.
+    expect(TODAS).toContain('ordenes');
+    expect(TODAS).toContain('modificador_opciones');
   });
 
   it('la lista de acotadas por su padre no está vacía, y se leyó del código', () => {
@@ -83,6 +98,7 @@ describe('las purgas saben acotar TODAS sus tablas a una organización', () => {
     // organizacion_id o está declarada», y una tabla sin ninguna de las dos
     // colaría igual que la primera vez.
     expect(POR_PADRE.has('orden_linea_modificadores')).toBe(true);
+    expect(POR_PADRE.has('modificador_opciones')).toBe(true);
   });
 
   for (const tabla of TODAS) {
