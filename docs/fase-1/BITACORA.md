@@ -1,5 +1,112 @@
 # Bitácora de ejecución — Fase 1
 
+## Resurrección · E5 a E9 · 2026-09-10 · Sus pantallas escriben, y la puerta que faltaba
+
+- **Qué se hizo:** las 36 pantallas de `apps/web/heredado/` pasaron de leer a
+  ESCRIBIR por comando. Cero escrituras bloqueadas: las que quedan son campos
+  que el puente sí acepta. Se construyeron los siete comandos que faltaban y se
+  añadió la puerta que vigila que su interfaz no cambie.
+- **Se abre y se ve.** El circuito entero, en el navegador y contra Postgres:
+  abrir la mesa 3 con «Familia Ramírez» y «Alergia al cacahuate» → añadir
+  arrachera y dos cervezas → «Enviar a Cocina» → la comanda aparece en Cocina
+  **con el banner rojo de la alergia** → «Preparar» la mueve de columna →
+  precuenta impresa con su formato y código M03‑7840 → cobro mixto → folio A‑3.
+
+### La puerta que faltaba, y por qué es lo primero
+
+Las dos puertas del repositorio son **CIEGAS** a `apps/web/heredado/`:
+`tsconfig.base.json:45` fija `checkJs: false`, así que `tsc` no analiza ni un
+`.jsx`; y el `include` de vitest sólo alcanza `.test.ts` bajo `packages` y bajo
+el `src` de cada `apps`. Cinco agentes las presentaron como prueba de su trabajo
+y las dos salieron en verde sobre una tanda que había borrado tarjetas enteras
+de su interfaz.
+
+`scripts/verificar-aspecto.mjs` compara los «testigos de aspecto» de cada archivo
+tocado contra la referencia: cada clase de CSS —también las de dentro de `cn()`
+y de los ternarios—, el texto de los nodos JSX, los iconos, los atributos
+visibles y el texto de los avisos. Separa dos severidades: la ESTRUCTURA tumba
+la puerta; los AVISOS se listan siempre y sólo tumban con `--estricto`, porque
+el encargo pide expresamente que el error del navegador ceda el sitio al mensaje
+del dominio. Las excepciones viven en `aspecto-permitido.json` con un `porque`
+OBLIGATORIO. Va en `pnpm verify`.
+
+Medido con ella: **37 archivos tocados, tres excepciones escritas, cero cambios
+de estructura.** Lo que los revisores marcaron como destrucción de interfaz era,
+en su mayoría, texto de avisos de error; la destrucción real estaba en tres
+archivos del portal y está deshecha.
+
+### Los siete comandos que no existían
+
+`restaurante.atender_solicitud`, `restaurante.limpiar_solicitudes`,
+`restaurante.vaciar_solicitudes`, `restaurante.asignar_mesero`,
+`inventario.eliminar_receta`, `caja.eliminar_corte` y `caja.corte_turno`.
+
+Sin ellos, doce pantallas suyas no tenían a dónde llamar. El botón «Corte de
+turno» es el ejemplo completo del defecto que este proyecto persigue: hacía
+`CorteCaja.create` con el folio inventado en el navegador, la atribución en el
+cuerpo y los cuatro totales sumados en la pantalla — sobre una entidad que el
+puente rechaza, así que fallaba SIEMPRE.
+
+### Ninguna caja se podía cerrar
+
+`cerrarSesion` ponía `estado = 'cerrada'` y dejaba el folio en nulo, contra el
+`check caja_cerrada_con_folio` que añadió mi propia migración 045. El cajero
+veía «Algo falló de nuestro lado» y nada más.
+
+Es el SEGUNDO de la misma familia —el primero fue el `cerrada_en` que faltaba en
+`marcarPagada` y abortaba todos los cobros— y las 805 pruebas seguían en verde
+con la caja incerrable, porque los dobles en memoria no modelan `check`.
+
+Por eso el contrato nuevo no es el del fallo de hoy:
+`estados-con-columna.contrato.test.ts` **lee los `check` de las migraciones** y
+deriva la regla de ahí, así que el tercero ya está vigilado sin tocarlo.
+
+### La venta de mostrador no llegaba a la cocina
+
+Al retirar el bucle de `POS.jsx:462` —con su `.catch(() => {})`— no quedó NADA
+que mandara el mostrador a la plancha: peor que el defecto original, que al
+menos funcionaba a veces. `venta.cobrar` emite ahora las comandas de las líneas
+que todavía no tienen `comanda_items`, dentro de la transacción del cobro. En
+una mesa no hace nada; un plato añadido después sí sale, porque el filtro es por
+LÍNEA y no por orden.
+
+### Las reglas de negocio, comprobadas contra la base
+
+Cobro mixto de $439.00 con propina de $50 en efectivo y $30 en tarjeta:
+
+| Regla | Lo que dice la base |
+|---|---|
+| `Venta.total` **sin** propina | `total_centavos` = 43 900; los $80 viven en `pagos` |
+| Propina **exacta** por método | efectivo 5 000 · tarjeta 3 000, no el reparto proporcional (5 467/2 533) |
+| Propina fuera de costo, utilidad y margen | 43 900 − 14 840 = 29 060, margen 66,19 % |
+| Inventario **sólo** al cobrar | −280 g arrachera, −150 g frijol, −150 g arroz, −4 tortillas, −2 cervezas |
+| Cocina no ve costos ni márgenes | su ficha lleva producto, cantidad, notas y la alergia |
+
+### Decisiones tomadas sin preguntar, en este bloque
+
+1. **`limpiar_solicitudes` se partió en dos comandos.** Declaraba a mesero,
+   cajero y gerente y estrechaba `alcance: 'todas'` dentro del cuerpo.
+   Funcionaba y quedaba auditado, pero el contrato que publica
+   `pnpm docs:comandos` —y el que F1.5 sembrará en `permisos_rol`— decía que un
+   mesero podía vaciar el historial del negocio. Un permiso que sólo existe
+   dentro de una función no es un permiso declarado.
+2. **La propina escrita a mano SÍ viaja al portal público.** El campo seguía en
+   pantalla y siempre acababa en un error rojo porque se buscó la columna en
+   `ordenes` y vive en `solicitudes_qr`. Roza el «el endpoint no acepta importes
+   del cliente», y por eso va dicho: esa regla protege lo que se COBRA, y aquí
+   no se cobra nada —`Venta.total` no incluye propina y el importe real lo
+   teclea la caja—. Es criterio mío y se puede revocar.
+3. **Los modificadores del comensal se pliegan en la nota.** Se perdían en
+   silencio: el comensal veía «sin cebolla» en su carrito y a la cocina le
+   llegaba el plato con cebolla. No afectan precio ni inventario —lo dice su
+   propio archivo— y `comanda_items.notas` es justo lo que el cocinero lee.
+4. **`guardar_receta` acepta la lista vacía.** Estuvo en `.min(1)` y eso le
+   quitó una función: el único camino para dejar un producto sin escandallo era
+   «Eliminar receta», que además lo archiva.
+5. **`pages/Barra.jsx` se cableó pero sigue sin ruta.** Nadie la importa y su
+   propio `constants.js` dice que «Barra deja de ser rol principal». Se cableó
+   para no dejar en el árbol un archivo con una escritura que el puente rechaza.
+
 ## Resurrección · E3 cerrada, E4 y E10-4 · 2026-09-09 · Las 27 entidades, y el peor defecto cerrado
 
 - **Qué se hizo:** se aplicaron las cuatro migraciones que le faltaban al

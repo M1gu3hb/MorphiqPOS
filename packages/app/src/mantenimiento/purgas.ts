@@ -1,7 +1,7 @@
 import 'server-only';
 
 import type { Transaccion } from '@morphiqpos/data';
-import { sql } from 'kysely';
+import { sql, type RawBuilder } from 'kysely';
 
 /**
  * Lo que borra cada sección, y en qué orden (F1-07 §2.2).
@@ -26,9 +26,40 @@ export type Seccion = (typeof SECCIONES)[number];
 /** Cuántas filas se borraron, por tabla. Va a la auditoría y a la respuesta. */
 export type Conteos = Readonly<Record<string, number>>;
 
+/**
+ * Cómo se acota cada tabla a UNA organización.
+ *
+ * Casi todas llevan `organizacion_id` y se acotan solas. Las que no, cuelgan de
+ * un padre que sí la lleva, y hay que llegar por ahí.
+ *
+ * ── El defecto que esto cierra ─────────────────────────────────────────────
+ * `orden_linea_modificadores` NO tiene `organizacion_id` —cuelga de
+ * `orden_lineas`— y estaba en la lista de la sección `ventas` como una más. La
+ * consulta salía con «column "organizacion_id" does not exist» y tumbaba la
+ * transacción entera, así que las CINCO purgas fallaban: `purgar_ventas`,
+ * `reiniciar_pruebas` y `reiniciar_todo` incluidas.
+ *
+ * No lo vio nadie porque las pruebas usan una base falsa que no valida columnas
+ * y porque la verificación en vivo sólo había ejercitado los RECHAZOS —falta de
+ * confirmación, rol equivocado, límite de peticiones—, nunca una purga que
+ * llegara a ejecutarse.
+ */
+const SIN_ORGANIZACION_PROPIA: Readonly<Record<string, (org: string) => RawBuilder<unknown>>> = {
+  orden_linea_modificadores: (org) =>
+    sql`orden_linea_id in (select id from orden_lineas where organizacion_id = ${org})`,
+};
+
+/** El `where` que acota esta tabla a esta organización, venga de donde venga. */
+function condicion(tabla: string, organizacionId: string): RawBuilder<unknown> {
+  const porPadre = SIN_ORGANIZACION_PROPIA[tabla];
+  return porPadre === undefined
+    ? sql`organizacion_id = ${organizacionId}`
+    : porPadre(organizacionId);
+}
+
 async function borrar(tx: Transaccion, tabla: string, organizacionId: string): Promise<number> {
   const resultado = await sql<{ id: string }>`
-    delete from ${sql.table(tabla)} where organizacion_id = ${organizacionId} returning id
+    delete from ${sql.table(tabla)} where ${condicion(tabla, organizacionId)} returning id
   `.execute(tx);
   return resultado.rows.length;
 }
@@ -49,7 +80,7 @@ export async function contar(
   const conteos: Record<string, number> = {};
   for (const tabla of tablas) {
     const fila = await sql<{ n: string }>`
-      select count(*)::text as n from ${sql.table(tabla)} where organizacion_id = ${organizacionId}
+      select count(*)::text as n from ${sql.table(tabla)} where ${condicion(tabla, organizacionId)}
     `.execute(tx);
     conteos[tabla] = Number(fila.rows[0]?.n ?? '0');
   }
