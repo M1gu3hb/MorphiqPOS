@@ -19,7 +19,22 @@ const cantidadDecimal = z
   .regex(/^\d{1,10}(\.\d{1,4})?$/, 'La cantidad debe ser un decimal de hasta cuatro cifras.')
   .refine((v) => Number.parseFloat(v) > 0, 'La cantidad debe ser mayor que cero.');
 
-const centavosNoNegativos = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+/**
+ * Diez millones de pesos. Es una cota, y `Number.MAX_SAFE_INTEGER` no lo era.
+ *
+ * Ese tope son noventa mil millones de pesos: acepta cualquier cosa que quepa en
+ * un `number`, así que un cero de más al teclear un retiro entra sin resistencia
+ * y el arqueo del día pasa a ser una cifra que no corresponde a nada. La suma no
+ * se desborda —los importes son `bigint` en la base— y por eso el defecto no da
+ * error: simplemente el número es falso.
+ *
+ * Diez millones es holgado para un restaurante y absurdo como error de tecleo,
+ * que es exactamente lo que una cota tiene que distinguir. El mismo valor que ya
+ * usaba `caja.corte_turno`.
+ */
+const TOPE_DE_IMPORTE_CENTAVOS = 1_000_000_000;
+
+const centavosNoNegativos = z.number().int().nonnegative().max(TOPE_DE_IMPORTE_CENTAVOS);
 
 export const entradaCrearOrden = z.object({});
 
@@ -74,7 +89,12 @@ export const entradaAbrirCaja = z.object({
 
 export const entradaMovimientoCaja = z.object({
   tipo: z.enum(['gasto', 'retiro', 'deposito', 'ajuste']),
-  montoCentavos: z.number().int().max(Number.MAX_SAFE_INTEGER),
+  /**
+   * Puede ser NEGATIVO: un ajuste a la baja lo es. Lo que se acota es su valor
+   * absoluto, en los dos sentidos — un retiro de mil millones y un ajuste de
+   * menos mil millones son el mismo error de tecleo.
+   */
+  montoCentavos: z.number().int().min(-TOPE_DE_IMPORTE_CENTAVOS).max(TOPE_DE_IMPORTE_CENTAVOS),
   motivo: z.string().min(3).max(200),
 });
 

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { crearComando, type RepositorioComandos } from '../comando.ts';
 import { crearFabrica } from '../pruebas/dobles.ts';
 import { contextoFalso, crearBaseFalsa, type Fila } from '../restaurante/pruebas/base-falsa.ts';
+import { entradaAbrirCaja, entradaCerrarCaja, entradaMovimientoCaja } from '../venta/esquemas.ts';
 import { corteDeTurno, entradaCorteTurno } from './turno.ts';
 
 /**
@@ -107,9 +108,10 @@ async function falla(promesa: Promise<unknown>): Promise<{ codigo: string; mensa
 
 describe('caja.corte_turno · la foto del turno, sin cerrar la caja', () => {
   it('registra el arqueo y la caja SIGUE ABIERTA', async () => {
-    const base = baseCon({ sesiones_caja: [sesionAbierta()], cortes_turno: [], folios: [folio(4)] }, [
-      { siguiente: 4 },
-    ]);
+    const base = baseCon(
+      { sesiones_caja: [sesionAbierta()], cortes_turno: [], folios: [folio(4)] },
+      [{ siguiente: 4 }],
+    );
     const { ctx, pasos } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     const salida = await corteDeTurno.ejecutar(ctx, {
@@ -173,9 +175,10 @@ describe('caja.corte_turno · la foto del turno, sin cerrar la caja', () => {
   it('sin corte previo el rango arranca en la apertura de la caja', async () => {
     // El contraste: una implementación que devolviera siempre `abiertaEn`
     // también pasaría la prueba de arriba si se mirara sola.
-    const base = baseCon({ sesiones_caja: [sesionAbierta()], cortes_turno: [], folios: [folio(1)] }, [
-      { siguiente: 1 },
-    ]);
+    const base = baseCon(
+      { sesiones_caja: [sesionAbierta()], cortes_turno: [], folios: [folio(1)] },
+      [{ siguiente: 1 }],
+    );
     const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
 
     const salida = await corteDeTurno.ejecutar(ctx, {
@@ -189,9 +192,10 @@ describe('caja.corte_turno · la foto del turno, sin cerrar la caja', () => {
   it('quién firma sale de la SESIÓN, y el cuerpo no lo puede decir', async () => {
     // `Caja.jsx:923` mandaba `usuario_cajero_id: posUser?.id` desde el
     // navegador: cualquiera firmaba el turno de otro desde la consola.
-    const base = baseCon({ sesiones_caja: [sesionAbierta()], cortes_turno: [], folios: [folio(1)] }, [
-      { siguiente: 1 },
-    ]);
+    const base = baseCon(
+      { sesiones_caja: [sesionAbierta()], cortes_turno: [], folios: [folio(1)] },
+      [{ siguiente: 1 }],
+    );
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     await corteDeTurno.ejecutar(ctx, { efectivoContadoCentavos: 1_000, notas: null });
@@ -249,9 +253,10 @@ describe('caja.corte_turno · la foto del turno, sin cerrar la caja', () => {
   });
 
   it('IDEMPOTENCIA: dos toques con la misma clave dejan UN corte', async () => {
-    const base = baseCon({ sesiones_caja: [sesionAbierta()], cortes_turno: [], folios: [folio(1)] }, [
-      { siguiente: 1 },
-    ]);
+    const base = baseCon(
+      { sesiones_caja: [sesionAbierta()], cortes_turno: [], folios: [folio(1)] },
+      [{ siguiente: 1 }],
+    );
     const { ejecutar } = ejecutorSobre(base.tx);
     const peticion = {
       entrada: { efectivoContadoCentavos: 128_000, notas: null },
@@ -276,5 +281,43 @@ describe('caja.corte_turno · la foto del turno, sin cerrar la caja', () => {
     expect(entradaCorteTurno.safeParse({ efectivoContadoCentavos: '128000' }).success).toBe(false);
     expect(entradaCorteTurno.safeParse({ efectivoContadoCentavos: 128_000.5 }).success).toBe(false);
     expect(entradaCorteTurno.safeParse({ efectivoContadoCentavos: 0 }).success).toBe(true);
+  });
+});
+
+describe('los importes de caja tienen una cota de verdad', () => {
+  /**
+   * `Number.MAX_SAFE_INTEGER` centavos son NOVENTA MIL MILLONES de pesos: eso no
+   * es una cota, es la ausencia de una. Un cero de más al teclear un retiro
+   * entraba sin resistencia y el arqueo del día pasaba a ser una cifra que no
+   * corresponde a nada — sin dar error, porque los importes son `bigint` en la
+   * base y la suma no se desborda. Simplemente el número es falso.
+   */
+  const TOPE = 1_000_000_000;
+
+  it('abrir, cerrar y cortar rechazan un importe absurdo', () => {
+    for (const [nombre, esquema] of [
+      ['caja.abrir', entradaAbrirCaja],
+      ['caja.cerrar', entradaCerrarCaja],
+      ['caja.corte_turno', entradaCorteTurno],
+    ] as const) {
+      const campo = nombre === 'caja.abrir' ? 'fondoInicialCentavos' : 'efectivoContadoCentavos';
+      expect(esquema.safeParse({ [campo]: TOPE }).success, `${nombre} en el tope`).toBe(true);
+      expect(esquema.safeParse({ [campo]: TOPE + 1 }).success, `${nombre} pasado`).toBe(false);
+      expect(esquema.safeParse({ [campo]: -1 }).success, `${nombre} negativo`).toBe(false);
+    }
+  });
+
+  it('un movimiento SÍ puede ser negativo, pero acotado en los dos sentidos', () => {
+    // Un ajuste a la baja es legítimo; un ajuste de menos mil millones es el
+    // mismo error de tecleo que uno de más mil millones.
+    const movimiento = (montoCentavos: number) =>
+      entradaMovimientoCaja.safeParse({ tipo: 'ajuste', montoCentavos, motivo: 'Cuadre' }).success;
+
+    expect(movimiento(-50_000), 'ajuste a la baja normal').toBe(true);
+    expect(movimiento(TOPE), 'en el tope').toBe(true);
+    expect(movimiento(-TOPE), 'en el tope negativo').toBe(true);
+    expect(movimiento(TOPE + 1), 'pasado').toBe(false);
+    expect(movimiento(-TOPE - 1), 'pasado en negativo').toBe(false);
+    expect(movimiento(Number.MAX_SAFE_INTEGER), 'el tope de antes').toBe(false);
   });
 });
