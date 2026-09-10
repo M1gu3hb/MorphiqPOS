@@ -89,7 +89,33 @@ const EXCLUIDO = new Set([
   'coverage',
 ]);
 
+/**
+ * La UNICA forma en que la marca puede aparecer fuera de `historico/`: como
+ * RUTA que entra en `historico/`.
+ *
+ * R6 dice que la plataforma solo puede vivir en `historico/`. Una ruta que
+ * apunta ahi dentro no la reintroduce: la senala en su cuarentena. Y hace falta,
+ * porque `cobertura.test.ts` LEE esos esquemas como datos para comprobar que el
+ * puente cubre las 27 entidades de Miguel — sin eso, la puerta que garantiza la
+ * cobertura no puede existir.
+ *
+ * Esta acotada a proposito: exige que la marca venga precedida de `historico/`
+ * en la MISMA linea, y solo vale para el patron de CARPETA. Un paquete del SDK,
+ * una llamada al cliente o un dominio de la plataforma no encajan nunca, porque
+ * ninguno de esos es una ruta.
+ *
+ * (Los ejemplos van descritos y no escritos: la cabecera de este archivo avisa
+ * de que el escaner se encuentra a si mismo si la marca aparece literal. Lo
+ * comprobe escribiendolos, y esta puerta me denuncio ocho veces.)
+ *
+ * Y no abre la puerta a importar de `historico/`: eso lo prohibe
+ * `eslint.config.mjs` aparte, y sigue vivo. Esto es leer archivos como datos.
+ */
+const RUTA_AL_HISTORICO = new RegExp(`historico/[\\w./-]*${MARCA}/`);
+
 const hallazgos = [];
+/** Rutas al historico que se dieron por buenas, para poder decirlo al final. */
+let justificadas = 0;
 
 function recorrer(dir) {
   for (const entrada of readdirSync(dir, { withFileTypes: true })) {
@@ -114,17 +140,31 @@ function recorrer(dir) {
     if (statSync(ruta).size > 20 * 1024 * 1024) continue;
 
     const contenido = readFileSync(ruta, 'utf8');
+    const lineas = contenido.split(/\r?\n/);
     for (const prohibido of PROHIBIDOS) {
       if (!contenido.includes(prohibido.patron)) continue;
 
-      const lineas = contenido.split(/\r?\n/);
-      const primera = lineas.findIndex((linea) => linea.includes(prohibido.patron));
-      hallazgos.push({
-        archivo: relative(RAIZ, ruta),
-        linea: primera + 1,
-        que: prohibido.que,
-        patron: prohibido.patron,
-      });
+      // Linea por linea, no solo la primera: la version anterior denunciaba una
+      // sola aparicion por archivo, asi que arreglar esa dejaba las demas
+      // invisibles y la puerta volvia a verde con el residuo dentro.
+      for (const [indice, linea] of lineas.entries()) {
+        if (!linea.includes(prohibido.patron)) continue;
+        // Solo el patron de CARPETA puede ser una ruta. Un paquete del SDK, una
+        // llamada al cliente o un dominio no lo son NUNCA, asi que escribirlos
+        // en una linea que ademas mencione `historico/` no los salva: sin esto,
+        // un comentario con la ruta al lado de una llamada real la habria
+        // colado.
+        if (prohibido.patron === `${MARCA}/` && RUTA_AL_HISTORICO.test(linea)) {
+          justificadas += 1;
+          continue;
+        }
+        hallazgos.push({
+          archivo: relative(RAIZ, ruta),
+          linea: indice + 1,
+          que: prohibido.que,
+          patron: prohibido.patron,
+        });
+      }
     }
   }
 }
@@ -158,3 +198,6 @@ if (hallazgos.length > 0) {
 console.log(
   `✓ Cero residuos: ${PROHIBIDOS.length} patrones buscados fuera de historico/, ninguno presente.`,
 );
+if (justificadas > 0) {
+  console.log(`  · ${justificadas} ruta(s) que APUNTAN a historico/, permitidas por R6.`);
+}
