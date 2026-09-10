@@ -130,6 +130,9 @@ export const registrarMovimientoCaja = definirComando<
 
 export interface ResultadoCorte {
   readonly sesionCajaId: string;
+  /** Serie y folio del corte. Su pantalla los enseña en «Folio del corte». */
+  readonly serie: string;
+  readonly folio: string;
   readonly fondoInicialCentavos: string;
   readonly efectivoEsperadoCentavos: string;
   readonly efectivoContadoCentavos: string;
@@ -166,7 +169,7 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
     const contado = BigInt(entrada.efectivoContadoCentavos);
     const diferencia = contado - arqueo.efectivoEsperadoCentavos;
 
-    const cerradas = await ctx.paso('cerrar_sesion', () =>
+    const cierre = await ctx.paso('cerrar_sesion', () =>
       repoCaja.cerrarSesion(ctx.tx, {
         organizacionId,
         sucursalId: sesion.sucursalId,
@@ -180,7 +183,7 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
     );
     // Cero filas: alguien la cerró entre la lectura y el update. No se
     // sobrescribe el arqueo original.
-    if (cerradas !== 1) {
+    if (cierre.filas !== 1) {
       throw new ErrorDominio('CAJA_CERRADA', 'Esa caja ya se había cerrado.');
     }
 
@@ -196,6 +199,9 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
 
     return {
       sesionCajaId: sesion.id,
+      // El folio del corte, que es lo que su pantalla enseña al cerrar.
+      serie: cierre.serie,
+      folio: cierre.folio.toString(),
       fondoInicialCentavos: arqueo.fondoInicialCentavos.toString(),
       efectivoEsperadoCentavos: arqueo.efectivoEsperadoCentavos.toString(),
       efectivoContadoCentavos: contado.toString(),

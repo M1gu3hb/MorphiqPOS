@@ -1086,7 +1086,16 @@ export default function Caja() {
       queryClient.invalidateQueries({ queryKey: ['ventas_pagadas_caja'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
 
-      const corteFinal = { ...data, id: corteId, folio: cajaAbierta.folio };
+      // El folio lo asigna el SERVIDOR al cerrar, así que sale de `arqueo` —la
+      // respuesta del comando— y no de `data`, que es el objeto que arma esta
+      // pantalla para enseñar e imprimir. Leerlo de `cajaAbierta` lo dejaba
+      // siempre en blanco: ahí todavía es nulo, porque la sesión abierta aún no
+      // tiene folio.
+      const folioDelCorte =
+        arqueo?.serie && arqueo?.folio
+          ? `${arqueo.serie}-${arqueo.folio}`
+          : (cajaAbierta.folio ?? '');
+      const corteFinal = { ...data, id: corteId, folio: folioDelCorte };
       setCorteCerrado(corteFinal);
       setShowCierreDiario(false);
 

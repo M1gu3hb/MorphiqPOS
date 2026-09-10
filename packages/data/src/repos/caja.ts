@@ -197,6 +197,21 @@ export async function arqueoDeSesion(
  * lanza y la transacción revierte: el folio consumido se devuelve con ella, y
  * no queda un hueco en la numeración del corte.
  */
+/**
+ * Lo que deja un cierre: cuántas filas cambiaron y CON QUÉ FOLIO quedó.
+ *
+ * Devolvía sólo el número de filas y se guardaba el folio para sí. La pantalla
+ * de Miguel enseña «Folio del corte» al cerrar, y como no le llegaba lo leía de
+ * la sesión ABIERTA —donde todavía es nulo, porque el folio se toma justo aquí—
+ * y salía en blanco. En su sistema original ese dato venía en la respuesta del
+ * cierre; al portarlo se perdió.
+ */
+export interface SesionCerrada {
+  readonly filas: number;
+  readonly serie: string;
+  readonly folio: bigint;
+}
+
 export async function cerrarSesion(
   tx: Transaccion,
   datos: {
@@ -209,7 +224,7 @@ export async function cerrarSesion(
     readonly notasCierre: string | null;
     readonly ahora: Date;
   },
-): Promise<number> {
+): Promise<SesionCerrada> {
   const { folio } = await tomarFolio(tx, datos.organizacionId, datos.sucursalId, datos.serie);
 
   const resultado = await tx
@@ -228,7 +243,7 @@ export async function cerrarSesion(
     .where('estado', '=', 'abierta')
     .executeTakeFirst();
 
-  return Number(resultado.numUpdatedRows);
+  return { filas: Number(resultado.numUpdatedRows), serie: datos.serie, folio };
 }
 
 /**
