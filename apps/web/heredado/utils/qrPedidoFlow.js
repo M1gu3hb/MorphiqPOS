@@ -365,11 +365,25 @@ export async function enviarPedidoQR({
   );
 
   // ----- 3) Re-totalizar la venta a partir de TODOS los DetalleVenta -----
-  let todosDetalles = [];
+  //
+  // Aquí había DOS redes de seguridad y ninguna servía: el `.catch(() => [])`
+  // interno se comía el rechazo, así que el `catch` externo —el que restauraba
+  // `nuevosDetalles`— era código muerto que aparentaba proteger. Cuando la
+  // lectura fallaba, `todosDetalles` quedaba en `[]`, el subtotal salía 0, y la
+  // línea de abajo ESCRIBÍA `total: 0` sobre una cuenta de $1 240 que sí tenía
+  // sus cuatro líneas. Es el mismo síntoma que Miguel parcheó a mano en
+  // `Mesero.jsx:882` («HOTFIX 6A — Rescate de totales en CERO»), pero en el
+  // camino del QR nadie lo rescataba.
+  //
+  // Ahora la red de seguridad es UNA y funciona: si la relectura falla, se
+  // totaliza con las líneas que se acaban de crear, que están en memoria y son
+  // ciertas. Un total nunca se calcula sobre una lista vacía.
+  let todosDetalles;
   try {
-    const fresh = await api.entidades.DetalleVenta.filter({ venta_id: venta.id }).catch(() => []);
-    todosDetalles = Array.isArray(fresh) ? fresh : [];
-  } catch {
+    const fresh = await api.entidades.DetalleVenta.filter({ venta_id: venta.id });
+    todosDetalles = Array.isArray(fresh) && fresh.length > 0 ? fresh : nuevosDetalles;
+  } catch (e) {
+    console.error('[qrPedidoFlow] releer detalles para re-totalizar:', e);
     todosDetalles = nuevosDetalles;
   }
   const subtotal = todosDetalles.reduce((s, d) => s + (Number(d?.subtotal) || 0), 0);

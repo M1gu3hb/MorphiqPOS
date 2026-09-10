@@ -1138,9 +1138,11 @@ export default function Caja() {
       setShowCierreDiario(true);
     } catch (e) {
       console.error('[Caja] verificar mesas pendientes:', e);
-      // En caso de error de red, no bloqueamos: dejamos abrir el dialog
-      // (defensivo, mejor permitir que el cajero cierre que dejarlo varado).
-      setShowCierreDiario(true);
+      // Antes esto abría el diálogo igual, «mejor permitir que el cajero cierre
+      // que dejarlo varado». Pero cerrar el día sin saber si hay mesas abiertas
+      // no es permitir: es cerrar a ciegas, y lo que queda mal en la base no lo
+      // arregla nadie al día siguiente. Si no se pudo comprobar, no se cierra.
+      toast.error('No se pudo comprobar si quedan mesas abiertas. Reintenta antes de cerrar.');
     } finally {
       setVerificandoMesas(false);
     }
@@ -1157,7 +1159,11 @@ export default function Caja() {
     try {
       // 6A: segunda verificación anti-race. Si alguien abrió una mesa
       // mientras el dialog estaba abierto, bloqueamos aquí también.
-      const pendientesFinales = await obtenerMesasPendientesCierre().catch(() => []);
+      //
+      // El `.catch(() => [])` que había aquí anulaba este guardia entero: si la
+      // lectura fallaba devolvía «no hay pendientes» y el día se cerraba igual.
+      // Ahora el fallo sube al `catch` de abajo, que avisa y NO cierra.
+      const pendientesFinales = await obtenerMesasPendientesCierre();
       if (Array.isArray(pendientesFinales) && pendientesFinales.length > 0) {
         setMesasPendientes(pendientesFinales);
         setShowCierreDiario(false);

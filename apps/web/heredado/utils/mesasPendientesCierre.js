@@ -13,13 +13,14 @@ import { api } from '@/api/cliente';
 const ESTADOS_NO_BLOQ = new Set(['libre']);
 
 export async function obtenerMesasPendientesCierre() {
-  let mesas = [];
-  try {
-    mesas = await api.entidades.Mesa.filter({ activo: true });
-  } catch (e) {
-    console.warn('[obtenerMesasPendientesCierre] error leyendo mesas:', e);
-    return [];
-  }
+  // Antes esto devolvía [] cuando la lectura fallaba, y `[]` significa «no hay
+  // mesas pendientes»: exactamente el permiso para cerrar el día. Un 429 del
+  // pooler bastaba para cerrar la caja con la mesa 7 abierta y $840 sin cobrar,
+  // y el arqueo del día siguiente no cuadraba sin que nadie supiera por qué.
+  //
+  // «No hay mesas» y «no pude leer las mesas» son cosas distintas. El error se
+  // propaga y quien llama decide, con la información delante.
+  const mesas = await api.entidades.Mesa.filter({ activo: true });
   const arr = Array.isArray(mesas) ? mesas : [];
   const pendientes = arr.filter((m) => {
     if (!m) return false;

@@ -175,10 +175,21 @@ export default function Inventario() {
   };
 
   const eliminarIngrediente = async (ing) => {
-    // Verificar movimientos
-    const movs = await api.entidades.MovimientoInventario.filter({ ingrediente_id: ing.id }).catch(
-      () => [],
-    );
+    // Verificar movimientos.
+    //
+    // El `.catch(() => [])` que había aquí convertía un fallo de lectura en
+    // «no tiene historial», que es justo el permiso para borrar de verdad. Una
+    // lectura caída bastaba para dejar cientos de movimientos, recetas y
+    // descuentos apuntando a un ingrediente que ya no existe. Si no se puede
+    // comprobar el historial, no se borra.
+    let movs;
+    try {
+      movs = await api.entidades.MovimientoInventario.filter({ ingrediente_id: ing.id });
+    } catch (e) {
+      console.error('[Inventario] verificar historial del ingrediente:', e);
+      toast.error('No se pudo comprobar el historial. Reintenta antes de eliminar.');
+      return;
+    }
     if (movs.length > 0) {
       toast.error(
         `No se puede eliminar: tiene ${movs.length} movimientos en historial. Mejor desactivar.`,

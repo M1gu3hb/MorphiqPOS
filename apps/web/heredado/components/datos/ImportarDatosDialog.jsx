@@ -103,30 +103,43 @@ export default function ImportarDatosDialog({ open, onClose, tipo }) {
         return;
       }
 
-      // Cargar snapshot actual de BD según tipo
+      // Cargar snapshot actual de BD según tipo.
+      //
+      // Las seis lecturas llevaban `.catch(() => [])`. Contra un catálogo vacío,
+      // `validarInventario` marca las 300 filas del CSV como NUEVAS: la vista
+      // previa decía «300 ingredientes nuevos, 0 actualizaciones», sin un solo
+      // error, y al pulsar Ejecutar quedaban 300 duplicados conviviendo con los
+      // 300 originales. Recetas rotas, costos partidos, inventario inservible.
+      //
+      // Y el criterio de aceptación de esta pantalla es, literal, «una
+      // importación con errores no aplica nada». Un catálogo que no se pudo
+      // leer no es un catálogo vacío: es un dry-run que no se puede hacer.
       let snapshot = {};
-      if (tipo === 'inventario') {
-        snapshot.ingredientes = await api.entidades.Ingrediente.list('-created_date', 5000).catch(
-          () => [],
-        );
-      } else if (tipo === 'productos') {
-        const [productos, categorias] = await Promise.all([
-          api.entidades.ProductoTerminado.list('-created_date', 5000).catch(() => []),
-          api.entidades.CategoriaProducto.filter({ activo: true }).catch(() => []),
-        ]);
-        snapshot.productos = productos;
-        snapshot.categorias = categorias;
-      } else if (tipo === 'recetas') {
-        const [ingredientes, productos] = await Promise.all([
-          api.entidades.Ingrediente.list('-created_date', 5000).catch(() => []),
-          api.entidades.ProductoTerminado.list('-created_date', 5000).catch(() => []),
-        ]);
-        snapshot.ingredientes = ingredientes;
-        snapshot.productos = productos;
-      } else if (tipo === 'proveedores') {
-        snapshot.proveedores = await api.entidades.Proveedor.list('-created_date', 5000).catch(
-          () => [],
-        );
+      try {
+        if (tipo === 'inventario') {
+          snapshot.ingredientes = await api.entidades.Ingrediente.list('-created_date', 5000);
+        } else if (tipo === 'productos') {
+          const [productos, categorias] = await Promise.all([
+            api.entidades.ProductoTerminado.list('-created_date', 5000),
+            api.entidades.CategoriaProducto.filter({ activo: true }),
+          ]);
+          snapshot.productos = productos;
+          snapshot.categorias = categorias;
+        } else if (tipo === 'recetas') {
+          const [ingredientes, productos] = await Promise.all([
+            api.entidades.Ingrediente.list('-created_date', 5000),
+            api.entidades.ProductoTerminado.list('-created_date', 5000),
+          ]);
+          snapshot.ingredientes = ingredientes;
+          snapshot.productos = productos;
+        } else if (tipo === 'proveedores') {
+          snapshot.proveedores = await api.entidades.Proveedor.list('-created_date', 5000);
+        }
+      } catch (e) {
+        console.error('[Importar] leer catálogo actual:', e);
+        toast.error('No se pudo leer el catálogo actual. Sin él la vista previa mentiría.');
+        setParsing(false);
+        return;
       }
 
       let result = null;
