@@ -43,6 +43,30 @@ export interface CampoMapeado {
   readonly columna: string;
   readonly conversion: Conversion;
   /**
+   * Traducción de VALORES, no de nombres. `base → suyo`.
+   *
+   * Traducir el nombre del campo no basta cuando el enumerado también cambió.
+   * `sesiones_caja.estado` guarda `'abierta'` y su `useCajaAbierta` busca
+   * `'abierto'`: el campo se llamaba igual, el valor no, y su POS decía «caja
+   * cerrada» con la caja abierta y $1 500 de fondo. Un fallo así no da error en
+   * ningún sitio — simplemente nada funciona.
+   *
+   * Es SIMÉTRICA: al leer se traduce en un sentido y al escribir y al filtrar,
+   * en el otro. Un valor que no esté en la tabla pasa tal cual, para que
+   * añadir un estado nuevo en la base no rompa la lectura de los viejos.
+   */
+  readonly traduccion?: Readonly<Record<string, string>>;
+  /**
+   * Un valor FIJO que no está en ninguna columna.
+   *
+   * `CorteCaja.tipo_corte` es siempre `'cierre_diario'` cuando la fila viene de
+   * `sesiones_caja`, porque el corte de turno vive en otra tabla (F1-04 §20.1).
+   * Su código compara contra ese literal en cuatro sitios, así que tiene que
+   * llegar; y como no hay dónde guardarlo, se declara aquí en vez de inventar
+   * una columna que sólo tendría un valor.
+   */
+  readonly constante?: string;
+  /**
    * `false` cuando lo calcula el SERVIDOR y no se acepta del cliente:
    * subtotales, totales, utilidad, margen, costos derivados. Es la regla que
    * no se negocia — el endpoint no acepta importes del cliente.
@@ -239,6 +263,25 @@ export function haciaLaBase(valor: unknown, conversion: Conversion): unknown {
     default:
       return aTexto(valor);
   }
+}
+
+/** Aplica la traducción de valores de la base hacia su vocabulario. */
+export function valorHaciaEl(valor: unknown, campo: CampoMapeado): unknown {
+  if (campo.constante !== undefined) return campo.constante;
+  const traducido = haciaEl(valor, campo.conversion);
+  if (campo.traduccion === undefined || typeof traducido !== 'string') return traducido;
+  // Un valor que no está en la tabla pasa TAL CUAL. Así, añadir un estado
+  // nuevo en la base no rompe la lectura de los que ya existían.
+  return campo.traduccion[traducido] ?? traducido;
+}
+
+/** Y de vuelta: su vocabulario hacia el de la base. Es la inversa exacta. */
+export function valorHaciaLaBase(valor: unknown, campo: CampoMapeado): unknown {
+  if (campo.traduccion === undefined || typeof valor !== 'string') {
+    return haciaLaBase(valor, campo.conversion);
+  }
+  const inversa = Object.entries(campo.traduccion).find(([, suyo]) => suyo === valor);
+  return haciaLaBase(inversa?.[0] ?? valor, campo.conversion);
 }
 
 /**

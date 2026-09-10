@@ -6,7 +6,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { transaccionLibre } from './db-dinamica.ts';
 
 import { entidadMapeada } from './mapa.ts';
-import { haciaEl, haciaLaBase, type MapaEntidad } from './tipos.ts';
+import { valorHaciaEl, valorHaciaLaBase, type MapaEntidad } from './tipos.ts';
 
 /**
  * Las escrituras SIMPLES del puente (F1-02 §3, E3-4).
@@ -116,19 +116,30 @@ function aColumnas(mapa: MapaEntidad, datos: Readonly<Record<string, unknown>>):
         `«${clave}» lo calcula el servidor y no se acepta del cliente.`,
       );
     }
-    valores[campo.columna] = haciaLaBase(valor, campo.conversion);
+    if (campo.constante !== undefined) {
+      // Escribir una constante no tiene dónde guardarse. Se acepta si coincide
+      // —así un `update` que reenvía el objeto entero no revienta— y se rechaza
+      // si no, porque cambiarla sería cambiar de tabla.
+      if (valor !== campo.constante) {
+        throw new ErrorDominio('PUENTE_CAMPO_INVALIDO', `«${clave}» no se puede cambiar.`);
+      }
+      continue;
+    }
+    valores[campo.columna] = valorHaciaLaBase(valor, campo);
   }
   return valores;
 }
 
 function columnasDeSalida(mapa: MapaEntidad): string[] {
-  return Object.entries(mapa.campos).map(([suyo, campo]) => `${campo.columna} as ${suyo}`);
+  return Object.entries(mapa.campos)
+    .filter(([, campo]) => campo.constante === undefined)
+    .map(([suyo, campo]) => `${campo.columna} as ${suyo}`);
 }
 
 function traducirFila(fila: Fila, mapa: MapaEntidad): Fila {
   const salida: Fila = {};
   for (const [suyo, campo] of Object.entries(mapa.campos)) {
-    salida[suyo] = haciaEl(fila[suyo], campo.conversion);
+    salida[suyo] = valorHaciaEl(fila[suyo], campo);
   }
   return salida;
 }

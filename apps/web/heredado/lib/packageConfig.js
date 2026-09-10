@@ -64,6 +64,9 @@ const MODULOS_ESENCIAL = [
   'registros_basicos',
   'configuracion_basica',
   'integraciones_preparadas_admin',
+  // El escáner de código de barras es de mostrador. Pro lo excluye
+  // explícitamente más abajo; ver MODULOS_EXCLUIDOS_DE_PRO.
+  'escaner_codigo_barras',
 ];
 
 // Módulos que añade Operativo (sobre Esencial)
@@ -101,10 +104,28 @@ const MODULOS_PRO_EXTRA = [
   'configuracion_completa',
 ];
 
+/**
+ * Módulos que Restaurante Pro NO hereda, aunque los paquetes sean acumulativos.
+ *
+ * Es la única excepción a «Pro incluye todo lo de Operativo», y existe porque
+ * el escáner de código de barras es de MOSTRADOR: se escanea una botella o una
+ * bolsa de frituras, no una orden de tacos. Enseñárselo a un restaurante que
+ * trabaja por mesa es ofrecerle una función que nunca va a usar y que le ocupa
+ * un botón en la pantalla donde más prisa tiene.
+ *
+ * La lista vive AQUÍ y no repartida por las pantallas: la regla de qué incluye
+ * cada paquete tiene un solo sitio, y `canAccessModule` la respeta sola.
+ */
+const MODULOS_EXCLUIDOS_DE_PRO = ['escaner_codigo_barras'];
+
 export const PACKAGE_MODULES = {
   esencial: [...MODULOS_ESENCIAL],
   operativo: [...MODULOS_ESENCIAL, ...MODULOS_OPERATIVO_EXTRA],
-  restaurante_pro: [...MODULOS_ESENCIAL, ...MODULOS_OPERATIVO_EXTRA, ...MODULOS_PRO_EXTRA],
+  restaurante_pro: [
+    ...MODULOS_ESENCIAL,
+    ...MODULOS_OPERATIVO_EXTRA,
+    ...MODULOS_PRO_EXTRA,
+  ].filter((modulo) => !MODULOS_EXCLUIDOS_DE_PRO.includes(modulo)),
 };
 
 // Resumen de funciones por paquete (para tabla comparativa en UI)

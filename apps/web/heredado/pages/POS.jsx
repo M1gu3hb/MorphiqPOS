@@ -13,6 +13,7 @@ import PreCuentaTicket from '@/components/tickets/PreCuentaTicket';
 import PropinaDialog from '@/components/propinas/PropinaDialog';
 import SafeBoundary from '@/components/common/SafeBoundary';
 import CantidadVariableDialog from '@/components/mesero/CantidadVariableDialog';
+import BarcodeScanner from '@/components/barcode/BarcodeScanner';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Search, ShoppingCart, AlertTriangle, DoorOpen, Printer } from 'lucide-react';
+import { Search, ShoppingCart, AlertTriangle, DoorOpen, Printer, ScanLine } from 'lucide-react';
 import { useCajaAbierta } from '@/lib/useCajaAbierta';
 import { Link } from '@/enrutado';
 import { printDocument } from '@/lib/print';
@@ -39,6 +40,7 @@ import { validarStockParaCobro, mensajeFaltanteStock } from '@/utils/inventarioV
 export default function POS() {
   const [cart, setCart] = useState([]);
   const [search, setSearch] = useState('');
+  const [escanerAbierto, setEscanerAbierto] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
   const [showPayment, setShowPayment] = useState(false);
   const [showCartMobile, setShowCartMobile] = useState(false);
@@ -57,7 +59,7 @@ export default function POS() {
   });
 
   const { posUser } = usePOSAuth();
-  const { config } = useConfig();
+  const { config, canAccessModule } = useConfig();
   const queryClient = useQueryClient();
   const showCost = hasPermission(posUser?.rol, 'ver_costos');
   const { hayCaja, cajaAbierta } = useCajaAbierta();
@@ -134,6 +136,32 @@ export default function POS() {
         },
       ]);
     }
+  };
+
+  /**
+   * Un código leído por la cámara o por el lector físico (E9-1, E9-2).
+   *
+   * La búsqueda es EXACTA sobre `codigo_barras` y se hace en la lista ya
+   * cargada: los productos del POS caben en memoria y buscar aquí evita un
+   * viaje de red por cada lectura, que con el lector físico son varias por
+   * segundo.
+   *
+   * El flujo de «código no encontrado» es el suyo: se avisa con el código
+   * delante, para que quien está en la caja pueda teclearlo o darlo de alta,
+   * en vez de un «no encontrado» a secas que no dice cuál.
+   */
+  const handleCodigoEscaneado = (codigo) => {
+    const limpio = String(codigo ?? '').trim();
+    if (!limpio) return;
+    const producto = (Array.isArray(productos) ? productos : []).find(
+      (p) => String(p?.codigo_barras ?? '').trim() === limpio,
+    );
+    if (!producto) {
+      toast.error(`Código ${limpio} no está en el catálogo`);
+      return;
+    }
+    addToCart(producto);
+    toast.success(`${producto.nombre} agregado`);
   };
 
   // 6B / 1.K — Recibe snapshot del CantidadVariableDialog y crea línea variable.
@@ -544,14 +572,30 @@ export default function POS() {
       <div className="flex-1 flex flex-col p-4 overflow-hidden">
         {/* Search + categories */}
         <div className="space-y-3 mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar producto..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-10"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar producto..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 h-10"
+              />
+            </div>
+            {/* El escáner es de MOSTRADOR: se escanea una botella, no una orden
+                de tacos. `canAccessModule` lo apaga en Restaurante Pro, y la
+                regla vive en `packageConfig.js`, no aquí. */}
+            {canAccessModule('escaner_codigo_barras') && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={() => setEscanerAbierto(true)}
+                title="Escanear código de barras"
+              >
+                <ScanLine className="w-4 h-4" />
+              </Button>
+            )}
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
             <Button
@@ -641,6 +685,25 @@ export default function POS() {
         onClose={() => setProductoVariable(null)}
         onConfirm={handleConfirmVariable}
       />
+
+      {/* El escáner de la tiendita, tal cual: cámara ZXing, lector físico,
+          dedupe de 1200 ms y su flujo de «código no encontrado». `continuous`
+          porque en un mostrador se escanea una compra entera de corrido, no un
+          artículo y a cerrar. */}
+      {canAccessModule('escaner_codigo_barras') && (
+        <BarcodeScanner
+          open={escanerAbierto}
+          onClose={() => setEscanerAbierto(false)}
+          onDetected={handleCodigoEscaneado}
+          continuous
+          miniCart={cart}
+          onViewCart={() => {
+            setEscanerAbierto(false);
+            setShowCartMobile(true);
+          }}
+          onFinish={() => setEscanerAbierto(false)}
+        />
+      )}
 
       {/* Antes del cobro, preguntar propina. Si propinas están desactivadas, este modal nunca abre. */}
       <PropinaDialog

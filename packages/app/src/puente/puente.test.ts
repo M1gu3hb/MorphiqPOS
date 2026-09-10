@@ -75,11 +75,56 @@ describe('el puente traduce sin perder nada', () => {
 describe('la forma del mapa', () => {
   it('ninguna entidad declara dos campos suyos sobre la misma columna', () => {
     for (const [entidad, mapa] of Object.entries(MAPA)) {
-      const columnas = Object.values(mapa.campos).map((c) => c.columna);
+      const columnas = Object.values(mapa.campos)
+        // Un campo CONSTANTE no lee ni escribe su columna: el valor sale del
+        // mapa. Por eso no cuenta como colisión, y por eso la prueba de abajo
+        // exige que además sea de sólo lectura.
+        .filter((c) => c.constante === undefined)
+        .map((c) => c.columna);
       // Dos campos apuntando a la misma columna es un error de copiar y pegar
       // que sólo se ve cuando uno pisa al otro al guardar.
       expect(new Set(columnas).size, `${entidad} repite una columna`).toBe(columnas.length);
     }
+  });
+
+  it('un campo constante nunca es escribible', () => {
+    // Aceptar la escritura de una constante sería aceptar «cámbiame de tabla».
+    for (const [entidad, mapa] of Object.entries(MAPA)) {
+      for (const [clave, campo] of Object.entries(mapa.campos)) {
+        if (campo.constante === undefined) continue;
+        expect(campo.escribible, `${entidad}.${clave}`).toBe(false);
+      }
+    }
+  });
+
+  /**
+   * La traducción de VALORES tiene que ser inyectiva: dos estados de la base
+   * que se traduzcan al mismo nombre suyo son irrecuperables al escribir —el
+   * camino de vuelta elegiría uno de los dos, y sería el equivocado la mitad de
+   * las veces—.
+   */
+  it('ninguna traducción de valores colapsa dos estados en uno', () => {
+    for (const [entidad, mapa] of Object.entries(MAPA)) {
+      for (const [clave, campo] of Object.entries(mapa.campos)) {
+        if (campo.traduccion === undefined) continue;
+        const suyos = Object.values(campo.traduccion);
+        expect(new Set(suyos).size, `${entidad}.${clave} colapsa estados`).toBe(suyos.length);
+      }
+    }
+  });
+
+  it('la caja abierta se lee con SU vocabulario, no con el de la base', () => {
+    // `useCajaAbierta.js:43` busca `estado === 'abierto'` y `tipo_corte ===
+    // 'cierre_diario'`. La base guarda `'abierta'` y no tiene `tipo_corte`.
+    // Sin esto su POS dice «Caja cerrada» con la caja abierta.
+    const corte = MAPA['CorteCaja'];
+    expect(corte?.campos['estado']?.traduccion?.['abierta']).toBe('abierto');
+    expect(corte?.campos['estado']?.traduccion?.['cerrada']).toBe('cerrado');
+    expect(corte?.campos['tipo_corte']?.constante).toBe('cierre_diario');
+    // Y la venta: `abierta` es `borrador`, `enviada` es `confirmada` (§6.6).
+    const venta = MAPA['Venta'];
+    expect(venta?.campos['estado']?.traduccion?.['borrador']).toBe('abierta');
+    expect(venta?.campos['estado']?.traduccion?.['confirmada']).toBe('enviada');
   });
 
   it('toda entidad trae `id`: su frontend lo lee siempre', () => {

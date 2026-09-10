@@ -10,6 +10,8 @@ import { colorDePersona } from './roles.ts';
 import {
   haciaEl,
   haciaLaBase,
+  valorHaciaEl,
+  valorHaciaLaBase,
   LIMITE_MAXIMO,
   LIMITE_POR_OMISION,
   type Calculo,
@@ -114,9 +116,11 @@ export async function consultar(
     throw new ErrorDominio('PUENTE_SIN_PERMISO', 'Tu rol no puede leer esa información.');
   }
 
-  const columnas = Object.entries(mapa.campos).map(
-    ([suyo, campo]) => `${BASE}.${campo.columna} as ${suyo}`,
-  );
+  const columnas = Object.entries(mapa.campos)
+    // Un campo CONSTANTE no tiene columna que seleccionar: lo pone la
+    // traducción de la fila.
+    .filter(([, campo]) => campo.constante === undefined)
+    .map(([suyo, campo]) => `${BASE}.${campo.columna} as ${suyo}`);
 
   // Los campos que su frontend lee y no son columnas de esta tabla: el nombre
   // del mesero, el número de la mesa, la zona. Un `left join` por campo, y
@@ -176,10 +180,18 @@ export async function consultar(
           : `«${clave}» no es un campo de ${peticion.entidad}.`,
       );
     }
+    if (campo.constante !== undefined) {
+      // Filtrar por una constante es preguntar si la fila es de esta tabla. Si
+      // coincide no acota nada; si no, no hay ninguna fila que pueda cumplirlo.
+      // Su `useCajaAbierta` filtra por `tipo_corte='cierre_diario'`, y eso es
+      // exactamente lo que significa venir de `sesiones_caja`.
+      if (valor !== campo.constante) return [];
+      continue;
+    }
     consulta =
       valor === null
         ? consulta.where(`${BASE}.${campo.columna}`, 'is', null)
-        : consulta.where(`${BASE}.${campo.columna}`, '=', haciaLaBase(valor, campo.conversion));
+        : consulta.where(`${BASE}.${campo.columna}`, '=', valorHaciaLaBase(valor, campo));
   }
 
   // 4b · El rango, si lo hay. Sólo sobre campos de fecha o de día: pedir un
@@ -246,7 +258,7 @@ export async function consultar(
 function traducirFila(fila: Fila, mapa: MapaEntidad): Fila {
   const salida: Fila = {};
   for (const [suyo, campo] of Object.entries(mapa.campos)) {
-    salida[suyo] = haciaEl(fila[suyo], campo.conversion);
+    salida[suyo] = valorHaciaEl(fila[suyo], campo);
   }
   for (const [suyo, derivado] of Object.entries(mapa.derivados ?? {})) {
     const valor = haciaEl(fila[suyo], derivado.conversion);

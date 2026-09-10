@@ -93,7 +93,6 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
    * su código y no coinciden entre sí (§20.4).
    */
   CorteCaja: {
-    tipo_corte: 'se parte en sesiones_caja y cortes_turno (F1-04 §20.1)',
     corte_padre_id: 'un corte de turno apunta a su sesión con sesion_caja_id',
     fecha_inicio: 'para la sesión coincide con fecha_apertura; el corte de turno tiene rango propio',
     diferencia_apertura: 'derivado: fondo contado menos fondo esperado',

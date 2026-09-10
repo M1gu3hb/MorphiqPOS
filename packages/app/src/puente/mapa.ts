@@ -328,7 +328,20 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     campos: {
       ...AUTO,
       folio: { columna: 'folio', conversion: 'texto', escribible: false },
-      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      /**
+       * La tabla de `F1-04` §6.6. Su vocabulario y el de la base coinciden en
+       * cinco de siete estados y difieren en los dos que MÁS se escriben:
+       * `abierta` es `borrador` y `enviada` es `confirmada`.
+       *
+       * Sin esta traducción, `Mesero.jsx` filtra por `estado: 'abierta'` y no
+       * encuentra ninguna mesa abierta, con las mesas abiertas en la base.
+       */
+      estado: {
+        columna: 'estado',
+        conversion: 'texto',
+        escribible: false,
+        traduccion: { borrador: 'abierta', confirmada: 'enviada' },
+      },
       // `total` es la venta REAL, SIN propina. Nunca se infla (regla 1).
       total: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
       subtotal: { columna: 'subtotal_centavos', conversion: 'dinero', escribible: false },
@@ -578,7 +591,30 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     ordenPorOmision: '-created_date',
     campos: {
       ...AUTO,
-      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      /**
+       * `sesiones_caja.estado` guarda `abierta` y `cerrada`; su
+       * `useCajaAbierta.js:43` busca `'abierto'` y `'cerrado'`. El campo se
+       * llamaba igual y el valor no, así que su POS decía «Caja cerrada» con la
+       * caja abierta y el fondo contado. Un fallo así no da error en ningún
+       * sitio: simplemente nada funciona.
+       */
+      estado: {
+        columna: 'estado',
+        conversion: 'texto',
+        escribible: false,
+        traduccion: { abierta: 'abierto', cerrada: 'cerrado' },
+      },
+      /**
+       * Siempre `cierre_diario`, porque venir de `sesiones_caja` es exactamente
+       * eso: el corte de TURNO vive en `cortes_turno` (F1-04 §20.1). Su
+       * `useCajaAbierta` compara contra este literal, así que tiene que llegar.
+       */
+      tipo_corte: {
+        columna: 'estado',
+        conversion: 'texto',
+        escribible: false,
+        constante: 'cierre_diario',
+      },
       // Sus nombres. Dieciséis archivos leen `fecha_apertura` y tres
       // `efectivo_inicial_contado`.
       serie: { columna: 'serie', conversion: 'texto', escribible: false },
