@@ -148,6 +148,8 @@ const REPOSITORIO_CATALOGO = join(RAIZ, 'packages', 'data', 'src', 'repos', 'cat
 const PRUEBA_REPOSITORIO_CATALOGO = 'packages/data/src/repos/catalogo.test.ts';
 const ESCRIBIR_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'escribir.ts');
 const PRUEBA_URL_PUBLICA = 'packages/app/src/puente/url-publica.test.ts';
+const TLS_POSTGRES = join(RAIZ, 'packages', 'data', 'src', 'tls.ts');
+const PRUEBA_TLS_POSTGRES = 'packages/data/src/tls.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -818,4 +820,21 @@ comprobarMutacion({
   prueba: PRUEBA_URL_PUBLICA,
   transformar: (codigo) =>
     codigo.replace('z.url().safeParse(valor)', 'z.string().safeParse(valor)'),
+});
+comprobarMutacion({
+  nombre: 'host TLS comparado sin parsear la URL',
+  origen: TLS_POSTGRES,
+  archivoTemporal: 'tls.ts',
+  variable: 'MORPHIQPOS_TLS_SOURCE_PATH',
+  prueba: PRUEBA_TLS_POSTGRES,
+  transformar: (codigo) => codigo.replace('new URL(cadena).hostname', 'cadena'),
+});
+comprobarMutacion({
+  nombre: 'raices del sistema sustituidas por la de Supabase',
+  origen: TLS_POSTGRES,
+  archivoTemporal: 'tls.ts',
+  variable: 'MORPHIQPOS_TLS_SOURCE_PATH',
+  prueba: PRUEBA_TLS_POSTGRES,
+  transformar: (codigo) =>
+    codigo.replace('[...rootCertificates, RAIZ_SUPABASE]', '[RAIZ_SUPABASE]'),
 });
