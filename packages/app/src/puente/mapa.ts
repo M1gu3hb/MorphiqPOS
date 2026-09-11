@@ -1349,7 +1349,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   IntegrationSyncLog: {
     tabla: 'bitacora_sincronizacion',
     rolesLectura: [...DIRECCION],
-    escritura: 'directa',
+    escritura: 'lectura',
     ordenPorOmision: '-created_date',
     campos: {
       ...AUTO,

@@ -791,3 +791,12 @@ comprobarMutacion({
   prueba: PRUEBA_REPOSITORIO_CATALOGO,
   transformar: (codigo) => codigo.replace('escaparPatronIlike(busqueda)', 'busqueda'),
 });
+comprobarMutacion({
+  nombre: 'bitacora de sincronizacion reabierta a escritura directa',
+  origen: MAPA_PUENTE,
+  archivoTemporal: 'mapa.ts',
+  variable: 'MORPHIQPOS_MAPA_SOURCE_PATH',
+  prueba: PRUEBA_AUTORIZACION_PUENTE,
+  transformar: (codigo) =>
+    codigo.replace(/(IntegrationSyncLog:\s*\{[\s\S]{0,200}?escritura:) 'lectura'/, "$1 'directa'"),
+});

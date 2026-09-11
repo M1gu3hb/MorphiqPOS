@@ -257,10 +257,13 @@ describe('la forma del mapa', () => {
       'PlantillaGasto',
       'PlantillaCompra',
       'MenuQRSeccion',
-      'IntegrationSyncLog',
     ] as const) {
       expect(MAPA[entidad]?.escritura, entidad).toBe('directa');
     }
+  });
+
+  it('la bitácora de sincronización sólo se expone para lectura', () => {
+    expect(MAPA['IntegrationSyncLog']?.escritura).toBe('lectura');
   });
 
   /**

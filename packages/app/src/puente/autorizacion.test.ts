@@ -48,6 +48,7 @@ describe('B-4 · autorización explícita del puente de lectura', () => {
       /CorteCaja:\s*{\s*tabla: 'sesiones_caja',\s*rolesLectura: \[\.\.\.CAJA\]/,
     );
     expect(codigo).toMatch(/qr_token:\s*\{\s*rolesLectura: \[\.\.\.DIRECCION\]/);
+    expect(codigo).toMatch(/IntegrationSyncLog:\s*\{[\s\S]{0,200}?escritura: 'lectura'/);
   });
 
   it('cada entidad declara una lista no vacía de roles válidos', () => {
