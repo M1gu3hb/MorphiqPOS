@@ -9,16 +9,16 @@ import {
 import { desdeTexto } from '@morphiqpos/domain/dinero';
 import { z } from 'zod';
 
-import { definirComando } from '../comando';
+import { definirComando } from '../comando.ts';
 import {
   entradaActualizarProducto,
   entradaArchivarProducto,
   entradaAsignarCodigo,
   entradaCambiarPrecio,
   entradaCrearProducto,
-} from './esquemas';
+} from './esquemas.ts';
 
-export { entradaCrearProducto } from './esquemas';
+export { entradaCrearProducto } from './esquemas.ts';
 
 const ROLES = ['dueno', 'administrador', 'gerente'] as const;
 

@@ -11,9 +11,9 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "migrate": "node bin/migrar.mjs",
-    "ensayo": "node bin/migrar.mjs --ensayo",
-    "tipos": "node bin/generar-tipos.mjs"
+    "migrate": "node --conditions=react-server bin/migrar.mjs",
+    "ensayo": "node --conditions=react-server bin/migrar.mjs --ensayo",
+    "tipos": "node --conditions=react-server bin/generar-tipos.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

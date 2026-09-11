@@ -53,3 +53,9 @@ apps/web/next-env.d.ts
 
 # Scratch del CLI de Supabase. No es configuracion del proyecto.
 supabase/.temp/
+
+# Vinculo local con el proyecto de Vercel. Lleva ids de organizacion y de
+# proyecto, y el token OIDC que descarga la CLI: no va al repositorio publico.
+.vercel/
+.vercel
+.env*

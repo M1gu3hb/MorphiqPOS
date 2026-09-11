@@ -1,82 +1,43 @@
 'use client';
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from 'next-themes';
-import { useState, type ReactNode } from 'react';
-import { Toaster } from 'sonner';
+import { QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import { Toaster as SonnerToaster } from 'sonner';
+
+import { Toaster } from '@/components/ui/toaster';
+import { ConfigProvider } from '@/lib/ConfigContext';
+import { POSAuthProvider } from '@/lib/POSAuthContext';
+import { queryClientInstance } from '@/lib/query-client';
+import { ThemeProvider } from '@/lib/ThemeContext';
 
 /**
- * Los proveedores de la aplicacion, en un solo sitio.
+ * Los proveedores de la aplicación — los SUYOS, en su orden.
  *
- * `sonner` es el UNICO sistema de avisos (P2-07): la tiendita llego a tener
- * tres conviviendo —sonner activo, react-hot-toast y el toast de Radix— y nadie
- * sabia cual saldria.
+ * Es su `App.jsx` sin el enrutador y sin `AuthProvider`. Lo demás está igual:
+ * su `ThemeProvider` fuera, su `queryClientInstance` con sus opciones, su
+ * `POSAuthProvider`, su `ConfigProvider`, su `<Toaster/>` de shadcn y su
+ * `<SonnerToaster/>` con las mismas cinco props.
+ *
+ * `AuthProvider` no se porta: era la autenticación de la plataforma que
+ * desapareció. El rol lo da `empleos` y la sesión vive en una cookie firmada.
  */
-
-function crearClienteConsultas(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        // Un POS muestra dinero y existencias. Preferimos revalidar de mas que
-        // ensenar un stock viejo mientras alguien cobra.
-        staleTime: 10_000,
-        gcTime: 5 * 60_000,
-        retry: 1,
-        refetchOnWindowFocus: true,
-        // El tiempo real (Supabase Realtime o equivalente) llega como AVISO y
-        // el cliente revalida por la API; nunca como fuente de datos
-        // (04-ARQUITECTURA §4). Por eso no se desactiva la revalidacion.
-        refetchOnReconnect: true,
-      },
-      mutations: {
-        // Los comandos criticos son idempotentes por clave (R10), asi que un
-        // reintento no duplica. Pero reintentar automaticamente un cobro
-        // esconderia un fallo real al cajero, y eso no se hace (R12): que lo
-        // decida la pantalla, con el error a la vista.
-        retry: 0,
-      },
-    },
-  });
-}
-
-interface Props {
-  readonly children: ReactNode;
-  /**
-   * Nonce de la peticion. next-themes inyecta un <script> en linea para
-   * aplicar el tema ANTES del primer pintado y evitar el parpadeo; sin el
-   * nonce la CSP lo bloquea y la pagina parpadea de claro a oscuro en cada
-   * carga.
-   */
-  readonly nonce?: string;
-}
-
-export function Proveedores({ children, nonce }: Props) {
-  // Se crea dentro del estado, no en el modulo: en el servidor un cliente por
-  // modulo se compartiria entre peticiones de organizaciones distintas.
-  const [clienteConsultas] = useState(crearClienteConsultas);
-
+export function Proveedores({ children }: { readonly children: ReactNode }) {
   return (
-    <QueryClientProvider client={clienteConsultas}>
-      <ThemeProvider
-        {...(nonce === undefined ? {} : { nonce })}
-        attribute="class"
-        // La clase es "oscuro", no "dark": el CSS del sistema de diseno la usa
-        // asi, y el idioma del codigo de dominio es espanol.
-        value={{ light: 'claro', dark: 'oscuro' }}
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
-        {children}
-        <Toaster
-          position="top-right"
+    <ThemeProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <POSAuthProvider>
+          <ConfigProvider>{children}</ConfigProvider>
+        </POSAuthProvider>
+        <Toaster />
+        <SonnerToaster
           richColors
+          position="top-right"
           closeButton
-          // Un aviso que se va solo en 3 segundos no sirve en una caja con
-          // ruido y prisa. Los errores no se van solos.
-          duration={6000}
+          duration={3500}
+          visibleToasts={4}
+          swipeDirections={['top', 'right']}
         />
-      </ThemeProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

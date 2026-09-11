@@ -11,6 +11,13 @@ packages:
 # Con 15 paquetes por venir, es lo que impide que dos usen versiones distintas
 # de la misma herramienta y que las pruebas se comporten distinto segun donde
 # se corran.
+allowBuilds:
+  # Llega por `jspdf` -> `canvg`, que su `pdfDownload.js` usa para los PDF de
+  # corte. Su postinstall no compila nada: imprime un anuncio pidiendo
+  # patrocinio. Se aprueba para que `pnpm install` no falle pidiendo una
+  # decision que ya esta tomada.
+  core-js: true
+
 catalog:
   typescript: 6.0.3
   vitest: 5.0.0
@@ -23,7 +30,6 @@ catalog:
   react-dom: 19.2.8
   tailwindcss: 4.3.3
   '@tailwindcss/postcss': 4.3.3
-  next-themes: 0.4.6
   '@tanstack/react-query': 5.102.8
   sonner: 2.0.8
   lucide-react: 1.42.0
@@ -62,3 +68,7 @@ minimumReleaseAgeExclude:
   - '@typescript-eslint/utils@8.70.0'
   - '@typescript-eslint/visitor-keys@8.70.0'
   - typescript-eslint@8.70.0
+
+# `core-js` llega como dependencia transitiva de `html2canvas` y su postinstall
+# no compila nada: imprime un anuncio pidiendo patrocinio. Se declara ignorado
+# para que `pnpm install` no falle pidiendo una decision que ya esta tomada.

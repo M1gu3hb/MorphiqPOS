@@ -1,5 +1,5 @@
 import { entradaBuscarProductos } from '@morphiqpos/app/catalogo';
-import { consultarProductosProduccion } from '@morphiqpos/app/gestion';
+import { consultarProductosProduccion } from '@morphiqpos/app/consultas-produccion';
 
 import { responderConsulta } from '../../../../src/servidor/http';
 

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { CABECERA_NONCE, construirCsp } from '@/seguridad/csp';
+import { CABECERA_NONCE, construirCsp } from '~/seguridad/csp';
 
 /**
  * Middleware de la aplicacion.

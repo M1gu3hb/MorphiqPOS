@@ -1,5 +1,527 @@
 # Bitácora de ejecución — Fase 1
 
+## Resurrección · La verificación de cierre · 2026-09-10 · Lo que sólo se ve ejecutando la puerta entera
+
+- **Qué se hizo:** ejecutar `pnpm verify` **completo**, y arreglar lo que
+  apareció. Es la entrada más incómoda de esta bitácora y por eso va primero.
+
+### `pnpm verify` llevaba en rojo desde `89830e5`
+
+`89830e5` es el commit que copió el código de Miguel. Desde entonces verifiqué
+con `tsc`, `eslint`, `vitest` y los verificadores sueltos —todos en verde— y la
+cadena completa se caía en el **cuarto** eslabón de 24, así que los veinte
+siguientes no llegaron a correr **ni una vez** en todas las etapas E.
+
+| Eslabón | Por qué caía | Qué se hizo |
+|---|---|---|
+| `verify:tsconfig` | Prohibía `allowJs` en todo el monorepo. Sin esa bandera Next no compila un solo `.jsx` de Miguel. La puerta se escribió antes del cambio 7, que manda tsconfig permisivo para `apps/web/heredado/` | Acotada, no borrada. La excepción se declara, dice su razón y está atada a que exista la carpeta que la justifica |
+| `verify:residuos` | Denunciaba `historico/…/entities` en `cobertura.test.ts` — una ruta que apunta a la cuarentena, que es donde R6 permite la marca | Acotada a rutas que pasen por `historico/` **y** al patrón de carpeta. Y se arregló que sólo denunciara la PRIMERA aparición por archivo |
+| `format:check` | 74 archivos | 51 míos, formateados. 23 de Miguel, a `.prettierignore`: Prettier los reescribía a un ancho que no es el suyo |
+| `verify:venta` | «Contratos rotos antes de mutar». Un contrato miraba `.where('estado','=','borrador')`, forma que cambió en `922cc23` | Reescrito sobre el invariante. **Sus 27 mutaciones llevaban desde entonces sin ejercitarse** |
+
+### Dos afirmaciones mías que no se sostenían
+
+1. **El contrato de «estado ⇒ columna» miraba la mitad de su dominio.** Sólo
+   leía los `check` de `alter table`; tres viven dentro del `create table`
+   original, entre ellos «una orden cancelada necesita motivo y fecha». Es la
+   misma familia que ya tumbó todos los cobros y todos los cierres de caja. De
+   2 reglas a 7. Segundo defecto: una restricción con DOS columnas se leía
+   quedándose con la primera.
+2. **`verify:aspecto` decía haber comparado 64 archivos cuando comparó 58.** Los
+   otros 6 no existían en la referencia —los creé yo— y se saltaban en silencio,
+   con un `fatal:` crudo de git por cada uno. Ahora los nombra aparte.
+
+### Y una cota que faltaba
+
+`centavosNoNegativos` aceptaba hasta `MAX_SAFE_INTEGER`: noventa billones de
+pesos cuadraban un arqueo. `TOPE_DE_IMPORTE_CENTAVOS = 1 000 000 000` acota los
+dos lados; un movimiento de caja puede ser negativo, pero no salirse de la
+escala de un negocio real.
+
+- **Validado por mutación, una por una:** quitar `motivo_cancelacion` de
+  `cerrarOrdenCancelada` y `efectivo_contado_centavos` de `cerrarSesion` ponen
+  el contrato en rojo · colar `allowJs` en un paquete falla · renombrar
+  `heredado/` invalida la excepción · un SDK escrito junto a una ruta legítima
+  se denuncia igual · admitir `pagada` como estado cobrable cae. Árbol
+  restaurado tras cada una.
+- **Estado final:** `pnpm verify` en verde en sus **24 eslabones**, con `build`
+  incluido. 891 pruebas en 60 archivos.
+- **Lo que NO se cerró:** las 8 escrituras cuyo cuerpo no es un objeto literal
+  siguen sin comprobación automática; `apps/web/heredado/` sigue sin una sola
+  prueba; sigue sin haber Playwright. Está todo en `F1-09-INFORME.md`.
+### Y dos cosas que sólo aparecieron abriendo la caja en el navegador
+
+Con `pnpm verify` ya en verde, abrí una caja con fondo de $1 500, registré un
+retiro de $200 y la cerré. Dos hallazgos que ninguna de las 891 pruebas veía:
+
+1. **El folio del corte volvía en blanco a la pantalla.** Regresión MÍA del
+   port: `Caja.jsx` lo leía de `cajaAbierta.folio`, que es siempre nulo porque
+   el folio se asigna justo al cerrar. `cerrarSesion` lo tomaba y no lo
+   devolvía. Arreglado en las tres capas, con dos pruebas nuevas validadas por
+   mutación. Comprobado: cerrar → «Folio del corte CC-4» en pantalla, y la base
+   devuelve serie CC folio 4.
+2. **El diálogo de cierre dice que sobra dinero cuando no sobra.** Calcula el
+   esperado como «ventas + propinas en efectivo», sin el fondo ni los
+   movimientos: el cajero que cuenta los $1 300 exactos lee «Sobra $1,300.00 en
+   caja». **NO es del port** —comprobado línea a línea contra 89830e5, es
+   idéntico a su original— y el servidor sí lo calcula bien, así que lo
+   guardado es correcto. No lo cambié: cómo se calcula un arqueo es decisión de
+   Miguel. Queda escrito en `F1-09-INFORME.md`.
+
+- **Lección, escrita para no repetirla:** todo esto lo encontró **ejecutar**,
+  no leer. Verificar por partes es cómodo y dice menos de lo que parece: cada
+  parte estaba en verde y la suma llevaba semanas rota. Y la suma en verde
+  tampoco basta: el folio en blanco y el arqueo engañoso pasaron las 24 puertas
+  y sólo se vieron cerrando una caja de verdad.
+
+---
+
+## Resurrección · E5 a E9 · 2026-09-10 · Sus pantallas escriben, y la puerta que faltaba
+
+- **Qué se hizo:** las 36 pantallas de `apps/web/heredado/` pasaron de leer a
+  ESCRIBIR por comando. ~~Cero escrituras bloqueadas: las que quedan son campos
+  que el puente sí acepta.~~ Se construyeron los siete comandos que faltaban y
+  se añadió la puerta que vigila que su interfaz no cambie.
+
+  > **CORRECCIÓN (2026-09-10).** «Cero escrituras bloqueadas» era **falso**. Lo
+  > afirmé apoyado en un `grep` estrecho; la verificación de cierre encontró
+  > **15 escrituras que el puente seguía rechazando**. Se repararon todas y se
+  > construyó `verify:escrituras` para que la afirmación deje de depender de mi
+  > palabra. Ver la entrada del 2026-09-10 «La verificación de cierre».
+- **Se abre y se ve.** El circuito entero, en el navegador y contra Postgres:
+  abrir la mesa 3 con «Familia Ramírez» y «Alergia al cacahuate» → añadir
+  arrachera y dos cervezas → «Enviar a Cocina» → la comanda aparece en Cocina
+  **con el banner rojo de la alergia** → «Preparar» la mueve de columna →
+  precuenta impresa con su formato y código M03‑7840 → cobro mixto → folio A‑3.
+
+### La puerta que faltaba, y por qué es lo primero
+
+Las dos puertas del repositorio son **CIEGAS** a `apps/web/heredado/`:
+`tsconfig.base.json:45` fija `checkJs: false`, así que `tsc` no analiza ni un
+`.jsx`; y el `include` de vitest sólo alcanza `.test.ts` bajo `packages` y bajo
+el `src` de cada `apps`. Cinco agentes las presentaron como prueba de su trabajo
+y las dos salieron en verde sobre una tanda que había borrado tarjetas enteras
+de su interfaz.
+
+`scripts/verificar-aspecto.mjs` compara los «testigos de aspecto» de cada archivo
+tocado contra la referencia: cada clase de CSS —también las de dentro de `cn()`
+y de los ternarios—, el texto de los nodos JSX, los iconos, los atributos
+visibles y el texto de los avisos. Separa dos severidades: la ESTRUCTURA tumba
+la puerta; los AVISOS se listan siempre y sólo tumban con `--estricto`, porque
+el encargo pide expresamente que el error del navegador ceda el sitio al mensaje
+del dominio. Las excepciones viven en `aspecto-permitido.json` con un `porque`
+OBLIGATORIO. Va en `pnpm verify`.
+
+Medido con ella: **37 archivos tocados, tres excepciones escritas, cero cambios
+de estructura.** Lo que los revisores marcaron como destrucción de interfaz era,
+en su mayoría, texto de avisos de error; la destrucción real estaba en tres
+archivos del portal y está deshecha.
+
+### Los siete comandos que no existían
+
+`restaurante.atender_solicitud`, `restaurante.limpiar_solicitudes`,
+`restaurante.vaciar_solicitudes`, `restaurante.asignar_mesero`,
+`inventario.eliminar_receta`, `caja.eliminar_corte` y `caja.corte_turno`.
+
+Sin ellos, doce pantallas suyas no tenían a dónde llamar. El botón «Corte de
+turno» es el ejemplo completo del defecto que este proyecto persigue: hacía
+`CorteCaja.create` con el folio inventado en el navegador, la atribución en el
+cuerpo y los cuatro totales sumados en la pantalla — sobre una entidad que el
+puente rechaza, así que fallaba SIEMPRE.
+
+### Ninguna caja se podía cerrar
+
+`cerrarSesion` ponía `estado = 'cerrada'` y dejaba el folio en nulo, contra el
+`check caja_cerrada_con_folio` que añadió mi propia migración 045. El cajero
+veía «Algo falló de nuestro lado» y nada más.
+
+Es el SEGUNDO de la misma familia —el primero fue el `cerrada_en` que faltaba en
+`marcarPagada` y abortaba todos los cobros— y las 805 pruebas seguían en verde
+con la caja incerrable, porque los dobles en memoria no modelan `check`.
+
+Por eso el contrato nuevo no es el del fallo de hoy:
+`estados-con-columna.contrato.test.ts` **lee los `check` de las migraciones** y
+deriva la regla de ahí, así que el tercero ya está vigilado sin tocarlo.
+
+### La venta de mostrador no llegaba a la cocina
+
+Al retirar el bucle de `POS.jsx:462` —con su `.catch(() => {})`— no quedó NADA
+que mandara el mostrador a la plancha: peor que el defecto original, que al
+menos funcionaba a veces. `venta.cobrar` emite ahora las comandas de las líneas
+que todavía no tienen `comanda_items`, dentro de la transacción del cobro. En
+una mesa no hace nada; un plato añadido después sí sale, porque el filtro es por
+LÍNEA y no por orden.
+
+### Las reglas de negocio, comprobadas contra la base
+
+Cobro mixto de $439.00 con propina de $50 en efectivo y $30 en tarjeta:
+
+| Regla | Lo que dice la base |
+|---|---|
+| `Venta.total` **sin** propina | `total_centavos` = 43 900; los $80 viven en `pagos` |
+| Propina **exacta** por método | efectivo 5 000 · tarjeta 3 000, no el reparto proporcional (5 467/2 533) |
+| Propina fuera de costo, utilidad y margen | 43 900 − 14 840 = 29 060, margen 66,19 % |
+| Inventario **sólo** al cobrar | −280 g arrachera, −150 g frijol, −150 g arroz, −4 tortillas, −2 cervezas |
+| Cocina no ve costos ni márgenes | su ficha lleva producto, cantidad, notas y la alergia |
+
+### Decisiones tomadas sin preguntar, en este bloque
+
+1. **`limpiar_solicitudes` se partió en dos comandos.** Declaraba a mesero,
+   cajero y gerente y estrechaba `alcance: 'todas'` dentro del cuerpo.
+   Funcionaba y quedaba auditado, pero el contrato que publica
+   `pnpm docs:comandos` —y el que F1.5 sembrará en `permisos_rol`— decía que un
+   mesero podía vaciar el historial del negocio. Un permiso que sólo existe
+   dentro de una función no es un permiso declarado.
+2. **La propina escrita a mano SÍ viaja al portal público.** El campo seguía en
+   pantalla y siempre acababa en un error rojo porque se buscó la columna en
+   `ordenes` y vive en `solicitudes_qr`. Roza el «el endpoint no acepta importes
+   del cliente», y por eso va dicho: esa regla protege lo que se COBRA, y aquí
+   no se cobra nada —`Venta.total` no incluye propina y el importe real lo
+   teclea la caja—. Es criterio mío y se puede revocar.
+3. **Los modificadores del comensal se pliegan en la nota.** Se perdían en
+   silencio: el comensal veía «sin cebolla» en su carrito y a la cocina le
+   llegaba el plato con cebolla. No afectan precio ni inventario —lo dice su
+   propio archivo— y `comanda_items.notas` es justo lo que el cocinero lee.
+4. **`guardar_receta` acepta la lista vacía.** Estuvo en `.min(1)` y eso le
+   quitó una función: el único camino para dejar un producto sin escandallo era
+   «Eliminar receta», que además lo archiva.
+5. **`pages/Barra.jsx` se cableó pero sigue sin ruta.** Nadie la importa y su
+   propio `constants.js` dice que «Barra deja de ser rol principal». Se cableó
+   para no dejar en el árbol un archivo con una escritura que el puente rechaza.
+
+## Resurrección · E3 cerrada, E4 y E10-4 · 2026-09-09 · Las 27 entidades, y el peor defecto cerrado
+
+- **Qué se hizo:** se aplicaron las cuatro migraciones que le faltaban al
+  restaurante (56 columnas sobre ocho tablas existentes, 16 tablas nuevas, tres
+  vistas y las restricciones de `F1-01` §6), el puente pasó de 11 a 27
+  entidades, y el mantenimiento destructivo dejó de autorizarse por el cuerpo de
+  la petición.
+- **Se abre y se ve.** Las CATORCE pantallas cargan con datos reales de
+  Supabase: Productos con costo, utilidad y margen por producto; Inventario con
+  stock, valor de inventario y alertas; Recetas con su desglose; Mesas y Portal
+  QR con las mesas y sus zonas; Caja, Cocina, POS, Ventas, Registros, Compras y
+  Configuración con sus estados vacíos correctos. Las 27 entidades del puente
+  responden 200.
+
+### Las migraciones (E3-1 y E3-2)
+
+`045` las columnas y las tablas, `046` las restricciones, `047` la vista
+`empleados_visibles`, `048` la vista `existencias_por_insumo`.
+
+Lo que ahora impone la base y antes vivía en un `if` del navegador: una sola
+venta activa por mesa, una sola caja abierta por sucursal, una sola estación
+general, folios únicos de corte y de liquidación, una sola solicitud QR
+pendiente por mesa y tipo, y los tres únicos de nombre sin acentos ni
+mayúsculas. Un `if` se salta abriendo la consola; una restricción no.
+
+**Dos correcciones al DDL del mapa**, las dos escritas donde se aplican:
+
+1. `mesas_una_orden_activa on mesas (id)` no imponía NADA: `id` ya es la clave
+   primaria, así que ese índice es trivialmente único siempre. Va sobre
+   `orden_activa_id`, que es lo que hay que impedir: que dos mesas apunten a la
+   misma venta.
+2. Las cajas cerradas antes de que el folio existiera se rellenan ANTES de
+   añadir el `check`. Sin eso la restricción no se podía imponer sobre lo que ya
+   estaba en la base, y una restricción que no se puede imponer acaba fuera.
+
+**Una excepción declarada a «cero lógica de negocio en la base»**: el trigger
+que limita las unidades base del restaurante a `g`, `ml` y `pieza` (regla 7). No
+cabe en un `check` de columna porque depende de OTRA tabla —el giro de la
+organización— y la tiendita usa las seis legítimamente. Dejarlo sólo en el
+comando falla en cuanto alguien escriba por otro camino: una importación, una
+semilla, un `psql`.
+
+### El contrato de cobertura, y quince campos mal nombrados (E3-6)
+
+`cobertura.test.ts` lee los `.jsonc` de su plataforma —que siguen en
+`historico/restaurante/`— y afirma que **cada propiedad declarada tiene
+destino**: una columna, un derivado, un calculado, o un descarte con el motivo
+escrito. Un contrato que compara NÚMEROS pasa igual cuando el campo que falta es
+justo el que una pantalla lee.
+
+Encontró **quince campos con el nombre equivocado en cuatro entidades**, todos
+inventados por mí en vez de leídos de su esquema. Cada uno habría llegado a la
+pantalla como `undefined`, sin error y sin aviso:
+
+| Yo escribí | Se llama | Lo leen |
+|---|---|---|
+| `utilidad_unitaria` | `utilidad_bruta_actual` | 2 archivos |
+| `margen_porcentaje` | `margen_bruto_actual` | 2 archivos |
+| `insumo_base_id` | `ingrediente_base_id` | **13 archivos** |
+| `tipo_venta` (en línea) | `tipo_venta_snapshot` | **10 archivos** |
+| `unidad` (en el ledger) | `unidad_base` | **30 archivos** |
+| `tipo` (en el ledger) | `tipo_movimiento` | 9 archivos |
+
+Más `CorteCaja`, con dieciocho propiedades sin destino ni motivo.
+
+### Lo que las pantallas enseñaban mal, y ya no
+
+- **Productos decía COSTO $0.00 y MARGEN 100 %** en los cuatro productos, con la
+  base llena de costos correctos. `Productos.jsx:103` no lee el costo del
+  producto: SUMA `costo_linea_calculado` de las líneas de receta, y ese campo no
+  existe en ninguna tabla. Ahora es un campo *calculado*, con aritmética en
+  enteros y un solo redondeo al final, idéntica a la de `recalcularCostosRecetas`
+  para que la pantalla y el producto guardado no puedan decir cosas distintas.
+- **Inventario decía «Valor de inventario $0.00» y cuatro «Agotado»** con 5 kg de
+  café y 12 L de leche en la base. `stock_actual` no es una columna del esquema
+  nuevo: es la proyección del ledger. Ahora entra como DERIVADO, y eso es lo
+  importante — `Ingrediente.update(id, {stock_actual})` deja de funcionar. Es
+  exactamente la operación que corrompe el inventario cuando dos cajas cobran a
+  la vez (D-06).
+- **Las tarjetas decían «Sin categoría»** con la categoría bien puesta.
+
+### Las cinco lecturas que decidían con un dato inventado
+
+De los 188 `catch` de relleno que cuenta `F1-06` —no los 116 que suponía el
+plan—, cinco no son degradación: son lecturas cuyo resultado DECIDE algo.
+
+- `Caja.jsx:1160` + `mesasPendientesCierre.js:19`: dos redes de seguridad que
+  devolvían lo mismo, «no hay mesas pendientes». Un 429 del pooler bastaba para
+  cerrar el día con la mesa 7 abierta y $840 sin cobrar.
+- `Inventario.jsx:179`: un fallo de lectura se convertía en «no tiene
+  historial», que es el permiso para el borrado FÍSICO de la línea siguiente.
+- `ImportarDatosDialog.jsx:109`: contra un catálogo vacío, las 300 filas del CSV
+  se marcan NUEVAS. Vista previa limpia, cero errores, 300 duplicados. En la
+  pantalla cuyo criterio de aceptación es «una importación con errores no aplica
+  nada».
+- `qrPedidoFlow.js:370`: escribía `total: 0` sobre una cuenta de $1 240 con sus
+  cuatro líneas intactas.
+
+### E10-4 · La autorización deja de venir del cuerpo
+
+Sus cinco funciones decidían el permiso con `if (body?.rol !== 'administrador')`.
+Y `limpiarHistorialSeccion` preguntaba `posUser.some(u => u.rol ===
+'administrador')` — «¿existe algún administrador en este negocio?» y no «¿es
+administrador quien llama?». La respuesta es siempre sí: **ese endpoint nunca
+rechazó a nadie**, y bastaba `{"seccion":"ventas"}` para llevarse cinco mil
+ventas.
+
+Seis comandos, cinco rutas, y el cierre no es disciplina sino el tipo:
+`definirComando` rechaza AL CARGAR EL MÓDULO cualquier comando que declare `rol`
+o un campo de ámbito. Verificado con cuatro peticiones reales desde el
+navegador: sin confirmar → 400; con «BORRAR TODO» → 422; **con
+`{"rol":"administrador"}` → 400**; a la cuarta → 429, tres por hora.
+
+La confirmación pasa a ser el NOMBRE DEL NEGOCIO, leído de la base en la misma
+transacción. `BORRAR TODO` y compañía eran constantes impresas en la pantalla:
+las dos mitades de la comprobación las escribía el atacante.
+
+### Decisiones tomadas sin preguntar
+
+1. **`stock_actual` es derivado y no campo.** Escribirlo deja de funcionar a
+   propósito. Los tres sitios que lo hacen pasan a `ajustarInventario` e
+   `inventarioInicial`.
+2. **La vista de existencias SUMA todos los almacenes** en vez del principal,
+   que es lo que pedía `F1-04` §14.3. Su sistema no tiene almacenes —hay un
+   número por ingrediente y ya— y con uno solo las dos definiciones coinciden.
+3. **Las cinco operaciones irreversibles exigen DUEÑO, no administrador.**
+   `roles.ts` traduce dueno, administrador y gerente al «administrador» de su
+   interfaz: aceptar `administrador` dejaría a un gerente borrar el negocio.
+4. **`reiniciar_todo` NO crea un usuario con PIN `1234`.** El suyo lo hacía
+   cuando el padrón quedaba vacío.
+5. **La semilla de zonas y estación general se escribe POR GIRO**, no por
+   identificador: el DDL del mapa la dejaba con `$1`, que no es ejecutable en
+   una migración.
+
+### Lo que E4-7 y E4-4 resultaron ser
+
+Ninguna de las dos necesitaba código. El `check` de
+`003_venta_caja_inventario.sql` ya ata el signo del movimiento a su tipo, así
+que D-10 no puede ocurrir en este esquema; y `utilidad_unitaria_centavos` y
+`margen_bp` son columnas GENERADAS, así que no pueden desincronizarse del costo.
+Se verificó una por una en vez de escribir código que no hacía falta.
+
+- **Archivos:** `packages/data/src/migraciones/sql/045..048`,
+  `packages/app/src/puente/**`, `packages/app/src/mantenimiento/**`,
+  `apps/web/app/api/mantenimiento/**`, `apps/web/src/servidor/mantenimiento.ts`,
+  y cinco de `apps/web/heredado/`.
+- **Pruebas:** 66 del puente (37 de traducción y forma, 29 de cobertura contra
+  su esquema) y 15 de mantenimiento. Las tres puertas en verde.
+- **Verificado con:** el navegador, en las catorce pantallas y con peticiones
+  reales contra las rutas nuevas.
+- **Pendiente o riesgo:** los comandos transaccionales de mesa, comanda, compra,
+  gasto, propina y portal público están en curso; hasta que estén, las 96
+  escrituras de las pantallas a entidades marcadas `comando` fallan con
+  `PUENTE_SIN_PERMISO`, que es lo correcto pero todavía no es útil.
+  `/api/archivos/subir` sigue sin existir (3 sitios), y
+  `peticionDeEscrituraValida` exige `application/json`, así que habrá que
+  abrirle paso al `multipart` antes de escribirla.
+
+
+## Resurrección · E0 a E3 · 2026-09-09 · Su sistema, de vuelta y leyendo datos
+
+- **Qué se hizo:** se COPIÓ el frontend del POS de restaurante de Miguel —235
+  archivos— a `apps/web/heredado/`, con su `index.css` mandando, sus 15 rutas
+  con las mismas URLs, su login con el PIN comprobado en el servidor, y un
+  puente que traduce sus 25 entidades a las tablas del backend nuevo.
+- **Se abre y se ve.** Se entra con PIN y sale su Dashboard; `/productos` lee
+  cuatro productos reales de Postgres con precios, costos y márgenes;
+  `/inventario` lee sus cuatro insumos con sus alertas. Las quince rutas
+  responden 200 desde el servidor.
+- **Decisiones que se tomaron sin preguntar, y por qué:**
+  1. **`heredado/` fuera del lint.** 244 archivos escritos en cuatro meses
+     contra `strictTypeChecked` darían miles de hallazgos que no dicen nada
+     sobre si su sistema funciona. Tiene su `tsconfig` permisivo y se endurece
+     pantalla por pantalla, cuando cada una ya se ve y anda.
+  2. **`@/` pasa a ser SU alias** y lo nuestro se muda a `~/`. Es lo que hace
+     que sus 235 archivos no cambien una línea de import.
+  3. **Las rutas de acceso conservan su nombre** (`/api/auth/empleados` y
+     `/api/auth/entrar`) en vez de renombrarse a `/api/auth/usuarios` y
+     `/api/auth/pin` como sugería el plan. Hacen exactamente lo que E2-2 pide;
+     renombrarlas tocaba los contratos de mutación, el arnés y cuatro guiones
+     de humo sin que Miguel viera ninguna diferencia.
+  4. **`PedidoPreparacion` se guardará como UNA tabla con `items` en `jsonb`**,
+     no normalizada. Su entidad es plana con un arreglo dentro, y esos ítems son
+     una INSTANTÁNEA de lo que se mandó a cocina: no tienen que unirse con nada.
+  5. **`/estilos` y el sistema de tokens salen de la aplicación.** El aspecto lo
+     manda su `index.css`.
+- **Tres fallos suyos, encontrados al abrirlo:**
+  1. `index.css` tenía `html[data-print-mode='thermal'] @page { size: 80mm }`.
+     `@page` no admite selector: el navegador lo descartaba y el ticket térmico
+     salía en tamaño carta. El PostCSS de Tailwind 4 se niega a parsear la hoja
+     entera, así que aquí bloqueaba TODO el CSS. Se retira, y `print.js` inyecta
+     ahora la regla correcta — su intención funciona por primera vez.
+  2. `lib/utils.js` hacía `window.self !== window.top` en el cuerpo del módulo.
+     En su Vite siempre había ventana; bajo SSR revienta el módulo y con él las
+     quince pantallas. Una guarda `typeof window`, mismo valor en el navegador.
+  3. `ensureDefaultAdmin()` creaba un administrador con PIN `1234` desde el
+     NAVEGADOR si la plantilla estaba vacía. Fuera: el primer acceso lo da
+     `pnpm db:bootstrap`, del lado del servidor.
+- **Un fallo NUESTRO, encontrado por la prueba de ida y vuelta:** el puente
+  convertía dinero con `Math.round(pesos * 100)`. `1234.995 * 100` da
+  `123499.4999…` en coma flotante, así que redondear ahí devolvía 1234.99. Ahora
+  pasa por `desdeTexto` del dominio, que arma el importe como fracción exacta y
+  redondea una sola vez.
+- **Archivos:** `apps/web/heredado/**` (239), `apps/web/app/(interno)/**`,
+  `apps/web/app/globals.css`, `packages/app/src/puente/**` (9),
+  `apps/web/app/api/datos/**`, `packages/contracts/src/errores/index.ts`,
+  `docs/fase-1/F1-04-MAPA-DE-ENTIDADES.md`, `F1-05-AUDITORIA-DEL-PORTEO.md`.
+- **Pruebas:** 23 de ida y vuelta del puente, más las 391 que ya había.
+  `pnpm verify` en verde salvo lo que se dice abajo.
+- **Verificado con:** el navegador. Login, Dashboard, Productos e Inventario
+  con datos reales de Supabase; las quince rutas devolviendo 200; y una
+  comprobación entidad por entidad del puente contra la base.
+- **Pendiente o riesgo:** quince de las veinticinco entidades todavía responden
+  `PUENTE_ENTIDAD_DESCONOCIDA` porque su tabla no existe (E3-1). Las pantallas
+  de mesero, cocina, caja, compras, registros y portal QR abren pero sin datos.
+  `/api/archivos/subir` y `/api/mantenimiento/*` no existen aún.
+- **Reclasificaciones:** `historico/restaurante/**` deja de leerse como
+  especificación y pasa a COPIARSE. R30 derogada por F1-02 §7.
+
+## Port del restaurante · T1 y T2 · 2026-09-09 · Su diseño y su login, de vuelta
+
+- **Qué se hizo:** se **copió** el frontend del POS de restaurante de Miguel, en
+  vez de seguir tratándolo como especificación. Su `index.css` entero, su
+  `ThemeContext`, `brandColors`, `darkPalettes`, `AppLayout`, `Sidebar`,
+  `BrandedBackground`, `BrandColorsApplier`, `ThemeToggle`, `POSLogin`,
+  `ConfigContext`, `POSAuthContext`, `permissions`, `packageConfig`,
+  `constants`, `useRouteCleanup`, `PageHeader`, `EmptyState` y `LoadingState`.
+  Vive en `apps/web/src/mh/`.
+- **Su diseño manda.** Los tokens del `@theme inline` apuntan a los suyos, la
+  clase de modo oscuro es la suya (`dark`, con `oscuro` de alias para las 36
+  primitivas), y `next-themes` se retiró para que no haya dos sistemas de tema.
+- **Su login, con el PIN en el SERVIDOR.** Era el agujero P0-01:
+  `usuarios.find(u => u.pin === pinToUse)` en el navegador. Ahora Argon2id con
+  pimienta contra un hash que no sale de la base.
+- **Se retiró el enrolamiento de terminal**, que él nunca pidió: la pantalla, la
+  ruta, el comando `identidad.generar_codigo`, los tres helpers de código y las
+  tres funciones de repositorio. La caja se da de alta **sola**, y sólo después
+  de verificar el PIN.
+- **Dos fallos que sólo aparecieron ejecutando:** la barra lateral salía vacía
+  porque los roles de la base (`dueno`, `cajero`) no son los de su
+  `permissions.js` (`administrador`, `caja`); y dos navegadores entrando a la vez
+  chocaban contra `terminales_nombre_unico` proponiendo el mismo «Caja 3». El
+  segundo lo encontró el E2E corriendo escritorio y tablet en paralelo.
+- **Archivos:** `apps/web/src/mh/**` (24 archivos), `apps/web/app/mh-*.css`,
+  `apps/web/app/globals.css`, `apps/web/app/layout.tsx`,
+  `apps/web/app/(mh)/`, `apps/web/app/login-pos/`,
+  `packages/app/src/identidad/{entrar,dispositivo,comandos,pin}.ts`,
+  `packages/app/src/negocio/`, `packages/data/src/repos/{identidad,negocio,sesion}.ts`,
+  `packages/contracts/src/entorno/index.ts`.
+- **Decisiones:** un despliegue sirve a UN negocio (`ORGANIZACION`, opcional si
+  hay una sola organización activa, y **falla nombrando la variable** si hay
+  varias); las fuentes se autohospedan con `next/font` porque la CSP bloquea
+  `fonts.googleapis.com`; `verify:primitivas` exime `apps/web/src/mh` porque su
+  parche dark es quien resuelve sus literales; las pantallas provisionales
+  siguen vivas hasta que la suya ocupe su lugar.
+- **Pruebas:** 391 unitarias · 7 arneses · 79 mutaciones · **E2E 16 de 16** en
+  escritorio y tablet contra Postgres real. Tres contratos de identidad nuevos o
+  reescritos, los tres validados mutando.
+- **Verificado con:** `pnpm verify` completa, `pnpm test:e2e` completa, y la
+  pantalla abierta en el navegador —claro, oscuro, escritorio y móvil— con la
+  sesión real de Elena.
+- **Pendiente o riesgo:** los enlaces de su barra lateral a `/mesero`,
+  `/cocina`, `/ventas`, `/compras`, `/registros` y `/portal-qr` dan 404 hasta
+  T3-T6. Cuatro componentes de su `AppLayout` no se portaron porque escuchan
+  entidades que este backend no tiene. No hay una organización de restaurante
+  sembrada. Detalle completo en `docs/reports/007-port-restaurante-t1-t2.md`.
+- **Reclasificaciones:** `historico/restaurante/src/**` deja de leerse como
+  especificación y pasa a **copiarse**. Lo pidió Miguel el 2026-09-09.
+
+## Cierre F1.1 · C-01 a C-20 · 2026-09-08 · El POS vende de verdad
+
+- **Qué se hizo:** las 20 tareas del plan de cierre. `carril-b` integrado, la
+  primera conexión real a Postgres, el bucle del primer PIN roto, la primera
+  venta real, el día completo del cajero, y el proyecto en línea en Vercel.
+- **El criterio del hito 1 se cumplió:** `select count(*) from auditoria` pasó
+  de 0 —tres sesiones en cero— a 36. La cadena sesión → comando → transacción →
+  Kysely → Postgres corrió de punta a punta, en local y desde el despliegue.
+- **Cinco fallos que ninguna puerta veía porque ninguna ejecutaba nada:**
+  1. Nadie podía entrar: `verify()` de Argon2 decodifica UTF-8 y le pasábamos
+     el HMAC crudo; el `catch` lo devolvía como «PIN incorrecto».
+  2. Las 17 rutas de gestión colgaban de un puente de desarrollo que lanzaba en
+     producción y en local daba el ámbito del dueño a cualquiera.
+  3. `resetearDemo` orfanaba en silencio las líneas de ventas ya cobradas.
+  4. El buscador le robaba el foco a los diálogos: el fondo de caja se escribía
+     en la búsqueda.
+  5. 102 imports relativos sin extensión: TypeScript los resolvía, Node no.
+- **Archivos:** `packages/app/src/{arranque,identidad,caja,venta,http}/`,
+  `packages/data/src/{tls.ts,certificados,repos/limite.ts}`,
+  `apps/web/app/(gestion)/accesos/`, `apps/web/src/venta/`, migración 044,
+  cuatro guiones de humo, `scripts/lib/arnes.mjs`, `pruebas/e2e/dia-01-venta.spec.ts`,
+  `docs/RUNBOOK.md`.
+- **Decisiones:** el rol de base de la aplicación tiene DML y NO DDL, así que
+  las migraciones se aplican por consola administrada y se registran a mano; el
+  certificado raíz de Supabase va embebido en el código, no leído del disco,
+  porque el trazado serverless no garantiza copiarlo; el corte de caja se cuenta
+  a ciegas; `TEAM.md` queda suspendido.
+- **Pruebas:** 395 unitarias, 7 arneses con 79 mutaciones, E2E DIA-01 contra
+  base real. Cuatro guiones de humo que recorren la API por HTTP y valen para
+  localhost y para producción.
+- **Verificado con:** `pnpm verify` completa —incluidos `verify:identidad`,
+  `verify:paquetes` y `verify:certificado`, nuevos— más ejecución real contra
+  Supabase y contra el despliegue de Vercel.
+- **Pendiente o riesgo:** el dominio espera los registros DNS, que sólo puede
+  poner Miguel. La restauración de la base nunca se ensayó. `PIN_PEPPER` no se
+  puede rotar sin invalidar todos los PIN. `resetearDemo` borra ventas y no
+  distingue una organización de demostración de una real. Detalle completo en
+  `docs/reports/006-cierre-f1.1.md`.
+- **Reclasificaciones:** ninguna.
+
+## Carril A · A-02, A-03, A-05 a A-10, A-12 y X-01 · 2026-09-08 · Se puede vender
+
+- **Qué se hizo:** el puente HTTP que faltaba y, encima, la venta completa. Miguel
+  abre el navegador, entra con PIN, agrega productos, cobra en efectivo y le sale
+  un ticket.
+- **Archivos:** `packages/app/src/{http,sesion,identidad,venta,caja}/`,
+  `packages/domain/src/venta/totales.ts`,
+  `packages/data/src/repos/{sesion,identidad,folios,caja,venta-catalogo,ordenes/}`,
+  `apps/web/src/{cliente,servidor,venta,identidad}/`, 16 rutas bajo
+  `apps/web/app/api/`, y las páginas `/venta`, `/entrar`, `/enrolar`.
+- **Decisiones:** el stock se descuenta ANTES de tomar el folio, para que una
+  venta sin inventario no deje hueco en el consecutivo. El carrito ES la orden en
+  borrador, persistida por línea (P1-10). El arqueo se DERIVA de los movimientos
+  y no se guarda ningún total (P2-10).
+- **Pruebas:** 361 en verde. 15 contratos de venta y 26 mutaciones en
+  `verify:venta`, enganchado a `pnpm verify`.
+- **Verificado con:** `pnpm verify` completa —lint, typecheck, primitivas,
+  residuos, 28 archivos de prueba, `verify:venta` y build de Next.
+- **Pendiente o riesgo:** sin `DATABASE_URL` no se ha ejecutado NADA contra
+  Postgres. Todo lo transaccional está verificado por tipos, contratos y
+  mutación estática, no en vivo. `cerrarCaja` no tiene pantalla; el corte se
+  invoca por API. Detalle en `docs/reports/004-claude-code-f1.1-venta.md`.
+- **Reclasificaciones:** ninguna.
+
 ## Carril B · B-12 · 2026-09-09 · Recetas y rentabilidad
 
 - **Qué se hizo:** comandos y pantalla de recetas; costo por insumos con merma y
@@ -63,30 +585,6 @@
 - **Pruebas:** caso rojo antes del arreglo y verde después.
 - **Verificado con:** retirar el insert vuelve a romper la prueba de fila ausente.
 - **Pendiente:** prueba de integración real espera `DATABASE_URL`.
-
-## Carril A · A-02, A-03, A-05 a A-10, A-12 y X-01 · 2026-09-08 · Se puede vender
-
-- **Qué se hizo:** el puente HTTP que faltaba y, encima, la venta completa. Miguel
-  abre el navegador, entra con PIN, agrega productos, cobra en efectivo y le sale
-  un ticket.
-- **Archivos:** `packages/app/src/{http,sesion,identidad,venta,caja}/`,
-  `packages/domain/src/venta/totales.ts`,
-  `packages/data/src/repos/{sesion,identidad,folios,caja,venta-catalogo,ordenes/}`,
-  `apps/web/src/{cliente,servidor,venta,identidad}/`, 16 rutas bajo
-  `apps/web/app/api/`, y las páginas `/venta`, `/entrar`, `/enrolar`.
-- **Decisiones:** el stock se descuenta ANTES de tomar el folio, para que una
-  venta sin inventario no deje hueco en el consecutivo. El carrito ES la orden en
-  borrador, persistida por línea (P1-10). El arqueo se DERIVA de los movimientos
-  y no se guarda ningún total (P2-10).
-- **Pruebas:** 361 en verde. 15 contratos de venta y 26 mutaciones en
-  `verify:venta`, enganchado a `pnpm verify`.
-- **Verificado con:** `pnpm verify` completa —lint, typecheck, primitivas,
-  residuos, 28 archivos de prueba, `verify:venta` y build de Next.
-- **Pendiente o riesgo:** sin `DATABASE_URL` no se ha ejecutado NADA contra
-  Postgres. Todo lo transaccional está verificado por tipos, contratos y
-  mutación estática, no en vivo. `cerrarCaja` no tiene pantalla; el corte se
-  invoca por API. Detalle en `docs/reports/004-claude-code-f1.1-venta.md`.
-- **Reclasificaciones:** ninguna.
 
 ## Carril B · B-07 · 2026-09-08 · Pantalla de configuración
 
@@ -210,7 +708,7 @@
 | Corte | Estado | Tareas | Última actualización |
 |---|---|---|---|
 | F1.0 Fundación | 🟨 12 de 13 · falta T05 en vivo | 12 / 13 | 2026-09-07 |
-| F1.1 Núcleo | 🟨 dos carriles en paralelo (A-45) · venta, catálogo, gestión e inventario operables | A: 10/22 · B: 12/24 | 2026-09-09 |
+| F1.1 Núcleo | ✅ **cierra: el POS vende de verdad y está desplegado** | 20 / 20 del cierre | 2026-09-08 |
 | F1.2 Catálogo y venta | ⬜ No iniciado | 0 / 17 | — |
 | F1.3 Inventario y compras | ⬜ No iniciado | 0 / 16 | — |
 | F1.4 Restaurante | ⬜ No iniciado | 0 / 17 | — |

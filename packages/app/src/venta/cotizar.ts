@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio } from '@morphiqpos/contracts';
+import { z } from 'zod';
 import { centavos } from '@morphiqpos/domain/dinero';
 
 import { porCantidad } from './escala.ts';
@@ -22,11 +23,56 @@ import { repoOrdenes } from '@morphiqpos/data';
  * pantalla estaba desactualizada, nunca para cobrar.
  */
 
-/** IVA mexicano. Sale de `configuracion` cuando esa pantalla lo escriba. */
+/**
+ * El punto de partida cuando la organización no ha configurado nada.
+ *
+ * Ya NO es lo que se cobra: `impuestoDe` lee la configuración del negocio en
+ * cada cotización. Esto queda como valor por omisión de una organización recién
+ * creada, y para que las pruebas puras no tengan que montar una configuración.
+ */
 export const IMPUESTO_POR_OMISION: ReglaImpuesto = {
   tasaPuntosBase: 1600,
   incluidoEnPrecio: true,
 };
+
+/**
+ * La regla de impuesto de una organización (F1.1-C-12).
+ *
+ * Se lee DENTRO de la misma transacción que cotiza. Si se leyera antes, un
+ * cambio de IVA a media venta dejaría la cotización con una tasa y el cobro con
+ * otra — y el cliente pagaría un total que la pantalla nunca enseñó.
+ */
+export async function impuestoDe(
+  db: Kysely<Esquema> | Transaccion,
+  organizacionId: string,
+): Promise<ReglaImpuesto> {
+  const fila = await db
+    .selectFrom('configuracion')
+    .select('valores')
+    .where('organizacion_id', '=', organizacionId)
+    .executeTakeFirst();
+
+  const leido = FORMA_IMPUESTO.safeParse(fila?.valores ?? {});
+  // Una configuración dañada NO tumba la venta: se cobra con el IVA general y
+  // el negocio sigue operando. Dejar de vender por un JSON malformado sería
+  // peor que cobrar el 16 % que ese negocio ya cobraba.
+  if (!leido.success || leido.data.impuesto === undefined) return IMPUESTO_POR_OMISION;
+
+  const { puntosBase, incluidoEnPrecio } = leido.data.impuesto;
+  return {
+    tasaPuntosBase: puntosBase ?? IMPUESTO_POR_OMISION.tasaPuntosBase,
+    incluidoEnPrecio: incluidoEnPrecio ?? IMPUESTO_POR_OMISION.incluidoEnPrecio,
+  };
+}
+
+const FORMA_IMPUESTO = z.object({
+  impuesto: z
+    .object({
+      puntosBase: z.number().int().min(0).max(3500).optional(),
+      incluidoEnPrecio: z.boolean().optional(),
+    })
+    .optional(),
+});
 
 export interface LineaCotizada {
   readonly id: string;
@@ -62,9 +108,12 @@ export async function cotizar(
   db: Kysely<Esquema> | Transaccion,
   organizacionId: string,
   ordenId: string,
-  impuesto: ReglaImpuesto = IMPUESTO_POR_OMISION,
+  impuestoDado?: ReglaImpuesto,
 ): Promise<{ readonly cotizacion: Cotizacion; readonly totales: TotalesOrden }> {
-  const lineas = await repoOrdenes.lineasDeOrden(db, organizacionId, ordenId);
+  const [lineas, impuesto] = await Promise.all([
+    repoOrdenes.lineasDeOrden(db, organizacionId, ordenId),
+    impuestoDado === undefined ? impuestoDe(db, organizacionId) : Promise.resolve(impuestoDado),
+  ]);
 
   const totales = calcularTotales(
     lineas.map((l) => ({

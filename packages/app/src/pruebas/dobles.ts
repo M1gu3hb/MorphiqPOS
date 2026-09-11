@@ -13,6 +13,8 @@
  * prueba `comando.integracion.test.ts` contra una base real, y está declarada
  * como hueco en el reporte mientras no haya `DATABASE_URL`.
  */
+import { crearComando } from '../comando.ts';
+import type { Transaccion } from '@morphiqpos/data';
 import type { Ambito, Paquete } from '@morphiqpos/contracts';
 
 import type { EjecucionGuardada, FilaAuditoria, RepositorioComandos } from '../repositorio.ts';
@@ -165,4 +167,31 @@ export function ambitoDeCajero(cambios: Partial<Ambito> = {}): Ambito {
     rol: 'cajero',
     ...cambios,
   };
+}
+
+/**
+ * Un ejecutor de comandos que acepta las definiciones REALES de producción.
+ *
+ * Las definiciones de producción se escriben como `DefinicionComando<Transaccion, …>`
+ * y el doble trabaja con `TxFalsa`. Como `ejecutar` recibe el contexto, el tipo
+ * de la transacción es contravariante y TypeScript rechaza —con razón— pasar
+ * una por la otra.
+ *
+ * Aquí el cambio de tipo es seguro y está acotado a un solo sitio: las pruebas
+ * que usan esto comprueban **rechazos que ocurren ANTES de abrir la
+ * transacción** —rol, paquete, entrada inválida—, así que `ejecutar` nunca
+ * llega a correr y ninguna transacción falsa toca código que espere una de
+ * verdad. Una prueba que quiera ejecutar el cuerpo NO debe usar esto: debe
+ * definir su propio comando sobre `TxFalsa`.
+ */
+export function ejecutorDeProduccion(
+  paquete: Paquete,
+): ReturnType<typeof crearComando<Transaccion>> {
+  const fabrica = crearFabrica(paquete);
+  return crearComando<Transaccion>({
+    repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
+    conTransaccion: fabrica.conTransaccion as unknown as <T>(
+      fn: (tx: Transaccion) => Promise<T>,
+    ) => Promise<T>,
+  });
 }

@@ -3,7 +3,7 @@ import { cantidad, cantidadATexto } from '@morphiqpos/domain/catalogo';
 import type { MovimientoPlaneado } from '@morphiqpos/domain/inventario';
 import { sql } from 'kysely';
 
-import type { Transaccion } from '../cliente';
+import type { Transaccion } from '../cliente.ts';
 
 interface MovimientoValidado {
   readonly movimiento: MovimientoPlaneado;

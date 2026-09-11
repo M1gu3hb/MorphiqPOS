@@ -1,13 +1,13 @@
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 import { describe, expect, it } from 'vitest';
-import { centavos } from '../dinero';
+import { centavos } from '../dinero/index.ts';
 import {
   cantidad,
   cantidadATexto,
   convertirUnidad,
   precioDeLinea,
   calcularMlPorPorcion,
-} from './index';
+} from './index.ts';
 
 describe('CAT-02 · equivalencias y contenedor', () => {
   it('deriva 46.875 ml exactos y da prioridad a los ml explícitos', () => {

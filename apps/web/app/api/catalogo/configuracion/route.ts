@@ -1,5 +1,5 @@
 import { guardarConfiguracion } from '@morphiqpos/app/configuracion';
-import { consultarConfiguracionProduccion } from '@morphiqpos/app/gestion';
+import { consultarConfiguracionProduccion } from '@morphiqpos/app/consultas-produccion';
 
 import { ejecutarComandoHttp, responderConsulta } from '../../../../src/servidor/http';
 

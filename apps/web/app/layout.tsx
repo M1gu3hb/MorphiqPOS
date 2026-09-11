@@ -1,19 +1,29 @@
 import type { Metadata, Viewport } from 'next';
+import { DM_Sans, Inter } from 'next/font/google';
 import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
 
-import { atributosDeEstilo } from '@morphiqpos/ui';
-
-import { CABECERA_NONCE } from '@/seguridad/csp';
-import { Proveedores } from '@/proveedores/Proveedores';
+import { GUION_SIN_PARPADEO } from '@/tema-arranque';
+import { CABECERA_NONCE } from '~/seguridad/csp';
+import { Proveedores } from '~/proveedores/Proveedores';
 
 import './globals.css';
 
+/**
+ * Sus dos fuentes, servidas desde nuestro propio origen.
+ *
+ * Su `index.css` las pedía a `fonts.googleapis.com`. Aquí eso no funciona: la
+ * CSP es `style-src 'self'` y `font-src 'self' data:`, así que el navegador lo
+ * bloquearía. `next/font` las descarga en el build, las sirve desde `/_next` y
+ * expone la variable que consume su hoja. Mismas familias, mismo aspecto, y
+ * sin una petición de terceros que bloquee el pintado.
+ */
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--mh-inter' });
+const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--mh-dm-sans' });
+
 export const metadata: Metadata = {
-  title: 'MorphiqPOS',
-  description: 'Punto de venta de Morphiq.',
-  // Sin favicon de framework ni pantalla de bienvenida generada: gate PRS §03,
-  // cero componentes de andamiaje visibles.
+  title: 'MH Astral POS',
+  description: 'Punto de venta de restaurante.',
   icons: { icon: '/icono.svg' },
 };
 
@@ -21,37 +31,32 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   // No se bloquea el zoom: escalar a 200 % sin perder contenido es requisito
-  // de accesibilidad (05-SISTEMA-DE-DISENO §9).
+  // de accesibilidad.
   maximumScale: 5,
 };
 
 /**
- * Layout raiz.
+ * Layout raíz.
  *
- * El estilo activo se decide aqui y se aplica como atributos `data-*` en
- * `<html>`. En F1.1 saldra de `configuracion.apariencia` de la organizacion;
- * hoy es el valor por omision.
+ * Leer las cabeceras vuelve DINÁMICO el renderizado, y eso es a propósito: un
+ * nonce por petición no cabe en HTML prerenderizado en el build. Sin esto la
+ * CSP bloquea todos los scripts de Next y la página se sirve sin hidratar —se
+ * ve bien y no responde a un solo clic—.
  *
- * Leer las cabeceras vuelve DINAMICO el renderizado, y eso es a proposito:
- * un nonce por peticion no cabe en HTML prerenderizado en el build. Sin esto
- * la CSP bloquea todos los scripts de Next y la pagina se sirve sin hidratar
- * — se ve bien y no responde a un solo clic.
- *
- * No se pierde nada: en un POS practicamente toda pantalla depende de la
- * sesion, del negocio y de la terminal, asi que ninguna iba a ser estatica.
+ * No se pierde nada: en un POS prácticamente toda pantalla depende de la
+ * sesión y del negocio, así que ninguna iba a ser estática.
  */
 export default async function LayoutRaiz({ children }: { children: ReactNode }) {
-  // Fuerza el renderizado dinamico para que Next firme sus <script> con el
-  // nonce que puso el middleware, y recupera ese nonce para los scripts que
-  // inyectan las librerias.
   const nonce = (await headers()).get(CABECERA_NONCE) ?? undefined;
 
-  const estilo = atributosDeEstilo('premium');
-
   return (
-    <html lang="es-MX" suppressHydrationWarning {...estilo}>
+    <html lang="es-MX" suppressHydrationWarning className={`${inter.variable} ${dmSans.variable}`}>
+      <head>
+        {/* Pone la clase del tema ANTES del primer pintado. */}
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: GUION_SIN_PARPADEO }} />
+      </head>
       <body>
-        <Proveedores {...(nonce === undefined ? {} : { nonce })}>{children}</Proveedores>
+        <Proveedores>{children}</Proveedores>
       </body>
     </html>
   );

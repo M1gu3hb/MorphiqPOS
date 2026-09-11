@@ -1,6 +1,6 @@
 import { CODIGOS_ERROR, ErrorDominio } from '@morphiqpos/contracts/errores';
 
-import type { Centavos } from './centavos';
+import type { Centavos } from './centavos.ts';
 
 /**
  * La UNICA definicion de redondeo del sistema.

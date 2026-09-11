@@ -1,0 +1,664 @@
+'use client';
+import React, { useState, useMemo, useRef } from 'react';
+import { api, nuevaClave } from '@/api/cliente';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Plus, Trash2, Save, PackagePlus, Info } from 'lucide-react';
+import { toast } from 'sonner';
+import { useConfig } from '@/lib/ConfigContext';
+import { formatCurrency } from '@/utils/financialUtils';
+import { calculateCostPerBaseUnit } from '@/utils/unitConversions';
+import {
+  getUnidadesCompra,
+  UNIDADES_BASE,
+  esUnidadEstandar,
+  validarCompatibilidad,
+  convertirAUnidadBase,
+  canonicalUnidad,
+} from '@/utils/unidadesMedida';
+import IngredienteAutocomplete from '@/components/recetas/IngredienteAutocomplete';
+import { normalizarNombreIngrediente, construirMapaIngredientes } from '@/utils/ingredienteMatcher';
+import StockMinCritInput from '@/components/inventario/StockMinCritInput';
+import {
+  claveDeContenido,
+  obtenerAlmacenPrincipalId,
+  textoDecimal,
+  textoImporte,
+} from '@/components/inventario/comandos';
+
+/**
+ * REGISTRAR INVENTARIO EXISTENTE / INICIAL
+ * ----------------------------------------
+ * Caso de uso: un restaurante que empieza a usar el POS ya tiene insumos
+ * en su cocina/bodega. No queremos obligarlo a inventar una "compra" para
+ * cargar el stock inicial.
+ *
+ * Diferencia clave con "Registrar compra":
+ *  - NO crea CompraInsumo
+ *  - NO crea DetalleCompra
+ *  - NO aparece en Compras del día ni en reportes financieros de gasto
+ *  - SÍ crea/actualiza Ingrediente
+ *  - SÍ registra el movimiento `inventario_inicial` en el ledger
+ *  - SÍ deja el costo por unidad base del insumo listo para costear recetas
+ *
+ * NO toca: ventas, caja, cortes, propinas, tickets, PDFs.
+ *
+ * ── D-06: la existencia se suma, no se escribe ─────────────────────────────
+ * Cada línea hacía `Ingrediente.update({stock_actual, costo_por_unidad_base})`
+ * y luego `MovimientoInventario.create`, con un rollback a mano —incluso un
+ * `Ingrediente.delete` del insumo recién creado— cuando el movimiento fallaba.
+ * Ahora son comandos: `inventario.crear_insumo` da de alta el insumo con su
+ * costo, e `inventario.inicial` suma la cantidad a la existencia del almacén y
+ * escribe el movimiento en la MISMA transacción. Si una línea falla, esa línea
+ * no dejó nada a medias y las anteriores siguen en pie.
+ *
+ * El costo ponderado ya no se calcula aquí. Sobrescribir el costo histórico de
+ * un insumo que ya tenía uno es D-13, y el promedio ponderado de verdad lo hace
+ * `compras.registrar` en el servidor con enteros. Aquí el costo sólo se fija
+ * cuando el insumo todavía no tiene ninguno: nace con el que dice la línea.
+ */
+export default function RegistrarInventarioInicialDialog({ open, onClose, ingredientes = [] }) {
+  const { config } = useConfig();
+  const queryClient = useQueryClient();
+  const [lines, setLines] = useState([emptyLine()]);
+  const [saving, setSaving] = useState(false);
+  // Semilla de las claves de idempotencia mientras el diálogo esté abierto: un
+  // doble clic en «Guardar» no puede cargar el inventario dos veces. Se crea
+  // perezosamente para no gastar un uuid en cada tecla, y `reset()` la anula
+  // para que la siguiente apertura empiece con una nueva.
+  const semillaDelDialogo = useRef(null);
+  if (semillaDelDialogo.current === null) semillaDelDialogo.current = nuevaClave();
+
+  const unidadesCompra = useMemo(() => getUnidadesCompra(config), [config]);
+
+  function emptyLine() {
+    return {
+      tipo: 'existente', // 'existente' | 'nuevo'
+      ingrediente: null,
+      nuevo_nombre: '',
+      nuevo_unidad_base: 'g',
+      cantidad: '',
+      unidad_compra: 'kg',
+      costo_total: '',
+      piezas_por_paquete: '',
+      stock_minimo: '',
+      stock_critico: '',
+    };
+  }
+
+  const reset = () => {
+    setLines([emptyLine()]);
+    semillaDelDialogo.current = null;
+  };
+
+  const close = () => {
+    if (saving) return;
+    reset();
+    onClose();
+  };
+
+  const updateLine = (idx, patch) => {
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  };
+  const addLine = () => setLines((prev) => [...prev, emptyLine()]);
+  const removeLine = (idx) =>
+    setLines((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
+
+  const handleSelectExistente = (idx, ing) => {
+    updateLine(idx, {
+      ingrediente: ing,
+      tipo: 'existente',
+      unidad_compra: ing?.unidad_compra_default || 'kg',
+    });
+  };
+  const handleCreateNew = (idx, query) => {
+    updateLine(idx, { tipo: 'nuevo', ingrediente: null, nuevo_nombre: query });
+  };
+
+  const totalEstimado = lines.reduce((s, l) => s + (parseFloat(l.costo_total) || 0), 0);
+
+  // Una unidad requiere "equivalencia" cuando NO es estándar (kg/g/litro/ml/pieza/alias),
+  // o cuando es un empaque conocido (caja/paquete/bolsa/unidad).
+  // Para esos casos pedimos cuánto trae cada unidad en unidad base.
+  const requiereEquivalencia = (u) => {
+    const canon = canonicalUnidad(u);
+    if (canon === 'kg' || canon === 'g' || canon === 'litro' || canon === 'ml') return false;
+    // 'pieza' canónica directa no requiere equivalencia.
+    if (canon === 'pieza') {
+      // Pero los alias de empaque que mapean a pieza (caja/paquete/bolsa) NO existen
+      // en ALIAS_MAP. Aquí canon === 'pieza' significa pieza/piezas/pza/unidad — directos.
+      return false;
+    }
+    return true; // personalizada o empaque (caja/paquete/bolsa)
+  };
+
+  const handleSave = async () => {
+    // Pre-validación por línea: ingrediente / nombre + cantidad + costo + equivalencia si aplica.
+    // Además: compatibilidad entre unidad capturada y unidad base del ingrediente.
+    const validLines = [];
+    for (const l of lines) {
+      const tieneIng =
+        l.tipo === 'existente' ? !!l.ingrediente : !!String(l.nuevo_nombre || '').trim();
+      if (!tieneIng) continue;
+      const cantOk = parseFloat(l.cantidad) > 0;
+      const costoOk = parseFloat(l.costo_total) > 0;
+      if (!cantOk || !costoOk) continue;
+
+      // Equivalencia obligatoria si la unidad NO es estándar directa.
+      if (requiereEquivalencia(l.unidad_compra) && !(parseFloat(l.piezas_por_paquete) > 0)) {
+        toast.error(`Falta indicar a cuánto equivale 1 ${l.unidad_compra} en unidad base.`);
+        return;
+      }
+
+      // Compatibilidad unidad capturada ↔ unidad base del ingrediente.
+      const unidadBase = l.tipo === 'existente' ? l.ingrediente?.unidad_base : l.nuevo_unidad_base;
+      const { compatible, mensaje } = validarCompatibilidad(l.unidad_compra, unidadBase);
+      if (!compatible) {
+        toast.error(mensaje || 'La unidad seleccionada no es compatible con la unidad base.');
+        return;
+      }
+
+      validLines.push(l);
+    }
+
+    if (validLines.length === 0) {
+      toast.error('Agrega al menos una línea válida con cantidad y costo.');
+      return;
+    }
+
+    setSaving(true);
+    let exitosos = 0;
+    let fallidos = 0;
+    let primerErrorMsg = '';
+
+    // Para detectar duplicados contra ingredientes inactivos también.
+    //
+    // El `.catch(() => {})` que envolvía esta lectura la degradaba a la lista de
+    // sólo activos que llega por prop, y entonces el inventario inicial creaba
+    // un insumo duplicado del que estaba desactivado (F1-06 §4.10). Si el
+    // catálogo no se puede leer, no se adivina: no se registra nada.
+    //
+    // El almacén se resuelve UNA vez, no una por línea: los comandos de
+    // existencias lo exigen y el frontend heredado no conocía el concepto.
+    let baseList = ingredientes;
+    let almacenId;
+    try {
+      const all = await api.entidades.Ingrediente.list('-created_date', 5000);
+      if (Array.isArray(all) && all.length > 0) baseList = all;
+      almacenId = await obtenerAlmacenPrincipalId();
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo preparar el registro de inventario. Reintenta.');
+      setSaving(false);
+      return;
+    }
+
+    // MAPA EN-VUELO: detecta duplicados entre líneas de la misma operación
+    // (ej. Línea 1 = "Pan", Línea 2 = "PAN", Línea 3 = "Pán" → mismo ingrediente).
+    const mapaIng = construirMapaIngredientes(baseList);
+
+    try {
+      for (const [indice, line] of validLines.entries()) {
+        let ing = line.ingrediente;
+        let creadoEnEstaIteracion = false;
+
+        try {
+          // Si el usuario seleccionó "existente" desde autocomplete y otra línea
+          // anterior ya tocó el mismo ingrediente, usamos la versión actualizada del mapa.
+          if (ing) {
+            const k = normalizarNombreIngrediente(ing.nombre);
+            if (k && mapaIng.has(k)) ing = mapaIng.get(k);
+          }
+
+          const qty = parseFloat(line.cantidad) || 0;
+          const cost = parseFloat(line.costo_total) || 0;
+          const equivalencia = parseFloat(line.piezas_por_paquete) || 1;
+
+          // Helper central: convierte cualquier alias estándar (kg, kilogramos, l, lt, …)
+          // o unidad personalizada (con equivalencia) a la unidad base correcta.
+          const qtyBase = convertirAUnidadBase(qty, line.unidad_compra, equivalencia);
+          const costPerBase = calculateCostPerBaseUnit(cost, qtyBase);
+          // Cuántas unidades base trae UNA unidad de compra. Es lo que la columna
+          // `cantidad_por_compra_default` significa (F1-04 §14.1) y lo que la
+          // siguiente compra vuelve a leer; escribir ahí la cantidad comprada,
+          // como se hacía, deja la conversión de la compra anterior.
+          const equivalenciaBase = convertirAUnidadBase(1, line.unidad_compra, equivalencia);
+
+          // Una clave de idempotencia por línea, atada a la apertura del diálogo
+          // y al CONTENIDO de la línea: si el usuario reintenta, las líneas que
+          // ya entraron se resuelven como reintento y no suman dos veces, y la
+          // que corrija cambia de clave y sí vuelve a entrar.
+          const claveLinea = (paso) =>
+            claveDeContenido(`inv-ini-${paso}`, {
+              semilla: semillaDelDialogo.current,
+              indice,
+              insumo:
+                line.tipo === 'nuevo'
+                  ? normalizarNombreIngrediente(line.nuevo_nombre)
+                  : line.ingrediente?.id || '',
+              cantidad: qtyBase,
+              costo: cost,
+            });
+
+          // 1) Línea "nueva". ANTI-DUPLICADO con mapa en-vuelo:
+          //    detecta variantes normalizadas y duplicados entre líneas + inactivos.
+          if (line.tipo === 'nuevo') {
+            const key = normalizarNombreIngrediente(line.nuevo_nombre);
+            const yaExiste = key ? mapaIng.get(key) : null;
+            if (yaExiste) {
+              try {
+                const fresco = await api.entidades.Ingrediente.get(yaExiste.id);
+                ing = fresco || yaExiste;
+              } catch {
+                ing = yaExiste;
+              }
+              // BLOQUEAR y avisar: no reactivamos silenciosamente.
+              if (ing && ing.activo === false) {
+                toast.error(
+                  `"${ing.nombre}" existe pero está desactivado. Reactívalo desde Inventario o cambia el nombre.`,
+                );
+                throw new Error(`Ingrediente "${ing.nombre}" desactivado — línea cancelada.`);
+              }
+              toast.info(
+                `"${String(line.nuevo_nombre || '').trim()}" ya existía — sumando al ingrediente existente.`,
+              );
+            } else {
+              // El insumo nace con su costo por unidad base: `crear_insumo` lo
+              // acepta porque es el primero que tiene, no una sobrescritura.
+              const nombreNuevo = String(line.nuevo_nombre || '').trim();
+              const minimoNuevo = Math.max(0, parseFloat(line.stock_minimo) || 0);
+              const creado = await api.comandos.ejecutar(
+                '/api/inventario/insumos/crear',
+                {
+                  nombre: nombreNuevo,
+                  unidad: line.nuevo_unidad_base,
+                  costoUnitario: textoImporte(costPerBase),
+                  stockMinimo: textoDecimal(minimoNuevo),
+                },
+                claveLinea('alta'),
+              );
+              ing = {
+                id: creado.id,
+                nombre: nombreNuevo,
+                unidad_base: line.nuevo_unidad_base,
+                costo_por_unidad_base: costPerBase,
+                stock_minimo: minimoNuevo,
+                stock_critico: 0,
+                activo: true,
+              };
+              creadoEnEstaIteracion = true;
+            }
+          }
+          if (!ing) continue;
+
+          // 2) La existencia. Suma al saldo del almacén y escribe el movimiento
+          //    `inventario_inicial` en la misma transacción: ya no hay «stock
+          //    movido sin movimiento que lo respalde» que revertir a mano.
+          await api.comandos.ejecutar(
+            '/api/inventario/inicial',
+            { almacenId, insumoId: ing.id, cantidad: textoDecimal(qtyBase) },
+            claveLinea('saldo'),
+          );
+
+          // 3) El costo, SÓLO si el insumo todavía no tenía uno. Pisar el costo
+          //    de un insumo con historial sin ponderar es D-13; el promedio
+          //    ponderado de verdad lo hace `compras.registrar` en el servidor.
+          const teniaCosto = Number(ing.costo_por_unidad_base) > 0;
+          if (!creadoEnEstaIteracion && !teniaCosto && costPerBase > 0) {
+            await api.comandos.ejecutar(
+              '/api/inventario/insumos/costo',
+              { insumoId: ing.id, costoUnitario: textoImporte(costPerBase) },
+              claveLinea('costo'),
+            );
+          }
+
+          // 4) Los datos maestros que SIGUEN siendo columnas escribibles del
+          //    insumo. `stock_actual` y `costo_por_unidad_base` ya no están aquí
+          //    a propósito: son proyección y costo, y los escribe el servidor.
+          const maestros = {
+            unidad_compra_default: line.unidad_compra,
+            cantidad_por_compra_default: equivalenciaBase,
+          };
+          const stockMinLinea = parseFloat(line.stock_minimo);
+          const stockCritLinea = parseFloat(line.stock_critico);
+          if (Number.isFinite(stockMinLinea) && stockMinLinea > 0 && !(ing.stock_minimo > 0)) {
+            maestros.stock_minimo = stockMinLinea;
+          }
+          if (Number.isFinite(stockCritLinea) && stockCritLinea > 0 && !(ing.stock_critico > 0)) {
+            maestros.stock_critico = stockCritLinea;
+          }
+          await api.entidades.Ingrediente.update(ing.id, maestros);
+
+          // Refrescar mapa en-vuelo: la cantidad la acumula el servidor, así que
+          // aquí sólo importa que la próxima línea con el mismo nombre encuentre
+          // el insumo, sepa que ya tiene costo y no vuelva a fijarlo.
+          const keyAct = normalizarNombreIngrediente(ing.nombre);
+          if (keyAct) {
+            mapaIng.set(keyAct, {
+              ...ing,
+              ...maestros,
+              costo_por_unidad_base:
+                teniaCosto || creadoEnEstaIteracion ? ing.costo_por_unidad_base : costPerBase,
+            });
+          }
+          exitosos++;
+        } catch (lineErr) {
+          // La línea entera falló y no dejó nada a medias: el comando es una
+          // transacción. Se guarda el mensaje del dominio —ya en español— para
+          // enseñarlo al final y se sigue con las demás.
+          fallidos++;
+          if (!primerErrorMsg) {
+            primerErrorMsg = lineErr?.message || 'error desconocido';
+          }
+        }
+      }
+
+      // Invalidar caches SIEMPRE — para reflejar lo que sí quedó y lo que se revirtió.
+      [
+        'ingredientes_all',
+        'ingredientes_dashboard',
+        'movimientos_inv',
+        'movimientos_inventario',
+        'registros_movimientos',
+        'inventario',
+      ].forEach((k) => {
+        try {
+          queryClient.invalidateQueries({ queryKey: [k] });
+        } catch {}
+      });
+
+      // Mensajes finales según resultado real (no asumimos éxito)
+      if (exitosos > 0 && fallidos === 0) {
+        toast.success(
+          `Inventario inicial registrado — ${exitosos} ingrediente(s). Ya están disponibles para recetas.`,
+        );
+        reset();
+        onClose();
+      } else if (exitosos > 0 && fallidos > 0) {
+        toast.error(
+          `${exitosos} ingrediente(s) registrados, pero ${fallidos} fallaron y se revirtieron. Revisa: ${primerErrorMsg}`,
+        );
+        // No cerramos el modal: el usuario puede corregir las líneas fallidas.
+      } else {
+        // Ninguno exitoso
+        toast.error(
+          'No se pudo registrar el movimiento de inventario inicial. El inventario no quedó confirmado.',
+        );
+      }
+    } catch (e) {
+      console.error('[RegistrarInventarioInicialDialog] error global:', e);
+      toast.error('Error al registrar inventario: ' + (e?.message || ''));
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) close();
+      }}
+    >
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading flex items-center gap-2">
+            <PackagePlus className="w-5 h-5 text-primary" />
+            Registrar inventario existente
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Usa esto para cargar ingredientes que tu restaurante <strong>ya tenía</strong> antes de
+            empezar a usar el POS. <strong>NO se registra como compra del día</strong> y
+            <strong> no aparece como gasto</strong> en reportes financieros.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="rounded-lg p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 text-xs flex gap-2">
+          <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+          <p className="text-blue-900 dark:text-blue-100">
+            Si vas a registrar una <strong>compra real</strong> (de hoy o reciente), usa la opción
+            "Registrar compra" desde Compras. Esa sí se cuenta como gasto.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {lines.map((line, idx) => {
+            const muestraEmpaque = requiereEquivalencia(line.unidad_compra);
+            const esEstandar = esUnidadEstandar(line.unidad_compra);
+            // Detectar incompatibilidad para mostrar warning inline (no bloqueante hasta guardar)
+            const unidadBaseLinea =
+              line.tipo === 'existente' ? line.ingrediente?.unidad_base : line.nuevo_unidad_base;
+            const compat = unidadBaseLinea
+              ? validarCompatibilidad(line.unidad_compra, unidadBaseLinea)
+              : { compatible: true, mensaje: null };
+            return (
+              <div
+                key={idx}
+                className="rounded-xl border bg-card text-card-foreground p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium">Ingrediente {idx + 1}</p>
+                  {lines.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => removeLine(idx)}
+                      disabled={saving}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Toggle existente / nuevo */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateLine(idx, { tipo: 'existente', ingrediente: null, nuevo_nombre: '' })
+                    }
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      line.tipo === 'existente'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    Ya está en mi inventario
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateLine(idx, { tipo: 'nuevo', ingrediente: null })}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      line.tipo === 'nuevo'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    Nuevo ingrediente
+                  </button>
+                </div>
+
+                {/* Selector */}
+                {line.tipo === 'existente' ? (
+                  <div>
+                    <Label className="text-xs">Buscar ingrediente</Label>
+                    <IngredienteAutocomplete
+                      ingredientes={ingredientes}
+                      value={line.ingrediente}
+                      onSelect={(ing) => handleSelectExistente(idx, ing)}
+                      onCreateNew={(q) => handleCreateNew(idx, q)}
+                    />
+                    {line.ingrediente && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Stock actual: {Number(line.ingrediente.stock_actual || 0).toLocaleString()}{' '}
+                        {line.ingrediente.unidad_base}
+                        {' · '}sumaremos a este stock.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Nombre del ingrediente *</Label>
+                      <Input
+                        value={line.nuevo_nombre}
+                        onChange={(e) => updateLine(idx, { nuevo_nombre: e.target.value })}
+                        placeholder="Ej: Café molido"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Unidad base (cómo se usa en recetas) *</Label>
+                      <Select
+                        value={line.nuevo_unidad_base}
+                        onValueChange={(v) => updateLine(idx, { nuevo_unidad_base: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {UNIDADES_BASE.map((u) => (
+                            <SelectItem key={u.value} value={u.value}>
+                              {u.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cantidad / unidad / costo */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">Cantidad existente *</Label>
+                    <Input
+                      type="number"
+                      value={line.cantidad}
+                      onChange={(e) => updateLine(idx, { cantidad: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Unidad *</Label>
+                    <Select
+                      value={line.unidad_compra}
+                      onValueChange={(v) => updateLine(idx, { unidad_compra: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unidadesCompra.map((u) => (
+                          <SelectItem key={u} value={u}>
+                            {u}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Costo estimado total ($) *</Label>
+                    <Input
+                      type="number"
+                      value={line.costo_total}
+                      onChange={(e) => updateLine(idx, { costo_total: e.target.value })}
+                      placeholder="$0"
+                    />
+                  </div>
+                </div>
+
+                {/* Warning inline si la unidad capturada NO es compatible con la unidad base */}
+                {!compat.compatible && (
+                  <div className="rounded-lg p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-800/60 text-xs text-rose-900 dark:text-rose-200">
+                    {compat.mensaje}
+                  </div>
+                )}
+
+                {muestraEmpaque && (
+                  <div className="rounded-lg p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60">
+                    <Label className="text-xs">
+                      ¿A cuánto equivale 1 {line.unidad_compra} en unidad base (
+                      {unidadBaseLinea || 'g/ml/pieza'})? *
+                    </Label>
+                    <Input
+                      type="number"
+                      value={line.piezas_por_paquete}
+                      onChange={(e) => updateLine(idx, { piezas_por_paquete: e.target.value })}
+                      placeholder={
+                        unidadBaseLinea === 'g'
+                          ? 'Ej: 1000 (gramos por bolsa)'
+                          : unidadBaseLinea === 'ml'
+                            ? 'Ej: 20000 (ml por garrafón)'
+                            : 'Ej: 24 (piezas por caja)'
+                      }
+                      className="h-8"
+                    />
+                    <p className="text-[10px] text-amber-800 dark:text-amber-200 mt-1">
+                      {esEstandar
+                        ? 'Esta unidad es un empaque — indica cuánto trae cada uno.'
+                        : 'Esta es una unidad personalizada. Necesitamos su equivalencia para calcular costos.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Stock mínimo / crítico — captura con unidad clara.
+                    El componente convierte internamente a la unidad base del
+                    ingrediente para evitar el bug de "4" interpretado como
+                    4 g cuando el usuario pensó en 4 kg. */}
+                <StockMinCritInput
+                  unidadBase={unidadBaseLinea || 'g'}
+                  valoresEnBase={{
+                    stock_minimo: parseFloat(line.stock_minimo) || 0,
+                    stock_critico: parseFloat(line.stock_critico) || 0,
+                  }}
+                  onChange={({ stock_minimo, stock_critico }) =>
+                    updateLine(idx, {
+                      stock_minimo: stock_minimo > 0 ? String(stock_minimo) : '',
+                      stock_critico: stock_critico > 0 ? String(stock_critico) : '',
+                    })
+                  }
+                  compact
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <Button variant="outline" onClick={addLine} className="w-full" disabled={saving}>
+          <Plus className="w-4 h-4 mr-1" /> Agregar otro ingrediente
+        </Button>
+
+        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
+          <span className="text-sm text-muted-foreground">Valor total estimado</span>
+          <span className="font-heading font-black text-lg">{formatCurrency(totalEstimado)}</span>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={close} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            <Save className="w-4 h-4 mr-1" />
+            {saving ? 'Guardando...' : 'Guardar inventario inicial'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

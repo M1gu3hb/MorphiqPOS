@@ -12,6 +12,16 @@
 
 /** Codigos estables. Nunca se renombra uno: se marca obsoleto y se agrega otro. */
 export const CODIGOS_ERROR = {
+  // --- puente de compatibilidad (F1-02 §3) ---
+  /** La entidad no está en la lista blanca del puente. */
+  PUENTE_ENTIDAD_DESCONOCIDA: 'PUENTE_ENTIDAD_DESCONOCIDA',
+  /** Campo que no existe, o que lo calcula el servidor y no se acepta. */
+  PUENTE_CAMPO_INVALIDO: 'PUENTE_CAMPO_INVALIDO',
+  /** El rol no puede leer o escribir esa entidad. */
+  PUENTE_SIN_PERMISO: 'PUENTE_SIN_PERMISO',
+  /** No existe — o es de otra organización, que se ve igual. */
+  PUENTE_NO_ENCONTRADO: 'PUENTE_NO_ENCONTRADO',
+
   // --- catálogo: códigos aditivos del carril B ---
   CANTIDAD_INVALIDA: 'CANTIDAD_INVALIDA',
   UNIDAD_INCOMPATIBLE: 'UNIDAD_INCOMPATIBLE',
@@ -50,6 +60,107 @@ export const CODIGOS_ERROR = {
   TOTAL_DESACTUALIZADO: 'TOTAL_DESACTUALIZADO',
   CAJA_CERRADA: 'CAJA_CERRADA',
   CAJA_YA_ABIERTA: 'CAJA_YA_ABIERTA',
+  /** El corte no existe, o es de otra organización, que se ve igual. */
+  CORTE_NO_ENCONTRADO: 'CORTE_NO_ENCONTRADO',
+  /**
+   * Se intentó eliminar un corte al que todavía apunta algo.
+   *
+   * Ventas, pagos, movimientos que no son la apertura, gastos, cortes de turno
+   * o liquidaciones de propina. El mensaje dice QUÉ y CUÁNTO: «ese corte tiene
+   * 34 ventas registradas». Sin este código el comando reutilizaba
+   * `MESA_NO_LIBERABLE`, cuya regla es la misma pero cuyo nombre habla de mesas,
+   * y `auditoria.datos.regla` guardaba un código que mentía sobre lo ocurrido.
+   */
+  CORTE_NO_ELIMINABLE: 'CORTE_NO_ELIMINABLE',
+
+  // --- restaurante: mesas, comandas y preparación (F1-02 E6) ---
+  /** La mesa no existe, está dada de baja, o es de otra organización. */
+  MESA_NO_ENCONTRADA: 'MESA_NO_ENCONTRADA',
+  /**
+   * Ya hay una venta viva en esa mesa.
+   *
+   * Lo impone la base con `ordenes_una_activa_por_mesa` (F1-04 §35.5). El
+   * código existe para que ese 23505 llegue al mesero como «esa mesa ya está
+   * abierta» y no como un 500 sin explicación.
+   */
+  MESA_YA_ABIERTA: 'MESA_YA_ABIERTA',
+  /** Se intentó liberar una mesa cuya venta todavía no se ha cobrado. */
+  MESA_NO_LIBERABLE: 'MESA_NO_LIBERABLE',
+  COMANDA_NO_ENCONTRADA: 'COMANDA_NO_ENCONTRADA',
+  /** El estado pedido no sigue a la tabla de transiciones, o retrocede. */
+  TRANSICION_INVALIDA: 'TRANSICION_INVALIDA',
+  /** No hay estación de preparación a la que mandar la comanda, ni general. */
+  ESTACION_NO_ENCONTRADA: 'ESTACION_NO_ENCONTRADA',
+  /**
+   * Se intentó crear una segunda estación GENERAL.
+   *
+   * Sólo puede haber una: es a donde van las comandas que no encuentran
+   * estación propia (regla 10). Lo impone el índice único parcial
+   * `estaciones_una_general` de la migración 046; este código existe para que
+   * ese 23505 llegue al cocinero como una frase.
+   */
+  ESTACION_YA_EXISTE: 'ESTACION_YA_EXISTE',
+
+  // --- restaurante: compras, gastos y propinas (F1-02 E4-5 y E6-7) ---
+  PROVEEDOR_NO_ENCONTRADO: 'PROVEEDOR_NO_ENCONTRADO',
+  /** La compra no existe, o es de otra organización. */
+  COMPRA_NO_ENCONTRADA: 'COMPRA_NO_ENCONTRADA',
+  /**
+   * La compra no se puede registrar tal como viene.
+   *
+   * Cubre la línea sin equivalencia —sin ella, «3 cajas» no se puede auditar
+   * seis meses después (F1-04 §23.1)— y la conversión que no cuadra.
+   */
+  COMPRA_INVALIDA: 'COMPRA_INVALIDA',
+  GASTO_INVALIDO: 'GASTO_INVALIDO',
+  PLANTILLA_NO_ENCONTRADA: 'PLANTILLA_NO_ENCONTRADA',
+  /** Se intentó liquidar una propina que ya está liquidada. */
+  PROPINA_YA_LIQUIDADA: 'PROPINA_YA_LIQUIDADA',
+  /** El rango no tiene propinas pendientes, o está al revés. */
+  LIQUIDACION_INVALIDA: 'LIQUIDACION_INVALIDA',
+
+  // --- portal QR público (F1-02 E7) ---
+  /** El token de la mesa no existe, está desactivado, o caducó. */
+  QR_TOKEN_INVALIDO: 'QR_TOKEN_INVALIDO',
+  /** El portal está apagado para este negocio. */
+  QR_PORTAL_CERRADO: 'QR_PORTAL_CERRADO',
+  /** Ya hay una solicitud pendiente de ese tipo en esa mesa (D-17). */
+  QR_SOLICITUD_DUPLICADA: 'QR_SOLICITUD_DUPLICADA',
+  /** Demasiadas peticiones desde el mismo código en poco tiempo. */
+  QR_DEMASIADAS_PETICIONES: 'QR_DEMASIADAS_PETICIONES',
+  /**
+   * El aviso no existe, o es de otra organización, que se ve igual.
+   *
+   * Es el lado del PERSONAL: `restaurante.atender_solicitud`. Antes reutilizaba
+   * `PUENTE_NO_ENCONTRADO`, que describe lo mismo pero nombra un camino —el del
+   * puente— por el que esta lectura no pasa.
+   */
+  SOLICITUD_NO_ENCONTRADA: 'SOLICITUD_NO_ENCONTRADA',
+
+  // --- mantenimiento destructivo (F1-02 E10-4) ---
+  /**
+   * La confirmación no coincide.
+   *
+   * Se compara contra el NOMBRE DEL NEGOCIO leído en el servidor, no contra una
+   * constante impresa en la pantalla: hoy `reiniciarSistema` compara `confirm`
+   * con «BORRAR TODO», que es texto que el atacante ya conoce.
+   */
+  MANTENIMIENTO_NO_CONFIRMADO: 'MANTENIMIENTO_NO_CONFIRMADO',
+
+  // --- accesos (C-05, C-06) ---
+  /** El empleado o la terminal no existen DENTRO de la organizacion de quien pide. */
+  ACCESO_NO_ENCONTRADO: 'ACCESO_NO_ENCONTRADO',
+  /**
+   * Se intentó dar de alta —o modificar— a alguien de un puesto que quien
+   * manda no puede repartir.
+   *
+   * Es la guarda contra la escalada: sin ella, un administrador se crea un
+   * usuario `dueno`, entra con él y ya no hay nada por encima suyo. Que la
+   * pantalla no ofrezca ese puesto no cuenta: el botón se salta con la consola.
+   */
+  PUESTO_NO_OTORGABLE: 'PUESTO_NO_OTORGABLE',
+  /** El puesto que llegó no es ninguno de los siete del sistema. */
+  PUESTO_INVALIDO: 'PUESTO_INVALIDO',
 
   // --- andamiaje de pruebas ---
   /** Se pidio interrumpir despues de un paso que no existe (inyeccion de fallos). */

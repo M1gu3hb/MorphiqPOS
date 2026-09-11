@@ -2,6 +2,8 @@ import { validarEntorno } from '@morphiqpos/contracts';
 import { rutaDeComando, type DefinicionServible, type PeticionHttp } from '@morphiqpos/app/http';
 import type { ZodType } from 'zod';
 
+import { peticionDeEscrituraValida } from './seguridad-http';
+
 /**
  * El adaptador de Next para el patrón de ruta (F1.1-X-01).
  *
@@ -17,7 +19,7 @@ import type { ZodType } from 'zod';
  *
  * ```ts
  * // apps/web/app/api/venta/cobrar/route.ts
- * import { manejadorDeComando } from '@/servidor/ruta';
+ * import { manejadorDeComando } from '~/servidor/ruta';
  * import { cobrarOrden } from '@morphiqpos/app/venta';
  *
  * export const POST = manejadorDeComando(cobrarOrden);
@@ -35,6 +37,26 @@ export function manejadorDeComando<E extends ZodType, S>(
   definicion: DefinicionServible<E, S>,
 ): (peticion: Request) => Promise<Response> {
   return async function POST(peticion: Request): Promise<Response> {
+    // Validación de origen en TODAS las rutas de comando (F1.1-C-13). Antes
+    // sólo la tenían las de gestión, así que un formulario de otro sitio podía
+    // llegar a `venta.cobrar` con la cookie del cajero adjunta — que es
+    // exactamente el CSRF que `SameSite=Lax` no cubre por sí solo.
+    if (!peticionDeEscrituraValida(peticion)) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: { codigo: 'SIN_PERMISO', mensaje: 'Petición de escritura rechazada.' },
+        }),
+        {
+          status: 403,
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'cache-control': 'no-store',
+          },
+        },
+      );
+    }
+
     // El entorno se lee por petición y no al importar el módulo: importar una
     // ruta durante el build no debe exigir que los secretos existan.
     const entorno = validarEntorno(process.env);

@@ -5,6 +5,6 @@
  * La prohibicion la impone tambien el compilador: el tsconfig no incluye
  * @types/node ni la libreria DOM, asi que aqui no existe ni `console.log`.
  */
-export * as dinero from './dinero/index';
-export * as catalogo from './catalogo/index';
-export * as inventario from './inventario/index';
+export * as dinero from './dinero/index.ts';
+export * as catalogo from './catalogo/index.ts';
+export * as inventario from './inventario/index.ts';

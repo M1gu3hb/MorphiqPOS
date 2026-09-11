@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoOrdenes, repoVentaCatalogo } from '@morphiqpos/data';
 
@@ -27,14 +27,6 @@ import { valorarLinea } from './valorar.ts';
  */
 
 const ROLES_DE_VENTA = ['cajero', 'mesero', 'gerente', 'administrador', 'dueno'] as const;
-const TODOS_LOS_PAQUETES = [
-  'tienda',
-  'ferreteria',
-  'farmacia',
-  'cafeteria',
-  'restaurante',
-] as const;
-
 /** Abre el carrito de esta terminal, o devuelve el que ya estaba abierto. */
 export const crearOrden = definirComando<
   Transaccion,
@@ -45,7 +37,7 @@ export const crearOrden = definirComando<
   entidad: 'orden',
   escribe: true,
   roles: [...ROLES_DE_VENTA],
-  paquetes: [...TODOS_LOS_PAQUETES],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaCrearOrden,
   async ejecutar(ctx) {
     const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;
@@ -90,7 +82,7 @@ export const agregarLinea = definirComando<
   entidad: 'orden',
   escribe: true,
   roles: [...ROLES_DE_VENTA],
-  paquetes: [...TODOS_LOS_PAQUETES],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaAgregarLinea,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -150,7 +142,7 @@ export const quitarLinea = definirComando<
   entidad: 'orden',
   escribe: true,
   roles: [...ROLES_DE_VENTA],
-  paquetes: [...TODOS_LOS_PAQUETES],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaQuitarLinea,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -178,7 +170,7 @@ export const cambiarCantidad = definirComando<
   entidad: 'orden',
   escribe: true,
   roles: [...ROLES_DE_VENTA],
-  paquetes: [...TODOS_LOS_PAQUETES],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaCambiarCantidad,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -234,6 +226,13 @@ async function exigirBorrador(
   }
   // R14: los estados cambian por transición declarada. Tocar las líneas de una
   // orden ya cobrada alteraría un ticket impreso y un arqueo cerrado.
+  //
+  // 'borrador' a secas es lo correcto AQUÍ y no un descuido: estos comandos son
+  // el carril de MOSTRADOR, donde el carrito ES la orden y no sale de 'borrador'
+  // hasta que se cobra. Una cuenta de mesa que ya pasó por cocina no se edita
+  // por aquí —añadir un plato es `restaurante.enviar_pedido`, que sí admite
+  // 'confirmada', y quitarlo dejaría huérfano su `comanda_items`—; lo que se
+  // hace con ella es cobrarla o cancelarla entera con `restaurante.cancelar_orden`.
   if (orden.estado !== 'borrador') {
     throw new ErrorDominio(
       'ORDEN_NO_EDITABLE',

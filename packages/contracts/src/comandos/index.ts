@@ -1,2 +1,2 @@
-export * from './ambito';
-export * from './resultado';
+export * from './ambito.ts';
+export * from './resultado.ts';

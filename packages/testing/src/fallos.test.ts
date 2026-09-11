@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 
-import { NOMBRES_PELIGROSOS, crearGeneradorDeIds, crearRelojControlado } from './datos';
-import { ejecutarCompleto, ejecutarConFallo, esFalloInyectado, type Paso } from './fallos';
+import { NOMBRES_PELIGROSOS, crearGeneradorDeIds, crearRelojControlado } from './datos.ts';
+import { ejecutarCompleto, ejecutarConFallo, esFalloInyectado, type Paso } from './fallos.ts';
 
 /**
  * El caso de juguete que exige F1.0-T10: "El ayudante de fallos puede

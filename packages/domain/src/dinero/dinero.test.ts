@@ -14,7 +14,7 @@ import {
   repartir,
   restar,
   sumar,
-} from './index';
+} from './index.ts';
 
 /**
  * Estas pruebas se escribieron ANTES que el modulo (R17).

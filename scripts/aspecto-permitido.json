@@ -1,0 +1,124 @@
+{
+  "_comentario": [
+    "Las ÚNICAS diferencias de aspecto admitidas en apps/web/heredado/, cada una",
+    "con su motivo escrito. Sin este archivo la puerta se queda roja para siempre",
+    "y deja de mirarse, que es la forma en que muere una puerta.",
+    "",
+    "Añadir una entrada aquí es una DECISIÓN, no un trámite: quien la añade está",
+    "diciendo que Miguel no va a echar de menos eso. `porque` es obligatorio y la",
+    "puerta rechaza el archivo si falta.",
+    "",
+    "`testigos` es la lista literal que `verificar-aspecto.mjs` imprime, tal cual,",
+    "con su signo. Nada de comodines: una excepción que cubre de más deja de ser",
+    "una excepción.",
+    "",
+    "`base` es el commit donde el código de Miguel se copió al repositorio. Es",
+    "la ÚNICA referencia que responde a la pregunta que importa —«¿ve Miguel SU",
+    "sistema?»— y por eso es la de por omisión. Comparar contra HEAD, como hacía",
+    "esta puerta al principio, la deja INERTE en un árbol comprometido: no hay",
+    "nada que comparar y sale verde sin haber mirado un solo archivo."
+  ],
+  "base": "89830e59aed8688042d98c06d3521c35e95a9906",
+  "permitidos": [
+    {
+      "archivo": "apps/web/heredado/components/portalqr/PedirCuentaQR.jsx",
+      "porque": "El bloque «Cargando tu cuenta…» cubría un `api.entidades.Venta.get` que este diálogo hacía al abrirse. Esa lectura ya no existe: la cuenta llega con el resto del portal en la lectura pública única, y el diálogo sólo se abre cuando el padre ya la tiene. Mantener el bloque sería dejar un giro de carga que no puede pintarse nunca.",
+      "testigos": [
+        "- clase:py-10",
+        "- clase:text-center",
+        "- clase:w-7",
+        "- clase:h-7",
+        "- clase:mx-auto",
+        "- clase:animate-spin",
+        "- clase:text-muted-foreground",
+        "- clase:text-muted-foreground",
+        "- clase:text-xs",
+        "- clase:mt-2",
+        "- texto:Cargando tu cuenta…"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/ValoracionEmoji.jsx",
+      "porque": "Mismo caso: el giro cubría un `Venta.get(ventaId)` cuyo `.catch(() => null)` además dejaba `yaValorada` en falso ante un fallo de red y permitía valorar dos veces la misma visita. Ahora `ya_valorada` viene en la lectura pública, resuelto por el servidor, antes de que el modal se abra.",
+      "testigos": [
+        "- clase:py-10",
+        "- clase:text-center",
+        "- clase:w-7",
+        "- clase:h-7",
+        "- clase:mx-auto",
+        "- clase:animate-spin",
+        "- clase:text-muted-foreground"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/tickets/TicketViewerDialog.jsx",
+      "porque": "Es una rama de ERROR que antes no existía, no un rediseño. El diálogo leía las líneas con `.catch(() => [])`, así que una lectura caída se veía igual que una venta sin productos: pintaba el ticket con su folio y su total y CERO líneas, y ofrecía imprimirlo. Ahora, si no puede leer, lo dice y no imprime. Sólo se pinta cuando algo falla; en el camino normal el diálogo es idéntico.",
+      "testigos": [
+        "+ clase:text-sm",
+        "+ clase:text-muted-foreground",
+        "+ clase:py-8",
+        "+ texto:) : error ? ("
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/lib/ensureDefaultAdmin.js",
+      "borrado": true,
+      "porque": "No es una pantalla: es código MUERTO con un agujero dentro. Creaba un usuario administrador con PIN «1234» desde el navegador cuando la plantilla estaba vacía — un alta de credenciales que podía disparar cualquiera que abriera la página de acceso. Nadie lo llama: su propio POSLogin.jsx:33 explica por qué dejó de llamarlo y que el primer acceso lo da `pnpm db:bootstrap`, del lado del servidor. Dejarlo en el árbol es dejar la trampa puesta para quien venga después."
+    },
+    {
+      "archivo": "apps/web/heredado/components/configuracion/ReiniciarSistemaSection.jsx",
+      "porque": "E10-4, y es un cambio de texto DELIBERADO con motivo de seguridad. Su sistema pedía escribir «BORRAR TODO» o «ELIMINAR»: constantes PÚBLICAS impresas en la propia pantalla, que además reiniciarSistema comparaba contra otra constante del cliente — las dos mitades de la comprobación las escribía quien atacara. Ahora se pide el NOMBRE DEL NEGOCIO, un valor por inquilino leído de la base DENTRO de la misma transacción que va a borrar. Es el patrón con el que GitHub borra un repositorio, y por lo mismo. La línea añadida sobre el punto de restauración dice en voz alta lo que antes no se decía.",
+      "testigos": [
+        "- texto:Para confirmar, escribe exactamente:",
+        "+ texto:Para confirmar, escribe el",
+        "+ texto:nombre de tu negocio",
+        "+ placeholder:Nombre del negocio"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/registros/LimpiarSeccionButton.jsx",
+      "porque": "Mismo caso que ReiniciarSistemaSection y por la misma razón: «ELIMINAR» era una palabra impresa en el diálogo que la pedía. Se sustituye por el nombre del negocio, que sólo conoce quien tiene acceso legítimo. El aviso nuevo en rojo dice lo que antes no decía: que no hay vuelta atrás salvo un punto de restauración de la base.",
+      "testigos": [
+        "- texto:Para confirmar escribe",
+        "- texto:ELIMINAR",
+        "- placeholder:ELIMINAR",
+        "+ clase:text-destructive",
+        "+ clase:block",
+        "+ clase:font-medium",
+        "+ texto:Esto no se puede deshacer. El único rescate es un punto de restauración de la base de datos.",
+        "+ texto:Para confirmar escribe el",
+        "+ texto:nombre de tu negocio",
+        "+ placeholder:Nombre del negocio"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/POS.jsx",
+      "porque": "E9-1, el escáner de códigos de barras traído de la tiendita y planificado en F1-02. Es una BARRA NUEVA en el POS, no un cambio de lo que había: el resto de la pantalla no pierde ni un testigo. Va detrás de canAccessModule(escaner_codigo_barras), así que en los paquetes que no lo incluyen no se pinta. Es la única adición de interfaz de toda la entrega y va aquí escrita para poder revocarla de un vistazo.",
+      "testigos": [
+        "+ clase:flex",
+        "+ clase:items-center",
+        "+ clase:gap-2",
+        "+ clase:w-4",
+        "+ clase:h-4",
+        "+ clase:flex-1",
+        "+ clase:h-10",
+        "+ clase:shrink-0",
+        "+ clase:w-10",
+        "+ title:Escanear código de barras",
+        "+ icono:ScanLine"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Ventas.jsx",
+      "porque": "Mismo caso: «LIMPIAR» era la palabra impresa en la propia pantalla que la pedía. Ahora es el nombre del negocio, que no está escrito en el HTML.",
+      "testigos": [
+        "- texto:Escribe",
+        "- texto:LIMPIAR",
+        "- placeholder:LIMPIAR",
+        "+ texto:Escribe el",
+        "+ texto:nombre de tu negocio",
+        "+ placeholder:Nombre del negocio"
+      ]
+    }
+  ]
+}

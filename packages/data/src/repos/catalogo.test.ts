@@ -2,8 +2,8 @@ import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import type { Esquema } from '../esquema';
-import { construirBusquedaProductos } from './catalogo';
+import type { Esquema } from '../esquema.ts';
+import { construirBusquedaProductos } from './catalogo.ts';
 
 const pool = new pg.Pool({ connectionString: 'postgresql://prueba:prueba@localhost/prueba' });
 const db = new Kysely<Esquema>({ dialect: new PostgresDialect({ pool }) });

@@ -1,7 +1,7 @@
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 import { describe, expect, it } from 'vitest';
 
-import { calcularConsumo, type LineaParaConsumo } from './consumo';
+import { calcularConsumo, type LineaParaConsumo } from './consumo.ts';
 
 const contexto = {
   organizacionId: 'org-a',

@@ -45,7 +45,31 @@ const PROHIBIDAS = {
   ignoreDeprecations: '5.0',
 };
 
+/**
+ * La ÚNICA excepción a `allowJs`, acotada y con su razón.
+ *
+ * El cambio 7 de Fase 1 dice literalmente: cero `any` y `allowJs:false` para
+ * `packages/*`, y el código heredado de Miguel en `apps/web/heredado/` con un
+ * tsconfig permisivo. Su frontend son cientos de archivos `.jsx`: sin `allowJs`
+ * Next no compila ninguno y no hay sistema que abrir en el navegador.
+ *
+ * Esta puerta se escribió ANTES de ese cambio y prohibía la bandera en todo el
+ * monorepo, así que `pnpm verify` llevaba en rojo desde 89830e5 —el commit que
+ * copió su código—, y las etapas E se fueron verificando a trozos sin que nadie
+ * ejecutara la puerta entera. Borrar la regla habría sido lo cómodo; acotarla
+ * es lo correcto.
+ *
+ * El permiso está ATADO a que exista el directorio que lo justifica. Si alguien
+ * copia la bandera a un paquete, si `heredado/` desaparece o si se renombra, la
+ * excepción deja de valer y la puerta vuelve a morder sola.
+ */
+const ALLOWJS_PERMITIDO = {
+  'apps/web': 'heredado',
+};
+
 const fallos = [];
+/** Excepciones que se ejercieron de verdad, para poder decirlo al final. */
+const excepcionesUsadas = [];
 
 /** Lee JSONC quitando comentarios de línea y comas colgantes. */
 function leerJsonc(ruta) {
@@ -125,9 +149,22 @@ for (const contenedor of CONTENEDORES) {
       }
     }
     for (const bandera of Object.keys(PROHIBIDAS)) {
-      if (bandera in propias && propias[bandera] === PROHIBIDAS[bandera]) {
-        fallos.push(`${rel}/tsconfig.json: reintroduce "${bandera}"`);
+      if (!(bandera in propias) || propias[bandera] !== PROHIBIDAS[bandera]) continue;
+
+      const carpetaQueLoJustifica = bandera === 'allowJs' ? ALLOWJS_PERMITIDO[rel] : undefined;
+      if (carpetaQueLoJustifica !== undefined) {
+        if (existsSync(join(dir, carpetaQueLoJustifica))) {
+          excepcionesUsadas.push(`${rel} · allowJs por ${carpetaQueLoJustifica}/`);
+          continue;
+        }
+        fallos.push(
+          `${rel}/tsconfig.json: tiene "allowJs" permitido por «${carpetaQueLoJustifica}/», ` +
+            'pero esa carpeta ya no existe. La excepción sobra: quita la bandera.',
+        );
+        continue;
       }
+
+      fallos.push(`${rel}/tsconfig.json: reintroduce "${bandera}"`);
     }
   }
 }
@@ -143,3 +180,7 @@ console.log(
   `✓ TypeScript estricto: ${Object.keys(OBLIGATORIAS).length} banderas obligatorias, ` +
     `${Object.keys(PROHIBIDAS).length} prohibidas, ${configsHijas} workspace(s) conformes.`,
 );
+// Una excepción que no se nombra en voz alta acaba pareciendo la regla.
+for (const excepcion of excepcionesUsadas) {
+  console.log(`  · excepción declarada: ${excepcion}`);
+}

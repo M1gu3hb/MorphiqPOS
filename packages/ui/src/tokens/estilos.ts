@@ -62,7 +62,8 @@ export const CLAVES_ESTILO = Object.keys(ESTILOS);
 /**
  * Los atributos que hay que poner en `<html>` para activar un estilo.
  *
- * El modo claro/oscuro es ortogonal (§5) y lo maneja aparte `next-themes` con
+ * El modo claro/oscuro es ortogonal (§5) y lo maneja aparte el `ThemeContext`
+ * portado del restaurante, que pone `dark` y `oscuro` juntas en el <html>; con
  * la clase `oscuro`. La densidad tambien puede sobrescribirse por layout: la
  * caja en escritorio usa `compacta` aunque el estilo diga `normal` (§7).
  */

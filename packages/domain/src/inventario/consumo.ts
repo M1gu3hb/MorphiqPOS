@@ -11,7 +11,7 @@ import {
   normalizarUnidad,
   type Cantidad,
   type Unidad,
-} from '../catalogo/index';
+} from '../catalogo/index.ts';
 
 export type EstrategiaConsumo = 'sku' | 'receta' | 'insumo_base' | 'ninguno';
 export type UnidadInventario = Exclude<Unidad, 'caja' | 'paquete'>;

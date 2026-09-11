@@ -1,4 +1,4 @@
-import type { Centavos } from './centavos';
+import type { Centavos } from './centavos.ts';
 
 /**
  * Aritmetica de importes.

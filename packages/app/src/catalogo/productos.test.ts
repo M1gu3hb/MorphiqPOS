@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { contextoCatalogo } from './pruebas';
+import { contextoCatalogo } from './pruebas.ts';
 import {
   archivarProducto,
   asignarCodigoBarras,
   cambiarPrecioProducto,
   crearProducto,
   entradaCrearProducto,
-} from './productos';
+} from './productos.ts';
 
 const PRODUCTO = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const INSUMO = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

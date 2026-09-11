@@ -125,6 +125,31 @@ const EXENTOS = new Map([
   ['icono.svg', 'Es el logotipo, no un componente'],
 ]);
 
+/**
+ * Carpetas exentas, con su razon. La lista es corta a proposito.
+ *
+ * `apps/web/src/mh` es el frontend PORTADO del POS de restaurante de Miguel.
+ * Su codigo usa literales de Tailwind a proposito y su `index.css` trae una
+ * capa entera —el «PARCHE DARK» de `mh-oscuro.css`— que existe justamente para
+ * convertir esos literales en modo oscuro: `bg-white/70`, `bg-amber-50`,
+ * `text-blue-700`, `border-amber-200`. Es su decision de diseno, esta resuelta,
+ * y la instruccion del port es explicita: no se cambia el CSS ni las clases.
+ *
+ * Aplicarle esta puerta significaria reescribir su diseno para pasar una regla
+ * escrita para OTRO sistema de tokens. La regla sigue en pie para todo lo
+ * demas: `packages/ui/src` y el resto de `apps/web`.
+ */
+const CARPETAS_EXENTAS = [
+  {
+    ruta: join(RAIZ, 'apps', 'web', 'src', 'mh'),
+    porque: 'Frontend portado del restaurante: sus literales los cubre su propio parche dark',
+  },
+];
+
+function estaExenta(ruta) {
+  return CARPETAS_EXENTAS.some((carpeta) => ruta.startsWith(carpeta.ruta));
+}
+
 const EXTENSIONES = new Set(['.tsx', '.ts', '.jsx', '.js']);
 
 function recorrer(dir, encontrados) {
@@ -135,7 +160,7 @@ function recorrer(dir, encontrados) {
 
     const ruta = join(dir, entrada.name);
     if (entrada.isDirectory()) {
-      recorrer(ruta, encontrados);
+      if (!estaExenta(ruta)) recorrer(ruta, encontrados);
       continue;
     }
 
@@ -174,4 +199,7 @@ if (hallazgos.length > 0) {
   process.exit(1);
 }
 
+for (const carpeta of CARPETAS_EXENTAS) {
+  console.log(`  · exenta: ${relative(RAIZ, carpeta.ruta)} — ${carpeta.porque}`);
+}
 console.log('✓ Cero literales de color, altura, sombra o variante en componentes.');

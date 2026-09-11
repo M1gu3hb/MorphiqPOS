@@ -3,4 +3,4 @@ export {
   guardarConfiguracion,
   leerConfiguracion,
   type ConfiguracionOrganizacion,
-} from './configuracion';
+} from './configuracion.ts';

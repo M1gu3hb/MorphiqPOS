@@ -1,4 +1,4 @@
-import { consultarCategoriasProduccion } from '@morphiqpos/app/gestion';
+import { consultarCategoriasProduccion } from '@morphiqpos/app/consultas-produccion';
 
 import { responderConsulta } from '../../../../src/servidor/http';
 

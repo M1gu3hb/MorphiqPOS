@@ -2,14 +2,14 @@ import { ESTADO_HTTP } from '@morphiqpos/contracts';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { crearComando, definirComando } from '../comando';
-import { crearFabrica } from '../pruebas/dobles';
-import { contextoCatalogo } from '../catalogo/pruebas';
+import { crearComando, definirComando } from '../comando.ts';
+import { crearFabrica } from '../pruebas/dobles.ts';
+import { contextoCatalogo } from '../catalogo/pruebas.ts';
 import {
   guardarConfiguracion,
   leerConfiguracion,
   type ConfiguracionOrganizacion,
-} from './configuracion';
+} from './configuracion.ts';
 
 const entrada = {
   version: 3,
@@ -21,6 +21,11 @@ const entrada = {
   colorAcento: '#f59e0b',
   estilo: 'editorial',
   paquete: 'ferreteria',
+  // 800 puntos base = 8 %, el IVA de frontera. Se usa a propósito en vez del
+  // 16 % general: si el comando ignorara la entrada y guardara su valor por
+  // omisión, con 1600 la prueba pasaría igual (C-12).
+  impuestoPuntosBase: 800,
+  impuestoIncluidoEnPrecio: true,
 } as const;
 
 describe('B-05 · configuración por organización', () => {
@@ -52,6 +57,7 @@ describe('B-05 · configuración por organización', () => {
             colorAcento: entrada.colorAcento,
             estilo: entrada.estilo,
           },
+          impuesto: { puntosBase: 800, incluidoEnPrecio: true },
         },
       },
       filtros: [

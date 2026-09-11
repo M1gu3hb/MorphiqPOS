@@ -3,16 +3,19 @@ import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { z } from 'zod';
 
-import { definirComando } from '../comando';
-import { recalcularCostosRecetas } from '../inventario/recetas';
-import { semillaParaPaquete } from './datos';
+import { validarEntorno } from '@morphiqpos/contracts';
+
+import { definirComando } from '../comando.ts';
+import { recalcularCostosRecetas } from '../inventario/recetas.ts';
+import { semillaParaPaquete } from './datos.ts';
+import { limpiarSala, sembrarSala, type ResumenSala } from './sala.ts';
 
 export const entradaResetearDemo = z.object({ confirmacion: z.literal('RESETEAR') });
 
 export const resetearDemo = definirComando<
   Transaccion,
   typeof entradaResetearDemo,
-  { readonly productos: number; readonly insumos: number }
+  { readonly productos: number; readonly insumos: number; readonly sala: ResumenSala | null }
 >({
   nombre: 'configuracion.resetear_demo',
   entidad: 'organizacion',
@@ -74,6 +77,10 @@ export const resetearDemo = definirComando<
           costo_unitario_centavos: dato.costoCentavos,
           estrategia_consumo: 'sku',
           stock_minimo: '2',
+          // Sin area de preparacion la cocina no recibe NADA: no se crea
+          // ninguna comanda y la mesa anuncia «pedido enviado» con la pantalla
+          // de Cocina vacia. Una botella va a la barra, un plato a la cocina.
+          area_preparacion: dato.area ?? 'ninguno',
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -136,6 +143,7 @@ export const resetearDemo = definirComando<
           precio_venta_centavos: dato.precioCentavos,
           estrategia_consumo: 'receta',
           permite_venta_sin_stock: false,
+          area_preparacion: dato.area ?? 'ninguno',
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -151,15 +159,73 @@ export const resetearDemo = definirComando<
       productos += 1;
     }
     await recalcularCostosRecetas(ctx.tx, ctx.ambito.organizacionId);
+
+    // La SALA sólo tiene sentido en un restaurante: mesas, zonas, estaciones y
+    // los tres roles que operan de verdad. Sin ella, Mesero y Cocina abren
+    // vacías y el mapa de mesas —la pantalla que Miguel más quiere ver— no
+    // tiene nada que pintar.
+    const sala =
+      organizacion.paquete === 'restaurante'
+        ? await ctx.paso('sembrar_sala', () =>
+            sembrarSala(
+              ctx.tx,
+              ctx.ambito.organizacionId,
+              sucursalId,
+              validarEntorno(process.env).PIN_PEPPER,
+            ),
+          )
+        : null;
+
     ctx.auditar({
       entidadId: ctx.ambito.organizacionId,
-      payload: { productos, insumos, paquete: organizacion.paquete },
+      payload: { productos, insumos, paquete: organizacion.paquete, ...(sala ?? {}) },
     });
-    return { productos, insumos };
+    return { productos, insumos, sala };
   },
 });
 
+/**
+ * Borra los datos de demostración de una organización.
+ *
+ * ── Por qué se borra también la OPERACIÓN, y no sólo el catálogo ──────────
+ * La primera versión borraba catálogo e inventario y dejaba las ventas. El
+ * resultado, comprobado ejecutándolo: la clave foránea de `orden_lineas` es
+ * `on delete set null`, así que **las nueve líneas de órdenes ya cobradas se
+ * quedaron con `producto_id` en nulo**, en silencio. El ticket seguía
+ * reimprimiéndose porque la línea guarda su propia foto del producto, pero el
+ * rastro hacia el catálogo se perdía sin que nadie lo pidiera.
+ *
+ * Y además el folio seguía subiendo sobre unas ventas que ya no existían.
+ *
+ * Un reseteo de demostración devuelve el negocio a su punto de partida: eso
+ * incluye las ventas. Es destructivo a conciencia — por eso pide la palabra
+ * `RESETEAR` y sólo lo puede hacer un dueño o un administrador.
+ *
+ * El orden importa: hijos antes que padres, o la clave foránea lo impide.
+ */
 async function limpiar(tx: Transaccion, organizacionId: string): Promise<void> {
+  // ── Sala del restaurante ──────────────────────────────────────────────────
+  // Va PRIMERO, y no es un detalle de orden: `mesas.orden_activa_id` apunta a
+  // `ordenes` y `ordenes.mesa_id` apunta a `mesas`. Sin soltar el lado de la
+  // mesa antes, borrar órdenes aborta la transacción entera por la foránea.
+  await limpiarSala(tx, organizacionId);
+
+  // ── Operación: ventas, cobros y caja ──────────────────────────────────────
+  await sql`delete from pagos where organizacion_id = ${organizacionId}`.execute(tx);
+  // Esta tabla NO lleva `organizacion_id`: cuelga de la línea, que sí lo lleva.
+  // Se filtra por la línea, no por la organización, y por eso va antes que ella.
+  await sql`delete from orden_linea_modificadores where orden_linea_id in (
+    select id from orden_lineas where organizacion_id = ${organizacionId}
+  )`.execute(tx);
+  await sql`delete from orden_lineas where organizacion_id = ${organizacionId}`.execute(tx);
+  await sql`delete from ordenes where organizacion_id = ${organizacionId}`.execute(tx);
+  await sql`delete from movimientos_caja where organizacion_id = ${organizacionId}`.execute(tx);
+  await sql`delete from sesiones_caja where organizacion_id = ${organizacionId}`.execute(tx);
+  // El consecutivo vuelve a empezar. Si no, la demostración arrancaría en el
+  // folio 47 y la primera venta que se le enseña a un cliente no sería la 1.
+  await sql`delete from folios where organizacion_id = ${organizacionId}`.execute(tx);
+
+  // ── Catálogo e inventario ─────────────────────────────────────────────────
   await sql`delete from movimientos_stock where organizacion_id = ${organizacionId}`.execute(tx);
   await sql`delete from existencias where organizacion_id = ${organizacionId}`.execute(tx);
   await sql`delete from recetas where organizacion_id = ${organizacionId}`.execute(tx);

@@ -12,8 +12,13 @@ const pruebas = [
 const mutaciones = [
   {
     ruta: 'packages/app/src/catalogo/modificadores.ts',
-    antes: "paquetes: ['cafeteria', 'restaurante']",
-    despues: "paquetes: ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante']",
+    // Se muta el IMPORT y no la declaración: la lista de paquetes dejó de
+    // escribirse a mano (C-15) y ahora viene del contrato. Cambiando el import
+    // la mutación compila, así que lo que la caza es la prueba y no el
+    // compilador — que es una señal mucho más fuerte.
+    antes: "import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';",
+    despues:
+      "import { ErrorDominio, PAQUETES as PAQUETES_PREPARACION } from '@morphiqpos/contracts';",
     indice: 0,
     nombre: 'modificadores habilitados en todos los paquetes',
   },

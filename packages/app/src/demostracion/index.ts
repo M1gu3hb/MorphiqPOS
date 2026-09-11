@@ -1,1 +1,1 @@
-export { entradaResetearDemo, resetearDemo } from './resetear';
+export { entradaResetearDemo, resetearDemo } from './resetear.ts';

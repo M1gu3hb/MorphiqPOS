@@ -8,19 +8,30 @@
     ".": "./src/index.ts",
     "./comando": "./src/comando.ts",
     "./produccion": "./src/produccion.ts",
+    "./consultas-produccion": "./src/consultas-produccion.ts",
+    "./catalogo": "./src/catalogo/index.ts",
+    "./configuracion": "./src/configuracion/index.ts",
+    "./inventario": "./src/inventario/index.ts",
+    "./demostracion": "./src/demostracion/index.ts",
     "./http": "./src/http/index.ts",
     "./sesion": "./src/sesion/index.ts",
     "./venta": "./src/venta/index.ts",
     "./caja": "./src/caja/index.ts",
     "./identidad": "./src/identidad/index.ts",
-    "./catalogo": "./src/catalogo/index.ts",
-    "./configuracion": "./src/configuracion/index.ts",
-    "./inventario": "./src/inventario/index.ts",
-    "./demostracion": "./src/demostracion/index.ts",
-    "./gestion": "./src/gestion.ts"
+    "./negocio": "./src/negocio/index.ts",
+    "./puente": "./src/puente/index.ts",
+    "./puente-comandos": "./src/puente/comandos.ts",
+    "./restaurante": "./src/restaurante/index.ts",
+    "./compras": "./src/compras/index.ts",
+    "./propinas": "./src/propinas/index.ts",
+    "./portal": "./src/portal/index.ts",
+    "./mantenimiento": "./src/mantenimiento/index.ts",
+    "./puente-presentacion": "./src/puente/presentacion.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bootstrap": "node --conditions=react-server bin/bootstrap.mjs",
+    "alta-negocio": "node --conditions=react-server bin/alta-negocio.mjs"
   },
   "dependencies": {
     "@morphiqpos/contracts": "workspace:*",
@@ -33,6 +44,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "dotenv": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

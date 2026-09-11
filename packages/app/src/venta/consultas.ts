@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoOrdenes, repoCaja, repoVentaCatalogo } from '@morphiqpos/data';
 
@@ -17,8 +17,6 @@ import { entradaBuscarCatalogo, entradaEstadoVenta, entradaTicket } from './esqu
  */
 
 const ROLES_DE_MOSTRADOR = ['cajero', 'mesero', 'gerente', 'administrador', 'dueno'] as const;
-const TODOS = ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'] as const;
-
 export interface EstadoVenta {
   readonly cotizacion: Cotizacion | null;
   /** `null` = no hay caja abierta en esta terminal; la pantalla lo dice antes de cobrar. */
@@ -36,7 +34,7 @@ export const estadoDeVenta = definirComando<Transaccion, typeof entradaEstadoVen
   entidad: 'orden',
   escribe: false,
   roles: [...ROLES_DE_MOSTRADOR],
-  paquetes: [...TODOS],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaEstadoVenta,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId } = ctx.ambito;
@@ -94,7 +92,7 @@ export const buscarCatalogo = definirComando<
   entidad: 'producto',
   escribe: false,
   roles: [...ROLES_DE_MOSTRADOR],
-  paquetes: [...TODOS],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaBuscarCatalogo,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId } = ctx.ambito;
@@ -164,7 +162,7 @@ export const ticketDeOrden = definirComando<Transaccion, typeof entradaTicket, T
   entidad: 'orden',
   escribe: false,
   roles: [...ROLES_DE_MOSTRADOR],
-  paquetes: [...TODOS],
+  paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaTicket,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

@@ -15,6 +15,15 @@ import { ErrorDominio } from '@morphiqpos/contracts';
 export interface PagoEntrante {
   readonly metodo: 'efectivo' | 'tarjeta' | 'transferencia';
   readonly montoCentavos: number;
+  /**
+   * La propina cobrada por ESTE método, exacta (F1-01 §3.3, F1-04 §38.2).
+   *
+   * Viaja aparte de `montoCentavos` y jamás se suma a él: si el comensal dejó 50
+   * en efectivo y 30 en tarjeta, son 50 y 30, no un reparto proporcional sobre lo
+   * que costó la comida. Y no entra en la comprobación de abajo: la propina no
+   * paga la venta.
+   */
+  readonly propinaCentavos?: number | undefined;
   readonly recibidoCentavos?: number | undefined;
   readonly referencia?: string | undefined;
 }
@@ -22,6 +31,7 @@ export interface PagoEntrante {
 export interface PagoValidado {
   readonly metodo: 'efectivo' | 'tarjeta' | 'transferencia';
   readonly montoCentavos: bigint;
+  readonly propinaCentavos: bigint;
   readonly recibidoCentavos: bigint | null;
   readonly cambioCentavos: bigint;
   readonly referencia: string | null;
@@ -34,6 +44,10 @@ export interface PagoValidado {
  * la caja sin registrar y el arqueo saldría sobrado sin que nadie sepa de qué
  * venta salió. El vuelto se devuelve por el `recibido` del renglón de efectivo,
  * que es donde de verdad ocurre.
+ *
+ * **La propina viaja aparte y no cuenta para ese total.** Se acumula por método,
+ * exacta, sin mezclarse con la venta (F1-04 §38.2, punto 2). El único sitio donde
+ * las dos se suman es el efectivo recibido: el billete tiene que dar para las dos.
  */
 export function repartirPagos(
   entrantes: readonly PagoEntrante[],
@@ -51,7 +65,15 @@ export function repartirPagos(
     if (monto <= 0n) {
       throw new ErrorDominio('PAGO_NO_CUADRA', 'Cada forma de pago debe ser mayor que cero.');
     }
+    // La propina NO entra en `suma`. Es la regla 1 de `F1-01` §3 escrita como
+    // código: si contara para cubrir la venta, una propina de 100 dejaría pasar
+    // un cobro de 100 menos, y el total quedaría inflado por esa diferencia.
     suma += monto;
+
+    const propina = pago.propinaCentavos === undefined ? 0n : BigInt(pago.propinaCentavos);
+    if (propina < 0n) {
+      throw new ErrorDominio('PAGO_NO_CUADRA', 'Una propina no puede ser negativa.');
+    }
 
     const recibido = pago.recibidoCentavos === undefined ? null : BigInt(pago.recibidoCentavos);
 
@@ -62,6 +84,7 @@ export function repartirPagos(
       validados.push({
         metodo: pago.metodo,
         montoCentavos: monto,
+        propinaCentavos: propina,
         recibidoCentavos: null,
         cambioCentavos: 0n,
         referencia: pago.referencia ?? null,
@@ -77,11 +100,27 @@ export function repartirPagos(
       );
     }
 
+    // Y, si dejó propina, el billete tiene que dar también para ella. Es la
+    // banda que la guarda de arriba no cubre —`monto <= recibido < monto +
+    // propina`— y es el mismo `check pago_efectivo_recibido_suficiente` de la
+    // base (`003:279-283`). Las dos condiciones son disjuntas a propósito: cada
+    // una atiende un caso distinto y le dice al cajero cuál de los dos es. Sin
+    // ésta el cambio saldría negativo y el cajón cerraría corto justo por el
+    // importe de la propina.
+    if (recibido !== null && propina > 0n && recibido < monto + propina) {
+      throw new ErrorDominio(
+        'EFECTIVO_INSUFICIENTE',
+        'El efectivo recibido no alcanza para la venta y la propina.',
+        { faltanCentavos: (monto + propina - recibido).toString() },
+      );
+    }
+
     validados.push({
       metodo: 'efectivo',
       montoCentavos: monto,
+      propinaCentavos: propina,
       recibidoCentavos: recibido,
-      cambioCentavos: recibido === null ? 0n : recibido - monto,
+      cambioCentavos: recibido === null ? 0n : recibido - monto - propina,
       referencia: pago.referencia ?? null,
     });
   }

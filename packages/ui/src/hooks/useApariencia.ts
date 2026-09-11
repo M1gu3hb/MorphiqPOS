@@ -10,7 +10,8 @@ import type { Densidad, Elevacion, Movimiento, Redondeo } from '../tokens/contra
  *
  * Escribe atributos `data-*` en `<html>`, que es donde el CSS del sistema los
  * espera. No toca el modo claro/oscuro: eso es ortogonal al estilo (§5) y lo
- * lleva `next-themes` con la clase `oscuro`.
+ * lo lleva el `ThemeContext` portado del restaurante, que pone las clases
+ * `dark` y `oscuro` juntas en el <html>.
  *
  * En F1.1 el valor inicial saldra de `configuracion.apariencia` de la
  * organizacion. Hoy arranca con lo que declara el estilo.

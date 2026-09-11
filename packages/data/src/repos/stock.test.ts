@@ -12,9 +12,9 @@ import {
 } from 'kysely';
 import { describe, expect, it } from 'vitest';
 
-import type { Transaccion } from '../cliente';
-import type { Esquema } from '../esquema';
-import { aplicarMovimientos } from './stock';
+import type { Transaccion } from '../cliente.ts';
+import type { Esquema } from '../esquema.ts';
+import { aplicarMovimientos } from './stock.ts';
 
 type Respuesta = 'fila' | 'vacia' | 'error';
 

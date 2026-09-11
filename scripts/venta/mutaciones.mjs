@@ -66,11 +66,21 @@ export const contraContratos = [
       'cambioCentavos: recibido === null ? 0n : recibido - monto,\n        referencia: pago.referencia ?? null,',
   },
   {
-    nombre: 'cobrar dos veces la misma orden',
+    nombre: 'cobrar dos veces la misma orden (quitando la guarda)',
     ruta: CIERRE,
-    contrato: 'marcar_pagada_guarda_borrador',
-    antes: "    .where('estado', '=', 'borrador')\n",
+    contrato: 'marcar_pagada_guarda_estado_cobrable',
+    antes: "    .where('estado', 'in', [...ESTADOS_COBRABLES])\n",
     despues: '',
+  },
+  {
+    // La misma consecuencia por el camino silencioso: la guarda sigue escrita,
+    // pero deja pasar una orden ya pagada. Un contrato que sólo mirase el
+    // `.where(...)` daría verde con el cobro doble reabierto.
+    nombre: 'cobrar dos veces admitiendo «pagada» como estado cobrable',
+    ruta: CIERRE,
+    contrato: 'marcar_pagada_guarda_estado_cobrable',
+    antes: "  'cuenta_solicitada',\n] as const;",
+    despues: "  'cuenta_solicitada',\n  'pagada',\n] as const;",
   },
   {
     nombre: 'tomar el folio leyendo y luego escribiendo',
@@ -198,10 +208,10 @@ export const inocuas = [
     despues: '\nexport const cobrarOrden',
   },
   {
-    nombre: 'partir la guarda del borrador en dos líneas',
+    nombre: 'partir la guarda del estado cobrable en varias líneas',
     ruta: CIERRE,
-    antes: "    .where('estado', '=', 'borrador')",
-    despues: "    .where(\n      'estado',\n      '=',\n      'borrador',\n    )",
+    antes: "    .where('estado', 'in', [...ESTADOS_COBRABLES])",
+    despues: "    .where(\n      'estado',\n      'in',\n      [...ESTADOS_COBRABLES],\n    )",
   },
   {
     nombre: 'renombrar un local del reparto de pagos',
