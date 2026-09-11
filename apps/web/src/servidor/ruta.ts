@@ -37,11 +37,15 @@ export function manejadorDeComando<E extends ZodType, S>(
   definicion: DefinicionServible<E, S>,
 ): (peticion: Request) => Promise<Response> {
   return async function POST(peticion: Request): Promise<Response> {
+    // El entorno se lee por petición y no al importar el módulo: importar una
+    // ruta durante el build no debe exigir que los secretos existan.
+    const entorno = validarEntorno(process.env);
+
     // Validación de origen en TODAS las rutas de comando (F1.1-C-13). Antes
     // sólo la tenían las de gestión, así que un formulario de otro sitio podía
     // llegar a `venta.cobrar` con la cookie del cajero adjunta — que es
     // exactamente el CSRF que `SameSite=Lax` no cubre por sí solo.
-    if (!peticionDeEscrituraValida(peticion)) {
+    if (!peticionDeEscrituraValida(peticion, entorno.APP_URL)) {
       return new Response(
         JSON.stringify({
           ok: false,
@@ -57,9 +61,6 @@ export function manejadorDeComando<E extends ZodType, S>(
       );
     }
 
-    // El entorno se lee por petición y no al importar el módulo: importar una
-    // ruta durante el build no debe exigir que los secretos existan.
-    const entorno = validarEntorno(process.env);
     const manejar = rutaDeComando(definicion, { secreto: entorno.SESSION_SECRET });
 
     const salida = await manejar(adaptar(peticion));

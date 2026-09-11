@@ -72,6 +72,7 @@ const PRUEBA_CONSULTA_CATALOGO = 'packages/app/src/catalogo/consulta.test.ts';
 const HTTP_WEB = join(RAIZ, 'apps', 'web', 'src', 'servidor', 'http.ts');
 const PRUEBA_ROLES_GET = 'apps/web/src/servidor/consultas-roles.test.ts';
 const PRUEBA_SEGURIDAD_HTTP = 'apps/web/src/servidor/seguridad-http.test.ts';
+const SEGURIDAD_HTTP = join(RAIZ, 'apps', 'web', 'src', 'servidor', 'seguridad-http.ts');
 const RUTA_ACCESOS = join(RAIZ, 'apps', 'web', 'app', 'api', 'identidad', 'accesos', 'route.ts');
 const LIMITE_CUERPO = join(RAIZ, 'packages', 'app', 'src', 'http', 'limite-cuerpo.ts');
 const RUTA_COMANDO = join(RAIZ, 'packages', 'app', 'src', 'http', 'ruta.ts');
@@ -570,7 +571,29 @@ comprobarMutacion({
     if (inicio < 0) return codigo;
     return (
       codigo.slice(0, inicio) +
-      codigo.slice(inicio).replace('if (!peticionDeEscrituraValida(peticion))', 'if (false)')
+      codigo
+        .slice(inicio)
+        .replace('if (!peticionDeEscrituraValida(peticion,', 'if (false && peticion,')
     );
   },
+});
+comprobarMutacion({
+  nombre: 'origen web confiado al Host falsificable',
+  origen: SEGURIDAD_HTTP,
+  archivoTemporal: 'seguridad-http.ts',
+  variable: 'MORPHIQPOS_SECURITY_HTTP_SOURCE_PATH',
+  prueba: PRUEBA_SEGURIDAD_HTTP,
+  transformar: (codigo) => codigo.replace('new URL(appUrl).origin', 'new URL(peticion.url).origin'),
+});
+comprobarMutacion({
+  nombre: 'origen del portal confiado al Host falsificable',
+  origen: HTTP_PORTAL,
+  archivoTemporal: 'http.ts',
+  variable: 'MORPHIQPOS_PORTAL_HTTP_SOURCE_PATH',
+  prueba: PRUEBA_SEGURIDAD_HTTP,
+  transformar: (codigo) =>
+    codigo.replace(
+      'new URL(validarEntorno(process.env).APP_URL).origin',
+      'new URL(peticion.url).origin',
+    ),
 });

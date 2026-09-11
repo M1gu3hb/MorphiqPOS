@@ -22,7 +22,7 @@ describe('POST /api/auth/salir', () => {
     const codigo = readFileSync(RUTA, 'utf8');
 
     expect(codigo).toMatch(/async function POST\(peticion: Request\)/);
-    expect(codigo).toContain('peticionDeEscrituraValida(peticion)');
+    expect(codigo).toContain('peticionDeEscrituraValida(peticion, entorno.APP_URL)');
     expect(codigo).toContain('leerCookie(peticion.headers.get');
     expect(codigo).toContain('await cerrarSesion(');
     expect(codigo).toContain('cookieDeCierre(');

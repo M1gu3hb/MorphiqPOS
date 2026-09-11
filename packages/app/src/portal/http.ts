@@ -97,7 +97,8 @@ function peticionPropia(peticion: PeticionDelPortal): boolean {
   if (peticion.headers.get('x-morphiqpos-request') !== '1') return false;
 
   const origen = peticion.headers.get('origin');
-  return origen === null || origen === new URL(peticion.url).origin;
+  const esperado = new URL(validarEntorno(process.env).APP_URL).origin;
+  return origen === null || origen === esperado;
 }
 
 interface Despliegue {

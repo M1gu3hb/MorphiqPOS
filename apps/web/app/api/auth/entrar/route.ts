@@ -38,7 +38,7 @@ export async function POST(peticion: Request): Promise<Response> {
 
   // Origen propio y cabecera de la aplicación: un formulario de otro sitio no
   // puede montar esta petición sin disparar el preflight de CORS.
-  if (!peticionDeEscrituraValida(peticion)) {
+  if (!peticionDeEscrituraValida(peticion, entorno.APP_URL)) {
     return json(403, {
       ok: false,
       error: { codigo: 'SIN_PERMISO', mensaje: 'Petición rechazada.' },

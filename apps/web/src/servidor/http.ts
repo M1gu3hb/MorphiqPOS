@@ -69,7 +69,7 @@ export async function ejecutarComandoHttp<E extends ZodType, S>(
   definicion: Parameters<typeof comando<E, S>>[0],
   peticion: Request,
 ): Promise<Response> {
-  if (!peticionDeEscrituraValida(peticion)) {
+  if (!peticionDeEscrituraValida(peticion, validarEntorno(process.env).APP_URL)) {
     return Response.json(errorHttp('SIN_PERMISO', 'Petición de escritura rechazada.'), {
       status: ESTADO_HTTP.SIN_PERMISO,
     });
@@ -118,7 +118,7 @@ export async function conSesion<T>(
   peticion: Request,
   fn: (sesion: SesionDeNegocio) => Promise<T | Response>,
 ): Promise<Response> {
-  if (!peticionDeEscrituraValida(peticion)) {
+  if (!peticionDeEscrituraValida(peticion, validarEntorno(process.env).APP_URL)) {
     return Response.json(errorHttp('SIN_PERMISO', 'Petición de lectura rechazada.'), {
       status: ESTADO_HTTP.SIN_PERMISO,
       headers: { 'cache-control': 'no-store' },
