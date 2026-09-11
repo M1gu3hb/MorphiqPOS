@@ -847,7 +847,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
       tipo_celebracion: { columna: 'tipo_celebracion', conversion: 'texto', escribible: false },
-      qr_token: { rolesLectura: [...DIRECCION], columna: 'qr_token', conversion: 'texto' },
+      qr_token: {
+        rolesLectura: [...DIRECCION],
+        columna: 'qr_token',
+        conversion: 'texto',
+        escribible: false,
+      },
       qr_activo: { columna: 'qr_activa', conversion: 'booleano' },
       mesero_asignado_id: { columna: 'empleado_asignado_id', conversion: 'texto' },
       atendido_por_id: { columna: 'empleado_atiende_id', conversion: 'texto', escribible: false },

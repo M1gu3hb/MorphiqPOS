@@ -44,6 +44,19 @@ const MAPA_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'mapa.ts');
 const CONSULTAR_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'consultar.ts');
 const TIPOS_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'tipos.ts');
 const PRUEBA_AUTORIZACION_PUENTE = 'packages/app/src/puente/autorizacion.test.ts';
+const MIGRACION_QR = join(
+  RAIZ,
+  'packages',
+  'data',
+  'src',
+  'migraciones',
+  'sql',
+  '052_qr_token_unico.sql',
+);
+const COMANDO_QR = join(RAIZ, 'packages', 'app', 'src', 'restaurante', 'qr.ts');
+const UTILIDAD_QR = join(RAIZ, 'apps', 'web', 'heredado', 'utils', 'qrUtils.js');
+const PRUEBA_QR = 'packages/app/src/restaurante/qr.test.ts';
+const PRUEBA_MIGRACION_QR = 'packages/data/src/migraciones/qr-token.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -238,7 +251,43 @@ comprobarMutacion({
   prueba: PRUEBA_AUTORIZACION_PUENTE,
   transformar: (codigo) =>
     codigo.replace(
-      "qr_token: { rolesLectura: [...DIRECCION], columna: 'qr_token', conversion: 'texto' }",
-      "qr_token: { columna: 'qr_token', conversion: 'texto' }",
+      '      qr_token: {\n        rolesLectura: [...DIRECCION],',
+      '      qr_token: {\n        rolesLectura: [...TODOS_LOS_ROLES],',
     ),
+});
+comprobarMutacion({
+  nombre: 'unicidad del token QR eliminada',
+  origen: MIGRACION_QR,
+  archivoTemporal: '052_qr_token_unico.sql',
+  variable: 'MORPHIQPOS_QR_TOKEN_MIGRATION_PATH',
+  prueba: PRUEBA_MIGRACION_QR,
+  transformar: (sql) => sql.replace('create unique index', 'create index'),
+});
+comprobarMutacion({
+  nombre: 'entropía del token QR reducida',
+  origen: COMANDO_QR,
+  archivoTemporal: 'qr.ts',
+  variable: 'MORPHIQPOS_QR_COMMAND_SOURCE_PATH',
+  prueba: PRUEBA_QR,
+  transformar: (codigo) => codigo.replace('randomBytes(24)', 'randomBytes(8)'),
+});
+comprobarMutacion({
+  nombre: 'escritura directa de qr_token reabierta',
+  origen: MAPA_PUENTE,
+  archivoTemporal: 'mapa.ts',
+  variable: 'MORPHIQPOS_MAPA_SOURCE_PATH',
+  prueba: PRUEBA_QR,
+  transformar: (codigo) =>
+    codigo.replace(
+      "        conversion: 'texto',\n        escribible: false,\n      },\n      qr_activo:",
+      "        conversion: 'texto',\n        escribible: true,\n      },\n      qr_activo:",
+    ),
+});
+comprobarMutacion({
+  nombre: 'cliente QR devuelto a escritura genérica',
+  origen: UTILIDAD_QR,
+  archivoTemporal: 'qrUtils.js',
+  variable: 'MORPHIQPOS_QR_UTIL_SOURCE_PATH',
+  prueba: PRUEBA_QR,
+  transformar: (codigo) => codigo.replace('/api/restaurante/rotar-qr', '/api/datos/entidad/Mesa'),
 });

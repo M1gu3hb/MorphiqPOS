@@ -165,7 +165,7 @@ function ejecutarConsultaVinculada(
 
   if (resultado.error !== undefined) throw resultado.error;
   if (resultado.status !== 0) {
-    const detalle = resultado.stderr.trim() || resultado.stdout.trim();
+    const detalle = [resultado.stderr.trim(), resultado.stdout.trim()].filter(Boolean).join('\n');
     throw new Error(`Supabase CLI no pudo ejecutar la migración vinculada: ${detalle}`);
   }
   return resultado.stdout;
