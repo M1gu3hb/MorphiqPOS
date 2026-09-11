@@ -138,11 +138,68 @@ vuelta atrás ANTES de aplicarla.
 
 ---
 
-## 6 · Lo que no tiene runbook todavía
+## 6 · Restaurar la base
 
-- **Restaurar la base.** Supabase tiene copias automáticas; el procedimiento no
-  se ha ensayado. `morphiq-prs §23A` pide medir RTO y RPO de verdad, y eso está
-  sin hacer.
+### Objetivos vigentes
+
+| Medida | Objetivo operativo | Evidencia al 11 de septiembre de 2026 |
+|---|---:|---|
+| **RPO** | **25 horas** | Cuatro respaldos físicos completados entre el 8 y el 11 de septiembre. El mayor intervalo observado fue **24 h 32 min 2 s**. |
+| **RTO** | **4 horas** | El ensayo lógico completo tardó **17.895 s**. El margen cubre crear el destino gestionado, cambiar secretos, desplegar y hacer humo; esas operaciones externas no se simulan localmente. |
+
+El RPO de 25 horas describe la protección que existe hoy; no promete PITR. Antes
+de incorporar un negocio cuyos movimientos no puedan reconstruirse desde sus
+comprobantes se debe habilitar PITR y bajar el objetivo a 15 minutos.
+
+### Ensayo repetible en un destino aislado
+
+El ensayo lee exclusivamente el proyecto cuyo ref está fijado en el script,
+crea un PostgreSQL temporal en `%TEMP%`, aplica las migraciones con
+`pnpm db:migrate`, restaura todas las tablas públicas y compara cantidad de filas
+y checksum por tabla. El respaldo temporal contiene datos sensibles: el script
+lo elimina junto con el clúster aun cuando falla.
+
+```powershell
+$env:MORPHIQPOS_SUPABASE_PROJECT_REF='wyqmzhliurwyxuyxznpb'
+$env:SUPABASE_CLI_PATH='D:\herramientas\supabase-cli\node_modules\@supabase\cli-windows-x64\bin\supabase.exe'
+$env:MORPHIQPOS_PG_BIN='C:\Program Files\PostgreSQL\18\bin'
+pnpm db:restore:drill
+```
+
+Resultado del 11 de septiembre de 2026, con instantánea creada a las
+11:44:12 UTC:
+
+| Paso medido | Tiempo |
+|---|---:|
+| Extraer respaldo lógico | 3.413 s |
+| Crear destino y aplicar 53 migraciones | 11.110 s |
+| Restaurar datos | 3.070 s |
+| Validar 47 tablas y 825 filas | 0.299 s |
+| **Total** | **17.895 s** |
+
+La instantánea pesó 451,512 bytes. Este número es una línea base para el volumen
+actual; el tiempo crecerá con los datos. Se repite el ensayo cada trimestre y
+antes de una migración que transforme o elimine columnas.
+
+### Incidente real
+
+1. Detén escrituras y anota la hora UTC del último movimiento confirmado.
+2. Ejecuta `supabase backups list --project-ref wyqmzhliurwyxuyxznpb` y elige el
+   punto completado más nuevo anterior al incidente. Si PITR está habilitado,
+   elige el segundo exacto anterior al cambio destructivo.
+3. Restaura primero en un proyecto de sustitución. No restaures encima del
+   origen mientras siga siendo la única copia.
+4. Ejecuta `pnpm db:migrate -- --ensayo` y luego `pnpm db:migrate` contra el
+   destino. Compara el contrato con `pnpm verify:esquema` y `pnpm verify:rls`.
+5. Haz humo de acceso, venta, cobro, corte, inventario y portal QR. Compara los
+   folios y totales del último turno contra los comprobantes del negocio.
+6. Cambia `DATABASE_URL` sólo después de aprobar el humo, despliega y conserva
+   el origen sin escrituras hasta cerrar la conciliación.
+
+---
+
+## 7 · Lo que no tiene runbook todavía
+
 - **Rotar `PIN_PEPPER`.** Cambiarla invalida TODOS los PIN a la vez. Haría falta
   un doble hash de transición, y no existe.
 - **Rotar la contraseña de `morphiqpos_app`.** Se regenera con

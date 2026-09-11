@@ -142,6 +142,8 @@ const LIMITE_PORTAL = join(RAIZ, 'packages', 'app', 'src', 'portal', 'limite.ts'
 const RUTA_AUTH_ENTRAR = join(RAIZ, 'apps', 'web', 'app', 'api', 'auth', 'entrar', 'route.ts');
 const PRUEBA_OBSERVABILIDAD = 'packages/app/src/observabilidad.test.ts';
 const PRUEBA_ADOPCION_OBSERVABILIDAD = 'apps/web/src/servidor/observabilidad-backend.test.ts';
+const ENSAYO_RESTAURACION = join(RAIZ, 'scripts', 'ensayar-restauracion.mjs');
+const PRUEBA_RESTAURACION = 'packages/data/src/verificacion/restauracion.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -755,3 +757,27 @@ for (const [nombre, origen, variable] of [
     transformar: (codigo) => codigo.replace("nivel: 'alerta'", "nivel: 'error'"),
   });
 }
+comprobarMutacion({
+  nombre: 'ensayo de restauracion dirigido a otro proyecto',
+  origen: ENSAYO_RESTAURACION,
+  archivoTemporal: 'ensayar-restauracion.mjs',
+  variable: 'MORPHIQPOS_RESTORE_DRILL_SOURCE_PATH',
+  prueba: PRUEBA_RESTAURACION,
+  transformar: (codigo) => codigo.replace('wyqmzhliurwyxuyxznpb', 'proyecto-equivocado'),
+});
+comprobarMutacion({
+  nombre: 'destino de restauracion sin migraciones controladas',
+  origen: ENSAYO_RESTAURACION,
+  archivoTemporal: 'ensayar-restauracion.mjs',
+  variable: 'MORPHIQPOS_RESTORE_DRILL_SOURCE_PATH',
+  prueba: PRUEBA_RESTAURACION,
+  transformar: (codigo) => codigo.replace("['db:migrate']", "['db:reset']"),
+});
+comprobarMutacion({
+  nombre: 'restauracion declarada sin comparar checksums',
+  origen: ENSAYO_RESTAURACION,
+  archivoTemporal: 'ensayar-restauracion.mjs',
+  variable: 'MORPHIQPOS_RESTORE_DRILL_SOURCE_PATH',
+  prueba: PRUEBA_RESTAURACION,
+  transformar: (codigo) => codigo.replace('compararVerificacion(mapaEsperado', 'void mapaEsperado'),
+});
