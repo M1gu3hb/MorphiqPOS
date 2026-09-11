@@ -120,6 +120,17 @@ const RUTA_PRESENTACION = join(
   'route.ts',
 );
 const PRUEBA_LIMITE_PRESENTACION = 'apps/web/src/servidor/presentacion-limite.test.ts';
+const RUTA_EMPLEADOS_PUBLICOS = join(
+  RAIZ,
+  'apps',
+  'web',
+  'app',
+  'api',
+  'auth',
+  'empleados',
+  'route.ts',
+);
+const PRUEBA_LIMITE_EMPLEADOS = 'apps/web/src/servidor/empleados-limite.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -649,4 +660,12 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_PRESENTATION_ROUTE_PATH',
   prueba: PRUEBA_LIMITE_PRESENTACION,
   transformar: (codigo) => codigo.replace("permitir('presentacion'", "permitir('entrar'"),
+});
+comprobarMutacion({
+  nombre: 'plantilla anónima sin consumo de cuota de entrada',
+  origen: RUTA_EMPLEADOS_PUBLICOS,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_EMPLOYEES_ROUTE_PATH',
+  prueba: PRUEBA_LIMITE_EMPLEADOS,
+  transformar: (codigo) => codigo.replace("permitir('entrar'", "permitir('enrolar'"),
 });

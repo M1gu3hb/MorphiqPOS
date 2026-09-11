@@ -1,5 +1,5 @@
 import { validarEntorno } from '@morphiqpos/contracts';
-import { leerCookie } from '@morphiqpos/app/http';
+import { leerCookie, permitir } from '@morphiqpos/app/http';
 import { empleadosParaEntrar } from '@morphiqpos/app/identidad';
 import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
 import { colorDePersona, etiquetaDeRol, rolMH } from '@morphiqpos/app/puente';
@@ -23,6 +23,16 @@ export const runtime = 'nodejs';
 
 export async function GET(peticion: Request): Promise<Response> {
   const entorno = validarEntorno(process.env);
+  const permiso = await permitir('entrar', peticion.headers, entorno.PIN_PEPPER);
+  if (!permiso.ok) {
+    return json(429, {
+      ok: false,
+      error: {
+        codigo: 'LIMITE_DE_TASA',
+        mensaje: 'Demasiadas consultas desde esta red. Espera unos minutos.',
+      },
+    });
+  }
   const token = leerCookie(peticion.headers.get('cookie'), NOMBRE_COOKIE_DISPOSITIVO) ?? '';
 
   try {
