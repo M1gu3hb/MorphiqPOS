@@ -20,6 +20,9 @@ const RUTAS_PRIVADAS = [
 const RUTA_PRODUCTOS =
   process.env['MORPHIQPOS_CATALOGO_PRODUCTS_ROUTE_PATH'] ??
   fileURLToPath(new URL('../../app/api/catalogo/productos/route.ts', import.meta.url));
+const RUTA_ACCESOS =
+  process.env['MORPHIQPOS_ACCESOS_ROUTE_PATH'] ??
+  fileURLToPath(new URL('../../app/api/identidad/accesos/route.ts', import.meta.url));
 
 describe('C-8 · roles explícitos en consultas GET privadas', () => {
   it('el envoltorio comprueba el rol resuelto por la sesión', () => {
@@ -32,7 +35,15 @@ describe('C-8 · roles explícitos en consultas GET privadas', () => {
     const archivo =
       ruta === 'catalogo/productos'
         ? RUTA_PRODUCTOS
-        : fileURLToPath(new URL(`../../app/api/${ruta}/route.ts`, import.meta.url));
+        : ruta === 'identidad/accesos'
+          ? RUTA_ACCESOS
+          : fileURLToPath(new URL(`../../app/api/${ruta}/route.ts`, import.meta.url));
     expect(readFileSync(archivo, 'utf8')).toMatch(/responderConsulta\([\s\S]*?roles:/);
+  });
+
+  it('C-9 · accesos sólo admite dueño y administrador', () => {
+    const codigo = readFileSync(RUTA_ACCESOS, 'utf8');
+    expect(codigo).toContain("roles: ['dueno', 'administrador']");
+    expect(codigo).not.toContain('roles: ROLES');
   });
 });

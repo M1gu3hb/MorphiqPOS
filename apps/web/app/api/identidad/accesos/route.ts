@@ -1,4 +1,3 @@
-import { ROLES } from '@morphiqpos/contracts';
 import { empleadosConAcceso, terminalesDeGestion } from '@morphiqpos/app/identidad';
 
 import { responderConsulta } from '~/servidor/http';
@@ -21,6 +20,6 @@ export function GET(): Promise<Response> {
       ]);
       return { empleados, terminales, rol: sesion.rol };
     },
-    { roles: ROLES },
+    { roles: ['dueno', 'administrador'] },
   );
 }
