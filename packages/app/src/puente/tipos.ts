@@ -42,6 +42,8 @@ export interface CampoMapeado {
   /** La columna en la tabla destino. */
   readonly columna: string;
   readonly conversion: Conversion;
+  /** Validación adicional antes de aceptar una escritura del navegador. */
+  readonly validacion?: 'url_http';
   /**
    * Quién puede LEER este campo. `undefined` = cualquiera con sesión.
    *

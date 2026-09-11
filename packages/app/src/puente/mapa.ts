@@ -98,7 +98,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       nombre: { columna: 'nombre', conversion: 'texto', publico: true },
       descripcion: { columna: 'descripcion', conversion: 'texto', publico: true },
       categoria_id: { columna: 'categoria_id', conversion: 'texto', publico: true },
-      imagen_url: { columna: 'imagen_url', conversion: 'texto', publico: true },
+      imagen_url: {
+        columna: 'imagen_url',
+        conversion: 'texto',
+        validacion: 'url_http',
+        publico: true,
+      },
       sku: { columna: 'sku', conversion: 'texto' },
       codigo_barras: { columna: 'codigo_barras', conversion: 'texto' },
       precio_venta: { columna: 'precio_venta_centavos', conversion: 'dinero', publico: true },
@@ -1113,7 +1118,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       ...AUTO,
       nombre: { columna: 'nombre', conversion: 'texto', publico: true },
       descripcion: { columna: 'descripcion', conversion: 'texto', publico: true },
-      imagen_url: { columna: 'imagen_url', conversion: 'texto', publico: true },
+      imagen_url: {
+        columna: 'imagen_url',
+        conversion: 'texto',
+        validacion: 'url_http',
+        publico: true,
+      },
       orden: { columna: 'orden', conversion: 'entero', publico: true },
       // «Sección» es femenino: columna `activa`, campo `activo`.
       activo: { columna: 'activa', conversion: 'booleano', publico: true },

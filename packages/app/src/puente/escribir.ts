@@ -2,6 +2,7 @@ import 'server-only';
 
 import { ErrorDominio } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
+import { z } from 'zod';
 
 import { transaccionLibre } from './db-dinamica.ts';
 
@@ -124,6 +125,19 @@ function aColumnas(mapa: MapaEntidad, datos: Readonly<Record<string, unknown>>):
         throw new ErrorDominio('PUENTE_CAMPO_INVALIDO', `«${clave}» no se puede cambiar.`);
       }
       continue;
+    }
+    if (campo.validacion === 'url_http' && valor !== null) {
+      const validada = z.url().safeParse(valor);
+      if (
+        !validada.success ||
+        (new URL(validada.data).protocol !== 'https:' &&
+          new URL(validada.data).protocol !== 'http:')
+      ) {
+        throw new ErrorDominio(
+          'PUENTE_CAMPO_INVALIDO',
+          `«${clave}» debe ser una URL HTTP(S) válida.`,
+        );
+      }
     }
     valores[campo.columna] = valorHaciaLaBase(valor, campo);
   }

@@ -146,6 +146,8 @@ const ENSAYO_RESTAURACION = join(RAIZ, 'scripts', 'ensayar-restauracion.mjs');
 const PRUEBA_RESTAURACION = 'packages/data/src/verificacion/restauracion.test.ts';
 const REPOSITORIO_CATALOGO = join(RAIZ, 'packages', 'data', 'src', 'repos', 'catalogo.ts');
 const PRUEBA_REPOSITORIO_CATALOGO = 'packages/data/src/repos/catalogo.test.ts';
+const ESCRIBIR_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'escribir.ts');
+const PRUEBA_URL_PUBLICA = 'packages/app/src/puente/url-publica.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -799,4 +801,21 @@ comprobarMutacion({
   prueba: PRUEBA_AUTORIZACION_PUENTE,
   transformar: (codigo) =>
     codigo.replace(/(IntegrationSyncLog:\s*\{[\s\S]{0,200}?escritura:) 'lectura'/, "$1 'directa'"),
+});
+comprobarMutacion({
+  nombre: 'validacion URL retirada de las imagenes publicas',
+  origen: MAPA_PUENTE,
+  archivoTemporal: 'mapa.ts',
+  variable: 'MORPHIQPOS_URL_MAP_SOURCE_PATH',
+  prueba: PRUEBA_URL_PUBLICA,
+  transformar: (codigo) => codigo.replaceAll("validacion: 'url_http'", "validacion: 'omitida'"),
+});
+comprobarMutacion({
+  nombre: 'esquema URL degradado a texto',
+  origen: ESCRIBIR_PUENTE,
+  archivoTemporal: 'escribir.ts',
+  variable: 'MORPHIQPOS_URL_WRITE_SOURCE_PATH',
+  prueba: PRUEBA_URL_PUBLICA,
+  transformar: (codigo) =>
+    codigo.replace('z.url().safeParse(valor)', 'z.string().safeParse(valor)'),
 });
