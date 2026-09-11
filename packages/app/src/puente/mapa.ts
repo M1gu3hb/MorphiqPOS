@@ -69,10 +69,28 @@ const VE_MARGENES = ['dueno', 'administrador', 'gerente'] as const;
  */
 const VE_COSTOS_DE_INSUMO = ['dueno', 'administrador', 'gerente', 'almacen'] as const;
 
+const TODOS_LOS_ROLES = [
+  'dueno',
+  'administrador',
+  'gerente',
+  'cajero',
+  'mesero',
+  'cocina',
+  'almacen',
+] as const;
+const DIRECCION = ['dueno', 'administrador', 'gerente'] as const;
+const CAJA = [...DIRECCION, 'cajero'] as const;
+const COMPRAS = [...DIRECCION, 'almacen'] as const;
+const RECETAS_E_INVENTARIO = [...DIRECCION, 'cocina', 'almacen'] as const;
+const INVENTARIO = [...DIRECCION, 'almacen'] as const;
+const OPERACION_RESTAURANTE = [...DIRECCION, 'cajero', 'mesero', 'cocina'] as const;
+const PREPARACION = [...DIRECCION, 'cocina'] as const;
+
 export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   // ── Catálogo ─────────────────────────────────────────────────────────────
   ProductoTerminado: {
     tabla: 'productos',
+    rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
     campos: {
@@ -173,6 +191,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   CategoriaProducto: {
     tabla: 'categorias',
+    rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'directa',
     ordenPorOmision: 'orden',
     // `categorias` guarda las de producto y las de insumo en la misma tabla.
@@ -194,6 +213,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   CategoriaIngrediente: {
     tabla: 'categorias',
+    rolesLectura: [...RECETAS_E_INVENTARIO],
     escritura: 'directa',
     ordenPorOmision: 'orden',
     filtroFijo: { tipo: 'insumo' },
@@ -209,6 +229,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Ingrediente: {
     tabla: 'insumos',
+    rolesLectura: [...RECETAS_E_INVENTARIO],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
     // Cocina nunca ve costos ni gramajes (F1-01 §3, regla 9). El filtro por rol
@@ -298,6 +319,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   RecetaEscandallo: {
     tabla: 'recetas',
+    rolesLectura: [...RECETAS_E_INVENTARIO],
     // `guardarReceta` es transaccional CON rollback: borrar las líneas viejas y
     // crear las nuevas sin transacción es el defecto D-11.
     escritura: 'comando',
@@ -372,6 +394,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   // ── Operación ────────────────────────────────────────────────────────────
   Venta: {
     tabla: 'ordenes',
+    rolesLectura: [...OPERACION_RESTAURANTE],
     // `cobrarVenta` es transaccional. Escribir una venta campo por campo desde
     // el navegador —marcarla pagada y DESPUÉS procesar recetas, stock y
     // movimientos— es el defecto D-07, y no vuelve.
@@ -395,14 +418,34 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         traduccion: { borrador: 'abierta', confirmada: 'enviada' },
       },
       // `total` es la venta REAL, SIN propina. Nunca se infla (regla 1).
-      total: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
-      subtotal: { columna: 'subtotal_centavos', conversion: 'dinero', escribible: false },
+      total: {
+        rolesLectura: [...CAJA],
+        columna: 'total_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      subtotal: {
+        rolesLectura: [...CAJA],
+        columna: 'subtotal_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
       // LOS NOMBRES SON LOS SUYOS. Nueve archivos leen `costo_total_snapshot`,
       // nueve `utilidad_bruta_snapshot`, seis `usuario_mesero_id` y cinco
       // `corte_caja_id`. Llamarlos como uno querría dejaría a los veintinueve
       // viendo `undefined`, sin error y sin aviso.
-      descuentos: { columna: 'descuento_centavos', conversion: 'dinero', escribible: false },
-      impuestos: { columna: 'impuestos_centavos', conversion: 'dinero', escribible: false },
+      descuentos: {
+        rolesLectura: [...CAJA],
+        columna: 'descuento_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      impuestos: {
+        rolesLectura: [...CAJA],
+        columna: 'impuestos_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
       costo_total_snapshot: {
         rolesLectura: [...VE_MARGENES],
         columna: 'costo_total_centavos',
@@ -449,18 +492,31 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // una terminal: la inscripción de terminales se eliminó del plan.
       codigo_caja: { columna: 'codigo_caja', conversion: 'texto', escribible: false },
       propina_porcentaje: {
+        rolesLectura: [...CAJA],
         columna: 'propina_puntos_base',
         conversion: 'puntos_base',
         escribible: false,
       },
-      propina_tipo: { columna: 'propina_tipo', conversion: 'texto', escribible: false },
-      propina_origen: { columna: 'propina_origen', conversion: 'texto', escribible: false },
+      propina_tipo: {
+        rolesLectura: [...CAJA],
+        columna: 'propina_tipo',
+        conversion: 'texto',
+        escribible: false,
+      },
+      propina_origen: {
+        rolesLectura: [...CAJA],
+        columna: 'propina_origen',
+        conversion: 'texto',
+        escribible: false,
+      },
       propina_liquidacion_id: {
+        rolesLectura: [...DIRECCION],
         columna: 'propina_liquidacion_id',
         conversion: 'texto',
         escribible: false,
       },
       propina_liquidada_fecha: {
+        rolesLectura: [...DIRECCION],
         columna: 'propina_liquidada_en',
         conversion: 'fecha',
         escribible: false,
@@ -506,6 +562,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   DetalleVenta: {
     tabla: 'orden_lineas',
+    rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     campos: {
       ...AUTO,
@@ -610,6 +667,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   MovimientoInventario: {
     tabla: 'movimientos_stock',
+    rolesLectura: [...INVENTARIO],
     // El ledger es INMUTABLE: se escribe por comando y no se edita jamás.
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -657,6 +715,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   CorteCaja: {
     tabla: 'sesiones_caja',
+    rolesLectura: [...CAJA],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
     campos: {
@@ -744,6 +803,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   Zona: {
     tabla: 'zonas',
+    rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'directa',
     ordenPorOmision: 'orden',
     campos: {
@@ -756,6 +816,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Mesa: {
     tabla: 'mesas',
+    rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'directa',
     // `mesas.sucursal_id` es `not null`: la pone el servidor desde la sesión.
     conSucursal: true,
@@ -786,7 +847,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
       tipo_celebracion: { columna: 'tipo_celebracion', conversion: 'texto', escribible: false },
-      qr_token: { columna: 'qr_token', conversion: 'texto' },
+      qr_token: { rolesLectura: [...DIRECCION], columna: 'qr_token', conversion: 'texto' },
       qr_activo: { columna: 'qr_activa', conversion: 'booleano' },
       mesero_asignado_id: { columna: 'empleado_asignado_id', conversion: 'texto' },
       atendido_por_id: { columna: 'empleado_atiende_id', conversion: 'texto', escribible: false },
@@ -826,6 +887,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   EstacionPreparacion: {
     tabla: 'estaciones_preparacion',
+    rolesLectura: [...PREPARACION],
     escritura: 'directa',
     ordenPorOmision: 'orden',
     campos: {
@@ -856,6 +918,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   PedidoPreparacion: {
     tabla: 'comandas',
+    rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
     campos: {
@@ -929,6 +992,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   PedidoPreparacionItem: {
     tabla: 'comanda_items',
+    rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: 'orden_visual',
     campos: {
@@ -956,6 +1020,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   // ── Restaurante: portal QR ───────────────────────────────────────────────
   SolicitudQR: {
     tabla: 'solicitudes_qr',
+    rolesLectura: [...OPERACION_RESTAURANTE],
     // Crear una solicitud, atenderla y resolverla mueven mesa y venta. Y el
     // anti-duplicado de `PortalCliente.jsx:524-532` es un TOCTOU (D-17) que
     // ahora cierra un índice único parcial.
@@ -977,7 +1042,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       },
       ruteo_modo: { columna: 'ruteo_modo', conversion: 'texto', escribible: false },
       origen: { columna: 'origen', conversion: 'texto', escribible: false },
-      token_mesa: { columna: 'token_mesa', conversion: 'texto', escribible: false },
+      token_mesa: {
+        rolesLectura: [...DIRECCION],
+        columna: 'token_mesa',
+        conversion: 'texto',
+        escribible: false,
+      },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
       subtotal_consumo: {
         columna: 'subtotal_consumo_centavos',
@@ -1031,6 +1101,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   MenuQRSeccion: {
     tabla: 'menu_qr_secciones',
+    rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'directa',
     ordenPorOmision: 'orden',
     campos: {
@@ -1055,6 +1126,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   CompraInsumo: {
     tabla: 'compras',
+    rolesLectura: [...COMPRAS],
     escritura: 'comando',
     ordenPorOmision: '-fecha',
     campos: {
@@ -1082,6 +1154,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   /** Su nombre es `DetalleCompra`, no `CompraLinea`. */
   DetalleCompra: {
     tabla: 'compra_lineas',
+    rolesLectura: [...COMPRAS],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
     campos: {
@@ -1118,6 +1191,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Proveedor: {
     tabla: 'proveedores',
+    rolesLectura: [...COMPRAS],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
     campos: {
@@ -1140,6 +1214,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   GastoOperativo: {
     tabla: 'gastos',
+    rolesLectura: [...CAJA],
     escritura: 'comando',
     ordenPorOmision: '-fecha',
     campos: {
@@ -1172,6 +1247,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   PlantillaGasto: {
     tabla: 'plantillas_gasto',
+    rolesLectura: [...DIRECCION],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
     campos: {
@@ -1193,6 +1269,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   PlantillaCompra: {
     tabla: 'plantillas_compra',
+    rolesLectura: [...COMPRAS],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
     campos: {
@@ -1219,6 +1296,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   LiquidacionPropina: {
     tabla: 'liquidaciones_propina',
+    rolesLectura: [...DIRECCION],
     escritura: 'comando',
     // El orden se declara con SU nombre de campo, no con el de la columna: es
     // lo que el frontend manda en `list('-fecha_liquidacion')`. Lo cazó la
@@ -1265,6 +1343,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   IntegrationSyncLog: {
     tabla: 'bitacora_sincronizacion',
+    rolesLectura: [...DIRECCION],
     escritura: 'directa',
     ordenPorOmision: '-created_date',
     campos: {
@@ -1292,6 +1371,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
  */
 const DESCUENTO_INVENTARIO_VENTA: MapaEntidad = {
   tabla: 'movimientos_stock',
+  rolesLectura: [...INVENTARIO],
   escritura: 'lectura',
   ordenPorOmision: '-created_date',
   filtroFijo: { referencia_tipo: 'orden' },

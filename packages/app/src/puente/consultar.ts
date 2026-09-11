@@ -117,7 +117,7 @@ export async function consultar(
       `La entidad «${peticion.entidad}» no existe en el puente.`,
     );
   }
-  if (mapa.rolesLectura !== undefined && !mapa.rolesLectura.includes(ambito.rol)) {
+  if (!mapa.rolesLectura.includes(ambito.rol)) {
     throw new ErrorDominio('PUENTE_SIN_PERMISO', 'Tu rol no puede leer esa información.');
   }
 

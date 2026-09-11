@@ -223,8 +223,14 @@ export interface MapaEntidad {
   readonly conSucursal?: boolean;
   /** Orden por omisión cuando él no pide ninguno. */
   readonly ordenPorOmision?: string;
-  /** Roles que pueden LEER esta entidad. `undefined` = cualquiera con sesión. */
-  readonly rolesLectura?: readonly string[];
+  /**
+   * Roles que pueden LEER esta entidad.
+   *
+   * Es obligatorio incluso cuando contiene a toda la plantilla: una entidad
+   * nueva sin decisión explícita no puede convertir en código muerto la guarda
+   * de `consultar` ni abrir datos por omisión.
+   */
+  readonly rolesLectura: readonly string[];
 }
 
 /** Nada de `list(10000)`: el tope existe para que una pantalla no tumbe la base. */

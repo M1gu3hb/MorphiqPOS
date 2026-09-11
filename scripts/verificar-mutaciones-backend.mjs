@@ -40,6 +40,10 @@ const EMPLEADOS = join(RAIZ, 'packages', 'app', 'src', 'identidad', 'empleados.t
 const PRUEBA_EMPLEADOS = 'packages/app/src/identidad/empleados.test.ts';
 const SALIR = join(RAIZ, 'apps', 'web', 'app', 'api', 'auth', 'salir', 'route.ts');
 const PRUEBA_SALIR = 'apps/web/src/servidor/salir.test.ts';
+const MAPA_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'mapa.ts');
+const CONSULTAR_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'consultar.ts');
+const TIPOS_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'tipos.ts');
+const PRUEBA_AUTORIZACION_PUENTE = 'packages/app/src/puente/autorizacion.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -189,4 +193,52 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_SALIR_ROUTE_PATH',
   prueba: PRUEBA_SALIR,
   transformar: (codigo) => codigo.replace('await cerrarSesion(', 'await Promise.resolve('),
+});
+comprobarMutacion({
+  nombre: 'roles de entidad otra vez opcionales',
+  origen: TIPOS_PUENTE,
+  archivoTemporal: 'tipos.ts',
+  variable: 'MORPHIQPOS_PUENTE_TIPOS_SOURCE_PATH',
+  prueba: PRUEBA_AUTORIZACION_PUENTE,
+  transformar: (codigo) =>
+    codigo.replace(
+      'readonly rolesLectura: readonly string[];',
+      'readonly rolesLectura?: readonly string[];',
+    ),
+});
+comprobarMutacion({
+  nombre: 'guarda de lectura por entidad desactivada',
+  origen: CONSULTAR_PUENTE,
+  archivoTemporal: 'consultar.ts',
+  variable: 'MORPHIQPOS_CONSULTAR_SOURCE_PATH',
+  prueba: PRUEBA_AUTORIZACION_PUENTE,
+  transformar: (codigo) =>
+    codigo.replace(
+      'if (!mapa.rolesLectura.includes(ambito.rol))',
+      'if (false && !mapa.rolesLectura.includes(ambito.rol))',
+    ),
+});
+comprobarMutacion({
+  nombre: 'cortes abiertos a todos los roles',
+  origen: MAPA_PUENTE,
+  archivoTemporal: 'mapa.ts',
+  variable: 'MORPHIQPOS_MAPA_SOURCE_PATH',
+  prueba: PRUEBA_AUTORIZACION_PUENTE,
+  transformar: (codigo) =>
+    codigo.replace(
+      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    rolesLectura: [...CAJA]",
+      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    rolesLectura: [...TODOS_LOS_ROLES]",
+    ),
+});
+comprobarMutacion({
+  nombre: 'token QR visible a roles operativos',
+  origen: MAPA_PUENTE,
+  archivoTemporal: 'mapa.ts',
+  variable: 'MORPHIQPOS_MAPA_SOURCE_PATH',
+  prueba: PRUEBA_AUTORIZACION_PUENTE,
+  transformar: (codigo) =>
+    codigo.replace(
+      "qr_token: { rolesLectura: [...DIRECCION], columna: 'qr_token', conversion: 'texto' }",
+      "qr_token: { columna: 'qr_token', conversion: 'texto' }",
+    ),
 });
