@@ -53,6 +53,13 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
   if (!verificado.ok) return { ok: false, motivo: traducir(verificado) };
 
   const db = obtenerDb();
+  const registrada = await repoSesion.sesionActiva(
+    db,
+    verificado.carga.sid,
+    verificado.carga.empleoId,
+  );
+  if (!registrada) return { ok: false, motivo: 'revocada' };
+
   const fila = await repoSesion.resolverAmbito(
     db,
     verificado.carga.identidadId,

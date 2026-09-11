@@ -7,6 +7,7 @@ import { prepararTandaVinculada } from './ejecutor.ts';
 
 const EJECUTOR = fileURLToPath(new URL('./ejecutor.ts', import.meta.url));
 const BIN = fileURLToPath(new URL('../../bin/migrar.mjs', import.meta.url));
+const TIPOS = fileURLToPath(new URL('../../bin/generar-tipos.mjs', import.meta.url));
 
 describe('ejecutor de migraciones por Management API', () => {
   it('expone un constructor comprobable para la tanda SQL', () => {
@@ -23,6 +24,12 @@ describe('ejecutor de migraciones por Management API', () => {
     const codigo = readFileSync(BIN, 'utf8');
     expect(codigo).toContain('MORPHIQPOS_SUPABASE_PROJECT_REF');
     expect(codigo).toContain('migrarVinculado');
+  });
+
+  it('pnpm db:tipos usa el mismo proyecto vinculado cuando falta DATABASE_URL', () => {
+    const codigo = readFileSync(TIPOS, 'utf8');
+    expect(codigo).toContain('MORPHIQPOS_SUPABASE_PROJECT_REF');
+    expect(codigo).toContain('supabase db query');
   });
 
   it('ejecuta el CLI desde la raíz para no crear configuración dentro del paquete', () => {

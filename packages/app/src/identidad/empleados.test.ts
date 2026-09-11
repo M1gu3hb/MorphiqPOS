@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { esErrorDominio, type Ambito, type Rol } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -29,6 +32,9 @@ const OTRO_EMPLEO = '66666666-6666-4666-8666-666666666666';
 const PERSONA = '77777777-7777-4777-8777-777777777777';
 const CLAVE = 'clave-de-alta-de-empleado-1';
 const AHORA = new Date('2026-03-01T10:00:00.000Z');
+const FUENTE =
+  process.env['MORPHIQPOS_EMPLEADOS_SOURCE_PATH'] ??
+  fileURLToPath(new URL('./empleados.ts', import.meta.url));
 
 function ambitoDe(rol: Rol, empleoId = YO): Ambito {
   return {
@@ -72,6 +78,7 @@ function baseDe(datos: Record<string, readonly Fila[]> = {}) {
     personas: [],
     identidades: [],
     credenciales_pin: [],
+    sesiones: [],
     ...datos,
   });
 }
@@ -136,6 +143,13 @@ const NUEVO = {
 };
 
 describe('guardar_empleado · nadie reparte un puesto por encima del suyo', () => {
+  it('el código liga la revocación al cambio de rol o la baja', () => {
+    const codigo = readFileSync(FUENTE, 'utf8');
+
+    expect(codigo).toContain('rolPedido !== actual.rol || (actual.activo && !entrada.activo)');
+    expect(codigo).toContain('repoSesion.revocarSesionesDeEmpleo');
+  });
+
   it('un administrador NO puede crear un dueño', async () => {
     // ES LA PRUEBA QUE MÁS IMPORTA DE ESTE ARCHIVO. Sin esta guarda, un
     // administrador se fabrica un dueño, entra con él y se queda con los
@@ -209,6 +223,83 @@ describe('guardar_empleado · nadie reparte un puesto por encima del suyo', () =
 
     expect(salida.rol).toBe('cajero');
     expect(base.filas('empleos')[0]?.['rol']).toBe('cajero');
+  });
+
+  it('revoca todas las sesiones al cambiar el puesto', async () => {
+    const base = baseDe({
+      empleos: [empleo('mesero')],
+      personas: [PERSONA_FILA],
+      sesiones: [
+        {
+          sid: '0123456789abcdef0123456789abcdef',
+          organizacion_id: ORG,
+          empleo_id: OTRO_EMPLEO,
+          creada_en: new Date('2026-03-01T08:00:00.000Z'),
+          expira_en: new Date('2026-03-01T16:00:00.000Z'),
+          revocada_en: null,
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    await guardarEmpleado.ejecutar(ctx, {
+      ...NUEVO,
+      empleado: OTRO_EMPLEO,
+      puesto: 'caja',
+    });
+
+    expect(base.campo('sesiones', 'revocada_en')).toEqual(AHORA);
+  });
+
+  it('revoca todas las sesiones al dar de baja el empleo', async () => {
+    const base = baseDe({
+      empleos: [empleo('mesero')],
+      personas: [PERSONA_FILA],
+      sesiones: [
+        {
+          sid: 'fedcba9876543210fedcba9876543210',
+          organizacion_id: ORG,
+          empleo_id: OTRO_EMPLEO,
+          creada_en: new Date('2026-03-01T08:00:00.000Z'),
+          expira_en: new Date('2026-03-01T16:00:00.000Z'),
+          revocada_en: null,
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    await guardarEmpleado.ejecutar(ctx, {
+      ...NUEVO,
+      empleado: OTRO_EMPLEO,
+      puesto: 'mesero',
+      activo: false,
+    });
+
+    expect(base.campo('sesiones', 'revocada_en')).toEqual(AHORA);
+  });
+
+  it('conserva las sesiones si el puesto y el estado no cambian', async () => {
+    const base = baseDe({
+      empleos: [empleo('mesero')],
+      personas: [PERSONA_FILA],
+      sesiones: [
+        {
+          sid: '00112233445566778899aabbccddeeff',
+          organizacion_id: ORG,
+          empleo_id: OTRO_EMPLEO,
+          revocada_en: null,
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    await guardarEmpleado.ejecutar(ctx, {
+      ...NUEVO,
+      empleado: OTRO_EMPLEO,
+      puesto: 'mesero',
+    });
+
+    expect(base.campo('sesiones', 'revocada_en')).toBeNull();
   });
 
   it('la traducción NUNCA sube de rango', async () => {

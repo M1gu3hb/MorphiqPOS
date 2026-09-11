@@ -22,7 +22,9 @@
  *   date      → string   (día del calendario, no instante)
  *   jsonb     → unknown  (obliga a validar con zod antes de usarlo)
  */
-import { writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -47,6 +49,7 @@ config({
 });
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
+const RAIZ = join(AQUI, '..', '..', '..');
 const DESTINO = join(AQUI, '..', 'src', 'esquema.ts');
 
 /**
@@ -148,18 +151,76 @@ select
   as fuente;
 `;
 
-const url = process.env['DATABASE_URL'];
-if (url === undefined || url === '') {
-  console.error('✗ Falta DATABASE_URL. Sin base migrada no hay tipos que generar:');
-  console.error('  los tipos son un reflejo del esquema aplicado, no una declaración aparte.');
-  process.exit(2);
+function fuenteDeRespuestaVinculada(salida) {
+  const inicio = salida.indexOf('{');
+  const fin = salida.lastIndexOf('}');
+  if (inicio < 0 || fin < inicio) throw new Error('El CLI no devolvió JSON reconocible.');
+
+  const respuesta = JSON.parse(salida.slice(inicio, fin + 1));
+  if (typeof respuesta !== 'object' || respuesta === null) return undefined;
+  const filas = respuesta.rows;
+  if (!Array.isArray(filas)) return undefined;
+  const primera = filas[0];
+  if (typeof primera !== 'object' || primera === null) return undefined;
+  return typeof primera.fuente === 'string' ? primera.fuente : undefined;
 }
 
-const { obtenerPool, cerrarDb } = await import('../src/cliente.ts');
+async function fuenteDesdeBase() {
+  const url = process.env['DATABASE_URL'];
+  if (url !== undefined && url !== '') {
+    const { obtenerPool, cerrarDb } = await import('../src/cliente.ts');
+    try {
+      const { rows } = await obtenerPool().query(CONSULTA);
+      return rows[0]?.fuente;
+    } finally {
+      await cerrarDb();
+    }
+  }
+
+  const projectRef = process.env['MORPHIQPOS_SUPABASE_PROJECT_REF'];
+  if (projectRef === undefined || !/^[a-z]{20}$/.test(projectRef)) {
+    throw new Error(
+      'Falta DATABASE_URL o MORPHIQPOS_SUPABASE_PROJECT_REF válido. Sin base migrada no hay tipos que generar.',
+    );
+  }
+
+  const ejecutable = process.env['SUPABASE_CLI_PATH'] ?? 'supabase';
+  const carpeta = mkdtempSync(join(tmpdir(), 'morphiqpos-tipos-'));
+  const archivo = join(carpeta, 'generar-tipos.sql');
+  writeFileSync(archivo, CONSULTA, 'utf8');
+
+  try {
+    // Equivale a `supabase db query --linked`: la referencia explícita impide
+    // generar contra otro proyecto guardado en la máquina.
+    const resultado = spawnSync(
+      ejecutable,
+      [
+        'db',
+        'query',
+        '--linked',
+        '--project-ref',
+        projectRef,
+        '--output-format',
+        'json',
+        '--file',
+        archivo,
+      ],
+      { cwd: RAIZ, encoding: 'utf8', windowsHide: true },
+    );
+    if (resultado.error !== undefined) throw resultado.error;
+    if (resultado.status !== 0) {
+      throw new Error(
+        resultado.stderr.trim() || `Supabase CLI terminó con ${String(resultado.status)}.`,
+      );
+    }
+    return fuenteDeRespuestaVinculada(resultado.stdout);
+  } finally {
+    rmSync(carpeta, { force: true, recursive: true });
+  }
+}
 
 try {
-  const { rows } = await obtenerPool().query(CONSULTA);
-  const fuente = rows[0]?.fuente;
+  const fuente = await fuenteDesdeBase();
 
   if (typeof fuente !== 'string' || fuente.length === 0) {
     throw new Error('La consulta no devolvió fuente. ¿La base está migrada?');
@@ -180,6 +241,4 @@ try {
   console.error('\n✗ No se pudieron generar los tipos.\n');
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
-} finally {
-  await cerrarDb();
 }

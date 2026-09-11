@@ -29,6 +29,90 @@ export interface AmbitoResuelto {
   readonly nombreSucursal: string | null;
 }
 
+export interface NuevaSesion {
+  readonly sid: string;
+  readonly organizacionId: string;
+  readonly empleoId: string;
+  readonly creadaEn: Date;
+  readonly expiraEn: Date;
+}
+
+/** Registra la sesión antes de entregar su cookie al navegador. */
+export async function crearSesion(db: Kysely<Esquema>, sesion: NuevaSesion): Promise<void> {
+  await db
+    .insertInto('sesiones')
+    .values({
+      sid: sesion.sid,
+      organizacion_id: sesion.organizacionId,
+      empleo_id: sesion.empleoId,
+      creada_en: sesion.creadaEn,
+      expira_en: sesion.expiraEn,
+    })
+    .execute();
+}
+
+/**
+ * Comprueba el registro servidor de la cookie.
+ *
+ * El empleo forma parte de la condición para que un `sid` no se pueda combinar
+ * con la carga de otro token, incluso si ambos tokens tienen firma válida.
+ */
+export async function sesionActiva(
+  db: Kysely<Esquema>,
+  sid: string,
+  empleoId: string,
+  ahora: Date = new Date(),
+): Promise<boolean> {
+  const fila = await db
+    .selectFrom('sesiones')
+    .select('sid')
+    .where('sid', '=', sid)
+    .where('empleo_id', '=', empleoId)
+    .where('revocada_en', 'is', null)
+    .where('expira_en', '>', ahora)
+    .executeTakeFirst();
+
+  return fila !== undefined;
+}
+
+/** Marca una sola sesión como revocada. Es idempotente para cierres repetidos. */
+export async function revocarSesion(
+  db: Kysely<Esquema>,
+  sid: string,
+  ahora: Date = new Date(),
+): Promise<void> {
+  await db
+    .updateTable('sesiones')
+    .set({ revocada_en: ahora })
+    .where('sid', '=', sid)
+    .where('revocada_en', 'is', null)
+    .execute();
+}
+
+/** Invalida todas las cookies vivas de un empleo tras un cambio de acceso. */
+export async function revocarSesionesDeEmpleo(
+  db: Kysely<Esquema>,
+  organizacionId: string,
+  empleoId: string,
+  ahora: Date,
+): Promise<void> {
+  await db
+    .updateTable('sesiones')
+    .set({ revocada_en: ahora })
+    .where('organizacion_id', '=', organizacionId)
+    .where('empleo_id', '=', empleoId)
+    .where('revocada_en', 'is', null)
+    .execute();
+}
+
+/** Conserva siete días de rastro y elimina sesiones ya vencidas más antiguas. */
+export async function purgarSesionesAntiguas(
+  db: Kysely<Esquema>,
+  vencidasAntesDe: Date,
+): Promise<void> {
+  await db.deleteFrom('sesiones').where('expira_en', '<', vencidasAntesDe).executeTakeFirst();
+}
+
 /**
  * Resuelve el ámbito desde la identidad y el empleo que trae la sesión.
  *

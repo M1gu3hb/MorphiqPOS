@@ -681,6 +681,15 @@ export interface Recetas {
   notas: string | null;
 }
 
+export interface Sesiones {
+  sid: string;
+  organizacion_id: string;
+  empleo_id: string;
+  creada_en: Generated<Date>;
+  expira_en: Date;
+  revocada_en: Date | null;
+}
+
 export interface SesionesCaja {
   id: Generated<string>;
   organizacion_id: string;
@@ -803,6 +812,7 @@ export interface Esquema {
   productos: Productos;
   proveedores: Proveedores;
   recetas: Recetas;
+  sesiones: Sesiones;
   sesiones_caja: SesionesCaja;
   solicitudes_qr: SolicitudesQr;
   sucursales: Sucursales;

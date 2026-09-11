@@ -22,6 +22,24 @@ const PRUEBA_CONFIGURACION = 'packages/app/src/configuracion/configuracion.test.
 const PRESENTACION = join(RAIZ, 'packages', 'app', 'src', 'puente', 'presentacion.ts');
 const CONFIGURACION_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'configuracion.ts');
 const PRUEBA_PRESENTACION = 'packages/app/src/puente/presentacion.test.ts';
+const MIGRACION_SESIONES = join(
+  RAIZ,
+  'packages',
+  'data',
+  'src',
+  'migraciones',
+  'sql',
+  '051_sesiones_revocables.sql',
+);
+const PRUEBA_SESIONES_SQL = 'packages/data/src/migraciones/sesiones.test.ts';
+const RESOLVER_SESION = join(RAIZ, 'packages', 'app', 'src', 'sesion', 'resolver.ts');
+const PRUEBA_RESOLVER_SESION = 'packages/app/src/sesion/resolver.test.ts';
+const ENTRAR = join(RAIZ, 'packages', 'app', 'src', 'identidad', 'entrar.ts');
+const PRUEBA_ENTRAR = 'packages/app/src/identidad/entrar.test.ts';
+const EMPLEADOS = join(RAIZ, 'packages', 'app', 'src', 'identidad', 'empleados.ts');
+const PRUEBA_EMPLEADOS = 'packages/app/src/identidad/empleados.test.ts';
+const SALIR = join(RAIZ, 'apps', 'web', 'app', 'api', 'auth', 'salir', 'route.ts');
+const PRUEBA_SALIR = 'apps/web/src/servidor/salir.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -128,4 +146,47 @@ comprobarMutacion({
   prueba: PRUEBA_PRESENTACION,
   transformar: (codigo) =>
     codigo.replace('paquete_modo: fila.paquete', "paquete_modo: guardados['paquete_modo']"),
+});
+comprobarMutacion({
+  nombre: 'RLS FORCE omitido en sesiones',
+  origen: MIGRACION_SESIONES,
+  archivoTemporal: '051_sesiones_revocables.sql',
+  variable: 'MORPHIQPOS_SESIONES_MIGRATION_PATH',
+  prueba: PRUEBA_SESIONES_SQL,
+  transformar: (sql) => sql.replace('force row level security', 'disable row level security'),
+});
+comprobarMutacion({
+  nombre: 'sid ignorado al resolver sesión',
+  origen: RESOLVER_SESION,
+  archivoTemporal: 'resolver.ts',
+  variable: 'MORPHIQPOS_SESSION_RESOLVER_SOURCE_PATH',
+  prueba: PRUEBA_RESOLVER_SESION,
+  transformar: (codigo) =>
+    codigo.replace('await repoSesion.sesionActiva', 'await repoSesion.sesionOmitida'),
+});
+comprobarMutacion({
+  nombre: 'sesión no persistida al entrar',
+  origen: ENTRAR,
+  archivoTemporal: 'entrar.ts',
+  variable: 'MORPHIQPOS_ENTRAR_SOURCE_PATH',
+  prueba: PRUEBA_ENTRAR,
+  transformar: (codigo) =>
+    codigo.replace('await repoSesion.crearSesion', 'await repoSesion.omitirSesion'),
+});
+comprobarMutacion({
+  nombre: 'sesiones conservadas tras cambiar acceso',
+  origen: EMPLEADOS,
+  archivoTemporal: 'empleados.ts',
+  variable: 'MORPHIQPOS_EMPLEADOS_SOURCE_PATH',
+  prueba: PRUEBA_EMPLEADOS,
+  transformar: (codigo) =>
+    codigo.replace('repoSesion.revocarSesionesDeEmpleo', 'repoSesion.conservarSesionesDeEmpleo'),
+});
+comprobarMutacion({
+  nombre: 'logout limitado a borrar la cookie',
+  origen: SALIR,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_SALIR_ROUTE_PATH',
+  prueba: PRUEBA_SALIR,
+  transformar: (codigo) => codigo.replace('await cerrarSesion(', 'await Promise.resolve('),
 });
