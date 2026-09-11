@@ -88,6 +88,9 @@ const CONTRATO_ESQUEMA = join(
 );
 const MANIFIESTO_RAIZ = join(RAIZ, 'package.json');
 const PRUEBA_CONTRATO_ESQUEMA = 'packages/data/src/verificacion/contrato-esquema.test.ts';
+const CONTRATO_RLS = join(RAIZ, 'packages', 'data', 'src', 'verificacion', 'rls.ts');
+const SCRIPT_RLS = join(RAIZ, 'scripts', 'verificar-rls.mjs');
+const PRUEBA_RLS_VIVA = 'packages/data/src/verificacion/rls.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -473,4 +476,36 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_PACKAGE_JSON_PATH',
   prueba: PRUEBA_CONTRATO_ESQUEMA,
   transformar: (codigo) => codigo.replace(' && pnpm verify:esquema', ''),
+});
+comprobarMutacion({
+  nombre: 'comprobación viva de RLS desactivada',
+  origen: CONTRATO_RLS,
+  archivoTemporal: 'rls.ts',
+  variable: 'MORPHIQPOS_RLS_CONTRACT_SOURCE_PATH',
+  prueba: PRUEBA_RLS_VIVA,
+  transformar: (codigo) => codigo.replace('if (relacion.rlsActiva !== true)', 'if (false)'),
+});
+comprobarMutacion({
+  nombre: 'índice único 046 omitido de la verificación',
+  origen: CONTRATO_RLS,
+  archivoTemporal: 'rls.ts',
+  variable: 'MORPHIQPOS_RLS_CONTRACT_SOURCE_PATH',
+  prueba: PRUEBA_RLS_VIVA,
+  transformar: (codigo) => codigo.replace("  'cortes_folio_unico',\n", ''),
+});
+comprobarMutacion({
+  nombre: 'FORCE RLS omitido de la consulta viva',
+  origen: SCRIPT_RLS,
+  archivoTemporal: 'verificar-rls.mjs',
+  variable: 'MORPHIQPOS_RLS_VERIFY_SCRIPT_PATH',
+  prueba: PRUEBA_RLS_VIVA,
+  transformar: (codigo) => codigo.replace('c.relforcerowsecurity', 'false'),
+});
+comprobarMutacion({
+  nombre: 'verificación RLS desconectada de verify',
+  origen: MANIFIESTO_RAIZ,
+  archivoTemporal: 'package.json',
+  variable: 'MORPHIQPOS_PACKAGE_JSON_PATH',
+  prueba: PRUEBA_RLS_VIVA,
+  transformar: (codigo) => codigo.replace(' && pnpm verify:rls', ''),
 });
