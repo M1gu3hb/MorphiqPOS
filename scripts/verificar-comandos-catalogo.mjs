@@ -73,10 +73,10 @@ const mutaciones = [
   },
   {
     ruta: 'packages/app/src/configuracion/configuracion.ts',
-    antes: 'paquete: entrada.paquete, updated_at: ctx.ahora',
-    despues: "paquete: 'tienda', updated_at: ctx.ahora",
+    antes: 'paquete: fila.paquete,',
+    despues: "paquete: 'tienda',",
     indice: 0,
-    nombre: 'paquete ignorado',
+    nombre: 'paquete efectivo ignorado al leer',
   },
 ];
 
