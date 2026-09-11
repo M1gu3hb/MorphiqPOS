@@ -36,6 +36,7 @@ import { repoLimite } from '@morphiqpos/data';
 export const LIMITES = {
   entrar: { intentos: 20, ventanaSegundos: 300 },
   enrolar: { intentos: 20, ventanaSegundos: 600 },
+  presentacion: { intentos: 10, ventanaSegundos: 900 },
   /**
    * Mantenimiento destructivo. Tres por hora y por origen.
    *

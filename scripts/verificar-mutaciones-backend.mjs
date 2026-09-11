@@ -108,6 +108,18 @@ const PRUEBA_RETENCION_COMANDOS = 'packages/data/src/migraciones/retencion-coman
 const COMANDO_PUBLICO = join(RAIZ, 'packages', 'app', 'src', 'portal', 'comando-publico.ts');
 const IDEMPOTENCIA_PORTAL = join(RAIZ, 'packages', 'app', 'src', 'portal', 'idempotencia.ts');
 const PRUEBA_IDEMPOTENCIA_PORTAL = 'packages/app/src/portal/idempotencia.test.ts';
+const LIMITE_APLICACION = join(RAIZ, 'packages', 'app', 'src', 'http', 'limite.ts');
+const RUTA_PRESENTACION = join(
+  RAIZ,
+  'apps',
+  'web',
+  'app',
+  'api',
+  'configuracion',
+  'presentacion',
+  'route.ts',
+);
+const PRUEBA_LIMITE_PRESENTACION = 'apps/web/src/servidor/presentacion-limite.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -620,4 +632,21 @@ comprobarMutacion({
   prueba: PRUEBA_IDEMPOTENCIA_PORTAL,
   transformar: (codigo) =>
     codigo.replace('huellaEntrada: huella({ mesaId, entrada })', 'huellaEntrada: huella(entrada)'),
+});
+comprobarMutacion({
+  nombre: 'ventana de presentación eliminada',
+  origen: LIMITE_APLICACION,
+  archivoTemporal: 'limite.ts',
+  variable: 'MORPHIQPOS_APP_RATE_LIMIT_SOURCE_PATH',
+  prueba: PRUEBA_LIMITE_PRESENTACION,
+  transformar: (codigo) =>
+    codigo.replace('  presentacion: { intentos: 10, ventanaSegundos: 900 },\n', ''),
+});
+comprobarMutacion({
+  nombre: 'desbloqueo de presentación sin consumo de cuota',
+  origen: RUTA_PRESENTACION,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_PRESENTATION_ROUTE_PATH',
+  prueba: PRUEBA_LIMITE_PRESENTACION,
+  transformar: (codigo) => codigo.replace("permitir('presentacion'", "permitir('entrar'"),
 });
