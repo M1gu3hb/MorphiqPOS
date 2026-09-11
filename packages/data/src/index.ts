@@ -9,13 +9,6 @@ export {
   type Transaccion,
 } from './cliente.ts';
 
-export {
-  leerMigraciones,
-  migrar,
-  type Migracion,
-  type ResultadoMigracion,
-} from './migraciones/ejecutor.ts';
-
 export type { Esquema } from './esquema.ts';
 
 export * as repoComandos from './repos/comandos.ts';
