@@ -1,6 +1,16 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import { construirCsp } from './csp';
+
+const CONFIG_NEXT =
+  process.env['MORPHIQPOS_NEXT_CONFIG_PATH'] ??
+  fileURLToPath(new URL('../../next.config.mjs', import.meta.url));
+const VERIFICADOR =
+  process.env['MORPHIQPOS_HEADERS_VERIFIER_PATH'] ??
+  fileURLToPath(new URL('../../../../scripts/verificar-cabeceras.mjs', import.meta.url));
 
 /**
  * SEC-HEADERS de `06-DEFECTOS §4`: ninguno de los dos sistemas fuente enviaba
@@ -53,5 +63,17 @@ describe('la Content-Security-Policy', () => {
     ]) {
       expect(produccion, `falta ${directiva}`).toContain(directiva);
     }
+  });
+});
+
+describe('R-21 · transporte estricto', () => {
+  it('envía HSTS por dos años y la comprobación viva lo exige', () => {
+    const configuracion = readFileSync(CONFIG_NEXT, 'utf8');
+    expect(configuracion).toContain("key: 'Strict-Transport-Security'");
+    expect(configuracion).toContain('max-age=63072000; includeSubDomains; preload');
+
+    const verificador = readFileSync(VERIFICADOR, 'utf8');
+    expect(verificador).toContain("nombre: 'strict-transport-security'");
+    expect(verificador).toContain("v.includes('max-age=63072000')");
   });
 });

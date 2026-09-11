@@ -29,6 +29,14 @@ const EXIGIDAS = [
     porque: "CSP con nonce y sin 'unsafe-inline' en script-src (SEC-XSS)",
   },
   {
+    nombre: 'strict-transport-security',
+    valida: (v) =>
+      v.includes('max-age=63072000') &&
+      v.toLowerCase().includes('includesubdomains') &&
+      v.toLowerCase().includes('preload'),
+    porque: 'HSTS por dos años, incluidos subdominios y precarga',
+  },
+  {
     nombre: 'x-content-type-options',
     valida: (v) => v.toLowerCase() === 'nosniff',
     porque: 'El navegador no adivina el tipo de un archivo (SEC-UPLOAD)',

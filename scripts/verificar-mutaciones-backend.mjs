@@ -131,6 +131,9 @@ const RUTA_EMPLEADOS_PUBLICOS = join(
   'route.ts',
 );
 const PRUEBA_LIMITE_EMPLEADOS = 'apps/web/src/servidor/empleados-limite.test.ts';
+const CONFIG_NEXT = join(RAIZ, 'apps', 'web', 'next.config.mjs');
+const VERIFICADOR_CABECERAS = join(RAIZ, 'scripts', 'verificar-cabeceras.mjs');
+const PRUEBA_CABECERAS = 'apps/web/src/seguridad/cabeceras.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -668,4 +671,22 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_EMPLOYEES_ROUTE_PATH',
   prueba: PRUEBA_LIMITE_EMPLEADOS,
   transformar: (codigo) => codigo.replace("permitir('entrar'", "permitir('enrolar'"),
+});
+comprobarMutacion({
+  nombre: 'HSTS eliminada de Next',
+  origen: CONFIG_NEXT,
+  archivoTemporal: 'next.config.mjs',
+  variable: 'MORPHIQPOS_NEXT_CONFIG_PATH',
+  prueba: PRUEBA_CABECERAS,
+  transformar: (codigo) =>
+    codigo.replace("key: 'Strict-Transport-Security'", "key: 'X-HSTS-Omitida'"),
+});
+comprobarMutacion({
+  nombre: 'HSTS eliminada de la comprobación viva',
+  origen: VERIFICADOR_CABECERAS,
+  archivoTemporal: 'verificar-cabeceras.mjs',
+  variable: 'MORPHIQPOS_HEADERS_VERIFIER_PATH',
+  prueba: PRUEBA_CABECERAS,
+  transformar: (codigo) =>
+    codigo.replace("nombre: 'strict-transport-security'", "nombre: 'x-hsts-omitida'"),
 });
