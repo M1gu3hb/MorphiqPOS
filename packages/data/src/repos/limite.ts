@@ -24,6 +24,26 @@ export interface ResultadoLimite {
   readonly esperaSegundos: number;
 }
 
+const FRECUENCIA_LIMPIEZA = 512;
+const RETENCION_BASE_SEGUNDOS = 24 * 60 * 60;
+
+export function debeLimpiarVencidos(valorAleatorio: number): boolean {
+  return valorAleatorio >= 0 && valorAleatorio < 1 / FRECUENCIA_LIMPIEZA;
+}
+
+async function limpiarSiCorresponde(): Promise<void> {
+  if (debeLimpiarVencidos(Math.random())) {
+    try {
+      // Se conservan cuatro días. Todas las ventanas actuales duran una hora
+      // o menos, sin riesgo de borrar un contador que todavía está vigente.
+      await limpiarVencidos(RETENCION_BASE_SEGUNDOS);
+    } catch (error) {
+      // La conservación nunca invalida el intento que ya se contó.
+      console.error('[limite_tasa] no se pudo ejecutar la purga', error);
+    }
+  }
+}
+
 /**
  * Cuenta un intento y devuelve cuántos van en la ventana.
  *
@@ -55,6 +75,8 @@ export async function contarIntento(
         ceil(extract(epoch from (ventana_en + ${intervalo}) - now()))
       )::int as espera
   `.execute(obtenerDb());
+
+  await limpiarSiCorresponde();
 
   const primera = fila.rows[0];
   // Un `returning` de un upsert siempre trae una fila. Si no la trae, algo

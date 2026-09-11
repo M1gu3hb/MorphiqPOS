@@ -91,6 +91,8 @@ const PRUEBA_CONTRATO_ESQUEMA = 'packages/data/src/verificacion/contrato-esquema
 const CONTRATO_RLS = join(RAIZ, 'packages', 'data', 'src', 'verificacion', 'rls.ts');
 const SCRIPT_RLS = join(RAIZ, 'scripts', 'verificar-rls.mjs');
 const PRUEBA_RLS_VIVA = 'packages/data/src/verificacion/rls.test.ts';
+const REPOSITORIO_LIMITE = join(RAIZ, 'packages', 'data', 'src', 'repos', 'limite.ts');
+const PRUEBA_REPOSITORIO_LIMITE = 'packages/data/src/repos/limite.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -508,4 +510,21 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_PACKAGE_JSON_PATH',
   prueba: PRUEBA_RLS_VIVA,
   transformar: (codigo) => codigo.replace(' && pnpm verify:rls', ''),
+});
+comprobarMutacion({
+  nombre: 'purga de limite_tasa desconectada del contador',
+  origen: REPOSITORIO_LIMITE,
+  archivoTemporal: 'limite.ts',
+  variable: 'MORPHIQPOS_RATE_LIMIT_REPOSITORY_PATH',
+  prueba: PRUEBA_REPOSITORIO_LIMITE,
+  transformar: (codigo) => codigo.replace('  await limpiarSiCorresponde();\n', ''),
+});
+comprobarMutacion({
+  nombre: 'probabilidad de purga de limite_tasa anulada',
+  origen: REPOSITORIO_LIMITE,
+  archivoTemporal: 'limite.ts',
+  variable: 'MORPHIQPOS_RATE_LIMIT_REPOSITORY_PATH',
+  prueba: PRUEBA_REPOSITORIO_LIMITE,
+  transformar: (codigo) =>
+    codigo.replace('valorAleatorio < 1 / FRECUENCIA_LIMPIEZA', 'valorAleatorio < 0'),
 });
