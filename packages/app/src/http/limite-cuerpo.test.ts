@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { crearSolicitudQR } from '../portal/solicitudes.ts';
 import { manejadorPublico } from '../portal/http.ts';
@@ -21,6 +21,19 @@ const FUENTE_PORTAL =
 const FUENTE_WEB =
   process.env['MORPHIQPOS_WEB_HTTP_SOURCE_PATH'] ??
   fileURLToPath(new URL('../../../../apps/web/src/servidor/http.ts', import.meta.url));
+
+afterEach(() => vi.unstubAllEnvs());
+
+function entornoDePrueba(): void {
+  vi.stubEnv('DATABASE_URL', 'postgresql://morphiqpos:prueba@localhost:5432/morphiqpos');
+  vi.stubEnv('STORAGE_ENDPOINT', 'http://localhost:9000');
+  vi.stubEnv('STORAGE_BUCKET', 'morphiqpos');
+  vi.stubEnv('STORAGE_ACCESS_KEY', 'morphiqpos');
+  vi.stubEnv('STORAGE_SECRET_KEY', 'morphiqpos_prueba');
+  vi.stubEnv('SESSION_SECRET', 's'.repeat(32));
+  vi.stubEnv('PIN_PEPPER', 'p'.repeat(32));
+  vi.stubEnv('APP_URL', 'https://pos.example');
+}
 
 describe('C-10 · límite compartido del cuerpo HTTP', () => {
   it('acepta hasta 256 KiB y rechaza 50 MiB o una longitud inválida', () => {
@@ -48,6 +61,7 @@ describe('C-10 · límite compartido del cuerpo HTTP', () => {
   });
 
   it('un cuerpo declarado de 50 MiB recibe 413 sin invocar el parser', async () => {
+    entornoDePrueba();
     let parseos = 0;
     const cabeceras = new Headers({
       'content-length': String(50 * 1024 * 1024),
