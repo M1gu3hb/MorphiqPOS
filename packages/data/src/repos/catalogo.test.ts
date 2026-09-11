@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -7,6 +10,9 @@ import { construirBusquedaProductos } from './catalogo.ts';
 
 const pool = new pg.Pool({ connectionString: 'postgresql://prueba:prueba@localhost/prueba' });
 const db = new Kysely<Esquema>({ dialect: new PostgresDialect({ pool }) });
+const FUENTE =
+  process.env['MORPHIQPOS_CATALOG_SEARCH_SOURCE_PATH'] ??
+  fileURLToPath(new URL('./catalogo.ts', import.meta.url));
 
 afterAll(async () => pool.end());
 
@@ -41,5 +47,15 @@ describe('B-06 · consulta paginada de productos', () => {
     expect(consulta.sql).toContain('order by "p"."updated_at" desc, "p"."id" desc');
     expect(consulta.sql).not.toContain('offset');
     expect(consulta.parameters).toContain(13);
+  });
+
+  it('trata %, _ y barra inversa como texto literal en ILIKE', () => {
+    const consulta = construirBusquedaProductos(db, 'org-1', {
+      busqueda: '50%_\\',
+    }).compile();
+
+    expect(consulta.parameters).toContain('%50\\%\\_\\\\%');
+    expect(consulta.parameters).not.toContain('%50%_\\%');
+    expect(readFileSync(FUENTE, 'utf8')).toContain('escaparPatronIlike(busqueda)');
   });
 });

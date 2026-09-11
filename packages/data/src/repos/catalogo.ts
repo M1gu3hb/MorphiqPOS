@@ -16,6 +16,10 @@ export interface FiltrosProductos {
   readonly limite?: number;
 }
 
+function escaparPatronIlike(valor: string): string {
+  return valor.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
+}
+
 /**
  * Consulta estable para el catálogo grande. El cursor evita que altas nuevas
  * desplacen filas entre páginas; pg_trgm tolera errores de captura en el nombre.
@@ -59,7 +63,7 @@ export function construirBusquedaProductos(
 
   const busqueda = filtros.busqueda?.trim();
   if (busqueda !== undefined && busqueda.length > 0) {
-    const patron = `%${busqueda}%`;
+    const patron = `%${escaparPatronIlike(busqueda)}%`;
     consulta = consulta.where((expresion) =>
       expresion.or([
         sql<boolean>`${sql.ref('p.nombre')} operator(extensions.%) ${busqueda}`,

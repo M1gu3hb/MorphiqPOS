@@ -144,6 +144,8 @@ const PRUEBA_OBSERVABILIDAD = 'packages/app/src/observabilidad.test.ts';
 const PRUEBA_ADOPCION_OBSERVABILIDAD = 'apps/web/src/servidor/observabilidad-backend.test.ts';
 const ENSAYO_RESTAURACION = join(RAIZ, 'scripts', 'ensayar-restauracion.mjs');
 const PRUEBA_RESTAURACION = 'packages/data/src/verificacion/restauracion.test.ts';
+const REPOSITORIO_CATALOGO = join(RAIZ, 'packages', 'data', 'src', 'repos', 'catalogo.ts');
+const PRUEBA_REPOSITORIO_CATALOGO = 'packages/data/src/repos/catalogo.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -780,4 +782,12 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_RESTORE_DRILL_SOURCE_PATH',
   prueba: PRUEBA_RESTAURACION,
   transformar: (codigo) => codigo.replace('compararVerificacion(mapaEsperado', 'void mapaEsperado'),
+});
+comprobarMutacion({
+  nombre: 'metacaracteres ILIKE sin escapar',
+  origen: REPOSITORIO_CATALOGO,
+  archivoTemporal: 'catalogo.ts',
+  variable: 'MORPHIQPOS_CATALOG_SEARCH_SOURCE_PATH',
+  prueba: PRUEBA_REPOSITORIO_CATALOGO,
+  transformar: (codigo) => codigo.replace('escaparPatronIlike(busqueda)', 'busqueda'),
 });
