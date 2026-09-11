@@ -39,6 +39,7 @@ export const LIMITES = {
   entrar: { intentos: 20, ventanaSegundos: 300 },
   enrolar: { intentos: 20, ventanaSegundos: 600 },
   presentacion: { intentos: 10, ventanaSegundos: 900 },
+  archivos: { intentos: 20, ventanaSegundos: 3600 },
   /**
    * Mantenimiento destructivo. Tres por hora y por origen.
    *
@@ -108,6 +109,32 @@ export async function permitir(
         cabeceras.get('x-correlation-id') ?? cabeceras.get('x-morphiqpos-correlacion'),
       ),
       organizacionId: null,
+      mensaje: `No se pudo contar el intento de ${accion}.`,
+    });
+    return { ok: true, esperaSegundos: 0 };
+  }
+}
+
+/** Agrupa las subidas por organización; cambiar de IP no regala más espacio. */
+export async function permitirOrganizacion(
+  accion: 'archivos',
+  organizacionId: string,
+  pimienta: string,
+  correlationId?: string,
+): Promise<Permiso> {
+  const { intentos: maximo, ventanaSegundos } = LIMITES[accion];
+  const clave = createHmac('sha256', pimienta)
+    .update(`${accion}:organizacion:${organizacionId}`, 'utf8')
+    .digest('hex');
+  try {
+    const { intentos, esperaSegundos } = await repoLimite.contarIntento(clave, ventanaSegundos);
+    return { ok: intentos <= maximo, esperaSegundos };
+  } catch {
+    registrar({
+      nivel: 'alerta',
+      modulo: 'limite_tasa',
+      correlationId: correlationIdDe(correlationId),
+      organizacionId,
       mensaje: `No se pudo contar el intento de ${accion}.`,
     });
     return { ok: true, esperaSegundos: 0 };

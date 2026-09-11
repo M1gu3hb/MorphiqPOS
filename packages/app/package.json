@@ -27,7 +27,8 @@
     "./portal": "./src/portal/index.ts",
     "./mantenimiento": "./src/mantenimiento/index.ts",
     "./puente-presentacion": "./src/puente/presentacion.ts",
-    "./observabilidad": "./src/observabilidad.ts"
+    "./observabilidad": "./src/observabilidad.ts",
+    "./archivos": "./src/archivos/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

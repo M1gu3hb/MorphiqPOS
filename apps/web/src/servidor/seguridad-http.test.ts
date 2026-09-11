@@ -80,7 +80,9 @@ describe('R-16 · CSRF uniforme en lecturas por POST', () => {
     const hasta = fuente.indexOf('function respuestaDeDominio', desde);
     expect(desde).toBeGreaterThan(-1);
     expect(hasta).toBeGreaterThan(desde);
-    expect(fuente.slice(desde, hasta)).toContain('if (!peticionDeEscrituraValida(peticion,');
+    const bloque = fuente.slice(desde, hasta);
+    expect(bloque).toContain('peticionDeEscrituraValida(peticion, appUrl)');
+    expect(bloque).toContain('if (!peticionValida)');
   });
 });
 

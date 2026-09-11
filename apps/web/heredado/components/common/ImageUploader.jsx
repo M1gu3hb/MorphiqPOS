@@ -16,7 +16,7 @@ import { toast } from 'sonner';
  *  - onChange(url: string): callback al subir/quitar (vacío = quitada)
  *  - disabled?: boolean
  *  - height?: número px (default 140)
- *  - maxMB?: número (default 8)
+ *  - maxMB?: número (default 5)
  *  - label?: texto del botón cuando no hay imagen
  */
 export default function ImageUploader({
@@ -24,7 +24,7 @@ export default function ImageUploader({
   onChange,
   disabled = false,
   height = 140,
-  maxMB = 8,
+  maxMB = 5,
   label = 'Subir imagen',
 }) {
   const inputRef = useRef(null);

@@ -14,7 +14,11 @@ import { resolverSesion, type SesionDeNegocio } from '@morphiqpos/app/sesion';
 import { headers } from 'next/headers';
 import type { ZodType } from 'zod';
 
-import { peticionDeEscrituraValida, rolPermitidoParaConsulta } from './seguridad-http';
+import {
+  peticionDeEscrituraValida,
+  peticionMultipartValida,
+  rolPermitidoParaConsulta,
+} from './seguridad-http';
 
 /**
  * Las rutas de gestión, atadas a la sesión REAL (F1.1-C-05).
@@ -124,14 +128,20 @@ export async function ejecutarComandoHttp<E extends ZodType, S>(
 export async function conSesion<T>(
   peticion: Request,
   fn: (sesion: SesionDeNegocio) => Promise<T | Response>,
+  opciones: { readonly multipart?: boolean; readonly roles?: readonly Rol[] } = {},
 ): Promise<Response> {
-  if (!peticionDeEscrituraValida(peticion, validarEntorno(process.env).APP_URL)) {
+  const appUrl = validarEntorno(process.env).APP_URL;
+  const peticionValida =
+    opciones.multipart === true
+      ? peticionMultipartValida(peticion, appUrl)
+      : peticionDeEscrituraValida(peticion, appUrl);
+  if (!peticionValida) {
     return Response.json(errorHttp('SIN_PERMISO', 'Petición de lectura rechazada.'), {
       status: ESTADO_HTTP.SIN_PERMISO,
       headers: { 'cache-control': 'no-store' },
     });
   }
-  if (!cuerpoDentroDelLimite(peticion.headers)) {
+  if (opciones.multipart !== true && !cuerpoDentroDelLimite(peticion.headers)) {
     return Response.json(errorHttp('CUERPO_DEMASIADO_GRANDE', 'El cuerpo supera 256 KiB.'), {
       status: 413,
       headers: { 'cache-control': 'no-store' },
@@ -140,6 +150,12 @@ export async function conSesion<T>(
 
   const sesion = await sesionDeLaPeticion(peticion.headers.get('cookie'));
   if (!sesion.ok) return sesion.respuesta;
+  if (!rolPermitidoParaConsulta(sesion.sesion.rol, opciones.roles)) {
+    return Response.json(errorHttp('SIN_PERMISO', 'Tu rol no permite subir archivos.'), {
+      status: ESTADO_HTTP.SIN_PERMISO,
+      headers: { 'cache-control': 'no-store' },
+    });
+  }
 
   const correlationId = correlationIdDe(
     peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion'),
@@ -155,6 +171,14 @@ export async function conSesion<T>(
       responderError(error, { correlationId, organizacionId: sesion.sesion.organizacionId })
     );
   }
+}
+
+export function conSesionMultipart<T>(
+  peticion: Request,
+  roles: readonly Rol[],
+  fn: (sesion: SesionDeNegocio) => Promise<T | Response>,
+): Promise<Response> {
+  return conSesion(peticion, fn, { multipart: true, roles });
 }
 
 /**
@@ -217,8 +241,10 @@ export async function responderConsulta<T>(
   }
 
   try {
+    const salida = await consulta(sesion.sesion);
+    if (salida instanceof Response) return salida;
     return Response.json(
-      { ok: true, datos: await consulta(sesion.sesion) },
+      { ok: true, datos: salida },
       // Datos del negocio y de la sesión: no se cachean en ningún intermedio.
       { headers: { 'cache-control': 'no-store' } },
     );

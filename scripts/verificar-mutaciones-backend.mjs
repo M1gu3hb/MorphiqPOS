@@ -150,6 +150,40 @@ const ESCRIBIR_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'escribir
 const PRUEBA_URL_PUBLICA = 'packages/app/src/puente/url-publica.test.ts';
 const TLS_POSTGRES = join(RAIZ, 'packages', 'data', 'src', 'tls.ts');
 const PRUEBA_TLS_POSTGRES = 'packages/data/src/tls.test.ts';
+const RUTA_SUBIDA_ARCHIVOS = join(
+  RAIZ,
+  'apps',
+  'web',
+  'app',
+  'api',
+  'archivos',
+  'subir',
+  'route.ts',
+);
+const CLAVES_ARCHIVOS = join(RAIZ, 'apps', 'web', 'src', 'servidor', 'archivos-claves.ts');
+const PROCESADOR_IMAGEN = join(RAIZ, 'apps', 'web', 'src', 'servidor', 'archivos-imagen.ts');
+const CLIENTE_IMAGEN = join(
+  RAIZ,
+  'apps',
+  'web',
+  'heredado',
+  'components',
+  'common',
+  'ImageUploader.jsx',
+);
+const CLIENTE_MENU_QR = join(
+  RAIZ,
+  'apps',
+  'web',
+  'heredado',
+  'components',
+  'portalqr',
+  'MenuQRTab.jsx',
+);
+const REFERENCIAS_ARCHIVOS = join(RAIZ, 'packages', 'app', 'src', 'archivos', 'referencias.ts');
+const PRUEBA_SEGURIDAD_ARCHIVOS = 'apps/web/src/servidor/archivos-seguridad.test.ts';
+const PRUEBA_IMAGENES = 'apps/web/src/servidor/archivos-imagen.test.ts';
+const PRUEBA_REFERENCIAS_ARCHIVOS = 'packages/app/src/archivos/referencias.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -419,7 +453,7 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_HTTP_SOURCE_PATH',
   prueba: PRUEBA_ROLES_GET,
   transformar: (codigo) =>
-    codigo.replace('rolPermitidoParaConsulta(sesion.sesion.rol, opciones.roles)', 'true'),
+    codigo.replaceAll('rolPermitidoParaConsulta(sesion.sesion.rol, opciones.roles)', 'true'),
 });
 comprobarMutacion({
   nombre: 'GET de productos sin allowlist de roles',
@@ -488,7 +522,12 @@ comprobarMutacion({
     if (inicio < 0) return codigo;
     return (
       codigo.slice(0, inicio) +
-      codigo.slice(inicio).replace('if (!cuerpoDentroDelLimite(peticion.headers))', 'if (false)')
+      codigo
+        .slice(inicio)
+        .replace(
+          'if (opciones.multipart !== true && !cuerpoDentroDelLimite(peticion.headers))',
+          'if (false)',
+        )
     );
   },
 });
@@ -615,10 +654,7 @@ comprobarMutacion({
     const inicio = codigo.indexOf('export async function conSesion');
     if (inicio < 0) return codigo;
     return (
-      codigo.slice(0, inicio) +
-      codigo
-        .slice(inicio)
-        .replace('if (!peticionDeEscrituraValida(peticion,', 'if (false && peticion,')
+      codigo.slice(0, inicio) + codigo.slice(inicio).replace('if (!peticionValida)', 'if (false)')
     );
   },
 });
@@ -760,7 +796,7 @@ for (const [nombre, origen, variable] of [
     archivoTemporal: 'limite.ts',
     variable,
     prueba: PRUEBA_ADOPCION_OBSERVABILIDAD,
-    transformar: (codigo) => codigo.replace("nivel: 'alerta'", "nivel: 'error'"),
+    transformar: (codigo) => codigo.replaceAll("nivel: 'alerta'", "nivel: 'error'"),
   });
 }
 comprobarMutacion({
@@ -837,4 +873,120 @@ comprobarMutacion({
   prueba: PRUEBA_TLS_POSTGRES,
   transformar: (codigo) =>
     codigo.replace('[...rootCertificates, RAIZ_SUPABASE]', '[RAIZ_SUPABASE]'),
+});
+comprobarMutacion({
+  nombre: 'subida de archivos abierta al rol mesero',
+  origen: RUTA_SUBIDA_ARCHIVOS,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_UPLOAD_ROUTE_PATH',
+  prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) =>
+    codigo.replace(
+      "['dueno', 'administrador', 'gerente']",
+      "['dueno', 'administrador', 'gerente', 'mesero']",
+    ),
+});
+comprobarMutacion({
+  nombre: 'limite de subida devuelto a agrupacion distinta de la organizacion',
+  origen: RUTA_SUBIDA_ARCHIVOS,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_UPLOAD_ROUTE_PATH',
+  prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) => codigo.replaceAll('permitirOrganizacion', 'permitirPorOrigen'),
+});
+comprobarMutacion({
+  nombre: 'guardian multipart devuelto a JSON',
+  origen: SEGURIDAD_HTTP,
+  archivoTemporal: 'seguridad-http.ts',
+  variable: 'MORPHIQPOS_UPLOAD_SECURITY_SOURCE_PATH',
+  prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) =>
+    codigo.replace("startsWith('multipart/form-data;')", "startsWith('application/json')"),
+});
+comprobarMutacion({
+  nombre: 'tipo MIME de la subida confiado al navegador',
+  origen: RUTA_SUBIDA_ARCHIVOS,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_UPLOAD_ROUTE_PATH',
+  prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) =>
+    codigo.replace('imagen.bytes, imagen.mime', 'imagen.bytes, archivo.type'),
+});
+comprobarMutacion({
+  nombre: 'limite de archivos elevado otra vez a 8 MiB',
+  origen: RUTA_SUBIDA_ARCHIVOS,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_UPLOAD_ROUTE_PATH',
+  prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) =>
+    codigo.replace(
+      'const MAX_ARCHIVO_BYTES = 5 * 1024 * 1024',
+      'const MAX_ARCHIVO_BYTES = 8 * 1024 * 1024',
+    ),
+});
+comprobarMutacion({
+  nombre: 'cuota organizacional de archivos desactivada',
+  origen: RUTA_SUBIDA_ARCHIVOS,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_UPLOAD_ROUTE_PATH',
+  prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) =>
+    codigo.replace(
+      'if (usados + imagen.bytes.byteLength > CUOTA_ORGANIZACION_BYTES)',
+      'if (false)',
+    ),
+});
+comprobarMutacion({
+  nombre: 'archivo nuevo guardado directamente como publico',
+  origen: CLAVES_ARCHIVOS,
+  archivoTemporal: 'archivos-claves.ts',
+  variable: 'MORPHIQPOS_FILE_KEYS_SOURCE_PATH',
+  prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) =>
+    codigo.replace('`privado/${organizacionId}/', '`publico/${organizacionId}/'),
+});
+comprobarMutacion({
+  nombre: 'tope dimensional de imagen elevado a 60000',
+  origen: PROCESADOR_IMAGEN,
+  archivoTemporal: 'archivos-imagen.ts',
+  variable: 'MORPHIQPOS_IMAGE_SOURCE_PATH',
+  prueba: PRUEBA_IMAGENES,
+  transformar: (codigo) =>
+    codigo.replace('const MAX_DIMENSION = 6_000', 'const MAX_DIMENSION = 60_000'),
+});
+comprobarMutacion({
+  nombre: 'recodificacion de imagen omitida',
+  origen: PROCESADOR_IMAGEN,
+  archivoTemporal: 'archivos-imagen.ts',
+  variable: 'MORPHIQPOS_IMAGE_SOURCE_PATH',
+  prueba: PRUEBA_IMAGENES,
+  transformar: (codigo) => codigo.replace('bytes: await salida.toBuffer()', 'bytes'),
+});
+comprobarMutacion({
+  nombre: 'imagen de producto conservada privada al persistirla',
+  origen: REFERENCIAS_ARCHIVOS,
+  archivoTemporal: 'referencias.ts',
+  variable: 'MORPHIQPOS_FILE_REFERENCES_SOURCE_PATH',
+  prueba: PRUEBA_REFERENCIAS_ARCHIVOS,
+  transformar: (codigo) =>
+    codigo.replace("ProductoTerminado: ['imagen_url']", 'ProductoTerminado: []'),
+});
+comprobarMutacion({
+  nombre: 'limite visual de ImageUploader devuelto a 8 MiB',
+  origen: CLIENTE_IMAGEN,
+  archivoTemporal: 'ImageUploader.jsx',
+  variable: 'MORPHIQPOS_IMAGE_UPLOADER_SOURCE_PATH',
+  prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) => codigo.replace('maxMB = 5', 'maxMB = 8'),
+});
+comprobarMutacion({
+  nombre: 'limite visual del menu QR devuelto a 8 MiB',
+  origen: CLIENTE_MENU_QR,
+  archivoTemporal: 'MenuQRTab.jsx',
+  variable: 'MORPHIQPOS_MENU_QR_SOURCE_PATH',
+  prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) =>
+    codigo
+      .replaceAll('5 * 1024 * 1024', '8 * 1024 * 1024')
+      .replaceAll('Máximo 5 MB', 'Máximo 8 MB'),
 });

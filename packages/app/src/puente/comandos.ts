@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
+import { prepararReferenciasPublicas } from '../archivos/referencias.ts';
 import { guardarConfiguracionParcial } from './configuracion.ts';
 import { escribir } from './escribir.ts';
 
@@ -55,6 +56,13 @@ export const escribirDatos = definirComando<
       sucursalId: ctx.ambito.sucursalId,
       rol: ctx.ambito.rol,
     };
+    const datos = await ctx.paso('publicar_archivos', () =>
+      prepararReferenciasPublicas({
+        entidad: entrada.entidad,
+        datos: entrada.datos ?? {},
+        organizacionId: ambito.organizacionId,
+      }),
+    );
 
     // `ConfiguracionNegocio` no es una tabla con columnas: es un documento
     // JSON con versión más el nombre del negocio. Tiene su propio camino.
@@ -63,7 +71,7 @@ export const escribirDatos = definirComando<
         throw new Error('La configuración del negocio sólo se actualiza; no se crea ni se borra.');
       }
       const guardada = await ctx.paso('guardar_configuracion', () =>
-        guardarConfiguracionParcial(ctx.tx, ambito.organizacionId, entrada.datos ?? {}),
+        guardarConfiguracionParcial(ctx.tx, ambito.organizacionId, datos),
       );
       ctx.auditar({
         entidadId: typeof guardada['id'] === 'string' ? guardada['id'] : null,
@@ -80,7 +88,7 @@ export const escribirDatos = definirComando<
         entidad: entrada.entidad,
         operacion: entrada.operacion,
         ...(entrada.id === undefined ? {} : { id: entrada.id }),
-        ...(entrada.datos === undefined ? {} : { datos: entrada.datos }),
+        ...(entrada.datos === undefined ? {} : { datos }),
       }),
     );
     ctx.auditar({
