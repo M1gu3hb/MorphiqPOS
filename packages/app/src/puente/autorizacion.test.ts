@@ -105,4 +105,18 @@ describe('B-4 · autorización explícita del puente de lectura', () => {
       }
     }
   });
+
+  it('C-6 · la vista de consumo conserva la política del costo del ledger', () => {
+    const politicaLedger = rolesDelCampo('MovimientoInventario', 'costo_unitario_en_momento');
+    const politicaVista = rolesDelCampo('DescuentoInventarioVenta', 'costo_unitario_snapshot');
+
+    expect(politicaVista).toEqual(politicaLedger);
+    expect(politicaVista).not.toContain('cocina');
+    expect(politicaVista).not.toContain('mesero');
+
+    const codigo = readFileSync(FUENTE_MAPA, 'utf8');
+    expect(codigo).toMatch(
+      /const DESCUENTO_INVENTARIO_VENTA[\s\S]{0,900}?costo_unitario_snapshot:\s*\{\s*rolesLectura: \[\.\.\.VE_COSTOS_DE_INSUMO\]/,
+    );
+  });
 });

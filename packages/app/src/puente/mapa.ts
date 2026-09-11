@@ -1389,6 +1389,7 @@ const DESCUENTO_INVENTARIO_VENTA: MapaEntidad = {
     cantidad_total_descontada: { columna: 'cantidad', conversion: 'decimal', escribible: false },
     unidad_base: { columna: 'unidad', conversion: 'texto', escribible: false },
     costo_unitario_snapshot: {
+      rolesLectura: [...VE_COSTOS_DE_INSUMO],
       columna: 'costo_unitario_centavos',
       conversion: 'dinero',
       escribible: false,

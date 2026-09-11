@@ -291,3 +291,15 @@ comprobarMutacion({
   prueba: PRUEBA_QR,
   transformar: (codigo) => codigo.replace('/api/restaurante/rotar-qr', '/api/datos/entidad/Mesa'),
 });
+comprobarMutacion({
+  nombre: 'costo de consumo abierto por la vista alternativa',
+  origen: MAPA_PUENTE,
+  archivoTemporal: 'mapa.ts',
+  variable: 'MORPHIQPOS_MAPA_SOURCE_PATH',
+  prueba: PRUEBA_AUTORIZACION_PUENTE,
+  transformar: (codigo) =>
+    codigo.replace(
+      "    costo_unitario_snapshot: {\n      rolesLectura: [...VE_COSTOS_DE_INSUMO],\n      columna: 'costo_unitario_centavos',",
+      "    costo_unitario_snapshot: {\n      columna: 'costo_unitario_centavos',",
+    ),
+});
