@@ -7,6 +7,7 @@ import type { ZodType } from 'zod';
 import { comando } from '../produccion.ts';
 import type { DefinicionComando } from '../definicion.ts';
 import { resolverSesion, type ResultadoSesion } from '../sesion/resolver.ts';
+import { cuerpoDentroDelLimite } from './limite-cuerpo.ts';
 
 /**
  * El patrón de ruta de API (F1.1-X-01).
@@ -91,6 +92,12 @@ export function rutaDeComando<E extends ZodType, S>(
   return async function manejar(peticion: PeticionHttp): Promise<RespuestaHttp> {
     if (peticion.method !== 'POST') {
       return respuesta(405, { ok: false, error: { codigo: 'METODO', mensaje: 'Usa POST.' } });
+    }
+    if (!cuerpoDentroDelLimite(peticion.headers)) {
+      return respuesta(413, {
+        ok: false,
+        error: { codigo: 'CUERPO_DEMASIADO_GRANDE', mensaje: 'El cuerpo supera 256 KiB.' },
+      });
     }
 
     const correlationId = peticion.headers.get('x-correlation-id') ?? undefined;

@@ -4,6 +4,7 @@ import { ESTADO_HTTP, esErrorDominio, validarEntorno, type Resultado } from '@mo
 import type { ZodType } from 'zod';
 
 import { negocioDelDespliegue } from '../negocio/despliegue.ts';
+import { cuerpoDentroDelLimite } from '../http/limite-cuerpo.ts';
 import { ejecutarComandoPublico } from './comando-publico.ts';
 import type { ComandoPublico } from './definicion-publica.ts';
 import { payloadDelPortal, type PayloadPortal } from './consulta.ts';
@@ -132,6 +133,9 @@ export function manejadorPublico<E extends ZodType, S>(definicion: ComandoPublic
     }
     if (!peticionPropia(peticion)) {
       return errorHttp(403, 'SIN_PERMISO', 'Petición de escritura rechazada.');
+    }
+    if (!cuerpoDentroDelLimite(peticion.headers)) {
+      return errorHttp(413, 'CUERPO_DEMASIADO_GRANDE', 'El cuerpo supera 256 KiB.');
     }
 
     let entrada: unknown;

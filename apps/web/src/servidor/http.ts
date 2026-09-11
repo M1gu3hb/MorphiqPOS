@@ -8,7 +8,7 @@ import {
   type Rol,
 } from '@morphiqpos/contracts';
 import { comando } from '@morphiqpos/app/produccion';
-import { leerCookie, NOMBRE_COOKIE } from '@morphiqpos/app/http';
+import { cuerpoDentroDelLimite, leerCookie, NOMBRE_COOKIE } from '@morphiqpos/app/http';
 import { resolverSesion, type SesionDeNegocio } from '@morphiqpos/app/sesion';
 import { headers } from 'next/headers';
 import type { ZodType } from 'zod';
@@ -74,6 +74,12 @@ export async function ejecutarComandoHttp<E extends ZodType, S>(
       status: ESTADO_HTTP.SIN_PERMISO,
     });
   }
+  if (!cuerpoDentroDelLimite(peticion.headers)) {
+    return Response.json(errorHttp('CUERPO_DEMASIADO_GRANDE', 'El cuerpo supera 256 KiB.'), {
+      status: 413,
+      headers: { 'cache-control': 'no-store' },
+    });
+  }
 
   const sesion = await sesionDeLaPeticion(peticion.headers.get('cookie'));
   if (!sesion.ok) return sesion.respuesta;
@@ -112,6 +118,13 @@ export async function conSesion<T>(
   peticion: Request,
   fn: (sesion: SesionDeNegocio) => Promise<T | Response>,
 ): Promise<Response> {
+  if (!cuerpoDentroDelLimite(peticion.headers)) {
+    return Response.json(errorHttp('CUERPO_DEMASIADO_GRANDE', 'El cuerpo supera 256 KiB.'), {
+      status: 413,
+      headers: { 'cache-control': 'no-store' },
+    });
+  }
+
   const sesion = await sesionDeLaPeticion(peticion.headers.get('cookie'));
   if (!sesion.ok) return sesion.respuesta;
 
@@ -198,7 +211,12 @@ function responderError(error: unknown): Response {
 }
 
 function errorHttp(
-  codigo: 'SIN_PERMISO' | 'PAQUETE_NO_INCLUYE' | 'NO_AUTENTICADO' | 'ERROR_INTERNO',
+  codigo:
+    | 'SIN_PERMISO'
+    | 'PAQUETE_NO_INCLUYE'
+    | 'NO_AUTENTICADO'
+    | 'CUERPO_DEMASIADO_GRANDE'
+    | 'ERROR_INTERNO',
   mensaje: string,
 ) {
   return { ok: false, error: { codigo, mensaje }, correlationId: crypto.randomUUID() } as const;

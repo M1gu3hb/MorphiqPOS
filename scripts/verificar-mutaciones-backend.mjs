@@ -72,6 +72,10 @@ const PRUEBA_CONSULTA_CATALOGO = 'packages/app/src/catalogo/consulta.test.ts';
 const HTTP_WEB = join(RAIZ, 'apps', 'web', 'src', 'servidor', 'http.ts');
 const PRUEBA_ROLES_GET = 'apps/web/src/servidor/consultas-roles.test.ts';
 const RUTA_ACCESOS = join(RAIZ, 'apps', 'web', 'app', 'api', 'identidad', 'accesos', 'route.ts');
+const LIMITE_CUERPO = join(RAIZ, 'packages', 'app', 'src', 'http', 'limite-cuerpo.ts');
+const RUTA_COMANDO = join(RAIZ, 'packages', 'app', 'src', 'http', 'ruta.ts');
+const HTTP_PORTAL = join(RAIZ, 'packages', 'app', 'src', 'portal', 'http.ts');
+const PRUEBA_LIMITE_CUERPO = 'packages/app/src/http/limite-cuerpo.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -362,4 +366,55 @@ comprobarMutacion({
       "roles: ['dueno', 'administrador']",
       "roles: ['dueno', 'administrador', 'gerente']",
     ),
+});
+comprobarMutacion({
+  nombre: 'límite de cuerpo elevado a 50 MiB',
+  origen: LIMITE_CUERPO,
+  archivoTemporal: 'limite-cuerpo.ts',
+  variable: 'MORPHIQPOS_BODY_LIMIT_SOURCE_PATH',
+  prueba: PRUEBA_LIMITE_CUERPO,
+  transformar: (codigo) => codigo.replace('256 * 1024', '50 * 1024 * 1024'),
+});
+comprobarMutacion({
+  nombre: 'límite omitido en rutaDeComando',
+  origen: RUTA_COMANDO,
+  archivoTemporal: 'ruta.ts',
+  variable: 'MORPHIQPOS_COMMAND_ROUTE_SOURCE_PATH',
+  prueba: PRUEBA_LIMITE_CUERPO,
+  transformar: (codigo) =>
+    codigo.replace('if (!cuerpoDentroDelLimite(peticion.headers))', 'if (false)'),
+});
+comprobarMutacion({
+  nombre: 'límite omitido en el portal público',
+  origen: HTTP_PORTAL,
+  archivoTemporal: 'http.ts',
+  variable: 'MORPHIQPOS_PORTAL_HTTP_SOURCE_PATH',
+  prueba: PRUEBA_LIMITE_CUERPO,
+  transformar: (codigo) =>
+    codigo.replace('if (!cuerpoDentroDelLimite(peticion.headers))', 'if (false)'),
+});
+comprobarMutacion({
+  nombre: 'límite omitido en ejecutarComandoHttp',
+  origen: HTTP_WEB,
+  archivoTemporal: 'http.ts',
+  variable: 'MORPHIQPOS_WEB_HTTP_SOURCE_PATH',
+  prueba: PRUEBA_LIMITE_CUERPO,
+  transformar: (codigo) =>
+    codigo.replace('if (!cuerpoDentroDelLimite(peticion.headers))', 'if (false)'),
+});
+comprobarMutacion({
+  nombre: 'límite omitido en conSesion',
+  origen: HTTP_WEB,
+  archivoTemporal: 'http.ts',
+  variable: 'MORPHIQPOS_WEB_HTTP_SOURCE_PATH',
+  prueba: PRUEBA_LIMITE_CUERPO,
+  transformar: (codigo) => {
+    const marca = 'export async function conSesion';
+    const inicio = codigo.indexOf(marca);
+    if (inicio < 0) return codigo;
+    return (
+      codigo.slice(0, inicio) +
+      codigo.slice(inicio).replace('if (!cuerpoDentroDelLimite(peticion.headers))', 'if (false)')
+    );
+  },
 });
