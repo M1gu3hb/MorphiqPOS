@@ -1,6 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import { peticionDeEscrituraValida, rolPermitidoParaConsulta } from './seguridad-http';
+
+const FUENTE_HTTP =
+  process.env['MORPHIQPOS_WEB_HTTP_SOURCE_PATH'] ??
+  fileURLToPath(new URL('./http.ts', import.meta.url));
 
 describe('B-06b · frontera HTTP de escritura', () => {
   it('acepta JSON marcado del mismo origen', () => {
@@ -44,5 +51,16 @@ describe('C-8 · autorización de consultas GET', () => {
     expect(rolPermitidoParaConsulta('cocina', ['dueno', 'administrador'])).toBe(false);
     expect(rolPermitidoParaConsulta('dueno', ['dueno', 'administrador'])).toBe(true);
     expect(rolPermitidoParaConsulta('mesero', undefined)).toBe(true);
+  });
+});
+
+describe('R-16 · CSRF uniforme en lecturas por POST', () => {
+  it('conSesion aplica la misma guarda que los comandos autenticados', () => {
+    const fuente = readFileSync(FUENTE_HTTP, 'utf8');
+    const desde = fuente.indexOf('export async function conSesion');
+    const hasta = fuente.indexOf('function respuestaDeDominio', desde);
+    expect(desde).toBeGreaterThan(-1);
+    expect(hasta).toBeGreaterThan(desde);
+    expect(fuente.slice(desde, hasta)).toContain('if (!peticionDeEscrituraValida(peticion))');
   });
 });

@@ -118,6 +118,12 @@ export async function conSesion<T>(
   peticion: Request,
   fn: (sesion: SesionDeNegocio) => Promise<T | Response>,
 ): Promise<Response> {
+  if (!peticionDeEscrituraValida(peticion)) {
+    return Response.json(errorHttp('SIN_PERMISO', 'Petición de lectura rechazada.'), {
+      status: ESTADO_HTTP.SIN_PERMISO,
+      headers: { 'cache-control': 'no-store' },
+    });
+  }
   if (!cuerpoDentroDelLimite(peticion.headers)) {
     return Response.json(errorHttp('CUERPO_DEMASIADO_GRANDE', 'El cuerpo supera 256 KiB.'), {
       status: 413,

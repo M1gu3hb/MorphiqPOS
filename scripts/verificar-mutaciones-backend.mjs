@@ -71,6 +71,7 @@ const RUTA_CATALOGO_PRODUCTOS = join(
 const PRUEBA_CONSULTA_CATALOGO = 'packages/app/src/catalogo/consulta.test.ts';
 const HTTP_WEB = join(RAIZ, 'apps', 'web', 'src', 'servidor', 'http.ts');
 const PRUEBA_ROLES_GET = 'apps/web/src/servidor/consultas-roles.test.ts';
+const PRUEBA_SEGURIDAD_HTTP = 'apps/web/src/servidor/seguridad-http.test.ts';
 const RUTA_ACCESOS = join(RAIZ, 'apps', 'web', 'app', 'api', 'identidad', 'accesos', 'route.ts');
 const LIMITE_CUERPO = join(RAIZ, 'packages', 'app', 'src', 'http', 'limite-cuerpo.ts');
 const RUTA_COMANDO = join(RAIZ, 'packages', 'app', 'src', 'http', 'ruta.ts');
@@ -557,4 +558,19 @@ comprobarMutacion({
       'delete from public.comandos_ejecutados',
       'select * from public.comandos_ejecutados',
     ),
+});
+comprobarMutacion({
+  nombre: 'CSRF omitido en conSesion',
+  origen: HTTP_WEB,
+  archivoTemporal: 'http.ts',
+  variable: 'MORPHIQPOS_WEB_HTTP_SOURCE_PATH',
+  prueba: PRUEBA_SEGURIDAD_HTTP,
+  transformar: (codigo) => {
+    const inicio = codigo.indexOf('export async function conSesion');
+    if (inicio < 0) return codigo;
+    return (
+      codigo.slice(0, inicio) +
+      codigo.slice(inicio).replace('if (!peticionDeEscrituraValida(peticion))', 'if (false)')
+    );
+  },
 });
