@@ -6,11 +6,11 @@ import type { ZodType } from 'zod';
 
 import { fallo, validar } from '../errores.ts';
 import { atenderReintento, PasoInexistente, Rechazo, Reintento, SinRastro } from '../fallos.ts';
-import { huella, payloadDeAuditoria } from '../saneado.ts';
+import { payloadDeAuditoria } from '../saneado.ts';
 import { buscadorDeProduccion, resolverAmbitoPortal } from './ambito.ts';
 import { banderasDe } from './banderas.ts';
 import type { ComandoPublico, ContextoPortal } from './definicion-publica.ts';
-import { CLAVE_MINIMA, reclamarClaveAnonima } from './idempotencia.ts';
+import { alcanceIdempotenciaPortal, CLAVE_MINIMA, reclamarClaveAnonima } from './idempotencia.ts';
 import { permitirPortal } from './limite.ts';
 import { exigirPortalAbierto, leerContextoDelNegocio } from './negocio.ts';
 
@@ -93,7 +93,7 @@ export async function ejecutarComandoPublico<E extends ZodType, S>(
     return { ok: false, error: fallo('IDEMPOTENCIA_REQUERIDA'), correlationId };
   }
 
-  let entradaValidada: unknown;
+  let idempotencia = { clave, huellaEntrada: '' };
 
   try {
     const datos = await conTransaccion(async (tx) => {
@@ -122,7 +122,7 @@ export async function ejecutarComandoPublico<E extends ZodType, S>(
       //     entraría un `precio` del cliente.
       const validada = validar(definicion.entrada, peticion.entrada);
       if (!validada.ok) throw new Rechazo('ENTRADA_INVALIDA', null, validada.error);
-      entradaValidada = validada.datos;
+      idempotencia = alcanceIdempotenciaPortal(ambito.mesaId, clave, validada.datos);
 
       // 4 · Idempotencia (R10), reclamada DENTRO de la transacción para que un
       //     fallo la libere y un reintento legítimo vuelva a ejecutar.
@@ -130,15 +130,15 @@ export async function ejecutarComandoPublico<E extends ZodType, S>(
         tx,
         ambito.organizacionId,
         definicion.nombre,
-        clave,
+        idempotencia.clave,
       );
       if (previa !== null) throw new Reintento(previa);
 
       const reclamacion = await reclamarClaveAnonima(tx, {
         organizacionId: ambito.organizacionId,
         comando: definicion.nombre,
-        idempotencyKey: clave,
-        huellaEntrada: huella(validada.datos),
+        idempotencyKey: idempotencia.clave,
+        huellaEntrada: idempotencia.huellaEntrada,
         correlationId,
       });
       if (reclamacion === 'duplicada') {
@@ -146,7 +146,7 @@ export async function ejecutarComandoPublico<E extends ZodType, S>(
           tx,
           ambito.organizacionId,
           definicion.nombre,
-          clave,
+          idempotencia.clave,
         );
         if (confirmada !== null) throw new Reintento(confirmada);
         throw new Rechazo('COMANDO_EN_CURSO', null);
@@ -209,7 +209,7 @@ export async function ejecutarComandoPublico<E extends ZodType, S>(
       await repoComandos.completarEjecucion(tx, {
         organizacionId: ambito.organizacionId,
         comando: definicion.nombre,
-        idempotencyKey: clave,
+        idempotencyKey: idempotencia.clave,
         respuesta: salida,
         ahora: instante,
       });
@@ -222,9 +222,9 @@ export async function ejecutarComandoPublico<E extends ZodType, S>(
     return traducirFallo<S>(error, {
       comando: definicion.nombre,
       correlationId,
-      huellaEntrada: huella(entradaValidada),
+      huellaEntrada: idempotencia.huellaEntrada,
       organizacionId: peticion.organizacionId,
-      idempotencyKey: clave,
+      idempotencyKey: idempotencia.clave,
     });
   }
 }

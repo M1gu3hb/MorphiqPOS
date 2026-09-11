@@ -105,6 +105,9 @@ const MIGRACION_RETENCION_COMANDOS = join(
   '053_retencion_comandos.sql',
 );
 const PRUEBA_RETENCION_COMANDOS = 'packages/data/src/migraciones/retencion-comandos.test.ts';
+const COMANDO_PUBLICO = join(RAIZ, 'packages', 'app', 'src', 'portal', 'comando-publico.ts');
+const IDEMPOTENCIA_PORTAL = join(RAIZ, 'packages', 'app', 'src', 'portal', 'idempotencia.ts');
+const PRUEBA_IDEMPOTENCIA_PORTAL = 'packages/app/src/portal/idempotencia.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -596,4 +599,25 @@ comprobarMutacion({
       'new URL(validarEntorno(process.env).APP_URL).origin',
       'new URL(peticion.url).origin',
     ),
+});
+comprobarMutacion({
+  nombre: 'clave pública devuelta al alcance global',
+  origen: COMANDO_PUBLICO,
+  archivoTemporal: 'comando-publico.ts',
+  variable: 'MORPHIQPOS_PUBLIC_COMMAND_SOURCE_PATH',
+  prueba: PRUEBA_IDEMPOTENCIA_PORTAL,
+  transformar: (codigo) =>
+    codigo.replace(
+      'alcanceIdempotenciaPortal(ambito.mesaId, clave, validada.datos)',
+      "alcanceIdempotenciaPortal('global', clave, validada.datos)",
+    ),
+});
+comprobarMutacion({
+  nombre: 'mesa omitida de la huella pública',
+  origen: IDEMPOTENCIA_PORTAL,
+  archivoTemporal: 'idempotencia.ts',
+  variable: 'MORPHIQPOS_PORTAL_IDEMPOTENCY_SOURCE_PATH',
+  prueba: PRUEBA_IDEMPOTENCIA_PORTAL,
+  transformar: (codigo) =>
+    codigo.replace('huellaEntrada: huella({ mesaId, entrada })', 'huellaEntrada: huella(entrada)'),
 });
