@@ -1,13 +1,19 @@
 import 'server-only';
 
-import { esErrorDominio, ESTADO_HTTP, validarEntorno, type Paquete } from '@morphiqpos/contracts';
+import {
+  esErrorDominio,
+  ESTADO_HTTP,
+  validarEntorno,
+  type Paquete,
+  type Rol,
+} from '@morphiqpos/contracts';
 import { comando } from '@morphiqpos/app/produccion';
 import { leerCookie, NOMBRE_COOKIE } from '@morphiqpos/app/http';
 import { resolverSesion, type SesionDeNegocio } from '@morphiqpos/app/sesion';
 import { headers } from 'next/headers';
 import type { ZodType } from 'zod';
 
-import { peticionDeEscrituraValida } from './seguridad-http';
+import { peticionDeEscrituraValida, rolPermitidoParaConsulta } from './seguridad-http';
 
 /**
  * Las rutas de gestión, atadas a la sesión REAL (F1.1-C-05).
@@ -145,16 +151,28 @@ function respuestaDeDominio(error: unknown): Response | null {
   );
 }
 
+export interface OpcionesConsulta {
+  readonly paquetes?: readonly Paquete[];
+  readonly roles?: readonly Rol[];
+}
+
 export async function responderConsulta<T>(
   consulta: (sesion: SesionDeNegocio) => T | Promise<T>,
-  paquetes?: readonly Paquete[],
+  opciones: OpcionesConsulta = {},
 ): Promise<Response> {
   // Las rutas GET de gestión no reciben el `Request`, así que la cookie se lee
   // del contexto de Next. `headers()` es asíncrono desde Next 15.
   const sesion = await sesionDeLaPeticion((await headers()).get('cookie'));
   if (!sesion.ok) return sesion.respuesta;
 
-  if (paquetes !== undefined && !paquetes.includes(sesion.sesion.paquete)) {
+  if (!rolPermitidoParaConsulta(sesion.sesion.rol, opciones.roles)) {
+    return Response.json(errorHttp('SIN_PERMISO', 'Tu rol no permite consultar este recurso.'), {
+      status: ESTADO_HTTP.SIN_PERMISO,
+      headers: { 'cache-control': 'no-store' },
+    });
+  }
+
+  if (opciones.paquetes !== undefined && !opciones.paquetes.includes(sesion.sesion.paquete)) {
     return Response.json(
       errorHttp('PAQUETE_NO_INCLUYE', 'El paquete activo no incluye esta función.'),
       { status: ESTADO_HTTP.PAQUETE_NO_INCLUYE },

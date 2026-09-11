@@ -1,3 +1,5 @@
+import { ROLES } from '@morphiqpos/contracts';
+
 import { responderConsulta } from '../../../../src/servidor/http';
 
 export const dynamic = 'force-dynamic';
@@ -16,12 +18,15 @@ export const dynamic = 'force-dynamic';
  * el servidor, que es donde deciden algo.
  */
 export function GET(): Promise<Response> {
-  return responderConsulta((sesion) => ({
-    rol: sesion.rol,
-    nombre: sesion.nombrePersona,
-    paquete: sesion.paquete,
-    nombreNegocio: sesion.nombreNegocio,
-    nombreSucursal: sesion.nombreSucursal,
-    tieneTerminal: sesion.terminalId !== null,
-  }));
+  return responderConsulta(
+    (sesion) => ({
+      rol: sesion.rol,
+      nombre: sesion.nombrePersona,
+      paquete: sesion.paquete,
+      nombreNegocio: sesion.nombreNegocio,
+      nombreSucursal: sesion.nombreSucursal,
+      tieneTerminal: sesion.terminalId !== null,
+    }),
+    { roles: ROLES },
+  );
 }

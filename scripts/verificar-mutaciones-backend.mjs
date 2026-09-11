@@ -69,6 +69,8 @@ const RUTA_CATALOGO_PRODUCTOS = join(
   'route.ts',
 );
 const PRUEBA_CONSULTA_CATALOGO = 'packages/app/src/catalogo/consulta.test.ts';
+const HTTP_WEB = join(RAIZ, 'apps', 'web', 'src', 'servidor', 'http.ts');
+const PRUEBA_ROLES_GET = 'apps/web/src/servidor/consultas-roles.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -330,4 +332,21 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_CATALOGO_PRODUCTS_ROUTE_PATH',
   prueba: PRUEBA_CONSULTA_CATALOGO,
   transformar: (codigo) => codigo.replace('entrada.data, sesion.rol', "entrada.data, 'dueno'"),
+});
+comprobarMutacion({
+  nombre: 'autorización de rol omitida en responderConsulta',
+  origen: HTTP_WEB,
+  archivoTemporal: 'http.ts',
+  variable: 'MORPHIQPOS_HTTP_SOURCE_PATH',
+  prueba: PRUEBA_ROLES_GET,
+  transformar: (codigo) =>
+    codigo.replace('rolPermitidoParaConsulta(sesion.sesion.rol, opciones.roles)', 'true'),
+});
+comprobarMutacion({
+  nombre: 'GET de productos sin allowlist de roles',
+  origen: RUTA_CATALOGO_PRODUCTOS,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_CATALOGO_PRODUCTS_ROUTE_PATH',
+  prueba: PRUEBA_ROLES_GET,
+  transformar: (codigo) => codigo.replace('{ roles: ROLES }', '{}'),
 });

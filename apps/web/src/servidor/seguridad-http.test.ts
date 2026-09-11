@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { peticionDeEscrituraValida } from './seguridad-http';
+import { peticionDeEscrituraValida, rolPermitidoParaConsulta } from './seguridad-http';
 
 describe('B-06b · frontera HTTP de escritura', () => {
   it('acepta JSON marcado del mismo origen', () => {
@@ -36,5 +36,13 @@ describe('B-06b · frontera HTTP de escritura', () => {
     expect(peticionDeEscrituraValida(cruzada)).toBe(false);
     expect(peticionDeEscrituraValida(formulario)).toBe(false);
     expect(peticionDeEscrituraValida(sinMarca)).toBe(false);
+  });
+});
+
+describe('C-8 · autorización de consultas GET', () => {
+  it('deniega roles fuera de la lista y permite declarar una consulta pública', () => {
+    expect(rolPermitidoParaConsulta('cocina', ['dueno', 'administrador'])).toBe(false);
+    expect(rolPermitidoParaConsulta('dueno', ['dueno', 'administrador'])).toBe(true);
+    expect(rolPermitidoParaConsulta('mesero', undefined)).toBe(true);
   });
 });

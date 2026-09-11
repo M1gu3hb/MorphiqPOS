@@ -6,7 +6,9 @@ import { ejecutarComandoHttp, responderConsulta } from '../../../../src/servidor
 export const dynamic = 'force-dynamic';
 
 export function GET(): Promise<Response> {
-  return responderConsulta((sesion) => consultarConfiguracionProduccion(sesion.organizacionId));
+  return responderConsulta((sesion) => consultarConfiguracionProduccion(sesion.organizacionId), {
+    roles: ['dueno', 'administrador', 'gerente'],
+  });
 }
 
 export function POST(peticion: Request): Promise<Response> {

@@ -5,10 +5,10 @@ import { ejecutarComandoHttp, responderConsulta } from '../../../../src/servidor
 export const dynamic = 'force-dynamic';
 
 export function GET(): Promise<Response> {
-  return responderConsulta(
-    (sesion) => consultarRecetasProduccion(sesion.organizacionId),
-    ['cafeteria', 'restaurante'],
-  );
+  return responderConsulta((sesion) => consultarRecetasProduccion(sesion.organizacionId), {
+    paquetes: ['cafeteria', 'restaurante'],
+    roles: ['dueno', 'administrador', 'gerente', 'almacen'],
+  });
 }
 
 export function POST(peticion: Request): Promise<Response> {

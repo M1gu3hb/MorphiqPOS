@@ -1,3 +1,4 @@
+import { ROLES } from '@morphiqpos/contracts';
 import { entradaBuscarProductos } from '@morphiqpos/app/catalogo';
 import { consultarProductosProduccion } from '@morphiqpos/app/consultas-produccion';
 
@@ -21,7 +22,8 @@ export function GET(peticion: Request): Promise<Response> {
       ),
     );
   }
-  return responderConsulta((sesion) =>
-    consultarProductosProduccion(sesion.organizacionId, entrada.data, sesion.rol),
+  return responderConsulta(
+    (sesion) => consultarProductosProduccion(sesion.organizacionId, entrada.data, sesion.rol),
+    { roles: ROLES },
   );
 }
