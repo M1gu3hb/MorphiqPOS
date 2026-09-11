@@ -1,5 +1,8 @@
+import type { Rol } from '@morphiqpos/contracts';
 import { repoCatalogo, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
+
+const ROLES_CON_COSTO: readonly Rol[] = ['dueno', 'administrador', 'gerente', 'almacen'];
 
 export const entradaBuscarProductos = z.object({
   busqueda: z.string().trim().max(100).optional(),
@@ -20,7 +23,7 @@ export interface ProductoResumen {
   readonly codigoBarras: string | null;
   readonly marca: string | null;
   readonly precioVentaCentavos: string;
-  readonly costoUnitarioCentavos: string;
+  readonly costoUnitarioCentavos?: string;
   readonly precioMayoreoCentavos: string | null;
   readonly cantidadMinimaMayoreo: string | null;
   readonly tipoVenta: string;
@@ -42,6 +45,7 @@ export async function listarProductos(
   tx: Transaccion,
   organizacionId: string,
   entrada: z.output<typeof entradaBuscarProductos>,
+  rol: Rol,
 ): Promise<PaginaProductos> {
   const resultado = await repoCatalogo.buscarProductos(tx, organizacionId, {
     limite: entrada.limite,
@@ -60,7 +64,9 @@ export async function listarProductos(
       codigoBarras: producto.codigo_barras,
       marca: producto.marca,
       precioVentaCentavos: producto.precio_venta_centavos.toString(),
-      costoUnitarioCentavos: producto.costo_unitario_centavos.toString(),
+      ...(ROLES_CON_COSTO.includes(rol)
+        ? { costoUnitarioCentavos: producto.costo_unitario_centavos.toString() }
+        : {}),
       precioMayoreoCentavos: producto.precio_mayoreo_centavos?.toString() ?? null,
       cantidadMinimaMayoreo: producto.cantidad_minima_mayoreo,
       tipoVenta: producto.tipo_venta,

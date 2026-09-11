@@ -22,6 +22,6 @@ export function GET(peticion: Request): Promise<Response> {
     );
   }
   return responderConsulta((sesion) =>
-    consultarProductosProduccion(sesion.organizacionId, entrada.data),
+    consultarProductosProduccion(sesion.organizacionId, entrada.data, sesion.rol),
   );
 }

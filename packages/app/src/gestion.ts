@@ -40,8 +40,9 @@ export async function consultarSesionGestion(ambito: Ambito): Promise<SesionGest
 export function consultarProductosProduccion(
   organizacionId: string,
   entrada: Parameters<typeof listarProductos>[2],
+  rol: Ambito['rol'],
 ): Promise<PaginaProductos> {
-  return conTransaccion((tx) => listarProductos(tx, organizacionId, entrada));
+  return conTransaccion((tx) => listarProductos(tx, organizacionId, entrada, rol));
 }
 
 export function consultarConfiguracionProduccion(

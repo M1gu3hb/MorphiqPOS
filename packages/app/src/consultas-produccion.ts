@@ -1,5 +1,6 @@
 import 'server-only';
 
+import type { Rol } from '@morphiqpos/contracts';
 import { conTransaccion, obtenerDb } from '@morphiqpos/data';
 
 import { listarProductos, type PaginaProductos } from './catalogo/consulta.ts';
@@ -24,8 +25,9 @@ import {
 export function consultarProductosProduccion(
   organizacionId: string,
   entrada: Parameters<typeof listarProductos>[2],
+  rol: Rol,
 ): Promise<PaginaProductos> {
-  return conTransaccion((tx) => listarProductos(tx, organizacionId, entrada));
+  return conTransaccion((tx) => listarProductos(tx, organizacionId, entrada, rol));
 }
 
 export function consultarConfiguracionProduccion(

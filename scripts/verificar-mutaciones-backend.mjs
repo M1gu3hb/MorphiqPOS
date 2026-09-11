@@ -57,6 +57,18 @@ const COMANDO_QR = join(RAIZ, 'packages', 'app', 'src', 'restaurante', 'qr.ts');
 const UTILIDAD_QR = join(RAIZ, 'apps', 'web', 'heredado', 'utils', 'qrUtils.js');
 const PRUEBA_QR = 'packages/app/src/restaurante/qr.test.ts';
 const PRUEBA_MIGRACION_QR = 'packages/data/src/migraciones/qr-token.test.ts';
+const CONSULTA_CATALOGO = join(RAIZ, 'packages', 'app', 'src', 'catalogo', 'consulta.ts');
+const RUTA_CATALOGO_PRODUCTOS = join(
+  RAIZ,
+  'apps',
+  'web',
+  'app',
+  'api',
+  'catalogo',
+  'productos',
+  'route.ts',
+);
+const PRUEBA_CONSULTA_CATALOGO = 'packages/app/src/catalogo/consulta.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -302,4 +314,20 @@ comprobarMutacion({
       "    costo_unitario_snapshot: {\n      rolesLectura: [...VE_COSTOS_DE_INSUMO],\n      columna: 'costo_unitario_centavos',",
       "    costo_unitario_snapshot: {\n      columna: 'costo_unitario_centavos',",
     ),
+});
+comprobarMutacion({
+  nombre: 'costo de catálogo devuelto a todos los roles',
+  origen: CONSULTA_CATALOGO,
+  archivoTemporal: 'consulta.ts',
+  variable: 'MORPHIQPOS_CATALOGO_QUERY_SOURCE_PATH',
+  prueba: PRUEBA_CONSULTA_CATALOGO,
+  transformar: (codigo) => codigo.replace('ROLES_CON_COSTO.includes(rol)', 'true'),
+});
+comprobarMutacion({
+  nombre: 'rol de catálogo sustituido por dueño',
+  origen: RUTA_CATALOGO_PRODUCTOS,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_CATALOGO_PRODUCTS_ROUTE_PATH',
+  prueba: PRUEBA_CONSULTA_CATALOGO,
+  transformar: (codigo) => codigo.replace('entrada.data, sesion.rol', "entrada.data, 'dueno'"),
 });
