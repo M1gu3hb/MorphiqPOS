@@ -87,7 +87,8 @@ export async function ejecutarComandoHttp<E extends ZodType, S>(
   try {
     const entrada: unknown = await peticion.json();
     const idempotencyKey = peticion.headers.get('idempotency-key');
-    const correlationId = peticion.headers.get('x-correlation-id');
+    const correlationId =
+      peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion');
     const salida = await comando(definicion, {
       entrada,
       ambito: sesion.sesion,

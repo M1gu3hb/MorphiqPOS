@@ -134,6 +134,7 @@ const PRUEBA_LIMITE_EMPLEADOS = 'apps/web/src/servidor/empleados-limite.test.ts'
 const CONFIG_NEXT = join(RAIZ, 'apps', 'web', 'next.config.mjs');
 const VERIFICADOR_CABECERAS = join(RAIZ, 'scripts', 'verificar-cabeceras.mjs');
 const PRUEBA_CABECERAS = 'apps/web/src/seguridad/cabeceras.test.ts';
+const PRUEBA_CORRELACION = 'apps/web/src/servidor/correlacion.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -690,3 +691,18 @@ comprobarMutacion({
   transformar: (codigo) =>
     codigo.replace("nombre: 'strict-transport-security'", "nombre: 'x-hsts-omitida'"),
 });
+for (const [nombre, origen, variable] of [
+  ['web', HTTP_WEB, 'MORPHIQPOS_WEB_HTTP_SOURCE_PATH'],
+  ['comandos', RUTA_COMANDO, 'MORPHIQPOS_COMMAND_ROUTE_SOURCE_PATH'],
+  ['portal', HTTP_PORTAL, 'MORPHIQPOS_PORTAL_HTTP_SOURCE_PATH'],
+]) {
+  comprobarMutacion({
+    nombre: `correlación del middleware omitida en ${nombre}`,
+    origen,
+    archivoTemporal: 'http.ts',
+    variable,
+    prueba: PRUEBA_CORRELACION,
+    transformar: (codigo) =>
+      codigo.replace('x-morphiqpos-correlacion', 'x-morphiqpos-correlacion-omitida'),
+  });
+}

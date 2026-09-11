@@ -154,7 +154,8 @@ export function manejadorPublico<E extends ZodType, S>(definicion: ComandoPublic
     }
 
     const clave = peticion.headers.get('idempotency-key');
-    const correlacion = peticion.headers.get('x-correlation-id');
+    const correlacion =
+      peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion');
 
     const salida = await ejecutarComandoPublico(definicion, {
       token,

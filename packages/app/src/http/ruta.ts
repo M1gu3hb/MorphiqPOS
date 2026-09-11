@@ -100,7 +100,10 @@ export function rutaDeComando<E extends ZodType, S>(
       });
     }
 
-    const correlationId = peticion.headers.get('x-correlation-id') ?? undefined;
+    const correlationId =
+      peticion.headers.get('x-correlation-id') ??
+      peticion.headers.get('x-morphiqpos-correlacion') ??
+      undefined;
 
     const sesion = await resolverSesion({
       secreto: opciones.secreto,
