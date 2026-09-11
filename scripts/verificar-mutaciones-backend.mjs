@@ -93,6 +93,16 @@ const SCRIPT_RLS = join(RAIZ, 'scripts', 'verificar-rls.mjs');
 const PRUEBA_RLS_VIVA = 'packages/data/src/verificacion/rls.test.ts';
 const REPOSITORIO_LIMITE = join(RAIZ, 'packages', 'data', 'src', 'repos', 'limite.ts');
 const PRUEBA_REPOSITORIO_LIMITE = 'packages/data/src/repos/limite.test.ts';
+const MIGRACION_RETENCION_COMANDOS = join(
+  RAIZ,
+  'packages',
+  'data',
+  'src',
+  'migraciones',
+  'sql',
+  '053_retencion_comandos.sql',
+);
+const PRUEBA_RETENCION_COMANDOS = 'packages/data/src/migraciones/retencion-comandos.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -527,4 +537,24 @@ comprobarMutacion({
   prueba: PRUEBA_REPOSITORIO_LIMITE,
   transformar: (codigo) =>
     codigo.replace('valorAleatorio < 1 / FRECUENCIA_LIMPIEZA', 'valorAleatorio < 0'),
+});
+comprobarMutacion({
+  nombre: 'retención de idempotencia ampliada a 900 días',
+  origen: MIGRACION_RETENCION_COMANDOS,
+  archivoTemporal: '053_retencion_comandos.sql',
+  variable: 'MORPHIQPOS_COMMAND_RETENTION_MIGRATION_PATH',
+  prueba: PRUEBA_RETENCION_COMANDOS,
+  transformar: (sql) => sql.replace("interval '90 days'", "interval '900 days'"),
+});
+comprobarMutacion({
+  nombre: 'trabajo de retención sin borrado',
+  origen: MIGRACION_RETENCION_COMANDOS,
+  archivoTemporal: '053_retencion_comandos.sql',
+  variable: 'MORPHIQPOS_COMMAND_RETENTION_MIGRATION_PATH',
+  prueba: PRUEBA_RETENCION_COMANDOS,
+  transformar: (sql) =>
+    sql.replace(
+      'delete from public.comandos_ejecutados',
+      'select * from public.comandos_ejecutados',
+    ),
 });
