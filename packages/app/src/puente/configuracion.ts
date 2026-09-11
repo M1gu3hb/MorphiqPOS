@@ -97,10 +97,9 @@ const NUNCA_SALEN = new Set(['presentacion_password', 'presentacion_password_has
 /**
  * Campos que NO se escriben por el camino genérico, aunque salgan al leer.
  *
- * `paquete_modo` decide qué funciones existen y qué se cobra. Su
- * `ModoPresentacion.jsx:80` lo escribía con un `update` cualquiera, que este
- * camino admite para un GERENTE. Tiene su comando, `configuracion.cambiar_paquete`,
- * y ése exige dueño.
+ * `paquete_modo` decide qué funciones existen y qué se cobra. Ya no vive en
+ * este documento: se deriva de `organizaciones.paquete`, la misma columna que
+ * usa el gate. Su comando exige dueño; el camino genérico nunca la escribe.
  *
  * `presentacion_ultimo_acceso` lo pone el servidor al desbloquear: aceptarlo
  * del cliente permitiría falsificar el registro de quién entró.
@@ -125,7 +124,13 @@ export async function leerConfiguracion(
   const fila = await obtenerDb()
     .selectFrom('organizaciones as o')
     .leftJoin('configuracion as c', 'c.organizacion_id', 'o.id')
-    .select(['o.nombre as nombreNegocio', 'c.id as configId', 'c.valores', 'c.updated_at'])
+    .select([
+      'o.nombre as nombreNegocio',
+      'o.paquete as paquete',
+      'c.id as configId',
+      'c.valores',
+      'c.updated_at',
+    ])
     .where('o.id', '=', organizacionId)
     .executeTakeFirst();
 
@@ -137,6 +142,9 @@ export async function leerConfiguracion(
   const completa: Registro = {
     ...CONFIG_POR_OMISION,
     ...guardados,
+    // La misma columna que consulta `comando()` es también la que se presenta
+    // como paquete. Un valor histórico del JSON nunca la puede contradecir.
+    paquete_modo: fila.paquete,
     // El nombre vive en `organizaciones`, no en el documento: es el mismo que
     // usa la facturación y no puede divergir.
     nombre_negocio: fila.nombreNegocio,

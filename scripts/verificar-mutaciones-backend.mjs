@@ -19,6 +19,9 @@ const MIGRACION_RLS = join(
 const PRUEBA_RLS = 'packages/data/src/migraciones/rls.test.ts';
 const CONFIGURACION = join(RAIZ, 'packages', 'app', 'src', 'configuracion', 'configuracion.ts');
 const PRUEBA_CONFIGURACION = 'packages/app/src/configuracion/configuracion.test.ts';
+const PRESENTACION = join(RAIZ, 'packages', 'app', 'src', 'puente', 'presentacion.ts');
+const CONFIGURACION_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'configuracion.ts');
+const PRUEBA_PRESENTACION = 'packages/app/src/puente/presentacion.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -107,4 +110,22 @@ comprobarMutacion({
   prueba: PRUEBA_CONFIGURACION,
   transformar: (codigo) =>
     codigo.replace('      ...(esDocumento(actual?.valores) ? actual.valores : {}),\n', ''),
+});
+comprobarMutacion({
+  nombre: 'cambio de paquete devuelto al JSON',
+  origen: PRESENTACION,
+  archivoTemporal: 'presentacion.ts',
+  variable: 'MORPHIQPOS_PRESENTACION_SOURCE_PATH',
+  prueba: PRUEBA_PRESENTACION,
+  transformar: (codigo) =>
+    codigo.replace(".updateTable('organizaciones')", ".updateTable('configuracion')"),
+});
+comprobarMutacion({
+  nombre: 'lectura de paquete devuelta al JSON',
+  origen: CONFIGURACION_PUENTE,
+  archivoTemporal: 'configuracion.ts',
+  variable: 'MORPHIQPOS_PUENTE_CONFIGURACION_SOURCE_PATH',
+  prueba: PRUEBA_PRESENTACION,
+  transformar: (codigo) =>
+    codigo.replace('paquete_modo: fila.paquete', "paquete_modo: guardados['paquete_modo']"),
 });

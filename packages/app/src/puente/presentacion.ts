@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_TODOS, validarEntorno } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_TODOS, validarEntorno, type Paquete } from '@morphiqpos/contracts';
 import { obtenerDb, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
@@ -37,9 +37,6 @@ import { guardarConfiguracionParcial } from './configuracion.ts';
 const CLAVE_HASH = 'presentacion_password_hash';
 const CLAVE_ULTIMO_ACCESO = 'presentacion_ultimo_acceso';
 
-/** Los tres paquetes de Miguel. La lista es suya y no se amplía aquí. */
-const PAQUETES_MH = ['esencial', 'operativo', 'restaurante_pro'] as const;
-
 const entradaDesbloquear = z.object({
   contrasena: z.string().min(1).max(200),
 });
@@ -51,7 +48,7 @@ const entradaFijarContrasena = z.object({
 });
 
 const entradaCambiarPaquete = z.object({
-  paquete: z.enum(PAQUETES_MH),
+  paquete: z.enum(PAQUETES_TODOS),
 });
 
 function esTexto(valor: unknown): valor is string {
@@ -189,7 +186,7 @@ export const fijarContrasenaPresentacion = definirComando<
 export const cambiarPaquete = definirComando<
   Transaccion,
   typeof entradaCambiarPaquete,
-  { readonly paquete: string }
+  { readonly paquete: Paquete }
 >({
   nombre: 'configuracion.cambiar_paquete',
   entidad: 'configuracion',
@@ -198,14 +195,17 @@ export const cambiarPaquete = definirComando<
   paquetes: PAQUETES_TODOS,
   entrada: entradaCambiarPaquete,
   async ejecutar(ctx, entrada) {
-    await ctx.paso('cambiar_paquete', () =>
-      guardarConfiguracionParcial(
-        ctx.tx,
-        ctx.ambito.organizacionId,
-        { paquete_modo: entrada.paquete },
-        { desdeComando: true },
-      ),
+    const organizacion = await ctx.paso('cambiar_paquete', () =>
+      ctx.tx
+        .updateTable('organizaciones')
+        .set({ paquete: entrada.paquete, updated_at: ctx.ahora })
+        .where('id', '=', ctx.ambito.organizacionId)
+        .returning('id')
+        .executeTakeFirst(),
     );
+    if (organizacion === undefined) {
+      throw new ErrorDominio('CONFIGURACION_INVALIDA', 'La organización no existe.');
+    }
     ctx.auditar({ entidadId: ctx.ambito.organizacionId, payload: { paquete: entrada.paquete } });
     return { paquete: entrada.paquete };
   },
