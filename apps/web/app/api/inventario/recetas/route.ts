@@ -4,9 +4,8 @@ import { ejecutarComandoHttp, responderConsulta } from '../../../../src/servidor
 
 export const dynamic = 'force-dynamic';
 
-export function GET(peticion: Request): Promise<Response> {
+export function GET(): Promise<Response> {
   return responderConsulta(
-    peticion,
     (sesion) => consultarRecetasProduccion(sesion.organizacionId),
     ['cafeteria', 'restaurante'],
   );

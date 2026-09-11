@@ -8,7 +8,6 @@ import { headers } from 'next/headers';
 import type { ZodType } from 'zod';
 
 import { peticionDeEscrituraValida } from './seguridad-http';
-import { manejadorDeComando } from './ruta';
 
 /**
  * Las rutas de gestión, atadas a la sesión REAL (F1.1-C-05).
@@ -61,7 +60,7 @@ async function sesionDeLaPeticion(
 }
 
 export async function ejecutarComandoHttp<E extends ZodType, S>(
-  definicion: DefinicionServible<E, S>,
+  definicion: Parameters<typeof comando<E, S>>[0],
   peticion: Request,
 ): Promise<Response> {
   if (!peticionDeEscrituraValida(peticion)) {
@@ -178,21 +177,6 @@ function responderError(error: unknown): Response {
   return Response.json(errorHttp('ERROR_INTERNO', 'No fue posible completar la operación.'), {
     status: ESTADO_HTTP.ERROR_INTERNO,
   });
-}
-
-function responderSesionFallida(
-  motivo: 'ausente' | 'invalida' | 'expirada' | 'revocada',
-): Response {
-  const revocada = motivo === 'revocada';
-  return Response.json(
-    errorHttp(
-      revocada ? 'SIN_PERMISO' : 'NO_AUTENTICADO',
-      revocada
-        ? 'Tu acceso cambió. Pide a un encargado que lo revise.'
-        : 'Inicia sesión para continuar.',
-    ),
-    { status: revocada ? ESTADO_HTTP.SIN_PERMISO : ESTADO_HTTP.NO_AUTENTICADO },
-  );
 }
 
 function errorHttp(

@@ -71,9 +71,6 @@ export async function invocarComando<T>(
   return leerResultado<T>(respuesta);
 }
 
-  return leerResultado<T>(respuesta);
-}
-
 /** Alias histórico del carril B. Misma función, mismas garantías. */
 export const ejecutarApi = <T>(ruta: string, entrada: unknown): Promise<T> =>
   invocarComando<T>(ruta, entrada);
