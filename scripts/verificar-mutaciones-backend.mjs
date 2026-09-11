@@ -76,6 +76,8 @@ const LIMITE_CUERPO = join(RAIZ, 'packages', 'app', 'src', 'http', 'limite-cuerp
 const RUTA_COMANDO = join(RAIZ, 'packages', 'app', 'src', 'http', 'ruta.ts');
 const HTTP_PORTAL = join(RAIZ, 'packages', 'app', 'src', 'portal', 'http.ts');
 const PRUEBA_LIMITE_CUERPO = 'packages/app/src/http/limite-cuerpo.test.ts';
+const CONFIGURACION_PARCIAL = join(RAIZ, 'packages', 'app', 'src', 'puente', 'configuracion.ts');
+const PRUEBA_CONFIGURACION_PARCIAL = 'packages/app/src/puente/configuracion-limites.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -417,4 +419,28 @@ comprobarMutacion({
       codigo.slice(inicio).replace('if (!cuerpoDentroDelLimite(peticion.headers))', 'if (false)')
     );
   },
+});
+comprobarMutacion({
+  nombre: 'allowlist de configuración desactivada',
+  origen: CONFIGURACION_PARCIAL,
+  archivoTemporal: 'configuracion.ts',
+  variable: 'MORPHIQPOS_PARTIAL_CONFIG_SOURCE_PATH',
+  prueba: PRUEBA_CONFIGURACION_PARCIAL,
+  transformar: (codigo) => codigo.replace('if (!CLAVES_EDITABLES.has(clave))', 'if (false)'),
+});
+comprobarMutacion({
+  nombre: 'documento de configuración permitido hasta 1 MiB',
+  origen: CONFIGURACION_PARCIAL,
+  archivoTemporal: 'configuracion.ts',
+  variable: 'MORPHIQPOS_PARTIAL_CONFIG_SOURCE_PATH',
+  prueba: PRUEBA_CONFIGURACION_PARCIAL,
+  transformar: (codigo) => codigo.replace('64 * 1024', '1024 * 1024'),
+});
+comprobarMutacion({
+  nombre: 'nombre del negocio sin máximo efectivo',
+  origen: CONFIGURACION_PARCIAL,
+  archivoTemporal: 'configuracion.ts',
+  variable: 'MORPHIQPOS_PARTIAL_CONFIG_SOURCE_PATH',
+  prueba: PRUEBA_CONFIGURACION_PARCIAL,
+  transformar: (codigo) => codigo.replace('nombre.length > 160', 'false'),
 });

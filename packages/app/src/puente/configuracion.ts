@@ -106,10 +106,87 @@ const NUNCA_SALEN = new Set(['presentacion_password', 'presentacion_password_has
  */
 const SOLO_POR_COMANDO = new Set(['paquete_modo', 'presentacion_ultimo_acceso']);
 
+const MAX_BYTES_CONFIGURACION = 64 * 1024;
+
+/** Campos que las pantallas existentes administran en este documento. */
+const CLAVES_EDITABLES = new Set([
+  'nombre_negocio',
+  'nombre_sistema',
+  'platform_brand',
+  'logo_url',
+  'logo_ticket_url',
+  'logo_pdf_url',
+  'background_logo_url',
+  'background_image_url',
+  'background_fit',
+  'background_opacity',
+  'color_primario',
+  'color_secundario',
+  'color_acento',
+  'moneda',
+  'simbolo_moneda',
+  'iva_porcentaje',
+  'usa_mesas',
+  'usa_cocina',
+  'usa_barra',
+  'permitir_venta_sin_stock',
+  'mostrar_costos_a_caja',
+  'mostrar_logo_ticket',
+  'mensaje_ticket',
+  'ticket_footer',
+  'pdf_footer',
+  'footer_text',
+  'descargar_pdf_corte_auto',
+  'formato_export_default',
+  'colorear_importes_monetarios',
+  'modo_presentacion_activo',
+  'direccion',
+  'telefono',
+  'correo',
+  'propinas_activas',
+  'propina_porcentajes_sugeridos',
+  'asignacion_mesas_activa',
+  'silenciar_notificaciones_admin',
+  'estaciones_preparacion_activas',
+  'unidades_medida_lista',
+  'portal_qr_activo',
+  'portal_qr_modo_menu',
+  'portal_qr_mostrar_precios',
+  'portal_qr_mostrar_sin_imagen',
+  'portal_qr_permitir_ordenar',
+  'portal_qr_permitir_cuenta',
+  'portal_qr_permitir_ayuda',
+  'portal_qr_mostrar_precuenta',
+  'portal_qr_permitir_propina_cliente',
+  'portal_qr_permitir_pedidos_cliente',
+  'portal_qr_cuenta_modo',
+  'portal_qr_mensaje_bienvenida',
+  'presentacion_ultimo_acceso',
+]);
+
 type Registro = Record<string, unknown>;
 
 function esObjeto(v: unknown): v is Registro {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function serializarConfiguracion(valores: Registro): string {
+  let serializada: string;
+  try {
+    serializada = JSON.stringify(valores);
+  } catch {
+    throw new ErrorDominio(
+      'PUENTE_CAMPO_INVALIDO',
+      'La configuración contiene un valor que no se puede guardar.',
+    );
+  }
+  if (new TextEncoder().encode(serializada).byteLength > MAX_BYTES_CONFIGURACION) {
+    throw new ErrorDominio(
+      'PUENTE_CAMPO_INVALIDO',
+      'La configuración supera el límite total de 64 KiB.',
+    );
+  }
+  return serializada;
 }
 
 /**
@@ -199,6 +276,32 @@ export async function guardarConfiguracionParcial(
       }
     }
   }
+  for (const clave of Object.keys(parche)) {
+    if (clave === 'id' || clave === 'updated_date') continue;
+    if (!CLAVES_EDITABLES.has(clave)) {
+      throw new ErrorDominio(
+        'PUENTE_CAMPO_INVALIDO',
+        `«${clave}» no es un campo editable de la configuración.`,
+      );
+    }
+  }
+  serializarConfiguracion({ ...parche });
+
+  const nombreNuevo = parche['nombre_negocio'];
+  let nombreNormalizado: string | null = null;
+  if (nombreNuevo !== undefined) {
+    if (typeof nombreNuevo !== 'string') {
+      throw new ErrorDominio('PUENTE_CAMPO_INVALIDO', 'El nombre del negocio debe ser texto.');
+    }
+    const nombre = nombreNuevo.trim();
+    if (nombre.length === 0 || nombre.length > 160) {
+      throw new ErrorDominio(
+        'PUENTE_CAMPO_INVALIDO',
+        'El nombre del negocio debe tener entre 1 y 160 caracteres.',
+      );
+    }
+    nombreNormalizado = nombre;
+  }
 
   const actual = await tx
     .selectFrom('configuracion')
@@ -208,33 +311,33 @@ export async function guardarConfiguracionParcial(
 
   // `id` y `updated_date` los pone el servidor: si llegan en el parche, se
   // ignoran en vez de guardarse como campos del documento.
-  const nombreNuevo = parche['nombre_negocio'];
   const resto: Record<string, unknown> = {};
   for (const [clave, valor] of Object.entries(parche)) {
     if (clave === 'nombre_negocio' || clave === 'id' || clave === 'updated_date') continue;
     resto[clave] = valor;
   }
 
-  if (typeof nombreNuevo === 'string' && nombreNuevo.trim() !== '') {
+  if (nombreNormalizado !== null) {
     await tx
       .updateTable('organizaciones')
-      .set({ nombre: nombreNuevo.trim(), updated_at: new Date() })
+      .set({ nombre: nombreNormalizado, updated_at: new Date() })
       .where('id', '=', organizacionId)
       .execute();
   }
 
   const valores = { ...(esObjeto(actual?.valores) ? actual.valores : {}), ...resto };
+  const valoresSerializados = serializarConfiguracion(valores);
 
   if (actual === undefined) {
     await tx
       .insertInto('configuracion')
-      .values({ organizacion_id: organizacionId, valores: JSON.stringify(valores), version: 1 })
+      .values({ organizacion_id: organizacionId, valores: valoresSerializados, version: 1 })
       .execute();
   } else {
     await tx
       .updateTable('configuracion')
       .set({
-        valores: JSON.stringify(valores),
+        valores: valoresSerializados,
         version: actual.version + 1,
         updated_at: new Date(),
       })
