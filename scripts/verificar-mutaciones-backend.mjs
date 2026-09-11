@@ -78,6 +78,16 @@ const HTTP_PORTAL = join(RAIZ, 'packages', 'app', 'src', 'portal', 'http.ts');
 const PRUEBA_LIMITE_CUERPO = 'packages/app/src/http/limite-cuerpo.test.ts';
 const CONFIGURACION_PARCIAL = join(RAIZ, 'packages', 'app', 'src', 'puente', 'configuracion.ts');
 const PRUEBA_CONFIGURACION_PARCIAL = 'packages/app/src/puente/configuracion-limites.test.ts';
+const CONTRATO_ESQUEMA = join(
+  RAIZ,
+  'packages',
+  'data',
+  'src',
+  'verificacion',
+  'contrato-esquema.ts',
+);
+const MANIFIESTO_RAIZ = join(RAIZ, 'package.json');
+const PRUEBA_CONTRATO_ESQUEMA = 'packages/data/src/verificacion/contrato-esquema.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -443,4 +453,24 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_PARTIAL_CONFIG_SOURCE_PATH',
   prueba: PRUEBA_CONFIGURACION_PARCIAL,
   transformar: (codigo) => codigo.replace('nombre.length > 160', 'false'),
+});
+comprobarMutacion({
+  nombre: 'índices omitidos del contrato de esquema',
+  origen: CONTRATO_ESQUEMA,
+  archivoTemporal: 'contrato-esquema.ts',
+  variable: 'MORPHIQPOS_SCHEMA_CONTRACT_SOURCE_PATH',
+  prueba: PRUEBA_CONTRATO_ESQUEMA,
+  transformar: (codigo) =>
+    codigo.replace(
+      "const CATEGORIAS = ['columnas', 'restricciones', 'indices'] as const",
+      "const CATEGORIAS = ['columnas', 'restricciones'] as const",
+    ),
+});
+comprobarMutacion({
+  nombre: 'contrato de esquema desconectado de verify',
+  origen: MANIFIESTO_RAIZ,
+  archivoTemporal: 'package.json',
+  variable: 'MORPHIQPOS_PACKAGE_JSON_PATH',
+  prueba: PRUEBA_CONTRATO_ESQUEMA,
+  transformar: (codigo) => codigo.replace(' && pnpm verify:esquema', ''),
 });
