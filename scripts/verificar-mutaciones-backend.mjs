@@ -17,6 +17,8 @@ const MIGRACION_RLS = join(
   '050_rls_faltante.sql',
 );
 const PRUEBA_RLS = 'packages/data/src/migraciones/rls.test.ts';
+const CONFIGURACION = join(RAIZ, 'packages', 'app', 'src', 'configuracion', 'configuracion.ts');
+const PRUEBA_CONFIGURACION = 'packages/app/src/configuracion/configuracion.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -25,10 +27,10 @@ function exigirCambio(nombre, original, mutado) {
   }
 }
 
-function comprobarMutacion(nombre, transformar) {
+function comprobarMutacion({ nombre, origen, archivoTemporal, variable, prueba, transformar }) {
   const carpeta = mkdtempSync(join(tmpdir(), 'morphiqpos-mutacion-'));
-  const archivo = join(carpeta, '050_rls_faltante.sql');
-  const original = readFileSync(MIGRACION_RLS, 'utf8');
+  const archivo = join(carpeta, archivoTemporal);
+  const original = readFileSync(origen, 'utf8');
   const mutado = transformar(original);
   exigirCambio(nombre, original, mutado);
   writeFileSync(archivo, mutado, 'utf8');
@@ -39,7 +41,7 @@ function comprobarMutacion(nombre, transformar) {
       [
         VITEST,
         'run',
-        PRUEBA_RLS,
+        prueba,
         '--reporter',
         'dot',
         '--pool',
@@ -53,7 +55,7 @@ function comprobarMutacion(nombre, transformar) {
       {
         cwd: RAIZ,
         encoding: 'utf8',
-        env: { ...process.env, MORPHIQPOS_RLS_MIGRATION_PATH: archivo },
+        env: { ...process.env, [variable]: archivo },
         windowsHide: true,
       },
     );
@@ -69,9 +71,40 @@ function comprobarMutacion(nombre, transformar) {
   console.log(`✓ Mutación rechazada: ${nombre}`);
 }
 
-comprobarMutacion('RLS FORCE eliminado', (sql) =>
-  sql.replaceAll('force row level security', 'disable row level security'),
-);
-comprobarMutacion('secuencias excluidas del REVOKE', (sql) =>
-  sql.replace("('r', 'p', 'v', 'm', 'S')", "('r', 'p', 'v', 'm', 's')"),
-);
+comprobarMutacion({
+  nombre: 'RLS FORCE eliminado',
+  origen: MIGRACION_RLS,
+  archivoTemporal: '050_rls_faltante.sql',
+  variable: 'MORPHIQPOS_RLS_MIGRATION_PATH',
+  prueba: PRUEBA_RLS,
+  transformar: (sql) => sql.replaceAll('force row level security', 'disable row level security'),
+});
+comprobarMutacion({
+  nombre: 'secuencias excluidas del REVOKE',
+  origen: MIGRACION_RLS,
+  archivoTemporal: '050_rls_faltante.sql',
+  variable: 'MORPHIQPOS_RLS_MIGRATION_PATH',
+  prueba: PRUEBA_RLS,
+  transformar: (sql) => sql.replace("('r', 'p', 'v', 'm', 'S')", "('r', 'p', 'v', 'm', 's')"),
+});
+comprobarMutacion({
+  nombre: 'paquete reabierto en configuracion.guardar',
+  origen: CONFIGURACION,
+  archivoTemporal: 'configuracion.ts',
+  variable: 'MORPHIQPOS_CONFIGURACION_SOURCE_PATH',
+  prueba: PRUEBA_CONFIGURACION,
+  transformar: (codigo) =>
+    codigo.replace(
+      "  estilo: z.enum(['base', 'editorial', 'premium']),",
+      "  estilo: z.enum(['base', 'editorial', 'premium']),\n  paquete: z.enum(PAQUETES),",
+    ),
+});
+comprobarMutacion({
+  nombre: 'merge parcial sustituido por replace',
+  origen: CONFIGURACION,
+  archivoTemporal: 'configuracion.ts',
+  variable: 'MORPHIQPOS_CONFIGURACION_SOURCE_PATH',
+  prueba: PRUEBA_CONFIGURACION,
+  transformar: (codigo) =>
+    codigo.replace('      ...(esDocumento(actual?.valores) ? actual.valores : {}),\n', ''),
+});

@@ -1,4 +1,6 @@
 import { ESTADO_HTTP } from '@morphiqpos/contracts';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -28,28 +30,44 @@ const entrada = {
   impuestoIncluidoEnPrecio: true,
 } as const;
 
+const FUENTE_CONFIGURACION =
+  process.env['MORPHIQPOS_CONFIGURACION_SOURCE_PATH'] ??
+  fileURLToPath(new URL('./configuracion.ts', import.meta.url));
+
 describe('B-05 · configuración por organización', () => {
-  it('cambia identidad, paquete y apariencia con versión optimista', async () => {
-    const { ctx, operaciones, auditorias } = contextoCatalogo([{ id: ctxId() }, { version: 4 }]);
+  it('cambia sólo sus secciones y conserva el resto del documento', async () => {
+    const valoresActuales = {
+      presentacion_password_hash: 'hash-que-no-debe-perderse',
+      portal_qr_activo: true,
+      propina_porcentajes_sugeridos: '10,15,20',
+      asignacion_mesas_activa: true,
+    };
+    const { ctx, operaciones, auditorias } = contextoCatalogo([
+      { version: 3, valores: valoresActuales },
+      { id: ctxId() },
+      { version: 4 },
+    ]);
 
     const salida = await guardarConfiguracion.ejecutar(
       ctx,
       guardarConfiguracion.entrada.parse(entrada),
     );
 
-    expect(salida).toEqual({ version: 4, paquete: 'ferreteria' });
-    expect(operaciones[0]).toMatchObject({
+    expect(salida).toEqual({ version: 4 });
+    expect(operaciones[1]).toMatchObject({
       tipo: 'update',
       tabla: 'organizaciones',
-      valores: { nombre: entrada.nombreNegocio, paquete: 'ferreteria' },
+      valores: { nombre: entrada.nombreNegocio },
       filtros: [{ columna: 'id', operador: '=', valor: ctx.ambito.organizacionId }],
     });
-    expect(operaciones[1]).toMatchObject({
+    expect(operaciones[1]?.valores).not.toHaveProperty('paquete');
+    expect(operaciones[2]).toMatchObject({
       tipo: 'update',
       tabla: 'configuracion',
       valores: {
         version: 4,
         valores: {
+          ...valoresActuales,
           contacto: { telefono: entrada.telefono, direccion: entrada.direccion },
           apariencia: {
             logoUrl: entrada.logoUrl,
@@ -69,20 +87,24 @@ describe('B-05 · configuración por organización', () => {
   });
 
   it('crea la configuración inicial si la organización aún usa defaults', async () => {
-    const { ctx, operaciones } = contextoCatalogo([{ id: ctxId() }, { version: 1 }]);
+    const { ctx, operaciones } = contextoCatalogo([undefined, { id: ctxId() }, { version: 1 }]);
     await guardarConfiguracion.ejecutar(
       ctx,
       guardarConfiguracion.entrada.parse({ ...entrada, version: 0 }),
     );
-    expect(operaciones[1]).toMatchObject({
+    expect(operaciones[2]).toMatchObject({
       tipo: 'insert',
       tabla: 'configuracion',
       valores: { organizacion_id: ctx.ambito.organizacionId, version: 1 },
     });
   });
 
-  it('falla ante edición concurrente para que la transacción revierta también el paquete', async () => {
-    const { ctx, auditorias } = contextoCatalogo([{ id: ctxId() }, undefined]);
+  it('falla ante edición concurrente antes de cambiar el nombre', async () => {
+    const { ctx, auditorias } = contextoCatalogo([
+      { version: 3, valores: {} },
+      { id: ctxId() },
+      undefined,
+    ]);
     await expect(
       guardarConfiguracion.ejecutar(ctx, guardarConfiguracion.entrada.parse(entrada)),
     ).rejects.toMatchObject({ codigo: 'CONFIGURACION_CONFLICTO' });
@@ -145,9 +167,16 @@ describe('B-05 · configuración por organización', () => {
 
   it('no acepta ámbito ni paquete fuera del catálogo en el cuerpo', () => {
     expect(Object.hasOwn(guardarConfiguracion.entrada.shape, 'organizacionId')).toBe(false);
-    expect(guardarConfiguracion.entrada.safeParse({ ...entrada, paquete: 'spa' }).success).toBe(
-      false,
-    );
+    expect(Object.hasOwn(guardarConfiguracion.entrada.shape, 'paquete')).toBe(false);
+    const analisis = guardarConfiguracion.entrada.safeParse({ ...entrada, paquete: 'spa' });
+    expect(analisis.success).toBe(true);
+    if (analisis.success) expect(analisis.data).not.toHaveProperty('paquete');
+  });
+
+  it('mantiene en código los dos límites que evitan mass assignment y reemplazo', () => {
+    const codigo = readFileSync(FUENTE_CONFIGURACION, 'utf8');
+    expect(codigo).not.toMatch(/\bpaquete:\s*z\.enum\(PAQUETES\)/);
+    expect(codigo).toContain('...(esDocumento(actual?.valores) ? actual.valores : {})');
   });
 });
 

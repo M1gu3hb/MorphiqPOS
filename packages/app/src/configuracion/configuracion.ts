@@ -23,7 +23,6 @@ export const entradaGuardarConfiguracion = z.object({
   colorPrimario: color,
   colorAcento: color,
   estilo: z.enum(['base', 'editorial', 'premium']),
-  paquete: z.enum(PAQUETES),
   /**
    * IVA en puntos base: 1600 = 16 %. Entero para que no exista un 16.000000001.
    *
@@ -85,6 +84,10 @@ const DEFAULTS = {
   impuestoIncluidoEnPrecio: true,
 } as const;
 
+function esDocumento(valor: unknown): valor is Record<string, unknown> {
+  return typeof valor === 'object' && valor !== null && !Array.isArray(valor);
+}
+
 export async function leerConfiguracion(
   tx: Transaccion,
   organizacionId: string,
@@ -126,7 +129,7 @@ export async function leerConfiguracion(
 export const guardarConfiguracion = definirComando<
   Transaccion,
   typeof entradaGuardarConfiguracion,
-  { readonly version: number; readonly paquete: Paquete }
+  { readonly version: number }
 >({
   nombre: 'configuracion.guardar',
   entidad: 'configuracion',
@@ -135,10 +138,27 @@ export const guardarConfiguracion = definirComando<
   paquetes: PAQUETES,
   entrada: entradaGuardarConfiguracion,
   async ejecutar(ctx, entrada) {
+    const actual = await ctx.paso('leer_configuracion_actual', () =>
+      ctx.tx
+        .selectFrom('configuracion')
+        .select(['valores', 'version'])
+        .where('organizacion_id', '=', ctx.ambito.organizacionId)
+        .executeTakeFirst(),
+    );
+    if (
+      (entrada.version === 0 && actual !== undefined) ||
+      (entrada.version !== 0 && actual?.version !== entrada.version)
+    ) {
+      throw new ErrorDominio(
+        'CONFIGURACION_CONFLICTO',
+        'La configuración cambió en otra pantalla. Recarga antes de guardar.',
+      );
+    }
+
     const organizacion = await ctx.paso('actualizar_organizacion', () =>
       ctx.tx
         .updateTable('organizaciones')
-        .set({ nombre: entrada.nombreNegocio, paquete: entrada.paquete, updated_at: ctx.ahora })
+        .set({ nombre: entrada.nombreNegocio, updated_at: ctx.ahora })
         .where('id', '=', ctx.ambito.organizacionId)
         .returning('id')
         .executeTakeFirst(),
@@ -149,6 +169,7 @@ export const guardarConfiguracion = definirComando<
 
     const nuevaVersion = entrada.version + 1;
     const valores = {
+      ...(esDocumento(actual?.valores) ? actual.valores : {}),
       contacto: { telefono: entrada.telefono, direccion: entrada.direccion },
       apariencia: {
         logoUrl: entrada.logoUrl,
@@ -194,11 +215,10 @@ export const guardarConfiguracion = definirComando<
       // «¿desde cuándo cobramos 8 %?» tiene que tener respuesta.
       payload: {
         version: configuracion.version,
-        paquete: entrada.paquete,
         impuestoPuntosBase: entrada.impuestoPuntosBase,
         impuestoIncluidoEnPrecio: entrada.impuestoIncluidoEnPrecio,
       },
     });
-    return { version: configuracion.version, paquete: entrada.paquete };
+    return { version: configuracion.version };
   },
 });
