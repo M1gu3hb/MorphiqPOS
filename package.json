@@ -39,7 +39,7 @@
     "verify:venta": "node scripts/verificar-venta.mjs",
     "verify:identidad": "node scripts/verificar-identidad.mjs",
     "verify:paquetes": "node scripts/verificar-paquetes.mjs",
-    "verify": "pnpm verify:arranque && pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm verify:certificado && pnpm verify:residuos && pnpm verify:aspecto && pnpm verify:escrituras && pnpm verify:primitivas && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:pruebas && pnpm test:unit && pnpm verify:catalogo && pnpm verify:inventario && pnpm verify:comandos-catalogo && pnpm verify:comandos-inventario && pnpm verify:venta && pnpm verify:identidad && pnpm verify:paquetes && pnpm build && pnpm verify:cabeceras",
+    "verify": "pnpm verify:arranque && pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm verify:certificado && pnpm verify:residuos && pnpm verify:aspecto && pnpm verify:escrituras && pnpm verify:primitivas && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:pruebas && pnpm test:unit && pnpm verify:mutaciones-backend && pnpm verify:catalogo && pnpm verify:inventario && pnpm verify:comandos-catalogo && pnpm verify:comandos-inventario && pnpm verify:venta && pnpm verify:identidad && pnpm verify:paquetes && pnpm build && pnpm verify:cabeceras",
     "ui:tokenizar": "node scripts/tokenizar-primitivas.mjs",
     "verify:primitivas": "node scripts/tokenizar-primitivas.mjs --verificar && node scripts/verificar-primitivas.mjs",
     "lint": "eslint .",
@@ -53,6 +53,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "verify:pruebas": "node scripts/verificar-pruebas.mjs",
+    "verify:mutaciones-backend": "node scripts/verificar-mutaciones-backend.mjs",
     "docs:comandos": "node scripts/generar-catalogo-comandos.mjs > docs/fase-1/F1-08-COMANDOS-Y-RUTAS.md"
   },
   "devDependencies": {

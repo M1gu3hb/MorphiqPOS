@@ -34,20 +34,30 @@ node scripts/sembrar-demo.mjs --org demo-ferreteria-la-broca
 
 ## 2 · Migraciones
 
-**Se aplican ANTES de desplegar, a mano.** No hay migración automática en el
-despliegue y es deliberado: una migración que corre sola en cada arranque de una
-función serverless corre N veces en paralelo.
+**Se aplican ANTES de desplegar y siempre mediante `pnpm db:migrate`.** No hay
+migración automática en el despliegue: una migración que corre sola en cada
+arranque de una función serverless corre N veces en paralelo.
 
 ```bash
 pnpm db:migrate     # aplica lo que falte; es SÓLO LECTURA si no falta nada
 pnpm db:tipos       # regenera esquema.ts desde la base ya migrada
 ```
 
-`db:migrate` con el rol de aplicación **no puede** aplicar nada: `morphiqpos_app`
-tiene DML y no DDL, a propósito. Sirve para VERIFICAR que no hay drift. Para
-aplicar de verdad hace falta una credencial con DDL —hoy, la consola
-administrada de Supabase—, y la migración se registra a mano en `_migraciones`
-con el hash que calcula `packages/data/src/migraciones/lectura.ts`.
+`db:migrate` admite dos transportes y ambos ejecutan el SQL y su fila de ledger
+en una sola transacción:
+
+- `DATABASE_URL` con una credencial de DDL, para Postgres local o remoto.
+- `MORPHIQPOS_SUPABASE_PROJECT_REF` con una sesión ya autenticada del CLI de
+  Supabase. Si `supabase` no está en `PATH`, se indica su ejecutable con
+  `SUPABASE_CLI_PATH`.
+
+`morphiqpos_app` conserva sólo DML y no puede aplicar DDL. Con ese rol,
+`db:migrate` sirve para comprobar que no falta nada.
+
+> **Prohibido pegar migraciones en la consola de Supabase o registrar filas de
+> `_migraciones` a mano.** Ese procedimiento dejó 045 aplicada a medias y el
+> ledger cinco versiones atrás. Si el ejecutor no puede correr, se corrige su
+> acceso; no se divide ni se copia el archivo SQL.
 
 Orden que no se negocia (`supabase-vercel-produccion §6`):
 
