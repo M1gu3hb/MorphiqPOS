@@ -1,11 +1,11 @@
-import { consultarCategoriasProduccion } from '@morphiqpos/app/puente-desarrollo';
+import { consultarCategoriasProduccion } from '@morphiqpos/app/gestion';
 
 import { responderConsulta } from '../../../../src/servidor/http';
 
 export const dynamic = 'force-dynamic';
 
-export function GET(): Promise<Response> {
-  return responderConsulta(async (sesion) => {
+export function GET(peticion: Request): Promise<Response> {
+  return responderConsulta(peticion, async (sesion) => {
     const categorias = await consultarCategoriasProduccion(sesion.organizacionId);
     return { categorias };
   });

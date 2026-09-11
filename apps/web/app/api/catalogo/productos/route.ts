@@ -1,5 +1,5 @@
 import { entradaBuscarProductos } from '@morphiqpos/app/catalogo';
-import { consultarProductosProduccion } from '@morphiqpos/app/puente-desarrollo';
+import { consultarProductosProduccion } from '@morphiqpos/app/gestion';
 
 import { responderConsulta } from '../../../../src/servidor/http';
 
@@ -21,7 +21,7 @@ export function GET(peticion: Request): Promise<Response> {
       ),
     );
   }
-  return responderConsulta((sesion) =>
+  return responderConsulta(peticion, (sesion) =>
     consultarProductosProduccion(sesion.organizacionId, entrada.data),
   );
 }

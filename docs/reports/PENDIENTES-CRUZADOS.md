@@ -6,7 +6,99 @@ implementa en zona ajena (TEAM.md §6).
 | # | Quién necesita | Qué | De quién | Para qué tarea | Estado |
 |---|---|---|---|---|---|
 | X-01 | Carril A | `packages/domain/src/inventario/consumo.ts` → `calcularConsumo(lineas)` y `packages/data/src/repos/stock.ts` → `aplicarMovimientos(movimientos, tx)`, con el decremento atómico dentro | Codex (B-02, B-03) | **A-09** `cobrarOrden` | ✅ Cerrado en `carril-b`; publicado a `main` al terminar el gate |
-| X-02 | Carril B | Resolvedor de `Ambito` desde la cookie de sesión | Claude Code (A-03) | Reemplazar el adaptador demo de B-06b a B-12 sin confiar en cuerpo ni cabeceras del cliente | ⬜ Abierto; el export `@morphiqpos/app/produccion` ya está publicado. El adaptador actual sólo funciona en desarrollo y producción falla cerrado con 401 |
+| X-02 | Carril B | Resolvedor de `Ambito` desde la cookie de sesión y exportación real `@morphiqpos/app/produccion` | Claude Code (X-01) | B-05, B-06 y B-07: cablear pantallas | ✅ **Entregado.** Guía abajo. Los exports que faltaban (`./produccion`, `./http`, `./sesion`) ya están en `packages/app/package.json` y `pnpm typecheck` pasa con ellos |
+
+---
+
+## X-01 · Cómo cablear una pantalla al backend  ← **empieza por aquí, carril B**
+
+**Los imports de abajo están verificados: `pnpm typecheck` pasa con ellos.** La vez pasada
+documenté `@morphiqpos/app/produccion` sin que ese export existiera; ahora
+`packages/app/package.json` declara `./produccion`, `./http`, `./sesion`, `./venta`,
+`./caja` e `./identidad`.
+
+### 1 · Exponer un comando por HTTP — dos líneas
+
+```ts
+// apps/web/app/api/catalogo/crear-producto/route.ts   ← existe, es la ruta de ejemplo
+import { crearProducto } from '@morphiqpos/app/catalogo';
+import { manejadorDeComando } from '@/servidor/ruta';
+
+export const POST = manejadorDeComando(crearProducto);
+export const runtime = 'nodejs';
+```
+
+Eso ya trae: sesión resuelta desde la cookie, ámbito del servidor, validación zod, rol,
+paquete, transacción, idempotencia, auditoría, correlation id y traducción a status HTTP.
+**No hay nada más que escribir.**
+
+`runtime = 'nodejs'` no es opcional: el envoltorio abre transacciones con `pg`, y en el
+runtime `edge` no hay sockets TCP. Eso falla al desplegar, no al compilar.
+
+### 2 · Llamarlo desde React
+
+```tsx
+'use client';
+import { invocarComando, ErrorApi, nuevaClave } from '@/cliente/api';
+
+const [clave] = useState(nuevaClave); // la MISMA entre reintentos
+
+async function guardar() {
+  try {
+    const { id } = await invocarComando<{ id: string }>(
+      '/api/catalogo/crear-producto',
+      { nombre, precioVentaCentavos },
+      { idempotencyKey: clave },
+    );
+  } catch (error) {
+    if (error instanceof ErrorApi) setMensaje(error.error.mensaje);
+    else throw error;
+  }
+}
+```
+
+`invocarComando` genera la clave si no se la das. **Pásala tú y consérvala entre
+reintentos**: es lo que hace que un doble clic no cobre dos veces.
+
+### 3 · El ámbito, para una ruta que NO es un comando
+
+```ts
+import { resolverSesion } from '@morphiqpos/app/sesion';
+import { leerCookie, NOMBRE_COOKIE } from '@morphiqpos/app/http';
+
+const sesion = await resolverSesion({
+  secreto: entorno.SESSION_SECRET,
+  token: leerCookie(peticion.headers.get('cookie'), NOMBRE_COOKIE),
+});
+// sesion.ambito → { organizacionId, sucursalId, terminalId, identidadId, empleoId, rol }
+```
+
+Para comandos no hace falta: `manejadorDeComando` ya lo hace.
+
+### 4 · Rutas de autenticación que ya existen
+
+| Ruta | Qué hace |
+|---|---|
+| `POST /api/auth/enrolar` | Canjea un código de 6 dígitos por la cookie de dispositivo |
+| `GET /api/auth/empleados` | Lista quién puede entrar en esta terminal (nombre y rol) |
+| `POST /api/auth/entrar` | PIN → cookie de sesión |
+| `POST /api/auth/salir` | Caduca la cookie |
+
+### Tres cosas que sorprenden
+
+1. **`apps/web` no puede importar `@morphiqpos/data`**, ni con `import type`. Es la primera
+   prohibición de `04-ARQUITECTURA §2`. Por eso `manejadorDeComando` recibe
+   `DefinicionServible<E, S>`, que ya trae la transacción ligada.
+2. **Un comando con `escribe: true` DEBE llamar a `ctx.auditar`**, o falla a propósito.
+3. **La entrada no puede declarar claves de ámbito.** El comando lanza al definirse (R16).
+
+### Lo que este puente todavía NO tiene
+
+- **Rate limit por IP en las rutas de auth.** El bloqueo del PIN cuenta por credencial, no
+  por origen: frena el ataque a una cuenta, no un barrido de muchas.
+- **CSRF por token.** Hoy sólo `SameSite=Lax`, que `morphiq-prs §10A` llama defensa en
+  profundidad y no barrera única. Falta validar `Origin`.
+- **Verificación contra Postgres.** Sin `DATABASE_URL` no ha corrido de punta a punta.
 
 ---
 

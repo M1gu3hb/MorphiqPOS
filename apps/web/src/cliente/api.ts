@@ -1,55 +1,74 @@
-import type { Resultado } from '@morphiqpos/contracts';
+import type { ErrorComando, Resultado } from '@morphiqpos/contracts';
 
+/** Camino único del navegador al servidor, con cookie HttpOnly e idempotencia. */
 export class ErrorApi extends Error {
   constructor(
-    mensaje: string,
-    readonly status: number,
+    readonly error: ErrorComando,
+    readonly estado: number,
+    readonly correlationId: string | null,
   ) {
-    super(mensaje);
+    super(error.mensaje);
     this.name = 'ErrorApi';
   }
 }
 
-export async function obtenerApi<T>(ruta: string): Promise<T> {
-  const respuesta = await fetch(ruta, { cache: 'no-store' });
-  const carga: unknown = await respuesta.json();
-  if (!respuesta.ok) throw new ErrorApi(mensajeDe(carga), respuesta.status);
-  return extraerDatos(carga) as T;
+export interface OpcionesComando {
+  readonly idempotencyKey?: string;
+  readonly signal?: AbortSignal;
 }
 
-export async function ejecutarApi<T>(ruta: string, entrada: unknown): Promise<T> {
+export async function invocarComando<T>(
+  ruta: string,
+  entrada: unknown,
+  opciones: OpcionesComando = {},
+): Promise<T> {
   const respuesta = await fetch(ruta, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'idempotency-key': crypto.randomUUID(),
+      'idempotency-key': opciones.idempotencyKey ?? nuevaClave(),
       'x-morphiqpos-request': '1',
     },
     body: JSON.stringify(entrada),
+    credentials: 'same-origin',
+    ...(opciones.signal === undefined ? {} : { signal: opciones.signal }),
   });
-  const carga: unknown = await respuesta.json();
-  if (!respuesta.ok) throw new ErrorApi(mensajeDe(carga), respuesta.status);
-  const resultado = carga as Resultado<T>;
-  if (!resultado.ok) throw new ErrorApi(resultado.error.mensaje, respuesta.status);
-  return resultado.datos;
+  return leerResultado<T>(respuesta);
 }
 
-function extraerDatos(carga: unknown): unknown {
-  if (typeof carga !== 'object' || carga === null || !('datos' in carga)) {
-    throw new ErrorApi('El servidor devolvió una respuesta inválida.', 500);
-  }
-  return carga.datos;
+/** Alias usado por las pantallas de gestión. */
+export function ejecutarApi<T>(ruta: string, entrada: unknown): Promise<T> {
+  return invocarComando<T>(ruta, entrada);
 }
 
-function mensajeDe(carga: unknown): string {
-  if (typeof carga !== 'object' || carga === null || !('error' in carga)) {
-    return 'No fue posible completar la operación.';
+export async function obtenerApi<T>(ruta: string): Promise<T> {
+  const respuesta = await fetch(ruta, { cache: 'no-store', credentials: 'same-origin' });
+  return leerResultado<T>(respuesta);
+}
+
+export function nuevaClave(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
   }
-  const error = carga.error;
-  return typeof error === 'object' &&
-    error !== null &&
-    'mensaje' in error &&
-    typeof error.mensaje === 'string'
-    ? error.mensaje
-    : 'No fue posible completar la operación.';
+  return `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+async function leerResultado<T>(respuesta: Response): Promise<T> {
+  const correlationId = respuesta.headers.get('x-correlation-id');
+  const cuerpo: unknown = await respuesta.json().catch(() => null);
+  if (!esResultado<T>(cuerpo)) {
+    throw new ErrorApi(
+      { codigo: 'ERROR_INTERNO', mensaje: 'El servidor respondió algo inesperado.' },
+      respuesta.status,
+      correlationId,
+    );
+  }
+  if (!cuerpo.ok) throw new ErrorApi(cuerpo.error, respuesta.status, correlationId);
+  return cuerpo.datos;
+}
+
+function esResultado<T>(valor: unknown): valor is Resultado<T> {
+  if (typeof valor !== 'object' || valor === null) return false;
+  const candidato = valor as { ok?: unknown };
+  return typeof candidato.ok === 'boolean';
 }

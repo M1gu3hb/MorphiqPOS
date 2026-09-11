@@ -38,7 +38,7 @@
   comandos reales; recetas sólo aparecen en Cafetería/Restaurante.
 - **Pruebas:** contrato de cinco paquetes y 403 con `crearModificadorProducto` real.
 - **Verificado con:** mutación que habilita modificadores para todos los paquetes.
-- **Pendiente:** sesión real desde cookie sigue en X-02/A-03.
+- **Pendiente:** E2E con la sesión real espera `DATABASE_URL`.
 
 ## Carril B · B-07b · 2026-09-09 · Configuración conectada
 
@@ -46,7 +46,7 @@
   paquete; la pantalla conserva y actualiza la versión optimista.
 - **Pruebas:** alta, actualización, conflicto, aislamiento y autorización.
 - **Verificado con:** recarga posterior al comando implementada; lint, tipos y build.
-- **Pendiente:** E2E de persistencia espera `DATABASE_URL` y el resolvedor A-03.
+- **Pendiente:** E2E de persistencia espera `DATABASE_URL`.
 
 ## Carril B · B-06b · 2026-09-09 · Productos conectados
 
@@ -63,6 +63,30 @@
 - **Pruebas:** caso rojo antes del arreglo y verde después.
 - **Verificado con:** retirar el insert vuelve a romper la prueba de fila ausente.
 - **Pendiente:** prueba de integración real espera `DATABASE_URL`.
+
+## Carril A · A-02, A-03, A-05 a A-10, A-12 y X-01 · 2026-09-08 · Se puede vender
+
+- **Qué se hizo:** el puente HTTP que faltaba y, encima, la venta completa. Miguel
+  abre el navegador, entra con PIN, agrega productos, cobra en efectivo y le sale
+  un ticket.
+- **Archivos:** `packages/app/src/{http,sesion,identidad,venta,caja}/`,
+  `packages/domain/src/venta/totales.ts`,
+  `packages/data/src/repos/{sesion,identidad,folios,caja,venta-catalogo,ordenes/}`,
+  `apps/web/src/{cliente,servidor,venta,identidad}/`, 16 rutas bajo
+  `apps/web/app/api/`, y las páginas `/venta`, `/entrar`, `/enrolar`.
+- **Decisiones:** el stock se descuenta ANTES de tomar el folio, para que una
+  venta sin inventario no deje hueco en el consecutivo. El carrito ES la orden en
+  borrador, persistida por línea (P1-10). El arqueo se DERIVA de los movimientos
+  y no se guarda ningún total (P2-10).
+- **Pruebas:** 361 en verde. 15 contratos de venta y 26 mutaciones en
+  `verify:venta`, enganchado a `pnpm verify`.
+- **Verificado con:** `pnpm verify` completa —lint, typecheck, primitivas,
+  residuos, 28 archivos de prueba, `verify:venta` y build de Next.
+- **Pendiente o riesgo:** sin `DATABASE_URL` no se ha ejecutado NADA contra
+  Postgres. Todo lo transaccional está verificado por tipos, contratos y
+  mutación estática, no en vivo. `cerrarCaja` no tiene pantalla; el corte se
+  invoca por API. Detalle en `docs/reports/004-claude-code-f1.1-venta.md`.
+- **Reclasificaciones:** ninguna.
 
 ## Carril B · B-07 · 2026-09-08 · Pantalla de configuración
 
@@ -186,7 +210,7 @@
 | Corte | Estado | Tareas | Última actualización |
 |---|---|---|---|
 | F1.0 Fundación | 🟨 12 de 13 · falta T05 en vivo | 12 / 13 | 2026-09-07 |
-| F1.1 Núcleo | 🟨 dos carriles en paralelo (A-45) · catálogo, gestión e inventario en curso | A: 1/22 · B: 12/24 | 2026-09-09 |
+| F1.1 Núcleo | 🟨 dos carriles en paralelo (A-45) · venta, catálogo, gestión e inventario operables | A: 10/22 · B: 12/24 | 2026-09-09 |
 | F1.2 Catálogo y venta | ⬜ No iniciado | 0 / 17 | — |
 | F1.3 Inventario y compras | ⬜ No iniciado | 0 / 16 | — |
 | F1.4 Restaurante | ⬜ No iniciado | 0 / 17 | — |

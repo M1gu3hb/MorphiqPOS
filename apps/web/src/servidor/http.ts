@@ -1,18 +1,16 @@
 import 'server-only';
 
-import { ESTADO_HTTP, type Paquete } from '@morphiqpos/contracts';
-import { comando } from '@morphiqpos/app/produccion';
-import {
-  ErrorNoAutenticado,
-  resolverAmbitoDesarrollo,
-  type SesionServidor,
-} from '@morphiqpos/app/puente-desarrollo';
+import { NOMBRE_COOKIE, leerCookie, type DefinicionServible } from '@morphiqpos/app/http';
+import { consultarSesionGestion, type SesionGestion } from '@morphiqpos/app/gestion';
+import { resolverSesion } from '@morphiqpos/app/sesion';
+import { ESTADO_HTTP, validarEntorno, type Paquete } from '@morphiqpos/contracts';
 import type { ZodType } from 'zod';
 
 import { peticionDeEscrituraValida } from './seguridad-http';
+import { manejadorDeComando } from './ruta';
 
 export async function ejecutarComandoHttp<E extends ZodType, S>(
-  definicion: Parameters<typeof comando<E, S>>[0],
+  definicion: DefinicionServible<E, S>,
   peticion: Request,
 ): Promise<Response> {
   if (!peticionDeEscrituraValida(peticion)) {
@@ -21,31 +19,22 @@ export async function ejecutarComandoHttp<E extends ZodType, S>(
     });
   }
 
-  try {
-    const entrada: unknown = await peticion.json();
-    const ambito = await resolverAmbitoDesarrollo();
-    const idempotencyKey = peticion.headers.get('idempotency-key');
-    const correlationId = peticion.headers.get('x-correlation-id');
-    const salida = await comando(definicion, {
-      entrada,
-      ambito,
-      ...(idempotencyKey === null ? {} : { idempotencyKey }),
-      ...(correlationId === null ? {} : { correlationId }),
-    });
-    return Response.json(salida, {
-      status: salida.ok ? 200 : ESTADO_HTTP[salida.error.codigo],
-    });
-  } catch (error) {
-    return responderError(error);
-  }
+  return manejadorDeComando(definicion)(peticion);
 }
 
 export async function responderConsulta<T>(
-  consulta: (sesion: SesionServidor) => T | Promise<T>,
+  peticion: Request,
+  consulta: (sesion: SesionGestion) => T | Promise<T>,
   paquetes?: readonly Paquete[],
 ): Promise<Response> {
   try {
-    const sesion = await resolverAmbitoDesarrollo();
+    const entorno = validarEntorno(process.env);
+    const resultadoSesion = await resolverSesion({
+      secreto: entorno.SESSION_SECRET,
+      token: leerCookie(peticion.headers.get('cookie'), NOMBRE_COOKIE),
+    });
+    if (!resultadoSesion.ok) return responderSesionFallida(resultadoSesion.motivo);
+    const sesion = await consultarSesionGestion(resultadoSesion.ambito);
     if (paquetes !== undefined && !paquetes.includes(sesion.paquete)) {
       return Response.json(
         errorHttp('PAQUETE_NO_INCLUYE', 'El paquete activo no incluye esta función.'),
@@ -61,15 +50,25 @@ export async function responderConsulta<T>(
 }
 
 function responderError(error: unknown): Response {
-  if (error instanceof ErrorNoAutenticado) {
-    return Response.json(errorHttp('NO_AUTENTICADO', 'Inicia sesión para continuar.'), {
-      status: ESTADO_HTTP.NO_AUTENTICADO,
-    });
-  }
   console.error('[api] fallo no controlado', error);
   return Response.json(errorHttp('ERROR_INTERNO', 'No fue posible completar la operación.'), {
     status: ESTADO_HTTP.ERROR_INTERNO,
   });
+}
+
+function responderSesionFallida(
+  motivo: 'ausente' | 'invalida' | 'expirada' | 'revocada',
+): Response {
+  const revocada = motivo === 'revocada';
+  return Response.json(
+    errorHttp(
+      revocada ? 'SIN_PERMISO' : 'NO_AUTENTICADO',
+      revocada
+        ? 'Tu acceso cambió. Pide a un encargado que lo revise.'
+        : 'Inicia sesión para continuar.',
+    ),
+    { status: revocada ? ESTADO_HTTP.SIN_PERMISO : ESTADO_HTTP.NO_AUTENTICADO },
+  );
 }
 
 function errorHttp(

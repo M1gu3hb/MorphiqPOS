@@ -4,6 +4,6 @@ import { responderConsulta } from '../../../../src/servidor/http';
 
 export const dynamic = 'force-dynamic';
 
-export function GET(): Promise<Response> {
-  return responderConsulta((sesion) => consultarInicioProduccion(sesion));
+export function GET(peticion: Request): Promise<Response> {
+  return responderConsulta(peticion, (sesion) => consultarInicioProduccion(sesion));
 }

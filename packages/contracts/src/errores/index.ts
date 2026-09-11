@@ -32,6 +32,25 @@ export const CODIGOS_ERROR = {
   /** Los puntos base de un porcentaje no son un entero. */
   DINERO_PORCENTAJE_INVALIDO: 'DINERO_PORCENTAJE_INVALIDO',
 
+  // --- venta y caja (F1.1 carril A) ---
+  /** No hay terminal enrolada: sin ella no se puede vender ni abrir caja. */
+  VENTA_SIN_TERMINAL: 'VENTA_SIN_TERMINAL',
+  /** El producto no existe, esta archivado, o es de otra organizacion. */
+  PRODUCTO_NO_ENCONTRADO: 'PRODUCTO_NO_ENCONTRADO',
+  ORDEN_NO_ENCONTRADA: 'ORDEN_NO_ENCONTRADA',
+  /** La orden ya se cobro o se cancelo. R14: no hay `update` libre de estado. */
+  ORDEN_NO_EDITABLE: 'ORDEN_NO_EDITABLE',
+  ORDEN_VACIA: 'ORDEN_VACIA',
+  LINEA_NO_ENCONTRADA: 'LINEA_NO_ENCONTRADA',
+  /** Lo que suman los pagos no es lo que cuesta la orden. */
+  PAGO_NO_CUADRA: 'PAGO_NO_CUADRA',
+  /** El cliente no dio suficiente efectivo para el importe de ese renglon. */
+  EFECTIVO_INSUFICIENTE: 'EFECTIVO_INSUFICIENTE',
+  /** El total que traia la pantalla ya no es el vigente. */
+  TOTAL_DESACTUALIZADO: 'TOTAL_DESACTUALIZADO',
+  CAJA_CERRADA: 'CAJA_CERRADA',
+  CAJA_YA_ABIERTA: 'CAJA_YA_ABIERTA',
+
   // --- andamiaje de pruebas ---
   /** Se pidio interrumpir despues de un paso que no existe (inyeccion de fallos). */
   PASO_INEXISTENTE: 'PASO_INEXISTENTE',
