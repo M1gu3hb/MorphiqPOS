@@ -2,6 +2,7 @@ import { validarEntorno } from '@morphiqpos/contracts';
 import { cookieDeSesion, leerCookie, permitir } from '@morphiqpos/app/http';
 import { entrarConPin } from '@morphiqpos/app/identidad';
 import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
+import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
 import { etiquetaDeRol, rolMH } from '@morphiqpos/app/puente';
 import { z } from 'zod';
 
@@ -35,6 +36,9 @@ const Entrada = z.object({
 
 export async function POST(peticion: Request): Promise<Response> {
   const entorno = validarEntorno(process.env);
+  const correlationId = correlationIdDe(
+    peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion'),
+  );
 
   // Origen propio y cabecera de la aplicación: un formulario de otro sitio no
   // puede montar esta petición sin disparar el preflight de CORS.
@@ -76,8 +80,14 @@ export async function POST(peticion: Request): Promise<Response> {
   let organizacionId: string;
   try {
     organizacionId = (await negocioDelDespliegue(entorno.ORGANIZACION)).organizacionId;
-  } catch (error) {
-    console.error('[auth/entrar] no se pudo resolver el negocio', error);
+  } catch {
+    registrar({
+      nivel: 'error',
+      modulo: 'auth_entrar',
+      correlationId,
+      organizacionId: null,
+      mensaje: 'No se pudo resolver el negocio.',
+    });
     return json(500, {
       ok: false,
       error: { codigo: 'ERROR_INTERNO', mensaje: 'No fue posible completar la operación.' },

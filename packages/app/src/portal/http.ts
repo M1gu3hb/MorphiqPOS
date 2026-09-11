@@ -5,6 +5,7 @@ import type { ZodType } from 'zod';
 
 import { negocioDelDespliegue } from '../negocio/despliegue.ts';
 import { cuerpoDentroDelLimite } from '../http/limite-cuerpo.ts';
+import { correlationIdDe, registrar } from '../observabilidad.ts';
 import { ejecutarComandoPublico } from './comando-publico.ts';
 import type { ComandoPublico } from './definicion-publica.ts';
 import { payloadDelPortal, type PayloadPortal } from './consulta.ts';
@@ -119,7 +120,7 @@ export async function servirPortal(token: string): Promise<RespuestaDelPortal> {
     const datos: PayloadPortal = await payloadDelPortal(organizacionId, token, pimienta);
     return respuesta(200, { ok: true, datos });
   } catch (error) {
-    return respuestaDeError(error, 'publico.qr');
+    return respuestaDeError(error, 'publico.qr', {});
   }
 }
 
@@ -146,16 +147,18 @@ export function manejadorPublico<E extends ZodType, S>(definicion: ComandoPublic
       return errorHttp(400, 'ENTRADA_INVALIDA', 'El cuerpo de la petición no es JSON.');
     }
 
+    const correlationId = correlationIdDe(
+      peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion'),
+    );
+
     let despliegue: Despliegue;
     try {
       despliegue = await resolverDespliegue();
     } catch (error) {
-      return respuestaDeError(error, definicion.nombre);
+      return respuestaDeError(error, definicion.nombre, { correlationId });
     }
 
     const clave = peticion.headers.get('idempotency-key');
-    const correlacion =
-      peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion');
 
     const salida = await ejecutarComandoPublico(definicion, {
       token,
@@ -163,7 +166,7 @@ export function manejadorPublico<E extends ZodType, S>(definicion: ComandoPublic
       pimienta: despliegue.pimienta,
       entrada,
       ...(clave === null ? {} : { idempotencyKey: clave }),
-      ...(correlacion === null ? {} : { correlationId: correlacion }),
+      correlationId,
     });
 
     return respuesta(estadoDe(salida), salida, salida.correlationId);
@@ -177,19 +180,43 @@ export function manejadorPublico<E extends ZodType, S>(definicion: ComandoPublic
  * devuelven su unión. Un `ErrorDominio` conserva su código y su mensaje —están
  * escritos para el comensal—; cualquier otra cosa se queda en el servidor.
  */
-function respuestaDeError(error: unknown, donde: string): RespuestaDelPortal {
+function respuestaDeError(
+  error: unknown,
+  donde: string,
+  contexto: { readonly correlationId?: string; readonly organizacionId?: string },
+): RespuestaDelPortal {
+  const correlationId = correlationIdDe(contexto.correlationId);
   if (esErrorDominio(error)) {
     const estado = ESTADO_POR_REGLA[error.codigo] ?? ESTADO_HTTP.REGLA_DE_NEGOCIO;
-    return respuesta(estado, {
-      ok: false,
-      error: { codigo: 'REGLA_DE_NEGOCIO', mensaje: error.message, datos: { regla: error.codigo } },
-    });
+    return respuesta(
+      estado,
+      {
+        ok: false,
+        error: {
+          codigo: 'REGLA_DE_NEGOCIO',
+          mensaje: error.message,
+          datos: { regla: error.codigo },
+        },
+        correlationId,
+      },
+      correlationId,
+    );
   }
 
-  console.error(`[portal] ${donde} falló:`, error);
-  return errorHttp(
+  registrar({
+    nivel: 'error',
+    modulo: 'portal_http',
+    correlationId,
+    organizacionId: contexto.organizacionId ?? null,
+    mensaje: `${donde} fallo.`,
+  });
+  return respuesta(
     ESTADO_HTTP.ERROR_INTERNO,
-    'ERROR_INTERNO',
-    'No fue posible completar la operación.',
+    {
+      ok: false,
+      error: { codigo: 'ERROR_INTERNO', mensaje: 'No fue posible completar la operación.' },
+      correlationId,
+    },
+    correlationId,
   );
 }

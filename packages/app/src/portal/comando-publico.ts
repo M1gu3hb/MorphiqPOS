@@ -6,6 +6,7 @@ import type { ZodType } from 'zod';
 
 import { fallo, validar } from '../errores.ts';
 import { atenderReintento, PasoInexistente, Rechazo, Reintento, SinRastro } from '../fallos.ts';
+import { registrar } from '../observabilidad.ts';
 import { payloadDeAuditoria } from '../saneado.ts';
 import { buscadorDeProduccion, resolverAmbitoPortal } from './ambito.ts';
 import { banderasDe } from './banderas.ts';
@@ -75,7 +76,10 @@ export async function ejecutarComandoPublico<E extends ZodType, S>(
   // El límite se cuenta ANTES de tocar nada y FUERA de la transacción: un
   // intento fallido gasta cuota igual, o barrer el endpoint con entradas
   // inválidas saldría gratis.
-  const permiso = await permitirPortal(definicion.accion, peticion.token, peticion.pimienta);
+  const permiso = await permitirPortal(definicion.accion, peticion.token, peticion.pimienta, {
+    correlationId,
+    organizacionId: peticion.organizacionId,
+  });
   if (!permiso.ok) {
     return {
       ok: false,
@@ -279,6 +283,12 @@ async function traducirFallo<S>(error: unknown, ctx: ContextoFallo): Promise<Res
 
   // El mensaje original se queda en el servidor: filtrarlo revela nombres de
   // tablas y de índices a un desconocido, que es peor aquí que en gestión.
-  console.error(`[portal] ${ctx.comando} falló (correlationId ${correlationId}):`, error);
+  registrar({
+    nivel: 'error',
+    modulo: 'portal_comando',
+    correlationId,
+    organizacionId: ctx.organizacionId,
+    mensaje: `${ctx.comando} fallo.`,
+  });
   return { ok: false, error: fallo('ERROR_INTERNO'), correlationId };
 }

@@ -9,6 +9,7 @@ import {
 } from '@morphiqpos/contracts';
 import { comando } from '@morphiqpos/app/produccion';
 import { cuerpoDentroDelLimite, leerCookie, NOMBRE_COOKIE } from '@morphiqpos/app/http';
+import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
 import { resolverSesion, type SesionDeNegocio } from '@morphiqpos/app/sesion';
 import { headers } from 'next/headers';
 import type { ZodType } from 'zod';
@@ -84,23 +85,28 @@ export async function ejecutarComandoHttp<E extends ZodType, S>(
   const sesion = await sesionDeLaPeticion(peticion.headers.get('cookie'));
   if (!sesion.ok) return sesion.respuesta;
 
+  const correlationId = correlationIdDe(
+    peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion'),
+  );
+
   try {
     const entrada: unknown = await peticion.json();
     const idempotencyKey = peticion.headers.get('idempotency-key');
-    const correlationId =
-      peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion');
     const salida = await comando(definicion, {
       entrada,
       ambito: sesion.sesion,
       ...(idempotencyKey === null ? {} : { idempotencyKey }),
-      ...(correlationId === null ? {} : { correlationId }),
+      correlationId,
     });
     return Response.json(salida, {
       status: salida.ok ? 200 : ESTADO_HTTP[salida.error.codigo],
       headers: { 'cache-control': 'no-store' },
     });
   } catch (error) {
-    return responderError(error);
+    return responderError(error, {
+      correlationId,
+      organizacionId: sesion.sesion.organizacionId,
+    });
   }
 }
 
@@ -135,12 +141,19 @@ export async function conSesion<T>(
   const sesion = await sesionDeLaPeticion(peticion.headers.get('cookie'));
   if (!sesion.ok) return sesion.respuesta;
 
+  const correlationId = correlationIdDe(
+    peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion'),
+  );
+
   try {
     const salida = await fn(sesion.sesion);
     if (salida instanceof Response) return salida;
     return Response.json({ ok: true, datos: salida }, { headers: { 'cache-control': 'no-store' } });
   } catch (error) {
-    return respuestaDeDominio(error) ?? responderError(error);
+    return (
+      respuestaDeDominio(error, correlationId) ??
+      responderError(error, { correlationId, organizacionId: sesion.sesion.organizacionId })
+    );
   }
 }
 
@@ -152,7 +165,7 @@ export async function conSesion<T>(
  * dice «se rompió el servidor»; aquí lo que pasó es que la petición estaba mal,
  * y decirlo bien es lo que permite arreglarla.
  */
-function respuestaDeDominio(error: unknown): Response | null {
+function respuestaDeDominio(error: unknown, correlationId: string): Response | null {
   if (!esErrorDominio(error)) return null;
   const estados: Readonly<Record<string, number>> = {
     PUENTE_ENTIDAD_DESCONOCIDA: 400,
@@ -165,7 +178,7 @@ function respuestaDeDominio(error: unknown): Response | null {
     {
       ok: false,
       error: { codigo: error.codigo, mensaje: error.message },
-      correlationId: crypto.randomUUID(),
+      correlationId,
     },
     { status: estado, headers: { 'cache-control': 'no-store' } },
   );
@@ -182,8 +195,12 @@ export async function responderConsulta<T>(
 ): Promise<Response> {
   // Las rutas GET de gestión no reciben el `Request`, así que la cookie se lee
   // del contexto de Next. `headers()` es asíncrono desde Next 15.
-  const sesion = await sesionDeLaPeticion((await headers()).get('cookie'));
+  const cabeceras = await headers();
+  const sesion = await sesionDeLaPeticion(cabeceras.get('cookie'));
   if (!sesion.ok) return sesion.respuesta;
+  const correlationId = correlationIdDe(
+    cabeceras.get('x-correlation-id') ?? cabeceras.get('x-morphiqpos-correlacion'),
+  );
 
   if (!rolPermitidoParaConsulta(sesion.sesion.rol, opciones.roles)) {
     return Response.json(errorHttp('SIN_PERMISO', 'Tu rol no permite consultar este recurso.'), {
@@ -206,15 +223,31 @@ export async function responderConsulta<T>(
       { headers: { 'cache-control': 'no-store' } },
     );
   } catch (error) {
-    return responderError(error);
+    return responderError(error, {
+      correlationId,
+      organizacionId: sesion.sesion.organizacionId,
+    });
   }
 }
 
-function responderError(error: unknown): Response {
-  console.error('[api] fallo no controlado', error);
-  return Response.json(errorHttp('ERROR_INTERNO', 'No fue posible completar la operación.'), {
-    status: ESTADO_HTTP.ERROR_INTERNO,
+function responderError(
+  _error: unknown,
+  contexto: { readonly correlationId: string; readonly organizacionId: string },
+): Response {
+  registrar({
+    nivel: 'error',
+    modulo: 'api',
+    correlationId: contexto.correlationId,
+    organizacionId: contexto.organizacionId,
+    mensaje: 'Fallo no controlado.',
   });
+  return Response.json(
+    errorHttp('ERROR_INTERNO', 'No fue posible completar la operación.', contexto.correlationId),
+    {
+      status: ESTADO_HTTP.ERROR_INTERNO,
+      headers: { 'x-correlation-id': contexto.correlationId },
+    },
+  );
 }
 
 function errorHttp(
@@ -225,6 +258,7 @@ function errorHttp(
     | 'CUERPO_DEMASIADO_GRANDE'
     | 'ERROR_INTERNO',
   mensaje: string,
+  correlationId: string = crypto.randomUUID(),
 ) {
-  return { ok: false, error: { codigo, mensaje }, correlationId: crypto.randomUUID() } as const;
+  return { ok: false, error: { codigo, mensaje }, correlationId } as const;
 }

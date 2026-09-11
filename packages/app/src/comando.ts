@@ -12,6 +12,7 @@ import { fallo, mensajeDe, validar } from './errores.ts';
 import { atenderReintento, PasoInexistente, Rechazo, Reintento, SinRastro } from './fallos.ts';
 import type { RepositorioComandos } from './repositorio.ts';
 import { huella } from './saneado.ts';
+import { registrar } from './observabilidad.ts';
 
 export { definirComando } from './definicion.ts';
 export type { ContextoComando, DefinicionComando } from './definicion.ts';
@@ -252,10 +253,13 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
       // El mensaje original se queda en el servidor: filtrarlo revela nombres
       // de tablas e índices. El correlation id es lo que une esto con la
       // auditoría y con el registro del servidor.
-      console.error(
-        `[comando] ${definicion.nombre} falló (correlationId ${correlationId}):`,
-        error,
-      );
+      registrar({
+        nivel: 'error',
+        modulo: 'comando',
+        correlationId,
+        organizacionId: ambito.organizacionId,
+        mensaje: `${definicion.nombre} fallo.`,
+      });
       return { ok: false, error: fallo('ERROR_INTERNO'), correlationId };
     }
   };

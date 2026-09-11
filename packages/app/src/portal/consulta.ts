@@ -78,7 +78,7 @@ export async function payloadDelPortal(
   token: string,
   pimienta: string,
 ): Promise<PayloadPortal> {
-  const permiso = await permitirPortal('consulta', token, pimienta);
+  const permiso = await permitirPortal('consulta', token, pimienta, { organizacionId });
   if (!permiso.ok) {
     throw new ErrorDominio(
       'QR_DEMASIADAS_PETICIONES',

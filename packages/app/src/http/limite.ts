@@ -4,6 +4,8 @@ import { createHmac } from 'node:crypto';
 
 import { repoLimite } from '@morphiqpos/data';
 
+import { correlationIdDe, registrar } from '../observabilidad.ts';
+
 /**
  * Límite de tasa por origen (F1.1-C-13).
  *
@@ -98,8 +100,16 @@ export async function permitir(
   try {
     const { intentos, esperaSegundos } = await repoLimite.contarIntento(clave, ventanaSegundos);
     return { ok: intentos <= maximo, esperaSegundos };
-  } catch (error) {
-    console.error('[limite] no se pudo contar el intento', error);
+  } catch {
+    registrar({
+      nivel: 'alerta',
+      modulo: 'limite_tasa',
+      correlationId: correlationIdDe(
+        cabeceras.get('x-correlation-id') ?? cabeceras.get('x-morphiqpos-correlacion'),
+      ),
+      organizacionId: null,
+      mensaje: `No se pudo contar el intento de ${accion}.`,
+    });
     return { ok: true, esperaSegundos: 0 };
   }
 }

@@ -2,6 +2,7 @@ import type { Ambito } from '@morphiqpos/contracts';
 
 import type { RepositorioComandos } from './repositorio.ts';
 import { payloadDeAuditoria } from './saneado.ts';
+import { registrar } from './observabilidad.ts';
 
 /**
  * La fila de auditoría que escribe el envoltorio.
@@ -85,13 +86,15 @@ export async function auditar<TX>(
 
   try {
     await repositorio.escribirAuditoria(null, fila);
-  } catch (error) {
+  } catch {
     // Ver el comentario de arriba: el rechazo ya está decidido y respondido.
     // Se registra por consola de servidor para no perderlo del todo.
-    console.error(
-      `[auditoria] no se pudo registrar el rechazo de ${definicion.nombre} ` +
-        `(correlationId ${correlationId}):`,
-      error,
-    );
+    registrar({
+      nivel: 'alerta',
+      modulo: 'auditoria',
+      correlationId,
+      organizacionId: ambito.organizacionId,
+      mensaje: `No se pudo registrar el rechazo de ${definicion.nombre}.`,
+    });
   }
 }

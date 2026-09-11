@@ -2,6 +2,7 @@ import { validarEntorno } from '@morphiqpos/contracts';
 import { leerCookie, permitir } from '@morphiqpos/app/http';
 import { empleadosParaEntrar } from '@morphiqpos/app/identidad';
 import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
+import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
 import { colorDePersona, etiquetaDeRol, rolMH } from '@morphiqpos/app/puente';
 
 import { NOMBRE_COOKIE_DISPOSITIVO } from '~/servidor/dispositivo';
@@ -23,6 +24,9 @@ export const runtime = 'nodejs';
 
 export async function GET(peticion: Request): Promise<Response> {
   const entorno = validarEntorno(process.env);
+  const correlationId = correlationIdDe(
+    peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion'),
+  );
   const permiso = await permitir('entrar', peticion.headers, entorno.PIN_PEPPER);
   if (!permiso.ok) {
     return json(429, {
@@ -56,11 +60,17 @@ export async function GET(peticion: Request): Promise<Response> {
       ok: true,
       datos: { negocio: negocio.nombre, usuarios, empleados },
     });
-  } catch (error) {
+  } catch {
     // Un despliegue mal configurado tiene que decirlo en la consola del
     // servidor con su mensaje entero. Al navegador se le da lo justo: la
     // pantalla ya sabe ensenar «no pudimos cargar los usuarios · Reintentar».
-    console.error('[auth/empleados] no se pudo resolver el negocio', error);
+    registrar({
+      nivel: 'error',
+      modulo: 'auth_empleados',
+      correlationId,
+      organizacionId: null,
+      mensaje: 'No se pudo resolver el negocio.',
+    });
     return json(500, {
       ok: false,
       error: { codigo: 'ERROR_INTERNO', mensaje: 'No fue posible cargar los usuarios.' },

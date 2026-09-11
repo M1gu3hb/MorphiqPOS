@@ -26,7 +26,8 @@
     "./propinas": "./src/propinas/index.ts",
     "./portal": "./src/portal/index.ts",
     "./mantenimiento": "./src/mantenimiento/index.ts",
-    "./puente-presentacion": "./src/puente/presentacion.ts"
+    "./puente-presentacion": "./src/puente/presentacion.ts",
+    "./observabilidad": "./src/observabilidad.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

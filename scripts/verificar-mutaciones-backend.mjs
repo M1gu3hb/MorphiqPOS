@@ -135,6 +135,13 @@ const CONFIG_NEXT = join(RAIZ, 'apps', 'web', 'next.config.mjs');
 const VERIFICADOR_CABECERAS = join(RAIZ, 'scripts', 'verificar-cabeceras.mjs');
 const PRUEBA_CABECERAS = 'apps/web/src/seguridad/cabeceras.test.ts';
 const PRUEBA_CORRELACION = 'apps/web/src/servidor/correlacion.test.ts';
+const OBSERVABILIDAD = join(RAIZ, 'packages', 'app', 'src', 'observabilidad.ts');
+const AUDITORIA = join(RAIZ, 'packages', 'app', 'src', 'auditoria.ts');
+const ENVOLTORIO_COMANDO = join(RAIZ, 'packages', 'app', 'src', 'comando.ts');
+const LIMITE_PORTAL = join(RAIZ, 'packages', 'app', 'src', 'portal', 'limite.ts');
+const RUTA_AUTH_ENTRAR = join(RAIZ, 'apps', 'web', 'app', 'api', 'auth', 'entrar', 'route.ts');
+const PRUEBA_OBSERVABILIDAD = 'packages/app/src/observabilidad.test.ts';
+const PRUEBA_ADOPCION_OBSERVABILIDAD = 'apps/web/src/servidor/observabilidad-backend.test.ts';
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -703,6 +710,48 @@ for (const [nombre, origen, variable] of [
     variable,
     prueba: PRUEBA_CORRELACION,
     transformar: (codigo) =>
-      codigo.replace('x-morphiqpos-correlacion', 'x-morphiqpos-correlacion-omitida'),
+      codigo.replaceAll('x-morphiqpos-correlacion', 'x-morphiqpos-correlacion-omitida'),
+  });
+}
+comprobarMutacion({
+  nombre: 'registrador estructurado devuelto a texto libre',
+  origen: OBSERVABILIDAD,
+  archivoTemporal: 'observabilidad.ts',
+  variable: 'MORPHIQPOS_LOGGER_SOURCE_PATH',
+  prueba: PRUEBA_OBSERVABILIDAD,
+  transformar: (codigo) =>
+    codigo.replace('console.error(JSON.stringify(evento))', 'console.error(evento.mensaje)'),
+});
+for (const [nombre, origen, variable] of [
+  ['auditoria', AUDITORIA, 'MORPHIQPOS_LOG_AUDITORIA_SOURCE_PATH'],
+  ['comando', ENVOLTORIO_COMANDO, 'MORPHIQPOS_LOG_COMANDO_SOURCE_PATH'],
+  ['limite', LIMITE_APLICACION, 'MORPHIQPOS_LOG_LIMITE_SOURCE_PATH'],
+  ['portal comando', COMANDO_PUBLICO, 'MORPHIQPOS_LOG_PORTAL_COMANDO_SOURCE_PATH'],
+  ['portal http', HTTP_PORTAL, 'MORPHIQPOS_LOG_PORTAL_HTTP_SOURCE_PATH'],
+  ['portal limite', LIMITE_PORTAL, 'MORPHIQPOS_LOG_PORTAL_LIMITE_SOURCE_PATH'],
+  ['http web', HTTP_WEB, 'MORPHIQPOS_LOG_HTTP_WEB_SOURCE_PATH'],
+  ['auth entrar', RUTA_AUTH_ENTRAR, 'MORPHIQPOS_LOG_AUTH_ENTRAR_SOURCE_PATH'],
+  ['auth empleados', RUTA_EMPLEADOS_PUBLICOS, 'MORPHIQPOS_LOG_AUTH_EMPLEADOS_SOURCE_PATH'],
+]) {
+  comprobarMutacion({
+    nombre: `registro estructurado omitido en ${nombre}`,
+    origen,
+    archivoTemporal: 'registro.ts',
+    variable,
+    prueba: PRUEBA_ADOPCION_OBSERVABILIDAD,
+    transformar: (codigo) => codigo.replace('registrar({', 'console.error({'),
+  });
+}
+for (const [nombre, origen, variable] of [
+  ['limite', LIMITE_APLICACION, 'MORPHIQPOS_LOG_LIMITE_SOURCE_PATH'],
+  ['portal limite', LIMITE_PORTAL, 'MORPHIQPOS_LOG_PORTAL_LIMITE_SOURCE_PATH'],
+]) {
+  comprobarMutacion({
+    nombre: `alerta del contador degradada en ${nombre}`,
+    origen,
+    archivoTemporal: 'limite.ts',
+    variable,
+    prueba: PRUEBA_ADOPCION_OBSERVABILIDAD,
+    transformar: (codigo) => codigo.replace("nivel: 'alerta'", "nivel: 'error'"),
   });
 }
