@@ -84,7 +84,7 @@ describe('el folio de liquidación · la segunda sucursal también liquida', () 
     // Mutación que la hace fallar: devolver `tomarFolio(tx, org, sucursal,'LIQ')`
     // de `repoFolios` al paso `tomar_folio` — el contador POR SUCURSAL que hacía
     // chocar a la segunda sucursal contra `liquidaciones_folio_unico`.
-    const banco = armarBanco('restaurante', respuestasFelices('6', [ORDEN_A]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('6', [ORDEN_A]));
 
     const salida = await liquidar(banco, {
       entrada: ENTRADA,
@@ -105,8 +105,8 @@ describe('el folio de liquidación · la segunda sucursal también liquida', () 
   it('Centro y Norte, misma organización, salen con folios distintos', async () => {
     // Mutación que la hace fallar: la misma de arriba. Con el contador por
     // sucursal las dos leen su propio 1 y Norte choca con 23505 para siempre.
-    const centro = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A]));
-    const norte = armarBanco('restaurante', respuestasFelices('1', [ORDEN_B]));
+    const centro = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A]));
+    const norte = armarBanco('restaurante_pro', respuestasFelices('1', [ORDEN_B]));
 
     const enCentro = await liquidar(centro, {
       entrada: ENTRADA,
@@ -131,7 +131,7 @@ describe('el folio de liquidación · la segunda sucursal también liquida', () 
     // Mutación que la hace fallar: borrar el `pg_advisory_xact_lock` de
     // `folio.ts`. Sin él, dos sucursales leen el mismo `max` y las dos insertan
     // el mismo folio.
-    const banco = armarBanco('restaurante', respuestasFelices('3', [ORDEN_A]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('3', [ORDEN_A]));
 
     await liquidar(banco, { entrada: ENTRADA, ambito: CENTRO, idempotencyKey: 'liq-cerrojo-1' });
 
@@ -146,7 +146,7 @@ describe('el importe lo pone el servidor', () => {
   it('el total grabado es la suma de los pagos reclamados, no un número del cliente', async () => {
     // Mutación que la hace fallar: fijar `total_centavos: 1n` en el paso
     // `fijar_total`, que es uno de los tres sabotajes del verificador.
-    const banco = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A, ORDEN_B]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A, ORDEN_B]));
 
     const datos = datosDe(
       await liquidar(banco, { entrada: ENTRADA, ambito: CENTRO, idempotencyKey: 'liq-total-srv' }),
@@ -163,7 +163,7 @@ describe('el importe lo pone el servidor', () => {
     // `validar` pone el esquema en modo estricto (`errores.ts:75-78`), así que
     // `total_liquidado` —lo que hoy manda `LiquidarPropinasDialog.jsx:103`
     // calculado en el navegador— ni siquiera llega a la base.
-    const banco = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A]));
 
     const salida = await liquidar(banco, {
       entrada: { ...ENTRADA, totalCentavos: 999_999 },
@@ -179,7 +179,7 @@ describe('el importe lo pone el servidor', () => {
   it('el desglose por método es exacto: 500 y 300, nunca un reparto', async () => {
     // Mutación que la hace fallar: repartir el total en proporción a las ventas
     // (70 % / 30 % de 800 daría 560 y 240).
-    const banco = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A]));
 
     const datos = datosDe(
       await liquidar(banco, { entrada: ENTRADA, ambito: CENTRO, idempotencyKey: 'liq-desglose1' }),
@@ -198,7 +198,7 @@ describe('la guarda de doble liquidación', () => {
   it('si una de las órdenes ya estaba liquidada, aborta TODO y revierte', async () => {
     // Mutación que la hace fallar: sustituir `if (problema !== null) throw
     // problema;` por `void problema;` — el segundo sabotaje del verificador.
-    const banco = armarBanco('restaurante', [
+    const banco = armarBanco('restaurante_pro', [
       [],
       [{ siguiente: '1' }],
       [{ id: LIQUIDACION }],
@@ -223,7 +223,7 @@ describe('la guarda de doble liquidación', () => {
     // Mutación que la hace fallar: pasar `ordenIds: null` a `reclamarOrdenes` —
     // el tercer sabotaje del verificador: liquida el periodo entero en vez de la
     // lista que el administrador aprobó.
-    const banco = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A, ORDEN_B]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A, ORDEN_B]));
 
     await liquidar(banco, {
       entrada: { ...ENTRADA, ordenIds: [ORDEN_A, ORDEN_B] },
@@ -240,7 +240,7 @@ describe('la guarda de doble liquidación', () => {
     // Mutación que la hace fallar: quitar el `new Set` de `solicitadas`. Con la
     // lista duplicada, `solicitadas.length` 2 contra `reclamadas.length` 1 hacía
     // saltar LIQUIDACION_INVALIDA sobre una pantalla correcta.
-    const banco = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A]));
 
     const salida = await liquidar(banco, {
       entrada: { ...ENTRADA, ordenIds: [ORDEN_A, ORDEN_A] },
@@ -259,7 +259,7 @@ describe('la lista vacía explícita', () => {
   it('el esquema la rechaza antes de tocar la base', async () => {
     // Mutación que la hace fallar: quitar `.min(1)` de `ordenIds` en
     // `esquemas.ts`. Entonces `[]` valida y el comando liquida el mes entero.
-    const banco = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A]));
 
     const salida = await liquidar(banco, {
       entrada: { ...ENTRADA, ordenIds: [] },
@@ -275,7 +275,12 @@ describe('la lista vacía explícita', () => {
     // La otra mitad de la guarda, llamando por debajo de zod. Mutación que la
     // hace fallar: volver a `solicitadas.length === 0 ? null : [...]` en
     // `liquidar.ts`, que convertía «ninguna orden» en «sin filtro de ids».
-    const banco = armarBanco('restaurante', [[], [{ siguiente: '1' }], [{ id: LIQUIDACION }], []]);
+    const banco = armarBanco('restaurante_pro', [
+      [],
+      [{ siguiente: '1' }],
+      [{ id: LIQUIDACION }],
+      [],
+    ]);
 
     await expect(
       liquidarPropinas.ejecutar(contextoDe(banco, CENTRO), { ...ENTRADA, ordenIds: [] }),
@@ -294,7 +299,7 @@ describe('el ámbito de sucursal', () => {
     // Mutación que la hace fallar: quitar `and o.sucursal_id = …` de
     // `condicionPendiente`. Con eso, Centro reclama las propinas de Norte y las
     // sella contra su propia caja.
-    const banco = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A]));
 
     await liquidar(banco, { entrada: ENTRADA, ambito: NORTE, idempotencyKey: 'liq-sucursal1' });
 
@@ -306,7 +311,7 @@ describe('el ámbito de sucursal', () => {
   });
 
   it('sin sucursal en la sesión no se liquida nada', async () => {
-    const banco = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A]));
 
     const salida = await liquidar(banco, {
       entrada: ENTRADA,
@@ -321,7 +326,7 @@ describe('el ámbito de sucursal', () => {
   it('las tres lecturas de pendientes también se acotan a la sucursal', async () => {
     // Mutación que la hace fallar: la misma. Sin ella, un cajero de Norte lee el
     // nombre y el importe de propina de cada mesero de Centro.
-    const banco = armarBanco('restaurante', [[], [], []]);
+    const banco = armarBanco('restaurante_pro', [[], [], []]);
 
     const salida = await banco.ejecutar(propinasPendientes, {
       entrada: { desde: ENTRADA.desde, hasta: ENTRADA.hasta },
@@ -337,7 +342,7 @@ describe('el ámbito de sucursal', () => {
   it('sin sucursal, pendientes falla en voz alta en vez de leer toda la organización', async () => {
     // Mutación que la hace fallar: quitar la guarda de `consultas.ts` y dejar
     // que el filtro se arme sin sucursal.
-    const banco = armarBanco('restaurante', [[], [], []]);
+    const banco = armarBanco('restaurante_pro', [[], [], []]);
 
     const salida = await banco.ejecutar(propinasPendientes, {
       entrada: { desde: ENTRADA.desde, hasta: ENTRADA.hasta },
@@ -356,7 +361,7 @@ describe('atomicidad', () => {
     // Mutación que la hace fallar: sacar `propinasPorMeseroDeOrdenes` de
     // `ctx.paso`. Entonces el comando llega hasta el final —siete consultas— y
     // no hay forma de probar la reversión en ese punto.
-    const banco = armarBanco('restaurante', respuestasFelices('0', [ORDEN_A]));
+    const banco = armarBanco('restaurante_pro', respuestasFelices('0', [ORDEN_A]));
 
     const salida = await liquidar(banco, {
       entrada: ENTRADA,

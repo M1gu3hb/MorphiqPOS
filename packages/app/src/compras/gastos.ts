@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { desdeTexto, negar } from '@morphiqpos/domain/dinero';
 import { sql } from 'kysely';
@@ -46,7 +46,7 @@ export const registrarGasto = definirComando<
   entidad: 'gasto',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaRegistrarGasto,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;
@@ -159,7 +159,7 @@ export const guardarPlantillaGasto = definirComando<
   entidad: 'plantilla_gasto',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaGuardarPlantillaGasto,
   async ejecutar(ctx, entrada) {
     const organizacionId = ctx.ambito.organizacionId;

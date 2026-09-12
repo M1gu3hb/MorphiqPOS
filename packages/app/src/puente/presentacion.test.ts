@@ -18,7 +18,7 @@ describe('B-2 · paquete efectivo de la organización', () => {
     for (const paquete of PAQUETES) {
       expect(cambiarPaquete.entrada.safeParse({ paquete }).success, paquete).toBe(true);
     }
-    expect(cambiarPaquete.entrada.safeParse({ paquete: 'restaurante_pro' }).success).toBe(false);
+    expect(cambiarPaquete.entrada.safeParse({ paquete: 'restaurante' }).success).toBe(false);
   });
 
   it('sólo lo puede ejecutar el dueño', () => {
@@ -26,22 +26,35 @@ describe('B-2 · paquete efectivo de la organización', () => {
   });
 
   it('escribe organizaciones.paquete, que es la fuente leída por comando()', async () => {
-    const { ctx, operaciones, auditorias } = contextoCatalogo([{ id: ctxId() }]);
+    const { ctx, operaciones, auditorias } = contextoCatalogo([
+      { giro: 'restaurante' },
+      { id: ctxId() },
+    ]);
 
     const salida = await cambiarPaquete.ejecutar(
       ctx,
-      cambiarPaquete.entrada.parse({ paquete: 'restaurante' }),
+      cambiarPaquete.entrada.parse({ paquete: 'restaurante_pro' }),
     );
 
-    expect(salida).toEqual({ paquete: 'restaurante' });
-    expect(operaciones).toHaveLength(1);
-    expect(operaciones[0]).toMatchObject({
+    expect(salida).toEqual({ paquete: 'restaurante_pro' });
+    expect(operaciones).toHaveLength(2);
+    expect(operaciones[1]).toMatchObject({
       tipo: 'update',
       tabla: 'organizaciones',
-      valores: { paquete: 'restaurante' },
+      valores: { paquete: 'restaurante_pro' },
       filtros: [{ columna: 'id', operador: '=', valor: ctx.ambito.organizacionId }],
     });
     expect(auditorias).toHaveLength(1);
+  });
+
+  it('rechaza Restaurante Pro para una tienda', async () => {
+    const { ctx, operaciones } = contextoCatalogo([{ giro: 'tienda' }]);
+
+    await expect(
+      cambiarPaquete.ejecutar(ctx, { paquete: 'restaurante_pro' }),
+    ).rejects.toMatchObject({ codigo: 'CONFIGURACION_INVALIDA' });
+    expect(operaciones).toHaveLength(1);
+    expect(operaciones[0]?.tipo).toBe('select');
   });
 
   it('no vuelve a escribir paquete_modo en el documento JSON', () => {

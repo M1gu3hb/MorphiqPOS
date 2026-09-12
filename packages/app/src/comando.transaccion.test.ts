@@ -22,13 +22,13 @@ const BASE = {
   entidad: 'orden',
   escribe: true,
   roles: ['cajero'],
-  paquetes: ['tienda'],
+  paquetes: ['esencial'],
   entrada: z.object({ ordenId: z.uuid() }),
 } as const;
 
 describe('comando() · todo o nada', () => {
   it('si el cuerpo lanza, nada queda confirmado', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar(ctx, entrada) {
@@ -53,7 +53,7 @@ describe('comando() · todo o nada', () => {
   });
 
   it('un comando exitoso confirma la transacción', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar(ctx, entrada) {
@@ -76,7 +76,7 @@ describe('comando() · todo o nada', () => {
 
 describe('comando() · inyección de fallo por nombre de paso', () => {
   it('interrumpe el paso indicado y revierte', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const alcanzados: string[] = [];
 
     const definicion = definirComando({
@@ -114,7 +114,7 @@ describe('comando() · inyección de fallo por nombre de paso', () => {
   it('interrumpir un paso que no existe es un error, no un silencio', async () => {
     // Un nombre mal escrito haría que la prueba de inyección pasara sin
     // interrumpir nada, y afirmaría una atomicidad que nadie probó.
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar(ctx, entrada) {
@@ -139,7 +139,7 @@ describe('comando() · inyección de fallo por nombre de paso', () => {
 
 describe('comando() · traducción de errores', () => {
   it('un ErrorDominio del cuerpo llega como REGLA_DE_NEGOCIO con su código', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar() {
@@ -160,7 +160,7 @@ describe('comando() · traducción de errores', () => {
   });
 
   it('un error inesperado NO filtra su mensaje al cliente', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar() {
@@ -187,7 +187,7 @@ describe('comando() · traducción de errores', () => {
 
 describe('comando() · correlation id', () => {
   it('respeta el que llega si es un uuid', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar(ctx, entrada) {
@@ -208,7 +208,7 @@ describe('comando() · correlation id', () => {
   });
 
   it('genera uno si el que llega no es un uuid, en vez de propagar basura', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar(ctx, entrada) {

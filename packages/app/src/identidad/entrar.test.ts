@@ -65,7 +65,7 @@ beforeEach(() => {
     empleoId: EMPLEO,
     rol: 'dueno',
     nombrePersona: 'Rosa',
-    paquete: 'restaurante',
+    paquete: 'restaurante_pro',
     nombreNegocio: 'Morphiq',
     nombreSucursal: null,
   });

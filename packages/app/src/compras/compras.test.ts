@@ -46,7 +46,7 @@ describe('E4-5 · los comandos se declaran igual siempre', () => {
     expect(guardarPlantillaCompra.nombre).toBe('compras.guardar_plantilla');
     for (const comando of [registrarCompra, usarPlantillaCompra, guardarPlantillaCompra]) {
       expect(comando.escribe).toBe(true);
-      expect(comando.paquetes).toHaveLength(5);
+      expect(comando.paquetes).toEqual(['operativo', 'restaurante_pro']);
     }
   });
 

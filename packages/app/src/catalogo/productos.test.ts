@@ -153,15 +153,9 @@ describe('B-04 · comandos de producto', () => {
     expect(operaciones.every((operacion) => operacion.valores !== undefined)).toBe(true);
   });
 
-  it('declara escritura, roles administrativos y los cinco paquetes', () => {
+  it('declara escritura, roles administrativos y los tres paquetes', () => {
     expect(crearProducto.escribe).toBe(true);
     expect(crearProducto.roles).toEqual(['dueno', 'administrador', 'gerente']);
-    expect(crearProducto.paquetes).toEqual([
-      'tienda',
-      'ferreteria',
-      'farmacia',
-      'cafeteria',
-      'restaurante',
-    ]);
+    expect(crearProducto.paquetes).toEqual(['esencial', 'operativo', 'restaurante_pro']);
   });
 });

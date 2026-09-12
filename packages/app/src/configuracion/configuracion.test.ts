@@ -22,7 +22,7 @@ const entrada = {
   colorPrimario: '#0f766e',
   colorAcento: '#f59e0b',
   estilo: 'editorial',
-  paquete: 'ferreteria',
+  paquete: 'operativo',
   // 800 puntos base = 8 %, el IVA de frontera. Se usa a propósito en vez del
   // 16 % general: si el comando ignorara la entrada y guardara su valor por
   // omisión, con 1600 la prueba pasaría igual (C-12).
@@ -115,7 +115,7 @@ describe('B-05 · configuración por organización', () => {
     const { ctx, operaciones } = contextoCatalogo([
       {
         nombre: 'Cafetería Jacaranda',
-        paquete: 'cafeteria',
+        paquete: 'operativo',
         version: 7,
         valores: { contacto: { telefono: '33 2000 1000' } },
       },
@@ -128,7 +128,7 @@ describe('B-05 · configuración por organización', () => {
 
     expect(salida).toMatchObject({
       nombreNegocio: 'Cafetería Jacaranda',
-      paquete: 'cafeteria',
+      paquete: 'operativo',
       version: 7,
       telefono: '33 2000 1000',
       direccion: null,
@@ -139,7 +139,7 @@ describe('B-05 · configuración por organización', () => {
   });
 
   it('el paquete se niega en el servidor con 403 antes del caso de uso', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const ejecutar = crearComando(fabrica);
     let ejecutado = false;
     const soloRestaurante = definirComando({
@@ -147,7 +147,7 @@ describe('B-05 · configuración por organización', () => {
       entidad: 'configuracion',
       escribe: false,
       roles: ['dueno'],
-      paquetes: ['restaurante'],
+      paquetes: ['restaurante_pro'],
       entrada: z.object({}),
       async ejecutar() {
         ejecutado = true;

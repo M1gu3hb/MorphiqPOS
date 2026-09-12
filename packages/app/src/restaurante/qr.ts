@@ -2,7 +2,7 @@ import 'server-only';
 
 import { randomBytes } from 'node:crypto';
 
-import { PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
@@ -33,7 +33,7 @@ export const rotarQr = definirComando<Transaccion, typeof entradaRotarQr, Result
   entidad: 'mesa',
   escribe: true,
   roles: [...ROLES_DIRECCION],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaRotarQr,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

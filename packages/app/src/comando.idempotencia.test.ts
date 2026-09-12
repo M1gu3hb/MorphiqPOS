@@ -23,7 +23,7 @@ function comandoContador(fallar = false) {
     entidad: 'orden',
     escribe: true,
     roles: ['cajero'],
-    paquetes: ['tienda'],
+    paquetes: ['esencial'],
     entrada: z.object({ ordenId: z.uuid() }),
     async ejecutar(ctx, entrada) {
       veces += 1;
@@ -37,7 +37,7 @@ function comandoContador(fallar = false) {
 
 describe('comando() · clave de idempotencia obligatoria', () => {
   it('un comando que escribe sin clave se rechaza', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion, veces } = comandoContador();
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
@@ -53,13 +53,13 @@ describe('comando() · clave de idempotencia obligatoria', () => {
   });
 
   it('un comando que sólo lee no la exige', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       nombre: 'venta.consultar',
       entidad: 'orden',
       escribe: false,
       roles: ['cajero'],
-      paquetes: ['tienda'],
+      paquetes: ['esencial'],
       entrada: z.object({ ordenId: z.uuid() }),
       async ejecutar() {
         return { total: 0 };
@@ -74,7 +74,7 @@ describe('comando() · clave de idempotencia obligatoria', () => {
 
 describe('comando() · reintento con la misma clave', () => {
   it('SALE-03: tres veces la misma clave produce UN solo resultado', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion, veces } = comandoContador();
     const ejecutar = crearComando<TxFalsa>(fabrica);
     const peticion = { entrada: ENTRADA, ambito: ambitoDeCajero(), idempotencyKey: CLAVE };
@@ -96,7 +96,7 @@ describe('comando() · reintento con la misma clave', () => {
 
   it('el reintento NO escribe una segunda fila de auditoría', async () => {
     // Tres reintentos que auditaran parecerían tres cobros en el histórico.
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion } = comandoContador();
     const ejecutar = crearComando<TxFalsa>(fabrica);
     const peticion = { entrada: ENTRADA, ambito: ambitoDeCajero(), idempotencyKey: CLAVE };
@@ -108,7 +108,7 @@ describe('comando() · reintento con la misma clave', () => {
   });
 
   it('la misma clave con OTRA entrada es un conflicto, no un reintento', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion, veces } = comandoContador();
     const ejecutar = crearComando<TxFalsa>(fabrica);
     const ambito = ambitoDeCajero();
@@ -128,7 +128,7 @@ describe('comando() · reintento con la misma clave', () => {
   });
 
   it('la clave de una organización no colisiona con la de otra', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion, veces } = comandoContador();
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
@@ -152,7 +152,7 @@ describe('comando() · la clave se libera si el comando falla', () => {
     // Es la mitad de la idempotencia que se olvida, y la peligrosa. Si el cobro
     // se revierte y la clave quedara ocupada, el reintento devolvería un éxito
     // guardado sin haber cobrado nada.
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     let debeFallar = true;
     let veces = 0;
 
@@ -161,7 +161,7 @@ describe('comando() · la clave se libera si el comando falla', () => {
       entidad: 'orden',
       escribe: true,
       roles: ['cajero'],
-      paquetes: ['tienda'],
+      paquetes: ['esencial'],
       entrada: z.object({ ordenId: z.uuid() }),
       async ejecutar(ctx, entrada) {
         veces += 1;

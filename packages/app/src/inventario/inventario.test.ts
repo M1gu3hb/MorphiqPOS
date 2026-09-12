@@ -28,11 +28,11 @@ import { ambitoDeCajero, crearFabrica } from '../pruebas/dobles.ts';
 import type { RepositorioComandos } from '../repositorio.ts';
 
 describe('B-11 · comandos de insumos y almacenes', () => {
-  it('declara los cinco paquetes y nombres de comando estables', () => {
+  it('declara los paquetes operativos y nombres de comando estables', () => {
     expect(crearAlmacen.nombre).toBe('inventario.crear_almacen');
-    expect(crearInsumo.paquetes).toHaveLength(5);
-    expect(inventarioInicial.paquetes).toHaveLength(5);
-    expect(ajustarStock.paquetes).toHaveLength(5);
+    expect(crearInsumo.paquetes).toHaveLength(2);
+    expect(inventarioInicial.paquetes).toHaveLength(2);
+    expect(ajustarStock.paquetes).toHaveLength(2);
   });
 
   it('exige inventario inicial positivo y ajuste distinto de cero', () => {
@@ -64,7 +64,7 @@ describe('B-11 · comandos de insumos y almacenes', () => {
 
 describe('B-10 · reinicio de demostración', () => {
   it('exige confirmación literal y está disponible para cada paquete', () => {
-    expect(resetearDemo.paquetes).toHaveLength(5);
+    expect(resetearDemo.paquetes).toHaveLength(3);
     expect(resetearDemo.entrada.safeParse({ confirmacion: 'sí' }).success).toBe(false);
     expect(resetearDemo.entrada.safeParse({ confirmacion: 'RESETEAR' }).success).toBe(true);
   });
@@ -72,8 +72,8 @@ describe('B-10 · reinicio de demostración', () => {
 
 describe('B-12 · recetas por paquete', () => {
   it('limita recetas y cambios de costo a cafetería/restaurante', () => {
-    expect(guardarReceta.paquetes).toEqual(['cafeteria', 'restaurante']);
-    expect(actualizarCostoInsumo.paquetes).toEqual(['cafeteria', 'restaurante']);
+    expect(guardarReceta.paquetes).toEqual(['operativo', 'restaurante_pro']);
+    expect(actualizarCostoInsumo.paquetes).toEqual(['operativo', 'restaurante_pro']);
   });
 
   it('valida cantidades exactas, unidad y merma en cada ingrediente', () => {
@@ -171,7 +171,7 @@ function arnes(respuestas: readonly (readonly unknown[])[]) {
       createQueryCompiler: () => new PostgresQueryCompiler(),
     },
   });
-  const fabrica = crearFabrica('restaurante');
+  const fabrica = crearFabrica('restaurante_pro');
   const ejecutar = crearComando<Transaccion>({
     repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
     conTransaccion: <T>(fn: (tx: Transaccion) => Promise<T>): Promise<T> =>
@@ -417,7 +417,7 @@ describe('B-12 · inventario.eliminar_receta', () => {
   it('declara nombre, entidad, roles y paquetes estables', () => {
     expect(eliminarReceta.nombre).toBe('inventario.eliminar_receta');
     expect(eliminarReceta.entidad).toBe('receta');
-    expect(eliminarReceta.paquetes).toEqual(['cafeteria', 'restaurante']);
+    expect(eliminarReceta.paquetes).toEqual(['operativo', 'restaurante_pro']);
   });
 
   it('NO deja entrar a nadie que no pueda archivar un producto', () => {

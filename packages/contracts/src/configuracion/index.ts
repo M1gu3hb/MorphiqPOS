@@ -14,8 +14,13 @@ export interface ItemNavegacionGestion {
 const NAVEGACION_BASE = [
   { href: '/inicio', etiqueta: 'Inicio', icono: 'inicio' },
   { href: '/productos', etiqueta: 'Productos', icono: 'productos' },
-  { href: '/inventario', etiqueta: 'Inventario', icono: 'inventario' },
 ] as const satisfies readonly ItemNavegacionGestion[];
+
+const INVENTARIO = {
+  href: '/inventario',
+  etiqueta: 'Inventario',
+  icono: 'inventario',
+} as const satisfies ItemNavegacionGestion;
 
 const RECETAS = {
   href: '/recetas',
@@ -36,9 +41,7 @@ const CONFIGURACION = {
 } as const satisfies ItemNavegacionGestion;
 
 export function navegacionParaPaquete(paquete: Paquete): readonly ItemNavegacionGestion[] {
-  // Accesos va en TODOS los paquetes: sin poder poner un PIN no hay negocio que
-  // opere, sea una ferretería o un café.
-  return paquete === 'cafeteria' || paquete === 'restaurante'
-    ? [...NAVEGACION_BASE, RECETAS, ACCESOS, CONFIGURACION]
-    : [...NAVEGACION_BASE, ACCESOS, CONFIGURACION];
+  return paquete === 'esencial'
+    ? [...NAVEGACION_BASE, ACCESOS, CONFIGURACION]
+    : [...NAVEGACION_BASE, INVENTARIO, RECETAS, ACCESOS, CONFIGURACION];
 }

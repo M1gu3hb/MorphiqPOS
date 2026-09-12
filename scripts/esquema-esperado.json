@@ -4687,6 +4687,17 @@
       "tipo": "timestamp with time zone"
     },
     {
+      "clave": "public.organizaciones.giro",
+      "columna": "giro",
+      "defaultSql": "'tienda'::text",
+      "esquema": "public",
+      "generada": null,
+      "identidad": null,
+      "noNula": true,
+      "tabla": "organizaciones",
+      "tipo": "text"
+    },
+    {
       "clave": "public.organizaciones.id",
       "columna": "id",
       "defaultSql": "gen_random_uuid()",
@@ -4722,7 +4733,7 @@
     {
       "clave": "public.organizaciones.paquete",
       "columna": "paquete",
-      "defaultSql": "'tienda'::text",
+      "defaultSql": "'esencial'::text",
       "esquema": "public",
       "generada": null,
       "identidad": null,
@@ -12001,6 +12012,17 @@
       "validada": true
     },
     {
+      "clave": "public.organizaciones.organizaciones_giro_check",
+      "definicion": "CHECK (giro = ANY (ARRAY['tienda'::text, 'ferreteria'::text, 'farmacia'::text, 'cafeteria'::text, 'restaurante'::text]))",
+      "diferible": false,
+      "diferidaInicialmente": false,
+      "esquema": "public",
+      "nombre": "organizaciones_giro_check",
+      "tabla": "organizaciones",
+      "tipo": "check",
+      "validada": true
+    },
+    {
       "clave": "public.organizaciones.organizaciones_moneda_check",
       "definicion": "CHECK (moneda = 'MXN'::text)",
       "diferible": false,
@@ -12024,11 +12046,22 @@
     },
     {
       "clave": "public.organizaciones.organizaciones_paquete_check",
-      "definicion": "CHECK (paquete = ANY (ARRAY['tienda'::text, 'ferreteria'::text, 'farmacia'::text, 'cafeteria'::text, 'restaurante'::text]))",
+      "definicion": "CHECK (paquete = ANY (ARRAY['esencial'::text, 'operativo'::text, 'restaurante_pro'::text]))",
       "diferible": false,
       "diferidaInicialmente": false,
       "esquema": "public",
       "nombre": "organizaciones_paquete_check",
+      "tabla": "organizaciones",
+      "tipo": "check",
+      "validada": true
+    },
+    {
+      "clave": "public.organizaciones.organizaciones_paquete_compatible_con_giro",
+      "definicion": "CHECK (paquete <> 'restaurante_pro'::text OR (giro = ANY (ARRAY['cafeteria'::text, 'restaurante'::text])))",
+      "diferible": false,
+      "diferidaInicialmente": false,
+      "esquema": "public",
+      "nombre": "organizaciones_paquete_compatible_con_giro",
       "tabla": "organizaciones",
       "tipo": "check",
       "validada": true

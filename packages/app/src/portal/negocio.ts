@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_PORTAL } from '@morphiqpos/contracts';
 import { obtenerDb, type Transaccion } from '@morphiqpos/data';
 
 import type { BanderasPortal } from './banderas.ts';
@@ -67,7 +67,7 @@ export function exigirPortalAbierto(banderas: BanderasPortal): void {
  * `organizaciones`, que nunca sale en la respuesta.
  */
 export function puedeOrdenarDesdeQR(paquete: string, banderas: BanderasPortal): boolean {
-  const esDePreparacion = (PAQUETES_PREPARACION as readonly string[]).includes(paquete);
+  const esDePreparacion = (PAQUETES_PORTAL as readonly string[]).includes(paquete);
   return (
     esDePreparacion &&
     banderas.portalActivo &&

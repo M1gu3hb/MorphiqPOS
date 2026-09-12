@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { desdeTexto } from '@morphiqpos/domain/dinero';
 import { z } from 'zod';
@@ -87,7 +87,7 @@ export const guardarModificadores = definirComando<
   entidad: 'modificador',
   escribe: true,
   roles: [...ROLES],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaGuardarModificadores,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

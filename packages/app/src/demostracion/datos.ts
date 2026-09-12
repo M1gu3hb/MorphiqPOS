@@ -1,4 +1,4 @@
-import type { Paquete } from '@morphiqpos/contracts';
+import type { Giro } from '@morphiqpos/contracts';
 
 export interface ProductoDemo {
   readonly nombre: string;
@@ -417,9 +417,9 @@ const RESTAURANTE: SemillaDemo = {
   ],
 };
 
-export function semillaParaPaquete(paquete: Paquete): SemillaDemo {
-  if (paquete === 'ferreteria') return FERRETERIA;
-  if (paquete === 'restaurante') return RESTAURANTE;
-  if (paquete === 'cafeteria') return CAFETERIA;
+export function semillaParaPaquete(giro: Giro): SemillaDemo {
+  if (giro === 'ferreteria') return FERRETERIA;
+  if (giro === 'restaurante') return RESTAURANTE;
+  if (giro === 'cafeteria') return CAFETERIA;
   return ABARROTES;
 }

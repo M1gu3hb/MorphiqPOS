@@ -4,7 +4,11 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
     "plugins": [{ "name": "next" }],
-    "paths": { "@/*": ["./heredado/*"], "~/*": ["./src/*"] },
+    "paths": {
+      "@/lib/packageConfig": ["./src/cliente/package-config.ts"],
+      "@/*": ["./heredado/*"],
+      "~/*": ["./src/*"]
+    },
     "allowJs": true,
     "types": ["node"]
   },

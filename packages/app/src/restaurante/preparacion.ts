@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
@@ -52,7 +52,7 @@ export const transicionarPedido = definirComando<
   entidad: 'comanda',
   escribe: true,
   roles: [...ROLES_DE_COCINA],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaTransicionarPedido,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -194,7 +194,7 @@ export const entregarPedidos = definirComando<
   entidad: 'comanda',
   escribe: true,
   roles: [...ROLES_DE_COCINA],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaEntregarPedidos,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

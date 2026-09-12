@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
@@ -63,7 +63,7 @@ export const crearEstacion = definirComando<
   entidad: 'estacion_preparacion',
   escribe: true,
   roles: [...ROLES],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaCrearEstacion,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

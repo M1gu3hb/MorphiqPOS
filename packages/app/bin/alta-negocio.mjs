@@ -3,7 +3,7 @@
  * Da de alta un negocio y su primera sucursal.
  *
  *   node --conditions=react-server scripts/alta-negocio.mjs \
- *     --slug mh-restaurante --nombre "Restaurante MH" --paquete restaurante
+ *     --slug mh-restaurante --nombre "Restaurante MH" --giro restaurante --paquete restaurante_pro
  *
  * `db:bootstrap` crea al dueño y su PIN, pero exige que la organización ya
  * exista: «aquí no se crean negocios». Hasta hoy la única forma de crear una
@@ -28,12 +28,13 @@ function bandera(nombre, porOmision) {
 
 const slug = bandera('slug');
 const nombre = bandera('nombre');
-const paquete = bandera('paquete', 'restaurante');
+const giro = bandera('giro', 'restaurante');
+const paquete = bandera('paquete', 'restaurante_pro');
 const sucursal = bandera('sucursal', 'Matriz');
 
 if (slug === undefined || nombre === undefined) {
   console.error(
-    'Uso: pnpm db:alta-negocio --slug <slug> --nombre "<nombre>" [--paquete restaurante] [--sucursal Matriz]',
+    'Uso: pnpm db:alta-negocio --slug <slug> --nombre "<nombre>" [--giro restaurante] [--paquete restaurante_pro] [--sucursal Matriz]',
   );
   process.exit(1);
 }
@@ -48,7 +49,7 @@ try {
   const resultado = await conTransaccion(async (tx) => {
     const existente = await tx
       .selectFrom('organizaciones')
-      .select(['id', 'nombre', 'paquete'])
+      .select(['id', 'nombre', 'giro', 'paquete'])
       .where('slug', '=', slug)
       .executeTakeFirst();
 
@@ -56,8 +57,8 @@ try {
       existente ??
       (await tx
         .insertInto('organizaciones')
-        .values({ nombre, slug, paquete })
-        .returning(['id', 'nombre', 'paquete'])
+        .values({ nombre, slug, giro, paquete })
+        .returning(['id', 'nombre', 'giro', 'paquete'])
         .executeTakeFirstOrThrow());
 
     const sucursalExistente = await tx
@@ -83,6 +84,7 @@ try {
 
   console.log('');
   console.log(`  Negocio ....... ${resultado.organizacion.nombre} (${slug})`);
+  console.log(`  Giro .......... ${resultado.organizacion.giro}`);
   console.log(`  Paquete ....... ${resultado.organizacion.paquete}`);
   console.log(`  Sucursal ...... ${resultado.sucursal.nombre}`);
   console.log(`  Estado ........ ${resultado.reusada ? 'ya existía, se reusó' : 'creado'}`);

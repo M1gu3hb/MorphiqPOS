@@ -1,6 +1,13 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_TODOS, validarEntorno, type Paquete } from '@morphiqpos/contracts';
+import {
+  ErrorDominio,
+  PAQUETES_TODOS,
+  esGiro,
+  paquetePermitidoParaGiro,
+  validarEntorno,
+  type Paquete,
+} from '@morphiqpos/contracts';
 import { obtenerDb, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
@@ -195,6 +202,20 @@ export const cambiarPaquete = definirComando<
   paquetes: PAQUETES_TODOS,
   entrada: entradaCambiarPaquete,
   async ejecutar(ctx, entrada) {
+    const actual = await ctx.tx
+      .selectFrom('organizaciones')
+      .select('giro')
+      .where('id', '=', ctx.ambito.organizacionId)
+      .executeTakeFirst();
+    if (actual === undefined || !esGiro(actual.giro)) {
+      throw new ErrorDominio('CONFIGURACION_INVALIDA', 'La organización no tiene un giro válido.');
+    }
+    if (!paquetePermitidoParaGiro(entrada.paquete, actual.giro)) {
+      throw new ErrorDominio(
+        'CONFIGURACION_INVALIDA',
+        'Restaurante Pro sólo está disponible para cafeterías y restaurantes.',
+      );
+    }
     const organizacion = await ctx.paso('cambiar_paquete', () =>
       ctx.tx
         .updateTable('organizaciones')

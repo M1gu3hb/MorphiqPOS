@@ -25,7 +25,7 @@ describe('gastos · declaración de los comandos', () => {
     expect(guardarPlantillaGasto.nombre).toBe('gastos.guardar_plantilla');
     for (const comando of [registrarGasto, guardarPlantillaGasto]) {
       expect(comando.escribe).toBe(true);
-      expect(comando.paquetes).toHaveLength(5);
+      expect(comando.paquetes).toEqual(['operativo', 'restaurante_pro']);
       expect(comando.roles).toEqual(['dueno', 'administrador', 'gerente']);
     }
   });

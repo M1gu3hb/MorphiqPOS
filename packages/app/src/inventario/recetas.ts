@@ -1,4 +1,4 @@
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { cantidad, cantidadATexto } from '@morphiqpos/domain/catalogo';
 import { desdeTexto } from '@morphiqpos/domain/dinero';
@@ -75,7 +75,7 @@ export const guardarReceta = definirComando<
   entidad: 'receta',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaGuardarReceta,
   async ejecutar(ctx, entrada) {
     const producto = await ctx.tx
@@ -154,7 +154,7 @@ export const actualizarCostoInsumo = definirComando<
   entidad: 'insumo',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaActualizarCostoInsumo,
   async ejecutar(ctx, entrada) {
     const insumo = await ctx.paso('actualizar_costo_insumo', () =>
@@ -213,7 +213,7 @@ export const eliminarReceta = definirComando<
   entidad: 'receta',
   escribe: true,
   roles: ROLES_PARA_RETIRAR,
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaEliminarReceta,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

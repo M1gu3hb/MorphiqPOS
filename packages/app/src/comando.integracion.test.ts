@@ -40,7 +40,7 @@ function comandoQueEscribe(fallar: boolean) {
     entidad: 'categoria',
     escribe: true,
     roles: ['cajero'],
-    paquetes: ['tienda'],
+    paquetes: ['esencial'],
     entrada: z.object({ nombre: z.string().min(1) }),
     async ejecutar(ctx, entrada) {
       const fila = await ctx.paso('escribir_categoria', () =>
@@ -75,7 +75,7 @@ beforeAll(async () => {
         id: ORG,
         nombre: 'Abarrotes de Prueba',
         slug: 'abarrotes-prueba',
-        paquete: 'tienda',
+        paquete: 'esencial',
       })
       .execute();
     await tx

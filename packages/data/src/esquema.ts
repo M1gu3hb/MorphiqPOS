@@ -538,6 +538,7 @@ export interface Organizaciones {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  giro: Generated<string>;
 }
 
 export interface Pagos {

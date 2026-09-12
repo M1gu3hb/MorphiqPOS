@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   PAQUETES,
   PAQUETES_MOSTRADOR,
-  PAQUETES_PREPARACION,
+  PAQUETES_OPERATIVOS,
+  PAQUETES_RESTAURANTE,
   type Paquete,
 } from '@morphiqpos/contracts';
 
 import { guardarReceta } from './inventario/recetas.ts';
+import { abrirMesa } from './restaurante/mesas.ts';
 import { crearOrden } from './venta/carrito.ts';
 import { ejecutorDeProduccion } from './pruebas/dobles.ts';
 
@@ -39,8 +41,8 @@ const AMBITO_TIENDA = {
 const comandoCon = (paquete: Paquete) => ejecutorDeProduccion(paquete);
 
 describe('C-15 · el paquete decide qué comandos existen', () => {
-  it('recetas NO existe en una tienda, y el comando es el real', async () => {
-    const comando = comandoCon('tienda');
+  it('recetas NO existe en Esencial, y el comando es el real', async () => {
+    const comando = comandoCon('esencial');
 
     const salida = await comando(guardarReceta, {
       entrada: {
@@ -63,11 +65,11 @@ describe('C-15 · el paquete decide qué comandos existen', () => {
     expect(salida.error.codigo).toBe('PAQUETE_NO_INCLUYE');
   });
 
-  it('recetas SÍ existe en una cafetería', async () => {
+  it('recetas SÍ existe en Operativo', async () => {
     // La otra mitad: si el rechazo fuera por cualquier otra razón —un id que no
     // existe, un rol— la prueba anterior pasaría igual y no diría nada del
     // paquete. Con cafetería el comando llega a ejecutarse.
-    const comando = comandoCon('cafeteria');
+    const comando = comandoCon('operativo');
 
     const salida = await comando(guardarReceta, {
       entrada: {
@@ -88,7 +90,7 @@ describe('C-15 · el paquete decide qué comandos existen', () => {
     expect(salida.ok ? 'ejecutó' : salida.error.codigo).not.toBe('PAQUETE_NO_INCLUYE');
   });
 
-  it('vender existe en los cinco paquetes', async () => {
+  it('vender existe en los tres paquetes comerciales', async () => {
     for (const paquete of PAQUETES) {
       const salida = await comandoCon(paquete)(crearOrden, {
         entrada: {},
@@ -98,14 +100,31 @@ describe('C-15 · el paquete decide qué comandos existen', () => {
       expect(salida.ok ? 'ejecutó' : salida.error.codigo).not.toBe('PAQUETE_NO_INCLUYE');
     }
   });
+
+  it('abrir mesa sólo existe en Restaurante Pro', async () => {
+    for (const paquete of PAQUETES) {
+      const salida = await comandoCon(paquete)(abrirMesa, {
+        entrada: { mesaId: '00000000-0000-4000-8000-00000000000a', personas: 2 },
+        ambito: AMBITO_TIENDA,
+        idempotencyKey: `mesa-${paquete}`,
+      });
+      const resultado = salida.ok ? 'ejecutó' : salida.error.codigo;
+      if (paquete === 'restaurante_pro') expect(resultado).not.toBe('PAQUETE_NO_INCLUYE');
+      else expect(resultado).toBe('PAQUETE_NO_INCLUYE');
+    }
+  });
 });
 
 describe('C-15 · los subconjuntos declarados', () => {
-  it('preparación es cafetería y restaurante, y nada más', () => {
-    expect([...PAQUETES_PREPARACION]).toEqual(['cafeteria', 'restaurante']);
+  it('operación excluye Esencial', () => {
+    expect([...PAQUETES_OPERATIVOS]).toEqual(['operativo', 'restaurante_pro']);
   });
 
-  it('mostrador cubre los cinco paquetes de hoy', () => {
+  it('sala es exclusiva de Restaurante Pro', () => {
+    expect([...PAQUETES_RESTAURANTE]).toEqual(['restaurante_pro']);
+  });
+
+  it('mostrador cubre los tres paquetes de hoy', () => {
     // Están nombrados distinto a propósito: cuando llegue un giro sin caja
     // —una estética que sólo agenda— cambiará éste y no el de catálogo.
     expect([...PAQUETES_MOSTRADOR]).toEqual([...PAQUETES]);

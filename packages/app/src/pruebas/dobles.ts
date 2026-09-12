@@ -47,7 +47,7 @@ export interface Fabrica {
   auditoriaConfirmada(): readonly FilaAuditoria[];
 }
 
-export function crearFabrica(paqueteInicial: Paquete = 'tienda'): Fabrica {
+export function crearFabrica(paqueteInicial: Paquete = 'esencial'): Fabrica {
   const base: BaseFalsa = { confirmadas: [], revertidas: [], transacciones: [] };
   const guardadas = new Map<string, EjecucionGuardada>();
   let paquete: Paquete | null = paqueteInicial;

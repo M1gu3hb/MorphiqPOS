@@ -130,7 +130,7 @@ function baseCon(
  * Es el mismo puente de tipos que documenta `base-falsa.ts`, y sólo aquí.
  */
 function ejecutorSobre(base: BaseFalsa) {
-  const fabrica = crearFabrica('restaurante');
+  const fabrica = crearFabrica('restaurante_pro');
   const ejecutar = crearComando<Transaccion>({
     repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
     conTransaccion: <T>(fn: (tx: Transaccion) => Promise<T>): Promise<T> =>

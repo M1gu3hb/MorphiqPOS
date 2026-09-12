@@ -22,7 +22,7 @@ const ORGANIZACION = '00000000-0000-4000-8000-0000000000a1';
 const ORDEN = '00000000-0000-4000-8000-00000000e001';
 
 function banco(): Banco {
-  return armarBanco('restaurante', []);
+  return armarBanco('restaurante_pro', []);
 }
 
 // ───────────────────────── no se destruye lo que escribió otro (grave 5)

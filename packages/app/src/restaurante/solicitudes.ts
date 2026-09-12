@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
@@ -238,7 +238,7 @@ export const atenderSolicitud = definirComando<
   entidad: 'solicitud_qr',
   escribe: true,
   roles: [...ROLES_DE_SALA],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaAtenderSolicitud,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -388,7 +388,7 @@ export const limpiarSolicitudes = definirComando<
   entidad: 'solicitud_qr',
   escribe: true,
   roles: [...ROLES_DE_SALA],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaLimpiarSolicitudes,
   async ejecutar(ctx) {
     const { organizacionId } = ctx.ambito;
@@ -429,7 +429,7 @@ export const vaciarSolicitudes = definirComando<
   entidad: 'solicitud_qr',
   escribe: true,
   roles: [...ROLES_DE_ADMINISTRACION],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaVaciarSolicitudes,
   async ejecutar(ctx) {
     const { organizacionId } = ctx.ambito;
@@ -512,7 +512,7 @@ export const asignarMesero = definirComando<
   entidad: 'mesa',
   escribe: true,
   roles: [...ROLES_DE_SALA],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaAsignarMesero,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

@@ -28,7 +28,7 @@ import type { LineaDeCompra } from './esquemas.ts';
  *
  * No es una preferencia de este módulo: es el trigger
  * `insumos_unidad_base_por_giro` de la migración 046, que lanza
- * `check_violation` si el paquete de la organización es `restaurante` y la
+ * `check_violation` si el giro de la organización es `restaurante` y la
  * unidad base no es una de estas tres.
  */
 const UNIDADES_BASE_DE_RESTAURANTE: readonly string[] = ['g', 'ml', 'pieza'];
@@ -44,11 +44,11 @@ const UNIDADES_BASE_DE_RESTAURANTE: readonly string[] = ['g', 'ml', 'pieza'];
  * convierte un `check_violation` en una frase que dice qué corregir (R12).
  */
 export function exigirUnidadBaseDelGiro(
-  paquete: string,
+  giro: string,
   unidadBase: string,
   nombreInsumo: string,
 ): void {
-  if (paquete !== 'restaurante') return;
+  if (giro !== 'restaurante') return;
   if (UNIDADES_BASE_DE_RESTAURANTE.includes(unidadBase)) return;
   throw new ErrorDominio(
     'COMPRA_INVALIDA',
@@ -74,7 +74,7 @@ export async function exigirUnidadesBaseDelGiro(
 
   const organizacion = await tx
     .selectFrom('organizaciones')
-    .select('paquete')
+    .select('giro')
     .where('id', '=', organizacionId)
     .executeTakeFirst();
   if (organizacion === undefined) {
@@ -82,7 +82,7 @@ export async function exigirUnidadesBaseDelGiro(
   }
 
   for (const nuevo of nuevos) {
-    exigirUnidadBaseDelGiro(organizacion.paquete, nuevo.unidadBase, nuevo.nombre);
+    exigirUnidadBaseDelGiro(organizacion.giro, nuevo.unidadBase, nuevo.nombre);
   }
 }
 

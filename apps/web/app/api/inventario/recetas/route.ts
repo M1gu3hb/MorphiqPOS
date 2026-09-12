@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export function GET(): Promise<Response> {
   return responderConsulta((sesion) => consultarRecetasProduccion(sesion.organizacionId), {
-    paquetes: ['cafeteria', 'restaurante'],
+    paquetes: ['operativo', 'restaurante_pro'],
     roles: ['dueno', 'administrador', 'gerente', 'almacen'],
   });
 }

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
@@ -46,7 +46,7 @@ export const abrirMesa = definirComando<Transaccion, typeof entradaAbrirMesa, Re
   entidad: 'mesa',
   escribe: true,
   roles: [...ROLES_DE_SALA],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaAbrirMesa,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId, empleoId } = ctx.ambito;
@@ -121,7 +121,7 @@ export const liberarMesa = definirComando<
   entidad: 'mesa',
   escribe: true,
   roles: [...ROLES_DE_SALA],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaLiberarMesa,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
