@@ -27,7 +27,7 @@ export async function GET(peticion: Request): Promise<Response> {
   const correlationId = correlationIdDe(
     peticion.headers.get('x-correlation-id') ?? peticion.headers.get('x-morphiqpos-correlacion'),
   );
-  const permiso = await permitir('entrar', peticion.headers, entorno.PIN_PEPPER);
+  const permiso = await permitir('empleados', peticion.headers, entorno.PIN_PEPPER);
   if (!permiso.ok) {
     return json(429, {
       ok: false,

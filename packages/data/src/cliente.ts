@@ -4,6 +4,7 @@ import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import pg from 'pg';
 
 import type { Esquema } from './esquema.ts';
+import { registrar } from './observabilidad.ts';
 import { tlsPara } from './tls.ts';
 
 /**
@@ -99,8 +100,14 @@ export function obtenerDb(): Kysely<Esquema> {
 
   // Un error del pool sin manejador tumba el proceso de Node entero (R12: el
   // error se maneja o se propaga, pero nunca se ignora en silencio).
-  pool.on('error', (error) => {
-    console.error('[morphiqpos/data] error del pool de Postgres', error);
+  pool.on('error', () => {
+    registrar({
+      nivel: 'error',
+      modulo: 'postgres_pool',
+      correlationId: 'sin_correlacion',
+      organizacionId: null,
+      mensaje: 'El pool de Postgres informó un error.',
+    });
   });
 
   db = new Kysely<Esquema>({ dialect: new PostgresDialect({ pool }) });

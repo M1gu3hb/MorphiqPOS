@@ -66,6 +66,12 @@ describe('B-06 · consulta de catálogo para la pantalla', () => {
       precioMayoreoCentavos: '152900',
       updatedAt: '2026-09-07T20:15:00.000Z',
     });
+    expect(repoCatalogo.buscarProductos).toHaveBeenLastCalledWith(
+      expect.anything(),
+      '11111111-1111-4111-8111-111111111111',
+      expect.any(Object),
+      'dueno',
+    );
     expect(salida.siguienteCursor?.updatedAt).toBe('2026-09-07T20:15:00.000Z');
   });
 
@@ -83,6 +89,12 @@ describe('B-06 · consulta de catálogo para la pantalla', () => {
     );
 
     expect(salida.productos[0]).not.toHaveProperty('costoUnitarioCentavos');
+    expect(repoCatalogo.buscarProductos).toHaveBeenLastCalledWith(
+      expect.anything(),
+      '11111111-1111-4111-8111-111111111111',
+      expect.any(Object),
+      'mesero',
+    );
     expect(readFileSync(FUENTE_CONSULTA, 'utf8')).toContain('ROLES_CON_COSTO.includes(rol)');
     expect(readFileSync(FUENTE_RUTA, 'utf8')).toContain('entrada.data, sesion.rol');
   });

@@ -60,6 +60,7 @@ describe('C-13 · verificación viva de RLS y grants', () => {
         },
       ],
       indices: INDICES_UNICOS_046.map((nombre) => ({ nombre, unico: true, valido: true })),
+      funciones: [],
     };
 
     const problemas = problemasDeSeguridad(estado).join('\n');
@@ -76,10 +77,27 @@ describe('C-13 · verificación viva de RLS y grants', () => {
       valido: nombre !== 'liquidaciones_folio_unico',
     }));
 
-    const problemas = problemasDeSeguridad({ relaciones: [], indices }).join('\n');
+    const problemas = problemasDeSeguridad({ relaciones: [], indices, funciones: [] }).join('\n');
     expect(problemas).toContain(`${INDICES_UNICOS_046[0]}: índice 046 ausente`);
     expect(problemas).toContain('cortes_turno_folio_unico: el índice no es único');
     expect(problemas).toContain('liquidaciones_folio_unico: el índice no es válido');
+  });
+
+  it('detecta EXECUTE heredado por anon o authenticated en cualquier función pública', () => {
+    const problemas = problemasDeSeguridad({
+      relaciones: [],
+      indices: INDICES_UNICOS_046.map((nombre) => ({ nombre, unico: true, valido: true })),
+      funciones: [
+        {
+          clave: 'public.clave_texto(text)',
+          executeAnon: true,
+          executeAuthenticated: true,
+        },
+      ],
+    }).join('\n');
+
+    expect(problemas).toContain('public.clave_texto(text): anon conserva EXECUTE');
+    expect(problemas).toContain('public.clave_texto(text): authenticated conserva EXECUTE');
   });
 
   it('cubre todos los índices únicos declarados por la migración 046', () => {
@@ -98,6 +116,8 @@ describe('C-13 · verificación viva de RLS y grants', () => {
     expect(fuente).toContain("has_table_privilege('anon'");
     expect(fuente).toContain("has_table_privilege('authenticated'");
     expect(fuente).toContain('x.indisunique');
+    expect(fuente).toContain("has_function_privilege('anon'");
+    expect(fuente).toContain("has_function_privilege('authenticated'");
 
     const contrato = readFileSync(CONTRATO_RLS, 'utf8');
     expect(contrato).toContain('if (relacion.rlsActiva !== true)');

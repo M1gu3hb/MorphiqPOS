@@ -29,6 +29,8 @@ const SITIOS = [
     'apps/web/app/api/auth/empleados/route.ts',
     'MORPHIQPOS_LOG_AUTH_EMPLEADOS_SOURCE_PATH',
   ],
+  ['pool postgres', 'packages/data/src/cliente.ts', 'MORPHIQPOS_LOG_DATA_CLIENT_SOURCE_PATH'],
+  ['purga de cuotas', 'packages/data/src/repos/limite.ts', 'MORPHIQPOS_LOG_DATA_LIMIT_SOURCE_PATH'],
 ] as const;
 
 function leer(ruta: string, variable: string): string {

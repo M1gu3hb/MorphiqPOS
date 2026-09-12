@@ -28,9 +28,16 @@ export interface IndiceSeguridad {
   readonly valido: boolean;
 }
 
+export interface FuncionSeguridad {
+  readonly clave: string;
+  readonly executeAnon: boolean;
+  readonly executeAuthenticated: boolean;
+}
+
 export interface EstadoSeguridad {
   readonly relaciones: readonly RelacionSeguridad[];
   readonly indices: readonly IndiceSeguridad[];
+  readonly funciones: readonly FuncionSeguridad[];
 }
 
 /** Convierte el estado vivo de PostgreSQL en fallos concretos para CI. */
@@ -45,6 +52,13 @@ export function problemasDeSeguridad(estado: EstadoSeguridad): string[] {
     if (relacion.selectAnon) problemas.push(`${relacion.clave}: anon conserva SELECT`);
     if (relacion.selectAuthenticated) {
       problemas.push(`${relacion.clave}: authenticated conserva SELECT`);
+    }
+  }
+
+  for (const funcion of estado.funciones) {
+    if (funcion.executeAnon) problemas.push(`${funcion.clave}: anon conserva EXECUTE`);
+    if (funcion.executeAuthenticated) {
+      problemas.push(`${funcion.clave}: authenticated conserva EXECUTE`);
     }
   }
 

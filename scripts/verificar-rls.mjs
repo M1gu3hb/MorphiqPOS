@@ -41,6 +41,19 @@ with relaciones as (
   join pg_catalog.pg_class t on t.oid = x.indrelid
   join pg_catalog.pg_namespace n on n.oid = t.relnamespace
   where n.nspname = 'public'
+), funciones as (
+  select
+    format(
+      '%I.%I(%s)',
+      n.nspname,
+      p.proname,
+      pg_catalog.pg_get_function_identity_arguments(p.oid)
+    ) as clave,
+    has_function_privilege('anon', p.oid, 'EXECUTE') as "executeAnon",
+    has_function_privilege('authenticated', p.oid, 'EXECUTE') as "executeAuthenticated"
+  from pg_catalog.pg_proc p
+  join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
 )
 select json_build_object(
   'relaciones', coalesce(
@@ -49,6 +62,10 @@ select json_build_object(
   ),
   'indices', coalesce(
     (select json_agg(row_to_json(i) order by i.nombre) from indices i),
+    '[]'::json
+  ),
+  'funciones', coalesce(
+    (select json_agg(row_to_json(f) order by f.clave) from funciones f),
     '[]'::json
   )
 ) as estado;
@@ -107,7 +124,8 @@ function leerEstado() {
       typeof estado !== 'object' ||
       estado === null ||
       !Array.isArray(estado.relaciones) ||
-      !Array.isArray(estado.indices)
+      !Array.isArray(estado.indices) ||
+      !Array.isArray(estado.funciones)
     ) {
       throw new Error('Supabase CLI devolvió un estado de seguridad inválido.');
     }
@@ -127,7 +145,8 @@ try {
     );
   }
   console.log(
-    `✓ RLS y grants cerrados en ${estado.relaciones.length} relaciones; índices 046 presentes.`,
+    `✓ RLS y grants cerrados en ${estado.relaciones.length} relaciones y ` +
+      `${estado.funciones.length} funciones; índices 046 presentes.`,
   );
 } catch (error) {
   console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);

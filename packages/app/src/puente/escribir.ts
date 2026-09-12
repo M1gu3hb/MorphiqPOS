@@ -2,12 +2,12 @@ import 'server-only';
 
 import { ErrorDominio } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
-import { z } from 'zod';
 
 import { transaccionLibre } from './db-dinamica.ts';
 
 import { entidadMapeada } from './mapa.ts';
 import { valorHaciaEl, valorHaciaLaBase, type MapaEntidad } from './tipos.ts';
+import { esUrlHttp } from '../validacion/url-http.ts';
 
 /**
  * Las escrituras SIMPLES del puente (F1-02 §3, E3-4).
@@ -127,12 +127,7 @@ function aColumnas(mapa: MapaEntidad, datos: Readonly<Record<string, unknown>>):
       continue;
     }
     if (campo.validacion === 'url_http' && valor !== null) {
-      const validada = z.url().safeParse(valor);
-      if (
-        !validada.success ||
-        (new URL(validada.data).protocol !== 'https:' &&
-          new URL(validada.data).protocol !== 'http:')
-      ) {
+      if (!esUrlHttp(valor)) {
         throw new ErrorDominio(
           'PUENTE_CAMPO_INVALIDO',
           `«${clave}» debe ser una URL HTTP(S) válida.`,
@@ -144,15 +139,23 @@ function aColumnas(mapa: MapaEntidad, datos: Readonly<Record<string, unknown>>):
   return valores;
 }
 
-function columnasDeSalida(mapa: MapaEntidad): string[] {
+function puedeLeerCampo(
+  campo: { readonly rolesLectura?: readonly string[] },
+  rol: string,
+): boolean {
+  return campo.rolesLectura === undefined || campo.rolesLectura.includes(rol);
+}
+
+function columnasDeSalida(mapa: MapaEntidad, rol: string): string[] {
   return Object.entries(mapa.campos)
-    .filter(([, campo]) => campo.constante === undefined)
+    .filter(([, campo]) => campo.constante === undefined && puedeLeerCampo(campo, rol))
     .map(([suyo, campo]) => `${campo.columna} as ${suyo}`);
 }
 
-function traducirFila(fila: Fila, mapa: MapaEntidad): Fila {
+function traducirFila(fila: Fila, mapa: MapaEntidad, rol: string): Fila {
   const salida: Fila = {};
   for (const [suyo, campo] of Object.entries(mapa.campos)) {
+    if (!puedeLeerCampo(campo, rol)) continue;
     salida[suyo] = valorHaciaEl(fila[suyo], campo);
   }
   return salida;
@@ -185,10 +188,10 @@ async function crear(
   const fila = (await transaccionLibre(tx)
     .insertInto(mapa.tabla)
     .values(valores as never)
-    .returning(columnasDeSalida(mapa))
+    .returning(columnasDeSalida(mapa, ambito.rol))
     .executeTakeFirstOrThrow()) as Fila;
 
-  return traducirFila(fila, mapa);
+  return traducirFila(fila, mapa, ambito.rol);
 }
 
 async function actualizar(
@@ -218,7 +221,7 @@ async function actualizar(
     consulta = consulta.where(columna, '=', valor);
   }
 
-  const fila = await consulta.returning(columnasDeSalida(mapa)).executeTakeFirst();
+  const fila = await consulta.returning(columnasDeSalida(mapa, ambito.rol)).executeTakeFirst();
 
   // Cero filas es un FALLO, no un éxito silencioso. Es la trampa de
   // `supabase-vercel-produccion` §7: un UPDATE que no encuentra su fila no da
@@ -226,7 +229,7 @@ async function actualizar(
   if (fila === undefined) {
     throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese registro no existe en este negocio.');
   }
-  return traducirFila(fila, mapa);
+  return traducirFila(fila, mapa, ambito.rol);
 }
 
 /**

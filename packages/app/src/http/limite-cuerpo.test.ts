@@ -36,14 +36,16 @@ function entornoDePrueba(): void {
 }
 
 describe('C-10 · límite compartido del cuerpo HTTP', () => {
-  it('acepta hasta 256 KiB y rechaza 50 MiB o una longitud inválida', () => {
-    expect(cuerpoDentroDelLimite(new Headers())).toBe(true);
+  it('acepta hasta 256 KiB y rechaza una longitud ausente, excesiva o inválida', () => {
+    expect(cuerpoDentroDelLimite(new Headers())).toBe(false);
     expect(cuerpoDentroDelLimite(new Headers({ 'content-length': String(256 * 1024) }))).toBe(true);
     expect(cuerpoDentroDelLimite(new Headers({ 'content-length': String(50 * 1024 * 1024) }))).toBe(
       false,
     );
     expect(cuerpoDentroDelLimite(new Headers({ 'content-length': 'mucho' }))).toBe(false);
-    expect(readFileSync(FUENTE_LIMITE, 'utf8')).toContain('256 * 1024');
+    const fuente = readFileSync(FUENTE_LIMITE, 'utf8');
+    expect(fuente).toContain('256 * 1024');
+    expect(fuente).toContain('if (declarada === null) return false;');
   });
 
   it('se ejecuta antes de json() en las cuatro vías auditadas', () => {
@@ -65,6 +67,36 @@ describe('C-10 · límite compartido del cuerpo HTTP', () => {
     let parseos = 0;
     const cabeceras = new Headers({
       'content-length': String(50 * 1024 * 1024),
+      'content-type': 'application/json',
+      origin: 'https://pos.example',
+      'x-morphiqpos-request': '1',
+    });
+    const json = async (): Promise<unknown> => {
+      parseos += 1;
+      return {};
+    };
+
+    const privada = await rutaDeComando(rotarQr, { secreto: 's'.repeat(32) })({
+      method: 'POST',
+      headers: cabeceras,
+      json,
+    });
+    const publica = await manejadorPublico(crearSolicitudQR)('token', {
+      method: 'POST',
+      url: 'https://pos.example/api/publico/qr/token/solicitud',
+      headers: cabeceras,
+      json,
+    });
+
+    expect(privada.estado).toBe(413);
+    expect(publica.estado).toBe(413);
+    expect(parseos).toBe(0);
+  });
+
+  it('un cuerpo fragmentado sin longitud recibe 413 sin invocar el parser', async () => {
+    entornoDePrueba();
+    let parseos = 0;
+    const cabeceras = new Headers({
       'content-type': 'application/json',
       origin: 'https://pos.example',
       'x-morphiqpos-request': '1',

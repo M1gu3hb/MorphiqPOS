@@ -17,6 +17,16 @@ const MIGRACION_RLS = join(
   '050_rls_faltante.sql',
 );
 const PRUEBA_RLS = 'packages/data/src/migraciones/rls.test.ts';
+const MIGRACION_RUTINAS = join(
+  RAIZ,
+  'packages',
+  'data',
+  'src',
+  'migraciones',
+  'sql',
+  '055_revocar_rutinas_publicas.sql',
+);
+const PRUEBA_RUTINAS = 'packages/data/src/migraciones/rutinas.test.ts';
 const CONFIGURACION = join(RAIZ, 'packages', 'app', 'src', 'configuracion', 'configuracion.ts');
 const PRUEBA_CONFIGURACION = 'packages/app/src/configuracion/configuracion.test.ts';
 const PRESENTACION = join(RAIZ, 'packages', 'app', 'src', 'puente', 'presentacion.ts');
@@ -158,7 +168,10 @@ const PRUEBA_RESTAURACION = 'packages/data/src/verificacion/restauracion.test.ts
 const REPOSITORIO_CATALOGO = join(RAIZ, 'packages', 'data', 'src', 'repos', 'catalogo.ts');
 const PRUEBA_REPOSITORIO_CATALOGO = 'packages/data/src/repos/catalogo.test.ts';
 const ESCRIBIR_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'escribir.ts');
+const VALIDADOR_URL = join(RAIZ, 'packages', 'app', 'src', 'validacion', 'url-http.ts');
 const PRUEBA_URL_PUBLICA = 'packages/app/src/puente/url-publica.test.ts';
+const PRUEBA_ECO_ESCRITURA = 'packages/app/src/puente/escribir-lectura.test.ts';
+const PRUEBA_LIMITE_CERRADO = 'packages/app/src/http/limite-seguridad.test.ts';
 const TLS_POSTGRES = join(RAIZ, 'packages', 'data', 'src', 'tls.ts');
 const PRUEBA_TLS_POSTGRES = 'packages/data/src/tls.test.ts';
 const RUTA_SUBIDA_ARCHIVOS = join(
@@ -195,6 +208,8 @@ const REFERENCIAS_ARCHIVOS = join(RAIZ, 'packages', 'app', 'src', 'archivos', 'r
 const PRUEBA_SEGURIDAD_ARCHIVOS = 'apps/web/src/servidor/archivos-seguridad.test.ts';
 const PRUEBA_IMAGENES = 'apps/web/src/servidor/archivos-imagen.test.ts';
 const PRUEBA_REFERENCIAS_ARCHIVOS = 'packages/app/src/archivos/referencias.test.ts';
+const CLIENTE_DATOS = join(RAIZ, 'packages', 'data', 'src', 'cliente.ts');
+const LIMITE_DATOS = join(RAIZ, 'packages', 'data', 'src', 'repos', 'limite.ts');
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
 
 function exigirCambio(nombre, original, mutado) {
@@ -262,6 +277,30 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_RLS_MIGRATION_PATH',
   prueba: PRUEBA_RLS,
   transformar: (sql) => sql.replace("('r', 'p', 'v', 'm', 'S')", "('r', 'p', 'v', 'm', 's')"),
+});
+comprobarMutacion({
+  nombre: 'EXECUTE de rutinas conservado para PUBLIC',
+  origen: MIGRACION_RUTINAS,
+  archivoTemporal: '055_revocar_rutinas_publicas.sql',
+  variable: 'MORPHIQPOS_ROUTINES_MIGRATION_PATH',
+  prueba: PRUEBA_RUTINAS,
+  transformar: (sql) =>
+    sql.replace(
+      'revoke execute on all functions in schema public from public;',
+      'revoke execute on all functions in schema public from morphiqpos_app;',
+    ),
+});
+comprobarMutacion({
+  nombre: 'privilegios futuros de rutinas conservados para PUBLIC',
+  origen: MIGRACION_RUTINAS,
+  archivoTemporal: '055_revocar_rutinas_publicas.sql',
+  variable: 'MORPHIQPOS_ROUTINES_MIGRATION_PATH',
+  prueba: PRUEBA_RUTINAS,
+  transformar: (sql) =>
+    sql.replace(
+      'alter default privileges in schema public revoke execute on functions from public;',
+      'alter default privileges in schema public grant execute on functions to public;',
+    ),
 });
 comprobarMutacion({
   nombre: 'paquete reabierto en configuracion.guardar',
@@ -474,6 +513,30 @@ comprobarMutacion({
   transformar: (codigo) => codigo.replace('ROLES_CON_COSTO.includes(rol)', 'true'),
 });
 comprobarMutacion({
+  nombre: 'costo de catálogo seleccionado para todos los roles',
+  origen: REPOSITORIO_CATALOGO,
+  archivoTemporal: 'catalogo.ts',
+  variable: 'MORPHIQPOS_CATALOG_SEARCH_SOURCE_PATH',
+  prueba: PRUEBA_REPOSITORIO_CATALOGO,
+  transformar: (codigo) =>
+    codigo.replace(
+      "ROLES_CON_COSTO.includes(rol) ? (['p.costo_unitario_centavos'] as const) : []",
+      "['p.costo_unitario_centavos'] as const",
+    ),
+});
+comprobarMutacion({
+  nombre: 'eco de escritura selecciona campos restringidos',
+  origen: ESCRIBIR_PUENTE,
+  archivoTemporal: 'escribir.ts',
+  variable: 'MORPHIQPOS_WRITE_OUTPUT_SOURCE_PATH',
+  prueba: PRUEBA_ECO_ESCRITURA,
+  transformar: (codigo) =>
+    codigo.replace(
+      'campo.constante === undefined && puedeLeerCampo(campo, rol)',
+      'campo.constante === undefined',
+    ),
+});
+comprobarMutacion({
   nombre: 'rol de catálogo sustituido por dueño',
   origen: RUTA_CATALOGO_PRODUCTOS,
   archivoTemporal: 'route.ts',
@@ -491,12 +554,16 @@ comprobarMutacion({
     codigo.replaceAll('rolPermitidoParaConsulta(sesion.sesion.rol, opciones.roles)', 'true'),
 });
 comprobarMutacion({
-  nombre: 'GET de productos sin allowlist de roles',
-  origen: RUTA_CATALOGO_PRODUCTOS,
-  archivoTemporal: 'route.ts',
-  variable: 'MORPHIQPOS_CATALOGO_PRODUCTS_ROUTE_PATH',
+  nombre: 'decisión de roles otra vez opcional en responderConsulta',
+  origen: HTTP_WEB,
+  archivoTemporal: 'http.ts',
+  variable: 'MORPHIQPOS_HTTP_SOURCE_PATH',
   prueba: PRUEBA_ROLES_GET,
-  transformar: (codigo) => codigo.replace('{ roles: ROLES }', '{}'),
+  transformar: (codigo) =>
+    codigo.replace(
+      'readonly roles: readonly Rol[] | typeof PUBLICA;',
+      'readonly roles?: readonly Rol[] | typeof PUBLICA;',
+    ),
 });
 comprobarMutacion({
   nombre: 'estado de bloqueo visible para gerente',
@@ -517,6 +584,15 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_BODY_LIMIT_SOURCE_PATH',
   prueba: PRUEBA_LIMITE_CUERPO,
   transformar: (codigo) => codigo.replace('256 * 1024', '50 * 1024 * 1024'),
+});
+comprobarMutacion({
+  nombre: 'cuerpo fragmentado sin longitud admitido',
+  origen: LIMITE_CUERPO,
+  archivoTemporal: 'limite-cuerpo.ts',
+  variable: 'MORPHIQPOS_BODY_LIMIT_SOURCE_PATH',
+  prueba: PRUEBA_LIMITE_CUERPO,
+  transformar: (codigo) =>
+    codigo.replace('if (declarada === null) return false;', 'if (declarada === null) return true;'),
 });
 comprobarMutacion({
   nombre: 'límite omitido en rutaDeComando',
@@ -757,7 +833,16 @@ comprobarMutacion({
   archivoTemporal: 'route.ts',
   variable: 'MORPHIQPOS_EMPLOYEES_ROUTE_PATH',
   prueba: PRUEBA_LIMITE_EMPLEADOS,
-  transformar: (codigo) => codigo.replace("permitir('entrar'", "permitir('enrolar'"),
+  transformar: (codigo) => codigo.replace("permitir('empleados'", "permitir('entrar'"),
+});
+comprobarMutacion({
+  nombre: 'origen desconocido vuelve a saltarse la cuota',
+  origen: LIMITE_APLICACION,
+  archivoTemporal: 'limite.ts',
+  variable: 'MORPHIQPOS_RATE_LIMIT_SOURCE_PATH',
+  prueba: PRUEBA_LIMITE_CERRADO,
+  transformar: (codigo) =>
+    codigo.replace("origenDe(cabeceras) ?? 'origen_global'", "origenDe(cabeceras) ?? 'sin_limite'"),
 });
 comprobarMutacion({
   nombre: 'HSTS eliminada de Next',
@@ -811,6 +896,8 @@ for (const [nombre, origen, variable] of [
   ['http web', HTTP_WEB, 'MORPHIQPOS_LOG_HTTP_WEB_SOURCE_PATH'],
   ['auth entrar', RUTA_AUTH_ENTRAR, 'MORPHIQPOS_LOG_AUTH_ENTRAR_SOURCE_PATH'],
   ['auth empleados', RUTA_EMPLEADOS_PUBLICOS, 'MORPHIQPOS_LOG_AUTH_EMPLEADOS_SOURCE_PATH'],
+  ['pool postgres', CLIENTE_DATOS, 'MORPHIQPOS_LOG_DATA_CLIENT_SOURCE_PATH'],
+  ['purga de cuotas', LIMITE_DATOS, 'MORPHIQPOS_LOG_DATA_LIMIT_SOURCE_PATH'],
 ]) {
   comprobarMutacion({
     nombre: `registro estructurado omitido en ${nombre}`,
@@ -885,12 +972,15 @@ comprobarMutacion({
 });
 comprobarMutacion({
   nombre: 'esquema URL degradado a texto',
-  origen: ESCRIBIR_PUENTE,
-  archivoTemporal: 'escribir.ts',
-  variable: 'MORPHIQPOS_URL_WRITE_SOURCE_PATH',
+  origen: VALIDADOR_URL,
+  archivoTemporal: 'url-http.ts',
+  variable: 'MORPHIQPOS_URL_VALIDATOR_SOURCE_PATH',
   prueba: PRUEBA_URL_PUBLICA,
   transformar: (codigo) =>
-    codigo.replace('z.url().safeParse(valor)', 'z.string().safeParse(valor)'),
+    codigo.replace(
+      "protocolo === 'https:' || protocolo === 'http:'",
+      "protocolo !== 'javascript:'",
+    ),
 });
 comprobarMutacion({
   nombre: 'host TLS comparado sin parsear la URL',

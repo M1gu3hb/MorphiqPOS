@@ -8,6 +8,7 @@ import {
   crearProducto,
   entradaCrearProducto,
 } from './productos.ts';
+import { entradaActualizarProducto } from './esquemas.ts';
 
 const PRODUCTO = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const INSUMO = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -103,6 +104,27 @@ describe('B-04 · comandos de producto', () => {
     ],
   ])('rechaza %s: %s', (entrada, descripcion) => {
     expect(entradaCrearProducto.safeParse(entrada).success, descripcion).toBe(false);
+  });
+
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'ftp://ejemplo.test/a',
+  ])('rechaza el protocolo público inseguro %s al crear y actualizar', (imagenUrl) => {
+    expect(entradaCrearProducto.safeParse({ ...fijo, imagenUrl }).success).toBe(false);
+    expect(
+      entradaActualizarProducto.safeParse({
+        productoId: PRODUCTO,
+        nombre: fijo.nombre,
+        descripcion: fijo.descripcion,
+        imagenUrl,
+        categoriaId: fijo.categoriaId,
+        marca: fijo.marca,
+        visibleEnPos: true,
+        permiteVentaSinStock: false,
+        stockMinimo: '8',
+      }).success,
+    ).toBe(false);
   });
 
   it('cambia precios por id y organización con centavos exactos', async () => {

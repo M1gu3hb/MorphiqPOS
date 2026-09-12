@@ -1,8 +1,12 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 
+import type { Rol } from '@morphiqpos/contracts';
+
 import type { Esquema } from '../esquema.ts';
 
 type Conexion = Kysely<Esquema> | Transaction<Esquema>;
+
+const ROLES_CON_COSTO: readonly Rol[] = ['dueno', 'administrador', 'gerente', 'almacen'];
 
 export interface CursorProducto {
   readonly updatedAt: Date;
@@ -28,6 +32,7 @@ export function construirBusquedaProductos(
   db: Conexion,
   organizacionId: string,
   filtros: FiltrosProductos,
+  rol: Rol,
 ) {
   const limite = Math.min(Math.max(filtros.limite ?? 24, 1), 50);
   let consulta = db
@@ -47,7 +52,6 @@ export function construirBusquedaProductos(
       'p.codigo_barras',
       'p.marca',
       'p.precio_venta_centavos',
-      'p.costo_unitario_centavos',
       'p.precio_mayoreo_centavos',
       'p.cantidad_minima_mayoreo',
       'p.tipo_venta',
@@ -57,6 +61,7 @@ export function construirBusquedaProductos(
       'p.visible_en_pos',
       'p.updated_at',
       'c.nombre as categoria_nombre',
+      ...(ROLES_CON_COSTO.includes(rol) ? (['p.costo_unitario_centavos'] as const) : []),
     ])
     .where('p.organizacion_id', '=', organizacionId)
     .where('p.activo', '=', true);
@@ -99,9 +104,10 @@ export async function buscarProductos(
   db: Conexion,
   organizacionId: string,
   filtros: FiltrosProductos,
+  rol: Rol,
 ) {
   const limite = Math.min(Math.max(filtros.limite ?? 24, 1), 50);
-  const filas = await construirBusquedaProductos(db, organizacionId, filtros).execute();
+  const filas = await construirBusquedaProductos(db, organizacionId, filtros, rol).execute();
   const visibles = filas.slice(0, limite);
   const ultima = visibles.at(-1);
 

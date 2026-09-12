@@ -210,12 +210,15 @@ function respuestaDeDominio(error: unknown, correlationId: string): Response | n
 
 export interface OpcionesConsulta {
   readonly paquetes?: readonly Paquete[];
-  readonly roles?: readonly Rol[];
+  readonly roles: readonly Rol[] | typeof PUBLICA;
 }
+
+/** Decisión explícita para una consulta que admite cualquier rol con sesión. */
+export const PUBLICA = 'PUBLICA' as const;
 
 export async function responderConsulta<T>(
   consulta: (sesion: SesionDeNegocio) => T | Promise<T>,
-  opciones: OpcionesConsulta = {},
+  opciones: OpcionesConsulta,
 ): Promise<Response> {
   // Las rutas GET de gestión no reciben el `Request`, así que la cookie se lee
   // del contexto de Next. `headers()` es asíncrono desde Next 15.
@@ -226,7 +229,7 @@ export async function responderConsulta<T>(
     cabeceras.get('x-correlation-id') ?? cabeceras.get('x-morphiqpos-correlacion'),
   );
 
-  if (!rolPermitidoParaConsulta(sesion.sesion.rol, opciones.roles)) {
+  if (opciones.roles !== PUBLICA && !rolPermitidoParaConsulta(sesion.sesion.rol, opciones.roles)) {
     return Response.json(errorHttp('SIN_PERMISO', 'Tu rol no permite consultar este recurso.'), {
       status: ESTADO_HTTP.SIN_PERMISO,
       headers: { 'cache-control': 'no-store' },

@@ -47,12 +47,17 @@ export async function listarProductos(
   entrada: z.output<typeof entradaBuscarProductos>,
   rol: Rol,
 ): Promise<PaginaProductos> {
-  const resultado = await repoCatalogo.buscarProductos(tx, organizacionId, {
-    limite: entrada.limite,
-    ...(entrada.busqueda === undefined ? {} : { busqueda: entrada.busqueda }),
-    ...(entrada.categoriaId === undefined ? {} : { categoriaId: entrada.categoriaId }),
-    ...(entrada.cursor === undefined ? {} : { cursor: entrada.cursor }),
-  });
+  const resultado = await repoCatalogo.buscarProductos(
+    tx,
+    organizacionId,
+    {
+      limite: entrada.limite,
+      ...(entrada.busqueda === undefined ? {} : { busqueda: entrada.busqueda }),
+      ...(entrada.categoriaId === undefined ? {} : { categoriaId: entrada.categoriaId }),
+      ...(entrada.cursor === undefined ? {} : { cursor: entrada.cursor }),
+    },
+    rol,
+  );
   return {
     productos: resultado.productos.map((producto) => ({
       id: producto.id,

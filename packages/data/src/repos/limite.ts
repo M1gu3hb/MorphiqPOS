@@ -3,6 +3,7 @@ import 'server-only';
 import { sql } from 'kysely';
 
 import { obtenerDb } from '../cliente.ts';
+import { registrar } from '../observabilidad.ts';
 
 /**
  * Contador de intentos por origen (F1.1-C-13).
@@ -37,9 +38,15 @@ async function limpiarSiCorresponde(): Promise<void> {
       // Se conservan cuatro días. Todas las ventanas actuales duran una hora
       // o menos, sin riesgo de borrar un contador que todavía está vigente.
       await limpiarVencidos(RETENCION_BASE_SEGUNDOS);
-    } catch (error) {
+    } catch {
       // La conservación nunca invalida el intento que ya se contó.
-      console.error('[limite_tasa] no se pudo ejecutar la purga', error);
+      registrar({
+        nivel: 'alerta',
+        modulo: 'limite_tasa_purga',
+        correlationId: 'sin_correlacion',
+        organizacionId: null,
+        mensaje: 'No se pudo ejecutar la purga de cuotas vencidas.',
+      });
     }
   }
 }

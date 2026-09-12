@@ -7,11 +7,12 @@ interface CabecerasLegibles {
 
 /**
  * Rechaza una longitud declarada excesiva o mal formada antes de `json()`.
- * La ausencia se admite porque algunos runtimes entregan cuerpos fragmentados.
+ * Sin longitud no se puede demostrar que el cuerpo cabe antes de parsearlo.
+ * Las cuatro vías JSON fallan cerradas; los cuerpos fragmentados se rechazan.
  */
 export function cuerpoDentroDelLimite(cabeceras: CabecerasLegibles): boolean {
   const declarada = cabeceras.get('content-length');
-  if (declarada === null) return true;
+  if (declarada === null) return false;
 
   const normalizada = declarada.trim();
   if (!/^\d+$/.test(normalizada)) return false;
