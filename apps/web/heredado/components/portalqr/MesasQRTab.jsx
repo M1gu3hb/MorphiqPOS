@@ -33,8 +33,7 @@ export default function MesasQRTab({ config }) {
   // con un QR que no existía.
   const asegurarToken = async (mesa) => {
     if (!mesa?.id || mesa.qr_token) return mesa;
-    const token = generarTokenMesa(mesa.id);
-    await api.entidades.Mesa.update(mesa.id, { qr_token: token });
+    const token = await generarTokenMesa(mesa.id);
     queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
     return { ...mesa, qr_token: token };
   };
@@ -46,11 +45,7 @@ export default function MesasQRTab({ config }) {
       // Sin `.catch(() => {})` por mesa: contaba las que se INTENTARON, no las
       // que se guardaron, así que el toast decía «Tokens generados (12)» con
       // doce mesas sin QR. Si una falla, falla el lote y se dice.
-      await Promise.all(
-        pendientes.map((m) =>
-          api.entidades.Mesa.update(m.id, { qr_token: generarTokenMesa(m.id) }),
-        ),
-      );
+      await Promise.all(pendientes.map((m) => generarTokenMesa(m.id)));
       queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
       toast.success(`Tokens generados (${pendientes.length})`);
     } catch (err) {

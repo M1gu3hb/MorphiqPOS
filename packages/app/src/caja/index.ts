@@ -14,3 +14,5 @@ export {
 } from './consulta.ts';
 
 export { corteDeTurno, entradaCorteTurno, type ResultadoCorteTurno } from './turno.ts';
+
+export { encolarSincronizacionCorte, entradaEncolarSincronizacionCorte } from './sincronizacion.ts';

@@ -55,7 +55,18 @@ const MIGRACION_QR = join(
 );
 const COMANDO_QR = join(RAIZ, 'packages', 'app', 'src', 'restaurante', 'qr.ts');
 const UTILIDAD_QR = join(RAIZ, 'apps', 'web', 'heredado', 'utils', 'qrUtils.js');
+const PESTANA_MESAS_QR = join(
+  RAIZ,
+  'apps',
+  'web',
+  'heredado',
+  'components',
+  'portalqr',
+  'MesasQRTab.jsx',
+);
+const PAGINA_CAJA = join(RAIZ, 'apps', 'web', 'heredado', 'pages', 'Caja.jsx');
 const PRUEBA_QR = 'packages/app/src/restaurante/qr.test.ts';
+const PRUEBA_SINCRONIZACION_CAJA = 'packages/app/src/caja/sincronizacion.test.ts';
 const PRUEBA_MIGRACION_QR = 'packages/data/src/migraciones/qr-token.test.ts';
 const CONSULTA_CATALOGO = join(RAIZ, 'packages', 'app', 'src', 'catalogo', 'consulta.ts');
 const RUTA_CATALOGO_PRODUCTOS = join(
@@ -417,6 +428,30 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_QR_UTIL_SOURCE_PATH',
   prueba: PRUEBA_QR,
   transformar: (codigo) => codigo.replace('/api/restaurante/rotar-qr', '/api/datos/entidad/Mesa'),
+});
+comprobarMutacion({
+  nombre: 'pestaña QR devuelta a escritura directa del token',
+  origen: PESTANA_MESAS_QR,
+  archivoTemporal: 'MesasQRTab.jsx',
+  variable: 'MORPHIQPOS_QR_TABLES_SOURCE_PATH',
+  prueba: PRUEBA_QR,
+  transformar: (codigo) =>
+    codigo.replace(
+      'const token = await generarTokenMesa(mesa.id);',
+      'const token = generarTokenMesa(mesa.id);\n    await api.entidades.Mesa.update(mesa.id, { qr_token: token });',
+    ),
+});
+comprobarMutacion({
+  nombre: 'caja devuelta a escritura directa de sincronización',
+  origen: PAGINA_CAJA,
+  archivoTemporal: 'Caja.jsx',
+  variable: 'MORPHIQPOS_CAJA_LEGACY_SOURCE_PATH',
+  prueba: PRUEBA_SINCRONIZACION_CAJA,
+  transformar: (codigo) =>
+    codigo.replace(
+      "api.comandos.ejecutar('/api/caja/encolar-sincronizacion', { corteId })",
+      "api.entidades.IntegrationSyncLog.create({ record_type: 'cash_cut', record_id: corteId })",
+    ),
 });
 comprobarMutacion({
   nombre: 'costo de consumo abierto por la vista alternativa',

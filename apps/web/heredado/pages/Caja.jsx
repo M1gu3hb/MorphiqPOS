@@ -1056,25 +1056,7 @@ export default function Caja() {
 
       // Cola de sincronización (no bloqueante)
       try {
-        const nowIso = new Date().toISOString();
-        await Promise.all([
-          api.entidades.IntegrationSyncLog.create({
-            record_type: 'cash_cut',
-            record_id: corteId,
-            destination: 'google_sheets',
-            status: 'pending_external_sync',
-            attempts: 0,
-            last_attempt_at: nowIso,
-          }),
-          api.entidades.IntegrationSyncLog.create({
-            record_type: 'cash_cut_pdf',
-            record_id: corteId,
-            destination: 'google_drive',
-            status: 'pending_external_sync',
-            attempts: 0,
-            last_attempt_at: nowIso,
-          }),
-        ]);
+        await api.comandos.ejecutar('/api/caja/encolar-sincronizacion', { corteId });
         queryClient.invalidateQueries({ queryKey: ['integration_sync_logs_pending'] });
       } catch (err) {
         // La caja YA está cerrada: esto es una cola externa, y no encolar un

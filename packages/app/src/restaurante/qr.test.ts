@@ -18,6 +18,11 @@ const COMANDO =
 const MAPA =
   process.env['MORPHIQPOS_MAPA_SOURCE_PATH'] ??
   fileURLToPath(new URL('../puente/mapa.ts', import.meta.url));
+const PESTANA_MESAS =
+  process.env['MORPHIQPOS_QR_TABLES_SOURCE_PATH'] ??
+  fileURLToPath(
+    new URL('../../../../apps/web/heredado/components/portalqr/MesasQRTab.jsx', import.meta.url),
+  );
 
 async function codigoDe(promesa: Promise<unknown>): Promise<string> {
   try {
@@ -73,5 +78,15 @@ describe('restaurante.rotar_qr', () => {
     expect(codigo).toContain('/api/restaurante/rotar-qr');
     expect(codigo).not.toContain('charCodeAt');
     expect(codigo).not.toContain('toString(36)');
+  });
+
+  it('las dos acciones de Mesas QR esperan el token emitido por el servidor', () => {
+    const codigo = readFileSync(PESTANA_MESAS, 'utf8');
+
+    expect(codigo).not.toContain('api.entidades.Mesa.update(mesa.id, { qr_token:');
+    expect(codigo).not.toContain('api.entidades.Mesa.update(m.id, { qr_token:');
+    expect(codigo.match(/generarTokenMesa\(/g)).toHaveLength(2);
+    expect(codigo).toMatch(/const token = await generarTokenMesa\(mesa\.id\)/);
+    expect(codigo).toMatch(/pendientes\.map\(\(m\) => generarTokenMesa\(m\.id\)\)/);
   });
 });

@@ -25,3 +25,4 @@ export * as repoVentaCatalogo from './repos/venta-catalogo.ts';
 export * as repoLimite from './repos/limite.ts';
 export * as repoArchivos from './repos/archivos.ts';
 export * as repoNegocio from './repos/negocio.ts';
+export * as repoSincronizacion from './repos/sincronizacion.ts';
