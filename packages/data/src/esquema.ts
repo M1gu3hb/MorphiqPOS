@@ -217,6 +217,12 @@ export interface CredencialesPin {
   updated_at: Generated<Date>;
 }
 
+export interface CuotasArchivos {
+  organizacion_id: string;
+  bytes_usados: Generated<bigint>;
+  updated_at: Generated<Date>;
+}
+
 export interface Empleos {
   id: Generated<string>;
   persona_id: string;
@@ -786,6 +792,7 @@ export interface Esquema {
   configuracion: Configuracion;
   cortes_turno: CortesTurno;
   credenciales_pin: CredencialesPin;
+  cuotas_archivos: CuotasArchivos;
   empleos: Empleos;
   estaciones_preparacion: EstacionesPreparacion;
   existencias: Existencias;

@@ -1838,6 +1838,39 @@
       "tipo": "timestamp with time zone"
     },
     {
+      "clave": "public.cuotas_archivos.bytes_usados",
+      "columna": "bytes_usados",
+      "defaultSql": "0",
+      "esquema": "public",
+      "generada": null,
+      "identidad": null,
+      "noNula": true,
+      "tabla": "cuotas_archivos",
+      "tipo": "bigint"
+    },
+    {
+      "clave": "public.cuotas_archivos.organizacion_id",
+      "columna": "organizacion_id",
+      "defaultSql": null,
+      "esquema": "public",
+      "generada": null,
+      "identidad": null,
+      "noNula": true,
+      "tabla": "cuotas_archivos",
+      "tipo": "uuid"
+    },
+    {
+      "clave": "public.cuotas_archivos.updated_at",
+      "columna": "updated_at",
+      "defaultSql": "now()",
+      "esquema": "public",
+      "generada": null,
+      "identidad": null,
+      "noNula": true,
+      "tabla": "cuotas_archivos",
+      "tipo": "timestamp with time zone"
+    },
+    {
       "clave": "public.empleos.activo",
       "columna": "activo",
       "defaultSql": "true",
@@ -7316,6 +7349,16 @@
       "valido": true
     },
     {
+      "clave": "public.cuotas_archivos.cuotas_archivos_pkey",
+      "definicion": "CREATE UNIQUE INDEX cuotas_archivos_pkey ON public.cuotas_archivos USING btree (organizacion_id)",
+      "esquema": "public",
+      "nombre": "cuotas_archivos_pkey",
+      "primario": true,
+      "tabla": "cuotas_archivos",
+      "unico": true,
+      "valido": true
+    },
+    {
       "clave": "public.empleos.empleos_id_org_unica",
       "definicion": "CREATE UNIQUE INDEX empleos_id_org_unica ON public.empleos USING btree (id, organizacion_id)",
       "esquema": "public",
@@ -9797,6 +9840,39 @@
       "esquema": "public",
       "nombre": "credenciales_pin_pkey",
       "tabla": "credenciales_pin",
+      "tipo": "primary_key",
+      "validada": true
+    },
+    {
+      "clave": "public.cuotas_archivos.cuotas_archivos_bytes_no_negativos",
+      "definicion": "CHECK (bytes_usados >= 0)",
+      "diferible": false,
+      "diferidaInicialmente": false,
+      "esquema": "public",
+      "nombre": "cuotas_archivos_bytes_no_negativos",
+      "tabla": "cuotas_archivos",
+      "tipo": "check",
+      "validada": true
+    },
+    {
+      "clave": "public.cuotas_archivos.cuotas_archivos_organizacion_id_fkey",
+      "definicion": "FOREIGN KEY (organizacion_id) REFERENCES organizaciones(id) ON DELETE CASCADE",
+      "diferible": false,
+      "diferidaInicialmente": false,
+      "esquema": "public",
+      "nombre": "cuotas_archivos_organizacion_id_fkey",
+      "tabla": "cuotas_archivos",
+      "tipo": "foreign_key",
+      "validada": true
+    },
+    {
+      "clave": "public.cuotas_archivos.cuotas_archivos_pkey",
+      "definicion": "PRIMARY KEY (organizacion_id)",
+      "diferible": false,
+      "diferidaInicialmente": false,
+      "esquema": "public",
+      "nombre": "cuotas_archivos_pkey",
+      "tabla": "cuotas_archivos",
       "tipo": "primary_key",
       "validada": true
     },

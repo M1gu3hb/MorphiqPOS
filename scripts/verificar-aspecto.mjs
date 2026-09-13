@@ -104,7 +104,7 @@ function permitidos() {
       );
       process.exit(2);
     }
-    const cuenta = new Map();
+    const cuenta = mapa.get(entrada.archivo) ?? new Map();
     for (const t of entrada.testigos ?? []) cuenta.set(t, (cuenta.get(t) ?? 0) + 1);
     mapa.set(entrada.archivo, cuenta);
   }
@@ -278,26 +278,16 @@ const cambiados = git('diff', '--name-only', REFERENCIA, '--', CARPETA)
   .map((s) => s.trim())
   .filter((s) => s !== '' && /\.(jsx?|tsx?)$/.test(s));
 
-if (cambiados.length === 0) {
-  process.stdout.write(`Sin cambios en ${CARPETA} respecto de ${REFERENCIA}.\n`);
-  process.exit(0);
-}
-
 /**
- * Dos severidades, y la diferencia importa.
+ * Las dos clases de cambio son bloqueantes.
  *
  * La ESTRUCTURA —clases, texto del JSX, iconos, atributos visibles— es
  * inviolable: es lo que Miguel reconoce al abrir su sistema, y cualquier
  * diferencia hunde la entrega.
  *
- * Los AVISOS son otra cosa. El encargo pide expresamente que el error del
- * navegador ceda el sitio al mensaje del dominio —«esa mesa ya está abierta» en
- * vez de «No se pudo abrir la mesa»—, así que su texto CAMBIA a propósito y por
- * decenas. Se listan siempre, para que nadie los cambie sin verlo, pero sólo
- * tumban la puerta con `--estricto`, que es lo que se usa al revisar un cambio
- * que no debía tocarlos.
+ * Los avisos pueden cambiar sólo mediante una excepción motivada en
+ * aspecto-permitido.json. Si quedan diferencias sin declarar, `verify` falla.
  */
-const ESTRICTO = process.argv.includes('--estricto');
 const esEstructura = (testigo) => !testigo.startsWith('aviso:');
 
 let total = 0;
@@ -366,7 +356,5 @@ const cabecera =
 process.stdout.write(`${cabecera}\n${informe.join('\n')}\n`);
 
 if (total > 0) process.exit(1);
-// Con `--estricto` también tumban los avisos: es lo que se usa al revisar un
-// cambio que no tenía por qué tocarlos.
-if (ESTRICTO && avisos > 0) process.exit(1);
+if (avisos > 0) process.exit(1);
 process.exit(0);
