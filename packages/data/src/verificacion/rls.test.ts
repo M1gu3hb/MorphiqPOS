@@ -14,6 +14,9 @@ const CONTRATO_RLS =
 const MIGRACION_046 = fileURLToPath(
   new URL('../migraciones/sql/046_restricciones_restaurante.sql', import.meta.url),
 );
+const MIGRACION_052 = fileURLToPath(
+  new URL('../migraciones/sql/052_qr_token_unico.sql', import.meta.url),
+);
 const MANIFIESTO =
   process.env['MORPHIQPOS_PACKAGE_JSON_PATH'] ??
   fileURLToPath(new URL('../../../../package.json', import.meta.url));
@@ -71,6 +74,10 @@ describe('C-13 · verificación viva de RLS y grants', () => {
   });
 
   it('detecta índices 046 ausentes, no únicos o inválidos', () => {
+    const primerIndice = INDICES_UNICOS_046[0];
+    expect(primerIndice).toBeDefined();
+    if (primerIndice === undefined) return;
+
     const indices = INDICES_UNICOS_046.slice(1).map((nombre) => ({
       nombre,
       unico: nombre !== 'cortes_turno_folio_unico',
@@ -78,7 +85,7 @@ describe('C-13 · verificación viva de RLS y grants', () => {
     }));
 
     const problemas = problemasDeSeguridad({ relaciones: [], indices, funciones: [] }).join('\n');
-    expect(problemas).toContain(`${INDICES_UNICOS_046[0]}: índice 046 ausente`);
+    expect(problemas).toContain(`${primerIndice}: índice 046 ausente`);
     expect(problemas).toContain('cortes_turno_folio_unico: el índice no es único');
     expect(problemas).toContain('liquidaciones_folio_unico: el índice no es válido');
   });
@@ -100,13 +107,15 @@ describe('C-13 · verificación viva de RLS y grants', () => {
     expect(problemas).toContain('public.clave_texto(text): authenticated conserva EXECUTE');
   });
 
-  it('cubre todos los índices únicos declarados por la migración 046', () => {
-    const sql = readFileSync(MIGRACION_046, 'utf8');
+  it('deriva todos los índices únicos críticos de las migraciones que los declaran', () => {
+    const sql = `${readFileSync(MIGRACION_046, 'utf8')}\n${readFileSync(MIGRACION_052, 'utf8')}`;
     const declarados = [...sql.matchAll(/create\s+unique\s+index\s+([a-z0-9_]+)/gi)].map(
       (coincidencia) => coincidencia[1],
     );
 
     expect(declarados.sort()).toEqual([...INDICES_UNICOS_046].sort());
+    expect(INDICES_UNICOS_046).toContain('mesas_qr_token_unico');
+    expect(readFileSync(CONTRATO_RLS, 'utf8')).toContain('extraerIndicesUnicos');
   });
 
   it('consulta el catálogo requerido y está conectado a pnpm verify', () => {
@@ -121,7 +130,7 @@ describe('C-13 · verificación viva de RLS y grants', () => {
 
     const contrato = readFileSync(CONTRATO_RLS, 'utf8');
     expect(contrato).toContain('if (relacion.rlsActiva !== true)');
-    expect(contrato).toContain("'cortes_folio_unico'");
+    expect(contrato).toContain('MIGRACIONES_INDICES_CRITICOS');
 
     const scripts = leerScripts();
     expect('verify:rls' in scripts && scripts['verify:rls']).toContain('verificar-rls.mjs');

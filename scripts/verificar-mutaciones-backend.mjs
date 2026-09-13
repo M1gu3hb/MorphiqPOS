@@ -165,6 +165,8 @@ const PRUEBA_OBSERVABILIDAD = 'packages/app/src/observabilidad.test.ts';
 const PRUEBA_ADOPCION_OBSERVABILIDAD = 'apps/web/src/servidor/observabilidad-backend.test.ts';
 const ENSAYO_RESTAURACION = join(RAIZ, 'scripts', 'ensayar-restauracion.mjs');
 const PRUEBA_RESTAURACION = 'packages/data/src/verificacion/restauracion.test.ts';
+const VERIFICADOR_ASPECTO = join(RAIZ, 'scripts', 'verificar-aspecto.mjs');
+const PRUEBA_ASPECTO = 'apps/web/src/servidor/aspecto-gate.test.ts';
 const REPOSITORIO_CATALOGO = join(RAIZ, 'packages', 'data', 'src', 'repos', 'catalogo.ts');
 const PRUEBA_REPOSITORIO_CATALOGO = 'packages/data/src/repos/catalogo.test.ts';
 const ESCRIBIR_PUENTE = join(RAIZ, 'packages', 'app', 'src', 'puente', 'escribir.ts');
@@ -208,6 +210,18 @@ const REFERENCIAS_ARCHIVOS = join(RAIZ, 'packages', 'app', 'src', 'archivos', 'r
 const PRUEBA_SEGURIDAD_ARCHIVOS = 'apps/web/src/servidor/archivos-seguridad.test.ts';
 const PRUEBA_IMAGENES = 'apps/web/src/servidor/archivos-imagen.test.ts';
 const PRUEBA_REFERENCIAS_ARCHIVOS = 'packages/app/src/archivos/referencias.test.ts';
+const MIGRACION_CUOTA_ARCHIVOS = join(
+  RAIZ,
+  'packages',
+  'data',
+  'src',
+  'migraciones',
+  'sql',
+  '056_cuota_archivos_atomica.sql',
+);
+const REPOSITORIO_ARCHIVOS = join(RAIZ, 'packages', 'data', 'src', 'repos', 'archivos.ts');
+const PRUEBA_MIGRACION_CUOTA_ARCHIVOS = 'packages/data/src/migraciones/cuota-archivos.test.ts';
+const PRUEBA_CUOTA_ARCHIVOS = 'packages/data/src/repos/archivos-cuota.test.ts';
 const CLIENTE_DATOS = join(RAIZ, 'packages', 'data', 'src', 'cliente.ts');
 const LIMITE_DATOS = join(RAIZ, 'packages', 'data', 'src', 'repos', 'limite.ts');
 const VITEST = join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs');
@@ -695,12 +709,12 @@ comprobarMutacion({
   transformar: (codigo) => codigo.replace('if (relacion.rlsActiva !== true)', 'if (false)'),
 });
 comprobarMutacion({
-  nombre: 'índice único 046 omitido de la verificación',
+  nombre: 'derivación de índices únicos críticos eliminada',
   origen: CONTRATO_RLS,
   archivoTemporal: 'rls.ts',
   variable: 'MORPHIQPOS_RLS_CONTRACT_SOURCE_PATH',
   prueba: PRUEBA_RLS_VIVA,
-  transformar: (codigo) => codigo.replace("  'cortes_folio_unico',\n", ''),
+  transformar: (codigo) => codigo.replaceAll('extraerIndicesUnicos', 'indicesHardcodeados'),
 });
 comprobarMutacion({
   nombre: 'FORCE RLS omitido de la consulta viva',
@@ -946,6 +960,27 @@ comprobarMutacion({
   transformar: (codigo) => codigo.replace('compararVerificacion(mapaEsperado', 'void mapaEsperado'),
 });
 comprobarMutacion({
+  nombre: 'ensayo de restauración vuelve a fabricar pg_cron',
+  origen: ENSAYO_RESTAURACION,
+  archivoTemporal: 'ensayar-restauracion.mjs',
+  variable: 'MORPHIQPOS_RESTORE_DRILL_SOURCE_PATH',
+  prueba: PRUEBA_RESTAURACION,
+  transformar: (codigo) =>
+    codigo.replace(
+      'const opcionesPostgres = `-p ${String(puerto)} -h 127.0.0.1 -c timezone=UTC`;',
+      "const opcionesPostgres = 'extension_control_path=falsa';",
+    ),
+});
+comprobarMutacion({
+  nombre: 'avisos visuales dejan de tumbar la puerta de aspecto',
+  origen: VERIFICADOR_ASPECTO,
+  archivoTemporal: 'verificar-aspecto.mjs',
+  variable: 'MORPHIQPOS_ASPECT_GATE_SOURCE_PATH',
+  prueba: PRUEBA_ASPECTO,
+  transformar: (codigo) =>
+    codigo.replace('if (avisos > 0) process.exit(1);', 'if (false) process.exit(1);'),
+});
+comprobarMutacion({
   nombre: 'metacaracteres ILIKE sin escapar',
   origen: REPOSITORIO_CATALOGO,
   archivoTemporal: 'catalogo.ts',
@@ -1050,16 +1085,29 @@ comprobarMutacion({
     ),
 });
 comprobarMutacion({
-  nombre: 'cuota organizacional de archivos desactivada',
+  nombre: 'rechazo de reserva de cuota de archivos desactivado',
   origen: RUTA_SUBIDA_ARCHIVOS,
   archivoTemporal: 'route.ts',
   variable: 'MORPHIQPOS_UPLOAD_ROUTE_PATH',
   prueba: PRUEBA_SEGURIDAD_ARCHIVOS,
+  transformar: (codigo) => codigo.replace('if (reservados === null)', 'if (false)'),
+});
+comprobarMutacion({
+  nombre: 'FORCE RLS omitido del contador de cuota de archivos',
+  origen: MIGRACION_CUOTA_ARCHIVOS,
+  archivoTemporal: '056_cuota_archivos_atomica.sql',
+  variable: 'MORPHIQPOS_FILE_QUOTA_MIGRATION_PATH',
+  prueba: PRUEBA_MIGRACION_CUOTA_ARCHIVOS,
+  transformar: (codigo) => codigo.replace('force row level security', 'disable row level security'),
+});
+comprobarMutacion({
+  nombre: 'límite condicional retirado del upsert de cuota de archivos',
+  origen: REPOSITORIO_ARCHIVOS,
+  archivoTemporal: 'archivos.ts',
+  variable: 'MORPHIQPOS_FILE_QUOTA_REPOSITORY_PATH',
+  prueba: PRUEBA_CUOTA_ARCHIVOS,
   transformar: (codigo) =>
-    codigo.replace(
-      'if (usados + imagen.bytes.byteLength > CUOTA_ORGANIZACION_BYTES)',
-      'if (false)',
-    ),
+    codigo.replace('+ ${bytesNuevos} <= ${limiteBytes}', '+ ${bytesNuevos} >= ${limiteBytes}'),
 });
 comprobarMutacion({
   nombre: 'archivo nuevo guardado directamente como publico',

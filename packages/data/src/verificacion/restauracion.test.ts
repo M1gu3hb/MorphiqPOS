@@ -23,4 +23,12 @@ describe('ensayo de restauracion', () => {
     expect(fuente).toContain('pg_ctl');
     expect(fuente).toContain('finally');
   });
+
+  it('ensaya PostgreSQL puro sin fabricar pg_cron y reporta el modo de purga', () => {
+    const fuente = readFileSync(ruta, 'utf8');
+    expect(fuente).not.toContain('escribirExtensionCron');
+    expect(fuente).not.toContain('extension_control_path');
+    expect(fuente).toContain('estadoPgCron');
+    expect(fuente).toContain('purga manual');
+  });
 });

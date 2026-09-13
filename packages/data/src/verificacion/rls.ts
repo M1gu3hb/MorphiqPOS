@@ -1,16 +1,20 @@
+import { readFileSync } from 'node:fs';
+
+const MIGRACIONES_INDICES_CRITICOS = [
+  new URL('../migraciones/sql/046_restricciones_restaurante.sql', import.meta.url),
+  new URL('../migraciones/sql/052_qr_token_unico.sql', import.meta.url),
+] as const;
+
+export function extraerIndicesUnicos(sql: string): string[] {
+  return [...sql.matchAll(/create\s+unique\s+index\s+(?:if\s+not\s+exists\s+)?([a-z0-9_]+)/gi)]
+    .map((coincidencia) => coincidencia[1])
+    .filter((nombre): nombre is string => nombre !== undefined);
+}
+
 export const INDICES_UNICOS_046 = [
-  'cortes_folio_unico',
-  'cortes_turno_folio_unico',
-  'liquidaciones_folio_unico',
-  'ordenes_una_activa_por_mesa',
-  'mesas_una_orden_activa',
-  'sesiones_caja_una_abierta_por_sucursal',
-  'estaciones_una_general',
-  'ordenes_carrito_por_terminal',
-  'insumos_nombre_unico',
-  'categorias_nombre_unico',
-  'estaciones_nombre_unico',
-  'solicitudes_qr_una_pendiente',
+  ...MIGRACIONES_INDICES_CRITICOS.flatMap((ruta) =>
+    extraerIndicesUnicos(readFileSync(ruta, 'utf8')),
+  ),
 ] as const;
 
 export interface RelacionSeguridad {

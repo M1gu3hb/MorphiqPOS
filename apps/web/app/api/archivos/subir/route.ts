@@ -1,5 +1,6 @@
 import { validarEntorno } from '@morphiqpos/contracts';
 import { permitirOrganizacion } from '@morphiqpos/app/http';
+import { repoArchivos } from '@morphiqpos/app/archivos';
 
 import { almacenArchivos } from '~/servidor/archivos-almacen';
 import { crearClavePrivada } from '~/servidor/archivos-claves';
@@ -50,13 +51,24 @@ export function POST(peticion: Request): Promise<Response> {
       }
 
       const almacen = almacenArchivos();
-      const usados = await almacen.bytesBajo(`privado/${sesion.organizacionId}/`);
-      if (usados + imagen.bytes.byteLength > CUOTA_ORGANIZACION_BYTES) {
+      const bytesObservados = await almacen.bytesBajo(`privado/${sesion.organizacionId}/`);
+      const reservados = await repoArchivos.reservarCuotaArchivo({
+        organizacionId: sesion.organizacionId,
+        bytesNuevos: imagen.bytes.byteLength,
+        limiteBytes: CUOTA_ORGANIZACION_BYTES,
+        bytesObservados,
+      });
+      if (reservados === null) {
         return error('CUOTA_DE_ARCHIVOS', 'La organización agotó su cuota de archivos.', 413);
       }
 
       const clave = crearClavePrivada(sesion.organizacionId, imagen.extension);
-      await almacen.guardar(clave, imagen.bytes, imagen.mime);
+      try {
+        await almacen.guardar(clave, imagen.bytes, imagen.mime);
+      } catch (causa) {
+        await repoArchivos.liberarCuotaArchivo(sesion.organizacionId, imagen.bytes.byteLength);
+        throw causa;
+      }
       return { file_url: `${new URL(entorno.APP_URL).origin}/api/archivos/${clave}` };
     } catch (causa) {
       if (causa instanceof ErrorMultipart) {

@@ -114,7 +114,7 @@ describe('frontera HTTP de archivos', () => {
     expect(esClaveArchivo(`privado/../2026/09/${uuid}.png`, 'privado')).toBe(false);
   });
 
-  it('cablea sesión, rol, tasa, cuota y 5 MB en la ruta y en ambos clientes', () => {
+  it('cablea sesión, rol, tasa, reserva atómica y 5 MB en la ruta y en ambos clientes', () => {
     const ruta = readFileSync(RUTA, 'utf8');
     expect(ruta).toContain('conSesionMultipart');
     expect(ruta).toContain("['dueno', 'administrador', 'gerente']");
@@ -122,7 +122,10 @@ describe('frontera HTTP de archivos', () => {
     expect(ruta).toContain('CUOTA_ORGANIZACION_BYTES');
     expect(ruta).toContain('const MAX_ARCHIVO_BYTES = 5 * 1024 * 1024');
     expect(ruta).toContain('bytesBajo(`privado/${sesion.organizacionId}/`)');
-    expect(ruta).toContain('if (usados + imagen.bytes.byteLength > CUOTA_ORGANIZACION_BYTES)');
+    expect(ruta).toContain('repoArchivos.reservarCuotaArchivo');
+    expect(ruta).toContain('if (reservados === null)');
+    expect(ruta).toContain('repoArchivos.liberarCuotaArchivo');
+    expect(ruta).not.toContain('if (usados + imagen.bytes.byteLength > CUOTA_ORGANIZACION_BYTES)');
     expect(ruta).not.toContain('archivo.name');
     expect(ruta).not.toContain('archivo.type');
 

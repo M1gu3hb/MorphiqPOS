@@ -65,6 +65,58 @@ function literalSql(valor: string): string {
   return `'${valor.replaceAll("'", "''")}'`;
 }
 
+const EXTENSION_PG_CRON_OPCIONAL = String.raw`
+do $morphiqpos_pg_cron$
+begin
+  if exists (
+    select 1 from pg_catalog.pg_available_extensions where name = 'pg_cron'
+  ) then
+    execute 'create extension if not exists pg_cron with schema pg_catalog';
+  else
+    raise notice 'pg_cron no está disponible; la purga manual de comandos ejecutados queda documentada.';
+  end if;
+end
+$morphiqpos_pg_cron$;`;
+
+const TAREA_PG_CRON_OPCIONAL = String.raw`
+do $morphiqpos_pg_cron$
+begin
+  if to_regprocedure('cron.schedule(text,text,text)') is null then
+    raise notice 'pg_cron ausente: ejecutar como purga manual DELETE de comandos_ejecutados con más de 90 días.';
+  else
+    perform cron.schedule(
+      'morphiqpos_retencion_comandos',
+      '17 3 * * *',
+      $trabajo$
+        delete from public.comandos_ejecutados
+        where created_at < now() - interval '90 days';
+      $trabajo$
+    );
+  end if;
+end
+$morphiqpos_pg_cron$;`;
+
+/**
+ * Conserva intacto el archivo y su hash, pero adapta la migración 053 cuando
+ * el PostgreSQL de destino no ofrece pg_cron.
+ */
+export function prepararSqlMigracion(migracion: Migracion): string {
+  if (migracion.version !== 53) return migracion.sql;
+
+  const sinExtensionObligatoria = migracion.sql.replace(
+    /create\s+extension\s+if\s+not\s+exists\s+pg_cron\s+with\s+schema\s+pg_catalog\s*;/i,
+    EXTENSION_PG_CRON_OPCIONAL,
+  );
+  const portable = sinExtensionObligatoria.replace(
+    /select\s+cron\.schedule\([\s\S]*?\$trabajo\$\s*\);/i,
+    TAREA_PG_CRON_OPCIONAL,
+  );
+  if (portable === migracion.sql || portable.includes('select cron.schedule(')) {
+    throw new Error('La compatibilidad de pg_cron ya no reconoce la migración 053.');
+  }
+  return portable;
+}
+
 /**
  * Construye el único mensaje que el transporte vinculado entrega a Postgres.
  * El SQL y el ledger viajan en la misma transacción también cuando no hay una
@@ -74,7 +126,7 @@ export function prepararTandaVinculada(pendientes: readonly Migracion[], ensayo:
   const partes = ['begin;'];
 
   for (const migracion of pendientes) {
-    partes.push(migracion.sql);
+    partes.push(prepararSqlMigracion(migracion));
     partes.push(
       'insert into _migraciones (version, nombre, hash, duracion_ms) values ' +
         `(${migracion.version}, ${literalSql(migracion.nombre)}, ${literalSql(migracion.hash)}, 0);`,
@@ -294,7 +346,7 @@ export async function migrar(opciones: { ensayo?: boolean } = {}): Promise<Resul
 
         // Sin parámetros → protocolo simple → el archivo entero, con sus
         // decenas de sentencias, viaja en un solo mensaje.
-        await cliente.query(migracion.sql);
+        await cliente.query(prepararSqlMigracion(migracion));
 
         const duracion = Number((process.hrtime.bigint() - inicio) / 1_000_000n);
 
