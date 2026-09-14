@@ -442,6 +442,7 @@ describe('los campos derivados', () => {
       'insumos',
       'categorias',
       'existencias_por_insumo',
+      'ordenes_pagos_resumen',
     ]);
     for (const [entidad, mapa] of Object.entries(MAPA)) {
       for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {

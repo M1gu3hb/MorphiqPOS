@@ -540,6 +540,89 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       satisfaccion_fecha: { columna: 'satisfaccion_en', conversion: 'fecha', escribible: false },
     },
     derivados: {
+      // La propina vive en `pagos`, separada de la venta. La vista 057 agrega
+      // únicamente pagos confirmados y mantiene `ordenes.total_centavos` como
+      // venta real, sin inflarla con dinero de los meseros.
+      propina_monto: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'propina_monto_centavos',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
+      propina_efectivo: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'propina_efectivo_centavos',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
+      propina_tarjeta: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'propina_tarjeta_centavos',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
+      propina_transferencia: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'propina_transferencia_centavos',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
+      total_cobrado_con_propina: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'total_cobrado_centavos',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
+      metodo_pago: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'metodo_pago',
+        conversion: 'texto',
+        rolesLectura: [...CAJA],
+      },
+      monto_efectivo: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'monto_efectivo_centavos',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
+      monto_tarjeta: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'monto_tarjeta_centavos',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
+      monto_transferencia: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'monto_transferencia_centavos',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
+      cambio: {
+        tabla: 'ordenes_pagos_resumen',
+        porColumna: 'id',
+        emparejaCon: 'orden_id',
+        columna: 'cambio_centavos',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
       // El número de mesa se DERIVA, no se copia. Riesgo asumido y anotado en
       // `F1-04` §38.1: si alguien renumera la mesa 5 como 7, un ticket viejo
       // pasará a decir 7. Se acepta porque no es dinero ni identidad de
@@ -561,6 +644,15 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         porColumna: 'empleado_cobra_id',
         columna: 'nombre',
         conversion: 'texto',
+      },
+    },
+    calculados: {
+      // No se guarda un segundo estado que pueda desincronizarse: la presencia
+      // de la liquidación asociada es la única verdad.
+      propina_liquidada: {
+        rolesLectura: [...DIRECCION],
+        formula: 'propinaLiquidada',
+        conversion: 'booleano',
       },
     },
   },

@@ -147,7 +147,7 @@ export interface CampoDerivado {
  * fórmula vive en `consultar.ts`, junto a la aritmética que la hace exacta, y
  * el mapa sólo dice cuál se aplica. Una función aquí volvería el mapa código.
  */
-export type Calculo = 'costoDeLineaDeReceta';
+export type Calculo = 'costoDeLineaDeReceta' | 'propinaLiquidada';
 
 export interface CampoCalculado {
   /** Igual que en `CampoMapeado`: quién puede leerlo. `undefined` = cualquiera. */
