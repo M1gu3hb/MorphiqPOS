@@ -25,6 +25,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/utils/financialUtils';
+import { api } from '@/api/cliente';
+import { aCentavos, aPesos } from '@/components/caja/dinero';
 
 /**
  * Modal de Cierre de caja diario (premium).
@@ -47,12 +49,14 @@ export default function CierreDiarioDialog({
   const [efectivoContado, setEfectivoContado] = useState('');
   const [dineroDejado, setDineroDejado] = useState('');
   const [notas, setNotas] = useState('');
+  const [arqueoServidor, setArqueoServidor] = useState(null);
 
   useEffect(() => {
     if (open) {
       setEfectivoContado('');
       setDineroDejado('');
       setNotas('');
+      setArqueoServidor(null);
     }
   }, [open]);
 
@@ -80,24 +84,50 @@ export default function CierreDiarioDialog({
   const efTotal = totalEfectivo + efPropinas;
   const taTotal = totalTarjeta + taPropinas;
   const trTotal = totalTransferencia + trPropinas;
-  // El conteo de efectivo debe cuadrar contra el total cobrado en efectivo
-  // (ventas reales + propinas en efectivo), porque eso es lo que físicamente
-  // hay en el cajón.
-  const efectivoEsperado = efTotal;
 
   const efNum = Number.parseFloat(efectivoContado);
   const efValido = efectivoContado !== '' && Number.isFinite(efNum);
   const dejadoNum = Number.parseFloat(dineroDejado);
   const dejadoValido = dineroDejado === '' || Number.isFinite(dejadoNum);
-  // Diferencia contra el efectivo esperado (ventas + propinas en efectivo).
-  const diferencia = (efValido ? efNum : 0) - efectivoEsperado;
+
+  // El esperado se pide sólo DESPUÉS de que el cajero haya contado. Así el
+  // conteo sigue siendo ciego y fondo, ventas y movimientos se suman una sola
+  // vez: en `repoCaja.arqueoDeSesion`, no con otra fórmula en el navegador.
+  useEffect(() => {
+    setArqueoServidor(null);
+    if (!open || !efValido) return undefined;
+
+    let vigente = true;
+    const temporizador = window.setTimeout(() => {
+      api.comandos
+        .ejecutar('/api/caja/estado', {
+          efectivoContadoCentavos: aCentavos(efNum),
+        })
+        .then(
+          (arqueo) => {
+            if (vigente) setArqueoServidor(arqueo);
+          },
+          () => {
+            if (vigente) setArqueoServidor(null);
+          },
+        );
+    }, 250);
+
+    return () => {
+      vigente = false;
+      window.clearTimeout(temporizador);
+    };
+  }, [efNum, efValido, open]);
+
+  const efectivoEsperado = aPesos(arqueoServidor?.efectivoEsperadoCentavos);
+  const diferencia = aPesos(arqueoServidor?.diferenciaCentavos);
 
   const tonoDiferencia = useMemo(() => {
-    if (!efValido) return null;
+    if (!efValido || !arqueoServidor) return null;
     if (Math.abs(diferencia) < 0.01) return 'cuadra';
     if (diferencia > 0) return 'sobra';
     return 'falta';
-  }, [efValido, diferencia]);
+  }, [arqueoServidor, efValido, diferencia]);
 
   const handleConfirm = () => {
     if (loading) return;
@@ -257,7 +287,7 @@ export default function CierreDiarioDialog({
                     Efectivo esperado en cajón
                   </p>
                   <p className="font-heading font-black text-2xl text-emerald-800 dark:text-emerald-200 leading-tight">
-                    {formatCurrency(efectivoEsperado)}
+                    {arqueoServidor ? formatCurrency(efectivoEsperado) : ''}
                   </p>
                   <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
                     Ventas en efectivo {formatCurrency(totalEfectivo)} + propinas en efectivo{' '}
@@ -298,7 +328,7 @@ export default function CierreDiarioDialog({
               </div>
             </div>
 
-            {efValido && (
+            {efValido && arqueoServidor && (
               <div
                 className={`mt-3 p-3 rounded-xl border-2 flex items-center gap-2 text-sm font-semibold ${
                   tonoDiferencia === 'cuadra'

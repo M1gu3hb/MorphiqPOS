@@ -1,5 +1,5 @@
 import { validarEntorno } from '@morphiqpos/contracts';
-import { cookieDeSesion, leerCookie, permitir } from '@morphiqpos/app/http';
+import { cuerpoDentroDelLimite, cookieDeSesion, leerCookie, permitir } from '@morphiqpos/app/http';
 import { entrarConPin } from '@morphiqpos/app/identidad';
 import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
 import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
@@ -46,6 +46,12 @@ export async function POST(peticion: Request): Promise<Response> {
     return json(403, {
       ok: false,
       error: { codigo: 'SIN_PERMISO', mensaje: 'Petición rechazada.' },
+    });
+  }
+  if (!cuerpoDentroDelLimite(peticion.headers)) {
+    return json(413, {
+      ok: false,
+      error: { codigo: 'CUERPO_DEMASIADO_GRANDE', mensaje: 'El cuerpo supera 256 KiB.' },
     });
   }
 

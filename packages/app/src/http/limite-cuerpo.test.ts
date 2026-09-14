@@ -18,6 +18,9 @@ const FUENTE_RUTA =
 const FUENTE_PORTAL =
   process.env['MORPHIQPOS_PORTAL_HTTP_SOURCE_PATH'] ??
   fileURLToPath(new URL('../portal/http.ts', import.meta.url));
+const FUENTE_ENTRAR =
+  process.env['MORPHIQPOS_AUTH_LOGIN_ROUTE_PATH'] ??
+  fileURLToPath(new URL('../../../../apps/web/app/api/auth/entrar/route.ts', import.meta.url));
 const FUENTE_WEB =
   process.env['MORPHIQPOS_WEB_HTTP_SOURCE_PATH'] ??
   fileURLToPath(new URL('../../../../apps/web/src/servidor/http.ts', import.meta.url));
@@ -48,10 +51,11 @@ describe('C-10 · límite compartido del cuerpo HTTP', () => {
     expect(fuente).toContain('if (declarada === null) return false;');
   });
 
-  it('se ejecuta antes de json() en las cuatro vías auditadas', () => {
+  it('se ejecuta antes de json() en las cinco vías auditadas', () => {
     const web = readFileSync(FUENTE_WEB, 'utf8');
     const ruta = readFileSync(FUENTE_RUTA, 'utf8');
     const portal = readFileSync(FUENTE_PORTAL, 'utf8');
+    const entrar = readFileSync(FUENTE_ENTRAR, 'utf8');
     const guardaRuta = ruta.indexOf('cuerpoDentroDelLimite(peticion.headers)');
     const guardaPortal = portal.indexOf('cuerpoDentroDelLimite(peticion.headers)');
 
@@ -60,6 +64,9 @@ describe('C-10 · límite compartido del cuerpo HTTP', () => {
     expect(guardaRuta).toBeLessThan(ruta.indexOf('peticion.json()'));
     expect(guardaPortal).toBeGreaterThanOrEqual(0);
     expect(guardaPortal).toBeLessThan(portal.indexOf('peticion.json()'));
+    expect(entrar.indexOf('cuerpoDentroDelLimite(peticion.headers)')).toBeLessThan(
+      entrar.indexOf('peticion.json()'),
+    );
   });
 
   it('un cuerpo declarado de 50 MiB recibe 413 sin invocar el parser', async () => {
