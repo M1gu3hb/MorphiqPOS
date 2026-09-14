@@ -45,17 +45,6 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
     // Se DERIVAN de `pagos`, que es donde vive la propina. Ver F1-04 §6.1: que
     // estén en tablas distintas es lo que vuelve estructuralmente imposible
     // romper la regla 1 (`total` es la venta SIN propina).
-    propina_monto: 'derivado de pagos.propina_centavos',
-    propina_efectivo: 'derivado de pagos, por método, EXACTO (regla 3)',
-    propina_tarjeta: 'derivado de pagos, por método, EXACTO (regla 3)',
-    propina_transferencia: 'derivado de pagos, por método, EXACTO (regla 3)',
-    total_cobrado_con_propina: 'derivado: total + suma de propinas, campo aparte de `total`',
-    propina_liquidada: 'derivado de propina_liquidacion_id: un booleano aparte se desincroniza',
-    metodo_pago: 'derivado de pagos: uno solo da ese, dos o más dan «mixto»',
-    monto_efectivo: 'derivado de pagos (incluye la propina en efectivo)',
-    monto_tarjeta: 'derivado de pagos',
-    monto_transferencia: 'derivado de pagos',
-    cambio: 'derivado de pagos.cambio_centavos',
     satisfaccion_label: 'derivado del score: guardar los dos es guardar el mismo dato dos veces',
     satisfaccion_origen: 'constante «portal_qr» en v1, no columna',
     fecha_apertura: 'es `created_at`: el mismo instante',

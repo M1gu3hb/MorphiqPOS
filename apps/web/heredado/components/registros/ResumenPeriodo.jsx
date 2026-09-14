@@ -27,6 +27,7 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useConfig } from '@/lib/ConfigContext';
+import { sumarPropinas } from '@/utils/tipsUtils';
 
 const PERIODOS = [
   { id: 'today', label: 'Hoy' },
@@ -73,7 +74,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
     nVentas: ventasP.length,
     compras: comprasP.reduce((s, c) => s + (c.total_compra || 0), 0),
     gastos: gastosP.reduce((s, g) => s + (g.monto || 0), 0),
-    propinas: ventasP.reduce((s, v) => s + (Number(v?.propina_monto) || 0), 0),
+    propinas: sumarPropinas(ventasP),
   };
   // Neto NO incluye propinas (no son del restaurante).
   const neto = totals.ingresos - totals.compras - totals.gastos;

@@ -1,4 +1,6 @@
 'use client';
+import { aCentavos, aPesos } from '../components/caja/dinero.js';
+
 /**
  * Utilidades para manejar propinas en todo el sistema.
  * Reglas:
@@ -24,16 +26,32 @@ export function getPorcentajesSugeridos(config) {
   return list.length > 0 ? list : [5, 10, 15, 20];
 }
 
+/**
+ * Importe de propina en pesos.
+ *
+ * Una venta pagada lo recibe de la proyección exacta de `pagos`. Antes del
+ * cobro sólo existen el total y los puntos base de la orden, así que se deriva
+ * el importe y se redondea una vez en centavos.
+ */
+export function propinaDerivada(venta) {
+  const yaElegida = Number(venta?.propina_monto);
+  if (Number.isFinite(yaElegida) && yaElegida > 0) return yaElegida;
+  if (venta?.propina_tipo !== 'porcentaje' && venta?.propina_tipo !== 'monto_manual') return 0;
+  const porcentaje = Number(venta?.propina_porcentaje) || 0;
+  if (porcentaje <= 0) return 0;
+  return aPesos(Math.round((aCentavos(venta?.total) * porcentaje) / 100));
+}
+
 /** Devuelve solo ventas pagadas con propina > 0. */
 export function filtrarVentasConPropina(ventas) {
   const safe = Array.isArray(ventas) ? ventas : [];
-  return safe.filter((v) => v?.estado === 'pagada' && (Number(v?.propina_monto) || 0) > 0);
+  return safe.filter((v) => v?.estado === 'pagada' && propinaDerivada(v) > 0);
 }
 
 /** Suma de propinas de un array de ventas. */
 export function sumarPropinas(ventas) {
   const safe = Array.isArray(ventas) ? ventas : [];
-  return safe.reduce((s, v) => s + (Number(v?.propina_monto) || 0), 0);
+  return safe.reduce((s, v) => s + propinaDerivada(v), 0);
 }
 
 /** Filtra ventas dentro de un rango de fechas usando fecha_cierre. */
@@ -54,7 +72,7 @@ export function agruparPropinasPorMesero(ventas) {
   const safe = Array.isArray(ventas) ? ventas : [];
   const map = {};
   safe.forEach((v) => {
-    const monto = Number(v?.propina_monto) || 0;
+    const monto = propinaDerivada(v);
     if (monto <= 0) return;
     const key = v?.usuario_mesero_id || '__sin_mesero__';
     if (!map[key]) {
@@ -104,7 +122,7 @@ export function desgloseMetodosPagoExacto(ventas) {
 
   safe.forEach((v) => {
     const ventaReal = Number(v?.total) || 0;
-    const propina = Number(v?.propina_monto) || 0;
+    const propina = propinaDerivada(v);
     if (ventaReal <= 0 && propina <= 0) return;
 
     const ef = Number(v?.monto_efectivo) || 0;
