@@ -40,6 +40,7 @@ import {
   desgloseMetodosPagoExacto,
   getPorcentajesSugeridos,
   propinaDerivada,
+  requiereConfirmarPropinaAntesDeCobrar,
   sumarPropinas,
   tipsEnabled,
 } from '@/utils/tipsUtils';
@@ -530,13 +531,7 @@ export default function Caja() {
     // cajero lo ve prellenado y lo confirma, que es exactamente lo que este
     // diálogo existe para hacer. Antes ese caso ni forzaba el diálogo ni se
     // derivaba, así que la propina del portal se perdía entera.
-    const tiposQueForzanModal = [
-      'pendiente',
-      'pendiente_cliente',
-      'decidir_en_caja',
-      'monto_manual',
-    ];
-    if (tiposQueForzanModal.includes(ventaSeleccionada.propina_tipo) && tipsEnabled(config)) {
+    if (requiereConfirmarPropinaAntesDeCobrar(ventaSeleccionada, config)) {
       setShowPropinaCaja(true);
       toast.error('Define la propina antes de cobrar (o "Sin propina").');
       return;

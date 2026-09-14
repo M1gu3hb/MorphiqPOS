@@ -15,6 +15,21 @@ export function tipsEnabled(config) {
   return config.propinas_activas !== false;
 }
 
+const TIPOS_DE_PROPINA_PENDIENTE = ['pendiente', 'pendiente_cliente', 'decidir_en_caja'];
+
+/**
+ * Decide si el cajero todavía debe confirmar la propina antes de cobrar.
+ *
+ * Un monto manual que llega del QR requiere una confirmación. Al confirmar, la
+ * caja marca `propina_origen: 'caja'`; esa marca explícita permite el cobro en
+ * el siguiente intento sin volver a abrir el diálogo.
+ */
+export function requiereConfirmarPropinaAntesDeCobrar(venta, config) {
+  if (!tipsEnabled(config)) return false;
+  if (TIPOS_DE_PROPINA_PENDIENTE.includes(venta?.propina_tipo)) return true;
+  return venta?.propina_tipo === 'monto_manual' && venta?.propina_origen !== 'caja';
+}
+
 /** Parsea CSV de porcentajes sugeridos. Default [5,10,15,20]. */
 export function getPorcentajesSugeridos(config) {
   const raw = config?.propina_porcentajes_sugeridos;
