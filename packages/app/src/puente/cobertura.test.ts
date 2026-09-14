@@ -45,9 +45,6 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
     // Se DERIVAN de `pagos`, que es donde vive la propina. Ver F1-04 §6.1: que
     // estén en tablas distintas es lo que vuelve estructuralmente imposible
     // romper la regla 1 (`total` es la venta SIN propina).
-    satisfaccion_label: 'derivado del score: guardar los dos es guardar el mismo dato dos veces',
-    satisfaccion_origen: 'constante «portal_qr» en v1, no columna',
-    fecha_apertura: 'es `created_at`: el mismo instante',
     tipo_venta: 'se abre en estrategia_captura + estrategia_cumplimiento (F1-04 §6.5)',
   },
   DetalleVenta: {
@@ -58,9 +55,7 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
   },
   Mesa: {},
   PedidoPreparacion: {
-    items: 'se normaliza a comanda_items, que cocina actualiza fila por fila (F1-04 §10.1)',
     venta_folio: 'derivado del serie+folio de la orden',
-    fecha_creacion: 'es `created_at`: el mismo instante',
   },
   Ingrediente: {
     // `stock_actual` sí está, pero como DERIVADO: es la diferencia que importa.
@@ -111,7 +106,6 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
   },
   GastoOperativo: {},
   SolicitudQR: {
-    fecha_creacion: 'es `created_at`: el mismo instante',
     total_estimado: 'derivado: subtotal + propina sugerida',
   },
   MenuQRSeccion: {
@@ -127,9 +121,6 @@ const DESCARTADOS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
   },
   CategoriaProducto: {
     descripcion: 'la columna existe en categorias; su formulario no la escribe',
-    estacion_preparacion_id: 'la columna existe; se resuelve en la cadena de F1-04 §11.2',
-    estacion_preparacion_nombre: 'instantánea en la comanda, no en la categoría',
-    estacion_preparacion_color: 'instantánea en la comanda, no en la categoría',
   },
   EstacionPreparacion: {},
   Proveedor: {},
@@ -198,6 +189,7 @@ describe('el puente cubre lo que su esquema declaraba', () => {
         ...Object.keys(mapa.campos),
         ...Object.keys(mapa.derivados ?? {}),
         ...Object.keys(mapa.calculados ?? {}),
+        ...Object.keys(mapa.hijos ?? {}),
       ]);
       const descartadas = DESCARTADOS[entidad] ?? {};
 
