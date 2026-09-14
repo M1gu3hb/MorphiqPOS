@@ -41,6 +41,10 @@ export default defineConfig({
     alias: {
       // El alias de apps/web, para que sus pruebas resuelvan igual que Next.
       '@': fileURLToPath(new URL('./apps/web/src', import.meta.url)),
+      '~': fileURLToPath(new URL('./apps/web/src', import.meta.url)),
+      'server-only': fileURLToPath(
+        new URL('./packages/app/node_modules/server-only/empty.js', import.meta.url),
+      ),
     },
   },
   // Vite externaliza las dependencias CommonJS en modo SSR y resuelve sus

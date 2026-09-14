@@ -1,3 +1,4 @@
+import { ROLES, type Rol } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoCatalogo } from '@morphiqpos/data';
 import { describe, expect, it, vi } from 'vitest';
@@ -33,6 +34,8 @@ const PRODUCTO = {
   updated_at: new Date('2026-09-07T20:15:00.000Z'),
   categoria_nombre: 'Herramienta eléctrica',
 };
+
+const ROLES_AUTORIZADOS_PARA_COSTO = new Set<Rol>(['dueno', 'administrador', 'gerente', 'almacen']);
 
 const FUENTE_CONSULTA =
   process.env['MORPHIQPOS_CATALOGO_QUERY_SOURCE_PATH'] ??
@@ -97,6 +100,26 @@ describe('B-06 · consulta de catálogo para la pantalla', () => {
     );
     expect(readFileSync(FUENTE_CONSULTA, 'utf8')).toContain('ROLES_CON_COSTO.includes(rol)');
     expect(readFileSync(FUENTE_RUTA, 'utf8')).toContain('entrada.data, sesion.rol');
+  });
+
+  it('expone el costo exclusivamente a los cuatro roles autorizados', async () => {
+    for (const rol of ROLES) {
+      vi.mocked(repoCatalogo.buscarProductos).mockResolvedValueOnce({
+        productos: [PRODUCTO],
+        siguienteCursor: null,
+      });
+
+      const salida = await listarProductos(
+        {} as Transaccion,
+        '11111111-1111-4111-8111-111111111111',
+        entradaBuscarProductos.parse({ limite: 1 }),
+        rol,
+      );
+
+      expect(salida.productos[0]?.costoUnitarioCentavos !== undefined, rol).toBe(
+        ROLES_AUTORIZADOS_PARA_COSTO.has(rol),
+      );
+    }
   });
 
   it('rechaza límites que permitirían descargar el catálogo completo', () => {

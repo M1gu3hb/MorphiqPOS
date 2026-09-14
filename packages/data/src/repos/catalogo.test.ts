@@ -5,6 +5,8 @@ import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
+import { ROLES, type Rol } from '@morphiqpos/contracts';
+
 import type { Esquema } from '../esquema.ts';
 import { construirBusquedaProductos } from './catalogo.ts';
 
@@ -13,6 +15,7 @@ const db = new Kysely<Esquema>({ dialect: new PostgresDialect({ pool }) });
 const FUENTE =
   process.env['MORPHIQPOS_CATALOG_SEARCH_SOURCE_PATH'] ??
   fileURLToPath(new URL('./catalogo.ts', import.meta.url));
+const ROLES_AUTORIZADOS_PARA_COSTO = new Set<Rol>(['dueno', 'administrador', 'gerente', 'almacen']);
 
 afterAll(async () => pool.end());
 
@@ -83,5 +86,15 @@ describe('B-06 · consulta paginada de productos', () => {
     expect(readFileSync(FUENTE, 'utf8')).toContain(
       "ROLES_CON_COSTO.includes(rol) ? (['p.costo_unitario_centavos'] as const) : []",
     );
+  });
+
+  it('selecciona el costo exclusivamente para los cuatro roles autorizados', () => {
+    for (const rol of ROLES) {
+      const consulta = construirBusquedaProductos(db, 'org-1', { limite: 1 }, rol).compile();
+
+      expect(consulta.sql.includes('"p"."costo_unitario_centavos"'), rol).toBe(
+        ROLES_AUTORIZADOS_PARA_COSTO.has(rol),
+      );
+    }
   });
 });
