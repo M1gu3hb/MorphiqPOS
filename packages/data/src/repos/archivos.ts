@@ -34,7 +34,7 @@ export function construirReservaCuotaArchivo(db: Conexion, reserva: ReservaCuota
           sql<bigint>`${totalInicial}`.as('bytes_usados'),
           sql<Date>`now()`.as('updated_at'),
         ])
-        .where(sql<boolean>`${totalInicial} <= ${limiteBytes}`),
+        .where(sql<boolean>`cast(${totalInicial} as bigint) <= cast(${limiteBytes} as bigint)`),
     )
     .onConflict((conflicto) =>
       conflicto
