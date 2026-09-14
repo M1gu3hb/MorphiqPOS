@@ -207,7 +207,22 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       color: { columna: 'color', conversion: 'texto', publico: true },
       icono: { columna: 'icono', conversion: 'texto', publico: true },
       orden: { columna: 'orden', conversion: 'entero', publico: true },
+      estacion_preparacion_id: { columna: 'estacion_preparacion_id', conversion: 'texto' },
       activo: { columna: 'activa', conversion: 'booleano' },
+    },
+    derivados: {
+      estacion_preparacion_nombre: {
+        tabla: 'estaciones_preparacion',
+        porColumna: 'estacion_preparacion_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      estacion_preparacion_color: {
+        tabla: 'estaciones_preparacion',
+        porColumna: 'estacion_preparacion_id',
+        columna: 'color',
+        conversion: 'texto',
+      },
     },
   },
 
@@ -538,6 +553,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
       satisfaccion_fecha: { columna: 'satisfaccion_en', conversion: 'fecha', escribible: false },
+      satisfaccion_origen: {
+        columna: 'satisfaccion_score',
+        conversion: 'texto',
+        escribible: false,
+        constante: 'portal_qr',
+      },
     },
     derivados: {
       // La propina vive en `pagos`, separada de la venta. La vista 057 agrega
@@ -647,12 +668,20 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       },
     },
     calculados: {
+      fecha_apertura: {
+        formula: 'fechaDeCreacion',
+        conversion: 'fecha',
+      },
       // No se guarda un segundo estado que pueda desincronizarse: la presencia
       // de la liquidación asociada es la única verdad.
       propina_liquidada: {
         rolesLectura: [...DIRECCION],
         formula: 'propinaLiquidada',
         conversion: 'booleano',
+      },
+      satisfaccion_label: {
+        formula: 'etiquetaSatisfaccion',
+        conversion: 'texto',
       },
     },
   },
@@ -1085,6 +1114,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
        */
       items: { entidad: 'PedidoPreparacionItem', porCampo: 'pedido_id', limite: 60 },
     },
+    calculados: {
+      fecha_creacion: {
+        formula: 'fechaDeCreacion',
+        conversion: 'fecha',
+      },
+    },
   },
 
   /**
@@ -1192,6 +1227,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         porColumna: 'empleado_destino_id',
         columna: 'nombre',
         conversion: 'texto',
+      },
+    },
+    calculados: {
+      fecha_creacion: {
+        formula: 'fechaDeCreacion',
+        conversion: 'fecha',
       },
     },
   },

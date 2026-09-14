@@ -21,14 +21,14 @@
  * editar una categoría—. Un `grep` que se escribe una vez comprueba lo que su
  * autor se acordó de poner; esto comprueba TODO.
  *
- * ── Lo que NO puede ver, y hay que decirlo ─────────────────────────────────
- * Sólo lee objetos LITERALES en la llamada. Un `update(id, payload)` donde
- * `payload` es una variable no se puede resolver sin ejecutar el programa: esas
- * salen listadas aparte como NO ANALIZADAS, con su archivo y su línea, para que
- * nadie confunda «no lo sé» con «está bien». Es un cerco, no una demostración.
+ * Resuelve literales, variables, condicionales y spreads. Si una expresión no
+ * se puede demostrar segura, la puerta FALLA: «no analizada» nunca significa
+ * «aceptada».
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+
+import ts from 'typescript';
 
 const MAPA = 'packages/app/src/puente/mapa.ts';
 const CARPETA = 'apps/web/heredado';
@@ -138,100 +138,196 @@ function archivos(raiz) {
   return salida;
 }
 
-/**
- * Quita comentarios: una escritura citada en un comentario no falla nunca.
- *
- * `Caja.jsx:896` explica en prosa el `CorteCaja.create` que se retiró, y sin
- * esto la puerta lo contaba como código vivo — un falso positivo hace que una
- * puerta se deje de mirar igual de rápido que un falso negativo.
- */
-function sinComentarios(texto) {
-  const SALTO = String.fromCharCode(10);
-  return (
-    texto
-      // Se reemplaza por espacios, no se borra: así los números de línea que
-      // luego se cuentan siguen siendo los del archivo de verdad.
-      .replace(/\/\*[\s\S]*?\*\//g, (m) =>
-        m
-          .split(SALTO)
-          .map((l) => ' '.repeat(l.length))
-          .join(SALTO),
-      )
-      .replace(/^(\s*)\/\/.*$/gm, (m, sangria) => sangria + ' '.repeat(m.length - sangria.length))
-  );
+function nombrePropiedad(nombre) {
+  if (
+    ts.isIdentifier(nombre) ||
+    ts.isStringLiteral(nombre) ||
+    ts.isNoSubstitutionTemplateLiteral(nombre)
+  ) {
+    return nombre.text;
+  }
+  return null;
 }
 
-/** Recorta los argumentos de una llamada, contando paréntesis. */
-function argumentos(texto, desde) {
-  let profundidad = 0;
-  for (let i = desde; i < texto.length; i += 1) {
-    if (texto[i] === '(') profundidad += 1;
-    else if (texto[i] === ')') {
-      profundidad -= 1;
-      if (profundidad === 0) return texto.slice(desde + 1, i);
-    }
+/** Reconoce únicamente `api.entidades.Entidad.create/update/delete(…)`. */
+function llamadaDelPuente(nodo) {
+  if (!ts.isCallExpression(nodo) || !ts.isPropertyAccessExpression(nodo.expression)) return null;
+  const operacion = nodo.expression.name.text;
+  if (!OPERACIONES.includes(operacion)) return null;
+
+  const accesoEntidad = nodo.expression.expression;
+  if (!ts.isPropertyAccessExpression(accesoEntidad)) return null;
+  const accesoEntidades = accesoEntidad.expression;
+  if (!ts.isPropertyAccessExpression(accesoEntidades)) return null;
+  if (
+    accesoEntidades.name.text !== 'entidades' ||
+    !ts.isIdentifier(accesoEntidades.expression) ||
+    accesoEntidades.expression.text !== 'api'
+  ) {
+    return null;
   }
-  return '';
+  return { entidad: accesoEntidad.name.text, operacion };
 }
+
+const RUTA_SANITIZADOR_MESA = join(CARPETA, 'utils', 'mesaConfigUtils.js');
 
 /**
- * Las claves de primer nivel de un objeto literal.
+ * Lee la lista real del único sanitizador previo a una escritura.
  *
- * Devuelve `null` cuando no hay literal que leer —una variable, un spread de
- * algo que no se ve aquí—, que es distinto de «no tiene campos».
+ * Si la función deja de filtrar con ese Set, no se reconoce y las llamadas que
+ * dependan de ella fallan como cuerpos opacos.
  */
-function clavesDelLiteral(texto) {
-  const abre = texto.indexOf('{');
-  if (abre === -1) return null;
-  const cuerpo = bloque(texto, abre);
-  // Un `...spread` de una variable esconde campos que no se pueden ver.
-  const opaco = /\.\.\.[A-Za-z_$]/.test(cuerpo);
-
-  const claves = [];
-  let profundidad = 0;
-  let inicioDeLinea = true;
-  for (let i = 0; i < cuerpo.length; i += 1) {
-    const c = cuerpo[i];
-    if (c === '{' || c === '[' || c === '(') profundidad += 1;
-    else if (c === '}' || c === ']' || c === ')') profundidad -= 1;
-    else if (c === ',' && profundidad === 1) inicioDeLinea = true;
-    if (profundidad !== 1) continue;
-    if (!inicioDeLinea) continue;
-    const resto = cuerpo.slice(i);
-    const m = /^[\s{,]*(?:'([a-z_0-9]+)'|"([a-z_0-9]+)"|([a-z_$][A-Za-z_$0-9]*))\s*:/.exec(resto);
-    if (m !== null) {
-      claves.push(m[1] ?? m[2] ?? m[3]);
-      inicioDeLinea = false;
-    }
+function camposSanitizadosDeMesa() {
+  const fuente = readFileSync(RUTA_SANITIZADOR_MESA, 'utf8');
+  if (
+    !/export function soloCamposEditablesMesa\s*\(/.test(fuente) ||
+    !/CAMPOS_EDITABLES_MESA\.has\(clave\)/.test(fuente)
+  ) {
+    throw new Error('soloCamposEditablesMesa ya no demuestra que filtre por su lista blanca.');
   }
-  return { claves, opaco };
+  const arreglo = /const CAMPOS_EDITABLES_MESA = new Set\(\[([\s\S]*?)\]\);/.exec(fuente)?.[1];
+  if (arreglo === undefined) throw new Error('No se pudo leer CAMPOS_EDITABLES_MESA.');
+  return new Set([...arreglo.matchAll(/'([a-z_0-9]+)'/g)].map((m) => m[1]));
 }
 
-/** El literal de `const <nombre> = { … }` declarado antes de `hasta`. */
-function resolverVariable(fuente, expresion, hasta) {
-  if (!/^[A-Za-z_$][A-Za-z_$0-9]*$/.test(expresion)) return null;
-  const patron = new RegExp(`(?:const|let|var)\\s+${expresion}\\s*=\\s*\\{`, 'g');
-  let ultimo = null;
-  for (const d of fuente.matchAll(patron)) {
-    if (d.index < hasta) ultimo = d.index + d[0].length - 1;
+const CAMPOS_SANITIZADOS_MESA = camposSanitizadosDeMesa();
+
+function esContenedorLexico(nodo) {
+  return ts.isSourceFile(nodo) || ts.isFunctionLike(nodo);
+}
+
+/** Expresiones asignadas a un identificador antes de la llamada, en su ámbito. */
+function valoresDeIdentificador(nombre, desde) {
+  for (let contenedor = desde.parent; contenedor !== undefined; contenedor = contenedor.parent) {
+    if (!esContenedorLexico(contenedor)) continue;
+    const valores = [];
+    function visitar(nodo) {
+      if (nodo.getStart() >= desde.getStart()) return;
+      if (
+        ts.isVariableDeclaration(nodo) &&
+        ts.isIdentifier(nodo.name) &&
+        nodo.name.text === nombre &&
+        nodo.initializer !== undefined
+      ) {
+        valores.push(nodo.initializer);
+      }
+      if (
+        ts.isBinaryExpression(nodo) &&
+        nodo.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isIdentifier(nodo.left) &&
+        nodo.left.text === nombre
+      ) {
+        valores.push(nodo.right);
+      }
+      ts.forEachChild(nodo, visitar);
+    }
+    visitar(contenedor);
+    if (valores.length > 0) return valores;
   }
-  return ultimo === null ? null : bloque(fuente, ultimo);
+  return [];
+}
+
+function unirResultados(resultados) {
+  const claves = new Set();
+  const opacos = [];
+  for (const resultado of resultados) {
+    for (const clave of resultado.claves) claves.add(clave);
+    opacos.push(...resultado.opacos);
+  }
+  return { claves, opacos };
+}
+
+/** Resuelve todas las claves posibles de una expresión que produce un objeto. */
+function resolverClaves(expresion, llamada, visitados = new Set()) {
+  let actual = expresion;
+  while (
+    ts.isParenthesizedExpression(actual) ||
+    ts.isAsExpression(actual) ||
+    ts.isTypeAssertionExpression(actual) ||
+    ts.isSatisfiesExpression(actual)
+  ) {
+    actual = actual.expression;
+  }
+
+  if (ts.isObjectLiteralExpression(actual)) {
+    const claves = new Set();
+    const opacos = [];
+    for (const propiedad of actual.properties) {
+      if (ts.isSpreadAssignment(propiedad)) {
+        const resuelta = resolverClaves(propiedad.expression, llamada, visitados);
+        for (const clave of resuelta.claves) claves.add(clave);
+        opacos.push(...resuelta.opacos);
+        continue;
+      }
+      const clave = nombrePropiedad(propiedad.name);
+      if (clave === null) opacos.push(propiedad.getText());
+      else claves.add(clave);
+    }
+    return { claves, opacos };
+  }
+
+  if (ts.isConditionalExpression(actual)) {
+    return unirResultados([
+      resolverClaves(actual.whenTrue, llamada, new Set(visitados)),
+      resolverClaves(actual.whenFalse, llamada, new Set(visitados)),
+    ]);
+  }
+
+  if (ts.isIdentifier(actual)) {
+    const marca = `${actual.text}@${String(actual.getStart())}`;
+    if (visitados.has(marca)) return { claves: new Set(), opacos: [`ciclo en ${actual.text}`] };
+    const siguientes = new Set(visitados);
+    siguientes.add(marca);
+    const valores = valoresDeIdentificador(actual.text, llamada);
+    if (valores.length === 0) return { claves: new Set(), opacos: [actual.getText()] };
+    return unirResultados(valores.map((valor) => resolverClaves(valor, llamada, siguientes)));
+  }
+
+  if (ts.isCallExpression(actual)) {
+    if (
+      ts.isIdentifier(actual.expression) &&
+      actual.expression.text === 'soloCamposEditablesMesa' &&
+      actual.arguments.length === 1
+    ) {
+      return { claves: new Set(CAMPOS_SANITIZADOS_MESA), opacos: [] };
+    }
+    if (
+      ts.isPropertyAccessExpression(actual.expression) &&
+      ts.isIdentifier(actual.expression.expression) &&
+      actual.expression.expression.text === 'Object' &&
+      actual.expression.name.text === 'assign'
+    ) {
+      return unirResultados(
+        actual.arguments.map((argumento) => resolverClaves(argumento, llamada, new Set(visitados))),
+      );
+    }
+  }
+
+  return { claves: new Set(), opacos: [actual.getText().slice(0, 100)] };
 }
 
 const ENTIDADES = leerMapa();
 const rechazos = [];
-const noAnalizadas = [];
 let miradas = 0;
 
 for (const ruta of archivos(CARPETA)) {
-  const fuente = sinComentarios(readFileSync(ruta, 'utf8'));
-  const patron = new RegExp(
-    `api\\.entidades\\.([A-Z][A-Za-z]*)\\.(${OPERACIONES.join('|')})\\s*\\(`,
-    'g',
+  const texto = readFileSync(ruta, 'utf8');
+  const fuente = ts.createSourceFile(
+    ruta,
+    texto,
+    ts.ScriptTarget.Latest,
+    true,
+    ruta.endsWith('.jsx') ? ts.ScriptKind.JSX : ts.ScriptKind.JS,
   );
-  for (const m of fuente.matchAll(patron)) {
-    const [, entidad, operacion] = m;
-    const linea = fuente.slice(0, m.index).split('\n').length;
+
+  function visitar(nodo) {
+    const reconocida = llamadaDelPuente(nodo);
+    if (reconocida === null) {
+      ts.forEachChild(nodo, visitar);
+      return;
+    }
+    const { entidad, operacion } = reconocida;
+    const linea = fuente.getLineAndCharacterOfPosition(nodo.getStart()).line + 1;
     const mapa = ENTIDADES.get(entidad);
     miradas += 1;
 
@@ -240,11 +336,13 @@ for (const ruta of archivos(CARPETA)) {
       if (!especial.permitidas.includes(operacion)) {
         rechazos.push({ ruta, linea, entidad, operacion, motivo: especial.motivo });
       }
-      continue;
+      ts.forEachChild(nodo, visitar);
+      return;
     }
     if (mapa === undefined) {
       rechazos.push({ ruta, linea, entidad, operacion, motivo: 'no existe en el mapa del puente' });
-      continue;
+      ts.forEachChild(nodo, visitar);
+      return;
     }
     if (mapa.escritura !== 'directa') {
       rechazos.push({
@@ -254,25 +352,32 @@ for (const ruta of archivos(CARPETA)) {
         operacion,
         motivo: `la entidad es «${mapa.escritura}»: se escribe con su comando`,
       });
-      continue;
+      ts.forEachChild(nodo, visitar);
+      return;
     }
-    if (operacion === 'delete') continue;
-
-    const args = argumentos(fuente, m.index + m[0].length - 1);
-    const crudo = operacion === 'update' ? args.slice(args.indexOf(',') + 1) : args;
-    // Si el cuerpo es una variable, se busca su `const … = { … }` ANTES de la
-    // llamada en el mismo archivo. Es lo que convierte «no lo sé» en una
-    // respuesta para la mayoría: casi todas estas pantallas arman un `payload`
-    // en la línea de arriba.
-    const cuerpo = resolverVariable(fuente, crudo.trim(), m.index) ?? crudo;
-    const leido = clavesDelLiteral(cuerpo);
-
-    if (leido === null || leido.opaco) {
-      noAnalizadas.push({ ruta, linea, entidad, operacion, cuerpo: cuerpo.trim().slice(0, 70) });
-      if (leido === null) continue;
+    if (operacion === 'delete') {
+      ts.forEachChild(nodo, visitar);
+      return;
     }
 
-    for (const clave of leido.claves) {
+    const cuerpo = nodo.arguments[operacion === 'update' ? 1 : 0];
+    if (cuerpo === undefined) {
+      rechazos.push({ ruta, linea, entidad, operacion, motivo: 'falta el cuerpo de la escritura' });
+      ts.forEachChild(nodo, visitar);
+      return;
+    }
+    const resuelto = resolverClaves(cuerpo, nodo);
+    for (const opaco of resuelto.opacos) {
+      rechazos.push({
+        ruta,
+        linea,
+        entidad,
+        operacion,
+        motivo: `cuerpo no resoluble de forma estática: ${opaco}`,
+      });
+    }
+
+    for (const clave of resuelto.claves) {
       const escribible = mapa.campos.get(clave);
       let motivo = null;
       if (mapa.derivados.has(clave)) motivo = 'es un DERIVADO: sale de un join al leer';
@@ -284,23 +389,14 @@ for (const ruta of archivos(CARPETA)) {
         rechazos.push({ ruta, linea, entidad, operacion, campo: clave, motivo });
       }
     }
+    ts.forEachChild(nodo, visitar);
   }
+
+  visitar(fuente);
 }
 
 const salida = [];
 salida.push(`Miradas ${miradas} escrituras de ${CARPETA} contra el mapa del puente.`);
-
-if (noAnalizadas.length > 0) {
-  salida.push(
-    '',
-    `NO ANALIZADAS (${noAnalizadas.length}): el cuerpo no es un objeto literal, así que`,
-    'no se puede saber qué campos manda sin ejecutar el programa. No es un fallo;',
-    'es el borde de esta puerta, y va dicho para que nadie lo confunda con «está bien».',
-  );
-  for (const n of noAnalizadas) {
-    salida.push(`  ${n.ruta}:${n.linea} · ${n.entidad}.${n.operacion}(${n.cuerpo}…)`);
-  }
-}
 
 if (rechazos.length === 0) {
   salida.push('', 'Ninguna escritura la rechaza el puente.');

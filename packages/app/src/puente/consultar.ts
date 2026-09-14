@@ -420,6 +420,22 @@ const FORMULAS: Readonly<Record<Calculo, (fila: Fila) => unknown>> = {
     const id = fila['propina_liquidacion_id'];
     return typeof id === 'string' && id.length > 0;
   },
+  etiquetaSatisfaccion(fila) {
+    const etiquetas: Readonly<Record<number, string>> = {
+      1: 'Muy mala',
+      2: 'Mala',
+      3: 'Regular',
+      4: 'Buena',
+      5: 'Excelente',
+    };
+    const score = enteroDe(fila['satisfaccion_score']);
+    return score === null ? null : (etiquetas[Number(score)] ?? null);
+  },
+  fechaDeCreacion(fila) {
+    const fecha = fila['created_date'];
+    if (fecha instanceof Date) return fecha.toISOString();
+    return typeof fecha === 'string' && fecha.length > 0 ? fecha : null;
+  },
 };
 
 export function calcular(formula: Calculo, fila: Fila): unknown {
