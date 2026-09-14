@@ -27,10 +27,9 @@ export default function MesasQRTab({ config }) {
   });
 
   // Mesas sin token: las inicializa con uno automáticamente la primera vez que
-  // se abren. `qr_token` y `qr_activo` NO son campos bloqueados del puente:
-  // esta escritura se queda como está. Lo que se va es el `catch` que devolvía
-  // la mesa SIN token como si nada hubiera pasado, y detrás se abría el diálogo
-  // con un QR que no existía.
+  // se abren. `qr_token` es de sólo lectura y lo rota `restaurante.rotar_qr`;
+  // `qr_activo` sí se puede actualizar directamente. Sin un `catch` por mesa,
+  // un fallo al rotar se muestra en vez de abrir un QR que no existe.
   const asegurarToken = async (mesa) => {
     if (!mesa?.id || mesa.qr_token) return mesa;
     const token = await generarTokenMesa(mesa.id);
