@@ -121,6 +121,27 @@ describe('el cobro manda a la cocina lo que todavía no salió', () => {
     expect(items.some((i) => i['orden_linea_id'] === 'l2')).toBe(false);
   });
 
+  it('UNA LÍNEA ANULADA NO LLEGA A LA PLANCHA — F-324', async () => {
+    // Es el error más caro que evita el filtro de `anulada_en`: sin él, cobrar
+    // una cuenta mandaría a cocinar el platillo que la caja acaba de anular, y
+    // ese plato ya no lo paga nadie.
+    const base = baseDe({
+      orden_lineas: [
+        linea('l1', HAMBURGUESA, 0, {
+          anulada_en: new Date('2026-09-14T00:00:00.000Z'),
+          motivo_anulacion: 'error_cocina',
+        }),
+        linea('l2', REFRESCO, 1),
+      ],
+    });
+
+    const emitidas = await comandarLineasPendientes(base.tx, ORG, ORDEN);
+
+    expect(emitidas).toHaveLength(0);
+    expect(base.filas('comandas')).toEqual([]);
+    expect(base.filas('comanda_items')).toEqual([]);
+  });
+
   it('MESA: si las líneas YA tienen comanda, no se emite ninguna otra', async () => {
     // La otra mitad. Sin este filtro, cobrar una mesa mandaría el pedido entero
     // a la plancha por segunda vez, con la comida ya servida en el salón.

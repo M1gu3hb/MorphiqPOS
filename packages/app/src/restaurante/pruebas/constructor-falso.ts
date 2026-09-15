@@ -176,6 +176,7 @@ export function lectura(filas: Fila[]) {
   const selectores: Selector[] = [];
   let orden: { columna: string; descendente: boolean } | null = null;
   let tope: number | null = null;
+  let todas = false;
 
   const resolver = (): Fila[] => {
     let vivas = filas.filter((fila) => filtros.every((filtro) => cumple(fila, filtro)));
@@ -198,12 +199,21 @@ export function lectura(filas: Fila[]) {
       return [fila];
     }
 
+    // `selectAll()` devuelve la fila entera. Lo usa `anularLinea`, que tiene
+    // que copiar a la fila hermana quince instantaneas del producto: listarlas
+    // en un `select` seria repetir el esquema en dos sitios.
+    if (todas) return vivas.map((fila) => ({ ...fila }));
+
     return vivas.map((fila) => proyectar(fila, selectores));
   };
 
   const constructor = {
     select(selector: Selector) {
       selectores.push(selector);
+      return constructor;
+    },
+    selectAll() {
+      todas = true;
       return constructor;
     },
     leftJoin() {

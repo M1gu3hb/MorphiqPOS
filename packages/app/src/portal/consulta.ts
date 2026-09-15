@@ -309,6 +309,9 @@ export async function cuentaDeLaMesa(
       'notas',
       'estado_preparacion',
     ])
+    // F-324 · Lo anulado no se le enseña a quien va a pagar: es consumo que no
+    // se le está cobrando, y verlo en su precuenta sólo genera una pregunta.
+    .where('anulada_en', 'is', null)
     .where('organizacion_id', '=', ambito.organizacionId)
     .where('orden_id', '=', orden.id)
     .orderBy('orden_visual')

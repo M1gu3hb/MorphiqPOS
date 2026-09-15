@@ -83,3 +83,9 @@ export {
   entradaCrearEstacion,
   type ResultadoCrearEstacion,
 } from './estacion-crear.ts';
+
+export {
+  anularLineaComando,
+  entradaAnularLinea,
+  type ResultadoAnulacion,
+} from './anulacion-linea.ts';
