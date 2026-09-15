@@ -704,3 +704,98 @@ tablas y columnas que sólo existen en las migraciones `090`, `091`, `097` y `09
 **escribe migraciones y no las aplica**. Una pantalla de conteo contra una base sin `zonas_anaquel`
 no se cae con un error entendible: se cae con un 42P01 de Postgres. Se declara como pendiente en vez
 de escribirla y decir que está hecha, que es justo lo que el encargo prohíbe.
+
+---
+
+## 2026-09-15 · E6 · `ferreteria` · CERRADA con nueve funciones
+
+**Commits:** `ba3becf` (F-059 + F-152 + F-201), `5c80fbc` (F-145 + F-150), `66e4d28` (F-638 +
+F-639 + F-606), `7d806fa` (F-258).
+
+`ferreteria` hereda de `abarrotes` y lo desborda por tres lados. Lo que NO se volvió a escribir:
+presentaciones, conteo por zona, dinero ajeno, redondeo. Lo que sí, porque `abarrotes` no lo tiene:
+la medida como eje del catálogo, el material que se corta, y el crédito con autorizados.
+
+### Lo que esta etapa enseñó
+
+**1 · La herencia se comprobó campo por campo, y en tres casos NO era la misma función.**
+El modelo marca mucho como `[=]`. Al leerlas con el código delante:
+
+- **F-149 (zona) contra F-152 (ubicación)** parecen lo mismo y son dos tablas. La zona existe para
+  CONTAR —una vez al día, por el encargado, agrupando gavetas— y la ubicación para VENDER —sesenta
+  veces al día, por el mostradorista, gaveta por gaveta—. Fusionarlas obligaría a que la unidad de
+  conteo fuera la gaveta, y contar 400 gavetas es una vuelta de dos años.
+- **F-121 (venta en dos unidades) contra F-151 (pieza ↔ kilo).** En `abarrotes` el factor es exacto:
+  la caja trae 24. Aquí el factor es el PESO POR PIEZA, medido, con 3 %–8 % de desviación entre
+  lotes. La reclasificación que el modelo pedía queda confirmada con el código.
+- **F-254 (abono de fiado) contra el pago a crédito.** En `abarrotes` la aplicación es `jsonb`
+  porque nadie consulta el detalle; aquí se consulta Y SE DISCUTE, y por eso `repartirPago` existe
+  como función pura con su propia prueba.
+
+**2 · Micrómetros, por la misma razón que los centavos.** `1/4"` son 6.35 mm exactos y `1/8"` son
+3.175: en milímetros enteros se pierde y con decimales vuelven los flotantes que esta fase prohíbe.
+En micras los dos son enteros. Y el valor ORIGINAL se guarda al lado y nunca se deriva: 6,350 podría
+presentarse como `1/4"` o como `6.35 mm` y la correcta es la que se capturó.
+
+**3 · La tolerancia pertenece a quien BUSCA, no a quien captura.** Buscar `1/2"` y encontrar la
+llave de 13 mm es lo que el mostradorista hace todos los días; darlas de alta como la misma clave
+sería fundir dos productos del fabricante. Es la misma distinción que el precio: una cosa es lo que
+se muestra y otra lo que se guarda.
+
+**4 · Aviso, no muro.** Las tres puertas del crédito se avisan y dejan pasar. Sólo la mora bloquea,
+y siempre con llave del dueño. Un sistema que le impida a Beto surtirle a su mejor cliente en una
+emergencia es un sistema que se apaga esa misma tarde, y entonces las otras dos puertas siguen
+abiertas de todas formas.
+
+**5 · Lo que se sella no se deriva.** `remisiones.autorizado_estaba_en_lista` se escribe en el
+momento de entregar. Derivarlo después de `autorizado_id` mentiría al revés: el autorizado pudo
+darse de baja entre la entrega y el pleito, y entonces el sistema diría que no estaba cuando sí
+estaba. Misma regla que el precio en la línea de venta.
+
+**6 · Un contrato de E2 cazó un hueco de esta etapa.** `estados-con-columna.contrato.test.ts` falló
+con «nadie escribe `cerrada` en `obras`»: la `112` declaraba el `check` y no existía el comando.
+Salió `credito.cerrar_obra` —que además no deja cerrar una obra con saldo, que es la forma más
+limpia de perder $18,400— y el contrato volvió a verde. Es exactamente para lo que ese contrato se
+escribió.
+
+### Correcciones a la documentación del modelo
+
+1. **`05` §6 propone `compras/sugerencia/[proveedorId]`**; se corrigió en E5 y aquí se repite el
+   mismo criterio con `credito/*`: los comandos que necesitan más de un dato van por POST con
+   cuerpo validado, no con parámetros de ruta que se saltan la validación.
+2. **`pagos_credito.sesion_caja_id` nullable** está bien justificado en el documento y no se
+   construyó todavía: el comando de pago a crédito queda pendiente. El `check` que lo sustituye
+   —todo pago en efectivo exige movimiento de caja— se escribirá con él, no antes.
+
+### Lo que NO se construyó en esta etapa, y por qué
+
+- **F-061 foto de mostrador y búsqueda visual.** Necesita subida de archivos y una pantalla; el
+  documento es explícito en que NO es reconocimiento por aprendizaje automático, y eso ya quedó
+  escrito. Sin la pantalla no hay nada que probar en el servidor.
+- **F-153 listas de trabajo, F-600…F-607 cotización, F-103 kardex, F-051 dinero dormido, F-635
+  cuentas por pagar, F-636 comparativo de proveedores, F-054 venta por mostradorista.** Pendientes
+  con su hueco de migración libre (`114`–`121`).
+- **F-060 equivalencias:** la tabla está escrita con su `declarado_por` —que no es auditoría, es
+  producto: cuando Chava se jubile, lo que declaró se queda— pero el comando de alta no. Se declara
+  en vez de contarla como construida.
+- **El pago a crédito (F-614 en variante) y F-617 bloqueo por mora.** `repartirPago` existe y está
+  probado; falta el comando que lo ejecuta contra `pagos_credito` y `aplicaciones_pago`.
+- **F-151 sólo está en el dominio.** `piezasDesdePeso` calcula y avisa de la tolerancia; falta
+  engancharlo a `venta.cobrar`, que es donde la pesada se convierte en línea.
+- **F-940…F-945 CFDI con `ClaveUnidad`:** BLOQUEADAS por el encargo.
+
+### Las pantallas, dicho explícitamente
+
+**Esta etapa tampoco abrió ninguna pantalla en el navegador, y por la misma razón que E5:** las
+nueve funciones dependen de tablas y columnas que sólo existen en las migraciones `110`–`113`, y la
+Fase 2 escribe migraciones y no las aplica. Una pantalla de búsqueda por atributo contra una base
+sin `producto_atributos` no se cae con un error entendible: se cae con un 42P01.
+
+### Un hueco de cobertura, declarado
+
+El `and cantidad >= …` del `update` de existencias en el corte **no se puede poner rojo** con la
+base falsa, que no interpreta SQL crudo. La prueba cubre la REACCIÓN —cuando el update no casa
+ninguna fila, se lanza `STOCK_INSUFICIENTE`— pero no el predicado. Lo mismo el compare-and-set del
+saldo del cliente: meter una escritura ajena entre la lectura y el `update` exigiría dos filas con
+el mismo id, que Postgres no permite, y una prueba sobre un estado imposible no prueba nada. Los dos
+son contratos con Postgres y necesitan integración con `DATABASE_URL`.

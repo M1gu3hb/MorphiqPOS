@@ -197,6 +197,46 @@ triple de código.
 
 ---
 
+## 3.bis · LO QUE LA ETAPA 6 CONSTRUYÓ, CON SUS RUTAS REALES
+
+Escrito con el código delante, el 2026-09-15. Es la lista que hay que leer al acoplar.
+
+| Función | Dónde quedó | Prueba |
+|---|---|---|
+| **F-059 · F-201** atributos y búsqueda por medida | `packages/domain/src/catalogo/medidas.ts` · `packages/app/src/ferreteria/catalogo.ts` | `medidas.test.ts` · `catalogo.test.ts` · 39 casos |
+| **F-152** ubicación física | tabla `ubicaciones` en la `110` · viaja con cada resultado de `buscarMaterial` | dentro de `catalogo.test.ts` |
+| **F-060** equivalencias | tabla `equivalencias` en la `110`, con `declarado_por` | — (tabla escrita; el comando de alta queda pendiente) |
+| **F-145 · F-150** corte y retazo | `packages/domain/src/inventario/corte.ts` · `packages/app/src/ferreteria/corte.ts` | `corte.test.ts` × 2 · 32 casos |
+| **F-151** pieza ↔ kilo | `piezasDesdePeso` en `packages/domain/src/catalogo/medidas.ts` | dentro de `medidas.test.ts` |
+| **F-638 · F-639 · F-606** crédito, obra, remisión | `packages/domain/src/venta/credito.ts` · `packages/app/src/ferreteria/credito.ts` · `obras.ts` | `credito.test.ts` × 2 · `obras.test.ts` · 44 casos |
+| **F-614** aplicación de pagos | `repartirPago` en `packages/domain/src/venta/credito.ts` | dentro de `credito.test.ts` |
+| **F-258** servicio de mostrador | `packages/app/src/ferreteria/servicio.ts` | `servicio.test.ts` · 8 casos |
+
+**Migraciones escritas, NO aplicadas:** `110_atributos_y_ubicacion.sql`,
+`111_corte_y_retazo.sql`, `112_credito_de_obra.sql`, `113_servicio_de_mostrador.sql`. Quedan libres
+del rango de este modelo la `114`–`121`.
+
+**Rutas de API nuevas:**
+
+```
+apps/web/app/api/catalogo/{atributo,buscar-material}/route.ts
+apps/web/app/api/inventario/corte/route.ts
+apps/web/app/api/credito/{evaluar,remision,obra,obra-cerrar,autorizado,autorizado-baja}/route.ts
+apps/web/app/api/venta/servicio/route.ts
+```
+
+**Entidades nuevas en el puente:** `Obra`, `AutorizadoCuenta`, `Remision`, `Ubicacion`,
+`ProductoAtributo`, `PiezaAbierta`. La `identificacion` del autorizado la ve sólo `DIRECCION`: para
+despachar basta el nombre y la foto.
+
+### El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar
+
+`heredado/utils/barcodeUtils.js` gana una rama: cuando `esCodigoInterno(codigo, layout)` da cierto,
+el resultado del escaneo pasa por `interpretarCodigoInterno` en vez de buscarse tal cual en el
+catálogo. Es el único enganche de esta etapa con el código viejo, y **no se hizo** por D-09.
+
+---
+
 ## 4 · QUÉ HEREDAN DE AQUÍ LOS VECINOS
 
 | Función | Qué es | Modelos que la reutilizan |
