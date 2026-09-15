@@ -16,3 +16,5 @@ export {
   type ResultadoAtributo,
   type ResultadoBusqueda,
 } from './catalogo.ts';
+
+export { cortarMaterial, entradaCortarMaterial, type ResultadoCorte } from './corte.ts';

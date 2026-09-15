@@ -703,6 +703,12 @@ export interface Productos {
   presentacion_venta_id: string | null;
   /** F-021 · La línea de ferretería, con su esquema de atributos (110). */
   linea_id: string | null;
+  /** F-145 · Se vende por metro y se corta. La 111 lo enciende por clave. */
+  es_continuo: Generated<boolean>;
+  tipo_corte: string | null;
+  /** Lo que la pantalla propone al cortar: sin valor por omisión se teclea cero. */
+  merma_corte_default_base: Generated<bigint>;
+  umbral_retazo_base: Generated<bigint>;
   /** F-152 · Dónde está esta pieza. Para vender, no para contar. */
   ubicacion_id: string | null;
   /** F-151 · En MILIGRAMOS, enteros. El tornillo de 5 g es 5000. */
@@ -886,8 +892,10 @@ export interface Esquema {
   lotes_grano: LotesGrano;
   presencias_turno: PresenciasTurno;
   producto_presentaciones: ProductoPresentaciones;
+  cortes_material: CortesMaterial;
   equivalencias: Equivalencias;
   lineas: Lineas;
+  piezas_abiertas: PiezasAbiertas;
   producto_atributos: ProductoAtributos;
   redondeos: Redondeos;
   ubicaciones: Ubicaciones;
@@ -1177,6 +1185,39 @@ export interface ProductoPresentaciones {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+/** F-145 · El rollo abierto. NO es el inventario: dice cómo está repartido. */
+export interface PiezasAbiertas {
+  id: Generated<string>;
+  organizacion_id: string;
+  producto_id: string;
+  almacen_id: string;
+  /** Corto y legible: `R-114`. Se escribe en la etiqueta física. */
+  folio: string;
+  medida_restante_base: bigint;
+  estado: Generated<string>;
+  precio_remate_centavos: bigint | null;
+  ubicacion_id: string | null;
+  abierta_en: Generated<Date>;
+  cerrada_en: Date | null;
+  movimiento_cierre_id: string | null;
+}
+
+/** F-145 · El corte: lo entregado y la merma, con sus dos movimientos. */
+export interface CortesMaterial {
+  id: Generated<string>;
+  organizacion_id: string;
+  orden_linea_id: string;
+  producto_id: string;
+  pieza_abierta_id: string | null;
+  medida_entregada_base: bigint;
+  merma_base: Generated<bigint>;
+  movimiento_venta_id: string;
+  movimiento_merma_id: string | null;
+  pieza_resultante_id: string | null;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
 }
 
 /** F-021 · Categoría jerárquica con esquema de atributos, para ferretería. */
