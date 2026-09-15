@@ -34,7 +34,7 @@ La copia canónica de esta documentación es `docs/fase-2/` **dentro del worktre
 | Etapa | Qué | Estado |
 |---|---|---|
 | **E0** | Reconciliar el catálogo | ✅ **50 IDs añadidos · 2 colisiones · 1 fusión · 7 reclasificaciones** |
-| **E1** | Worktree y puerta `verify:fase2` | 🔄 worktree creado; falta la puerta |
+| **E1** | Worktree y puerta `verify:fase2` | ✅ **26 eslabones en 0** · 110 archivos · 1086 pruebas |
 | **E2** | Tronco compartido (plantilla, vocabulario, inventario, variantes) | ⬜ |
 | **E3** | `restaurante` | ⬜ |
 | **E4** | `cafeteria` | ⬜ |
