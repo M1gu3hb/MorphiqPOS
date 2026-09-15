@@ -206,6 +206,10 @@ export async function limpiarMesa(
       estado: 'libre',
       orden_activa_id: null,
       personas_actuales: 0,
+      // F-305 · El reloj de ocupación se para aquí. Dejarlo puesto haría que la
+      // siguiente mesa que se sentara heredara el inicio de la anterior y que
+      // la rotación saliera peor de lo que es.
+      ocupada_desde: null,
       cliente_temporal: null,
       // Datos del comensal anterior: se van con él (`Mesero.jsx:234-241`).
       notas_alergias: null,

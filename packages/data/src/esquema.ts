@@ -381,6 +381,7 @@ export interface Mesas {
   tipo_celebracion: string | null;
   qr_token: string | null;
   qr_activa: Generated<boolean>;
+  ocupada_desde: Date | null;
   empleado_asignado_id: string | null;
   empleado_atiende_id: string | null;
   activa: Generated<boolean>;
@@ -492,6 +493,7 @@ export interface OrdenLineas {
 export interface Ordenes {
   orden_padre_id: string | null;
   division_indice: number | null;
+  union_id: string | null;
   id: Generated<string>;
   organizacion_id: string;
   sucursal_id: string;
@@ -814,6 +816,10 @@ export interface Esquema {
   motivos_merma: MotivosMerma;
   movimientos_caja: MovimientosCaja;
   movimientos_cuenta: MovimientosCuenta;
+  eventos_mesa: EventosMesa;
+  ocupacion_mesas: OcupacionMesas;
+  uniones_mesa: UnionesMesa;
+  union_mesa_miembros: UnionMesaMiembros;
   movimientos_stock: MovimientosStock;
   orden_linea_modificadores: OrdenLineaModificadores;
   orden_lineas: OrdenLineas;
@@ -965,6 +971,55 @@ export interface PasivosTerceros {
   motivo: string | null;
   empleado_id: string | null;
   created_at: Generated<Date>;
+}
+
+/** F-302 · Una unión de mesas, con principio y fin. */
+export interface UnionesMesa {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  mesa_principal_id: string;
+  orden_id: string;
+  abierta_en: Generated<Date>;
+  cerrada_en: Date | null;
+  empleado_id: string;
+  empleado_cierra_id: string | null;
+}
+
+/** F-302 · Las mesas que cuelgan de una unión. */
+export interface UnionMesaMiembros {
+  union_id: string;
+  mesa_id: string;
+  orden_absorbida_id: string | null;
+  union_abierta: Generated<boolean>;
+}
+
+/** F-305 · Ledger inmutable de transiciones de mesa. */
+export interface EventosMesa {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  mesa_id: string;
+  orden_id: string | null;
+  estado_anterior: string | null;
+  estado_nuevo: string;
+  personas: number | null;
+  empleado_id: string | null;
+  ocurrido_en: Generated<Date>;
+}
+
+/** F-305 · Vista: un renglón por ciclo de ocupación. `fin` nulo es el vigente. */
+export interface OcupacionMesas {
+  organizacion_id: string;
+  sucursal_id: string;
+  mesa_id: string;
+  ciclo: number;
+  orden_id: string | null;
+  personas: number | null;
+  inicio: Date;
+  fin: Date | null;
+  minutos_ocupada: number | null;
+  minutos_hasta_cuenta: number | null;
 }
 
 /** F-321/F-302/F-303/F-324 · Bitácora inmutable de qué le pasó a una cuenta. */
