@@ -9,7 +9,8 @@
     "./dinero": "./src/dinero/index.ts",
     "./catalogo": "./src/catalogo/index.ts",
     "./inventario": "./src/inventario/index.ts",
-    "./venta": "./src/venta/index.ts"
+    "./venta": "./src/venta/index.ts",
+    "./vocabulario": "./src/vocabulario/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
