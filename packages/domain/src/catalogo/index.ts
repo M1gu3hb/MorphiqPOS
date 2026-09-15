@@ -17,3 +17,11 @@ export {
 } from './tipos.ts';
 export { precioDeLinea } from './precio.ts';
 export { calcularMlPorPorcion, type ConfiguracionPorcion } from './porciones.ts';
+export {
+  digitoDeControlValido,
+  esCodigoInterno,
+  interpretarCodigoInterno,
+  type CodigoInterpretado,
+  type ContenidoEmbebido,
+  type LayoutEanInterno,
+} from './codigo-barras.ts';
