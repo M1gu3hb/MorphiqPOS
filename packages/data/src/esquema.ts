@@ -334,6 +334,8 @@ export interface Insumos {
   dias_frescura_optima: number | null;
   lote_abierto_id: string | null;
   unidad_captura_preferida: string | null;
+  /** F-149 · En qué anaquel vive. La 091 la cuelga del insumo, no del producto. */
+  zona_id: string | null;
 }
 
 export interface LimiteTasa {
@@ -868,6 +870,7 @@ export interface Esquema {
   lotes_grano: LotesGrano;
   presencias_turno: PresenciasTurno;
   producto_presentaciones: ProductoPresentaciones;
+  zonas_anaquel: ZonasAnaquel;
   merma_barra_turno: MermaBarraTurno;
   fila_barra: FilaBarra;
   consumos_internos: ConsumosInternos;
@@ -963,7 +966,8 @@ export interface TomasInventario {
   organizacion_id: string;
   almacen_id: string;
   estado: Generated<string>;
-  zona: string | null;
+  /** La 091 la ascendió de texto libre a fila: un texto no lleva frecuencia. */
+  zona_id: string | null;
   iniciada_en: Generated<Date>;
   cerrada_en: Date | null;
   empleado_id: string | null;
@@ -976,6 +980,9 @@ export interface TomaConteos {
   esperado: string;
   contado: string;
   unidad: string;
+  /** Lo que tecleó la persona, tal cual: «nueve cajas», no «216 piezas». */
+  capturas: Generated<unknown>;
+  movimiento_ajuste_id: string | null;
   contado_en: Generated<Date>;
   empleado_id: string | null;
 }
@@ -1146,6 +1153,20 @@ export interface ProductoPresentaciones {
   es_base: Generated<boolean>;
   es_compra_default: Generated<boolean>;
   es_venta_default: Generated<boolean>;
+  activa: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/** F-149 · Una zona física de la tienda. Sabe cada cuántos días toca contarla. */
+export interface ZonasAnaquel {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  nombre: string;
+  orden: Generated<number>;
+  dias_entre_conteos: Generated<number>;
+  ultimo_conteo_en: Date | null;
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;

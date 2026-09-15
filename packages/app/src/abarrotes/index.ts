@@ -25,3 +25,16 @@ export {
   type ResultadoComision,
   type ResultadoPasivo,
 } from './pasivos.ts';
+
+export {
+  abrirConteo,
+  capturarConteo,
+  cerrarConteo,
+  entradaAbrirConteo,
+  entradaCapturarConteo,
+  entradaCerrarConteo,
+  zonasPendientesDeConteo,
+  type ResultadoAbrirConteo,
+  type ResultadoCapturarConteo,
+  type ResultadoCerrarConteo,
+} from './conteo.ts';
