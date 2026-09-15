@@ -330,6 +330,10 @@ export interface Insumos {
   porciones_por_contenedor: string | null;
   ml_por_porcion: string | null;
   nombre_porcion: string | null;
+  /** F-157 · A partir de aquí el grano se nota en la taza. Sólo el café lo lleva. */
+  dias_frescura_optima: number | null;
+  lote_abierto_id: string | null;
+  unidad_captura_preferida: string | null;
 }
 
 export interface LimiteTasa {
@@ -452,6 +456,8 @@ export interface MovimientosStock {
   empleado_id: string | null;
   motivo: string | null;
   idempotency_key: string | null;
+  /** F-156 · El turno al que pertenece. Nulo en lo histórico. */
+  sesion_caja_id: string | null;
   created_at: Generated<Date>;
 }
 
@@ -685,6 +691,8 @@ export interface Productos {
   notas: string | null;
   presets_variable: unknown;
   presets_porcion: unknown;
+  /** F-156 · Gramos de grano por shot. Traduce «calibré cuatro» a inventario. */
+  gramaje_shot: string | null;
 }
 
 export interface Proveedores {
@@ -844,6 +852,8 @@ export interface Esquema {
   eventos_mesa: EventosMesa;
   lista_espera: ListaEspera;
   llamados_pedido: LlamadosPedido;
+  lotes_grano: LotesGrano;
+  merma_barra_turno: MermaBarraTurno;
   fila_barra: FilaBarra;
   consumos_internos: ConsumosInternos;
   relevos_atencion: RelevosAtencion;
@@ -1106,6 +1116,35 @@ export interface ConsumosInternos {
   motivo: string;
   empleado_id: string;
   created_at: Generated<Date>;
+}
+
+/** F-157 · Qué lote de grano está en la tolva y cuándo se tostó. */
+export interface LotesGrano {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  insumo_id: string;
+  fecha_tueste: string;
+  compra_linea_id: string | null;
+  abierto_en: Date | null;
+  agotado_en: Date | null;
+  gramos_recibidos: string;
+  empleado_id: string;
+  created_at: Generated<Date>;
+}
+
+/** F-156 · Vista: qué se fue en la barra este turno, por motivo e insumo. */
+export interface MermaBarraTurno {
+  organizacion_id: string;
+  sesion_caja_id: string | null;
+  motivo: string | null;
+  etiqueta: string | null;
+  insumo_id: string;
+  insumo_nombre: string;
+  unidad: string;
+  cantidad: string;
+  costo_centavos: bigint;
+  eventos: number;
 }
 
 /** F-329 · Ledger inmutable de llamados de barra. */

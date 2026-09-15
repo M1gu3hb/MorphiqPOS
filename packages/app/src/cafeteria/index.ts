@@ -17,3 +17,15 @@ export {
   type ResultadoEntrega,
   type ResultadoLlamado,
 } from './barra.ts';
+
+export {
+  MOTIVOS_DE_BARRA,
+  entradaCalibracion,
+  entradaMermaBarra,
+  porShots,
+  registrarCalibracion,
+  registrarMermaBarra,
+  type ResultadoMerma,
+} from './merma-barra.ts';
+
+export { abrirLoteGrano, diasEntre, entradaAbrirLote, type ResultadoLote } from './lote-grano.ts';
