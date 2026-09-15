@@ -41,6 +41,7 @@ export const guardarPlantillaCompra = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'compras',
   entrada: entradaGuardarPlantillaCompra,
   async ejecutar(ctx, entrada) {
     const organizacionId = ctx.ambito.organizacionId;

@@ -15,7 +15,7 @@
  */
 import { crearComando } from '../comando.ts';
 import type { Transaccion } from '@morphiqpos/data';
-import type { Ambito, Paquete } from '@morphiqpos/contracts';
+import { MODULOS, type Ambito, type Modulo, type Paquete } from '@morphiqpos/contracts';
 
 import type { EjecucionGuardada, FilaAuditoria, RepositorioComandos } from '../repositorio.ts';
 
@@ -43,14 +43,23 @@ export interface Fabrica {
   readonly conTransaccion: <T>(fn: (tx: TxFalsa) => Promise<T>) => Promise<T>;
   /** Cambia el paquete que devuelve la organización. */
   ponerPaquete(paquete: Paquete | null): void;
+  /**
+   * Cambia los módulos encendidos (F-016). `null` = no se pudo leer el perfil.
+   *
+   * Por omisión devuelve TODOS los módulos encendidos: los comandos que no
+   * declaran perilla son la mayoría, y hacerles fallar aquí probaría otra cosa.
+   */
+  ponerModulos(modulos: readonly Modulo[] | null): void;
   /** Filas de auditoría efectivamente confirmadas. */
   auditoriaConfirmada(): readonly FilaAuditoria[];
 }
 
-export function crearFabrica(paqueteInicial: Paquete = 'esencial'): Fabrica {
+export function crearFabrica(paqueteInicial: Paquete | null = 'esencial'): Fabrica {
   const base: BaseFalsa = { confirmadas: [], revertidas: [], transacciones: [] };
   const guardadas = new Map<string, EjecucionGuardada>();
   let paquete: Paquete | null = paqueteInicial;
+  /** `undefined` = la prueba no configuró perillas; `null` = no se pudo leer. */
+  let modulos: ReadonlySet<Modulo> | null | undefined;
   let siguienteTx = 0;
 
   /** Escrituras de la transacción en curso, aún sin confirmar. */
@@ -85,6 +94,15 @@ export function crearFabrica(paqueteInicial: Paquete = 'esencial'): Fabrica {
   const repositorio: RepositorioComandos<TxFalsa> = {
     async leerPaquete() {
       return paquete;
+    },
+
+    async leerModulosActivos() {
+      // `undefined` significa «la prueba no configuró perillas», y entonces
+      // todo está encendido: la mayoría de los comandos no declara módulo y
+      // hacerles fallar aquí probaría otra cosa. `null` es otra cosa —«no se
+      // pudo leer el perfil»— y se pide a propósito con `ponerModulos(null)`,
+      // que es el caso que obliga al envoltorio a fallar CERRADO.
+      return modulos === undefined ? TODOS_ENCENDIDOS : modulos;
     },
 
     async reclamarClave(_tx, datos) {
@@ -144,6 +162,9 @@ export function crearFabrica(paqueteInicial: Paquete = 'esencial'): Fabrica {
     ponerPaquete(nuevo) {
       paquete = nuevo;
     },
+    ponerModulos(nuevos) {
+      modulos = nuevos === null ? null : new Set(nuevos);
+    },
     auditoriaConfirmada() {
       return base.confirmadas
         .filter((e) => e.tabla === 'auditoria')
@@ -151,6 +172,9 @@ export function crearFabrica(paqueteInicial: Paquete = 'esencial'): Fabrica {
     },
   };
 }
+
+/** Todos los módulos, que es lo que ve una prueba que no configuró perillas. */
+const TODOS_ENCENDIDOS: ReadonlySet<Modulo> = new Set(MODULOS);
 
 function llave(organizacionId: string, comando: string, idempotencyKey: string): string {
   return `${organizacionId}|${comando}|${idempotencyKey}`;

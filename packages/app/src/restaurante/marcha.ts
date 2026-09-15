@@ -78,6 +78,7 @@ export const marcharTiempo = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'cocina',
   entrada: entradaMarcharTiempo,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

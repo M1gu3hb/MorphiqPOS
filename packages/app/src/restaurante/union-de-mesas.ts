@@ -79,6 +79,7 @@ export const unirMesasComando = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'mesas',
   entrada: entradaUnirMesas,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -192,6 +193,7 @@ export const separarMesasComando = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'mesas',
   entrada: entradaSepararMesas,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
