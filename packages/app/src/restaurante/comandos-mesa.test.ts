@@ -248,6 +248,28 @@ describe('liberar_mesa sigue negándose a borrar una cuenta sin cobrar', () => {
     expect(pasos).toContain('mirar_consumo');
   });
 
+  it('UNA CUENTA CON TODO ANULADO SÍ SE LIBERA — F-324', async () => {
+    // Sin el filtro de `anulada_en` en `tieneLineas`, la mesa quedaría fuera de
+    // servicio esperando el cobro de una cuenta de $0 que nadie puede cobrar.
+    const base = baseDe({
+      ordenes: [ordenDeMesa('confirmada')],
+      mesas: [mesa('pedido_enviado')],
+      orden_lineas: [
+        {
+          ...UNA_LINEA.orden_lineas[0],
+          anulada_en: new Date('2026-09-14T00:00:00.000Z'),
+          motivo_anulacion: 'cortesia',
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'));
+
+    const salida = await liberarMesa.ejecutar(ctx, { mesaId: MESA_5 });
+
+    expect(salida.ordenCancelada).toBe(CUENTA);
+    expect(base.campo('mesas', 'estado')).toBe('libre');
+  });
+
   it('la apertura sin consumo sí se cancela al liberar', async () => {
     const base = baseDe({
       ordenes: [ordenDeMesa('borrador')],

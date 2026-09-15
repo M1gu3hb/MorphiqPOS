@@ -10,6 +10,7 @@ import {
   esNegativo,
   formatear,
   negar,
+  repartirPorPesos,
   redondear,
   repartir,
   restar,
@@ -209,6 +210,68 @@ describe('repartir · la propina que no puede perder ni inventar centavos', () =
     expect(() => repartir(centavos(100), 0)).toThrow(ErrorDominio);
     expect(() => repartir(centavos(100), -1)).toThrow(ErrorDominio);
     expect(() => repartir(centavos(100), 2.5)).toThrow(ErrorDominio);
+  });
+});
+
+describe('repartirPorPesos · el reparto que NO es en partes iguales', () => {
+  it('reparte exacto cuando la division cae entera', () => {
+    // Cuatro cervezas de $220: dos para uno, una para cada otro.
+    expect(repartirPorPesos(centavos(22_000), [2, 1, 1])).toEqual([11_000n, 5_500n, 5_500n]);
+  });
+
+  it('no pierde ni inventa centavos cuando NO cae entera', () => {
+    // La botella de $437 entre tres, que es el caso que obliga a existir a esto.
+    const trozos = repartirPorPesos(centavos(43_700), [1, 1, 1]);
+    expect(trozos.reduce((a, b) => a + b, 0n)).toBe(43_700n);
+    expect(Math.max(...trozos.map(Number)) - Math.min(...trozos.map(Number))).toBeLessThanOrEqual(
+      1,
+    );
+  });
+
+  it('cuadra para cientos de importes y de pesos, no solo para el ejemplo', () => {
+    const casos: readonly number[][] = [
+      [1, 1],
+      [2, 1],
+      [3, 1, 1],
+      [5, 3, 2],
+      [1, 1, 1, 1, 1, 1, 1],
+      [7, 0, 2],
+    ];
+    for (let importe = -300; importe <= 300; importe += 1) {
+      for (const pesos of casos) {
+        const suma = repartirPorPesos(centavos(importe), pesos).reduce((a, b) => a + b, 0n);
+        expect(suma, `${importe} entre [${pesos.join(',')}]`).toBe(BigInt(importe));
+      }
+    }
+  });
+
+  it('repartir -X es espejo exacto de repartir X', () => {
+    const positivo = repartirPorPesos(centavos(43_701), [5, 3, 2]);
+    const negativo = repartirPorPesos(centavos(-43_701), [5, 3, 2]);
+    expect(negativo).toEqual(positivo.map((t) => -(t as bigint)));
+  });
+
+  it('EL ORDEN ES DETERMINISTA: dos llamadas iguales dan lo mismo, al centavo', () => {
+    // Sin el desempate por indice, el orden lo decidiria el motor y una
+    // division de cuenta no se podria cuadrar contra el corte de la noche.
+    const uno = repartirPorPesos(centavos(1_000), [1, 1, 1]);
+    const dos = repartirPorPesos(centavos(1_000), [1, 1, 1]);
+    expect(uno).toEqual(dos);
+    expect(uno).toEqual([334n, 333n, 333n]);
+  });
+
+  it('un peso en cero no se lleva nada, y el resto sigue cuadrando', () => {
+    expect(repartirPorPesos(centavos(10_000), [1, 0, 1])).toEqual([5_000n, 0n, 5_000n]);
+  });
+
+  it('todos los pesos en cero reparten cero, no dividen entre cero', () => {
+    expect(repartirPorPesos(centavos(10_000), [0, 0])).toEqual([0n, 0n]);
+  });
+
+  it('un peso fraccionario o negativo se rechaza', () => {
+    for (const malo of [0.5, -1, Number.NaN]) {
+      expect(() => repartirPorPesos(centavos(100), [malo, 1])).toThrow(ErrorDominio);
+    }
   });
 });
 

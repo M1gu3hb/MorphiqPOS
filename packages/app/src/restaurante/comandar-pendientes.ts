@@ -146,6 +146,9 @@ async function lineasSinComanda(
     ])
     .where('organizacion_id', '=', organizacionId)
     .where('orden_id', '=', ordenId)
+    // F-324 · Mandar a cocina una línea anulada haría cocinar comida que nadie
+    // paga. Es el error más caro de los que este filtro evita.
+    .where('anulada_en', 'is', null)
     .orderBy('orden_visual', 'asc')
     .execute();
 

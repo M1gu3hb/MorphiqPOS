@@ -12,3 +12,12 @@ export {
   type ParticionPedida,
   type TomaDeLinea,
 } from './division.ts';
+export {
+  MOTIVOS_ANULACION,
+  elConsumoSePerdio,
+  partirLineaParaAnular,
+  type LineaAnulable,
+  type LineaPartida,
+  type MotivoAnulacion,
+  type PorcionDeLinea,
+} from './anulacion.ts';

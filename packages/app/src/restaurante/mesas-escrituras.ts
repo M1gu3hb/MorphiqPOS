@@ -119,7 +119,10 @@ export async function tieneLineas(
     .select('id')
     .where('organizacion_id', '=', organizacionId)
     .where('orden_id', '=', ordenId)
-    .limit(1)
+    // F-324 · Una cuenta cuyas líneas se anularon TODAS no tiene nada que
+    // cobrar, así que su mesa se libera como la de una cuenta vacía. Sin este
+    // filtro la mesa quedaría fuera de servicio esperando un cobro de $0.
+    .where('anulada_en', 'is', null)
     .executeTakeFirst();
 
   return fila !== undefined;

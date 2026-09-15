@@ -92,28 +92,34 @@ export async function lineasDeOrden(
   organizacionId: string,
   ordenId: string,
 ): Promise<LineaDeOrden[]> {
-  return db
-    .selectFrom('orden_lineas')
-    .select([
-      'id',
-      'producto_id as productoId',
-      'producto_nombre as productoNombre',
-      'sku',
-      'cantidad',
-      'unidad',
-      'precio_unitario_centavos as precioUnitarioCentavos',
-      'costo_unitario_centavos as costoUnitarioCentavos',
-      'descuento_centavos as descuentoCentavos',
-      'subtotal_centavos as subtotalCentavos',
-      'total_centavos as totalCentavos',
-      'es_mayoreo as esMayoreo',
-      'tipo_venta as tipoVenta',
-      'orden_visual as ordenVisual',
-    ])
-    .where('organizacion_id', '=', organizacionId)
-    .where('orden_id', '=', ordenId)
-    .orderBy('orden_visual')
-    .execute();
+  return (
+    db
+      .selectFrom('orden_lineas')
+      .select([
+        'id',
+        'producto_id as productoId',
+        'producto_nombre as productoNombre',
+        'sku',
+        'cantidad',
+        'unidad',
+        'precio_unitario_centavos as precioUnitarioCentavos',
+        'costo_unitario_centavos as costoUnitarioCentavos',
+        'descuento_centavos as descuentoCentavos',
+        'subtotal_centavos as subtotalCentavos',
+        'total_centavos as totalCentavos',
+        'es_mayoreo as esMayoreo',
+        'tipo_venta as tipoVenta',
+        'orden_visual as ordenVisual',
+      ])
+      .where('organizacion_id', '=', organizacionId)
+      .where('orden_id', '=', ordenId)
+      // F-324 · Una línea anulada NO se cobra, así que no entra en la cotización,
+      // ni en el ticket, ni en el consumo de inventario del cobro. Se queda en la
+      // tabla con su sello y su motivo, que es lo que la distingue de borrarla.
+      .where('anulada_en', 'is', null)
+      .orderBy('orden_visual')
+      .execute()
+  );
 }
 
 export interface NuevaOrden {
