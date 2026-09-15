@@ -348,6 +348,10 @@ export interface LiquidacionesPropina {
   total_centavos: Generated<bigint>;
   empleado_liquida_id: string;
   notas: string | null;
+  /** F-242 · Nulo = reparto directo al mesero, el de hoy. */
+  esquema_id: string | null;
+  /** F-242 · La fórmula usada, congelada. */
+  formula_snapshot: string | null;
   idempotency_key: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
@@ -829,6 +833,10 @@ export interface Esquema {
   movimientos_cuenta: MovimientosCuenta;
   eventos_mesa: EventosMesa;
   lista_espera: ListaEspera;
+  relevos_atencion: RelevosAtencion;
+  esquemas_propina: EsquemasPropina;
+  esquema_propina_puntos: EsquemaPropinaPuntos;
+  liquidacion_propina_beneficiarios: LiquidacionPropinaBeneficiarios;
   tiempos_preparacion: TiemposPreparacion;
   ocupacion_mesas: OcupacionMesas;
   uniones_mesa: UnionesMesa;
@@ -1022,6 +1030,50 @@ export interface TiemposPreparacion {
   desviacion_bp: number | null;
   arrancado_en: Date | null;
   listo_en: Date | null;
+}
+
+/** F-325 · Quién atendió cada cuenta y en qué tramo. */
+export interface RelevosAtencion {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  orden_id: string;
+  empleado_id: string;
+  desde: Date;
+  hasta: Date | null;
+  consumo_inicio_centavos: Generated<bigint>;
+  consumo_fin_centavos: bigint | null;
+  empleado_releva_id: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-242 · El reparto acordado por escrito, con vigencia. */
+export interface EsquemasPropina {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  nombre: string;
+  vigente_desde: string;
+  vigente_hasta: string | null;
+  activo: Generated<boolean>;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-242 · Puntos por PUESTO, no por persona. */
+export interface EsquemaPropinaPuntos {
+  esquema_id: string;
+  puesto: string;
+  puntos: string;
+}
+
+/** F-242 · El reparto real de una liquidación, congelado. */
+export interface LiquidacionPropinaBeneficiarios {
+  liquidacion_id: string;
+  empleado_id: string;
+  puesto: string;
+  puntos: string;
+  monto_centavos: bigint;
 }
 
 /** F-306 · La cola del viernes por la noche. */

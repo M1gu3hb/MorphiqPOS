@@ -143,6 +143,25 @@ export const entradaLiquidarPropinas = z.object({
   meseroId: identificador.nullish(),
   ordenIds: z.array(identificador).min(1).max(500).optional(),
   notas: z.string().trim().max(500).optional(),
+  /**
+   * F-242 · Con esquema, el pool se reparte por puntos entre quienes trabajaron
+   * el turno. Sin él, la liquidación reparte como hoy: directa al mesero.
+   *
+   * La PLANTILLA la dice una persona porque el sistema no la puede saber —
+   * cocina no captura ventas y no hay tabla de asistencia—. Lo que no se acepta
+   * es ni un importe ni un punto: los puntos salen del esquema vigente.
+   */
+  esquemaId: identificador.optional(),
+  beneficiarios: z
+    .array(
+      z.object({
+        empleoId: identificador,
+        puesto: z.enum(['mesero', 'garrotero', 'barra', 'cocina', 'lavaloza', 'caja']),
+      }),
+    )
+    .min(1)
+    .max(60)
+    .optional(),
 });
 
 /** Lo pendiente del periodo. Alimenta el diálogo y el panel de propinas. */
