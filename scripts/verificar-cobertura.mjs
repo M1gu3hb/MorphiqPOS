@@ -21,6 +21,11 @@
  *              implementación con su ID en la cabecera Y existe una prueba.
  *   RUTAS      la sección «RUTAS DE API» de cada `05-DATOS-Y-BACKEND.md`.
  *              Cuenta como construida si el `route.ts` existe en disco.
+ *   MIGRACIONES la sección «MIGRACIONES» de cada `05-DATOS-Y-BACKEND.md`.
+ *              Cuenta como escrita si el `.sql` existe con ESE nombre. Cuando
+ *              una etapa consolida dos migraciones declaradas en un archivo, lo
+ *              que se corrige es el documento — que es el contrato que van a
+ *              leer los 73 modelos que faltan.
  *   PANTALLAS  cada `### ` dentro del §4.3 de cada `04-INTERFAZ.md`.
  *              Cuenta como construida si existe un archivo con la etiqueta
  *              `PANTALLA · <modelo> · <slug>` en su cabecera **Y ese archivo
@@ -208,6 +213,26 @@ function rutasEsperadas(modelo) {
     rutas.add(`apps/web/app${partes.join('/')}/route.ts`);
   }
   return rutas;
+}
+
+/**
+ * Las migraciones declaradas de un modelo.
+ *
+ * Vienen dentro de un árbol en un bloque de código:
+ *
+ *     ├── 090_presentaciones.sql
+ *     │     producto_presentaciones + índices + los tres check
+ *
+ * y por eso se leen por nombre de archivo y no por línea: la glosa de debajo
+ * también menciona números.
+ */
+function migracionesEsperadas(modelo) {
+  const texto = leer(join(DOCS, modelo.carpeta, '05-DATOS-Y-BACKEND.md'));
+  const cuerpo = seccion(texto, 2, (t) => /MIGRACIONES/i.test(t));
+  if (cuerpo.trim() === '') throw new Error(`${modelo.clave}: no encontré «MIGRACIONES»`);
+  const archivos = new Set();
+  for (const m of cuerpo.matchAll(/\b(\d{3}_[a-z0-9_]+\.sql)/g)) archivos.add(m[1]);
+  return archivos;
 }
 
 /**
@@ -518,8 +543,9 @@ function main() {
   }
 
   const filas = [];
-  const faltantes = { funciones: [], rutas: [], pantallas: [], tronco: [] };
-  const totales = { fe: 0, fh: 0, re: 0, rh: 0, pe: 0, ph: 0 };
+  const faltantes = { funciones: [], rutas: [], pantallas: [], tronco: [], migraciones: [] };
+  const totales = { fe: 0, fh: 0, re: 0, rh: 0, pe: 0, ph: 0, me: 0, mh: 0 };
+  const SQL = join(RAIZ, 'packages', 'data', 'src', 'migraciones', 'sql');
 
   let troncoHechas = 0;
   for (const id of TRONCO) {
@@ -571,6 +597,13 @@ function main() {
       } else ph += 1;
     }
 
+    const esperadasM = migracionesEsperadas(modelo);
+    let mh = 0;
+    for (const archivo of esperadasM) {
+      if (existsSync(join(SQL, archivo))) mh += 1;
+      else faltantes.migraciones.push(`${modelo.clave.padEnd(15)} ${archivo}`);
+    }
+
     filas.push({
       clave: modelo.clave,
       fe: esperadasF.size,
@@ -579,6 +612,8 @@ function main() {
       rh,
       pe: esperadasP.size,
       ph,
+      me: esperadasM.size,
+      mh,
     });
     totales.fe += esperadasF.size;
     totales.fh += fh;
@@ -586,6 +621,8 @@ function main() {
     totales.rh += rh;
     totales.pe += esperadasP.size;
     totales.ph += ph;
+    totales.me += esperadasM.size;
+    totales.mh += mh;
   }
 
   // Componentes etiquetados que nadie importa. Es la comprobación que caza a
@@ -604,16 +641,20 @@ function main() {
     'COBERTURA DE LA FASE 2 · lo declarado en la documentación contra lo que hay en disco',
   );
   console.log('');
-  console.log('MODELO           FUNCIONES        RUTAS            PANTALLAS');
-  console.log('───────────────  ───────────────  ───────────────  ───────────────');
+  console.log('MODELO           FUNCIONES        RUTAS            PANTALLAS        MIGRACIONES');
+  console.log(
+    '───────────────  ───────────────  ───────────────  ───────────────  ───────────────',
+  );
   for (const f of filas) {
     console.log(
-      `${f.clave.padEnd(15)}  ${celda(f.fh, f.fe)}  ${celda(f.rh, f.re)}  ${celda(f.ph, f.pe)}`,
+      `${f.clave.padEnd(15)}  ${celda(f.fh, f.fe)}  ${celda(f.rh, f.re)}  ${celda(f.ph, f.pe)}  ${celda(f.mh, f.me)}`,
     );
   }
-  console.log('───────────────  ───────────────  ───────────────  ───────────────');
   console.log(
-    `${'TOTAL'.padEnd(15)}  ${celda(totales.fh, totales.fe)}  ${celda(totales.rh, totales.re)}  ${celda(totales.ph, totales.pe)}`,
+    '───────────────  ───────────────  ───────────────  ───────────────  ───────────────',
+  );
+  console.log(
+    `${'TOTAL'.padEnd(15)}  ${celda(totales.fh, totales.fe)}  ${celda(totales.rh, totales.re)}  ${celda(totales.ph, totales.pe)}  ${celda(totales.mh, totales.me)}`,
   );
   console.log('');
   console.log(
@@ -654,6 +695,12 @@ function main() {
     fallos += faltantes.pantallas.length;
     console.log(`PANTALLAS SIN CONSTRUIR O HUÉRFANAS · ${faltantes.pantallas.length}`);
     for (const f of faltantes.pantallas.sort()) console.log(`  ${f}`);
+    console.log('');
+  }
+  if (faltantes.migraciones.length > 0) {
+    fallos += faltantes.migraciones.length;
+    console.log(`MIGRACIONES SIN ESCRIBIR · ${faltantes.migraciones.length}`);
+    for (const f of faltantes.migraciones.sort()) console.log(`  ${f}`);
     console.log('');
   }
   if (huerfanos.length > 0) {
