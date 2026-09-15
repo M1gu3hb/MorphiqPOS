@@ -120,3 +120,15 @@ export {
   type Rotacion,
   type RotacionPorMesa,
 } from './ocupacion.ts';
+
+export {
+  entradaMoverEspera,
+  entradaRegistrarEspera,
+  entradaSentarEspera,
+  moverEspera,
+  registrarEspera,
+  sentarEspera,
+  type ResultadoMoverEspera,
+  type ResultadoRegistroEspera,
+  type ResultadoSentarEspera,
+} from './espera.ts';
