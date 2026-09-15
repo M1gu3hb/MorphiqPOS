@@ -1,0 +1,230 @@
+# 07 · ESTADO · qué está hecho y qué falta
+
+**Actualiza este archivo EN EL MISMO TURNO en que termines un modelo.**
+Una carpeta terminada que no está marcada aquí es una carpeta que alguien va a volver a hacer.
+
+```
+⬜ no empezado    🟨 en progreso    ✅ terminado    🔵 revisado en 2ª pasada
+```
+
+Un modelo está **✅ terminado** cuando existen sus siete archivos, cumplen `02-ESTANDAR-DE-CARPETA.md`, y las cuatro preguntas de cierre están contestadas al final de su `FILE-MAP.md`.
+
+---
+
+## CIMIENTOS
+
+| Archivo | Estado |
+|---|---|
+| `00-LEEME-PRIMERO.md` | ✅ |
+| `01-MAPA-GENERAL.md` | ✅ |
+| `02-ESTANDAR-DE-CARPETA.md` | ✅ |
+| `03-CATALOGO-DE-FUNCIONES.md` | ✅ 232 funciones con ID canónico |
+| `04-SISTEMA-DE-DISENO.md` | ✅ |
+| `05-DECISIONES.md` | ✅ **13 tomadas** (D-01…D-13), 4 pendientes de Miguel (P-01…P-04) |
+| `06-FILE-MAP-GENERAL.md` | ✅ |
+| `07-ESTADO.md` | ✅ este archivo |
+
+---
+
+## LOS 78 MODELOS
+
+Prioridad: **P0** = los tres que ya tienen cliente vivo · **P1** = alto rendimiento comercial · **P2** = resto.
+
+### F1 · ALIMENTOS Y BEBIDAS — `modelos/01-alimentos/`
+
+| # | Carpeta | Arquetipo | Prioridad | Estado |
+|---|---|---|---|---|
+| 01 | `restaurante` | A2 | **P0** | ✅ 7/7 · 4 preguntas contestadas · 8 funciones pendientes de código |
+| 02 | `cafeteria` | A2 mostrador | **P0** | ✅ 7/7 · 4 preguntas contestadas · 15 funciones pendientes de código · 9 funciones nuevas propuestas al catálogo |
+| 03 | `bar-cantina` | A2 | P1 | ⬜ |
+| 04 | `comida-rapida` | A1+A2 | P1 | ⬜ |
+| 05 | `taqueria` | A1+A2 | P1 | ⬜ |
+| 06 | `food-truck` | A1 | P2 | ⬜ |
+| 07 | `fonda-cocina-economica` | A1 | P1 | ⬜ |
+| 08 | `pizzeria` | A2+delivery | P1 | ⬜ |
+| 09 | `dark-kitchen` | delivery puro | P2 | ⬜ |
+| 10 | `bufet-por-peso` | A1 | P2 | ⬜ |
+| 11 | `panaderia-pasteleria` | A8+A1 | **P1** | ⬜ |
+| 12 | `heladeria-paleteria` | A1 | P2 | ⬜ |
+| 13 | `jugueria` | A1+A2 | P2 | ⬜ |
+| 14 | `catering-banquetes` | A5+A7 | P2 | ⬜ |
+
+### F2 · RETAIL Y MOSTRADOR — `modelos/02-retail/`
+
+| # | Carpeta | Arquetipo | Prioridad | Estado |
+|---|---|---|---|---|
+| 15 | `abarrotes` | A1 | **P0** | ✅ 7/7 · 4 preguntas contestadas · **raíz del arquetipo A1**, la heredan 18 modelos de retail · 11 funciones pendientes de código · 10 funciones nuevas propuestas al catálogo + 2 reclasificaciones |
+| 16 | `ferreteria` | A1 + deltas A5 | **P0** | ✅ 7/7 · 4 preguntas contestadas · **hereda de `abarrotes`: 70% de sus funciones van `[=]`** · 13 funciones pendientes de código · 10 funciones nuevas propuestas al catálogo + 3 reclasificaciones · **P4 demuestra que NO se fusiona con `abarrotes`** y abre dos fronteras nuevas a vigilar: `materiales-construccion` y `refaccionaria` |
+| 17 | `papeleria` | A1 | P1 | ⬜ |
+| 18 | `farmacia` | A1 | **P1** | ⬜ |
+| 19 | `boutique-ropa` | A1 | P1 | ⬜ |
+| 20 | `zapateria` | A1 | P2 | ⬜ |
+| 21 | `muebleria` | A1+A5 | P2 | ⬜ |
+| 22 | `electronica-celulares` | A1+A4 | P1 | ⬜ |
+| 23 | `refaccionaria` | A1 | P1 | ⬜ |
+| 24 | `agroveterinaria` | A1 | P2 | ⬜ |
+| 25 | `vinateria` | A1 | P2 | ⬜ |
+| 26 | `floreria` | A1+A5 | P2 | ⬜ |
+| 27 | `tienda-mascotas` | A1+A3 | P2 | ⬜ |
+| 28 | `joyeria` | A1 | P2 | ⬜ |
+| 29 | `optica` | A1+A3+A4 | P2 | ⬜ |
+| 30 | `materiales-construccion` | A1+A5+A9 | P2 | ⬜ |
+| 31 | `merceria-telas` | A1 | P2 | ⬜ |
+| 32 | `dulceria` | A1 | P2 | ⬜ |
+| 33 | `vapes-tabaqueria` | A1 | P2 | ⬜ |
+
+### F3 · SERVICIOS CON CITA — `modelos/03-servicios-cita/`
+
+| # | Carpeta | Arquetipo | Prioridad | Estado |
+|---|---|---|---|---|
+| 34 | `estetica-salon` | A3 | **P1** | ✅ 7/7 · 4 preguntas contestadas · **RAÍZ DEL ARQUETIPO A3**, que no existía: de las 35 funciones catalogadas del bloque F-4xx, **cero estaban construidas**. La heredan 11 modelos de servicios con cita (22 contando los que llevan A3 como delta) · 12 funciones pendientes de código · **15 funciones nuevas propuestas al catálogo + 3 reclasificaciones** · **1 riesgo técnico bloqueante: `btree_gist` en Supabase** |
+| 35 | `barberia` | A3 | **P1** | ⬜ |
+| 36 | `nail-salon` | A3 | P2 | ⬜ |
+| 37 | `spa-masajes` | A3 | P2 | ⬜ |
+| 38 | `clinica-dental` | A3 | P1 | ⬜ |
+| 39 | `consultorio-medico` | A3 | P2 | ⬜ |
+| 40 | `veterinaria` | A3+A1 | **P1** | ⬜ |
+| 41 | `fisioterapia` | A3 | P2 | ⬜ |
+| 42 | `estudio-tatuajes` | A3 | P2 | ⬜ |
+| 43 | `gimnasio` | A6+A3 | P1 | ⬜ |
+| 44 | `escuela-academia` | A6+A3 | P2 | ⬜ |
+| 45 | `estudio-fotografia` | A3+A5 | P2 | ⬜ |
+
+### F4 · TALLER Y REPARACIÓN — `modelos/04-taller/`
+
+| # | Carpeta | Arquetipo | Prioridad | Estado |
+|---|---|---|---|---|
+| 46 | `taller-mecanico` | A4+A1 | **P1** | ⬜ |
+| 47 | `taller-celulares` | A4+A1 | P1 | ⬜ |
+| 48 | `lavanderia-tintoreria` | A4 | P1 | ⬜ |
+| 49 | `autolavado` | A1+A3 | P2 | ⬜ |
+| 50 | `reparacion-electrodomesticos` | A4 | P2 | ⬜ |
+| 51 | `carpinteria-herreria` | A4+A5 | P2 | ⬜ |
+
+### F5 · ESPACIO Y TIEMPO — `modelos/05-espacio/`
+
+| # | Carpeta | Arquetipo | Prioridad | Estado |
+|---|---|---|---|---|
+| 52 | `hotel-motel` | A7+A1 | P1 | ⬜ |
+| 53 | `rentas-cortas` | A7 | P2 | ⬜ |
+| 54 | `salon-eventos` | A7+A5 | P2 | ⬜ |
+| 55 | `coworking` | A7+A6 | P2 | ⬜ |
+| 56 | `estacionamiento` | A7 | P2 | ⬜ |
+| 57 | `canchas-deportivas` | A7 | P2 | ⬜ |
+| 58 | `self-storage` | A7+A6 | P2 | ⬜ |
+
+### F6 · DISTRIBUCIÓN Y MAYOREO — `modelos/06-distribucion/`
+
+| # | Carpeta | Arquetipo | Prioridad | Estado |
+|---|---|---|---|---|
+| 59 | `distribuidora-mayorista` | A5+A9 | P1 | ⬜ |
+| 60 | `purificadora-agua` | A9 | P1 | ⬜ |
+| 61 | `gas-lp` | A9 | P2 | ⬜ |
+| 62 | `panaderia-industrial` | A8+A9 | P2 | ⬜ |
+
+### F7 · PRODUCCIÓN — `modelos/07-produccion/`
+
+| # | Carpeta | Arquetipo | Prioridad | Estado |
+|---|---|---|---|---|
+| 63 | `tortilleria` | A8+A1 | P1 | ⬜ |
+| 64 | `cerveceria-artesanal` | A8+A2 | P2 | ⬜ |
+| 65 | `imprenta-serigrafia` | A8+A4+A5 | P2 | ⬜ |
+| 66 | `fabrica-muebles` | A8+A5 | P2 | ⬜ |
+
+### F8 · PROFESIONAL Y CRM — `modelos/08-profesional/`
+
+| # | Carpeta | Arquetipo | Prioridad | Estado |
+|---|---|---|---|---|
+| 67 | `agencia-marketing` | A10 | P1 | ⬜ |
+| 68 | `despacho-contable` | A10+A6 | P2 | ⬜ |
+| 69 | `despacho-legal` | A10 | P2 | ⬜ |
+| 70 | `inmobiliaria` | A10 | P2 | ⬜ |
+| 71 | `constructora` | A10+A5 | P2 | ⬜ |
+| 72 | `consultoria` | A10 | P2 | ⬜ |
+
+### F9 · CASOS ESPECIALES — `modelos/09-especiales/`
+
+| # | Carpeta | Arquetipo | Prioridad | Estado |
+|---|---|---|---|---|
+| 73 | `ecommerce` | A1+portal V6 | P2 | ⬜ |
+| 74 | `casa-empeno` | A5 | P2 | ⬜ |
+| 75 | `gasolinera` | A1 | P2 | ⬜ |
+| 76 | `funeraria` | A5+A7 | P2 | ⬜ |
+| 77 | `agencia-viajes` | A5+A10 | P2 | ⬜ |
+| 78 | `renta-equipo` | A7 | P2 | ⬜ |
+
+---
+
+## RESUMEN
+
+```
+Total ................... 78
+Terminados .............. 5   restaurante · cafeteria · abarrotes · ferreteria ·
+                              estetica-salon
+En progreso ............. 0
+Sin empezar ............. 73
+
+P0 (cliente vivo) ....... 4   restaurante · cafeteria · abarrotes · ferreteria
+                              ✅ LOS CUATRO NEGOCIOS VIVOS TIENEN SU MODELO DOCUMENTADO
+
+Arquetipos con carpeta raíz terminada:
+  A2 Mesa y comanda ..... restaurante      (la heredan 12 de alimentos)
+  A1 Mostrador .......... abarrotes        (la heredan 18 de retail)
+  A3 Cita y profesional . estetica-salon   (la heredan 11 de servicios con cita,
+                                            22 contando los que lo llevan como delta)
+                                            ⬅ NUEVO. Era el módulo de mayor
+                                            rendimiento comercial que NO EXISTÍA:
+                                            el bloque F-4xx completo estaba a cero.
+
+Primer modelo HEREDERO terminado:
+  ferreteria ← abarrotes  · 70% de sus funciones citadas por ID, no reconstruidas.
+                            Es la prueba de que D-02 funciona: el segundo modelo
+                            de un arquetipo cuesta la mitad que el primero.
+
+P1 (alto rendimiento) ... 19
+P2 (resto) .............. 54
+```
+
+**Lectura de cobertura, según `01-MAPA-GENERAL.md` §5:**
+
+```
+Con A2 (restaurante) ........................  6 modelos vendibles
++ A1 completo (abarrotes, ferreteria) ....... 15
++ A3 documentado (estetica-salon) ........... 22   ⬅ AQUÍ ESTAMOS EN DOCUMENTACIÓN
+
+Los tres arquetipos con raíz documentada cubren 22 de los 78 modelos.
+Faltan siete raíces: A4 orden de trabajo · A5 cotización y pedido ·
+A6 suscripción · A7 espacio y tiempo · A8 producción · A9 ruta ·
+A10 proyecto y CRM.
+```
+
+## DEUDA TRANSVERSAL DETECTADA POR LOS MODELOS TERMINADOS
+
+Lo que dos o más carpetas señalaron y que **no se arregla modelo por modelo**:
+
+| Deuda | Quién la señaló | Por qué urge |
+|---|---|---|
+| **F-017 diccionario de vocabulario** | `abarrotes` (aviso) · `ferreteria` (hecho consumado) · **`estetica-salon` (lo exige)** | **TERCER modelo y TERCER arquetipo.** Ya no es un aviso: "mesa"→"estación", "mesero"→"estilista", "comensal"→"clienta" **con género**. Y hay **once herederos de A3 esperando detrás**. Se construye ya |
+| **F-040 `Cliente` no está en el puente** | `abarrotes` · `ferreteria` · **`estetica-salon` (BLOQUEANTE)** | La tabla existe desde `002_catalogo.sql`. Sin ella no hay fiado ni crédito — y en A3 **no hay cita, ni expediente, ni recordatorio, ni cartera**. No se puede empezar A3 sin esto. **Es la deuda más cara del proyecto** |
+| **Estacionalidad** | `abarrotes` · `ferreteria` · **`estetica-salon`** | **TRES familias distintas señalando el mismo hueco ⇒ es deuda del PROYECTO, no de un arquetipo.** En retail es la sugerencia de pedido; en A3 es la proyección de ocupación y de producto (mayo, diciembre, 15 años, graduaciones). Resolver una vez |
+| **F-635 cuentas por pagar** | `abarrotes` (tanda 5, reconocido como error) · `ferreteria` (tanda 2) · `estetica-salon` (tanda 6) | Tercer modelo. Sube de prioridad |
+| **P-02 CFDI** | `ferreteria` lo vuelve bloqueante | Un ferretero sin facturación en el POS no compra |
+| **`btree_gist` en Supabase** | `estetica-salon` | **Riesgo técnico BLOQUEANTE de A3.** Toda la arquitectura de agenda descansa en una restricción de exclusión GiST sobre `tstzrange`. Si la extensión no está disponible en `wyqmzhliurwyxuyxznpb`, el plan B (slots discretos de 5 min) es mucho peor. **Verificar ANTES de escribir código de agenda** |
+| **Decisión de WhatsApp** | `estetica-salon` | Enlace `wa.me` semiautomático contra API oficial de Meta. De esto depende la función que más dinero mueve de A3 (bajar el no-show de ~18% a <8%) y un argumento de folleto frente a AgendaPro. **La decide Miguel** |
+| **44 funciones nuevas propuestas al catálogo + 8 reclasificaciones** | `cafeteria` 9 · `abarrotes` 10 + 2 · `ferreteria` 10 + 3 · **`estetica-salon` 15 + 3** | **Añadirlas a `03-CATALOGO-DE-FUNCIONES.md` antes de construir nada.** El catálogo pasa de 232 a **más de 280 funciones** y ya hay solapamientos que hay que consolidar en una sola pasada, no modelo por modelo |
+
+## SEGUNDA PASADA
+
+Pendiente. Se hace cuando los 78 estén ✅. Consiste en releer sólo `00-FICHA-Y-EJES.md` y `FILE-MAP.md` de cada uno, en orden, y volver a contestar las cuatro preguntas. Ver `02-ESTANDAR-DE-CARPETA.md` §7.
+
+| Familia | Revisada |
+|---|---|
+| F1 Alimentos | ⬜ |
+| F2 Retail | ⬜ |
+| F3 Servicios con cita | ⬜ |
+| F4 Taller | ⬜ |
+| F5 Espacio | ⬜ |
+| F6 Distribución | ⬜ |
+| F7 Producción | ⬜ |
+| F8 Profesional | ⬜ |
+| F9 Especiales | ⬜ |
