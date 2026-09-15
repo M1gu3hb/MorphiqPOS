@@ -909,6 +909,7 @@ export interface Esquema {
   obras: Obras;
   piezas_abiertas: PiezasAbiertas;
   remisiones: Remisiones;
+  servicios_mostrador: ServiciosMostrador;
   producto_atributos: ProductoAtributos;
   redondeos: Redondeos;
   ubicaciones: Ubicaciones;
@@ -1198,6 +1199,21 @@ export interface ProductoPresentaciones {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+/** F-258 · Copia de llave, entonado, corte a medida: material propio y mano de obra. */
+export interface ServiciosMostrador {
+  id: Generated<string>;
+  organizacion_id: string;
+  orden_linea_id: string;
+  tipo: string;
+  /** SÓLO la mano de obra. El material va por su lado, valuado por el ledger. */
+  mano_obra_centavos: bigint;
+  parametros: Generated<unknown>;
+  /** El índice de lo consumido. La FUENTE es el ledger: si discrepan, gana él. */
+  consumos: Generated<unknown>;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
 }
 
 /** F-639 · La obra se CIERRA, nunca se borra: sus remisiones se consultan años después. */
