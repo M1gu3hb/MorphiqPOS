@@ -799,3 +799,94 @@ ninguna fila, se lanza `STOCK_INSUFICIENTE`— pero no el predicado. Lo mismo el
 saldo del cliente: meter una escritura ajena entre la lectura y el `update` exigiría dos filas con
 el mismo id, que Postgres no permite, y una prueba sobre un estado imposible no prueba nada. Los dos
 son contratos con Postgres y necesitan integración con `DATABASE_URL`.
+
+---
+
+## 2026-09-15 · E7 · `estetica-salon` · CERRADA con el motor de A3
+
+**Commits:** `1523813` (el motor puro: duración, huecos, comisión), `b11791d` (la cita, de agendar
+a cobrar), `8a0719a` (la liquidación y el puente).
+
+Es el único de los cinco modelos que **no existía en absoluto**: no había plantilla, no había
+agenda, MorphiqPOS no tenía ni un calendario. De aquí cuelgan once vecinos de la familia 03.
+
+### Lo que esta etapa enseñó
+
+**1 · La decisión que lo gobierna todo cabe en una frase: la duración de un servicio es una
+SECUENCIA, nunca un número.** Un tinte son 120 minutos, pero no son 120 minutos de estilista: son
+40 de aplicación, 45 de procesado —la clienta sentada sola—, 25 de terminado y 10 de limpieza. Si
+la agenda bloquea al profesional durante el procesado, el salón atiende 6 clientas al día; si lo
+libera, 9 **con la misma gente y el mismo local**. Es entre el 25 % y el 40 % de capacidad que
+ningún competidor del segmento aprovecha, y sale entero de separar `rango_activo` de
+`rango_ocupacion`.
+
+**2 · Y se construye como secuencia AUNQUE la barbería no la necesite.** Con `pasiva = 0` el mismo
+modelo sirve para los once vecinos sin una sola rama. Nacer con un entero y meter el tiempo pasivo
+después obligaría a reescribir la agenda entera, que es la parte más cara del modelo.
+
+**3 · La restricción de exclusión va sobre el rango ACTIVO, no sobre la ocupación.** Declararla
+sobre la ocupación devolvería el procesado a bloquear al profesional, y la función entera se caería
+**sin que ninguna prueba lo notara**: las citas se seguirían agendando, sólo que menos. Es el tipo
+de regresión que no se ve hasta que alguien cuenta cuántas clientas atendió el mes pasado.
+
+**4 · La comisión no es aritmética: son cinco preguntas contestadas ANTES.** ¿Sobre lo cobrado o
+sobre la lista? ¿Sobre el IVA? ¿El material lo pone el salón, se descuenta de la base, o lo paga
+ella? Con dos personas, ¿se reparte o se lo lleva quien lo tomó? ¿Rehacer se paga dos veces? Cuando
+no están contestadas, cada quien contesta la suya y el pleito del domingo es inevitable **porque
+los dos tienen razón con su propia respuesta**.
+
+**5 · Un contrato de E2 cazó un hueco, y el contrato también estaba mal.** Al escribir la `132`,
+`estados-con-columna` marcó en rojo que nadie escribía `cobrada`, `no_llego` ni `cancelada` en
+`citas`. Eso era cierto y salieron los comandos. Pero al escribirlos, el mismo contrato **falló
+señalando código correcto**: leía el archivo entero y le atribuía a `citas` el
+`values({ estado: 'cobrada' })` de `ordenes`, que escribe el mismo estado y no tiene por qué llevar
+`orden_id`. Se corrigió para que recorte por tabla, y **se comprobó que sigue cazando las
+regresiones reales** —quitar `orden_id` del update de citas, quitar la firma del no-show—. Un
+contrato que manda a arreglar lo que no está roto es la versión más cara de un contrato que miente.
+
+**6 · Lo que se sella no se recalcula, tercera vez en la fase.** El precio de la cita se congela al
+agendar; la comisión guarda con qué regla y con qué VERSIÓN se calculó; la liquidación SUMA el
+ledger en vez de recalcularlo. Las tres son la misma regla y las tres existen porque recalcular es
+la tercera oportunidad de que el número salga distinto.
+
+### Decisiones que el modelo no traía
+
+- **`profesionales` se declara en `PAQUETES_TODOS`**, no en un paquete `salon` que no existe hasta
+  la `066`. Es el mismo criterio que `cafeteria` fijó en E4: declarar un paquete inexistente apaga
+  el comando justo para quien lo necesita.
+- **La cita lleva serie propia de folio (`CITA-`)** y el ticket la suya. Dos documentos distintos
+  en la misma serie hacen que el folio 480 sea a veces una cita y a veces una venta.
+- **`liquidarProfesional` no cobra la renta aparte: la resta.** Cobrarla por separado obliga a dos
+  movimientos de caja el mismo día con la misma persona, y el arqueo explica dos veces la misma
+  conversación.
+- **Una liquidación en contra se arrastra, no se paga.** Pasa con anticipos grandes, y sacar dinero
+  del cajón al revés no es una operación.
+
+### Lo que NO se construyó en esta etapa, y por qué
+
+- **F-406 recordatorio por WhatsApp:** BLOQUEADA por el encargo — la decisión de proveedor no la
+  toma esta carpeta.
+- **F-414 anticipo, F-439 paquetes, F-243/F-260 propina V4, F-441 el cobro de la renta, F-416 el
+  comando de bloqueo, F-434 el expediente completo con fotos y consentimientos.** Las tablas de
+  varias están declaradas en el `05` del modelo y **no se escribieron sus migraciones**: quedan
+  libres la `134` y las `136`–`145`. Lo que sí quedó es el motor del que cuelgan.
+- **F-409 lista de espera:** el dominio está construido y probado —`aQuienSeLeOfrece`, con el orden
+  por antigüedad y el hueco que tiene que caber entero— y **falta su tabla y su comando**.
+- **F-428 reparto entre profesionales:** `repartirComision` existe y está probado; falta la tabla
+  de participaciones que lo alimente. Hoy `cobrarCita` causa la comisión entera a quien dio el
+  servicio, que es el caso de siempre.
+- **El material en la base de la comisión.** `calcularComision` sabe descontarlo y cobrarlo aparte;
+  `cobrarCita` le pasa cero y **lo dice en un comentario**, porque el costo del producto de cabina
+  vive en el ledger de stock y traerlo aquí es la siguiente pasada. Se declara en vez de inventar
+  un número.
+- **F-017 diccionario de vocabulario.** Tercer modelo que lo pide —`abarrotes` avisó, `ferreteria`
+  lo dio por hecho consumado— y aquí ya no es cosmético: «mesa» → «estación», «mesero» →
+  «estilista», «comensal» → «clienta» con género. Sigue sin construirse, y **once modelos más
+  vienen detrás de éste**.
+
+### Las pantallas, dicho explícitamente
+
+**Esta etapa tampoco abrió ninguna pantalla en el navegador.** No hay una sola pantalla de agenda en
+el repositorio, y construirla contra una base sin `citas` ni `profesionales` no se puede: las cinco
+migraciones de esta etapa están escritas y sin aplicar, como manda la Fase 2. Es la tercera etapa
+seguida en la que esto pasa y por la misma razón; está en el reporte final con su renglón propio.
