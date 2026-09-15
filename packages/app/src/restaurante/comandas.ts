@@ -25,6 +25,8 @@ interface DatosDeComandas {
   readonly orden: OrdenDeMesa;
   readonly notas: string | null;
   readonly comandas: readonly ComandaConGrupo[];
+  /** F-315 · Cuándo se soltó a cocina. Es el instante del que cuelga el reloj. */
+  readonly marchadaEn: Date;
 }
 
 export async function insertarComandas(tx: Transaccion, datos: DatosDeComandas): Promise<void> {
@@ -56,6 +58,11 @@ export async function insertarComandas(tx: Transaccion, datos: DatosDeComandas):
         notas_alergias: orden.notasAlergias,
         celebracion_especial: orden.celebracionEspecial,
         tipo_celebracion: orden.tipoCelebracion,
+        // F-315 · El reloj de cocina arranca aquí. Para lo que sale inmediato
+        // es el mismo instante que la creación; para lo que se marcha después
+        // es el momento de la marcha, y ésa es toda la diferencia: un fuerte
+        // retenido cuarenta minutos saldría siempre en rojo.
+        marchada_en: datos.marchadaEn,
       })),
     )
     .execute();
@@ -90,6 +97,10 @@ export async function insertarItems(
         nombre_porcion: esPorcion ? producto.nombrePorcion : null,
         cantidad_porciones: esPorcion ? valorada.cantidad : null,
         orden_visual: visual,
+        // F-315 · INSTANTÁNEA del menú. Leerlo del catálogo al consultar
+        // compararía el tiempo real de anoche contra el estimado que alguien
+        // cambió esta mañana.
+        minutos_estimados: producto.minutosPreparacion,
       };
     }),
   );

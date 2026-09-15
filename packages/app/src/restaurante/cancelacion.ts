@@ -101,7 +101,7 @@ export const cancelarOrden = definirComando<
     );
     if (comandas.length > 0) {
       await ctx.paso('cancelar_items', () =>
-        propagarAItems(ctx.tx, organizacionId, comandas, 'cancelado'),
+        propagarAItems(ctx.tx, organizacionId, comandas, 'cancelado', ctx.ahora),
       );
     }
 

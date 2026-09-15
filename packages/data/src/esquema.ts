@@ -104,6 +104,10 @@ export interface ComandaItems {
   nombre_porcion: string | null;
   cantidad_porciones: string | null;
   orden_visual: Generated<number>;
+  /** F-315 · El reloj de cocina. */
+  iniciado_en: Date | null;
+  listo_en: Date | null;
+  minutos_estimados: number | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -119,6 +123,8 @@ export interface Comandas {
   iniciada_en: Date | null;
   lista_en: Date | null;
   entregada_en: Date | null;
+  /** F-323 · Cuándo se soltó a cocina. El reloj de F-315 arranca aquí. */
+  marchada_en: Date | null;
   empleado_responsable_id: string | null;
   notas: string | null;
   estacion_nombre: string | null;
@@ -454,6 +460,9 @@ export interface OrdenLineaModificadores {
 
 export interface OrdenLineas {
   anulada_en: Date | null;
+  /** F-323 · `inmediata` · `retenida` · `marchada`. */
+  marcha_estado: Generated<string>;
+  tiempo_servicio: number | null;
   motivo_anulacion: string | null;
   empleado_anula_id: string | null;
   id: Generated<string>;
@@ -659,6 +668,8 @@ export interface Productos {
   area_preparacion: Generated<string>;
   visible_en_menu_digital: Generated<boolean>;
   minutos_preparacion: number | null;
+  /** F-323 · 1 la entrada, 2 el fuerte, 3 el postre. Nulo = va inmediato. */
+  tiempo_servicio_default: number | null;
   notas: string | null;
   presets_variable: unknown;
   presets_porcion: unknown;
@@ -818,6 +829,7 @@ export interface Esquema {
   movimientos_cuenta: MovimientosCuenta;
   eventos_mesa: EventosMesa;
   lista_espera: ListaEspera;
+  tiempos_preparacion: TiemposPreparacion;
   ocupacion_mesas: OcupacionMesas;
   uniones_mesa: UnionesMesa;
   union_mesa_miembros: UnionMesaMiembros;
@@ -993,6 +1005,23 @@ export interface UnionMesaMiembros {
   mesa_id: string;
   orden_absorbida_id: string | null;
   union_abierta: Generated<boolean>;
+}
+
+/** F-315 · Vista: el estimado, el real y la desviación de cada platillo. */
+export interface TiemposPreparacion {
+  id: string;
+  organizacion_id: string;
+  sucursal_id: string;
+  comanda_id: string;
+  estacion_preparacion_id: string | null;
+  orden_linea_id: string | null;
+  producto_id: string | null;
+  producto_nombre: string;
+  minutos_estimados: number | null;
+  minutos_reales: number | null;
+  desviacion_bp: number | null;
+  arrancado_en: Date | null;
+  listo_en: Date | null;
 }
 
 /** F-306 · La cola del viernes por la noche. */

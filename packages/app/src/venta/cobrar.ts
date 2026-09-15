@@ -221,7 +221,7 @@ export const cobrarOrden = definirComando<
     //      impreso y en cocina no había nada. Dentro de la transacción, o hay
     //      venta y comanda o no hay ninguna de las dos.
     const comandas = await ctx.paso('comandar_pendientes', () =>
-      comandarLineasPendientes(ctx.tx, organizacionId, entrada.ordenId),
+      comandarLineasPendientes(ctx.tx, organizacionId, entrada.ordenId, ctx.ahora),
     );
 
     const cambio = pagos.reduce((suma, p) => suma + p.cambioCentavos, 0n);

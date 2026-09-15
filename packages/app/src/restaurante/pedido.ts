@@ -98,7 +98,10 @@ export const enviarPedido = definirComando<
       insertarLineas(ctx.tx, organizacionId, entrada.ordenId, preparadas),
     );
 
-    const grupos = agruparEnComandas(preparadas);
+    // LO RETENIDO NO SE COMANDA. Es la mitad de F-323 que se puede olvidar sin
+    // que nada falle: las líneas se escriben igual y la cuenta cuadra igual,
+    // sólo que el fuerte sale con la sopa.
+    const grupos = agruparEnComandas(preparadas.filter((l) => l.marchaEstado !== 'retenida'));
     const comandas = grupos.map((grupo) => ({ id: crypto.randomUUID(), grupo }));
 
     if (comandas.length > 0) {
@@ -108,6 +111,7 @@ export const enviarPedido = definirComando<
           orden,
           notas: entrada.notas ?? null,
           comandas,
+          marchadaEn: ctx.ahora,
         }),
       );
       await ctx.paso('escribir_items', () => insertarItems(ctx.tx, organizacionId, comandas));

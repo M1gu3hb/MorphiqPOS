@@ -58,6 +58,15 @@ export const entradaEnviarPedido = z.object({
         /** Para peso y porción. Si falta, la decide el catálogo. */
         unidad: z.string().trim().min(1).max(12).optional(),
         notas: texto(300).optional(),
+        /**
+         * F-323 · En qué tiempo va este plato: 1 entrada, 2 fuerte, 3 postre.
+         *
+         * Lo decide el MENÚ (`productos.tiempo_servicio_default`) y el mesero lo
+         * puede cambiar aquí, porque la mesa que pide el postre primero existe.
+         * No es un dato de dinero: no cambia lo que se cobra, sólo cuándo sale
+         * de la cocina.
+         */
+        tiempoServicio: z.number().int().min(1).max(6).optional(),
       }),
     )
     .min(1)

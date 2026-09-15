@@ -132,3 +132,17 @@ export {
   type ResultadoRegistroEspera,
   type ResultadoSentarEspera,
 } from './espera.ts';
+
+export {
+  entradaMarcharTiempo,
+  marcharTiempo,
+  type ComandaMarchada,
+  type ResultadoMarcha,
+} from './marcha.ts';
+
+export {
+  entradaTiempos,
+  tiemposDePreparacion,
+  type TiempoDeProducto,
+  type TiemposDePreparacion,
+} from './tiempos.ts';

@@ -42,6 +42,7 @@ interface LineaSinComanda {
   readonly unidad: string;
   readonly notas: string | null;
   readonly ordenVisual: number;
+  readonly tiempoServicio: number | null;
 }
 
 export interface ComandaEmitidaAlCobrar {
@@ -55,6 +56,7 @@ export async function comandarLineasPendientes(
   tx: Transaccion,
   organizacionId: string,
   ordenId: string,
+  ahora: Date = new Date(),
 ): Promise<readonly ComandaEmitidaAlCobrar[]> {
   const lineas = await lineasSinComanda(tx, organizacionId, ordenId);
   if (lineas.length === 0) return [];
@@ -95,6 +97,11 @@ export async function comandarLineasPendientes(
       valorada: { cantidad: linea.cantidad, unidad: linea.unidad } as LineaPreparada['valorada'],
       estacion: resolverEstacion(producto.estacionDeCategoriaId, estaciones),
       areaPreparacion: producto.areaPreparacion,
+      // Al COBRAR ya no hay nada que retener: la comida salió o no salió, y lo
+      // que quede pendiente se manda entero. Marchar es una decisión de sala
+      // que ocurre antes, no en la caja.
+      tiempoServicio: linea.tiempoServicio,
+      marchaEstado: 'inmediata',
       notas: linea.notas,
       ordenVisual: linea.ordenVisual,
     });
@@ -108,7 +115,7 @@ export async function comandarLineasPendientes(
     grupo,
   }));
 
-  await insertarComandas(tx, { organizacionId, orden, notas: null, comandas });
+  await insertarComandas(tx, { organizacionId, orden, notas: null, comandas, marchadaEn: ahora });
   await insertarItems(tx, organizacionId, comandas);
 
   return comandas.map(({ id, grupo }) => ({
@@ -143,6 +150,7 @@ async function lineasSinComanda(
       'unidad',
       'notas',
       'orden_visual as ordenVisual',
+      'tiempo_servicio as tiempoServicio',
     ])
     .where('organizacion_id', '=', organizacionId)
     .where('orden_id', '=', ordenId)
