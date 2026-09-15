@@ -69,3 +69,12 @@ export {
 } from './esquema.ts';
 
 export { repartirLiquidacion, type BeneficiarioPedido, type RepartoEscrito } from './pool.ts';
+
+export {
+  anotarPropinaPorEntregar,
+  entradaAnotarPropinaPorEntregar,
+  entradaEntregarPropina,
+  entregarPropina,
+  type ResultadoEntrega,
+  type ResultadoPropinaPasivo,
+} from './pasivo.ts';

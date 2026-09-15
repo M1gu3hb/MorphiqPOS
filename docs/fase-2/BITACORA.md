@@ -1076,3 +1076,91 @@ Inocuas que PASAN:
 F-017 y F-105). Ojo con ese F-105: cuenta porque `tronco-inventario.test.ts` lo nombra, y esa
 prueba es una **aserción de texto sobre el SQL**. Es justo el falso verde que la etapa 8.5 va a
 cerrar.
+
+## 2026-09-15 · E8.3 a E8.7 · El tronco cerrado: 8/8
+
+**Lo que había, dicho sin adornos.** F-103 kardex, F-105 traspaso, F-108 valuación y F-109 merma
+eran **SQL en el disco**. Tenían migración (060, 061, 062) y no tenían repo con prueba, ni comando,
+ni ruta. F-260 —la propina como pasivo— ni siquiera eso: el `check` de la 063 admite cuatro
+naturalezas y el código escribía **tres**.
+
+### Lo construido
+
+| | Dominio | Comando | Ruta |
+|---|---|---|---|
+| **F-103** kardex | `inventario/kardex.ts` · `resumirKardex` | `inventario.kardex` (lectura) | `/api/inventario/kardex` |
+| **F-105** traspaso | — | `inventario.enviar_traspaso` · `inventario.recibir_traspaso` | `/api/inventario/traspaso` y `…-recibir` |
+| **F-108** valuación | `inventario/valuacion.ts` · promedio y PEPS | `inventario.valuar` | `/api/inventario/valuacion` |
+| **F-109** merma | `inventario/merma.ts` · tres estrategias | `inventario.registrar_merma` | `/api/inventario/merma` |
+| **F-260** propina pasiva | — | `propinas.anotar_pasivo` · `propinas.entregar` | `/api/propinas/pasivo` y `/entregar` |
+
+Y un módulo compartido: `inventario/escala.ts`, con `enEscalaCompleta` y `deEscalaCompleta`. La
+primera vivía **privada dentro de `conteo.ts`**; ahora la necesitan el conteo, el kardex, la merma y
+la valuación. Tres copias de una conversión de escala es cómo se descubre, seis meses después, que
+una de las tres redondeaba distinto.
+
+### Cuatro decisiones que el encargo no traía
+
+1. **El saldo corrido lo calcula Postgres; el resumen lo calcula el dominio.** Una ferretería con
+   dos años de movimientos tiene cientos de miles de renglones: traerlos a JavaScript para sumarlos
+   es justo el problema que el índice de la 060 existe para evitar. El comando pide **límite + 1**
+   para saber si hay más historia sin contar la tabla entera.
+2. **PEPS valúa con las capas MÁS NUEVAS.** Suena al revés y no lo es: «primeras entradas, primeras
+   salidas» significa que lo viejo ya salió, así que lo que queda en el estante es lo nuevo. Valuar
+   con las capas viejas subvalúa el inventario justo cuando los precios suben, que es siempre.
+3. **Una existencia negativa vale cero, no un valor negativo.** Restaría del total y haría que el
+   almacén valiera menos de lo que hay en el estante. El renglón se queda visible para que se vea.
+4. **El retazo es la única merma con recuperación.** Un metro de cable que sobra se vende; ocho
+   centímetros no. Tratar los dos igual es lo que hace que el inventario de una ferretería nunca
+   cuadre: o sobra cable que no existe, o falta cable que sí está.
+
+### E8.4 y E8.5 · las dos correcciones al encargo, comprobadas
+
+- **`repos/traspasos.ts` NO tenía prueba, y es cierto**: ni una, y tampoco comando que lo llamara.
+  Ahora tiene 13 casos en `app/src/inventario/traspaso.test.ts`, a través de sus dos comandos.
+- **`repos/tomas-inventario.ts` SÍ estaba probado.** Lo ejercitan los 20 casos de
+  `abarrotes/conteo.test.ts` a través de `abrirConteo`, `capturarConteo` y `cerrarConteo`, que lo
+  llaman en cuatro puntos. Lo que no tenía era un archivo de prueba **propio**, que es otra cosa.
+  Se deja como está: una segunda prueba de lo mismo no añade cobertura, añade mantenimiento.
+- **Las aserciones de texto sobre el SQL (`tronco-inventario.test.ts`) se quedan, y dejan de ser lo
+  único.** Eran el motivo por el que `verify:cobertura` daba F-103, F-105 y F-108 por construidos:
+  una aserción de texto sobre un `.sql` contaba como prueba de la función y no lo es. Ahora cada
+  regla de ese archivo tiene su prueba de comportamiento, nombrada una por una en su cabecera, y la
+  de texto se queda como segundo cerrojo sobre la decisión de esquema.
+
+### E8.7 · Las cinco eliminaciones, revisadas una por una
+
+El encargo dice cuatro; son **cinco** —el commit `4cab9e5` borró dos cosas—. Cada una se revisó
+reintroduciendo la mutación **con el script que falla ruidosamente**, no con `perl`:
+
+| Lo que se borró | ¿Era necesario? | La mutación que lo demuestra |
+|---|---|---|
+| salida temprana de `alertasDeMinimo` con los dos pisos en cero | **No.** Las dos guardas `> 0n` la hacían | quitar `critico > 0n` → 1 prueba en rojo |
+| conversión de domingo 0 → 7 en `diasHastaLaVisita` | **No.** `(dia - hoy + 7) % 7` es invariante: 0 ≡ 7 mod 7 | `getUTCDay() + 1` → **4 pruebas en rojo** |
+| comprobación temprana de `obra.estado` antes de cerrar | **No.** El `where estado = activa` es el único cerrojo y funciona | quitar ese `where` → 1 prueba en rojo |
+| comprobación temprana de `cita.estado` antes del no-show | **No.** Ídem con `where estado in (…)` | quitar ese `where` → 1 prueba en rojo |
+| salida temprana ante una ventana al revés en `huecosDeAgenda` | **No**, y esta vez con demostración | `Math.abs` en la duración **y** `!==` en el cierre → 1 prueba en rojo |
+
+**Ninguna se restituye.** Y lo que importa más que el veredicto: **las cinco conductas ya estaban
+pinchadas por una prueba** —«el domingo es el 7, no el 0», «una ventana al revés no produce
+huecos», el artículo con los dos pisos en cero—, así que la equivalencia no es la afirmación de un
+comentario: es algo que se pone rojo si alguien la rompe.
+
+> La ventana al revés necesitó una mutación DE DOS PARTES para ponerse roja, y eso se dice: la
+> conducta está protegida por dos cerrojos —el `<` del cierre y la comprobación de duración de
+> `agregar`— y romper uno solo no basta. La guarda borrada era el tercero.
+
+> Y una comprobación que el script hizo por mí: la mutación del no-show salió **AMBIGUA: 2 veces**
+> y se negó a aplicarse. Con `perl` habría mutado la primera coincidencia —que es otro comando— y
+> el veredicto habría sido sobre un código que no era el que quería probar.
+
+### Un hallazgo del camino: la base falsa no sabía comparar contra un literal
+
+`recibirTraspaso` usa `eb.or([...])` con una comparación contra `null`, y el constructor falso sólo
+entendía **columna contra columna**. Reventaba con `Cannot read properties of null`. Se amplió a
+tres formas —`columnas`, `literal` y `grupo` con `or`/`and`— y se le enseñó que Postgres compara
+nulos con `is` y no con `=`: tratarlos igual haría que `is null` coincidiera con todo, que es como
+un filtro deja de filtrar.
+
+**Cuenta:** 1 868 → **1 954 pruebas**. `verify:cobertura`: tronco **8/8 (100 %)**, funciones
+64/113, rutas 28/105.

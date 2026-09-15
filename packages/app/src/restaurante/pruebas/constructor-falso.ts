@@ -217,31 +217,97 @@ interface ReferenciaColumna {
 }
 
 export interface ConstructorComparacion {
-  (izquierda: ReferenciaColumna, operador: string, derecha: ReferenciaColumna): Comparacion;
+  (
+    izquierda: ReferenciaColumna | string,
+    operador: string,
+    // `unknown` a secas y no `ReferenciaColumna | unknown`: la unión con
+    // `unknown` se colapsa a `unknown` y el lint lo señala con razón.
+    derecha: unknown,
+  ): Comparacion;
   ref(columna: string): ReferenciaColumna;
+  or(partes: readonly Comparacion[]): Comparacion;
+  and(partes: readonly Comparacion[]): Comparacion;
 }
 
-export interface Comparacion {
-  readonly izquierda: string;
-  readonly operador: string;
-  readonly derecha: string;
+/**
+ * Una comparación del `where` de retrollamada.
+ *
+ * Son tres formas y las tres aparecen de verdad en los repositorios:
+ *
+ *   `columnas` — `contado <> esperado`, dos columnas de la misma fila. Es lo que
+ *                pide `diferenciasDeToma`.
+ *   `literal`  — `cantidad_recibida is null`, columna contra valor. Lo pide
+ *                `recibirTraspaso`, y sin ella la prueba de F-105 no arranca.
+ *   `grupo`    — `or`/`and` de las otras dos. Un `or` de una sola rama no es un
+ *                `or`: la disyunción es justo lo que hay que poder probar.
+ */
+export type Comparacion =
+  | {
+      readonly tipo: 'columnas';
+      readonly izquierda: string;
+      readonly operador: string;
+      readonly derecha: string;
+    }
+  | {
+      readonly tipo: 'literal';
+      readonly columna: string;
+      readonly operador: string;
+      readonly valor: unknown;
+    }
+  | {
+      readonly tipo: 'grupo';
+      readonly union: 'or' | 'and';
+      readonly partes: readonly Comparacion[];
+    };
+
+function esReferencia(valor: unknown): valor is ReferenciaColumna {
+  return typeof valor === 'object' && valor !== null && '__columna' in valor;
 }
 
-const COMPARADOR = Object.assign(
-  (izquierda: ReferenciaColumna, operador: string, derecha: ReferenciaColumna): Comparacion => ({
-    izquierda: izquierda.__columna,
-    operador,
-    derecha: derecha.__columna,
-  }),
-  { ref: (columna: string): ReferenciaColumna => ({ __columna: columna }) },
+const COMPARADOR: ConstructorComparacion = Object.assign(
+  (
+    izquierda: ReferenciaColumna | string,
+    operador: string,
+    derecha: unknown,
+  ): Comparacion => {
+    const columna = esReferencia(izquierda) ? izquierda.__columna : izquierda;
+    if (esReferencia(derecha)) {
+      return { tipo: 'columnas', izquierda: columna, operador, derecha: derecha.__columna };
+    }
+    return { tipo: 'literal', columna, operador, valor: derecha };
+  },
+  {
+    ref: (columna: string): ReferenciaColumna => ({ __columna: columna }),
+    or: (partes: readonly Comparacion[]): Comparacion => ({ tipo: 'grupo', union: 'or', partes }),
+    and: (partes: readonly Comparacion[]): Comparacion => ({ tipo: 'grupo', union: 'and', partes }),
+  },
 );
 
 function cumpleComparacion(fila: Fila, comparacion: Comparacion): boolean {
-  const izquierda = valorDe(fila, comparacion.izquierda) ?? null;
-  const derecha = valorDe(fila, comparacion.derecha) ?? null;
+  if (comparacion.tipo === 'grupo') {
+    return comparacion.union === 'or'
+      ? comparacion.partes.some((parte) => cumpleComparacion(fila, parte))
+      : comparacion.partes.every((parte) => cumpleComparacion(fila, parte));
+  }
+
+  const izquierda =
+    (comparacion.tipo === 'columnas'
+      ? valorDe(fila, comparacion.izquierda)
+      : valorDe(fila, comparacion.columna)) ?? null;
+  const derecha =
+    comparacion.tipo === 'columnas'
+      ? (valorDe(fila, comparacion.derecha) ?? null)
+      : comparacion.valor;
+
   switch (comparacion.operador) {
     case '=':
       return igual(izquierda, derecha);
+    case 'is':
+      // Postgres compara nulos con `is`, no con `=`. Tratarlos igual haría que
+      // `is null` coincidiera con todo, que es como un filtro deja de filtrar.
+      return izquierda === null ? derecha === null : igual(izquierda, derecha);
+    case 'is not':
+      return izquierda === null ? derecha !== null : !igual(izquierda, derecha);
     case '<>':
     case '!=':
       return !igual(izquierda, derecha);
@@ -251,7 +317,7 @@ function cumpleComparacion(fila: Fila, comparacion: Comparacion): boolean {
     case '<=':
       return ordena(comparacion.operador, izquierda, derecha);
     default:
-      throw new Error(`La base falsa no compara dos columnas con «${comparacion.operador}».`);
+      throw new Error(`La base falsa no compara con «${comparacion.operador}».`);
   }
 }
 

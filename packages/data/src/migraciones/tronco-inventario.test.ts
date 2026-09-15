@@ -16,6 +16,29 @@ import { describe, expect, it } from 'vitest';
  * No vigila que el SQL corra: eso lo hará el acople. Es un cerco, no una
  * demostración — y las reglas de «estado ⇒ columna» de estas tablas las cubre
  * `estados-con-columna.contrato.test.ts`, que las deriva del `check` solo.
+ *
+ * ── Lo que este archivo dejó de ser la única prueba de ────────────────────
+ * Hasta la etapa 8 era lo ÚNICO que nombraba F-103, F-105 y F-108, y por eso el
+ * `verify:cobertura` los daba por construidos: una aserción de texto sobre un
+ * `.sql` contaba como prueba de la función. No lo es. Una aserción de texto
+ * detecta que alguien borró una línea; no detecta que el sistema se comporte
+ * mal, porque no ejecuta nada.
+ *
+ * Cada regla de aquí tiene ahora su prueba de COMPORTAMIENTO, y la de aquí se
+ * queda como segundo cerrojo sobre la decisión de esquema:
+ *
+ *   kardex como vista, particionada por almacén
+ *       → `packages/app/src/inventario/kardex.test.ts` («sólo trae el almacén
+ *         pedido») y `packages/domain/src/inventario/kardex.test.ts`.
+ *   traspaso origen ≠ destino, y la cantidad recibida aparte
+ *       → `packages/app/src/inventario/traspaso.test.ts` (13 casos).
+ *   valuación con su detalle por artículo
+ *       → `packages/app/src/inventario/valuacion.test.ts`.
+ *   motivos de merma en tabla, con `imputable`
+ *       → `packages/app/src/inventario/merma.test.ts` y el dominio.
+ *   el ledger de pasivos, inmutable y con cuatro naturalezas
+ *       → `packages/app/src/propinas/pasivo.test.ts` («escribe una
+ *         CONTRAPARTIDA negativa, nunca un update»).
  */
 
 function sql(archivo: string): string {

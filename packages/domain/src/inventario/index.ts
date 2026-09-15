@@ -41,3 +41,26 @@ export {
   type PiezaParaCortar,
   type SolicitudDeCorte,
 } from './corte.ts';
+
+export { deEscalaCompleta, enEscalaCompleta } from './escala.ts';
+
+export { resumirKardex, type RenglonKardex, type ResumenKardex } from './kardex.ts';
+
+export {
+  motivosDelGiro,
+  planearMerma,
+  type EstrategiaDeMerma,
+  type MermaPlaneada,
+  type MotivoDeMerma,
+  type SolicitudDeMerma,
+} from './merma.ts';
+
+export {
+  valuarInventario,
+  type ArticuloParaValuar,
+  type CapaDeCosto,
+  type LineaValuada,
+  type MetodoDeValuacion,
+  type OpcionesDeValuacion,
+  type Valuacion,
+} from './valuacion.ts';
