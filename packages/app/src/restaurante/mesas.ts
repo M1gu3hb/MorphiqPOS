@@ -83,9 +83,12 @@ export const abrirMesa = definirComando<Transaccion, typeof entradaAbrirMesa, Re
     await ctx.paso('atar_mesa', () =>
       atarMesaAOrden(ctx.tx, {
         organizacionId,
+        sucursalId: mesa.sucursalId,
         mesaId: mesa.id,
         ordenId,
         empleoId,
+        estadoAnterior: mesa.estado,
+        ahora: ctx.ahora,
         // Quien abre la mesa la atiende, salvo que ya hubiera alguien asignado.
         // El modo «con asignación» de `Mesero.jsx:311-315` no se pisa.
         tomarLaAtencion: mesa.empleadoAtiendeId === null,
@@ -192,7 +195,14 @@ export const liberarMesa = definirComando<
       }
     }
 
-    await ctx.paso('limpiar_mesa', () => limpiarMesa(ctx.tx, organizacionId, mesa.id));
+    await ctx.paso('limpiar_mesa', () =>
+      limpiarMesa(ctx.tx, organizacionId, mesa.id, {
+        sucursalId: mesa.sucursalId,
+        estadoAnterior: mesa.estado,
+        empleoId,
+        ahora: ctx.ahora,
+      }),
+    );
 
     ctx.auditar({
       entidadId: mesa.id,

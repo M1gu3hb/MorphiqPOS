@@ -6,6 +6,7 @@ import type { repoVentaCatalogo } from '@morphiqpos/data';
 import { cotizar } from '../venta/cotizar.ts';
 import { definirComandoPublico, type ContextoPortal } from './definicion-publica.ts';
 import { enviarACocina, type ItemParaCocina } from './estaciones.ts';
+import { moverMesaDelPortal } from './escrituras.ts';
 import { entradaEnviarPedido } from './esquemas.ts';
 import { exigirPedidosDesdeElTelefono } from './mesa.ts';
 import { cargarProductosDelMenu, valorarParaPedido, type ProductoDelMenu } from './productos.ts';
@@ -147,12 +148,14 @@ export const enviarPedidoDesdeQR = definirComandoPublico<
     );
 
     await ctx.paso('marcar_mesa', () =>
-      ctx.tx
-        .updateTable('mesas')
-        .set({ estado: 'pedido_enviado', updated_at: ctx.ahora })
-        .where('organizacion_id', '=', ctx.ambito.organizacionId)
-        .where('id', '=', ctx.ambito.mesaId)
-        .execute(),
+      moverMesaDelPortal(ctx.tx, {
+        organizacionId: ctx.ambito.organizacionId,
+        sucursalId: ctx.ambito.sucursalId,
+        mesaId: ctx.ambito.mesaId,
+        estadoAnterior: ctx.ambito.estadoMesa,
+        estado: 'pedido_enviado',
+        ahora: ctx.ahora,
+      }),
     );
 
     ctx.auditar({

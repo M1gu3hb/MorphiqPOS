@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 
 import { mesaOperable, quedanComandasActivas } from './datos.ts';
 import { mesaTrasComanda, type EstadoComanda } from './transiciones.ts';
+import { sellarTransicionDeMesa } from './sala-escrituras.ts';
 
 /**
  * Las escrituras del ciclo de preparación, y la sincronía con la mesa.
@@ -84,6 +85,8 @@ interface DatosDeSincronia {
   readonly mesaId: string | null;
   readonly comandasMovidas: readonly string[];
   readonly estadoComanda: EstadoComanda;
+  readonly empleoId: string;
+  readonly ahora: Date;
 }
 
 /** Mueve la mesa si la tabla de F1-04 §8.2 dice que le toca. */
@@ -113,6 +116,17 @@ export async function sincronizarMesa(
     .where('organizacion_id', '=', datos.organizacionId)
     .where('id', '=', mesaId)
     .execute();
+
+  await sellarTransicionDeMesa(tx, {
+    organizacionId: datos.organizacionId,
+    sucursalId: mesa.sucursalId,
+    mesaId,
+    ordenId: datos.ordenId,
+    estadoAnterior: mesa.estado,
+    estadoNuevo: destino,
+    empleadoId: datos.empleoId,
+    ahora: datos.ahora,
+  });
 
   return destino;
 }

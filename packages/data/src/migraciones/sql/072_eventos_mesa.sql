@@ -114,7 +114,12 @@ with numerados as (
          ) as ciclo
     from eventos_mesa e
 )
-select n.organizacion_id,
+-- Una vista agrupada no tiene clave propia, y el puente exige que toda entidad
+-- traiga `id`: su frontend lo usa como clave de lista. Se compone de lo que YA
+-- identifica al renglón —la mesa y el número de ciclo—, así que es estable
+-- entre consultas y no hace falta materializar nada.
+select n.mesa_id::text || ':' || n.ciclo::text                             as id,
+       n.organizacion_id,
        n.sucursal_id,
        n.mesa_id,
        n.ciclo,

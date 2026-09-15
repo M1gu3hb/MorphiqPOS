@@ -592,3 +592,70 @@ export async function unionAbiertaDeMesa(
 
   return principal?.id ?? null;
 }
+
+export interface TransicionDeMesa {
+  readonly organizacionId: string;
+  readonly sucursalId: string;
+  readonly mesaId: string;
+  readonly ordenId: string | null;
+  readonly estadoAnterior: string | null;
+  readonly estadoNuevo: string;
+  readonly personas?: number | null;
+  readonly empleadoId: string | null;
+  readonly ahora: Date;
+}
+
+/**
+ * F-305 · El sello que TODA transición de mesa tiene que dejar.
+ *
+ * ── Por qué una sola función y no un `insert` en cada sitio ────────────────
+ * Ocho lugares del backend cambian `mesas.estado`: abrir, liberar, enviar
+ * pedido, pedir la cuenta, los dos eventos de cocina, el portal QR y el cambio
+ * de mesa. Un ledger al que se le olvida una transición no da un promedio con
+ * un hueco: da un promedio MENTIROSO, porque el ciclo que le falta se fusiona
+ * con el siguiente y sale una ocupación del doble de larga. Con una función
+ * sola, añadir una novena transición obliga a pasar por aquí.
+ *
+ * ── Y mantiene la caché del mapa ───────────────────────────────────────────
+ * `mesas.ocupada_desde` arranca cuando la mesa deja de estar libre y se apaga
+ * cuando vuelve. Dejarlo a cargo de cada sitio garantizaría que uno se lo
+ * saltara y que el mapa del salón enseñara una mesa «ocupada desde ayer».
+ */
+export async function sellarTransicionDeMesa(
+  tx: Transaccion,
+  datos: TransicionDeMesa,
+): Promise<void> {
+  if (datos.estadoAnterior === datos.estadoNuevo) return;
+
+  await registrarEventoMesa(tx, {
+    organizacionId: datos.organizacionId,
+    sucursalId: datos.sucursalId,
+    mesaId: datos.mesaId,
+    ordenId: datos.ordenId,
+    estadoAnterior: datos.estadoAnterior,
+    estadoNuevo: datos.estadoNuevo,
+    personas: datos.personas ?? null,
+    empleadoId: datos.empleadoId,
+    ahora: datos.ahora,
+  });
+
+  const arranca = datos.estadoNuevo !== 'libre' && (datos.estadoAnterior ?? 'libre') === 'libre';
+
+  // `termina` es un SEGUNDO CERROJO, y hay que decir lo que es: hoy no se puede
+  // disparar. Las tres rutas que devuelven una mesa a `libre` —liberar,
+  // separar y cambiar de mesa— ya apagan `ocupada_desde` en su propio `update`,
+  // así que quitarlo de aquí no rompe ninguna prueba; lo comprobé mutándolo.
+  // Se conserva porque la cuarta ruta que alguien escriba —un «no se
+  // presentaron», un cierre por fin de turno— llegará por aquí igual, y el mapa
+  // del salón enseñando «ocupada desde ayer» es un defecto que nadie reporta:
+  // se vive con él.
+  const termina = datos.estadoNuevo === 'libre';
+  if (!arranca && !termina) return;
+
+  await tx
+    .updateTable('mesas')
+    .set({ ocupada_desde: arranca ? datos.ahora : null })
+    .where('organizacion_id', '=', datos.organizacionId)
+    .where('id', '=', datos.mesaId)
+    .execute();
+}
