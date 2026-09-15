@@ -61,12 +61,18 @@ export interface MovimientoPlaneado {
   readonly organizacionId: string;
   readonly almacenId: string;
   readonly insumoId: string;
-  readonly tipo: 'salida_venta';
+  /**
+   * `salida_consumo_interno` desde F-261: la comida del personal y las
+   * cortesías salen del almacén igual que una venta, pero NO son una venta.
+   * Meterlas en `salida_venta` haría que el costo de ventas incluyera lo que
+   * nadie pagó, que es exactamente lo que F-261 viene a separar.
+   */
+  readonly tipo: 'salida_venta' | 'salida_consumo_interno';
   /** Cantidad positiva que el repositorio resta de existencias. */
   readonly cantidad: string;
   readonly unidad: UnidadInventario;
   readonly permiteNegativo: boolean;
-  readonly referenciaTipo: 'orden';
+  readonly referenciaTipo: 'orden' | 'consumo_interno';
   readonly referenciaId: string;
   readonly empleadoId?: string;
   readonly idempotencyKey: string;

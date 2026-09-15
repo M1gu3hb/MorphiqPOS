@@ -833,6 +833,7 @@ export interface Esquema {
   movimientos_cuenta: MovimientosCuenta;
   eventos_mesa: EventosMesa;
   lista_espera: ListaEspera;
+  consumos_internos: ConsumosInternos;
   relevos_atencion: RelevosAtencion;
   esquemas_propina: EsquemasPropina;
   esquema_propina_puntos: EsquemaPropinaPuntos;
@@ -1074,6 +1075,24 @@ export interface LiquidacionPropinaBeneficiarios {
   puesto: string;
   puntos: string;
   monto_centavos: bigint;
+}
+
+/** F-261 · La comida del personal y las cortesías. Sale del stock, no de ventas. */
+export interface ConsumosInternos {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  almacen_id: string;
+  tipo: string;
+  orden_id: string | null;
+  producto_id: string | null;
+  producto_nombre: string;
+  cantidad: string;
+  unidad: string;
+  costo_centavos: bigint;
+  motivo: string;
+  empleado_id: string;
+  created_at: Generated<Date>;
 }
 
 /** F-306 · La cola del viernes por la noche. */

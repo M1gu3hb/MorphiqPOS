@@ -257,6 +257,13 @@ export function lectura(filas: Fila[]) {
     leftJoin() {
       return constructor;
     },
+    // Los `join` se ignoran: la base falsa resuelve sobre UNA tabla y las
+    // columnas de la otra se siembran en la misma fila, como ya hace `producto()`
+    // con `ib.nombre`. Un `innerJoin` que filtrara filas sí tendría que
+    // implementarse; hoy los que hay sólo traen columnas.
+    innerJoin() {
+      return constructor;
+    },
     where(columna: string, operador: string, valor: unknown) {
       filtros.push({ columna, operador, valor });
       return constructor;
