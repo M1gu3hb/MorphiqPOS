@@ -29,3 +29,12 @@ export {
 } from './merma-barra.ts';
 
 export { abrirLoteGrano, diasEntre, entradaAbrirLote, type ResultadoLote } from './lote-grano.ts';
+
+export {
+  ajustarPresencia,
+  entradaAjustarPresencia,
+  entradaRepartirBote,
+  repartirBote,
+  type ParteDelBote,
+  type ResultadoBote,
+} from './bote.ts';
