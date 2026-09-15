@@ -36,7 +36,7 @@ La copia canónica de esta documentación es `docs/fase-2/` **dentro del worktre
 | **E0** | Reconciliar el catálogo | ✅ **50 IDs añadidos · 2 colisiones · 1 fusión · 7 reclasificaciones** |
 | **E1** | Worktree y puerta `verify:fase2` | ✅ **26 eslabones en 0** · 110 archivos · 1086 pruebas |
 | **E2** | Tronco compartido (plantilla, vocabulario, inventario, variantes) | ✅ **058-063 + 066** · 115 archivos · 1164 pruebas · verify:fase2 en 0 |
-| **E3** | `restaurante` | ⬜ |
+| **E3** | `restaurante` | 🟨 **6 de 11** · F-321, F-324, F-303, F-302, F-305 · migraciones 070-072 · falta F-306, F-323, F-315, F-242, F-261, F-325 · F-318 BLOQUEADA |
 | **E4** | `cafeteria` | ⬜ |
 | **E5** | `abarrotes` · raíz de A1 | ⬜ |
 | **E6** | `ferreteria` | ⬜ |
