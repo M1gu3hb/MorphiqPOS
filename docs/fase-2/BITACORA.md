@@ -1008,3 +1008,71 @@ archivos porque es lo que existe en disco.
 P-02), `F-318` impresión de comanda y sus dos rutas, `F-249` segunda pantalla, `F-406`
 recordatorio por WhatsApp. **Una fila por función, nunca un rango** — la regla del archivo lo dice
 con esas palabras, porque el rango es justo lo que rompió la cuenta anterior.
+
+## 2026-09-15 · E8.1 y E8.2 · F-015, F-016 y F-017 dejan de ser código inalcanzable
+
+**El diagnóstico, comprobado.** `plantillaDe()`, `MODULOS_POR_PLANTILLA`, `modulosActivos()` y
+`crearVocabulario()` estaban escritas, exportadas, tipadas y con prueba unitaria propia. Un
+`grep` de sus nombres sobre todo el repositorio, excluyendo sus propios archivos, devolvió
+**cero líneas**. Es el peor estado posible de una función: compila, pasa, se lee como construida
+en cualquier inventario, y no gobierna nada.
+
+> Matiz al encargo, comprobado archivo por archivo: el `package.json` de `contracts` exporta sólo
+> `.`, `./errores` y `./entorno`, pero `src/index.ts` **sí** reexporta `./comandos/index.ts`, que
+> reexporta `plantillas.ts`. O sea que eran alcanzables por `@morphiqpos/contracts` y el problema
+> no era el export: era que **no las llamaba nadie**. Se corrige lo segundo, que es lo que había.
+
+**Lo que se construyó para que gobiernen:**
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| `repoModulos` | `packages/data/src/repos/modulos.ts` | lee giro + columna `paquete` + perillas; `upsert` y borrado de perilla |
+| `repoVocabulario` | `packages/data/src/repos/vocabulario.ts` | lee y escribe las excepciones de `vocabulario_negocio` |
+| `modulosDelNegocio()` | `packages/app/src/configuracion/modulos.ts` | traduce giro + columna a **plantilla**, y aplica las perillas |
+| `fijarModulo` · `restablecerModulo` | ídem | F-016, con motivo obligatorio |
+| `vocabularioDelNegocio()` | `packages/app/src/configuracion/vocabulario.ts` | el giro más lo que el negocio cambió a mano |
+| `fijarTermino` · `restablecerTermino` | ídem | F-017, con **género declarado** |
+| La perilla en el envoltorio | `packages/app/src/comando.ts` | `definicion.modulo` se comprueba en el SERVIDOR, tras el paquete y antes de la entrada |
+
+**Y 25 comandos existentes quedaron colgados de una perilla**: recetas (2), mesas (5), mesero (2),
+cocina (3), compras (4), inventario (4) y los cinco del portal… **no**. Los del portal se
+revirtieron: son `ComandoPublico`, un tipo distinto sin sesión, y su puerta ya es
+`QR_PORTAL_CERRADO`. Quedan 20.
+
+### Tres decisiones que el encargo no traía
+
+1. **`restablecer` no es «apagar»**, y son dos comandos distintos. Apagar escribe `activo=false` y
+   ahí se queda aunque el preajuste cambie; restablecer **borra la excepción** y vuelve a seguir a
+   la plantilla. Sin las dos, una personalización no se puede deshacer, sólo invertir — que es una
+   decisión permanente disfrazada de interruptor.
+2. **Los comandos de perillas NO declaran módulo.** Si `configuracion.fijar_modulo` colgara de una
+   perilla, apagar esa perilla sería un candado sin llave. Hay una prueba que lo fija.
+3. **La decisión pendiente P-01 queda implementada como «plantilla de preajuste + perillas»**, que
+   es la recomendación escrita en `05-DECISIONES.md`. Si Miguel prefiere plantilla cerrada, se
+   borran dos comandos y una tabla; al revés habría sido rehacer el envoltorio.
+
+### Las mutaciones que validan estas pruebas
+
+```
+Destructivas que FALLAN:
+  · `plantillaDe` deja de partir por giro (operativo → siempre cafeteria)
+       → cae «manda la ferretería en operativo a tienda». Es el caso de La Broca:
+         un cliente que paga, con recetas y portal QR donde van presentaciones.
+  · `modulosActivos(plantilla, [])` — las perillas dejan de aplicarse
+       → caen las dos pruebas de perilla encendida y apagada.
+  · `leerPerfil` sin `where activa = true`
+       → cae «devuelve null cuando la organización no está activa».
+  · `quitarPerilla` apunta a una tabla que no existe
+       → cae «restablecer NO es apagar».
+  · el doble devuelve todos los módulos cuando no se pudo leer el perfil
+       → cae «falla CERRADO si no se pudo leer el perfil». Ésta la encontró la
+         prueba ANTES de que yo la escribiera bien: el doble tenía `null` con dos
+         significados. Se separó en `undefined` = sin configurar y `null` = ilegible.
+Inocuas que PASAN:
+  · extraer el giro a una variable intermedia y reasignarlo.
+```
+
+**Cuenta:** 1 837 → **1 868 pruebas**. `verify:cobertura` del tronco: 3/8 → **4/8** (F-015, F-016,
+F-017 y F-105). Ojo con ese F-105: cuenta porque `tronco-inventario.test.ts` lo nombra, y esa
+prueba es una **aserción de texto sobre el SQL**. Es justo el falso verde que la etapa 8.5 va a
+cerrar.

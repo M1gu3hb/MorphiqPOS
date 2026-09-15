@@ -1,7 +1,15 @@
 import 'server-only';
 
-import { conTransaccion, repoComandos, type Transaccion } from '@morphiqpos/data';
-import { esPaquete, type Paquete } from '@morphiqpos/contracts';
+import { conTransaccion, repoComandos, repoModulos, type Transaccion } from '@morphiqpos/data';
+import {
+  esModulo,
+  esPaquete,
+  modulosActivos,
+  plantillaDe,
+  esGiro,
+  type Modulo,
+  type Paquete,
+} from '@morphiqpos/contracts';
 
 import { crearComando } from './comando.ts';
 import type { RepositorioComandos } from './repositorio.ts';
@@ -27,6 +35,27 @@ const repositorio: RepositorioComandos<Transaccion> = {
     // base sin agregarlo al contrato, esto lo trata como desconocido y el
     // comando falla cerrado, en vez de dejar pasar una cadena cualquiera.
     return valor !== null && esPaquete(valor) ? valor : null;
+  },
+
+  /**
+   * F-015 + F-016 · La plantilla resuelve el preajuste, las perillas lo ajustan.
+   *
+   * Los tres nombres viejos de la columna siguen entendiéndose porque la
+   * migración 058 NO se aplica en esta fase: un código que sólo entendiera los
+   * nuevos dejaría a los cuatro negocios vivos sin plantilla y por tanto sin
+   * ningún módulo, que es la peor forma posible de fallar cerrado.
+   */
+  async leerModulosActivos(tx, organizacionId): Promise<ReadonlySet<Modulo> | null> {
+    const perfil = await repoModulos.leerPerfil(tx, organizacionId);
+    if (perfil === null) return null;
+
+    const giro = esGiro(perfil.giro) ? perfil.giro : 'tienda';
+    const plantilla = plantillaDe(giro, perfil.valorGuardado);
+    const perillas = perfil.perillas
+      .filter((p): p is { modulo: Modulo; activo: boolean } => esModulo(p.modulo))
+      .map((p) => ({ modulo: p.modulo, activo: p.activo }));
+
+    return modulosActivos(plantilla, perillas);
   },
 
   reclamarClave: (tx, datos) => repoComandos.reclamarClave(tx, datos),

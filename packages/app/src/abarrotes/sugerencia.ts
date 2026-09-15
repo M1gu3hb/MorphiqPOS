@@ -73,6 +73,7 @@ export const sugerenciaDePedido = definirComando<
   escribe: false,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'compras',
   entrada: entradaSugerirPedido,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

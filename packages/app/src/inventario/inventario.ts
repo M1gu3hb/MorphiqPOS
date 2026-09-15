@@ -49,6 +49,7 @@ export const crearAlmacen = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'inventario',
   entrada: entradaCrearAlmacen,
   async ejecutar(ctx, entrada) {
     const sucursalId = ctx.ambito.sucursalId;
@@ -90,6 +91,7 @@ export const crearInsumo = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'inventario',
   entrada: entradaCrearInsumo,
   async ejecutar(ctx, entrada) {
     const fila = await ctx.paso('crear_insumo', () =>
@@ -123,6 +125,7 @@ export const inventarioInicial = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'inventario',
   entrada: entradaInventarioInicial,
   async ejecutar(ctx, entrada) {
     const normalizada = cantidadATexto(cantidad(entrada.cantidad));
@@ -175,6 +178,7 @@ export const ajustarStock = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'inventario',
   entrada: entradaAjustarStock,
   async ejecutar(ctx, entrada) {
     const referencias = await verificarReferencias(

@@ -76,6 +76,7 @@ export const guardarReceta = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'recetas',
   entrada: entradaGuardarReceta,
   async ejecutar(ctx, entrada) {
     const producto = await ctx.tx
@@ -214,6 +215,7 @@ export const eliminarReceta = definirComando<
   escribe: true,
   roles: ROLES_PARA_RETIRAR,
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'recetas',
   entrada: entradaEliminarReceta,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

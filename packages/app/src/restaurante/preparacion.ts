@@ -53,6 +53,7 @@ export const transicionarPedido = definirComando<
   escribe: true,
   roles: [...ROLES_DE_COCINA],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'cocina',
   entrada: entradaTransicionarPedido,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -197,6 +198,7 @@ export const entregarPedidos = definirComando<
   escribe: true,
   roles: [...ROLES_DE_COCINA],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'cocina',
   entrada: entradaEntregarPedidos,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

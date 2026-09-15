@@ -113,6 +113,23 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
           throw new Rechazo('PAQUETE_NO_INCLUYE', 'denegado');
         }
 
+        // ── Perilla de módulo (F-016) ───────────────────────────────────────
+        // Va DESPUÉS del paquete y ANTES de la entrada, por la misma razón que
+        // el rol: un módulo apagado no debe poder sondear el esquema del
+        // comando a base de entradas inválidas.
+        //
+        // Sólo se consulta si el comando declara módulo. Lo que ningún negocio
+        // puede apagar —cobrar, abrir caja, entrar— no lo declara, y por tanto
+        // no paga esta consulta.
+        if (definicion.modulo !== undefined) {
+          const activos = await repositorio.leerModulosActivos(tx, ambito.organizacionId);
+          // Fallar cerrado, igual que con el paquete: una organización de la
+          // que no se pudo leer el perfil no es una con todo encendido.
+          if (activos === null || !activos.has(definicion.modulo)) {
+            throw new Rechazo('PAQUETE_NO_INCLUYE', 'denegado');
+          }
+        }
+
         // ── Forma de la entrada ─────────────────────────────────────────────
         const validada = validar(definicion.entrada, peticion.entrada);
         if (!validada.ok) {
