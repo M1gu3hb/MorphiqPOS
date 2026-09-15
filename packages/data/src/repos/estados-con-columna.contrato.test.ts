@@ -178,6 +178,43 @@ function objetosDeEscritura(codigo: string): string[] {
   return [...recortar(codigo, '.set({'), ...recortar(codigo, '.values({')];
 }
 
+/**
+ * Los objetos de escritura que pertenecen a UNA tabla.
+ *
+ * Sin esto, el contrato leia el archivo entero y le atribuia a `citas`
+ * cualquier `values({ estado: 'cobrada' })` que hubiera cerca — incluido el de
+ * `ordenes`, que escribe el mismo estado y no tiene por que llevar `orden_id`.
+ * El resultado era un fallo que senalaba codigo correcto, que es la version
+ * mas cara de un contrato que miente: manda a arreglar lo que no esta roto.
+ *
+ * El recorte va desde cada `updateTable('X')` / `insertInto('X')` hasta el
+ * siguiente, que es donde empieza otra cadena. No es un parser: es el mismo
+ * cerco que el resto del archivo, acotado a la tabla que dice vigilar.
+ */
+function objetosDeEscrituraDe(codigo: string, tabla: string): string[] {
+  const aperturas = [`updateTable('${tabla}')`, `insertInto('${tabla}')`];
+  const cualquierApertura = /\.(?:updateTable|insertInto)\('(\w+)'\)/g;
+
+  const bloques: string[] = [];
+  for (const apertura of aperturas) {
+    let desde = 0;
+    for (;;) {
+      const inicio = codigo.indexOf(apertura, desde);
+      if (inicio === -1) break;
+
+      // Hasta donde empieza la siguiente cadena de escritura, sea de la tabla
+      // que sea: lo de despues ya no es de esta.
+      cualquierApertura.lastIndex = inicio + apertura.length;
+      const siguiente = cualquierApertura.exec(codigo);
+      const fin = siguiente === null ? codigo.length : siguiente.index;
+
+      bloques.push(...objetosDeEscritura(codigo.slice(inicio, fin)));
+      desde = inicio + apertura.length;
+    }
+  }
+  return bloques;
+}
+
 function recortar(codigo: string, marca: string): string[] {
   const bloques: string[] = [];
   let desde = 0;
@@ -280,7 +317,7 @@ describe('todo estado que la base exige acompañado escribe su columna', () => {
           ) {
             continue;
           }
-          for (const bloque of objetosDeEscritura(codigo)) {
+          for (const bloque of objetosDeEscrituraDe(codigo, regla.tabla)) {
             const escribeEseEstado = regla.estados.some((e) => bloque.includes(`estado: '${e}'`));
             if (escribeEseEstado) sospechosos.push({ archivo, bloque });
           }

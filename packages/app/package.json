@@ -31,7 +31,8 @@
     "./puente-presentacion": "./src/puente/presentacion.ts",
     "./observabilidad": "./src/observabilidad.ts",
     "./archivos": "./src/archivos/index.ts",
-    "./ferreteria": "./src/ferreteria/index.ts"
+    "./ferreteria": "./src/ferreteria/index.ts",
+    "./salon": "./src/salon/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

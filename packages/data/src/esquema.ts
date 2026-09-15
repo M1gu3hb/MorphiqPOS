@@ -484,6 +484,9 @@ export interface OrdenLineaModificadores {
 }
 
 export interface OrdenLineas {
+  /** F-423 · Quien lo hizo. Sin el, una cita con dos personas no se reparte. */
+  profesional_id?: string | null;
+  cita_servicio_id?: string | null;
   anulada_en: Date | null;
   /** F-323 · `inmediata` · `retenida` · `marchada`. */
   marcha_estado: Generated<string>;
@@ -903,10 +906,22 @@ export interface Esquema {
   presencias_turno: PresenciasTurno;
   producto_presentaciones: ProductoPresentaciones;
   autorizados_cuenta: AutorizadosCuenta;
+  bloqueos_agenda: BloqueosAgenda;
+  cita_recursos: CitaRecursos;
+  cita_servicios: CitaServicios;
+  citas: Citas;
+  comisiones_causadas: ComisionesCausadas;
   cortes_material: CortesMaterial;
   equivalencias: Equivalencias;
   lineas: Lineas;
+  horarios_profesional: HorariosProfesional;
   obras: Obras;
+  profesionales: Profesionales;
+  recursos: Recursos;
+  reglas_comision: ReglasComision;
+  recursos_servicio: RecursosServicio;
+  servicios: Servicios;
+  servicios_profesional: ServiciosProfesional;
   piezas_abiertas: PiezasAbiertas;
   remisiones: Remisiones;
   servicios_mostrador: ServiciosMostrador;
@@ -1213,6 +1228,196 @@ export interface ServiciosMostrador {
   /** El índice de lo consumido. La FUENTE es el ledger: si discrepan, gana él. */
   consumos: Generated<unknown>;
   empleado_id: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-440 · Las cinco preguntas contestadas por escrito. Se versiona, nunca se edita. */
+export interface ReglasComision {
+  id: Generated<string>;
+  organizacion_id: string;
+  nombre: string;
+  version: Generated<number>;
+  esquema: string;
+  tasa_servicio_bp: Generated<number>;
+  tasa_producto_bp: Generated<number>;
+  tasa_venta_paquete_bp: Generated<number>;
+  base: Generated<string>;
+  sobre_iva: Generated<boolean>;
+  material: Generated<string>;
+  reparto: Generated<string>;
+  rehacer_paga: Generated<boolean>;
+  anticipo_perdido_paga: Generated<boolean>;
+  escalones: unknown;
+  tasa_cliente_casa_bp: number | null;
+  tasa_cliente_propia_bp: number | null;
+  vigente_desde: string;
+  vigente_hasta: string | null;
+  created_at: Generated<Date>;
+  creada_por: string | null;
+}
+
+/** F-443 · El ledger. Sin UPDATE nunca: una cancelacion escribe fila negativa. */
+export interface ComisionesCausadas {
+  id: Generated<string>;
+  organizacion_id: string;
+  orden_linea_id: string | null;
+  cita_servicio_id: string | null;
+  profesional_id: string;
+  regla_id: string;
+  /** QUE regla, en QUE version. Sin ella el historico no se explica. */
+  regla_version: number;
+  tipo: string;
+  base_centavos: bigint;
+  tasa_bp: number;
+  /** Puede ser NEGATIVO: es lo que hace posible la contrapartida. */
+  monto_centavos: bigint;
+  material_descontado_centavos: Generated<bigint>;
+  contrapartida_de_id: string | null;
+  motivo: string | null;
+  liquidacion_id: string | null;
+  causada_en: Generated<Date>;
+}
+
+/** F-420 · Quien atiende. `empleo_id` NULL cuando renta la estacion (F-441). */
+export interface Profesionales {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  empleo_id: string | null;
+  nombre_completo: string;
+  nombre_corto: string;
+  foto_url: string | null;
+  tipo_relacion: string;
+  nivel: Generated<string>;
+  color_agenda: string;
+  regla_comision_id: string | null;
+  activo: Generated<boolean>;
+  orden_agenda: Generated<number>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/** F-422 · El horario, con vigencia: la agenda de marzo se explica con marzo. */
+export interface HorariosProfesional {
+  id: Generated<string>;
+  organizacion_id: string;
+  profesional_id: string;
+  /** 0 = domingo, como `extract(dow)`. */
+  dia_semana: number;
+  hora_inicio: string;
+  hora_fin: string;
+  vigente_desde: string;
+  vigente_hasta: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-416 · El tiempo que NO es productivo. `profesional_id` NULL = todo el salon. */
+export interface BloqueosAgenda {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  profesional_id: string | null;
+  rango: string;
+  motivo: string;
+  nota: string | null;
+  created_at: Generated<Date>;
+  creado_por: string | null;
+}
+
+/** F-401 + F-415 · La duracion como secuencia: aplicacion, procesado, terminado, limpieza. */
+export interface Servicios {
+  producto_id: string;
+  organizacion_id: string;
+  duracion_activa_1_min: number;
+  duracion_pasiva_min: Generated<number>;
+  duracion_activa_2_min: Generated<number>;
+  duracion_cierre_min: Generated<number>;
+  pasivo_intercalable: Generated<boolean>;
+  requiere_estacion: Generated<boolean>;
+  formula_base: unknown;
+  regla_comision_id: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/** F-421 · Quien da que, a que precio y a que velocidad. */
+export interface ServiciosProfesional {
+  servicio_id: string;
+  profesional_id: string;
+  organizacion_id: string;
+  precio_centavos: bigint | null;
+  /** En puntos base: Karla hace el mismo tinte en 80 min y Dany en 110. */
+  factor_duracion_bp: Generated<number>;
+  created_at: Generated<Date>;
+}
+
+/** F-403 · La estacion, el lavabo, la secadora. */
+export interface Recursos {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  nombre: string;
+  tipo: string;
+  capacidad: Generated<number>;
+  activo: Generated<boolean>;
+  created_at: Generated<Date>;
+}
+
+export interface RecursosServicio {
+  servicio_id: string;
+  tipo_recurso: string;
+  tramo: string;
+  minutos: number | null;
+}
+
+/** F-400 · La cita. `orden_id` se llena AL COBRAR, no antes. */
+export interface Citas {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  folio: string;
+  cliente_id: string | null;
+  origen: string;
+  estado: Generated<string>;
+  agendada_para: Date;
+  llego_en: Date | null;
+  inicio_real: Date | null;
+  fin_real: Date | null;
+  orden_id: string | null;
+  cita_origen_id: string | null;
+  es_rehacer: Generated<boolean>;
+  es_cortesia: Generated<boolean>;
+  motivo_cancelacion: string | null;
+  no_llego_marcado_en: Date | null;
+  no_llego_marcado_por: string | null;
+  notas: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/** La linea de la cita. `rango_activo` es multirango: el procesado lo parte. */
+export interface CitaServicios {
+  id: Generated<string>;
+  organizacion_id: string;
+  cita_id: string;
+  servicio_id: string;
+  profesional_id: string;
+  /** Congelado al agendar: la clienta paga lo que se le dijo. */
+  precio_centavos: bigint;
+  rango_activo: string;
+  rango_ocupacion: string;
+  estado: Generated<string>;
+  cerrado_en: Date | null;
+  orden_linea_id: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface CitaRecursos {
+  id: Generated<string>;
+  organizacion_id: string;
+  cita_servicio_id: string;
+  recurso_id: string;
+  rango: string;
   created_at: Generated<Date>;
 }
 
