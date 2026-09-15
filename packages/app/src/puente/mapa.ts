@@ -1034,6 +1034,63 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  ConsumoInterno: {
+    tabla: 'consumos_internos',
+    rolesLectura: [...DIRECCION],
+    escritura: 'comando',
+    ordenPorOmision: '-created_date',
+    campos: {
+      ...soloAutomaticos(['id', 'created_date']),
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      producto_nombre: { columna: 'producto_nombre', conversion: 'texto', escribible: false },
+      cantidad: { columna: 'cantidad', conversion: 'decimal', escribible: false },
+      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
+      // El costo es MARGEN: la regla 12 lo cierra a quien ve lo que el negocio
+      // gana, y un consumo interno es exactamente eso — lo que costó regalarlo.
+      costo_centavos: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'costo_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      motivo: { columna: 'motivo', conversion: 'texto', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+  },
+
+  EsquemaPropina: {
+    tabla: 'esquemas_propina',
+    rolesLectura: [...DIRECCION],
+    escritura: 'comando',
+    ordenPorOmision: '-vigente_desde',
+    campos: {
+      ...soloAutomaticos(['id']),
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      vigente_desde: { columna: 'vigente_desde', conversion: 'texto', escribible: false },
+      vigente_hasta: { columna: 'vigente_hasta', conversion: 'texto', escribible: false },
+      activo: { columna: 'activo', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  BeneficiarioPropina: {
+    tabla: 'liquidacion_propina_beneficiarios',
+    // Sólo dueño y administrador: un mesero no ve lo que se le liquidó a otro,
+    // y ése es el pleito que F-242 viene a cerrar, no a alimentar.
+    rolesLectura: ['dueno', 'administrador'],
+    escritura: 'comando',
+    ordenPorOmision: '-monto_centavos',
+    campos: {
+      ...soloAutomaticos(['id']),
+      liquidacion_id: { columna: 'liquidacion_id', conversion: 'texto', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+      puesto: { columna: 'puesto', conversion: 'texto', escribible: false },
+      puntos: { columna: 'puntos', conversion: 'decimal', escribible: false },
+      monto_centavos: { columna: 'monto_centavos', conversion: 'dinero', escribible: false },
+    },
+  },
+
   TiempoPreparacion: {
     tabla: 'tiempos_preparacion',
     // Cocina SÍ lee esto: es su propio desempeño, no el margen del negocio.

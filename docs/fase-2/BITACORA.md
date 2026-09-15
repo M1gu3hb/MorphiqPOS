@@ -398,3 +398,109 @@ MD al cerrar el modelo.
 
 El mismo archivo tiene una nota «Sobre 069» que habla de una migración que su
 propia tabla no lista —la consolidación de la etapa 0 la convirtió en la 066—.
+
+---
+
+## 2026-09-15 · E3 · `restaurante` · CERRADA
+
+`verify:fase2` en **0** con sus 26 eslabones · **129 archivos de prueba · 1395 pruebas** ·
+typecheck 7/7 · build de producción en verde.
+
+| ID | Función | Commit |
+|---|---|---|
+| F-321 | Dividir cuenta | `dda16de` |
+| F-324 | Anulación de línea con motivo | `22b9755` |
+| F-303 | Cambiar de mesa | `8d3aafa` |
+| F-302 | Unir y separar mesas | `ef4bb19` |
+| F-305 | Tiempo de ocupación | `fa1938b` |
+| F-306 | Lista de espera | `818d4c6` |
+| F-323 + F-315 | Marcha por tiempos y tiempos por platillo | `42bbd2e` |
+| F-325 + F-242 | Relevo de responsable y propina por puntos | `c22947a` |
+| F-261 | Consumo de empleados y cortesías | `6aceab0` |
+
+**Diez de las once de §5, más las tres del §6 que el catálogo adoptó en E0.** La que falta es
+**F-318 (impresión de comanda), BLOQUEADA** esperando la decisión de Miguel entre agente local,
+impresora de red por IP:9100 y `window.print()`. La migración **075 queda reservada** para ella; no
+se escribió nada, porque la cola `impresiones_comanda` está diseñada para soportar cualquiera de
+los tres caminos y escribirla antes de saber cuál sería adivinar el destino del `destino`.
+
+**Migraciones escritas y NO aplicadas:** 070, 071, 072, 073, 074, 076, 077.
+
+### Las seis lecciones de la etapa
+
+**1 · Una columna que existe y nadie lee es peor que una que falta.**
+`orden_lineas.anulada_en` nació en la 070 con F-321 y CUATRO lecturas la ignoraban. Cada una hacía
+un daño distinto: `cotizar` cobraba lo anulado (dinero), `comandar-pendientes` lo mandaba a la
+plancha, el portal se lo enseñaba al comensal en su precuenta, y `tieneLineas` dejaba la mesa fuera
+de servicio esperando un cobro de $0. **Al añadir una columna que cambia el significado de una
+fila, hay que buscar TODOS sus lectores en el mismo commit.**
+
+**2 · Un ledger al que se le olvida una transición no deja un hueco: MIENTE.**
+Ocho sitios cambian `mesas.estado`. Si falta uno, el ciclo perdido se fusiona con el siguiente y
+sale una ocupación del doble de larga: un dato falso que nadie cuestiona. Por eso los ocho pasan
+por `sellarTransicionDeMesa` y por eso el sello es parámetro OBLIGATORIO de `limpiarMesa` y de
+`atarMesaAOrden` — un opcional se olvida.
+
+**3 · Dos guardas sobre el mismo `where` pueden tapar huecos distintos.**
+El destino de un cambio de mesa exige `estado = 'libre'` Y `orden_activa_id is null`. Parecían
+redundantes: la primera impide sentar sobre una mesa en LIMPIEZA, la segunda sobre una mesa
+HUÉRFANA. Ninguna se ponía roja con las pruebas que había; hizo falta sembrar los dos estados
+imposibles para que cada guarda se ganara su sitio en vez de aparentarlo.
+
+**4 · Una mutación puede COLGAR la suite en vez de ponerla roja, y eso es un hallazgo.**
+Cambiar el signo del paso en el reparto del residuo dejó un `while` girando para siempre. Ese bucle
+vive dentro de una petición HTTP. Ahora lleva tope de una vuelta y un `ErrorDominio` si lo pasa.
+**Si una mutación cuelga la suite, el problema no es la mutación.**
+
+**5 · Lo que se conserva sin poder dispararse, se DICE.**
+Tres cerrojos de esta etapa no se pueden alcanzar hoy y sus comentarios lo declaran: la suma final
+de `calcularDivision`, el apagado del reloj en `sellarTransicionDeMesa`, y el `where` de estado en
+el cierre de una espera. Se conservan por la ruta que alguien escriba mañana.
+
+**6 · Las mutaciones cambiaron el CÓDIGO, no sólo las pruebas.** Tres veces:
+· el caso «hay mesa libre ⇒ cero» de F-306 estaba escrito como un `if` aparte y no se podía poner
+  rojo, porque la división entera ya lo daba: se borró en vez de dejarlo aparentando;
+· el docblock de F-242 decía que el orden de reparto lleva el centavo sobrante al de más puntos, y
+  eso lo decide el residuo mayor: el comentario ahora dice lo que el orden SÍ aporta;
+· el reetiquetado de F-261 se extrajo a función pura porque `aplicarMovimientos` escribe con SQL
+  crudo, que la base falsa no observa. Probarlo sobre la función es la diferencia entre una prueba
+  y una suposición.
+
+### Reclasificaciones y decisiones que el modelo no traía
+
+- **F-106 toma de inventario físico** la construyó el tronco en E2 (`tomas-inventario.ts`).
+  `restaurante` la reutiliza sin una línea propia: queda confirmada como `[=]`.
+- **Las hijas de una división nacen sin `mesa_id`.** El modelo pedía construir «una mesa, una
+  cuenta viva» y **ya estaba construido y mejor**: `ordenes_una_activa_por_mesa` (046) cubre cinco
+  estados y particiona por organización.
+- **`absorbida` es un estado nuevo de `ordenes`**, hermano de `dividida`. El trigger de pagos de la
+  070 se reescribe en la 071 para cubrir los dos, en vez de añadir un segundo trigger.
+- **Separar mesas NO reparte el consumo**: eso es F-321 y es decisión de caja.
+- **«Una mesa en un solo grupo vivo» se impone con índice único parcial**, no con trigger: un
+  trigger que consulta y luego inserta pierde contra dos meseros en el mismo segundo.
+- **F-325 comparte migración con F-242** (la 076). No tenía número asignado y las dos contestan «a
+  quién le toca esta propina».
+- **La propina de una cuenta relevada se reparte por CONSUMO LEVANTADO, no por minutos.** El
+  documento pedía «partir la atribución en el tiempo»; el tiempo es el eje, pero el peso es el
+  consumo. Una mesa que estuvo dos horas con el café no le debe propina a quien la relevó.
+
+### Correcciones a la documentación del modelo
+
+1. **`anularLinea` no «revierte el consumo si ya se cobró».** Eso es F-222 y es otro camino: darle
+   a la anulación una segunda puerta al reembolso lo dejaría fuera del control de F-222. Corregido
+   en `05-DATOS-Y-BACKEND.md §4`, con la explicación de que el stock sale al COBRAR y de que el
+   platillo que la cocina sí preparó se registra con F-261 tipo `reposicion`.
+2. **«Sobre 069»** hablaba de una migración que su propia tabla no lista: la consolidación de E0 la
+   convirtió en la **066**. Corregido.
+3. **`liquidacion_propina_beneficiarios` lleva `id` propio.** El documento propone
+   `(liquidacion_id, empleado_id)` como clave primaria; se conserva como UNIQUE y se añade un `id`
+   porque el puente exige que toda entidad expuesta lo traiga. Anotado dentro de la 076.
+4. **La tabla de migraciones realmente escritas** se añadió al §7 del modelo, con la 075 marcada
+   BLOQUEADA y la 078 fuera de alcance.
+
+### Lo que esta etapa NO tocó
+
+- Ni un archivo de `apps/web/heredado/` (D-09). Las pantallas de este modelo viven ahí: de E3 sale
+  el backend completo, sus rutas de API y las entradas del puente. El acople es una línea por
+  pantalla y está anotado en el FILE-MAP.
+- Ninguna migración aplicada. Ninguna escritura contra la base viva.

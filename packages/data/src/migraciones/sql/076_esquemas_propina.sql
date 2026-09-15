@@ -102,6 +102,11 @@ comment on table esquema_propina_puntos is
 
 -- ── F-242 · A quién se le pagó, y cuánto ──────────────────────────────────
 create table liquidacion_propina_beneficiarios (
+  -- El `05-DATOS-Y-BACKEND` propone `(liquidacion_id, empleado_id)` como clave
+  -- primaria. Se conserva como UNIQUE y se añade un `id` propio: el puente
+  -- exige que toda entidad expuesta traiga `id` —su frontend lo usa como clave
+  -- de lista— y una clave compuesta no lo da. Queda anotado como corrección.
+  id             uuid          primary key default gen_random_uuid(),
   liquidacion_id uuid          not null references liquidaciones_propina (id) on delete cascade,
   empleado_id    uuid          not null references empleos (id),
   -- Instantáneas: el puesto y los puntos que tenía ESA noche. El de hoy puede
@@ -110,7 +115,7 @@ create table liquidacion_propina_beneficiarios (
   puntos         numeric(6, 2) not null check (puntos >= 0),
   monto_centavos bigint        not null check (monto_centavos >= 0),
 
-  primary key (liquidacion_id, empleado_id)
+  constraint beneficiario_una_vez_por_liquidacion unique (liquidacion_id, empleado_id)
 );
 
 comment on table liquidacion_propina_beneficiarios is
