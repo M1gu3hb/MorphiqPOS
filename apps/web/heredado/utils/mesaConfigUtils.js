@@ -18,8 +18,11 @@ const CAMPOS_EDITABLES_MESA = new Set([
 /** Conserva únicamente los campos que Mesa.create/update acepta. */
 export function soloCamposEditablesMesa(fila) {
   return Object.fromEntries(
-    Object.entries(fila).filter(
-      ([clave, valor]) => CAMPOS_EDITABLES_MESA.has(clave) && valor !== undefined,
-    ),
+    Object.entries(fila)
+      .filter(([clave, valor]) => CAMPOS_EDITABLES_MESA.has(clave) && valor !== undefined)
+      .map(([clave, valor]) => [
+        clave,
+        clave === 'mesero_asignado_id' && valor === '' ? null : valor,
+      ]),
   );
 }
