@@ -15,4 +15,14 @@ describe('mesa guardada desde Configuración', () => {
       }),
     ).toEqual({ numero: 7, nombre: 'Terraza', qr_activo: false });
   });
+
+  it('convierte la asignación vacía en null para que PostgreSQL acepte el UUID opcional', () => {
+    expect(
+      soloCamposEditablesMesa({
+        numero: 1,
+        nombre: 'Ventana',
+        mesero_asignado_id: '',
+      }),
+    ).toEqual({ numero: 1, nombre: 'Ventana', mesero_asignado_id: null });
+  });
 });
