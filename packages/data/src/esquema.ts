@@ -701,6 +701,17 @@ export interface Productos {
   gramaje_shot: string | null;
   /** F-112 · Caché de la presentación con la que se vende por omisión. */
   presentacion_venta_id: string | null;
+  /** F-021 · La línea de ferretería, con su esquema de atributos (110). */
+  linea_id: string | null;
+  /** F-152 · Dónde está esta pieza. Para vender, no para contar. */
+  ubicacion_id: string | null;
+  /** F-151 · En MILIGRAMOS, enteros. El tornillo de 5 g es 5000. */
+  peso_por_pieza_mg: bigint | null;
+  tolerancia_peso_pct: Generated<string>;
+  peso_calibrado_en: Date | null;
+  /** Con 6,000 claves, alertar de todas es una lista que nadie lee. */
+  es_alta_rotacion: Generated<boolean>;
+  requiere_serie: Generated<boolean>;
 }
 
 export interface Proveedores {
@@ -875,7 +886,11 @@ export interface Esquema {
   lotes_grano: LotesGrano;
   presencias_turno: PresenciasTurno;
   producto_presentaciones: ProductoPresentaciones;
+  equivalencias: Equivalencias;
+  lineas: Lineas;
+  producto_atributos: ProductoAtributos;
   redondeos: Redondeos;
+  ubicaciones: Ubicaciones;
   zonas_anaquel: ZonasAnaquel;
   merma_barra_turno: MermaBarraTurno;
   fila_barra: FilaBarra;
@@ -1162,6 +1177,58 @@ export interface ProductoPresentaciones {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+/** F-021 · Categoría jerárquica con esquema de atributos, para ferretería. */
+export interface Lineas {
+  id: Generated<string>;
+  organizacion_id: string;
+  padre_id: string | null;
+  nombre: string;
+  esquema_atributos: Generated<unknown>;
+  orden: Generated<number>;
+  activa: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/** F-152 · Dónde está la pieza. Para vender, no para contar: eso es la zona. */
+export interface Ubicaciones {
+  id: Generated<string>;
+  organizacion_id: string;
+  almacen_id: string;
+  codigo: string;
+  descripcion: string | null;
+  zona_id: string | null;
+  orden_recorrido: Generated<number>;
+  activa: Generated<boolean>;
+  created_at: Generated<Date>;
+}
+
+/** F-059 · Un atributo con valor. El normalizado va en MICRÓMETROS. */
+export interface ProductoAtributos {
+  id: Generated<string>;
+  organizacion_id: string;
+  producto_id: string;
+  clave: string;
+  valor_texto: string | null;
+  valor_normalizado: bigint | null;
+  /** Lo que tecleó la persona. Se conserva tal cual y nunca se deriva. */
+  valor_original: string;
+  created_at: Generated<Date>;
+}
+
+/** F-060 · «No tengo la de 1/2 pero la de 13 mm le sirve». */
+export interface Equivalencias {
+  id: Generated<string>;
+  organizacion_id: string;
+  producto_id: string;
+  equivalente_id: string;
+  tipo: string;
+  nota: string | null;
+  bidireccional: Generated<boolean>;
+  declarado_por: string | null;
+  declarado_en: Generated<Date>;
 }
 
 /** F-257 · «No tengo cambio, ¿le doy un chicle?», con renglón. */
