@@ -19,3 +19,15 @@ export {
   type ZonaParaRecorrido,
   type ZonaPendiente,
 } from './conteo.ts';
+
+export {
+  alertasDeMinimo,
+  diasHastaLaVisita,
+  sugerirPedido,
+  type Alerta,
+  type ArticuloParaAlerta,
+  type DatosDeSugerencia,
+  type MotivoSugerencia,
+  type NivelDeAlerta,
+  type Sugerencia,
+} from './pedido.ts';
