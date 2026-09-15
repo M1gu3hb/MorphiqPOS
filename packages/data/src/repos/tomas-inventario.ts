@@ -24,7 +24,7 @@ export interface AperturaDeToma {
   readonly almacenId: string;
   readonly empleadoId: string;
   /** `null` = toma completa. Con valor = conteo cíclico de una zona (F-149). */
-  readonly zona: string | null;
+  readonly zonaId: string | null;
   readonly ahora: Date;
 }
 
@@ -53,7 +53,7 @@ export async function abrirToma(tx: Transaccion, datos: AperturaDeToma): Promise
       almacen_id: datos.almacenId,
       estado: 'abierta',
       iniciada_en: datos.ahora,
-      zona: datos.zona,
+      zona_id: datos.zonaId,
       empleado_id: datos.empleadoId,
     })
     .returning('id')
@@ -66,6 +66,15 @@ export interface ConteoDeInsumo {
   readonly insumoId: string;
   readonly contado: string;
   readonly unidad: string;
+  /**
+   * Lo que tecleó la persona, tal cual: `[{presentacionId, cantidad, factor}]`.
+   *
+   * Se guarda en crudo además del total convertido porque cuando alguien
+   * reclama «yo conté nueve cajas», tiene que poder verse que capturó nueve
+   * cajas y que el sistema convirtió a 216 piezas. Sin el crudo, toda discusión
+   * de conteo acaba en la palabra de uno contra la del sistema.
+   */
+  readonly capturas: readonly unknown[];
 }
 
 /**
@@ -100,12 +109,17 @@ export async function anotarConteo(
       esperado: existencia?.cantidad ?? '0',
       contado: conteo.contado,
       unidad: conteo.unidad,
+      capturas: JSON.stringify(conteo.capturas),
       contado_en: ahora,
       empleado_id: empleadoId,
     })
     .onConflict((oc) =>
       oc.columns(['toma_id', 'insumo_id']).doUpdateSet({
+        // El `esperado` NO se re-sella al recapturar. Se congeló la primera vez
+        // que se contó ese insumo y ésa es la referencia: volverlo a leer haría
+        // que corregir un tecleo borrara las ventas de en medio.
         contado: conteo.contado,
+        capturas: JSON.stringify(conteo.capturas),
         contado_en: ahora,
         empleado_id: empleadoId,
       }),

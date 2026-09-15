@@ -1060,6 +1060,99 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  Presentacion: {
+    tabla: 'producto_presentaciones',
+    // El precio de una presentación es público en el mostrador: el six tiene su
+    // etiqueta en el anaquel. Esconderlo del cajero sería esconderle lo que va a
+    // cobrar.
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: 'factor',
+    campos: {
+      ...soloAutomaticos(['id']),
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      factor: { columna: 'factor', conversion: 'decimal', escribible: false },
+      codigo_barras: { columna: 'codigo_barras', conversion: 'texto', escribible: false },
+      sku: { columna: 'sku', conversion: 'texto', escribible: false },
+      precio_venta_centavos: {
+        columna: 'precio_venta_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      es_base: { columna: 'es_base', conversion: 'booleano', escribible: false },
+      es_venta_default: { columna: 'es_venta_default', conversion: 'booleano', escribible: false },
+      es_compra_default: {
+        columna: 'es_compra_default',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      activa: { columna: 'activa', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  ZonaAnaquel: {
+    tabla: 'zonas_anaquel',
+    rolesLectura: [...INVENTARIO, 'cajero'],
+    escritura: 'comando',
+    // Por el recorrido físico de la tienda: contar saltando de la reja al
+    // congelador y de vuelta es cómo se cuenta dos veces lo mismo.
+    ordenPorOmision: 'orden',
+    campos: {
+      ...soloAutomaticos(['id']),
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      orden: { columna: 'orden', conversion: 'entero', escribible: false },
+      dias_entre_conteos: {
+        columna: 'dias_entre_conteos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      ultimo_conteo_en: { columna: 'ultimo_conteo_en', conversion: 'fecha', escribible: false },
+      activa: { columna: 'activa', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  Conteo: {
+    tabla: 'tomas_inventario',
+    rolesLectura: [...INVENTARIO],
+    escritura: 'comando',
+    ordenPorOmision: '-iniciada_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      almacen_id: { columna: 'almacen_id', conversion: 'texto', escribible: false },
+      zona_id: { columna: 'zona_id', conversion: 'texto', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      iniciada_en: { columna: 'iniciada_en', conversion: 'fecha', escribible: false },
+      cerrada_en: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
+      empleado_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+  },
+
+  ConteoLinea: {
+    tabla: 'toma_conteos',
+    rolesLectura: [...INVENTARIO],
+    escritura: 'comando',
+    ordenPorOmision: '-contado_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      conteo_id: { columna: 'toma_id', conversion: 'texto', escribible: false },
+      insumo_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
+      esperado: { columna: 'esperado', conversion: 'decimal', escribible: false },
+      contado: { columna: 'contado', conversion: 'decimal', escribible: false },
+      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
+      // El crudo de lo que tecleó la persona. Se expone porque la discusión
+      // «yo conté nueve cajas» se tiene mirando la pantalla, no el log.
+      capturas: { columna: 'capturas', conversion: 'json', escribible: false },
+      movimiento_ajuste_id: {
+        columna: 'movimiento_ajuste_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      contado_en: { columna: 'contado_en', conversion: 'fecha', escribible: false },
+      empleado_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+  },
+
   EsquemaPropina: {
     tabla: 'esquemas_propina',
     rolesLectura: [...DIRECCION],

@@ -204,6 +204,57 @@ function proyectar(fila: Fila, selectores: readonly Selector[]): Fila {
   return salida;
 }
 
+/**
+ * El `where` de retrollamada, acotado a comparar DOS COLUMNAS de la misma fila.
+ *
+ * `diferenciasDeToma` pide `contado <> esperado`, que no es un filtro contra un
+ * valor sino contra otra columna. Sin esto, la única forma de probar el cierre
+ * de un conteo sería declarar las diferencias en la prueba en vez de derivarlas
+ * — y una prueba que declara el resultado no caza el error de comparación.
+ */
+interface ReferenciaColumna {
+  readonly __columna: string;
+}
+
+export interface ConstructorComparacion {
+  (izquierda: ReferenciaColumna, operador: string, derecha: ReferenciaColumna): Comparacion;
+  ref(columna: string): ReferenciaColumna;
+}
+
+export interface Comparacion {
+  readonly izquierda: string;
+  readonly operador: string;
+  readonly derecha: string;
+}
+
+const COMPARADOR = Object.assign(
+  (izquierda: ReferenciaColumna, operador: string, derecha: ReferenciaColumna): Comparacion => ({
+    izquierda: izquierda.__columna,
+    operador,
+    derecha: derecha.__columna,
+  }),
+  { ref: (columna: string): ReferenciaColumna => ({ __columna: columna }) },
+);
+
+function cumpleComparacion(fila: Fila, comparacion: Comparacion): boolean {
+  const izquierda = valorDe(fila, comparacion.izquierda) ?? null;
+  const derecha = valorDe(fila, comparacion.derecha) ?? null;
+  switch (comparacion.operador) {
+    case '=':
+      return igual(izquierda, derecha);
+    case '<>':
+    case '!=':
+      return !igual(izquierda, derecha);
+    case '>':
+    case '>=':
+    case '<':
+    case '<=':
+      return ordena(comparacion.operador, izquierda, derecha);
+    default:
+      throw new Error(`La base falsa no compara dos columnas con «${comparacion.operador}».`);
+  }
+}
+
 function comparar(a: unknown, b: unknown): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
   return String(a).localeCompare(String(b));
@@ -211,13 +262,18 @@ function comparar(a: unknown, b: unknown): number {
 
 export function lectura(filas: Fila[]) {
   const filtros: Filtro[] = [];
+  const comparaciones: Comparacion[] = [];
   const selectores: Selector[] = [];
   let orden: { columna: string; descendente: boolean } | null = null;
   let tope: number | null = null;
   let todas = false;
 
   const resolver = (): Fila[] => {
-    let vivas = filas.filter((fila) => filtros.every((filtro) => cumple(fila, filtro)));
+    let vivas = filas.filter(
+      (fila) =>
+        filtros.every((filtro) => cumple(fila, filtro)) &&
+        comparaciones.every((comparacion) => cumpleComparacion(fila, comparacion)),
+    );
 
     if (orden !== null) {
       const { columna, descendente } = orden;
@@ -264,8 +320,13 @@ export function lectura(filas: Fila[]) {
     innerJoin() {
       return constructor;
     },
-    where(columna: string, operador: string, valor: unknown) {
-      filtros.push({ columna, operador, valor });
+    where(
+      columna: string | ((eb: ConstructorComparacion) => Comparacion),
+      operador?: string,
+      valor?: unknown,
+    ) {
+      if (typeof columna === 'function') comparaciones.push(columna(COMPARADOR));
+      else filtros.push({ columna, operador: operador ?? '=', valor });
       return constructor;
     },
     orderBy(columna: string, direccion?: string) {
@@ -299,9 +360,50 @@ export function lectura(filas: Fila[]) {
  * reventaria con NaN. La base falsa no inventa el valor: la prueba declara el
  * `default` que la migracion ya declara.
  */
+/**
+ * El `on conflict` de un `insert`, con las columnas que lo detectan.
+ *
+ * `anotarConteo` recaptura una línea con `on conflict (toma_id, insumo_id) do
+ * update`: sin esto, corregir un tecleo escribiría una segunda fila y el conteo
+ * sumaría dos veces el mismo anaquel.
+ */
+interface ResolucionConflicto {
+  readonly columnas: readonly string[];
+  readonly cambios: Fila | null;
+}
+
+interface ConstructorConflicto {
+  columns(columnas: readonly string[]): ConstructorConflicto;
+  doUpdateSet(cambios: Fila): ResolucionConflicto;
+  doNothing(): ResolucionConflicto;
+}
+
+function conflicto(): ConstructorConflicto {
+  let columnas: readonly string[] = [];
+  const constructor: ConstructorConflicto = {
+    columns(lista) {
+      columnas = lista;
+      return constructor;
+    },
+    doUpdateSet: (cambios) => ({ columnas, cambios }),
+    doNothing: () => ({ columnas, cambios: null }),
+  };
+  return constructor;
+}
+
 export function insercion(filas: Fila[], predeterminados: Fila = {}) {
   const nuevas: Fila[] = [];
   let devuelta: string | null = null;
+  let resolucion: ResolucionConflicto | null = null;
+
+  /** La fila viva que choca con ésta por las columnas del `on conflict`. */
+  const choque = (fila: Fila): number => {
+    const actual = resolucion;
+    if (actual === null) return -1;
+    return filas.findIndex((viva) =>
+      actual.columnas.every((columna) => igual(viva[columna], fila[columna])),
+    );
+  };
 
   const constructor = {
     values(valores: Fila | readonly Fila[]) {
@@ -311,13 +413,33 @@ export function insercion(filas: Fila[], predeterminados: Fila = {}) {
       }
       return constructor;
     },
+    onConflict(construir: (oc: ConstructorConflicto) => ResolucionConflicto) {
+      resolucion = construir(conflicto());
+      return constructor;
+    },
     returning(columna: string) {
       devuelta = columna;
       return constructor;
     },
     async execute() {
-      filas.push(...nuevas);
-      return nuevas.map((fila) => (devuelta === null ? {} : proyectar(fila, [devuelta])));
+      const escritas: Fila[] = [];
+      for (const fila of nuevas) {
+        const indice = choque(fila);
+        if (indice === -1) {
+          filas.push(fila);
+          escritas.push(fila);
+          continue;
+        }
+        // Chocó. `do nothing` deja la viva tal cual; `do update` le aplica sólo
+        // los campos declarados, que es justo lo que distingue recapturar de
+        // volver a sellar el esperado.
+        const cambios = resolucion?.cambios;
+        if (cambios === null || cambios === undefined) continue;
+        const actualizada = { ...filas[indice], ...cambios };
+        filas[indice] = actualizada;
+        escritas.push(actualizada);
+      }
+      return escritas.map((fila) => (devuelta === null ? {} : proyectar(fila, [devuelta])));
     },
     async executeTakeFirst() {
       return (await constructor.execute())[0];
