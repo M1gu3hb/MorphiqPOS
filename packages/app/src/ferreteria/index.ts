@@ -40,3 +40,10 @@ export {
   type ResultadoAutorizado,
   type ResultadoObra,
 } from './obras.ts';
+
+export {
+  entradaRegistrarServicio,
+  registrarServicio,
+  type ConsumoRegistrado,
+  type ResultadoServicio,
+} from './servicio.ts';
