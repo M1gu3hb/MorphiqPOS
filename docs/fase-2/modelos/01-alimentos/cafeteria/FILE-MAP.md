@@ -187,6 +187,32 @@ mesa. Lo que se construya aquí lo reutilizan sin tocarlo:
 
 ---
 
+## 3.ter · EL COMPONENTE NUEVO, Y EL CAMBIO DE UNA LÍNEA
+
+Escrito AL LADO de los viejos, como manda D-09, y en `apps/web/src/` para que el verificador de
+primitivas lo vigile.
+
+| Componente | Función | Ruta |
+|---|---|---|
+| `FilaDeBarra.tsx` | F-328 · F-329 | `apps/web/src/cafeteria/FilaDeBarra.tsx` |
+
+**El cambio exacto de UNA LÍNEA que hará falta al acoplar**, cuando D-09 quede derogada:
+
+```
+heredado/pages/Barra.jsx                      ← la pantalla de barra real
+  + import { FilaDeBarra } from '~/cafeteria/FilaDeBarra';
+    …y montarla debajo del encabezado, sustituyendo la lista actual.
+```
+
+El archivo se comprobó en el disco: `pages/Barra.jsx` existe y es la pantalla de barra. En
+`components/cocina/` no hay ningún `Cocina.jsx` — el tablero de cocina es `pages/Cocina.jsx` y es
+otra pantalla.
+
+**No se abrió en el navegador**, y no se puede: llama a `/api/cafeteria/{llamar,entregar}`, cuyos
+comandos leen `fila_barra` de la migración `082`, escrita y sin aplicar.
+
+---
+
 ## 4 · LAS CUATRO PREGUNTAS DE CIERRE
 
 Contestadas con honestidad, incluido lo que quedó flojo.

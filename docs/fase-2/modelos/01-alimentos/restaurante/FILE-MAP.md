@@ -166,6 +166,37 @@ todos reutilizan de aquí. Lo que sigue es lo que **ya existe y funciona**, y qu
 
 ---
 
+## 3.ter · LOS COMPONENTES NUEVOS, Y EL CAMBIO DE UNA LÍNEA
+
+Escritos AL LADO de los viejos, como manda D-09: viven en `apps/web/src/restaurante/`, que es
+donde el verificador de primitivas sí vigila los literales de color y tamaño —`heredado/` está
+exento y por eso lo nuevo no va ahí—.
+
+| Componente | Función | Ruta |
+|---|---|---|
+| `DividirCuentaDialog.tsx` | F-321 | `apps/web/src/restaurante/DividirCuentaDialog.tsx` |
+| `AnularLineaDialog.tsx` | F-324 | `apps/web/src/restaurante/AnularLineaDialog.tsx` |
+
+**El cambio exacto de UNA LÍNEA que hará falta al acoplar**, cuando D-09 quede derogada:
+
+```
+heredado/components/pos/PaymentModal.jsx      ← el diálogo de cobro real
+  + import { DividirCuentaDialog } from '~/restaurante/DividirCuentaDialog';
+    …y montarlo detrás de un botón «Dividir» que hoy no existe en ese modal.
+
+heredado/components/mesero/MesaActivaView.jsx ← la comanda de la mesa
+  + import { AnularLineaDialog } from '~/restaurante/AnularLineaDialog';
+    …y montarlo detrás del gesto de quitar una línea.
+```
+
+Los dos archivos se comprobaron en el disco: `PaymentModal.jsx` es el modal de cobro —no hay
+ningún `CobroDialog.jsx`— y `MesaActivaView.jsx` es la pantalla que pinta la comanda.
+
+**Ninguno de los dos se abrió en el navegador**, y no se puede: los dos llaman a rutas cuyos
+comandos leen tablas de las migraciones `070`–`077`, que la Fase 2 escribe y no aplica.
+
+---
+
 ## 4 · LAS CUATRO PREGUNTAS DE CIERRE
 
 Contestadas con honestidad, incluido lo que quedó flojo.

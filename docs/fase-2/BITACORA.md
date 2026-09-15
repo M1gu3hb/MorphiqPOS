@@ -890,3 +890,38 @@ la tercera oportunidad de que el número salga distinto.
 el repositorio, y construirla contra una base sin `citas` ni `profesionales` no se puede: las cinco
 migraciones de esta etapa están escritas y sin aplicar, como manda la Fase 2. Es la tercera etapa
 seguida en la que esto pasa y por la misma razón; está en el reporte final con su renglón propio.
+
+---
+
+## 2026-09-15 · CIERRE · Los tres componentes de E3 y E4
+
+Al escribir el reporte final me di cuenta de que había declarado como pendiente algo que D-09 SÍ
+permite: los componentes nuevos, escritos al lado de los viejos. Se comprobó primero que la
+excepción de D-09 no aplica —`carril-b` **no** está fusionada a `main`— y después se escribieron.
+
+| Componente | Función | Dónde |
+|---|---|---|
+| `DividirCuentaDialog.tsx` | F-321 | `apps/web/src/restaurante/` |
+| `AnularLineaDialog.tsx` | F-324 | `apps/web/src/restaurante/` |
+| `FilaDeBarra.tsx` | F-328 · F-329 | `apps/web/src/cafeteria/` |
+
+**Van a `apps/web/src/` y no a `heredado/`, a propósito.** D-09 permite crear archivos nuevos
+dentro de `heredado/`, pero el verificador de primitivas **no vigila esa carpeta**: un literal de
+color ahí no tumba ninguna puerta. En `apps/web/src/` sí, y además los cubren lint, typecheck y
+build. Escribir componentes nuevos en la carpeta exenta habría sido elegir la opción sin puerta.
+
+**El cambio de una línea** que hará falta al acoplar está anotado en el `FILE-MAP.md` de cada
+modelo, con el archivo exacto y el `import`.
+
+**Ninguno se abrió en el navegador**, y no se puede: los tres llaman a rutas cuyos comandos leen
+tablas de las migraciones `070`–`077` y `082`, escritas y sin aplicar.
+
+### Y lo que sigue sin escribirse, con la razón precisa
+
+De las funciones de E5, E6 y E7 no hay pantalla, y hay DOS razones, no una:
+
+1. Dependen de migraciones sin aplicar, igual que éstas.
+2. **El `04-INTERFAZ.md` de esos modelos no decide esos diálogos.** Decide las pantallas del modelo
+   —mapa de mesas, cobro, precuenta, cocina, agenda— y no un diálogo de conteo cíclico ni uno de
+   corte de material. Construirlos habría sido inventar layout, que es justo lo que el encargo
+   prohíbe. Que la decisión falte no exime de la función: obliga a decir que falta.
