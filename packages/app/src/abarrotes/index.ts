@@ -45,3 +45,5 @@ export {
   type PedidoSugerido,
   type RenglonSugerido,
 } from './sugerencia.ts';
+
+export { entradaRegistrarRedondeo, registrarRedondeo, type ResultadoRedondeo } from './redondeo.ts';
