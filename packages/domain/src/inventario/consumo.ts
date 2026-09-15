@@ -7,6 +7,7 @@ import {
   type Cantidad,
   type Unidad,
 } from '../catalogo/index.ts';
+import { consumoDePresentacion } from './variantes/v3-presentaciones.ts';
 import {
   consumoDeInsumoBase,
   consumoDeReceta,
@@ -17,7 +18,7 @@ import {
 } from './variantes/v6-receta-y-peso.ts';
 import type { ConsumoDeInsumo } from './variantes/tipos.ts';
 
-export type EstrategiaConsumo = 'sku' | 'receta' | 'insumo_base' | 'ninguno';
+export type EstrategiaConsumo = 'sku' | 'receta' | 'insumo_base' | 'presentacion' | 'ninguno';
 export type UnidadInventario = Exclude<Unidad, 'caja' | 'paquete'>;
 
 interface ContextoLinea {
@@ -54,6 +55,18 @@ export type LineaParaConsumo =
       readonly insumoId: string;
       readonly unidadBase: string;
       readonly captura: CapturaDeInsumoBase;
+    })
+  | (ContextoLinea & {
+      /**
+       * V3 · El producto se vende en presentaciones —pieza, six, caja— y la
+       * existencia se lleva en unidad base. Es la variante de abarrotes,
+       * ferretería y farmacia.
+       */
+      readonly estrategiaConsumo: 'presentacion';
+      readonly insumoId: string;
+      /** Cuántas unidades base contiene una unidad de lo que se vendió. */
+      readonly factor: string;
+      readonly unidadBase: string;
     })
   | (ContextoLinea & { readonly estrategiaConsumo: 'ninguno' });
 
@@ -150,6 +163,11 @@ function planear(linea: LineaParaConsumo): readonly ConsumoDeInsumo[] {
       return consumoDeReceta(linea.receta, positiva(linea.cantidad));
     case 'insumo_base':
       return consumoDeInsumoBase(linea.insumoId, linea.unidadBase, linea.captura);
+    case 'presentacion':
+      return consumoDePresentacion(
+        { insumoId: linea.insumoId, factor: linea.factor, unidadBase: linea.unidadBase },
+        positiva(linea.cantidad),
+      );
   }
 }
 

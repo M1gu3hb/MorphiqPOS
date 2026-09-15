@@ -697,6 +697,8 @@ export interface Productos {
   presets_porcion: unknown;
   /** F-156 · Gramos de grano por shot. Traduce «calibré cuatro» a inventario. */
   gramaje_shot: string | null;
+  /** F-112 · Caché de la presentación con la que se vende por omisión. */
+  presentacion_venta_id: string | null;
 }
 
 export interface Proveedores {
@@ -865,6 +867,7 @@ export interface Esquema {
   llamados_pedido: LlamadosPedido;
   lotes_grano: LotesGrano;
   presencias_turno: PresenciasTurno;
+  producto_presentaciones: ProductoPresentaciones;
   merma_barra_turno: MermaBarraTurno;
   fila_barra: FilaBarra;
   consumos_internos: ConsumosInternos;
@@ -1128,6 +1131,24 @@ export interface ConsumosInternos {
   motivo: string;
   empleado_id: string;
   created_at: Generated<Date>;
+}
+
+/** F-112 · Una forma de comprar o vender un producto. La existencia va en base. */
+export interface ProductoPresentaciones {
+  id: Generated<string>;
+  organizacion_id: string;
+  producto_id: string;
+  nombre: string;
+  factor: string;
+  codigo_barras: string | null;
+  sku: string | null;
+  precio_venta_centavos: bigint | null;
+  es_base: Generated<boolean>;
+  es_compra_default: Generated<boolean>;
+  es_venta_default: Generated<boolean>;
+  activa: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }
 
 /** F-248 · Quién estuvo en el turno y cuánto tiempo. */
