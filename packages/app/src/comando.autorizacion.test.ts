@@ -19,7 +19,7 @@ const CLAVE = 'clave-de-idempotencia-0001';
 /** Un comando de juguete que registra si su cuerpo llegó a correr. */
 function comandoDeJuguete(opciones: {
   roles?: readonly ('cajero' | 'gerente' | 'dueno')[];
-  paquetes?: readonly ('tienda' | 'restaurante')[];
+  paquetes?: readonly ('esencial' | 'restaurante_pro')[];
 }) {
   const corridas: string[] = [];
   const definicion = definirComando({
@@ -27,7 +27,7 @@ function comandoDeJuguete(opciones: {
     entidad: 'orden',
     escribe: true,
     roles: opciones.roles ?? ['cajero', 'gerente', 'dueno'],
-    paquetes: opciones.paquetes ?? ['tienda', 'restaurante'],
+    paquetes: opciones.paquetes ?? ['esencial', 'restaurante_pro'],
     entrada: z.object({ ordenId: z.uuid(), propinaCentavos: z.number().int().nonnegative() }),
     async ejecutar(ctx, entrada) {
       corridas.push(entrada.ordenId);
@@ -45,7 +45,7 @@ const ENTRADA_BUENA = {
 
 describe('comando() · validación de la entrada', () => {
   it('rechaza una entrada que no cumple el esquema y NO ejecuta el cuerpo', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion, corridas } = comandoDeJuguete({});
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
@@ -65,7 +65,7 @@ describe('comando() · validación de la entrada', () => {
   });
 
   it('nombra el campo que falló SIN devolver el valor recibido', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion } = comandoDeJuguete({});
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
@@ -84,7 +84,7 @@ describe('comando() · validación de la entrada', () => {
   });
 
   it('rechaza propiedades que el esquema no declara', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion } = comandoDeJuguete({});
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
@@ -103,7 +103,7 @@ describe('comando() · validación de la entrada', () => {
 
 describe('comando() · permiso por rol (R11)', () => {
   it('deniega a un rol fuera de la lista, sin tocar nada', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion, corridas } = comandoDeJuguete({ roles: ['gerente', 'dueno'] });
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
@@ -123,7 +123,7 @@ describe('comando() · permiso por rol (R11)', () => {
   });
 
   it('permite al rol que sí está en la lista', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion, corridas } = comandoDeJuguete({ roles: ['cajero'] });
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
@@ -140,7 +140,7 @@ describe('comando() · permiso por rol (R11)', () => {
 
 describe('comando() · paquete de la organización (A-42, prueba PAQ-01)', () => {
   it('un comando real de modificadores devuelve 403 fuera de cafetería/restaurante', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const ejecutar = crearComando<Transaccion>({
       repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
       conTransaccion: fabrica.conTransaccion as unknown as <T>(
@@ -160,8 +160,8 @@ describe('comando() · paquete de la organización (A-42, prueba PAQ-01)', () =>
   });
 
   it('devuelve PAQUETE_NO_INCLUYE antes de ejecutar el caso de uso', async () => {
-    const fabrica = crearFabrica('tienda');
-    const { definicion, corridas } = comandoDeJuguete({ paquetes: ['restaurante'] });
+    const fabrica = crearFabrica('esencial');
+    const { definicion, corridas } = comandoDeJuguete({ paquetes: ['restaurante_pro'] });
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
     const salida = await ejecutar(definicion, {
@@ -177,8 +177,8 @@ describe('comando() · paquete de la organización (A-42, prueba PAQ-01)', () =>
   });
 
   it('el paquete se lee de la organización, no de la entrada', async () => {
-    const fabrica = crearFabrica('restaurante');
-    const { definicion, corridas } = comandoDeJuguete({ paquetes: ['restaurante'] });
+    const fabrica = crearFabrica('restaurante_pro');
+    const { definicion, corridas } = comandoDeJuguete({ paquetes: ['restaurante_pro'] });
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
     const salida = await ejecutar(definicion, {
@@ -192,7 +192,7 @@ describe('comando() · paquete de la organización (A-42, prueba PAQ-01)', () =>
   });
 
   it('una organización sin paquete legible se trata como no incluida, no como permitida', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     fabrica.ponerPaquete(null);
     const { definicion, corridas } = comandoDeJuguete({});
     const ejecutar = crearComando<TxFalsa>(fabrica);
@@ -214,7 +214,7 @@ describe('comando() · orden de las comprobaciones', () => {
   it('el permiso se comprueba ANTES que la forma de la entrada', async () => {
     // Si el 400 llegara primero, un rol sin permiso podría sondear el esquema de
     // un comando administrativo campo por campo, a base de entradas inválidas.
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const { definicion } = comandoDeJuguete({ roles: ['dueno'] });
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
@@ -230,8 +230,8 @@ describe('comando() · orden de las comprobaciones', () => {
   });
 
   it('el paquete se comprueba ANTES que la forma de la entrada', async () => {
-    const fabrica = crearFabrica('tienda');
-    const { definicion } = comandoDeJuguete({ paquetes: ['restaurante'] });
+    const fabrica = crearFabrica('esencial');
+    const { definicion } = comandoDeJuguete({ paquetes: ['restaurante_pro'] });
     const ejecutar = crearComando<TxFalsa>(fabrica);
 
     const salida = await ejecutar(definicion, {

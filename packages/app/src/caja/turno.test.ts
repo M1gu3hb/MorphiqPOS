@@ -84,7 +84,7 @@ function baseCon(datos: Record<string, readonly Fila[]>, crudas: readonly Fila[]
 }
 
 function ejecutorSobre(tx: Transaccion) {
-  const fabrica = crearFabrica('restaurante');
+  const fabrica = crearFabrica('restaurante_pro');
   const ejecutar = crearComando<Transaccion>({
     repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
     conTransaccion: <T>(fn: (t: Transaccion) => Promise<T>): Promise<T> =>

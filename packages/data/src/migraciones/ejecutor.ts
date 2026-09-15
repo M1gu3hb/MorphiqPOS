@@ -1,9 +1,18 @@
 import 'server-only';
 
+import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import type pg from 'pg';
 
 import { obtenerPool } from '../cliente.ts';
 import { leerMigraciones, type Migracion } from './lectura.ts';
+
+const RAIZ = fileURLToPath(new URL('../../../../', import.meta.url));
 
 // La lectura del disco vive en `lectura.ts`, sin dependencias de servidor. Se
 // reexporta para que quien importe el ejecutor no tenga que saberlo.
@@ -52,6 +61,82 @@ export interface ResultadoMigracion {
   readonly ensayo: boolean;
 }
 
+function literalSql(valor: string): string {
+  return `'${valor.replaceAll("'", "''")}'`;
+}
+
+const EXTENSION_PG_CRON_OPCIONAL = String.raw`
+do $morphiqpos_pg_cron$
+begin
+  if exists (
+    select 1 from pg_catalog.pg_available_extensions where name = 'pg_cron'
+  ) then
+    execute 'create extension if not exists pg_cron with schema pg_catalog';
+  else
+    raise notice 'pg_cron no está disponible; la purga manual de comandos ejecutados queda documentada.';
+  end if;
+end
+$morphiqpos_pg_cron$;`;
+
+const TAREA_PG_CRON_OPCIONAL = String.raw`
+do $morphiqpos_pg_cron$
+begin
+  if to_regprocedure('cron.schedule(text,text,text)') is null then
+    raise notice 'pg_cron ausente: ejecutar como purga manual DELETE de comandos_ejecutados con más de 90 días.';
+  else
+    perform cron.schedule(
+      'morphiqpos_retencion_comandos',
+      '17 3 * * *',
+      $trabajo$
+        delete from public.comandos_ejecutados
+        where created_at < now() - interval '90 days';
+      $trabajo$
+    );
+  end if;
+end
+$morphiqpos_pg_cron$;`;
+
+/**
+ * Conserva intacto el archivo y su hash, pero adapta la migración 053 cuando
+ * el PostgreSQL de destino no ofrece pg_cron.
+ */
+export function prepararSqlMigracion(migracion: Migracion): string {
+  if (migracion.version !== 53) return migracion.sql;
+
+  const sinExtensionObligatoria = migracion.sql.replace(
+    /create\s+extension\s+if\s+not\s+exists\s+pg_cron\s+with\s+schema\s+pg_catalog\s*;/i,
+    EXTENSION_PG_CRON_OPCIONAL,
+  );
+  const portable = sinExtensionObligatoria.replace(
+    /select\s+cron\.schedule\([\s\S]*?\$trabajo\$\s*\);/i,
+    TAREA_PG_CRON_OPCIONAL,
+  );
+  if (portable === migracion.sql || portable.includes('select cron.schedule(')) {
+    throw new Error('La compatibilidad de pg_cron ya no reconoce la migración 053.');
+  }
+  return portable;
+}
+
+/**
+ * Construye el único mensaje que el transporte vinculado entrega a Postgres.
+ * El SQL y el ledger viajan en la misma transacción también cuando no hay una
+ * contraseña de conexión disponible y el CLI usa la Management API.
+ */
+export function prepararTandaVinculada(pendientes: readonly Migracion[], ensayo: boolean): string {
+  const partes = ['begin;'];
+
+  for (const migracion of pendientes) {
+    partes.push(prepararSqlMigracion(migracion));
+    partes.push(
+      'insert into _migraciones (version, nombre, hash, duracion_ms) values ' +
+        `(${migracion.version}, ${literalSql(migracion.nombre)}, ${literalSql(migracion.hash)}, 0);`,
+    );
+  }
+
+  partes.push(ensayo ? 'rollback;' : 'commit;');
+  return partes.join('\n');
+}
+
 /** Compara lo que hay en disco con lo que dice el ledger y lanza si divergen. */
 function comprobarIntegridad(
   enDisco: readonly Migracion[],
@@ -98,6 +183,108 @@ interface FilaLedger {
   readonly version: number;
   readonly nombre: string;
   readonly hash: string;
+}
+
+interface OpcionesVinculadas {
+  readonly projectRef: string;
+  readonly cliPath?: string;
+  readonly ensayo?: boolean;
+}
+
+function ejecutarConsultaVinculada(
+  opciones: OpcionesVinculadas,
+  entrada: { readonly sql?: string; readonly archivo?: string },
+): string {
+  if (!/^[a-z0-9]{20}$/.test(opciones.projectRef)) {
+    throw new Error('MORPHIQPOS_SUPABASE_PROJECT_REF no tiene el formato esperado.');
+  }
+
+  const fuente = entrada.archivo === undefined ? [entrada.sql ?? ''] : ['--file', entrada.archivo];
+  const resultado = spawnSync(
+    opciones.cliPath ?? 'supabase',
+    [
+      'db',
+      'query',
+      '--output-format',
+      'json',
+      '--linked',
+      '--project-ref',
+      opciones.projectRef,
+      ...fuente,
+    ],
+    { cwd: RAIZ, encoding: 'utf8', windowsHide: true },
+  );
+
+  if (resultado.error !== undefined) throw resultado.error;
+  if (resultado.status !== 0) {
+    const detalle = [resultado.stderr.trim(), resultado.stdout.trim()].filter(Boolean).join('\n');
+    throw new Error(`Supabase CLI no pudo ejecutar la migración vinculada: ${detalle}`);
+  }
+  return resultado.stdout;
+}
+
+function filasLedgerVinculado(salida: string): readonly FilaLedger[] {
+  const documento: unknown = JSON.parse(salida);
+  if (typeof documento !== 'object' || documento === null || !('rows' in documento)) {
+    throw new Error('Supabase CLI devolvió una respuesta sin filas.');
+  }
+
+  const rows = documento.rows;
+  if (!Array.isArray(rows)) {
+    throw new Error('Supabase CLI devolvió rows con un tipo inválido.');
+  }
+  const filas: readonly unknown[] = rows;
+
+  return filas.map((fila) => {
+    if (
+      typeof fila !== 'object' ||
+      fila === null ||
+      !('version' in fila) ||
+      typeof fila.version !== 'number' ||
+      !('nombre' in fila) ||
+      typeof fila.nombre !== 'string' ||
+      !('hash' in fila) ||
+      typeof fila.hash !== 'string'
+    ) {
+      throw new Error('El ledger vinculado devolvió una fila inválida.');
+    }
+    return { version: fila.version, nombre: fila.nombre, hash: fila.hash };
+  });
+}
+
+/**
+ * Ejecuta el mismo protocolo forward-only mediante `supabase db query`.
+ * Sirve cuando el acceso vinculado de la CLI está autorizado pero la
+ * contraseña de Postgres no está disponible. No cambia el formato del ledger.
+ */
+export function migrarVinculado(opciones: OpcionesVinculadas): ResultadoMigracion {
+  const ensayo = opciones.ensayo ?? false;
+  const salida = ejecutarConsultaVinculada(opciones, {
+    sql: 'select version, nombre, hash from public._migraciones order by version',
+  });
+  const registradas = filasLedgerVinculado(salida);
+  const enDisco = leerMigraciones();
+  comprobarIntegridad(enDisco, registradas);
+
+  const aplicadas = new Set(registradas.map((fila) => fila.version));
+  const pendientes = enDisco.filter((migracion) => !aplicadas.has(migracion.version));
+  if (pendientes.length === 0) {
+    return { aplicadas: [], yaEstaban: registradas.length, ensayo };
+  }
+
+  const archivo = join(tmpdir(), `morphiqpos-migraciones-${randomUUID()}.sql`);
+  writeFileSync(archivo, prepararTandaVinculada(pendientes, ensayo), 'utf8');
+  try {
+    ejecutarConsultaVinculada(opciones, { archivo });
+  } finally {
+    rmSync(archivo, { force: true });
+  }
+
+  return {
+    aplicadas: pendientes.map((migracion) => migracion.archivo),
+    yaEstaban: registradas.length,
+    ensayo,
+  };
 }
 
 /**
@@ -159,7 +346,7 @@ export async function migrar(opciones: { ensayo?: boolean } = {}): Promise<Resul
 
         // Sin parámetros → protocolo simple → el archivo entero, con sus
         // decenas de sentencias, viaja en un solo mensaje.
-        await cliente.query(migracion.sql);
+        await cliente.query(prepararSqlMigracion(migracion));
 
         const duracion = Number((process.hrtime.bigint() - inicio) / 1_000_000n);
 

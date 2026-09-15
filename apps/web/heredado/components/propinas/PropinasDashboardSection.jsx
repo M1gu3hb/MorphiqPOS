@@ -6,7 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Heart, Wallet, Award, ChevronRight, History } from 'lucide-react';
 import { formatCurrency } from '@/utils/financialUtils';
-import { filtrarVentasEnRango, sumarPropinas, agruparPropinasPorMesero } from '@/utils/tipsUtils';
+import {
+  agruparPropinasPorMesero,
+  filtrarVentasConPropina,
+  filtrarVentasEnRango,
+  sumarPropinas,
+} from '@/utils/tipsUtils';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 import LiquidarPropinasDialog from '@/components/propinas/LiquidarPropinasDialog';
 import { Link } from '@/enrutado';
@@ -40,7 +45,7 @@ export default function PropinasDashboardSection() {
 
   const stats = useMemo(() => {
     const safe = Array.isArray(ventas) ? ventas : [];
-    const conPropina = safe.filter((v) => (Number(v?.propina_monto) || 0) > 0);
+    const conPropina = filtrarVentasConPropina(safe);
 
     const hoyVentas = filtrarVentasEnRango(
       conPropina,

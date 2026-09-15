@@ -21,13 +21,13 @@ const BASE = {
   entidad: 'orden',
   escribe: true,
   roles: ['cajero'],
-  paquetes: ['tienda'],
+  paquetes: ['esencial'],
   entrada: z.object({ ordenId: z.uuid() }),
 } as const;
 
 describe('comando() · auditoría del éxito', () => {
   it('escribe una fila con la acción, la entidad y el ámbito', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar(ctx, entrada) {
@@ -56,7 +56,7 @@ describe('comando() · auditoría del éxito', () => {
   });
 
   it('una sola fila por ejecución, aunque el comando toque varias tablas', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar(ctx, entrada) {
@@ -77,7 +77,7 @@ describe('comando() · auditoría del éxito', () => {
   it('un comando que declara escribir y NO audita es un error del programa', async () => {
     // Declarar sensible algo que no deja rastro convierte la auditoría en un
     // adorno. Vale más romper en desarrollo que tener un histórico incompleto.
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar() {
@@ -100,7 +100,7 @@ describe('comando() · auditoría del éxito', () => {
 
 describe('comando() · auditoría del rechazo', () => {
   it('un permiso denegado deja rastro, fuera de la transacción revertida', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       roles: ['dueno'],
@@ -122,10 +122,10 @@ describe('comando() · auditoría del rechazo', () => {
   });
 
   it('un paquete no incluido también deja rastro', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
-      paquetes: ['restaurante'],
+      paquetes: ['restaurante_pro'],
       async ejecutar() {
         return { folio: 1 };
       },
@@ -143,7 +143,7 @@ describe('comando() · auditoría del rechazo', () => {
   });
 
   it('una entrada inválida NO se audita: es ruido de teclado', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       ...BASE,
       async ejecutar() {
@@ -163,13 +163,13 @@ describe('comando() · auditoría del rechazo', () => {
 
 describe('comando() · saneado del payload (R31)', () => {
   it('redacta pin, hash, token y contraseña a cualquier profundidad', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     const definicion = definirComando({
       nombre: 'identidad.enrolar',
       entidad: 'identidad',
       escribe: true,
       roles: ['cajero'],
-      paquetes: ['tienda'],
+      paquetes: ['esencial'],
       entrada: z.object({
         pin: z.string(),
         anidado: z.object({ device_token: z.string(), nombre: z.string() }),

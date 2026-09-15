@@ -78,8 +78,8 @@ export default function MenuQRTab() {
   const subir = async (e) => {
     const file = e.target?.files?.[0];
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) {
-      toast.error('Máximo 8 MB');
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Máximo 5 MB');
       return;
     }
     setUploading(true);

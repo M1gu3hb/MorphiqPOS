@@ -16,9 +16,9 @@ const mutaciones = [
     // escribirse a mano (C-15) y ahora viene del contrato. Cambiando el import
     // la mutación compila, así que lo que la caza es la prueba y no el
     // compilador — que es una señal mucho más fuerte.
-    antes: "import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';",
+    antes: "import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';",
     despues:
-      "import { ErrorDominio, PAQUETES as PAQUETES_PREPARACION } from '@morphiqpos/contracts';",
+      "import { ErrorDominio, PAQUETES as PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';",
     indice: 0,
     nombre: 'modificadores habilitados en todos los paquetes',
   },
@@ -73,10 +73,10 @@ const mutaciones = [
   },
   {
     ruta: 'packages/app/src/configuracion/configuracion.ts',
-    antes: 'paquete: entrada.paquete, updated_at: ctx.ahora',
-    despues: "paquete: 'tienda', updated_at: ctx.ahora",
+    antes: 'paquete: fila.paquete,',
+    despues: "paquete: 'esencial',",
     indice: 0,
-    nombre: 'paquete ignorado',
+    nombre: 'paquete efectivo ignorado al leer',
   },
 ];
 

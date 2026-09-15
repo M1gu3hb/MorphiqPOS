@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { urlHttp } from '../validacion/url-http.ts';
+
 const id = z.uuid();
 const texto = z.string().trim().min(1).max(160);
 const textoOpcional = z.string().trim().min(1).max(500).optional();
@@ -17,7 +19,7 @@ export const entradaCrearProducto = z
   .object({
     nombre: texto,
     descripcion: textoOpcional,
-    imagenUrl: z.url().optional(),
+    imagenUrl: urlHttp.optional(),
     categoriaId: id.optional(),
     marca: z.string().trim().min(1).max(100).optional(),
     sku: z.string().trim().min(1).max(80).optional(),
@@ -84,7 +86,7 @@ export const entradaActualizarProducto = z.object({
   productoId: id,
   nombre: texto,
   descripcion: z.string().trim().max(500).nullable(),
-  imagenUrl: z.url().nullable(),
+  imagenUrl: urlHttp.nullable(),
   categoriaId: id.nullable(),
   marca: z.string().trim().min(1).max(100).nullable(),
   visibleEnPos: z.boolean(),

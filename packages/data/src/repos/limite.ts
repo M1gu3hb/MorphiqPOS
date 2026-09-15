@@ -3,6 +3,7 @@ import 'server-only';
 import { sql } from 'kysely';
 
 import { obtenerDb } from '../cliente.ts';
+import { registrar } from '../observabilidad.ts';
 
 /**
  * Contador de intentos por origen (F1.1-C-13).
@@ -22,6 +23,32 @@ export interface ResultadoLimite {
   readonly intentos: number;
   /** Segundos que faltan para que la ventana se reinicie. */
   readonly esperaSegundos: number;
+}
+
+const FRECUENCIA_LIMPIEZA = 512;
+const RETENCION_BASE_SEGUNDOS = 24 * 60 * 60;
+
+export function debeLimpiarVencidos(valorAleatorio: number): boolean {
+  return valorAleatorio >= 0 && valorAleatorio < 1 / FRECUENCIA_LIMPIEZA;
+}
+
+async function limpiarSiCorresponde(): Promise<void> {
+  if (debeLimpiarVencidos(Math.random())) {
+    try {
+      // Se conservan cuatro días. Todas las ventanas actuales duran una hora
+      // o menos, sin riesgo de borrar un contador que todavía está vigente.
+      await limpiarVencidos(RETENCION_BASE_SEGUNDOS);
+    } catch {
+      // La conservación nunca invalida el intento que ya se contó.
+      registrar({
+        nivel: 'alerta',
+        modulo: 'limite_tasa_purga',
+        correlationId: 'sin_correlacion',
+        organizacionId: null,
+        mensaje: 'No se pudo ejecutar la purga de cuotas vencidas.',
+      });
+    }
+  }
 }
 
 /**
@@ -55,6 +82,8 @@ export async function contarIntento(
         ceil(extract(epoch from (ventana_en + ${intervalo}) - now()))
       )::int as espera
   `.execute(obtenerDb());
+
+  await limpiarSiCorresponde();
 
   const primera = fila.rows[0];
   // Un `returning` de un upsert siempre trae una fila. Si no la trae, algo

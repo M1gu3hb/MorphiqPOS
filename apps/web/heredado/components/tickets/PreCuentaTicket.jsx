@@ -3,6 +3,7 @@ import React from 'react';
 import { formatCurrency } from '@/utils/financialUtils';
 import { getVentaTotal } from '@/utils/ventaTotales';
 import { formatearCantidadVariable } from '@/utils/tipoVentaUtils';
+import { propinaDerivada } from '@/utils/tipsUtils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -19,6 +20,7 @@ export default function PreCuentaTicket({
   esFinal = false,
 }) {
   if (!venta) return null;
+  const montoPropina = propinaDerivada(venta);
   const fecha =
     venta.fecha_cierre || venta.fecha_apertura
       ? format(new Date(venta.fecha_cierre || venta.fecha_apertura), 'd MMM yyyy · HH:mm', {
@@ -122,10 +124,10 @@ export default function PreCuentaTicket({
               <Row label="Descuento" value={`-${formatCurrency(venta.descuentos)}`} />
             )}
             {venta.impuestos > 0 && <Row label="IVA" value={formatCurrency(venta.impuestos)} />}
-            {Number(venta.propina_monto) > 0 && (
+            {montoPropina > 0 && (
               <Row
                 label={`Propina${venta.propina_porcentaje > 0 ? ` (${venta.propina_porcentaje}%)` : ''}`}
-                value={formatCurrency(venta.propina_monto)}
+                value={formatCurrency(montoPropina)}
               />
             )}
             {venta.propina_tipo === 'pendiente' && !esFinal && (
@@ -143,7 +145,7 @@ export default function PreCuentaTicket({
               }}
             >
               <span>TOTAL</span>
-              <span>{formatCurrency(subtotalEfectivo + (Number(venta.propina_monto) || 0))}</span>
+              <span>{formatCurrency(subtotalEfectivo + montoPropina)}</span>
             </div>
             {esFinal && venta.metodo_pago && (
               <div style={{ marginTop: '4px', fontSize: '10px' }}>

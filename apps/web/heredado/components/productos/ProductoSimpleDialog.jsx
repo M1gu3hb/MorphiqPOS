@@ -123,7 +123,6 @@ export default function ProductoSimpleDialog({ open, onClose, producto = null })
         ? {
             tipo_venta: tipoVentaState.tipo_venta,
             ingrediente_base_id: tipoVentaState.ingrediente_base_id || '',
-            ingrediente_base_nombre: tipoVentaState.ingrediente_base_nombre || '',
             unidad_variable: tipoVentaState.unidad_variable || '',
             precio_por_unidad_variable: tipoVentaState.precio_por_unidad_variable,
             cantidad_minima_variable: tipoVentaState.cantidad_minima_variable,

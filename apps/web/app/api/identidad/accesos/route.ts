@@ -12,11 +12,14 @@ export const runtime = 'nodejs';
  * la latencia de la pantalla sin ganar nada.
  */
 export function GET(): Promise<Response> {
-  return responderConsulta(async (sesion) => {
-    const [empleados, terminales] = await Promise.all([
-      empleadosConAcceso(sesion.organizacionId),
-      terminalesDeGestion(sesion.organizacionId),
-    ]);
-    return { empleados, terminales, rol: sesion.rol };
-  });
+  return responderConsulta(
+    async (sesion) => {
+      const [empleados, terminales] = await Promise.all([
+        empleadosConAcceso(sesion.organizacionId),
+        terminalesDeGestion(sesion.organizacionId),
+      ]);
+      return { empleados, terminales, rol: sesion.rol };
+    },
+    { roles: ['dueno', 'administrador'] },
+  );
 }

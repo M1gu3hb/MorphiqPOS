@@ -1,4 +1,4 @@
-import { PAQUETES, ErrorDominio } from '@morphiqpos/contracts';
+import { PAQUETES_OPERATIVOS, ErrorDominio } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { cantidad, cantidadATexto } from '@morphiqpos/domain/catalogo';
 import { desdeTexto } from '@morphiqpos/domain/dinero';
@@ -48,7 +48,7 @@ export const crearAlmacen = definirComando<
   entidad: 'almacen',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaCrearAlmacen,
   async ejecutar(ctx, entrada) {
     const sucursalId = ctx.ambito.sucursalId;
@@ -89,7 +89,7 @@ export const crearInsumo = definirComando<
   entidad: 'insumo',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaCrearInsumo,
   async ejecutar(ctx, entrada) {
     const fila = await ctx.paso('crear_insumo', () =>
@@ -122,7 +122,7 @@ export const inventarioInicial = definirComando<
   entidad: 'existencia',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaInventarioInicial,
   async ejecutar(ctx, entrada) {
     const normalizada = cantidadATexto(cantidad(entrada.cantidad));
@@ -174,7 +174,7 @@ export const ajustarStock = definirComando<
   entidad: 'existencia',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaAjustarStock,
   async ejecutar(ctx, entrada) {
     const referencias = await verificarReferencias(

@@ -34,20 +34,54 @@ node scripts/sembrar-demo.mjs --org demo-ferreteria-la-broca
 
 ## 2 · Migraciones
 
-**Se aplican ANTES de desplegar, a mano.** No hay migración automática en el
-despliegue y es deliberado: una migración que corre sola en cada arranque de una
-función serverless corre N veces en paralelo.
+**Se aplican ANTES de desplegar y siempre mediante `pnpm db:migrate`.** No hay
+migración automática en el despliegue: una migración que corre sola en cada
+arranque de una función serverless corre N veces en paralelo.
 
 ```bash
 pnpm db:migrate     # aplica lo que falte; es SÓLO LECTURA si no falta nada
 pnpm db:tipos       # regenera esquema.ts desde la base ya migrada
 ```
 
-`db:migrate` con el rol de aplicación **no puede** aplicar nada: `morphiqpos_app`
-tiene DML y no DDL, a propósito. Sirve para VERIFICAR que no hay drift. Para
-aplicar de verdad hace falta una credencial con DDL —hoy, la consola
-administrada de Supabase—, y la migración se registra a mano en `_migraciones`
-con el hash que calcula `packages/data/src/migraciones/lectura.ts`.
+`db:migrate` admite dos transportes y ambos ejecutan el SQL y su fila de ledger
+en una sola transacción:
+
+- `DATABASE_URL` con una credencial de DDL, para Postgres local o remoto.
+- `MORPHIQPOS_SUPABASE_PROJECT_REF` con una sesión ya autenticada del CLI de
+  Supabase. Si `supabase` no está en `PATH`, se indica su ejecutable con
+  `SUPABASE_CLI_PATH`.
+
+### Instalar el CLI en una máquina Windows limpia
+
+La [guía oficial del Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
+permite instalarlo como dependencia local y recomienda fijar la versión. Este
+proyecto usa Node 20 o posterior y puede mantener la herramienta fuera del
+checkout para no añadirla al artefacto web:
+
+```powershell
+$cliDir = Join-Path $env:LOCALAPPDATA 'MorphiqPOS\supabase-cli'
+New-Item -ItemType Directory -Force -Path $cliDir | Out-Null
+Push-Location $cliDir
+npm init -y
+npm install --save-exact supabase@2.115.0
+$env:SUPABASE_CLI_PATH = (Resolve-Path '.\node_modules\@supabase\cli-windows-x64\bin\supabase.exe').Path
+& $env:SUPABASE_CLI_PATH --version
+Pop-Location
+```
+
+La sesión del CLI se crea una vez con `npx supabase login` desde `$cliDir`. En
+cada terminal que ejecute migraciones o `pnpm verify`, se vuelve a definir
+`SUPABASE_CLI_PATH` y se fija explícitamente
+`MORPHIQPOS_SUPABASE_PROJECT_REF`. Nunca se deduce un proyecto por el último
+enlace usado por el CLI.
+
+`morphiqpos_app` conserva sólo DML y no puede aplicar DDL. Con ese rol,
+`db:migrate` sirve para comprobar que no falta nada.
+
+> **Prohibido pegar migraciones en la consola de Supabase o registrar filas de
+> `_migraciones` a mano.** Ese procedimiento dejó 045 aplicada a medias y el
+> ledger cinco versiones atrás. Si el ejecutor no puede correr, se corrige su
+> acceso; no se divide ni se copia el archivo SQL.
 
 Orden que no se negocia (`supabase-vercel-produccion §6`):
 
@@ -128,11 +162,68 @@ vuelta atrás ANTES de aplicarla.
 
 ---
 
-## 6 · Lo que no tiene runbook todavía
+## 6 · Restaurar la base
 
-- **Restaurar la base.** Supabase tiene copias automáticas; el procedimiento no
-  se ha ensayado. `morphiq-prs §23A` pide medir RTO y RPO de verdad, y eso está
-  sin hacer.
+### Objetivos vigentes
+
+| Medida | Objetivo operativo | Evidencia al 11 de septiembre de 2026 |
+|---|---:|---|
+| **RPO** | **25 horas** | Cuatro respaldos físicos completados entre el 8 y el 11 de septiembre. El mayor intervalo observado fue **24 h 32 min 2 s**. |
+| **RTO** | **4 horas** | El ensayo lógico completo tardó **17.895 s**. El margen cubre crear el destino gestionado, cambiar secretos, desplegar y hacer humo; esas operaciones externas no se simulan localmente. |
+
+El RPO de 25 horas describe la protección que existe hoy; no promete PITR. Antes
+de incorporar un negocio cuyos movimientos no puedan reconstruirse desde sus
+comprobantes se debe habilitar PITR y bajar el objetivo a 15 minutos.
+
+### Ensayo repetible en un destino aislado
+
+El ensayo lee exclusivamente el proyecto cuyo ref está fijado en el script,
+crea un PostgreSQL temporal en `%TEMP%`, aplica las migraciones con
+`pnpm db:migrate`, restaura todas las tablas públicas y compara cantidad de filas
+y checksum por tabla. El respaldo temporal contiene datos sensibles: el script
+lo elimina junto con el clúster aun cuando falla.
+
+```powershell
+$env:MORPHIQPOS_SUPABASE_PROJECT_REF='wyqmzhliurwyxuyxznpb'
+$env:SUPABASE_CLI_PATH='D:\herramientas\supabase-cli\node_modules\@supabase\cli-windows-x64\bin\supabase.exe'
+$env:MORPHIQPOS_PG_BIN='C:\Program Files\PostgreSQL\18\bin'
+pnpm db:restore:drill
+```
+
+Resultado del 11 de septiembre de 2026, con instantánea creada a las
+11:44:12 UTC:
+
+| Paso medido | Tiempo |
+|---|---:|
+| Extraer respaldo lógico | 3.413 s |
+| Crear destino y aplicar 53 migraciones | 11.110 s |
+| Restaurar datos | 3.070 s |
+| Validar 47 tablas y 825 filas | 0.299 s |
+| **Total** | **17.895 s** |
+
+La instantánea pesó 451,512 bytes. Este número es una línea base para el volumen
+actual; el tiempo crecerá con los datos. Se repite el ensayo cada trimestre y
+antes de una migración que transforme o elimine columnas.
+
+### Incidente real
+
+1. Detén escrituras y anota la hora UTC del último movimiento confirmado.
+2. Ejecuta `supabase backups list --project-ref wyqmzhliurwyxuyxznpb` y elige el
+   punto completado más nuevo anterior al incidente. Si PITR está habilitado,
+   elige el segundo exacto anterior al cambio destructivo.
+3. Restaura primero en un proyecto de sustitución. No restaures encima del
+   origen mientras siga siendo la única copia.
+4. Ejecuta `pnpm db:migrate -- --ensayo` y luego `pnpm db:migrate` contra el
+   destino. Compara el contrato con `pnpm verify:esquema` y `pnpm verify:rls`.
+5. Haz humo de acceso, venta, cobro, corte, inventario y portal QR. Compara los
+   folios y totales del último turno contra los comprobantes del negocio.
+6. Cambia `DATABASE_URL` sólo después de aprobar el humo, despliega y conserva
+   el origen sin escrituras hasta cerrar la conciliación.
+
+---
+
+## 7 · Lo que no tiene runbook todavía
+
 - **Rotar `PIN_PEPPER`.** Cambiarla invalida TODOS los PIN a la vez. Haría falta
   un doble hash de transición, y no existe.
 - **Rotar la contraseña de `morphiqpos_app`.** Se regenera con

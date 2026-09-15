@@ -27,6 +27,9 @@ export type { ResultadoEntrega, ResultadoTransicion } from './preparacion.ts';
 export { solicitarCuenta } from './cuenta.ts';
 export type { Precuenta } from './cuenta.ts';
 
+export { entradaRotarQr, rotarQr } from './qr.ts';
+export type { ResultadoRotarQr } from './qr.ts';
+
 export {
   agruparEnComandas,
   areasDe,

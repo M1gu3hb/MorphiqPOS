@@ -232,7 +232,7 @@ export function contextoPortalFalso(
     ctx: {
       ambito: ambitoFalso(),
       banderas,
-      paquete: 'restaurante',
+      paquete: 'restaurante_pro',
       correlationId: '44444444-4444-4444-8444-444444444444',
       ahora: new Date('2026-09-09T20:00:00Z'),
       tx: base.tx,

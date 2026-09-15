@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_PORTAL } from '@morphiqpos/contracts';
 
 import { definirComandoPublico, type ContextoPortal } from './definicion-publica.ts';
 import { guardarValoracionDelPortal } from './escrituras.ts';
@@ -47,7 +47,7 @@ export const valorarVisita = definirComandoPublico<typeof entradaValorar, Result
   nombre: 'portal.valorar',
   entidad: 'orden',
   accion: 'valorar',
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_PORTAL,
   entrada: entradaValorar,
   async ejecutar(ctx, entrada) {
     const orden = await ctx.paso('buscar_venta', () => ventaValorable(ctx));

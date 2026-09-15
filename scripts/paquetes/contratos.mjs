@@ -38,15 +38,14 @@ export const contratos = [
     },
   },
   {
-    nombre: 'recetas_solo_en_paquetes_de_preparacion',
+    nombre: 'recetas_solo_en_paquetes_operativos',
     ruta: 'packages/app/src/inventario/recetas.ts',
     porque:
-      'En una ferretería un producto no se compone de ingredientes. Costear recetas ahí no es una función que falte: es una que no aplica.',
+      'El paquete Esencial no contrata inventario ni recetas; Operativo y Restaurante Pro sí.',
     comprobar() {
       const codigo = readFileSync('packages/app/src/inventario/recetas.ts', 'utf8');
       return (
-        codigo.includes('paquetes: PAQUETES_PREPARACION') &&
-        !/paquetes:\s*PAQUETES\s*,/.test(codigo)
+        codigo.includes('paquetes: PAQUETES_OPERATIVOS') && !/paquetes:\s*PAQUETES\s*,/.test(codigo)
       );
     },
   },

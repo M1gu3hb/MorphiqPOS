@@ -560,7 +560,7 @@ Se verificó una por una en vez de escribir código que no hacía falta.
   comandos reales; recetas sólo aparecen en Cafetería/Restaurante.
 - **Pruebas:** contrato de cinco paquetes y 403 con `crearModificadorProducto` real.
 - **Verificado con:** mutación que habilita modificadores para todos los paquetes.
-- **Pendiente:** sesión real desde cookie sigue en X-02/A-03.
+- **Pendiente:** E2E con la sesión real espera `DATABASE_URL`.
 
 ## Carril B · B-07b · 2026-09-09 · Configuración conectada
 
@@ -568,7 +568,7 @@ Se verificó una por una en vez de escribir código que no hacía falta.
   paquete; la pantalla conserva y actualiza la versión optimista.
 - **Pruebas:** alta, actualización, conflicto, aislamiento y autorización.
 - **Verificado con:** recarga posterior al comando implementada; lint, tipos y build.
-- **Pendiente:** E2E de persistencia espera `DATABASE_URL` y el resolvedor A-03.
+- **Pendiente:** E2E de persistencia espera `DATABASE_URL`.
 
 ## Carril B · B-06b · 2026-09-09 · Productos conectados
 

@@ -355,7 +355,7 @@ describe('las puertas del servidor', () => {
   const entrada = { rangoTipo: 'dia', ...RANGO };
 
   it('liquidar no existe en una tienda', async () => {
-    const salida = await ejecutorDeProduccion('tienda')(liquidarPropinas, {
+    const salida = await ejecutorDeProduccion('esencial')(liquidarPropinas, {
       entrada,
       ambito: AMBITO,
       idempotencyKey: 'clave-de-prueba-1',
@@ -364,7 +364,7 @@ describe('las puertas del servidor', () => {
   });
 
   it('un mesero no liquida sus propias propinas', async () => {
-    const salida = await ejecutorDeProduccion('restaurante')(liquidarPropinas, {
+    const salida = await ejecutorDeProduccion('restaurante_pro')(liquidarPropinas, {
       entrada,
       ambito: { ...AMBITO, rol: 'mesero' },
       idempotencyKey: 'clave-de-prueba-2',
@@ -373,7 +373,7 @@ describe('las puertas del servidor', () => {
   });
 
   it('cocina no ve propinas: nunca ve dinero (regla 9)', async () => {
-    const salida = await ejecutorDeProduccion('restaurante')(propinasPendientes, {
+    const salida = await ejecutorDeProduccion('restaurante_pro')(propinasPendientes, {
       entrada: { ...RANGO },
       ambito: { ...AMBITO, rol: 'cocina' },
     });
@@ -382,7 +382,7 @@ describe('las puertas del servidor', () => {
 
   it('liquidar sin clave de idempotencia se rechaza', async () => {
     // Un doble clic en «Liquidar» son dos liquidaciones del mismo periodo.
-    const salida = await ejecutorDeProduccion('restaurante')(liquidarPropinas, {
+    const salida = await ejecutorDeProduccion('restaurante_pro')(liquidarPropinas, {
       entrada,
       ambito: AMBITO,
     });

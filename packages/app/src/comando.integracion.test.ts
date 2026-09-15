@@ -40,7 +40,7 @@ function comandoQueEscribe(fallar: boolean) {
     entidad: 'categoria',
     escribe: true,
     roles: ['cajero'],
-    paquetes: ['tienda'],
+    paquetes: ['esencial'],
     entrada: z.object({ nombre: z.string().min(1) }),
     async ejecutar(ctx, entrada) {
       const fila = await ctx.paso('escribir_categoria', () =>
@@ -67,7 +67,20 @@ async function contarCategorias(nombre: string): Promise<number> {
   return Number(fila.n);
 }
 
+async function limpiarOrganizacionDePrueba(): Promise<void> {
+  await conTransaccion(async (tx) => {
+    // Las identidades caen con personas; empleos restringe ese borrado y por
+    // eso debe salir primero. El resto de las filas de esta prueba sí cuelga
+    // de la organización con CASCADE.
+    await tx.deleteFrom('empleos').where('organizacion_id', '=', ORG).execute();
+    await tx.deleteFrom('personas').where('organizacion_id', '=', ORG).execute();
+    await tx.deleteFrom('organizaciones').where('id', '=', ORG).execute();
+  });
+}
+
 beforeAll(async () => {
+  // También deja repetible una corrida interrumpida durante su `afterAll`.
+  await limpiarOrganizacionDePrueba();
   await conTransaccion(async (tx) => {
     await tx
       .insertInto('organizaciones')
@@ -75,7 +88,7 @@ beforeAll(async () => {
         id: ORG,
         nombre: 'Abarrotes de Prueba',
         slug: 'abarrotes-prueba',
-        paquete: 'tienda',
+        paquete: 'esencial',
       })
       .execute();
     await tx
@@ -91,8 +104,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // El borrado en cascada de `organizaciones` se lleva todo lo demás.
-  await conTransaccion((tx) => tx.deleteFrom('organizaciones').where('id', '=', ORG).execute());
+  await limpiarOrganizacionDePrueba();
 });
 
 describe('comando() contra Postgres · atomicidad', () => {

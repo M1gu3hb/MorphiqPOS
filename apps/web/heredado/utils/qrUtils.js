@@ -1,19 +1,16 @@
 'use client';
-// Helpers del Portal QR — token estable por mesa y URLs públicas.
+import { api } from '@/api/cliente';
+
+// Helpers del Portal QR — rotación de credencial y URLs públicas.
 // No usa servicios externos: el QR se genera con `qrcode` (local).
 
 /**
- * Genera un token corto y estable a partir del id de la mesa.
- * El token es público (va en la URL del QR) y NO expone datos sensibles.
+ * Pide al servidor una credencial nueva para la mesa.
  */
-export function generarTokenMesa(mesaId) {
+export async function generarTokenMesa(mesaId) {
   if (!mesaId) return '';
-  // Hash simple no criptográfico (suficiente para QR público).
-  let h = 0;
-  for (let i = 0; i < mesaId.length; i++) {
-    h = (h * 31 + mesaId.charCodeAt(i)) >>> 0;
-  }
-  return 'm' + h.toString(36) + mesaId.slice(-4);
+  const resultado = await api.comandos.ejecutar('/api/restaurante/rotar-qr', { mesaId });
+  return resultado.qrToken;
 }
 
 /**

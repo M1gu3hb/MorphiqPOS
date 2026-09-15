@@ -99,8 +99,8 @@ interface ConsultaLibre {
  */
 const BASE = 'b';
 
-/** El alias del derivado número `n`. Uno por campo: dos campos pueden mirar la
- * misma tabla por columnas distintas —el mesero asignado y quien atiende— y
+/** El alias del grupo de derivados número `n`. Dos campos que hacen exactamente
+ * el mismo `join` comparten alias; si cambia una de las columnas de enlace,
  * necesitan filas distintas. */
 function aliasDerivado(n: number): string {
   return `d${String(n)}`;
@@ -117,7 +117,7 @@ export async function consultar(
       `La entidad «${peticion.entidad}» no existe en el puente.`,
     );
   }
-  if (mapa.rolesLectura !== undefined && !mapa.rolesLectura.includes(ambito.rol)) {
+  if (!mapa.rolesLectura.includes(ambito.rol)) {
     throw new ErrorDominio('PUENTE_SIN_PERMISO', 'Tu rol no puede leer esa información.');
   }
 
@@ -136,11 +136,37 @@ export async function consultar(
     .map(([suyo, campo]) => `${BASE}.${campo.columna} as ${suyo}`);
 
   // Los campos que su frontend lee y no son columnas de esta tabla: el nombre
-  // del mesero, el número de la mesa, la zona. Un `left join` por campo, y
-  // `left` a propósito: un pedido sin mesa es normal y no debe desaparecer.
-  const derivados = Object.entries(mapa.derivados ?? {}).filter(([, d]) => puedeVer(d));
-  derivados.forEach(([suyo, derivado], indice) => {
-    columnas.push(`${aliasDerivado(indice)}.${derivado.columna} as ${suyo}`);
+  // del mesero, el número de la mesa, la zona. Varios campos pueden salir del
+  // MISMO salto (los importes de una venta salen juntos de la vista de pagos),
+  // así que se agrupan por su enlace y comparten un solo `left join`.
+  const gruposDerivados = new Map<
+    string,
+    {
+      readonly alias: string;
+      readonly tabla: string;
+      readonly porColumna: string;
+      readonly emparejaCon: string;
+    }
+  >();
+  const derivados = Object.entries(mapa.derivados ?? {})
+    .filter(([, derivado]) => puedeVer(derivado))
+    .map(([suyo, derivado]) => {
+      const emparejaCon = derivado.emparejaCon ?? 'id';
+      const firma = JSON.stringify([derivado.tabla, derivado.porColumna, emparejaCon]);
+      let grupo = gruposDerivados.get(firma);
+      if (grupo === undefined) {
+        grupo = {
+          alias: aliasDerivado(gruposDerivados.size),
+          tabla: derivado.tabla,
+          porColumna: derivado.porColumna,
+          emparejaCon,
+        };
+        gruposDerivados.set(firma, grupo);
+      }
+      return { suyo, derivado, alias: grupo.alias };
+    });
+  derivados.forEach(({ suyo, derivado, alias }) => {
+    columnas.push(`${alias}.${derivado.columna} as ${suyo}`);
   });
 
   // La tabla y las columnas salen del MAPA, nunca del cliente. Ver `db-dinamica.ts`.
@@ -151,12 +177,11 @@ export async function consultar(
   // 0 · Los derivados. El emparejamiento es por clave primaria —`id` es un
   //     uuid global, no por organización—, así que un solo lado basta y el
   //     ámbito de la fila principal ya acota lo que se puede ver.
-  derivados.forEach(([, derivado], indice) => {
-    const alias = aliasDerivado(indice);
+  gruposDerivados.forEach(({ alias, tabla, porColumna, emparejaCon }) => {
     consulta = consulta.leftJoin(
-      `${derivado.tabla} as ${alias}`,
-      `${alias}.${derivado.emparejaCon ?? 'id'}`,
-      `${BASE}.${derivado.porColumna}`,
+      `${tabla} as ${alias}`,
+      `${alias}.${emparejaCon}`,
+      `${BASE}.${porColumna}`,
     );
   });
 
@@ -390,6 +415,26 @@ const FORMULAS: Readonly<Record<Calculo, (fila: Fila) => unknown>> = {
     // Redondeo al centavo más cercano, UNA sola vez y al final.
     const redondeado = (bruto + divisor / 2n) / divisor;
     return Number(redondeado) / CENTAVOS_POR_PESO;
+  },
+  propinaLiquidada(fila) {
+    const id = fila['propina_liquidacion_id'];
+    return typeof id === 'string' && id.length > 0;
+  },
+  etiquetaSatisfaccion(fila) {
+    const etiquetas: Readonly<Record<number, string>> = {
+      1: 'Muy mala',
+      2: 'Mala',
+      3: 'Regular',
+      4: 'Buena',
+      5: 'Excelente',
+    };
+    const score = enteroDe(fila['satisfaccion_score']);
+    return score === null ? null : (etiquetas[Number(score)] ?? null);
+  },
+  fechaDeCreacion(fila) {
+    const fecha = fila['created_date'];
+    if (fecha instanceof Date) return fecha.toISOString();
+    return typeof fecha === 'string' && fecha.length > 0 ? fecha : null;
   },
 };
 

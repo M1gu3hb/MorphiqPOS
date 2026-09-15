@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_PORTAL } from '@morphiqpos/contracts';
 import type { z } from 'zod';
 
 import { definirComandoPublico, type ContextoPortal } from './definicion-publica.ts';
@@ -40,7 +40,7 @@ export const abrirMesaDesdeQR = definirComandoPublico<typeof entradaAbrirMesa, R
   nombre: 'portal.abrir_mesa',
   entidad: 'orden',
   accion: 'abrir_mesa',
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_PORTAL,
   entrada: entradaAbrirMesa,
   async ejecutar(ctx, entrada) {
     const { ambito } = ctx;

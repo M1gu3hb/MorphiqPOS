@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_PORTAL } from '@morphiqpos/contracts';
 import type { repoVentaCatalogo } from '@morphiqpos/data';
 
 import { cotizar } from '../venta/cotizar.ts';
@@ -57,7 +57,7 @@ export const enviarPedidoDesdeQR = definirComandoPublico<
   nombre: 'portal.enviar_pedido',
   entidad: 'orden',
   accion: 'enviar_pedido',
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_PORTAL,
   entrada: entradaEnviarPedido,
   async ejecutar(ctx, entrada) {
     exigirPedidosDesdeElTelefono(ctx);

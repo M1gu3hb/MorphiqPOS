@@ -27,6 +27,11 @@ cargarEnv({ path: [join(RAIZ, '.env.local'), join(RAIZ, '.env')], override: fals
  * enviaba nada de esto.
  */
 const cabecerasDeSeguridad = [
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains; preload',
+  },
+
   // El navegador no adivina el tipo de un archivo. Corta la via de subir un
   // .txt que el navegador decide ejecutar como script (relacionado con SEC-UPLOAD).
   { key: 'X-Content-Type-Options', value: 'nosniff' },

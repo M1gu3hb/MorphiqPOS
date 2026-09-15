@@ -17,6 +17,9 @@ allowBuilds:
   # patrocinio. Se aprueba para que `pnpm install` no falle pidiendo una
   # decision que ya esta tomada.
   core-js: true
+  # Decodifica y vuelve a codificar las imágenes subidas. Su instalación elige
+  # el binario precompilado de libvips para la plataforma actual.
+  sharp: true
 
 catalog:
   typescript: 6.0.3

@@ -267,13 +267,9 @@ export default function EstacionesPreparacionSection({ embedded = false }) {
         const reasigna = cocinaGeneral
           ? {
               estacion_preparacion_id: cocinaGeneral.id,
-              estacion_preparacion_nombre: cocinaGeneral.nombre,
-              estacion_preparacion_color: cocinaGeneral.color || COCINA_GENERAL_COLOR,
             }
           : {
               estacion_preparacion_id: '',
-              estacion_preparacion_nombre: '',
-              estacion_preparacion_color: '',
             };
         await Promise.all(
           cats.map((c) => api.entidades.CategoriaProducto.update(c.id, reasigna).catch(() => {})),

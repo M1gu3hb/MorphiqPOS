@@ -28,7 +28,13 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatCurrency } from '@/utils/financialUtils';
-import { filtrarVentasEnRango, sumarPropinas, agruparPropinasPorMesero } from '@/utils/tipsUtils';
+import {
+  agruparPropinasPorMesero,
+  filtrarVentasConPropina,
+  filtrarVentasEnRango,
+  propinaDerivada,
+  sumarPropinas,
+} from '@/utils/tipsUtils';
 import LiquidarPropinasDialog from '@/components/propinas/LiquidarPropinasDialog';
 
 const RANGOS = [
@@ -102,7 +108,7 @@ export default function PropinasRegistros() {
   const ventasFiltradas = useMemo(() => {
     const safe = Array.isArray(ventas) ? ventas : [];
     let res = filtrarVentasEnRango(
-      safe.filter((v) => v?.estado === 'pagada' && (Number(v?.propina_monto) || 0) > 0),
+      filtrarVentasConPropina(safe),
       range.from,
       range.to,
     );
@@ -347,7 +353,7 @@ export default function PropinasRegistros() {
                   {v.propina_origen || '—'}
                 </Badge>
                 <p className="font-heading font-black min-w-[80px] text-right text-rose-600">
-                  {formatCurrency(v.propina_monto)}
+                  {formatCurrency(propinaDerivada(v))}
                 </p>
               </div>
             ))}

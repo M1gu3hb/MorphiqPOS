@@ -35,7 +35,15 @@ import CorteAutoDownloader from '@/components/cortes/CorteAutoDownloader';
 import { printDocument } from '@/lib/print';
 import CorteHistorialList from '@/components/cortes/CorteHistorialList';
 import ResumenDelDia from '@/components/caja/ResumenDelDia';
-import { desgloseMetodosPagoExacto } from '@/utils/tipsUtils';
+import {
+  agruparPropinasPorMesero,
+  desgloseMetodosPagoExacto,
+  getPorcentajesSugeridos,
+  propinaDerivada,
+  requiereConfirmarPropinaAntesDeCobrar,
+  sumarPropinas,
+  tipsEnabled,
+} from '@/utils/tipsUtils';
 import SafeBoundary from '@/components/common/SafeBoundary';
 import AbrirCajaDialog from '@/components/caja/AbrirCajaDialog';
 import CorteTurnoDialog from '@/components/caja/CorteTurnoDialog';
@@ -43,7 +51,6 @@ import CierreDiarioDialog from '@/components/caja/CierreDiarioDialog';
 import MesasPendientesCierreDialog from '@/components/caja/MesasPendientesCierreDialog';
 import { obtenerMesasPendientesCierre } from '@/utils/mesasPendientesCierre';
 import { useCajaAbierta } from '@/lib/useCajaAbierta';
-import { tipsEnabled, getPorcentajesSugeridos } from '@/utils/tipsUtils';
 import { sumarSubtotalDetalles } from '@/utils/ventaTotales';
 import { TIPO_VENTA } from '@/utils/tipoVentaUtils';
 // El cobro entero es una transacción del servidor (`venta.cobrar`), así que el
@@ -109,42 +116,6 @@ const TIPOS_DE_PROPINA = [
   'decidir_en_caja',
 ];
 const ORIGENES_DE_PROPINA = ['mesero', 'caja', 'tradicional', 'portal_qr', 'pendiente_portal_qr'];
-
-/**
- * La propina que el comensal YA decidió, en pesos.
- *
- * `ordenes` no tiene columna con el importe de la propina, y es a propósito: es
- * lo que impide que `total` se pueda inflar con una (F1-04 §6.1). Así que el
- * puente no puede traer `propina_monto` y llega `undefined`. Lo que sí persiste
- * es el PORCENTAJE que el comensal eligió en el portal QR o que el mesero
- * registró al pedir la cuenta (`ordenes.propina_puntos_base`).
- *
- * El importe se deriva de ese porcentaje AL COBRAR, que es cuando se conoce el
- * total definitivo. Sin esta derivación la propina del mesero se perdía entera
- * y en silencio: la caja enseñaba «sin propina» sobre una cuenta que el cliente
- * había dejado al 15 %, y el pago viajaba con propina cero.
- *
- * Se redondea en CENTAVOS y una sola vez: `total * 0.15` en coma flotante deja
- * medios centavos, y el renglón de pago sólo acepta enteros.
- */
-function propinaDerivada(venta) {
-  const yaElegida = Number(venta?.propina_monto);
-  if (Number.isFinite(yaElegida) && yaElegida > 0) return yaElegida;
-  // `monto_manual` entra con `porcentaje`, y hasta ahora no entraba: quedaba
-  // fuera del `if` y la función devolvía CERO, así que una propina que el
-  // comensal escribió a mano en el portal QR no se cobraba nunca. El servidor
-  // guarda los dos —el importe exacto en la solicitud y su equivalente en
-  // puntos base en la orden—, y esto reconstruye el segundo.
-  //
-  // El importe reconstruido puede diferir en UN CENTAVO del que tecleó el
-  // comensal, porque los puntos base son enteros y se recortan al 100 %. Por
-  // eso `monto_manual` fuerza el diálogo de propina más abajo: el cajero VE la
-  // cifra y la confirma antes de cobrar, en vez de que el sistema decida solo.
-  if (venta?.propina_tipo !== 'porcentaje' && venta?.propina_tipo !== 'monto_manual') return 0;
-  const porcentaje = Number(venta?.propina_porcentaje) || 0;
-  if (porcentaje <= 0) return 0;
-  return aPesos(Math.round((aCentavos(venta?.total) * porcentaje) / 100));
-}
 
 export default function Caja() {
   const { posUser } = usePOSAuth();
@@ -269,22 +240,9 @@ export default function Caja() {
       return tCreated >= apertura;
     });
     // Propinas: sumadas aparte. NO entran a totalGeneral / utilidad / costos.
-    const totalPropinas = ventas.reduce((s, v) => s + (Number(v?.propina_monto) || 0), 0);
+    const totalPropinas = sumarPropinas(ventas);
     // Desglose por mesero (solo se usa en Restaurante Pro)
-    const propinasPorMesero = {};
-    ventas.forEach((v) => {
-      const monto = Number(v?.propina_monto) || 0;
-      if (monto <= 0) return;
-      const key = v?.usuario_mesero_id || '__sin_mesero__';
-      if (!propinasPorMesero[key]) {
-        propinasPorMesero[key] = {
-          mesero_id: v?.usuario_mesero_id || null,
-          mesero_nombre: v?.usuario_mesero_nombre || 'Caja / venta directa',
-          total: 0,
-        };
-      }
-      propinasPorMesero[key].total += monto;
-    });
+    const propinasPorMesero = agruparPropinasPorMesero(ventas);
 
     // === Desglose EXACTO por método de pago (sin reparto proporcional) ===
     // Usa propina_efectivo/tarjeta/transferencia cuando existen.
@@ -305,7 +263,7 @@ export default function Caja() {
       ticketPromedio:
         ventas.length > 0 ? ventas.reduce((s, v) => s + (v.total || 0), 0) / ventas.length : 0,
       totalPropinas,
-      propinasPorMesero: Object.values(propinasPorMesero),
+      propinasPorMesero,
       metodosPagoConPropinas,
     };
   }, [ventasHoy, gastos, cajaAbierta]);
@@ -573,13 +531,7 @@ export default function Caja() {
     // cajero lo ve prellenado y lo confirma, que es exactamente lo que este
     // diálogo existe para hacer. Antes ese caso ni forzaba el diálogo ni se
     // derivaba, así que la propina del portal se perdía entera.
-    const tiposQueForzanModal = [
-      'pendiente',
-      'pendiente_cliente',
-      'decidir_en_caja',
-      'monto_manual',
-    ];
-    if (tiposQueForzanModal.includes(ventaSeleccionada.propina_tipo) && tipsEnabled(config)) {
+    if (requiereConfirmarPropinaAntesDeCobrar(ventaSeleccionada, config)) {
       setShowPropinaCaja(true);
       toast.error('Define la propina antes de cobrar (o "Sin propina").');
       return;
@@ -1056,25 +1008,7 @@ export default function Caja() {
 
       // Cola de sincronización (no bloqueante)
       try {
-        const nowIso = new Date().toISOString();
-        await Promise.all([
-          api.entidades.IntegrationSyncLog.create({
-            record_type: 'cash_cut',
-            record_id: corteId,
-            destination: 'google_sheets',
-            status: 'pending_external_sync',
-            attempts: 0,
-            last_attempt_at: nowIso,
-          }),
-          api.entidades.IntegrationSyncLog.create({
-            record_type: 'cash_cut_pdf',
-            record_id: corteId,
-            destination: 'google_drive',
-            status: 'pending_external_sync',
-            attempts: 0,
-            last_attempt_at: nowIso,
-          }),
-        ]);
+        await api.comandos.ejecutar('/api/caja/encolar-sincronizacion', { corteId });
         queryClient.invalidateQueries({ queryKey: ['integration_sync_logs_pending'] });
       } catch (err) {
         // La caja YA está cerrada: esto es una cola externa, y no encolar un
@@ -1344,11 +1278,11 @@ export default function Caja() {
                             Number(v.propina_porcentaje) > 0 ? (
                             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
                               QR: propina {v.propina_porcentaje}% (
-                              {formatCurrency(Number(v.propina_monto) || 0)})
+                              {formatCurrency(propinaDerivada(v))})
                             </span>
-                          ) : (Number(v.propina_monto) || 0) > 0 ? (
+                          ) : propinaDerivada(v) > 0 ? (
                             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
-                              QR: propina {formatCurrency(Number(v.propina_monto) || 0)}
+                              QR: propina {formatCurrency(propinaDerivada(v))}
                             </span>
                           ) : (
                             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_PORTAL } from '@morphiqpos/contracts';
 
 import { definirComandoPublico, type ContextoPortal } from './definicion-publica.ts';
 import { violaIndice } from './errores-sql.ts';
@@ -33,7 +33,7 @@ export const crearSolicitudQR = definirComandoPublico<
   nombre: 'portal.crear_solicitud',
   entidad: 'solicitud_qr',
   accion: 'crear_solicitud',
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_PORTAL,
   entrada: entradaCrearSolicitud,
   async ejecutar(ctx, entrada) {
     exigirTipoHabilitado(ctx, entrada.tipo);
