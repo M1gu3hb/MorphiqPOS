@@ -26,3 +26,4 @@ export * as repoLimite from './repos/limite.ts';
 export * as repoArchivos from './repos/archivos.ts';
 export * as repoNegocio from './repos/negocio.ts';
 export * as repoSincronizacion from './repos/sincronizacion.ts';
+export { dividirCuenta, type DatosDeDivision, type HijaCreada } from './repos/ordenes/division.ts';
