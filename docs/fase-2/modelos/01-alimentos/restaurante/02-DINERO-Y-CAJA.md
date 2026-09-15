@@ -17,8 +17,8 @@ La venta de este negocio es **el consumo cobrado de una cuenta cerrada**. Ni un 
 | **Consumo de alimentos y bebidas** | **Sí** | Es la única fuente de ingreso del modelo. Se registra en `ordenes.total_centavos`, que es el total **real, sin propina**, y jamás se infla. |
 | **Propina** | **No** | Vive en `pagos`, separada de la venta, y se proyecta en la vista `ordenes_pagos_resumen`. No toca ventas, utilidad, costo, inventario, receta ni margen. Ver §4. |
 | **Descuento aplicado** | Resta | `ordenes.descuento_centavos`. Baja la venta y baja el margen. **No baja el costo**: el insumo ya se consumió igual. |
-| **Cortesía / platillo regalado** | **No es venta** | Hoy se resuelve mal: o se cancela la cuenta o se descuenta al 100%. Ninguna de las dos registra que el insumo salió. Se resuelve con **F-326** (pendiente): sale del stock, no entra a ventas, y aparece en su propia línea del corte. |
-| **Comida del personal** | **No es venta** | Mismo caso. Hoy se registra como merma y ensucia el indicador de merma, que es el que sirve para detectar robo. F-326 lo separa. |
+| **Cortesía / platillo regalado** | **No es venta** | Hoy se resuelve mal: o se cancela la cuenta o se descuenta al 100%. Ninguna de las dos registra que el insumo salió. Se resuelve con **F-261** (pendiente): sale del stock, no entra a ventas, y aparece en su propia línea del corte. |
+| **Comida del personal** | **No es venta** | Mismo caso. Hoy se registra como merma y ensucia el indicador de merma, que es el que sirve para detectar robo. F-261 lo separa. |
 | **Anticipo o depósito por reservación** | **No aplica** | Este modelo no cobra por adelantado. El que cobra anticipo es `catering-banquetes` y `salon-eventos`, que son A5+A7. Si aquí apareciera un anticipo, sería una reserva de grupo grande y entra por otro modelo. |
 | **Envío / domicilio** | **No aplica** | El restaurante de mesa no reparte. Si empieza a repartir, es `pizzeria` (A2 + Delivery) y el envío entra como concepto propio, no como platillo. |
 | **Comisión de app de terceros (Rappi, DiDi)** | **No aplica** | Fuera del modelo base, por la misma razón. Cuando entre (F-826), la comisión es **gasto**, nunca un descuento sobre la venta: si se resta de la venta, el food cost se ve artificialmente peor. |
@@ -304,7 +304,7 @@ esperado antes, todo el mundo teclearía ese número y el arqueo dejaría de exi
 cuenta viva y, si hay, abre un diálogo con la lista y no deja continuar. La verificación se hace
 **dos veces** —antes de abrir el diálogo de cierre y otra vez justo antes de ejecutar— para cerrar
 la carrera de la mesa que se abrió en los treinta segundos que el encargado tardó en contar el
-cajón. Es la función **F-327** que hay que dar de alta en el catálogo.
+cajón. Es la función **F-262** que hay que dar de alta en el catálogo.
 
 ---
 
@@ -485,6 +485,6 @@ da el histórico y el signo lo impone la base, así que nadie puede maquillarlo 
 movimiento al revés.
 **Lo que falta, y es mucho.** **F-106** (toma de inventario físico) para tener el número real,
 **F-133** (rendimiento real contra teórico) para calcular la diferencia automáticamente, y
-**F-326** (consumo de empleados y cortesías) para sacar de la ecuación lo que sí tiene explicación.
+**F-261** (consumo de empleados y cortesías) para sacar de la ecuación lo que sí tiene explicación.
 Con esas tres, la pregunta "¿quién me está robando?" pasa de ser una sospecha a ser un renglón.
 Sin ellas, el sistema enseña el síntoma y no el diagnóstico.

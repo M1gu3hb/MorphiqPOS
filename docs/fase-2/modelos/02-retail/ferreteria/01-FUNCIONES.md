@@ -769,9 +769,20 @@ que necesita. D-01 la manda a `tienda` provisional. Esto es lo que falta para qu
 
 ## 6 · FUNCIONES QUE FALTAN EN EL CATÁLOGO
 
-**Se añaden a `03-CATALOGO-DE-FUNCIONES.md` antes de construir nada**, junto con las diez que ya
-propuso `abarrotes`. Sin ID canónico se van a reinventar con otro nombre en `materiales-construccion`,
-en `refaccionaria` y en `merceria-telas`.
+**Ya están en `03-CATALOGO-DE-FUNCIONES.md`**, junto con las diez de `abarrotes`. Sin ID canónico se
+iban a reinventar con otro nombre en `materiales-construccion`, en `refaccionaria` y en
+`merceria-telas`.
+
+> **Reconciliado el 14-09-2026 (D-11).** Este modelo **conservó sus diez IDs** (F-059, F-060,
+> F-061, F-150, F-151, F-152, F-153, F-258, F-638, F-639) y sus tres reclasificaciones se aplicaron
+> tal cual: **F-034** pasa a `[≠]`, **F-121** pasa a `[≠]`, y **F-029** suma su tercera variante
+> (catálogo mixto con SKU interno impreso).
+>
+> Un cambio: lo que este modelo llamaba **«F-254 · cobro de crédito en caja»** y `abarrotes` llamaba
+> **«cobro de fiado en caja»** resultaron ser **la misma función**, y se fusionaron en un solo
+> F-254. Es trabajo ahorrado: una tabla, un comando y una pantalla en vez de dos. Que una carpeta
+> diga «crédito» y la otra «fiado» lo resuelve el diccionario de vocabulario (F-017), no un ID
+> nuevo.
 
 | ID propuesto | Función | Bloque | Por qué hace falta |
 |---|---|---|---|

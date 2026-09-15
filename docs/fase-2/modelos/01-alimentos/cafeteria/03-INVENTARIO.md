@@ -21,7 +21,7 @@ V6 es la variante correcta y las otras nueve se descartan una por una:
 | **V1 sin inventario** | El insumo es el 32% de la venta. Apagarlo sería apagar el negocio. |
 | **V2 stock simple (pieza)** | Serviría para el pan y para el grano en bolsa, y no sirve para nada más. El café se mide en gramos y la leche en mililitros: contar "latte" en piezas no dice cuánta leche queda. |
 | **V3 presentaciones (caja ↔ pieza)** | El factor de conversión sirve para revender empaquetado. Aquí el kilo de café no se abre en piezas: se muele en dosis de 18 a 20 gramos. |
-| **V4 lote y caducidad** | Con un matiz que hay que decir con cuidado, porque es la variante que más tienta. La leche **sí** caduca, en cinco a siete días. Pero el volumen es tan chico —dos o tres cartones abiertos a la vez— que la rotación física resuelve el 100% de los casos, y capturar lote por cartón de leche es trabajo diario sin beneficio. Y el **café no caduca: pierde**. Eso no es V4, es F-148. Ver §7.3. |
+| **V4 lote y caducidad** | Con un matiz que hay que decir con cuidado, porque es la variante que más tienta. La leche **sí** caduca, en cinco a siete días. Pero el volumen es tan chico —dos o tres cartones abiertos a la vez— que la rotación física resuelve el 100% de los casos, y capturar lote por cartón de leche es trabajo diario sin beneficio. Y el **café no caduca: pierde**. Eso no es V4, es F-157. Ver §7.3. |
 | **V5 número de serie** | Ningún insumo es único ni rastreable individualmente. |
 | **V7 producción por lote** | Es de la panadería. Aquí no se produce contra inventario: se produce contra un pedido que **ya se cobró**. Nunca hay producto terminado guardado, salvo el pan — que se compra, no se produce. Si Café Jacaranda empezara a hornear su propio pan, ese módulo entra por `panaderia-pasteleria`, no por aquí. |
 | **V8 por proyecto** | No hay obra. |
@@ -132,7 +132,7 @@ seis litros de avena, porque todo lo vendido ya se descontó.
 **La consecuencia que sí hay que resolver, y es la única.** Cobrar antes significa que **no hay
 "deshacer" barato**. En restaurante, una comanda equivocada se cancela y no pasó nada porque el
 stock no se había movido. Aquí, si la bebida se pidió mal, el stock ya bajó y el dinero ya entró:
-corregir es una devolución más un consumo extra. Por eso **F-146 (merma de barra) no es un lujo, es
+corregir es una devolución más un consumo extra. Por eso **F-156 (merma de barra) no es un lujo, es
 el complemento obligatorio de haber descontado al cobrar**. Sin ella, cada bebida rehecha deja el
 ledger un poco más torcido, todos los días.
 
@@ -160,7 +160,7 @@ ledger un poco más torcido, todos los días.
 | Entrada | Cuándo pasa | Qué escribe |
 |---|---|---|
 | **Compra de leche y pan** | Martes y viernes la leche, diario el pan, entre 06:45 y 07:00 | Compra en una transacción, movimientos de entrada, recálculo del costo promedio ponderado. Se captura **de pie, con la puerta abierta y el repartidor esperando**: por eso la plantilla de compra recurrente es obligatoria aquí, no opcional. El pedido de leche es literalmente el mismo todas las semanas. |
-| **Compra de café al tostador** | Cada 10 a 15 días, 6 a 12 kg, mínimo de pedido | Igual, **más la captura de la fecha de tueste** (F-148). Es el único campo extra de esta plantilla en la recepción de compra, y es el que permite saber si el grano de la tolva sigue sirviendo. |
+| **Compra de café al tostador** | Cada 10 a 15 días, 6 a 12 kg, mínimo de pedido | Igual, **más la captura de la fecha de tueste** (F-157). Es el único campo extra de esta plantilla en la recepción de compra, y es el que permite saber si el grano de la tolva sigue sirviendo. |
 | **Compra de empaque** | Cada 3 a 6 semanas, por millar | Igual. Es la compra que siempre se hace tarde porque nadie sabe cuántos vasos quedan — y es exactamente lo que resuelve la sección de canal del corte. |
 | **Producción de hielo** | Continua, la máquina trabaja sola | **Hueco real y se declara.** El hielo se consume por receta y no tiene entrada: la máquina produce de agua y electricidad. Hoy se resuelve declarándolo insumo con costo cero y ajustando el gasto de agua y luz por aparte, que es tosco y honesto. La forma correcta sería una receta de producción (F-134 de V7), y no vale la pena construir V7 entero por el hielo. Queda anotado. |
 | **Armado de bolsa de grano 250 g** | Cuando bajan las bolsas del anaquel | **Segundo hueco.** Se toma café del almacén, se envasa, y nace un producto vendible. Es producción por lote en miniatura. Hoy se resuelve con un ajuste doble —salida de 250 g de café, entrada de 1 bolsa— capturado a mano. También es V7 en chiquito y también se difiere, **pero se difiere sabiendo que el día que el grano en bolsa pase del 10% de la venta, hay que construirlo.** |
@@ -175,13 +175,13 @@ ledger un poco más torcido, todos los días.
 | Salida | Disparador | Motivo obligatorio |
 |---|---|---|
 | **Venta** | Cobro, vía explosión de receta con modificadores y canal | No (lo da la referencia) |
-| **Calibración del molino** | Apertura, todos los días | **Sí** — `calibracion`. F-146 |
-| **Vaporizado sobrante** | Al terminar una tanda de bebidas | **Sí** — `vaporizado`. F-146 |
-| **Bebida rehecha** | El cliente reclama o el barista no queda conforme | **Sí** — `bebida_rehecha`. F-146. **El insumo se consume por segunda vez después de cobrado** |
-| **Caducidad de leche** | Cartón que se pasó | **Sí** — `caducidad_leche`. F-146 |
+| **Calibración del molino** | Apertura, todos los días | **Sí** — `calibracion`. F-156 |
+| **Vaporizado sobrante** | Al terminar una tanda de bebidas | **Sí** — `vaporizado`. F-156 |
+| **Bebida rehecha** | El cliente reclama o el barista no queda conforme | **Sí** — `bebida_rehecha`. F-156. **El insumo se consume por segunda vez después de cobrado** |
+| **Caducidad de leche** | Cartón que se pasó | **Sí** — `caducidad_leche`. F-156 |
 | **Derrame / vaso tirado** | Se cayó | **Sí** — merma general, F-109 |
-| **Consumo del personal** | Tres personas, tres o cuatro bebidas de turno | **Sí** — F-326, `tipo: 'personal'`. NO es merma |
-| **Cortesía al cliente** | "Se te cayó, te hago otro" | **Sí** — F-326, `tipo: 'cortesia'` |
+| **Consumo del personal** | Tres personas, tres o cuatro bebidas de turno | **Sí** — F-261, `tipo: 'personal'`. NO es merma |
+| **Cortesía al cliente** | "Se te cayó, te hago otro" | **Sí** — F-261, `tipo: 'cortesia'` |
 | **Canje de sello** | El sexto café | No: lo da la referencia `canje_lealtad`. Sale del stock, **no entra a ventas** |
 | **Pedido no recogido** | Se llamó tres veces y nadie vino | La bebida se hizo: el insumo ya salió por la venta. Lo que se registra es el **estado del pedido**, no un movimiento nuevo |
 | **Ajuste negativo** | Diferencia de conteo | **Sí** |
@@ -254,10 +254,10 @@ Cinco tipos, y son distintos porque apuntan a cinco arreglos distintos.
 
 | Tipo | Qué es | Dónde se registra | Cuánto es normal |
 |---|---|---|---|
-| **Calibración (dial-in)** | Los 3 a 5 shots que se tiran cada mañana hasta que el tiempo de extracción cuadra, más las purgas de 2–3 g al cambiar molienda | F-146, motivo `calibracion`, **un toque en la apertura** | 54 a 90 g de café al día. **$22 a $36 diarios, ~$700 al mes** |
-| **Vaporizado sobrante** | El fondo de la jarra que se tira porque quedó "húmeda" o porque se calentó de más | F-146, motivo `vaporizado` | Parte del 5–15% de merma de leche. Objetivo: por debajo del 10% total |
-| **Bebida rehecha** | Salió con la leche equivocada, salió fría, el cliente cambió de opinión | F-146, motivo `bebida_rehecha` | 1–2% de las bebidas. Arriba de 3% es problema de captura, no de barra |
-| **Caducidad de leche** | El cartón que se pasó | F-146, motivo `caducidad_leche` | Debería ser cero con rotación. Arriba de dos cartones al mes es sobrecompra |
+| **Calibración (dial-in)** | Los 3 a 5 shots que se tiran cada mañana hasta que el tiempo de extracción cuadra, más las purgas de 2–3 g al cambiar molienda | F-156, motivo `calibracion`, **un toque en la apertura** | 54 a 90 g de café al día. **$22 a $36 diarios, ~$700 al mes** |
+| **Vaporizado sobrante** | El fondo de la jarra que se tira porque quedó "húmeda" o porque se calentó de más | F-156, motivo `vaporizado` | Parte del 5–15% de merma de leche. Objetivo: por debajo del 10% total |
+| **Bebida rehecha** | Salió con la leche equivocada, salió fría, el cliente cambió de opinión | F-156, motivo `bebida_rehecha` | 1–2% de las bebidas. Arriba de 3% es problema de captura, no de barra |
+| **Caducidad de leche** | El cartón que se pasó | F-156, motivo `caducidad_leche` | Debería ser cero con rotación. Arriba de dos cartones al mes es sobrecompra |
 | **Derrame y rotura** | Se cayó el vaso, se rompió la taza | F-109, merma general | 0.5–1% |
 
 **La merma que define a este giro es la de leche, y el dato de la industria es que va del 5% al
@@ -279,7 +279,7 @@ recetas**. Enseñar un campo que siempre vale cero enseña a ignorar los campos.
 
 ### 7.3 · La frescura del grano, que no es merma ni caducidad
 
-**F-148.** El café no se echa a perder: se vuelve plano. Se bebe bien entre los **3 y los 30 días
+**F-157.** El café no se echa a perder: se vuelve plano. Se bebe bien entre los **3 y los 30 días
 después del tueste** — antes de tres días desgasifica y la extracción es inestable; después de
 treinta pierde aromáticos y el espresso pierde crema. Un cliente de especialidad lo nota antes que
 la dueña.
@@ -319,7 +319,7 @@ sábado y promediar los siete días miente en los dos extremos.
 | **Un tipo de leche agotado con bebidas activas** | En cuanto llega a cero | **Al barista, en la pantalla de cobro, antes de venderla.** El modificador "leche de avena" se apaga solo. Es el equivalente exacto del producto agotado del mesero en `restaurante` |
 | **Vasos o tapas de una medida por debajo de 200 piezas** | Al cruzar el umbral | A la dueña. Doscientas piezas es un día y medio y el proveedor de empaque tarda tres |
 | **Café por debajo de 3 días** | Al cruzar | A la dueña. Tres días porque el tostador entrega en 48 horas **y el grano necesita reposar** |
-| **Grano abierto con más de 30 días de tueste** | Diario, a la apertura | Al barista y a la dueña. F-148 |
+| **Grano abierto con más de 30 días de tueste** | Diario, a la apertura | Al barista y a la dueña. F-157 |
 | **Cambio bajo en el cajón** | Durante el turno | Al barista. No es inventario de insumo, pero es el mismo mecanismo y el mismo tipo de urgencia. Ver `02-DINERO-Y-CAJA.md` §8.2 |
 | **Merma de leche del turno por encima del 12%** | Al corte | A la dueña. Es la señal temprana de fuga |
 
@@ -374,7 +374,7 @@ también el costeo, el margen por producto y toda la sección de insumos del cor
 primera hora, antes de abrir la caja, y no hay ningún sistema en el mercado donde se puedan
 registrar. Son 1.6 a 2.7 kg al mes, que es **exactamente** la diferencia que aparece.
 
-**Qué hace el sistema.** **F-146** con motivo `calibracion`, capturable en un toque desde la
+**Qué hace el sistema.** **F-156** con motivo `calibracion`, capturable en un toque desde la
 apertura: un botón que dice *"Calibración: 3 shots"* con `+` y `−`, que multiplica por el gramaje
 declarado del shot y escribe el movimiento. Cuatro segundos al día. Y aparece en su propia sección
 del corte, todos los días, para que se vea.
@@ -401,7 +401,7 @@ el número aparece en la misma pantalla donde se acaba de teclear el conteo.
 
 **Lo que falta, y es mucho.** **F-106** para que el conteo sea un objeto del sistema y no un campo
 suelto, **F-133** para tener la serie histórica —"tu merma de leche fue 14%, 11%, 9%, 12% las
-últimas cuatro semanas"— y **F-326** para sacar de la ecuación el café del personal, que sí tiene
+últimas cuatro semanas"— y **F-261** para sacar de la ecuación el café del personal, que sí tiene
 explicación. Con esas tres, la pregunta "¿a dónde se me va la leche?" pasa de ser una sospecha a
 ser un renglón con nombre. Sin ellas, el sistema enseña el síntoma y no el diagnóstico — que es
 exactamente lo mismo que le pasa hoy a `restaurante`, y por la misma razón: **las tres funciones

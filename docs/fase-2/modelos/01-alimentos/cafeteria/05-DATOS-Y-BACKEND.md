@@ -63,8 +63,10 @@ decirlo con esas palabras:
 - La ruta `/mesero` deja de estar permitida y cualquier sesión abierta ahí se rompe.
 - El corte histórico tiene secciones que la plantilla nueva no pinta.
 
-**Por eso la migración 079 no se aplica sin la respuesta a la decisión pendiente P-04**, igual que
-la 069 de `restaurante`. Y la recomendación que esta carpeta deja escrita es: **primero construir
+**Por eso la migración 066 (`066_plantillas_semilla.sql`) no se aplica sin la respuesta a la
+decisión pendiente P-04.** Esa migración es ahora una sola para los cinco modelos —antes eran cinco
+`*_plantilla_*.sql`, una por carpeta— y por tanto la condición de P-04 las cubre a todas de golpe.
+Y la recomendación que esta carpeta deja escrita es: **primero construir
 la tanda 1 (F-328, F-329, F-331), después migrar el paquete**. Mover a Café Jacaranda a `cafeteria`
 antes de que exista la fila de barra sería quitarle Cocina sin darle nada a cambio.
 
@@ -162,7 +164,7 @@ porque un pasivo guardado se desincroniza.
 **La sucursal está en el movimiento y no en el saldo**, a propósito: el sello se gana en un local y
 se canjea en cualquiera (ver `04-INTERFAZ.md` §4.5). El saldo es del negocio.
 
-### 1.4 · `lotes_grano` — F-148
+### 1.4 · `lotes_grano` — F-157
 
 Mínimo viable, y se dice qué no hace.
 
@@ -217,7 +219,7 @@ fila_barra                                       ← F-328
   Es lo que lee la pantalla de barra y la de recogida.
   NO expone costo, margen ni gramaje: se filtra por campo en el puente.
 
-merma_barra_turno                                ← F-146
+merma_barra_turno                                ← F-156
   Sobre `movimientos_stock` where referencia_tipo = 'merma_barra'.
   Por sesión de caja y motivo: cantidad, unidad, costo_centavos, n eventos.
   Es la sección 11 del corte y el bloque del dashboard.
@@ -226,7 +228,7 @@ merma_barra_turno                                ← F-146
 **Por qué `merma_barra_turno` es una vista y no una tabla.** Porque la merma de barra **ya se
 escribe en el ledger** con su motivo tipado. Crear una tabla paralela sería tener el mismo hecho en
 dos sitios, y el día que uno se escriba y el otro no, el inventario y el reporte dirían cosas
-distintas. F-146 **no crea tabla**: crea un comando, cuatro valores de `check` y esta vista.
+distintas. F-156 **no crea tabla**: crea un comando, cuatro valores de `check` y esta vista.
 
 ---
 
@@ -251,18 +253,18 @@ distintas. F-146 **no crea tabla**: crea un comando, cuatro valores de `check` y
 | `modificadores` | `factor_cantidad` | numeric(6,4) not null default 1 | F-027. El 16 oz escala la receta ×1.44 |
 | `modificadores` | `delta_precio_centavos` | bigint not null default 0 | F-027 |
 | `insumos` | `unidad_captura_preferida` | text null | La onza, propia de este giro |
-| `insumos` | `dias_frescura_optima` | int null | F-148. 30 para el café, null para todo lo demás |
-| `insumos` | `lote_abierto_id` | uuid null fk `lotes_grano` | F-148, desnormalización para la alerta |
+| `insumos` | `dias_frescura_optima` | int null | F-157. 30 para el café, null para todo lo demás |
+| `insumos` | `lote_abierto_id` | uuid null fk `lotes_grano` | F-157, desnormalización para la alerta |
 | `sesiones_caja` | `fondo_monedas_centavos` | bigint not null default 0 | El desglose por denominación |
 | `sesiones_caja` | `fondo_chicos_centavos` | bigint not null default 0 | Billetes de $20 y $50 |
 | `sesiones_caja` | `fondo_grandes_centavos` | bigint not null default 0 | |
 | `sesiones_caja` | `bote_contado_centavos` | bigint null | **El segundo arqueo.** Null hasta que se cuenta |
 | `sesiones_caja` | `turno` | text null, `check in ('matutino','vespertino')` | Para el título del corte |
 | `movimientos_caja` | `tipo` | se amplía el `check` con `'entrada_cambio'` | El movimiento más frecuente de la mañana |
-| `movimientos_stock` | `referencia_tipo` | se amplía con `'merma_barra'`, `'consumo_interno'`, `'canje_lealtad'` | F-146, F-326, F-934 |
-| `movimientos_stock` | `motivo` | se amplía con `'calibracion'`, `'vaporizado'`, `'bebida_rehecha'`, `'caducidad_leche'` | F-146 |
+| `movimientos_stock` | `referencia_tipo` | se amplía con `'merma_barra'`, `'consumo_interno'`, `'canje_lealtad'` | F-156, F-261, F-934 |
+| `movimientos_stock` | `motivo` | se amplía con `'calibracion'`, `'vaporizado'`, `'bebida_rehecha'`, `'caducidad_leche'` | F-156 |
 | `productos` | `familia` | text not null default `'otro'`, `check in ('bebida','alimento','grano','otro')` | Ordena el catálogo y decide la tasa por omisión |
-| `productos` | `gramaje_shot` | numeric(6,2) null | F-146. Cuántos gramos tira una calibración |
+| `productos` | `gramaje_shot` | numeric(6,2) null | F-156. Cuántos gramos tira una calibración |
 | `productos` | `sellos_otorga` | int not null default 0 | F-930. Un latte da 1, una bolsa de grano da 0 |
 | `liquidaciones_propina` | `reparto_base` | text not null default `'mesero'`, `check in ('mesero','horas','partes_iguales')` | **F-248.** Es el único campo que hace falta añadir a lo que `restaurante` ya propuso |
 | `configuracion` (documento) | `propina_montos_sugeridos` | arreglo de centavos | Pesos, no porcentajes |
@@ -307,7 +309,7 @@ No la aplicación. La base.
 12. **Un solo lote de grano abierto por insumo.** Índice único parcial.
 13. **No se cierra el turno con pedidos en la fila.** Se valida en el comando **y** con un `check`
     sobre el cierre: la sesión no pasa a `cerrada` si existe un `pedidos_preparacion` en estado
-    `en_fila`, `preparando` o `listo` apuntando a ella. **F-327**, aplicada a esta unidad.
+    `en_fila`, `preparando` o `listo` apuntando a ella. **F-262**, aplicada a esta unidad.
 14. **No se cierra el turno sin contar el bote.** `check`: `bote_contado_centavos is not null`
     cuando la sesión pasa a `cerrada` y el turno tuvo propina en efectivo. Un turno cerrado sin
     arqueo de bote es un arqueo que no existió.
@@ -335,7 +337,7 @@ Ninguno acepta ámbito en su entrada.
 | `contarLeche` | `{conteos:[{insumoId, cantidad}], clave}` | barista, administrador | cafeteria | Un ajuste por insumo con motivo `conteo_diario`, y devuelve teórico, contado y % de merma. **No escribe el % : lo calcula** | **Sí** |
 | `entradaCambio` | `{monedas, chicos, grandes, origen, clave}` | barista, administrador | cafeteria | `movimientos_caja` tipo `entrada_cambio`, desglosado | **Sí** |
 | `abrirTurno` *(se extiende)* | `{monedas, chicos, grandes, turno, notas?}` | barista, administrador | cafeteria | Lo de siempre más el desglose y el turno. Abre la presencia de quien abre | **Sí** |
-| `cerrarTurno` *(se extiende)* | `{efectivoContado, boteContado, dejaEnCaja, dejaEnCambio, clave}` | barista, administrador | cafeteria | Lo de siempre más el arqueo del bote. **Falla si hay pedidos en la fila** (F-327). Cierra las presencias abiertas | **Sí** |
+| `cerrarTurno` *(se extiende)* | `{efectivoContado, boteContado, dejaEnCaja, dejaEnCambio, clave}` | barista, administrador | cafeteria | Lo de siempre más el arqueo del bote. **Falla si hay pedidos en la fila** (F-262). Cierra las presencias abiertas | **Sí** |
 | `repartirBote` | `{sesionCajaId, clave}` | administrador, dueña | cafeteria | `liquidaciones_propina` con `reparto_base = 'horas'` + beneficiarios calculados desde `presencias_turno` + movimiento de salida de caja por la parte en efectivo | **Sí** |
 | `ajustarPresencia` | `{presenciaId, entroEn?, salioEn?, motivo}` | administrador, dueña | cafeteria | Corrige una presencia y marca `origen = 'manual'`. **Falla si el bote ya se repartió**: un reparto firmado no se recalcula | **Sí** |
 | `identificarCliente` | `{telefono, nombre?}` | barista, administrador | cafeteria | Busca o da de alta en `clientes`. Devuelve saldo de sellos | **Sí** |
@@ -343,7 +345,7 @@ Ninguno acepta ámbito en su entrada.
 | `ajustarSellos` | `{clienteId, sellos, motivo}` | administrador, dueña | cafeteria | `lealtad_movimientos` tipo `ajuste`, motivo obligatorio | **Sí** |
 | `programarPedidoAnticipado` | `{lineas, nombre, telefono?, horaPrometida, clave}` | portal (sin sesión, con token) | cafeteria | Orden cobrada + `pedidos_anticipados` en `programado`. **Falla si el hueco de cinco minutos está lleno** | **Sí** |
 | `encolarAnticipado` | `{anticipadoId}` | sistema (tarea programada) | cafeteria | Mueve el pedido a la fila **tres minutos antes** de la hora prometida | **Sí** |
-| `registrarConsumoInterno` | heredado de `restaurante` (F-326) | administrador, barista | cafeteria | Sin cambios respecto a lo que propuso `restaurante` | **Sí** |
+| `registrarConsumoInterno` | heredado de `restaurante` (F-261) | administrador, barista | cafeteria | Sin cambios respecto a lo que propuso `restaurante` | **Sí** |
 
 **Nota sobre `cobrarVenta`.** Es el comando que más se toca de esta carpeta y el que menos se puede
 romper: lo ejecuta 180 veces al día un cliente vivo. Lo que se le añade —canal, nombre, encolado,
@@ -437,17 +439,17 @@ compensación, nunca editando la anterior. `restaurante` ocupa de la 060 a la 06
 
 | Nº | Archivo | Qué crea |
 |---|---|---|
-| **070** | `070_unidad_base_cafeteria.sql` | Amplía `insumo_unidad_base_valida()` a `giro = 'cafeteria'`. **Corrige el hueco de §0.1.** Va primera porque es un error de datos activo, no una función nueva. Incluye la verificación de que ningún insumo existente viola ya la regla y, si lo hace, **falla la migración en vez de convertir a ciegas** |
-| **071** | `071_canal_y_nombre_pedido.sql` | `ordenes.canal` (not null, default `'aqui'`, con `check`), `ordenes.nombre_pedido`, `ordenes.cliente_id`, y el backfill de `canal` a `'aqui'` para lo histórico. Desbloquea F-328 y F-331 |
-| **072** | `072_fila_barra.sql` | Amplía el `check` de estados de `pedidos_preparacion` con `entregado` y `no_recogido`; columnas `cobrado_en`, `listo_en`, `entregado_en`, `llamados`; tabla `llamados_pedido` con su índice único y su RLS; vista `fila_barra`; `check` de no-recogido con tres llamados |
-| **073** | `073_empaque_por_canal.sql` | `recetas.aplica_canal` con su `check`. Es una columna y es la que arregla el margen de todas las bebidas |
-| **074** | `074_opciones_con_receta.sql` | `recetas.sustituible_por_grupo_id`, `modificadores.insumo_sustituto_id`, `modificadores.factor_cantidad`, `modificadores.delta_precio_centavos`, `orden_lineas.opciones`, `productos.familia`, `productos.gramaje_shot` |
-| **075** | `075_merma_barra_y_lote.sql` | Amplía los `check` de `movimientos_stock.referencia_tipo` y `motivo`; tabla `lotes_grano` con su índice único parcial; `insumos.dias_frescura_optima`, `insumos.lote_abierto_id`, `insumos.unidad_captura_preferida`; vista `merma_barra_turno` |
-| **076** | `076_turno_bote_y_cambio.sql` | `sesiones_caja`: fondo desglosado en tres columnas, `bote_contado_centavos`, `turno`; amplía `movimientos_caja.tipo` con `entrada_cambio`; `check` de cierre sin bote contado; `check` de cierre con pedidos en la fila (F-327) |
-| **077** | `077_presencias_y_reparto.sql` | Tabla `presencias_turno` con su índice único parcial; `liquidaciones_propina.reparto_base`. **Depende de la 066 de `restaurante`** (`liquidacion_propina_beneficiarios` y `formula_snapshot`), y eso se declara en la cabecera del archivo |
-| **078** | `078_lealtad_sellos.sql` | `lealtad_saldos`, `lealtad_movimientos`, `productos.sellos_otorga`, `orden_lineas.tipo_linea` y `combo_id`, triggers de saldo y de canje sin saldo, RLS de las dos tablas |
-| **079** | `079_pedido_anticipado.sql` | Tabla `pedidos_anticipados` con su índice por hora prometida y su RLS |
-| **080** | `080_plantilla_cafeteria.sql` | **D-01**: renombra el valor `operativo` a `cafeteria` en `paquete`, ajusta `organizaciones_paquete_compatible_con_giro`, y **mueve a Café Jacaranda de `restaurante_pro` a `cafeteria`**. Va al final a propósito: es la única que toca datos de producción |
+| **080** | `080_unidad_base_cafeteria.sql` | Amplía `insumo_unidad_base_valida()` a `giro = 'cafeteria'`. **Corrige el hueco de §0.1.** Va primera porque es un error de datos activo, no una función nueva. Incluye la verificación de que ningún insumo existente viola ya la regla y, si lo hace, **falla la migración en vez de convertir a ciegas** |
+| **081** | `081_canal_y_nombre_pedido.sql` | `ordenes.canal` (not null, default `'aqui'`, con `check`), `ordenes.nombre_pedido`, `ordenes.cliente_id`, y el backfill de `canal` a `'aqui'` para lo histórico. Desbloquea F-328 y F-331 |
+| **082** | `082_fila_barra.sql` | Amplía el `check` de estados de `pedidos_preparacion` con `entregado` y `no_recogido`; columnas `cobrado_en`, `listo_en`, `entregado_en`, `llamados`; tabla `llamados_pedido` con su índice único y su RLS; vista `fila_barra`; `check` de no-recogido con tres llamados |
+| **083** | `083_empaque_por_canal.sql` | `recetas.aplica_canal` con su `check`. Es una columna y es la que arregla el margen de todas las bebidas |
+| **084** | `084_opciones_con_receta.sql` | `recetas.sustituible_por_grupo_id`, `modificadores.insumo_sustituto_id`, `modificadores.factor_cantidad`, `modificadores.delta_precio_centavos`, `orden_lineas.opciones`, `productos.familia`, `productos.gramaje_shot` |
+| **085** | `085_merma_barra_y_lote.sql` | Amplía los `check` de `movimientos_stock.referencia_tipo` y `motivo`; tabla `lotes_grano` con su índice único parcial; `insumos.dias_frescura_optima`, `insumos.lote_abierto_id`, `insumos.unidad_captura_preferida`; vista `merma_barra_turno` |
+| **086** | `086_turno_bote_y_cambio.sql` | `sesiones_caja`: fondo desglosado en tres columnas, `bote_contado_centavos`, `turno`; amplía `movimientos_caja.tipo` con `entrada_cambio`; `check` de cierre sin bote contado; `check` de cierre con pedidos en la fila (F-262) |
+| **087** | `087_presencias_y_reparto.sql` | Tabla `presencias_turno` con su índice único parcial; `liquidaciones_propina.reparto_base`. **Depende de la 076 de `restaurante`** (`liquidacion_propina_beneficiarios` y `formula_snapshot`), y eso se declara en la cabecera del archivo |
+| **088** | `088_lealtad_sellos.sql` | `lealtad_saldos`, `lealtad_movimientos`, `productos.sellos_otorga`, `orden_lineas.tipo_linea` y `combo_id`, triggers de saldo y de canje sin saldo, RLS de las dos tablas |
+| **089** | `089_pedido_anticipado.sql` | Tabla `pedidos_anticipados` con su índice por hora prometida y su RLS |
+| **066** | `066_plantillas_semilla.sql` | **D-01**: renombra el valor `operativo` a `cafeteria` en `paquete`, ajusta `organizaciones_paquete_compatible_con_giro`, y **mueve a Café Jacaranda de `restaurante_pro` a `cafeteria`**. Va al final a propósito: es la única que toca datos de producción |
 
 **Sobre la 080, y hay que leerlo dos veces.** Hace tres cosas de naturaleza distinta y conviene
 separarlas mentalmente:
@@ -525,7 +527,7 @@ Lo que **no se toca** porque ya funciona. Rutas reales del monorepo.
 | Aviso por voz | `apps/web/heredado/lib/voiceAlert.js` | F-329 cambia el texto y nada más |
 | Cobro y pagos | `packages/app/src/venta/pagos.ts`, `escala.ts` | `cobrarVenta` se extiende; el cálculo de pagos no se toca |
 | Caja y turno | `packages/app/src/caja/turno.ts` | Se extiende con el bote y el fondo desglosado |
-| Inventario | `packages/app/src/inventario/index.ts` | F-146, F-326 y el canje escriben por aquí |
+| Inventario | `packages/app/src/inventario/index.ts` | F-156, F-261 y el canje escriben por aquí |
 | Conversión de unidades | `apps/web/heredado/utils/unitConversions.js` | Se le añade la onza fluida. Una línea |
 | Centavos | `packages/domain/src/dinero/centavos.ts` | Todo el dinero nuevo |
 | Primitivas de interfaz | `packages/ui/src/primitivas/` | Las pantallas nuevas no traen componentes propios |

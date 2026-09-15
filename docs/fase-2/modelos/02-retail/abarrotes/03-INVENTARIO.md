@@ -386,7 +386,7 @@ uno.
    sistema da el número; el dueño decide qué significa.
 3. **El refresco que se toma el personal.** Que no es merma: es **consumo de la casa**, y mezclarlo
    con merma arruina el indicador que sirve para el punto 2. Es la misma lección que `restaurante`
-   documentó con F-326 y aquí vale igual.
+   documentó con F-261 y aquí vale igual.
 
 **Y la merma que NO es merma:** el canje al proveedor. Bimbo se lleva el pan viejo y lo repone. Si
 eso se registra como merma, el costo del pan sale mal todos los días y el margen de la categoría

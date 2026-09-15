@@ -100,7 +100,7 @@ CAFETERÍA DE MOSTRADOR
 │   │         El pedido de oficina que se levanta y se cobra junto
 │   ├── F-225 Reimpresión de ticket .............................. [=] [⚙]
 │   ├── F-249 Segunda pantalla al cliente ........................ [+] [ ]  ← NUEVA
-│   └── F-326 Consumo de empleados y cortesías ................... [+] [ ]
+│   └── F-261 Consumo de empleados y cortesías ................... [+] [ ]
 │             Propuesta por `restaurante`. Aquí es MÁS grave: tres
 │             personas × 3–4 bebidas de turno = ~$5,700 al mes
 │
@@ -136,8 +136,8 @@ CAFETERÍA DE MOSTRADOR
 │   ├── F-130 Costeo por insumo .................................. [=] [⚙]
 │   ├── F-132 Insumo base (el producto ES el insumo) ............. [=] [⚙]
 │   ├── F-133 Rendimiento real contra teórico .................... [=] [ ]
-│   ├── F-146 Merma de barra: calibración y vaporizado ........... [+] [ ]  ← NUEVA
-│   └── F-148 Frescura del grano por fecha de tueste ............. [+] [ ]  ← NUEVA
+│   ├── F-156 Merma de barra: calibración y vaporizado ........... [+] [ ]  ← NUEVA
+│   └── F-157 Frescura del grano por fecha de tueste ............. [+] [ ]  ← NUEVA
 │
 ├── COMPRAS Y GASTOS
 │   ├── F-250 Gastos con categoría ............................... [≠] [⚙]
@@ -348,7 +348,7 @@ Comparación contra **`restaurante`**, que es el vecino inmediato y está termin
 | Receta **larga**: un platillo puede tener doce insumos, cada uno con su porcentaje de merma de limpieza. Una pieza de res rinde 72% | Receta **corta y con variantes**: café, leche, jarabe, vaso. Tres a seis líneas. **Sin merma de limpieza**, porque nada se limpia | El restaurante transforma materia prima cruda; la cafetería **mezcla producto ya listo**. El campo `merma_bp` existe en la receta y en esta plantilla vale cero en el 95% de los casos. Dejarlo visible sería enseñar un campo que nadie usa |
 | Una receta por producto | **Una receta por producto × tamaño × tipo de leche**, resuelta con modificadores que alteran líneas de receta | Un latte de 12 oz con leche entera y uno de 16 oz con avena son dos costos distintos que se venden como el mismo producto. Sin esto el costo de la mitad del menú está mal, y la mitad cara |
 | El empaque no existe como insumo | **El vaso, la tapa y la manga son líneas de receta con canal** (F-331) | De $2.50 a $3.50 por bebida. Es el tercer costo del producto |
-| La merma se registra desde Inventario, con motivo | La merma se registra **desde la propia pantalla de barra**, con cuatro motivos tipados (F-146), en un toque | Porque pasa mientras se trabaja, no al final del día. Una merma que hay que ir a capturar a otra pantalla es una merma que no se captura |
+| La merma se registra desde Inventario, con motivo | La merma se registra **desde la propia pantalla de barra**, con cuatro motivos tipados (F-156), en un toque | Porque pasa mientras se trabaja, no al final del día. Una merma que hay que ir a capturar a otra pantalla es una merma que no se captura |
 | Descuento al cobrar, con la línea **ya consumida** hace una hora | Descuento al cobrar, con la línea **todavía sin preparar** | Se invierte el riesgo, y para bien: en restaurante el inventario está **sobrevaluado** 90 minutos; aquí está **infravalorado** tres minutos. Ver `03-INVENTARIO.md` §3 |
 
 **Tronco V6 común; esta variante añade receta por modificador, empaque por canal y merma de barra.**
@@ -446,12 +446,12 @@ F-249 Segunda pantalla al cliente [+] exclusiva
       mira: la toca. Eso la pone en una categoría aparte de
       accesibilidad, de seguridad y de contenido.
 
-F-146 Merma de barra: calibración, vaporizado y rehechas [+] exclusiva
+F-156 Merma de barra: calibración, vaporizado y rehechas [+] exclusiva
       El dial-in de la mañana —tres a cinco shots a la basura, todos
       los días, $700 al mes— no existe en ningún otro giro. Ninguna
       otra operación tira producto a propósito para poder empezar.
 
-F-148 Frescura del grano por fecha de tueste [+] exclusiva
+F-157 Frescura del grano por fecha de tueste [+] exclusiva
       El café no caduca: pierde. Se bebe bien entre los 3 y los 30
       días del tueste. Eso no es caducidad (V4) ni es merma: es una
       ventana de calidad que dispara una decisión de uso, no de tirar.
@@ -476,7 +476,7 @@ ordenado por lo que cuesta operar sin ello.
 | **F-329** | Llamado por nombre y pantalla de recogida | El nombre vive escrito con plumón y en la memoria de alguien con las dos manos ocupadas. Se entregan bebidas a quien no era, se quedan vasos fríos, y nadie puede decir cuánto tardó de verdad un pedido. |
 | **F-027** | Modificadores en mostrador con impacto en receta | El 60% de las líneas del pico se captura mal o no se captura. La leche de avena nunca baja del inventario. El ticket promedio no crece porque ofrecer opciones cuesta cinco toques. |
 | **F-331** | Empaque por canal | Todos los márgenes de la plantilla están inflados entre 5 y 8 puntos. Y no se puede saber cuántos vasos pedir. |
-| **F-146** | Merma de barra | $700 al mes de calibración más el 5–15% de la leche, invisibles. El inventario de café nunca cuadra y la dueña concluye que "las recetas no sirven". |
+| **F-156** | Merma de barra | $700 al mes de calibración más el 5–15% de la leche, invisibles. El inventario de café nunca cuadra y la dueña concluye que "las recetas no sirven". |
 | **F-248** | Bote del turno por horas | El reparto se hace a ojo, en efectivo, y en cuanto entra un tercero los fines de semana empieza el resentimiento. Es el equivalente exacto del dolor 2 de `restaurante`, en su versión de mostrador. |
 | **F-249** | Segunda pantalla al cliente | Hoy la propina la teclea el barista mirando al cliente a los ojos. Eso no es sugerir, es pedir, y además regala segundos en la ráfaga. |
 | **F-030** | Combos café + pan | El combo se captura como dos líneas y un descuento manual, así que ni el margen del combo ni cuántos se vendieron existen. |
@@ -484,7 +484,7 @@ ordenado por lo que cuesta operar sin ello.
 | **F-023** | Listas de precio | El precio de plataforma es el mismo que el de barra, así que cada pedido de Uber Eats se vende con un 29% de pérdida de margen que nadie ve. |
 | **F-106** | Toma de inventario físico | La leche se cuenta todos los días en una libreta y no se compara con nada. Sin esto, la sección de insumos consumidos del corte no tiene contra qué medirse. |
 | **F-984** | Cajón de dinero | Se abre a mano. En 180 cobros al día son 180 movimientos de más y una fuente constante de "se quedó abierto". |
-| **F-148** | Frescura del grano | Se usa grano de cinco semanas para espresso y el cliente lo nota antes que la dueña. |
+| **F-157** | Frescura del grano | Se usa grano de cinco semanas para espresso y el cliente lo nota antes que la dueña. |
 | **F-235** | Varias cajas simultáneas | El sábado se cobra todo desde una terminal y la fila llega a la calle. |
 | **F-330** | Pedido anticipado | Se pierde el cliente de oficina que quiere seis cafés a las 8:15 y no tiene forma de pedirlos antes. |
 
@@ -492,9 +492,21 @@ ordenado por lo que cuesta operar sin ello.
 
 ## 6 · FUNCIONES QUE FALTAN EN EL CATÁLOGO
 
-**Esto se añade a `03-CATALOGO-DE-FUNCIONES.md` antes de construir nada.** Los IDs se toman del
-siguiente libre de cada bloque, respetando los que `restaurante` ya propuso (F-247, F-323, F-324,
-F-325, F-326, F-327).
+**Ya están en `03-CATALOGO-DE-FUNCIONES.md`.** Los IDs se toman del siguiente libre de cada bloque,
+respetando los que `restaurante` ya propuso (F-247, F-261, F-262, F-323, F-324, F-325).
+
+> **Reconciliado el 14-09-2026 (D-11).** Este modelo cedió los **dos únicos IDs en colisión** de
+> toda la Fase 2, los dos contra `abarrotes`:
+>
+> ```
+> F-146  merma de barra          →  F-156     (abarrotes conserva F-146, caducidad sin lote)
+> F-148  frescura del grano      →  F-157     (abarrotes conserva F-148, peso embebido en EAN-13)
+> ```
+>
+> Cedió `cafeteria` y no `abarrotes` porque la acepción de `abarrotes` la citan **tres** modelos
+> —`abarrotes`, `ferreteria` y `estetica-salon`— contra uno solo de éste, y porque
+> `estetica-salon` ya había deconflictado a mano contra la numeración de `abarrotes`. Mover
+> `abarrotes` habría roto tres carpetas en vez de una.
 
 | ID propuesto | Función | Bloque | Por qué hace falta |
 |---|---|---|---|
@@ -504,17 +516,17 @@ F-325, F-326, F-327).
 | **F-331** | **Consumo de empaque según canal de entrega** | F-3xx | F-128 tiene receta y F-129 la explota, pero ninguna de las dos sabe que una línea de receta puede depender de una decisión tomada en el mostrador. Es una línea de receta condicionada, y hace falta declararlo como función para que exista el campo `aplica_canal`. |
 | **F-248** | **Bote de propina del turno repartido por horas presentes** | F-2xx | F-242 reparte por puntos de puesto y F-243 va directa al profesional. Ninguna resuelve "dos personas que hacen lo mismo durante horas distintas". Necesita además el registro de presencias del turno, que es la semilla de F-960/F-961. |
 | **F-249** | **Segunda pantalla al cliente**: total, desglose y elección de propina | F-2xx | Ninguna función del catálogo describe una pantalla que el cliente opera dentro del local. F-920 es el portal en el teléfono del cliente; esto es hardware del mostrador. |
-| **F-146** | **Merma de barra**: calibración, vaporizado sobrante, bebida rehecha, caducidad de leche | F-1xx | F-109 es "merma con motivo" genérica. Lo que falta no es el motivo: es que la calibración es un **evento diario de apertura**, con gramaje conocido, que se captura en un toque y antes de que abra la caja. Y que la bebida rehecha consume el insumo **dos veces después de cobrada**, que F-324 (anulación de línea) no cubre porque no se anula nada. |
-| **F-148** | **Frescura del grano por fecha de tueste** | F-1xx | No es caducidad (F-113/F-123): el café no se echa a perder, se vuelve plano. La decisión que dispara no es "tirar", es "cambiar de uso o rematar". Es una función chica y sin ella la cafetería de especialidad no se siente comprendida. |
+| **F-156** | **Merma de barra**: calibración, vaporizado sobrante, bebida rehecha, caducidad de leche | F-1xx | F-109 es "merma con motivo" genérica. Lo que falta no es el motivo: es que la calibración es un **evento diario de apertura**, con gramaje conocido, que se captura en un toque y antes de que abra la caja. Y que la bebida rehecha consume el insumo **dos veces después de cobrada**, que F-324 (anulación de línea) no cubre porque no se anula nada. |
+| **F-157** | **Frescura del grano por fecha de tueste** | F-1xx | No es caducidad (F-113/F-123): el café no se echa a perder, se vuelve plano. La decisión que dispara no es "tirar", es "cambiar de uso o rematar". Es una función chica y sin ella la cafetería de especialidad no se siente comprendida. |
 | **F-936** | **Pasivo de lealtad**: recompensas otorgadas y no canjeadas, valuadas al costo | F-9xx | F-930 acumula y F-934 canjea. Ninguna dice cuánto debes. Es un pasivo real, crece solo, y decide si la promoción se sostiene. |
 
 **Además, esta carpeta adopta dos funciones que `restaurante` propuso y no construyó:**
 
-- **F-326 · Consumo de empleados y cortesías.** Aquí es más urgente que allá: tres personas por
+- **F-261 · Consumo de empleados y cortesías.** Aquí es más urgente que allá: tres personas por
   tres o cuatro bebidas de turno son diez a doce bebidas diarias, ~$190 de insumo al día,
   **~$5,700 al mes** que hoy se registran como merma y ensucian el único indicador que sirve para
   detectar robo.
-- **F-327 · Bloqueo de cierre por unidades abiertas.** Aquí la unidad abierta no es una mesa: es
+- **F-262 · Bloqueo de cierre por unidades abiertas.** Aquí la unidad abierta no es una mesa: es
   un **pedido en la fila sin entregar**. No se puede cerrar el turno con bebidas sin entregar, por
   la misma razón exacta.
 
@@ -561,13 +573,13 @@ F-249 Segunda pantalla al cliente
   → F-013 Terminales                 (es una segunda pantalla de la misma terminal)
   → F-241 Propina sugerida           (ya existe: cambia dónde se muestra)
 
-F-146 Merma de barra
+F-156 Merma de barra
   → F-101 Ledger inmutable           (ya existe: escribe ahí)
   → F-109 Merma con motivo           (ya existe: se le tipan cuatro motivos)
   → F-132 Insumo base                (el shot de calibración es café, sin receta)
   → F-328 Fila de despacho           (la bebida rehecha nace de un pedido)
 
-F-148 Frescura del grano
+F-157 Frescura del grano
   → F-632 Recepción de compra        (ya existe: la fecha de tueste se captura ahí)
   → F-107 Alertas de mínimo          (ya existe: mismo mecanismo, otro umbral)
 
@@ -605,7 +617,7 @@ TANDA 1 · lo que convierte `operativo` en `cafeteria`
 
 TANDA 2 · lo que arregla los números
   5.  F-027  Modificadores con impacto en receta
-  6.  F-146  Merma de barra                    (cierra el dolor 1 junto con 5)
+  6.  F-156  Merma de barra                    (cierra el dolor 1 junto con 5)
   7.  F-249  Segunda pantalla al cliente       (necesita 241, que ya existe)
   8.  F-248  Bote del turno por horas          (necesita 249 para cobrar bien
                                                 y presencias para repartir bien)
@@ -620,7 +632,7 @@ TANDA 3 · lo que hace que vuelvan
 TANDA 4 · deuda de fondo y crecimiento
   14. F-106  Toma de inventario físico         (alimenta a 133)
   15. F-133  Rendimiento real contra teórico   (cierra el dolor 1 del todo)
-  16. F-148  Frescura del grano
+  16. F-157  Frescura del grano
   17. F-023  Listas de precio                  (desbloquea 820 acotado)
   18. F-922  Portal V2 + F-330 pedido anticipado
   19. F-235  Varias cajas simultáneas

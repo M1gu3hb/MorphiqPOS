@@ -134,23 +134,23 @@ Las treinta de `05-DATOS-Y-BACKEND.md` §7.
 
 ```
 packages/data/src/migraciones/sql/
-├── 096_profesionales.sql              ⚠ requiere btree_gist. VERIFICAR PRIMERO
-├── 097_servicios.sql
-├── 098_citas.sql                      ★ las restricciones de exclusión
-├── 099_reglas_comision.sql
-├── 100_comisiones_ledger.sql          ★ trigger anti-UPDATE
-├── 101_liquidaciones.sql
-├── 102_rentas_estacion.sql
-├── 103_expediente_belleza.sql
-├── 104_anticipos_y_paquetes.sql
-├── 105_propinas_v4.sql
-├── 106_no_show_y_espera.sql
-├── 107_inventario_cabina.sql
-├── 108_clientes_salon.sql             ⚠ TOCA TABLA VIVA
-├── 109_ordenes_salon.sql              ⚠ TOCA TABLAS VIVAS
-├── 110_caja_salon.sql
-├── 111_vistas_salon.sql
-└── 112_plantilla_salon.sql            ⚠ NO se aplica sin decisión de Miguel
+├── 130_profesionales.sql              ⚠ requiere btree_gist. VERIFICAR PRIMERO
+├── 131_servicios.sql
+├── 132_citas.sql                      ★ las restricciones de exclusión
+├── 133_reglas_comision.sql
+├── 134_comisiones_ledger.sql          ★ trigger anti-UPDATE
+├── 135_liquidaciones.sql
+├── 136_rentas_estacion.sql
+├── 137_expediente_belleza.sql
+├── 138_anticipos_y_paquetes.sql
+├── 139_propinas_v4.sql
+├── 140_no_show_y_espera.sql
+├── 141_inventario_cabina.sql
+├── 142_clientes_salon.sql             ⚠ TOCA TABLA VIVA
+├── 143_ordenes_salon.sql              ⚠ TOCA TABLAS VIVAS
+├── 144_caja_salon.sql
+├── 145_vistas_salon.sql
+└── 066_plantillas_semilla.sql            ⚠ NO se aplica sin decisión de Miguel
 ```
 
 ### 2.5 · Interfaz

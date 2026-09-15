@@ -382,37 +382,37 @@ apps/web/app/api/venta/autorizar-descuento/route.ts
 
 ```
 packages/data/src/migraciones/sql/
-├── 070_presentaciones.sql
+├── 090_presentaciones.sql
 │     producto_presentaciones + índices + los tres check + backfill:
 │     cada producto existente recibe una presentación base con factor 1
 │     tomando su codigo_barras y precio actuales. NADIE se queda sin base.
-├── 071_zonas_y_conteo.sql
+├── 091_zonas_y_conteo.sql
 │     zonas_anaquel, conteos, conteo_lineas, productos.zona_id
-├── 072_caducidad_sin_lote.sql
+├── 092_caducidad_sin_lote.sql
 │     caducidades, productos.controla_caducidad, dias_alerta_caducidad
-├── 073_movimientos_stock_tipos_retail.sql
+├── 093_movimientos_stock_tipos_retail.sql
 │     ALTER del check: + devolucion_proveedor, + consumo_interno
 │     y la extensión del check de signo coherente
-├── 074_clientes_fiado.sql
+├── 094_clientes_fiado.sql
 │     clientes.dia_pago, abonos_fiado, trigger de saldo,
 │     ordenes.metodo_credito, ordenes.cobrada_en
-├── 075_comisiones.sql
+├── 095_comisiones.sql
 │     operaciones_comision, saldos_comisionista
-├── 076_envases.sql
+├── 096_envases.sql
 │     depositos_envase, productos.envase_producto_id, vista saldo_envases
-├── 077_redondeos.sql
-├── 078_fiscal_producto.sql
+├── 097_redondeos.sql
+├── 098_fiscal_producto.sql
 │     regimenes_ieps (con las cuotas 2026), productos.tasa_iva,
 │     regimen_ieps, litros_por_unidad + backfill por categoría
-├── 079_proveedores_ruta.sql
+├── 099_proveedores_ruta.sql
 │     dia_visita, frecuencia, dias_credito, acepta_canje
-├── 080_caja_denominaciones.sql
+├── 100_caja_denominaciones.sql
 │     sesiones_caja.denominaciones_*, saldo_recargas_*,
 │     movimientos_caja.categoria
-├── 081_vistas_retail.sql
+├── 101_vistas_retail.sql
 │     existencia_presentada, cartera_fiado, sugerencia_pedido,
 │     diferencia_conteo_periodo, margen_por_categoria
-└── 082_plantilla_tienda.sql
+└── 066_plantillas_semilla.sql
       D-01: esencial → tienda, + los módulos de inventario, escáner,
       alertas y presentaciones. Y el movimiento de Ferretería La Broca.
       ⚠ TOCA DATOS VIVOS. No se aplica sin que P-04 esté contestada.

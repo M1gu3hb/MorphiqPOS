@@ -18,11 +18,41 @@ Un modelo está **✅ terminado** cuando existen sus siete archivos, cumplen `02
 | `00-LEEME-PRIMERO.md` | ✅ |
 | `01-MAPA-GENERAL.md` | ✅ |
 | `02-ESTANDAR-DE-CARPETA.md` | ✅ |
-| `03-CATALOGO-DE-FUNCIONES.md` | ✅ 232 funciones con ID canónico |
+| `03-CATALOGO-DE-FUNCIONES.md` | ✅ **363 IDs canónicos** · reconciliado el 14-09-2026 (D-11) |
 | `04-SISTEMA-DE-DISENO.md` | ✅ |
 | `05-DECISIONES.md` | ✅ **13 tomadas** (D-01…D-13), 4 pendientes de Miguel (P-01…P-04) |
 | `06-FILE-MAP-GENERAL.md` | ✅ |
 | `07-ESTADO.md` | ✅ este archivo |
+
+---
+
+## FASE 2 · CONSTRUCCIÓN · rama `fase-2`
+
+Worktree: `D:\MIS PROYECTOS\Master POS\morphiqpos-fase2`, partido de `carril-b` en `3a4623b`.
+La copia canónica de esta documentación es `docs/fase-2/` **dentro del worktree** (D-13).
+
+| Etapa | Qué | Estado |
+|---|---|---|
+| **E0** | Reconciliar el catálogo | ✅ **50 IDs añadidos · 2 colisiones · 1 fusión · 7 reclasificaciones** |
+| **E1** | Worktree y puerta `verify:fase2` | 🔄 worktree creado; falta la puerta |
+| **E2** | Tronco compartido (plantilla, vocabulario, inventario, variantes) | ⬜ |
+| **E3** | `restaurante` | ⬜ |
+| **E4** | `cafeteria` | ⬜ |
+| **E5** | `abarrotes` · raíz de A1 | ⬜ |
+| **E6** | `ferreteria` | ⬜ |
+| **E7** | `estetica-salon` · A3 de cero | ⬜ |
+
+**Rangos de migración tras la reconciliación** (D-08, verificado contra el disco: la última real es
+la `057` de Codex):
+
+```
+058 – 069   tronco compartido      (066 = semilla de las cinco plantillas, consolidada)
+070 – 078   restaurante            (079 libre)
+080 – 089   cafeteria              (cabe exacto)
+090 – 101   abarrotes              (102-109 libres)
+110 – 121   ferreteria             (122-129 libres)
+130 – 145   estetica-salon         (146-159 libres)
+```
 
 ---
 

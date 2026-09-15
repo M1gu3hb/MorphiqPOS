@@ -352,18 +352,30 @@ cuesta cada hueco medido en operación real, no en código.
 
 ## 6 · FUNCIONES QUE FALTAN EN EL CATÁLOGO
 
-**Esto se añade a `03-CATALOGO-DE-FUNCIONES.md` antes de construir nada.** Son funciones reales
-de este giro que hoy no tienen ID canónico, y sin ID se van a reinventar con otro nombre en
-`bar-cantina` y en `pizzeria`.
+**Ya están en `03-CATALOGO-DE-FUNCIONES.md`.** Son funciones reales de este giro que no tenían ID
+canónico, y sin ID se iban a reinventar con otro nombre en `bar-cantina` y en `pizzeria`.
+
+> **Reconciliado el 14-09-2026 (D-11).** Dos de las seis que propuso este modelo cambiaron de
+> número, porque llevaban ID del bloque F-3xx —*mesa y preparación, arquetipo A2*— mientras sus
+> propias fichas las declaraban del bloque **F-2xx**, y las dos aplican fuera de A2:
+>
+> ```
+> F-326  Consumo de empleados y cortesías      →  F-261
+> F-327  Bloqueo de cierre por unidades abiertas →  F-262
+> ```
+>
+> `abarrotes` ya citaba el consumo de empleados para el autoconsumo del tendero, y el bloqueo de
+> cierre aplica a A2 **y a A7**. Un ID de A2 para una función universal habría confundido a los 73
+> modelos que vienen detrás. F-326 y F-327 quedan libres a propósito.
 
 | ID propuesto | Función | Bloque | Por qué hace falta |
 |---|---|---|---|
 | **F-323** | **Marcha por tiempos** (primer tiempo, segundo tiempo, postre) | F-3xx | Es la operación normal del servicio de mesa en México: se comandan las entradas, se retienen los fuertes y se "marchan" cuando el mesero ve que la mesa va terminando. Hoy el sistema envía todo de golpe y el fuerte se enfría en la barra. No lo cubre F-310 (enviar) ni F-314 (estados): es **retener y liberar**, que es otra cosa. |
 | **F-324** | **Anulación de línea ya comandada, con motivo y reversa de consumo** | F-3xx | F-221 cancela la venta entera y F-202 descuenta la línea, pero ninguna resuelve "el plato salió mal, se repone, y el insumo se consumió dos veces". Necesita motivo obligatorio (error de cocina / error de mesero / cortesía) porque cada motivo apunta a un responsable y a una cuenta distinta. |
 | **F-325** | **Relevo de responsable con unidades abiertas** | F-3xx | A las 17:00 el mesero de mediodía se va con mesas vivas. Hoy o se cierra la mesa antes de tiempo o la propina de la noche se le acredita a quien ya se fue. Es distinto de F-304 (asignar) porque implica **partir la atribución de propina en el tiempo**. |
-| **F-326** | **Consumo de empleados y cortesías** | F-2xx | La comida del personal y las cortesías al cliente frecuente salen del inventario todos los días y hoy o se registran como merma (y ensucian la merma) o no se registran (y aparecen como faltante). Necesita salir del stock sin entrar a ventas. |
+| **F-261** | **Consumo de empleados y cortesías** | F-2xx | La comida del personal y las cortesías al cliente frecuente salen del inventario todos los días y hoy o se registran como merma (y ensucian la merma) o no se registran (y aparecen como faltante). Necesita salir del stock sin entrar a ventas. |
 | **F-247** | **Propina delegada al comensal (portal)** | F-2xx | Ya está construida —`propina_tipo: 'pendiente_cliente'`, `propina_origen: 'pendiente_portal_qr'`— y no tiene ID. Sin ID, el día que `bar-cantina` la necesite se va a construir otra vez. |
-| **F-327** | **Bloqueo de cierre por unidades abiertas** | F-2xx | Ya está construida (`obtenerMesasPendientesCierre` + diálogo) y no tiene ID. Es una regla de integridad de negocio, no un detalle de pantalla, y aplica a todo A2 y A7. |
+| **F-262** | **Bloqueo de cierre por unidades abiertas** | F-2xx | Ya está construida (`obtenerMesasPendientesCierre` + diálogo) y no tiene ID. Es una regla de integridad de negocio, no un detalle de pantalla, y aplica a todo A2 y A7. |
 
 ---
 
@@ -437,7 +449,7 @@ TANDA 3 · lo que pide el restaurante grande
   9.  F-306  Lista de espera                             (necesita 305)
   10. F-325  Relevo de responsable                       (NUEVA · desbloquea 242)
   11. F-242  Propina repartida por puntos                (necesita 325)
-  12. F-326  Consumo de empleados y cortesías            (NUEVA · limpia la merma)
+  12. F-261  Consumo de empleados y cortesías            (NUEVA · limpia la merma)
 
 TANDA 4 · deuda de fondo
   13. F-133  Rendimiento real contra teórico             (cierra el dolor 1)

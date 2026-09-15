@@ -689,39 +689,39 @@ una vista materializada por día y profesional que se recalcula al escribir en `
 
 ```
 packages/data/src/migraciones/sql/
-├── 096_profesionales.sql              profesionales, horarios, bloqueos
+├── 130_profesionales.sql              profesionales, horarios, bloqueos
 │                                      ⚠ crea la extensión btree_gist
-├── 097_servicios.sql                  servicios, servicios_profesional,
+├── 131_servicios.sql                  servicios, servicios_profesional,
 │                                      recursos, recursos_servicio
 │                                      + productos.tipo acepta 'servicio','paquete'
-├── 098_citas.sql                      citas, cita_servicios, cita_recursos
+├── 132_citas.sql                      citas, cita_servicios, cita_recursos
 │                                      ★ LAS RESTRICCIONES DE EXCLUSIÓN GiST
-├── 099_reglas_comision.sql            reglas_comision (versionada)
-├── 100_comisiones_ledger.sql          comisiones_causadas + trigger anti-UPDATE
-├── 101_liquidaciones.sql              liquidaciones, liquidacion_lineas
-├── 102_rentas_estacion.sql            rentas_estacion, cobros_renta
-├── 103_expediente_belleza.sql         expedientes_belleza, formulas_aplicadas,
+├── 133_reglas_comision.sql            reglas_comision (versionada)
+├── 134_comisiones_ledger.sql          comisiones_causadas + trigger anti-UPDATE
+├── 135_liquidaciones.sql              liquidaciones, liquidacion_lineas
+├── 136_rentas_estacion.sql            rentas_estacion, cobros_renta
+├── 137_expediente_belleza.sql         expedientes_belleza, formulas_aplicadas,
 │                                      consentimientos, fotos
-├── 104_anticipos_y_paquetes.sql       anticipos_cita, paquetes_vendidos,
+├── 138_anticipos_y_paquetes.sql       anticipos_cita, paquetes_vendidos,
 │                                      sesiones_paquete
 │                                      ★ el unique parcial del anticipo vivo
-├── 105_propinas_v4.sql                movimientos_propina
-├── 106_no_show_y_espera.sql           no_shows, lista_espera
-├── 107_inventario_cabina.sql          almacenes.tipo, productos.destino,
+├── 139_propinas_v4.sql                movimientos_propina
+├── 140_no_show_y_espera.sql           no_shows, lista_espera
+├── 141_inventario_cabina.sql          almacenes.tipo, productos.destino,
 │                                      factor_apertura, motivos de movimiento
-├── 108_clientes_salon.sql             genero, whatsapp, acepta_recordatorios,
+├── 142_clientes_salon.sql             genero, whatsapp, acepta_recordatorios,
 │                                      primera_visita
 │                                      ⚠ TOCA UNA TABLA VIVA — ver §8.1
-├── 109_ordenes_salon.sql              orden_lineas.profesional_id,
+├── 143_ordenes_salon.sql              orden_lineas.profesional_id,
 │                                      cita_servicio_id, ordenes.cita_id,
 │                                      cuenta_destino_transferencia
 │                                      ⚠ TOCA TABLAS VIVAS — ver §8.1
-├── 110_caja_salon.sql                 5 tipos nuevos de movimiento_caja
+├── 144_caja_salon.sql                 5 tipos nuevos de movimiento_caja
 │                                      + columnas de agenda en cortes_caja
-├── 111_vistas_salon.sql               hueco_disponible, ocupacion_profesional,
+├── 145_vistas_salon.sql               hueco_disponible, ocupacion_profesional,
 │                                      saldo_propina, margen_servicio,
 │                                      producto_cabina, clientes_por_volver
-└── 112_plantilla_salon.sql            la plantilla `salon` + su diccionario
+└── 066_plantillas_semilla.sql            la plantilla `salon` + su diccionario
                                        ⚠ NO SE APLICA SIN DECISIÓN DE MIGUEL
 ```
 

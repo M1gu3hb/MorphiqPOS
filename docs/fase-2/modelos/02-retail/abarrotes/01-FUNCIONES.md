@@ -511,8 +511,20 @@ el nombre sea honesto, con el costo operativo de cada hueco.
 
 ## 6 · FUNCIONES QUE FALTAN EN EL CATÁLOGO
 
-**Se añaden a `03-CATALOGO-DE-FUNCIONES.md` antes de construir nada.** Sin ID canónico se van a
-reinventar con otro nombre en `ferreteria`, en `farmacia` y en los otros dieciséis.
+**Ya están en `03-CATALOGO-DE-FUNCIONES.md`.** Sin ID canónico se iban a reinventar con otro nombre
+en `ferreteria`, en `farmacia` y en los otros dieciséis.
+
+> **Reconciliado el 14-09-2026 (D-11).** Este modelo **conservó los diez IDs que propuso**,
+> incluidos los dos que estaban en colisión con `cafeteria` —**F-146** (caducidad sin lote) y
+> **F-148** (peso embebido en EAN-13)—. Ganó porque su acepción la citan tres modelos —éste,
+> `ferreteria` y `estetica-salon`— contra uno solo de `cafeteria`, que se movió a F-156 y F-157.
+>
+> Dos matices que sí cambiaron:
+> - **F-254** se fusionó con la que `ferreteria` llamaba *cobro de crédito en caja*: es la misma
+>   función con el vocabulario de cada giro, y el diccionario (F-017) es lo que resuelve que una
+>   diga «fiado» y la otra «crédito» sin duplicar código.
+> - **F-326** (consumo de empleados), que este modelo citaba para el autoconsumo del tendero, pasó
+>   a **F-261**: su ID estaba en el bloque de mesa y preparación y la función es universal.
 
 | ID propuesto | Función | Bloque | Por qué hace falta |
 |---|---|---|---|

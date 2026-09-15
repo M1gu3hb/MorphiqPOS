@@ -150,8 +150,8 @@ precios. Sin plantillas, el dueño captura las compras "al rato" y "al rato" es 
 | **Venta** | Cobro de la cuenta, vía explosión de receta | No (lo da la referencia) |
 | **Merma de cocina** | Se quemó, se cayó, salió mal, se cortó mal | **Sí** |
 | **Merma de almacén** | Se echó a perder, se pasó, llegó mal | **Sí** |
-| **Consumo interno / comida del personal** | El turno come | **Sí** — hoy entra como merma y ensucia el dato. F-326 pendiente |
-| **Cortesía al comensal** | Postre de cumpleaños, plato de disculpa | **Sí** — mismo problema. F-326 pendiente |
+| **Consumo interno / comida del personal** | El turno come | **Sí** — hoy entra como merma y ensucia el dato. F-261 pendiente |
+| **Cortesía al comensal** | Postre de cumpleaños, plato de disculpa | **Sí** — mismo problema. F-261 pendiente |
 | **Reposición de platillo** | El plato salió mal y se vuelve a hacer | El insumo se consume **dos veces** y sólo se cobra una. Hoy no queda registrado como tal |
 | **Robo detectado** | Conteo físico contra teórico | **Sí**, y debería tener su propio motivo, no "ajuste" |
 | **Ajuste negativo** | Diferencia de conteo | **Sí** |
@@ -228,7 +228,7 @@ distintos insumos del mismo plato mermam distinto.
 
 **Las tres mermas de salida comparten un problema hoy:** el consumo del personal y las cortesías
 se registran como merma porque no hay otro lugar. Eso hace que el indicador de merma —que debería
-ser la alarma de robo y de descuido— traiga dentro comida que sí tiene explicación. **F-326** lo
+ser la alarma de robo y de descuido— traiga dentro comida que sí tiene explicación. **F-261** lo
 separa, y hasta que exista, el número de merma hay que leerlo con esa advertencia.
 
 ---

@@ -49,12 +49,12 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-026 | Precio por horario o temporada | [=] | ␣ |
 | F-027 | Modificadores y extras | [≠] | ◐ |
 | F-028 | Imágenes de producto | [=] | ⚙ |
-| F-029 | Códigos de barras | [=] | ◐ |
+| F-029 | Códigos de barras | [≠] | ◐ |
 | F-030 | Paquetes y combos | [≠] | ␣ |
 | F-031 | Productos compuestos (kits) | [=] | ␣ |
 | F-032 | Importación masiva por Excel | [=] | ⚙ |
 | F-033 | Matriz talla / color | [+] | ␣ |
-| F-034 | Compatibilidad por vehículo o equipo | [+] | ␣ |
+| F-034 | Compatibilidad por vehículo o equipo | [≠] | ␣ |
 | F-040 | Clientes: ficha básica | [=] | ⚙ |
 | F-041 | Historial de compra del cliente | [=] | ␣ |
 | F-042 | Datos fiscales (RFC, régimen, CP) | [=] | ␣ |
@@ -68,6 +68,10 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-055 | Comparativo entre periodos | [=] | ␣ |
 | F-056 | **Dashboard** | [≠] | ◐ |
 | F-057 | Exportación a Excel y PDF | [=] | ◐ |
+| F-058 | Impresión de etiquetas de anaquel y de código de barras | [=] | ␣ |
+| F-059 | Atributos técnicos de medida como eje del catálogo | [+] | ␣ |
+| F-060 | Equivalencias y sustitutos entre productos | [+] | ␣ |
+| F-061 | Foto de mostrador y búsqueda visual asistida | [+] | ␣ |
 
 ## F-1xx · INVENTARIO
 
@@ -90,7 +94,7 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 
 | ID | Variante | Giros | Estado |
 |---|---|---|---|
-| F-110 | V1 · Sin inventario | servicios puros | ␣ |
+| F-110 | V1 · El tiempo es el inventario | consultorio, despacho, asesoría, clases | ␣ |
 | F-111 | V2 · Stock simple (pieza) | papelería, boutique, dulcería | ␣ |
 | F-112 | V3 · Presentaciones (caja ↔ pieza) | abarrotes, ferretería, farmacia | ␣ |
 | F-113 | V4 · Lote y caducidad | farmacia, perecederos, agroveterinaria | ␣ |
@@ -106,7 +110,7 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | ID | Función | Depende de |
 |---|---|---|
 | F-120 | Factor de conversión entre presentaciones | F-112 |
-| F-121 | Venta en dos unidades | F-112 |
+| F-121 | Venta en dos unidades `[≠]` · factor exacto o factor por peso | F-112 |
 | F-122 | Salida PEPS obligatoria | F-113 |
 | F-123 | Alerta de próximo a caducar | F-113 |
 | F-124 | Trazabilidad de lote | F-113, F-116 |
@@ -131,6 +135,18 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-143 | Daño y reposición | F-119 |
 | F-144 | Venta a granel / por peso en mostrador | F-111, F-112 |
 | F-145 | Corte de material (metro, lámina) | F-112 |
+| F-146 | Caducidad sin lote · fecha por entrada de compra | F-112 |
+| F-147 | Presentación con código de barras propio | F-112, F-029 |
+| F-148 | Código de barras con peso o importe embebido (EAN-13 prefijo 2x) | F-144, F-983 |
+| F-149 | Conteo cíclico por zona de anaquel | F-106 |
+| F-150 | Retazo y sobrante de corte | F-145 |
+| F-151 | Doble unidad de venta con conversión por peso | F-112, F-121, F-983 |
+| F-152 | Ubicación física de la pieza | F-100 |
+| F-153 | Lista de materiales por trabajo | F-020 |
+| F-154 | Fórmula capturada al aplicar · consumo real del servicio | F-115, F-434 |
+| F-155 | Doble destino del mismo SKU: cabina y anaquel | F-100, F-105 |
+| F-156 | Merma de barra: calibración, vaporizado, rehecha, caducidad de leche | F-109, F-115 |
+| F-157 | Frescura del grano por fecha de tueste | F-115 |
 
 ## F-2xx · VENTA, COBRO Y CAJA
 
@@ -168,10 +184,22 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-244 | V5 · Al repartidor | — | ␣ |
 | F-245 | Desglose exacto por método | [=] | ⚙ |
 | F-246 | Liquidación de propinas por periodo | [=] | ⚙ |
+| F-247 | Propina delegada al comensal desde el portal | [=] | ◐ |
+| F-248 | Bote del turno repartido por horas presentes | [≠] | ␣ |
+| F-249 | Segunda pantalla al cliente | [=] | ␣ |
 | F-250 | Gastos con categoría | [=] | ⚙ |
 | F-251 | Plantillas de gasto fijo | [=] | ⚙ |
 | F-252 | Comprobante adjunto al gasto | [=] | ␣ |
 | F-253 | Gastos contra presupuesto | [=] | ␣ |
+| F-254 | Cobro de crédito o fiado en caja · entrada que NO es venta | [=] | ␣ |
+| F-255 | Venta por comisión · dinero ajeno en tránsito | [=] | ␣ |
+| F-256 | Depósito de envase retornable en mostrador (casco) | [≠] | ␣ |
+| F-257 | Redondeo de cambio y su registro | [=] | ␣ |
+| F-258 | Servicio de mostrador con material y mano de obra | [+] | ␣ |
+| F-259 | Liquidación al profesional como salida de caja | [+] | ␣ |
+| F-260 | Propina en tarjeta como pasivo hacia el profesional | [+] | ␣ |
+| F-261 | Consumo de empleados y cortesías | [=] | ␣ |
+| F-262 | Bloqueo de cierre por unidades abiertas | [≠] | ◐ |
 
 ## F-3xx · MESA Y PREPARACIÓN · arquetipo A2
 
@@ -197,13 +225,26 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-320 | Cuenta abierta que crece | [+] | ⚙ |
 | F-321 | Dividir cuenta | [+] | ␣ |
 | F-322 | Precuenta | [+] | ⚙ |
+| F-323 | Marcha por tiempos (retener y liberar) | [+] | ␣ |
+| F-324 | Anulación de línea ya comandada, con motivo y reversa de consumo | [+] | ␣ |
+| F-325 | Relevo de responsable con unidades abiertas | [+] | ␣ |
+| F-328 | Fila de despacho de mostrador | [+] | ␣ |
+| F-329 | Llamado por nombre y pantalla pública de recogida | [+] | ␣ |
+| F-330 | Pedido anticipado con hora de recogida | [+] | ␣ |
+| F-331 | Consumo de empaque según canal de entrega | [+] | ␣ |
+
+> **F-326 y F-327 están libres a propósito.** Se propusieron con número de este
+> bloque (A2 · mesa y preparación) pero sus propias fichas las declaran del
+> bloque F-2xx, y las dos aplican fuera de A2 — `abarrotes` ya cita el consumo
+> de empleados para el autoconsumo del tendero. Se reasignaron a **F-261** y
+> **F-262**. No se reutilizan estos dos números para no resucitar la confusión.
 
 ## F-4xx · AGENDA Y PROFESIONAL · arquetipo A3
 
 | ID | Función | Marca | Estado |
 |---|---|---|---|
 | F-400 | Calendario día / semana / mes | [≠] | ␣ |
-| F-401 | Duración por servicio | [=] | ␣ |
+| F-401 | Duración por servicio | [≠] | ␣ |
 | F-402 | Agenda por profesional | [+] | ␣ |
 | F-403 | Agenda por recurso | [+] | ␣ |
 | F-404 | Disponibilidad y huecos | [=] | ␣ |
@@ -216,14 +257,20 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-411 | Cita recurrente | [=] | ␣ |
 | F-412 | Registro de no-show | [=] | ␣ |
 | F-413 | Walk-in sin cita | [=] | ␣ |
+| F-414 | Anticipo para asegurar la cita | [=] | ␣ |
+| F-415 | Servicio con tiempo pasivo intercalable (procesado) | [+] | ␣ |
+| F-416 | Bloqueo de agenda no productivo | [=] | ␣ |
+| F-417 | Costo del hueco · venta perdida de agenda | [=] | ␣ |
 | F-420 | Ficha del profesional | [+] | ␣ |
 | F-421 | Servicios que puede dar y a qué precio | [+] | ␣ |
 | F-422 | Horario y días libres | [+] | ␣ |
 | F-423 | Comisión por servicio | [≠] | ␣ |
-| F-424 | Comisión sobre producto vendido | [=] | ␣ |
+| F-424 | Comisión sobre producto vendido | [≠] | ␣ |
 | F-425 | Cartera de clientes del profesional | [+] | ␣ |
 | F-426 | Productividad y ocupación | [+] | ␣ |
 | F-427 | Liquidación de comisiones | [=] | ␣ |
+| F-428 | Cita atendida por más de un profesional · reparto | [+] | ␣ |
+| F-429 | Origen de la clienta y su efecto en la tarifa de comisión | [+] | ␣ |
 | F-430 | **Expediente** | [≠] | ␣ |
 | F-431 | V1 · Clínico | — | ␣ |
 | F-432 | V2 · Veterinario | — | ␣ |
@@ -234,6 +281,11 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-437 | Documentos adjuntos | [=] | ␣ |
 | F-438 | Consentimiento firmado | [=] | ␣ |
 | F-439 | Paquete de sesiones | [=] | ␣ |
+| F-440 | Regla de comisión: base, momento de causación y excepciones | [+] | ␣ |
+| F-441 | Renta de estación (silla) | [+] | ␣ |
+| F-442 | Cargo de material al servicio y su efecto en la comisión | [+] | ␣ |
+| F-443 | Ledger inmutable de comisión causada | [+] | ␣ |
+| F-444 | Rehacer sin cobro (servicio de garantía) | [+] | ␣ |
 
 ## F-5xx · ORDEN DE TRABAJO · arquetipo A4
 
@@ -288,6 +340,8 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-634 | Plantillas de compra recurrente | [=] | ⚙ |
 | F-635 | Cuentas por pagar | [=] | ␣ |
 | F-636 | Comparativo de precios entre proveedores | [=] | ␣ |
+| F-638 | Autorizados a cargar en cuenta | [+] | ␣ |
+| F-639 | Subcuenta por obra del cliente | [+] | ␣ |
 
 ## F-7xx · SUSCRIPCIÓN Y ESPACIO · arquetipos A6 y A7
 
@@ -328,7 +382,7 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-812 | Carga del vehículo | [+] | ␣ |
 | F-813 | Entrega con firma o foto | [=] | ␣ |
 | F-814 | Cobro en ruta | [+] | ␣ |
-| F-815 | Devolución de envase retornable | [+] | ␣ |
+| F-815 | Devolución de envase retornable | [≠] | ␣ |
 | F-816 | Liquidación del repartidor | [+] | ␣ |
 | F-817 | Geolocalización de la entrega | [=] | ␣ |
 | F-818 | Rendimiento por ruta | [+] | ␣ |
@@ -366,6 +420,7 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-933 | Cupones y promociones | [=] | ␣ |
 | F-934 | Recompensas y canje | [=] | ␣ |
 | F-935 | Cumpleaños y fechas | [=] | ␣ |
+| F-936 | Pasivo de lealtad: recompensas otorgadas y no canjeadas | [=] | ␣ |
 | F-940 | **Facturación CFDI 4.0** | [=] | ␣ |
 | F-941 | Timbrado ante PAC | [=] | ␣ |
 | F-942 | Factura global del día | [=] | ␣ |
@@ -394,20 +449,122 @@ Si necesitas una función que no está aquí, **añádela a este archivo primero
 | F-985 | Impresora térmica | [=] | ⚙ |
 | F-986 | Lector de código de barras | [=] | ◐ |
 | F-987 | Terminal bancaria integrada | [=] | ␣ |
+| F-988 | Venta sin conexión con sincronización posterior | [=] | ␣ |
 
 ---
 
 ## Conteo
 
-```
-Total de funciones catalogadas ....... 232
-Construidas hoy [⚙] .................. 54
-Parciales [◐] ........................ 9
-Sin construir ........................ 169
+Recalculado el 14-09-2026 contando las filas, no de memoria.
 
-Idénticas [=] ........................ 148  ← se construyen UNA vez
-Variantes [≠] ........................ 26   ← tronco + N variantes
-Exclusivas [+] ....................... 58
+```
+IDs canónicos en este catálogo ........... 363
+  · con marca de comportamiento .......... 300
+  · variantes y subfunciones sin marca ....  63   (F-11x, F-12x…F-15x, F-24x, F-43x, F-92x)
+
+De las 300 con marca:
+  Idénticas    [=] ....................... 183   ← se construyen UNA vez
+  Variantes    [≠] .......................  39   ← tronco + N variantes
+  Exclusivas   [+] .......................  78   ← cuando toque su arquetipo
+
+  Construidas  [⚙] .......................  70
+  Parciales    [◐] .......................  10
+  Sin construir [␣] ...................... 220
 ```
 
-**La lectura que importa:** 148 de 232 funciones se construyen una sola vez y sirven a todos los modelos. Las 26 variantes son donde está el riesgo y donde hay que pensar despacio. Las 58 exclusivas se construyen cuando toque su arquetipo.
+**La lectura que importa:** 183 de 300 funciones con marca se construyen una sola vez y sirven a
+los 78 modelos. Las **39 variantes** son donde está el riesgo y donde hay que pensar despacio: cada
+una es un tronco más N estrategias, y confundir una `[=]` con una `[≠]` es el error caro de esta
+fase — mucho más caro que duplicar, porque no se nota hasta que un cliente ve el número mal.
+
+> **Corrección del 14-09-2026.** El conteo anterior decía «Total de funciones catalogadas: 232» y
+> era **falso antes de esta reconciliación**: 232 era el número de filas que llevan columna de
+> marca en los bloques principales, y dejaba fuera las diez variantes de inventario (F-110–F-119),
+> las veintiséis subfunciones de variante (F-120–F-145) y las sub-filas de variante de F-241–F-244,
+> F-431–F-435 y F-921–F-926. El catálogo real ya tenía **313** IDs antes de que esta etapa añadiera
+> los 50 nuevos. Se corrige y se deja dicho, porque un conteo que se cita en tres documentos y está
+> mal se propaga a los 73 modelos que faltan.
+
+---
+
+## Reconciliación del 14-09-2026 · decisión D-11
+
+Cinco agentes documentaron cinco modelos en paralelo, sin hablarse, y propusieron **50 IDs nuevos**.
+Esto es lo que se resolvió antes de escribir una línea de código. Se deja escrito porque el criterio
+vale más que el resultado: los 73 modelos que faltan van a proponer más IDs y van a necesitarlo.
+
+### Las dos colisiones reales
+
+| ID | Lo pidió `cafeteria` | Lo pidió `abarrotes` | Resolución |
+|---|---|---|---|
+| **F-146** | merma de barra | caducidad sin lote | **abarrotes conserva F-146.** `cafeteria` se mueve a **F-156** |
+| **F-148** | frescura del grano | EAN-13 con peso embebido | **abarrotes conserva F-148.** `cafeteria` se mueve a **F-157** |
+
+**Por qué gana `abarrotes` las dos.** No por antigüedad ni por importancia, sino porque su acepción
+la citan **tres** modelos —`abarrotes`, `ferreteria` y `estetica-salon`— contra uno solo de
+`cafeteria`, y porque `estetica-salon` **ya había deconflictado a mano** contra la numeración de
+`abarrotes` y arrancó en F-154 a propósito (su §6 lo dice). Mover `abarrotes` habría roto ese
+trabajo y habría obligado a tocar tres carpetas en vez de una.
+
+**Efecto lateral que conviene saber:** `estetica-salon/FILE-MAP.md` §3 citaba F-146 con la acepción
+de `abarrotes`. Al conservarla `abarrotes`, esa cita **quedó correcta sin tocarla**.
+
+### Dos IDs en el bloque equivocado
+
+`restaurante` propuso F-326 (consumo de empleados y cortesías) y F-327 (bloqueo de cierre por
+unidades abiertas) **con número del bloque F-3xx**, que es *mesa y preparación · arquetipo A2*,
+mientras sus propias fichas las declaraban del bloque **F-2xx**. Las dos aplican fuera de A2 —
+`abarrotes` ya cita el consumo de empleados para el autoconsumo del tendero, y el bloqueo de cierre
+aplica a A2 y a A7—.
+
+```
+F-326  →  F-261   Consumo de empleados y cortesías
+F-327  →  F-262   Bloqueo de cierre por unidades abiertas
+```
+
+F-326 y F-327 quedan **libres a propósito** y no se reutilizan.
+
+### Funciones que resultaron ser la misma
+
+- **F-254.** `abarrotes` la llamó *cobro de fiado en caja* y `ferreteria` *cobro de crédito en caja*.
+  Son la misma función con el vocabulario de cada giro: dinero que entra al cajón y **no es venta**.
+  Se fusionan en **F-254 · Cobro de crédito o fiado en caja**. El diccionario de vocabulario (F-017)
+  es exactamente lo que resuelve que una diga «fiado» y la otra «crédito» sin duplicar el código.
+
+### Cuatro funciones que comparten mecánica y hay que construir con UN tronco
+
+No se fusionan —sus operaciones y sus pantallas son distintas— pero **son el mismo objeto de datos**:
+dinero que entra al cajón, no es del negocio, y hay que devolverlo o entregarlo.
+
+| ID | Modelo | Qué entra | A quién se le debe |
+|---|---|---|---|
+| F-254 | abarrotes, ferreteria | abono de fiado | a nadie: baja un saldo |
+| F-255 | abarrotes | recarga, recibo, paquetería | al tercero que presta el servicio |
+| F-256 | abarrotes | depósito de envase (casco) | al cliente que devuelva el envase |
+| F-260 | estetica-salon | propina en tarjeta | al profesional que la ganó |
+
+`estetica-salon` ya lo había visto y lo dejó escrito: *«es, mecánicamente, el mismo objeto que
+F-256»*. **Se construyen sobre un solo ledger de pasivos de terceros**, con cuatro naturalezas. Si
+se escriben cuatro veces, se descuadran cuatro veces distintas.
+
+### Las reclasificaciones aplicadas
+
+Ocho peticiones de los modelos, sobre **siete** funciones distintas (F-029 la pidieron dos).
+
+| Función | Antes | Ahora | Quién lo pidió y por qué |
+|---|---|---|---|
+| **F-029** Códigos de barras | `[=]` | `[≠]` | `abarrotes` y `ferreteria`. Tres variantes: apagada (restaurante), N códigos por producto (abarrotes, F-147), y catálogo **mixto** con SKU interno impreso para la mitad sin código de fábrica (ferretería) |
+| **F-034** Compatibilidad | `[+]` | `[≠]` | `ferreteria`. Variantes: **vehicular** (refaccionaria) y **por medida y sistema** (ferretería, plomería, materiales) |
+| **F-110** V1 | *Sin inventario* | **El tiempo es el inventario** | `estetica-salon`. La descripción anterior era **falsa**: estética, spa, veterinaria y tatuajes consumen producto todos los días. Los giros se corrigen a consultorio, despacho, asesoría y clases |
+| **F-121** Venta en dos unidades | sin marca | `[≠]` | `ferreteria`. Variantes: **factor exacto** (abarrotes: caja = 24) y **factor por peso** (ferretería: F-151, con 3%–8% de desviación real entre lotes) |
+| **F-401** Duración por servicio | `[=]` | `[≠]` | `estetica-salon`. En dental y fotografía la duración es un número; en estética, uñas, spa y fisioterapia es una **secuencia activo-pasivo-cierre** (F-415) |
+| **F-424** Comisión sobre producto | `[=]` | `[≠]` | `estetica-salon`. En una boutique comisiona **quien vendió**; en un salón comisiona **quien atendió**, aunque cobre otra persona, y con otro porcentaje |
+| **F-815** Envase retornable | `[+]` A9 | `[≠]` | `abarrotes`. Dos variantes: **mostrador** (F-256) y **ruta** (la original de A9) |
+
+### Lo que NO se tocó, y por qué
+
+- **`estetica-salon` no se renumeró en absoluto.** Leyó lo que propusieron los otros cuatro y arrancó
+  en F-154, F-259 y en el bloque F-4xx, que estaba intacto. Es el único que hizo el trabajo de
+  deconflictar antes, y reasignarle un ID habría roto algo que ya estaba bien.
+- **No se compactaron los huecos** (F-326, F-327, F-637). Un catálogo con huecos es más barato que
+  uno renumerado: el hueco no le miente a nadie.
