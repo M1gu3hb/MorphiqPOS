@@ -13,3 +13,15 @@ export {
   type PresentacionParaPrecio,
   type ResultadoPresentacion,
 } from './presentaciones.ts';
+
+export {
+  entradaAbonoFiado,
+  entradaDepositoEnvase,
+  entradaRegistrarComision,
+  moverDepositoEnvase,
+  registrarAbonoFiado,
+  registrarComision,
+  uuidDeProveedor,
+  type ResultadoComision,
+  type ResultadoPasivo,
+} from './pasivos.ts';
