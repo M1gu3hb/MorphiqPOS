@@ -2,6 +2,8 @@ import { CODIGOS_ERROR, ErrorDominio } from '@morphiqpos/contracts/errores';
 
 import { cantidad, ESCALA_CANTIDAD } from '../catalogo/index.ts';
 
+import { enEscalaCompleta } from './escala.ts';
+
 /**
  * F-149 · Conteo cíclico por zona. La aritmética, sin base de datos.
  *
@@ -172,23 +174,6 @@ export interface AjustePlaneado {
   readonly delta: string;
   readonly unidad: string;
   readonly faltante: boolean;
-}
-
-/**
- * `-40000n` → `'-4.0000'`, con los cuatro decimales siempre.
- *
- * `cantidadATexto` no sirve para esto por dos razones: recorta los ceros de la
- * derecha —y lo contado se compara contra un `numeric(14,4)`— y rechaza el
- * negativo, que es justo el caso que importa: el faltante.
- */
-function enEscalaCompleta(valor: bigint): string {
-  const negativo = valor < 0n;
-  const magnitud = negativo ? -valor : valor;
-  const enteros = magnitud / ESCALA_CANTIDAD;
-  const fraccion = (magnitud % ESCALA_CANTIDAD).toString().padStart(4, '0');
-  // Los cuatro decimales van siempre: es la escala de `numeric(14,4)` y lo que
-  // el ajuste escribe en el ledger.
-  return `${negativo ? '-' : ''}${enteros.toString()}.${fraccion}`;
 }
 
 /**

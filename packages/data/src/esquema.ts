@@ -967,6 +967,8 @@ export interface Esquema {
   traspasos: Traspasos;
   valuacion_lineas: ValuacionLineas;
   valuaciones_inventario: ValuacionesInventario;
+  kardex: Kardex;
+  saldos_pasivos: SaldosPasivos;
   vocabulario_negocio: VocabularioNegocio;
   zonas: Zonas;
 }
@@ -994,6 +996,48 @@ export interface VocabularioNegocio {
   empleado_id: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+/**
+ * F-103 · El kardex: el ledger de movimientos con su SALDO CORRIDO.
+ *
+ * Es una VISTA de la 060, no una tabla. La verdad sigue siendo
+ * `movimientos_stock`, que es inmutable; esto es la misma verdad con una
+ * función de ventana encima. Se declara aquí porque Kysely necesita su forma
+ * para poder leerla con tipos, igual que cualquier tabla.
+ *
+ * Se lee, nunca se escribe: por eso todas sus columnas son de sólo lectura y
+ * ninguna es `Generated`.
+ */
+export interface Kardex {
+  organizacion_id: string;
+  almacen_id: string;
+  insumo_id: string;
+  movimiento_id: string;
+  created_at: Date;
+  tipo: string;
+  motivo: string | null;
+  cantidad: string;
+  unidad: string;
+  costo_unitario_centavos: bigint;
+  /** El costo del renglón. Firmado: una salida da importe negativo. */
+  importe_centavos: bigint;
+  referencia_tipo: string | null;
+  referencia_id: string | null;
+  empleado_id: string | null;
+  /** La suma corrida por (organización, almacén, insumo). */
+  saldo: string;
+}
+
+/** La vista de saldos del ledger de pasivos (063). Agregada, de sólo lectura. */
+export interface SaldosPasivos {
+  organizacion_id: string;
+  naturaleza: string;
+  titular_tipo: string;
+  titular_id: string | null;
+  saldo_centavos: bigint;
+  movimientos: number;
+  ultimo_movimiento: Date;
 }
 
 /** F-105 · Cabecera que amarra la salida y la entrada de un traspaso. */
