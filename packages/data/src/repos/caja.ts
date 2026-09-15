@@ -92,8 +92,12 @@ export interface NuevoMovimiento {
 export async function registrarMovimiento(
   tx: Transaccion,
   movimiento: NuevoMovimiento,
-): Promise<void> {
-  await tx
+): Promise<{ readonly id: string }> {
+  // Devuelve el id porque hay filas que tienen que poder apuntar a su gemelo:
+  // `redondeos.movimiento_caja_id` es lo que deja al corte explicar los veinte
+  // centavos que sobran, y sin el id de vuelta habría que buscarlo por
+  // referencia, que es una consulta más y una forma de equivocarse.
+  return await tx
     .insertInto('movimientos_caja')
     .values({
       organizacion_id: movimiento.organizacionId,
@@ -105,7 +109,8 @@ export async function registrarMovimiento(
       empleado_id: movimiento.empleadoId,
       motivo: movimiento.motivo,
     })
-    .execute();
+    .returning('id')
+    .executeTakeFirstOrThrow();
 }
 
 export interface ArqueoDerivado {

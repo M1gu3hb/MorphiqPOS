@@ -875,6 +875,7 @@ export interface Esquema {
   lotes_grano: LotesGrano;
   presencias_turno: PresenciasTurno;
   producto_presentaciones: ProductoPresentaciones;
+  redondeos: Redondeos;
   zonas_anaquel: ZonasAnaquel;
   merma_barra_turno: MermaBarraTurno;
   fila_barra: FilaBarra;
@@ -1161,6 +1162,22 @@ export interface ProductoPresentaciones {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+/** F-257 · «No tengo cambio, ¿le doy un chicle?», con renglón. */
+export interface Redondeos {
+  id: Generated<string>;
+  organizacion_id: string;
+  orden_id: string;
+  tipo: string;
+  /** Con signo: positivo a favor del negocio, negativo en contra. */
+  importe_centavos: bigint;
+  producto_especie_id: string | null;
+  movimiento_stock_id: string | null;
+  movimiento_caja_id: string | null;
+  sesion_caja_id: string;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
 }
 
 /** F-149 · Una zona física de la tienda. Sabe cada cuántos días toca contarla. */

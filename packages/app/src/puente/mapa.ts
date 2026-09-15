@@ -1098,6 +1098,30 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  Redondeo: {
+    tabla: 'redondeos',
+    // Lo lee quien cuadra el cajón: es la explicación de por qué el arqueo no
+    // da exactamente lo que dice la venta.
+    rolesLectura: [...CAJA],
+    escritura: 'comando',
+    ordenPorOmision: '-created_at',
+    campos: {
+      ...soloAutomaticos(['id']),
+      orden_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      importe_centavos: { columna: 'importe_centavos', conversion: 'dinero', escribible: false },
+      producto_especie_id: {
+        columna: 'producto_especie_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      movimiento_caja_id: { columna: 'movimiento_caja_id', conversion: 'texto', escribible: false },
+      sesion_caja_id: { columna: 'sesion_caja_id', conversion: 'texto', escribible: false },
+      empleado_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+      created_at: { columna: 'created_at', conversion: 'fecha', escribible: false },
+    },
+  },
+
   Presentacion: {
     tabla: 'producto_presentaciones',
     // El precio de una presentación es público en el mostrador: el six tiene su
