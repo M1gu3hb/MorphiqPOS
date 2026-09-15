@@ -263,7 +263,17 @@ petición.
 | `unirMesas` | `{mesaPrincipalId, mesaIds[], clave}` | administrador, caja, mesero | restaurante | `uniones_mesa` + miembros, mueve líneas a la cuenta principal, cierra las cuentas absorbidas, `movimientos_cuenta`, `eventos_mesa` | **Sí** |
 | `separarMesas` | `{unionId, clave}` | administrador, caja, mesero | restaurante | Cierra la unión, libera las mesas miembro, `movimientos_cuenta` | **Sí** |
 | `cambiarMesa` | `{ordenId, mesaDestinoId, clave}` | administrador, caja, mesero | restaurante | Reapunta `ordenes.mesa_id`, **reapunta las comandas vivas**, libera origen, ocupa destino, `movimientos_cuenta`, `eventos_mesa` | **Sí** |
-| `anularLinea` | `{ordenId, lineaId, cantidad, motivo, clave}` | administrador, caja | restaurante | Marca la línea, cancela su `comanda_item`, **revierte el consumo si ya se cobró**, `movimientos_cuenta` | **Sí** |
+| `anularLinea` | `{ordenId, lineaId, cantidad?, motivo, nota?, clave}` | administrador, caja | restaurante | Marca la línea (o la parte anulada, en fila hermana), ajusta su `comanda_item`, recotiza la cuenta, `movimientos_cuenta` | **Sí** |
+
+> **Corregido el 15-09-2026 al construir F-324.** Esta fila decía que `anularLinea`
+> «revierte el consumo si ya se cobró». **Eso es F-222, devolución, y es otro camino.**
+> Una cuenta cobrada se devuelve; darle a la anulación una segunda puerta al reembolso lo
+> dejaría fuera del control de F-222 —folio, motivo, método por el que vuelve el dinero—.
+> F-324 se acota a cuentas vivas y su mensaje de error manda a devolución. El inventario no
+> se toca porque **no se había descontado**: el stock sale al COBRAR (regla 5 de `F1-01` §3),
+> así que una cuenta que nunca se cobró no tiene nada que revertir. El platillo que la cocina
+> sí preparó y se tiró se registra con **F-261**, tipo `reposicion`, que es donde ese costo
+> pertenece.
 | `marcharTiempo` | `{ordenId, tiempoServicio, clave}` | mesero, caja, administrador | restaurante | Pasa las líneas `retenida` → `marchada`, crea o libera la comanda, sella `comandas.marchada_en` | **Sí** |
 | `registrarEspera` | `{nombre, telefono?, personas, notas?}` | caja, mesero, administrador | restaurante | `lista_espera` | No |
 | `sentarEspera` | `{esperaId, mesaId, clave}` | caja, mesero, administrador | restaurante | Cierra la espera y abre la mesa en la misma transacción | **Sí** |
@@ -354,9 +364,32 @@ compensación, nunca editando la anterior.
 | **078** | `078_tope_descuento.sql` | `descuento_maximo_bp` en el documento de configuración + bitácora de autorizaciones |
 | **066** | `066_plantillas_semilla.sql` | **D-01**: renombra el valor `restaurante_pro` a `restaurante` en `paquete`, con actualización de los negocios vivos y `check` nuevo. Va al final a propósito: es la que toca datos de producción |
 
-**Sobre 069.** Es la única que migra datos de clientes que están operando. No se aplica sin
+**Sobre la 066.** Es la única que migra datos de clientes que están operando. No se aplica sin
 respaldo probado y sin la respuesta de Miguel a la decisión pendiente **P-04**. Escribirla ahora y
 dejarla lista es correcto; aplicarla sin eso, no.
+
+> **Corregido el 15-09-2026.** Este párrafo decía «Sobre 069», un número que la tabla de arriba
+> no lista: la consolidación de la etapa 0 convirtió las cinco migraciones de plantilla en la
+> **066**, y la advertencia le corresponde a ella.
+
+**Lo que de verdad se escribió en la Fase 2, y en qué orden.** La tabla de arriba es el plan; esto
+es el resultado, para que quien acople no tenga que deducirlo de `git log`:
+
+| Nº | Archivo | Función | Estado |
+|---|---|---|---|
+| **070** | `070_movimientos_cuenta.sql` | F-321 + las columnas de F-324 | escrita |
+| **071** | `071_union_y_cambio_de_mesa.sql` | F-302 y F-303 | escrita |
+| **072** | `072_eventos_mesa.sql` | F-305 | escrita |
+| **073** | `073_lista_espera.sql` | F-306 | escrita |
+| **074** | `074_tiempos_y_marcha.sql` | F-323 y F-315 | escrita |
+| **075** | — | F-318 impresión de comanda | **BLOQUEADA**, esperando la decisión de Miguel entre agente local, impresora de red y `window.print()` |
+| **076** | `076_esquemas_propina.sql` | F-242 **y F-325** | escrita |
+| **077** | `077_consumos_internos.sql` | F-261 | escrita |
+| **078** | — | F-205 tope de descuento | fuera del alcance de estas cinco funciones |
+
+> **F-325 no tenía migración asignada** y comparte la 076 con F-242 a propósito: las dos
+> contestan «a quién le toca esta propina», y el reparto por puntos necesita el ledger de
+> relevos para saber quién estuvo en el piso.
 
 ---
 

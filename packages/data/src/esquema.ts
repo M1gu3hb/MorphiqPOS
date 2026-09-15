@@ -1070,6 +1070,7 @@ export interface EsquemaPropinaPuntos {
 
 /** F-242 · El reparto real de una liquidación, congelado. */
 export interface LiquidacionPropinaBeneficiarios {
+  id: Generated<string>;
   liquidacion_id: string;
   empleado_id: string;
   puesto: string;
