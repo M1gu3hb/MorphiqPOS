@@ -1098,6 +1098,151 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  Obra: {
+    tabla: 'obras',
+    // F-639 · La obra se CIERRA, nunca se borra: sus remisiones se consultan
+    // años después, y el contratista las pide para su contabilidad de obra.
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: 'nombre',
+    campos: {
+      ...soloAutomaticos(['id']),
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      direccion: { columna: 'direccion', conversion: 'texto', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      limite_centavos: { columna: 'limite_centavos', conversion: 'dinero', escribible: false },
+      abierta_en: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
+      cerrada_en: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  AutorizadoCuenta: {
+    tabla: 'autorizados_cuenta',
+    // El mostrador TIENE que poder leerla: el aviso de «no está en la lista»
+    // sirve antes de despachar, o no sirve.
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: 'nombre',
+    campos: {
+      ...soloAutomaticos(['id']),
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      obra_id: { columna: 'obra_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
+      // La identificación que enseñó al darse de alta la ve la DIRECCIÓN, no el
+      // mostrador: para despachar basta el nombre y la foto.
+      identificacion: {
+        columna: 'identificacion',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...DIRECCION],
+      },
+      foto_url: { columna: 'foto_url', conversion: 'texto', escribible: false },
+      tope_por_salida_centavos: {
+        columna: 'tope_por_salida_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      activo: { columna: 'activo', conversion: 'booleano', escribible: false },
+      dado_de_baja_en: { columna: 'dado_de_baja_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  Remision: {
+    tabla: 'remisiones',
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: '-entregada_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      orden_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      obra_id: { columna: 'obra_id', conversion: 'texto', escribible: false },
+      autorizado_id: { columna: 'autorizado_id', conversion: 'texto', escribible: false },
+      nombre_firmante: { columna: 'nombre_firmante', conversion: 'texto', escribible: false },
+      // EL dato de la impugnación. Se expone porque la conversación de cobro se
+      // tiene mirando la pantalla, no el registro de auditoría.
+      autorizado_estaba_en_lista: {
+        columna: 'autorizado_estaba_en_lista',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      firma_url: { columna: 'firma_url', conversion: 'texto', escribible: false },
+      importe_centavos: { columna: 'importe_centavos', conversion: 'dinero', escribible: false },
+      saldo_documento_centavos: {
+        columna: 'saldo_documento_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      entregada_en: { columna: 'entregada_en', conversion: 'fecha', escribible: false },
+      entregada_por: { columna: 'entregada_por', conversion: 'texto', escribible: false },
+    },
+  },
+
+  Ubicacion: {
+    tabla: 'ubicaciones',
+    // La lee quien vende: la ubicación existe para encontrar la pieza, sesenta
+    // veces al día. Esconderla del cajero la deja sin usuario.
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: 'orden_recorrido',
+    campos: {
+      ...soloAutomaticos(['id']),
+      almacen_id: { columna: 'almacen_id', conversion: 'texto', escribible: false },
+      codigo: { columna: 'codigo', conversion: 'texto', escribible: false },
+      descripcion: { columna: 'descripcion', conversion: 'texto', escribible: false },
+      zona_id: { columna: 'zona_id', conversion: 'texto', escribible: false },
+      orden_recorrido: { columna: 'orden_recorrido', conversion: 'entero', escribible: false },
+      activa: { columna: 'activa', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  ProductoAtributo: {
+    tabla: 'producto_atributos',
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: 'clave',
+    campos: {
+      ...soloAutomaticos(['id']),
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      clave: { columna: 'clave', conversion: 'texto', escribible: false },
+      valor_texto: { columna: 'valor_texto', conversion: 'texto', escribible: false },
+      // En MICRÓMETROS, y por eso entero: un cuarto de pulgada es 6350, no 6.35.
+      valor_normalizado: { columna: 'valor_normalizado', conversion: 'entero', escribible: false },
+      // Lo que tecleó la persona. Viaja porque es lo que la pantalla vuelve a
+      // mostrar: reconstruir la fracción desde el normalizado es ambiguo.
+      valor_original: { columna: 'valor_original', conversion: 'texto', escribible: false },
+    },
+  },
+
+  PiezaAbierta: {
+    tabla: 'piezas_abiertas',
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: 'medida_restante_base',
+    campos: {
+      ...soloAutomaticos(['id']),
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      almacen_id: { columna: 'almacen_id', conversion: 'texto', escribible: false },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      medida_restante_base: {
+        columna: 'medida_restante_base',
+        conversion: 'entero',
+        escribible: false,
+      },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      precio_remate_centavos: {
+        columna: 'precio_remate_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      ubicacion_id: { columna: 'ubicacion_id', conversion: 'texto', escribible: false },
+      abierta_en: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
   Redondeo: {
     tabla: 'redondeos',
     // Lo lee quien cuadra el cajón: es la explicación de por qué el arqueo no

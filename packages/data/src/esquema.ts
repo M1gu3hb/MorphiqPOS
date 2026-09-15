@@ -83,6 +83,11 @@ export interface Clientes {
   ultima_visita: Date | null;
   saldo_pendiente_centavos: Generated<bigint>;
   limite_credito_centavos: Generated<bigint>;
+  /** F-610 · `particular`, `contratista`, `plomero`, `electricista`, `empresa`. */
+  tipo: Generated<string>;
+  dias_plazo: Generated<number>;
+  /** F-617 · El muro por mora. SIEMPRE hay llave, y es del dueño. */
+  bloqueado_por_mora: Generated<boolean>;
   activo: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
@@ -572,6 +577,11 @@ export interface Ordenes {
   satisfaccion_emoji: string | null;
   satisfaccion_comentario: string | null;
   satisfaccion_en: Date | null;
+  /** F-639 · A qué obra del cliente se cargó. La 112 lo añade. */
+  obra_id: string | null;
+  autorizado_id: string | null;
+  /** Quién DESPACHÓ. En una venta a crédito no hay cobro, y sin esto no queda registro. */
+  mostradorista_id: string | null;
 }
 
 export interface Organizaciones {
@@ -892,10 +902,13 @@ export interface Esquema {
   lotes_grano: LotesGrano;
   presencias_turno: PresenciasTurno;
   producto_presentaciones: ProductoPresentaciones;
+  autorizados_cuenta: AutorizadosCuenta;
   cortes_material: CortesMaterial;
   equivalencias: Equivalencias;
   lineas: Lineas;
+  obras: Obras;
   piezas_abiertas: PiezasAbiertas;
+  remisiones: Remisiones;
   producto_atributos: ProductoAtributos;
   redondeos: Redondeos;
   ubicaciones: Ubicaciones;
@@ -1185,6 +1198,56 @@ export interface ProductoPresentaciones {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+/** F-639 · La obra se CIERRA, nunca se borra: sus remisiones se consultan años después. */
+export interface Obras {
+  id: Generated<string>;
+  organizacion_id: string;
+  cliente_id: string;
+  nombre: string;
+  direccion: string | null;
+  estado: Generated<string>;
+  limite_centavos: bigint | null;
+  abierta_en: Generated<Date>;
+  cerrada_en: Date | null;
+}
+
+/** F-638 · Quién puede retirar a cuenta de otro. Se da de baja, nunca se borra. */
+export interface AutorizadosCuenta {
+  id: Generated<string>;
+  organizacion_id: string;
+  cliente_id: string;
+  /** Nulo = todas las obras de este cliente. */
+  obra_id: string | null;
+  nombre: string;
+  telefono: string | null;
+  identificacion: string | null;
+  foto_url: string | null;
+  tope_por_salida_centavos: bigint | null;
+  activo: Generated<boolean>;
+  dado_de_baja_en: Date | null;
+  alta_por: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-606 · El documento de entrega. Una orden, una remisión. */
+export interface Remisiones {
+  id: Generated<string>;
+  organizacion_id: string;
+  orden_id: string;
+  folio: string;
+  cliente_id: string;
+  obra_id: string | null;
+  autorizado_id: string | null;
+  nombre_firmante: string;
+  /** Se SELLA al entregar: derivarlo después mentiría al revés. */
+  autorizado_estaba_en_lista: boolean;
+  firma_url: string | null;
+  importe_centavos: bigint;
+  saldo_documento_centavos: bigint;
+  entregada_en: Generated<Date>;
+  entregada_por: string | null;
 }
 
 /** F-145 · El rollo abierto. NO es el inventario: dice cómo está repartido. */

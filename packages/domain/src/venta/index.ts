@@ -21,3 +21,15 @@ export {
   type MotivoAnulacion,
   type PorcionDeLinea,
 } from './anulacion.ts';
+
+export {
+  evaluarSalidaACredito,
+  repartirPago,
+  type AplicacionDePago,
+  type DocumentoPorCobrar,
+  type Evaluacion,
+  type MotivoDeAviso,
+  type RepartoDePago,
+  type SalidaACredito,
+  type Veredicto,
+} from './credito.ts';
