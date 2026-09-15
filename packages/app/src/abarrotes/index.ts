@@ -38,3 +38,10 @@ export {
   type ResultadoCapturarConteo,
   type ResultadoCerrarConteo,
 } from './conteo.ts';
+
+export {
+  entradaSugerirPedido,
+  sugerenciaDePedido,
+  type PedidoSugerido,
+  type RenglonSugerido,
+} from './sugerencia.ts';

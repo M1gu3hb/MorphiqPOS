@@ -707,6 +707,11 @@ export interface Proveedores {
   id: Generated<string>;
   organizacion_id: string;
   nombre: string;
+  /** F-107 · Días de visita, 1 = lunes … 7 = domingo. Bimbo viene martes y viernes. */
+  dia_visita: Generated<number[]>;
+  frecuencia: Generated<string>;
+  dias_credito: Generated<number>;
+  acepta_canje: Generated<boolean>;
   contacto: string | null;
   telefono: string | null;
   whatsapp: string | null;

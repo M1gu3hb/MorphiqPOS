@@ -83,6 +83,14 @@ const CAJA = [...DIRECCION, 'cajero'] as const;
 const COMPRAS = [...DIRECCION, 'almacen'] as const;
 const RECETAS_E_INVENTARIO = [...DIRECCION, 'cocina', 'almacen'] as const;
 const INVENTARIO = [...DIRECCION, 'almacen'] as const;
+/**
+ * Quién ve la libreta del fiado.
+ *
+ * El cajero SÍ: es quien cobra el abono y quien tiene que poder decir «ya no
+ * te puedo fiar» ANTES de que el producto salga, que es el momento en que la
+ * función sirve de algo. Los costos siguen fuera de su alcance.
+ */
+const VE_FIADO = [...DIRECCION, 'cajero'] as const;
 const OPERACION_RESTAURANTE = [...DIRECCION, 'cajero', 'mesero', 'cocina'] as const;
 const PREPARACION = [...DIRECCION, 'cocina'] as const;
 
@@ -1060,6 +1068,36 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  Cliente: {
+    tabla: 'clientes',
+    // F-040 · La tabla existe desde la 003 con saldo y límite de crédito, y
+    // NUNCA estuvo declarada aquí: no había pantalla, ni comandos, ni nada. El
+    // fiado de F-254 escribe contra ella, así que sin esta entrada el tendero
+    // podía abonar y no podía ver a quién.
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: 'nombre',
+    campos: {
+      ...soloAutomaticos(['id']),
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
+      correo: { columna: 'correo', conversion: 'texto', escribible: false },
+      total_visitas: { columna: 'total_visitas', conversion: 'entero', escribible: false },
+      ultima_visita: { columna: 'ultima_visita', conversion: 'fecha', escribible: false },
+      saldo_pendiente_centavos: {
+        columna: 'saldo_pendiente_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      limite_credito_centavos: {
+        columna: 'limite_credito_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      activo: { columna: 'activo', conversion: 'booleano', escribible: false },
+    },
+  },
+
   Presentacion: {
     tabla: 'producto_presentaciones',
     // El precio de una presentación es público en el mostrador: el six tiene su
@@ -1648,6 +1686,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       correo: { columna: 'correo', conversion: 'texto' },
       direccion: { columna: 'direccion', conversion: 'texto' },
       notas: { columna: 'notas', conversion: 'texto' },
+      // F-107 · La ruta. Sin el día de visita, la sugerencia de pedido sólo
+      // puede contestar «te queda poco», que no cambia lo que el tendero hace.
+      dia_visita: { columna: 'dia_visita', conversion: 'json' },
+      frecuencia: { columna: 'frecuencia', conversion: 'texto' },
+      dias_credito: { columna: 'dias_credito', conversion: 'entero' },
+      acepta_canje: { columna: 'acepta_canje', conversion: 'booleano' },
       activo: { columna: 'activo', conversion: 'booleano' },
     },
   },
