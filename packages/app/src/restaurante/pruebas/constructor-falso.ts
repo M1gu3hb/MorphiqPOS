@@ -62,9 +62,47 @@ function cumple(fila: Fila, filtro: Filtro): boolean {
       return lista.some((v) => igual(actual, v));
     case 'not in':
       return !lista.some((v) => igual(actual, v));
+    case '>':
+    case '>=':
+    case '<':
+    case '<=':
+      return ordena(filtro.operador, actual, esperado);
     default:
       throw new Error(`La base falsa no implementa el operador «${filtro.operador}».`);
   }
+}
+
+/**
+ * Los comparadores de orden, sobre fechas y números.
+ *
+ * Existen porque las consultas por RANGO —«los ciclos de los últimos siete
+ * días»— no se pueden probar sin ellos, y una prueba que quitara el rango
+ * pasaría igual si la base falsa se los tragara en silencio.
+ *
+ * Con un nulo a cualquiera de los dos lados contesta `false`, como Postgres:
+ * `null >= x` no es cierto, es desconocido.
+ */
+function ordena(operador: string, actual: unknown, esperado: unknown): boolean {
+  const a = aNumero(actual);
+  const b = aNumero(esperado);
+  if (a === null || b === null) return false;
+  switch (operador) {
+    case '>':
+      return a > b;
+    case '>=':
+      return a >= b;
+    case '<':
+      return a < b;
+    default:
+      return a <= b;
+  }
+}
+
+function aNumero(valor: unknown): number | null {
+  if (valor instanceof Date) return valor.getTime();
+  if (typeof valor === 'number') return valor;
+  if (typeof valor === 'bigint') return Number(valor);
+  return null;
 }
 
 /** Las fechas se comparan por valor: dos `Date` iguales no son `===`. */

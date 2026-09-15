@@ -1010,6 +1010,8 @@ export interface EventosMesa {
 
 /** F-305 · Vista: un renglón por ciclo de ocupación. `fin` nulo es el vigente. */
 export interface OcupacionMesas {
+  /** `<mesa_id>:<ciclo>`. Una vista agrupada no tiene clave propia. */
+  id: string;
   organizacion_id: string;
   sucursal_id: string;
   mesa_id: string;

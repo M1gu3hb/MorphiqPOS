@@ -15,6 +15,7 @@ import {
   filtroDe,
   MESA_FALSA,
   ORG_FALSA,
+  SUCURSAL_FALSA,
   transaccionFalsa,
   valoresDe,
   type FiltroFalso,
@@ -141,8 +142,10 @@ describe('hallazgo 2 · pedir la cuenta no puede reabrir una venta cobrada', () 
     const base = transaccionFalsa();
     await moverMesaDelPortal(base.tx, {
       organizacionId: ORG_FALSA,
+      sucursalId: SUCURSAL_FALSA,
       mesaId: MESA_FALSA,
       estado: 'cuenta_solicitada',
+      estadoAnterior: 'ocupada',
       ahora: AHORA,
     });
 
@@ -157,8 +160,10 @@ describe('hallazgo 2 · pedir la cuenta no puede reabrir una venta cobrada', () 
     const error = await fallo(
       moverMesaDelPortal(base.tx, {
         organizacionId: ORG_FALSA,
+        sucursalId: SUCURSAL_FALSA,
         mesaId: MESA_FALSA,
         estado: 'pedido_enviado',
+        estadoAnterior: 'esperando_orden',
         ahora: AHORA,
       }),
     );

@@ -103,6 +103,8 @@ export const transicionarPedido = definirComando<
         mesaId: comanda.mesaId,
         comandasMovidas: [comanda.id],
         estadoComanda,
+        empleoId,
+        ahora: ctx.ahora,
       }),
     );
 
@@ -197,7 +199,7 @@ export const entregarPedidos = definirComando<
   paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaEntregarPedidos,
   async ejecutar(ctx, entrada) {
-    const { organizacionId } = ctx.ambito;
+    const { organizacionId, empleoId } = ctx.ambito;
 
     const orden = await ctx.paso('cargar_orden', () =>
       ordenDeMesa(ctx.tx, organizacionId, entrada.ordenId),
@@ -240,6 +242,8 @@ export const entregarPedidos = definirComando<
           mesaId: orden.mesaId,
           comandasMovidas: ids,
           estadoComanda: 'entregado',
+          empleoId,
+          ahora: ctx.ahora,
         }),
       );
     }

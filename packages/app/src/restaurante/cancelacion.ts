@@ -4,7 +4,7 @@ import { ErrorDominio, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
-import { ordenDeMesa } from './datos.ts';
+import { mesaOperable, ordenDeMesa } from './datos.ts';
 import { entradaCancelarOrden } from './esquemas.ts';
 import { cerrarOrdenCancelada, limpiarMesa } from './mesas-escrituras.ts';
 import { propagarAItems } from './propagacion.ts';
@@ -132,7 +132,19 @@ export const cancelarOrden = definirComando<
     // imposible que `detectarHuerfano` busca hoy con cuatro reglas heurísticas.
     const mesaId = orden.mesaId;
     if (mesaId !== null) {
-      await ctx.paso('liberar_mesa', () => limpiarMesa(ctx.tx, organizacionId, mesaId));
+      // El estado previo sale de la MESA, no de la orden: son dos máquinas de
+      // estados distintas y el ledger de F-305 vigila la de la mesa.
+      const estadoPrevio = await ctx.paso('mirar_mesa', () =>
+        mesaOperable(ctx.tx, organizacionId, mesaId),
+      );
+      await ctx.paso('liberar_mesa', () =>
+        limpiarMesa(ctx.tx, organizacionId, mesaId, {
+          sucursalId: estadoPrevio.sucursalId,
+          estadoAnterior: estadoPrevio.estado,
+          empleoId,
+          ahora: ctx.ahora,
+        }),
+      );
     }
 
     ctx.auditar({

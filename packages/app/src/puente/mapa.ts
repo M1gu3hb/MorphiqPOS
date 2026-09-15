@@ -940,6 +940,100 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  // ── Salón: qué le pasó a una cuenta y a una mesa (F-302, F-303, F-305, F-321,
+  // F-324) ──────────────────────────────────────────────────────────────────
+  //
+  // Las cinco entran por `lectura`: son ledgers y vistas, y lo que las escribe es
+  // un comando transaccional. Declararlas `comando` en vez de `lectura` daría el
+  // mismo resultado hoy —el puente rechaza la escritura igual— y mentiría sobre
+  // lo que son: `movimientos_cuenta` y `eventos_mesa` son INMUTABLES, no
+  // «escribibles por comando».
+  MovimientoCuenta: {
+    tabla: 'movimientos_cuenta',
+    rolesLectura: [...CAJA],
+    escritura: 'lectura',
+    ordenPorOmision: '-created_date',
+    campos: {
+      ...soloAutomaticos(['id', 'created_date']),
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      venta_origen_id: { columna: 'orden_origen_id', conversion: 'texto', escribible: false },
+      venta_destino_id: { columna: 'orden_destino_id', conversion: 'texto', escribible: false },
+      mesa_origen_id: { columna: 'mesa_origen_id', conversion: 'texto', escribible: false },
+      mesa_destino_id: { columna: 'mesa_destino_id', conversion: 'texto', escribible: false },
+      lineas: { columna: 'lineas', conversion: 'json', escribible: false },
+      motivo: { columna: 'motivo', conversion: 'texto', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      usuario_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
+  },
+
+  UnionMesa: {
+    tabla: 'uniones_mesa',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'lectura',
+    ordenPorOmision: '-abierta_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      mesa_principal_id: { columna: 'mesa_principal_id', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      abierta_en: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
+      cerrada_en: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+  },
+
+  EventoMesa: {
+    tabla: 'eventos_mesa',
+    // El ledger del salón es un dato de DIRECCIÓN: es con lo que se decide
+    // cuánta gente contratar el viernes. Un mesero no necesita el histórico de
+    // transiciones para atender su mesa, y dárselo sólo agranda la superficie.
+    rolesLectura: [...DIRECCION],
+    escritura: 'lectura',
+    ordenPorOmision: '-ocurrido_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      mesa_id: { columna: 'mesa_id', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      estado_anterior: { columna: 'estado_anterior', conversion: 'texto', escribible: false },
+      estado_nuevo: { columna: 'estado_nuevo', conversion: 'texto', escribible: false },
+      personas: { columna: 'personas', conversion: 'entero', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+      ocurrido_en: { columna: 'ocurrido_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  OcupacionMesa: {
+    tabla: 'ocupacion_mesas',
+    rolesLectura: [...DIRECCION],
+    escritura: 'lectura',
+    ordenPorOmision: '-inicio',
+    campos: {
+      // `<mesa_id>:<ciclo>`, compuesto en la vista: una consulta agrupada no
+      // tiene clave propia y el puente exige que toda entidad traiga `id`.
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      mesa_id: { columna: 'mesa_id', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      personas: { columna: 'personas', conversion: 'entero', escribible: false },
+      inicio: { columna: 'inicio', conversion: 'fecha', escribible: false },
+      // Nulo mientras la mesa sigue ocupada. Quien promedie tiene que filtrarlo,
+      // y está dicho también en el comentario de la vista en la 072.
+      fin: { columna: 'fin', conversion: 'fecha', escribible: false },
+      minutos_ocupada: { columna: 'minutos_ocupada', conversion: 'entero', escribible: false },
+      minutos_hasta_cuenta: {
+        columna: 'minutos_hasta_cuenta',
+        conversion: 'entero',
+        escribible: false,
+      },
+    },
+  },
+
   Mesa: {
     tabla: 'mesas',
     rolesLectura: [...OPERACION_RESTAURANTE],

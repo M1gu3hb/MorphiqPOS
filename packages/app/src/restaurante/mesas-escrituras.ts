@@ -6,6 +6,7 @@ import type { z } from 'zod';
 
 import { esViolacionDeUnicidad } from './datos.ts';
 import type { entradaAbrirMesa } from './esquemas.ts';
+import { sellarTransicionDeMesa } from './sala-escrituras.ts';
 
 /**
  * Las escrituras de `abrir_mesa` y `liberar_mesa`.
@@ -71,15 +72,18 @@ export async function crearOrdenDeMesa(tx: Transaccion, datos: DatosDeApertura):
 
 interface DatosDeAtadura {
   readonly organizacionId: string;
+  readonly sucursalId: string;
   readonly mesaId: string;
   readonly ordenId: string;
   readonly empleoId: string;
+  readonly estadoAnterior: string;
   readonly tomarLaAtencion: boolean;
+  readonly ahora: Date;
   readonly entrada: z.infer<typeof entradaAbrirMesa>;
 }
 
 export async function atarMesaAOrden(tx: Transaccion, datos: DatosDeAtadura): Promise<void> {
-  const { entrada } = datos;
+  const { entrada, estadoAnterior } = datos;
   const resultado = await tx
     .updateTable('mesas')
     .set({
@@ -106,6 +110,18 @@ export async function atarMesaAOrden(tx: Transaccion, datos: DatosDeAtadura): Pr
       'Esa mesa dejó de estar libre mientras se abría. Vuelve a intentarlo.',
     );
   }
+
+  await sellarTransicionDeMesa(tx, {
+    organizacionId: datos.organizacionId,
+    sucursalId: datos.sucursalId,
+    mesaId: datos.mesaId,
+    ordenId: datos.ordenId,
+    estadoAnterior,
+    estadoNuevo: 'esperando_orden',
+    personas: entrada.personas,
+    empleadoId: datos.empleoId,
+    ahora: datos.ahora,
+  });
 }
 
 /** ¿Consumió algo esta cuenta? Una fila basta: no hace falta contarlas todas. */
@@ -195,10 +211,25 @@ export async function cancelarOrdenVacia(
   }
 }
 
+export interface SelloDeLiberacion {
+  readonly sucursalId: string;
+  readonly estadoAnterior: string;
+  readonly empleoId: string;
+  readonly ahora: Date;
+}
+
+/**
+ * Devuelve la mesa al servicio y SELLA la transición.
+ *
+ * El sello no es opcional a propósito. Un ledger al que se le olvida una
+ * liberación no deja un hueco: fusiona ese ciclo con el siguiente y da una
+ * ocupación del doble de larga, que es peor que no tener el dato (F-305).
+ */
 export async function limpiarMesa(
   tx: Transaccion,
   organizacionId: string,
   mesaId: string,
+  sello: SelloDeLiberacion,
 ): Promise<void> {
   await tx
     .updateTable('mesas')
@@ -222,6 +253,17 @@ export async function limpiarMesa(
     .where('organizacion_id', '=', organizacionId)
     .where('id', '=', mesaId)
     .execute();
+
+  await sellarTransicionDeMesa(tx, {
+    organizacionId,
+    sucursalId: sello.sucursalId,
+    mesaId,
+    ordenId: null,
+    estadoAnterior: sello.estadoAnterior,
+    estadoNuevo: 'libre',
+    empleadoId: sello.empleoId,
+    ahora: sello.ahora,
+  });
 }
 
 /** El frontend manda cadenas vacías donde la base quiere `null` (F1-04 §0.1). */

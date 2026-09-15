@@ -113,3 +113,10 @@ export {
 } from './union-de-mesas.ts';
 
 export { separarMesas, unionAbiertaDeMesa, unirMesas } from './sala-escrituras.ts';
+
+export {
+  entradaRotacion,
+  rotacionDeMesas,
+  type Rotacion,
+  type RotacionPorMesa,
+} from './ocupacion.ts';
