@@ -58,3 +58,14 @@ export {
 export { propinasPendientes, type PropinasPendientes } from './consultas.ts';
 
 export type { VentaConPropina } from './repositorio.ts';
+
+export {
+  PUESTOS_DE_PROPINA,
+  aCentesimas,
+  aDecimal,
+  entradaGuardarEsquema,
+  guardarEsquemaPropina,
+  type ResultadoEsquema,
+} from './esquema.ts';
+
+export { repartirLiquidacion, type BeneficiarioPedido, type RepartoEscrito } from './pool.ts';

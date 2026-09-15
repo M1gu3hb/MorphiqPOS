@@ -146,3 +146,10 @@ export {
   type TiempoDeProducto,
   type TiemposDePreparacion,
 } from './tiempos.ts';
+
+export {
+  entradaRelevarResponsable,
+  relevarResponsable,
+  type CuentaRelevada,
+  type ResultadoRelevo,
+} from './relevo.ts';

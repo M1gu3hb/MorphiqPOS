@@ -61,6 +61,13 @@ export const PREDETERMINADOS = {
   uniones_mesa: { cerrada_en: null, empleado_cierra_id: null },
   union_mesa_miembros: { orden_absorbida_id: null, union_abierta: true },
   eventos_mesa: { estado_anterior: null, orden_id: null, personas: null, empleado_id: null },
+  relevos_atencion: {
+    hasta: null,
+    consumo_inicio_centavos: 0n,
+    consumo_fin_centavos: null,
+    empleado_releva_id: null,
+  },
+  lista_espera: { telefono: null, mesa_id: null, orden_id: null, notas: null },
   movimientos_cuenta: {
     orden_destino_id: null,
     mesa_origen_id: null,
