@@ -18,3 +18,25 @@ export {
 } from './catalogo.ts';
 
 export { cortarMaterial, entradaCortarMaterial, type ResultadoCorte } from './corte.ts';
+
+export {
+  entradaEvaluarSalida,
+  entradaRegistrarRemision,
+  evaluarSalida,
+  registrarRemision,
+  type ResultadoEvaluacion,
+  type ResultadoRemision,
+} from './credito.ts';
+
+export {
+  altaAutorizado,
+  bajaAutorizado,
+  cerrarObra,
+  crearObra,
+  entradaAltaAutorizado,
+  entradaBajaAutorizado,
+  entradaCerrarObra,
+  entradaCrearObra,
+  type ResultadoAutorizado,
+  type ResultadoObra,
+} from './obras.ts';
