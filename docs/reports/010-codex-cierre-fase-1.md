@@ -965,7 +965,7 @@ El importe demuestra que el fondo inicial sí participa en el esperado: $2,000.0
 
 `carril-b` se fusionó en `main` y se empujó a `origin/main`.
 
-SHA del commit de fusión: `PENDIENTE_MERGE_SHA`
+SHA del commit de fusión: `93aeb676aa5bd88928c647f6f23973465d97d68b`
 
 ## LO QUE NO HICE
 
@@ -976,4 +976,3 @@ SHA del commit de fusión: `PENDIENTE_MERGE_SHA`
 - No leí ni modifiqué el proyecto Pasteleria Confetti `ivqcxdpqxwjxfohiswqb`. Todas las comprobaciones vivas de Supabase usaron explícitamente MorphiqPOS `wyqmzhliurwyxuyxznpb`.
 - No edité migraciones aplicadas. La única migración nueva es 057 y se aplicó con `pnpm db:migrate`.
 - No declaré verde el subchequeo vivo de Docker: la herramienta no está instalada en esta máquina. Sí quedaron verdes el esquema y RLS contra Supabase, la integración en PostgreSQL 18 y el build de 55 rutas.
-
