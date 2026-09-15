@@ -36,6 +36,67 @@ Por tanto **D-09 sigue vigente**: no se edita ningún archivo que ya exista en `
 
 ---
 
+## 2026-09-14 · E1 · `historico/` hay que copiarla a mano en cada worktree
+
+**Qué.** El punto de partida venía roto: `packages/app/src/puente/cobertura.test.ts` fallaba con
+`ENOENT: scandir 'historico\restaurante\base44\entities'`.
+
+**Por qué pasó, y por qué NO es un defecto de `carril-b`.** `historico/` está en `.gitignore`
+(«es evidencia, no código», R30/R34), así que **un worktree nuevo nace sin ella**. No es que Codex
+la rompiera: es que no viaja por git, por diseño. Se copió desde el checkout principal —628
+archivos, 7.2 MB— y el árbol de git siguió limpio, que es la prueba de que sigue ignorada.
+
+**Consecuencia para quien retome esto:** todo worktree nuevo del monorepo necesita ese `cp`, y sin
+él fallan `cobertura.test.ts` y `verify:historico`. Queda dicho aquí porque no está escrito en
+ningún otro sitio.
+
+**Estado tras copiarla:** `typecheck` 7/7, `test:unit` **110 archivos · 1086 pruebas**, todo verde.
+(Son 19 pruebas más que las 1067 del reporte 009 de Codex: `carril-b` avanzó seis commits.)
+
+---
+
+## 2026-09-14 · E1 · `docs/fase-2/` entra a `.prettierignore`
+
+**Qué.** `format:check` —eslabón 14 de la cadena— falló sobre los 43 MD recién importados.
+
+**Por qué se excluye en vez de formatear.** Es el mismo criterio que ya estaba escrito para
+`docs/fase-1/`, `docs/*.md` y `docs/reports/`: *«Prettier formatea CÓDIGO. Estos son documentos de
+prosa escritos a mano: al reformatearlos reacomoda saltos de línea, tablas y viñetas»*. Los MD de la
+Fase 2 son exactamente eso, y además llevan **árboles ASCII alineados a mano** —los `│ ├──` de los
+§1 de cada `01-FUNCIONES.md`— que Prettier desalinea sin piedad. Formatearlos habría movido miles de
+líneas sin cambiar una palabra.
+
+**Lo que NO se excluye:** el código de la Fase 2. Todo lo que se escriba en `packages/` y
+`apps/web/app/` se formatea como el resto.
+
+---
+
+## 2026-09-14 · E1 · La puerta `verify:fase2`
+
+**Qué.** 26 eslabones: la cadena `verify` completa de 28 **menos** `verify:esquema` y `verify:rls`.
+Nada más.
+
+**Por qué esos dos y sólo esos.** Son los únicos que consultan la base **viva** a través del CLI de
+Supabase, y esta fase escribe migraciones que **no se aplican**. Compararlas contra una base que
+todavía no tiene las tablas daría rojo sin que haya defecto.
+
+**Lo que se conserva a propósito, aunque tentara quitarlo:** `verify:primitivas` y `verify:aspecto`
+obligan a que los componentes salgan de `packages/ui`; `verify:pruebas` impide escribir una prueba
+de integración que nunca corre; `verify:escrituras` y `verify:lecturas` vigilan el puente. Son justo
+las que este encargo necesita.
+
+**Hallazgo de paso:** `verify:lecturas` **ya existe** en `carril-b` —44 campos descartados vigilados,
+216 lecturas justificadas—. Es la puerta que faltaba cuando se auditó el cierre del backend, y Codex
+la construyó. Conviene saberlo antes de escribir una lectura nueva del puente.
+
+**`cross-env` no está instalado**, así que el eslabón de `build` va sin él. No hizo falta: este
+worktree no tiene `.env` propio y `NODE_ENV` llega sin definir, que es lo que `next build` espera.
+Si un `.env` aparece aquí con el `NODE_ENV` no estándar de la Fase 1, habrá que reintroducirlo.
+
+**Resultado: `pnpm verify:fase2` sale en 0.**
+
+---
+
 ## 2026-09-14 · E0 · Las dos colisiones las cede `cafeteria`, no `abarrotes`
 
 **Qué.** `F-146` y `F-148` los conserva `abarrotes`. `cafeteria` se mueve a `F-156` (merma de barra)
