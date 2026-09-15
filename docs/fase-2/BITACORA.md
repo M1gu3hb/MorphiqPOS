@@ -1164,3 +1164,58 @@ un filtro deja de filtrar.
 
 **Cuenta:** 1 868 → **1 954 pruebas**. `verify:cobertura`: tronco **8/8 (100 %)**, funciones
 64/113, rutas 28/105.
+
+## 2026-09-16 · E9 y E10 (primera mitad) · F-205, F-330, F-930/F-934/F-936
+
+### Lo construido
+
+| | Qué | Dónde |
+|---|---|---|
+| **F-205** | tope de descuento por puesto + bitácora de autorizaciones | migración `078`, `domain/venta/descuento.ts`, `venta.autorizar_descuento` |
+| **F-330** | pedido anticipado, con hueco de cinco minutos | migración `089`, `cafeteria/anticipado.ts`, tres comandos |
+| **F-930/934/936** | sellos, canje y pasivo | migración `088`, `domain/venta/lealtad.ts`, `cafeteria/lealtad.ts`, cuatro comandos |
+| **F-027/F-030** | el esquema de opciones con receta y de combos | migración `084` (el código va en la segunda mitad) |
+
+Y las rutas de cafetería **se movieron a los nombres que declara su
+`05-DATOS-Y-BACKEND.md`**: `cafeteria/llamar` → `cafeteria/llamar-pedido`,
+`cafeteria/bote` → `propinas/repartir-bote`, `cafeteria/presencia` →
+`turno/presencia/ajustar`, y tres más. El documento es el contrato que van a
+leer los 73 modelos que faltan: se corrige el código.
+
+### Cinco decisiones que el encargo no traía
+
+1. **El tope de descuento son DOS topes, en pesos y en porcentaje.** Con sólo el
+   de pesos, un café de $45 se regala entero si el cajero tiene tope de $50. Con
+   sólo el porcentual, el 10 % de una charola de cincuenta son $200 que nadie
+   autorizó. Cualquiera de los dos solo deja un extremo abierto.
+2. **El porcentaje se compara EN CRUZ, no dividiendo.** `descuento / base` en
+   enteros trunca, y truncar aquí es tolerar en silencio: sobre $300 con tope del
+   10 %, un descuento de $30.01 daría 1000 bp exactos y pasaría. Un centavo no
+   arruina a nadie; una tolerancia que nadie declaró, sí.
+3. **Quien autoriza tiene que cubrir el descuento ENTERO con su propio tope.** Un
+   gerente con tope de $2 000 autorizando uno de $5 000 no es una autorización:
+   es la misma falta de tope, con una firma encima.
+4. **El canje de lealtad NO da sellos.** Si los diera, cada premio acercaría el
+   siguiente: con cinco sellos por premio, el costo real de cada uno bajaría un
+   20 % y nadie lo vería hasta el cierre del año.
+5. **El pasivo de lealtad cuenta premios COMPLETOS y valúa al COSTO.** Trece
+   sellos con cinco por premio son dos premios exigibles, no 2.6. Y un premio no
+   es una venta perdida: es un café que se regala, y lo que sale del negocio es
+   lo que ese café cuesta hacer. Al precio, el pasivo se inflaría entre dos y
+   cuatro veces — y un pasivo inflado se deja de mirar.
+
+### Un defecto que la prueba encontró antes que yo
+
+`otorgarSellos` leía el saldo DESPUÉS de insertar el movimiento **y le volvía a
+sumar los sellos**. La fila recién escrita ya es visible dentro de la misma
+transacción, así que el saldo salía el doble y el aviso de «ya alcanza» se
+habría disparado un café antes de tiempo. Lo cazó «avisa cuando el saldo YA
+alcanza para un premio», que afirma el número exacto en vez de sólo el booleano.
+
+### Estado medido, no opinado
+
+```
+FUNCIONES  68/113   RUTAS 40/105   PANTALLAS 0/61   MIGRACIONES 32/64
+TRONCO     8/8
+```
+2 029 pruebas.

@@ -445,7 +445,12 @@ function alcanzablesDesdeNext(contenidoDe) {
  */
 function excepciones() {
   const ruta = join(RAIZ, 'docs', 'fase-2', 'EXCEPCIONES-COBERTURA.md');
-  const fuera = { funciones: new Map(), rutas: new Map(), pantallas: new Map() };
+  const fuera = {
+    funciones: new Map(),
+    rutas: new Map(),
+    pantallas: new Map(),
+    migraciones: new Map(),
+  };
   if (!existsSync(ruta)) return fuera;
   // Sólo cuentan las filas de las TRES tablas de excepciones. La tabla de
   // formato del encabezado explica las claves con ejemplos —`F-NNN`,
@@ -456,7 +461,7 @@ function excepciones() {
   let dentro = false;
   for (const linea of leer(ruta).split(/\r?\n/)) {
     if (linea.startsWith('## ')) {
-      dentro = /^##\s+(FUNCIONES|RUTAS|PANTALLAS)\s*$/.test(linea);
+      dentro = /^##\s+(FUNCIONES|RUTAS|PANTALLAS|MIGRACIONES)\s*$/.test(linea);
       continue;
     }
     if (!dentro) continue;
@@ -477,7 +482,12 @@ function excepciones() {
       continue;
     }
     const pantalla = /^PANTALLA\s+(\S+)$/.exec(clave);
-    if (pantalla !== null) fuera.pantallas.set(pantalla[1], razon);
+    if (pantalla !== null) {
+      fuera.pantallas.set(pantalla[1], razon);
+      continue;
+    }
+    const migracion = /^MIGRACION\s+(\S+)$/.exec(clave);
+    if (migracion !== null) fuera.migraciones.set(migracion[1], razon);
   }
   return fuera;
 }
@@ -600,7 +610,7 @@ function main() {
     const esperadasM = migracionesEsperadas(modelo);
     let mh = 0;
     for (const archivo of esperadasM) {
-      if (existsSync(join(SQL, archivo))) mh += 1;
+      if (fuera.migraciones.has(archivo) || existsSync(join(SQL, archivo))) mh += 1;
       else faltantes.migraciones.push(`${modelo.clave.padEnd(15)} ${archivo}`);
     }
 
@@ -666,7 +676,8 @@ function main() {
   if (cuentaExcepciones > 0) {
     console.log(
       `Excepciones declaradas en docs/fase-2/EXCEPCIONES-COBERTURA.md: ${cuentaExcepciones} ` +
-        `(${fuera.funciones.size} funciones · ${fuera.rutas.size} rutas · ${fuera.pantallas.size} pantallas)`,
+        `(${fuera.funciones.size} funciones · ${fuera.rutas.size} rutas · ` +
+        `${fuera.pantallas.size} pantallas · ${fuera.migraciones.size} migraciones)`,
     );
     console.log('');
   }
