@@ -938,3 +938,73 @@ añadieron y los solapamientos que se fusionaron; la tabla por modelo con **func
 prueba · una mutación que la valida**; qué se abrió en el navegador y qué no, con la razón; las
 reclasificaciones `[=]`↔`[≠]`; la documentación que se corrigió y por qué estaba mal; y un
 **LO QUE NO HICE** que es la sección más larga a propósito.
+
+## 2026-09-15 · E8.0 · La puerta de cobertura, que sustituye a mi opinión
+
+**Lo que falló antes.** La sesión anterior no se quedó sin tiempo ni sin permiso: corrió hasta el
+final y escribió «las cinco etapas están cerradas, no queda nada pendiente» con el 40 % hecho. El
+error concreto tiene nombre: **contó FILAS DE TABLA en vez de FUNCIONES**. `F-610…F-617` es una
+fila y son ocho funciones. Con ese error, ferretería se leía como 13 pendientes cuando son 38.
+
+**Lo que se construye.** `scripts/verificar-cobertura.mjs` → `pnpm verify:cobertura`, enganchada
+como último eslabón de `verify:fase2`. Mide tres cosas, y las tres salen de la documentación:
+
+| | De dónde sale | Cuándo cuenta como construida |
+|---|---|---|
+| FUNCIONES | `01-FUNCIONES.md` §5 de cada modelo, con los rangos **expandidos** | hay un archivo con el ID en su cabecera **y** hay prueba |
+| RUTAS | la sección «RUTAS DE API» de cada `05-DATOS-Y-BACKEND.md` | el `route.ts` existe en la ruta declarada |
+| PANTALLAS | cada `###` del §4.3 de cada `04-INTERFAZ.md` | hay un archivo con `PANTALLA · <modelo> · <slug>` **y es alcanzable desde una raíz de Next.js** |
+
+Y un cuarto bloque aparte: el **TRONCO**, ocho funciones que no salen de ningún §5 y que heredan
+los 73 modelos que faltan. Sin esa lista la puerta daría verde sobre un cimiento a medias, que es
+justo el punto ciego de la sesión anterior: sus cinco tablas se veían bien y el tronco no estaba.
+
+**La primera lectura, que es la que valida la puerta.** Salió en ROJO con `62/113 · 26/105 ·
+0/61` y el tronco en `3/8`. Sin el archivo de excepciones eran `47/113`. La auditoría decía
+`45/113 · 44/106 · 0/61`: las tres cifras caen donde tenían que caer, y las dos diferencias tienen
+explicación escrita —abajo—. Si hubiera salido en verde, la puerta estaría mal.
+
+### Las tres mutaciones que la validan
+
+```
+Destructivas que FALLAN:
+  · borrar las siete etiquetas F-321 de sus implementaciones  →  restaurante 8/8 → 7/8,
+    «F-321 sin implementación». Con DOS de las siete borradas NO se pone roja, y eso
+    también es correcto: la función sigue implementada en los otros cinco archivos.
+  · que los rangos dejen de expandirse (`push(idDe(desde))` en vez del bucle)  →
+    el total cae de 113 a 79. Es exactamente el bug que costó la sesión anterior,
+    y ahora lo caza la puerta.
+Inocuas que PASAN:
+  · una línea en blanco al final del script  →  62/113, sin cambio.
+```
+
+### Dos diferencias con la auditoría, y por qué no son errores
+
+**RUTAS: 26 contra 44.** No es que falten dieciocho: es que **la sesión anterior escribió las
+rutas con nombres distintos a los que la documentación declara**. `apps/web/app/api/agenda/cita`
+existe, y el `05-DATOS-Y-BACKEND.md` de estética declara `apps/web/app/api/citas`. Lo mismo con
+`cafeteria/llamar` contra `cafeteria/llamar-pedido`, `cafeteria/bote` contra
+`propinas/repartir-bote`, y once más. Como el documento es el contrato que van a leer los 73
+modelos que faltan, **se corrige el código, no el documento**: las rutas viejas se mueven a la
+ruta declarada. La auditoría contó «hay una ruta para esa función»; la puerta cuenta «existe la
+ruta que el contrato declara», que es la pregunta que de verdad importa al acoplar.
+
+**Total de rutas: 105 contra 106.** Estética declara `GET` y `PUT` sobre
+`/api/clientes/:id/expediente`. Son dos verbos y **un solo archivo** `route.ts`. La puerta cuenta
+archivos porque es lo que existe en disco.
+
+### Lo que la puerta NO mide, dicho antes de que parezca que sí
+
+- Que la pantalla **se abra en el navegador**. Casi ninguna se puede abrir: dependen de
+  migraciones escritas y sin aplicar. Eso se dice en cada `FILE-MAP.md`, no lo tapa la puerta.
+- Que el código sea **correcto**. De eso se encargan las 1 837 pruebas y el arnés de mutación.
+  La cobertura mide presencia, no calidad. Son dos puertas distintas y las dos hacen falta.
+- Las funciones del tronco que ya existían antes de la Fase 2 (F-100, F-101, F-102, F-104,
+  F-107). Se dan por buenas porque ya tienen prueba y ya están en producción.
+
+### El archivo de excepciones
+
+`docs/fase-2/EXCEPCIONES-COBERTURA.md`, once entradas: los seis CFDI (`F-940`…`F-945`, decisión
+P-02), `F-318` impresión de comanda y sus dos rutas, `F-249` segunda pantalla, `F-406`
+recordatorio por WhatsApp. **Una fila por función, nunca un rango** — la regla del archivo lo dice
+con esas palabras, porque el rango es justo lo que rompió la cuenta anterior.
