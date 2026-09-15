@@ -89,3 +89,16 @@ export {
   entradaAnularLinea,
   type ResultadoAnulacion,
 } from './anulacion-linea.ts';
+
+export {
+  cambiarMesaComando,
+  entradaCambiarMesa,
+  type ResultadoCambioDeMesa,
+} from './cambio-de-mesa.ts';
+
+export {
+  cambiarDeMesa,
+  mesaEnSala,
+  registrarEventoMesa,
+  type MesaEnSala,
+} from './sala-escrituras.ts';
