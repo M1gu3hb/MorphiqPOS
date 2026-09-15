@@ -38,3 +38,28 @@ export {
   type ParteDelBote,
   type ResultadoBote,
 } from './bote.ts';
+
+export {
+  encolarPedido,
+  entradaEncolarPedido,
+  entradaEntregarAnticipado,
+  entradaProgramarPedido,
+  entregarAnticipado,
+  programarPedido,
+  type ResultadoEncolado,
+  type ResultadoEntregaAnticipada,
+  type ResultadoProgramado,
+} from './anticipado.ts';
+
+export {
+  ajustarSellos,
+  canjearPremio,
+  entradaAjustarSellos,
+  entradaCanjear,
+  entradaOtorgarSellos,
+  otorgarSellos,
+  pasivoDeSellos,
+  type ResultadoCanje,
+  type ResultadoPasivo,
+  type ResultadoSellos,
+} from './lealtad.ts';

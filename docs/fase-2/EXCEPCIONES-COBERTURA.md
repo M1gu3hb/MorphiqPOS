@@ -27,6 +27,7 @@ Formato de la primera columna:
 | `F-NNN` | una función del `01-FUNCIONES.md` §5 de algún modelo, o del tronco |
 | `RUTA apps/web/app/api/…/route.ts` | una ruta declarada en un `05-DATOS-Y-BACKEND.md` |
 | `PANTALLA <modelo>/<slug>` | una pantalla declarada en un `04-INTERFAZ.md` §4.3 |
+| `MIGRACION NNN_nombre.sql` | una migración declarada en un `05-DATOS-Y-BACKEND.md` |
 
 ---
 
@@ -50,6 +51,12 @@ Formato de la primera columna:
 |---|---|---|
 | `RUTA apps/web/app/api/restaurante/imprimir-comanda/route.ts` | El disparo de impresión | Es la ruta de `F-318`. Sin decidir el hardware no hay cuerpo que definir: el de una térmica de red y el de un agente local no se parecen. |
 | `RUTA apps/web/app/api/restaurante/impresion/resultado/route.ts` | El acuse del impresor | Es la otra mitad de `F-318`. Un acuse de una cola de impresión que no existe no se puede ni probar. |
+
+## MIGRACIONES
+
+| Clave | Qué es | Por qué no se escribe |
+|---|---|---|
+| `MIGRACION 075_impresion_comanda.sql` | `impresiones_comanda`, el destino de impresora y el disparo automático | Es el esquema de `F-318`, y **su forma depende del hardware que Miguel elija**. Una cola para una térmica de red, una para un agente local instalado en el sitio del cliente y una para `window.print()` no se parecen en nada: la primera necesita IP y puerto, la segunda un identificador de agente y un canal, y la tercera ninguna de las dos. Escribir una de las tres a ciegas obliga a migrar las otras dos. |
 
 ## PANTALLAS
 

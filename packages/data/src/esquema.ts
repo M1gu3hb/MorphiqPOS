@@ -423,6 +423,12 @@ export interface ModificadorOpciones {
   modificador_id: string;
   nombre: string;
   precio_extra_centavos: Generated<bigint>;
+  /** F-027 · Con qué insumo sustituye a la línea de receta de su grupo. */
+  insumo_sustituto_id: string | null;
+  /** F-027 · Cuánto escala la receta entera. El 16 oz es 1.44. */
+  factor_cantidad: Generated<string>;
+  /** Firmado, al contrario que `precio_extra_centavos`: «sin crema» abarata. */
+  delta_precio_centavos: Generated<bigint>;
   orden: Generated<number>;
   activa: Generated<boolean>;
   created_at: Generated<Date>;
@@ -484,6 +490,12 @@ export interface OrdenLineaModificadores {
 }
 
 export interface OrdenLineas {
+  /** F-027 · Instantánea de las opciones elegidas. Congelada al cobrar. */
+  opciones: unknown;
+  /** F-030 · Qué combo agrupó esta línea. */
+  combo_id: string | null;
+  /** `venta` · `canje_lealtad`. El canje sale del stock y no cuenta como ticket. */
+  tipo_linea: Generated<string>;
   /** F-423 · Quien lo hizo. Sin el, una cita con dos personas no se reparte. */
   profesional_id?: string | null;
   cita_servicio_id?: string | null;
@@ -679,6 +691,10 @@ export interface Productos {
   precio_venta_centavos: Generated<bigint>;
   costo_unitario_centavos: Generated<bigint>;
   precio_mayoreo_centavos: bigint | null;
+  /** F-930 · Cuántos sellos da UNA unidad. Cero en la bolsa de grano, a propósito. */
+  sellos_otorga: Generated<number>;
+  /** `bebida` · `alimento` · `grano` · `otro`. Ordena el catálogo. */
+  familia: Generated<string>;
   cantidad_minima_mayoreo: string | null;
   tipo_venta: Generated<string>;
   unidad_venta: Generated<string>;
@@ -969,6 +985,12 @@ export interface Esquema {
   valuaciones_inventario: ValuacionesInventario;
   kardex: Kardex;
   saldos_pasivos: SaldosPasivos;
+  topes_descuento: TopesDescuento;
+  autorizaciones_descuento: AutorizacionesDescuento;
+  lealtad_movimientos: LealtadMovimientos;
+  lealtad_saldos: LealtadSaldos;
+  lealtad_pasivo: LealtadPasivo;
+  pedidos_anticipados: PedidosAnticipados;
   vocabulario_negocio: VocabularioNegocio;
   zonas: Zonas;
 }
@@ -1038,6 +1060,81 @@ export interface SaldosPasivos {
   saldo_centavos: bigint;
   movimientos: number;
   ultimo_movimiento: Date;
+}
+
+/** F-205 · Cuánto puede descontar cada puesto sin pedir permiso. */
+export interface TopesDescuento {
+  organizacion_id: string;
+  rol: string;
+  tope_centavos: Generated<bigint>;
+  /** En puntos base. 2000 = 20 %. El segundo cerrojo, para la venta pequeña. */
+  tope_bp: Generated<number>;
+  actualizado_en: Generated<Date>;
+  empleado_id: string | null;
+}
+
+/** F-205 · Quién autorizó saltarse su tope, sobre qué venta y por qué. */
+export interface AutorizacionesDescuento {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  orden_id: string | null;
+  solicita_empleo_id: string;
+  autoriza_empleo_id: string;
+  autoriza_rol: string;
+  descuento_centavos: bigint;
+  tope_centavos: bigint;
+  motivo: string;
+  created_at: Generated<Date>;
+}
+
+/** F-930/F-934 · Ledger INMUTABLE de sellos. La verdad; el saldo es caché. */
+export interface LealtadMovimientos {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  cliente_id: string;
+  tipo: string;
+  /** Firmado: +1 al otorgar, −5 al canjear. El saldo es la suma. */
+  sellos: number;
+  orden_id: string | null;
+  producto_id: string | null;
+  costo_centavos: bigint | null;
+  motivo: string | null;
+  empleado_id: string;
+  created_at: Generated<Date>;
+}
+
+export interface LealtadSaldos {
+  organizacion_id: string;
+  cliente_id: string;
+  sellos: Generated<number>;
+  canjes_totales: Generated<number>;
+  actualizado_en: Generated<Date>;
+}
+
+/** F-936 · El pasivo de premios. Vista: cambia con cada venta. */
+export interface LealtadPasivo {
+  organizacion_id: string;
+  sellos_vivos: bigint;
+  clientes_con_saldo: number;
+  costo_premio_centavos: bigint;
+}
+
+/** F-330 · El pedido que se cobra antes y se recoge a una hora prometida. */
+export interface PedidosAnticipados {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  orden_id: string;
+  nombre: string;
+  telefono: string | null;
+  hora_prometida: Date;
+  estado: Generated<string>;
+  encolado_en: Date | null;
+  entregado_en: Date | null;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
 }
 
 /** F-105 · Cabecera que amarra la salida y la entrada de un traspaso. */

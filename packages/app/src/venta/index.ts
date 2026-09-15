@@ -14,3 +14,9 @@ export {
 export { cobrarOrden, type ResultadoCobro } from './cobrar.ts';
 export { repartirPagos, type PagoEntrante, type PagoValidado } from './pagos.ts';
 export { cotizar, IMPUESTO_POR_OMISION, type Cotizacion, type LineaCotizada } from './cotizar.ts';
+
+export {
+  autorizarDescuento,
+  entradaAutorizarDescuento,
+  type ResultadoAutorizacion,
+} from './descuento.ts';

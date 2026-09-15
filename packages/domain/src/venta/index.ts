@@ -33,3 +33,21 @@ export {
   type SalidaACredito,
   type Veredicto,
 } from './credito.ts';
+
+export {
+  evaluarDescuento,
+  puedeAutorizar,
+  type SolicitudDeDescuento,
+  type TopeDePuesto,
+  type VeredictoDescuento,
+} from './descuento.ts';
+
+export {
+  evaluarCanje,
+  pasivoDeLealtad,
+  sellosDeLaVenta,
+  type LineaParaSellos,
+  type PasivoDeLealtad,
+  type SolicitudDeCanje,
+  type VeredictoCanje,
+} from './lealtad.ts';
