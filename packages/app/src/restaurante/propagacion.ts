@@ -3,7 +3,12 @@ import 'server-only';
 import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 
-import { estadoItemDe, estadosItemPorDebajoDe, type EstadoComanda } from './transiciones.ts';
+import {
+  estadoItemDe,
+  estadosItemPorDebajoDe,
+  selloDeItem,
+  type EstadoComanda,
+} from './transiciones.ts';
 
 /**
  * Mantener coherentes `comanda_items.estado` y `orden_lineas.estado_preparacion`
@@ -26,13 +31,15 @@ export async function propagarAItems(
   organizacionId: string,
   comandaIds: readonly string[],
   destino: EstadoComanda,
+  ahora: Date,
 ): Promise<void> {
   const desde = estadosItemPorDebajoDe(destino);
   if (comandaIds.length === 0 || desde.length === 0) return;
 
   await tx
     .updateTable('comanda_items')
-    .set({ estado: estadoItemDe(destino) })
+    // F-315 · El sello de tiempo va en la misma sentencia que el estado.
+    .set({ estado: estadoItemDe(destino), ...selloDeItem(destino, ahora) })
     .where('organizacion_id', '=', organizacionId)
     .where('comanda_id', 'in', [...comandaIds])
     .where('estado', 'in', [...desde])

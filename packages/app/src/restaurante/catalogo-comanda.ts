@@ -30,6 +30,10 @@ export interface ProductoDeComanda extends repoVentaCatalogo.ProductoParaVender 
   readonly nombrePorcion: string | null;
   readonly insumoBaseId: string | null;
   readonly insumoBaseNombre: string | null;
+  /** F-323 · 1 la entrada, 2 el fuerte, 3 el postre. Nulo = va inmediato. */
+  readonly tiempoServicioDefault: number | null;
+  /** F-315 · Lo que el menú dice que tarda. Se congela en el item al comandar. */
+  readonly minutosPreparacion: number | null;
 }
 
 export async function productosDeComanda(
@@ -81,6 +85,8 @@ export async function productosDeComanda(
       'p.permite_venta_sin_stock as permiteVentaSinStock',
       'p.area_preparacion as areaPreparacion',
       'c.estacion_preparacion_id as estacionDeCategoriaId',
+      'p.tiempo_servicio_default as tiempoServicioDefault',
+      'p.minutos_preparacion as minutosPreparacion',
       'p.insumo_base_id as insumoBaseId',
       'ib.nombre as insumoBaseNombre',
       'i.id as insumoId',

@@ -130,6 +130,32 @@ describe('transicionar_pedido · la versión monotónica sobre filas reales', ()
     expect(base.campo('mesas', 'estado')).toBe('en_espera_entrega');
   });
 
+  it('EL RELOJ DE F-315 SE SELLA EN LA MISMA SENTENCIA que mueve el plato', async () => {
+    // Un item `listo` sin hora no aparece en la vista de tiempos, y un plato
+    // invisible en la medición es peor que un plato lento: el promedio sale
+    // bien. Por eso el sello va en el `set` y no en una escritura aparte.
+    const CUANDO = new Date('2026-09-14T21:40:00.000Z');
+    const base = baseDe({
+      ordenes: [ordenDeMesa('confirmada')],
+      mesas: [mesa('pedido_enviado')],
+      comandas: [comanda('nuevo')],
+      comanda_items: [comandaItem('pendiente')],
+      orden_lineas: [linea()],
+    });
+
+    const empieza = contextoFalso(base.tx, ambitoDe('cocina'), CUANDO);
+    await transicionarPedido.ejecutar(empieza.ctx, {
+      comandaId: COMANDA,
+      estado: 'en_preparacion',
+    });
+    expect(base.campo('comanda_items', 'iniciado_en')).toEqual(CUANDO);
+
+    const sale = new Date('2026-09-14T21:58:00.000Z');
+    const termina = contextoFalso(base.tx, ambitoDe('cocina'), sale);
+    await transicionarPedido.ejecutar(termina.ctx, { comandaId: COMANDA, estado: 'listo' });
+    expect(base.campo('comanda_items', 'listo_en')).toEqual(sale);
+  });
+
   it('un toque que llega tarde no devuelve el plato al fuego', async () => {
     const base = baseDe({
       ordenes: [ordenDeMesa('confirmada')],

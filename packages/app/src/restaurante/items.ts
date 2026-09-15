@@ -8,6 +8,7 @@ import {
   ESTADOS_ITEM,
   estadoComandaDeItem,
   estadoItemDe,
+  selloDeItem,
   esTransicionValida,
   type EstadoComanda,
   type EstadoItem,
@@ -66,10 +67,11 @@ export async function moverItem(
   organizacionId: string,
   item: ItemDeComanda,
   destino: EstadoComanda,
+  ahora: Date,
 ): Promise<void> {
   const resultado = await tx
     .updateTable('comanda_items')
-    .set({ estado: estadoItemDe(destino) })
+    .set({ estado: estadoItemDe(destino), ...selloDeItem(destino, ahora) })
     .where('organizacion_id', '=', organizacionId)
     .where('id', '=', item.id)
     .where('estado', '=', item.estado)

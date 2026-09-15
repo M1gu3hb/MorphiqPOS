@@ -147,7 +147,7 @@ async function moverToda(
     }),
   );
   await ctx.paso('propagar_items', () =>
-    propagarAItems(ctx.tx, organizacionId, [comanda.id], destino),
+    propagarAItems(ctx.tx, organizacionId, [comanda.id], destino, ctx.ahora),
   );
   return destino;
 }
@@ -166,7 +166,7 @@ async function moverUnPlato(
   destino: EstadoComanda,
 ): Promise<EstadoComanda> {
   const { organizacionId } = ctx.ambito;
-  await ctx.paso('mover_item', () => moverItem(ctx.tx, organizacionId, item, destino));
+  await ctx.paso('mover_item', () => moverItem(ctx.tx, organizacionId, item, destino, ctx.ahora));
   return ctx.paso('derivar_comanda', () =>
     ajustarComandaAlMinimo(ctx.tx, organizacionId, comanda.id, comanda.estado, ctx.ahora),
   );
@@ -230,7 +230,7 @@ export const entregarPedidos = definirComando<
         marcarEntregadas(ctx.tx, organizacionId, ids, ctx.ahora),
       );
       await ctx.paso('propagar_items', () =>
-        propagarAItems(ctx.tx, organizacionId, ids, 'entregado'),
+        propagarAItems(ctx.tx, organizacionId, ids, 'entregado', ctx.ahora),
       );
       await ctx.paso('recalcular_lineas', () =>
         recalcularEstadoDeLineas(ctx.tx, organizacionId, ids),

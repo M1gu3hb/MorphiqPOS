@@ -138,6 +138,20 @@ export function estadoItemDe(estado: EstadoComanda): EstadoItem {
   return estado === 'nuevo' ? 'pendiente' : estado;
 }
 
+/**
+ * F-315 · Los dos sellos de tiempo de un item, según a dónde va.
+ *
+ * Van en la MISMA sentencia que mueve el estado, no en una escritura aparte:
+ * separarlos deja la puerta abierta a que un item quede `listo` sin hora, y un
+ * item listo sin hora no aparece en la vista de tiempos — un plato invisible en
+ * la medición es peor que un plato lento, porque el promedio sale bien.
+ */
+export function selloDeItem(destino: EstadoComanda, ahora: Date): Record<string, Date> {
+  if (destino === 'en_preparacion') return { iniciado_en: ahora };
+  if (destino === 'listo') return { listo_en: ahora };
+  return {};
+}
+
 /** El camino de vuelta: `pendiente` del item es `nuevo` de la comanda. */
 export function estadoComandaDeItem(estado: EstadoItem): EstadoComanda {
   return estado === 'pendiente' ? 'nuevo' : estado;

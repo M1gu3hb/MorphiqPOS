@@ -1034,6 +1034,59 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  TiempoPreparacion: {
+    tabla: 'tiempos_preparacion',
+    // Cocina SÍ lee esto: es su propio desempeño, no el margen del negocio.
+    rolesLectura: [...PREPARACION],
+    escritura: 'lectura',
+    ordenPorOmision: '-arrancado_en',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      pedido_id: { columna: 'comanda_id', conversion: 'texto', escribible: false },
+      estacion_id: { columna: 'estacion_preparacion_id', conversion: 'texto', escribible: false },
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      producto_nombre: { columna: 'producto_nombre', conversion: 'texto', escribible: false },
+      minutos_estimados: { columna: 'minutos_estimados', conversion: 'entero', escribible: false },
+      minutos_reales: { columna: 'minutos_reales', conversion: 'entero', escribible: false },
+      desviacion_bp: { columna: 'desviacion_bp', conversion: 'entero', escribible: false },
+      arrancado_en: { columna: 'arrancado_en', conversion: 'fecha', escribible: false },
+      listo_en: { columna: 'listo_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  EsperaMesa: {
+    tabla: 'lista_espera',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    ordenPorOmision: 'creada_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      // DATO PERSONAL. El mesero no lo necesita para sentar a nadie, y darle a
+      // toda la sala el teléfono de quien espera agranda la superficie sin
+      // ninguna ganancia operativa.
+      telefono: {
+        rolesLectura: [...CAJA],
+        columna: 'telefono',
+        conversion: 'texto',
+        escribible: false,
+      },
+      personas: { columna: 'personas', conversion: 'entero', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      mesa_id: { columna: 'mesa_id', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      espera_estimada_minutos: {
+        columna: 'espera_estimada_minutos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      creada_en: { columna: 'creada_en', conversion: 'fecha', escribible: false },
+      avisada_en: { columna: 'avisada_en', conversion: 'fecha', escribible: false },
+      sentada_en: { columna: 'sentada_en', conversion: 'fecha', escribible: false },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+    },
+  },
+
   Mesa: {
     tabla: 'mesas',
     rolesLectura: [...OPERACION_RESTAURANTE],
