@@ -102,3 +102,14 @@ export {
   registrarEventoMesa,
   type MesaEnSala,
 } from './sala-escrituras.ts';
+
+export {
+  entradaSepararMesas,
+  entradaUnirMesas,
+  separarMesasComando,
+  unirMesasComando,
+  type ResultadoSeparacion,
+  type ResultadoUnion,
+} from './union-de-mesas.ts';
+
+export { separarMesas, unionAbiertaDeMesa, unirMesas } from './sala-escrituras.ts';

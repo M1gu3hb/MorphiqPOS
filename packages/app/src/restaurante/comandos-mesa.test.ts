@@ -248,6 +248,27 @@ describe('liberar_mesa sigue negándose a borrar una cuenta sin cobrar', () => {
     expect(pasos).toContain('mirar_consumo');
   });
 
+  it('UNA MESA DE UN GRUPO VIVO NO SE LIBERA SOLA — F-302', async () => {
+    // Su consumo está en la cuenta de la principal. Soltarla por aquí dejaría
+    // al grupo apuntando a una mesa que ya volvió al servicio, y a la mesa
+    // libre para que alguien abra otra cuenta encima de la de diez personas.
+    const base = baseDe({
+      ordenes: [ordenDeMesa('confirmada')],
+      mesas: [mesa('ocupada', { orden_activa_id: null })],
+      orden_lineas: [],
+      union_mesa_miembros: [
+        { union_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab', mesa_id: MESA_5, union_abierta: true },
+      ],
+      uniones_mesa: [],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'));
+
+    const codigo = await fallaCon(liberarMesa.ejecutar(ctx, { mesaId: MESA_5 }));
+
+    expect(codigo).toBe('MESA_NO_LIBERABLE');
+    expect(base.campo('mesas', 'estado')).toBe('ocupada');
+  });
+
   it('UNA CUENTA CON TODO ANULADO SÍ SE LIBERA — F-324', async () => {
     // Sin el filtro de `anulada_en` en `tieneLineas`, la mesa quedaría fuera de
     // servicio esperando el cobro de una cuenta de $0 que nadie puede cobrar.
