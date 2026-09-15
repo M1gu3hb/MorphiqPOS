@@ -51,3 +51,14 @@ export {
   type SolicitudDeCanje,
   type VeredictoCanje,
 } from './lealtad.ts';
+
+export {
+  antiguedadDeSaldos,
+  avisosDeVencimiento,
+  hayMora,
+  TRAMOS,
+  type Antiguedad,
+  type AvisoDeVencimiento,
+  type DocumentoDeCartera,
+  type Tramo,
+} from './cartera.ts';

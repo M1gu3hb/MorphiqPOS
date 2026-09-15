@@ -32,7 +32,8 @@
     "./observabilidad": "./src/observabilidad.ts",
     "./archivos": "./src/archivos/index.ts",
     "./ferreteria": "./src/ferreteria/index.ts",
-    "./salon": "./src/salon/index.ts"
+    "./salon": "./src/salon/index.ts",
+    "./cartera": "./src/cartera/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

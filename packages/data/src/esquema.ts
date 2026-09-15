@@ -88,6 +88,10 @@ export interface Clientes {
   dias_plazo: Generated<number>;
   /** F-617 · El muro por mora. SIEMPRE hay llave, y es del dueño. */
   bloqueado_por_mora: Generated<boolean>;
+  bloqueado_en: Date | null;
+  bloqueado_por: string | null;
+  /** Obligatorio cuando el muro está puesto: sin motivo no se levanta. */
+  motivo_bloqueo: string | null;
   activo: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
@@ -985,6 +989,9 @@ export interface Esquema {
   valuaciones_inventario: ValuacionesInventario;
   kardex: Kardex;
   saldos_pasivos: SaldosPasivos;
+  documentos_credito: DocumentosCredito;
+  pagos_credito: PagosCredito;
+  aplicaciones_pago: AplicacionesPago;
   topes_descuento: TopesDescuento;
   autorizaciones_descuento: AutorizacionesDescuento;
   lealtad_movimientos: LealtadMovimientos;
@@ -1060,6 +1067,48 @@ export interface SaldosPasivos {
   saldo_centavos: bigint;
   movimientos: number;
   ultimo_movimiento: Date;
+}
+
+/** F-612 · Lo que un cliente debe, con su emisión y su vencimiento congelado. */
+export interface DocumentosCredito {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  cliente_id: string;
+  /** `venta` · `remision` · `nota_mostrador` · `ajuste`. El papel, no el hecho. */
+  origen_tipo: string;
+  origen_id: string | null;
+  folio: string;
+  emitido_en: Generated<Date>;
+  /** Congelado al emitir: lo ya fiado vence cuando se dijo que vencía. */
+  vence_en: Date;
+  importe_centavos: bigint;
+  saldo_centavos: bigint;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-614 y F-615 · El pago, con lo que sobró a cuenta. */
+export interface PagosCredito {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  cliente_id: string;
+  monto_centavos: bigint;
+  metodo: string;
+  referencia: string | null;
+  movimiento_caja_id: string | null;
+  sesion_caja_id: string | null;
+  a_cuenta_centavos: Generated<bigint>;
+  empleado_id: string;
+  created_at: Generated<Date>;
+}
+
+/** F-614 · Qué documento cubrió cada peso del pago. */
+export interface AplicacionesPago {
+  pago_id: string;
+  documento_id: string;
+  monto_centavos: bigint;
 }
 
 /** F-205 · Cuánto puede descontar cada puesto sin pedir permiso. */
