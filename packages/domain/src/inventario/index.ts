@@ -31,3 +31,13 @@ export {
   type NivelDeAlerta,
   type Sugerencia,
 } from './pedido.ts';
+
+export {
+  piezaParaElCorte,
+  planearCorte,
+  type CortePlaneado,
+  type DestinoDelSobrante,
+  type PiezaAbierta,
+  type PiezaParaCortar,
+  type SolicitudDeCorte,
+} from './corte.ts';
