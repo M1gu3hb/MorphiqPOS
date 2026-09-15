@@ -925,3 +925,16 @@ De las funciones de E5, E6 y E7 no hay pantalla, y hay DOS razones, no una:
    —mapa de mesas, cobro, precuenta, cocina, agenda— y no un diálogo de conteo cíclico ni uno de
    corte de material. Construirlos habría sido inventar layout, que es justo lo que el encargo
    prohíbe. Que la decisión falte no exime de la función: obliga a decir que falta.
+
+### Cierre de las cinco etapas · `d5d0f68`
+
+`pnpm verify:fase2` corrido **con los tres componentes ya en el árbol** —o sea que
+`verify:primitivas`, `format:check`, `lint`, `typecheck` y `build` los vieron— y en verde de punta
+a punta: **26 eslabones, 158 archivos de prueba, 1,837 pruebas, 0 fallos, `exit=0`**. La salida
+entera, sin recortar, está pegada en el §2 del reporte: `docs/reports/010-claude-code-fase2-cinco-modelos.md`.
+
+Ese reporte es el documento de entrega. Lleva, además de la salida: la Etapa 0 con los IDs que se
+añadieron y los solapamientos que se fusionaron; la tabla por modelo con **función · commit ·
+prueba · una mutación que la valida**; qué se abrió en el navegador y qué no, con la razón; las
+reclasificaciones `[=]`↔`[≠]`; la documentación que se corrigió y por qué estaba mal; y un
+**LO QUE NO HICE** que es la sección más larga a propósito.
