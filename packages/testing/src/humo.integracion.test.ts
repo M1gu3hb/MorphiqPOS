@@ -11,6 +11,6 @@ describe('andamiaje de integracion', () => {
   it('el arranque dejo una base de datos disponible', () => {
     const url = process.env['DATABASE_URL'];
     expect(url, 'pruebas/postgres.setup.ts no dejo DATABASE_URL').toBeDefined();
-    expect(url).toMatch(/^postgres:\/\//);
+    expect(url).toMatch(/^postgres(?:ql)?:\/\//);
   });
 });

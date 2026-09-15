@@ -51,6 +51,30 @@ en una sola transacción:
   Supabase. Si `supabase` no está en `PATH`, se indica su ejecutable con
   `SUPABASE_CLI_PATH`.
 
+### Instalar el CLI en una máquina Windows limpia
+
+La [guía oficial del Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
+permite instalarlo como dependencia local y recomienda fijar la versión. Este
+proyecto usa Node 20 o posterior y puede mantener la herramienta fuera del
+checkout para no añadirla al artefacto web:
+
+```powershell
+$cliDir = Join-Path $env:LOCALAPPDATA 'MorphiqPOS\supabase-cli'
+New-Item -ItemType Directory -Force -Path $cliDir | Out-Null
+Push-Location $cliDir
+npm init -y
+npm install --save-exact supabase@2.115.0
+$env:SUPABASE_CLI_PATH = (Resolve-Path '.\node_modules\@supabase\cli-windows-x64\bin\supabase.exe').Path
+& $env:SUPABASE_CLI_PATH --version
+Pop-Location
+```
+
+La sesión del CLI se crea una vez con `npx supabase login` desde `$cliDir`. En
+cada terminal que ejecute migraciones o `pnpm verify`, se vuelve a definir
+`SUPABASE_CLI_PATH` y se fija explícitamente
+`MORPHIQPOS_SUPABASE_PROJECT_REF`. Nunca se deduce un proyecto por el último
+enlace usado por el CLI.
+
 `morphiqpos_app` conserva sólo DML y no puede aplicar DDL. Con ese rol,
 `db:migrate` sirve para comprobar que no falta nada.
 
