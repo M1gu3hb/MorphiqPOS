@@ -134,8 +134,8 @@ export async function diferenciasDeToma(
 
   return filas.map((f) => ({
     insumoId: f.insumo_id,
-    esperado: String(f.esperado),
-    contado: String(f.contado),
+    esperado: f.esperado,
+    contado: f.contado,
     unidad: f.unidad,
   }));
 }

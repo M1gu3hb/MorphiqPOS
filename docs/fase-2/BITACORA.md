@@ -36,6 +36,86 @@ Por tanto **D-09 sigue vigente**: no se edita ningún archivo que ya exista en `
 
 ---
 
+## 2026-09-14 · E2 · Nunca correr el arnés de mutación de fondo mientras se edita
+
+**Qué pasó.** Lancé `verify:fase2` en segundo plano y seguí escribiendo código.
+El `typecheck` falló con un error absurdo —un import sin usar en un archivo que
+no había tocado— y el `git diff` mostraba `consumo.ts` modificado.
+
+**Por qué.** `verify:mutaciones-*` **muta los archivos reales en el disco**,
+corre la suite y los restaura. Si lees el árbol mientras tanto, lees una
+mutación. No era un defecto ni de Codex ni mío: era mi propia verificación.
+
+**Regla para quien siga:** el arnés de mutación y la edición no conviven. O se
+espera, o se edita. Perder diez minutos esperando es más barato que diagnosticar
+un fantasma.
+
+---
+
+## 2026-09-14 · E2 · El contrato de «estado ⇒ columna» tenía DOS huecos
+
+Los encontró el propio contrato al añadir las tablas nuevas, que es exactamente
+para lo que se escribió.
+
+**1 · Sólo miraba `.set({`.** `enviarTraspaso` crea el traspaso ya `enviado` con
+un `insertInto(...).values({...})`. Una fila que NACE en un estado que exige
+columna: el `check` la rechaza con 23514 igual, y el contrato no la veía. Ahora
+mira las dos formas. Es el mismo defecto de «mirar la mitad del dominio» que
+este archivo ya tuvo con los `check` de `create table`.
+
+**2 · Suponía que toda columna del `check` se reescribe en cada transición.**
+Vale para `pagada` y `cerrada`, que son estados FINALES. No vale para una
+máquina de varios pasos: `traspaso_recibido_completo` exige `enviado_en` y
+`recibido_en`, pero `enviado_en` la escribió el paso de enviar tres horas antes,
+y reescribirla al recibir **sustituiría la hora real de salida por la de
+llegada** — un dato peor que el que había.
+
+**Cómo se resolvió, y por qué así.** Con una lista de excepciones DECLARADAS,
+cada una con su motivo y diciendo qué estado anterior escribió la columna. No
+relajando la regla para todos: un hueco nombrado es honesto; una regla ablandada
+esconde los casos que sí importan.
+
+---
+
+## 2026-09-14 · E2 · Las mutaciones del arnés se REAPUNTAN, nunca se borran
+
+**Qué pasó.** Extraer V6 a estrategia movió seis trozos de código, y
+`verify:inventario` falló con «No se encontró la protección: sku sin
+conversión». Eso NO es un defecto: es que el arnés busca cadenas literales y el
+texto cambió de archivo.
+
+**Qué se hizo.** Las seis mutaciones se reapuntaron al texto nuevo conservando
+**exactamente** lo que cada una probaba. Cinco cambiaron de archivo a
+`variantes/v6-receta-y-peso.ts`; una cambió de forma (`case 'ninguno': break;`
+pasó a `return [];` al convertirse el `switch` en una función que devuelve).
+
+**Lo que NO se hizo, y es la tentación:** borrar la mutación para poner la
+cadena en verde. Eso convierte un arnés en decoración.
+
+**Resultado:** 20 mutaciones detectadas, árbol restaurado.
+
+---
+
+## 2026-09-14 · E2 · El kardex es una VISTA, y por qué importa
+
+**Qué.** F-103 no crea tabla. Es una vista sobre `movimientos_stock` con el
+saldo corrido por ventana.
+
+**Por qué.** El dato ya existe: `movimientos_stock` es un ledger inmutable desde
+la 011. Guardar el kardex aparte obligaría a mantener dos fuentes del mismo
+número y abriría la puerta a que discrepen — el defecto que un ledger existe
+para no tener, y la misma trampa del `read-then-write` que el catálogo tiene
+fichada como P1-03.
+
+**El detalle que casi se escapa:** el saldo corrido se particiona por
+`(organización, almacén, insumo)`. Sin el almacén, el mismo insumo en dos
+bodegas daría un saldo sumado que **no existe en ningún estante**.
+
+Y la vista lleva `security_invoker = on`: sin eso correría con los permisos de
+quien la creó y sería una puerta trasera al ledger de todas las organizaciones.
+
+---
+
 ## 2026-09-14 · E1 · `historico/` hay que copiarla a mano en cada worktree
 
 **Qué.** El punto de partida venía roto: `packages/app/src/puente/cobertura.test.ts` fallaba con
