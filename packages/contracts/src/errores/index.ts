@@ -51,6 +51,15 @@ export const CODIGOS_ERROR = {
   /** La orden ya se cobro o se cancelo. R14: no hay `update` libre de estado. */
   ORDEN_NO_EDITABLE: 'ORDEN_NO_EDITABLE',
   ORDEN_VACIA: 'ORDEN_VACIA',
+  /**
+   * F-321 · La división de una cuenta no reparte exactamente lo que había.
+   *
+   * Código propio y no `ORDEN_NO_EDITABLE` porque la cuenta SÍ es editable: lo
+   * que está mal es el reparto —sobran o faltan unidades, o las partes no suman
+   * la madre—. La pantalla necesita distinguirlos: uno se corrige cambiando el
+   * reparto, el otro no se corrige.
+   */
+  DIVISION_NO_CUADRA: 'DIVISION_NO_CUADRA',
   LINEA_NO_ENCONTRADA: 'LINEA_NO_ENCONTRADA',
   /** Lo que suman los pagos no es lo que cuesta la orden. */
   PAGO_NO_CUADRA: 'PAGO_NO_CUADRA',

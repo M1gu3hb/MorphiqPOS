@@ -452,6 +452,9 @@ export interface OrdenLineaModificadores {
 }
 
 export interface OrdenLineas {
+  anulada_en: Date | null;
+  motivo_anulacion: string | null;
+  empleado_anula_id: string | null;
   id: Generated<string>;
   orden_id: string;
   organizacion_id: string;
@@ -487,6 +490,8 @@ export interface OrdenLineas {
 }
 
 export interface Ordenes {
+  orden_padre_id: string | null;
+  division_indice: number | null;
   id: Generated<string>;
   organizacion_id: string;
   sucursal_id: string;
@@ -808,6 +813,7 @@ export interface Esquema {
   modificadores: Modificadores;
   motivos_merma: MotivosMerma;
   movimientos_caja: MovimientosCaja;
+  movimientos_cuenta: MovimientosCuenta;
   movimientos_stock: MovimientosStock;
   orden_linea_modificadores: OrdenLineaModificadores;
   orden_lineas: OrdenLineas;
@@ -958,5 +964,21 @@ export interface PasivosTerceros {
   sesion_caja_id: string | null;
   motivo: string | null;
   empleado_id: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-321/F-302/F-303/F-324 · Bitácora inmutable de qué le pasó a una cuenta. */
+export interface MovimientosCuenta {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  tipo: string;
+  orden_origen_id: string;
+  orden_destino_id: string | null;
+  mesa_origen_id: string | null;
+  mesa_destino_id: string | null;
+  lineas: string;
+  motivo: string | null;
+  empleado_id: string;
   created_at: Generated<Date>;
 }
