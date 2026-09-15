@@ -1,17 +1,21 @@
 import { ErrorDominio } from '@morphiqpos/contracts/errores';
 
 import {
-  calcularMlPorPorcion,
-  cantidad,
   cantidadATexto,
-  cantidadExacta,
-  convertirUnidad,
   desdeDiezmilesimas,
-  ESCALA_CANTIDAD,
   normalizarUnidad,
   type Cantidad,
   type Unidad,
 } from '../catalogo/index.ts';
+import {
+  consumoDeInsumoBase,
+  consumoDeReceta,
+  consumoDeSku,
+  positiva,
+  type CapturaDeInsumoBase,
+  type IngredienteReceta as IngredienteRecetaV6,
+} from './variantes/v6-receta-y-peso.ts';
+import type { ConsumoDeInsumo } from './variantes/tipos.ts';
 
 export type EstrategiaConsumo = 'sku' | 'receta' | 'insumo_base' | 'ninguno';
 export type UnidadInventario = Exclude<Unidad, 'caja' | 'paquete'>;
@@ -27,15 +31,12 @@ interface ContextoLinea {
   readonly permiteVentaSinStock: boolean;
 }
 
-export interface IngredienteReceta {
-  readonly insumoId: string;
-  /** Cantidad por cada unidad vendida. */
-  readonly cantidad: string;
-  readonly unidad: string;
-  readonly unidadBase: string;
-  /** 10 significa 10 %. */
-  readonly mermaPorcentaje?: string;
-}
+/**
+ * Se reexporta desde la variante V6, que es donde vive desde la extracción.
+ * El alias conserva el nombre que ya consumen `packages/app` y `packages/data`:
+ * mover un tipo no es razón para tocar a quien lo importa.
+ */
+export type IngredienteReceta = IngredienteRecetaV6;
 
 export type LineaParaConsumo =
   | (ContextoLinea & {
@@ -52,19 +53,7 @@ export type LineaParaConsumo =
       readonly estrategiaConsumo: 'insumo_base';
       readonly insumoId: string;
       readonly unidadBase: string;
-      readonly captura:
-        | {
-            readonly tipoVenta: 'variable_medida';
-            readonly cantidad: string;
-            readonly unidad: string;
-          }
-        | {
-            readonly tipoVenta: 'porcion_contenedor';
-            readonly cantidadPorciones: string;
-            readonly capacidadMl: string;
-            readonly mlPorPorcion?: string;
-            readonly porcionesPorContenedor?: string;
-          };
+      readonly captura: CapturaDeInsumoBase;
     })
   | (ContextoLinea & { readonly estrategiaConsumo: 'ninguno' });
 
@@ -102,41 +91,18 @@ export function calcularConsumo(lineas: LineaParaConsumo[]): MovimientoPlaneado[
   const acumulados = new Map<string, Acumulado>();
 
   for (const linea of lineas) {
-    const cantidadLinea = positiva(linea.cantidad);
-    switch (linea.estrategiaConsumo) {
-      case 'ninguno':
-        break;
-      case 'sku':
-        agregar(
-          acumulados,
-          linea,
-          linea.insumoId,
-          convertirUnidad(cantidadLinea, linea.unidadVenta, linea.unidadBase),
-          unidadBase(linea.unidadBase),
-        );
-        break;
-      case 'receta':
-        for (const ingrediente of linea.receta) {
-          const porProducto = convertirUnidad(
-            positiva(ingrediente.cantidad),
-            ingrediente.unidad,
-            ingrediente.unidadBase,
-          );
-          const total = multiplicar(porProducto, cantidadLinea);
-          agregar(
-            acumulados,
-            linea,
-            ingrediente.insumoId,
-            aplicarMerma(total, ingrediente.mermaPorcentaje),
-            unidadBase(ingrediente.unidadBase),
-          );
-        }
-        break;
-      case 'insumo_base': {
-        const consumo = consumoDeInsumoBase(linea.captura, linea.unidadBase);
-        agregar(acumulados, linea, linea.insumoId, consumo, unidadBase(linea.unidadBase));
-        break;
-      }
+    // El tronco NO sabe qué hace cada estrategia: le pide qué consumir y
+    // acumula. Añadir V3 (presentaciones) o V1 (tiempo) es añadir un `case`
+    // aquí y un archivo en `variantes/`, sin tocar la acumulación ni la guarda
+    // de unidades, que es donde vive el riesgo.
+    for (const consumo of planear(linea)) {
+      agregar(
+        acumulados,
+        linea,
+        consumo.insumoId,
+        consumo.cantidad,
+        unidadBase(consumo.unidadBase),
+      );
     }
   }
 
@@ -156,35 +122,29 @@ export function calcularConsumo(lineas: LineaParaConsumo[]): MovimientoPlaneado[
   }));
 }
 
-function consumoDeInsumoBase(
-  captura: Extract<LineaParaConsumo, { estrategiaConsumo: 'insumo_base' }>['captura'],
-  destino: string,
-): Cantidad {
-  if (captura.tipoVenta === 'variable_medida') {
-    return convertirUnidad(positiva(captura.cantidad), captura.unidad, destino);
+/**
+ * Despacha a la variante que la línea declara.
+ *
+ * Es lo único del tronco que conoce los nombres de las estrategias, y es una
+ * tabla de cinco renglones a propósito: si esto creciera con lógica de negocio
+ * dentro, la extracción se habría deshecho sola.
+ */
+function planear(linea: LineaParaConsumo): readonly ConsumoDeInsumo[] {
+  switch (linea.estrategiaConsumo) {
+    case 'ninguno':
+      return [];
+    case 'sku':
+      return consumoDeSku(
+        linea.insumoId,
+        linea.unidadVenta,
+        linea.unidadBase,
+        positiva(linea.cantidad),
+      );
+    case 'receta':
+      return consumoDeReceta(linea.receta, positiva(linea.cantidad));
+    case 'insumo_base':
+      return consumoDeInsumoBase(linea.insumoId, linea.unidadBase, linea.captura);
   }
-  const porciones = positiva(captura.cantidadPorciones);
-  const mlPorPorcion = calcularMlPorPorcion(captura);
-  return convertirUnidad(multiplicar(porciones, mlPorPorcion), 'ml', destino);
-}
-
-function aplicarMerma(valor: Cantidad, porcentaje?: string): Cantidad {
-  if (porcentaje === undefined) return valor;
-  const merma = cantidad(porcentaje);
-  const cien = 100n * ESCALA_CANTIDAD;
-  return cantidadExacta(valor * (cien + merma), cien);
-}
-
-function multiplicar(izquierda: Cantidad, derecha: Cantidad): Cantidad {
-  return cantidadExacta(izquierda * derecha, ESCALA_CANTIDAD);
-}
-
-function positiva(texto: string): Cantidad {
-  const valor = cantidad(texto);
-  if (valor === 0n) {
-    throw new ErrorDominio('INVENTARIO_INVALIDO', 'El consumo debe ser mayor que cero.');
-  }
-  return valor;
 }
 
 function unidadBase(texto: string): UnidadInventario {

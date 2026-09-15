@@ -806,13 +806,16 @@ export interface Esquema {
   mesas: Mesas;
   modificador_opciones: ModificadorOpciones;
   modificadores: Modificadores;
+  motivos_merma: MotivosMerma;
   movimientos_caja: MovimientosCaja;
   movimientos_stock: MovimientosStock;
   orden_linea_modificadores: OrdenLineaModificadores;
   orden_lineas: OrdenLineas;
   ordenes: Ordenes;
+  organizacion_modulos: OrganizacionModulos;
   organizaciones: Organizaciones;
   pagos: Pagos;
+  pasivos_terceros: PasivosTerceros;
   personas: Personas;
   plantillas_compra: PlantillasCompra;
   plantillas_gasto: PlantillasGasto;
@@ -820,10 +823,140 @@ export interface Esquema {
   productos: Productos;
   proveedores: Proveedores;
   recetas: Recetas;
-  sesiones: Sesiones;
   sesiones_caja: SesionesCaja;
+  sesiones: Sesiones;
   solicitudes_qr: SolicitudesQr;
   sucursales: Sucursales;
   terminales: Terminales;
+  toma_conteos: TomaConteos;
+  tomas_inventario: TomasInventario;
+  traspaso_lineas: TraspasoLineas;
+  traspasos: Traspasos;
+  valuacion_lineas: ValuacionLineas;
+  valuaciones_inventario: ValuacionesInventario;
+  vocabulario_negocio: VocabularioNegocio;
   zonas: Zonas;
+}
+
+/* ── Fase 2 · tronco compartido de inventario (migraciones 058-066) ──────── */
+
+/** F-016 · Perillas por módulo. Guarda EXCEPCIONES al preajuste, no el estado. */
+export interface OrganizacionModulos {
+  organizacion_id: string;
+  modulo: string;
+  activo: boolean;
+  motivo: string | null;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/** F-017 · Lo que un negocio cambió a mano del vocabulario de su giro. */
+export interface VocabularioNegocio {
+  organizacion_id: string;
+  entidad: string;
+  singular: string;
+  plural: string;
+  genero: string;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/** F-105 · Cabecera que amarra la salida y la entrada de un traspaso. */
+export interface Traspasos {
+  id: Generated<string>;
+  organizacion_id: string;
+  almacen_origen: string;
+  almacen_destino: string;
+  estado: Generated<string>;
+  motivo: string | null;
+  empleado_id: string | null;
+  enviado_en: Date | null;
+  recibido_en: Date | null;
+  created_at: Generated<Date>;
+}
+
+export interface TraspasoLineas {
+  id: Generated<string>;
+  traspaso_id: string;
+  insumo_id: string;
+  cantidad: string;
+  unidad: string;
+  cantidad_recibida: string | null;
+}
+
+/** F-106 · Toma de inventario físico, y F-149 conteo cíclico por zona. */
+export interface TomasInventario {
+  id: Generated<string>;
+  organizacion_id: string;
+  almacen_id: string;
+  estado: Generated<string>;
+  zona: string | null;
+  iniciada_en: Generated<Date>;
+  cerrada_en: Date | null;
+  empleado_id: string | null;
+}
+
+export interface TomaConteos {
+  id: Generated<string>;
+  toma_id: string;
+  insumo_id: string;
+  esperado: string;
+  contado: string;
+  unidad: string;
+  contado_en: Generated<Date>;
+  empleado_id: string | null;
+}
+
+/** F-108 · Foto del valor del inventario en un instante. */
+export interface ValuacionesInventario {
+  id: Generated<string>;
+  organizacion_id: string;
+  almacen_id: string | null;
+  metodo: string;
+  tomada_en: Generated<Date>;
+  valor_centavos: bigint;
+  articulos: number;
+  empleado_id: string | null;
+}
+
+export interface ValuacionLineas {
+  valuacion_id: string;
+  insumo_id: string;
+  cantidad: string;
+  costo_unitario_centavos: bigint;
+  valor_centavos: bigint;
+}
+
+/** F-109 · Los motivos de merma. Catálogo compartido, no datos de un negocio. */
+export interface MotivosMerma {
+  clave: string;
+  etiqueta: string;
+  giro: string | null;
+  imputable: Generated<boolean>;
+  activo: Generated<boolean>;
+  created_at: Generated<Date>;
+}
+
+/**
+ * El ledger de dinero que pasa por el cajón y NO es del negocio: F-254 fiado,
+ * F-255 servicios de terceros, F-256 envases y F-260 propina por entregar.
+ * INMUTABLE: una corrección es una contrapartida, nunca un `update`.
+ */
+export interface PasivosTerceros {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  naturaleza: string;
+  titular_tipo: string;
+  titular_id: string | null;
+  monto_centavos: bigint;
+  referencia_tipo: string | null;
+  referencia_id: string | null;
+  movimiento_caja_id: string | null;
+  sesion_caja_id: string | null;
+  motivo: string | null;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
 }
