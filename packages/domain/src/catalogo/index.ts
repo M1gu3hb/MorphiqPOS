@@ -25,3 +25,12 @@ export {
   type ContenidoEmbebido,
   type LayoutEanInterno,
 } from './codigo-barras.ts';
+export {
+  mismaMedida,
+  normalizarMedida,
+  piezasDesdePeso,
+  type ConteoPorPeso,
+  type MedidaNormalizada,
+  type PesoDePieza,
+  type SistemaDeMedida,
+} from './medidas.ts';
