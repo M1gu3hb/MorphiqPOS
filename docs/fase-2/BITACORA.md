@@ -504,3 +504,96 @@ el cierre de una espera. Se conservan por la ruta que alguien escriba mañana.
   el backend completo, sus rutas de API y las entradas del puente. El acople es una línea por
   pantalla y está anotado en el FILE-MAP.
 - Ninguna migración aplicada. Ninguna escritura contra la base viva.
+
+---
+
+## 2026-09-15 · E4 · `cafeteria` · CERRADA con seis funciones de quince
+
+| ID | Función | Commit |
+|---|---|---|
+| — | §0.1 · el trigger de unidad base que no protegía a cafetería | `4be6d6d` (migración 080) |
+| F-328 | Fila de despacho de mostrador | `4be6d6d` |
+| F-329 | Llamado por nombre | `4be6d6d` |
+| F-331 | Empaque por canal | `4be6d6d` |
+| F-156 | Merma de barra | `b21205f` |
+| F-157 | Frescura del grano | `b21205f` |
+| F-248 | Bote del turno por horas | `b47ee9f` |
+
+**Migraciones escritas y NO aplicadas:** 080, 081, 082, 083, 085, 086, 087.
+
+Son las seis primeras de su §5 por dolor declarado, más el hallazgo §0.1 que la propia carpeta
+marcaba como «va primero porque es un error de datos activo, no una función nueva».
+
+### El hallazgo que justificaba ir primero
+
+`insumo_unidad_base_valida()` —de la 054— obliga a que un insumo se mida en `g`, `ml` o `pieza`, y
+su condición es `giro = 'restaurante'` **y nada más**. Para una cafetería no validaba nada: hoy se
+puede dar de alta la leche con `unidad_base = 'litro'` y el consumo se dividiría entre mil sin que
+falle en ningún lado. Es el error de 1000× con la puerta abierta en el insumo más caro del giro.
+
+La 080 lo cierra **y falla enseñando los insumos malos en vez de convertir a ciegas**: un insumo en
+litros puede tener existencias capturadas en litros o capturadas en ml por alguien que ya sabía del
+problema, y el sistema no puede distinguirlos. Lo arregla una persona mirando su almacén.
+
+### Lo que esta etapa enseñó sobre la herencia
+
+**1 · El tronco funcionó como tronco, y se nota en lo que NO hubo que escribir.**
+F-156 (merma de barra) parecía una tabla nueva y no lo es: la merma ya se escribe en
+`movimientos_stock` con su motivo tipado desde la 062, y los motivos son una TABLA precisamente
+para que cada giro siembre los suyos. F-156 acabó siendo cuatro filas de `insert`, una columna y
+una vista. Lo mismo con F-106 (toma física), que `cafeteria` lista como pendiente y que E2 ya
+construyó: se reutiliza sin una línea propia.
+
+**2 · Reutilizar la tabla existente en vez de crear la del documento.**
+El `05-DATOS-Y-BACKEND` habla de `pedidos_preparacion`, que es el nombre de la entidad en el
+frontend de Miguel; en el esquema es `comandas` y el puente ya las traduce. Crear una tabla
+paralela para la barra habría dado dos sitios donde vive «lo que se está preparando».
+
+**3 · Un reloj por cada cosa que se mide, y cada uno arranca donde el usuario lo siente.**
+Esta etapa acabó con tres: `marchada_en` (cuándo llegó el plato a cocina, F-323), `cobrado_en`
+(cuándo el cliente empezó a esperar, F-328) e `iniciado_en`/`listo_en` del item (F-315). Parecen
+redundantes y no lo son: medir la espera de barra desde `created_at` de la comanda diría que el
+cliente esperó menos, y medir la preparación desde el cobro pondría en rojo a una cocina que
+todavía no había recibido nada.
+
+**4 · Lo que la base falsa no ve, se extrae a función pura.** Tercera vez en la fase:
+`lineasDelCanal` vive en el dominio y se prueba ahí porque el descuento de stock se escribe con SQL
+crudo. La alternativa —afirmar sobre el ledger que la base falsa no registra— habría sido una
+suposición con forma de prueba.
+
+### Reclasificaciones
+
+- **«barista» NO es uno de los siete roles del sistema.** Un barista cobra y prepara: los comandos
+  de barra los ejecutan `cajero` y `cocina`. El documento del modelo lo nombra como si fuera un rol
+  y no lo es.
+- **El paquete que declaran es `operativo`, no `cafeteria`.** Ese nombre no existe hasta que se
+  aplique la 066, y declararlo ahora dejaría los comandos apagados justo para el cliente que los
+  necesita. Cuando se aplique la 066, el conjunto `PAQUETES_OPERATIVOS` cambia en un sitio.
+- **F-106 toma de inventario físico:** `cafeteria` la lista como pendiente y el tronco de E2 ya la
+  construyó. Pasa a `[=]` reutilizada.
+- **F-023 listas de precio es una función de TRONCO, no de `cafeteria`.** Su ID está en el bloque
+  F-0xx —catálogo compartido— y su efecto es sobre el precio de CUALQUIER modelo. Ver más abajo.
+
+### Lo que NO se construyó en esta etapa, y por qué
+
+- **F-023 listas de precio.** El dolor es real y caro —cada pedido de plataforma se vende con un
+  29 % menos de margen— pero es una función del TRONCO: toca el camino del precio de los cinco
+  modelos y de las tres rutas de captura (mostrador, mesa, portal QR). Construirla sólo en una de
+  las tres crearía exactamente los «dos sitios donde se calcula un precio» que `04-ARQUITECTURA §9`
+  marca como desviación. Necesita su propio hueco de tronco —064 o 065, que están libres— y una
+  pasada completa por las tres rutas.
+- **F-027 modificadores con receta, F-030 combos, F-930/F-934/F-936 sellos, F-330 pedido
+  anticipado, F-235 varias cajas, F-984 cajón de dinero.** Quedan pendientes. El fondo desglosado
+  en monedas/chicos/grandes de F-984 sí entró, en la 086, porque F-248 lo necesitaba para que el
+  arqueo cuadrara.
+- **F-249 segunda pantalla al cliente:** BLOQUEADA por el encargo.
+
+### Correcciones a la documentación del modelo
+
+1. **`pedidos_preparacion` no existe en el esquema**: es `comandas`. La carpeta usa el nombre del
+   frontend heredado; se anota para que quien acople no busque una tabla que no está.
+2. **El §7 de migraciones dice que «`restaurante` ocupa de la 060 a la 069»** y D-08 le da de la 070
+   a la 078. Es un resto de la numeración anterior a E0.
+3. **La 080 del documento hace tres cosas de naturaleza distinta** y la propia carpeta lo advierte.
+   Lo que se escribió aquí es sólo la primera —ampliar el trigger de unidad base—; el renombre de
+   `operativo` y el movimiento de Café Jacaranda siguen en la 066, con su condición P-04 intacta.
