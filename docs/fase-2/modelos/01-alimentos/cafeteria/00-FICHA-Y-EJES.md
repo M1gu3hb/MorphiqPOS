@@ -78,7 +78,7 @@ filtrado, 18 lugares, 150 a 190 tickets entre semana, 220 el sábado. Dos turnos
 06:25  ── CALIBRACIÓN DEL MOLINO (dial-in). Saca de 3 a 5 shots y los tira
        hasta que el tiempo de extracción cuadra. Son 54 a 90 gramos de café
        a la basura, todos los días, ~$22 a $36 pesos. Al mes: $700.
-       ── SISTEMA: registrar la calibración en UN toque. F-146. Hoy nadie lo
+       ── SISTEMA: registrar la calibración en UN toque. F-156. Hoy nadie lo
           registra en ningún sistema del mercado y por eso el inventario de
           café nunca cuadra.
 
@@ -207,14 +207,14 @@ DELTAS PROPIOS DE LA CAFETERÍA — lo que hay que construir
   + Consumo de empaque según canal                    F-331  ← el 3er costo
   + Bote de propina del turno repartido por horas     F-248
   + Segunda pantalla al cliente (total y propina)     F-249
-  + Merma de barra: calibración, vaporizado, rehechas F-146
-  + Frescura del grano por fecha de tueste            F-148
+  + Merma de barra: calibración, vaporizado, rehechas F-156
+  + Frescura del grano por fecha de tueste            F-157
   + Pasivo de lealtad: sellos otorgados sin canjear   F-936
   + Modificadores que cambian precio Y receta         F-027 [≠]
   + Combos café + pan                                 F-030 [≠]
   + Listas de precio: barra / plataforma / mayoreo    F-023
   + Varias cajas simultáneas en fin de semana         F-235
-  + Consumo de empleados y cortesías                  F-326 (de `restaurante`)
+  + Consumo de empleados y cortesías                  F-261 (de `restaurante`)
 ```
 
 **La respuesta a la pregunta que abre este modelo — ¿qué le falta a `operativo` para ser
@@ -257,7 +257,7 @@ muertos cuesta segundos que no hay.
 | **Mesero y su atribución de propina (F-304, F-246 por persona)** | Quien cobra es quien prepara. Atribuir la propina a "el que atendió" sería atribuírsela al único que hay. |
 | **Marcha por tiempos (F-323)** | No hay tiempos. Todo sale cuando está. |
 | **Impresión de comanda (F-318)** | La barra está a un metro de la caja y el barista escucha el pedido mientras lo teclea. Imprimir un papel para pasárselo a sí mismo es una función que existe para cocinas con vapor a cuatro metros del monitor, no para esto. |
-| **Lote y caducidad completos (F-113, F-122, F-124)** | Con una excepción que sí importa y se resuelve más barato: la leche caduca en cinco a siete días y el café **no caduca, pierde frescura**. Se resuelve con rotación física, un conteo diario de leche y F-148 (fecha de tueste), no con trazabilidad de lote. |
+| **Lote y caducidad completos (F-113, F-122, F-124)** | Con una excepción que sí importa y se resuelve más barato: la leche caduca en cinco a siete días y el café **no caduca, pierde frescura**. Se resuelve con rotación física, un conteo diario de leche y F-157 (fecha de tueste), no con trazabilidad de lote. |
 | **Número de serie, matriz talla/color, presentaciones caja↔pieza** | No se revende empaquetado, salvo la bolsa de grano, que es una pieza y ya. |
 | **Crédito, cotización, orden de trabajo, agenda, proyecto** | Nadie se lleva un café fiado, nadie cotiza un capuchino, nadie reserva la barra. |
 | **Comisión por profesional (F-423, F-424)** | Al barista no se le comisiona. Se le paga sueldo y le toca su parte del bote. |
@@ -282,7 +282,7 @@ se desperdicia**, entre los tres a cinco shots de calibración de cada mañana y
 tres gramos cada vez que se cambia la molienda.
 
 *Cómo lo resuelve el sistema:* receta con mililitros reales por bebida y por tamaño (F-128),
-explosión al cobrar (F-129), **F-146 — merma de barra con sus cuatro motivos tipados**
+explosión al cobrar (F-129), **F-156 — merma de barra con sus cuatro motivos tipados**
 (calibración, vaporizado sobrante, bebida rehecha, caducidad de leche) capturable en un toque
 desde la propia pantalla de barra, y la sección de **insumos consumidos** del corte, que dice
 cuántos litros **debieron** salir contra los que quedan en el refrigerador. La diferencia entre

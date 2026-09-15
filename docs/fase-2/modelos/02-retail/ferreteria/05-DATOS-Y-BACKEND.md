@@ -604,46 +604,46 @@ buscador no baja de 100 ms.
 
 ```
 packages/data/src/migraciones/sql/
-├── 083_lineas_y_atributos.sql
+├── 110_lineas_y_atributos.sql
 │     lineas (con esquema_atributos jsonb), producto_atributos
 │     con sus dos índices, productos.linea_id
 │     + backfill: cada categoría existente se vuelve una línea de nivel 1
-├── 084_ubicaciones.sql
+├── 111_ubicaciones.sql
 │     ubicaciones, productos.ubicacion_id, enlace opcional a zonas_anaquel
-├── 085_equivalencias.sql
-├── 086_material_continuo.sql
+├── 112_equivalencias.sql
+├── 113_material_continuo.sql
 │     productos.es_continuo, tipo_corte, merma_corte_default_base,
 │     umbral_retazo_base
 │     piezas_abiertas, cortes_material, sus tres check
 │     + ALTER del check de movimientos_stock: motivos `corte` y `retazo`
-├── 087_doble_unidad_peso.sql
+├── 114_doble_unidad_peso.sql
 │     productos.peso_por_pieza_mg, tolerancia_peso_pct, peso_calibrado_en
 │     producto_presentaciones.factor_por_peso
-├── 088_credito_ferreteria.sql
+├── 115_credito_ferreteria.sql
 │     obras, autorizados_cuenta, remisiones, pagos_credito,
 │     aplicaciones_pago, clientes.lista_precio_id / dias_plazo /
 │     bloqueado_por_mora / tipo, triggers de saldo con el TERCER camino
 │     ⚠ La más delicada después de la 070 de abarrotes: convive con
 │       abonos_fiado, que NO se borra — `abarrotes` la sigue usando.
-├── 089_notas_mostrador.sql
+├── 116_notas_mostrador.sql
 │     notas_mostrador, ordenes.mostradorista_id, almacenes.tipo
-├── 090_servicios_mostrador.sql
+├── 117_servicios_mostrador.sql
 │     servicios_mostrador, orden_lineas.servicio_id
 │     + ALTER del check de movimientos_stock: consumo_servicio
-├── 091_garantias_y_rentas.sql
+├── 118_garantias_y_rentas.sql
 │     garantias_proveedor, rentas
 │     + ALTER del check: garantia_proveedor, garantia_retorno,
 │       renta_salida, renta_retorno
-├── 092_listas_trabajo.sql
-├── 093_proveedores_ferreteria.sql
+├── 119_listas_trabajo.sql
+├── 120_proveedores_ferreteria.sql
 │     dias_credito, monto_minimo_pedido_centavos, dias_entrega,
 │     acepta_garantias
-├── 094_vistas_ferreteria.sql
+├── 121_vistas_ferreteria.sql
 │     busqueda_material (materializada, con trigger de refresco por fila),
 │     existencia_continua, dinero_dormido, rotacion_por_linea,
 │     cartera_por_obra, salio_sin_cobrar, merma_corte_periodo,
 │     venta_por_mostradorista, garantias_abiertas, piezas_abiertas_viejas
-└── 095_plantilla_ferreteria.sql
+└── 066_plantillas_semilla.sql
       La plantilla `ferreteria` = `tienda` + los módulos de este modelo
       − IEPS − comisiones − casco − caducidad − restricción legal.
       Y el movimiento de Ferretería La Broca de `tienda` provisional a

@@ -660,7 +660,7 @@ físicos distintos.
 y, si hay, abre un diálogo con la lista: nombre, bebida, hora de cobro, minutos esperando. Tres
 salidas y sólo tres: entregarlo, marcarlo *nadie vino*, o devolverlo. Se verifica dos veces, al
 abrir el diálogo y justo antes de ejecutar, porque en los dos minutos del conteo alguien puede
-cobrar un café. **F-327.**
+cobrar un café. **F-262.**
 
 **El reparto del bote se confirma delante de las personas del turno.** El botón dice *Confirmar
 reparto* y no *Guardar*, porque lo que pasa después es que se cuentan billetes sobre la barra. Al
@@ -700,7 +700,7 @@ teórico y **porcentaje de merma con semáforo**, verde bajo 8%, ámbar de 8 a 1
 12%— sin ir a ningún otro lado. Si el porcentaje de merma viviera en un reporte, nadie lo vería
 nunca.
 
-**La tarjeta del grano abierto** (F-148) va arriba, con la fecha de tueste y los días
+**La tarjeta del grano abierto** (F-157) va arriba, con la fecha de tueste y los días
 transcurridos, en ámbar a los 25 días y en rojo a los 30. La recomendación es de uso, no de
 tirar: *"27 días. Sirve para filtrado; para espresso ya cayó."*
 
@@ -818,7 +818,7 @@ formularios.
 - **Compras** — cabecera + líneas, con las **plantillas de compra recurrente arriba de todo**,
   porque el pedido de leche del martes es siempre el mismo. Se usa **en tablet, de pie, en la
   puerta, a las 6:45 con el repartidor esperando**: campos grandes, orden proveedor → líneas →
-  total → pago. Un campo propio: **fecha de tueste** en las líneas de café (F-148), que es el
+  total → pago. Un campo propio: **fecha de tueste** en las líneas de café (F-157), que es el
   único dato extra de esta plantilla en toda la recepción.
 - **Menú público (QR)** — tres pestañas: Menú, Pedido anticipado, Configuración. **No hay pestaña
   de mesas**, que es la primera de `restaurante`: el QR aquí se pega en la barra, en la puerta y en

@@ -62,7 +62,7 @@ packages/app/src/propinas/
 └── liquidadas.ts                  ← YA EXISTE. Se extiende con beneficiarios
 
 packages/app/src/inventario/
-└── consumo-interno.ts             F-326 · registrarConsumoInterno
+└── consumo-interno.ts             F-261 · registrarConsumoInterno
 
 packages/app/src/venta/
 └── autorizacion-descuento.ts      F-205
@@ -101,16 +101,16 @@ apps/web/app/api/venta/autorizar-descuento/route.ts
 
 ```
 packages/data/src/migraciones/sql/
-├── 060_movimientos_cuenta.sql
-├── 061_union_y_cambio_de_mesa.sql
-├── 062_eventos_mesa.sql
-├── 063_lista_espera.sql
-├── 064_tiempos_y_marcha.sql
-├── 065_impresion_comanda.sql
-├── 066_esquemas_propina.sql
-├── 067_consumos_internos.sql
-├── 068_tope_descuento.sql
-└── 069_plantilla_restaurante.sql     ← D-01. Toca datos vivos. No se aplica sin P-04
+├── 070_movimientos_cuenta.sql
+├── 071_union_y_cambio_de_mesa.sql
+├── 072_eventos_mesa.sql
+├── 073_lista_espera.sql
+├── 074_tiempos_y_marcha.sql
+├── 075_impresion_comanda.sql
+├── 076_esquemas_propina.sql
+├── 077_consumos_internos.sql
+├── 078_tope_descuento.sql
+└── 066_plantillas_semilla.sql     ← D-01. Toca datos vivos. No se aplica sin P-04
 ```
 
 ### 2.5 · Interfaz
@@ -272,7 +272,7 @@ F-319) y no tiene mesas ni cuenta abierta. Es A1 con un módulo prestado de A2, 
 Para que nadie tenga que deducirlos leyendo los siete archivos.
 
 1. **Añadir al catálogo las seis funciones propuestas** en `01-FUNCIONES.md` §6 — F-247, F-323,
-   F-324, F-325, F-326, F-327 — antes de construir nada. Sin ID canónico se van a reinventar con
+   F-324, F-325, F-261, F-262 — antes de construir nada. Sin ID canónico se van a reinventar con
    otro nombre en `bar-cantina`.
 2. **Decidir el camino de impresión de comanda** (agente local, impresora de red o `window.print`).
    La recomendación está en `05-DATOS-Y-BACKEND.md` §8 y la decisión la toma Miguel.

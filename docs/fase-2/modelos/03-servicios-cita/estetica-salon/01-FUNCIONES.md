@@ -887,9 +887,16 @@ bloque F-4xx. Lo que sigue es el hueco con su costo operativo.
 reinventar con otro nombre en `barberia`, en `spa-masajes` y en los otros nueve.
 
 **IDs tomados ya por otros modelos, para no chocar:** `abarrotes` propuso F-058, F-146, F-147,
-F-148, F-149, F-254, F-255, F-256, F-257, F-988. `cafeteria` propuso F-248, F-249, F-328…F-331,
-F-936. `ferreteria` propuso F-059, F-060, F-150, F-151, F-152, F-153, F-258, F-638, F-639. Este
-modelo arranca en **F-154**, **F-259** y en el bloque **F-4xx**, que está intacto.
+F-148, F-149, F-254, F-255, F-256, F-257, F-988. `cafeteria` propuso F-156, F-157, F-248, F-249,
+F-328…F-331, F-936. `ferreteria` propuso F-059, F-060, F-061, F-150, F-151, F-152, F-153, F-258,
+F-638, F-639. `restaurante` propuso F-247, F-261, F-262, F-323, F-324, F-325. Este modelo arranca
+en **F-154**, **F-259** y en el bloque **F-4xx**, que está intacto.
+
+> **Reconciliado el 14-09-2026 (D-11).** Este modelo fue el único que deconflictó a mano antes de
+> escribir, y por eso **no se le reasignó ni un solo ID**. Los que cambiaron fueron los de
+> `cafeteria` (F-146→F-156 y F-148→F-157, que chocaban con `abarrotes`) y los dos de `restaurante`
+> que estaban en el bloque equivocado (F-326→F-261 y F-327→F-262). El catálogo tiene el registro
+> completo en su sección «Reconciliación del 14-09-2026».
 
 | ID propuesto | Función | Bloque | Por qué hace falta |
 |---|---|---|---|

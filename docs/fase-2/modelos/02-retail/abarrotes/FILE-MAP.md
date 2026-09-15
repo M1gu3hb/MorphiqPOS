@@ -51,7 +51,7 @@ packages/app/src/inventario/                ← YA EXISTE. Se amplía
 ├── conteo.test.ts                 ← prueba crítica: esperado sellado con ventas en curso
 ├── caducidad.ts                   F-146 · registrarCaducidad, porVencer
 ├── merma.ts                       F-109 · merma con los cinco motivos
-├── consumo-interno.ts             F-326 (de restaurante) reutilizado aquí
+├── consumo-interno.ts             F-261 (de restaurante) reutilizado aquí
 ├── inventario.ts                  ← YA EXISTE. Intacto
 └── consultas.ts                   ← YA EXISTE. Se amplía con existencia_presentada
 
@@ -114,19 +114,19 @@ Las veinte de `05-DATOS-Y-BACKEND.md` §6.
 
 ```
 packages/data/src/migraciones/sql/
-├── 070_presentaciones.sql                 ⚠ backfill delicado, ver 05 §7
-├── 071_zonas_y_conteo.sql
-├── 072_caducidad_sin_lote.sql
-├── 073_movimientos_stock_tipos_retail.sql
-├── 074_clientes_fiado.sql
-├── 075_comisiones.sql
-├── 076_envases.sql
-├── 077_redondeos.sql
-├── 078_fiscal_producto.sql                ⚠ lo revisa un contador antes de aplicar
-├── 079_proveedores_ruta.sql
-├── 080_caja_denominaciones.sql
-├── 081_vistas_retail.sql
-└── 082_plantilla_tienda.sql               ⚠ TOCA DATOS VIVOS. No se aplica sin P-04
+├── 090_presentaciones.sql                 ⚠ backfill delicado, ver 05 §7
+├── 091_zonas_y_conteo.sql
+├── 092_caducidad_sin_lote.sql
+├── 093_movimientos_stock_tipos_retail.sql
+├── 094_clientes_fiado.sql
+├── 095_comisiones.sql
+├── 096_envases.sql
+├── 097_redondeos.sql
+├── 098_fiscal_producto.sql                ⚠ lo revisa un contador antes de aplicar
+├── 099_proveedores_ruta.sql
+├── 100_caja_denominaciones.sql
+├── 101_vistas_retail.sql
+└── 066_plantillas_semilla.sql               ⚠ TOCA DATOS VIVOS. No se aplica sin P-04
 ```
 
 ### 2.5 · Interfaz

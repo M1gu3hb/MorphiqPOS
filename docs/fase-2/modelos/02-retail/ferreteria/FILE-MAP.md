@@ -123,19 +123,19 @@ Las veintisiete de `05-DATOS-Y-BACKEND.md` §6.
 
 ```
 packages/data/src/migraciones/sql/
-├── 083_lineas_y_atributos.sql
-├── 084_ubicaciones.sql
-├── 085_equivalencias.sql
-├── 086_material_continuo.sql            ⚠ backfill deliberadamente vacío, ver 05 §7
-├── 087_doble_unidad_peso.sql
-├── 088_credito_ferreteria.sql           ⚠ convive con abonos_fiado, NO la sustituye
-├── 089_notas_mostrador.sql
-├── 090_servicios_mostrador.sql
-├── 091_garantias_y_rentas.sql
-├── 092_listas_trabajo.sql
-├── 093_proveedores_ferreteria.sql
-├── 094_vistas_ferreteria.sql
-└── 095_plantilla_ferreteria.sql         ⚠ TOCA DATOS VIVOS. No sin P-04
+├── 110_lineas_y_atributos.sql
+├── 111_ubicaciones.sql
+├── 112_equivalencias.sql
+├── 113_material_continuo.sql            ⚠ backfill deliberadamente vacío, ver 05 §7
+├── 114_doble_unidad_peso.sql
+├── 115_credito_ferreteria.sql           ⚠ convive con abonos_fiado, NO la sustituye
+├── 116_notas_mostrador.sql
+├── 117_servicios_mostrador.sql
+├── 118_garantias_y_rentas.sql
+├── 119_listas_trabajo.sql
+├── 120_proveedores_ferreteria.sql
+├── 121_vistas_ferreteria.sql
+└── 066_plantillas_semilla.sql         ⚠ TOCA DATOS VIVOS. No sin P-04
 ```
 
 ### 2.5 · Interfaz

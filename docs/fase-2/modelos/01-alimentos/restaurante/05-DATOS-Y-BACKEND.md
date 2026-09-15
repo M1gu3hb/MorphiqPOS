@@ -160,7 +160,7 @@ pleito y crea otro.
 tiene que igualar su `total_centavos`. Se impone con un trigger de constraint diferido. El
 redondeo de la última fracción va al de más puntos, y eso queda escrito en la liquidación.
 
-### 1.8 · `consumos_internos` — F-326
+### 1.8 · `consumos_internos` — F-261
 
 | Campo | Tipo | Nota |
 |---|---|---|
@@ -244,7 +244,7 @@ mientras nadie abra dos pestañas.
     (`consumo_interno`, `anulacion`): entradas positivas, salidas negativas, con `check`.
 11. **No se cierra la caja con cuentas vivas.** Se valida en el comando **y** con un `check` sobre
     el cierre: la sesión de caja no pasa a `cerrada` si existe una orden en `borrador` o
-    `confirmada` con `sesion_caja_id` apuntando a ella. **F-327.**
+    `confirmada` con `sesion_caja_id` apuntando a ella. **F-262.**
 12. **`consumos_internos` nunca toca `ordenes`.** No hay ruta por la que un consumo interno se
     convierta en venta. Es una restricción de modelo, y está escrita aquí para que nadie la
     "mejore" después.
@@ -343,16 +343,16 @@ compensación, nunca editando la anterior.
 
 | Nº | Archivo | Qué crea |
 |---|---|---|
-| **060** | `060_movimientos_cuenta.sql` | Tabla `movimientos_cuenta`, sus índices y su RLS. Columnas `orden_padre_id`, `division_indice` en `ordenes`; `anulada_en`, `motivo_anulacion`, `empleado_anula_id` en `orden_lineas`. Índice único parcial de una cuenta viva por mesa. Trigger de constraint de suma madre/hijas |
-| **061** | `061_union_y_cambio_de_mesa.sql` | `uniones_mesa`, `union_mesa_miembros`, `ordenes.union_id`, sus `check` y su RLS |
-| **062** | `062_eventos_mesa.sql` | `eventos_mesa` + `mesas.ocupada_desde` + vista `ocupacion_mesas` + backfill del estado actual como evento inicial |
-| **063** | `063_lista_espera.sql` | `lista_espera`, índices por estado y fecha, RLS |
-| **064** | `064_tiempos_y_marcha.sql` | `orden_lineas.marcha_estado`, `orden_lineas.tiempo_servicio`, `productos.tiempo_servicio_default`, `comandas.marchada_en`, `comanda_items.iniciado_en/listo_en/minutos_estimados`, vista `tiempos_preparacion` |
-| **065** | `065_impresion_comanda.sql` | `impresiones_comanda`, índice único parcial, `estaciones_preparacion.impresora_destino` e `impresion_automatica` |
-| **066** | `066_esquemas_propina.sql` | `esquemas_propina`, `esquema_propina_puntos`, `liquidacion_propina_beneficiarios`, `liquidaciones_propina.esquema_id` y `formula_snapshot`, constraint de exclusión por vigencia, trigger de suma |
-| **067** | `067_consumos_internos.sql` | `consumos_internos`, ampliación del `check` de tipos de `movimientos_stock` con `consumo_interno` y `anulacion` |
-| **068** | `068_tope_descuento.sql` | `descuento_maximo_bp` en el documento de configuración + bitácora de autorizaciones |
-| **069** | `069_plantilla_restaurante.sql` | **D-01**: renombra el valor `restaurante_pro` a `restaurante` en `paquete`, con actualización de los negocios vivos y `check` nuevo. Va al final a propósito: es la que toca datos de producción |
+| **070** | `070_movimientos_cuenta.sql` | Tabla `movimientos_cuenta`, sus índices y su RLS. Columnas `orden_padre_id`, `division_indice` en `ordenes`; `anulada_en`, `motivo_anulacion`, `empleado_anula_id` en `orden_lineas`. Índice único parcial de una cuenta viva por mesa. Trigger de constraint de suma madre/hijas |
+| **071** | `071_union_y_cambio_de_mesa.sql` | `uniones_mesa`, `union_mesa_miembros`, `ordenes.union_id`, sus `check` y su RLS |
+| **072** | `072_eventos_mesa.sql` | `eventos_mesa` + `mesas.ocupada_desde` + vista `ocupacion_mesas` + backfill del estado actual como evento inicial |
+| **073** | `073_lista_espera.sql` | `lista_espera`, índices por estado y fecha, RLS |
+| **074** | `074_tiempos_y_marcha.sql` | `orden_lineas.marcha_estado`, `orden_lineas.tiempo_servicio`, `productos.tiempo_servicio_default`, `comandas.marchada_en`, `comanda_items.iniciado_en/listo_en/minutos_estimados`, vista `tiempos_preparacion` |
+| **075** | `075_impresion_comanda.sql` | `impresiones_comanda`, índice único parcial, `estaciones_preparacion.impresora_destino` e `impresion_automatica` |
+| **076** | `076_esquemas_propina.sql` | `esquemas_propina`, `esquema_propina_puntos`, `liquidacion_propina_beneficiarios`, `liquidaciones_propina.esquema_id` y `formula_snapshot`, constraint de exclusión por vigencia, trigger de suma |
+| **077** | `077_consumos_internos.sql` | `consumos_internos`, ampliación del `check` de tipos de `movimientos_stock` con `consumo_interno` y `anulacion` |
+| **078** | `078_tope_descuento.sql` | `descuento_maximo_bp` en el documento de configuración + bitácora de autorizaciones |
+| **066** | `066_plantillas_semilla.sql` | **D-01**: renombra el valor `restaurante_pro` a `restaurante` en `paquete`, con actualización de los negocios vivos y `check` nuevo. Va al final a propósito: es la que toca datos de producción |
 
 **Sobre 069.** Es la única que migra datos de clientes que están operando. No se aplica sin
 respaldo probado y sin la respuesta de Miguel a la decisión pendiente **P-04**. Escribirla ahora y
@@ -415,7 +415,7 @@ Lo que **no se toca** porque ya funciona. Rutas reales del monorepo.
 | Tokens de diseño | `packages/ui/src/tokens/` | Colores de estado, espaciado, radios |
 | Documento del corte | `apps/web/heredado/components/tickets/CorteTicket.jsx` | Gana dos secciones (reparto por puntos y consumos internos). El resto queda igual |
 | Desglose exacto | `apps/web/heredado/utils/tipsUtils.js` | **Intacto.** Es la pieza mejor resuelta del sistema |
-| Conversión de unidades | `apps/web/heredado/utils/unitConversions.js` | F-326 la necesita para costear el consumo interno |
+| Conversión de unidades | `apps/web/heredado/utils/unitConversions.js` | F-261 la necesita para costear el consumo interno |
 | Utilidades de estación | `apps/web/heredado/utils/preparacionEstacionUtils.js` | El ruteo de impresión reutiliza el ruteo de pantalla |
 
 **Lo que hay que tocar del heredado, y es poco:** `Mesero.jsx` (acciones de unir, cambiar y

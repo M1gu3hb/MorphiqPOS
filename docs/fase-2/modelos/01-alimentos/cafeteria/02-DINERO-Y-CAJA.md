@@ -26,9 +26,9 @@ La venta de este negocio es **el pedido cobrado en el mostrador**. Ni un peso m�
 | **Descuento aplicado** | Resta | `ordenes.descuento_centavos`. Baja la venta y baja el margen. **No baja el costo**: el vaso y la leche se gastaron igual. |
 | **Ahorro del combo** | Resta, y con nombre | El combo café + pan es la suma de sus partes **menos un descuento declarado** con su propia etiqueta (`descuento_combo`). No es un producto nuevo con precio propio. Así el corte puede contestar "¿cuánto regalé en combos este mes?", que es la pregunta real: en un negocio de 8% de utilidad neta, $10 de ahorro en 40 combos diarios son $12,000 al mes. |
 | **Canje de sello (el 6º café gratis)** | **No es venta, y no es descuento** | Es **la cancelación de un pasivo**. Se registra como línea a precio cero con `motivo: 'canje_lealtad'`, sale del inventario, y **no entra al conteo de tickets ni al ticket promedio**. Si se registrara como venta $0, el ticket promedio caería solo y nadie entendería por qué; si se registrara como descuento del 100%, inflaría el renglón de descuentos y taparía los descuentos de verdad. Ver §10, descuadre 5. |
-| **Consumo del personal** | **No es venta** | Diez a doce bebidas al día. Sale del stock con `tipo: 'personal'`, no entra a ventas, y aparece en su propia línea del corte. **F-326.** Hoy se registra como merma y arruina el único indicador que sirve para detectar robo. |
+| **Consumo del personal** | **No es venta** | Diez a doce bebidas al día. Sale del stock con `tipo: 'personal'`, no entra a ventas, y aparece en su propia línea del corte. **F-261.** Hoy se registra como merma y arruina el único indicador que sirve para detectar robo. |
 | **Cortesía al cliente** | **No es venta** | "Se te cayó, te hago otro". Mismo mecanismo, `tipo: 'cortesia'`. |
-| **Bebida rehecha** | **No es venta** | El insumo se consume dos veces y se cobra una. Se registra con `tipo: 'reposicion'` en F-326 y su costo entra a la merma de barra (F-146), no al costo de ventas. Si entrara al costo de ventas, el margen del producto se vería mal cuando el problema es la operación. |
+| **Bebida rehecha** | **No es venta** | El insumo se consume dos veces y se cobra una. Se registra con `tipo: 'reposicion'` en F-261 y su costo entra a la merma de barra (F-156), no al costo de ventas. Si entrara al costo de ventas, el margen del producto se vería mal cuando el problema es la operación. |
 | **Pedido pagado y no recogido** | **Sí es venta** | El dinero entró y no se devuelve. Pero el pedido se marca `no_recogido` y **su costo de insumo es una pérdida operativa**, no un costo de venta cumplida. Aparece contado en el corte, con su importe, porque es el único sitio donde alguien lo va a ver. |
 | **Venta por plataforma (Uber Eats, Rappi, DiDi)** | **Sí, por el importe bruto** | Y la comisión es **gasto**, nunca un descuento sobre la venta. Es la trampa más cara del giro: si se resta de la venta, el food cost se ve artificialmente peor y el dueño baja porciones para arreglar un problema que no existe. La comisión se calcula sobre el importe de plataforma, con IVA **sobre la comisión** (25% nominal = 29% efectivo), y se registra en la categoría de gasto `comision_plataforma`. |
 | **Comisión de terminal bancaria** | **No resta de la venta. Es gasto** | 3.6% + IVA con Clip, 3.5% + IVA con Mercado Pago Point. Se estima al corte sobre el total cobrado con tarjeta y se concilia contra el estado de cuenta al mes. **Se estima y se dice que es estimación**, porque el cargo real llega días después. |
@@ -395,7 +395,7 @@ Regla 2 de `04-SISTEMA-DE-DISENO.md` §5, idéntica en los 78.
 
 ### 8.6 · La regla que salva el cierre
 
-**No se puede cerrar el turno con pedidos sin entregar.** Es **F-327** aplicada a este giro: donde
+**No se puede cerrar el turno con pedidos sin entregar.** Es **F-262** aplicada a este giro: donde
 `restaurante` busca mesas con cuenta viva, aquí se buscan pedidos en la fila de barra en estado
 `en_fila`, `preparando` o `listo`. Si los hay, se abre un diálogo con la lista —nombre, hora de
 cobro, minutos esperando— y no deja continuar. Hay tres salidas y sólo tres: entregarlo, marcarlo
@@ -606,7 +606,7 @@ real no es el control: es que registrarlo cueste menos que no registrarlo.
 que nunca se registran: ~$190 de insumo al día, **~$5,700 al mes**. Al hacer el conteo de leche del
 lunes faltan doce litros y nadie sabe por qué.
 
-**Cómo lo previene el sistema.** **F-326** con `tipo: 'personal'`: sale del stock, no entra a
+**Cómo lo previene el sistema.** **F-261** con `tipo: 'personal'`: sale del stock, no entra a
 ventas, y aparece en su propia sección del corte (§9.3, sección 12). Un toque desde la pantalla de
 barra, sin pasar por el cobro.
 
@@ -625,7 +625,7 @@ y se resuelve con F-324 (anulación de línea, que revierte el consumo). Aquí e
 no hay nada que anular, hay un consumo extra que registrar. Son dos operaciones distintas y
 resolver la segunda con la primera deja el ledger al revés.
 
-**Cómo lo previene el sistema.** **F-146** con motivo `bebida_rehecha`, desde la tarjeta del
+**Cómo lo previene el sistema.** **F-156** con motivo `bebida_rehecha`, desde la tarjeta del
 pedido en la pantalla de barra, en un toque: consume el insumo otra vez, lo carga a merma de barra
 —no a costo de ventas— y deja registro de qué bebida, a qué hora y por qué. Al mes se puede
 contestar "¿cuántas bebidas rehacemos y por qué?", que casi siempre resulta ser un problema de

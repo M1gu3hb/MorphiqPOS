@@ -40,9 +40,9 @@ packages/app/src/cafeteria/
 ├── opciones.ts                    F-027 · resolución de modificadores sobre
 │                                          la receta (sustitución y factor)
 ├── opciones.test.ts
-├── merma-barra.ts                 F-146 · registrarMermaBarra, registrarCalibracion
+├── merma-barra.ts                 F-156 · registrarMermaBarra, registrarCalibracion
 ├── merma-barra.test.ts
-├── lote-grano.ts                  F-148 · abrirLoteGrano, frescura
+├── lote-grano.ts                  F-157 · abrirLoteGrano, frescura
 ├── conteo-leche.ts                F-106 parcial · contarLeche + % de merma
 ├── conteo-leche.test.ts
 ├── anticipado.ts                  F-330 · programar y encolar
@@ -119,17 +119,17 @@ apps/web/app/api/publico/recogida/[token]/route.ts   ← sin sesión, sólo lect
 
 ```
 packages/data/src/migraciones/sql/
-├── 070_unidad_base_cafeteria.sql      ← corrige un hueco activo. Va primera
-├── 071_canal_y_nombre_pedido.sql
-├── 072_fila_barra.sql
-├── 073_empaque_por_canal.sql
-├── 074_opciones_con_receta.sql
-├── 075_merma_barra_y_lote.sql
-├── 076_turno_bote_y_cambio.sql
-├── 077_presencias_y_reparto.sql       ← depende de la 066 de `restaurante`
-├── 078_lealtad_sellos.sql
-├── 079_pedido_anticipado.sql
-└── 080_plantilla_cafeteria.sql        ← D-01. Toca datos vivos. No sin P-04
+├── 080_unidad_base_cafeteria.sql      ← corrige un hueco activo. Va primera
+├── 081_canal_y_nombre_pedido.sql
+├── 082_fila_barra.sql
+├── 083_empaque_por_canal.sql
+├── 084_opciones_con_receta.sql
+├── 085_merma_barra_y_lote.sql
+├── 086_turno_bote_y_cambio.sql
+├── 087_presencias_y_reparto.sql       ← depende de la 076 de `restaurante`
+├── 088_lealtad_sellos.sql
+├── 089_pedido_anticipado.sql
+└── 066_plantillas_semilla.sql        ← D-01. Toca datos vivos. No sin P-04
 ```
 
 ### 2.5 · Interfaz
@@ -182,7 +182,7 @@ mesa. Lo que se construya aquí lo reutilizan sin tocarlo:
 | **F-027 · Opciones con impacto en receta** | `jugueria` (que es casi este mismo modelo con fruta), `taqueria`, `bar-cantina` |
 | **F-930/F-934/F-936 · Sellos y su pasivo** | `heladeria`, `taqueria`, `barberia`, `autolavado`, `tortilleria` — cualquier giro de recurrencia alta |
 | **F-235 · Varias cajas simultáneas** | `abarrotes`, `farmacia`, `panaderia-pasteleria` |
-| **F-146 · Merma de barra** | `jugueria` y `bar-cantina`, con otros motivos |
+| **F-156 · Merma de barra** | `jugueria` y `bar-cantina`, con otros motivos |
 | Fondo de caja desglosado y **aviso de cambio bajo** | todos los mostradores de ticket bajo: `abarrotes`, `taqueria`, `dulceria`, `tortilleria` |
 
 ---
@@ -355,7 +355,7 @@ alto de toda la familia 01, por encima del que `restaurante` señaló con `bar-c
 
 Para que nadie tenga que deducirlos leyendo los siete archivos.
 
-1. **Añadir al catálogo las nueve funciones propuestas** en `01-FUNCIONES.md` §6 — F-146, F-148,
+1. **Añadir al catálogo las nueve funciones propuestas** en `01-FUNCIONES.md` §6 — F-156, F-157,
    F-248, F-249, F-328, F-329, F-330, F-331, F-936 — antes de construir nada. Sin ID canónico se
    van a reinventar con otro nombre en `comida-rapida` y en `jugueria`.
 2. **Aplicar la migración 070 pronto, independientemente del resto.** El trigger
