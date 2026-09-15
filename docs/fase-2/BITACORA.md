@@ -290,3 +290,111 @@ vez de estar repetida en cinco archivos.
 - **No toqué `scripts/esquema-esperado.json`.**
 - **No apliqué ninguna migración.** Ninguna de las escritas en esta fase se aplica: el acople las
   aplica, con respaldo y con los negocios cerrados.
+
+---
+
+## 2026-09-14 · E3 · `restaurante` · EN PROGRESO
+
+**Dónde voy.** Seis de las once funciones del modelo, cada una con su commit:
+
+| ID | Función | Commit |
+|---|---|---|
+| F-321 | Dividir cuenta | `dda16de` |
+| F-324 | Anulación de línea con motivo | `22b9755` |
+| F-303 | Cambiar de mesa | `8d3aafa` |
+| F-302 | Unir y separar mesas | `ef4bb19` |
+| F-305 | Tiempo de ocupación | `fa1938b` |
+
+Migraciones escritas y NO aplicadas: `070_movimientos_cuenta`,
+`071_union_y_cambio_de_mesa`, `072_eventos_mesa`.
+
+**Falta en E3:** F-306 lista de espera (073), F-323 marcha por tiempos y F-315
+tiempos por platillo (074), F-242 propina repartida por puntos (076), F-261
+consumo de empleados (077), F-325 relevo de responsable. **F-318 impresión de
+comanda sigue BLOQUEADA** esperando la decisión de Miguel entre agente local,
+impresora de red y `window.print()`.
+
+### Lo que esta etapa dejó aprendido
+
+**1 · Una columna que existe y nadie lee es peor que una columna que falta.**
+`orden_lineas.anulada_en` nació en la 070 con F-321 y CUATRO lecturas la
+ignoraban. Cada una causaba un daño distinto y sólo una era obvia:
+
+- `lineasDeOrden` → `cotizar` cobraba lo anulado. Dinero.
+- `comandar-pendientes` → el cobro mandaba a la plancha un platillo anulado.
+- `portal/consulta` → el comensal veía en su precuenta lo que no paga.
+- `tieneLineas` → la mesa quedaba fuera de servicio esperando un cobro de $0.
+
+La lección para los cuatro modelos que faltan: **al añadir una columna que
+cambia el significado de una fila, hay que buscar TODOS sus lectores en el mismo
+commit.** `grep "selectFrom('<tabla>')"` es el primer paso, no el último.
+
+**2 · Un ledger al que se le olvida una transición no deja un hueco: MIENTE.**
+F-305 necesita un evento por cada cambio de `mesas.estado`, y hay ocho sitios
+que lo cambian. Si falta uno, el ciclo que se pierde se fusiona con el siguiente
+y sale una ocupación del doble de larga. No es un dato ausente: es un dato falso
+que nadie va a cuestionar. Por eso los ocho pasan por `sellarTransicionDeMesa` y
+por eso el sello es un parámetro OBLIGATORIO de `limpiarMesa` y de
+`atarMesaAOrden` — un opcional se olvida.
+
+**3 · Dos guardas sobre el mismo `where` pueden tapar huecos distintos.**
+Al mover una cuenta de mesa, el destino se exige `estado = 'libre'` Y
+`orden_activa_id is null`. Parecían redundantes y no lo son: la primera impide
+sentar a alguien sobre una mesa en LIMPIEZA —sin cuenta y no disponible— y la
+segunda sobre una mesa HUÉRFANA —libre pero apuntando todavía a una venta—.
+Ninguna de las dos se ponía roja con las pruebas que había: hizo falta sembrar
+los dos estados para que cada guarda se ganara su sitio en vez de aparentarlo.
+
+**4 · Una mutación puede COLGAR la suite en vez de ponerla roja.**
+Cambiar el signo del paso en `repartirLinea` dejó el `while` del residuo girando
+para siempre, y el arnés se quedó sin terminar. Es un hallazgo, no una molestia:
+ese mismo bucle vive dentro de una petición HTTP. Ahora lleva tope de una vuelta
+—el residuo de una división truncada es siempre menor que el número de partes—
+y un `ErrorDominio` si lo pasa. **Si una mutación cuelga la suite, el problema
+no es la mutación.**
+
+**5 · Lo que se conserva sin poder dispararse, se DICE.**
+Dos cerrojos de esta etapa no se pueden alcanzar hoy y sus comentarios lo
+declaran: la comprobación final de `calcularDivision` (el método del residuo ya
+la garantiza) y el apagado del reloj en `sellarTransicionDeMesa` (las tres rutas
+que existen ya apagan la columna). Se conservan por la ruta que alguien escriba
+mañana. Un comentario que dijera «esto protege X» sobre algo inalcanzable es
+peor que no tenerlo.
+
+**6 · La base falsa aprende, no se rodea.** Le hicieron falta `selectAll()`, los
+comparadores de orden (`>=`, `<`, …) y los `default` nulos de las tablas nuevas.
+Sin `>=` no se puede probar una consulta por rango y una prueba que quitara la
+ventana de días habría pasado igual; sin los nulos declarados, una afirmación de
+«todavía no se ha cerrado» leería `undefined` y pasaría por casualidad.
+
+### Decisiones de diseño que el modelo no traía
+
+- **Las hijas de una división nacen sin `mesa_id`.** El `05-DATOS-Y-BACKEND` de
+  `restaurante` pide construir «una mesa, una cuenta viva» y **ya estaba
+  construido y mejor**: `ordenes_una_activa_por_mesa` (migración 046) cubre
+  cinco estados y particiona por organización. Eso decide dónde cuelgan las
+  hijas: si cada una llevara mesa, la segunda violaría ese índice.
+- **`absorbida` es un estado nuevo de `ordenes`,** hermano de `dividida`. El
+  trigger de pagos de la 070 se reescribe en la 071 para cubrir los dos en vez
+  de añadir un segundo trigger: dos triggers sobre el mismo `insert` diciendo
+  casi lo mismo es como nacen los mensajes contradictorios.
+- **Separar mesas NO reparte el consumo.** Cierra el grupo y devuelve las mesas
+  al servicio. Repartir por consumo es F-321 y es una decisión de caja.
+  Modelarlo al revés devolvería cada platillo a la mesa de donde vino aunque la
+  gente se haya cambiado de silla.
+- **«Una mesa en un solo grupo vivo» se impone con un índice único parcial,**
+  sobre una columna `union_abierta` copiada que un trigger mantiene. Un `check`
+  no puede mirar otra tabla y un trigger que consulta y luego inserta pierde
+  contra dos meseros que reclaman la mesa 5 en el mismo segundo.
+
+### Corrección a la documentación del modelo
+
+`05-DATOS-Y-BACKEND.md` de `restaurante` describe `anularLinea` como que
+«revierte el consumo si ya se cobró». **Eso es F-222, devolución, y es otro
+camino.** Una cuenta cobrada se devuelve; darle a la anulación una segunda
+puerta al reembolso lo dejaría fuera del control de F-222. F-324 se acota a
+cuentas vivas y lo dice en su mensaje de error. Queda anotado para corregir el
+MD al cerrar el modelo.
+
+El mismo archivo tiene una nota «Sobre 069» que habla de una migración que su
+propia tabla no lista —la consolidación de la etapa 0 la convirtió en la 066—.
