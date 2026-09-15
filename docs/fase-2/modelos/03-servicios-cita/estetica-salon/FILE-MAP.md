@@ -213,6 +213,53 @@ cinco funciones, más quince nuevas.**
 
 ---
 
+## 3.bis · LO QUE LA ETAPA 7 CONSTRUYÓ, CON SUS RUTAS REALES
+
+Escrito con el código delante, el 2026-09-15. Es la lista que hay que leer al acoplar.
+
+| Función | Dónde quedó | Prueba |
+|---|---|---|
+| **F-401 · F-415** duración como secuencia | `packages/domain/src/agenda/duracion.ts` | `duracion.test.ts` · 17 casos |
+| **F-404 · F-409** huecos y lista de espera | `packages/domain/src/agenda/huecos.ts` | `huecos.test.ts` · 15 casos |
+| **F-440 · F-423 · F-428** la comisión y sus cinco preguntas | `packages/domain/src/agenda/comision.ts` | `comision.test.ts` · 24 casos |
+| **F-400 · F-402** agendar | `packages/app/src/salon/agenda.ts` | `agenda.test.ts` · 16 casos |
+| **F-412 · F-407 · F-434** no-show, cancelar, cerrar servicio | `packages/app/src/salon/ciclo.ts` | `ciclo.test.ts` |
+| **F-443** el ledger de comisión causada | `packages/app/src/salon/cobro.ts` + migración `133` | `ciclo.test.ts` · 21 casos |
+| **F-427 · F-259** liquidación y su salida de caja | `packages/app/src/salon/liquidacion.ts` | `liquidacion.test.ts` · 12 casos |
+| **F-155** producto de cabina | almacén propio en `cerrarServicio`, con `consumo_servicio` | dentro de `ciclo.test.ts` |
+| **F-441** renta de estación | `profesionales.tipo_relacion = 'independiente_renta'` y su exclusión de comisión | dentro de `ciclo.test.ts` |
+
+**Migraciones escritas, NO aplicadas:** `130_profesionales.sql`, `131_servicios.sql`,
+`132_citas.sql`, `133_comisiones.sql`, `135_liquidaciones.sql`. Quedan libres la `134` y las
+`136`–`145`.
+
+**Rutas de API nuevas:**
+
+```
+apps/web/app/api/agenda/{cita,no-llego,cancelar,iniciar,cerrar-servicio}/route.ts
+apps/web/app/api/venta/cobrar-cita/route.ts
+apps/web/app/api/comision/liquidar/route.ts
+```
+
+**Entidades nuevas en el puente:** `Profesional`, `Cita`, `CitaServicio`, `ReglaComision`,
+`ComisionCausada`, `Liquidacion`. `Cliente` la declaró E5, que era la deuda transversal que este
+modelo señalaba como bloqueante.
+
+### El riesgo técnico, dicho en su sitio
+
+La `130` necesita `create extension if not exists btree_gist`: sin ella no se pueden combinar
+`uuid with =` y `tstzrange with &&` en la restricción de exclusión que impide agendar dos clientas
+con la misma persona a la misma hora. **Hay que verificar que el proyecto de Supabase la permita
+antes de dar por buena esta arquitectura.** Si no, el plan B es un índice único sobre slots
+discretos de cinco minutos: mucho peor, y con huecos que no se pueden usar, pero funciona.
+
+### El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar
+
+Ninguno. Este modelo **no existía**: no hay pantalla vieja que enganchar, y todo lo nuevo vive en
+`packages/` y en `apps/web/app/`.
+
+---
+
 ## 4 · QUÉ HEREDAN DE AQUÍ LOS ONCE VECINOS
 
 Lo que **no** deben volver a construir. Si un modelo de servicios con cita reinventa algo de esta
