@@ -160,7 +160,13 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
             sucursal_id: sucursalId,
             serie,
             folio,
-            estado: 'cobrada',
+            // `pagada`, NO `cobrada`. La cita se llama «cobrada» en su tabla
+            // —es el estado del ciclo del salón— y la ORDEN usa el vocabulario
+            // de la venta, que es el mismo de los cinco modelos. Escribir
+            // `cobrada` aquí reventaba con 23514 contra el `check` de la 003, y
+            // ninguna prueba lo veía porque la base falsa no lleva `check`.
+            // Lo cazó `valores-de-check.contrato.test.ts`.
+            estado: 'pagada',
             subtotal_centavos: total,
             total_centavos: total,
             cliente_id: cita.clienteId,
