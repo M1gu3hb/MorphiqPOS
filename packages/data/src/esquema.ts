@@ -358,6 +358,10 @@ export interface LiquidacionesPropina {
   notas: string | null;
   /** F-242 · Nulo = reparto directo al mesero, el de hoy. */
   esquema_id: string | null;
+  /** F-242/F-248 · `directo` · `puntos` · `horas`. Nulo = lo histórico. */
+  reparto_base: string | null;
+  /** F-248 · El turno cuyo bote se repartió. Nulo en las de rango de fechas. */
+  sesion_caja_id: string | null;
   /** F-242 · La fórmula usada, congelada. */
   formula_snapshot: string | null;
   idempotency_key: string | null;
@@ -757,6 +761,13 @@ export interface SesionesCaja {
   folio: bigint | null;
   fondo_esperado_centavos: Generated<bigint>;
   notas_apertura: string | null;
+  /** F-984 · El fondo desglosado: «$1,500» no dice si se puede dar cambio. */
+  fondo_monedas_centavos: Generated<bigint>;
+  fondo_chicos_centavos: Generated<bigint>;
+  fondo_grandes_centavos: Generated<bigint>;
+  /** F-248 · Lo que había en el bote, contado. Nulo NO es cero. */
+  bote_contado_centavos: bigint | null;
+  turno: string | null;
 }
 
 export interface SolicitudesQr {
@@ -853,6 +864,7 @@ export interface Esquema {
   lista_espera: ListaEspera;
   llamados_pedido: LlamadosPedido;
   lotes_grano: LotesGrano;
+  presencias_turno: PresenciasTurno;
   merma_barra_turno: MermaBarraTurno;
   fila_barra: FilaBarra;
   consumos_internos: ConsumosInternos;
@@ -1115,6 +1127,22 @@ export interface ConsumosInternos {
   costo_centavos: bigint;
   motivo: string;
   empleado_id: string;
+  created_at: Generated<Date>;
+}
+
+/** F-248 · Quién estuvo en el turno y cuánto tiempo. */
+export interface PresenciasTurno {
+  id: Generated<string>;
+  organizacion_id: string;
+  sesion_caja_id: string;
+  empleado_id: string;
+  entro_en: Date;
+  salio_en: Date | null;
+  /** Columna GENERADA: nula mientras la presencia siga abierta. */
+  minutos: number | null;
+  origen: Generated<string>;
+  ajustada_por: string | null;
+  motivo_ajuste: string | null;
   created_at: Generated<Date>;
 }
 
