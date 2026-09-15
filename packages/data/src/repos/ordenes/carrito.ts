@@ -22,6 +22,8 @@ export interface OrdenBorrador {
   readonly version: number;
   readonly sucursalId: string;
   readonly sesionCajaId: string | null;
+  /** F-331 · Por dónde sale la venta. Decide el empaque, y con él el costo. */
+  readonly canal: string;
 }
 
 export interface LineaDeOrden {
@@ -55,6 +57,7 @@ export async function borradorDeTerminal(
       'version',
       'sucursal_id as sucursalId',
       'sesion_caja_id as sesionCajaId',
+      'canal',
     ])
     .where('organizacion_id', '=', organizacionId)
     .where('terminal_id', '=', terminalId)
@@ -77,6 +80,7 @@ export async function ordenPorId(
       'version',
       'sucursal_id as sucursalId',
       'sesion_caja_id as sesionCajaId',
+      'canal',
     ])
     // El filtro por organización va SIEMPRE, aunque el id sea un uuid: sin él,
     // conocer un id de otra organización basta para leer su orden (BOLA).

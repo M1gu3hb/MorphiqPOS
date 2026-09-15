@@ -27,6 +27,15 @@ interface DatosDeComandas {
   readonly comandas: readonly ComandaConGrupo[];
   /** F-315 · Cuándo se soltó a cocina. Es el instante del que cuelga el reloj. */
   readonly marchadaEn: Date;
+  /**
+   * F-328 · Cuándo se cobró, y sólo cuando la comanda NACE del cobro.
+   *
+   * En mostrador el cliente empieza a esperar al pagar, no cuando el sistema
+   * decide encolarlo. En mesa no aplica: allí el pedido sale a cocina mucho
+   * antes de que nadie pague, y poner aquí la hora del cobro daría una espera
+   * de barra de dos horas para una cuenta que estuvo comiendo.
+   */
+  readonly cobradoEn?: Date;
 }
 
 export async function insertarComandas(tx: Transaccion, datos: DatosDeComandas): Promise<void> {
@@ -63,6 +72,11 @@ export async function insertarComandas(tx: Transaccion, datos: DatosDeComandas):
         // es el momento de la marcha, y ésa es toda la diferencia: un fuerte
         // retenido cuarenta minutos saldría siempre en rojo.
         marchada_en: datos.marchadaEn,
+        cobrado_en: datos.cobradoEn ?? null,
+        // La sucursal se copia de la orden: la fila de barra filtra por ella en
+        // cada refresco, y resolverla con un `join` cada segundo es el camino
+        // corto a un plan de consulta caro.
+        sucursal_id: orden.sucursalId,
       })),
     )
     .execute();

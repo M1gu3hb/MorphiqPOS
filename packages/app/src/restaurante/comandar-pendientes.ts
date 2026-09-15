@@ -115,7 +115,16 @@ export async function comandarLineasPendientes(
     grupo,
   }));
 
-  await insertarComandas(tx, { organizacionId, orden, notas: null, comandas, marchadaEn: ahora });
+  // Estas comandas NACEN DEL COBRO: es el caso del mostrador, y por eso llevan
+  // `cobrado_en`. Las de mesa salen por `enviar_pedido` y no lo llevan.
+  await insertarComandas(tx, {
+    organizacionId,
+    orden,
+    notas: null,
+    comandas,
+    marchadaEn: ahora,
+    cobradoEn: ahora,
+  });
   await insertarItems(tx, organizacionId, comandas);
 
   return comandas.map(({ id, grupo }) => ({
