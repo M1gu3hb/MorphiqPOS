@@ -189,6 +189,49 @@ correcto para un teléfono y no lo es para un mostrador con lector USB y fila.
 
 ---
 
+## 3.bis · LO QUE LA ETAPA 5 CONSTRUYÓ, CON SUS RUTAS REALES
+
+Escrito con el código delante, el 2026-09-15. Es la lista que hay que leer al acoplar.
+
+| Función | Dónde quedó | Prueba |
+|---|---|---|
+| **F-111 · F-112** presentaciones | `packages/domain/src/inventario/variantes/v3-presentaciones.ts` · `packages/app/src/abarrotes/presentaciones.ts` | `v3-presentaciones.test.ts` · `presentaciones.test.ts` |
+| **F-147** código por presentación | `producto_presentaciones.codigo_barras` + índice único parcial, en la `090` | dentro de `presentaciones.test.ts` |
+| **F-148** EAN con peso o importe embebido | `packages/domain/src/catalogo/codigo-barras.ts` | `codigo-barras.test.ts` · 16 casos |
+| **F-149 · F-106** conteo cíclico por zona | `packages/domain/src/inventario/conteo.ts` · `packages/app/src/abarrotes/conteo.ts` · repo de E2 en `packages/data/src/repos/tomas-inventario.ts` | `conteo.test.ts` × 2 · 36 casos |
+| **F-107** alerta de mínimo y sugerencia de pedido | `packages/domain/src/inventario/pedido.ts` · `packages/app/src/abarrotes/sugerencia.ts` | `pedido.test.ts` · `sugerencia.test.ts` |
+| **F-254 · F-255 · F-256** el dinero ajeno | `packages/app/src/abarrotes/pasivos.ts`, sobre el ledger `pasivos_terceros` de la `063` | `pasivos.test.ts` · 28 casos |
+| **F-257** redondeo de cambio | `packages/domain/src/dinero/cambio.ts` · `packages/app/src/abarrotes/redondeo.ts` | `cambio.test.ts` · `redondeo.test.ts` |
+| **F-040** clientes en el puente | `packages/app/src/puente/mapa.ts` · entidad `Cliente` | `puente.test.ts` (contrato de forma) |
+
+**Migraciones escritas, NO aplicadas:** `090_presentaciones.sql`, `091_zonas_y_conteo.sql`,
+`097_redondeos.sql`, `099_proveedores_ruta.sql`. Las cuatro llevan en su cabecera por qué existen.
+Quedan libres del rango de este modelo la `092`–`096`, la `098` y las `100`–`101`.
+
+**Rutas de API nuevas:**
+
+```
+apps/web/app/api/catalogo/presentacion/route.ts
+apps/web/app/api/comision/registrar/route.ts
+apps/web/app/api/fiado/abono/route.ts
+apps/web/app/api/envase/deposito/route.ts
+apps/web/app/api/inventario/conteo/{abrir,capturar,cerrar}/route.ts
+apps/web/app/api/compras/sugerencia/route.ts
+apps/web/app/api/venta/redondeo/route.ts
+```
+
+**Entidades nuevas en el puente** (`packages/app/src/puente/mapa.ts`): `Cliente`, `Presentacion`,
+`ZonaAnaquel`, `Conteo`, `ConteoLinea`, `Redondeo`, más los cuatro campos de ruta en `Proveedor`.
+
+### El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar
+
+Ninguno todavía. Este modelo **no tocó una sola pantalla**, ni vieja ni nueva, y la razón está
+escrita abajo en §6 y en la bitácora: las ocho funciones dependen de migraciones que la Fase 2 no
+aplica. Cuando se apliquen, el primer enganche será el de `F-986` sobre
+`heredado/utils/barcodeUtils.js`, que es donde entra `interpretarCodigoInterno`.
+
+---
+
 ## 4 · QUÉ HEREDAN DE AQUÍ LOS DIECIOCHO VECINOS
 
 Lo que **no** deben volver a construir. Si un modelo de retail reinventa algo de esta lista, está
