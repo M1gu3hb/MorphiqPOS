@@ -14,6 +14,7 @@ import {
   tieneLineas,
   ORDEN_YA_CERRADA,
 } from './mesas-escrituras.ts';
+import { unionAbiertaDeMesa } from './sala-escrituras.ts';
 
 /**
  * Abrir y liberar mesa (E6-2 y su recíproco).
@@ -136,6 +137,20 @@ export const liberarMesa = definirComando<
     if (mesa.estado === 'libre' && ordenActivaId === null) {
       ctx.auditar({ entidadId: mesa.id, payload: { yaEstabaLibre: true } });
       return { mesaId: mesa.id, ordenCancelada: null };
+    }
+
+    // F-302 · Una mesa de un grupo VIVO no se libera sola: su consumo está en
+    // la cuenta de la principal y soltarla aquí dejaría al grupo apuntando a
+    // una mesa que ya volvió al servicio. Separar es una decisión consciente.
+    const grupo = await ctx.paso('mirar_grupo', () =>
+      unionAbiertaDeMesa(ctx.tx, organizacionId, mesa.id),
+    );
+    if (grupo !== null) {
+      throw new ErrorDominio(
+        'MESA_NO_LIBERABLE',
+        `La mesa ${mesa.numero} está unida a otras. Sepáralas antes de liberarla.`,
+        { unionId: grupo },
+      );
     }
 
     let ordenCancelada: string | null = null;
