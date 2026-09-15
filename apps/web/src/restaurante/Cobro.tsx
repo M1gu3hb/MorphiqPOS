@@ -2,9 +2,8 @@
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
 
@@ -14,23 +13,18 @@ import { consultarPuente, invocarComando } from '~/cliente/api';
  * Convertir una cuenta cerrada en dinero contado. 40–120 veces al día, y siempre
  * con una persona esperando enfrente.
  *
- * ── Por qué el TOTAL es lo más grande de toda la aplicación ──────────────
+ * ── El TOTAL es lo más grande de toda la aplicación ──────────────────────
  * Porque el cajero no lo consulta: lo LEE EN VOZ ALTA. Si tiene que buscarlo
- * entre el desglose lo lee mal, y un total mal dicho es una discusión en la caja
- * con la fila detrás.
- *
- * ── Por qué el desglose se esconde en tablet y en teléfono ───────────────
- * Porque es para cuando alguien pregunta, y casi nadie pregunta. En PC cabe al
- * lado y no estorba; en pantalla chica robaría el sitio del total y de los cuatro
- * métodos, que es lo único que se toca en el 95% de los cobros.
+ * entre el desglose lo lee mal. Por eso mismo el desglose se colapsa en tablet y
+ * en teléfono: es para cuando alguien pregunta, y casi nadie pregunta.
  *
  * ── La única fricción deliberada: el desglose del pago mixto ─────────────
  * Tres campos que tienen que sumar EXACTO, con el botón apagado hasta que
  * cuadren. Con centavos enteros la tolerancia de ±$0.01 del documento sobra:
- * aquí cuadra o no cuadra, y con eso desaparece una clase entera de descuadre
- * que sólo se descubre en el arqueo de las once de la noche.
+ * cuadra o no cuadra, y con eso desaparece una clase entera de descuadre que
+ * sólo se descubre en el arqueo de las once de la noche.
  *
- * ── Y por qué la propina pendiente es un muro y no un aviso ──────────────
+ * ── La propina pendiente es un muro, no un aviso ─────────────────────────
  * Cobrar con la propina sin decidir deja al mesero sin su parte y sin manera de
  * reclamarla: el cobro ya se selló.
  *
@@ -40,27 +34,21 @@ import { consultarPuente, invocarComando } from '~/cliente/api';
  *
  * ── Alcance recortado para caber en un archivo, dicho y no escondido ─────
  * 1. El documento la llama «diálogo»: el envoltorio lo pone quien la abre desde
- *    Caja. Aquí se monta como superficie para que la ruta exista y se pruebe
- *    sola, en vez de un diálogo sin nada detrás.
- * 2. De la propina quedan los porcentajes con su importe y «Sin propina», con el
- *    mismo peso visual. El campo de monto libre se queda para el diálogo de
- *    propina de Caja; aquí lo que importa es que sin decidirla no se cobra.
- * 3. `F12` va impreso en el botón pero no se engancha al teclado: esa tecla es
- *    del navegador. El atajo se instala en el `AppLayout` al acoplar.
- * 4. Sin id en la ruta se abre la cuenta que lleva más tiempo esperando, que es
- *    la que el cajero cobraría de todos modos.
+ *    Caja. Aquí es la superficie, para que la ruta exista y se pruebe sola.
+ * 2. De la propina quedan los porcentajes con su importe y «Sin propina» al
+ *    mismo peso; el campo de monto libre se queda en el diálogo de Caja.
+ * 3. `F12` va impreso en el botón pero no se engancha: esa tecla es del
+ *    navegador. El atajo se instala en el `AppLayout` al acoplar.
+ * 4. Sin id en la ruta se abre la cuenta que lleva más tiempo esperando.
  */
 
 const METODOS = ['efectivo', 'tarjeta', 'transferencia', 'mixto'] as const;
 type Metodo = (typeof METODOS)[number];
 type MetodoBase = Exclude<Metodo, 'mixto'>;
-
 const BASES: readonly MetodoBase[] = ['efectivo', 'tarjeta', 'transferencia'];
-
 /** Los `propina_tipo` que significan «todavía nadie la decidió». */
 const SIN_DECIDIR = ['pendiente', 'pendiente_cliente', 'decidir_en_caja'];
-
-/** En PUNTOS BASE, como viaja el porcentaje en todo el sistema. El 0 es «sin». */
+/** En PUNTOS BASE, como viaja el porcentaje en el sistema. El 0 es «sin». */
 const PROPINAS = [1000, 1250, 1500, 0];
 
 /** La fila de `Venta` del puente, con sus nombres. Los importes van en PESOS. */
@@ -68,7 +56,6 @@ export interface CuentaPorCobrar {
   readonly id: string;
   readonly codigo_caja: string | null;
   readonly cliente_nombre: string | null;
-  readonly personas: number | null;
   readonly subtotal: number | null;
   readonly impuestos: number | null;
   readonly total: number | null;
@@ -92,15 +79,7 @@ export interface CobroProps {
   readonly onImprimir?: (ordenId: string) => void;
 }
 
-interface Ticket {
-  readonly totalCentavos: string;
-  readonly cambioCentavos: string;
-}
-
-/**
- * Pesos del puente a centavos enteros sin multiplicación flotante: `1234.995 *
- * 100` da `123499.49999…`, y contar dígitos no tiene ese error (R15).
- */
+/** Pesos a centavos contando dígitos: `1234.995 * 100` pierde medio centavo. */
 function aCentavos(pesos: number | null | undefined): number {
   if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
   const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
@@ -119,15 +98,15 @@ export function centavosDeTexto(texto: string): number | null {
 /** Centavos a pesos para una persona. Aritmética entera de punta a punta. */
 export function enPesos(monto: number): string {
   const bruto = Math.abs(monto);
-  const enteros = Math.trunc(bruto / 100).toString();
-  const miles = enteros.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${monto < 0 ? '-' : ''}$${miles}.${(bruto % 100).toString().padStart(2, '0')}`;
+  const con = String(Math.trunc(bruto / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${monto < 0 ? '-' : ''}$${con}.${(bruto % 100).toString().padStart(2, '0')}`;
 }
 
 /** Qué impide cobrar, dicho con palabras y no sólo con un botón apagado. */
 function bloqueoDe(pendiente: boolean, total: number, metodo: Metodo, mano: number, suma: number) {
   if (pendiente) return 'Confirma la propina antes de cobrar.';
   if (total <= 0) return 'Esta cuenta no tiene importe que cobrar.';
+  if (metodo === 'efectivo' && mano < 0) return 'Lo recibido no es un importe.';
   if (metodo === 'efectivo') return mano > 0 && mano < total ? 'Lo recibido no alcanza.' : null;
   if (metodo !== 'mixto' || suma === total) return null;
   if (suma < 0) return 'Alguno de los tres importes no es un número.';
@@ -136,11 +115,9 @@ function bloqueoDe(pendiente: boolean, total: number, metodo: Metodo, mano: numb
 }
 
 /**
- * Los renglones que recibe `venta.cobrar`. La propina se reconoce de efectivo
- * hacia abajo: el billete que el comensal deja de más va a la bolsa del mesero
- * esa misma noche, y la de tarjeta espera a la liquidación. Sumados, los
- * `montoCentavos` dan exactamente la venta —que es lo que el servidor exige— y
- * los `propinaCentavos` exactamente la propina.
+ * Los renglones de `venta.cobrar`. La propina se reconoce de efectivo hacia
+ * abajo: el billete que el comensal deja de más va a la bolsa del mesero esa
+ * misma noche, y la de tarjeta espera a la liquidación.
  */
 function renglonesDePago(
   metodo: Metodo,
@@ -150,8 +127,8 @@ function renglonesDePago(
   mano: number,
 ): readonly Record<string, unknown>[] {
   if (metodo !== 'mixto') {
-    const recibido = metodo === 'efectivo' && mano > 0 ? { recibidoCentavos: mano } : {};
-    return [{ metodo, montoCentavos: venta, propinaCentavos: propina, ...recibido }];
+    const enMano = metodo === 'efectivo' && mano > 0 ? { recibidoCentavos: mano } : {};
+    return [{ metodo, montoCentavos: venta, propinaCentavos: propina, ...enMano }];
   }
   let porAsignar = propina;
   return BASES.map((base) => {
@@ -160,30 +137,6 @@ function renglonesDePago(
     porAsignar -= suya;
     return { metodo: base, montoCentavos: importe - suya, propinaCentavos: suya };
   }).filter((renglon) => renglon.montoCentavos > 0 || renglon.propinaCentavos > 0);
-}
-
-/** Un importe que el cajero teclea. Siempre con etiqueta: nunca un campo mudo. */
-function Campo(props: {
-  readonly id: string;
-  readonly etiqueta: string;
-  readonly valor: string;
-  readonly alCambiar: (valor: string) => void;
-}) {
-  return (
-    <div className="grow space-y-1">
-      <Label htmlFor={props.id} className="capitalize">
-        {props.etiqueta}
-      </Label>
-      <Input
-        id={props.id}
-        inputMode="decimal"
-        value={props.valor}
-        onChange={(evento) => {
-          props.alCambiar(evento.target.value);
-        }}
-      />
-    </div>
-  );
 }
 
 export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }: CobroProps) {
@@ -196,45 +149,58 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
     tarjeta: '',
     transferencia: '',
   });
-  const [propinaResuelta, setPropinaResuelta] = useState<number | null>(null);
+  const [propina, setPropina] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [cambio, setCambio] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (cuentaInicial !== undefined) return;
-    let vivo = true;
+    // El centinela es la señal de aborto: dice si la pantalla sigue montada y
+    // además cancela la lectura en vuelo.
+    const control = new AbortController();
+    const señal = control.signal;
+    /**
+     * Se pregunta con una LLAMADA y no leyendo la propiedad dos veces: tras el
+     * primer `if (señal.aborted)` el compilador da por hecho que sigue en
+     * falso, y entre un `await` y el siguiente eso deja de ser cierto.
+     */
+    const sigueMontada = (): boolean => !control.signal.aborted;
     void (async () => {
       try {
         const filtro = { estado: 'cuenta_solicitada' };
-        const [fila] = await consultarPuente<CuentaPorCobrar>('Venta', { filtro, limite: 1 });
-        if (!vivo) return;
+        const [fila] = await consultarPuente<CuentaPorCobrar>('Venta', {
+          filtro,
+          limite: 1,
+          signal: señal,
+        });
+        if (señal.aborted) return;
         setCuenta(fila ?? null);
         if (fila === undefined) return;
         const suyas = await consultarPuente<LineaDeCuenta>('DetalleVenta', {
           filtro: { venta_id: fila.id },
-          limite: 200,
+          signal: señal,
         });
-        if (vivo) setLineas(suyas);
+        if (sigueMontada()) setLineas(suyas);
       } catch (fallo) {
-        if (vivo) setError(fallo instanceof Error ? fallo.message : 'No se pudo leer la cuenta.');
+        // Un aborto no es un error: es esta misma pantalla, que ya no está.
+        if (señal.aborted) return;
+        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer la cuenta.');
       }
     })();
     return () => {
-      vivo = false;
+      control.abort();
     };
   }, [cuentaInicial]);
 
   const venta = aCentavos(cuenta?.total);
-  const propina = propinaResuelta ?? aCentavos(cuenta?.propina_monto);
-  const total = venta + propina;
-  const pendiente = propinaResuelta === null && SIN_DECIDIR.includes(cuenta?.propina_tipo ?? '');
+  const suPropina = propina ?? aCentavos(cuenta?.propina_monto);
+  const total = venta + suPropina;
+  const pendiente = propina === null && SIN_DECIDIR.includes(cuenta?.propina_tipo ?? '');
   const mano = centavosDeTexto(recibido) ?? -1;
-  const suma = BASES.reduce((acumula, base) => acumula + (centavosDeTexto(partes[base]) ?? -1), 0);
+  const suma = BASES.reduce((suman, base) => suman + (centavosDeTexto(partes[base]) ?? -1), 0);
   const bloqueo = bloqueoDe(pendiente, total, metodo, mano, suma);
-
-  // La pantalla no se vacía por un error: la banda va encima del último dato
-  // conocido, y lo primero que dice es que la cuenta sigue sin pagarse.
+  // La pantalla no se vacía por un error: la banda va encima del último dato.
   const banda =
     error === null ? null : (
       <p role="alert" className="rounded-md border border-destructive p-2 text-sm">
@@ -246,13 +212,13 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
     setEnviando(true);
     setError(null);
     try {
-      const entrada = {
+      const hecho = await invocarComando<{ readonly cambioCentavos: string }>('/api/venta/cobrar', {
         ordenId: id,
-        pagos: renglonesDePago(metodo, partes, venta, propina, mano),
+        pagos: renglonesDePago(metodo, partes, venta, suPropina, mano),
         totalEsperadoCentavos: venta,
         propinaOrigen: 'caja',
-      };
-      setTicket(await invocarComando<Ticket>('/api/venta/cobrar', entrada));
+      });
+      setCambio(Number(hecho.cambioCentavos));
       onCobrada?.(id);
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo cobrar.');
@@ -265,26 +231,35 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
   if (cuenta === undefined) {
     return (
       <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <Skeleton className="h-64 w-full rounded-lg xl:order-1" />
-        <Skeleton className="h-64 w-full rounded-lg xl:order-2" />
-        <div className="xl:col-span-2">{banda}</div>
+        <Skeleton className="h-64 w-full rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-lg" />
+        {banda}
       </div>
     );
   }
-
   // El vacío ENSEÑA de dónde salen las cuentas; no se disculpa por no tener.
   if (cuenta === null) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
         <p className="text-xl font-semibold">Ninguna cuenta está esperando cobro.</p>
         <p className="text-muted-foreground">
-          Una cuenta llega aquí cuando el mesero la cierra y el comensal pide pagar. Mientras tanto,
-          el salón es el sitio donde mirar.
+          Una cuenta llega aquí cuando el mesero la cierra y el comensal pide pagar.
         </p>
         <Button asChild>
           <a href="/restaurante/mapa-de-mesas">Ver el mapa de mesas</a>
         </Button>
         {banda}
+      </div>
+    );
+  }
+  if (cambio !== null) {
+    return (
+      <div role="status" className="mx-auto max-w-lg space-y-3 p-8 text-center">
+        <p className="text-4xl font-bold tabular-nums">{enPesos(total)}</p>
+        <p>Cobrado · cambio {enPesos(cambio)} · la mesa pasa sola a limpieza.</p>
+        <Button className="w-full" onClick={() => onImprimir?.(cuenta.id)}>
+          Imprimir ticket
+        </Button>
       </div>
     );
   }
@@ -301,138 +276,118 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
           </li>
         ))}
       </ul>
-      <dl className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
-        {[
-          ['Subtotal', aCentavos(cuenta.subtotal)],
-          ['Impuestos', aCentavos(cuenta.impuestos)],
-          ['Propina', propina],
-        ].map(([etiqueta, monto]) => (
-          <div key={String(etiqueta)} className="flex justify-between">
-            <dt className="text-muted-foreground">{etiqueta}</dt>
-            <dd className="tabular-nums">{enPesos(Number(monto))}</dd>
-          </div>
-        ))}
+      <dl className="mt-3 grid grid-cols-2 border-t border-border pt-3 text-sm">
+        <dt className="text-muted-foreground">Subtotal</dt>
+        <dd className="text-right tabular-nums">{enPesos(aCentavos(cuenta.subtotal))}</dd>
+        <dt className="text-muted-foreground">Impuestos</dt>
+        <dd className="text-right tabular-nums">{enPesos(aCentavos(cuenta.impuestos))}</dd>
+        <dt className="text-muted-foreground">Propina</dt>
+        <dd className="text-right tabular-nums">{enPesos(suPropina)}</dd>
       </dl>
     </div>
   );
 
+  function elegirMetodo(evento: MouseEvent<HTMLButtonElement>): void {
+    setMetodo(evento.currentTarget.value as Metodo);
+  }
+  function elegirPropina(evento: MouseEvent<HTMLButtonElement>): void {
+    setPropina(Number(evento.currentTarget.value));
+  }
+
   return (
     <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
-      <header className="xl:col-span-2">
-        <h1 className="text-xl font-bold">Cobro · {cuenta.codigo_caja ?? 'sin código'}</h1>
-        <p className="text-sm text-muted-foreground">
-          {cuenta.cliente_nombre ?? 'Sin nombre'} · {cuenta.personas ?? 1} personas
-        </p>
-      </header>
+      <h1 className="text-xl font-bold xl:col-span-2">
+        Cobro · {cuenta.codigo_caja ?? 'sin código'} · {cuenta.cliente_nombre ?? 'sin nombre'}
+      </h1>
       <div className="xl:col-span-2">{banda}</div>
-
-      {/* El cobro va primero en el DOM: en teléfono es lo único que se ve, y para
-          quien navega con lector de pantalla el total tiene que ser lo primero. */}
+      {/* El cobro va primero en el DOM: en teléfono es lo único que se ve. */}
       <section aria-label="Cobro" className="space-y-3 xl:order-2">
         <div className="rounded-lg border border-border bg-card p-4 text-center">
           <p className="text-sm font-medium uppercase text-muted-foreground">Total</p>
           <p className="text-5xl font-bold tabular-nums xl:text-6xl">{enPesos(total)}</p>
         </div>
-
-        {ticket !== null ? (
-          <div role="status" className="space-y-2 rounded-lg border border-primary p-4">
-            <p className="text-lg font-semibold">Cobrado {enPesos(Number(ticket.totalCentavos))}</p>
-            <p className="text-sm">
-              Cambio {enPesos(Number(ticket.cambioCentavos))} · la mesa pasa sola a limpieza.
+        {/* «Sin propina» pesa lo mismo que los porcentajes: es voluntaria. */}
+        {pendiente && (
+          <div className="space-y-2 rounded-lg border border-warning/50 p-3">
+            <p role="alert" className="text-sm font-medium">
+              Confirma la propina antes de cobrar.
             </p>
-            <Button className="w-full" onClick={() => onImprimir?.(cuenta.id)}>
-              Imprimir ticket
-            </Button>
-          </div>
-        ) : (
-          <>
-            {pendiente && (
-              <div className="space-y-2 rounded-lg border border-warning/50 p-3">
-                <p role="alert" className="text-sm font-medium">
-                  Confirma la propina antes de cobrar.
-                </p>
-                {/* «Sin propina» pesa lo mismo que los porcentajes: es
-                    voluntaria y la pantalla tiene que dejarlo obvio. */}
-                <div className="grid grid-cols-4 gap-2">
-                  {PROPINAS.map((puntos) => (
-                    <Button
-                      key={puntos}
-                      variant="outline"
-                      className="min-h-20 flex-col"
-                      onClick={() => {
-                        setPropinaResuelta(Math.round((venta * puntos) / 10000));
-                      }}
-                    >
-                      <span className="font-bold">
-                        {puntos === 0 ? 'Sin' : `${puntos / 100} %`}
-                      </span>
-                      <span className="text-xs tabular-nums">
-                        {enPesos(Math.round((venta * puntos) / 10000))}
-                      </span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
-              {METODOS.map((opcion) => (
+            <div className="grid grid-cols-4 gap-2">
+              {PROPINAS.map((puntos) => (
                 <Button
-                  key={opcion}
-                  variant={metodo === opcion ? 'default' : 'outline'}
-                  aria-pressed={metodo === opcion}
-                  className="justify-between capitalize"
-                  onClick={() => {
-                    setMetodo(opcion);
-                  }}
+                  key={puntos}
+                  value={Math.round((venta * puntos) / 10000)}
+                  variant="outline"
+                  className="min-h-20 flex-col"
+                  onClick={elegirPropina}
                 >
-                  {opcion}
-                  {/* La palomita: el color no puede ser el único que lo diga. */}
-                  <span aria-hidden>{metodo === opcion ? '✓' : ''}</span>
+                  <span>{puntos === 0 ? 'Sin' : `${puntos / 100} %`}</span>
+                  <span className="text-xs tabular-nums">
+                    {enPesos(Math.round((venta * puntos) / 10000))}
+                  </span>
                 </Button>
               ))}
             </div>
-
-            {metodo === 'efectivo' && (
-              <div className="space-y-1">
-                <Campo id="recibido" etiqueta="Recibido" valor={recibido} alCambiar={setRecibido} />
-                <p className="text-sm tabular-nums">Cambio {enPesos(Math.max(mano - total, 0))}</p>
-              </div>
-            )}
-
-            {/* El desglose exacto. Cada campo lleva el importe COMPLETO que entra
-                por ese método —venta y propina juntas—, que es lo que el cajero ve
-                pasar; separarlas es aritmética, no una segunda cuenta a mano. */}
-            {metodo === 'mixto' &&
-              BASES.map((base) => (
-                <Campo
-                  key={base}
-                  id={base}
-                  etiqueta={base}
-                  valor={partes[base]}
-                  alCambiar={(valor) => {
-                    setPartes({ ...partes, [base]: valor });
-                  }}
-                />
-              ))}
-
-            <Button
-              size="lg"
-              className="w-full text-lg"
-              disabled={enviando || bloqueo !== null}
-              onClick={() => {
-                void cobrar(cuenta.id);
-              }}
-            >
-              {enviando ? 'Cobrando…' : 'COBRAR · F12'}
-            </Button>
-            {bloqueo !== null && <p className="text-center text-sm">{bloqueo}</p>}
-          </>
+          </div>
         )}
+        {/* La palomita: el color no puede ser el único que diga cuál está. */}
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
+          {METODOS.map((opcion) => (
+            <Button
+              key={opcion}
+              value={opcion}
+              variant={metodo === opcion ? 'default' : 'outline'}
+              aria-pressed={metodo === opcion}
+              className="justify-between capitalize"
+              onClick={elegirMetodo}
+            >
+              {opcion}
+              <span aria-hidden>{metodo === opcion ? '✓' : ''}</span>
+            </Button>
+          ))}
+        </div>
+        {metodo === 'efectivo' && (
+          <label className="block space-y-1 text-sm">
+            Recibido
+            <Input
+              inputMode="decimal"
+              value={recibido}
+              onChange={(evento) => {
+                setRecibido(evento.target.value);
+              }}
+            />
+            <span className="tabular-nums">Cambio {enPesos(Math.max(mano - total, 0))}</span>
+          </label>
+        )}
+        {/* El desglose exacto: cada campo lleva el importe COMPLETO que entra por
+            ese método —venta y propina juntas—, que es lo que el cajero ve pasar;
+            separarlas es aritmética, no una segunda cuenta que pedirle a mano. */}
+        {metodo === 'mixto' &&
+          BASES.map((base) => (
+            <label key={base} className="block space-y-1 text-sm capitalize">
+              {base}
+              <Input
+                inputMode="decimal"
+                value={partes[base]}
+                onChange={(evento) => {
+                  setPartes({ ...partes, [base]: evento.target.value });
+                }}
+              />
+            </label>
+          ))}
+        <Button
+          size="lg"
+          className="w-full text-lg"
+          disabled={enviando || bloqueo !== null}
+          onClick={() => {
+            void cobrar(cuenta.id);
+          }}
+        >
+          {enviando ? 'Cobrando…' : 'COBRAR · F12'}
+        </Button>
+        {bloqueo !== null && <p className="text-center text-sm">{bloqueo}</p>}
       </section>
-
-      {/* `details` nativo y no un acordeón: el teclado y el lector de pantalla ya
-          saben abrirlo, y en PC no hace falta nada que abrir. */}
+      {/* `details` nativo: el teclado y el lector de pantalla ya saben abrirlo. */}
       <section aria-label="La cuenta" className="xl:order-1">
         <details className="rounded-lg border border-border xl:hidden">
           <summary className="cursor-pointer p-3 text-sm">{lineas.length} platillos</summary>

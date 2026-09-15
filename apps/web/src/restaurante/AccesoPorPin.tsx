@@ -13,42 +13,56 @@ import { ErrorApi, invocarComando, obtenerApi } from '~/cliente/api';
  * Identificar quién está operando, en dos segundos. 30-80 veces al día, todos
  * los roles. Primero las tarjetas; el teclado aparece DONDE estaban ellas.
  *
- * ── Por qué tarjetas con cara y no un campo de usuario ───────────────────
+ * ── Por qué tarjetas con cara y no un campo de usuario ──────────
  * Porque el mesero no va a teclear su nombre ocho veces al día, y porque la
  * cara elimina el error de entrar con la sesión de otro — que es lo que rompe
- * la atribución de propinas. El color del aro es el mismo que después pinta el
- * punto de las mesas que atiende.
+ * la atribución de propinas. El color de la tarjeta es el mismo que después
+ * pinta el punto de las mesas que atiende.
  *
- * ── Por qué el PIN no se manda solo al cuarto dígito ─────────────────────
+ * ── Por qué el PIN no se manda solo al cuarto dígito ────────────
  * Porque un dedo que resbala mandaría un PIN equivocado sin que nadie lo
  * pidiera, y cada envío gasta uno de los tres intentos. Gastarlos lleva al
  * bloqueo, y un bloqueo a media comida deja la caja sin quién la opere.
  *
- * ── Por qué lee por `obtenerApi` y no por el puente ──────────────────────
+ * ── Por qué lee por `obtenerApi` y no por el puente ─────────────
  * Porque el puente resuelve el ámbito de UNA SESIÓN y aquí la sesión todavía no
  * existe. `GET /api/auth/empleados` es una de las dos rutas sin ámbito previo y
  * devuelve nombre, puesto y color, nunca el hash: el PIN se verifica en el
  * servidor, con Argon2id, en `POST /api/auth/entrar`.
  *
- * ── Lo que NO va aquí, y lo que se recortó para caber ────────────────────
+ * ── Lo que NO va, y lo que se recortó para caber en 300 líneas ──
  * Ni recuperación de PIN, ni registro, ni «recordarme»: el documento los
- * prohíbe. Por el límite de 300 líneas quedaron fuera el nombre del negocio en
- * la cabecera —el documento pide «tarjetas, teclado y nada más»— y el botón de
- * reintentar la lectura de la plantilla, que hoy se reintenta recargando. El
- * endpoint tampoco manda fotografías todavía: la tarjeta enseña las iniciales
- * sobre el color de la persona y ya acepta el campo `foto` para cuando lleguen.
+ * prohíbe. Quedaron fuera el nombre del negocio en la cabecera —el documento
+ * pide «tarjetas, teclado y nada más»—, el botón de reintentar la lectura de la
+ * plantilla —hoy se reintenta recargando— y partir el teclado en su propio
+ * componente. El endpoint tampoco manda fotografías todavía: la tarjeta enseña
+ * las iniciales sobre el color de la persona y el campo `foto` ya está aceptado.
  */
 
 const LARGO_PIN = 4;
 const INTENTOS = 4;
 const SEGUNDOS_DE_BLOQUEO = 60;
+/**
+ * El 429 del servidor, que es quien MANDA sobre el bloqueo.
+ *
+ * No hay un código de comando para esto y no debe haberlo: el límite de
+ * intentos lo aplica la capa HTTP antes de que exista comando alguno. El
+ * contador de esta pantalla sólo hace visible la espera que el servidor ya
+ * impuso; si se creyera a sí mismo, recargar la página borraría el bloqueo.
+ */
+const HTTP_DEMASIADOS_INTENTOS = 429;
 const DIGITOS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 const CLASES_REJILLA =
   'mx-auto grid w-full max-w-4xl grid-cols-2 gap-3 md:grid-cols-3 md:gap-6 xl:grid-cols-4';
 const CLASES_TARJETA =
-  'flex w-full flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 ' +
-  'text-card-foreground shadow-1 transition-colors hover:bg-accent hover:text-accent-foreground ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:gap-3 md:p-6';
+  'flex w-full flex-col items-center gap-2 rounded-xl border-2 bg-card p-4 text-card-foreground ' +
+  'shadow-1 transition-colors hover:bg-accent hover:text-accent-foreground md:gap-3 md:p-6 ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+const CLASES_TECLADO =
+  'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-5 md:max-w-md md:flex-none ' +
+  'md:rounded-xl md:border md:border-border md:bg-card md:p-6 md:shadow-2';
+const CLASES_BANDA =
+  'mx-auto w-full max-w-4xl rounded-md border border-destructive bg-destructive/15 p-3 text-sm';
 
 export interface EmpleadoDeAcceso {
   readonly id: string;
@@ -74,93 +88,6 @@ function iniciales(nombre: string): string {
 
 function mensajeDe(fallo: unknown, porDefecto: string): string {
   return fallo instanceof Error ? fallo.message : porDefecto;
-}
-
-interface TecladoNumericoProps {
-  readonly empleado: EmpleadoDeAcceso;
-  readonly digitos: number;
-  readonly deshabilitado: boolean;
-  /** Un dígito, `borrar` o `entrar`: qué hacer con la tecla lo sabe el padre. */
-  readonly onTecla: (tecla: string) => void;
-  readonly onVolver: () => void;
-}
-
-function TecladoNumerico({
-  empleado,
-  digitos,
-  deshabilitado,
-  onTecla,
-  onVolver,
-}: TecladoNumericoProps) {
-  const teclas = [
-    ...DIGITOS.map((digito) => ({ texto: digito, valor: digito, tipo: 'outline', apagada: false })),
-    { texto: 'Borrar', valor: 'borrar', tipo: 'ghost', apagada: digitos === 0 },
-    { texto: '0', valor: '0', tipo: 'outline', apagada: false },
-    { texto: 'Entrar', valor: 'entrar', tipo: 'default', apagada: digitos < LARGO_PIN },
-  ] as const;
-
-  // En teléfono ocupa la pantalla entera; de tablet para arriba es un panel
-  // centrado en el hueco que dejaron las tarjetas.
-  return (
-    <section
-      aria-label={`Teclear el PIN de ${empleado.nombre}`}
-      className={
-        'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-5 md:max-w-md ' +
-        'md:flex-none md:rounded-xl md:border md:border-border md:bg-card md:p-6 md:shadow-2'
-      }
-    >
-      <div className="flex items-center gap-3">
-        <Avatar className="size-20 border-2 text-xl" style={{ borderColor: empleado.color }}>
-          {typeof empleado.foto === 'string' && <AvatarImage src={empleado.foto} alt="" />}
-          <AvatarFallback className="font-bold">{iniciales(empleado.nombre)}</AvatarFallback>
-        </Avatar>
-        <p className="flex-1 text-lg font-semibold">
-          {empleado.nombre}
-          <span className="block text-sm font-normal text-muted-foreground">
-            {empleado.etiqueta}
-          </span>
-        </p>
-        <Button type="button" variant="ghost" size="sm" onClick={onVolver}>
-          No soy yo
-        </Button>
-      </div>
-
-      {/* Puntos, nunca números: la pantalla está de cara al comedor. Quien no
-          puede verlos recibe la cuenta en palabras. */}
-      <p aria-live="polite" className="flex justify-center gap-4">
-        <span className="sr-only">
-          {digitos} de {LARGO_PIN} dígitos tecleados
-        </span>
-        {Array.from({ length: LARGO_PIN }, (_, indice) => (
-          <span
-            key={indice}
-            aria-hidden
-            className={
-              'h-5 w-5 rounded-full border border-border ' +
-              (indice < digitos ? 'bg-primary' : 'bg-muted')
-            }
-          />
-        ))}
-      </p>
-
-      <div className="grid grid-cols-3 gap-3">
-        {teclas.map((tecla) => (
-          <Button
-            key={tecla.valor}
-            type="button"
-            variant={tecla.tipo}
-            disabled={deshabilitado || tecla.apagada}
-            className={`h-20 md:h-24 ${tecla.valor.length === 1 ? 'text-2xl font-semibold' : ''}`}
-            onClick={() => {
-              onTecla(tecla.valor);
-            }}
-          >
-            {tecla.texto}
-          </Button>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps) {
@@ -219,19 +146,16 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
       setEnviando(true);
       try {
         await invocarComando('/api/auth/entrar', { empleoId, pin: tecleado });
-        setPin('');
-        setError(null);
         setIntentos(INTENTOS);
-        // A dónde va cada rol después de entrar lo decide el armazón de la
-        // aplicación: esta pantalla sólo resuelve QUIÉN entró.
+        setError(null);
+        // A dónde va cada rol lo decide el armazón: aquí sólo se resuelve QUIÉN.
         if (onEntro === undefined) window.location.assign('/');
         else onEntro(empleoId);
       } catch (fallo: unknown) {
-        setPin('');
         // El bloqueo que manda es el del servidor; el contador de aquí sólo
         // hace visible la espera que él impuso.
-        const bloqueado = fallo instanceof ErrorApi && fallo.error.codigo === 'LIMITE_DE_TASA';
-        const restantes = bloqueado ? 0 : intentos - 1;
+        const limite = fallo instanceof ErrorApi && fallo.estado === HTTP_DEMASIADOS_INTENTOS;
+        const restantes = limite ? 0 : intentos - 1;
         setIntentos(restantes <= 0 ? INTENTOS : restantes);
         if (restantes <= 0) setSegundosBloqueo(SEGUNDOS_DE_BLOQUEO);
         const cuantos = restantes === 1 ? 'Queda 1 intento.' : `Quedan ${restantes} intentos.`;
@@ -239,49 +163,65 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
           restantes > 0 ? `PIN incorrecto. ${cuantos}` : mensajeDe(fallo, 'Demasiados intentos.'),
         );
       } finally {
+        setPin('');
         setEnviando(false);
       }
     },
     [intentos, onEntro],
   );
 
+  function volver(): void {
+    setSeleccionado(null);
+    setPin('');
+  }
+
   function pulsar(tecla: string): void {
-    if (seleccionado === null) return;
-    if (tecla === 'entrar') void entrar(seleccionado.id, pin);
+    if (seleccionado === null || deshabilitado) return;
+    if (tecla === 'entrar' && pin.length === LARGO_PIN) void entrar(seleccionado.id, pin);
     else if (tecla === 'borrar') setPin((previo) => previo.slice(0, -1));
-    else {
+    else if (tecla.length === 1 && tecla >= '0' && tecla <= '9') {
       setError(null);
       setPin((previo) => (previo.length >= LARGO_PIN ? previo : previo + tecla));
     }
   }
 
-  // Atajo de PC: los dígitos del teclado físico son el teclado de la pantalla.
-  // El efecto se remonta con cada dígito a propósito, para que `Enter` lea el
-  // PIN de ESTE render y no el de cuando se eligió a la persona.
+  // Atajo de PC: el teclado físico pulsa las mismas teclas de la pantalla. Sin
+  // arreglo de dependencias a propósito: así lee el PIN de ESTE render.
   useEffect(() => {
-    if (seleccionado === null || deshabilitado) return;
-    function alTeclear(evento: KeyboardEvent): void {
-      if (seleccionado === null) return;
-      if (evento.key === 'Escape') setSeleccionado(null);
-      else if (evento.key === 'Backspace') setPin((previo) => previo.slice(0, -1));
-      else if (evento.key === 'Enter' && pin.length === LARGO_PIN)
-        void entrar(seleccionado.id, pin);
-      else if (evento.key.length === 1 && evento.key >= '0' && evento.key <= '9') {
-        setPin((previo) => (previo.length >= LARGO_PIN ? previo : previo + evento.key));
-      }
-    }
+    if (seleccionado === null) return;
+    const alTeclear = (evento: KeyboardEvent) => {
+      // Con el foco en una tecla de la pantalla, `Enter` ya la pulsa: atenderlo
+      // otra vez aquí mandaría dos peticiones con el mismo PIN.
+      const enTecla = document.activeElement?.tagName === 'BUTTON';
+      if (evento.key === 'Escape') volver();
+      else if (evento.key === 'Enter' && !enTecla) pulsar('entrar');
+      else if (evento.key === 'Backspace') pulsar('borrar');
+      else pulsar(evento.key);
+    };
     window.addEventListener('keydown', alTeclear);
     return () => {
       window.removeEventListener('keydown', alTeclear);
     };
-  }, [seleccionado, pin, deshabilitado, entrar]);
+  });
 
-  // Una sola banda: lo que impide entrar ahora mismo manda sobre lo anterior.
+  // Una sola banda: lo que impide entrar AHORA manda sobre lo anterior.
   const banda = sinConexion
     ? 'Sin conexión con el servidor. No se puede entrar hasta que vuelva la red.'
     : hayBloqueo
-      ? `${error ?? 'Demasiados intentos.'} Vuelve a intentar en ${segundosBloqueo ?? 0} s.`
+      ? `${error ?? 'Demasiados intentos.'} Vuelve a intentar en ${segundosBloqueo} s.`
       : error;
+
+  const teclas = [
+    ...DIGITOS.map((digito) => ({
+      texto: digito,
+      valor: digito,
+      tipo: 'outline' as const,
+      apagada: false,
+    })),
+    { texto: 'Borrar', valor: 'borrar', tipo: 'ghost', apagada: pin === '' },
+    { texto: '0', valor: '0', tipo: 'outline', apagada: false },
+    { texto: 'Entrar', valor: 'entrar', tipo: 'default', apagada: pin.length < LARGO_PIN },
+  ] as const;
 
   return (
     <main className="flex min-h-dvh flex-col gap-6 bg-background p-4 text-foreground md:p-8">
@@ -289,10 +229,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
 
       {/* La banda no vacía la pantalla: debajo sigue habiendo con quién entrar. */}
       {banda !== null && (
-        <p
-          role="alert"
-          className="mx-auto w-full max-w-4xl rounded-md border border-destructive bg-destructive/15 p-3 text-sm"
-        >
+        <p role="alert" className={CLASES_BANDA}>
           {banda}
         </p>
       )}
@@ -306,15 +243,13 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
       )}
 
       {/* El documento dice que este estado no existe: siempre hay alguien. Si
-          aparece no es un vacío, es un despliegue sin plantilla — y hace falta
-          decir qué son estas tarjetas y dónde se crean. */}
+          aparece no es un vacío, es un despliegue sin plantilla. */}
       {empleados?.length === 0 && (
         <section className="mx-auto flex max-w-lg flex-col items-center gap-4 text-center">
           <p className="text-lg font-semibold">Todavía no hay nadie dado de alta.</p>
           <p className="text-sm text-muted-foreground">
             Estas tarjetas son la plantilla del negocio: cada persona con un puesto activo y un PIN
-            asignado aparece aquí. Sin nadie en ella no hay a quién atribuir una venta ni una
-            propina.
+            aparece aquí. Sin nadie en ella no hay a quién atribuir una venta ni una propina.
           </p>
           <Button asChild>
             <a href="/configuracion">Dar de alta a la primera persona</a>
@@ -326,20 +261,17 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
         <ul className={CLASES_REJILLA}>
           {empleados.map((empleado) => (
             <li key={empleado.id}>
+              {/* El borde lleva el color; el nombre y el puesto van en letra. */}
               <button
                 type="button"
                 className={CLASES_TARJETA}
+                style={{ borderColor: empleado.color }}
                 onClick={() => {
                   setSeleccionado(empleado);
-                  setPin('');
                   setError(null);
                 }}
               >
-                {/* El aro lleva el color; el nombre y el puesto van en letra. */}
-                <Avatar
-                  className="size-20 border-2 text-2xl md:size-28 md:text-3xl"
-                  style={{ borderColor: empleado.color }}
-                >
+                <Avatar className="size-20 text-2xl md:size-28 md:text-3xl">
                   {typeof empleado.foto === 'string' && <AvatarImage src={empleado.foto} alt="" />}
                   <AvatarFallback className="font-bold">
                     {iniciales(empleado.nombre)}
@@ -355,17 +287,49 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
         </ul>
       )}
 
+      {/* En teléfono el teclado ocupa la pantalla entera; de tablet para arriba
+          es un panel centrado en el hueco que dejaron las tarjetas. */}
       {seleccionado !== null && (
-        <TecladoNumerico
-          empleado={seleccionado}
-          digitos={pin.length}
-          deshabilitado={deshabilitado}
-          onTecla={pulsar}
-          onVolver={() => {
-            setSeleccionado(null);
-            setPin('');
-          }}
-        />
+        <section aria-label={`Teclear el PIN de ${seleccionado.nombre}`} className={CLASES_TECLADO}>
+          <div
+            className="flex items-center gap-3 border-b-4 pb-3"
+            style={{ borderColor: seleccionado.color }}
+          >
+            <p className="flex-1 text-xl font-semibold">
+              {seleccionado.nombre}
+              <span className="block text-sm font-normal text-muted-foreground">
+                {seleccionado.etiqueta}
+              </span>
+            </p>
+            <Button type="button" variant="ghost" size="sm" onClick={volver}>
+              No soy yo
+            </Button>
+          </div>
+
+          {/* Puntos, nunca números: la pantalla está de cara al comedor. Quien
+              no puede verlos recibe la cuenta en palabras. */}
+          <p aria-live="polite" className="text-center text-4xl tracking-[0.4em] text-primary">
+            <span className="sr-only">{pin.length} de 4 dígitos tecleados</span>
+            <span aria-hidden>{'•'.repeat(pin.length) + '◦'.repeat(LARGO_PIN - pin.length)}</span>
+          </p>
+
+          <div className="grid grid-cols-3 gap-3">
+            {teclas.map((tecla) => (
+              <Button
+                key={tecla.valor}
+                type="button"
+                variant={tecla.tipo}
+                disabled={deshabilitado || tecla.apagada}
+                className={`h-20 md:h-24 ${tecla.valor.length === 1 ? 'text-2xl font-bold' : ''}`}
+                onClick={() => {
+                  pulsar(tecla.valor);
+                }}
+              >
+                {tecla.texto}
+              </Button>
+            ))}
+          </div>
+        </section>
       )}
     </main>
   );
