@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./agenda": "./src/agenda/index.ts",
     "./dinero": "./src/dinero/index.ts",
     "./catalogo": "./src/catalogo/index.ts",
     "./inventario": "./src/inventario/index.ts",
