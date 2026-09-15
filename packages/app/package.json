@@ -22,6 +22,7 @@
     "./puente": "./src/puente/index.ts",
     "./puente-comandos": "./src/puente/comandos.ts",
     "./restaurante": "./src/restaurante/index.ts",
+    "./cafeteria": "./src/cafeteria/index.ts",
     "./compras": "./src/compras/index.ts",
     "./propinas": "./src/propinas/index.ts",
     "./portal": "./src/portal/index.ts",

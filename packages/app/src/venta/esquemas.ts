@@ -81,6 +81,25 @@ export const entradaCobrarOrden = z.object({
    * un número al cliente, y cobrar otro distinto sin avisar es peor que fallar.
    */
   totalEsperadoCentavos: centavosNoNegativos.optional(),
+  /**
+   * F-331 · Por dónde sale esta venta. Decide el EMPAQUE, y con él el costo.
+   *
+   * Un latte para tomar aquí va en taza; el mismo para llevar va en vaso, tapa y
+   * funda. Sin este campo la receta es una sola y todos los márgenes de la
+   * plantilla están inflados entre cinco y ocho puntos.
+   *
+   * No es un dato de dinero que el cliente elija: no cambia el PRECIO, cambia
+   * qué insumos se descuentan. El precio lo sigue poniendo el catálogo.
+   */
+  canal: z.enum(['aqui', 'llevar', 'plataforma', 'anticipado']).optional(),
+  /**
+   * F-328 · El nombre que se grita al entregar.
+   *
+   * NO es `cliente_nombre`: ése es del cliente identificado y tiene ficha. Éste
+   * es la etiqueta efímera del vaso, y confundirlos metería nombres de pila
+   * sueltos en el padrón con el que se hace la lealtad.
+   */
+  nombrePedido: z.string().trim().min(1).max(60).optional(),
 });
 
 export const entradaAbrirCaja = z.object({

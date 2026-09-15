@@ -125,6 +125,10 @@ export interface Comandas {
   entregada_en: Date | null;
   /** F-323 · Cuándo se soltó a cocina. El reloj de F-315 arranca aquí. */
   marchada_en: Date | null;
+  /** F-328 · El reloj de la espera de mostrador arranca al cobrar. */
+  cobrado_en: Date | null;
+  llamados: Generated<number>;
+  sucursal_id: string | null;
   empleado_responsable_id: string | null;
   notas: string | null;
   estacion_nombre: string | null;
@@ -504,6 +508,10 @@ export interface OrdenLineas {
 }
 
 export interface Ordenes {
+  /** F-331 · `aqui` · `llevar` · `plataforma` · `anticipado`. Decide el empaque. */
+  canal: Generated<string>;
+  /** F-328 · La etiqueta que se grita. NO es cliente_nombre. */
+  nombre_pedido: string | null;
   orden_padre_id: string | null;
   division_indice: number | null;
   union_id: string | null;
@@ -708,6 +716,8 @@ export interface Recetas {
   unidad_capturada: string | null;
   activa: Generated<boolean>;
   notas: string | null;
+  /** F-331 · Nulo = aplica a todos los canales. Con valores, sólo a ésos. */
+  aplica_canal: string[] | null;
 }
 
 export interface Sesiones {
@@ -833,6 +843,8 @@ export interface Esquema {
   movimientos_cuenta: MovimientosCuenta;
   eventos_mesa: EventosMesa;
   lista_espera: ListaEspera;
+  llamados_pedido: LlamadosPedido;
+  fila_barra: FilaBarra;
   consumos_internos: ConsumosInternos;
   relevos_atencion: RelevosAtencion;
   esquemas_propina: EsquemasPropina;
@@ -1094,6 +1106,38 @@ export interface ConsumosInternos {
   motivo: string;
   empleado_id: string;
   created_at: Generated<Date>;
+}
+
+/** F-329 · Ledger inmutable de llamados de barra. */
+export interface LlamadosPedido {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  comanda_id: string;
+  medio: string;
+  numero_llamado: number;
+  empleado_id: string;
+  ocurrido_en: Generated<Date>;
+}
+
+/** F-328 · Vista: un renglón por pedido de barra, con su espera. */
+export interface FilaBarra {
+  id: string;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  orden_id: string;
+  nombre_pedido: string | null;
+  canal: string;
+  estado: string;
+  estacion_preparacion_id: string | null;
+  estacion_nombre: string | null;
+  llamados: number;
+  notas: string | null;
+  notas_alergias: string | null;
+  encolado_en: Date;
+  lista_en: Date | null;
+  entregada_en: Date | null;
+  segundos_espera: number;
 }
 
 /** F-306 · La cola del viernes por la noche. */

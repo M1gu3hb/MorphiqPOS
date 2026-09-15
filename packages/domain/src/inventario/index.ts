@@ -6,3 +6,5 @@ export {
   type MovimientoPlaneado,
   type UnidadInventario,
 } from './consumo.ts';
+
+export { lineasDelCanal } from './canal.ts';

@@ -121,6 +121,22 @@ describe('el cobro manda a la cocina lo que todavía no salió', () => {
     expect(items.some((i) => i['orden_linea_id'] === 'l2')).toBe(false);
   });
 
+  it('EL RELOJ DE LA BARRA ARRANCA AL COBRAR — F-328', async () => {
+    // En mostrador el cliente empieza a esperar cuando paga, no cuando el
+    // sistema decide encolarlo. Sin `cobrado_en`, la fila de barra mediría la
+    // espera desde `created_at` de la comanda y diría que esperó menos.
+    const base = baseDe();
+    const COBRO = new Date('2026-09-15T08:30:00.000Z');
+
+    await comandarLineasPendientes(base.tx, ORG, ORDEN, COBRO);
+
+    const comanda = base.filas('comandas')[0];
+    expect(comanda?.['cobrado_en']).toEqual(COBRO);
+    // Y la sucursal se copia de la orden: la fila de barra filtra por ella en
+    // cada refresco y resolverla con un `join` cada segundo sale caro.
+    expect(comanda?.['sucursal_id']).toBe(SUCURSAL);
+  });
+
   it('UNA LÍNEA ANULADA NO LLEGA A LA PLANCHA — F-324', async () => {
     // Es el error más caro que evita el filtro de `anulada_en`: sin él, cobrar
     // una cuenta mandaría a cocinar el platillo que la caja acaba de anular, y
