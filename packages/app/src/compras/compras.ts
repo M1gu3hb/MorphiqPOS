@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoVentaCatalogo } from '@morphiqpos/data';
 import { desdeTexto, sumar, type Centavos } from '@morphiqpos/domain/dinero';
@@ -56,7 +56,7 @@ export const registrarCompra = definirComando<
   entidad: 'compra',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaRegistrarCompra,
   ejecutar(ctx, entrada) {
     return escribirCompra(ctx, entrada, entrada.lineas, entrada.plantillaCompraId ?? null);
@@ -81,7 +81,7 @@ export const usarPlantillaCompra = definirComando<
   entidad: 'compra',
   escribe: true,
   roles: ROLES,
-  paquetes: PAQUETES,
+  paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaUsarPlantillaCompra,
   async ejecutar(ctx, entrada) {
     const lineas = await ctx.paso('leer_plantilla', () =>

@@ -9,7 +9,7 @@ export const contraContratos = [
     ruta: CARRITO,
     contrato: 'ningun_comando_escribe_la_lista_a_mano',
     antes: 'paquetes: PAQUETES_MOSTRADOR,',
-    despues: "paquetes: ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'],",
+    despues: "paquetes: ['esencial', 'operativo', 'restaurante_pro'],",
   },
 ];
 
@@ -22,7 +22,7 @@ export const contraContratos = [
  */
 export const contraPruebas = [
   {
-    nombre: 'abrir recetas a los cinco paquetes',
+    nombre: 'abrir recetas a todos los paquetes',
     ruta: RECETAS,
     // Se cambia también el import para que la mutación COMPILE. Si sólo se
     // cambiara el uso, el módulo no cargaría y la suite se pondría roja por el
@@ -32,9 +32,9 @@ export const contraPruebas = [
     // `antes` sustituye la PRIMERA aparición y `tambien` sustituye TODAS.
     // Recetas declara dos comandos, así que al revés quedaba uno mutado y otro
     // apuntando a un identificador que ya no existía.
-    antes: "import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';",
+    antes: "import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';",
     despues: "import { ErrorDominio, PAQUETES } from '@morphiqpos/contracts';",
-    tambien: [['paquetes: PAQUETES_PREPARACION,', 'paquetes: PAQUETES,']],
+    tambien: [['paquetes: PAQUETES_OPERATIVOS,', 'paquetes: PAQUETES,']],
   },
 ];
 

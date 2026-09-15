@@ -155,7 +155,7 @@ async function falla(promesa: Promise<unknown>): Promise<Fallo> {
  * transacción y no hace nada con ella salvo pasarla.
  */
 function ejecutorSobre(tx: Transaccion) {
-  const fabrica = crearFabrica('restaurante');
+  const fabrica = crearFabrica('restaurante_pro');
   const ejecutar = crearComando<Transaccion>({
     repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
     conTransaccion: <T>(fn: (transaccion: Transaccion) => Promise<T>): Promise<T> =>
@@ -444,7 +444,7 @@ describe('atender_solicitud · el rol se comprueba en el servidor', () => {
     // Sin base falsa a propósito: si el envoltorio dejara pasar el rol, el
     // cuerpo reventaría al consultar y la prueba no distinguiría un rechazo de
     // un accidente. Aquí el `TxFalsa` no sabe consultar: llegar ahí es fallar.
-    const ejecutar = ejecutorDeProduccion('restaurante');
+    const ejecutar = ejecutorDeProduccion('restaurante_pro');
 
     const salida = await ejecutar(atenderSolicitud, {
       entrada: { solicitudId: SOLICITUD, estado: 'atendida' },

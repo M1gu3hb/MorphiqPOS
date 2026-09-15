@@ -13,3 +13,5 @@ export {
   type ResultadoSesion,
   type SesionDeNegocio,
 } from './resolver.ts';
+
+export { cerrarSesion } from './cerrar.ts';

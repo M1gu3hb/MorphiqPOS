@@ -1,180 +1,187 @@
 #!/usr/bin/env node
-/**
- * Contrato: lo que hay APLICADO en la base es lo que dicen los archivos .sql.
- *
- * Existe porque este error ya ocurrió. Al aplicar `003` a mano, la tabla
- * `ordenes` quedó con `impuesto_centavos` en vez de `impuestos_centavos`, con
- * dos columnas inventadas (`propina_centavos`, `pagado_centavos`) y sin cinco
- * que el archivo sí declara (`empleado_atiende_id`, `empleado_cobra_id`,
- * `costo_total_centavos`, `margen_bp`, `cancelada_por`).
- *
- * Nada lo habría detectado: el ledger `_migraciones` guarda el hash del
- * ARCHIVO, así que afirmaba que la migración correcta estaba aplicada mientras
- * la base tenía otra cosa. Un ledger que miente es peor que no tener ledger.
- *
- * Este script no confía en el ledger. Compara nombre por nombre.
- *
- *   node scripts/verificar-esquema-aplicado.mjs --esperado
- *       Imprime, en JSON, las columnas que los .sql declaran.
- *
- *   node scripts/verificar-esquema-aplicado.mjs --comparar <real.json>
- *       Contrasta ese JSON —lo que information_schema devolvió— contra los
- *       archivos, y sale con código 1 si difieren.
- *
- * El paso intermedio (consultar la base) queda fuera a propósito: así el
- * contrato sirve igual por MCP, por psql o por el ejecutor propio, que es la
- * misma portabilidad que promete A-27.
- */
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const AQUI = dirname(fileURLToPath(import.meta.url));
-const SQL = join(AQUI, '..', 'packages', 'data', 'src', 'migraciones', 'sql');
+import { diferenciasDeContrato } from '../packages/data/src/verificacion/contrato-esquema.ts';
 
-/** Palabras con las que empieza una restricción, nunca una columna. */
-const NO_ES_COLUMNA = new Set([
-  'constraint',
-  'check',
-  'primary',
-  'foreign',
-  'unique',
-  'exclude',
-  'like',
-]);
+const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
+const CONTRATO = join(RAIZ, 'scripts', 'esquema-esperado.json');
+const PROYECTO_VINCULADO = join(RAIZ, 'supabase', '.temp', 'linked-project.json');
+const PROYECTO_MORPHIQPOS = 'wyqmzhliurwyxuyxznpb';
 
-/**
- * Quita comentarios de línea. Sin esto, un `-- create table ejemplo (` dentro
- * de la explicación de una migración se leería como declaración real: el
- * contrato encontraría su propio comentario, que es el error clásico.
- */
-function sinComentarios(sql) {
-  return sql
-    .split('\n')
-    .map((linea) => {
-      const i = linea.indexOf('--');
-      return i === -1 ? linea : linea.slice(0, i);
-    })
-    .join('\n');
+const CONSULTA = String.raw`
+with tablas as (
+  select c.oid, n.nspname as esquema, c.relname as tabla
+  from pg_catalog.pg_class c
+  join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relkind in ('r', 'p')
+    and c.relname <> '_migraciones'
+), columnas as (
+  select
+    format('%s.%s.%s', t.esquema, t.tabla, a.attname) as clave,
+    t.esquema,
+    t.tabla,
+    a.attname as columna,
+    pg_catalog.format_type(a.atttypid, a.atttypmod) as tipo,
+    a.attnotnull as "noNula",
+    pg_catalog.pg_get_expr(d.adbin, d.adrelid) as "defaultSql",
+    nullif(a.attidentity, '') as identidad,
+    nullif(a.attgenerated, '') as generada
+  from tablas t
+  join pg_catalog.pg_attribute a on a.attrelid = t.oid
+  left join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attnum > 0 and not a.attisdropped
+), restricciones as (
+  select
+    format('%s.%s.%s', t.esquema, t.tabla, c.conname) as clave,
+    t.esquema,
+    t.tabla,
+    c.conname as nombre,
+    case c.contype
+      when 'c' then 'check'
+      when 'f' then 'foreign_key'
+      when 'p' then 'primary_key'
+      when 'u' then 'unique'
+      when 'x' then 'exclude'
+    end as tipo,
+    pg_catalog.pg_get_constraintdef(c.oid, true) as definicion,
+    c.convalidated as validada,
+    c.condeferrable as diferible,
+    c.condeferred as "diferidaInicialmente"
+  from tablas t
+  join pg_catalog.pg_constraint c on c.conrelid = t.oid
+  where c.contype in ('c', 'f', 'p', 'u', 'x')
+), indices as (
+  select
+    format('%s.%s.%s', t.esquema, t.tabla, i.relname) as clave,
+    t.esquema,
+    t.tabla,
+    i.relname as nombre,
+    x.indisunique as unico,
+    x.indisprimary as primario,
+    x.indisvalid as valido,
+    pg_catalog.pg_get_indexdef(i.oid) as definicion
+  from tablas t
+  join pg_catalog.pg_index x on x.indrelid = t.oid
+  join pg_catalog.pg_class i on i.oid = x.indexrelid
+)
+select json_build_object(
+  'columnas', coalesce(
+    (select json_agg(row_to_json(c) order by c.clave) from columnas c),
+    '[]'::json
+  ),
+  'restricciones', coalesce(
+    (select json_agg(row_to_json(r) order by r.clave) from restricciones r),
+    '[]'::json
+  ),
+  'indices', coalesce(
+    (select json_agg(row_to_json(i) order by i.clave) from indices i),
+    '[]'::json
+  )
+) as contrato;
+`;
+
+function referenciaVinculada() {
+  const declarada = process.env['MORPHIQPOS_SUPABASE_PROJECT_REF'];
+  if (declarada !== undefined && declarada !== '') return declarada;
+  if (!existsSync(PROYECTO_VINCULADO)) {
+    throw new Error('Falta MORPHIQPOS_SUPABASE_PROJECT_REF y no existe un vínculo local.');
+  }
+
+  const vinculada = JSON.parse(readFileSync(PROYECTO_VINCULADO, 'utf8'));
+  if (typeof vinculada !== 'object' || vinculada === null || !('ref' in vinculada)) {
+    throw new Error('El vínculo local de Supabase no contiene una referencia válida.');
+  }
+  return vinculada.ref;
 }
 
-/** Recorta el cuerpo de un `create table` contando paréntesis, no buscando el primer `)`. */
-function cuerpoDeTabla(sql, desde) {
-  let nivel = 0;
-  for (let i = desde; i < sql.length; i += 1) {
-    if (sql[i] === '(') nivel += 1;
-    else if (sql[i] === ')') {
-      nivel -= 1;
-      if (nivel === 0) return sql.slice(desde + 1, i);
-    }
+function validarProyecto() {
+  const referencia = referenciaVinculada();
+  if (referencia !== PROYECTO_MORPHIQPOS) {
+    throw new Error(`Verificación cancelada: la referencia debe ser ${PROYECTO_MORPHIQPOS}.`);
   }
-  throw new Error('Paréntesis sin cerrar en un create table.');
+  return referencia;
 }
 
-/** Parte por comas de primer nivel: una coma dentro de `check (a in (1,2))` no separa. */
-function partirEnColumnas(cuerpo) {
-  const partes = [];
-  let nivel = 0;
-  let actual = '';
-  for (const c of cuerpo) {
-    if (c === '(') nivel += 1;
-    if (c === ')') nivel -= 1;
-    if (c === ',' && nivel === 0) {
-      partes.push(actual);
-      actual = '';
-    } else {
-      actual += c;
+function leerContratoReal() {
+  const proyecto = validarProyecto();
+  const cli = process.env['SUPABASE_CLI_PATH'] ?? 'supabase';
+  const carpeta = mkdtempSync(join(tmpdir(), 'morphiqpos-contrato-'));
+  const archivo = join(carpeta, 'contrato.sql');
+  writeFileSync(archivo, CONSULTA, 'utf8');
+
+  try {
+    const resultado = spawnSync(
+      cli,
+      [
+        'db',
+        'query',
+        '--output-format',
+        'json',
+        '--linked',
+        '--project-ref',
+        proyecto,
+        '--file',
+        archivo,
+      ],
+      { cwd: RAIZ, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, windowsHide: true },
+    );
+    if (resultado.error !== undefined) throw resultado.error;
+    if (resultado.status !== 0) {
+      const detalle = [resultado.stderr.trim(), resultado.stdout.trim()].filter(Boolean).join('\n');
+      throw new Error(`Supabase CLI no pudo leer el esquema: ${detalle}`);
     }
+
+    const respuesta = JSON.parse(resultado.stdout);
+    const contrato = respuesta?.rows?.[0]?.contrato;
+    if (
+      typeof contrato !== 'object' ||
+      contrato === null ||
+      !Array.isArray(contrato.columnas) ||
+      !Array.isArray(contrato.restricciones) ||
+      !Array.isArray(contrato.indices)
+    ) {
+      throw new Error('Supabase CLI devolvió un contrato de esquema inválido.');
+    }
+    return contrato;
+  } finally {
+    rmSync(carpeta, { force: true, recursive: true });
   }
-  partes.push(actual);
-  return partes;
 }
 
-export function columnasDeclaradas(carpeta = SQL) {
-  const tablas = {};
-  const archivos = readdirSync(carpeta)
-    .filter((n) => n.endsWith('.sql'))
-    .sort();
-
-  for (const archivo of archivos) {
-    const sql = sinComentarios(readFileSync(join(carpeta, archivo), 'utf8'));
-
-    // create table
-    const crear = /create\s+table\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s*\(/gi;
-    let m;
-    while ((m = crear.exec(sql)) !== null) {
-      const tabla = m[1].toLowerCase();
-      const cuerpo = cuerpoDeTabla(sql, crear.lastIndex - 1);
-      const columnas = [];
-      for (const parte of partirEnColumnas(cuerpo)) {
-        const primera = parte.trim().split(/\s+/)[0]?.toLowerCase();
-        if (!primera || NO_ES_COLUMNA.has(primera)) continue;
-        columnas.push(primera);
-      }
-      tablas[tabla] = columnas;
-    }
-
-    // alter table ... add column — 004 agrega `organizacion_id` así.
-    const agregar =
-      /alter\s+table\s+([a-z_][a-z0-9_]*)\s+add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)/gi;
-    while ((m = agregar.exec(sql)) !== null) {
-      const tabla = m[1].toLowerCase();
-      if (tablas[tabla] && !tablas[tabla].includes(m[2].toLowerCase())) {
-        tablas[tabla].push(m[2].toLowerCase());
-      }
-    }
-  }
-
-  return tablas;
-}
-
-function comparar(esperado, real) {
-  const problemas = [];
-  const tablasEsperadas = Object.keys(esperado).sort();
-  const tablasReales = Object.keys(real).sort();
-
-  for (const t of tablasEsperadas) {
-    if (!(t in real)) {
-      problemas.push(`tabla FALTANTE en la base: ${t}`);
-      continue;
-    }
-    const faltan = esperado[t].filter((c) => !real[t].includes(c));
-    const sobran = real[t].filter((c) => !esperado[t].includes(c));
-    for (const c of faltan) problemas.push(`${t}: columna declarada y NO aplicada → ${c}`);
-    for (const c of sobran) problemas.push(`${t}: columna aplicada y NO declarada → ${c}`);
-  }
-
-  for (const t of tablasReales) {
-    if (!(t in esperado)) problemas.push(`tabla aplicada y NO declarada: ${t}`);
-  }
-
-  return problemas;
-}
-
-const modo = process.argv[2];
-
-if (modo === '--esperado') {
-  process.stdout.write(JSON.stringify(columnasDeclaradas(), null, 2));
-} else if (modo === '--comparar') {
-  const ruta = process.argv[3];
-  if (!ruta) {
-    console.error('Falta la ruta del JSON con el esquema real.');
-    process.exit(2);
-  }
-  const real = JSON.parse(readFileSync(ruta, 'utf8'));
-  // El ledger no es parte del esquema declarado: lo crea el ejecutor.
-  delete real._migraciones;
-
-  const problemas = comparar(columnasDeclaradas(), real);
-  if (problemas.length === 0) {
-    const n = Object.keys(columnasDeclaradas()).length;
-    console.log(`✓ La base coincide con los .sql en las ${n} tablas declaradas.`);
+try {
+  const real = leerContratoReal();
+  if (process.argv.includes('--actualizar')) {
+    writeFileSync(CONTRATO, `${JSON.stringify(real, null, 2)}\n`, 'utf8');
+    console.log(
+      `✓ Contrato actualizado: ${real.columnas.length} columnas, ` +
+        `${real.restricciones.length} restricciones y ${real.indices.length} índices.`,
+    );
   } else {
-    console.error(`✗ ${problemas.length} discrepancia(s) entre los .sql y la base:\n`);
-    for (const p of problemas) console.error(`    ${p}`);
-    process.exit(1);
+    if (!existsSync(CONTRATO)) {
+      throw new Error(
+        'Falta scripts/esquema-esperado.json. Ejecute verify:esquema -- --actualizar.',
+      );
+    }
+    const esperado = JSON.parse(readFileSync(CONTRATO, 'utf8'));
+    const diferencias = diferenciasDeContrato(esperado, real);
+    if (diferencias.length > 0) {
+      throw new Error(
+        `${diferencias.length} diferencia(s) entre el contrato y la base:\n` +
+          diferencias.map((diferencia) => `  - ${diferencia}`).join('\n'),
+      );
+    }
+    console.log(
+      `✓ La base cumple el contrato: ${real.columnas.length} columnas, ` +
+        `${real.restricciones.length} restricciones y ${real.indices.length} índices.`,
+    );
   }
-} else {
-  console.error('Uso: verificar-esquema-aplicado.mjs --esperado | --comparar <real.json>');
-  process.exit(2);
+} catch (error) {
+  console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
 }

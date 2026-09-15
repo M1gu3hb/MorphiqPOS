@@ -30,11 +30,6 @@ export class ErrorApi extends Error {
 }
 
 export interface OpcionesComando {
-  /**
-   * Reusar la clave entre reintentos es lo que hace idempotente al reintento.
-   * Si se omite, se genera una nueva: correcto para una operación nueva,
-   * incorrecto para reintentar una que quizá ya se aplicó.
-   */
   readonly idempotencyKey?: string;
   readonly signal?: AbortSignal;
 }
@@ -70,11 +65,9 @@ export async function invocarComando<T>(
       [CABECERA_PETICION_PROPIA]: '1',
     },
     body: JSON.stringify(entrada),
-    // La cookie es `HttpOnly`: el navegador la adjunta, el script no la ve.
     credentials: 'same-origin',
     ...(opciones.signal === undefined ? {} : { signal: opciones.signal }),
   });
-
   return leerResultado<T>(respuesta);
 }
 
@@ -99,12 +92,6 @@ export async function obtenerApi<T>(ruta: string, signal?: AbortSignal): Promise
   return leerResultado<T>(respuesta);
 }
 
-/**
- * Una clave por operación.
- *
- * `crypto.randomUUID` existe en todo navegador con contexto seguro; el respaldo
- * cubre `http://` en la red local, que es justo donde se hace la demostración.
- */
 export function nuevaClave(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();

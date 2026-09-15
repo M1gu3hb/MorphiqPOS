@@ -27,14 +27,12 @@ export default function MesasQRTab({ config }) {
   });
 
   // Mesas sin token: las inicializa con uno automáticamente la primera vez que
-  // se abren. `qr_token` y `qr_activo` NO son campos bloqueados del puente:
-  // esta escritura se queda como está. Lo que se va es el `catch` que devolvía
-  // la mesa SIN token como si nada hubiera pasado, y detrás se abría el diálogo
-  // con un QR que no existía.
+  // se abren. `qr_token` es de sólo lectura y lo rota `restaurante.rotar_qr`;
+  // `qr_activo` sí se puede actualizar directamente. Sin un `catch` por mesa,
+  // un fallo al rotar se muestra en vez de abrir un QR que no existe.
   const asegurarToken = async (mesa) => {
     if (!mesa?.id || mesa.qr_token) return mesa;
-    const token = generarTokenMesa(mesa.id);
-    await api.entidades.Mesa.update(mesa.id, { qr_token: token });
+    const token = await generarTokenMesa(mesa.id);
     queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
     return { ...mesa, qr_token: token };
   };
@@ -46,11 +44,7 @@ export default function MesasQRTab({ config }) {
       // Sin `.catch(() => {})` por mesa: contaba las que se INTENTARON, no las
       // que se guardaron, así que el toast decía «Tokens generados (12)» con
       // doce mesas sin QR. Si una falla, falla el lote y se dice.
-      await Promise.all(
-        pendientes.map((m) =>
-          api.entidades.Mesa.update(m.id, { qr_token: generarTokenMesa(m.id) }),
-        ),
-      );
+      await Promise.all(pendientes.map((m) => generarTokenMesa(m.id)));
       queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
       toast.success(`Tokens generados (${pendientes.length})`);
     } catch (err) {

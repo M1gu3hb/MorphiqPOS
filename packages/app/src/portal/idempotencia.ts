@@ -4,6 +4,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 
 import { sqlstate } from './errores-sql.ts';
+import { huella } from '../saneado.ts';
 
 /**
  * La clave de idempotencia de un comensal (R10).
@@ -16,6 +17,23 @@ import { sqlstate } from './errores-sql.ts';
 
 /** La migración 010 exige entre 8 y 200 caracteres. Aquí se corta el mínimo. */
 export const CLAVE_MINIMA = 8;
+
+export interface AlcanceIdempotenciaPortal {
+  readonly clave: string;
+  readonly huellaEntrada: string;
+}
+
+/** Aísla cada clave pública y su huella dentro de la mesa resuelta. */
+export function alcanceIdempotenciaPortal(
+  mesaId: string,
+  claveCliente: string,
+  entrada: unknown,
+): AlcanceIdempotenciaPortal {
+  return {
+    clave: huella({ mesaId, claveCliente }),
+    huellaEntrada: huella({ mesaId, entrada }),
+  };
+}
 
 /**
  * Reclama la clave de idempotencia SIN identidad.

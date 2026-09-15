@@ -56,6 +56,7 @@ import MesaEditDialog from '@/components/mesas/MesaEditDialog';
 import IdentidadNegocio from '@/components/configuracion/IdentidadNegocio';
 import UsuarioPOSDialog from '@/components/configuracion/UsuarioPOSDialog';
 import { useConfig } from '@/lib/ConfigContext';
+import { soloCamposEditablesMesa } from '@/utils/mesaConfigUtils';
 import { Pencil, Phone, Mail } from 'lucide-react';
 
 const useIsMobile = () => {
@@ -315,37 +316,18 @@ export default function Configuracion() {
     // fallaba SIEMPRE con «"zona" se calcula al leer y no se guarda».
     //
     // Una lista blanca no tiene ese problema: lo que el servidor añada mañana
-    // simplemente no viaja. Son los trece campos que el mapa del puente declara
+    // simplemente no viaja. Son los doce campos que el mapa del puente declara
     // escribibles para Mesa.
-    const CAMPOS_EDITABLES = [
-      'numero',
-      'nombre',
-      'zona_id',
-      'capacidad',
-      'forma',
-      'tamano',
-      'posicion_x',
-      'posicion_y',
-      'orden',
-      'qr_token',
-      'qr_activo',
-      'mesero_asignado_id',
-      'activo',
-    ];
     // Abrir, ocupar, pedir la cuenta y liberar son TRANSICIONES con su comando:
     // que no quepan aquí es lo que impide «mesa libre con venta viva».
-    const soloEditables = (fila) =>
-      Object.fromEntries(
-        Object.entries(fila).filter(([k, v]) => CAMPOS_EDITABLES.includes(k) && v !== undefined),
-      );
 
     try {
       if (data.id) {
         const { id, ...rest } = data;
-        await api.entidades.Mesa.update(id, soloEditables(rest));
+        await api.entidades.Mesa.update(id, soloCamposEditablesMesa(rest));
         toast.success(`Mesa ${data.numero} actualizada`);
       } else {
-        await api.entidades.Mesa.create(soloEditables(data));
+        await api.entidades.Mesa.create(soloCamposEditablesMesa(data));
         toast.success(`Mesa ${data.numero} creada`);
       }
       queryClient.invalidateQueries({ queryKey: ['mesas'] });

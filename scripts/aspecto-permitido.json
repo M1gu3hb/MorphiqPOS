@@ -119,6 +119,246 @@
         "+ texto:nombre de tu negocio",
         "+ placeholder:Nombre del negocio"
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/compras/PlantillaGastoDialog.jsx",
+      "porque": "Los avisos reflejan la transacción de compra y gasto resuelta por el servidor, incluidos sus fallos controlados, sin cambiar la estructura visual.",
+      "testigos": ["- aviso:Error:", "+ aviso:No se pudo guardar la plantilla."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/compras/RegistrarCompraDialog.jsx",
+      "porque": "Los avisos reflejan la transacción de compra y gasto resuelta por el servidor, incluidos sus fallos controlados, sin cambiar la estructura visual.",
+      "testigos": [
+        "- aviso:Existe ${inactivosBloqueantes.length === 1 ? 'un ingrediente desactivado' : 'ingredientes desactivados'}:",
+        "- aviso:${inactivosBloqueantes.join(', ')}. Reactívalo(s) desde Inventario o cambia el nombre.",
+        "- aviso:\"${ing.nombre}\" está desactivado. Saltando esta línea.",
+        "- aviso:\"${line.nuevo_nombre.trim()}\" ya existe — sumando al ingrediente existente.",
+        "- aviso:Compra registrada — ${validLines.length} línea(s) · ${formatCurrency(totalCompra)}",
+        "- aviso:Error al registrar:",
+        "+ aviso:La compra se registró, pero la plantilla no: sus líneas son insumos nuevos. Vuelve a guardarla cuando ya existan en el inventario.",
+        "+ aviso:La compra se registró, pero la plantilla no se guardó: ${errPlantilla?.message || 'error desconocido'}",
+        "+ aviso:Compra registrada — ${resultado?.lineas ?? validLines.length} línea(s) · ${formatCurrency(totalGuardado)}",
+        "+ aviso:No se pudo registrar la compra."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/compras/RegistrarGastoDialog.jsx",
+      "porque": "Los avisos reflejan la transacción de compra y gasto resuelta por el servidor, incluidos sus fallos controlados, sin cambiar la estructura visual.",
+      "testigos": ["- aviso:Error:", "+ aviso:No se pudo registrar el gasto."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/compras/RepetirCompraDialog.jsx",
+      "porque": "Los avisos reflejan la transacción de compra y gasto resuelta por el servidor, incluidos sus fallos controlados, sin cambiar la estructura visual.",
+      "testigos": ["+ aviso:No se pudieron cargar las compras anteriores."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/configuracion/ModoPresentacion.jsx",
+      "porque": "El aviso nombra el cambio de paquete comercial que ahora ejecuta el servidor y conserva el mismo flujo visual.",
+      "testigos": ["- aviso:No se pudo guardar:", "+ aviso:No se pudo guardar el paquete."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/configuracion/ReiniciarSistemaSection.jsx",
+      "porque": "Los mensajes acompañan la confirmación por nombre del negocio y los comandos destructivos del servidor; son cambios deliberados de seguridad.",
+      "testigos": [
+        "- aviso:Debes escribir exactamente \"${expectedText}\".",
+        "- aviso:Error al reiniciar:",
+        "+ aviso:Escribe el nombre de tu negocio para confirmar."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/cortes/CorteAutoDownloader.jsx",
+      "porque": "Los 1 cambios de aviso de CorteAutoDownloader.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["+ aviso:No se pudo cargar el corte para generar el PDF."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/cortes/CorteViewerDialog.jsx",
+      "porque": "Los 1 cambios de aviso de CorteViewerDialog.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["+ aviso:No se pudo cargar el corte. Reintenta antes de imprimirlo."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/datos/ImportarDatosDialog.jsx",
+      "porque": "Los 1 cambios de aviso de ImportarDatosDialog.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["+ aviso:No se pudo leer el catálogo actual. Sin él la vista previa mentiría."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/inventario/AjustarStockDialog.jsx",
+      "porque": "Los avisos describen el resultado del comando atómico de inventario del servidor y eliminan mensajes del antiguo rollback del navegador.",
+      "testigos": [
+        "- aviso:No se pudo registrar el movimiento de inventario y el rollback de stock falló. Revisa el inventario manualmente.",
+        "- aviso:No se pudo registrar el movimiento de inventario. El ajuste no quedó confirmado.",
+        "- aviso:Stock actualizado — ${ingrediente.nombre}: ${stockNuevo.toLocaleString()} ${unidadBase}",
+        "- aviso:Error al ajustar stock:",
+        "+ aviso:Stock actualizado — ${ingrediente.nombre}: ${saldoFinal.toLocaleString()} ${unidadBase}",
+        "+ aviso:No se pudo ajustar el stock."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/inventario/RegistrarInventarioInicialDialog.jsx",
+      "porque": "Los avisos describen el resultado del comando atómico de inventario del servidor y eliminan mensajes del antiguo rollback del navegador.",
+      "testigos": ["+ aviso:No se pudo preparar el registro de inventario. Reintenta."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/MenuQRTab.jsx",
+      "porque": "El límite visible de imagen baja de 8 MB a los 5 MB que el servidor acepta; evita prometer una subida que la API rechazará.",
+      "testigos": ["- aviso:Máximo 8 MB", "+ aviso:Máximo 5 MB"]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/MesasQRTab.jsx",
+      "porque": "Los 1 cambios de aviso de MesasQRTab.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["+ aviso:No se pudo generar el QR de esta mesa"]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/SolicitudesQRTab.jsx",
+      "porque": "Los 2 cambios de aviso de SolicitudesQRTab.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": [
+        "- aviso:Solicitudes borradas: ${borradas}",
+        "+ aviso:Solicitudes borradas: ${r?.borradas || 0}"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/propinas/LiquidarPropinasDialog.jsx",
+      "porque": "Los 5 cambios de aviso de LiquidarPropinasDialog.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": [
+        "- aviso:Liquidación ${folio} registrada · ${formatCurrency(total)}",
+        "- aviso:No se pudo registrar la liquidación:",
+        "+ aviso:No se pudieron cargar las propinas pendientes del periodo.",
+        "+ aviso:Liquidación ${liquidacion?.folio || ''} registrada · ${formatCurrency(aPesos(liquidacion?.totalCentavos))}",
+        "+ aviso:No se pudo registrar la liquidación"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/propinas/PropinasRegistros.jsx",
+      "porque": "Los 1 cambios de aviso de PropinasRegistros.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["+ aviso:No se pudieron cargar las liquidaciones de propinas."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/recetas/RecetaFormDialog.jsx",
+      "porque": "Los 2 cambios de aviso de RecetaFormDialog.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["- aviso:Error al guardar:", "+ aviso:No se pudo guardar la receta."]
+    },
+    {
+      "archivo": "apps/web/heredado/components/registros/LimpiarSeccionButton.jsx",
+      "porque": "Los mensajes acompañan la confirmación por nombre del negocio y los comandos destructivos del servidor; son cambios deliberados de seguridad.",
+      "testigos": [
+        "- aviso:Escribe ELIMINAR para confirmar",
+        "- aviso:Se eliminaron ${data?.deleted || 0} registros de ${LABELS[seccion]}",
+        "+ aviso:Escribe el nombre del negocio para confirmar",
+        "+ aviso:Se eliminaron ${total} registros de ${LABELS[seccion]}"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Barra.jsx",
+      "porque": "Los 1 cambios de aviso de Barra.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["+ aviso:No se pudo cambiar el estado del pedido."]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Caja.jsx",
+      "porque": "Los avisos reflejan los comandos atómicos de cobro, cierre y sincronización del servidor y distinguen fallos parciales que requieren acción.",
+      "testigos": [
+        "- aviso:No se pudo guardar la propina",
+        "- aviso:No se pudo validar inventario. Intenta de nuevo en un momento.",
+        "- aviso:No se pudo cargar inventario para validar productos variables. Reintenta.",
+        "- aviso:(Se cobrará igual: venta sin stock permitida).",
+        "- aviso:Venta cobrada correctamente. Hubo un problema con inventario o ticket.",
+        "- aviso:Ya existe una caja abierta. Ciérrala antes de abrir otra.",
+        "+ aviso:No se pudieron recalcular los totales de la cuenta.",
+        "+ aviso:Escribe cuánto se pagó con cada método.",
+        "+ aviso:La venta se cobró, pero la mesa sigue ocupada.",
+        "+ aviso:Venta cobrada correctamente. Hubo un problema con el ticket.",
+        "+ aviso:No se pudo comprobar si quedan mesas abiertas. Reintenta antes de cerrar.",
+        "+ aviso:La caja se cerró; la cola de sincronización no se encoló."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Los 6 cambios de aviso de Configuracion.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": [
+        "- aviso:Mesas eliminadas correctamente. Ahora puedes crear tu mapa desde cero.",
+        "- aviso:Error al eliminar mesas",
+        "- aviso:Error:",
+        "+ aviso:No se pudo desactivar el usuario",
+        "+ aviso:${cuantas} mesas retiradas. Ahora puedes crear tu mapa desde cero.",
+        "+ aviso:No se pudieron retirar las mesas."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/CorteCaja.jsx",
+      "porque": "Los 1 cambios de aviso de CorteCaja.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["+ aviso:No se pudo abrir el corte de caja"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Inventario.jsx",
+      "porque": "Los 1 cambios de aviso de Inventario.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["+ aviso:No se pudo comprobar el historial. Reintenta antes de eliminar."]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Mesero.jsx",
+      "porque": "Los 8 cambios de aviso de Mesero.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": [
+        "- aviso:Mesa ${numeroOk} abierta",
+        "- aviso:${fallidos} producto(s) tardaron en guardarse. Sigo con el pedido.",
+        "- aviso:No se pudieron guardar los totales. Revisa la cuenta en Caja.",
+        "- aviso:La cuenta ya fue solicitada para esta mesa.",
+        "- aviso:Esta mesa aún no tiene productos enviados a cocina",
+        "- aviso:No se pudo validar el consumo. Intenta de nuevo.",
+        "+ aviso:Mesa ${r.mesaNumero} abierta",
+        "+ aviso:La cantidad de ${item?.nombre || 'un producto'} no es válida."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/POS.jsx",
+      "porque": "Los 11 cambios de aviso de POS.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": [
+        "- aviso:(Se cobrará igual: venta sin stock permitida).",
+        "- aviso:La venta se cobró, pero no se pudo mostrar el ticket. Puedes verlo en Ventas/Registros.",
+        "- aviso:Venta ${folio} cobrada: ${formatCurrency(total)}",
+        "+ aviso:No se pudo agregar el producto.",
+        "+ aviso:No se pudo agregar el producto.",
+        "+ aviso:Código ${limpio} no está en el catálogo",
+        "+ aviso:${producto.nombre} agregado",
+        "+ aviso:No se pudo cambiar la cantidad.",
+        "+ aviso:No se pudo quitar el producto.",
+        "+ aviso:No se pudo limpiar la orden.",
+        "+ aviso:Venta ${folio} cobrada: ${formatCurrency(centavosAPesos(ticket?.totalCentavos))}"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/POSLogin.jsx",
+      "porque": "Los 3 cambios de aviso de POSLogin.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": [
+        "- aviso:Bienvenido, ${found.nombre}",
+        "+ aviso:Toca tu nombre para entrar",
+        "+ aviso:Bienvenido, ${entrado.nombre}"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/PortalCliente.jsx",
+      "porque": "Los 4 cambios de aviso de PortalCliente.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": [
+        "- aviso:Cargando estado de la mesa…",
+        "- aviso:La cuenta ya fue solicitada. Llama al mesero si necesitas algo más.",
+        "- aviso:La mesa ya no tiene venta activa. Pide al mesero que te ayude.",
+        "- aviso:Tu solicitud ya fue enviada. Un mesero la atenderá pronto."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Recetas.jsx",
+      "porque": "Los 2 cambios de aviso de Recetas.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["- aviso:Error al eliminar:", "+ aviso:No se pudo eliminar la receta."]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Registros.jsx",
+      "porque": "Los 1 cambios de aviso de Registros.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": ["+ aviso:No se pudo eliminar el corte"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Ventas.jsx",
+      "porque": "Los mensajes acompañan la confirmación por nombre del negocio y los comandos destructivos del servidor; son cambios deliberados de seguridad.",
+      "testigos": [
+        "- aviso:Error al limpiar",
+        "- aviso:Error:",
+        "+ aviso:No se pudieron limpiar las ventas."
+      ]
     }
   ]
 }

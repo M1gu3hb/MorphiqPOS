@@ -40,7 +40,7 @@ describe('definirComando() · el cliente no elige su ámbito (R16)', () => {
           entidad: 'orden',
           escribe: true,
           roles: ['cajero'],
-          paquetes: ['tienda'],
+          paquetes: ['esencial'],
           entrada: z.object({ [clave]: z.string(), ordenId: z.uuid() }),
           async ejecutar() {
             return {};
@@ -57,7 +57,7 @@ describe('definirComando() · el cliente no elige su ámbito (R16)', () => {
         entidad: 'orden',
         escribe: true,
         roles: ['cajero'],
-        paquetes: ['tienda'],
+        paquetes: ['esencial'],
         entrada: z.object({ ordenId: z.uuid(), propinaCentavos: z.number().int() }),
         async ejecutar() {
           return {};
@@ -75,7 +75,7 @@ describe('definirComando() · el cliente no elige su ámbito (R16)', () => {
         entidad: 'orden',
         escribe: true,
         roles: ['cajero'],
-        paquetes: ['tienda'],
+        paquetes: ['esencial'],
         entrada: z.object({}),
         async ejecutar() {
           return {};
@@ -93,7 +93,7 @@ describe('definirComando() · el cliente no elige su ámbito (R16)', () => {
         entidad: 'orden',
         escribe: true,
         roles: [],
-        paquetes: ['tienda'],
+        paquetes: ['esencial'],
         entrada: z.object({}),
         async ejecutar() {
           return {};
@@ -121,7 +121,7 @@ describe('definirComando() · el cliente no elige su ámbito (R16)', () => {
 
 describe('comando() · el ámbito de la sesión gana siempre', () => {
   it('el cuerpo recibe el ámbito del servidor, no lo que venga en la entrada', async () => {
-    const fabrica = crearFabrica('tienda');
+    const fabrica = crearFabrica('esencial');
     let visto = '';
 
     const definicion = definirComando({
@@ -129,7 +129,7 @@ describe('comando() · el ámbito de la sesión gana siempre', () => {
       entidad: 'orden',
       escribe: true,
       roles: ['cajero'],
-      paquetes: ['tienda'],
+      paquetes: ['esencial'],
       entrada: z.object({ ordenId: z.uuid() }),
       async ejecutar(ctx, entrada) {
         visto = ctx.ambito.organizacionId;

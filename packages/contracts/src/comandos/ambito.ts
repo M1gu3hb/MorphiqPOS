@@ -26,14 +26,13 @@ export const ROLES = [
 
 export type Rol = (typeof ROLES)[number];
 
-/**
- * Los cinco paquetes de `organizaciones.paquete` (A-42).
- *
- * No es un adorno de interfaz: gobierna qué comandos existen para una
- * organización, y se verifica en el servidor. «Ocultar un botón no es
- * autorización» (R11).
- */
-export const PAQUETES = ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'] as const;
+/** Los giros describen qué clase de negocio opera la organización. */
+export const GIROS = ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'] as const;
+
+export type Giro = (typeof GIROS)[number];
+
+/** Los tres paquetes comerciales que gobiernan módulos y comandos. */
+export const PAQUETES = ['esencial', 'operativo', 'restaurante_pro'] as const;
 
 export type Paquete = (typeof PAQUETES)[number];
 
@@ -54,7 +53,13 @@ export const PAQUETES_TODOS = PAQUETES;
  * En una ferretería un producto no se compone de ingredientes, así que costear
  * recetas ahí no es una función que falte — es una que no aplica.
  */
-export const PAQUETES_PREPARACION = ['cafeteria', 'restaurante'] as const;
+export const PAQUETES_OPERATIVOS = ['operativo', 'restaurante_pro'] as const;
+
+/** Funciones exclusivas de sala, mesero y cocina. */
+export const PAQUETES_RESTAURANTE = ['restaurante_pro'] as const;
+
+/** El portal QR está contratado desde Operativo, igual que en la navegación. */
+export const PAQUETES_PORTAL = PAQUETES_OPERATIVOS;
 
 /**
  * Donde se vende de mostrador con caja.
@@ -71,6 +76,14 @@ export function esRol(valor: unknown): valor is Rol {
 
 export function esPaquete(valor: unknown): valor is Paquete {
   return typeof valor === 'string' && (PAQUETES as readonly string[]).includes(valor);
+}
+
+export function esGiro(valor: unknown): valor is Giro {
+  return typeof valor === 'string' && (GIROS as readonly string[]).includes(valor);
+}
+
+export function paquetePermitidoParaGiro(paquete: Paquete, giro: Giro): boolean {
+  return paquete !== 'restaurante_pro' || giro === 'cafeteria' || giro === 'restaurante';
 }
 
 /**

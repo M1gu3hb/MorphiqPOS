@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio, validarEntorno, PAQUETES_TODOS } from '@morphiqpos/contracts';
-import type { Transaccion } from '@morphiqpos/data';
+import { repoSesion, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
@@ -178,7 +178,7 @@ export const guardarEmpleado = definirComando<
       const actual = await ctx.paso('cargar_empleo', () =>
         ctx.tx
           .selectFrom('empleos')
-          .select(['id', 'persona_id as personaId', 'rol'])
+          .select(['id', 'persona_id as personaId', 'rol', 'activo'])
           .where('id', '=', entrada.empleado ?? '')
           .where('organizacion_id', '=', organizacionId)
           .executeTakeFirst(),
@@ -233,6 +233,12 @@ export const guardarEmpleado = definirComando<
           .where('organizacion_id', '=', organizacionId)
           .execute(),
       );
+
+      if (rolPedido !== actual.rol || (actual.activo && !entrada.activo)) {
+        await ctx.paso('revocar_sesiones', () =>
+          repoSesion.revocarSesionesDeEmpleo(ctx.tx, organizacionId, empleoId, ctx.ahora),
+        );
+      }
     } else {
       const persona = await ctx.paso('crear_persona', () =>
         ctx.tx

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { ConnectionOptions } from 'node:tls';
+import { rootCertificates, type ConnectionOptions } from 'node:tls';
 
 import { RAIZ_SUPABASE } from './certificados/supabase-root-2021.ts';
 
@@ -28,6 +28,7 @@ import { RAIZ_SUPABASE } from './certificados/supabase-root-2021.ts';
  * necesite tocar este archivo.
  */
 export function tlsPara(cadena: string): ConnectionOptions | false {
-  if (cadena.includes('localhost') || cadena.includes('127.0.0.1')) return false;
-  return { rejectUnauthorized: true, ca: RAIZ_SUPABASE };
+  const host = new URL(cadena).hostname.toLocaleLowerCase('en-US');
+  if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return false;
+  return { rejectUnauthorized: true, ca: [...rootCertificates, RAIZ_SUPABASE] };
 }

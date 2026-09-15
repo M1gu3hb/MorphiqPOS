@@ -108,18 +108,34 @@ export async function entrarConPin(
   const ambito = await repoSesion.resolverAmbito(db, credencial.identidadId, credencial.empleoId);
   if (ambito === null) return { ok: false, motivo: 'credenciales' };
 
-  await conTransaccion((tx) => repoIdentidad.limpiarIntentos(tx, credencial.credencialId));
-
   // 5 · La terminal. Ya con el PIN verificado, y sólo entonces.
   const terminal = await resolverTerminal(peticion, ambito.sucursalId, ahora);
 
+  const sid = nuevoIdDeSesion();
+  const exp = Math.floor(ahora.getTime() / 1000) + DURACION_SESION_SEGUNDOS;
+  const expiraEn = new Date(exp * 1000);
+
+  // La fila y la limpieza del bloqueo confirman juntas. La cookie sólo se
+  // firma después: nunca se entrega un sid que la base no haya registrado.
+  await conTransaccion(async (tx) => {
+    await repoIdentidad.limpiarIntentos(tx, credencial.credencialId);
+    await repoSesion.crearSesion(tx, {
+      sid,
+      organizacionId: ambito.organizacionId,
+      empleoId: credencial.empleoId,
+      creadaEn: ahora,
+      expiraEn,
+    });
+    await repoSesion.purgarSesionesAntiguas(tx, new Date(ahora.getTime() - RETENCION_SESIONES_MS));
+  });
+
   const token = firmarSesion(
     {
-      sid: nuevoIdDeSesion(),
+      sid,
       identidadId: credencial.identidadId,
       empleoId: credencial.empleoId,
       terminalId: terminal.terminalId,
-      exp: Math.floor(ahora.getTime() / 1000) + DURACION_SESION_SEGUNDOS,
+      exp,
     },
     peticion.secretoSesion,
   );
@@ -211,6 +227,9 @@ async function resolverTerminal(
 
 /** Cinco es de sobra: son colisiones de milisegundos, no de configuracion. */
 const INTENTOS_DE_NOMBRE = 5;
+
+/** Rastro operativo antes de eliminar sesiones vencidas. */
+const RETENCION_SESIONES_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Quién puede entrar en este negocio. Nombre y rol; nunca el hash. */
 export async function empleadosParaEntrar(

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_PORTAL } from '@morphiqpos/contracts';
 import { aplicarPorcentaje, centavos, CERO } from '@morphiqpos/domain/dinero';
 import type { TotalesOrden } from '@morphiqpos/domain/venta';
 import type { z } from 'zod';
@@ -64,7 +64,7 @@ export const pedirCuentaQR = definirComandoPublico<typeof entradaPedirCuenta, Re
   nombre: 'portal.pedir_cuenta',
   entidad: 'orden',
   accion: 'pedir_cuenta',
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_PORTAL,
   entrada: entradaPedirCuenta,
   async ejecutar(ctx, entrada) {
     const orden = await ctx.paso('cargar_venta', () => ordenParaCobrar(ctx));

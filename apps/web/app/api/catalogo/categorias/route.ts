@@ -1,3 +1,4 @@
+import { ROLES } from '@morphiqpos/contracts';
 import { consultarCategoriasProduccion } from '@morphiqpos/app/consultas-produccion';
 
 import { responderConsulta } from '../../../../src/servidor/http';
@@ -5,8 +6,11 @@ import { responderConsulta } from '../../../../src/servidor/http';
 export const dynamic = 'force-dynamic';
 
 export function GET(): Promise<Response> {
-  return responderConsulta(async (sesion) => {
-    const categorias = await consultarCategoriasProduccion(sesion.organizacionId);
-    return { categorias };
-  });
+  return responderConsulta(
+    async (sesion) => {
+      const categorias = await consultarCategoriasProduccion(sesion.organizacionId);
+      return { categorias };
+    },
+    { roles: ROLES },
+  );
 }

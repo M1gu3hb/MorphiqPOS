@@ -257,10 +257,13 @@ describe('la forma del mapa', () => {
       'PlantillaGasto',
       'PlantillaCompra',
       'MenuQRSeccion',
-      'IntegrationSyncLog',
     ] as const) {
       expect(MAPA[entidad]?.escritura, entidad).toBe('directa');
     }
+  });
+
+  it('la bitácora de sincronización sólo se expone para lectura', () => {
+    expect(MAPA['IntegrationSyncLog']?.escritura).toBe('lectura');
   });
 
   /**
@@ -439,6 +442,8 @@ describe('los campos derivados', () => {
       'insumos',
       'categorias',
       'existencias_por_insumo',
+      'ordenes_pagos_resumen',
+      'estaciones_preparacion',
     ]);
     for (const [entidad, mapa] of Object.entries(MAPA)) {
       for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {

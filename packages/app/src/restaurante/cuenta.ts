@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { aplicarPorcentaje, centavos } from '@morphiqpos/domain/dinero';
 import type { TotalesOrden } from '@morphiqpos/domain/venta';
@@ -61,7 +61,7 @@ export const solicitarCuenta = definirComando<
   entidad: 'orden',
   escribe: true,
   roles: [...ROLES_DE_SALA],
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaSolicitarCuenta,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

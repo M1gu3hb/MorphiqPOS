@@ -28,6 +28,8 @@ interface DatosDeComandas {
 }
 
 export async function insertarComandas(tx: Transaccion, datos: DatosDeComandas): Promise<void> {
+  if (datos.comandas.length === 0) return;
+
   const { orden } = datos;
   await tx
     .insertInto('comandas')

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
@@ -72,7 +72,7 @@ export const liquidarPropinas = definirComando<
   // modelo nuevo ese rol son tres (`F1-04` §12.3): dueño, administrador y gerente.
   roles: ROLES,
   // La propina es dinero de meseros: existe donde se sirve comida en mesa.
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaLiquidarPropinas,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;

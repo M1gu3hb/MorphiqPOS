@@ -1,4 +1,4 @@
-import { PAQUETES, ErrorDominio, esPaquete } from '@morphiqpos/contracts';
+import { PAQUETES, ErrorDominio, esGiro } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { z } from 'zod';
@@ -26,14 +26,11 @@ export const resetearDemo = definirComando<
   async ejecutar(ctx) {
     const organizacion = await ctx.tx
       .selectFrom('organizaciones')
-      .select('paquete')
+      .select('giro')
       .where('id', '=', ctx.ambito.organizacionId)
       .executeTakeFirst();
-    if (organizacion === undefined || !esPaquete(organizacion.paquete)) {
-      throw new ErrorDominio(
-        'CONFIGURACION_INVALIDA',
-        'La organización no tiene un paquete válido.',
-      );
+    if (organizacion === undefined || !esGiro(organizacion.giro)) {
+      throw new ErrorDominio('CONFIGURACION_INVALIDA', 'La organización no tiene un giro válido.');
     }
     const sucursalId = ctx.ambito.sucursalId;
     if (sucursalId === null)
@@ -41,7 +38,7 @@ export const resetearDemo = definirComando<
         'CONFIGURACION_INVALIDA',
         'Selecciona una sucursal para cargar la demostración.',
       );
-    const semilla = semillaParaPaquete(organizacion.paquete);
+    const semilla = semillaParaPaquete(organizacion.giro);
     await ctx.paso('limpiar_demo', () => limpiar(ctx.tx, ctx.ambito.organizacionId));
     const almacen = await ctx.tx
       .insertInto('almacenes')
@@ -165,7 +162,7 @@ export const resetearDemo = definirComando<
     // vacías y el mapa de mesas —la pantalla que Miguel más quiere ver— no
     // tiene nada que pintar.
     const sala =
-      organizacion.paquete === 'restaurante'
+      organizacion.giro === 'restaurante'
         ? await ctx.paso('sembrar_sala', () =>
             sembrarSala(
               ctx.tx,
@@ -178,7 +175,7 @@ export const resetearDemo = definirComando<
 
     ctx.auditar({
       entidadId: ctx.ambito.organizacionId,
-      payload: { productos, insumos, paquete: organizacion.paquete, ...(sala ?? {}) },
+      payload: { productos, insumos, giro: organizacion.giro, ...(sala ?? {}) },
     });
     return { productos, insumos, sala };
   },

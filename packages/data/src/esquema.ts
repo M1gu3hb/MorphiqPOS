@@ -217,6 +217,12 @@ export interface CredencialesPin {
   updated_at: Generated<Date>;
 }
 
+export interface CuotasArchivos {
+  organizacion_id: string;
+  bytes_usados: Generated<bigint>;
+  updated_at: Generated<Date>;
+}
+
 export interface Empleos {
   id: Generated<string>;
   persona_id: string;
@@ -538,6 +544,7 @@ export interface Organizaciones {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  giro: Generated<string>;
 }
 
 export interface Pagos {
@@ -681,6 +688,15 @@ export interface Recetas {
   notas: string | null;
 }
 
+export interface Sesiones {
+  sid: string;
+  organizacion_id: string;
+  empleo_id: string;
+  creada_en: Generated<Date>;
+  expira_en: Date;
+  revocada_en: Date | null;
+}
+
 export interface SesionesCaja {
   id: Generated<string>;
   organizacion_id: string;
@@ -776,6 +792,7 @@ export interface Esquema {
   configuracion: Configuracion;
   cortes_turno: CortesTurno;
   credenciales_pin: CredencialesPin;
+  cuotas_archivos: CuotasArchivos;
   empleos: Empleos;
   estaciones_preparacion: EstacionesPreparacion;
   existencias: Existencias;
@@ -803,6 +820,7 @@ export interface Esquema {
   productos: Productos;
   proveedores: Proveedores;
   recetas: Recetas;
+  sesiones: Sesiones;
   sesiones_caja: SesionesCaja;
   solicitudes_qr: SolicitudesQr;
   sucursales: Sucursales;

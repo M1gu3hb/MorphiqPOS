@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_PREPARACION } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
@@ -65,7 +65,7 @@ export const propinasPendientes = definirComando<
   // El cajero entra además de los tres de `liquidar`: el desglose de propinas
   // por método es parte de su corte (`Caja.jsx:160-173`), aunque liquidar no lo sea.
   roles: ROLES,
-  paquetes: PAQUETES_PREPARACION,
+  paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaPropinasPendientes,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId } = ctx.ambito;

@@ -5,6 +5,7 @@ export interface OperacionSqlFalsa {
   readonly tipo: 'insert' | 'update' | 'delete' | 'select';
   readonly tabla: string;
   valores?: unknown;
+  retornos?: unknown;
   readonly filtros: {
     readonly columna: string;
     readonly operador: string;
@@ -41,7 +42,8 @@ class ConsultaFalsa {
     return this;
   }
 
-  returning(): this {
+  returning(columnas: unknown): this {
+    this.operacion.retornos = columnas;
     return this;
   }
 

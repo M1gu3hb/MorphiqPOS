@@ -4,6 +4,8 @@ import { createHmac } from 'node:crypto';
 
 import { repoLimite } from '@morphiqpos/data';
 
+import { correlationIdDe, registrar } from '../observabilidad.ts';
+
 /**
  * Límite de tasa por origen (F1.1-C-13).
  *
@@ -35,7 +37,10 @@ import { repoLimite } from '@morphiqpos/data';
  */
 export const LIMITES = {
   entrar: { intentos: 20, ventanaSegundos: 300 },
+  empleados: { intentos: 60, ventanaSegundos: 300 },
   enrolar: { intentos: 20, ventanaSegundos: 600 },
+  presentacion: { intentos: 10, ventanaSegundos: 900 },
+  archivos: { intentos: 20, ventanaSegundos: 3600 },
   /**
    * Mantenimiento destructivo. Tres por hora y por origen.
    *
@@ -54,11 +59,8 @@ export interface Permiso {
 }
 
 /**
- * El origen de la petición, o `null` si no se puede determinar.
- *
- * Cuando no se sabe, NO se limita: es preferible dejar pasar en un despliegue
- * sin proxy a bloquear a todo el mundo bajo una misma clave «desconocido», que
- * convertiría el límite en la negación de servicio que evita §09.
+ * El origen de la petición, o `null` si no se puede determinar. El llamador
+ * convierte ese caso en un cubo global por acción para no desactivar la cuota.
  */
 export function origenDe(cabeceras: { get(nombre: string): string | null }): string | null {
   const deVercel = cabeceras.get('x-vercel-forwarded-for');
@@ -78,8 +80,7 @@ export function origenDe(cabeceras: { get(nombre: string): string | null }): str
 /**
  * Cuenta el intento y dice si se permite.
  *
- * Devuelve `ok: true` cuando no hay origen determinable, y también cuando la
- * base falla: un límite de tasa que impide entrar porque su propia tabla no
+ * Cuando la base falla se deja pasar: un límite de tasa que impide entrar porque su propia tabla no
  * responde deja al negocio sin cobrar por proteger un endpoint. El bloqueo por
  * credencial sigue vigente en ese caso, así que no se queda desnudo.
  */
@@ -88,8 +89,7 @@ export async function permitir(
   cabeceras: { get(nombre: string): string | null },
   pimienta: string,
 ): Promise<Permiso> {
-  const origen = origenDe(cabeceras);
-  if (origen === null) return { ok: true, esperaSegundos: 0 };
+  const origen = origenDe(cabeceras) ?? 'origen_global';
 
   const { intentos: maximo, ventanaSegundos } = LIMITES[accion];
   const clave = createHmac('sha256', pimienta).update(`${accion}:${origen}`, 'utf8').digest('hex');
@@ -97,8 +97,42 @@ export async function permitir(
   try {
     const { intentos, esperaSegundos } = await repoLimite.contarIntento(clave, ventanaSegundos);
     return { ok: intentos <= maximo, esperaSegundos };
-  } catch (error) {
-    console.error('[limite] no se pudo contar el intento', error);
+  } catch {
+    registrar({
+      nivel: 'alerta',
+      modulo: 'limite_tasa',
+      correlationId: correlationIdDe(
+        cabeceras.get('x-correlation-id') ?? cabeceras.get('x-morphiqpos-correlacion'),
+      ),
+      organizacionId: null,
+      mensaje: `No se pudo contar el intento de ${accion}.`,
+    });
+    return { ok: true, esperaSegundos: 0 };
+  }
+}
+
+/** Agrupa las subidas por organización; cambiar de IP no regala más espacio. */
+export async function permitirOrganizacion(
+  accion: 'archivos',
+  organizacionId: string,
+  pimienta: string,
+  correlationId?: string,
+): Promise<Permiso> {
+  const { intentos: maximo, ventanaSegundos } = LIMITES[accion];
+  const clave = createHmac('sha256', pimienta)
+    .update(`${accion}:organizacion:${organizacionId}`, 'utf8')
+    .digest('hex');
+  try {
+    const { intentos, esperaSegundos } = await repoLimite.contarIntento(clave, ventanaSegundos);
+    return { ok: intentos <= maximo, esperaSegundos };
+  } catch {
+    registrar({
+      nivel: 'alerta',
+      modulo: 'limite_tasa',
+      correlationId: correlationIdDe(correlationId),
+      organizacionId,
+      mensaje: `No se pudo contar el intento de ${accion}.`,
+    });
     return { ok: true, esperaSegundos: 0 };
   }
 }

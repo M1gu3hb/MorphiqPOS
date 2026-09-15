@@ -11,19 +11,22 @@ import { definirComando } from '../definicion.ts';
  * El estado del turno para la pantalla de corte (F1.1-C-10).
  *
  * ── Lo que esta consulta NO devuelve, y es la decisión que importa ─────────
- * **No devuelve el efectivo esperado.** El conteo es a ciegas: si la pantalla
- * dice «deberías tener $4,380.00» antes de contar, nadie cuenta — se teclea esa
- * cifra y el corte deja de servir para lo único que sirve, que es detectar un
- * faltante. Se enseña el fondo, las ventas y los movimientos manuales; lo
- * esperado y la diferencia aparecen DESPUÉS de decir cuánto hay.
+ * **No devuelve el efectivo esperado antes del conteo.** El conteo es a ciegas:
+ * si la pantalla dice «deberías tener $4,380.00» antes de contar, nadie cuenta
+ * — se teclea esa cifra y el corte deja de servir para lo único que sirve, que
+ * es detectar un faltante. Cuando ya recibió el efectivo contado, devuelve el
+ * esperado y la diferencia calculados aquí, sin una fórmula paralela en el
+ * navegador.
  *
- * Ese número lo calcula `cerrarCaja` dentro de su propia transacción, así que
- * tampoco existe la ventana en la que la pantalla enseñe un esperado que ya
- * cambió porque entró otra venta.
+ * `cerrarCaja` vuelve a derivar el número dentro de su propia transacción. La
+ * vista previa puede cambiar si entra otra venta antes del clic final; el corte
+ * y el PDF siempre conservan el resultado definitivo de esa transacción.
  */
 
 const ROLES = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
-export const entradaEstadoCaja = z.object({});
+export const entradaEstadoCaja = z.object({
+  efectivoContadoCentavos: z.number().int().nonnegative().max(1_000_000_000).optional(),
+});
 
 export interface MovimientoVisible {
   readonly tipo: string;
@@ -40,6 +43,8 @@ export interface EstadoCaja {
   readonly ventasCentavos: string;
   readonly numeroVentas: number;
   readonly movimientos: readonly MovimientoVisible[];
+  readonly efectivoEsperadoCentavos?: string;
+  readonly diferenciaCentavos?: string;
 }
 
 export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja, EstadoCaja>({
@@ -49,7 +54,7 @@ export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja
   roles: [...ROLES],
   paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaEstadoCaja,
-  async ejecutar(ctx) {
+  async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId } = ctx.ambito;
 
     const vacia: EstadoCaja = {
@@ -81,7 +86,14 @@ export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja
       fondoInicialCentavos: arqueo.fondoInicialCentavos.toString(),
       ventasCentavos: arqueo.ventasCentavos.toString(),
       numeroVentas: arqueo.numeroVentas,
-      // El esperado va DENTRO de `arqueo` y aquí se descarta a conciencia.
+      ...(entrada.efectivoContadoCentavos === undefined
+        ? {}
+        : {
+            efectivoEsperadoCentavos: arqueo.efectivoEsperadoCentavos.toString(),
+            diferenciaCentavos: (
+              BigInt(entrada.efectivoContadoCentavos) - arqueo.efectivoEsperadoCentavos
+            ).toString(),
+          }),
       movimientos: movimientos.map((m) => ({
         tipo: m.tipo,
         montoCentavos: m.montoCentavos.toString(),

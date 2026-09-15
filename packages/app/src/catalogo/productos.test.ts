@@ -8,6 +8,7 @@ import {
   crearProducto,
   entradaCrearProducto,
 } from './productos.ts';
+import { entradaActualizarProducto } from './esquemas.ts';
 
 const PRODUCTO = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const INSUMO = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -105,6 +106,27 @@ describe('B-04 · comandos de producto', () => {
     expect(entradaCrearProducto.safeParse(entrada).success, descripcion).toBe(false);
   });
 
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'ftp://ejemplo.test/a',
+  ])('rechaza el protocolo público inseguro %s al crear y actualizar', (imagenUrl) => {
+    expect(entradaCrearProducto.safeParse({ ...fijo, imagenUrl }).success).toBe(false);
+    expect(
+      entradaActualizarProducto.safeParse({
+        productoId: PRODUCTO,
+        nombre: fijo.nombre,
+        descripcion: fijo.descripcion,
+        imagenUrl,
+        categoriaId: fijo.categoriaId,
+        marca: fijo.marca,
+        visibleEnPos: true,
+        permiteVentaSinStock: false,
+        stockMinimo: '8',
+      }).success,
+    ).toBe(false);
+  });
+
   it('cambia precios por id y organización con centavos exactos', async () => {
     const { ctx, operaciones } = contextoCatalogo([{ id: PRODUCTO }]);
     const entrada = cambiarPrecioProducto.entrada.parse({
@@ -153,15 +175,9 @@ describe('B-04 · comandos de producto', () => {
     expect(operaciones.every((operacion) => operacion.valores !== undefined)).toBe(true);
   });
 
-  it('declara escritura, roles administrativos y los cinco paquetes', () => {
+  it('declara escritura, roles administrativos y los tres paquetes', () => {
     expect(crearProducto.escribe).toBe(true);
     expect(crearProducto.roles).toEqual(['dueno', 'administrador', 'gerente']);
-    expect(crearProducto.paquetes).toEqual([
-      'tienda',
-      'ferreteria',
-      'farmacia',
-      'cafeteria',
-      'restaurante',
-    ]);
+    expect(crearProducto.paquetes).toEqual(['esencial', 'operativo', 'restaurante_pro']);
   });
 });

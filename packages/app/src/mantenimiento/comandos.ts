@@ -305,14 +305,14 @@ export const reiniciarTodo = definirComando<
           from (values ('Interior',0),('Exterior',1),('Terraza',2),('Barra',3),('Otro',4))
                as z(nombre, orden)
          where exists (select 1 from organizaciones o
-                        where o.id = ${org} and o.paquete = 'restaurante')
+                        where o.id = ${org} and o.giro = 'restaurante')
       `.execute(ctx.tx);
       await sql`
         insert into estaciones_preparacion
                (organizacion_id, nombre, descripcion, color, orden, es_general)
         select ${org}, 'Cocina general', 'Estación por defecto', '#4A5568', 0, true
          where exists (select 1 from organizaciones o
-                        where o.id = ${org} and o.paquete = 'restaurante')
+                        where o.id = ${org} and o.giro = 'restaurante')
            and not exists (select 1 from estaciones_preparacion e
                             where e.organizacion_id = ${org} and e.es_general)
       `.execute(ctx.tx);
