@@ -597,3 +597,110 @@ suposición con forma de prueba.
 3. **La 080 del documento hace tres cosas de naturaleza distinta** y la propia carpeta lo advierte.
    Lo que se escribió aquí es sólo la primera —ampliar el trigger de unidad base—; el renombre de
    `operativo` y el movimiento de Café Jacaranda siguen en la 066, con su condición P-04 intacta.
+
+---
+
+## 2026-09-15 · E5 · `abarrotes` · CERRADA con ocho funciones
+
+**Commits:** `8ea8846` (F-111 + F-112), `329049c` (F-254 + F-255 + F-256), `9db8a99` (F-149),
+`a089046` (F-148), `4cab9e5` (F-107 + F-040), `c8b767c` (F-257).
+
+Es la raíz del arquetipo A1 y de aquí cuelgan dieciocho vecinos. Lo que se construyó es el
+esqueleto que `ferreteria`, `farmacia`, `papeleria` y los demás no tienen que volver a escribir:
+las presentaciones, el conteo por zonas, el dinero ajeno que pasa por el cajón y el redondeo.
+
+### Lo que esta etapa enseñó
+
+**1 · La extracción de variantes de E2 se pagó sola.** V3 entró como **un `case` y un archivo**:
+`consumoDePresentacion` en `variantes/v3-presentaciones.ts` y una rama en `planear()`. La
+acumulación del tronco —la que guarda las unidades y el `permiteNegativo`— no se tocó, que era
+exactamente el punto de haberla extraído. Si V3 hubiera obligado a editar `calcularConsumo`, la
+extracción habría sido un refactor decorativo.
+
+**2 · «Un ledger, cuatro vistas» era verdad.** `05-DATOS-Y-BACKEND.md` §1.5–1.8 propone CUATRO
+tablas —`operaciones_comision`, `saldos_comisionista`, `depositos_envase`, `abonos_fiado`— y E0 ya
+había decidido que son el mismo objeto. F-254, F-255 y F-256 salieron como **tres comandos sobre la
+`pasivos_terceros` de la 063**, sin una tabla nueva. El saldo se deriva sumando el ledger y nunca
+hay un `update` de saldo, que es donde viven los descuadres de este tipo.
+
+**3 · El motor de F-106 ya estaba; lo que faltaba era que el conteo volviera mañana.** E2 construyó
+`tomas_inventario`, `toma_conteos` con el `esperado` sellado al contar, y su repositorio. F-149 no
+es otro motor: es una zona que sabe cada cuántos días toca y cuándo se contó. La `091` asciende
+`tomas_inventario.zona` de texto libre a fila por eso: un texto no lleva frecuencia, y «Refrescos»
+y «refrescos» parten en dos el historial de un mismo anaquel.
+
+**4 · La lección más cara de la etapa: una mutación que NO se aplica se lee igual que una que no se
+pone roja.** Las sustituciones con `perl -0pi -e` cuyo patrón lleva `\n` **no aplican** a través de
+esta herramienta. Cuatro mutaciones seguidas salieron «verdes» sin haberse escrito nunca, y la
+conclusión falsa —«la prueba no vale»— habría llevado a borrar código bueno. Desde entonces las
+mutaciones van por un script que **falla ruidosamente si no encuentra el texto o lo encuentra más
+de una vez**. Una mutación ambigua tampoco prueba nada.
+
+**5 · La base falsa no lleva `check`, y ahí se esconden los errores que sólo Postgres ve.** Al
+escribir F-257 aparecieron **dos defectos latentes** que ninguna puerta veía:
+
+  - `movimientos_caja.referencia_tipo` seguía con el `check` de la 003 —`('orden','gasto',
+    'manual')`— y los comandos de F-254/F-255/F-256 escriben `'pasivo'`. Contra una base con la 003
+    aplicada, revientan.
+  - `packages/domain/src/inventario/consumo.ts` planea movimientos con
+    `tipo = 'salida_consumo_interno'` desde F-261 (E3) y **ninguna migración lo añadió al `check`**.
+    La primera cortesía revienta igual.
+
+  Los dos se cierran en la `097`. Es literalmente la pregunta que el propio estándar de contratos
+  obliga a hacerse: *¿qué camino de ejecución NO recorre ninguna de mis puertas?* Aquí la respuesta
+  era «todos los `check` de la base», porque en la Fase 2 las migraciones no se aplican.
+
+**6 · El servidor pone el factor, igual que pone el precio.** El mostrador manda «nueve de esta
+presentación», nunca «nueve por veinticuatro». Con el factor en la entrada se cuadra cualquier
+faltante de conteo tecleando, y no falla nada. Es la misma regla que el precio y por el mismo
+motivo, aplicada a una función que no habla de dinero.
+
+### Reclasificaciones y decisiones que el modelo no traía
+
+- **F-106 toma física pasa a `[=]` reutilizada**, igual que en `cafeteria`: E2 la construyó entera.
+  F-149 es la parte nueva.
+- **La zona se cuelga del INSUMO, no del producto.** `05-DATOS-Y-BACKEND.md` §2 pide
+  `productos.zona_id`; lo que se cuenta es el insumo —`toma_conteos.insumo_id`—, y con la zona en el
+  producto un insumo sin producto (el envase, el granel sin empaquetar) sería invisible en el
+  recorrido y un producto con dos insumos no sabría en qué anaquel contarse.
+- **`registrarMovimiento` de caja ahora devuelve el id.** Era `void`; `redondeos.movimiento_caja_id`
+  necesita apuntar a su gemelo, y buscarlo después por referencia es una consulta más y una forma
+  de equivocarse.
+- **`compras.sugerir_pedido` va por POST sin parámetro de ruta.** El §6 la propone como
+  `compras/sugerencia/[proveedorId]`; necesita tres datos —proveedor, almacén y ventana de venta— y
+  meter dos en la cadena de consulta los dejaría fuera de la validación de `definirComando`.
+
+### Correcciones a la documentación del modelo
+
+1. **§1.5–1.8 proponen cuatro tablas que no se crearon.** El ledger de la 063 las cubre. Se anota
+   aquí porque quien acople va a buscar `operaciones_comision` y no está.
+2. **§1.9 `redondeos` sin `movimiento_caja_id`.** Sin la fila gemela el arqueo sigue descuadrando
+   por los mismos veinte centavos que F-257 viene a explicar. Se añadió, y la `097` dice por qué.
+3. **§7 numera la migración de presentaciones como `070` en el texto («Sobre `070` y el
+   backfill»)** y en el árbol como `090`. La real es la `090`; la `070` es de `restaurante`.
+4. **§7 habla de «la 082» y «la 078»** en los pendientes de la carpeta, con la numeración anterior
+   a D-08. Son la `092` y la `098` del rango de este modelo.
+
+### Lo que NO se construyó en esta etapa, y por qué
+
+- **F-986 lector como teclado y F-201 atajos.** Son pantalla pura: un `addEventListener` que mide
+  el tiempo entre teclas y un índice en memoria. No hay comando que escribir y no hay nada que
+  probar por mutación en el servidor. Van con la pasada de interfaz.
+- **F-983 báscula conectada.** Depende de hardware y de un puerto serie; F-148 cubre el caso que sí
+  se puede cerrar hoy, que es el producto ya pesado y etiquetado.
+- **F-011 IVA mixto e IEPS.** Es lo único que se dejó sabiendo que duele, y por una razón: toca el
+  camino del precio de las tres rutas de captura y de los cinco modelos. Media función aquí —la
+  tasa por producto sin el desglose en el ticket ni en la global— deja el sistema declarando mal
+  con la apariencia de que ya está. Necesita su propia pasada, como F-023 en `cafeteria`.
+- **F-146 caducidad sin lote, F-058 etiquetas de anaquel, F-980 restricción legal, F-214 vales,
+  F-103 kardex por artículo, F-635 cuentas por pagar, F-017 diccionario.** Pendientes, con su hueco
+  de migración libre (`092`–`096`, `098`, `100`–`101`).
+- **F-988 venta sin conexión** y **F-940…F-945 CFDI**: BLOQUEADAS por el encargo.
+
+### Las pantallas, dicho explícitamente
+
+**Esta etapa no abrió ninguna pantalla en el navegador, y no podía.** Las ocho funciones dependen de
+tablas y columnas que sólo existen en las migraciones `090`, `091`, `097` y `099`, y la Fase 2
+**escribe migraciones y no las aplica**. Una pantalla de conteo contra una base sin `zonas_anaquel`
+no se cae con un error entendible: se cae con un 42P01 de Postgres. Se declara como pendiente en vez
+de escribirla y decir que está hecha, que es justo lo que el encargo prohíbe.

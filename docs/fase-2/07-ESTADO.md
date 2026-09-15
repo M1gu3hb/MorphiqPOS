@@ -38,7 +38,7 @@ La copia canónica de esta documentación es `docs/fase-2/` **dentro del worktre
 | **E2** | Tronco compartido (plantilla, vocabulario, inventario, variantes) | ✅ **058-063 + 066** · 115 archivos · 1164 pruebas · verify:fase2 en 0 |
 | **E3** | `restaurante` | ✅ **10 de 11** · F-321, F-324, F-303, F-302, F-305, F-306, F-323, F-315, F-325, F-242, F-261 · migraciones 070-074, 076, 077 · **F-318 BLOQUEADA** (decisión de impresión pendiente de Miguel) · verify:fase2 en 0 · 129 archivos · 1395 pruebas |
 | **E4** | `cafeteria` | ✅ **6 de 15** · §0.1 (trigger de unidad base), F-328, F-329, F-331, F-156, F-157, F-248 · migraciones 080-083, 085-087 · F-249 BLOQUEADA · F-023 reclasificada a TRONCO · el resto en la bitácora con su porqué |
-| **E5** | `abarrotes` · raíz de A1 | ⬜ |
+| **E5** | `abarrotes` · raíz de A1 | ✅ **8 de 12** · F-111, F-112, F-147, F-148, F-149, F-107, F-254, F-255, F-256, F-257, F-040 · migraciones 090, 091, 097, 099 · **F-988 y F-940…F-945 BLOQUEADAS** · F-011 (IVA/IEPS) declarada pendiente por tocar el precio de los cinco modelos · F-986, F-201 y F-983 son pantalla y hardware · **dos `check` latentes de E2/E3 cerrados en la 097** · ninguna pantalla abierta: dependen de migraciones sin aplicar |
 | **E6** | `ferreteria` | ⬜ |
 | **E7** | `estetica-salon` · A3 de cero | ⬜ |
 
