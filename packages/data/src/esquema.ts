@@ -915,6 +915,7 @@ export interface Esquema {
   equivalencias: Equivalencias;
   lineas: Lineas;
   horarios_profesional: HorariosProfesional;
+  liquidaciones: Liquidaciones;
   obras: Obras;
   profesionales: Profesionales;
   recursos: Recursos;
@@ -1276,6 +1277,29 @@ export interface ComisionesCausadas {
   motivo: string | null;
   liquidacion_id: string | null;
   causada_en: Generated<Date>;
+}
+
+/** F-427 + F-259 · La salida mas grande del dia, con su renglon en el corte. */
+export interface Liquidaciones {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  profesional_id: string;
+  periodo_desde: string;
+  periodo_hasta: string;
+  comision_centavos: Generated<bigint>;
+  /** SEPARADA de la comision, siempre. No es del salon. */
+  propina_centavos: Generated<bigint>;
+  material_cargado_centavos: Generated<bigint>;
+  renta_centavos: Generated<bigint>;
+  cobrado_por_ella_centavos: Generated<bigint>;
+  anticipos_centavos: Generated<bigint>;
+  total_centavos: bigint;
+  movimiento_caja_id: string | null;
+  pagada_en: Date | null;
+  pagada_por: string | null;
+  comprobante_url: string | null;
+  created_at: Generated<Date>;
 }
 
 /** F-420 · Quien atiende. `empleo_id` NULL cuando renta la estacion (F-441). */

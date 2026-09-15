@@ -38,3 +38,5 @@ export {
   type ComisionDeLinea,
   type ResultadoCobroCita,
 } from './cobro.ts';
+
+export { entradaLiquidar, liquidarProfesional, type ResultadoLiquidacion } from './liquidacion.ts';
