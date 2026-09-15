@@ -817,6 +817,7 @@ export interface Esquema {
   movimientos_caja: MovimientosCaja;
   movimientos_cuenta: MovimientosCuenta;
   eventos_mesa: EventosMesa;
+  lista_espera: ListaEspera;
   ocupacion_mesas: OcupacionMesas;
   uniones_mesa: UnionesMesa;
   union_mesa_miembros: UnionMesaMiembros;
@@ -992,6 +993,25 @@ export interface UnionMesaMiembros {
   mesa_id: string;
   orden_absorbida_id: string | null;
   union_abierta: Generated<boolean>;
+}
+
+/** F-306 · La cola del viernes por la noche. */
+export interface ListaEspera {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  nombre: string;
+  telefono: string | null;
+  personas: number;
+  estado: Generated<string>;
+  mesa_id: string | null;
+  orden_id: string | null;
+  espera_estimada_minutos: number | null;
+  creada_en: Generated<Date>;
+  avisada_en: Date | null;
+  sentada_en: Date | null;
+  notas: string | null;
+  empleado_id: string | null;
 }
 
 /** F-305 · Ledger inmutable de transiciones de mesa. */
