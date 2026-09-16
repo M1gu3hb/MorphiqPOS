@@ -54,7 +54,11 @@ export const CONFIG_POR_OMISION = {
   descargar_pdf_corte_auto: true,
   formato_export_default: 'csv',
   colorear_importes_monetarios: true,
-  paquete_modo: 'restaurante_pro',
+  // La plantilla por omisión de un documento sin fila. `leerConfiguracion`
+  // la sobreescribe SIEMPRE con la de `organizaciones`, así que esto sólo se
+  // ve si no hay negocio; aun así se pone la más restrictiva y no la más
+  // permisiva, por la misma razón que en todos los demás sitios.
+  paquete_modo: 'tienda',
   modo_presentacion_activo: false,
 } as const;
 

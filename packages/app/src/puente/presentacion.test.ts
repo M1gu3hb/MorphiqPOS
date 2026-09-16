@@ -1,4 +1,4 @@
-import { PAQUETES } from '@morphiqpos/contracts';
+import { PAQUETES, PAQUETES_HEREDADOS } from '@morphiqpos/contracts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -14,11 +14,24 @@ const FUENTE_CONFIGURACION_PUENTE =
   fileURLToPath(new URL('./configuracion.ts', import.meta.url));
 
 describe('B-2 · paquete efectivo de la organización', () => {
-  it('sólo admite los paquetes que usa el gate del servidor', () => {
-    for (const paquete of PAQUETES) {
+  /**
+   * Antes esto decía «sólo admite los paquetes que usa el gate», y su
+   * contraejemplo era `'restaurante'`, que entonces no existía y hoy es una de
+   * las tres plantillas. Lo que hay que afirmar ahora es más preciso:
+   *
+   *   · entran las tres plantillas nuevas,
+   *   · entran TAMBIÉN los tres nombres viejos, a propósito, porque la pantalla
+   *     que llama a esto vive en el frontend heredado y un navegador puede
+   *     tenerla cacheada,
+   *   · y no entra nada más.
+   */
+  it('admite las tres plantillas y los tres nombres viejos, y nada más', () => {
+    for (const paquete of [...PAQUETES, ...PAQUETES_HEREDADOS]) {
       expect(cambiarPaquete.entrada.safeParse({ paquete }).success, paquete).toBe(true);
     }
-    expect(cambiarPaquete.entrada.safeParse({ paquete: 'restaurante' }).success).toBe(false);
+    for (const invento of ['pro', 'restaurante_completo', 'TIENDA', '', 'salon']) {
+      expect(cambiarPaquete.entrada.safeParse({ paquete: invento }).success, invento).toBe(false);
+    }
   });
 
   it('sólo lo puede ejecutar el dueño', () => {
@@ -33,15 +46,15 @@ describe('B-2 · paquete efectivo de la organización', () => {
 
     const salida = await cambiarPaquete.ejecutar(
       ctx,
-      cambiarPaquete.entrada.parse({ paquete: 'restaurante_pro' }),
+      cambiarPaquete.entrada.parse({ paquete: 'restaurante' }),
     );
 
-    expect(salida).toEqual({ paquete: 'restaurante_pro' });
+    expect(salida).toEqual({ paquete: 'restaurante' });
     expect(operaciones).toHaveLength(2);
     expect(operaciones[1]).toMatchObject({
       tipo: 'update',
       tabla: 'organizaciones',
-      valores: { paquete: 'restaurante_pro' },
+      valores: { paquete: 'restaurante' },
       filtros: [{ columna: 'id', operador: '=', valor: ctx.ambito.organizacionId }],
     });
     expect(auditorias).toHaveLength(1);
@@ -50,9 +63,9 @@ describe('B-2 · paquete efectivo de la organización', () => {
   it('rechaza Restaurante Pro para una tienda', async () => {
     const { ctx, operaciones } = contextoCatalogo([{ giro: 'tienda' }]);
 
-    await expect(
-      cambiarPaquete.ejecutar(ctx, { paquete: 'restaurante_pro' }),
-    ).rejects.toMatchObject({ codigo: 'CONFIGURACION_INVALIDA' });
+    await expect(cambiarPaquete.ejecutar(ctx, { paquete: 'restaurante' })).rejects.toMatchObject({
+      codigo: 'CONFIGURACION_INVALIDA',
+    });
     expect(operaciones).toHaveLength(1);
     expect(operaciones[0]?.tipo).toBe('select');
   });

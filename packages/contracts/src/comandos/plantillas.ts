@@ -31,10 +31,18 @@
  * verificada, los tres viejos se retiran de aquí y de ningún otro sitio.
  */
 
-import type { Giro } from './ambito.ts';
+import { esGiro, PAQUETES, type Giro } from './ambito.ts';
 
-/** Las tres plantillas de negocio. Sustituyen a los tres paquetes comerciales. */
-export const PLANTILLAS = ['tienda', 'cafeteria', 'restaurante'] as const;
+/**
+ * Las tres plantillas de negocio. Son LA MISMA lista que `PAQUETES`.
+ *
+ * Estaban escritas dos veces, y dos listas de lo mismo es cómo una se queda
+ * atrás: basta con añadir una plantilla en un sitio para que el `check` de la
+ * base, el gate de comandos y la pantalla dejen de coincidir sin que nada avise.
+ * Se declara una vez, en `ambito.ts`, que es donde vive el tipo `Paquete` —el
+ * de la columna— y se reexporta aquí con el nombre del dominio.
+ */
+export const PLANTILLAS = PAQUETES;
 
 export type Plantilla = (typeof PLANTILLAS)[number];
 
@@ -42,6 +50,28 @@ export type Plantilla = (typeof PLANTILLAS)[number];
 export const PAQUETES_HEREDADOS = ['esencial', 'operativo', 'restaurante_pro'] as const;
 
 export type PaqueteHeredado = (typeof PAQUETES_HEREDADOS)[number];
+
+/**
+ * La plantilla de una FILA de `organizaciones`, normalizando las dos columnas.
+ *
+ * ── Por qué existe, y por qué es una sola función ──────────────────────────
+ * Hay CINCO sitios que leen `organizaciones.paquete` para decidir qué puede
+ * hacer un negocio: el resolutor de sesión, el repositorio de comandos, la
+ * configuración, la sesión de gestión y el portal público. Los cinco hacían lo
+ * mismo —`esPaquete(valor) ? valor : fallar`— y los cinco se romperían igual
+ * con el renombre de D-01: mientras la 058 no esté aplicada la columna guarda
+ * `restaurante_pro`, que ya no es una plantilla, así que los cinco fallarían
+ * cerrado a la vez. Nadie podría entrar, ni cobrar, ni abrir el portal.
+ *
+ * Cinco copias de una regla es cómo una se queda atrás. Esto es la regla, una
+ * vez: normaliza el giro, normaliza el valor guardado, y ante cualquier cosa
+ * que no reconozca cae en `tienda`, que es la plantilla MÁS RESTRICTIVA. Sigue
+ * fallando cerrado donde importa; lo que ya no hace es confundir «no lo
+ * reconozco» con «no existe».
+ */
+export function plantillaDeOrganizacion(giro: unknown, valorGuardado: unknown): Plantilla {
+  return plantillaDe(esGiro(giro) ? giro : 'tienda', valorGuardado);
+}
 
 /**
  * Los giros que operan como negocio de alimentos.

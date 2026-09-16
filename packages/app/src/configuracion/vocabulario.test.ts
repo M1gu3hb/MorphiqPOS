@@ -25,7 +25,7 @@ const AHORA = new Date('2026-09-15T18:00:00.000Z');
 
 function negocio(giro: string, extra: Partial<TablasFalsas> = {}): TablasFalsas {
   return {
-    organizaciones: [{ id: ORG, giro, paquete: 'operativo', activa: true }],
+    organizaciones: [{ id: ORG, giro, paquete: 'cafeteria', activa: true }],
     organizacion_modulos: [],
     vocabulario_negocio: [],
     ...extra,

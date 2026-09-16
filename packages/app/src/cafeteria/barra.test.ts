@@ -249,6 +249,6 @@ describe('F-328 · quién atiende la barra', () => {
   it('los comandos de barra viven en el paquete que hoy tiene el giro', () => {
     // `cafeteria` como paquete no existe hasta la 066. Declararlo ahora dejaría
     // estos comandos apagados para el cliente que los necesita.
-    expect(llamarPedido.paquetes).toContain('operativo');
+    expect(llamarPedido.paquetes).toContain('cafeteria');
   });
 });

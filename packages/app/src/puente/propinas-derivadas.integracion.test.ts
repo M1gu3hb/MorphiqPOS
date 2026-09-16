@@ -17,7 +17,7 @@ beforeAll(async () => {
         id: ORG,
         nombre: 'Restaurante de prueba',
         slug: 'propinas-puente',
-        paquete: 'restaurante_pro',
+        paquete: 'restaurante',
         giro: 'restaurante',
       })
       .execute();

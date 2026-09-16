@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { esErrorDominio, esPaquete, type Resultado } from '@morphiqpos/contracts';
+import { esErrorDominio, plantillaDeOrganizacion, type Resultado } from '@morphiqpos/contracts';
 import { conTransaccion, repoComandos } from '@morphiqpos/data';
 import type { ZodType } from 'zod';
 
@@ -112,10 +112,11 @@ export async function ejecutarComandoPublico<E extends ZodType, S>(
       // 2 · Paquete y portal. Fallar cerrado: si no se sabe qué contrató la
       //     organización, no se ejecuta.
       const negocio = await leerContextoDelNegocio(tx, ambito.organizacionId);
-      if (negocio === null || !esPaquete(negocio.paquete)) {
-        throw new Rechazo('PAQUETE_NO_INCLUYE', null);
-      }
-      const paquete = negocio.paquete;
+      if (negocio === null) throw new Rechazo('PAQUETE_NO_INCLUYE', null);
+      // Normalizada, no estrechada: ver `plantillaDeOrganizacion`. Estrechar
+      // aquí cerraba el portal QR de los cuatro negocios vivos en cuanto el
+      // código dejara de reconocer los nombres viejos de la columna.
+      const paquete = plantillaDeOrganizacion(negocio.giro, negocio.paquete);
       if (!definicion.paquetes.includes(paquete)) throw new Rechazo('PAQUETE_NO_INCLUYE', null);
 
       const banderas = banderasDe(negocio.valores);

@@ -29,7 +29,7 @@ function comandoConPerilla() {
     entidad: 'receta',
     escribe: true,
     roles: ['cajero', 'gerente', 'dueno'],
-    paquetes: ['esencial', 'operativo', 'restaurante_pro'],
+    paquetes: ['tienda', 'cafeteria', 'restaurante'],
     modulo: 'recetas',
     entrada: z.object({ productoId: z.uuid() }),
     async ejecutar(ctx, entrada) {
@@ -45,7 +45,7 @@ const ENTRADA = { productoId: '66666666-6666-4666-8666-666666666666' };
 
 describe('comando() · la perilla de módulo (F-016)', () => {
   it('ejecuta cuando el módulo está encendido', async () => {
-    const fabrica = crearFabrica('operativo');
+    const fabrica = crearFabrica('cafeteria');
     fabrica.ponerModulos(['recetas', 'inventario']);
     const { definicion, corridas } = comandoConPerilla();
     const ejecutar = crearComando<TxFalsa>(fabrica);
@@ -61,7 +61,7 @@ describe('comando() · la perilla de módulo (F-016)', () => {
   });
 
   it('devuelve PAQUETE_NO_INCLUYE y NO ejecuta el cuerpo cuando está apagado', async () => {
-    const fabrica = crearFabrica('operativo');
+    const fabrica = crearFabrica('cafeteria');
     fabrica.ponerModulos(['inventario']);
     const { definicion, corridas } = comandoConPerilla();
     const ejecutar = crearComando<TxFalsa>(fabrica);
@@ -79,7 +79,7 @@ describe('comando() · la perilla de módulo (F-016)', () => {
   });
 
   it('falla CERRADO si no se pudo leer el perfil de la organización', async () => {
-    const fabrica = crearFabrica('operativo');
+    const fabrica = crearFabrica('cafeteria');
     fabrica.ponerModulos(null);
     const { definicion, corridas } = comandoConPerilla();
     const ejecutar = crearComando<TxFalsa>(fabrica);
@@ -98,7 +98,7 @@ describe('comando() · la perilla de módulo (F-016)', () => {
   });
 
   it('un comando SIN módulo no consulta perillas, y corre aunque no haya ninguna', async () => {
-    const fabrica = crearFabrica('operativo');
+    const fabrica = crearFabrica('cafeteria');
     fabrica.ponerModulos([]);
     const corridas: string[] = [];
     const definicion = definirComando({
@@ -106,7 +106,7 @@ describe('comando() · la perilla de módulo (F-016)', () => {
       entidad: 'orden',
       escribe: true,
       roles: ['cajero', 'dueno'],
-      paquetes: ['esencial', 'operativo', 'restaurante_pro'],
+      paquetes: ['tienda', 'cafeteria', 'restaurante'],
       entrada: z.object({ ordenId: z.uuid() }),
       async ejecutar(ctx, entrada) {
         corridas.push(entrada.ordenId);
@@ -129,7 +129,7 @@ describe('comando() · la perilla de módulo (F-016)', () => {
   });
 
   it('el módulo se comprueba ANTES que la forma de la entrada', async () => {
-    const fabrica = crearFabrica('operativo');
+    const fabrica = crearFabrica('cafeteria');
     fabrica.ponerModulos(['inventario']);
     const { definicion } = comandoConPerilla();
     const ejecutar = crearComando<TxFalsa>(fabrica);

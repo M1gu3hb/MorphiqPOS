@@ -54,7 +54,15 @@ export interface Fabrica {
   auditoriaConfirmada(): readonly FilaAuditoria[];
 }
 
-export function crearFabrica(paqueteInicial: Paquete | null = 'esencial'): Fabrica {
+/**
+ * El valor por omisión es `tienda`, la plantilla MÁS RESTRICTIVA.
+ *
+ * Era `esencial`, que era la más restrictiva de los nombres viejos, y el
+ * renombre de D-01 la sustituye por `tienda`. Que sea la más restrictiva
+ * importa: una prueba que no dice qué plantilla quiere no debe recibir la que
+ * todo lo permite, o dejaría de cazar un comando abierto de más.
+ */
+export function crearFabrica(paqueteInicial: Paquete | null = 'tienda'): Fabrica {
   const base: BaseFalsa = { confirmadas: [], revertidas: [], transacciones: [] };
   const guardadas = new Map<string, EjecucionGuardada>();
   let paquete: Paquete | null = paqueteInicial;
