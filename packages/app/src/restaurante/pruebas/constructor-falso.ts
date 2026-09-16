@@ -98,10 +98,21 @@ function ordena(operador: string, actual: unknown, esperado: unknown): boolean {
   }
 }
 
+/** `2026-09-16`, tal como Postgres devuelve una columna `date`. */
+const FECHA_SOLA = /^\d{4}-\d{2}-\d{2}$/;
+
 function aNumero(valor: unknown): number | null {
   if (valor instanceof Date) return valor.getTime();
   if (typeof valor === 'number') return valor;
   if (typeof valor === 'bigint') return Number(valor);
+  // Una columna `date` llega como texto y Postgres SÍ la compara por orden. Sin
+  // esto, `caduca_el <= :hasta` no filtraba: devolvía falso siempre y la prueba
+  // de «lo que está por caducar» salía vacía por una carencia de la base falsa y
+  // no del código probado. Sólo la fecha desnuda, para no convertir en número
+  // cualquier texto que empiece por dígitos.
+  if (typeof valor === 'string' && FECHA_SOLA.test(valor)) {
+    return Date.parse(`${valor}T00:00:00.000Z`);
+  }
   return null;
 }
 
@@ -329,6 +340,7 @@ export function lectura(filas: Fila[]) {
   let orden: { columna: string; descendente: boolean } | null = null;
   let tope: number | null = null;
   let todas = false;
+  let unicos = false;
 
   const resolver = (): Fila[] => {
     let vivas = filas.filter(
@@ -360,7 +372,21 @@ export function lectura(filas: Fila[]) {
     // en un `select` seria repetir el esquema en dos sitios.
     if (todas) return vivas.map((fila) => ({ ...fila }));
 
-    return vivas.map((fila) => proyectar(fila, selectores));
+    const proyectadas = vivas.map((fila) => proyectar(fila, selectores));
+    if (!unicos) return proyectadas;
+
+    // Se comparan por su contenido proyectado, que es lo que `distinct` mira en
+    // Postgres: dos filas distintas de las que se pidió la misma columna son
+    // una sola.
+    const vistas = new Set<string>();
+    return proyectadas.filter((fila) => {
+      const clave = JSON.stringify(fila, (_c, valor: unknown) =>
+        typeof valor === 'bigint' ? valor.toString() : valor,
+      );
+      if (vistas.has(clave)) return false;
+      vistas.add(clave);
+      return true;
+    });
   };
 
   const constructor = {
@@ -393,6 +419,23 @@ export function lectura(filas: Fila[]) {
     },
     orderBy(columna: string, direccion?: string) {
       orden = { columna: origen(columna), descendente: direccion === 'desc' };
+      return constructor;
+    },
+    // `distinct` sobre una sola columna proyectada: se aplica de verdad porque
+    // SÍ cambia el resultado -«los productos que usan estos insumos» devolveria
+    // el mismo producto tres veces si tiene tres lineas de receta-, y una base
+    // falsa que lo ignorara haria pasar un recalculo que en Postgres corre una
+    // vez por producto y aqui correria tres.
+    distinct() {
+      unicos = true;
+      return constructor;
+    },
+    // `select ... for update` devuelve EXACTAMENTE las mismas filas: lo que
+    // anade es un cerrojo de Postgres, y esta base no tiene concurrencia que
+    // cerrar. Se ignora igual que los `join`, y lo que el cerrojo protege
+    // -dos compras simultaneas recalculando el costo promedio- se prueba
+    // contra la base de verdad, que es donde se puede probar.
+    forUpdate() {
       return constructor;
     },
     limit(cuantas: number) {

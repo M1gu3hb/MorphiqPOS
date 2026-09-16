@@ -20,3 +20,16 @@ export {
   entradaAutorizarDescuento,
   type ResultadoAutorizacion,
 } from './descuento.ts';
+
+export {
+  entradaRetomar,
+  entradaSuspender,
+  entradaSuspendidas,
+  retomarVenta,
+  suspenderVenta,
+  ventasEnEspera,
+  type ResultadoEnEspera,
+  type ResultadoRetomada,
+  type ResultadoSuspension,
+  type VentaEnEspera,
+} from './suspender.ts';

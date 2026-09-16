@@ -39,3 +39,10 @@ export { cuentaPublica, type CuentaPublica, type MesaPublica } from './cuenta-pu
 export { banderasDe, porcentajesValidos, type BanderasPortal } from './banderas.ts';
 export { LIMITES_PORTAL, permitirPortal, type AccionPortal } from './limite.ts';
 export { puedeOrdenarDesdeQR } from './negocio.ts';
+
+export {
+  servirRecogida,
+  tableroDeRecogida,
+  type PedidoEnPantalla,
+  type TableroDeRecogida,
+} from './recogida.ts';

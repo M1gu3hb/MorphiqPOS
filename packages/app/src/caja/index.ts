@@ -35,3 +35,9 @@ export {
   type MovimientoDelCorte,
   type RenglonDeCorte,
 } from './documento.ts';
+
+export {
+  entradaDeCambio,
+  registrarEntradaDeCambio,
+  type ResultadoEntradaCambio,
+} from './entrada-cambio.ts';

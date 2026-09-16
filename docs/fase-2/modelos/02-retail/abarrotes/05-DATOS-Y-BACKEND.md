@@ -412,6 +412,11 @@ packages/data/src/migraciones/sql/
 ├── 101_vistas_retail.sql
 │     existencia_presentada, cartera_fiado, sugerencia_pedido,
 │     diferencia_conteo_periodo, margen_por_categoria
+├── 102_venta_en_espera.sql
+│     ordenes.estado + 'suspendida', ordenes.codigo_espera,
+│     sus dos check y el unico parcial por terminal.
+│     ⚠ Faltaba: §5 declara `venta.suspender` escribiendo `ordenes.estado`
+│     y el check de la 003 no admitia ningun estado que lo significara.
 └── 066_plantillas_semilla.sql
       D-01: esencial → tienda, + los módulos de inventario, escáner,
       alertas y presentaciones. Y el movimiento de Ferretería La Broca.

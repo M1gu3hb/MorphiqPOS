@@ -47,3 +47,24 @@ export {
 } from './sugerencia.ts';
 
 export { entradaRegistrarRedondeo, registrarRedondeo, type ResultadoRedondeo } from './redondeo.ts';
+
+export {
+  consumirCaducidad,
+  entradaConsumirCaducidad,
+  entradaProximasACaducar,
+  entradaRegistrarCaducidad,
+  proximasACaducar,
+  registrarCaducidad,
+  type LoteQueCaduca,
+  type ResultadoCaducidad,
+  type ResultadoConsumo,
+  type ResultadoProximas,
+} from './caducidad.ts';
+
+export {
+  depositarComision,
+  entradaDepositarComision,
+  type ResultadoDeposito,
+} from './deposito-comision.ts';
+
+export { entradaRecibirNota, recibirNota, type ResultadoRecepcion } from './recibir-nota.ts';

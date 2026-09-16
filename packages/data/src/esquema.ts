@@ -622,6 +622,13 @@ export interface Ordenes {
   celebracion_especial: Generated<boolean>;
   tipo_celebracion: string | null;
   codigo_caja: string | null;
+  /**
+   * F-224 · El número corto de una venta apartada (migración 102, sin aplicar).
+   *
+   * Columna propia y no `codigo_caja`: ése ya es el código que el comensal lleva
+   * a la caja desde la 045, y un mismo negocio puede tener mostrador y mesas.
+   */
+  codigo_espera?: string | null;
   propina_puntos_base: Generated<number>;
   propina_tipo: string | null;
   propina_origen: string | null;
@@ -771,6 +778,18 @@ export interface Productos {
   presentacion_venta_id: string | null;
   /** F-021 · La línea de ferretería, con su esquema de atributos (110). */
   linea_id: string | null;
+  // ── 092 · F-106 · La caducidad sin lote. Opcionales: migración sin aplicar.
+  /** `true` sólo en lo que de verdad caduca: la lista de la mañana se lee. */
+  controla_caducidad?: boolean;
+  /** Con cuántos días de antelación avisar. Nulo usa el de la organización. */
+  dias_alerta_caducidad?: number | null;
+  // ── 098 · F-012 · El impuesto, que es de la categoría y no del producto ─
+  /** En puntos base: 0, 800 (frontera) o 1600. Lista cerrada a propósito. */
+  tasa_iva_bp?: number;
+  /** La clave de `regimenes_ieps`. Nulo es «sin IEPS». */
+  regimen_ieps?: string | null;
+  /** Obligatorio en bebida saborizada: son $1.64 POR LITRO, no por pieza. */
+  litros_por_unidad?: string | null;
   /** F-145 · Se vende por metro y se corta. La 111 lo enciende por clave. */
   es_continuo: Generated<boolean>;
   tipo_corte: string | null;
@@ -1067,6 +1086,7 @@ export interface Esquema {
   cobros_renta: CobrosRenta;
   documentos_por_pagar: DocumentosPorPagar;
   pagos_a_proveedor: PagosAProveedor;
+  caducidades: Caducidades;
   garantias_proveedor: GarantiasProveedor;
   rentas_herramienta: RentasHerramienta;
   expedientes_belleza: ExpedientesBelleza;
@@ -2489,4 +2509,33 @@ export interface RentasHerramienta {
   empleado_id: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+/**
+ * F-106 · La caducidad SIN lote (migración 092).
+ *
+ * Una fecha, una cantidad y el producto. Cubre el 90 % del dolor con el 10 % de
+ * la captura, y por eso se sigue capturando en la semana cuatro: el lote
+ * completo es de farmacia, y pedirle a una tiendita un lote por caja de leche
+ * es pedirle algo que no va a hacer.
+ */
+export interface Caducidades {
+  id: Generated<string>;
+  organizacion_id: string;
+  almacen_id: string;
+  producto_id: string;
+  caduca_el: string;
+  /** En la unidad base del producto, como todo el stock. */
+  cantidad: string;
+  /**
+   * Lo que se ha dado de baja de ESTA fila, por venta o por merma.
+   *
+   * No se resta de `cantidad`: la diferencia entre las dos ES la merma que este
+   * producto genera en este anaquel, y ése es el número que el negocio nunca ha
+   * tenido.
+   */
+  consumida: Generated<string>;
+  compra_id: string | null;
+  registrada_en: Generated<Date>;
+  registrada_por: string | null;
 }

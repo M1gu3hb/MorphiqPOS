@@ -63,3 +63,10 @@ export {
   type ResultadoPasivo,
   type ResultadoSellos,
 } from './lealtad.ts';
+
+export {
+  contarLeche,
+  entradaContarLeche,
+  type DiferenciaDeLeche,
+  type ResultadoConteoLeche,
+} from './leche.ts';
