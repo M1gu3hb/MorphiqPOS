@@ -80,10 +80,19 @@ create index orden_lineas_por_combo
   on orden_lineas (combo_id)
   where combo_id is not null;
 
--- ── 4 · El producto dice a qué familia pertenece y cuánto tira un shot ────
+-- ── 4 · El producto dice a qué familia pertenece ─────────────────────────
+--
+-- `gramaje_shot` estaba declarado AQUÍ y otra vez en la 085, con dos tipos
+-- distintos —numeric(6,2) aquí, numeric(14,4) con check allí—. La segunda
+-- abortaba con «column "gramaje_shot" of relation "productos" already exists»
+-- y se llevaba por delante la tanda entera, que corre en una sola transacción.
+--
+-- Se queda la de la 085 y no ésta, por dos razones: lleva `check (> 0)` y usa
+-- la escala numeric(14,4) que el proyecto fijó para TODA cantidad. Con (6,2),
+-- 18.005 g se guardaban como 18.01 y la salida de inventario de una ráfaga de
+-- shots se desviaba en la cuarta cifra, que es justo donde se acumula.
 alter table productos
-  add column familia text not null default 'otro',
-  add column gramaje_shot numeric(6, 2);
+  add column familia text not null default 'otro';
 
 alter table productos
   add constraint productos_familia_valida check (
@@ -92,8 +101,6 @@ alter table productos
 
 comment on column productos.familia is
   'Ordena el catálogo y decide la tasa por omisión. «grano» es la bolsa que se vende para llevar, que no es lo mismo que el grano que se muele.';
-comment on column productos.gramaje_shot is
-  'F-156 · Cuántos gramos tira una calibración de este producto. Null en todo lo que no sea espresso.';
 
 -- ── 5 · Poscondición ─────────────────────────────────────────────────────
 --

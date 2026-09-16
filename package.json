@@ -43,7 +43,7 @@
     "verify:identidad": "node scripts/verificar-identidad.mjs",
     "verify:paquetes": "node scripts/verificar-paquetes.mjs",
     "verify:cobertura": "node scripts/verificar-cobertura.mjs",
-    "verify": "pnpm verify:arranque && pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm verify:certificado && pnpm verify:esquema && pnpm verify:rls && pnpm verify:residuos && pnpm verify:aspecto && pnpm verify:escrituras && pnpm verify:lecturas && pnpm verify:primitivas && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:pruebas && pnpm test:unit && pnpm verify:mutaciones-backend && pnpm verify:catalogo && pnpm verify:inventario && pnpm verify:comandos-catalogo && pnpm verify:comandos-inventario && pnpm verify:venta && pnpm verify:identidad && pnpm verify:paquetes && pnpm build && pnpm verify:cabeceras",
+    "verify": "pnpm verify:arranque && pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm verify:certificado && pnpm verify:esquema && pnpm verify:rls && pnpm verify:residuos && pnpm verify:aspecto && pnpm verify:escrituras && pnpm verify:lecturas && pnpm verify:primitivas && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:pruebas && pnpm test:unit && pnpm verify:mutaciones-backend && pnpm verify:catalogo && pnpm verify:inventario && pnpm verify:comandos-catalogo && pnpm verify:comandos-inventario && pnpm verify:venta && pnpm verify:identidad && pnpm verify:paquetes && pnpm build && pnpm verify:cabeceras && pnpm verify:cobertura && pnpm test:integracion && pnpm verify:acople",
     "verify:fase2": "pnpm verify:arranque && pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm verify:certificado && pnpm verify:residuos && pnpm verify:aspecto && pnpm verify:escrituras && pnpm verify:lecturas && pnpm verify:primitivas && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:pruebas && pnpm test:unit && pnpm verify:mutaciones-backend && pnpm verify:catalogo && pnpm verify:inventario && pnpm verify:comandos-catalogo && pnpm verify:comandos-inventario && pnpm verify:venta && pnpm verify:identidad && pnpm verify:paquetes && pnpm build && pnpm verify:cabeceras && pnpm verify:cobertura",
     "ui:tokenizar": "node scripts/tokenizar-primitivas.mjs",
     "verify:primitivas": "node scripts/tokenizar-primitivas.mjs --verificar && node scripts/verificar-primitivas.mjs",
@@ -60,9 +60,11 @@
     "test:e2e:ui": "playwright test --ui",
     "verify:pruebas": "node scripts/verificar-pruebas.mjs",
     "verify:mutaciones-backend": "node scripts/verificar-mutaciones-backend.mjs",
-    "docs:comandos": "node scripts/generar-catalogo-comandos.mjs > docs/fase-1/F1-08-COMANDOS-Y-RUTAS.md"
+    "docs:comandos": "node scripts/generar-catalogo-comandos.mjs > docs/fase-1/F1-08-COMANDOS-Y-RUTAS.md",
+    "verify:acople": "node --conditions=react-server scripts/verificar-acople.mjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.1",
     "@morphiqpos/testing": "workspace:*",
     "@next/eslint-plugin-next": "catalog:",

@@ -92,6 +92,21 @@ create trigger comandas_no_recogido_con_llamados
   before update on comandas
   for each row execute function no_recogido_con_tres_llamados();
 
+-- `comandas` no tenía sucursal: la heredaba de la orden. La fila de barra se
+-- filtra POR SUCURSAL en cada refresco, y resolverla con un `join` en cada
+-- lectura de una pantalla que refresca cada segundo es el camino corto a un
+-- plan de consulta caro.
+--
+-- Va ANTES de la vista, y no después, porque `fila_barra` lee `c.sucursal_id`:
+-- escrito al revés, el `create view` abortaba con «column c.sucursal_id does
+-- not exist» y se llevaba por delante la tanda entera, que corre en una sola
+-- transacción. Lo cazó el ensayo con datos.
+alter table comandas add column sucursal_id uuid references sucursales (id);
+
+update comandas c set sucursal_id = o.sucursal_id from ordenes o where o.id = c.orden_id;
+
+create index comandas_por_sucursal on comandas (organizacion_id, sucursal_id, estado);
+
 -- ── La vista que lee la pantalla de barra y la de recogida ────────────────
 --
 -- Las dos leen lo mismo con distinto filtro, y por eso es UNA vista: dos
@@ -134,16 +149,6 @@ comment on view fila_barra is
   'F-328 · Un renglón por pedido de barra, con el nombre del vaso, su canal y cuánto lleva esperando. Sin costo, sin margen y sin gramaje.';
 
 alter view fila_barra set (security_invoker = on);
-
--- `comandas` no tenía sucursal: la heredaba de la orden. La fila de barra se
--- filtra POR SUCURSAL en cada refresco, y resolverla con un `join` en cada
--- lectura de una pantalla que refresca cada segundo es el camino corto a un
--- plan de consulta caro.
-alter table comandas add column sucursal_id uuid references sucursales (id);
-
-update comandas c set sucursal_id = o.sucursal_id from ordenes o where o.id = c.orden_id;
-
-create index comandas_por_sucursal on comandas (organizacion_id, sucursal_id, estado);
 
 -- ── RLS ───────────────────────────────────────────────────────────────────
 do $$

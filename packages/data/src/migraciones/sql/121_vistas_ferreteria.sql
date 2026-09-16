@@ -159,7 +159,10 @@ select r.organizacion_id,
        r.id                          as referencia_id,
        r.cliente_id,
        r.saldo_documento_centavos    as monto_centavos,
-       r.created_at                  as salio_en
+       -- La remision no lleva `created_at`: lleva `entregada_en`, que es el dato
+       -- que importa cuando se impugna una entrega. Escrito como `created_at`
+       -- esta vista abortaba y se llevaba la tanda entera por delante.
+       r.entregada_en                as salio_en
   from remisiones r
  where r.saldo_documento_centavos > 0
 union all

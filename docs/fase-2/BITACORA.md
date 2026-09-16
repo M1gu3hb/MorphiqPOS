@@ -1363,3 +1363,173 @@ E11a y E13.1, las tres iguales: `window.location.assign()` para navegar dentro d
   `wyqmzhliurwyxuyxznpb` ni contra ninguna otra base.
 - **`morphiqpos-codex`, la rama `carril-b` y `scripts/esquema-esperado.json` no
   se tocaron.** Tampoco el proyecto de Pastelería Confetti, ni para leer.
+
+---
+
+## 2026-09-16 · FASE 3 · A0 · Preparación · el ensayo cazó diez defectos
+
+Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. Quedan derogadas D-05/D-07 (las migraciones ya se
+aplican), D-09 (`heredado/` se puede editar), la prohibición sobre `esquema-esperado.json` y el
+acotamiento a lectura. Lo único inviolable sigue siéndolo: el proyecto de Pastelería Confetti
+(`ivqcxdpqxwjxfohiswqb`) no se toca ni para leer.
+
+### Lo que el documento daba por roto y NO lo estaba
+
+`F3-REGLAS §7.4` dice que `pnpm verify` muere en el eslabón 3 y que `pnpm test:unit` falla, las
+dos por `historico/`. **En este worktree las dos pasan.** El contenido está en disco —las tres
+fuentes completas— y `verificar-historico.mjs` sale en 0. Lo que el documento describe es lo que
+pasaría en un clon limpio, porque `historico/` está en `.gitignore:48`.
+
+Y **versionarlo no es opción**: la comprobación 2 de ese mismo script EXIGE que git lo ignore, así
+que subirlo volvería roja la puerta que se quería arreglar. Se deja como está, con esta nota, que
+es la parte que faltaba: no era un fallo, era una dependencia de máquina sin declarar.
+
+Punto de partida medido, no supuesto: `typecheck` en 0, **219 archivos y 2 567 pruebas en verde**.
+
+### Lo que sí estaba mal en `.gitignore`
+
+`!.env.example` estaba en la línea 24 y `.env*` en la 61. En git manda el ÚLTIMO patrón que
+empareja, así que el archivo estaba ignorado y sólo sobrevivía por estar ya rastreado — el día que
+alguien lo sacara del índice, desaparecía sin que nadie lo notara, y `verify:entorno` lo exige. La
+negación se movió al final, donde sirve.
+
+### La credencial que sí había, y la que no
+
+`morphiqpos/.env` tiene una `DATABASE_URL` al pooler de producción con el rol `morphiqpos_app`.
+Ese rol **no puede hacer DDL a propósito** (`has_schema_privilege → false`), así que sirve para
+leer y verificar, no para migrar. No hay CLI de Supabase, ni `psql`, ni `pg_dump`, ni Docker.
+
+Eso obligó a tres decisiones que están en el código y no en un mensaje:
+
+1. **Dos puertas hablaban con la base de UNA sola manera.** `verificar-esquema-aplicado.mjs` y
+   `verificar-rls.mjs` lanzaban `spawnSync('supabase', ['db','query',…])`. Sin ese ejecutable no
+   se podían ejecutar, y una puerta que no corre no protege nada. Se añadió un segundo transporte
+   —`packages/data/src/verificacion/consulta-directa.ts`— con el MISMO SQL, la MISMA base y el
+   MISMO cerrojo de referencia de proyecto. Usa `tlsPara()`, el TLS de la aplicación, con la raíz
+   de Supabase fijada: bajar `rejectUnauthorized` habría dejado el canal cifrado y sin autenticar,
+   y por ese canal viaja la contraseña.
+2. **El respaldo no podía ser `supabase db dump`.** Se escribió `scripts/respaldo-logico.mjs`, que
+   vuelca por PostgREST con la clave de servicio. Por la conexión de la aplicación no se podía:
+   con RLS forzada, un `select` de `morphiqpos_app` sin ámbito devuelve CERO filas y el volcado
+   habría salido vacío pareciendo correcto.
+3. **El PostgreSQL desechable es PGlite**, PostgreSQL 18 compilado a WebAssembly, con
+   `btree_gist`, `pg_trgm` y `unaccent`. Hace cumplir `check`, claves foráneas y exclusiones GiST
+   sobre `tstzrange` — justo lo que la base falsa de las 2 567 pruebas no modela.
+
+### El riesgo de `btree_gist`, resuelto
+
+El cierre de la Fase 2 lo dejó como «lo primero que hay que verificar»: toda la agenda de A3
+descansa en una restricción de exclusión GiST. **Está disponible en el proyecto**
+(`pg_available_extensions` → `btree_gist 1.7`). No era un riesgo: era una pregunta sin hacer.
+
+### El contrato de esquema denunciaba 1 265 diferencias falsas
+
+`diferenciasDeContrato` comparaba `JSON.stringify(a) !== JSON.stringify(b)`. Eso no compara el
+contrato: compara el ORDEN en que cada transporte serializó los mismos campos. El contrato
+versionado lo escribió el CLI, que ordena las claves alfabéticamente; una conexión directa usa
+`row_to_json`, que conserva el orden del `select`. Mismos valores, misma base, y la puerta gritaba
+1 265 veces. Ahora compara por huella con las claves ordenadas.
+
+Quedaron dos diferencias de verdad, y también eran de forma: `pg_get_indexdef` escribe
+`extensions.gin_trgm_ops` o `gin_trgm_ops` según si el rol lector tiene USAGE sobre el esquema
+`extensions` — `morphiqpos_app` no lo tiene. Se normaliza en la consulta. **`verify:esquema` sale
+en 0**: 626 columnas, 468 restricciones, 171 índices. Y **`verify:rls` sale en 0**: 52 relaciones,
+3 funciones.
+
+### `verify:acople`, y la prueba de que sirve
+
+Construido antes de tocar nada y **rojo al construirlo**, que es lo que pide §8.1. Mide lo que
+`verify:cobertura` no puede medir: no si está escrito, sino si está CONECTADO. Ledger contra disco
+por número y por hash · RLS y grants · las 103 rutas únicas declaradas existen y responden (401 y
+403 son CORRECTOS; 404 y 5xx no; las dinámicas se comprueban en disco) · las plantillas resuelven
+módulos y el check de la base dice lo mismo que el código · **el vocabulario tiene consumidores** ·
+la aplicación responde.
+
+La lista de rutas NO se escribe dos veces: `verificar-cobertura.mjs` ahora exporta `MODELOS` y
+`rutasEsperadas`, y sólo corre la puerta cuando se la invoca directamente.
+
+Su primera salida, con siete pendientes, incluía la que decide esta fase:
+
+```
+PLANTILLAS: el check de la base admite [esencial, operativo, restaurante_pro]
+            y el código declara [cafeteria, restaurante, tienda]
+```
+
+`pnpm verify` pasa de 27 a **31 eslabones**: entran `verify:cobertura` —que vivía sólo en
+`verify:fase2` y se habría perdido—, `test:integracion` y `verify:acople`.
+
+### EL ENSAYO CON DATOS · diez defectos que habrían abortado la tanda entera
+
+`ensayar-restauracion.mjs` aplica sobre una base VACÍA y restaura después. Con ese orden la
+poscondición de la 058 corre sobre cero filas y pasa sin probar nada. `scripts/ensayo-con-datos.mjs`
+hace lo de §4.2: levanta PGlite, aplica las 25 de producción, **carga el respaldo** y aplica las 70
+encima con el MISMO texto que recibirá producción.
+
+Encontró **diez defectos**. Cada uno, por sí solo, habría abortado la transacción entera — y la
+tanda es todo o nada, así que ninguno habría dejado la base a medias: habrían impedido aplicar
+**ninguna de las setenta**.
+
+| Migración | Qué estaba mal |
+|---|---|
+| **074** | La vista `tiempos_preparacion` lee `c.sucursal_id`, y esa columna la añade la **082**, ocho números después. Ahora la saca de `ordenes`, que es de donde la comanda la heredaba |
+| **082** | `create view fila_barra` leía `c.sucursal_id` **antes** del `alter table` que la añade, en el mismo archivo. Se reordenó |
+| **084 + 085** | `gramaje_shot` declarada DOS veces, con tipos distintos: `numeric(6,2)` y `numeric(14,4)`. Se queda la de la 085, que lleva `check (> 0)` y la escala que el proyecto fijó para toda cantidad. Con (6,2), 18.005 g se guardaban como 18.01 |
+| **086** | El `check` de `movimientos_caja.tipo` se reescribía SIN `devolucion` ni `propina`. **Producción tiene un movimiento de propina**: abortaba con «is violated by some row». Y de no haberlo tenido habría sido peor — la lista se habría estrechado en silencio |
+| **135** | El mismo `check`, el mismo error, cuarenta y nueve números después |
+| **098** | La semilla `('exento','Sin IEPS', null, null)` viola su propio `ieps_tiene_alguna_forma`. Ahora lleva tasa **0**, que además es lo correcto: «sin IEPS» es 0 %, no un régimen que no sabe decir cuánto cobra |
+| **101** | `sugerencia_pedido` leía `p.proveedor_id` sobre `productos`, y el proveedor cuelga del **insumo** desde la 045 |
+| **115** | El bloque de `pagos_credito` de F-212 estaba aquí, y esa tabla la crea la **161**, cuarenta y seis números después. Se mudó a la 161, pegada a la tabla que altera |
+| **115 + 116** | `ordenes.mostradorista_id` declarada dos veces. Se queda en la 115 con el `on delete set null` que traía la 116 |
+| **121** | `remisiones` no tiene `created_at`: tiene `entregada_en`, que es el dato que importa cuando se impugna una entrega |
+
+Tres de ellos —115, 116, 141, 145, 119, 121, 163— se encadenaban: una tabla que no se crea deja
+sin base a las cuatro migraciones que la usan. Por eso el ensayo ganó un modo `--seguir`, que
+envuelve cada migración en un SAVEPOINT y lista TODAS las que fallan de una pasada en vez de una
+por arranque.
+
+**El ensayo, en verde, con los datos de verdad:**
+
+```
+✓ las 70 pendientes aplicadas y confirmadas · 57 ms
+
+  Los negocios, despues del renombre de plantillas:
+    Abarrotes Don Chuy           giro tienda       → tienda
+    Café Jacaranda               giro cafeteria    → restaurante
+    Ferretería La Broca          giro ferreteria   → tienda
+    Restaurante MH               giro restaurante  → restaurante
+
+  check de plantillas: CHECK ((paquete = ANY (ARRAY['tienda','cafeteria','restaurante'])))
+  ledger: 95 migraciones · ultima 163
+  tablas en public: 134
+```
+
+Los cuatro caen donde D-12 dice. **Café Jacaranda en `restaurante` aunque su giro sea cafetería**
+no es un error: tiene contratado el paquete completo con mesero y cocina.
+
+### El respaldo
+
+`D:\MIS PROYECTOS\Master POS\respaldos\morphiqpos-2026-09-16T21-36-23.sql` · 642 380 bytes ·
+sha256 `45b196d5…` · 47 tablas miradas, 29 con filas, **879 filas**. Fuera del repositorio, que es
+público. No se vuelcan las cuatro vistas (se derivan), ni el ledger (lo escribe el ejecutor), ni
+las columnas generadas (se calculan), ni `sesiones` ni `limite_tasa` (efímeras).
+
+**Y está restaurado**: el ensayo lo carga en PGlite y cuenta cuatro organizaciones. Un respaldo que
+nunca se ha restaurado no es un respaldo, es un archivo.
+
+`auth` y `storage` están **vacíos** —0 usuarios, 0 objetos, 0 buckets—, así que el volcado de
+`public` más las migraciones es el estado completo. La aplicación no usa Supabase Auth: tiene sus
+propias `identidades` y `credenciales_pin`.
+
+`docs/fase-2/ROLLBACK-ACOPLE.md` escrito antes de aplicar nada.
+
+### Lo que el acople va a tener que arreglar, y ya se sabe
+
+La pantalla que cambia de plantilla —`heredado/components/configuracion/ModoPresentacion.jsx`—
+ofrece los TRES NOMBRES VIEJOS, y `entradaCambiarPaquete` valida contra
+`['esencial','operativo','restaurante_pro']`. Después de la 058 esos tres valores **violan el
+check**. Es decir: aplicada la migración, cambiar de plantilla desde la aplicación deja de
+funcionar — y cambiar de plantilla es literalmente la definición de terminado del §1.
+
+### En qué iba
+
+A0 cerrada. Sigue A1: fusionar `main` en `fase-2`.

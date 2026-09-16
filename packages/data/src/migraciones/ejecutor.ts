@@ -45,7 +45,13 @@ export { leerMigraciones, type Migracion };
  * y un archivo de migración tiene decenas.
  */
 
-const LEDGER = `
+/**
+ * El DDL del ledger. Se exporta porque el ensayo con datos levanta la base
+ * desde cero y necesita EXACTAMENTE esta tabla: una segunda definición escrita
+ * a mano en el script de ensayo es la forma seguro de que un día difieran y el
+ * ensayo deje de probar lo que dice probar.
+ */
+export const LEDGER = `
   create table if not exists _migraciones (
     version      integer      primary key,
     nombre       text         not null,

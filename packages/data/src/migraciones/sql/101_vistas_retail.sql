@@ -67,9 +67,18 @@ comment on view cartera_fiado is
 -- Lo que se vendió en los últimos treinta días contra lo que hay. No decide por
 -- nadie: pone los dos números juntos, que es lo que hoy no pasa —el pedido se
 -- hace de memoria mirando el anaquel, y lo que no se ve no se pide—.
+--
+-- El proveedor cuelga del INSUMO, no del producto: lo añadió la 045 a
+-- `insumos`. Escrito como `p.proveedor_id` sobre `productos`, este `create
+-- view` abortaba con «column p.proveedor_id does not exist» y se llevaba por
+-- delante la tanda entera, que corre en una sola transacción.
+--
+-- Y el sitio correcto es el insumo: a quién se le compra es del material, no
+-- del renglón del catálogo. Dos productos que salen del mismo saco de azúcar
+-- se le piden al mismo proveedor una sola vez.
 create view sugerencia_pedido as
 select p.organizacion_id,
-       p.proveedor_id,
+       i.proveedor_id,
        p.id                                      as producto_id,
        p.nombre,
        coalesce(sum(-ms.cantidad) filter (
@@ -79,11 +88,12 @@ select p.organizacion_id,
        coalesce(max(e.cantidad), 0)              as existencia,
        p.stock_minimo
   from productos p
+  join insumos i              on i.id = p.insumo_base_id
   left join existencias e     on e.insumo_id = p.insumo_base_id
   left join movimientos_stock ms on ms.insumo_id = p.insumo_base_id
  where p.activo
-   and p.proveedor_id is not null
- group by p.organizacion_id, p.proveedor_id, p.id, p.nombre, p.stock_minimo;
+   and i.proveedor_id is not null
+ group by p.organizacion_id, i.proveedor_id, p.id, p.nombre, p.stock_minimo;
 
 comment on view sugerencia_pedido is
   'Lo vendido en 30 días contra lo que hay. No decide por nadie: pone los dos números juntos, que es lo que hoy no pasa porque el pedido se hace mirando el anaquel y lo que no se ve no se pide.';

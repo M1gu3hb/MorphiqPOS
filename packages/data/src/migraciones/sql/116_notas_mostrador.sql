@@ -101,8 +101,12 @@ create trigger notas_mostrador_tocar_updated_at
   before update on notas_mostrador for each row execute function tocar_updated_at();
 
 -- ── 3 · Lo que la orden gana ─────────────────────────────────────────────
-alter table ordenes
-  add column mostradorista_id uuid references empleos (id) on delete set null;
+--
+-- `mostradorista_id` ya la declara la 115, un numero antes, con el mismo
+-- `on delete set null`. Declararla dos veces abortaba la tanda entera con
+-- «column "mostradorista_id" ... already exists», y la tanda es una sola
+-- transaccion: no se quedaba a medias, no se aplicaba NADA. Aqui queda su
+-- indice, que es lo que esta migracion si aporta.
 
 create index ordenes_por_mostradorista
   on ordenes (organizacion_id, mostradorista_id)

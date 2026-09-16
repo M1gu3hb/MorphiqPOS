@@ -74,12 +74,20 @@ alter table comisiones_causadas
   foreign key (liquidacion_id) references liquidaciones (id);
 
 -- ── Los tipos de movimiento de caja que el salón añade ───────────────────
+-- La lista COMPLETA VIGENTE otra vez, no la de la 086 con cuatro valores
+-- pegados: así escrita se llevaba por delante `devolucion` y `propina`, que
+-- llevan ahí desde la 003 y que producción usa.
 alter table movimientos_caja drop constraint movimientos_caja_tipo_check;
 alter table movimientos_caja
   add constraint movimientos_caja_tipo_check check (
-    tipo in ('apertura', 'venta', 'gasto', 'retiro', 'deposito', 'ajuste', 'cierre',
-             'entrada_cambio', 'liquidacion', 'propina_entregada', 'cobro_renta',
-             'anticipo_cita')
+    tipo in (
+      -- 003 · el tronco.
+      'apertura', 'venta', 'devolucion', 'gasto', 'retiro', 'deposito', 'ajuste', 'propina',
+      -- 086 · el cierre de turno y el fondo de cambio de la cafetería.
+      'cierre', 'entrada_cambio',
+      -- esta migración · la liquidación, la propina entregada, la renta y el anticipo.
+      'liquidacion', 'propina_entregada', 'cobro_renta', 'anticipo_cita'
+    )
   );
 
 alter table movimientos_caja drop constraint movimientos_caja_referencia_tipo_check;

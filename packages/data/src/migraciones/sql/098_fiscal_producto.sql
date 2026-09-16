@@ -64,7 +64,12 @@ comment on column regimenes_ieps.vigente_desde is
 -- por eso esta tabla no lleva `organizacion_id`.
 insert into regimenes_ieps (clave, descripcion, cuota_centavos_por_litro, tasa_bp, vigente_desde)
 values
-  ('exento',            'Sin IEPS',                                    null,  null, date '2026-01-01'),
+  -- `exento` lleva tasa CERO, no dos nulos. Con los dos nulos violaba su propio
+  -- `ieps_tiene_alguna_forma` y la migración abortaba en su primer `insert`.
+  -- Y cero es lo correcto además de lo que pasa: «sin IEPS» es una tasa del
+  -- 0 %, no un régimen que no sabe decir cuánto cobra. Así cualquier cálculo
+  -- que multiplique por la tasa da cero sin tener que conocer esta clave.
+  ('exento',            'Sin IEPS',                                    null,     0, date '2026-01-01'),
   ('bebida_saborizada', 'Bebidas saborizadas con azúcares añadidos',   164,   null, date '2026-01-01'),
   ('alimento_alta_densidad', 'Alimentos no básicos de alta densidad calórica',
                                                                         null,  800, date '2026-01-01'),

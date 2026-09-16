@@ -55,7 +55,7 @@ import { fileURLToPath } from 'node:url';
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /** Los cinco modelos de la Fase 2, en el orden de las etapas. */
-const MODELOS = [
+export const MODELOS = [
   { clave: 'restaurante', carpeta: '01-alimentos/restaurante' },
   { clave: 'cafeteria', carpeta: '01-alimentos/cafeteria' },
   { clave: 'abarrotes', carpeta: '02-retail/abarrotes' },
@@ -167,7 +167,7 @@ function expandirIds(celda) {
 }
 
 /** Los IDs esperados de un modelo: su §5 · LO QUE FALTA, con rangos abiertos. */
-function funcionesEsperadas(modelo) {
+export function funcionesEsperadas(modelo) {
   const texto = leer(join(DOCS, modelo.carpeta, '01-FUNCIONES.md'));
   const cuerpo = seccion(texto, 2, (t) => /^5\s*·/.test(t));
   if (cuerpo.trim() === '')
@@ -199,7 +199,7 @@ function funcionesEsperadas(modelo) {
  * conjunto se deduplica — por eso la cuenta de la auditoría (106) y la de esta
  * puerta (105) difieren en uno: `GET` y `PUT /api/clientes/:id/expediente`.
  */
-function rutasEsperadas(modelo) {
+export function rutasEsperadas(modelo) {
   const texto = leer(join(DOCS, modelo.carpeta, '05-DATOS-Y-BACKEND.md'));
   const cuerpo = seccion(texto, 2, (t) => /RUTAS DE API/i.test(t));
   if (cuerpo.trim() === '') throw new Error(`${modelo.clave}: no encontré «RUTAS DE API»`);
@@ -226,7 +226,7 @@ function rutasEsperadas(modelo) {
  * y por eso se leen por nombre de archivo y no por línea: la glosa de debajo
  * también menciona números.
  */
-function migracionesEsperadas(modelo) {
+export function migracionesEsperadas(modelo) {
   const texto = leer(join(DOCS, modelo.carpeta, '05-DATOS-Y-BACKEND.md'));
   const cuerpo = seccion(texto, 2, (t) => /MIGRACIONES/i.test(t));
   if (cuerpo.trim() === '') throw new Error(`${modelo.clave}: no encontré «MIGRACIONES»`);
@@ -265,7 +265,7 @@ function slugDePantalla(titulo) {
 }
 
 /** Las pantallas esperadas: cada `###` del §4.3, menos las heredadas sin cambios. */
-function pantallasEsperadas(modelo) {
+export function pantallasEsperadas(modelo) {
   const texto = leer(join(DOCS, modelo.carpeta, '04-INTERFAZ.md'));
   const cuerpo = seccion(texto, 2, (t) => /^4\.3\s*·/.test(t));
   if (cuerpo.trim() === '')
@@ -443,7 +443,7 @@ function alcanzablesDesdeNext(contenidoDe) {
  * La razón no la valida nadie, pero tiene que estar escrita: una excepción sin
  * motivo es la puerta relajándose en silencio, que es justo lo que no queremos.
  */
-function excepciones() {
+export function excepciones() {
   const ruta = join(RAIZ, 'docs', 'fase-2', 'EXCEPCIONES-COBERTURA.md');
   const fuera = {
     funciones: new Map(),
@@ -729,4 +729,16 @@ function main() {
   process.exit(1);
 }
 
-main();
+/**
+ * Sólo corre la puerta cuando se la invoca directamente.
+ *
+ * `verificar-acople.mjs` importa `rutasEsperadas` y `MODELOS` de aquí en vez de
+ * volver a escribir la derivación: dos listas de las 105 rutas es la forma
+ * segura de que una se quede atrás. Sin esta guarda, importar el módulo
+ * ejecutaría la puerta entera y llamaría a `process.exit`.
+ */
+const invocadoDirecto =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+
+if (invocadoDirecto) main();

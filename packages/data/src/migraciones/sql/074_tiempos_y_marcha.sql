@@ -117,10 +117,20 @@ create index comanda_items_por_tiempo on comanda_items (comanda_id, listo_en);
 -- `desviacion_bp` en puntos base y no en porcentaje flotante, por la misma
 -- razón que el dinero: un 33.333333 % redondeado distinto en dos pantallas
 -- hace que dos personas discutan sobre el mismo plato.
+-- ── Por qué la sucursal sale de la ORDEN y no de la comanda ───────────────
+-- `comandas.sucursal_id` no existe todavía cuando esta migración corre: lo
+-- añade la 082, ocho números más adelante, como denormalización para la fila
+-- de barra. Escrito como `c.sucursal_id`, este `create view` abortaba con
+-- «column c.sucursal_id does not exist» — y como la tanda entera va en UNA
+-- transacción, eso no dejaba a medias las migraciones: no dejaba aplicar
+-- NINGUNA. Lo cazó el ensayo con datos, no las 2 567 pruebas unitarias.
+--
+-- La orden SIEMPRE tiene sucursal (`not null` desde la 003) y es de donde la
+-- comanda la heredaba antes de que la 082 la copiara. El valor es el mismo.
 create view tiempos_preparacion as
 select i.id,
        i.organizacion_id,
-       c.sucursal_id,
+       o.sucursal_id,
        i.comanda_id,
        c.estacion_preparacion_id,
        i.orden_linea_id,
@@ -141,6 +151,7 @@ select i.id,
        i.listo_en
   from comanda_items i
   join comandas c on c.id = i.comanda_id
+  join ordenes  o on o.id = c.orden_id
  where i.estado <> 'cancelado';
 
 comment on view tiempos_preparacion is

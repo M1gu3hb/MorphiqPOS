@@ -53,11 +53,22 @@ alter table sesiones_caja
 -- vecino. Ese dinero ENTRA al cajón y no es una venta: registrarlo como
 -- `deposito` lo mezclaría con el efectivo del negocio y el arqueo diría que
 -- sobran $500 que en realidad son cambio prestado.
+-- Se reescribe la lista COMPLETA VIGENTE, no la de la 003 con un valor nuevo
+-- pegado. Escrita como estaba —sin `devolucion` ni `propina`— esta migración
+-- abortaba con «check constraint ... is violated by some row»: en producción hay
+-- un movimiento de propina de un negocio que cobra. Y de no haberlo habido
+-- habría sido peor, porque la lista se habría estrechado en silencio y el fallo
+-- habría salido en la primera propina, no aquí.
 alter table movimientos_caja drop constraint movimientos_caja_tipo_check;
 alter table movimientos_caja
   add constraint movimientos_caja_tipo_check check (
-    tipo in ('apertura', 'venta', 'gasto', 'retiro', 'deposito', 'ajuste', 'cierre',
-             'entrada_cambio')
+    tipo in (
+      -- 003 · el tronco. `devolucion` y `propina` están desde el principio, y
+      -- `movimiento_signo_coherente` de la 003 todavía nombra `devolucion`.
+      'apertura', 'venta', 'devolucion', 'gasto', 'retiro', 'deposito', 'ajuste', 'propina',
+      -- esta migración · el cierre de turno y el fondo de cambio de la cafetería.
+      'cierre', 'entrada_cambio'
+    )
   );
 
 -- ── F-262 · No se cierra el turno con pedidos en la fila ──────────────────

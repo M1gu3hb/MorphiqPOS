@@ -87,6 +87,47 @@ La puerta sale en **0**. Doce excepciones declaradas en
 
 ---
 
+## FASE 3 · ACOPLE · conectar los cinco modelos al punto de venta vivo
+
+Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. La puerta es `pnpm verify:acople`, y
+`pnpm verify` pasa de 27 a 31 eslabones: entran `verify:cobertura` —que vivía sólo en
+`verify:fase2`—, `test:integracion` y `verify:acople`.
+
+| Etapa | Qué | Estado |
+|---|---|---|
+| **A0** | Preparación · respaldo, ensayo y la puerta | ✅ respaldo **comprobado restaurándolo** · `verify:acople` construido y **rojo al construirlo** · `verify:esquema` y `verify:rls` con transporte directo, los dos en 0 · **el ensayo con datos cazó 10 defectos** que habrían abortado la tanda entera |
+| **A1** | Fusión de `main` en `fase-2` | ⬜ |
+| **A2** | Los seis huecos · F-017 enganchado | ⬜ |
+| **A3** | Migraciones aplicadas | ⬜ |
+| **A4** | Contrato · `pnpm verify` completo | ⬜ |
+| **A5** | Despliegue · preview de Vercel | ⬜ |
+| **A6** | Verificación en el navegador | ⬜ |
+| **A7** | Cierre | ⬜ |
+
+**El ensayo con datos, en verde** (`node scripts/ensayo-con-datos.mjs`):
+
+```
+  ✓ las 70 pendientes aplicadas y confirmadas · 57 ms
+
+  Los negocios, despues del renombre de plantillas:
+    Abarrotes Don Chuy           giro tienda       → tienda
+    Café Jacaranda               giro cafeteria    → restaurante
+    Ferretería La Broca          giro ferreteria   → tienda
+    Restaurante MH               giro restaurante  → restaurante
+
+  ledger: 95 migraciones · ultima 163 · tablas en public: 134
+```
+
+**`btree_gist` ESTÁ disponible** en `wyqmzhliurwyxuyxznpb` (versión 1.7). El riesgo que la
+Fase 2 dejó marcado como bloqueante de A3 no era un riesgo: era una pregunta sin hacer.
+
+**Lo que el acople tiene que arreglar y ya se sabe:** la pantalla que cambia de plantilla
+ofrece los tres nombres VIEJOS (`esencial`, `operativo`, `restaurante_pro`) y después de la
+058 esos valores violan el `check`. Cambiar de plantilla es la definición de terminado.
+
+
+---
+
 ## LOS 78 MODELOS
 
 Prioridad: **P0** = los tres que ya tienen cliente vivo · **P1** = alto rendimiento comercial · **P2** = resto.

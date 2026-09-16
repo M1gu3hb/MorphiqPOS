@@ -141,6 +141,45 @@ create table pagos_credito (
   )
 );
 
+-- ── F-212 · La transferencia no se aplica hasta que alguien ve el banco ──
+--
+-- Este bloque vivia en la 115 de ferreteria, donde no podia funcionar: alli
+-- `pagos_credito` todavia no existe. Va aqui, pegado a la tabla que altera.
+--
+--
+-- Las transferencias son el 20 %–35 % del valor en una ferretería, y llegan con
+-- un comprobante que se ve en la pantalla del cliente. Un comprobante falso de
+-- $80 es una molestia; uno de $12,000 es un problema, y el sistema no puede
+-- distinguirlos: lo único que puede hacer es NO APLICAR el pago al saldo hasta
+-- que alguien mire el banco.
+--
+-- `confirmado` nace en `true` a propósito. El efectivo, la tarjeta y el cheque
+-- ya están confirmados en el momento en que se cobran, y ponerlos en `false`
+-- llenaría la lista de pendientes con todo lo que no hace falta revisar —que es
+-- exactamente cómo una lista de revisión deja de leerse—. La transferencia es
+-- la única que entra en `false`, y lo hace el comando.
+alter table pagos_credito add column confirmado boolean not null default true;
+alter table pagos_credito add column confirmado_en timestamptz;
+alter table pagos_credito add column confirmado_por uuid references empleos (id) on delete set null;
+-- La fecha REAL del depósito, que puede no ser la de captura: el dinero entró al
+-- banco el domingo a las nueve y alguien lo registra el lunes. Con una sola
+-- fecha, la antigüedad de la cartera cuenta un día de mora que no existió.
+alter table pagos_credito add column recibido_en timestamptz;
+
+-- Confirmar sin decir cuándo deja un pago que dice estar revisado y no dice por
+-- quién ni desde cuándo, que es justo lo que se pregunta cuando no cuadra.
+alter table pagos_credito add constraint pago_confirmado_con_fecha check (
+  confirmado = false or confirmado_en is not null or metodo <> 'transferencia'
+);
+
+comment on column pagos_credito.confirmado is
+  'F-212 · La transferencia no baja el saldo del cliente hasta que alguien ve el banco. El comprobante falso no se puede detectar; lo que se puede es no creerle todavía.';
+
+-- Lo que hay que revisar antes de cerrar el día. Sin este índice parcial, la
+-- consulta recorre todos los pagos del año en cada corte.
+create index pagos_credito_por_confirmar
+  on pagos_credito (organizacion_id, created_at) where not confirmado;
+
 -- La aplicación, documento por documento. Sin ella, «pagó $3 000» no dice qué
 -- facturas quedaron saldadas, y el cliente y el negocio llevan cuentas
 -- distintas desde el primer pago parcial.
