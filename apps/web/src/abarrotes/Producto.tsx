@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · producto
@@ -115,6 +116,12 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Producto({ productoId, fichaInicial, presentacionesIniciales }: ProductoProps) {
+  // F-017 · Esta pantalla la heredan los dieciocho modelos de retail, y no todos
+  // venden «productosº: Ferretería La Broca vende MATERIAL, y su propia carpeta
+  // lo levantó como defecto —«artículo donde debe decir material»—. El sustantivo
+  // sale del giro del negocio, que es la mitad de lo que hace que una plantilla
+  // se sienta propia y no prestada.
+  const vocabulario = useVocabulario();
   const [ficha, setFicha] = useState<FichaDeProducto | null>(fichaInicial ?? null);
   const [presentaciones, setPresentaciones] = useState<readonly PresentacionDeProducto[] | null>(
     presentacionesIniciales ?? null,
@@ -246,7 +253,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
       <header>
         <h1 className="text-2xl font-semibold">{ficha.nombre}</h1>
         <p className="text-muted-foreground text-sm">
-          {ficha.codigo_barras ?? ficha.sku ?? 'Sin código'}
+          {vocabulario.conArticulo('producto')} · {ficha.codigo_barras ?? ficha.sku ?? 'Sin código'}
         </p>
       </header>
 

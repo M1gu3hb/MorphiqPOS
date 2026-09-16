@@ -21,7 +21,10 @@ export {
   entradaRestablecerTermino,
   fijarTermino,
   restablecerTermino,
+  terminosDeLaOrganizacion,
+  terminosDelNegocio,
   vocabularioDelNegocio,
   type ResultadoDeRestablecerTermino,
   type ResultadoDeTermino,
+  type TerminosDelNegocio,
 } from './vocabulario.ts';

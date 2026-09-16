@@ -70,6 +70,25 @@ async function sesionDeLaPeticion(
   };
 }
 
+/**
+ * La sesión para un COMPONENTE DE SERVIDOR, o `null` si no hay.
+ *
+ * ── Por qué devuelve null y no una Response ────────────────────────────
+ * `sesionDeLaPeticion` devuelve la respuesta HTTP que corresponde, y eso es lo
+ * correcto en una ruta: obliga a decidir qué hacer con ella. Un `layout.tsx` no
+ * puede devolver una Response; lo que puede es pintar el marco sin los datos
+ * que dependen de la sesión. Por eso aquí el «no hay sesión» es `null` y no un
+ * 401: quien llama decide, y el caso normal —la pantalla de PIN, que se pinta
+ * dentro del mismo marco— no tiene sesión y no es un error.
+ *
+ * NO autoriza nada. Autorizar es de las rutas.
+ */
+export async function sesionDelServidor(): Promise<SesionDeNegocio | null> {
+  const cabeceras = await headers();
+  const sesion = await sesionDeLaPeticion(cabeceras.get('cookie'));
+  return sesion.ok ? sesion.sesion : null;
+}
+
 export async function ejecutarComandoHttp<E extends ZodType, S>(
   definicion: Parameters<typeof comando<E, S>>[0],
   peticion: Request,

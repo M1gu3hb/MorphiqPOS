@@ -36,7 +36,7 @@
  * Se ejecuta con: pnpm verify:acople
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { leerMigraciones } from '../packages/data/src/migraciones/lectura.ts';
@@ -228,6 +228,70 @@ function urlDe(rutaDeArchivo) {
   return rutaDeArchivo.replace(/^apps\/web\/app/, '').replace(/\/route\.ts$/, '');
 }
 
+/**
+ * Los comandos con `escribe: true` que ninguna ruta importa.
+ *
+ * Se descubren recorriendo el árbol, no de una lista: una lista sólo contiene
+ * lo que alguien recordó registrar, y un comando nuevo que se olvide de
+ * registrarse pasaría la puerta sin estar conectado — que es exactamente el
+ * fallo que esto existe para cazar.
+ */
+function comandosDeEscrituraSinRuta() {
+  const comandos = new Map();
+  const pila = [join(RAIZ, 'packages', 'app', 'src')];
+  while (pila.length > 0) {
+    const actual = pila.pop();
+    for (const entrada of readdirSyncSeguro(actual)) {
+      const ruta = join(actual, entrada.name);
+      if (entrada.isDirectory()) {
+        if (entrada.name !== 'node_modules' && entrada.name !== 'pruebas') pila.push(ruta);
+        continue;
+      }
+      if (!entrada.name.endsWith('.ts') || entrada.name.includes('.test.')) continue;
+      const contenido = readFileSync(ruta, 'utf8');
+      // El bloque de CADA comando, acotado al siguiente `export const`.
+      //
+      // Escrito como un solo regex perezoso hasta `escribe: true`, un comando de
+      // LECTURA quedaba marcado como escritor porque el `escribe: true` que
+      // encontraba era el del comando de abajo. La puerta denunciaba
+      // `inventario.piezas_abiertas` y `inventario.proximas_a_caducar` —las dos
+      // consultas— como escrituras huérfanas.
+      for (const bloque of contenido.split(/^export const /m).slice(1)) {
+        const nombre = /^(\w+) = definirComando</.exec(bloque)?.[1];
+        if (nombre === undefined) continue;
+        if (!/^\s*escribe: true,/m.test(bloque)) continue;
+        comandos.set(nombre, ruta);
+      }
+    }
+  }
+
+  // Lo que las rutas importan. Basta con el nombre: si una ruta lo importa y no
+  // lo usa, `eslint` ya lo caza como import sin usar.
+  const importados = new Set();
+  const pilaRutas = [join(RAIZ, 'apps', 'web', 'app')];
+  while (pilaRutas.length > 0) {
+    const actual = pilaRutas.pop();
+    for (const entrada of readdirSyncSeguro(actual)) {
+      const ruta = join(actual, entrada.name);
+      if (entrada.isDirectory()) {
+        pilaRutas.push(ruta);
+        continue;
+      }
+      if (entrada.name !== 'route.ts') continue;
+      // La clase se escribe entera en vez de usar la secuencia de palabra: al
+      // generar este archivo esa secuencia se colo como el CARACTER de control
+      // backspace y el regex dejo de encontrar nada. La puerta denunciaba 172
+      // comandos huerfanos que si tenian ruta, que es la peor forma de fallar:
+      // ruidosa y falsa.
+      for (const m of readFileSync(ruta, 'utf8').matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) {
+        importados.add(m[0]);
+      }
+    }
+  }
+
+  return [...comandos.keys()].filter((nombre) => !importados.has(nombre)).sort();
+}
+
 async function comprobarRutas(base) {
   const declaradas = new Set();
   for (const modelo of MODELOS) for (const ruta of rutasEsperadas(modelo)) declaradas.add(ruta);
@@ -249,6 +313,29 @@ async function comprobarRutas(base) {
   exigir(
     sinArchivo.length === 0,
     `RUTAS: ${sinArchivo.length} declaradas sin archivo en disco: ${sinArchivo.slice(0, 5).join(', ')}`,
+  );
+
+  // ── Ningún comando de ESCRITURA puede quedar huérfano ────────────────
+  //
+  // Contar archivos de ruta no basta. Un `route.ts` que existe y ha perdido el
+  // comando que servía sigue contando como presente, y eso pasó en esta misma
+  // fase: al añadir el `GET` del vocabulario se sobrescribió el archivo entero y
+  // se llevó por delante el `POST` de `fijarTermino`. La cobertura siguió en 0
+  // porque el archivo estaba. Lo que no estaba era la mitad que escribía.
+  //
+  // Lo que esta puerta mide es ACOPLE, y un comando que escribe en la base y al
+  // que no llega ninguna ruta es la definición de lo contrario: construido y
+  // desconectado.
+  //
+  // NO se comprueba el verbo declarado en el papel contra el exportado: la
+  // convención del proyecto es que TODAS las rutas de comando son POST
+  // (`manejadorDeComando`), y los `GET`/`PATCH` de los `05-DATOS-Y-BACKEND.md`
+  // son la forma REST con la que se diseñaron, no la que se implementó.
+  const huerfanos = comandosDeEscrituraSinRuta();
+  exigir(
+    huerfanos.length === 0,
+    `RUTAS: ${huerfanos.length} comando(s) que ESCRIBEN y a los que no llega ninguna ruta: ` +
+      huerfanos.slice(0, 8).join(', '),
   );
 
   if (base === undefined) {
@@ -398,15 +485,68 @@ function comprobarVocabulario() {
       'repositorio, comandos y pruebas, y ninguna ruta ni pantalla lo lee.',
   );
 
-  const envoltorio = join(RAIZ, 'apps', 'web', 'app', '(modelos)', 'layout.tsx');
+  // ── Las cuatro piezas, una por una ─────────────────────────────────
+  // Contar «algún archivo menciona vocabulario» no vale: el propio módulo
+  // cuenta como mención y la puerta se aprueba a sí misma. Se exige cada pieza
+  // del camino por separado, porque con que falte una el sustantivo no llega a
+  // la pantalla y F-017 vuelve a ser código que no lee nadie.
+  const piezas = [
+    {
+      ruta: join(RAIZ, 'apps', 'web', 'app', 'api', 'configuracion', 'vocabulario', 'route.ts'),
+      patron: /terminos/i,
+      falta:
+        'no hay ruta que SIRVA el vocabulario. El repositorio y los dos comandos de ' +
+        'escritura existían; la mitad de lectura no.',
+    },
+    {
+      ruta: join(RAIZ, 'apps', 'web', 'app', '(modelos)', 'layout.tsx'),
+      patron: /ProveedorDeVocabulario/,
+      falta:
+        'el envoltorio de las 61 pantallas no lo inyecta. Sin eso «mesa» no se ' +
+        'vuelve «estación» en ninguna de las 61.',
+    },
+    {
+      ruta: join(RAIZ, 'apps', 'web', 'app', '(interno)', 'layout.tsx'),
+      patron: /ProveedorDeVocabulario/,
+      falta:
+        'el envoltorio del punto de venta HEREDADO no lo inyecta, y ése es el que ' +
+        'los cuatro negocios abren todos los días.',
+    },
+    {
+      ruta: join(RAIZ, 'apps', 'web', 'heredado', 'components', 'common', 'Sidebar.jsx'),
+      patron: /etiquetaDeNavegacion|useVocabulario/,
+      falta:
+        'el menú sigue con las etiquetas escritas a mano. Es el primer sitio donde ' +
+        'una ferretería tiene que leer «Materiales» y no «Productos».',
+    },
+  ];
+
+  for (const pieza of piezas) {
+    exigir(
+      existsSync(pieza.ruta) && pieza.patron.test(readFileSync(pieza.ruta, 'utf8')),
+      `VOCABULARIO: ${pieza.falta}`,
+    );
+  }
+
+  // Y al menos dos PANTALLAS que lo usen de verdad. Con el proveedor puesto y
+  // ninguna consumidora, el vocabulario estaría disponible y seguiría sin
+  // cambiar una sola palabra en la pantalla.
+  // El separador se normaliza: en Windows las rutas vienen con `\` y el filtro
+  // escrito con una sola barra no encontraba ninguna pantalla.
+  const pantallas = consumidores
+    .map((ruta) => ruta.split(sep).join('/'))
+    .filter((ruta) => /\/src\/.+\.tsx$/.test(ruta));
   exigir(
-    existsSync(envoltorio) && /vocabulario/i.test(readFileSync(envoltorio, 'utf8')),
-    'VOCABULARIO: el envoltorio de las 61 pantallas —apps/web/app/(modelos)/layout.tsx— ' +
-      'no inyecta el vocabulario. Sin eso «mesa» no se vuelve «estación» en ninguna.',
+    pantallas.length >= 2,
+    `VOCABULARIO: sólo ${pantallas.length} pantalla(s) lo usan. Disponible y sin usar ` +
+      'es lo mismo que no tenerlo.',
   );
 
-  if (consumidores.length > 0) {
-    notas.push(`vocabulario   ${consumidores.length} consumidor(es) en apps/web`);
+  if (!fallos.some((f) => f.startsWith('VOCABULARIO'))) {
+    notas.push(
+      `vocabulario   ruta + los dos envoltorios + el menú heredado · ` +
+        `${pantallas.length} pantalla(s) lo consumen`,
+    );
   }
 }
 

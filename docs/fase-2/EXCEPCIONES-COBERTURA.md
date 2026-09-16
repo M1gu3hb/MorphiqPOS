@@ -28,6 +28,7 @@ Formato de la primera columna:
 | `RUTA apps/web/app/api/…/route.ts` | una ruta declarada en un `05-DATOS-Y-BACKEND.md` |
 | `PANTALLA <modelo>/<slug>` | una pantalla declarada en un `04-INTERFAZ.md` §4.3 |
 | `MIGRACION NNN_nombre.sql` | una migración declarada en un `05-DATOS-Y-BACKEND.md` |
+| `PUERTA <script>/<comprobacion>` | una comprobación de OTRA puerta que no se puede ejecutar en esta máquina |
 
 ---
 
@@ -63,3 +64,14 @@ Formato de la primera columna:
 
 *(ninguna: una pantalla que depende de una migración sin aplicar SÍ se construye, y se dice en el
 `FILE-MAP.md` que no se puede abrir. Eso es trabajo pendiente de acople, no trabajo imposible.)*
+
+## PUERTAS
+
+Una comprobación que una puerta declara y no ejecuta. Va aquí por la misma razón que todo lo
+demás: **una puerta que imprime «pendiente» y sale en 0 no es una puerta**, y el arreglo no es
+borrar el mensaje —sería peor— sino sacar la comprobación de la penumbra y ponerla donde se
+cuenta.
+
+| Clave | Qué no se comprueba | Por qué, y qué hace falta para comprobarlo |
+|---|---|---|
+| `PUERTA verify:entorno/comprobacion-en-vivo` | Levantar el `docker-compose` de verdad y conectarse a Postgres y al almacenamiento | **No hay Docker en la máquina donde se hizo el acople**, y `verify:entorno` lo declaraba como «pendiente» saliendo en 0 —es decir, aprobando A-27 sin haberlo probado nunca—. Lo demás del contrato SÍ se comprueba estáticamente: los servicios, las imágenes fijadas, los volúmenes, las nueve variables de `.env.example` y que `.env` esté ignorado. Lo que falta es la mitad en vivo, y la desbloquea instalar Docker Desktop: `pnpm verify:entorno` la ejecuta sola en cuanto el motor responda. Mientras no esté, la puerta lo dice con estas palabras y **falla** si esta fila no existe. |

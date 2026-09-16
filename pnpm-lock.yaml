@@ -265,6 +265,9 @@ importers:
       '@morphiqpos/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@morphiqpos/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@morphiqpos/ui':
         specifier: workspace:*
         version: link:../../packages/ui

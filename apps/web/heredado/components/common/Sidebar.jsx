@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from '@/enrutado';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
-import { getNavForRole } from '@/lib/permissions';
+import { etiquetaDeNavegacion, getNavForRole } from '@/lib/permissions';
+import { useVocabulario } from '~/cliente/vocabulario';
 import { isRouteAllowed } from '@/lib/packageConfig';
 import { ROLE_LABELS } from '@/lib/constants';
 import {
@@ -118,6 +119,10 @@ export default function Sidebar({ collapsed, onToggle }) {
     }
   }, [mobileOpen]);
 
+  // F-017 · Como habla este negocio. Lo pone el envoltorio de servidor, asi
+  // que aqui ya esta resuelto y no hay parpadeo en la primera pintada.
+  const vocabulario = useVocabulario();
+
   // Filtra primero por rol y luego por paquete activo, y aplica orden
   const baseItems = getNavForRole(posUser?.rol)
     .filter((item) => isRouteAllowed(item.path, paquete_modo))
@@ -217,7 +222,9 @@ export default function Sidebar({ collapsed, onToggle }) {
                     : undefined
                 }
               />
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              {!collapsed && (
+                <span className="truncate">{etiquetaDeNavegacion(item, vocabulario)}</span>
+              )}
             </Link>
           );
         })}

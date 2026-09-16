@@ -5,6 +5,8 @@ import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
+import { useVocabulario } from '~/cliente/vocabulario';
+
 /**
  * PANTALLA · restaurante · portal-del-comensal
  *
@@ -96,6 +98,9 @@ function esRespuesta(valor: unknown): valor is Respuesta {
 }
 
 export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
+  // F-017 · Cómo llama este negocio a la unidad de servicio. Lo resuelve el
+  // envoltorio de servidor, así que en la primera pintada ya está.
+  const vocabulario = useVocabulario();
   const [datos, setDatos] = useState<PayloadDelPortal | null>(datosIniciales ?? null);
   const [sinConexion, setSinConexion] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -173,7 +178,11 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
       <header className="flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-semibold">{datos.negocio.nombre}</h1>
-          <p className="text-muted-foreground text-sm">Mesa {datos.mesa.numero}</p>
+          {/* «Mesa» en un restaurante, «estación» en una estética, «bahía» en un
+              taller. El sustantivo sale del giro del negocio, no de esta línea. */}
+          <p className="text-muted-foreground text-sm">
+            {vocabulario.conArticulo('unidad_servicio')} {datos.mesa.numero}
+          </p>
         </div>
         {sinConexion && (
           <span className="text-muted-foreground text-xs" aria-label="sin conexión">

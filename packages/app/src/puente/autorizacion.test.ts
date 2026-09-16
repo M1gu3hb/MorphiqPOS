@@ -1,11 +1,14 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { extname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ErrorDominio, ROLES } from '@morphiqpos/contracts';
 import { describe, expect, it } from 'vitest';
 
+import { liquidarPropinas } from '../propinas/liquidar.ts';
 import { consultar } from './consultar.ts';
 import { entidadMapeada, MAPA } from './mapa.ts';
+import { rolMH } from './roles.ts';
 
 const TODAS_LAS_ENTIDADES = [...Object.keys(MAPA), 'DescuentoInventarioVenta'] as const;
 const FUENTE_MAPA =
@@ -119,5 +122,107 @@ describe('B-4 · autorización explícita del puente de lectura', () => {
     expect(codigo).toMatch(
       /const DESCUENTO_INVENTARIO_VENTA[\s\S]{0,900}?costo_unitario_snapshot:\s*\{\s*rolesLectura: \[\.\.\.VE_COSTOS_DE_INSUMO\]/,
     );
+  });
+});
+
+/** La copia porteada del frontend. Se lee como DATOS, nunca se importa. */
+const HEREDADO = fileURLToPath(new URL('../../../../apps/web/heredado/', import.meta.url));
+const EXTENSIONES = new Set(['.js', '.jsx', '.ts', '.tsx']);
+
+/** Rutas relativas a `heredado/`, con `/` en los dos sistemas operativos. */
+function codigoHeredado(carpeta: string = HEREDADO): string[] {
+  const salida: string[] = [];
+  for (const entrada of readdirSync(carpeta, { withFileTypes: true })) {
+    const ruta = join(carpeta, entrada.name);
+    if (entrada.isDirectory()) salida.push(...codigoHeredado(ruta));
+    else if (EXTENSIONES.has(extname(entrada.name))) salida.push(ruta);
+  }
+  return salida;
+}
+
+function heredadosQueContienen(texto: string): string[] {
+  return codigoHeredado()
+    .filter((ruta) => readFileSync(ruta, 'utf8').includes(texto))
+    .map((ruta) => relative(HEREDADO, ruta).replaceAll('\\', '/'))
+    .sort();
+}
+
+/**
+ * §7.5 · QUIÉN PUEDE SABER QUE UNA PROPINA YA SE LIQUIDÓ.
+ *
+ * `F3-REGLAS §7.5` da por supuesto que `rolesLectura: [...DIRECCION]` sobre
+ * `propina_liquidada` deja a un cajero viendo «Pendiente» sobre propinas que sí
+ * estaban liquidadas. Se comprobó y el supuesto no se sostiene: ese panel no es
+ * suyo. Sólo lo pintan `PropinasDashboardSection` y `PropinasRegistros`, que
+ * viven en `Dashboard` y en `Registros`, y `permissions.js` reserva las dos
+ * pantallas a `ROLES.ADMIN` — que en el vocabulario de esta base son los tres de
+ * la dirección. `propinas/liquidar.ts` ya declaraba esos mismos tres roles
+ * citando las mismas dos líneas. Así que el campo no se tocó.
+ *
+ * Esto no fija una corrección: fija la decisión, porque se puede romper en dos
+ * direcciones y las dos hacen daño.
+ *
+ *   · **Estrecharlo** —dejarlo en `['dueno']`, por ejemplo— produce el síntoma
+ *     que §7.5 describe, sólo que al gerente: el panel dice «Pendiente» sobre
+ *     propinas que sí están liquidadas, se vuelven a liquidar y el mesero cobra
+ *     dos veces lo mismo.
+ *   · **Ensancharlo a caja** «para que eso no pase» es el error simétrico, y es
+ *     el que este hueco invitaba a cometer. `rolesLectura` es lo ÚNICO que
+ *     separa al cajero de ese dato: ninguna ruta de `apps/web` tiene guarda de
+ *     rol —la barra lateral sólo esconde el botón (ver `roles.ts`)— y la
+ *     pestaña de propinas se pinta entera a quien escriba `/registros` en la
+ *     barra de direcciones.
+ *
+ * Por eso el campo se ata AL COMANDO y no a una lista escrita a mano aquí:
+ * «quién liquida» y «quién puede ver si ya se liquidó» son la misma pregunta, y
+ * con una sola respuesta no se pueden separar por descuido.
+ */
+describe('§7.5 · el estado de liquidación de la propina', () => {
+  /** El puntero, su fecha y el booleano derivado: los tres dicen lo mismo. */
+  const CAMPOS = ['propina_liquidada', 'propina_liquidacion_id', 'propina_liquidada_fecha'];
+
+  it('los tres campos declaran exactamente los roles que liquidan', () => {
+    const quienLiquida = [...liquidarPropinas.roles].sort();
+    expect(quienLiquida.length).toBeGreaterThan(0);
+
+    for (const campo of CAMPOS) {
+      // `rolesDelCampo` devuelve `[]` cuando no hay política declarada, así que
+      // borrar la línea entera —que es como se abre un campo sin querer— cae
+      // aquí igual que estrecharla.
+      expect([...rolesDelCampo('Venta', campo)].sort(), `Venta.${campo}`).toEqual(quienLiquida);
+    }
+  });
+
+  it('las dos pantallas que lo pintan siguen siendo de la dirección', () => {
+    const permisos = readFileSync(join(HEREDADO, 'lib', 'permissions.js'), 'utf8');
+    // Sobre la ENTRADA, no sobre el archivo: añadir `ROLES.CASHIER` a
+    // cualquiera de las dos deja de casar, y entonces la premisa de arriba ya
+    // no es cierta y hay que volver a decidir `rolesLectura` a conciencia.
+    // La coma opcional es para no castigar un reformateo: `trailingComma: all`
+    // pone una si la lista se parte en varias líneas, y eso no es un cambio de
+    // permisos. Lo que no se tolera es un segundo rol.
+    expect(permisos).toMatch(/ver_dashboard:\s*\[\s*ROLES\.ADMIN\s*,?\s*\]/);
+    expect(permisos).toMatch(/ver_registros:\s*\[\s*ROLES\.ADMIN\s*,?\s*\]/);
+
+    // Y que `ROLES.ADMIN` siga siendo exactamente esos tres: la traducción es
+    // el eslabón que convierte «administrador» de su menú en tres roles de esta
+    // base, y sin ella la cita de `permissions.js` no probaría nada.
+    for (const rol of liquidarPropinas.roles) expect(rolMH(rol), rol).toBe('administrador');
+    expect(rolMH('cajero')).toBe('caja');
+  });
+
+  it('ninguna otra pantalla lee ni monta el panel de propinas', () => {
+    // El contraste que hace honesta a la prueba anterior: si mañana alguien
+    // mete la pestaña de propinas en Caja —que el cajero SÍ abre—, la premisa
+    // cambia y esto se pone en rojo antes de que el panel mienta.
+    expect(heredadosQueContienen('propina_liquidada')).toEqual([
+      'components/propinas/LiquidarPropinasDialog.jsx',
+      'components/propinas/PropinasDashboardSection.jsx',
+      'components/propinas/PropinasRegistros.jsx',
+    ]);
+    expect(heredadosQueContienen('propinas/PropinasDashboardSection')).toEqual([
+      'pages/Dashboard.jsx',
+    ]);
+    expect(heredadosQueContienen('propinas/PropinasRegistros')).toEqual(['pages/Registros.jsx']);
   });
 });

@@ -216,6 +216,36 @@ export function rutasEsperadas(modelo) {
 }
 
 /**
+ * Los VERBOS que la documentación declara para cada ruta.
+ *
+ * ── Por qué hacía falta separarlo de `rutasEsperadas` ───────────────────
+ * `rutasEsperadas` tira el verbo y se queda con el archivo, y eso está bien
+ * para contar: `GET` y `PUT` sobre `/api/clientes/:id/expediente` son dos
+ * verbos y UN archivo. Pero deja un hueco: un `route.ts` que existe y ha
+ * perdido uno de sus verbos cuenta como presente.
+ *
+ * No es teoría. Al enganchar el vocabulario, este archivo sobrescribió
+ * `api/configuracion/vocabulario/route.ts` para añadirle el `GET` que faltaba
+ * y se llevó por delante el `POST` de `fijarTermino`. La cobertura seguía en
+ * 0: el archivo estaba. Lo que ya no estaba era la mitad que escribía.
+ */
+export function verbosEsperados(modelo) {
+  const texto = leer(join(DOCS, modelo.carpeta, '05-DATOS-Y-BACKEND.md'));
+  const cuerpo = seccion(texto, 2, (t) => /RUTAS DE API/i.test(t));
+  const porArchivo = new Map();
+  for (const m of cuerpo.matchAll(/^(GET|POST|PUT|PATCH|DELETE)\s+(\/api\/\S+)/gm)) {
+    const limpia = m[2].split('?')[0].replace(/\/+$/, '');
+    const partes = limpia
+      .split('/')
+      .map((seg) => (seg.startsWith(':') ? `[${seg.slice(1)}]` : seg));
+    const archivo = `apps/web/app${partes.join('/')}/route.ts`;
+    if (!porArchivo.has(archivo)) porArchivo.set(archivo, new Set());
+    porArchivo.get(archivo).add(m[1]);
+  }
+  return porArchivo;
+}
+
+/**
  * Las migraciones declaradas de un modelo.
  *
  * Vienen dentro de un árbol en un bloque de código:

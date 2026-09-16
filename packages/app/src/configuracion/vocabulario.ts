@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
-import { repoModulos, repoVocabulario, type Transaccion } from '@morphiqpos/data';
+import { conTransaccion, repoModulos, repoVocabulario, type Transaccion } from '@morphiqpos/data';
 import {
   crearVocabulario,
   ENTIDADES,
@@ -200,3 +200,64 @@ export const restablecerTermino = definirComando<
     };
   },
 });
+
+/**
+ * Lo que una PANTALLA necesita para hablar como el negocio.
+ *
+ * ── Por qué esto, y no el `Vocabulario` entero ─────────────────────────────
+ * `vocabularioDelNegocio()` devuelve un objeto con funciones. Las funciones no
+ * cruzan la frontera servidor→cliente de React: hay que mandar DATOS y volver a
+ * armar el vocabulario del otro lado. Son dos campos, y el módulo de dominio es
+ * puro y corre igual en el navegador, así que rearmarlo cuesta nada.
+ *
+ * ── Por qué viaja el giro y no los términos resueltos ──────────────────────
+ * Porque el diccionario del giro es la misma decisión de producto para los 78
+ * modelos y tiene que poder corregirse con un despliegue. Si se serializaran
+ * los términos ya resueltos, cambiar «mesero» por «mesera» en el diccionario
+ * no llegaría a ningún negocio hasta que alguien tocara su fila.
+ *
+ * Lo que sí viaja resuelto son las EXCEPCIONES: eso es dato del negocio.
+ */
+export interface TerminosDelNegocio {
+  readonly giro: string;
+  readonly personalizado: Readonly<Record<string, Termino>>;
+}
+
+export async function terminosDelNegocio(
+  tx: Transaccion,
+  organizacionId: string,
+): Promise<TerminosDelNegocio> {
+  const perfil = await repoModulos.leerPerfil(tx, organizacionId);
+  const guardados = await repoVocabulario.leerVocabulario(tx, organizacionId);
+
+  const personalizado: Record<string, Termino> = {};
+  for (const fila of guardados) {
+    if (!esEntidad(fila.entidad)) continue;
+    if (fila.genero !== 'femenino' && fila.genero !== 'masculino') continue;
+    personalizado[fila.entidad] = {
+      singular: fila.singular,
+      plural: fila.plural,
+      genero: fila.genero,
+    };
+  }
+
+  // El giro vacío es una respuesta válida y no un error: `crearVocabulario`
+  // cae al diccionario base, que nombra todo con el sustantivo neutro. Dejar la
+  // pantalla SIN sustantivos sería peor — el vocabulario no autoriza nada,
+  // sólo nombra.
+  return { giro: perfil?.giro ?? '', personalizado };
+}
+
+/**
+ * Los términos de una organización, abriendo su propia transacción.
+ *
+ * `apps/web` no depende de `@morphiqpos/data` —y no debe: la regla de
+ * dependencia va de la aplicación hacia el dominio, no hacia el motor—, así que
+ * la transacción la abre esta capa, igual que hacen todas las demás consultas
+ * que una ruta invoca.
+ */
+export async function terminosDeLaOrganizacion(
+  organizacionId: string,
+): Promise<TerminosDelNegocio> {
+  return conTransaccion((tx) => terminosDelNegocio(tx, organizacionId));
+}
