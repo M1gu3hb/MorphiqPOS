@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { definirComando, type ContextoComando } from '../definicion.ts';
 
 /**
- * F-600 a F-605 y F-607 · La cotización, de punta a punta.
+ * F-600, F-601, F-602, F-603, F-604, F-605 y F-607 · La cotización, entera.
  *
  * ── El dolor, con sus palabras ───────────────────────────────────────────
  * «La venta grande se cotiza en una hoja de Excel de Norma y se pierde el

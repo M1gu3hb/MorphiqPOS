@@ -15,6 +15,11 @@ import { emitirDocumentoCredito, estadoDeCuenta } from './documento.ts';
  * F-611 a F-617 · La cartera, contra la base.
  *
  * ── Las dos cosas que esta prueba defiende ────────────────────────────────
+ * Cubre también F-612, el estado de cuenta, que se prueba más abajo: el total y
+ * lo vencido van por SEPARADO, porque un cliente con $80 000 por vencer y otro
+ * con $80 000 a noventa días no son el mismo riesgo y una sola cifra los pinta
+ * igual.
+ *
  * Que el pago de un crédito **no sea una venta nueva** —la venta se registró el
  * día que se fió, y volver a contarla duplicaría el ingreso del mes— y que el
  * vencimiento se congele al emitir: si mañana se le cambia el plazo al cliente,

@@ -18,7 +18,7 @@ import {
 } from './cotizacion.ts';
 
 /**
- * F-600 a F-605 y F-607 · La cotización, de punta a punta.
+ * F-600, F-601, F-602, F-603, F-604, F-605 y F-607 · La cotización, entera.
  *
  * ── Qué se prueba y por qué eso ──────────────────────────────────────────
  * Las cuatro puertas por las que este bloque pierde dinero de verdad:

@@ -7,7 +7,17 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { consultarPuente, invocarComando } from '~/cliente/api';
+import {
+  agrupar,
+  etiquetaDelta,
+  mensajeDeFallo,
+  pesos,
+  porOmisionDe,
+  totalCentavos,
+  type GrupoDeOpciones,
+  type OpcionDeBebida,
+} from './opciones-de-bebida';
 
 /**
  * PANTALLA · cafeteria · opciones-de-la-bebida
@@ -62,16 +72,6 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
  * un campo libre y no un catálogo de alérgenos.
  */
 
-/** La jerarquía la fija el documento: 1 Leche · 2 Tamaño · 3 Temperatura · 4 Extras. */
-const ORDEN_GRUPOS = ['Leche', 'Tamaño', 'Temperatura', 'Extras'] as const;
-
-/** Los dos alérgenos de este giro. Cualquier otro entra por el campo libre. */
-const ALERGENOS = ['Frutos secos', 'Lácteos'] as const;
-
-/** El documento no nombra la ruta: se usa la convención `/api/<dominio>/<verbo>`. */
-const RUTA_AGREGAR = '/api/cafeteria/agregar-linea';
-
-/** Los 56x56 px de tablet salen de la perilla de densidad, no de un número fijo. */
 const CHIP = [
   'flex min-h-[var(--area-tactil-minima)] flex-col items-center justify-center gap-0.5',
   'rounded-md border-2 px-3 py-2 text-center transition-colors',
@@ -81,22 +81,11 @@ const CHIP = [
 
 const ROTULO = 'mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground';
 
-export interface OpcionDeBebida {
-  readonly id: string;
-  readonly grupo: string;
-  readonly nombre: string;
-  readonly delta_precio_centavos: number | null;
-  readonly por_omision: boolean;
-  readonly agotado: boolean;
-  /** El grupo admite varias a la vez. Viaja por fila: el puente devuelve filas planas. */
-  readonly varias: boolean;
-}
+/** Los dos alérgenos de este giro. Cualquier otro entra por el campo libre. */
+const ALERGENOS = ['Frutos secos', 'Lácteos'] as const;
 
-export interface GrupoDeOpciones {
-  readonly nombre: string;
-  readonly varias: boolean;
-  readonly opciones: readonly OpcionDeBebida[];
-}
+/** El documento no nombra la ruta: se usa la convención `/api/<dominio>/<verbo>`. */
+const RUTA_AGREGAR = '/api/cafeteria/agregar-linea';
 
 export interface OpcionesDeLaBebidaProps {
   readonly productoId?: string;
@@ -105,65 +94,6 @@ export interface OpcionesDeLaBebidaProps {
   /** Cuando llega, la pantalla no consulta: es lo que usan las pruebas. */
   readonly opcionesIniciales?: readonly OpcionDeBebida[];
   readonly onAgregada?: (lineaId: string | null) => void;
-}
-
-/** Agrupa las filas planas del puente y las ordena por la jerarquía del documento. */
-export function agrupar(filas: readonly OpcionDeBebida[]): readonly GrupoDeOpciones[] {
-  const porNombre = new Map<string, OpcionDeBebida[]>();
-  for (const fila of filas) {
-    const lista = porNombre.get(fila.grupo);
-    if (lista === undefined) porNombre.set(fila.grupo, [fila]);
-    else lista.push(fila);
-  }
-  const posicion = (nombre: string): number => {
-    const indice = ORDEN_GRUPOS.findIndex((g) => g === nombre);
-    return indice === -1 ? ORDEN_GRUPOS.length : indice;
-  };
-  return [...porNombre.entries()]
-    .map(([nombre, opciones]) => ({ nombre, varias: opciones.some((o) => o.varias), opciones }))
-    .sort((a, b) => posicion(a.nombre) - posicion(b.nombre));
-}
-
-/** La marcada, salvo que se haya agotado; si nadie marcó, la primera que haya. */
-export function porOmisionDe(grupo: GrupoDeOpciones): string | null {
-  const disponibles = grupo.opciones.filter((o) => !o.agotado);
-  const marcada = disponibles.find((o) => o.por_omision);
-  if (marcada !== undefined) return marcada.id;
-  return grupo.varias ? null : (disponibles[0]?.id ?? null);
-}
-
-/** El total que va dentro del botón: la base más cada delta activo. */
-export function totalCentavos(base: number, activas: readonly OpcionDeBebida[]): number {
-  return activas.reduce((suma, opcion) => suma + (opcion.delta_precio_centavos ?? 0), base);
-}
-
-export function pesos(centavos: number): string {
-  return `$ ${(centavos / 100).toFixed(2)}`;
-}
-
-/** `+22` se dice en voz alta; `+22.00` se lee. Los centavos sólo salen si los hay. */
-export function etiquetaDelta(centavos: number): string | null {
-  if (centavos === 0) return null;
-  const absoluto = Math.abs(centavos);
-  const cuerpo = absoluto % 100 === 0 ? absoluto / 100 : (absoluto / 100).toFixed(2);
-  return `${centavos > 0 ? '+' : '−'}$${cuerpo}`;
-}
-
-/** El límite de intentos no es un código de la API: es el 429 del estado. */
-export function mensajeDeFallo(fallo: unknown): string {
-  if (!(fallo instanceof ErrorApi)) return 'No se pudo hablar con el servidor.';
-  if (fallo.estado === 429) return 'Demasiados intentos seguidos. Espera unos segundos.';
-  switch (fallo.error.codigo) {
-    case 'SIN_PERMISO':
-    case 'PAQUETE_NO_INCLUYE':
-      return 'Tu usuario no puede agregar bebidas con opciones.';
-    case 'NO_ENCONTRADO':
-      return 'Esta bebida ya no está en el catálogo.';
-    case 'CONFLICTO_ESTADO':
-      return 'El pedido ya se cobró: abre uno nuevo.';
-    default:
-      return fallo.error.mensaje;
-  }
 }
 
 function claseChip(activa: boolean, agotado: boolean): string {

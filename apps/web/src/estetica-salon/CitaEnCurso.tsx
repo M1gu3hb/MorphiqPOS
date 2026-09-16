@@ -8,6 +8,14 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import {
+  PASO,
+  mover,
+  sobrante,
+  transcurrido,
+  type ComponenteDeFormula,
+  type Mezcla,
+} from './formula-de-cabina';
 
 /**
  * PANTALLA · estetica-salon · cita-en-curso
@@ -59,15 +67,6 @@ const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN
 const DIA = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' });
 const HORA = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit' });
 
-/** Los ± mueven de diez en diez: nadie pesa de a un gramo con las manos ocupadas. */
-const PASO = 10;
-
-export interface ComponenteDeFormula {
-  readonly nombre: string;
-  readonly cantidad: number;
-  readonly unidad: string;
-}
-
 export interface VisitaConFormula {
   readonly id: string;
   /** ISO. Se formatea en el cliente: el servidor no sabe la zona del salón. */
@@ -92,14 +91,6 @@ export interface CitaAbierta {
   /** Epoch en ms del inicio real. El cronómetro no se guarda: se resta. */
   readonly inicioEn: number;
   readonly alergias: string | null;
-}
-
-/** Lo que se captura. `mezclado` y `usado` van juntos o el sobrante no cuadra. */
-export interface Mezcla {
-  readonly mezclado: number;
-  readonly usado: number;
-  readonly componentes: readonly ComponenteDeFormula[];
-  readonly minutos: number;
 }
 
 export interface CitaEnCursoProps {
@@ -137,29 +128,10 @@ const BASE: Mezcla = {
   minutos: 35,
 };
 
-/** El sobrante NO se teclea: se calcula. Es el 10–20 % que hoy se tira sin apunte. */
-export function sobrante(mezclado: number, usado: number): number {
-  return Math.max(0, mezclado - usado);
-}
-
-/** hh:mm desde el inicio real. El documento pide «en curso 00:23», no un cronómetro. */
-export function transcurrido(desde: number, ahora: number): string {
-  const minutos = Math.max(0, Math.floor((ahora - desde) / 60_000));
-  const hh = Math.floor(minutos / 60).toString();
-  return `${hh.padStart(2, '0')}:${(minutos % 60).toString().padStart(2, '0')}`;
-}
-
 /** Un campo vacío es un cero, no un NaN: el sobrante tiene que cuadrar siempre. */
 function entero(texto: string): number {
   const valor = Number.parseInt(texto, 10);
   return Number.isNaN(valor) ? 0 : Math.max(0, valor);
-}
-
-export function mover(mezcla: Mezcla, indice: number, delta: number): Mezcla {
-  const componentes = mezcla.componentes.map((c, i) =>
-    i === indice ? { ...c, cantidad: Math.max(0, c.cantidad + delta) } : c,
-  );
-  return { ...mezcla, componentes };
 }
 
 function mezclaDe(visita: VisitaConFormula): Mezcla {

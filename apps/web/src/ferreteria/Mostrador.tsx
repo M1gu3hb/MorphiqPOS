@@ -6,6 +6,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { buscar, cercanas, normalizar, type MaterialDeMostrador } from './buscar-material';
 
 /**
  * PANTALLA · ferreteria · mostrador
@@ -77,22 +78,6 @@ const BANDA = 'mb-3 rounded-md border p-2 text-sm';
 const GRUPO =
   'min-h-20 rounded-md border border-border bg-secondary p-2 text-sm font-semibold text-secondary-foreground hover:bg-accent hover:text-accent-foreground';
 
-export interface MaterialDeMostrador {
-  readonly id: string;
-  readonly nombre: string;
-  /** Va primero: el nombre es el mismo en las cinco filas, la medida no. */
-  readonly medida: string;
-  readonly acabado: string | null;
-  readonly marca: string | null;
-  readonly precioCentavos: number;
-  /** Ya con la lista del cliente aplicada, con o sin IVA según su lista. */
-  readonly existencia: number;
-  readonly unidad: string;
-  /** F-152. Sin esto el resultado no termina la venta. */
-  readonly ubicacion: string | null;
-  readonly linea: string;
-}
-
 export interface ClienteDeMostrador {
   readonly id: string;
   readonly nombre: string;
@@ -115,59 +100,6 @@ export interface MostradorProps {
 interface Partida {
   readonly material: MaterialDeMostrador;
   readonly cantidad: number;
-}
-
-/**
- * `1/4 x 2`, `1/4x2`, `.25 × 2` y `1/4"x2"` son EL MISMO DATO.
- *
- * La normalización de la medida no es una comodidad: sin ella no funciona nada,
- * porque nadie teclea dos veces igual y el que busca tiene al cliente enfrente.
- */
-export function normalizar(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/["']/g, '')
-    .replace(/\s*[x×*]\s*/g, 'x')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function pajarDe(material: MaterialDeMostrador): string {
-  return normalizar(
-    `${material.nombre} ${material.medida} ${material.acabado ?? ''} ${material.marca ?? ''} ${material.linea}`,
-  );
-}
-
-/**
- * Filtro progresivo: cada palabra estrecha. El orden NUNCA es alfabético —
- * primero el que coincide en medida, después el que hay: el de 2,340 en
- * existencia va arriba del que tiene 3.
- */
-export function buscar(
-  filas: readonly MaterialDeMostrador[],
-  palabras: readonly string[],
-): readonly MaterialDeMostrador[] {
-  if (palabras.length === 0) return [];
-  const hallados = filas.filter((f) => palabras.every((p) => pajarDe(f).includes(p)));
-  return [...hallados].sort((a, b) => {
-    const ma = palabras.some((p) => normalizar(a.medida).includes(p)) ? 1 : 0;
-    const mb = palabras.some((p) => normalizar(b.medida).includes(p)) ? 1 : 0;
-    if (ma !== mb) return mb - ma;
-    return b.existencia - a.existencia;
-  });
-}
-
-/** Las que le pueden servir cuando no hay ninguna exacta. Aproximación por familia. */
-export function cercanas(
-  filas: readonly MaterialDeMostrador[],
-  palabras: readonly string[],
-): readonly MaterialDeMostrador[] {
-  return [...filas]
-    .filter((f) => palabras.some((p) => normalizar(`${f.nombre} ${f.linea}`).includes(p)))
-    .sort((a, b) => b.existencia - a.existencia)
-    .slice(0, 5);
 }
 
 export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false }: MostradorProps) {
