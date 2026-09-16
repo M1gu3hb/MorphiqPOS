@@ -686,7 +686,7 @@ I) SESIÓN
 · NO TOQUES el proyecto Pasteleria Confetti de Supabase
   (ivqcxdpqxwjxfohiswqb). Ni para leer.
 · Commits pequeños con identificador: "B-0: RLS faltante en 8 tablas".
-  A nombre de M1gu3hb <enchuer2797@gmail.com>.
+  A nombre de M1gu3hb <118588634+M1gu3hb@users.noreply.github.com>.
 · Nada se declara terminado sin haberlo EJECUTADO. Ni una migración que no
   se aplicó, ni una prueba que no corrió.
 

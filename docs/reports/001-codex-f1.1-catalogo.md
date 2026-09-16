@@ -62,7 +62,7 @@ NUNCA cambias de rama ni entras a D:\MIS PROYECTOS\Master POS\morphiqpos.
 
 Identidad de commits:
     git config user.name "M1gu3hb"
-    git config user.email "enchuer2797@gmail.com"
+    git config user.email "118588634+M1gu3hb@users.noreply.github.com"
 
 Credenciales: Miguel tiene Supabase CLI instalado y te da permiso expreso
 para sacar las claves del proyecto wyqmzhliurwyxuyxznpb y escribirlas en
