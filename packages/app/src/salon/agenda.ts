@@ -344,12 +344,12 @@ async function comprobarChoques(
 }
 
 /** `[10:00,10:40)` — el literal de `tstzrange` que Postgres entiende. */
-function comoRango(rango: Rango): string {
+export function comoRango(rango: Rango): string {
   return `[${rango.inicio.toISOString()},${rango.fin.toISOString()})`;
 }
 
 /** `{[10:00,10:40),[11:25,11:50)}` — el literal de `tstzmultirange`. */
-function comoMultirango(rangos: readonly Rango[]): string {
+export function comoMultirango(rangos: readonly Rango[]): string {
   return `{${rangos.map(comoRango).join(',')}}`;
 }
 
@@ -366,10 +366,22 @@ export function desdeMultirango(texto: string): readonly Rango[] {
 
   const rangos: Rango[] = [];
   for (const trozo of cuerpo.split(/\)\s*,\s*\[/)) {
-    const limpio = trozo.replace(/^\[/, '').replace(/\)$/, '');
-    const [desde = '', hasta = ''] = limpio.split(',').map((t) => t.trim().replace(/^"|"$/g, ''));
-    if (desde === '' || hasta === '') continue;
-    rangos.push({ inicio: new Date(desde), fin: new Date(hasta) });
+    const rango = desdeRango(trozo);
+    if (rango !== null) rangos.push(rango);
   }
   return rangos;
+}
+
+/**
+ * Un `tstzrange` suelto. Un bloqueo de agenda es uno, no un multirango.
+ *
+ * Lo usa `desdeMultirango` para cada trozo: son el mismo formato y leerlo dos
+ * veces de dos maneras es cómo acaban discrepando en el caso raro —el de las
+ * comillas— que sólo aparece cuando Postgres decide ponerlas.
+ */
+export function desdeRango(texto: string): Rango | null {
+  const limpio = texto.trim().replace(/^\[/, '').replace(/\)$/, '');
+  const [desde = '', hasta = ''] = limpio.split(',').map((t) => t.trim().replace(/^"|"$/g, ''));
+  if (desde === '' || hasta === '') return null;
+  return { inicio: new Date(desde), fin: new Date(hasta) };
 }

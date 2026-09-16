@@ -1058,6 +1058,13 @@ export interface Esquema {
   cobros_renta: CobrosRenta;
   documentos_por_pagar: DocumentosPorPagar;
   pagos_a_proveedor: PagosAProveedor;
+  expedientes_belleza: ExpedientesBelleza;
+  formulas_aplicadas: FormulasAplicadas;
+  consentimientos: Consentimientos;
+  fotos_expediente: FotosExpediente;
+  no_shows: NoShows;
+  paquetes_vendidos: PaquetesVendidos;
+  sesiones_paquete: SesionesPaquete;
 }
 
 /* ── Fase 2 · tronco compartido de inventario (migraciones 058-066) ──────── */
@@ -2273,4 +2280,122 @@ export interface PagosAProveedor {
   sesion_caja_id: string | null;
   empleado_id: string;
   created_at: Generated<Date>;
+}
+
+/**
+ * F-153 · El expediente de belleza (migración 137).
+ *
+ * No es «notas del cliente»: se abre EN CADA VISITA, antes de tocar a la
+ * clienta, y se llena con guantes puestos. Por eso las alergias son columna y
+ * no una clave dentro de un jsonb de notas: una alergia dentro de un jsonb es
+ * una alergia que nadie consulta.
+ */
+export interface ExpedientesBelleza {
+  cliente_id: string;
+  organizacion_id: string;
+  /** Obligatoria aunque sea «ninguna conocida»: el hueco en blanco y el «no tiene» son cosas distintas. */
+  alergias: Generated<string>;
+  antecedentes: Generated<string>;
+  como_llego: Generated<string>;
+  que_busca: Generated<string>;
+  tipo_cabello: string | null;
+  porcentaje_canas: number | null;
+  ultimo_alisado_en: string | null;
+  /** Cada cuánto vuelve. De aquí sale «le toca volver» (F-951). */
+  frecuencia_dias: number | null;
+  abierto_en: Generated<Date>;
+  abierto_por: string | null;
+  updated_at: Generated<Date>;
+}
+
+/** F-154 · Lo que de verdad se mezcló, CONGELADO. De aquí sale el botón REPETIR. */
+export interface FormulasAplicadas {
+  id: Generated<string>;
+  organizacion_id: string;
+  cliente_id: string;
+  cita_servicio_id: string | null;
+  servicio_id: string | null;
+  profesional_id: string | null;
+  /** `{marca, tono, volumen, gramos, minutos, notas}`. No apunta al catálogo. */
+  formula: unknown;
+  minutos_procesado: number | null;
+  resultado: string | null;
+  aplicada_en: Generated<Date>;
+  created_at: Generated<Date>;
+}
+
+/** El consentimiento con FECHA y ALCANCE: no es una casilla en la ficha. */
+export interface Consentimientos {
+  id: Generated<string>;
+  organizacion_id: string;
+  cliente_id: string;
+  /** `expediente` · `foto_interna` · `foto_publicable` · `recordatorios`. */
+  alcance: string;
+  texto: string;
+  otorgado_en: Generated<Date>;
+  revocado_en: Date | null;
+  recogido_por: string | null;
+}
+
+/** F-436 · Antes y después. Una foto por momento y por servicio, o la segunda tapa a la primera. */
+export interface FotosExpediente {
+  id: Generated<string>;
+  organizacion_id: string;
+  cliente_id: string;
+  cita_servicio_id: string | null;
+  /** `antes` · `despues`. */
+  momento: string;
+  archivo_url: string;
+  consentimiento_id: string | null;
+  tomada_en: Generated<Date>;
+  tomada_por: string | null;
+}
+
+/**
+ * F-434 · El ANTECEDENTE que `citas` no guarda (migración 140).
+ *
+ * De aquí cuelgan las dos únicas decisiones posibles: a quién se le pide
+ * anticipo y a quién se le deja de agendar en hora pico.
+ */
+export interface NoShows {
+  id: Generated<string>;
+  organizacion_id: string;
+  cliente_id: string;
+  cita_id: string;
+  profesional_id: string | null;
+  ocurrio_en: Date;
+  /** Congelado: el precio puede cambiar mañana y el hueco del martes ya se perdió a éste. */
+  valor_perdido_centavos: Generated<bigint>;
+  anticipo_id: string | null;
+  anticipo_retenido: Generated<boolean>;
+  marcado_por: string | null;
+  nota: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-419 · El paquete prepagado: un pasivo en la caja que hoy nadie ve. */
+export interface PaquetesVendidos {
+  id: Generated<string>;
+  organizacion_id: string;
+  cliente_id: string;
+  producto_id: string;
+  orden_id: string | null;
+  sesiones_totales: number;
+  /** Se guarda además de poder contarse: «¿cuántas le quedan?» no admite un recuento. */
+  sesiones_usadas: Generated<number>;
+  precio_centavos: bigint;
+  vendido_en: Generated<Date>;
+  vence_en: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface SesionesPaquete {
+  id: Generated<string>;
+  organizacion_id: string;
+  paquete_id: string;
+  cita_servicio_id: string | null;
+  numero: number;
+  consumida_en: Generated<Date>;
+  consumida_por: string | null;
 }

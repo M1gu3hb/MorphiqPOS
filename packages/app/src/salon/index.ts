@@ -78,3 +78,62 @@ export {
 } from './propina-directa.ts';
 
 export { cobrarRenta, entradaCobrarRenta, type ResultadoCobroRenta } from './rentas.ts';
+
+export {
+  abrirExpediente,
+  entradaAbrirExpediente,
+  entradaFotoDeServicio,
+  entradaUltimaFormula,
+  guardarFotoDeServicio,
+  ultimaFormula,
+  type Expediente,
+  type FormulaAnterior,
+  type ResultadoFoto,
+  type ResultadoUltimaFormula,
+} from './expediente.ts';
+
+export {
+  agendaDelDia,
+  clientesPorVolver,
+  entradaAgendaDelDia,
+  entradaHuecos,
+  entradaPorVolver,
+  entradaProximosHuecos,
+  entradaReporteAgenda,
+  huecosDisponibles,
+  proximosHuecos,
+  reporteDeHuecos,
+  reporteDeOcupacion,
+  type ClientaPorVolver,
+  type ColumnaDeAgenda,
+  type HuecoOfrecido,
+  type ResultadoAgendaDelDia,
+  type ResultadoHuecos,
+  type ResultadoOcupacion,
+  type ResultadoPorVolver,
+  type ResultadoReporteHuecos,
+} from './consultas.ts';
+
+export {
+  agendarWalkIn,
+  entradaReprogramar,
+  entradaWalkIn,
+  reprogramarCita,
+  type ResultadoReprogramacion,
+} from './reprogramar.ts';
+
+export {
+  comisionesDelProfesional,
+  comprobanteDeLiquidacion,
+  entradaComisionesDe,
+  entradaComprobante,
+  entradaListaProfesionales,
+  entradaMiDia,
+  listaDeProfesionales,
+  miDia,
+  type FichaDeProfesional,
+  type ResultadoComisiones,
+  type ResultadoComprobante,
+  type ResultadoMiDia,
+  type ResultadoProfesionales,
+} from './profesionales.ts';

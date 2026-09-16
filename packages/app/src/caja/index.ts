@@ -27,3 +27,11 @@ export {
   type ResultadoCajas,
   type ResultadoCajon,
 } from './multiples.ts';
+
+export {
+  documentoDeCorte,
+  entradaDocumentoDeCorte,
+  type DocumentoDeCorte,
+  type MovimientoDelCorte,
+  type RenglonDeCorte,
+} from './documento.ts';

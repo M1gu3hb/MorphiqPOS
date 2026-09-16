@@ -569,11 +569,23 @@ export function borrado(filas: Fila[]) {
       return constructor;
     },
     async executeTakeFirst() {
-      const sobreviven = filas.filter((fila) => !filtros.every((f) => cumple(fila, f)));
-      const borradas = filas.length - sobreviven.length;
-      filas.splice(0, filas.length, ...sobreviven);
-      return { numDeletedRows: BigInt(borradas) };
+      return borrar();
+    },
+    // Kysely admite las dos formas y el codigo real usa `execute()` cuando no
+    // le interesa cuantas borro. Tener solo una aqui obligaba a escribir el
+    // comando de una manera concreta para que la prueba pasara, que es la
+    // prueba dictandole la forma al codigo.
+    async execute() {
+      return [borrar()];
     },
   };
+
+  function borrar(): { numDeletedRows: bigint } {
+    const sobreviven = filas.filter((fila) => !filtros.every((f) => cumple(fila, f)));
+    const borradas = filas.length - sobreviven.length;
+    filas.splice(0, filas.length, ...sobreviven);
+    return { numDeletedRows: BigInt(borradas) };
+  }
+
   return constructor;
 }
