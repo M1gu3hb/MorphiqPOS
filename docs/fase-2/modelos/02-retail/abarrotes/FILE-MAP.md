@@ -232,6 +232,50 @@ aplica. Cuando se apliquen, el primer enganche será el de `F-986` sobre
 
 ---
 
+## 3.ter · LO QUE LAS ETAPAS 10-13 AÑADIERON
+
+Escrito con el código delante. `verify:cobertura` sale en 0 para este modelo:
+25/25 funciones, 20/20 rutas, 11/11 pantallas, 14/14 migraciones.
+
+| Pieza | Dónde quedó | Prueba |
+|---|---|---|
+| **F-106** caducidad sin lote | `packages/app/src/abarrotes/caducidad.ts` · `apps/web/app/api/inventario/caducidad/route.ts` | `caducidad.test.ts` |
+| recibir la nota con sus caducidades | `packages/app/src/abarrotes/recibir-nota.ts` · `apps/web/app/api/compras/recibir-nota/route.ts` | `recibir-nota.test.ts` |
+| **F-255** entregar el dinero ajeno | `packages/app/src/abarrotes/deposito-comision.ts` · `apps/web/app/api/comision/depositar/route.ts` | `deposito-comision.test.ts` |
+| **F-201** alta rápida desde el código de barras | `packages/app/src/catalogo/alta-rapida.ts` · `apps/web/app/api/catalogo/alta-rapida/route.ts` | `alta-rapida.test.ts` |
+| IVA e IEPS por categoría, en masa | `packages/app/src/catalogo/fiscal-masivo.ts` · `apps/web/app/api/catalogo/fiscal-masivo/route.ts` | dentro de `alta-rapida.test.ts` |
+| **F-224** venta en espera | `packages/app/src/venta/suspender.ts` · `apps/web/app/api/venta/suspender/route.ts` | `suspender.test.ts` |
+| **PANTALLAS** caja, cortes, entradas, producto, registros | `apps/web/src/abarrotes/{Caja,Cortes,Entradas,Producto,Registros}.tsx` | la lógica pura está exportada archivo por archivo |
+
+**Migración nueva y DECLARADA: `102_venta_en_espera.sql`.** El `05` declaraba
+`venta.suspender` escribiendo `ordenes.estado`, y el `check` de esa columna no
+admitía ningún estado que significara «apartada»: el comando existía en el papel
+y no podía existir en la base. Se escribió dentro del rango 090-109 y el árbol
+de migraciones de este modelo pasa de 13 a 14.
+
+Esa migración reescribe el `check` completo —no lo parchea—, y por eso tuvo que
+traer también `dividida` (070) y `absorbida` (071). Copiar la lista de la 003
+las habría borrado, y con ellas la cuenta dividida y la mesa que se junta con
+otra. Lo cazó el contrato `estados-con-columna.contrato.test.ts` antes de que
+llegara a ninguna base.
+
+Dos decisiones más que el código fija:
+
+- **La caducidad NO resta de la existencia.** `consumida` es una anotación sobre
+  el lote, no un movimiento de stock: restarla descontaría dos veces lo que la
+  venta ya descontó.
+- **El fiscal masivo es simulacro por omisión.** Cambiar el IVA de una categoría
+  entera toca cientos de precios; enseñar primero a cuántos productos les va a
+  pegar es más barato que revertirlo después.
+
+### El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar
+
+Sigue siendo el de `F-986` sobre `heredado/utils/barcodeUtils.js`, y ahora tiene
+destino: `apps/web/src/cliente/lector-teclado.ts`. La línea es el `import` que
+sustituye la detección actual por `esDeLector`.
+
+---
+
 ## 4 · QUÉ HEREDAN DE AQUÍ LOS DIECIOCHO VECINOS
 
 Lo que **no** deben volver a construir. Si un modelo de retail reinventa algo de esta lista, está

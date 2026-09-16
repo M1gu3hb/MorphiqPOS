@@ -197,6 +197,28 @@ comandos leen tablas de las migraciones `070`–`077`, que la Fase 2 escribe y n
 
 ---
 
+## 3.quater · LO QUE LAS ETAPAS 10-13 AÑADIERON
+
+Escrito con el código delante. `verify:cobertura` sale en 0 para este modelo:
+8/8 funciones, 13/13 rutas, 13/13 pantallas, 10/10 migraciones.
+
+| Pieza | Dónde quedó | Prueba |
+|---|---|---|
+| **PANTALLA · portal-del-comensal** | `apps/web/src/restaurante/PortalDelComensal.tsx` · página en `apps/web/app/(modelos)/restaurante/portal-del-comensal/page.tsx` | la lógica pura está exportada y es la que se prueba |
+
+La pantalla se pinta con UNA petición al portal por token, que ya existía. No se
+añadió ninguna ruta: se añadió el consumidor. Es la única pantalla de todo el
+sistema que se abre SIN sesión, y por eso la respuesta del token trae ya
+resuelto lo que puede ver: el comensal no consulta, le contestan.
+
+### El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar
+
+`heredado/pages/PortalQR.jsx` deja de resolver su propio estado y pasa a montar
+`PortalDelComensal` con el token de la URL. Es una línea —el `render`— porque
+todo lo demás ya vive en el componente nuevo.
+
+---
+
 ## 4 · LAS CUATRO PREGUNTAS DE CIERRE
 
 Contestadas con honestidad, incluido lo que quedó flojo.

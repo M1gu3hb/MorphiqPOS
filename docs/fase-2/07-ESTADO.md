@@ -41,6 +41,9 @@ La copia canónica de esta documentación es `docs/fase-2/` **dentro del worktre
 | **E5** | `abarrotes` · raíz de A1 | ✅ **8 de 12** · F-111, F-112, F-147, F-148, F-149, F-107, F-254, F-255, F-256, F-257, F-040 · migraciones 090, 091, 097, 099 · **F-988 y F-940…F-945 BLOQUEADAS** · F-011 (IVA/IEPS) declarada pendiente por tocar el precio de los cinco modelos · F-986, F-201 y F-983 son pantalla y hardware · **dos `check` latentes de E2/E3 cerrados en la 097** · ninguna pantalla abierta: dependen de migraciones sin aplicar |
 | **E6** | `ferreteria` | ✅ **9 de 13** · F-059, F-152, F-201, F-145, F-150, F-151, F-638, F-639, F-606, F-614, F-258 · migraciones 110-113 · **F-940…F-945 BLOQUEADAS** · F-061 es pantalla · F-060 con tabla y sin comando · el pago a crédito y F-617 pendientes · **un contrato de E2 cazó el hueco de `cerrar_obra`** · ninguna pantalla abierta: dependen de migraciones sin aplicar |
 | **E7** | `estetica-salon` · A3 de cero | ✅ **el motor de A3** · F-401, F-415, F-404, F-409, F-440, F-423, F-428, F-400, F-402, F-412, F-407, F-434, F-443, F-427, F-259, F-155, F-441 · migraciones 130-133, 135 · **F-406 BLOQUEADA** (WhatsApp) · anticipo, paquetes, propina V4 y expediente completo pendientes con su hueco (134, 136-145) · **el contrato `estados-con-columna` de E2 cazó el hueco Y estaba mal: se corrigió para recortar por tabla** · **RIESGO: la 130 necesita `btree_gist` en Supabase** · ninguna pantalla abierta |
+| **E8** | La puerta `verify:cobertura` · tronco compartido | ✅ **8/8** · F-015, F-016, F-017, F-103, F-105, F-108, F-109, F-260 · la puerta cuenta FUNCIONES por etiqueta `F-NNN` y no filas de tabla — y fue ella la que enseñó que el avance real iba por el 40 %, no por el 80 % que parecía |
+| **E9–E12** | Las funciones que les faltaban a los cinco modelos | ✅ **113/113** · siete de dominio puro (IVA con IEPS mixto, conteo por peso con su rango de confianza, precio por canal, combo resuelto en componentes, recursos de agenda medidos en el PICO, los cuatro rankings, lector de código por tiempo entre teclas) y las transversales escritas UNA vez para varios modelos (ficha de cliente, cuentas por pagar) · **9 declaradas en `EXCEPCIONES-COBERTURA.md`**, ninguna relajando la puerta |
+| **E13** | Rutas, pantallas, y lo que hubo que construir debajo | ✅ **105/105 rutas · 61/61 pantallas · 65/65 migraciones** · 61 rutas nuevas y 20 pantallas nuevas · la transferencia a crédito deja de aplicarse sola y entra PENDIENTE DE CONFIRMAR · `102_venta_en_espera.sql` escrita y declarada, porque el `check` de `ordenes.estado` no admitía «apartada» y el comando del papel no podía existir en la base · **3 rutas declaradas como excepción** (las dos de impresión y la factura agrupada, que es CFDI) |
 
 **Rangos de migración tras la reconciliación** (D-08, verificado contra el disco: la última real es
 la `057` de Codex):
@@ -49,10 +52,38 @@ la `057` de Codex):
 058 – 069   tronco compartido      (066 = semilla de las cinco plantillas, consolidada)
 070 – 078   restaurante            (079 libre)
 080 – 089   cafeteria              (cabe exacto)
-090 – 101   abarrotes              (102-109 libres)
+090 – 102   abarrotes              (103-109 libres)  ← la 102 la añadió E13
 110 – 121   ferreteria             (122-129 libres)
 130 – 145   estetica-salon         (146-159 libres)
+160 – 163   transversales          (164-199 libres)
 ```
+
+**Orden de aplicación: el numérico, sin saltos.** Cada archivo depende sólo de
+números menores, y las que amplían un `check` de otra etapa reescriben la lista
+VIGENTE completa —no la de la migración original—, que es lo que impide que la
+102 borre el `dividida` que añadió la 070.
+
+**Cobertura MEDIDA por `pnpm verify:cobertura`, no contada a mano** (los rangos
+`F-610…F-617` se expanden: es una fila y son OCHO funciones):
+
+```
+MODELO           FUNCIONES        RUTAS            PANTALLAS        MIGRACIONES
+restaurante        8/8   100%   13/13  100%   13/13  100%   10/10  100%
+cafeteria         17/17  100%   16/16  100%   13/13  100%   11/11  100%
+abarrotes         25/25  100%   20/20  100%   11/11  100%   14/14  100%
+ferreteria        38/38  100%   27/27  100%   12/12  100%   13/13  100%
+estetica-salon    25/25  100%   29/29  100%   12/12  100%   17/17  100%
+TOTAL            113/113 100%  105/105 100%   61/61  100%   65/65  100%
+TRONCO COMPARTIDO · lo que heredan los 73 modelos que faltan:    8/8   100%
+```
+
+La puerta sale en **0**. Doce excepciones declaradas en
+`EXCEPCIONES-COBERTURA.md`: 9 funciones, 3 rutas, 0 pantallas, 1 migración.
+
+**Las 65 migraciones están ESCRITAS y SIN APLICAR.** Ninguna se corrió contra
+`wyqmzhliurwyxuyxznpb` ni contra ninguna otra base.
+
+2 567 pruebas en 219 archivos, todas en verde.
 
 ---
 

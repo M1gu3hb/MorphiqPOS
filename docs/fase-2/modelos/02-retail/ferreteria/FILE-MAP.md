@@ -237,6 +237,59 @@ catálogo. Es el único enganche de esta etapa con el código viejo, y **no se h
 
 ---
 
+## 3.ter · LO QUE LAS ETAPAS 10-13 AÑADIERON
+
+Escrito con el código delante. `verify:cobertura` sale en 0 para este modelo:
+38/38 funciones, 27/27 rutas, 12/12 pantallas, 13/13 migraciones.
+
+| Pieza | Dónde quedó | Prueba |
+|---|---|---|
+| **F-021 · F-152 · F-060** línea, ubicación y equivalencia | `packages/app/src/ferreteria/organizacion-catalogo.ts` · rutas `catalogo/{linea,ubicacion,equivalencia}` | `organizacion-catalogo.test.ts` |
+| **F-151** calibrar y contar por peso | `packages/app/src/ferreteria/peso.ts` · rutas de calibración y de conteo por peso | `peso.test.ts` |
+| **F-058** etiquetas de anaquel y de gaveta | `packages/app/src/ferreteria/etiquetas.ts` · `apps/web/app/api/catalogo/etiquetas/route.ts` | `etiquetas.test.ts` |
+| **F-146** garantías al proveedor | `packages/app/src/ferreteria/garantias.ts` · `apps/web/app/api/inventario/garantia/route.ts` | `garantias.test.ts` |
+| **F-147** renta de herramienta | `packages/app/src/ferreteria/renta.ts` · `apps/web/app/api/renta/route.ts` | `renta.test.ts` |
+| **F-145** pieza abierta y retazo | `packages/app/src/ferreteria/pieza-abierta.ts` · `apps/web/app/api/inventario/pieza-abierta/route.ts` | `pieza-abierta.test.ts` |
+| **F-631** importar la nota del proveedor | `packages/app/src/compras/importar-nota.ts` · `apps/web/app/api/compras/importar-nota/route.ts` | `importar-nota.test.ts` |
+| transferencia pendiente de confirmar | `packages/app/src/cartera/cobranza.ts` · `apps/web/app/api/credito/confirmar-transferencia/route.ts` | dentro de `cobranza.test.ts` |
+| la llave del dueño sobre el muro de crédito | `packages/app/src/ferreteria/autorizacion-credito.ts` · `apps/web/app/api/credito/autorizar/route.ts` | `autorizacion-credito.test.ts` |
+| **PANTALLAS** conteo, facturacion, material, trabajos-de-mostrador | `apps/web/src/ferreteria/{Conteo,Facturacion,Material,TrabajosDeMostrador}.tsx` | la lógica pura está exportada archivo por archivo |
+
+**Migraciones ampliadas, ninguna nueva.** La `115` gana `confirmado`,
+`confirmado_en`, `confirmado_por` y `recibido_en` en `pagos_credito`, más
+`cliente_id` y `vence_en` en `autorizaciones_descuento`. La `120` gana
+`compra_lineas.clave_proveedor`, que es la memoria que hace que la SEGUNDA nota
+del mismo proveedor se empareje sola.
+
+Cuatro decisiones que el código fija y el papel no decía:
+
+- **La transferencia ya NO se aplica al recibirse.** Entra como pendiente y sólo
+  reparte cuando alguien la confirma contra el banco. Aplicarla antes es dar por
+  cobrado un dinero que todavía puede no llegar, y el saldo del cliente es
+  precisamente lo que no debe mentir.
+- **Abrir una pieza NO mueve existencia.** El rollo ya estaba contado; moverlo
+  al abrirlo lo descontaría dos veces, al abrir y al cortar. Y se recomienda la
+  pieza MÁS CHICA QUE ALCANZA, porque el trabajo de una ferretería es acabarse
+  los abiertos, no abrir otro.
+- **La renta se cobra desde que la herramienta SALE**, no desde que se pactó, y
+  no se puede retener más que el depósito: cobrarle a alguien más de lo que dejó
+  en garantía es una discusión que el mostrador pierde siempre.
+- **La salida por garantía es `garantia_proveedor`**, no un tipo inventado. Lo
+  cazó `valores-de-check.contrato.test.ts`: con el nombre que yo había escrito,
+  la primera garantía real habría reventado con un 23514.
+
+**Excepción declarada:** la ruta de factura agrupada es CFDI y depende de P-02,
+así que está en `EXCEPCIONES-COBERTURA.md`. Lo de debajo sí está construido:
+remisiones con saldo por documento y los datos fiscales del cliente.
+
+### El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar
+
+`heredado/pages/Inventario.jsx` gana el enlace a la pantalla de material, que es
+donde viven los rollos abiertos. Una línea; el corte y el retazo ya están en
+`apps/web/src/ferreteria/Material.tsx`.
+
+---
+
 ## 4 · QUÉ HEREDAN DE AQUÍ LOS VECINOS
 
 | Función | Qué es | Modelos que la reutilizan |

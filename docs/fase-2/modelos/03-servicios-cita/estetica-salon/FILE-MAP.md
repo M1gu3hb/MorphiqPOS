@@ -260,6 +260,52 @@ Ninguno. Este modelo **no existía**: no hay pantalla vieja que enganchar, y tod
 
 ---
 
+## 3.ter · LO QUE LAS ETAPAS 10-13 AÑADIERON
+
+Escrito con el código delante. `verify:cobertura` sale en 0 para este modelo:
+25/25 funciones, 29/29 rutas, 12/12 pantallas, 17/17 migraciones.
+
+| Pieza | Dónde quedó | Prueba |
+|---|---|---|
+| **F-404 · F-415 · F-417 · F-951** lo que la agenda contesta | `packages/app/src/salon/consultas.ts` · rutas de agenda, huecos, clientes por volver y los dos reportes | `consultas.test.ts` |
+| **F-153 · F-154 · F-436** el expediente de belleza | `packages/app/src/salon/expediente.ts` · rutas de expediente, última fórmula y foto de servicio | `expediente.test.ts` |
+| reprogramar y walk-in | `packages/app/src/salon/reprogramar.ts` · rutas `citas/[id]/reprogramar` y `citas/walk-in` | `reprogramar.test.ts` |
+| quién atiende, mi día y el comprobante | `packages/app/src/salon/profesionales.ts` · rutas de profesionales, mi día, comisiones y comprobante | `profesionales.test.ts` |
+| **F-259** el documento del corte | `packages/app/src/caja/documento.ts` · ruta del documento de corte | `documento.test.ts` |
+| **PANTALLAS** caja-y-corte, catalogo-de-servicios, clientas, ficha-del-profesional, liquidacion, productos | `apps/web/src/estetica-salon/{CajaYCorte,CatalogoDeServicios,Clientas,FichaDelProfesional,Liquidacion,Productos}.tsx` | la lógica pura está exportada archivo por archivo |
+
+**Siete tablas nuevas tipadas** en `packages/data/src/esquema.ts`:
+`expedientes_belleza`, `formulas_aplicadas`, `consentimientos`,
+`fotos_expediente`, `no_shows`, `paquetes_vendidos` y `sesiones_paquete`. Las
+migraciones que las crean ya estaban escritas; lo que faltaba era que el código
+pudiera verlas.
+
+Cinco decisiones que el código fija:
+
+- **La fórmula se CONGELA.** `formulas_aplicadas` guarda el jsonb tal como se
+  aplicó, no una referencia al producto: si mañana cambia la marca del tinte, lo
+  que se le hizo a esa clienta en marzo no puede cambiar con ella.
+- **La foto es UNA por momento.** Antes y después, y el reemplazo se anuncia. Un
+  álbum sin control acaba siendo el sitio donde nadie encuentra la del «antes»
+  el día que hay una queja.
+- **Reprogramar DESPLAZA, no replanifica.** Conserva el folio y le añade el
+  motivo a las notas. Cancelar y volver a agendar pierde el hilo de que es la
+  misma cita movida dos veces, que es justo lo que la dueña necesita ver.
+- **La ocupación se mide contra el horario DE ESA PERSONA**, no contra el del
+  salón; y el hueco se valora al ticket promedio DE ESA PERSONA. Medir a todas
+  contra la misma vara hace que la de medio tiempo parezca la peor del salón.
+- **El comprobante lee las MISMAS filas que la liquidación marcó.** No recalcula:
+  un comprobante que recalcula puede dar un número distinto al que ya se pagó, y
+  entonces la discusión es sobre el sistema en vez de sobre el trabajo.
+
+### El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar
+
+Ninguno. Este modelo no comparte una sola pantalla con el frontend heredado.
+Lo que hará falta al acoplar es la entrada de menú, que es configuración y no
+código.
+
+---
+
 ## 4 · QUÉ HEREDAN DE AQUÍ LOS ONCE VECINOS
 
 Lo que **no** deben volver a construir. Si un modelo de servicios con cita reinventa algo de esta

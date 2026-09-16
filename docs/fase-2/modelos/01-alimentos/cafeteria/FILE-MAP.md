@@ -213,6 +213,39 @@ comandos leen `fila_barra` de la migración `082`, escrita y sin aplicar.
 
 ---
 
+## 3.quater · LO QUE LAS ETAPAS 10-13 AÑADIERON
+
+Escrito con el código delante. `verify:cobertura` sale en 0 para este modelo:
+17/17 funciones, 16/16 rutas, 13/13 pantallas, 11/11 migraciones.
+
+| Pieza | Dónde quedó | Prueba |
+|---|---|---|
+| conteo de leche de barra | `packages/app/src/cafeteria/leche.ts` · `apps/web/app/api/cafeteria/contar-leche/route.ts` | `leche.test.ts` |
+| entrada de cambio a media mañana | `packages/app/src/caja/entrada-cambio.ts` · `apps/web/app/api/caja/entrada-cambio/route.ts` | `entrada-cambio.test.ts` |
+| **F-329** monitor de recogida sin sesión | `packages/app/src/portal/recogida.ts` · `apps/web/app/api/publico/recogida/[token]/route.ts` | `recogida.test.ts` |
+| **PANTALLAS** clientes-y-sellos, menu-publico-y-pedido-anticipado, productos, recetas | `apps/web/src/cafeteria/{ClientesYSellos,MenuPublicoYPedidoAnticipado,Productos,Recetas}.tsx` | la lógica pura está exportada archivo por archivo |
+
+Tres decisiones que el código dice y conviene que el papel repita:
+
+- **La leche se cuenta en CUARTOS de litro y nunca se ajusta sola.** Lo que
+  sobra en la jarra no es un número que el sistema pueda inferir; es algo que
+  alguien mira. Un ajuste automático aquí convierte la merma real en una cifra
+  inventada que después nadie sabe de dónde salió.
+- **La entrada de cambio SUBE el fondo esperado.** Si no lo subiera, meter
+  cambio a media mañana haría que el corte marcara sobrante, y el cajero
+  aprendería a ignorar el sobrante, que es justo la alarma que importa.
+- **El nombre en el monitor de recogida es SÓLO el nombre de pila**, recortado
+  en el servidor y no en el navegador. Es una pantalla que mira toda la
+  cafetería: el apellido de quien pidió no es asunto de la fila.
+
+### El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar
+
+`heredado/pages/Productos.jsx` gana el enlace a la pantalla nueva de productos
+de barra, que es la que trae el margen por canal. Una línea en su barra de
+acciones; el resto vive en `apps/web/src/cafeteria/Productos.tsx`.
+
+---
+
 ## 4 · LAS CUATRO PREGUNTAS DE CIERRE
 
 Contestadas con honestidad, incluido lo que quedó flojo.

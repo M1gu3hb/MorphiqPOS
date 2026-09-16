@@ -1219,3 +1219,133 @@ FUNCIONES  68/113   RUTAS 40/105   PANTALLAS 0/61   MIGRACIONES 32/64
 TRONCO     8/8
 ```
 2 029 pruebas.
+
+---
+
+## 2026-09-16 · E10 a E13 · Las cuatro columnas en 100 %
+
+```
+FUNCIONES  113/113   RUTAS 105/105   PANTALLAS 61/61   MIGRACIONES 65/65
+TRONCO       8/8
+```
+
+2 567 pruebas en 219 archivos. `pnpm verify:cobertura` sale en 0.
+
+Doce excepciones declaradas en `EXCEPCIONES-COBERTURA.md`: nueve funciones (los
+seis CFDI de P-02, F-318 y F-249 por hardware, F-406 por el canal de WhatsApp),
+tres rutas (las dos de impresión y `factura/agrupado`, que es CFDI) y una
+migración (`075_impresion_comanda.sql`). Ninguna pantalla.
+
+### La cuenta que hacía falta hacer bien
+
+El encargo lo dijo con esas palabras: **no se cuentan filas de tabla, se cuentan
+funciones.** `F-610…F-617` es una fila y son OCHO. Con los rangos expandidos, el
+punto de partida real de esta tanda era 80/113 funciones, 44/105 rutas, 6/61
+pantallas y 32/64 migraciones — no el 80 % que parecía.
+
+### E10-E12 · Las diecisiete funciones que faltaban
+
+Siete de dominio puro, que se prueban con números y sin montar nada: el IVA
+mixto con las tres mecánicas del IEPS (`impuesto-mixto`), contar pesando con su
+rango de confianza (`peso`), el precio por canal con la comisión sobre el PRECIO
+y no sobre el margen (`lista-precio`), el combo resuelto en componentes con el
+centavo sobrante al más caro (`combo`), los recursos de agenda medidos en el
+PICO y no en el promedio (`recursos`), el ranking que son cuatro rankings
+(`mas-vendidos`) y el lector de código de barras que se distingue por el TIEMPO
+entre teclas (`lector-teclado`).
+
+Cinco escritas UNA VEZ para varios modelos. `clientes/ficha.ts` es «la deuda
+transversal más cara del proyecto» —lo dicen tres carpetas con esas palabras—:
+la tabla existe desde la 002 y no había comandos. `compras/por-pagar.ts` usa la
+MISMA aritmética que la cartera de cobros, porque dos aritméticas para el mismo
+concepto acaban dando números distintos y entonces ninguno se cree.
+
+### E13 · Las rutas, y lo que hubo que construir debajo
+
+Sesenta y una rutas nuevas. Casi ninguna era «pegar un comando a un `route.ts`»:
+faltaba el comando.
+
+**La agenda tenía que CONTESTAR.** `/api/agenda/huecos` es el endpoint más
+difícil del modelo: horario vigente del profesional —la agenda de marzo se
+explica con el horario de marzo—, citas activas, bloqueos del salón, y los
+tramos PASIVOS de otras citas. Ese último renglón es F-415 entero: el tinte que
+está asentando no ocupa a la estilista, y ahí cabe el corte que hoy se rechaza
+por teléfono.
+
+**La transferencia dejó de aplicarse sola.** F-212: son el 20 %–35 % del valor
+en una ferretería y llegan con un comprobante que se ve en la pantalla del
+cliente. `registrarPagoCredito` la aplicaba al saldo en el momento; ahora entra
+PENDIENTE y la confirma otra persona, mirando el banco. El bucle de aplicación
+salió a `aplicarReparto`, compartido con el cobro en efectivo: dos copias es
+cómo una se queda sin la guarda optimista.
+
+**El monitor de recogida es la superficie más expuesta del sistema.** Devuelve
+nombre de pila y estado, nada más, y el nombre se recorta EN EL SERVIDOR: lo que
+no viaja no se puede filtrar.
+
+### La migración que el papel declaraba y nadie había escrito
+
+`05-DATOS-Y-BACKEND.md` de abarrotes declara `venta.suspender` escribiendo
+`ordenes.estado`, y el `check` de esa columna —003, ampliado por la 070 y la
+071— no admitía ningún estado que significara «apartada». El comando existía en
+el papel y NO PODÍA EXISTIR en la base: el primer `suspender` habría sido un
+23514 en producción.
+
+Se escribió `102_venta_en_espera.sql`, dentro del rango de abarrotes, y se
+DECLARÓ en el árbol del modelo. Por eso la cuenta pasó de 64 a 65: no se
+escondió una migración nueva bajo un número existente.
+
+### Tres defectos que los contratos cazaron, y uno lo habría costado caro
+
+1. **`garantia_salida` no existe.** El tipo válido es `garantia_proveedor`.
+   Contra Postgres es un 23514 en la primera garantía; contra la base falsa
+   habría salido verde.
+2. **La 102 borraba `dividida` y `absorbida`.** Copié la lista de estados de la
+   003 y me dejé fuera lo que añadieron la 070 y la 071. Aplicar eso habría roto
+   dividir cuenta y unir mesas en un restaurante que llevaba meses funcionando.
+   Es exactamente el fallo que el contrato `valores-de-check` existe para cazar.
+3. **Seis reglas de `estados-con-columna` en rojo** tras las migraciones nuevas.
+   No se declaró excepción: se escribieron los cuatro comandos que faltaban.
+
+### Tres huecos de la base falsa, cerrados con su porqué
+
+`execute()` en el borrado —Kysely admite las dos formas y tener sólo una obligaba
+a escribir el comando de una manera concreta para que la prueba pasara—.
+`forUpdate()` se ignora, porque el cerrojo es de Postgres y aquí no hay
+concurrencia que cerrar; lo que ese cerrojo protege se prueba contra la base de
+verdad. `distinct()` SÍ se aplica, porque cambia el resultado. Y `aNumero`
+ahora entiende una fecha desnuda: sin eso, `caduca_el <= :hasta` no filtraba y la
+prueba de caducidades salía vacía por una carencia de la base falsa y no del
+código probado.
+
+### Tres `join` partidos en dos consultas
+
+`citas` y `cita_servicios` tienen las dos una columna `estado` y significan cosas
+distintas: una cita «cobrada» tiene servicios «cerrados». Mezclarlas con alias es
+la consulta en la que un `cs.estado` escrito donde iba `c.estado` no falla:
+devuelve otra cosa, en silencio.
+
+### Las veinte pantallas
+
+Sin sistema de diseño nuevo: el que hay ya existe. Cada una lleva en su cabecera
+por qué es como es, y el recorte dicho en voz alta en vez de escondido.
+
+Lo que se repite en las veinte: el reloj se siembra en un efecto y nunca en el
+render —un `Date.now()` durante el render es un desajuste de hidratación
+garantizado—, el primer latido va en un `setTimeout` porque escribir estado de
+forma síncrona en un efecto encadena renders, y el esperado del arqueo NUNCA se
+enseña antes de contar, porque si se muestra todo el mundo teclea ese número.
+
+### Lo que NO se hizo, con números
+
+- **CFDI: 6 funciones + 1 ruta + el timbrado entero.** Decisión P-02 de Miguel.
+  Lo de debajo sí está: `remisiones` con saldo por documento, datos fiscales del
+  cliente en la 162, y la pantalla `facturacion` que los captura.
+- **Impresión de comanda: 1 función + 2 rutas + 1 migración.** Depende del
+  hardware.
+- **Segunda pantalla de cafetería: 1 función.** Depende del hardware.
+- **Recordatorio por WhatsApp: 1 función.** No se eligió proveedor.
+- **Las 65 migraciones siguen SIN APLICAR.** Ninguna se corrió contra
+  `wyqmzhliurwyxuyxznpb` ni contra ninguna otra base.
+- **`morphiqpos-codex`, la rama `carril-b` y `scripts/esquema-esperado.json` no
+  se tocaron.** Tampoco el proyecto de Pastelería Confetti, ni para leer.
