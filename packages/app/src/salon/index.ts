@@ -40,3 +40,21 @@ export {
 } from './cobro.ts';
 
 export { entradaLiquidar, liquidarProfesional, type ResultadoLiquidacion } from './liquidacion.ts';
+
+export {
+  aplicarAnticipo,
+  entradaAplicarAnticipo,
+  entradaRecibirAnticipo,
+  recibirAnticipo,
+  type ResultadoAnticipo,
+} from './anticipos.ts';
+
+export {
+  agendarDesdeEspera,
+  anotarEnEspera,
+  avisarDeHueco,
+  entradaAgendarDesdeEspera,
+  entradaAnotarEnEspera,
+  entradaAvisarDeHueco,
+  type ResultadoEspera,
+} from './espera.ts';

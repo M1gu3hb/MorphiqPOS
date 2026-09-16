@@ -124,8 +124,10 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
         if (definicion.modulo !== undefined) {
           const activos = await repositorio.leerModulosActivos(tx, ambito.organizacionId);
           // Fallar cerrado, igual que con el paquete: una organización de la
-          // que no se pudo leer el perfil no es una con todo encendido.
-          if (activos === null || !activos.has(definicion.modulo)) {
+          // que no se pudo leer el perfil no es una con todo encendido. La
+          // cadena opcional dice eso mismo: si `activos` es `null`, la
+          // comprobación vale `undefined` y el `!` la vuelve verdadera.
+          if (!activos?.has(definicion.modulo)) {
             throw new Rechazo('PAQUETE_NO_INCLUYE', 'denegado');
           }
         }

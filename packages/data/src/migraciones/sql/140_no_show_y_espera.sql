@@ -13,6 +13,13 @@
 -- registrada. La discusión de mostrador es «yo no falté» o «a mí no me
 -- cobraron», y las dos se contestan con la misma fila.
 --
+-- ── Por qué se llama `lista_espera_citas` y no `lista_espera` ───────────
+-- Porque `lista_espera` YA EXISTE desde la 073: es la del restaurante, la de la
+-- gente parada en la puerta esperando mesa. Son dos cosas distintas —aquélla se
+-- resuelve en veinte minutos y ésta puede durar dos semanas— y usar el mismo
+-- nombre habría sido el error 42P07 el día de aplicar, o algo peor: dos modelos
+-- escribiendo en la misma tabla con significados distintos.
+--
 -- ── La lista de espera es el otro lado de la misma moneda ────────────────
 -- Un hueco que se abre a las diez de la mañana del sábado se llena en quince
 -- minutos SI alguien sabe a quién llamar. Sin lista, ese hueco se queda vacío y
@@ -64,7 +71,7 @@ comment on column no_shows.anticipo_retenido is
 create index no_shows_por_cliente
   on no_shows (organizacion_id, cliente_id, ocurrio_en desc);
 
-create table lista_espera (
+create table lista_espera_citas (
   id                  uuid        primary key default gen_random_uuid(),
   organizacion_id     uuid        not null references organizaciones (id) on delete cascade,
   sucursal_id         uuid        references sucursales (id) on delete cascade,
@@ -87,30 +94,30 @@ create table lista_espera (
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
 
-  constraint espera_estado_valido check (
+  constraint espera_cita_estado_valido check (
     estado in ('esperando', 'avisada', 'agendada', 'vencida', 'cancelada')
   ),
-  constraint espera_ventana_con_duracion check (not isempty(ventana)),
-  constraint espera_agendada_con_cita check (estado <> 'agendada' or cita_id is not null),
-  constraint espera_avisada_con_fecha check (estado <> 'avisada' or avisada_en is not null)
+  constraint espera_cita_ventana_con_duracion check (not isempty(ventana)),
+  constraint espera_cita_agendada_con_cita check (estado <> 'agendada' or cita_id is not null),
+  constraint espera_cita_avisada_con_fecha check (estado <> 'avisada' or avisada_en is not null)
 );
 
-comment on table lista_espera is
+comment on table lista_espera_citas is
   'F-409 · A quién llamar cuando se abre un hueco. Sin ella, el no-show pierde dos citas: la que faltó y la que habría entrado en su lugar.';
-comment on column lista_espera.ventana is
+comment on column lista_espera_citas.ventana is
   'Un rango y no una hora: nadie dice «el sábado a las 11:00», dice «el sábado por la mañana». Una hora exacta no encuentra a nadie cuando el hueco cae a las 11:30.';
 
 -- A quién ofrecerle ESTE hueco: se filtra por solape de ventana, y por eso el
 -- índice es GiST y no b-tree.
-create index espera_por_ventana
-  on lista_espera using gist (ventana)
+create index espera_cita_por_ventana
+  on lista_espera_citas using gist (ventana)
   where estado = 'esperando';
-create index espera_viva
-  on lista_espera (organizacion_id, sucursal_id, prioridad desc, created_at)
+create index espera_cita_viva
+  on lista_espera_citas (organizacion_id, sucursal_id, prioridad desc, created_at)
   where estado in ('esperando', 'avisada');
 
-create trigger lista_espera_tocar_updated_at
-  before update on lista_espera for each row execute function tocar_updated_at();
+create trigger lista_espera_citas_tocar_updated_at
+  before update on lista_espera_citas for each row execute function tocar_updated_at();
 
 -- ── RLS ───────────────────────────────────────────────────────────────────
 do $$
@@ -123,7 +130,7 @@ begin
     from pg_catalog.pg_roles
    where rolname in ('anon', 'authenticated');
 
-  foreach t in array array['no_shows', 'lista_espera']
+  foreach t in array array['no_shows', 'lista_espera_citas']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('alter table %I force  row level security', t);

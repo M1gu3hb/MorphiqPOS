@@ -1000,6 +1000,11 @@ export interface Esquema {
   pedidos_anticipados: PedidosAnticipados;
   vocabulario_negocio: VocabularioNegocio;
   zonas: Zonas;
+  notas_mostrador: NotasMostrador;
+  listas_trabajo: ListasTrabajo;
+  lineas_lista_trabajo: LineasListaTrabajo;
+  anticipos_cita: AnticiposCita;
+  lista_espera_citas: ListaEsperaCitas;
 }
 
 /* ── Fase 2 · tronco compartido de inventario (migraciones 058-066) ──────── */
@@ -1940,4 +1945,119 @@ export interface MovimientosCuenta {
   motivo: string | null;
   empleado_id: string;
   created_at: Generated<Date>;
+}
+
+/**
+ * F-140 · La nota de mostrador (migración 116).
+ *
+ * Las tres cosas que pasan en un mostrador de ferretería —se lo lleva y paga,
+ * se lo lleva a crédito, o lo aparta— son la misma nota en tres estados. No
+ * duplica las líneas de la orden: es su envoltorio de mostrador.
+ */
+export interface NotasMostrador {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  orden_id: string;
+  folio: string;
+  estado: Generated<string>;
+  cliente_id: string | null;
+  nombre_libre: string | null;
+  telefono_libre: string | null;
+  mostradorista_id: string | null;
+  armada_en: Generated<Date>;
+  /** Lo apartado CADUCA: sin esto el patio se llena de material comprometido. */
+  aparta_hasta: Date | null;
+  entregada_en: Date | null;
+  cerrada_en: Date | null;
+  nota: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/** F-153 · El papel del albañil (migración 119). No es una cotización. */
+export interface ListasTrabajo {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  folio: string;
+  titulo: string;
+  cliente_id: string | null;
+  obra_id: string | null;
+  nombre_libre: string | null;
+  telefono_libre: string | null;
+  estado: Generated<string>;
+  orden_id: string | null;
+  capturada_en: Generated<Date>;
+  capturada_por: string | null;
+  cerrada_en: Date | null;
+  nota: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface LineasListaTrabajo {
+  id: Generated<string>;
+  organizacion_id: string;
+  lista_id: string;
+  orden_visual: Generated<number>;
+  /** Lo que dijo el albañil, tal cual. Nunca se deriva. */
+  texto_pedido: string;
+  producto_id: string | null;
+  cantidad: string | null;
+  unidad: string | null;
+  surtida: Generated<string>;
+  orden_linea_id: string | null;
+  sin_existencia: Generated<boolean>;
+  nota: string | null;
+  created_at: Generated<Date>;
+}
+
+/**
+ * F-414 · El anticipo de la cita (migración 138).
+ *
+ * Dinero AJENO hasta que el servicio ocurre. El `unique` parcial de la
+ * migración impide que una cita tenga dos anticipos vivos a la vez.
+ */
+export interface AnticiposCita {
+  id: Generated<string>;
+  organizacion_id: string;
+  cita_id: string;
+  cliente_id: string | null;
+  monto_centavos: bigint;
+  metodo: string;
+  estado: Generated<string>;
+  movimiento_caja_id: string | null;
+  sesion_caja_id: string | null;
+  orden_id: string | null;
+  recibido_en: Generated<Date>;
+  recibido_por: string | null;
+  resuelto_en: Date | null;
+  motivo_resolucion: string | null;
+  created_at: Generated<Date>;
+}
+
+/**
+ * F-409 · A quién llamar cuando se abre un hueco (migración 140).
+ *
+ * Distinta de `lista_espera`, que es la del restaurante: aquélla se resuelve en
+ * veinte minutos y ésta puede durar dos semanas.
+ */
+export interface ListaEsperaCitas {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  cliente_id: string;
+  servicio_id: string | null;
+  profesional_id: string | null;
+  /** Una VENTANA y no una hora: nadie dice «el sábado a las 11:00». */
+  ventana: string;
+  flexible_de_dia: Generated<boolean>;
+  prioridad: Generated<number>;
+  estado: Generated<string>;
+  avisada_en: Date | null;
+  cita_id: string | null;
+  nota: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }

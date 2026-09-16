@@ -47,3 +47,20 @@ export {
   type ConsumoRegistrado,
   type ResultadoServicio,
 } from './servicio.ts';
+
+export {
+  apartarNota,
+  entregarNota,
+  entradaApartarNota,
+  entradaEntregarNota,
+  type ResultadoNota,
+} from './notas.ts';
+
+export {
+  capturarListaTrabajo,
+  cerrarListaTrabajo,
+  entradaCapturarLista,
+  entradaCerrarLista,
+  type ResultadoCierreLista,
+  type ResultadoLista,
+} from './listas.ts';

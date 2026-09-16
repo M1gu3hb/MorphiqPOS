@@ -265,11 +265,7 @@ function esReferencia(valor: unknown): valor is ReferenciaColumna {
 }
 
 const COMPARADOR: ConstructorComparacion = Object.assign(
-  (
-    izquierda: ReferenciaColumna | string,
-    operador: string,
-    derecha: unknown,
-  ): Comparacion => {
+  (izquierda: ReferenciaColumna | string, operador: string, derecha: unknown): Comparacion => {
     const columna = esReferencia(izquierda) ? izquierda.__columna : izquierda;
     if (esReferencia(derecha)) {
       return { tipo: 'columnas', izquierda: columna, operador, derecha: derecha.__columna };
