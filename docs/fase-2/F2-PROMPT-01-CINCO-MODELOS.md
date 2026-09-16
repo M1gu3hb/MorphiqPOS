@@ -555,10 +555,10 @@ anótalo. La documentación sirve al código, no al revés.
 GIT
 ═══════════════════════════════════════════════════════════════════════
 
-· TODOS los commits a nombre de:  M1gu3hb <enchuer2797@gmail.com>
+· TODOS los commits a nombre de:  M1gu3hb <118588634+M1gu3hb@users.noreply.github.com>
   Configúralo en el worktree antes del primer commit:
       git config user.name "M1gu3hb"
-      git config user.email "enchuer2797@gmail.com"
+      git config user.email "118588634+M1gu3hb@users.noreply.github.com"
   Y verifica con `git log --format='%an <%ae>'` que salga así. En la
   Fase 1 esto se revisó y tiene que seguir saliendo bien.
 

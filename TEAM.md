@@ -40,7 +40,7 @@ Identidad de los commits, en ambas carpetas:
 
 ```bash
 git config user.name "M1gu3hb"
-git config user.email "enchuer2797@gmail.com"
+git config user.email "118588634+M1gu3hb@users.noreply.github.com"
 ```
 
 ---

@@ -93,7 +93,7 @@ Estas reglas vienen de la Fase 1 y siguen vigentes. Romperlas es motivo de recha
 **Prohibido**
 - Tocar el proyecto Supabase de **Pastelería Confetti** (`ivqcxdpqxwjxfohiswqb`). Ni para leer.
 - Subir secretos al repositorio. Es público.
-- Commits que no sean `M1gu3hb <enchuer2797@gmail.com>`.
+- Commits que no sean `M1gu3hb <118588634+M1gu3hb@users.noreply.github.com>`.
 
 ## 6 · EL STACK
 

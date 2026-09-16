@@ -21,9 +21,9 @@ Después publiqué cada tarea por separado, como pidió el encargo:
 | TAREA 1 | `3edc0535e7bbb210dc9863374757e5806bcd5022` |
 | TAREA 2 | `7ec3057e1b38dae63096b8fc18513f16cedc321e` |
 | TAREA 3 | `7a5f68776e502048a79f0f918bd1a7f018118ce0` |
-| TAREA 4 | `e26a7dd238a0a25b8397919edf21c43231664a1c` |
+| TAREA 4 | `f4ac843412326fbad4597f9235e8ee30c1f5e858` |
 
-Todos fueron creados por `M1gu3hb <enchuer2797@gmail.com>` y enviados a `origin/carril-b` inmediatamente después de cerrar su tarea.
+El commit de la TAREA 4 —el único de esta tabla dentro del intervalo corregido del 13 al 15 de septiembre— quedó atribuido a `M1gu3hb <118588634+M1gu3hb@users.noreply.github.com>`; los tres commits anteriores conservan su identidad histórica.
 
 ## 2. `pnpm verify` completo
 
