@@ -21,7 +21,14 @@
 -- la alternativa —confiar en que la pantalla no mande más— es la misma puerta
 -- que F-205 cierra para los descuentos.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ──────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 -- ── Un defecto que esta migración cierra ─────────────────────────────────
 --

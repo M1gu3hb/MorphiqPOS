@@ -26,7 +26,14 @@
 -- hay que devolvérselo: sin registrar a dónde va, ese pase se convierte en una
 -- nota en el teléfono de alguien.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ──────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 alter table orden_lineas
   add column profesional_id uuid references profesionales (id) on delete set null,

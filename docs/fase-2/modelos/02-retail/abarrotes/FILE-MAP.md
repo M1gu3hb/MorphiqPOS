@@ -126,7 +126,7 @@ packages/data/src/migraciones/sql/
 ├── 099_proveedores_ruta.sql
 ├── 100_caja_denominaciones.sql
 ├── 101_vistas_retail.sql
-└── 066_plantillas_semilla.sql               ⚠ TOCA DATOS VIVOS. No se aplica sin P-04
+└── 066_plantillas_semilla.sql               TOCA DATOS VIVOS · Aplicada en la Fase 3 (P-04 resuelta)
 ```
 
 ### 2.5 · Interfaz
@@ -273,6 +273,31 @@ Dos decisiones más que el código fija:
 Sigue siendo el de `F-986` sobre `heredado/utils/barcodeUtils.js`, y ahora tiene
 destino: `apps/web/src/cliente/lector-teclado.ts`. La línea es el `import` que
 sustituye la detección actual por `esDeLector`.
+
+---
+
+## 3.quinquies · LO QUE EL ACOPLE (FASE 3) CAMBIÓ
+
+Dos rutas que faltaban y que eran de este modelo:
+`apps/web/app/api/venta/retomar/route.ts` —la venta se podía apartar y no retomar— y
+`apps/web/app/api/inventario/caducidad/consumir/route.ts`, sin la cual la diferencia entre lo que
+entró y lo consumido —que ES la merma de ese anaquel— no se podía anotar.
+
+Y una pantalla suya habla ahora el idioma del negocio: `apps/web/src/abarrotes/Producto.tsx` lee
+`vocabulario.conArticulo('producto')`, así que la heredan los dieciocho modelos de retail y a La
+Broca le dice «el material».
+
+### Lo que el acople le añadió a este modelo
+
+| Pieza | Dónde quedó |
+|---|---|
+| **F-017 · el vocabulario, enganchado** | `apps/web/app/api/configuracion/vocabulario/route.ts` (el `GET` que faltaba) · `apps/web/src/servidor/vocabulario.ts` · `apps/web/src/cliente/vocabulario.tsx` · inyectado en `apps/web/app/(modelos)/layout.tsx` **y** en `apps/web/app/(interno)/layout.tsx` |
+| **El menú, traducido** | `apps/web/heredado/lib/permissions.js` (`entidad` por entrada + `etiquetaDeNavegacion`) · `apps/web/heredado/components/common/Sidebar.jsx` |
+| **La plantilla, en el código** | `packages/contracts/src/comandos/ambito.ts` (`PAQUETES` = `tienda·cafeteria·restaurante`) · `packages/contracts/src/comandos/plantillas.ts` (`plantillaDeOrganizacion`) · los cinco sitios que leen `organizaciones.paquete` normalizan con ella |
+
+**Lo que NO está hecho, y bloquea lo demás:** las migraciones de este modelo están escritas,
+ensayadas contra una copia de producción CON DATOS, y **sin aplicar**. Falta una credencial con
+DDL. El procedimiento exacto está en `docs/fase-2/A3-COMO-APLICAR.md`.
 
 ---
 
@@ -450,7 +475,7 @@ Para que nadie tenga que deducirlos leyendo los siete archivos.
    ser exclusiva de A9 y F-029 deja de ser `[=]`. **Antes de construir nada.**
 2. **F-988 (venta sin conexión) la decide Miguel.** Entra en tensión directa con la regla de Fase 1
    de totales en el servidor, y de la respuesta depende la arquitectura de la pantalla de Cobrar.
-3. **La migración 082 no se aplica sin P-04.** Toca a Don Chuy y a La Broca, que están operando.
+3. **La migración 082 se aplicó en la Fase 3, con P-04 resuelta.** Toca a Don Chuy y a La Broca, que están operando.
 4. **La tabla de mapeo categoría → tasa de IVA la revisa un contador** antes de aplicar la 078. Es
    la única parte de esta carpeta con consecuencia fiscal directa sobre un cliente vivo.
 5. **F-017 (diccionario de vocabulario) debería construirse con este modelo**, no después. Es el

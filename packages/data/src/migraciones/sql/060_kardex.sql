@@ -17,7 +17,14 @@
 -- no cómo se llegó a él. La carpeta de `ferreteria` lo marca como la mitad de su
 -- dolor 2.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ───────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 -- El índice que hace que el kardex de un artículo no recorra el ledger entero.
 -- Sin él, una ferretería con 6 000 claves y dos años de movimientos tarda

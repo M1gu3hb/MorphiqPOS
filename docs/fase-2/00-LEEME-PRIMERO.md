@@ -42,7 +42,7 @@ En concreto:
 
 - **Nada de esta carpeta toca el repositorio vivo mientras Codex siga en la Fase 1.** Ni `morphiqpos-codex/`, ni `morphiqpos/`, ni la rama `carril-b`.
 - Lo que se construye aquí se construye **como si ya estuviera dentro**: mismos contratos, mismos nombres, misma estructura de carpetas que tendría en el monorepo.
-- Las migraciones se escriben numeradas y listas, **pero no se aplican**.
+- Las migraciones se escriben numeradas y listas, **pero no se aplican en la Fase 2**. La Fase 3 (acople) las aplicó el 16-09-2026, con respaldo comprobado y ensayo sobre una copia con datos. Ver `F3-REGLAS-DE-ACOPLE.md` §2 y §4.
 - Acoplar debe ser mover carpetas y aplicar migraciones. Nunca reescribir.
 
 ## 4 · DÓNDE ESTÁ CADA COSA

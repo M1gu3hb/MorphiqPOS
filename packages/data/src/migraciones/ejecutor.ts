@@ -293,6 +293,56 @@ export function migrarVinculado(opciones: OpcionesVinculadas): ResultadoMigracio
   };
 }
 
+export interface OpcionesEmision {
+  readonly archivo: string;
+  readonly ensayo?: boolean;
+}
+
+/**
+ * Escribe la tanda pendiente a un archivo, con su ledger, y NO la aplica.
+ *
+ * ── Por qué hay un tercer transporte ───────────────────────────────────────
+ * Los dos de arriba necesitan una credencial que no siempre existe: `migrar()`
+ * pide una conexión con DDL —y el rol de la aplicación no lo tiene, a
+ * propósito— y `migrarVinculado()` pide el ejecutable del CLI de Supabase.
+ * Cuando el privilegio de DDL vive en un sitio al que este proceso no puede
+ * llamar, éste es el camino: se emite el texto y lo aplica quien sí puede.
+ *
+ * Lo que se escribe es la salida de `prepararTandaVinculada`, byte a byte igual
+ * a lo que aplicaría el transporte vinculado, con sus `insert` de ledger y el
+ * hash de cada archivo. El ledger se LEE con la conexión normal —comprobar que
+ * la base está al día es una operación de sólo lectura, y por eso no hace falta
+ * DDL para esto— y se compara con la MISMA `comprobarIntegridad`.
+ *
+ * ── Lo que este camino NO da ───────────────────────────────────────────────
+ * Que emitir y aplicar ocurran en la misma conexión: entre las dos cosas
+ * alguien podría aplicar otra migración y este proceso no se enteraría. Se
+ * comprueba DESPUÉS releyendo el ledger contra el disco, que es lo que hace
+ * `verify:acople`.
+ *
+ * La atomicidad no se pierde: el `begin` y el `commit` viajan dentro del texto.
+ */
+export async function emitirTanda(opciones: OpcionesEmision): Promise<ResultadoMigracion> {
+  const ensayo = opciones.ensayo ?? false;
+  const cliente = await obtenerPool().connect();
+  try {
+    const registradas = await leerLedger(cliente);
+    const enDisco = leerMigraciones();
+    comprobarIntegridad(enDisco, registradas);
+
+    const aplicadas = new Set(registradas.map((fila) => fila.version));
+    const pendientes = enDisco.filter((m) => !aplicadas.has(m.version));
+    if (pendientes.length === 0) {
+      return { aplicadas: [], yaEstaban: registradas.length, ensayo };
+    }
+
+    writeFileSync(opciones.archivo, prepararTandaVinculada(pendientes, ensayo), 'utf8');
+    return { aplicadas: pendientes.map((m) => m.archivo), yaEstaban: registradas.length, ensayo };
+  } finally {
+    cliente.release();
+  }
+}
+
 /**
  * Lee el ledger. Si la tabla no existe todavía, devuelve vacío.
  *

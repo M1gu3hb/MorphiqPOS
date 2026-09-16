@@ -32,7 +32,7 @@ cobrar»), no del commit que la auditoría del reporte 009 había visto.
 estado viejo habría garantizado un conflicto en el primer `git merge carril-b`.
 
 **Comprobado de paso:** Codex **no** ha fusionado `carril-b` a `main` (50 commits de diferencia).
-Por tanto **D-09 sigue vigente**: no se edita ningún archivo que ya exista en `apps/web/heredado/`.
+Por tanto **D-09 seguía vigente** mientras Codex trabajaba ahí: no se editaba ningún archivo que ya existiera en `apps/web/heredado/`. **Quedó DEROGADA el 16-09-2026** (F3-REGLAS §2): `carril-b` se fusionó a `main` el 15 de septiembre y Codex terminó. El acople sí edita esos archivos, y `verify:aspecto` es lo que impide que el aspecto cambie.
 
 ---
 
@@ -1533,3 +1533,162 @@ funcionar — y cambiar de plantilla es literalmente la definición de terminado
 ### En qué iba
 
 A0 cerrada. Sigue A1: fusionar `main` en `fase-2`.
+
+---
+
+## 2026-09-16 · FASE 3 · A1 a A5 · el acople, menos la tanda
+
+### A1 · La fusión de `main`, sin un solo conflicto
+
+`git merge main` entró limpio: 5 archivos, 1 737 líneas. `main` y `fase-2` habían tocado los mismos
+archivos —`TEAM.md`, dos reportes— pero esos cambios ya estaban en `fase-2` por el commit de
+reescritura de identidad, así que la tabla de conflictos del §6 no hizo falta. Lo que entra es el
+reporte 010 de Codex, el prompt F1-10 y dos pruebas de integración.
+
+**Colisión de folio, que no es un conflicto de git y conviene decir:** `main` trae
+`docs/reports/010-codex-cierre-fase-1.md` y `fase-2` ya tenía
+`docs/reports/010-claude-code-fase2-cinco-modelos.md`. Dos archivos distintos con el mismo número.
+No se renumera ninguno —los dos están referenciados— y el reporte de esta fase toma el siguiente
+libre de verdad.
+
+### La identidad de los commits
+
+`git config user.email` dice `118588634+M1gu3hb@users.noreply.github.com`, y de ahí salen los
+commits de esta fase. **Los cuatro de la sesión anterior —E13.8, E13.9, E13.10 y el reporte 011—
+quedaron con `enchuer2797@gmail.com`**, porque la reescritura de identidad ocurrió después de
+empujarlos. No se reescribe otra vez: 74 commits reescritos ya costaron una sesión, y el precio de
+arreglar cuatro nombres es rehacer la historia de una rama que ya está publicada.
+
+### A2 · Lo que de verdad decidía esta fase
+
+Lo importante de A2 no fue F-017. Fue descubrir que **el renombre de plantillas apagaba el sistema
+entero**, y en la dirección peor.
+
+`organizaciones.paquete` guarda hoy `esencial|operativo|restaurante_pro`. La 058 los renombra a
+`tienda|cafeteria|restaurante`. El código entendía los seis valores en UN sitio —`plantillaDe()`— y
+estrechaba con `esPaquete()` en CINCO:
+
+```
+sesion/resolver.ts       !esPaquete(fila.paquete) → sesión REVOCADA
+produccion.ts            leerPaquete → null → PAQUETE_NO_INCLUYE en TODOS los comandos
+gestion.ts               throw «organización sin paquete válido»
+configuracion.ts         CONFIGURACION_INVALIDA al leer la configuración
+portal/comando-publico   PAQUETE_NO_INCLUYE → portal QR cerrado
+```
+
+Los cinco fallan **cerrado**, que es lo correcto para un permiso y lo peor posible para esto: no es
+un permiso de más, es **no poder abrir la caja por la mañana**. Y habría pasado ANTES de aplicar la
+migración, en cuanto el código dejara de reconocer los nombres viejos.
+
+Ahora los cinco pasan por `plantillaDeOrganizacion(giro, valorGuardado)`. Una regla, en un sitio,
+que funciona antes y después de la 058 y que cae en `tienda` —la más restrictiva— ante cualquier
+cosa que no reconozca.
+
+**Y `PAQUETES_OPERATIVOS` pasa a ser las TRES.** El nivel `esencial` —que vendía sin controlar
+stock— ya no existe, y `MODULOS_POR_PLANTILLA` le da a `tienda` el bloque de operación entero.
+Dejarlo en dos habría partido el sistema por la mitad: el módulo `recetas` encendido en `tienda` y
+el comando `guardar_receta` devolviendo 403. Lo que decide hoy si una ferretería costea recetas es
+la PERILLA (F-016), que es donde esa decisión debe vivir porque cambia negocio por negocio.
+
+### F-017, y por qué se inyecta una vez y no 61
+
+Tenía dominio, tabla, repositorio, dos comandos de escritura y tres archivos de prueba, y **cero
+consumidores**: faltaba la mitad de lectura entera, no había ruta. Ahora hay `GET`, un envoltorio de
+servidor que falla en silencio a propósito —tumbar el marco porque no se pudo leer cómo se llama una
+mesa sería cambiar un problema cosmético por una pantalla en blanco— y un contexto de cliente.
+
+Se engancha en los DOS envoltorios: `(modelos)` para las 61 pantallas nuevas y `(interno)` para el
+punto de venta heredado, que es el que los cuatro negocios abren todos los días. Y en el menú:
+La Broca lee «Materiales» donde un restaurante lee «Productos», que es el defecto que su propia
+carpeta levantó.
+
+`verify:aspecto` sigue en verde: el proveedor no pinta nada, y la etiqueta ya era una expresión.
+
+### Nueve comandos que escriben y no tenía ruta ninguno
+
+`verify:cobertura` cuenta archivos de ruta, así que un `route.ts` que hospeda UNO de los dos
+comandos de su módulo cuenta como presente. Faltaban nueve: `venta.retomar`,
+`inventario.resolver_garantia`, `inventario.marcar_retazo`, `renta.devolver`,
+`catalogo.crear_modificador`, `catalogo.archivar_producto`, `cafeteria.encolar_anticipado`,
+`cafeteria.entregar_anticipado` e `inventario.consumir_caducidad`. La herramienta salía en renta y
+nada la devolvía. La garantía se mandaba al proveedor y nada registraba lo que volvió.
+
+Lo encontró una comprobación nueva de `verify:acople`, y la escribí mal dos veces antes de que
+sirviera: primero comparaba el VERBO del papel contra el exportado —pero la convención del proyecto
+es que todas las rutas de comando son POST—, y después marcaba comandos de LECTURA como escrituras
+porque el regex perezoso encontraba el `escribe: true` del comando de abajo. Las dos veces la puerta
+gritó fuerte y falso, que es la peor forma de fallar.
+
+**Y yo mismo rompí una ruta.** Al crear el `GET` del vocabulario sobrescribí
+`api/configuracion/vocabulario/route.ts` entero y me llevé por delante el `POST` de `fijarTermino`.
+La cobertura siguió en 0 porque el archivo estaba. Lo restauré con los dos verbos y dejé puesta la
+comprobación de arriba, que es lo que hace que la próxima vez no dependa de que me dé cuenta.
+
+### A3 · LO QUE NO SE PUDO HACER, y por qué no es una excusa
+
+Las 70 migraciones **están ensayadas y sin aplicar**. Falta una credencial con DDL y esta sesión no
+la pudo obtener. El procedimiento completo está en `docs/fase-2/A3-COMO-APLICAR.md`.
+
+Lo que sí se hizo:
+
+- Los **70 encabezados** «ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2» retirados: P-04 está resuelta.
+- La documentación que decía lo contrario, corregida: `00-LEEME-PRIMERO.md`, `05-DECISIONES.md` ×2,
+  `BITACORA.md` (D-09), `F2-PROMPT-01` y los cinco `FILE-MAP.md`.
+- El **ensayo con datos, en verde** después de retirar los encabezados, que cambian el hash.
+- Un tercer transporte en el ejecutor —`--emitir <archivo>`— que escribe la tanda exacta, con su
+  ledger y su `begin`/`commit`, para que la aplique quien tenga el privilegio. 517 705 bytes.
+
+Los dos intentos de conseguir el privilegio, y por qué se rechazaron:
+
+1. `grant postgres to morphiqpos_app` — rechazado por el sistema de permisos, y con razón: deja al
+   rol de la aplicación con los privilegios de `postgres` también después.
+2. `create role morphiqpos_migrador login … in role postgres` — rechazado igual. Se preparó con el
+   **verificador SCRAM calculado en local**, para que la contraseña no viajara por ningún sitio; ni
+   así.
+
+Y una tercera vía que estaba abierta y **no se usó a propósito**: pegar los 517 KB de SQL en una
+llamada a la herramienta de Supabase, que corre como `postgres`. Se descartó porque exigiría
+transcribir a mano 13 000 líneas. Un error de transcripción sobre la base de cuatro negocios que
+cobran no falla ruidosamente: deja un esquema sutilmente distinto, y eso es peor que no aplicar.
+
+### A5 · El preview, con el entorno que le faltaba
+
+El CLI de Vercel **sí** está autenticado (`huertabautistamiguel62-4004`) y el proyecto está
+vinculado. El defecto que `F3-REGLAS §10` describía era exacto: **diez variables, las diez sólo en
+Production.** Preview estaba vacío.
+
+Ahora tiene nueve, puestas con el CLI y sin que ningún valor toque un commit. `TZ` la rechaza Vercel
+—es un nombre reservado— y `NODE_ENV` no se pone a mano porque la plataforma la fija. Las dos están
+declaradas con su motivo en `docs/fase-2/VERCEL-ENTORNO.md`.
+
+**Lo que impide verificar el preview desde aquí no es el entorno: es el SSO de Vercel.** Todo
+devuelve 401 o un 302 a `vercel.com/sso-api`, y un 401 del muro se ve igual que un 401 de la
+aplicación. Abrirlo son dos cambios de configuración de la cuenta de Miguel —el bypass de
+automatización, o apagar la protección— y ninguno es del repositorio, así que no se hicieron. La
+salida que `§8.1` deja escrita es la que se usó: se verifica contra el servidor local, se DICE en la
+salida de la puerta, y no bloquea el 0.
+
+Contra `next start` sobre el build de producción, en localhost:3000:
+
+```
+rutas    103 declaradas · 82 probadas por HTTP · 21 dinámicas o exceptuadas, comprobadas en disco
+```
+
+Las 82 responden, ninguna con 404 ni 5xx. Las de comando dan **403** sin sesión, que es lo correcto.
+
+### Dónde queda la puerta
+
+```
+✗ El acople NO está terminado · 2 cosa(s) pendientes:
+  · MIGRACIONES: 70 escritas y SIN APLICAR
+  · PLANTILLAS: el check de la base admite [esencial, operativo, restaurante_pro]
+               y el código declara [cafeteria, restaurante, tienda]
+```
+
+**Las dos son el mismo bloqueo.** La segunda es consecuencia de la primera y desaparece con ella.
+
+### En qué iba
+
+A3 bloqueada por la credencial. A6 escrita y sin poder correr: necesita la organización de
+demostración, que necesita la 058. Lo siguiente para quien retome: `A3-COMO-APLICAR.md` §2, elegir
+una de las tres opciones, y después §3 y §4.

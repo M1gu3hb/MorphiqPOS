@@ -20,7 +20,14 @@
 -- dos veces es la discusión más cara que puede tener un salón con alguien que
 -- no depende de él: no hay nómina donde ajustarlo.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ──────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 create table rentas_estacion (
   id                 uuid        primary key default gen_random_uuid(),

@@ -420,7 +420,7 @@ packages/data/src/migraciones/sql/
 └── 066_plantillas_semilla.sql
       D-01: esencial → tienda, + los módulos de inventario, escáner,
       alertas y presentaciones. Y el movimiento de Ferretería La Broca.
-      ⚠ TOCA DATOS VIVOS. No se aplica sin que P-04 esté contestada.
+      TOCA DATOS VIVOS · No se aplica sin que P-04 esté contestada.
 ```
 
 **Sobre `070` y el backfill.** Es la migración más delicada de las trece: crea la presentación base
@@ -506,7 +506,7 @@ Con su ruta. **Nada de esto se toca.**
    totales se calculan siempre en el servidor. **La decide Miguel**, y de la respuesta depende la
    arquitectura de la pantalla de cobro entera. Hasta que se decida, la pantalla se construye
    asumiendo servidor, con la franja de "sin conexión" como estado de error visible.
-3. **La migración `082` no se aplica sin P-04.** Toca a los cuatro negocios vivos: Don Chuy pasa de
+3. **La migración `082` se aplicó en la Fase 3, con P-04 resuelta.** Toca a los cuatro negocios vivos: Don Chuy pasa de
    paquete `operativo` a plantilla `tienda`, y La Broca pasa a `tienda` provisional.
 4. **El agregador de recargas es una decisión comercial, no técnica.** Ver §8.
 5. **La tabla de mapeo categoría → tasa de IVA la revisa un contador** antes de aplicar `078`. Es

@@ -11,7 +11,14 @@
 -- el teléfono: de 5 a 12 minutos con gente esperando mesa detrás. Es el hueco
 -- más caro de los ocho que le quedan a este modelo.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ───────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 create table movimientos_cuenta (
   id               uuid        primary key default gen_random_uuid(),

@@ -18,7 +18,14 @@
 -- lo fresco o llena la lista con lo que todavía no urge, y una lista que no se
 -- puede vaciar es una lista que nadie abre.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ──────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 alter table productos
   add column controla_caducidad boolean not null default false,

@@ -32,7 +32,14 @@
 --   3 · Cuándo se terminó de pagar. Es lo que distingue lo que sigue vivo en la
 --       libreta de lo que ya se cobró.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ──────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 -- ── 1 · Lo que le falta a `clientes` para fiar ───────────────────────────
 alter table clientes

@@ -18,7 +18,14 @@
 -- con `tipo = 'servicio'`. Una tabla aparte duplicaría precio, impuesto y
 -- catálogo, y el ticket tendría que unir dos fuentes para pintarse.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ──────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 -- `servicio` YA existe en el check de la 002: no hace falta tocarlo. Lo que
 -- falta es `paquete` —el bono de diez sesiones—, y se añade reescribiendo el

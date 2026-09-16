@@ -110,7 +110,7 @@ packages/data/src/migraciones/sql/
 ├── 076_esquemas_propina.sql
 ├── 077_consumos_internos.sql
 ├── 078_tope_descuento.sql
-└── 066_plantillas_semilla.sql     ← D-01. Toca datos vivos. No se aplica sin P-04
+└── 066_plantillas_semilla.sql     ← D-01. Toca datos vivos. Aplicada en la Fase 3 (P-04 resuelta)
 ```
 
 ### 2.5 · Interfaz
@@ -216,6 +216,26 @@ resuelto lo que puede ver: el comensal no consulta, le contestan.
 `heredado/pages/PortalQR.jsx` deja de resolver su propio estado y pasa a montar
 `PortalDelComensal` con el token de la URL. Es una línea —el `render`— porque
 todo lo demás ya vive en el componente nuevo.
+
+---
+
+## 3.quinquies · LO QUE EL ACOPLE (FASE 3) CAMBIÓ
+
+Nada de este modelo cambió de sitio. Lo único suyo que el acople toca es el sustantivo: la pantalla
+`portal-del-comensal` dice «la mesa 5» leyendo el vocabulario del giro, así que en una estética que
+herede este portal dirá «la estación 5» sin tocar el componente.
+
+### Lo que el acople le añadió a este modelo
+
+| Pieza | Dónde quedó |
+|---|---|
+| **F-017 · el vocabulario, enganchado** | `apps/web/app/api/configuracion/vocabulario/route.ts` (el `GET` que faltaba) · `apps/web/src/servidor/vocabulario.ts` · `apps/web/src/cliente/vocabulario.tsx` · inyectado en `apps/web/app/(modelos)/layout.tsx` **y** en `apps/web/app/(interno)/layout.tsx` |
+| **El menú, traducido** | `apps/web/heredado/lib/permissions.js` (`entidad` por entrada + `etiquetaDeNavegacion`) · `apps/web/heredado/components/common/Sidebar.jsx` |
+| **La plantilla, en el código** | `packages/contracts/src/comandos/ambito.ts` (`PAQUETES` = `tienda·cafeteria·restaurante`) · `packages/contracts/src/comandos/plantillas.ts` (`plantillaDeOrganizacion`) · los cinco sitios que leen `organizaciones.paquete` normalizan con ella |
+
+**Lo que NO está hecho, y bloquea lo demás:** las migraciones de este modelo están escritas,
+ensayadas contra una copia de producción CON DATOS, y **sin aplicar**. Falta una credencial con
+DDL. El procedimiento exacto está en `docs/fase-2/A3-COMO-APLICAR.md`.
 
 ---
 

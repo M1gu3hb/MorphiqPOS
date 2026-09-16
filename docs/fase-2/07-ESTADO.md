@@ -96,13 +96,28 @@ Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. La puerta es `pnpm verify:acople`
 | Etapa | Qué | Estado |
 |---|---|---|
 | **A0** | Preparación · respaldo, ensayo y la puerta | ✅ respaldo **comprobado restaurándolo** · `verify:acople` construido y **rojo al construirlo** · `verify:esquema` y `verify:rls` con transporte directo, los dos en 0 · **el ensayo con datos cazó 10 defectos** que habrían abortado la tanda entera |
-| **A1** | Fusión de `main` en `fase-2` | ⬜ |
-| **A2** | Los seis huecos · F-017 enganchado | ⬜ |
-| **A3** | Migraciones aplicadas | ⬜ |
-| **A4** | Contrato · `pnpm verify` completo | ⬜ |
-| **A5** | Despliegue · preview de Vercel | ⬜ |
-| **A6** | Verificación en el navegador | ⬜ |
-| **A7** | Cierre | ⬜ |
+| **A1** | Fusión de `main` en `fase-2` | ✅ **sin un solo conflicto** · 5 archivos, 1 737 líneas · colisión de folio 010 anotada, no renumerada |
+| **A2** | Los seis huecos · F-017 enganchado | ✅ **F-017 con consumidores**: ruta `GET`, los dos envoltorios y el menú heredado · el renombre de D-01 en el código, que apagaba el sistema entero por cinco `esPaquete()` · **9 comandos de escritura sin ruta**, encontrados y conectados · `verify:entorno` deja de aprobar un chequeo sin hacer · `traspasos` y `tomas-inventario` con prueba propia · §7.5 comprobado: la premisa era falsa |
+| **A3** | Migraciones aplicadas | ⛔ **BLOQUEADA · falta una credencial con DDL.** Todo lo demás listo: ensayo con datos en verde, respaldo restaurado, los 70 encabezados retirados, y `--emitir` en el ejecutor. Ver `A3-COMO-APLICAR.md` |
+| **A4** | Contrato · `pnpm verify` completo | ⛔ depende de A3: `esquema-esperado.json` NO se regenera sobre una base sin migrar |
+| **A5** | Despliegue · preview de Vercel | ✅ **las 9 variables que faltaban, puestas en Preview** · el preview responde · **no se puede verificar desde fuera por el SSO de Vercel**, que son dos cambios de la cuenta de Miguel. Ver `VERCEL-ENTORNO.md` |
+| **A6** | Verificación en el navegador | ⛔ las cinco pruebas ESCRITAS y en rojo a propósito: necesitan la organización de demostración, que necesita la 058 |
+| **A7** | Cierre | ✅ reporte escrito con el bloqueo delante |
+
+**La puerta, hoy:**
+
+```
+✗ El acople NO está terminado · 2 cosa(s) pendientes:
+  · MIGRACIONES: 70 escritas y SIN APLICAR
+  · PLANTILLAS: el check de la base admite [esencial, operativo, restaurante_pro]
+               y el código declara [cafeteria, restaurante, tienda]
+```
+
+**Las dos son el MISMO bloqueo.** La segunda es consecuencia de la primera.
+
+Lo que sí sale en 0 hoy: `verify:cobertura`, `verify:esquema`, `verify:rls`, `verify:paquetes`,
+`verify:aspecto`, `verify:entorno`, `verify:primitivas`, `typecheck` y **2 606 pruebas en 221
+archivos**. Y dentro de `verify:acople`: seguridad, despliegue, las 103 rutas y el vocabulario.
 
 **El ensayo con datos, en verde** (`node scripts/ensayo-con-datos.mjs`):
 

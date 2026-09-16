@@ -306,6 +306,30 @@ código.
 
 ---
 
+## 3.quinquies · LO QUE EL ACOPLE (FASE 3) CAMBIÓ
+
+Ninguna ruta de este modelo faltaba: las 29 estaban. Lo que le llega del acople es el vocabulario,
+y es el modelo donde más se nota — «mesa» pasa a «estación», «mesero» a «estilista» y «comensal» a
+«clienta», con su género, que es la mitad de lo que hace que la plantilla se sienta propia.
+
+**Y el riesgo que la Fase 2 dejó marcado como bloqueante ya no lo es:** `btree_gist` ESTÁ disponible
+en `wyqmzhliurwyxuyxznpb` (versión 1.7), así que la restricción de exclusión GiST sobre `tstzrange`
+en la que descansa toda la agenda funciona. No era un riesgo: era una pregunta sin hacer.
+
+### Lo que el acople le añadió a este modelo
+
+| Pieza | Dónde quedó |
+|---|---|
+| **F-017 · el vocabulario, enganchado** | `apps/web/app/api/configuracion/vocabulario/route.ts` (el `GET` que faltaba) · `apps/web/src/servidor/vocabulario.ts` · `apps/web/src/cliente/vocabulario.tsx` · inyectado en `apps/web/app/(modelos)/layout.tsx` **y** en `apps/web/app/(interno)/layout.tsx` |
+| **El menú, traducido** | `apps/web/heredado/lib/permissions.js` (`entidad` por entrada + `etiquetaDeNavegacion`) · `apps/web/heredado/components/common/Sidebar.jsx` |
+| **La plantilla, en el código** | `packages/contracts/src/comandos/ambito.ts` (`PAQUETES` = `tienda·cafeteria·restaurante`) · `packages/contracts/src/comandos/plantillas.ts` (`plantillaDeOrganizacion`) · los cinco sitios que leen `organizaciones.paquete` normalizan con ella |
+
+**Lo que NO está hecho, y bloquea lo demás:** las migraciones de este modelo están escritas,
+ensayadas contra una copia de producción CON DATOS, y **sin aplicar**. Falta una credencial con
+DDL. El procedimiento exacto está en `docs/fase-2/A3-COMO-APLICAR.md`.
+
+---
+
 ## 4 · QUÉ HEREDAN DE AQUÍ LOS ONCE VECINOS
 
 Lo que **no** deben volver a construir. Si un modelo de servicios con cita reinventa algo de esta

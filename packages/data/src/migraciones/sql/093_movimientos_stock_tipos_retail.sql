@@ -20,7 +20,14 @@
 -- negativo otro, según quién escriba el comando, y entonces la existencia deja
 -- de ser una suma para volverse una interpretación.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ──────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 -- ⚠ Lista cerrada: se escribe ENTERA, con todo lo que la 003 admitía más los
 -- dos de aquí. Ésta es la regla que este proyecto ya rompió cuatro veces y que

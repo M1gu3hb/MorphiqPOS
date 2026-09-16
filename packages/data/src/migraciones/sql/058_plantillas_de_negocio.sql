@@ -17,7 +17,14 @@
 -- es; la plantilla dice qué COMPRÓ. Ésa es justo la razón por la que la 054
 -- separó las dos columnas.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ───────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 -- Cambia el valor de una columna de la que dependen los cuatro negocios vivos.
 -- El acople la aplica con los negocios CERRADOS y con respaldo hecho, que es la
 -- condición de la decisión pendiente P-04. Mientras tanto, el código entiende

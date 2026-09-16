@@ -12,7 +12,14 @@
 -- Pero el reloj no puede arrancar al capturar: un fuerte retenido cuarenta
 -- minutos saldría siempre en rojo sin que la cocina haya hecho nada mal.
 --
--- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ──────────────────────────────
+-- ── APLICADA EN LA FASE 3 (acople) ─────────────────────────────
+--
+-- Aqui decia «ESTA MIGRACION NO SE APLICA EN LA FASE 2», y era cierto: la
+-- decision P-04 pedia aplicarla con respaldo y con los negocios cerrados. P-04
+-- esta RESUELTA (F3-REGLAS §2): Miguel autoriza el renombre y el acople la
+-- aplica. La nota se retira porque el ejecutor aplica TODAS las pendientes o
+-- NINGUNA, en una sola transaccion: tratar una como excepcion no aplica una
+-- menos, no aplica nada.
 
 -- ── F-323 · La línea sabe en qué tiempo va y si ya se marchó ──────────────
 alter table orden_lineas

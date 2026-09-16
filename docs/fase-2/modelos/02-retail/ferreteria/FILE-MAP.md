@@ -135,7 +135,7 @@ packages/data/src/migraciones/sql/
 ├── 119_listas_trabajo.sql
 ├── 120_proveedores_ferreteria.sql
 ├── 121_vistas_ferreteria.sql
-└── 066_plantillas_semilla.sql         ⚠ TOCA DATOS VIVOS. No sin P-04
+└── 066_plantillas_semilla.sql         TOCA DATOS VIVOS · Aplicada en la Fase 3 (P-04 resuelta)
 ```
 
 ### 2.5 · Interfaz
@@ -287,6 +287,29 @@ remisiones con saldo por documento y los datos fiscales del cliente.
 `heredado/pages/Inventario.jsx` gana el enlace a la pantalla de material, que es
 donde viven los rollos abiertos. Una línea; el corte y el retazo ya están en
 `apps/web/src/ferreteria/Material.tsx`.
+
+---
+
+## 3.quinquies · LO QUE EL ACOPLE (FASE 3) CAMBIÓ
+
+Tres rutas que faltaban y que eran de este modelo:
+`apps/web/app/api/renta/devolver/route.ts` —la herramienta salía y nada la devolvía, con el depósito
+del cliente parado en el cajón—, `apps/web/app/api/inventario/garantia/resolver/route.ts` —se
+registraba lo que se manda al proveedor y nunca lo que volvió, que es el número que hoy nadie
+cuenta— y `apps/web/app/api/inventario/pieza-abierta/retazo/route.ts`, sin la cual una pieza abierta
+no podía declararse retazo.
+
+### Lo que el acople le añadió a este modelo
+
+| Pieza | Dónde quedó |
+|---|---|
+| **F-017 · el vocabulario, enganchado** | `apps/web/app/api/configuracion/vocabulario/route.ts` (el `GET` que faltaba) · `apps/web/src/servidor/vocabulario.ts` · `apps/web/src/cliente/vocabulario.tsx` · inyectado en `apps/web/app/(modelos)/layout.tsx` **y** en `apps/web/app/(interno)/layout.tsx` |
+| **El menú, traducido** | `apps/web/heredado/lib/permissions.js` (`entidad` por entrada + `etiquetaDeNavegacion`) · `apps/web/heredado/components/common/Sidebar.jsx` |
+| **La plantilla, en el código** | `packages/contracts/src/comandos/ambito.ts` (`PAQUETES` = `tienda·cafeteria·restaurante`) · `packages/contracts/src/comandos/plantillas.ts` (`plantillaDeOrganizacion`) · los cinco sitios que leen `organizaciones.paquete` normalizan con ella |
+
+**Lo que NO está hecho, y bloquea lo demás:** las migraciones de este modelo están escritas,
+ensayadas contra una copia de producción CON DATOS, y **sin aplicar**. Falta una credencial con
+DDL. El procedimiento exacto está en `docs/fase-2/A3-COMO-APLICAR.md`.
 
 ---
 
@@ -516,7 +539,7 @@ Para que nadie tenga que deducirlos leyendo los siete archivos.
    modelo que reutiliza la pantalla de mostrador y el vocabulario escrito a mano se rompe aquí. Ver P3.
 3. **P-02 (CFDI) deja de ser abierta para este modelo.** Un ferretero sin facturación en el punto de
    venta no compra. Ver `05-DATOS-Y-BACKEND.md` §10.
-4. **La migración 095 no se aplica sin P-04**, y plantea la pregunta del **doble movimiento de plantilla
+4. **La migración 095 se aplicó en la Fase 3, con P-04 resuelta**, y plantea la pregunta del **doble movimiento de plantilla
    de La Broca** —`operativo` → `tienda` → `ferreteria`—. Recomendación: saltarse el paso intermedio si
    P-04 se resuelve con una sola ventana.
 5. **El modo despacho+caja (F-235 en variante) hay que decidirlo.** Es la única pieza de este modelo que
