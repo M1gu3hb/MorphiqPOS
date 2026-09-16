@@ -84,3 +84,9 @@ export {
   type ResultadoSeguimiento,
   type ResultadoSurtido,
 } from './cotizacion.ts';
+
+export {
+  entradaFotoDeMostrador,
+  guardarFotoDeMostrador,
+  type ResultadoFoto,
+} from './foto-mostrador.ts';

@@ -58,3 +58,23 @@ export {
   entradaAvisarDeHueco,
   type ResultadoEspera,
 } from './espera.ts';
+
+export {
+  abrirProducto,
+  alcanzaLaCabina,
+  entradaAbrirProducto,
+  entradaAlcanzaCabina,
+  type FaltanteDeCabina,
+  type ResultadoAlcanza,
+  type ResultadoApertura,
+} from './cabina.ts';
+
+export {
+  entradaEntregarPropina,
+  entradaRecibirPropina,
+  entregarPropina,
+  recibirPropina,
+  type ResultadoPropina,
+} from './propina-directa.ts';
+
+export { cobrarRenta, entradaCobrarRenta, type ResultadoCobroRenta } from './rentas.ts';

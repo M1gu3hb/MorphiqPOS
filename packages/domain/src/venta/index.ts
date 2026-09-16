@@ -73,3 +73,29 @@ export {
   type LineaCotizada,
   type SaldoDeSurtido,
 } from './cotizacion.ts';
+
+export {
+  desglosarImpuestos,
+  type BloqueDeTasa,
+  type DesgloseFiscal,
+  type FormaIeps,
+  type LineaConImpuesto,
+  type TasaIva,
+} from './impuesto-mixto.ts';
+
+export {
+  margenDelCanal,
+  precioParaIgualarMargen,
+  precioPorCanal,
+  type Canal,
+  type PrecioDeLista,
+  type PrecioResuelto,
+  type ProductoConListas,
+} from './lista-precio.ts';
+
+export {
+  resolverCombo,
+  type ComboResuelto,
+  type ComponenteDeCombo,
+  type LineaDeCombo,
+} from './combo.ts';

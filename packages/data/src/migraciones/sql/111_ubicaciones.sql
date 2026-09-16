@@ -48,6 +48,22 @@ alter table productos add column ubicacion_id uuid references ubicaciones (id);
 create index productos_por_ubicacion
   on productos (organizacion_id, ubicacion_id) where ubicacion_id is not null;
 
+-- ── F-061 · La foto de mostrador ─────────────────────────────────────────
+--
+-- Va aquí, con la ubicación, porque su valor no está en la pieza: está en
+-- «es ésta, y está en la gaveta de arriba del pasillo 3». Un mostradorista
+-- nuevo tarda seis meses en aprender dónde está cada cosa; con la foto del
+-- anaquel tarda dos semanas.
+--
+-- Columna aparte de `imagen_url` a propósito: la del catálogo es de estudio y
+-- sirve para vender; ésta está mal iluminada y sirve para encontrar. Meterlas
+-- en el mismo campo llena el catálogo de tornillos borrosos sobre un mostrador
+-- sucio, y entonces se apaga la foto entera.
+alter table productos add column foto_mostrador_url text;
+
+comment on column productos.foto_mostrador_url is
+  'F-061 · El apunte visual del mostradorista, no material de venta. Su valor está en la ubicación que la acompaña.';
+
 -- ── RLS ───────────────────────────────────────────────────────────────────
 do $$
 declare

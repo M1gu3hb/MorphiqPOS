@@ -42,3 +42,13 @@ export {
   type RepartoDeComision,
   type TratoDelMaterial,
 } from './comision.ts';
+
+export {
+  piezasOcupadasEnPico,
+  rangoDelRecurso,
+  recursosDisponibles,
+  type DemandaDeRecurso,
+  type OcupacionDeRecurso,
+  type TipoDeRecurso,
+  type Veredicto,
+} from './recursos.ts';

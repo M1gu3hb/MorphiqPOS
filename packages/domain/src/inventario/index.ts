@@ -64,3 +64,20 @@ export {
   type OpcionesDeValuacion,
   type Valuacion,
 } from './valuacion.ts';
+
+export {
+  contarPorPeso,
+  pesoDesdePiezas,
+  piezasDesdePeso,
+  type ConteoPorPeso,
+  type PesoDePieza,
+} from './peso.ts';
+
+export {
+  componerRanking,
+  ordenarPor,
+  vendeMuchoDejaPoco,
+  type Criterio,
+  type FilaDeRanking,
+  type VentaDeProducto,
+} from './mas-vendidos.ts';

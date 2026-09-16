@@ -52,3 +52,16 @@ export {
  * `gastos.ts` aquí dentro. Si el puente llega a necesitarla al leer, se exporta
  * entonces, con quien la importe.
  */
+
+export {
+  entradaLoQueDebo,
+  entradaPagarAProveedor,
+  entradaRegistrarPorPagar,
+  loQueDebo,
+  pagarAProveedor,
+  registrarPorPagar,
+  type AplicacionAProveedor,
+  type ResultadoDeuda,
+  type ResultadoPago,
+  type ResultadoPorPagar,
+} from './por-pagar.ts';

@@ -95,6 +95,34 @@ export interface Clientes {
   activo: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+
+  // ── F-040 · La ficha, que hasta la 142/162 no existía ──────────────────
+  // Todas opcionales en el tipo porque sus migraciones NO están aplicadas: el
+  // día que se apliquen, dejan de serlo. Declararlas obligatorias hoy haría que
+  // el código las escribiera contra una tabla que no las tiene.
+  /** 142 · `femenino` · `masculino` · `no_binario` · `prefiere_no_decir`. */
+  genero?: string | null;
+  whatsapp?: string | null;
+  /** Nace en `false`: el silencio no es un sí. */
+  acepta_recordatorios?: Generated<boolean>;
+  /** Puede ser anterior al sistema: una clienta de ocho años no es nueva. */
+  primera_visita?: string | null;
+  profesional_habitual_id?: string | null;
+  /** Cómo se le dice en voz alta en un salón lleno. */
+  como_se_llama?: string | null;
+  /** 162 · Declarados y sin usar: el CFDI está bloqueado por P-02. */
+  rfc?: string | null;
+  regimen_fiscal?: string | null;
+  uso_cfdi?: string | null;
+  codigo_postal?: string | null;
+  /** Qué DÍA DEL MES paga, de 1 a 28. */
+  dia_pago?: number | null;
+  direccion?: string | null;
+  notas_cobranza?: string | null;
+  /** 094 · Qué día de la SEMANA pasa a pagar el fiado. 0 = domingo. */
+  dia_pago_semana?: number | null;
+  fiado_activo?: Generated<boolean>;
+  fiado_desde?: string | null;
 }
 
 export interface ComandaItems {
@@ -751,6 +779,23 @@ export interface Productos {
   /** Con 6,000 claves, alertar de todas es una lista que nadie lee. */
   es_alta_rotacion: Generated<boolean>;
   requiere_serie: Generated<boolean>;
+  // ── 141 · F-155 · El doble destino: cabina y anaquel ───────────────────
+  // Opcionales porque la migración no está aplicada. El día que se aplique,
+  // `destino` deja de serlo y las otras dos siguen siendo nulas para lo que
+  // sólo se vende.
+  /** `venta` · `cabina` · `ambos`. */
+  destino?: string | null;
+  /** Cuántas unidades base entran a cabina al abrir UNA pieza. */
+  factor_apertura?: string | null;
+  unidad_cabina?: string | null;
+  /**
+   * F-061 · La foto que toma el mostradorista, que NO es la del catálogo.
+   *
+   * La del catálogo es de estudio y sirve para vender; ésta está mal iluminada
+   * y sirve para encontrar la pieza en la gaveta. Mezclarlas llena el catálogo
+   * de tornillos borrosos sobre un mostrador sucio.
+   */
+  foto_mostrador_url?: string | null;
 }
 
 export interface Proveedores {
@@ -1008,6 +1053,11 @@ export interface Esquema {
   cotizaciones: Cotizaciones;
   cotizacion_lineas: CotizacionLineas;
   cotizacion_eventos: CotizacionEventos;
+  movimientos_propina: MovimientosPropina;
+  rentas_estacion: RentasEstacion;
+  cobros_renta: CobrosRenta;
+  documentos_por_pagar: DocumentosPorPagar;
+  pagos_a_proveedor: PagosAProveedor;
 }
 
 /* ── Fase 2 · tronco compartido de inventario (migraciones 058-066) ──────── */
@@ -2128,4 +2178,99 @@ export interface CotizacionEventos {
   nota: string | null;
   ocurrio_en: Generated<Date>;
   empleado_id: string | null;
+}
+
+/**
+ * F-243 · La propina del salón (migración 139).
+ *
+ * El monto va FIRMADO: lo recibido suma y lo entregado resta, sobre una sola
+ * tabla. Dos tablas que se restan es cómo se le paga dos veces a alguien.
+ */
+export interface MovimientosPropina {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  profesional_id: string;
+  orden_id: string | null;
+  cita_servicio_id: string | null;
+  /** `recibida` · `entregada` · `ajuste`. */
+  tipo: string;
+  /** Firmado. Ver el encabezado. */
+  monto_centavos: bigint;
+  medio: string;
+  liquidacion_id: string | null;
+  movimiento_caja_id: string | null;
+  entregada_en: Date | null;
+  entregada_por: string | null;
+  nota: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-441 · La renta de estación (migración 136). */
+export interface RentasEstacion {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  profesional_id: string;
+  recurso_id: string | null;
+  monto_centavos: bigint;
+  /** `semanal` · `quincenal` · `mensual`. */
+  periodicidad: string;
+  /** Con `semanal`, día de la semana (0 = domingo); si no, día del mes 1-28. */
+  dia_de_cobro: number;
+  vigente_desde: string;
+  vigente_hasta: string | null;
+  activa: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface CobrosRenta {
+  id: Generated<string>;
+  organizacion_id: string;
+  renta_id: string;
+  profesional_id: string;
+  /** `daterange`. La exclusión GiST impide cobrar dos veces el mismo periodo. */
+  periodo: string;
+  monto_centavos: bigint;
+  metodo: string;
+  movimiento_caja_id: string | null;
+  sesion_caja_id: string | null;
+  cobrado_en: Generated<Date>;
+  cobrado_por: string | null;
+  created_at: Generated<Date>;
+}
+
+/**
+ * F-635 · Lo que el negocio DEBE (migración 162).
+ *
+ * Es el reflejo de `documentos_credito`, con la misma forma a propósito: la
+ * antigüedad se calcula igual, y dos aritméticas para el mismo concepto acaban
+ * dando números distintos.
+ */
+export interface DocumentosPorPagar {
+  id: Generated<string>;
+  organizacion_id: string;
+  proveedor_id: string;
+  folio_proveedor: string;
+  compra_id: string | null;
+  emitido_en: Generated<Date>;
+  vence_en: Date;
+  importe_centavos: bigint;
+  saldo_centavos: bigint;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface PagosAProveedor {
+  id: Generated<string>;
+  organizacion_id: string;
+  proveedor_id: string;
+  documento_id: string | null;
+  monto_centavos: bigint;
+  metodo: string;
+  referencia: string | null;
+  sesion_caja_id: string | null;
+  empleado_id: string;
+  created_at: Generated<Date>;
 }
