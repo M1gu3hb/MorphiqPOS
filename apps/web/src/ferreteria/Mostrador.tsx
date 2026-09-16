@@ -3,6 +3,7 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -103,6 +104,7 @@ interface Partida {
 }
 
 export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false }: MostradorProps) {
+  const enrutador = useRouter();
   const [filas, setFilas] = useState<readonly MaterialDeMostrador[] | null>(filasIniciales ?? null);
   const [consulta, setConsulta] = useState('');
   const [partidas, setPartidas] = useState<readonly Partida[]>([]);
@@ -353,7 +355,10 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
               className="mt-3"
               onClick={() => {
                 // El alta rápida vive en el catálogo; aquí se llega con lo tecleado.
-                window.location.assign(`/ferreteria/catalogo?alta=${encodeURIComponent(consulta)}`);
+                // Se navega con el enrutador y no recargando la página: el
+                // mostradorista vuelve con el material dado de alta y las
+                // partidas que ya llevaba tienen que seguir ahí.
+                enrutador.push(`/ferreteria/catalogo?alta=${encodeURIComponent(consulta)}`);
               }}
             >
               Dar de alta este material

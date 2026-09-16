@@ -149,6 +149,14 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
         setIntentos(INTENTOS);
         setError(null);
         // A dónde va cada rol lo decide el armazón: aquí sólo se resuelve QUIÉN.
+        //
+        // Y se RECARGA la página en vez de navegar con el enrutador, a
+        // propósito: el servidor acaba de poner una cookie de sesión nueva, y
+        // una navegación de cliente conservaría el árbol de React del turno
+        // anterior. En una terminal compartida eso significa que lo tecleado
+        // por quien se acaba de ir sigue en pantalla con el nombre del que
+        // entra. La recarga es lo que garantiza que no quede nada suyo.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         if (onEntro === undefined) window.location.assign('/');
         else onEntro(empleoId);
       } catch (fallo: unknown) {

@@ -258,6 +258,12 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
   useEffect(() => {
     if (turno === null || seleccionado === null) return;
     const id = setTimeout(() => {
+      // Se RECARGA en vez de navegar con el enrutador, a propósito: el servidor
+      // acaba de poner una cookie de sesión nueva, y una navegación de cliente
+      // conservaría el árbol de React del turno anterior. La barra es una
+      // terminal compartida: lo que dejó quien se va no puede seguir en
+      // pantalla con el nombre de quien entra.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       if (onEntro === undefined) window.location.assign('/');
       else onEntro(seleccionado.id);
     }, PAUSA_DEL_SALUDO);
