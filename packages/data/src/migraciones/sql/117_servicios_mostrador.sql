@@ -1,4 +1,4 @@
--- 113 · Servicio de mostrador con material y mano de obra (F-258).
+-- 117 · Servicios de mostrador: lo que se cobra sin inventario (F-141…F-144).
 --
 -- ── Lo que hoy se cobra «aparte» y no está en ningún reporte ─────────────
 -- Copia de llave, entonado de pintura, corte de vidrio y de madera a medida,

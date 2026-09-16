@@ -1,4 +1,4 @@
--- 111 · Corte de material, pieza abierta y retazo (F-145, F-150).
+-- 113 · Material continuo: lo que se vende cortado (F-150, F-063, F-064).
 --
 -- ── El descuadre 3 del giro ───────────────────────────────────────────────
 -- Se cortan 60 m de un rollo de 100. Entre lo que se lleva la segueta, lo que

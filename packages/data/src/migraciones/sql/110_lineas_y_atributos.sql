@@ -1,4 +1,4 @@
--- 110 · Atributos técnicos, ubicación y equivalencias (F-059, F-152, F-060).
+-- 110 · La línea y el atributo técnico (F-021, F-059).
 --
 -- ── Sin esto no hay modelo ────────────────────────────────────────────────
 -- Un producto de ferretería NO tiene nombre útil: tiene una combinación de
@@ -50,35 +50,6 @@ create index lineas_por_padre on lineas (organizacion_id, padre_id, orden) where
 create trigger lineas_tocar_updated_at
   before update on lineas for each row execute function tocar_updated_at();
 
--- ── F-152 · Dónde está la pieza ──────────────────────────────────────────
---
--- `zonas_anaquel` (F-149, migración 091) NO sirve para esto y las dos tablas
--- conviven a propósito: la zona existe para CONTAR —una vez al día, por el
--- encargado, agrupando muchas gavetas— y la ubicación existe para VENDER
--- —sesenta veces al día, por el mostradorista, gaveta por gaveta—. Fusionarlas
--- obligaría a que la unidad de conteo fuera la gaveta, y contar 400 gavetas es
--- una vuelta de dos años.
-create table ubicaciones (
-  id               uuid        primary key default gen_random_uuid(),
-  organizacion_id  uuid        not null references organizaciones (id) on delete cascade,
-  almacen_id       uuid        not null references almacenes (id) on delete cascade,
-  codigo           text        not null check (length(trim(codigo)) > 0),
-  descripcion      text,
-  -- Una zona agrupa varias ubicaciones: es lo que une el vender con el contar.
-  zona_id          uuid        references zonas_anaquel (id) on delete set null,
-  orden_recorrido  int         not null default 0,
-  activa           boolean     not null default true,
-  created_at       timestamptz not null default now(),
-
-  unique (almacen_id, codigo)
-);
-
-comment on table ubicaciones is
-  'F-152 · Dónde está esta pieza. Distinta de zonas_anaquel: la zona es para contar una vez al día; la ubicación es para vender sesenta veces al día.';
-
-create index ubicaciones_por_recorrido
-  on ubicaciones (organizacion_id, almacen_id, orden_recorrido) where activa;
-
 -- ── F-059 · El atributo, normalizado ─────────────────────────────────────
 create table producto_atributos (
   id                 uuid   primary key default gen_random_uuid(),
@@ -116,47 +87,50 @@ create index atributos_por_lista
   on producto_atributos (organizacion_id, clave, valor_texto)
   where valor_texto is not null;
 
--- ── F-060 · «No tengo la de 1/2 pero la de 13 mm le sirve» ───────────────
-create table equivalencias (
-  id               uuid        primary key default gen_random_uuid(),
-  organizacion_id  uuid        not null references organizaciones (id) on delete cascade,
-  producto_id      uuid        not null references productos (id) on delete cascade,
-  equivalente_id   uuid        not null references productos (id) on delete cascade,
-  -- `sustituto` es «le sirve»; `complemento` es «va con». Son cosas distintas y
-  -- confundirlas ofrecería un teflón a quien pide una llave.
-  tipo             text        not null check (tipo in ('sustituto', 'complemento')),
-  nota             text,
-  bidireccional    boolean     not null default true,
-  -- NO es auditoría: es producto. Cuando Chava se jubile, Beto va a poder ver
-  -- que 340 equivalencias las declaró él, y eso es el conocimiento que se
-  -- quería retener. También sirve para lo incómodo.
-  declarado_por    uuid        references empleos (id) on delete set null,
-  declarado_en     timestamptz not null default now(),
-
-  constraint equivalencia_no_es_de_si_mismo check (producto_id <> equivalente_id),
-  unique (producto_id, equivalente_id, tipo)
-);
-
-comment on column equivalencias.declarado_por is
-  'No es auditoría: es producto. Cuando el mostradorista experto se vaya, lo que declaró se queda, y se sabe que fue él.';
-
-create index equivalencias_por_producto on equivalencias (organizacion_id, producto_id);
-
 -- ── Lo que `productos` gana ──────────────────────────────────────────────
 alter table productos add column linea_id uuid references lineas (id);
-alter table productos add column ubicacion_id uuid references ubicaciones (id);
--- F-151 · En MILIGRAMOS, enteros. El tornillo de 5 g es 5000.
-alter table productos add column peso_por_pieza_mg bigint check (peso_por_pieza_mg is null or peso_por_pieza_mg > 0);
-alter table productos add column tolerancia_peso_pct numeric(5, 2) not null default 8.00
-  check (tolerancia_peso_pct >= 0 and tolerancia_peso_pct <= 100);
-alter table productos add column peso_calibrado_en timestamptz;
 -- Sólo estas ~200 disparan alerta de mínimo: con 6,000 claves, alertar de todas
 -- es una lista que nadie lee.
 alter table productos add column es_alta_rotacion boolean not null default false;
 alter table productos add column requiere_serie boolean not null default false;
 
 create index productos_por_linea on productos (organizacion_id, linea_id) where linea_id is not null;
-create index productos_por_ubicacion on productos (organizacion_id, ubicacion_id) where ubicacion_id is not null;
+
+-- ── El relleno · cada categoría existente se vuelve una línea de nivel 1 ──
+--
+-- Sin esto, el día que se aplique la migración el catálogo entero queda sin
+-- línea: 6,000 productos que la búsqueda por atributos no encuentra, y un
+-- mostradorista que vuelve a su memoria. Se hace aquí y no a mano porque «lo
+-- capturamos después» es como los catálogos se quedan a medio migrar.
+--
+-- El esquema de atributos nace VACÍO a propósito: inventarlo por el nombre de
+-- la categoría acertaría en «tornillería» y erraría en todo lo demás, y un
+-- esquema equivocado es peor que ninguno —la ficha pide medidas que esa línea
+-- no tiene y el capturista aprende a dejarlas en blanco—.
+--
+-- Sólo las categorías de PRODUCTO. Las de insumo agrupan harina y detergente,
+-- que no se venden por mostrador y no tienen atributos técnicos que buscar.
+insert into lineas (organizacion_id, padre_id, nombre, orden)
+select c.organizacion_id, null, c.nombre, c.orden
+  from categorias c
+ where c.tipo = 'producto'
+   and not exists (
+     select 1 from lineas l
+      where l.organizacion_id = c.organizacion_id
+        and l.padre_id is null
+        and l.nombre = c.nombre
+   );
+
+update productos p
+   set linea_id = l.id
+  from categorias c
+  join lineas l
+    on l.organizacion_id = c.organizacion_id
+   and l.padre_id is null
+   and l.nombre = c.nombre
+ where c.tipo = 'producto'
+   and p.categoria_id = c.id
+   and p.linea_id is null;
 
 -- ── RLS ───────────────────────────────────────────────────────────────────
 do $$
@@ -169,7 +143,7 @@ begin
     from pg_catalog.pg_roles
    where rolname in ('anon', 'authenticated');
 
-  foreach t in array array['lineas', 'ubicaciones', 'producto_atributos', 'equivalencias']
+  foreach t in array array['lineas', 'producto_atributos']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('alter table %I force  row level security', t);

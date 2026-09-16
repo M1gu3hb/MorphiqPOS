@@ -1,4 +1,4 @@
--- 112 · Obra, autorizados y remisión firmada (F-639, F-638, F-606).
+-- 115 · Crédito de ferretería: obra, autorizados, remisión y cobranza (F-610…F-634).
 --
 -- ── Las tres puertas por las que se pierde el dinero ─────────────────────
 -- Es el dolor 1 de una ferretería y es la parte que ningún punto de venta del
