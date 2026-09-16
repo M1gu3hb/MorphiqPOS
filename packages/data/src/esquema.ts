@@ -207,6 +207,13 @@ export interface CompraLineas {
   notas: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  /**
+   * F-631 · La clave del proveedor en SU hoja (migración 120, sin aplicar).
+   *
+   * Es la memoria que hace que la segunda nota del mismo proveedor se empareje
+   * sola. Opcional porque la migración no está aplicada.
+   */
+  clave_proveedor?: string | null;
 }
 
 export interface Compras {
@@ -776,6 +783,8 @@ export interface Productos {
   peso_por_pieza_mg: bigint | null;
   tolerancia_peso_pct: Generated<string>;
   peso_calibrado_en: Date | null;
+  /** Quién puso la báscula: un peso mal calibrado descuadra el conteo entero. */
+  peso_calibrado_por: string | null;
   /** Con 6,000 claves, alertar de todas es una lista que nadie lee. */
   es_alta_rotacion: Generated<boolean>;
   requiere_serie: Generated<boolean>;
@@ -1058,6 +1067,8 @@ export interface Esquema {
   cobros_renta: CobrosRenta;
   documentos_por_pagar: DocumentosPorPagar;
   pagos_a_proveedor: PagosAProveedor;
+  garantias_proveedor: GarantiasProveedor;
+  rentas_herramienta: RentasHerramienta;
   expedientes_belleza: ExpedientesBelleza;
   formulas_aplicadas: FormulasAplicadas;
   consentimientos: Consentimientos;
@@ -1167,6 +1178,14 @@ export interface PagosCredito {
   a_cuenta_centavos: Generated<bigint>;
   empleado_id: string;
   created_at: Generated<Date>;
+  // ── 115 · F-212 · La transferencia que todavía nadie vio en el banco ───
+  // Opcionales porque la migración no está aplicada.
+  /** `false` sólo en transferencia: hasta confirmarla no baja el saldo. */
+  confirmado?: boolean;
+  confirmado_en?: Date | null;
+  confirmado_por?: string | null;
+  /** La fecha REAL del depósito, que puede no ser la de captura. */
+  recibido_en?: Date | null;
 }
 
 /** F-614 · Qué documento cubrió cada peso del pago. */
@@ -1200,6 +1219,11 @@ export interface AutorizacionesDescuento {
   tope_centavos: bigint;
   motivo: string;
   created_at: Generated<Date>;
+  // ── 115 · La llave del dueño sobre el muro de crédito (sin aplicar) ────
+  /** Cuando la excepción es de CRÉDITO y no de descuento. */
+  cliente_id?: string | null;
+  /** Vale para esta salida y hasta esta hora: una llave sin caducidad no vuelve. */
+  vence_en?: Date | null;
 }
 
 /** F-930/F-934 · Ledger INMUTABLE de sellos. La verdad; el saldo es caché. */
@@ -2398,4 +2422,71 @@ export interface SesionesPaquete {
   numero: number;
   consumida_en: Generated<Date>;
   consumida_por: string | null;
+}
+
+/**
+ * F-146 · Lo que se mandó al proveedor y no ha vuelto (migración 118).
+ *
+ * Un negocio mediano pierde entre $20,000 y $60,000 al año porque nadie lleva
+ * esta cuenta. `orden_id` es nulo a propósito: media ferretería acepta la
+ * garantía con la caja y sin ticket, y negarla por eso es perder al cliente
+ * para ahorrarse una columna.
+ */
+export interface GarantiasProveedor {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  proveedor_id: string;
+  producto_id: string;
+  orden_id: string | null;
+  cliente_id: string | null;
+  piezas: number;
+  costo_unitario_centavos: bigint;
+  falla: string;
+  /** `recibida` · `enviada` · `repuesta` · `rechazada` · `abonada`. */
+  estado: Generated<string>;
+  recibida_en: Generated<Date>;
+  enviada_en: Date | null;
+  folio_proveedor: string | null;
+  resuelta_en: Date | null;
+  resolucion: string | null;
+  /** Lo que separa «se la cambié» de «se la debo», que son dos negocios. */
+  repuesta_al_cliente: Generated<boolean>;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/**
+ * F-147 · La herramienta que sale y TIENE que volver (migración 118).
+ *
+ * Es el envase retornable de abarrotes con otro nombre: el depósito es dinero
+ * ajeno que entra y vuelve a salir, no una venta.
+ */
+export interface RentasHerramienta {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  producto_id: string;
+  cliente_id: string | null;
+  nombre_libre: string | null;
+  telefono_libre: string | null;
+  piezas: number;
+  tarifa_centavos: bigint;
+  /** `hora` · `dia` · `semana`. */
+  unidad_tarifa: string;
+  /** NO es venta: dinero del cliente que entra y vuelve a salir. */
+  deposito_centavos: Generated<bigint>;
+  /** `fuera` · `devuelta` · `perdida` · `dañada`. */
+  estado: Generated<string>;
+  salio_en: Generated<Date>;
+  compromiso_retorno: Date;
+  volvio_en: Date | null;
+  cobro_centavos: bigint | null;
+  deposito_devuelto_centavos: bigint | null;
+  danos: string | null;
+  orden_id: string | null;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }

@@ -90,3 +90,73 @@ export {
   guardarFotoDeMostrador,
   type ResultadoFoto,
 } from './foto-mostrador.ts';
+
+export {
+  asignarUbicacion,
+  declararEquivalencia,
+  declararLinea,
+  entradaAsignarUbicacion,
+  entradaDeclararEquivalencia,
+  entradaDeclararLinea,
+  type ResultadoEquivalencia,
+  type ResultadoLinea,
+  type ResultadoUbicacion,
+} from './organizacion-catalogo.ts';
+
+export {
+  calibrarPeso,
+  conteoPorPeso,
+  entradaCalibrarPeso,
+  entradaConteoPorPeso,
+  type ResultadoCalibracion,
+  type ResultadoConteoPeso,
+} from './peso.ts';
+
+export {
+  entradaEtiquetas,
+  etiquetasDeProducto,
+  type EtiquetaImpresa,
+  type ResultadoEtiquetas,
+} from './etiquetas.ts';
+
+export {
+  entradaGarantiasPendientes,
+  entradaRecibirGarantia,
+  entradaResolverGarantia,
+  garantiasPendientes,
+  recibirGarantia,
+  resolverGarantia,
+  type GarantiaPendiente,
+  type ResultadoGarantia,
+} from './garantias.ts';
+
+export {
+  devolverRenta,
+  entradaDevolverRenta,
+  entradaSacarRenta,
+  sacarEnRenta,
+  type ResultadoDevolucion,
+  type ResultadoSalida,
+} from './renta.ts';
+
+export {
+  abrirPieza,
+  entradaAbrirPieza,
+  entradaMarcarRetazo,
+  entradaPiezasDeProducto,
+  marcarRetazo,
+  piezasDeProducto,
+  type PiezaViva,
+  type ResultadoPieza,
+  type ResultadoPiezas,
+} from './pieza-abierta.ts';
+
+export {
+  autorizacionesDeCredito,
+  autorizarVentaACredito,
+  entradaAutorizacionesDe,
+  entradaAutorizarCredito,
+  type AutorizacionRegistrada,
+  type ResultadoAutorizacion,
+  type ResultadoAutorizaciones,
+} from './autorizacion-credito.ts';

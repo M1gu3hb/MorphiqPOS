@@ -18,12 +18,19 @@ export {
 
 export {
   carteraPorAntiguedad,
+  confirmarTransferencia,
   entradaCartera,
+  entradaConfirmarTransferencia,
   entradaMuro,
+  entradaPendientes,
   entradaRegistrarPago,
   fijarMuroDeCredito,
   registrarPagoCredito,
+  transferenciasPendientes,
   type ResultadoCartera,
+  type ResultadoConfirmacion,
   type ResultadoMuro,
   type ResultadoPagoCredito,
+  type ResultadoPendientes,
+  type TransferenciaPendiente,
 } from './cobranza.ts';

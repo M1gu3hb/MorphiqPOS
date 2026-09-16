@@ -24,6 +24,27 @@
 --
 -- ── ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2 ──────────────────────────────
 
+-- ── Lo que `compra_lineas` gana · F-631 ──────────────────────────────────
+--
+-- La clave DEL PROVEEDOR, tal cual viene en su hoja. Es lo que hace que la
+-- SEGUNDA nota del mismo proveedor se empareje sola: la primera vez alguien
+-- confirma qué es cada renglón, y a partir de ahí la clave `TN-1425` de ese
+-- proveedor ya sabe a qué tornillo apunta.
+--
+-- Sin esta columna, cada entrada de doscientos renglones vuelve a emparejarse
+-- por nombre —que es el camino que se equivoca— y el trabajo de confirmar se
+-- repite entero cada mes. Ésa es la razón real por la que las entradas no se
+-- capturan y el inventario de una ferretería no sirve.
+alter table compra_lineas add column clave_proveedor text;
+
+comment on column compra_lineas.clave_proveedor is
+  'F-631 · La clave del proveedor en SU hoja. Es la memoria que hace que la segunda nota se empareje sola; sin ella el trabajo de confirmar se repite entero cada mes.';
+
+-- El emparejamiento exacto de la siguiente nota. Recorre por clave, no por
+-- nombre, y por eso este indice es lo que separa dos horas de dos minutos.
+create index compra_lineas_por_clave_proveedor
+  on compra_lineas (organizacion_id, clave_proveedor) where clave_proveedor is not null;
+
 alter table proveedores
   add column monto_minimo_pedido_centavos bigint not null default 0,
   add column dias_entrega smallint not null default 0,

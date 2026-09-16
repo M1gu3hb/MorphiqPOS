@@ -8,7 +8,13 @@ import {
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
 import { ambitoDe, ORG, SESION_CAJA, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
-import { carteraPorAntiguedad, fijarMuroDeCredito, registrarPagoCredito } from './cobranza.ts';
+import {
+  carteraPorAntiguedad,
+  confirmarTransferencia,
+  fijarMuroDeCredito,
+  registrarPagoCredito,
+  transferenciasPendientes,
+} from './cobranza.ts';
 import { emitirDocumentoCredito, estadoDeCuenta } from './documento.ts';
 
 /**
@@ -88,6 +94,10 @@ function baseDe(extra: Partial<TablasFalsas> = {}) {
           movimiento_caja_id: null,
           sesion_caja_id: null,
           sucursal_id: null,
+          confirmado: true,
+          confirmado_en: null,
+          confirmado_por: null,
+          recibido_en: null,
         },
         movimientos_caja: { referencia_tipo: null, referencia_id: null, motivo: null },
         clientes: { bloqueado_en: null, bloqueado_por: null, motivo_bloqueo: null },
@@ -225,14 +235,51 @@ describe('F-614 y F-615 · registrar el pago', () => {
     await registrarPagoCredito.ejecutar(ctx, {
       clienteId: CLIENTE,
       montoCentavos: 10_000,
+      metodo: 'tarjeta',
+      referencia: 'TDC 4412',
+    });
+
+    // Exigir caja abierta para una tarjeta dejaría al cobrador sin poder
+    // registrar un cobro que ya está autorizado por la terminal bancaria.
+    expect(base.filas('movimientos_caja')).toHaveLength(0);
+    expect(base.campo('pagos_credito', 'referencia')).toBe('TDC 4412');
+  });
+
+  it('LA TRANSFERENCIA NO BAJA EL SALDO hasta que alguien ve el banco', async () => {
+    // El comprobante se ve en la pantalla del cliente y el sistema no puede
+    // saber si es real. Aplicarla al registrarse es cómo un comprobante falso de
+    // $12,000 sale por la puerta convertido en material.
+    const base = baseDe({ documentos_credito: [documento()], sesiones_caja: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await registrarPagoCredito.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 10_000,
       metodo: 'transferencia',
       referencia: 'SPEI 4412',
     });
 
-    // Exigir caja abierta para una transferencia dejaría al cobrador sin poder
-    // registrar un depósito que ya está en la cuenta del banco.
-    expect(base.filas('movimientos_caja')).toHaveLength(0);
-    expect(base.campo('pagos_credito', 'referencia')).toBe('SPEI 4412');
+    expect(salida.pendienteDeConfirmar).toBe(true);
+    expect(salida.aplicadoCentavos).toBe('0');
+    // El saldo que se devuelve es el que SIGUE debiendo: decir el ya restado
+    // sería mentirle a la pantalla donde el mostradorista lo lee en voz alta.
+    expect(salida.saldoDespuesCentavos).toBe('100000');
+    expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(100_000n);
+    expect(base.campo('pagos_credito', 'confirmado')).toBe(false);
+  });
+
+  it('el efectivo SE APLICA en el momento: ya está en el cajón', async () => {
+    const base = baseDe({ documentos_credito: [documento()] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await registrarPagoCredito.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 10_000,
+      metodo: 'efectivo',
+    });
+
+    expect(salida.pendienteDeConfirmar).toBe(false);
+    expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(90_000n);
   });
 
   it('el efectivo SÍ necesita caja abierta', async () => {
@@ -350,5 +397,99 @@ describe('F-617 · el muro', () => {
 
   it('el cajero no levanta ni pone el muro', () => {
     expect([...fijarMuroDeCredito.roles]).not.toContain('cajero');
+  });
+});
+
+describe('F-212 · confirmar la transferencia', () => {
+  function pago(cambios: Partial<Fila> = {}): Fila {
+    return {
+      id: 'pg1',
+      organizacion_id: ORG,
+      sucursal_id: SUCURSAL,
+      cliente_id: CLIENTE,
+      monto_centavos: 30_000n,
+      metodo: 'transferencia',
+      referencia: 'SPEI 4412',
+      a_cuenta_centavos: 0n,
+      empleado_id: 'e1',
+      confirmado: false,
+      created_at: dias(-1),
+      ...cambios,
+    };
+  }
+
+  it('CONFIRMAR ES LO QUE BAJA EL SALDO', async () => {
+    // Si el pago se hubiera aplicado al registrarse, confirmar sería un adorno.
+    const base = baseDe({ documentos_credito: [documento()], pagos_credito: [pago()] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    const salida = await confirmarTransferencia.ejecutar(ctx, {
+      pagoId: 'pg1',
+      referenciaBancaria: 'SPEI 998877',
+    });
+
+    expect(salida.aplicadoCentavos).toBe('30000');
+    expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(70_000n);
+    expect(base.campo('pagos_credito', 'confirmado')).toBe(true);
+  });
+
+  it('NO SE CONFIRMA DOS VECES', async () => {
+    // Aplicaría el pago dos veces y le regalaría el doble al cliente. Dos
+    // pestañas abiertas son dos peticiones.
+    const base = baseDe({
+      documentos_credito: [documento()],
+      pagos_credito: [pago({ confirmado: true, confirmado_en: dias(-1) })],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    const fallo = await confirmarTransferencia
+      .ejecutar(ctx, { pagoId: 'pg1', referenciaBancaria: null })
+      .catch((e: unknown) => e);
+
+    expect(esErrorDominio(fallo)).toBe(true);
+    expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(100_000n);
+  });
+
+  it('lo que YA ESTÁ EN EL CAJÓN no se confirma', async () => {
+    // El efectivo está confirmado en el momento en que se cobra.
+    const base = baseDe({
+      documentos_credito: [documento()],
+      pagos_credito: [pago({ metodo: 'efectivo', confirmado: true })],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    const fallo = await confirmarTransferencia
+      .ejecutar(ctx, { pagoId: 'pg1', referenciaBancaria: null })
+      .catch((e: unknown) => e);
+
+    expect(esErrorDominio(fallo)).toBe(true);
+  });
+
+  it('LO PENDIENTE VA EN EL CORTE, con las horas que lleva esperando', async () => {
+    // Una lista que hay que acordarse de abrir es una lista que no se abre.
+    const base = baseDe({
+      documentos_credito: [documento()],
+      pagos_credito: [
+        pago({ id: 'pg1', created_at: new Date(AHORA.getTime() - 5 * 3_600_000) }),
+        pago({ id: 'pg2', confirmado: true, confirmado_en: AHORA }),
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await transferenciasPendientes.ejecutar(ctx, { horas: 72 });
+
+    expect(salida.pendientes.map((p) => p.pagoId)).toEqual(['pg1']);
+    expect(salida.pendientes[0]?.horasEsperando).toBe(5);
+    expect(salida.totalCentavos).toBe('30000');
+  });
+
+  it('sin transferencias pendientes el corte no enseña una lista vacía con total nulo', async () => {
+    const base = baseDe({ documentos_credito: [documento()] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await transferenciasPendientes.ejecutar(ctx, { horas: 72 });
+
+    expect(salida.pendientes).toEqual([]);
+    expect(salida.totalCentavos).toBe('0');
   });
 });

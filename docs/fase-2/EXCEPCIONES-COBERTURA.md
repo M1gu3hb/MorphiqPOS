@@ -51,6 +51,7 @@ Formato de la primera columna:
 |---|---|---|
 | `RUTA apps/web/app/api/restaurante/imprimir-comanda/route.ts` | El disparo de impresión | Es la ruta de `F-318`. Sin decidir el hardware no hay cuerpo que definir: el de una térmica de red y el de un agente local no se parecen. |
 | `RUTA apps/web/app/api/restaurante/impresion/resultado/route.ts` | El acuse del impresor | Es la otra mitad de `F-318`. Un acuse de una cola de impresión que no existe no se puede ni probar. |
+| `RUTA apps/web/app/api/factura/agrupado/route.ts` | La factura que junta varias remisiones del mes en un CFDI | Es CFDI, y por tanto **decisión pendiente P-02**: lo mismo que bloquea `F-940` a `F-945`. Sin PAC elegido no hay timbrado que agrupar, y el formato exacto de la agrupación —una factura con N conceptos o una factura con un complemento— lo fija el proveedor. Lo que sí está construido es lo de debajo: `remisiones` con su saldo por documento (115) y los datos fiscales del cliente en `162_clientes_y_por_pagar.sql`. El día que se elija PAC, sólo falta el timbrado. |
 
 ## MIGRACIONES
 

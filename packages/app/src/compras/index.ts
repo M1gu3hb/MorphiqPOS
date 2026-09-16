@@ -65,3 +65,10 @@ export {
   type ResultadoPago,
   type ResultadoPorPagar,
 } from './por-pagar.ts';
+
+export {
+  entradaImportarNota,
+  importarNotaDeProveedor,
+  type RenglonEmparejado,
+  type ResultadoImportacion,
+} from './importar-nota.ts';

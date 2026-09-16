@@ -127,6 +127,72 @@ alter table clientes add column dias_plazo int not null default 0 check (dias_pl
 -- El muro por mora. SIEMPRE hay llave y siempre es del dueño.
 alter table clientes add column bloqueado_por_mora boolean not null default false;
 
+-- ── Lo que `autorizaciones_descuento` gana ───────────────────────────────
+--
+-- Un muro de crédito sin llave se apaga: el primer viernes en que el
+-- contratista de siempre llega por $40,000 de varilla con tres días de retraso,
+-- no se discute el muro, se desactiva el módulo entero. La llave tiene que
+-- existir, y por eso tiene que quedar REGISTRADA.
+--
+-- Se reutiliza esta tabla en vez de crear otra porque es la misma pregunta
+-- —«quién pasó por encima de un tope, por cuánto y por qué»— y el reporte de
+-- excepciones tiene que poder leer las dos juntas. Con dos tablas, la mitad de
+-- las excepciones no sale en el reporte de excepciones.
+--
+-- `cliente_id` es una COLUMNA y no un dato metido en el texto del motivo:
+-- guardarlo dentro del texto obligaría a buscar con `like`, que no usa índice y
+-- que empareja por accidente el día que alguien escriba un uuid en una nota.
+alter table autorizaciones_descuento add column cliente_id uuid references clientes (id) on delete set null;
+-- Vale para ESTA salida y hasta esta hora. Una autorización sin caducidad deja
+-- al cliente desbloqueado «hasta nuevo aviso», y ésa es una llave que nadie
+-- vuelve a girar en la otra dirección: el bloqueo no regresa nunca.
+alter table autorizaciones_descuento add column vence_en timestamptz;
+
+comment on column autorizaciones_descuento.cliente_id is
+  'Cuando la excepción es de crédito y no de descuento. Es columna y no texto dentro del motivo: buscar con `like` no usa índice y empareja por accidente.';
+
+-- «¿Cuántas excepciones lleva este cliente?» Es la consulta que convierte una
+-- llave en un dato: nueve en dos meses no es una excepción, es el límite mal
+-- puesto.
+create index autorizaciones_por_cliente
+  on autorizaciones_descuento (organizacion_id, cliente_id, created_at desc)
+  where cliente_id is not null;
+
+-- ── Lo que `pagos_credito` gana · F-212 ──────────────────────────────────
+--
+-- Las transferencias son el 20 %–35 % del valor en una ferretería, y llegan con
+-- un comprobante que se ve en la pantalla del cliente. Un comprobante falso de
+-- $80 es una molestia; uno de $12,000 es un problema, y el sistema no puede
+-- distinguirlos: lo único que puede hacer es NO APLICAR el pago al saldo hasta
+-- que alguien mire el banco.
+--
+-- `confirmado` nace en `true` a propósito. El efectivo, la tarjeta y el cheque
+-- ya están confirmados en el momento en que se cobran, y ponerlos en `false`
+-- llenaría la lista de pendientes con todo lo que no hace falta revisar —que es
+-- exactamente cómo una lista de revisión deja de leerse—. La transferencia es
+-- la única que entra en `false`, y lo hace el comando.
+alter table pagos_credito add column confirmado boolean not null default true;
+alter table pagos_credito add column confirmado_en timestamptz;
+alter table pagos_credito add column confirmado_por uuid references empleos (id) on delete set null;
+-- La fecha REAL del depósito, que puede no ser la de captura: el dinero entró al
+-- banco el domingo a las nueve y alguien lo registra el lunes. Con una sola
+-- fecha, la antigüedad de la cartera cuenta un día de mora que no existió.
+alter table pagos_credito add column recibido_en timestamptz;
+
+-- Confirmar sin decir cuándo deja un pago que dice estar revisado y no dice por
+-- quién ni desde cuándo, que es justo lo que se pregunta cuando no cuadra.
+alter table pagos_credito add constraint pago_confirmado_con_fecha check (
+  confirmado = false or confirmado_en is not null or metodo <> 'transferencia'
+);
+
+comment on column pagos_credito.confirmado is
+  'F-212 · La transferencia no baja el saldo del cliente hasta que alguien ve el banco. El comprobante falso no se puede detectar; lo que se puede es no creerle todavía.';
+
+-- Lo que hay que revisar antes de cerrar el día. Sin este índice parcial, la
+-- consulta recorre todos los pagos del año en cada corte.
+create index pagos_credito_por_confirmar
+  on pagos_credito (organizacion_id, created_at) where not confirmado;
+
 -- ── Lo que `ordenes` gana ────────────────────────────────────────────────
 alter table ordenes add column obra_id uuid references obras (id);
 alter table ordenes add column autorizado_id uuid references autorizados_cuenta (id);
