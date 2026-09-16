@@ -45,7 +45,7 @@
 >    Resuelve los conflictos y sube.
 > C) Identidad de commits, en las dos carpetas:
 >        git config user.name "M1gu3hb"
->        git config user.email "enchuer2797@gmail.com"
+>        git config user.email "118588634+M1gu3hb@users.noreply.github.com"
 > D) Ramas y worktree para Codex (comandos exactos en TEAM.md §2):
 >        git branch carril-a && git branch carril-b
 >        git switch carril-a
