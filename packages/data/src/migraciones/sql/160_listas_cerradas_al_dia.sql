@@ -49,8 +49,12 @@ alter table movimientos_stock
       'merma_barra',
       -- 097 · el redondeo en especie de abarrotes.
       'redondeo',
-      -- 111 · corte de material, servicio de mostrador, garantía y renta.
-      'corte', 'servicio', 'garantia', 'renta',
+      -- 113 y 117 · corte de material y servicio de mostrador de la ferretería.
+      'corte', 'servicio',
+      -- 118 · garantía y renta de la ferretería.
+      'garantia', 'renta',
+      -- 141 · abrir una pieza para cabina, y lo que se gasta en el servicio.
+      'apertura_cabina', 'consumo_cabina',
       -- 160 · la etapa 8 del tronco: merma con motivo y traspaso entre almacenes.
       'merma', 'traspaso'
     )
