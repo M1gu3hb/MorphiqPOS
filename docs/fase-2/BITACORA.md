@@ -1336,6 +1336,20 @@ garantizado—, el primer latido va en un `setTimeout` porque escribir estado de
 forma síncrona en un efecto encadena renders, y el esperado del arqueo NUNCA se
 enseña antes de contar, porque si se muestra todo el mundo teclea ese número.
 
+### Las tres advertencias de lint que yo mismo introduje
+
+La puerta no las tumba —son advertencias, no errores— y por eso es fácil dejarlas. Salieron en
+E11a y E13.1, las tres iguales: `window.location.assign()` para navegar dentro de la app.
+
+- **`ferreteria/Mostrador.tsx` era un descuido.** Ir al alta rápida del catálogo es navegación
+  interna normal, y recargar tira las partidas que el mostradorista llevaba a medias. Pasa a
+  `useRouter().push()`.
+- **Las dos `AccesoPorPin` recargan a propósito.** El servidor acaba de poner una cookie de
+  sesión nueva, y una navegación de cliente conservaría el árbol de React del turno anterior:
+  en una terminal compartida, lo que dejó quien se va seguiría en pantalla con el nombre de
+  quien entra. Se silencia la regla **en la línea**, con el motivo encima. Un `eslint-disable`
+  sin razón es esconder; con razón es decidir.
+
 ### Lo que NO se hizo, con números
 
 - **CFDI: 6 funciones + 1 ruta + el timbrado entero.** Decisión P-02 de Miguel.
