@@ -64,3 +64,23 @@ export {
   type ResultadoCierreLista,
   type ResultadoLista,
 } from './listas.ts';
+
+export {
+  cerrarCotizacion,
+  convertirCotizacion,
+  crearCotizacion,
+  entradaCerrarCotizacion,
+  entradaConvertirCotizacion,
+  entradaCrearCotizacion,
+  entradaRegistrarAprobacion,
+  entradaRegistrarEnvio,
+  entradaRegistrarSurtido,
+  entradaVersionarCotizacion,
+  registrarAprobacion,
+  registrarEnvio,
+  registrarSurtido,
+  versionarCotizacion,
+  type ResultadoCotizacion,
+  type ResultadoSeguimiento,
+  type ResultadoSurtido,
+} from './cotizacion.ts';

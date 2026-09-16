@@ -1005,6 +1005,9 @@ export interface Esquema {
   lineas_lista_trabajo: LineasListaTrabajo;
   anticipos_cita: AnticiposCita;
   lista_espera_citas: ListaEsperaCitas;
+  cotizaciones: Cotizaciones;
+  cotizacion_lineas: CotizacionLineas;
+  cotizacion_eventos: CotizacionEventos;
 }
 
 /* ── Fase 2 · tronco compartido de inventario (migraciones 058-066) ──────── */
@@ -2060,4 +2063,69 @@ export interface ListaEsperaCitas {
   nota: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+/**
+ * F-600 a F-607 · La cotización (migración 163).
+ *
+ * La versión es una fila NUEVA y nunca una edición: la que el cliente aprobó
+ * tiene que seguir existiendo el día de la entrega, o «yo aprobé otra cosa» no
+ * se puede resolver con nada.
+ */
+export interface Cotizaciones {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  folio: string;
+  version: Generated<number>;
+  version_anterior_id: string | null;
+  vigente: Generated<boolean>;
+  cliente_id: string | null;
+  obra_id: string | null;
+  nombre_libre: string | null;
+  correo_libre: string | null;
+  telefono_libre: string | null;
+  estado: Generated<string>;
+  /** Obligatoria: el acero cambia de precio cada semana. */
+  vence_el: string;
+  subtotal_centavos: Generated<bigint>;
+  descuento_centavos: Generated<bigint>;
+  impuestos_centavos: Generated<bigint>;
+  total_centavos: Generated<bigint>;
+  orden_id: string | null;
+  motivo_cierre: string | null;
+  competidor: string | null;
+  creada_en: Generated<Date>;
+  creada_por: string | null;
+  enviada_en: Date | null;
+  aprobada_en: Date | null;
+  cerrada_en: Date | null;
+  updated_at: Generated<Date>;
+}
+
+export interface CotizacionLineas {
+  id: Generated<string>;
+  organizacion_id: string;
+  cotizacion_id: string;
+  orden_visual: Generated<number>;
+  producto_id: string | null;
+  descripcion: string;
+  cantidad: string;
+  unidad: string;
+  /** Congelado al cotizar: es lo que se honra mientras la cotización viva. */
+  precio_unitario_centavos: bigint;
+  total_centavos: bigint;
+  surtida: Generated<string>;
+  created_at: Generated<Date>;
+}
+
+export interface CotizacionEventos {
+  id: Generated<string>;
+  organizacion_id: string;
+  cotizacion_id: string;
+  tipo: string;
+  medio: string | null;
+  nota: string | null;
+  ocurrio_en: Generated<Date>;
+  empleado_id: string | null;
 }

@@ -62,3 +62,14 @@ export {
   type DocumentoDeCartera,
   type Tramo,
 } from './cartera.ts';
+
+export {
+  embudo,
+  saldoDeSurtido,
+  sigueVigente,
+  versionSiguiente,
+  type Embudo,
+  type EstadoCotizacion,
+  type LineaCotizada,
+  type SaldoDeSurtido,
+} from './cotizacion.ts';
