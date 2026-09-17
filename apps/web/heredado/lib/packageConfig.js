@@ -2,46 +2,64 @@
 // Helper central para el sistema de paquetes de MH Astral Systems POS.
 // No oculta módulos por sí mismo: solo provee constantes y funciones puras
 // que serán consumidas en fases posteriores (Sidebar, rutas, vistas internas).
+//
+// ── D-01 · LAS PLANTILLAS SON LAS CANÓNICAS, LOS PAQUETES SON ALIAS ────────
+// Los tres nombres de este archivo eran NIVELES COMERCIALES —`esencial`,
+// `operativo`, `restaurante_pro`— y pasan a nombrar el MODELO DE NEGOCIO al que
+// sirven: `tienda`, `cafeteria`, `restaurante`. La fuente de verdad es
+// `packages/contracts/src/comandos/plantillas.ts`, que es la que consulta el
+// servidor antes de aceptar un POST.
+//
+// Qué se rompe si se vuelve atrás: el servidor normaliza a los nombres NUEVOS
+// (`plantillaDeOrganizacion`), así que un frontend que sólo entendiera los
+// viejos cae en su valor por omisión con TODOS los negocios. Cuando ese valor
+// era `restaurante_pro`, una tienda de abarrotes recibía el menú de sala entero
+// —Mesero, Cocina, Barra— y el dashboard del restaurante. El menú enseñaba lo
+// que el POST rechaza, que es la peor de las dos incoherencias posibles.
 
+/** Las tres plantillas. Mismo orden y mismos nombres que `PLANTILLAS`. */
 export const PACKAGE_KEYS = {
-  ESENCIAL: 'esencial',
-  OPERATIVO: 'operativo',
-  RESTAURANTE_PRO: 'restaurante_pro',
+  TIENDA: 'tienda',
+  CAFETERIA: 'cafeteria',
+  RESTAURANTE: 'restaurante',
 };
 
+/** La plantilla MÁS RESTRICTIVA. Es el valor por omisión, y no es negociable. */
+export const PLANTILLA_POR_OMISION = PACKAGE_KEYS.TIENDA;
+
 export const PACKAGE_LABELS = {
-  esencial: 'Esencial',
-  operativo: 'Operativo',
-  restaurante_pro: 'Restaurante Pro',
+  tienda: 'Tienda',
+  cafeteria: 'Cafetería',
+  restaurante: 'Restaurante',
 };
 
 export const PACKAGE_TAGLINES = {
-  esencial: 'POS básico para vender, cobrar e imprimir ticket.',
-  operativo: 'POS con inventario, compras, gastos y costos básicos.',
-  restaurante_pro: 'Sistema completo para restaurantes con mesas, mesero y cocina.',
+  tienda: 'POS de mostrador con inventario, compras, gastos y costos.',
+  cafeteria: 'POS de mostrador para barra: se cobra primero y se prepara al momento.',
+  restaurante: 'Sistema completo para restaurantes con mesas, mesero y cocina.',
 };
 
 export const PACKAGE_TARGET = {
-  esencial: 'Negocios pequeños, mostradores y puestos rápidos.',
-  operativo: 'Negocios que controlan inventario, compras y gastos.',
-  restaurante_pro: 'Restaurantes, cafeterías, fondas y bares con operación completa.',
+  tienda: 'Abarrotes, ferreterías, farmacias y mostradores que controlan existencias.',
+  cafeteria: 'Cafeterías, barras y puestos donde quien cobra es quien prepara.',
+  restaurante: 'Restaurantes, fondas y bares que atienden por mesa.',
 };
 
-// Flujo operativo real de cada paquete (para Modo Presentación)
+// Flujo operativo real de cada plantilla (para Modo Presentación)
 export const PACKAGE_FLOW = {
-  esencial: {
-    titulo: 'Caja directa / Punto de venta de mostrador',
-    descripcion:
-      'No usa Mesero digital, Cocina digital ni Mesas. El negocio puede tomar pedidos en papel/libreta y capturarlos en Caja al cobrar.',
-    pasos: ['Nueva venta', 'Seleccionar productos', 'Cobrar', 'Imprimir ticket', 'Corte de caja'],
-  },
-  operativo: {
+  tienda: {
     titulo: 'Caja directa con control operativo completo',
     descripcion:
-      'No usa Mesero digital, Cocina digital ni Mesas. Puede trabajar con pedidos físicos en papel/libreta. Suma inventario, compras, gastos, recetas, gramajes, costos y utilidad básica.',
+      'No usa Mesero digital, Cocina digital ni Mesas. Vende en mostrador y controla existencias: inventario, compras, gastos, recetas, gramajes, costos y utilidad básica.',
     pasos: ['Nueva venta', 'Productos', 'Cobro', 'Ticket', 'Corte', 'Control operativo'],
   },
-  restaurante_pro: {
+  cafeteria: {
+    titulo: 'Caja directa / Barra de mostrador',
+    descripcion:
+      'No usa Mesero digital, Cocina digital ni Mesas: quien cobra es quien prepara y quien entrega. Lleva el mismo control operativo que la tienda, porque una barra sin inventario no sabe cuánto café le queda.',
+    pasos: ['Nueva venta', 'Productos', 'Cobro', 'Ticket', 'Corte', 'Control operativo'],
+  },
+  restaurante: {
     titulo: 'Sistema completo digital para restaurante',
     descripcion:
       'Flujo completo con Mesero, Mesas, Cocina y Caja. Operación digital interna de extremo a extremo.',
@@ -49,8 +67,17 @@ export const PACKAGE_FLOW = {
   },
 };
 
-// Módulos esenciales (incluidos en los 3 paquetes)
-const MODULOS_ESENCIAL = [
+/**
+ * Los tres bloques de módulos, EN EL MISMO ORDEN Y CON LOS MISMOS NOMBRES que
+ * `BASE`, `OPERACION` y `SALA` de `plantillas.ts`.
+ *
+ * No es una coincidencia estética: `package-config.test.ts` compara las dos
+ * listas módulo a módulo. Si alguien añade una perilla aquí y no allá, el menú
+ * de Miguel ofrecería una pantalla que el comando del servidor rechaza —o al
+ * revés, le escondería una que sí contrató— y esa divergencia no puede pasar
+ * en silencio.
+ */
+const MODULOS_BASE = [
   'dashboard_basico',
   'productos_basicos',
   'categorias',
@@ -64,13 +91,20 @@ const MODULOS_ESENCIAL = [
   'registros_basicos',
   'configuracion_basica',
   'integraciones_preparadas_admin',
-  // El escáner de código de barras es de mostrador. Pro lo excluye
-  // explícitamente más abajo; ver MODULOS_EXCLUIDOS_DE_PRO.
+  // El escáner de código de barras es de mostrador. Restaurante lo excluye
+  // explícitamente más abajo; ver MODULOS_EXCLUIDOS_DE_RESTAURANTE.
   'escaner_codigo_barras',
 ];
 
-// Módulos que añade Operativo (sobre Esencial)
-const MODULOS_OPERATIVO_EXTRA = [
+/**
+ * Operación: existencias, compras y costo.
+ *
+ * Lo tienen LAS TRES plantillas, y ahí está el cambio de D-01 que más se nota:
+ * el viejo `esencial` vendía sin controlar stock, y *una tienda sin inventario
+ * no es una tienda, es una calculadora*. Por eso `esencial` NO puede seguir
+ * existiendo como preajuste, y por eso `tienda` no se puede mapear hacia él.
+ */
+const MODULOS_OPERACION = [
   'inventario',
   'compras',
   'gastos',
@@ -84,12 +118,11 @@ const MODULOS_OPERATIVO_EXTRA = [
   'reportes_operativos',
   'exportaciones',
   'dashboard_operativo',
-  // Portal QR está disponible en Operativo y Pro (NO en Esencial)
   'portal_qr',
 ];
 
-// Módulos que añade Restaurante Pro (sobre Operativo)
-const MODULOS_PRO_EXTRA = [
+/** Sala: mesa, mesero y cocina. SÓLO `restaurante`. */
+const MODULOS_SALA = [
   'mesas',
   'mesero',
   'cocina',
@@ -105,50 +138,49 @@ const MODULOS_PRO_EXTRA = [
 ];
 
 /**
- * Módulos que Restaurante Pro NO hereda, aunque los paquetes sean acumulativos.
+ * Módulos que `restaurante` NO hereda, aunque las plantillas sean acumulativas.
  *
- * Es la única excepción a «Pro incluye todo lo de Operativo», y existe porque
- * el escáner de código de barras es de MOSTRADOR: se escanea una botella o una
- * bolsa de frituras, no una orden de tacos. Enseñárselo a un restaurante que
- * trabaja por mesa es ofrecerle una función que nunca va a usar y que le ocupa
- * un botón en la pantalla donde más prisa tiene.
+ * Es la única excepción a «restaurante incluye todo lo de mostrador», y existe
+ * porque el escáner de código de barras es de MOSTRADOR: se escanea una botella
+ * o una bolsa de frituras, no una orden de tacos. Enseñárselo a un restaurante
+ * que trabaja por mesa es ofrecerle una función que nunca va a usar y que le
+ * ocupa un botón en la pantalla donde más prisa tiene.
  *
  * La lista vive AQUÍ y no repartida por las pantallas: la regla de qué incluye
- * cada paquete tiene un solo sitio, y `canAccessModule` la respeta sola.
+ * cada plantilla tiene un solo sitio, y `canAccessModule` la respeta sola.
  */
-const MODULOS_EXCLUIDOS_DE_PRO = ['escaner_codigo_barras'];
+const MODULOS_EXCLUIDOS_DE_RESTAURANTE = ['escaner_codigo_barras'];
 
 export const PACKAGE_MODULES = {
-  esencial: [...MODULOS_ESENCIAL],
-  operativo: [...MODULOS_ESENCIAL, ...MODULOS_OPERATIVO_EXTRA],
-  restaurante_pro: [
-    ...MODULOS_ESENCIAL,
-    ...MODULOS_OPERATIVO_EXTRA,
-    ...MODULOS_PRO_EXTRA,
-  ].filter((modulo) => !MODULOS_EXCLUIDOS_DE_PRO.includes(modulo)),
+  tienda: [...MODULOS_BASE, ...MODULOS_OPERACION],
+  // Misma lista que `tienda`, y así está también en el servidor: lo que separa
+  // a una cafetería de mostrador de una tienda es CÓMO HABLA (F-017), no qué
+  // módulos tiene. El día que se separen, se separan en los dos sitios a la vez.
+  cafeteria: [...MODULOS_BASE, ...MODULOS_OPERACION],
+  restaurante: [...MODULOS_BASE, ...MODULOS_OPERACION, ...MODULOS_SALA].filter(
+    (modulo) => !MODULOS_EXCLUIDOS_DE_RESTAURANTE.includes(modulo),
+  ),
 };
 
-// Resumen de funciones por paquete (para tabla comparativa en UI)
+// Resumen de funciones por plantilla (para tabla comparativa en UI)
 export const PACKAGE_FEATURES = {
-  esencial: [
-    'Dashboard básico',
+  tienda: [
+    'Dashboard operativo',
     'Productos y categorías',
     'Punto de venta / Caja directa',
-    'Tickets y cortes de caja',
-    'PDF de corte',
-    'Registros básicos',
-    'Configuración del negocio',
+    'Tickets, cortes y PDF de corte',
+    'Inventario, compras y gastos',
+    'Recetas, gramajes y costos básicos',
+    'Escáner de código de barras',
   ],
-  operativo: [
-    'Todo lo de Esencial',
-    'Inventario y movimientos',
-    'Compras y gastos',
-    'Recetas y gramajes',
-    'Costos, utilidad y margen básicos',
+  cafeteria: [
+    'Todo lo de Tienda',
+    'Pensada para barra: se cobra y se prepara en el mismo punto',
+    'Portal QR para el menú del mostrador',
     'Reportes operativos y exportaciones',
   ],
-  restaurante_pro: [
-    'Todo lo de Operativo',
+  restaurante: [
+    'Todo lo de Cafetería',
     'Mesas, mesero y cocina',
     'Pedidos por mesa y estados',
     'Mapa avanzado de mesas',
@@ -157,7 +189,7 @@ export const PACKAGE_FEATURES = {
   ],
 };
 
-// Add-ons que se cotizan aparte (no son paquetes)
+// Add-ons que se cotizan aparte (no son plantillas)
 export const ADDONS = [
   { key: 'ia_analisis', nombre: 'IA para análisis y reportes' },
   { key: 'pagina_web', nombre: 'Página web del negocio' },
@@ -176,80 +208,156 @@ export const ADDONS = [
 
 // Comparador detallado fila por fila (para UI tipo tabla)
 // valores: true = incluido, false = no incluido, 'addon' = solo como add-on
+//
+// Cada fila tiene que poder leerse contra PACKAGE_MODULES sin contradecirla:
+// una tabla que promete inventario donde el módulo no está es la misma mentira
+// que un menú de más, sólo que en la pantalla donde se vende.
 export const PACKAGE_COMPARISON = [
-  { funcion: 'Dashboard', esencial: 'Básico', operativo: 'Operativo', restaurante_pro: 'Completo' },
-  { funcion: 'Productos y categorías', esencial: true, operativo: true, restaurante_pro: true },
-  { funcion: 'Caja / Punto de venta', esencial: true, operativo: true, restaurante_pro: true },
-  { funcion: 'Tickets', esencial: true, operativo: true, restaurante_pro: true },
-  { funcion: 'Corte de caja y PDF', esencial: true, operativo: true, restaurante_pro: true },
+  { funcion: 'Dashboard', tienda: 'Operativo', cafeteria: 'Operativo', restaurante: 'Completo' },
+  { funcion: 'Productos y categorías', tienda: true, cafeteria: true, restaurante: true },
+  { funcion: 'Caja / Punto de venta', tienda: true, cafeteria: true, restaurante: true },
+  { funcion: 'Tickets', tienda: true, cafeteria: true, restaurante: true },
+  { funcion: 'Corte de caja y PDF', tienda: true, cafeteria: true, restaurante: true },
   {
     funcion: 'Registros',
-    esencial: 'Básicos',
-    operativo: 'Operativos',
-    restaurante_pro: 'Completos',
+    tienda: 'Operativos',
+    cafeteria: 'Operativos',
+    restaurante: 'Completos',
   },
-  { funcion: 'Inventario', esencial: false, operativo: true, restaurante_pro: true },
-  { funcion: 'Compras', esencial: false, operativo: true, restaurante_pro: true },
-  { funcion: 'Gastos', esencial: false, operativo: true, restaurante_pro: true },
-  { funcion: 'Recetas / gramajes', esencial: false, operativo: true, restaurante_pro: true },
+  { funcion: 'Inventario', tienda: true, cafeteria: true, restaurante: true },
+  { funcion: 'Compras', tienda: true, cafeteria: true, restaurante: true },
+  { funcion: 'Gastos', tienda: true, cafeteria: true, restaurante: true },
+  { funcion: 'Recetas / gramajes', tienda: true, cafeteria: true, restaurante: true },
   {
     funcion: 'Costos / utilidad / margen',
-    esencial: false,
-    operativo: 'Básico',
-    restaurante_pro: 'Avanzado',
+    tienda: 'Básico',
+    cafeteria: 'Básico',
+    restaurante: 'Avanzado',
   },
-  { funcion: 'Mesas', esencial: false, operativo: false, restaurante_pro: true },
-  { funcion: 'Mesero', esencial: false, operativo: false, restaurante_pro: true },
-  { funcion: 'Cocina / Barra', esencial: false, operativo: false, restaurante_pro: true },
+  { funcion: 'Escáner de código de barras', tienda: true, cafeteria: true, restaurante: false },
+  { funcion: 'Mesas', tienda: false, cafeteria: false, restaurante: true },
+  { funcion: 'Mesero', tienda: false, cafeteria: false, restaurante: true },
+  { funcion: 'Cocina / Barra', tienda: false, cafeteria: false, restaurante: true },
   {
     funcion: 'Reportes financieros avanzados',
-    esencial: false,
-    operativo: false,
-    restaurante_pro: true,
+    tienda: false,
+    cafeteria: false,
+    restaurante: true,
   },
   {
     funcion: 'Integraciones preparadas',
-    esencial: 'Admin',
-    operativo: true,
-    restaurante_pro: true,
+    tienda: 'Admin',
+    cafeteria: 'Admin',
+    restaurante: true,
   },
-  { funcion: 'IA para análisis', esencial: 'addon', operativo: 'addon', restaurante_pro: 'addon' },
+  { funcion: 'IA para análisis', tienda: 'addon', cafeteria: 'addon', restaurante: 'addon' },
 ];
+
+// ---------- Normalización ----------
+
+/**
+ * Traduce cualquiera de los SEIS nombres a una de las TRES plantillas.
+ *
+ * ── Por qué los seis, y no sólo los tres nuevos ────────────────────────────
+ * La migración del renombre se aplica al acoplar, con los negocios cerrados.
+ * Hasta entonces la columna `organizaciones.paquete` guarda todavía los nombres
+ * viejos, y un navegador puede tener cacheada una pestaña anterior al
+ * despliegue. Entienden los seis el servidor (`plantillaDe`) y esta función, y
+ * cuando la 058 esté aplicada y verificada los tres viejos se retiran de los
+ * dos sitios a la vez.
+ *
+ * ── Por qué `operativo` cae en `tienda` y NO en `cafeteria` ────────────────
+ * Porque aquí NO hay giro. El servidor parte `operativo` por giro —D-12— justo
+ * para no arrastrar a **Abarrotes Don Chuy y Ferretería La Broca**, que hoy
+ * están en `operativo`, a la plantilla de un negocio de café. El navegador no
+ * recibe el giro, así que toma la misma rama que toma el servidor cuando el
+ * giro no se reconoce: `tienda`. No se pierde ni se gana un solo módulo —las
+ * dos plantillas traen exactamente los mismos— y lo único que se evita es que
+ * una ferretería lea «Cafetería» en su propia pantalla.
+ *
+ * ── Por qué `restaurante_pro` sí cae en `restaurante` ──────────────────────
+ * Porque `organizaciones_paquete_compatible_con_giro` (migración 054) impide
+ * que ese valor exista fuera de un giro de alimentos. Si llega al navegador, el
+ * giro ES de alimentos, y entonces el servidor dice exactamente lo mismo que
+ * decimos aquí. Degradarlo a `tienda` le quitaría a Café Jacaranda el menú de
+ * sala que tiene contratado y paga.
+ *
+ * ── Y por qué lo desconocido cae en `tienda` ───────────────────────────────
+ * Un dato roto no puede abrir módulos que nadie contrató. Cuando esto caía en
+ * el paquete más permisivo, cualquier valor que el frontend no reconociera
+ * —incluidos los tres nombres NUEVOS— abría el sistema entero.
+ *
+ * @param {unknown} valor
+ * @returns {'tienda' | 'cafeteria' | 'restaurante'}
+ */
+export function normalizarPlantilla(valor) {
+  switch (valor) {
+    case 'tienda':
+    case 'cafeteria':
+    case 'restaurante':
+      return valor;
+    case 'esencial':
+    case 'operativo':
+      return 'tienda';
+    case 'restaurante_pro':
+      return 'restaurante';
+    default:
+      return PLANTILLA_POR_OMISION;
+  }
+}
+
+/** Los seis nombres que `normalizarPlantilla` sabe traducir de verdad. */
+const NOMBRES_CONOCIDOS = [
+  'tienda',
+  'cafeteria',
+  'restaurante',
+  'esencial',
+  'operativo',
+  'restaurante_pro',
+];
+
+export function esNombreDePlantilla(valor) {
+  return NOMBRES_CONOCIDOS.includes(valor);
+}
 
 // ---------- Funciones helper ----------
 
 export function getCurrentPackage(config) {
-  const valor = config?.paquete_modo;
-  if (valor === 'esencial' || valor === 'operativo' || valor === 'restaurante_pro') return valor;
-  return 'restaurante_pro';
+  return normalizarPlantilla(config?.paquete_modo);
 }
 
+/**
+ * Compara sin que un nombre inventado se convierta en un «sí».
+ *
+ * `normalizarPlantilla('lo-que-sea')` vale `tienda` a propósito, así que
+ * comparar sin filtrar antes haría que `isPackage(cfgDeTienda, 'cualquiercosa')`
+ * devolviera verdadero.
+ */
 export function isPackage(config, packageName) {
-  return getCurrentPackage(config) === packageName;
+  return (
+    esNombreDePlantilla(packageName) &&
+    getCurrentPackage(config) === normalizarPlantilla(packageName)
+  );
 }
 
 export function canAccessModule(moduleName, paqueteModo) {
-  const paquete =
-    paqueteModo === 'esencial' || paqueteModo === 'operativo' || paqueteModo === 'restaurante_pro'
-      ? paqueteModo
-      : 'restaurante_pro';
-  return PACKAGE_MODULES[paquete].includes(moduleName);
+  return PACKAGE_MODULES[normalizarPlantilla(paqueteModo)].includes(moduleName);
 }
 
 export function getPackageLabel(paqueteModo) {
-  return PACKAGE_LABELS[paqueteModo] || PACKAGE_LABELS.restaurante_pro;
+  return PACKAGE_LABELS[normalizarPlantilla(paqueteModo)];
 }
 
 export function getPackageFeatures(paqueteModo) {
-  return PACKAGE_FEATURES[paqueteModo] || PACKAGE_FEATURES.restaurante_pro;
+  return PACKAGE_FEATURES[normalizarPlantilla(paqueteModo)];
 }
 
 export function getPackageTagline(paqueteModo) {
-  return PACKAGE_TAGLINES[paqueteModo] || PACKAGE_TAGLINES.restaurante_pro;
+  return PACKAGE_TAGLINES[normalizarPlantilla(paqueteModo)];
 }
 
 export function getPackageTarget(paqueteModo) {
-  return PACKAGE_TARGET[paqueteModo] || PACKAGE_TARGET.restaurante_pro;
+  return PACKAGE_TARGET[normalizarPlantilla(paqueteModo)];
 }
 
 // ---------- Mapa de rutas -> módulo requerido ----------
@@ -263,13 +371,12 @@ export const ROUTE_TO_MODULE = {
   '/registros': 'registros_basicos',
   '/configuracion': 'configuracion_basica',
   '/productos': 'productos_basicos',
-  // Operativo+
+  // Operación: las tres plantillas
   '/inventario': 'inventario',
   '/compras': 'compras',
   '/recetas': 'recetas',
-  // Operativo + Pro (no Esencial)
   '/portal-qr': 'portal_qr',
-  // Restaurante Pro
+  // Sala: sólo restaurante
   '/mesas': 'mesas',
   '/mesero': 'mesero',
   '/cocina': 'cocina',

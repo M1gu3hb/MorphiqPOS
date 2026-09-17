@@ -19,7 +19,7 @@ import {
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { ROLES } from '@/lib/constants';
-import { canAccessModule } from '@/lib/packageConfig';
+import { canAccessModule, normalizarPlantilla } from '@/lib/packageConfig';
 import { unlockAudio } from '@/lib/sounds';
 
 /**
@@ -40,33 +40,36 @@ const ITEM_SIZE = 50;
 const HIT_RADIUS = 56; // tolerancia para asignar la opción activa al dedo
 const POP_OUT = 38; // px adicionales que el ítem activo se "sale" hacia afuera
 
-// Orden y filtrado por paquete: solo se muestran las rutas permitidas y en este orden.
+// Orden y filtrado por plantilla: solo se muestran las rutas permitidas y en
+// este orden. `tienda` y `cafeteria` comparten orden porque comparten módulos.
+const ORDEN_MOSTRADOR = [
+  '/',
+  '/caja',
+  '/ventas',
+  '/productos',
+  '/inventario',
+  '/compras',
+  '/recetas',
+  '/registros',
+  '/configuracion',
+];
+const ORDEN_RESTAURANTE = [
+  '/',
+  '/mesero',
+  '/cocina',
+  '/caja',
+  '/ventas',
+  '/productos',
+  '/inventario',
+  '/compras',
+  '/recetas',
+  '/registros',
+  '/configuracion',
+];
 const ORDERS = {
-  esencial: ['/', '/caja', '/ventas', '/productos', '/registros', '/configuracion'],
-  operativo: [
-    '/',
-    '/caja',
-    '/ventas',
-    '/productos',
-    '/inventario',
-    '/compras',
-    '/recetas',
-    '/registros',
-    '/configuracion',
-  ],
-  restaurante_pro: [
-    '/',
-    '/mesero',
-    '/cocina',
-    '/caja',
-    '/ventas',
-    '/productos',
-    '/inventario',
-    '/compras',
-    '/recetas',
-    '/registros',
-    '/configuracion',
-  ],
+  tienda: ORDEN_MOSTRADOR,
+  cafeteria: ORDEN_MOSTRADOR,
+  restaurante: ORDEN_RESTAURANTE,
 };
 
 const ITEM_DEFS = {
@@ -125,7 +128,11 @@ export default function MobileAdminRadialMenu() {
 
   // Items disponibles según paquete y orden definido
   const items = useMemo(() => {
-    const order = ORDERS[paquete_modo] || ORDERS.restaurante_pro;
+    // Indexar con el valor crudo obligaba a un `||` de rescate, y ese rescate
+    // era la plantilla MÁS PERMISIVA: cualquier nombre que este archivo no
+    // reconociera abría el abanico entero. `normalizarPlantilla` siempre
+    // devuelve una de las tres claves, así que no hace falta rescate.
+    const order = ORDERS[normalizarPlantilla(paquete_modo)];
     return order
       .map((path) => {
         const def = ITEM_DEFS[path];

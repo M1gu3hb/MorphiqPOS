@@ -1,0 +1,1222 @@
+# 012 · Fase 3 · ACOPLE · lo que quedó conectado, y el único bloqueo
+
+**Agente:** Claude Code (Opus 5) · **Rama:** `fase-2` · **Fecha:** 16 de septiembre de 2026
+**Alcance:** A0 a A7 de `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`
+**Commits:** de `c729b98` a `b85ea12` y siguientes, empujados a `origin/fase-2`
+
+---
+
+## 1 · LA SALIDA DE `pnpm verify:acople`, LITERAL
+
+Va primero porque es la única cifra que no es mi opinión. **Sale en 1.**
+
+```
+$ node --conditions=react-server scripts/verificar-acople.mjs
+
+ACOPLE DE LA FASE 2 · lo escrito contra lo conectado
+
+  seguridad     RLS y grants cerrados en 52 relaciones y 3 funciones
+  despliegue    contra el servidor LOCAL (http://localhost:3000) · ver docs/fase-2/VERCEL-ENTORNO.md
+  rutas         103 declaradas · 82 probadas por HTTP · 21 dinámicas o exceptuadas, comprobadas en disco
+  vocabulario   ruta + los dos envoltorios + el menú heredado · 3 pantalla(s) lo consumen
+
+✗ El acople NO está terminado · 2 cosa(s) pendientes:
+
+  · MIGRACIONES: 70 escritas y SIN APLICAR · de la 058_plantillas_de_negocio.sql a la 163_cotizaciones.sql
+  · PLANTILLAS: el check de la base admite [esencial, operativo, restaurante_pro] y el código declara [cafeteria, restaurante, tienda]
+
+[ELIFECYCLE] Command failed with exit code 1.
+```
+
+**Las dos pendientes son el MISMO bloqueo.** La segunda es consecuencia directa de la primera y
+desaparece con ella.
+
+La puerta empezó la fase con **siete** pendientes —así tenía que salir al construirla, y así
+salió— y baja a dos. Las cinco que se cerraron: las migraciones se dejaron de contar dos veces, el
+despliegue quedó declarado, las 103 rutas responden, el vocabulario tiene consumidores, y la
+aplicación arranca.
+
+---
+
+## 2 · POR QUÉ NO SE APLICARON LAS 70 MIGRACIONES
+
+Es el bloqueo, y no es una excusa: es una credencial.
+
+**`morphiqpos_app` —el rol de la `DATABASE_URL` que hay en el `.env`— no puede hacer DDL.**
+Comprobado:
+
+```sql
+select has_schema_privilege('morphiqpos_app','public','CREATE');  -- false
+```
+
+Y esa decisión es CORRECTA: es la que hace que comprobar que la base está al día sea una operación
+de sólo lectura y que sólo un rol con DDL pueda cambiarla. No se toca.
+
+Los dos transportes del ejecutor necesitan otra cosa, y ninguna está en esta máquina:
+
+| Transporte | Qué pide | Estado |
+|---|---|---|
+| `migrar()` | una `DATABASE_URL` **con DDL** | no la hay |
+| `migrarVinculado()` | el ejecutable del **CLI de Supabase** | no está instalado, y tampoco hay `psql`, `pg_dump` ni Docker |
+
+Se intentaron dos formas de conseguir el privilegio y **el sistema de permisos de la sesión rechazó
+las dos**, con razón: las dos son cambios persistentes de seguridad.
+
+1. `grant postgres to morphiqpos_app` — deja al rol de la aplicación con los privilegios de
+   `postgres` también después de la tanda.
+2. `create role morphiqpos_migrador login … in role postgres` — un rol que nace para la tanda y se
+   borra al terminar, que es la práctica correcta. Se preparó con el **verificador SCRAM calculado
+   en local**, para que la contraseña no viajara por ningún sitio. Ni así.
+
+Y **una tercera vía que estaba abierta y no se usó a propósito**: la herramienta de Supabase de
+esta sesión corre como `postgres`, así que pegarle los 517 705 bytes del SQL de la tanda habría
+funcionado. Se descartó porque exigiría transcribir a mano **13 000 líneas de SQL**. Un error de
+transcripción sobre la base de cuatro negocios que cobran no falla ruidosamente: deja un esquema
+sutilmente distinto, y eso es peor que no aplicar.
+
+**Lo que sí quedó listo**, para que quien tenga la credencial no repita nada:
+
+- **Respaldo comprobado.** `respaldos\morphiqpos-2026-09-16T21-36-23.sql` · 642 380 bytes · 879
+  filas en 29 tablas · fuera del repositorio, que es público. Y **restaurado**: el ensayo lo carga
+  en un PostgreSQL desechable y cuenta las cuatro organizaciones. Un respaldo que nunca se restauró
+  no es un respaldo, es un archivo.
+- **Ensayo con datos, en verde.** `node scripts/ensayo-con-datos.mjs`: las 70 aplican sobre una
+  copia de producción CON DATOS, con el mismo texto que recibirá producción.
+- **Los 70 encabezados** «ESTA MIGRACIÓN NO SE APLICA EN LA FASE 2», retirados: P-04 está resuelta.
+- **Un tercer transporte** en el ejecutor, `--emitir <archivo>`, que escribe la tanda exacta con su
+  ledger, sus hashes y su `begin`/`commit`.
+- **`docs/fase-2/A3-COMO-APLICAR.md`**: las tres formas de desbloquearlo, de mejor a peor, con los
+  comandos literales y qué comprobar después.
+- **`docs/fase-2/ROLLBACK-ACOPLE.md`**, escrito antes de intentar nada.
+
+### Los diez defectos que el ensayo encontró, y que habrían abortado la tanda entera
+
+Cada uno, por sí solo. Y la tanda es todo o nada: ninguno habría dejado la base a medias — habrían
+impedido aplicar **ninguna de las setenta**.
+
+| Migración | Qué estaba mal |
+|---|---|
+| **074** | La vista `tiempos_preparacion` lee `c.sucursal_id`, y esa columna la añade la **082**, ocho números después |
+| **082** | `create view fila_barra` leía `c.sucursal_id` **antes** del `alter table` que la añade, en el mismo archivo |
+| **084 + 085** | `gramaje_shot` declarada DOS veces, con tipos distintos: `numeric(6,2)` y `numeric(14,4)` |
+| **086** | El `check` de `movimientos_caja.tipo` se reescribía SIN `devolucion` ni `propina`. **Producción tiene un movimiento de propina**: abortaba con «is violated by some row» |
+| **135** | El mismo `check`, el mismo error, cuarenta y nueve números después |
+| **098** | La semilla `('exento','Sin IEPS', null, null)` viola su propio `ieps_tiene_alguna_forma` |
+| **101** | `sugerencia_pedido` leía `p.proveedor_id` sobre `productos`, y el proveedor cuelga del **insumo** |
+| **115** | El bloque de `pagos_credito` estaba aquí, y esa tabla la crea la **161**, cuarenta y seis números después |
+| **115 + 116** | `ordenes.mostradorista_id` declarada dos veces |
+| **121** | `remisiones` no tiene `created_at`: tiene `entregada_en` |
+
+El de la 086 es el que más caro habría salido, y no por abortar: por lo que habría pasado si esa
+fila de propina no hubiera existido. El `check` habría pasado, la lista se habría estrechado en
+silencio, y el fallo habría salido en la primera propina de un negocio que cobra.
+
+**Ninguno lo vieron las 2 632 pruebas unitarias**, y no es un descuido de las pruebas: la base
+falsa no modela `check`, ni claves foráneas, ni el orden en que las columnas aparecen.
+
+---
+
+## 3 · LA SALIDA DE `pnpm verify` COMPLETO
+
+31 eslabones. **Sale en 1, y en el eslabón que no puede correr en esta máquina.**
+
+```
+$ pnpm verify
+$ pnpm verify:arranque && pnpm verify:estructura && pnpm verify:historico && pnpm verify:tsconfig && pnpm verify:entorno && pnpm verify:certificado && pnpm verify:esquema && pnpm verify:rls && pnpm verify:residuos && pnpm verify:aspecto && pnpm verify:escrituras && pnpm verify:lecturas && pnpm verify:primitivas && pnpm format:check && pnpm lint && pnpm typecheck && pnpm verify:pruebas && pnpm test:unit && pnpm verify:mutaciones-backend && pnpm verify:catalogo && pnpm verify:inventario && pnpm verify:comandos-catalogo && pnpm verify:comandos-inventario && pnpm verify:venta && pnpm verify:identidad && pnpm verify:paquetes && pnpm build && pnpm verify:cabeceras && pnpm verify:cobertura && pnpm test:integracion && pnpm verify:acople
+$ node scripts/verificar-arranque.mjs
+✓ Correcciones de arranque: guarda viva, Kysely instalado, Postgres 17, cero andamiaje.
+$ node scripts/verificar-estructura.mjs
+✓ Estructura del monorepo correcta (15 carpetas, 6 manifiestos).
+$ node scripts/verificar-historico.mjs
+✓ historico/ cumple su contrato: 3 fuentes, aisladas del monorepo.
+$ node scripts/verificar-tsconfig.mjs
+✓ TypeScript estricto: 12 banderas obligatorias, 5 prohibidas, 7 workspace(s) conformes.
+  · excepción declarada: apps/web · allowJs por heredado/
+$ node scripts/verificar-entorno.mjs
+  · pendiente: La comprobacion EN VIVO (levantar el compose y conectarse) NO se ejecuto: no hay Docker en esta maquina. Esta DECLARADA en docs/fase-2/EXCEPCIONES-COBERTURA.md como "PUERTA verify:entorno/comprobacion-en-vivo". A-27 no esta demostrado por esta corrida
+✓ Entorno local: 3 servicios, imagenes fijadas, 9 variables declaradas.
+$ node --conditions=react-server scripts/verificar-certificado.mjs
+✓ Raíz de Supabase vigente 1682 día(s) más (hasta 2031-04-26).
+$ node --conditions=react-server scripts/verificar-esquema-aplicado.mjs
+✓ La base cumple el contrato: 626 columnas, 468 restricciones y 171 índices.
+$ node --conditions=react-server scripts/verificar-rls.mjs
+✓ RLS y grants cerrados en 52 relaciones y 3 funciones; índices 046 presentes.
+$ node scripts/verificar-residuos.mjs
+✓ Cero residuos: 8 patrones buscados fuera de historico/, ninguno presente.
+  · 1 ruta(s) que APUNTAN a historico/, permitidas por R6.
+$ node scripts/verificar-aspecto.mjs
+La estructura NO cambió en los 73 archivos comparados de apps/web/heredado.
+7 archivo(s) más se tocaron pero NO existían en 89830e59aed8688042d98c06d3521c35e95a9906, así que no hay aspecto suyo que preservar:
+  · apps/web/heredado/components/barcode/BarcodeScanner.jsx
+  · apps/web/heredado/components/barcode/ScanFeedbackOverlay.jsx
+  · apps/web/heredado/components/barcode/ScannerMiniCart.jsx
+  · apps/web/heredado/components/caja/dinero.js
+  · apps/web/heredado/components/inventario/comandos.js
+  · apps/web/heredado/utils/barcodeUtils.js
+  · apps/web/heredado/utils/mesaConfigUtils.js
+
+$ node scripts/verificar-escrituras.mjs
+Miradas 51 escrituras de apps/web/heredado contra el mapa del puente.
+
+Ninguna escritura la rechaza el puente.
+$ node scripts/verificar-lecturas.mjs
+✓ Lecturas del puente: 44 campos descartados vigilados; 216 lectura(s) justificadas.
+$ node scripts/tokenizar-primitivas.mjs --verificar && node scripts/verificar-primitivas.mjs
+✓ Las 36 primitivas estan tokenizadas.
+  · exenta: apps\web\src\mh — Frontend portado del restaurante: sus literales los cubre su propio parche dark
+✓ Cero literales de color, altura, sombra o variante en componentes.
+$ prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+$ eslint .
+Pages directory cannot be found at D:\MIS PROYECTOS\Master POS\morphiqpos-fase2\pages or D:\MIS PROYECTOS\Master POS\morphiqpos-fase2\src\pages. If using a custom path, please configure with the `no-html-link-for-pages` rule in your eslint config file.
+$ turbo run typecheck
+• turbo 2.10.12
+
+   • Packages in scope: @morphiqpos/app, @morphiqpos/contracts, @morphiqpos/data, @morphiqpos/domain, @morphiqpos/testing, @morphiqpos/ui, @morphiqpos/web
+   • Running typecheck in 7 packages
+   • Remote caching disabled, using shared worktree cache
+
+@morphiqpos/contracts:typecheck: cache hit, replaying logs e6e13e43a6f71673
+@morphiqpos/contracts:typecheck: $ tsc --noEmit
+@morphiqpos/testing:typecheck: cache hit, replaying logs 4a589007cc492214
+@morphiqpos/testing:typecheck: $ tsc --noEmit
+@morphiqpos/ui:typecheck: cache hit, replaying logs 9fc09fd542b08a5e
+@morphiqpos/domain:typecheck: cache hit, replaying logs f414c3ac5debf274
+@morphiqpos/ui:typecheck: $ tsc --noEmit
+@morphiqpos/domain:typecheck: $ tsc --noEmit
+@morphiqpos/data:typecheck: cache hit, replaying logs c03ea44aeca6b5d7
+@morphiqpos/data:typecheck: $ tsc --noEmit
+@morphiqpos/app:typecheck: cache hit, replaying logs f4fb0826852fb071
+@morphiqpos/app:typecheck: $ tsc --noEmit
+@morphiqpos/web:typecheck: cache hit, replaying logs 1eeb02949ebc2253
+@morphiqpos/web:typecheck: $ tsc --noEmit
+
+ Tasks:    7 successful, 7 total
+Cached:    7 cached, 7 total
+  Time:    146ms >>> FULL TURBO
+
+$ node scripts/verificar-pruebas.mjs
+✓ Pruebas: 221 unitarias en la puerta correcta, 5 de integración cubiertas, cero scripts que esquiven la raíz.
+$ vitest run
+
+ RUN  v5.0.0 D:/MIS PROYECTOS/Master POS/morphiqpos-fase2
+
+
+ Test Files  221 passed (221)
+      Tests  2632 passed (2632)
+   Start at  18:58:22
+   Duration  55.65s (import 88%, transform 7%, tests 4%, worker 1%)
+
+     Import  550 modules were evaluated 3092 times · 223.31s total, 88% of tracked time
+             ~19.29s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
+$ node scripts/verificar-mutaciones-backend.mjs
+✓ Mutación rechazada: RLS FORCE eliminado
+✓ Mutación rechazada: secuencias excluidas del REVOKE
+✓ Mutación rechazada: EXECUTE de rutinas conservado para PUBLIC
+✓ Mutación rechazada: privilegios futuros de rutinas conservados para PUBLIC
+✓ Mutación rechazada: paquete reabierto en configuracion.guardar
+✓ Mutación rechazada: merge parcial sustituido por replace
+✓ Mutación rechazada: cambio de paquete devuelto al JSON
+✓ Mutación rechazada: lectura de paquete devuelta al JSON
+✓ Mutación rechazada: paquete servido sin normalizar
+✓ Mutación rechazada: RLS FORCE omitido en sesiones
+✓ Mutación rechazada: sid ignorado al resolver sesión
+✓ Mutación rechazada: sesión no persistida al entrar
+✓ Mutación rechazada: sesiones conservadas tras cambiar acceso
+✓ Mutación rechazada: logout limitado a borrar la cookie
+✓ Mutación rechazada: roles de entidad otra vez opcionales
+✓ Mutación rechazada: guarda de lectura por entidad desactivada
+✓ Mutación rechazada: cortes abiertos a todos los roles
+✓ Mutación rechazada: token QR visible a roles operativos
+✓ Mutación rechazada: unicidad del token QR eliminada
+✓ Mutación rechazada: entropía del token QR reducida
+✓ Mutación rechazada: escritura directa de qr_token reabierta
+✓ Mutación rechazada: cliente QR devuelto a escritura genérica
+✓ Mutación rechazada: pestaña QR devuelta a escritura directa del token
+✓ Mutación rechazada: caja devuelta a escritura directa de sincronización
+✓ Mutación rechazada: costo de consumo abierto por la vista alternativa
+✓ Mutación rechazada: costo de catálogo devuelto a todos los roles
+✓ Mutación rechazada: costo de catálogo seleccionado para todos los roles
+✓ Mutación rechazada: eco de escritura selecciona campos restringidos
+✓ Mutación rechazada: rol de catálogo sustituido por dueño
+✓ Mutación rechazada: autorización de rol omitida en responderConsulta
+✓ Mutación rechazada: decisión de roles otra vez opcional en responderConsulta
+✓ Mutación rechazada: estado de bloqueo visible para gerente
+✓ Mutación rechazada: límite de cuerpo elevado a 50 MiB
+✓ Mutación rechazada: cuerpo fragmentado sin longitud admitido
+✓ Mutación rechazada: límite omitido en rutaDeComando
+✓ Mutación rechazada: límite omitido en el portal público
+✓ Mutación rechazada: límite omitido en ejecutarComandoHttp
+✓ Mutación rechazada: límite omitido en conSesion
+✓ Mutación rechazada: allowlist de configuración desactivada
+✓ Mutación rechazada: documento de configuración permitido hasta 1 MiB
+✓ Mutación rechazada: nombre del negocio sin máximo efectivo
+✓ Mutación rechazada: índices omitidos del contrato de esquema
+✓ Mutación rechazada: contrato de esquema desconectado de verify
+✓ Mutación rechazada: comprobación viva de RLS desactivada
+✓ Mutación rechazada: derivación de índices únicos críticos eliminada
+✓ Mutación rechazada: FORCE RLS omitido de la consulta viva
+✓ Mutación rechazada: verificación RLS desconectada de verify
+✓ Mutación rechazada: purga de limite_tasa desconectada del contador
+✓ Mutación rechazada: probabilidad de purga de limite_tasa anulada
+✓ Mutación rechazada: retención de idempotencia ampliada a 900 días
+✓ Mutación rechazada: trabajo de retención sin borrado
+✓ Mutación rechazada: CSRF omitido en conSesion
+✓ Mutación rechazada: origen web confiado al Host falsificable
+✓ Mutación rechazada: origen del portal confiado al Host falsificable
+✓ Mutación rechazada: clave pública devuelta al alcance global
+✓ Mutación rechazada: mesa omitida de la huella pública
+✓ Mutación rechazada: ventana de presentación eliminada
+✓ Mutación rechazada: desbloqueo de presentación sin consumo de cuota
+✓ Mutación rechazada: plantilla anónima sin consumo de cuota de entrada
+✓ Mutación rechazada: origen desconocido vuelve a saltarse la cuota
+✓ Mutación rechazada: HSTS eliminada de Next
+✓ Mutación rechazada: HSTS eliminada de la comprobación viva
+✓ Mutación rechazada: correlación del middleware omitida en web
+✓ Mutación rechazada: correlación del middleware omitida en comandos
+✓ Mutación rechazada: correlación del middleware omitida en portal
+✓ Mutación rechazada: registrador estructurado devuelto a texto libre
+✓ Mutación rechazada: registro estructurado omitido en auditoria
+✓ Mutación rechazada: registro estructurado omitido en comando
+✓ Mutación rechazada: registro estructurado omitido en limite
+✓ Mutación rechazada: registro estructurado omitido en portal comando
+✓ Mutación rechazada: registro estructurado omitido en portal http
+✓ Mutación rechazada: registro estructurado omitido en portal limite
+✓ Mutación rechazada: registro estructurado omitido en http web
+✓ Mutación rechazada: registro estructurado omitido en auth entrar
+✓ Mutación rechazada: registro estructurado omitido en auth empleados
+✓ Mutación rechazada: registro estructurado omitido en pool postgres
+✓ Mutación rechazada: registro estructurado omitido en purga de cuotas
+✓ Mutación rechazada: alerta del contador degradada en limite
+✓ Mutación rechazada: alerta del contador degradada en portal limite
+✓ Mutación rechazada: ensayo de restauracion dirigido a otro proyecto
+✓ Mutación rechazada: destino de restauracion sin migraciones controladas
+✓ Mutación rechazada: restauracion declarada sin comparar checksums
+✓ Mutación rechazada: ensayo de restauración vuelve a fabricar pg_cron
+✓ Mutación rechazada: avisos visuales dejan de tumbar la puerta de aspecto
+✓ Mutación rechazada: metacaracteres ILIKE sin escapar
+✓ Mutación rechazada: bitacora de sincronizacion reabierta a escritura directa
+✓ Mutación rechazada: validacion URL retirada de las imagenes publicas
+✓ Mutación rechazada: esquema URL degradado a texto
+✓ Mutación rechazada: host TLS comparado sin parsear la URL
+✓ Mutación rechazada: raices del sistema sustituidas por la de Supabase
+✓ Mutación rechazada: subida de archivos abierta al rol mesero
+✓ Mutación rechazada: limite de subida devuelto a agrupacion distinta de la organizacion
+✓ Mutación rechazada: guardian multipart devuelto a JSON
+✓ Mutación rechazada: tipo MIME de la subida confiado al navegador
+✓ Mutación rechazada: limite de archivos elevado otra vez a 8 MiB
+✓ Mutación rechazada: rechazo de reserva de cuota de archivos desactivado
+✓ Mutación rechazada: FORCE RLS omitido del contador de cuota de archivos
+✓ Mutación rechazada: límite condicional retirado del upsert de cuota de archivos
+✓ Mutación rechazada: archivo nuevo guardado directamente como publico
+✓ Mutación rechazada: tope dimensional de imagen elevado a 60000
+✓ Mutación rechazada: recodificacion de imagen omitida
+✓ Mutación rechazada: imagen de producto conservada privada al persistirla
+✓ Mutación rechazada: limite visual de ImageUploader devuelto a 8 MiB
+✓ Mutación rechazada: limite visual del menu QR devuelto a 8 MiB
+$ node scripts/verificar-catalogo.mjs
+{"mutacion":"truncar medio centavo","detectadaPor":["CAT-01/02 · precio de catálogo convierte 250 gramos antes de cobrar el precio por kilogramo","CAT-01/02 · precio de catálogo redondea medio centavo una sola vez al cerrar la línea"],"restaurada":true}
+{"mutacion":"dinero por Number","detectadaPor":["CAT-01/02 · precio de catálogo no pierde enteros grandes al calcular dinero"],"restaurada":true}
+{"mutacion":"excluir umbral mayoreo","detectadaPor":["CAT-01/02 · precio de catálogo aplica mayoreo desde el umbral, con interruptor explícito del servidor"],"restaurada":true}
+{"mutacion":"ignorar interruptor mayoreo","detectadaPor":["CAT-01/02 · precio de catálogo aplica mayoreo desde el umbral, con interruptor explícito del servidor"],"restaurada":true}
+{"mutacion":"permitir precio negativo","detectadaPor":["CAT-01/02 · precio de catálogo rechaza unidades incompatibles, porciones fraccionarias y precio negativo"],"restaurada":true}
+{"mutacion":"permitir cantidad cero","detectadaPor":["CAT-01/02 · precio de catálogo rechaza piezas inválidas 0","CAT-01/02 · precio de catálogo rechaza configuraciones incoherentes aunque la cantidad de venta sea válida"],"restaurada":true}
+{"mutacion":"permitir fracciones de piezas","detectadaPor":["CAT-01/02 · precio de catálogo rechaza piezas inválidas 0.5"],"restaurada":true}
+{"mutacion":"omitir mínimo","detectadaPor":["CAT-01/02 · precio de catálogo respeta mínimo, máximo e incremento: 0.05"],"restaurada":true}
+{"mutacion":"omitir máximo","detectadaPor":["CAT-01/02 · precio de catálogo respeta mínimo, máximo e incremento: 5.05"],"restaurada":true}
+{"mutacion":"omitir incremento","detectadaPor":["CAT-01/02 · precio de catálogo respeta mínimo, máximo e incremento: 0.12","CAT-01/02 · precio de catálogo rechaza configuraciones incoherentes aunque la cantidad de venta sea válida"],"restaurada":true}
+{"mutacion":"omitir capacidad","detectadaPor":["CAT-01/02 · precio de catálogo rechaza configuraciones incoherentes aunque la cantidad de venta sea válida"],"restaurada":true}
+{"mutacion":"omitir escala al derivar porción","detectadaPor":["CAT-02 · equivalencias y contenedor deriva 46.875 ml exactos y da prioridad a los ml explícitos","CAT-02 · equivalencias y contenedor cobra porciones cuya medida se deriva del contenedor"],"restaurada":true}
+{"mutacion":"omitir contenido del empaque","detectadaPor":["CAT-02 · equivalencias y contenedor convierte cajas con equivalencia explícita del catálogo"],"restaurada":true}
+{"mutacion":"omitir unidad y entero de porciones","detectadaPor":["CAT-01/02 · precio de catálogo rechaza unidades incompatibles, porciones fraccionarias y precio negativo"],"restaurada":true}
+{"mutacion":"mezclar dimensiones","detectadaPor":["CAT-02 · cantidades exactas y unidades no inventa equivalencia de kg a l","CAT-02 · cantidades exactas y unidades no inventa equivalencia de m a pieza","CAT-02 · cantidades exactas y unidades no inventa equivalencia de caja a pieza","CAT-02 · cantidades exactas y unidades no inventa equivalencia de paquete a caja","CAT-02 · equivalencias y contenedor no usa equivalencias cero ni corrige dimensiones estándar incompatibles","CAT-01/02 · precio de catálogo rechaza unidades incompatibles, porciones fraccionarias y precio negativo"],"restaurada":true}
+{"mutacion":"omitir factor de conversión","detectadaPor":["CAT-02 · cantidades exactas y unidades convierte 1.2345 kg a g","CAT-02 · cantidades exactas y unidades convierte 0.125 l a ml","CAT-02 · cantidades exactas y unidades rechaza pérdida de precisión y desbordamiento al convertir","CAT-01/02 · precio de catálogo redondea medio centavo una sola vez al cerrar la línea"],"restaurada":true}
+{"mutacion":"truncar cantidad de stock","detectadaPor":["CAT-02 · cantidades exactas y unidades rechaza pérdida de precisión y desbordamiento al convertir","CAT-02 · equivalencias y contenedor requiere medida explícita o una división exacta del contenedor"],"restaurada":true}
+{"mutacion":"permitir desbordamiento","detectadaPor":["CAT-02 · cantidades exactas y unidades rechaza pérdida de precisión y desbordamiento al convertir"],"restaurada":true}
+18 mutaciones detectadas; versión restaurada en verde.
+$ node scripts/verificar-inventario.mjs
+{"mutacion":"no crear existencia para venta negativa autorizada","detectadaPor":["INV-03 · repositorio de stock envía la política de negativo como parámetro de la misma guarda","INV-03 · repositorio de stock crea la existencia ausente y permite dejarla negativa cuando la política lo autoriza"],"restaurada":true}
+{"mutacion":"sku sin conversión","detectadaPor":["INV-01 · consumo planeado descuenta el insumo espejo de un SKU en su unidad base","INV-01 · consumo planeado rechaza unidad incompatible sin corregir el dato en silencio"],"restaurada":true}
+{"mutacion":"receta sin cantidad vendida","detectadaPor":["INV-01 · consumo planeado multiplica la receta por la cantidad vendida y aplica merma exacta","INV-01 · consumo planeado agrupa por insumo y conserva todos los orígenes con la política más restrictiva","INV-01 · consumo planeado no pierde precisión al multiplicar cantidades mayores que Number.MAX_SAFE_INTEGER"],"restaurada":true}
+{"mutacion":"receta sin merma","detectadaPor":["INV-01 · consumo planeado multiplica la receta por la cantidad vendida y aplica merma exacta","INV-01 · consumo planeado rechaza merma que no cabe en cuatro decimales sin corregir el dato en silencio"],"restaurada":true}
+{"mutacion":"variable sin conversión base","detectadaPor":["INV-01 · consumo planeado descuenta la cantidad variable convertida a la unidad base"],"restaurada":true}
+{"mutacion":"porción usa contenedor completo","detectadaPor":["INV-01 · consumo planeado usa los ml calculados por porción y respeta la medida explícita"],"restaurada":true}
+{"mutacion":"agrupación pierde consumos previos","detectadaPor":["INV-01 · consumo planeado agrupa por insumo y conserva todos los orígenes con la política más restrictiva"],"restaurada":true}
+{"mutacion":"política negativa permisiva","detectadaPor":["INV-01 · consumo planeado agrupa por insumo y conserva todos los orígenes con la política más restrictiva"],"restaurada":true}
+{"mutacion":"mezclar referencias de orden","detectadaPor":["INV-01 · consumo planeado rechaza mezclar órdenes para no fabricar una referencia ambigua"],"restaurada":true}
+{"mutacion":"servicio descuenta o falla","detectadaPor":["INV-01 · consumo planeado no genera movimientos para servicios"],"restaurada":true}
+{"mutacion":"merma trunca precisión","detectadaPor":["INV-01 · consumo planeado multiplica la receta por la cantidad vendida y aplica merma exacta","INV-01 · consumo planeado rechaza merma que no cabe en cuatro decimales sin corregir el dato en silencio"],"restaurada":true}
+{"mutacion":"incrementar en una venta","detectadaPor":["INV-03 · repositorio de stock decrementa con una guarda atómica por organización y después inserta el ledger","INV-03 · repositorio de stock crea la existencia ausente y permite dejarla negativa cuando la política lo autoriza"],"restaurada":true}
+{"mutacion":"omitir organización","detectadaPor":["INV-03 · repositorio de stock decrementa con una guarda atómica por organización y después inserta el ledger"],"restaurada":true}
+{"mutacion":"omitir guarda de stock","detectadaPor":["INV-03 · repositorio de stock decrementa con una guarda atómica por organización y después inserta el ledger","INV-03 · repositorio de stock envía la política de negativo como parámetro de la misma guarda","INV-03 · repositorio de stock crea la existencia ausente y permite dejarla negativa cuando la política lo autoriza"],"restaurada":true}
+{"mutacion":"forzar stock negativo","detectadaPor":["INV-03 · repositorio de stock decrementa con una guarda atómica por organización y después inserta el ledger"],"restaurada":true}
+{"mutacion":"aceptar update sin fila","detectadaPor":["INV-03 · repositorio de stock decrementa con una guarda atómica por organización y después inserta el ledger","INV-03 · repositorio de stock falla sin insertar ledger cuando la guarda de stock no actualiza la fila","INV-03 · repositorio de stock envía la política de negativo como parámetro de la misma guarda","INV-03 · repositorio de stock crea la existencia ausente y permite dejarla negativa cuando la política lo autoriza","INV-03 · repositorio de stock ordena los bloqueos por saldo y escribe todos los movimientos en un solo insert"],"restaurada":true}
+{"mutacion":"ledger con signo positivo","detectadaPor":["INV-03 · repositorio de stock decrementa con una guarda atómica por organización y después inserta el ledger"],"restaurada":true}
+{"mutacion":"bloqueos sin orden estable","detectadaPor":["INV-03 · repositorio de stock ordena los bloqueos por saldo y escribe todos los movimientos en un solo insert"],"restaurada":true}
+{"mutacion":"ledger omite movimientos","detectadaPor":["INV-03 · repositorio de stock ordena los bloqueos por saldo y escribe todos los movimientos en un solo insert"],"restaurada":true}
+{"mutacion":"aceptar movimiento cero","detectadaPor":["INV-03 · repositorio de stock rechaza cantidades cero antes de tocar la base"],"restaurada":true}
+20 mutaciones detectadas; versión restaurada en verde.
+$ node scripts/verificar-comandos-catalogo.mjs
+{"mutacion":"modificadores estrechados a la plantilla de restaurante","detectadaPor":["B-04 · modificadores por plantilla declara la constante de operación, no una lista propia","B-04 · modificadores por plantilla existe en las tres plantillas, porque las tres traen el bloque de operación"],"restaurada":true}
+{"mutacion":"precio de alta en cero","detectadaPor":["B-04 · comandos de producto crea el producto y su insumo espejo con dinero convertido en el servidor"],"restaurada":true}
+{"mutacion":"costo de alta en cero","detectadaPor":["B-04 · comandos de producto crea el producto y su insumo espejo con dinero convertido en el servidor"],"restaurada":true}
+{"mutacion":"costo actualizado en cero","detectadaPor":["B-04 · comandos de producto cambia precios por id y organización con centavos exactos"],"restaurada":true}
+{"mutacion":"precio actualizado en cero","detectadaPor":["B-04 · comandos de producto cambia precios por id y organización con centavos exactos"],"restaurada":true}
+{"mutacion":"extra de modificador en cero","detectadaPor":["B-04 · modificadores normalizados crea grupo, opciones con precio extra y vínculo al producto"],"restaurada":true}
+{"mutacion":"precio fuera de la organización","detectadaPor":["B-04 · comandos de producto cambia precios por id y organización con centavos exactos"],"restaurada":true}
+{"mutacion":"configuración sin versión esperada","detectadaPor":["B-05 · configuración por organización cambia sólo sus secciones y conserva el resto del documento"],"restaurada":true}
+{"mutacion":"paquete efectivo ignorado al leer","detectadaPor":["B-05 · configuración por organización lee una sola fila y completa valores ausentes con defaults versionados"],"restaurada":true}
+9 mutaciones detectadas; versión restaurada en verde.
+$ node scripts/verificar-comandos-inventario.mjs
+{"mutacion":"inventario inicial sobrescribe saldo","detectadaPor":["B-11 · SQL de movimientos de inventario el inventario inicial acumula el saldo y escribe el ledger"],"restaurada":true}
+{"mutacion":"inventario inicial pierde tipo de ledger","detectadaPor":["B-11 · SQL de movimientos de inventario el inventario inicial acumula el saldo y escribe el ledger"],"restaurada":true}
+{"mutacion":"ajuste omite guarda negativa","detectadaPor":["B-11 · SQL de movimientos de inventario el ajuste suma el delta con guarda y registra un movimiento"],"restaurada":true}
+{"mutacion":"costeo ignora cantidad","detectadaPor":["B-12 · SQL de costeo por receta multiplica costo por cantidad y merma antes de actualizar productos"],"restaurada":true}
+{"mutacion":"costeo ignora merma","detectadaPor":["B-12 · SQL de costeo por receta multiplica costo por cantidad y merma antes de actualizar productos"],"restaurada":true}
+5 mutaciones detectadas; versión restaurada en verde.
+$ node scripts/verificar-venta.mjs
+✓ base: 15 contratos y la suite en verde.
+✓ destructiva «tomar el folio antes de descontar el stock» → cae stock_antes_de_folio
+✓ destructiva «cotizar fuera de la transacción del cobro» → cae cotiza_dentro_de_la_transaccion
+✓ destructiva «cobrar sin comprobar que el total sigue vigente» → cae exige_total_vigente
+✓ destructiva «cobrar con la caja cerrada» → cae no_cobra_sin_caja
+✓ destructiva «aceptar pagos que superen el total» → cae pago_suma_exacta
+✓ destructiva «devolver cambio en tarjeta» → cae cambio_solo_en_efectivo
+✓ destructiva «cobrar dos veces la misma orden (quitando la guarda)» → cae marcar_pagada_guarda_estado_cobrable
+✓ destructiva «cobrar dos veces admitiendo «pagada» como estado cobrable» → cae marcar_pagada_guarda_estado_cobrable
+✓ destructiva «tomar el folio leyendo y luego escribiendo» → cae folio_atomico
+✓ destructiva «esperar «fondo + ventas en efectivo» (no resta los retiros)» → cae esperado_es_la_suma_de_movimientos
+✓ destructiva «leer el esperado de una columna almacenada» → cae arqueo_no_lee_totales_almacenados
+✓ destructiva «abrir la caja sin registrar el fondo como movimiento» → cae apertura_registra_el_fondo
+✓ destructiva «cobrar en efectivo sin registrar el movimiento de caja» → cae cobro_registra_el_efectivo_en_caja
+✓ destructiva «cerrar la caja antes de derivar su arqueo» → cae arqueo_dentro_del_cierre
+✓ destructiva «aceptar GET en una ruta de comando» → cae ruta_de_comando_solo_post
+✓ destructiva «dejar que el cliente mande el precio de la línea» → cae agregar_linea_no_acepta_importes
+✓ destructiva «cobrar de menos aceptando que falte dinero» → 1 prueba(s) en rojo
+✓ destructiva «no comprobar que el efectivo recibido alcance» → 1 prueba(s) en rojo
+✓ destructiva «aceptar un renglón de pago en cero» → 1 prueba(s) en rojo
+✓ destructiva «truncar la cantidad a entero (media res costaría cero)» → 5 prueba(s) en rojo
+✓ destructiva «redondear el medio centavo hacia abajo» → 2 prueba(s) en rojo
+✓ destructiva «perder el signo en una devolución» → 1 prueba(s) en rojo
+✓ destructiva «sumar el IVA en vez de extraerlo de un precio que ya lo incluye» → 3 prueba(s) en rojo
+✓ destructiva «dejar que el descuento haga el total negativo» → 1 prueba(s) en rojo
+✓ inocua «una línea en blanco de más en el cobro» → todo sigue en verde
+✓ inocua «partir la guarda del estado cobrable en varias líneas» → todo sigue en verde
+✓ inocua «renombrar un local del reparto de pagos» → todo sigue en verde
+
+15 contratos · 16 destructivas de contrato · 8 destructivas de prueba · 3 inocuas. Árbol restaurado.
+$ node scripts/verificar-identidad.mjs
+✓ base: 11 contratos y la suite en verde.
+✓ destructiva «quitar la guarda de forma y volver al catch que lo traga todo» → cae verificar_no_traga_errores_de_llamada
+✓ destructiva «dejar que el cliente diga en que negocio entra» → cae la_organizacion_no_viene_del_cliente
+✓ destructiva «dar de alta la caja ANTES de comprobar el PIN» → cae la_terminal_se_crea_despues_de_verificar_el_pin
+✓ destructiva «comprobar el PIN aunque la credencial esté bloqueada» → cae bloqueo_antes_de_comprobar_el_pin
+✓ destructiva «firmar la sesión sin releer el ámbito» → cae el_ambito_se_relee_de_la_base
+✓ destructiva «poner PIN a un empleado de otra organización» → cae establecer_pin_filtra_por_organizacion
+✓ destructiva «auditar el hash del PIN junto al cambio» → cae establecer_pin_no_audita_el_pin
+✓ destructiva «guardar el token del dispositivo en claro» → cae el_token_del_dispositivo_se_guarda_hasheado
+✓ destructiva «devolver el hash del PIN en la lista de accesos» → cae la_consulta_de_accesos_no_devuelve_el_hash
+✓ destructiva «seleccionar el hash también en la lista de empleados» → cae solo_credencial_para_verificar_lee_el_hash
+✓ destructiva «guardar el PIN del arranque sin hashear» → cae el_arranque_hashea_con_argon2
+✓ destructiva «devolver la pimienta a Buffer (el fallo que impidió entrar)» → 3 prueba(s) en rojo
+✓ destructiva «la pimienta deja de mezclarse (el hash no depende de ella)» → 1 prueba(s) en rojo
+✓ destructiva «verificar acepta cualquier PIN» → 3 prueba(s) en rojo
+✓ destructiva «bajar Argon2id a parámetros de juguete» → 1 prueba(s) en rojo
+✓ destructiva «aceptar PIN de tres dígitos» → 1 prueba(s) en rojo
+✓ destructiva «quitar el tope del bloqueo (lockout como negación de servicio)» → 1 prueba(s) en rojo
+✓ inocua «una línea en blanco de más en pin.ts» → todo sigue en verde
+✓ inocua «partir el where de la organización en cuatro líneas» → todo sigue en verde
+✓ inocua «renombrar un local del arranque» → todo sigue en verde
+
+11 contratos · 11 destructivas de contrato · 6 destructivas de prueba · 3 inocuas. Árbol restaurado.
+$ node scripts/verificar-paquetes.mjs
+✓ base: 2 contratos y la suite en verde.
+✓ destructiva «volver a escribir la lista de paquetes a mano» → cae ningun_comando_escribe_la_lista_a_mano
+✓ destructiva «abrir las mesas a todas las plantillas» → 1 prueba(s) en rojo
+✓ inocua «una línea en blanco de más en recetas» → todo sigue en verde
+
+2 contratos · 1 destructivas de contrato · 1 destructivas de prueba · 1 inocuas. Árbol restaurado.
+$ turbo run build
+• turbo 2.10.12
+
+   • Packages in scope: @morphiqpos/app, @morphiqpos/contracts, @morphiqpos/data, @morphiqpos/domain, @morphiqpos/testing, @morphiqpos/ui, @morphiqpos/web
+   • Running build in 7 packages
+   • Remote caching disabled, using shared worktree cache
+
+@morphiqpos/web:build: cache miss, executing dd06d03d87d2933c
+@morphiqpos/web:build: $ next build
+@morphiqpos/web:build: ▲ Next.js 16.3.4 (Turbopack)
+@morphiqpos/web:build: ✓ Running next.config.mjs took 165ms
+@morphiqpos/web:build: 
+@morphiqpos/web:build: ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead.
+@morphiqpos/web:build: 
+@morphiqpos/web:build:   To migrate automatically, run:
+@morphiqpos/web:build:   npx @next/codemod@canary middleware-to-proxy .
+@morphiqpos/web:build: 
+@morphiqpos/web:build:   Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+@morphiqpos/web:build:   Creating an optimized production build ...
+@morphiqpos/web:build: ✓ Compiled successfully in 4.2min
+@morphiqpos/web:build:   Running TypeScript ...
+@morphiqpos/web:build: ✓ Finished writing to filesystem cache in 10.6s
+@morphiqpos/web:build: ✓ Finished filesystem cache database compaction in 15.4s
+@morphiqpos/web:build:   Finished TypeScript in 35.0s ...
+@morphiqpos/web:build:   Collecting page data using 7 workers ...
+@morphiqpos/web:build:   Generating static pages using 7 workers (0/189) ...
+@morphiqpos/web:build:   Generating static pages using 7 workers (47/189) 
+@morphiqpos/web:build:   Generating static pages using 7 workers (94/189) 
+@morphiqpos/web:build:   Generating static pages using 7 workers (141/189) 
+@morphiqpos/web:build: ✓ Generating static pages using 7 workers (189/189) in 538ms
+@morphiqpos/web:build:   Finalizing page optimization ...
+@morphiqpos/web:build: 
+@morphiqpos/web:build: Route (app)
+@morphiqpos/web:build: ┌ ƒ /
+@morphiqpos/web:build: ├ ƒ /_not-found
+@morphiqpos/web:build: ├ ƒ /abarrotes/alta-rapida-de-producto
+@morphiqpos/web:build: ├ ƒ /abarrotes/caja
+@morphiqpos/web:build: ├ ƒ /abarrotes/cobrar
+@morphiqpos/web:build: ├ ƒ /abarrotes/conteo
+@morphiqpos/web:build: ├ ƒ /abarrotes/cortes
+@morphiqpos/web:build: ├ ƒ /abarrotes/entradas
+@morphiqpos/web:build: ├ ƒ /abarrotes/existencias
+@morphiqpos/web:build: ├ ƒ /abarrotes/fiado
+@morphiqpos/web:build: ├ ƒ /abarrotes/producto
+@morphiqpos/web:build: ├ ƒ /abarrotes/registros
+@morphiqpos/web:build: ├ ƒ /abarrotes/servicios
+@morphiqpos/web:build: ├ ƒ /api/agenda/cancelar
+@morphiqpos/web:build: ├ ƒ /api/agenda/cerrar-servicio
+@morphiqpos/web:build: ├ ƒ /api/agenda/cita
+@morphiqpos/web:build: ├ ƒ /api/agenda/dia
+@morphiqpos/web:build: ├ ƒ /api/agenda/huecos
+@morphiqpos/web:build: ├ ƒ /api/agenda/iniciar
+@morphiqpos/web:build: ├ ƒ /api/agenda/no-llego
+@morphiqpos/web:build: ├ ƒ /api/agenda/proximos-huecos
+@morphiqpos/web:build: ├ ƒ /api/anticipos
+@morphiqpos/web:build: ├ ƒ /api/anticipos/[id]/aplicar
+@morphiqpos/web:build: ├ ƒ /api/archivos/[...ruta]
+@morphiqpos/web:build: ├ ƒ /api/archivos/subir
+@morphiqpos/web:build: ├ ƒ /api/auth/empleados
+@morphiqpos/web:build: ├ ƒ /api/auth/entrar
+@morphiqpos/web:build: ├ ƒ /api/auth/salir
+@morphiqpos/web:build: ├ ƒ /api/buscar/material
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/anticipado/encolar
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/anticipado/entregar
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/calibracion
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/contar-leche
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/deshacer-entrega
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/entregar-pedido
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/llamar-pedido
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/lote-grano/abrir
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/merma-barra
+@morphiqpos/web:build: ├ ƒ /api/cafeteria/no-recogido
+@morphiqpos/web:build: ├ ƒ /api/caja/abiertas
+@morphiqpos/web:build: ├ ƒ /api/caja/abrir
+@morphiqpos/web:build: ├ ƒ /api/caja/cajon
+@morphiqpos/web:build: ├ ƒ /api/caja/cerrar
+@morphiqpos/web:build: ├ ƒ /api/caja/corte-turno
+@morphiqpos/web:build: ├ ƒ /api/caja/eliminar-corte
+@morphiqpos/web:build: ├ ƒ /api/caja/encolar-sincronizacion
+@morphiqpos/web:build: ├ ƒ /api/caja/entrada-cambio
+@morphiqpos/web:build: ├ ƒ /api/caja/estado
+@morphiqpos/web:build: ├ ƒ /api/caja/movimiento
+@morphiqpos/web:build: ├ ƒ /api/catalogo/alta-rapida
+@morphiqpos/web:build: ├ ƒ /api/catalogo/archivar
+@morphiqpos/web:build: ├ ƒ /api/catalogo/atributo
+@morphiqpos/web:build: ├ ƒ /api/catalogo/atributos
+@morphiqpos/web:build: ├ ƒ /api/catalogo/buscar-material
+@morphiqpos/web:build: ├ ƒ /api/catalogo/calibrar-peso
+@morphiqpos/web:build: ├ ƒ /api/catalogo/categorias
+@morphiqpos/web:build: ├ ƒ /api/catalogo/configuracion
+@morphiqpos/web:build: ├ ƒ /api/catalogo/crear-producto
+@morphiqpos/web:build: ├ ƒ /api/catalogo/demostracion/resetear
+@morphiqpos/web:build: ├ ƒ /api/catalogo/equivalencia
+@morphiqpos/web:build: ├ ƒ /api/catalogo/etiquetas
+@morphiqpos/web:build: ├ ƒ /api/catalogo/fiscal-masivo
+@morphiqpos/web:build: ├ ƒ /api/catalogo/foto-mostrador
+@morphiqpos/web:build: ├ ƒ /api/catalogo/inicio
+@morphiqpos/web:build: ├ ƒ /api/catalogo/linea
+@morphiqpos/web:build: ├ ƒ /api/catalogo/modificador
+@morphiqpos/web:build: ├ ƒ /api/catalogo/modificadores
+@morphiqpos/web:build: ├ ƒ /api/catalogo/presentacion
+@morphiqpos/web:build: ├ ƒ /api/catalogo/productos
+@morphiqpos/web:build: ├ ƒ /api/catalogo/productos/actualizar
+@morphiqpos/web:build: ├ ƒ /api/catalogo/productos/codigo
+@morphiqpos/web:build: ├ ƒ /api/catalogo/productos/crear
+@morphiqpos/web:build: ├ ƒ /api/catalogo/productos/precio
+@morphiqpos/web:build: ├ ƒ /api/catalogo/sesion
+@morphiqpos/web:build: ├ ƒ /api/catalogo/ubicacion
+@morphiqpos/web:build: ├ ƒ /api/cita-servicios/[id]/cerrar
+@morphiqpos/web:build: ├ ƒ /api/cita-servicios/[id]/foto
+@morphiqpos/web:build: ├ ƒ /api/citas
+@morphiqpos/web:build: ├ ƒ /api/citas/[id]/cancelar
+@morphiqpos/web:build: ├ ƒ /api/citas/[id]/cobrar
+@morphiqpos/web:build: ├ ƒ /api/citas/[id]/iniciar
+@morphiqpos/web:build: ├ ƒ /api/citas/[id]/no-llego
+@morphiqpos/web:build: ├ ƒ /api/citas/[id]/reprogramar
+@morphiqpos/web:build: ├ ƒ /api/citas/walk-in
+@morphiqpos/web:build: ├ ƒ /api/clientes
+@morphiqpos/web:build: ├ ƒ /api/clientes/[id]
+@morphiqpos/web:build: ├ ƒ /api/clientes/[id]/expediente
+@morphiqpos/web:build: ├ ƒ /api/clientes/[id]/ultima-formula
+@morphiqpos/web:build: ├ ƒ /api/clientes/por-volver
+@morphiqpos/web:build: ├ ƒ /api/comision/depositar
+@morphiqpos/web:build: ├ ƒ /api/comision/liquidar
+@morphiqpos/web:build: ├ ƒ /api/comision/registrar
+@morphiqpos/web:build: ├ ƒ /api/compras/importar-nota
+@morphiqpos/web:build: ├ ƒ /api/compras/plantilla
+@morphiqpos/web:build: ├ ƒ /api/compras/plantilla/usar
+@morphiqpos/web:build: ├ ƒ /api/compras/recibir-nota
+@morphiqpos/web:build: ├ ƒ /api/compras/registrar
+@morphiqpos/web:build: ├ ƒ /api/compras/sugerencia
+@morphiqpos/web:build: ├ ƒ /api/compras/sugerencia/[proveedorId]
+@morphiqpos/web:build: ├ ƒ /api/configuracion/modulo
+@morphiqpos/web:build: ├ ƒ /api/configuracion/modulo-restablecer
+@morphiqpos/web:build: ├ ƒ /api/configuracion/paquete
+@morphiqpos/web:build: ├ ƒ /api/configuracion/presentacion
+@morphiqpos/web:build: ├ ƒ /api/configuracion/presentacion-contrasena
+@morphiqpos/web:build: ├ ƒ /api/configuracion/vocabulario
+@morphiqpos/web:build: ├ ƒ /api/configuracion/vocabulario-restablecer
+@morphiqpos/web:build: ├ ƒ /api/cortes/[id]/pdf
+@morphiqpos/web:build: ├ ƒ /api/cotizacion
+@morphiqpos/web:build: ├ ƒ /api/cotizacion/[id]/convertir
+@morphiqpos/web:build: ├ ƒ /api/cotizacion/aprobar
+@morphiqpos/web:build: ├ ƒ /api/cotizacion/cerrar
+@morphiqpos/web:build: ├ ƒ /api/cotizacion/enviar
+@morphiqpos/web:build: ├ ƒ /api/cotizacion/surtir
+@morphiqpos/web:build: ├ ƒ /api/cotizacion/versionar
+@morphiqpos/web:build: ├ ƒ /api/credito/autorizado
+@morphiqpos/web:build: ├ ƒ /api/credito/autorizado-baja
+@morphiqpos/web:build: ├ ƒ /api/credito/autorizar
+@morphiqpos/web:build: ├ ƒ /api/credito/confirmar-transferencia
+@morphiqpos/web:build: ├ ƒ /api/credito/estado-cuenta
+@morphiqpos/web:build: ├ ƒ /api/credito/evaluar
+@morphiqpos/web:build: ├ ƒ /api/credito/limite
+@morphiqpos/web:build: ├ ƒ /api/credito/obra
+@morphiqpos/web:build: ├ ƒ /api/credito/obra-cerrar
+@morphiqpos/web:build: ├ ƒ /api/credito/pago
+@morphiqpos/web:build: ├ ƒ /api/credito/remision
+@morphiqpos/web:build: ├ ƒ /api/datos/consultar
+@morphiqpos/web:build: ├ ƒ /api/datos/escribir
+@morphiqpos/web:build: ├ ƒ /api/envase/deposito
+@morphiqpos/web:build: ├ ƒ /api/fiado/abono
+@morphiqpos/web:build: ├ ƒ /api/fiado/incobrable
+@morphiqpos/web:build: ├ ƒ /api/fiado/limite
+@morphiqpos/web:build: ├ ƒ /api/gastos/plantilla
+@morphiqpos/web:build: ├ ƒ /api/gastos/registrar
+@morphiqpos/web:build: ├ ƒ /api/identidad/accesos
+@morphiqpos/web:build: ├ ƒ /api/identidad/empleados
+@morphiqpos/web:build: ├ ƒ /api/identidad/pin
+@morphiqpos/web:build: ├ ƒ /api/inventario/ajustar
+@morphiqpos/web:build: ├ ƒ /api/inventario/almacenes/crear
+@morphiqpos/web:build: ├ ƒ /api/inventario/cabina/alcanza
+@morphiqpos/web:build: ├ ƒ /api/inventario/caducidad
+@morphiqpos/web:build: ├ ƒ /api/inventario/caducidad/consumir
+@morphiqpos/web:build: ├ ƒ /api/inventario/consumo-interno
+@morphiqpos/web:build: ├ ƒ /api/inventario/conteo/abrir
+@morphiqpos/web:build: ├ ƒ /api/inventario/conteo/capturar
+@morphiqpos/web:build: ├ ƒ /api/inventario/conteo/cerrar
+@morphiqpos/web:build: ├ ƒ /api/inventario/conteo/peso
+@morphiqpos/web:build: ├ ƒ /api/inventario/cortar
+@morphiqpos/web:build: ├ ƒ /api/inventario/corte
+@morphiqpos/web:build: ├ ƒ /api/inventario/garantia
+@morphiqpos/web:build: ├ ƒ /api/inventario/garantia/resolver
+@morphiqpos/web:build: ├ ƒ /api/inventario/inicial
+@morphiqpos/web:build: ├ ƒ /api/inventario/insumos/costo
+@morphiqpos/web:build: ├ ƒ /api/inventario/insumos/crear
+@morphiqpos/web:build: ├ ƒ /api/inventario/kardex
+@morphiqpos/web:build: ├ ƒ /api/inventario/merma
+@morphiqpos/web:build: ├ ƒ /api/inventario/pieza-abierta
+@morphiqpos/web:build: ├ ƒ /api/inventario/pieza-abierta/retazo
+@morphiqpos/web:build: ├ ƒ /api/inventario/recetas
+@morphiqpos/web:build: ├ ƒ /api/inventario/recetas/eliminar
+@morphiqpos/web:build: ├ ƒ /api/inventario/resumen
+@morphiqpos/web:build: ├ ƒ /api/inventario/traspaso
+@morphiqpos/web:build: ├ ƒ /api/inventario/traspaso-recibir
+@morphiqpos/web:build: ├ ƒ /api/inventario/valuacion
+@morphiqpos/web:build: ├ ƒ /api/lealtad/ajustar
+@morphiqpos/web:build: ├ ƒ /api/lealtad/canjear
+@morphiqpos/web:build: ├ ƒ /api/lealtad/identificar
+@morphiqpos/web:build: ├ ƒ /api/liquidaciones
+@morphiqpos/web:build: ├ ƒ /api/liquidaciones/[id]/comprobante
+@morphiqpos/web:build: ├ ƒ /api/lista-espera
+@morphiqpos/web:build: ├ ƒ /api/lista-espera/[id]/agendar
+@morphiqpos/web:build: ├ ƒ /api/lista-espera/[id]/avisar
+@morphiqpos/web:build: ├ ƒ /api/mantenimiento/purgar-seccion
+@morphiqpos/web:build: ├ ƒ /api/mantenimiento/purgar-ventas
+@morphiqpos/web:build: ├ ƒ /api/mantenimiento/reiniciar-pruebas
+@morphiqpos/web:build: ├ ƒ /api/mantenimiento/reiniciar-todo
+@morphiqpos/web:build: ├ ƒ /api/mantenimiento/vaciar-mesas
+@morphiqpos/web:build: ├ ƒ /api/por-pagar
+@morphiqpos/web:build: ├ ƒ /api/por-pagar/pagar
+@morphiqpos/web:build: ├ ƒ /api/por-pagar/resumen
+@morphiqpos/web:build: ├ ƒ /api/portal/pedido-anticipado
+@morphiqpos/web:build: ├ ƒ /api/productos/[id]/abrir
+@morphiqpos/web:build: ├ ƒ /api/profesionales
+@morphiqpos/web:build: ├ ƒ /api/profesionales/[id]/comisiones
+@morphiqpos/web:build: ├ ƒ /api/profesionales/[id]/mi-dia
+@morphiqpos/web:build: ├ ƒ /api/propinas/entregar
+@morphiqpos/web:build: ├ ƒ /api/propinas/esquema
+@morphiqpos/web:build: ├ ƒ /api/propinas/liquidar
+@morphiqpos/web:build: ├ ƒ /api/propinas/pasivo
+@morphiqpos/web:build: ├ ƒ /api/propinas/pendientes
+@morphiqpos/web:build: ├ ƒ /api/propinas/recibir-directa
+@morphiqpos/web:build: ├ ƒ /api/propinas/repartir-bote
+@morphiqpos/web:build: ├ ƒ /api/publico/archivo/[...ruta]
+@morphiqpos/web:build: ├ ƒ /api/publico/qr/[token]
+@morphiqpos/web:build: ├ ƒ /api/publico/qr/[token]/cuenta
+@morphiqpos/web:build: ├ ƒ /api/publico/qr/[token]/mesa
+@morphiqpos/web:build: ├ ƒ /api/publico/qr/[token]/pedido
+@morphiqpos/web:build: ├ ƒ /api/publico/qr/[token]/solicitud
+@morphiqpos/web:build: ├ ƒ /api/publico/qr/[token]/valoracion
+@morphiqpos/web:build: ├ ƒ /api/publico/recogida/[token]
+@morphiqpos/web:build: ├ ƒ /api/renta
+@morphiqpos/web:build: ├ ƒ /api/renta/devolver
+@morphiqpos/web:build: ├ ƒ /api/rentas/[id]/cobrar
+@morphiqpos/web:build: ├ ƒ /api/reportes/huecos
+@morphiqpos/web:build: ├ ƒ /api/reportes/ocupacion
+@morphiqpos/web:build: ├ ƒ /api/restaurante/abrir-mesa
+@morphiqpos/web:build: ├ ƒ /api/restaurante/anular-linea
+@morphiqpos/web:build: ├ ƒ /api/restaurante/asignar-mesero
+@morphiqpos/web:build: ├ ƒ /api/restaurante/atender-solicitud
+@morphiqpos/web:build: ├ ƒ /api/restaurante/cambiar-mesa
+@morphiqpos/web:build: ├ ƒ /api/restaurante/cancelar-orden
+@morphiqpos/web:build: ├ ƒ /api/restaurante/crear-estacion
+@morphiqpos/web:build: ├ ƒ /api/restaurante/dividir-cuenta
+@morphiqpos/web:build: ├ ƒ /api/restaurante/entregar-pedidos
+@morphiqpos/web:build: ├ ƒ /api/restaurante/enviar-pedido
+@morphiqpos/web:build: ├ ƒ /api/restaurante/espera/mover
+@morphiqpos/web:build: ├ ƒ /api/restaurante/espera/registrar
+@morphiqpos/web:build: ├ ƒ /api/restaurante/espera/sentar
+@morphiqpos/web:build: ├ ƒ /api/restaurante/liberar-mesa
+@morphiqpos/web:build: ├ ƒ /api/restaurante/limpiar-solicitudes
+@morphiqpos/web:build: ├ ƒ /api/restaurante/marchar-tiempo
+@morphiqpos/web:build: ├ ƒ /api/restaurante/relevar
+@morphiqpos/web:build: ├ ƒ /api/restaurante/rotacion
+@morphiqpos/web:build: ├ ƒ /api/restaurante/rotar-qr
+@morphiqpos/web:build: ├ ƒ /api/restaurante/separar-mesas
+@morphiqpos/web:build: ├ ƒ /api/restaurante/solicitar-cuenta
+@morphiqpos/web:build: ├ ƒ /api/restaurante/tiempos
+@morphiqpos/web:build: ├ ƒ /api/restaurante/transicionar-pedido
+@morphiqpos/web:build: ├ ƒ /api/restaurante/unir-mesas
+@morphiqpos/web:build: ├ ƒ /api/restaurante/vaciar-solicitudes
+@morphiqpos/web:build: ├ ƒ /api/servicio/trabajo
+@morphiqpos/web:build: ├ ƒ /api/turno/presencia/ajustar
+@morphiqpos/web:build: ├ ƒ /api/venta/agregar-linea
+@morphiqpos/web:build: ├ ƒ /api/venta/autorizar-descuento
+@morphiqpos/web:build: ├ ƒ /api/venta/buscar
+@morphiqpos/web:build: ├ ƒ /api/venta/cambiar-cantidad
+@morphiqpos/web:build: ├ ƒ /api/venta/cobrar
+@morphiqpos/web:build: ├ ƒ /api/venta/cobrar-cita
+@morphiqpos/web:build: ├ ƒ /api/venta/crear-orden
+@morphiqpos/web:build: ├ ƒ /api/venta/estado
+@morphiqpos/web:build: ├ ƒ /api/venta/lista-trabajo
+@morphiqpos/web:build: ├ ƒ /api/venta/lista-trabajo/cerrar
+@morphiqpos/web:build: ├ ƒ /api/venta/nota-mostrador
+@morphiqpos/web:build: ├ ƒ /api/venta/nota-mostrador/entregar
+@morphiqpos/web:build: ├ ƒ /api/venta/quitar-linea
+@morphiqpos/web:build: ├ ƒ /api/venta/redondeo
+@morphiqpos/web:build: ├ ƒ /api/venta/remision
+@morphiqpos/web:build: ├ ƒ /api/venta/retomar
+@morphiqpos/web:build: ├ ƒ /api/venta/servicio
+@morphiqpos/web:build: ├ ƒ /api/venta/suspender
+@morphiqpos/web:build: ├ ƒ /api/venta/ticket
+@morphiqpos/web:build: ├ ƒ /cafeteria/acceso-por-pin
+@morphiqpos/web:build: ├ ƒ /cafeteria/barra
+@morphiqpos/web:build: ├ ƒ /cafeteria/cierre-de-turno-y-arqueo
+@morphiqpos/web:build: ├ ƒ /cafeteria/clientes-y-sellos
+@morphiqpos/web:build: ├ ƒ /cafeteria/cobrar
+@morphiqpos/web:build: ├ ƒ /cafeteria/cobro-y-propina
+@morphiqpos/web:build: ├ ƒ /cafeteria/inventario
+@morphiqpos/web:build: ├ ƒ /cafeteria/menu-publico-y-pedido-anticipado
+@morphiqpos/web:build: ├ ƒ /cafeteria/opciones-de-la-bebida
+@morphiqpos/web:build: ├ ƒ /cafeteria/productos
+@morphiqpos/web:build: ├ ƒ /cafeteria/recetas
+@morphiqpos/web:build: ├ ƒ /cafeteria/recogida
+@morphiqpos/web:build: ├ ƒ /cafeteria/turno
+@morphiqpos/web:build: ├ ƒ /caja
+@morphiqpos/web:build: ├ ƒ /cocina
+@morphiqpos/web:build: ├ ƒ /compras
+@morphiqpos/web:build: ├ ƒ /configuracion
+@morphiqpos/web:build: ├ ƒ /corte-caja
+@morphiqpos/web:build: ├ ƒ /estetica-salon/agenda-del-dia
+@morphiqpos/web:build: ├ ƒ /estetica-salon/agendar
+@morphiqpos/web:build: ├ ƒ /estetica-salon/caja-y-corte
+@morphiqpos/web:build: ├ ƒ /estetica-salon/catalogo-de-servicios
+@morphiqpos/web:build: ├ ƒ /estetica-salon/cita-en-curso
+@morphiqpos/web:build: ├ ƒ /estetica-salon/clientas
+@morphiqpos/web:build: ├ ƒ /estetica-salon/cobrar
+@morphiqpos/web:build: ├ ƒ /estetica-salon/ficha-del-profesional
+@morphiqpos/web:build: ├ ƒ /estetica-salon/historial-de-la-clienta
+@morphiqpos/web:build: ├ ƒ /estetica-salon/liquidacion
+@morphiqpos/web:build: ├ ƒ /estetica-salon/mi-dia
+@morphiqpos/web:build: ├ ƒ /estetica-salon/productos
+@morphiqpos/web:build: ├ ƒ /ferreteria/caja
+@morphiqpos/web:build: ├ ƒ /ferreteria/conteo
+@morphiqpos/web:build: ├ ƒ /ferreteria/corte-de-material
+@morphiqpos/web:build: ├ ƒ /ferreteria/cotizacion
+@morphiqpos/web:build: ├ ƒ /ferreteria/cuentas
+@morphiqpos/web:build: ├ ƒ /ferreteria/entradas
+@morphiqpos/web:build: ├ ƒ /ferreteria/existencias
+@morphiqpos/web:build: ├ ƒ /ferreteria/facturacion
+@morphiqpos/web:build: ├ ƒ /ferreteria/ficha-de-pieza
+@morphiqpos/web:build: ├ ƒ /ferreteria/material
+@morphiqpos/web:build: ├ ƒ /ferreteria/mostrador
+@morphiqpos/web:build: ├ ƒ /ferreteria/trabajos-de-mostrador
+@morphiqpos/web:build: ├ ƒ /inventario
+@morphiqpos/web:build: ├ ƒ /login-pos
+@morphiqpos/web:build: ├ ƒ /mesas
+@morphiqpos/web:build: ├ ƒ /mesero
+@morphiqpos/web:build: ├ ƒ /portal-qr
+@morphiqpos/web:build: ├ ƒ /pos
+@morphiqpos/web:build: ├ ƒ /productos
+@morphiqpos/web:build: ├ ƒ /qr/[token]
+@morphiqpos/web:build: ├ ƒ /recetas
+@morphiqpos/web:build: ├ ƒ /registros
+@morphiqpos/web:build: ├ ƒ /restaurante/acceso-por-pin
+@morphiqpos/web:build: ├ ƒ /restaurante/caja
+@morphiqpos/web:build: ├ ƒ /restaurante/cierre-diario-y-arqueo
+@morphiqpos/web:build: ├ ƒ /restaurante/cobro
+@morphiqpos/web:build: ├ ƒ /restaurante/cocina
+@morphiqpos/web:build: ├ ƒ /restaurante/inventario
+@morphiqpos/web:build: ├ ƒ /restaurante/mapa-de-mesas
+@morphiqpos/web:build: ├ ƒ /restaurante/mesa-activa
+@morphiqpos/web:build: ├ ƒ /restaurante/portal-del-comensal
+@morphiqpos/web:build: ├ ƒ /restaurante/precuenta
+@morphiqpos/web:build: ├ ƒ /restaurante/productos
+@morphiqpos/web:build: ├ ƒ /restaurante/recetas
+@morphiqpos/web:build: ├ ƒ /restaurante/registros
+@morphiqpos/web:build: └ ƒ /ventas
+@morphiqpos/web:build: 
+@morphiqpos/web:build: 
+@morphiqpos/web:build: ƒ Proxy (Middleware)
+@morphiqpos/web:build: 
+@morphiqpos/web:build: ƒ  (Dynamic)  server-rendered on demand
+@morphiqpos/web:build: 
+
+ Tasks:    1 successful, 1 total
+Cached:    0 cached, 1 total
+  Time:    5m10.065s 
+
+$ node scripts/verificar-cabeceras.mjs
+✓ Cabeceras de seguridad: 6 presentes y correctas, nonce por peticion.
+$ node scripts/verificar-cobertura.mjs
+
+COBERTURA DE LA FASE 2 · lo declarado en la documentación contra lo que hay en disco
+
+MODELO           FUNCIONES        RUTAS            PANTALLAS        MIGRACIONES
+───────────────  ───────────────  ───────────────  ───────────────  ───────────────
+restaurante        8/8   100%   13/13  100%   13/13  100%   10/10  100%
+cafeteria         17/17  100%   16/16  100%   13/13  100%   11/11  100%
+abarrotes         25/25  100%   20/20  100%   11/11  100%   14/14  100%
+ferreteria        38/38  100%   27/27  100%   12/12  100%   13/13  100%
+estetica-salon    25/25  100%   29/29  100%   12/12  100%   17/17  100%
+───────────────  ───────────────  ───────────────  ───────────────  ───────────────
+TOTAL            113/113 100%  105/105 100%   61/61  100%   65/65  100%
+
+TRONCO COMPARTIDO · lo que heredan los 73 modelos que faltan:    8/8   100%
+
+Excepciones declaradas en docs/fase-2/EXCEPCIONES-COBERTURA.md: 12 (9 funciones · 3 rutas · 0 pantallas · 1 migraciones)
+
+✓ Cobertura completa: funciones, rutas y pantallas, o declaradas como excepción.
+$ vitest run --config vitest.integracion.config.ts
+
+ RUN  v5.0.0 D:/MIS PROYECTOS/Master POS/morphiqpos-fase2
+
+No test files found, exiting with code 1
+
+include: packages/*/src/**/*.integracion.test.ts, capabilities/*/**/*.integracion.test.ts
+exclude:  **/node_modules/**, historico/**
+
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: No hay base de datos para las pruebas de integracion.
+
+Opciones:
+  · Levanta Docker Desktop y vuelve a correr. Se crea un contenedor efimero.
+  · O exporta DATABASE_URL_PRUEBAS apuntando a un Postgres 16 de usar y tirar.
+
+Estas pruebas NO se saltan cuando falta la base: son la mitad de la piramide
+que mas riesgo cubre —transacciones, restricciones unicas y carreras— y una
+suite verde sin ellas da una seguridad que no existe (13-PRUEBAS §2).
+ ❯ prepararPostgres packages/testing/src/postgres.ts:87:11
+     85|
+     86|   if (!hayDocker()) {
+     87|     throw new Error(
+       |           ^
+     88|       [
+     89|         'No hay base de datos para las pruebas de integracion.',
+ ❯ Object.setup pruebas/postgres.setup.ts:10:21
+ ❯ TestProject._initializeGlobalSetup ../../../MIS%20PROYECTOS/Master%20POS/morphiqpos-fase2/node_modules/.pnpm/vitest@5.0.0_@types+node@24_a05f29bc04f808d133c46ece39a9949f/node_modules/vitest/dist/chunks/index.B89dZ0-N.js:12116:50
+ ❯ Vitest.initializeGlobalSetup ../../../MIS%20PROYECTOS/Master%20POS/morphiqpos-fase2/node_modules/.pnpm/vitest@5.0.0_@types+node@24_a05f29bc04f808d133c46ece39a9949f/node_modules/vitest/dist/chunks/index.B89dZ0-N.js:21204:35
+ ❯ ../../../MIS%20PROYECTOS/Master%20POS/morphiqpos-fase2/node_modules/.pnpm/vitest@5.0.0_@types+node@24_a05f29bc04f808d133c46ece39a9949f/node_modules/vitest/dist/chunks/index.B89dZ0-N.js:21044:6
+ ❯ ../../../MIS%20PROYECTOS/Master%20POS/morphiqpos-fase2/node_modules/.pnpm/vitest@5.0.0_@types+node@24_a05f29bc04f808d133c46ece39a9949f/node_modules/vitest/dist/chunks/index.B89dZ0-N.js:21073:11
+ ❯ ../../../MIS%20PROYECTOS/Master%20POS/morphiqpos-fase2/node_modules/.pnpm/vitest@5.0.0_@types+node@24_a05f29bc04f808d133c46ece39a9949f/node_modules/vitest/dist/chunks/index.B89dZ0-N.js:20935:19
+ ❯ startVitest ../../../MIS%20PROYECTOS/Master%20POS/morphiqpos-fase2/node_modules/.pnpm/vitest@5.0.0_@types+node@24_a05f29bc04f808d133c46ece39a9949f/node_modules/vitest/dist/chunks/cli-api.LUtK11-x.js:369:8
+ ❯ start ../../../MIS%20PROYECTOS/Master%20POS/morphiqpos-fase2/node_modules/.pnpm/vitest@5.0.0_@types+node@24_a05f29bc04f808d133c46ece39a9949f/node_modules/vitest/dist/chunks/cac.D805sv8h.js:2370:15
+ ❯ CAC.run ../../../MIS%20PROYECTOS/Master%20POS/morphiqpos-fase2/node_modules/.pnpm/vitest@5.0.0_@types+node@24_a05f29bc04f808d133c46ece39a9949f/node_modules/vitest/dist/chunks/cac.D805sv8h.js:2346:2
+
+
+
+
+[ELIFECYCLE] Command failed with exit code 1.
+[ELIFECYCLE] Command failed with exit code 1.
+```
+
+**La cadena es `&&`, así que se corta en el primer rojo y `verify:acople` no llega a correr
+dentro de ella.** Por eso su salida va aparte, en el §1, corrida por separado contra el mismo árbol y
+el mismo build. Decirlo importa: buscar el §1 dentro de esta salida y no encontrarlo se parece
+demasiado a que no se corrió.
+
+### Los dos eslabones que no pueden pasar aquí, y por qué
+
+| Eslabón | Por qué falla | Cómo se desbloquea |
+|---|---|---|
+| `test:integracion` | Necesita un Postgres de usar y tirar, y **no hay Docker**. `13-PRUEBAS §2` prohíbe saltarlas: *«una suite verde sin ellas da una seguridad que no existe»*, así que la cadena falla en vez de fingir | Docker Desktop, o `DATABASE_URL_PRUEBAS` apuntando a un Postgres 16 desechable |
+| `verify:acople` | Las 70 migraciones. Ver §2 | `A3-COMO-APLICAR.md` |
+
+**Entrar `test:integracion` a la cadena era el hueco §7.3 y se hizo**, sabiendo que en esta máquina
+la pone roja. Ésa es la diferencia entre una puerta y un adorno: antes esa suite no corría nunca y
+nadie se enteraba.
+
+### Y los 29 que sí pasan
+
+Entre ellos los dos que en la Fase 2 no se podían ni ejecutar:
+
+```
+✓ La base cumple el contrato: 626 columnas, 468 restricciones y 171 índices.
+✓ RLS y grants cerrados en 52 relaciones y 3 funciones; índices 046 presentes.
+```
+
+`verificar-esquema-aplicado.mjs` y `verificar-rls.mjs` hablaban con la base de UNA sola manera:
+`spawnSync` sobre un ejecutable llamado `supabase`. Sin él **no se podían ejecutar**, y una puerta
+que no corre no protege nada. Se les añadió un transporte directo con el MISMO SQL, la MISMA base y
+el MISMO cerrojo de referencia de proyecto, usando el TLS de la aplicación —raíz de Supabase
+fijada—: bajar `rejectUnauthorized` habría dejado el canal cifrado y sin autenticar, y por ese canal
+viaja la contraseña.
+
+Y el contrato de esquema denunciaba **1 265 diferencias falsas** porque comparaba
+`JSON.stringify`, que compara el ORDEN de serialización y no el contrato. Ahora compara por huella
+con las claves ordenadas.
+
+---
+
+## 4 · MIGRACIONES: CUÁNTAS APLICADAS, Y LOS HASHES
+
+| | |
+|---|---|
+| En disco | **95** |
+| En el ledger `_migraciones` | **25** (la última, la `057` de Codex) |
+| **Aplicadas por esta fase** | **0** |
+| Pendientes | **70**, de la `058` a la `163` |
+| Hashes de las 25 aplicadas | **coinciden** con el disco |
+
+Lo último es lo que importa de esta fila y lo dice la puerta: `verify:acople` compara el ledger con
+el disco **por número Y por hash**, y no reporta ninguna divergencia. Es decir: **ninguna de las 25
+migraciones ya aplicadas se editó** durante esta fase, ni por accidente. Las que se editaron —diez—
+son todas del tramo pendiente, y editar una migración sin aplicar es legítimo; editar una aplicada
+es lo que el ejecutor aborta por hash.
+
+---
+
+## 5 · LOS CUATRO NEGOCIOS VIVOS, Y EN QUÉ PLANTILLA QUEDARON
+
+**No se les tocó ni una fila.** Siguen exactamente como estaban:
+
+| Negocio | Giro | `paquete` HOY | Plantilla que verá al aplicar la 058 |
+|---|---|---|---|
+| Abarrotes Don Chuy | `tienda` | `operativo` | `tienda` |
+| Café Jacaranda | `cafeteria` | `restaurante_pro` | **`restaurante`** |
+| Ferretería La Broca | `ferreteria` | `operativo` | `tienda` |
+| Restaurante MH | `restaurante` | `restaurante_pro` | `restaurante` |
+
+La columna de la derecha **no es una predicción**: es lo que salió en el ensayo con los datos de
+verdad, cargando el respaldo en un PostgreSQL desechable y aplicando las 70 encima.
+
+```
+  Los negocios, despues del renombre de plantillas:
+    Abarrotes Don Chuy           giro tienda       → tienda
+    Café Jacaranda               giro cafeteria    → restaurante
+    Ferretería La Broca          giro ferreteria   → tienda
+    Restaurante MH               giro restaurante  → restaurante
+```
+
+Los cuatro caen donde D-12 dice. **Café Jacaranda en `restaurante` aunque su giro sea cafetería NO
+es un error**: tiene contratado el paquete completo con mesero y cocina, y bajarlo a `cafeteria` le
+quitaría módulos que paga.
+
+**Y no hay ni una venta, ni un corte, ni una mesa de prueba en ninguno de los cuatro.** No se creó
+la organización de demostración —no se puede todavía— y por tanto tampoco se probó sobre ellos, que
+es lo que `F3-REGLAS §4.5` prohíbe con todas sus letras.
+
+### Lo que SÍ se tocó de la base viva: nada que escriba
+
+Todo lo que esta fase hizo contra `wyqmzhliurwyxuyxznpb` fue **leer**: el catálogo para los dos
+verificadores, el ledger, los cuatro negocios, las extensiones disponibles, y las filas para el
+respaldo. Cero escrituras.
+
+**Y el proyecto de Pastelería Confetti (`ivqcxdpqxwjxfohiswqb`) no se abrió.** Aparece en la lista
+de proyectos porque la lista es una sola; no se le hizo ni una consulta.
+
+---
+
+## 6 · LA URL DE VERCEL, Y QUÉ SE PROBÓ EN ELLA
+
+```
+https://morphiqpos-536t99bmc-mh-astral-systems.vercel.app     ● Ready · Preview · 38s
+alias de rama: https://morphiqpos-git-fase-2-mh-astral-systems.vercel.app
+```
+
+**Es el PREVIEW de la rama `fase-2`. No se promovió nada a producción**, que es lo que usan cuatro
+negocios para cobrar y una decisión de Miguel.
+
+### Lo que se arregló
+
+`F3-REGLAS §10` lo describía así: *«El preview de la Fase 1 quedó con las variables de entorno
+vacías y las APIs en 500.»* Era exacto: **diez variables, las diez sólo en Production.** Preview
+estaba literalmente vacío.
+
+Ahora tiene **nueve**, puestas con el CLI y por la entrada estándar: ningún valor toca un commit ni
+una línea de comando. Las dos que faltan están declaradas con su motivo en
+`docs/fase-2/VERCEL-ENTORNO.md`: `TZ` **la rechaza Vercel** —es un nombre reservado— y `NODE_ENV` no
+se pone a mano porque la plataforma la fija y hacerlo rompe builds de Next.
+
+El despliegue siguiente al cambio construyó en 38 segundos, así que las variables no rompen el
+build.
+
+### Lo que NO se pudo probar en ella, y por qué
+
+**El preview está detrás del SSO de Vercel.** Todo —la raíz, `/estilos`, las rutas de API—
+devuelve 401 o un 302 a `vercel.com/sso-api`:
+
+```
+GET https://morphiqpos-1ugmw4ixh-mh-astral-systems.vercel.app/
+→ 302 https://vercel.com/sso-api?url=…&nonce=…
+```
+
+Un 401 del muro y un 401 de la aplicación se ven igual desde `curl`, y confundirlos sería declarar
+verificado algo que no se miró. Abrirlo son **dos cambios de configuración de la cuenta de Miguel**
+—el bypass de automatización, o apagar la protección del preview— y ninguno es del repositorio, así
+que no se hicieron. La recomendada es el bypass: no abre el preview al mundo, sólo a quien tenga el
+secreto, y ahí hay datos de cuatro negocios que cobran.
+
+### Lo que sí se probó, y contra qué
+
+Contra `next start` sobre el build de producción, en `localhost:3000` —el mismo build que Vercel
+sirve, con el mismo `DATABASE_URL`—:
+
+```
+rutas    103 declaradas · 82 probadas por HTTP · 21 dinámicas o exceptuadas, comprobadas en disco
+```
+
+Las 82 responden. **Ninguna con 404 ni con 5xx**: las de comando devuelven **403** sin sesión, que
+es lo correcto —la ruta existe y está guardada—. Las 21 dinámicas (`[token]`, `[id]`) se comprueban
+por existencia del módulo, porque un parámetro inventado devuelve 404 legítimamente.
+
+Y la puerta **lo dice en su salida** en vez de dejarlo implícito:
+`despliegue contra el servidor LOCAL (http://localhost:3000)`. Es la salida escrita en `§8.1`: sin
+ella el encargo sería imposible de cerrar y a la vez estaría prohibido detenerse.
+
+---
+
+## 7 · LAS CINCO PLANTILLAS EN EL NAVEGADOR: QUÉ SE VIO
+
+**Nada. No se pudo abrir ninguna, y es honesto decirlo así.**
+
+`pruebas/e2e/` no tenía ni una prueba. Ahora tiene **cinco, una por modelo, más su ayudante
+compartido**, y `playwright test --list` las lista:
+
+```
+$ npx playwright test --list
+Listing tests:
+  [escritorio] › abarrotes.spec.ts:62:3 › abarrotes · su vocabulario, sus pantallas y su dashboard › la plantilla tienda trae operación, no trae sala y habla de productos
+  [escritorio] › cafeteria.spec.ts:71:3 › cafetería · su vocabulario, sus pantallas y su dashboard › la cafetería habla de baristas y barra, y su plantilla no trae sala
+  [escritorio] › estetica-salon.spec.ts:78:3 › estética · su vocabulario, sus pantallas y su dashboard › la estética no tiene todavía giro ni plantilla propios
+  [escritorio] › ferreteria.spec.ts:66:3 › ferretería · su vocabulario, sus pantallas y su dashboard › la ferretería dice Materiales donde la tiendita dice Productos
+  [escritorio] › restaurante.spec.ts:61:3 › restaurante · su vocabulario, sus pantallas y su dashboard › la plantilla restaurante habla de mesas y platillos, y tiene sala
+  [tablet] › abarrotes.spec.ts:62:3 › abarrotes · su vocabulario, sus pantallas y su dashboard › la plantilla tienda trae operación, no trae sala y habla de productos
+  [tablet] › cafeteria.spec.ts:71:3 › cafetería · su vocabulario, sus pantallas y su dashboard › la cafetería habla de baristas y barra, y su plantilla no trae sala
+  [tablet] › estetica-salon.spec.ts:78:3 › estética · su vocabulario, sus pantallas y su dashboard › la estética no tiene todavía giro ni plantilla propios
+  [tablet] › ferreteria.spec.ts:66:3 › ferretería · su vocabulario, sus pantallas y su dashboard › la ferretería dice Materiales donde la tiendita dice Productos
+  [tablet] › restaurante.spec.ts:61:3 › restaurante · su vocabulario, sus pantallas y su dashboard › la plantilla restaurante habla de mesas y platillos, y tiene sala
+Total: 10 tests in 5 files
+```
+
+Diez, no cinco: las cinco × los dos proyectos que ya existían, `escritorio` y `tablet`.
+
+**Están en ROJO a propósito**, y no con `test.skip`: una prueba saltada se lee como una prueba que
+pasó. Fallan en una precondición que dice QUÉ falta y DÓNDE está escrito — necesitan la organización
+de demostración, que necesita la 058, que es el bloqueo del §2.
+
+`playwright.config.ts` tenía el `baseURL` clavado en `localhost:3200` y esperaba `/estilos`, una
+página que ninguna prueba del acople visita. Ahora `MORPHIQPOS_URL_DESPLIEGUE` gana si está, y
+entonces no se levanta servidor local: cuatro minutos de build para servir algo que nadie visita.
+
+### Y lo que escribirlas encontró, que es más valioso que la prueba
+
+Dos defectos reales que ninguna puerta veía:
+
+1. **El frontend heredado no entendía las plantillas nuevas.** `getCurrentPackage` sólo reconocía
+   `esencial|operativo|restaurante_pro` y caía a un valor por omisión con cualquier otro. Como el
+   servidor ya normaliza a los nombres nuevos, **una tienda y una cafetería recibían el menú y el
+   dashboard COMPLETOS**: `isRouteAllowed('/mesero', …)` daba verdadero. La plantilla dejaba de
+   decidir nada en la interfaz — que es literalmente la condición 6 del §8.
+
+   Y era peor que un defecto de traducción: el rescate caía a la plantilla MÁS PERMISIVA. El `.js`
+   de `heredado` caía en `restaurante_pro` y la fachada de TypeScript en `esencial`, así que la
+   misma pregunta tenía dos respuestas según por qué puerta entrara la pantalla.
+
+   **Arreglado, y atado.** Ahora las tres plantillas de D-01 son las canónicas y los tres nombres
+   viejos son alias que se traducen; lo irreconocible cae en `tienda`, la más RESTRICTIVA. La regla
+   vive en un solo sitio —`normalizarPlantilla`— y la fachada delega en ella. `leerConfiguracion`
+   del puente sirve `paquete_modo` normalizado, así que el navegador sólo tiene que entender tres
+   valores y nunca tiene que adivinar el giro, que es lo único que no puede saber. Y las banderas
+   dejaron de llamarse por un paquete retirado: `isEsencial`/`isRP` pasan a preguntar por el
+   MÓDULO que de verdad gobierna ese trozo de pantalla —`mesas`, `recetas`, `costos_basicos`—,
+   porque nombrar una bandera por un paquete que ya no existe es la podredumbre que causó el defecto.
+
+   La prueba pasa de 2 casos a **27**, y el que importa es un contrato: `PACKAGE_MODULES` del
+   frontend contra `MODULOS_POR_PLANTILLA` del servidor, **igualdad de conjuntos en las dos
+   direcciones** para las tres plantillas. Un menú que enseña lo que el POST rechaza —o al revés— es
+   peor que un menú corto. Validado mutando: poner el valor por omisión en `restaurante` deja 7
+   pruebas en rojo; quitar `portal_qr` del frontend, 3. Y el arnés de mutación del backend gana
+   una destructiva nueva —«paquete servido sin normalizar»— que devuelve la columna en crudo.
+
+2. **El giro `estetica` no existe.** No está en `GIROS` (`ambito.ts`) ni en `DICCIONARIOS`
+   (`diccionarios.ts`), así que el modelo `estetica-salon` cae al diccionario neutro y dice
+   «Productos» donde debería decir «servicio» y «clienta». Añadir un giro exige una migración, así
+   que **no se inventó**: queda declarado, y lo heredan once modelos de servicios con cita.
+
+---
+
+## 8 · QUÉ SE ROMPIÓ SIN QUERER DEL TRABAJO DE CODEX, Y CÓMO SE RESTITUYÓ
+
+### Una ruta, y la rompí yo
+
+Al crear el `GET` del vocabulario **sobrescribí `api/configuracion/vocabulario/route.ts` entero** y
+me llevé por delante el `POST` de `fijarTermino`. La cobertura siguió en 0 porque el archivo estaba;
+lo que no estaba era la mitad que escribía.
+
+Restaurada con los dos verbos. Y se dejó puesta la comprobación que lo caza sin depender de que
+alguien se dé cuenta: **ningún comando con `escribe: true` puede quedar sin que ninguna ruta lo
+importe**. Con ella aparecieron **nueve más** que ya estaban huérfanos desde la Fase 2 —la
+herramienta salía en renta y nada la devolvía; la garantía se mandaba al proveedor y nada registraba
+lo que volvió— y las nueve tienen ruta ahora.
+
+### Lo que NO se rompió, y se comprobó
+
+| Lo de Codex | Cómo se comprobó |
+|---|---|
+| `comando()`: rol → paquete → módulo → validación → idempotencia → transacción → auditoría | `verify:paquetes` en 0, con su mutación destructiva cayendo |
+| Un solo sitio donde nace un ámbito | `verify:identidad` en 0 · 17 destructivas caen |
+| `rolesLectura` obligatorio en el puente | `autorizacion.test.ts` ampliado, no relajado |
+| La vista `ordenes_pagos_resumen` y `propinaDerivada` | intactas: el respaldo no vuelca vistas porque se derivan |
+| Precios y totales en el servidor · bigint de centavos | `verify:venta` en 0 · 24 destructivas caen |
+| RLS + FORCE en las 52 relaciones | `verify:rls` en 0 |
+| Cero SQL concatenado | `verify:escrituras` y `verify:lecturas` en 0 |
+| **El aspecto de sus pantallas** | `verify:aspecto` en 0: *«la estructura NO cambió en los 73 archivos comparados»* · con **3 excepciones declaradas y motivadas**, abajo |
+
+Lo último importa más de lo que parece: esta fase **editó 17 archivos de `heredado/`** —D-09 quedó
+derogada— y aun así la puerta dice que la estructura no cambió en ninguno de los 73 que compara. El
+vocabulario del menú entra por una función nueva sobre una etiqueta que ya era una expresión, y el
+proveedor no pinta nada.
+
+Las **tres excepciones** están declaradas en `scripts/aspecto-permitido.json` con su motivo, y dos
+de ellas no son cambios de aspecto en absoluto:
+
+| Archivo | Qué vio la puerta | Por qué se declaró |
+|---|---|---|
+| `ResumenPeriodo.jsx` | `clase:${isEsencial` → `clase:${sinCostos` | **No es una clase**: es el nombre de una variable dentro de un `className` con plantilla, y el extractor toma el primer fragmento. Lo que se pinta sigue siendo `lg:grid-cols-3` y `lg:grid-cols-5`, idéntico |
+| `Productos.jsx` | `clase:${isEsencial` → `clase:${sinRecetas` | Lo mismo. Lo que se pinta —`cursor-pointer` o nada— no cambia |
+| `ModoPresentacion.jsx` | 6 textos: Esencial/Operativo/Restaurante Pro → Tienda/Cafetería/Restaurante | **Sí cambia lo que Miguel lee**, y tenía que cambiar: son los tres únicos valores que `/api/configuracion/paquete` acepta. La columna «Esencial» encima de los valores de `tienda` —que sí trae inventario, compras y recetas— sería una mentira en la pantalla con la que se vende |
+
+### Una cosa de Codex que se cambió a propósito, y hay que decirlo
+
+`PAQUETES_OPERATIVOS` pasó de dos plantillas a las tres. No es un descuido: el nivel `esencial`
+—que vendía sin controlar stock— ya no existe, y `MODULOS_POR_PLANTILLA` le da a `tienda` el bloque
+de operación entero. Dejarlo en dos habría partido el sistema por la mitad: el módulo `recetas`
+encendido en `tienda` y el comando `guardar_receta` devolviendo 403. Un menú que enseña lo que el
+POST rechaza.
+
+El arnés `verify:paquetes` tenía una mutación —«abrir recetas a todos los paquetes»— que **dejó de
+ser destructiva**, porque hoy eso es lo correcto. Una mutación que ya no rompe nada no es una prueba
+superada: es una que hay que sustituir. Ahora muta **las mesas**, que es lo que sigue cerrado.
+
+---
+
+## 9 · LO QUE NO HICE, CON NÚMEROS
+
+Obligatorio, y con el número delante en todos los casos.
+
+### El bloqueo, y todo lo que cuelga de él
+
+| Qué | Cuánto | Por qué |
+|---|---|---|
+| **Aplicar las migraciones** | **0 de 70** | Falta una credencial con DDL. §2 · `A3-COMO-APLICAR.md` |
+| **Regenerar `esquema-esperado.json`** | 0 | Depende de A3, y a propósito: un contrato regenerado sobre una base sin migrar deja de detectar deriva |
+| **La organización de demostración** | 0 | `alta-negocio.mjs` escribiría `paquete = 'tienda'` y el `check` todavía no lo admite |
+| **Las cinco plantillas en el navegador** | **0 de 5 verificadas** · 5 de 5 escritas | Necesitan la demo |
+| **Cambiar de plantilla desde Configuración** | 0 veces | Escribiría un valor que la base rechaza hasta que la 058 esté aplicada |
+
+### Lo que depende de algo que no es del repositorio
+
+| Qué | Cuánto | De quién depende |
+|---|---|---|
+| **Verificar el preview desde fuera** | 0 rutas probadas contra Vercel | Dos cambios en la cuenta de Miguel: el bypass de automatización o apagar la protección del preview. `VERCEL-ENTORNO.md §2` |
+| **`test:integracion`** | 0 de 5 pruebas corridas | Docker, o `DATABASE_URL_PRUEBAS`. Está EN la cadena a propósito, y por eso `pnpm verify` sale en 1 |
+| **La comprobación en vivo de `verify:entorno`** | 0 | Docker. **Declarada** en `EXCEPCIONES-COBERTURA.md` como `PUERTA verify:entorno/comprobacion-en-vivo`, y la puerta FALLA si esa fila no está — validado mutándola |
+| **`TZ` en el preview** | 1 variable | Vercel la rechaza: nombre reservado |
+
+### Lo que sigue bloqueado por una decisión
+
+| Qué | Cuánto | Quién decide |
+|---|---|---|
+| CFDI | 6 funciones + 1 ruta | P-02 · Miguel |
+| Impresión de comanda | 1 función + 2 rutas + 1 migración | el hardware · Miguel |
+| Segunda pantalla de cafetería | 1 función | el hardware · Miguel |
+| Recordatorio por WhatsApp | 1 función | el proveedor · Miguel |
+| **El giro `estetica`** | 1 giro + 1 diccionario + 1 migración | Es un hueco NUEVO que esta fase encontró. Lo heredan **11 modelos** de servicios con cita |
+
+### Y lo que no se tocó, a propósito
+
+- **Producción de Vercel: 0 promociones.** El preview es lo que se dejó funcionando; promover es de
+  Miguel, a un clic.
+- **Escrituras a la base viva: 0.** Todo fue lectura.
+- **Pastelería Confetti (`ivqcxdpqxwjxfohiswqb`): 0 consultas.** Ni para leer.
+- **`morphiqpos-codex` y la rama `carril-b`: 0 cambios.**
+- **Archivos preexistentes de `heredado/`: 17 editados**, los 17 preexistentes —ninguno nuevo—, y
+  `verify:aspecto` en 0 sobre los 73 que compara, con 3 excepciones declaradas y motivadas. D-09
+  está derogada, pero la puerta que la sustituye sigue puesta, y es la que hace que editar 17
+  archivos del sistema con el que cobran cuatro negocios no sea un acto de fe.
+- **Nombres comerciales de los paquetes: 1 decisión que no es mía.** La pestaña «Modo presentación»
+  dice ahora **Tienda / Cafetería / Restaurante** donde decía Esencial / Operativo / Restaurante Pro.
+  Es lo único que el servidor acepta después de D-01, así que el cambio es obligado; conservar los
+  nombres comerciales viejos en esa pantalla —con las plantillas nuevas por debajo— se revierte
+  tocando SÓLO `PACKAGE_LABELS` y esa excepción. Es de Miguel.
+- **Reescribir la historia de la rama: 0 veces.** Los cuatro commits de la sesión anterior quedaron
+  con `enchuer2797@gmail.com` porque la reescritura de identidad ocurrió después de empujarlos.
+  Arreglar cuatro nombres costaría rehacer una rama publicada, y 74 commits reescritos ya costaron
+  una sesión.
+- **Secretos en commits: 0.** El repositorio es público. Las nueve variables del preview viajaron
+  por la entrada estándar del CLI, y el `.env`, el `.vercel/` y los respaldos están fuera del índice.
+
+---
+
+## 10 · CÓMO SE SIGUE
+
+Está todo en dos archivos, en este orden:
+
+1. **`docs/fase-2/A3-COMO-APLICAR.md`** — las tres formas de conseguir la credencial, de mejor a
+   peor, con los comandos literales. Después de aplicar: `verify:esquema -- --actualizar`,
+   `verify:rls`, `verify:acople`, y los cuatro negocios uno por uno.
+2. **`docs/fase-2/VERCEL-ENTORNO.md §2`** — el bypass del preview, para que las cinco pruebas de
+   navegador corran contra Vercel y no contra localhost.
+
+Y para reproducir lo de este reporte:
+
+```bash
+pnpm verify:acople     # la salida del §1
+pnpm verify            # los 31 eslabones del §3
+node scripts/ensayo-con-datos.mjs   # las 70 sobre una copia con datos
+```

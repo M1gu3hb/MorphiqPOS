@@ -306,6 +306,7 @@ no podía declararse retazo.
 | **F-017 · el vocabulario, enganchado** | `apps/web/app/api/configuracion/vocabulario/route.ts` (el `GET` que faltaba) · `apps/web/src/servidor/vocabulario.ts` · `apps/web/src/cliente/vocabulario.tsx` · inyectado en `apps/web/app/(modelos)/layout.tsx` **y** en `apps/web/app/(interno)/layout.tsx` |
 | **El menú, traducido** | `apps/web/heredado/lib/permissions.js` (`entidad` por entrada + `etiquetaDeNavegacion`) · `apps/web/heredado/components/common/Sidebar.jsx` |
 | **La plantilla, en el código** | `packages/contracts/src/comandos/ambito.ts` (`PAQUETES` = `tienda·cafeteria·restaurante`) · `packages/contracts/src/comandos/plantillas.ts` (`plantillaDeOrganizacion`) · los cinco sitios que leen `organizaciones.paquete` normalizan con ella |
+| **La plantilla, en la PANTALLA** | `apps/web/heredado/lib/packageConfig.js` (`normalizarPlantilla`: las tres de D-01 son canónicas, los tres nombres viejos son alias, y lo irreconocible cae en `tienda`) · `apps/web/src/cliente/package-config.ts` delega en ella · `packages/app/src/puente/configuracion.ts` sirve `paquete_modo` ya normalizado · el contrato que impide que las dos listas de módulos divergan está en `apps/web/src/cliente/package-config.test.ts` |
 
 **Lo que NO está hecho, y bloquea lo demás:** las migraciones de este modelo están escritas,
 ensayadas contra una copia de producción CON DATOS, y **sin aplicar**. Falta una credencial con

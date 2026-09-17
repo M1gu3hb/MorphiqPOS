@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio } from '@morphiqpos/contracts';
+import { ErrorDominio, plantillaDeOrganizacion } from '@morphiqpos/contracts';
 import { obtenerDb, type Transaccion } from '@morphiqpos/data';
 
 /**
@@ -208,6 +208,7 @@ export async function leerConfiguracion(
     .select([
       'o.nombre as nombreNegocio',
       'o.paquete as paquete',
+      'o.giro as giro',
       'c.id as configId',
       'c.valores',
       'c.updated_at',
@@ -225,7 +226,15 @@ export async function leerConfiguracion(
     ...guardados,
     // La misma columna que consulta `comando()` es también la que se presenta
     // como paquete. Un valor histórico del JSON nunca la puede contradecir.
-    paquete_modo: fila.paquete,
+    //
+    // Y sale NORMALIZADA, igual que en `configuracion/configuracion.ts`. En
+    // crudo, esta lectura es la mitad de un defecto: el frontend heredado
+    // decide el menú y el dashboard con este campo, y mientras la columna
+    // guarde un nombre de D-01 —`tienda`, `cafeteria`, `restaurante`— un valor
+    // sin traducir le llega a `getCurrentPackage` como algo que no reconoce.
+    // Así, los dos lados entienden los mismos TRES nombres y ninguno tiene que
+    // adivinar el giro, que es lo único que el navegador no puede saber.
+    paquete_modo: plantillaDeOrganizacion(fila.giro, fila.paquete),
     // El nombre vive en `organizaciones`, no en el documento: es el mismo que
     // usa la facturación y no puede divergir.
     nombre_negocio: fila.nombreNegocio,

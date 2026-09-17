@@ -1692,3 +1692,136 @@ Las 82 responden, ninguna con 404 ni 5xx. Las de comando dan **403** sin sesión
 A3 bloqueada por la credencial. A6 escrita y sin poder correr: necesita la organización de
 demostración, que necesita la 058. Lo siguiente para quien retome: `A3-COMO-APLICAR.md` §2, elegir
 una de las tres opciones, y después §3 y §4.
+
+---
+
+## 2026-09-16 · FASE 3 · A6 · las cinco pruebas, y el defecto que encontraron
+
+### Las cinco pruebas de navegador, escritas y en rojo a propósito
+
+`pruebas/e2e/` no tenía ni una prueba. Ahora tiene cinco —una por modelo— más su ayudante de sesión,
+y `playwright test --list` las lista como 10 (las cinco × los dos proyectos que ya existían,
+`escritorio` y `tablet`).
+
+**Fallan, y no con `test.skip`.** Una prueba saltada se lee como una prueba que pasó. Fallan en una
+precondición que dice QUÉ falta y DÓNDE está escrito: necesitan la organización de demostración, que
+necesita la 058, que es el bloqueo de A3. Y se corren contra una demo, nunca contra los cuatro
+negocios vivos (§4.5).
+
+`playwright.config.ts` tenía el `baseURL` clavado en `localhost:3200` y esperaba `/estilos`, una
+página que ninguna de las cinco visita. Ahora `MORPHIQPOS_URL_DESPLIEGUE` gana si está, y entonces no
+se levanta servidor local: cuatro minutos de build para servir algo que nadie abre.
+
+### Escribirlas valió más que correrlas: el frontend heredado no entendía las plantillas
+
+Y no era un defecto de traducción: era el rescate apuntando al lado equivocado.
+
+`getCurrentPackage` sólo reconocía `esencial|operativo|restaurante_pro`. Con cualquier otro valor
+caía a un valor por omisión, y el valor por omisión era **la plantilla MÁS PERMISIVA**:
+`restaurante_pro` en `heredado/lib/packageConfig.js` y `esencial` en la fachada
+`src/cliente/package-config.ts`. Dos respuestas distintas a la misma pregunta, según por qué puerta
+entrara la pantalla —y entra por la fachada, porque el alias
+`"@/lib/packageConfig": ["./src/cliente/package-config.ts"]` de `apps/web/tsconfig.json` la
+intercepta.
+
+El servidor ya normalizaba a los nombres nuevos de D-01. Así que **hoy, sin aplicar una sola
+migración, una tienda y una cafetería reciben el menú y el dashboard COMPLETOS**:
+`isRouteAllowed('/mesero', 'tienda')` daba verdadero, y el dashboard ofrecía «Nueva venta» donde
+tiene que ofrecer «Ir a Caja». La plantilla dejaba de decidir nada en la interfaz, que es
+literalmente la condición 6 del §8 de las reglas.
+
+**La mitad del defecto estaba en el servidor.** `leerConfiguracion` de `puente/configuracion.ts`
+servía `paquete_modo: fila.paquete` en crudo —la otra lectura,
+`configuracion/configuracion.ts`, sí normalizaba—. Ahora sale con
+`plantillaDeOrganizacion(fila.giro, fila.paquete)`, y ésa es la pieza que importa: el navegador nunca
+recibe el giro, y el giro es lo único que no puede deducir.
+
+### Cómo quedó, y por qué así
+
+- Las **tres plantillas de D-01 son las canónicas** en `packageConfig.js`; los tres nombres viejos
+  son alias. `normalizarPlantilla` es un `switch`, no un mapa indexado, para que `__proto__` no
+  devuelva una función.
+- **Lo irreconocible cae en `tienda`**, la más restrictiva. Antes caía en la más permisiva, que es la
+  peor dirección posible: un permiso de más sobre el sistema con el que cobran cuatro negocios.
+- `operativo` → **`tienda`**, no `cafeteria`. En el servidor `plantillaDe` parte `operativo` POR GIRO
+  (D-12) justamente para no arrastrar a Abarrotes Don Chuy y a La Broca a la plantilla de un negocio
+  de café. Sin el giro, el navegador toma la misma rama que toma el servidor cuando no lo reconoce.
+  No se gana ni se pierde un módulo —`tienda` y `cafeteria` traen exactamente los mismos— y lo único
+  que se evita es que una ferretería lea «Cafetería» en su pantalla.
+- `restaurante_pro` → **`restaurante`**, que es la única divergencia deliberada respecto de
+  `plantillaDeOrganizacion` con giro desconocido. La justificación es el `check`
+  `organizaciones_paquete_compatible_con_giro` de la 054: `restaurante_pro` no puede existir fuera de
+  un giro de alimentos, así que si ese valor llega al navegador el giro ES de alimentos.
+  Degradarlo a `tienda` le quitaría a Café Jacaranda la sala que paga.
+- **Las banderas dejaron de llamarse por un paquete retirado.** `isEsencial`/`isRP` pasan a preguntar
+  por el MÓDULO que gobierna ese trozo de pantalla —`mesas`, `mesero`, `cocina`, `costos_basicos`,
+  `recetas`, `compras`, `inventario`—. Nombrar una bandera por un paquete que ya no existe es la
+  misma podredumbre que causó el defecto.
+- Se borra `ORDER_ESENCIAL` del menú lateral: dejarlo mandaba Inventario, Compras y Recetas al final,
+  detrás de Configuración, porque esas rutas no estaban en su lista. Y desaparece el
+  `ORDERS[paquete_modo] || ORDERS.restaurante_pro` del menú radial, otro rescate a la más permisiva.
+- `PACKAGE_COMPARISON` gana la fila del escáner de barras y corrige inventario, compras, gastos y
+  recetas a `true` en las tres. **Un comparador que contradice al gate es una mentira en la pantalla
+  con la que se vende.**
+
+### El contrato, porque el arreglo sin contrato vuelve
+
+`package-config.test.ts` pasa de 2 casos a **27**, y el que importa no comprueba nombres: compara
+`PACKAGE_MODULES` del frontend contra `MODULOS_POR_PLANTILLA` del servidor, **igualdad de conjuntos
+en las dos direcciones**, para las tres plantillas, más que las claves sean exactamente `PLANTILLAS`,
+que no haya módulos duplicados —un bloque pegado dos veces sobreviviría a una comparación de
+conjuntos— y que cada módulo que exige `ROUTE_TO_MODULE` exista en `MODULOS`. Una ruta que exigiera
+un módulo inexistente quedaría oculta para siempre sin error en ninguna parte.
+
+Validado mutando, que es lo único que dice si un contrato sirve:
+
+```
+valor por omisión `tienda` → `restaurante`   : 7 pruebas en rojo
+quitar `portal_qr` de MODULOS_OPERACION      : 3 pruebas en rojo
+```
+
+Y el arnés del backend gana una destructiva nueva —«paquete servido sin normalizar»— que devuelve
+`paquete_modo: fila.paquete`. Las dos del paquete ponen `presentacion.test.ts` en rojo.
+
+### La puerta del aspecto, con tres excepciones y sus motivos
+
+17 archivos de `heredado/` editados, los 17 preexistentes. `verify:aspecto` sigue en 0:
+*«la estructura NO cambió en los 73 archivos comparados»*. Tres excepciones declaradas en
+`scripts/aspecto-permitido.json`, y dos de ellas no son cambios de aspecto:
+
+| Archivo | Qué vio la puerta | Por qué |
+|---|---|---|
+| `ResumenPeriodo.jsx` | `clase:${isEsencial` → `clase:${sinCostos` | No es una clase: es el nombre de una variable dentro de un `className` con plantilla. Lo que se pinta sigue siendo `lg:grid-cols-3` y `lg:grid-cols-5` |
+| `Productos.jsx` | `clase:${isEsencial` → `clase:${sinRecetas` | Lo mismo. Lo que se pinta —`cursor-pointer` o nada— es idéntico |
+| `ModoPresentacion.jsx` | 6 textos: Esencial/Operativo/Restaurante Pro → Tienda/Cafetería/Restaurante | **Sí cambia lo que Miguel lee.** Son los tres únicos valores que `/api/configuracion/paquete` acepta. La columna «Esencial» encima de los valores de `tienda` —que sí trae inventario, compras y recetas— sería falsa. Conservar los nombres comerciales viejos se revierte tocando SÓLO `PACKAGE_LABELS` y esta excepción: es de Miguel |
+
+### El segundo defecto que las pruebas encontraron, y que NO se arregló
+
+**El giro `estetica` no existe.** No está en `GIROS` (`ambito.ts`) ni en `DICCIONARIOS`
+(`diccionarios.ts`), así que el modelo `estetica-salon` cae al diccionario neutro y dice «Productos»
+donde tiene que decir «servicio» y «clienta». Añadir un giro exige una migración, así que **no se
+inventó**: queda declarado, y lo heredan once modelos de servicios con cita.
+
+### Dos arneses que hubo que sustituir, no celebrar
+
+`verify:paquetes` tenía una mutación —«abrir recetas a todos los paquetes»— que **dejó de ser
+destructiva**, porque después de D-01 eso es lo correcto: `tienda` trae el bloque de operación
+entero. Una mutación que ya no rompe nada no es una prueba superada, es una que hay que sustituir.
+Ahora muta **las mesas**, que es lo que sigue cerrado.
+
+Lo mismo en `verify:comandos-catalogo`: la mutación estrechaba los modificadores a
+`PAQUETES_OPERATIVOS`, que hoy ES `PAQUETES`. Ahora los estrecha a `PAQUETES_RESTAURANTE`, y
+`modificadores.test.ts` gana el contrato que la muerde.
+
+### Y diez comentarios que seguían nombrando paquetes retirados
+
+Renombrar `isEsencial` a `sinCostos` y dejar encima `{/* en Esencial sólo se muestran ventas */}` es
+arreglar la mitad: quien lea el comentario va a buscar un paquete que el servidor rechaza. En los
+tres archivos que este arreglo ya tocaba —`CorteTicket.jsx`, `PeriodoPDF.jsx` y `Caja.jsx`— los diez
+comentarios pasan a nombrar el MÓDULO (`costos_basicos`, `recetas`, `compras`, `inventario`,
+`mesas`, `mesero`), que es lo que de verdad gobierna ese trozo de pantalla. En los archivos que este
+arreglo NO tocaba no se entró: ampliar el radio de un arreglo para limpiar comentarios es cómo un
+arreglo se convierte en un refactor.
+
+`verify:aspecto` no se mueve por esto —quita los comentarios antes de comparar, y lo dice— pero se
+volvió a correr para no suponerlo.

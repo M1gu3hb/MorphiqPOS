@@ -359,6 +359,34 @@
         "- aviso:Error:",
         "+ aviso:No se pudieron limpiar las ventas."
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/configuracion/ModoPresentacion.jsx",
+      "porque": "D-01: los tres paquetes se llaman ahora por el NEGOCIO al que sirven — Tienda, Cafetería, Restaurante — y son los únicos tres valores que `/api/configuracion/paquete` acepta. Las seis apariciones son las tres cabeceras del comparador y las tres del aviso de abajo, y las seis quedarían MINTIENDO si se dejaran: la columna «Esencial» quedaría encima de los valores de `tienda`, que a diferencia de aquél SÍ trae inventario, compras y recetas, y el aviso seguiría ofreciendo un «Restaurante Pro» que el servidor rechaza. Un comparador que nombra paquetes inexistentes es peor que no tenerlo, porque es con el que Miguel vende.",
+      "testigos": [
+        "- texto:Esencial",
+        "- texto:Esencial",
+        "- texto:Operativo",
+        "- texto:Operativo",
+        "- texto:Restaurante Pro",
+        "- texto:Restaurante Pro",
+        "+ texto:Tienda",
+        "+ texto:Tienda",
+        "+ texto:Cafetería",
+        "+ texto:Cafetería",
+        "+ texto:Restaurante",
+        "+ texto:Restaurante"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/registros/ResumenPeriodo.jsx",
+      "porque": "NO es una clase: es el nombre de una variable dentro de un `className` con plantilla, y el extractor toma el primer fragmento `${isEsencial` como si fuera una clase. Las clases que se pintan siguen siendo exactamente `lg:grid-cols-3` y `lg:grid-cols-5`, sin una sola diferencia. Lo que cambió es que la bandera dejó de llamarse por un paquete que ya no existe y pasó a preguntar por el módulo que de verdad gobierna ese grid, `costos_basicos`.",
+      "testigos": ["- clase:${isEsencial", "+ clase:${sinCostos"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Productos.jsx",
+      "porque": "Mismo caso que ResumenPeriodo: el testigo es el nombre de la variable dentro de un `className` con plantilla, no una clase. Lo que se pinta —`cursor-pointer` o nada— es idéntico. La bandera pasó de comparar contra el paquete `esencial`, que D-01 retiró, a preguntar por el módulo `recetas`, que es lo que de verdad parte esta pantalla en dos.",
+      "testigos": ["- clase:${isEsencial", "+ clase:${sinRecetas"]
     }
   ]
 }

@@ -101,7 +101,7 @@ Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. La puerta es `pnpm verify:acople`
 | **A3** | Migraciones aplicadas | ⛔ **BLOQUEADA · falta una credencial con DDL.** Todo lo demás listo: ensayo con datos en verde, respaldo restaurado, los 70 encabezados retirados, y `--emitir` en el ejecutor. Ver `A3-COMO-APLICAR.md` |
 | **A4** | Contrato · `pnpm verify` completo | ⛔ depende de A3: `esquema-esperado.json` NO se regenera sobre una base sin migrar |
 | **A5** | Despliegue · preview de Vercel | ✅ **las 9 variables que faltaban, puestas en Preview** · el preview responde · **no se puede verificar desde fuera por el SSO de Vercel**, que son dos cambios de la cuenta de Miguel. Ver `VERCEL-ENTORNO.md` |
-| **A6** | Verificación en el navegador | ⛔ las cinco pruebas ESCRITAS y en rojo a propósito: necesitan la organización de demostración, que necesita la 058 |
+| **A6** | Verificación en el navegador | ⛔ las cinco pruebas ESCRITAS y en rojo a propósito: necesitan la organización de demostración, que necesita la 058. **Pero escribirlas ya pagó**: encontraron que el frontend heredado no entendía las plantillas de D-01 y daba el menú COMPLETO a una tienda, y ese defecto **está arreglado y atado con un contrato** (`PACKAGE_MODULES` contra `MODULOS_POR_PLANTILLA`, igualdad de conjuntos en las dos direcciones) |
 | **A7** | Cierre | ✅ reporte escrito con el bloqueo delante |
 
 **La puerta, hoy:**
@@ -116,7 +116,7 @@ Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. La puerta es `pnpm verify:acople`
 **Las dos son el MISMO bloqueo.** La segunda es consecuencia de la primera.
 
 Lo que sí sale en 0 hoy: `verify:cobertura`, `verify:esquema`, `verify:rls`, `verify:paquetes`,
-`verify:aspecto`, `verify:entorno`, `verify:primitivas`, `typecheck` y **2 606 pruebas en 221
+`verify:aspecto`, `verify:entorno`, `verify:primitivas`, `typecheck` y **2 632 pruebas en 221
 archivos**. Y dentro de `verify:acople`: seguridad, despliegue, las 103 rutas y el vocabulario.
 
 **El ensayo con datos, en verde** (`node scripts/ensayo-con-datos.mjs`):
@@ -136,9 +136,19 @@ archivos**. Y dentro de `verify:acople`: seguridad, despliegue, las 103 rutas y 
 **`btree_gist` ESTÁ disponible** en `wyqmzhliurwyxuyxznpb` (versión 1.7). El riesgo que la
 Fase 2 dejó marcado como bloqueante de A3 no era un riesgo: era una pregunta sin hacer.
 
-**Lo que el acople tiene que arreglar y ya se sabe:** la pantalla que cambia de plantilla
-ofrece los tres nombres VIEJOS (`esencial`, `operativo`, `restaurante_pro`) y después de la
-058 esos valores violan el `check`. Cambiar de plantilla es la definición de terminado.
+**La pantalla que cambia de plantilla, arreglada.** Ofrecía los tres nombres VIEJOS
+(`esencial`, `operativo`, `restaurante_pro`), que después de la 058 violan el `check`.
+Ahora ofrece `tienda`, `cafeteria` y `restaurante`, que es lo único que
+`/api/configuracion/paquete` acepta, y `leerConfiguracion` del puente sirve `paquete_modo`
+**normalizado** para que el navegador entienda tres valores y no seis. Queda una sola cosa por
+ejercitar, y depende de A3: **pulsar el botón**, porque hasta que la 058 esté aplicada la base
+rechaza el valor nuevo. Cambiar de plantilla sigue siendo la definición de terminado.
+
+17 archivos de `heredado/` se editaron para eso —todos preexistentes— y `verify:aspecto` sigue
+en 0 sobre los 73 que compara, con **3 excepciones declaradas** en
+`scripts/aspecto-permitido.json`: dos son nombres de variable dentro de un `className` con
+plantilla, no clases, y la tercera son las seis etiquetas de «Modo presentación», que tenían que
+cambiar porque nombraban paquetes que el servidor ya rechaza.
 
 
 ---

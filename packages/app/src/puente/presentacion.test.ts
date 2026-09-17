@@ -75,8 +75,13 @@ describe('B-2 · paquete efectivo de la organización', () => {
     expect(codigo).toContain(".updateTable('organizaciones')");
     expect(codigo).not.toMatch(/\{\s*paquete_modo:\s*entrada\.paquete\s*\}/);
 
+    // Y sale normalizada. Leerla en crudo dejaba al frontend heredado con un
+    // nombre que no reconoce, y ése cae en su plantilla por omisión para TODOS
+    // los negocios a la vez.
     const configuracion = readFileSync(FUENTE_CONFIGURACION_PUENTE, 'utf8');
-    expect(configuracion).toContain('paquete_modo: fila.paquete');
+    expect(configuracion).toContain(
+      'paquete_modo: plantillaDeOrganizacion(fila.giro, fila.paquete)',
+    );
   });
 });
 

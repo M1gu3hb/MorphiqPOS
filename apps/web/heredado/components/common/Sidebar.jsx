@@ -5,7 +5,7 @@ import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { etiquetaDeNavegacion, getNavForRole } from '@/lib/permissions';
 import { useVocabulario } from '~/cliente/vocabulario';
-import { isRouteAllowed } from '@/lib/packageConfig';
+import { isRouteAllowed, normalizarPlantilla } from '@/lib/packageConfig';
 import { ROLE_LABELS } from '@/lib/constants';
 import {
   LayoutDashboard,
@@ -48,18 +48,16 @@ const ICON_MAP = {
   QrCode,
 };
 
-// Orden recomendado por paquete (solo para ADMINISTRADOR).
+// Orden recomendado por plantilla (solo para ADMINISTRADOR).
 // Para otros roles se respeta el orden natural devuelto por permissions.
-const ORDER_ESENCIAL = [
-  '/',
-  '/caja',
-  '/ventas',
-  '/productos',
-  '/registros',
-  '/portal-qr',
-  '/configuracion',
-];
-const ORDER_OPERATIVO = [
+//
+// Son DOS órdenes y no tres: `tienda` y `cafeteria` traen exactamente los
+// mismos módulos, así que ordenarlos distinto sería inventar una diferencia que
+// el servidor no reconoce. El orden que había para el viejo `esencial` —sin
+// inventario, compras ni recetas— desapareció con él: bajo D-01 no hay
+// plantilla sin operación, y dejarlo mandaba esas tres entradas al final de la
+// lista, detrás de Configuración.
+const ORDER_MOSTRADOR = [
   '/',
   '/caja',
   '/ventas',
@@ -71,7 +69,7 @@ const ORDER_OPERATIVO = [
   '/portal-qr',
   '/configuracion',
 ];
-const ORDER_PRO = [
+const ORDER_RESTAURANTE = [
   '/',
   '/mesero',
   '/cocina',
@@ -89,7 +87,7 @@ const ORDER_PRO = [
 function sortByPackage(items, paquete, role) {
   if (role !== 'administrador') return items;
   const order =
-    paquete === 'esencial' ? ORDER_ESENCIAL : paquete === 'operativo' ? ORDER_OPERATIVO : ORDER_PRO;
+    normalizarPlantilla(paquete) === 'restaurante' ? ORDER_RESTAURANTE : ORDER_MOSTRADOR;
   const idx = (path) => {
     const i = order.indexOf(path);
     return i === -1 ? 999 : i;

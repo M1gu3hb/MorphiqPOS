@@ -5,6 +5,7 @@ import { api } from '@/api/cliente';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { ROLES } from '@/lib/constants';
+import { canAccessModule } from '@/lib/packageConfig';
 import { playNewOrder } from '@/lib/sounds';
 import { speak, frasePorSolicitud, getAlertConfig } from '@/lib/voiceAlert';
 import { TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
@@ -20,7 +21,7 @@ import {
  * Watcher global de solicitudes QR.
  *
  * Reglas de notificación:
- * - Solo activo en Restaurante Pro + portal activo + rol mesero/admin.
+ * - Solo activo con módulo de mesero + portal activo + rol mesero/admin.
  * - El ADMIN puede ver el toast siempre, pero NO escucha audio/voz si
  *   silenciar_notificaciones_admin = true (default).
  * - El MESERO con asignación activa solo recibe sus solicitudes (mesero_destino_id == él
@@ -53,9 +54,12 @@ export default function SolicitudesQRWatcher() {
   const { paquete_modo, config } = useConfig();
   const role = posUser?.rol;
 
-  const isPro = paquete_modo === 'restaurante_pro';
+  // Quien atiende estas solicitudes es el mesero, así que lo que decide es el
+  // módulo `mesero` y no el nombre de la plantilla: `portal_qr` lo tienen las
+  // tres, pero sólo una tiene a alguien recorriendo mesas para responderlas.
+  const haySala = canAccessModule('mesero', paquete_modo);
   const portalActivo = config?.portal_qr_activo === true;
-  const watch = isPro && portalActivo && (role === ROLES.WAITER || role === ROLES.ADMIN);
+  const watch = haySala && portalActivo && (role === ROLES.WAITER || role === ROLES.ADMIN);
 
   const firstLoadRef = useRef(true);
   const notifiedRef = useRef(loadSet());

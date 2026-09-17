@@ -29,6 +29,38 @@ const LOCAL = 'http://localhost:3200';
 const BASE = DESPLIEGUE ?? LOCAL;
 
 /**
+ * El muro de Vercel, que es el tercer bloqueo de `A3-COMO-APLICAR §4`.
+ *
+ * `VERCEL-ENTORNO §2` lo deja escrito: todo el preview —la raíz, `/estilos`, las rutas
+ * de API— devuelve 401 o un 302 a `vercel.com/sso-api`, y **eso no es la aplicación:
+ * es la Protección de Despliegue**. Un 401 del muro y un 401 de la aplicación se ven
+ * igual desde fuera, y confundirlos sería declarar verificado algo que no se miró.
+ *
+ * La vía recomendada de las dos que hay es el Protection Bypass for Automation: un
+ * secreto que viaja en `x-vercel-protection-bypass` y que no abre el preview al mundo,
+ * sólo a quien lo tenga. Va aquí, en `use`, y no en cada prueba: así lo llevan tanto
+ * las navegaciones como las peticiones que las pruebas hacen con `page.request`, que
+ * heredan las cabeceras del contexto. Puesto prueba por prueba, la primera que se
+ * olvidara fallaría contra el muro y el rastro diría «no encontré el botón».
+ *
+ * `x-vercel-set-bypass-cookie` pide además la cookie, para que las navegaciones que
+ * arranca el propio navegador —un `router.push` del cliente— pasen igual.
+ *
+ * Sin el secreto no se manda nada: contra el servidor local sobraría, y una cabecera
+ * con la cadena vacía es peor que ninguna porque Vercel la toma por un intento fallido.
+ */
+const BYPASS = process.env['MORPHIQPOS_BYPASS_VERCEL'];
+const CABECERAS_DEL_MURO =
+  BYPASS === undefined || BYPASS === ''
+    ? {}
+    : {
+        extraHTTPHeaders: {
+          'x-vercel-protection-bypass': BYPASS,
+          'x-vercel-set-bypass-cookie': 'true',
+        },
+      };
+
+/**
  * El camino que se espera antes de arrancar.
  *
  * Estaba en `/estilos`, la página del sistema de diseño, y eso hacía que la
@@ -60,6 +92,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     locale: 'es-MX',
     timezoneId: 'America/Mexico_City',
+    ...CABECERAS_DEL_MURO,
   },
 
   projects: [

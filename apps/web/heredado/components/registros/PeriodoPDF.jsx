@@ -9,7 +9,7 @@ import { MH_LOGO_URL as AZECAFE_LOGO_URL } from '@/lib/ConfigContext';
  * PDF imprimible de un periodo seleccionado en Registros.
  * Se renderiza con `.ticket-printable.letter-doc` para usar el layout carta.
  */
-export default function PeriodoPDF({ data, config = {}, isEsencial = false }) {
+export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
   if (!data) return null;
   const {
     from,
@@ -59,9 +59,9 @@ export default function PeriodoPDF({ data, config = {}, isEsencial = false }) {
         </div>
       </div>
 
-      {/* Resumen — en Esencial: sólo ventas y métodos de pago. Propinas aparecen en los 3 paquetes pero SEPARADAS de utilidad/neto */}
+      {/* Resumen — sin `costos_basicos`: sólo ventas y métodos de pago. Las propinas aparecen en las 3 plantillas pero SEPARADAS de utilidad/neto */}
       <h3 className="text-sm font-bold uppercase tracking-wide mb-2 mt-4">
-        {isEsencial ? 'Resumen de ventas' : 'Resumen financiero'}
+        {sinCostos ? 'Resumen de ventas' : 'Resumen financiero'}
       </h3>
       <table className="w-full text-xs border mb-4">
         <tbody>
@@ -89,7 +89,7 @@ export default function PeriodoPDF({ data, config = {}, isEsencial = false }) {
               {formatCurrency((totals.ingresos || 0) + (totals.propinas || 0))}
             </td>
           </tr>
-          {!isEsencial && (
+          {!sinCostos && (
             <>
               <tr>
                 <td className="border px-2 py-1.5 font-medium">Utilidad bruta</td>
@@ -172,8 +172,8 @@ export default function PeriodoPDF({ data, config = {}, isEsencial = false }) {
         <p className="text-xs text-gray-500 italic">Sin ventas en este periodo.</p>
       )}
 
-      {/* Compras — solo Operativo / Pro */}
-      {!isEsencial && (
+      {/* Compras — solo con el módulo `compras` */}
+      {!sinCostos && (
         <>
           <h3 className="text-sm font-bold uppercase tracking-wide mb-2 mt-4">
             Compras ({compras.length})
