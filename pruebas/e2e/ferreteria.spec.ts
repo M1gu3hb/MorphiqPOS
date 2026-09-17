@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import {
   abrirPantalla,
+  accionesDelTablero,
   cambiarDePlantilla,
   entrar,
   exigirDemostracion,
@@ -122,8 +123,9 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
 
     // ── 3 · SU DASHBOARD · mostrador, como su padre ──────────────────────
     await expect(page.getByRole('heading', { level: 1, name: 'Buen día' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Ir a Caja' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
+    const acciones = accionesDelTablero(page);
+    await expect(acciones.getByRole('button', { name: 'Ir a Caja' })).toBeVisible();
+    await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
 
     // ── 4 · LAS DOCE PANTALLAS DEL MODELO RESPONDEN ───────────────────────
     for (const pantalla of PANTALLAS) {
@@ -136,6 +138,31 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // la búsqueda, no un título— así que se comprueba que ESTÉ, no que se vea.
     await abrirPantalla(page, '/ferreteria/mostrador');
     await expect(page.getByRole('heading', { name: 'Mostrador', exact: true })).toBeAttached();
-    await expect(page.getByRole('region', { name: 'La venta' })).toBeVisible();
+    // `complementary`, no `region`: la venta que se arma vive en un `aside`, y ése es
+    // su rol implícito. Escrito como `region` la prueba no encontraba NADA, y el rastro
+    // mandaba a mirar una pantalla que estaba bien.
+    // Pero no siempre desplegada: `Mostrador.tsx` la deja `hidden xl:block` y por
+    // debajo de 1280 px la pliega en una barra que la abre. Los dos proyectos de esta
+    // suite caen a los dos lados de esa raya —Desktop Chrome arriba, la Galaxy Tab S4
+    // en horizontal a 1138 px abajo—, así que exigir «desplegada» en los dos ponía en
+    // rojo la tablet por un diseño que es correcto: en el pasillo, el mostradorista
+    // necesita la pantalla entera para buscar.
+    //
+    // Y ojo con un detalle que costó una vuelta: con `display: none` el `aside` sale
+    // del árbol de accesibilidad y deja de tener ROL, así que ni siquiera
+    // `toBeAttached` lo encuentra por `getByRole`. Debajo de `xl` no se busca el
+    // panel: se busca la barra, y se comprueba que ABRE, que es lo que de verdad
+    // hace falta para cobrar desde una tablet.
+    const laVenta = page.getByRole('complementary', { name: 'La venta' });
+    const ancho = page.viewportSize()?.width ?? 0;
+
+    if (ancho >= 1280) {
+      await expect(laVenta).toBeVisible();
+    } else {
+      const barra = page.getByRole('button', { name: /partidas/ });
+      await expect(barra).toBeVisible();
+      await barra.click();
+      await expect(laVenta).toBeVisible();
+    }
   });
 });

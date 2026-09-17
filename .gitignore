@@ -17,6 +17,9 @@ playwright-report
 test-results
 blob-report
 .playwright
+# La salida de las pruebas de navegador: trazas, capturas y el .last-run.json.
+# Se coló al indice en la primera corrida y no es codigo: cambia en cada pasada.
+pruebas/e2e/.resultados
 
 # --- Entorno · R31: cero secretos en el repositorio ---
 # La re-inclusion de .env.example NO va aqui: mas abajo hay un `.env*` que

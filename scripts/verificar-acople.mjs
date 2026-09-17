@@ -348,7 +348,7 @@ async function comprobarRutas(base) {
     try {
       const respuesta = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...MURO.cabeceras },
         body: '{}',
         redirect: 'manual',
       });
@@ -565,6 +565,53 @@ function readdirSyncSeguro(carpeta) {
 // 6 · La aplicación desplegada responde
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * La credencial que abre el muro de Vercel, si la hay.
+ *
+ * ── Por qué la puerta necesita esto ────────────────────────────────────────
+ * El preview está detrás de la Protección de Despliegue, y desde fuera **un 401
+ * del muro se ve igual que un 401 de la aplicación**. Sin credencial, esta
+ * puerta sólo puede hablar con el servidor local — y entonces dice que el
+ * acople está probado contra algo que no es lo que Vercel sirve.
+ *
+ * Hay dos formas de pasar, y se aceptan las dos porque no siempre están las dos
+ * disponibles:
+ *
+ *   · `MORPHIQPOS_BYPASS_VERCEL` — el secreto del *Protection Bypass for
+ *     Automation*. Es la vía buena: no caduca y no abre el preview al mundo.
+ *     Se genera en el panel del proyecto, que es lo único que no se puede hacer
+ *     desde aquí.
+ *   · `MORPHIQPOS_COOKIE_VERCEL` — la cookie `_vercel_jwt` de un enlace
+ *     compartido. Caduca en 23 horas y sirve para verificar hoy sin tocar la
+ *     configuración de protección del proyecto, que es un cambio persistente de
+ *     seguridad sobre un despliegue con datos de cuatro negocios.
+ *
+ * El VALOR no entra nunca al repositorio: viaja por el entorno y aquí sólo se
+ * lee. Lo que sí se dice en la salida es CUÁL de las dos se usó, porque «probado
+ * contra el despliegue» significa cosas distintas según cómo se entró.
+ */
+function credencialDelMuro() {
+  const secreto = entorno('MORPHIQPOS_BYPASS_VERCEL');
+  if (secreto !== undefined) {
+    return {
+      como: 'con el bypass de automatización',
+      cabeceras: {
+        'x-vercel-protection-bypass': secreto,
+        'x-vercel-set-bypass-cookie': 'true',
+      },
+    };
+  }
+
+  const galleta = entorno('MORPHIQPOS_COOKIE_VERCEL');
+  if (galleta !== undefined) {
+    return { como: 'con la cookie de un enlace compartido', cabeceras: { cookie: galleta } };
+  }
+
+  return { como: 'sin credencial', cabeceras: {} };
+}
+
+const MURO = credencialDelMuro();
+
 async function comprobarDespliegue() {
   const despliegue = entorno('MORPHIQPOS_URL_DESPLIEGUE');
   const local = entorno('APP_URL');
@@ -593,7 +640,7 @@ async function comprobarDespliegue() {
 
   let respuesta;
   try {
-    respuesta = await fetch(base, { redirect: 'manual' });
+    respuesta = await fetch(base, { redirect: 'manual', headers: MURO.cabeceras });
   } catch (error) {
     fallos.push(`DESPLIEGUE: ${base} no respondió · ${error.message}`);
     return undefined;
@@ -601,7 +648,9 @@ async function comprobarDespliegue() {
 
   const ok = respuesta.status === 200 || (respuesta.status >= 300 && respuesta.status < 400);
   exigir(ok, `DESPLIEGUE: ${base} devolvió ${respuesta.status}`);
-  if (ok && despliegue !== undefined) notas.push(`despliegue    ${base} → ${respuesta.status}`);
+  if (ok && despliegue !== undefined) {
+    notas.push(`despliegue    ${base} → ${respuesta.status} · ${MURO.como}`);
+  }
   return base;
 }
 

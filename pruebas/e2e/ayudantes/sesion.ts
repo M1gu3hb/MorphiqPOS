@@ -593,6 +593,35 @@ export async function exigirVocabularioDelGiro(
 }
 
 /**
+ * El bloque de acciones del ENCABEZADO del tablero, recortado.
+ *
+ * ── Por qué no se busca el botón en toda la página ─────────────────────────
+ * Porque «Ir a Caja» aparece DOS veces y las dos son legítimas. Una es la acción
+ * principal del encabezado, y ésa sí la decide la plantilla: `isCajaDirecta` de
+ * `heredado/pages/Dashboard.jsx` la enseña donde no hay sala y la cambia por
+ * «Nueva venta» donde la hay. La otra vive en el aviso «No hay caja abierta», y
+ * sale en las tres plantillas por igual porque habla del estado de la caja, no
+ * de lo que el negocio compró — y en una demo recién creada sale SIEMPRE.
+ *
+ * Afirmar sobre la página entera mezclaba las dos: en `restaurante` la prueba
+ * exigía cero «Ir a Caja» y encontraba el del aviso, y en `estetica` el
+ * `getByRole` reventaba con «strict mode violation». Las dos veces el mensaje
+ * habría mandado a arreglar `getCurrentPackage`, que no tenía nada que ver.
+ *
+ * ── Por qué así y no por clase ─────────────────────────────────────────────
+ * `PageHeader` no pinta ningún landmark: es un `div` con el título en un hijo y
+ * las acciones en el siguiente. No hay rol al que agarrarse y las clases están
+ * prohibidas aquí —se rompen el día que alguien cambie un `gap`—, así que se
+ * navega por la RELACIÓN, que es la que de verdad significa «las acciones de
+ * este título»: el hermano siguiente del bloque que contiene el `h1`.
+ */
+export function accionesDelTablero(page: Page): Locator {
+  return page
+    .getByRole('heading', { level: 1, name: 'Buen día' })
+    .locator('xpath=../following-sibling::div[1]');
+}
+
+/**
  * El menú lateral de Miguel, ya visible, listo para leerle las etiquetas.
  *
  * ── Por qué puede haber que abrirlo ────────────────────────────────────────

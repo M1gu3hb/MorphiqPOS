@@ -81,7 +81,19 @@ export default defineConfig({
 
   // Nada de esperas por tiempo (13-PRUEBAS §2). Playwright espera por
   // condiciones; estos limites son el techo, no el mecanismo.
-  timeout: 30_000,
+  //
+  // El techo subio de 30 s a 120 s al correr las cinco del acople por primera
+  // vez, y no por lentitud: cada una ENTRA con PIN, cambia la plantilla y abre
+  // las once, doce o trece pantallas de su modelo, una por una. Las dos que
+  // pasaban lo hacian en 26 s, a cuatro segundos del limite, y las otras tres
+  // morian por el techo con la ultima asercion a medias — y el rastro decia
+  // «no encontre el boton», que manda a arreglar lo que no estaba roto. Un
+  // techo mal puesto no hace la suite mas rigurosa: hace que mienta.
+  //
+  // El MECANISMO no cambia: expect sigue en 10 s y sigue esperando por
+  // condiciones. Lo que cambia es cuanto se le permite tardar al recorrido
+  // entero.
+  timeout: 120_000,
   expect: { timeout: 10_000 },
 
   reporter: process.env['CI'] === undefined ? [['list']] : [['list'], ['html', { open: 'never' }]],

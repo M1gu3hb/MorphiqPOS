@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import {
   abrirPantalla,
+  accionesDelTablero,
   cambiarDePlantilla,
   entrar,
   exigirDemostracion,
@@ -127,8 +128,9 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
 
     // ── 3 · SU DASHBOARD · el de mostrador ───────────────────────────────
     await expect(page.getByRole('heading', { level: 1, name: 'Buen día' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Ir a Caja' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
+    const acciones = accionesDelTablero(page);
+    await expect(acciones.getByRole('button', { name: 'Ir a Caja' })).toBeVisible();
+    await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
 
     // ── 4 · LAS ONCE PANTALLAS DEL MODELO RESPONDEN ───────────────────────
     for (const pantalla of PANTALLAS) {

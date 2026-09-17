@@ -1999,3 +1999,101 @@ demo-acople-estetica      giro estetica     → plantilla tienda
 
 La última es la prueba de que la 164 funciona de extremo a extremo: hasta hace una hora el `check`
 la rechazaba.
+
+---
+
+## 2026-09-17 · FASE 3 · A6 · las cinco plantillas, abiertas en un navegador
+
+**Las diez pasan.** Cinco modelos × los dos proyectos —Desktop Chrome y la Galaxy Tab S4 en
+horizontal—, cada uno contra SU organización de demostración, ninguno contra un negocio vivo.
+
+```
+restaurante   2 passed (35.0s)
+cafeteria     2 passed (39.3s)
+tienda        2 passed (29.1s)   ← abarrotes
+ferreteria    2 passed (28.8s)
+estetica      2 passed (42.0s)
+```
+
+Un despliegue sirve a UN negocio (R16 · `negocioDelDespliegue`), así que son cinco arranques del
+servidor, cada uno con su `ORGANIZACION`. El guion que lo hace mata el servidor entre corridas a
+propósito: reusar el del giro anterior probaría el vocabulario equivocado sin decir nada.
+
+### Los cinco defectos que hubo que arreglar para llegar ahí
+
+Ninguno se veía desde el papel. Los cinco salieron de correr las pruebas por primera vez.
+
+**1 · `APP_URL` contra el origen del navegador.** `peticionDeEscrituraValida` compara el `Origin` de
+la petición con `APP_URL`, y el servidor de las pruebas vive en el 3200 mientras el `.env` dice
+3000. Resultado: `/api/auth/entrar` devolvía **403 SIN_PERMISO**, la pantalla se quedaba en el
+teclado numérico y el rastro decía «timeout esperando la navegación». Con `curl` el login funcionaba
+—sin `Origin` la guarda deja pasar— y eso es exactamente lo que hace que este fallo se persiga en el
+sitio equivocado.
+
+**2 · «Ir a Caja» aparece DOS veces, y las dos son legítimas.** Una es la acción principal del
+encabezado, que sí gobierna la plantilla; la otra es la del aviso «No hay caja abierta», que sale en
+las tres plantillas porque habla del estado de la caja y no de lo que el negocio compró — y en una
+demo recién creada sale siempre. Las cinco pruebas buscaban el botón en TODA la página: en
+`restaurante` exigían cero y encontraban el del aviso, y en `estetica` el `getByRole` reventaba con
+«strict mode violation». Es el fallo del identificador suelto, el de siempre, pero en el navegador.
+
+Se arregla con un ayudante que recorta el bloque de acciones del encabezado —el hermano siguiente
+del bloque que contiene el `h1`— y afirma DENTRO. Sin clases de CSS: se rompen el día que alguien
+cambie un `gap`.
+
+**3 · El techo de 30 s estaba mal puesto.** Cada prueba entra con PIN, cambia la plantilla y abre las
+once, doce o trece pantallas de su modelo, una por una. Las dos que pasaban lo hacían en 26 s, a
+cuatro segundos del límite; las otras tres morían por el techo con la última aserción a medias, y el
+rastro decía «no encontré el botón» — que manda a arreglar lo que no está roto. Sube a 120 s. El
+MECANISMO no cambia: `expect` sigue en 10 s y sigue esperando por condiciones.
+
+**4 · `complementary`, no `region`.** La venta que se arma en el mostrador de la ferretería vive en
+un `aside`, y ése es su rol implícito. Escrito como `region` la prueba no encontraba nada y mandaba
+a mirar una pantalla que estaba bien.
+
+Y debajo de eso había un segundo detalle, éste de verdad interesante: `Mostrador.tsx` deja el panel
+`hidden xl:block` y por debajo de 1280 px lo pliega en una barra. Los dos proyectos de esta suite
+caen a los dos lados de esa raya —1138 px la tablet—, así que exigir «desplegado» en los dos ponía
+en rojo un diseño correcto: en el pasillo, el mostradorista necesita la pantalla entera para buscar.
+Con `display: none` el `aside` sale del árbol de accesibilidad y deja de tener ROL, así que ni
+`toBeAttached` lo encuentra por `getByRole`. La prueba comprueba ahora la forma que toca a cada
+ancho, y en la tablet **abre la barra** y comprueba que el panel aparece: que es lo que de verdad
+hace falta para cobrar desde una tablet.
+
+### 5 · El que importa fuera de las pruebas · el pooler en MODO SESIÓN
+
+A la tercera corrida, todo empezó a contestar **500**:
+
+```
+(EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+```
+
+La `DATABASE_URL` de este proyecto entra por el pooler de Supabase en el puerto **5432**, que es
+modo SESIÓN, y ahí el techo son **15 clientes simultáneos**. Y `packages/data/src/cliente.ts` tenía
+el tamaño del pool clavado en `max: 10` con un comentario que decía «Supabase con pooler en modo
+**transacción** admite bastante». El comentario describía otro puerto.
+
+Dos procesos —el servidor de las pruebas y el que contesta la puerta— agotan el pooler. Y matar el
+servidor a la fuerza no le avisa a Supavisor: las sesiones se quedan colgadas, así que a la tercera
+vuelta ya no quedaba ninguna libre. Hubo que cerrarlas a mano, y dejarlas habría dejado el pooler
+lleno **para los cuatro negocios mañana por la mañana**.
+
+Lo que se cambió: `max` deja de estar clavado y lo puede bajar `MORPHIQPOS_DB_POOL_MAX`. El valor por
+omisión sigue siendo 10 —en producción cada instancia serverless abre SU pool y 10 es donde una
+terminal de caja no hace cola—, y las pruebas corren con 3.
+
+**Y esto no es sólo de la máquina de pruebas.** En producción, cada instancia de Vercel abre hasta
+10 y el pooler admite 15: **dos instancias calientes bastan para que el punto de venta empiece a
+devolver 500 en hora pico**, con un error que no menciona el pooler por ningún lado. No se tocó
+producción —eso es de Miguel— pero queda dicho, con las dos salidas, en el reporte y en
+`VERCEL-ENTORNO.md`.
+
+### Lo que las pruebas afirman, y que nadie había mirado en un navegador
+
+| Modelo | Lo que se vio |
+|---|---|
+| **restaurante** | «Mesas», «Meseros», «Cocinas» en el menú · el tablero ofrece «Nueva venta», no «Ir a Caja» · las once pantallas del modelo responden |
+| **cafetería** | con SU plantilla: mostrador, sin sala · y con la de Jacaranda: «Baristas» y «Barras» donde un restaurante dice «Meseros» y «Cocinas» — la misma entrada del menú, el diccionario del giro |
+| **abarrotes** | la plantilla `tienda` trae inventario, compras y recetas (D-01) y NO trae sala · «Productos» |
+| **ferretería** | «Materiales» donde la tiendita dice «Productos», con la misma plantilla · el mostrador con su buscador y la venta armándose al lado |
+| **estética** | el giro `estetica` ya existe y habla como una estética —estación, cita, estilista, clienta— · `salon` sigue SIN ser plantilla, y el servidor la rechaza con `ENTRADA_INVALIDA` · las doce pantallas responden |

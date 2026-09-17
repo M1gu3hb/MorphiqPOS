@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import {
   abrirPantalla,
+  accionesDelTablero,
   cambiarDePlantilla,
   entrar,
   exigirDemostracion,
@@ -115,9 +116,10 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     // mostrador y aparece en las otras dos. Que el dashboard enseñe la acción
     // equivocada es lo que delata que el cambio de plantilla no llegó.
     await expect(page.getByRole('heading', { level: 1, name: 'Buen día' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Nueva venta' })).toBeVisible();
+    const acciones = accionesDelTablero(page);
+    await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Ir a Caja' }),
+      acciones.getByRole('button', { name: 'Ir a Caja' }),
       'El dashboard enseña la acción de mostrador en la plantilla de restaurante. ' +
         '`isCajaDirecta` la reserva para `esencial` y `operativo`; si aparece aquí, ' +
         '`getCurrentPackage` no está reconociendo el nombre nuevo de la plantilla.',
