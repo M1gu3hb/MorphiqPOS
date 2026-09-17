@@ -67,6 +67,24 @@ const CABECERAS_DEL_MURO =
  * suite esperara a que respondiera una página que NINGUNA de las pruebas del
  * acople visita. Se espera a la raíz, que es lo que toda pantalla necesita.
  */
+/**
+ * La otra forma de pasar el muro: una cookie, en un estado guardado.
+ *
+ * El bypass de arriba es el bueno y no caduca, pero generarlo es un cambio en el
+ * panel del proyecto. Un enlace compartido de Vercel da una cookie `_vercel_jwt`
+ * que vale 23 horas y no toca la configuración de protección de un despliegue
+ * con datos de cuatro negocios, que es un cambio persistente de seguridad.
+ *
+ * Va como `storageState` y NO como cabecera `Cookie`: una cabecera fija
+ * sustituiría la del tarro y se llevaría por delante la cookie de sesión en
+ * cuanto la prueba entrara con PIN. En el tarro conviven.
+ *
+ * El archivo lleva una credencial, así que vive FUERA del repositorio y su ruta
+ * se pasa por el entorno. Nunca su contenido.
+ */
+const ESTADO = process.env['MORPHIQPOS_ESTADO_VERCEL'];
+const ESTADO_DEL_MURO = ESTADO === undefined || ESTADO === '' ? {} : { storageState: ESTADO };
+
 const CAMINO_DE_ARRANQUE = '/';
 
 export default defineConfig({
@@ -105,6 +123,7 @@ export default defineConfig({
     locale: 'es-MX',
     timezoneId: 'America/Mexico_City',
     ...CABECERAS_DEL_MURO,
+    ...ESTADO_DEL_MURO,
   },
 
   projects: [

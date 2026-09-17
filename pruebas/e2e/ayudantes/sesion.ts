@@ -42,7 +42,7 @@ import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/
  * ── Nada de esperas por tiempo ─────────────────────────────────────────────
  * No hay un solo `waitForTimeout` aquí. `13-PRUEBAS §2` lo prohíbe —«prohibido
  * `sleep` para "esperar a que termine"»— y el propio `playwright.config.ts` lo repite
- * en el comentario de sus límites: los 30 s del `timeout` son el techo, no el
+ * en el comentario de sus límites: los 120 s del `timeout` son el techo, no el
  * mecanismo. Todo lo que espera aquí espera por una CONDICIÓN: un `expect` que
  * reintenta, un `waitForURL`, un estado de respuesta.
  *
@@ -53,35 +53,36 @@ import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/
  * que estas pruebas afirman es lo que el dueño LEE, así que se busca por lo que el
  * dueño lee.
  *
- * ── CÓMO SE CORRE CUANDO EL BLOQUEO SE LEVANTE ─────────────────────────────
- * Las tres cosas que faltan están en `docs/fase-2/A3-COMO-APLICAR.md §4`. Cuando
- * estén:
+ * ── CÓMO SE CORRE ──────────────────────────────────────────────────────────
+ * Las cinco demos ya existen —una por giro, creadas el 17-09-2026— y las
+ * migraciones están aplicadas. Un despliegue sirve a UN negocio (R16,
+ * `negocioDelDespliegue`) y el giro NO se cambia en caliente: ningún comando toca
+ * `organizaciones.giro`, sólo `nombre` y `paquete`. Así que cinco vocabularios
+ * cuestan cinco arranques, cada uno con su `ORGANIZACION`.
  *
- *   1 · Las 70 migraciones aplicadas (A3 §2 da las tres vías, de mejor a peor).
- *   2 · Una demo POR GIRO. El giro NO se puede cambiar en caliente —ningún comando
- *       toca `organizaciones.giro`, sólo `nombre` y `paquete`— así que los cinco
- *       vocabularios necesitan cinco organizaciones, y el despliegue apunta a una
- *       cada vez con `ORGANIZACION`:
+ * Contra el servidor local, una corrida por modelo:
  *
- *         pnpm db:alta-negocio --slug demo-acople-ferreteria \
- *           --nombre "Demo del acople · ferretería" --giro ferreteria --paquete tienda
- *         pnpm db:bootstrap --org demo-acople-ferreteria --persona "Demo" --pin 1234
+ *   ORGANIZACION=demo-acople-ferreteria APP_URL=http://localhost:3200 \
+ *   MORPHIQPOS_DB_POOL_MAX=3 pnpm --filter @morphiqpos/web exec next start -p 3200
  *
- *   3 · El preview abierto a la automatización (VERCEL-ENTORNO §2, opción 1).
+ *   MORPHIQPOS_ORG_DEMO=demo-acople-ferreteria MORPHIQPOS_DEMO_PIN=1234 \
+ *   pnpm test:e2e pruebas/e2e/ferreteria.spec.ts
  *
- * Y entonces, una corrida por modelo:
+ * `APP_URL` tiene que ser la del PROPIO servidor: `peticionDeEscrituraValida`
+ * compara el `Origin` del navegador contra ella, y con otra puesta el login
+ * devuelve 403 SIN_PERMISO — y el rastro dice «timeout esperando la navegación»,
+ * que manda a buscar el defecto donde no está.
+ *
+ * Contra el preview de Vercel, lo mismo sin levantar servidor, más la credencial
+ * que abre la Protección de Despliegue (VERCEL-ENTORNO §2):
  *
  *   MORPHIQPOS_URL_DESPLIEGUE=https://morphiqpos-git-fase-2-mh-astral-systems.vercel.app \
- *   MORPHIQPOS_BYPASS_VERCEL=<el-secreto> \
- *   MORPHIQPOS_ORG_DEMO=demo-acople-ferreteria \
- *   MORPHIQPOS_DEMO_PIN=1234 \
- *   pnpm test:e2e --grep ferretería
+ *   MORPHIQPOS_ESTADO_VERCEL=<ruta al estado con la cookie, FUERA del repositorio> \
+ *   MORPHIQPOS_ORG_DEMO=demo-acople-estetica MORPHIQPOS_DEMO_PIN=1234 \
+ *   pnpm test:e2e pruebas/e2e/estetica-salon.spec.ts
  *
- * Sin `--grep`, las cinco corren y cuatro fallan nombrando el giro que les falta.
- * Eso es correcto y es la información que hace falta: un despliegue sirve a UN
- * negocio (R16, `negocioDelDespliegue`), y probar cinco vocabularios en el navegador
- * cuesta cinco demos. Contra el servidor local basta con quitar
- * `MORPHIQPOS_URL_DESPLIEGUE` y poner `ORGANIZACION` en el `.env`.
+ * Y el `ORGANIZACION` del despliegue tiene que apuntar a ESA demo, que es lo que
+ * la precondición de abajo comprueba antes de tocar nada.
  */
 
 /** Las tres plantillas que existen hoy en `organizaciones.paquete` (D-01). */
@@ -220,6 +221,11 @@ export async function exigirDemostracion(
     ...(opciones.extraHTTPHeaders === undefined
       ? {}
       : { extraHTTPHeaders: opciones.extraHTTPHeaders }),
+    // El estado guardado lleva la cookie que abre el muro de Vercel cuando se
+    // corre contra el preview. Sin esto la precondición hablaría con el muro y
+    // no con la aplicación, y el 401 que devolviera se leería como «la demo no
+    // existe» — que manda a crear una organización que ya está.
+    ...(typeof opciones.storageState === 'string' ? { storageState: opciones.storageState } : {}),
   });
 
   try {
@@ -236,23 +242,28 @@ export async function exigirDemostracion(
           `El despliegue no pudo resolver el negocio: /api/auth/empleados → ${respuesta.status()}.`,
           `URL: ${respuesta.url()}`,
           '',
-          'A3-COMO-APLICAR §4 · «Estas tres cosas están escritas y no se pueden ejercitar',
-          'hasta que las migraciones estén aplicadas». Las tres, en orden:',
+          'Cuatro cosas lo explican, en orden de probabilidad:',
           '',
-          '1 · Las 70 migraciones NO están aplicadas. `morphiqpos_app` no puede hacer DDL a',
-          '    propósito (A3 §1) y no hay CLI de Supabase en esta máquina. Las tres vías para',
-          '    desbloquearlo están en A3 §2, de mejor a peor.',
+          `1 · El despliegue no apunta a esta demo. \`ORGANIZACION\` tiene que valer`,
+          `    «${SLUG_DEMO}» EN EL ENTORNO DEL SERVIDOR, no sólo aquí. Contra el preview`,
+          '    se pone con `vercel env add ORGANIZACION preview` y hay que REDESPLEGAR:',
+          '    las variables se aplican al construir, no en caliente.',
           '',
-          '2 · La organización de demostración no existe. A3 §4.1, textual:',
-          '    «pnpm db:alta-negocio --slug demo-acople --nombre "Demo del acople"',
-          '     --giro tienda --paquete tienda. Hoy falla: el `check` de',
-          '     `organizaciones.paquete` no admite `tienda` todavía. Y tiene que ser una',
-          '     demo: los cuatro negocios vivos no se prueban.»',
+          '2 · La demo no existe todavía:',
           '',
-          '3 · Si la respuesta es un 401 o un 302 a `vercel.com/sso-api`, esto no es la',
-          '    aplicación: es la Protección de Despliegue de Vercel (VERCEL-ENTORNO §2).',
-          '    Genera el Protection Bypass for Automation y pásalo:',
-          '      MORPHIQPOS_BYPASS_VERCEL=<el-secreto> pnpm test:e2e',
+          comandoDeAlta('tienda'),
+          '',
+          '3 · Un 401, o un 302 a `vercel.com/sso-api`, NO es la aplicación: es la',
+          '    Protección de Despliegue de Vercel (VERCEL-ENTORNO §2). Pásale la',
+          '    credencial: `MORPHIQPOS_BYPASS_VERCEL` con el secreto del bypass, o',
+          '    `MORPHIQPOS_ESTADO_VERCEL` con la ruta a un estado que lleve la cookie de',
+          '    un enlace compartido — que caduca en 23 horas y hay que renovar cada vez',
+          '    que se redespliega.',
+          '',
+          '4 · Un 500 con EMAXCONNSESSION en los registros del despliegue es el pooler,',
+          '    no la aplicación: en modo sesión admite 15 clientes y el pool abre hasta',
+          '    10 por proceso. Baja `MORPHIQPOS_DB_POOL_MAX` o usa el pooler en modo',
+          '    transacción (puerto 6543).',
         ].join('\n'),
       );
     }
