@@ -95,8 +95,13 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     // ── 2 · SUS PANTALLAS · la operación SÍ, la sala NO ───────────────────
     // La mitad positiva es la que sostiene D-01. Si estas tres entradas faltaran, la
     // plantilla `tienda` sería el `esencial` de siempre con nombre nuevo.
+    // «Existencias» y no «Inventario»: la plantilla `tienda` trae su PROPIA pantalla
+    // de inventario —`/abarrotes/existencias`, con el conteo por peso y el dinero
+    // dormido— y el menú ofrece una entrada por módulo, así que la heredada
+    // `/inventario` cede el sitio a la del modelo. La pantalla vieja sigue
+    // respondiendo; lo que cambia es a cuál lleva el menú.
     for (const [etiqueta, ruta] of [
-      ['Inventario', '/inventario'],
+      ['Existencias', '/abarrotes/existencias'],
       ['Compras', '/compras'],
       ['Recetas', '/recetas'],
     ] as const) {

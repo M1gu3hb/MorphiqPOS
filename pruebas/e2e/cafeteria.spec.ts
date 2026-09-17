@@ -8,6 +8,7 @@ import {
   exigirDemostracion,
   exigirGiro,
   exigirVocabulario,
+  exigirVocabularioDelGiro,
   menuLateral,
 } from './ayudantes/sesion.ts';
 
@@ -18,8 +19,9 @@ import {
  * Que el GIRO y la PLANTILLA son dos ejes distintos, y que se ven distintos en la
  * pantalla. Esta prueba cambia la plantilla DOS veces sobre el mismo negocio:
  *
- *   · con `cafeteria`, el menú NO tiene sala: ni barista ni barra, porque esa
- *     plantilla no incluye los módulos `mesero` ni `cocina`;
+ *   · con `cafeteria`, el menú tiene SU barra —`/cafeteria/barra`, la fila que
+ *     espera— y no tiene mesero: esa plantilla no incluye el módulo `mesero`,
+ *     porque en un mostrador quien cobra es quien prepara y quien entrega;
  *   · con `restaurante`, las mismas dos entradas aparecen y dicen «Baristas» y
  *     «Barras» — no «Meseros» y «Cocinas», aunque la plantilla sea la del
  *     restaurante.
@@ -35,13 +37,19 @@ import {
  * MÓDULOS tiene el negocio; el giro dice CÓMO HABLA*.
  *
  * ── LO QUE ESTA PRUEBA NO PUEDE MIRAR, y hay que decirlo ───────────────────
- * Los dos sustantivos más propios de este modelo no llegan a ninguna pantalla hoy:
  * `unidad_servicio` es «pedido» —el objeto que este giro construyó porque el cliente
- * ya pagó y espera de pie (F-328)— y `linea_orden` es «bebida». Ninguna de las dos
- * entidades tiene entrada en `NAV_ITEMS`, y `NAV_ITEMS` es el único lector de F-017
- * que se ve al entrar. La pantalla de barra dice «Barra» porque está escrito así en
- * el componente, no porque el diccionario lo traduzca. Eso es una deuda real de
- * F-017, no un hueco de esta prueba.
+ * ya pagó y espera de pie (F-328)— y ninguna ENTRADA DE MENÚ lo nombra: las que
+ * llevan a sus pantallas se llaman «Cobrar», «Recogida» y «Turno», que son acciones y
+ * no la entidad. Dentro de las pantallas sí se lee, desde E2.4: `Barra.tsx` dice
+ * «Sin pedidos en espera» con el sustantivo del diccionario, y eso es lo que se afirma
+ * en el paso 3 con `exigirVocabularioDelGiro`.
+ *
+ * ── EL ORDEN, que no es libre ──────────────────────────────────────────────
+ * Las trece pantallas del modelo se abren MIENTRAS la plantilla es `cafeteria`. Desde
+ * E2 hay una guarda en `app/(modelos)/cafeteria/layout.tsx` que redirige a la pantalla
+ * de inicio del negocio cuando la plantilla es otra, así que abrirlas después de poner
+ * `restaurante` daría trece redirecciones y el rastro diría «no encontré el
+ * encabezado» — mandando a buscar el defecto donde no está.
  */
 
 /** Las trece pantallas del modelo, tal como existen en `app/(modelos)/cafeteria/`. */
@@ -87,17 +95,26 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
       ajenos: [...DE_OTROS_MODELOS, 'Cajeros', 'Responsables'],
     });
 
-    // Las dos entradas de sala NO están, y no por el vocabulario: por el módulo.
-    // `MODULOS_POR_PLANTILLA.cafeteria` es base + operación y nada más — ni `mesero`
-    // ni `cocina` ni `mesas`—, porque en un mostrador quien cobra es quien prepara y
-    // quien entrega. Si aparecieran, el cambio de plantilla no llegó al navegador.
-    for (const deSala of ['Baristas', 'Barras']) {
+    // «Barras» SÍ está, y es la de ESTE modelo: `/cafeteria/barra`, la fila que espera
+    // con su cronómetro. La plantilla `cafeteria` incluye el módulo `barra` a propósito
+    // —un mostrador de café tiene barra— y hasta E2 no lo incluía, que es por lo que
+    // esta prueba exigía su ausencia.
+    await expect(mostrador.getByRole('link', { name: 'Barras', exact: true })).toHaveAttribute(
+      'href',
+      '/cafeteria/barra',
+    );
+
+    // «Baristas» no, y no por el vocabulario: por el módulo. `MODULOS_POR_PLANTILLA.
+    // cafeteria` no incluye `mesero` ni `mesas`, porque en un mostrador quien cobra es
+    // quien prepara y quien entrega. Si apareciera, el cambio de plantilla no llegó al
+    // navegador.
+    for (const deSala of ['Baristas', 'Mesas']) {
       await expect(
         mostrador.getByRole('link', { name: deSala, exact: true }),
         `El menú enseña «${deSala}» con la plantilla \`cafeteria\`, que no incluye los ` +
           'módulos de sala. El filtro es `isRouteAllowed(item.path, paquete_modo)` en ' +
           'heredado/components/common/Sidebar.jsx; `paquete_modo` sale de ' +
-          '`getCurrentPackage`, que normaliza con `normalizarPlantilla` —las tres ' +
+          '`getCurrentPackage`, que normaliza con `normalizarPlantilla` —las CINCO ' +
           'plantillas de D-01 más los tres nombres viejos como alias— y cae en `tienda` ' +
           'ante lo que no reconoce. Que aparezca la sala significa que el cambio de ' +
           'plantilla no llegó al navegador, o que alguien devolvió el valor por omisión a ' +
@@ -111,7 +128,19 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     await expect(acciones.getByRole('button', { name: 'Ir a Caja' })).toBeVisible();
     await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
 
-    // ── 2 · CON LA PLANTILLA DE JACARANDA · sala, pero hablando de café ───
+    // ── 2 · LAS TRECE PANTALLAS DEL MODELO RESPONDEN ──────────────────────
+    // Van AQUÍ y no al final: la guarda de `app/(modelos)/cafeteria/` exige la
+    // plantilla `cafeteria`, y el paso 3 la cambia a `restaurante`.
+    for (const pantalla of PANTALLAS) {
+      await abrirPantalla(page, `/cafeteria/${pantalla}`);
+    }
+
+    // La de inicio del barista, reconocible sin un solo dato en la base: la fila
+    // vacía es un estado con nombre en este modelo y se pinta igual.
+    await abrirPantalla(page, '/cafeteria/barra');
+    await expect(page.getByRole('heading', { name: 'Barra', exact: true })).toBeVisible();
+
+    // ── 3 · CON LA PLANTILLA DE JACARANDA · sala, pero hablando de café ───
     await cambiarDePlantilla(page, 'restaurante');
     await abrirPantalla(page, '/');
     const conSala = await menuLateral(page);
@@ -129,20 +158,30 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
       ajenos: DE_OTROS_MODELOS,
     });
 
-    // ── 3 · LAS TRECE PANTALLAS DEL MODELO RESPONDEN ──────────────────────
-    // Ojo con lo que esto significa y lo que no: las rutas de `app/(modelos)/` NO
-    // están filtradas por plantilla —su envoltorio es a propósito «tan poco» que sólo
-    // pone fondo y vocabulario— así que responden igual con las tres. Lo que la
-    // plantilla gobierna es el menú de Miguel, que es lo que se afirmó arriba. Al
-    // acoplar se decide si estas pantallas entran en su `AppLayout`, y eso es una
-    // línea en el `FILE-MAP.md` de cada modelo.
-    for (const pantalla of PANTALLAS) {
-      await abrirPantalla(page, `/cafeteria/${pantalla}`);
-    }
+    // ── 4 · SU DICCIONARIO, el que las pantallas leen desde E2.4 ──────────
+    // Las palabras están tecleadas a mano y NO se importan de `diccionarios.ts`: una
+    // prueba que afirma contra la misma constante que produce el valor no prueba nada.
+    // Si alguien renombra «bebida» a «producto» en el diccionario de cafetería, esta
+    // prueba se cae y hay que venir a decidirlo aquí.
+    await exigirVocabularioDelGiro(page, [
+      // El objeto que este giro construyó: el cliente ya pagó y espera de pie (F-328).
+      // Nunca «mesa» — en un mostrador no hay ninguna.
+      ['unidad_servicio', 'pedido'],
+      ['orden', 'cuenta'],
+      // Lo que se apunta es una BEBIDA, que es lo que se pide en una cafetería.
+      ['linea_orden', 'bebida'],
+      ['responsable', 'barista'],
+      ['cliente', 'cliente'],
+      // Y la que la separa de una tiendita: aquí SÍ se prepara, y se prepara en la
+      // barra. En una tienda esta entidad está apagada.
+      ['preparacion', 'barra'],
+    ]);
 
-    // La de inicio del barista, reconocible sin un solo dato en la base: la fila
-    // vacía es un estado con nombre en este modelo y se pinta igual.
-    await abrirPantalla(page, '/cafeteria/barra');
-    await expect(page.getByRole('heading', { name: 'Barra', exact: true })).toBeVisible();
+    // ── 5 · Y SE DEJA COMO ESTABA ─────────────────────────────────────────
+    // La demo de este modelo es `cafeteria`, y dejarla en `restaurante` haría que la
+    // siguiente corrida empezara desde otra plantilla — y que las trece pantallas del
+    // paso 2 acabaran redirigidas. Una prueba que cambia la configuración del negocio
+    // la devuelve.
+    await cambiarDePlantilla(page, 'cafeteria');
   });
 });

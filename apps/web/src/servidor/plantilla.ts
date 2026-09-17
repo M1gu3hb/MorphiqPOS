@@ -1,8 +1,15 @@
 import 'server-only';
 
-import { INICIO_POR_PLANTILLA, segunElDato, type Plantilla } from '@morphiqpos/contracts';
+import {
+  INICIO_POR_PLANTILLA,
+  rutaDeModeloSinSesion,
+  segunElDato,
+  type Plantilla,
+} from '@morphiqpos/contracts';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { CABECERA_RUTA } from '../../middleware';
 import { sesionDelServidor } from './http';
 
 /**
@@ -27,8 +34,21 @@ import { sesionDelServidor } from './http';
  * plantilla `estetica`, no una por una. Un `layout.tsx` por carpeta de modelo
  * cubre las doce y no se puede olvidar ninguna, que es la misma razón por la
  * que el vocabulario se inyecta en el envoltorio y no en cada pantalla.
+ *
+ * ── Y las cuatro que se saltan, que casi quedan inservibles ────────────────
+ * Cubrir el modelo entero cubrió también las dos pantallas de ENTRAR con PIN y
+ * las dos que abre el cliente con el QR de su mesa. Una guarda que manda al
+ * login a quien está mirando el login es un bucle, y un comensal con el teléfono
+ * en la mano no tiene sesión de negocio ni la va a tener nunca. Son las mismas
+ * cuatro que no cuelgan de ningún menú —`RUTAS_DE_MODELO_SIN_SESION`— y
+ * `verify:acople` ata esa lista con las filas declaradas en
+ * `EXCEPCIONES-COBERTURA.md`.
  */
 export async function exigirPlantilla(esperada: Plantilla): Promise<void> {
+  // La ruta la pone el middleware: un `layout.tsx` no la recibe.
+  const ruta = (await headers()).get(CABECERA_RUTA) ?? '';
+  if (rutaDeModeloSinSesion(ruta)) return;
+
   const sesion = await sesionDelServidor();
 
   // Sin sesión no hay plantilla que comprobar, y tampoco hay nada que enseñar:

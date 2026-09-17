@@ -2300,3 +2300,105 @@ Inocuas que PASAN:
 **Cómo queda:** `typecheck` 7/7 · **2 697 pruebas en 223 archivos** · `lint` en 0 (comprobado) ·
 `prettier --check` limpio · `verify:aspecto` y `verify:cobertura` en 0 · `verify:acople` con
 `vocabulario   48 pantalla(s) lo consumen · 0 sustantivos tecleados a mano`.
+
+---
+
+## 2026-09-17 · TRES DEFECTOS QUE E2 METIÓ Y LA PUERTA APROBÓ
+
+Se encontraron al empezar E4, mirando el menú que cada plantilla pinta. Los tres venían del bloque
+E1-E3, los tres estaban commiteados, y **los tres pasaron `verify:acople`, 2 697 pruebas, `lint` y
+`typecheck`**. Vale la pena escribir por qué: la puerta comprobaba las RUTAS —que las 61 pantallas
+colgaran de algún menú— y las tres cosas estaban mal en lo que el dueño LEE, no en la lista de rutas.
+
+### 1 · El punto de venta de todos los días se quedó sin menú
+
+Al escribir el menú por plantilla, las entradas de los cinco modelos **sustituyeron** a las doce
+heredadas. Miguel y su personal perdieron del menú `/mesero`, `/cocina`, `/caja`, `/ventas`,
+`/recetas`, `/productos`, `/inventario`, `/compras`, `/registros` y `/portal-qr`: diez pantallas que
+llevan meses cobrando y que Codex arregló. Respondían, y sólo se abrían tecleando la URL.
+
+**Es el mismo defecto que esta etapa vino a cerrar, al revés.** Las 61 nuevas dejaron de estar
+huérfanas y las doce viejas se quedaron huérfanas.
+
+Arreglado con un grupo `HEREDADO` en `navegacion.ts` que va en las cinco plantillas, detrás de las
+del modelo —el día de trabajo empieza en la pantalla del giro— y filtrado por módulo como todo lo
+demás: una ferretería no ve «Mesero» ni «Cocina».
+
+Y con una regla nueva: **una entrada por módulo, y sólo ENTRE grupos.** Un restaurante tenía dos
+entradas «Caja» —`/restaurante/caja` y `/caja`, las dos `caja_directa`— y un menú con dos nombres
+iguales que van a sitios distintos obliga a adivinar. Gana la del modelo, que es la que la plantilla
+trae para ese módulo; la heredada sale sólo donde el modelo no cubre ese módulo. La primera versión
+de esa regla deduplicaba también DENTRO del modelo y se comió tres pantallas —«Caja» y «Alta rápida»
+de la tiendita, «Cita en curso» de la estética—, porque dos pantallas del mismo modelo sí pueden
+compartir módulo. Hay un contrato para eso.
+
+### 2 · La `entidad` de una entrada borraba su etiqueta
+
+`etiquetaDeNavegacion` sustituye el texto de la entrada por el plural del sustantivo del giro. Está
+bien cuando la etiqueta ES el sustantivo —«Mesas» → «Estaciones»— y **destruye la etiqueta cuando es
+una frase**. El menú de una estética decía:
+
+| Entrada | Se leía | Debía leerse |
+|---|---|---|
+| `/estetica-salon/mi-dia` | **Estilistas** | Mi día |
+| `/estetica-salon/historial-de-la-clienta` | **Clientas** | Historial |
+| `/estetica-salon/agendar` y `/cita-en-curso` | **Citas** las dos | Agendar · Cita en curso |
+| `/abarrotes/alta-rapida-de-producto` | **Productos** | Alta rápida |
+| `/abarrotes/fiado` | **Clientes** | Fiado |
+| `/ferreteria/corte-de-material` y `/ficha-de-pieza` | **Materiales** las dos | Corte de material · Ficha de pieza |
+
+Trece entradas. Cinco pares con el mismo nombre. Se quitó la `entidad` de las trece: la lleva sólo
+la entrada que nombra la entidad y nada más —«Mesas», «Platillos», «Materiales», «Clientas»,
+«Servicios», «Estilistas», «Barras», «Productos», «Meseros», «Cocinas»—.
+
+**El límite, dicho:** una entrada cuya etiqueta es una frase ya no se traduce. «Mesa activa» sigue
+diciendo «Mesa activa» en una cafetería que llame «vaso» a su unidad de servicio. Traducir dentro de
+una frase necesita concordancia de artículo y de adjetivo en la propia etiqueta, y eso es un
+mecanismo que hoy no existe; lo que no se hace es dejar que una entidad se coma la etiqueta.
+
+### 3 · La guarda mandaba al login a quien estaba mirando el login
+
+`exigirPlantilla()` cubre la carpeta del modelo entera, que es su virtud —no se puede olvidar una
+pantalla— y cubrió también las cuatro que **no** llevan sesión: los dos `acceso-por-pin` y las dos
+que abre el cliente con el QR de su mesa. La pantalla de teclear el PIN redirigía a `/login-pos`, y
+un comensal con el teléfono en la mano no tiene sesión de negocio ni la va a tener nunca.
+
+El middleware pone ahora la ruta en `x-morphiqpos-ruta` —un `layout.tsx` del App Router no la
+recibe, y no hay API estable que la dé— y la guarda salta `RUTAS_DE_MODELO_SIN_SESION`. Son las
+MISMAS cuatro que no cuelgan de ningún menú, y `verify:acople` exige que las dos listas digan lo
+mismo: si se separan hay dos salidas malas, una pantalla privada que se abre desde la calle o una
+pantalla de entrar que no se puede ver.
+
+### La puerta y los contratos que ahora muerden
+
+`packages/domain/src/vocabulario/menu-que-se-lee.test.ts` afirma sobre el menú **tal y como se lee**,
+con el diccionario de cada giro, que es lo único que los tres defectos tenían en común: la lista de
+rutas estaba bien las tres veces.
+
+```
+Destructivas que FALLAN:
+  · devolver la `entidad` a «Mi día»          → «estetica» enseña «Estilistas» dos veces
+  · dejar el grupo HEREDADO en []             → las CINCO plantillas sin punto de venta de todos los días
+  · deduplicar también dentro del modelo      → «tienda» ofrece 9 pantallas y tiene que ofrecer 11
+  · añadir /restaurante/caja a la lista sin sesión → las dos listas no dicen lo mismo
+  · borrar una fila PANTALLA-SIN-MENU del documento → las dos listas no dicen lo mismo
+Inocuas que PASAN:
+  · un comentario nuevo en la lista · reordenar dos entradas · renombrar un comentario
+```
+
+### Y los cinco specs, con las plantillas de verdad
+
+`ferreteria` y `estetica` daban de alta con `tienda` en `pruebas/e2e/ayudantes/sesion.ts`, y ahí
+decía que no era un apaño provisional. **Lo era.** Ahora cada giro entra con su plantilla, y con eso
+cambian las aserciones: la ferretería lee «Materiales» en `/ferreteria/material` y no en
+`/productos`; la estética lee cuatro sustantivos de su giro en el menú y no uno; la cafetería SÍ
+tiene «Barras» —su plantilla incluye el módulo `barra`, que es lo que separa un mostrador de café de
+una tiendita— y sigue sin tener «Baristas», porque no incluye `mesero`.
+
+Y un orden que ya no es libre: el spec de la cafetería abría las trece pantallas del modelo DESPUÉS
+de cambiar la plantilla a `restaurante`. Con la guarda de E2, eso son trece redirecciones y un
+rastro que dice «no encontré el encabezado». Se movieron delante, y la prueba devuelve la plantilla
+al terminar.
+
+Tres cabeceras largas describían el mundo de tres plantillas y de «un solo sustantivo en el menú».
+Llevan su corrección fechada, no un borrado.

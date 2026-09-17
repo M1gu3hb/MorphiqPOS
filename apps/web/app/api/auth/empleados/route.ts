@@ -56,9 +56,16 @@ export async function GET(peticion: Request): Promise<Response> {
       activo: true,
     }));
 
+    // `slug` va junto al nombre porque el nombre NO identifica a un negocio.
+    // La guarda de las pruebas de extremo a extremo comparaba por nombre y su
+    // lista traia «Cafe Jacaranda» Y «Cafeteria Jacaranda», las dos, porque
+    // nadie sabia cual era la de verdad. El slug es lo que `ORGANIZACION`
+    // resuelve y lo unico con lo que se puede afirmar «esto es la demo y no el
+    // negocio de alguien». No es un secreto: es el valor que quien configuro el
+    // despliegue escribio a mano.
     return json(200, {
       ok: true,
-      datos: { negocio: negocio.nombre, usuarios, empleados },
+      datos: { negocio: negocio.nombre, slug: negocio.slug, usuarios, empleados },
     });
   } catch {
     // Un despliegue mal configurado tiene que decirlo en la consola del

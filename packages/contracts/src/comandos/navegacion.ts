@@ -113,7 +113,6 @@ const RESTAURANTE: readonly EntradaDeMenu[] = [
     icono: 'UtensilsCrossed',
     modulo: 'mesas',
     permiso: 'ver_mesero',
-    entidad: 'unidad_servicio',
   },
   {
     ruta: '/restaurante/precuenta',
@@ -197,7 +196,6 @@ const CAFETERIA: readonly EntradaDeMenu[] = [
     icono: 'SlidersHorizontal',
     modulo: 'modificadores_de_bebida',
     permiso: 'ver_productos',
-    entidad: 'linea_orden',
   },
   {
     ruta: '/cafeteria/cobro-y-propina',
@@ -241,7 +239,6 @@ const CAFETERIA: readonly EntradaDeMenu[] = [
     icono: 'Stamp',
     modulo: 'sellos_de_lealtad',
     permiso: 'ver_ventas',
-    entidad: 'cliente',
   },
   {
     ruta: '/cafeteria/productos',
@@ -289,7 +286,6 @@ const TIENDA: readonly EntradaDeMenu[] = [
     icono: 'NotebookPen',
     modulo: 'fiado',
     permiso: 'ver_ventas',
-    entidad: 'cliente',
   },
   {
     ruta: '/abarrotes/servicios',
@@ -312,7 +308,6 @@ const TIENDA: readonly EntradaDeMenu[] = [
     icono: 'PlusCircle',
     modulo: 'productos_basicos',
     permiso: 'ver_productos',
-    entidad: 'producto',
   },
   {
     ruta: '/abarrotes/existencias',
@@ -380,7 +375,6 @@ const FERRETERIA: readonly EntradaDeMenu[] = [
     icono: 'Wallet',
     modulo: 'credito_y_cobranza',
     permiso: 'ver_ventas',
-    entidad: 'cliente',
   },
   {
     ruta: '/ferreteria/corte-de-material',
@@ -388,7 +382,6 @@ const FERRETERIA: readonly EntradaDeMenu[] = [
     icono: 'Scissors',
     modulo: 'corte_de_material',
     permiso: 'ver_inventario',
-    entidad: 'producto',
   },
   {
     ruta: '/ferreteria/trabajos-de-mostrador',
@@ -411,7 +404,6 @@ const FERRETERIA: readonly EntradaDeMenu[] = [
     icono: 'Ruler',
     modulo: 'piezas_y_medidas',
     permiso: 'ver_productos',
-    entidad: 'producto',
   },
   {
     ruta: '/ferreteria/existencias',
@@ -458,7 +450,6 @@ const ESTETICA: readonly EntradaDeMenu[] = [
     icono: 'CalendarPlus',
     modulo: 'citas',
     permiso: 'ver_ventas',
-    entidad: 'orden',
   },
   {
     ruta: '/estetica-salon/cita-en-curso',
@@ -466,7 +457,6 @@ const ESTETICA: readonly EntradaDeMenu[] = [
     icono: 'Timer',
     modulo: 'citas',
     permiso: 'ver_ventas',
-    entidad: 'orden',
   },
   {
     ruta: '/estetica-salon/mi-dia',
@@ -474,7 +464,6 @@ const ESTETICA: readonly EntradaDeMenu[] = [
     icono: 'UserCheck',
     modulo: 'agenda_por_profesional',
     permiso: 'ver_mesero',
-    entidad: 'responsable',
   },
   {
     ruta: '/estetica-salon/cobrar',
@@ -511,7 +500,6 @@ const ESTETICA: readonly EntradaDeMenu[] = [
     icono: 'History',
     modulo: 'expediente',
     permiso: 'ver_ventas',
-    entidad: 'cliente',
   },
   {
     ruta: '/estetica-salon/catalogo-de-servicios',
@@ -539,24 +527,157 @@ const ESTETICA: readonly EntradaDeMenu[] = [
   },
 ];
 
-const MENU: Readonly<Record<Plantilla, readonly EntradaDeMenu[]>> = {
-  tienda: [...TIENDA, ...CIERRE],
-  cafeteria: [...CAFETERIA, ...CIERRE],
-  restaurante: [...RESTAURANTE, ...CIERRE],
-  ferreteria: [...FERRETERIA, ...CIERRE],
-  estetica: [...ESTETICA, ...CIERRE],
+/**
+ * EL PUNTO DE VENTA DE TODOS LOS DÍAS.
+ *
+ * ── Por qué está aquí, y por qué casi se perdió ────────────────────────────
+ * Estas diez entradas son el menú que Miguel y su personal abren cada mañana:
+ * las pantallas del punto de venta heredado, las que llevan meses cobrando y
+ * las que Codex arregló —propinas, bucle de cobro, arqueo—.
+ *
+ * Al escribir el menú por plantilla se sustituyeron por las de los cinco
+ * modelos, que es exactamente el error que esta etapa venía a arreglar, pero al
+ * revés: las 61 pantallas nuevas dejaron de estar huérfanas y las doce viejas se
+ * quedaron sin menú. Respondían, y sólo se abrían tecleando la URL. Un negocio
+ * que cobra esta noche no puede perder su menú porque haya uno nuevo.
+ *
+ * Van DESPUÉS de las del modelo —el día de trabajo empieza en la pantalla del
+ * giro— y cada una lleva su módulo, así que la plantilla sigue decidiendo: una
+ * ferretería no ve «Mesero» ni «Cocina», y sólo las dos plantillas con portal
+ * ven «Portal QR».
+ *
+ * `/mesas`, `/pos` y `/corte-caja` NO están: tampoco estaban en el menú
+ * original —se llega a ellas desde dentro— y añadirlas aquí sería inventar
+ * navegación que nadie pidió.
+ */
+const HEREDADO: readonly EntradaDeMenu[] = [
+  {
+    ruta: '/mesero',
+    etiqueta: 'Mesero',
+    icono: 'UtensilsCrossed',
+    modulo: 'mesero',
+    permiso: 'ver_mesero',
+    entidad: 'responsable',
+  },
+  {
+    ruta: '/cocina',
+    etiqueta: 'Cocina',
+    icono: 'ChefHat',
+    modulo: 'cocina',
+    permiso: 'ver_cocina',
+    entidad: 'preparacion',
+  },
+  {
+    ruta: '/caja',
+    etiqueta: 'Caja',
+    icono: 'Landmark',
+    modulo: 'caja_directa',
+    permiso: 'ver_caja',
+  },
+  {
+    ruta: '/ventas',
+    etiqueta: 'Ventas',
+    icono: 'Receipt',
+    modulo: 'ventas',
+    permiso: 'ver_ventas',
+  },
+  {
+    ruta: '/recetas',
+    etiqueta: 'Recetas',
+    icono: 'BookOpen',
+    modulo: 'recetas',
+    permiso: 'ver_recetas',
+  },
+  {
+    ruta: '/productos',
+    etiqueta: 'Productos',
+    icono: 'Tag',
+    modulo: 'productos_basicos',
+    permiso: 'ver_productos',
+    entidad: 'producto',
+  },
+  {
+    ruta: '/inventario',
+    etiqueta: 'Inventario',
+    icono: 'Package',
+    modulo: 'inventario',
+    permiso: 'ver_inventario',
+  },
+  {
+    ruta: '/compras',
+    etiqueta: 'Compras',
+    icono: 'ShoppingBag',
+    modulo: 'compras',
+    permiso: 'ver_compras',
+  },
+  {
+    ruta: '/registros',
+    etiqueta: 'Registros',
+    icono: 'FileText',
+    modulo: 'registros_basicos',
+    permiso: 'ver_registros',
+  },
+  {
+    ruta: '/portal-qr',
+    etiqueta: 'Portal QR',
+    icono: 'QrCode',
+    modulo: 'portal_qr',
+    permiso: 'ver_portal_qr',
+  },
+];
+
+/**
+ * Las pantallas DEL MODELO, por plantilla. Sin las heredadas y sin el cierre:
+ * los tres grupos se mantienen aparte porque `navegacionDePlantilla` los trata
+ * distinto.
+ */
+const MENU_DEL_MODELO: Readonly<Record<Plantilla, readonly EntradaDeMenu[]>> = {
+  tienda: TIENDA,
+  cafeteria: CAFETERIA,
+  restaurante: RESTAURANTE,
+  ferreteria: FERRETERIA,
+  estetica: ESTETICA,
 };
 
 /**
- * El menú de una plantilla, ya filtrado por los módulos que esa plantilla trae.
+ * El menú de una plantilla: filtrado por sus módulos, y con UNA entrada por
+ * módulo.
  *
- * El filtro no es decorativo: una entrada que la plantilla no incluye sería una
- * promesa que el POST rechaza, que es exactamente el defecto que cerró esta
- * fase cuando `getCurrentPackage` le daba el menú completo a una tienda.
+ * ── El filtro por módulo ───────────────────────────────────────────────────
+ * No es decorativo: una entrada que la plantilla no incluye sería una promesa
+ * que el POST rechaza, que es exactamente el defecto que cerró esta fase cuando
+ * `getCurrentPackage` le daba el menú completo a una tienda.
+ *
+ * ── Y por qué una sola por módulo ──────────────────────────────────────────
+ * Porque las pantallas del modelo y las del punto de venta heredado se solapan:
+ * un restaurante tiene `/restaurante/caja` y `/caja`, y las dos gobierna
+ * `caja_directa`. Un menú con dos entradas llamadas «Caja» que van a sitios
+ * distintos no es un menú completo: es uno que obliga a adivinar.
+ *
+ * Gana la del MODELO, que es la que la plantilla trae para ese módulo, y la
+ * heredada sólo aparece donde el modelo no cubre ese módulo —«Mesero»,
+ * «Compras», «Portal QR» en un restaurante—. Ninguna pantalla se pierde: las
+ * que salen del menú son las que tienen una equivalente del giro, y siguen
+ * respondiendo en su ruta.
+ *
+ * El orden decide: `MENU` pone primero las del modelo a propósito.
  */
 export function navegacionDePlantilla(plantilla: Plantilla): readonly EntradaDeMenu[] {
   const modulos = new Set<string>(segunElDato(MODULOS_POR_PLANTILLA, plantilla) ?? []);
-  return (segunElDato(MENU, plantilla) ?? []).filter((entrada) => modulos.has(entrada.modulo));
+  const delModelo = (segunElDato(MENU_DEL_MODELO, plantilla) ?? []).filter((entrada) =>
+    modulos.has(entrada.modulo),
+  );
+
+  // El solape se resuelve por MÓDULO, y sólo entre grupos. Dentro del modelo dos
+  // pantallas pueden compartirlo —«Cobrar» y «Caja» de una tiendita son las dos
+  // `caja_directa`, y son dos pantallas distintas que la tiendita necesita—; lo
+  // que no puede repetirse es el concepto ENTRE el menú del giro y el heredado.
+  const cubiertos = new Set(delModelo.map((entrada) => entrada.modulo));
+  const heredadas = HEREDADO.filter(
+    (entrada) => modulos.has(entrada.modulo) && !cubiertos.has(entrada.modulo),
+  );
+
+  return [...delModelo, ...heredadas, ...CIERRE.filter((e) => modulos.has(e.modulo))];
 }
 
 /**
@@ -575,6 +696,35 @@ export const INICIO_POR_PLANTILLA: Readonly<Record<Plantilla, string>> = {
   ferreteria: '/ferreteria/mostrador',
   estetica: '/estetica-salon/agenda-del-dia',
 };
+
+/**
+ * Las pantallas de modelo que NO llevan sesión de negocio.
+ *
+ * Son las mismas cuatro que no cuelgan de ningún menú, y por la misma razón:
+ *
+ * · los dos `acceso-por-pin` se ven ANTES de que exista sesión — son la pantalla
+ *   de entrar, y exigir sesión para verlas es un bucle;
+ * · el portal del comensal y el menú público los abre el CLIENTE desde su
+ *   teléfono, con el token de su mesa. No hay empleado, no hay plantilla y no hay
+ *   menú lateral.
+ *
+ * La guarda de `app/(modelos)/` las salta, y `verify:acople` comprueba que esta
+ * lista y las filas `PANTALLA-SIN-MENU` de `EXCEPCIONES-COBERTURA.md` digan lo
+ * MISMO. Dos listas que se pueden separar es cómo se cuela una pantalla privada
+ * a la calle.
+ */
+export const RUTAS_DE_MODELO_SIN_SESION: readonly string[] = [
+  '/restaurante/acceso-por-pin',
+  '/restaurante/portal-del-comensal',
+  '/cafeteria/acceso-por-pin',
+  '/cafeteria/menu-publico-y-pedido-anticipado',
+];
+
+/** ¿Esta ruta de modelo se abre sin sesión? */
+export function rutaDeModeloSinSesion(ruta: string): boolean {
+  const limpia = ruta.split('?')[0]?.replace(/\/+$/, '') ?? '';
+  return RUTAS_DE_MODELO_SIN_SESION.includes(limpia);
+}
 
 /** ¿Esta ruta pertenece a la plantilla? Lo que el envoltorio de modelos exige. */
 export function rutaPermitidaEnPlantilla(ruta: string, plantilla: Plantilla): boolean {

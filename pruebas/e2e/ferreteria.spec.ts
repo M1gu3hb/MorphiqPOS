@@ -67,8 +67,12 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
   test('la ferretería dice Materiales donde la tiendita dice Productos', async ({ page }) => {
     await entrar(page);
     await exigirGiro(page, 'ferreteria', 'ferreteria');
-    // La MISMA plantilla que `abarrotes.spec.ts`. Es el punto de la prueba.
-    await cambiarDePlantilla(page, 'tienda');
+    // SU plantilla, que hasta el 17-09-2026 era la de la tiendita. Y el punto de la
+    // prueba sigue siendo el mismo: el vocabulario NO sale de la plantilla, sale del
+    // giro. `ferreteria` tiene ahora plantilla propia porque corta material, fía y
+    // factura —tres cosas que una tiendita no hace—, y aunque compartieran plantilla
+    // seguiría diciendo «Materiales».
+    await cambiarDePlantilla(page, 'ferreteria');
 
     // ── 1 · SU VOCABULARIO ────────────────────────────────────────────────
     await abrirPantalla(page, '/');
@@ -96,12 +100,15 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // lo confirma sin atarse a una clase de CSS.
     await expect(menu.getByRole('link', { name: 'Materiales', exact: true })).toHaveAttribute(
       'href',
-      '/productos',
+      '/ferreteria/material',
     );
 
     // ── 2 · SUS PANTALLAS · la misma operación que su padre A1, sin sala ───
+    // «Existencias» es la pantalla de inventario de ESTE modelo —con la gaveta y el
+    // material dormido— y el menú ofrece una entrada por módulo, así que la heredada
+    // `/inventario` le cede el sitio.
     for (const [etiqueta, ruta] of [
-      ['Inventario', '/inventario'],
+      ['Existencias', '/ferreteria/existencias'],
       ['Compras', '/compras'],
     ] as const) {
       await expect(
@@ -114,10 +121,10 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     for (const deSala of ['Mostradoristas', 'Cocina']) {
       await expect(
         menu.getByRole('link', { name: deSala, exact: true }),
-        `El menú enseña «${deSala}» con la plantilla \`tienda\`. Una ferretería no tiene ` +
-          'mesero ni cocina, y `MODULOS_POR_PLANTILLA.tienda` no incluye el bloque de sala; ' +
-          'si aparece, `getCurrentPackage` está normalizando el nombre nuevo de la plantilla ' +
-          'a `restaurante_pro`.',
+        `El menú enseña «${deSala}» con la plantilla \`ferreteria\`. Una ferretería no ` +
+          'tiene mesero ni cocina, y `MODULOS_POR_PLANTILLA.ferreteria` no incluye el bloque ' +
+          'de sala; si aparece, `getCurrentPackage` está normalizando el nombre nuevo de la ' +
+          'plantilla a `restaurante_pro`.',
       ).toHaveCount(0);
     }
 

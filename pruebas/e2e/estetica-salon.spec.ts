@@ -38,26 +38,22 @@ import {
  * 2 · El servidor RECHAZA la plantilla `salon` con `ENTRADA_INVALIDA`, en vez de
  *     aceptarla y dejar a un negocio con una plantilla que ningún gate entiende.
  * 3 · Las doce pantallas del modelo existen y responden. El arquetipo A3 está en pie.
- * 4 · Con la plantilla de mostrador, su dashboard es el de mostrador. El de este
- *     modelo —ocho indicadores con la ocupación de mañana como estrella— vive dentro
+ * 4 · Su dashboard es el de mostrador —sin sala, con «Ir a Caja»—. El propio de este
+ *     modelo, con ocho indicadores y la ocupación de mañana como estrella, vive dentro
  *     de reportes y todavía no está construido.
  *
- * ── DÓNDE SE AFIRMA EL VOCABULARIO, y por qué no basta el menú ─────────────
- * Ésta es la parte incómoda y hay que decirla entera. De las tres entradas del menú
- * que llevan `entidad` en `heredado/lib/permissions.js` —`responsable` (/mesero),
- * `preparacion` (/cocina) y `producto` (/productos)— las dos primeras son del bloque
- * de SALA, que la plantilla `tienda` no incluye. Así que en el menú de una estética
- * sólo se puede leer UN sustantivo del giro, «Productos», y además coincide letra por
- * letra con el del diccionario base: mirarlo ahí no distingue un salón de una
- * tiendita. El vocabulario PROPIO de este modelo —estación, cita, servicio, estilista,
- * clienta— no se ve hoy en ninguna pantalla del menú.
+ * ── DÓNDE SE AFIRMA EL VOCABULARIO ────────────────────────────────────────
+ * Aquí decía —y era verdad hasta el 17-09-2026— que en el menú de una estética sólo
+ * se podía leer UN sustantivo del giro, «Productos», porque la plantilla era `tienda`
+ * y las otras dos entradas con `entidad` eran de sala. Con su plantilla propia se leen
+ * CUATRO: «Clientas», «Servicios», «Estilistas» y «Productos», y tres de los cuatro
+ * distinguen un salón de una tiendita a la primera mirada.
  *
- * Por eso el paso 2 mira el menú —es lo que el dueño LEE, y lo que no puede decir
- * («Estilistas», «Cocinas») importa tanto como lo que dice— y el paso 3 le pregunta al
- * SERVIDOR por las cinco entidades que ninguna pantalla enseña todavía. Las dos
- * afirmaciones son del navegador y las dos son verdad. El día que una de las 61
- * pantallas consuma estas entidades, la segunda se muda allí: lo que no se hace es
- * afirmar contra un lector que no existe, ni saltar la prueba con un `fixme` —una
+ * Aun así el paso 3 sigue preguntándole al SERVIDOR por las seis entidades, y sigue
+ * haciendo falta por dos razones: «estación» —la unidad de servicio— no la nombra
+ * ninguna entrada de menú, y `preparacion` está APAGADA en este giro, que es una
+ * afirmación que sólo se puede hacer contra el diccionario. Lo que no se hace es
+ * afirmar contra un lector que no existe, ni saltar la prueba con un `fixme`: una
  * prueba saltada se lee igual que una que pasó, y dejaría la condición 6 marcada como
  * cumplida sin que nadie haya abierto un navegador.
  */
@@ -106,11 +102,14 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
         'no está probando lo que dice.',
     ).toBe('ENTRADA_INVALIDA');
 
-    // La plantilla de un salón es la de MOSTRADOR, y no es una provisional a la espera
-    // de una `salon`: trae caja, inventario y catálogo, y no trae sala. Una estética
-    // con la de restaurante tendría mesas y comanda, y el `check` de la 058 lo impide
-    // en la base además de aquí.
-    await cambiarDePlantilla(page, 'tienda');
+    // SU plantilla. Aquí decía que la de un salón era la de MOSTRADOR y que no era
+    // una provisional a la espera de una `salon`. Lo era: con `tienda`, el menú de una
+    // estética no tenía agenda, ni cita, ni expediente, ni comisión — las cuatro cosas
+    // que son el negocio— y las doce pantallas del modelo no colgaban de ningún sitio.
+    // La 166 le dio su plantilla propia. Lo que sigue en pie es la otra mitad: la de
+    // SALA no, porque una estética no tiene mesero ni cocina, y el `check` de la 058
+    // reserva `restaurante` para los giros de alimentos.
+    await cambiarDePlantilla(page, 'estetica');
 
     // ── 2 · EL MENÚ · lo que el dueño lee ─────────────────────────────────
     await abrirPantalla(page, '/');
@@ -122,27 +121,48 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
       // sustantivo del giro que este menú puede enseñar, y coincide con el del
       // diccionario base — así que esta línea afirma que la entrada existe y está
       // traducida, no que el menú distinga a un salón de una tiendita.
-      propios: [['producto', 'Productos']],
+      propios: [
+        // `cliente` → «clienta/clientas», con el femenino por omisión que este modelo
+        // puso sobre la mesa. Es la entrada de su expediente.
+        ['cliente', 'Clientas'],
+        // `linea_orden` → «servicio/servicios». Lo que se vende es un SERVICIO; ni
+        // platillo, ni bebida, ni material.
+        ['linea_orden', 'Servicios'],
+        // `responsable` → «estilista/estilistas». Con la plantilla `tienda` esta
+        // entrada no existía, y era la prueba de que la plantilla estaba mal elegida:
+        // una estética sin ficha de profesional no puede pagar comisión.
+        ['responsable', 'Estilistas'],
+        // Y el del anaquel, que en un salón se llama producto también.
+        ['producto', 'Productos'],
+      ],
       // Lo que sí sería un defecto: que un salón hable como un restaurante, como una
       // cafetería o como una ferretería. Es lo que pasa cuando el diccionario se
       // aplica encima en vez de resolverse por giro.
       ajenos: ['Platillos', 'Meseros', 'Cocinas', 'Materiales', 'Baristas', 'Barras'],
     });
 
-    // Y las dos del bloque de sala no pueden aparecer NI CON SU NOMBRE DE ESTE GIRO.
-    // «Estilistas» es la traducción correcta de `responsable` para una estética; su
-    // entrada es `/mesero`, que `MODULOS_POR_PLANTILLA.tienda` no incluye. Si
-    // apareciera, el negocio tendría módulos de sala que nadie contrató — y de paso
-    // es la razón por la que el vocabulario de este modelo se afirma en el paso 3.
-    // «Cocina» —sin la `s`— es la etiqueta de siempre: `preparacion` está apagada para
-    // este giro, así que `etiquetaDeNavegacion` cae al `label` del menú. Si se lee, la
-    // entrada está ahí y lo que falta es el filtro por plantilla.
-    for (const deSala of ['Estilistas', 'Cocina']) {
+    // «Estilistas» SÍ está, y es su ficha de profesional —`/estetica-salon/ficha-del-
+    // profesional`—, no la entrada `/mesero` del punto de venta heredado. La diferencia
+    // importa: una lleva a la pantalla de comisión de este modelo y la otra a la
+    // comanda de un restaurante. Se afirma por el `href`, que es lo único que las
+    // distingue sin atarse a una clase de CSS.
+    await expect(menu.getByRole('link', { name: 'Estilistas', exact: true })).toHaveAttribute(
+      'href',
+      '/estetica-salon/ficha-del-profesional',
+    );
+
+    // Y lo que NO puede aparecer: el bloque de sala. `MODULOS_POR_PLANTILLA.estetica` no
+    // incluye `mesero` ni `cocina` ni `mesas`, porque en un salón quien atiende es quien
+    // cobra y no hay comanda que mandar a ninguna parte. «Cocina» —sin la `s`— es la
+    // etiqueta de siempre: `preparacion` está APAGADA para este giro, así que
+    // `etiquetaDeNavegacion` cae al `label` del menú antes que dejar un hueco. Si se
+    // lee, la entrada está ahí y lo que falta es el filtro por plantilla.
+    for (const deSala of ['Cocina', 'Barras', 'Mesas']) {
       await expect(
         menu.getByRole('link', { name: deSala, exact: true }),
-        `El menú enseña «${deSala}» con la plantilla \`tienda\`. Un salón no tiene mesero ` +
-          'ni cocina; si aparece, `getCurrentPackage` está normalizando el nombre nuevo de ' +
-          'la plantilla al heredado `restaurante_pro`.',
+        `El menú enseña «${deSala}» con la plantilla \`estetica\`. Un salón no tiene ` +
+          'mesero, ni cocina, ni mesas; si aparece, `getCurrentPackage` está normalizando ' +
+          'el nombre nuevo de la plantilla al heredado `restaurante_pro`.',
       ).toHaveCount(0);
     }
 

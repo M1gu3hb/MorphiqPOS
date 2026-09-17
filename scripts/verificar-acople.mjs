@@ -585,6 +585,30 @@ async function comprobarNavegacion() {
     }
   }
 
+  // Y las dos listas tienen que decir lo MISMO. La guarda de `app/(modelos)/`
+  // salta exactamente estas rutas (`RUTAS_DE_MODELO_SIN_SESION`), y son las que
+  // no están en ningún menú porque nadie con sesión las abre. Si se separan, hay
+  // dos salidas malas: una pantalla privada que se abre sin sesión, o la
+  // pantalla de teclear el PIN mandando al login a quien la está mirando.
+  const sinSesion = new Set(navegacion.RUTAS_DE_MODELO_SIN_SESION ?? []);
+  const soloEnElDoc = [...sinMenu].filter((r) => !sinSesion.has(r));
+  const soloEnElCodigo = [...sinSesion].filter((r) => !sinMenu.has(r));
+  exigir(
+    soloEnElDoc.length === 0 && soloEnElCodigo.length === 0,
+    'NAVEGACION: las pantallas declaradas sin menú y las que la guarda abre sin ' +
+      'sesión no son las mismas.' +
+      (soloEnElDoc.length > 0
+        ? `
+    Declaradas PANTALLA-SIN-MENU y con guarda: ${soloEnElDoc.join(', ')} ` +
+          '— nadie con sesión puede llegar a ellas y sin sesión tampoco: son inalcanzables.'
+        : '') +
+      (soloEnElCodigo.length > 0
+        ? `
+    Abiertas SIN SESIÓN y no declaradas: ${soloEnElCodigo.join(', ')} ` +
+          '— una pantalla de negocio que cualquiera abre desde la calle.'
+        : ''),
+  );
+
   const inalcanzables = [];
   for (const modelo of MODELOS) {
     for (const slug of pantallasEsperadas(modelo)) {

@@ -20,12 +20,14 @@ import {
  * sala —mesero y cocina— que ninguna otra plantilla tiene.
  *
  * ── POR QUÉ ESO IMPORTA, y no es una prueba de textos ──────────────────────
- * Porque `restaurante` es la ÚNICA de las tres plantillas que incluye el bloque de
- * sala: `MODULOS_POR_PLANTILLA` le da `mesas`, `mesero`, `cocina` y `barra`, y a las
- * otras dos no. Si esa diferencia no se ve en el menú, entonces la plantilla no
- * decide nada y las tres son la misma con distinto nombre —que es exactamente lo que
- * eran antes de D-01, cuando se llamaban `esencial`, `operativo` y `restaurante_pro`
- * y sólo describían un precio—.
+ * Porque `restaurante` es la ÚNICA de las CINCO plantillas que incluye el bloque de
+ * sala entero: `MODULOS_POR_PLANTILLA` le da `mesas`, `mesero`, `cocina` y `barra`, y
+ * a las otras cuatro no —la cafetería tiene `barra` y nada más, porque en un mostrador
+ * quien cobra es quien prepara—. Si esa diferencia no se ve en el menú, entonces la
+ * plantilla no decide nada y todas son la misma con distinto nombre —que es exactamente
+ * lo que eran antes de D-01, cuando se llamaban `esencial`, `operativo` y
+ * `restaurante_pro` y sólo describían un precio, y lo que seguían siendo dos de las
+ * tres hasta la 166, cuando `tienda` y `cafeteria` traían los mismos 28 módulos—.
  *
  * Y porque este modelo es la raíz del arquetipo A2: doce modelos de alimentos heredan
  * de él. Un vocabulario mal enganchado aquí no se equivoca una vez, se equivoca doce.

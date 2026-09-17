@@ -29,15 +29,22 @@ import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/
  * pantallas empieza a consumir el vocabulario, esta prueba se amplía con ella; lo
  * que no se hace es afirmar contra un lector que no existe.
  *
- * Y hay una consecuencia que no se puede tapar: de las tres entradas del menú con
- * `entidad` —`responsable` (/mesero), `preparacion` (/cocina) y `producto`
- * (/productos)—, las dos primeras son del bloque de SALA, que la plantilla
- * `tienda` no incluye. En una tienda, una ferretería, una farmacia o una estética
- * el menú sólo puede enseñar UN sustantivo del giro: «Productos». Todo lo demás
- * que el giro nombra —la unidad de servicio, la orden, su línea, la clienta— no
- * se ve hoy en ninguna pantalla del menú. Para eso está
- * `exigirVocabularioDelGiro`, que le pregunta al SERVIDOR; el menú se sigue
- * mirando porque es lo que el dueño lee.
+ * **Esto era verdad hasta el 17-09-2026 y ya no lo es.** Aquí decía, y era cierto
+ * entonces, que el menú tenía TRES entradas con `entidad` —`/mesero`, `/cocina` y
+ * `/productos`— y que las dos primeras eran de SALA, así que en una tienda, una
+ * ferretería o una estética sólo se podía leer «Productos» y nada más.
+ *
+ * Lo que cambió: el menú ya no es una lista fija de doce entradas, sino el de SU
+ * plantilla (`packages/contracts/src/comandos/navegacion.ts`), y cada modelo trae
+ * las suyas. Una estética lee «Clientas», «Servicios», «Estilistas» y «Productos»
+ * en el menú; una ferretería lee «Materiales». Y desde E2.4 el vocabulario llega
+ * también DENTRO de las pantallas: 48 de las 61 lo consumen, en sus encabezados,
+ * sus estados vacíos y sus mensajes de error.
+ *
+ * `exigirVocabularioDelGiro` sigue en pie y sigue haciendo falta: le pregunta al
+ * SERVIDOR por las entidades que ninguna ENTRADA DE MENÚ nombra —la unidad de
+ * servicio de una cafetería es «pedido» y no hay entrada que se llame así— y ahí
+ * es donde se afirma que el diccionario del giro es el que manda.
  *
  * ── Nada de esperas por tiempo ─────────────────────────────────────────────
  * No hay un solo `waitForTimeout` aquí. `13-PRUEBAS §2` lo prohíbe —«prohibido
@@ -85,34 +92,55 @@ import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/
  * la precondición de abajo comprueba antes de tocar nada.
  */
 
-/** Las tres plantillas que existen hoy en `organizaciones.paquete` (D-01). */
-export type Plantilla = 'tienda' | 'cafeteria' | 'restaurante';
+/**
+ * Las CINCO plantillas de `organizaciones.paquete` (D-01, abiertas por la 166).
+ *
+ * Eran tres, y dos de ellas traian los mismos 28 modulos. `ferreteria` y
+ * `estetica` dejaron de resolverse como `tienda` el 17-09-2026: una ferreteria
+ * corta material, fia y factura, y un salon agenda citas y paga comision. Lo que
+ * se daba de alta con `tienda` abria un negocio sin la mitad de sus pantallas.
+ */
+export type Plantilla = 'tienda' | 'cafeteria' | 'restaurante' | 'ferreteria' | 'estetica';
 
 /**
- * Los cuatro negocios que cobran de verdad (F2.3-REGLAS §4.5).
+ * Los cuatro negocios que cobran de verdad (F2.3-REGLAS §4.5), por SLUG.
  *
- * Se comparan por NOMBRE porque es lo único que `/api/auth/empleados` devuelve sin
- * sesión —`datos.negocio` es `organizaciones.nombre`— y esta comprobación tiene que
- * poder hacerse ANTES de entrar. Si la suite se encontrara operando sobre uno de
- * éstos, lo que queda después no es una prueba: son ventas de prueba y mesas
- * abiertas en la caja de alguien que cobra esa noche.
+ * ── Por qué no por nombre ──────────────────────────────────────────────────
+ * Porque el nombre NO identifica a un negocio. Hasta el 17-09-2026 esta lista se
+ * comparaba contra `datos.negocio` —`organizaciones.nombre`— y traía **«Café
+ * Jacaranda» Y «Cafetería Jacaranda», las dos**, porque quien la escribió no
+ * sabía cuál era la de verdad. Una lista que incluye las dos formas de un nombre
+ * por si acaso no es una guarda: es una suposición con apariencia de guarda. Y el
+ * nombre se puede cambiar desde la configuración, así que el día que Miguel le
+ * ponga acento a algo, la guarda deja de proteger y nadie se entera.
+ *
+ * El slug es el identificador: es lo que `ORGANIZACION` resuelve
+ * (`repoNegocio.porSlug`), es único en la tabla y no lo cambia ninguna pantalla.
+ *
+ * ── Y por qué el prefijo `demo-` no sirve de nada ──────────────────────────
+ * **Tres de los cuatro negocios vivos tienen un slug que empieza por `demo-`.**
+ * Cualquier heurística de prefijo daría por buena la caja de Don Chuy. Por eso la
+ * lista es explícita, y por eso la comprobación de verdad es la de abajo: que el
+ * negocio servido sea EXACTAMENTE el que la suite declaró.
  */
-const NEGOCIOS_VIVOS = [
-  'Restaurante MH',
-  'Café Jacaranda',
-  'Cafetería Jacaranda',
-  'Abarrotes Don Chuy',
-  'Ferretería La Broca',
+const SLUGS_VIVOS = [
+  'mh-restaurante',
+  'demo-cafe-jacaranda',
+  'demo-abarrotes-don-chuy',
+  'demo-ferreteria-la-broca',
 ] as const;
 
 /**
  * La plantilla con la que se da de alta cada giro (`paquetePermitidoParaGiro`).
  *
- * Son los SEIS giros de `GIROS` en `packages/contracts/src/comandos/ambito.ts`:
- * `estetica` entró con la migración 164. Y entra aquí con `tienda`, que no es un
- * apaño provisional: `PAQUETES` tiene tres plantillas, la de un salón es la de
- * mostrador con caja e inventario, y la de sala está reservada a los giros de
- * alimentos por el `check` de la 058.
+ * Son los SEIS giros de `GIROS` en `packages/contracts/src/comandos/ambito.ts`.
+ *
+ * `ferreteria` y `estetica` daban de alta con `tienda`, y aquí decía que no era un
+ * apaño provisional. **Lo era.** `PAQUETES` tiene ahora CINCO plantillas (166) y
+ * cada uno de esos dos giros tiene la suya: una ferretería corta material, fía y
+ * factura, y un salón agenda, lleva expediente y paga comisión. Con `tienda` se
+ * daba de alta un negocio al que le faltaba la mitad de sus pantallas, y la guarda
+ * de `app/(modelos)/` —que sí comprueba la plantilla— lo habría echado de ellas.
  *
  * La clave sigue siendo `string` y no un tipo cerrado, ahora por otra razón:
  * `pruebas/` no tiene `@morphiqpos/contracts` como dependencia, así que desde aquí
@@ -123,9 +151,12 @@ const PLANTILLA_DE_ALTA: Readonly<Record<string, Plantilla>> = {
   restaurante: 'restaurante',
   cafeteria: 'cafeteria',
   tienda: 'tienda',
-  ferreteria: 'tienda',
+  ferreteria: 'ferreteria',
+  // `farmacia` es el único giro sin plantilla propia todavía: su modelo no está
+  // construido. Da de alta con `tienda`, que es la más restrictiva, y eso es lo
+  // correcto mientras no exista la suya.
   farmacia: 'tienda',
-  estetica: 'tienda',
+  estetica: 'estetica',
 };
 
 const SLUG_DEMO = process.env['MORPHIQPOS_ORG_DEMO'] ?? '';
@@ -153,6 +184,8 @@ interface RespuestaDeEmpleados {
   readonly ok?: boolean;
   readonly datos?: {
     readonly negocio?: string;
+    /** `organizaciones.slug`: el identificador, no el nombre. Ver `SLUGS_VIVOS`. */
+    readonly slug?: string;
     readonly usuarios?: readonly EmpleadoDeAcceso[];
   };
 }
@@ -270,12 +303,35 @@ export async function exigirDemostracion(
 
     const cuerpo = (await respuesta.json()) as RespuestaDeEmpleados;
     const negocio = cuerpo.datos?.negocio ?? '';
+    const servido = cuerpo.datos?.slug ?? '';
     const usuarios = cuerpo.datos?.usuarios ?? [];
 
-    if ((NEGOCIOS_VIVOS as readonly string[]).includes(negocio)) {
+    if (servido === '') {
       throw new Error(
         [
-          `ALTO. El despliegue está sirviendo a «${negocio}», que es un NEGOCIO VIVO.`,
+          '/api/auth/empleados contestó 200 pero sin el SLUG del negocio.',
+          '',
+          'Eso sólo pasa si la respuesta cambió de forma: `datos.slug` es',
+          '`organizaciones.slug` y lo pone `negocioDelDespliegue`. Sin él esta',
+          'precondición no puede afirmar sobre QUÉ negocio va a operar la suite, y',
+          'operar a ciegas sobre la caja de un cliente es exactamente lo que §4.5',
+          'prohíbe. Revisa apps/web/app/api/auth/empleados/route.ts.',
+        ].join('\n'),
+      );
+    }
+
+    // ── LA comprobación ────────────────────────────────────────────────────
+    // Identidad exacta, no un nombre y no una heurística de prefijo: el negocio
+    // que el despliegue sirve tiene que ser EXACTAMENTE el que esta corrida
+    // declaró. Así no hay forma de acabar operando sobre otro — ni sobre uno
+    // vivo, ni sobre la demo de otro modelo, que también ensuciaría el reporte.
+    if (servido !== SLUG_DEMO) {
+      const esVivo = (SLUGS_VIVOS as readonly string[]).includes(servido);
+      throw new Error(
+        [
+          esVivo
+            ? `ALTO. El despliegue sirve a «${servido}» («${negocio}»), que es un NEGOCIO VIVO.`
+            : `El despliegue sirve a «${servido}» y esta corrida declaró «${SLUG_DEMO}».`,
           '',
           'F2.3-REGLAS §4.5: «Si al terminar quedan ventas de prueba, cortes de prueba o mesas',
           'abiertas en cualquiera de los cuatro negocios vivos, el acople está mal hecho',
@@ -284,8 +340,26 @@ export async function exigirDemostracion(
           'Esta suite entra con PIN y CAMBIA la plantilla del negocio. Sobre un cliente que',
           'cobra, eso le quita o le da módulos que paga. No se sigue.',
           '',
-          `Apunta ORGANIZACION a la demo (MORPHIQPOS_ORG_DEMO dice «${SLUG_DEMO}»):`,
+          `\`ORGANIZACION\` en el entorno DEL SERVIDOR tiene que valer «${SLUG_DEMO}»; contra`,
+          'el preview se pone con `vercel env add ORGANIZACION preview` y hay que REDESPLEGAR,',
+          'porque las variables se aplican al construir.',
+          '',
           comandoDeAlta('tienda'),
+        ].join('\n'),
+      );
+    }
+
+    if ((SLUGS_VIVOS as readonly string[]).includes(SLUG_DEMO)) {
+      throw new Error(
+        [
+          `ALTO. MORPHIQPOS_ORG_DEMO dice «${SLUG_DEMO}», que es un NEGOCIO VIVO.`,
+          '',
+          'La comprobación de arriba sólo exige que el despliegue sirva a lo que esta',
+          'corrida declaró; si lo declarado es la caja de un cliente, coincidir no ayuda.',
+          'Los cuatro negocios que cobran son Restaurante MH, Café Jacaranda, Abarrotes',
+          'Don Chuy y Ferretería La Broca, y sus slugs están en SLUGS_VIVOS.',
+          '',
+          'Las demos del acople se llaman `demo-acople-<giro>`.',
         ].join('\n'),
       );
     }
