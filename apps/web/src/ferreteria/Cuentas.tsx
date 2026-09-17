@@ -16,6 +16,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · cuentas
@@ -211,6 +212,7 @@ export function Cuentas({
   documentosIniciales,
   onPagoRegistrado,
 }: CuentasProps) {
+  const voc = useVocabulario();
   const [renglones, setRenglones] = useState<readonly RenglonDeCartera[] | null>(
     renglonesIniciales ?? null,
   );
@@ -413,8 +415,8 @@ export function Cuentas({
       <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center">
         <Input
           type="search"
-          aria-label="Buscar cliente u obra"
-          placeholder="Buscar cliente u obra"
+          aria-label={`Buscar ${voc.singular('cliente')} u obra`}
+          placeholder={`Buscar ${voc.singular('cliente')} u obra`}
           value={busqueda}
           onChange={(evento) => {
             setBusqueda(evento.target.value);
@@ -442,7 +444,7 @@ export function Cuentas({
       {/* La cabecera de columnas es de tablet para arriba: en teléfono cada
           renglón se explica solo y una cabecera ahí sería una línea perdida. */}
       <div className="hidden grid-cols-[minmax(0,1fr)_7rem_9rem_7rem_6rem] gap-3 px-3 pb-1 text-xs uppercase text-muted-foreground md:grid">
-        <span>Cliente / obra</span>
+        <span>{voc.titulo('cliente')} / obra</span>
         <span className="text-right">Debe</span>
         <span>Más viejo</span>
         <span className="text-right">Límite</span>
@@ -547,7 +549,8 @@ export function Cuentas({
 
       {visibles.length === 0 && (
         <p className="p-4 text-sm text-muted-foreground">
-          Ningún cliente cae en este filtro. Quita la búsqueda o vuelve a «Todos».
+          {voc.conDeterminante('ningun', 'cliente')} cae en este filtro. Quita la búsqueda o vuelve
+          a «Todos».
         </p>
       )}
 

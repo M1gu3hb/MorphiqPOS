@@ -18,6 +18,7 @@ import {
   type GrupoDeOpciones,
   type OpcionDeBebida,
 } from './opciones-de-bebida';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · opciones-de-la-bebida
@@ -109,6 +110,7 @@ export function OpcionesDeLaBebida({
   opcionesIniciales,
   onAgregada,
 }: OpcionesDeLaBebidaProps) {
+  const voc = useVocabulario();
   const [opciones, setOpciones] = useState<readonly OpcionDeBebida[] | null>(
     opcionesIniciales ?? null,
   );
@@ -265,7 +267,9 @@ export function OpcionesDeLaBebida({
         {grupos.length === 0 && error === null ? (
           // El vacío ENSEÑA: dice qué falta declarar y lleva a declararlo.
           <div className="flex flex-col items-start gap-3 p-4">
-            <p className="text-lg font-semibold">Esta bebida se agrega tal cual.</p>
+            <p className="text-lg font-semibold">
+              {voc.conDeterminante('este', 'linea_orden')} se agrega tal cual.
+            </p>
             <p className="text-sm text-muted-foreground">
               Todavía no declara grupos de opciones. La leche, el tamaño, la temperatura y los
               extras se declaran una sola vez en Configuración › Opciones de bebida, cada uno con su
@@ -373,7 +377,7 @@ export function OpcionesDeLaBebida({
 
             <div className="min-w-0">
               <Label htmlFor="nota-barra" className={ROTULO}>
-                Nota para la barra
+                Nota para {voc.enFrase('preparacion')}
               </Label>
               <Textarea
                 id="nota-barra"

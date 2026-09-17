@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · mi-dia
@@ -254,6 +255,7 @@ export function MiDia({
   gananciaInicial,
   onAbrirCita,
 }: MiDiaProps) {
+  const voc = useVocabulario();
   const router = useRouter();
   const [citas, setCitas] = useState<readonly CitaDeMiDia[] | null>(citasIniciales ?? null);
   const [ganancia, setGanancia] = useState<GananciaDelDia | null>(gananciaInicial ?? null);
@@ -450,7 +452,7 @@ export function MiDia({
           {actual === null ? (
             // El vacío ENSEÑA: dice qué se puede hacer con el día por delante.
             <div className="rounded-xl border border-dashed border-border p-6 text-center">
-              <p className="mb-1 text-lg font-semibold">Hoy no tienes citas.</p>
+              <p className="mb-1 text-lg font-semibold">Hoy no tienes {voc.plural('orden')}.</p>
               <p className="mb-4 text-sm text-muted-foreground">
                 El día entero está libre: cabe cualquier servicio sin mover nada.
               </p>
@@ -579,7 +581,7 @@ export function MiDia({
           className="hidden md:block xl:col-start-2 xl:row-start-2"
         >
           <h2 id="detalle" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-            Servicio por servicio
+            {voc.titulo('linea_orden')} por {voc.singular('linea_orden')}
           </h2>
           <ul className="rounded-xl border border-border bg-card p-3 text-sm">
             {(ganancia?.detalle ?? []).map((linea) => (
@@ -589,7 +591,9 @@ export function MiDia({
               </li>
             ))}
             {(ganancia?.detalle ?? []).length === 0 && (
-              <li className="py-1 text-muted-foreground">Todavía no se cierra ningún servicio.</li>
+              <li className="py-1 text-muted-foreground">
+                Todavía no se cierra {voc.enFraseCon('ningun', 'linea_orden')}.
+              </li>
             )}
           </ul>
         </section>

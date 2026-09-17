@@ -8,6 +8,8 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
+import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
  * PANTALLA · cafeteria · menu-publico-y-pedido-anticipado
@@ -96,12 +98,13 @@ export function totalDelCarrito(lineas: readonly LineaDelCarrito[]): number {
   return lineas.reduce((suma, linea) => suma + linea.precioCentavos * linea.cantidad, 0);
 }
 
-function mensajeDe(fallo: unknown): string {
+function mensajeDe(fallo: unknown, voc: Vocabulario): string {
   if (fallo instanceof ErrorApi) return fallo.message;
-  return 'No se pudo apartar el pedido. Vuelve a intentarlo.';
+  return `No se pudo apartar ${voc.enFrase('unidad_servicio')}. Vuelve a intentarlo.`;
 }
 
 export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: MenuPublicoProps) {
+  const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoPublico[] | null>(
     productosIniciales ?? null,
   );
@@ -197,7 +200,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
         setCarrito([]);
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setError(mensajeDe(fallo, voc));
       })
       .finally(() => {
         setOcupado(false);
@@ -219,7 +222,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
         <h1 className="text-2xl font-semibold">Ya está apartado</h1>
         <p className="text-4xl font-semibold tabular-nums">{folio}</p>
         <p className="text-muted-foreground">
-          Se paga en la barra al recogerlo. Di tu nombre y ya está.
+          Se paga en {voc.enFrase('preparacion')} al recogerlo. Di tu nombre y ya está.
         </p>
       </main>
     );
@@ -233,7 +236,9 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <header>
         <h1 className="text-2xl font-semibold">Pide antes de llegar</h1>
-        <p className="text-muted-foreground text-sm">Se aparta y se paga en la barra. Sin fila.</p>
+        <p className="text-muted-foreground text-sm">
+          Se aparta y se paga en {voc.enFrase('preparacion')}. Sin fila.
+        </p>
       </header>
 
       {error !== null && (
@@ -278,7 +283,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
       <Separator />
 
       <section className="space-y-3">
-        <h2 className="font-medium">Tu pedido</h2>
+        <h2 className="font-medium">Tu {voc.singular('unidad_servicio')}</h2>
         {carrito.length === 0 && (
           <p className="text-muted-foreground text-sm">Todavía no has puesto nada.</p>
         )}

@@ -14,6 +14,8 @@ import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
 import { useState } from 'react';
 
 import { invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
+import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
  * F-324 · Anular una línea, con su motivo.
@@ -36,15 +38,24 @@ import { invocarComando } from '~/cliente/api';
  * una cuenta ya cobrada se «corrige» sin que el cajón lo sepa.
  */
 
-/** Los cuatro del giro, con las palabras que el mesero usa. */
-const MOTIVOS = [
-  { clave: 'error_cocina', etiqueta: 'Se equivocó la cocina' },
-  { clave: 'error_mesero', etiqueta: 'Me equivoqué al tomar la orden' },
-  { clave: 'cortesia', etiqueta: 'Cortesía de la casa' },
-  { clave: 'cliente_cambio', etiqueta: 'El comensal cambió de opinión' },
-] as const;
+/**
+ * Los cuatro del giro, con las palabras que usa quien anula.
+ *
+ * Es una FUNCIÓN y no una constante porque tres de los cuatro nombran una
+ * entidad del diccionario —la preparación, el responsable, el cliente— y una
+ * constante de módulo no puede llamar a un hook. Las claves NO se traducen:
+ * viajan a la base.
+ */
+type ClaveMotivo = 'error_cocina' | 'error_mesero' | 'cortesia' | 'cliente_cambio';
 
-type ClaveMotivo = (typeof MOTIVOS)[number]['clave'];
+function motivosDe(voc: Vocabulario): readonly { clave: ClaveMotivo; etiqueta: string }[] {
+  return [
+    { clave: 'error_cocina', etiqueta: `Se equivocó ${voc.enFrase('preparacion')}` },
+    { clave: 'error_mesero', etiqueta: 'Me equivoqué al tomar la orden' },
+    { clave: 'cortesia', etiqueta: 'Cortesía de la casa' },
+    { clave: 'cliente_cambio', etiqueta: `${voc.conArticulo('cliente')} cambió de opinión` },
+  ];
+}
 
 export interface AnularLineaDialogProps {
   readonly abierto: boolean;
@@ -66,6 +77,7 @@ export function AnularLineaDialog({
   onCerrar,
   onAnulada,
 }: AnularLineaDialogProps) {
+  const voc = useVocabulario();
   const [motivo, setMotivo] = useState<ClaveMotivo | null>(null);
   const [nota, setNota] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -122,7 +134,7 @@ export function AnularLineaDialog({
           <Label asChild>
             <legend className="font-semibold">Motivo</legend>
           </Label>
-          {MOTIVOS.map((opcion) => (
+          {motivosDe(voc).map((opcion) => (
             <label
               key={opcion.clave}
               className="flex cursor-pointer items-center gap-2 rounded-md border border-border p-2 text-sm hover:bg-accent hover:text-accent-foreground"

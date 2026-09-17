@@ -6,6 +6,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · ficha-del-profesional
@@ -90,6 +91,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfesionalProps) {
+  const voc = useVocabulario();
   const [dia, setDia] = useState<MiDia | null>(diaInicial ?? null);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,7 +156,9 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
         <p className="text-lg">Ya terminaste el día.</p>
       )}
 
-      {dia.citas.length === 0 && <p className="text-muted-foreground">Hoy no tienes citas.</p>}
+      {dia.citas.length === 0 && (
+        <p className="text-muted-foreground">Hoy no tienes {voc.plural('orden')}.</p>
+      )}
 
       <section className="grid grid-cols-2 gap-4">
         <div className="rounded-lg border p-4">

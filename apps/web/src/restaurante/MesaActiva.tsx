@@ -11,6 +11,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { consultarPuente, invocarComando, nuevaClave } from '~/cliente/api';
 import { AnularLineaDialog } from './AnularLineaDialog';
 import { DividirCuentaDialog } from './DividirCuentaDialog';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · restaurante · mesa-activa
@@ -91,6 +92,7 @@ const volverAlMapa = (): void => {
 };
 
 export function MesaActiva(props: MesaActivaProps) {
+  const voc = useVocabulario();
   const { mesaInicial, productosIniciales } = props;
   const [mesa, setMesa] = useState<MesaAbierta | null>(mesaInicial ?? null);
   const [productos, setProductos] = useState<readonly ProductoDeComanda[] | null>(
@@ -153,13 +155,17 @@ export function MesaActiva(props: MesaActivaProps) {
         // dato de hace diez segundos a una pantalla en blanco. Y un aborto no
         // es un error: es esta misma pantalla, que ya no está.
         if (señal.aborted) return;
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer la mesa.');
+        setError(
+          fallo instanceof Error
+            ? fallo.message
+            : `No se pudo leer ${voc.enFrase('unidad_servicio')}.`,
+        );
       }
     })();
     return () => {
       control.abort();
     };
-  }, [mesaInicial]);
+  }, [mesaInicial, voc]);
 
   useEffect(() => {
     // El foco sólo donde hay teclado físico: en la tablet abriría el teclado en
@@ -239,7 +245,9 @@ export function MesaActiva(props: MesaActivaProps) {
       const filtro = { venta_id: orden };
       setEnviadas(await consultarPuente<LineaEnviada>('DetalleVenta', { filtro, limite: 120 }));
     } catch (fallo: unknown) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo releer la cuenta.');
+      setError(
+        fallo instanceof Error ? fallo.message : `No se pudo releer ${voc.enFrase('orden')}.`,
+      );
     }
   }
 
@@ -284,7 +292,7 @@ export function MesaActiva(props: MesaActivaProps) {
           <p className="text-sm">{listos.join(' · ')}</p>
         </section>
       )}
-      <section aria-label="Pedido actual, ya enviado a cocina">
+      <section aria-label={`Pedido actual, ya enviado a ${voc.singular('preparacion')}`}>
         <h2 className="text-xs font-bold uppercase text-muted-foreground">Pedido actual</h2>
         {enviadas.length === 0 && (
           <p className="text-sm text-muted-foreground">
@@ -319,16 +327,18 @@ export function MesaActiva(props: MesaActivaProps) {
             variant="outline"
             className="mt-2 w-full"
             onClick={abrirDividir}
-            aria-label="Dividir la cuenta de la mesa"
+            aria-label={`Dividir ${voc.enFrase('orden')} de ${voc.enFrase('unidad_servicio')}`}
           >
-            Dividir cuenta
+            Dividir {voc.singular('orden')}
           </Button>
         )}
       </section>
       <section aria-label="Agregar al pedido, sin enviar" className="border-t pt-3">
         <h2 className="text-xs font-bold uppercase text-primary">Agregar al pedido</h2>
         {pendientes.length === 0 && (
-          <p className="text-sm text-muted-foreground">Toca un platillo para agregarlo.</p>
+          <p className="text-sm text-muted-foreground">
+            Toca {voc.enFraseCon('un', 'linea_orden')} para agregarlo.
+          </p>
         )}
         <ul className="mt-1 space-y-1 text-sm">
           {pendientes.map((p) => (
@@ -380,13 +390,13 @@ export function MesaActiva(props: MesaActivaProps) {
         </p>
       )}
       <div className="grid gap-4 p-3 xl:grid-cols-[1fr_22rem]">
-        <section aria-label="Catálogo de platillos">
+        <section aria-label={`Catálogo de ${voc.plural('linea_orden')}`}>
           <Input
             ref={refBusqueda}
             value={busqueda}
             onChange={buscar}
-            aria-label="Buscar platillo"
-            placeholder="Buscar platillo…  🔍"
+            aria-label={`Buscar ${voc.singular('linea_orden')}`}
+            placeholder={`Buscar ${voc.singular('linea_orden')}…  🔍`}
           />
           {visibles.length === 0 ? (
             /* El vacío enseña: dice qué falta y lleva a donde se resuelve. */
@@ -418,7 +428,10 @@ export function MesaActiva(props: MesaActivaProps) {
             </ul>
           )}
         </section>
-        <aside aria-label="Pedido de la mesa" className="sticky top-20 hidden self-start xl:block">
+        <aside
+          aria-label={`Pedido de ${voc.enFrase('unidad_servicio')}`}
+          className="sticky top-20 hidden self-start xl:block"
+        >
           {panel}
         </aside>
       </div>
@@ -439,7 +452,7 @@ export function MesaActiva(props: MesaActivaProps) {
       </Sheet>
       <Dialog open={falloEnvio} onOpenChange={setFalloEnvio}>
         <DialogContent className="border-2 border-destructive">
-          <DialogTitle>La comanda NO llegó a cocina</DialogTitle>
+          <DialogTitle>La comanda NO llegó a {voc.singular('preparacion')}</DialogTitle>
           <p role="alert" className="text-sm">
             Vuelve a intentar: el pedido sigue completo en la pantalla y el reintento usa la misma
             clave, así que no puede duplicarse.

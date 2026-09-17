@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primiti
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · barra
@@ -154,6 +155,7 @@ function useEsTelefono(): boolean {
 }
 
 export function Barra({ filasIniciales }: BarraProps) {
+  const voc = useVocabulario();
   const [pedidos, setPedidos] = useState<readonly PedidoDeBarra[] | null>(filasIniciales ?? null);
   const [llamados, setLlamados] = useState<Readonly<Record<string, number>>>({});
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -246,9 +248,11 @@ export function Barra({ filasIniciales }: BarraProps) {
   return (
     <div className="flex min-h-dvh flex-col gap-4 bg-background p-4 text-foreground">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-xl font-bold tracking-wide uppercase">Barra</h1>
+        <h1 className="text-xl font-bold tracking-wide uppercase">{voc.titulo('preparacion')}</h1>
         <p className="text-sm text-muted-foreground tabular-nums">
-          {promedio === null ? 'Sin pedidos en espera' : `⏱ prom. en fila ${reloj(promedio)}`}
+          {promedio === null
+            ? `Sin ${voc.plural('unidad_servicio')} en espera`
+            : `⏱ prom. en fila ${reloj(promedio)}`}
         </p>
       </header>
 

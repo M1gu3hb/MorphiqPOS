@@ -20,6 +20,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · alta-rapida-de-producto
@@ -133,6 +134,7 @@ export function AltaRapida({
   onCancelar,
   onAgregarPresentacion,
 }: AltaRapidaProps) {
+  const voc = useVocabulario();
   const codigo = codigoInicial?.trim() ?? '';
 
   const [nombre, setNombre] = useState('');
@@ -195,7 +197,9 @@ export function AltaRapida({
     }
     if (categoriaId === '') {
       setCampoMalo('categoria');
-      setError('Elige la categoría: de ahí salen el IVA y el IEPS del producto.');
+      setError(
+        `Elige la categoría: de ahí salen el IVA y el IEPS del ${voc.singular('producto')}.`,
+      );
       return;
     }
 
@@ -246,10 +250,10 @@ export function AltaRapida({
       >
         <header>
           <h1 id="alta-titulo" className="text-xl font-bold sm:text-2xl">
-            Producto nuevo
+            {voc.titulo('producto')} nuevo
           </h1>
           <p className="text-sm text-muted-foreground">
-            Tres datos y vuelves a la venta. Lo demás se corrige solo.
+            Tres datos y vuelves a {voc.enFrase('orden')}. Lo demás se corrige solo.
           </p>
         </header>
 
@@ -456,7 +460,7 @@ export function AltaRapida({
                   </SelectContent>
                 </Select>
                 <p id="categoria-nota" className="text-xs text-muted-foreground">
-                  De aquí salen el IVA y el IEPS del producto.
+                  De aquí salen el IVA y el IEPS del {voc.singular('producto')}.
                 </p>
               </>
             )}

@@ -137,15 +137,20 @@ eran la misma. Estas siete etapas cierran eso.
 | **E1** | «Fase 3» → «Fase 2.3 · Acople» | ✅ **26 archivos · 61 apariciones · 3 renombrados** (`F2.3-REGLAS-DE-ACOPLE.md`, reportes 012 y 013). Las ~85 cabeceras SQL del rango 058-166 **NO se tocaron**: son comentarios, el ejecutor valida cada archivo por hash FNV-1a y cambiar una coma abortaría la tanda entera. Queda dicho en `00-LEEME-PRIMERO.md` |
 | **E2** | Que cada modelo se vea como su negocio | ✅ **5 plantillas** (`tienda`, `cafeteria`, `restaurante`, `ferreteria`, `estetica`) con **62 módulos** —24 nuevos: agenda, cita, comisión, expediente, profesional, cotización, corte de material, crédito— y **ningún par idéntico**. Migración **166** aplicada. **F-018**: el menú vive en el SERVIDOR (`packages/contracts/src/comandos/navegacion.ts`), en orden de día de trabajo, y de ahí lo leen el lateral Y el abanico móvil. Pantalla de inicio por plantilla y por rol. Guarda `exigirPlantilla()` en las cinco carpetas de `app/(modelos)/`. Vocabulario: **3 consumidores, pendiente E2.4** |
 | **E3** | Puertas que muerden | ✅ **E3.1 demostrado en ROJO antes de arreglar nada**, que era la condición. La tautología de `verificar-acople.mjs:406-410` —`plantillaDe()` tiene `default: return 'tienda'`, así que «todo giro cae en una plantilla» era cierto por construcción— sustituida por `PLANTILLA_POR_GIRO`: claves = `GIROS` en las DOS direcciones, valores ∈ `PLANTILLAS`, y **un giro inventado NO es clave**. Nueva `comprobarNavegacion()`. `verify:fase2` **borrado**; una sola cadena de 31 eslabones. Las dos afirmaciones falsas del reporte 013 §3 y de esta bitácora, corregidas donde estaban escritas |
+| **E2.4** | El vocabulario se VE | ✅ **48 pantallas lo consumen · 0 sustantivos tecleados a mano** (eran 3 de 65). Cuatro formas nuevas en el diccionario, porque sin ellas no se puede: `titulo` (el encabezado), `enFrase` (el artículo en minúscula, para un mensaje), `conDeterminante`/`enFraseCon` (**el determinante concuerda**: «Ninguna mesa» y «Ningún pedido») y `terminacion` (**el adjetivo también**: «Cuentas cobradas» y «Pedidos cobrados»). Se tocó sólo lo que el usuario LEE; ni un identificador, ni un campo de la base, ni un nombre de entidad del puente. Y la puerta, que pedía «al menos dos pantallas» —y pasaba con tres de 65—, ahora exige la propiedad: ninguna pantalla escribe a mano una palabra que su diccionario ya dice |
 | **E4** | Datos y usuarios de demostración | ⬜ |
 | **E5** | Producción | ⬜ |
 | **E6** | `ACCESOS-DEMO.md` | ⬜ |
 | **E7** | Cierre con siete condiciones | ⬜ |
 
-**Al cerrar E1-E3**, en 0: `verify:cobertura`, `verify:esquema`, `verify:rls`, `verify:paquetes`,
+**Al cerrar E2.4**, en 0: `verify:cobertura`, `verify:esquema`, `verify:rls`, `verify:paquetes`,
 `verify:aspecto`, `verify:entorno`, `verify:primitivas`, `verify:mutaciones-backend`, `lint`,
-`typecheck` (7/7) y **2 685 pruebas en 223 archivos**. `verify:acople` pasa sus seis
-comprobaciones de código y pide un servidor al que preguntar por las rutas — eso es E5.
+`prettier --check`, `typecheck` (7/7) y **2 697 pruebas en 223 archivos**. `verify:acople` pasa sus
+seis comprobaciones de código y pide un servidor al que preguntar por las rutas — eso es E5.
+
+> **Al cerrar E1-E3 esto decía que `lint` salía en 0, y no era cierto**: quedaban 5 errores de
+> `no-unnecessary-condition` en código de esa misma etapa. Se vieron al correr la cadena de E2.4 y
+> están cerrados con `segunElDato(tabla, clave)`. El porqué, en la bitácora.
 
 **El ensayo con datos, en verde** (`node scripts/ensayo-con-datos.mjs`):
 

@@ -140,7 +140,7 @@ describe('T2 · las cinco plantillas se distinguen de verdad', () => {
       const gemela = huellas.get(huella);
       expect(
         gemela,
-        `«${plantilla}» y «${gemela}» tienen EXACTAMENTE los mismos módulos. Si de verdad ` +
+        `«${plantilla}» y «${gemela ?? '?'}» tienen EXACTAMENTE los mismos módulos. Si de verdad ` +
           'no se distinguen, se funden en una; si se distinguen, la diferencia va en ' +
           'MODULOS_POR_PLANTILLA. Dos plantillas idénticas son una plantilla y una mentira.',
       ).toBeUndefined();

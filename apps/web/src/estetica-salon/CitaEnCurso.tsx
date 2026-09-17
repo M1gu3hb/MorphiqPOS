@@ -16,6 +16,8 @@ import {
   type ComponenteDeFormula,
   type Mezcla,
 } from './formula-de-cabina';
+import { useVocabulario } from '~/cliente/vocabulario';
+import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · cita-en-curso
@@ -161,11 +163,14 @@ function armar(
   };
 }
 
-function mensajeDe(fallo: unknown, porOmision: string): string {
+function mensajeDe(fallo: unknown, porOmision: string, voc: Vocabulario): string {
   // Una estilista sólo ve las citas que atiende ella; el servidor lo dice con
   // SIN_PERMISO y aquí se traduce, porque «403» no explica nada en el lavabo.
   if (fallo instanceof ErrorApi && fallo.error.codigo === 'SIN_PERMISO') {
-    return 'Esta cita la atiende otra persona. Aquí sólo ves las tuyas.';
+    return (
+      `${voc.conDeterminante('este', 'orden')} l${voc.terminacion('orden')} atiende otra persona. ` +
+      'Aquí sólo ves las tuyas.'
+    );
   }
   return fallo instanceof Error ? fallo.message : porOmision;
 }
@@ -189,6 +194,7 @@ export function CitaEnCurso({
   visitasIniciales,
   serviciosIniciales,
 }: CitaEnCursoProps) {
+  const voc = useVocabulario();
   const sinRed = citaInicial !== undefined;
   const [cita, setCita] = useState<CitaAbierta | null>(citaInicial ?? null);
   const [servicios, setServicios] = useState<readonly ServicioDeLaCita[]>(serviciosIniciales ?? []);
@@ -244,13 +250,13 @@ export function CitaEnCurso({
         // Un aborto no es un error: es esta misma pantalla, que ya no está.
         if (señal.aborted) return;
         setVisitas([]);
-        setError(mensajeDe(fallo, 'No se pudo leer la cita.'));
+        setError(mensajeDe(fallo, `No se pudo leer ${voc.enFrase('orden')}.`, voc));
       }
     })();
     return () => {
       control.abort();
     };
-  }, [sinRed]);
+  }, [sinRed, voc]);
 
   useEffect(() => {
     // El reloj nace en un `setTimeout` y no en el cuerpo del efecto: escribir
@@ -278,7 +284,7 @@ export function CitaEnCurso({
       setMezcla(null);
     } catch (fallo: unknown) {
       // Nunca se traga: una fórmula perdida en silencio no se recupera jamás.
-      setError(mensajeDe(fallo, 'No se guardó la fórmula. Vuelve a intentarlo.'));
+      setError(mensajeDe(fallo, 'No se guardó la fórmula. Vuelve a intentarlo.', voc));
     }
   }
 
@@ -290,7 +296,7 @@ export function CitaEnCurso({
       await invocarComando(`/api/cita-servicios/${linea.id}/cerrar`, { citaId: cita?.id ?? null });
       setServicios(servicios.map((s) => (s.id === linea.id ? { ...s, estado: 'cerrado' } : s)));
     } catch (fallo: unknown) {
-      setError(mensajeDe(fallo, 'No se pudo cerrar el servicio.'));
+      setError(mensajeDe(fallo, `No se pudo cerrar ${voc.enFrase('linea_orden')}.`, voc));
     } finally {
       setCerrando(false);
     }
@@ -529,7 +535,7 @@ export function CitaEnCurso({
               id="titulo-servicios"
               className="text-xs font-semibold uppercase text-muted-foreground"
             >
-              Servicios
+              {voc.titulo('linea_orden', true)}
             </h2>
             <ul className="mt-1 divide-y divide-border">
               {servicios.map((s) => (
@@ -543,16 +549,16 @@ export function CitaEnCurso({
               ))}
               {servicios.length === 0 && (
                 <li className="py-1 text-sm text-muted-foreground">
-                  Todavía no hay servicios en esta cita.
+                  Todavía no hay {voc.plural('linea_orden')} en {voc.enFraseCon('este', 'orden')}.
                 </li>
               )}
             </ul>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Button asChild variant="secondary">
-                <a href="/productos?tipo=servicio">+ Añadir servicio</a>
+                <a href="/productos?tipo=servicio">+ Añadir {voc.singular('linea_orden')}</a>
               </Button>
               <Button asChild variant="secondary">
-                <a href="/productos?tipo=anaquel">+ Vender producto</a>
+                <a href="/productos?tipo=anaquel">+ Vender {voc.singular('producto')}</a>
               </Button>
             </div>
           </section>

@@ -7,6 +7,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · cotizacion
@@ -127,6 +128,7 @@ export function Cotizacion({
   clienteObra,
   esDuenio = false,
 }: CotizacionProps) {
+  const voc = useVocabulario();
   const [catalogo, setCatalogo] = useState<readonly MaterialCotizable[] | null>(
     catalogoInicial ?? null,
   );
@@ -296,12 +298,12 @@ export function Cotizacion({
         {/* El buscador, en UNA columna como la pantalla 1. No existe bajo `md`. */}
         <section className="hidden md:block" aria-labelledby="titulo-buscador">
           <h2 id="titulo-buscador" className="mb-2 text-sm font-semibold">
-            Agregar material
+            Agregar {voc.singular('producto')}
           </h2>
           <Input
             value={consulta}
             onChange={alBuscar}
-            aria-label="Buscar material por nombre o medida"
+            aria-label={`Buscar ${voc.singular('producto')} por nombre o medida`}
             placeholder="cable 12, tinaco 1100…"
           />
           <ul className="mt-2 space-y-1">
@@ -330,7 +332,7 @@ export function Cotizacion({
           {sinPartidas && (
             // El vacío ENSEÑA el flujo; no se disculpa por estar vacío.
             <div className="rounded-lg border border-dashed border-border p-6 text-sm">
-              <p className="font-medium">Una cotización empieza por el material.</p>
+              <p className="font-medium">Una cotización empieza por {voc.enFrase('producto')}.</p>
               <p className="mt-2 text-muted-foreground">
                 Búscalo por nombre o por medida: cantidad, precio y descuento se editan aquí mismo.
                 Elige la vigencia —7, 15 o 30 días— y mándala por WhatsApp. Cuando el contratista

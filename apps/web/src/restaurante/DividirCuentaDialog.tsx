@@ -14,6 +14,7 @@ import { Label } from '@morphiqpos/ui/primitivas/label';
 import { useMemo, useState } from 'react';
 
 import { invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * F-321 · Dividir la cuenta.
@@ -68,6 +69,7 @@ export function DividirCuentaDialog({
   onCerrar,
   onDividida,
 }: DividirCuentaDialogProps) {
+  const voc = useVocabulario();
   const [partes, setPartes] = useState<readonly Parte[]>([{ tomas: {} }, { tomas: {} }]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +114,9 @@ export function DividirCuentaDialog({
       onDividida(partes.length);
       onCerrar();
     } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo dividir la cuenta.');
+      setError(
+        fallo instanceof Error ? fallo.message : `No se pudo dividir ${voc.enFrase('orden')}.`,
+      );
     } finally {
       setEnviando(false);
     }
@@ -127,9 +131,10 @@ export function DividirCuentaDialog({
     >
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Dividir la cuenta</DialogTitle>
+          <DialogTitle>Dividir {voc.enFrase('orden')}</DialogTitle>
           <DialogDescription>
-            Reparte los platillos entre las cuentas. Los totales los calcula el sistema.
+            Reparte {voc.enFrase('linea_orden', true)} entre {voc.enFrase('orden', true)}. Los
+            totales los calcula el sistema.
           </DialogDescription>
         </DialogHeader>
 
@@ -190,7 +195,7 @@ export function DividirCuentaDialog({
               setPartes((p) => [...p, { tomas: {} }]);
             }}
           >
-            Añadir otra cuenta
+            Añadir {voc.enFraseCon('otro', 'orden')}
           </Button>
           {/* El contador de lo que falta: es lo que explica por qué el botón
               de dividir está apagado. Un botón inerte sin motivo es la forma

@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · material
@@ -83,6 +84,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Material({ productoId, almacenId, piezasIniciales }: MaterialProps) {
+  const voc = useVocabulario();
   const [piezas, setPiezas] = useState<readonly PiezaViva[] | null>(piezasIniciales ?? null);
   const [recomendada, setRecomendada] = useState<string | null>(null);
   const [necesita, setNecesita] = useState('');
@@ -200,7 +202,7 @@ export function Material({ productoId, almacenId, piezasIniciales }: MaterialPro
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold">Material</h1>
+        <h1 className="text-2xl font-semibold">{voc.titulo('producto')}</h1>
         <p className="text-muted-foreground text-sm">
           Lo que hay abierto. El trabajo es acabarse los abiertos, no abrir otro.
         </p>

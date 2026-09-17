@@ -31,6 +31,7 @@
 
 import { type Giro } from './ambito.ts';
 import {
+  segunElDato,
   MODULOS_POR_PLANTILLA,
   PLANTILLA_POR_GIRO,
   type Modulo,
@@ -554,8 +555,8 @@ const MENU: Readonly<Record<Plantilla, readonly EntradaDeMenu[]>> = {
  * fase cuando `getCurrentPackage` le daba el menú completo a una tienda.
  */
 export function navegacionDePlantilla(plantilla: Plantilla): readonly EntradaDeMenu[] {
-  const modulos = new Set<string>(MODULOS_POR_PLANTILLA[plantilla] ?? []);
-  return (MENU[plantilla] ?? []).filter((entrada) => modulos.has(entrada.modulo));
+  const modulos = new Set<string>(segunElDato(MODULOS_POR_PLANTILLA, plantilla) ?? []);
+  return (segunElDato(MENU, plantilla) ?? []).filter((entrada) => modulos.has(entrada.modulo));
 }
 
 /**

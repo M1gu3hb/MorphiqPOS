@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · recetas
@@ -107,6 +108,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) {
+  const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoConReceta[] | null>(
     productosIniciales ?? null,
   );
@@ -257,7 +259,9 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
         )}
 
         {elegido === null && (
-          <p className="text-muted-foreground">Elige una bebida para ver qué lleva.</p>
+          <p className="text-muted-foreground">
+            Elige {voc.enFraseCon('un', 'linea_orden')} para ver qué lleva.
+          </p>
         )}
 
         {elegido !== null && (

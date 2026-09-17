@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · ficha-de-pieza
@@ -119,6 +120,7 @@ export function mensajeDe(fallo: unknown): string {
 }
 
 export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaProps) {
+  const voc = useVocabulario();
   const enrutador = useRouter();
   const [pieza, setPieza] = useState<PiezaDeFicha | null>(piezaInicial ?? null);
   const [equivalentes, setEquivalentes] = useState<readonly EquivalenteDeFicha[]>(
@@ -260,7 +262,11 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
   const relaciones = [
     ['Va con', pieza.vaCon, 'Nadie ha registrado todavía qué lo acompaña.'],
     ['Se usa en', pieza.seUsaEn, 'Ninguna lista de trabajo lo pide todavía.'],
-    ['Historial', historialDe(pieza), 'Este cliente no se lo ha llevado antes.'],
+    [
+      'Historial',
+      historialDe(pieza),
+      `${voc.conDeterminante('este', 'cliente')} no se lo ha llevado antes.`,
+    ],
   ] as const;
 
   const elegida = pieza.unidades.find((u) => u.clave === unidad) ?? pieza.unidades[0];

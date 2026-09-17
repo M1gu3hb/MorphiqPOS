@@ -6,6 +6,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · restaurante · precuenta
@@ -91,6 +92,7 @@ function idDeLaUrl(): string | null {
 }
 
 export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: PrecuentaProps) {
+  const voc = useVocabulario();
   const anchoMm = ancho ?? 80;
   const [cuenta, setCuenta] = useState<CuentaPrecuenta | null | undefined>(cuentaInicial);
   const [lineas, setLineas] = useState<readonly LineaPrecuenta[]>(filasIniciales ?? []);
@@ -128,13 +130,15 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
       })
       .catch((fallo: unknown) => {
         if (!vivo) return;
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer la cuenta.');
+        setError(
+          fallo instanceof Error ? fallo.message : `No se pudo leer ${voc.enFrase('orden')}.`,
+        );
         setCuenta(null);
       });
     return () => {
       vivo = false;
     };
-  }, [cuentaInicial, ordenId]);
+  }, [cuentaInicial, ordenId, voc]);
 
   async function imprimir(): Promise<void> {
     if (cuenta == null) return;
@@ -179,17 +183,17 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
     if (cuenta === null || lineas.length === 0) {
       const sinCuenta = cuenta === null;
       const titulo = sinCuenta
-        ? 'Aquí se imprime la precuenta de una cuenta abierta'
-        : 'Esta cuenta todavía no tiene platillos';
+        ? `Aquí se imprime la precuenta de ${voc.enFraseCon('un', 'orden')} abiert${voc.terminacion('orden')}`
+        : `${voc.conDeterminante('este', 'orden')} todavía no tiene ${voc.plural('linea_orden')}`;
       const texto = sinCuenta
         ? 'Abre la mesa en el mapa y pide la precuenta desde ahí: el código para caja es el de esa cuenta, no el de la mesa.'
-        : 'Una hoja en blanco manda al comensal a caja sin nada que revisar. Toma la orden y vuelve: la hoja se arma sola.';
+        : `Una hoja en blanco manda al ${voc.singular('cliente')} a caja sin nada que revisar. Toma la orden y vuelve: la hoja se arma sola.`;
       return (
         <section className="mx-auto max-w-prose rounded-xl border border-border bg-card p-6 text-center text-card-foreground">
           <p className="mb-2 text-lg font-semibold">{titulo}</p>
           <p className="mb-4 text-sm text-muted-foreground">{texto}</p>
           <Button asChild>
-            <a href="/restaurante/mapa-de-mesas">Ir al mapa de mesas</a>
+            <a href="/restaurante/mapa-de-mesas">Ir al mapa de {voc.plural('unidad_servicio')}</a>
           </Button>
         </section>
       );
@@ -213,8 +217,8 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
           <aside className="sticky bottom-0 z-10 -mx-4 border-t border-border bg-background p-4 md:mx-auto md:w-full md:max-w-sm md:rounded-xl md:border md:shadow-2 xl:bottom-auto xl:top-10 xl:mx-0 xl:w-60 xl:self-start">
             {falloImpresion && (
               <p role="alert" className={BANDA}>
-                No se pudo imprimir. Puedes enseñar esta pantalla al comensal y llevarlo a caja con
-                el código {codigo}.
+                No se pudo imprimir. Puedes enseñar esta pantalla al {voc.singular('cliente')} y
+                llevarlo a caja con el código {codigo}.
               </p>
             )}
             {/* Un solo botón: el mesero no cobra, y eso es control interno. */}
@@ -232,7 +236,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
             {/* Un botón apagado sin motivo es peor que uno que falla. */}
             <p className="mt-2 text-xs text-muted-foreground">
               {sinTotal
-                ? 'El total de esta cuenta no llegó a esta pantalla. Pídela desde caja.'
+                ? `El total de ${voc.enFraseCon('este', 'orden')} no llegó a esta pantalla. Pídela desde caja.`
                 : `Se ve a tamaño real: papel de ${anchoMm} mm.`}
             </p>
           </aside>

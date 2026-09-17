@@ -22,6 +22,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ErrorApi, consultarPuente } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · existencias
@@ -193,6 +194,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Existencias({ filasIniciales, verDinero = true }: ExistenciasProps) {
+  const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly FilaDeExistencias[] | null>(filasIniciales ?? null);
   const [contador, setContador] = useState<ClaveContador | null>(null);
   const [consulta, setConsulta] = useState('');
@@ -366,8 +368,8 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
               onChange={(evento) => {
                 setConsulta(evento.target.value);
               }}
-              aria-label="Buscar material o gaveta"
-              placeholder="Buscar material o gaveta"
+              aria-label={`Buscar ${voc.singular('producto')} o gaveta`}
+              placeholder={`Buscar ${voc.singular('producto')} o gaveta`}
               className="w-full sm:w-72"
             />
             {LISTAS.map((l) => (
@@ -398,7 +400,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Material</TableHead>
+                  <TableHead>{voc.titulo('producto')}</TableHead>
                   <TableHead className="text-right">Hay</TableHead>
                   <TableHead className="hidden text-right lg:table-cell">Vendido 90 d</TableHead>
                   <TableHead className="text-right">Días inv.</TableHead>
@@ -465,7 +467,10 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
 
           {/* Teléfono: sólo el dormido, ordenado por dinero. Es lo que se mira
               camino al mayorista, y lo único que cabe honestamente en 390 px. */}
-          <section className="md:hidden" aria-label="Material dormido, ordenado por dinero">
+          <section
+            className="md:hidden"
+            aria-label={`${voc.titulo('producto')} dormid${voc.terminacion('producto')}, ordenad${voc.terminacion('producto')} por dinero`}
+          >
             <h2 className="mb-2 text-sm font-semibold">
               Dormido · lo que no hay que volver a pedir
             </h2>

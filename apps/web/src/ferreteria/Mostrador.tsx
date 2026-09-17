@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { buscar, cercanas, normalizar, type MaterialDeMostrador } from './buscar-material';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · mostrador
@@ -104,6 +105,7 @@ interface Partida {
 }
 
 export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false }: MostradorProps) {
+  const voc = useVocabulario();
   const enrutador = useRouter();
   const [filas, setFilas] = useState<readonly MaterialDeMostrador[] | null>(filasIniciales ?? null);
   const [consulta, setConsulta] = useState('');
@@ -211,7 +213,7 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
       {/* TERCIARIO · arriba a la derecha en PC, arriba del todo en el pasillo:
           se lee antes de despachar, que es cuando sirve. */}
       <section
-        aria-label="Cliente y obra"
+        aria-label={`${voc.titulo('cliente')} y obra`}
         className={`${BANDA} ${sobreLimite ? 'border-destructive bg-destructive/15' : 'border-border bg-card'} xl:col-start-2 xl:row-start-1`}
       >
         <p className="font-semibold">{cliente?.nombre ?? 'Público en general · contado'}</p>
@@ -361,7 +363,7 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
                 enrutador.push(`/ferreteria/catalogo?alta=${encodeURIComponent(consulta)}`);
               }}
             >
-              Dar de alta este material
+              Dar de alta {voc.enFraseCon('este', 'producto')}
             </Button>
           </section>
         ) : (
@@ -394,7 +396,7 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
         <h2 className="text-sm font-semibold uppercase text-muted-foreground">La venta</h2>
         {partidas.length === 0 ? (
           <p className="py-3 text-sm text-muted-foreground">
-            Todavía nada. Busque el material y presione Enter sobre el resultado.
+            Todavía nada. Busque {voc.enFrase('producto')} y presione Enter sobre el resultado.
           </p>
         ) : (
           <ul className="my-2 space-y-2">

@@ -19,6 +19,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · restaurante · recetas
@@ -171,6 +172,7 @@ async function leerTodo(signal: AbortSignal) {
 }
 
 export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps) {
+  const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly FilaDeReceta[] | null>(filasIniciales ?? null);
   const [insumos, setInsumos] = useState<readonly IngredienteDisponible[]>(
     ingredientesIniciales ?? [],
@@ -260,7 +262,7 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
           sabemos cuánto cuesta cada plato ni cuánto ganas con él.
         </p>
         <Button asChild>
-          <a href="/restaurante/productos">Crear mi primer platillo</a>
+          <a href="/restaurante/productos">Crear mi primer {voc.singular('linea_orden')}</a>
         </Button>
       </div>
     );
@@ -331,6 +333,7 @@ function Platillo({
   alEscribir,
   alAgregar,
 }: ParametrosDePlatillo) {
+  const voc = useVocabulario();
   const producto = fila.producto;
   const semaforo = semaforoDeMargen(producto.margen_bruto_actual);
   const cifra = Number.isFinite(producto.margen_bruto_actual)
@@ -387,8 +390,8 @@ function Platillo({
           {fila.lineas.length === 0 ? (
             // El vacío explica la consecuencia; el botón de abajo es su salida.
             <p className="mb-3 text-sm">
-              Este platillo no tiene receta. Sin receta no sabemos cuánto cuesta ni cuánto ganas con
-              él.
+              {voc.conDeterminante('este', 'linea_orden')} no tiene receta. Sin receta no sabemos
+              cuánto cuesta ni cuánto ganas con él.
             </p>
           ) : (
             <ul className="mb-3 flex flex-col text-sm">

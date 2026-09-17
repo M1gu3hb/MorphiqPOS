@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · productos
@@ -87,6 +88,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId }: ProductosProps) {
+  const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoDeSalon[] | null>(
     productosIniciales ?? null,
   );
@@ -219,7 +221,7 @@ export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId 
   return (
     <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[20rem_1fr]">
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Productos</h1>
+        <h1 className="text-2xl font-semibold">{voc.titulo('producto', true)}</h1>
         <ul className="divide-y">
           {productos.map((producto) => (
             <li key={producto.id}>
@@ -272,7 +274,9 @@ export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId 
         {aviso !== null && <p className="text-sm">{aviso}</p>}
 
         {elegido === null && (
-          <p className="text-muted-foreground">Elige un producto para ver su destino.</p>
+          <p className="text-muted-foreground">
+            Elige {voc.enFraseCon('un', 'producto')} para ver su destino.
+          </p>
         )}
 
         {elegido !== null && (

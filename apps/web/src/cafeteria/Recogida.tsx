@@ -5,6 +5,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useRef, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · recogida
@@ -155,6 +156,7 @@ function anunciar(
 }
 
 export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
+  const voc = useVocabulario();
   const [pedidos, setPedidos] = useState<readonly PedidoListo[] | null>(filasIniciales ?? null);
   const [sinConexion, setSinConexion] = useState(false);
   const [ahora, setAhora] = useState(0);
@@ -244,8 +246,8 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
             Tu nombre aparecerá aquí
           </p>
           <p className="max-w-3xl text-[clamp(1.125rem,2.5vw,2rem)] text-muted-foreground">
-            En cuanto tu pedido esté listo lo verás en esta pantalla y lo oirás en voz alta. No
-            tienes que hacer nada.
+            En cuanto tu {voc.singular('unidad_servicio')} esté listo lo verás en esta pantalla y lo
+            oirás en voz alta. No tienes que hacer nada.
           </p>
         </section>
       )}

@@ -9,6 +9,7 @@ import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · clientas
@@ -102,6 +103,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProps) {
+  const voc = useVocabulario();
   const [clientas, setClientas] = useState<readonly FichaDeClienta[] | null>(
     clientasIniciales ?? null,
   );
@@ -236,7 +238,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
   return (
     <main className="mx-auto grid max-w-6xl gap-6 p-6 md:grid-cols-[20rem_1fr]">
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Clientas</h1>
+        <h1 className="text-2xl font-semibold">{voc.titulo('cliente', true)}</h1>
         <div>
           <Label htmlFor="buscar">Buscar</Label>
           <Input
@@ -298,7 +300,9 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
         )}
 
         {elegida === null && (
-          <p className="text-muted-foreground">Elige una clienta para abrir su expediente.</p>
+          <p className="text-muted-foreground">
+            Elige {voc.enFraseCon('un', 'cliente')} para abrir su expediente.
+          </p>
         )}
 
         {elegida !== null && expediente === null && <Skeleton className="h-64 w-full" />}

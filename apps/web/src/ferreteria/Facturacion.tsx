@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · facturacion
@@ -103,6 +104,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Facturacion({ clientesIniciales }: FacturacionProps) {
+  const voc = useVocabulario();
   const [clientes, setClientes] = useState<readonly ClienteFiscal[] | null>(
     clientesIniciales ?? null,
   );
@@ -233,7 +235,9 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
         {aviso !== null && <p className="text-sm">{aviso}</p>}
 
         {elegido === null && (
-          <p className="text-muted-foreground">Elige un cliente para capturar sus datos.</p>
+          <p className="text-muted-foreground">
+            Elige {voc.enFraseCon('un', 'cliente')} para capturar sus datos.
+          </p>
         )}
 
         {elegido !== null && (
@@ -308,7 +312,8 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
             <div>
               <h3 className="font-medium">Remisiones del periodo</h3>
               <p className="text-muted-foreground text-sm">
-                Un contratista se lleva material quince veces al mes y quiere una sola factura.
+                Un contratista se lleva {voc.singular('producto')} quince veces al mes y quiere una
+                sola factura.
               </p>
             </div>
             {remisiones === null && <Skeleton className="h-24 w-full" />}

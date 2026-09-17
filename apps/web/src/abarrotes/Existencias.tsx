@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · existencias
@@ -169,6 +170,7 @@ function Hay({ fila, ahora }: { readonly fila: FilaExistencia; readonly ahora: n
 }
 
 export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
+  const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly FilaExistencia[] | null>(filasIniciales ?? null);
   const [error, setError] = useState<string | null>(null);
   const [lente, setLente] = useState<Lente>('todo');
@@ -350,8 +352,8 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
               ref={campoBusqueda}
               type="search"
               value={busqueda}
-              aria-label="Buscar producto"
-              placeholder="Buscar producto…  (tecla /)"
+              aria-label={`Buscar ${voc.singular('producto')}`}
+              placeholder={`Buscar ${voc.singular('producto')}…  (tecla /)`}
               className="min-w-48 flex-1"
               onChange={(evento) => {
                 setBusqueda(evento.target.value);
@@ -376,7 +378,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Producto</TableHead>
+                  <TableHead>{voc.titulo('producto')}</TableHead>
                   <TableHead>Hay</TableHead>
                   <TableHead className="text-right">Mín</TableHead>
                   <TableHead className="hidden text-right lg:table-cell">Vendido 14d</TableHead>

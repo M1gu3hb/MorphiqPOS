@@ -2220,3 +2220,83 @@ eso es E5.
 **Falta:** E2.4 (que el vocabulario se vea en las 61 pantallas), E4 (datos y usuarios de
 demostración, con la guarda de `sesion.ts` comparando por ID de organización y no por nombre), E5
 (producción, `main`, el 6543 y la organización saliendo de la SESIÓN), E6 (`ACCESOS-DEMO.md`) y E7.
+
+---
+
+## 2026-09-17 · E2.4 · el vocabulario se VE
+
+F-017 estaba construido entero desde E2 de la Fase 2 y **lo leían 3 de 65 componentes**. Los otros
+62 tenían el sustantivo tecleado a mano: «Mesas» en el encabezado, «Ninguna cuenta está esperando
+cobro» en el estado vacío, «No se pudo leer la nota» en el error. El día que la dueña de un spa
+llame «cabina» a su estación, esas 62 pantallas seguirían diciendo «mesa».
+
+**Hoy lo consumen 48 pantallas y quedan CERO sustantivos tecleados a mano** en lo que el usuario lee.
+
+### Lo que hubo que añadir al diccionario para poder hacerlo
+
+Con `singular`, `plural`, `articulo`, `conArticulo` y `conNumero` no alcanzaba: la mitad de la copia
+de una pantalla es un encabezado, un determinante o un adjetivo, y los tres concuerdan.
+
+| Forma | Da | Por qué existe |
+|---|---|---|
+| `titulo(entidad, plural?)` | `Mesas` · `Materiales` · `Clientas` | Es la forma de un encabezado y de una pestaña, y el 60 % de lo que se ve. Sin ella cada pantalla escribía su propia mayúscula |
+| `enFrase(entidad, plural?)` | `la mesa` · `las cuentas` | `conArticulo` capitaliza, y eso deja «No se pudo abrir La mesa» en cada error. Sin ella cada pantalla se inventaba su `.toLowerCase()` |
+| `conDeterminante` / `enFraseCon` | `Ninguna mesa` · `Ningún pedido` · `otra cuenta` | **El determinante CONCUERDA.** El mismo estado vacío, la misma pantalla, y una cafetería leía «Ninguna pedido está esperando» |
+| `terminacion(entidad, plural?)` | `o` · `a` · `os` · `as` | **El adjetivo también.** Da «Cuentas cobradas» y «Pedidos cobrados». Es fea de leer y es la única forma honesta: el adjetivo concuerda con una palabra que elige la dueña |
+
+Las cuatro respetan el apagado de la regla 3: una entidad que el giro no usa devuelve cadena vacía,
+no «ninguna undefined». `terminacion` es la excepción y lo dice: con cadena vacía la frase quedaría
+«cobrad», que se lee como un error del sistema.
+
+### Lo que se tocó, y lo que NO
+
+Se tocó **sólo lo que el usuario lee**: texto de JSX, y los props que se leen —`aria-label`,
+`placeholder`, `title`, `alt`—. Y los mensajes de error y los estados vacíos, que es donde más se
+nota (regla 4 del sistema de diseño).
+
+NO se tocó ni un identificador, ni un tipo, ni un campo de la base, ni un nombre de entidad del
+puente, ni una clase de CSS, ni un comentario. Cambiar `mesa_numero` o `consultarPuente('Mesa')`
+rompería el sistema **sin mover una palabra en la pantalla**, que es el peor cambio posible.
+
+Y hay palabras que NO son la entidad, con su lista y su motivo: «punto de venta» es el nombre del
+producto, «precio de venta» es contabilidad, «cuenta el cajón» es el verbo contar, «punto de
+partida» es un modismo, y la «nota» de `ferreteria/Entradas` es la del PROVEEDOR y no la del
+cliente. Traducir una de ésas es peor que no traducir nada.
+
+### Siete helpers que no podían llamar a un hook
+
+Siete funciones fuera de un componente —`bloqueoDe`, `mensajeDe`, `mensajeDeFallo`, `rotulo`, y la
+lista de motivos de `AnularLineaDialog`— necesitaban el vocabulario. Reciben `voc: Vocabulario` como
+parámetro, que es lo que este proyecto ya hace con `crearVocabulario`: el dominio no sabe que existe
+un navegador. La lista de motivos pasó de constante de módulo a función `motivosDe(voc)` — tres de
+los cuatro motivos nombran una entidad, y las **claves** siguen sin traducirse porque viajan a la
+base.
+
+### Y la puerta, que pedía «al menos dos»
+
+`verify:acople` exigía que **dos** pantallas consumieran el vocabulario. Con tres consumidores de 65
+pasaba, y las otras 62 tenían el sustantivo a mano: **un número mínimo no mide nada.** Ahora la
+comprobación es la propiedad de verdad: _ninguna pantalla escribe a mano una palabra que el
+diccionario de su giro ya sabe decir_, y señala el archivo, la línea y la palabra.
+
+```
+Destructivas que FALLAN:
+  · devolver «Mesas» al <h1> de restaurante/MapaDeMesas  → VOCABULARIO: MapaDeMesas.tsx:194 «Mesas»
+  · un aria-label="Buscar cliente u obra" en ferreteria/Cuentas → VOCABULARIO: Cuentas.tsx:418 «cliente»
+Inocuas que PASAN:
+  · un comentario nuevo y una línea en blanco sobre `const voc = useVocabulario()`
+  · reordenar props de un componente
+```
+
+> **CORRECCIÓN de la entrada anterior (E1-E3).** Dije que `pnpm lint` salía **en 0** al cerrar ese
+> bloque. **No era cierto**: quedaban 5 errores de `@typescript-eslint/no-unnecessary-condition` en
+> `plantillas.ts:103,120`, `navegacion.ts:557-558` y `servidor/plantilla.ts:39`, todos en código de
+> esa misma etapa, y los vi al correr la cadena de ésta. Los cinco eran el mismo caso: un
+> `?? 'tienda'` que protege un valor corrupto venido de la base, y que para el TIPO es código muerto
+> porque las tablas son `Record` completas a propósito. Se cerró con `segunElDato(tabla, clave)`, que
+> dice en UN sitio y con su motivo que la clave sale de los datos y no del tipo — quitar el `??`
+> habría dejado `undefined` viajando hasta la pantalla.
+
+**Cómo queda:** `typecheck` 7/7 · **2 697 pruebas en 223 archivos** · `lint` en 0 (comprobado) ·
+`prettier --check` limpio · `verify:aspecto` y `verify:cobertura` en 0 · `verify:acople` con
+`vocabulario   48 pantalla(s) lo consumen · 0 sustantivos tecleados a mano`.

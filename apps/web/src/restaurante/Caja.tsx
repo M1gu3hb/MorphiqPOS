@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primiti
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
+import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
  * PANTALLA · restaurante · caja
@@ -94,8 +96,10 @@ export function esperaDesde(iso: string | null, ahora: number): string {
   return `hace ${String(Math.floor(minutos / 60))} h`;
 }
 
-function rotulo(numero: number | null): string {
-  return numero === null ? 'Sin mesa' : `Mesa ${String(numero)}`;
+function rotulo(numero: number | null, voc: Vocabulario): string {
+  return numero === null
+    ? `Sin ${voc.singular('unidad_servicio')}`
+    : `${voc.titulo('unidad_servicio')} ${String(numero)}`;
 }
 
 /** Quién atiende y cuánta gente: dos datos chicos que comparten columna. */
@@ -125,6 +129,7 @@ async function leerPendientes(signal: AbortSignal): Promise<readonly FilaDeCaja[
 }
 
 export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
+  const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly FilaDeCaja[] | null>(filasIniciales ?? null);
   const [turno, setTurno] = useState<ResumenDeTurno | null>(turnoInicial ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -177,9 +182,10 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
   const visibles = useMemo(() => {
     const aguja = busqueda.trim().toLowerCase();
     if (aguja === '') return filas ?? [];
-    const texto = (f: FilaDeCaja) => `${f.codigo_caja ?? ''} ${rotulo(f.mesa_numero)} ${quien(f)}`;
+    const texto = (f: FilaDeCaja) =>
+      `${f.codigo_caja ?? ''} ${rotulo(f.mesa_numero, voc)} ${quien(f)}`;
     return (filas ?? []).filter((f) => texto(f).toLowerCase().includes(aguja));
-  }, [filas, busqueda]);
+  }, [filas, busqueda, voc]);
 
   const alBuscar = (evento: ChangeEvent<HTMLInputElement>) => {
     setBusqueda(evento.target.value);
@@ -229,7 +235,9 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
     <dl className="grid w-full max-w-md grid-cols-2 gap-2 rounded-lg border border-border bg-card p-4">
       <dt className="text-sm text-muted-foreground">Vendido en el turno</dt>
       <dd className="justify-self-end font-bold tabular-nums">{vendido}</dd>
-      <dt className="text-sm text-muted-foreground">Cuentas cobradas</dt>
+      <dt className="text-sm text-muted-foreground">
+        {voc.titulo('orden', true)} cobrad{voc.terminacion('orden', true)}
+      </dt>
       <dd className="justify-self-end font-bold tabular-nums">{String(turno.numeroVentas)}</dd>
     </dl>
   );
@@ -308,7 +316,12 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="buscar" className="mt-3 max-w-sm">
-          <Input id="caja-buscar" aria-label="Buscar cuenta" value={busqueda} onChange={alBuscar} />
+          <Input
+            id="caja-buscar"
+            aria-label={`Buscar ${voc.singular('orden')}`}
+            value={busqueda}
+            onChange={alBuscar}
+          />
         </TabsContent>
         <TabsContent value="resumen" className="mt-3">
           {resumen}
@@ -322,7 +335,9 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
         (visibles.length === 0 ? (
           // El vacío ENSEÑA: el resumen del turno es lo que el cajero haría con ese hueco.
           <section className="mt-6 flex flex-col items-center gap-4 text-center">
-            <p className="text-lg">Ninguna mesa está esperando pagar.</p>
+            <p className="text-lg">
+              {voc.conDeterminante('ningun', 'unidad_servicio')} está esperando pagar.
+            </p>
             {resumen}
           </section>
         ) : (
@@ -331,7 +346,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
               <li key={fila.id} className={FILA}>
                 <button type="button" onClick={() => onCobrar?.(fila.id)} className={COBRAR}>
                   <span className="flex items-baseline justify-between gap-3 xl:contents">
-                    <span className={MESA}>{rotulo(fila.mesa_numero)}</span>
+                    <span className={MESA}>{rotulo(fila.mesa_numero, voc)}</span>
                     <span className={TOTAL}>{PESOS.format(fila.total ?? 0)}</span>
                   </span>
                   <span className="flex flex-wrap gap-x-3 text-xs text-muted-foreground xl:contents">

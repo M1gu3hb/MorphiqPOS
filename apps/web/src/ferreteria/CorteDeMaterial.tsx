@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, type ChangeEvent } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · corte-de-material
@@ -151,6 +152,7 @@ function Opcion({ valor, titulo, nota, activa }: OpcionProps) {
 }
 
 export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMaterialProps) {
+  const voc = useVocabulario();
   const [material, setMaterial] = useState<MaterialContinuo | null>(materialInicial ?? null);
   const [piezas, setPiezas] = useState<readonly PiezaDeCorte[] | null>(piezasIniciales ?? null);
   const [piezaId, setPiezaId] = useState<string | null>(null);
@@ -180,12 +182,14 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
         // La pantalla no se vacía por un error de red: se avisa y se sigue.
         if (!sigueMontada()) return;
         setPiezas(piezasIniciales ?? []);
-        setError(mensajeDe(fallo, 'No se pudo leer qué hay de este material.'));
+        setError(
+          mensajeDe(fallo, `No se pudo leer qué hay de ${voc.enFraseCon('este', 'producto')}.`),
+        );
       });
     return () => {
       control.abort();
     };
-  }, [materialInicial, piezasIniciales]);
+  }, [materialInicial, piezasIniciales, voc]);
 
   const ordenadas = [...(piezas ?? [])].sort(porAbiertas);
   // La preselección se DERIVA; no se escribe con un setState dentro del efecto.
@@ -208,10 +212,10 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   if (material === null || elegida === null) {
     return (
       <div className="mx-auto flex max-w-lg flex-col items-start gap-3 p-5">
-        <h1 className="text-xl font-bold">Cortar material</h1>
+        <h1 className="text-xl font-bold">Cortar {voc.singular('producto')}</h1>
         <p className="text-muted-foreground">
           {material === null
-            ? 'Ningún material está marcado todavía como pieza continua. Continuo es el que se vende por medida: cable, manguera, cadena, tubo.'
+            ? `${voc.conDeterminante('ningun', 'producto')} está marcado todavía como pieza continua. Continuo es el que se vende por medida: cable, manguera, cadena, tubo.`
             : `No hay ninguna pieza de ${material.nombre} registrada. Un corte descuenta de una pieza concreta con su folio; sin piezas, el metraje sería inventado.`}
         </p>
         <Button asChild>
@@ -338,7 +342,9 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
                 onChange={alSobrar}
               />
             </Label>
-            <p className={NOTA}>Propuesto por el material. Corrígelo si el corte salió distinto.</p>
+            <p className={NOTA}>
+              Propuesto por {voc.enFrase('producto')}. Corrígelo si el corte salió distinto.
+            </p>
           </div>
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-x-2 border-t border-border pt-2 text-sm">

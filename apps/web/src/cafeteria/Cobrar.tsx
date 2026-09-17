@@ -7,6 +7,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · cobrar
@@ -175,6 +176,7 @@ export function bloqueoDe(
 }
 
 export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarProps) {
+  const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoDeBarra[] | null>(
     productosIniciales ?? null,
   );
@@ -342,7 +344,9 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
   if (productos.length === 0) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">Todavía no hay bebidas en la barra.</p>
+        <p className="text-xl font-semibold">
+          Todavía no hay {voc.plural('linea_orden')} en {voc.enFrase('preparacion')}.
+        </p>
         <p className="text-muted-foreground">
           Esta pantalla es una rejilla de lo que se vende: en cuanto el menú tenga sus 35 o 55
           productos con precio, aparecen aquí y se cobran tocándolos.
@@ -422,7 +426,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           del pedido en PC: en los dos casos son lo PRIMERO, que es el orden en
           que la conversación del mostrador los produce. */}
       <section
-        aria-label="Nombre y canal del pedido"
+        aria-label={`Nombre y canal del ${voc.singular('unidad_servicio')}`}
         className="sticky top-0 z-20 space-y-2 rounded-lg border border-border bg-card p-3 xl:static xl:col-start-2 xl:row-start-2"
       >
         <div className="space-y-1">
@@ -458,7 +462,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
       </section>
 
       <section
-        aria-label="Bebidas y alimentos"
+        aria-label={`${voc.titulo('linea_orden', true)} y alimentos`}
         className="space-y-2 xl:col-start-1 xl:row-span-2 xl:row-start-2"
       >
         <nav aria-label="Categorías" className="flex gap-1 overflow-x-auto pb-1">
@@ -522,12 +526,12 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           barra, nadie la sostiene, y el borde entero es el objetivo más grande
           para una mano que llega desde abajo. */}
       <aside
-        aria-label="Pedido"
+        aria-label={voc.titulo('unidad_servicio')}
         className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 xl:static xl:col-start-2 xl:row-start-3 xl:rounded-lg xl:border"
       >
         {lineas.length === 0 ? (
           <p className="pb-2 text-center text-sm text-muted-foreground">
-            Toca una bebida para empezar.
+            Toca {voc.enFraseCon('un', 'linea_orden')} para empezar.
           </p>
         ) : (
           <>
@@ -538,7 +542,9 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
               {listaDelPedido}
             </details>
             <div className="mb-2 hidden xl:block">
-              <p className="p-1 text-sm font-medium uppercase text-muted-foreground">Pedido</p>
+              <p className="p-1 text-sm font-medium uppercase text-muted-foreground">
+                {voc.titulo('unidad_servicio')}
+              </p>
               {listaDelPedido}
             </div>
           </>

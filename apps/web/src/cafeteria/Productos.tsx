@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · productos
@@ -108,6 +109,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Productos({ productosIniciales }: ProductosProps) {
+  const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoDeBarra[] | null>(
     productosIniciales ?? null,
   );
@@ -196,7 +198,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
   return (
     <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[1fr_22rem]">
       <section>
-        <h1 className="mb-3 text-2xl font-semibold">Productos</h1>
+        <h1 className="mb-3 text-2xl font-semibold">{voc.titulo('producto', true)}</h1>
         {error !== null && (
           <p role="alert" className="text-destructive mb-2 text-sm">
             {error}
@@ -236,7 +238,9 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
       <aside className="space-y-4">
         {elegido === null && (
-          <p className="text-muted-foreground">Elige un producto para ver su margen.</p>
+          <p className="text-muted-foreground">
+            Elige {voc.enFraseCon('un', 'producto')} para ver su margen.
+          </p>
         )}
         {elegido !== null && (
           <div className="space-y-4 rounded-lg border p-4">

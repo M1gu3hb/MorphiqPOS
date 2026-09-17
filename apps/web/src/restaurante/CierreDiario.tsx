@@ -24,6 +24,7 @@ import {
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · restaurante · cierre-diario-y-arqueo
@@ -312,6 +313,7 @@ type Dialogo =
   | { readonly tipo: 'bloqueo'; readonly mesas: readonly MesaQueBloquea[] };
 
 export function CierreDiario({ datosIniciales, onDescargarPdf }: CierreDiarioProps) {
+  const voc = useVocabulario();
   const [datos, setDatos] = useState<DatosDelDia | null>(datosIniciales ?? null);
   const [contado, setContado] = useState('');
   const [fondo, setFondo] = useState('');
@@ -658,7 +660,9 @@ export function CierreDiario({ datosIniciales, onDescargarPdf }: CierreDiarioPro
           <DialogFooter>
             {dialogo?.tipo === 'bloqueo' ? (
               <Button asChild>
-                <a href="/restaurante/mapa-de-mesas">Ver el mapa de mesas</a>
+                <a href="/restaurante/mapa-de-mesas">
+                  Ver el mapa de {voc.plural('unidad_servicio')}
+                </a>
               </Button>
             ) : (
               <Button

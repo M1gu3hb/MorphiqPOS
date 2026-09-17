@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primiti
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · restaurante · cocina
@@ -134,6 +135,7 @@ export interface CocinaProps {
 }
 
 export function Cocina({ filasIniciales }: CocinaProps) {
+  const voc = useVocabulario();
   const [comandas, setComandas] = useState<readonly ComandaDeCocina[] | null>(
     filasIniciales ?? null,
   );
@@ -158,7 +160,12 @@ export function Cocina({ filasIniciales }: CocinaProps) {
         .catch((fallo: unknown) => {
           // El tablero NUNCA se vacía por un fallo de red: una cocina sin
           // tablero se para, y un dato de hace diez segundos todavía sirve.
-          if (vivo) setError(fallo instanceof Error ? fallo.message : 'No se pudo leer la cocina.');
+          if (vivo)
+            setError(
+              fallo instanceof Error
+                ? fallo.message
+                : `No se pudo leer ${voc.enFrase('preparacion')}.`,
+            );
         });
     };
     refrescar();
@@ -167,7 +174,7 @@ export function Cocina({ filasIniciales }: CocinaProps) {
       vivo = false;
       clearInterval(reloj);
     };
-  }, [filasIniciales]);
+  }, [filasIniciales, voc]);
 
   const grupos = useMemo(
     () => COLUMNAS.map((col) => ({ col, filas: deLaColumna(comandas ?? [], col.estado) })),
@@ -210,7 +217,7 @@ export function Cocina({ filasIniciales }: CocinaProps) {
 
   return (
     <div className="flex min-h-dvh flex-col gap-4 bg-background p-4 text-foreground">
-      <h1 className="text-xl font-bold tracking-wide uppercase">Cocina</h1>
+      <h1 className="text-xl font-bold tracking-wide uppercase">{voc.titulo('preparacion')}</h1>
       {error !== null && (
         <p role="alert" className="rounded-md border border-destructive p-2 text-sm">
           {error} · Se muestra el último tablero conocido.

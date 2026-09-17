@@ -8,6 +8,8 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
+import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
  * PANTALLA · cafeteria · cobro-y-propina
@@ -129,8 +131,10 @@ export function bloqueoDe(
   metodo: Metodo,
   mano: number,
   suma: number,
+  voc: Vocabulario,
 ): string | null {
-  if (total <= 0) return 'Este pedido no tiene importe que cobrar.';
+  if (total <= 0)
+    return `${voc.conDeterminante('este', 'unidad_servicio')} no tiene importe que cobrar.`;
   if (metodo === 'efectivo' && mano < 0) return 'Lo recibido no es un importe.';
   if (metodo === 'efectivo') return mano > 0 && mano < total ? 'Lo recibido no alcanza.' : null;
   if (metodo !== 'mixto' || suma === total) return null;
@@ -184,6 +188,7 @@ export function CobroYPropina({
   segundaPantallaConectada = false,
   onCobrado,
 }: CobroYPropinaProps) {
+  const voc = useVocabulario();
   const [pedido, setPedido] = useState<PedidoPorCobrar | null | undefined>(pedidoInicial);
   const [lineas, setLineas] = useState<readonly LineaDelTicket[]>(lineasIniciales ?? []);
   const [metodo, setMetodo] = useState<Metodo>('efectivo');
@@ -226,13 +231,17 @@ export function CobroYPropina({
       } catch (fallo) {
         // Un aborto no es un error: es esta misma pantalla, que ya no está.
         if (!sigueMontada()) return;
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer el pedido.');
+        setError(
+          fallo instanceof Error
+            ? fallo.message
+            : `No se pudo leer ${voc.enFrase('unidad_servicio')}.`,
+        );
       }
     })();
     return () => {
       control.abort();
     };
-  }, [pedidoInicial]);
+  }, [pedidoInicial, voc]);
 
   useEffect(() => {
     // Los ocho segundos sólo corren cuando hay algo que cobrar y nadie decidió.
@@ -253,7 +262,7 @@ export function CobroYPropina({
   const total = venta + (propina ?? 0);
   const mano = centavosDeTexto(recibido) ?? -1;
   const suma = BASES.reduce((suman, base) => suman + (centavosDeTexto(partes[base]) ?? -1), 0);
-  const bloqueo = bloqueoDe(total, metodo, mano, suma);
+  const bloqueo = bloqueoDe(total, metodo, mano, suma, voc);
   /** El origen separa en el reporte lo elegido de lo tecleado. Regla 1. */
   const origen = segundaPantallaConectada ? 'cliente' : 'barista';
 
@@ -303,13 +312,15 @@ export function CobroYPropina({
   if (pedido === null) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">No hay ningún pedido esperando cobro.</p>
+        <p className="text-xl font-semibold">
+          No hay {voc.enFraseCon('ningun', 'unidad_servicio')} esperando cobro.
+        </p>
         <p className="text-muted-foreground">
           Un pedido llega aquí en cuanto se arma en la barra. Al cobrarlo se registra el pago, se
           descuenta el inventario y se encola para prepararlo — todo en el mismo toque.
         </p>
         <Button asChild>
-          <a href="/cafeteria/cobrar">Armar un pedido</a>
+          <a href="/cafeteria/cobrar">Armar {voc.enFraseCon('un', 'unidad_servicio')}</a>
         </Button>
         {banda}
       </div>
@@ -336,7 +347,7 @@ export function CobroYPropina({
         <div className="w-full">{banda}</div>
       </header>
 
-      <section aria-label="Terminal del barista" className="space-y-3">
+      <section aria-label={`Terminal del ${voc.singular('responsable')}`} className="space-y-3">
         <ul className="space-y-1 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground">
           {lineas.map((linea) => (
             <li key={linea.id} className="flex items-baseline justify-between gap-3">

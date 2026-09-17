@@ -9,6 +9,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · agendar
@@ -244,6 +245,7 @@ export function Agendar({
   onAgendada,
   onCancelar,
 }: AgendarProps) {
+  const voc = useVocabulario();
   const [clientas, setClientas] = useState<readonly ClientaDeAgenda[]>(clientasIniciales ?? []);
   const [servicios, setServicios] = useState<readonly ServicioDeAgenda[] | null>(
     serviciosIniciales ?? null,
@@ -445,7 +447,7 @@ export function Agendar({
   return (
     <div className="lg:flex lg:justify-end">
       <section
-        aria-label="Agendar una cita"
+        aria-label={`Agendar ${voc.enFraseCon('un', 'orden')}`}
         className="flex min-h-dvh w-full flex-col bg-background lg:w-[420px] lg:border-l lg:border-border lg:shadow-3"
       >
         <header className="flex flex-wrap items-center gap-2 border-b border-border p-4">
@@ -462,7 +464,10 @@ export function Agendar({
             Cancelar
           </Button>
           {/* Migas: sólo en teléfono, donde se ve un paso por pantalla. */}
-          <nav aria-label="Pasos de la cita" className="flex w-full gap-1 md:hidden">
+          <nav
+            aria-label={`Pasos de ${voc.enFrase('orden')}`}
+            className="flex w-full gap-1 md:hidden"
+          >
             {PASOS.map((titulo, i) => (
               <button
                 key={titulo}
@@ -500,7 +505,7 @@ export function Agendar({
               1 · ¿Quién?
             </h2>
             <Label htmlFor="buscar-clienta" className="sr-only">
-              Buscar clienta por nombre o teléfono
+              Buscar {voc.singular('cliente')} por nombre o teléfono
             </Label>
             <Input
               id="buscar-clienta"

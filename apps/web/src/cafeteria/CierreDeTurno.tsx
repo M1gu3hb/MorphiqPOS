@@ -20,6 +20,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · cierre-de-turno-y-arqueo
@@ -238,6 +239,7 @@ export function CierreDeTurno({
   mermasIniciales,
   onCerrado,
 }: CierreDeTurnoProps) {
+  const voc = useVocabulario();
   // `undefined` es «todavía no se sabe»; `null` es «no hay turno abierto».
   const [turno, setTurno] = useState<TurnoDeCierre | null | undefined>(turnoInicial);
   const [ventas, setVentas] = useState<readonly VentaDelTurno[]>(ventasIniciales ?? []);
@@ -516,7 +518,7 @@ export function CierreDeTurno({
         </AccordionItem>
 
         <AccordionItem value="canal">
-          <AccordionTrigger>Bebidas por canal</AccordionTrigger>
+          <AccordionTrigger>{voc.titulo('linea_orden', true)} por canal</AccordionTrigger>
           <AccordionContent>
             <Cifras
               lista={canalesIniciales ?? []}
@@ -566,7 +568,7 @@ export function CierreDeTurno({
         </AccordionItem>
 
         <AccordionItem value="merma">
-          <AccordionTrigger>Merma de barra del turno</AccordionTrigger>
+          <AccordionTrigger>Merma de {voc.singular('preparacion')} del turno</AccordionTrigger>
           <AccordionContent>
             <Cifras
               lista={mermasIniciales ?? []}
@@ -585,7 +587,10 @@ export function CierreDeTurno({
       >
         <DialogContent className="max-h-[80dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Pedidos cobrados que nadie ha entregado</DialogTitle>
+            <DialogTitle>
+              {voc.titulo('unidad_servicio', true)} cobrad{voc.terminacion('unidad_servicio', true)}{' '}
+              que nadie ha entregado
+            </DialogTitle>
             <DialogDescription>
               Cada uno es un café pagado. Resuélvelos y vuelve a tocar CERRAR TURNO.
             </DialogDescription>

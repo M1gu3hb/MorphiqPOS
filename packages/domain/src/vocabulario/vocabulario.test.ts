@@ -128,3 +128,119 @@ describe('F-017 · personalización por negocio', () => {
     expect(base.singular('responsable')).not.toBe('mesero');
   });
 });
+
+describe('F-017 · las dos formas que las 61 pantallas necesitan (E2.4)', () => {
+  it('`titulo` da el sustantivo solo, con mayúscula y sin artículo', () => {
+    // Es la forma de un encabezado y de una pestaña, y el 60 % de lo que se ve.
+    expect(crearVocabulario('restaurante').titulo('unidad_servicio', true)).toBe('Mesas');
+    expect(crearVocabulario('ferreteria').titulo('producto', true)).toBe('Materiales');
+    expect(crearVocabulario('estetica').titulo('cliente', true)).toBe('Clientas');
+    expect(crearVocabulario('tienda').titulo('orden')).toBe('Venta');
+  });
+
+  it('`enFrase` da el artículo en MINÚSCULA, para meterlo en un mensaje', () => {
+    // «No se pudo abrir La mesa» es lo que sale con conArticulo, y es la razón
+    // por la que esta forma existe en vez de un toLowerCase() por pantalla.
+    const r = crearVocabulario('restaurante');
+    expect(`No se pudo leer ${r.enFrase('unidad_servicio')}.`).toBe('No se pudo leer la mesa.');
+    expect(r.enFrase('orden', true)).toBe('las cuentas');
+    expect(crearVocabulario('cafeteria').enFrase('unidad_servicio')).toBe('el pedido');
+    expect(crearVocabulario('estetica').enFrase('cliente', true)).toBe('las clientas');
+  });
+
+  it('las dos respetan el apagado: una entidad que el giro no usa da cadena vacía', () => {
+    // Regla 3. Una tienda no tiene unidad de servicio, y un encabezado con el
+    // sustantivo neutro sería peor que no enseñar la sección.
+    const tienda = crearVocabulario('tienda');
+    expect(tienda.usa('unidad_servicio')).toBe(false);
+    expect(tienda.titulo('unidad_servicio')).toBe('');
+    expect(tienda.enFrase('unidad_servicio')).toBe('');
+  });
+
+  it('`titulo` y `enFrase` también obedecen lo que el negocio cambió a mano', () => {
+    const suyo = crearVocabulario('estetica', {
+      unidad_servicio: { singular: 'cabina', plural: 'cabinas', genero: 'femenino' },
+    });
+    expect(suyo.titulo('unidad_servicio', true)).toBe('Cabinas');
+    expect(suyo.enFrase('unidad_servicio')).toBe('la cabina');
+  });
+});
+
+describe('F-017 · el determinante CONCUERDA con el género (E2.4)', () => {
+  it('«Ninguna mesa» en un restaurante y «Ningún pedido» en una cafetería', () => {
+    // Es el mismo estado vacío, la misma pantalla y dos palabras distintas. Sin
+    // esto, la cafetería leía «Ninguna pedido está esperando».
+    expect(crearVocabulario('restaurante').conDeterminante('ningun', 'unidad_servicio')).toBe(
+      'Ninguna mesa',
+    );
+    expect(crearVocabulario('cafeteria').conDeterminante('ningun', 'unidad_servicio')).toBe(
+      'Ningún pedido',
+    );
+  });
+
+  it('las siete formas concuerdan en género Y en número', () => {
+    const r = crearVocabulario('restaurante'); // mesa · femenino
+    const c = crearVocabulario('cafeteria'); // pedido · masculino
+    expect(r.enFraseCon('un', 'unidad_servicio')).toBe('una mesa');
+    expect(c.enFraseCon('un', 'unidad_servicio')).toBe('un pedido');
+    expect(r.enFraseCon('este', 'unidad_servicio', true)).toBe('estas mesas');
+    expect(c.enFraseCon('este', 'unidad_servicio', true)).toBe('estos pedidos');
+    expect(r.enFraseCon('otro', 'orden')).toBe('otra cuenta');
+    expect(r.enFraseCon('todo', 'orden', true)).toBe('todas cuentas');
+    // `cada` es invariable, y está en la lista para que la pantalla no tenga que
+    // saber cuáles concuerdan y cuáles no.
+    expect(r.enFraseCon('cada', 'unidad_servicio')).toBe('cada mesa');
+    expect(c.enFraseCon('cada', 'unidad_servicio')).toBe('cada pedido');
+  });
+
+  it('«ningún» lleva tilde en singular masculino y la pierde en plural', () => {
+    const c = crearVocabulario('cafeteria');
+    expect(c.enFraseCon('ningun', 'unidad_servicio')).toBe('ningún pedido');
+    expect(c.enFraseCon('ningun', 'unidad_servicio', true)).toBe('ningunos pedidos');
+  });
+
+  it('obedece al género que el negocio eligió, no al del giro', () => {
+    // El caso que esto viene a cerrar: la dueña de un spa llama «cabina» a su
+    // estación, y la de un taller le llama «bahía». Las dos son femeninas, pero
+    // si alguien pone «box» el sistema tiene que decir «Ningún box».
+    const taller = crearVocabulario('estetica', {
+      unidad_servicio: { singular: 'box', plural: 'boxes', genero: 'masculino' },
+    });
+    expect(taller.conDeterminante('ningun', 'unidad_servicio')).toBe('Ningún box');
+    expect(taller.enFraseCon('este', 'unidad_servicio', true)).toBe('estos boxes');
+  });
+
+  it('una entidad apagada da cadena vacía, no «ninguna undefined»', () => {
+    const tienda = crearVocabulario('tienda');
+    expect(tienda.conDeterminante('ningun', 'unidad_servicio')).toBe('');
+    expect(tienda.enFraseCon('un', 'unidad_servicio')).toBe('');
+  });
+});
+
+describe('F-017 · el adjetivo concuerda con el sustantivo (E2.4)', () => {
+  it('«Cuentas cobradas» en un restaurante y «Pedidos cobrados» en un mostrador', () => {
+    const r = crearVocabulario('restaurante');
+    const c = crearVocabulario('cafeteria');
+    expect(`${r.titulo('orden', true)} cobrad${r.terminacion('orden', true)}`).toBe(
+      'Cuentas cobradas',
+    );
+    expect(
+      `${c.titulo('unidad_servicio', true)} cobrad${c.terminacion('unidad_servicio', true)}`,
+    ).toBe('Pedidos cobrados');
+  });
+
+  it('las cuatro terminaciones', () => {
+    const r = crearVocabulario('restaurante'); // mesa · femenino
+    const c = crearVocabulario('cafeteria'); // pedido · masculino
+    expect(r.terminacion('unidad_servicio')).toBe('a');
+    expect(r.terminacion('unidad_servicio', true)).toBe('as');
+    expect(c.terminacion('unidad_servicio')).toBe('o');
+    expect(c.terminacion('unidad_servicio', true)).toBe('os');
+  });
+
+  it('una entidad apagada da el masculino, no una cadena vacía', () => {
+    // Con cadena vacía la frase quedaría «cobrad», que se lee como un error del
+    // sistema. Si la entidad no existe, la frase no debería estar en pantalla.
+    expect(crearVocabulario('tienda').terminacion('unidad_servicio')).toBe('o');
+  });
+});

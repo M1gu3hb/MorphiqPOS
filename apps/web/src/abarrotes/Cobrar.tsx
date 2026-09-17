@@ -7,6 +7,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · cobrar
@@ -165,6 +166,7 @@ export function conProducto(
 }
 
 export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarProps) {
+  const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoDeMostrador[] | null>(
     productosIniciales ?? null,
   );
@@ -386,7 +388,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
       {/* En teléfono el total se queda pegado arriba; de tablet para arriba es
           la cabeza de la columna derecha. En los dos casos es lo primero. */}
       <section
-        aria-label="Total de la venta"
+        aria-label={`Total de ${voc.enFrase('orden')}`}
         className="sticky top-0 z-20 rounded-lg border border-border bg-card p-4 text-center md:static md:col-start-2 md:row-start-1"
       >
         <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Total</p>
@@ -400,14 +402,17 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
         </p>
       </section>
 
-      <section aria-label="Venta en curso" className="space-y-2 md:col-start-1 md:row-span-3">
+      <section
+        aria-label={`${voc.titulo('orden')} en curso`}
+        className="space-y-2 md:col-start-1 md:row-span-3"
+      >
         <div className="space-y-1">
           <Label htmlFor="cobrar-busqueda">Código o nombre · F2</Label>
           <Input
             id="cobrar-busqueda"
             ref={campo}
             value={busqueda}
-            placeholder="El producto sin código, o el que no leyó"
+            placeholder={`${voc.conArticulo('producto')} sin código, o el que no leyó`}
             onChange={(evento) => {
               setBusqueda(evento.target.value);
             }}
@@ -440,7 +445,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
               <span aria-hidden className="text-3xl tracking-widest">
                 ▊▌▊▎▊
               </span>
-              <p className="text-lg font-medium">Escanea el primer producto</p>
+              <p className="text-lg font-medium">Escanea el primer {voc.singular('producto')}</p>
               <p className="text-sm text-muted-foreground">
                 El lector ya está escuchando: no hay nada que tocar.
               </p>

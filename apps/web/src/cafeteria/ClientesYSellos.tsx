@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · clientes-y-sellos
@@ -73,6 +74,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function ClientesYSellos({ clienteInicial, recientesIniciales }: ClientesYSellosProps) {
+  const voc = useVocabulario();
   const [telefono, setTelefono] = useState('');
   const [cliente, setCliente] = useState<ClienteConSellos | null>(clienteInicial ?? null);
   const [recientes, setRecientes] = useState<readonly ClienteConSellos[] | null>(
@@ -183,7 +185,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold">Clientes y sellos</h1>
+        <h1 className="text-2xl font-semibold">{voc.titulo('cliente', true)} y sellos</h1>
         <p className="text-muted-foreground text-sm">
           Se identifica por teléfono: la tarjeta de cartón se pierde y el teléfono no.
         </p>

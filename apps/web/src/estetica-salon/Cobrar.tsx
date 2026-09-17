@@ -16,6 +16,8 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
+import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · cobrar
@@ -161,7 +163,7 @@ export function ivaIncluidoDe(total: number): number {
  * de `estado` y no de `codigo`. Confundirlos deja al mostrador reintentando
  * contra una puerta que sólo pide esperar.
  */
-export function mensajeDeFallo(fallo: unknown): string {
+export function mensajeDeFallo(fallo: unknown, voc: Vocabulario): string {
   if (fallo instanceof ErrorApi) {
     if (fallo.estado === 429)
       return 'Demasiados intentos seguidos. Espera y vuelve a tocar COBRAR.';
@@ -170,7 +172,10 @@ export function mensajeDeFallo(fallo: unknown): string {
     }
     return fallo.error.mensaje;
   }
-  return 'No se pudo cobrar y no se cobró nada. La cita sigue abierta: vuelve a tocar COBRAR.';
+  return (
+    `No se pudo cobrar y no se cobró nada. ${voc.conArticulo('orden')} sigue ` +
+    `abiert${voc.terminacion('orden')}: vuelve a tocar COBRAR.`
+  );
 }
 
 export function Cobrar({
@@ -181,6 +186,7 @@ export function Cobrar({
   catalogoInicial,
   onCobrado,
 }: CobrarProps) {
+  const voc = useVocabulario();
   const [citas, setCitas] = useState<readonly CitaPorCobrar[] | null>(citasIniciales ?? null);
   const [servicios, setServicios] = useState<readonly ServicioDeCita[]>(serviciosIniciales ?? []);
   const [personas, setPersonas] = useState<readonly PersonaDelSalon[]>([
@@ -253,7 +259,7 @@ export function Cobrar({
     total === 0
       ? 'Esa cita no tiene servicios cerrados que cobrar.'
       : anticipo > 0
-        ? 'Esta cita trae anticipo y el cobro todavía no sabe descontarlo. Ciérrala en caja.'
+        ? `${voc.conDeterminante('este', 'orden')} trae anticipo y el cobro todavía no sabe descontarlo. Ciérrala en caja.`
         : metodo === null
           ? 'Falta decir cómo paga.'
           : null;
@@ -280,7 +286,7 @@ export function Cobrar({
       setOtraPropina('');
       onCobrado?.(citaActual.id);
     } catch (fallo) {
-      setError(mensajeDeFallo(fallo));
+      setError(mensajeDeFallo(fallo, voc));
     } finally {
       setEnviando(false);
     }
@@ -314,7 +320,9 @@ export function Cobrar({
   if (cita === null) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 p-4">
-        <h1 className="text-2xl font-bold">Elige una cita terminada para cobrar</h1>
+        <h1 className="text-2xl font-bold">
+          Elige {voc.enFraseCon('un', 'orden')} terminad{voc.terminacion('orden')} para cobrar
+        </h1>
         {aviso !== null && (
           <p role="status" className="rounded-md border border-border bg-success/20 p-3 text-sm">
             {aviso}
@@ -324,7 +332,10 @@ export function Cobrar({
         {citas.length === 0 ? (
           // El vacío ENSEÑA: dice por qué está vacío y qué hacer, no se disculpa.
           <div className="space-y-3 rounded-lg border border-border bg-card p-6">
-            <p className="text-lg font-semibold">Ninguna cita está lista para cobrar.</p>
+            <p className="text-lg font-semibold">
+              {voc.conDeterminante('ningun', 'orden')} está list{voc.terminacion('orden')} para
+              cobrar.
+            </p>
             <p className="text-muted-foreground">
               Una cita se cobra cuando el servicio está CERRADO, y no antes: cerrarlo es donde se
               captura la fórmula y donde se descuenta el material de cabina. Cierra el servicio en
@@ -354,7 +365,7 @@ export function Cobrar({
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">
-                      {nombres.get(fila.cliente_id ?? '') ?? 'Sin clienta'}
+                      {nombres.get(fila.cliente_id ?? '') ?? `Sin ${voc.singular('cliente')}`}
                     </span>
                     <span className="block text-sm text-muted-foreground">
                       {fila.folio ?? 'Sin folio'} · {lineasDe(servicios, fila.id).length} conceptos
@@ -394,7 +405,9 @@ export function Cobrar({
   return (
     <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_28rem]">
       <header className="flex flex-wrap items-baseline gap-2 md:col-span-2">
-        <h1 className="text-xl font-bold">{nombres.get(cita.cliente_id ?? '') ?? 'Sin clienta'}</h1>
+        <h1 className="text-xl font-bold">
+          {nombres.get(cita.cliente_id ?? '') ?? `Sin ${voc.singular('cliente')}`}
+        </h1>
         <span className="text-sm text-muted-foreground">{cita.folio ?? 'Sin folio'}</span>
         <Button
           variant="ghost"
@@ -404,7 +417,7 @@ export function Cobrar({
             setCitaId(null);
           }}
         >
-          Elegir otra cita
+          Elegir {voc.enFraseCon('otro', 'orden')}
         </Button>
       </header>
 
@@ -525,7 +538,7 @@ export function Cobrar({
       </aside>
 
       <section
-        aria-label="Conceptos de la cita"
+        aria-label={`Conceptos de ${voc.enFrase('orden')}`}
         className="rounded-lg border border-border bg-card md:col-start-1 md:row-start-3"
       >
         {/* `details` nativo: el teclado y el lector de pantalla ya saben abrirlo.

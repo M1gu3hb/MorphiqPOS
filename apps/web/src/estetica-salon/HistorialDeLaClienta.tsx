@@ -14,6 +14,7 @@ import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · historial-de-la-clienta
@@ -223,6 +224,7 @@ export function HistorialDeLaClienta({
   onVerFoto,
   onHistorialEmpezado,
 }: HistorialDeLaClientaProps) {
+  const voc = useVocabulario();
   const [clienta, setClienta] = useState<ClientaDelHistorial | null>(clientaInicial ?? null);
   const [visitas, setVisitas] = useState<readonly VisitaDelHistorial[] | null>(
     visitasIniciales ?? null,
@@ -298,7 +300,7 @@ export function HistorialDeLaClienta({
     );
   }
 
-  const nombre = clienta?.nombre ?? 'Esta clienta';
+  const nombre = clienta?.nombre ?? voc.conDeterminante('este', 'cliente');
   const habitual = clienta?.profesionalHabitual ?? null;
   const ultima = visitas[0] ?? null;
   const vuelta = tocaVolver(ultima?.fecha ?? null, clienta?.frecuenciaDias ?? null);
@@ -368,7 +370,8 @@ export function HistorialDeLaClienta({
         <form onSubmit={alEmpezar} className={TARJETA}>
           <h2 className="text-lg font-semibold">{nombre} viene por primera vez.</h2>
           <p className="mb-4 mt-1 text-sm text-muted-foreground">
-            Tres respuestas ahora valen más que media hora de memoria en la próxima cita.
+            Tres respuestas ahora valen más que media hora de memoria en la próxima{' '}
+            {voc.singular('orden')}.
           </p>
           <div className="grid gap-3">
             <Campo id="comoLlego" etiqueta="Cómo llegó" pista="Recomendación, Instagram…" />

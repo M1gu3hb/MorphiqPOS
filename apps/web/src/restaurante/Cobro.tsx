@@ -6,6 +6,8 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState, type MouseEvent } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
+import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
  * PANTALLA · restaurante · cobro
@@ -103,9 +105,16 @@ export function enPesos(monto: number): string {
 }
 
 /** Qué impide cobrar, dicho con palabras y no sólo con un botón apagado. */
-function bloqueoDe(pendiente: boolean, total: number, metodo: Metodo, mano: number, suma: number) {
+function bloqueoDe(
+  pendiente: boolean,
+  total: number,
+  metodo: Metodo,
+  mano: number,
+  suma: number,
+  voc: Vocabulario,
+) {
   if (pendiente) return 'Confirma la propina antes de cobrar.';
-  if (total <= 0) return 'Esta cuenta no tiene importe que cobrar.';
+  if (total <= 0) return `${voc.conDeterminante('este', 'orden')} no tiene importe que cobrar.`;
   if (metodo === 'efectivo' && mano < 0) return 'Lo recibido no es un importe.';
   if (metodo === 'efectivo') return mano > 0 && mano < total ? 'Lo recibido no alcanza.' : null;
   if (metodo !== 'mixto' || suma === total) return null;
@@ -140,6 +149,7 @@ function renglonesDePago(
 }
 
 export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }: CobroProps) {
+  const voc = useVocabulario();
   const [cuenta, setCuenta] = useState<CuentaPorCobrar | null | undefined>(cuentaInicial);
   const [lineas, setLineas] = useState<readonly LineaDeCuenta[]>(lineasIniciales ?? []);
   const [metodo, setMetodo] = useState<Metodo>('efectivo');
@@ -185,13 +195,15 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
       } catch (fallo) {
         // Un aborto no es un error: es esta misma pantalla, que ya no está.
         if (señal.aborted) return;
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer la cuenta.');
+        setError(
+          fallo instanceof Error ? fallo.message : `No se pudo leer ${voc.enFrase('orden')}.`,
+        );
       }
     })();
     return () => {
       control.abort();
     };
-  }, [cuentaInicial]);
+  }, [cuentaInicial, voc]);
 
   const venta = aCentavos(cuenta?.total);
   const suPropina = propina ?? aCentavos(cuenta?.propina_monto);
@@ -199,7 +211,7 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
   const pendiente = propina === null && SIN_DECIDIR.includes(cuenta?.propina_tipo ?? '');
   const mano = centavosDeTexto(recibido) ?? -1;
   const suma = BASES.reduce((suman, base) => suman + (centavosDeTexto(partes[base]) ?? -1), 0);
-  const bloqueo = bloqueoDe(pendiente, total, metodo, mano, suma);
+  const bloqueo = bloqueoDe(pendiente, total, metodo, mano, suma, voc);
   // La pantalla no se vacía por un error: la banda va encima del último dato.
   const banda =
     error === null ? null : (
@@ -241,12 +253,15 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
   if (cuenta === null) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">Ninguna cuenta está esperando cobro.</p>
+        <p className="text-xl font-semibold">
+          {voc.conDeterminante('ningun', 'orden')} está esperando cobro.
+        </p>
         <p className="text-muted-foreground">
-          Una cuenta llega aquí cuando el mesero la cierra y el comensal pide pagar.
+          {voc.conDeterminante('un', 'orden')} llega aquí cuando {voc.enFrase('responsable')} la
+          cierra y {voc.enFrase('cliente')} pide pagar.
         </p>
         <Button asChild>
-          <a href="/restaurante/mapa-de-mesas">Ver el mapa de mesas</a>
+          <a href="/restaurante/mapa-de-mesas">Ver el mapa de {voc.plural('unidad_servicio')}</a>
         </Button>
         {banda}
       </div>
@@ -388,7 +403,7 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
         {bloqueo !== null && <p className="text-center text-sm">{bloqueo}</p>}
       </section>
       {/* `details` nativo: el teclado y el lector de pantalla ya saben abrirlo. */}
-      <section aria-label="La cuenta" className="xl:order-1">
+      <section aria-label={voc.conArticulo('orden')} className="xl:order-1">
         <details className="rounded-lg border border-border xl:hidden">
           <summary className="cursor-pointer p-3 text-sm">{lineas.length} platillos</summary>
           {detalle}

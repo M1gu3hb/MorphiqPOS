@@ -82,6 +82,24 @@ export function plantillaDeOrganizacion(giro: unknown, valorGuardado: unknown): 
  */
 const GIROS_DE_ALIMENTOS: readonly Giro[] = ['cafeteria', 'restaurante'];
 
+/**
+ * Lee una tabla total con una clave que viene de los DATOS, no del tipo.
+ *
+ * Las tablas de este archivo son `Record<K, V>` completas a propósito: olvidar
+ * una plantilla o un giro tiene que ser un error de compilación. Pero la clave
+ * con la que se consultan sale de `organizaciones.giro` o de `paquete`, y ahí
+ * puede haber un valor que el `check` de la columna ya no admite —un respaldo
+ * viejo, una copia de desarrollo, una fila tocada a mano—.
+ *
+ * Sin esto, el `?? 'tienda'` que protege ese caso es «código muerto» para el
+ * tipo y `no-unnecessary-condition` lo marca; quitarlo dejaría `undefined`
+ * viajando hasta la pantalla. Esta función dice, en un sitio y con su motivo,
+ * que la clave no está garantizada.
+ */
+export function segunElDato<V>(tabla: Readonly<Record<string, V>>, clave: string): V | undefined {
+  return (tabla as Readonly<Record<string, V | undefined>>)[clave];
+}
+
 export function esPlantilla(valor: unknown): valor is Plantilla {
   return typeof valor === 'string' && (PLANTILLAS as readonly string[]).includes(valor);
 }
@@ -100,7 +118,7 @@ export function plantillaDe(giro: Giro, valorGuardado: unknown): Plantilla {
   // Sin valor guardado, el giro decide — y lo decide la tabla, no un `switch`
   // que se pueda quedar corto. Es lo que estrena un negocio recién dado de alta.
   if (valorGuardado === undefined || valorGuardado === null || valorGuardado === '') {
-    return PLANTILLA_POR_GIRO[giro] ?? 'tienda';
+    return segunElDato(PLANTILLA_POR_GIRO, giro) ?? 'tienda';
   }
 
   const esAlimentos = GIROS_DE_ALIMENTOS.includes(giro);
@@ -117,7 +135,7 @@ export function plantillaDe(giro: Giro, valorGuardado: unknown): Plantilla {
       // Los tres nombres heredados los tradujo la 058 y ya no quedan en la
       // base; siguen aquí porque un respaldo viejo o una copia de desarrollo
       // pueden traerlos, y traducir es mejor que degradar.
-      return esAlimentos ? 'cafeteria' : (PLANTILLA_POR_GIRO[giro] ?? 'tienda');
+      return esAlimentos ? 'cafeteria' : (segunElDato(PLANTILLA_POR_GIRO, giro) ?? 'tienda');
     case 'esencial':
       return 'tienda';
     default:

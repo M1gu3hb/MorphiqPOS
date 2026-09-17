@@ -44,6 +44,7 @@ import {
   cadenaDeVerificacion,
   consultarViva,
 } from '../packages/data/src/verificacion/consulta-directa.ts';
+import { DICCIONARIOS } from '../packages/domain/src/vocabulario/diccionarios.ts';
 import { problemasDeSeguridad } from '../packages/data/src/verificacion/rls.ts';
 import { MODELOS, pantallasEsperadas, rutasEsperadas } from './verificar-cobertura.mjs';
 
@@ -695,26 +696,146 @@ function comprobarVocabulario() {
     );
   }
 
-  // Y al menos dos PANTALLAS que lo usen de verdad. Con el proveedor puesto y
-  // ninguna consumidora, el vocabulario estaría disponible y seguiría sin
-  // cambiar una sola palabra en la pantalla.
-  // El separador se normaliza: en Windows las rutas vienen con `\` y el filtro
-  // escrito con una sola barra no encontraba ninguna pantalla.
+  // Y las PANTALLAS. Hasta el 17-09-2026 esta comprobación pedía «al menos
+  // dos», y con dos pasaba: 3 de 65 componentes lo leían y las otras 62 tenían
+  // el sustantivo del giro tecleado a mano. Un número mínimo no mide nada — lo
+  // que hay que exigir es que NINGUNA pantalla escriba a mano una palabra que
+  // el diccionario de su giro ya sabe decir.
   const pantallas = consumidores
     .map((ruta) => ruta.split(sep).join('/'))
     .filter((ruta) => /\/src\/.+\.tsx$/.test(ruta));
+
+  const conLiteral = pantallasConSustantivoTecleado();
   exigir(
-    pantallas.length >= 2,
-    `VOCABULARIO: sólo ${pantallas.length} pantalla(s) lo usan. Disponible y sin usar ` +
-      'es lo mismo que no tenerlo.',
+    conLiteral.length === 0,
+    `VOCABULARIO: ${conLiteral.length} pantalla(s) escriben a mano una palabra que el ` +
+      'diccionario de su giro ya dice. El día que la dueña llame «cabina» a su estación, ' +
+      'esas líneas seguirán diciendo «mesa»:\n    ' +
+      conLiteral.slice(0, 12).join('\n    ') +
+      (conLiteral.length > 12 ? `\n    …y ${conLiteral.length - 12} más` : ''),
   );
 
   if (!fallos.some((f) => f.startsWith('VOCABULARIO'))) {
     notas.push(
       `vocabulario   ruta + los dos envoltorios + el menú heredado · ` +
-        `${pantallas.length} pantalla(s) lo consumen`,
+        `${pantallas.length} pantalla(s) lo consumen · 0 sustantivos tecleados a mano`,
     );
   }
+}
+
+/**
+ * Las carpetas de pantalla de los cinco modelos, con el GIRO cuyo diccionario
+ * les toca. La plantilla dice qué módulos tiene el negocio; el giro dice cómo
+ * habla, y son ejes distintos (ver la cabecera de `vocabulario/tipos.ts`).
+ */
+const GIRO_DE_LA_CARPETA = {
+  restaurante: 'restaurante',
+  cafeteria: 'cafeteria',
+  abarrotes: 'tienda',
+  ferreteria: 'ferreteria',
+  'estetica-salon': 'estetica',
+};
+
+/**
+ * Frases donde la palabra NO es la entidad del diccionario.
+ *
+ * «Punto de venta» es el nombre del producto, «cuenta el cajón» es el verbo
+ * contar, «precio de venta» es un término de contabilidad y la «nota» de
+ * `ferreteria/Entradas` es la del PROVEEDOR, no la del cliente. Traducirlas
+ * sería peor que no traducir nada.
+ */
+const NO_ES_LA_ENTIDAD = [
+  'punto de venta',
+  'precio de venta',
+  'corte de caja',
+  'punto de partida',
+  'cuenta el',
+  'cuenta lo que',
+  'cuenta los',
+  'cuenta las',
+  'cuenta dos',
+  'se cuentan',
+  'cuenta con',
+  'primera nota',
+  'nota del',
+  'notas del',
+  'nota interna',
+  'foto de la nota',
+  'mesa de trabajo',
+  'barra lateral',
+];
+
+/** Y estas palabras, en estas pantallas, tampoco. */
+const NO_ES_LA_ENTIDAD_AQUI = {
+  'ferreteria/Entradas.tsx': ['nota', 'notas'],
+};
+
+/**
+ * Las pantallas que tienen un sustantivo del diccionario tecleado a mano en
+ * algo que el usuario LEE: texto de JSX, o un `aria-label` / `placeholder` /
+ * `title` / `alt`.
+ *
+ * No mira identificadores, tipos, campos de la base, nombres de entidad del
+ * puente ni comentarios: ahí la palabra es el nombre de una cosa del sistema y
+ * traducirla lo rompería sin mover nada en la pantalla.
+ */
+function pantallasConSustantivoTecleado() {
+  const raiz = join(RAIZ, 'apps', 'web', 'src');
+  const encontradas = [];
+  const letra = 'A-Za-z0-9áéíóúñÁÉÍÓÚÑ';
+
+  for (const [carpeta, giro] of Object.entries(GIRO_DE_LA_CARPETA)) {
+    const dir = join(raiz, carpeta);
+    if (!existsSync(dir)) continue;
+    const diccionario = DICCIONARIOS[giro] ?? {};
+    const palabras = [];
+    for (const termino of Object.values(diccionario)) {
+      palabras.push(termino.plural, termino.singular);
+    }
+    if (palabras.length === 0) continue;
+    const alternativa = palabras.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const buscador = new RegExp(`(?<![${letra}-])(${alternativa})(?![${letra}-])`, 'i');
+
+    for (const entrada of readdirSyncSeguro(dir)) {
+      if (!entrada.isFile() || !entrada.name.endsWith('.tsx')) continue;
+      const clave = `${carpeta}/${entrada.name}`;
+      const vetadasAqui = NO_ES_LA_ENTIDAD_AQUI[clave] ?? [];
+      const lineas = readFileSync(join(dir, entrada.name), 'utf8').split('\n');
+      let enComentario = false;
+
+      lineas.forEach((linea, indice) => {
+        const recortada = linea.trim();
+        if (enComentario) {
+          if (recortada.includes('*/')) enComentario = false;
+          return;
+        }
+        if (recortada.startsWith('/*') || recortada.startsWith('{/*')) {
+          if (!recortada.includes('*/')) enComentario = true;
+          return;
+        }
+        if (recortada.startsWith('//') || recortada.startsWith('*')) return;
+
+        // Los dos sitios visibles: el texto entre `>` y `<`, y los props que se
+        // leen. Un `{…}` dentro del texto es una expresión, no texto.
+        const visibles = [];
+        for (const m of linea.matchAll(/>([^<>{}]*[A-Za-zÁÉÍÓÚÑ][^<>{}]*)</g)) {
+          visibles.push(m[1]);
+        }
+        for (const m of linea.matchAll(/\b(?:aria-label|placeholder|title|alt)="([^"]*)"/g)) {
+          visibles.push(m[1]);
+        }
+        for (const trozo of visibles) {
+          const bajo = trozo.toLowerCase();
+          if (NO_ES_LA_ENTIDAD.some((v) => bajo.includes(v))) continue;
+          const halla = buscador.exec(trozo);
+          if (halla === null) continue;
+          if (vetadasAqui.includes(halla[1].toLowerCase())) continue;
+          encontradas.push(`${clave}:${indice + 1}  «${halla[1]}»  ${trozo.trim().slice(0, 60)}`);
+        }
+      });
+    }
+  }
+  return encontradas;
 }
 
 function readdirSyncSeguro(carpeta) {

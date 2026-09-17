@@ -4,7 +4,6 @@ import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
-
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -98,6 +97,7 @@ function esRespuesta(valor: unknown): valor is Respuesta {
 }
 
 export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
+  const voc = useVocabulario();
   // F-017 · Cómo llama este negocio a la unidad de servicio. Lo resuelve el
   // envoltorio de servidor, así que en la primera pintada ya está.
   const vocabulario = useVocabulario();
@@ -152,7 +152,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
       body: JSON.stringify({ tipo }),
     })
       .then(() => {
-        setAviso(tipo === 'cuenta' ? 'Ya va la cuenta.' : 'Ya viene alguien.');
+        setAviso(tipo === 'cuenta' ? `Ya va ${voc.enFrase('orden')}.` : 'Ya viene alguien.');
       })
       .catch(() => {
         setAviso('No se pudo avisar. Levanta la mano.');
@@ -195,7 +195,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
 
       {enseñaCuenta(datos) && datos.cuenta !== null && (
         <section className="rounded-lg border p-4">
-          <h2 className="mb-2 font-medium">Tu cuenta</h2>
+          <h2 className="mb-2 font-medium">Tu {voc.singular('orden')}</h2>
           <ul className="divide-y">
             {datos.cuenta.lineas.map((linea) => (
               <li key={linea.id} className="flex items-baseline justify-between py-2">
@@ -212,7 +212,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
             <span className="tabular-nums">{pesos(datos.cuenta.totalCentavos)}</span>
           </p>
           <p className="text-muted-foreground mt-2 text-sm">
-            Se paga en la mesa. Desde aquí sólo se pide.
+            Se paga en {voc.enFrase('unidad_servicio')}. Desde aquí sólo se pide.
           </p>
         </section>
       )}
@@ -225,7 +225,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
             solicitar('cuenta');
           }}
         >
-          Pedir la cuenta
+          Pedir {voc.enFrase('orden')}
         </Button>
         <Button
           variant="outline"
@@ -235,7 +235,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
             solicitar('mesero');
           }}
         >
-          Llamar al mesero
+          Llamar al {voc.singular('responsable')}
         </Button>
       </section>
 
@@ -258,7 +258,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
       {!puedeSeguirPidiendo(datos) && (
         <p className="text-muted-foreground text-sm">
           {datos.mesa.estado === 'cuenta_solicitada'
-            ? 'Ya pediste la cuenta. Si falta algo, llama al mesero.'
+            ? `Ya pediste ${voc.enFrase('orden')}. Si falta algo, llama al ${voc.singular('responsable')}.`
             : 'Hoy no se pide desde aquí: pídele a quien te atiende.'}
         </p>
       )}

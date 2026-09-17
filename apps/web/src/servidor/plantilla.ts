@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { INICIO_POR_PLANTILLA, type Plantilla } from '@morphiqpos/contracts';
+import { INICIO_POR_PLANTILLA, segunElDato, type Plantilla } from '@morphiqpos/contracts';
 import { redirect } from 'next/navigation';
 
 import { sesionDelServidor } from './http';
@@ -36,6 +36,6 @@ export async function exigirPlantilla(esperada: Plantilla): Promise<void> {
   if (sesion === null) redirect('/login-pos');
 
   if (sesion.paquete !== esperada) {
-    redirect(INICIO_POR_PLANTILLA[sesion.paquete] ?? '/');
+    redirect(segunElDato(INICIO_POR_PLANTILLA, sesion.paquete) ?? '/');
   }
 }

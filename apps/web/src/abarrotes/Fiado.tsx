@@ -9,6 +9,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · fiado
@@ -137,6 +138,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
+  const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly FilaDeCartera[] | null>(filasIniciales ?? null);
   const [busqueda, setBusqueda] = useState('');
   const [soloPorCobrar, setSoloPorCobrar] = useState(false);
@@ -275,7 +277,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Label htmlFor="fiado-buscar" className="sr-only">
-          Buscar cliente por nombre o teléfono
+          Buscar {voc.singular('cliente')} por nombre o teléfono
         </Label>
         <Input
           id="fiado-buscar"
@@ -311,7 +313,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
       <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start">
         <section className={`min-w-0 flex-1 ${ficha === null ? '' : 'pb-64 lg:pb-0'}`}>
           <div className="hidden grid-cols-[1fr_auto_auto_auto] gap-x-4 border-b border-border px-2 pb-2 text-xs font-medium text-muted-foreground md:grid">
-            <span>Cliente</span>
+            <span>{voc.titulo('cliente')}</span>
             <span className="text-right">Debe</span>
             <span>Más viejo</span>
             <span className="text-right">Límite · último abono</span>

@@ -7,6 +7,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · caja
@@ -144,6 +145,7 @@ function sumaDe(notas: readonly NotaDeCaja[]): number {
 }
 
 export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) {
+  const voc = useVocabulario();
   const [notas, setNotas] = useState<readonly NotaDeCaja[] | null>(notasIniciales ?? null);
   const [lineas, setLineas] = useState<readonly LineaDeNota[]>(lineasIniciales ?? []);
   const [elegida, setElegida] = useState<string | null>(null);
@@ -199,12 +201,15 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
         if (vivo) setLineas(filas);
       })
       .catch((fallo: unknown) => {
-        if (vivo) setError(fallo instanceof Error ? fallo.message : 'No se pudo leer la nota.');
+        if (vivo)
+          setError(
+            fallo instanceof Error ? fallo.message : `No se pudo leer ${voc.enFrase('orden')}.`,
+          );
       });
     return () => {
       vivo = false;
     };
-  }, [lineasIniciales, notaId]);
+  }, [lineasIniciales, notaId, voc]);
 
   const suyas = lineas.filter((linea) => linea.venta_id === notaId);
   const total = aCentavos(seleccionada?.total);
@@ -228,7 +233,9 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
       setElegida(null);
       onCobrada?.(nota.id, metodo);
     } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo cobrar la nota.');
+      setError(
+        fallo instanceof Error ? fallo.message : `No se pudo cobrar ${voc.enFrase('orden')}.`,
+      );
     } finally {
       setEnviando(null);
     }
@@ -337,7 +344,7 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
           a quién cobrar es la mitad del trabajo. */}
       <div className="hidden gap-4 md:grid md:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <section aria-label="Notas pendientes">
+          <section aria-label={`${voc.titulo('orden', true)} pendientes`}>
             <h2 className="mb-2 text-sm font-semibold uppercase">
               Notas pendientes ({pendientes.length})
             </h2>
@@ -372,7 +379,7 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
                     {/* Avisa ANTES de liberar el material, no después. */}
                     {faltan !== null && faltan <= AVISO_MINUTOS && (
                       <p className="px-2 text-xs text-muted-foreground">
-                        ⏱ {nota.codigo_caja ?? 'Esta nota'}{' '}
+                        ⏱ {nota.codigo_caja ?? voc.conDeterminante('este', 'orden')}{' '}
                         {faltan > 0 ? `vence en ${faltan} min` : 'ya venció'}
                       </p>
                     )}
@@ -409,10 +416,13 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
           </p>
         </aside>
 
-        <section aria-label="Nota seleccionada" className="space-y-3">
+        <section
+          aria-label={`${voc.titulo('orden')} seleccionad${voc.terminacion('orden')}`}
+          className="space-y-3"
+        >
           {seleccionada === null ? (
             <p className="rounded-lg border border-border p-6 text-center text-muted-foreground">
-              Elige una nota de la izquierda para cobrarla.
+              Elige {voc.enFraseCon('un', 'orden')} de la izquierda para cobrarla.
             </p>
           ) : (
             <>

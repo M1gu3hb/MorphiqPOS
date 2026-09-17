@@ -14,6 +14,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · entradas
@@ -170,6 +171,7 @@ export function Entradas({
   notaInicial,
   proveedores = ['Distribuidor Truper', 'Aceros del Norte', 'Cables MX'],
 }: EntradasProps) {
+  const voc = useVocabulario();
   const sembrada = pedidosIniciales !== undefined || filasIniciales !== undefined;
   const [enCamino, setEnCamino] = useState<readonly PedidoEnCamino[] | null>(
     sembrada ? (pedidosIniciales ?? []) : null,
@@ -447,7 +449,10 @@ export function Entradas({
                 )}
 
                 {nota.subidas.length > 0 && (
-                  <section aria-label="Materiales que subieron de costo" className="mt-3">
+                  <section
+                    aria-label={`${voc.titulo('producto', true)} que subieron de costo`}
+                    className="mt-3"
+                  >
                     <h2 className="text-sm font-semibold">
                       ⚠ {nota.subidas.length} materiales subieron de costo
                     </h2>

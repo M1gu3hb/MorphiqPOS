@@ -6,6 +6,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · restaurante · mapa-de-mesas
@@ -128,6 +129,7 @@ export function porUrgencia(mesas: readonly MesaDelMapa[]): readonly MesaDelMapa
 }
 
 export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
+  const voc = useVocabulario();
   const [mesas, setMesas] = useState<readonly MesaDelMapa[] | null>(mesasIniciales ?? null);
   const [zona, setZona] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
   if (mesas === null) {
     return (
       <div className="p-4">
-        <h1 className="mb-4 text-2xl font-bold">Mesas</h1>
+        <h1 className="mb-4 text-2xl font-bold">{voc.titulo('unidad_servicio', true)}</h1>
         {/* Esqueletos con la forma de las mesas, no un spinner: así la pantalla
             no salta al cargar y el ojo ya sabe dónde va a mirar. */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
@@ -174,10 +176,13 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
   if (mesas.length === 0) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
-        <p className="text-lg text-muted-foreground">Todavía no hay mesas configuradas.</p>
+        <p className="text-lg text-muted-foreground">
+          Todavía no hay {voc.plural('unidad_servicio')} configurad
+          {voc.terminacion('unidad_servicio', true)}.
+        </p>
         {/* El vacío ENSEÑA, no se disculpa: lleva directo a donde se resuelve. */}
         <Button asChild>
-          <a href="/configuracion">Crear mi primer mapa de mesas</a>
+          <a href="/configuracion">Crear mi primer mapa de {voc.plural('unidad_servicio')}</a>
         </Button>
       </div>
     );
@@ -186,7 +191,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
   return (
     <div className="p-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Mesas</h1>
+        <h1 className="text-2xl font-bold">{voc.titulo('unidad_servicio', true)}</h1>
         <nav
           aria-label="Zonas del salón"
           className="flex gap-1 overflow-x-auto md:overflow-visible"
@@ -272,7 +277,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
                 {mesa.alergias && (
                   <span
                     className="absolute bottom-1 left-1 text-sm"
-                    aria-label="Hay alergias declaradas en esta mesa"
+                    aria-label={`Hay alergias declaradas en ${voc.enFraseCon('este', 'unidad_servicio')}`}
                   >
                     ⚠️
                   </span>

@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · conteo
@@ -190,6 +191,7 @@ export function CampoDeConteo({ id, etiqueta, valor, alCambiar }: CampoDeConteoP
 }
 
 export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoProps) {
+  const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly ProductoDeConteo[] | null>(filasIniciales ?? null);
   const [conteos, setConteos] = useState<Readonly<Record<string, number>>>({});
   const [idActual, setIdActual] = useState<string | null>(null);
@@ -429,7 +431,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
             tiene. De tablet arriba es una cinta; en PC, la columna izquierda
             del layout de dos columnas que el documento sí decide. */}
         <nav
-          aria-label="Productos de la zona"
+          aria-label={`${voc.titulo('producto', true)} de la zona`}
           className="hidden gap-2 overflow-x-auto md:flex xl:flex-col xl:overflow-x-visible"
         >
           {filas.map((fila) => (
@@ -458,7 +460,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
             }}
           >
             <Label htmlFor="buscador" className="sr-only">
-              Escanea o busca un producto
+              Escanea o busca {voc.enFraseCon('un', 'producto')}
             </Label>
             <Input
               id="buscador"

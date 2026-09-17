@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primiti
 import { type ChangeEvent, useCallback, useEffect, useState } from 'react';
 
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · turno
@@ -166,6 +167,7 @@ function cuando(iso: string | null): string {
 }
 
 export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoProps) {
+  const voc = useVocabulario();
   const [estado, setEstado] = useState<EstadoDelTurno | null>(estadoInicial ?? null);
   const [historial, setHistorial] = useState<readonly CorteDelHistorial[]>(filasIniciales ?? []);
   const [cargando, setCargando] = useState(estadoInicial === undefined);
@@ -447,7 +449,9 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
             <dd className="justify-self-end font-bold tabular-nums">
               {PESOS.format(Number(estado?.ventasCentavos ?? '0') / 100)}
             </dd>
-            <dt className="text-sm text-muted-foreground">Pedidos cobrados</dt>
+            <dt className="text-sm text-muted-foreground">
+              {voc.titulo('unidad_servicio', true)} cobrad{voc.terminacion('unidad_servicio', true)}
+            </dt>
             <dd className="justify-self-end font-bold tabular-nums">{estado?.numeroVentas ?? 0}</dd>
             <dt className="text-sm text-muted-foreground">Fondo de apertura</dt>
             <dd className="justify-self-end font-bold tabular-nums">

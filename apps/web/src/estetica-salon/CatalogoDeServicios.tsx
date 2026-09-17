@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · catalogo-de-servicios
@@ -109,6 +110,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosProps) {
+  const voc = useVocabulario();
   const [servicios, setServicios] = useState<readonly ServicioDelCatalogo[] | null>(
     serviciosIniciales ?? null,
   );
@@ -178,11 +180,13 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
     const pasiva = Number(minutos.pasiva);
     const activa2 = Number(minutos.activa2);
     if (nombre.trim() === '' || centavos === null) {
-      setError('El servicio necesita nombre y precio.');
+      setError(`${voc.conArticulo('linea_orden')} necesita nombre y precio.`);
       return;
     }
     if (!Number.isInteger(activa1) || activa1 <= 0) {
-      setError('Un servicio sin aplicación no se agenda: la primera parte dura algo.');
+      setError(
+        `${voc.conDeterminante('un', 'linea_orden')} sin aplicación no se agenda: la primera parte dura algo.`,
+      );
       return;
     }
     if (pasiva > 0 && activa2 <= 0) {
@@ -239,9 +243,9 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
   return (
     <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[20rem_1fr]">
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Servicios</h1>
+        <h1 className="text-2xl font-semibold">{voc.titulo('linea_orden', true)}</h1>
         <Button variant="outline" className="w-full" onClick={nuevo}>
-          Nuevo servicio
+          Nuevo {voc.singular('linea_orden')}
         </Button>
         <ul className="divide-y">
           {servicios.map((servicio) => (
@@ -332,7 +336,9 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
             setIntercalable(!intercalable);
           }}
         >
-          {intercalable ? 'El procesado libera a la estilista' : 'El procesado exige vigilancia'}
+          {intercalable
+            ? `El procesado libera a la ${voc.singular('responsable')}`
+            : 'El procesado exige vigilancia'}
         </Button>
         <p className="text-muted-foreground text-sm">
           Suponerlo siempre libre haría que la agenda prometiera huecos que no existen, y eso se
@@ -352,7 +358,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
           disabled={ocupado}
           onClick={guardar}
         >
-          Guardar servicio
+          Guardar {voc.singular('linea_orden')}
         </Button>
       </section>
     </main>
