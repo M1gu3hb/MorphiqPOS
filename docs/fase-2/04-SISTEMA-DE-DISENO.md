@@ -129,21 +129,26 @@ Un formulario de tres pasos es correcto en una inmobiliaria y es un desastre en 
 
 La misma entidad se llama distinto en cada giro. **Esto no es cosmético: es la diferencia entre un sistema que se siente propio y uno que se siente prestado.**
 
-Se resuelve con un diccionario por plantilla, no duplicando pantallas. Una entidad interna, N nombres visibles.
+Se resuelve con un diccionario **por GIRO**, no duplicando pantallas. Una entidad interna, N nombres visibles.
+
+> **Decía «por plantilla», y al construirlo resultó falso.** Lo explica
+> `packages/domain/src/vocabulario/tipos.ts`: la plantilla dice qué COMPRÓ el negocio y el giro
+> dice CÓMO HABLA, y son dos ejes distintos desde la 054. Abarrotes y La Broca tienen la misma
+> plantilla `tienda` y una dice «Productos» donde la otra dice «Materiales».
 
 ```
 entidad interna    restaurante   estética    taller      hotel        deportivo
 ─────────────────────────────────────────────────────────────────────────────
-unidad_servicio    mesa          cabina      bahía       habitación   cancha
+unidad_servicio    mesa          estación    bahía       habitación   cancha
 orden              cuenta        cita        orden       reserva      reserva
 linea_orden        platillo      servicio    concepto    consumo      —
 responsable        mesero        estilista   técnico     recepción    —
-cliente            comensal      cliente     propietario huésped      socio
+cliente            comensal      clienta     propietario huésped      socio
 preparacion        cocina        —           taller      —            —
 ```
 
 **Reglas del diccionario:**
-1. Se define en la plantilla, no en el componente.
+1. Se define en el diccionario del GIRO, no en el componente.
 2. Lleva singular, plural y género — el español lo exige. "La mesa" / "el bahía" mal conjugado delata el sistema inmediatamente.
 3. Si un giro no usa una entidad, no se traduce: se apaga.
 4. Los mensajes de error y los estados vacíos **también** se traducen. Es donde más se nota el descuido.

@@ -26,8 +26,28 @@ export const ROLES = [
 
 export type Rol = (typeof ROLES)[number];
 
-/** Los giros describen qué clase de negocio opera la organización. */
-export const GIROS = ['tienda', 'ferreteria', 'farmacia', 'cafeteria', 'restaurante'] as const;
+/**
+ * Los giros describen qué clase de negocio opera la organización.
+ *
+ * Esta lista y el `check` de `organizaciones.giro` son LA MISMA: la escribió la
+ * 054 con cinco valores y la 164 la reescribe entera para añadir `estetica`. Si
+ * divergen, una pantalla ofrece un giro que Postgres rechaza con un 23514 —o la
+ * base admite uno que ningún diccionario sabe nombrar—, así que un contrato lee
+ * ese SQL del disco y compara las dos listas (`giro-estetica.test.ts`).
+ *
+ * Son también las claves de `DICCIONARIOS` (F-017), y eso lo ata otro contrato
+ * en las dos direcciones: un giro sin diccionario cae al vocabulario base y
+ * habla como cualquier negocio, que es el defecto que F-017 existe para cerrar;
+ * un diccionario sin giro es vocabulario que nadie puede llegar a ver.
+ */
+export const GIROS = [
+  'tienda',
+  'ferreteria',
+  'farmacia',
+  'cafeteria',
+  'restaurante',
+  'estetica',
+] as const;
 
 export type Giro = (typeof GIROS)[number];
 

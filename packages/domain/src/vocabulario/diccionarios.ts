@@ -38,9 +38,18 @@ export const DICCIONARIO_BASE: Diccionario = {
 /**
  * Los giros que existen hoy en `organizaciones.giro`.
  *
- * `estetica` NO está aquí todavía: su giro se añade con el arquetipo A3, en la
- * etapa que lo construye. Declararlo antes sería prometer un vocabulario para
- * un negocio que el sistema aún no sabe operar.
+ * Las claves son EXACTAMENTE las de `GIROS`
+ * (`packages/contracts/src/comandos/ambito.ts`), y un contrato lo ata en las DOS
+ * direcciones: un giro sin diccionario habla con el vocabulario base —suena a
+ * cualquier negocio, que es el defecto que F-017 viene a cerrar— y un
+ * diccionario sin giro es vocabulario que ninguna organización puede pedir,
+ * porque el `check` de la columna no deja escribir ese valor.
+ *
+ * `estetica` ya está. Aquí decía que su giro llegaba «con el arquetipo A3, en la
+ * etapa que lo construye» y que declararlo antes sería prometer un vocabulario
+ * para un negocio que el sistema aún no sabía operar. Esa etapa es ésta: la
+ * migración 164 abre el `check` de la columna y las doce pantallas del modelo
+ * están en pie, así que el vocabulario ya no promete nada — lo entrega.
  */
 export const DICCIONARIOS: Readonly<Record<string, Diccionario>> = {
   restaurante: {
@@ -94,5 +103,37 @@ export const DICCIONARIOS: Readonly<Record<string, Diccionario>> = {
     responsable: m('dependiente', 'dependientes'),
     cliente: m('paciente', 'pacientes'),
     producto: m('medicamento', 'medicamentos'),
+  },
+
+  // El vocabulario está tecleado desde la tabla de `04-INTERFAZ.md §4.1` del
+  // modelo, que lo documenta hasta el género. Lo heredan los once modelos de
+  // «servicios con cita», y por eso cada palabra que se cambie aquí se cambia
+  // para once negocios distintos.
+  estetica: {
+    // Nunca «mesa». En barbería es *silla* y en spa es *cabina*: la palabra final
+    // la elige la dueña con la personalización del negocio (`vocabulario_negocio`,
+    // migración 059). Lo que se declara aquí es la del salón.
+    unidad_servicio: f('estación', 'estaciones'),
+    // El walk-in también es una cita. Nunca «cuenta» ni «ticket» en la agenda:
+    // la agenda es lo que se abre cuarenta veces al día.
+    orden: f('cita', 'citas'),
+    // Lo que se vende es un SERVICIO. «Producto» es lo del anaquel y «platillo»
+    // no existe aquí.
+    linea_orden: m('servicio', 'servicios'),
+    // La tabla dice «m/f · el/la» y no fija un valor por omisión, y `Genero`
+    // admite uno solo: se queda el del diccionario base. La palabra que de
+    // verdad manda —*barbero*, *manicurista*, *terapeuta*— la elige la dueña al
+    // configurar, que es el mecanismo que la propia tabla nombra.
+    responsable: m('estilista', 'estilistas'),
+    // FEMENINO POR OMISIÓN, y es la decisión que este modelo puso sobre la mesa
+    // (§4.1.1): *«el clienta llegó» delata el sistema en el primer segundo, y en
+    // este giro el 90 % son mujeres*. El masculino es la excepción y sale de la
+    // ficha de la persona, no de invertir este valor.
+    cliente: f('clienta', 'clientas'),
+    producto: m('producto', 'productos'),
+    // `preparacion` NO aparece A PROPÓSITO: un salón no tiene cocina ni barra, y
+    // una entidad que el giro no usa se APAGA, no se traduce a cadena vacía
+    // (regla 3). Es lo primero que hay que borrar el día que alguien arranque
+    // otro giro de servicios copiando el bloque de `cafeteria`.
   },
 };

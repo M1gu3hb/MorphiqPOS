@@ -1825,3 +1825,177 @@ arreglo se convierte en un refactor.
 
 `verify:aspecto` no se mueve por esto —quita los comentarios antes de comparar, y lo dice— pero se
 volvió a correr para no suponerlo.
+
+---
+
+## 2026-09-17 · FASE 3 · A3 y A4 · las migraciones aplicadas, y lo que eso destapó
+
+### El bloqueo no era una credencial: era un archivo que no cruzó de worktree
+
+La sesión anterior se declaró bloqueada diciendo que no había forma de aplicar las migraciones.
+Buscó la credencial en el `.env` y en el repositorio, no la encontró, y concluyó que no existía.
+Existía, en dos sitios que **git ignora a propósito**:
+
+| Dónde | Qué | Por qué no se vio |
+|---|---|---|
+| `D:\herramientas\supabase-cli\…\supabase.exe` | el CLI, fijado y FUERA del checkout | está en `docs/RUNBOOK.md`, no en el `.env` |
+| `supabase/.temp/linked-project.json` | el VÍNCULO con el proyecto | está en `.gitignore` y es **local a cada worktree**: existía en `morphiqpos-codex` y no aquí |
+
+Sin el segundo, `supabase db query --linked` no tiene de dónde leer el ref. Codex aplicó de la 050
+a la 057 desde esta misma máquina; lo que no cruzó fue el archivo de vínculo.
+
+**La lección, y va en `A3-COMO-APLICAR.md` para que no se pierda otra vez:** antes de declararse
+bloqueado, mirar los otros worktrees, `docs/RUNBOOK.md` y los directorios que git ignora.
+
+Y un fallo que costó media hora y que también queda escrito: **el CLI parsea el `.env` del
+directorio actual.** Alguien había pegado un `DATABASE_URL` delante de la primera línea y el BOM del
+archivo quedó en medio, en el byte 156. El CLI abortaba con
+`LegacyDbConfigLoadError: failed to parse environment file: .env` y el mensaje no menciona el BOM.
+El `.env` estaba además contradiciéndose: la línea 1 traía la cadena real y quince líneas más abajo
+seguía un bloque diciendo «FALTA. Es el único bloqueo activo del carril A».
+
+### A3 · las 71 aplicadas, en una transacción
+
+El orden fue el del §4, sin saltarse un paso:
+
+```
+respaldo          morphiqpos-2026-09-17T03-10-14.sql · 642 380 bytes · 879 filas en 29 tablas
+respaldo ✓        sha256 y cuenta de inserts contra su manifiesto
+ensayo con datos  PGlite + el respaldo de HOY + las 71 encima → verde, ledger 96, última 164
+ensayo en vivo    las 71 aplicadas y REVERTIDAS contra producción → verde
+ledger antes      25 migraciones · última 57   (comprobado después del ensayo: no se movió)
+db:migrate        ✓ Aplicadas 71
+ledger después    96 migraciones · última 164
+```
+
+Los cuatro negocios, leídos de la base **después** de aplicar, caen donde D-12 dice:
+
+| Negocio | Giro | Plantilla |
+|---|---|---|
+| Abarrotes Don Chuy | `tienda` | `tienda` |
+| Café Jacaranda | `cafeteria` | **`restaurante`** |
+| Ferretería La Broca | `ferreteria` | `tienda` |
+| Restaurante MH | `restaurante` | `restaurante` |
+
+### La 164 · el giro `estetica`, que faltaba
+
+`estetica` no estaba en `GIROS` ni en `DICCIONARIOS`, y sin él `db:alta-negocio --giro estetica` lo
+rechazaba el `check` de la 054. Once modelos de servicios con cita heredan de esa carpeta.
+
+La `164_giro_estetica.sql` suelta `organizaciones_giro_check` y lo **reescribe entero** con los seis
+—un check de lista cerrada no se extiende— y siembra dos motivos de merma propios del giro. Los
+otros dos que el modelo documenta ya son del tronco desde la 062 y volver a declararlos crearía dos
+claves para lo mismo. En el código, `GIROS` gana el sexto valor y `DICCIONARIOS` gana el vocabulario
+de `04-INTERFAZ §4.1`: estación, cita, servicio, estilista, **clienta** —femenino por omisión, que
+es lo que §4.1.1 ordena— y `preparacion` **ausente del objeto**, porque un salón no tiene cocina y
+la regla 3 dice que lo que un giro no usa no se traduce: se apaga.
+
+**`salon` NO se añadió como plantilla**, y la prueba lo afirma. `PAQUETES` sigue en tres y una
+estética usa `tienda`. Una cuarta plantilla obligaría a declarar sus módulos, su gate y su `check`,
+y el primer negocio que la estrenara sería el único que la ejercita.
+
+### Lo que el contrato de la 164 NO protegía, y ahora sí
+
+La fase de refutación —tres escépticos en paralelo, uno por lente— encontró que el contrato se podía
+vaciar sin que se enterara. `raise exception` aparece **cinco** veces en la 164: tres en la
+poscondición del check y dos en la de las mermas. Buscarlo suelto sobre el archivo entero dejaba
+vaciar la primera —el cuerpo del bucle en `null;`— y la prueba seguía verde. Es el fallo del
+identificador suelto, otra vez.
+
+Se apretó recortando el bloque `do $$ … $$;` que toca y afirmando DENTRO de él. Validado mutando:
+
+```
+D1 · el bucle de la poscondición del check, vaciado        → ROJO
+D2 · el conteo «y sólo los seis», borrado                  → ROJO
+D3 · la poscondición avisa (raise notice) en vez de fallar → ROJO
+D4 · el check reescrito DOS veces y manda la de abajo      → ROJO
+I1 · una línea en blanco y un comentario reescrito         → VERDE
+```
+
+La D4 es la que más importa: `girosDelCheck` leía la PRIMERA reescritura y en Postgres manda la
+ÚLTIMA. Con un segundo `add constraint` de dos giros al final del archivo, el contrato aprobaba una
+lista que la base nunca iba a tener.
+
+### A4 · y aquí saltó lo de verdad grave: 404 problemas de seguridad
+
+Con la tanda aplicada, `pnpm verify:rls` pasó de 0 problemas a **404**. No los causó la tanda: los
+destapó. Lo que pasó es que **la 050 y la 055 —las dos migraciones que cierran la superficie
+pública— corrieron en las versiones 50 y 55**, y las 71 nuevas trajeron unas sesenta tablas, más de
+cien funciones y una extensión DESPUÉS. PostgreSQL concede EXECUTE a PUBLIC al crear una función y
+no activa RLS al crear una tabla: todo lo nuevo nació abierto.
+
+| Cuántos | Qué |
+|---|---|
+| 4 | `motivos_merma` (062) y `regimenes_ieps` (098) sin RLS activa ni forzada. A las dos se les revocaron los privilegios de `anon` y `authenticated` y a ninguna se le activó RLS: media defensa |
+| 24 | doce funciones de disparador nuestras con EXECUTE para `anon` y `authenticated`, heredado de PUBLIC |
+| 376 | `btree_gist`, que la 130 creó **en `public`** en vez de en `extensions` |
+
+Esto es exactamente lo que dejó ocho tablas sin RLS en la Fase 1, y la puerta lo cazó antes de que
+lo viera nadie. **Es el mejor argumento que hay para no aplicar a mano por la consola.**
+
+### La 165 · cerrarlo, y comprobarlo dentro de la propia migración
+
+`165_cerrar_seguridad_del_acople.sql` es la 050 y la 055 otra vez, sobre lo que hay hoy, más lo que
+a las dos les faltaba: una poscondición.
+
+1. **`btree_gist` se MUEVE a `extensions`**, no se le revoca. El problema no era el permiso, era el
+   sitio: las otras seis extensiones del proyecto ya viven ahí y ésta era la única en `public`.
+   Mover una extensión relocalizable no toca los índices —las restricciones de exclusión GiST
+   referencian sus clases de operadores por OID— y lo único que cambia es cómo se IMPRIME la
+   definición: `gist_uuid_ops` pasa a `extensions.gist_uuid_ops`. Eso ya estaba contemplado desde
+   que `gin_trgm_ops` hizo lo mismo, y por eso `verify:esquema` sigue en 0 sin regenerar el contrato.
+2. **RLS activa y forzada en toda tabla de `public`**, recorriendo el catálogo y no una lista.
+   Enumerar es lo que falló en la 045 y la 050 lo dejó escrito.
+3. **`anon` y `authenticated` sin un solo privilegio** sobre relaciones y secuencias.
+4. **EXECUTE retirado de PUBLIC** —que es de quien heredan— y de los dos roles, más las concesiones
+   por omisión.
+5. **Poscondición con las MISMAS tres reglas que `packages/data/src/verificacion/rls.ts`.** Si algo
+   queda abierto, la migración falla y la transacción entera se deshace. Las dos que la preceden no
+   comprobaban nada, y por eso hizo falta ésta.
+
+Activar y FORZAR RLS no le esconde una sola fila a la aplicación: `morphiqpos_app` tiene
+`BYPASSRLS`, comprobado. Y las doce funciones son TODAS de disparador, y PostgreSQL no comprueba
+EXECUTE al dispararlas — la misma razón por la que la 055 pudo revocar sin romper nada.
+
+Después de aplicarla:
+
+```
+✓ RLS y grants cerrados en 162 relaciones y 15 funciones; índices 046 presentes.
+✓ La base cumple el contrato: 1702 columnas, 1329 restricciones y 429 índices.
+```
+
+### A4 · el contrato de esquema, regenerado
+
+`scripts/esquema-esperado.json` pasa de 626 columnas / 468 restricciones / 171 índices a **1702 /
+1329 / 429**. Se regeneró DESPUÉS de aplicar, nunca antes: un contrato regenerado sobre una base sin
+migrar deja de detectar deriva, que es justo lo que existe para detectar.
+
+### La puerta de la fase, que ya no la tapa nadie
+
+`test:integracion` estaba ANTES de `verify:acople` en la cadena de `pnpm verify`. Exige Docker, esta
+máquina no lo tiene, abortaba, y el `&&` cortaba: **la puerta de la fase no llegaba a correr nunca**.
+Se movió detrás, y `verify:fase2` —que no la incluía— también la lleva ahora, para que no haya una
+cadena corta por la que colarse.
+
+Y la puerta, hoy:
+
+```
+✓ Acople completo: migraciones aplicadas, seguridad cerrada, rutas vivas,
+  plantillas resueltas, vocabulario consumido y aplicación respondiendo.
+```
+
+### Las cinco organizaciones de demostración
+
+Creadas con `db:alta-negocio` y `db:bootstrap`, una por giro, que es lo que la suite de navegador
+necesita: **un despliegue sirve a UN negocio** (R16), así que cinco vocabularios son cinco demos.
+
+```
+demo-acople-restaurante   giro restaurante  → plantilla restaurante
+demo-acople-cafeteria     giro cafeteria    → plantilla cafeteria
+demo-acople-tienda        giro tienda       → plantilla tienda
+demo-acople-ferreteria    giro ferreteria   → plantilla tienda
+demo-acople-estetica      giro estetica     → plantilla tienda
+```
+
+La última es la prueba de que la 164 funciona de extremo a extremo: hasta hace una hora el `check`
+la rechazaba.

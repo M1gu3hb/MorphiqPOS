@@ -296,9 +296,10 @@ Broca le dice «el material».
 | **La plantilla, en el código** | `packages/contracts/src/comandos/ambito.ts` (`PAQUETES` = `tienda·cafeteria·restaurante`) · `packages/contracts/src/comandos/plantillas.ts` (`plantillaDeOrganizacion`) · los cinco sitios que leen `organizaciones.paquete` normalizan con ella |
 | **La plantilla, en la PANTALLA** | `apps/web/heredado/lib/packageConfig.js` (`normalizarPlantilla`: las tres de D-01 son canónicas, los tres nombres viejos son alias, y lo irreconocible cae en `tienda`) · `apps/web/src/cliente/package-config.ts` delega en ella · `packages/app/src/puente/configuracion.ts` sirve `paquete_modo` ya normalizado · el contrato que impide que las dos listas de módulos divergan está en `apps/web/src/cliente/package-config.test.ts` |
 
-**Lo que NO está hecho, y bloquea lo demás:** las migraciones de este modelo están escritas,
-ensayadas contra una copia de producción CON DATOS, y **sin aplicar**. Falta una credencial con
-DDL. El procedimiento exacto está en `docs/fase-2/A3-COMO-APLICAR.md`.
+**Y ya están APLICADAS.** Las migraciones de este modelo entraron en la tanda del acople el 17 de
+septiembre de 2026: 72 en una sola transacción, con respaldo comprobado y dos ensayos delante. El
+ledger dice 97 migraciones, última la `165`. El procedimiento —y la lección de por qué la sesión
+anterior se creyó bloqueada— está en `docs/fase-2/A3-COMO-APLICAR.md`.
 
 ---
 

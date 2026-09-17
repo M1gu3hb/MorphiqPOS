@@ -1,3 +1,4 @@
+import { GIROS } from '@morphiqpos/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { crearVocabulario } from './vocabulario.ts';
@@ -56,7 +57,11 @@ describe('F-017 · el género, que es lo que delata a un sistema prestado', () =
 
   it('un término femenino nunca sale con artículo masculino', () => {
     // «El mesa» y «el cabina» son el error que se nota en tres segundos.
-    for (const giro of ['restaurante', 'cafeteria', 'tienda', 'ferreteria', 'farmacia']) {
+    //
+    // Los giros se recorren desde `GIROS` y no tecleados aquí: así un giro nuevo
+    // entra en esta comprobación el día que se declara, y no el día que alguien
+    // se acuerda de venir a añadirlo a esta lista.
+    for (const giro of GIROS) {
       const v = crearVocabulario(giro);
       for (const entidad of ['unidad_servicio', 'orden', 'linea_orden', 'cliente'] as const) {
         const t = v.termino(entidad);

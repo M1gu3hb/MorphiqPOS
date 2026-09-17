@@ -51,9 +51,6 @@ const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 const PROYECTO_MORPHIQPOS = 'wyqmzhliurwyxuyxznpb';
 const ENTORNO_VERCEL = join(RAIZ, 'docs', 'fase-2', 'VERCEL-ENTORNO.md');
 
-/** Los cinco giros documentados. Cada uno tiene que caer en una plantilla real. */
-const GIROS_DOCUMENTADOS = ['restaurante', 'cafeteria', 'tienda', 'ferreteria', 'farmacia'];
-
 const fallos = [];
 const notas = [];
 
@@ -384,8 +381,14 @@ async function comprobarRutas(base) {
 
 async function comprobarPlantillas() {
   let plantillas;
+  let ambito;
   try {
     plantillas = await import('../packages/contracts/src/comandos/plantillas.ts');
+    // Los giros se leen de donde se declaran. Aquí había una lista tecleada a mano
+    // —cinco giros— y la 164 añadió el sexto: una segunda lista es cómo una se
+    // queda atrás, y es la misma razón por la que las 105 rutas se importan de
+    // `verificar-cobertura.mjs` en vez de escribirse aquí.
+    ambito = await import('../packages/contracts/src/comandos/ambito.ts');
   } catch (error) {
     fallos.push(`PLANTILLAS: no se pudo cargar el módulo · ${error.message}`);
     return;
@@ -400,7 +403,7 @@ async function comprobarPlantillas() {
     );
   }
 
-  for (const giro of GIROS_DOCUMENTADOS) {
+  for (const giro of ambito.GIROS) {
     const plantilla = plantillaDe(giro, undefined);
     exigir(
       PLANTILLAS.includes(plantilla),
@@ -435,7 +438,7 @@ async function comprobarPlantillas() {
   if (!fallos.some((f) => f.startsWith('PLANTILLAS'))) {
     notas.push(
       `plantillas    ${PLANTILLAS.length} resuelven módulos · ` +
-        `los ${GIROS_DOCUMENTADOS.length} giros documentados caen en una`,
+        `los ${ambito.GIROS.length} giros de GIROS caen en una`,
     );
   }
 }

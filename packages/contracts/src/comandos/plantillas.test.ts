@@ -101,6 +101,26 @@ describe('F-015 · plantillaDe reparte POR GIRO, no por paquete (D-12)', () => {
     }
   });
 
+  it('una estética cae en `tienda` por los tres caminos', () => {
+    // El giro `estetica` lo abre la 164 y NO trae plantilla propia: `salon` no
+    // existe y no va a existir —`PAQUETES` tiene tres valores—. La plantilla de
+    // un salón es `tienda`: mostrador, caja e inventario, sin sala. Sale así
+    // porque `estetica` no está en `GIROS_DE_ALIMENTOS`, y este caso es el que se
+    // cae el día que alguien la meta ahí «porque vende productos».
+    expect(plantillaDe('estetica', 'operativo')).toBe('tienda');
+    expect(plantillaDe('estetica', 'esencial')).toBe('tienda');
+
+    // Y con basura, incluida la plantilla que el FILE-MAP del modelo declaraba
+    // como destino: un valor que no se reconoce cae en la MÁS RESTRICTIVA.
+    for (const basura of [undefined, null, '', 'salon', 'spa', 'barberia', 42, {}]) {
+      expect(plantillaDe('estetica', basura)).toBe('tienda');
+    }
+
+    // El que no puede pasar de ninguna manera: sala en un salón. Aquí se degrada,
+    // igual que `organizaciones_paquete_compatible_con_giro` lo impide en la base.
+    expect(plantillaDe('estetica', 'restaurante_pro')).toBe('tienda');
+  });
+
   it('restaurante_pro en un giro que no es de alimentos NO da módulos de sala', () => {
     // La 054 lo impide con un `check`, así que esto sólo pasa con un dato
     // corrupto. Aun así se degrada en vez de confiar.

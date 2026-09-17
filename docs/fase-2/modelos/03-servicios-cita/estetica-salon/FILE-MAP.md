@@ -4,7 +4,7 @@
 **Ruta:** `fase-2/modelos/03-servicios-cita/estetica-salon/`
 **Estado:** ✅ **terminado** (documentación) · el código está **sin empezar**
 **Cliente vivo:** ninguno todavía
-**Plantilla destino:** `salon` (nueva)
+**Plantilla destino:** `tienda` · **`salon` se descartó**, y la `164` lo deja escrito: una cuarta plantilla obligaría a declarar sus módulos, su gate de comandos y su `check`, y el primer negocio que la estrenara sería el único que la ejercita. Lo que este modelo necesitaba era el GIRO `estetica`, para hablar como un salón; la plantilla que compra es la de mostrador. Ver `05-DATOS-Y-BACKEND.md` §8
 
 > **Esta carpeta es la raíz del arquetipo A3, y A3 no existía.**
 > `restaurante` es la raíz de A2 (la heredan 12 de alimentos). `abarrotes` es la raíz de A1 (la
@@ -169,7 +169,7 @@ hacer:
 | `apps/web/heredado/pages/Productos.jsx` | Pestañas cabina/anaquel, botón ABRIR, campos de servicio con la duración en tramos. **Se ocultan** receta que explota, presentaciones, código de barras como eje |
 | `apps/web/heredado/pages/Caja.jsx` | Muro de citas sin resolver, aviso de fórmulas sin capturar, la cascada, los dos arqueos informativos |
 | `apps/web/heredado/components/tickets/CorteTicket.jsx` | **Documento nuevo**, las diecisiete secciones de `02-DINERO-Y-CAJA.md` §9.3. No se modifican los de restaurante ni abarrotes: se elige por plantilla |
-| `apps/web/heredado/lib/packageConfig.js` | La plantilla `salon` y sus perillas |
+| `apps/web/heredado/lib/packageConfig.js` | Nada propio de este modelo: usa la plantilla `tienda`, y `salon` no llegó a existir. Lo que sí le llega es el GIRO, por el vocabulario |
 
 Componentes nuevos:
 
@@ -325,9 +325,10 @@ en la que descansa toda la agenda funciona. No era un riesgo: era una pregunta s
 | **La plantilla, en el código** | `packages/contracts/src/comandos/ambito.ts` (`PAQUETES` = `tienda·cafeteria·restaurante`) · `packages/contracts/src/comandos/plantillas.ts` (`plantillaDeOrganizacion`) · los cinco sitios que leen `organizaciones.paquete` normalizan con ella |
 | **La plantilla, en la PANTALLA** | `apps/web/heredado/lib/packageConfig.js` (`normalizarPlantilla`: las tres de D-01 son canónicas, los tres nombres viejos son alias, y lo irreconocible cae en `tienda`) · `apps/web/src/cliente/package-config.ts` delega en ella · `packages/app/src/puente/configuracion.ts` sirve `paquete_modo` ya normalizado · el contrato que impide que las dos listas de módulos divergan está en `apps/web/src/cliente/package-config.test.ts` |
 
-**Lo que NO está hecho, y bloquea lo demás:** las migraciones de este modelo están escritas,
-ensayadas contra una copia de producción CON DATOS, y **sin aplicar**. Falta una credencial con
-DDL. El procedimiento exacto está en `docs/fase-2/A3-COMO-APLICAR.md`.
+**Y ya están APLICADAS.** Las migraciones de este modelo entraron en la tanda del acople el 17 de
+septiembre de 2026: 72 en una sola transacción, con respaldo comprobado y dos ensayos delante. El
+ledger dice 97 migraciones, última la `165`. El procedimiento —y la lección de por qué la sesión
+anterior se creyó bloqueada— está en `docs/fase-2/A3-COMO-APLICAR.md`.
 
 ---
 

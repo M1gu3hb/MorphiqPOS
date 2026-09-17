@@ -98,8 +98,8 @@ Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. La puerta es `pnpm verify:acople`
 | **A0** | Preparación · respaldo, ensayo y la puerta | ✅ respaldo **comprobado restaurándolo** · `verify:acople` construido y **rojo al construirlo** · `verify:esquema` y `verify:rls` con transporte directo, los dos en 0 · **el ensayo con datos cazó 10 defectos** que habrían abortado la tanda entera |
 | **A1** | Fusión de `main` en `fase-2` | ✅ **sin un solo conflicto** · 5 archivos, 1 737 líneas · colisión de folio 010 anotada, no renumerada |
 | **A2** | Los seis huecos · F-017 enganchado | ✅ **F-017 con consumidores**: ruta `GET`, los dos envoltorios y el menú heredado · el renombre de D-01 en el código, que apagaba el sistema entero por cinco `esPaquete()` · **9 comandos de escritura sin ruta**, encontrados y conectados · `verify:entorno` deja de aprobar un chequeo sin hacer · `traspasos` y `tomas-inventario` con prueba propia · §7.5 comprobado: la premisa era falsa |
-| **A3** | Migraciones aplicadas | ⛔ **BLOQUEADA · falta una credencial con DDL.** Todo lo demás listo: ensayo con datos en verde, respaldo restaurado, los 70 encabezados retirados, y `--emitir` en el ejecutor. Ver `A3-COMO-APLICAR.md` |
-| **A4** | Contrato · `pnpm verify` completo | ⛔ depende de A3: `esquema-esperado.json` NO se regenera sobre una base sin migrar |
+| **A3** | Migraciones aplicadas | ✅ **72 aplicadas** (las 71 pendientes + la `165` de seguridad). Ledger: **97 migraciones, última 165**. No faltaba una credencial: faltaba `supabase link` en ESTE worktree, porque el vínculo vive en `supabase/.temp/linked-project.json`, está en `.gitignore` y es local a cada uno. Respaldo de HOY comprobado, ensayo con datos en verde y ensayo contra producción con `rollback` antes de aplicar. Ver `A3-COMO-APLICAR.md` |
+| **A4** | Contrato · `pnpm verify` completo | ✅ `esquema-esperado.json` regenerado **después** de aplicar: de 626/468/171 a **1 702 columnas, 1 329 restricciones y 429 índices**. Y aquí saltó lo grave: `verify:rls` pasó a **404 problemas** —la 050 y la 055 cierran la superficie pública y corrieron en las versiones 50 y 55, antes de que existieran las 60 tablas y las 100 funciones nuevas—. Los cierra la `165`, que además **comprueba dentro de la propia transacción** que no queda nada abierto |
 | **A5** | Despliegue · preview de Vercel | ✅ **las 9 variables que faltaban, puestas en Preview** · el preview responde · **no se puede verificar desde fuera por el SSO de Vercel**, que son dos cambios de la cuenta de Miguel. Ver `VERCEL-ENTORNO.md` |
 | **A6** | Verificación en el navegador | ⛔ las cinco pruebas ESCRITAS y en rojo a propósito: necesitan la organización de demostración, que necesita la 058. **Pero escribirlas ya pagó**: encontraron que el frontend heredado no entendía las plantillas de D-01 y daba el menú COMPLETO a una tienda, y ese defecto **está arreglado y atado con un contrato** (`PACKAGE_MODULES` contra `MODULOS_POR_PLANTILLA`, igualdad de conjuntos en las dos direcciones) |
 | **A7** | Cierre | ✅ reporte escrito con el bloqueo delante |
@@ -107,17 +107,24 @@ Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. La puerta es `pnpm verify:acople`
 **La puerta, hoy:**
 
 ```
-✗ El acople NO está terminado · 2 cosa(s) pendientes:
-  · MIGRACIONES: 70 escritas y SIN APLICAR
-  · PLANTILLAS: el check de la base admite [esencial, operativo, restaurante_pro]
-               y el código declara [cafeteria, restaurante, tienda]
+  migraciones   97 en disco = 97 en el ledger
+  seguridad     RLS y grants cerrados en 162 relaciones y 15 funciones
+  rutas         103 declaradas · 82 probadas por HTTP · 21 dinámicas o exceptuadas
+  plantillas    3 resuelven módulos · los 6 giros de GIROS caen en una
+  vocabulario   ruta + los dos envoltorios + el menú heredado · 3 pantalla(s) lo consumen
+
+✓ Acople completo: migraciones aplicadas, seguridad cerrada, rutas vivas,
+  plantillas resueltas, vocabulario consumido y aplicación respondiendo.
 ```
 
-**Las dos son el MISMO bloqueo.** La segunda es consecuencia de la primera.
+**Y `test:integracion` ya no la tapa.** Estaba ANTES de `verify:acople` en la cadena de
+`pnpm verify`: exige Docker, esta máquina no lo tiene, abortaba, y el `&&` cortaba, así que la
+puerta de la fase **no llegaba a correr nunca**. Ahora va detrás, y `verify:fase2` —que no la
+incluía— también la lleva, para que no quede una cadena corta por la que colarse.
 
-Lo que sí sale en 0 hoy: `verify:cobertura`, `verify:esquema`, `verify:rls`, `verify:paquetes`,
-`verify:aspecto`, `verify:entorno`, `verify:primitivas`, `typecheck` y **2 632 pruebas en 221
-archivos**. Y dentro de `verify:acople`: seguridad, despliegue, las 103 rutas y el vocabulario.
+Lo que sale en 0 hoy: `verify:acople`, `verify:cobertura`, `verify:esquema`, `verify:rls`,
+`verify:paquetes`, `verify:aspecto`, `verify:entorno`, `verify:primitivas`, `typecheck` y
+**2 650 pruebas en 223 archivos**.
 
 **El ensayo con datos, en verde** (`node scripts/ensayo-con-datos.mjs`):
 

@@ -721,8 +721,12 @@ packages/data/src/migraciones/sql/
 ├── 145_vistas_salon.sql               hueco_disponible, ocupacion_profesional,
 │                                      saldo_propina, margen_servicio,
 │                                      producto_cabina, clientes_por_volver
-└── 066_plantillas_semilla.sql            la plantilla `salon` + su diccionario
-                                       ⚠ NO SE APLICA SIN DECISIÓN DE MIGUEL
+├── 164_giro_estetica.sql              abre `organizaciones_giro_check` a `estetica` + sus 2 mermas
+└── 066_plantillas_semilla.sql         los motivos de merma por giro, consolidados
+                                       NO crea una plantilla `salon`: la plantilla
+                                       de una estética es `tienda`, y el
+                                       diccionario del giro vive en el código
+                                       (`packages/domain/.../diccionarios.ts`)
 ```
 
 ### 8.1 · Las tres migraciones delicadas
@@ -738,8 +742,14 @@ negocios en producción. Todos los campos nuevos son **nullable o con `default`*
 es nulo y nada existente se rompe. Aun así **no se aplican sin decisión explícita**, por la misma
 razón que la `082` de `abarrotes`.
 
-**`112` no se aplica nunca en automático.** Crea una plantilla nueva y ninguno de los cuatro negocios
-vivos es un salón.
+**La plantilla `salon` NO se crea.** Aquí decía que `112` «crea una plantilla nueva y no se aplica
+nunca en automático». Al construirlo se resolvió al revés: `PAQUETES` se queda en tres y una estética
+usa **`tienda`**, que es la que trae mostrador, caja e inventario y no trae sala. Lo único que hacía
+falta era el **giro**, y eso es la `164_giro_estetica.sql`: un valor más en el `check` de
+`organizaciones.giro`, que es lo que le entrega su vocabulario de F-017 sin tocar ningún gate de
+módulos. El `check` `organizaciones_paquete_compatible_con_giro` de la `058` sigue reservando
+`restaurante` a los giros de alimentos, así que un salón no puede acabar con mesas ni por un dato
+corrupto.
 
 ---
 

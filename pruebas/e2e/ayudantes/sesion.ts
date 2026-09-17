@@ -29,6 +29,16 @@ import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/
  * pantallas empieza a consumir el vocabulario, esta prueba se amplía con ella; lo
  * que no se hace es afirmar contra un lector que no existe.
  *
+ * Y hay una consecuencia que no se puede tapar: de las tres entradas del menú con
+ * `entidad` —`responsable` (/mesero), `preparacion` (/cocina) y `producto`
+ * (/productos)—, las dos primeras son del bloque de SALA, que la plantilla
+ * `tienda` no incluye. En una tienda, una ferretería, una farmacia o una estética
+ * el menú sólo puede enseñar UN sustantivo del giro: «Productos». Todo lo demás
+ * que el giro nombra —la unidad de servicio, la orden, su línea, la clienta— no
+ * se ve hoy en ninguna pantalla del menú. Para eso está
+ * `exigirVocabularioDelGiro`, que le pregunta al SERVIDOR; el menú se sigue
+ * mirando porque es lo que el dueño lee.
+ *
  * ── Nada de esperas por tiempo ─────────────────────────────────────────────
  * No hay un solo `waitForTimeout` aquí. `13-PRUEBAS §2` lo prohíbe —«prohibido
  * `sleep` para "esperar a que termine"»— y el propio `playwright.config.ts` lo repite
@@ -97,11 +107,16 @@ const NEGOCIOS_VIVOS = [
 /**
  * La plantilla con la que se da de alta cada giro (`paquetePermitidoParaGiro`).
  *
- * Son los CINCO giros de `GIROS` en `packages/contracts/src/comandos/ambito.ts`.
- * `estetica` no está porque no existe: llega con el arquetipo A3. La clave es un
- * `string` y no un tipo cerrado a propósito, para que la prueba de la estética pueda
- * PEDIR un giro que todavía no existe y su fallo diga qué falta, en vez de no
- * compilar y dejar el hueco sin nombrar.
+ * Son los SEIS giros de `GIROS` en `packages/contracts/src/comandos/ambito.ts`:
+ * `estetica` entró con la migración 164. Y entra aquí con `tienda`, que no es un
+ * apaño provisional: `PAQUETES` tiene tres plantillas, la de un salón es la de
+ * mostrador con caja e inventario, y la de sala está reservada a los giros de
+ * alimentos por el `check` de la 058.
+ *
+ * La clave sigue siendo `string` y no un tipo cerrado, ahora por otra razón:
+ * `pruebas/` no tiene `@morphiqpos/contracts` como dependencia, así que desde aquí
+ * `Giro` no resuelve. El `?? 'tienda'` de abajo es lo que hace que pedir un giro
+ * inventado produzca un mensaje útil en vez de `undefined` dentro del comando.
  */
 const PLANTILLA_DE_ALTA: Readonly<Record<string, Plantilla>> = {
   restaurante: 'restaurante',
@@ -109,6 +124,7 @@ const PLANTILLA_DE_ALTA: Readonly<Record<string, Plantilla>> = {
   tienda: 'tienda',
   ferreteria: 'tienda',
   farmacia: 'tienda',
+  estetica: 'tienda',
 };
 
 const SLUG_DEMO = process.env['MORPHIQPOS_ORG_DEMO'] ?? '';
@@ -495,21 +511,85 @@ export async function exigirGiro(page: Page, esperado: string, modelo: string): 
       '',
       comandoDeAlta(esperado),
       '',
-      esperado === 'estetica'
-        ? [
-            'Y OJO con este giro en concreto: `estetica` todavía NO EXISTE. No está en',
-            '`GIROS` (packages/contracts/src/comandos/ambito.ts) ni en `DICCIONARIOS`',
-            '(packages/domain/src/vocabulario/diccionarios.ts), que lo dice textual:',
-            '«`estetica` NO está aquí todavía: su giro se añade con el arquetipo A3, en la',
-            'etapa que lo construye». El comando de arriba lo rechazará el `check` de la',
-            'base. Esta prueba está en rojo por eso, y eso ES el estado real de la condición',
-            '6 de F3-REGLAS §8 para el quinto modelo.',
-          ].join('\n')
-        : '',
+      'Los SEIS giros de `GIROS` se pueden dar de alta: la 164 abrió el `check` de',
+      '`organizaciones.giro` y la única excepción que quedaba —`estetica`— dejó de serlo. Si',
+      'el comando de arriba falla con un 23514 contra ese `check`, lo que falta no es el',
+      'giro: es la tanda de migraciones aplicada en esa base.',
     ]
       .join('\n')
       .trimEnd(),
   ).toBe(esperado);
+}
+
+interface RespuestaDeRestablecer {
+  readonly ok?: boolean;
+  readonly error?: { readonly codigo?: string; readonly mensaje?: string };
+  readonly datos?: { readonly habiaTermino?: boolean; readonly singular?: string };
+}
+
+/**
+ * Lo que el SERVIDOR resuelve para las entidades que el menú no puede enseñar.
+ *
+ * ── Por qué hace falta un segundo sitio donde mirar ────────────────────────
+ * `exigirVocabulario` mira el menú lateral, que es lo que el dueño LEE, y ahí se
+ * queda corto por una razón de estructura y no de esta prueba: sólo tres entradas
+ * del menú llevan `entidad` y dos de ellas —`/mesero` y `/cocina`— son del bloque
+ * de sala. Un negocio con la plantilla `tienda` —una estética lo es— tiene UNA
+ * etiqueta traducible en todo el menú: «Productos». La unidad de servicio, la
+ * orden, su línea y la clienta no aparecen en ninguna pantalla del menú, así que
+ * afirmar ahí que el modelo muestra su vocabulario sería afirmar algo falso.
+ *
+ * ── Por qué por `vocabulario-restablecer` y no por el `GET` ────────────────
+ * Porque el `GET /api/configuracion/vocabulario` devuelve el GIRO y las
+ * excepciones del negocio, no los términos resueltos: el diccionario se rearma en
+ * el navegador a propósito, para que corregir una palabra llegue con un
+ * despliegue y no negocio por negocio. El único camino por el que el servidor
+ * devuelve el sustantivo DEL GIRO es `restablecerTermino`, que contesta
+ * `singular: vocabulario.singular(entidad)` leído de `DICCIONARIOS`.
+ *
+ * Y no borra nada: sobre una demo sin personalizaciones `habiaTermino` es `false`,
+ * y se AFIRMA que lo es. Si algún día no lo fuera, esta prueba tiene que fallar en
+ * vez de llevarse por delante la palabra que ese negocio eligió.
+ *
+ * Es del navegador igual que las demás: sale de `page.request`, con la cookie de
+ * la sesión que abrió `entrar()` y las cabeceras de escritura que pone el propio
+ * `heredado/api/cliente.ts`. Lo que no es, y hay que decirlo, es una PANTALLA: el
+ * día que una de las 61 consuma estas entidades, la afirmación se mueve allí.
+ */
+export async function exigirVocabularioDelGiro(
+  page: Page,
+  terminos: readonly (readonly [entidad: string, singular: string])[],
+): Promise<void> {
+  for (const [entidad, singular] of terminos) {
+    const respuesta = await page.request.post('/api/configuracion/vocabulario-restablecer', {
+      headers: cabecerasDeEscritura(),
+      data: { entidad },
+    });
+    const cuerpo = (await respuesta.json()) as RespuestaDeRestablecer;
+
+    expect(
+      cuerpo.ok,
+      `No se pudo leer el término de \`${entidad}\`: ${respuesta.status()} ` +
+        `${cuerpo.error?.codigo ?? ''} ${cuerpo.error?.mensaje ?? ''}`.trim() +
+        '\n\nSi el código es SIN_PERMISO, la persona con la que entra la prueba no es dueño ' +
+        "ni administrador: `restablecerTermino` declara `roles: ['administrador','dueno']`.",
+    ).toBe(true);
+
+    expect(
+      cuerpo.datos?.habiaTermino,
+      `La demo tenía una personalización de \`${entidad}\` y esta llamada ACABA DE BORRARLA. ` +
+        'Esta prueba lee el término del GIRO y da por hecho que el negocio no cambió ninguno; ' +
+        'si la demo los personaliza, hay que leerlos de otra forma y no seguir borrando.',
+    ).toBe(false);
+
+    expect(
+      cuerpo.datos?.singular,
+      `Para \`${entidad}\` este giro tiene que decir «${singular}»` +
+        `${singular === '' ? ' (cadena vacía: la entidad está APAGADA, regla 3)' : ''}. ` +
+        'Sale de `DICCIONARIOS` en packages/domain/src/vocabulario/diccionarios.ts, por el ' +
+        'giro de la organización y no por su plantilla.',
+    ).toBe(singular);
+  }
 }
 
 /**
