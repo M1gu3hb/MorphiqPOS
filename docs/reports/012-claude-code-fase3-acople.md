@@ -2,7 +2,7 @@
 
 **Agente:** Claude Code (Opus 5) · **Rama:** `fase-2` · **Fecha:** 16 de septiembre de 2026
 **Alcance:** A0 a A7 de `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`
-**Commits:** de `c729b98` a `b85ea12` y siguientes, empujados a `origin/fase-2`
+**Commits:** `e74e4e9` · `4459f94` · `aa9ba0b` · `e1b047d` · `b85ea12` · `0e08702` y este mismo de cierre, todos empujados a `origin/fase-2`
 
 ---
 
