@@ -9,28 +9,47 @@ No dependas de la memoria de ninguna sesión. Todo lo que hay que saber está es
 
 **MorphiqPOS** es el punto de venta de Miguel Hernández, marca **Morphiq** (México). No es un SaaS: es una marca boutique que vende sistemas a la medida y cobra renta mensual. Hoy tiene cuatro negocios operando:
 
-| Negocio | Giro | Paquete actual |
+| Negocio | Giro | Plantilla |
 |---|---|---|
-| Restaurante MH | restaurante | restaurante_pro |
-| Café Jacaranda | cafeteria | restaurante_pro |
-| Abarrotes Don Chuy | tienda | operativo |
-| Ferretería La Broca | ferreteria | operativo |
+| Restaurante MH | restaurante | `restaurante` |
+| Café Jacaranda | cafeteria | `restaurante` |
+| Abarrotes Don Chuy | tienda | `tienda` |
+| Ferretería La Broca | ferreteria | `ferreteria` |
+
+*(Los nombres comerciales viejos —`esencial`, `operativo`, `restaurante_pro`— los retiró la
+migración 058, y la 166 le dio a la ferretería su plantilla propia.)*
 
 La filosofía que manda sobre todo lo demás: **el sistema se adapta al negocio, no el negocio al sistema.**
 
 ## 2 · EN QUÉ FASE VAMOS
 
 ```
-FASE 0   Auditoría del paquete original                      ✅ terminada
-FASE 1   Revivir el POS de restaurante sobre backend nuevo    🔄 EN CURSO (Codex)
-         · El frontend de Miguel (244 archivos) portado       ✅
-         · Backend nuevo, blindado, RLS, sesiones, puente     ✅
-         · Cierre: propinas en $0, bucle de cobro, verify     🔄 Codex trabajando
-FASE 2   TODAS las funciones y TODOS los modelos de negocio   ⬅ ESTO
-FASE 3   (sin definir)
+FASE 0   Auditoría del paquete original                       ✅ terminada
+FASE 1   Revivir el POS de restaurante sobre backend nuevo     ✅ terminada (Codex)
+FASE 2   LOS ~78 MODELOS DE NEGOCIO DEL MAPA                   ⬅ ESTO
+         · 2.1  Cimientos: worktree, puerta, tronco común      ✅
+         · 2.2  Los CINCO primeros modelos, escritos           ✅
+                restaurante · cafetería · abarrotes ·
+                ferretería · estética
+         · 2.3  ACOPLE de esos cinco al punto de venta vivo    ✅ 17-09-2026
+                migraciones aplicadas, plantillas, menú,
+                datos de demostración y producción
+         · 2.4  La siguiente tanda de diez: farmacia, taller
+                mecánico, panadería-pastelería, barbería…      ⬜ pendiente
+         · …    y así, de diez en diez, hasta los 78           ⬜ pendiente
+FASE 3   No ha empezado, y le falta mucho                      ⬜
 ```
 
-**La Fase 2 termina cuando todas las funciones de todos los modelos de negocio están implementadas, con su backend, funcionando y sin errores.** No antes.
+> **UN ERROR DE NUMERACIÓN QUE HAY QUE CONOCER.** Al acople se le llamó «Fase 3» durante dos
+> sesiones enteras, y no lo es: la Fase 2 es construir los ~78 modelos, y el acople de los cinco
+> primeros es una ETAPA suya. El nombre se corrigió el 17-09-2026 en los 26 archivos donde
+> aparecía. **Las cabeceras de ~85 migraciones del rango 058–166 siguen diciendo «APLICADA EN LA
+> FASE 3 (acople)» y «(F3-REGLAS §2)»**, y ahí se quedan: son comentarios dentro del SQL, el
+> ejecutor valida cada archivo por hash y cambiar una coma abortaría la tanda entera. Se leen
+> como «2.3».
+
+**La Fase 2 termina cuando los ~78 modelos del mapa están implementados, con su backend,
+acoplados y funcionando.** Hoy hay cinco. Faltan 73.
 
 ## 3 · CÓMO SE TRABAJA EN LA FASE 2
 
@@ -42,7 +61,7 @@ En concreto:
 
 - **Nada de esta carpeta toca el repositorio vivo mientras Codex siga en la Fase 1.** Ni `morphiqpos-codex/`, ni `morphiqpos/`, ni la rama `carril-b`.
 - Lo que se construye aquí se construye **como si ya estuviera dentro**: mismos contratos, mismos nombres, misma estructura de carpetas que tendría en el monorepo.
-- Las migraciones se escriben numeradas y listas, **pero no se aplican en la Fase 2**. La Fase 3 (acople) las aplicó el 16-09-2026, con respaldo comprobado y ensayo sobre una copia con datos. Ver `F3-REGLAS-DE-ACOPLE.md` §2 y §4.
+- Las migraciones se escriben numeradas y listas, **pero no se aplican en la Fase 2**. La Fase 2.3 (acople) las aplicó el 16-09-2026, con respaldo comprobado y ensayo sobre una copia con datos. Ver `F2.3-REGLAS-DE-ACOPLE.md` §2 y §4.
 - Acoplar debe ser mover carpetas y aplicar migraciones. Nunca reescribir.
 
 ## 4 · DÓNDE ESTÁ CADA COSA

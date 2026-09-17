@@ -150,7 +150,7 @@ function heredadosQueContienen(texto: string): string[] {
 /**
  * §7.5 · QUIÉN PUEDE SABER QUE UNA PROPINA YA SE LIQUIDÓ.
  *
- * `F3-REGLAS §7.5` da por supuesto que `rolesLectura: [...DIRECCION]` sobre
+ * `F2.3-REGLAS §7.5` da por supuesto que `rolesLectura: [...DIRECCION]` sobre
  * `propina_liquidada` deja a un cajero viendo «Pendiente» sobre propinas que sí
  * estaban liquidadas. Se comprobó y el supuesto no se sostiene: ese panel no es
  * suyo. Sólo lo pintan `PropinasDashboardSection` y `PropinasRegistros`, que

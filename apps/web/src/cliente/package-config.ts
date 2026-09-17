@@ -13,8 +13,14 @@ import {
   normalizarPlantilla,
 } from '../../heredado/lib/packageConfig.js';
 
-/** Las tres plantillas de D-01. Son las mismas que `Plantilla` en contracts. */
-export type PlantillaWeb = 'tienda' | 'cafeteria' | 'restaurante';
+/**
+ * Las CINCO plantillas. Son las mismas que `Plantilla` en contracts.
+ *
+ * Eran tres, y dos de ellas —`tienda` y `cafeteria`— traían los mismos módulos
+ * uno por uno, así que ferretería y estética operaban con la plantilla de una
+ * tiendita. Ahora cada modelo tiene la suya.
+ */
+export type PlantillaWeb = 'tienda' | 'cafeteria' | 'restaurante' | 'ferreteria' | 'estetica';
 
 /** Los nombres anteriores a D-01. Siguen entrando; nunca salen. */
 export type PlantillaHeredadaWeb = 'esencial' | 'operativo' | 'restaurante_pro';

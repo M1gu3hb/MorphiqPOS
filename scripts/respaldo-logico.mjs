@@ -3,7 +3,7 @@
  * Respaldo lógico de la base viva, sin `pg_dump`.
  *
  * ── Por qué existe este archivo ─────────────────────────────────────────────
- * F3-REGLAS §4.1 pide un respaldo COMPROBADO antes de la primera migración, y
+ * F2.3-REGLAS §4.1 pide un respaldo COMPROBADO antes de la primera migración, y
  * nombra `supabase db dump --linked`. En esta máquina no hay CLI de Supabase,
  * ni `pg_dump`, ni Docker. Un encargo que no se puede detener necesitaba otra
  * vía, y ésta es la que hay:

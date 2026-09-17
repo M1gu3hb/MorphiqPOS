@@ -43,14 +43,18 @@ const baseDe = (tablas: TablasFalsas) =>
   });
 
 describe('F-015 · la plantilla sale del giro Y del paquete, no de uno solo', () => {
-  it('manda la ferretería en `operativo` a `tienda`, nunca a `cafeteria`', async () => {
+  it('manda la ferretería en `operativo` a SU plantilla, nunca a `cafeteria`', async () => {
     const base = baseDe(negocio('ferreteria', 'operativo'));
 
     const perfil = await modulosDelNegocio(base.tx, ORG);
 
     // Éste es el caso de Ferretería La Broca. Un `update` plano de
-    // `operativo → cafeteria` la habría dejado con recetas y portal QR.
-    expect(perfil?.plantilla).toBe('tienda');
+    // `operativo → cafeteria` la habría dejado con mesero y cocina. Y desde la
+    // 166 tampoco cae en la plantilla genérica de mostrador: tiene la SUYA, que
+    // es la de tienda más mostrador por medida, corte, cotizaciones, crédito y
+    // facturación.
+    expect(perfil?.plantilla).toBe('ferreteria');
+    expect(perfil?.activos.has('corte_de_material')).toBe(true);
     expect(perfil?.activos.has('recetas')).toBe(true);
     expect(perfil?.activos.has('mesero')).toBe(false);
   });

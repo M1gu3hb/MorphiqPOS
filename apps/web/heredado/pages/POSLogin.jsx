@@ -4,7 +4,9 @@ import { useNavigate } from '@/enrutado';
 import { api } from '@/api/cliente';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
-import { ROLE_HOME_ROUTES, ROLE_LABELS } from '@/lib/constants';
+import { ROLE_LABELS } from '@/lib/constants';
+import { inicioDeLaSesion } from '@/lib/packageConfig';
+import { hasPermission } from '@/lib/permissions';
 import { Delete, User, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import LoginBrandColors from '@/components/common/LoginBrandColors';
@@ -23,9 +25,12 @@ export default function POSLogin() {
   const navigate = useNavigate();
   const hiddenInputRef = useRef(null);
 
+  // Cada negocio abre donde le toca: el mapa de mesas en un restaurante, el
+  // cobro en una tiendita, la agenda en una estética. Lo decide la plantilla y
+  // el rol, no una tabla aparte que no conoce los modelos.
   useEffect(() => {
-    if (posUser) navigate(ROLE_HOME_ROUTES[posUser.rol] || '/');
-  }, [posUser, navigate]);
+    if (posUser) navigate(inicioDeLaSesion(posUser.rol, config?.paquete_modo, hasPermission));
+  }, [posUser, navigate, config?.paquete_modo]);
 
   // Carga la lista de usuarios activos para el panel inferior.
   // 6A.3: reintento ligero si la primera carga falla (móvil con red lenta).
@@ -95,7 +100,7 @@ export default function POSLogin() {
       const entrado = await api.auth.entrar({ id: quien.id, pin: pinToUse });
       login(entrado);
       toast.success(`Bienvenido, ${entrado.nombre}`);
-      navigate(ROLE_HOME_ROUTES[entrado.rol] || '/');
+      navigate(inicioDeLaSesion(entrado.rol, config?.paquete_modo, hasPermission));
     } catch (err) {
       // El servidor ya decidió qué se puede decir: PIN incorrecto, demasiados
       // intentos, o el bloqueo con sus minutos. Aquí no se reinterpreta.

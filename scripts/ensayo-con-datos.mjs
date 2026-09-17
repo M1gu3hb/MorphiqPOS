@@ -9,7 +9,7 @@
  * filas y pasa sin probar nada. Lo mismo vale para cualquier `check` nuevo
  * sobre una columna que ya tiene valores: sin filas, no hay nada que violar.
  *
- * Aquí el orden es el de F3-REGLAS §4.2, que es el único que prueba lo que va
+ * Aquí el orden es el de F2.3-REGLAS §4.2, que es el único que prueba lo que va
  * a pasar de verdad:
  *
  *   1 · Se levanta un PostgreSQL desechable.

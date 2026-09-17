@@ -129,7 +129,7 @@ packages/data/src/migraciones/sql/
 ├── 087_presencias_y_reparto.sql       ← depende de la 076 de `restaurante`
 ├── 088_lealtad_sellos.sql
 ├── 089_pedido_anticipado.sql
-└── 066_plantillas_semilla.sql        ← D-01. Toca datos vivos. Aplicada en la Fase 3 (P-04 resuelta)
+└── 066_plantillas_semilla.sql        ← D-01. Toca datos vivos. Aplicada en la Fase 2.3 (P-04 resuelta)
 ```
 
 ### 2.5 · Interfaz
@@ -246,7 +246,7 @@ acciones; el resto vive en `apps/web/src/cafeteria/Productos.tsx`.
 
 ---
 
-## 3.quinquies · LO QUE EL ACOPLE (FASE 3) CAMBIÓ
+## 3.quinquies · LO QUE EL ACOPLE (FASE 2.3) CAMBIÓ
 
 Dos rutas que faltaban y que eran de este modelo:
 `apps/web/app/api/cafeteria/anticipado/encolar/route.ts` y `…/entregar/route.ts`. Los comandos

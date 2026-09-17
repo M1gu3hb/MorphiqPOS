@@ -135,7 +135,7 @@ packages/data/src/migraciones/sql/
 ├── 119_listas_trabajo.sql
 ├── 120_proveedores_ferreteria.sql
 ├── 121_vistas_ferreteria.sql
-└── 066_plantillas_semilla.sql         TOCA DATOS VIVOS · Aplicada en la Fase 3 (P-04 resuelta)
+└── 066_plantillas_semilla.sql         TOCA DATOS VIVOS · Aplicada en la Fase 2.3 (P-04 resuelta)
 ```
 
 ### 2.5 · Interfaz
@@ -290,7 +290,7 @@ donde viven los rollos abiertos. Una línea; el corte y el retazo ya están en
 
 ---
 
-## 3.quinquies · LO QUE EL ACOPLE (FASE 3) CAMBIÓ
+## 3.quinquies · LO QUE EL ACOPLE (FASE 2.3) CAMBIÓ
 
 Tres rutas que faltaban y que eran de este modelo:
 `apps/web/app/api/renta/devolver/route.ts` —la herramienta salía y nada la devolvía, con el depósito
@@ -541,7 +541,7 @@ Para que nadie tenga que deducirlos leyendo los siete archivos.
    modelo que reutiliza la pantalla de mostrador y el vocabulario escrito a mano se rompe aquí. Ver P3.
 3. **P-02 (CFDI) deja de ser abierta para este modelo.** Un ferretero sin facturación en el punto de
    venta no compra. Ver `05-DATOS-Y-BACKEND.md` §10.
-4. **La migración 095 se aplicó en la Fase 3, con P-04 resuelta**, y plantea la pregunta del **doble movimiento de plantilla
+4. **La migración 095 se aplicó en la Fase 2.3, con P-04 resuelta**, y plantea la pregunta del **doble movimiento de plantilla
    de La Broca** —`operativo` → `tienda` → `ferreteria`—. Recomendación: saltarse el paso intermedio si
    P-04 se resuelve con una sola ventana.
 5. **El modo despacho+caja (F-235 en variante) hay que decidirlo.** Es la única pieza de este modelo que

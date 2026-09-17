@@ -1,4 +1,11 @@
 'use client';
+import {
+  INICIO_POR_PLANTILLA,
+  MODULOS_POR_PLANTILLA,
+  navegacionDePlantilla,
+  PLANTILLAS,
+} from '@morphiqpos/contracts';
+
 // Helper central para el sistema de paquetes de MH Astral Systems POS.
 // No oculta módulos por sí mismo: solo provee constantes y funciones puras
 // que serán consumidas en fases posteriores (Sidebar, rutas, vistas internas).
@@ -17,11 +24,13 @@
 // —Mesero, Cocina, Barra— y el dashboard del restaurante. El menú enseñaba lo
 // que el POST rechaza, que es la peor de las dos incoherencias posibles.
 
-/** Las tres plantillas. Mismo orden y mismos nombres que `PLANTILLAS`. */
+/** Las cinco plantillas. Mismo orden y mismos nombres que `PLANTILLAS`. */
 export const PACKAGE_KEYS = {
   TIENDA: 'tienda',
   CAFETERIA: 'cafeteria',
   RESTAURANTE: 'restaurante',
+  FERRETERIA: 'ferreteria',
+  ESTETICA: 'estetica',
 };
 
 /** La plantilla MÁS RESTRICTIVA. Es el valor por omisión, y no es negociable. */
@@ -31,18 +40,24 @@ export const PACKAGE_LABELS = {
   tienda: 'Tienda',
   cafeteria: 'Cafetería',
   restaurante: 'Restaurante',
+  ferreteria: 'Ferretería',
+  estetica: 'Estética',
 };
 
 export const PACKAGE_TAGLINES = {
   tienda: 'POS de mostrador con inventario, compras, gastos y costos.',
   cafeteria: 'POS de mostrador para barra: se cobra primero y se prepara al momento.',
   restaurante: 'Sistema completo para restaurantes con mesas, mesero y cocina.',
+  ferreteria: 'Mostrador que vende por medida, fía a la obra y factura.',
+  estetica: 'La agenda es el negocio: citas, expediente y comisión por profesional.',
 };
 
 export const PACKAGE_TARGET = {
   tienda: 'Abarrotes, ferreterías, farmacias y mostradores que controlan existencias.',
   cafeteria: 'Cafeterías, barras y puestos donde quien cobra es quien prepara.',
   restaurante: 'Restaurantes, fondas y bares que atienden por mesa.',
+  ferreteria: 'Ferreterías, materiales y refaccionarias que cortan, rentan y dan crédito.',
+  estetica: 'Estéticas, barberías, spas y uñas: se atiende con cita y se reparte comisión.',
 };
 
 // Flujo operativo real de cada plantilla (para Modo Presentación)
@@ -65,102 +80,35 @@ export const PACKAGE_FLOW = {
       'Flujo completo con Mesero, Mesas, Cocina y Caja. Operación digital interna de extremo a extremo.',
     pasos: ['Mesero toma pedido', 'Cocina prepara', 'Caja cobra', 'Corte', 'Reportes'],
   },
+  ferreteria: {
+    titulo: 'Mostrador con medida, obra y factura',
+    descripcion:
+      'El cliente trae la pieza en la mano. Se busca, se corta si hace falta, se cotiza, se fía a la obra y se factura. Lleva el control operativo completo.',
+    pasos: ['Mostrador', 'Corte de material', 'Cotización', 'Cuentas', 'Facturación', 'Corte'],
+  },
+  estetica: {
+    titulo: 'Agenda, expediente y comisión',
+    descripcion:
+      'El día empieza en la agenda y termina en la liquidación. Cada cita tiene profesional, servicio y fórmula, y cada profesional su comisión.',
+    pasos: ['Agenda', 'Cita en curso', 'Cobro', 'Corte', 'Liquidación'],
+  },
 };
 
 /**
- * Los tres bloques de módulos, EN EL MISMO ORDEN Y CON LOS MISMOS NOMBRES que
- * `BASE`, `OPERACION` y `SALA` de `plantillas.ts`.
+ * Los módulos de cada plantilla, LEÍDOS del contrato del servidor.
  *
- * No es una coincidencia estética: `package-config.test.ts` compara las dos
- * listas módulo a módulo. Si alguien añade una perilla aquí y no allá, el menú
- * de Miguel ofrecería una pantalla que el comando del servidor rechaza —o al
- * revés, le escondería una que sí contrató— y esa divergencia no puede pasar
- * en silencio.
+ * Aquí había tres arreglos copiados a mano —BASE, OPERACION y SALA— y un
+ * contrato en `package-config.test.ts` que los comparaba módulo a módulo con
+ * `plantillas.ts` para que no divergieran. Dos listas de lo mismo es cómo una
+ * se queda atrás, y el contrato existía precisamente porque podían. Ahora hay
+ * UNA lista: ésta la deriva de aquélla y no se puede desincronizar.
+ *
+ * Lo que el contrato comprueba ahora es otra cosa, y más útil: que este archivo
+ * no vuelva a declarar módulos por su cuenta.
  */
-const MODULOS_BASE = [
-  'dashboard_basico',
-  'productos_basicos',
-  'categorias',
-  'caja_directa',
-  'ventas',
-  'detalle_ventas',
-  'metodos_pago',
-  'tickets',
-  'cortes',
-  'pdf_corte',
-  'registros_basicos',
-  'configuracion_basica',
-  'integraciones_preparadas_admin',
-  // El escáner de código de barras es de mostrador. Restaurante lo excluye
-  // explícitamente más abajo; ver MODULOS_EXCLUIDOS_DE_RESTAURANTE.
-  'escaner_codigo_barras',
-];
-
-/**
- * Operación: existencias, compras y costo.
- *
- * Lo tienen LAS TRES plantillas, y ahí está el cambio de D-01 que más se nota:
- * el viejo `esencial` vendía sin controlar stock, y *una tienda sin inventario
- * no es una tienda, es una calculadora*. Por eso `esencial` NO puede seguir
- * existiendo como preajuste, y por eso `tienda` no se puede mapear hacia él.
- */
-const MODULOS_OPERACION = [
-  'inventario',
-  'compras',
-  'gastos',
-  'movimientos_inventario',
-  'recetas',
-  'gramajes',
-  'ingredientes',
-  'costos_basicos',
-  'utilidad_basica',
-  'margen_basico',
-  'reportes_operativos',
-  'exportaciones',
-  'dashboard_operativo',
-  'portal_qr',
-];
-
-/** Sala: mesa, mesero y cocina. SÓLO `restaurante`. */
-const MODULOS_SALA = [
-  'mesas',
-  'mesero',
-  'cocina',
-  'barra',
-  'pedidos_mesa',
-  'estados_mesa',
-  'mapa_mesas',
-  'configuracion_mesas',
-  'reportes_financieros_avanzados',
-  'dashboard_completo',
-  'integraciones_preparadas',
-  'configuracion_completa',
-];
-
-/**
- * Módulos que `restaurante` NO hereda, aunque las plantillas sean acumulativas.
- *
- * Es la única excepción a «restaurante incluye todo lo de mostrador», y existe
- * porque el escáner de código de barras es de MOSTRADOR: se escanea una botella
- * o una bolsa de frituras, no una orden de tacos. Enseñárselo a un restaurante
- * que trabaja por mesa es ofrecerle una función que nunca va a usar y que le
- * ocupa un botón en la pantalla donde más prisa tiene.
- *
- * La lista vive AQUÍ y no repartida por las pantallas: la regla de qué incluye
- * cada plantilla tiene un solo sitio, y `canAccessModule` la respeta sola.
- */
-const MODULOS_EXCLUIDOS_DE_RESTAURANTE = ['escaner_codigo_barras'];
-
-export const PACKAGE_MODULES = {
-  tienda: [...MODULOS_BASE, ...MODULOS_OPERACION],
-  // Misma lista que `tienda`, y así está también en el servidor: lo que separa
-  // a una cafetería de mostrador de una tienda es CÓMO HABLA (F-017), no qué
-  // módulos tiene. El día que se separen, se separan en los dos sitios a la vez.
-  cafeteria: [...MODULOS_BASE, ...MODULOS_OPERACION],
-  restaurante: [...MODULOS_BASE, ...MODULOS_OPERACION, ...MODULOS_SALA].filter(
-    (modulo) => !MODULOS_EXCLUIDOS_DE_RESTAURANTE.includes(modulo),
-  ),
-};
+export const PACKAGE_MODULES = Object.fromEntries(
+  PLANTILLAS.map((plantilla) => [plantilla, [...MODULOS_POR_PLANTILLA[plantilla]]]),
+);
 
 // Resumen de funciones por plantilla (para tabla comparativa en UI)
 export const PACKAGE_FEATURES = {
@@ -187,6 +135,23 @@ export const PACKAGE_FEATURES = {
     'Reportes financieros avanzados',
     'Integraciones Google Sheets/Drive preparadas',
   ],
+  ferreteria: [
+    'Todo lo de Tienda',
+    'Mostrador con búsqueda por medida y acabado',
+    'Corte de material y retazos',
+    'Cotizaciones',
+    'Crédito y cobranza por obra',
+    'Trabajos de mostrador: renta y garantía',
+    'Facturación',
+  ],
+  estetica: [
+    'Agenda del día y agendado con huecos',
+    'Citas con profesional, servicio y recurso',
+    'Expediente de la clienta con fórmulas',
+    'Comisiones y liquidación por profesional',
+    'Catálogo de servicios con duración',
+    'Inventario de cabina y de anaquel',
+  ],
 };
 
 // Add-ons que se cotizan aparte (no son plantillas)
@@ -212,46 +177,56 @@ export const ADDONS = [
 // Cada fila tiene que poder leerse contra PACKAGE_MODULES sin contradecirla:
 // una tabla que promete inventario donde el módulo no está es la misma mentira
 // que un menú de más, sólo que en la pantalla donde se vende.
-export const PACKAGE_COMPARISON = [
-  { funcion: 'Dashboard', tienda: 'Operativo', cafeteria: 'Operativo', restaurante: 'Completo' },
-  { funcion: 'Productos y categorías', tienda: true, cafeteria: true, restaurante: true },
-  { funcion: 'Caja / Punto de venta', tienda: true, cafeteria: true, restaurante: true },
-  { funcion: 'Tickets', tienda: true, cafeteria: true, restaurante: true },
-  { funcion: 'Corte de caja y PDF', tienda: true, cafeteria: true, restaurante: true },
-  {
-    funcion: 'Registros',
-    tienda: 'Operativos',
-    cafeteria: 'Operativos',
-    restaurante: 'Completos',
-  },
-  { funcion: 'Inventario', tienda: true, cafeteria: true, restaurante: true },
-  { funcion: 'Compras', tienda: true, cafeteria: true, restaurante: true },
-  { funcion: 'Gastos', tienda: true, cafeteria: true, restaurante: true },
-  { funcion: 'Recetas / gramajes', tienda: true, cafeteria: true, restaurante: true },
-  {
-    funcion: 'Costos / utilidad / margen',
-    tienda: 'Básico',
-    cafeteria: 'Básico',
-    restaurante: 'Avanzado',
-  },
-  { funcion: 'Escáner de código de barras', tienda: true, cafeteria: true, restaurante: false },
-  { funcion: 'Mesas', tienda: false, cafeteria: false, restaurante: true },
-  { funcion: 'Mesero', tienda: false, cafeteria: false, restaurante: true },
-  { funcion: 'Cocina / Barra', tienda: false, cafeteria: false, restaurante: true },
-  {
-    funcion: 'Reportes financieros avanzados',
-    tienda: false,
-    cafeteria: false,
-    restaurante: true,
-  },
-  {
-    funcion: 'Integraciones preparadas',
-    tienda: 'Admin',
-    cafeteria: 'Admin',
-    restaurante: true,
-  },
-  { funcion: 'IA para análisis', tienda: 'addon', cafeteria: 'addon', restaurante: 'addon' },
+/**
+ * La tabla comparativa, DERIVADA de los módulos.
+ *
+ * Estaba tecleada a mano con una columna por plantilla, y ya mintió una vez:
+ * prometía inventario, compras y recetas donde `PACKAGE_MODULES` no los daba.
+ * Un comparador que contradice al gate es una mentira en la pantalla con la que
+ * se vende. Cada fila nombra ahora el MÓDULO que la sostiene y la celda sale de
+ * si esa plantilla lo trae, así que no puede divergir.
+ */
+const FILAS_COMPARADOR = [
+  { funcion: 'Productos y categorías', modulo: 'productos_basicos' },
+  { funcion: 'Caja / Punto de venta', modulo: 'caja_directa' },
+  { funcion: 'Tickets', modulo: 'tickets' },
+  { funcion: 'Corte de caja y PDF', modulo: 'cortes' },
+  { funcion: 'Registros', modulo: 'registros_basicos' },
+  { funcion: 'Inventario', modulo: 'inventario' },
+  { funcion: 'Compras', modulo: 'compras' },
+  { funcion: 'Gastos', modulo: 'gastos' },
+  { funcion: 'Recetas / gramajes', modulo: 'recetas' },
+  { funcion: 'Costos y utilidad', modulo: 'costos_basicos' },
+  { funcion: 'Escáner de código de barras', modulo: 'escaner_codigo_barras' },
+  { funcion: 'Portal QR', modulo: 'portal_qr' },
+  { funcion: 'Propinas', modulo: 'propinas' },
+  { funcion: 'Mesas', modulo: 'mesas' },
+  { funcion: 'Mesero', modulo: 'mesero' },
+  { funcion: 'Cocina', modulo: 'cocina' },
+  { funcion: 'Barra', modulo: 'barra' },
+  { funcion: 'Pedido anticipado y recogida', modulo: 'pedido_anticipado' },
+  { funcion: 'Sellos de lealtad', modulo: 'sellos_de_lealtad' },
+  { funcion: 'Fiado', modulo: 'fiado' },
+  { funcion: 'Servicios y recargas', modulo: 'servicios_de_terceros' },
+  { funcion: 'Conteo físico', modulo: 'toma_fisica' },
+  { funcion: 'Mostrador por medida', modulo: 'mostrador' },
+  { funcion: 'Corte de material', modulo: 'corte_de_material' },
+  { funcion: 'Cotizaciones', modulo: 'cotizaciones' },
+  { funcion: 'Crédito y cobranza', modulo: 'credito_y_cobranza' },
+  { funcion: 'Facturación', modulo: 'facturacion' },
+  { funcion: 'Agenda y citas', modulo: 'agenda' },
+  { funcion: 'Expediente de la clienta', modulo: 'expediente' },
+  { funcion: 'Comisiones y liquidación', modulo: 'comisiones' },
+  { funcion: 'Catálogo de servicios', modulo: 'catalogo_de_servicios' },
 ];
+
+export const PACKAGE_COMPARISON = FILAS_COMPARADOR.map((fila) => {
+  const celdas = { funcion: fila.funcion, modulo: fila.modulo };
+  for (const plantilla of PLANTILLAS) {
+    celdas[plantilla] = PACKAGE_MODULES[plantilla].includes(fila.modulo);
+  }
+  return celdas;
+});
 
 // ---------- Normalización ----------
 
@@ -295,6 +270,8 @@ export function normalizarPlantilla(valor) {
     case 'tienda':
     case 'cafeteria':
     case 'restaurante':
+    case 'ferreteria':
+    case 'estetica':
       return valor;
     case 'esencial':
     case 'operativo':
@@ -306,11 +283,13 @@ export function normalizarPlantilla(valor) {
   }
 }
 
-/** Los seis nombres que `normalizarPlantilla` sabe traducir de verdad. */
+/** Los ocho nombres que `normalizarPlantilla` sabe traducir de verdad. */
 const NOMBRES_CONOCIDOS = [
   'tienda',
   'cafeteria',
   'restaurante',
+  'ferreteria',
+  'estetica',
   'esencial',
   'operativo',
   'restaurante_pro',
@@ -381,7 +360,54 @@ export const ROUTE_TO_MODULE = {
   '/mesero': 'mesero',
   '/cocina': 'cocina',
   '/barra': 'barra',
+  // Y las 57 pantallas de los cinco modelos, con el módulo que cada una
+  // declara en su entrada de menú. No se teclean: se leen de `navegacion.ts`,
+  // que es la misma tabla que pinta el menú. Escribirlas aquí a mano sería la
+  // segunda lista que se queda atrás — y la primera vez que pasó, las 61
+  // pantallas no colgaban de ningún sitio.
+  ...Object.fromEntries(
+    PLANTILLAS.flatMap((plantilla) =>
+      navegacionDePlantilla(plantilla).map((entrada) => [entrada.ruta, entrada.modulo]),
+    ),
+  ),
 };
+
+/** Dónde abre cada plantilla. Se reexporta para que el menú y el salto de
+ * después de entrar lean lo mismo. */
+export { INICIO_POR_PLANTILLA, navegacionDePlantilla };
+
+/**
+ * El menú de la plantilla, con el permiso del rol ya aplicado.
+ *
+ * Las dos preguntas son distintas y se mezclaron una vez: la plantilla dice qué
+ * COMPRÓ el negocio y el rol dice qué puede TOCAR esta persona. Aquí se
+ * responden en ese orden.
+ */
+export function navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso) {
+  const entradas = navegacionDePlantilla(normalizarPlantilla(paqueteModo));
+  if (typeof tienePermiso !== 'function') return entradas;
+  return entradas.filter((entrada) => tienePermiso(rol, entrada.permiso));
+}
+
+/**
+ * Dónde abre ESTA persona en ESTE negocio.
+ *
+ * ── Por qué no basta con `ROLE_HOME_ROUTES` ──────────────────────────────────
+ * Porque esa tabla manda a las pantallas del punto de venta heredado —`/caja`,
+ * `/mesero`, `/cocina`— y no sabe nada de los cinco modelos. Con ella, una
+ * estética entraba al tablero genérico en vez de a su agenda, que es la
+ * pantalla que abre cuarenta veces al día.
+ *
+ * Se abre en la PRIMERA entrada del menú que esta persona puede tocar, y el
+ * orden del menú es el del día de trabajo de su giro. Así el dueño de un
+ * restaurante cae en el mapa de mesas, su cocinero en la cocina y su cajero en
+ * el cobro, sin una segunda tabla que se quede atrás.
+ */
+export function inicioDeLaSesion(rol, paqueteModo, tienePermiso) {
+  const plantilla = normalizarPlantilla(paqueteModo);
+  const suyas = navegacionParaRolYPlantilla(rol, plantilla, tienePermiso);
+  return suyas[0]?.ruta ?? INICIO_POR_PLANTILLA[plantilla] ?? '/';
+}
 
 export function isRouteAllowed(routePath, paqueteModo) {
   const moduleNeeded = ROUTE_TO_MODULE[routePath];

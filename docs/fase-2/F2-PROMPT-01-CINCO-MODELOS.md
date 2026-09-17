@@ -281,7 +281,7 @@ scripts/esquema-esperado.json esas dos puertas se ponen rojas y no es un
 defecto tuyo, es que la base todavía no tiene tus tablas.
 
   → NO toques scripts/esquema-esperado.json. Ni una línea.
-    (DEROGADO en la Fase 3, F3-REGLAS §2: se regenera DESPUÉS de aplicar
+    (DEROGADO en la Fase 2.3, F2.3-REGLAS §2: se regenera DESPUÉS de aplicar
      las migraciones, con pnpm verify:esquema -- --actualizar. Antes de
      aplicarlas la prohibición sigue en pie, y por la misma razón: un
      contrato regenerado sobre una base sin migrar deja de detectar deriva.)

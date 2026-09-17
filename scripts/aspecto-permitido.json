@@ -387,6 +387,57 @@
       "archivo": "apps/web/heredado/pages/Productos.jsx",
       "porque": "Mismo caso que ResumenPeriodo: el testigo es el nombre de la variable dentro de un `className` con plantilla, no una clase. Lo que se pinta —`cursor-pointer` o nada— es idéntico. La bandera pasó de comparar contra el paquete `esencial`, que D-01 retiró, a preguntar por el módulo `recetas`, que es lo que de verdad parte esta pantalla en dos.",
       "testigos": ["- clase:${isEsencial", "+ clase:${sinRecetas"]
+    },
+    {
+      "archivo": "apps/web/heredado/components/common/MobileAdminRadialMenu.jsx",
+      "porque": "El abanico traia un catalogo de once rutas con su icono tecleado a mano, y ninguna de las 61 pantallas de los cinco modelos estaba en el. Ahora el menu entero sale de packages/contracts/src/comandos/navegacion.ts -la misma tabla que pinta el lateral- y los iconos se resuelven por su nombre de lucide con un import de espacio de nombres. Los diez nombres que desaparecen del import NO desaparecen de la pantalla: el abanico sigue pintando el icono de cada entrada, y ahora pinta tambien los de las pantallas del modelo. Lo que se fue es la lista tecleada, que era la que dejaba fuera a los cinco modelos.",
+      "testigos": [
+        "- icono:LayoutDashboard",
+        "- icono:Landmark",
+        "- icono:Receipt",
+        "- icono:Package",
+        "- icono:ShoppingBag",
+        "- icono:FileText",
+        "- icono:Settings",
+        "- icono:UtensilsCrossed",
+        "- icono:ChefHat",
+        "- icono:BookOpen"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/common/Sidebar.jsx",
+      "porque": "Veintinueve iconos NUEVOS, uno por cada entrada de menu que antes no existia. El menu lateral tenia doce entradas fijas y ninguna llevaba a una pantalla de modelo: las 61 respondian y solo se abrian tecleando la URL. Ahora cada plantilla trae el menu de SU negocio -mostrador, corte de material, agenda, cita, liquidacion, barra, recogida- y cada entrada necesita su icono. Ninguno de los que Miguel ya veia se quito.",
+      "testigos": [
+        "+ icono:BellRing",
+        "+ icono:CalendarDays",
+        "+ icono:CalendarPlus",
+        "+ icono:ClipboardCheck",
+        "+ icono:Clock",
+        "+ icono:Coffee",
+        "+ icono:CreditCard",
+        "+ icono:FileCheck",
+        "+ icono:FileSpreadsheet",
+        "+ icono:HandCoins",
+        "+ icono:History",
+        "+ icono:IdCard",
+        "+ icono:LayoutGrid",
+        "+ icono:ListChecks",
+        "+ icono:NotebookPen",
+        "+ icono:PlusCircle",
+        "+ icono:ReceiptText",
+        "+ icono:Ruler",
+        "+ icono:ScanBarcode",
+        "+ icono:Search",
+        "+ icono:SlidersHorizontal",
+        "+ icono:Smartphone",
+        "+ icono:Stamp",
+        "+ icono:Timer",
+        "+ icono:Truck",
+        "+ icono:UserCheck",
+        "+ icono:Users",
+        "+ icono:Wallet",
+        "+ icono:Wrench"
+      ]
     }
   ]
 }

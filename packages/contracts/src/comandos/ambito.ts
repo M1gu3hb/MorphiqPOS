@@ -52,7 +52,7 @@ export const GIROS = [
 export type Giro = (typeof GIROS)[number];
 
 /**
- * Las tres PLANTILLAS de negocio que gobiernan módulos y comandos.
+ * Las CINCO PLANTILLAS de negocio que gobiernan módulos y comandos.
  *
  * Se llamaban `esencial`, `operativo` y `restaurante_pro` —niveles
  * comerciales— y ahora nombran el MODELO DE NEGOCIO al que sirven. El renombre
@@ -64,7 +64,7 @@ export type Giro = (typeof GIROS)[number];
  * `organizaciones.paquete` y renombrar el tipo sin renombrar la columna crea
  * dos vocabularios para lo mismo, que es peor que un nombre heredado.
  */
-export const PAQUETES = ['tienda', 'cafeteria', 'restaurante'] as const;
+export const PAQUETES = ['tienda', 'cafeteria', 'restaurante', 'ferreteria', 'estetica'] as const;
 
 export type Paquete = (typeof PAQUETES)[number];
 
@@ -98,8 +98,18 @@ export const PAQUETES_OPERATIVOS = PAQUETES;
 /** Funciones exclusivas de sala, mesero y cocina. */
 export const PAQUETES_RESTAURANTE = ['restaurante'] as const;
 
-/** El portal QR viene con el bloque de operación, igual que en la navegación. */
-export const PAQUETES_PORTAL = PAQUETES_OPERATIVOS;
+/**
+ * Donde el cliente puede PEDIR desde el QR de su mesa.
+ *
+ * Era `PAQUETES_OPERATIVOS` —las tres de entonces— y con cinco plantillas eso
+ * dejaba a una ferretería aceptando pedidos desde un QR de mesa. No es un
+ * permiso de más cualquiera: abre una comanda que nadie va a preparar.
+ *
+ * Ordenar desde el QR exige que el negocio PREPARE lo que vende, y eso son dos:
+ * el restaurante y la cafetería. El MENÚ público, que sólo se lee, lo trae el
+ * módulo `portal_qr` y ése sí lo tienen las cinco.
+ */
+export const PAQUETES_PORTAL = ['cafeteria', 'restaurante'] as const;
 
 /**
  * Donde se vende de mostrador con caja.
@@ -131,7 +141,17 @@ export function esGiro(valor: unknown): valor is Giro {
  * el código da un mensaje que se entiende y la base impide el dato imposible.
  */
 export function paquetePermitidoParaGiro(paquete: Paquete, giro: Giro): boolean {
-  return paquete !== 'restaurante' || giro === 'cafeteria' || giro === 'restaurante';
+  // Sala sólo donde hay cocina. Lo mismo dice el `check`
+  // `organizaciones_paquete_compatible_con_giro` de la 058, y las dos listas
+  // son la misma a propósito: la pantalla no puede ofrecer lo que el POST
+  // rechaza.
+  if (paquete === 'restaurante' || paquete === 'cafeteria') {
+    return giro === 'cafeteria' || giro === 'restaurante';
+  }
+  // Y las tres de mostrador —tienda, ferretería y estética— las puede tomar
+  // cualquier giro que no sea de alimentos. Un salón que además vende producto
+  // de anaquel puede querer la de tienda, y eso es una decisión suya.
+  return giro !== 'cafeteria' && giro !== 'restaurante';
 }
 
 /**

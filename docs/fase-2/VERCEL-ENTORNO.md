@@ -8,7 +8,7 @@ de «no se puede verificar» a verificado con una suite de navegador corriendo c
 
 ## 0 · Lo que estaba mal, y ya no
 
-`F3-REGLAS §10` lo describía así: _«El preview de la Fase 1 quedó con las variables de entorno
+`F2.3-REGLAS §10` lo describía así: _«El preview de la Fase 1 quedó con las variables de entorno
 vacías y las APIs en 500.»_ Y era exacto: el proyecto `mh-astral-systems/morphiqpos` tenía **diez
 variables, las diez sólo en Production**. El entorno Preview estaba literalmente vacío.
 
@@ -51,7 +51,7 @@ nunca por una línea de comando ni por un archivo versionado.
 
 Un despliegue sirve a UN negocio: lo resuelve `negocioDelDespliegue` con la variable
 `ORGANIZACION` (R16). El Preview la tenía apuntando **al mismo negocio que Production**, y eso es
-exactamente lo que `F3-REGLAS §4.5` prohíbe tocar: la suite de navegador entra con PIN y **cambia la
+exactamente lo que `F2.3-REGLAS §4.5` prohíbe tocar: la suite de navegador entra con PIN y **cambia la
 plantilla del negocio**, que sobre un cliente que cobra le quita o le da módulos que paga.
 
 Ahora apunta a una demo (`demo-acople-tienda`, `demo-acople-estetica`, según cuál se esté

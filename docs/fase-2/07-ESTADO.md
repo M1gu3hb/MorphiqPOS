@@ -87,9 +87,9 @@ La puerta sale en **0**. Doce excepciones declaradas en
 
 ---
 
-## FASE 3 · ACOPLE · conectar los cinco modelos al punto de venta vivo
+## FASE 2.3 · ACOPLE · conectar los cinco modelos al punto de venta vivo
 
-Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. La puerta es `pnpm verify:acople`, y
+Gobierna `docs/fase-2/F2.3-REGLAS-DE-ACOPLE.md`. La puerta es `pnpm verify:acople`, y
 `pnpm verify` pasa de 27 a 31 eslabones: entran `verify:cobertura` —que vivía sólo en
 `verify:fase2`—, `test:integracion` y `verify:acople`.
 
@@ -107,24 +107,45 @@ Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. La puerta es `pnpm verify:acople`
 **La puerta, hoy:**
 
 ```
-  migraciones   97 en disco = 97 en el ledger
+  migraciones   98 en disco = 98 en el ledger
   seguridad     RLS y grants cerrados en 162 relaciones y 15 funciones
-  rutas         103 declaradas · 82 probadas por HTTP · 21 dinámicas o exceptuadas
-  plantillas    3 resuelven módulos · los 6 giros de GIROS caen en una
+  plantillas    5 resuelven módulos · los 6 giros de GIROS caen en una
+  navegacion    59 rutas en los menús · 57 de 61 pantallas de modelo alcanzables · 4 declaradas sin menú
   vocabulario   ruta + los dos envoltorios + el menú heredado · 3 pantalla(s) lo consumen
-
-✓ Acople completo: migraciones aplicadas, seguridad cerrada, rutas vivas,
-  plantillas resueltas, vocabulario consumido y aplicación respondiendo.
 ```
 
 **Y `test:integracion` ya no la tapa.** Estaba ANTES de `verify:acople` en la cadena de
 `pnpm verify`: exige Docker, esta máquina no lo tiene, abortaba, y el `&&` cortaba, así que la
-puerta de la fase **no llegaba a correr nunca**. Ahora va detrás, y `verify:fase2` —que no la
-incluía— también la lleva, para que no quede una cadena corta por la que colarse.
+puerta de la fase **no llegaba a correr nunca**. Ahora va detrás.
 
-Lo que sale en 0 hoy: `verify:acople`, `verify:cobertura`, `verify:esquema`, `verify:rls`,
-`verify:paquetes`, `verify:aspecto`, `verify:entorno`, `verify:primitivas`, `typecheck` y
-**2 650 pruebas en 223 archivos**.
+> **CORRECCIÓN (2026-09-17, etapa E3).** Este párrafo decía además que `verify:fase2` «también la
+> lleva», y era falso: esa cadena terminaba en `verify:cobertura` y no llevaba ni
+> `test:integracion`, ni `verify:esquema`, ni `verify:rls`, ni `verify:acople`. Se arregló de la
+> única forma que no deja dos verdades: **`verify:fase2` ya no existe.** Hay UNA cadena,
+> `pnpm verify`, con 31 eslabones, y la puerta de la fase va dentro.
+
+---
+
+## FASE 2.3 · CIERRE · los cinco defectos que el acople dejó abiertos
+
+El acople quedó ✅ en A7 con la puerta en 0, y la puerta **no servía**: aprobaba un sistema donde
+las 61 pantallas de los cinco modelos no colgaban de ningún menú y donde dos de las tres plantillas
+eran la misma. Estas siete etapas cierran eso.
+
+| Etapa | Qué | Estado |
+|---|---|---|
+| **E1** | «Fase 3» → «Fase 2.3 · Acople» | ✅ **26 archivos · 61 apariciones · 3 renombrados** (`F2.3-REGLAS-DE-ACOPLE.md`, reportes 012 y 013). Las ~85 cabeceras SQL del rango 058-166 **NO se tocaron**: son comentarios, el ejecutor valida cada archivo por hash FNV-1a y cambiar una coma abortaría la tanda entera. Queda dicho en `00-LEEME-PRIMERO.md` |
+| **E2** | Que cada modelo se vea como su negocio | ✅ **5 plantillas** (`tienda`, `cafeteria`, `restaurante`, `ferreteria`, `estetica`) con **62 módulos** —24 nuevos: agenda, cita, comisión, expediente, profesional, cotización, corte de material, crédito— y **ningún par idéntico**. Migración **166** aplicada. **F-018**: el menú vive en el SERVIDOR (`packages/contracts/src/comandos/navegacion.ts`), en orden de día de trabajo, y de ahí lo leen el lateral Y el abanico móvil. Pantalla de inicio por plantilla y por rol. Guarda `exigirPlantilla()` en las cinco carpetas de `app/(modelos)/`. Vocabulario: **3 consumidores, pendiente E2.4** |
+| **E3** | Puertas que muerden | ✅ **E3.1 demostrado en ROJO antes de arreglar nada**, que era la condición. La tautología de `verificar-acople.mjs:406-410` —`plantillaDe()` tiene `default: return 'tienda'`, así que «todo giro cae en una plantilla» era cierto por construcción— sustituida por `PLANTILLA_POR_GIRO`: claves = `GIROS` en las DOS direcciones, valores ∈ `PLANTILLAS`, y **un giro inventado NO es clave**. Nueva `comprobarNavegacion()`. `verify:fase2` **borrado**; una sola cadena de 31 eslabones. Las dos afirmaciones falsas del reporte 013 §3 y de esta bitácora, corregidas donde estaban escritas |
+| **E4** | Datos y usuarios de demostración | ⬜ |
+| **E5** | Producción | ⬜ |
+| **E6** | `ACCESOS-DEMO.md` | ⬜ |
+| **E7** | Cierre con siete condiciones | ⬜ |
+
+**Al cerrar E1-E3**, en 0: `verify:cobertura`, `verify:esquema`, `verify:rls`, `verify:paquetes`,
+`verify:aspecto`, `verify:entorno`, `verify:primitivas`, `verify:mutaciones-backend`, `lint`,
+`typecheck` (7/7) y **2 685 pruebas en 223 archivos**. `verify:acople` pasa sus seis
+comprobaciones de código y pide un servidor al que preguntar por las rutas — eso es E5.
 
 **El ensayo con datos, en verde** (`node scripts/ensayo-con-datos.mjs`):
 

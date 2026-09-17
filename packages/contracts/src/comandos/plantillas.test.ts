@@ -59,8 +59,12 @@ const VIVOS: readonly {
     negocio: 'Ferretería La Broca',
     giro: 'ferreteria',
     paqueteHoy: 'operativo',
-    esperada: 'tienda',
-    porque: 'mismo caso: operativo de retail va a tienda, no a cafeteria',
+    esperada: 'ferreteria',
+    porque:
+      'el viejo `operativo` de una ferretería ya no cae en la plantilla genérica de ' +
+      'mostrador: desde la 166 la ferretería TIENE la suya, con mostrador por medida, ' +
+      'corte de material, cotizaciones, crédito y facturación. La de `tienda` es un ' +
+      'subconjunto estricto de ésta, así que no pierde un solo módulo',
   },
 ];
 
@@ -76,7 +80,7 @@ describe('F-015 · plantillaDe reparte POR GIRO, no por paquete (D-12)', () => {
     // mirar el giro, estas dos devolverían lo mismo y el caso de Don Chuy
     // dejaría de estar protegido.
     expect(plantillaDe('cafeteria', 'operativo')).toBe('cafeteria');
-    expect(plantillaDe('ferreteria', 'operativo')).toBe('tienda');
+    expect(plantillaDe('ferreteria', 'operativo')).toBe('ferreteria');
   });
 
   it('esencial va a tienda sea cual sea el giro', () => {
@@ -93,26 +97,51 @@ describe('F-015 · plantillaDe reparte POR GIRO, no por paquete (D-12)', () => {
     expect(plantillaDe('restaurante', 'tienda')).toBe('tienda');
   });
 
-  it('un valor desconocido cae a la plantilla MÁS RESTRICTIVA', () => {
+  it('un valor CORRUPTO cae a la plantilla MÁS RESTRICTIVA', () => {
     // Fallback restrictivo: un dato roto no puede abrir módulos que nadie
     // contrató. Lo contrario —caer a `restaurante`— regalaría sala y cocina.
-    for (const basura of [undefined, null, '', 'pro', 'premium', 42, {}]) {
+    for (const basura of ['pro', 'premium', 42, {}]) {
       expect(plantillaDe('restaurante', basura)).toBe('tienda');
     }
   });
 
-  it('una estética cae en `tienda` por los tres caminos', () => {
-    // El giro `estetica` lo abre la 164 y NO trae plantilla propia: `salon` no
-    // existe y no va a existir —`PAQUETES` tiene tres valores—. La plantilla de
-    // un salón es `tienda`: mostrador, caja e inventario, sin sala. Sale así
-    // porque `estetica` no está en `GIROS_DE_ALIMENTOS`, y este caso es el que se
-    // cae el día que alguien la meta ahí «porque vende productos».
-    expect(plantillaDe('estetica', 'operativo')).toBe('tienda');
+  it('un valor AUSENTE lo decide el giro, que no es lo mismo que corrupto', () => {
+    // La distinción es deliberada y vale la pena escribirla: «no hay valor» no es
+    // «hay un valor roto». Sin valor guardado, lo que estrena un negocio es la
+    // plantilla de su giro —es lo que hace `db:alta-negocio`— y degradar eso a
+    // «tienda» dejaría a un restaurante recién dado de alta sin mesas hasta que
+    // alguien lo notara. Con basura sí se cae a la más restrictiva, y el caso de
+    // arriba lo comprueba.
+    for (const ausente of [undefined, null, '']) {
+      expect(plantillaDe('restaurante', ausente)).toBe('restaurante');
+      expect(plantillaDe('estetica', ausente)).toBe('estetica');
+      expect(plantillaDe('tienda', ausente)).toBe('tienda');
+    }
+  });
+
+  it('una estética tiene SU plantilla, y ya no la de una tiendita', () => {
+    // Esto decía lo contrario, y ERA el defecto: «la plantilla de un salón es
+    // «tienda», y «salon» no existe ni va a existir». El resultado es que una
+    // estética operaba con la plantilla de una tiendita: sin agenda, sin citas,
+    // sin expediente y sin comisiones, que es lo que ese negocio hace todo el
+    // día. La 166 le da la suya y `PAQUETES` pasa de tres a cinco.
+    //
+    // El nombre no es «salon» sino «estetica», igual que el giro: dos palabras
+    // para lo mismo es cómo una se queda atrás.
+    expect(plantillaDe('estetica', 'operativo')).toBe('estetica');
+    // «esencial» sigue yendo a «tienda» venga el giro que venga: es el nivel
+    // comercial más bajo que existió, y traducirlo por giro le daría a un
+    // negocio módulos que no compró.
     expect(plantillaDe('estetica', 'esencial')).toBe('tienda');
 
-    // Y con basura, incluida la plantilla que el FILE-MAP del modelo declaraba
-    // como destino: un valor que no se reconoce cae en la MÁS RESTRICTIVA.
-    for (const basura of [undefined, null, '', 'salon', 'spa', 'barberia', 42, {}]) {
+    // Sin valor, manda el giro: es lo que estrena un salón recién dado de alta.
+    for (const ausente of [undefined, null, '']) {
+      expect(plantillaDe('estetica', ausente)).toBe('estetica');
+    }
+
+    // Y con basura —incluida «salon», que el FILE-MAP del modelo declaraba como
+    // destino y que NO es el nombre que se eligió— se cae en la MÁS RESTRICTIVA.
+    for (const basura of ['salon', 'spa', 'barberia', 42, {}]) {
       expect(plantillaDe('estetica', basura)).toBe('tienda');
     }
 

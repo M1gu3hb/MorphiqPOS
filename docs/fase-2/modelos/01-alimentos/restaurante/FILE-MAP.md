@@ -110,7 +110,7 @@ packages/data/src/migraciones/sql/
 ├── 076_esquemas_propina.sql
 ├── 077_consumos_internos.sql
 ├── 078_tope_descuento.sql
-└── 066_plantillas_semilla.sql     ← D-01. Toca datos vivos. Aplicada en la Fase 3 (P-04 resuelta)
+└── 066_plantillas_semilla.sql     ← D-01. Toca datos vivos. Aplicada en la Fase 2.3 (P-04 resuelta)
 ```
 
 ### 2.5 · Interfaz
@@ -219,7 +219,7 @@ todo lo demás ya vive en el componente nuevo.
 
 ---
 
-## 3.quinquies · LO QUE EL ACOPLE (FASE 3) CAMBIÓ
+## 3.quinquies · LO QUE EL ACOPLE (FASE 2.3) CAMBIÓ
 
 Nada de este modelo cambió de sitio. Lo único suyo que el acople toca es el sustantivo: la pantalla
 `portal-del-comensal` dice «la mesa 5» leyendo el vocabulario del giro, así que en una estética que

@@ -33,7 +33,7 @@ import {
  *     añada una cuarta plantilla tenga que pasar por aquí.
  *
  * ── QUÉ DEMUESTRA ─────────────────────────────────────────────────────────
- * 1 · El negocio habla como una estética. Es la condición 6 de `F3-REGLAS §8` para
+ * 1 · El negocio habla como una estética. Es la condición 6 de `F2.3-REGLAS §8` para
  *     este modelo, y es lo que heredan los ONCE modelos de «servicios con cita».
  * 2 · El servidor RECHAZA la plantilla `salon` con `ENTRADA_INVALIDA`, en vez de
  *     aceptarla y dejar a un negocio con una plantilla que ningún gate entiende.
@@ -146,7 +146,7 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
       ).toHaveCount(0);
     }
 
-    // ── 3 · SU VOCABULARIO · la condición 6 de F3-REGLAS §8 ───────────────
+    // ── 3 · SU VOCABULARIO · la condición 6 de F2.3-REGLAS §8 ───────────────
     // Las palabras están tecleadas a mano desde `04-INTERFAZ.md §4.1` y NO se importan
     // de `diccionarios.ts`: una prueba que afirma contra la misma constante que produce
     // el valor no prueba nada. Si alguien renombra «estación» a «cabina» en el

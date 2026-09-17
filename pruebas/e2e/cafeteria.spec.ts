@@ -26,7 +26,7 @@ import {
  *
  * ── POR QUÉ ESO IMPORTA, y por qué esta prueba es la más informativa de las cinco ──
  * Porque es el caso real de **Café Jacaranda**, y está escrito en `A3 §4.3` y en
- * `F3-REGLAS §4.4`: se queda en la plantilla `restaurante` aunque su giro sea
+ * `F2.3-REGLAS §4.4`: se queda en la plantilla `restaurante` aunque su giro sea
  * cafetería, porque tiene contratado el paquete completo con mesero y cocina y
  * bajarlo a `cafeteria` le quitaría módulos que paga. Si el vocabulario saliera de la
  * plantilla —como decía D-04 antes de corregirse— Jacaranda leería «Meseros» y

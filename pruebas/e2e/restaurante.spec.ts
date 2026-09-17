@@ -32,8 +32,8 @@ import {
  *
  * ── QUÉ NO PRUEBA, para que nadie lo lea de más ────────────────────────────
  * No prueba que se pueda abrir una mesa ni cobrar una cuenta: eso necesita mesas,
- * productos y caja abierta en la demo, y `F3-REGLAS §4.5` prohíbe sembrar eso en un
- * negocio vivo. Lo que prueba es lo que pide la condición 6 de `F3-REGLAS §8`: que
+ * productos y caja abierta en la demo, y `F2.3-REGLAS §4.5` prohíbe sembrar eso en un
+ * negocio vivo. Lo que prueba es lo que pide la condición 6 de `F2.3-REGLAS §8`: que
  * la plantilla se vea como suya al entrar.
  */
 

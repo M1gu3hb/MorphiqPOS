@@ -2,24 +2,16 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from '@/enrutado';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Menu,
-  LayoutDashboard,
-  Landmark,
-  Receipt,
-  Tag,
-  Package,
-  ShoppingBag,
-  FileText,
-  Settings,
-  UtensilsCrossed,
-  ChefHat,
-  BookOpen,
-} from 'lucide-react';
+import * as Iconos from 'lucide-react';
+import { Menu, Tag } from 'lucide-react';
+
+/** Los iconos que el menu nombra, resueltos por su nombre de lucide. */
+const ICONOS = Iconos;
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { ROLES } from '@/lib/constants';
-import { canAccessModule, normalizarPlantilla } from '@/lib/packageConfig';
+import { navegacionParaRolYPlantilla, normalizarPlantilla } from '@/lib/packageConfig';
+import { hasPermission } from '@/lib/permissions';
 import { unlockAudio } from '@/lib/sounds';
 
 /**
@@ -42,59 +34,28 @@ const POP_OUT = 38; // px adicionales que el ítem activo se "sale" hacia afuera
 
 // Orden y filtrado por plantilla: solo se muestran las rutas permitidas y en
 // este orden. `tienda` y `cafeteria` comparten orden porque comparten módulos.
-const ORDEN_MOSTRADOR = [
-  '/',
-  '/caja',
-  '/ventas',
-  '/productos',
-  '/inventario',
-  '/compras',
-  '/recetas',
-  '/registros',
-  '/configuracion',
+/**
+ * Los colores del abanico, por posición.
+ *
+ * Aquí había un catálogo de once rutas con su icono y su color, y dos órdenes
+ * tecleados a mano. Las dos listas se quedaron atrás en cuanto los modelos
+ * trajeron sus pantallas: ninguna de las 61 estaba. El menú viene ahora de
+ * `navegacion.ts` —la misma tabla que pinta el lateral— y lo único que queda
+ * aquí es cómo se ve.
+ */
+const COLORES = [
+  '#6366F1',
+  '#DC2626',
+  '#0EA5E9',
+  '#F59E0B',
+  '#10B981',
+  '#8B5CF6',
+  '#EC4899',
+  '#EA580C',
 ];
-const ORDEN_RESTAURANTE = [
-  '/',
-  '/mesero',
-  '/cocina',
-  '/caja',
-  '/ventas',
-  '/productos',
-  '/inventario',
-  '/compras',
-  '/recetas',
-  '/registros',
-  '/configuracion',
-];
-const ORDERS = {
-  tienda: ORDEN_MOSTRADOR,
-  cafeteria: ORDEN_MOSTRADOR,
-  restaurante: ORDEN_RESTAURANTE,
-};
 
-const ITEM_DEFS = {
-  '/': { icon: LayoutDashboard, color: '#6366F1', module: 'dashboard_basico', label: 'Dashboard' },
-  '/caja': { icon: Landmark, color: '#DC2626', module: 'caja_directa', label: 'Caja' },
-  '/ventas': { icon: Receipt, color: '#0EA5E9', module: 'ventas', label: 'Ventas' },
-  '/productos': { icon: Tag, color: '#F59E0B', module: 'productos_basicos', label: 'Productos' },
-  '/inventario': { icon: Package, color: '#10B981', module: 'inventario', label: 'Inventario' },
-  '/compras': { icon: ShoppingBag, color: '#8B5CF6', module: 'compras', label: 'Compras' },
-  '/recetas': { icon: BookOpen, color: '#EC4899', module: 'recetas', label: 'Recetas' },
-  '/mesero': { icon: UtensilsCrossed, color: '#E11D48', module: 'mesero', label: 'Mesero' },
-  '/cocina': { icon: ChefHat, color: '#EA580C', module: 'cocina', label: 'Cocina' },
-  '/registros': {
-    icon: FileText,
-    color: '#475569',
-    module: 'registros_basicos',
-    label: 'Registros',
-  },
-  '/configuracion': {
-    icon: Settings,
-    color: '#334155',
-    module: 'configuracion_basica',
-    label: 'Configuración',
-  },
-};
+/** Cuántas entradas caben en el abanico sin que se pisen con el pulgar. */
+const CUPO_DEL_ABANICO = 8;
 
 export default function MobileAdminRadialMenu() {
   const { posUser } = usePOSAuth();
@@ -126,22 +87,20 @@ export default function MobileAdminRadialMenu() {
     closeMenu(); /* eslint-disable-next-line */
   }, [location.pathname]);
 
-  // Items disponibles según paquete y orden definido
+  // Las primeras entradas del menú de la plantilla, en el orden del día de
+  // trabajo. Se corta en ocho porque más no caben alrededor del pulgar, y se
+  // cortan las de ABAJO: el orden ya pone delante lo que se toca cada hora.
   const items = useMemo(() => {
-    // Indexar con el valor crudo obligaba a un `||` de rescate, y ese rescate
-    // era la plantilla MÁS PERMISIVA: cualquier nombre que este archivo no
-    // reconociera abría el abanico entero. `normalizarPlantilla` siempre
-    // devuelve una de las tres claves, así que no hace falta rescate.
-    const order = ORDERS[normalizarPlantilla(paquete_modo)];
-    return order
-      .map((path) => {
-        const def = ITEM_DEFS[path];
-        if (!def) return null;
-        if (!canAccessModule(def.module, paquete_modo)) return null;
-        return { path, ...def };
-      })
-      .filter(Boolean);
-  }, [paquete_modo]);
+    const plantilla = normalizarPlantilla(paquete_modo);
+    return navegacionParaRolYPlantilla(posUser?.rol, plantilla, hasPermission)
+      .slice(0, CUPO_DEL_ABANICO)
+      .map((entrada, i) => ({
+        path: entrada.ruta,
+        label: entrada.etiqueta,
+        icon: ICONOS[entrada.icono] ?? Tag,
+        color: COLORES[i % COLORES.length],
+      }));
+  }, [paquete_modo, posUser?.rol]);
 
   const N = items.length;
   // Ajuste dinámico del radio para que más ítems se separen mejor

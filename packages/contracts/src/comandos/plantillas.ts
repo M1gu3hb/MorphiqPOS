@@ -97,6 +97,12 @@ export function esPlantilla(valor: unknown): valor is Plantilla {
 export function plantillaDe(giro: Giro, valorGuardado: unknown): Plantilla {
   if (esPlantilla(valorGuardado)) return valorGuardado;
 
+  // Sin valor guardado, el giro decide — y lo decide la tabla, no un `switch`
+  // que se pueda quedar corto. Es lo que estrena un negocio recién dado de alta.
+  if (valorGuardado === undefined || valorGuardado === null || valorGuardado === '') {
+    return PLANTILLA_POR_GIRO[giro] ?? 'tienda';
+  }
+
   const esAlimentos = GIROS_DE_ALIMENTOS.includes(giro);
 
   switch (valorGuardado) {
@@ -108,7 +114,10 @@ export function plantillaDe(giro: Giro, valorGuardado: unknown): Plantilla {
       // módulos de sala a una ferretería.
       return esAlimentos ? 'restaurante' : 'tienda';
     case 'operativo':
-      return esAlimentos ? 'cafeteria' : 'tienda';
+      // Los tres nombres heredados los tradujo la 058 y ya no quedan en la
+      // base; siguen aquí porque un respaldo viejo o una copia de desarrollo
+      // pueden traerlos, y traducir es mejor que degradar.
+      return esAlimentos ? 'cafeteria' : (PLANTILLA_POR_GIRO[giro] ?? 'tienda');
     case 'esencial':
       return 'tienda';
     default:
@@ -170,6 +179,34 @@ export const MODULOS = [
   'dashboard_completo',
   'integraciones_preparadas',
   'configuracion_completa',
+  // Mostrador de café: la barra que prepara y la fila que espera.
+  'pedido_anticipado',
+  'turno_de_barra',
+  'sellos_de_lealtad',
+  'modificadores_de_bebida',
+  'propinas',
+  // Retail: lo que una tiendita y una ferretería hacen y un restaurante no.
+  'fiado',
+  'servicios_de_terceros',
+  'toma_fisica',
+  'entradas_de_mercancia',
+  // Ferretería: se vende por medida, se fía a obra y se factura.
+  'mostrador',
+  'piezas_y_medidas',
+  'corte_de_material',
+  'credito_y_cobranza',
+  'cotizaciones',
+  'trabajos_de_mostrador',
+  'facturacion',
+  // Servicios con cita: la agenda ES el negocio.
+  'agenda',
+  'citas',
+  'agenda_por_profesional',
+  'expediente',
+  'comisiones',
+  'catalogo_de_servicios',
+  'profesionales',
+  'clientes',
 ] as const;
 
 export type Modulo = (typeof MODULOS)[number];
@@ -239,10 +276,106 @@ const SALA: readonly Modulo[] = [
  * El escáner de barras NO está en `restaurante`: es de mostrador, y así estaba
  * ya en `packageConfig.js`, que excluye `escaner_codigo_barras` de Pro.
  */
+/** Lo propio de un mostrador de café: la barra, la fila y el sello. */
+const CAFE: readonly Modulo[] = [
+  'barra',
+  'pedido_anticipado',
+  'turno_de_barra',
+  'sellos_de_lealtad',
+  'modificadores_de_bebida',
+];
+
+/** Lo propio de un anaquel: se fía, se cobra un servicio y se cuenta. */
+const RETAIL: readonly Modulo[] = [
+  'fiado',
+  'servicios_de_terceros',
+  'toma_fisica',
+  'entradas_de_mercancia',
+];
+
+/** Lo propio de una ferretería: medida, obra y factura. */
+const FERRETERIA: readonly Modulo[] = [
+  'mostrador',
+  'piezas_y_medidas',
+  'corte_de_material',
+  'credito_y_cobranza',
+  'cotizaciones',
+  'trabajos_de_mostrador',
+  'facturacion',
+];
+
+/** Lo propio de un negocio con cita: la agenda, el expediente y la comisión. */
+const CITA: readonly Modulo[] = [
+  'agenda',
+  'citas',
+  'agenda_por_profesional',
+  'expediente',
+  'comisiones',
+  'catalogo_de_servicios',
+  'profesionales',
+  'clientes',
+];
+
+/** El escáner es de mostrador: un mesero no pasa un código de barras. */
+const BASE_SIN_ESCANER: readonly Modulo[] = BASE.filter((m) => m !== 'escaner_codigo_barras');
+
+/**
+ * El PREAJUSTE de cada plantilla — decisión pendiente P-01, implementada como
+ * «plantilla de partida + perillas por módulo».
+ *
+ * ── Por qué son CINCO y no tres ────────────────────────────────────────────
+ * Eran tres, y dos de ellas —`tienda` y `cafeteria`— tenían los MISMOS 28
+ * módulos, uno por uno. Es decir: de tres plantillas, dos eran la misma, y
+ * ferretería y estética no tenían ninguna propia. Ninguno de los 38 módulos
+ * nombraba agenda, cita, comisión, expediente, cotización, corte de material ni
+ * crédito, que es lo que esos dos negocios HACEN todo el día. El resultado era
+ * que la plantilla no decidía nada para dos de los cinco modelos.
+ *
+ * Ahora cada modelo tiene la suya, y las cinco se distinguen por módulos, no
+ * sólo por vocabulario:
+ *
+ *   tienda       32 · mostrador con anaquel: fía, cobra servicios y cuenta
+ *   cafeteria    34 · mostrador con barra: prepara, llama y sella
+ *   restaurante  40 · sala entera, sin escáner de barras
+ *   ferreteria   39 · anaquel + medida, obra y factura
+ *   estetica     37 · agenda, expediente y comisión
+ *
+ * `tienda` incluye operación porque D-01 lo dice con todas sus letras: *una
+ * tienda sin inventario no es una tienda, es una calculadora*.
+ */
 export const MODULOS_POR_PLANTILLA: Readonly<Record<Plantilla, readonly Modulo[]>> = {
-  tienda: [...BASE, ...OPERACION],
-  cafeteria: [...BASE, ...OPERACION],
-  restaurante: [...BASE.filter((m) => m !== 'escaner_codigo_barras'), ...OPERACION, ...SALA],
+  tienda: [...BASE, ...OPERACION, ...RETAIL],
+  cafeteria: [...BASE, ...OPERACION, ...CAFE, 'propinas'],
+  restaurante: [...BASE_SIN_ESCANER, ...OPERACION, ...SALA, 'propinas'],
+  ferreteria: [...BASE, ...OPERACION, ...RETAIL, ...FERRETERIA],
+  estetica: [...BASE, ...OPERACION, ...CITA, 'propinas'],
+};
+
+/**
+ * Qué plantilla estrena un negocio de cada giro, DECLARADO uno por uno.
+ *
+ * ── Por qué existe este mapa ───────────────────────────────────────────────
+ * Porque `plantillaDe` termina en `default: return 'tienda'` y eso hacía que la
+ * puerta del acople aprobara cualquier giro, incluido uno inventado: la
+ * comprobación «¿este giro cae en una plantilla real?» era una tautología. Por
+ * eso no vio que `ferreteria` y `estetica` no tenían plantilla propia.
+ *
+ * El `default` sigue existiendo y sigue siendo correcto —un dato corrupto tiene
+ * que caer en la plantilla más restrictiva, no reventar— pero ya no es lo que
+ * se aprueba. Lo que se aprueba es esta tabla, y `verify:acople` exige que sus
+ * claves sean exactamente `GIROS` en las dos direcciones.
+ *
+ * `farmacia` toma `tienda`: su modelo no está construido todavía y el mostrador
+ * con inventario es lo más cercano. Cuando llegue su carpeta tendrá la suya, y
+ * esta tabla es el sitio donde se verá que falta.
+ */
+export const PLANTILLA_POR_GIRO: Readonly<Record<Giro, Plantilla>> = {
+  tienda: 'tienda',
+  ferreteria: 'ferreteria',
+  farmacia: 'tienda',
+  cafeteria: 'cafeteria',
+  restaurante: 'restaurante',
+  estetica: 'estetica',
 };
 
 /** Una perilla: el módulo y si el negocio lo tiene encendido o apagado. */

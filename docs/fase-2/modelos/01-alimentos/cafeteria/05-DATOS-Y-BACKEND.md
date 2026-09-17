@@ -462,7 +462,7 @@ separarlas mentalmente:
 2. **Ajustar el `check` de compatibilidad** para que `paquete = 'cafeteria'` exija
    `giro = 'cafeteria'`.
 3. **Bajar a Café Jacaranda de `restaurante_pro` a `cafeteria`**, que es quitarle tres módulos a un
-   cliente que está operando. **Aplicada en la Fase 3 (P-04 resuelta) contestada y sin respaldo probado**, y no se
+   cliente que está operando. **Aplicada en la Fase 2.3 (P-04 resuelta) contestada y sin respaldo probado**, y no se
    aplica antes de que exista la tanda 1, por lo dicho en §0.2.
 
 ---

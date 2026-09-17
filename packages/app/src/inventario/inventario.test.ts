@@ -96,7 +96,7 @@ describe('B-11 · comandos de insumos y almacenes', () => {
 
 describe('B-10 · reinicio de demostración', () => {
   it('exige confirmación literal y está disponible para cada paquete', () => {
-    expect(resetearDemo.paquetes).toHaveLength(3);
+    expect(resetearDemo.paquetes).toHaveLength(5);
     expect(resetearDemo.entrada.safeParse({ confirmacion: 'sí' }).success).toBe(false);
     expect(resetearDemo.entrada.safeParse({ confirmacion: 'RESETEAR' }).success).toBe(true);
   });

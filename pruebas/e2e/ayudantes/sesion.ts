@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/test';
 
 /**
- * El ayudante que comparten las cinco pruebas de plantilla (F3-REGLAS §8, condición 6).
+ * El ayudante que comparten las cinco pruebas de plantilla (F2.3-REGLAS §8, condición 6).
  *
  * ── Por qué UNO y no cinco ─────────────────────────────────────────────────
  * Entrar con PIN son ocho pasos: pedir la plantilla de empleados, tocar un nombre,
@@ -89,7 +89,7 @@ import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/
 export type Plantilla = 'tienda' | 'cafeteria' | 'restaurante';
 
 /**
- * Los cuatro negocios que cobran de verdad (F3-REGLAS §4.5).
+ * Los cuatro negocios que cobran de verdad (F2.3-REGLAS §4.5).
  *
  * Se comparan por NOMBRE porque es lo único que `/api/auth/empleados` devuelve sin
  * sesión —`datos.negocio` es `organizaciones.nombre`— y esta comprobación tiene que
@@ -164,7 +164,7 @@ interface RespuestaDeEmpleados {
  * Porque una prueba saltada se lee igual que una que pasó. `13-PRUEBAS §2` lo dice
  * de las de integración y vale idéntico aquí: «una suite verde sin ellas da una
  * seguridad que no existe». Hoy no hay base, no hay demo y el preview está detrás
- * del SSO de Vercel; si estas cinco se saltaran, `F3-REGLAS §8` condición 6
+ * del SSO de Vercel; si estas cinco se saltaran, `F2.3-REGLAS §8` condición 6
  * quedaría marcada como cumplida sin que nadie haya abierto un navegador. Falla, y
  * el mensaje del fallo es el único sitio donde alguien va a leer qué le falta.
  *
@@ -188,7 +188,7 @@ export async function exigirDemostracion(
       [
         'Falta MORPHIQPOS_ORG_DEMO.',
         '',
-        'F3-REGLAS §4.5: «Toda prueba de extremo a extremo, todo recorrido de Playwright',
+        'F2.3-REGLAS §4.5: «Toda prueba de extremo a extremo, todo recorrido de Playwright',
         'y toda comprobación manual se hace sobre una organización de DEMOSTRACIÓN,',
         'creada para eso». Restaurante MH, Café Jacaranda, Abarrotes Don Chuy y',
         'Ferretería La Broca son clientes que cobran.',
@@ -277,7 +277,7 @@ export async function exigirDemostracion(
         [
           `ALTO. El despliegue está sirviendo a «${negocio}», que es un NEGOCIO VIVO.`,
           '',
-          'F3-REGLAS §4.5: «Si al terminar quedan ventas de prueba, cortes de prueba o mesas',
+          'F2.3-REGLAS §4.5: «Si al terminar quedan ventas de prueba, cortes de prueba o mesas',
           'abiertas en cualquiera de los cuatro negocios vivos, el acople está mal hecho',
           'aunque todo lo demás esté bien.»',
           '',
@@ -718,7 +718,7 @@ export async function exigirVocabulario(menu: Locator, sustantivos: Sustantivos)
 /**
  * Abre una pantalla y exige que RESPONDA.
  *
- * El criterio es el de `F3-REGLAS §8.1` para las 105 rutas, y se copia a propósito:
+ * El criterio es el de `F2.3-REGLAS §8.1` para las 105 rutas, y se copia a propósito:
  * lo que no se admite es un **404** (no existe) ni un **500** (revienta). Aquí no
  * hay 401 posible —la sesión ya está abierta— así que el umbral es 200 seco.
  *
@@ -734,6 +734,6 @@ export async function abrirPantalla(page: Page, ruta: string): Promise<void> {
     respuesta?.status(),
     `«${ruta}» respondió ${String(respuesta?.status())}. Un 404 dice que la pantalla no ` +
       'existe; un 500, que revienta. Ninguno de los dos cuenta como «probada en el ' +
-      'navegador» (F3-REGLAS §8, condición 6).',
+      'navegador» (F2.3-REGLAS §8, condición 6).',
   ).toBe(200);
 }

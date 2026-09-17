@@ -306,7 +306,7 @@ código.
 
 ---
 
-## 3.quinquies · LO QUE EL ACOPLE (FASE 3) CAMBIÓ
+## 3.quinquies · LO QUE EL ACOPLE (FASE 2.3) CAMBIÓ
 
 Ninguna ruta de este modelo faltaba: las 29 estaban. Lo que le llega del acople es el vocabulario,
 y es el modelo donde más se nota — «mesa» pasa a «estación», «mesero» a «estilista» y «comensal» a

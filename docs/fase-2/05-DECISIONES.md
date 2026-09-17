@@ -76,7 +76,7 @@ esencial         →  tienda
 
 **Contexto.** Codex sigue cerrando la Fase 1 en `carril-b`. Trabajar los dos en el mismo árbol garantiza conflictos.
 
-**Decisión.** La Fase 2 vive en `D:\MIS PROYECTOS\Master POS\fase-2\`, fuera de los dos worktrees. Se construye **como si ya estuviera dentro**: mismos contratos (`comando()`, el puente, el ámbito de sesión, bigint de centavos), misma estructura de carpetas que tendría en el monorepo. Las migraciones se escriben numeradas y listas, **pero no se aplican en la Fase 2** — la Fase 3 las aplicó el 16-09-2026 (F3-REGLAS §2 y §4).
+**Decisión.** La Fase 2 vive en `D:\MIS PROYECTOS\Master POS\fase-2\`, fuera de los dos worktrees. Se construye **como si ya estuviera dentro**: mismos contratos (`comando()`, el puente, el ámbito de sesión, bigint de centavos), misma estructura de carpetas que tendría en el monorepo. Las migraciones se escriben numeradas y listas, **pero no se aplican en la Fase 2** — la Fase 2.3 las aplicó el 16-09-2026 (F2.3-REGLAS §2 y §4).
 
 **Consecuencia.** Acoplar es mover carpetas y aplicar migraciones. Nunca reescribir. `FILE-MAP.md` de cada modelo declara la ruta exacta de destino de cada archivo.
 
@@ -108,7 +108,7 @@ git worktree add "D:\MIS PROYECTOS\Master POS\morphiqpos-fase2" -b fase-2 carril
 
 **Consecuencia.** `carril-b` va a seguir moviéndose mientras Codex cierra la Fase 1. Eso está previsto: se hace `git merge carril-b` cada vez que Codex publique, y se resuelven los conflictos en caliente en vez de acumularlos.
 
-**Lo que NO cambiaba EN LA FASE 2:** las migraciones se escribían y **no se aplicaban** a `wyqmzhliurwyxuyxznpb`. **DEROGADO en la Fase 3** (F3-REGLAS §2): se aplicaron las 70 el 16-09-2026, en una sola transacción, con respaldo restaurado y ensayo sobre una copia con datos. Las pruebas unitarias no necesitan Postgres (`vitest.config.ts` excluye las de integración y ninguna unitaria abre conexión), así que la puerta de calidad funciona igual.
+**Lo que NO cambiaba EN LA FASE 2:** las migraciones se escribían y **no se aplicaban** a `wyqmzhliurwyxuyxznpb`. **DEROGADO en la Fase 2.3** (F2.3-REGLAS §2): se aplicaron las 70 el 16-09-2026, en una sola transacción, con respaldo restaurado y ensayo sobre una copia con datos. Las pruebas unitarias no necesitan Postgres (`vitest.config.ts` excluye las de integración y ninguna unitaria abre conexión), así que la puerta de calidad funciona igual.
 
 ---
 

@@ -32,7 +32,7 @@ cobrar»), no del commit que la auditoría del reporte 009 había visto.
 estado viejo habría garantizado un conflicto en el primer `git merge carril-b`.
 
 **Comprobado de paso:** Codex **no** ha fusionado `carril-b` a `main` (50 commits de diferencia).
-Por tanto **D-09 seguía vigente** mientras Codex trabajaba ahí: no se editaba ningún archivo que ya existiera en `apps/web/heredado/`. **Quedó DEROGADA el 16-09-2026** (F3-REGLAS §2): `carril-b` se fusionó a `main` el 15 de septiembre y Codex terminó. El acople sí edita esos archivos, y `verify:aspecto` es lo que impide que el aspecto cambie.
+Por tanto **D-09 seguía vigente** mientras Codex trabajaba ahí: no se editaba ningún archivo que ya existiera en `apps/web/heredado/`. **Quedó DEROGADA el 16-09-2026** (F2.3-REGLAS §2): `carril-b` se fusionó a `main` el 15 de septiembre y Codex terminó. El acople sí edita esos archivos, y `verify:aspecto` es lo que impide que el aspecto cambie.
 
 ---
 
@@ -1366,16 +1366,16 @@ E11a y E13.1, las tres iguales: `window.location.assign()` para navegar dentro d
 
 ---
 
-## 2026-09-16 · FASE 3 · A0 · Preparación · el ensayo cazó diez defectos
+## 2026-09-16 · FASE 2.3 · A0 · Preparación · el ensayo cazó diez defectos
 
-Gobierna `docs/fase-2/F3-REGLAS-DE-ACOPLE.md`. Quedan derogadas D-05/D-07 (las migraciones ya se
+Gobierna `docs/fase-2/F2.3-REGLAS-DE-ACOPLE.md`. Quedan derogadas D-05/D-07 (las migraciones ya se
 aplican), D-09 (`heredado/` se puede editar), la prohibición sobre `esquema-esperado.json` y el
 acotamiento a lectura. Lo único inviolable sigue siéndolo: el proyecto de Pastelería Confetti
 (`ivqcxdpqxwjxfohiswqb`) no se toca ni para leer.
 
 ### Lo que el documento daba por roto y NO lo estaba
 
-`F3-REGLAS §7.4` dice que `pnpm verify` muere en el eslabón 3 y que `pnpm test:unit` falla, las
+`F2.3-REGLAS §7.4` dice que `pnpm verify` muere en el eslabón 3 y que `pnpm test:unit` falla, las
 dos por `historico/`. **En este worktree las dos pasan.** El contenido está en disco —las tres
 fuentes completas— y `verificar-historico.mjs` sale en 0. Lo que el documento describe es lo que
 pasaría en un clon limpio, porque `historico/` está en `.gitignore:48`.
@@ -1536,7 +1536,7 @@ A0 cerrada. Sigue A1: fusionar `main` en `fase-2`.
 
 ---
 
-## 2026-09-16 · FASE 3 · A1 a A5 · el acople, menos la tanda
+## 2026-09-16 · FASE 2.3 · A1 a A5 · el acople, menos la tanda
 
 ### A1 · La fusión de `main`, sin un solo conflicto
 
@@ -1654,7 +1654,7 @@ cobran no falla ruidosamente: deja un esquema sutilmente distinto, y eso es peor
 ### A5 · El preview, con el entorno que le faltaba
 
 El CLI de Vercel **sí** está autenticado (`huertabautistamiguel62-4004`) y el proyecto está
-vinculado. El defecto que `F3-REGLAS §10` describía era exacto: **diez variables, las diez sólo en
+vinculado. El defecto que `F2.3-REGLAS §10` describía era exacto: **diez variables, las diez sólo en
 Production.** Preview estaba vacío.
 
 Ahora tiene nueve, puestas con el CLI y sin que ningún valor toque un commit. `TZ` la rechaza Vercel
@@ -1695,7 +1695,7 @@ una de las tres opciones, y después §3 y §4.
 
 ---
 
-## 2026-09-16 · FASE 3 · A6 · las cinco pruebas, y el defecto que encontraron
+## 2026-09-16 · FASE 2.3 · A6 · las cinco pruebas, y el defecto que encontraron
 
 ### Las cinco pruebas de navegador, escritas y en rojo a propósito
 
@@ -1828,7 +1828,7 @@ volvió a correr para no suponerlo.
 
 ---
 
-## 2026-09-17 · FASE 3 · A3 y A4 · las migraciones aplicadas, y lo que eso destapó
+## 2026-09-17 · FASE 2.3 · A3 y A4 · las migraciones aplicadas, y lo que eso destapó
 
 ### El bloqueo no era una credencial: era un archivo que no cruzó de worktree
 
@@ -1974,8 +1974,14 @@ migrar deja de detectar deriva, que es justo lo que existe para detectar.
 
 `test:integracion` estaba ANTES de `verify:acople` en la cadena de `pnpm verify`. Exige Docker, esta
 máquina no lo tiene, abortaba, y el `&&` cortaba: **la puerta de la fase no llegaba a correr nunca**.
-Se movió detrás, y `verify:fase2` —que no la incluía— también la lleva ahora, para que no haya una
-cadena corta por la que colarse.
+Se movió detrás.
+
+> **CORRECCIÓN (2026-09-17, etapa E3).** La frase siguiente decía que `verify:fase2` «también
+> la lleva ahora», y **era falsa**: esa cadena terminaba en `verify:cobertura` y no llevaba ni
+> `test:integracion`, ni `verify:esquema`, ni `verify:rls`, ni `verify:acople`. Correr la que no
+> era aprobaba un árbol sin mirar la base ni la puerta de la fase. Se arregló borrándola: **hay
+> UNA cadena, `pnpm verify`.** Las menciones a `verify:fase2` en las entradas anteriores de esta
+> bitácora y en los reportes 010, 011 y 013 son historia fechada y se quedan como estaban.
 
 Y la puerta, hoy:
 
@@ -2002,7 +2008,7 @@ la rechazaba.
 
 ---
 
-## 2026-09-17 · FASE 3 · A6 · las cinco plantillas, abiertas en un navegador
+## 2026-09-17 · FASE 2.3 · A6 · las cinco plantillas, abiertas en un navegador
 
 **Las diez pasan.** Cinco modelos × los dos proyectos —Desktop Chrome y la Galaxy Tab S4 en
 horizontal—, cada uno contra SU organización de demostración, ninguno contra un negocio vivo.
@@ -2097,3 +2103,120 @@ producción —eso es de Miguel— pero queda dicho, con las dos salidas, en el 
 | **abarrotes** | la plantilla `tienda` trae inventario, compras y recetas (D-01) y NO trae sala · «Productos» |
 | **ferretería** | «Materiales» donde la tiendita dice «Productos», con la misma plantilla · el mostrador con su buscador y la venta armándose al lado |
 | **estética** | el giro `estetica` ya existe y habla como una estética —estación, cita, estilista, clienta— · `salon` sigue SIN ser plantilla, y el servidor la rechaza con `ENTRADA_INVALIDA` · las doce pantallas responden |
+
+---
+
+## 2026-09-17 · CIERRE DE LA 2.3 · E1 a E3 · el renombre, los cinco negocios y la puerta que muerde
+
+El acople quedó ✅ con la puerta en 0, y **la puerta no servía**. Aprobó un sistema con cinco
+defectos que cualquiera ve al abrirlo:
+
+1. Las **61 pantallas** de los cinco modelos no colgaban de **ningún** menú. Respondían, y sólo se
+   abrían tecleando la URL. `heredado/lib/permissions.js:43-79` tenía doce entradas fijas y
+   `app/(modelos)/layout.tsx` no comprobaba nada.
+2. De tres plantillas, **dos eran la misma**: `tienda` y `cafeteria` con los mismos 28 módulos. Y
+   ningún módulo nombraba agenda, cita, comisión, expediente, profesional, cotización, corte de
+   material ni crédito — las palabras de los negocios que se acababan de construir.
+3. La puerta **no podía fallar**: `verificar-acople.mjs:406-410` comprobaba que «los 6 giros caen en
+   una plantilla», y `plantillaDe()` termina en `default: return 'tienda'`. Una tautología.
+4. `verify:fase2` seguía sin `verify:acople`, sin `verify:esquema` y sin `verify:rls` — y el reporte
+   013 §3 y esta bitácora afirmaban que se había arreglado.
+5. La `DATABASE_URL` de Production, en el 5432.
+
+### E1 · el nombre
+
+Al acople se le llamó «Fase 3» durante dos sesiones. No lo es: la **Fase 2 es construir los ~78
+modelos del mapa**, hoy hay cinco y faltan 73; el acople de esos cinco es la etapa **2.3**. El
+renombre tocó **26 archivos, 61 apariciones** y renombró tres: `F2.3-REGLAS-DE-ACOPLE.md` y los
+reportes 012 y 013.
+
+**Lo que NO se tocó:** las ~85 cabeceras SQL del rango 058-166 que dicen «APLICADA EN LA FASE 3
+(acople)» y «(F3-REGLAS §2)». Son comentarios *dentro del SQL*, el ejecutor valida cada archivo por
+hash FNV-1a contra el ledger `_migraciones`, y cambiar una coma abortaría la tanda entera. Se leen
+como «2.3», y así queda dicho en `00-LEEME-PRIMERO.md`.
+
+### E2 · que cada modelo se vea como su negocio
+
+**De 3 plantillas a 5** (`tienda`, `cafeteria`, `restaurante`, `ferreteria`, `estetica`) y **de 38
+módulos a 62**. Los 24 nuevos son las palabras que faltaban: agenda, cita, comisión, expediente,
+profesional, cotización, corte de material, crédito. Ningún par de plantillas comparte conjunto:
+32 · 34 · 40 · 39 · 37 módulos. Migración **166** aplicada — abre el `check`, reescribe
+`organizaciones_paquete_compatible_con_giro` y comprueba DENTRO de la transacción que el check
+admite las cinco y sólo cinco, y que ningún negocio queda con plantilla ajena a su giro.
+
+**F-018 · el menú vive en el servidor.** `packages/contracts/src/comandos/navegacion.ts` es la
+única tabla de menú del sistema: cinco menús en orden de día de trabajo, cada entrada con su
+módulo y su permiso. De ahí leen **el lateral y el abanico móvil** — antes cada uno tenía su lista
+tecleada a mano, y ninguna de las dos incluía una sola pantalla de modelo.
+
+Pantalla de inicio por plantilla y por rol (`INICIO_POR_PLANTILLA`), y la guarda
+`exigirPlantilla()` en las cinco carpetas de `app/(modelos)/`: una ferretería que teclee
+`/restaurante/mapa-de-mesas` acaba en su propio mostrador, no en la sala de otro negocio.
+
+**Lo que no pasó todavía:** el vocabulario de F-017 lo consumen 3 componentes. Las 61 pantallas,
+los mensajes de error y los estados vacíos siguen con las palabras de fábrica. Es E2.4.
+
+### E3 · la puerta
+
+**Se escribió primero la comprobación y se comprobó que salía ROJA** con el código de entonces
+—`Cannot find module … navegacion.ts` y `NAVEGACION: no hay menú por plantilla`— porque una puerta
+que no has visto fallar no sabes si funciona, y ésa fue exactamente la que dejó pasar las 61
+pantallas huérfanas.
+
+La tautología se sustituyó por `PLANTILLA_POR_GIRO`, un mapa explícito: sus claves son `GIROS` **en
+las dos direcciones**, sus valores están en `PLANTILLAS`, `plantillaDe(giro)` coincide con el mapa,
+y **un giro inventado NO es clave**. `plantillaDe` ahora distingue AUSENTE —el giro decide— de
+CORRUPTO, que sí cae en `tienda`. Y `comprobarNavegacion()` exige menú no vacío por plantilla,
+módulo incluido, inicio dentro del menú, y las 61 pantallas alcanzables menos las declaradas.
+
+**Cuatro pantallas no van en ningún menú, y está escrito por qué** en `EXCEPCIONES-COBERTURA.md`
+con la clave `PANTALLA-SIN-MENU`: los dos `acceso-por-pin` se ven ANTES de que haya sesión, y
+`restaurante/portal-del-comensal` y `cafeteria/menu-publico-y-pedido-anticipado` las abre el
+cliente desde su teléfono con un token de mesa. Si la fila no está, la puerta las cuenta como
+inalcanzables: lo que no puede pasar es que una pantalla se caiga del menú en silencio.
+
+**`verify:fase2` borrado.** Era la cadena corta por la que se colaba todo: terminaba en
+`verify:cobertura` y no llevaba ni `test:integracion`, ni `verify:esquema`, ni `verify:rls`, ni
+`verify:acople`. Hay **UNA** cadena, `pnpm verify`, con 31 eslabones. Y las dos afirmaciones falsas
+—reporte 013 §3 y esta bitácora línea 1977— llevan su corrección fechada donde estaban escritas, no
+en otro archivo.
+
+### Las consecuencias, una por una
+
+Ocho pruebas se pusieron rojas al abrir las plantillas a cinco, y **todas eran correctas**: la
+ferretería pasa a su propia plantilla; ausente y corrupto dejan de ser lo mismo; la estética deja de
+resolverse como tienda; `toHaveLength(3)` pasa a 5; se lee `PAQUETES` en vez de teclear la lista; y
+`PAQUETES_OPERATIVOS` pasa a llamarse `PAQUETES_PORTAL` y se estrecha a `['cafeteria','restaurante']`
+— **antes una ferretería aceptaba pedidos por QR de mesa**.
+
+Un contrato propio salió demasiado fuerte y se corrigió en vez de forzarlo: «cada plantilla trae al
+menos un módulo que ninguna otra trae» falla porque `tienda ⊂ ferreteria`, y eso es **correcto** —
+una ferretería es una tiendita que además corta material, fía y factura. Quedó como «cada PAR se
+distingue en al menos un módulo», con el porqué escrito al lado: inventar una diferencia para que
+pase la prueba sería la peor forma de satisfacer un contrato.
+
+**`verify:aspecto` con 39 testigos**, y ninguno es una regresión: el abanico móvil pierde 10 iconos
+del import nombrado porque ya no tiene lista propia —los resuelve por nombre, y ahora pinta también
+los de las pantallas del modelo— y el lateral gana 29 porque tiene 29 entradas nuevas. Declarados en
+`scripts/aspecto-permitido.json`, con su motivo, en la clave `permitidos` (que es la que
+`verificar-aspecto.mjs:99` lee — la primera vez fueron a parar a `_comentario` y la puerta siguió en
+rojo, con razón).
+
+### Cómo queda
+
+```
+  migraciones   98 en disco = 98 en el ledger
+  seguridad     RLS y grants cerrados en 162 relaciones y 15 funciones
+  plantillas    5 resuelven módulos · los 6 giros de GIROS caen en una
+  navegacion    59 rutas en los menús · 57 de 61 pantallas de modelo alcanzables · 4 declaradas sin menú
+  vocabulario   ruta + los dos envoltorios + el menú heredado · 3 pantalla(s) lo consumen
+```
+
+`typecheck` 7/7 · **2 685 pruebas en 223 archivos** · `lint`, `verify:cobertura`, `verify:esquema`,
+`verify:rls`, `verify:paquetes`, `verify:aspecto`, `verify:entorno`, `verify:primitivas` y
+`verify:mutaciones-backend` en 0. `verify:acople` pide un servidor al que preguntar por las rutas:
+eso es E5.
+
+**Falta:** E2.4 (que el vocabulario se vea en las 61 pantallas), E4 (datos y usuarios de
+demostración, con la guarda de `sesion.ts` comparando por ID de organización y no por nombre), E5
+(producción, `main`, el 6543 y la organización saliendo de la SESIÓN), E6 (`ACCESOS-DEMO.md`) y E7.

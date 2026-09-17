@@ -3,97 +3,123 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from '@/enrutado';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
-import { etiquetaDeNavegacion, getNavForRole } from '@/lib/permissions';
+import { etiquetaDeNavegacion, hasPermission } from '@/lib/permissions';
 import { useVocabulario } from '~/cliente/vocabulario';
-import { isRouteAllowed, normalizarPlantilla } from '@/lib/packageConfig';
+import { navegacionParaRolYPlantilla } from '@/lib/packageConfig';
 import { ROLE_LABELS } from '@/lib/constants';
 import {
-  LayoutDashboard,
-  ShoppingCart,
-  UtensilsCrossed,
-  ChefHat,
-  Receipt,
-  Scissors,
-  Package,
-  ShoppingBag,
+  BellRing,
   BookOpen,
-  Tag,
-  Settings,
-  Landmark,
-  LogOut,
+  CalendarDays,
+  CalendarPlus,
+  ChefHat,
   ChevronLeft,
   ChevronRight,
-  Menu,
-  X,
+  ClipboardCheck,
+  Clock,
+  Coffee,
+  CreditCard,
+  FileCheck,
+  FileSpreadsheet,
   FileText,
-  Sparkles,
+  HandCoins,
+  History,
+  IdCard,
+  Landmark,
+  LayoutDashboard,
+  LayoutGrid,
+  ListChecks,
+  LogOut,
+  Menu,
+  NotebookPen,
+  Package,
+  PlusCircle,
   QrCode,
+  Receipt,
+  ReceiptText,
+  Ruler,
+  ScanBarcode,
+  Scissors,
+  Search,
+  Settings,
+  ShoppingBag,
+  ShoppingCart,
+  SlidersHorizontal,
+  Smartphone,
+  Sparkles,
+  Stamp,
+  Tag,
+  Timer,
+  Truck,
+  UserCheck,
+  Users,
+  UtensilsCrossed,
+  Wallet,
+  Wrench,
+  X,
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
 const ICON_MAP = {
-  LayoutDashboard,
-  ShoppingCart,
-  UtensilsCrossed,
-  ChefHat,
-  Receipt,
-  Scissors,
-  Package,
-  ShoppingBag,
+  BellRing,
   BookOpen,
-  Tag,
-  Settings,
-  Landmark,
+  CalendarDays,
+  CalendarPlus,
+  ChefHat,
+  ClipboardCheck,
+  Clock,
+  Coffee,
+  CreditCard,
+  FileCheck,
+  FileSpreadsheet,
   FileText,
+  HandCoins,
+  History,
+  IdCard,
+  Landmark,
+  LayoutDashboard,
+  LayoutGrid,
+  ListChecks,
+  NotebookPen,
+  Package,
+  PlusCircle,
   QrCode,
+  Receipt,
+  ReceiptText,
+  Ruler,
+  ScanBarcode,
+  Scissors,
+  Search,
+  Settings,
+  ShoppingBag,
+  ShoppingCart,
+  SlidersHorizontal,
+  Smartphone,
+  Stamp,
+  Tag,
+  Timer,
+  Truck,
+  UserCheck,
+  Users,
+  UtensilsCrossed,
+  Wallet,
+  Wrench,
 };
 
-// Orden recomendado por plantilla (solo para ADMINISTRADOR).
-// Para otros roles se respeta el orden natural devuelto por permissions.
+// El ORDEN ya no se calcula aquí, y las listas de rutas tampoco.
 //
-// Son DOS órdenes y no tres: `tienda` y `cafeteria` traen exactamente los
-// mismos módulos, así que ordenarlos distinto sería inventar una diferencia que
-// el servidor no reconoce. El orden que había para el viejo `esencial` —sin
-// inventario, compras ni recetas— desapareció con él: bajo D-01 no hay
-// plantilla sin operación, y dejarlo mandaba esas tres entradas al final de la
-// lista, detrás de Configuración.
-const ORDER_MOSTRADOR = [
-  '/',
-  '/caja',
-  '/ventas',
-  '/productos',
-  '/inventario',
-  '/compras',
-  '/recetas',
-  '/registros',
-  '/portal-qr',
-  '/configuracion',
-];
-const ORDER_RESTAURANTE = [
-  '/',
-  '/mesero',
-  '/cocina',
-  '/caja',
-  '/ventas',
-  '/productos',
-  '/inventario',
-  '/compras',
-  '/recetas',
-  '/registros',
-  '/portal-qr',
-  '/configuracion',
-];
-
-function sortByPackage(items, paquete, role) {
-  if (role !== 'administrador') return items;
-  const order =
-    normalizarPlantilla(paquete) === 'restaurante' ? ORDER_RESTAURANTE : ORDER_MOSTRADOR;
-  const idx = (path) => {
-    const i = order.indexOf(path);
-    return i === -1 ? 999 : i;
-  };
-  return [...items].sort((a, b) => idx(a.path) - idx(b.path));
-}
+// Había dos órdenes tecleados a mano —mostrador y restaurante— y una lista fija
+// de doce entradas en `permissions.js`, ninguna de las cuales llevaba a una
+// pantalla de modelo. El resultado es que las 61 pantallas de los cinco modelos
+// respondían y no colgaban de ningún menú: para abrirlas había que teclear la
+// URL.
+//
+// Ahora el menú lo declara el SERVIDOR, en
+// `packages/contracts/src/comandos/navegacion.ts`, con el orden del DÍA DE
+// TRABAJO de cada giro —un restaurante abre el mapa de mesas y termina en el
+// arqueo; una estética abre la agenda y termina en la liquidación— y este
+// componente se limita a pintarlo. Ordenar aquí volvería a crear la segunda
+// lista que se queda atrás.
 
 export default function Sidebar({ collapsed, onToggle }) {
   const { posUser, logout } = usePOSAuth();
@@ -121,12 +147,16 @@ export default function Sidebar({ collapsed, onToggle }) {
   // que aqui ya esta resuelto y no hay parpadeo en la primera pintada.
   const vocabulario = useVocabulario();
 
-  // Filtra primero por rol y luego por paquete activo, y aplica orden
-  const baseItems = getNavForRole(posUser?.rol)
-    .filter((item) => isRouteAllowed(item.path, paquete_modo))
-    // Garantía: nunca incluir la ruta /mesas (vista vieja)
-    .filter((item) => item.path !== '/mesas');
-  const navItems = sortByPackage(baseItems, paquete_modo, posUser?.rol);
+  // La plantilla dice qué COMPRÓ el negocio y el rol qué puede TOCAR esta
+  // persona. Son dos preguntas distintas y se responden en ese orden.
+  const navItems = navegacionParaRolYPlantilla(posUser?.rol, paquete_modo, hasPermission).map(
+    (entrada) => ({
+      path: entrada.ruta,
+      label: entrada.etiqueta,
+      icon: entrada.icono,
+      entidad: entrada.entidad,
+    }),
+  );
 
   const closeMobile = () => setMobileOpen(false);
 

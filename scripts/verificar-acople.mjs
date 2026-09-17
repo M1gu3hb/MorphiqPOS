@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * LA PUERTA DEL ACOPLE (Fase 3).
+ * LA PUERTA DEL ACOPLE (Fase 2.3).
  *
  * ── Por qué existe ──────────────────────────────────────────────────────────
  * `verify:cobertura` cuenta lo que hay ESCRITO en el repositorio: 113 funciones,
@@ -45,7 +45,7 @@ import {
   consultarViva,
 } from '../packages/data/src/verificacion/consulta-directa.ts';
 import { problemasDeSeguridad } from '../packages/data/src/verificacion/rls.ts';
-import { MODELOS, rutasEsperadas } from './verificar-cobertura.mjs';
+import { MODELOS, pantallasEsperadas, rutasEsperadas } from './verificar-cobertura.mjs';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 const PROYECTO_MORPHIQPOS = 'wyqmzhliurwyxuyxznpb';
@@ -382,6 +382,7 @@ async function comprobarRutas(base) {
 async function comprobarPlantillas() {
   let plantillas;
   let ambito;
+  let navegacion;
   try {
     plantillas = await import('../packages/contracts/src/comandos/plantillas.ts');
     // Los giros se leen de donde se declaran. Aquí había una lista tecleada a mano
@@ -389,6 +390,9 @@ async function comprobarPlantillas() {
     // queda atrás, y es la misma razón por la que las 105 rutas se importan de
     // `verificar-cobertura.mjs` en vez de escribirse aquí.
     ambito = await import('../packages/contracts/src/comandos/ambito.ts');
+    // El menú y el mapa de giros viven aquí: es lo que el servidor sabe de la
+    // navegación, y lo que el navegador tiene que limitarse a pintar.
+    navegacion = await import('../packages/contracts/src/comandos/navegacion.ts');
   } catch (error) {
     fallos.push(`PLANTILLAS: no se pudo cargar el módulo · ${error.message}`);
     return;
@@ -403,11 +407,50 @@ async function comprobarPlantillas() {
     );
   }
 
-  for (const giro of ambito.GIROS) {
-    const plantilla = plantillaDe(giro, undefined);
+  // ── Cada giro cae en una plantilla DECLARADA, no en el `default` ──────
+  //
+  // Aquí había una tautología: se preguntaba si `plantillaDe(giro)` devolvía
+  // una plantilla real, y `plantillaDe` termina en `default: return 'tienda'`.
+  // La respuesta era que sí para CUALQUIER giro, incluido uno inventado, así
+  // que la comprobación pasaba siempre y no medía nada. Por eso no vio que dos
+  // de los seis giros no tenían plantilla propia.
+  //
+  // Lo que se comprueba ahora es que exista un mapa EXPLÍCITO giro → plantilla,
+  // que sus claves sean exactamente `GIROS` en las dos direcciones, y que un
+  // giro inventado NO esté en él. El `default` sigue existiendo —un dato roto
+  // tiene que caer en la plantilla más restrictiva y no reventar— pero deja de
+  // ser lo que esta puerta aprueba.
+  const { PLANTILLA_POR_GIRO } = navegacion;
+  if (PLANTILLA_POR_GIRO === undefined) {
+    fallos.push(
+      'PLANTILLAS: no hay mapa explícito giro → plantilla. Se espera ' +
+        '`PLANTILLA_POR_GIRO` en packages/contracts/src/comandos/navegacion.ts, ' +
+        'porque el `default` de plantillaDe() aprueba cualquier giro y no prueba nada.',
+    );
+  } else {
+    const declarados = Object.keys(PLANTILLA_POR_GIRO).sort();
+    const esperados = [...ambito.GIROS].sort();
     exigir(
-      PLANTILLAS.includes(plantilla),
-      `PLANTILLAS: el giro "${giro}" no cae en ninguna plantilla real (dio "${plantilla}")`,
+      declarados.join(',') === esperados.join(','),
+      `PLANTILLAS: PLANTILLA_POR_GIRO declara [${declarados.join(', ')}] y GIROS dice ` +
+        `[${esperados.join(', ')}]`,
+    );
+    for (const giro of ambito.GIROS) {
+      const declarada = PLANTILLA_POR_GIRO[giro];
+      exigir(
+        PLANTILLAS.includes(declarada),
+        `PLANTILLAS: el giro "${giro}" está declarado en "${declarada}", que no es una plantilla`,
+      );
+      exigir(
+        plantillaDe(giro, undefined) === declarada,
+        `PLANTILLAS: plantillaDe("${giro}") da "${plantillaDe(giro, undefined)}" y el mapa ` +
+          `declara "${declarada}". Las dos listas tienen que ser la misma.`,
+      );
+    }
+    exigir(
+      PLANTILLA_POR_GIRO['giro_que_no_existe'] === undefined,
+      'PLANTILLAS: el mapa giro → plantilla acepta un giro inventado. Si responde a ' +
+        'todo, no declara nada.',
     );
   }
 
@@ -444,7 +487,128 @@ async function comprobarPlantillas() {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// 5 · El vocabulario por giro tiene consumidores
+// 5 · Las pantallas de los modelos cuelgan de un menú
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Que una pantalla RESPONDA no significa que alguien pueda llegar a ella.
+ *
+ * ── Qué se le escapó a esta puerta ─────────────────────────────────────────
+ * Las 61 pantallas de los cinco modelos estaban construidas, etiquetadas,
+ * contadas por `verify:cobertura` y respondiendo por HTTP — y NINGUNA colgaba
+ * de un menú. Para abrir cualquiera de ellas había que teclear la URL.
+ * `NAV_ITEMS` seguía siendo la lista fija de doce entradas heredadas, y ni una
+ * llevaba a una pantalla de modelo.
+ *
+ * Contar archivos y pedir un 200 no mide acople: mide existencia. Esto mide lo
+ * otro — que desde la plantilla de un negocio se pueda LLEGAR.
+ *
+ * ── Por qué el menú se lee del servidor y no de `permissions.js` ───────────
+ * Porque el navegador no puede ser la fuente de la verdad de lo que un negocio
+ * tiene contratado: eso ya costó un defecto en esta misma fase, cuando
+ * `getCurrentPackage` daba el menú completo a una tienda. El menú se declara en
+ * `packages/contracts/src/comandos/navegacion.ts`, junto a los módulos, y el
+ * frontend heredado lo pinta.
+ */
+async function comprobarNavegacion() {
+  let navegacion;
+  let plantillas;
+  try {
+    navegacion = await import('../packages/contracts/src/comandos/navegacion.ts');
+    plantillas = await import('../packages/contracts/src/comandos/plantillas.ts');
+  } catch (error) {
+    fallos.push(
+      'NAVEGACION: no hay menú por plantilla. Se espera ' +
+        'packages/contracts/src/comandos/navegacion.ts con `navegacionDePlantilla` e ' +
+        `\`INICIO_POR_PLANTILLA\` · ${error.message}`,
+    );
+    return;
+  }
+
+  const { navegacionDePlantilla, INICIO_POR_PLANTILLA } = navegacion;
+  const { PLANTILLAS, modulosActivos } = plantillas;
+
+  if (typeof navegacionDePlantilla !== 'function') {
+    fallos.push('NAVEGACION: `navegacionDePlantilla` no es una función.');
+    return;
+  }
+
+  // Todas las rutas que alguna plantilla ofrece en su menú.
+  const ofrecidas = new Set();
+  for (const plantilla of PLANTILLAS) {
+    const entradas = navegacionDePlantilla(plantilla);
+    exigir(
+      Array.isArray(entradas) && entradas.length > 0,
+      `NAVEGACION: la plantilla "${plantilla}" no ofrece ninguna entrada de menú`,
+    );
+    const modulos = modulosActivos(plantilla);
+    for (const entrada of entradas ?? []) {
+      ofrecidas.add(entrada.ruta);
+      // Un menú que ofrece lo que la plantilla no incluye es una promesa que el
+      // POST rechaza — el defecto de `getCurrentPackage`, otra vez.
+      exigir(
+        entrada.modulo === undefined || modulos.has(entrada.modulo),
+        `NAVEGACION: "${plantilla}" ofrece ${entrada.ruta} por el módulo ` +
+          `"${entrada.modulo}", que esa plantilla no incluye`,
+      );
+    }
+
+    const inicio = INICIO_POR_PLANTILLA?.[plantilla];
+    exigir(
+      inicio !== undefined,
+      `NAVEGACION: la plantilla "${plantilla}" no declara pantalla de inicio`,
+    );
+    if (inicio !== undefined) {
+      exigir(
+        (entradas ?? []).some((e) => e.ruta === inicio),
+        `NAVEGACION: la pantalla de inicio de "${plantilla}" es ${inicio} y no está en su menú`,
+      );
+    }
+  }
+
+  // Y cada una de las 61 pantallas de los modelos tiene que estar en el menú de
+  // ALGUNA plantilla. No hace falta que esté en las cinco —el mapa de mesas no
+  // es de una ferretería— pero sí que exista un negocio desde el que se llegue.
+  //
+  // Salvo las que NO pueden estar: la entrada con PIN se ve antes de que haya
+  // menú, y las dos del QR las abre el cliente desde su teléfono. Ésas se
+  // DECLARAN, con su motivo, en EXCEPCIONES-COBERTURA.md — y si la fila no
+  // está, esta puerta las cuenta como inalcanzables, que es lo correcto: lo que
+  // no puede pasar es que una pantalla se caiga del menú en silencio.
+  const sinMenu = new Set();
+  const archivoExcepciones = join(RAIZ, 'docs', 'fase-2', 'EXCEPCIONES-COBERTURA.md');
+  if (existsSync(archivoExcepciones)) {
+    const texto = readFileSync(archivoExcepciones, 'utf8');
+    for (const m of texto.matchAll(/PANTALLA-SIN-MENU\s+([a-z-]+)\/([a-z0-9-]+)/g)) {
+      sinMenu.add(`/${m[1]}/${m[2]}`);
+    }
+  }
+
+  const inalcanzables = [];
+  for (const modelo of MODELOS) {
+    for (const slug of pantallasEsperadas(modelo)) {
+      const ruta = `/${modelo.clave}/${slug}`;
+      if (!ofrecidas.has(ruta) && !sinMenu.has(ruta)) inalcanzables.push(ruta);
+    }
+  }
+  exigir(
+    inalcanzables.length === 0,
+    `NAVEGACION: ${inalcanzables.length} pantalla(s) de modelo no cuelgan de ningún menú · ` +
+      `${inalcanzables.slice(0, 6).join(' · ')}`,
+  );
+
+  if (!fallos.some((f) => f.startsWith('NAVEGACION'))) {
+    const totalPantallas = MODELOS.reduce((n, m) => n + pantallasEsperadas(m).size, 0);
+    notas.push(
+      `navegacion    ${ofrecidas.size} rutas en los menús · ` +
+        `${totalPantallas - sinMenu.size} de ${totalPantallas} pantallas de modelo alcanzables · ` +
+        `${sinMenu.size} declaradas sin menú`,
+    );
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 6 · El vocabulario por giro tiene consumidores
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
@@ -665,6 +829,7 @@ await comprobarSeguridad();
 const base = await comprobarDespliegue();
 await comprobarRutas(base);
 await comprobarPlantillas();
+await comprobarNavegacion();
 comprobarVocabulario();
 
 for (const nota of notas) console.log(`  ${nota}`);
@@ -679,5 +844,6 @@ if (fallos.length > 0) {
 }
 
 console.log('✓ Acople completo: migraciones aplicadas, seguridad cerrada, rutas vivas,');
-console.log('  plantillas resueltas, vocabulario consumido y aplicación respondiendo.');
+console.log('  plantillas resueltas, pantallas alcanzables desde el menú, vocabulario');
+console.log('  consumido y aplicación respondiendo.');
 process.exit(0);

@@ -747,7 +747,7 @@ las precisiones.
 2. **P-02 (CFDI) deja de ser una decisión abierta para este modelo.** Un ferretero sin facturación en el
    punto de venta no compra. Si CFDI no entra en la Fase 2, `ferreteria` se puede documentar pero **no
    se puede vender completo**, y eso hay que decirlo antes de prometerlo.
-3. **La migración `095` se aplicó en la Fase 3, con P-04 resuelta**, y además plantea la pregunta del doble movimiento de
+3. **La migración `095` se aplicó en la Fase 2.3, con P-04 resuelta**, y además plantea la pregunta del doble movimiento de
    plantilla de La Broca. Ver §7.
 4. **F-988 (venta sin conexión) tiene aquí una respuesta más fácil que en `abarrotes`** y conviene
    decirla: **sin conexión se vende de contado y el crédito se bloquea**. Eso reduce el problema a un

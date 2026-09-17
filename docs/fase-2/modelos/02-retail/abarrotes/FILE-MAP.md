@@ -126,7 +126,7 @@ packages/data/src/migraciones/sql/
 ├── 099_proveedores_ruta.sql
 ├── 100_caja_denominaciones.sql
 ├── 101_vistas_retail.sql
-└── 066_plantillas_semilla.sql               TOCA DATOS VIVOS · Aplicada en la Fase 3 (P-04 resuelta)
+└── 066_plantillas_semilla.sql               TOCA DATOS VIVOS · Aplicada en la Fase 2.3 (P-04 resuelta)
 ```
 
 ### 2.5 · Interfaz
@@ -276,7 +276,7 @@ sustituye la detección actual por `esDeLector`.
 
 ---
 
-## 3.quinquies · LO QUE EL ACOPLE (FASE 3) CAMBIÓ
+## 3.quinquies · LO QUE EL ACOPLE (FASE 2.3) CAMBIÓ
 
 Dos rutas que faltaban y que eran de este modelo:
 `apps/web/app/api/venta/retomar/route.ts` —la venta se podía apartar y no retomar— y
@@ -477,7 +477,7 @@ Para que nadie tenga que deducirlos leyendo los siete archivos.
    ser exclusiva de A9 y F-029 deja de ser `[=]`. **Antes de construir nada.**
 2. **F-988 (venta sin conexión) la decide Miguel.** Entra en tensión directa con la regla de Fase 1
    de totales en el servidor, y de la respuesta depende la arquitectura de la pantalla de Cobrar.
-3. **La migración 082 se aplicó en la Fase 3, con P-04 resuelta.** Toca a Don Chuy y a La Broca, que están operando.
+3. **La migración 082 se aplicó en la Fase 2.3, con P-04 resuelta.** Toca a Don Chuy y a La Broca, que están operando.
 4. **La tabla de mapeo categoría → tasa de IVA la revisa un contador** antes de aplicar la 078. Es
    la única parte de esta carpeta con consecuencia fiscal directa sobre un cliente vivo.
 5. **F-017 (diccionario de vocabulario) debería construirse con este modelo**, no después. Es el

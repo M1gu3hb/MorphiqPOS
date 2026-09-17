@@ -27,6 +27,7 @@ Formato de la primera columna:
 | `F-NNN` | una función del `01-FUNCIONES.md` §5 de algún modelo, o del tronco |
 | `RUTA apps/web/app/api/…/route.ts` | una ruta declarada en un `05-DATOS-Y-BACKEND.md` |
 | `PANTALLA <modelo>/<slug>` | una pantalla declarada en un `04-INTERFAZ.md` §4.3 |
+| `PANTALLA-SIN-MENU <modelo>/<slug>` | una pantalla construida que NO cuelga de ningún menú, con el motivo |
 | `MIGRACION NNN_nombre.sql` | una migración declarada en un `05-DATOS-Y-BACKEND.md` |
 | `PUERTA <script>/<comprobacion>` | una comprobación de OTRA puerta que no se puede ejecutar en esta máquina |
 
@@ -62,8 +63,28 @@ Formato de la primera columna:
 
 ## PANTALLAS
 
-*(ninguna: una pantalla que depende de una migración sin aplicar SÍ se construye, y se dice en el
-`FILE-MAP.md` que no se puede abrir. Eso es trabajo pendiente de acople, no trabajo imposible.)*
+*(ninguna sin construir: una pantalla que depende de una migración sin aplicar SÍ se construye, y
+se dice en el `FILE-MAP.md` que no se puede abrir. Eso es trabajo pendiente de acople, no trabajo
+imposible.)*
+
+### PANTALLAS SIN MENÚ
+
+`verify:acople` exige que las 61 pantallas de los cinco modelos cuelguen del menú de **alguna**
+plantilla. No hace falta que estén en las cinco —el mapa de mesas no es de una ferretería— pero sí
+que exista un negocio desde el que se pueda LLEGAR. Se puso esa comprobación porque hasta el
+17-09-2026 no colgaba **ninguna**: las 61 respondían y sólo se abrían tecleando la URL.
+
+Cuatro no van en ningún menú, y no es un olvido:
+
+| Clave | Qué es | Por qué no puede estar en el menú |
+|---|---|---|
+| `PANTALLA-SIN-MENU restaurante/acceso-por-pin` | La entrada con PIN del modelo | Es lo que se ve ANTES de que exista sesión, y el menú lateral se pinta DESPUÉS. Ponerla en el menú sería ofrecerle a alguien que ya entró la pantalla de entrar. |
+| `PANTALLA-SIN-MENU cafeteria/acceso-por-pin` | La misma, en la cafetería | Igual. |
+| `PANTALLA-SIN-MENU restaurante/portal-del-comensal` | El portal que abre el COMENSAL con el QR de su mesa | No la abre Miguel ni su personal: la abre el cliente, desde su teléfono, con un token de mesa. No hay sesión de negocio ni menú lateral en esa pantalla. |
+| `PANTALLA-SIN-MENU cafeteria/menu-publico-y-pedido-anticipado` | El menú público y el pedido anticipado, por QR | Lo mismo: es del cliente. Lo que sí está en el menú del negocio es `/cafeteria/recogida`, que es donde el personal ve lo que ese QR pidió. |
+
+**La puerta FALLA si una de estas cuatro filas no existe**, igual que con las demás excepciones: lo
+que no se puede es que una pantalla desaparezca del menú sin que nadie lo diga.
 
 ## PUERTAS
 

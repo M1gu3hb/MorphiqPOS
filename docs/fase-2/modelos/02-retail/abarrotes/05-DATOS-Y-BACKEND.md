@@ -506,7 +506,7 @@ Con su ruta. **Nada de esto se toca.**
    totales se calculan siempre en el servidor. **La decide Miguel**, y de la respuesta depende la
    arquitectura de la pantalla de cobro entera. Hasta que se decida, la pantalla se construye
    asumiendo servidor, con la franja de "sin conexión" como estado de error visible.
-3. **La migración `082` se aplicó en la Fase 3, con P-04 resuelta.** Toca a los cuatro negocios vivos: Don Chuy pasa de
+3. **La migración `082` se aplicó en la Fase 2.3, con P-04 resuelta.** Toca a los cuatro negocios vivos: Don Chuy pasa de
    paquete `operativo` a plantilla `tienda`, y La Broca pasa a `tienda` provisional.
 4. **El agregador de recargas es una decisión comercial, no técnica.** Ver §8.
 5. **La tabla de mapeo categoría → tasa de IVA la revisa un contador** antes de aplicar `078`. Es
