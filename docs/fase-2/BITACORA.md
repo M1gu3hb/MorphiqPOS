@@ -2940,3 +2940,64 @@ El corte no es adorno: es lo que hace **repetible** la corrida —una caja que s
 la siguiente, porque la base permite una por sucursal— y es donde «el dinero cuadró» deja de ser una
 frase. El esperado lo suma el servidor de los movimientos del turno: la apertura con su fondo y la
 venta en efectivo.
+
+---
+
+## 2026-09-18 · E5 y el cierre · las puertas nuevas y lo que se quedó fuera
+
+### Las cuatro comprobaciones, y por qué cada una
+
+**Que las pruebas cobren.** Una suite que abre once pantallas y mira el menú pasa con el cobro roto, y
+pasó. Se afirma sobre el USO —`exigirVentaCobrada`— y no sobre una palabra: buscar «cobrar» daría
+verde con un comentario. La ferretería está declarada con motivo Y con sonda, y la puerta exige las dos
+cosas: que no cobre —si ya cobra, la excepción sobra— y que lleve la sonda.
+
+**Que el CI esté verde, leído por la API.** Sobre el ÚLTIMO commit de la rama, no «algún run verde».
+Sin credenciales no se inventa un veredicto: falla diciendo que no se pudo leer, porque un «no lo sé»
+que pasa por verde es exactamente lo que produjo el reporte anterior.
+
+**Que exista la ruta que la pantalla llama.** `comprobarRutas` iba en un sentido y nadie miraba el
+contrario: **19 llamadas a rutas inexistentes**, una arreglada aquí y 18 declaradas con lo que le falta
+a cada una.
+
+**Las heredadas, atadas al menú.** Seis pierden su sitio porque la pantalla del modelo toma su módulo,
+y eso es correcto: quedan declaradas con QUÉ pantalla se lo quitó.
+
+### La aserción que mentía
+
+`plantillaDe(giro, undefined)` **es** `PLANTILLA_POR_GIRO[giro] ?? 'tienda'`. Compararla con el mapa
+comparaba el mapa consigo mismo: pasaba siempre, con cualquier mapa. En su lugar, tres que sí pueden
+fallar —el paquete guardado manda, un valor corrupto degrada, `restaurante_pro` sólo abre sala en
+alimentos— y mutando `plantillaDe` saltan 24 fallos donde antes no saltaba ninguno.
+
+### Los dos contratos que E3 rompió
+
+`la_organizacion_no_viene_del_cliente` exigía el nombre SINGULAR de `negocioDelDespliegue`. Es la
+SEGUNDA vez que ese contrato dice «roto» ante un cambio correcto por estar atado al texto —la primera
+fue cuando la función aprendió a resolver por host—. Ahora acepta las dos formas y **añade** lo que E3
+introduce: que la organización de la sesión salga de `organizacionDeQuienEntra(empleoId, servidas)` y
+que un empleo ajeno responda igual que un PIN incorrecto. Con su mutación.
+
+Y `verify:aspecto`: la línea del negocio en la tarjeta de acceso es un cambio VISIBLE en el frontend de
+Miguel, así que va declarada en `aspecto-permitido.json` con su porqué. Con un solo negocio la pantalla
+es exactamente la de antes.
+
+### Producción: hasta dónde llegué y dónde me paré
+
+El muro de Vercel estaba en `all_except_custom_domains`: `morphiqpos-kappa.vercel.app` pedía cookie de
+SSO y Miguel no podía entrar. **Quitado** —ahora sólo protege previews— y comprobado desde fuera: la
+raíz, `/login-pos` y `/api/auth/empleados` responden 200 sin nada.
+
+La fusión del PR #1 **la denegó la política de permisos de esta sesión**, no GitHub: el PR es
+`MERGEABLE` y los cuatro checks están verdes. Y promover el preview a producción —el camino C del
+encargo— se descartó **a propósito**: un despliegue de preview lleva las variables de Preview dentro
+del build, leerlas también está denegado, y promover sería apostar a que la URL de producción de Miguel
+no acaba sirviendo una demostración en vez de su restaurante. Eso no se apuesta: se dice.
+
+### La cadena, medida
+
+```
+30 de 31 eslabones en verde.
+El 31 —test:integracion— se detiene: esta máquina no tiene Docker ni DATABASE_URL_PRUEBAS.
+EN CI corre en cada empujón: 5 archivos, 10 pruebas, con las 99 migraciones aplicadas.
+```

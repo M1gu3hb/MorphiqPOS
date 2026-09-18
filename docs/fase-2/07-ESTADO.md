@@ -187,6 +187,39 @@ cambiar porque nombraban paquetes que el servidor ya rechaza.
 
 ---
 
+## FASE 2.3 · CIERRE DEFINITIVO · el día que las pruebas cobraron (18-09-2026)
+
+La suite de navegador salía 10/10 abriendo las pantallas de los cinco modelos, y **la pantalla de
+cobro de una tienda publicaba en una ruta que no existía**: `/api/venta/cobrar-mostrador`. Una tienda
+entera sin poder cobrar, con la puerta en verde. Ésta es la etapa que hizo que las pruebas cobraran, y
+lo que encontró al hacerlo.
+
+| Etapa | Qué | Estado |
+|---|---|---|
+| **E1** | Los checks del CI | ✅ **los cuatro en verde** sobre `ef57f4d`. Eran **cuatro causas distintas** y ninguna la que el encargo suponía —clonar en limpio y `pnpm install --frozen-lockfile` pasó en 44 s—: `verify:historico` exigía lo que el contrato prohíbe versionar, dos vulnerabilidades altas de `sharp`, un `export` que sólo el build ve, y una prueba unitaria que lee `historico/`. Y una quinta al arreglarlas: **`test:integracion` nunca había corrido en CI** —el arnés leía `DATABASE_URL_PRUEBAS` y el workflow definía `DATABASE_URL`, la espera de Postgres sólo abría un socket, nadie aplicaba las migraciones y el rol `morphiqpos_app` no existe en una base nueva—. Ahora: **5 archivos, 10 pruebas, en cada empujón** |
+| **E3** | Un despliegue, las cinco demos | ✅ `ORGANIZACION` admite una **lista de slugs**; con uno —producción— no cambia nada. La organización sale del **EMPLEO** de quien entra, resuelto en el servidor y filtrado por la lista servida **dentro de la consulta** (R16 intacto). Medido: **un build, un servidor, 5 negocios, 25 personas**, y las cinco suites en verde seguidas sin redesplegar |
+| **E4** | Que las pruebas cobren | ⚠️ **4 de 5**. `abarrotes` $42.90 · `cafeteria` $52.00 · `restaurante` $75.00 · `estetica-salon` $1,800.00, cada una comprobando contra el SERVIDOR la venta con su folio, el movimiento de inventario por ESA venta, y el corte cuadrado al centavo. La `ferreteria` **no puede**: su mostrador se hidrata de una entidad que el puente no tiene, «Mandar a caja» publica en una ruta que sirve a otro comando, y `pendiente_cobro` no lo escribe nadie. Declarado con **sonda** que falla el día que se arregle |
+| **E5** | Puertas nuevas y la que mentía | ✅ Cuatro comprobaciones en `verify:acople`, **las cuatro validadas mutando**: que cada suite compruebe un TOTAL COBRADO, que los checks de GitHub estén verdes leídos por la API, **que exista la ruta que la pantalla llama** —18 declaradas— y que las 14 pantallas heredadas cuelguen de un menú o estén declaradas. Y fuera la aserción circular de `plantillaDe(giro, undefined)`: comparaba el mapa consigo mismo |
+| **E2** | Producción | ⚠️ **el muro sí, el código no**. La Protección de Despliegue estaba en `all_except_custom_domains` y Miguel no podía entrar; ahora protege **sólo los previews** y la URL de producción responde 200 sin cookie, comprobado desde fuera. La **fusión del PR #1 la denegó la política de permisos de la sesión** («Merge Without Review»), no GitHub: los cuatro checks están verdes y el PR es `MERGEABLE`. Promover el preview a producción se descartó a propósito: lleva las variables de Preview dentro del build y leerlas también está denegado — promover sería apostar a que la URL de Miguel no acaba sirviendo una demostración |
+| **DNS** | El dominio | ✗ `DNS-PENDIENTE.md` con los valores exactos. El apex **no tiene registro A** y `www` sigue apuntando a **`base44.onrender.com`**, la plataforma erradicada: de ahí sale el 402 |
+
+**Los veinte defectos** están contados uno por uno en el reporte **015** §3.1. Ocho estaban en el
+camino del dinero —la tienda no podía cobrar, la cafetería no podía cerrar el turno, el corte decía
+«Sobran» todo lo contado, cobrar una cita no tocaba la caja— y seis en la demostración: sin estación
+de cocina, sin servicios marcados como servicios, sin saber quién hace qué, sin regla de comisión, sin
+transición a «terminada» y con un reseteo que se rompía en cuanto el salón cobraba.
+
+**Al cerrar esta etapa**, en 0: `verify:acople` con sus diez comprobaciones, `verify:aspecto` (con la
+línea del negocio en la tarjeta de acceso declarada), `verify:identidad` (11 contratos · 12
+destructivas de contrato · 6 de prueba · 3 inocuas), `lint`, `prettier --check`, `typecheck` 7/7 y
+**2 739 pruebas en 228 archivos**. `test:integracion` corre **en CI**; en esta máquina sigue
+necesitando Docker o `DATABASE_URL_PRUEBAS`.
+
+**Cero datos de prueba en los cuatro negocios vivos**, medido: 0 órdenes, 0 cajas y 0 citas en las
+últimas 12 horas en Restaurante MH, Café Jacarandá, Abarrotes Don Chuy y Ferretería La Broca.
+
+---
+
 ## LOS 78 MODELOS
 
 Prioridad: **P0** = los tres que ya tienen cliente vivo · **P1** = alto rendimiento comercial · **P2** = resto.

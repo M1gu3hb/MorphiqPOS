@@ -438,6 +438,16 @@
         "+ icono:Wallet",
         "+ icono:Wrench"
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/POSLogin.jsx",
+      "porque": "E3 · un despliegue puede servir a VARIOS negocios, y entonces la pantalla de acceso tiene que decir de quien es cada tarjeta: con las cinco demostraciones en un despliegue hay CINCO personas llamadas «Demo», una por negocio, y un duenno en cada uno. Sin el negocio en la tarjeta no hay forma de saber en cual se entra — ni para Miguel ni para la suite, que resolvia a 25 elementos. Los tres testigos nuevos son la linea del negocio bajo el rol (`text-[9px]`, `mt-0.5`, `truncate`), y el texto «Usuarios disponibles» deja de ser literal porque ahora dice tambien cuantos negocios sirve el despliegue: con UN negocio -produccion- el rotulo es exactamente el de siempre y la tarjeta no ensenna nada nuevo.",
+      "testigos": [
+        "- texto:Usuarios disponibles",
+        "+ clase:truncate",
+        "+ clase:text-[9px]",
+        "+ clase:mt-0.5"
+      ]
     }
   ]
 }

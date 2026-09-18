@@ -70,7 +70,7 @@ export const contratos = [
       const entrada = cuerpo(c, 'const Entrada = z.object(');
       if (entrada === null || /organizacion/i.test(entrada)) return false;
 
-      // El id sale de `negocioDelDespliegue`, y lo que se le pasa importa.
+      // El id sale de la resolución del despliegue, y lo que se le pasa importa.
       //
       // Este contrato exigía el texto EXACTO
       // `negocioDelDespliegue(entorno.ORGANIZACION)`, y se rompió el día que la
@@ -80,7 +80,13 @@ export const contratos = [
       // cambio correcto; atado a la PROPIEDAD, sigue prohibiendo lo que importa.
       // Un nivel de anidamiento: `peticion.headers.get('host')` lleva sus propios
       // paréntesis, y un `[^)]*` cortaba dentro de ellos.
-      const llamada = /negocioDelDespliegue\(((?:[^()]|\([^()]*\))*)\)/.exec(c);
+      // `negocios?DelDespliegue`: en SINGULAR cuando quien pregunta sólo puede
+      // trabajar con un negocio —el portal del comensal— y en PLURAL desde E3,
+      // cuando `ORGANIZACION` admite una lista y un despliegue sirve a varios. El
+      // contrato es el mismo para las dos: lo que importa es de dónde salen sus
+      // argumentos, no cómo se llama la función. Atado al nombre, este contrato
+      // decía «roto» ante un cambio correcto por segunda vez.
+      const llamada = /negocios?DelDespliegue\(((?:[^()]|\([^()]*\))*)\)/.exec(c);
       if (llamada === null) return false;
       const argumentos = llamada[1] ?? '';
 
@@ -93,7 +99,32 @@ export const contratos = [
         .map((parte) => parte.trim())
         .filter((parte) => parte !== '');
       if (partes.length === 0) return false;
-      return partes.every((parte) => PERMITIDOS.some((forma) => forma.test(parte)));
+      if (!partes.every((parte) => PERMITIDOS.some((forma) => forma.test(parte)))) return false;
+
+      /**
+       * Y LA ORGANIZACIÓN DE LA SESIÓN SALE DEL EMPLEO, resuelto en el servidor.
+       *
+       * Esto es lo que E3 añade y lo que hay que vigilar ahora: el despliegue dice
+       * a QUÉ negocios sirve, y de esos, el EMPLEO de quien entra dice en cuál se
+       * entra. Lo que el cliente manda es una persona.
+       *
+       * Se exige que el `organizacionId` que viaja a `entrarConPin` venga de
+       * `organizacionDeQuienEntra(...)` —que filtra por la lista servida DENTRO de
+       * la consulta— y no de ningún otro sitio. Si alguien lo sustituyera por
+       * `servidas[0]`, por un campo del cuerpo o por un slug de la URL, esto se
+       * cae: son exactamente las tres formas de dejar que quien llama elija
+       * negocio.
+       */
+      const deQuienEntra =
+        /const organizacionId = await organizacionDeQuienEntra\(\s*validada\.data\.empleoId,/.test(
+          c,
+        );
+      if (!deQuienEntra) return false;
+
+      // Y un empleo que no es de ninguno de los negocios servidos se responde
+      // IGUAL que un PIN incorrecto. Distinguirlos dejaría sondear dónde trabaja
+      // alguien probando identificadores.
+      return /if \(organizacionId === null\)[\s\S]{0,200}?json\(401,/.test(c);
     },
   },
   {
