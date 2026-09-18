@@ -35,6 +35,7 @@
  *
  * Se ejecuta con: pnpm verify:acople
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -442,10 +443,46 @@ async function comprobarPlantillas() {
         PLANTILLAS.includes(declarada),
         `PLANTILLAS: el giro "${giro}" está declarado en "${declarada}", que no es una plantilla`,
       );
+      /**
+       * Lo que SÍ mide algo: que un paquete GUARDADO gane sobre el giro.
+       *
+       * ── Por qué se quitó lo que había aquí ─────────────────────────────
+       * Había `plantillaDe(giro, undefined) === declarada`, y eso es el mapa
+       * comparándose consigo mismo: sin valor guardado, `plantillaDe` devuelve
+       * literalmente `PLANTILLA_POR_GIRO[giro] ?? 'tienda'`. Pasaba siempre, para
+       * cualquier mapa, incluido uno mal escrito. Una aserción circular no es una
+       * aserción: es una línea que da confianza gratis.
+       *
+       * Estas tres sí pueden fallar, y cada una protege una decisión escrita:
+       *  · un paquete guardado y válido MANDA sobre el giro —es lo que hace que
+       *    Modo presentación pueda enseñar las cinco plantillas en un negocio—;
+       *  · un valor corrupto cae en la MÁS RESTRICTIVA y no en la más permisiva,
+       *    que es la regla de D-01 y el defecto que tenía `getCurrentPackage`;
+       *  · `restaurante_pro` sólo abre sala en un giro de alimentos: en una
+       *    ferretería se degrada en vez de regalarle mesero y cocina.
+       *
+       * El `default: 'tienda'` de `plantillaDe()` NO se toca: un dato roto tiene
+       * que caer en la plantilla más restrictiva en vez de reventar.
+       */
+      for (const otra of PLANTILLAS) {
+        exigir(
+          plantillaDe(giro, otra) === otra,
+          `PLANTILLAS: con el paquete "${otra}" guardado, el giro "${giro}" resuelve a ` +
+            `"${plantillaDe(giro, otra)}". Un paquete guardado y válido manda sobre el giro.`,
+        );
+      }
       exigir(
-        plantillaDe(giro, undefined) === declarada,
-        `PLANTILLAS: plantillaDe("${giro}") da "${plantillaDe(giro, undefined)}" y el mapa ` +
-          `declara "${declarada}". Las dos listas tienen que ser la misma.`,
+        plantillaDe(giro, 'paquete_que_no_existe') === 'tienda',
+        `PLANTILLAS: un paquete corrupto en el giro "${giro}" resuelve a ` +
+          `"${plantillaDe(giro, 'paquete_que_no_existe')}" en vez de a la plantilla más ` +
+          'restrictiva. Un dato roto no puede abrir módulos que nadie contrató.',
+      );
+      const esDeAlimentos = ['restaurante', 'cafeteria'].includes(giro);
+      exigir(
+        plantillaDe(giro, 'restaurante_pro') === (esDeAlimentos ? 'restaurante' : 'tienda'),
+        `PLANTILLAS: "restaurante_pro" en el giro "${giro}" resuelve a ` +
+          `"${plantillaDe(giro, 'restaurante_pro')}". Sólo un giro de alimentos puede tener sala; ` +
+          'en los demás es un dato corrupto y se degrada.',
       );
     }
     exigir(
@@ -622,12 +659,64 @@ async function comprobarNavegacion() {
       `${inalcanzables.slice(0, 6).join(' · ')}`,
   );
 
+  /**
+   * Y LAS PANTALLAS HEREDADAS, que hasta hoy no las miraba nadie.
+   *
+   * ── Por qué hacen falta aquí ──────────────────────────────────────────
+   * Las de `app/(interno)/` son las que llevan meses cobrando: la caja, la
+   * cocina, el mesero, el punto de venta, los registros. El menú las ofrece en su
+   * propio grupo, y **ya se cayeron una vez** — cuando la navegación pasó a ser
+   * por plantilla, un módulo mal escrito las dejó fuera del menú sin que ninguna
+   * puerta lo notara, porque esta comprobación sólo miraba las de los modelos.
+   *
+   * La misma regla que para las de modelo: o cuelgan de algún menú, o están
+   * DECLARADAS con su motivo en `EXCEPCIONES-COBERTURA.md`. Lo que no puede pasar
+   * es que se caigan en silencio.
+   */
+  const CARPETA_HEREDADAS = join(RAIZ, 'apps', 'web', 'app', '(interno)');
+  const heredadasSinMenu = new Set();
+  if (existsSync(archivoExcepciones)) {
+    const texto = readFileSync(archivoExcepciones, 'utf8');
+    for (const m of texto.matchAll(/PANTALLA-HEREDADA-SIN-MENU\s+([a-z0-9-]+)/g)) {
+      heredadasSinMenu.add(`/${m[1]}`);
+    }
+  }
+
+  // `readdirSyncSeguro` devuelve `Dirent`, no cadenas: se toma el nombre.
+  const heredadas = readdirSyncSeguro(CARPETA_HEREDADAS)
+    .filter((entrada) => entrada.isDirectory())
+    .map((entrada) => entrada.name)
+    .filter((nombre) => existsSync(join(CARPETA_HEREDADAS, nombre, 'page.tsx')));
+  const heredadasHuerfanas = heredadas
+    .map((slug) => `/${slug}`)
+    .filter((ruta) => !ofrecidas.has(ruta) && !heredadasSinMenu.has(ruta));
+
+  exigir(
+    heredadasHuerfanas.length === 0,
+    `NAVEGACION: ${heredadasHuerfanas.length} pantalla(s) HEREDADAS no cuelgan de ningún menú ` +
+      `ni están declaradas · ${heredadasHuerfanas.join(' · ')}. ` +
+      'Son las que llevan meses cobrando: o están en el menú de alguna plantilla, o se declaran ' +
+      'con PANTALLA-HEREDADA-SIN-MENU y su motivo en docs/fase-2/EXCEPCIONES-COBERTURA.md.',
+  );
+
+  // Y una declaración que ya no corresponde a ninguna pantalla es basura que
+  // sobrevive a un renombrado: se cae igual que una pantalla huérfana.
+  const declaradasQueNoExisten = [...heredadasSinMenu].filter(
+    (ruta) => !heredadas.includes(ruta.slice(1)),
+  );
+  exigir(
+    declaradasQueNoExisten.length === 0,
+    `NAVEGACION: hay PANTALLA-HEREDADA-SIN-MENU para ${declaradasQueNoExisten.join(', ')} y esa ` +
+      'pantalla no existe. Una excepción que no describe nada hace creer que la lista está al día.',
+  );
+
   if (!fallos.some((f) => f.startsWith('NAVEGACION'))) {
     const totalPantallas = MODELOS.reduce((n, m) => n + pantallasEsperadas(m).size, 0);
     notas.push(
       `navegacion    ${ofrecidas.size} rutas en los menús · ` +
         `${totalPantallas - sinMenu.size} de ${totalPantallas} pantallas de modelo alcanzables · ` +
-        `${sinMenu.size} declaradas sin menú`,
+        `${sinMenu.size} declaradas sin menú · ` +
+        `${heredadas.length - heredadasSinMenu.size} de ${heredadas.length} heredadas en el menú`,
     );
   }
 }
@@ -964,6 +1053,338 @@ async function comprobarDespliegue() {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// 8 · QUE LAS PRUEBAS DE NAVEGADOR COBREN UNA VENTA
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Las cinco suites de modelo, y lo que tiene que haber DENTRO de cada una.
+ *
+ * ── Por qué esta comprobación existe ──────────────────────────────────────
+ * Porque una suite que abre las once pantallas de una tienda y comprueba que el
+ * menú dice «Productos» **pasa con el cobro roto**, y lo pasó: la pantalla de
+ * cobro del mostrador publicaba en una ruta que no existía, y la suite daba el
+ * modelo por bueno porque la pantalla respondía 200 y enseñaba uno de sus tres
+ * estados. Lo que demuestra que un POS funciona es que entre dinero y que cuadre.
+ *
+ * Se afirma sobre el USO y no sobre una palabra suelta: cada suite tiene que
+ * llamar a `exigirVentaCobrada`, que es el ayudante que compara el total de la
+ * pantalla con la venta que quedó en el servidor, al centavo y con folio. Buscar
+ * «cobrar» o «total» daría verde con un comentario.
+ */
+const SUITES_DE_MODELO = [
+  'abarrotes.spec.ts',
+  'cafeteria.spec.ts',
+  'restaurante.spec.ts',
+  'estetica-salon.spec.ts',
+  'ferreteria.spec.ts',
+];
+
+/**
+ * Las que NO cobran todavía, con su motivo y su sonda.
+ *
+ * Un hueco declarado es honesto; un hueco en silencio, no. Y no basta con
+ * declararlo: la suite tiene que llevar una SONDA que falle el día que el
+ * impedimento desaparezca, para que nadie deje el hueco documentado para siempre.
+ */
+const SIN_COBRO_TODAVIA = {
+  'ferreteria.spec.ts': {
+    motivo:
+      'el buscador del mostrador se hidrata de la entidad `MaterialMostrador`, que el puente no ' +
+      'tiene; «Mandar a caja» publica en una ruta que sirve a `apartarNota` y pide otra forma; y ' +
+      'el estado `pendiente_cobro` que su caja lista no lo escribe ningún comando',
+    sonda: 'MaterialMostrador',
+  },
+};
+
+function comprobarQueLasPruebasCobran() {
+  const carpeta = join(RAIZ, 'pruebas', 'e2e');
+  for (const archivo of SUITES_DE_MODELO) {
+    const ruta = join(carpeta, archivo);
+    if (!existsSync(ruta)) {
+      fallos.push(`COBRO-E2E: falta la suite ${archivo}`);
+      continue;
+    }
+    // Sin comentarios: una llamada dentro de un comentario no cobra nada.
+    const codigo = readFileSync(ruta, 'utf8')
+      .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
+      .replaceAll(/^\s*\/\/.*$/gm, ' ');
+
+    const cobra = /exigirVentaCobrada\s*\(/.test(codigo);
+    const excepcion = SIN_COBRO_TODAVIA[archivo];
+
+    if (excepcion === undefined) {
+      exigir(
+        cobra,
+        `COBRO-E2E: ${archivo} no comprueba NINGÚN total cobrado. Tiene que llamar a ` +
+          '`exigirVentaCobrada`, que compara el total de la pantalla con la venta que quedó en el ' +
+          'servidor. Abrir pantallas no demuestra que el POS cobre.',
+      );
+      continue;
+    }
+
+    // Declarada: entonces NO puede cobrar (si ya cobra, la excepción sobra) y
+    // tiene que llevar su sonda.
+    exigir(
+      !cobra,
+      `COBRO-E2E: ${archivo} está declarada en SIN_COBRO_TODAVIA y SÍ cobra. Quita la ` +
+        'excepción: una lista de huecos que incluye lo que ya funciona deja de leerse.',
+    );
+    exigir(
+      codigo.includes(excepcion.sonda),
+      `COBRO-E2E: ${archivo} no cobra y tampoco lleva su sonda (${excepcion.sonda}). El hueco ` +
+        `declarado es: ${excepcion.motivo}. La sonda es lo que hace que alguien vuelva el día ` +
+        'que el impedimento se arregle.',
+    );
+  }
+
+  if (!fallos.some((f) => f.startsWith('COBRO-E2E'))) {
+    const cobran = SUITES_DE_MODELO.length - Object.keys(SIN_COBRO_TODAVIA).length;
+    notas.push(
+      `cobro e2e     ${cobran} de ${SUITES_DE_MODELO.length} suites comprueban un TOTAL COBRADO ` +
+        `contra el servidor · ${Object.keys(SIN_COBRO_TODAVIA).length} declarada(s) con sonda`,
+    );
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 9 · QUE EL CI ESTÉ VERDE EN GITHUB
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Los checks del PR, leídos por la API de GitHub.
+ *
+ * ── Por qué esto es una puerta y no una pestaña del navegador ──────────────
+ * Porque un reporte anterior declaró el acople terminado sin mencionar el CI una
+ * sola vez, con tres de los cuatro checks en rojo y el merge bloqueado. «Que corra
+ * en mi máquina» no es que esté verde: el CI clona en limpio, y esa diferencia fue
+ * exactamente la que escondió cuatro defectos —un contrato que exigía archivos que
+ * el propio contrato prohíbe versionar, dos vulnerabilidades altas, un `export`
+ * que sólo el build ve, y una prueba que leía un archivo que no se versiona—.
+ *
+ * Se lee el ÚLTIMO COMMIT DE ESTA RAMA, no «algún run verde»: lo que importa es si
+ * lo que hay escrito ahora pasa. Sin credenciales no se inventa un veredicto: se
+ * dice que no se pudo leer y se falla, porque un «no lo sé» que pasa por verde es
+ * lo que produjo el reporte anterior.
+ */
+async function comprobarCiEnGitHub() {
+  const sha = ejecutarGit(['rev-parse', 'HEAD']);
+  const rama = ejecutarGit(['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (sha === null) {
+    fallos.push('CI: no se pudo leer el commit actual con git.');
+    return;
+  }
+
+  const respuesta = ejecutarGh([
+    'api',
+    `repos/{owner}/{repo}/commits/${sha}/check-runs?per_page=50`,
+  ]);
+  if (respuesta === null) {
+    fallos.push(
+      'CI: no se pudo preguntar a GitHub por los checks de ' +
+        `${sha.slice(0, 7)} (${rama ?? 'sin rama'}). Hace falta \`gh\` autenticado: ` +
+        '`gh auth login`. No se da por verde lo que no se pudo leer.',
+    );
+    return;
+  }
+
+  let datos;
+  try {
+    datos = JSON.parse(respuesta);
+  } catch {
+    fallos.push('CI: GitHub contestó algo que no es JSON.');
+    return;
+  }
+
+  const corridas = Array.isArray(datos.check_runs) ? datos.check_runs : [];
+  if (corridas.length === 0) {
+    fallos.push(
+      `CI: GitHub no tiene NINGÚN check para ${sha.slice(0, 7)}. O no se ha empujado, o el ` +
+        'workflow no se disparó: en los dos casos, nadie ha comprobado este código en limpio.',
+    );
+    return;
+  }
+
+  const pendientes = corridas.filter((c) => c.status !== 'completed');
+  const rojos = corridas.filter((c) => c.status === 'completed' && c.conclusion !== 'success');
+
+  exigir(
+    pendientes.length === 0,
+    `CI: ${pendientes.length} check(s) todavía corriendo en ${sha.slice(0, 7)} · ` +
+      `${pendientes.map((c) => c.name).join(', ')}. Verde es verde cuando termina.`,
+  );
+  exigir(
+    rojos.length === 0,
+    `CI: ${rojos.length} check(s) en ROJO en ${sha.slice(0, 7)} · ` +
+      `${rojos.map((c) => `${c.name} (${c.conclusion})`).join(', ')}. ` +
+      'Míralos con `gh run view --log-failed`.',
+  );
+
+  if (!fallos.some((f) => f.startsWith('CI'))) {
+    notas.push(
+      `ci            ${corridas.length} check(s) VERDES en ${sha.slice(0, 7)} · ` +
+        corridas.map((c) => c.name).join(' · '),
+    );
+  }
+}
+
+function ejecutarGit(argumentos) {
+  const salida = spawnSync('git', argumentos, { cwd: RAIZ, encoding: 'utf8' });
+  if (salida.status !== 0) return null;
+  return (salida.stdout ?? '').trim();
+}
+
+function ejecutarGh(argumentos) {
+  /**
+   * `gh` y `gh.exe`, en ese orden, y SIN shell.
+   *
+   * En Windows el binario es `gh.exe` —no un `.cmd`, que es lo que uno supone— y
+   * `spawnSync('gh')` sin shell no lo resuelve. Con `shell: true` sí, pero
+   * entonces Node avisa (DEP0190) de que los argumentos van concatenados sin
+   * escapar, y aquí uno de ellos lleva un `{owner}/{repo}` con llaves. Se prueban
+   * los dos nombres y se deja el shell fuera.
+   */
+  for (const binario of ['gh', 'gh.exe']) {
+    const salida = spawnSync(binario, argumentos, { cwd: RAIZ, encoding: 'utf8' });
+    if (salida.error !== undefined) continue;
+    if (salida.status !== 0) return null;
+    return salida.stdout ?? '';
+  }
+  return null;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 10 · QUE EXISTA LA RUTA QUE LA PANTALLA LLAMA
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Las rutas que el frontend publica y que NO existen, declaradas una por una.
+ *
+ * ── Por qué esta comprobación tenía que existir ───────────────────────────
+ * `comprobarRutas` va en un sentido: coge la lista de rutas DECLARADAS en los
+ * documentos y comprueba que respondan. Nadie miraba el sentido contrario —qué
+ * rutas LLAMAN las pantallas— y por ahí se colaron diecinueve botones que
+ * publican en direcciones que no existen. El síntoma es siempre el mismo y no
+ * dice nada: Next devuelve su página de error, que no es `{ok, datos}`, el
+ * cliente lo traduce a «El servidor respondió algo inesperado» y la pantalla se
+ * queda como estaba.
+ *
+ * Tres de ellas costaron una tarde de esta sesión: `/api/venta/cobrar-mostrador`
+ * —una tienda no podía cobrar—, `/api/cafeteria/contar-bote` —una cafetería no
+ * podía cerrar el turno— y `/api/ferreteria/cortar` —una ferretería no podía
+ * cortar material—. Las dos primeras están arregladas; el resto está aquí, con
+ * lo que le falta a cada una.
+ *
+ * ── Cómo se usa esta lista ────────────────────────────────────────────────
+ * La puerta falla si aparece una llamada NUEVA que no esté declarada, y también
+ * si una declarada ya existe —entonces la fila sobra y se borra—. Así la lista
+ * sólo puede encogerse.
+ */
+const RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN = {
+  '/api/abarrotes/alta-rapida': 'existe el comando `catalogo.alta_rapida`; falta la ruta',
+  '/api/agenda/lista-espera': 'existe `lista_espera_citas.agendar`; falta la ruta',
+  '/api/cafeteria/agregar-linea':
+    'las opciones de la bebida publican aquí; el comando es `venta.agregar_linea` y la ruta ' +
+    'existe en /api/venta/agregar-linea — o se reusa ésa, o se crea el alias',
+  '/api/citas/cancelar':
+    'sólo aparece en un comentario de `servidor/ruta.ts` como ejemplo de ruta con parámetro; la ' +
+    'de verdad es /api/citas/[id]/cancelar, que sí existe',
+  '/api/cliente/crear':
+    'el alta de clienta desde el asistente de agendar. Sin ella la demo de estética no puede ' +
+    'agendar por la pantalla: tiene cero clientas',
+  '/api/entradas/alta-material': 'alta de material al recibir una compra; no hay comando todavía',
+  '/api/entradas/recibir': 'recepción de compra en ferretería; no hay comando todavía',
+  '/api/expediente/capturar-formula':
+    'la fórmula del tinte, dentro de la cita en curso; no hay comando todavía',
+  '/api/ferreteria/agregar-partida': 'agregar una pieza desde su ficha; no hay comando todavía',
+  '/api/ferreteria/cortar':
+    'el corte de material. El comando `inventario.cortar_material` SÍ existe y pide otra forma ' +
+    '(`ordenLineaId`, `almacenId`, medidas en unidad base) que esa pantalla no tiene: hace falta ' +
+    'decidir si el corte cuelga de una línea de venta o va suelto',
+  '/api/ferreteria/declarar-equivalencia': 'existe `catalogo.declarar_equivalencia`; falta la ruta',
+  '/api/inventario/ajustar-conteo': 'existe `inventario.ajustar`; falta la ruta o el alias',
+  '/api/precios/aplicar-sugerido': 'aplicar el precio sugerido tras una compra; falta el comando',
+  '/api/productos':
+    'la pantalla de productos del salón lo usa como lista; el puente ya sirve ' +
+    '`ProductoTerminado` y esa llamada tendría que salir',
+  '/api/reportes/exportar': 'exportar los registros a CSV; falta el comando',
+  '/api/restaurante/imprimir-precuenta':
+    'imprimir la precuenta. El cambio de estado que importa lo hace `solicitar-cuenta`, que sí ' +
+    'existe: esto es la impresión',
+  '/api/turno/presencia/abrir': 'marcar presencia al entrar con PIN en la barra; falta el comando',
+  '/api/venta/devolver': 'la devolución desde el cierre de turno; falta el comando',
+};
+
+function comprobarQueLasRutasQueSeLlamanExisten() {
+  const carpetas = [join(RAIZ, 'apps', 'web', 'src'), join(RAIZ, 'apps', 'web', 'heredado')];
+  const llamadas = new Map();
+
+  const recorrer = (carpeta) => {
+    for (const entrada of readdirSyncSeguro(carpeta)) {
+      const ruta = join(carpeta, entrada.name);
+      if (entrada.isDirectory()) {
+        recorrer(ruta);
+        continue;
+      }
+      if (!/\.(ts|tsx|js|jsx)$/.test(entrada.name) || entrada.name.includes('.test.')) continue;
+      // SIN COMENTARIOS: una ruta nombrada en un comentario no la llama nadie, y
+      // contarla hacía que esta puerta pidiera declarar la ruta que el comentario
+      // de al lado explica que ya no se usa.
+      const texto = readFileSync(ruta, 'utf8')
+        .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
+        .replaceAll(/^\s*\/\/.*$/gm, ' ');
+      for (const m of texto.matchAll(/['"`](\/api\/[a-zA-Z0-9/_-]+)['"`]/g)) {
+        if (!llamadas.has(m[1])) llamadas.set(m[1], ruta.replace(RAIZ, '').replaceAll(sep, '/'));
+      }
+    }
+  };
+  for (const carpeta of carpetas) recorrer(carpeta);
+
+  const existe = (url) => {
+    const partes = url.replace('/api/', '').split('/');
+    const directa = join(RAIZ, 'apps', 'web', 'app', 'api', ...partes, 'route.ts');
+    if (existsSync(directa)) return true;
+    // Una ruta con parámetro: `/api/citas/<id>/cancelar` la sirve `[id]`.
+    const padre = join(RAIZ, 'apps', 'web', 'app', 'api', ...partes.slice(0, -1));
+    return readdirSyncSeguro(padre).some(
+      (e) =>
+        e.isDirectory() && e.name.startsWith('[') && existsSync(join(padre, e.name, 'route.ts')),
+    );
+  };
+
+  const nuevas = [];
+  for (const [url, donde] of llamadas) {
+    if (existe(url)) continue;
+    if (RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN[url] !== undefined) continue;
+    nuevas.push(`${url} (${donde})`);
+  }
+  exigir(
+    nuevas.length === 0,
+    `RUTAS-LLAMADAS: ${nuevas.length} pantalla(s) publican en una ruta que NO existe y no está ` +
+      `declarada · ${nuevas.join(' · ')}. El botón devuelve la página de error de Next, el ` +
+      'cliente la traduce a «El servidor respondió algo inesperado» y no se hace nada. O se crea ' +
+      'la ruta, o se declara en RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN con lo que le falta.',
+  );
+
+  const yaExisten = Object.keys(RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN).filter((url) =>
+    existe(url),
+  );
+  exigir(
+    yaExisten.length === 0,
+    `RUTAS-LLAMADAS: ${yaExisten.join(', ')} ya existe(n) y sigue(n) declarada(s) como ` +
+      'pendiente(s). Borra la fila: una lista de huecos que incluye lo que ya funciona deja de ' +
+      'leerse.',
+  );
+
+  if (!fallos.some((f) => f.startsWith('RUTAS-LLAMADAS'))) {
+    const cuantas = Object.keys(RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN).length;
+    notas.push(
+      `rutas llamadas ${llamadas.size} rutas distintas se llaman desde las pantallas · ` +
+        `${cuantas} declarada(s) como todavía inexistente(s)`,
+    );
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 
 console.log('');
 console.log('ACOPLE DE LA FASE 2 · lo escrito contra lo conectado');
@@ -976,6 +1397,9 @@ await comprobarRutas(base);
 await comprobarPlantillas();
 await comprobarNavegacion();
 comprobarVocabulario();
+comprobarQueLasPruebasCobran();
+comprobarQueLasRutasQueSeLlamanExisten();
+await comprobarCiEnGitHub();
 
 for (const nota of notas) console.log(`  ${nota}`);
 if (notas.length > 0) console.log('');
@@ -990,5 +1414,5 @@ if (fallos.length > 0) {
 
 console.log('✓ Acople completo: migraciones aplicadas, seguridad cerrada, rutas vivas,');
 console.log('  plantillas resueltas, pantallas alcanzables desde el menú, vocabulario');
-console.log('  consumido y aplicación respondiendo.');
+console.log('  consumido, aplicación respondiendo, pruebas que COBRAN y CI verde.');
 process.exit(0);

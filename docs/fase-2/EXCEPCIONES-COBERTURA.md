@@ -28,6 +28,7 @@ Formato de la primera columna:
 | `RUTA apps/web/app/api/…/route.ts` | una ruta declarada en un `05-DATOS-Y-BACKEND.md` |
 | `PANTALLA <modelo>/<slug>` | una pantalla declarada en un `04-INTERFAZ.md` §4.3 |
 | `PANTALLA-SIN-MENU <modelo>/<slug>` | una pantalla construida que NO cuelga de ningún menú, con el motivo |
+| `PANTALLA-HEREDADA-SIN-MENU <slug>` | una pantalla de `app/(interno)/` que no cuelga de ningún menú, con el motivo |
 | `MIGRACION NNN_nombre.sql` | una migración declarada en un `05-DATOS-Y-BACKEND.md` |
 | `PUERTA <script>/<comprobacion>` | una comprobación de OTRA puerta que no se puede ejecutar en esta máquina |
 
@@ -85,6 +86,30 @@ Cuatro no van en ningún menú, y no es un olvido:
 
 **La puerta FALLA si una de estas cuatro filas no existe**, igual que con las demás excepciones: lo
 que no se puede es que una pantalla desaparezca del menú sin que nadie lo diga.
+
+### Las HEREDADAS que pierden su sitio en el menú
+
+Las pantallas de `app/(interno)/` son las del punto de venta que lleva meses cobrando. El menú las
+ofrece en su propio grupo, con una regla: **una entrada por módulo**. Cuando un modelo trae su
+propia pantalla para ese módulo, la del modelo gana el sitio y la heredada se queda fuera del menú
+—sigue respondiendo por su ruta, pero nadie llega a ella desde el menú—.
+
+Eso es correcto y es deliberado: `/abarrotes/caja` cuenta el fondo por montones y `/caja` no. Lo que
+no puede pasar es que una heredada se caiga del menú **sin que nadie lo diga**, que es lo que ocurrió
+cuando la navegación pasó a ser por plantilla. Por eso las seis están declaradas, con qué pantalla le
+quitó el sitio.
+
+| Clave | Qué es | Por qué no cuelga de ningún menú |
+|---|---|---|
+| `PANTALLA-HEREDADA-SIN-MENU caja` | La caja del POS heredado | Su módulo `caja_directa` lo toman las pantallas de caja de los modelos: `/abarrotes/caja`, `/restaurante/caja` y `/ferreteria/caja`. Cada una cuenta su fondo y su corte como lo cuenta ese negocio. |
+| `PANTALLA-HEREDADA-SIN-MENU corte-caja` | El corte heredado | Ya estaba **deprecada en su propio sistema**: su `App.jsx` la resolvía con un `Navigate to="/caja"`, y aquí es una redirección de servidor. No se ofrece lo que redirige. |
+| `PANTALLA-HEREDADA-SIN-MENU cocina` | La cocina heredada | Su módulo `cocina` lo toma `/restaurante/cocina`, que es la que tiene las estaciones, los tiempos y el marchado. En la cafetería el equivalente es `/cafeteria/barra`, con su propio módulo. |
+| `PANTALLA-HEREDADA-SIN-MENU mesas` | El mapa de mesas heredado | Su módulo `mapa_mesas` lo toma `/restaurante/mapa-de-mesas`, que es la que trae los ocho estados y la alergia. |
+| `PANTALLA-HEREDADA-SIN-MENU productos` | El catálogo heredado | Su módulo `productos_basicos` lo toman `/abarrotes/producto`, `/cafeteria/productos`, `/restaurante/productos` y `/estetica-salon/productos`, cada uno con el vocabulario de su giro. |
+| `PANTALLA-HEREDADA-SIN-MENU pos` | El punto de venta heredado | Es la pantalla de cobro de la plataforma anterior, y **cada modelo trae la suya**: `/abarrotes/cobrar`, `/cafeteria/cobrar`, `/restaurante/cobro`, `/ferreteria/mostrador` y `/estetica-salon/cobrar`. Se conserva viva porque es la que ha cobrado hasta hoy y el acople no la apaga de golpe. |
+
+**La puerta FALLA si una de estas seis filas no existe, y también si sobra una** —una excepción para
+una pantalla que ya no está hace creer que la lista está al día—.
 
 ## PUERTAS
 
