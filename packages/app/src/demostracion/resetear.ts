@@ -7,15 +7,25 @@ import { validarEntorno } from '@morphiqpos/contracts';
 
 import { definirComando } from '../comando.ts';
 import { recalcularCostosRecetas } from '../inventario/recetas.ts';
+import { limpiarArranque, sembrarArranque, type ResumenArranque } from './arranque.ts';
 import { semillaParaPaquete } from './datos.ts';
+import { sembrarEquipo } from './equipo.ts';
 import { limpiarSala, sembrarSala, type ResumenSala } from './sala.ts';
+import { limpiarSalon, sembrarSalon, type ResumenSalon } from './salon.ts';
 
 export const entradaResetearDemo = z.object({ confirmacion: z.literal('RESETEAR') });
 
 export const resetearDemo = definirComando<
   Transaccion,
   typeof entradaResetearDemo,
-  { readonly productos: number; readonly insumos: number; readonly sala: ResumenSala | null }
+  {
+    readonly productos: number;
+    readonly insumos: number;
+    readonly empleados: number;
+    readonly sala: ResumenSala | null;
+    readonly salon: ResumenSalon | null;
+    readonly arranque: ResumenArranque;
+  }
 >({
   nombre: 'configuracion.resetear_demo',
   entidad: 'organizacion',
@@ -32,6 +42,10 @@ export const resetearDemo = definirComando<
     if (organizacion === undefined || !esGiro(organizacion.giro)) {
       throw new ErrorDominio('CONFIGURACION_INVALIDA', 'La organización no tiene un giro válido.');
     }
+    // A un `const` propio: el estrechamiento de `organizacion.giro` no sobrevive
+    // a los `await` que hay en medio, y sin esto el giro llega como `string` a
+    // `sembrarEquipo`.
+    const giro = organizacion.giro;
     const sucursalId = ctx.ambito.sucursalId;
     if (sucursalId === null)
       throw new ErrorDominio(
@@ -61,6 +75,9 @@ export const resetearDemo = definirComando<
     }
     let productos = 0;
     let insumos = 0;
+    // El id de cada producto por su nombre: lo necesita el salon para colgarle
+    // su fila de `servicios`, y el nombre es la unica llave que la semilla tiene.
+    const productoPorNombre = new Map<string, string>();
     for (const dato of semilla.productos) {
       const producto = await ctx.tx
         .insertInto('productos')
@@ -102,9 +119,37 @@ export const resetearDemo = definirComando<
         'pieza',
         dato.costoCentavos,
       );
+      productoPorNombre.set(dato.nombre, producto.id);
       productos += 1;
       insumos += 1;
     }
+    // Los SERVICIOS, que se venden y no se almacenan.
+    //
+    // Un servicio es un `productos` -se cobra como todo lo demas- y NO lleva
+    // insumo ni existencia: no hay nada que descontar de un almacen cuando se
+    // corta el pelo. Su fila de `servicios`, con los cuatro tramos de duracion,
+    // la pone `sembrarSalon` despues.
+    for (const servicio of semilla.servicios ?? []) {
+      const fila = await ctx.tx
+        .insertInto('productos')
+        .values({
+          organizacion_id: ctx.ambito.organizacionId,
+          categoria_id: categorias.get(servicio.categoria) ?? null,
+          nombre: servicio.nombre,
+          precio_venta_centavos: servicio.precioCentavos,
+          estrategia_consumo: 'sku',
+          // Un servicio se vende SIEMPRE: no hay stock que se acabe. Sin esto,
+          // cobrar un corte fallaria por falta de existencia de un insumo que no
+          // existe.
+          permite_venta_sin_stock: true,
+          area_preparacion: 'ninguno',
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      productoPorNombre.set(servicio.nombre, fila.id);
+      productos += 1;
+    }
+
     const insumosCafe = new Map<string, { id: string; unidad: string }>();
     for (const dato of semilla.insumos) {
       const insumo = await ctx.tx
@@ -157,27 +202,74 @@ export const resetearDemo = definirComando<
     }
     await recalcularCostosRecetas(ctx.tx, ctx.ambito.organizacionId);
 
-    // La SALA sólo tiene sentido en un restaurante: mesas, zonas, estaciones y
-    // los tres roles que operan de verdad. Sin ella, Mesero y Cocina abren
-    // vacías y el mapa de mesas —la pantalla que Miguel más quiere ver— no
-    // tiene nada que pintar.
+    // EL EQUIPO · una persona por cada rol que opera.
+    //
+    // Va en los CINCO modelos y no solo en el restaurante. Con un solo empleado
+    // -el dueno que crea `bootstrap`- no se ve nada de lo que este sistema hace:
+    // los permisos por rol no se distinguen, el corte no sabe quien cobro, y la
+    // comision de un salon no tiene a quien repartirse.
+    const pimienta = validarEntorno(process.env).PIN_PEPPER;
+    const empleos = await ctx.paso('sembrar_equipo', () =>
+      sembrarEquipo(ctx.tx, ctx.ambito.organizacionId, sucursalId, giro, pimienta),
+    );
+
+    // La SALA solo tiene sentido en un restaurante: mesas, zonas y estaciones.
+    // Sin ella, Mesero y Cocina abren vacias y el mapa de mesas -la pantalla que
+    // Miguel mas quiere ver- no tiene nada que pintar.
     const sala =
       organizacion.giro === 'restaurante'
         ? await ctx.paso('sembrar_sala', () =>
-            sembrarSala(
+            sembrarSala(ctx.tx, ctx.ambito.organizacionId, sucursalId, pimienta),
+          )
+        : null;
+
+    // Y el SALON solo en una estetica: profesionales, muebles y los cuatro
+    // tramos de cada servicio. Sin ellos la agenda del dia abre con cero
+    // columnas y el catalogo de servicios abre vacio.
+    const salon =
+      organizacion.giro === 'estetica'
+        ? await ctx.paso('sembrar_salon', () =>
+            sembrarSalon(
               ctx.tx,
               ctx.ambito.organizacionId,
               sucursalId,
-              validarEntorno(process.env).PIN_PEPPER,
+              empleos,
+              semilla.servicios ?? [],
+              productoPorNombre,
             ),
           )
         : null;
 
+    // LOS DATOS DE ARRANQUE · proveedor y caja abierta.
+    //
+    // La caja la abre el primero del equipo, que es el gerente en las cinco
+    // semillas. Sin caja abierta no se puede cobrar, y una demo que empieza
+    // pidiendo «abre la caja» ensena un tramite en vez del producto.
+    const abre = empleos.values().next().value ?? null;
+    if (abre === null) {
+      throw new ErrorDominio(
+        'CONFIGURACION_INVALIDA',
+        'La demostracion no tiene a nadie que pueda abrir la caja.',
+      );
+    }
+    const arranque = await ctx.paso('sembrar_arranque', () =>
+      sembrarArranque(ctx.tx, ctx.ambito.organizacionId, sucursalId, semilla, abre),
+    );
+
+    const empleados = empleos.size;
     ctx.auditar({
       entidadId: ctx.ambito.organizacionId,
-      payload: { productos, insumos, giro: organizacion.giro, ...(sala ?? {}) },
+      payload: {
+        productos,
+        insumos,
+        empleados,
+        giro: organizacion.giro,
+        proveedor: arranque.proveedor,
+        ...(sala ?? {}),
+        ...(salon ?? {}),
+      },
     });
-    return { productos, insumos, sala };
+    return { productos, insumos, empleados, sala, salon, arranque };
   },
 });
 
@@ -201,6 +293,12 @@ export const resetearDemo = definirComando<
  * El orden importa: hijos antes que padres, o la clave foránea lo impide.
  */
 async function limpiar(tx: Transaccion, organizacionId: string): Promise<void> {
+  // Salon de la estetica. Va PRIMERO por la misma razon que la sala:
+  // `cita_servicios` apunta a `servicios` con `restrict` y `servicios` cuelga de
+  // `productos` con `cascade`, asi que borrar el producto antes abortaria la
+  // transaccion entera si quedo una cita.
+  await limpiarSalon(tx, organizacionId);
+
   // ── Sala del restaurante ──────────────────────────────────────────────────
   // Va PRIMERO, y no es un detalle de orden: `mesas.orden_activa_id` apunta a
   // `ordenes` y `ordenes.mesa_id` apunta a `mesas`. Sin soltar el lado de la
@@ -237,6 +335,12 @@ async function limpiar(tx: Transaccion, organizacionId: string): Promise<void> {
   await sql`delete from productos where organizacion_id = ${organizacionId}`.execute(tx);
   await sql`delete from categorias where organizacion_id = ${organizacionId}`.execute(tx);
   await sql`delete from almacenes where organizacion_id = ${organizacionId}`.execute(tx);
+
+  // Y el proveedor, al final: despues de compras y de documentos por pagar, que
+  // lo referencian con `restrict`. Las TERMINALES no se borran -una terminal
+  // enrolada es un dispositivo de verdad, y un reseteo de demostracion no
+  // desenrola la tablet de nadie-.
+  await limpiarArranque(tx, organizacionId);
 }
 
 async function entradaInicial(

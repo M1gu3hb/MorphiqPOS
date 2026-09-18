@@ -269,17 +269,43 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
       }
 
       await registrarRechazo('ERROR_INTERNO', 'error');
-      // El mensaje original se queda en el servidor: filtrarlo revela nombres
-      // de tablas e índices. El correlation id es lo que une esto con la
-      // auditoría y con el registro del servidor.
+      // Al cliente no va el mensaje original: revela nombres de tablas e
+      // índices. El correlation id es lo que une esto con la auditoría.
+      //
+      // ── Y al REGISTRO va la clase del fallo y su SQLSTATE ────────────────
+      // Aquí no iba nada más que el nombre del comando, y eso deja un
+      // ERROR_INTERNO que no se puede diagnosticar: el comentario decía «el
+      // mensaje original se queda en el servidor» y el mensaje original no se
+      // quedaba en ninguna parte. Se añaden las DOS cosas que nombran el fallo
+      // sin llevarse nada de dentro: el nombre de la clase del error y, si es
+      // de Postgres, su código SQLSTATE —cinco caracteres del estándar, como
+      // `23503` (clave foránea) o `23514` (check)—. Ni el mensaje, ni la
+      // restricción, ni un solo valor de la entrada.
       registrar({
         nivel: 'error',
         modulo: 'comando',
         correlationId,
         organizacionId: ambito.organizacionId,
-        mensaje: `${definicion.nombre} fallo.`,
+        mensaje: `${definicion.nombre} fallo. ${claseDelFallo(error)}`,
       });
       return { ok: false, error: fallo('ERROR_INTERNO'), correlationId };
     }
   };
+}
+
+/**
+ * Cómo se llama el fallo, sin llevarse nada de dentro.
+ *
+ * Devuelve la clase del error y su SQLSTATE cuando lo hay. Un SQLSTATE es un
+ * código del estándar de cinco caracteres —`23503`, `23514`, `40001`— y no
+ * contiene valores de entrada ni nombres del esquema. Es lo justo para saber si
+ * lo que falló fue una clave foránea, un `check` o un interbloqueo.
+ */
+function claseDelFallo(error: unknown): string {
+  const clase = error instanceof Error ? error.constructor.name : typeof error;
+  const codigo =
+    typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : null;
+  return codigo === null ? `causa=${clase}` : `causa=${clase} sqlstate=${codigo}`;
 }

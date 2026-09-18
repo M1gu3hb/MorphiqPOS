@@ -27981,7 +27981,7 @@
       "tabla": "organizaciones",
       "nombre": "organizaciones_paquete_check",
       "tipo": "check",
-      "definicion": "CHECK (paquete = ANY (ARRAY['tienda'::text, 'cafeteria'::text, 'restaurante'::text]))",
+      "definicion": "CHECK (paquete = ANY (ARRAY['tienda'::text, 'cafeteria'::text, 'restaurante'::text, 'ferreteria'::text, 'estetica'::text]))",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -27992,7 +27992,7 @@
       "tabla": "organizaciones",
       "nombre": "organizaciones_paquete_compatible_con_giro",
       "tipo": "check",
-      "definicion": "CHECK (paquete <> 'restaurante'::text OR (giro = ANY (ARRAY['cafeteria'::text, 'restaurante'::text])))",
+      "definicion": "CHECK (\nCASE\n    WHEN paquete = ANY (ARRAY['restaurante'::text, 'cafeteria'::text]) THEN giro = ANY (ARRAY['cafeteria'::text, 'restaurante'::text])\n    ELSE giro <> ALL (ARRAY['cafeteria'::text, 'restaurante'::text])\nEND)",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false

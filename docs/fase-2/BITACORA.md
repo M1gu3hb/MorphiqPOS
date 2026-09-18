@@ -2402,3 +2402,137 @@ al terminar.
 
 Tres cabeceras largas describían el mundo de tres plantillas y de «un solo sustantivo en el menú».
 Llevan su corrección fechada, no un borrado.
+
+---
+
+## 2026-09-17 · E4 · datos y usuarios de demostración — y el defecto que destapó
+
+### EL DEFECTO, primero, porque es el que importa
+
+**Desde que se aplicó la migración 121, ninguna organización podía insertar, editar ni borrar un
+producto.** Ni las demos ni los cuatro negocios que cobran. Cualquier escritura sobre `productos`
+abortaba la transacción entera con `42501 · permission denied for materialized view
+busqueda_material`.
+
+La 121 puso tres triggers `after insert or update or delete` sobre `productos`,
+`producto_atributos` y `ubicaciones` que llaman a `refrescar_busqueda_material()`, y esa función
+hacía `refresh materialized view concurrently busqueda_material`. Dos reglas de Postgres la hacen
+imposible, no una:
+
+1. **`REFRESH MATERIALIZED VIEW` exige ser DUEÑO de la vista.** La función no era `security
+   definer`, así que corría como `morphiqpos_app`, que no lo es.
+2. **Y `CONCURRENTLY` no se puede ejecutar dentro de una función ni de un bloque de transacción.**
+   Un trigger es las dos cosas a la vez. Aunque el permiso estuviera, el refresco seguiría siendo
+   imposible.
+
+No lo vio nadie, y el porqué vale más que el defecto: **ninguna prueba ni ninguna puerta escribe un
+producto con el rol de la aplicación.** Las de unidad usan dobles —no hay Postgres— y las de
+integración exigen Docker, que esta máquina no tiene, así que `test:integracion` aborta y no corre.
+La 121 pasó la revisión, pasó el ensayo con datos, pasó `verify:esquema` y pasó `verify:rls`, porque
+ninguna de las cuatro escribe una fila.
+
+Se encontró **sembrando el catálogo de las cinco demostraciones**, que es exactamente lo que E4
+pedía. Es el argumento entero a favor de tener datos de demostración de verdad: el defecto llevaba
+tres semanas aplicado en producción.
+
+**Migración 167**, con sus tres poscondiciones: `security definer`, sin `concurrently`, y una que
+inserta un producto de verdad y lo borra. Lo que cuesta: el refresco toma un `ACCESS EXCLUSIVE`
+sobre la vista, así que el buscador del mostrador espera unos cientos de milisegundos **al editar el
+catálogo** —no al vender: la existencia no está dentro de la vista y una venta no dispara ningún
+trigger—. Un mostrador que espera 300 ms cuando el encargado da de alta un material es
+infinitamente mejor que uno que no puede dar de alta ningún material.
+
+**Y un contrato que lo caza**, `packages/data/src/migraciones/refrescos-de-vista.test.ts`: ninguna
+función VIGENTE refresca en `concurrently`, y toda función que refresca una vista materializada es
+`security definer`. Mira la ÚLTIMA definición de cada función —una migración aplicada no se edita, y
+la 121 conserva su `concurrently` para siempre— y recorta los comentarios antes de mirar, porque un
+contrato que encuentra su propia explicación no prueba nada.
+
+```
+Destructivas que FALLAN: quitarle `security definer` a la 167 · devolverle el CONCURRENTLY
+Inocuas que PASAN: un comentario nuevo en la 167 que dice la palabra «concurrently»
+```
+
+### Y dos más, del mismo camino
+
+**`ERROR_INTERNO` no dejaba rastro de nada.** El comentario decía «el mensaje original se queda en el
+servidor» y el mensaje original no se quedaba en ninguna parte: al registro sólo iba el nombre del
+comando. Diagnosticar el 42501 fue imposible hasta arreglarlo. Ahora van las DOS cosas que nombran
+el fallo sin llevarse nada de dentro: **la clase del error y su SQLSTATE** —cinco caracteres del
+estándar, `23503`, `23514`, `42501`—. Ni el mensaje, ni la restricción, ni un solo valor de la
+entrada, que es la razón por la que el registrador no serializa excepciones.
+
+**`verify:esquema` estaba en rojo desde E2 y la bitácora decía que estaba en 0.** La migración 166
+cambió dos `check` de `organizaciones` y nadie regeneró `scripts/esquema-esperado.json`. Regenerado:
+1 702 columnas, 1 329 restricciones, 429 índices. La lección es la de siempre y van tres en esta
+sesión: **una puerta que no se corre no está en 0, está sin correr.**
+
+### Lo que E4 pedía
+
+| | Antes | Ahora |
+|---|---|---|
+| **4.1 · las cinco demos** | existían, vacías | sembradas, y cada una en la plantilla de su giro |
+| **4.2 · un usuario por rol** | UNO: el dueño de `bootstrap` | **3 a 5 por demo**, con nombre de persona y PIN distinto por rol |
+| **4.3 · catálogo** | 5 artículos, y la estética con tortillas | **18 a 27 vendibles** por modelo, con precios de México |
+| **4.4 · datos de arranque** | nada | proveedor con día de visita, caja ABIERTA con su fondo desglosado, existencias |
+| **4.5 · nunca sobre los vivos** | se comparaba por NOMBRE | por IDENTIDAD de organización |
+
+**El equipo** (`demostracion/equipo.ts`) va en los cinco modelos y no sólo en el restaurante. Con un
+solo empleado no se ve nada de lo que este sistema hace: los permisos por rol no se distinguen —el
+dueño lo puede todo—, el corte no sabe quién cobró, y la comisión de un salón no tiene a quién
+repartirse. Peor para quien revisa: «entra con el dueño y mira» no prueba que un cajero NO pueda
+cambiar la plantilla, que es media seguridad del sistema.
+
+Los PIN son de cuatro dígitos y **distintos por rol a propósito**, para saber con quién se entró sin
+mirar dos veces. Se hashean con Argon2id y pimienta igual que cualquier otro: no hay un camino
+distinto para sembrar, y nunca se guarda un PIN en claro — precisamente porque «es sólo la demo» es
+como acaban los PIN en claro en producción.
+
+**La estética tenía tortillas.** El giro `estetica` caía en la semilla de abarrotes, así que su demo
+abría con frijol y huevo en el catálogo. Y no era cosmético: sus doce pantallas leen servicios con
+duración, profesionales y recursos, y sin una sola fila en `servicios` la agenda del día abre con
+cero columnas. Ahora trae 16 servicios con **los cuatro tramos de F-401** —aplicar, procesar,
+terminar, recoger—, dos estilistas con horario de martes a domingo, tres estaciones, un lavabo y una
+secadora. El procesado, que es el negocio de este modelo, está declarado donde existe: un tinte
+ocupa a la estilista 40 min y deja a la clienta 25 procesando, y en esos 25 se atiende a otra.
+
+**El fondo de caja va DESGLOSADO** (F-984): «$1,500» no dice si se puede dar cambio. Una ferretería
+abre con más billetes grandes porque sus tickets son grandes; una cafetería con más monedas.
+
+### Cómo se siembra, y por qué hay un script nuevo
+
+`sembrar-demo.mjs` siembra por HTTP, que es lo correcto para comprobar que la ruta y la sesión
+funcionan. Pero un despliegue sirve a UN negocio (R16), así que sembrar las cinco por HTTP son cinco
+arranques de servidor con su `ORGANIZACION` distinta. **`scripts/sembrar-demos.mjs`** ejecuta el
+MISMO comando —`configuracion.resetear_demo`, con la misma transacción, el mismo gate de rol y la
+misma auditoría— construyendo el ámbito desde la base. Sólo acepta slugs `demo-acople-*` y rechaza
+los cuatro vivos por su slug.
+
+Y endereza la plantilla de cada demo a la de su giro en cada siembra. `demo-acople-cafeteria` estaba
+en `restaurante` desde una corrida de navegador interrumpida, y con la guarda de E2 eso significa
+que **ninguna de sus trece pantallas se podía abrir**.
+
+### Un cambio de producción que no es de demostración
+
+`packages/app/src/fallos.ts` deja de usar «parameter properties» —`constructor(readonly codigo: …)`—.
+Dicen lo mismo en menos líneas y hacen que el paquete `app` entero no se pueda importar desde
+`node --experimental-strip-types`: es sintaxis que hay que TRANSFORMAR, no sólo borrar. Next lo
+compila sin problema; los scripts de este repositorio corren con Node pelado y necesitan importar
+los comandos de verdad para no acabar con una segunda copia de la lógica.
+
+### Cómo queda
+
+```
+  demo-acople-cafeteria    18 vendibles · 16 insumos · 4 empleados · caja $1,000 · Café de Altura Xico
+  demo-acople-estetica     24 vendibles ·  8 insumos · 5 empleados · caja $1,500 · 2 profesionales · 16 servicios
+  demo-acople-ferreteria   25 vendibles · 25 insumos · 3 empleados · caja $2,000 · Ferretera del Valle
+  demo-acople-restaurante  27 vendibles · 33 insumos · 5 empleados · caja $3,000 · 12 mesas
+  demo-acople-tienda       22 vendibles · 22 insumos · 3 empleados · caja $1,200 · Abastos del Centro
+```
+
+`typecheck` 7/7 · **2 718 pruebas en 225 archivos** · `lint` 0 · `prettier --check` limpio ·
+`verify:esquema`, `verify:rls`, `verify:paquetes`, `verify:aspecto`, `verify:entorno`,
+`verify:primitivas`, `verify:mutaciones-backend` y `verify:cobertura` en 0 · **99 migraciones en
+disco = 99 en el ledger**.
+
+**Cero datos de prueba en los cuatro negocios de Miguel.**
