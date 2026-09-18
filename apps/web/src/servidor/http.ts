@@ -12,6 +12,8 @@ import { cuerpoDentroDelLimite, leerCookie, NOMBRE_COOKIE } from '@morphiqpos/ap
 import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
 import { resolverSesion, type SesionDeNegocio } from '@morphiqpos/app/sesion';
 import { headers } from 'next/headers';
+
+import { CABECERA_RUTA } from '../../middleware';
 import type { ZodType } from 'zod';
 
 import {
@@ -129,6 +131,8 @@ export async function ejecutarComandoHttp<E extends ZodType, S>(
     return responderError(error, {
       correlationId,
       organizacionId: sesion.sesion.organizacionId,
+      ruta: rutaDe(peticion),
+      peticion,
     });
   }
 }
@@ -187,7 +191,12 @@ export async function conSesion<T>(
   } catch (error) {
     return (
       respuestaDeDominio(error, correlationId) ??
-      responderError(error, { correlationId, organizacionId: sesion.sesion.organizacionId })
+      responderError(error, {
+        correlationId,
+        organizacionId: sesion.sesion.organizacionId,
+        ruta: rutaDe(peticion),
+        peticion,
+      })
     );
   }
 }
@@ -274,20 +283,89 @@ export async function responderConsulta<T>(
     return responderError(error, {
       correlationId,
       organizacionId: sesion.sesion.organizacionId,
+      // Esta función NO recibe el `Request` —las rutas GET de gestión no se lo
+      // pasan— así que la ruta sale de la cabecera que pone el middleware.
+      ruta: cabeceras.get(CABECERA_RUTA) ?? '?',
     });
   }
 }
 
+/** La ruta de la petición, sin la cadena de consulta: puede llevar datos. */
+function rutaDe(peticion: Request): string {
+  try {
+    return new URL(peticion.url).pathname;
+  } catch {
+    return '?';
+  }
+}
+
+/**
+ * Cómo se llama el fallo, sin llevarse nada de dentro.
+ *
+ * La clase del error y, si es de Postgres, su SQLSTATE: cinco caracteres del
+ * estándar —`23503` clave foránea, `23514` check, `42501` permiso— que no
+ * contienen valores de entrada ni nombres del esquema.
+ *
+ * Existe porque este registro decía «Fallo no controlado» y nada más: un 500 con
+ * un correlationId y cero pistas. Pasó dos veces el mismo día —aquí y en
+ * `comando()`— y las dos costó lo mismo: reproducir a mano para averiguar qué
+ * había fallado. El mensaje original sigue sin salir, que es lo correcto: puede
+ * llevar valores de la entrada.
+ */
+function claseDelFallo(error: unknown): string {
+  const clase = error instanceof Error ? error.constructor.name : typeof error;
+  const codigo =
+    typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : null;
+  // Y el prefijo `[Entidad]` que el puente pone en el mensaje, si está: es una
+  // clave de su mapa —una de 82 constantes— y no un dato del negocio. Sin ella un
+  // 500 en `/api/datos/consultar` no dice qué pantalla se rompió.
+  const entidad =
+    error instanceof Error ? (/^\[([A-Za-z]{1,40})\]/.exec(error.message)?.[1] ?? null) : null;
+  const cola = entidad === null ? '' : ` entidad=${entidad}`;
+  return (codigo === null ? `causa=${clase}` : `causa=${clase} sqlstate=${codigo}`) + cola;
+}
+
+/**
+ * ¿Se fue el cliente antes de la respuesta?
+ *
+ * ── Por qué importa distinguirlo ───────────────────────────────────────────
+ * Una corrida de navegador que abre trece pantallas seguidas deja diez
+ * `ECONNRESET` en el registro, y ninguno es un defecto: cada pantalla aborta sus
+ * consultas al desmontarse —`control.abort()` en su efecto— y el servidor acaba
+ * escribiendo una respuesta en un socket que ya no está. Eso no es «fallo no
+ * controlado»: es un usuario que cambió de pantalla.
+ *
+ * Y mezclarlos es peor que no registrar nada: con diez líneas de error que no son
+ * errores, el registro deja de leerse, y el día que haya uno de verdad estará
+ * entre ellas. Se registra como AVISO y con su nombre.
+ */
+function elClienteSeFue(peticion: Request | undefined): boolean {
+  return peticion?.signal.aborted === true;
+}
+
 function responderError(
-  _error: unknown,
-  contexto: { readonly correlationId: string; readonly organizacionId: string },
+  error: unknown,
+  contexto: {
+    readonly correlationId: string;
+    readonly organizacionId: string;
+    /** La ruta que falló. Sin ella, un 500 no dice ni qué pantalla se rompió. */
+    readonly ruta?: string;
+    /** La petición, para saber si quien preguntaba sigue ahí. */
+    readonly peticion?: Request;
+  },
 ): Response {
+  const seFue = elClienteSeFue(contexto.peticion);
+  const donde = contexto.ruta === undefined ? '' : ` ruta=${contexto.ruta}`;
   registrar({
-    nivel: 'error',
+    nivel: seFue ? 'alerta' : 'error',
     modulo: 'api',
     correlationId: contexto.correlationId,
     organizacionId: contexto.organizacionId,
-    mensaje: 'Fallo no controlado.',
+    mensaje: seFue
+      ? `El cliente se fue antes de la respuesta.${donde}`
+      : `Fallo no controlado.${donde} ${claseDelFallo(error)}`,
   });
   return Response.json(
     errorHttp('ERROR_INTERNO', 'No fue posible completar la operación.', contexto.correlationId),

@@ -103,6 +103,13 @@ export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId 
 
   useEffect(() => {
     if (productosIniciales !== undefined) return;
+    // Sin id no se consulta.
+    //
+    // Esta pantalla se abre SIN nada seleccionado —`page.tsx` la monta con la
+    // cadena vacía— y consultar con ella manda un `where … = ''` a una columna
+    // uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en cada
+    // apertura. El estado de «elige algo» ya está escrito debajo.
+    if (almacenVentaId === '' || almacenCabinaId === '') return;
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
@@ -122,7 +129,7 @@ export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId 
       clearTimeout(arranque);
       control.abort();
     };
-  }, [productosIniciales]);
+  }, [productosIniciales, almacenVentaId, almacenCabinaId]);
 
   function abrir(producto: ProductoDeSalon): void {
     setElegido(producto);

@@ -110,6 +110,13 @@ export function Material({ productoId, almacenId, piezasIniciales }: MaterialPro
 
   useEffect(() => {
     if (piezasIniciales !== undefined) return;
+    // Sin id no se consulta.
+    //
+    // Esta pantalla se abre SIN nada seleccionado —`page.tsx` la monta con la
+    // cadena vacía— y consultar con ella manda un `where … = ''` a una columna
+    // uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en cada
+    // apertura. El estado de «elige algo» ya está escrito debajo.
+    if (productoId === '') return;
     const arranque = setTimeout(() => {
       consultar(null);
     });

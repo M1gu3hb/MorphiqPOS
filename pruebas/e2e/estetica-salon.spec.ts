@@ -11,6 +11,7 @@ import {
   exigirVocabularioDelGiro,
   menuLateral,
   plantillaRechazada,
+  vigilarFallos,
 } from './ayudantes/sesion.ts';
 
 /**
@@ -90,6 +91,8 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     // rastro engañoso —«esperaba La clienta y encontré El cliente»— que se leería
     // como un defecto del vocabulario sin serlo.
     await exigirGiro(page, 'estetica', 'estetica-salon');
+    // Ninguna pantalla puede abrir en 200 y reventar por dentro.
+    const exigirSinFallos = vigilarFallos(page);
 
     // ── 1 · LA PLANTILLA `salon` NO EXISTE, y el servidor lo dice ─────────
     const codigo = await plantillaRechazada(page, 'salon');
@@ -207,5 +210,7 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     await abrirPantalla(page, '/estetica-salon/agenda-del-dia');
     await expect(page.getByRole('button', { name: 'Día siguiente' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Día anterior' })).toBeVisible();
+
+    exigirSinFallos();
   });
 });

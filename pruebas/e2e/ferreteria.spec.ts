@@ -9,6 +9,7 @@ import {
   exigirGiro,
   exigirVocabulario,
   menuLateral,
+  vigilarFallos,
 } from './ayudantes/sesion.ts';
 
 /**
@@ -67,6 +68,8 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
   test('la ferretería dice Materiales donde la tiendita dice Productos', async ({ page }) => {
     await entrar(page);
     await exigirGiro(page, 'ferreteria', 'ferreteria');
+    // Ninguna pantalla puede abrir en 200 y reventar por dentro.
+    const exigirSinFallos = vigilarFallos(page);
     // SU plantilla, que hasta el 17-09-2026 era la de la tiendita. Y el punto de la
     // prueba sigue siendo el mismo: el vocabulario NO sale de la plantilla, sale del
     // giro. `ferreteria` tiene ahora plantilla propia porque corta material, fía y
@@ -171,5 +174,7 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
       await barra.click();
       await expect(laVenta).toBeVisible();
     }
+
+    exigirSinFallos();
   });
 });

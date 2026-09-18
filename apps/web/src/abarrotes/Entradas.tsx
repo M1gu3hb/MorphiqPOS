@@ -178,6 +178,14 @@ export function Entradas({ proveedoresIniciales, almacenId, hoy }: EntradasProps
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
+      // Sin id no se consulta.
+      //
+      // Estas pantallas se abren SIN nada seleccionado -`page.tsx` las monta con
+      // la cadena vacia- y consultar con ella manda un `where id = ''` a una
+      // columna uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en
+      // cada apertura. El estado de «elige algo» ya esta escrito debajo; lo que
+      // faltaba era no pedir datos de lo que nadie eligio.
+      if (almacenId === '') return;
       consultarPuente<ProveedorDelDia>('Proveedor', { limite: 200, signal: control.signal })
         .then((filas) => {
           if (sigueMontada()) setProveedores(filas);
@@ -191,7 +199,7 @@ export function Entradas({ proveedoresIniciales, almacenId, hoy }: EntradasProps
       clearTimeout(arranque);
       control.abort();
     };
-  }, [proveedoresIniciales]);
+  }, [proveedoresIniciales, almacenId]);
 
   function elegir(proveedor: ProveedorDelDia): void {
     setElegido(proveedor);

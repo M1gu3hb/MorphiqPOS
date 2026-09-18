@@ -10,7 +10,7 @@ import {
   validarEntorno,
   type Paquete,
 } from '@morphiqpos/contracts';
-import { obtenerDb, type Transaccion } from '@morphiqpos/data';
+import { leyendoConReintento, obtenerDb, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../comando.ts';
@@ -264,11 +264,17 @@ export const cambiarPaquete = definirComando<
  * filtra el hash —que es lo correcto—, así que se consulta el documento.
  */
 export async function tienePresentacionContrasena(organizacionId: string): Promise<boolean> {
-  const fila = await obtenerDb()
-    .selectFrom('configuracion')
-    .select('valores')
-    .where('organizacion_id', '=', organizacionId)
-    .executeTakeFirst();
+  // Las tres lecturas que el puente hace FUERA de `consultar` pasan por el mismo
+  // reintento: son las que `ConfigContext` pide en cada carga de pantalla, y son
+  // las que dejaban el `ECONNRESET` del pooler en el registro. El reintento sólo
+  // vale para LEER; ninguna escritura lo lleva.
+  const fila = await leyendoConReintento(() =>
+    obtenerDb()
+      .selectFrom('configuracion')
+      .select('valores')
+      .where('organizacion_id', '=', organizacionId)
+      .executeTakeFirst(),
+  );
   const valores = (fila?.valores ?? {}) as Record<string, unknown>;
   return esTexto(valores[CLAVE_HASH]);
 }

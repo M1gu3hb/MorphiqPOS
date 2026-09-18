@@ -100,6 +100,14 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
+      // Sin id no se consulta.
+      //
+      // Estas pantallas se abren SIN nada seleccionado -`page.tsx` las monta con
+      // la cadena vacia- y consultar con ella manda un `where id = ''` a una
+      // columna uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en
+      // cada apertura. El estado de «elige algo» ya esta escrito debajo; lo que
+      // faltaba era no pedir datos de lo que nadie eligio.
+      if (profesionalId === '') return;
       invocarComando<MiDia>(`${RUTA_MI_DIA}/${profesionalId}/mi-dia`, { fecha: null })
         .then((datos) => {
           if (sigueMontada()) setDia(datos);

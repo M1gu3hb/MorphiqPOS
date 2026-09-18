@@ -10,6 +10,7 @@ import {
   exigirVocabulario,
   exigirVocabularioDelGiro,
   menuLateral,
+  vigilarFallos,
 } from './ayudantes/sesion.ts';
 
 /**
@@ -80,6 +81,8 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
   test('la cafetería habla de baristas y barra, y su plantilla no trae sala', async ({ page }) => {
     await entrar(page);
     await exigirGiro(page, 'cafeteria', 'cafeteria');
+    // Ninguna pantalla puede abrir en 200 y reventar por dentro.
+    const exigirSinFallos = vigilarFallos(page);
 
     // ── 1 · CON SU PROPIA PLANTILLA · mostrador, sin sala ─────────────────
     await cambiarDePlantilla(page, 'cafeteria');
@@ -183,5 +186,7 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     // paso 2 acabaran redirigidas. Una prueba que cambia la configuración del negocio
     // la devuelve.
     await cambiarDePlantilla(page, 'cafeteria');
+
+    exigirSinFallos();
   });
 });

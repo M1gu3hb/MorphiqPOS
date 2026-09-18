@@ -136,6 +136,14 @@ export function TrabajosDeMostrador({
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
+      // Sin id no se consulta.
+      //
+      // Estas pantallas se abren SIN nada seleccionado -`page.tsx` las monta con
+      // la cadena vacia- y consultar con ella manda un `where id = ''` a una
+      // columna uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en
+      // cada apertura. El estado de «elige algo» ya esta escrito debajo; lo que
+      // faltaba era no pedir datos de lo que nadie eligio.
+      if (almacenId === '') return;
       if (apartadosIniciales === undefined) {
         invocarComando<{ readonly notas: readonly NotaApartada[] }>(RUTA_NOTA, { listar: true })
           .then((salida) => {
@@ -174,7 +182,7 @@ export function TrabajosDeMostrador({
       clearTimeout(arranque);
       control.abort();
     };
-  }, [apartadosIniciales, listasIniciales, garantiasIniciales]);
+  }, [apartadosIniciales, listasIniciales, garantiasIniciales, almacenId]);
 
   function entregar(nota: NotaApartada): void {
     setOcupado(true);

@@ -138,6 +138,14 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
     const sigueMontada = (): boolean => !control.signal.aborted;
 
     const cargar = (): void => {
+      // Sin id no se consulta.
+      //
+      // Estas pantallas se abren SIN nada seleccionado -`page.tsx` las monta con
+      // la cadena vacia- y consultar con ella manda un `where id = ''` a una
+      // columna uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en
+      // cada apertura. El estado de «elige algo» ya esta escrito debajo; lo que
+      // faltaba era no pedir datos de lo que nadie eligio.
+      if (productoId === '') return;
       if (fichaInicial === undefined) {
         consultarPuente<FichaDeProducto>('ProductoTerminado', {
           filtro: { id: productoId },

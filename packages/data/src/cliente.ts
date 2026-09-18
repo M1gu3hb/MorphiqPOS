@@ -92,7 +92,29 @@ function configuracion(cadena: string): pg.PoolConfig {
   return {
     connectionString: cadena,
     max: maximoDelPool(),
-    idleTimeoutMillis: 30_000,
+    /**
+     * 10 s, y no 30. Es para ganarle al pooler.
+     *
+     * En modo TRANSACCIÓN (puerto 6543) Supavisor recicla las conexiones de
+     * cliente por su cuenta. Si cierra él primero, `pg` entrega un socket muerto
+     * y la consulta muere con `ECONNRESET` — se vio así, diez veces en una
+     * corrida de navegador, en `/api/datos/consultar`: la pantalla carga y sus
+     * datos devuelven 500.
+     *
+     * Con el tiempo de reposo por debajo del suyo, el que cierra somos nosotros,
+     * y una conexión que se cierra ordenadamente no deja un socket a medias.
+     */
+    idleTimeoutMillis: 10_000,
+    /**
+     * Y el `keepAlive`, para lo que el tiempo de reposo no cubre.
+     *
+     * Un cortafuegos o un balanceador puede tirar una conexión ociosa sin avisar
+     * a ninguno de los dos extremos. Sin `keepAlive`, `pg` no se enteraría hasta
+     * intentar usarla; con él, el socket se mantiene vivo y el fallo aparece como
+     * una conexión cerrada que el pool descarta, no como una consulta muerta.
+     */
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 5_000,
     // Un cajero no puede quedarse esperando media hora a que la base responda.
     // Falla rápido y la pantalla lo dice (R12).
     connectionTimeoutMillis: 10_000,

@@ -9,6 +9,7 @@ import {
   exigirGiro,
   exigirVocabulario,
   menuLateral,
+  vigilarFallos,
 } from './ayudantes/sesion.ts';
 
 /**
@@ -65,6 +66,8 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
   }) => {
     await entrar(page);
     await exigirGiro(page, 'tienda', 'abarrotes');
+    // Ninguna pantalla puede abrir en 200 y reventar por dentro.
+    const exigirSinFallos = vigilarFallos(page);
     await cambiarDePlantilla(page, 'tienda');
 
     // ── 1 · SU VOCABULARIO ────────────────────────────────────────────────
@@ -154,5 +157,7 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
         .or(page.getByRole('region', { name: 'Total de la venta' }))
         .first(),
     ).toBeVisible();
+
+    exigirSinFallos();
   });
 });

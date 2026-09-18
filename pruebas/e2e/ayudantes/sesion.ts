@@ -70,10 +70,23 @@ import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/
  * Contra el servidor local, una corrida por modelo:
  *
  *   ORGANIZACION=demo-acople-ferreteria APP_URL=http://localhost:3200 \
- *   MORPHIQPOS_DB_POOL_MAX=3 pnpm --filter @morphiqpos/web exec next start -p 3200
+ *   pnpm --filter @morphiqpos/web exec next start -p 3200
  *
- *   MORPHIQPOS_ORG_DEMO=demo-acople-ferreteria MORPHIQPOS_DEMO_PIN=1234 \
- *   pnpm test:e2e pruebas/e2e/ferreteria.spec.ts
+ * SIN bajar `MORPHIQPOS_DB_POOL_MAX`. Aquí decía `=3`, y era para el pooler en
+ * modo SESIÓN (5432), donde el techo son 15 clientes. Con el de TRANSACCIÓN
+ * (6543) ese techo no aplica y un pool de 3 o 4 es PEOR: con dos proyectos de
+ * Playwright pidiendo datos a la vez, las consultas hacen cola y llegan cuando el
+ * pooler ya recicló su conexión. Medido: con `=4`, once 500 en una corrida; con
+ * el 10 por omisión, cero.
+ *
+ *   MORPHIQPOS_ORG_DEMO=demo-acople-ferreteria MORPHIQPOS_DEMO_PERSONA=Demo \
+ *   MORPHIQPOS_DEMO_PIN=1234 pnpm test:e2e pruebas/e2e/ferreteria.spec.ts
+ *
+ * `MORPHIQPOS_DEMO_PERSONA` ya no es opcional cuando la demo tiene VARIAS
+ * personas, y desde E4 las cinco tienen de tres a seis, cada una con el PIN de su
+ * rol. «La primera de la lista» era una lotería: si salía el almacenista, el PIN
+ * de la corrida no era el suyo y el fallo aparecía como «no salió de /login-pos».
+ * Los PIN de cada rol están en `docs/fase-2/ACCESOS-DEMO.md §2`.
  *
  * `APP_URL` tiene que ser la del PROPIO servidor: `peticionDeEscrituraValida`
  * compara el `Origin` del navegador contra ella, y con otra puesta el login
@@ -85,7 +98,8 @@ import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/
  *
  *   MORPHIQPOS_URL_DESPLIEGUE=https://morphiqpos-git-fase-2-mh-astral-systems.vercel.app \
  *   MORPHIQPOS_ESTADO_VERCEL=<ruta al estado con la cookie, FUERA del repositorio> \
- *   MORPHIQPOS_ORG_DEMO=demo-acople-estetica MORPHIQPOS_DEMO_PIN=1234 \
+ *   MORPHIQPOS_ORG_DEMO=demo-acople-estetica MORPHIQPOS_DEMO_PERSONA=Demo \
+ *   MORPHIQPOS_DEMO_PIN=1234 \
  *   pnpm test:e2e pruebas/e2e/estetica-salon.spec.ts
  *
  * Y el `ORGANIZACION` del despliegue tiene que apuntar a ESA demo, que es lo que
@@ -227,7 +241,8 @@ export async function exigirDemostracion(
         'Ferretería La Broca son clientes que cobran.',
         '',
         'Declara contra qué demo corre esta suite antes de correrla:',
-        '  MORPHIQPOS_ORG_DEMO=demo-acople MORPHIQPOS_DEMO_PIN=1234 pnpm test:e2e',
+        '  MORPHIQPOS_ORG_DEMO=demo-acople-tienda MORPHIQPOS_DEMO_PERSONA=Demo \\',
+        '  MORPHIQPOS_DEMO_PIN=1234 pnpm test:e2e',
       ].join('\n'),
     );
   }
@@ -424,6 +439,31 @@ export async function entrar(page: Page): Promise<string> {
   // invariante haría que «MARÍA» y «maría» no casaran en algunas configuraciones, y el
   // fallo diría «esa persona no está dada de alta» sobre alguien que sí está.
   const buscado = PERSONA_DEMO.toLocaleLowerCase('es-MX');
+
+  // Con VARIAS personas dadas de alta, «la primera» es una lotería.
+  //
+  // Esto era `usuarios[0]` y funcionaba mientras cada demo tenía UN empleado, el
+  // dueño de `bootstrap`. Desde E4 cada una tiene de tres a seis, uno por rol y
+  // con PIN distinto por rol, así que la primera de la lista puede ser el
+  // almacenista — y el PIN de la corrida no es el suyo. El fallo salía cuatro
+  // líneas más abajo, en `waitForURL`, diciendo «no salió de /login-pos»: el PIN
+  // era correcto, para otra persona.
+  if (PERSONA_DEMO === '' && usuarios.length > 1) {
+    throw new Error(
+      [
+        `La demo tiene ${String(usuarios.length)} personas dadas de alta y esta corrida no dijo`,
+        'con cuál entra. «La primera» no sirve: cada rol tiene su PIN, y entrar con el de',
+        'otra persona falla como si el PIN estuviera mal.',
+        '',
+        `Dados de alta: ${usuarios.map((u) => u.nombre).join(', ')}`,
+        '',
+        '  MORPHIQPOS_DEMO_PERSONA=Demo MORPHIQPOS_DEMO_PIN=1234 pnpm test:e2e …',
+        '',
+        'Los PIN de cada rol están en docs/fase-2/ACCESOS-DEMO.md §2.',
+      ].join('\n'),
+    );
+  }
+
   const elegido =
     PERSONA_DEMO === ''
       ? usuarios[0]
@@ -810,4 +850,45 @@ export async function abrirPantalla(page: Page, ruta: string): Promise<void> {
       'existe; un 500, que revienta. Ninguno de los dos cuenta como «probada en el ' +
       'navegador» (F2.3-REGLAS §8, condición 6).',
   ).toBe(200);
+}
+
+/**
+ * Las pantallas que abren en 200 y cuyos DATOS revientan.
+ *
+ * ── Por qué hace falta, además del 200 del HTML ────────────────────────────
+ * El HTML en 200 no dice que la pantalla funcione. **Siete de las 61 abrían en
+ * 200 y sus dos primeras consultas devolvían 500**: `page.tsx` las monta sin nada
+ * seleccionado —`productoId=""`— y la cadena vacía llegaba a un `where id = ''`
+ * sobre una columna uuid, que Postgres rechaza con `22P02`. La pantalla se veía
+ * «abierta» y estaba enseñando su estado de error, y la suite la daba por probada.
+ *
+ * ── Por qué se pregunta al FINAL y no en cada pantalla ─────────────────────
+ * Porque varias de estas pantallas consultan EN BUCLE —la cocina refresca cada
+ * pocos segundos— así que la red nunca queda quieta y no hay momento en el que
+ * «ya llegaron sus datos». Esperar `networkidle` por pantalla dejó el navegador
+ * colgado hasta que Chromium enseñó «This page couldn't load»; Playwright lo
+ * advierte de su propia API. Escuchar toda la prueba y preguntar al final no
+ * espera nada y no se pierde ninguna.
+ *
+ * Un 4xx SÍ se admite: una pantalla puede pedir algo que el rol no ve, y eso es
+ * una decisión, no una avería. Lo que no se admite es que la aplicación reviente.
+ */
+export function vigilarFallos(page: Page): () => void {
+  const reventadas: string[] = [];
+  page.on('response', (respuesta) => {
+    if (respuesta.status() < 500) return;
+    reventadas.push(`${String(respuesta.status())} ${new URL(respuesta.url()).pathname}`);
+  });
+
+  return function exigirSinFallos(): void {
+    const distintas = [...new Set(reventadas)];
+    expect(
+      distintas,
+      `La aplicación devolvió ${String(reventadas.length)} respuesta(s) 5xx mientras se ` +
+        `abrían sus pantallas: ${distintas.join(', ')}.\n` +
+        'Una pantalla que carga y enseña su estado de error NO está probada. El registro ' +
+        'del servidor lo dice por su ruta: desde E5 el 500 lleva la causa, el SQLSTATE y ' +
+        'la entidad del puente.',
+    ).toEqual([]);
+  };
 }

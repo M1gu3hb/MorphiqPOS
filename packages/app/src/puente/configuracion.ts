@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio, plantillaDeOrganizacion } from '@morphiqpos/contracts';
-import { obtenerDb, type Transaccion } from '@morphiqpos/data';
+import { leyendoConReintento, obtenerDb, type Transaccion } from '@morphiqpos/data';
 
 /**
  * `ConfiguracionNegocio` — la entidad que no es una tabla con columnas.
@@ -202,19 +202,24 @@ export async function leerConfiguracion(
   organizacionId: string,
   opciones: { readonly publica?: boolean } = {},
 ): Promise<Registro> {
-  const fila = await obtenerDb()
-    .selectFrom('organizaciones as o')
-    .leftJoin('configuracion as c', 'c.organizacion_id', 'o.id')
-    .select([
-      'o.nombre as nombreNegocio',
-      'o.paquete as paquete',
-      'o.giro as giro',
-      'c.id as configId',
-      'c.valores',
-      'c.updated_at',
-    ])
-    .where('o.id', '=', organizacionId)
-    .executeTakeFirst();
+  // Con el reintento de lectura: es la que `ConfigContext` pide en CADA carga de
+  // pantalla, y es una de las que dejaba el `ECONNRESET` del pooler en el
+  // registro. Sólo para leer; ninguna escritura lo lleva.
+  const fila = await leyendoConReintento(() =>
+    obtenerDb()
+      .selectFrom('organizaciones as o')
+      .leftJoin('configuracion as c', 'c.organizacion_id', 'o.id')
+      .select([
+        'o.nombre as nombreNegocio',
+        'o.paquete as paquete',
+        'o.giro as giro',
+        'c.id as configId',
+        'c.valores',
+        'c.updated_at',
+      ])
+      .where('o.id', '=', organizacionId)
+      .executeTakeFirst(),
+  );
 
   if (fila === undefined) {
     throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'La organización no existe.');

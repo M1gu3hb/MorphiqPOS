@@ -9,6 +9,7 @@ import {
   exigirGiro,
   exigirVocabulario,
   menuLateral,
+  vigilarFallos,
 } from './ayudantes/sesion.ts';
 
 /**
@@ -64,6 +65,8 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
   test('la plantilla restaurante habla de mesas y platillos, y tiene sala', async ({ page }) => {
     await entrar(page);
     await exigirGiro(page, 'restaurante', 'restaurante');
+    // Ninguna pantalla puede abrir en 200 y reventar por dentro.
+    const exigirSinFallos = vigilarFallos(page);
     await cambiarDePlantilla(page, 'restaurante');
 
     // ── 1 · SU VOCABULARIO ────────────────────────────────────────────────
@@ -107,9 +110,13 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
         '`MODULOS_POR_PLANTILLA`. Sin la entrada de mesero, esta plantilla no se ' +
         'distingue de `cafeteria`.',
     ).toHaveAttribute('href', '/mesero');
+    // «Cocinas» lleva a la pantalla DEL MODELO y no a la heredada `/cocina`. Las
+    // dos existen y las dos gobierna el módulo `cocina`; el menú ofrece una
+    // entrada por módulo y gana la del modelo. La heredada sigue respondiendo en
+    // su ruta, y es la que el menú ofrece en una plantilla que no trae la nueva.
     await expect(menu.getByRole('link', { name: 'Cocinas', exact: true })).toHaveAttribute(
       'href',
-      '/cocina',
+      '/restaurante/cocina',
     );
 
     // ── 3 · SU DASHBOARD ─────────────────────────────────────────────────
@@ -142,5 +149,7 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
         .or(page.getByText('Todavía no hay mesas configuradas.'))
         .first(),
     ).toBeVisible();
+
+    exigirSinFallos();
   });
 });
