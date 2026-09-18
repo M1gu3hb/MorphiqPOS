@@ -1,7 +1,7 @@
 import { validarEntorno } from '@morphiqpos/contracts';
 import { cuerpoDentroDelLimite, cookieDeSesion, leerCookie, permitir } from '@morphiqpos/app/http';
-import { entrarConPin } from '@morphiqpos/app/identidad';
-import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
+import { entrarConPin, organizacionDeQuienEntra } from '@morphiqpos/app/identidad';
+import { negociosDelDespliegue } from '@morphiqpos/app/negocio';
 import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
 import { etiquetaDeRol, rolMH } from '@morphiqpos/app/puente';
 import { z } from 'zod';
@@ -83,11 +83,31 @@ export async function POST(peticion: Request): Promise<Response> {
     return json(401, { ok: false, error: fallo('Empleado o PIN incorrectos.') });
   }
 
-  let organizacionId: string;
+  /**
+   * LA ORGANIZACIÓN SALE DE QUIEN ENTRA, NO DEL BUILD.
+   *
+   * Antes salía de `negocioDelDespliegue`, que es una variable del build: la
+   * misma para todas las peticiones, así que un despliegue sólo podía servir a un
+   * negocio. Ahora se resuelve del EMPLEO que la pantalla mandó, y el empleo
+   * identifica un solo negocio.
+   *
+   * Los dos pasos, en este orden, porque el orden es la frontera:
+   * 1 · a qué negocios sirve este despliegue —del host o de `ORGANIZACION`, que
+   *     admite una lista—, decidido por el SERVIDOR;
+   * 2 · de cuál de ésos es el empleo, filtrado DENTRO de la consulta.
+   *
+   * La organización sigue sin llegar en un parámetro (R16): el cliente manda una
+   * persona, no un negocio, y un `empleoId` de un negocio que este despliegue no
+   * sirve no se encuentra. Y encontrarlo no autentica nada — debajo todavía está
+   * el PIN, con Argon2id y pimienta, contra la credencial de ESE empleo.
+   */
+  let servidas: readonly string[];
   try {
-    organizacionId = (
-      await negocioDelDespliegue(entorno.ORGANIZACION, peticion.headers.get('host'))
-    ).organizacionId;
+    const negocios = await negociosDelDespliegue(
+      entorno.ORGANIZACION,
+      peticion.headers.get('host'),
+    );
+    servidas = negocios.map((n) => n.organizacionId);
   } catch {
     registrar({
       nivel: 'error',
@@ -100,6 +120,15 @@ export async function POST(peticion: Request): Promise<Response> {
       ok: false,
       error: { codigo: 'ERROR_INTERNO', mensaje: 'No fue posible completar la operación.' },
     });
+  }
+
+  const organizacionId = await organizacionDeQuienEntra(validada.data.empleoId, servidas);
+  // Un empleo que no es de ninguno de los negocios servidos responde lo MISMO
+  // que un PIN incorrecto. Decir «ese empleado no trabaja aquí» le regalaría a
+  // quien prueba identificadores saber dónde sí trabaja, y es justo la fuga que
+  // el mensaje único de arriba evita para el PIN.
+  if (organizacionId === null) {
+    return json(401, { ok: false, error: fallo('Empleado o PIN incorrectos.') });
   }
 
   const deviceToken = leerCookie(peticion.headers.get('cookie'), NOMBRE_COOKIE_DISPOSITIVO) ?? '';

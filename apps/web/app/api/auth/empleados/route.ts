@@ -1,7 +1,7 @@
 import { validarEntorno } from '@morphiqpos/contracts';
 import { leerCookie, permitir } from '@morphiqpos/app/http';
 import { empleadosParaEntrar } from '@morphiqpos/app/identidad';
-import { negocioDelDespliegue } from '@morphiqpos/app/negocio';
+import { negociosDelDespliegue } from '@morphiqpos/app/negocio';
 import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
 import { colorDePersona, etiquetaDeRol, rolMH } from '@morphiqpos/app/puente';
 
@@ -40,23 +40,51 @@ export async function GET(peticion: Request): Promise<Response> {
   const token = leerCookie(peticion.headers.get('cookie'), NOMBRE_COOKIE_DISPOSITIVO) ?? '';
 
   try {
-    // El HOST de la peticion, para que un despliegue pueda servir a mas de un
-    // negocio: `mh-restaurante.morphiqpos.app` ensena a la gente de MH.
-    const negocio = await negocioDelDespliegue(entorno.ORGANIZACION, peticion.headers.get('host'));
-    const empleados = await empleadosParaEntrar(negocio.organizacionId, token, entorno.PIN_PEPPER);
+    // TODOS los negocios a los que sirve este despliegue. El HOST gana cuando la
+    // direccion lleva el slug —`mh-restaurante.morphiqpos.app` ensena solo a la
+    // gente de MH—; si no, es la lista de `ORGANIZACION`, que puede ser una sola
+    // -produccion- o varias -las cinco demostraciones en un despliegue-.
+    const negocios = await negociosDelDespliegue(
+      entorno.ORGANIZACION,
+      peticion.headers.get('host'),
+    );
 
     // Se devuelve con la forma que espera SU pantalla —`UsuarioPOS`— para que
     // su `POSLogin.jsx` no cambie: id, nombre, rol en su vocabulario, la
     // etiqueta real y un color estable para la tarjeta. Nunca el PIN, nunca su
     // hash, nunca los intentos fallidos.
-    const usuarios = empleados.map((e) => ({
-      id: e.empleoId,
-      nombre: e.nombre,
-      rol: rolMH(e.rol) ?? e.rol,
-      etiqueta: etiquetaDeRol(e.rol),
-      color: colorDePersona(e.empleoId),
-      activo: true,
-    }));
+    //
+    // Y cada persona viaja CON SU NEGOCIO. Es lo que permite que un despliegue
+    // sirva a los cinco: se toca a Lupita y se entra en el restaurante, se toca
+    // a Diana y se entra en la cafeteria, sin redesplegar y sin que el cliente
+    // elija negocio —elige persona, y la persona trae el suyo—.
+    const usuarios = [];
+    // `empleados` conserva SU forma cruda —con `empleoId`— porque los cuatro
+    // guiones de humo la leen asi: `empleados[0].empleoId`. Cambiarla los habria
+    // roto en silencio, y son lo que comprueba el despliegue desde fuera.
+    const empleados = [];
+    for (const negocio of negocios) {
+      const gente = await empleadosParaEntrar(negocio.organizacionId, token, entorno.PIN_PEPPER);
+      for (const e of gente) {
+        empleados.push({
+          empleoId: e.empleoId,
+          nombre: e.nombre,
+          rol: e.rol,
+          negocio: negocio.nombre,
+          negocioSlug: negocio.slug,
+        });
+        usuarios.push({
+          id: e.empleoId,
+          nombre: e.nombre,
+          rol: rolMH(e.rol) ?? e.rol,
+          etiqueta: etiquetaDeRol(e.rol),
+          color: colorDePersona(e.empleoId),
+          activo: true,
+          negocio: negocio.nombre,
+          negocioSlug: negocio.slug,
+        });
+      }
+    }
 
     // `slug` va junto al nombre porque el nombre NO identifica a un negocio.
     // La guarda de las pruebas de extremo a extremo comparaba por nombre y su
@@ -65,9 +93,21 @@ export async function GET(peticion: Request): Promise<Response> {
     // resuelve y lo unico con lo que se puede afirmar «esto es la demo y no el
     // negocio de alguien». No es un secreto: es el valor que quien configuro el
     // despliegue escribio a mano.
+    //
+    // `negocio` y `slug` en singular siguen siendo el PRIMERO de la lista, que
+    // con un solo negocio -produccion- es el de siempre: su `POSLogin.jsx` los
+    // pinta en la cabecera y la guarda de las pruebas los compara. `negocios`
+    // es la lista entera, para cuando hay mas de uno.
+    const primero = negocios[0];
     return json(200, {
       ok: true,
-      datos: { negocio: negocio.nombre, slug: negocio.slug, usuarios, empleados },
+      datos: {
+        negocio: primero?.nombre ?? '',
+        slug: primero?.slug ?? '',
+        negocios: negocios.map((n) => ({ nombre: n.nombre, slug: n.slug })),
+        usuarios,
+        empleados,
+      },
     });
   } catch {
     // Un despliegue mal configurado tiene que decirlo en la consola del

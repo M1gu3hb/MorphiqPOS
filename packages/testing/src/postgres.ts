@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { connect } from 'node:net';
 
+import { Client } from 'pg';
+
 /**
  * Arranque de Postgres para las pruebas de integracion (F1.0-T10).
  *
@@ -57,10 +59,52 @@ function aceptaConexiones(host: string, puerto: number, esperaMs: number): Promi
   });
 }
 
-async function esperarPostgres(puerto: number, limiteMs = 60_000): Promise<boolean> {
+/**
+ * Comprueba que POSTGRES contesta, no que el puerto acepte.
+ *
+ * ── El defecto que esto arregla, medido en CI ──────────────────────────────
+ * `aceptaConexiones` sólo abre un socket, y eso NO significa que la base esté
+ * lista: el proxy de Docker publica el puerto en cuanto arranca el contenedor,
+ * mientras Postgres todavía está inicializando su clúster. El primer `select`
+ * que llega se encuentra la conexión cerrada, y el error que sale es
+ * **«Connection terminated unexpectedly»** — que no se parece en nada a «la base
+ * aún no está lista» y manda a buscar el fallo donde no está.
+ *
+ * Pasó exactamente así: en el CI del PR #1, los DOS PRIMEROS archivos de la
+ * suite de integración fallaron con ese error y los TRES SIGUIENTES pasaron, con
+ * `fileParallelism: false`, es decir en orden. No era una carrera entre pruebas:
+ * era la base terminando de arrancar mientras las dos primeras ya consultaban.
+ *
+ * Un `select 1` de verdad es la única espera que no miente.
+ */
+async function postgresContesta(url: string, esperaMs: number): Promise<boolean> {
+  const cliente = new Client({ connectionString: url, connectionTimeoutMillis: esperaMs });
+  try {
+    await cliente.connect();
+    await cliente.query('select 1');
+    return true;
+  } catch {
+    return false;
+  } finally {
+    // Un `end()` que lanza aquí no dice nada útil: si la conexión no se pudo
+    // abrir, cerrarla tampoco. Lo que importa es no dejar el socket colgando.
+    try {
+      await cliente.end();
+    } catch {
+      /* nada que hacer */
+    }
+  }
+}
+
+async function esperarPostgres(url: string, limiteMs = 60_000): Promise<boolean> {
+  const puerto = Number(new URL(url).port || 5432);
   const inicio = Date.now();
   while (Date.now() - inicio < limiteMs) {
-    if (await aceptaConexiones('localhost', puerto, 1_000)) return true;
+    // El socket primero porque es barato y falla rápido mientras nadie escucha;
+    // el `select 1` después, que es el que de verdad dice «lista».
+    if (await aceptaConexiones('localhost', puerto, 1_000)) {
+      if (await postgresContesta(url, 2_000)) return true;
+    }
     await new Promise((listo) => setTimeout(listo, 500));
   }
   return false;
@@ -77,10 +121,13 @@ async function esperarPostgres(puerto: number, limiteMs = 60_000): Promise<boole
 export async function prepararPostgres(): Promise<string> {
   const delEntorno = process.env['DATABASE_URL_PRUEBAS'];
   if (delEntorno !== undefined && delEntorno.length > 0) {
-    if (await esperarPostgres(Number(new URL(delEntorno).port || 5432), 30_000)) {
+    if (await esperarPostgres(delEntorno, 30_000)) {
       return delEntorno;
     }
-    throw new Error(`DATABASE_URL_PRUEBAS apunta a ${delEntorno} pero ahi no responde nadie.`);
+    throw new Error(
+      `DATABASE_URL_PRUEBAS apunta a ${delEntorno.replace(/:[^:@]+@/, ':***@')} y ahi no ` +
+        'contesta ningun Postgres en 30 s.',
+    );
   }
 
   if (!hayDocker()) {
@@ -129,9 +176,9 @@ export async function prepararPostgres(): Promise<string> {
     throw new Error(`No se pudo levantar el contenedor de pruebas:\n${arranque.stderr}`);
   }
 
-  if (!(await esperarPostgres(PUERTO))) {
+  if (!(await esperarPostgres(URL_CONTENEDOR))) {
     spawnSync('docker', ['rm', '-f', CONTENEDOR], { stdio: 'ignore' });
-    throw new Error('El contenedor de Postgres no acepto conexiones en 60 s.');
+    throw new Error('El Postgres del contenedor no contesto un «select 1» en 60 s.');
   }
 
   return URL_CONTENEDOR;

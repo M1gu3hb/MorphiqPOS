@@ -14,10 +14,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@morphiqpos/contracts": "workspace:*"
+    "@morphiqpos/contracts": "workspace:*",
+    "pg": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

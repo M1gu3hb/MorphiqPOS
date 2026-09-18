@@ -2787,3 +2787,45 @@ escribe en el registro qué se saltó y qué sí se comprobó.
 Con archivo:  30 pruebas, 0 saltadas
 Sin archivo:   4 pruebas, 3 saltadas, 0 fallos   (medido renombrando entities/)
 ```
+
+### Causa 5 · las pruebas de integración, y por qué en CI nunca podían pasar
+
+Con las pruebas unitarias en verde, el job llegó al paso siguiente y murió ahí. **Dos de los cinco
+archivos** de integración fallaron; los otros tres pasaron:
+
+```
+base de pruebas lista en ***localhost:5434/morphiqpos_pruebas
+❯ packages/app/src/comando.integracion.test.ts            Connection terminated unexpectedly
+❯ packages/app/src/puente/propinas-derivadas.integracion…  Connection terminated unexpectedly
+✓ packages/data/src/repos/archivos-cuota.integracion.test.ts
+✓ packages/app/src/restaurante/comandas.integracion.test.ts
+✓ packages/testing/src/humo.integracion.test.ts
+```
+
+Ese `5434` es la pista entera. El workflow levanta un servicio de Postgres **en el 5433, con
+comprobación de salud**, y define `DATABASE_URL`. Pero lo que `prepararPostgres()` lee para no
+levantar su propio contenedor es `DATABASE_URL_PRUEBAS` — una variable que **el workflow no definía**,
+aunque el encabezado del propio arnés dijera «es lo que usa CI». Así que en CI el arnés ignoraba el
+servicio y arrancaba un contenedor suyo en el 5434.
+
+Y ahí salió el segundo defecto, que es el de verdad: **`esperarPostgres` sólo abría un socket.** El
+proxy de Docker publica el puerto en cuanto arranca el contenedor, mientras Postgres todavía está
+inicializando su clúster, así que la espera daba «lista» y las primeras consultas se encontraban la
+conexión cerrada. Con `fileParallelism: false` los archivos corren EN ORDEN, y lo que se ve encaja
+exactamente: fallaron los dos primeros y pasaron los tres siguientes. No era una carrera entre
+pruebas; era la base acabando de arrancar.
+
+Tres cosas, entonces:
+
+1. `esperarPostgres` hace un **`select 1` de verdad** además del socket. Es la única espera que no
+   miente, y arregla también el arranque en local con Docker.
+2. El workflow define `DATABASE_URL_PRUEBAS` apuntando al servicio, que ya tiene `pg_isready`. Se deja
+   de levantar un contenedor de más.
+3. **Las migraciones se aplican sobre la base de pruebas antes de la suite.** Nadie lo hacía: los tres
+   archivos que pasaban crean su propia tabla con `sql\`create table…\``, y los dos que fallaban
+   escriben en `organizaciones`, `categorias`, `ventas` y `auditoria`, que en una base recién creada no
+   existen. Incluso con la conexión arreglada habrían fallado por «relation does not exist».
+
+Esto es además la respuesta a la condición 7a: **`test:integracion` tiene su base** — la del CI, en cada
+empujón, con las 99 migraciones aplicadas de verdad y su ledger. En la máquina de Miguel sigue
+necesitando Docker o una `DATABASE_URL_PRUEBAS`.

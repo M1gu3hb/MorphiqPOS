@@ -76,29 +76,82 @@ export function slugDelHost(host: string | null | undefined): string | null {
   return primera;
 }
 
-export async function negocioDelDespliegue(
+/**
+ * Los slugs escritos en `ORGANIZACION`, que puede llevar VARIOS.
+ *
+ * `demo-acople-tienda` → uno. `demo-acople-tienda,demo-acople-cafeteria` → dos.
+ * Se quitan los espacios y los vacíos que deja una coma de más, y se conserva EL
+ * ORDEN ESCRITO: el primero es el que encabeza la pantalla de acceso.
+ */
+export function slugsConfigurados(valor: string | undefined): readonly string[] {
+  if (valor === undefined) return [];
+  const vistos = new Set<string>();
+  const slugs: string[] = [];
+  for (const trozo of valor.split(',')) {
+    const slug = trozo.trim().toLocaleLowerCase('en-US');
+    if (slug === '' || vistos.has(slug)) continue;
+    vistos.add(slug);
+    slugs.push(slug);
+  }
+  return slugs;
+}
+
+/**
+ * TODOS los negocios a los que sirve este despliegue.
+ *
+ * ── Por qué en plural, y por qué esto es lo que pedía el encargo ───────────
+ * «Un despliegue, las cinco demos: Miguel entra con el PIN de un negocio y ve
+ * ese negocio; entra con el de otro y ve el otro, sin redesplegar.» Con un solo
+ * slug eso es imposible, y el camino por HOST —que es el más específico y sigue
+ * ganando— necesita cinco registros de DNS que hoy no existen: el dominio
+ * todavía no resuelve (devuelve 402 y falta el registro A).
+ *
+ * Así que `ORGANIZACION` admite una LISTA. Con un solo slug —producción— esto
+ * devuelve un elemento y el comportamiento es exactamente el de antes. Con
+ * varios, la pantalla de acceso enseña a la gente de todos, y la organización
+ * sale del EMPLEO de quien entra.
+ *
+ * ── Y sigue sin llegar del cliente ────────────────────────────────────────
+ * R16 dice que la organización no viaja en un parámetro. No viaja: lo que el
+ * cliente manda es un `empleoId`, y el servidor resuelve a qué negocio pertenece
+ * ese empleo **filtrando por esta lista**. Un empleo de un negocio que este
+ * despliegue no sirve no se encuentra, y sin el PIN correcto de ESE empleo no se
+ * entra igualmente. El cliente elige una persona, no un negocio.
+ */
+export async function negociosDelDespliegue(
   slugConfigurado: string | undefined,
   host?: string | null,
-): Promise<NegocioDelDespliegue> {
+): Promise<readonly NegocioDelDespliegue[]> {
   const db = obtenerDb();
 
   const delHost = slugDelHost(host);
   if (delHost !== null) {
     const negocio = await repoNegocio.porSlug(db, delHost);
     // Un host que no es de nadie NO falla: cae al paso 2. `morphiqpos.app` a
-    // secas, o el host de un preview de Vercel, son eso.
-    if (negocio !== null) return negocio;
+    // secas, o el host de un preview de Vercel, son eso. Y uno que SÍ lo es gana
+    // sobre la lista: es lo más específico que hay.
+    if (negocio !== null) return [negocio];
   }
 
-  if (slugConfigurado !== undefined) {
-    const negocio = await repoNegocio.porSlug(db, slugConfigurado);
-    if (negocio === null) {
+  const slugs = slugsConfigurados(slugConfigurado);
+  if (slugs.length > 0) {
+    const negocios: NegocioDelDespliegue[] = [];
+    const faltan: string[] = [];
+    for (const slug of slugs) {
+      const negocio = await repoNegocio.porSlug(db, slug);
+      if (negocio === null) faltan.push(slug);
+      else negocios.push(negocio);
+    }
+    // Se nombran TODOS los que faltan, no el primero: quien configura una lista
+    // de cinco quiere saber de una vez cuáles dos están mal escritos.
+    if (faltan.length > 0) {
       throw new ErrorDominio(
         'CONFIGURACION_INVALIDA',
-        `ORGANIZACION apunta a «${slugConfigurado}» y no hay ninguna organización activa con ese slug.`,
+        `ORGANIZACION apunta a «${faltan.join('», «')}» y no hay ninguna organización activa con ` +
+          (faltan.length === 1 ? 'ese slug.' : 'esos slugs.'),
       );
     }
-    return negocio;
+    return negocios;
   }
 
   const activas = await repoNegocio.activas(db, 2);
@@ -114,7 +167,8 @@ export async function negocioDelDespliegue(
     throw new ErrorDominio(
       'CONFIGURACION_INVALIDA',
       'Esta base tiene más de una organización activa. Define ORGANIZACION con el ' +
-        'slug del negocio al que sirve este despliegue.',
+        'slug del negocio al que sirve este despliegue, o con la lista separada por comas ' +
+        'de los negocios a los que sirve.',
     );
   }
 
@@ -125,5 +179,35 @@ export async function negocioDelDespliegue(
   if (unica === undefined) {
     throw new ErrorDominio('CONFIGURACION_INVALIDA', 'No hay ninguna organización activa.');
   }
-  return unica;
+  return [unica];
+}
+
+/**
+ * EL negocio, cuando quien pregunta sólo puede trabajar con uno.
+ *
+ * El portal del comensal y la recogida son así: el código QR trae un token que
+ * pertenece a UNA organización y no hay persona a la que preguntar. Si el
+ * despliegue sirve a varios y el host no desambigua, esto **falla diciéndolo**
+ * en vez de coger el primero — servir el menú de otro negocio a quien escaneó
+ * una mesa sería peor que no servir ninguno.
+ */
+export async function negocioDelDespliegue(
+  slugConfigurado: string | undefined,
+  host?: string | null,
+): Promise<NegocioDelDespliegue> {
+  const negocios = await negociosDelDespliegue(slugConfigurado, host);
+  const primero = negocios[0];
+  if (primero === undefined) {
+    throw new ErrorDominio('CONFIGURACION_INVALIDA', 'No hay ninguna organización activa.');
+  }
+  if (negocios.length > 1) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      `Este despliegue sirve a ${String(negocios.length)} negocios (${negocios
+        .map((n) => n.slug)
+        .join(', ')}) y esta pantalla necesita saber a cuál. Entra por la dirección del ` +
+        'negocio, o despliega con un solo slug en ORGANIZACION.',
+    );
+  }
+  return primero;
 }
