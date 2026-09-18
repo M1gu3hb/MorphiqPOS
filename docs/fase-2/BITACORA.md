@@ -2822,7 +2822,7 @@ Tres cosas, entonces:
 2. El workflow define `DATABASE_URL_PRUEBAS` apuntando al servicio, que ya tiene `pg_isready`. Se deja
    de levantar un contenedor de más.
 3. **Las migraciones se aplican sobre la base de pruebas antes de la suite.** Nadie lo hacía: los tres
-   archivos que pasaban crean su propia tabla con `sql\`create table…\``, y los dos que fallaban
+   archivos que pasaban crean su propia tabla con un `create table` suyo, y los dos que fallaban
    escriben en `organizaciones`, `categorias`, `ventas` y `auditoria`, que en una base recién creada no
    existen. Incluso con la conexión arreglada habrían fallado por «relation does not exist».
 
