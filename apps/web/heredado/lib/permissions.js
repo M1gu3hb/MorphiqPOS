@@ -8,11 +8,24 @@ export const PERMISSIONS = {
   ver_mesero: [ROLES.ADMIN, ROLES.WAITER],
   ver_mesas: [ROLES.ADMIN, ROLES.WAITER, ROLES.CASHIER],
   ver_cocina: [ROLES.ADMIN, ROLES.KITCHEN],
-  ver_inventario: [ROLES.ADMIN],
-  ver_compras: [ROLES.ADMIN],
-  ver_recetas: [ROLES.ADMIN],
+  // ── El almacen ────────────────────────────────────────────────────────────
+  // Quien recibe mercancia, cuenta y traspasa. Es el rol que mas se olvida, y se
+  // olvido: hasta que `sembrarEquipo` le dio un usuario a cada demostracion,
+  // nadie habia entrado como almacen y nadie habia visto que el menu salia VACIO
+  // —`rolMH` devuelve null para el, con razon, y `hasPermission('almacen', …)`
+  // no encontraba ninguna entrada—.
+  //
+  // Lo que ve: existencias, entradas, conteo, compras y las recetas, que son el
+  // costo de lo que recibe. Lo que NO ve: caja, cobro, configuracion, registros
+  // ni el portal. Esa es la diferencia entre darle su menu y darle el de
+  // administrador «para que no se quede sin nada».
+  ver_inventario: [ROLES.ADMIN, ROLES.WAREHOUSE],
+  ver_compras: [ROLES.ADMIN, ROLES.WAREHOUSE],
+  ver_recetas: [ROLES.ADMIN, ROLES.WAREHOUSE],
   editar_recetas: [ROLES.ADMIN],
-  ver_productos: [ROLES.ADMIN],
+  // El catalogo lo LEE para recibir: sin poder abrir la ficha de un material no
+  // puede registrar una entrada. Editar precios es otra cosa y no esta aqui.
+  ver_productos: [ROLES.ADMIN, ROLES.WAREHOUSE],
   ver_ventas: [ROLES.ADMIN, ROLES.CASHIER],
   ver_caja: [ROLES.ADMIN, ROLES.CASHIER],
   ver_corte: [ROLES.ADMIN, ROLES.CASHIER],

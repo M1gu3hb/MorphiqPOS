@@ -219,7 +219,7 @@ export const resetearDemo = definirComando<
     const sala =
       organizacion.giro === 'restaurante'
         ? await ctx.paso('sembrar_sala', () =>
-            sembrarSala(ctx.tx, ctx.ambito.organizacionId, sucursalId, pimienta),
+            sembrarSala(ctx.tx, ctx.ambito.organizacionId, sucursalId),
           )
         : null;
 
