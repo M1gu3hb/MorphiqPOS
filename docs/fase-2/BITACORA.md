@@ -2658,3 +2658,104 @@ verify:acople 0 ✓   99 migraciones = 99 en el ledger · RLS en 162 relaciones
                     57 de 61 pantallas alcanzables · 48 consumen el vocabulario
 navegador     10/10 · cero fallos reales
 ```
+
+---
+
+## 2026-09-18 · E1 · los tres checks rojos del CI, y por qué ninguno era «el arranque»
+
+El encargo decía que los tres morían en el arranque común —`pnpm/action-setup` +
+`pnpm install --frozen-lockfile`— porque los tres morían en 24-43 segundos. **No era eso.** Los logs
+lo dijeron en cuanto se leyeron con `gh run view 35299491074 --log-failed`: eran **tres causas
+distintas**, y ninguna compartida.
+
+Y lo primero que se hizo fue lo que el encargo pedía —clonar en limpio y correr
+`pnpm install --frozen-lockfile`— que pasó en 44 s. Eso descartó el lockfile como causa del arranque
+y dejó claro que había que leer los logs de verdad.
+
+### Causa 1 · `verify:historico` exigía lo que el contrato prohíbe versionar
+
+```
+✗ El contrato de historico/ no se cumple:
+  · Repo POS-MH-Tiendita (Fuente B): falta historico/tiendita/package.json
+  · ZIP POS MH Restaurante (Fuente A): falta historico/restaurante/base44/config.jsonc
+  · Paquete de auditoria de Fase 0: falta historico/auditoria-fase-0/LEEME_PRIMERO.md
+```
+
+El propio encabezado del contrato dice que `historico/` **no se versiona**: son 80 MB de evidencia de
+la plataforma erradicada. El paso 1 del script exigía que las tres fuentes EXISTIERAN. Las dos cosas
+juntas no se pueden cumplir en una copia recién clonada, y el CI clona en limpio: **este check no
+podía pasar nunca en CI.**
+
+El arreglo no es relajarlo: es poner cada comprobación donde vive su sujeto. Que el archivo esté
+COMPLETO es una propiedad de la máquina que lo guarda —la de Miguel—; que el repositorio lo IGNORE, no
+lo trate como workspace, lo excluya de tipos y de lint y no lo importe es una propiedad del
+repositorio, y eso se comprueba en cualquier copia. Los pasos 2 a 7 siguen corriendo siempre, y el
+script **dice en voz alta** cuál no se corrió y por qué.
+
+```
+Destructivas que FALLAN:
+  · con el archivo presente, esconder historico/tiendita/package.json → «falta …», 1 fallo
+  · en la copia limpia, comentar la regla de historico/ en .gitignore → «historico/ NO esta ignorada»
+Inocua que PASA:
+  · la copia limpia sin archivo → verde, con el pendiente escrito
+```
+
+### Causa 2 · `pnpm audit` · dos vulnerabilidades altas en `sharp`
+
+```
+high  sharp inherited vulnerabilities in libvips: CVE-2026-33327, 33328, 35590, 35591
+high  sharp: Vulnerabilities in libheif: GHSA-g89c-p67h-r497, GHSA-2jg2-4ch7-h545
+      Vulnerable versions <0.35.4 · Patched >=0.35.4 · Paths apps__web>sharp
+```
+
+`sharp@0.34.5` → **0.35.4**. `pnpm audit --audit-level high --prod` pasa de dos altas a
+«No known vulnerabilities found».
+
+**Y subirlo destapó un segundo problema que vale la pena contar**, porque es el mismo error de método
+que ya costó dos veces en esta fase: el primer `pnpm install` dijo *«Lockfile is up to date,
+resolution step is skipped»* y dejó un lockfile con `version: 0.35.4` sin el sufijo de peer, mientras
+el árbol materializaba `sharp@0.35.4_@types+node@24.13.3`. Resultado: el enlace
+`apps/web/node_modules/sharp` apuntaba a un camino que no existe, Node no resolvía el módulo, y
+**typecheck y lint se caían en la copia limpia con 2 y 49 errores** — mientras en mi máquina, con el
+árbol viejo aún en su sitio, todo salía verde.
+
+`sharp` 0.35.4 declara `peerDependenciesMeta: { '@types/node': optional }` **sin** listar
+`@types/node` en `peerDependencies`, y eso es lo que empuja a pnpm a esa esquina.
+
+Se probaron tres caminos, en la copia limpia y midiendo:
+
+1. declarar `@types/node` en `apps/web` → **no aplica**: ya estaba declarado;
+2. `packageExtensions: sharp: { peerDependenciesMeta: {} }` en `pnpm-workspace.yaml` → funcionaba,
+   pero;
+3. **regenerar el lockfile con el árbol borrado** → funciona igual y sin añadir un apaño. Se quitó el
+   `packageExtensions` y se comprobó otra vez: `rm -rf node_modules && pnpm install --frozen-lockfile`
+   → sharp resuelve, `typecheck` 7/7, `lint` 0.
+
+El lockfile bueno difiere del malo en tres líneas: `version: 0.35.4(@types/node@24.13.3)`, y dos
+`optional: true` que no debían estar.
+
+### Causa 3 · el build · y este defecto era MÍO, de ayer
+
+```
+The export PLANTILLAS was not found in module [project]/apps/web/src/cliente/package-config.ts
+Did you mean to import PLANTILLA_POR_OMISION?
+  ./apps/web/heredado/components/configuracion/ModoPresentacion.jsx
+```
+
+Al arreglar el Modo presentación para que ofrezca las cinco plantillas, hice que derivara su orden de
+`PLANTILLAS` importándola de `@/lib/packageConfig`. Ese alias resuelve al shim
+`src/cliente/package-config.ts`, que hace `export *` de `heredado/lib/packageConfig.js` — y
+`PLANTILLAS` allí se **importaba** para usarla dentro, no se **exportaba**. Un `export *` sólo
+reexporta lo que el módulo exporta.
+
+`typecheck` no lo vio —el alias resuelve tipos por otro camino— y **yo no volví a correr `pnpm build`
+después de ese cambio.** Es la tercera vez en esta fase que una puerta sin correr se declara en 0.
+
+Arreglado exportando `PLANTILLAS` desde `heredado/lib/packageConfig.js`, que además es lo correcto: el
+frontend heredado debe leer la lista canónica de `contracts`, no una copia.
+
+### Cómo queda la cadena, medida en la COPIA LIMPIA
+
+`verify:estructura`, `verify:historico`, `verify:tsconfig`, `verify:entorno`, `verify:residuos`,
+`verify:primitivas`, `format:check`, `lint`, `typecheck` y `build`: **todos en 0**. `pnpm audit
+--audit-level high --prod`: sin vulnerabilidades. `test:unit`: 2 733 pruebas en 227 archivos.

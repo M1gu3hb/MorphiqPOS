@@ -374,7 +374,21 @@ export const ROUTE_TO_MODULE = {
 
 /** Dónde abre cada plantilla. Se reexporta para que el menú y el salto de
  * después de entrar lean lo mismo. */
-export { INICIO_POR_PLANTILLA, navegacionDePlantilla };
+/**
+ * Lo que este modulo REEXPORTA del contrato.
+ *
+ * `PLANTILLAS` se importaba y se usaba aqui dentro, pero NO salia. El shim de
+ * `src/cliente/package-config.ts` hace `export *`, y un `export *` solo reexporta
+ * lo que el modulo exporta: cualquier pantalla que pidiera `PLANTILLAS` por el
+ * alias `@/lib/packageConfig` rompia EL BUILD, no el typecheck —Turbopack lo
+ * resuelve de verdad y dice «The export PLANTILLAS was not found»—. Paso: el Modo
+ * presentacion lo pidio para derivar su orden y el build del CI murio ahi.
+ *
+ * Sale de aqui porque es la lista CANONICA. Que el frontend heredado lea la de
+ * `contracts` en vez de una copia es justo lo que hace que la sexta plantilla
+ * entre sola.
+ */
+export { INICIO_POR_PLANTILLA, navegacionDePlantilla, PLANTILLAS };
 
 /**
  * El menú de la plantilla, con el permiso del rol ya aplicado.
