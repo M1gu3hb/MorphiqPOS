@@ -279,6 +279,12 @@ export async function cerrarSesion(
     readonly serie: string;
     readonly empleadoCierraId: string;
     readonly efectivoContadoCentavos: bigint;
+    /**
+     * El bote de propina contado. `undefined` es «este negocio no tiene bote»;
+     * la columna se queda en NULL, que es «no se contó» — y `repartirBote` lo
+     * distingue de un cero a propósito.
+     */
+    readonly boteContadoCentavos?: bigint;
     readonly notasCierre: string | null;
     readonly ahora: Date;
   },
@@ -293,6 +299,9 @@ export async function cerrarSesion(
       folio,
       empleado_cierra_id: datos.empleadoCierraId,
       efectivo_contado_centavos: datos.efectivoContadoCentavos,
+      ...(datos.boteContadoCentavos === undefined
+        ? {}
+        : { bote_contado_centavos: datos.boteContadoCentavos }),
       notas_cierre: datos.notasCierre,
     })
     .where('organizacion_id', '=', datos.organizacionId)

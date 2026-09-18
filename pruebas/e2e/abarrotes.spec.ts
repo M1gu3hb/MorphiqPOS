@@ -185,7 +185,16 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     // otra —una sesión de caja pertenece a una terminal, y la terminal nace
     // cuando este navegador entra por primera vez— así que aquí se hace lo que
     // hace un cajero al empezar el turno.
-    await abrirLaCajaSiHaceFalta(page, '/abarrotes/caja', (FONDO_CENTAVOS / 100).toFixed(2));
+    await abrirLaCajaSiHaceFalta(
+      page,
+      {
+        ruta: '/abarrotes/caja',
+        boton: 'Abrir caja',
+        campoDelFondo: '#fondo-monedas',
+        señalAbierta: 'Lo que debería haber',
+      },
+      (FONDO_CENTAVOS / 100).toFixed(2),
+    );
 
     await abrirPantalla(page, '/abarrotes/cobrar');
 

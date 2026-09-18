@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
-import { repoFolios, type Transaccion } from '@morphiqpos/data';
+import { repoCaja, repoFolios, type Transaccion } from '@morphiqpos/data';
 import {
   calcularComision,
   type LineaComisionable,
@@ -10,6 +10,7 @@ import {
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { registrarPagoConPropina } from '../propinas/cobro.ts';
 
 /**
  * `venta.cobrar_cita` — la transacción más grande del modelo.
@@ -82,7 +83,7 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
     paquetes: PAQUETES_TODOS,
     entrada: entradaCobrarCita,
     async ejecutar(ctx, entrada) {
-      const { organizacionId, sucursalId, empleoId } = ctx.ambito;
+      const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;
       if (sucursalId === null) {
         throw new ErrorDominio(
           'VENTA_SIN_TERMINAL',
@@ -145,6 +146,35 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
           'Lo que suman los pagos no es lo que cuesta la cita.',
           { total: total.toString(), pagado: pagado.toString() },
         );
+      }
+
+      /**
+       * LA CAJA, ANTES DEL FOLIO. Esto faltaba entero.
+       *
+       * ── El defecto que esto arregla ─────────────────────────────────────
+       * Cobrar una cita escribía la orden, sus líneas, las comisiones y cerraba
+       * la cita — y **no escribía el pago ni el movimiento de caja**. El dinero
+       * del salón entraba y el cajón no se enteraba: `pagos` se quedaba sin fila
+       * —así que el corte contaba CERO ventas— y `movimientos_caja` sin el
+       * efectivo, así que el arqueo del día salía corto por cada cita cobrada. La
+       * estilista cobra 1 800 pesos en efectivo, el cajón los tiene, y el sistema
+       * dice que sobran 1 800: el número con el que se acusa a alguien.
+       *
+       * Se hace igual que en `venta.cobrar`, con los mismos ayudantes, y por eso
+       * exige lo mismo: caja abierta en ESTA terminal. Sin sesión, el efectivo no
+       * tiene dónde registrarse y el arqueo nace incompleto.
+       */
+      if (terminalId === null) {
+        throw new ErrorDominio(
+          'VENTA_SIN_TERMINAL',
+          'Para cobrar hace falta una terminal dada de alta en una sucursal.',
+        );
+      }
+      const sesion = await ctx.paso('cargar_caja', () =>
+        repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId),
+      );
+      if (sesion === null) {
+        throw new ErrorDominio('CAJA_CERRADA', 'Abre la caja antes de cobrar.');
       }
 
       const { serie, folio } = await ctx.paso('tomar_folio', () =>
@@ -221,6 +251,52 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
           esRehacer: cita.esRehacer,
         });
         if (causada !== null) comisiones.push(causada);
+      }
+
+      /**
+       * EL PAGO, CON SU MÉTODO, Y EL CAJÓN.
+       *
+       * Una fila de `pagos` por método —un pago mixto son varias— y UN movimiento
+       * de caja por el efectivo, que es lo único que mueve el cajón: la tarjeta y
+       * la transferencia entran en el banco, no en la caja, y sumarlas al arqueo
+       * haría «faltar» todo lo que se cobró con tarjeta.
+       *
+       * La propina va en cero: el salón la entrega en mano y esta pantalla lo dice
+       * con todas sus letras al cobrar. El día que se quiera anotar, hay columna.
+       */
+      let efectivo = 0n;
+      for (const pago of entrada.pagos) {
+        const monto = BigInt(pago.montoCentavos);
+        await ctx.paso('registrar_pago', () =>
+          registrarPagoConPropina(ctx.tx, {
+            organizacionId,
+            ordenId: orden.id,
+            sesionCajaId: sesion.id,
+            metodo: pago.metodo,
+            montoCentavos: monto,
+            propinaCentavos: 0n,
+            recibidoCentavos: pago.metodo === 'efectivo' ? monto : null,
+            cambioCentavos: 0n,
+            referencia: null,
+            idempotencyKey: null,
+          }),
+        );
+        if (pago.metodo === 'efectivo') efectivo += monto;
+      }
+
+      if (efectivo > 0n) {
+        await ctx.paso('mover_caja', () =>
+          repoCaja.registrarMovimiento(ctx.tx, {
+            organizacionId,
+            sesionCajaId: sesion.id,
+            tipo: 'venta',
+            montoCentavos: efectivo,
+            referenciaTipo: 'orden',
+            referenciaId: orden.id,
+            empleadoId: empleoId,
+            motivo: null,
+          }),
+        );
       }
 
       await ctx.paso('cerrar_cita', () =>

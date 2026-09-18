@@ -208,6 +208,13 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
         serie: sesion.serie,
         empleadoCierraId: empleoId,
         efectivoContadoCentavos: contado,
+        // El bote sólo viaja cuando la pantalla lo contó. Sin él la columna se
+        // queda en NULL, que es «no se contó», y `repartir_bote` lo distingue de
+        // un cero: repartir cero cuando nadie contó sería firmar que esa noche
+        // no hubo propina.
+        ...(entrada.boteContadoCentavos === undefined
+          ? {}
+          : { boteContadoCentavos: BigInt(entrada.boteContadoCentavos) }),
         notasCierre: entrada.notas ?? null,
         ahora: ctx.ahora,
       }),

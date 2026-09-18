@@ -332,15 +332,29 @@ export function CierreDeTurno({
         setDialogo(true);
         return;
       }
-      // Por convención `/api/<dominio>/<verbo>`: el documento no nombra la ruta
-      // del conteo del bote y todavía no existe ninguna.
-      await invocarComando('/api/cafeteria/contar-bote', {
-        boteContadoCentavos: contadoBote,
-        dineroDejadoCentavos: aCentavos(conteo['dejado']),
-        cambioDejadoCentavos: aCentavos(conteo['cambio']),
-      });
+      /**
+       * UN SOLO COMANDO, y ésta es la corrección.
+       *
+       * Aquí había una llamada previa a `/api/cafeteria/contar-bote` con un
+       * comentario que decía «el documento no nombra la ruta y todavía no existe
+       * ninguna». **No existía.** El 404 devolvía la página de error de Next, que
+       * no es `{ok, datos}`, así que el cliente decía «El servidor respondió algo
+       * inesperado» y el turno no se cerraba NUNCA — ni el bote se contaba, ni la
+       * caja se cerraba, porque el cierre venía después.
+       *
+       * El bote va ahora dentro de `caja.cerrar`: se cuenta el cajón y se cuenta
+       * el bote con las manos en el mismo dinero y en el mismo momento, así que
+       * es una sola transacción. Y `cafeteria.repartir_bote`, que EXIGE ese
+       * número, por fin lo encuentra escrito.
+       *
+       * Lo que NO se guarda todavía —y se dice en vez de fingir— es «dinero que
+       * dejas en caja» y «de eso, en cambio»: `sesiones_caja` no tiene columnas
+       * para ellos. Se siguen pidiendo porque ayudan a quien cuenta, y el día que
+       * haya que conservarlos hará falta una migración.
+       */
       const corte = await invocarComando<ResultadoCierre>(RUTA_CERRAR, {
         efectivoContadoCentavos: aCentavos(conteo['efectivo']),
+        boteContadoCentavos: contadoBote,
       });
       setResultado(corte);
       onCerrado?.(corte.sesionCajaId);

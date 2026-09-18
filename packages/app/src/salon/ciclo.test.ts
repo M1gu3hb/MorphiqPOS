@@ -6,7 +6,7 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG, SUCURSAL } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, ORG, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
 import { cancelarCita, cerrarServicio, iniciarCita, marcarNoLlego } from './ciclo.ts';
 import { cobrarCita } from './cobro.ts';
 
@@ -29,6 +29,7 @@ const ALMACEN_CABINA = 'm1111111-1111-4111-8111-111111111111';
 const PRODUCTO_TINTE = 'p1111111-1111-4111-8111-111111111111';
 const INSUMO_TINTE = 'i1111111-1111-4111-8111-111111111111';
 const AHORA = new Date('2026-09-15T11:00:00.000Z');
+const SESION_CAJA = 'c1111111-1111-4111-8111-111111111111';
 
 function salon(extra: Partial<TablasFalsas> = {}): TablasFalsas {
   return {
@@ -118,6 +119,31 @@ function salon(extra: Partial<TablasFalsas> = {}): TablasFalsas {
     movimientos_stock: [],
     ordenes: [],
     orden_lineas: [],
+    /**
+     * LA CAJA ABIERTA DE ESTA TERMINAL.
+     *
+     * Cobrar una cita ya no sólo escribe la orden: registra el pago y mueve el
+     * cajón, como `venta.cobrar`. Sin sesión abierta contesta «Abre la caja antes
+     * de cobrar», y eso es lo correcto — el efectivo de una cita tiene que caber
+     * en el arqueo del día igual que el de una venta de mostrador.
+     */
+    sesiones_caja: [
+      {
+        id: SESION_CAJA,
+        organizacion_id: ORG,
+        sucursal_id: SUCURSAL,
+        terminal_id: TERMINAL,
+        estado: 'abierta',
+        serie: 'CC',
+        folio: null,
+        abierta_en: AHORA,
+        cerrada_en: null,
+        fondo_inicial_centavos: 150_000n,
+        efectivo_contado_centavos: null,
+      },
+    ],
+    pagos: [],
+    movimientos_caja: [],
     ...extra,
   };
 }

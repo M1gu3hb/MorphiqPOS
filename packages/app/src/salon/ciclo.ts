@@ -271,12 +271,61 @@ export const cerrarServicio = definirComando<
         .execute(),
     );
 
+    /**
+     * Y SI ERA EL ÚLTIMO, LA CITA QUEDA TERMINADA.
+     *
+     * ── El defecto que esto arregla ───────────────────────────────────────
+     * Cerrar un servicio cerraba el servicio y nada más: la CITA se quedaba
+     * `en_curso` para siempre. Y `estetica-salon/Cobrar` lista las citas con
+     * estado `terminada` —con razón: «una cita se cobra cuando el servicio está
+     * CERRADO, y no antes»—, así que **ninguna cita llegaba nunca a la pantalla de
+     * cobro**. Un salón que no puede cobrar.
+     *
+     * La transición va aquí y no en un comando aparte porque no es una decisión de
+     * nadie: es la consecuencia de cerrar el último servicio. Un comando aparte
+     * sería un paso que alguien tiene que acordarse de dar, y el día que se
+     * olvidara la cita volvería a quedarse colgada.
+     *
+     * Se cuenta lo que queda VIVO —ni cerrado ni cancelado—: una cita con dos
+     * servicios, uno cerrado y otro cancelado, está terminada; una con uno cerrado
+     * y otro por hacer, no.
+     */
+    // Se piden las FILAS y no un `count`: basta saber si queda alguna, y así esto
+    // no depende de la función de agregado —que el constructor falso de las
+    // pruebas unitarias no implementa— para una respuesta de sí o no.
+    const vivos = await ctx.paso('servicios_vivos', () =>
+      ctx.tx
+        .selectFrom('cita_servicios')
+        .select('id')
+        .where('organizacion_id', '=', organizacionId)
+        .where('cita_id', '=', servicio.citaId)
+        .where('estado', 'not in', ['cerrado', 'cancelado'])
+        .limit(1)
+        .execute(),
+    );
+
+    const terminada = vivos.length === 0;
+    if (terminada) {
+      await ctx.paso('terminar_cita', () =>
+        ctx.tx
+          .updateTable('citas')
+          .set({ estado: 'terminada', fin_real: ctx.ahora })
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', '=', servicio.citaId)
+          // Sólo desde los estados VIVOS: una cita ya cobrada o cancelada no
+          // vuelve atrás porque alguien cierre un servicio suelto.
+          .where('estado', 'in', ['agendada', 'confirmada', 'en_curso'])
+          .execute(),
+      );
+    }
+
     ctx.auditar({
       entidadId: entrada.citaServicioId,
       payload: {
         citaId: servicio.citaId,
         consumos: escritos,
         formula: JSON.stringify(entrada.formula),
+        citaTerminada: terminada,
       },
     });
 

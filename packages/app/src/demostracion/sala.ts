@@ -141,6 +141,47 @@ async function asegurarZonas(
 
 async function sembrarEstaciones(tx: Transaccion, organizacionId: string): Promise<number> {
   let creadas = 0;
+
+  /**
+   * LA GENERAL PRIMERO, y esto es un arreglo.
+   *
+   * Aquí decía «`es_general` NO se toca: la general la impone un índice único
+   * parcial y ya existe desde la semilla de la migración 045». Para las
+   * organizaciones que existían entonces, sí. **Para una nueva, no existe
+   * ninguna**, y la demostración de restaurante se creó después: tenía «Cocina
+   * caliente» y «Barra» y ninguna general.
+   *
+   * Lo que eso rompe: `resolverEstacion` busca la estación de la categoría del
+   * producto y, si no la encuentra, cae a la GENERAL; sin general **lanza**
+   * `ESTACION_NO_ENCONTRADA`. Así que mandar un platillo a la cocina —el paso que
+   * convierte una mesa en trabajo— fallaba en la demo con «No hay ninguna
+   * estación de preparación activa. Crea la "Cocina general" en Configuración».
+   *
+   * El nombre, la descripción y el color son los mismos que usa
+   * `mantenimiento.purgar` al resembrar los mínimos de un restaurante: una sola
+   * forma de la estación general en todo el sistema.
+   */
+  const general = await tx
+    .selectFrom('estaciones_preparacion')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .where('es_general', '=', true)
+    .executeTakeFirst();
+  if (general === undefined) {
+    await tx
+      .insertInto('estaciones_preparacion')
+      .values({
+        organizacion_id: organizacionId,
+        nombre: 'Cocina general',
+        descripcion: 'Estación por defecto',
+        color: '#4A5568',
+        orden: 0,
+        es_general: true,
+      })
+      .execute();
+    creadas += 1;
+  }
+
   for (const [indice, estacion] of ESTACIONES.entries()) {
     const existente = await tx
       .selectFrom('estaciones_preparacion')

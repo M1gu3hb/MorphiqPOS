@@ -697,6 +697,17 @@ export async function plantillaRechazada(page: Page, valor: string): Promise<str
  * toda escritura, con ocho caracteres mínimo: es lo que hace que un reintento de red
  * no cambie la plantilla dos veces.
  */
+/**
+ * Las mismas cabeceras, para las pruebas que llaman a una ruta directamente.
+ *
+ * Se exporta con otro nombre en vez de exportar la de dentro: quien la use tiene
+ * que estar diciendo «esto es una prueba llamando a la ruta que usa el botón», y
+ * un nombre que lo diga es más difícil de usar sin pensarlo.
+ */
+export function cabecerasDeEscrituraDePrueba(): Record<string, string> {
+  return cabecerasDeEscritura();
+}
+
 function cabecerasDeEscritura(): Record<string, string> {
   return {
     'content-type': 'application/json',
@@ -1318,15 +1329,26 @@ export async function exigirInventarioMovido(
  * Es idempotente: si ya está abierta, no toca nada. Así una segunda corrida
  * sobre el mismo navegador no abre dos.
  */
+export interface PantallaDeCaja {
+  /** Dónde se abre. */
+  readonly ruta: string;
+  /** El botón que la abre: «Abrir caja» en el mostrador, «Abrir turno» en la barra. */
+  readonly boton: string;
+  /** El campo del fondo, por `id`. Cada modelo lo llama a su manera. */
+  readonly campoDelFondo: string;
+  /** Algo que SÓLO se ve con la caja ya abierta, para no abrirla dos veces. */
+  readonly señalAbierta: string;
+}
+
 export async function abrirLaCajaSiHaceFalta(
   page: Page,
-  rutaDeCaja: string,
+  caja: PantallaDeCaja,
   fondoEnPesos = '500',
 ): Promise<void> {
-  await abrirPantalla(page, rutaDeCaja);
+  await abrirPantalla(page, caja.ruta);
 
-  const botonAbrir = page.getByRole('button', { name: 'Abrir caja' });
-  const yaAbierta = page.getByRole('heading', { name: 'Lo que debería haber' });
+  const botonAbrir = page.getByRole('button', { name: caja.boton });
+  const yaAbierta = page.getByText(caja.señalAbierta).first();
 
   /**
    * Se ESPERA a que la pantalla decida, y después se mira.
@@ -1347,8 +1369,8 @@ export async function abrirLaCajaSiHaceFalta(
   if ((await yaAbierta.count()) > 0) return;
 
   // El fondo va por montones porque «$1,500» no dice si se puede dar cambio.
-  // Basta el de monedas: lo que se prueba es que la caja abre, no el arqueo.
-  await page.locator('#fondo-monedas').fill(fondoEnPesos);
+  // Basta uno: lo que se prueba es que la caja abre, no el arqueo.
+  await page.locator(caja.campoDelFondo).fill(fondoEnPesos);
   await botonAbrir.click();
 
   await expect(
@@ -1357,4 +1379,79 @@ export async function abrirLaCajaSiHaceFalta(
       'terminal, `venta.cobrar` contesta «Abre la caja antes de cobrar» y no hay venta que ' +
       'comprobar.',
   ).toHaveCount(0);
+}
+
+/**
+ * Abre la caja de esta terminal POR LA RUTA, no por el diálogo.
+ *
+ * ── Por qué por la ruta, y por qué esto no es saltarse nada ────────────────
+ * Es el mismo criterio que `cambiarDePlantilla`: se usa EXACTAMENTE la ruta que
+ * usa el botón, con las mismas cabeceras, así que pasa por el mismo comando, el
+ * mismo gate de rol, la misma plantilla permitida y la misma auditoría. Lo que
+ * se salta es el DIÁLOGO, no la autorización.
+ *
+ * Y hace falta porque tres de los cinco modelos abren la caja en la pantalla
+ * HEREDADA —un diálogo de la plataforma anterior— mientras el mostrador y la
+ * barra tienen la suya propia. Esas dos SÍ se abren por la pantalla, porque ahí
+ * el formulario es parte del modelo; en los otros tres, teclear un diálogo
+ * heredado no prueba nada del acople y cuesta media suite.
+ *
+ * Devuelve `true` si la abrió, `false` si ya estaba abierta.
+ */
+export async function abrirCajaPorLaRuta(page: Page, fondoCentavos: number): Promise<boolean> {
+  const estado = await page.request.post('/api/caja/estado', {
+    headers: cabecerasDeEscritura(),
+    data: {},
+  });
+  const cuerpo = (await estado.json()) as { datos?: { abierta?: boolean } };
+  if (cuerpo.datos?.abierta === true) return false;
+
+  const respuesta = await page.request.post('/api/caja/abrir', {
+    headers: cabecerasDeEscritura(),
+    data: { fondoInicialCentavos: fondoCentavos },
+  });
+  const texto = await respuesta.text();
+  expect(
+    respuesta.status(),
+    'No se pudo abrir la caja de esta terminal: ' +
+      texto.slice(0, 300) +
+      '. Sin caja abierta, `venta.cobrar` contesta «Abre la caja antes de cobrar» y no hay ' +
+      'venta que comprobar.',
+  ).toBe(200);
+  return true;
+}
+
+/**
+ * CIERRA LA CAJA Y EXIGE QUE EL DINERO CUADRE, contra el servidor.
+ *
+ * El esperado lo calcula `caja.cerrar` sumando los movimientos del turno: la
+ * apertura con su fondo y cada venta en efectivo. Comparar contra
+ * `fondo + cobrado` es la aritmética completa del arqueo, y se hace al centavo:
+ * un peso de diferencia al cerrar es un peso que alguien tiene que explicar.
+ *
+ * Y cerrar es lo que hace REPETIBLE la corrida: la base permite UNA sesión
+ * abierta por sucursal, y cada navegador nuevo trae su propia terminal, así que
+ * una caja que se queda abierta bloquea la corrida siguiente entera.
+ */
+export async function cerrarCajaYCuadrar(page: Page, esperadoCentavos: number): Promise<void> {
+  const respuesta = await page.request.post('/api/caja/cerrar', {
+    headers: cabecerasDeEscritura(),
+    data: { efectivoContadoCentavos: esperadoCentavos },
+  });
+  const texto = await respuesta.text();
+  expect(respuesta.status(), `No se pudo cerrar la caja: ${texto.slice(0, 300)}`).toBe(200);
+
+  const cuerpo = JSON.parse(texto) as {
+    datos?: { efectivoEsperadoCentavos?: string; diferenciaCentavos?: string };
+  };
+  expect(
+    Number(cuerpo.datos?.efectivoEsperadoCentavos ?? -1),
+    'El efectivo ESPERADO del corte no es el fondo más lo cobrado en efectivo. O la venta no ' +
+      'entró al cajón, o el fondo no se registró como movimiento de apertura: las dos cosas son ' +
+      'dinero que no cuadra a fin de turno.',
+  ).toBe(esperadoCentavos);
+  expect(
+    Number(cuerpo.datos?.diferenciaCentavos ?? -1),
+    'Se contó exactamente lo esperado y el corte dice que hay diferencia.',
+  ).toBe(0);
 }

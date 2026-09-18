@@ -1,16 +1,40 @@
 import { expect, test } from '@playwright/test';
 
 import {
+  abrirCajaPorLaRuta,
   abrirPantalla,
   accionesDelTablero,
+  cabecerasDeEscrituraDePrueba,
   cambiarDePlantilla,
+  cerrarCajaYCuadrar,
+  consultarPuente,
   entrar,
+  exigirCobroAceptado,
   exigirDemostracion,
   exigirGiro,
+  exigirInventarioMovido,
+  exigirVentaCobrada,
   exigirVocabulario,
   menuLateral,
+  ventasDeAntes,
   vigilarFallos,
 } from './ayudantes/sesion.ts';
+
+/** El fondo con el que la prueba abre la caja del restaurante, en centavos. */
+const FONDO_CENTAVOS = 50_000;
+
+/** Lo que la prueba necesita de una mesa y de un platillo. */
+interface MesaDelPuente {
+  readonly id?: string;
+  readonly numero?: number;
+  readonly estado?: string;
+}
+
+interface PlatilloDelPuente {
+  readonly id?: string;
+  readonly nombre?: string | null;
+  readonly precio_venta?: number | null;
+}
 
 /**
  * Modelo 1 de 5 · RESTAURANTE DE MESA · giro `restaurante`, plantilla `restaurante`.
@@ -149,6 +173,105 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
         .or(page.getByText('Todavía no hay mesas configuradas.'))
         .first(),
     ).toBeVisible();
+
+    // ── 5 · UNA MESA, UN PEDIDO A COCINA, Y LA CUENTA COBRADA ─────────────
+    //
+    // El recorrido del encargo: abrir mesa · mandar a cocina · pedir la cuenta ·
+    // cobrar. El COBRO se hace por la pantalla —es donde entra el dinero— y los
+    // tres pasos de sala van por SUS PROPIAS RUTAS, las mismas que usan esas
+    // pantallas, por dos razones que conviene decir en vez de esconder:
+    //
+    //  · `mapa-de-mesas` se monta SIN `onAbrirMesa`: el componente acepta el
+    //    callback y la página no se lo pasa, así que tocar una mesa libre no
+    //    abre nada. Es un cabo suelto del acople, no de esta prueba.
+    //  · `precuenta` imprime con `/api/restaurante/imprimir-precuenta`, **una
+    //    ruta que no existe**; el cambio de estado que sí importa —«el cliente
+    //    pide pagar»— lo hace `solicitar-cuenta`, que sí existe.
+    //
+    // Los dos están en el reporte con nombre y apellido.
+    await abrirCajaPorLaRuta(page, FONDO_CENTAVOS);
+
+    const mesas = await consultarPuente<MesaDelPuente>(page, 'Mesa', { limite: 30 });
+    const libre = mesas.find((m) => (m.id ?? '') !== '');
+    expect(
+      libre,
+      'La demo de restaurante no tiene mesas. `alta-negocio` crea la sala con sus mesas: sin ' +
+        'mesa no hay cuenta que abrir.',
+    ).toBeDefined();
+
+    const platillos = await consultarPuente<PlatilloDelPuente>(page, 'ProductoTerminado', {
+      limite: 60,
+    });
+    const platillo = platillos.find((p) => (p.nombre ?? '') !== '' && (p.precio_venta ?? 0) > 0);
+    expect(platillo, 'La demo de restaurante no tiene platillos con precio.').toBeDefined();
+    const precioCentavos = Math.round((platillo?.precio_venta ?? 0) * 100);
+
+    const idsDeAntes = await ventasDeAntes(page);
+
+    // 5.1 · ABRIR LA MESA. Dos personas, que es la mesa más común.
+    const apertura = await page.request.post('/api/restaurante/abrir-mesa', {
+      headers: cabecerasDeEscrituraDePrueba(),
+      data: { mesaId: libre?.id, personas: 2 },
+    });
+    expect(
+      apertura.status(),
+      `No se pudo abrir la mesa: ${(await apertura.text()).slice(0, 300)}`,
+    ).toBe(200);
+    const ordenId = ((await apertura.json()) as { datos?: { ordenId?: string } }).datos?.ordenId;
+    expect(ordenId, 'Abrir la mesa no devolvió la cuenta que abrió.').toBeTruthy();
+
+    // 5.2 · MANDAR A COCINA. Es el paso que convierte una mesa en trabajo.
+    const pedido = await page.request.post('/api/restaurante/enviar-pedido', {
+      headers: cabecerasDeEscrituraDePrueba(),
+      data: { ordenId, lineas: [{ productoId: platillo?.id, cantidad: '1' }] },
+    });
+    expect(
+      pedido.status(),
+      `No se pudo mandar el pedido a cocina: ${(await pedido.text()).slice(0, 300)}`,
+    ).toBe(200);
+
+    // Y la cocina LO VE. Se comprueba en su pantalla, que es donde importa.
+    await abrirPantalla(page, '/restaurante/cocina');
+    await expect(
+      page.getByText(platillo?.nombre ?? '').first(),
+      `La cocina no ve «${platillo?.nombre ?? ''}» después de mandarle el pedido. Una comanda que ` +
+        'no llega a la cocina es comida que nunca sale.',
+    ).toBeVisible({ timeout: 20_000 });
+
+    // 5.3 · LA CUENTA, POR FAVOR. Sin propina: es voluntaria y se elige después.
+    const cuenta = await page.request.post('/api/restaurante/solicitar-cuenta', {
+      headers: cabecerasDeEscrituraDePrueba(),
+      data: { ordenId },
+    });
+    expect(
+      cuenta.status(),
+      `No se pudo pedir la cuenta: ${(await cuenta.text()).slice(0, 300)}`,
+    ).toBe(200);
+
+    // 5.4 · Y EL COBRO, POR LA PANTALLA DEL CAJERO.
+    await abrirPantalla(page, '/restaurante/cobro');
+    await expect(
+      page.getByRole('region', { name: 'Cobro' }),
+      'La pantalla de cobro no encontró ninguna cuenta esperando pago, con una cuenta recién ' +
+        'cerrada. `solicitar_cuenta` la deja en `cuenta_solicitada` y esta pantalla busca ésa.',
+    ).toBeVisible({ timeout: 20_000 });
+
+    // La propina se confirma antes de cobrar, y «Sin» pesa lo mismo que los
+    // porcentajes porque es voluntaria.
+    const sinPropina = page.getByRole('button', { name: /^Sin/ });
+    if ((await sinPropina.count()) > 0) await sinPropina.first().click();
+
+    await page.getByRole('button', { name: 'efectivo', exact: false }).first().click();
+    await page.getByRole('button', { name: /^COBRAR/ }).click();
+
+    // El reposo de esta pantalla es el acuse: «Cobrado · cambio … · la mesa pasa
+    // sola a limpieza».
+    await exigirCobroAceptado(page, /Cobrado · cambio/);
+
+    const venta = await exigirVentaCobrada(page, precioCentavos, idsDeAntes);
+    await exigirInventarioMovido(page, venta.id ?? '', platillo?.nombre ?? '');
+
+    await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + precioCentavos);
 
     exigirSinFallos();
   });

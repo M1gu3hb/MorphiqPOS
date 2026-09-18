@@ -263,18 +263,102 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
   const fecha = msDia === null ? null : fechaLocal(msDia);
 
   useEffect(() => {
-    if (bloquesIniciales !== undefined || fecha === null) return;
+    if (bloquesIniciales !== undefined || fecha === null || msDia === null) return;
     const control = new AbortController();
     const sigueMontada = () => !control.signal.aborted;
     const comun = { filtro: { fecha }, signal: control.signal };
-    // Dos entradas del puente, en paralelo: las citas y la vista de huecos. Van
-    // juntas a propósito — un hueco que aparece medio segundo tarde no lo ve nadie.
-    Promise.all([
-      consultarPuente<BloqueDeAgenda>('Cita', { ...comun, limite: 300 }),
+
+    /**
+     * LAS CITAS SE PIDEN POR RANGO, NO POR «fecha».
+     *
+     * ── El defecto que esto arregla ───────────────────────────────────────
+     * Aquí se pedía `Cita` con `filtro: { fecha }`, y **`Cita` no tiene ningún
+     * campo `fecha`**: tiene `agendada_para`, que es un instante. El puente
+     * contestaba «[Cita] «fecha» no es un campo de Cita» —correctamente, porque
+     * inventarse la columna sería peor— y esta pantalla, que nunca se vacía por un
+     * error, se quedaba enseñando «Hoy no hay citas todavía» **con las citas
+     * agendadas**. La pantalla principal de un salón, ciega.
+     *
+     * `HuecoDisponible` SÍ tiene `fecha`: es una vista por día. Las dos entradas
+     * se piden distinto porque son cosas distintas, y eso es lo que faltaba.
+     *
+     * ── Y por qué el rango se arma con instantes y no con texto ───────────
+     * `agendada_para` es `timestamptz`. Comparar contra «2026-09-18T00:00:00» sin
+     * zona lo interpreta el servidor en la SUYA, y a las 21:10 en México eso son
+     * seis horas de diferencia: la cita de las 22:00 caería en el día siguiente y
+     * la agenda volvería a verse vacía, esta vez sin ningún aviso. Los dos
+     * extremos se calculan del día LOCAL y viajan como instantes.
+     */
+    const inicioDelDia = new Date(msDia);
+    inicioDelDia.setHours(0, 0, 0, 0);
+    const finDelDia = new Date(inicioDelDia.getTime() + MS_DIA - 1);
+
+    /**
+     * Las dos entradas del puente en paralelo, y CADA UNA POR SU CUENTA.
+     *
+     * Van juntas a propósito —un hueco que aparece medio segundo tarde no lo ve
+     * nadie— pero con `Promise.all` una sola caída se llevaba las dos: basta que
+     * la segunda rechace para que la primera se descarte. Y la segunda rechaza
+     * hoy, siempre: **`HuecoDisponible` no existe en el puente**. Así que esta
+     * pantalla enseñaba «Hoy no hay citas todavía» con las citas leídas y en la
+     * mano, y el aviso hablaba de los huecos.
+     *
+     * Con `allSettled` se pinta lo que SÍ llegó y se dice lo que no. Es la misma
+     * regla que ya estaba escrita aquí abajo —«la rejilla NUNCA se vacía por un
+     * error»— aplicada a cada fuente y no al conjunto.
+     */
+    Promise.allSettled([
+      consultarPuente<BloqueDeAgenda>('Cita', {
+        rango: {
+          campo: 'agendada_para',
+          desde: inicioDelDia.toISOString(),
+          hasta: finDelDia.toISOString(),
+        },
+        limite: 300,
+        signal: control.signal,
+      }),
       consultarPuente<BloqueDeAgenda>('HuecoDisponible', { ...comun, limite: 100 }),
     ])
       .then(([citas, huecos]) => {
-        if (sigueMontada()) setBloques([...citas, ...huecos]);
+        if (!sigueMontada()) return;
+        const llegaron = [
+          ...(citas.status === 'fulfilled' ? citas.value : []),
+          ...(huecos.status === 'fulfilled' ? huecos.value : []),
+        ];
+
+        /**
+         * Sólo los bloques que la rejilla PUEDE pintar.
+         *
+         * Un bloque necesita `inicio`, `fin` y `profesional`. Las filas de `Cita`
+         * no traen ninguno de los tres: `Cita` tiene `agendada_para`, `cliente_id`
+         * y `folio`, y el nombre del servicio vive en `CitaServicio`. Esta
+         * pantalla se escribió contra una entidad con la forma de un BLOQUE —con
+         * su profesional, su servicio y su hueco— **y esa entidad no existe en el
+         * puente**; `HuecoDisponible` tampoco.
+         *
+         * Pintarlas igual no es una opción: `inicio.slice(...)` sobre `undefined`
+         * tumba la página entera y el usuario ve «This page couldn't load» en la
+         * pantalla principal de su salón. Se descartan, y el aviso de abajo dice
+         * cuántas y por qué. Un día vacío con su motivo escrito es peor que la
+         * agenda de verdad y MUCHO mejor que una página caída.
+         */
+        const pintables = llegaron.filter(
+          (b) => typeof b.inicio === 'string' && typeof b.fin === 'string',
+        );
+        setBloques(pintables);
+
+        // El aviso nombra la fuente que falló, porque «no se pudo cargar» sobre
+        // una pantalla con citas dentro manda a buscar donde no está.
+        const sinForma = llegaron.length - pintables.length;
+        const caidas = [
+          citas.status === 'rejected' ? `citas: ${mensajeDe(citas.reason)}` : null,
+          huecos.status === 'rejected' ? `huecos: ${mensajeDe(huecos.reason)}` : null,
+          sinForma > 0
+            ? `${String(sinForma)} cita(s) leídas que esta rejilla todavía no puede pintar: ` +
+              'el puente no tiene la entidad de BLOQUE que junta cita, servicio y profesional'
+            : null,
+        ].filter((x): x is string => x !== null);
+        setError(caidas.length === 0 ? null : caidas.join(' · '));
       })
       .catch((fallo: unknown) => {
         // La rejilla NUNCA se vacía por un error: el día de las 12:30 es mucho
@@ -286,6 +370,13 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
     return () => {
       control.abort();
     };
+    // `msDia` no va en las dependencias A PROPÓSITO, y por eso se silencia con su
+    // motivo escrito: cambia cada minuto —sale de `ahoraMs`— y meterlo aquí
+    // volvería a pedir la agenda entera sesenta veces por hora. Lo que de verdad
+    // decide qué día se pide es `fecha`, que es su fecha local; `msDia` sólo se usa
+    // para calcular los dos extremos de ESE día, y para el mismo `fecha` dan el
+    // mismo par.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bloquesIniciales, fecha, intento]);
 
   // La vista arranca centrada en la línea del ahora, y sólo la primera vez: que

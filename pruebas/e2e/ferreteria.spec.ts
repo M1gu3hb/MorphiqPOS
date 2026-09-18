@@ -4,6 +4,7 @@ import {
   abrirPantalla,
   accionesDelTablero,
   cambiarDePlantilla,
+  cabecerasDeEscrituraDePrueba,
   entrar,
   exigirDemostracion,
   exigirGiro,
@@ -174,6 +175,48 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
       await barra.click();
       await expect(laVenta).toBeVisible();
     }
+
+    // ── 5 · POR QUÉ ESTA SUITE NO COBRA, DICHO CON NOMBRES ────────────────
+    //
+    // Las otras cuatro cobran una venta y comprueban que el dinero cuadra. Ésta
+    // no puede, y no por falta de ganas: el recorrido de una ferretería son dos
+    // pantallas —el mostradorista arma la nota en el pasillo, el cajero la
+    // cobra— y **debajo no hay nada de eso construido**. Tres cosas, medidas:
+    //
+    // 1 · El buscador del mostrador se hidrata de la entidad `MaterialMostrador`
+    //     del puente. Esa entidad NO EXISTE: el puente contesta
+    //     `PUENTE_ENTIDAD_DESCONOCIDA`, la pantalla se come el error y se queda
+    //     en su «punto de partida». Sin índice no hay resultados, sin resultados
+    //     no hay partidas, y «Mandar a caja» no se enciende nunca. La vista
+    //     materializada `busqueda_material` SÍ tiene los 25 materiales de esta
+    //     demo: lo que falta es el mapeo en `packages/app/src/puente/mapa.ts`.
+    // 2 · «Mandar a caja» publica en `/api/venta/nota-mostrador`, que existe pero
+    //     sirve a `apartarNota` —«déjamelo apartado», F-140— y pide
+    //     `{notaId, apartaHasta}`. La pantalla manda `{clienteId, partidas}`. Ni
+    //     con índice habría nota: responde «Hay datos incompletos o mal escritos».
+    // 3 · El estado `pendiente_cobro` que la caja lista existe **sólo en el
+    //     archivo de esa pantalla**. Ningún comando lo escribe.
+    //
+    // Y el corte de material —lo que distingue a una ferretería— publica en
+    // `/api/ferreteria/cortar`, una ruta que no existe; el comando que sí existe,
+    // `inventario.cortar_material`, pide otra cosa (`ordenLineaId`, `almacenId`,
+    // medidas en unidad base) que esa pantalla no tiene.
+    //
+    // ── Y ESTO ES UN CONTRATO, no un comentario ──────────────────────────
+    // La sonda de abajo falla el día que el índice del mostrador exista. Ese día
+    // hay que venir aquí y hacer que esta suite COBRE, como las otras cuatro, en
+    // vez de dejar el hueco documentado para siempre.
+    const sonda = await page.request.post('/api/datos/consultar', {
+      headers: cabecerasDeEscrituraDePrueba(),
+      data: { entidad: 'MaterialMostrador', operacion: 'list', limite: 1 },
+    });
+    expect(
+      sonda.status(),
+      'El puente YA sirve `MaterialMostrador`. Entonces el mostrador puede buscar: quita esta ' +
+        'sonda y haz que esta suite arme la nota y la cobre, como las otras cuatro. Si además ' +
+        'ya funcionan `/api/venta/nota-mostrador` con partidas y el corte de material, esta ' +
+        'suite tiene que probar el recorrido entero.',
+    ).not.toBe(200);
 
     exigirSinFallos();
   });

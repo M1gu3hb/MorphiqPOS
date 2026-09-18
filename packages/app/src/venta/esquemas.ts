@@ -172,6 +172,26 @@ export const entradaMovimientoCaja = z.object({
 
 export const entradaCerrarCaja = z.object({
   efectivoContadoCentavos: centavosNoNegativos,
+  /**
+   * El BOTE de propina contado, cuando el negocio tiene bote.
+   *
+   * ── Por qué va aquí y no en un comando aparte ─────────────────────────
+   * La pantalla de cierre de una cafetería publicaba en
+   * `/api/cafeteria/contar-bote`, **una ruta que no existe** —su propio
+   * comentario lo decía: «el documento no nombra la ruta y todavía no existe
+   * ninguna»—. Resultado: el 404 devolvía la página de error de Next, el cliente
+   * lo traducía a «El servidor respondió algo inesperado» y **un turno de
+   * cafetería no se podía cerrar**. Y como el cierre iba después, tampoco se
+   * cerraba la caja.
+   *
+   * Contar el bote es parte del cierre, no un acto aparte: se cuenta el cajón y
+   * se cuenta el bote en el mismo momento y con las manos en el mismo dinero. En
+   * el mismo comando, además, son una sola transacción.
+   *
+   * `cafeteria.repartir_bote` EXIGE este número —«nulo no es cero: es "no se
+   * contó"»— así que sin esto el reparto del bote tampoco podía funcionar nunca.
+   */
+  boteContadoCentavos: centavosNoNegativos.optional(),
   notas: z.string().max(500).optional(),
 });
 

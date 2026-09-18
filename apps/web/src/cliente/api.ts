@@ -109,6 +109,18 @@ export async function consultarPuente<T>(
   entidad: string,
   opciones: {
     readonly filtro?: Readonly<Record<string, unknown>>;
+    /**
+     * Un RANGO sobre un campo de fecha, que es lo que necesita cualquier pantalla
+     * de un día o de un periodo.
+     *
+     * La ruta `/api/datos/consultar` lo acepta desde que existe —`esRango` lo
+     * estrecha ahí mismo— y este ayudante no lo pasaba, así que **ninguna
+     * pantalla podía pedir un rango**. La agenda del día del salón lo intentó
+     * como pudo: filtrando `Cita` por un campo `fecha` que no existe, y el puente
+     * respondía «no es un campo de Cita» mientras la pantalla enseñaba «Hoy no
+     * hay citas todavía» con las citas agendadas.
+     */
+    readonly rango?: { readonly campo: string; readonly desde?: string; readonly hasta?: string };
     readonly orden?: string;
     readonly limite?: number;
     readonly signal?: AbortSignal;
@@ -116,6 +128,7 @@ export async function consultarPuente<T>(
 ): Promise<readonly T[]> {
   const cuerpo: Record<string, unknown> = { entidad, operacion: 'listar' };
   if (opciones.filtro !== undefined) cuerpo['filtro'] = opciones.filtro;
+  if (opciones.rango !== undefined) cuerpo['rango'] = opciones.rango;
   if (opciones.orden !== undefined) cuerpo['orden'] = opciones.orden;
   if (opciones.limite !== undefined) cuerpo['limite'] = opciones.limite;
 

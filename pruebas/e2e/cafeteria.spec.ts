@@ -1,15 +1,21 @@
 import { expect, test } from '@playwright/test';
 
 import {
+  abrirLaCajaSiHaceFalta,
   abrirPantalla,
   accionesDelTablero,
   cambiarDePlantilla,
+  consultarPuente,
   entrar,
   exigirDemostracion,
+  exigirCobroAceptado,
   exigirGiro,
+  exigirInventarioMovido,
+  exigirVentaCobrada,
   exigirVocabulario,
   exigirVocabularioDelGiro,
   menuLateral,
+  ventasDeAntes,
   vigilarFallos,
 } from './ayudantes/sesion.ts';
 
@@ -54,6 +60,25 @@ import {
  */
 
 /** Las trece pantallas del modelo, tal como existen en `app/(modelos)/cafeteria/`. */
+/**
+ * El fondo con el que la prueba abre su turno, en centavos.
+ */
+const FONDO_CENTAVOS = 50_000;
+
+/** Lo que la pantalla de cobro de la barra lee del catálogo. */
+interface BebidaDelPuente {
+  readonly id?: string;
+  readonly nombre?: string | null;
+  readonly precio_venta?: number | null;
+}
+
+/** Pesos como los pinta la pantalla: `$42.90`. */
+function enPesos(centavos: number): string {
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(
+    centavos / 100,
+  );
+}
+
 const PANTALLAS = [
   'acceso-por-pin',
   'barra',
@@ -142,6 +167,88 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     // vacía es un estado con nombre en este modelo y se pinta igual.
     await abrirPantalla(page, '/cafeteria/barra');
     await expect(page.getByRole('heading', { name: 'Barra', exact: true })).toBeVisible();
+
+    // ── 2.5 · SE COBRA EN LA BARRA, Y EL TURNO CUADRA ─────────────────────
+    //
+    // Abrir el turno con su fondo, cobrar una bebida y cerrar el turno contando
+    // el cajón. El cierre es parte de la prueba y no un adorno: la base permite
+    // UNA sesión de caja abierta por sucursal y cada navegador trae su propia
+    // terminal, así que un turno que se queda abierto bloquea la corrida
+    // siguiente.
+    await abrirLaCajaSiHaceFalta(
+      page,
+      {
+        ruta: '/cafeteria/turno',
+        boton: 'Abrir turno',
+        campoDelFondo: '#fondo-monedas',
+        señalAbierta: 'Cerrar turno',
+      },
+      (FONDO_CENTAVOS / 100).toFixed(2),
+    );
+
+    await abrirPantalla(page, '/cafeteria/cobrar');
+
+    // La bebida sale del catálogo, como en el mostrador: la pantalla pinta un
+    // botón por producto con su nombre y su precio.
+    const catalogo = await consultarPuente<BebidaDelPuente>(page, 'ProductoTerminado', {
+      limite: 50,
+    });
+    const elegida = catalogo.find((p) => (p.nombre ?? '') !== '' && (p.precio_venta ?? 0) > 0);
+    expect(
+      elegida,
+      'La demo de cafetería no tiene ninguna bebida con nombre y precio: no hay nada que cobrar.',
+    ).toBeDefined();
+    const bebida = elegida!;
+    const precioCentavos = Math.round((bebida.precio_venta ?? 0) * 100);
+
+    const idsDeAntes = await ventasDeAntes(page);
+
+    // Por NOMBRE y sin expresion regular: el nombre accesible del boton es
+    // «<bebida> <precio>», y la busqueda por nombre de Playwright ya es por
+    // subcadena. Con una expresion regular habria que escapar los parentesis
+    // de «Te chai (grande)», y un parentesis sin escapar no casa con nada
+    // mientras el fallo dice «no encontre el boton» sobre un boton que esta.
+    await page
+      .getByRole('button', { name: bebida.nombre ?? '' })
+      .first()
+      .click();
+
+    // «Aquí» o «Para llevar»: sin canal el botón de cobrar está bloqueado, y con
+    // razón —`estrategia_cumplimiento` decide si el pedido entra a la fila de la
+    // barra— así que la prueba lo dice como lo diría el barista.
+    await page.getByRole('button', { name: 'Aquí' }).click();
+
+    // El total lo lleva el propio botón de cobrar, que es donde lo ve el barista.
+    const botonCobrar = page.getByRole('button', { name: /^COBRAR/ });
+    await expect(botonCobrar).toContainText(enPesos(precioCentavos));
+
+    await botonCobrar.click();
+
+    // Reposo de esta pantalla: la barra inferior vuelve a pedir que se toque algo.
+    await exigirCobroAceptado(page, /para empezar\./);
+
+    const venta = await exigirVentaCobrada(page, precioCentavos, idsDeAntes);
+
+    // Y la comanda de la barra: en una cafetería el cobro es lo que manda la
+    // bebida a preparar, y eso es un movimiento de inventario por la receta.
+    await exigirInventarioMovido(page, venta.id ?? '', bebida.nombre ?? '');
+
+    // El cierre, con su arqueo. El esperado lo calcula el servidor sumando los
+    // movimientos del turno: la apertura con su fondo y la venta en efectivo.
+    await abrirPantalla(page, '/cafeteria/cierre-de-turno-y-arqueo');
+    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos;
+    await page.locator('#cierre-efectivo').fill((esperadoCentavos / 100).toFixed(2));
+    // El bote de propina va a cero: esta venta no dejó propina, y el cierre exige
+    // contar los dos antes de enseñar nada.
+    await page.locator('#cierre-bote').fill('0');
+    await page.getByRole('button', { name: 'CERRAR TURNO' }).click();
+
+    await expect(
+      page.getByText(`Cajón · esperado ${enPesos(esperadoCentavos)}`),
+      `El arqueo del turno no cuadra. Se abrió con ${enPesos(FONDO_CENTAVOS)} y se cobró ` +
+        `${enPesos(precioCentavos)} en efectivo.`,
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('cuadró exacto').first()).toBeVisible();
 
     // ── 3 · CON LA PLANTILLA DE JACARANDA · sala, pero hablando de café ───
     await cambiarDePlantilla(page, 'restaurante');

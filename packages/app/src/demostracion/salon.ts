@@ -93,9 +93,116 @@ export async function sembrarSalon(
   productosPorNombre: ReadonlyMap<string, string>,
 ): Promise<ResumenSalon> {
   const recursos = await sembrarRecursos(tx, organizacionId, sucursalId);
-  const profesionales = await sembrarProfesionales(tx, organizacionId, sucursalId, empleos);
+  const reglaId = await sembrarReglaDeComision(tx, organizacionId);
+  const profesionales = await sembrarProfesionales(
+    tx,
+    organizacionId,
+    sucursalId,
+    empleos,
+    reglaId,
+  );
   const cuantos = await sembrarServicios(tx, organizacionId, servicios, productosPorNombre);
+  await sembrarQuienHaceQue(tx, organizacionId, servicios, productosPorNombre);
   return { profesionales, recursos, servicios: cuantos };
+}
+
+/**
+ * LA REGLA DE COMISIÓN, que es lo que distingue a un salón de una tienda.
+ *
+ * ── Por qué faltaba y qué rompía ──────────────────────────────────────────
+ * `comisionDe` sale por `null` en cuanto el profesional no tiene
+ * `regla_comision_id`, así que cobrar una cita **no causaba ninguna comisión**:
+ * la demostración cobraba y nadie sabía cuánto se le debía a quién. Es la mitad
+ * del negocio de un salón, y es lo que el guion enseña después de cobrar.
+ *
+ * El trato: 40 % de lo COBRADO en servicios, 10 % en producto, sin IVA —el IVA
+ * es del SAT, no del salón— y el material a cargo del salón. Es el trato más
+ * común y el que la pantalla de liquidación sabe explicar.
+ */
+async function sembrarReglaDeComision(tx: Transaccion, organizacionId: string): Promise<string> {
+  const existente = await tx
+    .selectFrom('reglas_comision')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .executeTakeFirst();
+  if (existente !== undefined) return existente.id;
+
+  const fila = await tx
+    .insertInto('reglas_comision')
+    .values({
+      organizacion_id: organizacionId,
+      nombre: 'Estilistas · 40 % de servicio',
+      esquema: 'porcentaje_fijo',
+      tasa_servicio_bp: 4_000,
+      tasa_producto_bp: 1_000,
+      tasa_venta_paquete_bp: 0,
+      base: 'cobrado',
+      sobre_iva: false,
+      material: 'salon',
+      reparto: 'por_servicio',
+      rehacer_paga: false,
+      anticipo_perdido_paga: false,
+      // Desde hoy: una regla con vigencia futura no comisiona nada, y una demo
+      // que no comisiona es exactamente el agujero que esto tapa.
+      vigente_desde: new Date().toISOString().slice(0, 10),
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+
+  return fila.id;
+}
+
+/**
+ * QUIÉN HACE QUÉ. Esto faltaba, y sin esto el salón no podía agendar nada.
+ *
+ * `agendar_cita` busca la fila de `servicios_profesional` para el par
+ * (servicio, profesional) y de ahí saca **el precio y el factor de duración**. Sin
+ * fila responde «Esa persona no da ese servicio», y la tabla estaba VACÍA en la
+ * demostración: dos estilistas, dieciséis servicios y ninguna combinación posible.
+ * La agenda no se podía usar para nada.
+ *
+ * El nivel decide el factor, que es justo lo que el comentario de `PROFESIONALES`
+ * decía que había que poder enseñar: la misma mecha dura menos con la senior. El
+ * precio se toma del producto —el de lista— y así una demostración no empieza con
+ * dos precios distintos para lo mismo sin que nadie lo haya pedido.
+ */
+async function sembrarQuienHaceQue(
+  tx: Transaccion,
+  organizacionId: string,
+  servicios: readonly ServicioDemo[],
+  productosPorNombre: ReadonlyMap<string, string>,
+): Promise<void> {
+  const gente = await tx
+    .selectFrom('profesionales')
+    .select(['id', 'nivel'])
+    .where('organizacion_id', '=', organizacionId)
+    .where('activo', '=', true)
+    .execute();
+
+  for (const persona of gente) {
+    // 10 000 puntos base es «tarda lo que dice el catálogo». La senior tarda un
+    // 10 % menos; la estilista, lo del catálogo. Nadie tarda MÁS: un factor por
+    // encima de 10 000 en una demostración se lee como un castigo.
+    const factor = persona.nivel === 'senior' || persona.nivel === 'director' ? 9_000 : 10_000;
+    for (const servicio of servicios) {
+      const productoId = productosPorNombre.get(servicio.nombre);
+      if (productoId === undefined) continue;
+      await tx
+        .insertInto('servicios_profesional')
+        .values({
+          organizacion_id: organizacionId,
+          servicio_id: productoId,
+          profesional_id: persona.id,
+          // Nulo es «el precio de lista del servicio», que es lo que se quiere:
+          // un precio por persona se declara cuando alguien lo decide, no por
+          // omisión en una siembra.
+          precio_centavos: null,
+          factor_duracion_bp: factor,
+        })
+        .onConflict((oc) => oc.columns(['servicio_id', 'profesional_id']).doNothing())
+        .execute();
+    }
+  }
 }
 
 async function sembrarRecursos(
@@ -133,6 +240,8 @@ async function sembrarProfesionales(
   organizacionId: string,
   sucursalId: string,
   empleos: ReadonlyMap<string, string>,
+  /** La regla con la que comisionan. Sin ella, cobrar no causa comisión. */
+  reglaComisionId: string,
 ): Promise<number> {
   let creadas = 0;
   for (const [indice, quien] of PROFESIONALES.entries()) {
@@ -154,6 +263,10 @@ async function sembrarProfesionales(
         nivel: quien.nivel,
         color_agenda: quien.color,
         orden_agenda: indice,
+        // `tipo_relacion: 'empleado_comision'` sin regla de comisión es una
+        // contradicción que la base no impide y el cobro sí nota: `comisionDe`
+        // sale por `null` y no se causa nada.
+        regla_comision_id: reglaComisionId,
       })
       .returning('id')
       .executeTakeFirstOrThrow();
@@ -192,6 +305,34 @@ async function sembrarServicios(
     const productoId = productosPorNombre.get(servicio.nombre);
     if (productoId === undefined) continue;
     const pasiva = servicio.pasivaMin ?? 0;
+
+    /**
+     * Y EL PRODUCTO SE MARCA COMO SERVICIO. Esto faltaba.
+     *
+     * `productos.tipo_venta` admite `'servicio'` desde la migración 002, y la
+     * siembra dejaba los 24 productos del salón en `'precio_fijo'` —incluidos
+     * «Corte de dama» y los demás—. La pantalla de agendar lista los servicios
+     * con `ProductoTerminado` filtrado por `tipo_venta: 'servicio'`, así que
+     * **no encontraba ninguno**: un salón que no puede agendar nada.
+     *
+     * La fila de `servicios` es la que dice cuánto dura y qué mueble ocupa; el
+     * `tipo_venta` es la que dice que ESO se vende como servicio. Se escriben
+     * juntas porque separarlas es lo que produjo el hueco.
+     */
+    await tx
+      .updateTable('productos')
+      .set({
+        tipo_venta: 'servicio',
+        // Y sin consumo propio, que es lo que exige `producto_servicio_sin_stock`
+        // y además es la verdad: un corte de dama no descuenta «un corte de dama»
+        // del inventario. Lo que se gasta durante el servicio —tinte, agua
+        // oxigenada— se registra al CERRARLO, con sus consumos.
+        estrategia_consumo: 'ninguno',
+      })
+      .where('id', '=', productoId)
+      .where('organizacion_id', '=', organizacionId)
+      .execute();
+
     await tx
       .insertInto('servicios')
       .values({
@@ -233,13 +374,23 @@ export async function limpiarSalon(tx: Transaccion, organizacionId: string): Pro
   const org = organizacionId;
   // Lo que cuelga de una CITA, de arriba abajo.
   await sql`delete from formulas_aplicadas where organizacion_id = ${org}`.execute(tx);
+  /**
+   * LAS COMISIONES VAN ANTES QUE `cita_servicios`, y esto era un defecto.
+   *
+   * `comisiones_causadas.cita_servicio_id` apunta a `cita_servicios`, así que
+   * borrar el servicio primero aborta la transacción entera con un 23503 en cuanto
+   * existe UNA comisión. No se veía porque **ninguna demostración había cobrado
+   * nunca una cita**: en el momento en que el salón cobró su primer servicio con
+   * comisión, resetear la demo dejó de funcionar y el mensaje era «Algo falló de
+   * nuestro lado». Un reseteo que sólo sirve con la demo sin usar no sirve.
+   */
+  await sql`delete from comisiones_causadas where organizacion_id = ${org}`.execute(tx);
   await sql`delete from cita_servicios where organizacion_id = ${org}`.execute(tx);
   await sql`delete from no_shows where organizacion_id = ${org}`.execute(tx);
   await sql`delete from lista_espera_citas where organizacion_id = ${org}`.execute(tx);
   await sql`delete from citas where organizacion_id = ${org}`.execute(tx);
   // Lo que cuelga de un PROFESIONAL.
   await sql`delete from movimientos_propina where organizacion_id = ${org}`.execute(tx);
-  await sql`delete from comisiones_causadas where organizacion_id = ${org}`.execute(tx);
   await sql`delete from liquidaciones where organizacion_id = ${org}`.execute(tx);
   await sql`delete from cobros_renta where organizacion_id = ${org}`.execute(tx);
   await sql`delete from rentas_estacion where organizacion_id = ${org}`.execute(tx);
