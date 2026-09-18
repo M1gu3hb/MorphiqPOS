@@ -2759,3 +2759,31 @@ frontend heredado debe leer la lista canónica de `contracts`, no una copia.
 `verify:estructura`, `verify:historico`, `verify:tsconfig`, `verify:entorno`, `verify:residuos`,
 `verify:primitivas`, `format:check`, `lint`, `typecheck` y `build`: **todos en 0**. `pnpm audit
 --audit-level high --prod`: sin vulnerabilidades. `test:unit`: 2 733 pruebas en 227 archivos.
+
+### Causa 4 · la que apareció al arreglar las tres primeras
+
+Con `verify:historico`, `sharp` y el build arreglados, el job `calidad` llegó por fin a las pruebas
+unitarias — y murió ahí, a los 22 segundos, con **226 de 227 archivos en verde y 2 703 pruebas
+pasando**:
+
+```
+FAIL packages/app/src/puente/cobertura.test.ts
+Error: ENOENT: no such file or directory, scandir
+  '/home/runner/work/MorphiqPOS/MorphiqPOS/historico/restaurante/base44/entities'
+```
+
+Es **la misma causa que la 1** vista desde otro sitio: la prueba lee los `.jsonc` que la plataforma
+erradicada usaba para declarar sus entidades, y esa carpeta por contrato no se versiona. Con el
+archivo delante son 30 pruebas; sin él, la suite entera reventaba antes de la primera.
+
+El arreglo es el mismo criterio: **partir las comprobaciones por lo que cada una necesita.** Que el
+puente cubra cada propiedad declarada exige tener los `.jsonc` que la declaran, así que eso va en un
+`describe.skipIf` que sale como **skipped, no como verde**. Que la lista de descartes no contradiga al
+mapa del puente, que todo motivo explique algo y que ninguno sea un renombrado disfrazado se
+comprueba en cualquier copia, y esas **cuatro corren siempre**. Y si el archivo no está, la prueba
+escribe en el registro qué se saltó y qué sí se comprobó.
+
+```
+Con archivo:  30 pruebas, 0 saltadas
+Sin archivo:   4 pruebas, 3 saltadas, 0 fallos   (medido renombrando entities/)
+```
