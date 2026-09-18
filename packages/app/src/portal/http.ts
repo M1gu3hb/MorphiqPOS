@@ -107,16 +107,32 @@ interface Despliegue {
   readonly pimienta: string;
 }
 
-async function resolverDespliegue(): Promise<Despliegue> {
+/**
+ * A qué negocio sirve ESTA peticion del portal.
+ *
+ * El host va primero, y aqui tiene mas sentido que en ningun otro sitio: el
+ * codigo QR que el comensal escanea LLEVA la direccion dentro
+ * -`https://mh-restaurante.morphiqpos.app/qr/<token>`-, asi que la mesa y el
+ * negocio viajan juntos en lo unico que el comensal tiene. Sin esto, un
+ * despliegue solo podia servir el portal de UN negocio, el de `ORGANIZACION`.
+ *
+ * La organizacion sigue sin llegar en un parametro: el host lo fija el DNS y se
+ * comprueba contra la tabla, y el token se busca DENTRO de la organizacion que
+ * resulte. Un token de otro negocio no encuentra mesa.
+ */
+async function resolverDespliegue(host?: string | null): Promise<Despliegue> {
   const entorno = validarEntorno(process.env);
-  const negocio = await negocioDelDespliegue(entorno.ORGANIZACION);
+  const negocio = await negocioDelDespliegue(entorno.ORGANIZACION, host);
   return { organizacionId: negocio.organizacionId, pimienta: entorno.PIN_PEPPER };
 }
 
 /** `GET /api/publico/qr/:token`. */
-export async function servirPortal(token: string): Promise<RespuestaDelPortal> {
+export async function servirPortal(
+  token: string,
+  host?: string | null,
+): Promise<RespuestaDelPortal> {
   try {
-    const { organizacionId, pimienta } = await resolverDespliegue();
+    const { organizacionId, pimienta } = await resolverDespliegue(host);
     const datos: PayloadPortal = await payloadDelPortal(organizacionId, token, pimienta);
     return respuesta(200, { ok: true, datos });
   } catch (error) {
@@ -153,7 +169,7 @@ export function manejadorPublico<E extends ZodType, S>(definicion: ComandoPublic
 
     let despliegue: Despliegue;
     try {
-      despliegue = await resolverDespliegue();
+      despliegue = await resolverDespliegue(peticion.headers.get('host'));
     } catch (error) {
       return respuestaDeError(error, definicion.nombre, { correlationId });
     }

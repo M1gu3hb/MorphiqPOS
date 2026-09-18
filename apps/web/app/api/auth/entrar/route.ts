@@ -85,7 +85,9 @@ export async function POST(peticion: Request): Promise<Response> {
 
   let organizacionId: string;
   try {
-    organizacionId = (await negocioDelDespliegue(entorno.ORGANIZACION)).organizacionId;
+    organizacionId = (
+      await negocioDelDespliegue(entorno.ORGANIZACION, peticion.headers.get('host'))
+    ).organizacionId;
   } catch {
     registrar({
       nivel: 'error',

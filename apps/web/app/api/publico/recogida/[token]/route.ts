@@ -21,9 +21,12 @@ interface Contexto {
   readonly params: Promise<{ readonly token: string }>;
 }
 
-export async function GET(_peticion: Request, contexto: Contexto): Promise<Response> {
+export async function GET(peticion: Request, contexto: Contexto): Promise<Response> {
   const { token } = await contexto.params;
-  const salida: RespuestaDelPortal = await servirRecogida(token);
+  // El host va con el token: el codigo QR que el comensal escaneo lleva la
+  // direccion del negocio dentro, y es lo que decide a que negocio sirve esta
+  // peticion cuando un despliegue atiende a varios.
+  const salida: RespuestaDelPortal = await servirRecogida(token, peticion.headers.get('host'));
   return new Response(JSON.stringify(salida.cuerpo), {
     status: salida.estado,
     headers: salida.cabeceras,

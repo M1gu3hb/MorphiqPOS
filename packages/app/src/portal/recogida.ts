@@ -57,10 +57,14 @@ export interface TableroDeRecogida {
 }
 
 /** `GET /api/publico/recogida/:token`. */
-export async function servirRecogida(token: string): Promise<RespuestaDelPortal> {
+export async function servirRecogida(
+  token: string,
+  host?: string | null,
+): Promise<RespuestaDelPortal> {
   try {
     const entorno = validarEntorno(process.env);
-    const negocio = await negocioDelDespliegue(entorno.ORGANIZACION);
+    // El host del QR decide el negocio; ver `resolverDespliegue` en `http.ts`.
+    const negocio = await negocioDelDespliegue(entorno.ORGANIZACION, host);
     const tablero = await conTransaccion(async (tx) =>
       tableroDeRecogida(tx, negocio.organizacionId, token, entorno.PIN_PEPPER),
     );

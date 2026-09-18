@@ -40,7 +40,9 @@ export async function GET(peticion: Request): Promise<Response> {
   const token = leerCookie(peticion.headers.get('cookie'), NOMBRE_COOKIE_DISPOSITIVO) ?? '';
 
   try {
-    const negocio = await negocioDelDespliegue(entorno.ORGANIZACION);
+    // El HOST de la peticion, para que un despliegue pueda servir a mas de un
+    // negocio: `mh-restaurante.morphiqpos.app` ensena a la gente de MH.
+    const negocio = await negocioDelDespliegue(entorno.ORGANIZACION, peticion.headers.get('host'));
     const empleados = await empleadosParaEntrar(negocio.organizacionId, token, entorno.PIN_PEPPER);
 
     // Se devuelve con la forma que espera SU pantalla —`UsuarioPOS`— para que

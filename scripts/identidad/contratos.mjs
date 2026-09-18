@@ -64,16 +64,36 @@ export const contratos = [
     nombre: 'la_organizacion_no_viene_del_cliente',
     ruta: RUTA_ENTRAR,
     porque:
-      'R16. Al retirarse el enrolamiento, la organización dejó de decidirla la terminal y pasó a decidirla el despliegue. Si se colara en el cuerpo de la petición, quien llama elegiría en qué negocio entra probando slugs.',
+      'R16. Al retirarse el enrolamiento, la organización dejó de decidirla la terminal y pasó a decidirla el servidor. Si se colara en el cuerpo de la petición, quien llama elegiría en qué negocio entra probando slugs.',
     comprobar() {
       const c = leer(RUTA_ENTRAR);
       const entrada = cuerpo(c, 'const Entrada = z.object(');
-      // El esquema NO admite organización, y el id sale de `negocioDelDespliegue`.
-      return (
-        entrada !== null &&
-        !/organizacion/i.test(entrada) &&
-        /organizacionId = \(await negocioDelDespliegue\(entorno\.ORGANIZACION\)\)/.test(c)
-      );
+      if (entrada === null || /organizacion/i.test(entrada)) return false;
+
+      // El id sale de `negocioDelDespliegue`, y lo que se le pasa importa.
+      //
+      // Este contrato exigía el texto EXACTO
+      // `negocioDelDespliegue(entorno.ORGANIZACION)`, y se rompió el día que la
+      // llamada aprendió a resolver el negocio por el HOST de la petición —E5:
+      // con una variable del build, un despliegue sólo puede servir a un negocio,
+      // y Miguel tiene cuatro—. Atado al texto, el contrato decía «roto» ante un
+      // cambio correcto; atado a la PROPIEDAD, sigue prohibiendo lo que importa.
+      // Un nivel de anidamiento: `peticion.headers.get('host')` lleva sus propios
+      // paréntesis, y un `[^)]*` cortaba dentro de ellos.
+      const llamada = /negocioDelDespliegue\(((?:[^()]|\([^()]*\))*)\)/.exec(c);
+      if (llamada === null) return false;
+      const argumentos = llamada[1] ?? '';
+
+      // Cada argumento sale del ENTORNO o de una cabecera de la petición. Nunca
+      // del cuerpo: un host lo fija el DNS y se comprueba contra la tabla; un
+      // campo del cuerpo lo escribe quien llama.
+      const PERMITIDOS = [/^entorno\.ORGANIZACION$/, /^peticion\.headers\.get\('host'\)$/];
+      const partes = argumentos
+        .split(',')
+        .map((parte) => parte.trim())
+        .filter((parte) => parte !== '');
+      if (partes.length === 0) return false;
+      return partes.every((parte) => PERMITIDOS.some((forma) => forma.test(parte)));
     },
   },
   {
