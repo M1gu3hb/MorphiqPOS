@@ -6,6 +6,8 @@ import {
   PLANTILLAS,
 } from '@morphiqpos/contracts';
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -260,5 +262,41 @@ describe('T2 · las pantallas de los modelos cuelgan de un menú', () => {
   it('las cinco abren en pantallas distintas', () => {
     const inicios = PLANTILLAS.map((plantilla) => INICIO_POR_PLANTILLA[plantilla]);
     expect(new Set(inicios).size).toBe(inicios.length);
+  });
+});
+
+describe('el Modo presentación ofrece LAS CINCO', () => {
+  it('su orden se DERIVA de `PLANTILLAS`, no se teclea', () => {
+    // `PACKAGE_ORDER` estaba tecleada con tres —tienda, cafeteria, restaurante— y
+    // cuando la 166 abrió las cinco, el Modo presentación siguió ofreciendo tres:
+    // `ferreteria` y `estetica` no se podían elegir desde ninguna pantalla, aunque
+    // el servidor ya las aceptara. Una lista tecleada al lado de la canónica es
+    // siempre la que se queda atrás.
+    //
+    // Se afirma sobre el ARCHIVO y no sobre el render: este componente monta media
+    // pantalla de configuración, y lo que importa es que la lista no se teclee.
+    const ruta = join(
+      dirname(fileURLToPath(import.meta.url)),
+      '..',
+      '..',
+      'heredado',
+      'components',
+      'configuracion',
+      'ModoPresentacion.jsx',
+    );
+    const codigo = readFileSync(ruta, 'utf8');
+    const sinComentarios = codigo.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+
+    expect(
+      /PACKAGE_ORDER\s*=\s*\[\s*\.\.\.PLANTILLAS\s*\]/.test(sinComentarios),
+      '`PACKAGE_ORDER` tiene que derivarse de `PLANTILLAS`. Tecleada, la sexta plantilla ' +
+        'que llegue no se podrá elegir y nadie se enterará hasta que alguien la busque.',
+    ).toBe(true);
+
+    // Y que NO vuelva a teclearse una lista de tres.
+    expect(
+      /PACKAGE_ORDER\s*=\s*\[\s*PACKAGE_KEYS\./.test(sinComentarios),
+      '`PACKAGE_ORDER` vuelve a ser una lista tecleada de claves.',
+    ).toBe(false);
   });
 });

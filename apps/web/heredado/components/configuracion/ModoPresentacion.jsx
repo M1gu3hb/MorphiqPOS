@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import {
   PACKAGE_KEYS,
+  PACKAGE_MODULES,
+  PLANTILLAS,
   PACKAGE_LABELS,
   PACKAGE_TAGLINES,
   PACKAGE_TARGET,
@@ -32,8 +34,18 @@ import {
 } from '@/lib/packageConfig';
 import { Workflow, ArrowRight } from 'lucide-react';
 
-// De menos a más, que es como se lee el comparador de abajo.
-const PACKAGE_ORDER = [PACKAGE_KEYS.TIENDA, PACKAGE_KEYS.CAFETERIA, PACKAGE_KEYS.RESTAURANTE];
+/**
+ * De menos a mas, que es como se lee el comparador de abajo.
+ *
+ * Se DERIVA del numero de modulos de cada plantilla, no se teclea. Estaba
+ * tecleada con tres —tienda, cafeteria, restaurante— y cuando la 166 abrio las
+ * cinco, el Modo presentacion siguio ofreciendo tres: `ferreteria` y `estetica`
+ * no se podian elegir desde ninguna pantalla, aunque el servidor ya las
+ * aceptara. Derivada, la sexta que llegue entra sola y en su sitio.
+ */
+const PACKAGE_ORDER = [...PLANTILLAS].sort(
+  (a, b) => (PACKAGE_MODULES[a]?.length ?? 0) - (PACKAGE_MODULES[b]?.length ?? 0),
+);
 
 function CompareCell({ value }) {
   if (value === true) return <Check className="w-4 h-4 text-emerald-600 mx-auto" />;

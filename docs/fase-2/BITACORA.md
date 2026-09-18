@@ -2536,3 +2536,125 @@ los comandos de verdad para no acabar con una segunda copia de la lógica.
 disco = 99 en el ledger**.
 
 **Cero datos de prueba en los cuatro negocios de Miguel.**
+
+---
+
+## 2026-09-17 · E5 a E7 · producción, accesos y el cierre
+
+### E5 · la organización sale de la PETICIÓN
+
+`ORGANIZACION` se aplica AL CONSTRUIR y es la misma para todas las peticiones, así que con ella **un
+despliegue sólo puede servir a un negocio.** Miguel tiene cuatro y hay cinco demostraciones.
+
+`negocioDelDespliegue(slug, host)` resuelve ahora en este orden: **el host** de la petición si su
+primera etiqueta es el slug de una organización activa; `ORGANIZACION`; la única activa si hay una
+sola; y falla nombrando lo que falta. El host va primero porque es lo más específico que hay, y la
+organización sigue sin llegar en un parámetro del cliente: un host lo fija el DNS y se comprueba
+contra la tabla, así que una etiqueta inventada no encuentra nada y cae al paso 2.
+
+Se usa en los cuatro sitios donde **no hay sesión**: las dos rutas de acceso, que contestan antes de
+que exista, y el portal del comensal y la recogida, que no la tienen nunca. Ahí tiene más sentido que
+en ningún otro sitio: el código QR que el comensal escanea **lleva la dirección dentro**, así que la
+mesa y el negocio viajan juntos en lo único que el comensal tiene. En cuanto hay sesión, la
+organización sale de ella y esto no se vuelve a consultar.
+
+**Y el pooler.** `DATABASE_URL` de Production pasa del 5432 —modo sesión, techo de 15 clientes— al
+**6543**. Era el quinto defecto del encargo. El valor viajó por la entrada estándar del CLI y no
+aparece en ningún commit.
+
+**La fusión a `main` NO está hecha**, y no por olvido: empujar a `main` dispara un despliegue de
+producción, esta sesión pidió permiso y se le denegó. Está en el
+[PR #1](https://github.com/M1gu3hb/MorphiqPOS/pull/1), con su resumen y su plan de prueba. Es una
+decisión de Miguel y así debe ser: son 78 commits sobre el sistema que cobra esta noche.
+
+### E6 · ACCESOS-DEMO.md, y el almacén que no tenía menú
+
+`docs/fase-2/ACCESOS-DEMO.md`: los cinco negocios con su catálogo y su caja, las 24 personas con su
+rol y su PIN, el menú de cada plantilla con lo que el diccionario renombra, dónde abre cada rol, la
+tabla de qué ve cada uno, un recorrido de veinte minutos y una tabla de «si algo no abre».
+
+**Los PIN se comprobaron uno por uno contra su hash Argon2id.** No se copiaron de la semilla: si uno
+deja de funcionar, lo que cambió es la base y no el documento.
+
+Y escribir la tabla de «qué puede hacer cada rol» destapó el cuarto defecto: **el almacén veía la
+pantalla vacía.** `rolMH` devuelve null para él —con razón— y `hasPermission('almacen', …)` no
+encontraba ninguna entrada. Nadie lo había visto porque hasta que E4 le dio un usuario a cada demo,
+nadie había entrado como almacén. Ahora ve lo suyo, 4 a 8 entradas según la plantilla: existencias,
+entradas, conteo, compras y el catálogo que necesita para recibir. No la caja.
+
+### E7 · lo que la suite de navegador encontró
+
+**10 de 10**: cinco modelos × escritorio y tablet, cada uno contra SU demo, entrando con un usuario
+real y navegando por el menú. Y de camino, cuatro cosas más.
+
+**Siete pantallas abrían en 200 y reventaban por dentro.** `page.tsx` las monta con `productoId=""`
+—se abren sin nada seleccionado— y el componente consultaba igual: la cadena vacía llegaba a un
+`where id = ''` sobre una columna uuid y Postgres contestaba **22P02**. Dos respuestas 500 por
+pantalla, en cada apertura. Sin id, no se consulta; el estado de «elige algo» ya estaba escrito en las
+siete.
+
+**Y la suite las daba por probadas**, porque `abrirPantalla` miraba el 200 del HTML y nada más. Ahora
+`vigilarFallos(page)` escucha toda la prueba y `exigirSinFallos()` al final. La primera versión
+esperaba `networkidle` por pantalla y eso no sirve aquí —la cocina consulta en bucle, la red nunca
+queda quieta— hasta que Chromium enseñó «This page couldn't load». Sin esperas.
+
+**`MORPHIQPOS_DEMO_PERSONA` ya no es opcional** con varias personas. «La primera de la lista» era una
+lotería: si salía el almacenista, el PIN de la corrida no era el suyo y el fallo aparecía como «no
+salió de /login-pos».
+
+**El Modo presentación ofrecía TRES plantillas.** `PACKAGE_ORDER` estaba tecleada, y cuando la 166
+abrió las cinco, `ferreteria` y `estetica` no se podían elegir desde ninguna pantalla aunque el
+servidor ya las aceptara. Ahora se deriva de `PLANTILLAS`, ordenada por número de módulos —de menos a
+más, que es como se lee el comparador— y hay un contrato que impide volver a teclearla.
+
+### El misterio de los ECONNRESET, y por qué importa contarlo
+
+Diez respuestas 500 por corrida en `/api/datos/consultar`, con `ECONNRESET`. Costó cuatro pasos y los
+cuatro dejaron algo:
+
+1. **El registro no decía nada.** «Fallo no controlado» y un correlationId. Ahora lleva la ruta, la
+   clase del error, el SQLSTATE y la entidad del puente — y fue eso lo que convirtió diez líneas
+   idénticas en cuatro defectos distintos.
+2. **El pool recicla antes que el pooler:** 10 s en vez de 30, con `keepAlive`. De diez a dos.
+3. **Un reintento de LECTURA**, una vez, sólo si lo que se cayó fue la conexión. Las escrituras nunca:
+   un `ECONNRESET` no dice si la sentencia se ejecutó, y para esa pregunta está la clave de
+   idempotencia.
+4. **Y la causa de verdad no era el pooler: era correr con `MORPHIQPOS_DB_POOL_MAX=4`.** Un apaño para
+   el techo de 15 clientes del pooler en modo SESIÓN que ya no aplica en modo transacción. Medido: con
+   `=4`, once 500 en una corrida; con el 10 por omisión, **cero**. La instrucción de bajarlo está
+   corregida en los dos sitios donde estaba escrita.
+
+Y lo que quedaba después de todo eso **no era un defecto**: cada pantalla aborta sus consultas al
+desmontarse, el servidor acaba escribiendo en un socket que ya no está, y eso es un usuario que cambió
+de pantalla. Va como **aviso** y con su nombre. Mezclados, diez errores que no son errores hacen que
+el registro deje de leerse.
+
+### Las siete condiciones, sin adornos
+
+| | Condición | |
+| --- | --- | --- |
+| 1 | `verify:acople` en 0 con la comprobación nueva | ✅ contra un servidor vivo |
+| 2 | `pnpm verify` completo en 0 | ⚠️ **30 de 31** · `test:integracion` necesita un Postgres que esta máquina no tiene |
+| 3 | Las cinco plantillas en Modo presentación | ✅ derivadas, con contrato |
+| 4 | Playwright ×5 por el menú | ✅ **10/10** |
+| 5 | Desplegado y comprobado desde fuera | ⚠️ falta la fusión a `main`, que es del PR #1 |
+| 6 | `ACCESOS-DEMO.md` | ✅ |
+| 7 | Cero datos de prueba en los cuatro vivos | ✅ de esta sesión · y hay de antes, con fechas, en el reporte 014 §7 |
+
+**Y datos de prueba de antes que no se borraron, a propósito.** Ferretería La Broca tiene 6 órdenes y
+10 cortes del 09-09 entre las 03:21 y las 06:10 —diez cortes en tres horas de madrugada— y Restaurante
+MH, cuatro cortes del 10-09 entre las 15:01 y las 15:11 más los tres empleados de la semilla. Son de
+las sesiones del 8 al 10 de septiembre. **Esta sesión no añadió ni una fila a ninguno de los cuatro**,
+y se comprobó buscando los nombres y los productos de las semillas: cero. No se borró nada porque MH
+tiene además una orden del 13-09 con folio que parece real, y borrar en la caja de alguien que cobra
+no es decisión de quien limpia.
+
+### Cómo queda
+
+```
+typecheck 7/7 · 2 732 pruebas en 227 archivos · lint 0 · prettier limpio · build correcto
+verify:acople 0 ✓   99 migraciones = 99 en el ledger · RLS en 162 relaciones
+                    103 rutas · 82 por HTTP · 5 plantillas · 66 rutas en los menús
+                    57 de 61 pantallas alcanzables · 48 consumen el vocabulario
+navegador     10/10 · cero fallos reales
+```
