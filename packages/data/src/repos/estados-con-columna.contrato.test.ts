@@ -33,8 +33,15 @@ import { describe, expect, it } from 'vitest';
  * ── Lo que este contrato NO puede ver, y hay que decirlo ───────────────────
  * Sólo mira `check` con la forma «estado ⇒ columna». Un `check` sobre importes,
  * un `not null` de columna o una llave foránea no entran aquí. Y sólo mira
- * escrituras con `.set({ … })` literal: una construida dinámicamente se le
- * escapa. Es un cerco, no una demostración.
+ * escrituras con `.set({ … })` o `.values({ … })` LITERALES: una construida
+ * dinámicamente se le escapa. Es un cerco, no una demostración.
+ *
+ * Y supone que toda columna de un `check` se escribe en la misma transición que
+ * el estado. Eso vale para `pagada` y `cerrada`, que son finales, y NO para una
+ * máquina de varios pasos: en un traspaso, `enviado_en` la escribió el paso de
+ * enviar y reescribirla al recibir sustituiría la hora real de salida. Esos
+ * casos van declarados uno a uno en `ESCRITA_EN_UNA_TRANSICION_PREVIA`, con su
+ * motivo — un hueco nombrado es honesto; una regla ablandada para todos, no.
  */
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
@@ -153,14 +160,63 @@ function archivosTs(raiz: string): string[] {
 }
 
 /**
- * Recorta cada objeto literal de un `.set({ … })`, contando llaves.
+ * Recorta cada objeto literal de un `.set({ … })` o un `.values({ … })`,
+ * contando llaves.
  *
  * Cortar en la primera `}` es el error que ya costó cuatro intentos en este
  * proyecto: un objeto anidado la contiene y el recorte se queda a medias.
+ *
+ * ── Por qué también `.values({` ────────────────────────────────────────────
+ * La primera versión sólo miraba `.set({`, y así se le escapaba una fila que
+ * NACE en un estado que exige columna: `enviarTraspaso` crea el traspaso ya
+ * `enviado` con un `insertInto(...).values({ ... })`. El `check` lo rechaza
+ * igual con 23514, y el contrato no lo veía — el mismo defecto de mirar la
+ * mitad del dominio que este archivo ya tuvo una vez con los `check` de
+ * `create table`.
  */
-function objetosDeSet(codigo: string): string[] {
+function objetosDeEscritura(codigo: string): string[] {
+  return [...recortar(codigo, '.set({'), ...recortar(codigo, '.values({')];
+}
+
+/**
+ * Los objetos de escritura que pertenecen a UNA tabla.
+ *
+ * Sin esto, el contrato leia el archivo entero y le atribuia a `citas`
+ * cualquier `values({ estado: 'cobrada' })` que hubiera cerca — incluido el de
+ * `ordenes`, que escribe el mismo estado y no tiene por que llevar `orden_id`.
+ * El resultado era un fallo que senalaba codigo correcto, que es la version
+ * mas cara de un contrato que miente: manda a arreglar lo que no esta roto.
+ *
+ * El recorte va desde cada `updateTable('X')` / `insertInto('X')` hasta el
+ * siguiente, que es donde empieza otra cadena. No es un parser: es el mismo
+ * cerco que el resto del archivo, acotado a la tabla que dice vigilar.
+ */
+function objetosDeEscrituraDe(codigo: string, tabla: string): string[] {
+  const aperturas = [`updateTable('${tabla}')`, `insertInto('${tabla}')`];
+  const cualquierApertura = /\.(?:updateTable|insertInto)\('(\w+)'\)/g;
+
   const bloques: string[] = [];
-  const marca = '.set({';
+  for (const apertura of aperturas) {
+    let desde = 0;
+    for (;;) {
+      const inicio = codigo.indexOf(apertura, desde);
+      if (inicio === -1) break;
+
+      // Hasta donde empieza la siguiente cadena de escritura, sea de la tabla
+      // que sea: lo de despues ya no es de esta.
+      cualquierApertura.lastIndex = inicio + apertura.length;
+      const siguiente = cualquierApertura.exec(codigo);
+      const fin = siguiente === null ? codigo.length : siguiente.index;
+
+      bloques.push(...objetosDeEscritura(codigo.slice(inicio, fin)));
+      desde = inicio + apertura.length;
+    }
+  }
+  return bloques;
+}
+
+function recortar(codigo: string, marca: string): string[] {
+  const bloques: string[] = [];
   let desde = 0;
   for (;;) {
     const inicio = codigo.indexOf(marca, desde);
@@ -182,6 +238,36 @@ function objetosDeSet(codigo: string): string[] {
     desde = fin + 1;
   }
   return bloques;
+}
+
+/**
+ * Las columnas que YA quedaron escritas en una transición ANTERIOR, y que por
+ * eso no hay que volver a escribir.
+ *
+ * ── Por qué hace falta esta excepción, y por qué va declarada ──────────────
+ * `traspaso_recibido_completo` exige `enviado_en` Y `recibido_en`. Pero
+ * `enviado_en` se escribió al ENVIAR, tres horas antes: la fila ya lo trae, el
+ * `check` se cumple, y volver a escribirlo en el paso de recibir sería
+ * SOBRESCRIBIR LA HORA REAL DE SALIDA con la de llegada — un dato peor que el
+ * que había.
+ *
+ * Es un límite real del contrato: supone que toda columna de un `check` se
+ * escribe en la misma transición que el estado, y eso vale para `pagada` o
+ * `cerrada` —que son finales— y no para una máquina de estados con varios
+ * pasos. La excepción se declara aquí, con su motivo, en vez de relajar la
+ * regla para todos: un hueco nombrado es honesto; una regla ablandada, no.
+ *
+ * Cada entrada dice QUÉ ESTADO ANTERIOR la escribió, para que se pueda
+ * comprobar a mano que ese estado existe y que su código sí la escribe.
+ */
+const ESCRITA_EN_UNA_TRANSICION_PREVIA: Readonly<Record<string, string>> = {
+  'traspasos.traspaso_recibido_completo.enviado_en':
+    'La escribe `enviarTraspaso` al pasar a `enviado`. Reescribirla al recibir ' +
+    'sustituiría la hora real de salida por la de llegada.',
+};
+
+function columnaDeTransicionPrevia(regla: ReglaDeEstado): boolean {
+  return `${regla.tabla}.${regla.restriccion}.${regla.columna}` in ESCRITA_EN_UNA_TRANSICION_PREVIA;
 }
 
 const REGLAS = reglasDeLasMigraciones();
@@ -223,8 +309,15 @@ describe('todo estado que la base exige acompañado escribe su columna', () => {
       for (const raiz of RAICES_DE_CODIGO) {
         for (const archivo of archivosTs(raiz)) {
           const codigo = sinComentariosTs(readFileSync(archivo, 'utf8'));
-          if (!codigo.includes(`updateTable('${regla.tabla}')`)) continue;
-          for (const bloque of objetosDeSet(codigo)) {
+          // `insertInto` además de `updateTable`: una fila puede NACER en un
+          // estado que exige columna, y el `check` la rechaza igual.
+          if (
+            !codigo.includes(`updateTable('${regla.tabla}')`) &&
+            !codigo.includes(`insertInto('${regla.tabla}')`)
+          ) {
+            continue;
+          }
+          for (const bloque of objetosDeEscrituraDe(codigo, regla.tabla)) {
             const escribeEseEstado = regla.estados.some((e) => bloque.includes(`estado: '${e}'`));
             if (escribeEseEstado) sospechosos.push({ archivo, bloque });
           }
@@ -240,6 +333,7 @@ describe('todo estado que la base exige acompañado escribe su columna', () => {
       });
 
       it(`cada una escribe «${regla.columna}» en el MISMO objeto`, () => {
+        if (columnaDeTransicionPrevia(regla)) return;
         for (const { archivo, bloque } of sospechosos) {
           expect(
             bloque.includes(regla.columna),

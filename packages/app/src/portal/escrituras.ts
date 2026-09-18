@@ -4,6 +4,7 @@ import { ErrorDominio } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import type { TotalesOrden } from '@morphiqpos/domain/venta';
 
+import { sellarTransicionDeMesa } from '../restaurante/sala-escrituras.ts';
 import { MESA_SIN_COMENSALES, ORDEN_ADMITE_PEDIDO, ORDEN_CERRADA } from './estados.ts';
 
 /**
@@ -168,8 +169,18 @@ export async function marcarCuentaSolicitadaDesdeQR(
 
 export interface DatosMesa {
   readonly organizacionId: string;
+  readonly sucursalId: string;
   readonly mesaId: string;
   readonly estado: string;
+  /**
+   * De dónde venía la mesa, para el ledger de F-305.
+   *
+   * Viene del llamador y no de un `select` aquí dentro por dos razones: el
+   * ámbito del portal ya lo trae —`AmbitoPortal.estadoMesa`, resuelto al
+   * validar el token—, y una lectura más dejaría a esta función haciendo dos
+   * viajes donde hacía uno.
+   */
+  readonly estadoAnterior: string;
   readonly ahora: Date;
 }
 
@@ -198,6 +209,20 @@ export async function moverMesaDelPortal(tx: Transaccion, datos: DatosMesa): Pro
       { estado: datos.estado },
     ),
   );
+
+  // F-305 · La transición la causó el COMENSAL desde su teléfono, así que no
+  // hay empleado a quien atribuirla. La columna es anulable justo por esto:
+  // inventar el id del mesero asignado sería firmar una acción que no hizo.
+  await sellarTransicionDeMesa(tx, {
+    organizacionId: datos.organizacionId,
+    sucursalId: datos.sucursalId,
+    mesaId: datos.mesaId,
+    ordenId: null,
+    estadoAnterior: datos.estadoAnterior,
+    estadoNuevo: datos.estado,
+    empleadoId: null,
+    ahora: datos.ahora,
+  });
 }
 
 export interface DatosValoracion {

@@ -8,6 +8,7 @@ import { violaIndice } from './errores-sql.ts';
 import { ORDEN_ACTIVA } from './estados.ts';
 import { entradaAbrirMesa } from './esquemas.ts';
 import { puedeOrdenarDesdeQR } from './negocio.ts';
+import { sellarTransicionDeMesa } from '../restaurante/sala-escrituras.ts';
 
 /**
  * `portal.abrir_mesa` — el comensal abre su propia mesa (E7-3).
@@ -89,6 +90,23 @@ export const abrirMesaDesdeQR = definirComandoPublico<typeof entradaAbrirMesa, R
         .where('organizacion_id', '=', ambito.organizacionId)
         .where('id', '=', ambito.mesaId)
         .execute(),
+    );
+
+    // F-305 · La abrió el COMENSAL desde su teléfono: sin empleado a quien
+    // atribuirla, y con `personas` que es justo lo que la rotación necesita
+    // para decir cuánto tarda una mesa de cuatro frente a una de dos.
+    await ctx.paso('sellar_apertura', () =>
+      sellarTransicionDeMesa(ctx.tx, {
+        organizacionId: ambito.organizacionId,
+        sucursalId: ambito.sucursalId,
+        mesaId: ambito.mesaId,
+        ordenId,
+        estadoAnterior: 'libre',
+        estadoNuevo: 'esperando_orden',
+        personas: entrada.personas,
+        empleadoId: null,
+        ahora: ctx.ahora,
+      }),
     );
 
     ctx.auditar({

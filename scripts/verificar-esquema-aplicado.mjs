@@ -6,6 +6,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  cadenaDeVerificacion,
+  consultarViva,
+} from '../packages/data/src/verificacion/consulta-directa.ts';
 import { diferenciasDeContrato } from '../packages/data/src/verificacion/contrato-esquema.ts';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -65,7 +69,20 @@ with tablas as (
     x.indisunique as unico,
     x.indisprimary as primario,
     x.indisvalid as valido,
-    pg_catalog.pg_get_indexdef(i.oid) as definicion
+    -- El prefijo "extensions." NO es parte del contrato: es como pg_get_indexdef
+    -- RENDERIZA una clase de operadores segun lo que el rol lector alcance a ver.
+    -- morphiqpos_app no tiene USAGE sobre el esquema extensions, asi que le sale
+    -- "extensions.gin_trgm_ops" donde a postgres le sale "gin_trgm_ops": mismo
+    -- indice, misma clase de operadores, dos textos. Sin normalizarlo, el
+    -- contrato denuncia una deriva que no existe cada vez que cambia el rol que
+    -- mira, y un cambio de verdad -otra clase de operadores, otra columna- se
+    -- pierde entre el ruido.
+    regexp_replace(
+      pg_catalog.pg_get_indexdef(i.oid),
+      '(extensions|public)\.([a-z0-9_]+_ops)',
+      '\2',
+      'g'
+    ) as definicion
   from tablas t
   join pg_catalog.pg_index x on x.indrelid = t.oid
   join pg_catalog.pg_class i on i.oid = x.indexrelid
@@ -108,6 +125,37 @@ function validarProyecto() {
   return referencia;
 }
 
+/**
+ * Valida la forma del contrato venga por donde venga.
+ *
+ * Vivía dentro del camino del CLI. Con dos transportes, dejarla ahí habría
+ * dejado el nuevo sin comprobar la forma del dato, que es el descuido clásico
+ * al añadir una segunda vía.
+ */
+function exigirContrato(contrato, origen) {
+  if (
+    typeof contrato !== 'object' ||
+    contrato === null ||
+    !Array.isArray(contrato.columnas) ||
+    !Array.isArray(contrato.restricciones) ||
+    !Array.isArray(contrato.indices)
+  ) {
+    throw new Error(`${origen} devolvió un contrato de esquema inválido.`);
+  }
+  return contrato;
+}
+
+/**
+ * Lee el contrato por conexión directa. Mismo SQL, misma base, mismo cerrojo
+ * de referencia de proyecto: sólo cambia el transporte. Existe porque la
+ * máquina del acople no tiene el ejecutable del CLI de Supabase, y una puerta
+ * que no se puede ejecutar no protege nada.
+ */
+async function leerContratoDirecto() {
+  const respuesta = await consultarViva(CONSULTA, { proyectoEsperado: PROYECTO_MORPHIQPOS });
+  return exigirContrato(respuesta.rows?.[0]?.contrato, 'La conexión directa');
+}
+
 function leerContratoReal() {
   const proyecto = validarProyecto();
   const cli = process.env['SUPABASE_CLI_PATH'] ?? 'supabase';
@@ -138,24 +186,15 @@ function leerContratoReal() {
     }
 
     const respuesta = JSON.parse(resultado.stdout);
-    const contrato = respuesta?.rows?.[0]?.contrato;
-    if (
-      typeof contrato !== 'object' ||
-      contrato === null ||
-      !Array.isArray(contrato.columnas) ||
-      !Array.isArray(contrato.restricciones) ||
-      !Array.isArray(contrato.indices)
-    ) {
-      throw new Error('Supabase CLI devolvió un contrato de esquema inválido.');
-    }
-    return contrato;
+    return exigirContrato(respuesta?.rows?.[0]?.contrato, 'Supabase CLI');
   } finally {
     rmSync(carpeta, { force: true, recursive: true });
   }
 }
 
 try {
-  const real = leerContratoReal();
+  const real =
+    cadenaDeVerificacion() === undefined ? leerContratoReal() : await leerContratoDirecto();
   if (process.argv.includes('--actualizar')) {
     writeFileSync(CONTRATO, `${JSON.stringify(real, null, 2)}\n`, 'utf8');
     console.log(

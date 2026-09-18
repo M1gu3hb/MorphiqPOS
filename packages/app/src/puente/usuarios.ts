@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { obtenerDb } from '@morphiqpos/data';
+import { leyendoConReintento, obtenerDb } from '@morphiqpos/data';
 
 import { colorDePersona, etiquetaDeRol, rolMH } from './roles.ts';
 
@@ -22,28 +22,34 @@ import { colorDePersona, etiquetaDeRol, rolMH } from './roles.ts';
 type Registro = Record<string, unknown>;
 
 export async function listarUsuariosPOS(organizacionId: string): Promise<Registro[]> {
-  const filas = await obtenerDb()
-    .selectFrom('empleos')
-    .innerJoin('personas', 'personas.id', 'empleos.persona_id')
-    .leftJoin('identidades', 'identidades.persona_id', 'personas.id')
-    // `leftJoin` y no `innerJoin`: un empleado sin PIN todavía TIENE que salir
-    // en la lista. Con `innerJoin` desaparecería justo el que hay que dar de
-    // alta, y la pantalla parecería estar completa.
-    .leftJoin('credenciales_pin', 'credenciales_pin.identidad_id', 'identidades.id')
-    .select([
-      'empleos.id as id',
-      'personas.nombre as nombre',
-      'personas.telefono as telefono',
-      'empleos.rol as rolBase',
-      'empleos.activo as activo',
-      'empleos.created_at as createdAt',
-      'empleos.updated_at as updatedAt',
-      'credenciales_pin.id as credencialId',
-    ])
-    .where('empleos.organizacion_id', '=', organizacionId)
-    .orderBy('personas.nombre')
-    .limit(200)
-    .execute();
+  // Las tres lecturas que el puente hace FUERA de `consultar` pasan por el mismo
+  // reintento: son las que `ConfigContext` pide en cada carga de pantalla, y son
+  // las que dejaban el `ECONNRESET` del pooler en el registro. El reintento sólo
+  // vale para LEER; ninguna escritura lo lleva.
+  const filas = await leyendoConReintento(() =>
+    obtenerDb()
+      .selectFrom('empleos')
+      .innerJoin('personas', 'personas.id', 'empleos.persona_id')
+      .leftJoin('identidades', 'identidades.persona_id', 'personas.id')
+      // `leftJoin` y no `innerJoin`: un empleado sin PIN todavía TIENE que salir
+      // en la lista. Con `innerJoin` desaparecería justo el que hay que dar de
+      // alta, y la pantalla parecería estar completa.
+      .leftJoin('credenciales_pin', 'credenciales_pin.identidad_id', 'identidades.id')
+      .select([
+        'empleos.id as id',
+        'personas.nombre as nombre',
+        'personas.telefono as telefono',
+        'empleos.rol as rolBase',
+        'empleos.activo as activo',
+        'empleos.created_at as createdAt',
+        'empleos.updated_at as updatedAt',
+        'credenciales_pin.id as credencialId',
+      ])
+      .where('empleos.organizacion_id', '=', organizacionId)
+      .orderBy('personas.nombre')
+      .limit(200)
+      .execute(),
+  );
 
   return filas.map((f) => ({
     id: f.id,

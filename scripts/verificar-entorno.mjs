@@ -52,6 +52,33 @@ const VARIABLES = [
 const fallos = [];
 const pendientes = [];
 
+/** La clave de la excepcion, tal cual se escribe en el archivo de excepciones. */
+const EXCEPCION_EN_VIVO = 'PUERTA verify:entorno/comprobacion-en-vivo';
+
+/** Salto de linea, en cualquiera de las dos formas. */
+const LINEAS = new RegExp(String.raw`
+?
+`);
+
+/**
+ * Si una comprobacion esta declarada como excepcion, con su motivo.
+ *
+ * Se exige que la fila traiga TEXTO en la columna del motivo: una excepcion sin
+ * razon escrita es un permiso en blanco, y este archivo existe justamente para
+ * que la razon quede contada en vez de escondida.
+ */
+function excepcionDeclarada(clave) {
+  const archivo = join(RAIZ, 'docs', 'fase-2', 'EXCEPCIONES-COBERTURA.md');
+  if (!existsSync(archivo)) return false;
+  for (const linea of readFileSync(archivo, 'utf8').split(LINEAS)) {
+    if (!linea.includes(clave)) continue;
+    const columnas = linea.split('|').map((c) => c.trim());
+    // clave | que no se comprueba | por que  → la ultima columna es el motivo
+    if (columnas.length >= 4 && columnas[3].length > 40) return true;
+  }
+  return false;
+}
+
 function comprobar(condicion, mensaje) {
   if (!condicion) fallos.push(mensaje);
 }
@@ -154,10 +181,31 @@ const docker = spawnSync('docker', ['--version'], {
 });
 
 if (docker.error?.code === 'ENOENT' || docker.status !== 0) {
-  pendientes.push(
-    'Docker no esta instalado: la comprobacion en vivo (levantar y conectarse) ' +
-      'queda PENDIENTE. F1.0-T05 no se puede firmar hasta ejecutarla',
-  );
+  // ── Por que esto es un FALLO y no un «pendiente» ──────────────────────
+  // Esta puerta imprimia «· pendiente: Docker no esta instalado» y salia en 0. Es
+  // decir: aprobaba A-27 —«el backend completo debe poder correr en la PC de un
+  // cliente, sin internet»— sin haberlo probado NUNCA. Una puerta que aprueba
+  // declarando un chequeo sin hacer no es una puerta; es un mensaje que nadie lee.
+  //
+  // Y el arreglo tampoco es borrar el mensaje: seria peor. Es sacar la
+  // comprobacion de la penumbra y ponerla donde se CUENTA, que es el archivo de
+  // excepciones. Si la fila esta, la puerta lo dice en voz alta y sigue; si no
+  // esta, falla. Igual que verify:cobertura.
+  if (excepcionDeclarada(EXCEPCION_EN_VIVO)) {
+    pendientes.push(
+      'La comprobacion EN VIVO (levantar el compose y conectarse) NO se ejecuto: ' +
+        'no hay Docker en esta maquina. Esta DECLARADA en ' +
+        `docs/fase-2/EXCEPCIONES-COBERTURA.md como "${EXCEPCION_EN_VIVO}". ` +
+        'A-27 no esta demostrado por esta corrida',
+    );
+  } else {
+    fallos.push(
+      'Docker no esta instalado y la comprobacion en vivo no esta declarada como ' +
+        `excepcion. Instala Docker Desktop, o declara "${EXCEPCION_EN_VIVO}" en ` +
+        'docs/fase-2/EXCEPCIONES-COBERTURA.md con su motivo. Lo que no vale es ' +
+        'aprobar A-27 sin haberlo probado.',
+    );
+  }
 } else {
   const valido = spawnSync('docker', ['compose', '-f', COMPOSE, 'config', '--quiet'], {
     encoding: 'utf8',

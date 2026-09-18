@@ -8,3 +8,5 @@
 export * as dinero from './dinero/index.ts';
 export * as catalogo from './catalogo/index.ts';
 export * as inventario from './inventario/index.ts';
+export * as vocabulario from './vocabulario/index.ts';
+export * as sala from './sala/index.ts';

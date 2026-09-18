@@ -45,7 +45,11 @@ const DEFAULT_CONFIG = {
   descargar_pdf_corte_auto: true,
   formato_export_default: 'csv',
   colorear_importes_monetarios: true,
-  paquete_modo: 'restaurante_pro',
+  // Mientras la configuración viaja, el menú se pinta con ESTO. Con
+  // `restaurante_pro` la primera pintada le enseñaba a un abarrotes las
+  // entradas de sala y luego se las quitaba: un parpadeo que ofrece lo que no
+  // se contrató. La plantilla más restrictiva no parpadea hacia arriba.
+  paquete_modo: 'tienda',
   modo_presentacion_activo: false,
   //  NO está aquí, y es a propósito: era una contraseña
   // por omisión escrita en el código de un repositorio público. La contraseña

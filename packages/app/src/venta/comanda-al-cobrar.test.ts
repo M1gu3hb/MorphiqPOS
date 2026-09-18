@@ -121,6 +121,43 @@ describe('el cobro manda a la cocina lo que todavía no salió', () => {
     expect(items.some((i) => i['orden_linea_id'] === 'l2')).toBe(false);
   });
 
+  it('EL RELOJ DE LA BARRA ARRANCA AL COBRAR — F-328', async () => {
+    // En mostrador el cliente empieza a esperar cuando paga, no cuando el
+    // sistema decide encolarlo. Sin `cobrado_en`, la fila de barra mediría la
+    // espera desde `created_at` de la comanda y diría que esperó menos.
+    const base = baseDe();
+    const COBRO = new Date('2026-09-15T08:30:00.000Z');
+
+    await comandarLineasPendientes(base.tx, ORG, ORDEN, COBRO);
+
+    const comanda = base.filas('comandas')[0];
+    expect(comanda?.['cobrado_en']).toEqual(COBRO);
+    // Y la sucursal se copia de la orden: la fila de barra filtra por ella en
+    // cada refresco y resolverla con un `join` cada segundo sale caro.
+    expect(comanda?.['sucursal_id']).toBe(SUCURSAL);
+  });
+
+  it('UNA LÍNEA ANULADA NO LLEGA A LA PLANCHA — F-324', async () => {
+    // Es el error más caro que evita el filtro de `anulada_en`: sin él, cobrar
+    // una cuenta mandaría a cocinar el platillo que la caja acaba de anular, y
+    // ese plato ya no lo paga nadie.
+    const base = baseDe({
+      orden_lineas: [
+        linea('l1', HAMBURGUESA, 0, {
+          anulada_en: new Date('2026-09-14T00:00:00.000Z'),
+          motivo_anulacion: 'error_cocina',
+        }),
+        linea('l2', REFRESCO, 1),
+      ],
+    });
+
+    const emitidas = await comandarLineasPendientes(base.tx, ORG, ORDEN);
+
+    expect(emitidas).toHaveLength(0);
+    expect(base.filas('comandas')).toEqual([]);
+    expect(base.filas('comanda_items')).toEqual([]);
+  });
+
   it('MESA: si las líneas YA tienen comanda, no se emite ninguna otra', async () => {
     // La otra mitad. Sin este filtro, cobrar una mesa mandaría el pedido entero
     // a la plancha por segunda vez, con la comida ya servida en el salón.

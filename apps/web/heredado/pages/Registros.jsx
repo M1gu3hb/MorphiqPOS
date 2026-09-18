@@ -40,6 +40,7 @@ import {
 } from '@/lib/exportColumns';
 import { exportToCSV } from '@/lib/exportUtils';
 import { useConfig } from '@/lib/ConfigContext';
+import { canAccessModule } from '@/lib/packageConfig';
 import { printDocument } from '@/lib/print';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import PropinasRegistros from '@/components/propinas/PropinasRegistros';
@@ -48,8 +49,8 @@ import { useLocation } from '@/enrutado';
 
 export default function Registros() {
   const { config, paquete_modo } = useConfig();
-  const isEsencial = paquete_modo === 'esencial';
-  const showOperativos = !isEsencial; // compras, movimientos, gastos
+  const sinCostos = !canAccessModule('costos_basicos', paquete_modo);
+  const showOperativos = canAccessModule('compras', paquete_modo); // compras, movimientos, gastos
   const showPropinas = tipsEnabled(config);
   const { posUser } = usePOSAuth();
   const isAdmin = posUser?.rol === 'administrador';
@@ -532,7 +533,7 @@ export default function Registros() {
             </div>
           </div>
           <div className="py-6 flex justify-center">
-            <PeriodoPDF data={pdfData} config={config} isEsencial={isEsencial} />
+            <PeriodoPDF data={pdfData} config={config} sinCostos={sinCostos} />
           </div>
         </div>
       )}

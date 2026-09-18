@@ -15,6 +15,7 @@ import { agruparEnComandas, resolverEstacion } from './estaciones.ts';
 import { entradaEnviarPedido } from './esquemas.ts';
 import { insertarLineas, prepararLinea, type LineaPreparada } from './lineas.ts';
 import { mesaTrasComanda, type EstadoMesa } from './transiciones.ts';
+import { sellarTransicionDeMesa } from './sala-escrituras.ts';
 
 /**
  * `restaurante.enviar_pedido` — E6-4, el comando más importante del módulo.
@@ -74,7 +75,7 @@ export const enviarPedido = definirComando<
   paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaEnviarPedido,
   async ejecutar(ctx, entrada) {
-    const { organizacionId } = ctx.ambito;
+    const { organizacionId, empleoId } = ctx.ambito;
 
     const orden = await ctx.paso('cargar_orden', () =>
       ordenDeMesa(ctx.tx, organizacionId, entrada.ordenId),
@@ -97,7 +98,10 @@ export const enviarPedido = definirComando<
       insertarLineas(ctx.tx, organizacionId, entrada.ordenId, preparadas),
     );
 
-    const grupos = agruparEnComandas(preparadas);
+    // LO RETENIDO NO SE COMANDA. Es la mitad de F-323 que se puede olvidar sin
+    // que nada falle: las líneas se escriben igual y la cuenta cuadra igual,
+    // sólo que el fuerte sale con la sopa.
+    const grupos = agruparEnComandas(preparadas.filter((l) => l.marchaEstado !== 'retenida'));
     const comandas = grupos.map((grupo) => ({ id: crypto.randomUUID(), grupo }));
 
     if (comandas.length > 0) {
@@ -107,6 +111,7 @@ export const enviarPedido = definirComando<
           orden,
           notas: entrada.notas ?? null,
           comandas,
+          marchadaEn: ctx.ahora,
         }),
       );
       await ctx.paso('escribir_items', () => insertarItems(ctx.tx, organizacionId, comandas));
@@ -125,7 +130,11 @@ export const enviarPedido = definirComando<
     const mesaId = orden.mesaId;
     if (mesaId !== null) {
       await ctx.paso('avanzar_mesa', () =>
-        avanzarMesa(ctx.tx, organizacionId, mesaId, comandas.length > 0),
+        avanzarMesa(ctx.tx, organizacionId, mesaId, comandas.length > 0, {
+          ordenId: orden.id,
+          empleoId,
+          ahora: ctx.ahora,
+        }),
       );
     }
 
@@ -238,6 +247,7 @@ async function avanzarMesa(
   organizacionId: string,
   mesaId: string,
   hayComandas: boolean,
+  sello: { readonly ordenId: string; readonly empleoId: string; readonly ahora: Date },
 ): Promise<void> {
   const mesa = await mesaOperable(tx, organizacionId, mesaId);
   // `nuevo` es el estado con el que nace la comanda; la tabla de F1-04 §8.2 lo
@@ -254,6 +264,17 @@ async function avanzarMesa(
     .where('organizacion_id', '=', organizacionId)
     .where('id', '=', mesaId)
     .execute();
+
+  await sellarTransicionDeMesa(tx, {
+    organizacionId,
+    sucursalId: mesa.sucursalId,
+    mesaId,
+    ordenId: sello.ordenId,
+    estadoAnterior: mesa.estado,
+    estadoNuevo: destino,
+    empleadoId: sello.empleoId,
+    ahora: sello.ahora,
+  });
 }
 
 /**

@@ -26,6 +26,17 @@ import type { entradaEnviarPedido } from './esquemas.ts';
 type EntradaPedido = z.infer<typeof entradaEnviarPedido>;
 type LineaCapturada = EntradaPedido['lineas'][number];
 
+/**
+ * F-323 · En qué tiempo va la línea y si ya se soltó a cocina.
+ *
+ * El tiempo 1 —y el plato sin tiempo— sale INMEDIATO. Del 2 en adelante nace
+ * RETENIDO: es la operación normal del servicio de mesa, y es lo que impide que
+ * el fuerte se enfríe en la barra mientras el comensal come su sopa.
+ */
+export function marchaDe(tiempo: number | null): 'inmediata' | 'retenida' {
+  return tiempo === null || tiempo <= 1 ? 'inmediata' : 'retenida';
+}
+
 export interface LineaPreparada {
   /** Se genera aquí para que la comanda pueda apuntar a la línea sin releerla. */
   readonly id: string;
@@ -35,6 +46,9 @@ export interface LineaPreparada {
   readonly areaPreparacion: string;
   readonly notas: string | null;
   readonly ordenVisual: number;
+  /** F-323 · `null` cuando el plato va inmediato y sin tiempo declarado. */
+  readonly tiempoServicio: number | null;
+  readonly marchaEstado: 'inmediata' | 'retenida';
 }
 
 /**
@@ -50,12 +64,18 @@ export function prepararLinea(
   estacion: EstacionResuelta,
   ordenVisual: number,
 ): LineaPreparada {
+  // El tiempo lo manda el mesero o lo pone el menú, en ese orden. Los dos son
+  // decisiones de servicio, no de dinero.
+  const tiempoServicio = capturada.tiempoServicio ?? producto.tiempoServicioDefault ?? null;
+
   return {
     id: crypto.randomUUID(),
     producto,
     valorada: valorarLinea(producto, capturada.cantidad, unidadDeCaptura(capturada, producto)),
     estacion,
     areaPreparacion: producto.areaPreparacion,
+    tiempoServicio,
+    marchaEstado: marchaDe(tiempoServicio),
     notas: capturada.notas === undefined || capturada.notas === '' ? null : capturada.notas,
     ordenVisual,
   };
@@ -136,6 +156,11 @@ function filaDeLinea(organizacionId: string, ordenId: string, linea: LineaPrepar
     // La cocina arranca con todo pendiente. `comanda_items.estado` lo refleja
     // y los dos se mantienen coherentes en la misma transacción (F1-04 §7.5).
     estado_preparacion: 'pendiente',
+    // F-323 · Una línea retenida no llega a cocina hasta que se marcha. El
+    // trigger de la 074 lo impone además en la base, porque el portal QR es
+    // otro camino que escribe comandas.
+    marcha_estado: linea.marchaEstado,
+    tiempo_servicio: linea.tiempoServicio,
     area_preparacion_snapshot: producto.areaPreparacion,
     ...instantaneaDeInsumoBase(producto),
     // `cantidad_base_consumo` se queda nula A PROPÓSITO: la llena el cobro, que

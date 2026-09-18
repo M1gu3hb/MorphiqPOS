@@ -51,7 +51,16 @@ en una sola transacción:
   Supabase. Si `supabase` no está en `PATH`, se indica su ejecutable con
   `SUPABASE_CLI_PATH`.
 
+Las tres variables del oficio están declaradas en `.env.example`, con lo que se
+rompe sin cada una. El procedimiento de la tanda pendiente de la Fase 2 —las
+posteriores a la 057— está en `docs/fase-2/A3-COMO-APLICAR.md`.
+
 ### Instalar el CLI en una máquina Windows limpia
+
+En la máquina donde se desarrolla hoy **esto ya está hecho**: el binario fijado
+está en `D:\herramientas\supabase-cli\node_modules\@supabase\cli-windows-x64\bin\supabase.exe`
+y responde `2.115.0`. No se reinstala: se apunta `SUPABASE_CLI_PATH` ahí y se
+sigue con el vínculo del worktree, más abajo.
 
 La [guía oficial del Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
 permite instalarlo como dependencia local y recomienda fijar la versión. Este
@@ -74,6 +83,37 @@ cada terminal que ejecute migraciones o `pnpm verify`, se vuelve a definir
 `SUPABASE_CLI_PATH` y se fija explícitamente
 `MORPHIQPOS_SUPABASE_PROJECT_REF`. Nunca se deduce un proyecto por el último
 enlace usado por el CLI.
+
+### El vínculo con el proyecto es LOCAL A CADA WORKTREE
+
+La sesión (`login`) es de la máquina: vive en el perfil del usuario y sirve para
+todos los worktrees. **El vínculo no.** `supabase link` escribe
+`supabase/.temp/linked-project.json`, y `supabase/.temp/` está en `.gitignore`:
+no viaja entre worktrees ni entre clones. Un worktree nuevo nace sin él, y sin
+él `supabase db query --linked` no tiene de dónde sacar el proyecto ni la cadena
+del pooler.
+
+Esto ya bloqueó una sesión entera —se declaró «no hay forma de aplicar
+migraciones» con la herramienta instalada delante, porque el vínculo estaba en
+otro worktree—. Por eso: en cada worktree, una vez, desde su raíz:
+
+```powershell
+$env:SUPABASE_CLI_PATH = 'D:\herramientas\supabase-cli\node_modules\@supabase\cli-windows-x64\bin\supabase.exe'
+& $env:SUPABASE_CLI_PATH link --project-ref wyqmzhliurwyxuyxznpb
+Test-Path supabase\.temp\linked-project.json     # True
+```
+
+El vínculo no es sólo para migrar: `verificar-esquema-aplicado.mjs` y
+`verificar-rls.mjs` lo leen como respaldo cuando
+`MORPHIQPOS_SUPABASE_PROJECT_REF` no está en el entorno.
+
+Y un detalle que costó un fallo real: **el CLI parsea el `.env` del directorio
+actual**. Un BOM en medio de ese archivo lo hace abortar con
+`LegacyDbConfigLoadError: failed to parse environment file: .env` antes de tocar
+la base; el mensaje habla del `.env` y no de la base, así que se busca donde no
+está. Se comprueba sin leer ningún valor con
+`(Select-String -Path .env -Pattern ([char]0xFEFF) -AllMatches).Count`, que debe
+dar 0.
 
 `morphiqpos_app` conserva sólo DML y no puede aplicar DDL. Con ese rol,
 `db:migrate` sirve para comprobar que no falta nada.
@@ -151,7 +191,9 @@ vuelta atrás ANTES de aplicarla.
 |---|---|
 | «DATABASE_URL: expected string, received undefined» | El `.env` está en la raíz del monorepo. Next lo carga desde `next.config.mjs`; los CLI de datos desde `packages/data/bin/*`. Si aparece en otro sitio, ese sitio no lo está cargando. |
 | «self-signed certificate in certificate chain» | La raíz de Supabase. Va embebida en `packages/data/src/certificados/`. **No se arregla con `rejectUnauthorized: false`** — eso deja el canal cifrado y sin autenticar. |
-| «permission denied for schema public» | Se intentó DDL con el rol de aplicación. Correcto: no puede. |
+| «permission denied for schema public» | Se intentó DDL con el rol de aplicación. Correcto: no puede. Para aplicar hace falta el transporte vinculado: §2. |
+| «LegacyDbConfigLoadError: failed to parse environment file: .env» | Un BOM en el `.env` del directorio desde donde se invoca el CLI. No es la base: es el archivo. §2. |
+| «Falta MORPHIQPOS_SUPABASE_PROJECT_REF y no existe un vínculo local» | Worktree sin `supabase link`. El vínculo no se hereda de otro worktree: §2. |
 | «tenant/user not found» del pooler | El usuario del pooler es `<rol>.<ref>` y el host de esta región es `aws-0-us-east-2.pooler.supabase.com`. |
 | «Demasiados intentos desde esta red» | El límite por IP de C-13. Veinte entradas por cinco minutos, veinte enrolamientos por diez. Se espera o se cambia `LIMITES` en `packages/app/src/http/limite.ts`. |
 | «Esta terminal ya tiene una caja abierta» | Hay un turno sin cerrar. Se cierra en `/corte`. |
@@ -213,8 +255,15 @@ antes de una migración que transforme o elimine columnas.
    elige el segundo exacto anterior al cambio destructivo.
 3. Restaura primero en un proyecto de sustitución. No restaures encima del
    origen mientras siga siendo la única copia.
-4. Ejecuta `pnpm db:migrate -- --ensayo` y luego `pnpm db:migrate` contra el
-   destino. Compara el contrato con `pnpm verify:esquema` y `pnpm verify:rls`.
+4. Ejecuta `pnpm --filter @morphiqpos/data ensayo` y luego `pnpm db:migrate`
+   contra el destino. Compara el contrato con `pnpm verify:esquema` y
+   `pnpm verify:rls`.
+
+   Aquí decía `pnpm db:migrate -- --ensayo`, y **eso aplica de verdad**:
+   `scripts/db.mjs` sólo lee `argv[2]` y delega en el script `migrate` de
+   `packages/data` sin reenviar el resto de argumentos, así que la bandera se
+   pierde por el camino sin que nada lo diga. Un ensayo que en realidad aplica es
+   peor que no ensayar. El script que sí revierte es `ensayo`.
 5. Haz humo de acceso, venta, cobro, corte, inventario y portal QR. Compara los
    folios y totales del último turno contra los comprobantes del negocio.
 6. Cambia `DATABASE_URL` sólo después de aprobar el humo, despliega y conserva

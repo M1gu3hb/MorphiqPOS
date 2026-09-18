@@ -9,45 +9,73 @@ import {
   PACKAGE_TAGLINES,
   PACKAGE_TARGET,
   ROUTE_TO_MODULE,
+  isPackage as isPackageHeredado,
+  normalizarPlantilla,
 } from '../../heredado/lib/packageConfig.js';
 
-type PaqueteWeb = 'esencial' | 'operativo' | 'restaurante_pro';
+/**
+ * Las CINCO plantillas. Son las mismas que `Plantilla` en contracts.
+ *
+ * Eran tres, y dos de ellas —`tienda` y `cafeteria`— traían los mismos módulos
+ * uno por uno, así que ferretería y estética operaban con la plantilla de una
+ * tiendita. Ahora cada modelo tiene la suya.
+ */
+export type PlantillaWeb = 'tienda' | 'cafeteria' | 'restaurante' | 'ferreteria' | 'estetica';
 
-function paqueteSeguro(valor: unknown): PaqueteWeb {
-  return valor === 'esencial' || valor === 'operativo' || valor === 'restaurante_pro'
-    ? valor
-    : 'esencial';
+/** Los nombres anteriores a D-01. Siguen entrando; nunca salen. */
+export type PlantillaHeredadaWeb = 'esencial' | 'operativo' | 'restaurante_pro';
+
+/**
+ * La regla de normalización vive UNA vez, en `packageConfig.js`.
+ *
+ * Esta fachada la tenía copiada, con su propio valor por omisión, y las dos
+ * copias no decían lo mismo: el heredado caía en `restaurante_pro` y ésta en
+ * `esencial`. Dos respuestas distintas a la misma pregunta según por qué puerta
+ * entrara la pantalla es exactamente el defecto que se está cerrando, así que
+ * aquí sólo se le pone el TIPO a lo que aquélla decide.
+ */
+function plantillaSegura(valor: unknown): PlantillaWeb {
+  return normalizarPlantilla(valor);
 }
 
-export function getCurrentPackage(config: { readonly paquete_modo?: unknown } | null): PaqueteWeb {
-  return paqueteSeguro(config?.paquete_modo);
+export function getCurrentPackage(
+  config: { readonly paquete_modo?: unknown } | null,
+): PlantillaWeb {
+  return plantillaSegura(config?.paquete_modo);
 }
 
+/**
+ * Delega en el heredado en vez de comparar aquí.
+ *
+ * Comparar `getCurrentPackage(config) === plantillaSegura(packageName)` parece
+ * lo mismo y no lo es: como lo desconocido normaliza a `tienda`, un nombre
+ * inventado daría verdadero para toda tienda. El heredado filtra antes.
+ */
 export function isPackage(
   config: { readonly paquete_modo?: unknown } | null,
   packageName: string,
 ): boolean {
-  return getCurrentPackage(config) === packageName;
+  return isPackageHeredado(config, packageName);
 }
 
 export function canAccessModule(moduleName: string, paqueteModo: unknown): boolean {
-  return (PACKAGE_MODULES[paqueteSeguro(paqueteModo)] as readonly string[]).includes(moduleName);
+  return (PACKAGE_MODULES[plantillaSegura(paqueteModo)] as readonly string[]).includes(moduleName);
 }
 
 export function getPackageLabel(paqueteModo: unknown): string {
-  return PACKAGE_LABELS[paqueteSeguro(paqueteModo)];
+  return PACKAGE_LABELS[plantillaSegura(paqueteModo)];
 }
 
 export function getPackageFeatures(paqueteModo: unknown): readonly string[] {
-  return PACKAGE_FEATURES[paqueteSeguro(paqueteModo)];
+  return PACKAGE_FEATURES[plantillaSegura(paqueteModo)];
 }
 
 export function getPackageTagline(paqueteModo: unknown): string {
-  return PACKAGE_TAGLINES[paqueteSeguro(paqueteModo)];
+  return PACKAGE_TAGLINES[plantillaSegura(paqueteModo)];
 }
 
 export function getPackageTarget(paqueteModo: unknown): string {
-  return PACKAGE_TARGET[paqueteSeguro(paqueteModo)];
+  return PACKAGE_TARGET[plantillaSegura(paqueteModo)];
 }
 
 export function isRouteAllowed(routePath: string, paqueteModo: unknown): boolean {

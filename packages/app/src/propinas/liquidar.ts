@@ -18,6 +18,7 @@ import {
   propinasPorMeseroDeOrdenes,
   reclamarOrdenes,
 } from './liquidadas.ts';
+import { repartirLiquidacion, type RepartoEscrito } from './pool.ts';
 import { resolverRango } from './rango.ts';
 import { explicarReclamo } from './reclamo.ts';
 
@@ -55,6 +56,8 @@ export interface ResultadoLiquidacion {
   readonly numeroVentas: number;
   readonly desglose: DesgloseServible;
   readonly meseros: readonly PropinaDeMesero[];
+  /** F-242 · Nulo cuando la liquidación reparte directo al mesero. */
+  readonly reparto: RepartoEscrito | null;
 }
 
 const ROLES = ['dueno', 'administrador', 'gerente'] as const;
@@ -186,6 +189,25 @@ export const liquidarPropinas = definirComando<
       propinasPorMeseroDeOrdenes(ctx.tx, organizacionId, ids),
     );
 
+    // 6 · F-242 · El reparto por puntos, si esta liquidación lo lleva. Va
+    //     DESPUÉS de fijar el total: reparte lo que de verdad entró, no lo que
+    //     una lectura anterior creía que iba a entrar.
+    const esquemaId = entrada.esquemaId;
+    const reparto =
+      esquemaId === undefined
+        ? null
+        : await ctx.paso('repartir_por_puntos', () =>
+            repartirLiquidacion(ctx.tx, {
+              organizacionId,
+              sucursalId,
+              liquidacionId: liquidacion.id,
+              esquemaId,
+              totalCentavos: desglose.propinasCentavos,
+              pedidos: entrada.beneficiarios ?? [],
+              liquidadaEn: ctx.ahora,
+            }),
+          );
+
     ctx.auditar({
       entidadId: liquidacion.id,
       payload: {
@@ -204,6 +226,7 @@ export const liquidarPropinas = definirComando<
       numeroVentas: ids.length,
       desglose: servirDesglose(desglose),
       meseros,
+      reparto,
     };
   },
 });

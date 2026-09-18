@@ -23,3 +23,12 @@ export {
   entradaGuardarModificadores,
   type ResultadoGuardarModificadores,
 } from './modificadores-guardar.ts';
+
+export { altaRapida, entradaAltaRapida, type ResultadoAltaRapida } from './alta-rapida.ts';
+
+export {
+  asignarFiscalMasivo,
+  entradaFiscalMasivo,
+  type ProductoSinLitros,
+  type ResultadoFiscalMasivo,
+} from './fiscal-masivo.ts';

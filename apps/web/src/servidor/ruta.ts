@@ -71,6 +71,53 @@ export function manejadorDeComando<E extends ZodType, S>(
   };
 }
 
+/**
+ * El mismo adaptador, para las rutas que llevan el identificador EN LA RUTA.
+ *
+ * `05-DATOS-Y-BACKEND.md` pide `/api/citas/:id/cancelar` y no
+ * `/api/citas/cancelar` con el id en el cuerpo, y tiene razón: la ruta es lo
+ * que se lee en un registro de acceso, en una traza y en una alerta, y
+ * `POST /api/citas/cancelar` doscientas veces al día no dice nada. Con el id
+ * dentro, cada línea del registro señala a una cita.
+ *
+ * Lo que NO cambia es quién valida: el identificador de la ruta se mete en el
+ * cuerpo ANTES de entregarlo, y de ahí en adelante pasa por el mismo `zod` que
+ * todo lo demás. Un `params` que se colara sin validar sería la única entrada
+ * del sistema que nadie mira.
+ *
+ * Y si el cuerpo ya trae ese campo, MANDA la ruta. Dos fuentes para el mismo
+ * dato es cómo se cancela la cita equivocada: lo que el operador ve en la barra
+ * de direcciones es lo que tiene que pasar.
+ */
+export function manejadorDeComandoConParametro<E extends ZodType, S>(
+  definicion: DefinicionServible<E, S>,
+  campo: string,
+): (peticion: Request, contexto: { params: Promise<Record<string, string>> }) => Promise<Response> {
+  const manejar = manejadorDeComando(definicion);
+  return async function POST(
+    peticion: Request,
+    contexto: { params: Promise<Record<string, string>> },
+  ): Promise<Response> {
+    const parametros = await contexto.params;
+    const valor = parametros[campo];
+    const cuerpo: unknown = await peticion.json().catch(() => ({}));
+    const fusionado =
+      typeof cuerpo === 'object' && cuerpo !== null
+        ? { ...(cuerpo as Record<string, unknown>), [campo]: valor }
+        : { [campo]: valor };
+
+    // Se reconstruye la petición en vez de mutarla: `Request` es de un solo
+    // uso —su cuerpo ya se consumió arriba— y reenviar la original haría que
+    // el adaptador leyera un flujo vacío.
+    const copia = new Request(peticion.url, {
+      method: peticion.method,
+      headers: peticion.headers,
+      body: JSON.stringify(fusionado),
+    });
+    return manejar(copia);
+  };
+}
+
 function adaptar(peticion: Request): PeticionHttp {
   return {
     method: peticion.method,

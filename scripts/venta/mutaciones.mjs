@@ -11,7 +11,12 @@
 
 const COBRAR = 'packages/app/src/venta/cobrar.ts';
 const PAGOS = 'packages/app/src/venta/pagos.ts';
-const ESCALA = 'packages/app/src/venta/escala.ts';
+// F-324 movió la aritmética de escala al dominio: es dinero, y desde la
+// anulación parcial la necesitan dos capas. `app/venta/escala.ts` sigue
+// existiendo y la reexporta, así que los tres mutantes de aquí se REAPUNTAN al
+// archivo nuevo y conservan exactamente lo que probaban. Borrarlos habría
+// dejado sin vigilancia la conversión que evita que media res cueste cero.
+const ESCALA = 'packages/domain/src/dinero/escala.ts';
 const TOTALES = 'packages/domain/src/venta/totales.ts';
 const CIERRE = 'packages/data/src/repos/ordenes/cierre.ts';
 const FOLIOS = 'packages/data/src/repos/folios.ts';

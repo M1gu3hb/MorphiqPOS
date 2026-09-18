@@ -62,9 +62,58 @@ function cumple(fila: Fila, filtro: Filtro): boolean {
       return lista.some((v) => igual(actual, v));
     case 'not in':
       return !lista.some((v) => igual(actual, v));
+    case '>':
+    case '>=':
+    case '<':
+    case '<=':
+      return ordena(filtro.operador, actual, esperado);
     default:
       throw new Error(`La base falsa no implementa el operador «${filtro.operador}».`);
   }
+}
+
+/**
+ * Los comparadores de orden, sobre fechas y números.
+ *
+ * Existen porque las consultas por RANGO —«los ciclos de los últimos siete
+ * días»— no se pueden probar sin ellos, y una prueba que quitara el rango
+ * pasaría igual si la base falsa se los tragara en silencio.
+ *
+ * Con un nulo a cualquiera de los dos lados contesta `false`, como Postgres:
+ * `null >= x` no es cierto, es desconocido.
+ */
+function ordena(operador: string, actual: unknown, esperado: unknown): boolean {
+  const a = aNumero(actual);
+  const b = aNumero(esperado);
+  if (a === null || b === null) return false;
+  switch (operador) {
+    case '>':
+      return a > b;
+    case '>=':
+      return a >= b;
+    case '<':
+      return a < b;
+    default:
+      return a <= b;
+  }
+}
+
+/** `2026-09-16`, tal como Postgres devuelve una columna `date`. */
+const FECHA_SOLA = /^\d{4}-\d{2}-\d{2}$/;
+
+function aNumero(valor: unknown): number | null {
+  if (valor instanceof Date) return valor.getTime();
+  if (typeof valor === 'number') return valor;
+  if (typeof valor === 'bigint') return Number(valor);
+  // Una columna `date` llega como texto y Postgres SÍ la compara por orden. Sin
+  // esto, `caduca_el <= :hasta` no filtraba: devolvía falso siempre y la prueba
+  // de «lo que está por caducar» salía vacía por una carencia de la base falsa y
+  // no del código probado. Sólo la fecha desnuda, para no convertir en número
+  // cualquier texto que empiece por dígitos.
+  if (typeof valor === 'string' && FECHA_SOLA.test(valor)) {
+    return Date.parse(`${valor}T00:00:00.000Z`);
+  }
+  return null;
 }
 
 /** Las fechas se comparan por valor: dos `Date` iguales no son `===`. */
@@ -166,6 +215,119 @@ function proyectar(fila: Fila, selectores: readonly Selector[]): Fila {
   return salida;
 }
 
+/**
+ * El `where` de retrollamada, acotado a comparar DOS COLUMNAS de la misma fila.
+ *
+ * `diferenciasDeToma` pide `contado <> esperado`, que no es un filtro contra un
+ * valor sino contra otra columna. Sin esto, la única forma de probar el cierre
+ * de un conteo sería declarar las diferencias en la prueba en vez de derivarlas
+ * — y una prueba que declara el resultado no caza el error de comparación.
+ */
+interface ReferenciaColumna {
+  readonly __columna: string;
+}
+
+export interface ConstructorComparacion {
+  (
+    izquierda: ReferenciaColumna | string,
+    operador: string,
+    // `unknown` a secas y no `ReferenciaColumna | unknown`: la unión con
+    // `unknown` se colapsa a `unknown` y el lint lo señala con razón.
+    derecha: unknown,
+  ): Comparacion;
+  ref(columna: string): ReferenciaColumna;
+  or(partes: readonly Comparacion[]): Comparacion;
+  and(partes: readonly Comparacion[]): Comparacion;
+}
+
+/**
+ * Una comparación del `where` de retrollamada.
+ *
+ * Son tres formas y las tres aparecen de verdad en los repositorios:
+ *
+ *   `columnas` — `contado <> esperado`, dos columnas de la misma fila. Es lo que
+ *                pide `diferenciasDeToma`.
+ *   `literal`  — `cantidad_recibida is null`, columna contra valor. Lo pide
+ *                `recibirTraspaso`, y sin ella la prueba de F-105 no arranca.
+ *   `grupo`    — `or`/`and` de las otras dos. Un `or` de una sola rama no es un
+ *                `or`: la disyunción es justo lo que hay que poder probar.
+ */
+export type Comparacion =
+  | {
+      readonly tipo: 'columnas';
+      readonly izquierda: string;
+      readonly operador: string;
+      readonly derecha: string;
+    }
+  | {
+      readonly tipo: 'literal';
+      readonly columna: string;
+      readonly operador: string;
+      readonly valor: unknown;
+    }
+  | {
+      readonly tipo: 'grupo';
+      readonly union: 'or' | 'and';
+      readonly partes: readonly Comparacion[];
+    };
+
+function esReferencia(valor: unknown): valor is ReferenciaColumna {
+  return typeof valor === 'object' && valor !== null && '__columna' in valor;
+}
+
+const COMPARADOR: ConstructorComparacion = Object.assign(
+  (izquierda: ReferenciaColumna | string, operador: string, derecha: unknown): Comparacion => {
+    const columna = esReferencia(izquierda) ? izquierda.__columna : izquierda;
+    if (esReferencia(derecha)) {
+      return { tipo: 'columnas', izquierda: columna, operador, derecha: derecha.__columna };
+    }
+    return { tipo: 'literal', columna, operador, valor: derecha };
+  },
+  {
+    ref: (columna: string): ReferenciaColumna => ({ __columna: columna }),
+    or: (partes: readonly Comparacion[]): Comparacion => ({ tipo: 'grupo', union: 'or', partes }),
+    and: (partes: readonly Comparacion[]): Comparacion => ({ tipo: 'grupo', union: 'and', partes }),
+  },
+);
+
+function cumpleComparacion(fila: Fila, comparacion: Comparacion): boolean {
+  if (comparacion.tipo === 'grupo') {
+    return comparacion.union === 'or'
+      ? comparacion.partes.some((parte) => cumpleComparacion(fila, parte))
+      : comparacion.partes.every((parte) => cumpleComparacion(fila, parte));
+  }
+
+  const izquierda =
+    (comparacion.tipo === 'columnas'
+      ? valorDe(fila, comparacion.izquierda)
+      : valorDe(fila, comparacion.columna)) ?? null;
+  const derecha =
+    comparacion.tipo === 'columnas'
+      ? (valorDe(fila, comparacion.derecha) ?? null)
+      : comparacion.valor;
+
+  switch (comparacion.operador) {
+    case '=':
+      return igual(izquierda, derecha);
+    case 'is':
+      // Postgres compara nulos con `is`, no con `=`. Tratarlos igual haría que
+      // `is null` coincidiera con todo, que es como un filtro deja de filtrar.
+      return izquierda === null ? derecha === null : igual(izquierda, derecha);
+    case 'is not':
+      return izquierda === null ? derecha !== null : !igual(izquierda, derecha);
+    case '<>':
+    case '!=':
+      return !igual(izquierda, derecha);
+    case '>':
+    case '>=':
+    case '<':
+    case '<=':
+      return ordena(comparacion.operador, izquierda, derecha);
+    default:
+      throw new Error(`La base falsa no compara con «${comparacion.operador}».`);
+  }
+}
+
 function comparar(a: unknown, b: unknown): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
   return String(a).localeCompare(String(b));
@@ -173,12 +335,19 @@ function comparar(a: unknown, b: unknown): number {
 
 export function lectura(filas: Fila[]) {
   const filtros: Filtro[] = [];
+  const comparaciones: Comparacion[] = [];
   const selectores: Selector[] = [];
   let orden: { columna: string; descendente: boolean } | null = null;
   let tope: number | null = null;
+  let todas = false;
+  let unicos = false;
 
   const resolver = (): Fila[] => {
-    let vivas = filas.filter((fila) => filtros.every((filtro) => cumple(fila, filtro)));
+    let vivas = filas.filter(
+      (fila) =>
+        filtros.every((filtro) => cumple(fila, filtro)) &&
+        comparaciones.every((comparacion) => cumpleComparacion(fila, comparacion)),
+    );
 
     if (orden !== null) {
       const { columna, descendente } = orden;
@@ -198,7 +367,26 @@ export function lectura(filas: Fila[]) {
       return [fila];
     }
 
-    return vivas.map((fila) => proyectar(fila, selectores));
+    // `selectAll()` devuelve la fila entera. Lo usa `anularLinea`, que tiene
+    // que copiar a la fila hermana quince instantaneas del producto: listarlas
+    // en un `select` seria repetir el esquema en dos sitios.
+    if (todas) return vivas.map((fila) => ({ ...fila }));
+
+    const proyectadas = vivas.map((fila) => proyectar(fila, selectores));
+    if (!unicos) return proyectadas;
+
+    // Se comparan por su contenido proyectado, que es lo que `distinct` mira en
+    // Postgres: dos filas distintas de las que se pidió la misma columna son
+    // una sola.
+    const vistas = new Set<string>();
+    return proyectadas.filter((fila) => {
+      const clave = JSON.stringify(fila, (_c, valor: unknown) =>
+        typeof valor === 'bigint' ? valor.toString() : valor,
+      );
+      if (vistas.has(clave)) return false;
+      vistas.add(clave);
+      return true;
+    });
   };
 
   const constructor = {
@@ -206,15 +394,48 @@ export function lectura(filas: Fila[]) {
       selectores.push(selector);
       return constructor;
     },
+    selectAll() {
+      todas = true;
+      return constructor;
+    },
     leftJoin() {
       return constructor;
     },
-    where(columna: string, operador: string, valor: unknown) {
-      filtros.push({ columna, operador, valor });
+    // Los `join` se ignoran: la base falsa resuelve sobre UNA tabla y las
+    // columnas de la otra se siembran en la misma fila, como ya hace `producto()`
+    // con `ib.nombre`. Un `innerJoin` que filtrara filas sí tendría que
+    // implementarse; hoy los que hay sólo traen columnas.
+    innerJoin() {
+      return constructor;
+    },
+    where(
+      columna: string | ((eb: ConstructorComparacion) => Comparacion),
+      operador?: string,
+      valor?: unknown,
+    ) {
+      if (typeof columna === 'function') comparaciones.push(columna(COMPARADOR));
+      else filtros.push({ columna, operador: operador ?? '=', valor });
       return constructor;
     },
     orderBy(columna: string, direccion?: string) {
       orden = { columna: origen(columna), descendente: direccion === 'desc' };
+      return constructor;
+    },
+    // `distinct` sobre una sola columna proyectada: se aplica de verdad porque
+    // SÍ cambia el resultado -«los productos que usan estos insumos» devolveria
+    // el mismo producto tres veces si tiene tres lineas de receta-, y una base
+    // falsa que lo ignorara haria pasar un recalculo que en Postgres corre una
+    // vez por producto y aqui correria tres.
+    distinct() {
+      unicos = true;
+      return constructor;
+    },
+    // `select ... for update` devuelve EXACTAMENTE las mismas filas: lo que
+    // anade es un cerrojo de Postgres, y esta base no tiene concurrencia que
+    // cerrar. Se ignora igual que los `join`, y lo que el cerrojo protege
+    // -dos compras simultaneas recalculando el costo promedio- se prueba
+    // contra la base de verdad, que es donde se puede probar.
+    forUpdate() {
       return constructor;
     },
     limit(cuantas: number) {
@@ -244,9 +465,50 @@ export function lectura(filas: Fila[]) {
  * reventaria con NaN. La base falsa no inventa el valor: la prueba declara el
  * `default` que la migracion ya declara.
  */
+/**
+ * El `on conflict` de un `insert`, con las columnas que lo detectan.
+ *
+ * `anotarConteo` recaptura una línea con `on conflict (toma_id, insumo_id) do
+ * update`: sin esto, corregir un tecleo escribiría una segunda fila y el conteo
+ * sumaría dos veces el mismo anaquel.
+ */
+interface ResolucionConflicto {
+  readonly columnas: readonly string[];
+  readonly cambios: Fila | null;
+}
+
+interface ConstructorConflicto {
+  columns(columnas: readonly string[]): ConstructorConflicto;
+  doUpdateSet(cambios: Fila): ResolucionConflicto;
+  doNothing(): ResolucionConflicto;
+}
+
+function conflicto(): ConstructorConflicto {
+  let columnas: readonly string[] = [];
+  const constructor: ConstructorConflicto = {
+    columns(lista) {
+      columnas = lista;
+      return constructor;
+    },
+    doUpdateSet: (cambios) => ({ columnas, cambios }),
+    doNothing: () => ({ columnas, cambios: null }),
+  };
+  return constructor;
+}
+
 export function insercion(filas: Fila[], predeterminados: Fila = {}) {
   const nuevas: Fila[] = [];
   let devuelta: string | null = null;
+  let resolucion: ResolucionConflicto | null = null;
+
+  /** La fila viva que choca con ésta por las columnas del `on conflict`. */
+  const choque = (fila: Fila): number => {
+    const actual = resolucion;
+    if (actual === null) return -1;
+    return filas.findIndex((viva) =>
+      actual.columnas.every((columna) => igual(viva[columna], fila[columna])),
+    );
+  };
 
   const constructor = {
     values(valores: Fila | readonly Fila[]) {
@@ -256,13 +518,33 @@ export function insercion(filas: Fila[], predeterminados: Fila = {}) {
       }
       return constructor;
     },
+    onConflict(construir: (oc: ConstructorConflicto) => ResolucionConflicto) {
+      resolucion = construir(conflicto());
+      return constructor;
+    },
     returning(columna: string) {
       devuelta = columna;
       return constructor;
     },
     async execute() {
-      filas.push(...nuevas);
-      return nuevas.map((fila) => (devuelta === null ? {} : proyectar(fila, [devuelta])));
+      const escritas: Fila[] = [];
+      for (const fila of nuevas) {
+        const indice = choque(fila);
+        if (indice === -1) {
+          filas.push(fila);
+          escritas.push(fila);
+          continue;
+        }
+        // Chocó. `do nothing` deja la viva tal cual; `do update` le aplica sólo
+        // los campos declarados, que es justo lo que distingue recapturar de
+        // volver a sellar el esperado.
+        const cambios = resolucion?.cambios;
+        if (cambios === null || cambios === undefined) continue;
+        const actualizada = { ...filas[indice], ...cambios };
+        filas[indice] = actualizada;
+        escritas.push(actualizada);
+      }
+      return escritas.map((fila) => (devuelta === null ? {} : proyectar(fila, [devuelta])));
     },
     async executeTakeFirst() {
       return (await constructor.execute())[0];
@@ -330,11 +612,23 @@ export function borrado(filas: Fila[]) {
       return constructor;
     },
     async executeTakeFirst() {
-      const sobreviven = filas.filter((fila) => !filtros.every((f) => cumple(fila, f)));
-      const borradas = filas.length - sobreviven.length;
-      filas.splice(0, filas.length, ...sobreviven);
-      return { numDeletedRows: BigInt(borradas) };
+      return borrar();
+    },
+    // Kysely admite las dos formas y el codigo real usa `execute()` cuando no
+    // le interesa cuantas borro. Tener solo una aqui obligaba a escribir el
+    // comando de una manera concreta para que la prueba pasara, que es la
+    // prueba dictandole la forma al codigo.
+    async execute() {
+      return [borrar()];
     },
   };
+
+  function borrar(): { numDeletedRows: bigint } {
+    const sobreviven = filas.filter((fila) => !filtros.every((f) => cumple(fila, f)));
+    const borradas = filas.length - sobreviven.length;
+    filas.splice(0, filas.length, ...sobreviven);
+    return { numDeletedRows: BigInt(borradas) };
+  }
+
   return constructor;
 }

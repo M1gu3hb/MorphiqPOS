@@ -1,4 +1,4 @@
-import type { Paquete } from '@morphiqpos/contracts';
+import type { Modulo, Paquete } from '@morphiqpos/contracts';
 
 /**
  * Lo único que el envoltorio necesita de la base.
@@ -54,6 +54,15 @@ export interface FilaAuditoria {
 export interface RepositorioComandos<TX> {
   /** El paquete contratado por la organización (A-42). `null` si no se pudo leer. */
   leerPaquete(tx: TX, organizacionId: string): Promise<Paquete | null>;
+
+  /**
+   * Los módulos ENCENDIDOS de la organización (F-016). `null` si no se pudo leer.
+   *
+   * Sólo se llama cuando el comando declara `modulo`. Un comando sin perilla no
+   * paga esta consulta, que es la mayoría: cobrar, abrir caja y entrar no se
+   * pueden apagar.
+   */
+  leerModulosActivos(tx: TX, organizacionId: string): Promise<ReadonlySet<Modulo> | null>;
 
   /** Reclama la clave DENTRO de la transacción del comando. */
   reclamarClave(tx: TX, datos: DatosReclamacion): Promise<Reclamacion>;

@@ -105,9 +105,40 @@ jobs:
       - name: Pruebas unitarias
         run: pnpm test:unit
 
+      # `morphiqpos_app` es el rol con el que la aplicación habla con la base: sólo
+      # DML, sin DDL, y es a quien las migraciones dan permisos desde la 049. En
+      # una base recién creada no existe, y la migración se detuvo ahí con
+      # «role "morphiqpos_app" does not exist» — correctamente, sin dejar la base
+      # a medias. Aquí se crea con la misma forma que en producción
+      # (`scripts/credencial-db.mjs`), sin contraseña: nadie entra con él, sólo
+      # recibe los `grant`.
+      - name: El rol de la aplicación en la base de pruebas
+        env:
+          PGPASSWORD: morphiqpos_ci
+        run: |
+          CONEXION="-h localhost -p 5433 -U morphiqpos -d morphiqpos_pruebas"
+          if [ -z "$(psql $CONEXION -tAc "select 1 from pg_roles where rolname = 'morphiqpos_app'")" ]; then
+            psql $CONEXION -v ON_ERROR_STOP=1 -c "create role morphiqpos_app with login bypassrls"
+          fi
+
+      # El esquema tiene que existir ANTES de las pruebas de integración: dos de
+      # los cinco archivos escriben en `organizaciones`, `categorias`, `ventas` y
+      # `auditoria`, y una base recién creada no tiene ninguna. Aquí se aplican
+      # las migraciones de verdad, con su ledger, sobre el servicio de este job.
+      - name: Migraciones sobre la base de pruebas
+        env:
+          DATABASE_URL: postgres://morphiqpos:morphiqpos_ci@localhost:5433/morphiqpos_pruebas
+        run: pnpm --filter @morphiqpos/data migrate
+
+      # `DATABASE_URL_PRUEBAS` es lo que lee `prepararPostgres()` para NO
+      # levantar su propio contenedor. Antes sólo se definía `DATABASE_URL`, así
+      # que en CI el arnés ignoraba el servicio —que sí tiene comprobación de
+      # salud— y arrancaba un Postgres propio en el 5434 cuya inicialización
+      # todavía no había acabado cuando las dos primeras pruebas consultaron.
       - name: Pruebas de integración contra Postgres real
         env:
           DATABASE_URL: postgres://morphiqpos:morphiqpos_ci@localhost:5433/morphiqpos_pruebas
+          DATABASE_URL_PRUEBAS: postgres://morphiqpos:morphiqpos_ci@localhost:5433/morphiqpos_pruebas
         run: pnpm test:integracion
 
       # --- Build y humo -----------------------------------------------------

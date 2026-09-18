@@ -61,6 +61,40 @@ export async function credencialParaVerificar(
   return fila ?? null;
 }
 
+/**
+ * A qué organización pertenece un empleo, SÓLO entre las que se le permiten.
+ *
+ * ── Por qué la lista va DENTRO de la consulta ─────────────────────────────
+ * Es la frontera. El navegador manda un `empleoId` y esto resuelve su negocio,
+ * así que si la lista se comprobara DESPUÉS —«tráeme el empleo, mira si su
+ * organización está permitida»— el filtro sería una condición en TypeScript, y
+ * una condición se olvida. Dentro del `where`, un empleo de un negocio que este
+ * despliegue no sirve simplemente NO SE ENCUENTRA: la respuesta es la misma que
+ * para un identificador inventado, y no hay rama que saltarse.
+ *
+ * Y no sustituye al PIN: resolver el negocio no autentica a nadie. Después de
+ * esto todavía hay que verificar la credencial de ESE empleo con Argon2id.
+ */
+export async function organizacionDeEmpleo(
+  db: Kysely<Esquema>,
+  empleoId: string,
+  organizacionesServidas: readonly string[],
+): Promise<string | null> {
+  // Un `in ()` vacío no es SQL válido, y además la respuesta ya se sabe: si este
+  // despliegue no sirve a ningún negocio, ningún empleo es de ninguno.
+  if (organizacionesServidas.length === 0) return null;
+
+  const fila = await db
+    .selectFrom('empleos')
+    .select('organizacion_id as organizacionId')
+    .where('id', '=', empleoId)
+    .where('activo', '=', true)
+    .where('organizacion_id', 'in', [...organizacionesServidas])
+    .executeTakeFirst();
+
+  return fila?.organizacionId ?? null;
+}
+
 /** Empleados con PIN de una sucursal, para el selector de la pantalla de acceso. */
 export interface EmpleadoParaEntrar {
   readonly empleoId: string;

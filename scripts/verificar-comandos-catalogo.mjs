@@ -18,9 +18,9 @@ const mutaciones = [
     // compilador — que es una señal mucho más fuerte.
     antes: "import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';",
     despues:
-      "import { ErrorDominio, PAQUETES as PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';",
+      "import { ErrorDominio, PAQUETES_RESTAURANTE as PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';",
     indice: 0,
-    nombre: 'modificadores habilitados en todos los paquetes',
+    nombre: 'modificadores estrechados a la plantilla de restaurante',
   },
   {
     ruta: 'packages/app/src/catalogo/productos.ts',
@@ -73,8 +73,13 @@ const mutaciones = [
   },
   {
     ruta: 'packages/app/src/configuracion/configuracion.ts',
-    antes: 'paquete: fila.paquete,',
-    despues: "paquete: 'esencial',",
+    // El texto cambio con el renombre de D-01: ahora se NORMALIZA con
+    // plantillaDeOrganizacion en vez de leerse en crudo, porque la columna
+    // guarda todavia los nombres viejos. La mutacion sigue siendo la misma:
+    // devolver una plantilla fija, que es como una organizacion acaba con los
+    // modulos de otra.
+    antes: 'paquete: plantillaDeOrganizacion(fila.giro, fila.paquete),',
+    despues: "paquete: 'tienda',",
     indice: 0,
     nombre: 'paquete efectivo ignorado al leer',
   },

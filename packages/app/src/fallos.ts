@@ -13,22 +13,43 @@ import type { EjecucionGuardada } from './repositorio.ts';
  * transacción confirmándose con el efecto a medias.
  */
 
-/** Rechazo decidido dentro de la transacción: aborta y viaja con su código. */
+/**
+ * Rechazo decidido dentro de la transacción: aborta y viaja con su código.
+ *
+ * ── Por qué los campos se declaran y se asignan a mano ─────────────────────
+ * Un `constructor(readonly codigo: …)` —una «parameter property»— dice lo mismo
+ * en menos líneas, y hace que este archivo, y con él el paquete `app` entero, no
+ * se pueda importar desde un `node --experimental-strip-types`: es sintaxis que
+ * hay que TRANSFORMAR, no sólo borrar, y Node sólo borra. Next lo compila sin
+ * problema, pero los scripts de este repositorio —`verificar-acople`,
+ * `sembrar-demos`— corren con Node pelado y necesitan importar los comandos de
+ * verdad para no acabar con una segunda copia de la lógica.
+ */
 export class Rechazo extends Error {
+  readonly codigo: CodigoComando;
+  readonly auditable: 'denegado' | 'conflicto' | 'error' | null;
+  readonly error?: ErrorComando;
+
   constructor(
-    readonly codigo: CodigoComando,
-    readonly auditable: 'denegado' | 'conflicto' | 'error' | null,
-    readonly error?: ErrorComando,
+    codigo: CodigoComando,
+    auditable: 'denegado' | 'conflicto' | 'error' | null,
+    error?: ErrorComando,
   ) {
     super(codigo);
+    this.codigo = codigo;
+    this.auditable = auditable;
+    if (error !== undefined) this.error = error;
     this.name = 'Rechazo';
   }
 }
 
 /** La clave ya tenía una ejecución confirmada: se devuelve aquélla. */
 export class Reintento extends Error {
-  constructor(readonly previa: EjecucionGuardada) {
+  readonly previa: EjecucionGuardada;
+
+  constructor(previa: EjecucionGuardada) {
     super('reintento');
+    this.previa = previa;
     this.name = 'Reintento';
   }
 }

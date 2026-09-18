@@ -5,6 +5,7 @@ import { api } from '@/api/cliente';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { ROLES } from '@/lib/constants';
+import { canAccessModule } from '@/lib/packageConfig';
 import { playReady } from '@/lib/sounds';
 import { speak, fraseListoCocina, getAlertConfig } from '@/lib/voiceAlert';
 import { toast } from 'sonner';
@@ -53,9 +54,11 @@ export default function PedidoListoWatcher() {
   const { posUser } = usePOSAuth();
   const { paquete_modo, config } = useConfig();
   const role = posUser?.rol;
-  const isPro = paquete_modo === 'restaurante_pro';
+  // Un pedido «listo» sólo existe donde hay cocina que lo marque, así que
+  // decide el módulo y no el nombre de la plantilla.
+  const haySala = canAccessModule('cocina', paquete_modo);
   // IMPORTANTE: este watcher solo corre para mesero/admin. Cocina queda fuera.
-  const watch = isPro && (role === ROLES.WAITER || role === ROLES.ADMIN);
+  const watch = haySala && (role === ROLES.WAITER || role === ROLES.ADMIN);
   const firstLoadRef = useRef(true);
   const notifiedRef = useRef(loadSet());
 

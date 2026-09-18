@@ -9,6 +9,7 @@ import { definirComando } from '../definicion.ts';
 import { cotizar, type LineaCotizada } from '../venta/cotizar.ts';
 import { mesaOperable, ordenDeMesa } from './datos.ts';
 import { entradaSolicitarCuenta } from './esquemas.ts';
+import { sellarTransicionDeMesa } from './sala-escrituras.ts';
 
 /**
  * `restaurante.solicitar_cuenta` — E6-8.
@@ -64,7 +65,7 @@ export const solicitarCuenta = definirComando<
   paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaSolicitarCuenta,
   async ejecutar(ctx, entrada) {
-    const { organizacionId } = ctx.ambito;
+    const { organizacionId, empleoId } = ctx.ambito;
 
     const orden = await ctx.paso('cargar_orden', () =>
       ordenDeMesa(ctx.tx, organizacionId, entrada.ordenId),
@@ -111,7 +112,12 @@ export const solicitarCuenta = definirComando<
       mesa === null
         ? null
         : await ctx.paso('avanzar_mesa', () =>
-            pedirCuentaEnMesa(ctx.tx, organizacionId, mesa.id, mesa.estado),
+            pedirCuentaEnMesa(ctx.tx, organizacionId, mesa.id, mesa.estado, {
+              sucursalId: mesa.sucursalId,
+              ordenId: entrada.ordenId,
+              empleoId,
+              ahora: ctx.ahora,
+            }),
           );
 
     ctx.auditar({
@@ -204,6 +210,12 @@ async function pedirCuentaEnMesa(
   organizacionId: string,
   mesaId: string,
   estadoMesa: string,
+  sello: {
+    readonly sucursalId: string;
+    readonly ordenId: string;
+    readonly empleoId: string;
+    readonly ahora: Date;
+  },
 ): Promise<string | null> {
   // «cualquiera → cuenta_solicitada» (F1-04 §8.2), salvo los estados en los que
   // no hay nadie sentado: ahí pedir la cuenta no describe ningún hecho.
@@ -215,6 +227,17 @@ async function pedirCuentaEnMesa(
     .where('organizacion_id', '=', organizacionId)
     .where('id', '=', mesaId)
     .execute();
+
+  await sellarTransicionDeMesa(tx, {
+    organizacionId,
+    sucursalId: sello.sucursalId,
+    mesaId,
+    ordenId: sello.ordenId,
+    estadoAnterior: estadoMesa,
+    estadoNuevo: 'cuenta_solicitada',
+    empleadoId: sello.empleoId,
+    ahora: sello.ahora,
+  });
 
   return 'cuenta_solicitada';
 }

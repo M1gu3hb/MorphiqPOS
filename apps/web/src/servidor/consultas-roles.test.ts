@@ -70,7 +70,7 @@ describe('C-8 · roles explícitos en consultas GET privadas', () => {
         identidadId: '44444444-4444-4444-8444-444444444444',
         empleoId: '55555555-5555-4555-8555-555555555555',
         rol: 'cocina',
-        paquete: 'restaurante_pro',
+        paquete: 'restaurante',
         nombrePersona: 'Cocinera',
         nombreNegocio: 'MorphiqPOS',
         nombreSucursal: 'Centro',

@@ -1,4 +1,4 @@
-import type { Ambito, Paquete, Rol } from '@morphiqpos/contracts';
+import type { Ambito, Modulo, Paquete, Rol } from '@morphiqpos/contracts';
 import type { ZodType } from 'zod';
 
 /**
@@ -66,6 +66,20 @@ export interface DefinicionComando<TX, E extends ZodType, S> {
   readonly roles: readonly Rol[];
   /** Paquetes que lo incluyen (A-42). */
   readonly paquetes: readonly Paquete[];
+  /**
+   * El módulo que tiene que estar ENCENDIDO para ejecutarlo (F-016).
+   *
+   * Es la capa de encima del paquete, no su sustituta. El paquete dice qué
+   * contrató el negocio; el módulo dice qué le dejaron encendido dentro de eso.
+   * Una ferretería con plantilla `tienda` tiene `recetas` en su preajuste y
+   * puede apagarlo sin cambiar de plantilla.
+   *
+   * Omitirlo significa «este comando no pasa por ninguna perilla»: es lo
+   * correcto para todo lo que ningún negocio puede apagar —entrar, cobrar,
+   * abrir caja—, porque una perilla sobre eso sería una forma de dejar al
+   * cliente sin poder vender.
+   */
+  readonly modulo?: Modulo;
   readonly entrada: E;
   readonly ejecutar: (ctx: ContextoComando<TX>, entrada: E['_output']) => Promise<S>;
 }

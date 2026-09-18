@@ -5,7 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { productosDeComanda } from './catalogo-comanda.ts';
 import { insertarComandas, insertarItems } from './comandas.ts';
 import { estacionesActivas, ordenParaComandar } from './datos.ts';
-import { agruparEnComandas, resolverEstacion } from './estaciones.ts';
+import { agruparEnComandas, areasDe, resolverEstacion } from './estaciones.ts';
 import type { LineaPreparada } from './lineas.ts';
 
 /**
@@ -42,6 +42,7 @@ interface LineaSinComanda {
   readonly unidad: string;
   readonly notas: string | null;
   readonly ordenVisual: number;
+  readonly tiempoServicio: number | null;
 }
 
 export interface ComandaEmitidaAlCobrar {
@@ -55,6 +56,7 @@ export async function comandarLineasPendientes(
   tx: Transaccion,
   organizacionId: string,
   ordenId: string,
+  ahora: Date = new Date(),
 ): Promise<readonly ComandaEmitidaAlCobrar[]> {
   const lineas = await lineasSinComanda(tx, organizacionId, ordenId);
   if (lineas.length === 0) return [];
@@ -79,15 +81,26 @@ export async function comandarLineasPendientes(
     // es inventarse una estación, así que esa línea no se comanda y se cobra
     // igual —el cocinero la ve en el ticket impreso, que sí lleva todo—.
     if (producto === undefined) continue;
-    // Sin área de preparación, la línea no va a ninguna cocina: una botella de
-    // agua no se cocina.
-    //
-    // ESTO ES UN ATAJO, NO LA REGLA, y conviene decirlo: quitar esta línea no
-    // pone ninguna prueba en rojo, porque quien decide de verdad es `areasDe`
-    // dentro de `agruparEnComandas`, que para un área vacía no devuelve
-    // ninguna. Se queda porque evita resolver —y quizá fallar con
-    // ESTACION_NO_ENCONTRADA— una estación que nadie iba a usar.
-    if (producto.areaPreparacion === '') continue;
+    /**
+     * Sin área de preparación, la línea no va a ninguna cocina: una botella de
+     * agua no se cocina.
+     *
+     * ── Y esto NO era un atajo: era el defecto que impedía cobrar en una tienda
+     * Aquí decía `=== ''`, y el valor con el que el sistema dice «esto no se
+     * prepara» es **`'ninguno'`** —está en `AREAS_PREPARACION`, lo escribe la
+     * siembra y lo entiende `areasDe`—. La cadena vacía no la escribe nadie.
+     *
+     * Consecuencia: los 22 productos de la tienda, con `area_preparacion =
+     * 'ninguno'`, pasaban de largo y llegaban a `resolverEstacion`, que sin
+     * estaciones **lanza**. Cobrar en el mostrador de una tienda respondía «No hay
+     * ninguna estación de preparación activa. Crea la "Cocina general"…» y no se
+     * cobraba nada. En una cafetería con estación general habría sido peor sin
+     * hacer ruido: una comanda de cocina por cada botella de agua.
+     *
+     * Ahora se pregunta con la MISMA función que decide después —`areasDe`— así
+     * que las dos decisiones no pueden volver a discrepar.
+     */
+    if (areasDe(producto.areaPreparacion).length === 0) continue;
 
     preparadas.push({
       id: linea.id,
@@ -95,6 +108,11 @@ export async function comandarLineasPendientes(
       valorada: { cantidad: linea.cantidad, unidad: linea.unidad } as LineaPreparada['valorada'],
       estacion: resolverEstacion(producto.estacionDeCategoriaId, estaciones),
       areaPreparacion: producto.areaPreparacion,
+      // Al COBRAR ya no hay nada que retener: la comida salió o no salió, y lo
+      // que quede pendiente se manda entero. Marchar es una decisión de sala
+      // que ocurre antes, no en la caja.
+      tiempoServicio: linea.tiempoServicio,
+      marchaEstado: 'inmediata',
       notas: linea.notas,
       ordenVisual: linea.ordenVisual,
     });
@@ -108,7 +126,16 @@ export async function comandarLineasPendientes(
     grupo,
   }));
 
-  await insertarComandas(tx, { organizacionId, orden, notas: null, comandas });
+  // Estas comandas NACEN DEL COBRO: es el caso del mostrador, y por eso llevan
+  // `cobrado_en`. Las de mesa salen por `enviar_pedido` y no lo llevan.
+  await insertarComandas(tx, {
+    organizacionId,
+    orden,
+    notas: null,
+    comandas,
+    marchadaEn: ahora,
+    cobradoEn: ahora,
+  });
   await insertarItems(tx, organizacionId, comandas);
 
   return comandas.map(({ id, grupo }) => ({
@@ -143,9 +170,13 @@ async function lineasSinComanda(
       'unidad',
       'notas',
       'orden_visual as ordenVisual',
+      'tiempo_servicio as tiempoServicio',
     ])
     .where('organizacion_id', '=', organizacionId)
     .where('orden_id', '=', ordenId)
+    // F-324 · Mandar a cocina una línea anulada haría cocinar comida que nadie
+    // paga. Es el error más caro de los que este filtro evita.
+    .where('anulada_en', 'is', null)
     .orderBy('orden_visual', 'asc')
     .execute();
 

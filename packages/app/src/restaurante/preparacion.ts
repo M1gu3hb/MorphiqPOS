@@ -53,6 +53,7 @@ export const transicionarPedido = definirComando<
   escribe: true,
   roles: [...ROLES_DE_COCINA],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'cocina',
   entrada: entradaTransicionarPedido,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -103,6 +104,8 @@ export const transicionarPedido = definirComando<
         mesaId: comanda.mesaId,
         comandasMovidas: [comanda.id],
         estadoComanda,
+        empleoId,
+        ahora: ctx.ahora,
       }),
     );
 
@@ -145,7 +148,7 @@ async function moverToda(
     }),
   );
   await ctx.paso('propagar_items', () =>
-    propagarAItems(ctx.tx, organizacionId, [comanda.id], destino),
+    propagarAItems(ctx.tx, organizacionId, [comanda.id], destino, ctx.ahora),
   );
   return destino;
 }
@@ -164,7 +167,7 @@ async function moverUnPlato(
   destino: EstadoComanda,
 ): Promise<EstadoComanda> {
   const { organizacionId } = ctx.ambito;
-  await ctx.paso('mover_item', () => moverItem(ctx.tx, organizacionId, item, destino));
+  await ctx.paso('mover_item', () => moverItem(ctx.tx, organizacionId, item, destino, ctx.ahora));
   return ctx.paso('derivar_comanda', () =>
     ajustarComandaAlMinimo(ctx.tx, organizacionId, comanda.id, comanda.estado, ctx.ahora),
   );
@@ -195,9 +198,10 @@ export const entregarPedidos = definirComando<
   escribe: true,
   roles: [...ROLES_DE_COCINA],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'cocina',
   entrada: entradaEntregarPedidos,
   async ejecutar(ctx, entrada) {
-    const { organizacionId } = ctx.ambito;
+    const { organizacionId, empleoId } = ctx.ambito;
 
     const orden = await ctx.paso('cargar_orden', () =>
       ordenDeMesa(ctx.tx, organizacionId, entrada.ordenId),
@@ -228,7 +232,7 @@ export const entregarPedidos = definirComando<
         marcarEntregadas(ctx.tx, organizacionId, ids, ctx.ahora),
       );
       await ctx.paso('propagar_items', () =>
-        propagarAItems(ctx.tx, organizacionId, ids, 'entregado'),
+        propagarAItems(ctx.tx, organizacionId, ids, 'entregado', ctx.ahora),
       );
       await ctx.paso('recalcular_lineas', () =>
         recalcularEstadoDeLineas(ctx.tx, organizacionId, ids),
@@ -240,6 +244,8 @@ export const entregarPedidos = definirComando<
           mesaId: orden.mesaId,
           comandasMovidas: ids,
           estadoComanda: 'entregado',
+          empleoId,
+          ahora: ctx.ahora,
         }),
       );
     }

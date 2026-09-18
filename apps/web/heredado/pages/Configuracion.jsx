@@ -41,6 +41,7 @@ import {
 import IntegracionesRespaldos from '@/components/configuracion/IntegracionesRespaldos';
 import DatosSection from '@/components/datos/DatosSection';
 import ModoPresentacion from '@/components/configuracion/ModoPresentacion';
+import { canAccessModule } from '@/lib/packageConfig';
 import ReiniciarSistemaSection from '@/components/configuracion/ReiniciarSistemaSection';
 import CategoriasProductoSection from '@/components/configuracion/CategoriasProductoSection';
 import EstacionesPreparacionSection from '@/components/configuracion/EstacionesPreparacionSection';
@@ -73,7 +74,9 @@ export default function Configuracion() {
   const queryClient = useQueryClient();
   const { posUser } = usePOSAuth();
   const { paquete_modo } = useConfig();
-  const showMesasTab = paquete_modo === 'restaurante_pro';
+  // La pestaña de mesas la gobierna el MÓDULO, no el nombre de la plantilla:
+  // con el renombre de D-01 ningún negocio se llama ya `restaurante_pro`.
+  const showMesasTab = canAccessModule('mesas', paquete_modo);
   const puedeEliminarMesas = hasPermission(posUser?.rol, 'eliminar_mesas');
   const isMobile = useIsMobile();
   const [showUserForm, setShowUserForm] = useState(false);
@@ -647,9 +650,9 @@ export default function Configuracion() {
               </div>
 
               {/* === PEDIDOS DESDE PORTAL QR (Prompt 6C) ===
-                  Solo visible en Restaurante Pro. Solo activable si asignación de mesas
+                  Solo visible con módulo de mesas. Solo activable si asignación de mesas
                   está activa. Si está apagada, el switch queda gris y se muestra aviso. */}
-              {paquete_modo === 'restaurante_pro' && (
+              {showMesasTab && (
                 <div className="border-t pt-4 space-y-3">
                   <p className="text-sm font-semibold">Pedidos desde Portal QR</p>
                   <div className="flex items-start justify-between gap-3">

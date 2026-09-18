@@ -14,6 +14,7 @@ import {
   tieneLineas,
   ORDEN_YA_CERRADA,
 } from './mesas-escrituras.ts';
+import { unionAbiertaDeMesa } from './sala-escrituras.ts';
 
 /**
  * Abrir y liberar mesa (E6-2 y su recíproco).
@@ -47,6 +48,7 @@ export const abrirMesa = definirComando<Transaccion, typeof entradaAbrirMesa, Re
   escribe: true,
   roles: [...ROLES_DE_SALA],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'mesas',
   entrada: entradaAbrirMesa,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId, empleoId } = ctx.ambito;
@@ -82,9 +84,12 @@ export const abrirMesa = definirComando<Transaccion, typeof entradaAbrirMesa, Re
     await ctx.paso('atar_mesa', () =>
       atarMesaAOrden(ctx.tx, {
         organizacionId,
+        sucursalId: mesa.sucursalId,
         mesaId: mesa.id,
         ordenId,
         empleoId,
+        estadoAnterior: mesa.estado,
+        ahora: ctx.ahora,
         // Quien abre la mesa la atiende, salvo que ya hubiera alguien asignado.
         // El modo «con asignación» de `Mesero.jsx:311-315` no se pisa.
         tomarLaAtencion: mesa.empleadoAtiendeId === null,
@@ -122,6 +127,7 @@ export const liberarMesa = definirComando<
   escribe: true,
   roles: [...ROLES_DE_SALA],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'mesas',
   entrada: entradaLiberarMesa,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -136,6 +142,20 @@ export const liberarMesa = definirComando<
     if (mesa.estado === 'libre' && ordenActivaId === null) {
       ctx.auditar({ entidadId: mesa.id, payload: { yaEstabaLibre: true } });
       return { mesaId: mesa.id, ordenCancelada: null };
+    }
+
+    // F-302 · Una mesa de un grupo VIVO no se libera sola: su consumo está en
+    // la cuenta de la principal y soltarla aquí dejaría al grupo apuntando a
+    // una mesa que ya volvió al servicio. Separar es una decisión consciente.
+    const grupo = await ctx.paso('mirar_grupo', () =>
+      unionAbiertaDeMesa(ctx.tx, organizacionId, mesa.id),
+    );
+    if (grupo !== null) {
+      throw new ErrorDominio(
+        'MESA_NO_LIBERABLE',
+        `La mesa ${mesa.numero} está unida a otras. Sepáralas antes de liberarla.`,
+        { unionId: grupo },
+      );
     }
 
     let ordenCancelada: string | null = null;
@@ -177,7 +197,14 @@ export const liberarMesa = definirComando<
       }
     }
 
-    await ctx.paso('limpiar_mesa', () => limpiarMesa(ctx.tx, organizacionId, mesa.id));
+    await ctx.paso('limpiar_mesa', () =>
+      limpiarMesa(ctx.tx, organizacionId, mesa.id, {
+        sucursalId: mesa.sucursalId,
+        estadoAnterior: mesa.estado,
+        empleoId,
+        ahora: ctx.ahora,
+      }),
+    );
 
     ctx.auditar({
       entidadId: mesa.id,

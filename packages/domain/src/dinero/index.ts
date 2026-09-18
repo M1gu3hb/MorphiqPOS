@@ -10,6 +10,16 @@ export { comparar, negar, restar, sumar } from './aritmetica.ts';
 
 export { PUNTOS_BASE_100, aplicarPorcentaje, redondear } from './redondeo.ts';
 
-export { repartir } from './reparto.ts';
+export {
+  TOPE_REDONDEO_CENTAVOS,
+  dentroDelTope,
+  redondearCambio,
+  type CambioRedondeado,
+  type TipoRedondeo,
+} from './cambio.ts';
+
+export { repartir, repartirPorPesos } from './reparto.ts';
+
+export { ESCALA_CANTIDAD, aDiezmilesimas, deDiezmilesimas, porCantidad } from './escala.ts';
 
 export { MONEDAS, desdeTexto, formatear, type Moneda } from './formato.ts';

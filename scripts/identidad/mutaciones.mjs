@@ -34,6 +34,14 @@ export const contraContratos = [
     despues: '  pin: z.string().min(4).max(8),' + BR + '  organizacion: z.string(),',
   },
   {
+    nombre: 'dejar que el despliegue elija el negocio en vez del empleo',
+    ruta: RUTA_ENTRAR,
+    contrato: 'la_organizacion_no_viene_del_cliente',
+    antes:
+      '  const organizacionId = await organizacionDeQuienEntra(validada.data.empleoId, servidas);',
+    despues: '  const organizacionId = servidas[0] ?? null; // el primero que sirva el despliegue',
+  },
+  {
     nombre: 'dar de alta la caja ANTES de comprobar el PIN',
     ruta: ENTRAR,
     contrato: 'la_terminal_se_crea_despues_de_verificar_el_pin',

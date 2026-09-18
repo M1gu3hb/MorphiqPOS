@@ -57,6 +57,7 @@ export const registrarCompra = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'compras',
   entrada: entradaRegistrarCompra,
   ejecutar(ctx, entrada) {
     return escribirCompra(ctx, entrada, entrada.lineas, entrada.plantillaCompraId ?? null);
@@ -82,6 +83,7 @@ export const usarPlantillaCompra = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  modulo: 'compras',
   entrada: entradaUsarPlantillaCompra,
   async ejecutar(ctx, entrada) {
     const lineas = await ctx.paso('leer_plantilla', () =>

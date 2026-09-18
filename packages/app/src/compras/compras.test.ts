@@ -1,4 +1,9 @@
-import { esErrorDominio } from '@morphiqpos/contracts';
+import {
+  esErrorDominio,
+  MODULOS_POR_PLANTILLA,
+  PAQUETES_OPERATIVOS,
+  PLANTILLAS,
+} from '@morphiqpos/contracts';
 import { cantidad, cantidadATexto } from '@morphiqpos/domain/catalogo';
 import { centavos } from '@morphiqpos/domain/dinero';
 import { describe, expect, it } from 'vitest';
@@ -44,9 +49,44 @@ describe('E4-5 · los comandos se declaran igual siempre', () => {
     expect(registrarCompra.nombre).toBe('compras.registrar');
     expect(usarPlantillaCompra.nombre).toBe('compras.usar_plantilla');
     expect(guardarPlantillaCompra.nombre).toBe('compras.guardar_plantilla');
+
+    // Las plantillas cuyo PREAJUSTE enciende el módulo `compras`, derivadas de
+    // `MODULOS_POR_PLANTILLA` en vez de escritas aquí. Hoy son las tres; lo que
+    // importa no es cuántas sean, sino que salgan del mismo sitio del que sale
+    // la navegación.
+    const conModuloDeCompras = PLANTILLAS.filter((plantilla) =>
+      MODULOS_POR_PLANTILLA[plantilla].includes('compras'),
+    );
+
     for (const comando of [registrarCompra, usarPlantillaCompra, guardarPlantillaCompra]) {
       expect(comando.escribe).toBe(true);
-      expect(comando.paquetes).toEqual(['operativo', 'restaurante_pro']);
+      expect(comando.modulo).toBe('compras');
+
+      // Esto afirmaba `toEqual(['cafeteria', 'restaurante'])`, que era el
+      // contenido de `PAQUETES_OPERATIVOS` cuando `esencial` vendía sin
+      // controlar stock. Ese nivel ya no existe: D-01 —*una tienda sin
+      // inventario no es una tienda, es una calculadora*— lo renombra a
+      // `tienda` CON operación, la migración 058 renombra los tres valores y la
+      // lista pasó a ser las tres.
+      //
+      // Reescribir aquí `['tienda', 'cafeteria', 'restaurante']` habría dejado
+      // una copia más del mismo arreglo, que es exactamente lo que prohíbe
+      // `verify:paquetes`: ningún comando escribe su lista a mano, porque basta
+      // con que una copia se quede corta al añadir una plantilla para que el
+      // comando desaparezca de ella sin que nada avise. Por eso se compara por
+      // IDENTIDAD y no por contenido: un literal suelto con esos mismos tres
+      // valores pasaría un `toEqual` y falla aquí, que es justo lo que esta
+      // prueba tiene que proteger.
+      expect(comando.paquetes).toBe(PAQUETES_OPERATIVOS);
+
+      // La identidad sola no basta, porque no dice NADA sobre qué contiene la
+      // constante: si alguien devolviera `PAQUETES_OPERATIVOS` a dos plantillas
+      // esta prueba seguiría en verde mientras el menú de `tienda` sigue
+      // encendiendo `compras`. Ése es el fallo que D-01 describe: un menú que
+      // enseña lo que el POST rechaza con 403. La comparación es contra el
+      // preajuste y vale en los dos sentidos: ninguna plantilla con el módulo
+      // encendido se queda fuera del gate, y ninguna del gate lo tiene apagado.
+      expect([...comando.paquetes]).toEqual([...conModuloDeCompras]);
     }
   });
 

@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio } from '@morphiqpos/contracts';
-import { obtenerDb } from '@morphiqpos/data';
+import { leyendoConReintento, obtenerDb } from '@morphiqpos/data';
 
 import { baseLibre } from './db-dinamica.ts';
 
@@ -107,6 +107,36 @@ function aliasDerivado(n: number): string {
 }
 
 export async function consultar(
+  ambito: Ambito,
+  peticion: PeticionConsulta,
+): Promise<readonly Fila[]> {
+  /**
+   * El puente ENTERO dentro del reintento, y no sólo su consulta principal.
+   *
+   * Esta función hace una consulta más por cada relación de hijos, y el
+   * `ECONNRESET` que el pooler en modo transacción deja en una conexión recién
+   * abierta puede caer en cualquiera de ellas. Envolver sólo la primera dejaba
+   * pasar las otras — se vio: siete 500 en una corrida de navegador, todos en
+   * `/api/datos/consultar`, con el reintento puesto en el sitio equivocado.
+   *
+   * Es una LECTURA, así que repetirla no tiene consecuencias: o trajo filas o no
+   * trajo nada. Las escrituras no se reintentan nunca, y para esa pregunta está
+   * la clave de idempotencia que el envoltorio `comando()` exige.
+   */
+  try {
+    return await leyendoConReintento(() => consultarUnaVez(ambito, peticion));
+  } catch (error) {
+    // La ENTIDAD en el error, que es lo que falta para poder diagnosticar. No es
+    // un dato del negocio: es una clave de `MAPA`, una de 82 constantes. Sin
+    // ella, un `ECONNRESET` en esta ruta no dice qué pantalla se rompió.
+    if (error instanceof Error) {
+      error.message = `[${peticion.entidad}] ${error.message}`;
+    }
+    throw error;
+  }
+}
+
+async function consultarUnaVez(
   ambito: Ambito,
   peticion: PeticionConsulta,
 ): Promise<readonly Fila[]> {

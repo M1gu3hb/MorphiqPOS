@@ -41,7 +41,7 @@ export const contratos = [
     nombre: 'recetas_solo_en_paquetes_operativos',
     ruta: 'packages/app/src/inventario/recetas.ts',
     porque:
-      'El paquete Esencial no contrata inventario ni recetas; Operativo y Restaurante Pro sí.',
+      'Recetas tiene que declarar la constante y no una lista suelta: el día que cambie qué plantillas traen operación, una lista escrita a mano se queda atrás y el comando desaparece de una plantilla entera sin que nada avise.',
     comprobar() {
       const codigo = readFileSync('packages/app/src/inventario/recetas.ts', 'utf8');
       return (

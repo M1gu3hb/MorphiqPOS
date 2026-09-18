@@ -11,6 +11,7 @@ describe('comandas contra Postgres · lotes vacíos', () => {
       conTransaccion((tx) =>
         insertarComandas(tx, {
           organizacionId: ORG,
+          marchadaEn: new Date('2026-09-14T21:00:00.000Z'),
           orden: {
             id: '22222222-2222-4222-8222-222222222222',
             estado: 'borrador',

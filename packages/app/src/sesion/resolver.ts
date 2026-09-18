@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { esPaquete, esRol, type Ambito, type Paquete } from '@morphiqpos/contracts';
+import { esRol, plantillaDeOrganizacion, type Ambito, type Paquete } from '@morphiqpos/contracts';
 import { obtenerDb, repoSesion } from '@morphiqpos/data';
 
 import { verificarSesion, type Verificacion } from './token.ts';
@@ -74,9 +74,21 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
   // `string`. Se estrecha en vez de aseverar: un rol desconocido no autoriza.
   if (!esRol(fila.rol)) return { ok: false, motivo: 'revocada' };
 
-  // Igual con el paquete: si la organización tiene uno que este código no
-  // conoce, no se adivina el más permisivo. Sin paquete válido no hay comandos.
-  if (!esPaquete(fila.paquete)) return { ok: false, motivo: 'revocada' };
+  // El paquete NO se estrecha: se NORMALIZA.
+  //
+  // Esto decía `if (!esPaquete(fila.paquete)) return revocada`, y con el
+  // renombre de D-01 eso apaga el sistema entero de la peor forma posible:
+  // mientras la 058 no esté aplicada la columna guarda `restaurante_pro`, que
+  // ya no es un paquete válido, así que TODAS las sesiones de los cuatro
+  // negocios vivos se revocarían y nadie podría entrar. No es un permiso de
+  // más: es no poder abrir la caja por la mañana.
+  //
+  // `plantillaDe` entiende los seis valores y cae en `tienda` —la más
+  // restrictiva— ante cualquier cosa que no reconozca, así que sigue sin
+  // adivinar el más permisivo. Es la misma normalización que hace
+  // `leerPaquete` en `produccion.ts`: una sola regla, en los dos sitios que
+  // leen esa columna.
+  const paquete = plantillaDeOrganizacion(fila.giro, fila.paquete);
 
   const terminalId = verificado.carga.terminalId;
   let sucursalId = fila.sucursalId;
@@ -104,7 +116,7 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
     ambito,
     sesion: {
       ...ambito,
-      paquete: fila.paquete,
+      paquete,
       nombrePersona: fila.nombrePersona,
       nombreNegocio: fila.nombreNegocio,
       nombreSucursal: fila.nombreSucursal,
