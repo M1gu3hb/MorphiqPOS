@@ -240,11 +240,18 @@ export const resetearDemo = definirComando<
           )
         : null;
 
-    // LOS DATOS DE ARRANQUE · proveedor y caja abierta.
+    // LOS DATOS DE ARRANQUE · el proveedor. La caja queda CERRADA.
     //
-    // La caja la abre el primero del equipo, que es el gerente en las cinco
-    // semillas. Sin caja abierta no se puede cobrar, y una demo que empieza
-    // pidiendo «abre la caja» ensena un tramite en vez del producto.
+    // Antes la semilla la abria «para que la demo este lista para cobrar», y
+    // conseguia lo contrario: la sesion quedaba en una terminal que nadie vuelve
+    // a usar, y como la base permite UNA sesion abierta por sucursal, desde
+    // cualquier navegador nuevo no se podia ni cobrar —la abierta no es de esta
+    // terminal— ni abrir la propia —la sucursal ya tiene una—. La abre el primer
+    // cajero que entra, que es lo que pasa al empezar el turno. Ver
+    // `sembrarArranque`.
+    // No se le pasa a `sembrarArranque` —la semilla ya no abre la caja— pero la
+    // comprobación se queda: una demostración sin nadie que pueda abrir caja no
+    // se puede enseñar, y es mejor decirlo al sembrar que al cobrar.
     const abre = empleos.values().next().value ?? null;
     if (abre === null) {
       throw new ErrorDominio(
@@ -253,7 +260,7 @@ export const resetearDemo = definirComando<
       );
     }
     const arranque = await ctx.paso('sembrar_arranque', () =>
-      sembrarArranque(ctx.tx, ctx.ambito.organizacionId, sucursalId, semilla, abre),
+      sembrarArranque(ctx.tx, ctx.ambito.organizacionId, sucursalId, semilla),
     );
 
     const empleados = empleos.size;

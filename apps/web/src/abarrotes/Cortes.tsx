@@ -56,8 +56,26 @@ export interface CorteHecho {
 
 export interface ResumenDelTurno {
   readonly sesionCajaId: string | null;
-  readonly esperadoCentavos: string;
   readonly movimientosSinMotivo: number;
+}
+
+/**
+ * Lo que `caja.cerrar` devuelve, y de donde sale el ESPERADO de verdad.
+ *
+ * ── El defecto que esto arregla ────────────────────────────────────────────
+ * Esta pantalla leía `esperadoCentavos` del estado del turno, y **ese campo no
+ * existe**: `caja.estado` sirve `efectivoEsperadoCentavos`, y sólo cuando se le
+ * manda lo contado —a proposito, porque contar con el numero delante no es
+ * contar—. Asi que `esperado` valia siempre 0 y cada cierre decia «Sobran
+ * <todo lo contado>»: un cajero que cerraba con $542.90 leia «Sobran $542.90»,
+ * que es justo el numero con el que se decide si alguien se llevo dinero.
+ *
+ * El cierre SI devuelve el arqueo entero. Se usa el suyo.
+ */
+export interface ResultadoDelCorte {
+  readonly efectivoEsperadoCentavos: string;
+  readonly efectivoContadoCentavos: string;
+  readonly diferenciaCentavos: string;
 }
 
 export interface CortesProps {
@@ -105,7 +123,7 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
   );
   const [piezas, setPiezas] = useState<Record<number, string>>({});
   const [otrosCentavos, setOtrosCentavos] = useState('');
-  const [cerrado, setCerrado] = useState(false);
+  const [corte, setCorte] = useState<ResultadoDelCorte | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -147,7 +165,11 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
 
   const sueltos = aCentavosSueltos(otrosCentavos);
   const contado = totalContado(piezas) + (sueltos ?? 0);
-  const esperado = Number(resumen?.esperadoCentavos ?? 0);
+  const cerrado = corte !== null;
+  // El esperado lo dice el CIERRE, que es quien lo calcula sumando los
+  // movimientos del turno —la apertura con su fondo y cada venta en efectivo—.
+  const esperado = Number(corte?.efectivoEsperadoCentavos ?? 0);
+  const contadoDelCorte = corte === null ? contado : Number(corte.efectivoContadoCentavos);
   const abierta = resumen?.sesionCajaId != null;
 
   function cerrar(): void {
@@ -157,11 +179,11 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
     }
     setGuardando(true);
     setError(null);
-    invocarComando(RUTA_CERRAR, { efectivoContadoCentavos: contado })
-      .then(() => {
+    invocarComando<ResultadoDelCorte>(RUTA_CERRAR, { efectivoContadoCentavos: contado })
+      .then((resultado) => {
         // El esperado aparece AHORA, y no antes: contar con el número delante
-        // no es contar.
-        setCerrado(true);
+        // no es contar. Y sale del cierre, que es quien lo calculó.
+        setCorte(resultado);
       })
       .catch((fallo: unknown) => {
         setError(mensajeDe(fallo));
@@ -253,9 +275,11 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
         <section className="space-y-2 rounded-lg border p-4">
           <h2 className="font-medium">Turno cerrado</h2>
           <p className="text-muted-foreground text-sm">
-            Esperado {pesos(esperado)} · contado {pesos(contado)}
+            Esperado {pesos(esperado)} · contado {pesos(contadoDelCorte)}
           </p>
-          <p className="text-2xl font-semibold">{leerDiferencia(contado - esperado)}</p>
+          <p className="text-2xl font-semibold">
+            {leerDiferencia(Number(corte.diferenciaCentavos))}
+          </p>
           {resumen.movimientosSinMotivo > 0 && (
             <p className="text-sm">
               Hubo {resumen.movimientosSinMotivo} movimiento

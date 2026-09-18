@@ -1,16 +1,45 @@
 import { expect, test } from '@playwright/test';
 
 import {
+  abrirLaCajaSiHaceFalta,
   abrirPantalla,
   accionesDelTablero,
   cambiarDePlantilla,
+  consultarPuente,
   entrar,
   exigirDemostracion,
   exigirGiro,
+  exigirCobroAceptado,
+  exigirInventarioMovido,
+  exigirVentaCobrada,
   exigirVocabulario,
   menuLateral,
+  totalEnPantalla,
+  ventasDeAntes,
   vigilarFallos,
 } from './ayudantes/sesion.ts';
+
+/**
+ * El fondo con el que la prueba abre su caja.
+ *
+ * En centavos porque todo el dinero del sistema está en centavos, y redondo para
+ * que el arqueo del final se pueda leer de un vistazo: fondo + venta = esperado.
+ */
+const FONDO_CENTAVOS = 50_000;
+
+/** Pesos como los pinta la pantalla: `$500.00`. */
+function enPesos(centavos: number): string {
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(
+    centavos / 100,
+  );
+}
+
+/** Lo que la pantalla de cobro lee del catálogo, y lo que esta prueba necesita. */
+interface ProductoDelPuente {
+  readonly id?: string;
+  readonly nombre?: string | null;
+  readonly precio_venta?: number | null;
+}
 
 /**
  * Modelo 3 de 5 · ABARROTES / TIENDA DE CONVENIENCIA · giro `tienda`, plantilla `tienda`.
@@ -61,7 +90,7 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     await exigirDemostracion(playwright, info);
   });
 
-  test('la plantilla tienda trae operación, no trae sala y habla de productos', async ({
+  test('la plantilla tienda trae operación, habla de productos y COBRA una venta', async ({
     page,
   }) => {
     await entrar(page);
@@ -145,18 +174,137 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
       await abrirPantalla(page, `/abarrotes/${pantalla}`);
     }
 
-    // La de inicio es COBRAR, y tiene tres estados que son los tres de una tiendita
-    // recién dada de alta: la caja cerrada —que es un muro a propósito, porque una
-    // venta sin caja no pertenece a ningún corte—, el catálogo vacío, o la venta
-    // armándose con el total arriba. Los tres son esta pantalla; ninguno es un fallo.
+    // ── 5 · SE COBRA UNA VENTA, Y EL DINERO CUADRA ────────────────────────
+    //
+    // Hasta aquí esto demostraba que las pantallas ABREN. Eso no es una tienda
+    // funcionando: una tienda funcionando es que entre dinero y que cuadre. Y la
+    // pantalla de cobro tenía TRES estados aceptados —caja cerrada, catálogo
+    // vacío, o la venta armándose—, así que pasaba con la caja cerrada. Un muro
+    // no es una venta.
+    // La caja de ESTA terminal, primero. La que la semilla dejó abierta es de
+    // otra —una sesión de caja pertenece a una terminal, y la terminal nace
+    // cuando este navegador entra por primera vez— así que aquí se hace lo que
+    // hace un cajero al empezar el turno.
+    await abrirLaCajaSiHaceFalta(page, '/abarrotes/caja', (FONDO_CENTAVOS / 100).toFixed(2));
+
     await abrirPantalla(page, '/abarrotes/cobrar');
+
+    // El producto sale del CATÁLOGO, no de un nombre escrito aquí: la pantalla
+    // lee `ProductoTerminado` y esto lee lo mismo, así que si mañana la semilla
+    // cambia los nombres, la prueba sigue valiendo. Se pide uno con existencia
+    // porque de paso se comprueba que la existencia BAJA.
+    const catalogo = await consultarPuente<ProductoDelPuente>(page, 'ProductoTerminado', {
+      limite: 50,
+    });
+    const elegido = catalogo.find((p) => (p.nombre ?? '') !== '' && (p.precio_venta ?? 0) > 0);
+    expect(
+      elegido,
+      'La demo de tienda no tiene ningún producto con nombre y precio, así que no hay nada ' +
+        'que cobrar. Siémbrala otra vez: `pnpm db:seed --org demo-acople-tienda`.',
+    ).toBeDefined();
+    const producto = elegido!;
+    const nombre = producto.nombre ?? '';
+
+    const idsDeAntes = await ventasDeAntes(page);
+
+    // Se escribe el nombre y Enter lo agrega. `fill` y no `type` a propósito: el
+    // teclado de esta pantalla mide el RITMO para distinguir al lector de código
+    // de barras de una mano, y `type` teclea tan seguido que la ráfaga se
+    // tomaría por un escaneo del texto escrito —que no es ningún código— y
+    // saldría «no está en el catálogo».
+    const busqueda = page.getByLabel('Código o nombre · F2');
+    await busqueda.fill(nombre);
+    await expect(page.getByText(`Enter agrega: ${nombre}`)).toBeVisible();
+    await busqueda.press('Enter');
+
+    // La línea está en la venta, con su cantidad.
+    const enCurso = page.getByRole('region', { name: /en curso$/ });
+    await expect(enCurso.getByText(nombre, { exact: false }).first()).toBeVisible();
+
+    // EL TOTAL QUE DICE LA PANTALLA. Es el número que se dice en voz alta, y es
+    // contra éste contra el que se compara lo que quedó en la base.
+    const totalCentavos = await totalEnPantalla(page);
+    // El puente sirve el dinero en PESOS —`conversion: 'dinero'` divide por cien—
+    // y la pantalla lo pinta en pesos pero aquí se lee en centavos. Comparar sin
+    // convertir daba «esperaba 42.9 y encontré 4290», que es el mismo dinero.
+    const precioCentavos = Math.round((producto.precio_venta ?? 0) * 100);
+    expect(
+      totalCentavos,
+      `El total de la pantalla no es el precio del producto. Precio: ${String(precioCentavos)} ` +
+        `centavos; total: ${String(totalCentavos)}. Una pieza de un producto cuesta lo que cuesta.`,
+    ).toBe(precioCentavos);
+
+    // COBRAR → efectivo → «Exacto» → CONFIRMAR. Es el recorrido del mostrador,
+    // por los mismos botones que toca un cajero.
+    await page.getByRole('button', { name: 'COBRAR' }).click();
+    await page.getByRole('button', { name: 'Exacto' }).click();
+    await expect(page.getByLabel('Recibí')).toHaveValue(
+      (totalCentavos / 100).toFixed(2),
+      // Si «Exacto» no pone el total, el cambio sale negativo y CONFIRMAR está
+      // desactivado: el fallo diría «no se pudo pulsar el botón».
+    );
+    await page.getByRole('button', { name: 'CONFIRMAR' }).click();
+
+    // La pantalla vuelve a su reposo —«Escanea el primer producto»— o dice por
+    // qué no. Lo segundo se lee y se cuenta; no se espera 45 s a que la base
+    // desmienta lo que la pantalla ya explicó.
+    await exigirCobroAceptado(page, /Escanea el primer/);
+
+    // ── Y AQUÍ SE COMPRUEBA QUE EL DINERO CUADRÓ ──────────────────────────
+    // Contra el SERVIDOR, no contra la pantalla: la pantalla se queda en blanco
+    // al cobrar bien y también se quedaría en blanco si el comando fallara y
+    // alguien se hubiera comido el error.
+    const venta = await exigirVentaCobrada(page, totalCentavos, idsDeAntes);
+
+    // ── 6 · EL CORTE · que el dinero cuadre de verdad ─────────────────────
+    //
+    // Aquí es donde «el dinero cuadró» deja de ser una frase: el esperado del
+    // cajón tiene que ser EL FONDO MÁS LA VENTA, al centavo, y lo dice la propia
+    // pantalla de corte sin que la prueba se lo sugiera.
+    //
+    // Y además **deja la caja cerrada**, que es lo que hace repetible la corrida:
+    // la base permite una sesión abierta por sucursal, y cada navegador nuevo
+    // trae su propia terminal, así que una caja que se queda abierta bloquea la
+    // siguiente corrida entera —abrir revienta contra el índice y cobrar contesta
+    // «Abre la caja antes de cobrar»—.
+    await abrirPantalla(page, '/abarrotes/cortes');
+
+    const esperadoCentavos = FONDO_CENTAVOS + totalCentavos;
+    // El desglose se cuenta en «centavos sueltos» a propósito: contar por
+    // denominaciones exige que $542.90 se pueda armar con billetes, y lo que se
+    // prueba aquí es la aritmética del arqueo, no la de dar cambio.
+    await page.locator('#sueltos').fill((esperadoCentavos / 100).toFixed(2));
+    await expect(page.getByText(`Contado ${enPesos(esperadoCentavos)}`)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cerrar el turno' }).click();
+
     await expect(
-      page
-        .getByText('La caja está cerrada')
-        .or(page.getByText('Todavía no hay nada que escanear.'))
-        .or(page.getByRole('region', { name: 'Total de la venta' }))
-        .first(),
+      page.getByRole('heading', { name: 'Turno cerrado' }),
+      'El turno no se cerró. La caja se queda abierta y la siguiente corrida no podrá abrir la ' +
+        'suya: la base permite UNA sesión abierta por sucursal.',
+    ).toBeVisible({ timeout: 30_000 });
+
+    // El esperado lo calcula el servidor sumando los movimientos de caja. Si no
+    // es el fondo más la venta, o la venta no entró al cajón o el fondo no se
+    // guardó: las dos cosas son dinero que no cuadra a fin de turno.
+    await expect(
+      page.getByText(
+        `Esperado ${enPesos(esperadoCentavos)} · contado ${enPesos(esperadoCentavos)}`,
+      ),
+      `El arqueo no cuadra. Se abrió con ${enPesos(FONDO_CENTAVOS)}, se cobró ` +
+        `${enPesos(totalCentavos)} en efectivo, así que el esperado tiene que ser ` +
+        `${enPesos(esperadoCentavos)}.`,
     ).toBeVisible();
+    await expect(page.getByText('Cuadra exacto')).toBeVisible();
+
+    // Y EL INVENTARIO BAJÓ, por ESTA venta. Es D-01 con dinero: «una tienda sin
+    // inventario no es una tienda, es una calculadora».
+    const movimientos = await exigirInventarioMovido(page, venta.id ?? '', nombre);
+    expect(
+      movimientos.map((m) => m.ingrediente_nombre ?? ''),
+      `El movimiento de inventario de la venta ${venta.folio ?? 'sin folio'} no es del producto ` +
+        `que se cobró. Se vendió «${nombre}».`,
+    ).toContain(nombre);
 
     exigirSinFallos();
   });

@@ -2829,3 +2829,114 @@ Tres cosas, entonces:
 Esto es además la respuesta a la condición 7a: **`test:integracion` tiene su base** — la del CI, en cada
 empujón, con las 99 migraciones aplicadas de verdad y su ledger. En la máquina de Miguel sigue
 necesitando Docker o una `DATABASE_URL_PRUEBAS`.
+
+---
+
+## 2026-09-18 · E3 y E4 · un despliegue con las cinco demos, y la primera venta cobrada
+
+### E3 · la organización sale de QUIEN ENTRA
+
+`ORGANIZACION` es una variable del BUILD: la misma para todas las peticiones. Con un solo slug **un
+despliegue sólo puede servir a un negocio**, y el encargo pide lo contrario. El camino por HOST ya
+estaba escrito y sigue ganando, pero necesita cinco registros de DNS que hoy no existen.
+
+Así que `ORGANIZACION` admite una **lista separada por comas**. Con un solo slug —producción— no
+cambia nada de nada. Con varios:
+
+- `negociosDelDespliegue()` los resuelve todos y nombra de una vez los que estén mal escritos;
+- `/api/auth/empleados` devuelve a la gente de todos, **cada persona con su negocio**;
+- `POSLogin` pinta el negocio en cada tarjeta y en el título, y el rótulo dice cuántos hay;
+- `/api/auth/entrar` saca la organización **del EMPLEO**, no del build.
+
+Y sigue sin llegar del cliente (R16): lo que el navegador manda es un `empleoId`, y la comprobación
+de que ese empleo pertenezca a uno de los negocios servidos va **dentro de la consulta**
+(`organizacionDeEmpleo`), así que un empleo de otro negocio no se encuentra y responde lo mismo que
+un PIN incorrecto. Encontrarlo no autentica nada: debajo sigue estando Argon2id.
+
+Medido, con UN solo servidor y UN solo build:
+
+```
+GET /api/auth/empleados
+negocios: demo-acople-tienda, demo-acople-cafeteria, demo-acople-restaurante,
+          demo-acople-ferreteria, demo-acople-estetica
+usuarios: 25   ·   ('Demo','demo-acople-tienda') ('Jesica','demo-acople-tienda') …
+```
+
+Cinco personas se llaman «Demo» —una por demo—, y por eso la guarda de la suite y `entrar()`
+filtran por `negocioSlug`: la tarjeta se identifica por **nombre Y negocio**, que es exactamente lo
+que la pantalla enseña. El primer intento resolvió a 25 elementos y falló diciéndolo.
+
+La precondición se volvió **más estricta**, no menos: antes miraba si el PRIMER negocio servido era
+el declarado; ahora comprueba que **ninguno** de los servidos sea un negocio vivo, y después que el
+declarado esté entre ellos.
+
+### E4 · que las pruebas cobren una venta, y los SEIS defectos que eso destapó
+
+La suite abría las once pantallas del modelo y aceptaba tres estados en la de cobro —caja cerrada,
+catálogo vacío, o la venta armándose—. **Los tres pasan con el cobro roto.** La primera prueba que
+pulsó CONFIRMAR encontró esto, en este orden:
+
+**1 · `/api/venta/cobrar-mostrador` NO EXISTÍA.** La pantalla de inicio de una tienda publica ahí
+desde que se escribió. Devolvía 404 con la página de error de Next dentro, que no es `{ok, datos}`,
+así que el cliente decía «El servidor respondió algo inesperado». **Una tienda entera sin poder
+cobrar.** Ahora la ruta existe y COMPONE los tres comandos que ya había —crear el borrador, meter
+cada renglón, cobrar— desde el servidor, en el mismo proceso: para la pantalla es un viaje, y no hay
+un segundo cobro duplicado que se vaya separando del bueno.
+
+**2 · La pantalla de cobro preguntaba por la caja al sitio equivocado.** Leía `CorteCaja` del puente
+y se quedaba con la primera sesión abierta **del negocio**. Una sesión de caja pertenece a UNA
+terminal, y `venta.cobrar` exige la de la suya. El resultado era el peor desacuerdo posible: la
+pantalla decía «caja abierta» —había una, en otra terminal—, dejaba armar la venta entera, y al
+confirmar el servidor contestaba «Abre la caja antes de cobrar». Ahora usa `/api/caja/estado`, que es
+lo que usan las otras cinco pantallas de caja del sistema.
+
+**3 · La caja de una tienda no se podía abrir.** `abarrotes/Caja.tsx` publica el fondo por montones
+—monedas, chicos, grandes— y `caja.abrir` esperaba `fondoInicialCentavos`. Ninguno encajaba: cada
+apertura respondía «Hay datos incompletos o mal escritos». Las cinco demos tenían caja abierta porque
+la siembra la escribía en la tabla, no porque alguien la abriera. El esquema acepta ahora las dos
+formas, el total es la suma cuando viene el desglose, y **el desglose se guarda**: las tres columnas
+existían desde la 003 y sólo las escribía la siembra.
+
+**4 · La caja sembrada IMPEDÍA cobrar, y no había salida desde la aplicación.** Dos cosas de la base
+se juntan: `sesiones_caja_una_abierta_por_sucursal` permite **una** sesión abierta por sucursal, y
+una terminal nace cuando un navegador entra por primera vez. La sesión sembrada quedaba en una
+terminal que nadie vuelve a usar, así que desde cualquier navegador nuevo —el de Miguel en la
+demostración— cobrar decía «Abre la caja antes de cobrar», abrir reventaba contra el índice único, y
+cerrar la ajena también exige ser su terminal. **Sin salida.** La siembra deja ahora la caja
+CERRADA y la abre el primer cajero, que es lo que pasa al empezar el turno; y `caja.abrir` explica el
+conflicto de sucursal nombrando la terminal, en vez de dejar salir un `sqlstate=23505` como «Algo
+falló de nuestro lado».
+
+**5 · `'ninguno'` no es `''`.** `comandar-pendientes` saltaba las líneas con
+`areaPreparacion === ''`, y el valor con el que el sistema dice «esto no se prepara» es `'ninguno'`
+—está en `AREAS_PREPARACION` y lo entiende `areasDe`—. La cadena vacía no la escribe nadie. Los 22
+productos de la tienda llegaban a `resolverEstacion`, que sin estaciones **lanza**: cobrar respondía
+«No hay ninguna estación de preparación activa. Crea la "Cocina general"…». En una cafetería con
+estación general habría sido peor y en silencio: una comanda de cocina por cada botella de agua.
+Ahora se pregunta con la MISMA función que decide después.
+
+**6 · El corte decía «Sobran» TODO lo contado.** Las pantallas de corte del mostrador y del salón
+leían `esperadoCentavos` del estado del turno, y **ese campo no existe**: `caja.estado` sirve
+`efectivoEsperadoCentavos`, y sólo cuando se le manda lo contado —a propósito, porque contar con el
+número delante no es contar—. El esperado valía 0 en una pantalla y `NaN` en la otra, así que un
+cajero que cerraba con $542.90 leía **«Sobran $542.90»**: justo el número con el que se decide si
+alguien se llevó dinero. El cierre sí devuelve el arqueo entero; ahora se usa el suyo.
+
+### El recorrido de la tienda, medido
+
+```
+[escritorio] abarrotes · 1 passed (33.2s)
+
+entra con PIN · cambia a la plantilla tienda · vocabulario propio y ajeno · 11 pantallas
+abre su caja con $500.00 de fondo
+cobra «Aceite de maíz 1 L» · $42.90 · efectivo exacto
+  → venta en el servidor: total $42.90, folio 1, estado pagada
+  → ledger de inventario: un movimiento con la venta dentro, en negativo
+cierra el turno contando $542.90
+  → Esperado $542.90 · contado $542.90 · «Cuadra exacto»
+```
+
+El corte no es adorno: es lo que hace **repetible** la corrida —una caja que se queda abierta bloquea
+la siguiente, porque la base permite una por sucursal— y es donde «el dinero cuadró» deja de ser una
+frase. El esperado lo suma el servidor de los movimientos del turno: la apertura con su fondo y la
+venta en efectivo.

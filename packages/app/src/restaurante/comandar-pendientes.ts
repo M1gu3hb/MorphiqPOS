@@ -5,7 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { productosDeComanda } from './catalogo-comanda.ts';
 import { insertarComandas, insertarItems } from './comandas.ts';
 import { estacionesActivas, ordenParaComandar } from './datos.ts';
-import { agruparEnComandas, resolverEstacion } from './estaciones.ts';
+import { agruparEnComandas, areasDe, resolverEstacion } from './estaciones.ts';
 import type { LineaPreparada } from './lineas.ts';
 
 /**
@@ -81,15 +81,26 @@ export async function comandarLineasPendientes(
     // es inventarse una estación, así que esa línea no se comanda y se cobra
     // igual —el cocinero la ve en el ticket impreso, que sí lleva todo—.
     if (producto === undefined) continue;
-    // Sin área de preparación, la línea no va a ninguna cocina: una botella de
-    // agua no se cocina.
-    //
-    // ESTO ES UN ATAJO, NO LA REGLA, y conviene decirlo: quitar esta línea no
-    // pone ninguna prueba en rojo, porque quien decide de verdad es `areasDe`
-    // dentro de `agruparEnComandas`, que para un área vacía no devuelve
-    // ninguna. Se queda porque evita resolver —y quizá fallar con
-    // ESTACION_NO_ENCONTRADA— una estación que nadie iba a usar.
-    if (producto.areaPreparacion === '') continue;
+    /**
+     * Sin área de preparación, la línea no va a ninguna cocina: una botella de
+     * agua no se cocina.
+     *
+     * ── Y esto NO era un atajo: era el defecto que impedía cobrar en una tienda
+     * Aquí decía `=== ''`, y el valor con el que el sistema dice «esto no se
+     * prepara» es **`'ninguno'`** —está en `AREAS_PREPARACION`, lo escribe la
+     * siembra y lo entiende `areasDe`—. La cadena vacía no la escribe nadie.
+     *
+     * Consecuencia: los 22 productos de la tienda, con `area_preparacion =
+     * 'ninguno'`, pasaban de largo y llegaban a `resolverEstacion`, que sin
+     * estaciones **lanza**. Cobrar en el mostrador de una tienda respondía «No hay
+     * ninguna estación de preparación activa. Crea la "Cocina general"…» y no se
+     * cobraba nada. En una cafetería con estación general habría sido peor sin
+     * hacer ruido: una comanda de cocina por cada botella de agua.
+     *
+     * Ahora se pregunta con la MISMA función que decide después —`areasDe`— así
+     * que las dos decisiones no pueden volver a discrepar.
+     */
+    if (areasDe(producto.areaPreparacion).length === 0) continue;
 
     preparadas.push({
       id: linea.id,

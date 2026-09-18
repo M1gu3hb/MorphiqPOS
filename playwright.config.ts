@@ -111,7 +111,12 @@ export default defineConfig({
   // El MECANISMO no cambia: expect sigue en 10 s y sigue esperando por
   // condiciones. Lo que cambia es cuanto se le permite tardar al recorrido
   // entero.
-  timeout: 120_000,
+  // Y de 120 s a 180 s al añadir el COBRO (E4): cada recorrido abre ahora la caja
+  // de su terminal con su fondo, arma una venta, la cobra y comprueba contra el
+  // servidor que el dinero cuadró y que el inventario bajó. Son tres pantallas
+  // más y cuatro lecturas del puente sobre las once o trece de antes. El
+  // MECANISMO sigue siendo esperar por condiciones; esto es sólo el techo.
+  timeout: 180_000,
   expect: { timeout: 10_000 },
 
   reporter: process.env['CI'] === undefined ? [['list']] : [['list'], ['html', { open: 'never' }]],

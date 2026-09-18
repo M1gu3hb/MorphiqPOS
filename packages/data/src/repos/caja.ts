@@ -51,6 +51,44 @@ export async function sesionAbiertaDeTerminal(
   return fila ?? null;
 }
 
+/**
+ * La sesión abierta de la SUCURSAL, con el nombre de su terminal.
+ *
+ * ── Para qué, si ya hay una por terminal ──────────────────────────────────
+ * Porque `sesiones_caja_una_abierta_por_sucursal` permite UNA por sucursal, y sin
+ * esta consulta abrir una segunda salía como violación de índice único: un 500
+ * con «Algo falló de nuestro lado» en vez de «hay una abierta en la terminal de
+ * al lado, haz el corte ahí».
+ *
+ * Trae el NOMBRE de la terminal a propósito: un identificador no le dice nada a
+ * quien está delante de la caja, y el nombre es lo que se lee en la etiqueta del
+ * aparato.
+ */
+export async function sesionAbiertaDeSucursal(
+  db: Kysely<Esquema> | Transaccion,
+  organizacionId: string,
+  sucursalId: string,
+): Promise<(SesionAbierta & { readonly terminalNombre: string | null }) | null> {
+  const fila = await db
+    .selectFrom('sesiones_caja')
+    .leftJoin('terminales', 'terminales.id', 'sesiones_caja.terminal_id')
+    .select([
+      'sesiones_caja.id as id',
+      'sesiones_caja.sucursal_id as sucursalId',
+      'sesiones_caja.terminal_id as terminalId',
+      'sesiones_caja.serie as serie',
+      'sesiones_caja.fondo_inicial_centavos as fondoInicialCentavos',
+      'sesiones_caja.abierta_en as abiertaEn',
+      'terminales.nombre as terminalNombre',
+    ])
+    .where('sesiones_caja.organizacion_id', '=', organizacionId)
+    .where('sesiones_caja.sucursal_id', '=', sucursalId)
+    .where('sesiones_caja.estado', '=', 'abierta')
+    .executeTakeFirst();
+
+  return fila ?? null;
+}
+
 export async function abrirSesion(
   tx: Transaccion,
   datos: {
@@ -59,6 +97,15 @@ export async function abrirSesion(
     readonly terminalId: string;
     readonly empleadoAbreId: string;
     readonly fondoInicialCentavos: bigint;
+    /**
+     * El fondo por montones. Las tres columnas existen desde la 003 y hasta hoy
+     * sólo las escribía la siembra de las demostraciones: la apertura de verdad
+     * guardaba el total y tiraba el desglose, que es justo lo que dice si se
+     * puede dar cambio a las siete de la mañana.
+     */
+    readonly fondoMonedasCentavos?: bigint;
+    readonly fondoChicosCentavos?: bigint;
+    readonly fondoGrandesCentavos?: bigint;
   },
 ): Promise<string> {
   const fila = await tx
@@ -69,6 +116,12 @@ export async function abrirSesion(
       terminal_id: datos.terminalId,
       empleado_abre_id: datos.empleadoAbreId,
       fondo_inicial_centavos: datos.fondoInicialCentavos,
+      // Sin desglose, todo el fondo cuenta como monedas: las columnas son `not
+      // null` y repartirlo a ciegas entre tres montones sería inventarse el
+      // arqueo de mañana.
+      fondo_monedas_centavos: datos.fondoMonedasCentavos ?? datos.fondoInicialCentavos,
+      fondo_chicos_centavos: datos.fondoChicosCentavos ?? 0n,
+      fondo_grandes_centavos: datos.fondoGrandesCentavos ?? 0n,
       estado: 'abierta',
     })
     .returning('id')

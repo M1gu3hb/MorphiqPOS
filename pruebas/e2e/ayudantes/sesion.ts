@@ -192,6 +192,14 @@ function comandoDeAlta(giro: string): string {
 interface EmpleadoDeAcceso {
   readonly id: string;
   readonly nombre: string;
+  /** El negocio de ESTA persona, cuando el despliegue sirve a varios. */
+  readonly negocio?: string;
+  readonly negocioSlug?: string;
+}
+
+interface NegocioServido {
+  readonly nombre?: string;
+  readonly slug?: string;
 }
 
 interface RespuestaDeEmpleados {
@@ -200,6 +208,14 @@ interface RespuestaDeEmpleados {
     readonly negocio?: string;
     /** `organizaciones.slug`: el identificador, no el nombre. Ver `SLUGS_VIVOS`. */
     readonly slug?: string;
+    /**
+     * TODOS los negocios a los que sirve el despliegue.
+     *
+     * Con uno —producción— trae ese uno y `slug` es el mismo. Con varios —las
+     * cinco demostraciones en un solo despliegue, que es lo que E3 abre— trae los
+     * cinco, y `slug` es el primero.
+     */
+    readonly negocios?: readonly NegocioServido[];
     readonly usuarios?: readonly EmpleadoDeAcceso[];
   };
 }
@@ -319,7 +335,30 @@ export async function exigirDemostracion(
     const cuerpo = (await respuesta.json()) as RespuestaDeEmpleados;
     const negocio = cuerpo.datos?.negocio ?? '';
     const servido = cuerpo.datos?.slug ?? '';
-    const usuarios = cuerpo.datos?.usuarios ?? [];
+    const todos = cuerpo.datos?.usuarios ?? [];
+
+    /**
+     * LOS negocios que sirve el despliegue, que desde E3 pueden ser varios.
+     *
+     * `ORGANIZACION` admite una lista de slugs, así que un solo despliegue puede
+     * servir a las cinco demostraciones y la organización sale del EMPLEO de
+     * quien entra. La guarda tiene que seguir siendo igual de estricta con cinco
+     * que con uno, y de hecho aquí se vuelve MÁS estricta: antes miraba sólo el
+     * primero, y ahora mira **todos** buscando un negocio vivo.
+     *
+     * El `??` de reserva es para un despliegue anterior a este cambio, cuya
+     * respuesta no trae `negocios`: entonces el único servido es `slug`.
+     */
+    const servidos = (cuerpo.datos?.negocios ?? [{ nombre: negocio, slug: servido }])
+      .map((n) => ({ nombre: n.nombre ?? '', slug: n.slug ?? '' }))
+      .filter((n) => n.slug !== '');
+
+    // Las personas de ESTA demo. Con cinco negocios en un despliegue, la lista
+    // trae a las veintitantas y entrar con «la primera» sería entrar en otro
+    // negocio. Cada persona viene con el suyo.
+    const usuarios = todos.filter(
+      (u) => u.negocioSlug === undefined || u.negocioSlug === SLUG_DEMO,
+    );
 
     if (servido === '') {
       throw new Error(
@@ -340,13 +379,38 @@ export async function exigirDemostracion(
     // que el despliegue sirve tiene que ser EXACTAMENTE el que esta corrida
     // declaró. Así no hay forma de acabar operando sobre otro — ni sobre uno
     // vivo, ni sobre la demo de otro modelo, que también ensuciaría el reporte.
-    if (servido !== SLUG_DEMO) {
-      const esVivo = (SLUGS_VIVOS as readonly string[]).includes(servido);
+    // Primero los vivos, y sobre TODOS los servidos. Es la comprobación que
+    // protege la caja de un cliente, y por eso va antes que la de identidad: un
+    // despliegue que sirva a la demo Y a Restaurante MH a la vez pasaría la de
+    // identidad sin problema, y esta suite cambia la plantilla del negocio en el
+    // que entra.
+    const vivo = servidos.find((n) => (SLUGS_VIVOS as readonly string[]).includes(n.slug));
+    if (vivo !== undefined) {
       throw new Error(
         [
-          esVivo
-            ? `ALTO. El despliegue sirve a «${servido}» («${negocio}»), que es un NEGOCIO VIVO.`
-            : `El despliegue sirve a «${servido}» y esta corrida declaró «${SLUG_DEMO}».`,
+          `ALTO. El despliegue sirve a «${vivo.slug}» («${vivo.nombre}»), que es un NEGOCIO VIVO.`,
+          '',
+          `Sirve a ${String(servidos.length)}: ${servidos.map((n) => n.slug).join(', ')}.`,
+          '',
+          'F2.3-REGLAS §4.5: «Si al terminar quedan ventas de prueba, cortes de prueba o mesas',
+          'abiertas en cualquiera de los cuatro negocios vivos, el acople está mal hecho',
+          'aunque todo lo demás esté bien.»',
+          '',
+          'Esta suite entra con PIN, CAMBIA la plantilla del negocio y COBRA una venta. Sobre',
+          'un cliente que cobra, eso le quita o le da módulos que paga y le mete dinero que',
+          'no existe en su corte. No se sigue.',
+          '',
+          'Quita ese slug de `ORGANIZACION` en el entorno DEL SERVIDOR. Las cinco demos',
+          'caben juntas: ORGANIZACION admite la lista separada por comas.',
+        ].join('\n'),
+      );
+    }
+
+    if (!servidos.some((n) => n.slug === SLUG_DEMO)) {
+      throw new Error(
+        [
+          `El despliegue sirve a «${servidos.map((n) => n.slug).join(', ')}» y esta corrida ` +
+            `declaró «${SLUG_DEMO}», que no está entre ellos.`,
           '',
           'F2.3-REGLAS §4.5: «Si al terminar quedan ventas de prueba, cortes de prueba o mesas',
           'abiertas en cualquiera de los cuatro negocios vivos, el acople está mal hecho',
@@ -393,7 +457,7 @@ export async function exigirDemostracion(
     if (usuarios.length === 0) {
       throw new Error(
         [
-          `La demo «${negocio}» existe y no tiene a nadie dado de alta, así que no hay`,
+          `La demo «${SLUG_DEMO}» existe y no tiene a nadie dado de alta, así que no hay`,
           'forma de entrar. `alta-negocio` crea la organización y su primera sucursal;',
           'el dueño con PIN lo crea `bootstrap`, que es otro paso:',
           '',
@@ -433,7 +497,22 @@ export async function exigirDemostracion(
 export async function entrar(page: Page): Promise<string> {
   const respuesta = await page.request.get('/api/auth/empleados');
   const cuerpo = (await respuesta.json()) as RespuestaDeEmpleados;
-  const usuarios = cuerpo.datos?.usuarios ?? [];
+
+  /**
+   * Sólo la gente DE ESTA demo.
+   *
+   * Desde E3 un despliegue puede servir a los cinco negocios de demostración, y
+   * entonces esta lista trae a las veintitantas personas de los cinco. Elegir
+   * entre todas sería entrar en el negocio de otro: la pantalla de acceso enseña
+   * el negocio en cada tarjeta justamente porque el nombre y el rol no bastan
+   * —hay un dueño en cada uno—.
+   *
+   * El `undefined` es un despliegue anterior a este cambio, que no manda el
+   * negocio por persona: entonces sirve a uno solo y todas son de ése.
+   */
+  const usuarios = (cuerpo.datos?.usuarios ?? []).filter(
+    (u) => u.negocioSlug === undefined || u.negocioSlug === SLUG_DEMO,
+  );
 
   // `toLocaleLowerCase('es-MX')` en los dos lados: comparar con el `toLowerCase()`
   // invariante haría que «MARÍA» y «maría» no casaran en algunas configuraciones, y el
@@ -482,9 +561,37 @@ export async function entrar(page: Page): Promise<string> {
 
   await page.goto('/login-pos');
 
-  // Su pantalla pinta una tarjeta por persona con el nombre y la etiqueta del rol
-  // dentro. Se busca por nombre accesible, que es lo que se lee.
-  await page.getByRole('button', { name: elegido.nombre }).click();
+  /**
+   * LA TARJETA DE ESTA PERSONA, EN ESTE NEGOCIO.
+   *
+   * Esto era `getByRole('button', { name: elegido.nombre })` y con un solo
+   * negocio servido funcionaba. Con los cinco en un despliegue resolvió a **25
+   * elementos**: el nombre accesible de una tarjeta lleva dentro el nombre del
+   * negocio —«D Demo Administrador Demo del acople · tienda»— así que buscar
+   * «Demo» casa con las veinticinco, y buscar «Demo» + el negocio casa con las
+   * cuatro de ese negocio, porque todas lo llevan.
+   *
+   * Lo que identifica la tarjeta es la conjunción de sus dos textos EXACTOS: el
+   * nombre de la persona en su párrafo y el del negocio en el suyo. Así hay
+   * exactamente una, y si mañana hay dos personas con el mismo nombre en el mismo
+   * negocio, esto falla en vez de entrar con una al azar.
+   */
+  const conNombre = page
+    .getByRole('button')
+    .filter({ has: page.getByText(elegido.nombre, { exact: true }) });
+  const tarjeta =
+    elegido.negocio === undefined || elegido.negocio === ''
+      ? conNombre
+      : conNombre.filter({ has: page.getByText(elegido.negocio, { exact: true }) });
+
+  await expect(
+    tarjeta,
+    `La pantalla de acceso no enseña UNA tarjeta de «${elegido.nombre}»` +
+      (elegido.negocio === undefined ? '' : ` en «${elegido.negocio}»`) +
+      '. Con varios negocios en un despliegue hay un dueño en cada uno, y la tarjeta se ' +
+      'identifica por nombre Y negocio.',
+  ).toHaveCount(1);
+  await tarjeta.click();
   await expect(page.getByText(`Iniciando como: ${elegido.nombre}`)).toBeVisible();
 
   // El teclado son botones con el dígito como nombre accesible. `exact` porque sin
@@ -891,4 +998,363 @@ export function vigilarFallos(page: Page): () => void {
         'la entidad del puente.',
     ).toEqual([]);
   };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * E4 · QUE LAS PRUEBAS COBREN UNA VENTA
+ *
+ * Hasta aquí la suite demostraba que las pantallas ABREN y que el menú dice lo
+ * que debe. Eso no es el sistema funcionando: el sistema funcionando es que
+ * entre dinero y que cuadre. Lo de abajo es lo que lo comprueba, y se comprueba
+ * CONTRA EL SERVIDOR —no contra la pantalla que acaba de decir «cobrado»—,
+ * porque una pantalla que miente es exactamente el defecto que se busca.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Centavos de un texto de pantalla: `$1,234.50` → `123450`.
+ *
+ * Se quita TODO lo que no sea dígito o punto, y no se usa `parseFloat` sobre el
+ * texto crudo: `$1,234.50` daría 1 —se corta en la coma— y la prueba compararía
+ * un peso contra mil doscientos treinta y cuatro diciendo que el dinero no
+ * cuadra. El redondeo es el último paso, sobre el número ya en centavos, porque
+ * `12.34 * 100` en punto flotante es `1233.9999999999998`.
+ */
+export function centavosDeTexto(texto: string): number {
+  const limpio = texto.replace(/[^\d.]/g, '');
+  if (limpio === '') return Number.NaN;
+  return Math.round(Number(limpio) * 100);
+}
+
+/**
+ * Lee del PUENTE, con la sesión que ya tiene el navegador.
+ *
+ * `page.request` comparte el tarro de cookies del contexto, así que esto va con
+ * la misma sesión que la pantalla — y por tanto con el mismo ámbito de
+ * organización y el mismo rol. Un `list` que devuelva algo que la pantalla no
+ * puede ver sería un defecto de autorización, no una comodidad de la prueba.
+ */
+export async function consultarPuente<T>(
+  page: Page,
+  entidad: string,
+  extra: Readonly<Record<string, unknown>> = {},
+): Promise<readonly T[]> {
+  const respuesta = await page.request.post('/api/datos/consultar', {
+    headers: cabecerasDeEscritura(),
+    data: { entidad, operacion: 'list', limite: 5, ...extra },
+  });
+  const estado = respuesta.status();
+  if (estado !== 200) {
+    throw new Error(
+      `/api/datos/consultar (${entidad}) → ${String(estado)}: ${(await respuesta.text()).slice(0, 300)}`,
+    );
+  }
+  // Tres formas posibles, y se aceptan las tres en vez de suponer una: la lista
+  // tal cual, la lista envuelta en `datos`, y —con `operacion: 'get'`— UN objeto
+  // en vez de una lista. Suponer la primera haría que la prueba dijera «no hay
+  // ventas» con la venta cobrada, que es el peor fallo posible: manda a arreglar
+  // el cobro, que funcionaba.
+  const cuerpo: unknown = await respuesta.json();
+  const dentro =
+    typeof cuerpo === 'object' && cuerpo !== null && 'datos' in cuerpo
+      ? (cuerpo as { datos?: unknown }).datos
+      : cuerpo;
+  if (Array.isArray(dentro)) return dentro as readonly T[];
+  if (dentro === null || dentro === undefined) return [];
+  return [dentro as T];
+}
+
+/**
+ * EL TOTAL QUE DICE LA PANTALLA, en centavos.
+ *
+ * Las cinco pantallas de cobro ponen el total en una región con `aria-label`
+ * «Total de …» —«de la venta», «de la orden», «de la cuenta», según el
+ * vocabulario del giro—, así que se busca por el principio de la etiqueta y no
+ * por el texto completo: clavar «Total de la venta» ataría esta función al
+ * diccionario de la tienda y fallaría en el restaurante diciendo «no encontré el
+ * total».
+ *
+ * Del texto de la región se toma la PRIMERA cantidad. Es el total; lo que viene
+ * después es el desglose («IVA incluido …»), y tomar el último daría el IVA.
+ */
+export async function totalEnPantalla(page: Page): Promise<number> {
+  const region = page.locator('[aria-label^="Total de"]').first();
+  await expect(
+    region,
+    'No hay ninguna región «Total de …» en la pantalla de cobro. Es donde vive el número ' +
+      'que se dice en voz alta, y sin él no hay nada que comparar contra la base.',
+  ).toBeVisible();
+  const texto = await region.innerText();
+  const cantidad = /\$\s*[\d,]+(?:\.\d{1,2})?/.exec(texto);
+  expect(
+    cantidad,
+    `La región del total no enseña ninguna cantidad. Su texto: «${texto.split('\n').join(' · ')}».`,
+  ).not.toBeNull();
+  return centavosDeTexto(cantidad![0]);
+}
+
+/** Lo que una venta cobrada tiene que tener en el servidor. */
+export interface VentaDelServidor {
+  readonly id?: string;
+  readonly folio?: string;
+  /**
+   * EN PESOS, no en centavos.
+   *
+   * El puente convierte el dinero al servirlo —`conversion: 'dinero'` divide por
+   * cien, porque el frontend heredado trabaja en pesos— así que una venta de
+   * 4 290 centavos llega aquí como `42.9`. Compararlo con los centavos de la
+   * pantalla daba «esperaba 4290 y encontré 42.9» sobre la MISMA venta, que es la
+   * clase de fallo que manda a buscar un defecto de dinero donde hay uno de
+   * unidades. `centavosDeVenta` lo normaliza.
+   */
+  readonly total?: number;
+  readonly estado?: string;
+  readonly created_date?: string;
+}
+
+/** Los centavos de una venta que el puente sirvió en pesos. */
+function centavosDeVenta(venta: VentaDelServidor): number {
+  return Math.round((venta.total ?? 0) * 100);
+}
+
+/**
+ * Los folios que ya existían, para poder afirmar que la venta es NUEVA.
+ *
+ * Sin esto, «hay una venta con este total» lo cumpliría una venta de ayer por la
+ * misma cantidad, y la prueba pasaría sin haber cobrado nada. Se guarda antes de
+ * cobrar y se compara después.
+ */
+export async function ventasDeAntes(page: Page): Promise<ReadonlySet<string>> {
+  const ventas = await consultarPuente<VentaDelServidor>(page, 'Venta', { limite: 20 });
+  return new Set(ventas.map((v) => v.id ?? '').filter((id) => id !== ''));
+}
+
+/**
+ * EL DINERO CUADRÓ: hay una venta NUEVA en el servidor por el total que dijo la
+ * pantalla.
+ *
+ * ── Por qué se compara contra el servidor y no contra la pantalla ──────────
+ * Porque la pantalla ya dijo su parte: puso un total, se pulsó COBRAR y se
+ * quedó en blanco. Que se quede en blanco no significa que haya entrado dinero
+ * —lo haría igual si el comando fallara y alguien se hubiera comido el error—.
+ * Lo que se afirma aquí es lo que le importa a Miguel: que en la base hay una
+ * venta más, por la cantidad exacta que se dijo en voz alta.
+ *
+ * Y el total se compara AL CENTAVO, sin tolerancia. Un peso de diferencia en una
+ * venta es un peso que falta en el corte.
+ */
+export async function exigirVentaCobrada(
+  page: Page,
+  totalEsperadoCentavos: number,
+  idsDeAntes: ReadonlySet<string>,
+): Promise<VentaDelServidor> {
+  let nuevas: readonly VentaDelServidor[] = [];
+  /**
+   * Se espera por la venta COBRADA, no por «una venta nueva».
+   *
+   * La diferencia importa y costó una vuelta: cobrar en el mostrador crea primero
+   * un BORRADOR y lo cobra después, así que «hay una venta nueva» se cumple en
+   * cuanto existe el borrador —total 0, sin folio— y la comprobación fallaba
+   * diciendo «la venta nueva no tiene el total que dijo la pantalla: 0», con el
+   * cobro todavía en vuelo. Lo que se espera es la venta con SU TOTAL.
+   *
+   * `expect.poll` espera por una CONDICIÓN, no por un tiempo. El techo es amplio
+   * porque el cobro es la transacción más larga del sistema —totales, estado,
+   * folio, pagos, movimientos de caja y el ledger de stock— y aquí corre contra
+   * una base que está al otro lado de internet.
+   */
+  await expect
+    .poll(
+      async () => {
+        const ultimas = await consultarPuente<VentaDelServidor>(page, 'Venta', { limite: 20 });
+        nuevas = ultimas.filter((v) => (v.id ?? '') !== '' && !idsDeAntes.has(v.id ?? ''));
+        return nuevas.some((v) => centavosDeVenta(v) === totalEsperadoCentavos);
+      },
+      {
+        message:
+          `No apareció en el servidor ninguna venta nueva por ${String(totalEsperadoCentavos)} ` +
+          'centavos después de confirmar el cobro. La pantalla se queda en blanco al cobrar ' +
+          'bien Y también se quedaría en blanco si el comando hubiera fallado en silencio, ' +
+          'así que lo que vale es esto.',
+        timeout: 45_000,
+      },
+    )
+    .toBe(true);
+
+  const conElTotal = nuevas.find((v) => centavosDeVenta(v) === totalEsperadoCentavos);
+
+  expect(
+    conElTotal,
+    `La venta nueva NO tiene el total que dijo la pantalla. Esperado ${String(totalEsperadoCentavos)} ` +
+      `centavos; en el servidor: ${nuevas.map((v) => String(centavosDeVenta(v))).join(', ')}. ` +
+      'Un peso de diferencia en una venta es un peso que falta en el corte.',
+  ).toBeDefined();
+
+  // Y tiene FOLIO. Una venta cobrada sin folio no existe para el SAT, y el folio
+  // se toma dentro de la misma transacción que el pago: si falta, lo que hay no
+  // es una venta cobrada.
+  expect(
+    conElTotal?.folio ?? '',
+    `La venta por ${String(totalEsperadoCentavos)} centavos no tiene folio. El folio se toma en ` +
+      'la misma transacción que el pago, así que una venta cobrada sin folio es una venta que ' +
+      'no se cobró del todo.',
+  ).not.toBe('');
+
+  return conElTotal!;
+}
+
+/**
+ * EL COBRO SE ACEPTÓ EN LA PANTALLA, o se dice qué contestó.
+ *
+ * Las cinco pantallas de cobro hacen lo mismo al terminar: vacían la venta y
+ * vuelven a su estado de reposo. Si el servidor rechaza, en cambio, aparece un
+ * `role="alert"` con el motivo —«Abre la caja antes de cobrar», «El total
+ * cambió»— y la venta se queda entera, a propósito.
+ *
+ * Esperar por el reposo y NO mirar la alerta hacía que el fallo saliera 45
+ * segundos más tarde, en la comprobación contra el servidor, diciendo «no
+ * apareció ninguna venta» — que manda a buscar en la base lo que la pantalla ya
+ * había explicado en una línea.
+ */
+export async function exigirCobroAceptado(page: Page, señalDeReposo: RegExp): Promise<void> {
+  const reposo = page.getByText(señalDeReposo).first();
+  const queja = page.locator('[role="alert"]').filter({ hasText: /\S/ }).first();
+
+  await expect(reposo.or(queja), 'La pantalla de cobro no contestó nada al confirmar.').toBeVisible(
+    {
+      timeout: 45_000,
+    },
+  );
+
+  if ((await reposo.count()) > 0 && (await reposo.isVisible())) return;
+
+  const motivo = (await queja.innerText()).trim();
+  throw new Error(
+    `El servidor RECHAZÓ el cobro y la pantalla lo dijo: «${motivo}». La venta sigue completa ` +
+      'en la pantalla, que es lo correcto — pero no se cobró nada.',
+  );
+}
+
+/** Un movimiento del ledger de inventario, como lo sirve el puente. */
+export interface MovimientoDelServidor {
+  readonly id?: string;
+  readonly tipo_movimiento?: string;
+  readonly cantidad?: number;
+  readonly referencia_id?: string;
+  readonly ingrediente_nombre?: string;
+}
+
+/**
+ * EL INVENTARIO SE MOVIÓ POR ESTA VENTA.
+ *
+ * ── Por qué por `referencia_id` y no comparando existencias ────────────────
+ * Comparar «la existencia de X antes y después» parece más directo y es peor: la
+ * existencia de un producto vive en su INSUMO —`insumos.producto_id` apunta al
+ * producto, no al revés— y el puente no expone ese enlace, así que habría que
+ * emparejar por NOMBRE. Un emparejamiento por nombre pasa a verde el día que la
+ * semilla cambie «Aceite de maíz 1 L» por «Aceite de maíz», sin que nada esté
+ * roto, y falla el día que dos insumos se llamen parecido.
+ *
+ * `movimientos_stock.referencia_id` ES el identificador de la venta que lo
+ * causó. Que exista un movimiento con la venta recién cobrada dentro es la
+ * afirmación exacta: el cobro escribió el ledger, en la misma transacción.
+ *
+ * D-01 con dinero: «una tienda sin inventario no es una tienda, es una
+ * calculadora». Esto es lo que lo comprueba.
+ */
+export async function exigirInventarioMovido(
+  page: Page,
+  ventaId: string,
+  queSeVendio: string,
+): Promise<readonly MovimientoDelServidor[]> {
+  let delaVenta: readonly MovimientoDelServidor[] = [];
+  await expect
+    .poll(
+      async () => {
+        const movimientos = await consultarPuente<MovimientoDelServidor>(
+          page,
+          'MovimientoInventario',
+          { limite: 30 },
+        );
+        delaVenta = movimientos.filter((m) => m.referencia_id === ventaId);
+        return delaVenta.length;
+      },
+      {
+        message:
+          `Se cobró «${queSeVendio}» y el ledger de inventario no registró NADA con la venta ` +
+          `${ventaId} dentro. El dinero entró y la existencia no bajó: eso es vender aire, y ` +
+          'al contar el inventario a fin de mes sobra mercancía que ya no está.',
+        timeout: 15_000,
+      },
+    )
+    .toBeGreaterThan(0);
+
+  // Y es una SALIDA. Un movimiento de entrada con la venta dentro sería peor que
+  // ninguno: sumaría existencia al vender.
+  for (const movimiento of delaVenta) {
+    expect(
+      movimiento.cantidad ?? 0,
+      `El movimiento de «${movimiento.ingrediente_nombre ?? 'sin nombre'}» por la venta ` +
+        `${ventaId} tiene cantidad ${String(movimiento.cantidad)}. Al vender, la existencia BAJA.`,
+    ).toBeLessThan(0);
+  }
+
+  return delaVenta;
+}
+
+/**
+ * ABRE LA CAJA DE ESTA TERMINAL, si no está ya abierta.
+ *
+ * ── Por qué hace falta, si las cinco demos tienen una caja abierta ─────────
+ * Porque una sesión de caja pertenece a UNA TERMINAL, y la terminal nace cuando
+ * un navegador nuevo entra por primera vez: la caja que la semilla dejó abierta
+ * es de otra terminal, no de ésta. `venta.cobrar` exige la de la suya
+ * —`sesionAbiertaDeTerminal`— y con razón: el arqueo del cajón que tienes
+ * delante no se cuadra con los movimientos del de al lado.
+ *
+ * Así que la prueba hace lo que hace un cajero al empezar su turno: abre su caja
+ * con su fondo. Y de paso queda probada la pantalla que lo hace, que es la que
+ * sostiene el muro de «una venta sin caja no pertenece a ningún corte».
+ *
+ * Es idempotente: si ya está abierta, no toca nada. Así una segunda corrida
+ * sobre el mismo navegador no abre dos.
+ */
+export async function abrirLaCajaSiHaceFalta(
+  page: Page,
+  rutaDeCaja: string,
+  fondoEnPesos = '500',
+): Promise<void> {
+  await abrirPantalla(page, rutaDeCaja);
+
+  const botonAbrir = page.getByRole('button', { name: 'Abrir caja' });
+  const yaAbierta = page.getByRole('heading', { name: 'Lo que debería haber' });
+
+  /**
+   * Se ESPERA a que la pantalla decida, y después se mira.
+   *
+   * `abrirPantalla` espera el HTML; el estado de la caja llega después, en una
+   * petición del cliente. Preguntar `count()` antes de eso devolvía 0 —el
+   * formulario aún no existía—, esto se daba por «ya está abierta» y la venta
+   * moría 120 segundos más tarde buscando un campo de búsqueda detrás del muro
+   * de «La caja está cerrada». El rastro decía «locator.fill agotó el tiempo»,
+   * que manda a mirar el campo, que estaba bien.
+   */
+  await expect(
+    botonAbrir.or(yaAbierta).first(),
+    'La pantalla de caja no enseñó ni el formulario de apertura ni el arqueo. Sin una de las ' +
+      'dos cosas no se puede saber si la caja de esta terminal está abierta.',
+  ).toBeVisible();
+
+  if ((await yaAbierta.count()) > 0) return;
+
+  // El fondo va por montones porque «$1,500» no dice si se puede dar cambio.
+  // Basta el de monedas: lo que se prueba es que la caja abre, no el arqueo.
+  await page.locator('#fondo-monedas').fill(fondoEnPesos);
+  await botonAbrir.click();
+
+  await expect(
+    botonAbrir,
+    'Se pulsó «Abrir caja» y el formulario de apertura sigue ahí. Sin caja abierta para ESTA ' +
+      'terminal, `venta.cobrar` contesta «Abre la caja antes de cobrar» y no hay venta que ' +
+      'comprobar.',
+  ).toHaveCount(0);
 }

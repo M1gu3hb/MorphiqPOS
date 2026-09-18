@@ -83,6 +83,12 @@ export interface ProductoDeMostrador {
   readonly existencia?: number | null;
 }
 
+/** Lo que `caja.estado` contesta, y lo único que esta pantalla necesita de él. */
+interface EstadoDeLaCaja {
+  readonly abierta: boolean;
+  readonly sesionCajaId: string | null;
+}
+
 export interface CajaDelDia {
   readonly id: string;
   readonly estado: string | null;
@@ -193,17 +199,48 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
     // de paso cancela la lectura en vuelo.
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
+    /**
+     * LA CAJA SE PREGUNTA A `/api/caja/estado`, NO AL PUENTE.
+     *
+     * ── El defecto que esto arregla ──────────────────────────────────────
+     * Esto leía `CorteCaja` —`sesiones_caja`— y se quedaba con la primera fila
+     * en estado «abierto» DE TODO EL NEGOCIO. Y una sesión de caja pertenece a
+     * UNA terminal: `venta.cobrar` exige la de ESTA terminal
+     * (`sesionAbiertaDeTerminal`), porque el arqueo del cajón que tienes
+     * delante no se puede cuadrar con los movimientos del cajón de al lado.
+     *
+     * El resultado era el peor desacuerdo posible: la pantalla decía «caja
+     * abierta» —había una, en otra terminal— dejaba armar la venta entera, y al
+     * pulsar CONFIRMAR el servidor contestaba «Abre la caja antes de cobrar».
+     * Con la caja de la otra caja abierta en la pantalla.
+     *
+     * `/api/caja/estado` es lo que usan las otras cuatro pantallas de caja del
+     * sistema —`abarrotes/Caja`, `Cortes`, `cafeteria/Turno`, `restaurante/Caja`,
+     * `estetica-salon/CajaYCorte`— y resuelve la terminal del ÁMBITO de la
+     * sesión. Ésta era la única que preguntaba por otro camino.
+     */
     Promise.all([
       consultarPuente<ProductoDeMostrador>('ProductoTerminado', {
         limite: 2000,
         signal: control.signal,
       }),
-      consultarPuente<CajaDelDia>('CorteCaja', { limite: 1, signal: control.signal }),
+      invocarComando<EstadoDeLaCaja>('/api/caja/estado', {}, { signal: control.signal }),
     ])
-      .then(([filas, cajas]) => {
+      .then(([filas, estado]) => {
         if (!sigueMontada()) return;
         setProductos(filas);
-        setCaja(cajas.find((fila) => fila.estado === 'abierto') ?? null);
+        setCaja(
+          estado.abierta
+            ? {
+                id: estado.sesionCajaId ?? '',
+                estado: 'abierto',
+                // El nombre de quien abrió no viaja en el estado y no hace falta
+                // para cobrar: es el pie de página, y se prefiere «sin nombre» a
+                // una consulta más en la pantalla que más se abre del día.
+                usuario_apertura_nombre: null,
+              }
+            : null,
+        );
       })
       .catch((fallo: unknown) => {
         if (!sigueMontada()) return;

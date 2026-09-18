@@ -47,9 +47,26 @@ const RUTA_CERRAR = '/api/caja/cerrar';
 const IMPORTE_CON_FORMA = /^\d{1,7}(?:[.,]\d{1,2})?$/;
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
+/**
+ * Lo que `caja.cerrar` devuelve, y de donde sale el ESPERADO de verdad.
+ *
+ * ── El mismo defecto que tenia el corte del mostrador ─────────────────────
+ * `esperadoCentavos` NO existe en la respuesta de `caja.estado`: lo que hay es
+ * `efectivoEsperadoCentavos`, y solo cuando se le manda lo contado —a proposito,
+ * porque contar con el numero delante no es contar—. Asi que el esperado valia
+ * `NaN` aqui y `0` en el mostrador, y el dia se cerraba diciendo «Sobran <todo
+ * lo contado>». Es el numero con el que se decide si alguien se llevo dinero.
+ *
+ * El cierre SI devuelve el arqueo entero. Se usa el suyo.
+ */
+export interface ResultadoDelCorte {
+  readonly efectivoEsperadoCentavos: string;
+  readonly efectivoContadoCentavos: string;
+  readonly diferenciaCentavos: string;
+}
+
 export interface EstadoDelSalon {
   readonly sesionCajaId: string | null;
-  readonly esperadoCentavos: string;
   readonly cobradoCentavos: string;
   readonly liquidacionesCentavos: string;
   readonly propinasEntregadasCentavos: string;
@@ -61,7 +78,7 @@ export interface CajaYCorteProps {
   readonly estadoInicial?: EstadoDelSalon;
 }
 
-function pesos(centavos: string): string {
+function pesos(centavos: string | number): string {
   return PESOS.format(Number(centavos) / 100);
 }
 
@@ -88,7 +105,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
   const [estado, setEstado] = useState<EstadoDelSalon | null>(estadoInicial ?? null);
   const [fondo, setFondo] = useState('');
   const [contado, setContado] = useState('');
-  const [cerrado, setCerrado] = useState(false);
+  const [corte, setCorte] = useState<ResultadoDelCorte | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -141,9 +158,9 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
     }
     setOcupado(true);
     setError(null);
-    invocarComando(RUTA_CERRAR, { efectivoContadoCentavos: centavos })
-      .then(() => {
-        setCerrado(true);
+    invocarComando<ResultadoDelCorte>(RUTA_CERRAR, { efectivoContadoCentavos: centavos })
+      .then((resultado) => {
+        setCorte(resultado);
       })
       .catch((fallo: unknown) => {
         setError(mensajeDe(fallo));
@@ -163,8 +180,9 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
   }
 
   const abierta = estado.sesionCajaId !== null;
-  const contadoCentavos = aCentavos(contado) ?? 0;
-  const esperado = Number(estado.esperadoCentavos);
+  const cerrado = corte !== null;
+  // Lo dice el CIERRE, que es quien lo calculo sumando los movimientos del dia.
+  const esperado = Number(corte?.efectivoEsperadoCentavos ?? 0);
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-6">
@@ -265,10 +283,12 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
             <section className="space-y-2 rounded-lg border p-4">
               <h2 className="font-medium">Día cerrado</h2>
               <p className="text-muted-foreground text-sm">
-                Esperado {pesos(estado.esperadoCentavos)} · contado{' '}
-                {PESOS.format(contadoCentavos / 100)}
+                Esperado {pesos(esperado)} · contado{' '}
+                {PESOS.format(Number(corte.efectivoContadoCentavos) / 100)}
               </p>
-              <p className="text-2xl font-semibold">{leerDiferencia(contadoCentavos - esperado)}</p>
+              <p className="text-2xl font-semibold">
+                {leerDiferencia(Number(corte.diferenciaCentavos))}
+              </p>
             </section>
           )}
         </>

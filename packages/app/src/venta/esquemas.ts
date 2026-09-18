@@ -102,9 +102,62 @@ export const entradaCobrarOrden = z.object({
   nombrePedido: z.string().trim().min(1).max(60).optional(),
 });
 
-export const entradaAbrirCaja = z.object({
-  fondoInicialCentavos: centavosNoNegativos,
-});
+/**
+ * Abrir la caja, con el fondo POR MONTONES.
+ *
+ * ── El defecto que esto arregla ────────────────────────────────────────────
+ * Esto era sólo `fondoInicialCentavos`, y la pantalla de caja del mostrador
+ * —`abarrotes/Caja.tsx`— publica los TRES montones: monedas, billetes chicos y
+ * billetes grandes. Ninguno encajaba, así que `caja.abrir` rechazaba cada
+ * apertura con «Hay datos incompletos o mal escritos» y **la caja de una tienda
+ * no se podía abrir desde su pantalla**. Las cinco demostraciones tienen caja
+ * abierta porque la siembra la escribe en la tabla, no porque alguien la abriera.
+ *
+ * Y el desglose no es adorno: «$1,500» no dice si se puede dar cambio; cuánto hay
+ * en monedas, sí. Las tres columnas existen en `sesiones_caja` desde la 003 y
+ * hasta hoy sólo las escribía la siembra.
+ *
+ * Se aceptan las dos formas —el total, o el desglose— porque hay dos pantallas
+ * que abren caja y no mandan lo mismo. Cuando viene el desglose, el total es su
+ * suma: dos números que tienen que cuadrar no se piden dos veces.
+ */
+export const entradaAbrirCaja = z
+  .object({
+    fondoInicialCentavos: centavosNoNegativos.optional(),
+    fondoMonedasCentavos: centavosNoNegativos.optional(),
+    fondoChicosCentavos: centavosNoNegativos.optional(),
+    fondoGrandesCentavos: centavosNoNegativos.optional(),
+  })
+  .refine(
+    (v) =>
+      v.fondoInicialCentavos !== undefined ||
+      v.fondoMonedasCentavos !== undefined ||
+      v.fondoChicosCentavos !== undefined ||
+      v.fondoGrandesCentavos !== undefined,
+    {
+      message:
+        'Di con cuánto abres: el total en `fondoInicialCentavos`, o el desglose por montones. ' +
+        'Una caja sin fondo declarado no se puede arquear al cerrar.',
+    },
+  )
+  .transform((v) => {
+    const desglose =
+      v.fondoMonedasCentavos !== undefined ||
+      v.fondoChicosCentavos !== undefined ||
+      v.fondoGrandesCentavos !== undefined;
+    const monedas = v.fondoMonedasCentavos ?? 0;
+    const chicos = v.fondoChicosCentavos ?? 0;
+    const grandes = v.fondoGrandesCentavos ?? 0;
+    return {
+      // Con desglose, el total es la suma. Sin desglose, el total va entero al
+      // montón de monedas: es lo único honesto que se puede decir de un fondo
+      // del que nadie declaró la forma, y deja el arqueo cuadrando igual.
+      fondoInicialCentavos: desglose ? monedas + chicos + grandes : (v.fondoInicialCentavos ?? 0),
+      fondoMonedasCentavos: desglose ? monedas : (v.fondoInicialCentavos ?? 0),
+      fondoChicosCentavos: chicos,
+      fondoGrandesCentavos: grandes,
+    };
+  });
 
 export const entradaMovimientoCaja = z.object({
   tipo: z.enum(['gasto', 'retiro', 'deposito', 'ajuste']),

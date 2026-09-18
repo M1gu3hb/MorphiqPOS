@@ -46,7 +46,6 @@ export async function sembrarArranque(
   organizacionId: string,
   sucursalId: string,
   semilla: SemillaDemo,
-  empleoQueAbre: string,
 ): Promise<ResumenArranque> {
   const proveedor = await tx
     .insertInto('proveedores')
@@ -64,25 +63,36 @@ export async function sembrarArranque(
 
   const terminal = await asegurarTerminal(tx, organizacionId, sucursalId);
 
-  await tx
-    .insertInto('sesiones_caja')
-    .values({
-      organizacion_id: organizacionId,
-      sucursal_id: sucursalId,
-      terminal_id: terminal.id,
-      empleado_abre_id: empleoQueAbre,
-      estado: 'abierta',
-      fondo_inicial_centavos: semilla.fondoCajaCentavos,
-      fondo_esperado_centavos: semilla.fondoCajaCentavos,
-      fondo_monedas_centavos: semilla.fondoMonedasCentavos,
-      fondo_chicos_centavos: semilla.fondoChicosCentavos,
-      fondo_grandes_centavos: semilla.fondoGrandesCentavos,
-      notas_apertura: 'Fondo de la demostración, sembrado con el catálogo.',
-    })
-    .execute();
+  /**
+   * LA CAJA SE DEJA CERRADA, Y ES UN ARREGLO, NO UN OLVIDO.
+   *
+   * Esto abría una sesión de caja con su fondo sembrado, y sonaba bien: la demo
+   * lista para cobrar. Hacía lo contrario. Dos cosas de la base se juntan:
+   *
+   * 1 · `sesiones_caja_una_abierta_por_sucursal` permite UNA sesión abierta por
+   *     sucursal. No una por terminal: una por sucursal.
+   * 2 · `venta.cobrar` exige la sesión de LA TERMINAL que cobra
+   *     (`sesionAbiertaDeTerminal`), y una terminal nace cuando un navegador
+   *     entra por primera vez.
+   *
+   * Así que la sesión sembrada quedaba en una terminal que nadie vuelve a usar,
+   * y desde cualquier navegador nuevo —el de Miguel en la demostración, el de la
+   * suite— pasaba esto: cobrar responde «Abre la caja antes de cobrar» porque la
+   * abierta no es de esta terminal, y abrirla revienta contra el índice único
+   * porque la sucursal ya tiene una. **La demo no podía cobrar, y no había forma
+   * de arreglarlo desde la aplicación**: cerrar la ajena también exige ser su
+   * terminal.
+   *
+   * Dejándola cerrada, el primer cajero que entra la abre con su fondo —que es
+   * lo que pasa de verdad al empezar el turno— y de ahí en adelante todo
+   * funciona. El fondo de la semilla sigue en `datos.ts` como la cantidad que se
+   * teclea, y `ACCESOS-DEMO.md` lo dice.
+   */
 
   return {
     proveedor: proveedor.nombre,
+    // El fondo que el primer cajero va a teclear al abrir su caja. La semilla ya
+    // no la abre: ver arriba.
     fondoCentavos: String(semilla.fondoCajaCentavos),
     terminal: terminal.nombre,
   };
