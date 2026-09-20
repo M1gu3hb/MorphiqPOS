@@ -87,7 +87,12 @@ export const capturarFormula = definirComando<
     // REPETIR de la visita siguiente. Una cita sin ficha —alguien que llegó sin
     // cita previa— no tiene dónde guardarla, y decirlo es mejor que escribir una
     // fórmula que nadie va a volver a encontrar.
-    if (cita.cliente_id === null) {
+    // En una CONSTANTE y no leyendo la propiedad: TypeScript no conserva el
+    // estrechamiento de una propiedad dentro de una función que se ejecuta después
+    // —el `ctx.paso` de abajo es una— y con la propiedad haría falta un `??` que
+    // sería una rama muerta.
+    const clienteId = cita.cliente_id;
+    if (clienteId === null) {
       throw new ErrorDominio(
         'CONFIGURACION_INVALIDA',
         'Esa cita no tiene clienta con ficha: la fórmula se guarda en su expediente.',
@@ -121,7 +126,7 @@ export const capturarFormula = definirComando<
         .insertInto('formulas_aplicadas')
         .values({
           organizacion_id: organizacionId,
-          cliente_id: cita.cliente_id ?? '',
+          cliente_id: clienteId,
           cita_servicio_id: servicio?.id ?? null,
           servicio_id: servicio?.servicio_id ?? null,
           // Quien la mezcló. `profesional_id` del servicio si lo hay; si no, nulo:
@@ -149,13 +154,13 @@ export const capturarFormula = definirComando<
       entidadId: fila.id,
       payload: {
         citaId: entrada.citaId,
-        clienteId: cita.cliente_id,
+        clienteId,
         citaServicioId: servicio?.id ?? null,
         componentes: entrada.componentes.length,
         sobrante,
       },
     });
 
-    return { formulaId: fila.id, clienteId: cita.cliente_id ?? '', sobrante };
+    return { formulaId: fila.id, clienteId, sobrante };
   },
 });
