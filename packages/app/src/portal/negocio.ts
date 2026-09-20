@@ -23,6 +23,7 @@ import type { BanderasPortal } from './banderas.ts';
 
 export interface ContextoDelNegocio {
   readonly paquete: string;
+  readonly giro: string;
   readonly valores: unknown;
 }
 
@@ -34,12 +35,16 @@ export async function leerContextoDelNegocio(
   const fila = await base
     .selectFrom('organizaciones as o')
     .leftJoin('configuracion as c', 'c.organizacion_id', 'o.id')
-    .select(['o.paquete as paquete', 'c.valores as valores'])
+    // El giro viaja con el paquete porque sin él no se puede normalizar el
+    // valor guardado a una plantilla mientras la 058 no esté aplicada.
+    .select(['o.paquete as paquete', 'o.giro as giro', 'c.valores as valores'])
     .where('o.id', '=', organizacionId)
     .where('o.activa', '=', true)
     .executeTakeFirst();
 
-  return fila === undefined ? null : { paquete: fila.paquete, valores: fila.valores };
+  return fila === undefined
+    ? null
+    : { paquete: fila.paquete, giro: fila.giro, valores: fila.valores };
 }
 
 /**

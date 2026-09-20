@@ -49,13 +49,53 @@ function comprobar(condicion, mensaje) {
   if (!condicion) fallos.push(mensaje);
 }
 
-// 1 · Las fuentes existen y estan completas
-for (const fuente of FUENTES) {
-  const marcador = join(RAIZ, fuente.ruta, fuente.marcador);
-  comprobar(
-    existsSync(marcador),
-    `${fuente.que}: falta ${fuente.ruta}/${fuente.marcador}. ` +
-      `Repuéblala siguiendo historico/README.md`,
+/**
+ * Esta copia del repositorio TIENE el archivo, o no.
+ *
+ * ── Por que hay que preguntarlo ────────────────────────────────────────────
+ * El contrato de arriba dice que historico/ **no se versiona**, y eso es
+ * deliberado: son 80 MB de evidencia de la plataforma erradicada, no codigo. Pero
+ * el paso 1 exigia que las tres fuentes EXISTIERAN, y las dos cosas juntas no se
+ * pueden cumplir en una copia recien clonada.
+ *
+ * El CI clona en limpio. Asi que este check **no podia pasar nunca en CI**, y no
+ * pasaba: fue el que mato el job «Formato · lint · tipos · pruebas · build» del
+ * PR #1, a los 43 segundos, con tres fallos por tres archivos que por contrato no
+ * estan en el repositorio.
+ *
+ * Lo que se arregla NO es relajar el check: es ponerlo donde vive su sujeto. Que
+ * las fuentes esten COMPLETAS es una propiedad de la maquina que las archiva —la
+ * de Miguel—; que el repositorio las IGNORE, no las trate como workspace, las
+ * excluya de tipos y de lint y no las importe es una propiedad del repositorio, y
+ * eso se comprueba en cualquier copia. Los pasos 2 a 7 siguen corriendo siempre.
+ *
+ * Y no se calla: si el archivo no esta, se dice cuales checks no se corrieron.
+ */
+function elArchivoEstaAqui() {
+  if (!existsSync(HISTORICO)) return false;
+  // Poblada = tiene algo mas que su README, que si se versiona.
+  return readdirSync(HISTORICO).some((entrada) => entrada !== 'README.md');
+}
+
+const CON_ARCHIVO = elArchivoEstaAqui();
+
+// 1 · Las fuentes estan completas — SOLO donde el archivo esta.
+if (CON_ARCHIVO) {
+  for (const fuente of FUENTES) {
+    const marcador = join(RAIZ, fuente.ruta, fuente.marcador);
+    comprobar(
+      existsSync(marcador),
+      `${fuente.que}: falta ${fuente.ruta}/${fuente.marcador}. ` +
+        `Repuéblala siguiendo historico/README.md`,
+    );
+  }
+} else {
+  avisos.push(
+    'historico/ no esta poblada en esta copia, asi que NO se comprobo que las tres ' +
+      'fuentes esten completas. Es lo normal en una copia clonada y en CI: el contrato ' +
+      'dice que historico/ no se versiona. Todo lo demas —que git la ignore, que pnpm ' +
+      'no la trate como workspace, que tipos y lint la excluyan y que nadie la importe— ' +
+      'SI se comprobo.',
   );
 }
 
@@ -166,4 +206,9 @@ if (fallos.length > 0) {
   process.exit(1);
 }
 
-console.log(`✓ historico/ cumple su contrato: ${FUENTES.length} fuentes, aisladas del monorepo.`);
+console.log(
+  CON_ARCHIVO
+    ? `✓ historico/ cumple su contrato: ${FUENTES.length} fuentes, aisladas del monorepo.`
+    : '✓ historico/ cumple su contrato de AISLAMIENTO. El archivo no está en esta copia, ' +
+        'así que no se comprobó que esté completo (ver el pendiente de arriba).',
+);

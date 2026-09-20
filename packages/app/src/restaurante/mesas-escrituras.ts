@@ -6,6 +6,7 @@ import type { z } from 'zod';
 
 import { esViolacionDeUnicidad } from './datos.ts';
 import type { entradaAbrirMesa } from './esquemas.ts';
+import { sellarTransicionDeMesa } from './sala-escrituras.ts';
 
 /**
  * Las escrituras de `abrir_mesa` y `liberar_mesa`.
@@ -71,15 +72,18 @@ export async function crearOrdenDeMesa(tx: Transaccion, datos: DatosDeApertura):
 
 interface DatosDeAtadura {
   readonly organizacionId: string;
+  readonly sucursalId: string;
   readonly mesaId: string;
   readonly ordenId: string;
   readonly empleoId: string;
+  readonly estadoAnterior: string;
   readonly tomarLaAtencion: boolean;
+  readonly ahora: Date;
   readonly entrada: z.infer<typeof entradaAbrirMesa>;
 }
 
 export async function atarMesaAOrden(tx: Transaccion, datos: DatosDeAtadura): Promise<void> {
-  const { entrada } = datos;
+  const { entrada, estadoAnterior } = datos;
   const resultado = await tx
     .updateTable('mesas')
     .set({
@@ -106,6 +110,18 @@ export async function atarMesaAOrden(tx: Transaccion, datos: DatosDeAtadura): Pr
       'Esa mesa dejó de estar libre mientras se abría. Vuelve a intentarlo.',
     );
   }
+
+  await sellarTransicionDeMesa(tx, {
+    organizacionId: datos.organizacionId,
+    sucursalId: datos.sucursalId,
+    mesaId: datos.mesaId,
+    ordenId: datos.ordenId,
+    estadoAnterior,
+    estadoNuevo: 'esperando_orden',
+    personas: entrada.personas,
+    empleadoId: datos.empleoId,
+    ahora: datos.ahora,
+  });
 }
 
 /** ¿Consumió algo esta cuenta? Una fila basta: no hace falta contarlas todas. */
@@ -119,7 +135,10 @@ export async function tieneLineas(
     .select('id')
     .where('organizacion_id', '=', organizacionId)
     .where('orden_id', '=', ordenId)
-    .limit(1)
+    // F-324 · Una cuenta cuyas líneas se anularon TODAS no tiene nada que
+    // cobrar, así que su mesa se libera como la de una cuenta vacía. Sin este
+    // filtro la mesa quedaría fuera de servicio esperando un cobro de $0.
+    .where('anulada_en', 'is', null)
     .executeTakeFirst();
 
   return fila !== undefined;
@@ -192,10 +211,25 @@ export async function cancelarOrdenVacia(
   }
 }
 
+export interface SelloDeLiberacion {
+  readonly sucursalId: string;
+  readonly estadoAnterior: string;
+  readonly empleoId: string;
+  readonly ahora: Date;
+}
+
+/**
+ * Devuelve la mesa al servicio y SELLA la transición.
+ *
+ * El sello no es opcional a propósito. Un ledger al que se le olvida una
+ * liberación no deja un hueco: fusiona ese ciclo con el siguiente y da una
+ * ocupación del doble de larga, que es peor que no tener el dato (F-305).
+ */
 export async function limpiarMesa(
   tx: Transaccion,
   organizacionId: string,
   mesaId: string,
+  sello: SelloDeLiberacion,
 ): Promise<void> {
   await tx
     .updateTable('mesas')
@@ -203,6 +237,10 @@ export async function limpiarMesa(
       estado: 'libre',
       orden_activa_id: null,
       personas_actuales: 0,
+      // F-305 · El reloj de ocupación se para aquí. Dejarlo puesto haría que la
+      // siguiente mesa que se sentara heredara el inicio de la anterior y que
+      // la rotación saliera peor de lo que es.
+      ocupada_desde: null,
       cliente_temporal: null,
       // Datos del comensal anterior: se van con él (`Mesero.jsx:234-241`).
       notas_alergias: null,
@@ -215,6 +253,88 @@ export async function limpiarMesa(
     .where('organizacion_id', '=', organizacionId)
     .where('id', '=', mesaId)
     .execute();
+
+  await sellarTransicionDeMesa(tx, {
+    organizacionId,
+    sucursalId: sello.sucursalId,
+    mesaId,
+    ordenId: null,
+    estadoAnterior: sello.estadoAnterior,
+    estadoNuevo: 'libre',
+    empleadoId: sello.empleoId,
+    ahora: sello.ahora,
+  });
+}
+
+/**
+ * LA MESA DE UNA CUENTA COBRADA PASA A LIMPIEZA.
+ *
+ * ── El defecto que esto arregla ───────────────────────────────────────────
+ * La pantalla de cobro dice, con estas palabras: «Cobrado · cambio $X · la mesa
+ * pasa sola a limpieza». No pasaba. `venta.cobrar` no tocaba `mesas`, así que una
+ * mesa cobrada se quedaba en `cuenta_solicitada` con su orden ya `pagada`:
+ *
+ *   · el mapa de mesas enseñaba «la cuenta está pedida» sobre una cuenta pagada,
+ *   · y `restaurante.abrir_mesa` contestaba «la mesa 1 ya está abierta» para
+ *     siempre, así que **esa mesa no volvía al servicio** hasta que alguien
+ *     recordara pulsar «mesa limpia» sin ninguna señal de que hacía falta.
+ *
+ * Medido: dos corridas del recorrido de restaurante sobre la misma demostración,
+ * y la segunda no podía sentar a nadie en la mesa 1.
+ *
+ * ── Por qué a LIMPIEZA y no a LIBRE ──────────────────────────────────────
+ * Porque la mesa no está lista: hay platos encima. `limpieza` es el estado que
+ * `sala-escrituras` ya impide sentar, y volverla `libre` aquí sentaría a la
+ * siguiente pareja sobre la mesa sin recoger. El paso de limpieza a libre lo da
+ * quien limpia, con `restaurante.liberar_mesa` —el botón «mesa limpia»—, y desde
+ * una orden ya `pagada` ese comando pasa sin más: `ORDEN_YA_CERRADA` la incluye.
+ *
+ * `orden_activa_id` NO se borra: es lo que deja saber de qué cuenta viene la mesa
+ * mientras se recoge, y es lo que `liberar_mesa` lee para no cancelar nada.
+ *
+ * Devuelve la mesa que cambió, o `null` cuando la orden no era de ninguna mesa
+ * —una venta de mostrador, que es la mayoría—.
+ */
+export async function pasarMesaCobradaALimpieza(
+  tx: Transaccion,
+  organizacionId: string,
+  ordenId: string,
+  quien: { readonly empleoId: string; readonly ahora: Date },
+): Promise<{ readonly mesaId: string; readonly numero: number } | null> {
+  const mesa = await tx
+    .selectFrom('mesas')
+    .select(['id', 'numero', 'estado', 'sucursal_id as sucursalId'])
+    .where('organizacion_id', '=', organizacionId)
+    .where('orden_activa_id', '=', ordenId)
+    .executeTakeFirst();
+  if (mesa === undefined) return null;
+  // Ya está: cobrar dos veces la misma cuenta no puede pasar, pero un reintento
+  // idempotente sí, y el segundo no es un error ni una transición nueva.
+  if (mesa.estado === 'limpieza' || mesa.estado === 'libre') {
+    return { mesaId: mesa.id, numero: mesa.numero };
+  }
+
+  await tx
+    .updateTable('mesas')
+    .set({ estado: 'limpieza' })
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', mesa.id)
+    .execute();
+
+  // El sello, igual que en la liberación: un ledger al que se le olvida una
+  // transición fusiona dos ciclos y da una ocupación del doble de larga (F-305).
+  await sellarTransicionDeMesa(tx, {
+    organizacionId,
+    sucursalId: mesa.sucursalId,
+    mesaId: mesa.id,
+    ordenId,
+    estadoAnterior: mesa.estado,
+    estadoNuevo: 'limpieza',
+    empleadoId: quien.empleoId,
+    ahora: quien.ahora,
+  });
+
+  return { mesaId: mesa.id, numero: mesa.numero };
 }
 
 /** El frontend manda cadenas vacías donde la base quiere `null` (F1-04 §0.1). */

@@ -187,12 +187,10 @@ describe('los interruptores del portal', () => {
   });
 
   it('ordenar desde el QR exige las cuatro condiciones', () => {
-    expect(puedeOrdenarDesdeQR('restaurante_pro', BANDERAS_ABIERTAS)).toBe(true);
+    expect(puedeOrdenarDesdeQR('restaurante', BANDERAS_ABIERTAS)).toBe(true);
     // Una ferretería no tiene mesas ni cocina.
     expect(puedeOrdenarDesdeQR('ferreteria', BANDERAS_ABIERTAS)).toBe(false);
-    expect(puedeOrdenarDesdeQR('restaurante_pro', banderasDe({ portal_qr_activo: true }))).toBe(
-      false,
-    );
+    expect(puedeOrdenarDesdeQR('restaurante', banderasDe({ portal_qr_activo: true }))).toBe(false);
   });
 });
 
@@ -204,7 +202,7 @@ describe('un comando público no puede recibir su propio ámbito', () => {
         nombre: 'portal.probar',
         entidad: 'orden',
         accion: 'valorar',
-        paquetes: ['restaurante_pro'],
+        paquetes: ['restaurante'],
         entrada: entrada.extend({ [clave]: entradaValorar.shape.score }),
         ejecutar: () => Promise.resolve(null),
       });
@@ -222,7 +220,7 @@ describe('un comando público no puede recibir su propio ámbito', () => {
         nombre: 'valorar',
         entidad: 'orden',
         accion: 'valorar',
-        paquetes: ['restaurante_pro'],
+        paquetes: ['restaurante'],
         entrada: entradaValorar,
         ejecutar: () => Promise.resolve(null),
       }),

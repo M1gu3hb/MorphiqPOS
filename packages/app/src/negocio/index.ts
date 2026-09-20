@@ -1,1 +1,6 @@
-export { negocioDelDespliegue, type NegocioDelDespliegue } from './despliegue.ts';
+export {
+  negocioDelDespliegue,
+  negociosDelDespliegue,
+  slugsConfigurados,
+  type NegocioDelDespliegue,
+} from './despliegue.ts';

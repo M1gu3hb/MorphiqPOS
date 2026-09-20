@@ -158,7 +158,7 @@ export function correrArnes(config) {
     );
   }
 
-  // ── Fase 3 · inocuas ──────────────────────────────────────────────────────
+  // ── Fase 2.3 · inocuas ──────────────────────────────────────────────────────
   for (const mutacion of inocuas) {
     const resultado = conMutacion(mutacion, () => ({ rotos: evaluar(contratos), suite: probar() }));
     if (resultado.rotos.length > 0) {

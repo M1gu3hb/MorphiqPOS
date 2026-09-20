@@ -71,6 +71,79 @@ export function manejadorDeComando<E extends ZodType, S>(
   };
 }
 
+/**
+ * El mismo adaptador, para las rutas que llevan el identificador EN LA RUTA.
+ *
+ * `05-DATOS-Y-BACKEND.md` pide el identificador EN EL CAMINO —`citas/:id/cancelar`—
+ * y no una ruta fija con el id en el cuerpo, y tiene razón: la ruta es lo que se
+ * lee en un registro de acceso, en una traza y en una alerta, y doscientas líneas
+ * idénticas al día no dicen nada. Con el id dentro, cada línea señala a una cita.
+ *
+ * (Las rutas de este párrafo van sin barra inicial a propósito: el verificador de
+ * acople busca literales `/api/…` en todo el frontend para cazar pantallas que
+ * publican en rutas que no existen, y un ejemplo dentro de un comentario le
+ * hacía declarar como pendiente una ruta que nadie llama.)
+ *
+ * Lo que NO cambia es quién valida: el identificador de la ruta se mete en el
+ * cuerpo ANTES de entregarlo, y de ahí en adelante pasa por el mismo `zod` que
+ * todo lo demás. Un `params` que se colara sin validar sería la única entrada
+ * del sistema que nadie mira.
+ *
+ * Y si el cuerpo ya trae ese campo, MANDA la ruta. Dos fuentes para el mismo
+ * dato es cómo se cancela la cita equivocada: lo que el operador ve en la barra
+ * de direcciones es lo que tiene que pasar.
+ */
+export function manejadorDeComandoConParametro<E extends ZodType, S>(
+  definicion: DefinicionServible<E, S>,
+  campo: string,
+  /**
+   * EL NOMBRE DEL SEGMENTO DE LA RUTA, que no es el del campo del comando.
+   *
+   * ── El defecto que este parámetro arregla ─────────────────────────────────
+   * Aquí se leía `parametros[campo]`, o sea el nombre del campo del COMANDO
+   * —`citaId`, `clienteId`, `cotizacionId`—, y las carpetas se llaman `[id]`.
+   * Así que el valor era siempre `undefined`, el comando recibía el campo vacío
+   * y zod contestaba «Hay datos incompletos o mal escritos».
+   *
+   * **Las veintiuna rutas con parámetro del sistema estaban así**, todas menos
+   * `compras/sugerencia/[proveedorId]`, que por casualidad nombra la carpeta
+   * igual que el campo: iniciar una cita, cancelarla, reprogramarla, marcar que
+   * no llegó, cerrar su servicio, guardar su foto, editar un cliente, abrir su
+   * expediente, convertir una cotización, agendar desde la lista de espera,
+   * abrir un producto de cabina, los comprobantes… todas. Medido el 19-09-2026
+   * tocando una cita en la agenda del día.
+   *
+   * Por omisión `id`, que es como se llaman veinte de las veintiuna. Y se deja
+   * el nombre del campo como respaldo para que la que ya coincidía siga sirviendo
+   * sin tocarla.
+   */
+  segmento = 'id',
+): (peticion: Request, contexto: { params: Promise<Record<string, string>> }) => Promise<Response> {
+  const manejar = manejadorDeComando(definicion);
+  return async function POST(
+    peticion: Request,
+    contexto: { params: Promise<Record<string, string>> },
+  ): Promise<Response> {
+    const parametros = await contexto.params;
+    const valor = parametros[segmento] ?? parametros[campo];
+    const cuerpo: unknown = await peticion.json().catch(() => ({}));
+    const fusionado =
+      typeof cuerpo === 'object' && cuerpo !== null
+        ? { ...(cuerpo as Record<string, unknown>), [campo]: valor }
+        : { [campo]: valor };
+
+    // Se reconstruye la petición en vez de mutarla: `Request` es de un solo
+    // uso —su cuerpo ya se consumió arriba— y reenviar la original haría que
+    // el adaptador leyera un flujo vacío.
+    const copia = new Request(peticion.url, {
+      method: peticion.method,
+      headers: peticion.headers,
+      body: JSON.stringify(fusionado),
+    });
+    return manejar(copia);
+  };
+}
+
 function adaptar(peticion: Request): PeticionHttp {
   return {
     method: peticion.method,

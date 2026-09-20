@@ -22,7 +22,7 @@ const CONFIGURACION_ENTERA = {
   background_logo_url: 'https://ejemplo.mx/marca.png',
   // Lo que hoy se fuga, y que esta prueba existe para impedir.
   presentacion_password: '2797',
-  paquete_modo: 'restaurante_pro',
+  paquete_modo: 'restaurante',
   mostrar_costos_a_caja: true,
   modo_presentacion_activo: true,
   google_sheets_spreadsheet_id: '1AbCdEfGhIjK',
@@ -123,7 +123,7 @@ describe('D-14 · la respuesta pública se construye eligiendo, no quitando', ()
 
   it('sustituye `paquete_modo` por un booleano derivado', () => {
     expect(negocio.puede_ordenar).toBe(true);
-    expect(JSON.stringify(negocio)).not.toContain('restaurante_pro');
+    expect(JSON.stringify(negocio)).not.toContain('restaurante');
   });
 
   it('no publica si la cocina usa estaciones: es operación interna', () => {

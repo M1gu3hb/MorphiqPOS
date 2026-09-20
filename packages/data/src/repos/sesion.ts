@@ -25,6 +25,14 @@ export interface AmbitoResuelto {
   readonly nombrePersona: string;
   /** Paquete contratado. Decide qué comandos existen para este negocio (A-42). */
   readonly paquete: string;
+  /**
+   * El giro del negocio. Viaja con el paquete porque sin él no se puede
+   * NORMALIZAR: mientras la 058 no esté aplicada la columna guarda
+   * `esencial|operativo|restaurante_pro`, y traducir `operativo` a una
+   * plantilla exige saber si el negocio es de alimentos o de mostrador.
+   * Ya está en el join, así que no cuesta una consulta más.
+   */
+  readonly giro: string;
   readonly nombreNegocio: string;
   readonly nombreSucursal: string | null;
 }
@@ -142,6 +150,7 @@ export async function resolverAmbito(
       'empleos.rol as rol',
       'personas.nombre as nombrePersona',
       'organizaciones.paquete as paquete',
+      'organizaciones.giro as giro',
       'organizaciones.nombre as nombreNegocio',
       'sucursales.nombre as nombreSucursal',
     ])

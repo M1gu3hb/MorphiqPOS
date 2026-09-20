@@ -31,7 +31,11 @@ const MIME_POR_EXTENSION: Readonly<Record<string, string>> = {
   png: 'image/png',
   webp: 'image/webp',
   avif: 'image/avif',
+  csv: 'text/csv; charset=utf-8',
 };
+
+/** Lo que NO se pinta en el navegador: se baja. Un CSV es un archivo, no una página. */
+const SE_DESCARGA = new Set(['csv']);
 
 export async function responderArchivo(clave: string, cacheControl: string): Promise<Response> {
   const archivo = await almacenArchivos().obtener(clave);
@@ -41,11 +45,14 @@ export async function responderArchivo(clave: string, cacheControl: string): Pro
   if (mime === undefined || archivo.contentType !== mime)
     return new Response(null, { status: 404 });
   const nombre = clave.slice(clave.lastIndexOf('/') + 1);
+  // `attachment` para los datos: un CSV abierto dentro de la pestaña no se puede
+  // mandar al contador, y con `inline` es lo que hace el navegador.
+  const disposicion = SE_DESCARGA.has(extension) ? 'attachment' : 'inline';
   return new Response(Buffer.from(archivo.bytes), {
     headers: {
       'content-type': mime,
       'content-length': String(archivo.bytes.byteLength),
-      'content-disposition': `inline; filename="${nombre}"`,
+      'content-disposition': `${disposicion}; filename="${nombre}"`,
       'x-content-type-options': 'nosniff',
       'cache-control': cacheControl,
     },

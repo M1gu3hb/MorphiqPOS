@@ -151,6 +151,7 @@ export function armarBanco(paquete: Paquete, respuestas: readonly (readonly unkn
 function repositorioSobre(memoria: RepositorioComandos<unknown>): RepositorioComandos<Transaccion> {
   return {
     leerPaquete: (tx, organizacionId) => memoria.leerPaquete(tx, organizacionId),
+    leerModulosActivos: (tx, organizacionId) => memoria.leerModulosActivos(tx, organizacionId),
     reclamarClave: (tx, datos) => memoria.reclamarClave(tx, datos),
     leerEjecucion: (tx, organizacionId, comando, clave) =>
       memoria.leerEjecucion(tx, organizacionId, comando, clave),

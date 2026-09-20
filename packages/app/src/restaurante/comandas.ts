@@ -25,6 +25,17 @@ interface DatosDeComandas {
   readonly orden: OrdenDeMesa;
   readonly notas: string | null;
   readonly comandas: readonly ComandaConGrupo[];
+  /** F-315 · Cuándo se soltó a cocina. Es el instante del que cuelga el reloj. */
+  readonly marchadaEn: Date;
+  /**
+   * F-328 · Cuándo se cobró, y sólo cuando la comanda NACE del cobro.
+   *
+   * En mostrador el cliente empieza a esperar al pagar, no cuando el sistema
+   * decide encolarlo. En mesa no aplica: allí el pedido sale a cocina mucho
+   * antes de que nadie pague, y poner aquí la hora del cobro daría una espera
+   * de barra de dos horas para una cuenta que estuvo comiendo.
+   */
+  readonly cobradoEn?: Date;
 }
 
 export async function insertarComandas(tx: Transaccion, datos: DatosDeComandas): Promise<void> {
@@ -56,6 +67,16 @@ export async function insertarComandas(tx: Transaccion, datos: DatosDeComandas):
         notas_alergias: orden.notasAlergias,
         celebracion_especial: orden.celebracionEspecial,
         tipo_celebracion: orden.tipoCelebracion,
+        // F-315 · El reloj de cocina arranca aquí. Para lo que sale inmediato
+        // es el mismo instante que la creación; para lo que se marcha después
+        // es el momento de la marcha, y ésa es toda la diferencia: un fuerte
+        // retenido cuarenta minutos saldría siempre en rojo.
+        marchada_en: datos.marchadaEn,
+        cobrado_en: datos.cobradoEn ?? null,
+        // La sucursal se copia de la orden: la fila de barra filtra por ella en
+        // cada refresco, y resolverla con un `join` cada segundo es el camino
+        // corto a un plan de consulta caro.
+        sucursal_id: orden.sucursalId,
       })),
     )
     .execute();
@@ -90,6 +111,10 @@ export async function insertarItems(
         nombre_porcion: esPorcion ? producto.nombrePorcion : null,
         cantidad_porciones: esPorcion ? valorada.cantidad : null,
         orden_visual: visual,
+        // F-315 · INSTANTÁNEA del menú. Leerlo del catálogo al consultar
+        // compararía el tiempo real de anoche contra el estimado que alguien
+        // cambió esta mañana.
+        minutos_estimados: producto.minutosPreparacion,
       };
     }),
   );

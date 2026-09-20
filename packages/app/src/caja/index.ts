@@ -16,3 +16,28 @@ export {
 export { corteDeTurno, entradaCorteTurno, type ResultadoCorteTurno } from './turno.ts';
 
 export { encolarSincronizacionCorte, entradaEncolarSincronizacionCorte } from './sincronizacion.ts';
+
+export {
+  PULSO_CAJON,
+  abrirCajon,
+  cajasAbiertas,
+  entradaAbrirCajon,
+  entradaCajasAbiertas,
+  type CajaAbierta,
+  type ResultadoCajas,
+  type ResultadoCajon,
+} from './multiples.ts';
+
+export {
+  documentoDeCorte,
+  entradaDocumentoDeCorte,
+  type DocumentoDeCorte,
+  type MovimientoDelCorte,
+  type RenglonDeCorte,
+} from './documento.ts';
+
+export {
+  entradaDeCambio,
+  registrarEntradaDeCambio,
+  type ResultadoEntradaCambio,
+} from './entrada-cambio.ts';

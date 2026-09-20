@@ -11,6 +11,7 @@ export { hashearDispositivo, VIGENCIA_DISPOSITIVO_SEGUNDOS } from './dispositivo
 export {
   empleadosParaEntrar,
   entrarConPin,
+  organizacionDeQuienEntra,
   type PeticionEntrar,
   type ResultadoEntrar,
 } from './entrar.ts';

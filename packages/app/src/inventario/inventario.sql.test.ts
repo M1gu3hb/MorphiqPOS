@@ -106,8 +106,12 @@ describe('B-11 · SQL de movimientos de inventario', () => {
   });
 
   it('el ajuste suma el delta con guarda y registra un movimiento', async () => {
+    // La primera respuesta es la del MOTIVO: el comando lo comprueba contra
+    // `motivos_merma` antes de tocar la existencia, porque un motivo que no está
+    // dado de alta reventaría la foránea y abortaría el ajuste entero.
     const { ctx, conexion } = contexto([
       [{ unidad_base: 'pieza', costo_unitario_centavos: 500n }],
+      [{ clave: 'ajuste_conteo' }],
       [],
       [{ cantidad: '6.0000' }],
       [],
@@ -118,12 +122,16 @@ describe('B-11 · SQL de movimientos de inventario', () => {
         almacenId: crypto.randomUUID(),
         insumoId: crypto.randomUUID(),
         cantidad: '-2',
-        motivo: 'Conteo físico',
+        // LA CLAVE, no una frase: `Conteo físico` no está en `motivos_merma`.
+        motivo: 'ajuste_conteo',
+        nota: 'Conteo físico del martes',
       }),
     );
-    expect(conexion.consultas[2]?.sql).toMatch(/cantidad\s*\+\s*\$\d+\s*>=\s*0/i);
-    expect(conexion.consultas[3]?.parameters).toContain('ajuste');
-    expect(conexion.consultas[3]?.parameters).toContain('-2');
+    expect(conexion.consultas[3]?.sql).toMatch(/cantidad\s*\+\s*\$\d+\s*>=\s*0/i);
+    expect(conexion.consultas[4]?.parameters).toContain('ajuste');
+    expect(conexion.consultas[4]?.parameters).toContain('-2');
+    // Y la nota viaja en su propia columna.
+    expect(conexion.consultas[4]?.parameters).toContain('Conteo físico del martes');
   });
 });
 

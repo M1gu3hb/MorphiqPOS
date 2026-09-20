@@ -1,3 +1,4 @@
+import { PAQUETES } from '@morphiqpos/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { contextoCatalogo } from './pruebas.ts';
@@ -175,9 +176,12 @@ describe('B-04 · comandos de producto', () => {
     expect(operaciones.every((operacion) => operacion.valores !== undefined)).toBe(true);
   });
 
-  it('declara escritura, roles administrativos y los tres paquetes', () => {
+  it('declara escritura, roles administrativos y las CINCO plantillas', () => {
     expect(crearProducto.escribe).toBe(true);
     expect(crearProducto.roles).toEqual(['dueno', 'administrador', 'gerente']);
-    expect(crearProducto.paquetes).toEqual(['esencial', 'operativo', 'restaurante_pro']);
+    // Las cinco: un producto se da de alta en cualquier negocio. La lista se
+    // compara con PAQUETES y no se teclea, para que añadir una plantilla no
+    // deje este comando fuera de ella sin que nadie se entere.
+    expect([...crearProducto.paquetes].sort()).toEqual([...PAQUETES].sort());
   });
 });

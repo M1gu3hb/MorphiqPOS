@@ -3,7 +3,7 @@ import {
   COLOR_PRIMARIO_DEFAULT,
   ErrorDominio,
   PAQUETES,
-  esPaquete,
+  plantillaDeOrganizacion,
   type Paquete,
 } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
@@ -95,11 +95,11 @@ export async function leerConfiguracion(
   const fila = await tx
     .selectFrom('organizaciones as o')
     .leftJoin('configuracion as c', 'c.organizacion_id', 'o.id')
-    .select(['o.nombre', 'o.paquete', 'c.version', 'c.valores'])
+    .select(['o.nombre', 'o.paquete', 'o.giro', 'c.version', 'c.valores'])
     .where('o.id', '=', organizacionId)
     .executeTakeFirst();
 
-  if (fila === undefined || !esPaquete(fila.paquete)) {
+  if (fila === undefined) {
     throw new ErrorDominio(
       'CONFIGURACION_INVALIDA',
       'La organización no tiene configuración válida.',
@@ -119,7 +119,7 @@ export async function leerConfiguracion(
     colorPrimario: guardados.apariencia?.colorPrimario ?? DEFAULTS.colorPrimario,
     colorAcento: guardados.apariencia?.colorAcento ?? DEFAULTS.colorAcento,
     estilo: guardados.apariencia?.estilo ?? DEFAULTS.estilo,
-    paquete: fila.paquete,
+    paquete: plantillaDeOrganizacion(fila.giro, fila.paquete),
     impuestoPuntosBase: guardados.impuesto?.puntosBase ?? DEFAULTS.impuestoPuntosBase,
     impuestoIncluidoEnPrecio:
       guardados.impuesto?.incluidoEnPrecio ?? DEFAULTS.impuestoIncluidoEnPrecio,

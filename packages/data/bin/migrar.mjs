@@ -33,6 +33,34 @@ config({
 });
 
 const ensayo = process.argv.includes('--ensayo');
+
+/**
+ * `--emitir <archivo>` escribe la tanda y NO la aplica.
+ *
+ * ── Por qué existe este tercer camino ──────────────────────────────────────
+ * Los dos transportes del ejecutor necesitan una credencial que esta máquina no
+ * tiene: `migrar()` pide una `DATABASE_URL` con DDL —y `morphiqpos_app` no lo
+ * tiene a propósito— y `migrarVinculado()` pide el ejecutable del CLI de
+ * Supabase. Sin uno de los dos, las 70 migraciones no se pueden aplicar, y ése
+ * es el corazón del acople.
+ *
+ * Lo que sale por aquí es EXACTAMENTE el mismo texto que aplicaría
+ * `migrarVinculado`: la misma función, `prepararTandaVinculada`, con su
+ * `begin`, sus `insert` de ledger con el hash de cada archivo, y su `commit`.
+ * El ledger se lee antes y se compara con la MISMA `comprobarIntegridad`, así
+ * que una migración editada después de aplicarse aborta aquí igual que allí.
+ *
+ * ── Lo que este camino NO da, y hay que decirlo ────────────────────────────
+ * Que emitir y aplicar ocurran en la misma conexión. Entre las dos cosas
+ * alguien podría aplicar otra migración, y este archivo no se enteraría. Se
+ * comprueba DESPUÉS releyendo el ledger contra el disco, que es justo lo que
+ * hace `verify:acople`.
+ *
+ * La atomicidad NO se pierde: el `begin`/`commit` viaja dentro del texto, así
+ * que quien lo ejecute lo ejecuta entero o no ejecuta nada.
+ */
+const indiceEmitir = process.argv.indexOf('--emitir');
+const emitir = indiceEmitir === -1 ? undefined : process.argv[indiceEmitir + 1];
 const projectRef = process.env['MORPHIQPOS_SUPABASE_PROJECT_REF'];
 const cliPath = process.env['SUPABASE_CLI_PATH'];
 
@@ -41,7 +69,9 @@ let cerrar = () => Promise.resolve();
 
 try {
   let resultado;
-  if (projectRef !== undefined && projectRef.length > 0) {
+  if (emitir !== undefined) {
+    resultado = await ejecutor.emitirTanda({ archivo: emitir, ensayo });
+  } else if (projectRef !== undefined && projectRef.length > 0) {
     console.log(`  proyecto Supabase vinculado "${projectRef}"`);
     resultado = await ejecutor.migrarVinculado({ projectRef, cliPath, ensayo });
   } else {

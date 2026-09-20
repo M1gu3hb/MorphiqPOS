@@ -48,6 +48,32 @@ export const abrirCaja = definirComando<
       });
     }
 
+    /**
+     * Y la de OTRA terminal de la misma sucursal, que la base tampoco permite.
+     *
+     * `sesiones_caja_una_abierta_por_sucursal` es un índice único parcial: una
+     * sesión abierta por sucursal, no una por terminal. Sin esta comprobación la
+     * violación del índice salía como `DatabaseError sqlstate=23505` y la
+     * pantalla decía «Algo falló de nuestro lado. Nada se guardó a medias.» — que
+     * es verdad y no sirve de nada: no dice que hay una caja abierta en la
+     * terminal de al lado, que es lo único que hay que saber para resolverlo.
+     *
+     * Y hay que decirlo con todo lo que se sabe, porque el camino de salida NO es
+     * obvio: cerrar la ajena exige ser su terminal, así que desde aquí no se
+     * puede. Por eso el mensaje nombra la terminal y la salida real.
+     */
+    const deLaSucursal = await ctx.paso('buscar_sesion_sucursal', () =>
+      repoCaja.sesionAbiertaDeSucursal(ctx.tx, organizacionId, sucursalId),
+    );
+    if (deLaSucursal !== null) {
+      throw new ErrorDominio(
+        'CAJA_YA_ABIERTA',
+        `Esta sucursal ya tiene una caja abierta, en la terminal «${deLaSucursal.terminalNombre ?? 'sin nombre'}». ` +
+          'Sólo puede haber una a la vez: haz el corte desde ESA terminal antes de abrir aquí.',
+        { sesionCajaId: deLaSucursal.id, terminalId: deLaSucursal.terminalId },
+      );
+    }
+
     const fondo = BigInt(entrada.fondoInicialCentavos);
     const sesionCajaId = await ctx.paso('abrir_sesion', () =>
       repoCaja.abrirSesion(ctx.tx, {
@@ -56,6 +82,11 @@ export const abrirCaja = definirComando<
         terminalId,
         empleadoAbreId: empleoId,
         fondoInicialCentavos: fondo,
+        // El desglose por montones, que es lo que dice si se puede dar cambio.
+        // El esquema ya garantizó que la suma es el total.
+        fondoMonedasCentavos: BigInt(entrada.fondoMonedasCentavos),
+        fondoChicosCentavos: BigInt(entrada.fondoChicosCentavos),
+        fondoGrandesCentavos: BigInt(entrada.fondoGrandesCentavos),
       }),
     );
 
@@ -177,6 +208,13 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
         serie: sesion.serie,
         empleadoCierraId: empleoId,
         efectivoContadoCentavos: contado,
+        // El bote sólo viaja cuando la pantalla lo contó. Sin él la columna se
+        // queda en NULL, que es «no se contó», y `repartir_bote` lo distingue de
+        // un cero: repartir cero cuando nadie contó sería firmar que esa noche
+        // no hubo propina.
+        ...(entrada.boteContadoCentavos === undefined
+          ? {}
+          : { boteContadoCentavos: BigInt(entrada.boteContadoCentavos) }),
         notasCierre: entrada.notas ?? null,
         ahora: ctx.ahora,
       }),

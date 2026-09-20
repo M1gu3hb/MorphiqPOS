@@ -1,5 +1,7 @@
+import { PAQUETES_OPERATIVOS, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import { describe, expect, it } from 'vitest';
 
+import { registrarCompra } from './compras.ts';
 import {
   entradaGuardarPlantillaGasto,
   entradaRegistrarGasto,
@@ -23,11 +25,46 @@ describe('gastos · declaración de los comandos', () => {
   it('nombra, autoriza y escribe igual que sus gemelos de compras', () => {
     expect(registrarGasto.nombre).toBe('gastos.registrar');
     expect(guardarPlantillaGasto.nombre).toBe('gastos.guardar_plantilla');
+
+    /**
+     * Esta prueba afirmaba `['cafeteria', 'restaurante']`, escrito a mano, y lo
+     * que quería decir era «gastos no existe en Esencial». Dejó de ser cierto
+     * con D-01, que aplica la migración 058: los tres valores de
+     * `organizaciones.paquete` ya no son niveles comerciales sino modelos de
+     * negocio —`tienda`, `cafeteria`, `restaurante`— y el nivel `esencial`, el
+     * que vendía sin controlar stock, desapareció. `PAQUETES_OPERATIVOS` pasó a
+     * ser los TRES porque `MODULOS_POR_PLANTILLA` le da a `tienda` el bloque de
+     * operación entero; dejarlo en dos habría dejado el módulo `gastos`
+     * encendido en el menú y el POST de `gastos.registrar` devolviendo 403.
+     *
+     * Lo que se afirma ahora es más fuerte que lo que se afirmaba antes:
+     *
+     * · La IDENTIDAD con la constante compartida, no la igualdad de contenido.
+     *   Es el contrato de `verify:paquetes` —ningún comando escribe la lista a
+     *   mano— comprobado desde dentro: una copia con los mismos tres elementos
+     *   pasa un `toEqual` y se queda congelada en el próximo renombre, que es
+     *   justo lo que le pasó a la línea que esto sustituye.
+     * · Que gastos declara EL MISMO conjunto que compras, que es lo que esta
+     *   prueba promete en su nombre y antes no comprobaba: se medía contra un
+     *   literal, no contra sus gemelos.
+     * · Que `tienda` está DENTRO. Es la mitad de D-01 que se puede perder sin
+     *   que nada más avise: una tienda que no puede registrar la renta ni la luz
+     *   no sabe su utilidad, y ésa era la razón de la decisión. Lo que decide si
+     *   un negocio concreto ve gastos es la perilla (F-016), no la plantilla.
+     */
     for (const comando of [registrarGasto, guardarPlantillaGasto]) {
       expect(comando.escribe).toBe(true);
-      expect(comando.paquetes).toEqual(['operativo', 'restaurante_pro']);
+      expect(comando.paquetes).toBe(PAQUETES_OPERATIVOS);
+      expect(comando.paquetes).toBe(registrarCompra.paquetes);
+      expect(comando.paquetes).toContain('tienda');
       expect(comando.roles).toEqual(['dueno', 'administrador', 'gerente']);
     }
+
+    // Que este conjunto se haya ensanchado no deja al gate sin filo: sala sigue
+    // siendo exclusiva de `restaurante`. Si alguien «arregla» un 403 abriendo
+    // los subconjuntos en vez de encender la perilla, rompe estas dos líneas.
+    expect(PAQUETES_RESTAURANTE).not.toContain('tienda');
+    expect(PAQUETES_RESTAURANTE).not.toContain('cafeteria');
   });
 });
 

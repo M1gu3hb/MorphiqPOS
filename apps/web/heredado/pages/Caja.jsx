@@ -6,6 +6,7 @@ import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { formatCurrency, formatPercent, generateFolio } from '@/utils/financialUtils';
 import { hasPermission } from '@/lib/permissions';
+import { canAccessModule } from '@/lib/packageConfig';
 import { toast } from 'sonner';
 import {
   Landmark,
@@ -122,8 +123,10 @@ export default function Caja() {
   const { config, paquete_modo } = useConfig();
   const queryClient = useQueryClient();
   const verCostos = hasPermission(posUser?.rol, 'ver_costos');
-  // En Esencial y Operativo no hay flujo de mesero/cocina ⇒ no hay cobros pendientes
-  const isCajaDirecta = paquete_modo === 'esencial' || paquete_modo === 'operativo';
+  // Sin mesas no hay flujo de mesero/cocina ⇒ no hay cobros pendientes. Se
+  // pregunta por el módulo y no por el nombre de la plantilla: enumerar nombres
+  // es lo que dejó esta pantalla creyendo que un abarrotes cobra por mesa.
+  const isCajaDirecta = !canAccessModule('mesas', paquete_modo);
   const [showTicketFinal, setShowTicketFinal] = useState(false);
   const [ticketFinalData, setTicketFinalData] = useState(null);
   const [codigoBusqueda, setCodigoBusqueda] = useState('');
@@ -241,7 +244,7 @@ export default function Caja() {
     });
     // Propinas: sumadas aparte. NO entran a totalGeneral / utilidad / costos.
     const totalPropinas = sumarPropinas(ventas);
-    // Desglose por mesero (solo se usa en Restaurante Pro)
+    // Desglose por mesero (solo se usa donde hay sala: el módulo `mesero`)
     const propinasPorMesero = agruparPropinasPorMesero(ventas);
 
     // === Desglose EXACTO por método de pago (sin reparto proporcional) ===
@@ -1140,7 +1143,7 @@ export default function Caja() {
         </div>
       )}
 
-      {/* Acción principal en Esencial/Operativo: NUEVA VENTA */}
+      {/* Acción principal sin sala —sin el módulo `mesas`—: NUEVA VENTA */}
       {isCajaDirecta && hayCaja && (
         <div className="grid sm:grid-cols-2 gap-3">
           <Link to="/pos" className="block">
@@ -1215,7 +1218,7 @@ export default function Caja() {
           </TabsTrigger>
         </TabsList>
 
-        {/* COBROS PENDIENTES (solo Restaurante Pro) */}
+        {/* COBROS PENDIENTES (solo con sala: el módulo `mesas`) */}
         {!isCajaDirecta && (
           <TabsContent value="cobros">
             {ventasPendientes.length === 0 ? (

@@ -1,12 +1,17 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
-import { calcularConsumo, type LineaParaConsumo } from '@morphiqpos/domain/inventario';
+import {
+  calcularConsumo,
+  lineasDelCanal,
+  type LineaParaConsumo,
+} from '@morphiqpos/domain/inventario';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja, repoFolios, repoOrdenes, repoStock, repoVentaCatalogo } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
 import { comandarLineasPendientes } from '../restaurante/comandar-pendientes.ts';
+import { pasarMesaCobradaALimpieza } from '../restaurante/mesas-escrituras.ts';
 import { marcarPropinaDeOrden, registrarPagoConPropina } from '../propinas/cobro.ts';
 import { entradaCobrarOrdenConPropina } from '../propinas/esquemas.ts';
 import { cotizar, exigirTotalVigente } from './cotizar.ts';
@@ -80,6 +85,27 @@ export const cobrarOrden = definirComando<
       });
     }
 
+    // 1.5 · F-331 y F-328 · El canal y el nombre del vaso se sellan ANTES de
+    //       cotizar, porque el canal decide qué insumos explota la receta: si se
+    //       escribiera después, el descuento de stock se haría con el canal
+    //       viejo y el empaque volvería a quedarse fuera del costo.
+    // `ordenes.canal` es `not null default 'aqui'` desde la 081, así que la
+    // orden siempre trae uno: lo que el cuerpo manda sólo lo cambia.
+    const canal = entrada.canal ?? orden.canal;
+    if (entrada.canal !== undefined || entrada.nombrePedido !== undefined) {
+      await ctx.paso('sellar_canal', () =>
+        ctx.tx
+          .updateTable('ordenes')
+          .set({
+            ...(entrada.canal === undefined ? {} : { canal: entrada.canal }),
+            ...(entrada.nombrePedido === undefined ? {} : { nombre_pedido: entrada.nombrePedido }),
+          })
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', '=', entrada.ordenId)
+          .execute(),
+      );
+    }
+
     // 2 · El total se recalcula DENTRO de esta transacción, sobre las líneas
     //     que se están congelando. Nunca se usa un importe del cliente (P0-07).
     const { cotizacion, totales } = await ctx.paso('cotizar', () =>
@@ -105,7 +131,13 @@ export const cobrarOrden = definirComando<
 
     // 5 · Stock ANTES del folio: si falta inventario, la reversión no deja
     //     hueco en la numeración.
-    const movimientos = await planearConsumo(ctx.tx, organizacionId, sucursalId, entrada.ordenId);
+    const movimientos = await planearConsumo(
+      ctx.tx,
+      organizacionId,
+      sucursalId,
+      entrada.ordenId,
+      canal,
+    );
     if (movimientos.length > 0) {
       await ctx.paso('descontar_stock', () =>
         repoStock.aplicarMovimientos(
@@ -221,7 +253,28 @@ export const cobrarOrden = definirComando<
     //      impreso y en cocina no había nada. Dentro de la transacción, o hay
     //      venta y comanda o no hay ninguna de las dos.
     const comandas = await ctx.paso('comandar_pendientes', () =>
-      comandarLineasPendientes(ctx.tx, organizacionId, entrada.ordenId),
+      comandarLineasPendientes(ctx.tx, organizacionId, entrada.ordenId, ctx.ahora),
+    );
+
+    /**
+     * 11 · Y LA MESA, SI ERA DE UNA MESA, PASA A LIMPIEZA.
+     *
+     * La pantalla de cobro lo dice con estas palabras —«la mesa pasa sola a
+     * limpieza»— y no pasaba: esto no tocaba `mesas`, así que una mesa cobrada se
+     * quedaba en `cuenta_solicitada` con su orden ya `pagada`. El mapa de mesas
+     * enseñaba «la cuenta está pedida» sobre una cuenta pagada y `abrir_mesa`
+     * contestaba «la mesa 1 ya está abierta» para siempre: la mesa no volvía al
+     * servicio.
+     *
+     * Va DENTRO de la transacción del cobro por la misma razón que las comandas: o
+     * hay venta y mesa recogible, o no hay ninguna de las dos. Y devuelve `null` en
+     * una venta de mostrador, que es la mayoría.
+     */
+    const mesaRecogida = await ctx.paso('mesa_a_limpieza', () =>
+      pasarMesaCobradaALimpieza(ctx.tx, organizacionId, entrada.ordenId, {
+        empleoId,
+        ahora: ctx.ahora,
+      }),
     );
 
     const cambio = pagos.reduce((suma, p) => suma + p.cambioCentavos, 0n);
@@ -230,6 +283,7 @@ export const cobrarOrden = definirComando<
       entidadId: entrada.ordenId,
       payload: {
         folio: `${folio.serie}-${folio.folio.toString()}`,
+        ...(mesaRecogida === null ? {} : { mesaALimpieza: mesaRecogida.numero }),
         totalCentavos: totales.totalCentavos.toString(),
         propinaCentavos: propinaTotal.toString(),
         metodos: pagos.map((p) => p.metodo),
@@ -279,12 +333,43 @@ async function planearConsumo(
   organizacionId: string,
   sucursalId: string,
   ordenId: string,
+  canal: string,
 ): Promise<ReturnType<typeof calcularConsumo>> {
   const almacenId = await repoVentaCatalogo.almacenPrincipal(tx, organizacionId, sucursalId);
   if (almacenId === null) return [];
 
   const lineas = await repoOrdenes.lineasDeOrden(tx, organizacionId, ordenId);
   const paraConsumo: LineaParaConsumo[] = [];
+
+  /**
+   * LAS PARTIDAS QUE YA SALIERON DEL ALMACÉN AL CORTARSE (F-145).
+   *
+   * Un corte de material descuenta EN EL MOMENTO de cortar —lo entregado y la
+   * merma, dos movimientos— porque cortar es irreversible: los 60.4 m que se
+   * fueron del rollo no vuelven si el cliente se arrepiente. Descontar otra vez
+   * aquí, por catálogo, sacaría el cable dos veces del inventario por una sola
+   * venta, y el faltante aparecería completo y de golpe en el conteo.
+   *
+   * Se lee en UNA consulta y sólo cuando hay líneas: un `in ()` vacío no es SQL
+   * válido.
+   */
+  const cortadas =
+    lineas.length === 0
+      ? new Set<string>()
+      : new Set(
+          (
+            await tx
+              .selectFrom('cortes_material')
+              .select('orden_linea_id')
+              .where('organizacion_id', '=', organizacionId)
+              .where(
+                'orden_linea_id',
+                'in',
+                lineas.map((l) => l.id),
+              )
+              .execute()
+          ).map((fila) => fila.orden_linea_id),
+        );
 
   // Las dos lecturas de catálogo se hacen ANTES del bucle y en una consulta
   // cada una: esto corre dentro de la transacción del cobro, y cada viaje de
@@ -296,6 +381,8 @@ async function planearConsumo(
 
   for (const linea of lineas) {
     if (linea.productoId === null) continue;
+    // Ya salió del almacén al cortarse, con su merma. Ver `cortadas`.
+    if (cortadas.has(linea.id)) continue;
     const producto = await repoVentaCatalogo.productoParaVender(
       tx,
       organizacionId,
@@ -325,7 +412,7 @@ async function planearConsumo(
     }
 
     if (producto.estrategiaConsumo === 'receta') {
-      const ingredientes = recetas.get(linea.productoId) ?? [];
+      const ingredientes = lineasDelCanal(recetas.get(linea.productoId) ?? [], canal);
       // Un producto marcado «receta» SIN líneas activas no descuenta nada. Es
       // un estado legítimo —una receta recién vaciada— y no un error: la venta
       // no se bloquea por eso.

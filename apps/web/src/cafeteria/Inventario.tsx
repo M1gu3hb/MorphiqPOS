@@ -1,0 +1,714 @@
+'use client';
+
+import { Badge } from '@morphiqpos/ui/primitivas/badge';
+import { Button } from '@morphiqpos/ui/primitivas/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@morphiqpos/ui/primitivas/dialog';
+import { Input } from '@morphiqpos/ui/primitivas/input';
+import { Label } from '@morphiqpos/ui/primitivas/label';
+import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@morphiqpos/ui/primitivas/table';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+
+import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+
+/**
+ * PANTALLA · cafeteria · inventario
+ *
+ * Se abre 2–4 veces al día, y casi nunca para «consultar»: se abre porque
+ * alguien está de pie frente al refrigerador con la puerta abierta.
+ *
+ * ── Por qué «días que alcanza» va ANTES de la existencia ─────────────────
+ * `Leche entera · 1.5 días · 14 L` se resuelve de un golpe. `Leche entera ·
+ * 14 L · mínimo 20 L` obliga a restar dos números para llegar a la única
+ * pregunta que se estaba haciendo: ¿llego a la entrega? La columna que
+ * `restaurante` no tiene es justo la que aquí manda, y por eso es la primera
+ * después del nombre. El cálculo divide entre el consumo teórico del MISMO
+ * día de la semana promediado sobre cuatro semanas —un martes no consume
+ * como un sábado— y ese promedio lo sirve el servidor, no el navegador.
+ *
+ * ── Por qué familias y no abecedario ─────────────────────────────────────
+ * Leche · Café · Empaque · Ingredientes · Alimentos son las familias por las
+ * que se cuenta (`03-INVENTARIO.md` §6), y son las mismas por las que se
+ * CAMINA el local. Nadie recorre una cafetería en orden alfabético. Dentro de
+ * cada familia manda la urgencia, para que lo que no llega a la entrega no
+ * quede en la posición que le tocó por casualidad.
+ *
+ * ── Por qué el conteo de leche es un botón grande y no una fila más ──────
+ * Porque es otra tarea: noventa segundos, al cierre, con la jarra en la mano.
+ * Y porque al terminar tiene que enseñar las tres cosas juntas —contado,
+ * teórico y % de merma con semáforo— sin ir a ningún otro lado. Si el % de
+ * merma viviera en un reporte, nadie lo vería nunca.
+ *
+ * ── Tres formatos, y no uno encogido ─────────────────────────────────────
+ * PC: tabla densa por familia, que es como se revisa sentada. Tablet:
+ * tarjetas de dos columnas, para leerse caminando con una mano. Teléfono:
+ * una columna y el ajuste con `+` y `−` grandes, que es lo único que se hace
+ * de pie. El formato se decide en JS: pintarlo dos veces con `hidden lg:*`
+ * haría que el lector de pantalla leyera cada insumo dos veces.
+ *
+ * ── Lo que NO va aquí ────────────────────────────────────────────────────
+ * El costo del insumo cuando el rol es barista sin permiso de costos. No lo
+ * decide esta pantalla: el puente recorta `costo_por_unidad_base` campo por
+ * campo, así que aquí ni se pide.
+ *
+ * ── Lo que hoy no se puede abrir, y qué queda fuera de alcance ───────────
+ * `consumo_diario` y la entidad `LoteGrano` los declaran las migraciones de
+ * la Fase 2 y el puente todavía no los expone: sin ellos los días leen «sin
+ * dato» —la urgencia cae entonces a los umbrales de mínimo y crítico, que sí
+ * existen— y la tarjeta del grano sólo aparece si llega por prop. Tampoco hay
+ * `Almacen` en el puente: el almacén sale del último movimiento del ledger,
+ * que en una cafetería es siempre el mismo, y sin él el ajuste se deshabilita
+ * en vez de fallar al pulsar. Recortados para caber en un archivo: el
+ * buscador por código de barras y el histórico por insumo.
+ */
+
+/** Rutas declaradas en `05-DATOS-Y-BACKEND.md` §6. Ninguna se inventa aquí. */
+const RUTA_AJUSTAR = '/api/inventario/ajustar';
+const RUTA_CONTAR_LECHE = '/api/cafeteria/contar-leche';
+
+const CONSULTA_PC = '(min-width: 1024px)';
+/** Lo que separa «me aguanta» de «no llega»: el hueco hasta la próxima entrega. */
+const DIAS_HASTA_ENTREGA = 2;
+const DIAS_GRANO_AMBAR = 25;
+const DIAS_GRANO_ROJO = 30;
+
+const TARJETA = 'rounded-lg border border-border bg-card p-3 text-card-foreground shadow-1';
+const CHIP = 'rounded-md px-2 py-1 text-xs font-semibold';
+
+/** Las cinco familias, en el orden en que se camina el local. */
+const FAMILIAS = ['Leche', 'Café', 'Empaque', 'Ingredientes', 'Alimentos'] as const;
+type Familia = (typeof FAMILIAS)[number];
+
+/** Pistas sin acentos: el texto se normaliza antes de buscarlas. */
+const PISTAS: readonly (readonly [Familia, readonly string[]])[] = [
+  ['Leche', ['leche', 'lactea', 'crema']],
+  ['Café', ['cafe', 'grano', 'espresso']],
+  ['Empaque', ['vaso', 'tapa', 'manga', 'servilleta', 'popote', 'empaque', 'bolsa']],
+  ['Alimentos', ['pan', 'galleta', 'panader', 'sandwich', 'reposter']],
+];
+
+/** Los nombres son los del PUENTE, en snake_case. Aquí no se traduce nada. */
+export interface InsumoDeInventario {
+  readonly id: string;
+  readonly nombre: string;
+  readonly unidad_base: string | null;
+  readonly categoria_nombre: string | null;
+  readonly stock_actual: number | null;
+  readonly stock_minimo: number | null;
+  readonly stock_critico: number | null;
+  /**
+   * Consumo teórico del mismo día de la semana sobre cuatro semanas.
+   *
+   * OPCIONAL, y no `number | null`: el puente NO lo sirve todavía —`Ingrediente` no
+   * lo declara, porque es un promedio de cuatro semanas y no una columna— y omite
+   * la clave. `undefined !== null`, así que la guarda de `diasQueAlcanza` pasaba de
+   * largo, dividía por `undefined` y la alacena enseñaba «NaN días» en cada
+   * renglón. Con el tipo opcional, el `?? null` es obligatorio y la pantalla dice
+   * «sin dato», que es la verdad: la urgencia se decide entonces por el mínimo y el
+   * crítico, que sí llegan.
+   */
+  readonly consumo_diario?: number | null;
+  readonly activo: boolean | null;
+}
+
+export interface LoteDeGrano {
+  readonly id: string;
+  readonly fecha_tueste: string | null;
+}
+
+export interface InventarioProps {
+  /** Cuando llega, la pantalla no consulta: es lo que usan las pruebas. */
+  readonly filasIniciales?: readonly InsumoDeInventario[];
+  readonly loteGranoInicial?: LoteDeGrano;
+  readonly almacenId?: string;
+}
+
+interface Urgencia {
+  readonly orden: number;
+  readonly palabra: string;
+  readonly clase: string;
+}
+
+interface ResultadoConteo {
+  readonly contado: number;
+  readonly teorico: number;
+  readonly mermaPorcentaje: number;
+}
+
+function sinAcentos(texto: string): string {
+  return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+export function familiaDe(insumo: InsumoDeInventario): Familia {
+  const texto = sinAcentos(`${insumo.categoria_nombre ?? ''} ${insumo.nombre}`);
+  for (const [familia, pistas] of PISTAS) {
+    if (pistas.some((pista) => texto.includes(pista))) return familia;
+  }
+  return 'Ingredientes';
+}
+
+/** Existencia ÷ consumo teórico. Sin consumo no hay días, y se dice. */
+export function diasQueAlcanza(insumo: InsumoDeInventario): number | null {
+  const consumo = insumo.consumo_diario ?? null;
+  const stock = insumo.stock_actual;
+  if (consumo === null || stock === null || consumo <= 0) return null;
+  return Math.round((stock / consumo) * 10) / 10;
+}
+
+/** El color nunca va solo: cada tramo trae su palabra. */
+export function urgenciaDe(insumo: InsumoDeInventario): Urgencia {
+  const dias = diasQueAlcanza(insumo);
+  const stock = insumo.stock_actual ?? 0;
+  const critico = insumo.stock_critico;
+  const minimo = insumo.stock_minimo;
+  if ((dias !== null && dias < 1) || (critico !== null && stock <= critico)) {
+    return { orden: 0, palabra: 'no llega a mañana', clase: 'bg-destructive/25 text-foreground' };
+  }
+  if ((dias !== null && dias < DIAS_HASTA_ENTREGA) || (minimo !== null && stock <= minimo)) {
+    return { orden: 1, palabra: 'no llega a la entrega', clase: 'bg-warning/30 text-foreground' };
+  }
+  return { orden: 2, palabra: 'alcanza', clase: 'bg-muted text-muted-foreground' };
+}
+
+/** Verde bajo 8 %, ámbar de 8 a 12, rojo arriba de 12. */
+export function semaforoDeMerma(porcentaje: number): Omit<Urgencia, 'orden'> {
+  if (porcentaje > 12) return { palabra: 'merma alta', clase: 'bg-destructive/25' };
+  if (porcentaje >= 8) return { palabra: 'merma en el límite', clase: 'bg-warning/30' };
+  return { palabra: 'merma normal', clase: 'bg-success/25' };
+}
+
+export function diasDesde(fecha: string | null, ahora: number): number | null {
+  if (fecha === null || ahora === 0) return null;
+  const dias = Math.floor((ahora - new Date(fecha).getTime()) / 86_400_000);
+  return Number.isNaN(dias) ? null : dias;
+}
+
+/** La recomendación es de USO y no de tirar: el grano viejo sigue sirviendo. */
+export function consejoDeGrano(dias: number): string {
+  if (dias >= DIAS_GRANO_ROJO) return 'Ya no da espresso. Úsalo en filtrado o cámbialo.';
+  if (dias >= DIAS_GRANO_AMBAR) return 'Sirve para filtrado; para espresso ya cayó.';
+  return 'En su punto para espresso.';
+}
+
+/**
+ * Redondeo propio y no `toLocaleString`: el formato del servidor y el del
+ * navegador no tienen por qué coincidir, y ahí nace un fallo de hidratación.
+ */
+function formatear(valor: number | null): string {
+  return valor === null ? '—' : String(Math.round(valor * 10) / 10);
+}
+
+/** El límite de intentos no es un código: es el 429, y vive en `estado`. */
+function mensajeDeFallo(fallo: unknown): string {
+  if (fallo instanceof ErrorApi) {
+    if (fallo.estado === 429) return 'Demasiados intentos seguidos. Espera unos segundos.';
+    if (fallo.error.codigo === 'SIN_PERMISO') return 'Tu rol no puede ajustar el inventario.';
+    return fallo.error.mensaje;
+  }
+  return fallo instanceof Error ? fallo.message : 'No se pudo leer el inventario.';
+}
+
+function useEsPC(): boolean {
+  return useSyncExternalStore(
+    (avisar) => {
+      const medio = window.matchMedia(CONSULTA_PC);
+      medio.addEventListener('change', avisar);
+      return () => {
+        medio.removeEventListener('change', avisar);
+      };
+    },
+    () => window.matchMedia(CONSULTA_PC).matches,
+    () => false,
+  );
+}
+
+export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: InventarioProps) {
+  const [insumos, setInsumos] = useState<readonly InsumoDeInventario[] | null>(
+    filasIniciales ?? null,
+  );
+  const [almacen, setAlmacen] = useState<string | null>(almacenId ?? null);
+  const [error, setError] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState('');
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [ahora, setAhora] = useState(0);
+  const [contando, setContando] = useState(false);
+  const [conteos, setConteos] = useState<Readonly<Record<string, string>>>({});
+  const [resultado, setResultado] = useState<ResultadoConteo | null>(null);
+  const esPC = useEsPC();
+
+  useEffect(() => {
+    const control = new AbortController();
+    const sigueMontada = (): boolean => !control.signal.aborted;
+    // El reloj no nace en el render: sembrarlo en el servidor sería un
+    // desajuste de hidratación garantizado.
+    const reloj = setTimeout(() => {
+      setAhora(Date.now());
+    });
+    if (filasIniciales === undefined) {
+      Promise.all([
+        consultarPuente<InsumoDeInventario>('Ingrediente', { limite: 300, signal: control.signal }),
+        consultarPuente<{ readonly almacen_id: string | null }>('MovimientoInventario', {
+          limite: 1,
+          signal: control.signal,
+        }),
+      ])
+        .then(([filas, movimientos]) => {
+          if (!sigueMontada()) return;
+          setInsumos(filas);
+          setAlmacen(movimientos[0]?.almacen_id ?? null);
+        })
+        .catch((fallo: unknown) => {
+          // La pantalla NUNCA se vacía por un error de red: un conteo de hace
+          // diez minutos sigue diciendo si hay que salir por leche.
+          if (sigueMontada()) setError(mensajeDeFallo(fallo));
+        });
+    }
+    return () => {
+      clearTimeout(reloj);
+      control.abort();
+    };
+  }, [filasIniciales]);
+
+  const ajustar = useCallback(
+    async (insumo: InsumoDeInventario, delta: number): Promise<void> => {
+      if (almacen === null) return;
+      setOcupado(insumo.id);
+      try {
+        await invocarComando(RUTA_AJUSTAR, {
+          almacenId: almacen,
+          insumoId: insumo.id,
+          cantidad: delta,
+          motivo: delta > 0 ? 'Ajuste en barra: entrada' : 'Ajuste en barra: salida',
+        });
+        // La fila se reescribe, no se muta: quien tuviera la lista anterior
+        // sigue teniendo una lista coherente.
+        setInsumos((previo) =>
+          previo === null
+            ? previo
+            : previo.map((fila) =>
+                fila.id === insumo.id
+                  ? { ...fila, stock_actual: (fila.stock_actual ?? 0) + delta }
+                  : fila,
+              ),
+        );
+        setError(null);
+      } catch (fallo: unknown) {
+        setError(mensajeDeFallo(fallo));
+      } finally {
+        setOcupado(null);
+      }
+    },
+    [almacen],
+  );
+
+  const leches = useMemo(
+    () => (insumos ?? []).filter((insumo) => familiaDe(insumo) === 'Leche'),
+    [insumos],
+  );
+
+  const contarLeche = useCallback(async (): Promise<void> => {
+    setOcupado('conteo');
+    try {
+      const datos = await invocarComando<ResultadoConteo>(RUTA_CONTAR_LECHE, {
+        conteos: leches.map((insumo) => ({
+          insumoId: insumo.id,
+          cantidad: Number(conteos[insumo.id] ?? '0'),
+        })),
+      });
+      setResultado(datos);
+      setError(null);
+    } catch (fallo: unknown) {
+      setError(mensajeDeFallo(fallo));
+    } finally {
+      setOcupado(null);
+    }
+  }, [leches, conteos]);
+
+  const visibles = useMemo(() => {
+    const aguja = sinAcentos(busqueda.trim());
+    const vivos = (insumos ?? []).filter((insumo) => insumo.activo !== false);
+    const filtrados =
+      aguja === '' ? vivos : vivos.filter((insumo) => sinAcentos(insumo.nombre).includes(aguja));
+    return [...filtrados].sort((a, b) => {
+      const diferencia = urgenciaDe(a).orden - urgenciaDe(b).orden;
+      return diferencia === 0 ? a.nombre.localeCompare(b.nombre, 'es-MX') : diferencia;
+    });
+  }, [insumos, busqueda]);
+
+  const grupos = useMemo(
+    () =>
+      FAMILIAS.map((familia) => ({
+        familia,
+        filas: visibles.filter((insumo) => familiaDe(insumo) === familia),
+      })).filter((grupo) => grupo.filas.length > 0),
+    [visibles],
+  );
+
+  const alertas = useMemo(() => visibles.filter((i) => urgenciaDe(i).orden < 2), [visibles]);
+  const diasGrano = diasDesde(loteGranoInicial?.fecha_tueste ?? null, ahora);
+
+  if (insumos === null) {
+    return (
+      <div className="min-h-dvh bg-background p-4 text-foreground">
+        <h1 className="mb-4 text-2xl font-bold">Inventario</h1>
+        {/* Esqueletos con la forma de las tarjetas: la pantalla no salta. */}
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-dvh flex-col gap-4 bg-background p-4 text-foreground">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Inventario</h1>
+        {/* La tarea del cierre tiene botón propio y grande: no es una fila más. */}
+        <Button
+          type="button"
+          size="lg"
+          disabled={leches.length === 0}
+          onClick={() => {
+            setResultado(null);
+            setContando(true);
+          }}
+        >
+          🥛 Contar leche
+        </Button>
+      </header>
+
+      {/* La banda avisa y NO vacía la pantalla: debajo sigue el último conteo. */}
+      {error !== null && (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
+        >
+          {error} · Se muestra el último inventario conocido.
+        </p>
+      )}
+
+      {insumos.length === 0 ? (
+        // El vacío ENSEÑA lo que esta pantalla va a hacer, y no se disculpa.
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+          <p className="text-2xl font-bold">Aquí va a vivir lo que hay que reponer.</p>
+          <p className="max-w-prose text-muted-foreground">
+            Leche, café, empaque, ingredientes y alimentos — agrupados como se camina el local y
+            ordenados por lo que se acaba primero, con los días que alcanza delante de la
+            existencia.
+          </p>
+          <Button asChild>
+            <a href="/inventario">Dar de alta el primer insumo</a>
+          </Button>
+        </div>
+      ) : (
+        <>
+          {diasGrano !== null && (
+            <section className={TARJETA} aria-label="Lote de grano abierto">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-bold">☕ Grano abierto</span>
+                <span className={`${CHIP} ${claseDeGrano(diasGrano)}`}>
+                  {diasGrano} días desde el tueste
+                </span>
+                <span className="text-sm text-muted-foreground">{consejoDeGrano(diasGrano)}</span>
+              </div>
+            </section>
+          )}
+
+          {alertas.length > 0 && (
+            <section
+              className="rounded-lg border border-warning/40 bg-warning/15 p-3"
+              aria-label="Lo que no llega a la próxima entrega"
+            >
+              <h2 className="mb-2 text-sm font-bold uppercase">No llega a la próxima entrega</h2>
+              <ul className="flex flex-wrap gap-2">
+                {alertas.map((insumo) => (
+                  <li key={insumo.id}>
+                    <Badge
+                      variant={
+                        urgenciaDe(insumo).orden === 0
+                          ? ('destructive' as const)
+                          : ('secondary' as const)
+                      }
+                    >
+                      {insumo.nombre} · {textoDeDias(insumo)}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <div className="max-w-sm">
+            <Label htmlFor="buscar-insumo" className="text-sm text-muted-foreground">
+              Buscar insumo
+            </Label>
+            <Input
+              id="buscar-insumo"
+              type="search"
+              value={busqueda}
+              placeholder="leche entera, vaso 12 oz…"
+              onChange={(evento) => {
+                setBusqueda(evento.target.value);
+              }}
+            />
+          </div>
+
+          {grupos.length === 0 ? (
+            <p className="text-muted-foreground">Ningún insumo se llama así.</p>
+          ) : (
+            grupos.map((grupo, indice) => (
+              <section key={grupo.familia} aria-labelledby={`familia-${indice}`}>
+                <h2
+                  id={`familia-${indice}`}
+                  className="mb-2 text-sm font-bold tracking-wide uppercase"
+                >
+                  {grupo.familia}{' '}
+                  <span className="text-muted-foreground">({grupo.filas.length})</span>
+                </h2>
+                {esPC ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Insumo</TableHead>
+                        <TableHead>Días que alcanza</TableHead>
+                        <TableHead>Existencia</TableHead>
+                        <TableHead>Mínimo</TableHead>
+                        <TableHead>Ajuste</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {grupo.filas.map((insumo) => (
+                        <TableRow key={insumo.id}>
+                          <TableCell className="font-medium">{insumo.nombre}</TableCell>
+                          <TableCell>
+                            <span className={`${CHIP} ${urgenciaDe(insumo).clase}`}>
+                              {textoDeDias(insumo)} · {urgenciaDe(insumo).palabra}
+                            </span>
+                          </TableCell>
+                          <TableCell className="tabular-nums">{textoDeStock(insumo)}</TableCell>
+                          <TableCell className="tabular-nums text-muted-foreground">
+                            {formatear(insumo.stock_minimo)}
+                          </TableCell>
+                          <TableCell>
+                            <Ajuste
+                              insumo={insumo}
+                              grande={false}
+                              sinAlmacen={almacen === null}
+                              ocupado={ocupado === insumo.id}
+                              onAjustar={ajustar}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <ul className="grid gap-3 md:grid-cols-2">
+                    {grupo.filas.map((insumo) => (
+                      <li key={insumo.id} className={TARJETA}>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-semibold">{insumo.nombre}</span>
+                          <span className={`${CHIP} ${urgenciaDe(insumo).clase}`}>
+                            {urgenciaDe(insumo).palabra}
+                          </span>
+                        </div>
+                        <p className="mt-1 tabular-nums">
+                          <span className="text-xl font-bold">{textoDeDias(insumo)}</span>
+                          <span className="text-muted-foreground">
+                            {' · '}
+                            {textoDeStock(insumo)} · mínimo {formatear(insumo.stock_minimo)}
+                          </span>
+                        </p>
+                        <div className="mt-2 flex justify-end">
+                          <Ajuste
+                            insumo={insumo}
+                            grande
+                            sinAlmacen={almacen === null}
+                            ocupado={ocupado === insumo.id}
+                            onAjustar={ajustar}
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))
+          )}
+        </>
+      )}
+
+      <ConteoDeLeche
+        abierto={contando}
+        leches={leches}
+        conteos={conteos}
+        resultado={resultado}
+        ocupado={ocupado === 'conteo'}
+        onCambiar={setConteos}
+        onCerrar={() => {
+          setContando(false);
+        }}
+        onConfirmar={contarLeche}
+      />
+    </div>
+  );
+}
+
+function claseDeGrano(dias: number): string {
+  if (dias >= DIAS_GRANO_ROJO) return 'bg-destructive/25';
+  if (dias >= DIAS_GRANO_AMBAR) return 'bg-warning/30';
+  return 'bg-muted text-muted-foreground';
+}
+
+function textoDeDias(insumo: InsumoDeInventario): string {
+  const dias = diasQueAlcanza(insumo);
+  return dias === null ? 'sin dato' : `${dias} días`;
+}
+
+function textoDeStock(insumo: InsumoDeInventario): string {
+  return `${formatear(insumo.stock_actual)} ${insumo.unidad_base ?? ''}`.trim();
+}
+
+interface AjusteProps {
+  readonly insumo: InsumoDeInventario;
+  readonly grande: boolean;
+  readonly sinAlmacen: boolean;
+  readonly ocupado: boolean;
+  readonly onAjustar: (insumo: InsumoDeInventario, delta: number) => Promise<void>;
+}
+
+/**
+ * En teléfono y tablet el `+` y el `−` son grandes: se tocan con una mano y la
+ * jarra en la otra. En PC se encogen, porque ahí manda la tabla densa.
+ */
+function Ajuste({ insumo, grande, sinAlmacen, ocupado, onAjustar }: AjusteProps) {
+  const tamano = grande ? ('icon-lg' as const) : ('icon-sm' as const);
+  const unidad = insumo.unidad_base ?? 'unidad';
+  return (
+    <div className="flex items-center gap-2">
+      {[-1, 1].map((delta) => (
+        <Button
+          key={delta}
+          type="button"
+          variant="outline"
+          size={tamano}
+          disabled={sinAlmacen || ocupado}
+          aria-label={`${delta > 0 ? 'Sumar' : 'Restar'} 1 ${unidad} a ${insumo.nombre}`}
+          onClick={() => {
+            void onAjustar(insumo, delta);
+          }}
+        >
+          <span aria-hidden className={grande ? 'text-2xl' : 'text-base'}>
+            {delta > 0 ? '+' : '−'}
+          </span>
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+interface ConteoDeLecheProps {
+  readonly abierto: boolean;
+  readonly leches: readonly InsumoDeInventario[];
+  readonly conteos: Readonly<Record<string, string>>;
+  readonly resultado: ResultadoConteo | null;
+  readonly ocupado: boolean;
+  readonly onCambiar: (conteos: Readonly<Record<string, string>>) => void;
+  readonly onCerrar: () => void;
+  readonly onConfirmar: () => Promise<void>;
+}
+
+/**
+ * Noventa segundos: los campos primero, vacíos y con el foco en el primero. El
+ * teórico NO se enseña antes de teclear — si se enseñara se copiaría, y el
+ * conteo dejaría de ser un control para volverse un trámite.
+ */
+function ConteoDeLeche({
+  abierto,
+  leches,
+  conteos,
+  resultado,
+  ocupado,
+  onCambiar,
+  onCerrar,
+  onConfirmar,
+}: ConteoDeLecheProps) {
+  return (
+    <Dialog
+      open={abierto}
+      onOpenChange={(valor) => {
+        if (!valor) onCerrar();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Conteo de leche</DialogTitle>
+          <DialogDescription>
+            Cuenta lo que hay en el refrigerador. El teórico aparece al terminar.
+          </DialogDescription>
+        </DialogHeader>
+
+        {resultado === null ? (
+          <div className="flex flex-col gap-3">
+            {leches.map((insumo, indice) => (
+              <div key={insumo.id}>
+                <Label htmlFor={`conteo-${insumo.id}`}>
+                  {insumo.nombre} ({insumo.unidad_base ?? 'unidad'})
+                </Label>
+                <Input
+                  id={`conteo-${insumo.id}`}
+                  inputMode="decimal"
+                  autoFocus={indice === 0}
+                  value={conteos[insumo.id] ?? ''}
+                  onChange={(evento) => {
+                    onCambiar({ ...conteos, [insumo.id]: evento.target.value });
+                  }}
+                />
+              </div>
+            ))}
+            <Button
+              type="button"
+              size="lg"
+              disabled={ocupado}
+              onClick={() => {
+                void onConfirmar();
+              }}
+            >
+              Confirmar conteo
+            </Button>
+          </div>
+        ) : (
+          // Las tres cifras juntas, aquí y no en un reporte que nadie abre.
+          <div className="flex flex-col gap-2 tabular-nums">
+            <p>Contado: {formatear(resultado.contado)}</p>
+            <p>Teórico: {formatear(resultado.teorico)}</p>
+            <p
+              className={`${CHIP} w-fit text-sm ${semaforoDeMerma(resultado.mermaPorcentaje).clase}`}
+            >
+              Merma {formatear(resultado.mermaPorcentaje)} % ·{' '}
+              {semaforoDeMerma(resultado.mermaPorcentaje).palabra}
+            </p>
+            <Button type="button" variant="secondary" onClick={onCerrar}>
+              Cerrar
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -2,13 +2,15 @@ import 'server-only';
 
 import {
   ErrorDominio,
+  PAQUETES_HEREDADOS,
   PAQUETES_TODOS,
   esGiro,
   paquetePermitidoParaGiro,
+  plantillaDe,
   validarEntorno,
   type Paquete,
 } from '@morphiqpos/contracts';
-import { obtenerDb, type Transaccion } from '@morphiqpos/data';
+import { leyendoConReintento, obtenerDb, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../comando.ts';
@@ -54,8 +56,23 @@ const entradaFijarContrasena = z.object({
   contrasena: z.string().min(4).max(200),
 });
 
+/**
+ * Acepta las plantillas NUEVAS y también los tres nombres viejos.
+ *
+ * ── Por qué los viejos siguen entrando ────────────────────────────────
+ * La pantalla que llama a esto es `ModoPresentacion.jsx`, que vive en el
+ * frontend heredado y que un navegador puede tener cacheada. Si el comando
+ * rechazara `restaurante_pro`, el primer dueño que abriera una pestaña vieja
+ * después del despliegue se quedaría sin poder cambiar de plantilla y no
+ * sabría por qué.
+ *
+ * Entran los seis y se NORMALIZA antes de escribir, así que en la columna
+ * siempre cae un nombre nuevo. Es la regla de orden de despliegue de
+ * `supabase-vercel-produccion` §6: primero lo aditivo, luego el frontend, y
+ * sólo entonces se retira lo viejo.
+ */
 const entradaCambiarPaquete = z.object({
-  paquete: z.enum(PAQUETES_TODOS),
+  paquete: z.enum([...PAQUETES_TODOS, ...PAQUETES_HEREDADOS]),
 });
 
 function esTexto(valor: unknown): valor is string {
@@ -210,16 +227,19 @@ export const cambiarPaquete = definirComando<
     if (actual === undefined || !esGiro(actual.giro)) {
       throw new ErrorDominio('CONFIGURACION_INVALIDA', 'La organización no tiene un giro válido.');
     }
-    if (!paquetePermitidoParaGiro(entrada.paquete, actual.giro)) {
+    // Lo que se escribe es SIEMPRE una plantilla nueva, venga como venga.
+    const plantilla = plantillaDe(actual.giro, entrada.paquete);
+
+    if (!paquetePermitidoParaGiro(plantilla, actual.giro)) {
       throw new ErrorDominio(
         'CONFIGURACION_INVALIDA',
-        'Restaurante Pro sólo está disponible para cafeterías y restaurantes.',
+        'La plantilla de restaurante sólo está disponible para cafeterías y restaurantes.',
       );
     }
     const organizacion = await ctx.paso('cambiar_paquete', () =>
       ctx.tx
         .updateTable('organizaciones')
-        .set({ paquete: entrada.paquete, updated_at: ctx.ahora })
+        .set({ paquete: plantilla, updated_at: ctx.ahora })
         .where('id', '=', ctx.ambito.organizacionId)
         .returning('id')
         .executeTakeFirst(),
@@ -227,8 +247,11 @@ export const cambiarPaquete = definirComando<
     if (organizacion === undefined) {
       throw new ErrorDominio('CONFIGURACION_INVALIDA', 'La organización no existe.');
     }
-    ctx.auditar({ entidadId: ctx.ambito.organizacionId, payload: { paquete: entrada.paquete } });
-    return { paquete: entrada.paquete };
+    ctx.auditar({
+      entidadId: ctx.ambito.organizacionId,
+      payload: { paquete: plantilla, pedido: entrada.paquete },
+    });
+    return { paquete: plantilla };
   },
 });
 
@@ -241,11 +264,17 @@ export const cambiarPaquete = definirComando<
  * filtra el hash —que es lo correcto—, así que se consulta el documento.
  */
 export async function tienePresentacionContrasena(organizacionId: string): Promise<boolean> {
-  const fila = await obtenerDb()
-    .selectFrom('configuracion')
-    .select('valores')
-    .where('organizacion_id', '=', organizacionId)
-    .executeTakeFirst();
+  // Las tres lecturas que el puente hace FUERA de `consultar` pasan por el mismo
+  // reintento: son las que `ConfigContext` pide en cada carga de pantalla, y son
+  // las que dejaban el `ECONNRESET` del pooler en el registro. El reintento sólo
+  // vale para LEER; ninguna escritura lo lleva.
+  const fila = await leyendoConReintento(() =>
+    obtenerDb()
+      .selectFrom('configuracion')
+      .select('valores')
+      .where('organizacion_id', '=', organizacionId)
+      .executeTakeFirst(),
+  );
   const valores = (fila?.valores ?? {}) as Record<string, unknown>;
   return esTexto(valores[CLAVE_HASH]);
 }

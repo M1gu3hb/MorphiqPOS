@@ -513,6 +513,7 @@ export const asignarMesero = definirComando<
   escribe: true,
   roles: [...ROLES_DE_SALA],
   paquetes: PAQUETES_RESTAURANTE,
+  modulo: 'mesero',
   entrada: entradaAsignarMesero,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

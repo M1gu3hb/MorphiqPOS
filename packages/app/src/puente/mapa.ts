@@ -83,6 +83,14 @@ const CAJA = [...DIRECCION, 'cajero'] as const;
 const COMPRAS = [...DIRECCION, 'almacen'] as const;
 const RECETAS_E_INVENTARIO = [...DIRECCION, 'cocina', 'almacen'] as const;
 const INVENTARIO = [...DIRECCION, 'almacen'] as const;
+/**
+ * Quién ve la libreta del fiado.
+ *
+ * El cajero SÍ: es quien cobra el abono y quien tiene que poder decir «ya no
+ * te puedo fiar» ANTES de que el producto salga, que es el momento en que la
+ * función sirve de algo. Los costos siguen fuera de su alcance.
+ */
+const VE_FIADO = [...DIRECCION, 'cajero'] as const;
 const OPERACION_RESTAURANTE = [...DIRECCION, 'cajero', 'mesero', 'cocina'] as const;
 const PREPARACION = [...DIRECCION, 'cocina'] as const;
 
@@ -151,6 +159,31 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
         publico: true,
       },
+      /**
+       * LAS OCHO COLUMNAS QUE EXISTÍAN Y NADIE SERVÍA.
+       *
+       * Cada una dejaba una pantalla enseñando un hueco con el dato en la base:
+       *
+       *   · `familia` ordena el catálogo de una cafetería —bebida, alimento, grano—
+       *     y la pantalla de productos la pintaba vacía en cada renglón.
+       *   · La perilla de «hoy no hay» leía `disponible`, que NO se declara aquí:
+       *     dos nombres para `visible_en_pos` dejarían a quien escribe eligiendo
+       *     cuál gana. La pantalla lee el nombre que el puente sirve.
+       *   · `controla_caducidad` y `tasa_iva_bp` los lee la ficha del producto de
+       *     una tiendita, que enseñaba «sin impuesto» con el 16 % puesto.
+       *   · `peso_por_pieza_mg` y `tolerancia_peso_pct` son el conteo por peso de
+       *     una ferretería: sin ellos la báscula no puede convertir gramos a piezas.
+       *   · `destino`, `factor_apertura` y `unidad_cabina` son el doble destino de
+       *     un salón (141): qué se vende, qué se abre a cabina y en qué unidad.
+       */
+      familia: { columna: 'familia', conversion: 'texto', publico: true },
+      controla_caducidad: { columna: 'controla_caducidad', conversion: 'booleano' },
+      tasa_iva_bp: { columna: 'tasa_iva_bp', conversion: 'entero' },
+      peso_por_pieza_mg: { columna: 'peso_por_pieza_mg', conversion: 'entero' },
+      tolerancia_peso_pct: { columna: 'tolerancia_peso_pct', conversion: 'decimal' },
+      destino: { columna: 'destino', conversion: 'texto' },
+      factor_apertura: { columna: 'factor_apertura', conversion: 'decimal' },
+      unidad_cabina: { columna: 'unidad_cabina', conversion: 'texto' },
       estrategia_consumo: { columna: 'estrategia_consumo', conversion: 'texto' },
       permite_venta_sin_stock: { columna: 'permite_venta_sin_stock', conversion: 'booleano' },
       stock_minimo: { columna: 'stock_minimo', conversion: 'decimal' },
@@ -174,6 +207,57 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       presets_porcion_qr: { columna: 'presets_porcion', conversion: 'json', publico: true },
     },
     derivados: {
+      /**
+       * F-401 · LA DURACIÓN DE UN SERVICIO ES UNA SECUENCIA, no un número.
+       *
+       * «Un tinte no dura 110 minutos: dura 40, 45, 15 y 10», y los 45 del procesado
+       * son el hueco en el que cabe otra clienta. Las cuatro columnas viven en
+       * `servicios`, que cuelga del producto, y el catálogo de servicios del salón
+       * las leía del producto: llegaban `undefined` y la pantalla ofrecía cuatro
+       * campos vacíos con la duración puesta en la base.
+       */
+      duracion_activa_1_min: {
+        tabla: 'servicios',
+        porColumna: 'id',
+        emparejaCon: 'producto_id',
+        columna: 'duracion_activa_1_min',
+        conversion: 'entero',
+        publico: true,
+      },
+      duracion_pasiva_min: {
+        tabla: 'servicios',
+        porColumna: 'id',
+        emparejaCon: 'producto_id',
+        columna: 'duracion_pasiva_min',
+        conversion: 'entero',
+        publico: true,
+      },
+      duracion_activa_2_min: {
+        tabla: 'servicios',
+        porColumna: 'id',
+        emparejaCon: 'producto_id',
+        columna: 'duracion_activa_2_min',
+        conversion: 'entero',
+        publico: true,
+      },
+      duracion_cierre_min: {
+        tabla: 'servicios',
+        porColumna: 'id',
+        emparejaCon: 'producto_id',
+        columna: 'duracion_cierre_min',
+        conversion: 'entero',
+        publico: true,
+      },
+      // El procesado en el que SÍ cabe otra clienta. Sin esto, la agenda deja el
+      // hueco bloqueado y el salón pierde una cita por cada tinte.
+      pasivo_intercalable: {
+        tabla: 'servicios',
+        porColumna: 'id',
+        emparejaCon: 'producto_id',
+        columna: 'pasivo_intercalable',
+        conversion: 'booleano',
+        publico: true,
+      },
       // `Productos.jsx:249` lo lee y sin él la tarjeta dice «Sin categoría»
       // con la categoría bien puesta en la base.
       categoria_nombre: {
@@ -298,6 +382,19 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       nombre_porcion_default: { columna: 'nombre_porcion', conversion: 'texto' },
     },
     derivados: {
+      /**
+       * F-107 · EL PROVEEDOR del insumo, por su nombre.
+       *
+       * La pantalla de existencias de una tiendita lo enseña en su columna
+       * —«¿a quién le pido esto?»— y el puente sólo servía `proveedor_default_id`:
+       * la columna salía vacía con el proveedor puesto.
+       */
+      proveedor_nombre: {
+        tabla: 'proveedores',
+        porColumna: 'proveedor_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
       /**
        * EL CAMBIO CONCEPTUAL MÁS GRANDE DE ESTA ENTIDAD (F1-04 §14.3).
        *
@@ -511,6 +608,14 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // El código que el comensal lleva impreso a la caja (M05-4821). NO es
       // una terminal: la inscripción de terminales se eliminó del plan.
       codigo_caja: { columna: 'codigo_caja', conversion: 'texto', escribible: false },
+      /**
+       * F-261 · POR AQUÍ o PARA LLEVAR, que no es lo mismo para nadie.
+       *
+       * La columna existe desde la 003 y nadie la servía: la pantalla de cobro y
+       * propina de una cafetería enseña esa etiqueta en cada pedido —y el reparto
+       * del bote depende de ella— y llegaba `undefined`, así que todo salía «Aquí».
+       */
+      canal: { columna: 'canal', conversion: 'texto', escribible: false },
       propina_porcentaje: {
         rolesLectura: [...CAJA],
         columna: 'propina_puntos_base',
@@ -839,6 +944,48 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  /**
+   * LO QUE ENTRÓ Y SALIÓ DEL CAJÓN (F-304).
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * `abarrotes/Registros.tsx` arma la línea de tiempo del día con tres fuentes, y
+   * la del cajón la leía de `MovimientoCuenta` —que es el movimiento de una CUENTA
+   * A OTRA en un restaurante (F-321), no el del dinero—. De ahí pedía `monto_centavos`
+   * y `empleado`, que esa entidad no tiene: la mitad de la línea de tiempo del día
+   * salía con importes `NaN`.
+   *
+   * El esperado del arqueo es la suma de esta tabla y de nada más, así que es la
+   * fuente correcta: fondo, ventas en efectivo, gastos, retiros y devoluciones, cada
+   * uno con su signo.
+   */
+  MovimientoCaja: {
+    tabla: 'movimientos_caja',
+    rolesLectura: [...CAJA],
+    escritura: 'comando',
+    ordenPorOmision: '-created_at',
+    derivados: {
+      empleado_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      sesion_caja_id: { columna: 'sesion_caja_id', conversion: 'texto', escribible: false },
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      // CON SIGNO y en centavos enteros: el esperado del arqueo es su suma, y un
+      // gasto convertido a pesos con decimales descuadra el corte por centavos.
+      monto_centavos: { columna: 'monto_centavos', conversion: 'entero', escribible: false },
+      motivo: { columna: 'motivo', conversion: 'texto', escribible: false },
+      referencia_tipo: { columna: 'referencia_tipo', conversion: 'texto', escribible: false },
+      referencia_id: { columna: 'referencia_id', conversion: 'texto', escribible: false },
+      empleado_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+      created_at: { columna: 'created_at', conversion: 'fecha', escribible: false },
+    },
+  },
+
   CorteCaja: {
     tabla: 'sesiones_caja',
     rolesLectura: [...CAJA],
@@ -937,6 +1084,1389 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       nombre: { columna: 'nombre', conversion: 'texto', publico: true },
       orden: { columna: 'orden', conversion: 'entero', publico: true },
       activo: { columna: 'activa', conversion: 'booleano' },
+    },
+  },
+
+  // ── Salón: qué le pasó a una cuenta y a una mesa (F-302, F-303, F-305, F-321,
+  // F-324) ──────────────────────────────────────────────────────────────────
+  //
+  // Las cinco entran por `lectura`: son ledgers y vistas, y lo que las escribe es
+  // un comando transaccional. Declararlas `comando` en vez de `lectura` daría el
+  // mismo resultado hoy —el puente rechaza la escritura igual— y mentiría sobre
+  // lo que son: `movimientos_cuenta` y `eventos_mesa` son INMUTABLES, no
+  // «escribibles por comando».
+  MovimientoCuenta: {
+    tabla: 'movimientos_cuenta',
+    rolesLectura: [...CAJA],
+    escritura: 'lectura',
+    ordenPorOmision: '-created_date',
+    campos: {
+      ...soloAutomaticos(['id', 'created_date']),
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      venta_origen_id: { columna: 'orden_origen_id', conversion: 'texto', escribible: false },
+      venta_destino_id: { columna: 'orden_destino_id', conversion: 'texto', escribible: false },
+      mesa_origen_id: { columna: 'mesa_origen_id', conversion: 'texto', escribible: false },
+      mesa_destino_id: { columna: 'mesa_destino_id', conversion: 'texto', escribible: false },
+      lineas: { columna: 'lineas', conversion: 'json', escribible: false },
+      motivo: { columna: 'motivo', conversion: 'texto', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+    derivados: {
+      usuario_nombre: {
+        tabla: 'empleados_visibles',
+        porColumna: 'empleado_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
+  },
+
+  UnionMesa: {
+    tabla: 'uniones_mesa',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'lectura',
+    ordenPorOmision: '-abierta_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      mesa_principal_id: { columna: 'mesa_principal_id', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      abierta_en: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
+      cerrada_en: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+  },
+
+  EventoMesa: {
+    tabla: 'eventos_mesa',
+    // El ledger del salón es un dato de DIRECCIÓN: es con lo que se decide
+    // cuánta gente contratar el viernes. Un mesero no necesita el histórico de
+    // transiciones para atender su mesa, y dárselo sólo agranda la superficie.
+    rolesLectura: [...DIRECCION],
+    escritura: 'lectura',
+    ordenPorOmision: '-ocurrido_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      mesa_id: { columna: 'mesa_id', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      estado_anterior: { columna: 'estado_anterior', conversion: 'texto', escribible: false },
+      estado_nuevo: { columna: 'estado_nuevo', conversion: 'texto', escribible: false },
+      personas: { columna: 'personas', conversion: 'entero', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+      ocurrido_en: { columna: 'ocurrido_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  OcupacionMesa: {
+    tabla: 'ocupacion_mesas',
+    rolesLectura: [...DIRECCION],
+    escritura: 'lectura',
+    ordenPorOmision: '-inicio',
+    campos: {
+      // `<mesa_id>:<ciclo>`, compuesto en la vista: una consulta agrupada no
+      // tiene clave propia y el puente exige que toda entidad traiga `id`.
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      mesa_id: { columna: 'mesa_id', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      personas: { columna: 'personas', conversion: 'entero', escribible: false },
+      inicio: { columna: 'inicio', conversion: 'fecha', escribible: false },
+      // Nulo mientras la mesa sigue ocupada. Quien promedie tiene que filtrarlo,
+      // y está dicho también en el comentario de la vista en la 072.
+      fin: { columna: 'fin', conversion: 'fecha', escribible: false },
+      minutos_ocupada: { columna: 'minutos_ocupada', conversion: 'entero', escribible: false },
+      minutos_hasta_cuenta: {
+        columna: 'minutos_hasta_cuenta',
+        conversion: 'entero',
+        escribible: false,
+      },
+    },
+  },
+
+  ConsumoInterno: {
+    tabla: 'consumos_internos',
+    rolesLectura: [...DIRECCION],
+    escritura: 'comando',
+    ordenPorOmision: '-created_date',
+    campos: {
+      ...soloAutomaticos(['id', 'created_date']),
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      producto_nombre: { columna: 'producto_nombre', conversion: 'texto', escribible: false },
+      cantidad: { columna: 'cantidad', conversion: 'decimal', escribible: false },
+      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
+      // El costo es MARGEN: la regla 12 lo cierra a quien ve lo que el negocio
+      // gana, y un consumo interno es exactamente eso — lo que costó regalarlo.
+      costo_centavos: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'costo_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      motivo: { columna: 'motivo', conversion: 'texto', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+  },
+
+  Cliente: {
+    tabla: 'clientes',
+    // F-040 · La tabla existe desde la 003 con saldo y límite de crédito, y
+    // NUNCA estuvo declarada aquí: no había pantalla, ni comandos, ni nada. El
+    // fiado de F-254 escribe contra ella, así que sin esta entrada el tendero
+    // podía abonar y no podía ver a quién.
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: 'nombre',
+    derivados: {
+      /**
+       * F-930 · Los SELLOS del cliente, que viven en el ledger de lealtad.
+       *
+       * `cafeteria/ClientesYSellos.tsx` los leía del cliente y el puente no los
+       * servía: la tarjeta de sellos salía siempre en cero con los sellos en la
+       * base. Se derivan de `lealtad_saldos`, que es la proyección del ledger, y
+       * NO se escriben desde aquí: se otorgan al cobrar.
+       */
+      sellos: {
+        tabla: 'lealtad_saldos',
+        porColumna: 'id',
+        emparejaCon: 'cliente_id',
+        columna: 'sellos',
+        conversion: 'entero',
+      },
+      premiosCanjeados: {
+        tabla: 'lealtad_saldos',
+        porColumna: 'id',
+        emparejaCon: 'cliente_id',
+        columna: 'canjes_totales',
+        conversion: 'entero',
+      },
+    },
+    campos: {
+      /**
+       * F-620 · Los datos fiscales, que existen desde la 108 y nadie servía.
+       *
+       * `ferreteria/Facturacion.tsx` los lee para dejar el hueco limpio antes de
+       * timbrar, y llegaban `undefined`: la pantalla enseñaba cuatro campos vacíos
+       * de un cliente que sí tenía RFC. Son columnas opcionales del esquema —la
+       * migración las añade— y aquí van como texto tal cual.
+       */
+      rfc: { columna: 'rfc', conversion: 'texto' },
+      regimen_fiscal: { columna: 'regimen_fiscal', conversion: 'texto' },
+      uso_cfdi: { columna: 'uso_cfdi', conversion: 'texto' },
+      codigo_postal: { columna: 'codigo_postal', conversion: 'texto' },
+      ...soloAutomaticos(['id']),
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
+      correo: { columna: 'correo', conversion: 'texto', escribible: false },
+      total_visitas: { columna: 'total_visitas', conversion: 'entero', escribible: false },
+      ultima_visita: { columna: 'ultima_visita', conversion: 'fecha', escribible: false },
+      saldo_pendiente_centavos: {
+        columna: 'saldo_pendiente_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      limite_credito_centavos: {
+        columna: 'limite_credito_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      activo: { columna: 'activo', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  Profesional: {
+    tabla: 'profesionales',
+    // La agenda entera se lee por columna y por color: si el mostrador no puede
+    // leer quién atiende, no hay pantalla que pintar.
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: 'orden_agenda',
+    campos: {
+      ...soloAutomaticos(['id']),
+      nombre_completo: { columna: 'nombre_completo', conversion: 'texto', escribible: false },
+      nombre_corto: { columna: 'nombre_corto', conversion: 'texto', escribible: false },
+      foto_url: { columna: 'foto_url', conversion: 'texto', escribible: false },
+      nivel: { columna: 'nivel', conversion: 'texto', escribible: false },
+      color_agenda: { columna: 'color_agenda', conversion: 'texto', escribible: false },
+      orden_agenda: { columna: 'orden_agenda', conversion: 'entero', escribible: false },
+      activo: { columna: 'activo', conversion: 'booleano', escribible: false },
+      // Con qué trato trabaja y con qué regla cobra lo ve sólo la DIRECCIÓN:
+      // es la conversación más delicada del salón y no se tiene en la pantalla
+      // de recepción.
+      tipo_relacion: {
+        columna: 'tipo_relacion',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...DIRECCION],
+      },
+      regla_comision_id: {
+        columna: 'regla_comision_id',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...DIRECCION],
+      },
+    },
+  },
+
+  Cita: {
+    tabla: 'citas',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    ordenPorOmision: 'agendada_para',
+    campos: {
+      ...soloAutomaticos(['id']),
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      origen: { columna: 'origen', conversion: 'texto', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      agendada_para: { columna: 'agendada_para', conversion: 'fecha', escribible: false },
+      llego_en: { columna: 'llego_en', conversion: 'fecha', escribible: false },
+      inicio_real: { columna: 'inicio_real', conversion: 'fecha', escribible: false },
+      fin_real: { columna: 'fin_real', conversion: 'fecha', escribible: false },
+      orden_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      es_rehacer: { columna: 'es_rehacer', conversion: 'booleano', escribible: false },
+      es_cortesia: { columna: 'es_cortesia', conversion: 'booleano', escribible: false },
+      motivo_cancelacion: { columna: 'motivo_cancelacion', conversion: 'texto', escribible: false },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
+    },
+    /**
+     * SUS SERVICIOS, y por qué tienen que venir por aquí.
+     *
+     * El historial de una clienta es la lista de lo que se le ha hecho, y lo que se
+     * le hizo vive en `cita_servicios` —con su precio congelado y su profesional—.
+     * Esa tabla NO tiene `cliente_id`: el cliente vive en la cita, que es donde
+     * corresponde. Así que la pantalla pedía `CitaServicio` filtrado por
+     * `cliente_id` y el puente contestaba 400 «no es un campo de CitaServicio»: el
+     * expediente salía SIN NINGUNA VISITA, que en un salón es la pantalla que se
+     * abre antes de tocar a alguien.
+     *
+     * Ni se añade una columna denormalizada ni se pide una consulta por cita: la
+     * cita SÍ se filtra por `cliente_id`, y sus servicios vienen como hijos —una
+     * sola consulta más para toda la página, con las mismas garantías de ámbito y
+     * de recorte de campos que cualquier otra lectura—.
+     *
+     * Doce por cita: el paquete más largo del catálogo de la demo tiene cuatro, y un
+     * tope por padre es lo que impide que una cita repetida se coma la página.
+     */
+    hijos: {
+      servicios: { entidad: 'CitaServicio', porCampo: 'cita_id', limite: 12 },
+    },
+  },
+
+  CitaServicio: {
+    tabla: 'cita_servicios',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    // Por precio y no por hora: el rango vive en columnas `tstzrange` que el
+    // puente no expone —no sabe leerlas— y ordenar por algo que no viaja
+    // dejaría a la pantalla sin forma de reproducir el orden.
+    ordenPorOmision: 'precio_centavos',
+    campos: {
+      ...soloAutomaticos(['id']),
+      cita_id: { columna: 'cita_id', conversion: 'texto', escribible: false },
+      servicio_id: { columna: 'servicio_id', conversion: 'texto', escribible: false },
+      profesional_id: { columna: 'profesional_id', conversion: 'texto', escribible: false },
+      precio_centavos: { columna: 'precio_centavos', conversion: 'dinero', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      cerrado_en: { columna: 'cerrado_en', conversion: 'fecha', escribible: false },
+      orden_linea_id: { columna: 'orden_linea_id', conversion: 'texto', escribible: false },
+    },
+    /**
+     * LOS TRES NOMBRES que sus lectores piden y no estaban.
+     *
+     * `HistorialDeLaClienta` y `MiDia` leen `fecha`, `servicio_nombre` y
+     * `profesional_nombre` de cada servicio de cita, y ninguno era un campo: las
+     * dos pantallas pintaban la fecha vacía y «—» en el servicio con todo bien
+     * puesto en la base. Son tres `left join` de una tabla cada uno, que es
+     * exactamente lo que los derivados del puente saben hacer.
+     */
+    derivados: {
+      // La fecha vive en la CITA, no en su servicio: el rango del servicio es un
+      // `tstzrange` que el puente no sabe leer.
+      fecha: {
+        tabla: 'citas',
+        porColumna: 'cita_id',
+        columna: 'agendada_para',
+        conversion: 'fecha',
+      },
+      servicio_nombre: {
+        tabla: 'productos',
+        porColumna: 'servicio_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      // El corto, que es el que cabe en una columna de agenda.
+      profesional_nombre: {
+        tabla: 'profesionales',
+        porColumna: 'profesional_id',
+        columna: 'nombre_corto',
+        conversion: 'texto',
+      },
+    },
+  },
+
+  /**
+   * EL EXPEDIENTE DE BELLEZA (F-153).
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * Porque de aquí sale la BANDERA DE ALERGIA de la agenda, y un error ahí no es
+   * un descuadre: es una quemadura. `AgendaDelDia` pinta un triángulo en la
+   * esquina del bloque y `HistorialDeLaClienta` enseña el texto completo antes de
+   * tocar a la clienta; las dos leían una entidad que el puente no tenía.
+   *
+   * No es «notas del cliente»: se abre EN CADA VISITA y las alergias son columna
+   * a propósito —una alergia dentro de un jsonb es una alergia que nadie
+   * consulta—.
+   */
+  ExpedienteBelleza: {
+    tabla: 'expedientes_belleza',
+    // Lo ve quien atiende, que es quien tiene las manos en la cabeza de alguien.
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    ordenPorOmision: '-abierto_en',
+    campos: {
+      /**
+       * LA CLAVE ES LA CLIENTA: hay UN expediente por clienta, no una fila por
+       * visita, y la tabla no tiene columna `id` propia.
+       *
+       * Se sirve como `id` porque el contrato del puente exige que toda entidad
+       * traiga uno —su frontend lo lee siempre— y porque un segundo campo sobre
+       * la misma columna está prohibido, también con razón: dos nombres para una
+       * columna es cómo uno pisa al otro al guardar. Así que quien busque el
+       * expediente de una clienta filtra por `id`, que aquí ES el de la clienta.
+       */
+      id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      alergias: { columna: 'alergias', conversion: 'texto', escribible: false },
+      antecedentes: { columna: 'antecedentes', conversion: 'texto', escribible: false },
+      como_llego: { columna: 'como_llego', conversion: 'texto', escribible: false },
+      que_busca: { columna: 'que_busca', conversion: 'texto', escribible: false },
+      tipo_cabello: { columna: 'tipo_cabello', conversion: 'texto', escribible: false },
+      porcentaje_canas: { columna: 'porcentaje_canas', conversion: 'entero', escribible: false },
+      ultimo_alisado_en: { columna: 'ultimo_alisado_en', conversion: 'dia', escribible: false },
+      frecuencia_dias: { columna: 'frecuencia_dias', conversion: 'entero', escribible: false },
+      abierto_en: { columna: 'abierto_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  /**
+   * LA FÓRMULA APLICADA (F-154).
+   *
+   * De aquí sale el botón REPETIR: lo que de verdad se mezcló la vez pasada, con
+   * su tono, su volumen y sus minutos. `CitaEnCurso` lo enseña como «la vez
+   * pasada» —es lo primero que la estilista mira— y el historial lo lista por
+   * visita. Ninguna de las dos lo tenía.
+   *
+   * `formula` viaja como JSON tal cual: es `{marca, tono, volumen, gramos,
+   * minutos, notas}` y NO apunta al catálogo, porque una fórmula congelada tiene
+   * que seguir leyéndose cuando la marca ya no se vende.
+   */
+  FormulaAplicada: {
+    tabla: 'formulas_aplicadas',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    // Por el NOMBRE del campo, no por el de la columna: es lo que el contrato
+    // del puente exige y lo que la pantalla puede reproducir.
+    ordenPorOmision: '-fecha',
+    campos: {
+      ...soloAutomaticos(['id']),
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      cita_servicio_id: { columna: 'cita_servicio_id', conversion: 'texto', escribible: false },
+      servicio_id: { columna: 'servicio_id', conversion: 'texto', escribible: false },
+      profesional_id: { columna: 'profesional_id', conversion: 'texto', escribible: false },
+      formula: { columna: 'formula', conversion: 'json', escribible: false },
+      minutos: { columna: 'minutos_procesado', conversion: 'entero', escribible: false },
+      resultado: { columna: 'resultado', conversion: 'texto', escribible: false },
+      // `fecha` y no `aplicada_en`: es el nombre con el que las dos pantallas la
+      // leen y el que usan para ordenar.
+      fecha: { columna: 'aplicada_en', conversion: 'fecha', escribible: false },
+    },
+    derivados: {
+      servicio: {
+        tabla: 'productos',
+        porColumna: 'servicio_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
+  },
+
+  ReglaComision: {
+    tabla: 'reglas_comision',
+    // Las cinco preguntas del trato de cada quien. Sólo la DIRECCIÓN.
+    rolesLectura: [...DIRECCION],
+    escritura: 'comando',
+    ordenPorOmision: '-vigente_desde',
+    campos: {
+      ...soloAutomaticos(['id']),
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      version: { columna: 'version', conversion: 'entero', escribible: false },
+      esquema: { columna: 'esquema', conversion: 'texto', escribible: false },
+      tasa_servicio_bp: {
+        columna: 'tasa_servicio_bp',
+        conversion: 'puntos_base',
+        escribible: false,
+      },
+      tasa_producto_bp: {
+        columna: 'tasa_producto_bp',
+        conversion: 'puntos_base',
+        escribible: false,
+      },
+      base: { columna: 'base', conversion: 'texto', escribible: false },
+      sobre_iva: { columna: 'sobre_iva', conversion: 'booleano', escribible: false },
+      material: { columna: 'material', conversion: 'texto', escribible: false },
+      reparto: { columna: 'reparto', conversion: 'texto', escribible: false },
+      rehacer_paga: { columna: 'rehacer_paga', conversion: 'booleano', escribible: false },
+      escalones: { columna: 'escalones', conversion: 'json', escribible: false },
+      vigente_desde: { columna: 'vigente_desde', conversion: 'dia', escribible: false },
+      vigente_hasta: { columna: 'vigente_hasta', conversion: 'dia', escribible: false },
+    },
+  },
+
+  ComisionCausada: {
+    tabla: 'comisiones_causadas',
+    // Cada quien ve lo suyo por el filtro de la consulta; la dirección lo ve
+    // todo. Lo que NO se puede es esconderlo: una comisión que la estilista no
+    // puede leer es el pleito del domingo con otro nombre.
+    rolesLectura: [...DIRECCION, 'mesero', 'cajero'],
+    escritura: 'comando',
+    ordenPorOmision: '-causada_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      profesional_id: { columna: 'profesional_id', conversion: 'texto', escribible: false },
+      orden_linea_id: { columna: 'orden_linea_id', conversion: 'texto', escribible: false },
+      cita_servicio_id: { columna: 'cita_servicio_id', conversion: 'texto', escribible: false },
+      regla_id: { columna: 'regla_id', conversion: 'texto', escribible: false },
+      regla_version: { columna: 'regla_version', conversion: 'entero', escribible: false },
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      base_centavos: { columna: 'base_centavos', conversion: 'dinero', escribible: false },
+      tasa_bp: { columna: 'tasa_bp', conversion: 'puntos_base', escribible: false },
+      monto_centavos: { columna: 'monto_centavos', conversion: 'dinero', escribible: false },
+      // El motivo de la contrapartida viaja: «− $50, ticket 3471 cancelado» es
+      // lo único que hace entendible que el número baje.
+      motivo: { columna: 'motivo', conversion: 'texto', escribible: false },
+      liquidacion_id: { columna: 'liquidacion_id', conversion: 'texto', escribible: false },
+      causada_en: { columna: 'causada_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  Liquidacion: {
+    tabla: 'liquidaciones',
+    rolesLectura: [...DIRECCION, 'mesero'],
+    escritura: 'comando',
+    ordenPorOmision: '-periodo_hasta',
+    campos: {
+      ...soloAutomaticos(['id']),
+      profesional_id: { columna: 'profesional_id', conversion: 'texto', escribible: false },
+      periodo_desde: { columna: 'periodo_desde', conversion: 'dia', escribible: false },
+      periodo_hasta: { columna: 'periodo_hasta', conversion: 'dia', escribible: false },
+      // Dos campos, nunca uno: la propina no es del salón.
+      comision_centavos: { columna: 'comision_centavos', conversion: 'dinero', escribible: false },
+      propina_centavos: { columna: 'propina_centavos', conversion: 'dinero', escribible: false },
+      renta_centavos: { columna: 'renta_centavos', conversion: 'dinero', escribible: false },
+      total_centavos: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
+      movimiento_caja_id: { columna: 'movimiento_caja_id', conversion: 'texto', escribible: false },
+      pagada_en: { columna: 'pagada_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  Obra: {
+    tabla: 'obras',
+    // F-639 · La obra se CIERRA, nunca se borra: sus remisiones se consultan
+    // años después, y el contratista las pide para su contabilidad de obra.
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: 'nombre',
+    campos: {
+      ...soloAutomaticos(['id']),
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      direccion: { columna: 'direccion', conversion: 'texto', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      limite_centavos: { columna: 'limite_centavos', conversion: 'dinero', escribible: false },
+      abierta_en: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
+      cerrada_en: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  AutorizadoCuenta: {
+    tabla: 'autorizados_cuenta',
+    // El mostrador TIENE que poder leerla: el aviso de «no está en la lista»
+    // sirve antes de despachar, o no sirve.
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: 'nombre',
+    campos: {
+      ...soloAutomaticos(['id']),
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      obra_id: { columna: 'obra_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
+      // La identificación que enseñó al darse de alta la ve la DIRECCIÓN, no el
+      // mostrador: para despachar basta el nombre y la foto.
+      identificacion: {
+        columna: 'identificacion',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...DIRECCION],
+      },
+      foto_url: { columna: 'foto_url', conversion: 'texto', escribible: false },
+      tope_por_salida_centavos: {
+        columna: 'tope_por_salida_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      activo: { columna: 'activo', conversion: 'booleano', escribible: false },
+      dado_de_baja_en: { columna: 'dado_de_baja_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  Remision: {
+    tabla: 'remisiones',
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: '-entregada_en',
+    derivados: {
+      /**
+       * F-639 · LA OBRA a la que se cargó, por su nombre.
+       *
+       * `ferreteria/Cuentas.tsx` la lee para agrupar la cartera —el contratista
+       * tiene tres obras y paga una— y el puente sólo servía `obra_id`: la pantalla
+       * enseñaba «Sin obra» en cada remisión con la obra puesta en la base.
+       */
+      obra_nombre: {
+        tabla: 'obras',
+        porColumna: 'obra_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
+    campos: {
+      ...soloAutomaticos(['id']),
+      orden_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      obra_id: { columna: 'obra_id', conversion: 'texto', escribible: false },
+      autorizado_id: { columna: 'autorizado_id', conversion: 'texto', escribible: false },
+      nombre_firmante: { columna: 'nombre_firmante', conversion: 'texto', escribible: false },
+      // EL dato de la impugnación. Se expone porque la conversación de cobro se
+      // tiene mirando la pantalla, no el registro de auditoría.
+      autorizado_estaba_en_lista: {
+        columna: 'autorizado_estaba_en_lista',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      firma_url: { columna: 'firma_url', conversion: 'texto', escribible: false },
+      importe_centavos: { columna: 'importe_centavos', conversion: 'dinero', escribible: false },
+      saldo_documento_centavos: {
+        columna: 'saldo_documento_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      entregada_en: { columna: 'entregada_en', conversion: 'fecha', escribible: false },
+      entregada_por: { columna: 'entregada_por', conversion: 'texto', escribible: false },
+    },
+  },
+
+  Ubicacion: {
+    tabla: 'ubicaciones',
+    // La lee quien vende: la ubicación existe para encontrar la pieza, sesenta
+    // veces al día. Esconderla del cajero la deja sin usuario.
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: 'orden_recorrido',
+    campos: {
+      ...soloAutomaticos(['id']),
+      almacen_id: { columna: 'almacen_id', conversion: 'texto', escribible: false },
+      codigo: { columna: 'codigo', conversion: 'texto', escribible: false },
+      descripcion: { columna: 'descripcion', conversion: 'texto', escribible: false },
+      zona_id: { columna: 'zona_id', conversion: 'texto', escribible: false },
+      orden_recorrido: { columna: 'orden_recorrido', conversion: 'entero', escribible: false },
+      activa: { columna: 'activa', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  ProductoAtributo: {
+    tabla: 'producto_atributos',
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: 'clave',
+    campos: {
+      ...soloAutomaticos(['id']),
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      clave: { columna: 'clave', conversion: 'texto', escribible: false },
+      valor_texto: { columna: 'valor_texto', conversion: 'texto', escribible: false },
+      // En MICRÓMETROS, y por eso entero: un cuarto de pulgada es 6350, no 6.35.
+      valor_normalizado: { columna: 'valor_normalizado', conversion: 'entero', escribible: false },
+      // Lo que tecleó la persona. Viaja porque es lo que la pantalla vuelve a
+      // mostrar: reconstruir la fracción desde el normalizado es ambiguo.
+      valor_original: { columna: 'valor_original', conversion: 'texto', escribible: false },
+    },
+  },
+
+  /**
+   * EL MATERIAL QUE SE VENDE CORTADO (F-145, F-150).
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * `ferreteria/CorteDeMaterial.tsx` se hidrata de aquí y de `PiezaDeMaterial`, y
+   * **ninguna de las dos estaba en el mapa**: el puente contestaba
+   * `PUENTE_ENTIDAD_DESCONOCIDA` y la pantalla caía en su estado vacío. La
+   * función que distingue a una ferretería de una tiendita —cortar— no tenía por
+   * dónde entrar.
+   *
+   * ── En unidades de VENTA, no en base ─────────────────────────────────────
+   * La vista `materiales_continuos` (171) ya divide: `desperdicioTipico` y
+   * `umbralRetazo` llegan en metros con decimales, que es lo que la pantalla
+   * teclea y compara. En base serían 2 000 y 30 000, y el aviso de «retazo
+   * chico» se dispararía siempre.
+   */
+  MaterialContinuo: {
+    tabla: 'materiales_continuos',
+    // Corta quien despacha y quien está en el almacén; el precio de remate lo
+    // decide quien ve márgenes, y eso se filtra por campo más abajo.
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'lectura',
+    ordenPorOmision: 'nombre',
+    campos: {
+      id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      unidad: { columna: 'unidad_venta', conversion: 'texto', escribible: false },
+      tipoCorte: { columna: 'tipo_corte', conversion: 'texto', escribible: false },
+      precioCentavos: { columna: 'precio_venta_centavos', conversion: 'entero', escribible: false },
+      costoCentavos: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'costo_unitario_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      desperdicioTipico: { columna: 'merma_tipica', conversion: 'decimal', escribible: false },
+      umbralRetazo: { columna: 'umbral_retazo', conversion: 'decimal', escribible: false },
+      // Sugerencia, no precio: lo lee quien puede decidir rematar.
+      precioRemateCentavos: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'precio_remate_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+    },
+  },
+
+  /**
+   * LOS ROLLOS ABIERTOS, con su etiqueta (F-145).
+   *
+   * Un RETAZO cuenta como abierto: se puede cortar de él y conviene gastarlo
+   * antes que abrir otro rollo. `iguales` es siempre 1 porque los rollos cerrados
+   * no llevan identidad a propósito (migración 113), y el sistema no sabe si los
+   * 250 m que no están en piezas son dos rollos de 125 o cinco de 50.
+   */
+  PiezaDeMaterial: {
+    tabla: 'piezas_de_material',
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    // La más chica primero: el objetivo es CERRAR piezas, no abrirlas.
+    ordenPorOmision: 'restante',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      abierta: { columna: 'abierta', conversion: 'booleano', escribible: false },
+      restante: { columna: 'restante', conversion: 'decimal', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      iguales: { columna: 'iguales', conversion: 'entero', escribible: false },
+    },
+  },
+
+  /**
+   * LA CAJA DE UNA FERRETERÍA (F-140).
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * `ferreteria/Caja.tsx` se hidrataba de `Venta` y filtraba por
+   * `estado: 'pendiente_cobro'`, que **no existe en el `check` de
+   * `ordenes.estado`**: su lista de notas pendientes no podía tener una fila
+   * nunca, y la caja enseñaba «La caja está al día» con el mostrador lleno. Los
+   * otros once campos que la pantalla lee tampoco estaban en `Venta`, así que
+   * cada renglón habría salido «—» incluso con el estado arreglado.
+   *
+   * ── Por qué una vista y no más campos en `Venta` ──────────────────────────
+   * Porque lo que la caja lista no son órdenes: son NOTAS DE MOSTRADOR, con su
+   * folio, su caducidad y su propio estado. Y porque «pagada pero sin entregar»
+   * —el descuadre que hace que alguien entregue dos veces el mismo material— no
+   * se puede ver mirando `ordenes`: hace falta `notas_mostrador.entregada_en`.
+   *
+   * ── Y por qué el dinero va en CENTAVOS ───────────────────────────────────
+   * Porque esta pantalla es nueva y cuenta en centavos de punta a punta, como
+   * `MaterialMostrador`. `dinero` divide por cien para el frontend heredado, y
+   * un total dividido dos veces son sesenta pesos en vez de seis mil.
+   */
+  NotaDeCaja: {
+    tabla: 'notas_de_caja',
+    // El cajero cobra y el mostradorista pregunta «¿ya pagaron la mía?». Los dos.
+    rolesLectura: [...CAJA, 'mesero'],
+    escritura: 'comando',
+    ordenPorOmision: '-creada',
+    campos: {
+      // La clave es la ORDEN, no la nota: es lo que `venta.cobrar` recibe y con
+      // lo que `DetalleVenta` filtra las partidas. La nota va aparte, para
+      // `nota_mostrador.entregar`.
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      nota_id: { columna: 'nota_id', conversion: 'texto', escribible: false },
+      codigo_caja: { columna: 'codigo_caja', conversion: 'texto', escribible: false },
+      // `por_cobrar` · `pagada_sin_entregar` · `apartada` · `cancelada`. Lo
+      // calcula la vista de los dos estados reales: el de la orden dice si entró
+      // el dinero, el de la nota si salió el material.
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      cliente_nombre: { columna: 'cliente_nombre', conversion: 'texto', escribible: false },
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      obra: { columna: 'obra', conversion: 'texto', escribible: false },
+      recoge_nombre: { columna: 'recoge_nombre', conversion: 'texto', escribible: false },
+      recoge_autorizado: {
+        columna: 'recoge_autorizado',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      atendio: { columna: 'atendio', conversion: 'texto', escribible: false },
+      creada: { columna: 'creada', conversion: 'fecha', escribible: false },
+      vence: { columna: 'vence', conversion: 'fecha', escribible: false },
+      totalCentavos: { columna: 'total_centavos', conversion: 'entero', escribible: false },
+      // El saldo y el límite se repiten en la caja porque quien cobra es OTRA
+      // persona: la decisión de dar crédito es suya, y el dato tiene que estar
+      // delante de quien decide, no de quien decidió antes.
+      saldoClienteCentavos: {
+        rolesLectura: [...CAJA],
+        columna: 'saldo_cliente_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      limiteClienteCentavos: {
+        rolesLectura: [...CAJA],
+        columna: 'limite_cliente_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+    },
+  },
+
+  /**
+   * EL ÍNDICE DEL MOSTRADOR DE UNA FERRETERÍA (F-150, F-152).
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * `ferreteria/Mostrador.tsx` y `ferreteria/Cotizacion.tsx` se hidratan de aquí,
+   * y **no estaba en el mapa**: el puente contestaba
+   * `PUENTE_ENTIDAD_DESCONOCIDA`, las dos pantallas se comían el error y se
+   * quedaban sin un solo material. Sin índice no hay resultados, sin resultados
+   * no hay partidas, y «Mandar a caja» no se encendía nunca: una ferretería no
+   * podía vender NADA por su pantalla.
+   *
+   * ── Los nombres son LOS DE LA PANTALLA ───────────────────────────────────
+   * `precioCentavos`, `costoCentavos`, `existencia` en camelCase y en CENTAVOS,
+   * porque es lo que `buscar-material.ts` y `Cotizacion.tsx` leen. Por eso la
+   * conversión del dinero es `entero` y no `dinero`: `dinero` divide por cien
+   * para el frontend heredado, y estas dos pantallas son nuevas y cuentan en
+   * centavos. Un precio dividido dos veces son diecinueve pesos en vez de mil
+   * novecientos.
+   *
+   * ── Y el costo va aparte ─────────────────────────────────────────────────
+   * `costoCentavos` sólo lo lee quien ve márgenes. Un mostradorista no tiene por
+   * qué saber lo que el negocio paga, y la cotización que lo usa la hace quien
+   * decide el precio.
+   */
+  MaterialMostrador: {
+    tabla: 'materiales_mostrador',
+    // La lee quien vende en el pasillo y quien cotiza. Es el catálogo con su
+    // ubicación: esconderlo del cajero lo deja sin usuario (igual que `Ubicacion`).
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'lectura',
+    ordenPorOmision: 'nombre',
+    campos: {
+      // La clave es el PRODUCTO: la vista no tiene `id` propio, y el
+      // identificador que las partidas y el corte usan es el del producto.
+      id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      sku: { columna: 'sku', conversion: 'texto', escribible: false },
+      codigo_barras: { columna: 'codigo_barras', conversion: 'texto', escribible: false },
+      // Los tres de display, con su valor ORIGINAL: el mostradorista teclea
+      // `1/4` y espera leer `1/4"`, no `6350`.
+      medida: { columna: 'medida', conversion: 'texto', escribible: false },
+      acabado: { columna: 'acabado', conversion: 'texto', escribible: false },
+      marca: { columna: 'marca', conversion: 'texto', escribible: false },
+      linea: { columna: 'linea', conversion: 'texto', escribible: false },
+      // F-152: sin la ubicación, el resultado de la búsqueda no termina la venta
+      // —el mostradorista sabe que lo hay y no dónde está—.
+      ubicacion: { columna: 'ubicacion', conversion: 'texto', escribible: false },
+      unidad: { columna: 'unidad_venta', conversion: 'texto', escribible: false },
+      precioCentavos: {
+        columna: 'precio_venta_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      costoCentavos: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'costo_unitario_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      // La existencia es la proyección del ledger, EN VIVO: la vista la lee de
+      // `existencias_por_insumo` en cada consulta y no de una materializada, que
+      // diría que hay seis tramos de tubo cuando quedan dos.
+      existencia: { columna: 'existencia', conversion: 'decimal', escribible: false },
+    },
+  },
+
+  PiezaAbierta: {
+    tabla: 'piezas_abiertas',
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: 'medida_restante_base',
+    campos: {
+      ...soloAutomaticos(['id']),
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      almacen_id: { columna: 'almacen_id', conversion: 'texto', escribible: false },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      medida_restante_base: {
+        columna: 'medida_restante_base',
+        conversion: 'entero',
+        escribible: false,
+      },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      precio_remate_centavos: {
+        columna: 'precio_remate_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      ubicacion_id: { columna: 'ubicacion_id', conversion: 'texto', escribible: false },
+      abierta_en: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  Redondeo: {
+    tabla: 'redondeos',
+    // Lo lee quien cuadra el cajón: es la explicación de por qué el arqueo no
+    // da exactamente lo que dice la venta.
+    rolesLectura: [...CAJA],
+    escritura: 'comando',
+    ordenPorOmision: '-created_at',
+    campos: {
+      ...soloAutomaticos(['id']),
+      orden_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      importe_centavos: { columna: 'importe_centavos', conversion: 'dinero', escribible: false },
+      producto_especie_id: {
+        columna: 'producto_especie_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      movimiento_caja_id: { columna: 'movimiento_caja_id', conversion: 'texto', escribible: false },
+      sesion_caja_id: { columna: 'sesion_caja_id', conversion: 'texto', escribible: false },
+      empleado_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+      created_at: { columna: 'created_at', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  Presentacion: {
+    tabla: 'producto_presentaciones',
+    // El precio de una presentación es público en el mostrador: el six tiene su
+    // etiqueta en el anaquel. Esconderlo del cajero sería esconderle lo que va a
+    // cobrar.
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: 'factor',
+    campos: {
+      ...soloAutomaticos(['id']),
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      factor: { columna: 'factor', conversion: 'decimal', escribible: false },
+      codigo_barras: { columna: 'codigo_barras', conversion: 'texto', escribible: false },
+      sku: { columna: 'sku', conversion: 'texto', escribible: false },
+      precio_venta_centavos: {
+        columna: 'precio_venta_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      es_base: { columna: 'es_base', conversion: 'booleano', escribible: false },
+      es_venta_default: { columna: 'es_venta_default', conversion: 'booleano', escribible: false },
+      es_compra_default: {
+        columna: 'es_compra_default',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      activa: { columna: 'activa', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  ZonaAnaquel: {
+    tabla: 'zonas_anaquel',
+    rolesLectura: [...INVENTARIO, 'cajero'],
+    escritura: 'comando',
+    // Por el recorrido físico de la tienda: contar saltando de la reja al
+    // congelador y de vuelta es cómo se cuenta dos veces lo mismo.
+    ordenPorOmision: 'orden',
+    campos: {
+      ...soloAutomaticos(['id']),
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      orden: { columna: 'orden', conversion: 'entero', escribible: false },
+      dias_entre_conteos: {
+        columna: 'dias_entre_conteos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      ultimo_conteo_en: { columna: 'ultimo_conteo_en', conversion: 'fecha', escribible: false },
+      activa: { columna: 'activa', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  /**
+   * LAS OPCIONES DE UNA BEBIDA, con su grupo (F-027).
+   *
+   * La vista `opciones_de_bebida` (175) resuelve las tres cosas que la tabla no
+   * dice: el delta de precio —firmado cuando existe, el extra cuando no—, cuál es
+   * la de omisión —la primera de su grupo— y si está AGOTADA, que sale de la
+   * existencia del insumo que sustituye y no de una marca que alguien recuerde
+   * poner.
+   *
+   * Antes de la 175 esta entidad NO EXISTÍA: la pantalla de opciones contestaba
+   * «Se puede agregar la bebida sencilla», o sea que la leche de avena no se podía
+   * pedir ni cobrar.
+   */
+  Modificador: {
+    tabla: 'opciones_de_bebida',
+    // El precio de una opción es público en la barra: está en el menú.
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    // Por el orden de su grupo: el 12 oz antes del 16, como en el menú.
+    ordenPorOmision: 'orden',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      grupo: { columna: 'grupo', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      delta_precio_centavos: {
+        columna: 'delta_precio_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      por_omision: { columna: 'por_omision', conversion: 'booleano', escribible: false },
+      agotado: { columna: 'agotado', conversion: 'booleano', escribible: false },
+      varias: { columna: 'varias', conversion: 'booleano', escribible: false },
+      orden: { columna: 'orden', conversion: 'entero', escribible: false },
+    },
+  },
+
+  /**
+   * LO QUE CADA CLIENTE DEBE, POR OBRA (F-612).
+   *
+   * La vista `cartera_por_obra` (175). Un renglón por cliente y obra, que es como
+   * se cobra en una ferretería: el contratista tiene tres obras y paga una.
+   *
+   * Sólo lo ve quien cobra: una cartera es la lista de quién debe y cuánto.
+   */
+  CarteraPorObra: {
+    tabla: 'cartera_por_obra',
+    rolesLectura: [...VE_FIADO],
+    escritura: 'lectura',
+    // Lo más viejo primero: es el renglón que decide si se le sigue fiando.
+    ordenPorOmision: '-dias_mas_viejo',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      cliente_nombre: { columna: 'cliente_nombre', conversion: 'texto', escribible: false },
+      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
+      obra_nombre: { columna: 'obra_nombre', conversion: 'texto', escribible: false },
+      saldo_centavos: { columna: 'saldo_centavos', conversion: 'entero', escribible: false },
+      dias_mas_viejo: { columna: 'dias_mas_viejo', conversion: 'entero', escribible: false },
+      limite_centavos: { columna: 'limite_centavos', conversion: 'entero', escribible: false },
+      dias_ultimo_pago: { columna: 'dias_ultimo_pago', conversion: 'entero', escribible: false },
+    },
+  },
+
+  /**
+   * LO QUE ME DEBEN EN LA TIENDITA (F-612).
+   *
+   * La MISMA vista que `CarteraPorObra`, con los nombres que usa la pantalla del
+   * fiado. Es la misma pregunta con otras palabras —«¿quién me debe, cuánto, desde
+   * cuándo y cuándo pagó?»— y la ferretería sólo la parte por obra: las filas de
+   * una tiendita salen con `obra_nombre` nula, y eso es la diferencia entera.
+   *
+   * Dos vistas darían dos aritméticas del saldo, y la segunda sería la que nadie
+   * revisa. Esta entidad NO EXISTÍA: la pantalla del fiado —de las más usadas,
+   * porque medio barrio debe— enseñaba su título y nada más.
+   */
+  CarteraFiado: {
+    tabla: 'cartera_por_obra',
+    rolesLectura: [...VE_FIADO],
+    escritura: 'lectura',
+    ordenPorOmision: '-saldo_centavos',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'cliente_nombre', conversion: 'texto', escribible: false },
+      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
+      saldo_centavos: { columna: 'saldo_centavos', conversion: 'entero', escribible: false },
+      dias_mas_viejo: { columna: 'dias_mas_viejo', conversion: 'entero', escribible: false },
+      limite_centavos: { columna: 'limite_centavos', conversion: 'entero', escribible: false },
+      ultimo_abono_dias: { columna: 'dias_ultimo_pago', conversion: 'entero', escribible: false },
+      // «Paga los viernes», «no fiar más»: en una tiendita esa frase es la mitad de
+      // la decisión de seguir fiando.
+      nota: { columna: 'nota', conversion: 'texto', escribible: false },
+    },
+  },
+
+  /**
+   * LOS ABONOS DE UN CLIENTE (F-614).
+   *
+   * Sobre `pagos_credito`, que existe desde la 063. La pantalla de cuentas los
+   * enseña al lado de la cartera —cobrado hoy, por método— y la entidad no estaba:
+   * «COBRADO HOY $0.00» con los abonos en la base.
+   *
+   * `fecha` es `recibido_en` y no `created_at`: la fecha REAL del depósito puede no
+   * ser la de captura, y lo que el cliente reclama es la suya.
+   */
+  PagoCredito: {
+    tabla: 'pagos_credito',
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: '-created_at',
+    campos: {
+      ...soloAutomaticos(['id']),
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      metodo: { columna: 'metodo', conversion: 'texto', escribible: false },
+      monto_centavos: { columna: 'monto_centavos', conversion: 'entero', escribible: false },
+      fecha: { columna: 'recibido_en', conversion: 'fecha', escribible: false },
+      referencia: { columna: 'referencia', conversion: 'texto', escribible: false },
+      created_at: { columna: 'created_at', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  /**
+   * LOS CUATRO CONTADORES DEL ALMACÉN de una ferretería (F-146).
+   *
+   * La vista `existencias_de_material` (175): qué hay, qué está DORMIDO, qué está
+   * ABIERTO y qué está en NEGATIVO. Los cuatro de la misma consulta a propósito:
+   * con cuatro consultas, los totales de arriba no cuadran con la tabla de abajo
+   * en cuanto alguien vende a media carga.
+   *
+   * Los nombres de los campos van en `camelCase` porque es lo que esta pantalla
+   * lee, y el puente sirve el nombre que se declara aquí.
+   */
+  ExistenciaMaterial: {
+    tabla: 'existencias_de_material',
+    rolesLectura: [...INVENTARIO, 'cajero'],
+    escritura: 'lectura',
+    ordenPorOmision: 'nombre',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      linea: { columna: 'linea', conversion: 'texto', escribible: false },
+      proveedor: { columna: 'proveedor', conversion: 'texto', escribible: false },
+      gaveta: { columna: 'gaveta', conversion: 'texto', escribible: false },
+      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
+      existencia: { columna: 'existencia', conversion: 'decimal', escribible: false },
+      piezasAbiertas: { columna: 'piezas_abiertas', conversion: 'entero', escribible: false },
+      diasAbiertaMasVieja: {
+        columna: 'dias_abierta_mas_vieja',
+        conversion: 'entero',
+        escribible: false,
+      },
+      vendido90: { columna: 'vendido90', conversion: 'decimal', escribible: false },
+      diasInventario: { columna: 'dias_inventario', conversion: 'entero', escribible: false },
+      umbralDiasLinea: { columna: 'umbral_dias_linea', conversion: 'entero', escribible: false },
+      minimo: { columna: 'minimo', conversion: 'decimal', escribible: false },
+      // El dinero parado sólo lo ve quien ve costos: es existencia por costo.
+      dineroParadoCentavos: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'dinero_parado_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+    },
+  },
+
+  /**
+   * LA FICHA AMPLIADA DE UNA PIEZA (F-061).
+   *
+   * La vista `piezas_de_ferreteria` (175): la medida en las DOS notaciones, los
+   * atributos con su valor ORIGINAL —«1/4"», no «6350»—, la gaveta, el peso y la
+   * foto del mostrador. Los hijos traen las unidades de venta y los equivalentes.
+   *
+   * Antes de la 175 esta entidad no existía y la ficha no abría nunca: 10 a 25
+   * veces al día se resolvía la duda del cliente sin ella.
+   */
+  PiezaFerreteria: {
+    tabla: 'piezas_de_ferreteria',
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'lectura',
+    ordenPorOmision: 'nombre',
+    hijos: {
+      // Las formas de vender la misma pieza: pieza, kilo, caja de 500.
+      unidades: { entidad: 'Presentacion', porCampo: 'producto_id', limite: 12 },
+      // Lo que le sirve y lo que va con ella. El tipo distingue los dos.
+      equivalencias: { entidad: 'Equivalencia', porCampo: 'producto_id', limite: 20 },
+    },
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      familia: { columna: 'familia', conversion: 'texto', escribible: false },
+      medidaPulgada: { columna: 'medida_pulgada', conversion: 'texto', escribible: false },
+      medidaMilimetro: { columna: 'medida_milimetro', conversion: 'texto', escribible: false },
+      rosca: { columna: 'rosca', conversion: 'texto', escribible: false },
+      cabeza: { columna: 'cabeza', conversion: 'texto', escribible: false },
+      material: { columna: 'material', conversion: 'texto', escribible: false },
+      acabado: { columna: 'acabado', conversion: 'texto', escribible: false },
+      marca: { columna: 'marca', conversion: 'texto', escribible: false },
+      sku: { columna: 'sku', conversion: 'texto', escribible: false },
+      fotoUrl: { columna: 'foto_url', conversion: 'texto', escribible: false },
+      existencia: { columna: 'existencia', conversion: 'decimal', escribible: false },
+      desglose: { columna: 'desglose', conversion: 'texto', escribible: false },
+      pesoKg: { columna: 'peso_kg', conversion: 'decimal', escribible: false },
+      ubicacion: { columna: 'ubicacion', conversion: 'texto', escribible: false },
+    },
+  },
+
+  /**
+   * EL PAPEL DEL ALBAÑIL, con sus renglones contados (F-153).
+   *
+   * La vista `listas_de_trabajo` (177). Un renglón por lista, con cuántos pidió y
+   * cuántos están COMPLETOS —`surtida >= cantidad`, porque media varilla entregada
+   * no es un renglón surtido—.
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * `ferreteria/trabajos-de-mostrador` pedía sus tres listas por POST a rutas de
+   * ESCRITURA con `{listar: true}`: `nota_mostrador.apartar` pide un `notaId`,
+   * `lista_trabajo.capturar` pide sus renglones y `inventario.recibir_garantia`
+   * pide la pieza. Las tres contestaban 400 y los tres `.catch` de la pantalla lo
+   * convertían en tres listas vacías, así que la pantalla decía «no hay apartados,
+   * no hay listas, no hay garantías» con las tres cosas en la base.
+   *
+   * Los apartados se leen de `NotaDeCaja` —ya existía— y las garantías por
+   * `inventario.garantias_pendientes`, que también existía y no tenía ruta. Esto
+   * es lo único que no había por dónde leerse.
+   *
+   * Lo ve el MOSTRADOR entero: quien captura la lista y quien la surte no suelen
+   * ser la misma persona.
+   */
+  ListaDeTrabajo: {
+    tabla: 'listas_de_trabajo',
+    rolesLectura: [...CAJA],
+    escritura: 'lectura',
+    // La última capturada primero: es la que el albañil acaba de dictar.
+    ordenPorOmision: '-capturada_en',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      titulo: { columna: 'titulo', conversion: 'texto', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      // De su ficha o el nombre a mano: la tabla exige uno de los dos.
+      cliente: { columna: 'cliente', conversion: 'texto', escribible: false },
+      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
+      capturada_en: { columna: 'capturada_en', conversion: 'fecha', escribible: false },
+      cerrada_en: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
+      nota: { columna: 'nota', conversion: 'texto', escribible: false },
+      renglones: { columna: 'renglones', conversion: 'entero', escribible: false },
+      surtidos: { columna: 'surtidos', conversion: 'entero', escribible: false },
+      // Los que hay que pedir al proveedor el lunes.
+      sin_existencia: { columna: 'sin_existencia', conversion: 'entero', escribible: false },
+    },
+  },
+
+  /**
+   * «NO TENGO LA DE 1/2 PERO LA DE 13 MM LE SIRVE» (F-060).
+   *
+   * Existe para que la ficha pueda servir sus equivalentes como hijos. El nombre y
+   * el precio salen de `productos` por derivado: una equivalencia apunta a una
+   * clave, y lo que el mostradorista necesita leer es el nombre de esa clave.
+   */
+  Equivalencia: {
+    tabla: 'equivalencias',
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    ordenPorOmision: '-declarado_en',
+    derivados: {
+      nombre: {
+        tabla: 'productos',
+        porColumna: 'equivalente_id',
+        columna: 'nombre',
+        conversion: 'texto',
+        publico: true,
+      },
+      precioCentavos: {
+        tabla: 'productos',
+        porColumna: 'equivalente_id',
+        columna: 'precio_venta_centavos',
+        conversion: 'entero',
+        publico: true,
+      },
+    },
+    campos: {
+      ...soloAutomaticos(['id']),
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      equivalente_id: { columna: 'equivalente_id', conversion: 'texto', escribible: false },
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      nota: { columna: 'nota', conversion: 'texto', escribible: false },
+      bidireccional: { columna: 'bidireccional', conversion: 'booleano', escribible: false },
+      declarado_en: { columna: 'declarado_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  /**
+   * LO QUE SE CUENTA HOY (F-149).
+   *
+   * La vista `conteo_de_zona` (173) sirve los productos de UNA zona: la más
+   * atrasada de la organización. La pantalla no elige —el encargado está de pie
+   * frente al anaquel— y por eso `filas[0].zona` es el recorrido de hoy.
+   *
+   * `id` es el INSUMO y no el producto, porque es el insumo el que tiene zona y
+   * el que `toma_conteos` cuenta (ver la 091: un insumo sin producto —el envase,
+   * el granel— sería invisible para el recorrido si la zona colgara del producto).
+   *
+   * `esperado` se expone y la pantalla NO lo pinta hasta el resumen: contar a
+   * ciegas es la condición que esa pantalla no puede romper. Se sirve porque el
+   * resumen lo necesita sin un segundo viaje, con el encargado todavía de pie.
+   */
+  ConteoDeZona: {
+    tabla: 'conteo_de_zona',
+    // Cuenta quien está: en una tiendita es el cajero quien conoce el anaquel, y
+    // exigir al encargado es cómo el conteo cíclico vuelve a ser una toma anual.
+    rolesLectura: [...INVENTARIO, 'cajero'],
+    escritura: 'comando',
+    // Por el nombre: el recorrido dentro de una zona es alfabético porque el
+    // anaquel no tiene un orden que la base conozca.
+    ordenPorOmision: 'nombre',
+    campos: {
+      id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      zona: { columna: 'zona', conversion: 'texto', escribible: false },
+      diasSinContar: { columna: 'dias_sin_contar', conversion: 'entero', escribible: false },
+      codigo: { columna: 'codigo', conversion: 'texto', escribible: false },
+      piezasPorCaja: { columna: 'piezas_por_caja', conversion: 'decimal', escribible: false },
+      esperado: { columna: 'esperado', conversion: 'decimal', escribible: false },
+      costoCentavos: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'costo_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+    },
+  },
+
+  Conteo: {
+    tabla: 'tomas_inventario',
+    rolesLectura: [...INVENTARIO],
+    escritura: 'comando',
+    ordenPorOmision: '-iniciada_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      almacen_id: { columna: 'almacen_id', conversion: 'texto', escribible: false },
+      zona_id: { columna: 'zona_id', conversion: 'texto', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      iniciada_en: { columna: 'iniciada_en', conversion: 'fecha', escribible: false },
+      cerrada_en: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
+      empleado_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+  },
+
+  ConteoLinea: {
+    tabla: 'toma_conteos',
+    rolesLectura: [...INVENTARIO],
+    escritura: 'comando',
+    ordenPorOmision: '-contado_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      conteo_id: { columna: 'toma_id', conversion: 'texto', escribible: false },
+      insumo_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
+      esperado: { columna: 'esperado', conversion: 'decimal', escribible: false },
+      contado: { columna: 'contado', conversion: 'decimal', escribible: false },
+      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
+      // El crudo de lo que tecleó la persona. Se expone porque la discusión
+      // «yo conté nueve cajas» se tiene mirando la pantalla, no el log.
+      capturas: { columna: 'capturas', conversion: 'json', escribible: false },
+      movimiento_ajuste_id: {
+        columna: 'movimiento_ajuste_id',
+        conversion: 'texto',
+        escribible: false,
+      },
+      contado_en: { columna: 'contado_en', conversion: 'fecha', escribible: false },
+      empleado_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+    },
+  },
+
+  EsquemaPropina: {
+    tabla: 'esquemas_propina',
+    rolesLectura: [...DIRECCION],
+    escritura: 'comando',
+    ordenPorOmision: '-vigente_desde',
+    campos: {
+      ...soloAutomaticos(['id']),
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      vigente_desde: { columna: 'vigente_desde', conversion: 'texto', escribible: false },
+      vigente_hasta: { columna: 'vigente_hasta', conversion: 'texto', escribible: false },
+      activo: { columna: 'activo', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  BeneficiarioPropina: {
+    tabla: 'liquidacion_propina_beneficiarios',
+    // Sólo dueño y administrador: un mesero no ve lo que se le liquidó a otro,
+    // y ése es el pleito que F-242 viene a cerrar, no a alimentar.
+    rolesLectura: ['dueno', 'administrador'],
+    escritura: 'comando',
+    ordenPorOmision: '-monto_centavos',
+    campos: {
+      ...soloAutomaticos(['id']),
+      liquidacion_id: { columna: 'liquidacion_id', conversion: 'texto', escribible: false },
+      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
+      puesto: { columna: 'puesto', conversion: 'texto', escribible: false },
+      puntos: { columna: 'puntos', conversion: 'decimal', escribible: false },
+      monto_centavos: { columna: 'monto_centavos', conversion: 'dinero', escribible: false },
+    },
+  },
+
+  TiempoPreparacion: {
+    tabla: 'tiempos_preparacion',
+    // Cocina SÍ lee esto: es su propio desempeño, no el margen del negocio.
+    rolesLectura: [...PREPARACION],
+    escritura: 'lectura',
+    ordenPorOmision: '-arrancado_en',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      pedido_id: { columna: 'comanda_id', conversion: 'texto', escribible: false },
+      estacion_id: { columna: 'estacion_preparacion_id', conversion: 'texto', escribible: false },
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      producto_nombre: { columna: 'producto_nombre', conversion: 'texto', escribible: false },
+      minutos_estimados: { columna: 'minutos_estimados', conversion: 'entero', escribible: false },
+      minutos_reales: { columna: 'minutos_reales', conversion: 'entero', escribible: false },
+      desviacion_bp: { columna: 'desviacion_bp', conversion: 'entero', escribible: false },
+      arrancado_en: { columna: 'arrancado_en', conversion: 'fecha', escribible: false },
+      listo_en: { columna: 'listo_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  EsperaMesa: {
+    tabla: 'lista_espera',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    ordenPorOmision: 'creada_en',
+    campos: {
+      ...soloAutomaticos(['id']),
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      // DATO PERSONAL. El mesero no lo necesita para sentar a nadie, y darle a
+      // toda la sala el teléfono de quien espera agranda la superficie sin
+      // ninguna ganancia operativa.
+      telefono: {
+        rolesLectura: [...CAJA],
+        columna: 'telefono',
+        conversion: 'texto',
+        escribible: false,
+      },
+      personas: { columna: 'personas', conversion: 'entero', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      mesa_id: { columna: 'mesa_id', conversion: 'texto', escribible: false },
+      venta_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      espera_estimada_minutos: {
+        columna: 'espera_estimada_minutos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      creada_en: { columna: 'creada_en', conversion: 'fecha', escribible: false },
+      avisada_en: { columna: 'avisada_en', conversion: 'fecha', escribible: false },
+      sentada_en: { columna: 'sentada_en', conversion: 'fecha', escribible: false },
+      notas: { columna: 'notas', conversion: 'texto', escribible: false },
     },
   },
 
@@ -1095,6 +2625,20 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       tipo_celebracion: { columna: 'tipo_celebracion', conversion: 'texto', escribible: false },
     },
     derivados: {
+      /**
+       * F-261 · EL NOMBRE CON EL QUE SE GRITA EL PEDIDO.
+       *
+       * Tres pantallas lo leen —la barra, la recogida y el cierre de turno— y el
+       * puente no lo servía: la fila de la barra decía «Sin nombre» en cada pedido
+       * y la pantalla de recogida, que existe para que el cliente vea SU nombre,
+       * no podía enseñarlo. Vive en la orden, no en la comanda.
+       */
+      nombre_pedido: {
+        tabla: 'ordenes',
+        porColumna: 'orden_id',
+        columna: 'nombre_pedido',
+        conversion: 'texto',
+      },
       mesa_numero: {
         tabla: 'mesas',
         porColumna: 'mesa_id',
@@ -1351,6 +2895,12 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       correo: { columna: 'correo', conversion: 'texto' },
       direccion: { columna: 'direccion', conversion: 'texto' },
       notas: { columna: 'notas', conversion: 'texto' },
+      // F-107 · La ruta. Sin el día de visita, la sugerencia de pedido sólo
+      // puede contestar «te queda poco», que no cambia lo que el tendero hace.
+      dia_visita: { columna: 'dia_visita', conversion: 'json' },
+      frecuencia: { columna: 'frecuencia', conversion: 'texto' },
+      dias_credito: { columna: 'dias_credito', conversion: 'entero' },
+      acepta_canje: { columna: 'acepta_canje', conversion: 'booleano' },
       activo: { columna: 'activo', conversion: 'booleano' },
     },
   },

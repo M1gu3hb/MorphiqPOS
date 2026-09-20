@@ -1,7 +1,7 @@
 import 'server-only';
 
-import { ErrorDominio } from '@morphiqpos/contracts';
-import { obtenerDb, type Transaccion } from '@morphiqpos/data';
+import { ErrorDominio, plantillaDeOrganizacion } from '@morphiqpos/contracts';
+import { leyendoConReintento, obtenerDb, type Transaccion } from '@morphiqpos/data';
 
 /**
  * `ConfiguracionNegocio` — la entidad que no es una tabla con columnas.
@@ -54,7 +54,11 @@ export const CONFIG_POR_OMISION = {
   descargar_pdf_corte_auto: true,
   formato_export_default: 'csv',
   colorear_importes_monetarios: true,
-  paquete_modo: 'restaurante_pro',
+  // La plantilla por omisión de un documento sin fila. `leerConfiguracion`
+  // la sobreescribe SIEMPRE con la de `organizaciones`, así que esto sólo se
+  // ve si no hay negocio; aun así se pone la más restrictiva y no la más
+  // permisiva, por la misma razón que en todos los demás sitios.
+  paquete_modo: 'tienda',
   modo_presentacion_activo: false,
 } as const;
 
@@ -198,18 +202,24 @@ export async function leerConfiguracion(
   organizacionId: string,
   opciones: { readonly publica?: boolean } = {},
 ): Promise<Registro> {
-  const fila = await obtenerDb()
-    .selectFrom('organizaciones as o')
-    .leftJoin('configuracion as c', 'c.organizacion_id', 'o.id')
-    .select([
-      'o.nombre as nombreNegocio',
-      'o.paquete as paquete',
-      'c.id as configId',
-      'c.valores',
-      'c.updated_at',
-    ])
-    .where('o.id', '=', organizacionId)
-    .executeTakeFirst();
+  // Con el reintento de lectura: es la que `ConfigContext` pide en CADA carga de
+  // pantalla, y es una de las que dejaba el `ECONNRESET` del pooler en el
+  // registro. Sólo para leer; ninguna escritura lo lleva.
+  const fila = await leyendoConReintento(() =>
+    obtenerDb()
+      .selectFrom('organizaciones as o')
+      .leftJoin('configuracion as c', 'c.organizacion_id', 'o.id')
+      .select([
+        'o.nombre as nombreNegocio',
+        'o.paquete as paquete',
+        'o.giro as giro',
+        'c.id as configId',
+        'c.valores',
+        'c.updated_at',
+      ])
+      .where('o.id', '=', organizacionId)
+      .executeTakeFirst(),
+  );
 
   if (fila === undefined) {
     throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'La organización no existe.');
@@ -221,7 +231,15 @@ export async function leerConfiguracion(
     ...guardados,
     // La misma columna que consulta `comando()` es también la que se presenta
     // como paquete. Un valor histórico del JSON nunca la puede contradecir.
-    paquete_modo: fila.paquete,
+    //
+    // Y sale NORMALIZADA, igual que en `configuracion/configuracion.ts`. En
+    // crudo, esta lectura es la mitad de un defecto: el frontend heredado
+    // decide el menú y el dashboard con este campo, y mientras la columna
+    // guarde un nombre de D-01 —`tienda`, `cafeteria`, `restaurante`— un valor
+    // sin traducir le llega a `getCurrentPackage` como algo que no reconoce.
+    // Así, los dos lados entienden los mismos TRES nombres y ninguno tiene que
+    // adivinar el giro, que es lo único que el navegador no puede saber.
+    paquete_modo: plantillaDeOrganizacion(fila.giro, fila.paquete),
     // El nombre vive en `organizaciones`, no en el documento: es el mismo que
     // usa la facturación y no puede divergir.
     nombre_negocio: fila.nombreNegocio,

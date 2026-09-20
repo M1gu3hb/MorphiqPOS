@@ -6,10 +6,13 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./agenda": "./src/agenda/index.ts",
     "./dinero": "./src/dinero/index.ts",
     "./catalogo": "./src/catalogo/index.ts",
     "./inventario": "./src/inventario/index.ts",
-    "./venta": "./src/venta/index.ts"
+    "./sala": "./src/sala/index.ts",
+    "./venta": "./src/venta/index.ts",
+    "./vocabulario": "./src/vocabulario/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

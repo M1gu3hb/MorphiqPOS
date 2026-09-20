@@ -55,6 +55,25 @@ export const PREDETERMINADOS = {
   comandas: { estado: 'nuevo', celebracion_especial: false, origen: 'mesero' },
   comanda_items: { estado: 'pendiente' },
   pagos: { estado: 'confirmado', propina_centavos: 0n, cambio_centavos: 0n },
+  // Columnas anulables sin `default`: Postgres las escribe en `null` y la base
+  // falsa tiene que hacer lo mismo, o una prueba que afirme «todavia no se ha
+  // cerrado» leeria `undefined` y pasaria por casualidad.
+  uniones_mesa: { cerrada_en: null, empleado_cierra_id: null },
+  union_mesa_miembros: { orden_absorbida_id: null, union_abierta: true },
+  eventos_mesa: { estado_anterior: null, orden_id: null, personas: null, empleado_id: null },
+  relevos_atencion: {
+    hasta: null,
+    consumo_inicio_centavos: 0n,
+    consumo_fin_centavos: null,
+    empleado_releva_id: null,
+  },
+  lista_espera: { telefono: null, mesa_id: null, orden_id: null, notas: null },
+  movimientos_cuenta: {
+    orden_destino_id: null,
+    mesa_origen_id: null,
+    mesa_destino_id: null,
+    motivo: null,
+  },
 } as const;
 
 export function ambitoDe(rol: Rol): Ambito {

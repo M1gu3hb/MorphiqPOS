@@ -20,7 +20,14 @@ export interface FiltrosProductos {
   readonly limite?: number;
 }
 
-function escaparPatronIlike(valor: string): string {
+/**
+ * Los comodines de `ilike` como LITERALES.
+ *
+ * Exportada porque la usa también quien resuelve el nombre que el mostradorista
+ * teclea (`catalogo.declarar_equivalencia_dicha`): con dos copias, el día que
+ * una aprenda a escapar algo más la otra sigue dejándolo pasar.
+ */
+export function escaparPatronIlike(valor: string): string {
   return valor.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
 }
 

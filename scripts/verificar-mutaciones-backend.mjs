@@ -353,7 +353,26 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_PUENTE_CONFIGURACION_SOURCE_PATH',
   prueba: PRUEBA_PRESENTACION,
   transformar: (codigo) =>
-    codigo.replace('paquete_modo: fila.paquete', "paquete_modo: guardados['paquete_modo']"),
+    codigo.replace(
+      'paquete_modo: plantillaDeOrganizacion(fila.giro, fila.paquete)',
+      "paquete_modo: guardados['paquete_modo']",
+    ),
+});
+comprobarMutacion({
+  // Leer la columna en crudo es la mitad del defecto que deja al frontend
+  // heredado sin plantilla: le llega un nombre de D-01 y cae en su valor por
+  // omisión. La lectura tiene que salir normalizada, no sólo salir de la
+  // columna.
+  nombre: 'paquete servido sin normalizar',
+  origen: CONFIGURACION_PUENTE,
+  archivoTemporal: 'configuracion.ts',
+  variable: 'MORPHIQPOS_PUENTE_CONFIGURACION_SOURCE_PATH',
+  prueba: PRUEBA_PRESENTACION,
+  transformar: (codigo) =>
+    codigo.replace(
+      'paquete_modo: plantillaDeOrganizacion(fila.giro, fila.paquete)',
+      'paquete_modo: fila.paquete',
+    ),
 });
 comprobarMutacion({
   nombre: 'RLS FORCE omitido en sesiones',

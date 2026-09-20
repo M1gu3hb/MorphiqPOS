@@ -95,7 +95,9 @@ export const pedirCuentaQR = definirComandoPublico<typeof entradaPedirCuenta, Re
     await ctx.paso('marcar_mesa', () =>
       moverMesaDelPortal(ctx.tx, {
         organizacionId: ctx.ambito.organizacionId,
+        sucursalId: ctx.ambito.sucursalId,
         mesaId: ctx.ambito.mesaId,
+        estadoAnterior: ctx.ambito.estadoMesa,
         estado: 'cuenta_solicitada',
         ahora: ctx.ahora,
       }),

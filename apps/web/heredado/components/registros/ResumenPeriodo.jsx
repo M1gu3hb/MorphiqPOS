@@ -27,6 +27,7 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useConfig } from '@/lib/ConfigContext';
+import { canAccessModule } from '@/lib/packageConfig';
 import { sumarPropinas } from '@/utils/tipsUtils';
 
 const PERIODOS = [
@@ -41,7 +42,7 @@ const PERIODOS = [
 export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [], onPDF }) {
   const { config, paquete_modo } = useConfig();
   const colorize = config?.colorear_importes_monetarios !== false;
-  const isEsencial = paquete_modo === 'esencial';
+  const sinCostos = !canAccessModule('costos_basicos', paquete_modo);
   const [periodo, setPeriodo] = useState('today');
   const [desde, setDesde] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [hasta, setHasta] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -141,7 +142,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
         </div>
       )}
 
-      <div className={`grid grid-cols-2 ${isEsencial ? 'lg:grid-cols-3' : 'lg:grid-cols-5'} gap-3`}>
+      <div className={`grid grid-cols-2 ${sinCostos ? 'lg:grid-cols-3' : 'lg:grid-cols-5'} gap-3`}>
         <Stat
           icon={DollarSign}
           label="Ingresos"
@@ -162,7 +163,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
           sub="Separadas de ventas"
           color={colorize ? 'text-rose-600' : 'text-foreground'}
         />
-        {!isEsencial && (
+        {!sinCostos && (
           <>
             <Stat
               icon={TrendingUp}
@@ -181,7 +182,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
         )}
       </div>
 
-      {!isEsencial && (
+      {!sinCostos && (
         <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 flex justify-between items-center">
           <div>
             <p className="text-xs text-muted-foreground">
@@ -200,7 +201,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
           </p>
         </div>
       )}
-      {isEsencial && (
+      {sinCostos && (
         <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 flex justify-between items-center">
           <div>
             <p className="text-xs text-muted-foreground">Total cobrado en el periodo</p>

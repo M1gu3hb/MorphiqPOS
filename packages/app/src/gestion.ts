@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { esPaquete, type Ambito, type Paquete } from '@morphiqpos/contracts';
+import { plantillaDeOrganizacion, type Ambito, type Paquete } from '@morphiqpos/contracts';
 import { conTransaccion, obtenerDb } from '@morphiqpos/data';
 import { sql } from 'kysely';
 
@@ -19,19 +19,20 @@ export async function consultarSesionGestion(ambito: Ambito): Promise<SesionGest
     nombre_negocio: string;
     nombre_sucursal: string | null;
     paquete: string;
+    giro: string;
   }>`
-    select o.nombre nombre_negocio, o.paquete,
+    select o.nombre nombre_negocio, o.paquete, o.giro,
       (select s.nombre from sucursales s
        where s.id = ${ambito.sucursalId} and s.organizacion_id = o.id and s.activa) nombre_sucursal
     from organizaciones o where o.id = ${ambito.organizacionId} and o.activa
   `.execute(obtenerDb());
   const fila = resultado.rows[0];
-  if (fila === undefined || !esPaquete(fila.paquete)) {
-    throw new Error('La sesión apunta a una organización sin paquete válido.');
+  if (fila === undefined) {
+    throw new Error('La sesión apunta a una organización que no existe o está inactiva.');
   }
   return {
     ...ambito,
-    paquete: fila.paquete,
+    paquete: plantillaDeOrganizacion(fila.giro, fila.paquete),
     nombreNegocio: fila.nombre_negocio,
     nombreSucursal: fila.nombre_sucursal,
   };

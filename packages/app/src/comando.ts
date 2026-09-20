@@ -113,6 +113,25 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
           throw new Rechazo('PAQUETE_NO_INCLUYE', 'denegado');
         }
 
+        // ── Perilla de módulo (F-016) ───────────────────────────────────────
+        // Va DESPUÉS del paquete y ANTES de la entrada, por la misma razón que
+        // el rol: un módulo apagado no debe poder sondear el esquema del
+        // comando a base de entradas inválidas.
+        //
+        // Sólo se consulta si el comando declara módulo. Lo que ningún negocio
+        // puede apagar —cobrar, abrir caja, entrar— no lo declara, y por tanto
+        // no paga esta consulta.
+        if (definicion.modulo !== undefined) {
+          const activos = await repositorio.leerModulosActivos(tx, ambito.organizacionId);
+          // Fallar cerrado, igual que con el paquete: una organización de la
+          // que no se pudo leer el perfil no es una con todo encendido. La
+          // cadena opcional dice eso mismo: si `activos` es `null`, la
+          // comprobación vale `undefined` y el `!` la vuelve verdadera.
+          if (!activos?.has(definicion.modulo)) {
+            throw new Rechazo('PAQUETE_NO_INCLUYE', 'denegado');
+          }
+        }
+
         // ── Forma de la entrada ─────────────────────────────────────────────
         const validada = validar(definicion.entrada, peticion.entrada);
         if (!validada.ok) {
@@ -250,17 +269,43 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
       }
 
       await registrarRechazo('ERROR_INTERNO', 'error');
-      // El mensaje original se queda en el servidor: filtrarlo revela nombres
-      // de tablas e índices. El correlation id es lo que une esto con la
-      // auditoría y con el registro del servidor.
+      // Al cliente no va el mensaje original: revela nombres de tablas e
+      // índices. El correlation id es lo que une esto con la auditoría.
+      //
+      // ── Y al REGISTRO va la clase del fallo y su SQLSTATE ────────────────
+      // Aquí no iba nada más que el nombre del comando, y eso deja un
+      // ERROR_INTERNO que no se puede diagnosticar: el comentario decía «el
+      // mensaje original se queda en el servidor» y el mensaje original no se
+      // quedaba en ninguna parte. Se añaden las DOS cosas que nombran el fallo
+      // sin llevarse nada de dentro: el nombre de la clase del error y, si es
+      // de Postgres, su código SQLSTATE —cinco caracteres del estándar, como
+      // `23503` (clave foránea) o `23514` (check)—. Ni el mensaje, ni la
+      // restricción, ni un solo valor de la entrada.
       registrar({
         nivel: 'error',
         modulo: 'comando',
         correlationId,
         organizacionId: ambito.organizacionId,
-        mensaje: `${definicion.nombre} fallo.`,
+        mensaje: `${definicion.nombre} fallo. ${claseDelFallo(error)}`,
       });
       return { ok: false, error: fallo('ERROR_INTERNO'), correlationId };
     }
   };
+}
+
+/**
+ * Cómo se llama el fallo, sin llevarse nada de dentro.
+ *
+ * Devuelve la clase del error y su SQLSTATE cuando lo hay. Un SQLSTATE es un
+ * código del estándar de cinco caracteres —`23503`, `23514`, `40001`— y no
+ * contiene valores de entrada ni nombres del esquema. Es lo justo para saber si
+ * lo que falló fue una clave foránea, un `check` o un interbloqueo.
+ */
+function claseDelFallo(error: unknown): string {
+  const clase = error instanceof Error ? error.constructor.name : typeof error;
+  const codigo =
+    typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : null;
+  return codigo === null ? `causa=${clase}` : `causa=${clase} sqlstate=${codigo}`;
 }

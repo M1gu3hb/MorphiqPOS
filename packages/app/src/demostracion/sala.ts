@@ -3,8 +3,6 @@ import 'server-only';
 import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 
-import { hashearPin } from '../identidad/pin.ts';
-
 /**
  * La SALA de la demostración del restaurante (E11-2).
  *
@@ -12,9 +10,15 @@ import { hashearPin } from '../identidad/pin.ts';
  * puede enseñar: Mesero sale vacío, Cocina sale vacía, y el mapa de mesas —que
  * es la pantalla que Miguel más quiere ver— no tiene nada que pintar.
  *
- * Esto siembra lo mínimo para que las nueve pantallas del restaurante tengan
- * algo real: cinco zonas, dos estaciones además de la general, doce mesas
- * repartidas, y tres empleados con los tres roles que operan de verdad.
+ * Esto siembra lo mínimo para que las pantallas del restaurante tengan algo
+ * real: cinco zonas, dos estaciones además de la general y doce mesas repartidas.
+ *
+ * ── El EQUIPO ya no está aquí ──────────────────────────────────────────────
+ * Tenía su propia lista de tres empleados con sus PIN, y `equipo.ts` tiene la de
+ * los cinco modelos. Dos listas de las mismas personas es cómo se acaba con
+ * Lupita entrando con un PIN distinto según qué función la sembró: `sembrarEquipo`
+ * corre antes y ésta la saltaba por nombre, así que los PIN de aquí eran código
+ * que no se ejecutaba y que decía otra cosa.
  */
 
 /** Las estaciones que se ven en Cocina, además de la general obligatoria. */
@@ -86,38 +90,21 @@ const MESAS = [
   { numero: 12, zona: 'Barra', capacidad: 1, forma: 'cuadrada', tamano: 'chica', x: 320, y: 100 },
 ] as const;
 
-/**
- * Los tres roles que operan de verdad en un restaurante.
- *
- * Los PIN son de DEMOSTRACIÓN y se hashean con Argon2id y pimienta, igual que
- * cualquier otro: no hay un camino distinto para sembrar. Nunca se guarda el
- * PIN en claro, ni siquiera aquí — precisamente porque «es sólo la demo» es
- * como acaban los PIN en claro en producción.
- */
-const EMPLEADOS = [
-  { nombre: 'Lupita', apellidos: 'Ramírez', rol: 'mesero', pin: '1111', color: '#7c3aed' },
-  { nombre: 'Toño', apellidos: 'Barrera', rol: 'cocina', pin: '2222', color: '#d97706' },
-  { nombre: 'Rosa', apellidos: 'Miranda', rol: 'cajero', pin: '3333', color: '#16a34a' },
-] as const;
-
 export interface ResumenSala {
   readonly zonas: number;
   readonly estaciones: number;
   readonly mesas: number;
-  readonly empleados: number;
 }
 
 export async function sembrarSala(
   tx: Transaccion,
   organizacionId: string,
   sucursalId: string,
-  pimienta: string,
 ): Promise<ResumenSala> {
   const zonas = await asegurarZonas(tx, organizacionId);
   const estaciones = await sembrarEstaciones(tx, organizacionId);
   const mesas = await sembrarMesas(tx, organizacionId, sucursalId, zonas);
-  const empleados = await sembrarEmpleados(tx, organizacionId, sucursalId, pimienta);
-  return { zonas: zonas.size, estaciones, mesas, empleados };
+  return { zonas: zonas.size, estaciones, mesas };
 }
 
 /**
@@ -154,6 +141,47 @@ async function asegurarZonas(
 
 async function sembrarEstaciones(tx: Transaccion, organizacionId: string): Promise<number> {
   let creadas = 0;
+
+  /**
+   * LA GENERAL PRIMERO, y esto es un arreglo.
+   *
+   * Aquí decía «`es_general` NO se toca: la general la impone un índice único
+   * parcial y ya existe desde la semilla de la migración 045». Para las
+   * organizaciones que existían entonces, sí. **Para una nueva, no existe
+   * ninguna**, y la demostración de restaurante se creó después: tenía «Cocina
+   * caliente» y «Barra» y ninguna general.
+   *
+   * Lo que eso rompe: `resolverEstacion` busca la estación de la categoría del
+   * producto y, si no la encuentra, cae a la GENERAL; sin general **lanza**
+   * `ESTACION_NO_ENCONTRADA`. Así que mandar un platillo a la cocina —el paso que
+   * convierte una mesa en trabajo— fallaba en la demo con «No hay ninguna
+   * estación de preparación activa. Crea la "Cocina general" en Configuración».
+   *
+   * El nombre, la descripción y el color son los mismos que usa
+   * `mantenimiento.purgar` al resembrar los mínimos de un restaurante: una sola
+   * forma de la estación general en todo el sistema.
+   */
+  const general = await tx
+    .selectFrom('estaciones_preparacion')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .where('es_general', '=', true)
+    .executeTakeFirst();
+  if (general === undefined) {
+    await tx
+      .insertInto('estaciones_preparacion')
+      .values({
+        organizacion_id: organizacionId,
+        nombre: 'Cocina general',
+        descripcion: 'Estación por defecto',
+        color: '#4A5568',
+        orden: 0,
+        es_general: true,
+      })
+      .execute();
+    creadas += 1;
+  }
+
   for (const [indice, estacion] of ESTACIONES.entries()) {
     const existente = await tx
       .selectFrom('estaciones_preparacion')
@@ -214,74 +242,6 @@ async function sembrarMesas(
     creadas += 1;
   }
   return creadas;
-}
-
-/**
- * Los tres empleados, con su persona, su identidad, su empleo y su PIN.
- *
- * Son cuatro tablas porque una persona puede tener varios empleos y una
- * identidad puede entrar por más de un camino. Aquí se siembra el caso simple.
- */
-async function sembrarEmpleados(
-  tx: Transaccion,
-  organizacionId: string,
-  sucursalId: string,
-  pimienta: string,
-): Promise<number> {
-  let creados = 0;
-  for (const empleado of EMPLEADOS) {
-    const yaEsta = await tx
-      .selectFrom('personas')
-      .select('id')
-      .where('organizacion_id', '=', organizacionId)
-      .where('nombre', '=', empleado.nombre)
-      .executeTakeFirst();
-    if (yaEsta !== undefined) continue;
-
-    const persona = await tx
-      .insertInto('personas')
-      .values({
-        organizacion_id: organizacionId,
-        nombre: empleado.nombre,
-        apellidos: empleado.apellidos,
-      })
-      .returning('id')
-      .executeTakeFirstOrThrow();
-
-    // `identidades` y `credenciales_pin` NO llevan `organizacion_id`: cuelgan de
-    // la persona, que sí lo lleva. El ámbito viaja por la relación, no repetido.
-    const identidad = await tx
-      .insertInto('identidades')
-      .values({ persona_id: persona.id })
-      .returning('id')
-      .executeTakeFirstOrThrow();
-
-    await tx
-      .insertInto('empleos')
-      .values({
-        organizacion_id: organizacionId,
-        persona_id: persona.id,
-        sucursal_id: sucursalId,
-        rol: empleado.rol,
-        color: empleado.color,
-        // La cocina ve TODAS las estaciones: en un restaurante de doce mesas
-        // no hay un cocinero por estación, y filtrarle la mitad de las comandas
-        // sería enseñar una pantalla que miente sobre lo que falta por salir.
-        ve_todas_las_estaciones: empleado.rol === 'cocina',
-      })
-      .execute();
-
-    await tx
-      .insertInto('credenciales_pin')
-      .values({
-        identidad_id: identidad.id,
-        pin_hash: await hashearPin(empleado.pin, pimienta),
-      })
-      .execute();
-
-    creados += 1;
-  }
-  return creados;
 }
 
 /**

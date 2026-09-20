@@ -1,3 +1,9 @@
+export {
+  aplicarPrecioSugerido,
+  entradaPrecioSugerido,
+  type ResultadoPrecioSugerido,
+} from './precio-sugerido.ts';
+
 export { entradaBuscarProductos, listarProductos } from './consulta.ts';
 export { consultarInicioProduccion } from './inicio.ts';
 export type { PaginaProductos, ProductoResumen } from './consulta.ts';
@@ -23,3 +29,12 @@ export {
   entradaGuardarModificadores,
   type ResultadoGuardarModificadores,
 } from './modificadores-guardar.ts';
+
+export { altaRapida, entradaAltaRapida, type ResultadoAltaRapida } from './alta-rapida.ts';
+
+export {
+  asignarFiscalMasivo,
+  entradaFiscalMasivo,
+  type ProductoSinLitros,
+  type ResultadoFiscalMasivo,
+} from './fiscal-masivo.ts';

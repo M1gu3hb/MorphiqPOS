@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Printer, X, Download, Loader2 } from 'lucide-react';
 import { api } from '@/api/cliente';
 import { useConfig } from '@/lib/ConfigContext';
+import { canAccessModule } from '@/lib/packageConfig';
 import { getStockStatus } from '@/utils/inventoryUtils';
 import { printDocument } from '@/lib/print';
 import { downloadNodeAsPDF, safeFileName } from '@/lib/pdfDownload';
@@ -14,8 +15,13 @@ import CorteTicket from '@/components/tickets/CorteTicket';
 
 export default function CorteViewerDialog({ corte, open, onClose }) {
   const { config, paquete_modo } = useConfig();
-  const isEsencial = paquete_modo === 'esencial';
-  const isRP = paquete_modo === 'restaurante_pro';
+  // El corte enseña costo y utilidad si el negocio los lleva, y el desglose de
+  // propinas por mesero si hay sala. Las dos cosas son módulos, no nombres de
+  // paquete: con el renombre de D-01 ningún negocio se llama `esencial` ni
+  // `restaurante_pro`, y comparar contra esos nombres imprimía el corte
+  // equivocado para todos.
+  const sinCostos = !canAccessModule('costos_basicos', paquete_modo);
+  const haySala = canAccessModule('mesero', paquete_modo);
   const ticketRef = useRef(null);
   const [data, setData] = useState({
     ventas: [],
@@ -242,8 +248,8 @@ export default function CorteViewerDialog({ corte, open, onClose }) {
               cancelaciones={data.cancelaciones}
               alertas={data.alertas}
               config={config}
-              isEsencial={isEsencial}
-              isRP={isRP}
+              sinCostos={sinCostos}
+              haySala={haySala}
             />
           )}
         </div>

@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import {
   PACKAGE_KEYS,
+  PACKAGE_MODULES,
+  PLANTILLAS,
   PACKAGE_LABELS,
   PACKAGE_TAGLINES,
   PACKAGE_TARGET,
@@ -28,10 +30,22 @@ import {
   PACKAGE_FLOW,
   PACKAGE_COMPARISON,
   ADDONS,
+  getCurrentPackage,
 } from '@/lib/packageConfig';
 import { Workflow, ArrowRight } from 'lucide-react';
 
-const PACKAGE_ORDER = [PACKAGE_KEYS.ESENCIAL, PACKAGE_KEYS.OPERATIVO, PACKAGE_KEYS.RESTAURANTE_PRO];
+/**
+ * De menos a mas, que es como se lee el comparador de abajo.
+ *
+ * Se DERIVA del numero de modulos de cada plantilla, no se teclea. Estaba
+ * tecleada con tres —tienda, cafeteria, restaurante— y cuando la 166 abrio las
+ * cinco, el Modo presentacion siguio ofreciendo tres: `ferreteria` y `estetica`
+ * no se podian elegir desde ninguna pantalla, aunque el servidor ya las
+ * aceptara. Derivada, la sexta que llegue entra sola y en su sitio.
+ */
+const PACKAGE_ORDER = [...PLANTILLAS].sort(
+  (a, b) => (PACKAGE_MODULES[a]?.length ?? 0) - (PACKAGE_MODULES[b]?.length ?? 0),
+);
 
 function CompareCell({ value }) {
   if (value === true) return <Check className="w-4 h-4 text-emerald-600 mx-auto" />;
@@ -51,7 +65,10 @@ export default function ModoPresentacion({ cfg }) {
   const [unlocked, setUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [error, setError] = useState('');
-  const [seleccion, setSeleccion] = useState(cfg?.paquete_modo || 'restaurante_pro');
+  // `getCurrentPackage` traduce los nombres viejos y cae en `tienda` ante lo que
+  // no reconoce. El `|| 'restaurante_pro'` que había aquí preseleccionaba el
+  // paquete MÁS CARO en cuanto la configuración tardaba un instante en llegar.
+  const [seleccion, setSeleccion] = useState(getCurrentPackage(cfg));
   const [guardando, setGuardando] = useState(false);
   const [comprobando, setComprobando] = useState(false);
 
@@ -160,7 +177,7 @@ export default function ModoPresentacion({ cfg }) {
           <div className="text-xs text-muted-foreground mt-1">
             Paquete actual:{' '}
             <Badge variant="secondary" className="ml-1">
-              {PACKAGE_LABELS[cfg?.paquete_modo || 'restaurante_pro']}
+              {PACKAGE_LABELS[getCurrentPackage(cfg)]}
             </Badge>
           </div>
         </CardHeader>
@@ -187,7 +204,7 @@ export default function ModoPresentacion({ cfg }) {
                 {isSelected && (
                   <Badge className="bg-primary text-primary-foreground">Seleccionado</Badge>
                 )}
-                {key === PACKAGE_KEYS.RESTAURANTE_PRO && !isSelected && (
+                {key === PACKAGE_KEYS.TIENDA && !isSelected && (
                   <Badge variant="outline" className="text-[10px]">
                     Por defecto
                   </Badge>
@@ -235,7 +252,7 @@ export default function ModoPresentacion({ cfg }) {
         <span className="text-xs text-muted-foreground">
           Selección: <strong>{PACKAGE_LABELS[seleccion]}</strong>
         </span>
-        <Button onClick={handleGuardar} disabled={guardando || seleccion === cfg?.paquete_modo}>
+        <Button onClick={handleGuardar} disabled={guardando || seleccion === getCurrentPackage(cfg)}>
           {guardando ? 'Guardando...' : 'Guardar modo de paquete'}
         </Button>
       </div>
@@ -253,9 +270,9 @@ export default function ModoPresentacion({ cfg }) {
             <thead>
               <tr className="border-b">
                 <th className="text-left py-2 pr-2 font-medium">Función</th>
-                <th className="text-center py-2 px-2 font-medium">Esencial</th>
-                <th className="text-center py-2 px-2 font-medium">Operativo</th>
-                <th className="text-center py-2 px-2 font-medium">Restaurante Pro</th>
+                <th className="text-center py-2 px-2 font-medium">Tienda</th>
+                <th className="text-center py-2 px-2 font-medium">Cafetería</th>
+                <th className="text-center py-2 px-2 font-medium">Restaurante</th>
               </tr>
             </thead>
             <tbody>
@@ -263,13 +280,13 @@ export default function ModoPresentacion({ cfg }) {
                 <tr key={idx} className="border-b last:border-0">
                   <td className="py-2 pr-2 text-xs">{row.funcion}</td>
                   <td className="py-2 px-2 text-center">
-                    <CompareCell value={row.esencial} />
+                    <CompareCell value={row.tienda} />
                   </td>
                   <td className="py-2 px-2 text-center">
-                    <CompareCell value={row.operativo} />
+                    <CompareCell value={row.cafeteria} />
                   </td>
                   <td className="py-2 px-2 text-center">
-                    <CompareCell value={row.restaurante_pro} />
+                    <CompareCell value={row.restaurante} />
                   </td>
                 </tr>
               ))}
@@ -308,9 +325,9 @@ export default function ModoPresentacion({ cfg }) {
       <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">
         <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
         <p className="text-xs">
-          <strong>Esencial</strong> y <strong>Operativo</strong> funcionan como POS de mostrador /
+          <strong>Tienda</strong> y <strong>Cafetería</strong> funcionan como POS de mostrador /
           caja directa: el negocio puede tomar pedidos en papel y capturarlos en Caja al cobrar.{' '}
-          <strong>Restaurante Pro</strong> es el sistema completo con Mesero, Cocina, Mesas y Caja.
+          <strong>Restaurante</strong> es el sistema completo con Mesero, Cocina, Mesas y Caja.
           Cambiar de paquete oculta módulos visualmente;{' '}
           <strong>no se borran datos ni base de datos.</strong>
         </p>

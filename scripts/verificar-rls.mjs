@@ -6,6 +6,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  cadenaDeVerificacion,
+  consultarViva,
+} from '../packages/data/src/verificacion/consulta-directa.ts';
 import { problemasDeSeguridad } from '../packages/data/src/verificacion/rls.ts';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -85,6 +89,42 @@ function referenciaVinculada() {
   return vinculada.ref;
 }
 
+/**
+ * Valida el estado que devuelva CUALQUIERA de los dos transportes.
+ *
+ * Estaba escrita dentro del camino del CLI, y al aparecer el segundo transporte
+ * eso habría dejado la conexión directa sin comprobar la forma del dato. Una
+ * comprobación que sólo cubre una de las dos vías es justo la que se olvida.
+ */
+function exigirEstado(estado, origen) {
+  if (
+    typeof estado !== 'object' ||
+    estado === null ||
+    !Array.isArray(estado.relaciones) ||
+    !Array.isArray(estado.indices) ||
+    !Array.isArray(estado.funciones)
+  ) {
+    throw new Error(`${origen} devolvió un estado de seguridad inválido.`);
+  }
+  return estado;
+}
+
+/**
+ * Lee el estado por conexión directa cuando hay cadena, y por el CLI si no.
+ *
+ * ── Por qué se añadió el primer camino ──────────────────────────────────────
+ * Esta puerta hablaba con la base de UNA sola manera: `spawnSync` sobre un
+ * ejecutable llamado `supabase`. En la máquina donde se hizo el acople ese
+ * ejecutable no existe, así que la puerta no se podía ejecutar — y una puerta
+ * que no corre no protege nada. El SQL es el mismo, la base es la misma y el
+ * cerrojo de la referencia de proyecto sigue puesto: lo único que cambia es
+ * por dónde viaja la consulta.
+ */
+async function leerEstadoDirecto() {
+  const respuesta = await consultarViva(CONSULTA, { proyectoEsperado: PROYECTO_MORPHIQPOS });
+  return exigirEstado(respuesta.rows?.[0]?.estado, 'La conexión directa');
+}
+
 function leerEstado() {
   const proyecto = referenciaVinculada();
   if (proyecto !== PROYECTO_MORPHIQPOS) {
@@ -119,24 +159,14 @@ function leerEstado() {
     }
 
     const respuesta = JSON.parse(resultado.stdout);
-    const estado = respuesta?.rows?.[0]?.estado;
-    if (
-      typeof estado !== 'object' ||
-      estado === null ||
-      !Array.isArray(estado.relaciones) ||
-      !Array.isArray(estado.indices) ||
-      !Array.isArray(estado.funciones)
-    ) {
-      throw new Error('Supabase CLI devolvió un estado de seguridad inválido.');
-    }
-    return estado;
+    return exigirEstado(respuesta?.rows?.[0]?.estado, 'Supabase CLI');
   } finally {
     rmSync(carpeta, { force: true, recursive: true });
   }
 }
 
 try {
-  const estado = leerEstado();
+  const estado = cadenaDeVerificacion() === undefined ? leerEstado() : await leerEstadoDirecto();
   const problemas = problemasDeSeguridad(estado);
   if (problemas.length > 0) {
     throw new Error(

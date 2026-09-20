@@ -108,6 +108,11 @@ export const ROLES = {
   CASHIER: 'caja',
   WAITER: 'mesero',
   KITCHEN: 'cocina',
+  // `almacen` es el quinto, y es el rol del servidor SIN traducir: `rolMH`
+  // devuelve null para el a proposito -darle el de administrador seria regalarle
+  // configuracion, costos y accesos- asi que llega tal cual. Antes de tener
+  // entrada en PERMISSIONS, quien entraba como almacen veia un menu VACIO.
+  WAREHOUSE: 'almacen',
 };
 
 // Etiquetas completas — incluye roles legacy (`barra`) para que la UI

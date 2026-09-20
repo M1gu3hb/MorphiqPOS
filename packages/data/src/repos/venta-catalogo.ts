@@ -189,6 +189,8 @@ export interface IngredienteDeReceta {
   readonly unidad: string;
   readonly unidadBase: string;
   readonly mermaBp: number;
+  /** F-331 · Nulo = aplica a todos los canales. Con valores, sólo a ésos. */
+  readonly aplicaCanal: string[] | null;
 }
 
 /**
@@ -226,6 +228,9 @@ export async function recetasDeProductos(
       'recetas.unidad as unidad',
       'recetas.merma_bp as mermaBp',
       'insumos.unidad_base as unidadBase',
+      // F-331 · A qué canales aplica esta línea. Nulo = a todos, que es lo que
+      // era toda la receta histórica.
+      'recetas.aplica_canal as aplicaCanal',
     ])
     .where('recetas.organizacion_id', '=', organizacionId)
     .where('recetas.producto_id', 'in', [...productoIds])
@@ -241,6 +246,7 @@ export async function recetasDeProductos(
       unidad: fila.unidad,
       unidadBase: fila.unidadBase,
       mermaBp: fila.mermaBp,
+      aplicaCanal: fila.aplicaCanal,
     });
     mapa.set(fila.productoId, lista);
   }

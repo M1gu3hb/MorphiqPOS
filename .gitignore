@@ -17,11 +17,15 @@ playwright-report
 test-results
 blob-report
 .playwright
+# La salida de las pruebas de navegador: trazas, capturas y el .last-run.json.
+# Se coló al indice en la primera corrida y no es codigo: cambia en cada pasada.
+pruebas/e2e/.resultados
 
 # --- Entorno · R31: cero secretos en el repositorio ---
+# La re-inclusion de .env.example NO va aqui: mas abajo hay un `.env*` que
+# volveria a capturarlo, y en git manda el ULTIMO patron que empareja.
 .env
 .env.*
-!.env.example
 
 # --- Sistema operativo y editores ---
 .DS_Store
@@ -59,3 +63,11 @@ supabase/.temp/
 .vercel/
 .vercel
 .env*
+
+# --- La unica excepcion, y va AL FINAL a proposito -------------------------
+# `.env.example` no trae secretos: trae los NOMBRES de las variables, y
+# `verify:entorno` lo exige. Tiene que quedar despues del `.env*` de arriba
+# porque git aplica el ultimo patron que empareja: puesta antes, la negacion
+# no hacia nada y el archivo sobrevivia solo por estar ya rastreado. El dia
+# que alguien lo sacara del indice, desapareceria sin que nadie lo notara.
+!.env.example

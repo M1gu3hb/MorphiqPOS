@@ -1,3 +1,4 @@
+import { PAQUETES_OPERATIVOS, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import {
   Kysely,
@@ -21,6 +22,7 @@ import {
   entradaInventarioInicial,
   inventarioInicial,
 } from './inventario.ts';
+import { registrarConsumoInterno } from './consumo-interno.ts';
 import { actualizarCostoInsumo, eliminarReceta, guardarReceta } from './recetas.ts';
 import { crearComando } from '../comando.ts';
 import { resetearDemo } from '../demostracion/resetear.ts';
@@ -28,11 +30,41 @@ import { ambitoDeCajero, crearFabrica } from '../pruebas/dobles.ts';
 import type { RepositorioComandos } from '../repositorio.ts';
 
 describe('B-11 · comandos de insumos y almacenes', () => {
-  it('declara los paquetes operativos y nombres de comando estables', () => {
+  it('la operación viene con las TRES plantillas, y nombres de comando estables', () => {
     expect(crearAlmacen.nombre).toBe('inventario.crear_almacen');
-    expect(crearInsumo.paquetes).toHaveLength(2);
-    expect(inventarioInicial.paquetes).toHaveLength(2);
-    expect(ajustarStock.paquetes).toHaveLength(2);
+
+    // ── Qué afirmaba antes y por qué dejó de ser cierto ─────────────────────
+    // Decía `toHaveLength(2)`, y era cierto mientras existió `esencial`: aquel
+    // nivel vendía SIN controlar stock, así que inventario vivía en los otros
+    // dos y en el tercero no. D-01 lo retiró —«una tienda sin inventario no es
+    // una tienda, es una calculadora»— y la 058 renombró los tres valores de
+    // `organizaciones.paquete`, con lo que `PAQUETES_OPERATIVOS` pasó a ser
+    // las TRES plantillas.
+    //
+    // Pero la longitud nunca afirmó nada útil, ni antes: `['cafeteria',
+    // 'restaurante']` y `['tienda','cafeteria']` miden lo mismo y son dos
+    // sistemas distintos. Se compara contra la CONSTANTE, que es la lista que
+    // el gate de `comando.ts` consulta de verdad, para que un comando de
+    // inventario que se aparte de ella —porque alguien le escriba la lista a
+    // mano o se la recorte— caiga aquí y no en la primera venta de un cliente.
+    for (const comando of [crearInsumo, inventarioInicial, ajustarStock]) {
+      expect([...comando.paquetes], comando.nombre).toEqual([...PAQUETES_OPERATIVOS]);
+    }
+
+    // Y en concreto lo que D-01 cambió: `tienda` está DENTRO. Sin esta línea,
+    // recortar la lista a dos volvería a compilar y a pasar, y el resultado
+    // sería el sistema partido por la mitad: `MODULOS_POR_PLANTILLA` le da a
+    // `tienda` el bloque OPERACION entero, así que el menú de inventario
+    // aparecería encendido y el POST contestaría 403.
+    expect(crearInsumo.paquetes).toContain('tienda');
+
+    // Que sean las tres no vuelve decorativo el gate de paquete, y el ejemplo
+    // está en esta MISMA carpeta: `inventario.consumo_interno` —la comida del
+    // personal, que sólo existe donde hay cocina— sigue siendo exclusivo de
+    // `restaurante`. Si alguien colapsara los subconjuntos en una sola lista
+    // «porque total, ya son todos», esto se pone rojo.
+    expect([...registrarConsumoInterno.paquetes]).toEqual([...PAQUETES_RESTAURANTE]);
+    expect(registrarConsumoInterno.paquetes).not.toContain('tienda');
   });
 
   it('exige inventario inicial positivo y ajuste distinto de cero', () => {
@@ -64,16 +96,39 @@ describe('B-11 · comandos de insumos y almacenes', () => {
 
 describe('B-10 · reinicio de demostración', () => {
   it('exige confirmación literal y está disponible para cada paquete', () => {
-    expect(resetearDemo.paquetes).toHaveLength(3);
+    expect(resetearDemo.paquetes).toHaveLength(5);
     expect(resetearDemo.entrada.safeParse({ confirmacion: 'sí' }).success).toBe(false);
     expect(resetearDemo.entrada.safeParse({ confirmacion: 'RESETEAR' }).success).toBe(true);
   });
 });
 
 describe('B-12 · recetas por paquete', () => {
-  it('limita recetas y cambios de costo a cafetería/restaurante', () => {
-    expect(guardarReceta.paquetes).toEqual(['operativo', 'restaurante_pro']);
-    expect(actualizarCostoInsumo.paquetes).toEqual(['operativo', 'restaurante_pro']);
+  it('recetas y costos vienen con la operación entera; quien los apaga es la perilla', () => {
+    // ── Qué afirmaba antes y por qué dejó de ser cierto ─────────────────────
+    // Decía `toEqual(['cafeteria','restaurante'])`, y describía un mundo donde
+    // la PLANTILLA decidía quién costea: `esencial` no llevaba stock, así que
+    // tampoco escandallos. D-01 borró ese nivel y `MODULOS_POR_PLANTILLA` le
+    // da hoy a `tienda` el bloque OPERACION completo, `recetas` incluido.
+    //
+    // Mantener la afirmación vieja habría obligado a partir el sistema por la
+    // mitad para que pasara: el módulo `recetas` ENCENDIDO en la plantilla
+    // `tienda` y `inventario.guardar_receta` devolviendo 403. Un menú que
+    // enseña lo que el POST rechaza.
+    expect([...guardarReceta.paquetes]).toEqual([...PAQUETES_OPERATIVOS]);
+    expect([...actualizarCostoInsumo.paquetes]).toEqual([...PAQUETES_OPERATIVOS]);
+    expect(guardarReceta.paquetes).toContain('tienda');
+
+    // ── Qué protege ahora ───────────────────────────────────────────────────
+    // Lo que decide si una ferretería costea recetas ya no es la plantilla
+    // —no cambia de una ferretería a otra— sino la PERILLA (F-016), que guarda
+    // excepciones negocio por negocio en `organizacion_modulos`. Y esa perilla
+    // sólo EXISTE para un comando que declare módulo: `comando.ts` consulta
+    // `leerModulosActivos` únicamente cuando `definicion.modulo !== undefined`.
+    //
+    // Sin esta línea, ensanchar `PAQUETES_OPERATIVOS` a las tres dejaría
+    // `guardar_receta` sin ninguna puerta que una ferretería pueda cerrar: ni
+    // el paquete la excluye ya, ni habría módulo que apagar.
+    expect(guardarReceta.modulo).toBe('recetas');
   });
 
   it('valida cantidades exactas, unidad y merma en cada ingrediente', () => {
@@ -171,7 +226,7 @@ function arnes(respuestas: readonly (readonly unknown[])[]) {
       createQueryCompiler: () => new PostgresQueryCompiler(),
     },
   });
-  const fabrica = crearFabrica('restaurante_pro');
+  const fabrica = crearFabrica('restaurante');
   const ejecutar = crearComando<Transaccion>({
     repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
     conTransaccion: <T>(fn: (tx: Transaccion) => Promise<T>): Promise<T> =>
@@ -414,10 +469,32 @@ describe('B-12 · inventario.eliminar_receta', () => {
     expect(fabrica.base.revertidas.some((e) => e.tabla === 'comandos_ejecutados')).toBe(true);
   });
 
-  it('declara nombre, entidad, roles y paquetes estables', () => {
+  it('declara nombre, entidad, módulo y paquetes estables', () => {
     expect(eliminarReceta.nombre).toBe('inventario.eliminar_receta');
     expect(eliminarReceta.entidad).toBe('receta');
-    expect(eliminarReceta.paquetes).toEqual(['operativo', 'restaurante_pro']);
+
+    // Afirmaba `['cafeteria','restaurante']`, que era el `PAQUETES_OPERATIVOS`
+    // de cuando `esencial` vendía sin stock. Escrito a mano, además, así que
+    // no ataba este comando a `guardar_receta`: podían separarse sin que nada
+    // avisara, y un negocio acabaría pudiendo escribir un escandallo que
+    // después no puede retirar.
+    //
+    // Ahora se compara contra la constante, la misma que declara la propia
+    // definición. Retirar una receta es una operación de recetas, no una
+    // función de sala: las tres plantillas la traen.
+    expect([...eliminarReceta.paquetes]).toEqual([...PAQUETES_OPERATIVOS]);
+    expect([...eliminarReceta.paquetes]).toEqual([...guardarReceta.paquetes]);
+    // Escrito además contra el valor, y no sólo contra la constante: comparar
+    // dos cosas que apuntan a la MISMA constante sigue verde aunque alguien
+    // estreche la constante, que es el agujero que ya tenía la prueba de roles
+    // de aquí abajo. Estrechar `PAQUETES_OPERATIVOS` a dos tiene que doler.
+    expect(eliminarReceta.paquetes).toContain('tienda');
+
+    // Lo que acota quién entra por esta puerta NO es el paquete —son las tres—
+    // sino las dos capas de encima, y cada una tiene su prueba: la perilla
+    // `recetas` (F-016), que es lo único que un negocio puede apagar sin
+    // cambiar de plantilla, y `ROLES_PARA_RETIRAR`, que es la de aquí abajo.
+    expect(eliminarReceta.modulo).toBe('recetas');
   });
 
   it('NO deja entrar a nadie que no pueda archivar un producto', () => {

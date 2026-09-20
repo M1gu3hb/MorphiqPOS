@@ -1,3 +1,4 @@
+export { dividirCuentaComando, entradaDividirCuenta } from './division.ts';
 import 'server-only';
 
 /**
@@ -25,6 +26,7 @@ export { entregarPedidos, transicionarPedido } from './preparacion.ts';
 export type { ResultadoEntrega, ResultadoTransicion } from './preparacion.ts';
 
 export { solicitarCuenta } from './cuenta.ts';
+export { entradaImprimirPrecuenta, imprimirPrecuenta, type PrecuentaImpresa } from './precuenta.ts';
 export type { Precuenta } from './cuenta.ts';
 
 export { entradaRotarQr, rotarQr } from './qr.ts';
@@ -82,3 +84,73 @@ export {
   entradaCrearEstacion,
   type ResultadoCrearEstacion,
 } from './estacion-crear.ts';
+
+export {
+  anularLineaComando,
+  entradaAnularLinea,
+  type ResultadoAnulacion,
+} from './anulacion-linea.ts';
+
+export {
+  cambiarMesaComando,
+  entradaCambiarMesa,
+  type ResultadoCambioDeMesa,
+} from './cambio-de-mesa.ts';
+
+export {
+  cambiarDeMesa,
+  mesaEnSala,
+  registrarEventoMesa,
+  type MesaEnSala,
+} from './sala-escrituras.ts';
+
+export {
+  entradaSepararMesas,
+  entradaUnirMesas,
+  separarMesasComando,
+  unirMesasComando,
+  type ResultadoSeparacion,
+  type ResultadoUnion,
+} from './union-de-mesas.ts';
+
+export { separarMesas, unionAbiertaDeMesa, unirMesas } from './sala-escrituras.ts';
+
+export {
+  entradaRotacion,
+  rotacionDeMesas,
+  type Rotacion,
+  type RotacionPorMesa,
+} from './ocupacion.ts';
+
+export {
+  entradaMoverEspera,
+  entradaRegistrarEspera,
+  entradaSentarEspera,
+  moverEspera,
+  registrarEspera,
+  sentarEspera,
+  type ResultadoMoverEspera,
+  type ResultadoRegistroEspera,
+  type ResultadoSentarEspera,
+} from './espera.ts';
+
+export {
+  entradaMarcharTiempo,
+  marcharTiempo,
+  type ComandaMarchada,
+  type ResultadoMarcha,
+} from './marcha.ts';
+
+export {
+  entradaTiempos,
+  tiemposDePreparacion,
+  type TiempoDeProducto,
+  type TiemposDePreparacion,
+} from './tiempos.ts';
+
+export {
+  entradaRelevarResponsable,
+  relevarResponsable,
+  type CuentaRelevada,
+  type ResultadoRelevo,
+} from './relevo.ts';

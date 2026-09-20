@@ -4,7 +4,9 @@ import { useNavigate } from '@/enrutado';
 import { api } from '@/api/cliente';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
-import { ROLE_HOME_ROUTES, ROLE_LABELS } from '@/lib/constants';
+import { ROLE_LABELS } from '@/lib/constants';
+import { inicioDeLaSesion } from '@/lib/packageConfig';
+import { hasPermission } from '@/lib/permissions';
 import { Delete, User, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import LoginBrandColors from '@/components/common/LoginBrandColors';
@@ -23,9 +25,12 @@ export default function POSLogin() {
   const navigate = useNavigate();
   const hiddenInputRef = useRef(null);
 
+  // Cada negocio abre donde le toca: el mapa de mesas en un restaurante, el
+  // cobro en una tiendita, la agenda en una estética. Lo decide la plantilla y
+  // el rol, no una tabla aparte que no conoce los modelos.
   useEffect(() => {
-    if (posUser) navigate(ROLE_HOME_ROUTES[posUser.rol] || '/');
-  }, [posUser, navigate]);
+    if (posUser) navigate(inicioDeLaSesion(posUser.rol, config?.paquete_modo, hasPermission));
+  }, [posUser, navigate, config?.paquete_modo]);
 
   // Carga la lista de usuarios activos para el panel inferior.
   // 6A.3: reintento ligero si la primera carga falla (móvil con red lenta).
@@ -95,7 +100,7 @@ export default function POSLogin() {
       const entrado = await api.auth.entrar({ id: quien.id, pin: pinToUse });
       login(entrado);
       toast.success(`Bienvenido, ${entrado.nombre}`);
-      navigate(ROLE_HOME_ROUTES[entrado.rol] || '/');
+      navigate(inicioDeLaSesion(entrado.rol, config?.paquete_modo, hasPermission));
     } catch (err) {
       // El servidor ya decidió qué se puede decir: PIN incorrecto, demasiados
       // intentos, o el bloqueo con sus minutos. Aquí no se reinterpreta.
@@ -140,7 +145,25 @@ export default function POSLogin() {
 
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
   const sistema = config.nombre_sistema || 'MH Astral Systems POS';
-  const negocio = config.nombre_negocio || 'MH Astral Systems';
+
+  // LOS NEGOCIOS QUE ESTE DESPLIEGUE SIRVE, derivados de la gente.
+  //
+  // Cada persona viene con el suyo, así que no hace falta preguntar dos veces ni
+  // añadir un selector de negocio: la lista se deduce de quién puede entrar. Con
+  // un solo negocio —producción— esto da uno y la pantalla es la de siempre.
+  const negociosServidos = [];
+  for (const u of Array.isArray(usuarios) ? usuarios : []) {
+    if (u.negocio && !negociosServidos.includes(u.negocio)) negociosServidos.push(u.negocio);
+  }
+  const variosNegocios = negociosServidos.length > 1;
+
+  // Con varios, el título es el del negocio de quien se ha elegido: se toca a
+  // Lupita y la pantalla dice «Restaurante MH», se toca a Diana y dice «Café
+  // Jacarandá». Sin elegir a nadie, el nombre del sistema, porque ninguno de los
+  // negocios es «el» negocio de este despliegue.
+  const negocio = variosNegocios
+    ? selectedUser?.negocio || sistema
+    : config.nombre_negocio || 'MH Astral Systems';
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#04070f] via-[#0a1428] to-[#0b1d3a] relative overflow-hidden">
@@ -223,6 +246,7 @@ export default function POSLogin() {
             }}
           >
             Iniciando como: {selectedUser.nombre}
+            {variosNegocios && selectedUser.negocio ? ` · ${selectedUser.negocio}` : ''}
           </p>
         )}
 
@@ -302,7 +326,9 @@ export default function POSLogin() {
       <div className="relative z-10 border-t border-white/10 bg-black/30 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <p className="text-white/60 text-[10px] uppercase tracking-widest mb-2 text-center sm:text-left">
-            Usuarios disponibles
+            {variosNegocios
+              ? `Usuarios disponibles · ${negociosServidos.length} negocios en este despliegue`
+              : 'Usuarios disponibles'}
           </p>
           {usuariosCargando ? (
             <div className="flex items-center justify-center gap-2 py-6 text-white/60 text-sm">
@@ -362,6 +388,17 @@ export default function POSLogin() {
                     <div className="min-w-0 w-full text-center">
                       <p className="text-white text-xs font-medium truncate">{u.nombre}</p>
                       <p className="text-white/50 text-[10px] truncate">{ROLE_LABELS[u.rol]}</p>
+                      {/* Con varios negocios en un despliegue, el rol no basta:
+                          hay un dueño en cada uno. El negocio va en la tarjeta
+                          porque es lo que se elige al tocarla. */}
+                      {variosNegocios && u.negocio && (
+                        <p
+                          className="text-[9px] truncate mt-0.5"
+                          style={{ color: 'var(--brand-accent, #60a5fa)' }}
+                        >
+                          {u.negocio}
+                        </p>
+                      )}
                     </div>
                   </button>
                 );

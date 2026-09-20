@@ -1,7 +1,9 @@
 # MorphiqPOS
 
-Punto de venta de **Morphiq**. Un solo sistema que opera una tienda de mostrador y un
-restaurante completo, sin cambiar de aplicación.
+Punto de venta de **Morphiq**. Un solo sistema que opera **cinco negocios distintos** sin
+cambiar de aplicación —una tiendita de abarrotes, una cafetería de barra, un restaurante con
+mesas, una ferretería que corta por medida y una estética con agenda— cada uno con su propio
+vocabulario, sus pantallas y su tablero.
 
 > **La planeación vive aquí también, desde el 8 de septiembre de 2026** (decisión A-46).
 > Código y documentación comparten repositorio: tenerlos separados era justo la causa del
@@ -15,10 +17,12 @@ restaurante completo, sin cambiar de aplicación.
 > El README anterior de planeación se conserva en
 > [`docs/README-PLANEACION.md`](docs/README-PLANEACION.md).
 
-**Corte actual: F1.1 — POS que vende.** F1.0 (fundación, puertas de calidad, sistema de
-diseño) está construido. F1.1 lleva 4 de 21 tareas: esquema de 26 tablas aplicado a
-Supabase y tipos generados. Ver [`docs/fase-1/16-CORTE-F1.1-POS-QUE-VENDE.md`](docs/fase-1/16-CORTE-F1.1-POS-QUE-VENDE.md)
-y el reparto en dos carriles en [`docs/fase-1/18-REPARTO-DOS-CARRILES.md`](docs/fase-1/18-REPARTO-DOS-CARRILES.md).
+**Corte actual: Fase 2.3 — el acople.** La Fase 1 construyó el punto de venta y la Fase 2 los
+cinco modelos de negocio; la 2.3 los conectó al sistema vivo: 109 migraciones aplicadas, 62
+pantallas de modelo colgando de su menú, cinco demostraciones que cobran de punta a punta por
+la interfaz y el CI verde. El estado al día vive en
+[`docs/fase-2/07-ESTADO.md`](docs/fase-2/07-ESTADO.md) y el detalle de cada decisión en
+[`docs/fase-2/BITACORA.md`](docs/fase-2/BITACORA.md).
 
 ---
 

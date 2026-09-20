@@ -92,6 +92,70 @@ export async function obtenerApi<T>(ruta: string, signal?: AbortSignal): Promise
   return leerResultado<T>(respuesta);
 }
 
+/**
+ * Lee una entidad por el PUENTE, que es el único camino de lectura.
+ *
+ * ── Por qué todas las pantallas leen por aquí ─────────────────────────────
+ * Porque el puente es donde viven `rolesLectura` y el recorte de campos: una
+ * pantalla que hiciera su propio `select` se saltaría los dos, y el primer
+ * recorte que se olvide expone el costo de un producto al mesero.
+ *
+ * ── Y por qué es POST si sólo lee ────────────────────────────────────────
+ * Porque el filtro va en el cuerpo. En la URL acabaría en los registros del
+ * proxy, en el historial del navegador y en el `Referer` de cualquier recurso
+ * externo que la página cargue — con nombres de cliente dentro.
+ */
+export async function consultarPuente<T>(
+  entidad: string,
+  opciones: {
+    readonly filtro?: Readonly<Record<string, unknown>>;
+    /**
+     * Un RANGO sobre un campo de fecha, que es lo que necesita cualquier pantalla
+     * de un día o de un periodo.
+     *
+     * La ruta `/api/datos/consultar` lo acepta desde que existe —`esRango` lo
+     * estrecha ahí mismo— y este ayudante no lo pasaba, así que **ninguna
+     * pantalla podía pedir un rango**. La agenda del día del salón lo intentó
+     * como pudo: filtrando `Cita` por un campo `fecha` que no existe, y el puente
+     * respondía «no es un campo de Cita» mientras la pantalla enseñaba «Hoy no
+     * hay citas todavía» con las citas agendadas.
+     */
+    readonly rango?: { readonly campo: string; readonly desde?: string; readonly hasta?: string };
+    readonly orden?: string;
+    readonly limite?: number;
+    readonly signal?: AbortSignal;
+  } = {},
+): Promise<readonly T[]> {
+  const cuerpo: Record<string, unknown> = { entidad, operacion: 'listar' };
+  if (opciones.filtro !== undefined) cuerpo['filtro'] = opciones.filtro;
+  if (opciones.rango !== undefined) cuerpo['rango'] = opciones.rango;
+  if (opciones.orden !== undefined) cuerpo['orden'] = opciones.orden;
+  if (opciones.limite !== undefined) cuerpo['limite'] = opciones.limite;
+
+  const respuesta = await fetch('/api/datos/consultar', {
+    method: 'POST',
+    cache: 'no-store',
+    credentials: 'same-origin',
+    headers: {
+      'content-type': 'application/json',
+      [CABECERA_PETICION_PROPIA]: '1',
+    },
+    body: JSON.stringify(cuerpo),
+    ...(opciones.signal === undefined ? {} : { signal: opciones.signal }),
+  });
+
+  const datos = await leerResultado<unknown>(respuesta);
+  // El puente devuelve `{ filas }` en las listas y el arreglo pelado en algunas
+  // entidades derivadas. Se aceptan las dos formas aquí, en un solo sitio, en
+  // vez de que cada pantalla adivine cuál le toca.
+  if (Array.isArray(datos)) return datos as readonly T[];
+  if (typeof datos === 'object' && datos !== null && 'filas' in datos) {
+    const filas = (datos as { filas?: unknown }).filas;
+    if (Array.isArray(filas)) return filas as readonly T[];
+  }
+  return [];
+}
+
 export function nuevaClave(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();

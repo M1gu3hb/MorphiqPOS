@@ -36,6 +36,7 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { useConfig } from '@/lib/ConfigContext';
+import { canAccessModule } from '@/lib/packageConfig';
 import ProductoDesglose from '@/components/productos/ProductoDesglose';
 import ProductoSimpleDialog from '@/components/productos/ProductoSimpleDialog';
 import ModificadoresDialog from '@/components/productos/ModificadoresDialog';
@@ -49,8 +50,12 @@ export default function Productos() {
   const { config, paquete_modo } = useConfig();
   const isDark = useIsDark();
   const placeholderBg = isDark ? PRODUCT_PLACEHOLDER_BG.dark : PRODUCT_PLACEHOLDER_BG.light;
-  const isEsencial = paquete_modo === 'esencial';
-  const showCostos = !isEsencial; // costos/utilidad/margen solo en Operativo y Pro
+  // Lo que parte esta pantalla en dos —catálogo propio contra catálogo generado
+  // desde las recetas— es tener o no el módulo `recetas`, no el nombre del
+  // paquete. Bajo D-01 lo traen las tres plantillas: *una tienda sin inventario
+  // no es una tienda, es una calculadora*.
+  const sinRecetas = !canAccessModule('recetas', paquete_modo);
+  const showCostos = canAccessModule('costos_basicos', paquete_modo);
   const [search, setSearch] = useState('');
   const [showFicha, setShowFicha] = useState(false);
   const [fichaProducto, setFichaProducto] = useState(null);
@@ -128,10 +133,10 @@ export default function Productos() {
       <PageHeader
         title="Productos"
         description={
-          isEsencial ? 'Catálogo del negocio' : 'Catálogo generado a partir de las recetas'
+          sinRecetas ? 'Catálogo del negocio' : 'Catálogo generado a partir de las recetas'
         }
         actions={
-          isEsencial ? (
+          sinRecetas ? (
             <Button
               size="sm"
               className="gap-2"
@@ -169,10 +174,10 @@ export default function Productos() {
           icon={Tag}
           title="Sin productos"
           description={
-            isEsencial ? 'Agrega tu primer producto' : 'Crea productos desde la sección Recetas'
+            sinRecetas ? 'Agrega tu primer producto' : 'Crea productos desde la sección Recetas'
           }
           action={
-            isEsencial ? (
+            sinRecetas ? (
               <Button
                 onClick={() => {
                   setEditandoProducto(null);
@@ -217,9 +222,9 @@ export default function Productos() {
             return (
               <Card
                 key={p.id}
-                className={`premium-sheen overflow-hidden transition-all hover:shadow-lg ${isEsencial ? '' : 'cursor-pointer'}`}
+                className={`premium-sheen overflow-hidden transition-all hover:shadow-lg ${sinRecetas ? '' : 'cursor-pointer'}`}
                 onClick={() => {
-                  if (!isEsencial) verFicha(p);
+                  if (!sinRecetas) verFicha(p);
                 }}
                 style={{
                   boxShadow: isDark
@@ -320,7 +325,7 @@ export default function Productos() {
                     </div>
                   )}
 
-                  {p.descripcion && isEsencial && (
+                  {p.descripcion && sinRecetas && (
                     <p className="text-xs text-muted-foreground line-clamp-2">{p.descripcion}</p>
                   )}
 
@@ -358,7 +363,7 @@ export default function Productos() {
                           </span>
                         )}
                       </Button>
-                      {!isEsencial && (
+                      {!sinRecetas && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -371,7 +376,7 @@ export default function Productos() {
                           <FileText className="w-3 h-3" /> Ficha
                         </Button>
                       )}
-                      {isEsencial && (
+                      {sinRecetas && (
                         <Button
                           variant="ghost"
                           size="sm"

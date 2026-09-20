@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { api } from '@/api/cliente';
 import { useQuery } from '@tanstack/react-query';
 import { useConfig } from '@/lib/ConfigContext';
+import { canAccessModule } from '@/lib/packageConfig';
 import { useIsDark } from '@/lib/ThemeContext';
 import { formatCurrency, formatPercent } from '@/utils/financialUtils';
 import { getStockStatus } from '@/utils/inventoryUtils';
@@ -36,15 +37,24 @@ import { tipsEnabled } from '@/utils/tipsUtils';
 import LoadingState from '@/components/common/LoadingState';
 import PrimerosPasosCard from '@/components/dashboard/PrimerosPasosCard';
 
-const isCajaDirecta = (modo) => modo === 'esencial' || modo === 'operativo';
+/**
+ * Un negocio de mostrador: cobra en Caja, sin mesas de por medio.
+ *
+ * Se pregunta por el MÓDULO y no por el nombre de la plantilla. Enumerar
+ * nombres —`modo === 'esencial' || modo === 'operativo'`— es lo que dejó este
+ * dashboard sin botón: al renombrarse los paquetes, ninguna de las dos ramas
+ * daba verdadero y la cabecera se quedaba sin «Ir a Caja» y sin «Nueva venta».
+ * Preguntando por `mesas`, las dos ramas siguen siendo exhaustivas para
+ * cualquier plantilla presente o futura.
+ */
+const isCajaDirecta = (modo) => !canAccessModule('mesas', modo);
 
 export default function Dashboard() {
   const { config, paquete_modo } = useConfig();
-  const isEsencial = paquete_modo === 'esencial';
-  const showCostos = !isEsencial;
-  const showInventario = !isEsencial;
-  const showFinancialChart = paquete_modo === 'restaurante_pro';
-  const showCompras = !isEsencial;
+  const showCostos = canAccessModule('costos_basicos', paquete_modo);
+  const showInventario = canAccessModule('inventario', paquete_modo);
+  const showFinancialChart = canAccessModule('reportes_financieros_avanzados', paquete_modo);
+  const showCompras = canAccessModule('compras', paquete_modo);
   const { cajaAbierta, hayCaja, isLoading: cajaLoading } = useCajaAbierta();
   // Nota: la neutralización del color del MONTO la hace cada card internamente
   // (ColoredStatCard / PaymentCard leen `colorear_importes_monetarios` y solo
@@ -238,7 +248,7 @@ export default function Dashboard() {
         description={`${config.nombre_negocio} · ${new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`}
         actions={
           <div className="flex gap-2 flex-wrap">
-            {paquete_modo === 'restaurante_pro' && (
+            {!isCajaDirecta(paquete_modo) && (
               <Link to="/pos">
                 <Button size="sm">
                   <ShoppingCart className="w-4 h-4 mr-1" /> Nueva venta

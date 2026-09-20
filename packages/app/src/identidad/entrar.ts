@@ -232,6 +232,32 @@ const INTENTOS_DE_NOMBRE = 5;
 const RETENCION_SESIONES_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Quién puede entrar en este negocio. Nombre y rol; nunca el hash. */
+/**
+ * De qué negocio es quien está entrando.
+ *
+ * ── Por qué esto existe y de dónde sale la organización ───────────────────
+ * Hasta ahora la organización de la entrada salía del DESPLIEGUE: una variable
+ * del build, igual para todas las peticiones, así que un despliegue sólo podía
+ * servir a un negocio. El encargo pide lo contrario: «la organización sale de la
+ * SESIÓN de quien entra, no del build. Miguel entra con el PIN de un negocio y
+ * ve ese negocio. Entra con el de otro y ve el otro. Sin redesplegar.»
+ *
+ * El empleo identifica UN negocio —una persona empleada en dos tiene dos
+ * empleos, uno por negocio—, así que el `empleoId` que la pantalla ya mandaba
+ * basta para saber cuál. Lo que se añade es la comprobación de que ese negocio
+ * sea uno de los que este despliegue sirve, y se hace dentro de la consulta.
+ *
+ * Devuelve `null` si el empleo no existe, no está activo, o no es de ninguno de
+ * los negocios servidos. Quien llama responde lo mismo que a un PIN incorrecto:
+ * decir «ese empleado no es de aquí» regalaría saber dónde sí trabaja.
+ */
+export async function organizacionDeQuienEntra(
+  empleoId: string,
+  organizacionesServidas: readonly string[],
+): Promise<string | null> {
+  return repoIdentidad.organizacionDeEmpleo(obtenerDb(), empleoId, organizacionesServidas);
+}
+
 export async function empleadosParaEntrar(
   organizacionId: string,
   deviceToken: string,

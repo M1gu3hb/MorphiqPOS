@@ -20,8 +20,8 @@ const CorteTicket = React.forwardRef(function CorteTicket(
     cancelaciones = [],
     alertas = [],
     config = {},
-    isEsencial = false,
-    isRP = false,
+    sinCostos = false,
+    haySala = false,
   },
   ref,
 ) {
@@ -208,8 +208,8 @@ const CorteTicket = React.forwardRef(function CorteTicket(
         </Grid>
       </Section>
 
-      {/* Resumen financiero — en Esencial sólo se muestran ventas y métodos de pago */}
-      <Section title={isEsencial ? 'Resumen de ventas' : 'Resumen financiero'}>
+      {/* Resumen financiero — sin el módulo `costos_basicos` sólo se muestran ventas y métodos de pago */}
+      <Section title={sinCostos ? 'Resumen de ventas' : 'Resumen financiero'}>
         <Grid>
           <Cell label="Total ventas" value={formatCurrency(corte?.total_general)} bold />
           <Cell label="N° tickets" value={corte?.numero_ventas || 0} />
@@ -217,17 +217,17 @@ const CorteTicket = React.forwardRef(function CorteTicket(
           <Cell label="Efectivo" value={formatCurrency(corte?.total_efectivo)} />
           <Cell label="Tarjeta" value={formatCurrency(corte?.total_tarjeta)} />
           <Cell label="Transferencia" value={formatCurrency(corte?.total_transferencia)} />
-          {!isEsencial && (
+          {!sinCostos && (
             <Cell label="Costo de ventas" value={formatCurrency(corte?.costo_total_estimado)} />
           )}
-          {!isEsencial && (
+          {!sinCostos && (
             <Cell label="Utilidad bruta" value={formatCurrency(corte?.utilidad_bruta_total)} />
           )}
-          {!isEsencial && <Cell label="Margen promedio" value={formatPercent(margen)} />}
-          {!isEsencial && (
+          {!sinCostos && <Cell label="Margen promedio" value={formatPercent(margen)} />}
+          {!sinCostos && (
             <Cell label="Gastos operativos" value={formatCurrency(corte?.total_gastos)} />
           )}
-          {!isEsencial && (
+          {!sinCostos && (
             <Cell
               label="Utilidad neta est."
               value={formatCurrency(corte?.utilidad_neta_estimada || utilidadNeta)}
@@ -324,7 +324,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
             bold
           />
         </Grid>
-        {isRP && propinasPorMesero.length > 0 && (
+        {haySala && propinasPorMesero.length > 0 && (
           <table className="w-full text-xs border mt-2">
             <thead className="bg-gray-100">
               <tr>
@@ -405,7 +405,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
         </table>
       </Section>
 
-      {/* Productos vendidos — en Esencial sin columnas de costo/utilidad.
+      {/* Productos vendidos — sin `costos_basicos`, sin columnas de costo/utilidad.
           6B / 1.I — Nueva columna "Cantidad real" muestra g/ml/shots para variables. */}
       <Section title="Productos vendidos">
         <table className="w-full text-xs border">
@@ -415,8 +415,8 @@ const CorteTicket = React.forwardRef(function CorteTicket(
               <th className="border px-2 py-1 text-right">Líneas</th>
               <th className="border px-2 py-1 text-right">Cantidad real</th>
               <th className="border px-2 py-1 text-right">Total</th>
-              {!isEsencial && <th className="border px-2 py-1 text-right">Costo</th>}
-              {!isEsencial && <th className="border px-2 py-1 text-right">Utilidad</th>}
+              {!sinCostos && <th className="border px-2 py-1 text-right">Costo</th>}
+              {!sinCostos && <th className="border px-2 py-1 text-right">Utilidad</th>}
             </tr>
           </thead>
           <tbody>
@@ -426,10 +426,10 @@ const CorteTicket = React.forwardRef(function CorteTicket(
                 <td className="border px-2 py-1 text-right">{p.cantidad}</td>
                 <td className="border px-2 py-1 text-right">{p.cantidadReal || '—'}</td>
                 <td className="border px-2 py-1 text-right">{formatCurrency(p.total)}</td>
-                {!isEsencial && (
+                {!sinCostos && (
                   <td className="border px-2 py-1 text-right">{formatCurrency(p.costo)}</td>
                 )}
-                {!isEsencial && (
+                {!sinCostos && (
                   <td className="border px-2 py-1 text-right font-bold">
                     {formatCurrency(p.total - p.costo)}
                   </td>
@@ -438,7 +438,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
             ))}
             {productos.length === 0 && (
               <tr>
-                <td colSpan={isEsencial ? 4 : 6} className="text-center text-gray-400 py-2">
+                <td colSpan={sinCostos ? 4 : 6} className="text-center text-gray-400 py-2">
                   Sin productos
                 </td>
               </tr>
@@ -447,8 +447,8 @@ const CorteTicket = React.forwardRef(function CorteTicket(
         </table>
       </Section>
 
-      {/* Ingredientes consumidos — solo Operativo / Pro */}
-      {!isEsencial && (
+      {/* Ingredientes consumidos — solo con el módulo `recetas` */}
+      {!sinCostos && (
         <Section title="Ingredientes / insumos consumidos">
           <table className="w-full text-xs border">
             <thead className="bg-gray-100">
@@ -486,8 +486,8 @@ const CorteTicket = React.forwardRef(function CorteTicket(
         </Section>
       )}
 
-      {/* Gastos — solo Operativo / Pro */}
-      {!isEsencial && gastos.length > 0 && (
+      {/* Gastos — solo con el módulo `gastos` */}
+      {!sinCostos && gastos.length > 0 && (
         <Section title="Gastos operativos">
           <table className="w-full text-xs border">
             <thead className="bg-gray-100">
@@ -514,8 +514,8 @@ const CorteTicket = React.forwardRef(function CorteTicket(
         </Section>
       )}
 
-      {/* Inventario bajo / crítico — solo Operativo / Pro */}
-      {!isEsencial && alertas.length > 0 && (
+      {/* Inventario bajo / crítico — solo con el módulo `inventario` */}
+      {!sinCostos && alertas.length > 0 && (
         <Section title="Inventario bajo / crítico">
           <table className="w-full text-xs border">
             <thead className="bg-gray-100">

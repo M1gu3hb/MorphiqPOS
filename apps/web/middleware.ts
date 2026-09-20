@@ -20,6 +20,18 @@ import { CABECERA_NONCE, construirCsp } from '~/seguridad/csp';
 /** Identificador que hila una peticion con sus escrituras en `auditoria`. */
 export const CABECERA_CORRELACION = 'x-morphiqpos-correlacion';
 
+/**
+ * La ruta que se esta sirviendo, para que un `layout.tsx` la pueda leer.
+ *
+ * Un layout del App Router no recibe el pathname y no hay API estable que lo
+ * de. La guarda de `app/(modelos)/` lo necesita por una razon concreta: cuatro
+ * de las 61 pantallas se abren SIN sesion —las dos de entrar con PIN y las dos
+ * que abre el cliente con el QR de su mesa— y la guarda las tiene que saltar.
+ * Sin esto, la pantalla de teclear el PIN redirigia a la pantalla de teclear el
+ * PIN.
+ */
+export const CABECERA_RUTA = 'x-morphiqpos-ruta';
+
 export function middleware(peticion: NextRequest): NextResponse {
   const nonce = crypto.randomUUID().replaceAll('-', '');
   const correlacion = crypto.randomUUID();
@@ -30,6 +42,7 @@ export function middleware(peticion: NextRequest): NextResponse {
   const cabeceras = new Headers(peticion.headers);
   cabeceras.set(CABECERA_NONCE, nonce);
   cabeceras.set(CABECERA_CORRELACION, correlacion);
+  cabeceras.set(CABECERA_RUTA, peticion.nextUrl.pathname);
   // Next lee el nonce de ESTA cabecera de peticion para firmar los <script>
   // que emite. Sin ella la politica se envia igual, la pagina se ve... y no
   // hidrata: el navegador bloquea todos los scripts y no queda ni un boton

@@ -51,22 +51,70 @@ pg.types.setTypeParser(OID_NUMERIC, (valor: string) => valor);
 let pool: pg.Pool | undefined;
 let db: Kysely<Esquema> | undefined;
 
+/** El tamaño del pool por proceso. 10 salvo que el entorno diga otra cosa. */
+const MAXIMO_POR_OMISION = 10;
+
+/**
+ * Cuántas conexiones abre ESTE proceso como mucho.
+ *
+ * ── Por qué es configurable, y no lo era ───────────────────────────────────
+ * Estaba clavado en 10, y el acople encontró por qué eso no basta: la
+ * `DATABASE_URL` de este proyecto entra por el pooler de Supabase en **modo
+ * sesión** (puerto 5432), y ahí el límite de CLIENTES simultáneos es 15. Con el
+ * máximo en 10, dos procesos —el servidor de las pruebas de navegador y el que
+ * contesta la puerta— agotan el pooler y todo empieza a contestar 500 con
+ * `EMAXCONNSESSION: max clients reached in session mode`. No es una hipótesis:
+ * pasó al correr las cinco plantillas, y el rastro que deja no menciona el
+ * pooler por ningún lado, así que manda a buscar el defecto donde no está.
+ *
+ * Bajarlo para todos sería peor: en producción cada instancia serverless abre
+ * SU pool y 10 es el punto donde una terminal de caja no hace cola. Lo que
+ * hacía falta era poder decirlo por entorno.
+ */
+function maximoDelPool(): number {
+  const declarado = Number.parseInt(process.env['MORPHIQPOS_DB_POOL_MAX'] ?? '', 10);
+  return Number.isInteger(declarado) && declarado > 0 ? declarado : MAXIMO_POR_OMISION;
+}
+
 /**
  * Configuración del pool.
  *
  * Gate PRS §12A: "pool de conexiones dimensionado, no un cliente por request".
- * El límite real no lo pone la aplicación sino el proveedor: Supabase con
- * pooler en modo transacción admite bastante, pero cada función serverless de
- * Vercel abre su propio pool. `max: 10` por instancia es el punto donde ya no
- * se hace cola en una terminal de caja y todavía no se agota el proveedor.
+ * El límite real no lo pone la aplicación sino el proveedor: cada función
+ * serverless de Vercel abre su propio pool, y el pooler tiene su propio techo
+ * —15 clientes en modo sesión—. `max: 10` por instancia es el punto donde ya no
+ * se hace cola en una terminal de caja; `MORPHIQPOS_DB_POOL_MAX` lo baja donde
+ * conviven varios procesos, como la máquina donde corren las pruebas.
  */
 function configuracion(cadena: string): pg.PoolConfig {
   const ssl = tlsPara(cadena);
 
   return {
     connectionString: cadena,
-    max: 10,
-    idleTimeoutMillis: 30_000,
+    max: maximoDelPool(),
+    /**
+     * 10 s, y no 30. Es para ganarle al pooler.
+     *
+     * En modo TRANSACCIÓN (puerto 6543) Supavisor recicla las conexiones de
+     * cliente por su cuenta. Si cierra él primero, `pg` entrega un socket muerto
+     * y la consulta muere con `ECONNRESET` — se vio así, diez veces en una
+     * corrida de navegador, en `/api/datos/consultar`: la pantalla carga y sus
+     * datos devuelven 500.
+     *
+     * Con el tiempo de reposo por debajo del suyo, el que cierra somos nosotros,
+     * y una conexión que se cierra ordenadamente no deja un socket a medias.
+     */
+    idleTimeoutMillis: 10_000,
+    /**
+     * Y el `keepAlive`, para lo que el tiempo de reposo no cubre.
+     *
+     * Un cortafuegos o un balanceador puede tirar una conexión ociosa sin avisar
+     * a ninguno de los dos extremos. Sin `keepAlive`, `pg` no se enteraría hasta
+     * intentar usarla; con él, el socket se mantiene vivo y el fallo aparece como
+     * una conexión cerrada que el pool descarta, no como una consulta muerta.
+     */
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 5_000,
     // Un cajero no puede quedarse esperando media hora a que la base responda.
     // Falla rápido y la pantalla lo dice (R12).
     connectionTimeoutMillis: 10_000,
