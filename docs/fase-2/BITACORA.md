@@ -3721,3 +3721,91 @@ El tablero de la estética se escribió con eso ya sabido, y por eso ni una de s
 Bloque 4 **cerrado**: los cinco tableros en pie, las cinco suites verdes, `verify:acople` sin una sola
 pendiente de vocabulario y `pnpm test:unit` en 2820. Lo siguiente es el **bloque 5**: `pnpm verify`
 entero, el CI verde en la punta y el informe con las ocho condiciones de TERMINADO.
+
+---
+
+## 20-09-2026 · BLOQUE 5 · la cadena entera, y lo que encontró al correrla
+
+### 1 · `pnpm verify` salió en ROJO, y en un eslabón que el CI no corre
+
+Los cuatro tableros —el de la tiendita incluido, que llevaba un día empujado y con el CI en verde—
+declaraban su plantilla **a mano**:
+
+```
+✗ Contratos rotos antes de mutar: ningun_comando_escribe_la_lista_a_mano
+```
+
+El contrato existe desde F1.1-C-15 y su razón está escrita en el propio archivo: *«había CINCO
+copias del mismo arreglo y basta con que una se quede corta al añadir un giro para que un comando
+desaparezca de un paquete entero sin que nada avise»*.
+
+La lista vive ahora en un sitio, y **exhaustiva por tipo**:
+
+```ts
+export const PAQUETES_DEL_TABLERO: Readonly<Record<Paquete, readonly Paquete[]>> = {
+  tienda: ['tienda'],
+  cafeteria: ['cafeteria'],
+  restaurante: ['restaurante'],
+  ferreteria: ['ferreteria'],
+  estetica: ['estetica'],
+};
+```
+
+Que sea un `Record<Paquete, …>` es la mitad del valor: **el día que llegue una sexta plantilla, esto
+no compila** hasta que alguien decida qué mira su dueño al abrir el sistema.
+
+### 2 · La causa de que durara un día: los arneses no corrían en CI
+
+El tablero de la tiendita se empujó en `8231493` con el contrato ya roto y los **cuatro checks
+dieron verde**. Mirando el workflow, el motivo era simple: corre estructura, histórico, tsconfig,
+entorno, residuos, primitivas, formato, lint, tipos, unitarias, migraciones, integración, build y
+cabeceras — y **ninguno** de los nueve arneses de mutación, ni cobertura, ni escrituras, ni lecturas,
+ni aspecto.
+
+> Una puerta que sólo existe en una laptop no es una puerta del proyecto.
+
+Entran en un trabajo propio, `contratos`, que corre **en paralelo** con el de calidad y por lo tanto
+no retrasa la señal que ya había. Fuera se quedan los tres que hablan con la base viva y con el
+despliegue —`verify:esquema`, `verify:rls` y `verify:acople`—, con su motivo escrito en la cabecera
+del workflow.
+
+Y de paso, esa cabecera dejó de mentir: decía *«escrito y sin ejecutar; el repositorio todavía no
+tiene remoto»*, y lleva corriendo desde el 18-09.
+
+### 3 · Dos números del tablero del salón que mentían, vistos con datos
+
+Volcar el JSON del comando contra la demo real —no la pantalla, el comando— enseñó dos cosas que
+ninguna prueba de rótulos puede ver:
+
+| Lo que decía | Por qué está mal | Lo que dice ahora |
+|---|---|---|
+| Ocupación de mañana **0 %** un lunes | El lunes el salón CIERRA. Un día cerrado y un día con la agenda vacía se leían igual, y son opuestos: uno no se puede arreglar y el otro es la llamada de hoy | Un guion, «el salón cierra», y la lista deja fuera a quien no trabaja ese día en vez de enseñarle un 0 % que no es suyo |
+| **Servicio 0 % · Producto 100 %** con el día en cero | Es una proporción de nada, y se lee como si todo hubiera sido anaquel | «Todavía no se cobra nada hoy» |
+
+**Cero entre cero no es cero por ciento: es una pregunta sin denominador.**
+
+### 4 · Lo que cobró cada suite, anotado por la propia corrida
+
+Las cinco anotan el importe (`test.info().annotations`, tipo `cobrado`), así que el número del
+informe sale de la corrida y no de una libreta:
+
+```
+abarrotes        42.90 MXN · la venta del mostrador
+cafeteria        52.00 MXN · la bebida de la barra
+restaurante      75.00 MXN · la cuenta de la mesa
+ferreteria       39.00 MXN · la nota del mostrador
+estetica       1,800.00 MXN · el servicio de la cita
+```
+
+### 5 · El README describía otro sistema
+
+Decía «opera una tienda de mostrador y un restaurante completo» y «Corte actual: F1.1 — 4 de 21
+tareas». Son **cinco** negocios desde la Fase 2 y el corte es la 2.3. El repositorio es público: esa
+primera línea es lo que lee quien llega.
+
+### EN QUÉ IBA
+
+Bloque 5 **cerrado**. La vuelta entera —los cinco bloques— queda en
+[`docs/reports/016-fase-2.3-segunda-vuelta.md`](../reports/016-fase-2.3-segunda-vuelta.md), con las
+ocho condiciones, la salida literal de las puertas, el CI en la punta, lo que cobró cada suite y las
+tres cosas que no puedo hacer yo, cada una con sus instrucciones de dos minutos.
