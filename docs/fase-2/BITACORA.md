@@ -3163,9 +3163,139 @@ la demo acaba bloqueado por mora con documentos que ya no existen.
 verify:acople · 5 de 5 suites COBRAN · 0 declaradas con sonda · 17 rutas por crear (eran 18)
 ```
 
+### T-37 y T-07 · la agenda de un salón, que era una pantalla ciega
+
+`AgendaDelDia` pedía al puente dos entidades con forma de BLOQUE —con su profesional, su hora de
+inicio y su hora de fin—. `Cita` no la tiene: trae `agendada_para`, `cliente_id` y `folio`, y el rango
+del servicio vive en un `tstzrange` que el puente no sabe leer. `HuecoDisponible` no existía en
+absoluto. Resultado medido: **la pantalla de inicio de la recepcionista decía «Hoy no hay citas
+todavía» con las citas agendadas y en la base**.
+
+La respuesta no era inventar la entidad: **los dos comandos que sirven exactamente eso ya existían**
+desde la fase 2, con su ruta. `agenda.dia` arma una columna por profesional con sus citas, sus tramos
+ACTIVOS —lo de en medio es procesado y no ocupa a nadie—, sus bloqueos y sus ventanas de horario; y
+`agenda.huecos` calcula los huecos vendibles, incluidos los INTERCALADOS en el procesado de otra cita,
+que es la capacidad que nadie más ve. Reimplementar eso en el puente habría sido una segunda verdad
+sobre la misma agenda. La pantalla se conectó a ellos, y los NOMBRES —clienta, servicio— salen del
+puente, que es quien sabe de catálogo.
+
+Lo que hubo que añadir a los comandos, con su porqué:
+
+- **el estado de la CITA viaja con su servicio.** Una cita `cobrada` tiene servicios `cerrados`, y la
+  rejilla pinta «Cobrada» en verde y «SIN COBRAR» con borde verde: dos bloques que la recepcionista
+  trata al revés. Sin ese campo la pantalla no podía distinguirlos.
+- **el trato de cada profesional** (`tipoRelacion`): la columna de quien RENTA la estación va en otro
+  tono, porque lo que hace ahí no vende para el salón.
+- **lo que vale cada hueco**, con la misma regla que el reporte: los centavos por minuto de ESA
+  persona. El hueco de quien hace tintes vale el triple que el de quien hace cortes.
+
+### Y el día de la agenda era el de Greenwich
+
+El defecto que habría hecho fallar todo lo anterior cada tarde: `agenda.dia` armaba el día con
+`new Date(\`${fecha}T00:00:00.000Z\`)` y las ventanas de horario con `${fecha}T${hora}Z`. En México son
+SEIS HORAS de corrimiento y dos consecuencias:
+
+1. **la cita de las 18:30 caía en el día siguiente** y la agenda volvía a verse vacía —medido: una
+   cita creada a las 19:40 hora local no aparecía en la agenda de hoy—;
+2. el horario «10:00 a 19:00» se interpretaba como **04:00 a 13:00 locales**, así que los huecos se
+   ofrecían de madrugada y las horas en las que de verdad se trabaja no salían en ningún sitio.
+
+El día se arma ahora en la zona que el negocio ya declara (`organizaciones.zona_horaria`) y la
+conversión la hace Postgres, que es quien tiene la tabla de husos y sus cambios de horario: calcularla
+con un desfase fijo se rompe dos veces al año. Las ventanas se cuelgan de esa medianoche local. Toca a
+las cuatro consultas de agenda —rejilla, huecos, próximos huecos, ocupación y reporte— porque todas
+tenían la misma cuenta.
+
+### T-07 · iniciar y cerrar, desde la pantalla
+
+Las dos rutas y los dos comandos existían, y **ninguna pantalla podía usarlos**:
+
+- la agenda llamaba a `/api/citas/<id>/iniciar` con el id del BLOQUE, que es un SERVICIO de la cita
+  —una cita con tinte y corte son dos bloques— y ese comando recibe la CITA: contestaba «esa cita no
+  existe en este negocio». Ahora el bloque lleva su `citaId`, tocarlo inicia la cita **y entra a
+  ella**, que es lo que le da puerta al resto del recorrido. Una cita ya empezada se abre directo:
+  iniciar dos veces contesta un error que no ayuda a nadie;
+- `CitaEnCurso` publicaba `{citaId}` —que no es un campo del comando— y `agenda.cerrar_servicio`
+  exigía `almacenId`, que esa pantalla no tiene ni debe pedir: un salón tiene un almacén y la
+  estilista no elige de qué bodega salió el tinte. Zod la rechazaba, así que **ninguna pantalla podía
+  cerrar un servicio**, ninguna cita llegaba a `terminada` y la pantalla de cobro no listaba nada. El
+  almacén lo resuelve ahora el servidor cuando no llega.
+
+Y dos defectos más que salieron ahí mismo: el movimiento de consumo de cabina escribía
+`motivo: 'consumo de cabina'`, y esa columna tiene foránea a `motivos_merma.clave` —cerrar un servicio
+CON consumos reventaba con `23503`, y nadie lo había visto porque la suite cierra con la lista
+vacía—; y ese movimiento **no llevaba el costo**, así que el material consumido no se podía valuar
+después. Las dos cosas arregladas: sin motivo —una mezcla para una clienta no es una merma, es el
+costo del servicio— y con el costo del insumo en el momento de mezclarlo.
+
+### T-09 · el material de cabina, en la comisión
+
+Aquí decía `materialCentavos: 0n` con su nota: «traerlo aquí es la siguiente pasada». Ésta es la
+siguiente pasada, y no era cosmético: `reglas_comision.material` decide quién paga el tinte
+—`negocio`, `mitad` o `profesional`— y **con el material en cero las tres reglas calculan lo mismo**.
+El descuento se declaraba en el catálogo de reglas y no llegaba a la nómina. Sale del movimiento de
+`consumo_servicio` que el cierre escribió, con el costo de ESE momento: un tinte que subió de precio
+en abril no cambia lo que se le descontó a quien lo mezcló en marzo.
+
+### T-08 y T-24 · el alta de la clienta iba a una ruta que no existe
+
+El asistente de agendar publicaba en `/api/cliente/crear` «por convención». La ruta de verdad es
+`POST /api/clientes` (`cliente.alta`, F-040) y existe desde la fase 1 — con una gracia que importa en
+el mostrador: dar de alta dos veces el mismo teléfono devuelve la ficha que ya hay, porque «ese
+cliente ya existe» es un callejón sin salida cuando hay alguien esperando. Se apuntó la pantalla a
+ella en vez de crear un alias: dos puertas al mismo alta es cómo una se queda sin la guarda de la
+otra. Con la demo en cero clientas, esto era lo que impedía agendar por la pantalla.
+
+### EL DEFECTO MÁS GRANDE DEL DÍA: las veinte rutas con parámetro
+
+Al tocar la cita en la agenda salió «Hay datos incompletos o mal escritos» y el rastro llevaba a una
+línea de `servidor/ruta.ts`:
+
+```ts
+const valor = parametros[campo];   // campo = 'citaId'; la carpeta es [id]
+```
+
+`manejadorDeComandoConParametro(comando, 'citaId')` leía el parámetro de la ruta con el nombre del
+CAMPO DEL COMANDO, y las carpetas de Next se llaman `[id]`. El valor era siempre `undefined`, el
+comando recibía el campo vacío y zod lo rechazaba. **Las veintiuna rutas con parámetro del sistema
+estaban así**, todas menos `compras/sugerencia/[proveedorId]`, que por casualidad nombra su carpeta
+igual que el campo:
+
+```
+citas/[id]/iniciar · cancelar · cobrar · no-llego · reprogramar
+cita-servicios/[id]/cerrar · foto      clientes/[id] · expediente · ultima-formula
+anticipos/[id]/aplicar                 cotizacion/[id]/convertir
+lista-espera/[id]/agendar · avisar     productos/[id]/abrir
+profesionales/[id]/comisiones · mi-dia rentas/[id]/cobrar
+cortes/[id]/pdf                        liquidaciones/[id]/comprobante
+```
+
+Ninguna prueba lo veía porque ninguna pasaba por una ruta con parámetro: la suite de estética llamaba
+a `/api/agenda/iniciar`, que no lleva ninguno. Arreglado con un tercer argumento —el nombre del
+SEGMENTO, `id` por omisión— y respaldo por el nombre del campo para no tocar la que ya coincidía.
+
+Y con **dos contratos, los dos validados mutando**: uno mira el manejador —que lea el segmento— y el
+otro recorre las veintiuna rutas comprobando que el segmento que cada una declara sea el que su
+carpeta tiene. Con sólo el primero, una carpeta nueva llamada `[citaId]` volvería a romperse en
+silencio.
+
+```
+Destructivas que FALLAN: el manejador vuelve a leer `parametros[campo]` · una ruta declara
+  un segmento que su carpeta no tiene (`iniciar` con 'citaId')
+Inocuas que PASAN: una línea en blanco de más en una ruta
+```
+
+### Las cinco suites, en verde y por la pantalla
+
+```
+[escritorio] abarrotes.spec.ts      1 passed (34.9s)
+[escritorio] cafeteria.spec.ts      1 passed (42.8s)
+[escritorio] restaurante.spec.ts    1 passed (32.0s)
+[escritorio] ferreteria.spec.ts     1 passed (32.0s)  nota cobrada + corte de material
+[escritorio] estetica-salon.spec.ts 1 passed (41.5s)  agenda · iniciar · cerrar · cobrar
+```
+
 ### EN QUÉ IBA
 
-Bloque 1, siguiente: **T-07 y T-37** —estética: `iniciar` y `cerrar-servicio` alcanzables desde la
-pantalla, y la agenda con `Cita` y `HuecoDisponible` en el puente para que pinte las citas—. Después
-T-08/T-24 (`/api/cliente/crear`, sin la cual la demo de estética no puede agendar: tiene cero
-clientas) y T-09 (el material del salón cobrado, `salon/cobro.ts:442`).
+Bloque 1 cerrado. Sigue el **BLOQUE 2**: las rutas que el frontend llama y no existen. Eran 18, van
+**16**: el corte de material y el alta de clienta se cerraron en este bloque.

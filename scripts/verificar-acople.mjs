@@ -1285,9 +1285,6 @@ const RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN = {
   '/api/citas/cancelar':
     'sólo aparece en un comentario de `servidor/ruta.ts` como ejemplo de ruta con parámetro; la ' +
     'de verdad es /api/citas/[id]/cancelar, que sí existe',
-  '/api/cliente/crear':
-    'el alta de clienta desde el asistente de agendar. Sin ella la demo de estética no puede ' +
-    'agendar por la pantalla: tiene cero clientas',
   '/api/entradas/alta-material': 'alta de material al recibir una compra; no hay comando todavía',
   '/api/entradas/recibir': 'recepción de compra en ferretería; no hay comando todavía',
   '/api/expediente/capturar-formula':

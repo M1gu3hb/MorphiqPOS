@@ -178,7 +178,9 @@ async function leerExpediente(
   const filtro = { cliente_id: clienteId };
   const [clientes, expedientes, servicios, formulas] = await Promise.all([
     consultarPuente<Fila>('Cliente', { filtro: { id: clienteId }, signal }),
-    consultarPuente<Fila>('ExpedienteBelleza', { filtro, signal }),
+    // El expediente se filtra por `id`, que en esa entidad ES el de la clienta:
+    // hay UN expediente por clienta y la tabla no tiene clave propia.
+    consultarPuente<Fila>('ExpedienteBelleza', { filtro: { id: clienteId }, signal }),
     consultarPuente<Fila>('CitaServicio', { filtro, limite: 60, signal }),
     consultarPuente<Fila>('FormulaAplicada', { filtro, limite: 60, signal }),
   ]);

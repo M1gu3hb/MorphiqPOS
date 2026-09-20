@@ -1173,6 +1173,123 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       cerrado_en: { columna: 'cerrado_en', conversion: 'fecha', escribible: false },
       orden_linea_id: { columna: 'orden_linea_id', conversion: 'texto', escribible: false },
     },
+    /**
+     * LOS TRES NOMBRES que sus lectores piden y no estaban.
+     *
+     * `HistorialDeLaClienta` y `MiDia` leen `fecha`, `servicio_nombre` y
+     * `profesional_nombre` de cada servicio de cita, y ninguno era un campo: las
+     * dos pantallas pintaban la fecha vacía y «—» en el servicio con todo bien
+     * puesto en la base. Son tres `left join` de una tabla cada uno, que es
+     * exactamente lo que los derivados del puente saben hacer.
+     */
+    derivados: {
+      // La fecha vive en la CITA, no en su servicio: el rango del servicio es un
+      // `tstzrange` que el puente no sabe leer.
+      fecha: {
+        tabla: 'citas',
+        porColumna: 'cita_id',
+        columna: 'agendada_para',
+        conversion: 'fecha',
+      },
+      servicio_nombre: {
+        tabla: 'productos',
+        porColumna: 'servicio_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+      // El corto, que es el que cabe en una columna de agenda.
+      profesional_nombre: {
+        tabla: 'profesionales',
+        porColumna: 'profesional_id',
+        columna: 'nombre_corto',
+        conversion: 'texto',
+      },
+    },
+  },
+
+  /**
+   * EL EXPEDIENTE DE BELLEZA (F-153).
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * Porque de aquí sale la BANDERA DE ALERGIA de la agenda, y un error ahí no es
+   * un descuadre: es una quemadura. `AgendaDelDia` pinta un triángulo en la
+   * esquina del bloque y `HistorialDeLaClienta` enseña el texto completo antes de
+   * tocar a la clienta; las dos leían una entidad que el puente no tenía.
+   *
+   * No es «notas del cliente»: se abre EN CADA VISITA y las alergias son columna
+   * a propósito —una alergia dentro de un jsonb es una alergia que nadie
+   * consulta—.
+   */
+  ExpedienteBelleza: {
+    tabla: 'expedientes_belleza',
+    // Lo ve quien atiende, que es quien tiene las manos en la cabeza de alguien.
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    ordenPorOmision: '-abierto_en',
+    campos: {
+      /**
+       * LA CLAVE ES LA CLIENTA: hay UN expediente por clienta, no una fila por
+       * visita, y la tabla no tiene columna `id` propia.
+       *
+       * Se sirve como `id` porque el contrato del puente exige que toda entidad
+       * traiga uno —su frontend lo lee siempre— y porque un segundo campo sobre
+       * la misma columna está prohibido, también con razón: dos nombres para una
+       * columna es cómo uno pisa al otro al guardar. Así que quien busque el
+       * expediente de una clienta filtra por `id`, que aquí ES el de la clienta.
+       */
+      id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      alergias: { columna: 'alergias', conversion: 'texto', escribible: false },
+      antecedentes: { columna: 'antecedentes', conversion: 'texto', escribible: false },
+      como_llego: { columna: 'como_llego', conversion: 'texto', escribible: false },
+      que_busca: { columna: 'que_busca', conversion: 'texto', escribible: false },
+      tipo_cabello: { columna: 'tipo_cabello', conversion: 'texto', escribible: false },
+      porcentaje_canas: { columna: 'porcentaje_canas', conversion: 'entero', escribible: false },
+      ultimo_alisado_en: { columna: 'ultimo_alisado_en', conversion: 'dia', escribible: false },
+      frecuencia_dias: { columna: 'frecuencia_dias', conversion: 'entero', escribible: false },
+      abierto_en: { columna: 'abierto_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  /**
+   * LA FÓRMULA APLICADA (F-154).
+   *
+   * De aquí sale el botón REPETIR: lo que de verdad se mezcló la vez pasada, con
+   * su tono, su volumen y sus minutos. `CitaEnCurso` lo enseña como «la vez
+   * pasada» —es lo primero que la estilista mira— y el historial lo lista por
+   * visita. Ninguna de las dos lo tenía.
+   *
+   * `formula` viaja como JSON tal cual: es `{marca, tono, volumen, gramos,
+   * minutos, notas}` y NO apunta al catálogo, porque una fórmula congelada tiene
+   * que seguir leyéndose cuando la marca ya no se vende.
+   */
+  FormulaAplicada: {
+    tabla: 'formulas_aplicadas',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    // Por el NOMBRE del campo, no por el de la columna: es lo que el contrato
+    // del puente exige y lo que la pantalla puede reproducir.
+    ordenPorOmision: '-fecha',
+    campos: {
+      ...soloAutomaticos(['id']),
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      cita_servicio_id: { columna: 'cita_servicio_id', conversion: 'texto', escribible: false },
+      servicio_id: { columna: 'servicio_id', conversion: 'texto', escribible: false },
+      profesional_id: { columna: 'profesional_id', conversion: 'texto', escribible: false },
+      formula: { columna: 'formula', conversion: 'json', escribible: false },
+      minutos: { columna: 'minutos_procesado', conversion: 'entero', escribible: false },
+      resultado: { columna: 'resultado', conversion: 'texto', escribible: false },
+      // `fecha` y no `aplicada_en`: es el nombre con el que las dos pantallas la
+      // leen y el que usan para ordenar.
+      fecha: { columna: 'aplicada_en', conversion: 'fecha', escribible: false },
+    },
+    derivados: {
+      servicio: {
+        tabla: 'productos',
+        porColumna: 'servicio_id',
+        columna: 'nombre',
+        conversion: 'texto',
+      },
+    },
   },
 
   ReglaComision: {

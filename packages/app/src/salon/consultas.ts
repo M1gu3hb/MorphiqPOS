@@ -8,6 +8,7 @@ import {
   type Rango,
   type VentanaDeTrabajo,
 } from '@morphiqpos/domain/agenda';
+import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
@@ -83,7 +84,10 @@ export interface CitaDelDia {
   readonly clienteId: string | null;
   readonly profesionalId: string;
   readonly servicioId: string;
+  /** El del SERVICIO: `pendiente`, `en_curso`, `cerrado`, `cancelado`. */
   readonly estado: string;
+  /** El de la CITA: `agendada`, `confirmada`, `en_curso`, `terminada`, `cobrada`. */
+  readonly estadoCita: string;
   readonly precioCentavos: string;
   readonly inicio: string;
   readonly fin: string;
@@ -95,6 +99,14 @@ export interface ColumnaDeAgenda {
   readonly profesionalId: string;
   readonly nombreCorto: string;
   readonly colorAgenda: string;
+  /**
+   * `empleado_comision` o `independiente_renta` (F-441).
+   *
+   * La rejilla pinta la columna de quien RENTA en otro tono, y no es decoración:
+   * lo que esa persona hace en su estación no vende para el salón, así que su
+   * ocupación no se lee igual. Sin este campo la pantalla no podía distinguirlas.
+   */
+  readonly tipoRelacion: string;
   readonly ventanas: readonly { readonly inicio: string; readonly fin: string }[];
   readonly citas: readonly CitaDelDia[];
   /** Junta, comida, festivo. El tiempo que la rejilla pinta y nadie puede vender. */
@@ -114,6 +126,16 @@ export interface HuecoOfrecido {
   readonly inicio: string;
   readonly fin: string;
   readonly minutos: number;
+  /**
+   * Lo que valen esos minutos, al ritmo de ESA persona. ESTIMADO, y lo dice.
+   *
+   * Es la MISMA regla que usa `agenda.reporte_huecos`: los centavos por minuto
+   * que esa persona facturó en la ventana que se está mirando. El hueco de quien
+   * hace tintes vale el triple que el de quien hace cortes, y promediar el salón
+   * esconde justo dónde duele. Cero cuando no hay con qué estimarlo —una agenda
+   * vacía no tiene ritmo— en vez de inventar un ticket medio.
+   */
+  readonly valorEstimadoCentavos: string;
   /** `true` cuando el hueco sale del procesado de otra cita: es capacidad que nadie más ve. */
   readonly esIntercalado: boolean;
 }
@@ -182,8 +204,8 @@ export const agendaDelDia = definirComando<
   paquetes: PAQUETES_TODOS,
   entrada: entradaAgendaDelDia,
   async ejecutar(ctx, entrada) {
-    const dia = new Date(`${entrada.fecha}T00:00:00.000Z`);
-    const finDelDia = new Date(dia.getTime() + MS_POR_DIA);
+    // EL DÍA DEL NEGOCIO, no el de Greenwich. Ver `limitesDelDia`.
+    const { desde: dia, hasta: finDelDia } = await limitesDelDia(ctx, entrada.fecha);
 
     const profesionales = await leerProfesionales(ctx, entrada.profesionalId);
     const servicios = await leerServiciosEntre(ctx, dia, finDelDia, entrada.profesionalId);
@@ -191,7 +213,7 @@ export const agendaDelDia = definirComando<
     const horarios = await leerHorarios(ctx, entrada.profesionalId);
 
     const columnas: ColumnaDeAgenda[] = profesionales.map((profesional) => {
-      const ventanas = ventanasDelDia(horarios, profesional.id, dia);
+      const ventanas = ventanasDelDia(horarios, profesional.id, entrada.fecha, dia);
       const suyas = servicios.filter((s) => s.profesional_id === profesional.id);
 
       const citas: CitaDelDia[] = suyas.map((s) => {
@@ -205,6 +227,7 @@ export const agendaDelDia = definirComando<
           profesionalId: s.profesional_id,
           servicioId: s.servicio_id,
           estado: s.estado,
+          estadoCita: s.estado_cita,
           precioCentavos: s.precio_centavos.toString(),
           inicio: (ocupacion?.inicio ?? dia).toISOString(),
           fin: (ocupacion?.fin ?? dia).toISOString(),
@@ -234,6 +257,7 @@ export const agendaDelDia = definirComando<
         profesionalId: profesional.id,
         nombreCorto: profesional.nombre_corto,
         colorAgenda: profesional.color_agenda,
+        tipoRelacion: profesional.tipo_relacion,
         ventanas: ventanas.map((v) => ({
           inicio: v.inicio.toISOString(),
           fin: v.fin.toISOString(),
@@ -261,9 +285,17 @@ export const huecosDisponibles = definirComando<Transaccion, typeof entradaHueco
     paquetes: PAQUETES_TODOS,
     entrada: entradaHuecos,
     async ejecutar(ctx, entrada) {
+      // Los dos extremos, en la zona del negocio: ofrecer huecos con el día en UTC
+      // los ofrecía de madrugada.
+      const { desde } = await limitesDelDia(ctx, entrada.desde);
+      const { desde: hasta } = await limitesDelDia(ctx, entrada.hasta);
       const huecos = await calcularHuecos(ctx, {
-        desde: new Date(`${entrada.desde}T00:00:00.000Z`),
-        hasta: new Date(`${entrada.hasta}T00:00:00.000Z`),
+        // El corte es la medianoche: quien pregunta por un día entero quiere el
+        // día entero, incluidas las nueve de la mañana si aún no son.
+        corte: desde,
+        primerDia: entrada.desde,
+        inicioPrimerDia: desde,
+        hasta,
         minutos: entrada.minutos,
         profesionalId: entrada.profesionalId,
       });
@@ -285,12 +317,16 @@ export const proximosHuecos = definirComando<
   entrada: entradaProximosHuecos,
   async ejecutar(ctx, entrada) {
     // Desde AHORA y no desde hoy a las cero: ofrecer las nueve de la mañana a
-    // las once es cómo se agenda una cita que ya pasó.
-    const desde = ctx.ahora;
-    const hasta = new Date(desde.getTime() + entrada.dias * MS_POR_DIA);
+    // las once es cómo se agenda una cita que ya pasó. Pero el DÍA del que se
+    // recortan las ventanas es el del negocio, no el de UTC.
+    const hoy = await fechaDelNegocio(ctx, ctx.ahora);
+    const { desde: inicioDeHoy } = await limitesDelDia(ctx, hoy);
+    const hasta = new Date(ctx.ahora.getTime() + entrada.dias * MS_POR_DIA);
 
     const todos = await calcularHuecos(ctx, {
-      desde,
+      corte: ctx.ahora,
+      primerDia: hoy,
+      inicioPrimerDia: inicioDeHoy,
       hasta,
       minutos: entrada.minutos,
       profesionalId: entrada.profesionalId,
@@ -414,8 +450,11 @@ export const reporteDeOcupacion = definirComando<
   paquetes: PAQUETES_TODOS,
   entrada: entradaReporteAgenda,
   async ejecutar(ctx, entrada) {
-    const desde = new Date(`${entrada.desde}T00:00:00.000Z`);
-    const hasta = new Date(`${entrada.hasta}T00:00:00.000Z`);
+    // En la zona del negocio: un reporte de ocupación con el día en UTC mide seis
+    // horas de otro día en México.
+    const { desde } = await limitesDelDia(ctx, entrada.desde);
+    const { desde: hasta } = await limitesDelDia(ctx, entrada.hasta);
+    const dias = diasDelRango(entrada.desde, desde, hasta);
 
     const profesionales = await leerProfesionales(ctx, null);
     const servicios = await leerServiciosEntre(ctx, desde, hasta, null);
@@ -430,9 +469,9 @@ export const reporteDeOcupacion = definirComando<
       // ocho y llena seis horas está al 100 %, no al 25 %: el reporte que lo
       // mide contra las veinticuatro dice que sobra gente cuando falta.
       let minutosDisponibles = 0;
-      for (let d = new Date(desde); d < hasta; d = new Date(d.getTime() + MS_POR_DIA)) {
+      for (const dia of dias) {
         minutosDisponibles += minutosDe(
-          ventanasDelDia(horarios, profesional.id, d).map((v) => ({
+          ventanasDelDia(horarios, profesional.id, dia.fecha, dia.inicio).map((v) => ({
             inicio: v.inicio,
             fin: v.fin,
           })),
@@ -470,8 +509,9 @@ export const reporteDeHuecos = definirComando<
   paquetes: PAQUETES_TODOS,
   entrada: entradaReporteAgenda,
   async ejecutar(ctx, entrada) {
-    const desde = new Date(`${entrada.desde}T00:00:00.000Z`);
-    const hasta = new Date(`${entrada.hasta}T00:00:00.000Z`);
+    const { desde } = await limitesDelDia(ctx, entrada.desde);
+    const { desde: hasta } = await limitesDelDia(ctx, entrada.hasta);
+    const dias = diasDelRango(entrada.desde, desde, hasta);
 
     const profesionales = await leerProfesionales(ctx, null);
     const servicios = await leerServiciosEntre(ctx, desde, hasta, null);
@@ -493,8 +533,8 @@ export const reporteDeHuecos = definirComando<
 
       const ocupados = ocupadosDe(suyas, bloqueos, profesional.id);
 
-      for (let d = new Date(desde); d < hasta; d = new Date(d.getTime() + MS_POR_DIA)) {
-        const ventanas = ventanasDelDia(horarios, profesional.id, d);
+      for (const dia of dias) {
+        const ventanas = ventanasDelDia(horarios, profesional.id, dia.fecha, dia.inicio);
         if (ventanas.length === 0) continue;
         // El mínimo es el hueco más corto que de verdad se puede vender. Con
         // uno menor el reporte cuenta como pérdida los cinco minutos entre dos
@@ -508,7 +548,7 @@ export const reporteDeHuecos = definirComando<
         porDia.push({
           profesionalId: profesional.id,
           nombreCorto: profesional.nombre_corto,
-          dia: d.toISOString().slice(0, 10),
+          dia: dia.fecha,
           minutos,
         });
       }
@@ -534,6 +574,7 @@ interface FilaProfesional {
   readonly id: string;
   readonly nombre_corto: string;
   readonly color_agenda: string;
+  readonly tipo_relacion: string;
 }
 
 interface FilaServicio {
@@ -541,6 +582,15 @@ interface FilaServicio {
   readonly cita_id: string;
   readonly folio: string;
   readonly cliente_id: string | null;
+  /**
+   * El estado de la CITA, que no es el del servicio.
+   *
+   * Una cita `cobrada` tiene servicios `cerrados`, y la rejilla pinta cosas
+   * distintas: «Cobrada» en verde y «SIN COBRAR» con borde verde son dos bloques
+   * que la recepcionista trata al revés. Sin este campo la pantalla no podía
+   * distinguirlos y tenía que pedir `Cita` otra vez por su lado.
+   */
+  readonly estado_cita: string;
   readonly profesional_id: string;
   readonly servicio_id: string;
   readonly estado: string;
@@ -558,6 +608,91 @@ interface FilaHorario {
   readonly vigente_hasta: string | null;
 }
 
+/**
+ * LOS DOS EXTREMOS DE UN DÍA, EN LA ZONA DEL NEGOCIO.
+ *
+ * ── El defecto que esto arregla ───────────────────────────────────────────
+ * El día se armaba con `new Date(`${fecha}T00:00:00.000Z`)`, o sea en UTC. En
+ * México son SEIS HORAS de corrimiento, y eso no es un detalle de formato: la
+ * cita de las 18:30 caía en el día siguiente y **la agenda del día se veía vacía
+ * con la cita agendada**. Medido: una cita creada a las 19:40 hora local no
+ * aparecía en la agenda de hoy.
+ *
+ * La zona la declara el negocio (`organizaciones.zona_horaria`) y la conversión
+ * la hace Postgres, que es quien tiene la tabla de husos y sus cambios de
+ * horario. Calcularla en TypeScript con un desfase fijo se rompe dos veces al
+ * año.
+ *
+ * `dias` es cuántos días cubre: 1 para la rejilla de un día, más para un reporte.
+ */
+async function limitesDelDia(
+  ctx: ContextoComando<Transaccion>,
+  fecha: string,
+  dias = 1,
+): Promise<{ readonly desde: Date; readonly hasta: Date }> {
+  const filas = await ctx.paso('limites_del_dia', () =>
+    sql<{ desde: Date; hasta: Date }>`
+      select ((${fecha}::date)::timestamp at time zone o.zona_horaria)              as desde,
+             ((${fecha}::date + ${dias}::int)::timestamp at time zone o.zona_horaria) as hasta
+        from organizaciones o
+       where o.id = ${ctx.ambito.organizacionId}
+    `.execute(ctx.tx),
+  );
+  const fila = filas.rows[0];
+  if (fila === undefined) {
+    // No puede pasar —el ámbito viene de una organización que existe— y si pasa,
+    // el día en UTC es mejor que ningún día: la pantalla enseña algo y el aviso
+    // de arriba dice que la lectura se degradó.
+    const desde = new Date(`${fecha}T00:00:00.000Z`);
+    return { desde, hasta: new Date(desde.getTime() + dias * MS_POR_DIA) };
+  }
+  return { desde: new Date(fila.desde), hasta: new Date(fila.hasta) };
+}
+
+/** La misma fecha, `n` días después. En texto, que es como el negocio la nombra. */
+function sumarDias(fecha: string, n: number): string {
+  // Al mediodía y en UTC para que sumar días no cruce ningún cambio de horario.
+  const cuando = new Date(`${fecha}T12:00:00Z`);
+  cuando.setUTCDate(cuando.getUTCDate() + n);
+  return cuando.toISOString().slice(0, 10);
+}
+
+/**
+ * Los días de un rango, cada uno con su FECHA del negocio y su medianoche LOCAL.
+ *
+ * Los dos datos hacen falta: la fecha decide el día de la semana y la vigencia
+ * del horario, y la medianoche local es la que convierte «10:00» en un instante.
+ * Iterar sumando 24 horas es exacto salvo los dos días del año en que cambia el
+ * horario, en los que una ventana puede quedar corrida una hora — y eso es
+ * preferible a volver a preguntarle a Postgres una vez por día de reporte.
+ */
+function diasDelRango(
+  primerDia: string,
+  inicioPrimerDia: Date,
+  hasta: Date,
+): readonly { readonly fecha: string; readonly inicio: Date }[] {
+  const dias: { fecha: string; inicio: Date }[] = [];
+  for (let n = 0; n < 400; n += 1) {
+    const inicio = new Date(inicioPrimerDia.getTime() + n * MS_POR_DIA);
+    if (inicio.getTime() >= hasta.getTime()) break;
+    dias.push({ fecha: sumarDias(primerDia, n), inicio });
+  }
+  return dias;
+}
+
+/** La fecha que el negocio llamaría «hoy» para un instante dado. */
+async function fechaDelNegocio(ctx: ContextoComando<Transaccion>, cuando: Date): Promise<string> {
+  const filas = await ctx.paso('fecha_del_negocio', () =>
+    sql<{ fecha: string }>`
+      select to_char((${cuando.toISOString()}::timestamptz at time zone o.zona_horaria)::date,
+                     'YYYY-MM-DD') as fecha
+        from organizaciones o
+       where o.id = ${ctx.ambito.organizacionId}
+    `.execute(ctx.tx),
+  );
+  return filas.rows[0]?.fecha ?? cuando.toISOString().slice(0, 10);
+}
+
 async function leerProfesionales(
   ctx: ContextoComando<Transaccion>,
   profesionalId: string | null,
@@ -565,7 +700,7 @@ async function leerProfesionales(
   const { organizacionId } = ctx.ambito;
   let consulta = ctx.tx
     .selectFrom('profesionales')
-    .select(['id', 'nombre_corto', 'color_agenda'])
+    .select(['id', 'nombre_corto', 'color_agenda', 'tipo_relacion'])
     .where('organizacion_id', '=', organizacionId)
     .where('activo', '=', true)
     .orderBy('orden_agenda', 'asc');
@@ -593,7 +728,7 @@ async function leerServiciosEntre(
   const citas = await ctx.paso('leer_citas', () =>
     ctx.tx
       .selectFrom('citas')
-      .select(['id', 'folio', 'cliente_id'])
+      .select(['id', 'folio', 'cliente_id', 'estado'])
       .where('organizacion_id', '=', organizacionId)
       .where('agendada_para', '>=', desde)
       .where('agendada_para', '<', hasta)
@@ -632,6 +767,7 @@ async function leerServiciosEntre(
       cita_id: s.cita_id,
       folio: cita?.folio ?? '',
       cliente_id: cita?.cliente_id ?? null,
+      estado_cita: cita?.estado ?? 'agendada',
       profesional_id: s.profesional_id,
       servicio_id: s.servicio_id,
       estado: s.estado,
@@ -699,13 +835,29 @@ async function leerHorarios(
  * `vigente_desde` porque la agenda de marzo se explica con el horario de marzo,
  * y aplicarle el de hoy inventa huecos que en marzo no existían.
  */
+/**
+ * Las ventanas de trabajo de un día, COLGADAS DE SU MEDIANOCHE LOCAL.
+ *
+ * ── Por qué recibe dos cosas que parecen la misma ─────────────────────────
+ * `fecha` es el día del negocio —'2026-09-19'— y sirve para el día de la semana y
+ * para la vigencia del horario. `inicioDelDia` es el INSTANTE en el que ese día
+ * empieza en la zona del negocio, y es lo que convierte «10:00» en un momento del
+ * tiempo.
+ *
+ * Antes las ventanas se armaban con `${fecha}T${hora}Z`, es decir en UTC: el
+ * horario «10:00 a 19:00» de un salón de México se interpretaba como 04:00 a
+ * 13:00 locales, así que los huecos se ofrecían de madrugada y las horas en las
+ * que de verdad se trabaja no aparecían en ningún sitio.
+ */
 function ventanasDelDia(
   horarios: readonly FilaHorario[],
   profesionalId: string,
-  dia: Date,
+  fecha: string,
+  inicioDelDia: Date,
 ): readonly VentanaDeTrabajo[] {
-  const fecha = dia.toISOString().slice(0, 10);
-  const diaSemana = dia.getUTCDay();
+  // El día de la semana, del DÍA DEL NEGOCIO. `getUTCDay` sobre el instante de
+  // medianoche local devolvería el día anterior en cualquier zona al oeste.
+  const diaSemana = new Date(`${fecha}T12:00:00Z`).getUTCDay();
 
   return horarios
     .filter(
@@ -716,9 +868,15 @@ function ventanasDelDia(
         (h.vigente_hasta === null || h.vigente_hasta >= fecha),
     )
     .map((h) => ({
-      inicio: new Date(`${fecha}T${normalizarHora(h.hora_inicio)}Z`),
-      fin: new Date(`${fecha}T${normalizarHora(h.hora_fin)}Z`),
+      inicio: new Date(inicioDelDia.getTime() + minutosDeHora(h.hora_inicio) * MS_POR_MINUTO),
+      fin: new Date(inicioDelDia.getTime() + minutosDeHora(h.hora_fin) * MS_POR_MINUTO),
     }));
+}
+
+/** 'HH:MM[:SS]' → minutos desde la medianoche de su propio día. */
+function minutosDeHora(hora: string): number {
+  const [hh = '0', mm = '0'] = normalizarHora(hora).split(':');
+  return Number(hh) * 60 + Number(mm);
 }
 
 /** `09:00` y `09:00:00` son la misma hora; Postgres devuelve la segunda forma. */
@@ -762,7 +920,11 @@ function ocupadosDe(
 }
 
 interface PeticionDeHuecos {
-  readonly desde: Date;
+  /** Nada que termine antes de este instante se ofrece: ya pasó. */
+  readonly corte: Date;
+  /** La fecha del negocio del primer día, y su medianoche local. */
+  readonly primerDia: string;
+  readonly inicioPrimerDia: Date;
   readonly hasta: Date;
   readonly minutos: number;
   readonly profesionalId: string | null;
@@ -773,22 +935,28 @@ async function calcularHuecos(
   peticion: PeticionDeHuecos,
 ): Promise<readonly HuecoOfrecido[]> {
   const profesionales = await leerProfesionales(ctx, peticion.profesionalId);
+  // Desde la MEDIANOCHE del primer día y no desde el corte: para saber qué está
+  // ocupado a las 11 hace falta la cita de las 10, que empezó antes.
   const servicios = await leerServiciosEntre(
     ctx,
-    peticion.desde,
+    peticion.inicioPrimerDia,
     peticion.hasta,
     peticion.profesionalId,
   );
   const horarios = await leerHorarios(ctx, peticion.profesionalId);
-  const bloqueos = await leerBloqueos(ctx, peticion.desde, peticion.hasta);
+  const bloqueos = await leerBloqueos(ctx, peticion.inicioPrimerDia, peticion.hasta);
 
   const huecos: HuecoOfrecido[] = [];
-  const primerDia = new Date(peticion.desde);
-  primerDia.setUTCHours(0, 0, 0, 0);
+  const dias = diasDelRango(peticion.primerDia, peticion.inicioPrimerDia, peticion.hasta);
 
   for (const profesional of profesionales) {
     const suyas = servicios.filter((s) => s.profesional_id === profesional.id);
     const ocupados = ocupadosDe(suyas, bloqueos, profesional.id);
+    // El ritmo de ESA persona en la ventana que se pide, para poder decir lo que
+    // vale cada hueco. La misma cuenta que el reporte de huecos, en un sitio.
+    const vendido = suyas.reduce((suma, s) => suma + s.precio_centavos, 0n);
+    const minutosVendidos = minutosDe(suyas.flatMap((s) => desdeMultirango(s.rango_activo)));
+    const centavosPorMinuto = minutosVendidos === 0 ? 0n : vendido / BigInt(minutosVendidos);
     // Las ocupaciones COMPLETAS —procesado incluido— sólo se usan para marcar
     // qué huecos son intercalados. No se restan: restarlas devolvería la
     // agenda al modelo de un solo número.
@@ -796,16 +964,16 @@ async function calcularHuecos(
       .map((s) => desdeRango(s.rango_ocupacion))
       .filter((r): r is Rango => r !== null);
 
-    for (let d = new Date(primerDia); d < peticion.hasta; d = new Date(d.getTime() + MS_POR_DIA)) {
-      const ventanas = ventanasDelDia(horarios, profesional.id, d);
+    for (const dia of dias) {
+      const ventanas = ventanasDelDia(horarios, profesional.id, dia.fecha, dia.inicio);
       if (ventanas.length === 0) continue;
 
       for (const hueco of huecosDeAgenda(ventanas, ocupados, peticion.minutos)) {
         // Un hueco que ya pasó no se ofrece: es cómo se agenda a las once una
         // cita de las nueve.
-        if (hueco.fin.getTime() <= peticion.desde.getTime()) continue;
+        if (hueco.fin.getTime() <= peticion.corte.getTime()) continue;
         const inicio =
-          hueco.inicio.getTime() < peticion.desde.getTime() ? peticion.desde : hueco.inicio;
+          hueco.inicio.getTime() < peticion.corte.getTime() ? peticion.corte : hueco.inicio;
         const minutos = Math.floor((hueco.fin.getTime() - inicio.getTime()) / MS_POR_MINUTO);
         if (minutos < peticion.minutos) continue;
 
@@ -815,6 +983,7 @@ async function calcularHuecos(
           inicio: inicio.toISOString(),
           fin: hueco.fin.toISOString(),
           minutos,
+          valorEstimadoCentavos: (BigInt(minutos) * centavosPorMinuto).toString(),
           esIntercalado: ocupacionesEnteras.some(
             (o) => o.inicio.getTime() < hueco.fin.getTime() && inicio.getTime() < o.fin.getTime(),
           ),

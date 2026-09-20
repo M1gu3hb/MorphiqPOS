@@ -293,7 +293,23 @@ export function CitaEnCurso({
     if (linea === undefined) return;
     setCerrando(true);
     try {
-      await invocarComando(`/api/cita-servicios/${linea.id}/cerrar`, { citaId: cita?.id ?? null });
+      /**
+       * EL CUERPO VA VACÍO, y eso es lo correcto.
+       *
+       * El identificador del servicio viaja EN LA RUTA. Lo que se mandaba aquí
+       * —`{citaId}`— no es un campo de `agenda.cerrar_servicio`, y lo que ese
+       * comando sí pedía era `almacenId`, que esta pantalla no tiene ni debe
+       * pedir: un salón tiene un almacén y la estilista no elige de qué bodega
+       * salió el tinte. Resultado medido: zod rechazaba la petición y **ninguna
+       * pantalla podía cerrar un servicio**, así que ninguna cita llegaba a
+       * `terminada` y la pantalla de cobro no listaba nada. Ahora el almacén lo
+       * resuelve el servidor cuando no llega.
+       *
+       * `consumos` se queda en su valor por omisión —vacío— porque lo que se
+       * mezcló se declara en la cabina (F-430), no aquí. Cerrar sin consumos no
+       * toca el inventario: es el caso del corte, que no gasta producto.
+       */
+      await invocarComando(`/api/cita-servicios/${linea.id}/cerrar`, {});
       setServicios(servicios.map((s) => (s.id === linea.id ? { ...s, estado: 'cerrado' } : s)));
     } catch (fallo: unknown) {
       setError(mensajeDe(fallo, `No se pudo cerrar ${voc.enFrase('linea_orden')}.`, voc));

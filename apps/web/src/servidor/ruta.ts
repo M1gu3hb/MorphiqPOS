@@ -92,6 +92,28 @@ export function manejadorDeComando<E extends ZodType, S>(
 export function manejadorDeComandoConParametro<E extends ZodType, S>(
   definicion: DefinicionServible<E, S>,
   campo: string,
+  /**
+   * EL NOMBRE DEL SEGMENTO DE LA RUTA, que no es el del campo del comando.
+   *
+   * ── El defecto que este parámetro arregla ─────────────────────────────────
+   * Aquí se leía `parametros[campo]`, o sea el nombre del campo del COMANDO
+   * —`citaId`, `clienteId`, `cotizacionId`—, y las carpetas se llaman `[id]`.
+   * Así que el valor era siempre `undefined`, el comando recibía el campo vacío
+   * y zod contestaba «Hay datos incompletos o mal escritos».
+   *
+   * **Las veintiuna rutas con parámetro del sistema estaban así**, todas menos
+   * `compras/sugerencia/[proveedorId]`, que por casualidad nombra la carpeta
+   * igual que el campo: iniciar una cita, cancelarla, reprogramarla, marcar que
+   * no llegó, cerrar su servicio, guardar su foto, editar un cliente, abrir su
+   * expediente, convertir una cotización, agendar desde la lista de espera,
+   * abrir un producto de cabina, los comprobantes… todas. Medido el 19-09-2026
+   * tocando una cita en la agenda del día.
+   *
+   * Por omisión `id`, que es como se llaman veinte de las veintiuna. Y se deja
+   * el nombre del campo como respaldo para que la que ya coincidía siga sirviendo
+   * sin tocarla.
+   */
+  segmento = 'id',
 ): (peticion: Request, contexto: { params: Promise<Record<string, string>> }) => Promise<Response> {
   const manejar = manejadorDeComando(definicion);
   return async function POST(
@@ -99,7 +121,7 @@ export function manejadorDeComandoConParametro<E extends ZodType, S>(
     contexto: { params: Promise<Record<string, string>> },
   ): Promise<Response> {
     const parametros = await contexto.params;
-    const valor = parametros[campo];
+    const valor = parametros[segmento] ?? parametros[campo];
     const cuerpo: unknown = await peticion.json().catch(() => ({}));
     const fusionado =
       typeof cuerpo === 'object' && cuerpo !== null

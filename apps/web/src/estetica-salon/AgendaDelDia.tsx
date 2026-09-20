@@ -78,6 +78,15 @@ const MINIMO = 20;
 const ALTO = (CIERRE - APERTURA) * PX;
 const HORAS = Array.from({ length: (CIERRE - APERTURA) / 60 + 1 }, (_, i) => APERTURA + i * 60);
 const MS_DIA = 86_400_000;
+/**
+ * El hueco más corto que se ofrece, en minutos.
+ *
+ * Media hora: por debajo de eso no cabe ningún servicio del catálogo típico, y
+ * pintar los cinco minutos entre dos citas como «hueco» convierte la agenda en
+ * una alfombra de huecos que nadie puede vender. Es el mismo mínimo que usa el
+ * reporte de huecos del servidor.
+ */
+const MINIMO_HUECO_MIN = 30;
 const HTTP_DEMASIADOS = 429;
 
 /** El rayado del procesado y del tiempo apartado, con `currentColor`. */
@@ -98,7 +107,17 @@ const VACIO =
   'flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-8 text-center';
 
 export interface BloqueDeAgenda {
+  /** El del SERVICIO de la cita: una cita con dos servicios son dos bloques. */
   readonly id: string;
+  /**
+   * El de la CITA, que es otra cosa y hace falta.
+   *
+   * `agenda.iniciar_cita` recibe la cita, no su servicio, y tocar un bloque es lo
+   * que la empieza. Con un solo `id` la pantalla mandaba el del servicio a una
+   * ruta que espera el de la cita: «esa cita no existe». Nulo en los huecos, que
+   * no son de nadie todavía.
+   */
+  readonly citaId: string | null;
   readonly profesional: string;
   /** La estación rentada no vende para el salón: su columna va en otro tono. */
   readonly renta: boolean;
@@ -110,6 +129,59 @@ export interface BloqueDeAgenda {
   /** Sólo en los huecos. Es lo ÚNICO monetario que esta pantalla enseña. */
   readonly valorCentavos: number | null;
   readonly alergia: boolean;
+}
+
+/** Lo que `agenda.dia` devuelve de cada servicio de cita. */
+interface CitaDelComando {
+  readonly citaServicioId: string;
+  readonly citaId: string;
+  readonly clienteId: string | null;
+  readonly servicioId: string;
+  /** El del SERVICIO. El de la CITA viene aparte: significan cosas distintas. */
+  readonly estado: string;
+  readonly estadoCita: string;
+  readonly inicio: string;
+  readonly fin: string;
+  /** Los tramos en los que la profesional está encima. Lo de en medio es procesado. */
+  readonly activos: readonly { readonly inicio: string; readonly fin: string }[];
+}
+
+interface ColumnaDelComando {
+  readonly profesionalId: string;
+  readonly nombreCorto: string;
+  /** `empleado_comision` o `independiente_renta`. La renta se pinta aparte. */
+  readonly tipoRelacion: string;
+  readonly citas: readonly CitaDelComando[];
+}
+
+interface RespuestaDelDia {
+  readonly fecha: string;
+  readonly columnas: readonly ColumnaDelComando[];
+}
+
+interface HuecoDelComando {
+  readonly profesionalId: string;
+  readonly nombreCorto: string;
+  readonly inicio: string;
+  readonly fin: string;
+  readonly minutos: number;
+  readonly valorEstimadoCentavos: string;
+}
+
+interface RespuestaDeHuecos {
+  readonly huecos: readonly HuecoDelComando[];
+}
+
+/** Una fila del puente de la que sólo se necesitan el id y el nombre. */
+interface FilaConNombre {
+  readonly id?: string;
+  readonly nombre?: string;
+}
+
+/** El expediente, para la bandera de alergia. Su `id` ES el de la clienta. */
+interface FilaDeExpediente {
+  readonly id?: string;
+  readonly alergias?: string;
 }
 
 export interface ColumnaDeAgenda {
@@ -124,6 +196,88 @@ export interface AgendaDelDiaProps {
   /** Falso dibuja el vacío del salón NUEVO, que tiene que enseñar otra cosa. */
   readonly hayEquipo?: boolean;
   readonly onAgendar?: () => void;
+}
+
+/**
+ * 'HH:MM' LOCAL de un instante.
+ *
+ * La rejilla mide minutos desde medianoche, así que el bloque viaja en hora local
+ * y no en ISO. Con `toISOString().slice(11,16)` la cita de las 10:00 en México
+ * se pintaría a las 16:00, seis horas más abajo de donde está.
+ */
+export function horaLocal(iso: string): string {
+  const cuando = new Date(iso);
+  if (Number.isNaN(cuando.getTime())) return '00:00';
+  return `${String(cuando.getHours()).padStart(2, '0')}:${String(cuando.getMinutes()).padStart(2, '0')}`;
+}
+
+/** El día siguiente de una fecha 'YYYY-MM-DD'. El rango de huecos es medio abierto. */
+export function diaSiguiente(fecha: string): string {
+  const cuando = new Date(`${fecha}T12:00:00Z`);
+  cuando.setUTCDate(cuando.getUTCDate() + 1);
+  return cuando.toISOString().slice(0, 10);
+}
+
+/**
+ * EL ESTADO VISUAL de un bloque, a partir de los dos estados reales.
+ *
+ * ── Por qué `agendada` se pinta «sin confirmar» ───────────────────────────
+ * Porque en la base son dos estados distintos y en un salón significan cosas
+ * distintas: `agendada` es «alguien apuntó la cita» y `confirmada` es «la clienta
+ * dijo que sí viene». La segunda es la que se pinta tranquila; la primera lleva
+ * el aviso, porque es la que hay que confirmar antes de que se convierta en un
+ * hueco de hora y media.
+ *
+ * ── Y por qué `terminada` se pinta SIN COBRAR ─────────────────────────────
+ * Porque es exactamente eso: el servicio está cerrado y el dinero no ha entrado.
+ * Es el bloque que la recepcionista tiene que mirar antes de que la clienta salga
+ * por la puerta.
+ */
+export function estadoVisual(cita: CitaDelComando, ahoraMs: number | null): ClaveEstado | null {
+  const estadoDeLaCita = cita.estadoCita;
+  if (estadoDeLaCita === 'cancelada') return null;
+  if (estadoDeLaCita === 'no_llego') return 'no_llego';
+  if (estadoDeLaCita === 'cobrada' || cita.estado === 'cobrado') return 'cobrada';
+  if (estadoDeLaCita === 'terminada' || cita.estado === 'cerrado') return 'sin_cobrar';
+  if (estadoDeLaCita === 'en_curso') {
+    // EL PROCESADO, que es la decisión más importante de esta pantalla: si el
+    // reloj cae FUERA de los tramos activos, la profesional está libre y ahí
+    // cabe otra cita. Sin esto la agenda se ve llena a las once con hueco para
+    // un corte, que es el dinero que este modelo viene a recuperar.
+    const dentro =
+      ahoraMs !== null &&
+      cita.activos.some(
+        (a) => new Date(a.inicio).getTime() <= ahoraMs && ahoraMs < new Date(a.fin).getTime(),
+      );
+    const empezado = ahoraMs !== null && new Date(cita.inicio).getTime() <= ahoraMs;
+    return empezado && !dentro && cita.activos.length > 1 ? 'procesado' : 'en_curso';
+  }
+  return estadoDeLaCita === 'confirmada' ? 'agendada' : 'sin_confirmar';
+}
+
+/** Un mapa id → nombre de lo que el puente devolvió, o vacío si se cayó. */
+function nombres(
+  resultado: PromiseSettledResult<readonly FilaConNombre[]>,
+): ReadonlyMap<string, string> {
+  if (resultado.status !== 'fulfilled') return new Map();
+  return new Map(
+    resultado.value
+      .filter((f) => (f.id ?? '') !== '' && (f.nombre ?? '') !== '')
+      .map((f) => [f.id ?? '', f.nombre ?? '']),
+  );
+}
+
+/**
+ * Si el expediente declara una alergia DE VERDAD.
+ *
+ * El campo es obligatorio «aunque sea ninguna conocida», así que el texto vacío y
+ * el «ninguna» significan lo mismo: no hay bandera. Tratar cualquier texto como
+ * alergia pondría el triángulo en todas las citas y entonces no avisa de nada.
+ */
+function tieneAlergia(texto: string | undefined): boolean {
+  const limpio = (texto ?? '').trim().toLowerCase();
+  if (limpio === '') return false;
+  return !['ninguna', 'ninguna conocida', 'no', 'no tiene', 'sin alergias', '-'].includes(limpio);
 }
 
 export function esEstado(valor: string): valor is ClaveEstado {
@@ -263,119 +417,139 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
   const fecha = msDia === null ? null : fechaLocal(msDia);
 
   useEffect(() => {
-    if (bloquesIniciales !== undefined || fecha === null || msDia === null) return;
+    if (bloquesIniciales !== undefined || fecha === null) return;
     const control = new AbortController();
+    // Si sigue montada se pregunta con una FUNCIÓN y no con un centinela: un
+    // `let vivo = true` el compilador lo da por siempre-verdadero.
     const sigueMontada = () => !control.signal.aborted;
-    const comun = { filtro: { fecha }, signal: control.signal };
+    const opciones = { signal: control.signal };
 
     /**
-     * LAS CITAS SE PIDEN POR RANGO, NO POR «fecha».
+     * LA AGENDA SALE DE SUS DOS COMANDOS, no de dos entidades del puente.
      *
      * ── El defecto que esto arregla ───────────────────────────────────────
-     * Aquí se pedía `Cita` con `filtro: { fecha }`, y **`Cita` no tiene ningún
-     * campo `fecha`**: tiene `agendada_para`, que es un instante. El puente
-     * contestaba «[Cita] «fecha» no es un campo de Cita» —correctamente, porque
-     * inventarse la columna sería peor— y esta pantalla, que nunca se vacía por un
-     * error, se quedaba enseñando «Hoy no hay citas todavía» **con las citas
-     * agendadas**. La pantalla principal de un salón, ciega.
+     * Esta pantalla pedía `Cita` y `HuecoDisponible` esperando filas con forma de
+     * BLOQUE —con su profesional, su hora de inicio y su hora de fin—. `Cita` no
+     * la tiene: trae `agendada_para`, `cliente_id` y `folio`, y el rango del
+     * servicio vive en un `tstzrange` que el puente no sabe leer.
+     * `HuecoDisponible` no existía en absoluto. Resultado medido: la pantalla
+     * principal de un salón decía «Hoy no hay citas todavía» con las citas
+     * agendadas y en la base.
      *
-     * `HuecoDisponible` SÍ tiene `fecha`: es una vista por día. Las dos entradas
-     * se piden distinto porque son cosas distintas, y eso es lo que faltaba.
+     * Y los dos comandos que sirven exactamente esto EXISTÍAN desde la fase 2, con
+     * su ruta: `agenda.dia` arma las columnas —una por profesional, con sus citas,
+     * sus tramos activos, sus bloqueos y sus ventanas de horario— y `agenda.huecos`
+     * calcula los huecos vendibles, incluidos los INTERCALADOS en el procesado de
+     * otra cita, que es la capacidad que nadie más ve. Reimplementar eso en el
+     * puente habría sido una segunda verdad sobre la misma agenda.
      *
-     * ── Y por qué el rango se arma con instantes y no con texto ───────────
-     * `agendada_para` es `timestamptz`. Comparar contra «2026-09-18T00:00:00» sin
-     * zona lo interpreta el servidor en la SUYA, y a las 21:10 en México eso son
-     * seis horas de diferencia: la cita de las 22:00 caería en el día siguiente y
-     * la agenda volvería a verse vacía, esta vez sin ningún aviso. Los dos
-     * extremos se calculan del día LOCAL y viajan como instantes.
-     */
-    const inicioDelDia = new Date(msDia);
-    inicioDelDia.setHours(0, 0, 0, 0);
-    const finDelDia = new Date(inicioDelDia.getTime() + MS_DIA - 1);
-
-    /**
-     * Las dos entradas del puente en paralelo, y CADA UNA POR SU CUENTA.
-     *
-     * Van juntas a propósito —un hueco que aparece medio segundo tarde no lo ve
-     * nadie— pero con `Promise.all` una sola caída se llevaba las dos: basta que
-     * la segunda rechace para que la primera se descarte. Y la segunda rechaza
-     * hoy, siempre: **`HuecoDisponible` no existe en el puente**. Así que esta
-     * pantalla enseñaba «Hoy no hay citas todavía» con las citas leídas y en la
-     * mano, y el aviso hablaba de los huecos.
-     *
-     * Con `allSettled` se pinta lo que SÍ llegó y se dice lo que no. Es la misma
-     * regla que ya estaba escrita aquí abajo —«la rejilla NUNCA se vacía por un
-     * error»— aplicada a cada fuente y no al conjunto.
+     * Los NOMBRES se piden aparte porque los comandos devuelven identificadores:
+     * la clienta y el servicio salen del puente, que es quien sabe de catálogo. Y
+     * las ALERGIAS del expediente, porque un error ahí no es un descuadre.
      */
     Promise.allSettled([
-      consultarPuente<BloqueDeAgenda>('Cita', {
-        rango: {
-          campo: 'agendada_para',
-          desde: inicioDelDia.toISOString(),
-          hasta: finDelDia.toISOString(),
-        },
-        limite: 300,
+      invocarComando<RespuestaDelDia>('/api/agenda/dia', { fecha }, opciones),
+      invocarComando<RespuestaDeHuecos>(
+        '/api/agenda/huecos',
+        // El rango es medio abierto: `desde` incluido, `hasta` excluido.
+        { desde: fecha, hasta: diaSiguiente(fecha), minutos: MINIMO_HUECO_MIN },
+        opciones,
+      ),
+      consultarPuente<FilaConNombre>('Cliente', { limite: 400, signal: control.signal }),
+      consultarPuente<FilaConNombre>('ProductoTerminado', { limite: 400, signal: control.signal }),
+      consultarPuente<FilaDeExpediente>('ExpedienteBelleza', {
+        limite: 400,
         signal: control.signal,
       }),
-      consultarPuente<BloqueDeAgenda>('HuecoDisponible', { ...comun, limite: 100 }),
     ])
-      .then(([citas, huecos]) => {
+      .then(([dia, huecos, clientas, servicios, expedientes]) => {
         if (!sigueMontada()) return;
-        const llegaron = [
-          ...(citas.status === 'fulfilled' ? citas.value : []),
-          ...(huecos.status === 'fulfilled' ? huecos.value : []),
-        ];
 
-        /**
-         * Sólo los bloques que la rejilla PUEDE pintar.
-         *
-         * Un bloque necesita `inicio`, `fin` y `profesional`. Las filas de `Cita`
-         * no traen ninguno de los tres: `Cita` tiene `agendada_para`, `cliente_id`
-         * y `folio`, y el nombre del servicio vive en `CitaServicio`. Esta
-         * pantalla se escribió contra una entidad con la forma de un BLOQUE —con
-         * su profesional, su servicio y su hueco— **y esa entidad no existe en el
-         * puente**; `HuecoDisponible` tampoco.
-         *
-         * Pintarlas igual no es una opción: `inicio.slice(...)` sobre `undefined`
-         * tumba la página entera y el usuario ve «This page couldn't load» en la
-         * pantalla principal de su salón. Se descartan, y el aviso de abajo dice
-         * cuántas y por qué. Un día vacío con su motivo escrito es peor que la
-         * agenda de verdad y MUCHO mejor que una página caída.
-         */
-        const pintables = llegaron.filter(
-          (b) => typeof b.inicio === 'string' && typeof b.fin === 'string',
-        );
+        const nombreDeClienta = nombres(clientas);
+        const nombreDeServicio = nombres(servicios);
+        const conAlergia =
+          expedientes.status === 'fulfilled'
+            ? new Set(
+                expedientes.value
+                  .filter((e) => tieneAlergia(e.alergias))
+                  .map((e) => e.id ?? '')
+                  .filter((id) => id !== ''),
+              )
+            : new Set<string>();
+
+        const pintables: BloqueDeAgenda[] = [];
+        if (dia.status === 'fulfilled') {
+          for (const columna of dia.value.columnas) {
+            for (const cita of columna.citas) {
+              const estado = estadoVisual(cita, ahoraMs);
+              // Una cita cancelada no se pinta: su hueco lo ofrece `agenda.huecos`,
+              // que es quien sabe si de verdad quedó libre.
+              if (estado === null) continue;
+              pintables.push({
+                id: cita.citaServicioId,
+                citaId: cita.citaId,
+                profesional: columna.nombreCorto,
+                renta: columna.tipoRelacion === 'independiente_renta',
+                inicio: horaLocal(cita.inicio),
+                fin: horaLocal(cita.fin),
+                estado,
+                clienta: nombreDeClienta.get(cita.clienteId ?? '') ?? null,
+                servicio: nombreDeServicio.get(cita.servicioId) ?? null,
+                // El dinero de una cita no se pinta en la agenda: lo único
+                // monetario de esta pantalla es lo que CUESTA un hueco.
+                valorCentavos: null,
+                alergia: cita.clienteId !== null && conAlergia.has(cita.clienteId),
+              });
+            }
+          }
+        }
+        if (huecos.status === 'fulfilled') {
+          for (const hueco of huecos.value.huecos) {
+            pintables.push({
+              // El hueco no es una fila de nada: su clave es su sitio, que es
+              // único —una persona no tiene dos huecos que empiecen a la vez—.
+              id: `hueco-${hueco.profesionalId}-${hueco.inicio}`,
+              citaId: null,
+              profesional: hueco.nombreCorto,
+              renta: false,
+              inicio: horaLocal(hueco.inicio),
+              fin: horaLocal(hueco.fin),
+              estado: 'hueco',
+              clienta: null,
+              servicio: null,
+              valorCentavos: Number(hueco.valorEstimadoCentavos),
+              alergia: false,
+            });
+          }
+        }
         setBloques(pintables);
 
         // El aviso nombra la fuente que falló, porque «no se pudo cargar» sobre
         // una pantalla con citas dentro manda a buscar donde no está.
-        const sinForma = llegaron.length - pintables.length;
         const caidas = [
-          citas.status === 'rejected' ? `citas: ${mensajeDe(citas.reason)}` : null,
+          dia.status === 'rejected' ? `citas: ${mensajeDe(dia.reason)}` : null,
           huecos.status === 'rejected' ? `huecos: ${mensajeDe(huecos.reason)}` : null,
-          sinForma > 0
-            ? `${String(sinForma)} cita(s) leídas que esta rejilla todavía no puede pintar: ` +
-              'el puente no tiene la entidad de BLOQUE que junta cita, servicio y profesional'
-            : null,
+          clientas.status === 'rejected' ? 'los nombres de las clientas' : null,
+          servicios.status === 'rejected' ? 'los nombres de los servicios' : null,
+          expedientes.status === 'rejected' ? 'las alergias del expediente' : null,
         ].filter((x): x is string => x !== null);
-        setError(caidas.length === 0 ? null : caidas.join(' · '));
+        setError(caidas.length === 0 ? null : `No se pudo leer ${caidas.join(' · ')}.`);
       })
-      .catch((fallo: unknown) => {
-        // La rejilla NUNCA se vacía por un error: el día de las 12:30 es mucho
-        // más útil que una pantalla en blanco a las 12:31.
-        if (!sigueMontada()) return;
-        setError(mensajeDe(fallo));
-        setBloques((previos) => previos ?? []);
+      .catch(() => {
+        // `allSettled` no rechaza: esto es para un fallo del propio `then`, que
+        // dejaría la pantalla en su esqueleto para siempre.
+        if (sigueMontada()) {
+          setBloques([]);
+          setError('No se pudo armar la agenda.');
+        }
       });
+
     return () => {
       control.abort();
     };
-    // `msDia` no va en las dependencias A PROPÓSITO, y por eso se silencia con su
-    // motivo escrito: cambia cada minuto —sale de `ahoraMs`— y meterlo aquí
-    // volvería a pedir la agenda entera sesenta veces por hora. Lo que de verdad
-    // decide qué día se pide es `fecha`, que es su fecha local; `msDia` sólo se usa
-    // para calcular los dos extremos de ESE día, y para el mismo `fecha` dan el
-    // mismo par.
+    // `ahoraMs` NO va en las dependencias: cambia cada minuto y volvería a pedir
+    // la agenda entera sesenta veces por hora. El reloj sólo decide el rayado del
+    // procesado, y eso se recalcula al siguiente refresco.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bloquesIniciales, fecha, intento]);
 
@@ -403,20 +577,46 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
     else enrutador.push('/estetica-salon/agendar');
   };
 
+  /**
+   * TOCAR UN BLOQUE: lo que hace la recepcionista con el dedo.
+   *
+   * Tres cosas distintas según lo que haya debajo, y ninguna es un menú:
+   *
+   * - un HUECO lleva a agendar, que es para lo que sirve un hueco;
+   * - una cita POR EMPEZAR se inicia y se entra a ella. Iniciar es lo que arranca
+   *   los dos relojes —cuánto esperó la clienta y cuánto duró el servicio— y
+   *   entrar es lo que permite cerrar el servicio después, que es lo único que
+   *   deja la cita `terminada` y por tanto cobrable;
+   * - una cita YA EMPEZADA se abre directo: iniciar dos veces contesta «esa cita
+   *   ya no estaba por empezar», que es un error que no ayuda a nadie.
+   *
+   * ── El id que se manda ────────────────────────────────────────────────────
+   * El de la CITA, no el del bloque. El bloque es un SERVICIO de la cita —una
+   * cita con tinte y corte son dos bloques— y `agenda.iniciar_cita` recibe la
+   * cita. Mandar el del servicio contestaba «esa cita no existe en este negocio».
+   */
   const tocar = async (b: BloqueDeAgenda) => {
-    if (b.estado === 'hueco' || b.estado === 'apartado') {
+    if (b.estado === 'hueco' || b.estado === 'apartado' || b.citaId === null) {
       irAAgendar();
       return;
     }
+    const citaId = b.citaId;
+    const enLaCita = `/estetica-salon/cita-en-curso?cita=${encodeURIComponent(citaId)}`;
+
+    // Ya empezada —o terminada, o cobrada—: se entra, no se vuelve a iniciar.
+    if (b.estado !== 'agendada' && b.estado !== 'sin_confirmar') {
+      enrutador.push(enLaCita);
+      return;
+    }
+
     setOcupado(b.id);
     try {
-      // El documento no nombra esta ruta con verbo: se sigue la convención
-      // /api/<dominio>/<verbo> sobre la cita.
-      await invocarComando<unknown>(`/api/citas/${b.id}/iniciar`, {});
-      setBloques((prev) =>
-        (prev ?? []).map((x) => (x.id === b.id ? { ...x, estado: 'en_curso' } : x)),
-      );
+      await invocarComando<unknown>(`/api/citas/${citaId}/iniciar`, {});
       setError(null);
+      // Y se entra a la cita: es donde se captura la fórmula y se cierra el
+      // servicio. Dejar a la recepcionista en la rejilla con la cita en curso era
+      // dejar el resto del recorrido sin puerta.
+      enrutador.push(enLaCita);
     } catch (fallo: unknown) {
       setError(mensajeDe(fallo));
     } finally {

@@ -89,10 +89,6 @@ interface ProfesionalDelPuente {
   readonly nombre?: string | null;
 }
 
-interface MovimientoConAlmacen {
-  readonly almacen_id?: string;
-}
-
 /**
  * La comisión, como la sirve el puente.
  *
@@ -260,22 +256,27 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
 
     // ── UNA CITA, SU SERVICIO CERRADO, Y COBRADA CON SU COMISIÓN ──────────
     //
-    // El recorrido del encargo: agendar · iniciar la cita · cobrar con comisión.
-    // EL COBRO se hace por la pantalla —es donde entra el dinero— y los pasos de
-    // agenda van por SUS PROPIAS RUTAS, por razones que se dicen en vez de
-    // esconderse:
+    // El recorrido del encargo: agendar · iniciar la cita · cerrar el servicio ·
+    // cobrar con comisión. Los tres últimos pasos van AHORA POR LA PANTALLA, que
+    // es lo que faltaba:
     //
-    //  · el asistente de `agendar` empieza por la clienta, y darla de alta
-    //    publica en `/api/cliente/crear`, **una ruta que no existe**. La demo
-    //    tiene CERO clientas, así que por la pantalla no se pasa del primer paso.
-    //    `agenda.agendar_cita` acepta cita SIN clienta —alguien que llega sin
-    //    cita previa, que es media agenda de un salón— y eso es lo que se usa;
-    //  · `iniciar` y `cerrar-servicio` tienen ruta y comando, y **ninguna
-    //    pantalla los llama**: no hay forma de empezar ni de cerrar un servicio
-    //    desde la interfaz. Sin cerrar, la cita nunca llega a `terminada`, que es
-    //    lo único que la pantalla de cobro lista.
+    //  · la AGENDA DEL DÍA pinta la cita. Leía dos entidades del puente con forma
+    //    de bloque —`Cita` no la tiene y `HuecoDisponible` no existía—, y ahora
+    //    lee los dos comandos que sí sirven eso, `agenda.dia` y `agenda.huecos`;
+    //  · TOCAR el bloque la INICIA y entra a la cita. La ruta y el comando
+    //    existían y ninguna pantalla los llamaba con el identificador correcto: el
+    //    bloque es un SERVICIO de la cita y `agenda.iniciar_cita` recibe la cita;
+    //  · CERRAR EL SERVICIO se hace en la pantalla de la cita en curso. Publicaba
+    //    `{citaId}` —que no es un campo del comando— y el comando exigía
+    //    `almacenId`, que esa pantalla no tiene ni debe pedir: zod la rechazaba y
+    //    **ninguna pantalla podía cerrar un servicio**. Sin cerrar, la cita no
+    //    llega a `terminada`, que es lo único que la pantalla de cobro lista.
     //
-    // Los dos están en el reporte con nombre y apellido.
+    // AGENDAR sigue yendo por su ruta: el asistente son cuatro pasos y lo que esta
+    // suite demuestra es el camino del dinero. Lo que sí se comprueba es su parte
+    // que estaba rota —el ALTA DE LA CLIENTA, que publicaba en una ruta
+    // inexistente— porque la demo tiene cero clientas y sin una no se pasa del
+    // primer paso.
     await abrirCajaPorLaRuta(page, FONDO_CENTAVOS);
 
     const servicios = await consultarPuente<ServicioDelPuente>(page, 'ProductoTerminado', {
@@ -297,10 +298,33 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
 
     const idsDeAntes = await ventasDeAntes(page);
 
+    /**
+     * 0 · LA CLIENTA, por la MISMA ruta que usa el asistente de agendar.
+     *
+     * El asistente publicaba en `/api/cliente/crear` «por convención», y esa ruta
+     * no existe: el alta devolvía la página de error de Next y el asistente se
+     * quedaba en el primer paso con la demo en cero clientas. La de verdad es
+     * `POST /api/clientes` (`cliente.alta`), que además devuelve la ficha que ya
+     * hay si el teléfono está repetido — así esta prueba se puede correr dos veces
+     * seguidas sin duplicar a nadie.
+     */
+    const alta = await page.request.post('/api/clientes', {
+      headers: cabecerasDeEscrituraDePrueba(),
+      data: { nombre: 'Clienta de la demostración', telefono: '5550001111' },
+    });
+    expect(
+      alta.status(),
+      `No se pudo dar de alta a la clienta: ${(await alta.text()).slice(0, 300)}. Es el primer ` +
+        'paso del asistente de agendar: sin él, un salón sin clientas no puede agendar nada.',
+    ).toBe(200);
+    const clienteId = ((await alta.json()) as { datos?: { clienteId?: string } }).datos?.clienteId;
+    expect(clienteId, 'El alta no devolvió la clienta.').toBeTruthy();
+
     // 1 · AGENDAR.
     const cita = await page.request.post('/api/agenda/cita', {
       headers: cabecerasDeEscrituraDePrueba(),
       data: {
+        clienteId,
         origen: 'mostrador',
         inicio: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
         servicios: [{ servicioId: servicio?.id, profesionalId: profesional?.id }],
@@ -318,63 +342,69 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     expect(citaServicioId, 'Agendar no devolvió el servicio de la cita.').toBeTruthy();
 
     /**
-     * La agenda del día NO enseña la cita todavía, y por eso aquí no se exige.
+     * 2 · LA AGENDA DEL DÍA PINTA LA CITA, y tocarla la INICIA.
      *
-     * La rejilla pinta bloques con `inicio`, `fin` y `profesional`, y el puente no
-     * tiene ninguna entidad con esa forma: `Cita` trae `agendada_para`,
-     * `cliente_id` y `folio`, el servicio vive en `CitaServicio`, y
-     * `HuecoDisponible` —la otra mitad de la pantalla— no existe. Esta sesión
-     * arregló lo que se podía sin inventar la entidad: que las citas se pidan por
-     * RANGO en vez de por un campo `fecha` que no existe, que una fuente caída no
-     * vacíe la pantalla entera, y que las filas sin forma no tumben la página.
-     * Está en el reporte.
+     * Es la pantalla de inicio de la recepcionista y hasta hoy enseñaba «Hoy no hay
+     * citas todavía» con la cita agendada y en la base: pedía `Cita` y
+     * `HuecoDisponible` esperando filas con forma de BLOQUE, y ninguna de las dos
+     * la tiene. Ahora sale de `agenda.dia` —columnas por profesional, con sus
+     * tramos activos— y de `agenda.huecos`, con los nombres del puente.
      *
-     * Lo que sí se comprueba es que la pantalla ABRE y dice lo que le falta en vez
-     * de morirse: es la pantalla de inicio de la recepcionista.
+     * El bloque se busca por el NOMBRE DE LA CLIENTA, que es lo que la
+     * recepcionista lee: si aparece, el join de nombres funcionó y el día se
+     * calculó en la zona del negocio —con el día en UTC, una cita de la tarde en
+     * México caía en el día siguiente y la rejilla volvía a verse vacía—.
      */
     await abrirPantalla(page, '/estetica-salon/agenda-del-dia');
+    const elBloque = page.getByRole('button', { name: /Clienta de la demostración/ }).first();
     await expect(
-      page.getByRole('heading', { level: 1 }).first(),
-      'La agenda del día no abre. Es la pantalla de inicio de la recepcionista: si se cae, el ' +
-        'salón empieza el día a ciegas.',
+      elBloque,
+      'La agenda del día no pinta la cita que se acaba de agendar. Sale de `agenda.dia` + los ' +
+        'nombres del puente: si no está, o el día se armó en otra zona, o la columna no trajo ' +
+        'sus citas.',
     ).toBeVisible({ timeout: 20_000 });
 
-    // 2 · INICIAR la cita y 3 · CERRAR su servicio, que es cuando se puede
-    //     cobrar: cerrarlo es donde se decide qué se consumió.
-    const iniciada = await page.request.post('/api/agenda/iniciar', {
-      headers: cabecerasDeEscrituraDePrueba(),
-      data: { citaId },
-    });
-    expect(
-      iniciada.status(),
-      `No se pudo iniciar la cita: ${(await iniciada.text()).slice(0, 300)}`,
-    ).toBe(200);
+    await elBloque.click();
+    await expect(
+      page,
+      'Tocar la cita no llevó a la cita en curso. Iniciar es lo que arranca los dos relojes, y ' +
+        'entrar es lo que permite cerrar el servicio: sin eso el recorrido se queda sin puerta.',
+    ).toHaveURL(/cita-en-curso/, { timeout: 20_000 });
 
     /**
-     * El almacén sale de un MOVIMIENTO de inventario, y no de una entidad
-     * `Almacen`: **el puente no tiene ninguna**. La siembra deja el inventario
-     * inicial, así que el primer movimiento del ledger trae el almacén en el que
-     * está la mercancía, que es exactamente el que hay que descontar.
+     * 3 · CERRAR EL SERVICIO, EN SU PANTALLA.
+     *
+     * Cerrar no cobra: consume el material de cabina y deja la cita lista para la
+     * caja. Es el paso que `Cobrar` exige —lista las citas `terminada`— y el que
+     * ninguna pantalla podía dar.
      */
-    const movimientos = await consultarPuente<MovimientoConAlmacen>(page, 'MovimientoInventario', {
-      limite: 5,
-    });
-    const almacenId = movimientos.find((m) => (m.almacen_id ?? '') !== '')?.almacen_id;
-    expect(
-      almacenId,
-      'No hay ningún movimiento de inventario del que sacar el almacén, y cerrar un servicio ' +
-        'exige de dónde salió lo que se consumió. El puente no expone `Almacen`: está en el ' +
-        'reporte.',
-    ).toBeTruthy();
+    const cerrar = page.getByRole('button', { name: 'Cerrar servicio' });
+    await expect(
+      cerrar,
+      'La pantalla de la cita en curso no ofrece cerrar el servicio.',
+    ).toBeVisible({ timeout: 20_000 });
+    await cerrar.click();
 
-    const cerrado = await page.request.post('/api/agenda/cerrar-servicio', {
-      headers: cabecerasDeEscrituraDePrueba(),
-      data: { citaServicioId, almacenId, consumos: [] },
-    });
-    expect(
-      cerrado.status(),
-      `No se pudo cerrar el servicio: ${(await cerrado.text()).slice(0, 400)}`,
-    ).toBe(200);
+    // Contra el SERVIDOR: la cita tiene que quedar `terminada`. La pantalla se
+    // quedaría igual si el comando fallara en silencio.
+    await expect
+      .poll(
+        async () => {
+          const citas = await consultarPuente<{ readonly estado?: string }>(page, 'Cita', {
+            filtro: { id: citaId },
+            limite: 1,
+          });
+          return citas[0]?.estado ?? '';
+        },
+        {
+          message:
+            'Se cerró el servicio desde la pantalla y la cita no quedó `terminada`. Es el único ' +
+            'estado que la pantalla de cobro lista: sin él, el salón no puede cobrar por su ' +
+            'interfaz.',
+          timeout: 30_000,
+        },
+      )
+      .toBe('terminada');
 
     // 4 · COBRAR, POR LA PANTALLA.
     await abrirPantalla(page, '/estetica-salon/cobrar');

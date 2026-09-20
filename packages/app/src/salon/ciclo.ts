@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
-import type { Transaccion } from '@morphiqpos/data';
+import { repoVentaCatalogo, type Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { z } from 'zod';
 
@@ -51,7 +51,20 @@ export const entradaIniciarCita = z.object({ citaId: z.uuid() });
 
 export const entradaCerrarServicio = z.object({
   citaServicioId: z.uuid(),
-  almacenId: z.uuid(),
+  /**
+   * De qué almacén salió lo que se mezcló. OPCIONAL a propósito.
+   *
+   * La pantalla de la cita en curso no sabe de almacenes —un salón tiene uno, y
+   * la estilista no elige de qué bodega saca el tinte— y mandarlo obligatorio es
+   * lo que hacía que **ninguna pantalla pudiera cerrar un servicio**: la de la
+   * cita en curso publicaba `{citaId}` y zod la rechazaba con «hay datos
+   * incompletos». Sin cerrar, la cita no llega a `terminada`, que es lo único que
+   * la pantalla de cobro lista: un salón que no podía cobrar por su interfaz.
+   *
+   * Cuando no llega, se usa el almacén principal de la sucursal. Y sólo hace
+   * falta si hay algo que descontar: cerrar sin consumos no toca el inventario.
+   */
+  almacenId: z.uuid().optional(),
   /** Lo que se declara haber MEZCLADO. Un tinte no se aplica en gramos exactos. */
   consumos: z
     .array(
@@ -255,9 +268,12 @@ export const cerrarServicio = definirComando<
     // mezcló cuando se mezcló. Si no alcanza, FALLA y dice cuánto falta, en vez
     // de descontar en silencio y dejar la cabina en negativo.
     let escritos = 0;
-    for (const consumo of entrada.consumos) {
-      await sacarDeCabina(ctx, entrada.almacenId, consumo, entrada.citaServicioId);
-      escritos += 1;
+    if (entrada.consumos.length > 0) {
+      const almacenId = await almacenDelCierre(ctx, entrada.almacenId);
+      for (const consumo of entrada.consumos) {
+        await sacarDeCabina(ctx, almacenId, consumo, entrada.citaServicioId);
+        escritos += 1;
+      }
     }
 
     // `estado` y `cerrado_en` juntos: la 132 lo exige
@@ -382,6 +398,39 @@ async function liberarServicios(ctx: ContextoComando<Transaccion>, citaId: strin
  * anaquel «pierde» producto todos los días y nadie sabe por qué. Aquí el
  * almacén lo dice el comando, y el movimiento lleva su tipo propio.
  */
+/**
+ * El almacén del que sale el material de cabina.
+ *
+ * El que manda la pantalla si lo manda, y si no el PRINCIPAL de la sucursal. No
+ * se inventa uno: si la sucursal no tiene almacén, no hay de dónde descontar y
+ * eso se dice — descontar del primero que aparezca en la base sería mover
+ * inventario de otra sucursal.
+ */
+async function almacenDelCierre(
+  ctx: ContextoComando<Transaccion>,
+  dado: string | undefined,
+): Promise<string> {
+  if (dado !== undefined) return dado;
+
+  const { organizacionId, sucursalId } = ctx.ambito;
+  if (sucursalId === null) {
+    throw new ErrorDominio(
+      'VENTA_SIN_TERMINAL',
+      'Para descontar el material de cabina hace falta saber de qué sucursal sale.',
+    );
+  }
+  const almacenId = await ctx.paso('almacen_principal', () =>
+    repoVentaCatalogo.almacenPrincipal(ctx.tx, organizacionId, sucursalId),
+  );
+  if (almacenId === null) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Esta sucursal no tiene almacén principal: el consumo de cabina no sabría de dónde salir.',
+    );
+  }
+  return almacenId;
+}
+
 async function sacarDeCabina(
   ctx: ContextoComando<Transaccion>,
   almacenId: string,
@@ -391,7 +440,11 @@ async function sacarDeCabina(
   const insumo = await ctx.paso('cargar_insumo', () =>
     ctx.tx
       .selectFrom('insumos')
-      .select(['id', 'unidad_base as unidadBase'])
+      // El COSTO viaja al movimiento: el ledger es donde se valúa lo consumido, y
+      // sin él la comisión no puede descontar el material que la regla dice que
+      // descuenta (F-433). Leerlo después del insumo daría el costo de hoy para
+      // un tinte que se mezcló en marzo.
+      .select(['id', 'unidad_base as unidadBase', 'costo_unitario_centavos as costoUnitario'])
       .where('organizacion_id', '=', ctx.ambito.organizacionId)
       .where('producto_id', '=', consumo.productoId)
       .where('activo', '=', true)
@@ -439,7 +492,14 @@ async function sacarDeCabina(
         referencia_tipo: 'servicio',
         referencia_id: citaServicioId,
         empleado_id: ctx.ambito.empleoId,
-        motivo: 'consumo de cabina',
+        costo_unitario_centavos: insumo.costoUnitario,
+        // SIN MOTIVO. `movimientos_stock.motivo` tiene foránea a
+        // `motivos_merma.clave` y «consumo de cabina» no es una clave de merma:
+        // la base rechazaba el movimiento con `23503` y **cerrar un servicio con
+        // consumos era imposible**. Y es lo correcto además de lo que pasa: el
+        // tinte que se mezcló para una clienta no es una merma, es el costo del
+        // servicio. Lo dice `tipo: 'consumo_servicio'`.
+        motivo: null,
       })
       .execute(),
   );

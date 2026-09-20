@@ -7,6 +7,7 @@ import {
   type LineaComisionable,
   type ReglaComision,
 } from '@morphiqpos/domain/agenda';
+import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
@@ -432,6 +433,42 @@ async function causarComision(
       .executeTakeFirst(),
   );
 
+  /**
+   * T-09 · EL MATERIAL DE CABINA, VALUADO DEL LEDGER.
+   *
+   * Aquí decía `materialCentavos: 0n` con esta nota: «Traerlo aquí es la
+   * siguiente pasada; hoy se declara cero y se dice, en vez de inventar un
+   * número». Ésta es la siguiente pasada.
+   *
+   * ── Por qué importa que no sea cero ───────────────────────────────────────
+   * Porque `reglas_comision.material` decide quién paga el tinte: `negocio`,
+   * `mitad` o `profesional` (F-433). Con el material en cero, las tres reglas
+   * calculan LO MISMO —la del salón que descuenta el material y la que lo absorbe
+   * pagan igual— y la pantalla de comisiones enseña un número que nadie puede
+   * cuadrar contra el bote de tinte. El descuento se declaraba en el catálogo de
+   * reglas y no llegaba a la nómina.
+   *
+   * ── De dónde sale ────────────────────────────────────────────────────────
+   * Del movimiento de `consumo_servicio` que `agenda.cerrar_servicio` escribió
+   * al cerrar, con el costo del insumo EN ESE MOMENTO. No del catálogo de hoy: un
+   * tinte que subió de precio en abril no cambia lo que se le descontó a quien lo
+   * mezcló en marzo. `cantidad` es negativa —es una salida— así que se usa su
+   * valor absoluto.
+   */
+  const material = await ctx.paso('valuar_material', () =>
+    sql<{ costo: string | null }>`
+      select coalesce(sum(abs(cantidad) * costo_unitario_centavos), 0) as costo
+        from movimientos_stock
+       where organizacion_id = ${organizacionId}
+         and tipo = 'consumo_servicio'
+         and referencia_tipo = 'servicio'
+         and referencia_id = ${datos.citaServicioId}
+    `.execute(ctx.tx),
+  );
+  // Al centavo entero y hacia abajo: el costo de 12.4 centavos de tinte son 12,
+  // y redondear hacia arriba le cobraría a la estilista medio centavo por bote.
+  const materialCentavos = BigInt((material.rows[0]?.costo ?? '0').split('.')[0] ?? '0');
+
   const linea: LineaComisionable = {
     tipo: 'servicio',
     cobradoSinIvaCentavos: datos.precioCentavos,
@@ -439,10 +476,8 @@ async function causarComision(
     // entra con F-205 y entonces estos dos números se separan.
     listaSinIvaCentavos: datos.precioCentavos,
     ivaCentavos: 0n,
-    // El material de cabina se descontó al CERRAR el servicio y su costo vive en
-    // el ledger de stock. Traerlo aquí es la siguiente pasada; hoy se declara
-    // cero y se dice, en vez de inventar un número.
-    materialCentavos: 0n,
+    // El material de cabina, valuado del ledger. Ver arriba.
+    materialCentavos,
     esRehacer: datos.esRehacer,
     acumuladoPrevioCentavos: BigInt(String(acumulado?.base ?? '0').split('.')[0] ?? '0'),
   };

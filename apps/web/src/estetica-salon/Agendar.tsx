@@ -371,9 +371,23 @@ export function Agendar({
     try {
       let id = clientaId;
       if (id === null && nombreNuevo.trim() !== '') {
-        // El documento no nombra la ruta del alta de clienta: se usa la
-        // convención /api/<dominio>/<verbo>.
-        const alta = await invocarComando<{ clienteId: string }>('/api/cliente/crear', {
+        /**
+         * EL ALTA VA A `/api/clientes`, que es donde ya vivía.
+         *
+         * Aquí se publicaba en `/api/cliente/crear` —singular, con verbo— «por
+         * convención», y esa ruta NO EXISTE: el botón devolvía la página de error
+         * de Next, el cliente lo traducía a «el servidor respondió algo
+         * inesperado» y el asistente se quedaba en el primer paso. Con la demo en
+         * cero clientas, eso significaba que **no se podía agendar por la
+         * pantalla**.
+         *
+         * La ruta de verdad es `POST /api/clientes` (`cliente.alta`, F-040), que
+         * además devuelve la ficha que ya hay si el teléfono está repetido: en el
+         * mostrador, «ese cliente ya existe» es un callejón sin salida porque hay
+         * alguien esperando. Crear un alias habría sido tener dos puertas al mismo
+         * alta.
+         */
+        const alta = await invocarComando<{ clienteId: string }>('/api/clientes', {
           nombre: nombreNuevo.trim(),
           telefono: telefonoNuevo.trim(),
         });

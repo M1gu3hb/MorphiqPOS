@@ -444,6 +444,14 @@ describe('los campos derivados', () => {
       'existencias_por_insumo',
       'ordenes_pagos_resumen',
       'estaciones_preparacion',
+      // Las tres del salón, añadidas el 19-09-2026 con los derivados de
+      // `CitaServicio` y `FormulaAplicada`. Ninguna es de credenciales, ninguna
+      // exige dos saltos, y las tres YA las sirve el puente a los mismos roles
+      // por su propia entidad —`Cita`, `ProductoTerminado`, `Profesional`—: lo
+      // que el derivado ahorra es la consulta de más, no un permiso.
+      'citas',
+      'productos',
+      'profesionales',
     ]);
     for (const [entidad, mapa] of Object.entries(MAPA)) {
       for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {
