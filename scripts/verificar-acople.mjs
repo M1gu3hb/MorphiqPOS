@@ -809,15 +809,12 @@ function comprobarVocabulario() {
     );
   }
 
-  // Y las PANTALLAS. Hasta el 17-09-2026 esta comprobación pedía «al menos
-  // dos», y con dos pasaba: 3 de 65 componentes lo leían y las otras 62 tenían
-  // el sustantivo del giro tecleado a mano. Un número mínimo no mide nada — lo
-  // que hay que exigir es que NINGUNA pantalla escriba a mano una palabra que
-  // el diccionario de su giro ya sabe decir.
-  const pantallas = consumidores
-    .map((ruta) => ruta.split(sep).join('/'))
-    .filter((ruta) => /\/src\/.+\.tsx$/.test(ruta));
-
+  // Y las PANTALLAS. Hasta el 17-09-2026 esta comprobación pedía «al menos dos», y
+  // con dos pasaba: 3 de 65 componentes lo leían y las otras 62 tenían el
+  // sustantivo del giro tecleado a mano. Después contaba cuántos archivos lo
+  // mencionan, que tampoco medía nada —contaba el propio módulo—. Lo que se exige
+  // es lo de abajo: ninguna pantalla escribe a mano una palabra que el diccionario
+  // de su giro ya sabe decir, y CADA UNA de las 62 lo consume o está declarada.
   const deOtroGiro = pantallasQueHablanDeOtroGiro();
   exigir(
     deOtroGiro.length === 0,
