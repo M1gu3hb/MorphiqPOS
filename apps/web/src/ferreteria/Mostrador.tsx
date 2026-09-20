@@ -305,7 +305,7 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
 
       <main className="xl:col-start-1 xl:row-start-1 xl:row-span-2">
         <label htmlFor="buscador" className="sr-only">
-          Buscar material por nombre, medida, acabado o marca
+          Buscar {voc.singular('producto')} por nombre, medida, acabado o marca
         </label>
         <Input
           id="buscador"
@@ -455,10 +455,14 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
       {/* SECUNDARIO · siempre visible en PC, plegado en una barra en el pasillo. */}
       <aside
         id="la-venta"
-        aria-label="La venta"
+        aria-label={voc.conArticulo('orden')}
         className={`${ventaAbierta ? 'fixed inset-x-0 bottom-0 z-20 max-h-[70dvh] overflow-y-auto' : 'hidden xl:block'} rounded-md border border-border bg-card p-3 text-card-foreground xl:static xl:col-start-2 xl:row-start-2 xl:max-h-none`}
       >
-        <h2 className="text-sm font-semibold uppercase text-muted-foreground">La venta</h2>
+        {/* «La venta» es de la tiendita: en una ferretería lo que se arma en el
+            pasillo es una NOTA, y es la palabra que el cliente oye en la caja. */}
+        <h2 className="text-sm font-semibold uppercase text-muted-foreground">
+          {voc.conArticulo('orden')}
+        </h2>
         {partidas.length === 0 ? (
           <p className="py-3 text-sm text-muted-foreground">
             Todavía nada. Busque {voc.enFrase('producto')} y presione Enter sobre el resultado.
@@ -551,8 +555,9 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
               lleva del mostrador, y va a decirlo en voz alta a tres metros. */}
           {folioEnCaja !== null && (
             <p role="status" className="rounded-md border border-border p-2 text-center text-sm">
-              Nota <span className="text-base font-bold tabular-nums">{folioEnCaja}</span> está en
-              la caja.
+              {voc.titulo('orden')}{' '}
+              <span className="text-base font-bold tabular-nums">{folioEnCaja}</span> está en la
+              caja.
             </p>
           )}
         </div>

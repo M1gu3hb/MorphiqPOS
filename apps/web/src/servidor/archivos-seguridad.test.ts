@@ -133,7 +133,24 @@ describe('frontera HTTP de archivos', () => {
     const menu = readFileSync(MENU, 'utf8');
     expect(menu).toContain('5 * 1024 * 1024');
     expect(menu).toContain('Máximo 5 MB');
-    expect(readFileSync(CLAVES, 'utf8')).toContain('`privado/${organizacionId}/');
+    /**
+     * TODAS las claves, no «alguna».
+     *
+     * Esto decía `toContain('`privado/${organizacionId}/')` y **mentía**: el archivo
+     * tiene DOS constructores de clave —el de una imagen y el de un exporte, que
+     * nació en el bloque 2— así que cambiar uno de los dos a `publico/` dejaba el
+     * otro y la afirmación pasaba igual. La puerta de mutaciones lo cazó:
+     * «la suite sobrevivió a la mutación "archivo nuevo guardado directamente como
+     * publico"».
+     *
+     * Se afirma lo que de verdad importa: que NINGUNA clave se construya bajo
+     * `publico/` —el prefijo que el lector de `/api/archivos` sirve sin sesión— y
+     * que los dos constructores sigan siendo dos. Así, mutar cualquiera de los dos
+     * se cae.
+     */
+    const claves = readFileSync(CLAVES, 'utf8');
+    expect(claves).not.toContain('`publico/${organizacionId}/');
+    expect(claves.match(/`privado\/\$\{organizacionId\}\//g)?.length).toBe(2);
     expect(readFileSync(SEGURIDAD_HTTP, 'utf8')).toContain("startsWith('multipart/form-data;')");
   });
 });

@@ -96,10 +96,13 @@ const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
   ['cocina', /Sin comandas pendientes|Nuevos|En preparación/i],
   ['inventario', /alacena|Inventario/i],
   ['mapa-de-mesas', /Mesas|Libre|Ocupada/],
-  ['mesa-activa', /Pedido actual|Mesa/],
+  // «Cuenta actual», no «Pedido actual»: la marca afirma TAMBIÉN el vocabulario
+  // del giro —«pedido» es de la cafetería— y se cae el día que alguien lo cambie.
+  ['mesa-activa', /Cuenta actual|Mesa/],
   ['portal-del-comensal', /QR de la mesa|carta/i],
   ['precuenta', /Aquí se imprime la precuenta|PRE-CUENTA/],
-  ['productos', /margen sano|Productos/],
+  // «Platillos», que es como un restaurante llama a su catálogo.
+  ['productos', /Platillos|margen sano/],
   ['recetas', /Recetas/],
   ['registros', /Exportar|Sin cortes en este periodo/],
 ];

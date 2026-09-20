@@ -590,7 +590,8 @@ export function CierreDiario({ datosIniciales, onDescargarPdf }: CierreDiarioPro
             ))}
           </dl>
           <p className="px-3 pb-3 text-xs text-muted-foreground">
-            No entran en la utilidad: son dinero de los meseros que pasó por la caja.
+            No entran en la utilidad: son dinero de {voc.enFrase('responsable', true)} que pasó por
+            la caja.
           </p>
         </details>
 

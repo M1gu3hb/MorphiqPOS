@@ -444,7 +444,8 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
 
       <footer className={BARRA}>
         <p className="text-sm">
-          Importe de la partida <span className="text-2xl font-bold tabular-nums">{importe}</span>
+          Importe de {voc.enFrase('linea_orden')}{' '}
+          <span className="text-2xl font-bold tabular-nums">{importe}</span>
         </p>
         <div className="flex gap-2">
           <Button

@@ -454,7 +454,7 @@ export function MiDia({
             <div className="rounded-xl border border-dashed border-border p-6 text-center">
               <p className="mb-1 text-lg font-semibold">Hoy no tienes {voc.plural('orden')}.</p>
               <p className="mb-4 text-sm text-muted-foreground">
-                El día entero está libre: cabe cualquier servicio sin mover nada.
+                El día entero está libre: cabe {voc.enFraseCon('un', 'linea_orden')} sin mover nada.
               </p>
               {walkIn}
             </div>

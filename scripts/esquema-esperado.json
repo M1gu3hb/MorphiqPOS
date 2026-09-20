@@ -10022,6 +10022,17 @@
       "generada": null
     },
     {
+      "clave": "public.movimientos_stock.nota",
+      "esquema": "public",
+      "tabla": "movimientos_stock",
+      "columna": "nota",
+      "tipo": "text",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
       "clave": "public.movimientos_stock.organizacion_id",
       "esquema": "public",
       "tabla": "movimientos_stock",
@@ -11643,6 +11654,28 @@
       "esquema": "public",
       "tabla": "ordenes",
       "columna": "personas",
+      "tipo": "integer",
+      "noNula": true,
+      "defaultSql": "0",
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.ordenes.precuenta_impresa_en",
+      "esquema": "public",
+      "tabla": "ordenes",
+      "columna": "precuenta_impresa_en",
+      "tipo": "timestamp with time zone",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.ordenes.precuentas_impresas",
+      "esquema": "public",
+      "tabla": "ordenes",
+      "columna": "precuentas_impresas",
       "tipo": "integer",
       "noNula": true,
       "defaultSql": "0",
@@ -27894,6 +27927,28 @@
       "nombre": "ordenes_version_check",
       "tipo": "check",
       "definicion": "CHECK (version > 0)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.ordenes.precuenta_fecha_con_contador",
+      "esquema": "public",
+      "tabla": "ordenes",
+      "nombre": "precuenta_fecha_con_contador",
+      "tipo": "check",
+      "definicion": "CHECK ((precuentas_impresas = 0) = (precuenta_impresa_en IS NULL))",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.ordenes.precuentas_impresas_no_negativas",
+      "esquema": "public",
+      "tabla": "ordenes",
+      "nombre": "precuentas_impresas_no_negativas",
+      "tipo": "check",
+      "definicion": "CHECK (precuentas_impresas >= 0)",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false

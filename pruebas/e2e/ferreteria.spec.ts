@@ -180,7 +180,9 @@ const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
   // «La venta», no «LA VENTA»: el `h2` lleva `uppercase` de CSS y el DOM guarda
   // el texto tal cual. El `h1` de esta pantalla es `sr-only`, así que lo que se
   // lee es el rótulo del buscador.
-  ['mostrador', /Buscar material|La venta/],
+  // «La nota», que es lo que una ferretería arma en el pasillo. Decía «La venta»,
+  // que es de la tiendita, y la pantalla ya no lo dice.
+  ['mostrador', /Buscar material|La nota/],
   ['trabajos-de-mostrador', /Apartados|Listas de trabajo|garantía/i],
 ];
 
@@ -287,7 +289,7 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // armándose al lado, porque aquí el cliente trae un tornillo en la mano y dice
     // «uno como éste». Su encabezado es para lector de pantalla —la pantalla la manda
     // la búsqueda, no un título— así que se comprueba que ESTÉ, no que se vea.
-    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La venta/);
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
     await expect(page.getByRole('heading', { name: 'Mostrador', exact: true })).toBeAttached();
     // `complementary`, no `region`: la venta que se arma vive en un `aside`, y ése es
     // su rol implícito. Escrito como `region` la prueba no encontraba NADA, y el rastro
@@ -337,7 +339,7 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     const material = conPrecio!;
     const nombre = material.nombre ?? '';
 
-    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La venta/);
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
     const laVenta = await abrirLaVenta(page);
 
     // Se busca como busca el mostradorista: una palabra. El filtro es progresivo

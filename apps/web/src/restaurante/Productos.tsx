@@ -7,6 +7,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · restaurante · productos
@@ -144,6 +145,7 @@ function mensajeDe(fallo: unknown, porOmision: string): string {
 }
 
 export function Productos({ filasIniciales, onEditarProducto }: ProductosProps) {
+  const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly FilaDeProducto[]>(filasIniciales ?? []);
   const [cargando, setCargando] = useState(filasIniciales === undefined);
   const [intento, setIntento] = useState(0);
@@ -209,9 +211,21 @@ export function Productos({ filasIniciales, onEditarProducto }: ProductosProps) 
     }
   };
 
+  /**
+   * EL SUSTANTIVO DEL GIRO, en las seis veces que esta pantalla lo dice.
+   *
+   * Decía «Productos» seis veces, y en un restaurante el catálogo es de
+   * PLATILLOS: es la palabra que usa quien lo mantiene y la que la carta lleva
+   * impresa. «Producto» no es neutro aquí, es de otro giro —de la tiendita y de
+   * la cafetería—, y en la pantalla que más mira quien pone los precios se lee
+   * como software prestado.
+   *
+   * El diccionario ya lo sabía decir y esta pantalla no le preguntaba: era una de
+   * las dieciséis que no consumían F-017.
+   */
   const nuevo = (
     <Button asChild>
-      <a href="/productos">Nuevo producto</a>
+      <a href="/productos">Nuevo {voc.singular('producto')}</a>
     </Button>
   );
 
@@ -220,7 +234,7 @@ export function Productos({ filasIniciales, onEditarProducto }: ProductosProps) 
     // salta al cargar y el ojo ya sabe dónde va a mirar.
     return (
       <div className="p-4">
-        <h1 className="mb-4 text-2xl font-bold">Productos</h1>
+        <h1 className="mb-4 text-2xl font-bold">{voc.titulo('producto', true)}</h1>
         <div className={REJILLA}>
           {Array.from({ length: 8 }, (_, i) => (
             <Skeleton key={i} className="h-40 w-full rounded-lg" />
@@ -234,7 +248,7 @@ export function Productos({ filasIniciales, onEditarProducto }: ProductosProps) 
     <div className="p-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Productos</h1>
+          <h1 className="text-2xl font-bold">{voc.titulo('producto', true)}</h1>
           {/* La leyenda enseña el semáforo una vez, para que el chip de cada
               tarjeta se lea sin adivinar qué significa el color. */}
           <p className="text-xs text-muted-foreground">
@@ -249,8 +263,8 @@ export function Productos({ filasIniciales, onEditarProducto }: ProductosProps) 
         <Input
           type="search"
           value={busqueda}
-          aria-label="Buscar un producto por nombre"
-          placeholder="Buscar un producto…"
+          aria-label={`Buscar ${voc.enFraseCon('un', 'producto')} por nombre`}
+          placeholder={`Buscar ${voc.enFraseCon('un', 'producto')}…`}
           className="md:max-w-xs"
           onChange={(evento: ChangeEvent<HTMLInputElement>) => {
             setBusqueda(evento.target.value);
@@ -296,10 +310,11 @@ export function Productos({ filasIniciales, onEditarProducto }: ProductosProps) 
       {filas.length === 0 && error === null ? (
         // El vacío ENSEÑA la consecuencia, no se disculpa.
         <div className={VACIO}>
-          <p className="text-lg font-semibold">Todavía no hay productos.</p>
+          <p className="text-lg font-semibold">Todavía no hay {voc.plural('producto')}.</p>
           <p className="max-w-prose text-muted-foreground">
-            Sin catálogo no hay nada que cobrar ni nada que llegue a la cocina: cada producto lleva
-            su precio, su área de preparación y, cuando tiene receta, su costo y su margen.
+            Sin catálogo no hay nada que cobrar ni nada que llegue a {voc.enFrase('preparacion')}:
+            cada {voc.singular('producto')} lleva su precio, su área de preparación y, cuando tiene
+            receta, su costo y su margen.
           </p>
           {nuevo}
         </div>
@@ -363,7 +378,8 @@ export function Productos({ filasIniciales, onEditarProducto }: ProductosProps) 
 
       {filas.length > 0 && visibles.length === 0 && (
         <p className="mt-4 text-center text-muted-foreground">
-          Ningún producto coincide con la búsqueda ni con el área elegida.
+          {voc.conDeterminante('ningun', 'producto')} coincide con la búsqueda ni con el área
+          elegida.
         </p>
       )}
     </div>

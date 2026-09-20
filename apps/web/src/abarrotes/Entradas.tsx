@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · entradas
@@ -156,6 +157,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
+  const voc = useVocabulario();
   const [proveedores, setProveedores] = useState<readonly ProveedorDelDia[] | null>(
     proveedoresIniciales ?? null,
   );
@@ -370,7 +372,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
               {sugerido === null && <Skeleton className="h-32 w-full" />}
               {sugerido !== null && sugerido.length === 0 && (
                 <p className="text-muted-foreground text-sm">
-                  No hay sugerencia: falta historia de venta de este proveedor.
+                  No hay sugerencia: falta historia de {voc.plural('orden')} de este proveedor.
                 </p>
               )}
               <ul className="divide-y">

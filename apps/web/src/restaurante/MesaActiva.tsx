@@ -340,8 +340,15 @@ export function MesaActiva(props: MesaActivaProps) {
           <p className="text-sm">{listos.join(' · ')}</p>
         </section>
       )}
-      <section aria-label={`Pedido actual, ya enviado a ${voc.singular('preparacion')}`}>
-        <h2 className="text-xs font-bold uppercase text-muted-foreground">Pedido actual</h2>
+      {/* «Pedido» es la palabra de una CAFETERÍA: aquí la unidad es la mesa y lo
+          que se manda es la cuenta. Con el sustantivo de otro giro en la pantalla
+          que un mesero mira todo el turno, el sistema se siente prestado. */}
+      <section
+        aria-label={`${voc.titulo('orden')} actual, ya enviad${voc.terminacion('orden')} a ${voc.enFrase('preparacion')}`}
+      >
+        <h2 className="text-xs font-bold uppercase text-muted-foreground">
+          {voc.titulo('orden')} actual
+        </h2>
         {enviadas.length === 0 && (
           <p className="text-sm text-muted-foreground">
             Mesa {mesa?.numero ?? ''} abierta para {mesa?.personas_actuales ?? 0} personas. Toca un
@@ -381,8 +388,13 @@ export function MesaActiva(props: MesaActivaProps) {
           </Button>
         )}
       </section>
-      <section aria-label="Agregar al pedido, sin enviar" className="border-t pt-3">
-        <h2 className="text-xs font-bold uppercase text-primary">Agregar al pedido</h2>
+      <section
+        aria-label={`Agregar a ${voc.enFrase('orden')}, sin enviar`}
+        className="border-t pt-3"
+      >
+        <h2 className="text-xs font-bold uppercase text-primary">
+          Agregar a {voc.enFrase('orden')}
+        </h2>
         {pendientes.length === 0 && (
           <p className="text-sm text-muted-foreground">
             Toca {voc.enFraseCon('un', 'linea_orden')} para agregarlo.
@@ -506,7 +518,8 @@ export function MesaActiva(props: MesaActivaProps) {
           {visibles.length === 0 ? (
             /* El vacío enseña: dice qué falta y lleva a donde se resuelve. */
             <p className="mt-2 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No hay platillos que se llamen así. <a href="/productos">Ir a Productos</a>
+              No hay {voc.plural('producto')} que se llamen así.{' '}
+              <a href="/productos">Ir a {voc.titulo('producto', true)}</a>
             </p>
           ) : (
             /* Dos columnas en teléfono, tres en tablet —la zona de toque nunca

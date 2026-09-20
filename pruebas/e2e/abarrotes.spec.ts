@@ -210,11 +210,48 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
       ).toHaveCount(0);
     }
 
-    // ── 3 · SU DASHBOARD · el de mostrador ───────────────────────────────
+    /**
+     * 3 · SU TABLERO · el de la tiendita, que no es el del restaurante
+     *
+     * Hasta hoy `/` servía el tablero HEREDADO, que es el de Restaurante MH: nueve
+     * indicadores de una cena. La carpeta de este modelo pide otros siete (F-056,
+     * §4.4) y PROHÍBE dos de los del restaurante —el ticket promedio, «que se mueve
+     * por azar en un surtido de $20 a $80», y la dona de métodos de pago, «que en
+     * 390 px ocupa más y contesta menos que una lista»—.
+     *
+     * Así que aquí se afirman los siete rótulos suyos y la AUSENCIA de los dos que
+     * no van. Sin la segunda mitad, servir otra vez el tablero del restaurante
+     * pasaría la prueba.
+     */
     await expect(page.getByRole('heading', { level: 1, name: 'Buen día' })).toBeVisible();
+    for (const rotulo of [
+      'Venta de hoy',
+      'Margen de hoy',
+      'Qué pedir',
+      'Diferencia de conteo del mes',
+      'Lo que me deben',
+      'Se vence esta semana',
+      'Caja',
+    ]) {
+      await expect(
+        page.getByRole('heading', { level: 2, name: rotulo, exact: true }),
+        `El tablero de la tiendita no enseña «${rotulo}». Son los siete indicadores de ` +
+          '`abarrotes/04-INTERFAZ.md` §4.4, y cada uno existe porque hay una decisión que el ' +
+          'dueño toma al verlo.',
+      ).toBeVisible();
+    }
+    for (const prohibido of ['Ticket promedio', 'Costo de ventas', 'Utilidad bruta']) {
+      await expect(
+        page.getByText(prohibido, { exact: true }),
+        `El tablero enseña «${prohibido}», que es del RESTAURANTE. Si esto aparece, ` +
+          '`/` volvió a servir el tablero heredado a una tiendita.',
+      ).toHaveCount(0);
+    }
+
+    // Y sus dos acciones, que son enlaces: llevan a otra pantalla, no disparan nada.
     const acciones = accionesDelTablero(page);
-    await expect(acciones.getByRole('button', { name: 'Ir a Caja' })).toBeVisible();
-    await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
+    await expect(acciones.getByRole('link', { name: 'Ir a Caja' })).toBeVisible();
+    await expect(acciones.getByRole('link', { name: 'Nueva venta' })).toHaveCount(0);
 
     // ── 4 · LAS ONCE PANTALLAS DEL MODELO RESPONDEN ───────────────────────
     for (const [pantalla, marca] of PANTALLAS) {

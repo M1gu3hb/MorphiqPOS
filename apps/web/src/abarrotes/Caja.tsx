@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · caja
@@ -102,6 +103,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Caja({ estadoInicial }: CajaProps) {
+  const voc = useVocabulario();
   const [estado, setEstado] = useState<EstadoDeCaja | null>(estadoInicial ?? null);
   const [fondo, setFondo] = useState<Record<Denominacion, string>>({
     monedas: '',
@@ -293,7 +295,7 @@ export function Caja({ estadoInicial }: CajaProps) {
             <div>
               <h2 className="font-medium">Meter cambio</h2>
               <p className="text-muted-foreground text-sm">
-                No es una venta: es fondo. Sube lo que la caja debería tener.
+                No es {voc.enFraseCon('un', 'orden')}: es fondo. Sube lo que la caja debería tener.
               </p>
             </div>
             <div className="flex gap-3">

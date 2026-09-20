@@ -766,7 +766,8 @@ export function Agendar({
               role="alert"
               className="rounded-md border border-destructive/40 bg-destructive/15 p-2 text-sm"
             >
-              ⚠️ Esta clienta tiene alergias declaradas. Revísalas antes de aplicar.
+              ⚠️ {voc.conDeterminante('este', 'cliente')} tiene alergias declaradas. Revísalas antes
+              de aplicar.
             </p>
           )}
           {(clientaElegida?.faltas_6m ?? 0) >= 2 && (

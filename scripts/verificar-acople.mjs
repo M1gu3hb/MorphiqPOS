@@ -818,6 +818,16 @@ function comprobarVocabulario() {
     .map((ruta) => ruta.split(sep).join('/'))
     .filter((ruta) => /\/src\/.+\.tsx$/.test(ruta));
 
+  const deOtroGiro = pantallasQueHablanDeOtroGiro();
+  exigir(
+    deOtroGiro.length === 0,
+    `VOCABULARIO: ${deOtroGiro.length} pantalla(s) usan la palabra de OTRO giro para algo que su ` +
+      'propio diccionario nombra distinto. Es lo que hace que el sistema se sienta prestado: un ' +
+      'restaurante que rotula «Productos» donde dice «Platillos»:\n    ' +
+      deOtroGiro.slice(0, 12).join('\n    ') +
+      (deOtroGiro.length > 12 ? `\n    …y ${deOtroGiro.length - 12} más` : ''),
+  );
+
   const conLiteral = pantallasConSustantivoTecleado();
   exigir(
     conLiteral.length === 0,
@@ -831,7 +841,8 @@ function comprobarVocabulario() {
   if (!fallos.some((f) => f.startsWith('VOCABULARIO'))) {
     notas.push(
       `vocabulario   ruta + los dos envoltorios + el menú heredado · ` +
-        `${pantallas.length} pantalla(s) lo consumen · 0 sustantivos tecleados a mano`,
+        `${pantallas.length} pantalla(s) lo consumen · 0 sustantivos tecleados a mano · ` +
+        `0 rótulos con la palabra de otro giro`,
     );
   }
 }
@@ -868,6 +879,10 @@ const NO_ES_LA_ENTIDAD = [
   'cuenta las',
   'cuenta dos',
   'se cuentan',
+  // El VERBO, que es lo que dice el encabezado del conteo por zonas: «aquí se
+  // cuenta una zona del almacén». El sustantivo `cuenta` de otro giro no tiene
+  // nada que ver.
+  'se cuenta',
   'cuenta con',
   'primera nota',
   'nota del',
@@ -878,10 +893,180 @@ const NO_ES_LA_ENTIDAD = [
   'barra lateral',
 ];
 
-/** Y estas palabras, en estas pantallas, tampoco. */
+/**
+ * Y estas palabras, en estas pantallas, tampoco.
+ *
+ * Cada fila lleva su razón, y todas son la misma clase de cosa: una palabra que el
+ * diccionario de algún giro usa para una entidad, empleada aquí en su sentido
+ * común. Traducirlas sería peor que dejarlas —«¿A qué cita?» donde se pregunta a
+ * qué CUENTA DE BANCO va la propina— y por eso se declaran en vez de vetar la
+ * comprobación entera. La lista sólo puede encogerse.
+ */
 const NO_ES_LA_ENTIDAD_AQUI = {
+  // La nota del PROVEEDOR: el documento con el que llega la mercancía, no la
+  // nota de mostrador que se cobra.
   'ferreteria/Entradas.tsx': ['nota', 'notas'],
+  'abarrotes/Entradas.tsx': ['nota', 'notas'],
+  // El negocio de recargas y pagos de luz, agua y teléfono —«pago de servicio»—
+  // y la CUENTA DE COMISIONISTA con la que el dueño se da de alta. Ni una ni otra
+  // son la partida de una venta.
+  'abarrotes/Servicios.tsx': ['servicio', 'servicios', 'cuenta'],
+  // Cuentas POR COBRAR: la cartera del fiado. No es la nota de una venta.
+  'ferreteria/Cuentas.tsx': ['cuenta', 'cuentas'],
+  // La cuenta de BANCO a la que va la propina o la comisión.
+  'estetica-salon/Cobrar.tsx': ['cuenta'],
+  // «Ventas» en un arqueo es el DINERO del día, la línea de un corte. La cuenta
+  // de una mesa se llama cuenta en todo el resto de la pantalla.
+  'restaurante/CierreDiario.tsx': ['ventas'],
 };
+
+/**
+ * LO QUE EL USUARIO LEE en un archivo de pantalla, con su línea.
+ *
+ * ── Por qué no se puede mirar línea a línea ───────────────────────────────
+ * Porque el texto de JSX se parte donde cabe. Esto miraba cada línea por separado
+ * buscando `>texto<`, y con el atributo largo en una línea y el texto en la
+ * siguiente —que es como lo deja Prettier— el texto no tenía ningún `>` delante y
+ * NO SE MIRABA. Así pasó «No hay platillos que se llamen así» en `MesaActiva`: una
+ * palabra del diccionario tecleada a mano, en la pantalla donde un mesero pasa el
+ * turno, y la puerta decía «0 sustantivos tecleados».
+ *
+ * Ahora el archivo se lee entero: se le quita la prosa —bloques `/* *\/`, `{/* *\/}`
+ * y líneas de `//`— y se buscan los tramos entre `>` y `<` sin llaves en medio, que
+ * es lo que el navegador pinta como texto. Se descartan los que huelen a código
+ * —`;`, `=>`, `()`— y los que no llevan ni una letra.
+ */
+function textosVisibles(fuente) {
+  // Los saltos de línea se CONSERVAN al quitar la prosa: el número de línea del
+  // mensaje es lo que hace que alguien pueda ir a arreglarlo, y colapsar un
+  // comentario de ocho líneas en un espacio lo desplazaba todo lo que viene detrás.
+  const enBlanco = (trozo) => trozo.replaceAll(/[^\n]/g, ' ');
+  const sinProsa = fuente
+    .replaceAll(/\{\/\*[\s\S]*?\*\/\}/g, enBlanco)
+    .replaceAll(/\/\*[\s\S]*?\*\//g, enBlanco)
+    .replaceAll(/^\s*\/\/.*$/gm, '')
+    .replaceAll(/^\s*\*.*$/gm, '');
+
+  const encontrados = [];
+  const anotar = (indice, texto, largoMaximo) => {
+    const limpio = texto.replaceAll(/\s+/g, ' ').trim();
+    if (limpio === '' || !/[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(limpio)) return;
+    if (limpio.length > largoMaximo) return;
+    // Código, no texto: un `;`, una flecha, una llamada o una anotación de tipo no
+    // son nada que se lea. Sin esto, la firma de una función que cae entre dos `>`
+    // —`, venta: number, propina: number`— entraba como si fuera una frase.
+    if (/[;]|=>|\w\(|:\s*(number|string|boolean|Date|bigint)\b/.test(limpio)) return;
+    encontrados.push({ linea: sinProsa.slice(0, indice).split('\n').length, texto: limpio });
+  };
+
+  // 1 · LA SUPERFICIE DEL VOCABULARIO: encabezados, botones, rótulos, celdas de
+  //     cabecera y enlaces. Es lo que la cabecera de `titulo` llama «el 60 % de lo
+  //     que se ve en las 61 pantallas», y donde el sustantivo del giro MANDA.
+  const DE_ROTULO = /<(?:h1|h2|h3|h4|button|legend|label|dt|th|summary|a)\b[^>]*>([^<>{}]+)</g;
+  for (const m of sinProsa.matchAll(DE_ROTULO)) anotar(m.index, m[1], 120);
+
+  // 2 · Y los atributos que se leen: el nombre accesible es rótulo igual que el
+  //     texto, y a menudo es el ÚNICO que hay.
+  for (const m of sinProsa.matchAll(/\b(?:aria-label|placeholder|title|alt)="([^"]*)"/g)) {
+    anotar(m.index, m[1], 120);
+  }
+
+  /**
+   * 3 · Y el texto CORTO de un párrafo o un `span`, que es un estado vacío o un pie
+   *     —«No hay platillos que se llamen así»— y por tanto rótulo también.
+   *
+   * ── Por qué CORTO y no todo ───────────────────────────────────────────
+   * Porque estas pantallas explican lo que hacen en párrafos de tres o cuatro
+   * líneas —«el vacío ENSEÑA»— y ahí la palabra no siempre es la entidad: «material
+   * de cabina», «ventas + propinas» y «se cuenta por denominación» son frases del
+   * oficio, no el nombre de una cosa del sistema. Traducirlas una por una hace la
+   * copia peor y la puerta más tonta. El corte son 80 caracteres: un estado vacío
+   * cabe, una explicación no.
+   */
+  const DE_FRASE_CORTA = /<(?:p|span|li|figcaption|caption)\b[^>]*>([^<>{}]+)</g;
+  for (const m of sinProsa.matchAll(DE_FRASE_CORTA)) anotar(m.index, m[1], 80);
+
+  return encontrados;
+}
+
+/**
+ * LAS PANTALLAS QUE HABLAN DE OTRO GIRO (la tercera puerta del bloque 4).
+ *
+ * ── Por qué la de abajo no basta ──────────────────────────────────────────
+ * `pantallasConSustantivoTecleado` caza la palabra que el diccionario de ESE giro
+ * sí dice —«mesa» tecleada en una pantalla de restaurante— y por construcción no
+ * puede cazar la contraria, que es la que de verdad se ve prestada: la pantalla de
+ * un restaurante que rotula «Productos» donde su giro dice «Platillos», o la de una
+ * ferretería que dice «La venta» donde su giro dice «la nota».
+ *
+ * Eran ocho sitios en tres pantallas —el catálogo del restaurante seis veces, la
+ * mesa activa dos y el mostrador de la ferretería dos— y ninguna puerta los veía:
+ * la palabra no está en el diccionario de su giro, así que para la comprobación de
+ * abajo no existía.
+ *
+ * ── Lo que NO es la entidad, y por qué se declara ─────────────────────────
+ * «Cuenta el cajón» es un verbo, «Cuenta del salón» es una cuenta de banco,
+ * «ventas + propinas» es dinero y «Servicios» en una tiendita es el negocio de
+ * recargas y pagos. Las cuatro son palabras del diccionario de otro giro usadas en
+ * su sentido común, y traducirlas sería peor que dejarlas. Van declaradas, con su
+ * razón, y la lista sólo puede encogerse.
+ */
+function pantallasQueHablanDeOtroGiro() {
+  const raiz = join(RAIZ, 'apps', 'web', 'src');
+  const encontradas = [];
+  const letra = 'A-Za-z0-9áéíóúñÁÉÍÓÚÑ';
+
+  for (const [carpeta, giro] of Object.entries(GIRO_DE_LA_CARPETA)) {
+    const dir = join(raiz, carpeta);
+    if (!existsSync(dir)) continue;
+    const propio = DICCIONARIOS[giro] ?? {};
+
+    // Las palabras que OTRO giro usa para una entidad cuyo término aquí es otro.
+    const ajenas = new Map();
+    for (const [otroGiro, dicc] of Object.entries(DICCIONARIOS)) {
+      if (otroGiro === giro) continue;
+      for (const [entidad, termino] of Object.entries(dicc)) {
+        const suyo = propio[entidad];
+        // La entidad APAGADA en este giro no se compara: un salón no tiene
+        // preparación, así que «barra» ahí no es el término de nada.
+        if (suyo === undefined) continue;
+        for (const forma of [termino.singular, termino.plural]) {
+          if (forma === suyo.singular || forma === suyo.plural) continue;
+          if (!ajenas.has(forma.toLowerCase())) {
+            ajenas.set(
+              forma.toLowerCase(),
+              `${otroGiro} llama así a «${entidad}»; aquí es «${suyo.singular}»`,
+            );
+          }
+        }
+      }
+    }
+    if (ajenas.size === 0) continue;
+    const alternativa = [...ajenas.keys()]
+      .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|');
+    const buscador = new RegExp(`(?<![${letra}-])(${alternativa})(?![${letra}-])`, 'i');
+
+    for (const entrada of readdirSyncSeguro(dir)) {
+      if (!entrada.isFile() || !entrada.name.endsWith('.tsx')) continue;
+      const clave = `${carpeta}/${entrada.name}`;
+      const vetadasAqui = NO_ES_LA_ENTIDAD_AQUI[clave] ?? [];
+      for (const { linea, texto } of textosVisibles(
+        readFileSync(join(dir, entrada.name), 'utf8'),
+      )) {
+        const bajo = texto.toLowerCase();
+        if (NO_ES_LA_ENTIDAD.some((v) => bajo.includes(v))) continue;
+        const halla = buscador.exec(texto);
+        if (halla === null) continue;
+        if (vetadasAqui.includes(halla[1].toLowerCase())) continue;
+        encontradas.push(
+          `${clave}:${linea}  «${halla[1]}»  ${texto.slice(0, 50)}  · ${ajenas.get(halla[1].toLowerCase()) ?? ''}`,
+        );
+      }
+    }
+  }
+  return encontradas;
+}
 
 /**
  * Las pantallas que tienen un sustantivo del diccionario tecleado a mano en
@@ -913,39 +1098,19 @@ function pantallasConSustantivoTecleado() {
       if (!entrada.isFile() || !entrada.name.endsWith('.tsx')) continue;
       const clave = `${carpeta}/${entrada.name}`;
       const vetadasAqui = NO_ES_LA_ENTIDAD_AQUI[clave] ?? [];
-      const lineas = readFileSync(join(dir, entrada.name), 'utf8').split('\n');
-      let enComentario = false;
-
-      lineas.forEach((linea, indice) => {
-        const recortada = linea.trim();
-        if (enComentario) {
-          if (recortada.includes('*/')) enComentario = false;
-          return;
-        }
-        if (recortada.startsWith('/*') || recortada.startsWith('{/*')) {
-          if (!recortada.includes('*/')) enComentario = true;
-          return;
-        }
-        if (recortada.startsWith('//') || recortada.startsWith('*')) return;
-
-        // Los dos sitios visibles: el texto entre `>` y `<`, y los props que se
-        // leen. Un `{…}` dentro del texto es una expresión, no texto.
-        const visibles = [];
-        for (const m of linea.matchAll(/>([^<>{}]*[A-Za-zÁÉÍÓÚÑ][^<>{}]*)</g)) {
-          visibles.push(m[1]);
-        }
-        for (const m of linea.matchAll(/\b(?:aria-label|placeholder|title|alt)="([^"]*)"/g)) {
-          visibles.push(m[1]);
-        }
-        for (const trozo of visibles) {
-          const bajo = trozo.toLowerCase();
-          if (NO_ES_LA_ENTIDAD.some((v) => bajo.includes(v))) continue;
-          const halla = buscador.exec(trozo);
-          if (halla === null) continue;
-          if (vetadasAqui.includes(halla[1].toLowerCase())) continue;
-          encontradas.push(`${clave}:${indice + 1}  «${halla[1]}»  ${trozo.trim().slice(0, 60)}`);
-        }
-      });
+      // El mismo extractor que la puerta de arriba: el texto de JSX se parte
+      // donde cabe, y mirarlo línea a línea dejaba fuera el que empieza sin `>`
+      // delante —que es la mitad, con el atributo largo en la línea anterior—.
+      for (const { linea, texto } of textosVisibles(
+        readFileSync(join(dir, entrada.name), 'utf8'),
+      )) {
+        const bajo = texto.toLowerCase();
+        if (NO_ES_LA_ENTIDAD.some((v) => bajo.includes(v))) continue;
+        const halla = buscador.exec(texto);
+        if (halla === null) continue;
+        if (vetadasAqui.includes(halla[1].toLowerCase())) continue;
+        encontradas.push(`${clave}:${linea}  «${halla[1]}»  ${texto.slice(0, 60)}`);
+      }
     }
   }
   return encontradas;
