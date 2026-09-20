@@ -67,9 +67,49 @@ function cumple(fila: Fila, filtro: Filtro): boolean {
     case '<':
     case '<=':
       return ordena(filtro.operador, actual, esperado);
+    case 'ilike':
+      return comoIlike(actual, esperado);
     default:
       throw new Error(`La base falsa no implementa el operador «${filtro.operador}».`);
   }
+}
+
+/**
+ * El `ilike` de Postgres: insensible a mayúsculas, `%` es cualquier cosa, `_` es
+ * un carácter y la barra invertida escapa al siguiente.
+ *
+ * Se traduce a una expresión regular de verdad y no a un `includes` porque lo
+ * que la consulta ESCAPA es justo lo que hay que poder probar: con un `includes`
+ * un patrón con un `%` escapado pasaría igual y ese `%` dejaría de ser literal,
+ * que es el agujero por el que una búsqueda devuelve el catálogo entero.
+ *
+ * Con algo que no sea texto a cualquiera de los dos lados contesta `false`, como
+ * Postgres con un nulo.
+ */
+function comoIlike(actual: unknown, patron: unknown): boolean {
+  if (typeof actual !== 'string' || typeof patron !== 'string') return false;
+
+  const BARRA = String.fromCharCode(92);
+  const literal = (caracter: string): string =>
+    caracter.replaceAll(/[.*+?^${}()|[\]\\]/gu, (c) => BARRA + c);
+
+  let expresion = '';
+  for (let i = 0; i < patron.length; i += 1) {
+    const caracter = patron[i] ?? '';
+    if (caracter === BARRA) {
+      i += 1;
+      expresion += literal(patron[i] ?? '');
+    } else if (caracter === '%') {
+      expresion += '.*';
+    } else if (caracter === '_') {
+      expresion += '.';
+    } else {
+      expresion += literal(caracter);
+    }
+  }
+  // `s` para que el punto abarque los saltos de línea: un nombre de producto con
+  // un salto pegado lo tiene que encontrar igual, como lo encuentra Postgres.
+  return new RegExp(`^${expresion}$`, 'isu').test(actual);
 }
 
 /**
@@ -323,6 +363,8 @@ function cumpleComparacion(fila: Fila, comparacion: Comparacion): boolean {
     case '<':
     case '<=':
       return ordena(comparacion.operador, izquierda, derecha);
+    case 'ilike':
+      return comoIlike(izquierda, derecha);
     default:
       throw new Error(`La base falsa no compara con «${comparacion.operador}».`);
   }

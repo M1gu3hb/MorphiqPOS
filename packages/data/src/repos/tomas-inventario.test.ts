@@ -473,6 +473,24 @@ function llamadoresDe(funcion: string): Llamador[] {
 const LEE_LA_TOMA_ACOTADA =
   /selectFrom\('tomas_inventario'\)[\s\S]{0,400}?where\('organizacion_id', '=',/;
 
+/**
+ * La OTRA forma segura: abrir la toma en esta misma transacción.
+ *
+ * `abrirToma` inserta `organizacion_id` con el del ámbito y devuelve el id que
+ * acaba de crear: quien anota sobre ÉSE no puede estar escribiendo en la toma de
+ * otro negocio, porque no existía hace tres líneas. Es tan seguro como leerla
+ * acotada, y exigir la lectura obligaría a un `select` de la fila que la función
+ * de al lado acaba de escribir.
+ */
+const ABRE_LA_TOMA_DEL_AMBITO = /abrirToma\([\s\S]{0,300}?organizacionId/;
+
+/**
+ * Y la condición que impide que esa forma sea un portillo: si el archivo ADEMÁS
+ * acepta un `tomaId` del cliente, puede abrir una y anotar en la que le manden, y
+ * entonces el cerco no diría nada.
+ */
+const ACEPTA_TOMA_DEL_CLIENTE = /tomaId:\s*z\.uuid\(\)/;
+
 describe('F-106 · lo que sólo se ve leyendo el esquema', () => {
   it('los estados que el repositorio escribe Y consulta caben en el check vigente', () => {
     // El contrato `valores-de-check` ya vigila los literales de `.values({…})` y
@@ -521,11 +539,22 @@ describe('F-106 · el filtro de organización que estas funciones NO tienen', ()
     const llamadores = llamadoresDe('anotarConteo');
     expect(llamadores.length).toBeGreaterThanOrEqual(2);
 
+    /** Segura si lee la toma acotada, o si la abrió ella con el ámbito. */
+    const acotada = (codigo: string): boolean =>
+      LEE_LA_TOMA_ACOTADA.test(codigo) ||
+      (ABRE_LA_TOMA_DEL_AMBITO.test(codigo) && !ACEPTA_TOMA_DEL_CLIENTE.test(codigo));
+
     const sinFiltro = llamadores
-      .filter((archivo) => !LEE_LA_TOMA_ACOTADA.test(archivo.codigo))
+      .filter((archivo) => !acotada(archivo.codigo))
       .map((a) => `${a.ruta} anota un conteo sin leer antes la toma por organizacion_id`);
 
     expect(sinFiltro).toEqual([]);
+
+    // Las DOS formas están en uso. Sin esto, el día que una se quede sin
+    // llamador su rama dejaría de mirarse y el cerco se relajaría solo, que es
+    // como un contrato acaba aprobando lo que dice vigilar.
+    expect(llamadores.some((a) => LEE_LA_TOMA_ACOTADA.test(a.codigo))).toBe(true);
+    expect(llamadores.some((a) => ABRE_LA_TOMA_DEL_AMBITO.test(a.codigo))).toBe(true);
   });
 
   it('todo el que pide las diferencias lee antes la toma acotada por organización', () => {

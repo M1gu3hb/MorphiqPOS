@@ -1279,17 +1279,11 @@ function ejecutarGh(argumentos) {
 const RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN = {
   '/api/entradas/alta-material': 'alta de material al recibir una compra; no hay comando todavía',
   '/api/entradas/recibir': 'recepción de compra en ferretería; no hay comando todavía',
-  '/api/expediente/capturar-formula':
-    'la fórmula del tinte, dentro de la cita en curso; no hay comando todavía',
   '/api/ferreteria/agregar-partida': 'agregar una pieza desde su ficha; no hay comando todavía',
-  '/api/ferreteria/declarar-equivalencia': 'existe `catalogo.declarar_equivalencia`; falta la ruta',
-  '/api/inventario/ajustar-conteo': 'existe `inventario.ajustar`; falta la ruta o el alias',
-  '/api/precios/aplicar-sugerido': 'aplicar el precio sugerido tras una compra; falta el comando',
   '/api/reportes/exportar': 'exportar los registros a CSV; falta el comando',
   '/api/restaurante/imprimir-precuenta':
     'imprimir la precuenta. El cambio de estado que importa lo hace `solicitar-cuenta`, que sí ' +
     'existe: esto es la impresión',
-  '/api/turno/presencia/abrir': 'marcar presencia al entrar con PIN en la barra; falta el comando',
   '/api/venta/devolver': 'la devolución desde el cierre de turno; falta el comando',
 };
 

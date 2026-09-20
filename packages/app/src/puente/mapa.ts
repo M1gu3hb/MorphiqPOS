@@ -1800,6 +1800,47 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  /**
+   * LO QUE SE CUENTA HOY (F-149).
+   *
+   * La vista `conteo_de_zona` (173) sirve los productos de UNA zona: la más
+   * atrasada de la organización. La pantalla no elige —el encargado está de pie
+   * frente al anaquel— y por eso `filas[0].zona` es el recorrido de hoy.
+   *
+   * `id` es el INSUMO y no el producto, porque es el insumo el que tiene zona y
+   * el que `toma_conteos` cuenta (ver la 091: un insumo sin producto —el envase,
+   * el granel— sería invisible para el recorrido si la zona colgara del producto).
+   *
+   * `esperado` se expone y la pantalla NO lo pinta hasta el resumen: contar a
+   * ciegas es la condición que esa pantalla no puede romper. Se sirve porque el
+   * resumen lo necesita sin un segundo viaje, con el encargado todavía de pie.
+   */
+  ConteoDeZona: {
+    tabla: 'conteo_de_zona',
+    // Cuenta quien está: en una tiendita es el cajero quien conoce el anaquel, y
+    // exigir al encargado es cómo el conteo cíclico vuelve a ser una toma anual.
+    rolesLectura: [...INVENTARIO, 'cajero'],
+    escritura: 'comando',
+    // Por el nombre: el recorrido dentro de una zona es alfabético porque el
+    // anaquel no tiene un orden que la base conozca.
+    ordenPorOmision: 'nombre',
+    campos: {
+      id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      zona: { columna: 'zona', conversion: 'texto', escribible: false },
+      diasSinContar: { columna: 'dias_sin_contar', conversion: 'entero', escribible: false },
+      codigo: { columna: 'codigo', conversion: 'texto', escribible: false },
+      piezasPorCaja: { columna: 'piezas_por_caja', conversion: 'decimal', escribible: false },
+      esperado: { columna: 'esperado', conversion: 'decimal', escribible: false },
+      costoCentavos: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'costo_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+    },
+  },
+
   Conteo: {
     tabla: 'tomas_inventario',
     rolesLectura: [...INVENTARIO],

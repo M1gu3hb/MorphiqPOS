@@ -113,6 +113,12 @@ export {
 } from './foto-mostrador.ts';
 
 export {
+  declararEquivalenciaDicha,
+  entradaEquivalenciaDicha,
+  type ResultadoEquivalenciaDicha,
+} from './equivalencia-dicha.ts';
+
+export {
   asignarUbicacion,
   declararEquivalencia,
   declararLinea,

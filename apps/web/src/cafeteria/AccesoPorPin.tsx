@@ -113,7 +113,11 @@ function mensajeDe(fallo: unknown, porDefecto: string): string {
 async function abrirPresencia(empleoId: string): Promise<string> {
   const hora = new Date().toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
   try {
-    await invocarComando('/api/turno/presencia/abrir', { empleoId });
+    // `quienEntraId` y no `empleoId`: un comando no acepta en su entrada un campo
+    // que se llame como uno del ámbito —el ámbito sale de la sesión del servidor,
+    // nunca del cliente— y aquí el dato es de quién son las horas, que no siempre
+    // es quien teclea.
+    await invocarComando('/api/turno/presencia/abrir', { quienEntraId: empleoId });
     return `Turno iniciado, ${hora}`;
   } catch {
     return `Turno iniciado, ${hora} · la hora no quedó registrada; se ajusta en el corte.`;

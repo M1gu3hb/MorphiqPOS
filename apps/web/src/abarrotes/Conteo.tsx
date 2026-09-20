@@ -56,8 +56,18 @@ import { useVocabulario } from '~/cliente/vocabulario';
 
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
-/** Nunca «robo»: el sistema no lo sabe y acusar sin prueba rompe una tienda. */
-const MOTIVO_POR_OMISION = 'diferencia de conteo';
+/**
+ * Nunca «robo»: el sistema no lo sabe y acusar sin prueba rompe una tienda.
+ *
+ * Es LA CLAVE de `motivos_merma` y no su etiqueta. Aquí decía «diferencia de
+ * conteo», una frase, y `movimientos_stock.motivo` apunta a esa tabla desde la
+ * migración 062: la base habría contestado `23503` y el cierre de la zona
+ * abortaría la transacción entera después de veinte minutos de recorrido.
+ */
+const MOTIVO_POR_OMISION = 'ajuste_conteo';
+
+/** Lo que se le enseña a una persona. La clave es para la base, no para leerla. */
+const MOTIVO_EN_PALABRAS = 'Diferencia de conteo físico';
 
 // Las clases largas viven arriba para que cada elemento quepa en una línea. El
 // 3.5rem es el objetivo táctil de 56 px del documento: una medida de diseño con
@@ -75,7 +85,15 @@ export interface ProductoDeConteo {
   readonly piezasPorCaja: number;
   /** A CIEGAS: no se pinta hasta el resumen. Ver el docblock. */
   readonly esperado: number;
-  readonly costoCentavos: number;
+  /**
+   * `null` cuando quien cuenta no ve costos.
+   *
+   * El puente restringe este campo a quien ve costos de insumo, y el cajero
+   * cuenta igual —en una tiendita es quien está y quien conoce el anaquel—, así
+   * que llega sin él. El resumen entonces enseña las PIEZAS y calla el importe,
+   * en vez de multiplicar por cero y decir que no falta nada.
+   */
+  readonly costoCentavos: number | null;
   readonly codigo: string | null;
 }
 
@@ -94,6 +112,8 @@ export interface ResumenDeZona {
   readonly sobranteCentavos: number;
   readonly netoCentavos: number;
   readonly porcentaje: number;
+  /** `false` si algún producto contado llegó sin costo: el importe no se enseña. */
+  readonly importeVisible: boolean;
   readonly desviados: readonly ProductoDeConteo[];
 }
 
@@ -122,20 +142,26 @@ export function resumirConteo(
   let faltanteCentavos = 0;
   let sobranteCentavos = 0;
   let valorEsperado = 0;
+  let importeVisible = true;
   const desviados: ProductoDeConteo[] = [];
 
   for (const fila of filas) {
     const contado = conteos[fila.id];
     if (contado === undefined) continue;
-    valorEsperado += fila.esperado * fila.costoCentavos;
+    // Un costo ausente no es un costo de cero: quien cuenta no lo ve. Se apunta y
+    // el importe se calla; contar 0 haría que un faltante de mil pesos se
+    // enseñara como «$0.00 · 0.0 %», que es peor que no enseñar nada.
+    const costo = fila.costoCentavos;
+    if (costo === null) importeVisible = false;
+    valorEsperado += fila.esperado * (costo ?? 0);
     const diferencia = contado - fila.esperado;
     if (diferencia === 0) {
       cuadraron += 1;
       continue;
     }
     desviados.push(fila);
-    if (diferencia < 0) faltanteCentavos += -diferencia * fila.costoCentavos;
-    else sobranteCentavos += diferencia * fila.costoCentavos;
+    if (diferencia < 0) faltanteCentavos += -diferencia * (costo ?? 0);
+    else sobranteCentavos += diferencia * (costo ?? 0);
     if (diferencia < 0) faltaron += 1;
     else sobraron += 1;
   }
@@ -149,6 +175,7 @@ export function resumirConteo(
     sobranteCentavos,
     netoCentavos: neto,
     porcentaje: valorEsperado === 0 ? 0 : (Math.abs(neto) / valorEsperado) * 100,
+    importeVisible,
     desviados,
   };
 }
@@ -288,14 +315,25 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
     setError(null);
     try {
       // El documento no nombra la ruta: se usa /api/<dominio>/<verbo> por
-      // convención. Va un movimiento POR PRODUCTO con su motivo; no es un botón
+      // convención. Va un renglón POR PRODUCTO con su motivo; no es un botón
       // mágico que cuadra el inventario sin dejar rastro de quién y por qué.
+      //
+      // Se mandan TODOS los contados y no sólo los desviados: el servidor sella
+      // el esperado de cada renglón al anotarlo, así que un producto que cuadró
+      // deja constancia de que se contó y cuadró. Mandar sólo los desviados haría
+      // que un conteo de cuarenta productos con dos diferencias pareciera un
+      // conteo de dos.
+      //
+      // `insumoId` y no `productoId`: lo que se cuenta es el insumo —es el que
+      // tiene zona y el que `toma_conteos` lleva—, y `id` de la fila ya es el suyo.
+      // `contado` como TEXTO: quien convierte cantidades es el servidor.
       await invocarComando('/api/inventario/ajustar-conteo', {
         zona,
-        movimientos: resumen.desviados.map((p) => ({
-          productoId: p.id,
-          contado: conteos[p.id] ?? 0,
-          motivo: MOTIVO_POR_OMISION,
+        motivo: MOTIVO_POR_OMISION,
+        nota: MOTIVO_EN_PALABRAS,
+        movimientos: Object.entries(conteos).map(([id, contado]) => ({
+          insumoId: id,
+          contado: String(contado),
         })),
       });
       setCerrada(true);
@@ -352,22 +390,38 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
             <span aria-hidden>✓</span> {resumen.cuadraron} cuadraron
           </li>
           <li className="rounded-md bg-destructive/15 p-1">
-            <span aria-hidden>▼</span> {resumen.faltaron} faltaron · −
-            {pesos(resumen.faltanteCentavos)}
+            <span aria-hidden>▼</span> {resumen.faltaron} faltaron
+            {resumen.importeVisible && <> · −{pesos(resumen.faltanteCentavos)}</>}
           </li>
           <li className="rounded-md bg-success/15 p-1">
-            <span aria-hidden>▲</span> {resumen.sobraron} sobró · +{pesos(resumen.sobranteCentavos)}
+            <span aria-hidden>▲</span> {resumen.sobraron} sobró
+            {resumen.importeVisible && <> · +{pesos(resumen.sobranteCentavos)}</>}
           </li>
         </ul>
         <div className="border-t border-border pt-3">
-          <p className="text-lg font-bold tabular-nums">
-            Diferencia neta {resumen.netoCentavos < 0 ? '−' : '+'}
-            {pesos(Math.abs(resumen.netoCentavos))} ({resumen.porcentaje.toFixed(1)} %)
-          </p>
-          {/* Sin este renglón el porcentaje no le dice nada a Don Chuy. */}
-          <p className="text-sm text-muted-foreground">
-            El promedio del retail mexicano es 1.5–2.5 %.
-          </p>
+          {resumen.importeVisible ? (
+            <>
+              <p className="text-lg font-bold tabular-nums">
+                Diferencia neta {resumen.netoCentavos < 0 ? '−' : '+'}
+                {pesos(Math.abs(resumen.netoCentavos))} ({resumen.porcentaje.toFixed(1)} %)
+              </p>
+              {/* Sin este renglón el porcentaje no le dice nada a Don Chuy. */}
+              <p className="text-sm text-muted-foreground">
+                El promedio del retail mexicano es 1.5–2.5 %.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-bold tabular-nums">
+                Diferencia neta {resumen.sobraron - resumen.faltaron >= 0 ? '+' : '−'}
+                {Math.abs(resumen.sobraron - resumen.faltaron)} productos
+              </p>
+              {/* Se dice por qué falta el peso, en vez de enseñar un cero. */}
+              <p className="text-sm text-muted-foreground">
+                El importe en pesos lo ve quien ve costos. El conteo se cierra igual.
+              </p>
+            </>
+          )}
         </div>
         <ul className="flex flex-col gap-2">
           {resumen.desviados.map((p) => (
@@ -375,7 +429,8 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
               <p className="text-card-foreground">
                 {p.nombre} · esperado {p.esperado} · contaste {conteos[p.id] ?? 0}
               </p>
-              <p className="text-xs text-muted-foreground">Motivo: {MOTIVO_POR_OMISION}</p>
+              {/* En palabras y no la clave: la clave es para la base. */}
+              <p className="text-xs text-muted-foreground">Motivo: {MOTIVO_EN_PALABRAS}</p>
               <Button
                 type="button"
                 size="sm"

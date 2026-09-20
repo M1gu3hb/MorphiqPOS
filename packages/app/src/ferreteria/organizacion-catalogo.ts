@@ -4,7 +4,7 @@ import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
-import { definirComando } from '../definicion.ts';
+import { definirComando, type ContextoComando } from '../definicion.ts';
 
 /**
  * F-021, F-152 y F-060 · Cómo se ORDENA un catálogo de 6,000 claves.
@@ -257,6 +257,83 @@ export const asignarUbicacion = definirComando<
   },
 });
 
+/**
+ * El cuerpo que declara la equivalencia: comprueba y escribe, SIN auditar.
+ *
+ * Compartido por los dos comandos que declaran una —`catalogo.declarar_equivalencia`,
+ * que recibe los dos identificadores, y `catalogo.declarar_equivalencia_dicha`,
+ * que recibe lo que el mostradorista tecleó con el cliente enfrente— y sin
+ * `ctx.auditar` a propósito: el rastro de un comando guarda sólo la PRIMERA
+ * auditoría, así que un cuerpo compartido que auditara le robaría el rastro a
+ * quien lo llama y el registro contaría el acto de dentro en vez del de fuera.
+ */
+export async function ejecutarDeclararEquivalencia(
+  ctx: ContextoComando<Transaccion>,
+  entrada: z.infer<typeof entradaDeclararEquivalencia>,
+): Promise<ResultadoEquivalencia> {
+  const { organizacionId, empleoId } = ctx.ambito;
+
+  if (entrada.productoId === entrada.equivalenteId) {
+    throw new ErrorDominio('CONFIGURACION_INVALIDA', 'Una pieza no es equivalente de sí misma.');
+  }
+
+  const productos = await ctx.paso('leer_productos', () =>
+    ctx.tx
+      .selectFrom('productos')
+      .select(['id'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', 'in', [entrada.productoId, entrada.equivalenteId])
+      .execute(),
+  );
+  if (productos.length !== 2) {
+    throw new ErrorDominio(
+      'PRODUCTO_NO_ENCONTRADO',
+      'Una de las dos piezas no existe en este negocio.',
+    );
+  }
+
+  // El valor por omisión NO es el mismo para los dos tipos. Si la de 13 mm
+  // sirve por la de 1/2, la de 1/2 sirve por la de 13: el sustituto va y
+  // viene. El teflón va con la llave, pero la llave no va con el teflón:
+  // ofrecer una llave a quien pide teflón es ruido en el mostrador.
+  const bidireccional = entrada.bidireccional ?? entrada.tipo === 'sustituto';
+
+  const repetida = await ctx.paso('buscar_repetida', () =>
+    ctx.tx
+      .selectFrom('equivalencias')
+      .select(['id'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('producto_id', '=', entrada.productoId)
+      .where('equivalente_id', '=', entrada.equivalenteId)
+      .where('tipo', '=', entrada.tipo)
+      .executeTakeFirst(),
+  );
+  if (repetida !== undefined) {
+    throw new ErrorDominio('CONFIGURACION_CONFLICTO', 'Esa equivalencia ya estaba declarada.');
+  }
+
+  const equivalencia = await ctx.paso('declarar', () =>
+    ctx.tx
+      .insertInto('equivalencias')
+      .values({
+        organizacion_id: organizacionId,
+        producto_id: entrada.productoId,
+        equivalente_id: entrada.equivalenteId,
+        tipo: entrada.tipo,
+        nota: entrada.nota,
+        bidireccional,
+        // No es auditoría: es PRODUCTO. Cuando el mostradorista experto se
+        // vaya, lo que declaró se queda, y se sabe que fue él.
+        declarado_por: empleoId,
+        declarado_en: ctx.ahora,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow(),
+  );
+
+  return { equivalenciaId: equivalencia.id, tipo: entrada.tipo, bidireccional };
+}
+
 export const declararEquivalencia = definirComando<
   Transaccion,
   typeof entradaDeclararEquivalencia,
@@ -269,67 +346,11 @@ export const declararEquivalencia = definirComando<
   paquetes: PAQUETES_TODOS,
   entrada: entradaDeclararEquivalencia,
   async ejecutar(ctx, entrada) {
-    const { organizacionId, empleoId } = ctx.ambito;
-
-    if (entrada.productoId === entrada.equivalenteId) {
-      throw new ErrorDominio('CONFIGURACION_INVALIDA', 'Una pieza no es equivalente de sí misma.');
-    }
-
-    const productos = await ctx.paso('leer_productos', () =>
-      ctx.tx
-        .selectFrom('productos')
-        .select(['id'])
-        .where('organizacion_id', '=', organizacionId)
-        .where('id', 'in', [entrada.productoId, entrada.equivalenteId])
-        .execute(),
-    );
-    if (productos.length !== 2) {
-      throw new ErrorDominio(
-        'PRODUCTO_NO_ENCONTRADO',
-        'Una de las dos piezas no existe en este negocio.',
-      );
-    }
-
-    // El valor por omisión NO es el mismo para los dos tipos. Si la de 13 mm
-    // sirve por la de 1/2, la de 1/2 sirve por la de 13: el sustituto va y
-    // viene. El teflón va con la llave, pero la llave no va con el teflón:
-    // ofrecer una llave a quien pide teflón es ruido en el mostrador.
-    const bidireccional = entrada.bidireccional ?? entrada.tipo === 'sustituto';
-
-    const repetida = await ctx.paso('buscar_repetida', () =>
-      ctx.tx
-        .selectFrom('equivalencias')
-        .select(['id'])
-        .where('organizacion_id', '=', organizacionId)
-        .where('producto_id', '=', entrada.productoId)
-        .where('equivalente_id', '=', entrada.equivalenteId)
-        .where('tipo', '=', entrada.tipo)
-        .executeTakeFirst(),
-    );
-    if (repetida !== undefined) {
-      throw new ErrorDominio('CONFIGURACION_CONFLICTO', 'Esa equivalencia ya estaba declarada.');
-    }
-
-    const equivalencia = await ctx.paso('declarar', () =>
-      ctx.tx
-        .insertInto('equivalencias')
-        .values({
-          organizacion_id: organizacionId,
-          producto_id: entrada.productoId,
-          equivalente_id: entrada.equivalenteId,
-          tipo: entrada.tipo,
-          nota: entrada.nota,
-          bidireccional,
-          // No es auditoría: es PRODUCTO. Cuando el mostradorista experto se
-          // vaya, lo que declaró se queda, y se sabe que fue él.
-          declarado_por: empleoId,
-          declarado_en: ctx.ahora,
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow(),
-    );
-
-    ctx.auditar({ entidadId: equivalencia.id, payload: { tipo: entrada.tipo, bidireccional } });
-    return { equivalenciaId: equivalencia.id, tipo: entrada.tipo, bidireccional };
+    const hecha = await ejecutarDeclararEquivalencia(ctx, entrada);
+    ctx.auditar({
+      entidadId: hecha.equivalenciaId,
+      payload: { tipo: hecha.tipo, bidireccional: hecha.bidireccional },
+    });
+    return hecha;
   },
 });

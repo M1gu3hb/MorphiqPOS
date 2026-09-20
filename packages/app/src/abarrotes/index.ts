@@ -27,6 +27,12 @@ export {
 } from './pasivos.ts';
 
 export {
+  ajustarConteo,
+  entradaAjustarConteo,
+  type ResultadoAjustarConteo,
+} from './cierre-de-zona.ts';
+
+export {
   abrirConteo,
   capturarConteo,
   cerrarConteo,

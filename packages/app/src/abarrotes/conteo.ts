@@ -260,7 +260,7 @@ export const cerrarConteo = definirComando<
   paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaCerrarConteo,
   async ejecutar(ctx, entrada) {
-    const { organizacionId, empleoId } = ctx.ambito;
+    const { organizacionId } = ctx.ambito;
 
     const toma = await ctx.paso('cargar_toma', () =>
       ctx.tx
@@ -282,92 +282,123 @@ export const cerrarConteo = definirComando<
     // motivo mal escrito es una hora de trabajo perdida.
     const motivo = await exigirMotivoDeMerma(ctx, entrada.motivo);
 
-    const diferencias = await ctx.paso('leer_diferencias', () =>
-      repoTomas.diferenciasDeToma(ctx.tx, entrada.tomaId),
-    );
-    const ajustes = planearAjustesDeConteo(diferencias);
-
-    for (const ajuste of ajustes) {
-      await aplicarAjuste(ctx, toma.almacenId, ajuste.insumoId, ajuste.delta);
-
-      const movimiento = await ctx.paso('registrar_ajuste', () =>
-        ctx.tx
-          .insertInto('movimientos_stock')
-          .values({
-            organizacion_id: organizacionId,
-            almacen_id: toma.almacenId,
-            insumo_id: ajuste.insumoId,
-            tipo: 'ajuste',
-            cantidad: ajuste.delta,
-            unidad: ajuste.unidad,
-            // `conteo` y no `manual`: es lo que separa la diferencia contada del
-            // ajuste que alguien tecleó a mano, y es la única forma de que el
-            // reporte de diferencias por periodo signifique algo.
-            referencia_tipo: 'conteo',
-            referencia_id: entrada.tomaId,
-            empleado_id: empleoId,
-            motivo,
-            nota: entrada.nota,
-          })
-          .returning('id')
-          .executeTakeFirstOrThrow(),
-      );
-
-      await ctx.paso('ligar_ajuste', () =>
-        ctx.tx
-          .updateTable('toma_conteos')
-          .set({ movimiento_ajuste_id: movimiento.id })
-          .where('toma_id', '=', entrada.tomaId)
-          .where('insumo_id', '=', ajuste.insumoId)
-          .execute(),
-      );
-    }
-
-    const cerradas = await ctx.paso('cerrar_toma', () =>
-      repoTomas.cerrarToma(ctx.tx, organizacionId, entrada.tomaId, ctx.ahora),
-    );
-    if (cerradas !== 1) {
-      // Alguien la cerró entre la lectura y el cierre. Sin esto, los ajustes de
-      // arriba se habrían escrito dos veces.
-      throw new ErrorDominio('INVENTARIO_INVALIDO', 'Esa toma ya estaba cerrada.');
-    }
-
-    // ── Lo que hace que el conteo vuelva mañana ────────────────────────────
-    // Sin esta línea, `zonasPorContar` seguiría pidiendo la misma zona cada día
-    // y el recorrido nunca avanzaría al siguiente anaquel. Es la diferencia
-    // entre una toma física y una rutina.
-    //
-    // La guarda `!== null` NO protege de sellar zonas de más: `where id = null`
-    // no casa con ninguna fila, ni aquí ni en Postgres. Está porque `zona_id` es
-    // `string | null` y porque una toma completa no tiene por qué mandar un
-    // UPDATE que no va a tocar nada. Quitarla no rompe ninguna prueba, y se
-    // queda dicho en vez de aparentar que cierra un hueco.
-    if (toma.zonaId !== null) {
-      await ctx.paso('sellar_zona', () =>
-        ctx.tx
-          .updateTable('zonas_anaquel')
-          .set({ ultimo_conteo_en: ctx.ahora })
-          .where('organizacion_id', '=', organizacionId)
-          .where('id', '=', toma.zonaId)
-          .execute(),
-      );
-    }
-
-    const faltantes = ajustes.filter((a) => a.faltante).length;
+    const cerrado = await ejecutarCierreDeConteo(ctx, toma, motivo, entrada.nota);
 
     ctx.auditar({
       entidadId: entrada.tomaId,
-      payload: { ajustados: ajustes.length, faltantes, zonaId: toma.zonaId },
+      payload: {
+        ajustados: cerrado.ajustados,
+        faltantes: cerrado.faltantes,
+        zonaId: toma.zonaId,
+      },
     });
 
-    return {
-      tomaId: entrada.tomaId,
-      ajustados: ajustes.length,
-      faltantes,
-      sobrantes: ajustes.length - faltantes,
-    };
+    return cerrado;
   },
 });
+
+/**
+ * El CIERRE de una toma: ajusta, cierra y sella la zona. SIN auditar.
+ *
+ * Compartido por `inventario.cerrar_conteo` —el cierre de la toma que se fue
+ * capturando renglón a renglón— y por `inventario.ajustar_conteo`, que cuenta y
+ * cierra una zona en un solo viaje porque la pantalla del teléfono se aprieta una
+ * vez, al final del recorrido. Sin `ctx.auditar` a propósito: el rastro de un
+ * comando guarda sólo la PRIMERA auditoría, y un cuerpo compartido que auditara le
+ * robaría el renglón a quien lo llama.
+ *
+ * El `motivo` llega YA comprobado contra `motivos_merma`: comprobarlo aquí, con
+ * los movimientos a medio escribir, es abortar la transacción en el renglón
+ * trescientos de cuatrocientos.
+ */
+export async function ejecutarCierreDeConteo(
+  ctx: ContextoComando<Transaccion>,
+  toma: { readonly id: string; readonly almacenId: string; readonly zonaId: string | null },
+  motivo: string | null,
+  nota: string | null,
+): Promise<ResultadoCerrarConteo> {
+  const { organizacionId, empleoId } = ctx.ambito;
+
+  const diferencias = await ctx.paso('leer_diferencias', () =>
+    repoTomas.diferenciasDeToma(ctx.tx, toma.id),
+  );
+  const ajustes = planearAjustesDeConteo(diferencias);
+
+  for (const ajuste of ajustes) {
+    await aplicarAjuste(ctx, toma.almacenId, ajuste.insumoId, ajuste.delta);
+
+    const movimiento = await ctx.paso('registrar_ajuste', () =>
+      ctx.tx
+        .insertInto('movimientos_stock')
+        .values({
+          organizacion_id: organizacionId,
+          almacen_id: toma.almacenId,
+          insumo_id: ajuste.insumoId,
+          tipo: 'ajuste',
+          cantidad: ajuste.delta,
+          unidad: ajuste.unidad,
+          // `conteo` y no `manual`: es lo que separa la diferencia contada del
+          // ajuste que alguien tecleó a mano, y es la única forma de que el
+          // reporte de diferencias por periodo signifique algo.
+          referencia_tipo: 'conteo',
+          referencia_id: toma.id,
+          empleado_id: empleoId,
+          motivo,
+          nota: nota,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow(),
+    );
+
+    await ctx.paso('ligar_ajuste', () =>
+      ctx.tx
+        .updateTable('toma_conteos')
+        .set({ movimiento_ajuste_id: movimiento.id })
+        .where('toma_id', '=', toma.id)
+        .where('insumo_id', '=', ajuste.insumoId)
+        .execute(),
+    );
+  }
+
+  const cerradas = await ctx.paso('cerrar_toma', () =>
+    repoTomas.cerrarToma(ctx.tx, organizacionId, toma.id, ctx.ahora),
+  );
+  if (cerradas !== 1) {
+    // Alguien la cerró entre la lectura y el cierre. Sin esto, los ajustes de
+    // arriba se habrían escrito dos veces.
+    throw new ErrorDominio('INVENTARIO_INVALIDO', 'Esa toma ya estaba cerrada.');
+  }
+
+  // ── Lo que hace que el conteo vuelva mañana ────────────────────────────
+  // Sin esta línea, `zonasPorContar` seguiría pidiendo la misma zona cada día
+  // y el recorrido nunca avanzaría al siguiente anaquel. Es la diferencia
+  // entre una toma física y una rutina.
+  //
+  // La guarda `!== null` NO protege de sellar zonas de más: `where id = null`
+  // no casa con ninguna fila, ni aquí ni en Postgres. Está porque `zona_id` es
+  // `string | null` y porque una toma completa no tiene por qué mandar un
+  // UPDATE que no va a tocar nada. Quitarla no rompe ninguna prueba, y se
+  // queda dicho en vez de aparentar que cierra un hueco.
+  if (toma.zonaId !== null) {
+    await ctx.paso('sellar_zona', () =>
+      ctx.tx
+        .updateTable('zonas_anaquel')
+        .set({ ultimo_conteo_en: ctx.ahora })
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', toma.zonaId)
+        .execute(),
+    );
+  }
+
+  const faltantes = ajustes.filter((a) => a.faltante).length;
+
+  return {
+    tomaId: toma.id,
+    ajustados: ajustes.length,
+    faltantes,
+    sobrantes: ajustes.length - faltantes,
+  };
+}
 
 /**
  * Qué zonas toca contar hoy. Lectura pura: no escribe nada.
