@@ -235,6 +235,17 @@ cada bloque; el detalle de cada decisión está en la bitácora del día.
 | **4** | Tableros y vocabulario | ✅ **cerrado** · T-10 y T-11. `/` servía a los cinco modelos el tablero HEREDADO, que es el del RESTAURANTE, con dos tarjetas que tres carpetas PROHÍBEN. Ahora cada modelo tiene el suyo —siete indicadores la tiendita, ocho la ferretería, catorce la cafetería, ocho el salón— y la estética no tiene tablero en la casa: tiene AGENDA, porque su §4.4.1 dedica una sección a defender que a las 9:45 un dashboard es un adorno. **Una puerta nueva de vocabulario**, demostrada en rojo contra mi propio tablero de cafetería: rotulaba «Venta de la ráfaga» —la palabra de la TIENDA para `orden`— y escribía «barra» a mano tres veces |
 | **5** | Producción y la cadena entera | ✅ **cerrado** · `pnpm verify` de punta a punta destapó un contrato ROTO que el CI no veía —los cuatro tableros declaraban su plantilla a mano, y `ningun_comando_escribe_la_lista_a_mano` lo prohíbe desde F1.1-C-15—. La lista vive ahora en un `Record<Paquete, …>` que **no compila** si llega una sexta plantilla sin decidir su tablero, y **los nueve arneses de mutación entraron al CI** en un trabajo propio que corre en paralelo: una puerta que sólo existe en una laptop no es una puerta del proyecto. El informe de la vuelta entera es [`016-fase-2.3-segunda-vuelta.md`](../reports/016-fase-2.3-segunda-vuelta.md) |
 
+### CIERRE · producción con el código nuevo (20-09-2026)
+
+`main` tiene los 100 commits de la fase (`63f4423`) y **`morphiqpos-kappa.vercel.app` sirve el código
+nuevo sin ningún muro**: la raíz en 200, `/api/auth/empleados` con los 29 empleados y las rutas del
+código nuevo en 403 —existen y están guardadas—, no en 404.
+
+Y **un solo despliegue sirve a SEIS negocios por sesión**: `mh-restaurante` y las cinco
+`demo-acople-*`. `ORGANIZACION` admite lista desde la 166 y ahora la lleva; el camino por HOST sigue
+ganando cuando el host trae el slug, para el día que el dominio resuelva. Se deshace cambiando **una
+variable de entorno**, no código.
+
 ### Bloque 4 · los cinco tableros, y el que no lo es
 
 `/` resolvía UN tablero para los cinco negocios: el `Dashboard` de `heredado/`, construido para
