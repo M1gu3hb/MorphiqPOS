@@ -26,6 +26,8 @@ export {
   type ResultadoPasivo,
 } from './pasivos.ts';
 
+export { cargarSaldo, entradaCargarSaldo, type SaldoCargado } from './comisionista.ts';
+
 export {
   ajustarConteo,
   entradaAjustarConteo,

@@ -136,6 +136,18 @@ export function Cotizacion({
   const [consulta, setConsulta] = useState('');
   const [vigencia, setVigencia] = useState<number | null>(null);
   const [seguimiento, setSeguimiento] = useState<Seguimiento>('pendiente');
+  /**
+   * LA COTIZACIÓN, cuando ya existe.
+   *
+   * La pantalla no la tenía, y por eso sus tres botones publicaban en
+   * `/api/cotizaciones/<verbo>` —plural, y con verbos que no son de ningún comando—
+   * contra un servidor que no tiene esa carpeta: 404, «El servidor respondió algo
+   * inesperado», y la cotización sin crear. Mandar CREA la cotización y registra su
+   * envío; ganada y perdida necesitan su id, así que hasta que exista van apagadas.
+   */
+  const [creada, setCreada] = useState<{ readonly id: string; readonly folio: string } | null>(
+    null,
+  );
   const [nota, setNota] = useState<{ readonly texto: string; readonly malo: boolean } | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -223,13 +235,20 @@ export function Cotizacion({
     };
   }
 
-  /** El documento no nombra estas rutas: van por convención `/api/<dominio>/<verbo>`. */
-  async function escribir(verbo: string, entrada: Record<string, unknown>): Promise<void> {
+  /**
+   * Lo común a las tres acciones: apagar los botones, y decir qué pasó.
+   *
+   * Aquí había una sola función que armaba la ruta con una plantilla
+   * —`` `/api/cotizaciones/${verbo}` ``— con dos verbos, `mandar` y `seguimiento`,
+   * que no son de ningún comando y cuya carpeta ni siquiera existe. Los tres
+   * botones daban 404. Ahora cada uno llama al comando que le corresponde, con su
+   * nombre y su entrada.
+   */
+  async function conLaPantallaOcupada(trabajo: () => Promise<string>): Promise<void> {
     setEnviando(true);
     setNota(null);
     try {
-      await invocarComando<{ readonly id: string }>(`/api/cotizaciones/${verbo}`, entrada);
-      setNota({ texto: verbo === 'mandar' ? 'Cotización mandada.' : 'Guardado.', malo: false });
+      setNota({ texto: await trabajo(), malo: false });
     } catch (fallo: unknown) {
       setNota({ texto: mensajeDe(fallo), malo: true });
     } finally {
@@ -237,10 +256,89 @@ export function Cotizacion({
     }
   }
 
+  /**
+   * MANDAR · crea la cotización y registra que se mandó, en ese orden.
+   *
+   * Son dos comandos porque son dos hechos distintos y el documento los separa:
+   * `cotizacion.crear` deja el documento con su folio y su vigencia, y
+   * `cotizacion.registrar_envio` anota CUÁNDO y POR DÓNDE se mandó, que es de lo
+   * que vive el seguimiento —«¿a quién no le hemos marcado desde hace cuatro
+   * días?»—. El folio no se inventa aquí: lo toma el servidor de la serie «C».
+   */
+  function mandar(): void {
+    void conLaPantallaOcupada(async () => {
+      const cotizacion = await invocarComando<{
+        readonly cotizacionId: string;
+        readonly folio: string;
+      }>('/api/cotizacion', {
+        vigenciaDias: vigencia,
+        nombreLibre: (clienteNombre ?? '').trim() === '' ? 'Mostrador' : clienteNombre,
+        lineas: partidas.map((p) => ({
+          productoId: p.material.id,
+          descripcion: `${p.material.nombre} ${p.material.medida}`.trim().slice(0, 200),
+          cantidad: p.cantidad.toFixed(4),
+          unidad: p.material.unidad,
+          // El descuento de la partida va en el PRECIO: la línea del comando no
+          // tiene columna de descuento, y el importe que se cobra es éste.
+          precioUnitarioCentavos: Math.round(p.precioCentavos * (1 - p.descuentoPct / 100)),
+        })),
+      });
+      setCreada({ id: cotizacion.cotizacionId, folio: cotizacion.folio });
+      await invocarComando('/api/cotizacion/enviar', {
+        cotizacionId: cotizacion.cotizacionId,
+        medio: 'whatsapp',
+      });
+      return `Cotización ${cotizacion.folio} mandada.`;
+    });
+  }
+
   function marcar(estado: Seguimiento): void {
     setSeguimiento(estado);
     // «Perdida» espera al motivo; «ganada» no tiene nada más que preguntar.
-    if (estado === 'ganada') void escribir('seguimiento', { estado });
+    if (estado !== 'ganada' || creada === null) return;
+    void conLaPantallaOcupada(async () => {
+      await invocarComando('/api/cotizacion/aprobar', { cotizacionId: creada.id });
+      return `Cotización ${creada.folio} marcada como ganada.`;
+    });
+  }
+
+  /** PERDIDA lleva motivo, y el motivo ES el dato: sin él la base la rechaza. */
+  function marcarPerdida(motivo: string): void {
+    if (creada === null) return;
+    void conLaPantallaOcupada(async () => {
+      await invocarComando('/api/cotizacion/cerrar', {
+        cotizacionId: creada.id,
+        resultado: 'perdida',
+        motivo,
+      });
+      return `Cotización ${creada.folio} cerrada como perdida: ${motivo.toLowerCase()}.`;
+    });
+  }
+
+  /**
+   * COPIAR COMO TEXTO · el botón que estaba apagado y sin nada detrás.
+   *
+   * Tenía `disabled={sinPartidas}` y ningún `onClick`: en cuanto había una partida
+   * se encendía y no hacía nada. Lo que hace falta es lo que se manda por WhatsApp
+   * desde el teléfono: las partidas, su importe y el total, en texto plano.
+   */
+  function copiarComoTexto(): void {
+    const renglones = partidas.map(
+      (p) =>
+        `${p.cantidad} ${p.material.unidad} · ${p.material.nombre} ${p.material.medida}`.trim() +
+        ` · ${PESOS.format(importeDe(p) / 100)}`,
+    );
+    const texto = [
+      ...renglones,
+      `TOTAL ${PESOS.format(total / 100)}`,
+      vigencia === null ? '' : `Vigencia: ${String(vigencia)} días.`,
+    ]
+      .filter((linea) => linea !== '')
+      .join('\n');
+    void conLaPantallaOcupada(async () => {
+      await navigator.clipboard.writeText(texto);
+      return 'Cotización copiada. Pégala donde la quieras mandar.';
+    });
   }
 
   if (catalogo === null) {
@@ -381,16 +479,16 @@ export function Cotizacion({
         <Button
           type="button"
           disabled={sinPartidas || vigencia === null || enviando}
-          onClick={() => {
-            void escribir('mandar', {
-              vigenciaDias: vigencia,
-              partidas: partidas.map((p) => ({ materialId: p.material.id, cantidad: p.cantidad })),
-            });
-          }}
+          onClick={mandar}
         >
           Mandar por WhatsApp
         </Button>
-        <Button type="button" variant="outline" disabled={sinPartidas}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={sinPartidas || enviando}
+          onClick={copiarComoTexto}
+        >
           Copiar como texto
         </Button>
         <Button type="button" variant="secondary" disabled={sinPartidas}>
@@ -402,12 +500,17 @@ export function Cotizacion({
         >
           {PALABRA[seguimiento]}
         </Badge>
+        {/* Hasta que la cotización exista, marcarla no tiene sobre qué: el seguimiento
+            es de un documento con folio, no de lo que hay en la pantalla. Apagados y
+            con el motivo escrito, que es mejor que un botón que promete y no cumple. */}
         {(['ganada', 'perdida'] as const).map((estado) => (
           <Button
             key={estado}
             type="button"
             size="sm"
             variant="outline"
+            disabled={creada === null || enviando}
+            title={creada === null ? 'Primero mándala: el seguimiento es de una cotización' : ''}
             onClick={() => {
               marcar(estado);
             }}
@@ -427,8 +530,9 @@ export function Cotizacion({
                   type="button"
                   size="sm"
                   variant="outline"
+                  disabled={creada === null || enviando}
                   onClick={() => {
-                    void escribir('seguimiento', { estado: 'perdida', motivo });
+                    marcarPerdida(motivo);
                   }}
                 >
                   {motivo}

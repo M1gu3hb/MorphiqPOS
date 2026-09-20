@@ -1557,6 +1557,214 @@ function ejecutarGh(argumentos) {
  */
 const RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN = {};
 
+/**
+ * LO QUE UNA PANTALLA LLAMA, incluidas las rutas que ARMA con una plantilla.
+ *
+ * ── Los dos agujeros que esta puerta tenía, y que la hacían mentir ────────
+ * Decía «119 rutas · 0 inexistentes» y era falso por dos cosas suyas:
+ *
+ *   A · El extractor sólo reconocía cadenas que son una ruta ENTERA. Una ruta
+ *       armada con plantilla —`` `/api/cotizaciones/${verbo}` ``— no encajaba en
+ *       el patrón, así que para la puerta no existía. Tres botones de la
+ *       cotización publican ahí y los tres dan 404 desde el primer día.
+ *   B · Un segmento dinámico valía para CUALQUIER llamada de esa carpeta: si
+ *       existe `clientes/[id]/route.ts`, entonces `/api/clientes/empezar-historial`
+ *       «existía». No existe: Next la resuelve a `[id]` con
+ *       `clienteId = "empezar-historial"`, y eso es un 400 o un 500, no un botón
+ *       que funciona.
+ *
+ * ── Cómo se resuelve ahora ────────────────────────────────────────────────
+ * Cada llamada se guarda como SEGMENTOS, y se anota cuáles vienen de una
+ * interpolación. Después se recorre el árbol de `app/api/` paso a paso:
+ *
+ *   · un segmento LITERAL tiene que existir como carpeta. Si no está, la ruta no
+ *     existe — aunque la carpeta padre tenga un `[id]`, porque `[id]` sirve
+ *     identificadores, no verbos;
+ *   · un segmento INTERPOLADO vale contra un `[x]`, que es exactamente para lo
+ *     que está;
+ *   · y cuando los valores posibles de la interpolación SE PUEDEN LEER del
+ *     código —un `const`, una unión de tipos, o los argumentos con los que se
+ *     llama a la función que la recibe— se comprueba cada valor por separado.
+ *     Así `/api/cotizaciones/${verbo}` se comprueba como `/mandar` y
+ *     `/seguimiento`, que es lo que de verdad se pide.
+ *
+ * Lo que NO se puede resolver se dice: una plantilla cuyo valor no se lee y cuya
+ * carpeta no tiene segmento dinámico se reporta, en vez de aprobarse en silencio.
+ */
+
+/** Hasta cuántas combinaciones se expanden. Más que esto es una plantilla mal leída. */
+const COMBINACIONES_MAXIMAS = 24;
+
+/** El identificador solo: `verbo`. Cualquier expresión más rica no se intenta leer. */
+const SOLO_UN_NOMBRE = /^[A-Za-z_$][\w$]*$/;
+
+/** Los literales de cadena de un trozo de código. */
+function literalesDe(trozo) {
+  const valores = [];
+  for (const m of trozo.matchAll(/'([^'\\\n]{1,60})'|"([^"\\\n]{1,60})"/g)) {
+    const valor = m[1] ?? m[2] ?? '';
+    if (/^[a-z0-9][a-z0-9-]*$/i.test(valor)) valores.push(valor);
+  }
+  return valores;
+}
+
+/**
+ * La función que envuelve a una posición, con su lista de parámetros.
+ *
+ * Se busca hacia atrás la declaración más cercana. No es un analizador
+ * sintáctico y no pretende serlo: si no encuentra una forma que reconozca,
+ * devuelve `null` y la interpolación se trata como no resuelta, que es el lado
+ * seguro.
+ */
+function funcionQueEnvuelve(texto, posicion) {
+  const antes = texto.slice(0, posicion);
+  const formas = [
+    /function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/g,
+    /const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*(?::[^=]*)?=>/g,
+  ];
+  let mejor = null;
+  for (const forma of formas) {
+    for (const m of antes.matchAll(forma)) {
+      if (mejor === null || m.index > mejor.indice) {
+        mejor = { indice: m.index, nombre: m[1], parametros: m[2] };
+      }
+    }
+  }
+  return mejor;
+}
+
+/** El índice del parámetro que se llama así, o -1. */
+function indiceDelParametro(parametros, nombre) {
+  const partes = parametros.split(',');
+  for (let i = 0; i < partes.length; i += 1) {
+    const limpio = (partes[i] ?? '').trim();
+    if (new RegExp(`^${nombre}\\b`).test(limpio)) return i;
+  }
+  return -1;
+}
+
+/** El argumento n-ésimo de cada llamada a esa función, cuando es un literal. */
+function argumentosEnLasLlamadas(texto, nombre, indice) {
+  const valores = [];
+  for (const m of texto.matchAll(new RegExp(`\\b${nombre}\\s*\\(([^)]{0,200})`, 'g'))) {
+    const crudos = (m[1] ?? '').split(',');
+    const trozo = crudos[indice];
+    if (trozo === undefined) continue;
+    valores.push(...literalesDe(trozo));
+  }
+  return valores;
+}
+
+/**
+ * Los valores posibles de una interpolación, o `null` si no se pueden leer.
+ *
+ * Tres formas, y en este orden: la asignación con `const`, la unión de tipos, y
+ * los argumentos con los que se llama a la función que recibe ese parámetro. La
+ * tercera es la que resuelve el caso real —`escribir('mandar', …)`— y ninguna de
+ * las dos primeras lo habría visto.
+ */
+function valoresPosibles(expresion, texto, posicion) {
+  const nombre = expresion.trim();
+  if (!SOLO_UN_NOMBRE.test(nombre)) return null;
+
+  const valores = new Set();
+
+  for (const m of texto.matchAll(
+    new RegExp(`\\b(?:const|let)\\s+${nombre}\\s*=([^;\\n]{1,200})`, 'g'),
+  )) {
+    for (const valor of literalesDe(m[1] ?? '')) valores.add(valor);
+  }
+  for (const m of texto.matchAll(
+    new RegExp(`\\b${nombre}\\s*:\\s*((?:'[^']+'\\s*\\|\\s*)+'[^']+')`, 'g'),
+  )) {
+    for (const valor of literalesDe(m[1] ?? '')) valores.add(valor);
+  }
+  if (valores.size === 0) {
+    const envoltorio = funcionQueEnvuelve(texto, posicion);
+    if (envoltorio !== null) {
+      const indice = indiceDelParametro(envoltorio.parametros, nombre);
+      if (indice >= 0) {
+        for (const valor of argumentosEnLasLlamadas(texto, envoltorio.nombre, indice)) {
+          valores.add(valor);
+        }
+      }
+    }
+  }
+
+  return valores.size === 0 ? null : [...valores];
+}
+
+/**
+ * Las llamadas de un archivo: literales y plantillas, ya expandidas.
+ *
+ * Cada una sale con sus SEGMENTOS y con el conjunto de posiciones que vienen de
+ * una interpolación sin resolver. Esa distinción es la que arregla el agujero B.
+ */
+function llamadasDelTexto(texto) {
+  const llamadas = [];
+
+  for (const m of texto.matchAll(/['"](\/api\/[a-zA-Z0-9/_-]+)['"]/g)) {
+    const url = m[1] ?? '';
+    llamadas.push({ url, partes: url.replace('/api/', '').split('/'), dinamicos: new Set() });
+  }
+
+  for (const m of texto.matchAll(/`(\/api\/[^`]*)`/g)) {
+    const plantilla = m[1] ?? '';
+    if (!plantilla.includes('${')) {
+      llamadas.push({
+        url: plantilla,
+        partes: plantilla.replace('/api/', '').split('/'),
+        dinamicos: new Set(),
+      });
+      continue;
+    }
+    // La query no es parte del camino: `/api/x?y=${z}` es la ruta `/api/x`.
+    const sinQuery = (plantilla.split('?')[0] ?? '').replace('/api/', '');
+    const segmentos = sinQuery
+      .split('/')
+      .filter((s, i, todos) => s !== '' || i === todos.length - 1);
+
+    let variantes = [{ partes: [], dinamicos: new Set() }];
+    for (const segmento of segmentos) {
+      const interpolacion = /^\$\{([^}]*)\}$/.exec(segmento);
+      if (interpolacion === null && !segmento.includes('${')) {
+        for (const variante of variantes) variante.partes.push(segmento);
+        continue;
+      }
+      const expresion = interpolacion === null ? '' : (interpolacion[1] ?? '');
+      const valores = interpolacion === null ? null : valoresPosibles(expresion, texto, m.index);
+      if (valores === null) {
+        for (const variante of variantes) {
+          variante.dinamicos.add(variante.partes.length);
+          variante.partes.push('*');
+        }
+        continue;
+      }
+      const nuevas = [];
+      for (const variante of variantes) {
+        for (const valor of valores) {
+          nuevas.push({
+            partes: [...variante.partes, valor],
+            dinamicos: new Set(variante.dinamicos),
+          });
+        }
+      }
+      variantes = nuevas.slice(0, COMBINACIONES_MAXIMAS);
+    }
+
+    for (const variante of variantes) {
+      if (variante.partes.length === 0) continue;
+      llamadas.push({
+        url: `/api/${variante.partes.join('/')}`,
+        partes: variante.partes,
+        dinamicos: variante.dinamicos,
+      });
+    }
+  }
+
+  return llamadas;
+}
+
 function comprobarQueLasRutasQueSeLlamanExisten() {
   const carpetas = [join(RAIZ, 'apps', 'web', 'src'), join(RAIZ, 'apps', 'web', 'heredado')];
   const llamadas = new Map();
@@ -1575,30 +1783,51 @@ function comprobarQueLasRutasQueSeLlamanExisten() {
       const texto = readFileSync(ruta, 'utf8')
         .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
         .replaceAll(/^\s*\/\/.*$/gm, ' ');
-      for (const m of texto.matchAll(/['"`](\/api\/[a-zA-Z0-9/_-]+)['"`]/g)) {
-        if (!llamadas.has(m[1])) llamadas.set(m[1], ruta.replace(RAIZ, '').replaceAll(sep, '/'));
+      for (const llamada of llamadasDelTexto(texto)) {
+        if (llamadas.has(llamada.url)) continue;
+        llamadas.set(llamada.url, {
+          ...llamada,
+          donde: ruta.replace(RAIZ, '').replaceAll(sep, '/'),
+        });
       }
     }
   };
   for (const carpeta of carpetas) recorrer(carpeta);
 
-  const existe = (url) => {
-    const partes = url.replace('/api/', '').split('/');
-    const directa = join(RAIZ, 'apps', 'web', 'app', 'api', ...partes, 'route.ts');
-    if (existsSync(directa)) return true;
-    // Una ruta con parámetro: `/api/citas/<id>/cancelar` la sirve `[id]`.
-    const padre = join(RAIZ, 'apps', 'web', 'app', 'api', ...partes.slice(0, -1));
-    return readdirSyncSeguro(padre).some(
-      (e) =>
-        e.isDirectory() && e.name.startsWith('[') && existsSync(join(padre, e.name, 'route.ts')),
-    );
+  /**
+   * SEGMENTO A SEGMENTO, y un `[x]` sólo vale donde la llamada pone un valor.
+   *
+   * Aquí estaba el agujero B: bastaba con que la carpeta padre tuviera CUALQUIER
+   * `[algo]/route.ts` para dar la ruta por existente, y con eso
+   * `/api/clientes/empezar-historial` «existía» porque existe `clientes/[id]`. No
+   * existe: Next la resuelve a `[id]` con `clienteId = "empezar-historial"`, que es
+   * un uuid inventado. Un segmento dinámico sirve IDENTIFICADORES —lo que la
+   * llamada interpola— y no verbos escritos a mano.
+   */
+  const existe = (partes, dinamicos) => {
+    let carpeta = join(RAIZ, 'apps', 'web', 'app', 'api');
+    for (const [i, parte] of partes.entries()) {
+      const exacta = join(carpeta, parte);
+      if (parte !== '*' && existsSync(exacta)) {
+        carpeta = exacta;
+        continue;
+      }
+      // Sólo lo interpolado puede caer en un segmento dinámico.
+      if (!dinamicos.has(i)) return false;
+      const dinamica = readdirSyncSeguro(carpeta).find(
+        (e) => e.isDirectory() && e.name.startsWith('['),
+      );
+      if (dinamica === undefined) return false;
+      carpeta = join(carpeta, dinamica.name);
+    }
+    return existsSync(join(carpeta, 'route.ts'));
   };
 
   const nuevas = [];
-  for (const [url, donde] of llamadas) {
-    if (existe(url)) continue;
+  for (const [url, llamada] of llamadas) {
+    if (existe(llamada.partes, llamada.dinamicos)) continue;
     if (RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN[url] !== undefined) continue;
-    nuevas.push(`${url} (${donde})`);
+    nuevas.push(`${url} (${llamada.donde})`);
   }
   exigir(
     nuevas.length === 0,
@@ -1625,9 +1854,10 @@ function comprobarQueLasRutasQueSeLlamanExisten() {
       'dirección que no existe no hace nada, y declararlo no es haberlo hecho.',
   );
 
-  const yaExisten = Object.keys(RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN).filter((url) =>
-    existe(url),
-  );
+  const yaExisten = Object.keys(RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN).filter((url) => {
+    const llamada = llamadas.get(url);
+    return llamada !== undefined && existe(llamada.partes, llamada.dinamicos);
+  });
   exigir(
     yaExisten.length === 0,
     `RUTAS-LLAMADAS: ${yaExisten.join(', ')} ya existe(n) y sigue(n) declarada(s) como ` +

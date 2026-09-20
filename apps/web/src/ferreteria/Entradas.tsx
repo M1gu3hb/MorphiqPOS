@@ -272,6 +272,8 @@ export function Entradas({
   const [ruta, setRuta] = useState<RutaDelProveedor | null>(rutaInicial ?? null);
   const [sugeridas, setSugeridas] = useState<readonly LineaSugerida[]>(filasIniciales ?? []);
   const [nota, setNota] = useState<NotaEnCaptura | null>(notaInicial ?? null);
+  /** Lo que se dice después de copiar o de abrir WhatsApp. Sin esto, tocar no se ve. */
+  const [avisoDelPedido, setAvisoDelPedido] = useState<string | null>(null);
   const [proveedorId, setProveedorId] = useState(proveedoresIniciales?.[0]?.id ?? '');
   const [folio, setFolio] = useState('');
   const [aCredito, setACredito] = useState(true);
@@ -343,6 +345,48 @@ export function Entradas({
     [proveedores, proveedorId],
   );
   const ordenadas = useMemo(() => ordenarSugeridas(sugeridas), [sugeridas]);
+
+  /**
+   * EL PEDIDO EN TEXTO · lo que se copia y lo que se manda.
+   *
+   * Los dos botones de abajo tenían `disabled` y NINGÚN `onClick`: en cuanto había
+   * una línea sugerida se encendían y no hacían nada. Y no es un adorno —es el
+   * final del trabajo de esta pantalla: lo que se pide se pide por teléfono o por
+   * WhatsApp, y lo que hace falta es el texto, no un pedido en el sistema (aquí no
+   * hay tabla de pedidos a propósito: ver la cabecera).
+   */
+  function pedidoEnTexto(): string {
+    const renglones = ordenadas.map((fila) => `${fila.sugerido} · ${fila.material}`);
+    return [
+      ruta === null ? 'Pedido' : `Pedido para ${ruta.proveedor}`,
+      ...renglones,
+      `Estimado ${PESOS.format(estimado / 100)}`,
+    ].join('\n');
+  }
+
+  async function copiarElPedido(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(pedidoEnTexto());
+      setAvisoDelPedido('Pedido copiado. Pégalo donde lo vayas a mandar.');
+    } catch {
+      // El portapapeles lo puede negar el navegador —permiso, o pestaña sin foco—.
+      // Decirlo es mejor que no hacer nada: el texto sigue en la pantalla.
+      setAvisoDelPedido('El navegador no dejó copiar. Selecciona la lista y cópiala a mano.');
+    }
+  }
+
+  /**
+   * Abre WhatsApp con el pedido ESCRITO y sin mandar.
+   *
+   * La misma regla que el fiado de `abarrotes`: el sistema redacta, la persona
+   * manda. Un mensaje automático a un proveedor —o a una vecina— rompe la relación
+   * que sostiene el negocio, y además aquí no hay número: se elige en WhatsApp.
+   */
+  function mandarElPedidoPorWhatsApp(): void {
+    const url = `https://wa.me/?text=${encodeURIComponent(pedidoEnTexto())}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setAvisoDelPedido('WhatsApp abierto con el pedido escrito. Elige a quién y mándalo tú.');
+  }
   const estimado = ordenadas.reduce((suma, f) => suma + f.importeCentavos, 0);
   const faltante = Math.max(0, MINIMO_PEDIDO_CENTAVOS - estimado);
   const pendientes = nota?.sinEmparejar.length ?? 0;
@@ -902,13 +946,32 @@ export function Entradas({
               : `faltan ${PESOS.format(faltante / 100)} para el mínimo`}
           </p>
           <div className="mt-2 flex gap-2">
-            <Button type="button" variant="outline" size="sm" disabled={ordenadas.length === 0}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={ordenadas.length === 0}
+              onClick={() => {
+                void copiarElPedido();
+              }}
+            >
               Copiar
             </Button>
-            <Button type="button" variant="secondary" size="sm" disabled={ordenadas.length === 0}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={ordenadas.length === 0}
+              onClick={mandarElPedidoPorWhatsApp}
+            >
               Mandar por WhatsApp
             </Button>
           </div>
+          {avisoDelPedido !== null && (
+            <p role="status" className="mt-2 text-xs text-muted-foreground">
+              {avisoDelPedido}
+            </p>
+          )}
         </section>
       </div>
     </div>

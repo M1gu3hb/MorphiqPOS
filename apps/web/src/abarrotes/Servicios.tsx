@@ -14,7 +14,7 @@ import {
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
-import { ErrorApi, invocarComando } from '~/cliente/api';
+import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 
 /**
  * PANTALLA · abarrotes · servicios
@@ -91,18 +91,36 @@ const MENSAJES: Readonly<Record<string, string>> = {
   REGLA_DE_NEGOCIO: 'El proveedor rechazó la operación. No se cobró nada.',
 };
 
+/**
+ * A QUIÉN se le vende por cuenta ajena. El nombre vive aquí, no en el saldo.
+ *
+ * Las tres entidades —`Comisionista`, `SaldoComisionista` y `OperacionComision`—
+ * son las tablas que la migración 095 dejó escritas y que **nadie consumía**: ni
+ * un comando, ni una pantalla, ni el mapa de tipos de Kysely. Por eso esta
+ * pantalla tenía `Promise.resolve([])` donde va su consulta.
+ */
+export interface Comisionista {
+  readonly id: string;
+  readonly nombre: string;
+  /** `prepago` es saldo comprado por adelantado; `pospago`, dinero que se debe. */
+  readonly modelo: string | null;
+}
+
 export interface SaldoDeComisionista {
-  readonly proveedor_servicio: string;
+  /** ES el comisionista: la tabla tiene una fila por organización y comisionista. */
+  readonly id: string;
   readonly saldo_centavos: number | null;
-  readonly minimo_alerta_centavos: number | null;
+  readonly comision_acumulada_centavos: number | null;
 }
 
 export interface OperacionDeComision {
   readonly id: string;
+  readonly comisionista_id: string;
   readonly tipo: string;
-  readonly proveedor_servicio: string | null;
-  readonly comision_negocio_centavos: number | null;
-  readonly estado: string | null;
+  /** Lo que el negocio GANÓ. Los otros importes son de la tercera. */
+  readonly comision_centavos: number | null;
+  readonly monto_ajeno_centavos: number | null;
+  readonly created_date: string | null;
 }
 
 export interface ServiciosProps {
@@ -143,7 +161,14 @@ function mensajeDeFallo(fallo: unknown): string {
   return fallo instanceof Error ? fallo.message : 'No se pudo completar la operación.';
 }
 
+/** La medianoche de HOY, en ISO: el rango con el que se piden las operaciones del día. */
+function comienzoDelDia(): string {
+  const ahora = new Date();
+  return new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()).toISOString();
+}
+
 export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: ServiciosProps) {
+  const [comisionistas, setComisionistas] = useState<readonly Comisionista[]>([]);
   const [saldos, setSaldos] = useState<readonly SaldoDeComisionista[] | null>(
     saldosIniciales ?? null,
   );
@@ -162,6 +187,8 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
   const [referencia, setReferencia] = useState('');
   const [importe, setImporte] = useState('');
   const [enviando, setEnviando] = useState(false);
+  /** Lo que se va a cargar de saldo, en pesos tal como se teclea. */
+  const [carga, setCarga] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -170,28 +197,27 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     Promise.all([
-      // EL SALDO DEL COMISIONISTA NO SE SIRVE, y por qué se dice en vez de pedirlo.
-      //
-      // Aquí se consultaba la entidad `SaldoComisionista`, que **no existe en el
-      // puente** —ni existe la tabla: nada registra cuánto saldo de Telcel queda—.
-      // La pantalla enseñaba su banda de error en cada apertura y el panel decía
-      // «Sin saldo» como si lo supiera.
-      //
-      // Registrar ese saldo es una función aparte: hay que capturar la compra de
-      // saldo, descontar cada recarga y avisar del mínimo. Mientras no exista, la
-      // venta SÍ funciona —la comisión se cobra y entra al corte— y el panel lo
-      // dice con esas palabras. Prometer un saldo que nadie registra es peor que
-      // no prometerlo.
-      Promise.resolve([] as readonly SaldoDeComisionista[]),
-      // Y LAS OPERACIONES TAMPOCO, por lo mismo: `OperacionComision` no existe en
-      // el puente. Las recargas que se cobran entran al corte como cualquier venta
-      // —eso sí funciona— pero no hay tabla que las liste por proveedor con su
-      // comisión, así que la lista de abajo enseña su vacío en vez de una banda de
-      // error en cada apertura.
-      Promise.resolve([] as readonly OperacionDeComision[]),
+      // LOS TRES, del puente. Aquí había dos `Promise.resolve([])` con un comentario
+      // largo explicando que el saldo «no se sirve»: era verdad y era el defecto.
+      // Las tablas existían desde la 095; lo que faltaba era que alguien las
+      // conectara.
+      consultarPuente<Comisionista>('Comisionista', { limite: 50, signal: control.signal }),
+      consultarPuente<SaldoDeComisionista>('SaldoComisionista', {
+        limite: 50,
+        signal: control.signal,
+      }),
+      // Las del DÍA: la lista de abajo dice «Hoy: N operaciones», y traer el
+      // histórico entero para contar las de hoy es lo que hace lenta una pantalla
+      // de mostrador.
+      consultarPuente<OperacionDeComision>('OperacionComision', {
+        limite: 200,
+        rango: { campo: 'created_date', desde: comienzoDelDia() },
+        signal: control.signal,
+      }),
     ])
-      .then(([filasSaldo, filasOperaciones]) => {
+      .then(([filasComisionistas, filasSaldo, filasOperaciones]) => {
         if (!sigueMontada()) return;
+        setComisionistas(filasComisionistas);
         setSaldos(saldosIniciales ?? filasSaldo);
         setOperaciones(operacionesIniciales ?? filasOperaciones);
       })
@@ -210,23 +236,38 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
 
   const listaSaldos = saldos ?? [];
   const listaOperaciones = operaciones ?? [];
-  const saldoTotal = listaSaldos.reduce((suma, fila) => suma + (fila.saldo_centavos ?? 0), 0);
-  const minimo = listaSaldos.reduce(
-    (menor, fila) => Math.min(menor, fila.minimo_alerta_centavos ?? MINIMO_ALERTA_CENTAVOS),
-    MINIMO_ALERTA_CENTAVOS,
+  /** El nombre por su id: el saldo y la operación traen la llave, no el nombre. */
+  const nombreDelComisionista = new Map(comisionistas.map((c) => [c.id, c.nombre]));
+  /**
+   * SÓLO EL PREPAGO suma al panel «Saldo de recargas».
+   *
+   * El saldo está firmado y su significado depende del modelo: en `prepago` es lo
+   * que queda por vender; en `pospago` es lo que se DEBE entregar. Sumarlos daría
+   * un número que no es ninguna de las dos cosas.
+   */
+  const deRecargas = listaSaldos.filter(
+    (fila) => comisionistas.find((c) => c.id === fila.id)?.modelo !== 'pospago',
   );
+  const saldoTotal = deRecargas.reduce((suma, fila) => suma + (fila.saldo_centavos ?? 0), 0);
+  const minimo = MINIMO_ALERTA_CENTAVOS;
   const comisionDeHoy = listaOperaciones.reduce(
-    (suma, fila) => suma + (fila.comision_negocio_centavos ?? 0),
+    (suma, fila) => suma + (fila.comision_centavos ?? 0),
     0,
   );
+  const bajos = deRecargas
+    .filter((fila) => (fila.saldo_centavos ?? 0) < MINIMO_ALERTA_CENTAVOS)
+    .map((fila) => nombreDelComisionista.get(fila.id) ?? 'sin nombre');
 
   const digitos = telefono.replace(/\D/g, '');
   const montoCentavos = aCentavos(monto);
   const importeCentavos = aCentavos(importe);
   const comisionRecarga = comisionDeRecarga(montoCentavos);
   const comisionServicio = proveedorServicio === null ? 0 : comisionDeServicio(proveedorServicio);
+  const idDelOperador = comisionistas.find((c) => c.nombre === proveedorRecarga)?.id ?? null;
   const saldoDelOperador =
-    listaSaldos.find((fila) => fila.proveedor_servicio === proveedorRecarga)?.saldo_centavos ?? 0;
+    idDelOperador === null
+      ? 0
+      : (listaSaldos.find((fila) => fila.id === idDelOperador)?.saldo_centavos ?? 0);
   const sinSaldo = saldoDelOperador === 0 || saldoDelOperador < montoCentavos;
   const listoRecarga = digitos.length === DIGITOS_TELEFONO && montoCentavos > 0 && !sinSaldo;
   const listoServicio =
@@ -242,6 +283,42 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
     else setProveedorServicio(nombre);
   }
 
+  /**
+   * CARGAR SALDO · «deposité $1,000 y me dieron saldo para vender».
+   *
+   * Lo depositado y lo recibido pueden no ser lo mismo —la bonificación del
+   * comisionista—, pero desde el mostrador se teclea UNO: lo que se depositó. La
+   * diferencia, cuando la hay, se corrige desde la ficha del comisionista, que es
+   * donde vive ese dato.
+   */
+  async function cargarSaldoDeRecargas(): Promise<void> {
+    const centavos = aCentavos(carga);
+    if (centavos <= 0) return;
+    setEnviando(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const hecho = await invocarComando<{ readonly saldoCentavos: string }>(
+        '/api/comision/cargar-saldo',
+        { proveedorServicio: proveedorRecarga, depositadoCentavos: centavos },
+      );
+      const despues = Number(hecho.saldoCentavos);
+      setSaldos(
+        idDelOperador === null
+          ? listaSaldos
+          : listaSaldos.map((fila) =>
+              fila.id === idDelOperador ? { ...fila, saldo_centavos: despues } : fila,
+            ),
+      );
+      setCarga('');
+      setAviso(`Saldo de ${proveedorRecarga} cargado: quedan ${enPesos(despues)} por vender.`);
+    } catch (fallo) {
+      setError(mensajeDeFallo(fallo));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   async function cobrar(tipo: 'recarga' | 'pago_servicio'): Promise<void> {
     const esRecarga = tipo === 'recarga';
     const proveedor = esRecarga ? proveedorRecarga : proveedorServicio;
@@ -252,12 +329,22 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
     setError(null);
     setAviso(null);
     try {
-      // Ruta nombrada por el documento (`05-DATOS-Y-BACKEND §6`). La clave de
-      // idempotencia la pone `invocarComando`: sin ella, un doble clic con
-      // fila cobra dos veces el mismo recibo.
-      await invocarComando('/api/comision/registrar', {
+      /**
+       * EL CAMPO SE LLAMA `proveedorServicio`, y aquí decía `proveedor`.
+       *
+       * `entradaRegistrarComision` es un `z.object` con `proveedorServicio`, así
+       * que zod rechazaba CADA cobro con `ENTRADA_INVALIDA` y la pantalla enseñaba
+       * el mensaje del servidor. Es la otra mitad del defecto de esta pantalla: no
+       * sólo no se leía el saldo —tampoco se podía cobrar una recarga—.
+       *
+       * La clave de idempotencia la pone `invocarComando`: sin ella, un doble clic
+       * con mala red cobra dos veces el mismo recibo.
+       */
+      const hecho = await invocarComando<{
+        readonly saldoDelComisionistaCentavos: string;
+      }>('/api/comision/registrar', {
         tipo,
-        proveedor,
+        proveedorServicio: proveedor,
         referencia: esRecarga ? digitos : referencia.trim(),
         montoRecibidoCentavos: recibido,
         comisionNegocioCentavos: comision,
@@ -266,18 +353,21 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
         ...listaOperaciones,
         {
           id: `${proveedor}-${String(listaOperaciones.length)}`,
+          comisionista_id: idDelOperador ?? proveedor,
           tipo,
-          proveedor_servicio: proveedor,
-          comision_negocio_centavos: comision,
-          estado: 'exitosa',
+          comision_centavos: comision,
+          monto_ajeno_centavos: recibido - comision,
+          created_date: new Date().toISOString(),
         },
       ]);
       if (esRecarga) {
+        // El saldo que devuelve el SERVIDOR, no una resta local: es el número con
+        // el que se arquea a las nueve, y restarlo aquí lo haría depender de que
+        // la pantalla supiera el saldo de partida.
+        const despues = Number(hecho.saldoDelComisionistaCentavos);
         setSaldos(
           listaSaldos.map((fila) =>
-            fila.proveedor_servicio === proveedor
-              ? { ...fila, saldo_centavos: (fila.saldo_centavos ?? 0) - recibido }
-              : fila,
+            fila.id === idDelOperador ? { ...fila, saldo_centavos: despues } : fila,
           ),
         );
         setTelefono('');
@@ -588,10 +678,45 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
         <span>
           Saldo de recargas: <strong>{enPesos(saldoTotal)}</strong>
         </span>
-        {saldoTotal < minimo && <Badge variant="destructive">⚠ Saldo bajo</Badge>}
+        {/* El aviso NOMBRA a quién se le acabó: «saldo bajo» a secas obliga a ir a
+            buscar cuál, y a las ocho de la noche eso no se hace. */}
+        {saldoTotal < minimo && (
+          <Badge variant="destructive">
+            ⚠ Saldo bajo{bajos.length === 0 ? '' : ` · ${bajos.join(', ')}`}
+          </Badge>
+        )}
         <span aria-hidden>·</span>
         <span className="text-base font-semibold md:text-sm">
           Hoy: {String(listaOperaciones.length)} operaciones · {enPesos(comisionDeHoy)} de comisión
+        </span>
+        {/* CARGAR SALDO · la otra mitad del almacén de dinero.
+            Sin esto el saldo sólo puede bajar, y el panel acabaría enseñando un
+            número que no se puede arreglar desde ninguna pantalla. */}
+        <span className="ml-auto flex items-center gap-2">
+          <Label htmlFor="cargar-saldo" className="text-xs text-muted-foreground">
+            Cargar saldo de {proveedorRecarga}
+          </Label>
+          <Input
+            id="cargar-saldo"
+            inputMode="decimal"
+            className="w-24"
+            placeholder="$"
+            value={carga}
+            onChange={(e) => {
+              setCarga(e.target.value);
+            }}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={aCentavos(carga) <= 0 || enviando}
+            onClick={() => {
+              void cargarSaldoDeRecargas();
+            }}
+          >
+            Cargar
+          </Button>
         </span>
       </footer>
     </div>

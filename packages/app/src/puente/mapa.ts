@@ -2345,6 +2345,92 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  /**
+   * A QUIÉN SE LE VENDE POR CUENTA AJENA · Telcel, CFE, la paquetería (F-255).
+   *
+   * ── Por qué estas tres entidades no existían ──────────────────────────
+   * Porque sus tablas llevaban desde la migración 095 **sin un solo consumidor**:
+   * ni comando, ni pantalla, ni reporte, ni siquiera una línea en el mapa de tipos
+   * de Kysely. `abarrotes/Servicios` lo tenía escrito donde debería ir su consulta
+   * —«el saldo del comisionista NO se sirve»— y con eso el panel «Saldo de
+   * recargas» y la lista de operaciones del día no se llenaban nunca, en la
+   * pantalla cuyo trabajo entero es ése.
+   *
+   * Son tres y no una porque el nombre vive en el catálogo, el saldo en su almacén
+   * y cada operación en su renglón. Unirlas en una vista habría sido inventar una
+   * cuarta forma de leer lo mismo.
+   */
+  Comisionista: {
+    tabla: 'comisionistas',
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: 'nombre',
+    campos: {
+      ...AUTO,
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      // `recarga` · `servicio` · `recibo` · `paqueteria` · `otro`.
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      // `prepago` es saldo comprado por adelantado; `pospago`, dinero ajeno que se
+      // recibe y se entrega. Decide el SIGNO con el que se mueve el saldo.
+      modelo: { columna: 'modelo', conversion: 'texto', escribible: false },
+      comision_bp: { columna: 'comision_bp', conversion: 'puntos_base', escribible: false },
+      activo: { columna: 'activo', conversion: 'booleano', escribible: false },
+    },
+  },
+
+  /** El número que se mira a las nueve de la noche: «¿cuánto saldo me queda?». */
+  SaldoComisionista: {
+    tabla: 'saldos_comisionista',
+    rolesLectura: [...VE_FIADO],
+    escritura: 'lectura',
+    ordenPorOmision: '-actualizado_en',
+    campos: {
+      // SU LLAVE ES EL COMISIONISTA, y por eso se llama `id`.
+      //
+      // La tabla no tiene id propio —es una fila por organización y comisionista— y
+      // el frontend necesita una llave para sus listas. Se expone UNA vez: un
+      // contrato del puente prohíbe que dos campos de la misma entidad apunten a la
+      // misma columna, y tiene razón —dos nombres para lo mismo es cómo una pantalla
+      // filtra por uno y ordena por el otro sin darse cuenta—.
+      id: { columna: 'comisionista_id', conversion: 'texto', escribible: false },
+      saldo_centavos: { columna: 'saldo_centavos', conversion: 'dinero', escribible: false },
+      comision_acumulada_centavos: {
+        columna: 'comision_acumulada_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      actualizado_en: { columna: 'actualizado_en', conversion: 'fecha', escribible: false },
+    },
+  },
+
+  /** Cada recarga y cada pago de servicio, con sus importes SEPARADOS. */
+  OperacionComision: {
+    tabla: 'operaciones_comision',
+    rolesLectura: [...VE_FIADO],
+    escritura: 'comando',
+    ordenPorOmision: '-created_date',
+    campos: {
+      // Sin `updated_date`: es un ledger y la fila no se toca después de escribirla.
+      ...soloAutomaticos(['id', 'created_date']),
+      comisionista_id: { columna: 'comisionista_id', conversion: 'texto', escribible: false },
+      tipo: { columna: 'tipo', conversion: 'texto', escribible: false },
+      // Lo que la persona entregó en el mostrador. NO es venta: es de la tercera.
+      monto_ajeno_centavos: {
+        columna: 'monto_ajeno_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      // Lo único que el negocio gana. ESTO sí es ingreso.
+      comision_centavos: { columna: 'comision_centavos', conversion: 'dinero', escribible: false },
+      comision_bp_aplicada: {
+        columna: 'comision_bp_aplicada',
+        conversion: 'puntos_base',
+        escribible: false,
+      },
+      referencia: { columna: 'referencia', conversion: 'texto', escribible: false },
+    },
+  },
+
   Conteo: {
     tabla: 'tomas_inventario',
     rolesLectura: [...INVENTARIO],

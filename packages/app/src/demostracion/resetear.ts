@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { validarEntorno } from '@morphiqpos/contracts';
 
 import { definirComando } from '../comando.ts';
+import { hashearPin } from '../identidad/pin.ts';
 import { recalcularCostosRecetas } from '../inventario/recetas.ts';
 import { limpiarArranque, sembrarArranque, type ResumenArranque } from './arranque.ts';
 import { semillaParaPaquete } from './datos.ts';
@@ -16,6 +17,57 @@ import { limpiarSala, sembrarSala, type ResumenSala } from './sala.ts';
 import { limpiarSalon, sembrarSalon, type ResumenSalon } from './salon.ts';
 
 export const entradaResetearDemo = z.object({ confirmacion: z.literal('RESETEAR') });
+
+/**
+ * LA CONTRASEÑA DEL MODO PRESENTACIÓN, que una demostración necesita tener.
+ *
+ * ── Por qué esto faltaba, y por qué importa ───────────────────────────────
+ * `desbloquearPresentacion` no abre sin contraseña configurada, y con razón: la
+ * anterior se comparaba EN EL NAVEGADOR contra un `'2797'` escrito en el código de
+ * un repositorio público. Pero la siembra no configuraba ninguna, así que en las
+ * cinco demostraciones el Modo Presentación **no se podía abrir** — y es la
+ * pantalla desde la que se cambia de modelo de negocio delante de un prospecto, o
+ * sea la más importante de una demostración.
+ *
+ * Va con Argon2id y pimienta, el mismo camino que los PIN, y sólo en las demos:
+ * este comando ya se niega a correr sobre los negocios que cobran.
+ *
+ * La contraseña está ESCRITA en `docs/fase-2/ACCESOS-DEMO.md`, junto a los PIN, y
+ * eso no es un descuido: una demostración cuya llave no está escrita es una
+ * demostración que nadie puede enseñar.
+ */
+export const CONTRASENA_DE_PRESENTACION_DEMO = 'demo1234';
+
+async function sembrarContrasenaDePresentacion(
+  tx: Transaccion,
+  organizacionId: string,
+  pimienta: string,
+): Promise<void> {
+  const hash = await hashearPin(CONTRASENA_DE_PRESENTACION_DEMO, pimienta);
+  const fila = await tx
+    .selectFrom('configuracion')
+    .select(['id', 'valores', 'version'])
+    .where('organizacion_id', '=', organizacionId)
+    .executeTakeFirst();
+
+  const valores = {
+    ...((fila?.valores ?? {}) as Record<string, unknown>),
+    presentacion_password_hash: hash,
+  };
+
+  if (fila === undefined) {
+    await tx
+      .insertInto('configuracion')
+      .values({ organizacion_id: organizacionId, valores: JSON.stringify(valores), version: 1 })
+      .execute();
+    return;
+  }
+  await tx
+    .updateTable('configuracion')
+    .set({ valores: JSON.stringify(valores), version: fila.version + 1 })
+    .where('id', '=', fila.id)
+    .execute();
+}
 
 export const resetearDemo = definirComando<
   Transaccion,
@@ -320,6 +372,11 @@ export const resetearDemo = definirComando<
     }
     const arranque = await ctx.paso('sembrar_arranque', () =>
       sembrarArranque(ctx.tx, ctx.ambito.organizacionId, sucursalId, semilla),
+    );
+
+    // Y LA CONTRASEÑA DEL MODO PRESENTACIÓN, sin la cual esa pantalla no abre.
+    await ctx.paso('sembrar_contrasena_presentacion', () =>
+      sembrarContrasenaDePresentacion(ctx.tx, ctx.ambito.organizacionId, pimienta),
     );
 
     const empleados = empleos.size;
