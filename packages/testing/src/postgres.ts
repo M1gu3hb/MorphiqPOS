@@ -12,10 +12,13 @@ import { Client } from 'pg';
  *
  * Tres formas de conseguir una base, en este orden:
  *
- *   1. `DATABASE_URL_PRUEBAS` en el entorno. Es lo que usa CI, donde Postgres
- *      viene como servicio del workflow.
- *   2. Un contenedor efimero, si hay Docker. Es lo que se usa en local.
- *   3. Nada. Y entonces **falla con un mensaje claro** (R12).
+ *   1. `DATABASE_URL_PRUEBAS` en el entorno. Es lo que usa CI —donde Postgres
+ *      viene como servicio del workflow— y es tambien la forma local
+ *      recomendada: una RAMA del proyecto de Supabase, que es una base entera,
+ *      aislada y desechable. Para nada de esto hace falta Docker.
+ *   2. Un contenedor efimero, si hay Docker. Comodo cuando ya esta encendido.
+ *   3. Nada. Y entonces **falla con un mensaje claro** (R12), que ahora explica
+ *      la rama de Supabase en vez de pedir Docker.
  *
  * El punto 3 importa mas de lo que parece. Lo facil seria saltarse las pruebas
  * de integracion cuando no hay base, y entonces la suite sale verde sin haber
@@ -96,13 +99,29 @@ async function postgresContesta(url: string, esperaMs: number): Promise<boolean>
   }
 }
 
+/**
+ * Espera a que la base conteste, sea local o REMOTA.
+ *
+ * ── El defecto que esto arregla, y lo que costó ────────────────────────
+ * Sacaba el PUERTO de la URL y luego abría el socket contra `localhost`, siempre.
+ * Con una `DATABASE_URL_PRUEBAS` remota —una base de Supabase, por ejemplo— el
+ * puerto 5432 de esta máquina no tiene a nadie escuchando, así que la espera se
+ * agotaba sin intentar ni una vez el `select 1` que sí habría funcionado, y el
+ * mensaje que salía era «lDATABASE_URL_PRUEBAS apunta a … y ahí no contesta
+ * ningún Postgres»: una acusación falsa contra la base.
+ *
+ * Cuatro reportes seguidos dijeron que estas pruebas necesitaban Docker. No lo
+ * necesitaban: necesitaban que esta función mirara el host de la URL.
+ */
 async function esperarPostgres(url: string, limiteMs = 60_000): Promise<boolean> {
-  const puerto = Number(new URL(url).port || 5432);
+  const destino = new URL(url);
+  const host = destino.hostname;
+  const puerto = Number(destino.port || 5432);
   const inicio = Date.now();
   while (Date.now() - inicio < limiteMs) {
     // El socket primero porque es barato y falla rápido mientras nadie escucha;
     // el `select 1` después, que es el que de verdad dice «lista».
-    if (await aceptaConexiones('localhost', puerto, 1_000)) {
+    if (await aceptaConexiones(host, puerto, 1_000)) {
       if (await postgresContesta(url, 2_000)) return true;
     }
     await new Promise((listo) => setTimeout(listo, 500));
@@ -135,9 +154,22 @@ export async function prepararPostgres(): Promise<string> {
       [
         'No hay base de datos para las pruebas de integracion.',
         '',
-        'Opciones:',
-        '  · Levanta Docker Desktop y vuelve a correr. Se crea un contenedor efimero.',
-        '  · O exporta DATABASE_URL_PRUEBAS apuntando a un Postgres 16 de usar y tirar.',
+        'La forma recomendada, y la que NO necesita Docker: una RAMA del proyecto',
+        'de Supabase, que es una base entera, aislada y desechable.',
+        '',
+        '  supabase branches create pruebas --project-ref <ref-del-proyecto>',
+        '  supabase branches get    pruebas --project-ref <ref-del-proyecto>',
+        '',
+        'De la salida se toma POSTGRES_URL y se le cambia el puerto 6543 por el',
+        '5432 —el de sesion, que es el que admite DDL—. Despues, con esa url:',
+        '',
+        '  DATABASE_URL=<url> pnpm --filter @morphiqpos/data migrate',
+        '  DATABASE_URL_PRUEBAS=<url> DATABASE_URL=<url> pnpm test:integracion',
+        '',
+        'Al terminar: supabase branches delete pruebas --project-ref <ref>.',
+        'Cuesta centavos por hora y se borra entera, que es lo que hace la corrida',
+        'efimera de verdad. Docker sirve si ya esta encendido, pero NO es requisito',
+        'y nunca lo fue: cualquier Postgres 16+ alcanzable vale.',
         '',
         'Estas pruebas NO se saltan cuando falta la base: son la mitad de la piramide',
         'que mas riesgo cubre —transacciones, restricciones unicas y carreras— y una',

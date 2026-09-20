@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -71,6 +71,64 @@ const RESPIRO_MS = 500;
 
 /** El techo del rastreo entero. Son cientos de toques, cada uno con su reposo. */
 const TECHO_MS = 60 * 60 * 1000;
+
+/**
+ * LOS TECHOS DE CADA ACTO · el defecto que se comíó la primera corrida entera.
+ *
+ * Playwright NO pone techo a una acción por omisión: `actionTimeout` y
+ * `navigationTimeout` valen 0, que significa «sin límite». Con el techo del rastreo
+ * en una hora, UN solo clic que espera por un elemento que no aparece se queda
+ * esperando **una hora**, y como el resumen sale al final, la corrida no imprime
+ * ni una línea en todo ese tiempo. Pasó: 35 minutos con 2,2 segundos de CPU
+ * gastados y cero salida, esperando por la entrada de un menú.
+ *
+ * Un rastreador que puede quedarse colgado en silencio no sirve para nada: lo que
+ * encuentra no llega nunca. Cada acto lleva su techo, y agotarlo es un HALLAZGO
+ * —«esto no se pudo tocar»— no un cuelgue.
+ */
+const TECHO_DE_ACCION_MS = 15_000;
+const TECHO_DE_NAVEGACION_MS = 30_000;
+
+/** Y el techo de un `evaluate`, que tampoco lo tiene y también puede colgarse. */
+const TECHO_DE_EVALUACION_MS = 20_000;
+
+/**
+ * Le pone techo a cualquier promesa, porque `page.evaluate` no acepta uno.
+ *
+ * Si se agota, LANZA con lo que se estaba haciendo. Un fallo con nombre se arregla;
+ * un cuelgue sin salida, no.
+ */
+async function conTecho<T>(promesa: Promise<T>, ms: number, queEs: string): Promise<T> {
+  let avisar: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promesa,
+      new Promise<never>((_, rechazar) => {
+        avisar = setTimeout(() => {
+          rechazar(new Error(`se agotaron ${String(ms)} ms en ${queEs}`));
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (avisar !== undefined) clearTimeout(avisar);
+  }
+}
+
+/**
+ * LA BITÁCORA DEL RASTREO, que se escribe MIENTRAS pasa.
+ *
+ * El resumen de una corrida de media hora que sale al final no sirve para saber
+ * si avanza o está colgada. Esto deja una línea por pantalla y por hallazgo en
+ * `test-results/…/rastreo.log`, en cuanto ocurre. `console.log` no es opción —el
+ * lint lo prohíbe, y con razón— pero un archivo sí.
+ */
+function bitacora(destino: string, linea: string): void {
+  try {
+    appendFileSync(destino, `${linea}\n`, 'utf8');
+  } catch {
+    // Una bitácora que no se puede escribir no puede tumbar el rastreo.
+  }
+}
 
 /**
  * Lo que se declara como «toca y no pasa nada, a propósito».
@@ -204,6 +262,13 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
   test('cada toque hace algo, y nada revienta por el camino', async ({ page }) => {
     test.setTimeout(TECHO_MS);
 
+    // Sin esto, una acción sin techo espera lo que dure la prueba entera (una hora).
+    page.setDefaultTimeout(TECHO_DE_ACCION_MS);
+    page.setDefaultNavigationTimeout(TECHO_DE_NAVEGACION_MS);
+
+    const diario = test.info().outputPath('rastreo.log');
+    bitacora(diario, `rastreo de ${process.env['MORPHIQPOS_ORG_DEMO'] ?? '(sin org)'}`);
+
     const declarados = leerDeclarados();
     const exigirSinFallos = vigilarFallos(page);
 
@@ -272,15 +337,36 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
       // ── 1 · SE ABRE POR EL MENÚ ─────────────────────────────────────────
       // Tocando su entrada, no tecleando la URL: un enlace de menú que no navega es
       // un botón muerto como cualquier otro, y así se caza.
-      const menuDeLaVuelta = await menuLateral(page);
-      await menuDeLaVuelta
-        .getByRole('link', { name: entrada.etiqueta, exact: true })
-        .first()
-        .click();
-      await page.waitForURL((url) => url.pathname === entrada.ruta, { timeout: 20_000 });
-      await page.waitForLoadState('domcontentloaded');
+      bitacora(diario, `→ ${entrada.ruta} «${entrada.etiqueta}»`);
+      try {
+        const menuDeLaVuelta = await menuLateral(page);
+        await menuDeLaVuelta
+          .getByRole('link', { name: entrada.etiqueta, exact: true })
+          .first()
+          .click({ timeout: TECHO_DE_ACCION_MS });
+        await page.waitForURL((url) => url.pathname === entrada.ruta, { timeout: 20_000 });
+        await page.waitForLoadState('domcontentloaded');
+      } catch (fallo) {
+        // Una entrada de menú que no lleva a su pantalla es un botón muerto de los
+        // gordos: es la única forma de llegar ahí. Se anota y se sigue con la
+        // siguiente, en vez de dejar el rastreo colgado esperando por ella.
+        const razon = String(fallo).split('\n')[0] ?? '';
+        muertos.push({
+          ruta: entrada.ruta,
+          etiqueta: entrada.etiqueta,
+          camino: 'menú lateral',
+          motivo: `la entrada del menú no abrió su pantalla (${razon})`,
+        });
+        bitacora(diario, `   ¡MUERTA! la entrada del menú no abrió: ${razon}`);
+        continue;
+      }
 
-      const inventario = await enumerar(page);
+      const inventario = await conTecho(
+        enumerar(page),
+        TECHO_DE_EVALUACION_MS,
+        `enumerar ${entrada.ruta}`,
+      );
+      bitacora(diario, `   ${String(inventario.length)} pieza(s) interactiva(s)`);
 
       for (const pieza of inventario) {
         if (pieza.deshabilitado || !pieza.visible) continue;
@@ -297,7 +383,18 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         // localizador de abajo espera por el elemento, que es esperar por una
         // condición en vez de por la carga entera de una página con veinte
         // consultas. Contra un despliegue real son segundos por toque.
-        await page.goto(entrada.ruta, { waitUntil: 'commit' });
+        try {
+          await page.goto(entrada.ruta, { waitUntil: 'commit' });
+        } catch (fallo) {
+          muertos.push({
+            ruta: entrada.ruta,
+            etiqueta: pieza.etiqueta,
+            camino: pieza.camino,
+            motivo: `la pantalla no volvió a abrir (${String(fallo).split('\n')[0] ?? ''})`,
+          });
+          bitacora(diario, `   ¡la pantalla no volvió a abrir! ${entrada.ruta}`);
+          continue;
+        }
 
         const suyo = page.locator(pieza.camino);
         if ((await suyo.count()) !== 1) {
@@ -314,7 +411,7 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         }
         if (!(await suyo.isVisible()) || !(await suyo.isEnabled())) continue;
 
-        const antes = await huella(page);
+        const antes = await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella inicial');
         const urlAntes = page.url();
         const dialogosAntes = dialogosNativos;
         const pestanasAntes = pestanasAbiertas;
@@ -346,7 +443,12 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
           page.url() !== urlAntes ||
           dialogosNativos > dialogosAntes ||
           pestanasAbiertas > pestanasAntes;
-        if (hizoAlgoVisible || (await huella(page)) !== antes) continue;
+        if (
+          hizoAlgoVisible ||
+          (await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella tras el toque')) !== antes
+        ) {
+          continue;
+        }
 
         /**
          * NO PASÓ NADA. Antes de acusar, se comprueba que la pantalla estuviera quieta.
@@ -358,7 +460,11 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
          * muestra sólo se paga cuando hay una acusación que hacer.
          */
         await page.waitForTimeout(RESPIRO_MS);
-        if ((await huella(page)) !== antes) continue;
+        if (
+          (await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'segunda huella')) !== antes
+        ) {
+          continue;
+        }
 
         const clave = `${entrada.ruta} «${pieza.etiqueta}»`;
         if (declarados.has(clave)) {
@@ -371,6 +477,7 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
           camino: pieza.camino,
           motivo: 'ni petición, ni URL, ni DOM',
         });
+        bitacora(diario, `   ¡MUERTO! «${pieza.etiqueta}» ${pieza.camino}`);
       }
     }
 
@@ -382,6 +489,9 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
       `${String(inalcanzables.length)} que no reaparecen · ${String(externos.length)} enlace(s) ` +
       `fuera de la aplicación · ${String(declaradosUsados.size)} declarado(s) sin efecto`;
     test.info().annotations.push({ type: 'rastreo', description: resumen });
+    bitacora(diario, `— ${resumen}`);
+    for (const m of muertos) bitacora(diario, `MUERTO ${m.ruta} «${m.etiqueta}» · ${m.motivo}`);
+    for (const c of new Set(enLaConsola)) bitacora(diario, `CONSOLA ${c}`);
     if (externos.length > 0) {
       test.info().annotations.push({ type: 'rastreo-fuera', description: externos.join(' | ') });
     }
