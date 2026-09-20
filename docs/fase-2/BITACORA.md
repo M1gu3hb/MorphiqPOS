@@ -3001,3 +3001,105 @@ no acaba sirviendo una demostración en vez de su restaurante. Eso no se apuesta
 El 31 —test:integracion— se detiene: esta máquina no tiene Docker ni DATABASE_URL_PRUEBAS.
 EN CI corre en cada empujón: 5 archivos, 10 pruebas, con las 99 migraciones aplicadas.
 ```
+
+## 2026-09-19 · FASE 2.3 · BLOQUE 1 · el mapa de mesas abre mesas, y la ferretería COBRA
+
+Cuatro huecos cerrados de punta a punta, los tres primeros comprobados en un navegador contra la
+base real. No hay lista de «lo que no hice» en esta entrada a propósito: lo que se podía construir
+se construyó.
+
+### T-38 · el mapa de mesas era una imagen
+
+`app/(modelos)/restaurante/mapa-de-mesas/page.tsx` montaba `<MapaDeMesas />` **sin `onAbrirMesa`**.
+El componente acepta el callback y lo dispara al tocar una mesa, así que el plano pintaba las doce
+mesas con sus ocho estados y tocarlas no hacía nada: la pantalla donde un restaurante empieza todas
+sus ventas no llevaba a ninguna parte.
+
+Ahora tocar una mesa navega a `/restaurante/mesa-activa?mesa=<id>`. Y ahí había un segundo hueco que
+las «tres líneas» no cubrían: esa pantalla daba por hecho que la mesa **ya venía abierta**, así que
+una mesa libre seguía sin poder abrirse por la interfaz. `MesaActiva.tsx` pregunta ahora para cuántas
+personas —con −/+ y nombre accesible— y llama a `/api/restaurante/abrir-mesa`, que existía y no tenía
+quién lo llamara. La decisión de cuántas personas vive en la mesa y no en el plano porque es el primer
+dato de la comanda, no una propiedad del mapa.
+
+### T-15 · el índice del mostrador de una ferretería no existía
+
+`ferreteria/Mostrador.tsx` y `ferreteria/Cotizacion.tsx` se hidratan de la entidad
+`MaterialMostrador`, y esa entidad **no estaba en el mapa del puente**: contestaba
+`PUENTE_ENTIDAD_DESCONOCIDA`, las dos pantallas se comían el error y se quedaban sin un solo
+material. Sin índice no hay resultados, sin resultados no hay partidas, y «Mandar a caja» no se
+encendía nunca.
+
+Migración **168**, vista `materiales_mostrador`: precio y existencia EN VIVO —cambian con cada venta,
+así que servirlos desde la materializada `busqueda_material` sería decirle al cliente que hay seis
+tramos de tubo cuando quedan dos— y los tres atributos de display con su `valor_original`, que es lo
+que el mostradorista lee en voz alta: `1/4"`, no `6350`. La materializada se queda para lo que sí es
+estable: el texto con el que se busca.
+
+### T-16 · tres fallos en fila, y la caja no había cobrado nunca
+
+1. «Mandar a caja» publicaba en `/api/venta/nota-mostrador`, que sirve a `apartarNota` —«déjamelo
+   apartado», F-140, otra función— y pide `{notaId, apartaHasta}` mientras la pantalla mandaba
+   `{clienteId, partidas}`. **La nota no se creaba.**
+2. La caja listaba el estado `pendiente_cobro`, que **no existe en el `check` de `ordenes.estado`**:
+   su lista de pendientes no podía tener una fila nunca. Y los otros once campos que lee
+   —`codigo_caja`, `atendio`, `vence`, `saldo_cliente`…— tampoco estaban en la entidad `Venta`.
+3. Publicaba en `/api/venta/cobrar` un cuerpo que ese comando rechaza: `{ventaId, metodo}` donde pide
+   `{ordenId, pagos:[{metodo, montoCentavos}]}`.
+
+Lo decidido, y por qué:
+
+- **Comando nuevo `ferreteria.crear_nota_mostrador`**, no el carrito. `venta.crear_orden` tiene
+  idempotencia por TERMINAL y un índice único parcial que permite un borrador por terminal: con el
+  carrito, la segunda nota del día se pegaría a la primera y los tres bultos de cemento de la señora
+  que acaba de entrar entrarían en la nota de Don Julián. La nota nace `confirmada` —que ya significa
+  «cerrada y en camino» y está en `ESTADOS_COBRABLES`— y crea además su fila en `notas_mostrador`,
+  la tabla de F-140 **en la que ningún comando insertaba**: `apartar` y `entregar` recibían un
+  `notaId` que no había forma de crear.
+- **Migraciones 169 y 170**, vista `notas_de_caja` con la entidad `NotaDeCaja`. El estado de la caja
+  se calcula de los dos reales: el de la orden dice si entró el dinero, el de la nota si salió el
+  material. La segunda lista se llama `por_entregar` y no «pagadas» porque su pregunta no es «¿ya
+  pagaron?» sino «¿esto ya salió?» — y una venta a crédito **no se cobra**: se firma la remisión y el
+  material sale. Con la 169 esas notas se quedaban pendientes de cobro para siempre.
+- **«A cuenta» no es un método de pago.** `venta.cobrar` acepta efectivo, tarjeta y transferencia, y
+  hace bien: a cuenta no entra dinero. La caja llama a `credito.registrar_remision`, que sube el
+  saldo, toma folio de remisión y sella quién firmó. El botón se apaga —con su explicación escrita—
+  cuando la nota es de mostrador y no hay ficha a la que fiarle.
+- **La transferencia por confirmar era otra cosa.** La caja llamaba a
+  `credito.confirmar_transferencia` con `{ventaId}`; ese comando pide `{pagoId}` sobre
+  `pagos_credito`, que es el pago de un cliente a su cuenta. Se le dio su ruta
+  —`/api/credito/transferencias-pendientes`, que no existía— y ahora el teléfono enseña las de verdad,
+  con las horas que llevan esperando.
+- **El total se escribe al armar la nota.** Medido: la caja enseñaba `$0.00`. `ordenes.total_centavos`
+  sólo lo escribe `marcarPagada`, al cobrar. Una nota de mostrador la lee OTRA persona en OTRA
+  pantalla, así que el comando cotiza con `cotizar` —la misma cuenta que hará el cobro, impuesto
+  incluido— y anota subtotal, descuento, impuestos y total. Costo, utilidad y margen no: ésos son la
+  instantánea de la venta cerrada, y escribirlos aquí declararía la utilidad de algo que aún puede
+  cancelarse.
+
+### T-18 · la quinta suite cobra
+
+Donde había una sonda que declaraba el hueco —«esta suite no cobra, y aquí está por qué»— hay ahora el
+recorrido de dos pantallas que es una ferretería: se abre la caja de esta terminal, se busca el
+material en el índice, se toca el resultado, se manda la nota a caja **con su folio a la vista** —es
+lo único que el cliente se lleva del pasillo—, el cajero la encuentra por ese folio, cobra en
+efectivo, la nota pasa a «Cerradas, sin entregar» y el corte cuadra al centavo contra el servidor.
+
+```
+[escritorio] ferreteria.spec.ts · 1 passed (26.1s)
+Nota N-1 · Apagador sencillo blanco · $39.00 · fondo $1,500.00 + venta = corte sin diferencia
+```
+
+Y un detalle que cuesta una vuelta a quien venga detrás: la semilla **deja la caja cerrada a
+propósito** (`demostracion/arranque.ts`), pero una corrida que falla a mitad deja la suya abierta, y
+`sesiones_caja_una_abierta_por_sucursal` permite una por sucursal. Si `abrirCajaPorLaRuta` contesta
+422 `CAJA_YA_ABIERTA`, no es la semilla: es la corrida anterior. Se limpia con
+`node --conditions=react-server scripts/sembrar-demos.mjs --solo demo-acople-ferreteria`.
+
+### EN QUÉ IBA
+
+Bloque 1, siguiente: **T-17** —el corte de material publica en `/api/ferreteria/cortar`, que no
+existe; el comando que sí existe, `inventario.cortar_material`, pide `ordenLineaId`, `almacenId` y
+medidas en unidad base, que esa pantalla no tiene—. Después T-07 y T-37 (estética: iniciar y cerrar
+servicio alcanzables, y la agenda con `Cita`/`HuecoDisponible` en el puente), T-08/T-24
+(`/api/cliente/crear`) y T-09 (el material del salón cobrado, `salon/cobro.ts:442`).

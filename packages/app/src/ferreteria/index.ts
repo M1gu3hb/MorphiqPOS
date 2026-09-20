@@ -20,6 +20,12 @@ export {
 export { cortarMaterial, entradaCortarMaterial, type ResultadoCorte } from './corte.ts';
 
 export {
+  crearNotaMostrador,
+  entradaCrearNotaMostrador,
+  type ResultadoNotaMostrador,
+} from './nota-de-mostrador.ts';
+
+export {
   entradaEvaluarSalida,
   entradaRegistrarRemision,
   evaluarSalida,

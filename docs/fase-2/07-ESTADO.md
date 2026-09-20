@@ -220,6 +220,32 @@ necesitando Docker o `DATABASE_URL_PRUEBAS`.
 
 ---
 
+## FASE 2.3 · SEGUNDA VUELTA · los 45 huecos (19-09-2026)
+
+Lo grande estaba hecho —99 migraciones, 162 relaciones con RLS, cinco plantillas, cinco demos, el CI
+verde— y lo que quedaba eran huecos: pantallas que abren y no hacen, rutas que el frontend llama y no
+existen, y una suite que no cobraba. **45 tareas en cinco bloques.** Esta tabla se actualiza al cerrar
+cada bloque; el detalle de cada decisión está en la bitácora del día.
+
+| Bloque | Qué | Estado |
+|---|---|---|
+| **1** | Que los cinco modelos hagan su trabajo | 🟨 **en progreso** · T-38, T-15, T-16 y T-18 ✅ |
+| **2** | Las 18 rutas que el frontend llama y no existen | ⬜ |
+| **3** | Que las pruebas miren el CONTENIDO, no el 200 | ⬜ |
+| **4** | Tableros y vocabulario | ⬜ |
+| **5** | Producción y la cadena entera | ⬜ |
+
+### Bloque 1 · lo cerrado, con su comprobación
+
+| Tarea | Qué era | Qué quedó |
+|---|---|---|
+| **T-38** | El mapa de mesas pintaba doce mesas y tocarlas no hacía nada: la página montaba `<MapaDeMesas />` sin `onAbrirMesa` | Tocar una mesa lleva a la mesa. Y `MesaActiva` **abre** una mesa libre —pregunta para cuántas personas y llama a `/api/restaurante/abrir-mesa`, que no tenía quién lo llamara—, porque sin eso una mesa libre seguía sin poder abrirse por la interfaz |
+| **T-15** | `MaterialMostrador` no existía en el puente: el mostrador de una ferretería se quedaba sin un solo material | Migración **168**, vista `materiales_mostrador` con precio y existencia EN VIVO y los atributos con su valor original (`1/4"`, no `6350`) |
+| **T-16** | Tres fallos en fila: la nota no se creaba, la caja listaba un estado inexistente y el cobro mandaba un cuerpo que el comando rechaza. **La caja de una ferretería no había cobrado nunca** | Comando `ferreteria.crear_nota_mostrador` —que crea también su fila en `notas_mostrador`, la tabla de F-140 en la que nadie insertaba—, migraciones **169** y **170** con la vista `notas_de_caja`, «A cuenta» por `credito.registrar_remision` y la transferencia por confirmar con su ruta propia |
+| **T-18** | La suite de ferretería no cobraba, y lo declaraba con una sonda | Cobra: nota armada en el pasillo con su folio a la vista, cobrada en la caja por su folio, y el corte cuadrado al centavo contra el servidor. `1 passed (26.1s)` |
+
+---
+
 ## LOS 78 MODELOS
 
 Prioridad: **P0** = los tres que ya tienen cliente vivo · **P1** = alto rendimiento comercial · **P2** = resto.

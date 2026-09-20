@@ -1,17 +1,65 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import {
+  abrirCajaPorLaRuta,
   abrirPantalla,
   accionesDelTablero,
   cambiarDePlantilla,
-  cabecerasDeEscrituraDePrueba,
+  cerrarCajaYCuadrar,
+  consultarPuente,
   entrar,
   exigirDemostracion,
   exigirGiro,
+  exigirVentaCobrada,
   exigirVocabulario,
   menuLateral,
+  totalEnPantalla,
+  ventasDeAntes,
   vigilarFallos,
 } from './ayudantes/sesion.ts';
+
+/** El fondo con el que esta prueba abre la caja del mostrador. */
+const FONDO_CENTAVOS = 150_000;
+
+/** Lo que el índice del mostrador sirve de cada material. */
+interface MaterialDelPuente {
+  readonly id?: string;
+  readonly nombre?: string;
+  readonly precioCentavos?: number;
+  readonly existencia?: number;
+}
+
+/** Un nombre del catálogo, usable dentro de una expresión regular. */
+function comoTexto(texto: string): string {
+  return texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * LA VENTA QUE SE ESTÁ ARMANDO, desplegada en los dos tamaños.
+ *
+ * `Mostrador.tsx` la deja `hidden xl:block` y por debajo de 1280 px la pliega en
+ * una barra que la abre. Los dos proyectos de esta suite caen a los dos lados de
+ * esa raya —Desktop Chrome arriba, la Galaxy Tab S4 en horizontal a 1138 px
+ * abajo—, y en el pasillo eso es correcto: el mostradorista necesita la pantalla
+ * entera para buscar.
+ *
+ * Y ojo con un detalle que costó una vuelta: con `display: none` el `aside` sale
+ * del árbol de accesibilidad y deja de tener ROL, así que ni `toBeAttached` lo
+ * encuentra por `getByRole`. Debajo de `xl` se busca la barra y se comprueba que
+ * ABRE, que es lo que de verdad hace falta para vender desde una tablet.
+ */
+async function abrirLaVenta(page: Page): Promise<Locator> {
+  const laVenta = page.getByRole('complementary', { name: 'La venta' });
+  if ((page.viewportSize()?.width ?? 0) >= 1280) {
+    await expect(laVenta).toBeVisible();
+    return laVenta;
+  }
+  const barra = page.getByRole('button', { name: /partidas/ });
+  await expect(barra).toBeVisible();
+  await barra.click();
+  await expect(laVenta).toBeVisible();
+  return laVenta;
+}
 
 /**
  * Modelo 4 de 5 · FERRETERÍA Y TLAPALERÍA · giro `ferreteria`, plantilla `tienda`.
@@ -152,71 +200,141 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // `complementary`, no `region`: la venta que se arma vive en un `aside`, y ése es
     // su rol implícito. Escrito como `region` la prueba no encontraba NADA, y el rastro
     // mandaba a mirar una pantalla que estaba bien.
-    // Pero no siempre desplegada: `Mostrador.tsx` la deja `hidden xl:block` y por
-    // debajo de 1280 px la pliega en una barra que la abre. Los dos proyectos de esta
-    // suite caen a los dos lados de esa raya —Desktop Chrome arriba, la Galaxy Tab S4
-    // en horizontal a 1138 px abajo—, así que exigir «desplegada» en los dos ponía en
-    // rojo la tablet por un diseño que es correcto: en el pasillo, el mostradorista
-    // necesita la pantalla entera para buscar.
-    //
-    // Y ojo con un detalle que costó una vuelta: con `display: none` el `aside` sale
-    // del árbol de accesibilidad y deja de tener ROL, así que ni siquiera
-    // `toBeAttached` lo encuentra por `getByRole`. Debajo de `xl` no se busca el
-    // panel: se busca la barra, y se comprueba que ABRE, que es lo que de verdad
-    // hace falta para cobrar desde una tablet.
-    const laVenta = page.getByRole('complementary', { name: 'La venta' });
-    const ancho = page.viewportSize()?.width ?? 0;
+    await abrirLaVenta(page);
 
-    if (ancho >= 1280) {
-      await expect(laVenta).toBeVisible();
-    } else {
-      const barra = page.getByRole('button', { name: /partidas/ });
-      await expect(barra).toBeVisible();
-      await barra.click();
-      await expect(laVenta).toBeVisible();
-    }
+    // ── 5 · SE ARMA LA NOTA EN EL PASILLO Y SE COBRA EN LA CAJA ───────────
+    //
+    // Hasta el 19-09-2026 esta suite NO cobraba, y aquí había un comentario de
+    // treinta líneas explicando por qué: el índice del mostrador no existía en el
+    // puente, «Mandar a caja» publicaba en la ruta de otra función y el estado que
+    // la caja listaba no lo escribía ningún comando. Las tres cosas están hechas
+    // —migraciones 168/169/170, `MaterialMostrador`, `NotaDeCaja`,
+    // `ferreteria.crear_nota_mostrador`— y lo que iba ahí es esto: el recorrido
+    // de dos pantallas que es una ferretería, cobrado y cuadrado.
+    //
+    // Los ids de antes se guardan ANTES de armar la nota: la nota crea su orden
+    // con su total desde el primer renglón, así que «hay una venta nueva» se
+    // cumpliría con la nota sin cobrar. Lo que se exige después es esa venta CON
+    // FOLIO, y el folio se toma en la misma transacción que el pago.
+    const idsDeAntes = await ventasDeAntes(page);
 
-    // ── 5 · POR QUÉ ESTA SUITE NO COBRA, DICHO CON NOMBRES ────────────────
-    //
-    // Las otras cuatro cobran una venta y comprueban que el dinero cuadra. Ésta
-    // no puede, y no por falta de ganas: el recorrido de una ferretería son dos
-    // pantallas —el mostradorista arma la nota en el pasillo, el cajero la
-    // cobra— y **debajo no hay nada de eso construido**. Tres cosas, medidas:
-    //
-    // 1 · El buscador del mostrador se hidrata de la entidad `MaterialMostrador`
-    //     del puente. Esa entidad NO EXISTE: el puente contesta
-    //     `PUENTE_ENTIDAD_DESCONOCIDA`, la pantalla se come el error y se queda
-    //     en su «punto de partida». Sin índice no hay resultados, sin resultados
-    //     no hay partidas, y «Mandar a caja» no se enciende nunca. La vista
-    //     materializada `busqueda_material` SÍ tiene los 25 materiales de esta
-    //     demo: lo que falta es el mapeo en `packages/app/src/puente/mapa.ts`.
-    // 2 · «Mandar a caja» publica en `/api/venta/nota-mostrador`, que existe pero
-    //     sirve a `apartarNota` —«déjamelo apartado», F-140— y pide
-    //     `{notaId, apartaHasta}`. La pantalla manda `{clienteId, partidas}`. Ni
-    //     con índice habría nota: responde «Hay datos incompletos o mal escritos».
-    // 3 · El estado `pendiente_cobro` que la caja lista existe **sólo en el
-    //     archivo de esa pantalla**. Ningún comando lo escribe.
-    //
-    // Y el corte de material —lo que distingue a una ferretería— publica en
-    // `/api/ferreteria/cortar`, una ruta que no existe; el comando que sí existe,
-    // `inventario.cortar_material`, pide otra cosa (`ordenLineaId`, `almacenId`,
-    // medidas en unidad base) que esa pantalla no tiene.
-    //
-    // ── Y ESTO ES UN CONTRATO, no un comentario ──────────────────────────
-    // La sonda de abajo falla el día que el índice del mostrador exista. Ese día
-    // hay que venir aquí y hacer que esta suite COBRE, como las otras cuatro, en
-    // vez de dejar el hueco documentado para siempre.
-    const sonda = await page.request.post('/api/datos/consultar', {
-      headers: cabecerasDeEscrituraDePrueba(),
-      data: { entidad: 'MaterialMostrador', operacion: 'list', limite: 1 },
+    // La caja de ESTA terminal, por la ruta: este modelo no tiene pantalla de
+    // apertura propia —su `/ferreteria/caja` cobra, y la apertura con
+    // denominaciones vive en la heredada— y teclear un diálogo de la plataforma
+    // anterior no prueba nada del acople. Se usa la MISMA ruta que usa el botón,
+    // con las mismas cabeceras: se salta el diálogo, no la autorización.
+    await abrirCajaPorLaRuta(page, FONDO_CENTAVOS);
+
+    // El material sale del ÍNDICE, no de un nombre escrito aquí: la pantalla lee
+    // `MaterialMostrador` y esto lee lo mismo, así que si mañana la semilla cambia
+    // los nombres la prueba sigue valiendo.
+    const materiales = await consultarPuente<MaterialDelPuente>(page, 'MaterialMostrador', {
+      limite: 60,
     });
+    // Con existencia, porque el cobro la BAJA: en una ferreteria el producto es su
+    // propio insumo y `venta.cobrar` descuenta el ledger antes de tomar el folio.
+    const conPrecio = materiales.find(
+      (m) => (m.nombre ?? '') !== '' && (m.precioCentavos ?? 0) > 0 && (m.existencia ?? 0) > 1,
+    );
     expect(
-      sonda.status(),
-      'El puente YA sirve `MaterialMostrador`. Entonces el mostrador puede buscar: quita esta ' +
-        'sonda y haz que esta suite arme la nota y la cobre, como las otras cuatro. Si además ' +
-        'ya funcionan `/api/venta/nota-mostrador` con partidas y el corte de material, esta ' +
-        'suite tiene que probar el recorrido entero.',
-    ).not.toBe(200);
+      conPrecio,
+      'La demo de ferretería no tiene ningún material con nombre y precio en el índice del ' +
+        'mostrador, así que no hay nada que vender. Siémbrala otra vez: ' +
+        '`pnpm db:seed --org demo-acople-ferreteria`.',
+    ).toBeDefined();
+    const material = conPrecio!;
+    const nombre = material.nombre ?? '';
+
+    await abrirPantalla(page, '/ferreteria/mostrador');
+    const laVenta = await abrirLaVenta(page);
+
+    // Se busca como busca el mostradorista: una palabra. El filtro es progresivo
+    // —cada palabra estrecha— y mira nombre, medida, acabado, marca y línea.
+    const primeraPalabra = nombre.split(' ')[0] ?? nombre;
+    await page.locator('#buscador').fill(primeraPalabra);
+
+    // El resultado es un `button` con el material entero en su nombre accesible:
+    // medida, precio, existencia y ubicación. Se toca, como en el pasillo.
+    const fila = page.getByRole('button', { name: new RegExp(comoTexto(nombre)) }).first();
+    await expect(
+      fila,
+      `El índice del mostrador no encontró «${nombre}» buscando «${primeraPalabra}», y el ` +
+        'puente sí lo sirve. Sin resultados no hay partidas, y sin partidas «Mandar a caja» ' +
+        'no se enciende: una ferretería no puede vender nada por su pantalla.',
+    ).toBeVisible();
+    await fila.click();
+
+    // La partida está en la venta que se arma, con su nombre.
+    await expect(laVenta.getByText(nombre, { exact: false }).first()).toBeVisible();
+
+    // MANDAR A CAJA · el mostradorista suelta la nota y le canta el folio al
+    // cliente, que es lo único que se lleva del pasillo.
+    await laVenta.getByRole('button', { name: /Mandar a caja/ }).click();
+    const aviso = page.getByRole('status');
+    await expect(
+      aviso,
+      'La nota no llegó a la caja. `ferreteria.crear_nota_mostrador` crea la orden, sus ' +
+        'partidas y la fila de `notas_mostrador` con su folio; si esto no aparece, la pantalla ' +
+        'publicó en otra ruta o el comando la rechazó.',
+    ).toContainText(/está en la caja/, { timeout: 30_000 });
+    const folioNota = /N-\d+/.exec(await aviso.innerText())?.[0] ?? '';
+    expect(
+      folioNota,
+      'La nota se mandó sin folio visible. El folio es el número que el cliente dice en la ' +
+        'caja: sin enseñarlo, la nota llega y nadie sabe pedirla.',
+    ).not.toBe('');
+
+    // ── LA CAJA · la otra persona, la otra pantalla ───────────────────────
+    await abrirPantalla(page, '/ferreteria/caja');
+
+    // La nota está en la lista de pendientes, por su folio. Ésta es la fila que
+    // hasta hoy no podía existir: la pantalla filtraba por `pendiente_cobro`, un
+    // estado que no está en el `check` de `ordenes.estado`.
+    // El folio, sin que «N-1» case con «N-10»: la caja de un día tiene las dos.
+    const folioExacto = new RegExp(comoTexto(folioNota) + '(?![0-9])');
+    const enLaLista = page.getByRole('button', { name: folioExacto }).first();
+    await expect(
+      enLaLista,
+      `La nota ${folioNota} no aparece en las pendientes de la caja. La vista ` +
+        '`notas_de_caja` la sirve como `por_cobrar` mientras la orden siga cobrable y la nota ' +
+        'sin entregar.',
+    ).toBeVisible({ timeout: 30_000 });
+    await enLaLista.click();
+
+    // EL TOTAL QUE DICE LA CAJA. Es el número que se dice en voz alta, y es
+    // contra éste contra el que se compara lo que quedó en la base.
+    const totalCentavos = await totalEnPantalla(page);
+    expect(
+      totalCentavos,
+      `El total de la caja no es el precio del material. Precio: ` +
+        `${String(material.precioCentavos ?? 0)} centavos; total: ${String(totalCentavos)}. Una ` +
+        'pieza de un material cuesta lo que cuesta.',
+    ).toBe(material.precioCentavos ?? 0);
+
+    // COBRAR EN EFECTIVO · un método por nota, que es como sella esta pantalla.
+    await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
+
+    // La nota deja las pendientes y pasa a «Cerradas, sin entregar»: cerrada para
+    // la caja, con el material todavía en el patio. Esa lista es lo que evita
+    // entregar dos veces lo mismo, y por eso no se puede plegar.
+    const anden = page.getByRole('region', { name: 'Cerradas, sin entregar' });
+    await expect(
+      anden.getByText(folioExacto),
+      `Se cobró la nota ${folioNota} y no apareció en «Cerradas, sin entregar». O el cobro no ` +
+        'entró, o la vista no vio el pago: las dos cosas acaban en material entregado dos veces.',
+    ).toBeVisible({ timeout: 45_000 });
+
+    // ── Y AQUÍ SE COMPRUEBA QUE EL DINERO CUADRÓ ──────────────────────────
+    // Contra el SERVIDOR, no contra la pantalla: la lista se mueve igual si el
+    // comando falla y alguien se come el error.
+    await exigirVentaCobrada(page, totalCentavos, idsDeAntes);
+
+    // ── 6 · EL CORTE · el fondo más la venta, al centavo ──────────────────
+    //
+    // Y cerrar es lo que hace REPETIBLE la corrida: la base permite UNA sesión
+    // abierta por sucursal, y cada navegador nuevo trae su propia terminal, así
+    // que una caja que se queda abierta bloquea la corrida siguiente entera.
+    await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + totalCentavos);
 
     exigirSinFallos();
   });

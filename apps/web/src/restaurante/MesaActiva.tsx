@@ -70,6 +70,14 @@ export interface LineaEnviada {
   readonly total: number;
 }
 export interface MesaAbierta {
+  /**
+   * El identificador de la mesa, que hace falta para ABRIRLA.
+   *
+   * No estaba: esta pantalla sólo leía la mesa ya abierta y le bastaba con su
+   * número. Para abrir una libre hay que decirle al comando CUÁL, y el `id` es
+   * lo que el mapa pasa en la dirección y lo que el puente sirve.
+   */
+  readonly id: string;
   readonly numero: number;
   readonly estado: string;
   readonly personas_actuales: number | null;
@@ -106,6 +114,9 @@ export function MesaActiva(props: MesaActivaProps) {
   const [enviando, setEnviando] = useState(false);
   const [falloEnvio, setFalloEnvio] = useState(false);
   const [hoja, setHoja] = useState(false);
+  /** Para cuántas personas se abre. Dos es la mesa más común de un comedor. */
+  const [personasAlAbrir, setPersonasAlAbrir] = useState(2);
+  const [abriendo, setAbriendo] = useState(false);
   /**
    * F-324 · La línea que se está anulando, o `null`. Es un identificador y no
    * un booleano: dos líneas distintas no pueden compartir el mismo diálogo, y
@@ -191,6 +202,43 @@ export function MesaActiva(props: MesaActivaProps) {
       return Object.fromEntries(Object.entries(siguiente).filter(([, n]) => n > 0));
     });
   };
+
+  /**
+   * ABRIR LA MESA, cuando se llega a una que está libre.
+   *
+   * ── Por qué vive aquí y no en el mapa ──────────────────────────────────
+   * Porque «¿cuántas personas?» es el PRIMER DATO DE LA COMANDA, no una
+   * propiedad del plano: decide el reparto de la cuenta, el tiempo de servicio y
+   * hasta el tamaño de la jarra. El mapa lleva a la mesa; la mesa se abre donde
+   * se va a levantar el pedido, con el mesero ya mirando el catálogo.
+   *
+   * Y hace falta porque hasta hoy **no había ninguna forma de abrir una mesa
+   * desde la interfaz**: `/api/restaurante/abrir-mesa` existía, el mapa no
+   * pasaba su callback y esta pantalla daba por hecho que la mesa ya venía
+   * abierta. El restaurante entero empezaba por una puerta que no existía.
+   */
+  async function abrirLaMesa(): Promise<void> {
+    if (mesa?.venta_activa_id != null) return;
+    if (mesa === null) return;
+    setAbriendo(true);
+    setError(null);
+    try {
+      await invocarComando('/api/restaurante/abrir-mesa', {
+        mesaId: mesa.id,
+        personas: personasAlAbrir,
+      });
+      // Se vuelve a leer la mesa en vez de suponer su nuevo estado: la apertura
+      // escribe el estado, la cuenta y la hora, y el encabezado los enseña.
+      const [frescas] = await Promise.all([
+        consultarPuente<MesaAbierta>('Mesa', { filtro: { id: mesa.id }, limite: 1 }),
+      ]);
+      setMesa(frescas[0] ?? mesa);
+    } catch (fallo) {
+      setError(fallo instanceof Error ? fallo.message : 'No se pudo abrir la mesa.');
+    } finally {
+      setAbriendo(false);
+    }
+  }
 
   async function enviarACocina(): Promise<void> {
     const orden = mesa?.venta_activa_id ?? null;
@@ -389,7 +437,64 @@ export function MesaActiva(props: MesaActivaProps) {
           {error} · Se muestra el último dato conocido.
         </p>
       )}
-      <div className="grid gap-4 p-3 xl:grid-cols-[1fr_22rem]">
+      {mesa !== null && mesa.venta_activa_id === null && (
+        /* MESA LIBRE · lo único que se puede hacer aquí es abrirla, así que es lo
+           único que se enseña: el catálogo con una mesa cerrada sería un pedido
+           que no tiene dónde caer. */
+        <section
+          aria-label={`Abrir ${voc.enFrase('unidad_servicio')}`}
+          className="mx-auto mt-6 max-w-md space-y-4 rounded-lg border border-border p-6 text-center"
+        >
+          <p className="text-xl font-semibold">
+            {voc.titulo('unidad_servicio')} {mesa.numero} está libre
+          </p>
+          <p className="text-sm text-muted-foreground">
+            ¿Para cuántas personas? Es el primer dato de {voc.enFrase('orden')}: de ahí salen el
+            reparto y el tiempo de servicio.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              variant="outline"
+              size="lg"
+              aria-label="Una persona menos"
+              disabled={personasAlAbrir <= 1}
+              onClick={() => {
+                setPersonasAlAbrir(Math.max(1, personasAlAbrir - 1));
+              }}
+            >
+              −
+            </Button>
+            <span className="min-w-16 text-3xl font-bold tabular-nums">{personasAlAbrir}</span>
+            <Button
+              variant="outline"
+              size="lg"
+              aria-label="Una persona más"
+              disabled={personasAlAbrir >= 20}
+              onClick={() => {
+                setPersonasAlAbrir(Math.min(20, personasAlAbrir + 1));
+              }}
+            >
+              +
+            </Button>
+          </div>
+          <Button
+            size="lg"
+            className="w-full"
+            disabled={abriendo}
+            onClick={() => {
+              void abrirLaMesa();
+            }}
+          >
+            {abriendo ? 'Abriendo…' : `Abrir ${voc.enFrase('unidad_servicio')}`}
+          </Button>
+        </section>
+      )}
+
+      <div
+        className={`grid gap-4 p-3 xl:grid-cols-[1fr_22rem] ${
+          mesa !== null && mesa.venta_activa_id === null ? 'hidden' : ''
+        }`}
+      >
         <section aria-label={`Catálogo de ${voc.plural('linea_orden')}`}>
           <Input
             ref={refBusqueda}

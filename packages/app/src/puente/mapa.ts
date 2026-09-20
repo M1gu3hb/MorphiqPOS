@@ -1373,6 +1373,142 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  /**
+   * LA CAJA DE UNA FERRETERÍA (F-140).
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * `ferreteria/Caja.tsx` se hidrataba de `Venta` y filtraba por
+   * `estado: 'pendiente_cobro'`, que **no existe en el `check` de
+   * `ordenes.estado`**: su lista de notas pendientes no podía tener una fila
+   * nunca, y la caja enseñaba «La caja está al día» con el mostrador lleno. Los
+   * otros once campos que la pantalla lee tampoco estaban en `Venta`, así que
+   * cada renglón habría salido «—» incluso con el estado arreglado.
+   *
+   * ── Por qué una vista y no más campos en `Venta` ──────────────────────────
+   * Porque lo que la caja lista no son órdenes: son NOTAS DE MOSTRADOR, con su
+   * folio, su caducidad y su propio estado. Y porque «pagada pero sin entregar»
+   * —el descuadre que hace que alguien entregue dos veces el mismo material— no
+   * se puede ver mirando `ordenes`: hace falta `notas_mostrador.entregada_en`.
+   *
+   * ── Y por qué el dinero va en CENTAVOS ───────────────────────────────────
+   * Porque esta pantalla es nueva y cuenta en centavos de punta a punta, como
+   * `MaterialMostrador`. `dinero` divide por cien para el frontend heredado, y
+   * un total dividido dos veces son sesenta pesos en vez de seis mil.
+   */
+  NotaDeCaja: {
+    tabla: 'notas_de_caja',
+    // El cajero cobra y el mostradorista pregunta «¿ya pagaron la mía?». Los dos.
+    rolesLectura: [...CAJA, 'mesero'],
+    escritura: 'comando',
+    ordenPorOmision: '-creada',
+    campos: {
+      // La clave es la ORDEN, no la nota: es lo que `venta.cobrar` recibe y con
+      // lo que `DetalleVenta` filtra las partidas. La nota va aparte, para
+      // `nota_mostrador.entregar`.
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      nota_id: { columna: 'nota_id', conversion: 'texto', escribible: false },
+      codigo_caja: { columna: 'codigo_caja', conversion: 'texto', escribible: false },
+      // `por_cobrar` · `pagada_sin_entregar` · `apartada` · `cancelada`. Lo
+      // calcula la vista de los dos estados reales: el de la orden dice si entró
+      // el dinero, el de la nota si salió el material.
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      cliente_nombre: { columna: 'cliente_nombre', conversion: 'texto', escribible: false },
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      obra: { columna: 'obra', conversion: 'texto', escribible: false },
+      recoge_nombre: { columna: 'recoge_nombre', conversion: 'texto', escribible: false },
+      recoge_autorizado: {
+        columna: 'recoge_autorizado',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      atendio: { columna: 'atendio', conversion: 'texto', escribible: false },
+      creada: { columna: 'creada', conversion: 'fecha', escribible: false },
+      vence: { columna: 'vence', conversion: 'fecha', escribible: false },
+      totalCentavos: { columna: 'total_centavos', conversion: 'entero', escribible: false },
+      // El saldo y el límite se repiten en la caja porque quien cobra es OTRA
+      // persona: la decisión de dar crédito es suya, y el dato tiene que estar
+      // delante de quien decide, no de quien decidió antes.
+      saldoClienteCentavos: {
+        rolesLectura: [...CAJA],
+        columna: 'saldo_cliente_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      limiteClienteCentavos: {
+        rolesLectura: [...CAJA],
+        columna: 'limite_cliente_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+    },
+  },
+
+  /**
+   * EL ÍNDICE DEL MOSTRADOR DE UNA FERRETERÍA (F-150, F-152).
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * `ferreteria/Mostrador.tsx` y `ferreteria/Cotizacion.tsx` se hidratan de aquí,
+   * y **no estaba en el mapa**: el puente contestaba
+   * `PUENTE_ENTIDAD_DESCONOCIDA`, las dos pantallas se comían el error y se
+   * quedaban sin un solo material. Sin índice no hay resultados, sin resultados
+   * no hay partidas, y «Mandar a caja» no se encendía nunca: una ferretería no
+   * podía vender NADA por su pantalla.
+   *
+   * ── Los nombres son LOS DE LA PANTALLA ───────────────────────────────────
+   * `precioCentavos`, `costoCentavos`, `existencia` en camelCase y en CENTAVOS,
+   * porque es lo que `buscar-material.ts` y `Cotizacion.tsx` leen. Por eso la
+   * conversión del dinero es `entero` y no `dinero`: `dinero` divide por cien
+   * para el frontend heredado, y estas dos pantallas son nuevas y cuentan en
+   * centavos. Un precio dividido dos veces son diecinueve pesos en vez de mil
+   * novecientos.
+   *
+   * ── Y el costo va aparte ─────────────────────────────────────────────────
+   * `costoCentavos` sólo lo lee quien ve márgenes. Un mostradorista no tiene por
+   * qué saber lo que el negocio paga, y la cotización que lo usa la hace quien
+   * decide el precio.
+   */
+  MaterialMostrador: {
+    tabla: 'materiales_mostrador',
+    // La lee quien vende en el pasillo y quien cotiza. Es el catálogo con su
+    // ubicación: esconderlo del cajero lo deja sin usuario (igual que `Ubicacion`).
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'lectura',
+    ordenPorOmision: 'nombre',
+    campos: {
+      // La clave es el PRODUCTO: la vista no tiene `id` propio, y el
+      // identificador que las partidas y el corte usan es el del producto.
+      id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      sku: { columna: 'sku', conversion: 'texto', escribible: false },
+      codigo_barras: { columna: 'codigo_barras', conversion: 'texto', escribible: false },
+      // Los tres de display, con su valor ORIGINAL: el mostradorista teclea
+      // `1/4` y espera leer `1/4"`, no `6350`.
+      medida: { columna: 'medida', conversion: 'texto', escribible: false },
+      acabado: { columna: 'acabado', conversion: 'texto', escribible: false },
+      marca: { columna: 'marca', conversion: 'texto', escribible: false },
+      linea: { columna: 'linea', conversion: 'texto', escribible: false },
+      // F-152: sin la ubicación, el resultado de la búsqueda no termina la venta
+      // —el mostradorista sabe que lo hay y no dónde está—.
+      ubicacion: { columna: 'ubicacion', conversion: 'texto', escribible: false },
+      unidad: { columna: 'unidad_venta', conversion: 'texto', escribible: false },
+      precioCentavos: {
+        columna: 'precio_venta_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      costoCentavos: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'costo_unitario_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      // La existencia es la proyección del ledger, EN VIVO: la vista la lee de
+      // `existencias_por_insumo` en cada consulta y no de una materializada, que
+      // diría que hay seis tramos de tubo cuando quedan dos.
+      existencia: { columna: 'existencia', conversion: 'decimal', escribible: false },
+    },
+  },
+
   PiezaAbierta: {
     tabla: 'piezas_abiertas',
     rolesLectura: [...TODOS_LOS_ROLES],

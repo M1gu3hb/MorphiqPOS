@@ -43,6 +43,26 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * están en el mostrador. Lo único que se hace desde fuera es confirmar una
  * transferencia contra el banco, y eso es lo único que el teléfono trae.
  *
+ * ── Los tres fallos que tenía esta pantalla, y qué se hizo ───────────────
+ * 1. Filtraba por `pendiente_cobro`, un estado que **no existe** en el `check`
+ *    de `ordenes.estado`: su lista de notas pendientes no podía tener una fila
+ *    nunca. Ahora lee `NotaDeCaja`, la vista `notas_de_caja` (169/170), cuyo
+ *    estado se calcula de los dos reales —el de la orden dice si entró el
+ *    dinero, el de la nota si salió el material—.
+ * 2. Leía once campos que la entidad `Venta` no tiene —`codigo_caja`,
+ *    `atendio`, `vence`, `saldo_cliente`…—, así que cada renglón habría salido
+ *    «—» incluso con el estado arreglado. Ahora salen de la vista.
+ * 3. Publicaba en `/api/venta/cobrar` un cuerpo que ese comando rechaza
+ *    (`{ventaId, metodo}` en vez de `{ordenId, pagos:[…]}`): **la caja nunca
+ *    cobró**. Ahora manda los pagos como el comando los pide.
+ *
+ * ── Y «A cuenta» no es un método de pago ─────────────────────────────────
+ * `venta.cobrar` acepta efectivo, tarjeta y transferencia, y hace bien: a
+ * cuenta **no entra dinero**. Lo que pasa es que el material sale firmado, y eso
+ * es `credito.registrar_remision`: sube el saldo del cliente, toma folio de
+ * remisión y sella quién recibió. Mandarlo por el cobro habría necesitado un
+ * cuarto método que no mueve caja y dejaría el arqueo cuadrando de milagro.
+ *
  * ── Alcance recortado, dicho y no escondido ──────────────────────────────
  * 1. Apertura con denominaciones, movimientos, arqueo a ciegas y los cuatro
  *    bloqueos de cierre se heredan de `abarrotes` §PANTALLA 9 y viven en sus
@@ -50,9 +70,6 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *    —lo que falta por cobrar— y no el fondo del cajón, que no llega aquí.
  * 2. El desglose de pago mixto y el cálculo de cambio no caben en un archivo:
  *    esta pantalla sella un método por nota.
- * 3. El documento no nombra la ruta de cobro de este giro: se usa la
- *    convención `/api/<dominio>/<verbo>`, que aquí ya existe como
- *    `/api/venta/cobrar`. La de confirmar transferencia sí está nombrada.
  */
 
 /** Los cuatro métodos, en el orden del documento y con el mismo peso visual. */
@@ -65,17 +82,30 @@ const METODOS = [
 
 export type MetodoDeCobro = (typeof METODOS)[number]['clave'];
 
-const PENDIENTE = 'pendiente_cobro';
-const SIN_ENTREGAR = 'pagada_sin_entregar';
-const POR_CONFIRMAR = 'transferencia_por_confirmar';
+/**
+ * Los tres estados que la vista calcula, escritos una vez.
+ *
+ * `por_entregar` se llama por lo que FALTA y no por lo que entró: la pregunta de
+ * la segunda lista no es «¿ya pagaron?» sino «¿esto ya salió?», porque lo que
+ * evita es entregar dos veces el mismo material. Una nota pagada en efectivo y
+ * una firmada a crédito están en el mismo sitio: cerradas para la caja, con el
+ * material todavía en el patio.
+ */
+const PENDIENTE = 'por_cobrar';
+const POR_ENTREGAR = 'por_entregar';
+const APARTADA = 'apartada';
 
 /** Minutos de vigencia a partir de los cuales la nota ya se avisa. */
 const AVISO_MINUTOS = 10;
 
 export interface NotaDeCaja {
+  /** La ORDEN: es lo que `venta.cobrar` recibe y con lo que se leen sus partidas. */
   readonly id: string;
+  /** La NOTA, para entregarla. No es lo mismo, y confundirlas cobra otra venta. */
+  readonly nota_id: string | null;
   readonly codigo_caja: string | null;
   readonly cliente_nombre: string | null;
+  readonly cliente_id: string | null;
   readonly obra: string | null;
   readonly recoge_nombre: string | null;
   readonly recoge_autorizado: boolean;
@@ -83,9 +113,18 @@ export interface NotaDeCaja {
   readonly creada: string | null;
   readonly vence: string | null;
   readonly estado: string | null;
-  readonly total: number | null;
-  readonly saldo_cliente: number | null;
-  readonly limite_cliente: number | null;
+  /** En CENTAVOS, como los sirve la vista. Sin división de ida y vuelta. */
+  readonly totalCentavos: number | null;
+  readonly saldoClienteCentavos: number | null;
+  readonly limiteClienteCentavos: number | null;
+}
+
+/** F-212 · Una transferencia de crédito que todavía no se vio en el banco. */
+export interface TransferenciaPendiente {
+  readonly pagoId: string;
+  readonly montoCentavos: string;
+  readonly referencia: string | null;
+  readonly horasEsperando: number;
 }
 
 export interface LineaDeNota {
@@ -101,6 +140,7 @@ export interface CajaProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly notasIniciales?: readonly NotaDeCaja[];
   readonly lineasIniciales?: readonly LineaDeNota[];
+  readonly transferenciasIniciales?: readonly TransferenciaPendiente[];
   readonly onCobrada?: (notaId: string, metodo: MetodoDeCobro) => void;
 }
 
@@ -140,17 +180,34 @@ function nombreDe(nota: NotaDeCaja): string {
   return nota.cliente_nombre ?? 'mostrador';
 }
 
-function sumaDe(notas: readonly NotaDeCaja[]): number {
-  return notas.reduce((suma, nota) => suma + aCentavos(nota.total), 0);
+/** El total de la nota, en centavos. Nulo es cero: una nota vacía no debe nada. */
+function totalDe(nota: NotaDeCaja): number {
+  return nota.totalCentavos ?? 0;
 }
 
-export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) {
+function sumaDe(notas: readonly NotaDeCaja[]): number {
+  return notas.reduce((suma, nota) => suma + totalDe(nota), 0);
+}
+
+export function Caja({
+  notasIniciales,
+  lineasIniciales,
+  transferenciasIniciales,
+  onCobrada,
+}: CajaProps) {
   const voc = useVocabulario();
   const [notas, setNotas] = useState<readonly NotaDeCaja[] | null>(notasIniciales ?? null);
   const [lineas, setLineas] = useState<readonly LineaDeNota[]>(lineasIniciales ?? []);
   const [elegida, setElegida] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [transferencias, setTransferencias] = useState<readonly TransferenciaPendiente[]>(
+    transferenciasIniciales ?? [],
+  );
+  // El aviso del banco va APARTE del de cobrar: «no se pudo leer el banco» y
+  // «ninguna nota se marcó como pagada» son dos cosas, y juntarlas diría que
+  // falló un cobro que nadie intentó.
+  const [avisoBanco, setAvisoBanco] = useState<string | null>(null);
   // Arranca en `null` y lo llena el efecto: el reloj del servidor y el del
   // navegador no son el mismo, y pintarlo en el HTML inicial rompe la hidratación.
   const [ahora, setAhora] = useState<number | null>(null);
@@ -172,7 +229,10 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
   useEffect(() => {
     if (notasIniciales !== undefined) return;
     let vivo = true;
-    consultarPuente<NotaDeCaja>('Venta', { limite: 80 })
+    // `NotaDeCaja`, no `Venta`: lo que la caja lista son NOTAS —con su folio, su
+    // caducidad y su propio estado—, y una orden pagada cuyo material sigue en el
+    // patio no se distingue mirando `ordenes`.
+    consultarPuente<NotaDeCaja>('NotaDeCaja', { limite: 80 })
       .then((filas) => {
         if (vivo) setNotas(filas);
       })
@@ -188,8 +248,10 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
 
   const todas = notas ?? [];
   const pendientes = todas.filter((nota) => nota.estado === PENDIENTE);
-  const sinEntregar = todas.filter((nota) => nota.estado === SIN_ENTREGAR);
-  const porConfirmar = todas.filter((nota) => nota.estado === POR_CONFIRMAR);
+  const porEntregar = todas.filter((nota) => nota.estado === POR_ENTREGAR);
+  // Apartadas no se cobran —el cliente dijo «ahorita vuelvo»— pero tampoco se
+  // esconden: son material comprometido, y no verlas es como el patio se llena.
+  const apartadas = todas.filter((nota) => nota.estado === APARTADA);
   const seleccionada = todas.find((nota) => nota.id === elegida) ?? pendientes[0] ?? null;
   const notaId = seleccionada === null ? null : seleccionada.id;
 
@@ -211,25 +273,75 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
     };
   }, [lineasIniciales, notaId, voc]);
 
+  useEffect(() => {
+    if (transferenciasIniciales !== undefined) return;
+    let vivo = true;
+    invocarComando<{ readonly pendientes: readonly TransferenciaPendiente[] }>(
+      '/api/credito/transferencias-pendientes',
+      { horas: 72 },
+    )
+      .then((resultado) => {
+        if (vivo) setTransferencias(resultado.pendientes);
+      })
+      .catch((fallo: unknown) => {
+        if (vivo)
+          setAvisoBanco(
+            fallo instanceof Error
+              ? fallo.message
+              : 'No se pudieron leer las transferencias por confirmar.',
+          );
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [transferenciasIniciales]);
+
   const suyas = lineas.filter((linea) => linea.venta_id === notaId);
-  const total = aCentavos(seleccionada?.total);
-  const saldo = aCentavos(seleccionada?.saldo_cliente);
-  const limite = aCentavos(seleccionada?.limite_cliente);
+  const total = seleccionada === null ? 0 : totalDe(seleccionada);
+  const saldo = seleccionada?.saldoClienteCentavos ?? 0;
+  const limite = seleccionada?.limiteClienteCentavos ?? 0;
   const excede = limite > 0 && saldo + total > limite;
+  // A cuenta necesita a alguien a quien fiarle: sin ficha no hay saldo que subir
+  // ni documento que cobrar después.
+  const sinFicha = seleccionada !== null && seleccionada.cliente_id === null;
 
   async function sellar(nota: NotaDeCaja, metodo: MetodoDeCobro): Promise<void> {
     setEnviando(`${nota.id}·${metodo}`);
     setError(null);
     try {
-      // Una transferencia no es dinero hasta que el banco lo dice: pasa por su
-      // propio estado, no directo al andén de entrega.
-      const siguiente = metodo === 'transferencia' ? POR_CONFIRMAR : SIN_ENTREGAR;
-      await invocarComando('/api/venta/cobrar', {
-        ventaId: nota.id,
-        metodo,
-        totalEsperadoCentavos: aCentavos(nota.total),
-      });
-      setNotas(todas.map((fila) => (fila.id === nota.id ? { ...fila, estado: siguiente } : fila)));
+      if (metodo === 'cuenta') {
+        // A CUENTA · no entra dinero, sale material firmado. Es una remisión:
+        // sube el saldo del cliente, toma su propio folio y sella quién recibió.
+        await invocarComando('/api/credito/remision', {
+          ordenId: nota.id,
+          clienteId: nota.cliente_id,
+          importeCentavos: totalDe(nota),
+          // Quien firma es quien viene por el material: el autorizado si hay
+          // uno, y si no el cliente mismo. El documento sin nombre no sirve.
+          nombreFirmante: nota.recoge_nombre ?? nota.cliente_nombre ?? 'Sin nombre',
+        });
+      } else {
+        // El cuerpo que `venta.cobrar` pide. `totalEsperadoCentavos` no cobra:
+        // si el servidor recalcula otro total, rechaza en vez de cobrar el suyo
+        // en silencio —el cajero ya le dijo un número al cliente—.
+        await invocarComando('/api/venta/cobrar', {
+          ordenId: nota.id,
+          totalEsperadoCentavos: totalDe(nota),
+          pagos: [
+            {
+              metodo,
+              montoCentavos: totalDe(nota),
+              // En efectivo, lo recibido sirve para el cambio. Esta pantalla
+              // sella un método exacto por nota, así que es el total.
+              ...(metodo === 'efectivo' ? { recibidoCentavos: totalDe(nota) } : {}),
+            },
+          ],
+        });
+      }
+      // Cerrada para la caja; el material sigue en el patio hasta que se entrega.
+      setNotas(
+        todas.map((fila) => (fila.id === nota.id ? { ...fila, estado: POR_ENTREGAR } : fila)),
+      );
       setElegida(null);
       onCobrada?.(nota.id, metodo);
     } catch (fallo) {
@@ -241,14 +353,26 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
     }
   }
 
-  async function confirmar(nota: NotaDeCaja): Promise<void> {
-    setEnviando(`${nota.id}·transferencia`);
-    setError(null);
+  /**
+   * F-212 · Confirmar contra el banco lo que un cliente dijo que transfirió.
+   *
+   * Es lo ÚNICO que se hace desde fuera del mostrador, y es de la cartera, no de
+   * esta venta: lo que se confirma es un pago de crédito (`pagos_credito`), y
+   * hasta que se confirma no baja ningún saldo. La versión anterior mandaba
+   * `{ventaId}` al comando, que pide `{pagoId}` sobre otra tabla: no confirmaba
+   * nada.
+   */
+  async function confirmar(transferencia: TransferenciaPendiente): Promise<void> {
+    setEnviando(`${transferencia.pagoId}·transferencia`);
+    setAvisoBanco(null);
     try {
-      await invocarComando('/api/credito/confirmar-transferencia', { ventaId: nota.id });
-      setNotas(todas.map((f) => (f.id === nota.id ? { ...f, estado: SIN_ENTREGAR } : f)));
+      await invocarComando('/api/credito/confirmar-transferencia', {
+        pagoId: transferencia.pagoId,
+        referenciaBancaria: null,
+      });
+      setTransferencias(transferencias.filter((t) => t.pagoId !== transferencia.pagoId));
     } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo confirmar.');
+      setAvisoBanco(fallo instanceof Error ? fallo.message : 'No se pudo confirmar.');
     } finally {
       setEnviando(null);
     }
@@ -256,12 +380,20 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
 
   // La banda va ENCIMA del último dato conocido, nunca en lugar de él, y lo
   // primero que dice es que nada se cobró.
-  const banda =
-    error === null ? null : (
-      <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
-        {error} · Ninguna nota se marcó como pagada.
-      </p>
-    );
+  const banda = (
+    <>
+      {error !== null && (
+        <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
+          {error} · Ninguna nota se marcó como pagada.
+        </p>
+      )}
+      {avisoBanco !== null && (
+        <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
+          {avisoBanco} · Ninguna transferencia se marcó como confirmada.
+        </p>
+      )}
+    </>
+  );
 
   if (notas === null) {
     return (
@@ -305,30 +437,34 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
         <p className="text-sm text-muted-foreground">
           La caja se opera en el mostrador. Desde el teléfono sólo se confirman transferencias.
         </p>
-        {porConfirmar.length === 0 ? (
+        {transferencias.length === 0 ? (
           <p className="rounded-lg border border-border p-4 text-sm">
-            Ninguna transferencia espera confirmación. Cuando alguien pague así, la nota aparece
-            aquí para cotejarla contra el banco.
+            Ninguna transferencia espera confirmación. Cuando un cliente pague su cuenta así, el
+            pago aparece aquí para cotejarlo contra el banco — y hasta entonces su saldo no baja.
           </p>
         ) : (
           <ul className="space-y-2">
-            {porConfirmar.map((nota) => (
+            {transferencias.map((transferencia) => (
               <li
-                key={nota.id}
+                key={transferencia.pagoId}
                 className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
               >
                 <span className="min-w-0">
-                  <span className="block truncate font-medium">
-                    {nota.codigo_caja ?? '—'} · {nombreDe(nota)}
+                  <span className="block font-medium tabular-nums">
+                    {enPesos(Number(transferencia.montoCentavos))}
                   </span>
-                  <span className="text-sm tabular-nums text-muted-foreground">
-                    {enPesos(aCentavos(nota.total))}
+                  {/* Las horas esperando van en la lista: una de hace veinte
+                      minutos y una de hace tres días no se revisan con la misma
+                      prisa. */}
+                  <span className="block truncate text-sm text-muted-foreground">
+                    {transferencia.referencia ?? 'sin referencia'} · hace{' '}
+                    {transferencia.horasEsperando} h
                   </span>
                 </span>
                 <Button
                   disabled={enviando !== null}
                   onClick={() => {
-                    void confirmar(nota);
+                    void confirmar(transferencia);
                   }}
                 >
                   Confirmar
@@ -374,7 +510,7 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
                         <span className="font-medium tabular-nums">{nota.codigo_caja ?? '—'}</span>{' '}
                         {nombreDe(nota)}
                       </span>
-                      <span className="tabular-nums">{enPesos(aCentavos(nota.total))}</span>
+                      <span className="tabular-nums">{enPesos(totalDe(nota))}</span>
                     </button>
                     {/* Avisa ANTES de liberar el material, no después. */}
                     {faltan !== null && faltan <= AVISO_MINUTOS && (
@@ -390,20 +526,21 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
           </section>
 
           {/* Siempre a la vista, nunca plegable: es lo que evita entregar dos
-              veces el mismo material. */}
-          <section aria-label="Pagadas, sin entregar">
+              veces el mismo material. Están las pagadas y las firmadas a
+              crédito, porque las dos dejan material esperando en el patio. */}
+          <section aria-label="Cerradas, sin entregar">
             <h2 className="mb-2 text-sm font-semibold uppercase">
-              Pagadas, sin entregar ({sinEntregar.length})
+              Cerradas, sin entregar ({porEntregar.length})
             </h2>
-            {sinEntregar.length === 0 ? (
-              <p className="px-2 text-xs text-muted-foreground">Nada pagado espera en el andén.</p>
+            {porEntregar.length === 0 ? (
+              <p className="px-2 text-xs text-muted-foreground">Nada cerrado espera en el andén.</p>
             ) : (
               <ul className="space-y-1">
-                {sinEntregar.map((nota) => (
+                {porEntregar.map((nota) => (
                   <li key={nota.id} className="flex gap-2 px-2 py-1 text-sm">
                     <span className="tabular-nums">{nota.codigo_caja ?? '—'}</span>
                     <span className="min-w-0 flex-1 truncate">{nombreDe(nota)}</span>
-                    <span className="tabular-nums">{enPesos(aCentavos(nota.total))}</span>
+                    <span className="tabular-nums">{enPesos(totalDe(nota))}</span>
                   </li>
                 ))}
               </ul>
@@ -414,6 +551,15 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
           <p className="text-sm text-muted-foreground">
             Por cobrar · {pendientes.length} notas · {enPesos(sumaDe(pendientes))}
           </p>
+          {/* Lo apartado no se cobra hoy, y tampoco se esconde: es material
+              comprometido, y no verlo es como el patio se llena de pedidos de
+              clientes que no volvieron. */}
+          {apartadas.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Apartadas · {apartadas.length} notas · {enPesos(sumaDe(apartadas))} esperando a su
+              dueño
+            </p>
+          )}
         </aside>
 
         <section
@@ -457,14 +603,21 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
                 ))}
               </ul>
 
-              <p className="rounded-lg border border-border bg-card p-4 text-center text-card-foreground">
+              {/* Región con nombre, como en los otros cuatro modelos: es EL
+                  número que se dice en voz alta, y tenerlo nombrado es lo que
+                  permite que un lector de pantalla —y la suite— lo encuentren
+                  sin agarrarse de una clase de CSS. */}
+              <section
+                aria-label={`Total de ${voc.enFrase('orden')}`}
+                className="rounded-lg border border-border bg-card p-4 text-center text-card-foreground"
+              >
                 <span className="block text-sm font-medium uppercase text-muted-foreground">
                   Total
                 </span>
                 <span className="block text-4xl font-bold tabular-nums xl:text-5xl">
                   {enPesos(total)}
                 </span>
-              </p>
+              </section>
 
               {/* Los cuatro en la misma rejilla y del mismo tamaño: aquí compiten
                   de verdad, y presuponer uno descuadra el arqueo de la noche. */}
@@ -473,8 +626,12 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
                   <Button
                     key={metodo.clave}
                     size="lg"
-                    variant={metodo.clave === 'cuenta' && excede ? 'outline' : 'default'}
-                    disabled={enviando !== null || (metodo.clave === 'cuenta' && excede)}
+                    variant={
+                      metodo.clave === 'cuenta' && (excede || sinFicha) ? 'outline' : 'default'
+                    }
+                    disabled={
+                      enviando !== null || (metodo.clave === 'cuenta' && (excede || sinFicha))
+                    }
                     className="min-h-20 text-base"
                     onClick={() => {
                       void sellar(seleccionada, metodo.clave);
@@ -493,6 +650,15 @@ export function Caja({ notasIniciales, lineasIniciales, onCobrada }: CajaProps) 
                 <p className="text-sm">
                   ⓘ A cuenta: debe {enPesos(saldo)} de {enPesos(limite)}.
                   {excede ? ' Con esta nota pasa de su límite: no se puede cobrar a cuenta.' : ''}
+                </p>
+              )}
+              {/* Un botón apagado no explica nada, y ésta es la razón más común
+                  de que lo esté: la nota es del mostrador, sin nadie a quien
+                  fiarle. */}
+              {sinFicha && (
+                <p className="text-sm">
+                  ⓘ Esta nota es de mostrador, sin {voc.enFrase('cliente')} con cuenta: a cuenta no
+                  se puede. Dale de alta {voc.enFraseCon('un', 'cliente')} para fiarle.
                 </p>
               )}
             </>

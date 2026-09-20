@@ -104,6 +104,21 @@ interface Partida {
   readonly cantidad: number;
 }
 
+/**
+ * Lo que devuelve `ferreteria.crear_nota_mostrador`.
+ *
+ * Se declara aquí y no se importa del comando: ese módulo es `server-only` y
+ * esta pantalla corre en el navegador. El contrato son estos cuatro campos, y
+ * está escrito en los dos lados a propósito —importarlo arrastraría el paquete
+ * del servidor al bundle del cliente—.
+ */
+interface ResultadoNotaMostrador {
+  readonly ordenId: string;
+  readonly notaId: string;
+  readonly folio: string;
+  readonly totalCentavos: string;
+}
+
 export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false }: MostradorProps) {
   const voc = useVocabulario();
   const enrutador = useRouter();
@@ -113,15 +128,17 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [ventaAbierta, setVentaAbierta] = useState(false);
+  /** El folio de la última nota mandada: lo que el cliente canta en la caja. */
+  const [folioEnCaja, setFolioEnCaja] = useState<string | null>(null);
   const buscador = useRef<HTMLInputElement>(null);
   const cliente = clienteInicial ?? null;
 
   useEffect(() => {
     if (filasIniciales !== undefined) return;
     let vivo = true;
-    // El índice se hidrata una vez al abrir. Sus columnas —atributos, ubicación—
-    // las escriben migraciones de la Fase 2 que NO están aplicadas, así que
-    // contra la base de hoy esto devuelve vacío y cae en el punto de partida.
+    // El índice se hidrata una vez al abrir, de la vista `materiales_mostrador`
+    // (168): precio y existencia EN VIVO —cambian con cada venta— y los
+    // atributos de display con su valor original, `1/4"` y no `6350`.
     consultarPuente<MaterialDeMostrador>('MaterialMostrador', { limite: 6000 })
       .then((leidas) => {
         if (vivo) setFilas(leidas);
@@ -190,17 +207,65 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
   }
 
   /** Las rutas salen de `05-DATOS-Y-BACKEND` §6; no se inventa ninguna. */
-  async function enviar(ruta: string): Promise<void> {
+  /**
+   * Crear la nota. Es el primer paso de las dos salidas del mostrador.
+   *
+   * Devuelve la nota creada en vez de tragársela porque el folio es lo que el
+   * cliente dice en la caja —«la N-114»— y la remisión necesita la orden.
+   */
+  async function crearLaNota(): Promise<ResultadoNotaMostrador> {
+    return invocarComando<ResultadoNotaMostrador>('/api/venta/mandar-a-caja', {
+      clienteId: cliente?.id ?? null,
+      partidas: partidas.map((p) => ({ productoId: p.material.id, cantidad: p.cantidad })),
+    });
+  }
+
+  async function mandarACaja(): Promise<void> {
     setEnviando(true);
     setError(null);
     try {
-      await invocarComando(ruta, {
-        clienteId: cliente?.id ?? null,
-        partidas: partidas.map((p) => ({ productoId: p.material.id, cantidad: p.cantidad })),
-      });
+      const nota = await crearLaNota();
       setPartidas([]);
+      // El folio se queda a la vista: es el número que el mostradorista le dice
+      // al cliente para que lo cante en la caja. Sin enseñarlo, la nota llega a
+      // la caja y nadie sabe pedirla.
+      setFolioEnCaja(nota.folio);
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo mandar la venta.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  /**
+   * La otra salida: se lo lleva a crédito, firmando.
+   *
+   * Son DOS comandos en fila y no uno, porque `credito.registrar_remision` pide
+   * una orden que ya exista —sube el saldo del cliente por un importe, y ese
+   * importe son las líneas de una venta, no un número que manda el navegador—.
+   * Si el segundo falla, la nota se queda en la caja como pendiente de cobro:
+   * recuperable, y el material no ha salido. Al revés —remisión antes de venta—
+   * el saldo del cliente subiría por algo que no existe.
+   */
+  async function remisionACuenta(): Promise<void> {
+    if (cliente === null) return;
+    setEnviando(true);
+    setError(null);
+    try {
+      const nota = await crearLaNota();
+      await invocarComando('/api/credito/remision', {
+        ordenId: nota.ordenId,
+        clienteId: cliente.id,
+        importeCentavos: Number(nota.totalCentavos),
+        // Quien firma es quien viene por el material: el autorizado de la cuenta
+        // si hay uno, y si no el cliente. Un documento de entrega sin nombre de
+        // quien recibió no sirve para nada, que es el talonario de papel de hoy.
+        nombreFirmante: cliente.recoge ?? cliente.nombre,
+      });
+      setPartidas([]);
+      setFolioEnCaja(null);
+    } catch (fallo) {
+      setError(fallo instanceof Error ? fallo.message : 'No se pudo registrar la remisión.');
     } finally {
       setEnviando(false);
     }
@@ -467,7 +532,7 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
             type="button"
             disabled={partidas.length === 0 || cajaCerrada || enviando}
             onClick={() => {
-              void enviar('/api/venta/nota-mostrador');
+              void mandarACaja();
             }}
           >
             Mandar a caja · F12
@@ -477,11 +542,19 @@ export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false 
             variant="outline"
             disabled={cliente === null || partidas.length === 0 || enviando}
             onClick={() => {
-              void enviar('/api/venta/remision');
+              void remisionACuenta();
             }}
           >
             {sobreLimite ? 'Remisión a cuenta · pide PIN · F11' : 'Remisión a cuenta · F11'}
           </Button>
+          {/* El número, grande y en su sitio: es lo único que el cliente se
+              lleva del mostrador, y va a decirlo en voz alta a tres metros. */}
+          {folioEnCaja !== null && (
+            <p role="status" className="rounded-md border border-border p-2 text-center text-sm">
+              Nota <span className="text-base font-bold tabular-nums">{folioEnCaja}</span> está en
+              la caja.
+            </p>
+          )}
         </div>
       </aside>
 
