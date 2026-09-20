@@ -28,6 +28,7 @@ Formato de la primera columna:
 | `RUTA apps/web/app/api/…/route.ts` | una ruta declarada en un `05-DATOS-Y-BACKEND.md` |
 | `PANTALLA <modelo>/<slug>` | una pantalla declarada en un `04-INTERFAZ.md` §4.3 |
 | `PANTALLA-SIN-MENU <modelo>/<slug>` | una pantalla construida que NO cuelga de ningún menú, con el motivo |
+| `PANTALLA-SIN-VOCABULARIO <modelo>/<slug>` | una pantalla que no consume el diccionario del giro, con el motivo |
 | `PANTALLA-HEREDADA-SIN-MENU <slug>` | una pantalla de `app/(interno)/` que no cuelga de ningún menú, con el motivo |
 | `MIGRACION NNN_nombre.sql` | una migración declarada en un `05-DATOS-Y-BACKEND.md` |
 | `PUERTA <script>/<comprobacion>` | una comprobación de OTRA puerta que no se puede ejecutar en esta máquina |
@@ -86,6 +87,30 @@ Cuatro no van en ningún menú, y no es un olvido:
 
 **La puerta FALLA si una de estas cuatro filas no existe**, igual que con las demás excepciones: lo
 que no se puede es que una pantalla desaparezca del menú sin que nadie lo diga.
+
+### Las que NO consumen el diccionario del giro
+
+`verify:acople` exige que **cada una de las 62 pantallas de modelo** lea su sustantivo del
+diccionario (F-017). Hasta el 20-09-2026 esa comprobación contaba «cuántos archivos de `apps/web/src`
+mencionan el vocabulario» y decía 55, un número que sonaba bien y no medía nada: contaba los tres
+`Tablero.tsx`, dos diálogos y el propio módulo, y entre ellos se colaban **trece pantallas de modelo
+que no lo consumían** —con la agenda del salón, que es su pantalla de inicio, entre ellas—.
+
+Ahora se mide una por una, contra la misma lista del §4.3 que usan las demás puertas. Seis no lo
+consumen, y no es un olvido: **no nombran ninguna entidad del diccionario**. Traerles el gancho sería
+importar algo que no se usa para que una puerta se ponga verde.
+
+| Clave | Qué es | Por qué no nombra ninguna entidad |
+|---|---|---|
+| `PANTALLA-SIN-VOCABULARIO restaurante/acceso-por-pin` | La entrada con PIN | Dice «¿Quién está operando?» y pinta nombres de personas. Ni mesa, ni cuenta, ni platillo: nada del diccionario. |
+| `PANTALLA-SIN-VOCABULARIO cafeteria/acceso-por-pin` | La misma, en la barra | Igual. |
+| `PANTALLA-SIN-VOCABULARIO restaurante/inventario` | Las existencias de la cocina | Habla de INSUMOS y de almacenes, que no son entidades del diccionario: el `producto` de un restaurante es el platillo, y eso se vende, no se cuenta aquí. |
+| `PANTALLA-SIN-VOCABULARIO abarrotes/cortes` | El corte de caja | Dinero, turnos y cajón. «Cuenta el cajón» es el VERBO contar, declarado ya en `NO_ES_LA_ENTIDAD`. |
+| `PANTALLA-SIN-VOCABULARIO ferreteria/conteo` | El conteo por zonas | Cuenta una zona del almacén: existencias e insumos, no la pieza que se vende por mostrador. |
+| `PANTALLA-SIN-VOCABULARIO ferreteria/trabajos-de-mostrador` | Apartados, listas y garantías | Sus tres pestañas nombran documentos del mostrador —lista, apartado, garantía—, ninguno del diccionario. La única «nota» que aparece es el folio, que es un dato. |
+
+**La puerta también falla al revés**: si una de estas seis acaba consumiendo el diccionario, la fila
+sobra y hay que borrarla. Una lista de excepciones que incluye lo que ya funciona deja de leerse.
 
 ### Las HEREDADAS que pierden su sitio en el menú
 

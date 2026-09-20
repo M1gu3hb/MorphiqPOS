@@ -838,13 +838,107 @@ function comprobarVocabulario() {
       (conLiteral.length > 12 ? `\n    …y ${conLiteral.length - 12} más` : ''),
   );
 
+  /**
+   * Y AHORA CONTRA LAS 62, que es lo que el número de arriba no medía.
+   *
+   * «55 pantallas lo consumen» sonaba bien y no significaba nada: contaba
+   * CUALQUIER archivo de `apps/web/src` que mencionara el vocabulario —los tres
+   * `Tablero.tsx`, dos diálogos, el propio módulo— y entre ellos se colaban trece
+   * pantallas de modelo que no lo consumían, con la agenda del salón entre ellas.
+   *
+   * Lo que se exige ahora es una por una, sobre la MISMA lista que usan las otras
+   * puertas —el §4.3 del `04-INTERFAZ.md` de cada modelo— y contra el componente
+   * que lleva su etiqueta `PANTALLA · modelo · slug`. Una pantalla que de verdad no
+   * tiene ni un sustantivo del diccionario se declara, con su motivo, en
+   * `EXCEPCIONES-COBERTURA.md`; las demás lo consumen.
+   */
+  const declaradas = new Set();
+  const archivoExcepciones = join(RAIZ, 'docs', 'fase-2', 'EXCEPCIONES-COBERTURA.md');
+  if (existsSync(archivoExcepciones)) {
+    const texto = readFileSync(archivoExcepciones, 'utf8');
+    for (const m of texto.matchAll(/PANTALLA-SIN-VOCABULARIO\s+([a-z-]+)\/([a-z0-9-]+)/g)) {
+      declaradas.add(`${m[1]}/${m[2]}`);
+    }
+  }
+
+  const componentes = componentesDePantalla();
+  const sinVocabulario = [];
+  let conVocabulario = 0;
+  for (const modelo of MODELOS) {
+    for (const slug of pantallasEsperadas(modelo)) {
+      const clave = `${modelo.clave}/${slug}`;
+      if (declaradas.has(clave)) continue;
+      const componente = componentes.get(clave);
+      if (componente === undefined) {
+        // Sin componente etiquetado no hay nada que mirar, y de eso ya se queja
+        // `verify:cobertura` con su propio mensaje.
+        continue;
+      }
+      if (/useVocabulario|useTermino/.test(readFileSync(componente, 'utf8'))) conVocabulario += 1;
+      else sinVocabulario.push(clave);
+    }
+  }
+
+  exigir(
+    sinVocabulario.length === 0,
+    `VOCABULARIO: ${sinVocabulario.length} pantalla(s) de modelo NO consumen el diccionario ` +
+      'y no están declaradas:\n    ' +
+      sinVocabulario.join('\n    ') +
+      '\n  O leen su sustantivo del diccionario, o se declaran en ' +
+      'EXCEPCIONES-COBERTURA.md con `PANTALLA-SIN-VOCABULARIO <modelo>/<slug>` y el motivo ' +
+      '—que sólo puede ser «esta pantalla no nombra ninguna entidad del diccionario»—.',
+  );
+
+  const sobran = [...declaradas].filter((clave) => {
+    const componente = componentes.get(clave);
+    return (
+      componente !== undefined && /useVocabulario|useTermino/.test(readFileSync(componente, 'utf8'))
+    );
+  });
+  exigir(
+    sobran.length === 0,
+    `VOCABULARIO: ${sobran.join(', ')} está(n) declarada(s) como sin vocabulario y SÍ lo ` +
+      'consume(n). Borra la fila: una lista de excepciones que incluye lo que ya funciona deja ' +
+      'de leerse.',
+  );
+
   if (!fallos.some((f) => f.startsWith('VOCABULARIO'))) {
     notas.push(
       `vocabulario   ruta + los dos envoltorios + el menú heredado · ` +
-        `${pantallas.length} pantalla(s) lo consumen · 0 sustantivos tecleados a mano · ` +
-        `0 rótulos con la palabra de otro giro`,
+        `${conVocabulario} de ${conVocabulario + declaradas.size} pantalla(s) de modelo lo ` +
+        `consumen · ${declaradas.size} declarada(s) sin sustantivos · ` +
+        `0 tecleados a mano · 0 rótulos con la palabra de otro giro`,
     );
   }
+}
+
+/**
+ * El componente de cada pantalla, por su etiqueta `PANTALLA · modelo · slug`.
+ *
+ * La misma etiqueta que lee `verify:cobertura` para saber si una pantalla está
+ * construida. Leerla aquí otra vez —en vez de importar su índice— es una lectura
+ * de cuarenta archivos que no depende del orden en que corran las dos puertas.
+ */
+function componentesDePantalla() {
+  const raiz = join(RAIZ, 'apps', 'web', 'src');
+  const encontrados = new Map();
+  const pila = [raiz];
+  while (pila.length > 0) {
+    const actual = pila.pop();
+    for (const entrada of readdirSyncSeguro(actual)) {
+      const ruta = join(actual, entrada.name);
+      if (entrada.isDirectory()) {
+        pila.push(ruta);
+        continue;
+      }
+      if (!entrada.name.endsWith('.tsx')) continue;
+      const cabecera = readFileSync(ruta, 'utf8').slice(0, 4000);
+      for (const m of cabecera.matchAll(/PANTALLA\s*·\s*([a-z-]+)\s*·\s*([a-z0-9-]+)/g)) {
+        encontrados.set(`${m[1]}/${m[2]}`, ruta);
+      }
+    }
+  }
+  return encontrados;
 }
 
 /**

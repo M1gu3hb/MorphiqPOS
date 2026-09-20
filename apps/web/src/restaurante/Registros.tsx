@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primiti
 import { Fragment, type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · restaurante · registros
@@ -57,6 +58,17 @@ type Registro = Readonly<Record<string, unknown>>;
 interface Columna {
   readonly campo: string;
   readonly rotulo: string;
+  /**
+   * La entidad del diccionario cuando el rótulo es una palabra del GIRO.
+   *
+   * «Mesero» y «Mesa» no son rótulos: son el vocabulario de un restaurante, y en
+   * una estética se leen «Estilista» y «Estación». Escritos a mano, esta pantalla
+   * —que es de las cinco plantillas, no sólo del restaurante— hablaría de mesas en
+   * un salón. El `rotulo` se queda como reserva para cuando el diccionario apaga
+   * esa entidad en un giro.
+   */
+  readonly voz?:
+    'unidad_servicio' | 'orden' | 'linea_orden' | 'responsable' | 'cliente' | 'producto';
   readonly tipo: 'texto' | 'dinero' | 'fecha';
   /** En PC es una columna más; en tablet y teléfono sale al expandir la fila. */
   readonly secundaria?: boolean;
@@ -68,6 +80,19 @@ interface Pestana {
   readonly entidad: string;
   readonly campoFecha: string;
   readonly columnas: readonly Columna[];
+}
+
+/**
+ * El rótulo que se lee: el del diccionario cuando la columna lo declara.
+ *
+ * Si el giro APAGA esa entidad —un salón no tiene preparación— el diccionario
+ * devuelve cadena vacía y se cae al rótulo escrito, que es mejor que una columna
+ * sin encabezado.
+ */
+function rotuloDe(columna: Columna, voc: ReturnType<typeof useVocabulario>): string {
+  if (columna.voz === undefined) return columna.rotulo;
+  const suyo = voc.titulo(columna.voz);
+  return suyo === '' ? columna.rotulo : suyo;
 }
 
 /** El orden es el del documento, y no es decorativo: ver arriba. */
@@ -93,9 +118,15 @@ const PESTANAS = [
     columnas: [
       { campo: 'folio', rotulo: 'Folio', tipo: 'texto' },
       { campo: 'fecha_cierre', rotulo: 'Cobrada', tipo: 'fecha' },
-      { campo: 'usuario_mesero_nombre', rotulo: 'Mesero', tipo: 'texto' },
+      { campo: 'usuario_mesero_nombre', rotulo: 'Mesero', voz: 'responsable', tipo: 'texto' },
       { campo: 'total', rotulo: 'Total', tipo: 'dinero' },
-      { campo: 'mesa_numero', rotulo: 'Mesa', tipo: 'texto', secundaria: true },
+      {
+        campo: 'mesa_numero',
+        rotulo: 'Mesa',
+        voz: 'unidad_servicio',
+        tipo: 'texto',
+        secundaria: true,
+      },
     ],
   },
   {
@@ -106,7 +137,7 @@ const PESTANAS = [
     columnas: [
       { campo: 'folio', rotulo: 'Folio', tipo: 'texto' },
       { campo: 'fecha_liquidacion', rotulo: 'Liquidada', tipo: 'fecha' },
-      { campo: 'mesero_nombre', rotulo: 'Mesero', tipo: 'texto' },
+      { campo: 'mesero_nombre', rotulo: 'Mesero', voz: 'responsable', tipo: 'texto' },
       { campo: 'total_liquidado', rotulo: 'Liquidado', tipo: 'dinero' },
       { campo: 'usuario_liquido_nombre', rotulo: 'Autorizó', tipo: 'texto', secundaria: true },
     ],
@@ -239,6 +270,7 @@ export interface RegistrosProps {
 }
 
 export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
+  const voc = useVocabulario();
   const [pestana, setPestana] = useState(pestanaInicial ?? 'cortes');
   const [periodo, setPeriodo] = useState('hoy');
   const [desde, setDesde] = useState('');
@@ -379,7 +411,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
             <TableHeader className="sticky top-0 bg-card">
               <TableRow>
                 {principales.map((columna) => (
-                  <TableHead key={columna.campo}>{columna.rotulo}</TableHead>
+                  <TableHead key={columna.campo}>{rotuloDe(columna, voc)}</TableHead>
                 ))}
                 {secundarias.map((columna) => (
                   <TableHead key={columna.campo} className={SOLO_PC}>
@@ -423,7 +455,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
                           <dl className="grid grid-cols-2 gap-1 text-sm">
                             {secundarias.map((columna) => (
                               <Fragment key={columna.campo}>
-                                <dt className="text-muted-foreground">{columna.rotulo}</dt>
+                                <dt className="text-muted-foreground">{rotuloDe(columna, voc)}</dt>
                                 <dd>{celda(fila, columna)}</dd>
                               </Fragment>
                             ))}
@@ -446,7 +478,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
                 {principales.map((columna) => (
                   <Fragment key={columna.campo}>
-                    <dt className="text-muted-foreground">{columna.rotulo}</dt>
+                    <dt className="text-muted-foreground">{rotuloDe(columna, voc)}</dt>
                     <dd className={columna.tipo === 'dinero' ? 'font-bold tabular-nums' : ''}>
                       {celda(fila, columna)}
                     </dd>

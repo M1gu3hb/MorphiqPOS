@@ -7,6 +7,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · registros
@@ -42,7 +43,9 @@ import { consultarPuente } from '~/cliente/api';
 
 const TIPOS = [
   { clave: 'todo', etiqueta: 'Todo' },
-  { clave: 'venta', etiqueta: 'Ventas' },
+  // El rótulo de ésta lo pone el DICCIONARIO: «Ventas», «Notas» o «Cuentas» según
+  // el giro. `etiqueta` se queda de reserva por si el giro la apaga.
+  { clave: 'venta', etiqueta: 'Ventas', voz: 'orden' },
   { clave: 'caja', etiqueta: 'Caja' },
   { clave: 'inventario', etiqueta: 'Inventario' },
 ] as const;
@@ -135,6 +138,12 @@ export function componerLinea(
   ventas: readonly VentaRegistrada[],
   movimientos: readonly MovimientoRegistrado[],
   inventario: readonly MovimientoDeInventario[],
+  /**
+   * Cómo se llama una VENTA en este giro: «Venta» en la tiendita, «Nota» en la
+   * ferretería, «Cuenta» en la barra. Tecleada, esta pantalla —que es de las cinco
+   * plantillas— decía «Venta» en una ferretería que sólo habla de notas.
+   */
+  comoSeLlamaLaVenta = 'Venta',
 ): readonly RenglonDeRegistro[] {
   const renglones: RenglonDeRegistro[] = [];
 
@@ -144,7 +153,7 @@ export function componerLinea(
       id: `v-${venta.id}`,
       hora: hora(venta.created_date),
       tipo: 'venta',
-      titulo: cancelada ? 'Venta cancelada' : 'Venta',
+      titulo: cancelada ? `${comoSeLlamaLaVenta} cancelada` : comoSeLlamaLaVenta,
       // Quién la hizo va EN la línea: cancelar una venta cobrada es la
       // operación más sensible del mostrador, y nadie abre la ficha de cada una.
       detalle: venta.usuario_cajero_nombre ?? 'sin firma',
@@ -186,6 +195,7 @@ export function Registros({
   movimientosIniciales,
   inventarioInicial,
 }: RegistrosProps) {
+  const voc = useVocabulario();
   const [fecha, setFecha] = useState(dia ?? '');
   const [tipo, setTipo] = useState<Tipo>('todo');
   const [ventas, setVentas] = useState<readonly VentaRegistrada[] | null>(ventasIniciales ?? null);
@@ -288,7 +298,7 @@ export function Registros({
   }, [fecha, ventasIniciales, movimientosIniciales, inventarioInicial]);
 
   const cargando = ventas === null || movimientos === null || inventario === null;
-  const linea = cargando ? [] : componerLinea(ventas, movimientos, inventario);
+  const linea = cargando ? [] : componerLinea(ventas, movimientos, inventario, voc.titulo('orden'));
   const visibles = tipo === 'todo' ? linea : linea.filter((r) => r.tipo === tipo);
   const porPreguntar = linea.filter((r) => r.sinExplicacion).length;
 
@@ -322,7 +332,9 @@ export function Registros({
                 setTipo(opcion.clave);
               }}
             >
-              {opcion.etiqueta}
+              {'voz' in opcion && voc.titulo(opcion.voz, true) !== ''
+                ? voc.titulo(opcion.voz, true)
+                : opcion.etiqueta}
             </Button>
           ))}
         </div>

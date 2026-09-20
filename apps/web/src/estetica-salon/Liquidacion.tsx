@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · liquidacion
@@ -97,7 +98,15 @@ function pesos(centavos: string): string {
  * Lo que SUMA primero y lo que RESTA después: leído al revés, el total parece
  * un castigo en vez de una cuenta.
  */
-export function renglonesDe(comprobante: Comprobante): readonly {
+export function renglonesDe(
+  comprobante: Comprobante,
+  /**
+   * Cómo se llama la UNIDAD DE SERVICIO en este giro: estación en un salón, silla
+   * en una barbería, cabina en un spa. Tecleada, el comprobante de la barbería
+   * cobraba «renta de estación» por una silla.
+   */
+  comoSeLlamaLaEstacion = 'estación',
+): readonly {
   readonly etiqueta: string;
   readonly importe: string;
   readonly resta: boolean;
@@ -106,7 +115,11 @@ export function renglonesDe(comprobante: Comprobante): readonly {
     { etiqueta: 'Comisión', importe: comprobante.comisionCentavos, resta: false },
     { etiqueta: 'Propina', importe: comprobante.propinaCentavos, resta: false },
     { etiqueta: 'Material cargado', importe: comprobante.materialCargadoCentavos, resta: true },
-    { etiqueta: 'Renta de estación', importe: comprobante.rentaCentavos, resta: true },
+    {
+      etiqueta: `Renta de ${comoSeLlamaLaEstacion}`,
+      importe: comprobante.rentaCentavos,
+      resta: true,
+    },
     { etiqueta: 'Lo que ella cobró', importe: comprobante.cobradoPorEllaCentavos, resta: true },
     { etiqueta: 'Anticipos', importe: comprobante.anticiposCentavos, resta: true },
   ];
@@ -118,6 +131,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function Liquidacion({ profesionalesIniciales, desde, hasta }: LiquidacionProps) {
+  const voc = useVocabulario();
   const [profesionales, setProfesionales] = useState<readonly FichaDeProfesional[] | null>(
     profesionalesIniciales ?? null,
   );
@@ -319,7 +333,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
           <div className="space-y-3 rounded-lg border p-4">
             <h2 className="text-xl font-medium">{comprobante.nombreCompleto}</h2>
             <ul className="divide-y">
-              {renglonesDe(comprobante).map((renglon) => (
+              {renglonesDe(comprobante, voc.singular('unidad_servicio')).map((renglon) => (
                 <li key={renglon.etiqueta} className="flex items-baseline justify-between py-2">
                   <span>{renglon.etiqueta}</span>
                   <span className="tabular-nums">

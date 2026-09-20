@@ -15,6 +15,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · abarrotes · servicios
@@ -168,6 +169,7 @@ function comienzoDelDia(): string {
 }
 
 export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: ServiciosProps) {
+  const voc = useVocabulario();
   const [comisionistas, setComisionistas] = useState<readonly Comisionista[]>([]);
   const [saldos, setSaldos] = useState<readonly SaldoDeComisionista[] | null>(
     saldosIniciales ?? null,
@@ -377,9 +379,11 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
         setImporte('');
       }
       // Con estas palabras, porque es la confusión número uno del giro.
+      // «venta» es la palabra del GIRO —en una ferretería es una nota— y es justo la
+      // frase donde importa: lo que se está explicando es qué NO es esto.
       setAviso(
-        `Los ${enPesos(recibido)} entran a la caja pero no cuentan como venta. ` +
-          `Tu ganancia son ${enPesos(comision)}.`,
+        `Los ${enPesos(recibido)} entran a la caja pero no cuentan como ` +
+          `${voc.singular('orden')}. Tu ganancia son ${enPesos(comision)}.`,
       );
       onCobrada?.(proveedor, comision);
     } catch (fallo) {
