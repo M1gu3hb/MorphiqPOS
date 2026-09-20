@@ -23,6 +23,7 @@ import {
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · cafeteria · inventario
@@ -236,6 +237,7 @@ function useEsPC(): boolean {
 }
 
 export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: InventarioProps) {
+  const voc = useVocabulario();
   const [insumos, setInsumos] = useState<readonly InsumoDeInventario[] | null>(
     filasIniciales ?? null,
   );
@@ -291,7 +293,10 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
           almacenId: almacen,
           insumoId: insumo.id,
           cantidad: delta,
-          motivo: delta > 0 ? 'Ajuste en barra: entrada' : 'Ajuste en barra: salida',
+          // La palabra del GIRO, no «barra» tecleada: este motivo se lee después en
+          // Registros, y en un negocio cuya preparación se llama de otro modo decía
+          // barra igualmente.
+          motivo: `Ajuste en ${voc.singular('preparacion')}: ${delta > 0 ? 'entrada' : 'salida'}`,
         });
         // La fila se reescribe, no se muta: quien tuviera la lista anterior
         // sigue teniendo una lista coherente.

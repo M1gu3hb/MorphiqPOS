@@ -43,6 +43,21 @@ con quién se entró sin mirar dos veces.
 | Cocina / barista | **5678** | Sólo lo que hay que preparar |
 | Almacén | **6789** | Recibe mercancía, cuenta y traspasa. No toca la caja |
 
+### Y la del MODO PRESENTACIÓN, que no es un PIN
+
+**`demo1234`**, en las cinco demostraciones.
+
+Es la pantalla desde la que se cambia de modelo de negocio delante de un prospecto —Configuración →
+Modo Presentación— y **hasta hoy no se podía abrir en ninguna**: `desbloquearPresentacion` se niega
+si el negocio no tiene contraseña configurada, y la siembra no configuraba ninguna. Se niega con
+razón: la anterior se comparaba en el NAVEGADOR contra un `'2797'` escrito en el código de un
+repositorio público (D-19). Ahora la siembra la deja puesta, con Argon2id y pimienta, igual que un
+PIN.
+
+**Sólo en las demos.** Un negocio que cobra la fija su dueño desde su propia pantalla, y nadie más
+la puede leer: `presentacion_password_hash` está en `NUNCA_SALEN`, así que no viaja al navegador ni
+en la configuración.
+
 ### Las personas, por negocio
 
 | | Dueño | Gerente | Cajero | Atiende | Prepara | Almacén |

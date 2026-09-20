@@ -4,6 +4,7 @@ import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import { repoCaja, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
+import { anotarOperacionDeComision } from './comisionista.ts';
 import { definirComando, type ContextoComando } from '../definicion.ts';
 
 /**
@@ -68,6 +69,14 @@ export interface ResultadoComision {
   readonly montoRecibidoCentavos: string;
   readonly comisionNegocioCentavos: string;
   readonly saldoDelProveedorCentavos: string;
+  /**
+   * Lo que queda del saldo prepagado con ESE proveedor, después de esta operación.
+   *
+   * Es el número que el tendero mira a las nueve de la noche —«¿me queda saldo de
+   * Telcel para la noche?»— y hasta hoy no lo devolvía nadie, porque nadie escribía
+   * en `saldos_comisionista`: la tabla existía desde la 095 sin un solo consumidor.
+   */
+  readonly saldoDelComisionistaCentavos: string;
 }
 
 const ROLES = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
@@ -144,6 +153,28 @@ export const registrarComision = definirComando<
       }),
     );
 
+    // ── Y LA OPERACIÓN, en las tablas que la 095 dejó escritas y sin usar ──
+    //
+    // `comisionistas`, `operaciones_comision` y `saldos_comisionista` existen desde
+    // la migración 095 y **nadie las leía ni las escribía**: ni un comando, ni una
+    // pantalla, ni un reporte. Por eso `abarrotes/Servicios` tenía
+    // `Promise.resolve([])` donde debería ir su consulta y el panel «Saldo de
+    // recargas» no se llenaba nunca.
+    //
+    // El pasivo de arriba sigue siendo el ledger —lo que se le debe al
+    // proveedor—; esto es la OPERACIÓN, con sus importes separados y con el saldo
+    // que la pantalla mira a las nueve de la noche.
+    const operacion = await anotarOperacionDeComision(ctx, {
+      pasivoId: pasivo.id,
+      sucursalId: caja.sucursalId,
+      sesionCajaId: caja.sesionId,
+      tipo: entrada.tipo,
+      proveedorServicio: entrada.proveedorServicio,
+      referencia: entrada.referencia,
+      montoRecibidoCentavos: entrada.montoRecibidoCentavos,
+      comisionNegocioCentavos: entrada.comisionNegocioCentavos,
+    });
+
     const saldo = await saldoDe(
       ctx,
       'servicio_terceros',
@@ -168,6 +199,7 @@ export const registrarComision = definirComando<
       montoRecibidoCentavos: entrada.montoRecibidoCentavos.toString(),
       comisionNegocioCentavos: entrada.comisionNegocioCentavos.toString(),
       saldoDelProveedorCentavos: saldo.toString(),
+      saldoDelComisionistaCentavos: operacion.saldoCentavos.toString(),
     };
   },
 });

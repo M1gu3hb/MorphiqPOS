@@ -1,8 +1,9 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
-import type { Transaccion } from '@morphiqpos/data';
+import { repoFolios, type Transaccion } from '@morphiqpos/data';
 import { saldoDeSurtido, sigueVigente, versionSiguiente } from '@morphiqpos/domain/venta';
+import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
@@ -60,8 +61,25 @@ const lineaDeEntrada = z.object({
 });
 
 export const entradaCrearCotizacion = z.object({
-  folio: z.string().trim().min(1).max(30),
-  venceEl: z.iso.date(),
+  /**
+   * El folio, si quien llama ya lo tiene. Si NO lo tiene, lo toma el servidor.
+   *
+   * Era obligatorio, y con eso la única pantalla que arma cotizaciones no podía
+   * crear ninguna: un folio no se inventa en el navegador —es un consecutivo por
+   * sucursal y por serie, y dos pestañas abiertas se darían el mismo—. Lo toma
+   * `repoFolios` de la serie «C», como la nota de mostrador toma el suyo de la «N».
+   */
+  folio: z.string().trim().min(1).max(30).optional(),
+  /**
+   * Hasta cuándo vale, o CUÁNTOS DÍAS vale.
+   *
+   * La pantalla ofrece 7, 15 o 30 días —no una fecha— porque eso es lo que se
+   * decide con el plano delante. Convertir días en fecha en el navegador la
+   * calcularía con la zona del navegador, que en una caja mal configurada es otro
+   * día; aquí se calcula con la del NEGOCIO.
+   */
+  venceEl: z.iso.date().optional(),
+  vigenciaDias: z.number().int().min(1).max(180).optional(),
   clienteId: z.uuid().nullable().default(null),
   obraId: z.uuid().nullable().default(null),
   nombreLibre: z.string().trim().max(120).nullable().default(null),
@@ -269,6 +287,54 @@ async function anotarEvento(
   );
 }
 
+/**
+ * EL FOLIO DE UNA COTIZACIÓN, en su propia serie.
+ *
+ * Serie «C», que no comparte consecutivo con el ticket ni con la nota: dos
+ * documentos en la misma serie hacen que el 480 sea a veces una venta y a veces
+ * una cotización, y entonces nadie puede citarlo por teléfono.
+ */
+async function tomarFolioDeCotizacion(ctx: ContextoComando<Transaccion>): Promise<string> {
+  const { organizacionId, sucursalId } = ctx.ambito;
+  // El consecutivo es POR SUCURSAL: sin ella, dos mostradores del mismo negocio
+  // se darían el mismo número y el folio dejaría de identificar el documento.
+  if (sucursalId === null) {
+    throw new ErrorDominio(
+      'VENTA_SIN_TERMINAL',
+      'Para tomar el folio de una cotización hace falta una sucursal dada de alta.',
+    );
+  }
+  const tomado = await ctx.paso('tomar_folio', () =>
+    repoFolios.tomarFolio(ctx.tx, organizacionId, sucursalId, 'C'),
+  );
+  return `${tomado.serie}-${tomado.folio.toString()}`;
+}
+
+/**
+ * «Vale quince días» → la fecha, contada desde el DÍA DEL NEGOCIO.
+ *
+ * En Postgres y con `organizaciones.zona_horaria`, no con la del proceso ni con la
+ * del navegador: a las 19:40 de México, `new Date()` en UTC ya es el día siguiente,
+ * y una cotización de siete días nacería venciendo el octavo.
+ */
+async function venceEnDias(
+  ctx: ContextoComando<Transaccion>,
+  dias: number | undefined,
+): Promise<string | null> {
+  if (dias === undefined) return null;
+  const filas = await ctx.paso('vence_el', () =>
+    sql<{ fecha: string }>`
+      select to_char(
+               ((${ctx.ahora.toISOString()}::timestamptz at time zone o.zona_horaria)::date
+                 + ${dias}::int),
+               'YYYY-MM-DD') as fecha
+        from organizaciones o
+       where o.id = ${ctx.ambito.organizacionId}
+    `.execute(ctx.tx),
+  );
+  return filas.rows[0]?.fecha ?? null;
+}
+
 export const crearCotizacion = definirComando<
   Transaccion,
   typeof entradaCrearCotizacion,
@@ -289,9 +355,22 @@ export const crearCotizacion = definirComando<
         'Una cotización que no se le puede mandar a nadie no es una cotización.',
       );
     }
+
+    // ── LA FECHA DE VIGENCIA, en la zona del NEGOCIO ──────────────────────
+    const venceEl = entrada.venceEl ?? (await venceEnDias(ctx, entrada.vigenciaDias));
+    if (venceEl === null) {
+      throw new ErrorDominio(
+        'CONFIGURACION_INVALIDA',
+        'Una cotización sin vigencia es una promesa abierta: dime la fecha o los días.',
+      );
+    }
+
+    // ── EL FOLIO, que lo toma el servidor cuando no viene ─────────────────
+    const folio = entrada.folio ?? (await tomarFolioDeCotizacion(ctx));
+
     // La vigencia se comprueba al CREAR además de al convertir: nacer vencida
     // es un tecleo, y descubrirlo al mandarla es descubrirlo tarde.
-    if (!sigueVigente(entrada.venceEl, ctx.ahora)) {
+    if (!sigueVigente(venceEl, ctx.ahora)) {
       throw new ErrorDominio(
         'CONFIGURACION_INVALIDA',
         'Una cotización no puede nacer vencida: revisa la fecha de vigencia.',
@@ -306,7 +385,7 @@ export const crearCotizacion = definirComando<
         .values({
           organizacion_id: organizacionId,
           sucursal_id: sucursalId,
-          folio: entrada.folio,
+          folio,
           version: 1,
           vigente: true,
           cliente_id: entrada.clienteId,
@@ -315,7 +394,7 @@ export const crearCotizacion = definirComando<
           correo_libre: entrada.correoLibre,
           telefono_libre: entrada.telefonoLibre,
           estado: 'borrador',
-          vence_el: entrada.venceEl,
+          vence_el: venceEl,
           subtotal_centavos: subtotal,
           descuento_centavos: BigInt(entrada.descuentoCentavos),
           total_centavos: total,
@@ -332,11 +411,11 @@ export const crearCotizacion = definirComando<
 
     ctx.auditar({
       entidadId: cotizacion.id,
-      payload: { folio: entrada.folio, lineas: entrada.lineas.length },
+      payload: { folio, lineas: entrada.lineas.length },
     });
     return {
       cotizacionId: cotizacion.id,
-      folio: entrada.folio,
+      folio,
       version: 1,
       totalCentavos: total.toString(),
     };

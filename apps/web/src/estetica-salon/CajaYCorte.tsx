@@ -8,6 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · estetica-salon · caja-y-corte
@@ -102,6 +103,7 @@ function mensajeDe(fallo: unknown): string {
 }
 
 export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
+  const voc = useVocabulario();
   const [estado, setEstado] = useState<EstadoDelSalon | null>(estadoInicial ?? null);
   const [fondo, setFondo] = useState('');
   const [contado, setContado] = useState('');
@@ -245,7 +247,8 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
               <span className="tabular-nums">− {pesos(estado.propinasEntregadasCentavos)}</span>
             </p>
             <p className="text-muted-foreground text-sm">
-              La propina no es un gasto del salón: es dinero de las clientas que pasó por el cajón.
+              La propina no es un gasto del salón: es dinero de {voc.enFrase('cliente', true)} que
+              pasó por el cajón.
             </p>
           </section>
 

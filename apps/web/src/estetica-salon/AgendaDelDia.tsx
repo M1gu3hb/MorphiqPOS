@@ -7,6 +7,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
+
+/** El vocabulario, como lo devuelve el gancho: los ayudantes de abajo lo reciben. */
+type Vocabulario = ReturnType<typeof useVocabulario>;
 
 // La colocación de los bloques vive aparte: es aritmética pura y así se puede
 // afirmar sin navegador. Ver `agenda-geometria.ts`.
@@ -55,6 +59,8 @@ const ESTADOS = {
   agendada: { nombre: 'Agendada', clase: 'bg-muted text-muted-foreground border-border' },
   sin_confirmar: { nombre: 'Sin confirmar', clase: 'bg-warning/30 border-warning' },
   en_curso: { nombre: 'En curso', clase: 'bg-primary/25 border-primary' },
+  // «Cabe una cita» lleva el sustantivo del giro y por eso se resuelve al pintar:
+  // en una barbería cabe un CORTE y en un spa una SESIÓN. Ver `nombreDelEstado`.
   procesado: { nombre: 'Cabe una cita', clase: 'bg-primary/10 border-dashed border-primary/40' },
   cobrada: { nombre: 'Cobrada', clase: 'bg-success/30 border-success' },
   sin_cobrar: { nombre: 'SIN COBRAR', clase: 'bg-card text-card-foreground border-success' },
@@ -314,12 +320,26 @@ export function resumenDe(bloques: readonly BloqueDeAgenda[]) {
 }
 
 /** Dónde cae el bloque dentro de su columna, recortado a la jornada dibujada. */
-function mensajeDe(fallo: unknown): string {
+/**
+ * El fallo, en palabras del GIRO.
+ *
+ * Los dos mensajes de abajo llevan «cita», que es el sustantivo del salón: en una
+ * barbería es un corte y en un taller una orden. Es la pantalla de INICIO de este
+ * modelo —se abre de cuarenta a ochenta veces al día— así que es donde más se nota.
+ */
+function mensajeDe(fallo: unknown, voc?: Vocabulario): string {
+  const orden = voc?.singular('orden') ?? 'cita';
+  const ordenes = voc?.plural('orden') ?? 'citas';
   if (!(fallo instanceof ErrorApi)) return 'No se pudo cargar la agenda.';
   if (fallo.estado === HTTP_DEMASIADOS) return 'Demasiados intentos. Espera un momento.';
-  if (fallo.error.codigo === 'CONFLICTO_ESTADO') return 'Esa cita ya no está para iniciar.';
-  if (fallo.error.codigo === 'SIN_PERMISO') return 'Tu usuario no puede iniciar citas.';
+  if (fallo.error.codigo === 'CONFLICTO_ESTADO') return `Esa ${orden} ya no está para iniciar.`;
+  if (fallo.error.codigo === 'SIN_PERMISO') return `Tu usuario no puede iniciar ${ordenes}.`;
   return fallo.error.mensaje;
+}
+
+/** El nombre del estado, con el sustantivo del giro donde lo lleva. */
+function nombreDelEstado(estado: { readonly nombre: string }, voc: Vocabulario): string {
+  return estado.nombre === 'Cabe una cita' ? `Cabe ${voc.enFrase('orden')}` : estado.nombre;
 }
 
 export interface BloqueProps {
@@ -330,6 +350,7 @@ export interface BloqueProps {
 
 /** El bloque, idéntico en la rejilla y en la lista: una sola verdad visual. */
 export function Bloque({ bloque, ocupado = false, onTocar }: BloqueProps) {
+  const voc = useVocabulario();
   const estado = esEstado(bloque.estado) ? ESTADOS[bloque.estado] : ESTADOS.agendada;
   const rayado = bloque.estado === 'procesado' || bloque.estado === 'apartado';
   const minutos = aMinutos(bloque.fin) - aMinutos(bloque.inicio);
@@ -345,7 +366,9 @@ export function Bloque({ bloque, ocupado = false, onTocar }: BloqueProps) {
       {rayado && <span aria-hidden className="absolute inset-0 opacity-25" style={RAYADO} />}
       <span className="relative flex items-baseline gap-2">
         <span className="text-sm font-bold tabular-nums">{bloque.inicio}</span>
-        <span className="truncate text-xs font-semibold uppercase">{estado.nombre}</span>
+        <span className="truncate text-xs font-semibold uppercase">
+          {nombreDelEstado(estado, voc)}
+        </span>
         {/* Esquina propia: un error aquí no es un descuadre, es una quemadura. */}
         {bloque.alergia && (
           <span className="ml-auto" aria-label="Alergia en el expediente">
@@ -369,6 +392,7 @@ export function Bloque({ bloque, ocupado = false, onTocar }: BloqueProps) {
 }
 
 export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: AgendaDelDiaProps) {
+  const voc = useVocabulario();
   const enrutador = useRouter();
   const [bloques, setBloques] = useState<readonly BloqueDeAgenda[] | null>(
     bloquesIniciales ?? null,
@@ -512,10 +536,14 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         // El aviso nombra la fuente que falló, porque «no se pudo cargar» sobre
         // una pantalla con citas dentro manda a buscar donde no está.
         const caidas = [
-          dia.status === 'rejected' ? `citas: ${mensajeDe(dia.reason)}` : null,
-          huecos.status === 'rejected' ? `huecos: ${mensajeDe(huecos.reason)}` : null,
-          clientas.status === 'rejected' ? 'los nombres de las clientas' : null,
-          servicios.status === 'rejected' ? 'los nombres de los servicios' : null,
+          dia.status === 'rejected'
+            ? `${voc.plural('orden')}: ${mensajeDe(dia.reason, voc)}`
+            : null,
+          huecos.status === 'rejected' ? `huecos: ${mensajeDe(huecos.reason, voc)}` : null,
+          clientas.status === 'rejected' ? `los nombres de ${voc.enFrase('cliente', true)}` : null,
+          servicios.status === 'rejected'
+            ? `los nombres de ${voc.enFrase('linea_orden', true)}`
+            : null,
           expedientes.status === 'rejected' ? 'las alergias del expediente' : null,
         ].filter((x): x is string => x !== null);
         setError(caidas.length === 0 ? null : `No se pudo leer ${caidas.join(' · ')}.`);
@@ -603,7 +631,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
       // dejar el resto del recorrido sin puerta.
       enrutador.push(enLaCita);
     } catch (fallo: unknown) {
-      setError(mensajeDe(fallo));
+      setError(mensajeDe(fallo, voc));
     } finally {
       setOcupado(null);
     }

@@ -1052,6 +1052,9 @@ export interface Esquema {
   organizacion_modulos: OrganizacionModulos;
   organizaciones: Organizaciones;
   pagos: Pagos;
+  comisionistas: Comisionistas;
+  operaciones_comision: OperacionesComision;
+  saldos_comisionista: SaldosComisionista;
   pasivos_terceros: PasivosTerceros;
   personas: Personas;
   plantillas_compra: PlantillasCompra;
@@ -1384,6 +1387,64 @@ export interface MotivosMerma {
   imputable: Generated<boolean>;
   activo: Generated<boolean>;
   created_at: Generated<Date>;
+}
+
+/**
+ * F-255 · A QUIÉN se le vende por cuenta ajena: Telcel, CFE, la paquetería.
+ *
+ * No es un proveedor —a ése se le compra mercancía— y por eso tiene tabla propia
+ * desde la 095. `modelo` decide el signo del saldo: `prepago` es el que se compra
+ * por adelantado y se gasta; `pospago`, el dinero ajeno que se recibe y se entrega.
+ *
+ * Las tres tablas de comisionista existían desde la 095 y **no estaban en este
+ * mapa**, así que ningún comando podía escribirlas ni leerlas: es la razón por la
+ * que la pantalla de Servicios tenía `Promise.resolve([])` donde va su consulta.
+ */
+export interface Comisionistas {
+  id: Generated<string>;
+  organizacion_id: string;
+  nombre: string;
+  /** `recarga` · `servicio` · `recibo` · `paqueteria` · `otro`. */
+  tipo: string;
+  /** `prepago` · `pospago`. Decide el signo con el que se mueve el saldo. */
+  modelo: string;
+  comision_bp: Generated<number>;
+  activo: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+/** F-255 · Cada recarga y cada pago de servicio, con sus importes SEPARADOS. */
+export interface OperacionesComision {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string | null;
+  comisionista_id: string;
+  orden_id: string | null;
+  tipo: string;
+  /** Lo que la persona entregó en el mostrador. NO es venta: es de la tercera. */
+  monto_ajeno_centavos: Generated<bigint>;
+  /** Lo único que el negocio gana. ESTO sí es ingreso. */
+  comision_centavos: Generated<bigint>;
+  /** El porcentaje CONGELADO: las plataformas lo cambian sin avisar. */
+  comision_bp_aplicada: number;
+  referencia: string | null;
+  telefono: string | null;
+  sesion_caja_id: string | null;
+  movimiento_caja_id: string | null;
+  empleado_id: string | null;
+  created_at: Generated<Date>;
+}
+
+/** F-255 · El número que se mira a las nueve: «¿cuánto saldo me queda?». */
+export interface SaldosComisionista {
+  organizacion_id: string;
+  comisionista_id: string;
+  /** Firmado: en `prepago` es lo que queda por vender; en `pospago`, lo que se debe. */
+  saldo_centavos: Generated<bigint>;
+  comision_acumulada_centavos: Generated<bigint>;
+  ultima_entrega_en: Date | null;
+  actualizado_en: Generated<Date>;
 }
 
 /**

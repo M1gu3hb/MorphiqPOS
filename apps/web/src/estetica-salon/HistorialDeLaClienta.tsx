@@ -351,9 +351,21 @@ export function HistorialDeLaClienta({
   const alEmpezar = (evento: EnvioDeFormulario) => {
     evento.preventDefault();
     const datos = new FormData(evento.currentTarget);
-    // Ruta por convención /api/<dominio>/<verbo>: el documento no la nombra.
-    invocarComando('/api/clientes/empezar-historial', {
-      clienteId: clienteId ?? null,
+    /**
+     * EL EXPEDIENTE SE ABRE CON `expediente.abrir`, que existe desde la 132.
+     *
+     * Esto publicaba en `/api/clientes/empezar-historial` «por convención», y esa
+     * ruta no existe: Next la resolvía a `clientes/[id]` con
+     * `clienteId = "empezar-historial"`, la respuesta no era `{ok, datos}` y la
+     * pantalla enseñaba «El servidor respondió algo inesperado». Era el ÚNICO botón
+     * del estado vacío, así que ninguna clienta nueva podía empezar su historia.
+     */
+    if (clienteId === undefined || clienteId === '') {
+      setError('Este historial no sabe de quién es: ábrelo desde la lista de clientas.');
+      return;
+    }
+    invocarComando('/api/expediente/abrir', {
+      clienteId,
       comoLlego: soloTexto(datos.get('comoLlego')),
       queBusca: soloTexto(datos.get('queBusca')),
       alergias: soloTexto(datos.get('alergias')),

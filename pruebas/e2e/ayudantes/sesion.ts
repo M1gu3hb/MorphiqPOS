@@ -379,31 +379,56 @@ export async function exigirDemostracion(
     // que el despliegue sirve tiene que ser EXACTAMENTE el que esta corrida
     // declaró. Así no hay forma de acabar operando sobre otro — ni sobre uno
     // vivo, ni sobre la demo de otro modelo, que también ensuciaría el reporte.
-    // Primero los vivos, y sobre TODOS los servidos. Es la comprobación que
-    // protege la caja de un cliente, y por eso va antes que la de identidad: un
-    // despliegue que sirva a la demo Y a Restaurante MH a la vez pasaría la de
-    // identidad sin problema, y esta suite cambia la plantilla del negocio en el
-    // que entra.
+    // ── LO VIVO, que ya no es «no se sigue» sino «demuéstrame que no lo tocas» ──
+    //
+    // Esto fallaba en cuanto el despliegue servía a un negocio vivo, y protegía de
+    // verdad mientras `ORGANIZACION` llevaba UN slug. Desde que producción sirve a
+    // Restaurante MH **y** a las cinco demostraciones —que es lo que el encargo pedía:
+    // un despliegue, y el negocio lo decide quién entra— negarse a correr dejaría el
+    // rastreo sin producción contra la que correr, que es justo donde hay que mirar.
+    //
+    // Lo que protege la caja de un cliente no es que el despliegue no la sirva: es que
+    // esta suite no pueda ENTRAR en ella. Y eso se puede EXIGIR, que es más fuerte que
+    // negarse:
+    //
+    //   · la organización sale de la SESIÓN y nunca de un parámetro (R16), así que lo
+    //     único que decide en qué negocio opera esta corrida es CON QUIÉN entra;
+    //   · `entrar` filtra por `negocioSlug === SLUG_DEMO`, o sea que sólo puede elegir
+    //     a alguien de la demo;
+    //   · y para que ese filtro signifique algo, el despliegue tiene que decir de quién
+    //     es cada persona. Si NO lo dice y sirve a varios, no hay forma de distinguirlas
+    //     y entonces sí se para: elegir «la primera» podría ser el cajero de un cliente.
     const vivo = servidos.find((n) => (SLUGS_VIVOS as readonly string[]).includes(n.slug));
     if (vivo !== undefined) {
-      throw new Error(
-        [
-          `ALTO. El despliegue sirve a «${vivo.slug}» («${vivo.nombre}»), que es un NEGOCIO VIVO.`,
-          '',
-          `Sirve a ${String(servidos.length)}: ${servidos.map((n) => n.slug).join(', ')}.`,
-          '',
-          'F2.3-REGLAS §4.5: «Si al terminar quedan ventas de prueba, cortes de prueba o mesas',
-          'abiertas en cualquiera de los cuatro negocios vivos, el acople está mal hecho',
-          'aunque todo lo demás esté bien.»',
-          '',
-          'Esta suite entra con PIN, CAMBIA la plantilla del negocio y COBRA una venta. Sobre',
-          'un cliente que cobra, eso le quita o le da módulos que paga y le mete dinero que',
-          'no existe en su corte. No se sigue.',
-          '',
-          'Quita ese slug de `ORGANIZACION` en el entorno DEL SERVIDOR. Las cinco demos',
-          'caben juntas: ORGANIZACION admite la lista separada por comas.',
-        ].join('\n'),
-      );
+      const conNegocio = todos.filter((u) => u.negocioSlug !== undefined && u.negocioSlug !== '');
+      const deLaDemo = todos.filter((u) => u.negocioSlug === SLUG_DEMO);
+      if (conNegocio.length !== todos.length || deLaDemo.length === 0) {
+        throw new Error(
+          [
+            `ALTO. El despliegue sirve a «${vivo.slug}» («${vivo.nombre}»), que es un NEGOCIO`,
+            'VIVO, y no dice de qué negocio es cada persona de la pantalla de acceso.',
+            '',
+            `Sirve a ${String(servidos.length)}: ${servidos.map((n) => n.slug).join(', ')}.`,
+            `De ${String(todos.length)} personas, ${String(conNegocio.length)} traen su negocio ` +
+              `y ${String(deLaDemo.length)} son de «${SLUG_DEMO}».`,
+            '',
+            'Sin esa marca por persona no hay forma de entrar a la demo y sólo a la demo, y',
+            'esta suite entra con PIN, CAMBIA la plantilla del negocio y COBRA una venta.',
+            'Sobre un cliente que cobra, eso le quita módulos que paga y le mete dinero que',
+            'no existe en su corte. F2.3-REGLAS §4.5. No se sigue.',
+            '',
+            'O quitas ese slug de `ORGANIZACION` en el entorno DEL SERVIDOR, o el despliegue',
+            'vuelve a mandar `negocioSlug` en cada persona de `/api/auth/empleados`.',
+          ].join('\n'),
+        );
+      }
+      info.annotations.push({
+        type: 'negocio-vivo-servido',
+        description:
+          `El despliegue sirve también a «${vivo.slug}». La corrida entra en «${SLUG_DEMO}» ` +
+          `—${String(deLaDemo.length)} persona(s) suyas, y ninguna otra es elegible— y la ` +
+          'organización sale de la sesión, nunca de un parámetro (R16).',
+      });
     }
 
     if (!servidos.some((n) => n.slug === SLUG_DEMO)) {

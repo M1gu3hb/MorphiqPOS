@@ -3809,3 +3809,52 @@ Bloque 5 **cerrado**. La vuelta entera —los cinco bloques— queda en
 [`docs/reports/016-fase-2.3-segunda-vuelta.md`](../reports/016-fase-2.3-segunda-vuelta.md), con las
 ocho condiciones, la salida literal de las puertas, el CI en la punta, lo que cobró cada suite y las
 tres cosas que no puedo hacer yo, cada una con sus instrucciones de dos minutos.
+
+---
+
+## 20-09-2026 · CIERRE · BLOQUE 1 · producción, con el código nuevo y las seis puertas
+
+### 1 · La fusión, que no estaba bloqueada por GitHub
+
+El PR #1 llevaba desde el 18-09 en `mergeable_state: clean` y lo que lo frenaba no era el
+repositorio: era la política de la sesión anterior. Fusionado con la API, **100 commits a `main`**:
+
+```
+$ gh api -X PUT repos/{owner}/{repo}/pulls/1/merge -f merge_method=merge
+{"sha":"63f4423d5b624a288370d9b270ff0e10819ec957","merged":true}
+```
+
+### 2 · Y producción sirve a SEIS negocios, por sesión
+
+`morphiqpos-kappa.vercel.app` servía a uno —`mh-restaurante`— porque `ORGANIZACION` llevaba un solo
+slug. El mecanismo para varios ya estaba escrito (`negociosDelDespliegue`, que acepta lista) y lo que
+faltaba era usarlo:
+
+```
+$ curl -s https://morphiqpos-kappa.vercel.app/api/auth/empleados
+
+negocios: mh-restaurante · demo-acople-tienda · demo-acople-cafeteria ·
+          demo-acople-restaurante · demo-acople-ferreteria · demo-acople-estetica
+usuarios: 29
+```
+
+**El camino por HOST sigue ganando** cuando el host lleva el slug, y es el que se usará el día que el
+dominio resuelva. Mientras tanto basta la SESIÓN, que es lo que el encargo pedía: Miguel entra con el
+PIN de un negocio y ve ese negocio, sin redesplegar.
+
+Lo que hay que saber para deshacerlo: es **una variable**, no código. `ORGANIZACION` en el entorno
+Production del proyecto, y un redespliegue. Con `mh-restaurante` a secas vuelve a ser lo de antes.
+
+### 3 · Sin muro
+
+`ssoProtection` está sólo en `preview`; producción no tiene ni contraseña ni SSO. Comprobado desde
+fuera, sin cookie ni bypass: la raíz devuelve 200, `/api/auth/empleados` devuelve los 29 empleados de
+los seis negocios, y las rutas que sólo existen en el código nuevo —`/api/reportes/tablero-estetica`,
+`/api/reportes/tablero-cafeteria`, `/api/agenda/huecos`— contestan **403** (existen y están
+guardadas), no 404.
+
+### EN QUÉ IBA
+
+Bloque 1 cerrado. Lo siguiente es el **rastreador**: una prueba genérica que abre las 62 pantallas en
+las cinco demos, hace clic en CADA elemento interactivo y exige que cada clic haga algo —red, URL o
+DOM—, contra PRODUCCIÓN.
