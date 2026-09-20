@@ -11,6 +11,7 @@ import { repoCaja, repoFolios, repoOrdenes, repoStock, repoVentaCatalogo } from 
 
 import { definirComando } from '../definicion.ts';
 import { comandarLineasPendientes } from '../restaurante/comandar-pendientes.ts';
+import { pasarMesaCobradaALimpieza } from '../restaurante/mesas-escrituras.ts';
 import { marcarPropinaDeOrden, registrarPagoConPropina } from '../propinas/cobro.ts';
 import { entradaCobrarOrdenConPropina } from '../propinas/esquemas.ts';
 import { cotizar, exigirTotalVigente } from './cotizar.ts';
@@ -255,12 +256,34 @@ export const cobrarOrden = definirComando<
       comandarLineasPendientes(ctx.tx, organizacionId, entrada.ordenId, ctx.ahora),
     );
 
+    /**
+     * 11 · Y LA MESA, SI ERA DE UNA MESA, PASA A LIMPIEZA.
+     *
+     * La pantalla de cobro lo dice con estas palabras —«la mesa pasa sola a
+     * limpieza»— y no pasaba: esto no tocaba `mesas`, así que una mesa cobrada se
+     * quedaba en `cuenta_solicitada` con su orden ya `pagada`. El mapa de mesas
+     * enseñaba «la cuenta está pedida» sobre una cuenta pagada y `abrir_mesa`
+     * contestaba «la mesa 1 ya está abierta» para siempre: la mesa no volvía al
+     * servicio.
+     *
+     * Va DENTRO de la transacción del cobro por la misma razón que las comandas: o
+     * hay venta y mesa recogible, o no hay ninguna de las dos. Y devuelve `null` en
+     * una venta de mostrador, que es la mayoría.
+     */
+    const mesaRecogida = await ctx.paso('mesa_a_limpieza', () =>
+      pasarMesaCobradaALimpieza(ctx.tx, organizacionId, entrada.ordenId, {
+        empleoId,
+        ahora: ctx.ahora,
+      }),
+    );
+
     const cambio = pagos.reduce((suma, p) => suma + p.cambioCentavos, 0n);
 
     ctx.auditar({
       entidadId: entrada.ordenId,
       payload: {
         folio: `${folio.serie}-${folio.folio.toString()}`,
+        ...(mesaRecogida === null ? {} : { mesaALimpieza: mesaRecogida.numero }),
         totalCentavos: totales.totalCentavos.toString(),
         propinaCentavos: propinaTotal.toString(),
         metodos: pagos.map((p) => p.metodo),

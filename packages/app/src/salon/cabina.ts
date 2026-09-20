@@ -4,7 +4,7 @@ import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
-import { definirComando } from '../definicion.ts';
+import { definirComando, type ContextoComando } from '../definicion.ts';
 
 /**
  * F-155 · El doble destino del mismo SKU: cabina y anaquel.
@@ -33,16 +33,74 @@ import { definirComando } from '../definicion.ts';
 
 const CABINA = ['mesero', 'cajero', 'gerente', 'administrador', 'dueno'] as const;
 
+/**
+ * Los dos almacenes del salón, resueltos desde la SESIÓN.
+ *
+ * El de venta es el PRINCIPAL —el mostrador— y el de cabina es el otro: un salón
+ * tiene el anaquel de lo que vende y el cuarto donde se mezcla, y por eso la 141
+ * separa los dos destinos. Se resuelve por eliminación y no por el nombre: un
+ * almacén llamado «Cabina 2» dejaría de encontrarse el día que alguien lo renombre.
+ *
+ * Si no hay un segundo almacén se DICE, con lo que hay que hacer. Antes esto no
+ * podía fallar porque la pantalla mandaba dos cadenas vacías y no llegaba nunca.
+ */
+async function almacenesDelSalon(
+  ctx: ContextoComando<Transaccion>,
+): Promise<{ readonly venta: string; readonly cabina: string }> {
+  const { organizacionId, sucursalId } = ctx.ambito;
+  if (sucursalId === null) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Un almacén es de una sucursal, y esta sesión no tiene una.',
+    );
+  }
+  const almacenes = await ctx.paso('cargar_almacenes', () =>
+    ctx.tx
+      .selectFrom('almacenes')
+      .select(['id', 'principal'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('sucursal_id', '=', sucursalId)
+      .where('activo', '=', true)
+      .orderBy('principal', 'desc')
+      .execute(),
+  );
+  const venta = almacenes.find((a) => a.principal) ?? almacenes[0];
+  const cabina = almacenes.find((a) => a.id !== venta?.id);
+  if (venta === undefined) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Esta sucursal no tiene almacén dado de alta.',
+    );
+  }
+  if (cabina === undefined) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Este negocio no tiene almacén de CABINA: lo que se abre para mezclar se cuenta aparte de ' +
+        'lo que se vende, o el inventario del anaquel miente. Da de alta un segundo almacén.',
+    );
+  }
+  return { venta: venta.id, cabina: cabina.id };
+}
+
 export const entradaAbrirProducto = z.object({
   productoId: z.uuid(),
-  almacenVentaId: z.uuid(),
-  almacenCabinaId: z.uuid(),
+  /**
+   * De dónde sale y a dónde entra. Los dos OPCIONALES: los resuelve la sesión.
+   *
+   * La pantalla de productos de un salón no sabe los ids de sus almacenes —ni
+   * tiene por qué— y exigírselos la dejaba montada con la cadena vacía, sin
+   * consultar nada y EN BLANCO. El ámbito sale de la sesión del servidor (R16); se
+   * siguen aceptando porque un salón con dos sucursales sí elige.
+   */
+  almacenVentaId: z.uuid().optional(),
+  almacenCabinaId: z.uuid().optional(),
   /** Cuántas piezas se abren. Casi siempre una. */
   piezas: z.number().int().min(1).max(50).default(1),
 });
 
 export const entradaAlcanzaCabina = z.object({
-  almacenCabinaId: z.uuid(),
+  /** OPCIONAL: el almacén de cabina de la sesión. Ver `entradaAbrirProducto`. */
+  almacenCabinaId: z.uuid().optional(),
   /** Lo que las citas ya agendadas van a gastar, por insumo. */
   consumoEsperado: z
     .array(
@@ -99,6 +157,20 @@ export const abrirProducto = definirComando<
   entrada: entradaAbrirProducto,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
+    // Los dos, de la petición o del ámbito: un salón con dos sucursales sí elige.
+    // Sólo se pregunta a la base cuando falta alguno: con los dos dichos, ir a
+    // buscarlos sería una consulta que no cambia nada.
+    const dichos = { venta: entrada.almacenVentaId, cabina: entrada.almacenCabinaId };
+    const almacenes =
+      dichos.venta !== undefined && dichos.cabina !== undefined
+        ? { venta: dichos.venta, cabina: dichos.cabina }
+        : await (async () => {
+            const delAmbito = await almacenesDelSalon(ctx);
+            return {
+              venta: dichos.venta ?? delAmbito.venta,
+              cabina: dichos.cabina ?? delAmbito.cabina,
+            };
+          })();
 
     const producto = await ctx.paso('leer_producto', () =>
       ctx.tx
@@ -139,7 +211,7 @@ export const abrirProducto = definirComando<
         .insertInto('movimientos_stock')
         .values({
           organizacion_id: organizacionId,
-          almacen_id: entrada.almacenVentaId,
+          almacen_id: almacenes.venta,
           insumo_id: insumoId,
           tipo: 'traspaso_salida',
           cantidad: `-${entrada.piezas}`,
@@ -163,7 +235,7 @@ export const abrirProducto = definirComando<
         .insertInto('movimientos_stock')
         .values({
           organizacion_id: organizacionId,
-          almacen_id: entrada.almacenCabinaId,
+          almacen_id: almacenes.cabina,
           insumo_id: insumoId,
           tipo: 'traspaso_entrada',
           cantidad: deEscala(unidades),
@@ -203,13 +275,14 @@ export const alcanzaLaCabina = definirComando<
   entrada: entradaAlcanzaCabina,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
+    const almacenCabinaId = entrada.almacenCabinaId ?? (await almacenesDelSalon(ctx)).cabina;
 
     const existencias = await ctx.paso('leer_existencias', () =>
       ctx.tx
         .selectFrom('existencias')
         .select(['insumo_id', 'cantidad'])
         .where('organizacion_id', '=', organizacionId)
-        .where('almacen_id', '=', entrada.almacenCabinaId)
+        .where('almacen_id', '=', almacenCabinaId)
         .execute(),
     );
 

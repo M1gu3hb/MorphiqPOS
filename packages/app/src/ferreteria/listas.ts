@@ -2,6 +2,7 @@ import 'server-only';
 
 import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
+import { repoFolios } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
@@ -38,7 +39,6 @@ const CANTIDAD = /^\d{1,10}(\.\d{1,4})?$/;
 
 export const entradaCapturarLista = z.object({
   titulo: z.string().trim().min(3).max(120),
-  folio: z.string().trim().min(1).max(30),
   clienteId: z.uuid().nullable().default(null),
   obraId: z.uuid().nullable().default(null),
   nombreLibre: z.string().trim().max(120).nullable().default(null),
@@ -70,6 +70,8 @@ export const entradaCerrarLista = z.object({
 
 export interface ResultadoLista {
   readonly listaId: string;
+  /** El que el servidor le puso: es lo que el cliente dice al recogerla. */
+  readonly folio: string;
   readonly renglones: number;
 }
 
@@ -103,13 +105,38 @@ export const capturarListaTrabajo = definirComando<
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;
     exigirAlguien(entrada.clienteId, entrada.nombreLibre);
 
+    /**
+     * EL FOLIO LO PONE EL SERVIDOR, en su propia serie.
+     *
+     * La entrada lo PEDÍA —`folio: z.string().min(1)`— y ninguna pantalla lo podía
+     * dar: el mostrador no tiene un consecutivo que ofrecer, y uno inventado en el
+     * navegador choca contra `unique (organizacion_id, folio)` en cuanto dos
+     * personas capturan a la vez. El resultado era que capturar una lista desde
+     * `trabajos-de-mostrador` contestaba 400 SIEMPRE, con el formulario entero
+     * escrito. Es el mismo criterio que la nota de mostrador y el crédito: el
+     * consecutivo se toma DENTRO de la transacción, sin huecos y sin colisiones.
+     *
+     * Serie propia `LT`: compartir la de las ventas hace que el 480 sea a veces un
+     * ticket y a veces una lista, y entonces nadie puede citarlo por teléfono.
+     */
+    if (sucursalId === null) {
+      throw new ErrorDominio(
+        'CONFIGURACION_INVALIDA',
+        'Captura la lista desde una sucursal: su folio es consecutivo por sucursal.',
+      );
+    }
+    const tomado = await ctx.paso('tomar_folio', () =>
+      repoFolios.tomarFolio(ctx.tx, organizacionId, sucursalId, 'LT'),
+    );
+    const folio = `${tomado.serie}-${tomado.folio.toString()}`;
+
     const lista = await ctx.paso('crear_lista', () =>
       ctx.tx
         .insertInto('listas_trabajo')
         .values({
           organizacion_id: organizacionId,
           sucursal_id: sucursalId,
-          folio: entrada.folio,
+          folio,
           titulo: entrada.titulo,
           cliente_id: entrada.clienteId,
           obra_id: entrada.obraId,
@@ -145,8 +172,11 @@ export const capturarListaTrabajo = definirComando<
         .execute(),
     );
 
-    ctx.auditar({ entidadId: lista.id, payload: { renglones: entrada.renglones.length } });
-    return { listaId: lista.id, renglones: entrada.renglones.length };
+    ctx.auditar({
+      entidadId: lista.id,
+      payload: { folio, renglones: entrada.renglones.length },
+    });
+    return { listaId: lista.id, folio, renglones: entrada.renglones.length };
   },
 });
 

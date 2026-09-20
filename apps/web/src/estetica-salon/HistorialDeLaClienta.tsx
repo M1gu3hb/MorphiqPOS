@@ -167,23 +167,38 @@ function enFormula(fila: Fila | undefined): string | null {
 
 /**
  * Cuatro lecturas del puente en paralelo, y ninguna ruta nueva: `Cliente` y
- * `ExpedienteBelleza` dicen quién es y qué no puede usar, `CitaServicio` trae la
- * fecha y el precio, y `FormulaAplicada` lo que se le mezcló. El precio vive en
- * la cita y la fórmula en su tabla: ninguna de las dos basta sola.
+ * `ExpedienteBelleza` dicen quién es y qué no puede usar, `Cita` trae sus servicios
+ * con la fecha y el precio, y `FormulaAplicada` lo que se le mezcló. El precio vive
+ * en la cita y la fórmula en su tabla: ninguna de las dos basta sola.
+ *
+ * ── Por qué las visitas se leen por la CITA y no por su servicio ───────────
+ * Porque `cita_servicios` no tiene `cliente_id` —el cliente vive en la cita, que es
+ * donde corresponde— y el filtro del puente sólo sabe de COLUMNAS. Esto pedía
+ * `CitaServicio` filtrado por `cliente_id` y el puente contestaba 400 «no es un
+ * campo de CitaServicio»: el `.catch` lo volvía una lista vacía y el expediente
+ * salía SIN NINGUNA VISITA, con todo el historial en la base. La cita sí se filtra
+ * por clienta, y sus servicios vienen como hijos: una consulta, no sesenta.
  */
 async function leerExpediente(
   clienteId: string,
   signal: AbortSignal,
 ): Promise<{ clienta: ClientaDelHistorial; visitas: readonly VisitaDelHistorial[] }> {
   const filtro = { cliente_id: clienteId };
-  const [clientes, expedientes, servicios, formulas] = await Promise.all([
+  const [clientes, expedientes, citas, formulas] = await Promise.all([
     consultarPuente<Fila>('Cliente', { filtro: { id: clienteId }, signal }),
     // El expediente se filtra por `id`, que en esa entidad ES el de la clienta:
     // hay UN expediente por clienta y la tabla no tiene clave propia.
     consultarPuente<Fila>('ExpedienteBelleza', { filtro: { id: clienteId }, signal }),
-    consultarPuente<Fila>('CitaServicio', { filtro, limite: 60, signal }),
+    consultarPuente<Fila>('Cita', { filtro, orden: '-agendada_para', limite: 60, signal }),
     consultarPuente<Fila>('FormulaAplicada', { filtro, limite: 60, signal }),
   ]);
+
+  // Los servicios de todas sus citas, en una sola lista. Cada uno trae ya su
+  // fecha, su nombre y su profesional: son derivados de `CitaServicio`, y los
+  // hijos pasan por la misma traducción que cualquier lectura.
+  const servicios = citas.flatMap((cita) =>
+    Array.isArray(cita['servicios']) ? (cita['servicios'] as readonly Fila[]) : [],
+  );
   const porCita = new Map(formulas.map((f) => [String(f['cita_servicio_id']), f]));
   const cliente: Fila = clientes[0] ?? {};
   const ficha: Fila = expedientes[0] ?? {};
@@ -288,6 +303,27 @@ export function HistorialDeLaClienta({
 
   // Cargando y fallo-sin-datos comparten marco: el esqueleto tiene la forma del
   // expediente, así que nada salta cuando llega, y la banda cabe encima.
+  // El VACÍO QUE ENSEÑA: el historial es de UNA clienta.
+  //
+  // `page.tsx` lo monta sin ninguna —se llega desde la lista de clientas o desde la
+  // cita— y sin esto la pantalla se quedaba en su esqueleto para siempre.
+  if ((clienteId === undefined || clienteId === '') && clientaInicial === undefined) {
+    return (
+      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+        <h1 className="text-xl font-semibold">
+          Aquí se abre el expediente de {voc.enFraseCon('un', 'cliente')}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Sus visitas, sus fórmulas, sus fotos y cuándo le toca volver. Se abre desde la lista: toca
+          su nombre y su historia aparece aquí.
+        </p>
+        <Button asChild>
+          <a href="/estetica-salon/clientas">Ver {voc.plural('cliente')}</a>
+        </Button>
+      </main>
+    );
+  }
+
   if (visitas === null) {
     return (
       <div className="mx-auto w-full max-w-6xl p-4">

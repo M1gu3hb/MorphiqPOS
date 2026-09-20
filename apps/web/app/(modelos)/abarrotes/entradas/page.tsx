@@ -9,5 +9,5 @@ import { Entradas } from '~/abarrotes/Entradas';
 export const dynamic = 'force-dynamic';
 
 export default function Pagina() {
-  return <Entradas almacenId="" />;
+  return <Entradas />;
 }

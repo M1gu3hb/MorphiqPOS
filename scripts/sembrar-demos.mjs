@@ -172,6 +172,11 @@ for (const demo of demos) {
     `caja con $${(Number(d.arranque.fondoCentavos) / 100).toFixed(2)}`,
     d.arranque.proveedor,
   ];
+  if (d.bebidas !== null && d.bebidas !== undefined) {
+    partes.push(
+      `${String(d.bebidas.opcionesDeBebida)} opciones de bebida en ${String(d.bebidas.bebidasConOpciones)} bebidas`,
+    );
+  }
   if (d.sala !== null) partes.push(`${String(d.sala.mesas)} mesas`);
   if (d.salon !== null) {
     partes.push(`${String(d.salon.profesionales)} profesionales`);

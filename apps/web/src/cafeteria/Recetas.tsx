@@ -55,24 +55,47 @@ export interface ProductoConReceta {
   readonly id: string;
   readonly nombre: string;
   readonly familia: string;
-  readonly precio_venta_centavos: number;
+  /**
+   * EN PESOS, como lo sirve el puente.
+   *
+   * Aquí decía `precio_venta_centavos`, que la entidad NO sirve: lo expone como
+   * `precio_venta`, ya convertido por `dinero`. Llegaba `undefined` y la pantalla
+   * enseñaba `$NaN`.
+   */
+  readonly precio_venta: number | null;
 }
 
+/**
+ * UNA LÍNEA DE RECETA, con los nombres que el puente SIRVE.
+ *
+ * `RecetaEscandallo` sirve `ingrediente_id`, `ingrediente_nombre`, `cantidad_usada`
+ * y `costo_unitario_base_snapshot` —el costo CONGELADO al guardar la receta, que es
+ * el que explica el margen de ese día—. Los cuatro llegaban `undefined`: el
+ * escandallo enseñaba el nombre vacío y el costo de la receta salía `NaN`.
+ *
+ * `aplica_canal` no se sirve y no es un olvido: NO EXISTE la columna. El canal de
+ * una línea de receta —«esto sólo va en el de 16 oz»— está declarado en la pantalla
+ * y no en la base; hasta que exista, se trata como «ambos», que es lo que hoy hace
+ * el cálculo del consumo al cobrar.
+ */
 export interface LineaDeReceta {
   readonly id: string;
-  readonly insumo_id: string;
-  readonly insumo: string;
-  readonly cantidad: string;
+  readonly ingrediente_id: string;
+  readonly ingrediente_nombre: string | null;
+  readonly cantidad_usada: string;
   readonly unidad: string;
-  readonly costo_unitario_centavos: number;
-  readonly aplica_canal: string;
+  /** El costo CONGELADO al guardar, en pesos. */
+  readonly costo_unitario_base_snapshot: number | null;
+  /** No se sirve: la columna no existe. Ver la cabecera. */
+  readonly aplica_canal?: string;
 }
 
 export interface InsumoDisponible {
   readonly id: string;
   readonly nombre: string;
   readonly unidad_base: string;
-  readonly costo_unitario_centavos: number;
+  /** EN PESOS: la entidad `Ingrediente` sirve `costo_por_unidad_base`. */
+  readonly costo_por_unidad_base: number | null;
 }
 
 export interface RecetasProps {
@@ -94,10 +117,13 @@ function pesos(centavos: number): string {
 export function costoEnCanal(lineas: readonly LineaDeReceta[], canal: 'aqui' | 'llevar'): number {
   let total = 0;
   for (const linea of lineas) {
-    if (linea.aplica_canal !== 'ambos' && linea.aplica_canal !== canal) continue;
-    const cantidad = Number(linea.cantidad.replace(',', '.'));
+    // Sin canal declarado, la línea entra en los dos: es lo que hace el consumo
+    // al cobrar, y suponer lo contrario descontaría de menos.
+    const aplica = linea.aplica_canal ?? 'ambos';
+    if (aplica !== 'ambos' && aplica !== canal) continue;
+    const cantidad = Number(linea.cantidad_usada.replace(',', '.'));
     if (!Number.isFinite(cantidad)) continue;
-    total += Math.round(cantidad * linea.costo_unitario_centavos);
+    total += Math.round(cantidad * Math.round((linea.costo_unitario_base_snapshot ?? 0) * 100));
   }
   return total;
 }
@@ -269,7 +295,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
             <div>
               <h2 className="text-xl font-medium">{elegido.nombre}</h2>
               <p className="text-muted-foreground text-sm">
-                Se vende a {pesos(elegido.precio_venta_centavos)}
+                Se vende a {pesos(Math.round((elegido.precio_venta ?? 0) * 100))}
               </p>
             </div>
 
@@ -280,13 +306,14 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
                 <ul className="divide-y">
                   {lineas.map((linea) => (
                     <li key={linea.id} className="flex items-center gap-3 py-2">
-                      <span className="flex-1">{linea.insumo}</span>
+                      <span className="flex-1">{linea.ingrediente_nombre}</span>
                       <span className="tabular-nums">
-                        {linea.cantidad} {linea.unidad}
+                        {linea.cantidad_usada} {linea.unidad}
                       </span>
                       <span className="text-muted-foreground text-xs">
                         {CANALES.find((c) => c.clave === linea.aplica_canal)?.etiqueta ??
-                          linea.aplica_canal}
+                          linea.aplica_canal ??
+                          'ambos'}
                       </span>
                       <Button
                         size="sm"

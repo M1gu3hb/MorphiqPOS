@@ -51,13 +51,48 @@ const CANALES = [
 
 type Canal = (typeof CANALES)[number]['clave'];
 
+/**
+ * El producto como lo sirve el PUENTE, y por qué los nombres son ésos.
+ *
+ * Aquí se leían `precio_venta_centavos` y `costo_unitario_centavos`, que **el
+ * puente no sirve**: la entidad `ProductoTerminado` los expone como `precio_venta`
+ * y `costo_unitario`, ya convertidos a PESOS por la conversión `dinero`. Los dos
+ * campos llegaban `undefined`, la pantalla los dividía entre 100 y el catálogo
+ * entero de una cafetería enseñaba **`$NaN`** en cada renglón. La suite la daba por
+ * probada porque el HTML respondía 200.
+ *
+ * Se leen en pesos y se convierten a centavos en un solo sitio —`enCentavos`—
+ * porque la aritmética del margen es entera: con pesos decimales, la comisión del
+ * 29 % de una plataforma sale con tres decimales que nadie puede cobrar.
+ */
 export interface ProductoDeBarra {
   readonly id: string;
   readonly nombre: string;
   readonly familia: string;
-  readonly precio_venta_centavos: number;
-  readonly costo_unitario_centavos: number;
-  readonly disponible: boolean;
+  /** EN PESOS, como lo sirve el puente. */
+  readonly precio_venta: number | null;
+  /** EN PESOS: la entidad sirve `costo_calculado_actual`, el promedio ponderado. */
+  readonly costo_calculado_actual: number | null;
+  /**
+   * `visible_en_pos`, que es como se llama en el puente.
+   *
+   * La perilla de «hoy no hay» leía `disponible` y no llegaba nunca: todo el
+   * catálogo salía agotado en el menú y en la pantalla de productos. No se declara
+   * un segundo nombre en el mapa a propósito —dos nombres para la misma columna
+   * dejarían a quien escribe eligiendo cuál gana—, así que la pantalla usa el suyo.
+   */
+  readonly visible_en_pos: boolean;
+}
+
+/**
+ * Pesos del puente a centavos, con el redondeo en el ÚLTIMO paso.
+ *
+ * `x * 100` en punto flotante da `1233.9999999999998` para 12.34, así que el
+ * redondeo va sobre el producto y no antes. Es el mismo criterio que
+ * `centavosDeTexto` en las pruebas y que `desdeTexto` en el dominio.
+ */
+export function enCentavos(pesos: number | null): number {
+  return pesos === null ? 0 : Math.round(pesos * 100);
 }
 
 export interface ProductosProps {
@@ -144,7 +179,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
   function elegir(producto: ProductoDeBarra): void {
     setElegido(producto);
-    setPrecio((producto.precio_venta_centavos / 100).toFixed(2));
+    setPrecio((producto.precio_venta ?? 0).toFixed(2));
     setError(null);
   }
 
@@ -159,7 +194,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
     setError(null);
     invocarComando(RUTA_PRECIO, { productoId: elegido.id, precioVentaCentavos: centavos })
       .then(() => {
-        const actualizado = { ...elegido, precio_venta_centavos: centavos };
+        const actualizado = { ...elegido, precio_venta: centavos / 100 };
         setElegido(actualizado);
         setProductos((productos ?? []).map((p) => (p.id === elegido.id ? actualizado : p)));
       })
@@ -172,12 +207,13 @@ export function Productos({ productosIniciales }: ProductosProps) {
   }
 
   function cambiarDisponible(producto: ProductoDeBarra): void {
-    const siguiente = { ...producto, disponible: !producto.disponible };
+    const siguiente = { ...producto, visible_en_pos: !producto.visible_en_pos };
     setProductos((productos ?? []).map((p) => (p.id === producto.id ? siguiente : p)));
     if (elegido?.id === producto.id) setElegido(siguiente);
     invocarComando(RUTA_ACTUALIZAR, {
       productoId: producto.id,
-      disponible: siguiente.disponible,
+      // El comando sí se llama `disponible`: es su entrada, no un campo del puente.
+      disponible: siguiente.visible_en_pos,
     }).catch((fallo: unknown) => {
       // Se devuelve la perilla a su sitio: dejarla movida haría creer que el
       // menú público cambió cuando no cambió.
@@ -214,22 +250,22 @@ export function Productos({ productosIniciales }: ProductosProps) {
                   elegir(producto);
                 }}
               >
-                <span className={producto.disponible ? '' : 'text-muted-foreground'}>
+                <span className={producto.visible_en_pos ? '' : 'text-muted-foreground'}>
                   {producto.nombre}
                 </span>
                 <span className="text-muted-foreground ml-2 text-xs capitalize">
                   {producto.familia}
                 </span>
               </button>
-              <span className="tabular-nums">{pesos(producto.precio_venta_centavos)}</span>
+              <span className="tabular-nums">{pesos(enCentavos(producto.precio_venta))}</span>
               <Button
                 size="sm"
-                variant={producto.disponible ? 'outline' : 'default'}
+                variant={producto.visible_en_pos ? 'outline' : 'default'}
                 onClick={() => {
                   cambiarDisponible(producto);
                 }}
               >
-                {producto.disponible ? 'Hay' : 'Hoy no hay'}
+                {producto.visible_en_pos ? 'Hay' : 'Hoy no hay'}
               </Button>
             </li>
           ))}
@@ -287,8 +323,8 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
             {CANALES.map((opcion) => {
               const resultado = margenDelCanal(
-                elegido.precio_venta_centavos,
-                elegido.costo_unitario_centavos,
+                enCentavos(elegido.precio_venta),
+                enCentavos(elegido.costo_calculado_actual),
                 opcion.comisionBp,
               );
               return (
@@ -296,7 +332,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
                   <p className="font-medium">{opcion.etiqueta}</p>
                   <p className="text-muted-foreground text-sm">
                     Entra {pesos(resultado.netoCentavos)} · cuesta{' '}
-                    {pesos(elegido.costo_unitario_centavos)}
+                    {pesos(enCentavos(elegido.costo_calculado_actual))}
                   </p>
                   <p className="tabular-nums">
                     Deja {pesos(resultado.margenCentavos)} ({(resultado.margenBp / 100).toFixed(1)}{' '}

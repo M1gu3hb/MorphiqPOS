@@ -188,6 +188,23 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
       });
   }
 
+  // El VACÍO QUE ENSEÑA. Ver el mismo caso en `abarrotes/Producto`: sin toma
+  // abierta esta pantalla se quedaba en su esqueleto, en blanco, para siempre.
+  if (tomaId === '' && clavesIniciales === undefined) {
+    return (
+      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+        <h1 className="text-xl font-semibold">Aquí se cuenta una zona del almacén</h1>
+        <p className="text-muted-foreground text-sm">
+          El conteo cíclico cuenta un anaquel al día en vez de cerrar la cortina un domingo entero.
+          Se abre desde Existencias, eligiendo la zona que toca; aquí sólo se captura lo contado.
+        </p>
+        <Button asChild>
+          <a href="/ferreteria/existencias">Ir a Existencias</a>
+        </Button>
+      </main>
+    );
+  }
+
   if (claves === null) {
     return (
       <div className="space-y-4 p-6">

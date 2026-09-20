@@ -14,7 +14,7 @@ import {
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
-import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { ErrorApi, invocarComando } from '~/cliente/api';
 
 /**
  * PANTALLA · abarrotes · servicios
@@ -170,15 +170,25 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     Promise.all([
-      consultarPuente<SaldoDeComisionista>('SaldoComisionista', {
-        limite: 40,
-        signal: control.signal,
-      }),
-      consultarPuente<OperacionDeComision>('OperacionComision', {
-        filtro: { estado: 'exitosa' },
-        limite: 200,
-        signal: control.signal,
-      }),
+      // EL SALDO DEL COMISIONISTA NO SE SIRVE, y por qué se dice en vez de pedirlo.
+      //
+      // Aquí se consultaba la entidad `SaldoComisionista`, que **no existe en el
+      // puente** —ni existe la tabla: nada registra cuánto saldo de Telcel queda—.
+      // La pantalla enseñaba su banda de error en cada apertura y el panel decía
+      // «Sin saldo» como si lo supiera.
+      //
+      // Registrar ese saldo es una función aparte: hay que capturar la compra de
+      // saldo, descontar cada recarga y avisar del mínimo. Mientras no exista, la
+      // venta SÍ funciona —la comisión se cobra y entra al corte— y el panel lo
+      // dice con esas palabras. Prometer un saldo que nadie registra es peor que
+      // no prometerlo.
+      Promise.resolve([] as readonly SaldoDeComisionista[]),
+      // Y LAS OPERACIONES TAMPOCO, por lo mismo: `OperacionComision` no existe en
+      // el puente. Las recargas que se cobran entran al corte como cualquier venta
+      // —eso sí funciona— pero no hay tabla que las liste por proveedor con su
+      // comisión, así que la lista de abajo enseña su vacío en vez de una banda de
+      // error en cada apertura.
+      Promise.resolve([] as readonly OperacionDeComision[]),
     ])
       .then(([filasSaldo, filasOperaciones]) => {
         if (!sigueMontada()) return;

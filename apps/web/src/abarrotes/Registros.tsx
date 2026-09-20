@@ -51,28 +51,44 @@ type Tipo = (typeof TIPOS)[number]['clave'];
 
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
+/**
+ * LAS TRES FUENTES, con los nombres que el puente SIRVE.
+ *
+ * Ninguna de las tres leía los nombres correctos, y las tres llegaban con la mitad
+ * de los campos en `undefined`: la línea de tiempo del día —lo único que esta
+ * pantalla existe para enseñar— salía con importes `NaN` y «sin firma» en cada
+ * renglón.
+ *
+ *   · `Venta` sirve `created_date`, `total` (en PESOS) y `usuario_cajero_nombre`.
+ *   · El movimiento del cajón se leía de `MovimientoCuenta`, que es el movimiento de
+ *     una CUENTA A OTRA en un restaurante (F-321) y no el del dinero. La fuente
+ *     correcta es `MovimientoCaja`, que se declaró para esto.
+ *   · `MovimientoInventario` sirve `tipo_movimiento` e `ingrediente_nombre`.
+ */
 export interface VentaRegistrada {
   readonly id: string;
-  readonly fecha: string;
-  readonly total_centavos: number;
+  readonly created_date: string;
+  /** EN PESOS, como lo sirve el puente. */
+  readonly total: number | null;
   readonly estado: string;
-  readonly empleado: string | null;
+  readonly usuario_cajero_nombre: string | null;
 }
 
 export interface MovimientoRegistrado {
   readonly id: string;
-  readonly fecha: string;
+  readonly created_at: string;
   readonly tipo: string;
+  /** CON SIGNO y en centavos: el esperado del arqueo es su suma. */
   readonly monto_centavos: number;
   readonly motivo: string | null;
-  readonly empleado: string | null;
+  readonly empleado_nombre: string | null;
 }
 
 export interface MovimientoDeInventario {
   readonly id: string;
-  readonly fecha: string;
-  readonly tipo: string;
-  readonly insumo: string | null;
+  readonly created_date: string;
+  readonly tipo_movimiento: string;
+  readonly ingrediente_nombre: string | null;
   readonly cantidad: string;
   readonly motivo: string | null;
 }
@@ -126,24 +142,24 @@ export function componerLinea(
     const cancelada = venta.estado === 'cancelada';
     renglones.push({
       id: `v-${venta.id}`,
-      hora: hora(venta.fecha),
+      hora: hora(venta.created_date),
       tipo: 'venta',
       titulo: cancelada ? 'Venta cancelada' : 'Venta',
       // Quién la hizo va EN la línea: cancelar una venta cobrada es la
       // operación más sensible del mostrador, y nadie abre la ficha de cada una.
-      detalle: venta.empleado ?? 'sin firma',
-      importe: pesos(venta.total_centavos),
-      sinExplicacion: cancelada && venta.empleado === null,
+      detalle: venta.usuario_cajero_nombre ?? 'sin firma',
+      importe: pesos(Math.round((venta.total ?? 0) * 100)),
+      sinExplicacion: cancelada && venta.usuario_cajero_nombre === null,
     });
   }
 
   for (const movimiento of movimientos) {
     renglones.push({
       id: `c-${movimiento.id}`,
-      hora: hora(movimiento.fecha),
+      hora: hora(movimiento.created_at),
       tipo: 'caja',
       titulo: movimiento.tipo.replace(/_/g, ' '),
-      detalle: movimiento.motivo ?? movimiento.empleado ?? 'sin motivo',
+      detalle: movimiento.motivo ?? movimiento.empleado_nombre ?? 'sin motivo',
       importe: pesos(movimiento.monto_centavos),
       sinExplicacion: saleSinExplicacion(movimiento),
     });
@@ -152,10 +168,10 @@ export function componerLinea(
   for (const fila of inventario) {
     renglones.push({
       id: `i-${fila.id}`,
-      hora: hora(fila.fecha),
+      hora: hora(fila.created_date),
       tipo: 'inventario',
-      titulo: fila.tipo.replace(/_/g, ' '),
-      detalle: `${fila.insumo ?? 'insumo'} · ${fila.cantidad}`,
+      titulo: fila.tipo_movimiento.replace(/_/g, ' '),
+      detalle: `${fila.ingrediente_nombre ?? 'insumo'} · ${fila.cantidad}`,
       importe: null,
       sinExplicacion: false,
     });
@@ -204,18 +220,45 @@ export function Registros({
     }
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
-    const filtro = { fecha };
+    /**
+     * EL DÍA, como RANGO y con el campo de fecha de CADA entidad.
+     *
+     * Aquí decía `const filtro = { fecha }` y se pasaba igual a las tres. `fecha` no
+     * es un campo de ninguna: el puente contestaba 400 ««fecha» no es un campo de
+     * Venta» y los tres `.catch` de abajo lo convertían en tres listas vacías. La
+     * pantalla se veía impecable —«no hubo movimientos ese día»— y estaba mintiendo
+     * sobre el día entero, que es lo único que existe para contar. Es el mismo
+     * defecto que la agenda del salón tuvo con `Cita`, y se arregla igual: por rango.
+     *
+     * Cada entidad nombra su fecha a su manera y hay que respetarlo: `Venta` y
+     * `MovimientoInventario` sirven `created_date`; `MovimientoCaja`, `created_at`.
+     *
+     * Los dos extremos se arman en hora LOCAL y viajan en ISO. `new Date('2026-09-20')`
+     * a secas es medianoche UTC, que en México deja fuera las seis primeras horas del
+     * día y mete las seis últimas del anterior: la venta de las 21:00 aparecería en el
+     * día siguiente, que es justo la clase de error que nadie nota hasta que el corte
+     * no cuadra.
+     */
+    const delDia = (campo: string): { campo: string; desde: string; hasta: string } => ({
+      campo,
+      desde: new Date(`${fecha}T00:00:00`).toISOString(),
+      hasta: new Date(`${fecha}T23:59:59.999`).toISOString(),
+    });
 
     const cargar = (): void => {
-      consultarPuente<VentaRegistrada>('Venta', { filtro, limite: 200, signal: control.signal })
+      consultarPuente<VentaRegistrada>('Venta', {
+        rango: delDia('created_date'),
+        limite: 200,
+        signal: control.signal,
+      })
         .then((filas) => {
           if (sigueMontada()) setVentas(filas);
         })
         .catch(() => {
           if (sigueMontada()) setVentas([]);
         });
-      consultarPuente<MovimientoRegistrado>('MovimientoCuenta', {
-        filtro,
+      consultarPuente<MovimientoRegistrado>('MovimientoCaja', {
+        rango: delDia('created_at'),
         limite: 200,
         signal: control.signal,
       })
@@ -226,7 +269,7 @@ export function Registros({
           if (sigueMontada()) setMovimientos([]);
         });
       consultarPuente<MovimientoDeInventario>('MovimientoInventario', {
-        filtro,
+        rango: delDia('created_date'),
         limite: 200,
         signal: control.signal,
       })

@@ -285,7 +285,14 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
     // El centinela es la señal de aborto: dice si la pantalla sigue montada y
     // además cancela la lectura en vuelo.
     const control = new AbortController();
-    consultarPuente<IngredienteDeInventario>('Insumo', {
+    // `Ingrediente` y no `Insumo`, que es como se llamaba aquí.
+    //
+    // Esa entidad NO EXISTE en el puente —la tabla `insumos` se expone como
+    // `Ingrediente`— así que cada apertura de esta pantalla contestaba
+    // `PUENTE_ENTIDAD_DESCONOCIDA`, el `catch` ponía el aviso y `filas` se quedaba
+    // en `null`: la alacena de un restaurante llevaba EN BLANCO desde que existe.
+    // La suite la daba por probada porque el HTML respondía 200.
+    consultarPuente<IngredienteDeInventario>('Ingrediente', {
       limite: 300,
       signal: control.signal,
     })

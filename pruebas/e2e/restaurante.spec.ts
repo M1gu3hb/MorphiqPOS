@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import {
   abrirCajaPorLaRuta,
   abrirPantalla,
+  type MarcaDePantalla,
   accionesDelTablero,
   cabecerasDeEscrituraDePrueba,
   cambiarDePlantilla,
@@ -16,6 +17,7 @@ import {
   exigirVentaCobrada,
   exigirVocabulario,
   menuLateral,
+  soltarLaCaja,
   ventasDeAntes,
   vigilarFallos,
 } from './ayudantes/sesion.ts';
@@ -65,25 +67,63 @@ interface PlatilloDelPuente {
  */
 
 /** Las trece pantallas del modelo, tal como existen en `app/(modelos)/restaurante/`. */
-const PANTALLAS = [
-  'acceso-por-pin',
-  'caja',
-  'cierre-diario-y-arqueo',
-  'cobro',
-  'cocina',
-  'inventario',
-  'mapa-de-mesas',
-  'mesa-activa',
-  'portal-del-comensal',
-  'precuenta',
-  'productos',
-  'recetas',
-  'registros',
-] as const;
+/**
+ * Las pantallas del modelo, con LO QUE CADA UNA TIENE QUE ENSEÑAR.
+ *
+ * ── Por qué una marca por pantalla y no sólo el 200 ───────────────────────
+ * Porque una pantalla que abre en 200 y pinta su estado de error se ve igual que
+ * una que funciona. Con el 200 solo, la suite dio por probadas cuatro pantallas
+ * cuya entidad del puente NO EXISTÍA —la ficha de pieza, las existencias de
+ * material, la cartera por obra y las opciones de la bebida— y nueve que se
+ * quedaban en su esqueleto para siempre porque `page.tsx` las montaba con un id
+ * vacío. Ninguna se podía distinguir de las que sí trabajan.
+ *
+ * La marca no es el DATO: la demo puede tener una zona sin productos y eso es
+ * legítimo. Es el título, la etiqueta de su región, o la frase de su estado vacío
+ * —que también es contenido de esa pantalla y de ninguna otra—.
+ */
+const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
+  ['acceso-por-pin', /¿Quién está operando\?/],
+  ['caja', /Caja/],
+  ['cierre-diario-y-arqueo', /No hay ninguna caja abierta|Cierre diario/],
+  ['cobro', /esperando cobro|Cobro/],
+  // Con `i`: la cocina rotula «🕐 Nuevos (1)» y «🔥 En preparación (0)», no en
+  // mayúsculas. La marca en versales no encajaba nunca y el fallo mandaba a mirar
+  // una pantalla que funcionaba.
+  // Aquí, con la cocina recién sembrada, lo suyo es su VACÍO: las tres columnas
+  // —«🕐 Nuevos», «🔥 En preparación», «✅ Listos»— sólo se pintan cuando hay
+  // comandas. Más abajo, ya con una enviada desde el salón, se exige la columna.
+  ['cocina', /Sin comandas pendientes|Nuevos|En preparación/i],
+  ['inventario', /alacena|Inventario/i],
+  ['mapa-de-mesas', /Mesas|Libre|Ocupada/],
+  ['mesa-activa', /Pedido actual|Mesa/],
+  ['portal-del-comensal', /QR de la mesa|carta/i],
+  ['precuenta', /Aquí se imprime la precuenta|PRE-CUENTA/],
+  ['productos', /margen sano|Productos/],
+  ['recetas', /Recetas/],
+  ['registros', /Exportar|Sin cortes en este periodo/],
+];
 
 test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () => {
   test.beforeAll(async ({ playwright }, info) => {
     await exigirDemostracion(playwright, info);
+  });
+
+  /**
+   * LA CAJA NO SE QUEDA ABIERTA, ni cuando la prueba falla.
+   *
+   * El último paso de esta prueba cierra la caja y cuadra el arqueo, y no se
+   * ejecuta si la prueba muere antes. Lo que quedaba no era un dato sucio: era un
+   * candado. La base permite UNA sesión de caja abierta por SUCURSAL, cada
+   * navegador nuevo trae su propia terminal y cerrar la de otra terminal no se
+   * puede, así que una corrida fallida bloqueaba TODAS las siguientes hasta volver
+   * a sembrar la demo.
+   *
+   * Se anota en vez de afirmar: una limpieza que revienta taparía el fallo que hay
+   * que leer.
+   */
+  test.afterEach(async ({ page }, info) => {
+    info.annotations.push({ type: 'caja', description: await soltarLaCaja(page) });
   });
 
   test('la plantilla restaurante habla de mesas y platillos, y tiene sala', async ({ page }) => {
@@ -96,7 +136,7 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     // ── 1 · SU VOCABULARIO ────────────────────────────────────────────────
     // Se mira en el marco `(interno)`, que es el único sitio donde el sustantivo
     // del giro llega hoy a una pantalla (ver la cabecera del ayudante).
-    await abrirPantalla(page, '/');
+    await abrirPantalla(page, '/', /Buen día|Mesas/);
     const menu = await menuLateral(page);
 
     await exigirVocabulario(menu, {
@@ -159,14 +199,14 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     ).toHaveCount(0);
 
     // ── 4 · LAS TRECE PANTALLAS DEL MODELO RESPONDEN ──────────────────────
-    for (const pantalla of PANTALLAS) {
-      await abrirPantalla(page, `/restaurante/${pantalla}`);
+    for (const [pantalla, marca] of PANTALLAS) {
+      await abrirPantalla(page, `/restaurante/${pantalla}`, marca);
     }
 
     // Y la de inicio del mesero se reconoce por lo que dice. Dos estados, porque una
     // demo recién creada no tiene mesas y el vacío de `MapaDeMesas` es tan de este
     // giro como la rejilla: «Todavía no hay mesas configuradas».
-    await abrirPantalla(page, '/restaurante/mapa-de-mesas');
+    await abrirPantalla(page, '/restaurante/mapa-de-mesas', /Mesas|Libre|Ocupada/);
     await expect(
       page
         .getByRole('heading', { name: 'Mesas', exact: true })
@@ -191,12 +231,22 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     // Los dos están en el reporte con nombre y apellido.
     await abrirCajaPorLaRuta(page, FONDO_CENTAVOS);
 
+    /**
+     * UNA MESA LIBRE, y que lo esté de verdad.
+     *
+     * La variable se llamaba `libre` y cogía la PRIMERA mesa: `m.id !== ''`. Con la
+     * mesa 1 ocupada por una corrida anterior, abrirla contestaba «la mesa 1 ya está
+     * abierta» y el recorrido no arrancaba. El estado lo sirve el puente; usarlo es
+     * lo que hace la corrida repetible sin volver a sembrar.
+     */
     const mesas = await consultarPuente<MesaDelPuente>(page, 'Mesa', { limite: 30 });
-    const libre = mesas.find((m) => (m.id ?? '') !== '');
+    const libre = mesas.find((m) => (m.id ?? '') !== '' && m.estado === 'libre');
     expect(
       libre,
-      'La demo de restaurante no tiene mesas. `alta-negocio` crea la sala con sus mesas: sin ' +
-        'mesa no hay cuenta que abrir.',
+      `La demo de restaurante no tiene ninguna mesa libre (${String(mesas.length)} mesas, estados: ` +
+        `${[...new Set(mesas.map((m) => m.estado ?? '?'))].join(', ')}). Sin mesa libre no hay ` +
+        'cuenta que abrir: vuelve a sembrarla con `scripts/sembrar-demos.mjs --solo ' +
+        'demo-acople-restaurante`.',
     ).toBeDefined();
 
     const platillos = await consultarPuente<PlatilloDelPuente>(page, 'ProductoTerminado', {
@@ -231,7 +281,9 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     ).toBe(200);
 
     // Y la cocina LO VE. Se comprueba en su pantalla, que es donde importa.
-    await abrirPantalla(page, '/restaurante/cocina');
+    // Y aquí NO vale el vacío: se acaba de enviar el pedido, así que la columna de
+    // nuevos tiene que existir. Es la misma pantalla con una exigencia más alta.
+    await abrirPantalla(page, '/restaurante/cocina', /Nuevos|En preparación/i);
     await expect(
       page.getByText(platillo?.nombre ?? '').first(),
       `La cocina no ve «${platillo?.nombre ?? ''}» después de mandarle el pedido. Una comanda que ` +
@@ -249,7 +301,7 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     ).toBe(200);
 
     // 5.4 · Y EL COBRO, POR LA PANTALLA DEL CAJERO.
-    await abrirPantalla(page, '/restaurante/cobro');
+    await abrirPantalla(page, '/restaurante/cobro', /Cobro|esperando cobro/);
     await expect(
       page.getByRole('region', { name: 'Cobro' }),
       'La pantalla de cobro no encontró ninguna cuenta esperando pago, con una cuenta recién ' +
@@ -270,6 +322,62 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
 
     const venta = await exigirVentaCobrada(page, precioCentavos, idsDeAntes);
     await exigirInventarioMovido(page, venta.id ?? '', platillo?.nombre ?? '');
+
+    /**
+     * Y LA MESA PASÓ A LIMPIEZA, que es lo que el acuse acaba de prometer.
+     *
+     * No pasaba: `venta.cobrar` no tocaba `mesas`, así que la mesa se quedaba en
+     * `cuenta_solicitada` con su cuenta ya pagada. El mapa enseñaba «la cuenta está
+     * pedida» sobre una cuenta pagada y `abrir_mesa` contestaba «ya está abierta»
+     * para siempre: **la mesa no volvía al servicio**. Se vio corriendo esto dos
+     * veces sobre la misma demo.
+     */
+    await expect
+      .poll(
+        async () => {
+          const ahora = await consultarPuente<MesaDelPuente>(page, 'Mesa', {
+            filtro: { id: libre?.id },
+            limite: 1,
+          });
+          return ahora[0]?.estado ?? '';
+        },
+        {
+          message:
+            'Se cobró la cuenta y la mesa no pasó a limpieza. El acuse de la pantalla lo promete ' +
+            'con esas palabras, y si no ocurre la mesa queda fuera de servicio hasta que alguien ' +
+            'se acuerde de pulsar «mesa limpia».',
+          timeout: 20_000,
+        },
+      )
+      .toBe('limpieza');
+
+    /**
+     * Y EL GARROTERO LA DEVUELVE AL SERVICIO.
+     *
+     * De limpieza a libre lo da quien limpia —`restaurante.liberar_mesa`, el botón
+     * «mesa limpia»— y es el último paso del ciclo de una mesa: sin él, la mesa se
+     * queda recogida y nadie la puede sentar. Es además lo que hace repetible esta
+     * corrida, igual que cerrar la caja.
+     */
+    const limpia = await page.request.post('/api/restaurante/liberar-mesa', {
+      headers: cabecerasDeEscrituraDePrueba(),
+      data: { mesaId: libre?.id },
+    });
+    expect(
+      limpia.status(),
+      `No se pudo devolver la mesa al servicio: ${(await limpia.text()).slice(0, 300)}. Desde una ` +
+        'cuenta ya pagada `liberar_mesa` no tiene nada que cancelar, así que un fallo aquí deja ' +
+        'la mesa fuera de servicio.',
+    ).toBe(200);
+
+    const devuelta = await consultarPuente<MesaDelPuente>(page, 'Mesa', {
+      filtro: { id: libre?.id },
+      limite: 1,
+    });
+    expect(
+      devuelta[0]?.estado,
+      'La mesa se marcó limpia y no volvió a `libre`: el ciclo de la mesa no se cierra.',
+    ).toBe('libre');
 
     await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + precioCentavos);
 

@@ -120,8 +120,15 @@ export interface DocumentoPorCobrar {
   readonly id: string;
   readonly folio: string | null;
   readonly obra_nombre: string | null;
-  readonly dias: number | null;
-  readonly saldo_centavos: number | null;
+  /**
+   * Los DÍAS de la remisión no se sirven: son la diferencia contra hoy, y una
+   * columna con eso dentro estaría mal el día siguiente. Se calcula al pintar.
+   */
+  readonly dias?: number | null;
+  /** `saldo_documento_centavos`, que es como lo sirve `Remision`. */
+  readonly saldo_documento_centavos: number | null;
+  /** Cuándo se entregó: de aquí salen los días. */
+  readonly entregada_en: string | null;
 }
 
 export interface ClienteDeCartera {
@@ -262,7 +269,7 @@ export function Cuentas({
       .then((filas) => {
         if (!sigueMontada()) return;
         const pendientes = filas
-          .filter((doc) => (doc.saldo_centavos ?? 0) > 0)
+          .filter((doc) => (doc.saldo_documento_centavos ?? 0) > 0)
           .sort((a, b) => (b.dias ?? 0) - (a.dias ?? 0));
         setDocumentos(pendientes);
         // La sugerencia es el más viejo, ya marcado. Se puede desmarcar.
@@ -298,7 +305,7 @@ export function Cuentas({
   const pendientes = documentos ?? [];
   const sumaElegida = pendientes
     .filter((doc) => elegidos.includes(doc.id))
-    .reduce((suma, doc) => suma + (doc.saldo_centavos ?? 0), 0);
+    .reduce((suma, doc) => suma + (doc.saldo_documento_centavos ?? 0), 0);
 
   function abrirFicha(clienteId: string): void {
     setFicha(clienteId);
@@ -627,7 +634,7 @@ export function Cuentas({
                     />
                     <label htmlFor={`doc-${doc.id}`} className="flex flex-1 flex-col text-sm">
                       <span className="font-medium">
-                        {doc.folio ?? 'Sin folio'} · {enPesos(doc.saldo_centavos ?? 0)}
+                        {doc.folio ?? 'Sin folio'} · {enPesos(doc.saldo_documento_centavos ?? 0)}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {doc.obra_nombre ?? 'Sin obra'} · {doc.dias ?? 0} días

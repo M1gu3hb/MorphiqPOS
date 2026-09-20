@@ -1093,6 +1093,100 @@ const SIN_COBRO_TODAVIA = {
   // y el cuerpo correcto en el cobro. Las cinco suites cobran.
 };
 
+/**
+ * UNA AFIRMACIÓN DE CONTENIDO POR PANTALLA (la segunda puerta del bloque 3).
+ *
+ * ── Por qué esta puerta existe ────────────────────────────────────────────
+ * El criterio de la suite era «ni 404 ni 500», y con ése **una pantalla que abre en
+ * 200 y pinta su estado de error se ve igual que una que funciona**. No es una
+ * hipótesis: por ese hueco pasaron cuatro pantallas cuya entidad del puente NO
+ * EXISTÍA —la ficha de pieza, las existencias de material, la cartera por obra y las
+ * opciones de la bebida—, nueve que se quedaban en su esqueleto porque `page.tsx`
+ * las montaba con un id vacío, y cuatro que filtraban por un campo que el puente
+ * rechaza y salían VACÍAS. Las diecisiete estaban «probadas».
+ *
+ * Así que ahora cada pantalla de cada modelo tiene que abrirse en su suite CON UNA
+ * MARCA: un texto que sólo se pinta cuando la pantalla llegó a montar lo suyo. No es
+ * el dato —una zona sin productos es legítima— es el título, la etiqueta de su
+ * región, o la frase de su estado vacío, que también es contenido de esa pantalla y
+ * de ninguna otra.
+ *
+ * ── Qué se afirma, y por qué así ──────────────────────────────────────────
+ * Las pantallas salen de `pantallasEsperadas`, que las lee del §4.3 del
+ * `04-INTERFAZ.md` de cada modelo: la misma lista con la que se mide si cuelgan de
+ * un menú. Así la puerta no se puede aprobar quitando una pantalla de una tabla de
+ * la prueba.
+ *
+ * Y la marca tiene que ser una EXPRESIÓN REGULAR o el `aria-label` de una región.
+ * Una cadena suelta no: `toBeVisible` sobre `getByText('')` encaja con cualquier
+ * cosa, y entonces la puerta diría que la pantalla enseña lo suyo sin mirar nada.
+ */
+function comprobarMarcasDeContenido() {
+  const carpeta = join(RAIZ, 'pruebas', 'e2e');
+  const sinAbrir = [];
+  const sinMarca = [];
+  let conMarca = 0;
+
+  for (const modelo of MODELOS) {
+    const ruta = join(carpeta, `${modelo.clave}.spec.ts`);
+    if (!existsSync(ruta)) {
+      fallos.push(`MARCAS: falta la suite ${modelo.clave}.spec.ts`);
+      continue;
+    }
+    // Sin comentarios: una tabla dentro de un comentario no abre nada. Es el
+    // mismo recorte que el del cobro, y por la misma razón.
+    const codigo = readFileSync(ruta, 'utf8')
+      .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
+      .replaceAll(/^\s*\/\/.*$/gm, ' ');
+
+    for (const slug of pantallasEsperadas(modelo)) {
+      // Las dos formas válidas: la fila de la tabla de pantallas —`['slug', marca]`—
+      // y la llamada suelta de un recorrido —`abrirPantalla(page, '/modelo/slug', marca)`.
+      const enTabla = new RegExp(`\\[\\s*'${slug}'\\s*,([^\\]]*)\\]`).exec(codigo);
+      const suelta = new RegExp(
+        `abrirPantalla\\(\\s*page\\s*,\\s*['\`]/${modelo.clave}/${slug}['\`]\\s*,([^)]*)\\)`,
+      ).exec(codigo);
+      const marca = (enTabla?.[1] ?? suelta?.[1] ?? '').trim();
+
+      if (enTabla === null && suelta === null) {
+        sinAbrir.push(`${modelo.clave}/${slug}`);
+        continue;
+      }
+      // Una expresión regular, o `{ etiqueta: '…' }` para las tres pantallas cuyo
+      // título vive en el `aria-label` de su región y no en un encabezado.
+      const esRegex = /^\/.+\/[a-z]*$/.test(marca);
+      const esEtiqueta = /etiqueta\s*:\s*['`][^'`]+['`]/.test(marca);
+      if (!esRegex && !esEtiqueta) {
+        sinMarca.push(`${modelo.clave}/${slug} → «${marca.slice(0, 40)}»`);
+        continue;
+      }
+      conMarca += 1;
+    }
+  }
+
+  exigir(
+    sinAbrir.length === 0,
+    `MARCAS: ${sinAbrir.length} pantalla(s) de modelo NO se abren en su suite · ` +
+      `${sinAbrir.slice(0, 8).join(' · ')}` +
+      (sinAbrir.length > 8 ? ` …y ${sinAbrir.length - 8} más` : '') +
+      '\n    Una pantalla que ninguna prueba abre no está probada, aunque exista.',
+  );
+
+  exigir(
+    sinMarca.length === 0,
+    `MARCAS: ${sinMarca.length} pantalla(s) se abren SIN afirmar contenido · ` +
+      `${sinMarca.slice(0, 8).join(' · ')}\n    ` +
+      'La marca tiene que ser una expresión regular o el `aria-label` de su región: abrir en 200 ' +
+      'y pintar el estado de error se ve igual que funcionar.',
+  );
+
+  if (!fallos.some((f) => f.startsWith('MARCAS'))) {
+    notas.push(
+      `marcas e2e    ${conMarca} pantalla(s) de modelo se abren con una afirmación de CONTENIDO`,
+    );
+  }
+}
+
 function comprobarQueLasPruebasCobran() {
   const carpeta = join(RAIZ, 'pruebas', 'e2e');
   for (const archivo of SUITES_DE_MODELO) {
@@ -1133,6 +1227,26 @@ function comprobarQueLasPruebasCobran() {
         'que el impedimento se arregle.',
     );
   }
+
+  /**
+   * Y LA LISTA DE HUECOS TIENE QUE QUEDAR VACÍA (la tercera puerta del bloque 3).
+   *
+   * Lo de arriba exige que cada suite cobre O declare su hueco con una sonda, y eso
+   * dejaba una salida: declarar el hueco. Con las cinco cobrando, la salida ya no
+   * hace falta, y una puerta que se puede abrir por dentro no es una puerta. Es la
+   * misma regla que la de las rutas inexistentes: la lista sólo puede encogerse, y
+   * está vacía.
+   *
+   * Añadir una fila aquí ya no es «documentar un hueco»: es dejar en rojo la puerta,
+   * que es exactamente lo que tiene que pasar el día que un modelo deje de cobrar.
+   */
+  const declarados = Object.keys(SIN_COBRO_TODAVIA);
+  exigir(
+    declarados.length === 0,
+    `COBRO-E2E: ${declarados.length} suite(s) siguen declaradas SIN COBRAR · ` +
+      `${declarados.join(', ')}. Las cinco demos cobran desde el 19-09-2026: la lista tiene que ` +
+      'quedar VACÍA. Un modelo que no cobra no está acoplado, aunque abra sus pantallas.',
+  );
 
   if (!fallos.some((f) => f.startsWith('COBRO-E2E'))) {
     const cobran = SUITES_DE_MODELO.length - Object.keys(SIN_COBRO_TODAVIA).length;
@@ -1378,6 +1492,7 @@ await comprobarRutas(base);
 await comprobarPlantillas();
 await comprobarNavegacion();
 comprobarVocabulario();
+comprobarMarcasDeContenido();
 comprobarQueLasPruebasCobran();
 comprobarQueLasRutasQueSeLlamanExisten();
 await comprobarCiEnGitHub();

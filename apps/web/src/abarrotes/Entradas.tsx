@@ -56,7 +56,7 @@ export interface ProveedorDelDia {
   readonly id: string;
   readonly nombre: string;
   readonly dia_visita: number | null;
-  readonly tipo_visita: string | null;
+  readonly frecuencia: string | null;
 }
 
 export interface RenglonSugerido {
@@ -83,7 +83,14 @@ export interface LineaCapturada {
 
 export interface EntradasProps {
   readonly proveedoresIniciales?: readonly ProveedorDelDia[];
-  readonly almacenId: string;
+  /**
+   * YA NO SE USA, y se queda declarado para que nadie lo vuelva a pasar.
+   *
+   * El almacén es ámbito: lo resuelve el servidor desde la sesión. Cuando esta
+   * pantalla lo exigía, `page.tsx` la montaba con la cadena vacía y la pantalla se
+   * quedaba en blanco esperando un dato que nadie le iba a dar.
+   */
+  readonly almacenId?: never;
   readonly hoy?: number;
 }
 
@@ -148,7 +155,7 @@ function mensajeDe(fallo: unknown): string {
   return 'No se pudo guardar la entrada. Lo capturado sigue aquí.';
 }
 
-export function Entradas({ proveedoresIniciales, almacenId, hoy }: EntradasProps) {
+export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
   const [proveedores, setProveedores] = useState<readonly ProveedorDelDia[] | null>(
     proveedoresIniciales ?? null,
   );
@@ -178,14 +185,14 @@ export function Entradas({ proveedoresIniciales, almacenId, hoy }: EntradasProps
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
-      // Sin id no se consulta.
+      // Los PROVEEDORES no dependen del almacén: son del negocio.
       //
-      // Estas pantallas se abren SIN nada seleccionado -`page.tsx` las monta con
-      // la cadena vacia- y consultar con ella manda un `where id = ''` a una
-      // columna uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en
-      // cada apertura. El estado de «elige algo» ya esta escrito debajo; lo que
-      // faltaba era no pedir datos de lo que nadie eligio.
-      if (almacenId === '') return;
+      // Aquí había una guarda `if (almacenId === '') return;` heredada de cuando
+      // esta pantalla consultaba con un id vacío y se llevaba un 22P02 en cada
+      // apertura. La guarda tapó el 500 y dejó otra avería en su lugar: `page.tsx`
+      // monta esta pantalla con la cadena vacía, así que la consulta NO CORRÍA
+      // NUNCA y la pantalla se quedaba en su esqueleto, en blanco, para siempre.
+      // El almacén es ámbito y lo resuelve el servidor al recibir la nota.
       consultarPuente<ProveedorDelDia>('Proveedor', { limite: 200, signal: control.signal })
         .then((filas) => {
           if (sigueMontada()) setProveedores(filas);
@@ -199,7 +206,7 @@ export function Entradas({ proveedoresIniciales, almacenId, hoy }: EntradasProps
       clearTimeout(arranque);
       control.abort();
     };
-  }, [proveedoresIniciales, almacenId]);
+  }, [proveedoresIniciales]);
 
   function elegir(proveedor: ProveedorDelDia): void {
     setElegido(proveedor);
@@ -253,7 +260,8 @@ export function Entradas({ proveedoresIniciales, almacenId, hoy }: EntradasProps
     invocarComando<{ readonly compraId: string; readonly caducidadesRegistradas: number }>(
       RUTA_RECIBIR,
       {
-        almacenId,
+        // El almacén NO se manda: sale de la sesión del servidor (R16). Esta
+        // pantalla no puede saberlo y fingir que sí la dejaba en blanco.
         proveedorId: elegido.id,
         lineas: lineas.map((l) => ({
           insumoId: l.insumoId,
@@ -326,7 +334,7 @@ export function Entradas({ proveedoresIniciales, almacenId, hoy }: EntradasProps
             >
               {proveedor.nombre}
               <span className="text-muted-foreground ml-2 text-xs">
-                {proveedor.tipo_visita ?? ''}
+                {proveedor.frecuencia ?? ''}
               </span>
             </Button>
           ))}

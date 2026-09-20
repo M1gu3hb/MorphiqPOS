@@ -78,8 +78,15 @@ export interface FaltanteDeCabina {
 
 export interface ProductosProps {
   readonly productosIniciales?: readonly ProductoDeSalon[];
-  readonly almacenVentaId: string;
-  readonly almacenCabinaId: string;
+  /**
+   * YA NO SE USAN, y se quedan declarados para que nadie los vuelva a pasar.
+   *
+   * Los almacenes son ámbito: los resuelve el servidor desde la sesión. Cuando esta
+   * pantalla los exigía, `page.tsx` la montaba con dos cadenas vacías y la pantalla
+   * se quedaba en blanco esperando un dato que nadie le iba a dar.
+   */
+  readonly almacenVentaId?: never;
+  readonly almacenCabinaId?: never;
 }
 
 /** Lo que falta para abrir una pieza. Se dice TODO, no el primer hueco. */
@@ -95,7 +102,7 @@ function mensajeDe(fallo: unknown): string {
   return 'No se pudo. Vuelve a intentarlo.';
 }
 
-export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId }: ProductosProps) {
+export function Productos({ productosIniciales }: ProductosProps) {
   const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoDeSalon[] | null>(
     productosIniciales ?? null,
@@ -111,13 +118,13 @@ export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId 
 
   useEffect(() => {
     if (productosIniciales !== undefined) return;
-    // Sin id no se consulta.
+    // Los PRODUCTOS no dependen del almacén: son del negocio.
     //
-    // Esta pantalla se abre SIN nada seleccionado —`page.tsx` la monta con la
-    // cadena vacía— y consultar con ella manda un `where … = ''` a una columna
-    // uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en cada
-    // apertura. El estado de «elige algo» ya está escrito debajo.
-    if (almacenVentaId === '' || almacenCabinaId === '') return;
+    // Aquí había una guarda por los dos almacenes, heredada de cuando esta pantalla
+    // consultaba con un id vacío. Tapó aquel 500 y dejó otra avería: `page.tsx` la
+    // monta con las dos cadenas vacías, así que la consulta NO CORRÍA NUNCA y la
+    // pantalla se quedaba en su esqueleto, en blanco, para siempre. Los almacenes
+    // son ámbito y los resuelve el servidor al abrir producto a cabina.
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
@@ -137,7 +144,7 @@ export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId 
       clearTimeout(arranque);
       control.abort();
     };
-  }, [productosIniciales, almacenVentaId, almacenCabinaId]);
+  }, [productosIniciales]);
 
   function abrir(producto: ProductoDeSalon): void {
     setElegido(producto);
@@ -191,7 +198,8 @@ export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId 
     setError(null);
     invocarComando<{ readonly unidadesACabina: string; readonly unidadCabina: string }>(
       rutaDeAbrir(elegido.id),
-      { almacenVentaId, almacenCabinaId, piezas: cuantas },
+      // Los almacenes NO se mandan: salen de la sesión del servidor (R16).
+      { piezas: cuantas },
     )
       .then((salida) => {
         setAviso(`Entraron ${salida.unidadesACabina} ${salida.unidadCabina} a cabina.`);
@@ -209,7 +217,7 @@ export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId 
     setError(null);
     invocarComando<{ readonly alcanza: boolean; readonly faltantes: readonly FaltanteDeCabina[] }>(
       RUTA_ALCANZA,
-      { almacenCabinaId, consumoEsperado: [] },
+      { consumoEsperado: [] },
     )
       .then((salida) => {
         // Se devuelven TODOS los faltantes: quien va a comprar hace un viaje, y

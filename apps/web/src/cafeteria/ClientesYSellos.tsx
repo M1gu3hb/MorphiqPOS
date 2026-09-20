@@ -51,7 +51,15 @@ export interface ClienteConSellos {
   readonly nombre: string;
   readonly telefono: string | null;
   readonly sellos: number;
-  readonly sellosParaPremio: number;
+  /**
+   * Cuántos sellos son un premio. NO es del cliente: es del NEGOCIO.
+   *
+   * No se sirve por cliente y no debería: es una regla de lealtad, la misma para
+   * todos, y vive en la configuración. Se declara opcional y la pantalla cae al
+   * valor por omisión —diez, que es la tarjeta de cartón de toda la vida— en vez de
+   * restar contra `undefined` y enseñar «NaN para tu próximo café».
+   */
+  readonly sellosParaPremio?: number;
   readonly premiosCanjeados: number;
 }
 
@@ -60,9 +68,23 @@ export interface ClientesYSellosProps {
   readonly recientesIniciales?: readonly ClienteConSellos[];
 }
 
+/** Diez sellos son un café: es la tarjeta de cartón de toda la vida. */
+const SELLOS_PARA_PREMIO = 10;
+
+/**
+ * Cuántos sellos son un premio en ESTE negocio.
+ *
+ * El umbral no es del cliente —es una regla de lealtad, la misma para todos— y el
+ * puente no lo sirve por cliente, con razón. Con el valor por omisión la tarjeta
+ * dice «3 / 10» en vez de «3 / NaN», que es lo que enseñaba.
+ */
+export function metaDeSellos(cliente: { readonly sellosParaPremio?: number }): number {
+  return cliente.sellosParaPremio ?? SELLOS_PARA_PREMIO;
+}
+
 /** «Te falta uno» vende el noveno café; «llevas nueve» no dice nada. */
 export function loQueFalta(cliente: ClienteConSellos): string {
-  const faltan = cliente.sellosParaPremio - cliente.sellos;
+  const faltan = metaDeSellos(cliente) - cliente.sellos;
   if (faltan <= 0) return 'Ya puede canjear';
   if (faltan === 1) return 'Le falta uno';
   return `Le faltan ${String(faltan)}`;
@@ -230,7 +252,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
 
           <div>
             <p className="text-3xl font-semibold tabular-nums">
-              {cliente.sellos} / {cliente.sellosParaPremio}
+              {cliente.sellos} / {metaDeSellos(cliente)}
             </p>
             <p className="text-lg">{loQueFalta(cliente)}</p>
             <p className="text-muted-foreground text-sm">
@@ -239,7 +261,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
             </p>
           </div>
 
-          {cliente.sellos >= cliente.sellosParaPremio && !confirmandoCanje && (
+          {cliente.sellos >= metaDeSellos(cliente) && !confirmandoCanje && (
             <Button
               className="h-[calc(var(--altura-control)*1.4)] w-full text-base"
               disabled={ocupado}

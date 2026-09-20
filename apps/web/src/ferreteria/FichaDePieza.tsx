@@ -95,6 +95,59 @@ export interface PiezaDeFicha {
   readonly historialCliente: string | null;
 }
 
+/**
+ * La fila del puente, con los HIJOS como los sirve `PiezaFerreteria`.
+ *
+ * El puente devuelve los hijos con la forma de SU entidad —`Presentacion` y
+ * `Equivalencia`— y esta pantalla lee otra: `unidades` con `clave`/`etiqueta`,
+ * `equivalentes` con `nota` y precio. La traducción vive aquí, en una función, y
+ * no en la vista: lo que la vista no puede hacer es partir una lista en dos por su
+ * `tipo`, que es justo la diferencia entre «le sirve» y «va con».
+ */
+type FilaDelPuente = Omit<PiezaDeFicha, 'unidades' | 'equivalentes' | 'vaCon' | 'seUsaEn'> & {
+  readonly unidades?: readonly {
+    readonly id: string;
+    readonly nombre: string;
+    readonly factor: number | null;
+    readonly precio_venta_centavos: number | null;
+  }[];
+  readonly equivalencias?: readonly {
+    readonly equivalente_id: string;
+    readonly nombre: string | null;
+    readonly nota: string | null;
+    readonly precioCentavos: number | null;
+    readonly tipo: string;
+  }[];
+};
+
+/** La pieza como la lee esta pantalla, armada de la fila y sus hijos. */
+export function comoFicha(fila: FilaDelPuente): PiezaDeFicha {
+  const equivalencias = fila.equivalencias ?? [];
+  const deTipo = (tipo: string) => equivalencias.filter((e) => e.tipo === tipo);
+  return {
+    ...fila,
+    // La unidad base primero: es la que el mostrador cobra por omisión.
+    unidades: (fila.unidades ?? []).map((u) => ({
+      clave: u.id,
+      etiqueta: u.factor === null || u.factor <= 1 ? u.nombre : `${u.nombre} (${String(u.factor)})`,
+      precioCentavos: u.precio_venta_centavos ?? 0,
+    })),
+    // `sustituto` REEMPLAZA y `complemento` ACOMPAÑA: son dos listas distintas
+    // porque ofrecer una llave a quien pide teflón es ruido en el mostrador.
+    equivalentes: deTipo('sustituto').map((e) => ({
+      id: e.equivalente_id,
+      nombre: e.nombre ?? 'Sin nombre',
+      nota: e.nota,
+      precioCentavos: e.precioCentavos,
+    })),
+    vaCon: deTipo('complemento').map((e) => e.nombre ?? 'Sin nombre'),
+    // `seUsaEn` sale de las listas de trabajo y todavía no se sirve: el vacío de
+    // esa fila ya lo dice —«ninguna lista de trabajo lo pide todavía»— y decirlo
+    // es mejor que rellenarlo con lo primero que se parezca.
+    seUsaEn: [],
+  };
+}
+
 export interface FichaDePiezaProps {
   /** Cuando llega, la pantalla no consulta: es lo que usan las pruebas. */
   readonly piezaInicial?: PiezaDeFicha | null;
@@ -141,10 +194,15 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
     const control = new AbortController();
     const sigueMontada = () => !control.signal.aborted;
     const filtro = piezaId === undefined ? {} : { id: piezaId };
-    consultarPuente<PiezaDeFicha>('PiezaFerreteria', { filtro, limite: 1, signal: control.signal })
+    consultarPuente<FilaDelPuente>('PiezaFerreteria', {
+      filtro,
+      limite: 1,
+      signal: control.signal,
+    })
       .then((filas) => {
         if (!sigueMontada()) return;
-        const primera = filas[0] ?? null;
+        const cruda = filas[0];
+        const primera = cruda === undefined ? null : comoFicha(cruda);
         setPieza(primera);
         if (primera !== null) setEquivalentes(primera.equivalentes);
         setCargando(false);

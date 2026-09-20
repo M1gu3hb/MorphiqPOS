@@ -127,6 +127,25 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
     };
   }, [profesionalId, diaInicial]);
 
+  // El VACÍO QUE ENSEÑA: la ficha es de UNA profesional.
+  //
+  // `page.tsx` la monta sin ninguna elegida —se llega desde la liquidación o desde
+  // «Mi día»— y sin esto la pantalla se quedaba en su esqueleto para siempre.
+  if (profesionalId === '' && diaInicial === undefined) {
+    return (
+      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+        <h1 className="text-xl font-semibold">Aquí se abre la ficha de una profesional</h1>
+        <p className="text-sm text-muted-foreground">
+          Su día, sus citas, lo que lleva cobrado y su comisión. Se elige en Liquidación —o cada una
+          abre la suya en «Mi día», donde sólo ve lo propio.
+        </p>
+        <Button asChild>
+          <a href="/estetica-salon/liquidacion">Ir a Liquidación</a>
+        </Button>
+      </main>
+    );
+  }
+
   if (dia === null) {
     return (
       <div className="space-y-4 p-6">

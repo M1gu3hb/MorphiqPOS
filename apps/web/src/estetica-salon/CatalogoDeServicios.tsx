@@ -61,7 +61,14 @@ type Tramo = (typeof TRAMOS)[number]['clave'];
 export interface ServicioDelCatalogo {
   readonly id: string;
   readonly nombre: string;
-  readonly precio_venta_centavos: number;
+  /**
+   * EN PESOS, como lo sirve el puente.
+   *
+   * Aquí decía `precio_venta_centavos`, que la entidad NO sirve: lo expone como
+   * `precio_venta`, ya convertido por `dinero`. Llegaba `undefined` y la pantalla
+   * enseñaba `$NaN`.
+   */
+  readonly precio_venta: number | null;
   readonly duracion_activa_1_min: number;
   readonly duracion_pasiva_min: number;
   readonly duracion_activa_2_min: number;
@@ -133,7 +140,12 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
       consultarPuente<ServicioDelCatalogo>('ProductoTerminado', {
-        filtro: { tipo: 'servicio' },
+        // `tipo_venta`, que es la columna. Aquí decía `tipo`, que no es campo de
+        // `ProductoTerminado`: el puente contestaba 400 y el `.catch` de abajo lo
+        // volvía una lista vacía, así que el catálogo de servicios de un salón —lo
+        // único que esta pantalla enseña— salía en blanco con los servicios
+        // sembrados. `estetica-salon/Agendar` ya filtraba por el nombre correcto.
+        filtro: { tipo_venta: 'servicio' },
         limite: 200,
         signal: control.signal,
       })
@@ -154,7 +166,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
   function abrir(servicio: ServicioDelCatalogo): void {
     setElegido(servicio);
     setNombre(servicio.nombre);
-    setPrecio((servicio.precio_venta_centavos / 100).toFixed(2));
+    setPrecio((servicio.precio_venta ?? 0).toFixed(2));
     setMinutos({
       activa1: String(servicio.duracion_activa_1_min),
       pasiva: String(servicio.duracion_pasiva_min),
@@ -259,7 +271,8 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
               >
                 {servicio.nombre}
                 <span className="text-muted-foreground ml-2 text-xs">
-                  {minutosDeEstacion(servicio)} min · {pesos(servicio.precio_venta_centavos)}
+                  {minutosDeEstacion(servicio)} min ·{' '}
+                  {pesos(Math.round((servicio.precio_venta ?? 0) * 100))}
                 </span>
               </button>
             </li>

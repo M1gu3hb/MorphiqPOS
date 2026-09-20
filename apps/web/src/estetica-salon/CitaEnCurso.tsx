@@ -74,13 +74,21 @@ export interface VisitaConFormula {
   /** ISO. Se formatea en el cliente: el servidor no sabe la zona del salón. */
   readonly fecha: string;
   readonly servicio: string;
-  readonly componentes: readonly ComponenteDeFormula[];
+  /**
+   * Los componentes vienen DENTRO del jsonb `formula`, no como campo suelto.
+   *
+   * `FormulaAplicada` sirve `formula` —el objeto congelado tal cual se mezcló— y
+   * esta pantalla leía `componentes` en la raíz: llegaba `undefined` y la fórmula de
+   * partida salía vacía, que en un salón significa volver a adivinar la mezcla.
+   */
+  readonly componentes?: readonly ComponenteDeFormula[];
   readonly minutos: number;
 }
 
 export interface ServicioDeLaCita {
   readonly id: string;
-  readonly nombre: string;
+  /** `servicio_nombre`, que es como lo sirve `CitaServicio`. */
+  readonly servicio_nombre: string | null;
   readonly precio_centavos: number;
   readonly estado: string;
 }
@@ -92,7 +100,15 @@ export interface CitaAbierta {
   readonly hora: string;
   /** Epoch en ms del inicio real. El cronómetro no se guarda: se resta. */
   readonly inicioEn: number;
-  readonly alergias: string | null;
+  /**
+   * LAS ALERGIAS NO SON DEL CLIENTE: son de su EXPEDIENTE.
+   *
+   * `Cliente` no las sirve —la tabla no las tiene— y viven en
+   * `ExpedienteBelleza.alergias`, que esta misma pantalla ya lee para la bandera
+   * roja. Opcional para que el aviso salga del expediente y no de un `undefined`
+   * que se lee como «sin alergias»: en un salón, esa confusión quema una cabeza.
+   */
+  readonly alergias?: string | null;
 }
 
 export interface CitaEnCursoProps {
@@ -115,8 +131,16 @@ interface FilaCita {
 
 interface FilaClienta {
   readonly nombre: string;
-  /** La 142 añade los campos de salón a la tabla viva de clientes. */
-  readonly alergias: string | null;
+  /**
+   * La 142 añade los campos de salón a la tabla viva de clientes, y el puente NO
+   * los sirve: `Cliente` no declara `alergias`.
+   *
+   * Opcional a propósito. Las alergias que esta pantalla enseña salen del
+   * EXPEDIENTE —`ExpedienteBelleza.alergias`, que la agenda ya lee para la bandera
+   * roja— y un `undefined` aquí se leería como «sin alergias», que en un salón es
+   * la confusión que quema una cabeza.
+   */
+  readonly alergias?: string | null;
 }
 
 /** Punto de partida de una clienta nueva. NUNCA un formulario en blanco. */
@@ -137,11 +161,14 @@ function entero(texto: string): number {
 }
 
 function mezclaDe(visita: VisitaConFormula): Mezcla {
-  const gramos = visita.componentes.reduce((suma, c) => suma + c.cantidad, 0);
+  // Sin componentes servidos, una mezcla VACÍA y no un fallo: la fórmula de
+  // partida se enseña como «todavía no hay» y la estilista la captura.
+  const componentes = visita.componentes ?? [];
+  const gramos = componentes.reduce((suma, c) => suma + c.cantidad, 0);
   return {
     mezclado: gramos,
     usado: gramos,
-    componentes: visita.componentes,
+    componentes,
     minutos: visita.minutos,
   };
 }
@@ -156,7 +183,7 @@ function armar(
   return {
     id: fila.id,
     clienta: clienta?.nombre ?? 'Sin registrar',
-    servicio: lineas[0]?.nombre ?? 'Servicio',
+    servicio: lineas[0]?.servicio_nombre ?? 'Servicio',
     hora: HORA.format(new Date(fila.agendada_para)),
     inicioEn: Number.isNaN(arranque) ? Date.now() : arranque,
     alergias: clienta?.alergias ?? null,
@@ -398,7 +425,7 @@ export function CitaEnCurso({
                   <p className="text-xs text-muted-foreground">
                     {`${DIA.format(new Date(v.fecha))} · ${v.servicio}`}
                   </p>
-                  <FilasDeFormula componentes={v.componentes} minutos={v.minutos} />
+                  <FilasDeFormula componentes={v.componentes ?? []} minutos={v.minutos} />
                 </li>
               ))}
             </ul>
@@ -556,7 +583,7 @@ export function CitaEnCurso({
             <ul className="mt-1 divide-y divide-border">
               {servicios.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-2 py-1 text-sm">
-                  <span>{s.nombre}</span>
+                  <span>{s.servicio_nombre ?? 'Servicio'}</span>
                   <span className="flex items-center gap-2 tabular-nums">
                     {s.estado === 'cerrado' && <Badge variant="secondary">Cerrado</Badge>}
                     {PESOS.format(s.precio_centavos / 100)}

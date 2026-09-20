@@ -162,6 +162,37 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
       });
   }
 
+  // El VACÍO QUE ENSEÑA: este portal se abre con el QR de la mesa.
+  //
+  // `page.tsx` lo monta con el token vacío —no hay forma de saber en qué mesa está
+  // un navegador que no viene del QR— y sin esto la pantalla se quedaba en su
+  // esqueleto, en blanco, para siempre.
+  if (token === '' && datosIniciales === undefined) {
+    return (
+      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+        {/* El estado vacío habla el giro igual que el resto: una cafetería con
+            barra lee «el QR de la barra», no «de la mesa». Con la palabra
+            tecleada, el día que la dueña la cambie esta pantalla se queda atrás
+            —y es la primera que ve un cliente—. */}
+        <h1 className="text-xl font-semibold">
+          Este portal se abre con el QR de {vocabulario.enFrase('unidad_servicio')}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {vocabulario.conDeterminante('cada', 'unidad_servicio')} tiene su código: al escanearlo,{' '}
+          {vocabulario.enFrase('cliente')} ve la carta de este negocio, pide y pide{' '}
+          {vocabulario.enFrase('orden')} desde su teléfono. El código lleva{' '}
+          {vocabulario.enFrase('unidad_servicio')} dentro, así que sin él esta pantalla no sabe a
+          cuál pertenece — y adivinarla sería mandarle {vocabulario.enFrase('orden')} a otro.
+        </p>
+        <Button asChild>
+          <a href="/restaurante/mapa-de-mesas">
+            Ver el mapa de {vocabulario.plural('unidad_servicio')}
+          </a>
+        </Button>
+      </main>
+    );
+  }
+
   if (datos === null) {
     return (
       <div className="space-y-4 p-4">

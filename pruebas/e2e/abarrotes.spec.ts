@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import {
   abrirLaCajaSiHaceFalta,
   abrirPantalla,
+  type MarcaDePantalla,
   accionesDelTablero,
   cambiarDePlantilla,
   consultarPuente,
@@ -14,6 +15,7 @@ import {
   exigirVentaCobrada,
   exigirVocabulario,
   menuLateral,
+  soltarLaCaja,
   totalEnPantalla,
   ventasDeAntes,
   vigilarFallos,
@@ -71,23 +73,68 @@ interface ProductoDelPuente {
  */
 
 /** Las once pantallas del modelo, tal como existen en `app/(modelos)/abarrotes/`. */
-const PANTALLAS = [
-  'alta-rapida-de-producto',
-  'caja',
-  'cobrar',
-  'conteo',
-  'cortes',
-  'entradas',
-  'existencias',
-  'fiado',
-  'producto',
-  'registros',
-  'servicios',
-] as const;
+/**
+ * Las pantallas del modelo, con LO QUE CADA UNA TIENE QUE ENSEÑAR.
+ *
+ * ── Por qué una marca por pantalla y no sólo el 200 ───────────────────────
+ * Porque una pantalla que abre en 200 y pinta su estado de error se ve igual que
+ * una que funciona. Con el 200 solo, la suite dio por probadas cuatro pantallas
+ * cuya entidad del puente NO EXISTÍA —la ficha de pieza, las existencias de
+ * material, la cartera por obra y las opciones de la bebida— y nueve que se
+ * quedaban en su esqueleto para siempre porque `page.tsx` las montaba con un id
+ * vacío. Ninguna se podía distinguir de las que sí trabajan.
+ *
+ * La marca no es el DATO: la demo puede tener una zona sin productos y eso es
+ * legítimo. Es el título, la etiqueta de su región, o la frase de su estado vacío
+ * —que también es contenido de esa pantalla y de ninguna otra—.
+ */
+const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
+  ['alta-rapida-de-producto', /Tres datos y vuelves a la venta/],
+  ['caja', /Fondo con el que abres|Lo que debería haber/],
+  // El muro de «la caja está cerrada» es contenido de esta pantalla: es la
+  // decisión de no dejar vender sin corte al que cuadrar la venta.
+  /**
+   * Los TRES estados de la pantalla de cobro, y los tres son suyos.
+   *
+   * Con la caja cerrada enseña su muro —«una venta sin caja no pertenece a ningún
+   * corte»—; sin catálogo, «todavía no hay nada que escanear»; y con las dos cosas,
+   * la venta. La marca cubre los tres porque la pantalla abre en cualquiera y los
+   * tres son contenido suyo: lo que no puede pasar es que no enseñe ninguno.
+   */
+  ['cobrar', /La caja está cerrada|nada que escanear|COBRAR/],
+  ['conteo', /zona/i],
+  ['cortes', /Cortes anteriores|No hay turno abierto/],
+  ['entradas', /Recibir nota|proveedor/i],
+  ['existencias', /Qué hay, qué falta/],
+  ['fiado', /Fiado/],
+  ['producto', /Aquí se abre la ficha|Precio y margen/],
+  ['registros', /Qué pasó, en orden/],
+  // La pantalla enseña su ONBOARDING mientras no haya cuenta de comisionista dada
+  // de alta, y eso es contenido suyo: el saldo de Telcel no lo registra nada
+  // todavía —lo dice la pantalla con esas palabras— y la venta sí funciona.
+  ['servicios', /comisionista|comisión/i],
+];
 
 test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () => {
   test.beforeAll(async ({ playwright }, info) => {
     await exigirDemostracion(playwright, info);
+  });
+
+  /**
+   * LA CAJA NO SE QUEDA ABIERTA, ni cuando la prueba falla.
+   *
+   * El último paso de esta prueba cierra la caja y cuadra el arqueo, y no se
+   * ejecuta si la prueba muere antes. Lo que quedaba no era un dato sucio: era un
+   * candado. La base permite UNA sesión de caja abierta por SUCURSAL, cada
+   * navegador nuevo trae su propia terminal y cerrar la de otra terminal no se
+   * puede, así que una corrida fallida bloqueaba TODAS las siguientes hasta volver
+   * a sembrar la demo.
+   *
+   * Se anota en vez de afirmar: una limpieza que revienta taparía el fallo que hay
+   * que leer.
+   */
+  test.afterEach(async ({ page }, info) => {
+    info.annotations.push({ type: 'caja', description: await soltarLaCaja(page) });
   });
 
   test('la plantilla tienda trae operación, habla de productos y COBRA una venta', async ({
@@ -100,7 +147,7 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     await cambiarDePlantilla(page, 'tienda');
 
     // ── 1 · SU VOCABULARIO ────────────────────────────────────────────────
-    await abrirPantalla(page, '/');
+    await abrirPantalla(page, '/', /Buen día/);
     const menu = await menuLateral(page);
 
     await exigirVocabulario(menu, {
@@ -170,8 +217,8 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
 
     // ── 4 · LAS ONCE PANTALLAS DEL MODELO RESPONDEN ───────────────────────
-    for (const pantalla of PANTALLAS) {
-      await abrirPantalla(page, `/abarrotes/${pantalla}`);
+    for (const [pantalla, marca] of PANTALLAS) {
+      await abrirPantalla(page, `/abarrotes/${pantalla}`, marca);
     }
 
     // ── 5 · SE COBRA UNA VENTA, Y EL DINERO CUADRA ────────────────────────
@@ -196,7 +243,7 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
       (FONDO_CENTAVOS / 100).toFixed(2),
     );
 
-    await abrirPantalla(page, '/abarrotes/cobrar');
+    await abrirPantalla(page, '/abarrotes/cobrar', /nada que escanear|COBRAR/);
 
     // El producto sale del CATÁLOGO, no de un nombre escrito aquí: la pantalla
     // lee `ProductoTerminado` y esto lee lo mismo, así que si mañana la semilla
@@ -276,7 +323,7 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     // trae su propia terminal, así que una caja que se queda abierta bloquea la
     // siguiente corrida entera —abrir revienta contra el índice y cobrar contesta
     // «Abre la caja antes de cobrar»—.
-    await abrirPantalla(page, '/abarrotes/cortes');
+    await abrirPantalla(page, '/abarrotes/cortes', /Cortes/);
 
     const esperadoCentavos = FONDO_CENTAVOS + totalCentavos;
     // El desglose se cuenta en «centavos sueltos» a propósito: contar por

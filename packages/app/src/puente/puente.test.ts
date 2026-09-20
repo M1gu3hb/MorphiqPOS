@@ -452,6 +452,25 @@ describe('los campos derivados', () => {
       'citas',
       'productos',
       'profesionales',
+      // Las cinco añadidas el 20-09-2026, al servir los campos que veinte
+      // pantallas leían y el puente no mandaba. Ninguna es de credenciales,
+      // ninguna exige dos saltos, y todas las sirve ya el puente por su propia
+      // entidad a los mismos roles: lo que el derivado ahorra es la consulta de
+      // más, no un permiso.
+      //
+      //   · `servicios` · la duración de un servicio como SECUENCIA (F-401): vive
+      //     colgada del producto y el catálogo del salón la leía del producto.
+      //   · `obras` · el nombre de la obra de una remisión (F-639).
+      //   · `ordenes` · el nombre con el que se GRITA el pedido (F-261): lo leen la
+      //     barra, la recogida y el cierre de turno, y vive en la orden.
+      //   · `proveedores` · a quién se le pide un insumo (F-107).
+      //   · `lealtad_saldos` · los sellos del cliente (F-930), que son la
+      //     proyección del ledger y no una columna del cliente.
+      'servicios',
+      'obras',
+      'ordenes',
+      'proveedores',
+      'lealtad_saldos',
     ]);
     for (const [entidad, mapa] of Object.entries(MAPA)) {
       for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {

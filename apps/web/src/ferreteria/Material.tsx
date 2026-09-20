@@ -61,7 +61,13 @@ export interface PiezaViva {
 
 export interface MaterialProps {
   readonly productoId: string;
-  readonly almacenId: string;
+  /**
+   * YA NO SE USA, y se queda declarado para que nadie lo vuelva a pasar.
+   *
+   * El almacén es ámbito: lo resuelve el servidor. Cuando esta pantalla lo exigía,
+   * `page.tsx` la montaba con la cadena vacía.
+   */
+  readonly almacenId?: never;
   readonly piezasIniciales?: readonly PiezaViva[];
 }
 
@@ -83,7 +89,7 @@ function mensajeDe(fallo: unknown): string {
   return 'No se pudo. Vuelve a intentarlo.';
 }
 
-export function Material({ productoId, almacenId, piezasIniciales }: MaterialProps) {
+export function Material({ productoId, piezasIniciales }: MaterialProps) {
   const voc = useVocabulario();
   const [piezas, setPiezas] = useState<readonly PiezaViva[] | null>(piezasIniciales ?? null);
   const [recomendada, setRecomendada] = useState<string | null>(null);
@@ -151,7 +157,7 @@ export function Material({ productoId, almacenId, piezasIniciales }: MaterialPro
     setError(null);
     invocarComando(RUTA_PIEZAS, {
       productoId,
-      almacenId,
+      // El almacén NO se manda: sale de la sesión del servidor (R16).
       medidaBase: base,
       folio: nueva.folio.trim(),
       ubicacionId: null,
@@ -195,6 +201,31 @@ export function Material({ productoId, almacenId, piezasIniciales }: MaterialPro
       .finally(() => {
         setOcupado(false);
       });
+  }
+
+  // El VACÍO QUE ENSEÑA: esta pantalla es la ficha de UN material continuo.
+  //
+  // `page.tsx` la monta sin material elegido y el efecto, con razón, no consulta con
+  // un id vacío. Sin esto se quedaba en su esqueleto, en blanco, para siempre.
+  if (productoId === '' && piezasIniciales === undefined) {
+    return (
+      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+        {/* Con el sustantivo del giro: una ferretería lee «material» y una
+            tiendita «producto». Tecleado, el diccionario deja de mandar justo en
+            el estado que más se ve —esta pantalla se monta sin material
+            elegido—. */}
+        <h1 className="text-xl font-semibold">
+          Aquí se abre {voc.enFraseCon('un', 'producto')} que se corta
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Los rollos abiertos con su etiqueta, lo que queda en cada uno y de cuál conviene cortar.
+          Se llega desde el mostrador: busca {voc.enFrase('producto')} y toca su renglón.
+        </p>
+        <Button asChild>
+          <a href="/ferreteria/mostrador">Ir al mostrador</a>
+        </Button>
+      </main>
+    );
   }
 
   if (piezas === null) {

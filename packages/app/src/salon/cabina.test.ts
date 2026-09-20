@@ -4,9 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   contextoFalso,
   crearBaseFalsa,
+  type Fila,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, ORG, SUCURSAL } from '../restaurante/pruebas/sala.ts';
 import { abrirProducto, alcanzaLaCabina } from './cabina.ts';
 
 /**
@@ -217,5 +218,66 @@ describe('F-155 · ¿alcanza la cabina para lo que está agendado?', () => {
     });
 
     expect(salida.alcanza).toBe(false);
+  });
+});
+
+describe('F-155 · los dos almacenes salen de la SESIÓN cuando no se dicen', () => {
+  /**
+   * ── Por qué esto hacía falta ────────────────────────────────────────────
+   * `estetica-salon/Productos.tsx` exigía los dos ids y `page.tsx` la montaba con
+   * dos cadenas vacías: la consulta no corría NUNCA y la pantalla se quedaba en
+   * blanco para siempre. Los almacenes son ámbito, y el ámbito lo sabe el servidor.
+   */
+  const conAlmacenes = (filas: readonly Fila[]) =>
+    baseDe({
+      almacenes: filas,
+      insumos: [{ id: INSUMO, organizacion_id: ORG, unidad_base: 'ml', activo: true }],
+      existencias: [
+        { organizacion_id: ORG, almacen_id: VENTA, insumo_id: INSUMO, cantidad: '10.0000' },
+      ],
+    });
+
+  const almacen = (id: string, principal: boolean): Fila => ({
+    id,
+    organizacion_id: ORG,
+    sucursal_id: SUCURSAL,
+    principal,
+    activo: true,
+  });
+
+  it('EL PRINCIPAL ES EL DE VENTA y el otro es la cabina', async () => {
+    const base = conAlmacenes([almacen(VENTA, true), almacen(CABINA, false)]);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    await abrirProducto.ejecutar(ctx, { productoId: PRODUCTO, piezas: 1 });
+
+    // Sale del principal y entra al otro: si se invirtieran, la cabina surtiría al
+    // anaquel y el inventario del mostrador subiría solo.
+    const movimientos = base.filas('movimientos_stock');
+    expect(movimientos[0]?.['almacen_id']).toBe(VENTA);
+    expect(movimientos[1]?.['almacen_id']).toBe(CABINA);
+  });
+
+  it('SIN SEGUNDO ALMACÉN se dice qué falta, en vez de mezclar los dos destinos', async () => {
+    const base = conAlmacenes([almacen(VENTA, true)]);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    const codigo = await codigoDe(() =>
+      abrirProducto.ejecutar(ctx, { productoId: PRODUCTO, piezas: 1 }),
+    );
+
+    expect(codigo).toBe('CONFIGURACION_INVALIDA');
+    // Y NADA se movió: un movimiento a medias deja el anaquel descontado y la
+    // cabina vacía.
+    expect(base.filas('movimientos_stock')).toEqual([]);
+  });
+
+  it('LO QUE SE DICE MANDA: un salón con dos sucursales sí elige', async () => {
+    const base = conAlmacenes([almacen(VENTA, true), almacen(CABINA, false)]);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    await abrirProducto.ejecutar(ctx, APERTURA);
+
+    expect(base.filas('movimientos_stock')[0]?.['almacen_id']).toBe(VENTA);
   });
 });

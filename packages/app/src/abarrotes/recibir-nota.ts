@@ -1,12 +1,12 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';
-import type { Transaccion } from '@morphiqpos/data';
+import { repoVentaCatalogo, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { registrarCompra } from '../compras/compras.ts';
 import { entradaRegistrarCompra } from '../compras/esquemas.ts';
-import { definirComando } from '../definicion.ts';
+import { definirComando, type ContextoComando } from '../definicion.ts';
 
 /**
  * F-106 + F-631 · Recibir la nota del repartidor, con sus caducidades.
@@ -39,10 +39,44 @@ import { definirComando } from '../definicion.ts';
 
 const ROLES = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
 
+/**
+ * El almacén principal de la sucursal de la SESIÓN.
+ *
+ * Aparte porque es lo que convierte «la pantalla tiene que saber en qué almacén
+ * está» en «el servidor ya lo sabe»: el ámbito sale de la sesión, nunca de la
+ * petición, y una pantalla que no puede contestarlo se quedaba en blanco.
+ */
+async function almacenDeLaSesion(ctx: ContextoComando<Transaccion>): Promise<string> {
+  const { organizacionId, sucursalId } = ctx.ambito;
+  if (sucursalId === null) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'El material entra a un almacén, y el almacén es de una sucursal: esta sesión no tiene una.',
+    );
+  }
+  const almacenId = await ctx.paso('resolver_almacen', () =>
+    repoVentaCatalogo.almacenPrincipal(ctx.tx, organizacionId, sucursalId),
+  );
+  if (almacenId === null) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Esta sucursal no tiene almacén dado de alta: el material no tiene dónde entrar.',
+    );
+  }
+  return almacenId;
+}
+
 export const entradaRecibirNota = z.object({
   ...entradaRegistrarCompra.shape,
-  /** Dónde entró. Las caducidades son POR ALMACÉN: la trastienda y el anaquel. */
-  almacenId: z.uuid(),
+  /**
+   * Dónde entró. Las caducidades son POR ALMACÉN: la trastienda y el anaquel.
+   *
+   * OPCIONAL: sin él, el principal de la sucursal de la sesión. La pantalla de
+   * entradas de una tiendita no sabe en qué almacén está —ni tiene por qué
+   * preguntarlo para recibir una nota— y obligarla a mandarlo la dejaba montada con
+   * la cadena vacía, sin consultar nada y en blanco. El ámbito sale de la sesión.
+   */
+  almacenId: z.uuid().optional(),
 });
 
 export interface ResultadoRecepcion {
@@ -76,12 +110,13 @@ export const recibirNota = definirComando<
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
 
+    const almacenId = entrada.almacenId ?? (await almacenDeLaSesion(ctx));
     const almacen = await ctx.paso('leer_almacen', () =>
       ctx.tx
         .selectFrom('almacenes')
         .select(['id'])
         .where('organizacion_id', '=', organizacionId)
-        .where('id', '=', entrada.almacenId)
+        .where('id', '=', almacenId)
         .executeTakeFirst(),
     );
     if (almacen === undefined) {
@@ -150,7 +185,7 @@ export const recibirNota = definirComando<
           .selectFrom('caducidades')
           .select(['id', 'cantidad'])
           .where('organizacion_id', '=', organizacionId)
-          .where('almacen_id', '=', entrada.almacenId)
+          .where('almacen_id', '=', almacenId)
           .where('producto_id', '=', productoId)
           .where('caduca_el', '=', linea.caducaEl)
           .executeTakeFirst(),
@@ -174,7 +209,7 @@ export const recibirNota = definirComando<
             .insertInto('caducidades')
             .values({
               organizacion_id: organizacionId,
-              almacen_id: entrada.almacenId,
+              almacen_id: almacenId,
               producto_id: productoId,
               caduca_el: linea.caducaEl,
               cantidad: deEscala(enBase),

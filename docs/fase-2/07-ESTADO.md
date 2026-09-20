@@ -231,7 +231,7 @@ cada bloque; el detalle de cada decisión está en la bitácora del día.
 |---|---|---|
 | **1** | Que los cinco modelos hagan su trabajo | ✅ **cerrado** · T-38, T-15, T-16, T-18, T-17, T-37, T-07, T-08/T-24 y T-09 |
 | **2** | Las 18 rutas que el frontend llama y no existen | ✅ **cerrado** · 0 declaradas. La puerta exige que la lista quede VACÍA, no sólo que no crezca |
-| **3** | Que las pruebas miren el CONTENIDO, no el 200 | ⬜ |
+| **3** | Que las pruebas miren el CONTENIDO, no el 200 | ✅ **cerrado** · 61 marcas de contenido, `vigilarFallos` cazando 4xx y `{ok:false}` con la ENTIDAD nombrada, las cinco demos verdes **dos veces seguidas sin volver a sembrar** y en `--project=tablet` (T-39). Nueve defectos destapados: cuatro filtros por un campo que no existe —que dejan la lista VACÍA, no roja—, tres listas pedidas a rutas de ESCRITURA, una cafetería sin opciones de bebida y una mesa que no volvía al servicio. **Dos puertas nuevas**, las dos demostradas en rojo: una marca de contenido por pantalla (61 de 61) y la lista de huecos de cobro VACÍA |
 | **4** | Tableros y vocabulario | ⬜ |
 | **5** | Producción y la cadena entera | ⬜ |
 

@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type APIResponse } from '@playwright/test';
 
 import {
   abrirCajaPorLaRuta,
   abrirPantalla,
+  type MarcaDePantalla,
   accionesDelTablero,
   cabecerasDeEscrituraDePrueba,
   cambiarDePlantilla,
@@ -16,6 +17,7 @@ import {
   exigirVocabulario,
   exigirVocabularioDelGiro,
   menuLateral,
+  soltarLaCaja,
   plantillaRechazada,
   ventasDeAntes,
   vigilarFallos,
@@ -66,7 +68,6 @@ import {
  * cumplida sin que nadie haya abierto un navegador.
  */
 
-/** Las doce pantallas del modelo, tal como existen en `app/(modelos)/estetica-salon/`. */
 /** Pesos como los pinta la pantalla: `$1,800.00`. */
 function enPesosDelSalon(centavos: number): string {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(
@@ -103,24 +104,56 @@ interface ComisionDelPuente {
   readonly tasa_bp?: number;
 }
 
-const PANTALLAS = [
-  'agenda-del-dia',
-  'agendar',
-  'caja-y-corte',
-  'catalogo-de-servicios',
-  'cita-en-curso',
-  'clientas',
-  'cobrar',
-  'ficha-del-profesional',
-  'historial-de-la-clienta',
-  'liquidacion',
-  'mi-dia',
-  'productos',
-] as const;
+/**
+ * Las pantallas del modelo, con LO QUE CADA UNA TIENE QUE ENSEÑAR.
+ *
+ * ── Por qué una marca por pantalla y no sólo el 200 ───────────────────────
+ * Porque una pantalla que abre en 200 y pinta su estado de error se ve igual que
+ * una que funciona. Con el 200 solo, la suite dio por probadas cuatro pantallas
+ * cuya entidad del puente NO EXISTÍA —la ficha de pieza, las existencias de
+ * material, la cartera por obra y las opciones de la bebida— y nueve que se
+ * quedaban en su esqueleto para siempre porque `page.tsx` las montaba con un id
+ * vacío. Ninguna se podía distinguir de las que sí trabajan.
+ *
+ * La marca no es el DATO: la demo puede tener una zona sin productos y eso es
+ * legítimo. Es el título, la etiqueta de su región, o la frase de su estado vacío
+ * —que también es contenido de esa pantalla y de ninguna otra—.
+ */
+const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
+  ['agenda-del-dia', /citas|ocupado/],
+  ['agendar', /¿Quién\?|Agendar/],
+  ['caja-y-corte', /Fondo con el que abres|Caja y corte/],
+  ['catalogo-de-servicios', /La duración, por tramos|Nuevo servicio/],
+  ['cita-en-curso', /FÓRMULA DE PARTIDA|en curso/],
+  ['clientas', /Les toca volver|Buscar/],
+  ['cobrar', /lista para cobrar|Elige/],
+  ['ficha-del-profesional', /Aquí se abre la ficha de una profesional|Mi día/],
+  ['historial-de-la-clienta', /Aquí se abre el expediente|Última visita/],
+  ['liquidacion', /Elige a quién se le va a pagar|Liquidación/],
+  ['mi-dia', /¿Quién eres\?|Mi día/],
+  ['productos', /cabina|Productos/i],
+];
 
 test.describe('estética · su vocabulario, sus pantallas y su dashboard', () => {
   test.beforeAll(async ({ playwright }, info) => {
     await exigirDemostracion(playwright, info);
+  });
+
+  /**
+   * LA CAJA NO SE QUEDA ABIERTA, ni cuando la prueba falla.
+   *
+   * El último paso de esta prueba cierra la caja y cuadra el arqueo, y no se
+   * ejecuta si la prueba muere antes. Lo que quedaba no era un dato sucio: era un
+   * candado. La base permite UNA sesión de caja abierta por SUCURSAL, cada
+   * navegador nuevo trae su propia terminal y cerrar la de otra terminal no se
+   * puede, así que una corrida fallida bloqueaba TODAS las siguientes hasta volver
+   * a sembrar la demo.
+   *
+   * Se anota en vez de afirmar: una limpieza que revienta taparía el fallo que hay
+   * que leer.
+   */
+  test.afterEach(async ({ page }, info) => {
+    info.annotations.push({ type: 'caja', description: await soltarLaCaja(page) });
   });
 
   test('la estética habla como una estética, y `salon` sigue sin ser plantilla', async ({
@@ -158,7 +191,7 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     await cambiarDePlantilla(page, 'estetica');
 
     // ── 2 · EL MENÚ · lo que el dueño lee ─────────────────────────────────
-    await abrirPantalla(page, '/');
+    await abrirPantalla(page, '/', /Buen día|Agenda/);
     const menu = await menuLateral(page);
 
     await exigirVocabulario(menu, {
@@ -242,15 +275,15 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
 
     // ── 5 · LAS DOCE PANTALLAS DEL MODELO RESPONDEN ───────────────────────
-    for (const pantalla of PANTALLAS) {
-      await abrirPantalla(page, `/estetica-salon/${pantalla}`);
+    for (const [pantalla, marca] of PANTALLAS) {
+      await abrirPantalla(page, `/estetica-salon/${pantalla}`, marca);
     }
 
     // La de inicio es la AGENDA, y su carpeta dedica una sección a defender por qué no
     // es un dashboard: se abre de cuarenta a ochenta veces al día y el hueco de las 3
     // pm no se recupera mañana. Los botones de día se pintan en los tres estados
     // —cargando, vacío y con citas—, así que la pantalla se reconoce sin un solo dato.
-    await abrirPantalla(page, '/estetica-salon/agenda-del-dia');
+    await abrirPantalla(page, '/estetica-salon/agenda-del-dia', /citas|ocupado/);
     await expect(page.getByRole('button', { name: 'Día siguiente' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Día anterior' })).toBeVisible();
 
@@ -320,24 +353,96 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     const clienteId = ((await alta.json()) as { datos?: { clienteId?: string } }).datos?.clienteId;
     expect(clienteId, 'El alta no devolvió la clienta.').toBeTruthy();
 
-    // 1 · AGENDAR.
-    const cita = await page.request.post('/api/agenda/cita', {
-      headers: cabecerasDeEscrituraDePrueba(),
-      data: {
-        clienteId,
-        origen: 'mostrador',
-        inicio: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        servicios: [{ servicioId: servicio?.id, profesionalId: profesional?.id }],
-      },
-    });
-    expect(cita.status(), `No se pudo agendar la cita: ${(await cita.text()).slice(0, 400)}`).toBe(
-      200,
+    /**
+     * 0.5 · LAS CITAS QUE DEJÓ UNA CORRIDA ANTERIOR SE CANCELAN.
+     *
+     * ── Por qué, y qué escondía no hacerlo ────────────────────────────────
+     * La clienta es la MISMA en cada corrida —`cliente.alta` devuelve la ficha que ya
+     * hay cuando el teléfono se repite, a propósito— así que la agenda del día
+     * acumula una cita por cada pasada que murió a mitad. Y el paso siguiente busca
+     * el bloque de la clienta con `.first()`: con dos citas suyas en el día, tocaba
+     * la de la corrida ANTERIOR, cerraba el servicio de ésa, y la de esta corrida se
+     * quedaba `en_curso` para siempre. El fallo salía tres pasos más abajo —«se cerró
+     * el servicio y la cita no quedó terminada»— señalando un comando que estaba
+     * bien.
+     *
+     * Cancelar es lo que el salón hace con una cita que nadie atendió, y deja de
+     * pintarse en la rejilla (`estadoVisual` devuelve nulo), así que después de esto
+     * la única cita de la clienta en el día es la de esta corrida.
+     */
+    const suyasDeAntes = await consultarPuente<{ readonly id?: string; readonly estado?: string }>(
+      page,
+      'Cita',
+      { filtro: { cliente_id: clienteId }, limite: 40 },
     );
-    const agendada = (await cita.json()) as {
-      datos?: { citaId?: string; servicios?: readonly { citaServicioId?: string }[] };
+    for (const vieja of suyasDeAntes) {
+      if (vieja.id === undefined) continue;
+      if (!['agendada', 'confirmada', 'en_curso'].includes(vieja.estado ?? '')) continue;
+      const cancelada = await page.request.post('/api/agenda/cancelar', {
+        headers: cabecerasDeEscrituraDePrueba(),
+        data: { citaId: vieja.id, motivo: 'Corrida de prueba anterior' },
+      });
+      expect(
+        cancelada.status(),
+        `No se pudo cancelar la cita ${vieja.id} que dejó una corrida anterior: ` +
+          (await cancelada.text()).slice(0, 200),
+      ).toBe(200);
+    }
+
+    /**
+     * 1 · AGENDAR, EN LA PRIMERA HORA QUE ESTÉ LIBRE.
+     *
+     * Esto estaba clavado en «ahora + 15 minutos», y hacía la corrida irrepetible: la
+     * segunda pasada sobre la misma demo choca con la cita que dejó la primera y el
+     * servidor contesta, con toda la razón, «esa persona ya tiene a alguien a esa
+     * hora». Esa regla es la que protege la agenda de un salón —dos clientas a la
+     * misma hora con la misma estilista es el defecto más caro de este giro— y no se
+     * toca: lo que se cambia es la prueba, que ahora hace lo que hace una
+     * recepcionista cuando la hora está tomada: prueba la siguiente.
+     *
+     * Hacia adelante y en pasos de una hora, dentro de la jornada. Si ninguna cabe, el
+     * fallo lo dice con lo que contestó cada intento, que es lo que distingue «el día
+     * está lleno» de «la ruta está rota».
+     */
+    const rechazos: string[] = [];
+    let cita: APIResponse | undefined;
+    for (const minutos of [15, 75, 135, 195, 255, 315, 375]) {
+      const intento = await page.request.post('/api/agenda/cita', {
+        headers: cabecerasDeEscrituraDePrueba(),
+        data: {
+          clienteId,
+          origen: 'mostrador',
+          inicio: new Date(Date.now() + minutos * 60 * 1000).toISOString(),
+          servicios: [{ servicioId: servicio?.id, profesionalId: profesional?.id }],
+        },
+      });
+      if (intento.status() === 200) {
+        cita = intento;
+        break;
+      }
+      rechazos.push(
+        `+${String(minutos)} min → ${String(intento.status())} ${(await intento.text()).slice(0, 200)}`,
+      );
+    }
+    expect(
+      cita,
+      'No se pudo agendar la cita en ninguna de las horas probadas:\n' + rechazos.join('\n'),
+    ).toBeDefined();
+    const agendada = (await cita!.json()) as {
+      datos?: {
+        citaId?: string;
+        /** El folio que el servidor le puso: es como la caja la identifica. */
+        folio?: string;
+        // La hora que el servidor le puso: la rejilla pinta ÉSA, no la que se pidió.
+        servicios?: readonly { citaServicioId?: string; inicio?: string }[];
+      };
     };
     const citaId = agendada.datos?.citaId;
     const citaServicioId = agendada.datos?.servicios?.[0]?.citaServicioId;
+    const inicioDeLaCita = agendada.datos?.servicios?.[0]?.inicio ?? '';
+    const folioDeLaCita = agendada.datos?.folio ?? '';
+    expect(inicioDeLaCita, 'Agendar no devolvió la hora del servicio.').not.toBe('');
+    expect(folioDeLaCita, 'Agendar no devolvió el folio de la cita.').not.toBe('');
     expect(citaId, 'Agendar no devolvió la cita.').toBeTruthy();
     expect(citaServicioId, 'Agendar no devolvió el servicio de la cita.').toBeTruthy();
 
@@ -355,8 +460,31 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
      * calculó en la zona del negocio —con el día en UTC, una cita de la tarde en
      * México caía en el día siguiente y la rejilla volvía a verse vacía—.
      */
-    await abrirPantalla(page, '/estetica-salon/agenda-del-dia');
-    const elBloque = page.getByRole('button', { name: /Clienta de la demostración/ }).first();
+    await abrirPantalla(page, '/estetica-salon/agenda-del-dia', /citas|ocupado/);
+    /**
+     * EL BLOQUE DE ESTA CITA, por su HORA y por su clienta.
+     *
+     * Era `.first()` de los bloques de la clienta, y eso tocaba el de otra corrida:
+     * una cita que quedó `terminada` —servicio cerrado y sin cobrar— sigue pintada y
+     * NO se puede cancelar, así que la limpieza de arriba no la quita. La pantalla
+     * abría con el servicio ya cerrado, «Cerrar servicio» salía DESACTIVADO y el
+     * fallo era un clic agotando tres minutos sobre un botón inerte.
+     *
+     * La hora sale de la respuesta de agendar y se formatea en la zona del navegador
+     * —`timezoneId` del `playwright.config.ts`—, que es la misma en la que la rejilla
+     * la pinta. Así el bloque es UNO y es el de esta corrida.
+     */
+    const horaDeLaCita = new Intl.DateTimeFormat('es-MX', {
+      timeZone: 'America/Mexico_City',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(new Date(inicioDeLaCita));
+    const elBloque = page
+      .getByRole('button', {
+        name: new RegExp(`${horaDeLaCita}.*Clienta de la demostración`, 's'),
+      })
+      .first();
     await expect(
       elBloque,
       'La agenda del día no pinta la cita que se acaba de agendar. Sale de `agenda.dia` + los ' +
@@ -407,15 +535,40 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
       .toBe('terminada');
 
     // 4 · COBRAR, POR LA PANTALLA.
-    await abrirPantalla(page, '/estetica-salon/cobrar');
-    // La tarjeta de la cita se nombra por la clienta, el folio y el IMPORTE: es
-    // lo que el cajero lee. El nombre del servicio vive dentro, al elegirla.
-    const laCita = page.getByRole('button', { name: enPesosDelSalon(precioCentavos) });
+    await abrirPantalla(page, '/estetica-salon/cobrar', /cobrar/i);
+    /**
+     * LA TARJETA DE ESTA CITA, POR SU FOLIO.
+     *
+     * Se buscaba por el IMPORTE, y el importe no identifica nada: una corrida
+     * anterior que murió entre «cerrar» y «cobrar» deja su cita `terminada` —cerrada
+     * y sin cobrar, y una cita terminada NO se puede cancelar— así que la pantalla de
+     * cobro lista DOS tarjetas del mismo servicio y el mismo precio. `.first()`
+     * cobraba la de antes: la venta existía, el acuse salía, y la comisión que se
+     * buscaba después era de OTRO servicio de cita. El fallo aparecía al final,
+     * diciendo «no se causó ninguna comisión», sobre un cobro que sí comisionó.
+     *
+     * El folio es lo que la caja canta y lo que el servidor puso al agendar. Con el
+     * borde de dígito para que «C-1» no case con «C-12»: la caja de un día lleva las
+     * dos.
+     */
+    const folioExacto = new RegExp(
+      folioDeLaCita.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![0-9])',
+    );
+    const laCita = page.getByRole('button', { name: folioExacto });
     await expect(
       laCita.first(),
-      'La pantalla de cobro no lista la cita con su servicio cerrado. Lee `Cita` con estado ' +
-        '`terminada`: si no está, cerrar el servicio no dejó la cita terminada.',
+      `La pantalla de cobro no lista la cita ${folioDeLaCita} con su servicio cerrado. Lee ` +
+        '`Cita` con estado `terminada`: si no está, cerrar el servicio no dejó la cita terminada.',
     ).toBeVisible({ timeout: 20_000 });
+
+    // Y con SU importe: el cajero cobra lo que la tarjeta dice, y la tarjeta lo dice
+    // porque el precio se congeló al agendar —si sube el tinte entre agendar y cobrar,
+    // la clienta paga lo que se le dijo—.
+    await expect(
+      laCita.first(),
+      `La tarjeta de la cita ${folioDeLaCita} no enseña su importe: tiene que decir ` +
+        `${enPesosDelSalon(precioCentavos)}, que es el precio congelado del servicio.`,
+    ).toContainText(enPesosDelSalon(precioCentavos));
     await laCita.first().click();
 
     await page.getByRole('button', { name: 'Efectivo', exact: true }).click();

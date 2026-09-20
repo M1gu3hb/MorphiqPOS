@@ -3388,3 +3388,204 @@ las pantallas que abren vacías.
 
 240 archivos · 2 805 pruebas · typecheck 7/7 · lint y formato en 0 · migraciones 106 en disco = 106 en
 el ledger.
+
+
+## BLOQUE 3 · las pruebas miran el CONTENIDO, y lo que eso destapó (20-09-2026)
+
+El criterio de la suite era «ni 404 ni 500», y con ése una pantalla que abre en 200 y pinta su estado
+de error se ve igual que una que funciona. Este bloque cambia el criterio —**una afirmación de
+contenido por cada una de las 61 pantallas**, `vigilarFallos` cazando los 4xx de `/api/`, los
+`{ok:false}` y el muro genérico del cliente— y el cambio destapó nueve defectos que llevaban meses
+detrás del 200.
+
+### Las cinco demos, DOS VECES seguidas sin volver a sembrar, y en tablet
+
+```
+── PASADA 1 (demo recién sembrada) ──        ── PASADA 2 (SIN volver a sembrar) ──
+abarrotes         1 passed (40.9s)          abarrotes         1 passed (35.5s)
+cafeteria         1 passed (45.5s)          cafeteria         1 passed (44.7s)
+restaurante       1 passed (35.3s)          restaurante       1 passed (35.4s)
+ferreteria        1 passed (38.3s)          ferreteria        1 passed (35.7s)
+estetica-salon    1 passed (44.4s)          estetica-salon    1 passed (45.6s)
+
+── TABLET (T-39) ──
+abarrotes 1 passed · cafeteria 1 passed · restaurante 1 passed · ferreteria 1 passed · estetica 1 passed
+```
+
+La segunda pasada es la que importa. Cinco de los defectos de abajo sólo existen porque **la suite no
+era repetible**: cada corrida dejaba una caja abierta, una mesa ocupada, una cita a medias o seis
+metros menos de cable, y la siguiente fallaba por el rastro de la anterior y no por el código. Un
+recorrido que sólo pasa sobre una demo recién sembrada no dice que el sistema funcione: dice que
+funciona una vez.
+
+### 1 · Filtrar por un campo que no existe deja la pantalla VACÍA, no roja
+
+El puente busca la clave del filtro, del rango y del orden en `mapa.campos` —no en `derivados`, ni en
+`calculados`, ni en `hijos`— y si no está lanza `PUENTE_CAMPO_INVALIDO`, que sale como 400 y se ve
+como **una lista vacía**. Indistinguible de «ese día no pasó nada», y por eso sobrevive a cualquier
+revisión a ojo. Había cuatro:
+
+| Pantalla | Lo que pedía | Lo que se veía |
+|---|---|---|
+| `abarrotes/Registros` | `filtro: { fecha }` en `Venta`, `MovimientoCaja` y `MovimientoInventario` | La línea de tiempo del día —lo único que esa pantalla es— vacía SIEMPRE |
+| `abarrotes/Cortes` | `orden: 'fecha_cierre:desc'`, la sintaxis de la plataforma anterior | El histórico de cortes, vacío |
+| `estetica-salon/CatalogoDeServicios` | `filtro: { tipo: 'servicio' }`; la columna es `tipo_venta` | El catálogo de servicios de un salón, en blanco |
+| `estetica-salon/HistorialDeLaClienta` | `CitaServicio` filtrado por `cliente_id`, que esa tabla no tiene | El expediente **sin ninguna visita**, con el historial en la base |
+
+El día de `Registros` ahora se pide por RANGO, con el campo de fecha de cada entidad y los dos
+extremos armados en hora local: `new Date('2026-09-20')` a secas es medianoche UTC, y en México eso
+deja fuera las seis primeras horas del día. Y el historial de la clienta lee la CITA —que sí se filtra
+por clienta— con sus servicios como **hijos**, que es una consulta más para toda la página en vez de
+sesenta.
+
+### 2 · El contrato que lo impide, y la vez que MINTIÓ
+
+`lecturas-del-puente.contrato.test.ts` ya exigía que todo campo obligatorio de un
+`consultarPuente<Tipo>` estuviera servido. Ahora exige además que **todo campo por el que una pantalla
+filtra, ordena o pide un rango sea una columna del mapa**, resolviendo el objeto de opciones y el del
+filtro también cuando son una `const` o las dos ramas de un ternario del mismo archivo.
+
+Y aquí está la lección, que es la de `contratos-por-mutacion` otra vez: al reintroducir los cuatro
+defectos a mano, **dos salieron y dos NO**. Los dos que no tenían un comentario nuevo encima
+explicando el arreglo; el comentario lleva comas, el troceador parte por comas, y la pieza donde vivía
+`filtro:` empezaba con prosa. Un contrato que afirma sobre el archivo entero en vez de sobre el
+CÓDIGO. Se quita la prosa primero —cuidando el `//` que viva dentro de una cadena— y entonces salen
+los cuatro:
+
+```
+Destructivas que FALLAN:
+  abarrotes/Registros.tsx: filtro de Venta por «fecha»
+  abarrotes/Cortes.tsx: orden de CorteCaja por «fecha_cierre:desc»
+  estetica-salon/CatalogoDeServicios.tsx: filtro de ProductoTerminado por «tipo»
+  estetica-salon/HistorialDeLaClienta.tsx: filtro de CitaServicio por «cliente_id»
+Inocuas que PASAN: el mismo filtro partido en tres líneas · otro `limite`
+```
+
+### 3 · Tres listas que se pedían a rutas de ESCRITURA
+
+`ferreteria/trabajos-de-mostrador` leía sus tres pestañas haciendo POST con `{listar: true}` a
+`nota_mostrador.apartar`, `lista_trabajo.capturar` e `inventario.recibir_garantia`. Las tres
+contestaban 400 —piden un `notaId`, unos renglones y una pieza— y los tres `.catch` lo convertían en
+«no hay nada apartado · no hay listas abiertas · no hay garantías pendientes» con las tres cosas en la
+base.
+
+· Los **apartados** ya tenían por dónde: la vista `notas_de_caja` sirve el estado `apartada` con su
+  folio, su cliente y su vencimiento, y el puente ya la expone.
+· Las **garantías** también: `inventario.garantias_pendientes` estaba escrito, probado y exportado
+  **y no tenía ruta**. Era código inalcanzable.
+· Las **listas** no tenían nada: migración **177**, vista `listas_de_trabajo` con los renglones
+  contados. `surtidos` exige `surtida >= cantidad` y no `> 0`, porque media varilla entregada no es un
+  renglón surtido y contarla como tal hace que la lista se vea terminada con material faltando.
+
+Y de paso, el formulario de CAPTURAR una lista **nunca había funcionado**: mandaba `lineas` donde el
+comando pide `renglones`, sin `titulo`, y con un `folio` que ninguna pantalla puede inventar —uno
+tecleado en el navegador choca contra `unique (organizacion_id, folio)` en cuanto dos personas
+capturan a la vez—. El folio lo pone ahora el servidor en su serie `LT`, como el de la nota y el del
+crédito.
+
+### 4 · Una cafetería sin opciones de bebida no es una cafetería
+
+`opciones-de-la-bebida` abría con su estado vacío —«esta bebida se agrega tal cual · todavía no
+declara grupos de opciones»— y ese vacío está bien escrito, que es justo por lo que escondía el
+hueco: **la demostración no sembraba ningún grupo**, así que el camino completo —la vista
+`opciones_de_bebida` de la 175, la entidad `Modificador` del puente y la pantalla— no se había visto
+funcionar con datos ni una vez. `resetearDemo` los BORRABA y no creaba ninguno.
+
+Ahora la cafetería siembra los cuatro que su propio vacío nombra —tamaño, leche, temperatura y
+extras—: 12 opciones colgadas de 13 bebidas, con el `factor_cantidad` 1.44 del 16 oz, el
+`insumo_sustituto_id` de cada leche —de ahí sale el `agotado` de la vista: «sin leche de avena» es un
+dato del almacén— y un delta NEGATIVO, el descuento por traer su vaso, que es el caso para el que la
+084 añadió una columna firmada. Lo que NO se siembra se dice en su sitio:
+`recetas.sustituible_por_grupo_id` se queda nulo porque hoy nadie la lee.
+
+### 5 · El hueco intercalado tapaba la cita, y tocar una cita es lo que la EMPIEZA
+
+Mientras un tinte procesa, la profesional está libre: `agenda.huecos` ofrece ese rato como vendible,
+así que hay un hueco DENTRO del rango de otra cita. La rejilla pintaba los dos con `inset-x-1` y el
+mismo `top`, y el último del DOM —el hueco— se quedaba encima. **La cita no se podía tocar.**
+
+No es un problema de la prueba: es de quien tiene la clienta delante. Ahora, cuando se cruzan, la cita
+se queda con la mitad izquierda y el hueco con la derecha —los dos tocables, que es el punto: el hueco
+es lo único monetario de esa pantalla—. Dos CITAS cruzadas en la misma persona NO se estrechan: eso es
+un error de agenda y disimularlo es esconderlo. La colocación se fue a un archivo propio
+(`agenda-geometria.ts`) para poder afirmarla sin navegador, con su prueba y su mutación.
+
+### 6 · «La mesa pasa sola a limpieza» era mentira
+
+La pantalla de cobro lo dice con esas palabras. `venta.cobrar` no tocaba `mesas`, así que una mesa
+cobrada se quedaba en `cuenta_solicitada` con su cuenta ya `pagada`: el mapa enseñaba «la cuenta está
+pedida» sobre una cuenta pagada, y `abrir_mesa` contestaba «la mesa 1 ya está abierta» **para
+siempre**. Esa mesa no volvía al servicio hasta que alguien recordara pulsar «mesa limpia» sin ninguna
+señal de que hacía falta.
+
+Ahora pasa a `limpieza` dentro de la transacción del cobro, con su sello en el ledger de mesas —un
+ledger al que se le olvida una transición fusiona dos ciclos y da una ocupación del doble de larga— y
+a `libre` la devuelve quien limpia. El recorrido de restaurante cierra ahora el ciclo entero: abrir ·
+mandar a cocina · pedir la cuenta · cobrar · **mesa a limpieza** · mesa limpia.
+
+### 7 · Seis marcas que no podían cumplirse nunca
+
+Al escribir una afirmación de contenido por pantalla salieron seis escritas de memoria o de cómo se
+VE la pantalla, no de lo que el DOM dice: `/ALERGIA|NOTA PARA LA BARRA/` en las opciones de la
+bebida —esos dos textos están en la barra, en otra pantalla—, `/BARRA/` donde el encabezado dice
+«Barra», `/NUEVOS|EN PREPARACIÓN/` donde la cocina rotula «🕐 Nuevos (1)», `/LO QUE ME DEBEN/` sobre
+un rótulo que lleva `uppercase` de CSS —`text-transform` no cambia el texto del DOM—, `/DE DÓNDE/`
+que no existe en ninguna pantalla, y `/LA VENTA/` que vive en otra. Una marca con una alternativa
+muerta es una afirmación que no afirma.
+
+### 8 · Lo que hace la suite REPETIBLE, que es la mitad del bloque
+
+| Lo que quedaba | Qué bloqueaba la corrida siguiente | Qué se hizo |
+|---|---|---|
+| Una caja abierta | La base permite UNA sesión por SUCURSAL y cerrar la ajena exige ser su terminal: **ninguna** terminal nueva podía abrir | `soltarLaCaja` en un `afterEach` que corre aunque la prueba falle, y el fallo de apertura ahora lee la respuesta del servidor y dice qué hacer |
+| Una mesa ocupada | `abrir_mesa` rechazaba la mesa 1 para siempre | El cobro la manda a limpieza, el recorrido la libera, y la prueba elige una mesa que de verdad esté `libre` |
+| Seis metros menos de cable | El botón de cortar se quedaba DESACTIVADO —`excede`— y el fallo era un clic agotando tres minutos | El punto de partida se LEE de la pantalla y la cuenta de la merma se hace con él |
+| Una cita de la misma clienta | El bloque se buscaba con `.first()` y se cerraba el servicio de la corrida ANTERIOR | Las citas vivas de la clienta se cancelan antes; el bloque se busca por su HORA y la tarjeta de cobro por su FOLIO |
+| Una hora ocupada en la agenda | «Esa persona ya tiene a alguien a esa hora» | Se prueba la hora siguiente, que es lo que hace una recepcionista |
+
+### 9 · Y el rastro que no decía nada
+
+`vigilarFallos` imprimía «400 /api/datos/consultar», y el puente es UNA ruta para las 359 lecturas del
+frontend: el rastro no servía para nada y había que salir a buscar la entidad a mano. Ahora dice
+`400 /api/datos/consultar · CorteCaja.listar`. La entidad y la operación viajan en el cuerpo de la
+petición, que Playwright entrega sin coste.
+
+### 10 · Las dos puertas nuevas, en ROJO antes que en verde
+
+La primera exige **una marca de contenido por pantalla**, y las pantallas las lee del §4.3 del
+`04-INTERFAZ.md` de cada modelo —la misma lista con la que se mide si cuelgan de un menú—, así que no
+se puede aprobar quitando una fila de una tabla de la prueba. La segunda cierra la última salida del
+cobro: la lista de huecos declarados tiene que estar VACÍA.
+
+```
+· MARCAS: 1 pantalla(s) de modelo NO se abren en su suite · abarrotes/cortes
+    Una pantalla que ninguna prueba abre no está probada, aunque exista.
+
+· MARCAS: 1 pantalla(s) se abren SIN afirmar contenido · cafeteria/recetas → «'Recetas'»
+    La marca tiene que ser una expresión regular o el `aria-label` de su región: abrir en 200 y
+    pintar el estado de error se ve igual que funcionar.
+
+· COBRO-E2E: 1 suite(s) siguen declaradas SIN COBRAR · cafeteria.spec.ts. Las cinco demos cobran
+  desde el 19-09-2026: la lista tiene que quedar VACÍA. Un modelo que no cobra no está acoplado,
+  aunque abra sus pantallas.
+```
+
+Y en verde, con las tres restauradas:
+
+```
+  marcas e2e    61 pantalla(s) de modelo se abren con una afirmación de CONTENIDO
+  cobro e2e     5 de 5 suites comprueban un TOTAL COBRADO contra el servidor · 0 declarada(s) con sonda
+  vocabulario   ruta + los dos envoltorios + el menú heredado · 48 pantalla(s) lo consumen · 0 sustantivos tecleados a mano
+```
+
+Los **0 sustantivos tecleados** son de este bloque también: quedaban tres —el estado vacío del portal
+del comensal («el QR de la mesa», «el mapa de mesas») y el de la ficha de material («un material que
+se corta»)—, y son precisamente los que más se ven, porque las dos pantallas se montan sin nada
+elegido. Ahora salen del diccionario: una cafetería con barra lee «el QR de la barra» y una tiendita,
+«un producto que se corta».
+
+### EN QUÉ IBA
+
+Bloque 3 **cerrado**, con sus dos puertas. Lo siguiente es el **bloque 4** —T-10 tableros y T-11 el
+vocabulario dentro de las pantallas— y después el **bloque 5**: producción, el CI verde en la punta y
+`pnpm verify` entero.

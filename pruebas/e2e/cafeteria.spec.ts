@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import {
   abrirLaCajaSiHaceFalta,
   abrirPantalla,
+  type MarcaDePantalla,
   accionesDelTablero,
   cambiarDePlantilla,
   consultarPuente,
@@ -15,6 +16,7 @@ import {
   exigirVocabulario,
   exigirVocabularioDelGiro,
   menuLateral,
+  soltarLaCaja,
   ventasDeAntes,
   vigilarFallos,
 } from './ayudantes/sesion.ts';
@@ -79,21 +81,43 @@ function enPesos(centavos: number): string {
   );
 }
 
-const PANTALLAS = [
-  'acceso-por-pin',
-  'barra',
-  'cierre-de-turno-y-arqueo',
-  'clientes-y-sellos',
-  'cobrar',
-  'cobro-y-propina',
-  'inventario',
-  'menu-publico-y-pedido-anticipado',
-  'opciones-de-la-bebida',
-  'productos',
-  'recetas',
-  'recogida',
-  'turno',
-] as const;
+/**
+ * Las pantallas del modelo, con LO QUE CADA UNA TIENE QUE ENSEÑAR.
+ *
+ * ── Por qué una marca por pantalla y no sólo el 200 ───────────────────────
+ * Porque una pantalla que abre en 200 y pinta su estado de error se ve igual que
+ * una que funciona. Con el 200 solo, la suite dio por probadas cuatro pantallas
+ * cuya entidad del puente NO EXISTÍA —la ficha de pieza, las existencias de
+ * material, la cartera por obra y las opciones de la bebida— y nueve que se
+ * quedaban en su esqueleto para siempre porque `page.tsx` las montaba con un id
+ * vacío. Ninguna se podía distinguir de las que sí trabajan.
+ *
+ * La marca no es el DATO: la demo puede tener una zona sin productos y eso es
+ * legítimo. Es el título, la etiqueta de su región, o la frase de su estado vacío
+ * —que también es contenido de esa pantalla y de ninguna otra—.
+ */
+const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
+  ['acceso-por-pin', /¿Quién está operando\?/],
+  ['barra', /La fila está vacía|BARRA/],
+  ['cierre-de-turno-y-arqueo', /No hay ningún turno abierto|Cierre de turno/],
+  ['clientes-y-sellos', /Se identifica por teléfono/],
+  ['cobrar', /Turno cerrado|Cobrar/],
+  ['cobro-y-propina', /esperando cobro|propina/i],
+  ['inventario', /Contar leche|Buscar insumo/],
+  ['menu-publico-y-pedido-anticipado', /Pide antes de llegar|Ya está apartado/],
+  // Los GRUPOS, que son lo que esta pantalla es. La marca decía
+  // `/ALERGIA|NOTA PARA LA BARRA/` y esos dos textos no están en esta pantalla
+  // —«ALERGIA» lo pinta `cafeteria/Barra.tsx`—, así que la marca no podía cumplirse
+  // nunca. Y debajo había un defecto de verdad: la demostración no sembraba NINGÚN
+  // grupo de opciones, así que la pantalla abría con su estado vacío y el camino
+  // completo —la vista `opciones_de_bebida` de la 175, la entidad `Modificador` del
+  // puente y esta pantalla— no se había visto funcionar con datos ni una vez.
+  ['opciones-de-la-bebida', /Tamaño|Temperatura|Extras/],
+  ['productos', /Hoy no hay|Productos/],
+  ['recetas', /Recetas/],
+  ['recogida', { etiqueta: 'Pantalla de recogida' }],
+  ['turno', /Turno/],
+];
 
 /** Lo que el menú de una cafetería NUNCA puede decir, venga la plantilla que venga. */
 const DE_OTROS_MODELOS = ['Platillos', 'Meseros', 'Cocinas', 'Materiales', 'Mostradoristas'];
@@ -101,6 +125,23 @@ const DE_OTROS_MODELOS = ['Platillos', 'Meseros', 'Cocinas', 'Materiales', 'Most
 test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () => {
   test.beforeAll(async ({ playwright }, info) => {
     await exigirDemostracion(playwright, info);
+  });
+
+  /**
+   * LA CAJA NO SE QUEDA ABIERTA, ni cuando la prueba falla.
+   *
+   * El último paso de esta prueba cierra la caja y cuadra el arqueo, y no se
+   * ejecuta si la prueba muere antes. Lo que quedaba no era un dato sucio: era un
+   * candado. La base permite UNA sesión de caja abierta por SUCURSAL, cada
+   * navegador nuevo trae su propia terminal y cerrar la de otra terminal no se
+   * puede, así que una corrida fallida bloqueaba TODAS las siguientes hasta volver
+   * a sembrar la demo.
+   *
+   * Se anota en vez de afirmar: una limpieza que revienta taparía el fallo que hay
+   * que leer.
+   */
+  test.afterEach(async ({ page }, info) => {
+    info.annotations.push({ type: 'caja', description: await soltarLaCaja(page) });
   });
 
   test('la cafetería habla de baristas y barra, y su plantilla no trae sala', async ({ page }) => {
@@ -111,7 +152,7 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
 
     // ── 1 · CON SU PROPIA PLANTILLA · mostrador, sin sala ─────────────────
     await cambiarDePlantilla(page, 'cafeteria');
-    await abrirPantalla(page, '/');
+    await abrirPantalla(page, '/', /Buen día|Turno/);
     const mostrador = await menuLateral(page);
 
     await exigirVocabulario(mostrador, {
@@ -159,13 +200,16 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     // ── 2 · LAS TRECE PANTALLAS DEL MODELO RESPONDEN ──────────────────────
     // Van AQUÍ y no al final: la guarda de `app/(modelos)/cafeteria/` exige la
     // plantilla `cafeteria`, y el paso 3 la cambia a `restaurante`.
-    for (const pantalla of PANTALLAS) {
-      await abrirPantalla(page, `/cafeteria/${pantalla}`);
+    for (const [pantalla, marca] of PANTALLAS) {
+      await abrirPantalla(page, `/cafeteria/${pantalla}`, marca);
     }
 
     // La de inicio del barista, reconocible sin un solo dato en la base: la fila
     // vacía es un estado con nombre en este modelo y se pinta igual.
-    await abrirPantalla(page, '/cafeteria/barra');
+    // En minúsculas como la pinta: el encabezado dice «Barra». Con `/BARRA/` la
+    // marca no podía cumplirse nunca —la tabla de arriba ya la tenía bien— y el
+    // fallo mandaba a mirar una pantalla que estaba perfecta.
+    await abrirPantalla(page, '/cafeteria/barra', /La fila está vacía|Barra/);
     await expect(page.getByRole('heading', { name: 'Barra', exact: true })).toBeVisible();
 
     // ── 2.5 · SE COBRA EN LA BARRA, Y EL TURNO CUADRA ─────────────────────
@@ -186,7 +230,7 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
       (FONDO_CENTAVOS / 100).toFixed(2),
     );
 
-    await abrirPantalla(page, '/cafeteria/cobrar');
+    await abrirPantalla(page, '/cafeteria/cobrar', /Cobrar|Turno cerrado/);
 
     // La bebida sale del catálogo, como en el mostrador: la pantalla pinta un
     // botón por producto con su nombre y su precio.
@@ -235,7 +279,11 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
 
     // El cierre, con su arqueo. El esperado lo calcula el servidor sumando los
     // movimientos del turno: la apertura con su fondo y la venta en efectivo.
-    await abrirPantalla(page, '/cafeteria/cierre-de-turno-y-arqueo');
+    await abrirPantalla(
+      page,
+      '/cafeteria/cierre-de-turno-y-arqueo',
+      /Cierre de turno|No hay ningún turno/,
+    );
     const esperadoCentavos = FONDO_CENTAVOS + precioCentavos;
     await page.locator('#cierre-efectivo').fill((esperadoCentavos / 100).toFixed(2));
     // El bote de propina va a cero: esta venta no dejó propina, y el cierre exige
@@ -252,7 +300,7 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
 
     // ── 3 · CON LA PLANTILLA DE JACARANDA · sala, pero hablando de café ───
     await cambiarDePlantilla(page, 'restaurante');
-    await abrirPantalla(page, '/');
+    await abrirPantalla(page, '/', /Buen día|Turno/);
     const conSala = await menuLateral(page);
 
     await exigirVocabulario(conSala, {

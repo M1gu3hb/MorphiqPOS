@@ -8,7 +8,7 @@ import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
 import { useEffect, useState } from 'react';
 
-import { ErrorApi, invocarComando } from '~/cliente/api';
+import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
 
 /**
  * PANTALLA · ferreteria · trabajos-de-mostrador
@@ -40,10 +40,24 @@ import { ErrorApi, invocarComando } from '~/cliente/api';
  * pantalla de venta.
  */
 
-const RUTA_NOTA = '/api/venta/nota-mostrador';
+/**
+ * LAS RUTAS, y las tres que aquí se pedían mal.
+ *
+ * Esta pantalla leía sus tres listas haciendo POST a rutas de ESCRITURA con
+ * `{listar: true}`: `nota_mostrador.apartar` pide un `notaId`, `lista_trabajo.capturar`
+ * pide sus renglones y `inventario.recibir_garantia` pide la pieza. Las tres
+ * contestaban **400**, los tres `.catch` de abajo lo convertían en tres listas
+ * vacías, y la pantalla decía «no hay nada apartado · no hay listas abiertas · no
+ * hay garantías pendientes» con las tres cosas en la base. Abría en 200, así que la
+ * suite la daba por probada.
+ *
+ * Ahora cada cosa se lee por donde se lee: los apartados y las listas por el
+ * PUENTE —que es el único camino de lectura— y las garantías por el comando de
+ * lectura que ya existía y no tenía ruta.
+ */
 const RUTA_ENTREGAR = '/api/venta/nota-mostrador/entregar';
 const RUTA_LISTA = '/api/venta/lista-trabajo';
-const RUTA_GARANTIA = '/api/inventario/garantia';
+const RUTA_GARANTIAS_PENDIENTES = '/api/inventario/garantias-pendientes';
 
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
@@ -81,11 +95,77 @@ export interface GarantiaPendiente {
   readonly diasEsperando: number;
 }
 
+/**
+ * LA FILA DEL PUENTE de una nota apartada, con los nombres que `NotaDeCaja` sirve.
+ *
+ * Es la vista `notas_de_caja`, que resuelve el estado real de los dos documentos
+ * —el de la orden dice si entró el dinero, el de la nota si salió el material— y
+ * `apartada` es uno de ellos. Los días que le quedan NO son un campo: se derivan
+ * de `vence` aquí, que es donde se pintan.
+ */
+interface FilaDeNotaApartada {
+  readonly nota_id: string;
+  readonly codigo_caja: string | null;
+  readonly cliente_nombre: string | null;
+  readonly totalCentavos: number;
+  readonly vence: string | null;
+}
+
+/** La fila del puente de una lista, con sus renglones ya contados por la vista. */
+interface FilaDeLista {
+  readonly id: string;
+  readonly folio: string;
+  readonly cliente: string | null;
+  readonly renglones: number;
+  readonly surtidos: number;
+}
+
+/**
+ * Cuántos días de CALENDARIO faltan, que es lo que el mostrador pregunta.
+ *
+ * Por días de calendario y no por horas: una resta de milisegundos dice «0 días»
+ * a las 23:00 de la víspera y «1 día» a las 00:30 del mismo día de vencimiento,
+ * y las dos respuestas se leen al revés de lo que pasa.
+ */
+function diasHasta(fecha: string | null): number {
+  if (fecha === null || fecha === '') return 0;
+  const aMedianoche = (d: Date): number => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((aMedianoche(new Date(fecha)) - aMedianoche(new Date())) / 86_400_000);
+}
+
+function comoNotaApartada(fila: FilaDeNotaApartada): NotaApartada {
+  return {
+    notaId: fila.nota_id,
+    folio: fila.codigo_caja ?? 'sin folio',
+    cliente: fila.cliente_nombre ?? 'sin nombre',
+    // A texto: el importe viaja en centavos enteros y `pesos()` lo divide.
+    totalCentavos: String(fila.totalCentavos),
+    venceEn: fila.vence ?? '',
+    diasRestantes: diasHasta(fila.vence),
+  };
+}
+
+function comoLista(fila: FilaDeLista): ListaDeTrabajo {
+  return {
+    listaId: fila.id,
+    folio: fila.folio,
+    cliente: fila.cliente ?? 'sin nombre',
+    lineas: fila.renglones,
+    surtidas: fila.surtidos,
+  };
+}
+
 export interface TrabajosProps {
   readonly apartadosIniciales?: readonly NotaApartada[];
   readonly listasIniciales?: readonly ListaDeTrabajo[];
   readonly garantiasIniciales?: readonly GarantiaPendiente[];
-  readonly almacenId: string;
+  /**
+   * YA NO SE USA, y se queda declarado para que nadie lo vuelva a pasar.
+   *
+   * Ninguna de las tres consultas de esta pantalla lleva almacén, y exigirlo la
+   * dejaba en blanco: `page.tsx` la monta con la cadena vacía.
+   */
+  readonly almacenId?: never;
 }
 
 function pesos(centavos: string): string {
@@ -109,7 +189,6 @@ export function TrabajosDeMostrador({
   apartadosIniciales,
   listasIniciales,
   garantiasIniciales,
-  almacenId,
 }: TrabajosProps) {
   const [pestana, setPestana] = useState<Pestana>('apartados');
   const [apartados, setApartados] = useState<readonly NotaApartada[] | null>(
@@ -136,39 +215,43 @@ export function TrabajosDeMostrador({
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
-      // Sin id no se consulta.
+      // Las notas apartadas, las listas y las garantías son del NEGOCIO: ninguna
+      // de las tres consultas de abajo lleva almacén.
       //
-      // Estas pantallas se abren SIN nada seleccionado -`page.tsx` las monta con
-      // la cadena vacia- y consultar con ella manda un `where id = ''` a una
-      // columna uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en
-      // cada apertura. El estado de «elige algo» ya esta escrito debajo; lo que
-      // faltaba era no pedir datos de lo que nadie eligio.
-      if (almacenId === '') return;
+      // Aquí había una guarda `if (almacenId === '') return;` heredada de cuando
+      // esta pantalla consultaba con un id vacío. Tapó aquel 500 y dejó otra
+      // avería: `page.tsx` la monta con la cadena vacía, así que las tres consultas
+      // NO CORRÍAN NUNCA y la pantalla se quedaba en blanco para siempre.
       if (apartadosIniciales === undefined) {
-        invocarComando<{ readonly notas: readonly NotaApartada[] }>(RUTA_NOTA, { listar: true })
-          .then((salida) => {
-            if (sigueMontada()) setApartados(salida.notas);
+        consultarPuente<FilaDeNotaApartada>('NotaDeCaja', {
+          // El estado que la vista calcula de los dos documentos: material
+          // comprometido que no ha salido.
+          filtro: { estado: 'apartada' },
+          limite: 60,
+          signal: control.signal,
+        })
+          .then((filas) => {
+            if (sigueMontada()) setApartados(filas.map(comoNotaApartada));
           })
           .catch(() => {
             if (sigueMontada()) setApartados([]);
           });
       }
       if (listasIniciales === undefined) {
-        invocarComando<{ readonly listas: readonly ListaDeTrabajo[] }>(RUTA_LISTA, {
-          listar: true,
-        })
-          .then((salida) => {
-            if (sigueMontada()) setListas(salida.listas);
+        consultarPuente<FilaDeLista>('ListaDeTrabajo', { limite: 60, signal: control.signal })
+          .then((filas) => {
+            if (sigueMontada()) setListas(filas.map(comoLista));
           })
           .catch(() => {
             if (sigueMontada()) setListas([]);
           });
       }
       if (garantiasIniciales === undefined) {
-        invocarComando<{ readonly pendientes: readonly GarantiaPendiente[] }>(RUTA_GARANTIA, {
-          listar: true,
-          proveedorId: null,
-        })
+        invocarComando<{ readonly pendientes: readonly GarantiaPendiente[] }>(
+          RUTA_GARANTIAS_PENDIENTES,
+          // Todas, de cualquier proveedor: la pestaña es «qué está en el limbo».
+          { proveedorId: null },
+        )
           .then((salida) => {
             if (sigueMontada()) setGarantias(salida.pendientes);
           })
@@ -182,7 +265,7 @@ export function TrabajosDeMostrador({
       clearTimeout(arranque);
       control.abort();
     };
-  }, [apartadosIniciales, listasIniciales, garantiasIniciales, almacenId]);
+  }, [apartadosIniciales, listasIniciales, garantiasIniciales]);
 
   function entregar(nota: NotaApartada): void {
     setOcupado(true);
@@ -211,13 +294,42 @@ export function TrabajosDeMostrador({
     }
     setOcupado(true);
     setError(null);
-    invocarComando<ListaDeTrabajo>(RUTA_LISTA, {
-      nombreLibre: nombreLista.trim(),
+    /**
+     * LO QUE EL COMANDO PIDE, que no es lo que aquí se mandaba.
+     *
+     * `lista_trabajo.capturar` recibe `titulo` y `renglones`; esto mandaba `lineas`
+     * y ningún título, así que capturar una lista contestaba 400 con el formulario
+     * entero escrito —y el albañil esperando—. El folio ya no se manda: lo pone el
+     * servidor en su serie `LT`, como el de la nota y el del crédito.
+     *
+     * El título se arma con el nombre porque esta pantalla no pide uno: lo que se
+     * enseña de una lista es su folio y de quién es. Un campo más en el formulario
+     * del mostrador es un campo que nadie llena.
+     */
+    const nombre = nombreLista.trim();
+    invocarComando<{
+      readonly listaId: string;
+      readonly folio: string;
+      readonly renglones: number;
+    }>(RUTA_LISTA, {
+      titulo: `Lista de ${nombre}`,
+      nombreLibre: nombre,
       // Tal cual lo dijo: traducirlo al capturar pierde lo que de verdad pidió.
-      lineas: renglones.map((texto) => ({ textoPedido: texto })),
+      renglones: renglones.map((texto) => ({ textoPedido: texto })),
     })
       .then((creada) => {
-        setListas([creada, ...(listas ?? [])]);
+        setListas([
+          {
+            listaId: creada.listaId,
+            folio: creada.folio,
+            cliente: nombre,
+            lineas: creada.renglones,
+            // Recién capturada: ninguno surtido todavía. Es el dato, no un cero
+            // de relleno.
+            surtidas: 0,
+          },
+          ...(listas ?? []),
+        ]);
         setTextoLista('');
         setNombreLista('');
         setAviso('Lista capturada tal cual la dictó.');
@@ -391,8 +503,7 @@ export function TrabajosDeMostrador({
             ))}
           </ul>
           <p className="text-muted-foreground mt-3 text-sm">
-            Almacén {almacenId === '' ? 'sin elegir' : almacenId}. Un negocio mediano pierde entre
-            $20,000 y $60,000 al año porque nadie lleva esta cuenta.
+            Un negocio mediano pierde entre $20,000 y $60,000 al año porque nadie lleva esta cuenta.
           </p>
         </section>
       )}

@@ -109,8 +109,18 @@ export interface InsumoDeInventario {
   readonly stock_actual: number | null;
   readonly stock_minimo: number | null;
   readonly stock_critico: number | null;
-  /** Consumo teórico del mismo día de la semana sobre cuatro semanas. */
-  readonly consumo_diario: number | null;
+  /**
+   * Consumo teórico del mismo día de la semana sobre cuatro semanas.
+   *
+   * OPCIONAL, y no `number | null`: el puente NO lo sirve todavía —`Ingrediente` no
+   * lo declara, porque es un promedio de cuatro semanas y no una columna— y omite
+   * la clave. `undefined !== null`, así que la guarda de `diasQueAlcanza` pasaba de
+   * largo, dividía por `undefined` y la alacena enseñaba «NaN días» en cada
+   * renglón. Con el tipo opcional, el `?? null` es obligatorio y la pantalla dice
+   * «sin dato», que es la verdad: la urgencia se decide entonces por el mínimo y el
+   * crítico, que sí llegan.
+   */
+  readonly consumo_diario?: number | null;
   readonly activo: boolean | null;
 }
 
@@ -152,7 +162,7 @@ export function familiaDe(insumo: InsumoDeInventario): Familia {
 
 /** Existencia ÷ consumo teórico. Sin consumo no hay días, y se dice. */
 export function diasQueAlcanza(insumo: InsumoDeInventario): number | null {
-  const consumo = insumo.consumo_diario;
+  const consumo = insumo.consumo_diario ?? null;
   const stock = insumo.stock_actual;
   if (consumo === null || stock === null || consumo <= 0) return null;
   return Math.round((stock / consumo) * 10) / 10;

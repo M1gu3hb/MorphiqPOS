@@ -94,11 +94,20 @@ export interface MesaDelMapa {
   readonly estado: string;
   readonly zona: string | null;
   readonly capacidad: number | null;
-  readonly personas: number | null;
-  readonly clienteNombre: string | null;
-  readonly colorMesero: string | null;
-  readonly celebracion: boolean;
-  readonly alergias: boolean;
+  /**
+   * LOS CINCO NOMBRES QUE EL PUENTE SIRVE, y por qué importan tanto aquí.
+   *
+   * Esta pantalla leía `personas`, `clienteNombre`, `colorMesero`, `celebracion` y
+   * `alergias`, y la entidad `Mesa` no sirve ninguno: sirve `personas_actuales`,
+   * `cliente_temporal`, `mesero_asignado_color`, `celebracion_especial` y
+   * `notas_alergias`. Los cinco llegaban `undefined` en el mapa de mesas, que es la
+   * pantalla que un mesero mira cuarenta veces por turno.
+   */
+  readonly personas_actuales: number | null;
+  readonly cliente_temporal: string | null;
+  readonly mesero_asignado_color: string | null;
+  readonly celebracion_especial: boolean;
+  readonly notas_alergias: string | null;
 }
 
 export interface MapaDeMesasProps {
@@ -246,18 +255,18 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
               >
                 {/* La celebración arriba a la izquierda: para que cualquiera que
                     pase sepa que ahí va el postre con vela. */}
-                {mesa.celebracion && (
+                {mesa.celebracion_especial && (
                   <span className="absolute left-1 top-1 text-sm" aria-label="Celebración">
                     🎉
                   </span>
                 )}
                 {/* El color del mesero arriba a la derecha: identifica sus mesas
                     de un barrido, sin leer nombres. */}
-                {mesa.colorMesero !== null && (
+                {mesa.mesero_asignado_color !== null && (
                   <span
                     aria-hidden
                     className="absolute right-1 top-1 h-3 w-3 rounded-full border border-border"
-                    style={{ backgroundColor: mesa.colorMesero }}
+                    style={{ backgroundColor: mesa.mesero_asignado_color }}
                   />
                 )}
 
@@ -265,16 +274,18 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
                 {/* El color NUNCA es el único portador de significado. */}
                 <span className="text-xs font-medium">{estado?.etiqueta ?? mesa.estado}</span>
 
-                {mesa.clienteNombre !== null && (
+                {mesa.cliente_temporal !== null && (
                   <Badge variant="secondary" className="mt-1 max-w-full truncate text-[11px]">
-                    {mesa.clienteNombre}
-                    {mesa.personas === null ? '' : ` · ${String(mesa.personas)} p.`}
+                    {mesa.cliente_temporal}
+                    {mesa.personas_actuales === null
+                      ? ''
+                      : ` · ${String(mesa.personas_actuales)} p.`}
                   </Badge>
                 )}
 
                 {/* Esquina propia, separada de todo: un error aquí no es un
                     descuadre, es una urgencia médica. */}
-                {mesa.alergias && (
+                {mesa.notas_alergias && (
                   <span
                     className="absolute bottom-1 left-1 text-sm"
                     aria-label={`Hay alergias declaradas en ${voc.enFraseCon('este', 'unidad_servicio')}`}

@@ -67,7 +67,8 @@ export interface ClienteFiscal {
 export interface RemisionPorFacturar {
   readonly id: string;
   readonly folio: string;
-  readonly fecha: string;
+  /** `entregada_en`, que es como lo sirve `Remision`: la fecha de la entrega. */
+  readonly entregada_en: string | null;
   readonly importe_centavos: number;
 }
 
@@ -325,7 +326,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
                 <li key={remision.id} className="flex items-baseline justify-between py-2">
                   <span>{remision.folio}</span>
                   <span className="text-muted-foreground text-sm">
-                    {remision.fecha.slice(0, 10)}
+                    {(remision.entregada_en ?? '').slice(0, 10)}
                   </span>
                   <span className="tabular-nums">{pesos(remision.importe_centavos)}</span>
                 </li>

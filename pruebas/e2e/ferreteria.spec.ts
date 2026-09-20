@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   abrirCajaPorLaRuta,
   abrirPantalla,
+  type MarcaDePantalla,
   accionesDelTablero,
   cambiarDePlantilla,
   cerrarCajaYCuadrar,
@@ -13,6 +14,7 @@ import {
   exigirVentaCobrada,
   exigirVocabulario,
   menuLateral,
+  soltarLaCaja,
   totalEnPantalla,
   ventasDeAntes,
   vigilarFallos,
@@ -20,6 +22,29 @@ import {
 
 /** El fondo con el que esta prueba abre la caja del mostrador. */
 const FONDO_CENTAVOS = 150_000;
+
+/**
+ * Lo que se corta, y lo que la segueta se lleva.
+ *
+ * Dos metros y no seis: el corte tiene que caber en lo que le quede al rollo por
+ * muchas corridas que se hayan hecho sobre la misma demo. La merma es la que la
+ * semilla declara como desperdicio típico del cable, y es el número que esta
+ * sección existe para vigilar: el sistema NO se puede creer que siga teniendo lo
+ * que se quedó en el suelo.
+ */
+const MEDIDA_DEL_CORTE = 2;
+const MERMA_DEL_CABLE = 0.2;
+
+/**
+ * Una cantidad como la escribe el dominio: cuatro decimales sin ceros de cola.
+ *
+ * A mano y no importada de `@morphiqpos/domain` —que desde `pruebas/` no resuelve—
+ * y además a propósito: afirmar contra la misma función que produce el valor no
+ * afirma nada (`contratos-por-mutacion`).
+ */
+function comoCantidad(valor: number): string {
+  return valor.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+}
 
 /** Lo que el índice del mostrador sirve de cada material. */
 interface MaterialDelPuente {
@@ -115,24 +140,70 @@ async function abrirLaVenta(page: Page): Promise<Locator> {
  */
 
 /** Las doce pantallas del modelo, tal como existen en `app/(modelos)/ferreteria/`. */
-const PANTALLAS = [
-  'caja',
-  'conteo',
-  'corte-de-material',
-  'cotizacion',
-  'cuentas',
-  'entradas',
-  'existencias',
-  'facturacion',
-  'ficha-de-pieza',
-  'material',
-  'mostrador',
-  'trabajos-de-mostrador',
-] as const;
+/**
+ * Las pantallas del modelo, con LO QUE CADA UNA TIENE QUE ENSEÑAR.
+ *
+ * ── Por qué una marca por pantalla y no sólo el 200 ───────────────────────
+ * Porque una pantalla que abre en 200 y pinta su estado de error se ve igual que
+ * una que funciona. Con el 200 solo, la suite dio por probadas cuatro pantallas
+ * cuya entidad del puente NO EXISTÍA —la ficha de pieza, las existencias de
+ * material, la cartera por obra y las opciones de la bebida— y nueve que se
+ * quedaban en su esqueleto para siempre porque `page.tsx` las montaba con un id
+ * vacío. Ninguna se podía distinguir de las que sí trabajan.
+ *
+ * La marca no es el DATO: la demo puede tener una zona sin productos y eso es
+ * legítimo. Es el título, la etiqueta de su región, o la frase de su estado vacío
+ * —que también es contenido de esa pantalla y de ninguna otra—.
+ */
+const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
+  // Con la demostración recién sembrada, lo suyo es su VACÍO: «La caja está al
+  // día», que es lo único que esta pantalla pinta cuando no hay ninguna nota
+  // cerrada —ni encabezado—. El rótulo «Notas pendientes» y el `h1` aparecen sólo
+  // con notas, y más abajo, ya con una enviada desde el mostrador, se exige ése.
+  ['caja', /La caja está al día|Notas pendientes/],
+  ['conteo', /Aquí se cuenta una zona|Conteo/],
+  // «DE DÓNDE» no está en esta pantalla ni en ninguna otra: era una alternativa
+  // muerta, y una alternativa muerta en una marca es una afirmación que no afirma.
+  // Lo que la pantalla pinta es «Cortar <material>» en su `h1`.
+  ['corte-de-material', /Cortar/],
+  ['cotizacion', /Vigencia obligatoria|Cotización/],
+  // EN MINÚSCULAS, y con su vacío. El rótulo se escribe «Lo que me deben» y se
+  // ve en versales porque lleva `uppercase` de CSS: `text-transform` NO cambia el
+  // texto del DOM, así que `/LO QUE ME DEBEN/` no podía encajar nunca. Y con la
+  // demostración recién sembrada no hay crédito a nadie: lo suyo es su vacío.
+  ['cuentas', /Todavía no le das crédito|Lo que me deben/],
+  ['entradas', /Recepción y pedido/],
+  ['existencias', /Qué hay, qué está dormido/],
+  ['facturacion', /Todavía no se timbra/],
+  ['ficha-de-pieza', /Aquí se amplía una pieza|Equivalentes/],
+  ['material', /Aquí se abre un material que se corta|Rollo/],
+  // «La venta», no «LA VENTA»: el `h2` lleva `uppercase` de CSS y el DOM guarda
+  // el texto tal cual. El `h1` de esta pantalla es `sr-only`, así que lo que se
+  // lee es el rótulo del buscador.
+  ['mostrador', /Buscar material|La venta/],
+  ['trabajos-de-mostrador', /Apartados|Listas de trabajo|garantía/i],
+];
 
 test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () => {
   test.beforeAll(async ({ playwright }, info) => {
     await exigirDemostracion(playwright, info);
+  });
+
+  /**
+   * LA CAJA NO SE QUEDA ABIERTA, ni cuando la prueba falla.
+   *
+   * El último paso de esta prueba cierra la caja y cuadra el arqueo, y no se
+   * ejecuta si la prueba muere antes. Lo que quedaba no era un dato sucio: era un
+   * candado. La base permite UNA sesión de caja abierta por SUCURSAL, cada
+   * navegador nuevo trae su propia terminal y cerrar la de otra terminal no se
+   * puede, así que una corrida fallida bloqueaba TODAS las siguientes hasta volver
+   * a sembrar la demo.
+   *
+   * Se anota en vez de afirmar: una limpieza que revienta taparía el fallo que hay
+   * que leer.
+   */
+  test.afterEach(async ({ page }, info) => {
+    info.annotations.push({ type: 'caja', description: await soltarLaCaja(page) });
   });
 
   test('la ferretería dice Materiales donde la tiendita dice Productos', async ({ page }) => {
@@ -148,7 +219,7 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     await cambiarDePlantilla(page, 'ferreteria');
 
     // ── 1 · SU VOCABULARIO ────────────────────────────────────────────────
-    await abrirPantalla(page, '/');
+    await abrirPantalla(page, '/', /Buen día|Mostrador/);
     const menu = await menuLateral(page);
 
     await exigirVocabulario(menu, {
@@ -208,15 +279,15 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
 
     // ── 4 · LAS DOCE PANTALLAS DEL MODELO RESPONDEN ───────────────────────
-    for (const pantalla of PANTALLAS) {
-      await abrirPantalla(page, `/ferreteria/${pantalla}`);
+    for (const [pantalla, marca] of PANTALLAS) {
+      await abrirPantalla(page, `/ferreteria/${pantalla}`, marca);
     }
 
     // La de inicio NO es el total con el teclado: es el buscador con la venta
     // armándose al lado, porque aquí el cliente trae un tornillo en la mano y dice
     // «uno como éste». Su encabezado es para lector de pantalla —la pantalla la manda
     // la búsqueda, no un título— así que se comprueba que ESTÉ, no que se vea.
-    await abrirPantalla(page, '/ferreteria/mostrador');
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La venta/);
     await expect(page.getByRole('heading', { name: 'Mostrador', exact: true })).toBeAttached();
     // `complementary`, no `region`: la venta que se arma vive en un `aside`, y ése es
     // su rol implícito. Escrito como `region` la prueba no encontraba NADA, y el rastro
@@ -266,7 +337,7 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     const material = conPrecio!;
     const nombre = material.nombre ?? '';
 
-    await abrirPantalla(page, '/ferreteria/mostrador');
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La venta/);
     const laVenta = await abrirLaVenta(page);
 
     // Se busca como busca el mostradorista: una palabra. El filtro es progresivo
@@ -306,7 +377,9 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     ).not.toBe('');
 
     // ── LA CAJA · la otra persona, la otra pantalla ───────────────────────
-    await abrirPantalla(page, '/ferreteria/caja');
+    // Y aquí NO vale el vacío: el mostrador acaba de cerrar una nota, así que la
+    // lista de pendientes tiene que estar. Misma pantalla, exigencia más alta.
+    await abrirPantalla(page, '/ferreteria/caja', /Notas pendientes/);
 
     // La nota está en la lista de pendientes, por su folio. Ésta es la fila que
     // hasta hoy no podía existir: la pantalla filtraba por `pendiente_cobro`, un
@@ -358,7 +431,7 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // están. Aquí se comprueba que **no** se los cree.
     const cableAntes = await existenciaDelCable(page);
 
-    await abrirPantalla(page, '/ferreteria/corte-de-material');
+    await abrirPantalla(page, '/ferreteria/corte-de-material', /Cortar/);
     await expect(
       page.getByRole('heading', { name: /^Cortar · / }),
       'La pantalla de corte no encontró material continuo. `materiales_continuos` (171) sirve los ' +
@@ -376,7 +449,30 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
         'las piezas vivas de ESE material, filtradas por `producto_id`.',
     ).toBeChecked();
 
-    await page.getByLabel(/Medida entregada/).fill('6');
+    /**
+     * EL PUNTO DE PARTIDA SE LEE, no se supone.
+     *
+     * Esto cortaba 6 m dando por hecho que el rollo tenía los 12 de la semilla, y
+     * eso hacía la corrida IRREPETIBLE: cada pasada se lleva la medida más la
+     * merma, así que la segunda encontraba 5.8 m y la tercera no alcanzaba —el botón
+     * de cortar se queda DESACTIVADO cuando el descuento excede lo que queda—. El
+     * fallo salía como un `click` que agotaba tres minutos sobre un botón `disabled`,
+     * que no dice nada de lo que pasa.
+     *
+     * Lo que esta sección prueba es la ARITMÉTICA de la merma —que la existencia baje
+     * la medida MÁS el desperdicio— y eso se puede probar con cualquier punto de
+     * partida. Así que se lee el que haya y la cuenta se hace con él.
+     */
+    const notaDelRollo = page.getByText(/quedan [\d.]+ m · sugerido/).first();
+    const restante = Number(/quedan ([\d.]+) m/.exec(await notaDelRollo.innerText())?.[1] ?? '0');
+    expect(
+      restante,
+      'El rollo sugerido no dice cuánto le queda, o le queda menos de lo que este corte necesita. ' +
+        'Vuelve a sembrar la demo: `node --conditions=react-server scripts/sembrar-demos.mjs ' +
+        '--solo demo-acople-ferreteria`.',
+    ).toBeGreaterThan(MEDIDA_DEL_CORTE + MERMA_DEL_CABLE);
+
+    await page.getByLabel(/Medida entregada/).fill(String(MEDIDA_DEL_CORTE));
     await page.getByRole('button', { name: 'Cortar y agregar' }).click();
 
     const corte = page.getByRole('status');
@@ -386,10 +482,13 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
         'en una sola transacción: si esto no aparece, o la ruta no existe o el comando la rechazó.',
     ).toContainText(/está en la caja/, { timeout: 30_000 });
     // Lo que queda del rollo, que es lo que el mostradorista tiene que rotular:
-    // 12 − 6 − 0.2 de merma = 5.8.
-    await expect(corte).toContainText('Quedan 5.8 m');
+    // lo que había, menos la medida, menos la merma.
+    await expect(corte).toContainText(
+      `Quedan ${comoCantidad(restante - MEDIDA_DEL_CORTE - MERMA_DEL_CABLE)} m`,
+    );
 
-    // Y LA EXISTENCIA BAJÓ 6.2, no 6: la merma es material que salió del almacén.
+    // Y LA EXISTENCIA BAJÓ LA MEDIDA MÁS LA MERMA, no sólo la medida: el desperdicio
+    // de la segueta es material que salió del almacén.
     // Esta resta se hace con SQL crudo y la base falsa no la mira, así que es aquí
     // —contra la base de verdad— donde se puede afirmar que la escala es la buena.
     // Con la unidad base sin convertir bajaría 62 000 m y el cable quedaría en
@@ -402,7 +501,7 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
           'unidades de venta.',
         timeout: 20_000,
       })
-      .toBeCloseTo(cableAntes - 6.2, 2);
+      .toBeCloseTo(cableAntes - (MEDIDA_DEL_CORTE + MERMA_DEL_CABLE), 2);
 
     // ── 7 · EL CORTE DE CAJA · el fondo más la venta, al centavo ───────────
     //

@@ -8,6 +8,10 @@ import { useEffect, useRef, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 
+// La colocación de los bloques vive aparte: es aritmética pura y así se puede
+// afirmar sin navegador. Ver `agenda-geometria.ts`.
+import { APERTURA, aMinutos, CIERRE, posicionDe, PX } from './agenda-geometria';
+
 /**
  * PANTALLA · estetica-salon · agenda-del-dia
  *
@@ -69,12 +73,8 @@ const DIA = new Intl.DateTimeFormat('es-MX', { weekday: 'short', day: 'numeric',
 
 // La jornada dibujada. Mientras el horario del salón no viva en configuración,
 // estas dos constantes son el marco: fuera de ellas no hay rejilla que pintar.
-const APERTURA = 9 * 60;
-const CIERRE = 21 * 60;
 /** Dos píxeles por minuto: una hora mide 120 px, que es donde el texto aún cabe. */
-const PX = 2;
 /** Un tramo de limpieza dura 10 minutos y aun así tiene que poder leerse. */
-const MINIMO = 20;
 const ALTO = (CIERRE - APERTURA) * PX;
 const HORAS = Array.from({ length: (CIERRE - APERTURA) / 60 + 1 }, (_, i) => APERTURA + i * 60);
 const MS_DIA = 86_400_000;
@@ -284,12 +284,6 @@ export function esEstado(valor: string): valor is ClaveEstado {
   return valor in ESTADOS;
 }
 
-/** 'HH:MM' → minutos desde medianoche. Es el formato que cruza el puente. */
-export function aMinutos(hora: string): number {
-  const p = hora.split(':');
-  return Number(p[0] ?? 0) * 60 + Number(p[1] ?? 0);
-}
-
 const aHora = (m: number) =>
   `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const ordenar = (bs: readonly BloqueDeAgenda[]): readonly BloqueDeAgenda[] =>
@@ -320,15 +314,6 @@ export function resumenDe(bloques: readonly BloqueDeAgenda[]) {
 }
 
 /** Dónde cae el bloque dentro de su columna, recortado a la jornada dibujada. */
-function posicionDe(b: BloqueDeAgenda): { readonly top: string; readonly height: string } {
-  const desde = Math.max(aMinutos(b.inicio), APERTURA);
-  const hasta = Math.min(aMinutos(b.fin), CIERRE);
-  return {
-    top: `${(desde - APERTURA) * PX}px`,
-    height: `${Math.max(hasta - desde, MINIMO) * PX}px`,
-  };
-}
-
 function mensajeDe(fallo: unknown): string {
   if (!(fallo instanceof ErrorApi)) return 'No se pudo cargar la agenda.';
   if (fallo.estado === HTTP_DEMASIADOS) return 'Demasiados intentos. Espera un momento.';
@@ -791,8 +776,10 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
                   className={`${COLUMNA} ${c.renta ? 'bg-muted/40' : 'bg-card'}`}
                   style={{ height: `${ALTO}px` }}
                 >
+                  {/* Sin `inset-x-1`: el ancho lo decide `posicionDe`, que parte la
+                      columna cuando un hueco se cruza con una cita. */}
                   {c.bloques.map((b) => (
-                    <li key={b.id} className="absolute inset-x-1" style={posicionDe(b)}>
+                    <li key={b.id} className="absolute" style={posicionDe(b, c.bloques)}>
                       <Bloque bloque={b} ocupado={ocupado === b.id} onTocar={alTocar(b)} />
                     </li>
                   ))}

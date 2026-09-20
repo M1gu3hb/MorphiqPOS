@@ -31,8 +31,17 @@ function tabla(extra: Partial<TablasFalsas> = {}): TablasFalsas {
   return { listas_trabajo: [], lineas_lista_trabajo: [], ...extra };
 }
 
+/**
+ * `filasCrudas` es lo que devuelve `tomarFolio`.
+ *
+ * El folio ya no lo manda la pantalla —no tiene ninguno que dar— y lo toma el
+ * servidor con `update folios … returning`, que es SQL crudo. La base falsa
+ * contesta a lo crudo con lo que la prueba declara aquí, así que la primera lista
+ * de esta sucursal sale con `LT-1`, que es exactamente lo que se afirma abajo.
+ */
 const baseDe = (extra: Partial<TablasFalsas> = {}) =>
   crearBaseFalsa(tabla(extra), {
+    filasCrudas: [{ siguiente: 1n }],
     predeterminados: {
       listas_trabajo: {
         cliente_id: null,
@@ -102,7 +111,6 @@ describe('F-153 · capturar', () => {
 
     const salida = await capturarListaTrabajo.ejecutar(ctx, {
       titulo: 'Losa del 3er piso',
-      folio: 'LT-1',
       clienteId: null,
       obraId: null,
       nombreLibre: 'Don Beto',
@@ -111,6 +119,9 @@ describe('F-153 · capturar', () => {
     });
 
     expect(salida.renglones).toBe(2);
+    // El folio lo puso el SERVIDOR, en la serie de las listas.
+    expect(salida.folio).toBe('LT-1');
+    expect(base.filas('listas_trabajo')[0]?.['folio']).toBe('LT-1');
     const lineas = base.filas('lineas_lista_trabajo');
     // El renglón sin traducir conserva su texto y NO inventa producto.
     expect(lineas[0]?.['texto_pedido']).toBe('cemento del gris');
@@ -127,7 +138,6 @@ describe('F-153 · capturar', () => {
 
     await capturarListaTrabajo.ejecutar(ctx, {
       titulo: 'Losa del 3er piso',
-      folio: 'LT-2',
       clienteId: null,
       obraId: null,
       nombreLibre: 'Don Beto',
@@ -153,7 +163,6 @@ describe('F-153 · capturar', () => {
 
     await capturarListaTrabajo.ejecutar(ctx, {
       titulo: 'Losa del 3er piso',
-      folio: 'LT-3',
       clienteId: null,
       obraId: null,
       nombreLibre: 'Don Beto',
@@ -171,7 +180,6 @@ describe('F-153 · capturar', () => {
     const codigo = await codigoDe(() =>
       capturarListaTrabajo.ejecutar(ctx, {
         titulo: 'Losa del 3er piso',
-        folio: 'LT-4',
         clienteId: null,
         obraId: null,
         nombreLibre: null,

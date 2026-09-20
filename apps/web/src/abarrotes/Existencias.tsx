@@ -80,9 +80,25 @@ export interface FilaExistencia {
   readonly unidad_base: string | null;
   readonly stock_actual: number | null;
   readonly stock_minimo: number | null;
-  readonly piezas_por_caja: number | null;
-  readonly vendido_14d: number | null;
-  readonly caduca_el: string | null;
+  /**
+   * OPCIONAL, y no `number | null`: el puente OMITE la clave cuando no la sirve.
+   *
+   * `undefined !== null`, así que la guarda de abajo pasaba de largo y el anaquel
+   * enseñaba «21 pieza (NaN cj + NaN)» en cada renglón de la tabla. El tipo
+   * opcional es lo que obliga a escribir el `?? null` en el sitio que lo lee.
+   */
+  readonly piezas_por_caja?: number | null;
+  /**
+   * NO SE SIRVEN, y el docblock de arriba ya lo decía: «hoy llegan nulas».
+   *
+   * Opcionales y no `number | null`, porque el puente OMITE la clave: `undefined`
+   * pasaba de largo toda guarda escrita como `=== null`. Lo vendido en catorce días
+   * es un agregado del ledger y la fecha de caducidad vive en `caducidades`, una
+   * fila por lote: ninguna de las dos es una columna del insumo, así que ninguna
+   * puede salir de esta entidad. La columna enseña «—», que es la verdad.
+   */
+  readonly vendido_14d?: number | null;
+  readonly caduca_el?: string | null;
   readonly proveedor_nombre: string | null;
 }
 
@@ -115,8 +131,11 @@ export function estaBajoMinimo(fila: FilaExistencia): boolean {
 }
 
 export function seVence(fila: FilaExistencia, ahora: number): boolean {
-  if (fila.caduca_el === null) return false;
-  const fecha = Date.parse(`${fila.caduca_el}T00:00:00`);
+  // `?? null` y no `=== null`: el puente OMITE la clave que no sirve, así que lo
+  // que llega es `undefined` y la guarda pasaba de largo.
+  const dia = fila.caduca_el ?? null;
+  if (dia === null) return false;
+  const fecha = Date.parse(`${dia}T00:00:00`);
   if (Number.isNaN(fecha)) return false;
   return Math.ceil((fecha - ahora) / MILISEGUNDOS_POR_DIA) <= DIAS_DE_AVISO;
 }
@@ -127,7 +146,7 @@ export function formatoHay(fila: FilaExistencia): string {
   const unidad = fila.unidad_base ?? 'pz';
   const entero = Number.isInteger(hay);
   const cantidad = entero ? String(hay) : hay.toFixed(1);
-  const porCaja = fila.piezas_por_caja;
+  const porCaja = fila.piezas_por_caja ?? null;
   // A granel no hay cajas, y en negativo la conversión no significa nada.
   if (porCaja === null || porCaja <= 1 || hay <= 0 || !entero) return `${cantidad} ${unidad}`;
   const cajas = Math.floor(hay / porCaja);
@@ -395,9 +414,9 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
                     </TableCell>
                     <TableCell className="text-right">{texto(fila.stock_minimo)}</TableCell>
                     <TableCell className="hidden text-right lg:table-cell">
-                      {texto(fila.vendido_14d)}
+                      {texto(fila.vendido_14d ?? null)}
                     </TableCell>
-                    <TableCell>{fechaCorta(fila.caduca_el)}</TableCell>
+                    <TableCell>{fechaCorta(fila.caduca_el ?? null)}</TableCell>
                     <TableCell className="hidden lg:table-cell">{proveedorDe(fila)}</TableCell>
                   </TableRow>
                 ))}

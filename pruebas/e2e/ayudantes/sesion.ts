@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import type { Locator, Page, PlaywrightWorkerArgs, TestInfo } from '@playwright/test';
+import type { Locator, Page, PlaywrightWorkerArgs, Response, TestInfo } from '@playwright/test';
 
 /**
  * El ayudante que comparten las cinco pruebas de plantilla (F2.3-REGLAS §8, condición 6).
@@ -948,17 +948,43 @@ export async function exigirVocabulario(menu: Locator, sustantivos: Sustantivos)
 }
 
 /**
- * Abre una pantalla y exige que RESPONDA.
+ * Lo que una pantalla tiene que ENSEÑAR para contar como abierta.
  *
- * El criterio es el de `F2.3-REGLAS §8.1` para las 105 rutas, y se copia a propósito:
- * lo que no se admite es un **404** (no existe) ni un **500** (revienta). Aquí no
- * hay 401 posible —la sesión ya está abierta— así que el umbral es 200 seco.
- *
- * Se comprueba el estado de la NAVEGACIÓN y no sólo que aparezca algún texto, porque
- * una pantalla que revienta en el servidor y otra que se queda cargando se ven igual
- * desde una aserción de texto: las dos no encuentran nada.
+ * Una expresión para el texto visible, o el `aria-label` de su región cuando el
+ * título de la pantalla no es texto: tres de las 61 lo tienen en la etiqueta y no en
+ * un `h1`, y obligarlas a inventarse un título para que la prueba las vea sería
+ * cambiar el producto para que quepa en la prueba.
  */
-export async function abrirPantalla(page: Page, ruta: string): Promise<void> {
+export type MarcaDePantalla = RegExp | { readonly etiqueta: string };
+
+/** El muro genérico del cliente: si es lo que se ve, la pantalla no funcionó. */
+const MURO_GENERICO = /El servidor respondió algo inesperado/i;
+
+/**
+ * Abre una pantalla, exige que RESPONDA y que ENSEÑE lo suyo.
+ *
+ * ── Por qué el 200 no bastaba ──────────────────────────────────────────────
+ * El criterio de `F2.3-REGLAS §8.1` —ni 404 ni 500— dejaba pasar la mitad del
+ * problema: una pantalla que abre en 200 y pinta su estado de error se ve igual que
+ * una que funciona, y la suite la daba por probada. Eso es exactamente lo que
+ * escondió que `MaterialMostrador`, `ConteoDeZona`, `PedidoProveedor` y
+ * `LineaSugerida` no existían en el puente: cuatro pantallas «probadas» que abrían
+ * vacías con una banda de error encima.
+ *
+ * Así que ahora se exige una MARCA: un texto que sólo se pinta cuando la pantalla
+ * llegó a montar lo suyo. No es el dato —la demo puede tener una zona sin productos,
+ * y eso es legítimo— es el título, la etiqueta de su región o la frase de su estado
+ * vacío, que también es contenido de esa pantalla y de ninguna otra.
+ *
+ * Y se exige que el muro genérico NO esté: «El servidor respondió algo inesperado»
+ * es lo que el cliente enseña cuando la respuesta no tiene la forma `{ok, datos}`, y
+ * es lo que sale cuando una ruta no existe.
+ */
+export async function abrirPantalla(
+  page: Page,
+  ruta: string,
+  marca: MarcaDePantalla,
+): Promise<void> {
   const respuesta = await page.goto(ruta);
 
   expect(respuesta, `«${ruta}» no devolvió respuesta de navegación.`).not.toBeNull();
@@ -968,6 +994,28 @@ export async function abrirPantalla(page: Page, ruta: string): Promise<void> {
       'existe; un 500, que revienta. Ninguno de los dos cuenta como «probada en el ' +
       'navegador» (F2.3-REGLAS §8, condición 6).',
   ).toBe(200);
+
+  // Por ATRIBUTO y no con `getByLabel`: ése busca la etiqueta de un control de
+  // formulario, y estas tres marcas son el `aria-label` de una región —un `aside`,
+  // un `main`— que es donde vive el título de una pantalla que no puede gastar sitio
+  // en un encabezado grande.
+  const suyo =
+    marca instanceof RegExp
+      ? page.getByText(marca).first()
+      : page.locator(`[aria-label="${marca.etiqueta}"]`).first();
+  const comoSeLlama = marca instanceof RegExp ? String(marca) : `aria-label «${marca.etiqueta}»`;
+  await expect(
+    suyo,
+    `«${ruta}» abrió en 200 y NO enseñó lo suyo (${comoSeLlama}). Una pantalla que carga y ` +
+      'pinta su estado de error se ve igual que una que funciona: por ahí pasaron cuatro ' +
+      'entidades del puente que no existían.',
+  ).toBeVisible();
+
+  await expect(
+    page.getByText(MURO_GENERICO),
+    `«${ruta}» enseña el muro genérico del cliente. Eso significa que una de sus llamadas no ` +
+      'devolvió `{ok, datos}`: casi siempre, una ruta que no existe.',
+  ).toHaveCount(0);
 }
 
 /**
@@ -988,25 +1036,101 @@ export async function abrirPantalla(page: Page, ruta: string): Promise<void> {
  * advierte de su propia API. Escuchar toda la prueba y preguntar al final no
  * espera nada y no se pierde ninguna.
  *
- * Un 4xx SÍ se admite: una pantalla puede pedir algo que el rol no ve, y eso es
- * una decisión, no una avería. Lo que no se admite es que la aplicación reviente.
+ * ── Por qué ahora también los 4xx y los `{ok:false}` ──────────────────────
+ * Aquí decía que un 4xx se admite «porque una pantalla puede pedir algo que el rol no
+ * ve, y eso es una decisión». Es cierto de un 403, y era la rendija por la que pasaban
+ * las otras dos formas de estar roto sin reventar:
+ *
+ *   · un **404** de `/api/...` es una ruta que no existe, o sea un botón que no hace
+ *     nada. Es el defecto que costó tres tardes de esta fase.
+ *   · un **200 con `{ok:false}`** es el error de dominio bien contestado, y en una
+ *     pantalla que sólo está ABRIENDO no debería haber ninguno: nadie pidió nada
+ *     todavía. `PUENTE_ENTIDAD_DESCONOCIDA` llega así, y es lo que decía que cuatro
+ *     entidades no existían mientras la suite daba las pantallas por probadas.
+ *
+ * Lo que sí se admite se declara en `FALLOS_QUE_SON_UNA_DECISION`, con su razón, y la
+ * lista sólo puede encogerse.
  */
+
+/**
+ * Los fallos que son una decisión del producto y no una avería.
+ *
+ * La clave es `<código> <ruta>` tal como se imprime. Cada fila lleva por qué, y la
+ * lista sólo puede encogerse: una fila nueva hay que explicarla.
+ */
+const FALLOS_QUE_SON_UNA_DECISION: Readonly<Record<string, string>> = {};
+
+/**
+ * QUÉ se estaba pidiendo, no sólo por dónde.
+ *
+ * El puente de lectura es UNA ruta para las 359 lecturas del frontend, así que
+ * «400 /api/datos/consultar» es todo lo que se sabía de un fallo que puede venir
+ * de cualquiera de las cuarenta que abre un modelo: el rastro no servía para nada
+ * y había que salir a buscarla a mano. La entidad y la operación viajan en el
+ * cuerpo de la petición, que Playwright entrega sin coste, y con eso el fallo dice
+ * por sí mismo dónde mirar.
+ */
+function loQuePedia(respuesta: Response): string {
+  const cuerpo = respuesta.request().postData();
+  if (cuerpo === null) return '';
+  try {
+    const pedido = JSON.parse(cuerpo) as { entidad?: unknown; operacion?: unknown };
+    if (typeof pedido.entidad !== 'string' || pedido.entidad === '') return '';
+    const operacion = typeof pedido.operacion === 'string' ? pedido.operacion : 'list';
+    return ` · ${pedido.entidad}.${operacion}`;
+  } catch {
+    // Un cuerpo que no es JSON no dice nada de la entidad: la ruta ya está en la etiqueta.
+    return '';
+  }
+}
+
 export function vigilarFallos(page: Page): () => void {
   const reventadas: string[] = [];
+  const cuerpos: Promise<void>[] = [];
+
   page.on('response', (respuesta) => {
-    if (respuesta.status() < 500) return;
-    reventadas.push(`${String(respuesta.status())} ${new URL(respuesta.url()).pathname}`);
+    const ruta = new URL(respuesta.url()).pathname;
+    const estado = respuesta.status();
+
+    // Sólo la API: un 404 de un `.map` o de un icono no es un botón roto.
+    const esApi = ruta.startsWith('/api/');
+    if (estado >= 500 || (esApi && estado >= 400)) {
+      reventadas.push(`${String(estado)} ${ruta}${loQuePedia(respuesta)}`);
+      return;
+    }
+    if (!esApi || estado !== 200) return;
+
+    // El cuerpo SÓLO de la API en 200: un `{ok:false}` mientras una pantalla apenas
+    // abre es un dato que no llegó, no una decisión de nadie.
+    cuerpos.push(
+      respuesta
+        .json()
+        .then((cuerpo: unknown) => {
+          if (typeof cuerpo !== 'object' || cuerpo === null) return;
+          const sobre = cuerpo as { ok?: unknown; error?: { codigo?: unknown } };
+          if (sobre.ok !== false) return;
+          const codigo =
+            typeof sobre.error?.codigo === 'string' ? sobre.error.codigo : 'SIN_CODIGO';
+          reventadas.push(`${codigo} ${ruta}${loQuePedia(respuesta)}`);
+        })
+        // Un cuerpo que no es JSON no dice nada: la navegación ya se comprobó.
+        .catch(() => undefined),
+    );
   });
 
   return function exigirSinFallos(): void {
-    const distintas = [...new Set(reventadas)];
+    const distintas = [...new Set(reventadas)].filter(
+      (fallo) => FALLOS_QUE_SON_UNA_DECISION[fallo] === undefined,
+    );
     expect(
       distintas,
-      `La aplicación devolvió ${String(reventadas.length)} respuesta(s) 5xx mientras se ` +
+      `La aplicación devolvió ${String(reventadas.length)} respuesta(s) rotas mientras se ` +
         `abrían sus pantallas: ${distintas.join(', ')}.\n` +
-        'Una pantalla que carga y enseña su estado de error NO está probada. El registro ' +
-        'del servidor lo dice por su ruta: desde E5 el 500 lleva la causa, el SQLSTATE y ' +
-        'la entidad del puente.',
+        'Un 5xx es que revienta; un 4xx de `/api/` es una ruta que no existe o un permiso que ' +
+        'la pantalla no tiene; un `{ok:false}` mientras sólo se abre es un dato que no llegó. ' +
+        'Una pantalla que carga y enseña su estado de error NO está probada. El registro del ' +
+        'servidor lo dice por su ruta: desde E5 el 500 lleva la causa, el SQLSTATE y la ' +
+        'entidad del puente.',
     ).toEqual([]);
   };
 }
@@ -1345,7 +1469,18 @@ export async function abrirLaCajaSiHaceFalta(
   caja: PantallaDeCaja,
   fondoEnPesos = '500',
 ): Promise<void> {
-  await abrirPantalla(page, caja.ruta);
+  // La marca es el BOTÓN de abrir o la señal de que ya está abierta: una de las
+  // dos tiene que estar, y las dos son contenido de la caja y de ninguna otra.
+  //
+  // Cada parte se escapa POR SEPARADO y se unen después. Escapando la cadena ya
+  // unida, el `|` de la alternancia se escapaba también y el patrón buscaba el texto
+  // literal «Abrir caja|Lo que debería haber», que no existe en ninguna pantalla.
+  const literal = (texto: string): string => texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  await abrirPantalla(
+    page,
+    caja.ruta,
+    new RegExp(`${literal(caja.boton)}|${literal(caja.señalAbierta)}`),
+  );
 
   const botonAbrir = page.getByRole('button', { name: caja.boton });
   const yaAbierta = page.getByText(caja.señalAbierta).first();
@@ -1371,14 +1506,115 @@ export async function abrirLaCajaSiHaceFalta(
   // El fondo va por montones porque «$1,500» no dice si se puede dar cambio.
   // Basta uno: lo que se prueba es que la caja abre, no el arqueo.
   await page.locator(caja.campoDelFondo).fill(fondoEnPesos);
-  await botonAbrir.click();
+
+  /**
+   * Se espera la RESPUESTA del servidor, y su mensaje entra en el fallo.
+   *
+   * Aquí sólo se afirmaba que el formulario se iba, y el día que no se fue el rastro
+   * dijo «se pulsó Abrir caja y el formulario sigue ahí»: el síntoma, nunca la causa.
+   * La causa era ésta, y costó una corrida entera encontrarla:
+   * `sesiones_caja_una_abierta_por_sucursal` permite UNA sesión abierta por SUCURSAL
+   * —no una por terminal—, así que una corrida anterior que murió DESPUÉS de abrir
+   * deja su caja abierta en SU terminal, y ninguna terminal nueva puede abrir la
+   * suya. Cerrar la ajena exige ser su terminal, así que desde aquí no se puede.
+   *
+   * El servidor lo dice con todas las letras —«Esta sucursal ya tiene una caja
+   * abierta, en la terminal …»— y ese texto es lo único que lleva a la salida. Se
+   * lee de la respuesta y se pone en el mensaje, con la salida escrita al lado.
+   *
+   * (Y para que no vuelva a ocurrir, `soltarLaCaja` cierra la de esta terminal al
+   * acabar la prueba aunque la prueba haya fallado.)
+   */
+  const [respuesta] = await Promise.all([
+    page.waitForResponse(
+      (r) => new URL(r.url()).pathname === '/api/caja/abrir' && r.request().method() === 'POST',
+    ),
+    botonAbrir.click(),
+  ]);
+
+  const texto = await respuesta.text();
+  let contestacion: RespuestaDeComando = {};
+  try {
+    contestacion = JSON.parse(texto) as RespuestaDeComando;
+  } catch {
+    // Un cuerpo que no es JSON es un fallo del servidor, no del comando: el texto
+    // crudo entra igual en el mensaje, que es lo que hace falta para leerlo.
+  }
+
+  expect(
+    contestacion.ok,
+    [
+      `«${caja.boton}» no abrió la caja: ${String(respuesta.status())} ` +
+        `${contestacion.error?.codigo ?? ''} ${contestacion.error?.mensaje ?? texto.slice(0, 300)}`.trim(),
+      '',
+      'Si el código es CAJA_YA_ABIERTA y el mensaje nombra OTRA terminal, es una corrida',
+      'anterior que murió después de abrir su caja: la base permite UNA sesión abierta por',
+      'SUCURSAL y cerrar la ajena exige ser su terminal. Se limpia volviendo a sembrar la',
+      'demo, que borra sus sesiones de caja:',
+      '',
+      '  node --conditions=react-server scripts/sembrar-demos.mjs --solo <slug>',
+    ].join('\n'),
+  ).toBe(true);
 
   await expect(
     botonAbrir,
-    'Se pulsó «Abrir caja» y el formulario de apertura sigue ahí. Sin caja abierta para ESTA ' +
-      'terminal, `venta.cobrar` contesta «Abre la caja antes de cobrar» y no hay venta que ' +
-      'comprobar.',
+    'El servidor ACEPTÓ la apertura y el formulario de apertura sigue en pantalla. La caja de ' +
+      'esta terminal está abierta y la pantalla no se enteró: eso es un defecto de la pantalla, ' +
+      'no de la caja.',
   ).toHaveCount(0);
+}
+
+/**
+ * DEJA LA CAJA CERRADA, haya pasado lo que haya pasado con la prueba.
+ *
+ * ── Por qué hace falta algo que corra DESPUÉS del fallo ────────────────────
+ * Porque el último paso de cada modelo cierra la caja y cuadra el arqueo, y ese
+ * paso no se ejecuta cuando la prueba muere antes. Y lo que queda no es un dato
+ * sucio: es un CANDADO. `sesiones_caja_una_abierta_por_sucursal` permite una
+ * sesión abierta por sucursal, cada navegador nuevo trae su propia terminal y
+ * cerrar la de otra terminal no se puede, así que **una corrida fallida impide
+ * todas las siguientes** hasta que alguien vuelva a sembrar la demo. Pasó: entre
+ * las dos corridas del 20-09-2026 el fallo dejó de ser el que se estaba
+ * arreglando y pasó a ser el candado de la anterior.
+ *
+ * ── Por qué no afirma nada, y por qué devuelve una frase ───────────────────
+ * No es una aserción: es limpieza, y una limpieza que revienta tapa el fallo de
+ * verdad —el que hay que leer— con un fallo del `afterEach`. Así que no lanza
+ * nunca y devuelve lo que hizo, para que quien la llama lo anote en el informe.
+ * Con eso queda visible que la caja se cerró en la limpieza, que es información
+ * distinta de «la prueba la cerró».
+ *
+ * Cuenta EXACTAMENTE lo esperado —lo pregunta antes con `efectivoContadoCentavos:
+ * 0`, que es lo único que hace que `caja.estado` lo devuelva— para no dejarle a la
+ * demo un corte con faltante inventado.
+ */
+export async function soltarLaCaja(page: Page): Promise<string> {
+  try {
+    const estado = await page.request.post('/api/caja/estado', {
+      headers: cabecerasDeEscritura(),
+      data: { efectivoContadoCentavos: 0 },
+    });
+    if (estado.status() !== 200) {
+      return `no se pudo leer el estado de la caja (${String(estado.status())}): nada que soltar`;
+    }
+
+    const cuerpo = (await estado.json()) as {
+      readonly datos?: { readonly abierta?: boolean; readonly efectivoEsperadoCentavos?: string };
+    };
+    if (cuerpo.datos?.abierta !== true) return 'la caja de esta terminal ya estaba cerrada';
+
+    const esperado = cuerpo.datos.efectivoEsperadoCentavos ?? '0';
+    const cierre = await page.request.post('/api/caja/cerrar', {
+      headers: cabecerasDeEscritura(),
+      data: { efectivoContadoCentavos: Number(esperado) },
+    });
+    return cierre.status() === 200
+      ? `caja cerrada en la limpieza, contando lo esperado (${esperado} centavos)`
+      : `LA CAJA SIGUE ABIERTA: cerrarla contestó ${String(cierre.status())}. La siguiente ` +
+          'corrida no podrá abrir la suya; siembra la demo otra vez.';
+  } catch (error) {
+    return `no se pudo soltar la caja: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 /**

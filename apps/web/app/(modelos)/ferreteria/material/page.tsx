@@ -9,5 +9,5 @@ import { Material } from '~/ferreteria/Material';
 export const dynamic = 'force-dynamic';
 
 export default function Pagina() {
-  return <Material productoId="" almacenId="" />;
+  return <Material productoId="" />;
 }

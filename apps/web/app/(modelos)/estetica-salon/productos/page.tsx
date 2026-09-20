@@ -9,5 +9,5 @@ import { Productos } from '~/estetica-salon/Productos';
 export const dynamic = 'force-dynamic';
 
 export default function Pagina() {
-  return <Productos almacenVentaId="" almacenCabinaId="" />;
+  return <Productos />;
 }

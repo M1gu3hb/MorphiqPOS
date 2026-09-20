@@ -11,6 +11,7 @@ import { recalcularCostosRecetas } from '../inventario/recetas.ts';
 import { limpiarArranque, sembrarArranque, type ResumenArranque } from './arranque.ts';
 import { semillaParaPaquete } from './datos.ts';
 import { sembrarEquipo } from './equipo.ts';
+import { sembrarOpcionesDeBebida, type ResumenBebidas } from './bebidas.ts';
 import { limpiarSala, sembrarSala, type ResumenSala } from './sala.ts';
 import { limpiarSalon, sembrarSalon, type ResumenSalon } from './salon.ts';
 
@@ -25,6 +26,8 @@ export const resetearDemo = definirComando<
     readonly empleados: number;
     readonly sala: ResumenSala | null;
     readonly salon: ResumenSalon | null;
+    /** Los grupos de opciones de bebida. Sólo la cafetería los tiene. */
+    readonly bebidas: ResumenBebidas | null;
     readonly arranque: ResumenArranque;
   }
 >({
@@ -233,6 +236,11 @@ export const resetearDemo = definirComando<
           ctx.tx,
         );
       }
+      // También al mapa por nombre: las bebidas de una cafetería son productos DE
+      // RECETA, y `sembrarOpcionesDeBebida` las cuelga por nombre. Sin esto el
+      // mapa sólo tenía los de SKU y los servicios, así que los cuatro grupos de
+      // opciones no se habrían podido colgar de ninguna bebida.
+      productoPorNombre.set(dato.nombre, producto.id);
       productos += 1;
     }
     await recalcularCostosRecetas(ctx.tx, ctx.ambito.organizacionId);
@@ -275,6 +283,22 @@ export const resetearDemo = definirComando<
           )
         : null;
 
+    // Y LAS OPCIONES DE BEBIDA sólo en una cafetería: tamaño, leche, temperatura
+    // y extras. Sin ellas `opciones-de-la-bebida` abre con su estado vacío —«esta
+    // bebida se agrega tal cual»— y lo que una cafetería hace cuarenta veces por
+    // turno no se puede ni enseñar ni probar.
+    const bebidas =
+      organizacion.giro === 'cafeteria'
+        ? await ctx.paso('sembrar_opciones_de_bebida', () =>
+            sembrarOpcionesDeBebida(
+              ctx.tx,
+              ctx.ambito.organizacionId,
+              productoPorNombre,
+              insumosCafe,
+            ),
+          )
+        : null;
+
     // LOS DATOS DE ARRANQUE · el proveedor. La caja queda CERRADA.
     //
     // Antes la semilla la abria «para que la demo este lista para cobrar», y
@@ -309,9 +333,10 @@ export const resetearDemo = definirComando<
         proveedor: arranque.proveedor,
         ...(sala ?? {}),
         ...(salon ?? {}),
+        ...(bebidas ?? {}),
       },
     });
-    return { productos, insumos, empleados, sala, salon, arranque };
+    return { productos, insumos, empleados, sala, salon, bebidas, arranque };
   },
 });
 

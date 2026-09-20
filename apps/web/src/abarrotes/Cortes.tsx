@@ -46,12 +46,28 @@ const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN
 /** Las denominaciones que de verdad hay en un cajón de tiendita. */
 const DENOMINACIONES = [500_00, 200_00, 100_00, 50_00, 20_00, 10_00, 5_00, 2_00, 1_00] as const;
 
+/**
+ * UN CORTE DEL HISTÓRICO, con los nombres que el puente SIRVE.
+ *
+ * Aquí se leían `fecha`, `esperado_centavos`, `contado_centavos` y `empleado`, y la
+ * entidad `CorteCaja` no sirve ninguno de los cuatro: sirve `fecha_cierre`,
+ * `efectivo_contado` —en PESOS, por la conversión `dinero`— y
+ * `usuario_cajero_nombre`. Los cuatro llegaban `undefined`, así que el histórico
+ * enseñaba «sin firma» en cada renglón y la diferencia salía `NaN`.
+ *
+ * El ESPERADO no se sirve, y no es un olvido: no es una columna. Se deriva de la
+ * suma de `movimientos_caja` de esa sesión, y el que decide el arqueo lo calcula
+ * `caja.documento_corte`. Aquí se declara opcional para que la pantalla tenga que
+ * decir «—» en vez de restar contra `undefined` y enseñar un faltante inventado.
+ */
 export interface CorteHecho {
   readonly id: string;
-  readonly fecha: string;
-  readonly esperado_centavos: number;
-  readonly contado_centavos: number;
-  readonly empleado: string | null;
+  readonly fecha_cierre: string | null;
+  /** EN PESOS, como lo sirve el puente. */
+  readonly efectivo_contado: number | null;
+  readonly usuario_cajero_nombre: string | null;
+  /** No se sirve: se deriva de los movimientos. Ver la cabecera. */
+  readonly esperado_centavos?: number;
 }
 
 export interface ResumenDelTurno {
@@ -145,7 +161,12 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
       if (historicoInicial === undefined) {
         consultarPuente<CorteHecho>('CorteCaja', {
           limite: 20,
-          orden: 'fecha:desc',
+          // Descendente se escribe con un guion delante, que es la sintaxis del
+          // puente —`orden.startsWith('-')`— y la de su código original. Aquí
+          // decía `'fecha_cierre:desc'`, de la plataforma anterior, y el puente
+          // contestaba 400 «no se puede ordenar por «fecha_cierre:desc»»: el
+          // histórico de cortes salía vacío en una pantalla que abría en 200.
+          orden: '-fecha_cierre',
           signal: control.signal,
         })
           .then((filas) => {
@@ -299,10 +320,16 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
         <ul className="divide-y">
           {(historico ?? []).map((corte) => (
             <li key={corte.id} className="flex items-baseline justify-between py-2">
-              <span>{corte.fecha.slice(0, 10)}</span>
-              <span className="text-muted-foreground text-sm">{corte.empleado ?? 'sin firma'}</span>
+              <span>{(corte.fecha_cierre ?? '').slice(0, 10)}</span>
+              <span className="text-muted-foreground text-sm">
+                {corte.usuario_cajero_nombre ?? 'sin firma'}
+              </span>
               <span className="tabular-nums">
-                {leerDiferencia(corte.contado_centavos - corte.esperado_centavos)}
+                {corte.esperado_centavos === undefined
+                  ? '—'
+                  : leerDiferencia(
+                      Math.round((corte.efectivo_contado ?? 0) * 100) - corte.esperado_centavos,
+                    )}
               </span>
             </li>
           ))}

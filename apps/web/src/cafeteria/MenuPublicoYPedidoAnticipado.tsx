@@ -56,9 +56,24 @@ const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN
 export interface ProductoPublico {
   readonly id: string;
   readonly nombre: string;
-  readonly precio_venta_centavos: number;
+  /**
+   * EN PESOS, como lo sirve el puente.
+   *
+   * Aquí decía `precio_venta_centavos`, que la entidad `ProductoTerminado` NO
+   * sirve: lo expone como `precio_venta` ya convertido a pesos. Llegaba
+   * `undefined` y el menú público enseñaba **`$NaN`** en cada bebida.
+   */
+  readonly precio_venta: number | null;
   readonly familia: string;
-  readonly disponible: boolean;
+  /**
+   * `visible_en_pos`, que es como se llama en el puente.
+   *
+   * La perilla de «hoy no hay» leía `disponible` y no llegaba nunca: todo el
+   * catálogo salía agotado en el menú y en la pantalla de productos. No se declara
+   * un segundo nombre en el mapa a propósito —dos nombres para la misma columna
+   * dejarían a quien escribe eligiendo cuál gana—, así que la pantalla usa el suyo.
+   */
+  readonly visible_en_pos: boolean;
 }
 
 export interface LineaDelCarrito {
@@ -166,7 +181,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
       {
         productoId: producto.id,
         nombre: producto.nombre,
-        precioCentavos: producto.precio_venta_centavos,
+        precioCentavos: Math.round((producto.precio_venta ?? 0) * 100),
         cantidad: 1,
       },
     ]);
@@ -255,18 +270,20 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
               .filter((p) => p.familia === familia)
               .map((producto) => (
                 <li key={producto.id} className="flex items-center justify-between py-2">
-                  <span className={producto.disponible ? '' : 'text-muted-foreground'}>
+                  <span className={producto.visible_en_pos ? '' : 'text-muted-foreground'}>
                     {producto.nombre}
                     {/* Lo agotado se VE: esconderlo hace que el cliente crea que
                         el menú cambió y pregunte en la barra. */}
-                    {!producto.disponible && <span className="ml-2 text-sm">hoy no hay</span>}
+                    {!producto.visible_en_pos && <span className="ml-2 text-sm">hoy no hay</span>}
                   </span>
                   <span className="flex items-center gap-3">
-                    <span className="tabular-nums">{pesos(producto.precio_venta_centavos)}</span>
+                    <span className="tabular-nums">
+                      {pesos(Math.round((producto.precio_venta ?? 0) * 100))}
+                    </span>
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={!producto.disponible}
+                      disabled={!producto.visible_en_pos}
                       onClick={() => {
                         agregar(producto);
                       }}

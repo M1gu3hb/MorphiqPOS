@@ -59,8 +59,16 @@ export interface FichaDeProducto {
   readonly nombre: string;
   readonly sku: string | null;
   readonly codigo_barras: string | null;
-  readonly precio_venta_centavos: number;
-  readonly costo_unitario_centavos: number;
+  /**
+   * EN PESOS, como lo sirve el puente.
+   *
+   * Aquí decía `precio_venta_centavos`, que la entidad NO sirve: lo expone como
+   * `precio_venta`, ya convertido por `dinero`. Llegaba `undefined` y la pantalla
+   * enseñaba `$NaN`.
+   */
+  readonly precio_venta: number | null;
+  /** EN PESOS: la entidad sirve `costo_calculado_actual`. */
+  readonly costo_calculado_actual: number | null;
   readonly controla_caducidad: boolean;
   readonly tasa_iva_bp: number;
 }
@@ -69,7 +77,14 @@ export interface PresentacionDeProducto {
   readonly id: string;
   readonly nombre: string;
   readonly factor: string;
-  readonly precio_centavos: number;
+  /**
+   * EN PESOS y con el nombre del puente: `Presentacion` sirve
+   * `precio_venta_centavos` con la conversión `dinero`.
+   *
+   * Aquí se leía `precio_centavos`, que no existe: el six de refrescos enseñaba
+   * `$NaN` en su renglón con el precio puesto en la base.
+   */
+  readonly precio_venta_centavos: number | null;
   readonly codigo_barras: string | null;
 }
 
@@ -157,7 +172,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
             const primera = filas[0];
             if (primera !== undefined) {
               setFicha(primera);
-              setPrecio((primera.precio_venta_centavos / 100).toFixed(2));
+              setPrecio((primera.precio_venta ?? 0).toFixed(2));
             }
           })
           .catch(() => {
@@ -195,7 +210,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
     setError(null);
     invocarComando(RUTA_PRECIO, { productoId, precioVentaCentavos: centavos })
       .then(() => {
-        setFicha(ficha === null ? null : { ...ficha, precio_venta_centavos: centavos });
+        setFicha(ficha === null ? null : { ...ficha, precio_venta: centavos / 100 });
         setAviso('Precio guardado.');
       })
       .catch((fallo: unknown) => {
@@ -245,6 +260,30 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
       });
   }
 
+  // El VACÍO QUE ENSEÑA, y por qué hacía falta.
+  //
+  // `page.tsx` monta esta pantalla sin producto elegido —se llega a ella desde el
+  // catálogo, tocando un renglón— y el efecto, con razón, no consulta con un id
+  // vacío. Lo que faltaba es qué enseñar mientras tanto: sin esto, la pantalla se
+  // quedaba en su esqueleto PARA SIEMPRE, en blanco, y la suite la daba por
+  // probada porque respondía 200.
+  if (productoId === '' && fichaInicial === undefined) {
+    return (
+      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+        <h1 className="text-xl font-semibold">
+          Aquí se abre la ficha de {vocabulario.enFraseCon('un', 'producto')}
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          Precio, costo, margen, impuesto, caducidad y presentaciones. Se llega desde el catálogo:
+          toca el renglón {vocabulario.conDeterminante('ese', 'producto')} y su ficha se abre aquí.
+        </p>
+        <Button asChild>
+          <a href="/abarrotes/existencias">Ir a Existencias</a>
+        </Button>
+      </main>
+    );
+  }
+
   if (ficha === null) {
     return (
       <div className="space-y-4 p-6">
@@ -254,7 +293,10 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
     );
   }
 
-  const margen = margenDe(ficha.precio_venta_centavos, ficha.costo_unitario_centavos);
+  // En centavos enteros: el margen en pesos con decimales sale con tres cifras
+  // que nadie puede cobrar.
+  const enCentavos = (pesos: number | null): number => Math.round((pesos ?? 0) * 100);
+  const margen = margenDe(enCentavos(ficha.precio_venta), enCentavos(ficha.costo_calculado_actual));
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
@@ -296,7 +338,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
           </Button>
         </div>
         <p className="text-muted-foreground text-sm">
-          Cuesta {pesos(ficha.costo_unitario_centavos)}
+          Cuesta {pesos(enCentavos(ficha.costo_calculado_actual))}
           {margen !== null && ` · deja ${margen.pesos} (${margen.porcentaje} %)`}
         </p>
         {margen === null && <p className="text-sm">Sin precio no hay margen que calcular.</p>}
@@ -352,7 +394,9 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
             <li key={presentacion.id} className="flex items-baseline justify-between py-2">
               <span>{presentacion.nombre}</span>
               <span className="text-muted-foreground text-sm">× {presentacion.factor}</span>
-              <span className="tabular-nums">{pesos(presentacion.precio_centavos)}</span>
+              <span className="tabular-nums">
+                {pesos(Math.round((presentacion.precio_venta_centavos ?? 0) * 100))}
+              </span>
             </li>
           ))}
         </ul>

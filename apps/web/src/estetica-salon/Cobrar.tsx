@@ -107,7 +107,22 @@ export interface ServicioDeCita {
   readonly estado: string | null;
 }
 
+/**
+ * Un nombre y un id, para poner nombres a los identificadores de la cita.
+ *
+ * DOS TIPOS y no uno, porque el campo no se llama igual en las tres entidades: una
+ * profesional tiene `nombre_completo` —lleva apellido y el mostrador enseña el
+ * corto— y un cliente o un producto tienen `nombre`. Con un solo tipo, dos de las
+ * tres lecturas llegaban con el nombre en `undefined` y la pantalla de cobro
+ * enseñaba «Sin nombre» en cada renglón, con los nombres en la base.
+ */
 export interface PersonaDelSalon {
+  readonly id: string;
+  readonly nombre_completo: string | null;
+}
+
+/** Un cliente o un producto: los dos sirven `nombre`. */
+export interface NombradoDelSalon {
   readonly id: string;
   readonly nombre: string | null;
 }
@@ -117,8 +132,8 @@ export interface CobrarProps {
   readonly citasIniciales?: readonly CitaPorCobrar[];
   readonly serviciosIniciales?: readonly ServicioDeCita[];
   readonly profesionalesIniciales?: readonly PersonaDelSalon[];
-  readonly clientesIniciales?: readonly PersonaDelSalon[];
-  readonly catalogoInicial?: readonly PersonaDelSalon[];
+  readonly clientesIniciales?: readonly NombradoDelSalon[];
+  readonly catalogoInicial?: readonly NombradoDelSalon[];
   readonly onCobrado?: (citaId: string) => void;
 }
 
@@ -189,7 +204,7 @@ export function Cobrar({
   const voc = useVocabulario();
   const [citas, setCitas] = useState<readonly CitaPorCobrar[] | null>(citasIniciales ?? null);
   const [servicios, setServicios] = useState<readonly ServicioDeCita[]>(serviciosIniciales ?? []);
-  const [personas, setPersonas] = useState<readonly PersonaDelSalon[]>([
+  const [personas, setPersonas] = useState<readonly (PersonaDelSalon | NombradoDelSalon)[]>([
     ...(profesionalesIniciales ?? []),
     ...(clientesIniciales ?? []),
     ...(catalogoInicial ?? []),
@@ -216,11 +231,11 @@ export function Cobrar({
       // puede costar otro viaje al servidor.
       consultarPuente<ServicioDeCita>('CitaServicio', { limite: 300, ...señal }),
       consultarPuente<PersonaDelSalon>('Profesional', { limite: 60, ...señal }),
-      consultarPuente<PersonaDelSalon>('ProductoTerminado', { limite: 400, ...señal }),
+      consultarPuente<NombradoDelSalon>('ProductoTerminado', { limite: 400, ...señal }),
       // El nombre de la clienta es adorno comparado con el cobro, y su lectura
       // pide un rol más estrecho: si falta, se cobra igual.
-      consultarPuente<PersonaDelSalon>('Cliente', { limite: 400, ...señal }).catch(
-        (): readonly PersonaDelSalon[] => [],
+      consultarPuente<NombradoDelSalon>('Cliente', { limite: 400, ...señal }).catch(
+        (): readonly NombradoDelSalon[] => [],
       ),
     ])
       .then(([filas, lineas, profesionales, catalogo, clientes]) => {
@@ -241,7 +256,12 @@ export function Cobrar({
 
   const nombres = useMemo(() => {
     const mapa = new Map<string, string>();
-    for (const persona of personas) mapa.set(persona.id, persona.nombre ?? 'Sin nombre');
+    for (const persona of personas) {
+      // Los dos nombres, en el mismo mapa: la profesional trae `nombre_completo` y
+      // el cliente o el producto traen `nombre`.
+      const comoSeLlama = 'nombre_completo' in persona ? persona.nombre_completo : persona.nombre;
+      mapa.set(persona.id, comoSeLlama ?? 'Sin nombre');
+    }
     return mapa;
   }, [personas]);
 
