@@ -1,3 +1,9 @@
+export {
+  aplicarPrecioSugerido,
+  entradaPrecioSugerido,
+  type ResultadoPrecioSugerido,
+} from './precio-sugerido.ts';
+
 export { entradaBuscarProductos, listarProductos } from './consulta.ts';
 export { consultarInicioProduccion } from './inicio.ts';
 export type { PaginaProductos, ProductoResumen } from './consulta.ts';

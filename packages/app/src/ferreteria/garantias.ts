@@ -173,7 +173,11 @@ export const recibirGarantia = definirComando<
             referencia_tipo: 'garantia',
             referencia_id: garantia.id,
             empleado_id: empleoId,
-            motivo: `reposición al cliente · ${producto.nombre}`,
+            // La clave va en `motivo` —imputable al PROVEEDOR, que es de donde
+            // sale la reclamación— y el nombre del material en `nota`: la frase
+            // completa en `motivo` reventaba la foránea y con ella la reposición.
+            motivo: 'reposicion_garantia',
+            nota: `reposición al cliente · ${producto.nombre}`,
             created_at: ctx.ahora,
           })
           .execute(),

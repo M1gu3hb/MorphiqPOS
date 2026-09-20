@@ -510,7 +510,10 @@ export interface MovimientosStock {
   referencia_tipo: string | null;
   referencia_id: string | null;
   empleado_id: string | null;
+  /** UNA CLAVE de `motivos_merma`, no una frase (062). Nulo si no hubo merma. */
   motivo: string | null;
+  /** La explicación en palabras. La 172 se la devolvió: ver su cabecera. */
+  nota?: string | null;
   idempotency_key: string | null;
   /** F-156 · El turno al que pertenece. Nulo en lo histórico. */
   sesion_caja_id: string | null;

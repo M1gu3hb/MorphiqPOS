@@ -247,7 +247,11 @@ describe('F-105 · recibir', () => {
 
     // Sin esto, el traspaso cuadra siempre en el papel y nunca en el estante.
     expect(salida.diferencias).toEqual([INSUMO]);
-    expect(base.campo('movimientos_stock', 'motivo')).toBe('Llegó una caja rota');
+    // En `nota`: un traspaso no es una merma, y `motivo` sólo acepta claves de
+    // `motivos_merma`. La explicación de la diferencia no se pierde, cambia de
+    // columna.
+    expect(base.campo('movimientos_stock', 'motivo')).toBeNull();
+    expect(base.campo('movimientos_stock', 'nota')).toBe('Llegó una caja rota');
   });
 
   it('deja el traspaso RECIBIDO con sus dos fechas', async () => {

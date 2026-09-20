@@ -25,7 +25,15 @@ const TOMA = 't1111111-1111-4111-8111-111111111111';
 const INSUMO = 'i1111111-1111-4111-8111-111111111111';
 const CAJA24 = 'p1111111-1111-4111-8111-111111111111';
 const AHORA = new Date('2026-09-15T17:00:00.000Z');
-const MOTIVO = 'Diferencia de conteo físico';
+/**
+ * LA CLAVE, no la etiqueta.
+ *
+ * `movimientos_stock.motivo` apunta a `motivos_merma.clave` desde la 062, y aquí
+ * se usaba la ETIQUETA de la clave `ajuste_conteo`. Contra la base real eso es un
+ * `23503` y el conteo no cierra; contra la base falsa pasaba, porque no tiene
+ * foráneas. Con la clave, la prueba afirma lo que Postgres acepta.
+ */
+const MOTIVO = 'ajuste_conteo';
 
 function tienda(extra: Partial<TablasFalsas> = {}): TablasFalsas {
   return {
@@ -42,6 +50,19 @@ function tienda(extra: Partial<TablasFalsas> = {}): TablasFalsas {
       },
     ],
     insumos: [{ id: INSUMO, organizacion_id: ORG, unidad_base: 'pieza' }],
+    // El motivo se COMPRUEBA contra esta tabla antes de escribir un movimiento:
+    // `movimientos_stock.motivo` tiene foránea a ella desde la 062, y un conteo
+    // de cuatrocientos productos que se aborta en el renglón trescientos por un
+    // motivo mal escrito es una hora de trabajo perdida.
+    motivos_merma: [
+      {
+        clave: 'ajuste_conteo',
+        etiqueta: 'Diferencia de conteo físico',
+        giro: null,
+        imputable: false,
+        activo: true,
+      },
+    ],
     producto_presentaciones: [
       { id: CAJA24, organizacion_id: ORG, factor: '24.0000', activa: true },
     ],
@@ -263,13 +284,20 @@ describe('inventario.cerrar_conteo', () => {
     });
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
 
-    const salida = await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: 'Conteo del martes' });
+    const salida = await cerrarConteo.ejecutar(ctx, {
+      tomaId: TOMA,
+      motivo: 'ajuste_conteo',
+      nota: 'Conteo del martes',
+    });
 
     expect(salida.faltantes).toBe(1);
     expect(base.campo('movimientos_stock', 'cantidad')).toBe('-24.0000');
     expect(base.campo('movimientos_stock', 'tipo')).toBe('ajuste');
     expect(base.campo('movimientos_stock', 'referencia_tipo')).toBe('conteo');
-    expect(base.campo('movimientos_stock', 'motivo')).toBe('Conteo del martes');
+    // La CLAVE en `motivo` y la frase en `nota`: esa columna tiene foránea a
+    // `motivos_merma` y «Conteo del martes» no es una clave.
+    expect(base.campo('movimientos_stock', 'motivo')).toBe('ajuste_conteo');
+    expect(base.campo('movimientos_stock', 'nota')).toBe('Conteo del martes');
   });
 
   it('LO QUE CUADRA NO DEJA RENGLÓN', async () => {
@@ -279,7 +307,7 @@ describe('inventario.cerrar_conteo', () => {
     });
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
 
-    const salida = await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO });
+    const salida = await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO, nota: null });
 
     expect(salida.ajustados).toBe(0);
     expect(base.filas('movimientos_stock')).toEqual([]);
@@ -295,7 +323,7 @@ describe('inventario.cerrar_conteo', () => {
     });
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
 
-    await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO });
+    await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO, nota: null });
 
     expect(base.campo('zonas_anaquel', 'ultimo_conteo_en')).toEqual(AHORA);
     expect(await zonasPendientesDeConteo(base.tx, ORG, SUCURSAL, AHORA)).toEqual([]);
@@ -332,7 +360,7 @@ describe('inventario.cerrar_conteo', () => {
     });
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
 
-    await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO });
+    await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO, nota: null });
 
     expect(base.campo('zonas_anaquel', 'ultimo_conteo_en', 0)).toEqual(AHORA);
     expect(base.campo('zonas_anaquel', 'ultimo_conteo_en', 1)).toEqual(antes);
@@ -347,7 +375,7 @@ describe('inventario.cerrar_conteo', () => {
     });
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
 
-    await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO });
+    await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO, nota: null });
 
     expect(base.campo('zonas_anaquel', 'ultimo_conteo_en')).toEqual(
       new Date('2026-09-01T17:00:00.000Z'),
@@ -361,7 +389,7 @@ describe('inventario.cerrar_conteo', () => {
     });
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
 
-    await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO });
+    await cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO, nota: null });
 
     expect(base.campo('toma_conteos', 'movimiento_ajuste_id')).toBe(
       base.campo('movimientos_stock', 'id'),
@@ -377,9 +405,11 @@ describe('inventario.cerrar_conteo', () => {
     );
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
 
-    expect(await codigoDe(() => cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO }))).toBe(
-      'STOCK_INSUFICIENTE',
-    );
+    expect(
+      await codigoDe(() =>
+        cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO, nota: null }),
+      ),
+    ).toBe('STOCK_INSUFICIENTE');
   });
 
   it('CERRAR DOS VECES no duplica los ajustes', async () => {
@@ -389,9 +419,11 @@ describe('inventario.cerrar_conteo', () => {
     });
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
 
-    expect(await codigoDe(() => cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO }))).toBe(
-      'INVENTARIO_INVALIDO',
-    );
+    expect(
+      await codigoDe(() =>
+        cerrarConteo.ejecutar(ctx, { tomaId: TOMA, motivo: MOTIVO, nota: null }),
+      ),
+    ).toBe('INVENTARIO_INVALIDO');
     expect(base.filas('movimientos_stock')).toEqual([]);
   });
 });

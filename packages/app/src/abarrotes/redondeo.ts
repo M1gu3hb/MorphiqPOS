@@ -249,7 +249,10 @@ async function sacarLaEspecie(
         referencia_tipo: 'redondeo',
         referencia_id: redondeoId,
         empleado_id: ctx.ambito.empleoId,
-        motivo: 'redondeo en especie',
+        // La CLAVE, que la 172 dio de alta. La frase iba a una columna con
+        // foránea a `motivos_merma` y abortaba el redondeo entero.
+        motivo: 'redondeo_especie',
+        nota: 'redondeo entregado en especie',
       })
       .returning('id')
       .executeTakeFirstOrThrow(),

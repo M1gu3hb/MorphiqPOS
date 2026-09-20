@@ -120,7 +120,11 @@ export const registrarMerma = definirComando<
           // La CLAVE del motivo, no la etiqueta. La etiqueta se puede cambiar
           // sin migración; la clave es lo que agrupa el reporte de seis meses.
           referencia_tipo: 'merma',
-          motivo: entrada.nota === undefined ? plan.motivo : `${plan.motivo}: ${entrada.nota}`,
+          // La CLAVE sola. Pegarle la nota con dos puntos la convertía en un
+          // valor que `motivos_merma` no tiene, y la base rechazaba la merma
+          // entera: declarar una merma con nota era imposible.
+          motivo: plan.motivo,
+          nota: entrada.nota ?? null,
           empleado_id: empleoId,
         })
         .returning('id')

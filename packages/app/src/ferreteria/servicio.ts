@@ -201,7 +201,11 @@ async function sacarMaterial(
         referencia_tipo: 'servicio',
         referencia_id: ordenLineaId,
         empleado_id: ctx.ambito.empleoId,
-        motivo: tipo,
+        // SIN MOTIVO DE MERMA: un consumo de servicio no es una merma, y `motivo`
+        // apunta a `motivos_merma`. El tipo de servicio es una explicación, y las
+        // explicaciones van en `nota` desde la 172.
+        motivo: null,
+        nota: tipo,
       })
       .returning('id')
       .executeTakeFirstOrThrow(),

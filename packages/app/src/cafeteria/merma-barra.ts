@@ -6,6 +6,7 @@ import { aDiezmilesimas, deDiezmilesimas, porCantidad } from '@morphiqpos/domain
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { exigirMotivoDeMerma } from '../inventario/motivos.ts';
 
 /**
  * `cafeteria.registrar_merma_barra` y `registrar_calibracion` — F-156.
@@ -231,6 +232,17 @@ async function anotarMerma(
 
   const costoCentavos = porCantidad(insumo.costo, merma.cantidad);
 
+  /**
+   * El motivo, comprobado contra la tabla ADEMÁS del `z.enum` de la entrada.
+   *
+   * Los cuatro de la barra están sembrados, así que esto no rechaza nada hoy. Se
+   * comprueba igual porque la lista del `enum` vive en este archivo y la tabla en
+   * la base: el día que alguien añada un motivo aquí sin su migración, esto lo
+   * dice con el nombre dentro en vez de dejar que la foránea aborte la merma con
+   * un `23503` que el barista lee como «algo falló de nuestro lado».
+   */
+  const motivo = await exigirMotivoDeMerma(ctx, merma.motivo);
+
   await ctx.paso('anotar_movimiento', () =>
     ctx.tx
       .insertInto('movimientos_stock')
@@ -244,7 +256,7 @@ async function anotarMerma(
         unidad: insumo.unidadBase,
         costo_unitario_centavos: insumo.costo,
         referencia_tipo: 'merma_barra',
-        motivo: merma.motivo,
+        motivo,
         empleado_id: empleoId,
         sesion_caja_id: sesion?.id ?? null,
         created_at: ctx.ahora,

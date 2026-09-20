@@ -29,6 +29,15 @@ const AHORA = new Date('2026-09-15T07:05:00.000Z');
 
 function barra(extra: Partial<TablasFalsas> = {}): TablasFalsas {
   return {
+    // Los cuatro motivos de la barra, que el comando comprueba contra la tabla
+    // antes de escribir el movimiento: `movimientos_stock.motivo` tiene foránea a
+    // `motivos_merma` y una frase ahí aborta la merma entera.
+    motivos_merma: [
+      { clave: 'calibracion', etiqueta: 'Calibración del molino', giro: null, activo: true },
+      { clave: 'derrame', etiqueta: 'Derrame o vaso tirado', giro: null, activo: true },
+      { clave: 'bebida_rehecha', etiqueta: 'Bebida rehecha', giro: null, activo: true },
+      { clave: 'vapor_leche', etiqueta: 'Leche sobrante del vapor', giro: null, activo: true },
+    ],
     almacenes: [
       { id: ALMACEN, organizacion_id: ORG, sucursal_id: SUCURSAL, nombre: 'Barra', activo: true },
     ],

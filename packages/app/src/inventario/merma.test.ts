@@ -98,7 +98,7 @@ describe('F-109 · registrar una merma', () => {
     expect(salida.imputable).toBe(true);
   });
 
-  it('pega la nota DETRÁS de la clave, sin sustituirla', async () => {
+  it('guarda la CLAVE en su columna y la nota en la suya', async () => {
     const base = baseDe();
     const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
 
@@ -113,8 +113,12 @@ describe('F-109 · registrar una merma', () => {
       nota: 'La caja se mojó con la lluvia del martes',
     });
 
-    expect(base.campo('movimientos_stock', 'motivo')).toBe(
-      'caducado: La caja se mojó con la lluvia del martes',
+    // LA CLAVE SOLA. Pegarle la nota con dos puntos la convertía en un valor que
+    // `motivos_merma` no tiene, y la base rechazaba la merma entera: declarar una
+    // merma CON nota era imposible, que es justo lo que este caso prueba.
+    expect(base.campo('movimientos_stock', 'motivo')).toBe('caducado');
+    expect(base.campo('movimientos_stock', 'nota')).toBe(
+      'La caja se mojó con la lluvia del martes',
     );
   });
 

@@ -147,7 +147,11 @@ export const abrirProducto = definirComando<
           referencia_tipo: 'apertura_cabina',
           referencia_id: entrada.productoId,
           empleado_id: empleoId,
-          motivo: `apertura para cabina de ${producto.nombre}`,
+          // Abrir un producto para cabina no es una merma: es un traspaso entre
+          // dos almacenes del mismo salón. La frase va en `nota`; en `motivo`
+          // reventaba la foránea a `motivos_merma` y la apertura no se guardaba.
+          motivo: null,
+          nota: `apertura para cabina de ${producto.nombre}`,
           created_at: ctx.ahora,
         })
         .execute(),

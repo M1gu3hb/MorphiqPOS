@@ -13,6 +13,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { exigirMotivoDeMerma } from '../inventario/motivos.ts';
 
 /**
  * F-149 · Conteo cíclico por zona, sobre la toma física de E2 (F-106).
@@ -66,7 +67,16 @@ export const entradaCapturarConteo = z.object({
 
 export const entradaCerrarConteo = z.object({
   tomaId: z.uuid(),
-  motivo: z.string().trim().min(3).max(200).default('Diferencia de conteo físico'),
+  /**
+   * LA CLAVE de `motivos_merma`, no su etiqueta.
+   *
+   * Aquí decía `'Diferencia de conteo físico'` —que es la etiqueta de la clave
+   * `ajuste_conteo`— y `movimientos_stock.motivo` apunta a esa tabla desde la 062:
+   * la base rechazaba el movimiento con `23503` y **el conteo no se podía cerrar**.
+   * La explicación en palabras, si la hay, va en `nota`.
+   */
+  motivo: z.string().trim().min(3).max(60).default('ajuste_conteo'),
+  nota: z.string().trim().max(200).nullable().default(null),
 });
 
 export interface ResultadoAbrirConteo {
@@ -267,6 +277,11 @@ export const cerrarConteo = definirComando<
       throw new ErrorDominio('INVENTARIO_INVALIDO', 'Esa toma ya estaba cerrada.');
     }
 
+    // El motivo, comprobado antes de escribir un solo movimiento: un conteo de
+    // cuatrocientos productos que se aborta en el renglón trescientos por un
+    // motivo mal escrito es una hora de trabajo perdida.
+    const motivo = await exigirMotivoDeMerma(ctx, entrada.motivo);
+
     const diferencias = await ctx.paso('leer_diferencias', () =>
       repoTomas.diferenciasDeToma(ctx.tx, entrada.tomaId),
     );
@@ -291,7 +306,8 @@ export const cerrarConteo = definirComando<
             referencia_tipo: 'conteo',
             referencia_id: entrada.tomaId,
             empleado_id: empleoId,
-            motivo: entrada.motivo,
+            motivo,
+            nota: entrada.nota,
           })
           .returning('id')
           .executeTakeFirstOrThrow(),

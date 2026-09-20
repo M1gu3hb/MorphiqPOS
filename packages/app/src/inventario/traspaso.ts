@@ -119,7 +119,10 @@ export const enviarTraspaso = definirComando<
             referencia_tipo: 'traspaso',
             referencia_id: creado.traspasoId,
             empleado_id: empleoId,
-            motivo: entrada.motivo ?? null,
+            // Un traspaso no es una merma: `motivo` apunta a `motivos_merma` y lo
+            // que el operador escribe es una explicación, no una clave.
+            motivo: null,
+            nota: entrada.motivo ?? null,
           })
           .returning('id')
           .executeTakeFirstOrThrow(),
@@ -217,7 +220,8 @@ export const recibirTraspaso = definirComando<
             referencia_tipo: 'traspaso',
             referencia_id: entrada.traspasoId,
             empleado_id: empleoId,
-            motivo: entrada.motivoDiferencia ?? null,
+            motivo: null,
+            nota: entrada.motivoDiferencia ?? null,
           })
           .returning('id')
           .executeTakeFirstOrThrow(),

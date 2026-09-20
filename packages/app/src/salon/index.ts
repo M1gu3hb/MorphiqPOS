@@ -11,6 +11,8 @@
  * profesional aunque no libere la estación. De ahí sale el 25 %–40 % de
  * capacidad que ningún competidor del segmento aprovecha.
  */
+export { capturarFormula, entradaCapturarFormula, type ResultadoFormula } from './formula.ts';
+
 export {
   agendarCita,
   desdeMultirango,

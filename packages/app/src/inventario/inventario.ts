@@ -6,6 +6,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { definirComando } from '../comando.ts';
+import { exigirMotivoDeMerma } from './motivos.ts';
 
 const ROLES = ['dueno', 'administrador', 'gerente', 'almacen'] as const;
 const id = z.uuid();
@@ -36,7 +37,13 @@ export const entradaAjustarStock = z.object({
   almacenId: id,
   insumoId: id,
   cantidad: cantidadConSigno,
-  motivo: z.string().trim().min(4).max(300),
+  /**
+   * LA CLAVE de `motivos_merma`. Antes era texto libre de hasta 300 caracteres, y
+   * `movimientos_stock.motivo` apunta a esa tabla desde la 062: cualquier frase
+   * abortaba el ajuste con `23503`. Lo que el operador escribe va en `nota`.
+   */
+  motivo: z.string().trim().min(3).max(60).default('ajuste_conteo'),
+  nota: z.string().trim().max(300).nullable().default(null),
 });
 
 export const crearAlmacen = definirComando<
@@ -187,6 +194,10 @@ export const ajustarStock = definirComando<
       entrada.almacenId,
       entrada.insumoId,
     );
+    // El motivo, comprobado ANTES de tocar la existencia: así un motivo que no
+    // existe se contesta con su nombre dentro en vez de abortar la transacción
+    // con un `23503` que el operador lee como «algo falló de nuestro lado».
+    const motivo = await exigirMotivoDeMerma(ctx, entrada.motivo);
     const delta = normalizarSigno(entrada.cantidad);
     await sql`insert into existencias (organizacion_id, almacen_id, insumo_id, cantidad) values (${ctx.ambito.organizacionId}, ${entrada.almacenId}, ${entrada.insumoId}, 0) on conflict (almacen_id, insumo_id) do nothing`.execute(
       ctx.tx,
@@ -214,13 +225,19 @@ export const ajustarStock = definirComando<
           costo_unitario_centavos: referencias.costo_unitario_centavos,
           referencia_tipo: 'manual',
           empleado_id: ctx.ambito.empleoId,
-          motivo: entrada.motivo,
+          motivo,
+          nota: entrada.nota,
         })
         .execute(),
     );
     ctx.auditar({
       entidadId: entrada.insumoId,
-      payload: { almacenId: entrada.almacenId, delta, motivo: entrada.motivo },
+      payload: {
+        almacenId: entrada.almacenId,
+        delta,
+        motivo: entrada.motivo,
+        nota: entrada.nota,
+      },
     });
     return { cantidad: cantidadFinal };
   },
