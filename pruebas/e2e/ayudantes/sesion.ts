@@ -851,6 +851,13 @@ export async function exigirVocabularioDelGiro(
  * `getByRole` reventaba con «strict mode violation». Las dos veces el mensaje
  * habría mandado a arreglar `getCurrentPackage`, que no tenía nada que ver.
  *
+ * ── Y por qué el título es un parámetro ────────────────────────────────────
+ * Porque los cinco tableros no saludan igual. Cuatro abren con «Buen día» —el del
+ * heredado y los tres que se le parecen— y el del salón abre diciendo cómo va,
+ * porque no es la pantalla de inicio de nadie: vive dentro de reportes y se abre
+ * dos veces al día. Lo que no cambia es la RELACIÓN, que es lo que este ayudante
+ * sabe: las acciones son el hermano siguiente del bloque del `h1`.
+ *
  * ── Por qué así y no por clase ─────────────────────────────────────────────
  * `PageHeader` no pinta ningún landmark: es un `div` con el título en un hijo y
  * las acciones en el siguiente. No hay rol al que agarrarse y las clases están
@@ -858,9 +865,9 @@ export async function exigirVocabularioDelGiro(
  * navega por la RELACIÓN, que es la que de verdad significa «las acciones de
  * este título»: el hermano siguiente del bloque que contiene el `h1`.
  */
-export function accionesDelTablero(page: Page): Locator {
+export function accionesDelTablero(page: Page, titulo = 'Buen día'): Locator {
   return page
-    .getByRole('heading', { level: 1, name: 'Buen día' })
+    .getByRole('heading', { level: 1, name: titulo })
     .locator('xpath=../following-sibling::div[1]');
 }
 

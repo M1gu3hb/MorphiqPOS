@@ -129,7 +129,7 @@ describe('F-017 · personalización por negocio', () => {
   });
 });
 
-describe('F-017 · las dos formas que las 61 pantallas necesitan (E2.4)', () => {
+describe('F-017 · las dos formas que las pantallas necesitan (E2.4)', () => {
   it('`titulo` da el sustantivo solo, con mayúscula y sin artículo', () => {
     // Es la forma de un encabezado y de una pestaña, y el 60 % de lo que se ve.
     expect(crearVocabulario('restaurante').titulo('unidad_servicio', true)).toBe('Mesas');

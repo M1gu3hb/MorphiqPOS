@@ -3589,3 +3589,135 @@ elegido. Ahora salen del diccionario: una cafetería con barra lee «el QR de la
 Bloque 3 **cerrado**, con sus dos puertas. Lo siguiente es el **bloque 4** —T-10 tableros y T-11 el
 vocabulario dentro de las pantallas— y después el **bloque 5**: producción, el CI verde en la punta y
 `pnpm verify` entero.
+
+---
+
+## 20-09-2026 · BLOQUE 4 · los cinco tableros, y el que no lo es
+
+### 1 · El defecto, en una línea
+
+`/` servía el MISMO tablero a los cinco negocios: el `Dashboard` de `heredado/`, construido para
+Restaurante MH. No era un tablero genérico — **era el de otro negocio**. Sus nueve indicadores son los
+de una cena, y dos de sus tarjetas están prohibidas con nombre y apellido en tres de las cinco
+carpetas: el ticket promedio, que «se mueve por azar y no dispara nada», y la dona de métodos de pago,
+que «ocupa más y contesta menos que una lista en 390 px».
+
+La plantilla se lee en el SERVIDOR, de la sesión, así que con el HTML baja ya el tablero que toca: sin
+parpadeo y sin que el navegador tenga que preguntar quién es.
+
+### 2 · Qué mira cada uno, y qué mira PRIMERO
+
+El orden no es decoración: es la única cosa que un tablero afirma sin palabras.
+
+| Modelo | Nº | Primero, y por qué |
+|---|---|---|
+| **tienda** | 7 | La venta del día contra el MISMO DÍA de la semana pasada, nunca contra ayer |
+| **ferretería** | 8 | **La cartera.** «La pérdida que no admite vuelta atrás»: una tiendita fía cien pesos al vecino; una ferretería, ciento veinte mil a una obra |
+| **cafetería** | 14 | **La ráfaga, 07:00 a 10:30.** «A las ocho de la mañana nadie mira el dashboard» |
+| **estética** | 8 | **La ocupación de MAÑANA**, y no en `/`: dentro de Reportes |
+| **restaurante** | 9 | El heredado se queda, porque el heredado ES el suyo |
+
+Y las prohibiciones se afirman en las suites: cada una exige sus rótulos **y la ausencia** de «Ticket
+promedio», «Costo de ventas» y «Utilidad bruta». Sin la segunda mitad, volver a servir el heredado
+pasaría la prueba.
+
+### 3 · El de la estética, que empieza por lo único que todavía se puede cambiar
+
+Los ocho de su §4.4.2, en su orden. El primero ocupa el ancho completo y **no es un número**:
+
+```
+MAÑANA · domingo 21              68 %
+                                 Karla  ████████░░ 86 %
+HUECOS   11:00 Karla 60 min      Dany   █████░░░░░ 52 %
+         15:30 Dany  90 min
+         valor del tiempo libre  ~$2,180
+De la lista de espera:  Lucía M. · Andrea T.     Sin confirmar · 4
+```
+
+«Un indicador que sólo dijera 68 % sería un adorno; lo que lo hace indicador es lo que tiene debajo.»
+Los huecos salen de `calcularHuecos`, que ya sabía que **el procesado no ocupa a nadie** —el tinte que
+asienta deja libre el tramo donde cabe un corte— y el valor de cada hueco se estima al ritmo de ESA
+persona, porque el hueco de quien hace tintes vale el triple que el de quien hace cortes.
+
+Los otros siete, con la decisión que disparan:
+
+| # | Indicador | Decisión |
+|---|---|---|
+| 2 | Se están yendo · quién pasó SU ciclo, y cuánto vale esa cartera al mes | A quién le hablo esta semana |
+| 3 | No llegaron, 30 días · con la REFERENCIA del giro (15–20 % sin nada; menos de 8 % con recordatorio y anticipo) | A quién le pido anticipo |
+| 4 | Ocupación por profesional, 7 días | A quién le paso trabajo, a quién capacito |
+| 5 | Lo cobrado hoy contra el mismo día de la semana pasada, con la mezcla de servicio y producto | Voy bien o voy mal, de verdad |
+| 6 | Producto por profesional | A quién capacito en recomendar |
+| 7 | Lo que le quedó al salón, mes corrido, **CON LA COMISIÓN RESTADA** | Puedo contratar, puedo subir precios |
+| 8 | Propina pendiente de entregar, y desde cuándo | Cuánto saco del cajón esta semana |
+
+Tres cuentas que se hicieron como pide la carpeta y no como salía más corto:
+
+- **El ciclo es el de cada clienta**, no un umbral del salón: «una de tinte cada cinco semanas y una de
+  corte cada cuatro meses no se atrasan igual». La aritmética ya vivía en `agenda.por_volver` y se
+  SACÓ del comando para que el tablero la comparta en vez de copiarla.
+- **La comisión se resta siempre.** Un margen bruto sin comisión diría 78 % donde hay 28 %, y sobre ese
+  78 % se contrata gente que no se puede pagar.
+- **La propina más vieja se busca por orden de llegada**, no como la primera que entró nunca: es la
+  primera que lo ya entregado todavía no cubre. Sin eso, un salón que paga cada semana enseñaría «la
+  más vieja: 400 días» para siempre y el aviso dejaría de significar algo.
+
+Y lo que NO está, porque su §4.4.3 lo prohíbe: el **ranking del equipo por lo que vende cada quien**.
+«Suena útil y es tóxico»: con carteras y esquemas distintos compara peras con manzanas y produce
+resentimiento. Lo que va es la ocupación, que mide el uso del recurso y no a la persona — así que el
+comando **no sirve ni un peso por persona**, aunque el reporte de ocupación del que lee sí lo trae.
+
+### 4 · Y el inicio de una estética no es un tablero: es su AGENDA
+
+Es la única de las cinco en la que `/` no lleva a un tablero, y su carpeta le dedica una sección
+entera. Dos razones y media:
+
+1. **La hora.** «A las 9:45 de la mañana, casi todos los indicadores de un dashboard son adornos»:
+   «vendiste $12,400 ayer» es información sobre un día que ya no se puede cambiar.
+2. **La frecuencia.** La pantalla de inicio se abre de cuarenta a ochenta veces al día, por todo el
+   mundo, para la misma pregunta: «¿quién sigue?». El tablero se abre dos veces.
+3. Y la media: su tablero **mira hacia adelante**, así que es en el fondo una lectura de la agenda.
+   Ponerlo antes sería poner el resumen antes que el documento.
+
+Se SIRVE en `/` en vez de redirigir a `/estetica-salon/agenda-del-dia`, y eso no es pereza: ese grupo
+de rutas no monta el `AppLayout` del heredado, así que un redirect dejaría a la dueña en la única
+pantalla del sistema **sin barra lateral**, y `/` es de donde cuelga el menú entero. El primer intento
+fue el redirect y la suite lo cazó en el paso 2: «no se encontró el menú lateral».
+
+### 5 · La puerta del bloque 3 cazó mi propio tablero, y es para lo que existe
+
+Con el tablero de la cafetería recién escrito y su suite en verde, `verify:acople` dijo:
+
+```
+· VOCABULARIO: 1 pantalla(s) usan la palabra de OTRO giro para algo que su propio
+  diccionario nombra distinto:
+    cafeteria/Tablero.tsx:211  «Venta»  Venta de la ráfaga  · tienda llama así a «orden»;
+                                                              aquí es «cuenta»
+· VOCABULARIO: 3 pantalla(s) escriben a mano una palabra que el diccionario de su giro ya dice:
+    cafeteria/Tablero.tsx:193  «barra»  Ver la barra
+    cafeteria/Tablero.tsx:410  «barra»  Merma de barra del turno
+    cafeteria/Tablero.tsx:277  «barra»  El cajón está en la barra, a la vista de la calle.
+```
+
+Cuatro renglones, uno de ellos el rótulo del indicador ESTRELLA de ese modelo. Las tres «barra» salen
+ahora del diccionario —el día que una dueña llame «isla» a su barra, cambian solas— y el rótulo dejó de
+pedirle prestado el sustantivo a la tiendita: lo que ese indicador mide no es la entidad, es el dinero
+de la franja, y ahora se llama **«Lo cobrado en la ráfaga»**.
+
+El tablero de la estética se escribió con eso ya sabido, y por eso ni una de sus ocho tarjetas teclea
+«cita», «clienta», «servicio» ni «producto»: las cuatro salen del diccionario.
+
+### 6 · Lo que se compartió en vez de copiarse
+
+| Pieza | Quién la usa | Por qué no una copia |
+|---|---|---|
+| `reportes/piezas.ts` · venta del día, margen, qué pedir | tienda · ferretería | «La venta de hoy contra el mismo día de la semana pasada» es la misma aritmética en las dos. Dos copias de una cuenta de dinero es cómo una se queda atrás |
+| `salon/consultas.ts` · la ocupación de un rango | el tablero, dos veces: mañana y los últimos siete días | Mide contra SU horario y no contra el día natural. Una copia que lo olvidara diría que sobra gente cuando falta |
+| `salon/consultas.ts` · quién pasó su ciclo | `agenda.por_volver` y el tablero | La comparación es contra el ritmo de cada clienta. Dos reglas habrían metido en la misma lista a la de tinte y a la de corte |
+| `salon/consultas.ts` · los huecos de un día | el tablero | El corte es la medianoche del día que se pregunta, no «ahora»: se mira un día que todavía no empieza |
+
+### EN QUÉ IBA
+
+Bloque 4 **cerrado**: los cinco tableros en pie, las cinco suites verdes, `verify:acople` sin una sola
+pendiente de vocabulario y `pnpm test:unit` en 2820. Lo siguiente es el **bloque 5**: `pnpm verify`
+entero, el CI verde en la punta y el informe con las ocho condiciones de TERMINADO.

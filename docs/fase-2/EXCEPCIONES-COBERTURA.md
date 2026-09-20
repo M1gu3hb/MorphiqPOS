@@ -70,7 +70,7 @@ imposible.)*
 
 ### PANTALLAS SIN MENÚ
 
-`verify:acople` exige que las 61 pantallas de los cinco modelos cuelguen del menú de **alguna**
+`verify:acople` exige que las pantallas de los cinco modelos cuelguen del menú de **alguna**
 plantilla. No hace falta que estén en las cinco —el mapa de mesas no es de una ferretería— pero sí
 que exista un negocio desde el que se pueda LLEGAR. Se puso esa comprobación porque hasta el
 17-09-2026 no colgaba **ninguna**: las 61 respondían y sólo se abrían tecleando la URL.

@@ -1017,6 +1017,53 @@ Estado vacío ...... "Todavía no tienes clientas registradas" + el consejo:
 NO va aquí ........ facturación, saldos, fiado. No existe aquí
 ```
 
+### 4.3.13 · REPORTES · donde vive el dashboard
+
+```
+Propósito ......... las dos veces al día en que se mira el negocio entero:
+                    a las 9:45, después de leer la agenda, y a las 21:00
+                    con el corte
+Frecuencia ........ 2 veces al día · sólo dirección
+Acción principal .. ninguna: se mira y se decide. Las dos que lleva son
+                    ENLACES —a la agenda y a la liquidación— porque toda
+                    acción de este modelo se ejecuta en otra pantalla
+Primero se ve ..... la OCUPACIÓN DE MAÑANA, a todo lo ancho y con el número
+                    más grande de la pantalla
+Jerarquía ......... 1 mañana, con sus huecos y su lista de espera ·
+                    2 quién se está yendo · 3 el no-show con su referencia ·
+                    4 la ocupación de la semana · 5 lo cobrado hoy ·
+                    6 producto por profesional · 7 lo que le quedó al salón ·
+                    8 la propina que se debe
+```
+
+**Es la pantalla que esta carpeta decidió NO poner en el inicio**, y §4.4.1 da las tres razones. El
+contenido —los ocho indicadores, en ese orden, con la decisión que dispara cada uno y las seis cosas
+que están prohibidas en él— es todo el §4.4 y no se repite aquí.
+
+Lo que sí es de esta ficha, porque es de la PANTALLA y no de los indicadores:
+
+```
+Tablet ............ una columna. El indicador de mañana ocupa el primer
+                    pantallazo completo, que es lo que se mira a las 9:45
+Teléfono .......... igual, y es el caso real: la dueña lo abre el lunes,
+                    que está cerrado
+PC ................ dos columnas de tarjetas debajo del de mañana, que
+                    siempre va a todo lo ancho
+Estado vacío ...... un salón recién dado de alta no tiene con qué comparar:
+                    cada tarjeta dice por qué está en cero —"el mismo día de
+                    la semana pasada no hubo con qué comparar", "mañana no
+                    hay nadie con horario"— en vez de pintar un 0 %
+NO va aquí ........ el ranking del equipo por lo que vende cada quien, el
+                    ticket promedio del salón y el total histórico. Están
+                    prohibidos en §4.4.3, con su razón
+```
+
+**Cero entre cero no es cero por ciento.** El día que el salón cierra —el lunes— nadie tiene horario,
+y la ocupación de mañana no es 0 %: es una pregunta sin denominador. La pantalla enseña un guión y
+dice "el salón cierra", porque un 0 % ahí manda a llenar una agenda que no existe.
+
+---
+
 ---
 
 ## 4.4 · EL DASHBOARD

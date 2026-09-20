@@ -14,7 +14,7 @@ import { crearVocabulario } from './vocabulario.ts';
  * cualquier cosa—, así que añadir un giro en `ambito.ts` y olvidar su
  * diccionario COMPILA, pasa el typecheck y no rompe ninguna pantalla. Lo que
  * hace es peor: el negocio nuevo cae al vocabulario BASE y dice «unidad»,
- * «orden» y «cliente» en las 61 pantallas. Nadie lo reporta como defecto; sólo
+ * «orden» y «cliente» en todas las pantallas. Nadie lo reporta como defecto; sólo
  * se siente prestado. `farmacia` está hoy en los dos lados por disciplina, no
  * por una regla.
  *

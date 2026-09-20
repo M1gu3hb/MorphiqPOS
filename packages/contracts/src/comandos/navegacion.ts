@@ -525,6 +525,22 @@ const ESTETICA: readonly EntradaDeMenu[] = [
     permiso: 'ver_productos',
     entidad: 'producto',
   },
+  /**
+   * Y el TABLERO, que en este modelo vive aquí dentro y no en la raíz.
+   *
+   * Los otros cuatro modelos sirven su tablero en `/`. Este no: su carpeta dedica
+   * una seccion a defender que «a las 9:45 de la manana, casi todos los indicadores
+   * de un dashboard son adornos» y que lo unico que a esa hora todavia cambia el dia
+   * esta en la AGENDA — que es su `INICIO_POR_PLANTILLA`. El tablero se abre dos
+   * veces al dia, asi que cuelga de una entrada de menu como cualquier reporte.
+   */
+  {
+    ruta: '/estetica-salon/reportes',
+    etiqueta: 'Reportes',
+    icono: 'FileSpreadsheet',
+    modulo: 'reportes_operativos',
+    permiso: 'ver_registros',
+  },
 ];
 
 /**

@@ -44,7 +44,7 @@ export interface Vocabulario {
    * mayúscula y SIN artículo.
    *
    * Es la forma de un encabezado y de una pestaña —«Mesas», «Materiales»,
-   * «Clientas»— y es el 60 % de lo que se ve en las 61 pantallas. Sin esto cada
+   * «Clientas»— y es el 60 % de lo que se ve en las pantallas. Sin esto cada
    * una escribía su propia mayúscula a mano.
    */
   readonly titulo: (entidad: Entidad, plural?: boolean) => string;

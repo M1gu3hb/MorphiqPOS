@@ -304,6 +304,32 @@ export const huecosDisponibles = definirComando<Transaccion, typeof entradaHueco
   },
 );
 
+/**
+ * LOS HUECOS DE UN DÍA ENTERO, para quien no viene a agendar sino a decidir.
+ *
+ * El tablero de la estética los pide para MAÑANA, y no es lo mismo que
+ * `agenda.proximos_huecos`: aquél ofrece desde AHORA porque quien lo mira está
+ * con el teléfono en la mano, y a las 20:40 ya no quedaría ninguno del día
+ * siguiente por debajo del corte. Aquí el corte es la medianoche del día que se
+ * pregunta: se está mirando un día que todavía no empieza.
+ */
+export async function huecosDelDia(
+  ctx: ContextoComando<Transaccion>,
+  fecha: string,
+  minutos: number,
+): Promise<readonly HuecoOfrecido[]> {
+  const { desde, hasta } = await limitesDelDia(ctx, fecha);
+  const huecos = await calcularHuecos(ctx, {
+    corte: desde,
+    primerDia: fecha,
+    inicioPrimerDia: desde,
+    hasta,
+    minutos,
+    profesionalId: null,
+  });
+  return [...huecos].sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime());
+}
+
 export const proximosHuecos = definirComando<
   Transaccion,
   typeof entradaProximosHuecos,
@@ -351,92 +377,108 @@ export const clientesPorVolver = definirComando<
   paquetes: PAQUETES_TODOS,
   entrada: entradaPorVolver,
   async ejecutar(ctx, entrada) {
-    const { organizacionId } = ctx.ambito;
-
-    // Sólo las que DECLARARON cada cuánto vuelven. Sin `frecuencia_dias` no hay
-    // a qué comparar: una clienta de tinte cada cinco semanas y una de corte
-    // cada cuatro meses no «se atrasan» igual, y un umbral único las mete a las
-    // dos en la misma lista equivocada.
-    const expedientes = await ctx.paso('leer_expedientes', () =>
-      ctx.tx
-        .selectFrom('expedientes_belleza')
-        .select(['cliente_id', 'frecuencia_dias'])
-        .where('organizacion_id', '=', organizacionId)
-        .where('frecuencia_dias', 'is not', null)
-        .execute(),
-    );
-    if (expedientes.length === 0) return { clientas: [] };
-
-    // La ventana acota la consulta Y dice algo: quien lleva dos años sin venir
-    // no está «por volver», se fue. Meterla en la lista de llamadas del martes
-    // la vuelve una lista que nadie termina, y entonces nadie la usa.
-    const ventana = new Date(ctx.ahora.getTime() - VENTANA_POR_VOLVER_DIAS * MS_POR_DIA);
-    const visitas = await ctx.paso('leer_visitas', () =>
-      ctx.tx
-        .selectFrom('citas')
-        .select(['cliente_id', 'agendada_para'])
-        .where('organizacion_id', '=', organizacionId)
-        .where('estado', '=', 'cobrada')
-        .where('agendada_para', '>=', ventana)
-        .execute(),
-    );
-
-    // El máximo por clienta se hace aquí y no con un `group by`: un salón tiene
-    // cientos de clientas con expediente, no cientos de miles, y tener la
-    // aritmética de «cuánto lleva sin venir» en un solo sitio es lo que hace
-    // que la lista y la ficha de la clienta no digan cosas distintas.
-    const ultimaPorClienta = new Map<string, Date>();
-    for (const visita of visitas) {
-      if (visita.cliente_id === null) continue;
-      const previa = ultimaPorClienta.get(visita.cliente_id);
-      if (previa === undefined || visita.agendada_para.getTime() > previa.getTime()) {
-        ultimaPorClienta.set(visita.cliente_id, visita.agendada_para);
-      }
-    }
-
-    const fichas = await ctx.paso('leer_fichas', () =>
-      ctx.tx
-        .selectFrom('clientes')
-        .select(['id', 'nombre', 'telefono'])
-        .where('organizacion_id', '=', organizacionId)
-        .execute(),
-    );
-    const nombrePorId = new Map(fichas.map((f) => [f.id, f]));
-
-    const clientas: ClientaPorVolver[] = [];
-    for (const expediente of expedientes) {
-      const frecuencia = expediente.frecuencia_dias;
-      if (frecuencia === null) continue;
-      const ultima = ultimaPorClienta.get(expediente.cliente_id);
-      // Sin visita cobrada dentro de la ventana no se llama: puede no haber
-      // venido nunca, y «vuelve, que te toca» a quien no ha venido jamás es la
-      // llamada que hace que el salón apague la función.
-      if (ultima === undefined) continue;
-
-      const diasDesde = Math.floor((ctx.ahora.getTime() - ultima.getTime()) / MS_POR_DIA);
-      const diasDeRetraso = diasDesde - frecuencia;
-      // La holgura evita llamar a quien lleva un día de retraso: una lista que
-      // incluye a media cartera no se usa, y entonces no sirve de nada.
-      if (diasDeRetraso < entrada.holguraDias) continue;
-
-      const ficha = nombrePorId.get(expediente.cliente_id);
-      clientas.push({
-        clienteId: expediente.cliente_id,
-        nombre: ficha?.nombre ?? 'Sin nombre',
-        telefono: ficha?.telefono ?? null,
-        ultimaVisita: ultima.toISOString(),
-        diasDesde,
-        frecuenciaDias: frecuencia,
-        diasDeRetraso,
-      });
-    }
-
-    // Por retraso descendente: a quien lleva más tiempo sin volver es a quien
-    // se está a punto de perder, y la llamada del martes son diez, no cien.
-    clientas.sort((a, b) => b.diasDeRetraso - a.diasDeRetraso);
-    return { clientas: clientas.slice(0, entrada.limite) };
+    return { clientas: await porVolverDeLaCartera(ctx, entrada) };
   },
 });
+
+/**
+ * QUIÉNES SE ESTÁN YENDO, fuera del comando, porque el tablero también pregunta.
+ *
+ * Es el indicador de mejor rendimiento por segundo de atención del tablero de la
+ * estética —su §4.4.2 lo pone en segundo lugar— y tenía que salir de aquí: la
+ * comparación es contra EL RITMO DE CADA CLIENTA y no contra un umbral único, y
+ * una segunda copia de esa regla habría metido en la lista de llamadas del martes
+ * a la clienta de tinte cada cinco semanas junto con la de corte cada cuatro meses.
+ */
+export async function porVolverDeLaCartera(
+  ctx: ContextoComando<Transaccion>,
+  opciones: { readonly holguraDias: number; readonly limite: number },
+): Promise<readonly ClientaPorVolver[]> {
+  const { organizacionId } = ctx.ambito;
+
+  // Sólo las que DECLARARON cada cuánto vuelven. Sin `frecuencia_dias` no hay
+  // a qué comparar: una clienta de tinte cada cinco semanas y una de corte
+  // cada cuatro meses no «se atrasan» igual, y un umbral único las mete a las
+  // dos en la misma lista equivocada.
+  const expedientes = await ctx.paso('leer_expedientes', () =>
+    ctx.tx
+      .selectFrom('expedientes_belleza')
+      .select(['cliente_id', 'frecuencia_dias'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('frecuencia_dias', 'is not', null)
+      .execute(),
+  );
+  if (expedientes.length === 0) return [];
+
+  // La ventana acota la consulta Y dice algo: quien lleva dos años sin venir
+  // no está «por volver», se fue. Meterla en la lista de llamadas del martes
+  // la vuelve una lista que nadie termina, y entonces nadie la usa.
+  const ventana = new Date(ctx.ahora.getTime() - VENTANA_POR_VOLVER_DIAS * MS_POR_DIA);
+  const visitas = await ctx.paso('leer_visitas', () =>
+    ctx.tx
+      .selectFrom('citas')
+      .select(['cliente_id', 'agendada_para'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('estado', '=', 'cobrada')
+      .where('agendada_para', '>=', ventana)
+      .execute(),
+  );
+
+  // El máximo por clienta se hace aquí y no con un `group by`: un salón tiene
+  // cientos de clientas con expediente, no cientos de miles, y tener la
+  // aritmética de «cuánto lleva sin venir» en un solo sitio es lo que hace
+  // que la lista y la ficha de la clienta no digan cosas distintas.
+  const ultimaPorClienta = new Map<string, Date>();
+  for (const visita of visitas) {
+    if (visita.cliente_id === null) continue;
+    const previa = ultimaPorClienta.get(visita.cliente_id);
+    if (previa === undefined || visita.agendada_para.getTime() > previa.getTime()) {
+      ultimaPorClienta.set(visita.cliente_id, visita.agendada_para);
+    }
+  }
+
+  const fichas = await ctx.paso('leer_fichas', () =>
+    ctx.tx
+      .selectFrom('clientes')
+      .select(['id', 'nombre', 'telefono'])
+      .where('organizacion_id', '=', organizacionId)
+      .execute(),
+  );
+  const nombrePorId = new Map(fichas.map((f) => [f.id, f]));
+
+  const clientas: ClientaPorVolver[] = [];
+  for (const expediente of expedientes) {
+    const frecuencia = expediente.frecuencia_dias;
+    if (frecuencia === null) continue;
+    const ultima = ultimaPorClienta.get(expediente.cliente_id);
+    // Sin visita cobrada dentro de la ventana no se llama: puede no haber
+    // venido nunca, y «vuelve, que te toca» a quien no ha venido jamás es la
+    // llamada que hace que el salón apague la función.
+    if (ultima === undefined) continue;
+
+    const diasDesde = Math.floor((ctx.ahora.getTime() - ultima.getTime()) / MS_POR_DIA);
+    const diasDeRetraso = diasDesde - frecuencia;
+    // La holgura evita llamar a quien lleva un día de retraso: una lista que
+    // incluye a media cartera no se usa, y entonces no sirve de nada.
+    if (diasDeRetraso < opciones.holguraDias) continue;
+
+    const ficha = nombrePorId.get(expediente.cliente_id);
+    clientas.push({
+      clienteId: expediente.cliente_id,
+      nombre: ficha?.nombre ?? 'Sin nombre',
+      telefono: ficha?.telefono ?? null,
+      ultimaVisita: ultima.toISOString(),
+      diasDesde,
+      frecuenciaDias: frecuencia,
+      diasDeRetraso,
+    });
+  }
+
+  // Por retraso descendente: a quien lleva más tiempo sin volver es a quien
+  // se está a punto de perder, y la llamada del martes son diez, no cien.
+  clientas.sort((a, b) => b.diasDeRetraso - a.diasDeRetraso);
+  return clientas.slice(0, opciones.limite);
+}
 
 export const reporteDeOcupacion = definirComando<
   Transaccion,
@@ -450,52 +492,70 @@ export const reporteDeOcupacion = definirComando<
   paquetes: PAQUETES_TODOS,
   entrada: entradaReporteAgenda,
   async ejecutar(ctx, entrada) {
-    // En la zona del negocio: un reporte de ocupación con el día en UTC mide seis
-    // horas de otro día en México.
-    const { desde } = await limitesDelDia(ctx, entrada.desde);
-    const { desde: hasta } = await limitesDelDia(ctx, entrada.hasta);
-    const dias = diasDelRango(entrada.desde, desde, hasta);
-
-    const profesionales = await leerProfesionales(ctx, null);
-    const servicios = await leerServiciosEntre(ctx, desde, hasta, null);
-    const horarios = await leerHorarios(ctx, null);
-
-    const resumen = profesionales.map((profesional) => {
-      const suyas = servicios.filter((s) => s.profesional_id === profesional.id);
-      const activos = suyas.flatMap((s) => desdeMultirango(s.rango_activo));
-      const minutosOcupados = minutosDe(activos);
-
-      // El denominador es SU horario, no el día natural. Quien trabaja de dos a
-      // ocho y llena seis horas está al 100 %, no al 25 %: el reporte que lo
-      // mide contra las veinticuatro dice que sobra gente cuando falta.
-      let minutosDisponibles = 0;
-      for (const dia of dias) {
-        minutosDisponibles += minutosDe(
-          ventanasDelDia(horarios, profesional.id, dia.fecha, dia.inicio).map((v) => ({
-            inicio: v.inicio,
-            fin: v.fin,
-          })),
-        );
-      }
-
-      const vendido = suyas.reduce((suma, s) => suma + s.precio_centavos, 0n);
-      return {
-        profesionalId: profesional.id,
-        nombreCorto: profesional.nombre_corto,
-        minutosDisponibles,
-        minutosOcupados,
-        ocupacionBp:
-          minutosDisponibles === 0
-            ? 0
-            : Math.round((minutosOcupados * 10_000) / minutosDisponibles),
-        citas: suyas.length,
-        vendidoCentavos: vendido.toString(),
-      };
-    });
-
-    return { desde: entrada.desde, hasta: entrada.hasta, profesionales: resumen };
+    return ocupacionEntre(ctx, entrada.desde, entrada.hasta);
   },
 });
+
+/**
+ * LA OCUPACIÓN DE UN RANGO, fuera del comando, porque la lee alguien más.
+ *
+ * El tablero de la estética la necesita DOS VECES —la de mañana, que es su
+ * indicador estrella, y la de los últimos siete días por profesional— y copiar
+ * esta aritmética allá habría dejado dos respuestas para «¿cuánto está ocupada
+ * Karla?». La del reporte mide contra SU horario y no contra el día natural; una
+ * copia que se olvidara de eso diría que sobra gente cuando falta.
+ *
+ * `hasta` es EXCLUSIVO, igual que en el comando: un rango de un día va de la
+ * fecha a la siguiente.
+ */
+export async function ocupacionEntre(
+  ctx: ContextoComando<Transaccion>,
+  desdeFecha: string,
+  hastaFecha: string,
+): Promise<ResultadoOcupacion> {
+  // En la zona del negocio: un reporte de ocupación con el día en UTC mide seis
+  // horas de otro día en México.
+  const { desde } = await limitesDelDia(ctx, desdeFecha);
+  const { desde: hasta } = await limitesDelDia(ctx, hastaFecha);
+  const dias = diasDelRango(desdeFecha, desde, hasta);
+
+  const profesionales = await leerProfesionales(ctx, null);
+  const servicios = await leerServiciosEntre(ctx, desde, hasta, null);
+  const horarios = await leerHorarios(ctx, null);
+
+  const resumen = profesionales.map((profesional) => {
+    const suyas = servicios.filter((s) => s.profesional_id === profesional.id);
+    const activos = suyas.flatMap((s) => desdeMultirango(s.rango_activo));
+    const minutosOcupados = minutosDe(activos);
+
+    // El denominador es SU horario, no el día natural. Quien trabaja de dos a
+    // ocho y llena seis horas está al 100 %, no al 25 %: el reporte que lo
+    // mide contra las veinticuatro dice que sobra gente cuando falta.
+    let minutosDisponibles = 0;
+    for (const dia of dias) {
+      minutosDisponibles += minutosDe(
+        ventanasDelDia(horarios, profesional.id, dia.fecha, dia.inicio).map((v) => ({
+          inicio: v.inicio,
+          fin: v.fin,
+        })),
+      );
+    }
+
+    const vendido = suyas.reduce((suma, s) => suma + s.precio_centavos, 0n);
+    return {
+      profesionalId: profesional.id,
+      nombreCorto: profesional.nombre_corto,
+      minutosDisponibles,
+      minutosOcupados,
+      ocupacionBp:
+        minutosDisponibles === 0 ? 0 : Math.round((minutosOcupados * 10_000) / minutosDisponibles),
+      citas: suyas.length,
+      vendidoCentavos: vendido.toString(),
+    };
+  });
+
+  return { desde: desdeFecha, hasta: hastaFecha, profesionales: resumen };
+}
 
 export const reporteDeHuecos = definirComando<
   Transaccion,
@@ -565,7 +625,7 @@ export const reporteDeHuecos = definirComando<
 });
 
 /** Media hora: por debajo de eso no cabe ningún servicio del catálogo típico. */
-const MINIMO_VENDIBLE_MIN = 30;
+export const MINIMO_VENDIBLE_MIN = 30;
 
 /** Dos años. Más allá la clienta no está «por volver»: se fue. */
 const VENTANA_POR_VOLVER_DIAS = 730;
@@ -625,7 +685,7 @@ interface FilaHorario {
  *
  * `dias` es cuántos días cubre: 1 para la rejilla de un día, más para un reporte.
  */
-async function limitesDelDia(
+export async function limitesDelDia(
   ctx: ContextoComando<Transaccion>,
   fecha: string,
   dias = 1,
@@ -650,7 +710,7 @@ async function limitesDelDia(
 }
 
 /** La misma fecha, `n` días después. En texto, que es como el negocio la nombra. */
-function sumarDias(fecha: string, n: number): string {
+export function sumarDias(fecha: string, n: number): string {
   // Al mediodía y en UTC para que sumar días no cruce ningún cambio de horario.
   const cuando = new Date(`${fecha}T12:00:00Z`);
   cuando.setUTCDate(cuando.getUTCDate() + n);
@@ -681,7 +741,10 @@ function diasDelRango(
 }
 
 /** La fecha que el negocio llamaría «hoy» para un instante dado. */
-async function fechaDelNegocio(ctx: ContextoComando<Transaccion>, cuando: Date): Promise<string> {
+export async function fechaDelNegocio(
+  ctx: ContextoComando<Transaccion>,
+  cuando: Date,
+): Promise<string> {
   const filas = await ctx.paso('fecha_del_negocio', () =>
     sql<{ fecha: string }>`
       select to_char((${cuando.toISOString()}::timestamptz at time zone o.zona_horaria)::date,

@@ -117,7 +117,11 @@ describe('el menú que el dueño lee', () => {
       cafeteria: 11,
       restaurante: 11,
       ferreteria: 12,
-      estetica: 12,
+      // TRECE desde el 20-09-2026: la estética estrenó su TABLERO, y en este modelo
+      // no vive en `/` como en los otros cuatro. Su §4.4.1 defiende que su inicio es
+      // la agenda —«a las 9:45 de la mañana, casi todos los indicadores de un
+      // dashboard son adornos»— así que el tablero cuelga de una entrada de menú.
+      estetica: 13,
     };
     for (const plantilla of PLANTILLAS) {
       const delModelo = navegacionDePlantilla(plantilla).filter((e) =>

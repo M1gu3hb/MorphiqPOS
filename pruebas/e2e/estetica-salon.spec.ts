@@ -47,10 +47,12 @@ import {
  *     este modelo, y es lo que heredan los ONCE modelos de «servicios con cita».
  * 2 · El servidor RECHAZA la plantilla `salon` con `ENTRADA_INVALIDA`, en vez de
  *     aceptarla y dejar a un negocio con una plantilla que ningún gate entiende.
- * 3 · Las doce pantallas del modelo existen y responden. El arquetipo A3 está en pie.
- * 4 · Su dashboard es el de mostrador —sin sala, con «Ir a Caja»—. El propio de este
- *     modelo, con ocho indicadores y la ocupación de mañana como estrella, vive dentro
- *     de reportes y todavía no está construido.
+ * 3 · Las TRECE pantallas del modelo existen y responden. El arquetipo A3 está en pie.
+ * 4 · Su tablero es el SUYO: los ocho indicadores de su §4.4.2, con la ocupación de
+ *     mañana como estrella, y dentro de reportes. Y su INICIO no es un tablero: la
+ *     raíz de una estética lleva a la agenda, que es la pantalla que se abre cuarenta
+ *     veces al día. Antes `/` le servía el tablero heredado, que es el del
+ *     restaurante, con dos tarjetas que su propia carpeta prohíbe.
  *
  * ── DÓNDE SE AFIRMA EL VOCABULARIO ────────────────────────────────────────
  * Aquí decía —y era verdad hasta el 17-09-2026— que en el menú de una estética sólo
@@ -73,6 +75,17 @@ function enPesosDelSalon(centavos: number): string {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(
     centavos / 100,
   );
+}
+
+/**
+ * 'YYYY-MM-DD' del día LOCAL, que es el del negocio cuando el servidor es éste.
+ *
+ * Con `toISOString` la fecha se toma en UTC, y a las 19:00 de México eso ya es el día
+ * siguiente: se pedirían los huecos de mañana para agendar hoy.
+ */
+function fechaLocalDePrueba(cuando: Date): string {
+  const dos = (n: number): string => String(n).padStart(2, '0');
+  return `${String(cuando.getFullYear())}-${dos(cuando.getMonth() + 1)}-${dos(cuando.getDate())}`;
 }
 
 /** El fondo con el que la prueba abre la caja del salón, en centavos. */
@@ -132,6 +145,10 @@ const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
   ['liquidacion', /Elige a quién se le va a pagar|Liquidación/],
   ['mi-dia', /¿Quién eres\?|Mi día/],
   ['productos', /cabina|Productos/i],
+  // El TABLERO del modelo, que vive aquí dentro y no en la raíz (§4.4.1). Su marca
+  // es el rótulo del indicador estrella: si la pantalla sirviera cualquier otro
+  // tablero, no diría «Ocupación de mañana» en ningún sitio.
+  ['reportes', /Ocupación de mañana|Cómo va el salón/],
 ];
 
 test.describe('estética · su vocabulario, sus pantallas y su dashboard', () => {
@@ -184,14 +201,26 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     // SU plantilla. Aquí decía que la de un salón era la de MOSTRADOR y que no era
     // una provisional a la espera de una `salon`. Lo era: con `tienda`, el menú de una
     // estética no tenía agenda, ni cita, ni expediente, ni comisión — las cuatro cosas
-    // que son el negocio— y las doce pantallas del modelo no colgaban de ningún sitio.
+    // que son el negocio— y las pantallas del modelo no colgaban de ningún sitio.
     // La 166 le dio su plantilla propia. Lo que sigue en pie es la otra mitad: la de
     // SALA no, porque una estética no tiene mesero ni cocina, y el `check` de la 058
     // reserva `restaurante` para los giros de alimentos.
     await cambiarDePlantilla(page, 'estetica');
 
     // ── 2 · EL MENÚ · lo que el dueño lee ─────────────────────────────────
-    await abrirPantalla(page, '/', /Buen día|Agenda/);
+    //
+    // Se abre `/` y lo que aparece es LA AGENDA, no un tablero. Es la decisión de su
+    // §4.4.1 —«la pantalla de inicio se abre cuarenta a ochenta veces al día, para
+    // la misma pregunta: ¿quién sigue?»— y hasta hoy `/` le servía el tablero
+    // HEREDADO, que es el del restaurante. Se sirve aquí en vez de redirigir porque
+    // `app/(modelos)/` no monta la barra lateral: el menú cuelga de esta ruta.
+    await abrirPantalla(page, '/', /Día siguiente|citas|ocupado/);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Buen día' }),
+      'La raíz de una estética sigue sirviendo un tablero. Su inicio es la AGENDA: ' +
+        '`(interno)/page.tsx` redirige a `INICIO_POR_PLANTILLA.estetica` y el tablero del ' +
+        'modelo vive en /estetica-salon/reportes.',
+    ).toHaveCount(0);
     const menu = await menuLateral(page);
 
     await exigirVocabulario(menu, {
@@ -268,13 +297,66 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
       ['preparacion', ''],
     ]);
 
-    // ── 4 · SU DASHBOARD · el de mostrador ────────────────────────────────
-    await expect(page.getByRole('heading', { level: 1, name: 'Buen día' })).toBeVisible();
-    const acciones = accionesDelTablero(page);
-    await expect(acciones.getByRole('button', { name: 'Ir a Caja' })).toBeVisible();
+    /**
+     * 4 · SU TABLERO · ocho indicadores, y DENTRO de reportes
+     *
+     * Aquí decía que el dashboard de una estética era el de MOSTRADOR y que el propio
+     * del modelo «vive dentro de reportes y todavía no está construido». Ya está: son
+     * los ocho de su §4.4.2, y el primero es la OCUPACIÓN DE MAÑANA porque es el único
+     * número del tablero sobre el que todavía se puede actuar.
+     *
+     * Se afirman sus rótulos Y LA AUSENCIA de tres del restaurante: sin la segunda
+     * mitad, servir el tablero heredado aquí pasaría la prueba.
+     */
+    await abrirPantalla(page, '/estetica-salon/reportes', /Ocupación de mañana/);
+    for (const rotulo of [
+      'Ocupación de mañana',
+      'Se están yendo',
+      'No llegaron, últimos 30 días',
+      'Ocupación de la semana',
+      'Lo cobrado hoy',
+      'Lo que le quedó al salón',
+      'Propina por entregar',
+    ]) {
+      await expect(
+        page.getByRole('heading', { level: 2, name: rotulo, exact: true }),
+        `El tablero del salón no enseña «${rotulo}». Son los ocho indicadores de su ` +
+          '§4.4.2, y el primero es la ocupación de MAÑANA a propósito: es el único sobre ' +
+          'el que todavía se puede actuar.',
+      ).toBeVisible();
+    }
+    // El de la recomendación lleva el sustantivo del giro —«Producto por profesional»—
+    // así que se busca por su parte fija: afirmar la palabra aquí duplicaría la prueba
+    // del vocabulario, que es el paso 3.
+    await expect(
+      page.getByRole('heading', { level: 2, name: /por profesional$/ }),
+      'El tablero no enseña la recomendación de producto por profesional, que es el ' +
+        'margen que no depende del horario.',
+    ).toBeVisible();
+
+    for (const prohibido of ['Ticket promedio', 'Costo de ventas', 'Utilidad bruta']) {
+      await expect(
+        page.getByText(prohibido, { exact: true }),
+        `El tablero enseña «${prohibido}», que es del RESTAURANTE: reportes volvió a ` +
+          'servir el tablero heredado a una estética.',
+      ).toHaveCount(0);
+    }
+    // Y el que su propia carpeta prohíbe con nombre y apellido: el ranking del equipo
+    // por lo que vende cada quien. «Suena útil y es tóxico»: con carteras y esquemas
+    // distintos compara peras con manzanas. Lo que va es la OCUPACIÓN, y por eso el
+    // tablero no sirve ni un peso por persona.
+    await expect(
+      page.getByRole('heading', { level: 2, name: /Ranking|Quién vendió|Venta por/ }),
+      'El tablero del salón trae un ranking de venta por persona, que su §4.4.3 ' +
+        'prohíbe. Lo que mide el uso del recurso es la ocupación.',
+    ).toHaveCount(0);
+
+    // Sus dos acciones son ENLACES: llevan a otra pantalla, no disparan nada.
+    const acciones = accionesDelTablero(page, 'Cómo va el salón');
+    await expect(acciones.getByRole('link', { name: 'Ir a la agenda' })).toBeVisible();
     await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
 
-    // ── 5 · LAS DOCE PANTALLAS DEL MODELO RESPONDEN ───────────────────────
+    // ── 5 · LAS TRECE PANTALLAS DEL MODELO RESPONDEN ──────────────────────
     for (const [pantalla, marca] of PANTALLAS) {
       await abrirPantalla(page, `/estetica-salon/${pantalla}`, marca);
     }
@@ -390,43 +472,105 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     }
 
     /**
-     * 1 · AGENDAR, EN LA PRIMERA HORA QUE ESTÉ LIBRE.
+     * 1 · AGENDAR EN UN HUECO QUE EL SERVIDOR DICE QUE EXISTE.
      *
-     * Esto estaba clavado en «ahora + 15 minutos», y hacía la corrida irrepetible: la
-     * segunda pasada sobre la misma demo choca con la cita que dejó la primera y el
-     * servidor contesta, con toda la razón, «esa persona ya tiene a alguien a esa
-     * hora». Esa regla es la que protege la agenda de un salón —dos clientas a la
-     * misma hora con la misma estilista es el defecto más caro de este giro— y no se
-     * toca: lo que se cambia es la prueba, que ahora hace lo que hace una
-     * recepcionista cuando la hora está tomada: prueba la siguiente.
+     * ── Los dos intentos anteriores, y por qué los dos eran frágiles ───────
+     * El primero clavaba «ahora + 15 minutos» y hacía la corrida irrepetible: la
+     * segunda pasada choca con la cita de la primera y el servidor contesta, con toda
+     * la razón, «esa persona ya tiene a alguien a esa hora». Esa regla es la que
+     * protege la agenda de un salón —dos clientas a la misma hora con la misma
+     * estilista es el defecto más caro de este giro— y no se toca.
      *
-     * Hacia adelante y en pasos de una hora, dentro de la jornada. Si ninguna cabe, el
-     * fallo lo dice con lo que contestó cada intento, que es lo que distingue «el día
-     * está lleno» de «la ruta está rota».
+     * El segundo probaba siete horas en pasos de una: aguantaba siete corridas y a la
+     * octava volvía a fallar. El motivo es que la cita de cada corrida acaba COBRADA, y
+     * una cita cobrada SIGUE OCUPANDO su hora: cancelar las de la clienta —que es lo de
+     * arriba— no libera ninguna.
+     *
+     * Ahora se le PREGUNTA al servidor dónde hay hueco, que es literalmente lo que hace
+     * una recepcionista y lo que hace la pantalla de agendar. Se piden los del día, se
+     * descartan los que ya pasaron y se prueban en orden con la persona a la que ese
+     * hueco pertenece. Aguanta tantas corridas como capacidad real tenga la demo, y
+     * cuando de verdad se llena, el fallo lo dice con esas palabras y con el comando
+     * que la vuelve a sembrar.
      */
+    const dia = fechaLocalDePrueba(new Date());
+    const diaSiguiente = fechaLocalDePrueba(new Date(Date.now() + 86_400_000));
+    const respuestaHuecos = await page.request.post('/api/agenda/huecos', {
+      headers: cabecerasDeEscrituraDePrueba(),
+      data: { desde: dia, hasta: diaSiguiente, minutos: 30 },
+    });
+    expect(
+      respuestaHuecos.status(),
+      `/api/agenda/huecos respondio ${String(respuestaHuecos.status())}: ` +
+        (await respuestaHuecos.text()).slice(0, 300),
+    ).toBe(200);
+    const cuerpoHuecos = (await respuestaHuecos.json()) as {
+      datos?: {
+        huecos?: readonly {
+          profesionalId?: string;
+          inicio?: string;
+          nombreCorto?: string;
+          minutos?: number;
+        }[];
+      };
+    };
+    /**
+     * CUALQUIER hueco del día, incluidos los que ya pasaron.
+     *
+     * Aquí había un filtro de «desde diez minutos en adelante» y dejaba la prueba sin
+     * un solo candidato a media tarde: la jornada de la persona que trabaja ese día se
+     * acaba, y lo que queda libre está por la mañana. Pero lo que esta prueba demuestra
+     * es EL CAMINO DEL DINERO —iniciar, cerrar el servicio, cobrar, comisionar— y ese
+     * camino no mira la hora agendada: `iniciar_cita` sella `inicio_real` con la de
+     * ahora. Una cita registrada después de que la clienta llegó es el walk-in de
+     * cualquier salón, no un caso inventado para pasar la prueba.
+     */
+    const candidatos = (cuerpoHuecos.datos?.huecos ?? [])
+      .filter((h) => (h.inicio ?? '') !== '' && (h.profesionalId ?? '') !== '')
+      // EL MÁS GRANDE PRIMERO, y no el más temprano. Los huecos se piden de treinta
+      // minutos porque es el mínimo vendible, pero el servicio de la prueba dura lo
+      // que dura —cuatro tramos por el factor de esa persona— y en un hueco de media
+      // hora no cabe: `agenda.cita` lo rechaza con razón. Probar por tamaño hace que
+      // el primer intento sea el que más probabilidades tiene de caber, en vez de
+      // gastar los doce intentos en los huecos chicos de la mañana.
+      .sort((a, b) => (b.minutos ?? 0) - (a.minutos ?? 0));
+    expect(
+      candidatos.length,
+      'La agenda de la demo no tiene un solo hueco libre en lo que queda del día, así que no ' +
+        'hay dónde agendar. No es un defecto del código: las corridas anteriores la ' +
+        'llenaron, y una cita COBRADA sigue ocupando su hora. Vuelve a sembrarla:\n' +
+        '  node --conditions=react-server scripts/sembrar-demos.mjs --solo demo-acople-estetica',
+    ).toBeGreaterThan(0);
+
     const rechazos: string[] = [];
     let cita: APIResponse | undefined;
-    for (const minutos of [15, 75, 135, 195, 255, 315, 375]) {
+    let profesionalDeLaCita = '';
+    for (const hueco of candidatos.slice(0, 12)) {
       const intento = await page.request.post('/api/agenda/cita', {
         headers: cabecerasDeEscrituraDePrueba(),
         data: {
           clienteId,
           origen: 'mostrador',
-          inicio: new Date(Date.now() + minutos * 60 * 1000).toISOString(),
-          servicios: [{ servicioId: servicio?.id, profesionalId: profesional?.id }],
+          inicio: hueco.inicio,
+          servicios: [{ servicioId: servicio?.id, profesionalId: hueco.profesionalId }],
         },
       });
       if (intento.status() === 200) {
         cita = intento;
+        profesionalDeLaCita = hueco.profesionalId ?? '';
         break;
       }
       rechazos.push(
-        `+${String(minutos)} min → ${String(intento.status())} ${(await intento.text()).slice(0, 200)}`,
+        `${hueco.inicio ?? ''} (${hueco.nombreCorto ?? ''}, ${String(hueco.minutos ?? 0)} min) ` +
+          `respondio ${String(intento.status())} ${(await intento.text()).slice(0, 200)}`,
       );
     }
     expect(
       cita,
-      'No se pudo agendar la cita en ninguna de las horas probadas:\n' + rechazos.join('\n'),
+      'El servidor ofreció huecos y rechazó la cita en TODOS. Si todos son de menos minutos ' +
+        'que el servicio, el día está lleno y hay que volver a sembrar la demo; si alguno era ' +
+        'de sobra, `agenda.huecos` y `agenda.cita` no están de acuerdo, que es peor.\n' +
+        rechazos.join('\n'),
     ).toBeDefined();
     const agendada = (await cita!.json()) as {
       datos?: {
@@ -600,7 +744,7 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     // Y es del profesional que lo hizo, por un importe que sale de la tasa de su
     // regla sobre lo cobrado. No se clava el 40 %: se comprueba la aritmética
     // contra la tasa que el propio servidor devolvió.
-    expect(laComision?.profesional_id).toBe(profesional?.id);
+    expect(laComision?.profesional_id).toBe(profesionalDeLaCita);
     /**
      * La tasa llega en PORCENTAJE, no en puntos base.
      *

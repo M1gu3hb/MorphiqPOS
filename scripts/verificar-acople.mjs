@@ -532,7 +532,7 @@ async function comprobarPlantillas() {
  * Que una pantalla RESPONDA no significa que alguien pueda llegar a ella.
  *
  * ── Qué se le escapó a esta puerta ─────────────────────────────────────────
- * Las 61 pantallas de los cinco modelos estaban construidas, etiquetadas,
+ * Las pantallas de los cinco modelos estaban construidas, etiquetadas,
  * contadas por `verify:cobertura` y respondiendo por HTTP — y NINGUNA colgaba
  * de un menú. Para abrir cualquiera de ellas había que teclear la URL.
  * `NAV_ITEMS` seguía siendo la lista fija de doce entradas heredadas, y ni una
@@ -604,7 +604,7 @@ async function comprobarNavegacion() {
     }
   }
 
-  // Y cada una de las 61 pantallas de los modelos tiene que estar en el menú de
+  // Y cada una de las pantallas de los modelos tiene que estar en el menú de
   // ALGUNA plantilla. No hace falta que esté en las cinco —el mapa de mesas no
   // es de una ferretería— pero sí que exista un negocio desde el que se llegue.
   //
@@ -730,7 +730,7 @@ async function comprobarNavegacion() {
  *
  * Esta comprobación no mira que el módulo exista —eso ya lo hace
  * `verify:cobertura`— sino que algo lo CONSUMA: una ruta que lo sirva y el
- * envoltorio de las 61 pantallas que lo inyecte. Es la diferencia entre
+ * envoltorio de las pantallas de modelo que lo inyecte. Es la diferencia entre
  * escrito y acoplado, que es lo único que mide esta puerta.
  */
 function comprobarVocabulario() {
@@ -783,8 +783,8 @@ function comprobarVocabulario() {
       ruta: join(RAIZ, 'apps', 'web', 'app', '(modelos)', 'layout.tsx'),
       patron: /ProveedorDeVocabulario/,
       falta:
-        'el envoltorio de las 61 pantallas no lo inyecta. Sin eso «mesa» no se ' +
-        'vuelve «estación» en ninguna de las 61.',
+        'el envoltorio de las pantallas de modelo no lo inyecta. Sin eso «mesa» ' +
+        'no se vuelve «estación» en ninguna.',
     },
     {
       ruta: join(RAIZ, 'apps', 'web', 'app', '(interno)', 'layout.tsx'),
@@ -961,7 +961,7 @@ function textosVisibles(fuente) {
 
   // 1 · LA SUPERFICIE DEL VOCABULARIO: encabezados, botones, rótulos, celdas de
   //     cabecera y enlaces. Es lo que la cabecera de `titulo` llama «el 60 % de lo
-  //     que se ve en las 61 pantallas», y donde el sustantivo del giro MANDA.
+  //     que se ve en las pantallas», y donde el sustantivo del giro MANDA.
   const DE_ROTULO = /<(?:h1|h2|h3|h4|button|legend|label|dt|th|summary|a)\b[^>]*>([^<>{}]+)</g;
   for (const m of sinProsa.matchAll(DE_ROTULO)) anotar(m.index, m[1], 120);
 

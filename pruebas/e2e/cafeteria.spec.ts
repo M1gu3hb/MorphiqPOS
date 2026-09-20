@@ -193,9 +193,48 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
 
     // Su dashboard es de mostrador: la acción es abrir la caja, no una venta por mesa.
     await expect(page.getByRole('heading', { level: 1, name: 'Buen día' })).toBeVisible();
+    /**
+     * SU TABLERO · el de la cafetería, que se diseña para dos momentos del día
+     *
+     * `/` servía el tablero HEREDADO —el del restaurante—. La carpeta de este modelo
+     * pide otro (F-056, §4.4) y lo justifica con una hora: «a las ocho de la mañana
+     * NADIE mira el dashboard». Se mira a las 10:30, cuando baja la ráfaga, y a las
+     * 20:40 al cerrar. Por eso lo primero es la RÁFAGA y no la venta del día.
+     *
+     * Se afirman sus rótulos y la ausencia de tres del restaurante: sin la segunda
+     * mitad, volver a servir el heredado aquí pasaría la prueba.
+     */
+    for (const rotulo of [
+      'Lo cobrado en la ráfaga',
+      'Del cobro a la entrega',
+      'Lo que se acaba primero',
+      'Efectivo en el cajón',
+      'Cambio disponible',
+      'Tarjeta del turno',
+      'Utilidad del turno',
+      'Mezcla del día',
+      'Frescura del grano abierto',
+      'Merma de barra del turno',
+      'Sellos',
+    ]) {
+      await expect(
+        page.getByRole('heading', { level: 2, name: rotulo, exact: true }),
+        `El tablero de la cafetería no enseña «${rotulo}». Son los catorce indicadores de ` +
+          'su §4.4, y el primero es la ráfaga a propósito.',
+      ).toBeVisible();
+    }
+    for (const prohibido of ['Ticket promedio', 'Costo de ventas', 'Utilidad bruta']) {
+      await expect(
+        page.getByText(prohibido, { exact: true }),
+        `El tablero enseña «${prohibido}», que es del RESTAURANTE: la raíz volvió a servir el ` +
+          'tablero heredado a una cafetería.',
+      ).toHaveCount(0);
+    }
+
     const acciones = accionesDelTablero(page);
-    await expect(acciones.getByRole('button', { name: 'Ir a Caja' })).toBeVisible();
-    await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
+    // Sus dos acciones, que son enlaces: llevan a otra pantalla, no disparan nada.
+    await expect(acciones.getByRole('link', { name: 'Ir a cobrar' })).toBeVisible();
+    await expect(acciones.getByRole('link', { name: 'Nueva venta' })).toHaveCount(0);
 
     // ── 2 · LAS TRECE PANTALLAS DEL MODELO RESPONDEN ──────────────────────
     // Van AQUÍ y no al final: la guarda de `app/(modelos)/cafeteria/` exige la

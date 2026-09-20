@@ -232,8 +232,33 @@ cada bloque; el detalle de cada decisión está en la bitácora del día.
 | **1** | Que los cinco modelos hagan su trabajo | ✅ **cerrado** · T-38, T-15, T-16, T-18, T-17, T-37, T-07, T-08/T-24 y T-09 |
 | **2** | Las 18 rutas que el frontend llama y no existen | ✅ **cerrado** · 0 declaradas. La puerta exige que la lista quede VACÍA, no sólo que no crezca |
 | **3** | Que las pruebas miren el CONTENIDO, no el 200 | ✅ **cerrado** · 61 marcas de contenido, `vigilarFallos` cazando 4xx y `{ok:false}` con la ENTIDAD nombrada, las cinco demos verdes **dos veces seguidas sin volver a sembrar** y en `--project=tablet` (T-39). Nueve defectos destapados: cuatro filtros por un campo que no existe —que dejan la lista VACÍA, no roja—, tres listas pedidas a rutas de ESCRITURA, una cafetería sin opciones de bebida y una mesa que no volvía al servicio. **Dos puertas nuevas**, las dos demostradas en rojo: una marca de contenido por pantalla (61 de 61) y la lista de huecos de cobro VACÍA |
-| **4** | Tableros y vocabulario | ⬜ |
+| **4** | Tableros y vocabulario | ✅ **cerrado** · T-10 y T-11. `/` servía a los cinco modelos el tablero HEREDADO, que es el del RESTAURANTE, con dos tarjetas que tres carpetas PROHÍBEN. Ahora cada modelo tiene el suyo —siete indicadores la tiendita, ocho la ferretería, catorce la cafetería, ocho el salón— y la estética no tiene tablero en la casa: tiene AGENDA, porque su §4.4.1 dedica una sección a defender que a las 9:45 un dashboard es un adorno. **Una puerta nueva de vocabulario**, demostrada en rojo contra mi propio tablero de cafetería: rotulaba «Venta de la ráfaga» —la palabra de la TIENDA para `orden`— y escribía «barra» a mano tres veces |
 | **5** | Producción y la cadena entera | ⬜ |
+
+### Bloque 4 · los cinco tableros, y el que no lo es
+
+`/` resolvía UN tablero para los cinco negocios: el `Dashboard` de `heredado/`, construido para
+Restaurante MH, con los nueve indicadores de una cena —ventas, costo, utilidad, ticket promedio, la
+dona de métodos de pago, propinas—. No es que fuera genérico: **era el de otro negocio**, y dos de sus
+tarjetas están prohibidas con nombre y apellido en tres de las cinco carpetas.
+
+| Modelo | Indicadores | Qué va PRIMERO, y por qué |
+|---|---|---|
+| **tienda** | 7 | La venta del día contra el mismo día de la semana pasada. Su §4.4 prohíbe el ticket promedio —«se mueve por azar y no dispara nada»— y la dona —«ocupa más y contesta menos que una lista en 390 px»— |
+| **ferretería** | 8 | **La cartera.** «Es la pérdida que no admite vuelta atrás»: una tiendita fía cien pesos al vecino, una ferretería fía ciento veinte mil a una obra que puede no volver. Y el sexto es LÍNEAS POR VENTA, que mide la asesoría y que en la tiendita está prohibido |
+| **cafetería** | 14 | **La ráfaga de 07:00 a 10:30.** «A las ocho de la mañana nadie mira el dashboard»: se mira a las 10:30, cuando baja, y a las 20:40 al cerrar. Todo lo del dinero es del TURNO abierto, porque es el que se va a cortar |
+| **estética** | 8 | **La ocupación de MAÑANA**, y el tablero vive dentro de Reportes. Es el único número sobre el que todavía se puede actuar, y por eso no es un número solo: trae los huecos con su hora, de la lista de espera quién los quería, y las que siguen sin confirmar |
+| **restaurante** | 9 | El heredado se queda, porque el heredado **ES** el suyo: sus nueve indicadores son uno por uno los de su §4.4 |
+
+Y la decisión que no es un tablero: **el inicio de una estética es su agenda.** Su §4.4.1 lo defiende
+con una hora —«a las 9:45 de la mañana, casi todos los indicadores de un dashboard son adornos»— y con
+una frecuencia: la agenda se abre de cuarenta a ochenta veces al día para la misma pregunta, «¿quién
+sigue?», y el tablero dos. Se SIRVE en `/` en vez de redirigir a su ruta, porque `app/(modelos)/` no
+monta la barra lateral del heredado y un redirect dejaría a la dueña en la única pantalla sin menú.
+
+La puerta de vocabulario del bloque 3 cazó el tablero de la cafetería recién escrito —cuatro renglones,
+uno de ellos el rótulo del indicador estrella— y eso es exactamente para lo que existe: la palabra
+«venta» es la que la TIENDA usa para `orden`, y en una barra una orden es una cuenta.
 
 ### Bloque 2 · las catorce que se construyeron
 

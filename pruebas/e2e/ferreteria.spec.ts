@@ -95,7 +95,10 @@ async function existenciaDelCable(page: Page): Promise<number> {
 }
 
 async function abrirLaVenta(page: Page): Promise<Locator> {
-  const laVenta = page.getByRole('complementary', { name: 'La venta' });
+  // «La nota», que es como una ferretería llama a lo que arma en el pasillo. El
+  // `aria-label` sale del diccionario del giro desde que la pantalla dejó de
+  // teclear «La venta», que es la palabra de la tiendita.
+  const laVenta = page.getByRole('complementary', { name: 'La nota' });
   if ((page.viewportSize()?.width ?? 0) >= 1280) {
     await expect(laVenta).toBeVisible();
     return laVenta;
@@ -221,7 +224,7 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     await cambiarDePlantilla(page, 'ferreteria');
 
     // ── 1 · SU VOCABULARIO ────────────────────────────────────────────────
-    await abrirPantalla(page, '/', /Buen día|Mostrador/);
+    await abrirPantalla(page, '/', /Buen día|Lo que me deben/);
     const menu = await menuLateral(page);
 
     await exigirVocabulario(menu, {
@@ -274,11 +277,52 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
       ).toHaveCount(0);
     }
 
-    // ── 3 · SU DASHBOARD · mostrador, como su padre ──────────────────────
+    /**
+     * 3 · SU TABLERO · el de la ferretería, que no es el del restaurante
+     *
+     * `/` servía el tablero HEREDADO —el de Restaurante MH, nueve indicadores de una
+     * cena—. La carpeta de este modelo pide otros ocho (F-056, §4.4) y en otro orden:
+     * **lo primero es la cartera**, «la pérdida que no admite vuelta atrás», y no la
+     * venta del día.
+     *
+     * Se afirman sus rótulos Y LA AUSENCIA de tres del restaurante: sin la segunda
+     * mitad, volver a servir el heredado aquí pasaría la prueba.
+     */
     await expect(page.getByRole('heading', { level: 1, name: 'Buen día' })).toBeVisible();
+    for (const rotulo of [
+      'Lo que me deben',
+      'Dinero dormido',
+      'Salió hoy y no se cobró',
+      'Qué pedir',
+      'Mostrador',
+      'Lo que debo esta semana',
+      'Pendientes que se enfrían',
+    ]) {
+      await expect(
+        page.getByRole('heading', { level: 2, name: rotulo, exact: true }),
+        `El tablero de la ferretería no enseña «${rotulo}». Son los ocho indicadores de ` +
+          'su §4.4, y el primero es la cartera a propósito.',
+      ).toBeVisible();
+    }
+    // El de la venta lleva el sustantivo del giro —«Notas de hoy»— así que se busca
+    // por su parte fija: afirmar la palabra aquí duplicaría la prueba del vocabulario.
+    await expect(
+      page.getByRole('heading', { level: 2, name: /de hoy$/ }),
+      'El tablero no enseña la venta del día con el sustantivo de su giro.',
+    ).toBeVisible();
+
+    for (const prohibido of ['Ticket promedio', 'Costo de ventas', 'Utilidad bruta']) {
+      await expect(
+        page.getByText(prohibido, { exact: true }),
+        `El tablero enseña «${prohibido}», que es del RESTAURANTE: la raíz volvió a servir el ` +
+          'tablero heredado a una ferretería.',
+      ).toHaveCount(0);
+    }
+
+    // Y sus dos acciones, que son enlaces: llevan a otra pantalla, no disparan nada.
     const acciones = accionesDelTablero(page);
-    await expect(acciones.getByRole('button', { name: 'Ir a Caja' })).toBeVisible();
-    await expect(acciones.getByRole('button', { name: 'Nueva venta' })).toHaveCount(0);
+    await expect(acciones.getByRole('link', { name: 'Ir al mostrador' })).toBeVisible();
+    await expect(acciones.getByRole('link', { name: 'Nueva venta' })).toHaveCount(0);
 
     // ── 4 · LAS DOCE PANTALLAS DEL MODELO RESPONDEN ───────────────────────
     for (const [pantalla, marca] of PANTALLAS) {
@@ -452,27 +496,53 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     ).toBeChecked();
 
     /**
-     * EL PUNTO DE PARTIDA SE LEE, no se supone.
+     * EL PUNTO DE PARTIDA SE LEE, no se supone. Y SI EL SUGERIDO NO ALCANZA, SE AGARRA
+     * OTRO ROLLO.
      *
-     * Esto cortaba 6 m dando por hecho que el rollo tenía los 12 de la semilla, y
-     * eso hacía la corrida IRREPETIBLE: cada pasada se lleva la medida más la
-     * merma, así que la segunda encontraba 5.8 m y la tercera no alcanzaba —el botón
-     * de cortar se queda DESACTIVADO cuando el descuento excede lo que queda—. El
-     * fallo salía como un `click` que agotaba tres minutos sobre un botón `disabled`,
-     * que no dice nada de lo que pasa.
+     * Esto cortaba 6 m dando por hecho que el rollo tenía los 12 de la semilla, y eso
+     * hacía la corrida IRREPETIBLE: cada pasada se lleva la medida más la merma, así
+     * que la segunda encontraba 5.8 m y la tercera no alcanzaba —el botón de cortar se
+     * queda DESACTIVADO cuando el descuento excede lo que queda—. El fallo salía como
+     * un `click` que agotaba tres minutos sobre un botón `disabled`.
+     *
+     * Leer lo que queda arregló la aritmética y no la repetibilidad: el rollo sugerido
+     * es el MÁS CHICO QUE ALCANZA —el trabajo de una ferretería es acabarse los
+     * abiertos— así que las corridas lo van vaciando y a la sexta le quedaba 1 m. Lo
+     * que hace entonces quien está en el mostrador no es cerrar la tienda: agarra otro
+     * rollo. Eso es lo que hace esta prueba, leyendo de cada opción cuánto le queda —el
+     * nombre accesible de cada radio lo dice— y eligiendo la primera que dé para el
+     * corte. Cuando NINGUNA da, el material se acabó de verdad y el fallo lo dice con
+     * el comando que vuelve a sembrarlo.
      *
      * Lo que esta sección prueba es la ARITMÉTICA de la merma —que la existencia baje
      * la medida MÁS el desperdicio— y eso se puede probar con cualquier punto de
-     * partida. Así que se lee el que haya y la cuenta se hace con él.
+     * partida.
      */
-    const notaDelRollo = page.getByText(/quedan [\d.]+ m · sugerido/).first();
-    const restante = Number(/quedan ([\d.]+) m/.exec(await notaDelRollo.innerText())?.[1] ?? '0');
+    const necesita = MEDIDA_DEL_CORTE + MERMA_DEL_CABLE;
+    const deDonde = page.getByRole('region', { name: 'De dónde' });
+    // Por la ETIQUETA de cada opción y no por el radio: la etiqueta es la que lleva el
+    // «quedan 3.8 m», y tocarla es lo que hace un dedo en el mostrador —marca su radio—.
+    const etiquetas = await deDonde.locator('label').all();
+    const conLoQueQueda: {
+      readonly etiqueta: (typeof etiquetas)[number];
+      readonly queda: number;
+    }[] = [];
+    for (const etiqueta of etiquetas) {
+      conLoQueQueda.push({
+        etiqueta,
+        queda: Number(/quedan ([\d.]+)/.exec(await etiqueta.innerText())?.[1] ?? '0'),
+      });
+    }
+    const alcanza = conLoQueQueda.find((r) => r.queda > necesita);
     expect(
-      restante,
-      'El rollo sugerido no dice cuánto le queda, o le queda menos de lo que este corte necesita. ' +
-        'Vuelve a sembrar la demo: `node --conditions=react-server scripts/sembrar-demos.mjs ' +
-        '--solo demo-acople-ferreteria`.',
-    ).toBeGreaterThan(MEDIDA_DEL_CORTE + MERMA_DEL_CABLE);
+      alcanza,
+      `Ningún rollo de la demo tiene los ${String(necesita)} m que este corte necesita —lo que ` +
+        `queda: ${conLoQueQueda.map((r) => String(r.queda)).join(', ')}—. El material se acabó de ` +
+        'verdad. Vuelve a sembrar la demo: `node --conditions=react-server ' +
+        'scripts/sembrar-demos.mjs --solo demo-acople-ferreteria`.',
+    ).toBeDefined();
+    await alcanza!.etiqueta.click();
+    const restante = alcanza!.queda;
 
     await page.getByLabel(/Medida entregada/).fill(String(MEDIDA_DEL_CORTE));
     await page.getByRole('button', { name: 'Cortar y agregar' }).click();
