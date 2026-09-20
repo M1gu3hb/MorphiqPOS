@@ -407,14 +407,37 @@ export function Agendar({
     }
   }
 
-  /** F-409 · Apuntar en lista de espera. Ruta por convención, no documentada. */
+  /**
+   * F-409 · Apuntar en lista de espera.
+   *
+   * ── Los dos defectos que esto arregla ─────────────────────────────────────
+   * 1. Publicaba en `/api/agenda/lista-espera` «por convención» y la ruta de
+   *    verdad es `/api/lista-espera` (`lista_espera_citas.anotar`), que existe
+   *    desde la fase 2. El botón devolvía la página de error de Next.
+   * 2. Mandaba tres campos opcionales y el comando pide **una VENTANA** y una
+   *    clienta: `desde`, `hasta` y `clienteId` son obligatorios, y con razón —una
+   *    fila de espera sin a quién avisar no sirve para nada, y sin ventana no se
+   *    sabe qué hueco le vale—. Ni con la ruta correcta habría entrado nadie.
+   *
+   * La ventana es la semana que se está mirando: es exactamente lo que la clienta
+   * acaba de decir que no encontró. `flexibleDeDia` va en verdadero porque quien
+   * se apunta a una espera acepta el día que se libere.
+   */
   async function apuntarEnEspera(): Promise<void> {
     setError(null);
+    if (clientaId === null) {
+      setError('Elige a la clienta: sin ficha no hay a quién avisarle cuando se libere algo.');
+      return;
+    }
     try {
-      await invocarComando('/api/agenda/lista-espera', {
-        ...(clientaId === null ? {} : { clienteId: clientaId }),
+      const hasta = new Date(desde.getTime() + 7 * DIA_MS);
+      await invocarComando('/api/lista-espera', {
+        clienteId: clientaId,
         ...(servicioId === null ? {} : { servicioId }),
         ...(profesionalId === null ? {} : { profesionalId }),
+        desde: desde.toISOString(),
+        hasta: hasta.toISOString(),
+        flexibleDeDia: true,
       });
       setAviso('Apuntada en la lista de espera. Se avisa en cuanto se libere algo.');
     } catch (fallo) {

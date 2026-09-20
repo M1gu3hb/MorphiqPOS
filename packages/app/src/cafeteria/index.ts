@@ -6,6 +6,8 @@
  * contiene a este giro. Declarar un paquete `cafeteria` que todavía no existe
  * dejaría estos comandos apagados para el cliente que los necesita.
  */
+export { agregarBebida, entradaAgregarBebida, type ResultadoBebida } from './bebida.ts';
+
 export {
   MEDIOS_DE_LLAMADO,
   deshacerEntrega,

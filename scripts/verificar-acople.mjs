@@ -1277,14 +1277,6 @@ function ejecutarGh(argumentos) {
  * sólo puede encogerse.
  */
 const RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN = {
-  '/api/abarrotes/alta-rapida': 'existe el comando `catalogo.alta_rapida`; falta la ruta',
-  '/api/agenda/lista-espera': 'existe `lista_espera_citas.agendar`; falta la ruta',
-  '/api/cafeteria/agregar-linea':
-    'las opciones de la bebida publican aquí; el comando es `venta.agregar_linea` y la ruta ' +
-    'existe en /api/venta/agregar-linea — o se reusa ésa, o se crea el alias',
-  '/api/citas/cancelar':
-    'sólo aparece en un comentario de `servidor/ruta.ts` como ejemplo de ruta con parámetro; la ' +
-    'de verdad es /api/citas/[id]/cancelar, que sí existe',
   '/api/entradas/alta-material': 'alta de material al recibir una compra; no hay comando todavía',
   '/api/entradas/recibir': 'recepción de compra en ferretería; no hay comando todavía',
   '/api/expediente/capturar-formula':
@@ -1293,9 +1285,6 @@ const RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN = {
   '/api/ferreteria/declarar-equivalencia': 'existe `catalogo.declarar_equivalencia`; falta la ruta',
   '/api/inventario/ajustar-conteo': 'existe `inventario.ajustar`; falta la ruta o el alias',
   '/api/precios/aplicar-sugerido': 'aplicar el precio sugerido tras una compra; falta el comando',
-  '/api/productos':
-    'la pantalla de productos del salón lo usa como lista; el puente ya sirve ' +
-    '`ProductoTerminado` y esa llamada tendría que salir',
   '/api/reportes/exportar': 'exportar los registros a CSV; falta el comando',
   '/api/restaurante/imprimir-precuenta':
     'imprimir la precuenta. El cambio de estado que importa lo hace `solicitar-cuenta`, que sí ' +

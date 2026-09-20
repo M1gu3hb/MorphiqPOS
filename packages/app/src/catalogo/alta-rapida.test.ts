@@ -35,7 +35,10 @@ const CATEGORIA = 'b2000000-0000-4000-8000-000000000001';
 
 function baseDe(extra: Partial<TablasFalsas> = {}) {
   return crearBaseFalsa(
-    { productos: [], ...extra },
+    // `insumos` y `movimientos_stock`: lo que nace en el mostrador tiene que
+    // poder contarse. Sin el insumo, el conteo no lo lista y el cobro no
+    // descuenta nada.
+    { productos: [], insumos: [], movimientos_stock: [], ...extra },
     {
       predeterminados: {
         productos: {
@@ -43,6 +46,13 @@ function baseDe(extra: Partial<TablasFalsas> = {}) {
           imagen_url: null,
           marca: null,
           precio_mayoreo_centavos: null,
+        },
+        insumos: { categoria_id: null, activo: true },
+        movimientos_stock: {
+          referencia_id: null,
+          motivo: null,
+          idempotency_key: null,
+          sesion_caja_id: null,
         },
       },
     },
@@ -64,15 +74,48 @@ describe('F-201 · el alta rápida', () => {
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     const salida = await altaRapida.ejecutar(ctx, {
-      codigoBarras: '7501234567890',
+      codigo: '7501234567890',
       nombre: 'Refresco de cola 600 ml',
-      precioVentaCentavos: 2_200,
-      costoUnitarioCentavos: null,
+      // EN TEXTO, que es como la pantalla lo manda: convertir en el navegador
+      // pierde el medio centavo justo en el caso que importa.
+      precio: '22.00',
+      costo: '',
       categoriaId: null,
+      stockInicial: '',
+      stockMinimo: '',
     });
 
     expect(salida.pendientes).toEqual(['costo', 'categoria']);
     expect(base.filas('productos')).toHaveLength(1);
+    // Y con su INSUMO: un producto sin insumo no se puede contar ni descontar, así
+    // que el que nace en el mostrador quedaba fuera del inventario para siempre.
+    expect(base.filas('insumos')).toHaveLength(1);
+    expect(base.campo('insumos', 'producto_id')).toBe(salida.productoId);
+    expect(salida.insumoId).not.toBe('');
+    // Sin cantidad inicial no se inventa existencia ni movimiento.
+    expect(salida.existencia).toBe('0');
+    expect(base.filas('movimientos_stock')).toEqual([]);
+  });
+
+  it('EL PRECIO EN TEXTO no pierde el medio centavo', async () => {
+    // `1234.995 * 100` en coma flotante da `123499.4999…`: redondear ahí guarda
+    // 1234.99 en vez de 1235.00, y el producto miente en el margen desde el
+    // primer día. `desdeTexto` arma el importe como fracción exacta.
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await altaRapida.ejecutar(ctx, {
+      codigo: '7501234567891',
+      nombre: 'Garrafón',
+      precio: '1234.995',
+      costo: '45.55',
+      categoriaId: CATEGORIA,
+      stockInicial: '',
+      stockMinimo: '',
+    });
+
+    expect(base.campo('productos', 'precio_venta_centavos')).toBe(123_500n);
+    expect(base.campo('productos', 'costo_unitario_centavos')).toBe(4_555n);
   });
 
   it('SIN CÓDIGO genera un SKU interno y lo marca', async () => {
@@ -81,11 +124,13 @@ describe('F-201 · el alta rápida', () => {
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     const salida = await altaRapida.ejecutar(ctx, {
-      codigoBarras: null,
+      codigo: null,
       nombre: 'Dulce a granel',
-      precioVentaCentavos: 100,
-      costoUnitarioCentavos: 60,
+      precio: '1.00',
+      costo: '0.60',
       categoriaId: CATEGORIA,
+      stockInicial: '',
+      stockMinimo: '',
     });
 
     expect(salida.codigoGenerado).toBe(true);
@@ -110,11 +155,13 @@ describe('F-201 · el alta rápida', () => {
 
     const fallo = await altaRapida
       .ejecutar(ctx, {
-        codigoBarras: '7501234567890',
+        codigo: '7501234567890',
         nombre: 'Otro refresco',
-        precioVentaCentavos: 2_200,
-        costoUnitarioCentavos: null,
+        precio: '22.00',
+        costo: '',
         categoriaId: null,
+        stockInicial: '',
+        stockMinimo: '',
       })
       .catch((e: unknown) => e);
 
@@ -130,11 +177,13 @@ describe('F-201 · el alta rápida', () => {
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     const salida = await altaRapida.ejecutar(ctx, {
-      codigoBarras: '7501234567890',
+      codigo: '7501234567890',
       nombre: 'Refresco',
-      precioVentaCentavos: 2_200,
-      costoUnitarioCentavos: 1_500,
+      precio: '22.00',
+      costo: '15.00',
       categoriaId: CATEGORIA,
+      stockInicial: '',
+      stockMinimo: '',
     });
 
     expect(salida.pendientes).toEqual([]);

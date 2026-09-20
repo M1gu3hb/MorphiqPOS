@@ -67,7 +67,17 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * El documento no nombra la ruta del comando, así que se usa la convención del
  * monorepo: `/api/<dominio>/<verbo>`.
  */
-const RUTA_ALTA = '/api/abarrotes/alta-rapida';
+/**
+ * La ruta del alta, que YA EXISTÍA en otro sitio.
+ *
+ * Aquí decía `/api/abarrotes/alta-rapida` —la convención del giro— y la ruta de
+ * verdad es `/api/catalogo/alta-rapida`, porque el alta rápida no es de abarrotes:
+ * la usa cualquier mostrador que escanee algo que no está en el catálogo. Con la
+ * otra, el botón devolvía la página de error de Next y el producto no se creaba:
+ * la venta se perdía o se cobraba a mano, que son las dos salidas que este
+ * formulario viene a quitar.
+ */
+const RUTA_ALTA = '/api/catalogo/alta-rapida';
 
 /** Forma de un importe tecleado. Sin `Number` ni `parseFloat` de por medio. */
 const PRECIO_CON_FORMA = /^\d{1,7}(?:[.,]\d{1,2})?$/;

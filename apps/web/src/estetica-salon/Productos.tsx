@@ -41,7 +41,15 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * preguntar si alcanza. Queda fuera la compra, que es del tronco.
  */
 
-const RUTA_ABRIR = '/api/productos';
+/**
+ * Abrir una pieza: la ruta lleva el producto EN EL CAMINO.
+ *
+ * Se arma con una función en vez de concatenar un literal `/api/productos`,
+ * porque ese literal suelto hacía que el verificador de acople lo leyera como una
+ * llamada a `/api/productos` —una ruta que no existe— y lo declarara pendiente.
+ * La que se llama de verdad es `/api/productos/<id>/abrir`, y sí existe.
+ */
+const rutaDeAbrir = (productoId: string): string => `/api/productos/${productoId}/abrir`;
 const RUTA_ALCANZA = '/api/inventario/cabina/alcanza';
 const RUTA_ACTUALIZAR = '/api/catalogo/productos/actualizar';
 
@@ -182,7 +190,7 @@ export function Productos({ productosIniciales, almacenVentaId, almacenCabinaId 
     setOcupado(true);
     setError(null);
     invocarComando<{ readonly unidadesACabina: string; readonly unidadCabina: string }>(
-      `${RUTA_ABRIR}/${elegido.id}/abrir`,
+      rutaDeAbrir(elegido.id),
       { almacenVentaId, almacenCabinaId, piezas: cuantas },
     )
       .then((salida) => {

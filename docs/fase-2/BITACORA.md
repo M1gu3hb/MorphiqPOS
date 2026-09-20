@@ -3297,5 +3297,20 @@ Inocuas que PASAN: una línea en blanco de más en una ruta
 
 ### EN QUÉ IBA
 
-Bloque 1 cerrado. Sigue el **BLOQUE 2**: las rutas que el frontend llama y no existen. Eran 18, van
-**16**: el corte de material y el alta de clienta se cerraron en este bloque.
+**BLOQUE 2 en marcha**: las rutas que el frontend llama y no existen. Eran 18 y van **11**.
+
+Cerradas hasta ahora: el corte de material y el alta de clienta (en el bloque 1); el **alta rápida**
+—la pantalla publicaba en `/api/abarrotes/alta-rapida` y la ruta vive en `/api/catalogo/alta-rapida`,
+pero apuntarla no bastaba: el comando pedía centavos enteros y la pantalla manda texto, con razón, y
+además no creaba el insumo ni la existencia, así que lo que nacía en el mostrador no se podía contar—;
+la **lista de espera** —publicaba en `/api/agenda/lista-espera` y la ruta es `/api/lista-espera`, y
+mandaba tres campos opcionales cuando el comando pide una VENTANA y una clienta—; la **bebida con sus
+opciones** —comando nuevo `cafeteria.agregar_bebida`: ninguno escribía `orden_linea_modificadores`, así
+que la leche de avena no se guardaba ni se cobraba—; y dos que eran FALSOS POSITIVOS del verificador:
+un ejemplo dentro de un comentario de `ruta.ts` y un prefijo `/api/productos` que se concatenaba con
+el id.
+
+Faltan 11: entradas/recibir · entradas/alta-material · precios/aplicar-sugerido (las tres de la
+pantalla de Entradas de ferretería) · expediente/capturar-formula · ferreteria/agregar-partida ·
+ferreteria/declarar-equivalencia · inventario/ajustar-conteo · reportes/exportar ·
+restaurante/imprimir-precuenta · turno/presencia/abrir · venta/devolver.

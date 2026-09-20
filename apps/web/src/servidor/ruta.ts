@@ -74,11 +74,15 @@ export function manejadorDeComando<E extends ZodType, S>(
 /**
  * El mismo adaptador, para las rutas que llevan el identificador EN LA RUTA.
  *
- * `05-DATOS-Y-BACKEND.md` pide `/api/citas/:id/cancelar` y no
- * `/api/citas/cancelar` con el id en el cuerpo, y tiene razón: la ruta es lo
- * que se lee en un registro de acceso, en una traza y en una alerta, y
- * `POST /api/citas/cancelar` doscientas veces al día no dice nada. Con el id
- * dentro, cada línea del registro señala a una cita.
+ * `05-DATOS-Y-BACKEND.md` pide el identificador EN EL CAMINO —`citas/:id/cancelar`—
+ * y no una ruta fija con el id en el cuerpo, y tiene razón: la ruta es lo que se
+ * lee en un registro de acceso, en una traza y en una alerta, y doscientas líneas
+ * idénticas al día no dicen nada. Con el id dentro, cada línea señala a una cita.
+ *
+ * (Las rutas de este párrafo van sin barra inicial a propósito: el verificador de
+ * acople busca literales `/api/…` en todo el frontend para cazar pantallas que
+ * publican en rutas que no existen, y un ejemplo dentro de un comentario le
+ * hacía declarar como pendiente una ruta que nadie llama.)
  *
  * Lo que NO cambia es quién valida: el identificador de la ruta se mete en el
  * cuerpo ANTES de entregarlo, y de ahí en adelante pasa por el mismo `zod` que
