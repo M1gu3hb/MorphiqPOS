@@ -324,6 +324,10 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     await exigirCobroAceptado(page, /Cobrado · cambio/);
 
     const venta = await exigirVentaCobrada(page, precioCentavos, idsDeAntes);
+    test.info().annotations.push({
+      type: 'cobrado',
+      description: `${(precioCentavos / 100).toFixed(2)} MXN · la cuenta de la mesa`,
+    });
     await exigirInventarioMovido(page, venta.id ?? '', platillo?.nombre ?? '');
 
     /**

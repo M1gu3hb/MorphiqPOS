@@ -468,6 +468,10 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // Contra el SERVIDOR, no contra la pantalla: la lista se mueve igual si el
     // comando falla y alguien se come el error.
     await exigirVentaCobrada(page, totalCentavos, idsDeAntes);
+    test.info().annotations.push({
+      type: 'cobrado',
+      description: `${(totalCentavos / 100).toFixed(2)} MXN · la nota del mostrador`,
+    });
 
     // ── 6 · EL CORTE DE MATERIAL · lo que distingue a una ferretería ───────
     //

@@ -120,6 +120,27 @@ export const PAQUETES_PORTAL = ['cafeteria', 'restaurante'] as const;
  */
 export const PAQUETES_MOSTRADOR = PAQUETES;
 
+/**
+ * EL TABLERO DE CADA MODELO, que es de SU plantilla y de ninguna otra (F-056).
+ *
+ * Son cinco subconjuntos de uno solo, y viven aquí por la misma razón que los
+ * demás: escritos a mano en el comando, `verify:paquetes` los caza —«ningún
+ * comando escribe la lista a mano»— y tiene razón. Lo comprobó este commit: los
+ * cuatro tableros nuevos declaraban `paquetes: ['tienda']` y el contrato salió en
+ * rojo antes de mutar nada.
+ *
+ * Es un `Record<Paquete, …>`, y eso es la mitad del valor: cuando llegue una sexta
+ * plantilla **esto no compila** hasta que alguien decida qué mira su dueño al abrir
+ * el sistema. Cinco literales sueltos en cinco archivos no avisarían de nada.
+ */
+export const PAQUETES_DEL_TABLERO: Readonly<Record<Paquete, readonly Paquete[]>> = {
+  tienda: ['tienda'],
+  cafeteria: ['cafeteria'],
+  restaurante: ['restaurante'],
+  ferreteria: ['ferreteria'],
+  estetica: ['estetica'],
+};
+
 export function esRol(valor: unknown): valor is Rol {
   return typeof valor === 'string' && (ROLES as readonly string[]).includes(valor);
 }

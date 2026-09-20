@@ -348,6 +348,10 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     // al cobrar bien y también se quedaría en blanco si el comando fallara y
     // alguien se hubiera comido el error.
     const venta = await exigirVentaCobrada(page, totalCentavos, idsDeAntes);
+    test.info().annotations.push({
+      type: 'cobrado',
+      description: `${(totalCentavos / 100).toFixed(2)} MXN · la venta del mostrador`,
+    });
 
     // ── 6 · EL CORTE · que el dinero cuadre de verdad ─────────────────────
     //

@@ -726,6 +726,10 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     // que se comisiona— pero la comprobación es la misma que en los otros cuatro
     // recorridos: sin esto, «cobrado» es una palabra en una pantalla.
     await exigirVentaCobrada(page, precioCentavos, idsDeAntes);
+    test.info().annotations.push({
+      type: 'cobrado',
+      description: `${(precioCentavos / 100).toFixed(2)} MXN · el servicio de la cita`,
+    });
 
     // Y LA COMISIÓN, que es lo propio de un salón: quien atendió tiene que haber
     // causado la suya con esta venta dentro. Sin eso el corte del día cuadra y la

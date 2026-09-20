@@ -412,10 +412,16 @@ export function Tablero({ datosIniciales }: TableroProps) {
           </h2>
           <p className={CIFRA}>{pesos(venta.hoyCentavos)}</p>
           <p className={AL_PIE}>{comparacion(venta.hoyCentavos, venta.referenciaCentavos)}</p>
-          <p className="mt-2 text-sm">
-            {voc.titulo('linea_orden')} {entero(venta.servicioBp)} · {voc.titulo('producto')}{' '}
-            {entero(10_000 - venta.servicioBp)}
-          </p>
+          {/* La mezcla sólo existe si hay algo cobrado. Con el día en cero, «0 % · 100 %»
+              sería una proporción de nada que se lee como si todo hubiera sido anaquel. */}
+          {Number(venta.hoyCentavos) > 0 ? (
+            <p className="mt-2 text-sm">
+              {voc.titulo('linea_orden')} {entero(venta.servicioBp)} · {voc.titulo('producto')}{' '}
+              {entero(10_000 - venta.servicioBp)}
+            </p>
+          ) : (
+            <p className={AL_PIE}>Todavía no se cobra nada hoy.</p>
+          )}
         </section>
       </div>
 

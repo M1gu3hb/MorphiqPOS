@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { PAQUETES_DEL_TABLERO } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { z } from 'zod';
@@ -123,7 +124,7 @@ export const tableroDeTienda = definirComando<
   entidad: 'organizacion',
   escribe: false,
   roles: [...DIRECCION],
-  paquetes: ['tienda'],
+  paquetes: PAQUETES_DEL_TABLERO.tienda,
   entrada: entradaTableroDeTienda,
   async ejecutar(ctx) {
     const { organizacionId } = ctx.ambito;

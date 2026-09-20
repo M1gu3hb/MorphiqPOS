@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { PAQUETES_DEL_TABLERO } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { z } from 'zod';
@@ -105,7 +106,7 @@ export const tableroDeCafeteria = definirComando<
   entidad: 'organizacion',
   escribe: false,
   roles: [...DIRECCION],
-  paquetes: ['cafeteria'],
+  paquetes: PAQUETES_DEL_TABLERO.cafeteria,
   entrada: entradaTableroDeCafeteria,
   async ejecutar(ctx) {
     const { organizacionId } = ctx.ambito;

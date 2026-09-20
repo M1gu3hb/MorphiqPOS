@@ -311,6 +311,10 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     await exigirCobroAceptado(page, /para empezar\./);
 
     const venta = await exigirVentaCobrada(page, precioCentavos, idsDeAntes);
+    test.info().annotations.push({
+      type: 'cobrado',
+      description: `${(precioCentavos / 100).toFixed(2)} MXN · la bebida de la barra`,
+    });
 
     // Y la comanda de la barra: en una cafetería el cobro es lo que manda la
     // bebida a preparar, y eso es un movimiento de inventario por la receta.
