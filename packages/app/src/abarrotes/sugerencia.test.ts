@@ -6,7 +6,7 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, ORG, SUCURSAL } from '../restaurante/pruebas/sala.ts';
 import { sugerenciaDePedido } from './sugerencia.ts';
 
 /**
@@ -35,6 +35,9 @@ const insumo = (id: string, nombre: string, extra: Record<string, unknown> = {})
   stock_critico: '10.0000',
   unidad_compra_default: 'reja',
   cantidad_por_compra_default: '24.0000',
+  // El costo de UNA unidad base. De aquí salen el importe del pedido y el dinero
+  // dormido, que es la columna que puede frenar una compra.
+  costo_unitario_centavos: 1_200n,
   activo: true,
   ...extra,
 });
@@ -231,6 +234,50 @@ describe('compras.sugerir_pedido', () => {
 
     expect(pedido.renglones[0]?.presentacionesSugeridas).toBe(50);
     expect(pedido.renglones[0]?.unidadCompra).toBe('pieza');
+  });
+
+  it('EL IMPORTE Y EL DINERO DORMIDO salen del costo, no de la pantalla', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    const pedido = await sugerenciaDePedido.ejecutar(ctx, {
+      proveedorId: PROVEEDOR,
+      almacenId: ALMACEN,
+      diasDeVenta: 14,
+    });
+
+    const refresco = pedido.renglones.find((r) => r.insumoId === REFRESCO);
+    // Tres rejas de 24 piezas a $12.00 la pieza: 3 × 24 × 1200 = 86 400 centavos.
+    expect(refresco?.importeCentavos).toBe('86400');
+    // Y lo dormido son las 40 que hay a $12.00: 48 000 centavos.
+    expect(refresco?.dormidoCentavos).toBe('48000');
+    expect(refresco?.costoUnitarioCentavos).toBe('1200');
+  });
+
+  it('LA EXISTENCIA SALE DEL ALMACÉN DE LA SESIÓN cuando no se dice cuál', async () => {
+    // La pantalla de entradas no sabe en qué almacén está, y obligarla a mandarlo
+    // la hacía cargar primero la lista de almacenes para contestar algo que el
+    // servidor ya sabe.
+    const base = baseDe({
+      almacenes: [
+        {
+          id: ALMACEN,
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          principal: true,
+          activo: true,
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    const pedido = await sugerenciaDePedido.ejecutar(ctx, {
+      proveedorId: PROVEEDOR,
+      diasDeVenta: 14,
+    });
+
+    // La misma respuesta que con el almacén dicho: la existencia es la de ahí.
+    expect(pedido.renglones.map((r) => r.insumoId)).toEqual([REFRESCO]);
   });
 
   it('un proveedor de otro negocio no tiene lista', async () => {

@@ -112,6 +112,19 @@ export {
   type ResultadoFoto,
 } from './foto-mostrador.ts';
 
+export {
+  altaDeMaterial,
+  entradaAltaDeMaterial,
+  type ResultadoAltaDeMaterial,
+} from './alta-de-nota.ts';
+
+export {
+  CAMINOS_DE_ENTRADA,
+  entradaRecibirEntrada,
+  recibirEntrada,
+  type ResultadoEntrada,
+} from './entrada.ts';
+
 export { agregarPartida, entradaAgregarPartida, type ResultadoPartida } from './partida.ts';
 
 export {

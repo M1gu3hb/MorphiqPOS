@@ -3314,3 +3314,77 @@ Faltan 11: entradas/recibir · entradas/alta-material · precios/aplicar-sugerid
 pantalla de Entradas de ferretería) · expediente/capturar-formula · ferreteria/agregar-partida ·
 ferreteria/declarar-equivalencia · inventario/ajustar-conteo · reportes/exportar ·
 restaurante/imprimir-precuenta · turno/presencia/abrir · venta/devolver.
+
+---
+
+## BLOQUE 2 CERRADO · las 18 rutas que el frontend llamaba y no existían (20-09-2026)
+
+Eran dieciocho. Están en **cero**, y la puerta que lo vigila ya no deja que vuelvan: el verificador
+exige que la lista `RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN` esté **vacía**, no sólo que no crezca.
+
+```
+rutas llamadas 116 rutas distintas se llaman desde las pantallas · 0 declarada(s) como todavía inexistente(s)
+```
+
+### Lo que se construyó, y por qué cada una no era «apuntar la ruta»
+
+| Ruta | Lo que de verdad faltaba |
+|---|---|
+| `/api/abarrotes/alta-rapida` | El comando pedía centavos enteros y la pantalla manda texto —con razón—, y no creaba el insumo ni la existencia: lo que nacía en el mostrador no se podía contar |
+| `/api/agenda/lista-espera` | Mandaba tres campos opcionales donde el comando pide una VENTANA y una clienta |
+| `/api/cafeteria/agregar-bebida` | Ningún comando escribía `orden_linea_modificadores`: la leche de avena no se guardaba ni se cobraba |
+| `/api/expediente/capturar-formula` | `agenda.cerrar_servicio` sólo AUDITABA la fórmula. La auditoría no es el expediente: la clienta vuelve en seis semanas pidiendo «lo mismo» |
+| `/api/precios/aplicar-sugerido` | Comando nuevo que toca **sólo** el precio de venta: el costo lo pondera la compra |
+| `/api/turno/presencia/abrir` | Sin presencias, `cafeteria.repartir_bote` reparte cero entre cuatro personas que trabajaron ocho horas. El campo se llama `quienEntraId` porque un comando no acepta en su entrada un nombre del ámbito (R16) |
+| `/api/ferreteria/declarar-equivalencia` | La ficha manda TEXTO —un campo a la vista, no un selector— y el comando existente pide dos identificadores. Resuelve contra el catálogo y **exige que quede una sola pieza** |
+| `/api/inventario/ajustar-conteo` | La pantalla manda `motivo: 'diferencia de conteo'`, una FRASE, y la columna tiene foránea a `motivos_merma` desde la 062: con la ruta puesta, la base habría contestado 23503. Y la entidad `ConteoDeZona` **no existía** (migración 173) |
+| `/api/ferreteria/agregar-partida` | `venta.agregar_linea` pide la orden y la ficha no tiene ninguna: se llega a ella desde la búsqueda, no desde el carrito |
+| `/api/restaurante/imprimir-precuenta` | Cuenta la hoja (migración 174) y suma con `cotizar`. Desde la segunda, la precuenta sale marcada REIMPRESIÓN: una cuenta se escapa cuando el cajero cobra la hoja vieja de una mesa que siguió consumiendo |
+| `/api/venta/devolver` | La tercera salida del cierre de turno. El efectivo sale del cajón con signo NEGATIVO, la tarjeta no genera movimiento —se informa por método— y los pagos quedan en `reembolsado` para que el corte no cuente una venta que se devolvió |
+| `/api/entradas/recibir` | El asiento es `compras.recibir_nota` tal cual; lo que faltaba es el ALMACÉN (de la sesión), el CRÉDITO con su documento por pagar y el camino por el que se capturó |
+| `/api/entradas/alta-material` | El alta rápida del renglón sin emparejar, con el precio en cero y marcado como incompleto: un precio inventado aquí acaba en la etiqueta del anaquel |
+| `/api/reportes/exportar` | No es un comando —no escribe nada del negocio—: lee POR EL PUENTE, con los mismos permisos por campo que la pantalla, y guarda el CSV en el prefijo privado de la organización |
+
+Las otras cuatro se cerraron antes (el corte de material y el alta de clienta en el bloque 1) o eran
+**falsos positivos** del verificador: un ejemplo dentro de un comentario y un prefijo que se
+concatenaba con un id.
+
+### Tres defectos que sólo aparecieron al construir esto
+
+1. **La pantalla de entradas leía dos entidades que no existen.** `PedidoProveedor` y
+   `LineaSugerida`: el puente contestaba `PUENTE_ENTIDAD_DESCONOCIDA` y la pantalla nacía con una
+   banda de error. El sistema **no lleva pedidos a proveedor** —no hay tabla ni comando que los
+   cree— así que la franja «en camino» ahora dice lo que el sistema SÍ sabe: cuándo pasa el
+   proveedor (`proveedores.dia_visita`) y qué cuesta lo que habría que pedirle. Y el «por pedir»
+   sale de `compras.sugerir_pedido`, que ya lo calculaba y al que se le añadieron los dos importes
+   —el del pedido y el **dinero dormido**— porque esa columna es la que puede frenar una compra.
+2. **El costo del conteo es de quien ve costos.** La vista nueva expone `costo_centavos` restringido,
+   y el cajero cuenta igual: la pantalla ahora enseña las PIEZAS y **calla el importe** en vez de
+   multiplicar por cero y decir que no falta nada.
+3. **`compras.sugerir_pedido` exigía `almacenId`** y la pantalla no sabe en qué almacén está. Ahora
+   es opcional y sale del principal de la sucursal de la sesión.
+
+### El contrato de `anotarConteo`, ensanchado sin ablandarse
+
+Exigía que todo llamador leyera la toma acotada por organización. Abrirla en la misma transacción con
+el ámbito es igual de seguro —el id no existía hace tres líneas— y ahora también vale, **pero sólo si
+el archivo no acepta además un `tomaId` del cliente**; y se comprueba que las dos formas sigan en uso,
+para que ninguna rama deje de mirarse.
+
+### La primera de las tres puertas nuevas, en rojo antes que en verde
+
+```
+· RUTAS-LLAMADAS: 1 ruta(s) siguen declaradas como inexistentes · /api/de/mentira. La lista tiene
+  que quedar VACÍA: un botón que publica en una dirección que no existe no hace nada, y declararlo
+  no es haberlo hecho.
+```
+
+### EN QUÉ IBA
+
+Bloque 2 **cerrado**. Lo siguiente es el **bloque 3**: que las pruebas miren el CONTENIDO y no el
+200 —una afirmación de contenido por cada una de las 61 pantallas, `vigilarFallos` cazando 4xx,
+`{ok:false}` y `PUENTE_ENTIDAD_DESCONOCIDA`, y `--project=tablet` en verde—, que es donde van a salir
+las pantallas que abren vacías.
+
+240 archivos · 2 805 pruebas · typecheck 7/7 · lint y formato en 0 · migraciones 106 en disco = 106 en
+el ledger.

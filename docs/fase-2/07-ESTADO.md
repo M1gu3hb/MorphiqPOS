@@ -230,10 +230,38 @@ cada bloque; el detalle de cada decisión está en la bitácora del día.
 | Bloque | Qué | Estado |
 |---|---|---|
 | **1** | Que los cinco modelos hagan su trabajo | ✅ **cerrado** · T-38, T-15, T-16, T-18, T-17, T-37, T-07, T-08/T-24 y T-09 |
-| **2** | Las 18 rutas que el frontend llama y no existen | 🟨 **16**: el corte de material y el alta de clienta se cerraron en el bloque 1 |
+| **2** | Las 18 rutas que el frontend llama y no existen | ✅ **cerrado** · 0 declaradas. La puerta exige que la lista quede VACÍA, no sólo que no crezca |
 | **3** | Que las pruebas miren el CONTENIDO, no el 200 | ⬜ |
 | **4** | Tableros y vocabulario | ⬜ |
 | **5** | Producción y la cadena entera | ⬜ |
+
+### Bloque 2 · las catorce que se construyeron
+
+Ninguna era «apuntar la ruta»: en trece de las catorce faltaba el comando, la entidad del puente o la
+columna. El detalle de cada una está en la bitácora del 20-09-2026; lo que hay que saber de un golpe:
+
+| Ruta | Lo que faltaba de verdad |
+|---|---|
+| `abarrotes/alta-rapida` | El comando no creaba el insumo ni la existencia: lo que nacía en el mostrador no se podía contar |
+| `agenda/lista-espera` | La pantalla mandaba tres campos opcionales donde el comando pide una ventana y una clienta |
+| `cafeteria/agregar-bebida` | **Ningún** comando escribía `orden_linea_modificadores`: la leche de avena no se cobraba |
+| `expediente/capturar-formula` | `cerrar_servicio` sólo AUDITABA la fórmula, y la auditoría no es el expediente |
+| `precios/aplicar-sugerido` | Comando nuevo que toca sólo el precio de venta; el costo lo pondera la compra |
+| `turno/presencia/abrir` | Sin presencias, el bote se reparte entre cero minutos trabajados |
+| `ferreteria/declarar-equivalencia` | La ficha manda TEXTO y el comando pide dos ids: se resuelve contra el catálogo y se exige que quede UNA pieza |
+| `inventario/ajustar-conteo` | La entidad `ConteoDeZona` no existía (migración **173**) y la pantalla mandaba una FRASE donde la base pide una clave |
+| `ferreteria/agregar-partida` | La ficha no tiene orden: se llega a ella desde la búsqueda, y la venta es la de la terminal |
+| `restaurante/imprimir-precuenta` | Cuenta la hoja (migración **174**): desde la segunda sale marcada REIMPRESIÓN |
+| `venta/devolver` | El efectivo sale del cajón con signo negativo; la tarjeta se informa por método; los pagos quedan en `reembolsado` |
+| `entradas/recibir` | El almacén (de la sesión), el crédito con su documento por pagar, y el camino de captura |
+| `entradas/alta-material` | El alta rápida del renglón sin emparejar, con precio en cero y marcada incompleta |
+| `reportes/exportar` | No es un comando: lee por el PUENTE —permisos por campo incluidos— y guarda el CSV en el prefijo privado del negocio |
+
+Y tres defectos que sólo aparecieron al construirlas: la pantalla de entradas leía **dos entidades
+inexistentes** (el sistema no lleva pedidos a proveedor, así que la franja ahora dice cuándo pasa el
+proveedor y qué pedirle), el costo del conteo **no lo ve quien cuenta** (la pantalla enseña piezas y
+calla el importe en vez de multiplicar por cero), y `compras.sugerir_pedido` exigía un almacén que la
+pantalla no puede saber.
 
 ### Bloque 1 · lo cerrado, con su comprobación
 

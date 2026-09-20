@@ -1276,11 +1276,7 @@ function ejecutarGh(argumentos) {
  * si una declarada ya existe —entonces la fila sobra y se borra—. Así la lista
  * sólo puede encogerse.
  */
-const RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN = {
-  '/api/entradas/alta-material': 'alta de material al recibir una compra; no hay comando todavía',
-  '/api/entradas/recibir': 'recepción de compra en ferretería; no hay comando todavía',
-  '/api/reportes/exportar': 'exportar los registros a CSV; falta el comando',
-};
+const RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN = {};
 
 function comprobarQueLasRutasQueSeLlamanExisten() {
   const carpetas = [join(RAIZ, 'apps', 'web', 'src'), join(RAIZ, 'apps', 'web', 'heredado')];
@@ -1331,6 +1327,23 @@ function comprobarQueLasRutasQueSeLlamanExisten() {
       `declarada · ${nuevas.join(' · ')}. El botón devuelve la página de error de Next, el ` +
       'cliente la traduce a «El servidor respondió algo inesperado» y no se hace nada. O se crea ' +
       'la ruta, o se declara en RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN con lo que le falta.',
+  );
+
+  /**
+   * LA PUERTA DE LA FASE 2.3 · la lista tiene que estar VACÍA.
+   *
+   * Las dos comprobaciones de arriba dejaban la lista encoger, y con eso se pasó de
+   * diecinueve a cero. Lo que faltaba es la que impide que vuelva a crecer: una
+   * ruta que una pantalla publica y que no existe es un botón que no hace nada, y
+   * declararla en una lista no es haberla hecho. Desde aquí, un botón nuevo llega
+   * con su ruta o no llega.
+   */
+  const declaradas = Object.keys(RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN);
+  exigir(
+    declaradas.length === 0,
+    `RUTAS-LLAMADAS: ${declaradas.length} ruta(s) siguen declaradas como inexistentes · ` +
+      `${declaradas.join(', ')}. La lista tiene que quedar VACÍA: un botón que publica en una ` +
+      'dirección que no existe no hace nada, y declararlo no es haberlo hecho.',
   );
 
   const yaExisten = Object.keys(RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN).filter((url) =>

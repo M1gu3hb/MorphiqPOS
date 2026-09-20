@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';
-import type { Transaccion } from '@morphiqpos/data';
+import { repoVentaCatalogo, type Transaccion } from '@morphiqpos/data';
 import {
   alertasDeMinimo,
   diasHastaLaVisita,
@@ -11,7 +11,7 @@ import {
 } from '@morphiqpos/domain/inventario';
 import { z } from 'zod';
 
-import { definirComando } from '../definicion.ts';
+import { definirComando, type ContextoComando } from '../definicion.ts';
 
 /**
  * F-107 · «¿Qué le pido a Bimbo?», contestado con el repartidor delante.
@@ -37,7 +37,16 @@ const DIAS_DE_COLCHON = 1;
 
 export const entradaSugerirPedido = z.object({
   proveedorId: z.uuid(),
-  almacenId: z.uuid(),
+  /**
+   * De qué almacén se mira la existencia. OPCIONAL: sin él, el principal de la
+   * sucursal de la sesión.
+   *
+   * La pantalla de entradas no sabe en qué almacén está —ni tiene por qué
+   * preguntarlo para enseñar qué pedir— y obligarla a mandarlo la hacía cargar
+   * primero la lista de almacenes para contestar algo que el servidor ya sabe.
+   * Se sigue aceptando porque el reporte de compras sí elige almacén.
+   */
+  almacenId: z.uuid().optional(),
   /** Cuántos días de venta se miran para estimar el ritmo. */
   diasDeVenta: z.number().int().min(1).max(90).default(14),
 });
@@ -45,6 +54,19 @@ export const entradaSugerirPedido = z.object({
 export interface RenglonSugerido {
   readonly insumoId: string;
   readonly nombre: string;
+  /** Lo que cuesta UNA unidad base. De aquí salen los dos importes. */
+  readonly costoUnitarioCentavos: string;
+  /** Lo que costaría pedir lo sugerido. Es lo que decide si se pide hoy o no. */
+  readonly importeCentavos: string;
+  /**
+   * El dinero que ya está parado en el anaquel de ese material.
+   *
+   * Es el único momento en que el dinero dormido puede cambiar la decisión: ver
+   * «$18,400 en brocas ya paradas» justo cuando el vendedor trae promoción de
+   * brocas es lo que detiene la compra. En un reporte de fin de mes ese mismo
+   * dato no cambia nada.
+   */
+  readonly dormidoCentavos: string;
   readonly existenciaBase: string;
   readonly ventaDelPeriodoBase: string;
   readonly faltanBase: string;
@@ -97,6 +119,11 @@ export const sugerenciaDePedido = definirComando<
     // proveedor al que hay que llamar. Suponer cero pediría lo justo para hoy.
     const diasDeCobertura = (hastaLaVisita ?? 7) + DIAS_DE_COLCHON;
 
+    // El almacén: el que se pidió, o el principal de la sucursal de la SESIÓN.
+    // Nunca uno inventado: la existencia de otro almacén haría pedir de más en
+    // esta tienda y de menos en la otra.
+    const almacenId = entrada.almacenId ?? (await resolverAlmacen(ctx));
+
     const articulos = await ctx.paso('cargar_articulos', () =>
       ctx.tx
         .selectFrom('insumos')
@@ -108,6 +135,7 @@ export const sugerenciaDePedido = definirComando<
           'stock_critico as stockCritico',
           'unidad_compra_default as unidadCompra',
           'cantidad_por_compra_default as factorCompra',
+          'costo_unitario_centavos as costoUnitario',
         ])
         .where('organizacion_id', '=', organizacionId)
         .where('proveedor_id', '=', entrada.proveedorId)
@@ -129,7 +157,7 @@ export const sugerenciaDePedido = definirComando<
         .selectFrom('existencias')
         .select(['insumo_id as insumoId', 'cantidad'])
         .where('organizacion_id', '=', organizacionId)
-        .where('almacen_id', '=', entrada.almacenId)
+        .where('almacen_id', '=', almacenId)
         .where(
           'insumo_id',
           'in',
@@ -145,7 +173,7 @@ export const sugerenciaDePedido = definirComando<
         .selectFrom('movimientos_stock')
         .select(['insumo_id as insumoId', 'cantidad'])
         .where('organizacion_id', '=', organizacionId)
-        .where('almacen_id', '=', entrada.almacenId)
+        .where('almacen_id', '=', almacenId)
         // SÓLO la venta. La merma y el ajuste de conteo salen del almacén
         // igual, pero no predicen nada: pedir para reponer lo que se echó a
         // perder es cómo se compra la merma dos veces.
@@ -194,9 +222,25 @@ export const sugerenciaDePedido = definirComando<
       // entero es la lista que nadie lee con el repartidor en la puerta.
       if (sugerencia.presentacionesSugeridas === 0) continue;
 
+      // Los dos importes, con el costo de la UNIDAD BASE:
+      //   pedido   = presentaciones × unidades base por presentación × costo
+      //   dormido  = existencia (diezmilésimas) × costo / 10 000
+      // Redondeado hacia abajo al centavo, que es la única forma de que dos
+      // pantallas sumen lo mismo.
+      // La columna es `bigint`, así que la aritmética entera es entera de punta a
+      // punta: un `number` de por medio perdería centavos en un pedido grande.
+      const costo = articulo.costoUnitario;
+      const porPresentacion = aDiezmilesimas(articulo.factorCompra ?? '1');
+      const importe =
+        (BigInt(sugerencia.presentacionesSugeridas) * porPresentacion * costo) / ESCALA_CANTIDAD;
+      const dormido = (aDiezmilesimas(existencia) * costo) / ESCALA_CANTIDAD;
+
       renglones.push({
         insumoId: articulo.id,
         nombre: articulo.nombre,
+        costoUnitarioCentavos: costo.toString(),
+        importeCentavos: importe.toString(),
+        dormidoCentavos: dormido.toString(),
         existenciaBase: existencia,
         ventaDelPeriodoBase,
         faltanBase: sugerencia.faltanBase,
@@ -220,6 +264,36 @@ export const sugerenciaDePedido = definirComando<
     };
   },
 });
+
+/** Diezmilésimas: la escala de `numeric(14,4)` y la de `Cantidad` en el dominio. */
+const ESCALA_CANTIDAD = 10_000n;
+
+/**
+ * El almacén principal de la sucursal de la sesión.
+ *
+ * Aparte para que el comando lea de un golpe: la existencia de la que se decide
+ * qué pedir es la de DONDE SE VENDE, y eso lo sabe el servidor.
+ */
+async function resolverAlmacen(ctx: ContextoComando<Transaccion>): Promise<string> {
+  const { organizacionId, sucursalId } = ctx.ambito;
+  if (sucursalId === null) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'La sugerencia mira la existencia de un almacén, y el almacén es de una sucursal: esta ' +
+        'sesión no tiene una.',
+    );
+  }
+  const almacenId = await ctx.paso('resolver_almacen', () =>
+    repoVentaCatalogo.almacenPrincipal(ctx.tx, organizacionId, sucursalId),
+  );
+  if (almacenId === null) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Esta sucursal no tiene almacén dado de alta: no hay existencia que mirar.',
+    );
+  }
+  return almacenId;
+}
 
 const PESO_DE_ALERTA: Record<NivelDeAlerta, number> = { critico: 0, bajo: 1, normal: 2 };
 

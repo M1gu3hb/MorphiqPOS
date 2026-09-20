@@ -27,11 +27,25 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * a esta pantalla es «¿qué viene en camino y qué tengo que pedir?». Si lo que
  * ya viene no se ve antes de pedir, se pide dos veces lo mismo.
  *
+ * ── Y «en camino» es la RUTA DEL PROVEEDOR, no un pedido en tránsito ──────
+ * Esta franja leía una entidad del puente, `PedidoProveedor`, **que no existe**:
+ * el sistema no lleva pedidos a proveedor —no hay tabla, ni comando que los cree—
+ * y el puente contestaba `PUENTE_ENTIDAD_DESCONOCIDA`, así que la franja nacía
+ * vacía con una banda de error encima.
+ *
+ * Lo que el sistema SÍ sabe, y es la respuesta útil a la misma pregunta, es
+ * cuándo pasa el proveedor: `proveedores.dia_visita` («Bimbo viene martes y
+ * viernes») y de ahí los días de cobertura que la sugerencia ya calcula. La
+ * franja dice quién llega, en cuántos días, y qué cuesta lo que habría que
+ * pedirle. Prometer un tránsito que nadie registra sería peor que no prometerlo.
+ *
  * ── El archivo es el camino ① y el manual el ③ ────────────────────────────
- * Doscientas líneas a mano son dos horas mal invertidas y mal capturadas. De
- * 198 líneas quedan 12 por resolver, y ésa es la diferencia entre capturar la
- * entrada el mismo día o «el fin de semana» — y las del fin de semana dejan
- * existencias en negativo toda la semana siguiente.
+ * Doscientas líneas a mano son dos horas mal invertidas y mal capturadas. El
+ * archivo tiene su comando —`compras.importar_nota`, que empareja y PROPONE— y
+ * su subida vive fuera de esta pantalla: `invocarComando` manda JSON y un archivo
+ * necesita multipart. Lo que aquí se puede capturar de punta a punta es el camino
+ * ③: el proveedor chico de diez renglones, y se captura contra el catálogo para
+ * que no nazcan diez claves duplicadas.
  *
  * ── «Sin emparejar» va arriba del total, no en un reporte ─────────────────
  * Porque una línea sin emparejar QUEDA FUERA de la entrada. El botón de
@@ -43,18 +57,20 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * Porque es el único momento en que el dinero parado puede cambiar la
  * decisión: ver «$18,400 en brocas ya paradas» justo cuando el vendedor trae
  * promoción de brocas es lo que detiene la compra. En un reporte de fin de mes
- * ese mismo dato no cambia nada. Por eso esas líneas se ordenan primero.
+ * ese mismo dato no cambia nada. Por eso esas líneas se ordenan primero, y por
+ * eso los dos importes los calcula el SERVIDOR: `compras.sugerir_pedido` los
+ * devuelve con el costo de la unidad base, y no el navegador multiplicando.
  *
  * ── Teléfono: recepción rápida con foto, y nada más ───────────────────────
  * Existe para el proveedor chico que llega con diez líneas. Las doscientas NO
  * se capturan en teléfono, así que ese bloque ni siquiera se ofrece ahí:
  * ofrecerlo sería prometer algo que acaba en una captura a medias.
  *
- * ── Alcance recortado por el límite de 300 líneas, dicho aquí ─────────────
- * Quedan fuera, cada uno en su sitio: el comparativo línea por línea de
- * «escanear contra pedido» (que aquí sólo se elige), el alta completa del
- * material, la captura manual partida a partida con su conversión de unidad en
- * vivo, y el kardex.
+ * ── Alcance recortado por el límite de líneas, dicho aquí ─────────────────
+ * Quedan fuera, cada uno en su sitio: la SUBIDA del archivo (multipart, no JSON),
+ * el comparativo línea por línea de «escanear contra pedido» (que aquí sólo se
+ * elige), el alta completa del material —aquí se hace el alta rápida, marcada
+ * como incompleta— y el kardex.
  */
 
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
@@ -101,21 +117,51 @@ export interface SubidaDeCosto {
   readonly precioSugeridoCentavos: number;
 }
 
+/** Una partida capturada a mano, ya atada a un material del catálogo. */
+export interface PartidaCapturada {
+  readonly insumoId: string;
+  readonly nombre: string;
+  /** Lo que se teclea: «3» cajas, «12.5» metros. Texto: convierte el servidor. */
+  readonly cantidad: string;
+  readonly unidad: string;
+  /** Cuántas unidades base trae UNA unidad de compra. Texto, por lo mismo. */
+  readonly equivalencia: string;
+  /** Lo que costó el renglón COMPLETO, en pesos y como texto. */
+  readonly costoTotal: string;
+}
+
 export interface NotaEnCaptura {
   readonly archivo: string | null;
   readonly lineas: number;
   readonly sinEmparejar: readonly LineaSinEmparejar[];
   readonly subidas: readonly SubidaDeCosto[];
+  readonly partidas: readonly PartidaCapturada[];
   readonly totalCentavos: number;
   readonly vence: string | null;
 }
 
-export interface PedidoEnCamino {
+/** Un proveedor del catálogo, con lo que hace falta para recibirle. */
+export interface ProveedorDeEntrada {
   readonly id: string;
+  readonly nombre: string;
+  readonly dias_credito: number;
+}
+
+/** Un material de ESTE proveedor, para capturar su renglón sin duplicar claves. */
+export interface MaterialDeProveedor {
+  readonly id: string;
+  readonly nombre: string;
+  readonly unidad_base: string;
+  readonly unidad_compra_default: string | null;
+  readonly cantidad_por_compra_default: number | null;
+}
+
+/** Quién llega y cuándo. Es lo que el sistema sabe de «en camino». */
+export interface RutaDelProveedor {
   readonly proveedor: string;
-  readonly lineas: number;
-  readonly llega: string;
-  readonly totalCentavos: number;
+  /** `null` cuando no tiene ruta: a ése se le llama por teléfono. */
+  readonly diasHastaLaVisita: number | null;
+  readonly diasDeCobertura: number;
 }
 
 export interface LineaSugerida {
@@ -130,12 +176,30 @@ export interface LineaSugerida {
   readonly linea: string;
 }
 
+/** Lo que contesta `compras.sugerir_pedido`, tal cual. */
+interface RespuestaSugerencia {
+  readonly proveedor: string;
+  readonly diasHastaLaVisita: number | null;
+  readonly diasDeCobertura: number;
+  readonly renglones: readonly {
+    readonly insumoId: string;
+    readonly nombre: string;
+    readonly existenciaBase: string;
+    readonly ventaDelPeriodoBase: string;
+    readonly presentacionesSugeridas: number;
+    readonly unidadCompra: string;
+    readonly importeCentavos: string;
+    readonly dormidoCentavos: string;
+    readonly alerta: string;
+  }[];
+}
+
 export interface EntradasProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
-  readonly pedidosIniciales?: readonly PedidoEnCamino[];
+  readonly proveedoresIniciales?: readonly ProveedorDeEntrada[];
   readonly filasIniciales?: readonly LineaSugerida[];
   readonly notaInicial?: NotaEnCaptura;
-  readonly proveedores?: readonly string[];
+  readonly rutaInicial?: RutaDelProveedor;
 }
 
 /** El código estable de la API, traducido a la frase que sirve en el almacén. */
@@ -165,55 +229,124 @@ export function ordenarSugeridas(filas: readonly LineaSugerida[]): readonly Line
   return [...filas].sort((a, b) => frena(b) - frena(a) || b.importeCentavos - a.importeCentavos);
 }
 
+/** `'40.0000'` → `40`. Para enseñar, no para calcular. */
+function comoNumero(texto: string): number {
+  const valor = Number.parseFloat(texto);
+  return Number.isFinite(valor) ? valor : 0;
+}
+
+/** El renglón del servidor, con la forma que esta pantalla pinta. */
+function comoLinea(renglon: RespuestaSugerencia['renglones'][number]): LineaSugerida {
+  return {
+    id: renglon.insumoId,
+    material: renglon.nombre,
+    hay: comoNumero(renglon.existenciaBase),
+    vendido90d: comoNumero(renglon.ventaDelPeriodoBase),
+    sugerido: `${String(renglon.presentacionesSugeridas)} ${renglon.unidadCompra}`,
+    importeCentavos: Number(renglon.importeCentavos),
+    dormidoCentavos: Number(renglon.dormidoCentavos),
+    linea: renglon.nombre,
+  };
+}
+
+/** Cuándo llega, en palabras. «Hoy» y «mañana» se leen de un golpe. */
+function cuandoLlega(dias: number | null): string {
+  if (dias === null) return 'sin ruta · se le llama';
+  if (dias === 0) return 'llega hoy';
+  if (dias === 1) return 'llega mañana';
+  return `llega en ${String(dias)} días`;
+}
+
 export function Entradas({
-  pedidosIniciales,
+  proveedoresIniciales,
   filasIniciales,
   notaInicial,
-  proveedores = ['Distribuidor Truper', 'Aceros del Norte', 'Cables MX'],
+  rutaInicial,
 }: EntradasProps) {
   const voc = useVocabulario();
-  const sembrada = pedidosIniciales !== undefined || filasIniciales !== undefined;
-  const [enCamino, setEnCamino] = useState<readonly PedidoEnCamino[] | null>(
-    sembrada ? (pedidosIniciales ?? []) : null,
+  const sembrada = proveedoresIniciales !== undefined || filasIniciales !== undefined;
+  const [proveedores, setProveedores] = useState<readonly ProveedorDeEntrada[] | null>(
+    sembrada ? (proveedoresIniciales ?? []) : null,
   );
+  const [materiales, setMateriales] = useState<readonly MaterialDeProveedor[]>([]);
+  const [ruta, setRuta] = useState<RutaDelProveedor | null>(rutaInicial ?? null);
   const [sugeridas, setSugeridas] = useState<readonly LineaSugerida[]>(filasIniciales ?? []);
   const [nota, setNota] = useState<NotaEnCaptura | null>(notaInicial ?? null);
-  const [proveedor, setProveedor] = useState(proveedores[0] ?? '');
+  const [proveedorId, setProveedorId] = useState(proveedoresIniciales?.[0]?.id ?? '');
+  const [folio, setFolio] = useState('');
   const [aCredito, setACredito] = useState(true);
   const [dias, setDias] = useState('30');
   const [camino, setCamino] = useState<Camino>('archivo');
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  // La captura manual, un renglón a la vez.
+  const [material, setMaterial] = useState('');
+  const [cantidad, setCantidad] = useState('');
+  const [costo, setCosto] = useState('');
 
+  // ── Los proveedores del catálogo, que es de donde sale todo lo demás ─────
   useEffect(() => {
-    if (pedidosIniciales !== undefined || filasIniciales !== undefined) return;
+    if (sembrada) return;
     const control = new AbortController();
-    const sigueMontada = () => !control.signal.aborted;
-    Promise.all([
-      consultarPuente<PedidoEnCamino>('PedidoProveedor', { limite: 20, signal: control.signal }),
-      consultarPuente<LineaSugerida>('LineaSugerida', { limite: 120, signal: control.signal }),
-    ])
-      .then(([llegando, porPedir]) => {
-        if (!sigueMontada()) return;
-        setEnCamino(llegando);
-        setSugeridas(porPedir);
+    consultarPuente<ProveedorDeEntrada>('Proveedor', { limite: 50, signal: control.signal })
+      .then((lista) => {
+        if (control.signal.aborted) return;
+        setProveedores(lista);
+        setProveedorId((actual) => (actual === '' ? (lista[0]?.id ?? '') : actual));
       })
       // La pantalla NUNCA se vacía por un error de red: se avisa y se sigue,
       // porque lo ya capturado vale más que un lienzo limpio.
       .catch((fallo: unknown) => {
-        if (!sigueMontada()) return;
-        setEnCamino([]);
+        if (control.signal.aborted) return;
+        setProveedores([]);
         setError(mensajeDe(fallo));
       });
     return () => {
       control.abort();
     };
-  }, [pedidosIniciales, filasIniciales]);
+  }, [sembrada]);
 
+  // ── Del proveedor elegido: su ruta, su sugerencia y sus materiales ───────
+  useEffect(() => {
+    if (proveedorId === '' || filasIniciales !== undefined) return;
+    const control = new AbortController();
+    void (async () => {
+      try {
+        const [sugerencia, delProveedor] = await Promise.all([
+          invocarComando<RespuestaSugerencia>('/api/compras/sugerencia', { proveedorId }),
+          consultarPuente<MaterialDeProveedor>('Ingrediente', {
+            filtro: { proveedor_default_id: proveedorId },
+            limite: 200,
+            signal: control.signal,
+          }),
+        ]);
+        if (control.signal.aborted) return;
+        setRuta({
+          proveedor: sugerencia.proveedor,
+          diasHastaLaVisita: sugerencia.diasHastaLaVisita,
+          diasDeCobertura: sugerencia.diasDeCobertura,
+        });
+        setSugeridas(sugerencia.renglones.map(comoLinea));
+        setMateriales(delProveedor);
+      } catch (fallo: unknown) {
+        if (control.signal.aborted) return;
+        setError(mensajeDe(fallo));
+      }
+    })();
+    return () => {
+      control.abort();
+    };
+  }, [proveedorId, filasIniciales]);
+
+  const proveedor = useMemo(
+    () => (proveedores ?? []).find((p) => p.id === proveedorId) ?? null,
+    [proveedores, proveedorId],
+  );
   const ordenadas = useMemo(() => ordenarSugeridas(sugeridas), [sugeridas]);
   const estimado = ordenadas.reduce((suma, f) => suma + f.importeCentavos, 0);
   const faltante = Math.max(0, MINIMO_PEDIDO_CENTAVOS - estimado);
   const pendientes = nota?.sinEmparejar.length ?? 0;
+  const partidas = nota?.partidas ?? [];
 
   /**
    * El documento no nombra rutas de escritura para esta pantalla, así que se
@@ -234,6 +367,7 @@ export function Entradas({
               subidas: previa.subidas.filter((s) => s.id !== clave),
             },
       );
+      if (clave === CLAVE_GUARDAR) setFolio('');
     } catch (fallo) {
       setError(mensajeDe(fallo));
     } finally {
@@ -247,12 +381,86 @@ export function Entradas({
       lineas: 0,
       sinEmparejar: [],
       subidas: [],
+      partidas: [],
       totalCentavos: 0,
       vence: null,
     });
   }
 
-  if (enCamino === null) {
+  /**
+   * Agrega un renglón capturado a mano, CONTRA EL CATÁLOGO.
+   *
+   * Contra el catálogo y no como texto libre: diez notas capturadas con el nombre
+   * escrito a mano son diez claves nuevas para el mismo tornillo, y entonces el
+   * inventario de la ferretería vuelve a no servir. Si el material no está, el
+   * camino es el alta rápida, que esta misma pantalla ofrece.
+   */
+  function agregarPartida(): void {
+    const buscado = material.trim().toLowerCase();
+    const elegido = materiales.find((m) => m.nombre.toLowerCase() === buscado);
+    if (elegido === undefined) {
+      setError(
+        `«${material.trim()}» no es un ${voc.singular('producto')} de este proveedor. Elígelo de ` +
+          'la lista, o dalo de alta primero.',
+      );
+      return;
+    }
+    if (!/^\d{1,10}(\.\d{1,4})?$/.test(cantidad.trim())) {
+      setError('La cantidad va con hasta cuatro decimales.');
+      return;
+    }
+    if (!/^\d{1,10}(\.\d{1,2})?$/.test(costo.trim())) {
+      setError('El costo del renglón va en pesos y centavos.');
+      return;
+    }
+    setError(null);
+    const partida: PartidaCapturada = {
+      insumoId: elegido.id,
+      nombre: elegido.nombre,
+      cantidad: cantidad.trim(),
+      unidad: elegido.unidad_compra_default ?? elegido.unidad_base,
+      equivalencia: String(elegido.cantidad_por_compra_default ?? 1),
+      costoTotal: costo.trim(),
+    };
+    setNota((previa) => {
+      const base = previa ?? {
+        archivo: null,
+        lineas: 0,
+        sinEmparejar: [],
+        subidas: [],
+        partidas: [],
+        totalCentavos: 0,
+        vence: null,
+      };
+      const juntas = [...base.partidas, partida];
+      return {
+        ...base,
+        partidas: juntas,
+        lineas: juntas.length,
+        // En CENTAVOS y con enteros: sumar pesos con decimales en el navegador es
+        // cómo un total acaba en 1234.9999999.
+        totalCentavos: juntas.reduce((suma, p) => suma + aCentavos(p.costoTotal), 0),
+      };
+    });
+    setMaterial('');
+    setCantidad('');
+    setCosto('');
+  }
+
+  function quitarPartida(insumoId: string): void {
+    setNota((previa) => {
+      if (previa === null) return previa;
+      const juntas = previa.partidas.filter((p) => p.insumoId !== insumoId);
+      return {
+        ...previa,
+        partidas: juntas,
+        lineas: juntas.length,
+        totalCentavos: juntas.reduce((suma, p) => suma + aCentavos(p.costoTotal), 0),
+      };
+    });
+  }
+
+  if (proveedores === null) {
     // Esqueletos con la forma de los tres bloques, nunca un giro que gira: el
     // ojo ya sabe dónde va a mirar cuando lleguen los datos.
     return (
@@ -274,7 +482,9 @@ export function Entradas({
     <div className="p-3">
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold">Entradas</h1>
-        <p className="text-sm text-muted-foreground">Recepción y pedido · {proveedor}</p>
+        <p className="text-sm text-muted-foreground">
+          Recepción y pedido · {proveedor?.nombre ?? 'sin proveedor'}
+        </p>
       </header>
 
       {error !== null && (
@@ -284,25 +494,31 @@ export function Entradas({
       )}
 
       <div className={REJILLA}>
-        {/* PRIMERO SE VE · lo que ya viene, para no volver a pedirlo. */}
-        <section aria-label="Pedidos en camino" className={`${TARJETA} xl:col-start-2`}>
+        {/* PRIMERO SE VE · quién llega, para no volver a pedirle lo que trae. */}
+        <section aria-label="Ruta del proveedor" className={`${TARJETA} xl:col-start-2`}>
           <h2 className="text-sm font-semibold uppercase text-muted-foreground">En camino</h2>
-          {enCamino.length === 0 ? (
+          {ruta === null ? (
             <p className="mt-2 text-sm text-muted-foreground">
-              Nada en camino. Lo que pidas desde aquí aparecerá en esta franja hasta que llegue.
+              Elige un proveedor y aquí sale cuándo pasa y qué conviene pedirle.
             </p>
           ) : (
-            <ul className="mt-2 space-y-1">
-              {enCamino.map((pedido) => (
-                <li key={pedido.id} className="flex flex-wrap justify-between gap-2 text-sm">
-                  <span className="font-medium">{pedido.proveedor}</span>
-                  <span className="tabular-nums text-muted-foreground">
-                    {pedido.lineas} líneas · llega {pedido.llega} ·{' '}
-                    {PESOS.format(pedido.totalCentavos / 100)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className="mt-2 flex flex-wrap justify-between gap-2 text-sm">
+                <span className="font-medium">{ruta.proveedor}</span>
+                <span className="tabular-nums text-muted-foreground">
+                  {cuandoLlega(ruta.diasHastaLaVisita)}
+                </span>
+              </p>
+              <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+                Se pide para {ruta.diasDeCobertura} días · {ordenadas.length}{' '}
+                {voc.plural('producto')} por pedir · {PESOS.format(estimado / 100)}
+              </p>
+              {/* Lo que el sistema NO sabe, dicho aquí y no fingido. */}
+              <p className="mt-2 text-xs text-muted-foreground">
+                El sistema no lleva pedidos en tránsito: lo que se ve es la ruta del proveedor y lo
+                que habría que pedirle hoy.
+              </p>
+            </>
           )}
         </section>
 
@@ -310,14 +526,23 @@ export function Entradas({
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-48 flex-1">
               <Label htmlFor="proveedor">Proveedor</Label>
-              <Select value={proveedor} onValueChange={setProveedor}>
+              <Select
+                value={proveedorId}
+                onValueChange={(valor) => {
+                  setProveedorId(valor);
+                  const elegido = proveedores.find((p) => p.id === valor);
+                  // Los días los pone el proveedor: teclearlos cada vez es cómo
+                  // una nota queda a 30 cuando el trato era a 15.
+                  if (elegido !== undefined) setDias(String(elegido.dias_credito));
+                }}
+              >
                 <SelectTrigger id="proveedor" className="mt-1 w-full">
                   <SelectValue placeholder="Elige el proveedor" />
                 </SelectTrigger>
                 <SelectContent>
-                  {proveedores.map((nombre) => (
-                    <SelectItem key={nombre} value={nombre}>
-                      {nombre}
+                  {proveedores.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nombre}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -347,18 +572,33 @@ export function Entradas({
               </Button>
             </div>
             {aCredito && (
-              <div className="w-24">
-                <Label htmlFor="dias">Días</Label>
-                <Input
-                  id="dias"
-                  inputMode="numeric"
-                  value={dias}
-                  className="mt-1"
-                  onChange={(evento) => {
-                    setDias(evento.target.value);
-                  }}
-                />
-              </div>
+              <>
+                <div className="w-24">
+                  <Label htmlFor="dias">Días</Label>
+                  <Input
+                    id="dias"
+                    inputMode="numeric"
+                    value={dias}
+                    className="mt-1"
+                    onChange={(evento) => {
+                      setDias(evento.target.value);
+                    }}
+                  />
+                </div>
+                {/* A crédito el folio es OBLIGATORIO: es lo que se concilia
+                    cuando el proveedor reclame, y el servidor lo exige. */}
+                <div className="w-36">
+                  <Label htmlFor="folio">Folio de la nota</Label>
+                  <Input
+                    id="folio"
+                    value={folio}
+                    className="mt-1"
+                    onChange={(evento) => {
+                      setFolio(evento.target.value);
+                    }}
+                  />
+                </div>
+              </>
             )}
           </div>
 
@@ -398,9 +638,10 @@ export function Entradas({
               <>
                 <p className="font-semibold">Todavía no hay ninguna nota en captura.</p>
                 <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-                  Sube el archivo del proveedor y el sistema empareja lo que reconoce; tú resuelves
-                  sólo lo que no, y te avisa de lo que subió de costo antes de que se venda a
-                  pérdida. Una entrada capturada el mismo día evita una semana en negativo.
+                  Elige un camino y captura la nota del proveedor: el sistema empareja lo que
+                  reconoce, tú resuelves sólo lo que no, y te avisa de lo que subió de costo antes
+                  de que se venda a pérdida. Una entrada capturada el mismo día evita una semana en
+                  negativo.
                 </p>
                 <Button type="button" className="mt-3" onClick={iniciar}>
                   Recibir nota
@@ -413,6 +654,89 @@ export function Entradas({
                   {nota.lineas} líneas · {nota.lineas - pendientes} emparejadas ✓ ·{' '}
                   <span className="font-semibold">{pendientes}</span> sin emparejar ⚠
                 </p>
+
+                {/* ── El camino ③, capturado contra el catálogo ────────────── */}
+                <section aria-label={`Capturar ${voc.singular('linea_orden')}`} className="mt-3">
+                  <h2 className="text-sm font-semibold">Capturar {voc.singular('linea_orden')}</h2>
+                  <div className="mt-1 flex flex-wrap items-end gap-2">
+                    <div className="min-w-48 flex-1">
+                      <Label htmlFor="material">{voc.titulo('producto')}</Label>
+                      <Input
+                        id="material"
+                        list="materiales-del-proveedor"
+                        value={material}
+                        placeholder={
+                          materiales.length === 0
+                            ? `Este proveedor no tiene ${voc.plural('producto')} dados de alta`
+                            : 'Escribe y elige de la lista'
+                        }
+                        className="mt-1"
+                        onChange={(evento) => {
+                          setMaterial(evento.target.value);
+                        }}
+                      />
+                      {/* La lista es la del CATÁLOGO: capturar por texto libre
+                          crea diez claves nuevas para el mismo tornillo. */}
+                      <datalist id="materiales-del-proveedor">
+                        {materiales.map((m) => (
+                          <option key={m.id} value={m.nombre} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div className="w-24">
+                      <Label htmlFor="cantidad">Cantidad</Label>
+                      <Input
+                        id="cantidad"
+                        inputMode="decimal"
+                        value={cantidad}
+                        className="mt-1"
+                        onChange={(evento) => {
+                          setCantidad(evento.target.value);
+                        }}
+                      />
+                    </div>
+                    <div className="w-28">
+                      <Label htmlFor="costo">Costo del renglón</Label>
+                      <Input
+                        id="costo"
+                        inputMode="decimal"
+                        value={costo}
+                        className="mt-1"
+                        onChange={(evento) => {
+                          setCosto(evento.target.value);
+                        }}
+                      />
+                    </div>
+                    <Button type="button" variant="secondary" onClick={agregarPartida}>
+                      Agregar
+                    </Button>
+                  </div>
+                  {partidas.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {partidas.map((p) => (
+                        <li
+                          key={p.insumoId}
+                          className={`${BANDA} flex flex-wrap items-center gap-2 border-border bg-muted`}
+                        >
+                          <span className="flex-1">{p.nombre}</span>
+                          <span className="tabular-nums">
+                            {p.cantidad} {p.unidad} · {PESOS.format(aCentavos(p.costoTotal) / 100)}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              quitarPartida(p.insumoId);
+                            }}
+                          >
+                            Quitar
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
 
                 {pendientes > 0 && (
                   <section aria-label="Líneas sin emparejar" className="mt-3">
@@ -434,9 +758,13 @@ export function Entradas({
                             size="sm"
                             disabled={ocupado !== null}
                             onClick={() => {
+                              // El alta RÁPIDA: nombre y clave del proveedor. El
+                              // precio nace en cero y queda como pendiente del
+                              // catálogo; inventarlo aquí acaba en la etiqueta.
                               void ejecutar('/api/entradas/alta-material', linea.id, {
-                                proveedor,
                                 codigoProveedor: linea.codigoProveedor,
+                                descripcion: linea.descripcion,
+                                costo: '',
                               });
                             }}
                           >
@@ -454,7 +782,7 @@ export function Entradas({
                     className="mt-3"
                   >
                     <h2 className="text-sm font-semibold">
-                      ⚠ {nota.subidas.length} materiales subieron de costo
+                      ⚠ {nota.subidas.length} {voc.plural('producto')} subieron de costo
                     </h2>
                     <ul className="mt-1 space-y-1">
                       {nota.subidas.map((subida) => (
@@ -501,13 +829,24 @@ export function Entradas({
                   </p>
                   <Button
                     type="button"
-                    disabled={ocupado !== null}
+                    disabled={ocupado !== null || proveedorId === ''}
                     onClick={() => {
+                      // Las partidas van en la forma que pide `lineaDeCompra`: la
+                      // equivalencia es cuántas unidades base trae UNA de compra,
+                      // y sin ella «3 cajas» no dice cuántos kilos entraron.
                       void ejecutar('/api/entradas/recibir', CLAVE_GUARDAR, {
-                        proveedor,
+                        proveedorId,
+                        folio: folio.trim() === '' ? null : folio.trim(),
                         aCredito,
                         dias: Number(dias),
                         camino,
+                        lineas: partidas.map((p) => ({
+                          insumoId: p.insumoId,
+                          cantidadCapturada: p.cantidad,
+                          unidadCapturada: p.unidad,
+                          equivalencia: p.equivalencia,
+                          costoTotal: p.costoTotal,
+                        })),
                       });
                     }}
                   >
@@ -521,12 +860,12 @@ export function Entradas({
 
         <section aria-label="Pedido sugerido" className={`${TARJETA} xl:col-start-2`}>
           <h2 className="text-sm font-semibold uppercase text-muted-foreground">
-            Pedido sugerido · {proveedor}
+            Pedido sugerido · {proveedor?.nombre ?? '—'}
           </h2>
           {ordenadas.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
-              Sin sugerencias: se arman con la venta de los últimos 90 días. Recibe un par de notas
-              y esta lista empieza a decir qué pedir y qué no.
+              Sin sugerencias: se arman con la venta de los últimos días y el mínimo de cada
+              material. Recibe un par de notas y esta lista empieza a decir qué pedir y qué no.
             </p>
           ) : (
             <ul className="mt-2 divide-y divide-border">
@@ -539,7 +878,7 @@ export function Entradas({
                     </span>
                   </p>
                   <p className="text-xs tabular-nums text-muted-foreground">
-                    Hay {fila.hay} · vendido 90 d {fila.vendido90d}
+                    Hay {fila.hay} · vendido {fila.vendido90d}
                   </p>
                   {/* El color no es el único portador: la razón va escrita. */}
                   <p
@@ -574,4 +913,18 @@ export function Entradas({
       </div>
     </div>
   );
+}
+
+/**
+ * `'123.45'` → `12345`. Enteros, y con la misma regla que el servidor.
+ *
+ * `Math.round(x * 100)` pierde el medio centavo justo en el caso que importa
+ * —`1234.995 * 100` da `123499.4999…`— así que se parte por el punto y se
+ * rellenan los centavos. Esto SÓLO se usa para enseñar el total mientras se
+ * captura: lo que se guarda va como texto y lo convierte el servidor.
+ */
+function aCentavos(pesos: string): number {
+  const [enteros, decimales = ''] = pesos.trim().split('.');
+  const centavos = `${decimales}00`.slice(0, 2);
+  return Number.parseInt(enteros ?? '0', 10) * 100 + Number.parseInt(centavos, 10);
 }
