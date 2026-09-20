@@ -22,6 +22,15 @@ const MARTILLO = 'p2222222-2222-4222-8222-222222222222';
 const ALMACEN = 'a1111111-1111-4111-8111-111111111111';
 const LINEA = 'l1111111-1111-4111-8111-111111111111';
 const ROLLO = 'r1111111-1111-4111-8111-111111111111';
+/**
+ * EL INSUMO DEL CABLE, que no es el cable.
+ *
+ * `existencias.insumo_id` apunta a `insumos`, no a `productos`. Esta prueba tenía
+ * la existencia sembrada con el id del PRODUCTO, así que comparaba la suposición
+ * del comando consigo misma y pasaba con un comando que contra la base real
+ * contestaba «no hay material suficiente» con 437 m en el almacén.
+ */
+const INSUMO_CABLE = 'i1111111-1111-4111-8111-111111111111';
 const AHORA = new Date('2026-09-15T19:00:00.000Z');
 
 const pieza = (id: string, restante: bigint, estado = 'abierta') => ({
@@ -43,7 +52,8 @@ function ferreteria(extra: Partial<TablasFalsas> = {}): TablasFalsas {
         nombre: 'Cable THW cal. 12',
         unidad_venta: 'metro',
         es_continuo: true,
-        umbral_retazo_base: 2_000n,
+        // 2 m. En diezmilésimas de metro, que es la unidad base del sistema.
+        umbral_retazo_base: 20_000n,
       },
       {
         id: MARTILLO,
@@ -54,10 +64,16 @@ function ferreteria(extra: Partial<TablasFalsas> = {}): TablasFalsas {
         umbral_retazo_base: 0n,
       },
     ],
-    // 100 m de cable, en milímetros.
-    piezas_abiertas: [pieza(ROLLO, 100_000n)],
+    insumos: [
+      { id: INSUMO_CABLE, organizacion_id: ORG, producto_id: CABLE, nombre: 'Cable THW cal. 12' },
+    ],
+    // 100 m de cable, en diezmilésimas de metro.
+    piezas_abiertas: [pieza(ROLLO, 1_000_000n)],
+    // La EXISTENCIA se cuenta en unidades de venta —437 m—, no en base: es la
+    // misma columna que lee el mostrador y la misma que descuenta cualquier otra
+    // venta. Mezclar las dos escalas es el defecto que esta prueba fija.
     existencias: [
-      { organizacion_id: ORG, almacen_id: ALMACEN, insumo_id: CABLE, cantidad: '437000' },
+      { organizacion_id: ORG, almacen_id: ALMACEN, insumo_id: INSUMO_CABLE, cantidad: '437' },
     ],
     movimientos_stock: [],
     cortes_material: [],
@@ -67,7 +83,7 @@ function ferreteria(extra: Partial<TablasFalsas> = {}): TablasFalsas {
 
 const baseDe = (extra: Partial<TablasFalsas> = {}, crudas?: readonly Record<string, unknown>[]) =>
   crearBaseFalsa(ferreteria(extra), {
-    filasCrudas: crudas ?? [{ cantidad: '376600' }],
+    filasCrudas: crudas ?? [{ cantidad: '376.6' }],
     predeterminados: {
       movimientos_stock: {
         costo_unitario_centavos: 0n,
@@ -98,8 +114,8 @@ const corte = (extra: Record<string, unknown> = {}) => ({
   ordenLineaId: LINEA,
   productoId: CABLE,
   almacenId: ALMACEN,
-  medidaSolicitadaBase: 60_000,
-  mermaBase: 400,
+  medidaSolicitadaBase: 600_000,
+  mermaBase: 4_000,
   ...extra,
 });
 
@@ -125,16 +141,25 @@ describe('inventario.cortar_material', () => {
 
     const movimientos = base.filas('movimientos_stock');
     expect(movimientos).toHaveLength(2);
+    // Del INSUMO, que es lo que la existencia y el kardex referencian.
+    expect(movimientos[0]?.['insumo_id']).toBe(INSUMO_CABLE);
     expect(movimientos[0]?.['tipo']).toBe('salida_venta');
-    expect(movimientos[0]?.['cantidad']).toBe('-60000');
+    // En unidades de ALMACÉN. Antes decía `-60000` —la base sin convertir— y eso
+    // en el ledger son sesenta mil metros de cable saliendo por la puerta.
+    expect(movimientos[0]?.['cantidad']).toBe('-60');
     expect(movimientos[1]?.['tipo']).toBe('merma');
-    expect(movimientos[1]?.['cantidad']).toBe('-400');
+    expect(movimientos[1]?.['cantidad']).toBe('-0.4');
     expect(movimientos[1]?.['motivo']).toBe('corte');
-    expect(salida.consumidoBase).toBe('60400');
+    // Y LA VENTA NO LLEVA MOTIVO. `movimientos_stock.motivo` tiene foránea a
+    // `motivos_merma.clave`: con una frase libre —«corte de material»— la base
+    // rechaza el movimiento y el corte no termina. Una salida por venta no es una
+    // merma, así que no tiene motivo de merma.
+    expect(movimientos[0]?.['motivo']).toBeNull();
+    expect(salida.consumidoBase).toBe('604000');
     // Y lo que se le pidió al almacén es ESO, no sólo lo vendido. La resta se
     // hace con SQL crudo, que la base falsa no mira: el valor devuelto por la
     // propia resta es lo único que ata el cálculo con el descuento.
-    expect(salida.descontadoBase).toBe('60400');
+    expect(salida.descontadoBase).toBe('604000');
   });
 
   it('LA MERMA EN CERO NO DEJA MOVIMIENTO VACÍO', async () => {
@@ -155,8 +180,8 @@ describe('inventario.cortar_material', () => {
 
     const salida = await cortarMaterial.ejecutar(ctx, corte());
 
-    expect(salida.sobranteBase).toBe('39600');
-    expect(base.campo('piezas_abiertas', 'medida_restante_base')).toBe(39_600n);
+    expect(salida.sobranteBase).toBe('396000');
+    expect(base.campo('piezas_abiertas', 'medida_restante_base')).toBe(396_000n);
     expect(base.campo('piezas_abiertas', 'estado')).toBe('abierta');
   });
 
@@ -169,7 +194,7 @@ describe('inventario.cortar_material', () => {
 
     const salida = await cortarMaterial.ejecutar(
       ctx,
-      corte({ medidaSolicitadaBase: 98_500, mermaBase: 0 }),
+      corte({ medidaSolicitadaBase: 985_000, mermaBase: 0 }),
     );
 
     expect(salida.destino).toBe('retazo');
@@ -182,7 +207,7 @@ describe('inventario.cortar_material', () => {
 
     const salida = await cortarMaterial.ejecutar(
       ctx,
-      corte({ medidaSolicitadaBase: 99_600, mermaBase: 400 }),
+      corte({ medidaSolicitadaBase: 996_000, mermaBase: 4_000 }),
     );
 
     expect(salida.destino).toBe('agotada');
@@ -199,14 +224,14 @@ describe('inventario.cortar_material', () => {
 
     const salida = await cortarMaterial.ejecutar(
       ctx,
-      corte({ medidaPiezaNuevaBase: 100_000, folioResultante: 'R-200' }),
+      corte({ medidaPiezaNuevaBase: 1_000_000, folioResultante: 'R-200' }),
     );
 
     // Se abrió un rollo de 100 m: quedan 39.6 con identidad y con etiqueta.
     expect(salida.piezaResultanteId).not.toBeNull();
-    expect(salida.sobranteBase).toBe('39600');
+    expect(salida.sobranteBase).toBe('396000');
     expect(base.campo('piezas_abiertas', 'folio')).toBe('R-200');
-    expect(base.campo('piezas_abiertas', 'medida_restante_base')).toBe(39_600n);
+    expect(base.campo('piezas_abiertas', 'medida_restante_base')).toBe(396_000n);
   });
 
   it('SIN FOLIO NO SE ABRE UNA PIEZA QUE NADIE VA A ENCONTRAR', async () => {
@@ -216,7 +241,9 @@ describe('inventario.cortar_material', () => {
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     expect(
-      await codigoDe(() => cortarMaterial.ejecutar(ctx, corte({ medidaPiezaNuevaBase: 100_000 }))),
+      await codigoDe(() =>
+        cortarMaterial.ejecutar(ctx, corte({ medidaPiezaNuevaBase: 1_000_000 })),
+      ),
     ).toBe('CONFIGURACION_INVALIDA');
   });
 
@@ -235,7 +262,7 @@ describe('inventario.cortar_material', () => {
     // El objetivo es cerrar piezas, no abrirlas: cortando de la más grande, los
     // retazos se acumulan y el rollo acaba en cuatro pedazos invendibles.
     const chica = 'r2222222-2222-4222-8222-222222222222';
-    const base = baseDe({ piezas_abiertas: [pieza(ROLLO, 100_000n), pieza(chica, 70_000n)] });
+    const base = baseDe({ piezas_abiertas: [pieza(ROLLO, 1_000_000n), pieza(chica, 700_000n)] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     const salida = await cortarMaterial.ejecutar(ctx, corte());
@@ -256,7 +283,7 @@ describe('inventario.cortar_material', () => {
   });
 
   it('LO QUE NO ALCANZA EN LA PIEZA se dice antes de cortar', async () => {
-    const base = baseDe({ piezas_abiertas: [pieza(ROLLO, 50_000n)] });
+    const base = baseDe({ piezas_abiertas: [pieza(ROLLO, 500_000n)] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     expect(
@@ -279,7 +306,7 @@ describe('inventario.cortar_material', () => {
     const base = baseDe();
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
-    expect(await codigoDe(() => cortarMaterial.ejecutar(ctx, corte({ mermaBase: -400 })))).toBe(
+    expect(await codigoDe(() => cortarMaterial.ejecutar(ctx, corte({ mermaBase: -4_000 })))).toBe(
       'INVENTARIO_INVALIDO',
     );
   });

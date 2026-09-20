@@ -5,7 +5,6 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { RadioGroup, RadioGroupItem } from '@morphiqpos/ui/primitivas/radio-group';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState, type ChangeEvent } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -89,6 +88,20 @@ export interface MaterialContinuo {
 /** Los tres destinos del sobrante que nombra el documento. Ninguno inventado. */
 type Destino = 'abierto' | 'remate' | 'baja';
 
+/**
+ * Lo que `ferreteria.cortar_y_agregar` devuelve.
+ *
+ * Se declara aquí y no se importa del comando: ese módulo es `server-only` y esta
+ * pantalla corre en el navegador.
+ */
+interface CorteHecho {
+  readonly folio: string;
+  readonly entregado: string;
+  readonly merma: string;
+  readonly queda: string;
+  readonly destino: string;
+}
+
 export interface CorteDeMaterialProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly materialInicial?: MaterialContinuo;
@@ -161,7 +174,16 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   const [destino, setDestino] = useState<Destino>('abierto');
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const router = useRouter();
+  /** El corte que se acaba de hacer: su folio y lo que quedó. */
+  const [hecho, setHecho] = useState<CorteHecho | null>(null);
+  /**
+   * Cuántas veces hay que volver a leer.
+   *
+   * Un corte cambia la pieza —o la cierra— así que después de cortar la pantalla
+   * vuelve a preguntar en vez de suponer el nuevo restante. Es un contador y no un
+   * `setPiezas` a mano porque lo que manda es lo que la base dice.
+   */
+  const [vuelta, setVuelta] = useState(0);
 
   useEffect(() => {
     if (materialInicial !== undefined && piezasIniciales !== undefined) return;
@@ -169,13 +191,25 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
     // Si sigue montada se pregunta con una FUNCIÓN y no con un centinela: un
     // `let vivo = true` el compilador lo da por siempre-verdadero.
     const sigueMontada = () => !control.signal.aborted;
-    Promise.all([
-      consultarPuente<MaterialContinuo>('MaterialContinuo', { limite: 1, signal: control.signal }),
-      consultarPuente<PiezaDeCorte>('PiezaDeMaterial', { limite: 60, signal: control.signal }),
-    ])
-      .then(([materiales, leidas]) => {
+    // EN DOS PASOS, y no en paralelo: las piezas se piden POR MATERIAL. Pedirlas
+    // sueltas traía el rack de todos los materiales continuos del negocio, y con
+    // dos rollos de cable y dos de manguera la pantalla ofrecía cortar manguera
+    // desde la pantalla del cable.
+    consultarPuente<MaterialContinuo>('MaterialContinuo', { limite: 1, signal: control.signal })
+      .then(async (materiales) => {
+        const elMaterial = materialInicial ?? materiales[0] ?? null;
         if (!sigueMontada()) return;
-        setMaterial(materialInicial ?? materiales[0] ?? null);
+        setMaterial(elMaterial);
+        if (elMaterial === null) {
+          setPiezas(piezasIniciales ?? []);
+          return;
+        }
+        const leidas = await consultarPuente<PiezaDeCorte>('PiezaDeMaterial', {
+          filtro: { producto_id: elMaterial.id },
+          limite: 60,
+          signal: control.signal,
+        });
+        if (!sigueMontada()) return;
         setPiezas(piezasIniciales ?? leidas);
       })
       .catch((fallo: unknown) => {
@@ -189,7 +223,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
     return () => {
       control.abort();
     };
-  }, [materialInicial, piezasIniciales, voc]);
+  }, [materialInicial, piezasIniciales, voc, vuelta]);
 
   const ordenadas = [...(piezas ?? [])].sort(porAbiertas);
   // La preselección se DERIVA; no se escribe con un setState dentro del efecto.
@@ -271,14 +305,21 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
     setError(null);
     try {
       // El documento no nombra la ruta: /api/<dominio>/<verbo> por convención.
-      await invocarComando('/api/ferreteria/cortar', {
+      const salida = await invocarComando<CorteHecho>('/api/ferreteria/cortar', {
         materialId: material.id,
         piezaId: elegida.id,
         medida,
         desperdicio: sobrante,
         destinoSobrante: retazoChico ? destino : 'abierto',
       });
-      router.push('/ferreteria/mostrador');
+      // NO se navega al mostrador: el corte abrió una nota con su folio, y ése es
+      // el número que el cliente canta en la caja. Irse sin enseñarlo deja al
+      // mostradorista sin nada que decirle. Se limpia la medida —el siguiente
+      // corte es otro— y se vuelven a leer las piezas, que acaban de cambiar.
+      setHecho(salida);
+      setMedidaTexto('');
+      setSobranteTexto(null);
+      setVuelta((cuantas) => cuantas + 1);
     } catch (fallo) {
       setError(mensajeDe(fallo, 'No se pudo registrar el corte.'));
     } finally {
@@ -293,6 +334,22 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
       {error !== null && (
         <p role="alert" className={MALO}>
           {error}
+        </p>
+      )}
+
+      {/* EL FOLIO, que es lo único que el cliente se lleva del pasillo, y lo que
+          quedó del rollo, que es lo que el mostradorista tiene que rotular. */}
+      {hecho !== null && (
+        <p role="status" className={`${BLOQUE} border-primary`}>
+          Cortados{' '}
+          <span className="font-bold tabular-nums">
+            {hecho.entregado} {material.unidad}
+          </span>{' '}
+          · merma {hecho.merma} {material.unidad} · Nota{' '}
+          <span className="text-lg font-bold tabular-nums">{hecho.folio}</span> está en la caja.{' '}
+          {hecho.queda === '0'
+            ? 'La pieza se acabó y se cerró.'
+            : `Quedan ${hecho.queda} ${material.unidad}: rotúlalos.`}
         </p>
       )}
 

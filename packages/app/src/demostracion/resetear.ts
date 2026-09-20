@@ -1,4 +1,5 @@
 import { PAQUETES, ErrorDominio, esGiro } from '@morphiqpos/contracts';
+import { cantidad } from '@morphiqpos/domain/catalogo';
 import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { z } from 'zod';
@@ -91,6 +92,18 @@ export const resetearDemo = definirComando<
           costo_unitario_centavos: dato.costoCentavos,
           estrategia_consumo: 'sku',
           stock_minimo: '2',
+          // En qué se vende. El insumo se da de alta en la MISMA unidad, así que
+          // `sku` descuenta uno a uno y no hace falta un factor de conversión.
+          unidad_venta: dato.unidadVenta ?? 'pieza',
+          // F-145 · Lo que se vende cortado. `tipo_corte` sólo puede tener valor
+          // si `es_continuo` —lo exige `producto_corte_solo_si_continuo`—, así
+          // que los cuatro campos van juntos o no van.
+          es_continuo: dato.continuo !== undefined,
+          tipo_corte: dato.continuo?.tipoCorte ?? null,
+          merma_corte_default_base:
+            dato.continuo === undefined ? 0n : cantidad(dato.continuo.mermaTipica),
+          umbral_retazo_base:
+            dato.continuo === undefined ? 0n : cantidad(dato.continuo.umbralRetazo),
           // Sin area de preparacion la cocina no recibe NADA: no se crea
           // ninguna comanda y la mesa anuncia «pedido enviado» con la pantalla
           // de Cocina vacia. Una botella va a la barra, un plato a la cocina.
@@ -104,7 +117,7 @@ export const resetearDemo = definirComando<
           organizacion_id: ctx.ambito.organizacionId,
           producto_id: producto.id,
           nombre: dato.nombre,
-          unidad_base: 'pieza',
+          unidad_base: dato.unidadVenta ?? 'pieza',
           costo_unitario_centavos: dato.costoCentavos,
           stock_minimo: '2',
         })
@@ -116,9 +129,31 @@ export const resetearDemo = definirComando<
         almacen.id,
         insumo.id,
         dato.stock,
-        'pieza',
+        dato.unidadVenta ?? 'pieza',
         dato.costoCentavos,
       );
+
+      // LOS ROLLOS ABIERTOS, con su etiqueta.
+      //
+      // `piezas_abiertas` NO es el inventario: la existencia ya está contada
+      // arriba, y esto dice cómo está REPARTIDA. Por eso la suma de los
+      // restantes puede ser menor que la existencia —el resto son los rollos
+      // cerrados, que a propósito no llevan identidad (migración 113)— y por eso
+      // sembrarlas no altera ningún número del almacén.
+      for (const pieza of dato.continuo?.piezas ?? []) {
+        await ctx.tx
+          .insertInto('piezas_abiertas')
+          .values({
+            organizacion_id: ctx.ambito.organizacionId,
+            producto_id: producto.id,
+            almacen_id: almacen.id,
+            folio: pieza.folio,
+            medida_restante_base: cantidad(pieza.restante),
+            estado: 'abierta',
+          })
+          .execute();
+      }
+
       productoPorNombre.set(dato.nombre, producto.id);
       productos += 1;
       insumos += 1;
@@ -312,6 +347,13 @@ async function limpiar(tx: Transaccion, organizacionId: string): Promise<void> {
   // mesa antes, borrar órdenes aborta la transacción entera por la foránea.
   await limpiarSala(tx, organizacionId);
 
+  // ── Crédito ───────────────────────────────────────────────────────────────
+  // VA ANTES QUE LAS ÓRDENES, y no por orden estético: `remisiones.orden_id`
+  // apunta a `ordenes` con **RESTRICT**. En cuanto una demo fía algo —el botón
+  // «A cuenta» de la caja de ferretería—, `delete from ordenes` aborta la
+  // transacción entera y el reseteo deja la demo exactamente como estaba.
+  await limpiarCredito(tx, organizacionId);
+
   // ── Operación: ventas, cobros y caja ──────────────────────────────────────
   await sql`delete from pagos where organizacion_id = ${organizacionId}`.execute(tx);
   // Esta tabla NO lleva `organizacion_id`: cuelga de la línea, que sí lo lleva.
@@ -328,6 +370,12 @@ async function limpiar(tx: Transaccion, organizacionId: string): Promise<void> {
   await sql`delete from folios where organizacion_id = ${organizacionId}`.execute(tx);
 
   // ── Catálogo e inventario ─────────────────────────────────────────────────
+  // El CORTE primero: `cortes_material` apunta a los dos movimientos de stock
+  // con `no action` y al producto con `restrict`, y `piezas_abiertas` al producto
+  // igual. Sin estos dos borrados, la primera demo que corte un metro de cable
+  // deja el reseteo roto para siempre.
+  await sql`delete from cortes_material where organizacion_id = ${organizacionId}`.execute(tx);
+  await sql`delete from piezas_abiertas where organizacion_id = ${organizacionId}`.execute(tx);
   await sql`delete from movimientos_stock where organizacion_id = ${organizacionId}`.execute(tx);
   await sql`delete from existencias where organizacion_id = ${organizacionId}`.execute(tx);
   await sql`delete from recetas where organizacion_id = ${organizacionId}`.execute(tx);
@@ -376,4 +424,60 @@ async function entradaInicial(
       referencia_tipo: 'manual',
     })
     .execute();
+}
+/**
+ * EL CRÉDITO DE LA DEMO, DESHECHO CON SU ARITMÉTICA.
+ *
+ * ── Por qué no basta con borrar las filas ─────────────────────────────────
+ * Porque el saldo del cliente NO es una vista: es una columna que la remisión
+ * sube y el pago baja. Los clientes de la demo no se borran —su ficha, su límite
+ * y su deuda de arranque son parte de lo que se enseña— así que borrar las
+ * remisiones sin restar lo que sumaron dejaría al contratista debiendo miles de
+ * pesos de documentos que ya no existen, y la demostración de la semana que
+ * viene empezaría con el mejor cliente bloqueado por mora.
+ *
+ * Se deshace en el orden inverso al que se hizo: primero vuelve al saldo lo que
+ * los pagos bajaron, después se resta lo que las remisiones subieron, y sólo
+ * entonces se borran las filas.
+ */
+async function limpiarCredito(tx: Transaccion, organizacionId: string): Promise<void> {
+  // 1 · Lo que los pagos aplicaron vuelve al saldo.
+  await sql`
+    update clientes c
+       set saldo_pendiente_centavos = c.saldo_pendiente_centavos + aplicado.suma
+      from (
+        select p.cliente_id, sum(a.monto_centavos) as suma
+          from pagos_credito p
+          join aplicaciones_pago a on a.pago_id = p.id
+         where p.organizacion_id = ${organizacionId}
+         group by p.cliente_id
+      ) aplicado
+     where c.id = aplicado.cliente_id
+       and c.organizacion_id = ${organizacionId}
+  `.execute(tx);
+
+  // 2 · Y lo que las remisiones subieron se resta. `greatest` porque un saldo
+  //     negativo es un cliente al que el negocio le debe dinero, y eso no es lo
+  //     que pasó: lo que pasó es que la demo se reseteó.
+  await sql`
+    update clientes c
+       set saldo_pendiente_centavos = greatest(0, c.saldo_pendiente_centavos - fiado.suma)
+      from (
+        select r.cliente_id, sum(r.importe_centavos) as suma
+          from remisiones r
+         where r.organizacion_id = ${organizacionId}
+         group by r.cliente_id
+      ) fiado
+     where c.id = fiado.cliente_id
+       and c.organizacion_id = ${organizacionId}
+  `.execute(tx);
+
+  // `aplicaciones_pago` cae con su pago (cascade), y se borra explícito: la tabla
+  // no lleva `organizacion_id`, y depender del cascade obliga a leer otra
+  // migración para saber si el borrado de al lado la arrastra.
+  await sql`delete from aplicaciones_pago where pago_id in (
+    select id from pagos_credito where organizacion_id = ${organizacionId}
+  )`.execute(tx);
+  await sql`delete from pagos_credito where organizacion_id = ${organizacionId}`.execute(tx);
+  await sql`delete from remisiones where organizacion_id = ${organizacionId}`.execute(tx);
 }

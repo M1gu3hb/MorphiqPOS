@@ -48,6 +48,27 @@ function comoTexto(texto: string): string {
  * encuentra por `getByRole`. Debajo de `xl` se busca la barra y se comprueba que
  * ABRE, que es lo que de verdad hace falta para vender desde una tablet.
  */
+/**
+ * La existencia del cable, leída del ÍNDICE DEL MOSTRADOR.
+ *
+ * Del mismo sitio del que la lee el mostradorista —la vista `materiales_mostrador`,
+ * que proyecta el ledger en vivo— y no de una consulta propia: si mañana el índice
+ * miente, esta prueba tiene que mentir igual y fallar por eso.
+ */
+async function existenciaDelCable(page: Page): Promise<number> {
+  const materiales = await consultarPuente<MaterialDelPuente>(page, 'MaterialMostrador', {
+    limite: 60,
+  });
+  const cable = materiales.find((m) => (m.nombre ?? '').startsWith('Cable THW'));
+  expect(
+    cable,
+    'La demo de ferretería no tiene el cable THW, que es su único material continuo. Siémbrala ' +
+      'otra vez: `node --conditions=react-server scripts/sembrar-demos.mjs --solo ' +
+      'demo-acople-ferreteria`.',
+  ).toBeDefined();
+  return cable?.existencia ?? 0;
+}
+
 async function abrirLaVenta(page: Page): Promise<Locator> {
   const laVenta = page.getByRole('complementary', { name: 'La venta' });
   if ((page.viewportSize()?.width ?? 0) >= 1280) {
@@ -329,7 +350,61 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // comando falla y alguien se come el error.
     await exigirVentaCobrada(page, totalCentavos, idsDeAntes);
 
-    // ── 6 · EL CORTE · el fondo más la venta, al centavo ──────────────────
+    // ── 6 · EL CORTE DE MATERIAL · lo que distingue a una ferretería ───────
+    //
+    // Se cortan 6 m de un rollo de 12 y salen 6.2 porque la segueta se lleva lo
+    // suyo. Es el descuadre 3 del giro: pasa ocho veces al día en cable, manguera
+    // y cadena, y a fin de mes son decenas de metros que el sistema cree que
+    // están. Aquí se comprueba que **no** se los cree.
+    const cableAntes = await existenciaDelCable(page);
+
+    await abrirPantalla(page, '/ferreteria/corte-de-material');
+    await expect(
+      page.getByRole('heading', { name: /^Cortar · / }),
+      'La pantalla de corte no encontró material continuo. `materiales_continuos` (171) sirve los ' +
+        'productos con `es_continuo`, y la semilla marca el cable: si esto falla, o la vista no ' +
+        'está o la demo se sembró antes de que existiera.',
+    ).toBeVisible();
+
+    // La PIEZA sugerida es la más chica que alcanza: el trabajo de una ferretería
+    // es acabarse los rollos abiertos, no abrir otro.
+    // Por su RADIO, no por el texto suelto: el folio aparece también en «Queda en
+    // R-102», y lo que importa aquí es que la pieza esté ofrecida y elegida.
+    await expect(
+      page.getByRole('radio', { name: /Rollo abierto R-102/ }),
+      'La pantalla de corte no ofrece el rollo R-102 de la demo. `piezas_de_material` (171) sirve ' +
+        'las piezas vivas de ESE material, filtradas por `producto_id`.',
+    ).toBeChecked();
+
+    await page.getByLabel(/Medida entregada/).fill('6');
+    await page.getByRole('button', { name: 'Cortar y agregar' }).click();
+
+    const corte = page.getByRole('status');
+    await expect(
+      corte,
+      'El corte no contestó. `/api/ferreteria/cortar` abre la nota, le cuelga la partida y corta ' +
+        'en una sola transacción: si esto no aparece, o la ruta no existe o el comando la rechazó.',
+    ).toContainText(/está en la caja/, { timeout: 30_000 });
+    // Lo que queda del rollo, que es lo que el mostradorista tiene que rotular:
+    // 12 − 6 − 0.2 de merma = 5.8.
+    await expect(corte).toContainText('Quedan 5.8 m');
+
+    // Y LA EXISTENCIA BAJÓ 6.2, no 6: la merma es material que salió del almacén.
+    // Esta resta se hace con SQL crudo y la base falsa no la mira, así que es aquí
+    // —contra la base de verdad— donde se puede afirmar que la escala es la buena.
+    // Con la unidad base sin convertir bajaría 62 000 m y el cable quedaría en
+    // menos sesenta mil.
+    await expect
+      .poll(async () => existenciaDelCable(page), {
+        message:
+          'La existencia del cable no bajó por el corte y su merma. O el corte no descontó, o lo ' +
+          'hizo en otra escala: `medida_restante_base` son diezmilésimas y `existencias.cantidad` ' +
+          'unidades de venta.',
+        timeout: 20_000,
+      })
+      .toBeCloseTo(cableAntes - 6.2, 2);
+
+    // ── 7 · EL CORTE DE CAJA · el fondo más la venta, al centavo ───────────
     //
     // Y cerrar es lo que hace REPETIBLE la corrida: la base permite UNA sesión
     // abierta por sucursal, y cada navegador nuevo trae su propia terminal, así

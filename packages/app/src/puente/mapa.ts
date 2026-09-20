@@ -1374,6 +1374,78 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   },
 
   /**
+   * EL MATERIAL QUE SE VENDE CORTADO (F-145, F-150).
+   *
+   * ── Por qué esta entidad tenía que existir ────────────────────────────────
+   * `ferreteria/CorteDeMaterial.tsx` se hidrata de aquí y de `PiezaDeMaterial`, y
+   * **ninguna de las dos estaba en el mapa**: el puente contestaba
+   * `PUENTE_ENTIDAD_DESCONOCIDA` y la pantalla caía en su estado vacío. La
+   * función que distingue a una ferretería de una tiendita —cortar— no tenía por
+   * dónde entrar.
+   *
+   * ── En unidades de VENTA, no en base ─────────────────────────────────────
+   * La vista `materiales_continuos` (171) ya divide: `desperdicioTipico` y
+   * `umbralRetazo` llegan en metros con decimales, que es lo que la pantalla
+   * teclea y compara. En base serían 2 000 y 30 000, y el aviso de «retazo
+   * chico» se dispararía siempre.
+   */
+  MaterialContinuo: {
+    tabla: 'materiales_continuos',
+    // Corta quien despacha y quien está en el almacén; el precio de remate lo
+    // decide quien ve márgenes, y eso se filtra por campo más abajo.
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'lectura',
+    ordenPorOmision: 'nombre',
+    campos: {
+      id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      unidad: { columna: 'unidad_venta', conversion: 'texto', escribible: false },
+      tipoCorte: { columna: 'tipo_corte', conversion: 'texto', escribible: false },
+      precioCentavos: { columna: 'precio_venta_centavos', conversion: 'entero', escribible: false },
+      costoCentavos: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'costo_unitario_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+      desperdicioTipico: { columna: 'merma_tipica', conversion: 'decimal', escribible: false },
+      umbralRetazo: { columna: 'umbral_retazo', conversion: 'decimal', escribible: false },
+      // Sugerencia, no precio: lo lee quien puede decidir rematar.
+      precioRemateCentavos: {
+        rolesLectura: [...VE_MARGENES],
+        columna: 'precio_remate_centavos',
+        conversion: 'entero',
+        escribible: false,
+      },
+    },
+  },
+
+  /**
+   * LOS ROLLOS ABIERTOS, con su etiqueta (F-145).
+   *
+   * Un RETAZO cuenta como abierto: se puede cortar de él y conviene gastarlo
+   * antes que abrir otro rollo. `iguales` es siempre 1 porque los rollos cerrados
+   * no llevan identidad a propósito (migración 113), y el sistema no sabe si los
+   * 250 m que no están en piezas son dos rollos de 125 o cinco de 50.
+   */
+  PiezaDeMaterial: {
+    tabla: 'piezas_de_material',
+    rolesLectura: [...TODOS_LOS_ROLES],
+    escritura: 'comando',
+    // La más chica primero: el objetivo es CERRAR piezas, no abrirlas.
+    ordenPorOmision: 'restante',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      producto_id: { columna: 'producto_id', conversion: 'texto', escribible: false },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      abierta: { columna: 'abierta', conversion: 'booleano', escribible: false },
+      restante: { columna: 'restante', conversion: 'decimal', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      iguales: { columna: 'iguales', conversion: 'entero', escribible: false },
+    },
+  },
+
+  /**
    * LA CAJA DE UNA FERRETERÍA (F-140).
    *
    * ── Por qué esta entidad tenía que existir ────────────────────────────────

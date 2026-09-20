@@ -17,11 +17,26 @@ export {
   type ResultadoBusqueda,
 } from './catalogo.ts';
 
-export { cortarMaterial, entradaCortarMaterial, type ResultadoCorte } from './corte.ts';
+export {
+  cortarMaterial,
+  ejecutarCorte,
+  entradaCortarMaterial,
+  type EntradaDeCorte,
+  type ResultadoCorte,
+} from './corte.ts';
 
 export {
+  cortarYAgregar,
+  entradaCortarYAgregar,
+  type ResultadoCorteMostrador,
+} from './corte-mostrador.ts';
+
+export {
+  abrirNotaDeMostrador,
   crearNotaMostrador,
   entradaCrearNotaMostrador,
+  type DatosDeNota,
+  type NotaAbierta,
   type ResultadoNotaMostrador,
 } from './nota-de-mostrador.ts';
 

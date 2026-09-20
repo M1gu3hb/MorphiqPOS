@@ -1087,13 +1087,10 @@ const SUITES_DE_MODELO = [
  * impedimento desaparezca, para que nadie deje el hueco documentado para siempre.
  */
 const SIN_COBRO_TODAVIA = {
-  'ferreteria.spec.ts': {
-    motivo:
-      'el buscador del mostrador se hidrata de la entidad `MaterialMostrador`, que el puente no ' +
-      'tiene; «Mandar a caja» publica en una ruta que sirve a `apartarNota` y pide otra forma; y ' +
-      'el estado `pendiente_cobro` que su caja lista no lo escribe ningún comando',
-    sonda: 'MaterialMostrador',
-  },
+  // VACÍA desde el 19-09-2026, y que siga así. La última era `ferreteria`, por
+  // tres cosas que ya están hechas: `MaterialMostrador` y `NotaDeCaja` en el
+  // puente (migraciones 168-170), `ferreteria.crear_nota_mostrador` para la nota
+  // y el cuerpo correcto en el cobro. Las cinco suites cobran.
 };
 
 function comprobarQueLasPruebasCobran() {
@@ -1296,10 +1293,6 @@ const RUTAS_QUE_EL_FRONTEND_LLAMA_Y_NO_EXISTEN = {
   '/api/expediente/capturar-formula':
     'la fórmula del tinte, dentro de la cita en curso; no hay comando todavía',
   '/api/ferreteria/agregar-partida': 'agregar una pieza desde su ficha; no hay comando todavía',
-  '/api/ferreteria/cortar':
-    'el corte de material. El comando `inventario.cortar_material` SÍ existe y pide otra forma ' +
-    '(`ordenLineaId`, `almacenId`, medidas en unidad base) que esa pantalla no tiene: hace falta ' +
-    'decidir si el corte cuelga de una línea de venta o va suelto',
   '/api/ferreteria/declarar-equivalencia': 'existe `catalogo.declarar_equivalencia`; falta la ruta',
   '/api/inventario/ajustar-conteo': 'existe `inventario.ajustar`; falta la ruta o el alias',
   '/api/precios/aplicar-sugerido': 'aplicar el precio sugerido tras una compra; falta el comando',

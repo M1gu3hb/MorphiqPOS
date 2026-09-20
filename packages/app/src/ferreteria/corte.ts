@@ -2,6 +2,7 @@ import 'server-only';
 
 import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
+import { cantidadATexto, desdeDiezmilesimas } from '@morphiqpos/domain/catalogo';
 import { piezaParaElCorte, planearCorte, type PiezaAbierta } from '@morphiqpos/domain/inventario';
 import { sql } from 'kysely';
 import { z } from 'zod';
@@ -31,6 +32,29 @@ import { definirComando, type ContextoComando } from '../definicion.ts';
 
 const ROLES = ['cajero', 'almacen', 'gerente', 'administrador', 'dueno'] as const;
 
+/**
+ * LA UNIDAD BASE DE UN MATERIAL CONTINUO, dicha una vez.
+ *
+ * Es su unidad de venta en DIEZMILÉSIMAS: 37.5 m son 375 000. Es la escala de
+ * `Cantidad` y la de `numeric(14,4)`, o sea la que el resto del sistema usa para
+ * todas las cantidades de inventario.
+ *
+ * ── Por qué esto tiene que convertirse, y qué pasaba sin la conversión ────
+ * `piezas_abiertas.medida_restante_base` es un `bigint` en esa escala, y
+ * `existencias.cantidad` es un `numeric(14,4)` en unidades de venta. Restar el
+ * bigint tal cual —`cantidad = cantidad - 604000`— descontaba **diez mil veces**
+ * el material que salió: un corte de 60.4 m dejaba la existencia del cable en
+ * menos cuatrocientos mil. Y el ledger escribía `-604000` donde el resto del
+ * sistema escribe `-60.4`, así que el kardex del material continuo no se podía
+ * leer junto al de nada más.
+ *
+ * Lo tapaba que la resta se hace con SQL crudo y la base falsa no la mira: la
+ * prueba comparaba el bigint contra sí mismo y pasaba.
+ */
+function enUnidadDeAlmacen(base: bigint): string {
+  return cantidadATexto(desdeDiezmilesimas(base));
+}
+
 export const entradaCortarMaterial = z.object({
   ordenLineaId: z.uuid(),
   productoId: z.uuid(),
@@ -55,6 +79,15 @@ export const entradaCortarMaterial = z.object({
   folioResultante: z.string().trim().min(1).max(20).optional(),
 });
 
+/**
+ * Lo que `ejecutarCorte` necesita, ya validado.
+ *
+ * Es `z.infer` de la entrada del comando y se declara aparte para que otro
+ * comando —el de la pantalla de mostrador, que corta y agrega la partida— pueda
+ * pedir exactamente esto sin volver a describirlo.
+ */
+export type EntradaDeCorte = z.infer<typeof entradaCortarMaterial>;
+
 export interface ResultadoCorte {
   readonly corteId: string;
   readonly piezaOrigenId: string | null;
@@ -76,6 +109,223 @@ export interface ResultadoCorte {
   readonly piezaResultanteId: string | null;
 }
 
+/**
+ * EL CORTE, sin auditar.
+ *
+ * ── Por qué vive fuera del comando ────────────────────────────────────────
+ * Porque hay DOS puertas al mismo acto: `inventario.cortar_material`, que corta
+ * contra una partida que ya existe, y `ferreteria.cortar_y_agregar`, que es la
+ * pantalla del mostrador —arma la nota, mete la partida y corta, en una sola
+ * transacción—. Copiar el cuerpo sería tener dos sitios donde se decide qué sale
+ * del almacén, y el segundo se quedaría sin la guarda del primero.
+ *
+ * Y no audita a propósito: `definirComando` guarda **sólo la primera** entrada
+ * del rastro, así que si esto auditara, el comando que lo llama guardaría la
+ * auditoría del corte bajo su propio nombre y perdería la suya.
+ */
+export async function ejecutarCorte(
+  ctx: ContextoComando<Transaccion>,
+  entrada: EntradaDeCorte,
+): Promise<ResultadoCorte> {
+  const { organizacionId, empleoId } = ctx.ambito;
+
+  const producto = await ctx.paso('cargar_producto', () =>
+    ctx.tx
+      .selectFrom('productos')
+      .select([
+        'id',
+        'unidad_venta as unidad',
+        'es_continuo as esContinuo',
+        'umbral_retazo_base as umbralRetazo',
+      ])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', entrada.productoId)
+      .executeTakeFirst(),
+  );
+  if (producto === undefined) {
+    throw new ErrorDominio('PRODUCTO_NO_ENCONTRADO', 'Ese producto no está en este catálogo.');
+  }
+  if (!producto.esContinuo) {
+    // Cortar un martillo no es una operación. Sin esta guarda, un tecleo en la
+    // pantalla equivocada descontaría de un producto por pieza una cantidad
+    // en milímetros.
+    throw new ErrorDominio('CATALOGO_INVALIDO', 'Ese producto no se corta: se vende por pieza.', {
+      productoId: entrada.productoId,
+    });
+  }
+
+  /**
+   * EL INSUMO DEL MATERIAL, que es de donde sale la existencia.
+   *
+   * `existencias.insumo_id` y `movimientos_stock.insumo_id` referencian a
+   * `insumos`, NO a `productos`: son uuids distintos. Este comando escribía el id
+   * del producto en las tres, así que la resta no encontraba ninguna fila,
+   * devolvía cero y el comando lo leía como falta de existencia: **el corte
+   * contestaba «no hay material suficiente» con trescientos metros en el almacén**.
+   * Medido contra la base real el 19-09-2026.
+   *
+   * Lo tapaba la base falsa, que tenía sus existencias sembradas con el id del
+   * producto: la prueba comparaba la suposición consigo misma.
+   */
+  const insumo = await ctx.paso('cargar_insumo', () =>
+    ctx.tx
+      .selectFrom('insumos')
+      .select(['id'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('producto_id', '=', entrada.productoId)
+      .executeTakeFirst(),
+  );
+  if (insumo === undefined) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Ese material no tiene insumo: sin él no hay existencia de la que descontar.',
+      { productoId: entrada.productoId },
+    );
+  }
+
+  const abiertas = await ctx.paso('cargar_piezas', () =>
+    ctx.tx
+      .selectFrom('piezas_abiertas')
+      .select(['id', 'medida_restante_base as restante', 'estado'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('producto_id', '=', entrada.productoId)
+      .where('almacen_id', '=', entrada.almacenId)
+      .where('estado', '<>', 'cerrada')
+      .execute(),
+  );
+
+  const candidatas: PiezaAbierta[] = abiertas.map((p) => ({
+    id: p.id,
+    restanteBase: p.restante,
+    estado: p.estado as PiezaAbierta['estado'],
+  }));
+
+  const necesario = BigInt(entrada.medidaSolicitadaBase) + BigInt(entrada.mermaBase);
+  const origen =
+    entrada.piezaAbiertaId === undefined
+      ? piezaParaElCorte(candidatas, necesario)
+      : (candidatas.find((p) => p.id === entrada.piezaAbiertaId) ?? null);
+
+  if (entrada.piezaAbiertaId !== undefined && origen === null) {
+    throw new ErrorDominio(
+      'PUENTE_NO_ENCONTRADO',
+      'Esa pieza abierta no existe o ya está cerrada.',
+      { piezaAbiertaId: entrada.piezaAbiertaId },
+    );
+  }
+
+  // Sin pieza abierta que alcance, se corta de un rollo CERRADO y el corte
+  // abre uno. `piezas_abiertas` no es el inventario, así que esto no cambia la
+  // existencia — sólo dice que a partir de ahora hay una pieza con identidad.
+  if (origen === null && entrada.medidaPiezaNuevaBase === undefined) {
+    // Sin saber cuánto trae el rollo que se abre, el sobrante no se puede
+    // calcular, y una pieza abierta con el restante inventado miente desde el
+    // primer corte.
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Ninguna pieza abierta alcanza: di cuánto trae el rollo que vas a abrir.',
+      { necesario: necesario.toString() },
+    );
+  }
+
+  const disponible = origen?.restanteBase ?? BigInt(entrada.medidaPiezaNuevaBase ?? 0);
+  const plan = planearCorte(
+    { restanteBase: disponible, umbralRetazoBase: producto.umbralRetazo },
+    {
+      medidaSolicitadaBase: BigInt(entrada.medidaSolicitadaBase),
+      mermaBase: BigInt(entrada.mermaBase),
+    },
+  );
+
+  // ── Lo que sale del almacén ───────────────────────────────────────────
+  // Entregado y merma son DOS movimientos con motivos distintos, no uno
+  // sumado: el corte diario acumula el patrón de merma por producto, y con un
+  // solo movimiento esa sección del corte no se puede construir.
+  const descontado = await descontar(ctx, entrada.almacenId, insumo.id, plan.consumidoBase);
+
+  const venta = await ctx.paso('anotar_venta', () =>
+    ctx.tx
+      .insertInto('movimientos_stock')
+      .values({
+        organizacion_id: organizacionId,
+        almacen_id: entrada.almacenId,
+        insumo_id: insumo.id,
+        tipo: 'salida_venta',
+        cantidad: `-${enUnidadDeAlmacen(plan.entregadoBase)}`,
+        unidad: producto.unidad,
+        referencia_tipo: 'corte',
+        referencia_id: entrada.ordenLineaId,
+        empleado_id: empleoId,
+        // SIN MOTIVO, y no «corte de material»: `movimientos_stock.motivo`
+        // referencia a `motivos_merma.clave` —la 149 lo ató— y esa frase no es una
+        // clave de merma, así que la base rechazaba el movimiento con
+        // `23503 foreign_key_violation` y **el corte no podía terminar nunca**.
+        // Medido contra la base real el 19-09-2026. Y es lo correcto además de lo
+        // que pasa: una SALIDA POR VENTA no tiene motivo de merma. El que sí lo
+        // lleva es el movimiento de merma de abajo, con la clave `corte`.
+        motivo: null,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow(),
+  );
+
+  const merma =
+    plan.mermaBase === 0n
+      ? null
+      : await ctx.paso('anotar_merma', () =>
+          ctx.tx
+            .insertInto('movimientos_stock')
+            .values({
+              organizacion_id: organizacionId,
+              almacen_id: entrada.almacenId,
+              insumo_id: insumo.id,
+              tipo: 'merma',
+              cantidad: `-${enUnidadDeAlmacen(plan.mermaBase)}`,
+              unidad: producto.unidad,
+              referencia_tipo: 'corte',
+              referencia_id: entrada.ordenLineaId,
+              empleado_id: empleoId,
+              motivo: 'corte',
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow(),
+        );
+
+  const resultante = await actualizarPiezas(ctx, entrada, plan, origen, producto.umbralRetazo);
+
+  const corte = await ctx.paso('anotar_corte', () =>
+    ctx.tx
+      .insertInto('cortes_material')
+      .values({
+        organizacion_id: organizacionId,
+        orden_linea_id: entrada.ordenLineaId,
+        producto_id: entrada.productoId,
+        pieza_abierta_id: origen?.id ?? null,
+        medida_entregada_base: plan.entregadoBase,
+        merma_base: plan.mermaBase,
+        movimiento_venta_id: venta.id,
+        movimiento_merma_id: merma?.id ?? null,
+        pieza_resultante_id: resultante,
+        empleado_id: empleoId,
+        created_at: ctx.ahora,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow(),
+  );
+
+  return {
+    corteId: corte.id,
+    piezaOrigenId: origen?.id ?? null,
+    entregadoBase: plan.entregadoBase.toString(),
+    mermaBase: plan.mermaBase.toString(),
+    consumidoBase: plan.consumidoBase.toString(),
+    descontadoBase: descontado.toString(),
+    sobranteBase: plan.sobranteBase.toString(),
+    destino: plan.destino,
+    piezaResultanteId: resultante,
+  };
+}
+
 export const cortarMaterial = definirComando<
   Transaccion,
   typeof entradaCortarMaterial,
@@ -88,183 +338,20 @@ export const cortarMaterial = definirComando<
   paquetes: PAQUETES_OPERATIVOS,
   entrada: entradaCortarMaterial,
   async ejecutar(ctx, entrada) {
-    const { organizacionId, empleoId } = ctx.ambito;
-
-    const producto = await ctx.paso('cargar_producto', () =>
-      ctx.tx
-        .selectFrom('productos')
-        .select([
-          'id',
-          'unidad_venta as unidad',
-          'es_continuo as esContinuo',
-          'umbral_retazo_base as umbralRetazo',
-        ])
-        .where('organizacion_id', '=', organizacionId)
-        .where('id', '=', entrada.productoId)
-        .executeTakeFirst(),
-    );
-    if (producto === undefined) {
-      throw new ErrorDominio('PRODUCTO_NO_ENCONTRADO', 'Ese producto no está en este catálogo.');
-    }
-    if (!producto.esContinuo) {
-      // Cortar un martillo no es una operación. Sin esta guarda, un tecleo en la
-      // pantalla equivocada descontaría de un producto por pieza una cantidad
-      // en milímetros.
-      throw new ErrorDominio('CATALOGO_INVALIDO', 'Ese producto no se corta: se vende por pieza.', {
-        productoId: entrada.productoId,
-      });
-    }
-
-    const abiertas = await ctx.paso('cargar_piezas', () =>
-      ctx.tx
-        .selectFrom('piezas_abiertas')
-        .select(['id', 'medida_restante_base as restante', 'estado'])
-        .where('organizacion_id', '=', organizacionId)
-        .where('producto_id', '=', entrada.productoId)
-        .where('almacen_id', '=', entrada.almacenId)
-        .where('estado', '<>', 'cerrada')
-        .execute(),
-    );
-
-    const candidatas: PiezaAbierta[] = abiertas.map((p) => ({
-      id: p.id,
-      restanteBase: p.restante,
-      estado: p.estado as PiezaAbierta['estado'],
-    }));
-
-    const necesario = BigInt(entrada.medidaSolicitadaBase) + BigInt(entrada.mermaBase);
-    const origen =
-      entrada.piezaAbiertaId === undefined
-        ? piezaParaElCorte(candidatas, necesario)
-        : (candidatas.find((p) => p.id === entrada.piezaAbiertaId) ?? null);
-
-    if (entrada.piezaAbiertaId !== undefined && origen === null) {
-      throw new ErrorDominio(
-        'PUENTE_NO_ENCONTRADO',
-        'Esa pieza abierta no existe o ya está cerrada.',
-        { piezaAbiertaId: entrada.piezaAbiertaId },
-      );
-    }
-
-    // Sin pieza abierta que alcance, se corta de un rollo CERRADO y el corte
-    // abre uno. `piezas_abiertas` no es el inventario, así que esto no cambia la
-    // existencia — sólo dice que a partir de ahora hay una pieza con identidad.
-    if (origen === null && entrada.medidaPiezaNuevaBase === undefined) {
-      // Sin saber cuánto trae el rollo que se abre, el sobrante no se puede
-      // calcular, y una pieza abierta con el restante inventado miente desde el
-      // primer corte.
-      throw new ErrorDominio(
-        'CONFIGURACION_INVALIDA',
-        'Ninguna pieza abierta alcanza: di cuánto trae el rollo que vas a abrir.',
-        { necesario: necesario.toString() },
-      );
-    }
-
-    const disponible = origen?.restanteBase ?? BigInt(entrada.medidaPiezaNuevaBase ?? 0);
-    const plan = planearCorte(
-      { restanteBase: disponible, umbralRetazoBase: producto.umbralRetazo },
-      {
-        medidaSolicitadaBase: BigInt(entrada.medidaSolicitadaBase),
-        mermaBase: BigInt(entrada.mermaBase),
-      },
-    );
-
-    // ── Lo que sale del almacén ───────────────────────────────────────────
-    // Entregado y merma son DOS movimientos con motivos distintos, no uno
-    // sumado: el corte diario acumula el patrón de merma por producto, y con un
-    // solo movimiento esa sección del corte no se puede construir.
-    const descontado = await descontar(
-      ctx,
-      entrada.almacenId,
-      entrada.productoId,
-      plan.consumidoBase,
-    );
-
-    const venta = await ctx.paso('anotar_venta', () =>
-      ctx.tx
-        .insertInto('movimientos_stock')
-        .values({
-          organizacion_id: organizacionId,
-          almacen_id: entrada.almacenId,
-          insumo_id: entrada.productoId,
-          tipo: 'salida_venta',
-          cantidad: `-${plan.entregadoBase.toString()}`,
-          unidad: producto.unidad,
-          referencia_tipo: 'corte',
-          referencia_id: entrada.ordenLineaId,
-          empleado_id: empleoId,
-          motivo: 'corte de material',
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow(),
-    );
-
-    const merma =
-      plan.mermaBase === 0n
-        ? null
-        : await ctx.paso('anotar_merma', () =>
-            ctx.tx
-              .insertInto('movimientos_stock')
-              .values({
-                organizacion_id: organizacionId,
-                almacen_id: entrada.almacenId,
-                insumo_id: entrada.productoId,
-                tipo: 'merma',
-                cantidad: `-${plan.mermaBase.toString()}`,
-                unidad: producto.unidad,
-                referencia_tipo: 'corte',
-                referencia_id: entrada.ordenLineaId,
-                empleado_id: empleoId,
-                motivo: 'corte',
-              })
-              .returning('id')
-              .executeTakeFirstOrThrow(),
-          );
-
-    const resultante = await actualizarPiezas(ctx, entrada, plan, origen, producto.umbralRetazo);
-
-    const corte = await ctx.paso('anotar_corte', () =>
-      ctx.tx
-        .insertInto('cortes_material')
-        .values({
-          organizacion_id: organizacionId,
-          orden_linea_id: entrada.ordenLineaId,
-          producto_id: entrada.productoId,
-          pieza_abierta_id: origen?.id ?? null,
-          medida_entregada_base: plan.entregadoBase,
-          merma_base: plan.mermaBase,
-          movimiento_venta_id: venta.id,
-          movimiento_merma_id: merma?.id ?? null,
-          pieza_resultante_id: resultante,
-          empleado_id: empleoId,
-          created_at: ctx.ahora,
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow(),
-    );
+    const salida = await ejecutarCorte(ctx, entrada);
 
     ctx.auditar({
-      entidadId: corte.id,
+      entidadId: salida.corteId,
       payload: {
         ordenLineaId: entrada.ordenLineaId,
         productoId: entrada.productoId,
-        entregadoBase: plan.entregadoBase.toString(),
-        mermaBase: plan.mermaBase.toString(),
-        destino: plan.destino,
+        entregadoBase: salida.entregadoBase,
+        mermaBase: salida.mermaBase,
+        destino: salida.destino,
       },
     });
 
-    return {
-      corteId: corte.id,
-      piezaOrigenId: origen?.id ?? null,
-      entregadoBase: plan.entregadoBase.toString(),
-      mermaBase: plan.mermaBase.toString(),
-      consumidoBase: plan.consumidoBase.toString(),
-      descontadoBase: descontado.toString(),
-      sobranteBase: plan.sobranteBase.toString(),
-      destino: plan.destino,
-      piezaResultanteId: resultante,
-    };
+    return salida;
   },
 });
 
@@ -358,14 +445,17 @@ async function descontar(
   insumoId: string,
   consumido: bigint,
 ): Promise<bigint> {
+  // En unidades de ALMACÉN, no en base: son escalas distintas y restar una de
+  // la otra descuenta diez mil veces el material. Ver `enUnidadDeAlmacen`.
+  const aRestar = enUnidadDeAlmacen(consumido);
   const resultado = await ctx.paso('descontar_existencia', () =>
     sql<{ cantidad: string }>`
       update existencias
-         set cantidad = cantidad - ${consumido.toString()}, actualizado_en = now()
+         set cantidad = cantidad - ${aRestar}, actualizado_en = now()
        where organizacion_id = ${ctx.ambito.organizacionId}
          and almacen_id = ${almacenId}
          and insumo_id = ${insumoId}
-         and cantidad >= ${consumido.toString()}
+         and cantidad >= ${aRestar}
       returning cantidad
     `.execute(ctx.tx),
   );

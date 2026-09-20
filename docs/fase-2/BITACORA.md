@@ -3096,10 +3096,76 @@ propósito** (`demostracion/arranque.ts`), pero una corrida que falla a mitad de
 422 `CAJA_YA_ABIERTA`, no es la semilla: es la corrida anterior. Se limpia con
 `node --conditions=react-server scripts/sembrar-demos.mjs --solo demo-acople-ferreteria`.
 
+### T-17 · el corte de material, y los cuatro defectos que salieron al hacerlo funcionar
+
+La pantalla publicaba en `/api/ferreteria/cortar`, **que no existía**, y el comando que sí existe
+—`inventario.cortar_material`— pide la partida de venta, el almacén y las medidas en unidad base, que
+esa pantalla no tiene. La decisión que el encargo pedía tomar y anotar:
+
+> **El corte cuelga de una partida, y la partida de una NOTA que abre el propio corte.**
+
+La base lo exige —`cortes_material.orden_linea_id` es `not null` y `unique`— y tiene razón: un corte
+sin partida es material que salió del almacén sin que nadie lo cobrara. Pero el mostrador arma su
+venta en el navegador y no crea la orden hasta «Mandar a caja», así que no hay partida donde colgarlo.
+El comando nuevo —`ferreteria.cortar_y_agregar`— abre la nota con la MISMA función que «Mandar a
+caja», le cuelga la partida y corta, todo en una transacción. Y eso no es un atajo: cortar es
+irreversible, y dejar esa partida viviendo sólo en el estado de un navegador significa que cerrar la
+pestaña deja el material cortado, la merma real y la venta en ninguna parte.
+
+Para que la pantalla tuviera qué enseñar hicieron falta tres cosas más: la migración **171** con las
+vistas `materiales_continuos` y `piezas_de_material`, sus dos entidades en el puente —ninguna de las
+dos existía, así que la pantalla caía en su estado vacío— y **material continuo en la semilla**:
+`es_continuo` estaba en la base desde la 113 y **ningún producto de ninguna organización lo tenía
+encendido**. Ahora el cable THW se vende por metro, con dos rollos abiertos en el rack, `R-101` de
+37.5 m y `R-102` de 12.
+
+Al hacerlo funcionar contra la base de verdad salieron cuatro defectos que nadie podía haber visto,
+porque **este comando nunca se había ejecutado fuera de su base falsa**:
+
+1. **La escala.** `medida_restante_base` es un `bigint` en diezmilésimas y `existencias.cantidad` un
+   `numeric(14,4)` en unidades de venta. El comando restaba el bigint tal cual: un corte de 60.4 m
+   descontaba 604 000 del almacén, **diez mil veces el material que salió**, y escribía `-604000` en
+   el kardex donde el resto del sistema escribe `-60.4`.
+2. **El insumo.** Escribía `insumo_id: productoId` en los dos movimientos y en la resta, y
+   `existencias.insumo_id` referencia a `insumos`, que tiene otro uuid. La resta no encontraba fila,
+   devolvía cero y el comando lo leía como falta de existencia: **«No hay material suficiente» con
+   trescientos metros en el almacén.**
+3. **El motivo.** El movimiento de VENTA llevaba `motivo: 'corte de material'`, y
+   `movimientos_stock.motivo` tiene foránea a `motivos_merma.clave`: la base lo rechazaba con
+   `23503` y el corte no terminaba nunca. Ahora la venta no lleva motivo —una salida por venta no es
+   una merma— y la merma lleva la clave `corte`, que sí existe.
+4. **Y el cobro descontaba dos veces.** `planearConsumo` no sabía nada de los cortes, así que la
+   partida cortada volvía a descontarse por catálogo al cobrar. Ahora salta las líneas que tienen
+   corte.
+
+Los tres primeros los tapaba la misma cosa: la base falsa tenía las existencias sembradas con el id
+del producto y no mira el SQL crudo de la resta, así que la prueba comparaba la suposición del comando
+consigo misma. Las pruebas están corregidas —la existencia cuelga del insumo, las medidas van en la
+escala del sistema— y dos afirmaciones nuevas cierran lo que la base falsa no ve: que el movimiento
+usa el id del INSUMO y que la venta no lleva motivo de merma. Lo que ninguna prueba unitaria puede
+ver —la resta en SQL crudo— lo comprueba la suite de navegador contra la base real: **la existencia
+del cable baja 6.2, no 6**, porque la merma también salió del almacén.
+
+### Y el reseteo de la demo, que se habría roto solo
+
+Tres foráneas con `RESTRICT` que el limpiador no tocaba: `remisiones.orden_id`,
+`cortes_material.producto_id` y `piezas_abiertas.producto_id`. La primera la abrió el botón «A cuenta»
+de esta misma tanda: **en cuanto una demo fía algo, `resetear` abortaba la transacción entera** y la
+demostración de la semana siguiente empezaba con los datos de la anterior. Y borrar las remisiones no
+basta: el saldo del cliente es una columna que la remisión sube, así que se deshace con su aritmética
+—se devuelve lo que los pagos bajaron, se resta lo que las remisiones subieron— o el mejor cliente de
+la demo acaba bloqueado por mora con documentos que ya no existen.
+
+```
+[escritorio] ferreteria.spec.ts · 1 passed (32.0s)
+  nota cobrada · corte de 6 m con 0.2 de merma · R-102 queda en 5.8 m · existencia 300 → 293.8
+228 archivos · 2 739 pruebas · typecheck 7/7 · lint y formato en 0
+verify:acople · 5 de 5 suites COBRAN · 0 declaradas con sonda · 17 rutas por crear (eran 18)
+```
+
 ### EN QUÉ IBA
 
-Bloque 1, siguiente: **T-17** —el corte de material publica en `/api/ferreteria/cortar`, que no
-existe; el comando que sí existe, `inventario.cortar_material`, pide `ordenLineaId`, `almacenId` y
-medidas en unidad base, que esa pantalla no tiene—. Después T-07 y T-37 (estética: iniciar y cerrar
-servicio alcanzables, y la agenda con `Cita`/`HuecoDisponible` en el puente), T-08/T-24
-(`/api/cliente/crear`) y T-09 (el material del salón cobrado, `salon/cobro.ts:442`).
+Bloque 1, siguiente: **T-07 y T-37** —estética: `iniciar` y `cerrar-servicio` alcanzables desde la
+pantalla, y la agenda con `Cita` y `HuecoDisponible` en el puente para que pinte las citas—. Después
+T-08/T-24 (`/api/cliente/crear`, sin la cual la demo de estética no puede agendar: tiene cero
+clientas) y T-09 (el material del salón cobrado, `salon/cobro.ts:442`).

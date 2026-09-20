@@ -318,6 +318,36 @@ async function planearConsumo(
   const lineas = await repoOrdenes.lineasDeOrden(tx, organizacionId, ordenId);
   const paraConsumo: LineaParaConsumo[] = [];
 
+  /**
+   * LAS PARTIDAS QUE YA SALIERON DEL ALMACÉN AL CORTARSE (F-145).
+   *
+   * Un corte de material descuenta EN EL MOMENTO de cortar —lo entregado y la
+   * merma, dos movimientos— porque cortar es irreversible: los 60.4 m que se
+   * fueron del rollo no vuelven si el cliente se arrepiente. Descontar otra vez
+   * aquí, por catálogo, sacaría el cable dos veces del inventario por una sola
+   * venta, y el faltante aparecería completo y de golpe en el conteo.
+   *
+   * Se lee en UNA consulta y sólo cuando hay líneas: un `in ()` vacío no es SQL
+   * válido.
+   */
+  const cortadas =
+    lineas.length === 0
+      ? new Set<string>()
+      : new Set(
+          (
+            await tx
+              .selectFrom('cortes_material')
+              .select('orden_linea_id')
+              .where('organizacion_id', '=', organizacionId)
+              .where(
+                'orden_linea_id',
+                'in',
+                lineas.map((l) => l.id),
+              )
+              .execute()
+          ).map((fila) => fila.orden_linea_id),
+        );
+
   // Las dos lecturas de catálogo se hacen ANTES del bucle y en una consulta
   // cada una: esto corre dentro de la transacción del cobro, y cada viaje de
   // más mantiene el bloqueo de las existencias abierto un poco más.
@@ -328,6 +358,8 @@ async function planearConsumo(
 
   for (const linea of lineas) {
     if (linea.productoId === null) continue;
+    // Ya salió del almacén al cortarse, con su merma. Ver `cortadas`.
+    if (cortadas.has(linea.id)) continue;
     const producto = await repoVentaCatalogo.productoParaVender(
       tx,
       organizacionId,

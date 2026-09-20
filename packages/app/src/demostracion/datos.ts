@@ -1,5 +1,26 @@
 import type { Giro } from '@morphiqpos/contracts';
 
+/**
+ * F-145 · El material que se vende CORTADO, y sus rollos abiertos.
+ *
+ * Sin esto la pantalla de corte de material no tiene nada que enseñar: abre en
+ * su estado vacío —«ningún material está marcado como pieza continua»— y la
+ * función más propia de una ferretería queda sin demostración.
+ *
+ * Las medidas van en la UNIDAD DE VENTA, como texto: `'37.5'` son 37 metros y
+ * medio. La conversión a la unidad base —diezmilésimas— la hace quien siembra,
+ * con la misma función que usa el resto del inventario.
+ */
+export interface ContinuoDemo {
+  readonly tipoCorte: 'lineal' | 'plano' | 'tubular';
+  /** Lo que la pantalla PROPONE como desperdicio. Un campo vacío se deja en cero. */
+  readonly mermaTipica: string;
+  /** Debajo de esto el sobrante deja de ser vendible a precio de lista. */
+  readonly umbralRetazo: string;
+  /** Los rollos que ya están abiertos en el rack, con la etiqueta que llevan. */
+  readonly piezas: readonly { readonly folio: string; readonly restante: string }[];
+}
+
 export interface ProductoDemo {
   readonly nombre: string;
   readonly categoria: string;
@@ -14,6 +35,16 @@ export interface ProductoDemo {
   readonly precioCentavos: bigint;
   readonly costoCentavos: bigint;
   readonly stock: string;
+  /**
+   * En qué se vende. `pieza` por omisión, que es lo que vende un abarrote.
+   *
+   * La base sólo admite las ocho de `unidades.ts` —`pieza`, `caja`, `paquete`,
+   * `kg`, `g`, `l`, `ml`, `m`—, y el insumo se da de alta en LA MISMA: así la
+   * estrategia `sku` descuenta uno a uno y no hace falta un factor.
+   */
+  readonly unidadVenta?: 'pieza' | 'kg' | 'g' | 'l' | 'ml' | 'm';
+  /** Cuando está, el material se corta (F-145) y trae sus rollos abiertos. */
+  readonly continuo?: ContinuoDemo;
 }
 
 export interface InsumoDemo {
@@ -494,12 +525,30 @@ const FERRETERIA: SemillaDemo = {
       stock: '16',
     },
     {
+      // EL MATERIAL QUE SE CORTA. Es el descuadre 3 del giro: se cortan 60 m de
+      // un rollo de 100 y salen 61.2 entre la segueta, el «para que no le falte»
+      // y el pedazo torcido. Ocho veces al día, y a fin de mes son decenas de
+      // metros que el sistema cree que están.
       nombre: 'Cable THW calibre 12 por metro',
       categoria: 'Eléctrico',
       sku: 'CAB-THW-12',
       precioCentavos: 1890n,
       costoCentavos: 1240n,
       stock: '300',
+      unidadVenta: 'm',
+      continuo: {
+        tipoCorte: 'lineal',
+        // 20 cm por corte: lo que se lleva la segueta más lo que se mide de más.
+        mermaTipica: '0.2',
+        // Debajo de 3 m, un pedazo de cable THW ya no se vende a precio de lista.
+        umbralRetazo: '3',
+        // Dos rollos abiertos, como el rack de cualquier ferretería a media
+        // semana. El chico primero en la pantalla: el objetivo es CERRAR piezas.
+        piezas: [
+          { folio: 'R-101', restante: '37.5' },
+          { folio: 'R-102', restante: '12' },
+        ],
+      },
     },
     {
       nombre: 'Manguera de jardín 1/2 pulgada por metro',
