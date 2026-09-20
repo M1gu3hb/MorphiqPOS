@@ -646,6 +646,14 @@ export interface Ordenes {
   autorizado_id: string | null;
   /** Quién DESPACHÓ. En una venta a crédito no hay cobro, y sin esto no queda registro. */
   mostradorista_id: string | null;
+  /**
+   * F-330 · Cuántas veces salió la precuenta de esta cuenta (migración 174).
+   *
+   * Desde la segunda, la hoja se marca como reimpresión: una cuenta se escapa
+   * cuando el cajero cobra la hoja vieja de una mesa que siguió consumiendo.
+   */
+  precuentas_impresas: Generated<number>;
+  precuenta_impresa_en: Date | null;
 }
 
 export interface Organizaciones {

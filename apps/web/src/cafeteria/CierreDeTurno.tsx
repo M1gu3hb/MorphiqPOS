@@ -637,7 +637,9 @@ export function CierreDeTurno({
                   >
                     Nadie vino
                   </Button>
-                  {/* `/api/venta/devolver` va por convención: aún no existe. */}
+                  {/* Devolver el dinero: saca el efectivo del cajón con su
+                      renglón y deja los pagos en «reembolsado», para que el corte
+                      no cuente una venta que se devolvió. */}
                   <Button
                     size="sm"
                     variant="outline"

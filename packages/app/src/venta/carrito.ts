@@ -4,7 +4,7 @@ import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoOrdenes, repoVentaCatalogo } from '@morphiqpos/data';
 
-import { definirComando } from '../definicion.ts';
+import { definirComando, type ContextoComando } from '../definicion.ts';
 import {
   entradaAgregarLinea,
   entradaCambiarCantidad,
@@ -88,50 +88,86 @@ export const agregarLinea = definirComando<
     const { organizacionId } = ctx.ambito;
 
     const orden = await exigirBorrador(ctx.tx, organizacionId, entrada.ordenId);
-
-    const producto = await ctx.paso('cargar_producto', () =>
-      repoVentaCatalogo.productoParaVender(ctx.tx, organizacionId, entrada.productoId),
-    );
-    // Un producto de otra organización responde igual que uno inexistente:
-    // distinguirlos permitiría sondear el catálogo ajeno con ids (TEN-01).
-    if (producto === null) {
-      throw new ErrorDominio('PRODUCTO_NO_ENCONTRADO', 'Ese producto no está disponible.');
-    }
-
-    const valorada = valorarLinea(producto, entrada.cantidad, entrada.unidad);
-    const visual = await repoOrdenes.siguienteOrdenVisual(ctx.tx, organizacionId, orden.id);
-
-    const lineaId = await ctx.paso('insertar_linea', () =>
-      repoOrdenes.agregarLinea(ctx.tx, {
-        organizacionId,
-        ordenId: orden.id,
-        productoId: producto.id,
-        productoNombre: producto.nombre,
-        sku: producto.sku,
-        codigoBarras: producto.codigoBarras,
-        cantidad: valorada.cantidad,
-        unidad: valorada.unidad,
-        precioUnitarioCentavos: valorada.precio.precioUnitarioCentavos,
-        costoUnitarioCentavos: producto.costoUnitarioCentavos,
-        subtotalCentavos: valorada.precio.subtotalCentavos,
-        totalCentavos: valorada.precio.subtotalCentavos,
-        esMayoreo: valorada.precio.esMayoreo,
-        tipoVenta: producto.tipoVenta,
-        ordenVisual: visual,
-      }),
-    );
+    const puesta = await ejecutarAgregarLinea(ctx, orden.id, entrada);
 
     ctx.auditar({
       entidadId: orden.id,
-      payload: { lineaId, productoId: producto.id, cantidad: valorada.cantidad },
+      payload: {
+        lineaId: puesta.lineaId,
+        productoId: entrada.productoId,
+        cantidad: puesta.cantidad,
+      },
     });
 
-    return {
-      lineaId,
-      subtotalCentavos: valorada.precio.subtotalCentavos.toString(),
-    };
+    return { lineaId: puesta.lineaId, subtotalCentavos: puesta.subtotalCentavos };
   },
 });
+
+/**
+ * Poner UNA línea en una orden que ya se sabe borrador de este negocio. SIN auditar.
+ *
+ * Compartido por `venta.agregar_linea` —que recibe la orden— y por
+ * `ferreteria.agregar_partida`, que la resuelve de la terminal porque la ficha de
+ * la pieza no tiene ninguna en la mano: el mostradorista llega a ella desde la
+ * búsqueda, con el cliente enfrente, y no por el carrito.
+ *
+ * Sin `ctx.auditar` a propósito: el rastro de un comando guarda sólo la PRIMERA
+ * auditoría, y un cuerpo compartido que auditara le robaría el renglón al de fuera.
+ *
+ * La orden llega YA comprobada como borrador de la organización: comprobarla aquí
+ * obligaría a releerla en el camino que acaba de crearla.
+ */
+export async function ejecutarAgregarLinea(
+  ctx: ContextoComando<Transaccion>,
+  ordenId: string,
+  entrada: {
+    readonly productoId: string;
+    readonly cantidad: string;
+    // Con `| undefined` explícito: `exactOptionalPropertyTypes` distingue «sin la
+    // propiedad» de «la propiedad en undefined», y quien llama tiene la segunda.
+    readonly unidad?: string | undefined;
+  },
+): Promise<{ lineaId: string; subtotalCentavos: string; cantidad: string }> {
+  const { organizacionId } = ctx.ambito;
+
+  const producto = await ctx.paso('cargar_producto', () =>
+    repoVentaCatalogo.productoParaVender(ctx.tx, organizacionId, entrada.productoId),
+  );
+  // Un producto de otra organización responde igual que uno inexistente:
+  // distinguirlos permitiría sondear el catálogo ajeno con ids (TEN-01).
+  if (producto === null) {
+    throw new ErrorDominio('PRODUCTO_NO_ENCONTRADO', 'Ese producto no está disponible.');
+  }
+
+  const valorada = valorarLinea(producto, entrada.cantidad, entrada.unidad);
+  const visual = await repoOrdenes.siguienteOrdenVisual(ctx.tx, organizacionId, ordenId);
+
+  const lineaId = await ctx.paso('insertar_linea', () =>
+    repoOrdenes.agregarLinea(ctx.tx, {
+      organizacionId,
+      ordenId,
+      productoId: producto.id,
+      productoNombre: producto.nombre,
+      sku: producto.sku,
+      codigoBarras: producto.codigoBarras,
+      cantidad: valorada.cantidad,
+      unidad: valorada.unidad,
+      precioUnitarioCentavos: valorada.precio.precioUnitarioCentavos,
+      costoUnitarioCentavos: producto.costoUnitarioCentavos,
+      subtotalCentavos: valorada.precio.subtotalCentavos,
+      totalCentavos: valorada.precio.subtotalCentavos,
+      esMayoreo: valorada.precio.esMayoreo,
+      tipoVenta: producto.tipoVenta,
+      ordenVisual: visual,
+    }),
+  );
+
+  return {
+    lineaId,
+    subtotalCentavos: valorada.precio.subtotalCentavos.toString(),
+    cantidad: valorada.cantidad,
+  };
+}
 
 export const quitarLinea = definirComando<
   Transaccion,

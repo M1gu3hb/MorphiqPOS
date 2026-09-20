@@ -26,6 +26,7 @@ export { entregarPedidos, transicionarPedido } from './preparacion.ts';
 export type { ResultadoEntrega, ResultadoTransicion } from './preparacion.ts';
 
 export { solicitarCuenta } from './cuenta.ts';
+export { entradaImprimirPrecuenta, imprimirPrecuenta, type PrecuentaImpresa } from './precuenta.ts';
 export type { Precuenta } from './cuenta.ts';
 
 export { entradaRotarQr, rotarQr } from './qr.ts';

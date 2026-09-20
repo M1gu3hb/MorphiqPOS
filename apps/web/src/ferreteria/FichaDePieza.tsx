@@ -184,7 +184,9 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
       setError('Pon una cantidad mayor que cero.');
       return;
     }
-    const entrada = { piezaId: pieza.id, cantidad: piezas, unidad };
+    // La cantidad va como TEXTO: quien convierte cantidades es el servidor, y un
+    // `number` de JavaScript no representa 0.1 sin error.
+    const entrada = { piezaId: pieza.id, cantidad: String(piezas), unidad };
     void enviar('/api/ferreteria/agregar-partida', entrada, () => {
       onAgregar?.(pieza.id, piezas, unidad);
     });

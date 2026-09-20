@@ -99,6 +99,14 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
   const [error, setError] = useState<string | null>(null);
   const [imprimiendo, setImprimiendo] = useState(false);
   const [falloImpresion, setFalloImpresion] = useState(false);
+  /**
+   * Cuál hoja es ésta, según el servidor.
+   *
+   * `null` mientras no se ha impreso ninguna. Desde la segunda importa y se dice
+   * en la hoja: una cuenta se escapa cuando el cajero cobra la hoja vieja de una
+   * mesa que siguió consumiendo, y el número es lo que le hace mirar el total.
+   */
+  const [copia, setCopia] = useState<number | null>(null);
 
   useEffect(() => {
     if (cuentaInicial !== undefined) return;
@@ -147,7 +155,11 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
     try {
       // El documento no nombra ruta: se usa /api/<dominio>/<verbo>, la misma
       // convención de `imprimir-comanda` (05-DATOS §6).
-      await invocarComando('/api/restaurante/imprimir-precuenta', { ordenId: cuenta.id, anchoMm });
+      const hoja = await invocarComando<{ readonly copia: number }>(
+        '/api/restaurante/imprimir-precuenta',
+        { ordenId: cuenta.id, anchoMm },
+      );
+      setCopia(hoja.copia);
     } catch {
       // El error no se traga: tiene salida alterna, y es la que dicta el documento.
       setFalloImpresion(true);
@@ -198,7 +210,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
         </section>
       );
     }
-    return <Hoja cuenta={cuenta} lineas={lineas} estilo={estilo} />;
+    return <Hoja cuenta={cuenta} lineas={lineas} estilo={estilo} copia={copia} />;
   }
   return (
     <div className="min-h-dvh bg-muted/40">
@@ -250,10 +262,12 @@ interface HojaProps {
   readonly cuenta: CuentaPrecuenta;
   readonly lineas: readonly LineaPrecuenta[];
   readonly estilo: { readonly width: string; readonly maxWidth: string };
+  /** Cuál hoja es ésta. `null` antes de imprimir; de 2 en adelante, va marcada. */
+  readonly copia: number | null;
 }
 
 /** La hoja térmica. Lo que se ve aquí es lo que sale del rollo. */
-function Hoja({ cuenta, lineas, estilo }: HojaProps) {
+function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
   const mesa = cuenta.mesa_numero ?? '—';
   const propina = cuenta.propina_monto;
   // La propina no decidida se DICE: el hueco lo rellena el comensal en su cabeza.
@@ -267,6 +281,11 @@ function Hoja({ cuenta, lineas, estilo }: HojaProps) {
       <header className="text-center">
         <p className="text-base font-bold tracking-widest">PRE-CUENTA</p>
         <p className="text-muted-foreground">No es comprobante de pago</p>
+        {/* En la CABECERA y no al pie: lo que se mira de una hoja reimpresa es
+            arriba, y lo que hay que mirar después es el total. */}
+        {copia !== null && copia > 1 && (
+          <p className="font-bold tracking-widest">REIMPRESIÓN · {copia}ª HOJA</p>
+        )}
       </header>
       <Separator className="my-2" />
       <p className="text-center">

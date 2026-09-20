@@ -112,6 +112,8 @@ export {
   type ResultadoFoto,
 } from './foto-mostrador.ts';
 
+export { agregarPartida, entradaAgregarPartida, type ResultadoPartida } from './partida.ts';
+
 export {
   declararEquivalenciaDicha,
   entradaEquivalenciaDicha,
