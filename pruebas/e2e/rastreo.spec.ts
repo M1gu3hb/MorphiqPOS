@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
 import {
+  abrirCajaPorLaRuta,
   entrar,
   exigirDemostracion,
   menuLateral,
@@ -309,6 +310,22 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
     });
 
     await entrar(page);
+
+    /**
+     * LA CAJA, ABIERTA ANTES DE EMPEZAR.
+     *
+     * No es un adorno: con la caja cerrada, tres de los cinco modelos aterrizan en
+     * un MURO —«La caja está cerrada. Una venta sin caja no pertenece a ningún
+     * corte»— que no trae menú lateral, y el rastreo se moría ahí sin haber tocado
+     * un solo botón. Y la deja cerrada el propio rastreo anterior: tocar todos los
+     * botones incluye tocar «cerrar caja», y `soltarLaCaja` la cierra al terminar
+     * para que la corrida siguiente pueda abrir la suya.
+     *
+     * Se abre por la MISMA ruta que usa el botón, con las mismas cabeceras: pasa por
+     * el mismo comando y el mismo gate de rol. Lo que se salta es el diálogo.
+     */
+    const abrio = await abrirCajaPorLaRuta(page, 150_000);
+    bitacora(diario, abrio ? 'caja abierta para el rastreo' : 'la caja ya estaba abierta');
 
     // ── EL MENÚ · de aquí salen las pantallas, no de una lista mía ─────────
     const menu = await menuLateral(page);

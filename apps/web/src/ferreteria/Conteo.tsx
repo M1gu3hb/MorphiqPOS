@@ -51,8 +51,10 @@ const MG_POR_GRAMO = 1_000;
 export interface ClaveContable {
   readonly id: string;
   readonly nombre: string;
-  readonly peso_por_pieza_mg: string | null;
-  readonly tolerancia_peso_pct: string;
+  /** `conversion: 'entero'` en el puente: NÚMERO de miligramos. */
+  readonly peso_por_pieza_mg: number | null;
+  /** `conversion: 'decimal'`: NÚMERO de por ciento. */
+  readonly tolerancia_peso_pct: number;
 }
 
 export interface Estimacion {
@@ -139,7 +141,13 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
       { productoId: elegida.id, pesoMuestraMg: peso, piezasMuestra: piezas, toleranciaPct: 8 },
     )
       .then((salida) => {
-        const actualizada = { ...elegida, peso_por_pieza_mg: salida.pesoPorPiezaMg };
+        // El comando contesta el peso en TEXTO —`bigint.toString()`— y el puente lo
+        // sirve como número: la fila de la pantalla guarda lo segundo, que es lo que
+        // se leerá la próxima vez.
+        const actualizada = {
+          ...elegida,
+          peso_por_pieza_mg: Number(salida.pesoPorPiezaMg),
+        };
         setElegida(actualizada);
         setClaves((claves ?? []).map((c) => (c.id === elegida.id ? actualizada : c)));
         // La variación se dice: recalibrar de 5 g a 50 g casi siempre es un cero
@@ -363,8 +371,8 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
 
             {calibrada && (
               <p className="text-muted-foreground text-sm">
-                Una pieza pesa {elegida.peso_por_pieza_mg} mg, con ±{elegida.tolerancia_peso_pct} %
-                de tolerancia.
+                Una pieza pesa {String(elegida.peso_por_pieza_mg)} mg, con ±
+                {String(elegida.tolerancia_peso_pct)} % de tolerancia.
               </p>
             )}
           </>

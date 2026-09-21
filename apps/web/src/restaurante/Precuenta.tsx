@@ -62,7 +62,8 @@ export interface LineaPrecuenta {
 export interface CuentaPrecuenta {
   readonly id: string;
   readonly folio: string;
-  readonly mesa_numero: string | null;
+  /** Derivado de `mesas.numero`, con `conversion: 'entero'`: NÚMERO. */
+  readonly mesa_numero: number | null;
   readonly personas: number | null;
   readonly codigo_caja: string | null;
   readonly subtotal?: number | null;
@@ -268,7 +269,7 @@ interface HojaProps {
 
 /** La hoja térmica. Lo que se ve aquí es lo que sale del rollo. */
 function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
-  const mesa = cuenta.mesa_numero ?? '—';
+  const mesa = cuenta.mesa_numero === null ? '—' : String(cuenta.mesa_numero);
   const propina = cuenta.propina_monto;
   // La propina no decidida se DICE: el hueco lo rellena el comensal en su cabeza.
   const propinaTexto = propina == null ? 'a definir en caja' : PESOS.format(propina);

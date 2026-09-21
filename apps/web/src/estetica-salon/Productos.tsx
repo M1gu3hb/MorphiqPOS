@@ -51,7 +51,17 @@ import { useVocabulario } from '~/cliente/vocabulario';
  */
 const rutaDeAbrir = (productoId: string): string => `/api/productos/${productoId}/abrir`;
 const RUTA_ALCANZA = '/api/inventario/cabina/alcanza';
-const RUTA_ACTUALIZAR = '/api/catalogo/productos/actualizar';
+/**
+ * La FICHA DE CABINA, que es lo que esta pantalla guarda.
+ *
+ * Publicaba en `/api/catalogo/productos/actualizar`, que no acepta `destino`,
+ * `factorApertura` ni `unidadCabina` —y exige `nombre`, `descripcion`,
+ * `categoriaId`, `visibleEnPos`, `marca`, `imagenUrl` y `stockMinimo`, que esta
+ * pantalla no manda—. Cada guardado moría con `ENTRADA_INVALIDA` y, aunque
+ * hubiera pasado, ese comando no escribe esas tres columnas: no existía ningún
+ * comando que las escribiera. Ahora existe `cabina.guardar_ficha`.
+ */
+const rutaDeFicha = (productoId: string): string => `/api/productos/${productoId}/ficha-de-cabina`;
 
 const CANTIDAD_CON_FORMA = /^\d{1,6}(?:[.,]\d{1,4})?$/;
 
@@ -66,7 +76,15 @@ export interface ProductoDeSalon {
   readonly id: string;
   readonly nombre: string;
   readonly destino: string | null;
-  readonly factor_apertura: string | null;
+  /**
+   * El rendimiento es un NÚMERO: el puente lo sirve con `conversion: 'decimal'`.
+   *
+   * Estaba declarado `string`, y de ahi salía un fallo con forma de nada: el valor
+   * llegaba al estado del formulario tal cual —un número— y al guardar sin
+   * reescribirlo se llamaba `.replace(',', '.')` sobre él. `TypeError`, la pantalla
+   * muerta, y el servidor sin enterarse.
+   */
+  readonly factor_apertura: number | null;
   readonly unidad_cabina: string | null;
 }
 
@@ -148,7 +166,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
   function abrir(producto: ProductoDeSalon): void {
     setElegido(producto);
-    setFactor(producto.factor_apertura ?? '');
+    setFactor(producto.factor_apertura === null ? '' : String(producto.factor_apertura));
     setUnidad(producto.unidad_cabina ?? '');
     setError(null);
     setAviso(null);
@@ -162,16 +180,18 @@ export function Productos({ productosIniciales }: ProductosProps) {
     }
     setOcupado(true);
     setError(null);
+    // El formulario escribe texto —y admite la coma—; la entidad guarda el número
+    // que el puente sirve, y el comando recibe el texto decimal que valida.
+    const enTexto = factor === '' ? null : factor.replace(',', '.');
     const siguiente: ProductoDeSalon = {
       ...elegido,
       destino: destino ?? elegido.destino,
-      factor_apertura: factor === '' ? null : factor.replace(',', '.'),
+      factor_apertura: enTexto === null ? null : Number(enTexto),
       unidad_cabina: unidad === '' ? null : unidad,
     };
-    invocarComando(RUTA_ACTUALIZAR, {
-      productoId: elegido.id,
-      destino: siguiente.destino,
-      factorApertura: siguiente.factor_apertura,
+    invocarComando(rutaDeFicha(elegido.id), {
+      destino: siguiente.destino ?? 'venta',
+      factorApertura: enTexto,
       unidadCabina: siguiente.unidad_cabina,
     })
       .then(() => {

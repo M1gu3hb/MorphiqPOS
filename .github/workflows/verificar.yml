@@ -198,6 +198,13 @@ jobs:
           pnpm verify:escrituras
           pnpm verify:lecturas
 
+      # El tipo que la pantalla DECLARA contra el que el puente ENTREGA. Cazó
+      # ocho: `MapaDeMesas` llamaba `.localeCompare` sobre un número y moría en
+      # cuanto llegaban las mesas, y `cafeteria/Recetas` hacía `.replace` sobre
+      # otro. Ninguna otra puerta lo ve: TypeScript cree la declaración.
+      - name: Tipos de pantalla contra el puente
+        run: pnpm verify:tipos-de-pantalla
+
       - name: El heredado sin tocar
         run: pnpm verify:aspecto
 
