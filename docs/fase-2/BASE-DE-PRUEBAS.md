@@ -70,6 +70,26 @@ DATABASE_URL_PRUEBAS="<la url>" DATABASE_URL="<la url>" pnpm test:integracion
 contenedor. `DATABASE_URL` se define también porque los workers de vitest la leen
 al importar la capa de datos.
 
+## 3.1 · La misma URL sirve para `verify:entorno`
+
+`verify:entorno` protege A-27 —«el backend completo debe poder correr en la PC de
+un cliente»— y su mitad EN VIVO se apoyaba en Docker. Ya no: con la misma cadena
+comprueba que el esquema **completo** aplica en un Postgres 17 que no es el de la
+aplicación.
+
+```bash
+DATABASE_URL_PRUEBAS="<la url>" pnpm verify:entorno
+```
+
+```
+  · en vivo: el esquema completo (109 migraciones) esta aplicado en un Postgres 17 AJENO al de la aplicacion
+```
+
+Y falla —no «avisa»— si la cadena apunta al mismo proyecto que la aplicación, si
+el motor no es el que fija el compose, o si el ledger de allí no cuadra con el
+disco. La mitad del empaquetado sigue necesitando un motor de contenedores, y
+cuando sólo una de las dos corre, la puerta dice qué mitad falta.
+
 ## 4 · Borrar la rama
 
 ```bash
