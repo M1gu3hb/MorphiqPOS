@@ -48,7 +48,7 @@ export function Progreso({
           className={cn(
             'h-full rounded-full bg-primary',
             determinado
-              ? 'transition-[width] duration-(--duracion-normal) ease-[cubic-bezier(0.23,1,0.32,1)]'
+              ? 'transition-[width] duration-(--duracion-normal) ease-(--curva-entrada)'
               : 'w-1/3 animate-pulse',
           )}
           style={determinado ? { width: `${String(acotado)}%` } : undefined}

@@ -15,7 +15,7 @@
  * Se ejecuta con: pnpm verify:primitivas
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -111,6 +111,44 @@ const REGLAS = [
     porque: 'Puentea la perilla de elevacion. Usa shadow-1 … shadow-4',
   },
   {
+    nombre: 'duracion de animacion literal',
+    deRitmo: true,
+    patron: /\bduration-(?:\d+|\[[^\]]*\])/g,
+    porque:
+      'Las duraciones son TRES y salen de la perilla de movimiento: ' +
+      'duration-(--duracion-rapida|normal|lenta). Con una literal, el estilo ' +
+      'TERMINAL —que las pone a cero a proposito— sigue animando',
+  },
+  {
+    nombre: 'curva de animacion inventada',
+    deRitmo: true,
+    // Se permiten las dos del sistema y las palabras de CSS que el navegador ya
+    // trae; lo que no se permite es una bezier escrita a mano en un componente.
+    patron: /\bease-\[cubic-bezier\([^\]]*\]/g,
+    porque:
+      'Las curvas son DOS y viven en los tokens: --curva-entrada y --curva-salida. ' +
+      'Siete curvas no se sienten ricas, se sienten inconsistentes',
+  },
+  {
+    nombre: 'espacio literal grande',
+    deRitmo: true,
+    // Los pequenos (0 a 2) son ajustes opticos de un icono o un borde y no
+    // dependen de la densidad. A partir de 3 es RITMO, y el ritmo es del sistema.
+    patron:
+      /\b(?:p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|gap-x|gap-y|space-x|space-y)-(?:3|4|5|6|8|10|12|14|16|20|24)\b/g,
+    porque:
+      'Puentea la perilla de densidad: con gap-4 fijo, cambiar a compacta no junta ' +
+      'nada. Usa gap-(--espacio-4) y sus hermanos',
+  },
+  {
+    nombre: 'tamano de texto arbitrario',
+    deRitmo: true,
+    patron: /\btext-\[[0-9.]+(?:px|rem|em)\]/g,
+    porque:
+      'La escala tipografica son siete pasos y salen del contrato: text-xs … text-3xl. ' +
+      'Un tamano suelto es el principio de tener veinte',
+  },
+  {
     nombre: 'variante dark: en vez de oscuro:',
     // Sin espacio despues de los dos puntos: `dark: 'oscuro'` es una clave de
     // objeto —la configuracion de next-themes— y no una variante de Tailwind.
@@ -150,6 +188,30 @@ function estaExenta(ruta) {
   return CARPETAS_EXENTAS.some((carpeta) => ruta.startsWith(carpeta.ruta));
 }
 
+/**
+ * QUITA LOS COMENTARIOS, y de la forma que NO rompe una URL.
+ *
+ * Un comentario que menciona `cn('p-2', 'p-4')` para explicar por que existe
+ * `twMerge` no es un literal en un componente: es documentacion. Sin esto, la regla
+ * del espacio acusaba a `utilidades/cn.ts` por su propia explicacion.
+ *
+ * Y se quita por LINEAS COMPLETAS y por bloques `/* *\/`, nunca cortando a mitad de
+ * linea en el primer `//`: esa version del truco ya se probo en esta fase y se comio
+ * el `https://` de una constante, escondiendo una mutacion que debia fallar. Una
+ * linea que EMPIEZA por `//` o por `*` es un comentario; un `//` a mitad de linea
+ * puede ser una URL.
+ */
+function sinComentarios(texto) {
+  const sinBloques = texto.replaceAll(/\/\*[\s\S]*?\*\//g, '');
+  return sinBloques
+    .split('\n')
+    .filter((linea) => {
+      const limpia = linea.trim();
+      return !limpia.startsWith('//') && !limpia.startsWith('*');
+    })
+    .join('\n');
+}
+
 const EXTENSIONES = new Set(['.tsx', '.ts', '.jsx', '.js']);
 
 function recorrer(dir, encontrados) {
@@ -171,13 +233,20 @@ function recorrer(dir, encontrados) {
     // Las pruebas y el contrato SI nombran colores: es su trabajo.
     if (entrada.name.includes('.test.') || ruta.includes(join('tokens', 'contrato'))) continue;
 
-    const contenido = readFileSync(ruta, 'utf8');
+    const contenido = sinComentarios(readFileSync(ruta, 'utf8'));
     for (const regla of REGLAS) {
       const coincidencias = contenido.match(regla.patron);
       if (!coincidencias) continue;
       encontrados.push({
         archivo: relative(RAIZ, ruta),
         regla: regla.nombre,
+        // Las reglas de RITMO llevan su marca hasta el hallazgo: fuera de
+        // `packages/ui` cuentan contra el techo en vez de poner la puerta en rojo.
+        deRitmo: regla.deRitmo === true,
+        // CUANTOS, no «si hay»: la deuda se mide en literales y no en archivos. Con
+        // una cuenta por archivo, anadir un `gap-12` a una pantalla que ya tenia uno
+        // no subia el numero, y el trinquete no trincaba nada.
+        cuantos: coincidencias.length,
         porque: regla.porque,
         ejemplos: [...new Set(coincidencias)].slice(0, 4),
       });
@@ -185,21 +254,71 @@ function recorrer(dir, encontrados) {
   }
 }
 
+/**
+ * EL TRINQUETE DEL RITMO.
+ *
+ * ── Por que no se puede exigir a cero HOY ─────────────────────────────────
+ * Las cuatro reglas nuevas —espacio, tipografia, duracion y curva— son tan correctas
+ * como las de color: un `gap-4` fijo PUENTEA la perilla de densidad, asi que cambiar
+ * a `compacta` no junta nada, y una `duration-200` literal sigue animando en el
+ * estilo TERMINAL, que pone las duraciones a cero a proposito.
+ *
+ * Y a la vez: las 69 pantallas de `apps/web/src` se escribieron con literales, que es
+ * lo normal cuando los tokens no emitian CSS. Exigir cero hoy seria dejar la puerta
+ * en rojo hasta que la etapa 4 convierta las 69, y una puerta que lleva semanas en
+ * rojo deja de leerse.
+ *
+ * Asi que la regla se aplica ENTERA en `packages/ui/src` —la libreria tiene que ser
+ * ejemplar, sin excusa— y fuera de ahi se cuenta contra un TECHO que solo puede
+ * bajar. Si aparece un literal nuevo, la puerta se pone roja hoy; cuando una pantalla
+ * se convierte, se baja el numero. No es una exencion: es una deuda con nombre,
+ * medida y con una sola direccion posible.
+ */
+const TECHO_DE_RITMO = 919;
+
 const hallazgos = [];
 for (const carpeta of VIGILADAS) recorrer(carpeta, hallazgos);
 
-if (hallazgos.length > 0) {
+const esDelSistema = (archivo) => archivo.split(sep).join('/').startsWith('packages/ui/src');
+const enDeuda = hallazgos.filter((h) => h.deRitmo === true && !esDelSistema(h.archivo));
+const deuda = enDeuda.reduce((suma, h) => suma + h.cuantos, 0);
+const duros = hallazgos.filter((h) => h.deRitmo !== true || esDelSistema(h.archivo));
+
+if (deuda > TECHO_DE_RITMO) {
+  console.error(
+    `\n✗ La deuda de ritmo SUBIO: ${String(deuda)} literal(es) y el techo es ` +
+      `${String(TECHO_DE_RITMO)}.\n`,
+  );
+  for (const hallazgo of enDeuda.slice(0, 10)) {
+    console.error(`  ${hallazgo.archivo}`);
+    console.error(`    ${hallazgo.regla}: ${hallazgo.ejemplos.join(', ')}`);
+  }
+  console.error(
+    '\nUn espacio, un tamano de texto o una duracion literal puentea su perilla. Usa los ' +
+      'tokens, o baja el techo cuando conviertas una pantalla — nunca lo subas.',
+  );
+  process.exit(1);
+}
+
+if (duros.length > 0) {
   console.error('\n✗ Hay valores literales donde deberia haber tokens:\n');
-  for (const hallazgo of hallazgos) {
+  for (const hallazgo of duros) {
     console.error(`  ${hallazgo.archivo}`);
     console.error(`    ${hallazgo.regla}: ${hallazgo.ejemplos.join(', ')}`);
     console.error(`    ${hallazgo.porque}\n`);
   }
-  console.error(`${hallazgos.length} hallazgo(s).`);
+  console.error(`${duros.length} hallazgo(s).`);
   process.exit(1);
 }
 
 for (const carpeta of CARPETAS_EXENTAS) {
   console.log(`  · exenta: ${relative(RAIZ, carpeta.ruta)} — ${carpeta.porque}`);
 }
-console.log('✓ Cero literales de color, altura, sombra o variante en componentes.');
+console.log(
+  `  · deuda de ritmo fuera de packages/ui: ${String(deuda)} de ${String(TECHO_DE_RITMO)} ` +
+    `permitidos, en ${String(enDeuda.length)} archivo(s) — espacio, tipografia y duracion ` +
+    'literales que la etapa 4 convierte',
+);
+console.log(
+  '✓ Cero literales de color, altura, sombra, variante, espacio, texto o duracion en el sistema.',
+);

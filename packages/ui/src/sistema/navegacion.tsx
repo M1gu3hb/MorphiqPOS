@@ -68,7 +68,7 @@ export function BarraLateral({
       data-colapsada={colapsada ? '' : undefined}
       className={cn(
         'flex h-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
-        'transition-[width] duration-(--duracion-normal) ease-[cubic-bezier(0.23,1,0.32,1)]',
+        'transition-[width] duration-(--duracion-normal) ease-(--curva-entrada)',
         colapsada ? 'w-16' : 'w-60',
         className,
       )}
@@ -216,7 +216,7 @@ export function AbanicoInferior({
               />
             ) : null}
             {destino.insignia === undefined || destino.insignia === 0 ? null : (
-              <span className="absolute top-1 right-1/4 rounded-full bg-destructive px-1 text-[10px] font-numeros text-destructive-foreground tabular-nums">
+              <span className="absolute top-1 right-1/4 rounded-full bg-destructive px-1 text-xs font-numeros text-destructive-foreground tabular-nums">
                 {destino.insignia}
               </span>
             )}

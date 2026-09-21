@@ -165,7 +165,7 @@ export function GraficaDeBarras({
             x={MARGEN.izquierda + porGrupo * columna + porGrupo / 2}
             y={alto - 6}
             textAnchor="middle"
-            className="fill-muted-foreground text-[10px]"
+            className="fill-muted-foreground text-xs"
           >
             {etiqueta}
           </text>
@@ -225,7 +225,7 @@ function EjeY({
               x={MARGEN.izquierda - 6}
               y={posicion + 3}
               textAnchor="end"
-              className="fill-muted-foreground text-[10px]"
+              className="fill-muted-foreground text-xs"
             >
               {formato(Math.round(maximo * fraccion))}
             </text>
@@ -264,7 +264,7 @@ export function GraficaDeLineas({
             x={x(indice, ejes.length)}
             y={alto - 6}
             textAnchor="middle"
-            className="fill-muted-foreground text-[10px]"
+            className="fill-muted-foreground text-xs"
           >
             {etiqueta}
           </text>
@@ -426,7 +426,7 @@ export function GraficaDeDona({
           {formato(total)}
         </text>
         {etiquetaCentro === undefined ? null : (
-          <text x={80} y={94} textAnchor="middle" className="fill-muted-foreground text-[10px]">
+          <text x={80} y={94} textAnchor="middle" className="fill-muted-foreground text-xs">
             {etiquetaCentro}
           </text>
         )}
@@ -470,7 +470,7 @@ export function MapaDeCalorPorHora({
   return (
     <figure className={cn('flex flex-col gap-(--espacio-2)', className)}>
       <div className="overflow-x-auto">
-        <table className="border-separate border-spacing-0.5 text-[10px]">
+        <table className="border-separate border-spacing-0.5 text-xs">
           <caption className="sr-only">{titulo}</caption>
           <thead>
             <tr>
