@@ -1,0 +1,126 @@
+/**
+ * Estilo `relieve` — neumorphism. El más bonito y el más peligroso.
+ *
+ * PARA: quien quiere que el sistema parezca un aparato y no una página. Funciona en
+ * pantallas grandes y quietas —una recepción, un panel de control— y se rompe en un
+ * teléfono al sol.
+ *
+ * SU PUNTO DE VISTA: los controles parecen tallados en la misma superficie. Luz
+ * arriba, sombra abajo, y al pulsar se HUNDEN: la perilla `elevacion: doble-bisel`
+ * es exactamente eso —luz interior arriba, sombra interior abajo, sombra exterior—.
+ *
+ * ── EL PELIGRO, escrito ───────────────────────────────────────────────────
+ * El neumorphism **por naturaleza tiene poco contraste**: todo es el mismo color a
+ * distinta luz, así que los bordes tienden a desaparecer y el texto a diluirse. Es
+ * el estilo que más fácil se cae de AA, y por eso aquí:
+ *
+ *   · el fondo NO es blanco sino un gris medio-claro, que es lo único sobre lo que
+ *     se puede tallar hacia arriba y hacia abajo;
+ *   · el texto y los bordes se fuerzan a AA **aunque rompa la pureza del estilo**.
+ *     Un POS ilegible no sirve, por bonito que sea, y esa decisión no se negocia:
+ *     `pnpm ui:auditar relieve` lo comprueba con el mismo código que la puerta.
+ */
+
+[data-estilo='relieve'] {
+  /* La sombra es del mismo tono que la superficie, sólo más oscura: es lo que hace
+     que parezca tallado y no pegado encima. */
+  --sombra-tinte: 220 18% 58%;
+
+  /* Ni blanco ni gris oscuro: el punto medio desde el que se puede subir y bajar. */
+  --fondo: 220 16% 90%;
+  --fondo-sutil: 220 16% 86%;
+  --superficie: 220 16% 90%;
+  --superficie-elevada: 220 18% 93%;
+
+  /* Forzados a AA aunque el estilo pida susurrar. */
+  --texto: 220 26% 14%;
+  --texto-sutil: 220 12% 34%;
+  --texto-tenue: 220 10% 44%;
+
+  --borde: 220 14% 82%;
+  --borde-fuerte: 220 12% 44%;
+  --anillo: 228 70% 44%;
+
+  --primario: 228 70% 44%;
+  --primario-texto: 220 30% 97%;
+  --acento: 280 50% 42%;
+  --acento-texto: 220 30% 97%;
+  --acento-suave: 228 40% 86%;
+  --acento-suave-texto: 228 60% 24%;
+
+  --exito: 158 60% 26%;
+  --exito-texto: 220 30% 97%;
+  --advertencia: 38 90% 52%;
+  --advertencia-texto: 30 50% 12%;
+  --peligro: 356 68% 42%;
+  --peligro-texto: 220 30% 97%;
+  --info: 205 70% 34%;
+  --info-texto: 220 30% 97%;
+
+  --grafico-1: 228 70% 52%;
+  --grafico-2: 280 55% 54%;
+  --grafico-3: 130 55% 32%;
+  --grafico-4: 38 88% 50%;
+  --grafico-5: 196 80% 44%;
+  --grafico-6: 350 65% 52%;
+
+  --velo: 220 26% 20%;
+
+  --lateral-fondo: 220 18% 84%;
+  --lateral-texto: 220 26% 16%;
+  --lateral-activo: 228 70% 44%;
+  --lateral-activo-texto: 220 30% 97%;
+  --lateral-hover: 220 16% 78%;
+  --lateral-borde: 220 14% 74%;
+}
+
+[data-estilo='relieve'].dark {
+  /* En oscuro la luz viene de arriba igual, pero el material es más oscuro que la
+     sombra que proyecta: por eso el tinte casi negro. */
+  --sombra-tinte: 220 40% 4%;
+
+  --fondo: 220 14% 16%;
+  --fondo-sutil: 220 14% 13%;
+  --superficie: 220 14% 16%;
+  --superficie-elevada: 220 13% 20%;
+
+  --texto: 220 18% 93%;
+  --texto-sutil: 220 10% 72%;
+  --texto-tenue: 220 8% 58%;
+
+  --borde: 220 12% 24%;
+  --borde-fuerte: 220 10% 58%;
+  --anillo: 228 90% 72%;
+
+  --primario: 228 90% 72%;
+  --primario-texto: 228 50% 10%;
+  --acento: 280 75% 74%;
+  --acento-texto: 280 50% 10%;
+  --acento-suave: 220 16% 24%;
+  --acento-suave-texto: 220 18% 92%;
+
+  --exito: 158 60% 58%;
+  --exito-texto: 158 50% 7%;
+  --advertencia: 38 92% 60%;
+  --advertencia-texto: 30 50% 10%;
+  --peligro: 356 85% 70%;
+  --peligro-texto: 356 50% 9%;
+  --info: 205 85% 66%;
+  --info-texto: 205 55% 8%;
+
+  --grafico-1: 228 90% 72%;
+  --grafico-2: 280 75% 74%;
+  --grafico-3: 128 60% 54%;
+  --grafico-4: 38 92% 60%;
+  --grafico-5: 196 85% 62%;
+  --grafico-6: 350 80% 68%;
+
+  --velo: 220 40% 3%;
+
+  --lateral-fondo: 220 15% 12%;
+  --lateral-texto: 220 16% 90%;
+  --lateral-activo: 228 90% 72%;
+  --lateral-activo-texto: 228 50% 10%;
+  --lateral-hover: 220 14% 19%;
+  --lateral-borde: 220 12% 22%;
+}

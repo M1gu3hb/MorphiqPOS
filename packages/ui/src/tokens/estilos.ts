@@ -38,35 +38,108 @@ export const ESTILOS: Readonly<Record<string, DefinicionEstilo>> = {
       'EL BASE. Es el que ya vende y el que el cliente conoce: su azul, su radio de ' +
       '0.75rem, sus sombras suaves. Todo lo demas son variaciones sobre este esqueleto.',
     perillas: {
-      // Su `--radius: 0.75rem` es exactamente el `--radio-lg` de la perilla `media`,
-      // y su elevacion son sombras suaves: ni biseles ni lineas duras.
       densidad: 'normal',
       redondeo: 'media',
       elevacion: 'sombra',
       movimiento: 'normal',
     },
   },
-  premium: {
-    clave: 'premium',
-    nombre: 'Premium',
-    referencia: 'Apple · Linear',
-    para: 'Login, panel del dueno y reportes. Es el que vende en una demostracion.',
+  cristal: {
+    clave: 'cristal',
+    nombre: 'Cristal',
+    referencia: 'glassmorphism · liquid glass',
+    para:
+      'Estetica, spa, cafeteria de especialidad, joyeria. Para quien vende una ' +
+      'experiencia y quiere que el sistema se vea caro delante de su clienta.',
+    perillas: {
+      densidad: 'normal',
+      redondeo: 'amplia',
+      elevacion: 'sombra',
+      movimiento: 'expresiva',
+    },
+  },
+  relieve: {
+    clave: 'relieve',
+    nombre: 'Relieve',
+    referencia: 'neumorphism',
+    para:
+      'Recepcion y panel quieto, en pantalla grande. El mas bonito y el mas ' +
+      'peligroso: por naturaleza tiene poco contraste, asi que aqui se fuerza a AA.',
     perillas: {
       densidad: 'normal',
       redondeo: 'amplia',
       elevacion: 'doble-bisel',
-      movimiento: 'expresiva',
+      movimiento: 'sutil',
     },
   },
-  editorial: {
-    clave: 'editorial',
-    nombre: 'Editorial',
-    referencia: 'Notion · Craft',
-    para: 'Clientes que quieren algo serio y sobrio. Es el que mejor envejece.',
+  taller: {
+    clave: 'taller',
+    nombre: 'Taller',
+    referencia: 'skeuomorfismo',
+    para:
+      'Ferreteria, taller mecanico, refaccionaria, materiales. Gente que trabaja con ' +
+      'las manos y a la que un boton que parece boton le dice mas que uno plano.',
+    perillas: {
+      // 56 px de control: en un taller en enero se cobra con guante puesto.
+      densidad: 'guantes',
+      redondeo: 'media',
+      elevacion: 'doble-bisel',
+      movimiento: 'normal',
+    },
+  },
+  bloque: {
+    clave: 'bloque',
+    nombre: 'Bloque',
+    referencia: 'brutalismo',
+    para:
+      'Mostrador rapido, taqueria en hora pico, food truck. Maxima legibilidad a ' +
+      'distancia y con prisa: feo a proposito y funcional a proposito.',
+    perillas: {
+      densidad: 'guantes',
+      redondeo: 'nula',
+      elevacion: 'linea-dura',
+      movimiento: 'sutil',
+    },
+  },
+  terminal: {
+    clave: 'terminal',
+    nombre: 'Terminal',
+    referencia: 'fosforo ambar · POS de los ochenta',
+    para:
+      'Quien viene de un POS viejo y teclea mas rapido de lo que mira. Cero ' +
+      'movimiento: una animacion entre dos teclas es una animacion que estorba.',
+    perillas: {
+      densidad: 'compacta',
+      redondeo: 'nula',
+      elevacion: 'plana',
+      movimiento: 'nula',
+    },
+  },
+  papel: {
+    clave: 'papel',
+    nombre: 'Papel',
+    referencia: 'Notion · Linear · Craft',
+    para:
+      'Despachos, consultorios, agencias, inmobiliarias. Donde el sistema tiene que ' +
+      'DESAPARECER: la jerarquia la hacen el espacio y la escala, no la sombra.',
     perillas: {
       densidad: 'normal',
       redondeo: 'sutil',
       elevacion: 'plana',
+      movimiento: 'sutil',
+    },
+  },
+  noche: {
+    clave: 'noche',
+    nombre: 'Noche',
+    referencia: 'alto contraste para poca luz',
+    para:
+      'Barra, cocina, taquilla de cine. NO es «modo oscuro» —eso lo tienen los ocho—: ' +
+      'es un estilo para operar a oscuras, sin blanco puro que deslumbre.',
+    perillas: {
+      densidad: 'comoda',
+      redondeo: 'media',
+      elevacion: 'sombra',
       movimiento: 'sutil',
     },
   },

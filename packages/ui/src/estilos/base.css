@@ -99,6 +99,15 @@
    Nota de accesibilidad (§4): "compacta" nunca baja de 44x44 px de objetivo
    tactil efectivo aunque el control se vea de 32 px. Se logra con area de toque
    extendida, no agrandando el control. */
+/* CON GUANTES. 56 px de control, que es a lo que se acierta con un guante puesto y
+   con prisa: una ferreteria en invierno, un taller, una cocina. El minimo de WCAG
+   son 44 y se cumple en las otras tres; esto es el minimo de una mano con guante. */
+[data-densidad='guantes'] {
+  --factor-espacio: 1.4;
+  --altura-control: 3.5rem;
+  --area-tactil-minima: 3.5rem;
+}
+
 [data-densidad='comoda'] {
   --factor-espacio: 1.25;
   --altura-control: 3rem;

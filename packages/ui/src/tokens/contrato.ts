@@ -13,14 +13,37 @@
  * LOS ESTILOS CONSTRUIDOS, y todos pasan la misma auditoria.
  *
  * `morphiq` va primero porque es EL BASE: es la paleta de Miguel, es de donde se
- * derivan los nombres en ingles que pinta la aplicacion, y los demas son
- * variaciones sobre su esqueleto. Los otros dos son de la Fase 1.
+ * derivan los nombres en ingles que pinta la aplicacion, y los otros siete son
+ * variaciones sobre su esqueleto. Cada uno tiene un PUNTO DE VISTA y un giro al que
+ * sirve —un estilo sin razon es adorno; con razon, es producto—:
+ *
+ *   morphiq   el base, el que ya vende
+ *   cristal   translucido y caro: estetica, spa, joyeria
+ *   relieve   tallado, monocromo: recepcion, panel quieto
+ *   taller    materiales de verdad: ferreteria, taller, refaccionaria
+ *   bloque    feo y legible a proposito: mostrador rapido, hora pico
+ *   terminal  fosforo y teclado: quien viene de un POS viejo
+ *   papel     el sistema desaparece: despacho, consultorio, agencia
+ *   noche     para operar a oscuras: barra, cocina, cine
+ *
+ * `premium` y `editorial`, de la Fase 1, se retiran aqui: `papel` es el editorial
+ * afinado y con nombre propio, y `premium` era el mismo territorio que `morphiq`.
+ * Dos nombres para un sitio es la misma enfermedad que dos vocabularios de tokens.
  *
  * Esta lista se llamaba `ESTILOS_F1_0`. El nombre ataba una constante viva a una
  * fase que ya paso, y con ella la auditoria: anadir un estilo obligaba a mirar dos
  * veces si «F1_0» seguia queriendo decir «todos». Ahora dice lo que hace.
  */
-export const ESTILOS_CONSTRUIDOS = ['morphiq', 'premium', 'editorial'] as const;
+export const ESTILOS_CONSTRUIDOS = [
+  'morphiq',
+  'cristal',
+  'relieve',
+  'taller',
+  'bloque',
+  'terminal',
+  'papel',
+  'noche',
+] as const;
 export type EstiloConstruido = (typeof ESTILOS_CONSTRUIDOS)[number];
 
 /** Claro y oscuro son ortogonales al estilo: N estilos x 2 modos. */
@@ -159,7 +182,17 @@ export const TOKENS_BASE = [
  * sientan distintos de verdad y no solo "pintados de otro color".
  */
 export const PERILLAS = {
-  densidad: ['comoda', 'normal', 'compacta'],
+  /**
+   * `guantes` es la cuarta, y no es un capricho de tamaño.
+   *
+   * El mínimo táctil de WCAG son 44 px y el sistema lo cumple en las tres primeras.
+   * Pero hay giros que se operan **con guantes puestos** —una ferretería en invierno,
+   * un taller, una cocina con el trapo en la mano— y ahí 44 px es el suelo de una
+   * mano desnuda y quieta. 56 px es el tamaño al que se acierta con el dedo gordo de
+   * un guante y con prisa, y es lo que usan los estilos BLOQUE y TALLER, que son
+   * justo los de esos giros.
+   */
+  densidad: ['guantes', 'comoda', 'normal', 'compacta'],
   redondeo: ['nula', 'sutil', 'media', 'amplia', 'pastilla'],
   elevacion: ['plana', 'sombra', 'doble-bisel', 'linea-dura'],
   movimiento: ['nula', 'sutil', 'normal', 'expresiva'],

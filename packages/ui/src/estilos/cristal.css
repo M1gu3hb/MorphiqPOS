@@ -1,0 +1,123 @@
+/**
+ * Estilo `cristal` — glassmorphism con profundidad de verdad.
+ *
+ * PARA: estética, spa, cafetería de especialidad, joyería, clínica estética.
+ * Negocios que venden una experiencia y cuyo dueño quiere que el sistema se vea
+ * caro delante de su clienta.
+ *
+ * SU PUNTO DE VISTA: superficies translúcidas, bordes de luz, profundidad por
+ * capas. Lo que hace que el cristal se vea caro y no barato es que **haya algo
+ * debajo que se vea a través**: sin un fondo con color, un panel translúcido es un
+ * panel gris.
+ *
+ * ── LA ADVERTENCIA, que es parte del estilo ───────────────────────────────
+ * `backdrop-filter` sobre superficies grandes mata el INP en equipos de gama baja,
+ * que son exactamente los equipos donde esto va a correr. Así que el desenfoque va
+ * en **capas pequeñas** —diálogos, barras, islas, menús— y NUNCA en el fondo entero
+ * ni en cada tarjeta de una lista de doscientas. Eso está escrito en
+ * `capas/cristal.css`, que es la única hoja de este estilo que hace algo más que
+ * fijar tokens.
+ *
+ * Y el contraste del texto sobre traslúcido **se comprueba**, no se supone: por eso
+ * las superficies de aquí llevan una opacidad alta y un color propio, en vez de ser
+ * transparentes de verdad.
+ */
+
+[data-estilo='cristal'] {
+  --sombra-tinte: 215 50% 24%;
+
+  /* Un fondo con temperatura: es lo que se ve a través del cristal. */
+  --fondo: 205 45% 96%;
+  --fondo-sutil: 205 40% 92%;
+  --superficie: 205 60% 99%;
+  --superficie-elevada: 0 0% 100%;
+
+  --texto: 215 40% 14%;
+  --texto-sutil: 215 16% 40%;
+  --texto-tenue: 215 14% 52%;
+
+  --borde: 205 30% 86%;
+  --borde-fuerte: 215 18% 50%;
+  --anillo: 198 90% 36%;
+
+  --primario: 198 90% 32%;
+  --primario-texto: 0 0% 100%;
+  --acento: 265 60% 46%;
+  --acento-texto: 0 0% 100%;
+  --acento-suave: 205 70% 92%;
+  --acento-suave-texto: 205 70% 22%;
+
+  --exito: 168 70% 26%;
+  --exito-texto: 0 0% 100%;
+  --advertencia: 36 92% 54%;
+  --advertencia-texto: 30 60% 12%;
+  --peligro: 348 72% 42%;
+  --peligro-texto: 0 0% 100%;
+  --info: 198 85% 32%;
+  --info-texto: 0 0% 100%;
+
+  --grafico-1: 198 90% 42%;
+  --grafico-2: 265 65% 56%;
+  --grafico-3: 168 65% 36%;
+  --grafico-4: 36 92% 52%;
+  --grafico-5: 318 62% 52%;
+  --grafico-6: 225 70% 46%;
+
+  --velo: 215 50% 24%;
+
+  --lateral-fondo: 215 45% 16%;
+  --lateral-texto: 205 30% 90%;
+  --lateral-activo: 198 90% 32%;
+  --lateral-activo-texto: 0 0% 100%;
+  --lateral-hover: 215 40% 24%;
+  --lateral-borde: 215 35% 26%;
+}
+
+[data-estilo='cristal'].dark {
+  --sombra-tinte: 220 60% 2%;
+
+  --fondo: 218 40% 8%;
+  --fondo-sutil: 218 34% 13%;
+  --superficie: 218 34% 12%;
+  --superficie-elevada: 218 30% 16%;
+
+  --texto: 205 30% 94%;
+  --texto-sutil: 205 14% 72%;
+  --texto-tenue: 205 12% 58%;
+
+  --borde: 218 26% 22%;
+  --borde-fuerte: 205 14% 56%;
+  --anillo: 198 95% 66%;
+
+  --primario: 198 95% 66%;
+  --primario-texto: 205 70% 8%;
+  --acento: 265 85% 76%;
+  --acento-texto: 265 50% 10%;
+  --acento-suave: 218 32% 20%;
+  --acento-suave-texto: 205 30% 92%;
+
+  --exito: 168 65% 58%;
+  --exito-texto: 168 50% 7%;
+  --advertencia: 36 95% 62%;
+  --advertencia-texto: 30 60% 10%;
+  --peligro: 348 88% 70%;
+  --peligro-texto: 348 50% 9%;
+  --info: 198 90% 66%;
+  --info-texto: 198 60% 8%;
+
+  --grafico-1: 198 95% 66%;
+  --grafico-2: 265 85% 76%;
+  --grafico-3: 150 62% 60%;
+  --grafico-4: 36 95% 62%;
+  --grafico-5: 330 85% 66%;
+  --grafico-6: 60 85% 62%;
+
+  --velo: 220 60% 2%;
+
+  --lateral-fondo: 218 44% 6%;
+  --lateral-texto: 205 26% 88%;
+  --lateral-activo: 198 95% 62%;
+  --lateral-activo-texto: 205 70% 7%;
+  --lateral-hover: 218 34% 14%;
+  --lateral-borde: 218 30% 18%;
+}

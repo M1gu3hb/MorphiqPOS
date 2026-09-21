@@ -89,9 +89,7 @@ interface DocumentoConTransiciones {
  */
 export async function conTransicion(cambio: () => void | Promise<void>): Promise<void> {
   const documento =
-    typeof document === 'undefined'
-      ? null
-      : (document as unknown as DocumentoConTransiciones);
+    typeof document === 'undefined' ? null : (document as unknown as DocumentoConTransiciones);
 
   if (documento?.startViewTransition === undefined || prefiereQuietud()) {
     await cambio();
