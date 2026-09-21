@@ -151,6 +151,19 @@
   font-family: var(--font-body);
 }
 
+/**
+ * LA FUENTE DE LOS NUMEROS, con sus cifras TABULARES.
+ *
+ * En un POS los importes se leen en columna: sin cifras de ancho fijo el `1` es mas
+ * estrecho que el `8`, los totales bailan y una columna deja de poder compararse de
+ * un vistazo. `font-numeros` es lo que usa el componente `Dinero`, y es la razon de
+ * que ese componente exista.
+ */
+@utility font-numeros {
+  font-family: var(--fuente-numeros);
+  font-variant-numeric: var(--variante-numerica);
+}
+
 /* Tailwind 4 dejó de aplicar el color de borde por omisión. Su hoja lo da por
    hecho —`border` a secas en decenas de sitios— así que se restituye. Es lo
    mismo que hacía la capa base de Tailwind 3. */

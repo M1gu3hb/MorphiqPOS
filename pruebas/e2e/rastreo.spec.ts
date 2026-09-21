@@ -899,6 +899,16 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
       if (mensaje.type() !== 'error') return;
       const texto = mensaje.text();
       if (RUIDO_DE_CONSOLA.some((patron) => patron.test(texto))) return;
+      /**
+       * Y EL RUIDO QUE HACE EL PROPIO SONDEO.
+       *
+       * Al enviar un formulario con datos de sonda, el servidor lo rechaza —400, que
+       * es la validación funcionando— y el navegador escribe «Failed to load resource:
+       * 400» en la consola por su cuenta. Eso ya está contemplado en el vigilante de
+       * respuestas; aquí llegaba por otra puerta y hacía fallar la corrida de la
+       * cafetería acusando a la aplicación de romperse justo cuando se comporta bien.
+       */
+      if (sondeando && /Failed to load resource.*\b(400|422)\b/i.test(texto)) return;
       enLaConsola.push(`${page.url().replace(/^https?:\/\/[^/]+/, '')} · ${texto.slice(0, 200)}`);
     });
     page.on('pageerror', (fallo) => {
@@ -913,6 +923,47 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
       dialogosNativos += 1;
       void dialogo.dismiss();
     });
+
+    /**
+     * IMPRIMIR Y COPIAR SON EFECTOS, y ninguno de los dos se ve.
+     *
+     * `window.print()` abre el diálogo del sistema operativo —no un diálogo de la
+     * página, así que no llega por `page.on('dialog')`— y `clipboard.writeText` escribe
+     * en el portapapeles: los dos dejan la página EXACTAMENTE igual. Sin instrumentar
+     * los dos, cada botón de imprimir y cada botón de copiar del sistema sale como un
+     * botón muerto, que es lo que le pasó a «Imprimir» del ticket de la ferretería.
+     *
+     * Se envuelven ANTES de que cargue nada —`addInitScript` corre en cada documento
+     * nuevo, antes del código de la página— y se cuentan en el `window`. La alternativa
+     * era declararlos uno por uno como clics sin efecto, y eso es exactamente la lista
+     * de excepciones que crece con la misma excepción repetida.
+     */
+    await page.addInitScript(() => {
+      const ventana = window as unknown as { __rastreoInvisibles?: number };
+      ventana.__rastreoInvisibles = 0;
+      // NO se llama al original: abrir el diálogo de impresión del sistema deja el
+      // navegador bloqueado esperando a una persona que no existe.
+      window.print = () => {
+        ventana.__rastreoInvisibles = (ventana.__rastreoInvisibles ?? 0) + 1;
+      };
+      const portapapeles = navigator.clipboard as
+        { writeText?: (texto: string) => Promise<void> } | undefined;
+      if (portapapeles?.writeText !== undefined) {
+        const original = portapapeles.writeText.bind(portapapeles);
+        portapapeles.writeText = async (texto: string) => {
+          ventana.__rastreoInvisibles = (ventana.__rastreoInvisibles ?? 0) + 1;
+          return original(texto).catch(() => undefined);
+        };
+      }
+    });
+
+    /** Cuántas veces se ha impreso o copiado desde que cargó esta página. */
+    const invisibles = async (): Promise<number> =>
+      page
+        .evaluate(
+          () => (window as unknown as { __rastreoInvisibles?: number }).__rastreoInvisibles ?? 0,
+        )
+        .catch(() => 0);
 
     // Abrir una pestaña TAMBIÉN es un efecto: es lo que hacen «Mandar por WhatsApp»
     // y los que llevan a un documento. Sin contarlo, un botón que abre WhatsApp se
@@ -1131,6 +1182,7 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
       const urlAntes = page.url();
       const dialogosAntes = dialogosNativos;
       const pestanasAntes = pestanasAbiertas;
+      const invisiblesAntes = await invisibles();
       let peticiones = 0;
       const contar = (): void => {
         peticiones += 1;
@@ -1154,12 +1206,13 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
       await page.waitForTimeout(RESPIRO_MS);
       page.off('request', contar);
 
-      const hizoAlgoVisible =
+      const hizoAlgo =
         peticiones > 0 ||
         page.url() !== urlAntes ||
         dialogosNativos > dialogosAntes ||
-        pestanasAbiertas > pestanasAntes;
-      if (hizoAlgoVisible) return null;
+        pestanasAbiertas > pestanasAntes ||
+        (await invisibles()) > invisiblesAntes;
+      if (hizoAlgo) return null;
       if (
         (await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella tras el toque')) !== antes
       ) {

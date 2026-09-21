@@ -466,10 +466,16 @@ export default function RegistrarInventarioInicialDialog({ open, onClose, ingred
                   )}
                 </div>
 
-                {/* Toggle existente / nuevo */}
+                {/* Toggle existente / nuevo
+                    `aria-pressed` porque son DOS BOTONES Y UNO YA ESTA PUESTO: sin el,
+                    un lector de pantalla anuncia dos botones iguales y ninguno pulsado,
+                    y el color es lo unico que dice cual es el actual. Lo destapo el
+                    rastreador en CI, que acuso a «Ya esta en mi inventario» de no hacer
+                    nada: y no hace nada, porque es el que YA esta elegido. */}
                 <div className="flex gap-2">
                   <button
                     type="button"
+                    aria-pressed={line.tipo === 'existente'}
                     onClick={() =>
                       updateLine(idx, { tipo: 'existente', ingrediente: null, nuevo_nombre: '' })
                     }
@@ -483,6 +489,7 @@ export default function RegistrarInventarioInicialDialog({ open, onClose, ingred
                   </button>
                   <button
                     type="button"
+                    aria-pressed={line.tipo === 'nuevo'}
                     onClick={() => updateLine(idx, { tipo: 'nuevo', ingrediente: null })}
                     className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       line.tipo === 'nuevo'

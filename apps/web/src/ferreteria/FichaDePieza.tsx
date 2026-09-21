@@ -457,6 +457,18 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
             </Label>
             <Input
               id="equivalente"
+              /**
+               * REQUERIDO, y por eso enviar en vacío DICE algo.
+               *
+               * Sin esto, pulsar Enter con el campo vacío no hacía absolutamente nada:
+               * `declararEquivalente` se iba de vuelta en su primera línea y la pantalla
+               * se quedaba igual, sin un aviso. Lo destapó el rastreador en CI, que
+               * envía los formularios que encuentra. Con `required`, el navegador
+               * enseña su propio mensaje en el campo —en el idioma del sistema— y no
+               * llega a enviarse: la validación nativa es gratis y es la que un lector
+               * de pantalla ya sabe anunciar.
+               */
+              required
               value={propuesta}
               placeholder="Tornillo 6 mm × 50 mm galvanizado"
               onChange={(evento) => {
