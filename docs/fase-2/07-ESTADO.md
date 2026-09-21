@@ -517,3 +517,44 @@ Pendiente. Se hace cuando los 78 estén ✅. Consiste en releer sólo `00-FICHA-
 | F7 Producción | ⬜ |
 | F8 Profesional | ⬜ |
 | F9 Especiales | ⬜ |
+
+---
+
+## FASE 2.3 · EL CIERRE · el rastreador y las tres puertas nuevas (21-09-2026)
+
+Cuatro vueltas cerraron «terminadas» y la auditoría siguiente encontró cosas obvias, porque la puerta
+se escribía **a partir de los fallos ya conocidos** y porque **nadie hacía clic en cada botón**. Esta
+vuelta construyó la prueba que no sabe qué busca, la corrió contra producción, y de lo que encontró
+salieron tres puertas que cierran la CLASE y no el caso.
+
+| Bloque | Qué | Estado |
+|---|---|---|
+| **1** | Producción sirviendo el código nuevo y las cinco demos | ✅ PR #1 fusionado; `ORGANIZACION` con los seis negocios; `/api/auth/empleados` devuelve 6 negocios y 29 personas |
+| **2** | El rastreador, contra producción, y arreglar lo que saque | ✅ `pruebas/e2e/rastreo.spec.ts`. **69 defectos reales arreglados** (§ detalle en el reporte) |
+| **3** | Los dos agujeros de la puerta de rutas llamadas | ✅ plantillas visibles y segmentos dinámicos que ya no aprueban un verbo; salió ROJA y nombró las tres |
+| **4** | Los seis defectos conocidos | ✅ los seis, y nueve más del mismo linaje |
+| **5** | Todas las puertas verdes, con `test:integracion` corriendo | ✅ eslabón 31 en verde contra una rama de Supabase, **sin Docker** |
+
+### Las tres puertas nuevas
+
+| Eslabón | Puerta | Qué compara | Destapó |
+|---|---|---|---|
+| 13 | `verify:tipos-de-pantalla` | el tipo DECLARADO contra la `conversion` del puente | **8**, dos pantallas muertas |
+| 14 | `verify:enlaces` | cada `href` interno contra las pantallas que `app/` sirve | **6** 404 |
+| 15 | `verify:entradas-de-comando` | lo que la pantalla PUBLICA contra lo que el comando ACEPTA | **21** |
+
+La cadena pasa de **31 a 34 eslabones**. Las tres están en CI y las tres se validaron mutando.
+
+### Lo que NO se arregló, y por qué
+
+**El pedido anticipado del menú público de la cafetería.** Publicaba en un comando que exige una orden
+PAGADA —«sin cobro es una reserva y las reservas no llegan», lo dice su propio código— por una ruta que
+exige SESIÓN, desde el teléfono de una clienta que no tiene ninguna. Tres imposibilidades a la vez, y
+la cabecera de la pantalla prometiendo «se aparta y se paga en la barra». Hace falta decidir **si se
+cobra en línea o si se aceptan reservas sin prenda**, y eso no lo decide una pantalla. Mientras tanto
+la pantalla REDACTA el pedido y lo copia —la regla del fiado: el sistema redacta, la persona lleva— en
+vez de fingir que aparta.
+
+**El dominio** `pos-mh-astral-systems.com` es tarea de Miguel y no un pendiente de esta fase. Lo que
+esta vuelta sí arregló es que el despliegue funcione **por las dos URLs**: con `APP_URL` en el dominio
+propio, toda escritura desde `morphiqpos-kappa.vercel.app` contestaba 403 y nadie podía ni entrar.
