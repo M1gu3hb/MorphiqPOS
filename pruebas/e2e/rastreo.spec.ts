@@ -271,7 +271,41 @@ async function enumerar(page: Page): Promise<readonly Clicable[]> {
          */
         visible: (() => {
           const caja = elemento.getBoundingClientRect();
-          return caja.width > 0 && caja.height > 0;
+          if (caja.width <= 0 || caja.height <= 0) return false;
+          /**
+           * Y NO ESTAR RECORTADO A NADA por un ancestro que oculta lo que sobra.
+           *
+           * ── El caso real, y por qué el tamaño no basta ──────────────────
+           * La pantalla de recetas del heredado cierra sus filas con
+           * `gridTemplateRows: '0fr'` más `overflow-hidden`: el contenedor mide CERO y
+           * el botón de dentro conserva su tamaño natural —recortado, invisible y
+           * fuera de alcance—. Con sólo mirar el tamaño del botón entraban 66 en la
+           * tiendita y 75 en la ferretería: cajones cerrados, no botones muertos.
+           *
+           * Se compara contra cada ancestro que RECORTA. Si el botón no cruza con
+           * alguno de ellos, nadie puede verlo ni tocarlo. Y OJO: esto NO tapa el
+           * caso de «algo lo cubre» —una barra lateral encima—, que no recorta nada y
+           * sigue saliendo como hallazgo. Ese fue un defecto de verdad.
+           */
+          let padre = elemento.parentElement;
+          while (padre !== null) {
+            const estilo = window.getComputedStyle(padre);
+            const recorta =
+              estilo.overflow !== 'visible' ||
+              estilo.overflowX !== 'visible' ||
+              estilo.overflowY !== 'visible';
+            if (recorta) {
+              const suya = padre.getBoundingClientRect();
+              const cruza =
+                caja.right > suya.left &&
+                caja.left < suya.right &&
+                caja.bottom > suya.top &&
+                caja.top < suya.bottom;
+              if (!cruza) return false;
+            }
+            padre = padre.parentElement;
+          }
+          return true;
         })(),
         yaActiva:
           elemento.getAttribute('aria-pressed') === 'true' ||

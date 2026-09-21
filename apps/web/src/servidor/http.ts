@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { ErrorDeAlmacen } from '@morphiqpos/app/archivos';
+
 import {
   esErrorDominio,
   ESTADO_HTTP,
@@ -227,6 +229,22 @@ export function conSesionMultipart<T>(
  * y decirlo bien es lo que permite arreglarla.
  */
 function respuestaDeDominio(error: unknown, correlationId: string): Response | null {
+  /**
+   * EL ALMACÉN QUE NO RESPONDE es una CONFIGURACIÓN, no un fallo del servidor.
+   *
+   * `STORAGE_ENDPOINT` apuntando a `localhost:9000` en un despliegue hace que toda
+   * operación de archivo —exportar registros, subir la foto de un producto, generar
+   * el menú QR— muera con `ECONNREFUSED`, y lo que el usuario recibe es un **500 «No
+   * fue posible completar la operación»**: un mensaje que manda a buscar el fallo al
+   * código cuando el código está bien y lo que falta es una credencial. Aquí sale
+   * como 503 con su texto, que dice qué variables revisar.
+   */
+  if (error instanceof ErrorDeAlmacen) {
+    return Response.json(
+      { ok: false, error: { codigo: error.codigo, mensaje: error.message }, correlationId },
+      { status: 503, headers: { 'cache-control': 'no-store' } },
+    );
+  }
   if (!esErrorDominio(error)) return null;
   const estados: Readonly<Record<string, number>> = {
     PUENTE_ENTIDAD_DESCONOCIDA: 400,

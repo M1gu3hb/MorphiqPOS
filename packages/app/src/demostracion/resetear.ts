@@ -120,6 +120,32 @@ export const resetearDemo = definirComando<
       })
       .returning('id')
       .executeTakeFirstOrThrow();
+
+    /**
+     * EL SEGUNDO ALMACÉN DE UN SALÓN: la CABINA.
+     *
+     * ── Por qué la demostración lo necesita ──────────────────────────
+     * Medio giro de la estética cuelga de él: abrir un producto para mezclar
+     * —`cabina.abrir_producto`— y preguntar si alcanza —`cabina.alcanza`— buscan un
+     * SEGUNDO almacén y sin él contestan «Este negocio no tiene almacén de CABINA».
+     * La demo se sembraba con uno solo, así que en la demostración del salón esas dos
+     * cosas no se podían enseñar. Lo encontró el rastreador: un 422 en la pantalla de
+     * Productos, con su mensaje perfectamente claro y nadie leyendo la consola.
+     *
+     * SÓLO en el salón: una tiendita con dos almacenes tendría que explicar el
+     * segundo, y en su giro no significa nada.
+     */
+    if (giro === 'estetica') {
+      await ctx.tx
+        .insertInto('almacenes')
+        .values({
+          organizacion_id: ctx.ambito.organizacionId,
+          sucursal_id: sucursalId,
+          nombre: 'Cabina',
+          principal: false,
+        })
+        .execute();
+    }
     const categorias = new Map<string, string>();
     for (const [orden, nombre] of semilla.categorias.entries()) {
       const fila = await ctx.tx

@@ -10,7 +10,7 @@ export {
 } from './cliente.ts';
 
 export type { Esquema } from './esquema.ts';
-export { crearAlmacenArchivos, type ConfiguracionAlmacen } from './archivos.ts';
+export { crearAlmacenArchivos, ErrorDeAlmacen, type ConfiguracionAlmacen } from './archivos.ts';
 export { esFalloDeConexion, leyendoConReintento } from './reintento-de-conexion.ts';
 
 export * as repoComandos from './repos/comandos.ts';
