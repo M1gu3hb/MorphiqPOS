@@ -1571,8 +1571,32 @@ async function comprobarCiEnGitHub() {
     return;
   }
 
-  const pendientes = corridas.filter((c) => c.status !== 'completed');
-  const rojos = corridas.filter((c) => c.status === 'completed' && c.conclusion !== 'success');
+  /**
+   * UNA CORRIDA POR NOMBRE, LA ÚLTIMA. Lo demás son fantasmas.
+   *
+   * ── Por qué ───────────────────────────────────────────────
+   * El workflow tiene `concurrency` con cancelación: cuando el mismo commit se
+   * vuelve a disparar —reabrir un PR, un segundo empujón— GitHub **cancela** las
+   * corridas anteriores y deja las nuevas. Contando todas, esta puerta veía cuatro
+   * `cancelled` junto a cuatro `success` y declaraba ROJO un commit cuyos checks
+   * están verdes: un falso rojo, que enseña a ignorar la puerta.
+   *
+   * Lo que hace una persona al leer los checks es mirar el ÚLTIMO de cada nombre. Eso
+   * es lo que se compara aquí. Un `cancelled` que NO fue superado por otro del mismo
+   * nombre sigue contando en rojo, que es lo correcto: nadie comprobó nada.
+   */
+  const cuando = (c) => Date.parse(c.completed_at ?? c.started_at ?? '') || 0;
+  const ultimaPorNombre = new Map();
+  for (const corrida of corridas) {
+    const previa = ultimaPorNombre.get(corrida.name);
+    if (previa === undefined || cuando(corrida) >= cuando(previa)) {
+      ultimaPorNombre.set(corrida.name, corrida);
+    }
+  }
+  const ultimas = [...ultimaPorNombre.values()];
+
+  const pendientes = ultimas.filter((c) => c.status !== 'completed');
+  const rojos = ultimas.filter((c) => c.status === 'completed' && c.conclusion !== 'success');
 
   exigir(
     pendientes.length === 0,
@@ -1588,8 +1612,11 @@ async function comprobarCiEnGitHub() {
 
   if (!fallos.some((f) => f.startsWith('CI'))) {
     notas.push(
-      `ci            ${corridas.length} check(s) VERDES en ${sha.slice(0, 7)} · ` +
-        corridas.map((c) => c.name).join(' · '),
+      `ci            ${ultimas.length} check(s) VERDES en ${sha.slice(0, 7)} · ` +
+        ultimas.map((c) => c.name).join(' · ') +
+        (corridas.length > ultimas.length
+          ? ` (${corridas.length - ultimas.length} corrida(s) anterior(es) del mismo commit, superadas)`
+          : ''),
     );
   }
 }

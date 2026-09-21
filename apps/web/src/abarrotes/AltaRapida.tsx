@@ -488,7 +488,7 @@ export function AltaRapida({
                     <Input
                       id="categoria-nueva"
                       value={nuevaCategoria}
-                      placeholder="Abarrotes, Bebidas, Limpieza…"
+                      placeholder="Despensa, Limpieza, Dulces…"
                       onChange={(evento) => {
                         setNuevaCategoria(evento.target.value);
                       }}
