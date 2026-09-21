@@ -15,7 +15,7 @@ export const runtime = 'nodejs';
 
 export async function POST(peticion: Request): Promise<Response> {
   const entorno = validarEntorno(process.env);
-  if (!peticionDeEscrituraValida(peticion, entorno.APP_URL)) {
+  if (!peticionDeEscrituraValida(peticion, entorno.APP_URL, entorno.APP_URL_ALTERNAS)) {
     return Response.json(
       {
         ok: false,

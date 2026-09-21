@@ -98,8 +98,24 @@ function peticionPropia(peticion: PeticionDelPortal): boolean {
   if (peticion.headers.get('x-morphiqpos-request') !== '1') return false;
 
   const origen = peticion.headers.get('origin');
-  const esperado = new URL(validarEntorno(process.env).APP_URL).origin;
-  return origen === null || origen === esperado;
+  if (origen === null) return true;
+
+  // Los MISMOS origenes que la frontera de escritura de la aplicacion: la
+  // canonica de `APP_URL` mas los alternos por los que este despliegue tambien se
+  // sirve. Sin los alternos, el portal QR contestaba 403 desde la URL del
+  // despliegue mientras el dominio propio no resolvia.
+  const entorno = validarEntorno(process.env);
+  const permitidos = [entorno.APP_URL, ...(entorno.APP_URL_ALTERNAS ?? '').split(',')]
+    .map((valor) => valor.trim())
+    .filter((valor) => valor.length > 0)
+    .map((valor) => {
+      try {
+        return new URL(valor).origin;
+      } catch {
+        return '';
+      }
+    });
+  return permitidos.includes(origen);
 }
 
 interface Despliegue {

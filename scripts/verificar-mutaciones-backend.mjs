@@ -808,7 +808,14 @@ comprobarMutacion({
   archivoTemporal: 'seguridad-http.ts',
   variable: 'MORPHIQPOS_SECURITY_HTTP_SOURCE_PATH',
   prueba: PRUEBA_SEGURIDAD_HTTP,
-  transformar: (codigo) => codigo.replace('new URL(appUrl).origin', 'new URL(peticion.url).origin'),
+  // La guarda ya no compara contra UN origen: compara contra la lista que sale de
+  // `APP_URL` y `APP_URL_ALTERNAS`. La mutación equivalente es la de siempre —confiar
+  // en lo que trae la petición— escrita sobre la forma nueva.
+  transformar: (codigo) =>
+    codigo.replace(
+      'return origenesPermitidos(appUrl, alternas).includes(origen);',
+      'return origen === new URL(peticion.url).origin;',
+    ),
 });
 comprobarMutacion({
   nombre: 'origen del portal confiado al Host falsificable',
@@ -818,8 +825,8 @@ comprobarMutacion({
   prueba: PRUEBA_SEGURIDAD_HTTP,
   transformar: (codigo) =>
     codigo.replace(
-      'new URL(validarEntorno(process.env).APP_URL).origin',
-      'new URL(peticion.url).origin',
+      'return permitidos.includes(origen);',
+      'return origen === new URL(peticion.url).origin;',
     ),
 });
 comprobarMutacion({

@@ -25,6 +25,7 @@ Hoy tiene **nueve**, puestas con el CLI:
 | `STORAGE_SECRET_KEY`     | El mismo que Production                                                                                                      |
 | `ORGANIZACION`           | **Una organización de DEMOSTRACIÓN**, nunca un negocio vivo. Ver §2                                                          |
 | `APP_URL`                | `https://morphiqpos-git-fase-2-mh-astral-systems.vercel.app` — el alias de rama, no la URL de un despliegue, que cambia      |
+| `APP_URL_ALTERNAS`       | Los OTROS orígenes del mismo despliegue, separados por comas. Ver §7, que es un 403 que rompía la entrada entera            |
 
 Se comprueban con:
 
@@ -179,3 +180,43 @@ compartido:
 - **No se encendió ni se apagó la Protección de Despliegue.** Ver §3: no hacía falta para verificar.
 - **No se cambió la `DATABASE_URL` de Production.** Ver §4: es la decisión que queda sobre la mesa,
   y es la que más corre.
+
+---
+
+## 7 · `APP_URL_ALTERNAS` · el 403 que no dejaba ni entrar
+
+Lo encontró el rastreador la primera vez que alguien tocó la aplicación desplegada, y ninguna
+puerta lo había visto.
+
+La frontera de escritura compara el `Origin` que manda el navegador contra `APP_URL` y responde
+**403** a cualquier otro. Es la defensa contra CSRF y está bien. Lo que faltaba es que un despliegue
+de Vercel **se sirve siempre por su dominio `*.vercel.app`**, además del dominio propio. Con
+`APP_URL` puesta a `https://pos-mh-astral-systems.com` —cuyo DNS todavía se estaba configurando— la
+aplicación contestaba 403 a **toda** escritura hecha desde `morphiqpos-kappa.vercel.app`, empezando
+por `/api/auth/entrar`:
+
+```
+POST /api/auth/entrar   origin: https://morphiqpos-kappa.vercel.app   → 403
+POST /api/datos/consultar                                             → 403
+```
+
+**Nadie podía entrar al sistema desde la URL del despliegue.** Y no lo vio ninguna puerta porque las
+suites corren con `APP_URL=http://localhost:3200`, donde el origen coincide siempre; el único sitio
+donde los dos valores se separan es un despliegue de verdad.
+
+### Cómo se arregla
+
+```bash
+vercel env add APP_URL_ALTERNAS production
+# valor: https://morphiqpos-kappa.vercel.app
+```
+
+Una lista separada por comas. `APP_URL` sigue siendo la canónica —la de los enlaces de un ticket y
+del portal QR— y esto es sólo quién más puede escribir.
+
+### Lo que NO se hizo, y por qué
+
+Leer el `Host` de la petición y aceptar el origen que coincida con él. Habría arreglado el síntoma
+sin tocar la configuración, y habría roto R-17: el origen esperado tiene que nacer de la
+configuración, porque leer el `Host` es dejar que quien ataca lo declare. La prueba «rechaza un Host
+falsificado aunque coincida con Origin» sigue en pie sin un cambio.
