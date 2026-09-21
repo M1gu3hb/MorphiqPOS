@@ -132,7 +132,9 @@ describe('B-05 · configuración por organización', () => {
       version: 7,
       telefono: '33 2000 1000',
       direccion: null,
-      estilo: 'base',
+      // `base` es el nombre VIEJO del estilo del sistema, y se traduce al leer: un
+      // negocio con el nombre de la Fase 1 guardado no puede quedarse sin estilo.
+      estilo: 'morphiq',
     });
     expect(operaciones).toHaveLength(1);
     expect(operaciones[0]?.tabla).toBe('organizaciones as o');

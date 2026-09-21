@@ -5,16 +5,9 @@ import type { ReactNode } from 'react';
 
 import { GUION_SIN_PARPADEO } from '@/tema-arranque';
 import { NOMBRE_COOKIE } from '@morphiqpos/app/http';
-import { atributosDeEstilo } from '@morphiqpos/ui/tokens';
+import { APARIENCIA_POR_OMISION, aparienciaDeLaOrganizacion } from '@morphiqpos/app/configuracion';
 
-/**
- * El estilo con el que se sirve la aplicación.
- *
- * `morphiq` es el BASE —la paleta de Miguel— y de momento es el de todos. En la
- * etapa 5 lo elige cada organización desde Modo Presentación y esto leerá su
- * preferencia; hasta entonces vive aquí, en un sitio y no en cinco.
- */
-const ESTILO_POR_OMISION = 'morphiq';
+import { sesionDelServidor } from '~/servidor/http';
 
 import { CABECERA_NONCE } from '~/seguridad/csp';
 import { Proveedores } from '~/proveedores/Proveedores';
@@ -68,6 +61,24 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
    */
   const conSesion = (cabeceras.get('cookie') ?? '').includes(`${NOMBRE_COOKIE}=`);
 
+  /**
+   * LA APARIENCIA DEL NEGOCIO, resuelta EN EL SERVIDOR.
+   *
+   * Sin sesión —la pantalla de acceso— no hay negocio del que leerla, y se pinta con
+   * la base: es la marca de la plataforma, que es lo que esa pantalla enseña.
+   *
+   * Con sesión se lee la del negocio. Va aquí y no en un efecto del cliente porque
+   * los tokens de color viven bajo `[data-estilo]` y los nombres en inglés que pinta
+   * la aplicación derivan de ellos: aplicarlo tras hidratar sería medio segundo de
+   * otro estilo en CADA carga. Y nunca lanza: si la base no contesta, se pinta con
+   * el estilo base y la aplicación sigue.
+   */
+  const sesion = conSesion ? await sesionDelServidor() : null;
+  const apariencia =
+    sesion === null
+      ? APARIENCIA_POR_OMISION
+      : await aparienciaDeLaOrganizacion(sesion.organizacionId);
+
   return (
     <html
       lang="es-MX"
@@ -88,14 +99,18 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
        * `morphiq` es el base y de momento es el de todos. En la etapa 5 lo elige
        * cada organización desde Modo Presentación y esto leerá su preferencia.
        */
-      {...atributosDeEstilo(ESTILO_POR_OMISION)}
+      data-estilo={apariencia.estilo}
+      data-densidad={apariencia.densidad}
+      data-redondeo={apariencia.redondeo}
+      data-elevacion={apariencia.elevacion}
+      data-movimiento={apariencia.movimiento}
     >
       <head>
         {/* Pone la clase del tema ANTES del primer pintado. */}
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: GUION_SIN_PARPADEO }} />
       </head>
       <body>
-        <Proveedores conSesion={conSesion} estilo={ESTILO_POR_OMISION}>
+        <Proveedores conSesion={conSesion} estilo={apariencia.estilo}>
           {children}
         </Proveedores>
       </body>
