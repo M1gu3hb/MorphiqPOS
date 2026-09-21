@@ -4,6 +4,8 @@ import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
 
 import { GUION_SIN_PARPADEO } from '@/tema-arranque';
+import { NOMBRE_COOKIE } from '@morphiqpos/app/http';
+
 import { CABECERA_NONCE } from '~/seguridad/csp';
 import { Proveedores } from '~/proveedores/Proveedores';
 
@@ -47,7 +49,14 @@ export const viewport: Viewport = {
  * sesión y del negocio, así que ninguna iba a ser estática.
  */
 export default async function LayoutRaiz({ children }: { children: ReactNode }) {
-  const nonce = (await headers()).get(CABECERA_NONCE) ?? undefined;
+  const cabeceras = await headers();
+  const nonce = cabeceras.get(CABECERA_NONCE) ?? undefined;
+  /**
+   * ¿Hay sesión? Lo dice la cookie, y con eso basta: no se valida aquí —de eso se
+   * encarga cada ruta—, sólo se decide si tiene sentido pedir la configuración del
+   * negocio. Sin sesión esa consulta es un 401 garantizado en la consola.
+   */
+  const conSesion = (cabeceras.get('cookie') ?? '').includes(`${NOMBRE_COOKIE}=`);
 
   return (
     <html lang="es-MX" suppressHydrationWarning className={`${inter.variable} ${dmSans.variable}`}>
@@ -56,7 +65,7 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: GUION_SIN_PARPADEO }} />
       </head>
       <body>
-        <Proveedores>{children}</Proveedores>
+        <Proveedores conSesion={conSesion}>{children}</Proveedores>
       </body>
     </html>
   );

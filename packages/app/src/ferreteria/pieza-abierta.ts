@@ -4,6 +4,8 @@ import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
+import { repoVentaCatalogo } from '@morphiqpos/data';
+
 import { definirComando } from '../definicion.ts';
 
 /**
@@ -37,7 +39,16 @@ const MOSTRADOR = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
 
 export const entradaAbrirPieza = z.object({
   productoId: z.uuid(),
-  almacenId: z.uuid(),
+  /**
+   * EL ALMACÉN, OPCIONAL: lo resuelve la sesión del servidor (R16).
+   *
+   * Era obligatorio, y la pantalla de material NO lo manda —con razón: «el almacén
+   * sale de la sesión», lo dice su propio comentario—. Resultado: **abrir una pieza
+   * contestaba 400 siempre**, y con ella la pantalla del material continuo entero.
+   * Es el mismo arreglo que ya llevaba `entradaAbrirProducto` del salón, y por la
+   * misma razón: una pantalla que no puede saber un id no debe tener que mandarlo.
+   */
+  almacenId: z.uuid().optional(),
   /** Lo que trae la pieza, en unidad base. Micrómetros o miligramos, enteros. */
   medidaBase: z.string().regex(/^\d{1,18}$/, 'La medida va en unidad base, entera.'),
   folio: z.string().trim().min(1).max(20),
@@ -126,6 +137,29 @@ export const abrirPieza = definirComando<Transaccion, typeof entradaAbrirPieza, 
       );
     }
 
+    /**
+     * EL ALMACÉN sale de la sesión cuando la pantalla no lo dice (R16).
+     *
+     * Es el principal de la sucursal de quien abre la pieza. Sin sucursal no hay
+     * almacén que elegir, y eso sí es un error con nombre.
+     */
+    const almacenId =
+      entrada.almacenId ??
+      (await ctx.paso('almacen_de_la_sesion', async () => {
+        if (ctx.ambito.sucursalId === null) return null;
+        return repoVentaCatalogo.almacenPrincipal(
+          ctx.tx,
+          ctx.ambito.organizacionId,
+          ctx.ambito.sucursalId,
+        );
+      }));
+    if (almacenId === null) {
+      throw new ErrorDominio(
+        'VENTA_SIN_TERMINAL',
+        'Una pieza abierta vive en un almacén: hace falta saber en cuál.',
+      );
+    }
+
     const repetido = await ctx.paso('buscar_folio', () =>
       ctx.tx
         .selectFrom('piezas_abiertas')
@@ -149,7 +183,7 @@ export const abrirPieza = definirComando<Transaccion, typeof entradaAbrirPieza, 
         .values({
           organizacion_id: organizacionId,
           producto_id: entrada.productoId,
-          almacen_id: entrada.almacenId,
+          almacen_id: almacenId,
           folio: entrada.folio,
           medida_restante_base: medida,
           estado: 'abierta',

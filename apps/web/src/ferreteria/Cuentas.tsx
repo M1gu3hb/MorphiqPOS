@@ -318,16 +318,32 @@ export function Cuentas({
     setEnviando(true);
     setError(null);
     try {
+      /**
+       * LOS DOCUMENTOS ELEGIDOS SUMAN, NO DIRIGEN — y antes se mandaban como si
+       * dirigieran.
+       *
+       * `credito.registrar_pago` aplica el dinero con `repartirPago` POR
+       * VENCIMIENTO —«lo que se paga primero es lo que venció primero», y es la misma
+       * función en los dos giros—. La clave `documentos` no está en su esquema, así
+       * que zod la tiraba EN SILENCIO: la cajera elegía la remisión 3 y el pago
+       * bajaba de la 1. El importe era correcto y la aplicación no, sin un error en
+       * ninguna parte.
+       *
+       * La selección se queda porque SIRVE: es como se arma el importe. Lo que se
+       * quita es la clave que prometía dirigir el pago, y la pantalla dice en voz
+       * alta a qué se aplica.
+       */
       await invocarComando('/api/credito/pago', {
         clienteId: cliente.id,
         metodo,
         montoCentavos: sumaElegida,
-        documentos: elegidos,
       });
       // Se relee la cartera entera: un pago toca el saldo de varias obras a la
       // vez, y adivinar aquí cuál bajó cuánto es inventar el estado del servidor.
       setRenglones(await consultarPuente<RenglonDeCartera>('CarteraPorObra', { limite: 400 }));
-      setAviso(`Pago de ${enPesos(sumaElegida)} aplicado a ${elegidos.length} documento(s).`);
+      // Lo que se dice es lo que pasa: el importe sale de lo elegido y el sistema
+      // lo aplica a lo que venció primero.
+      setAviso(`Pago de ${enPesos(sumaElegida)} registrado. Se aplica a lo que venció primero.`);
       setFicha(null);
       onPagoRegistrado?.(cliente.id, sumaElegida);
     } catch (fallo) {
@@ -615,34 +631,40 @@ export function Cuentas({
                 cerrados.
               </p>
             ) : (
-              <ul className="space-y-1">
-                {pendientes.map((doc) => (
-                  <li
-                    key={doc.id}
-                    className="flex items-center gap-3 rounded-md border border-border p-2"
-                  >
-                    <Checkbox
-                      id={`doc-${doc.id}`}
-                      checked={elegidos.includes(doc.id)}
-                      onCheckedChange={(marcado) => {
-                        setElegidos(
-                          marcado === true
-                            ? [...elegidos, doc.id]
-                            : elegidos.filter((uno) => uno !== doc.id),
-                        );
-                      }}
-                    />
-                    <label htmlFor={`doc-${doc.id}`} className="flex flex-1 flex-col text-sm">
-                      <span className="font-medium">
-                        {doc.folio ?? 'Sin folio'} · {enPesos(doc.saldo_documento_centavos ?? 0)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {doc.obra_nombre ?? 'Sin obra'} · {doc.dias ?? 0} días
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <p className="text-muted-foreground text-xs">
+                  Lo que marques SUMA el importe. El pago se aplica a lo que venció primero, que es
+                  como se lleva una cuenta de crédito.
+                </p>
+                <ul className="space-y-1">
+                  {pendientes.map((doc) => (
+                    <li
+                      key={doc.id}
+                      className="flex items-center gap-3 rounded-md border border-border p-2"
+                    >
+                      <Checkbox
+                        id={`doc-${doc.id}`}
+                        checked={elegidos.includes(doc.id)}
+                        onCheckedChange={(marcado) => {
+                          setElegidos(
+                            marcado === true
+                              ? [...elegidos, doc.id]
+                              : elegidos.filter((uno) => uno !== doc.id),
+                          );
+                        }}
+                      />
+                      <label htmlFor={`doc-${doc.id}`} className="flex flex-1 flex-col text-sm">
+                        <span className="font-medium">
+                          {doc.folio ?? 'Sin folio'} · {enPesos(doc.saldo_documento_centavos ?? 0)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {doc.obra_nombre ?? 'Sin obra'} · {doc.dias ?? 0} días
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
 
             <Separator />

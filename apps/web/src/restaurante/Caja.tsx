@@ -289,11 +289,21 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
           <Button variant="secondary" size="sm" disabled title="Ya está abierta">
             Abrir caja
           </Button>
+          {/*
+            DOS ENLACES A UNA PANTALLA QUE NO EXISTE, y con 404 en el navegador.
+
+            Decían «Corte de turno» y «Cierre diario» y los dos llevaban a
+            `/restaurante/cierre-diario`, que **no es una ruta**: la pantalla se
+            llama `cierre-diario-y-arqueo`. Los dos daban 404, y ninguna puerta lo
+            veía porque la de rutas llamadas comprueba las de `/api/` —un enlace a
+            una PANTALLA que no existe no pasaba por ahí—.
+
+            Y eran dos para una: la pantalla de cierre no lee `?arqueo=turno` ni
+            distingue turno de día, así que los dos botones habrían hecho lo mismo.
+            Uno, con el nombre de la pantalla a la que lleva.
+          */}
           <Button variant="outline" size="sm" asChild>
-            <a href="/restaurante/cierre-diario?arqueo=turno">Corte de turno</a>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a href="/restaurante/cierre-diario">Cierre diario</a>
+            <a href="/restaurante/cierre-diario-y-arqueo">Cierre y arqueo</a>
           </Button>
         </nav>
       </header>

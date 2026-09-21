@@ -94,18 +94,44 @@ export const entradaActualizarProducto = z.object({
   stockMinimo: cantidad,
 });
 
+/**
+ * CAMBIAR EL PRECIO · y sólo lo que se manda.
+ *
+ * ── Por qué el costo y el mayoreo dejaron de ser obligatorios ──────────
+ * Este comando pedía `precioVenta`, `costoUnitario`, `precioMayoreo` y
+ * `cantidadMinimaMayoreo`, los cuatro. Y las DOS pantallas que cambian un precio
+ * —la ficha de producto de la tiendita y el catálogo de la cafetería— mandaban
+ * `{productoId, precioVentaCentavos}`: ni el nombre ni el resto. Cada «Guardar
+ * precio» contestaba **400** y el precio no cambiaba NUNCA, en dos de los cinco
+ * modelos. Lo encontró `verify:entradas-de-comando`.
+ *
+ * Se podía arreglar en las pantallas mandándolo todo, y eso obliga a que una
+ * pantalla que cambia UN precio tenga a mano el costo, el mayoreo y su mínimo, y a
+ * reescribirlos aunque no los toque: el día que uno de los tres no esté a la vista,
+ * se manda un cero y se borra el costo del producto. Un comando que se llama
+ * «cambiar precio» escribe lo que le dan, como ya hacía con `precioVariable` y
+ * `precioPorcion`.
+ *
+ * El mayoreo sigue siendo un PAR: o los dos, o ninguno. Eso no se relaja.
+ */
 export const entradaCambiarPrecio = z
   .object({
     productoId: id,
     precioVenta: importe,
-    costoUnitario: importe,
-    precioMayoreo: importe.nullable(),
-    cantidadMinimaMayoreo: cantidad.nullable(),
+    costoUnitario: importe.optional(),
+    precioMayoreo: importe.nullable().optional(),
+    cantidadMinimaMayoreo: cantidad.nullable().optional(),
     precioVariable: importe.optional(),
     precioPorcion: importe.optional(),
   })
   .superRefine((valor, ctx) => {
-    if ((valor.precioMayoreo === null) !== (valor.cantidadMinimaMayoreo === null)) {
+    const traeMayoreo = valor.precioMayoreo !== undefined;
+    const traeMinimo = valor.cantidadMinimaMayoreo !== undefined;
+    if (traeMayoreo !== traeMinimo) {
+      problema(ctx, 'precioMayoreo', 'El mayoreo son dos datos: precio y mínimo, o ninguno.');
+      return;
+    }
+    if (traeMayoreo && (valor.precioMayoreo === null) !== (valor.cantidadMinimaMayoreo === null)) {
       problema(ctx, 'precioMayoreo', 'Completa precio y mínimo de mayoreo.');
     }
   });

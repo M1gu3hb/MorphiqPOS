@@ -472,6 +472,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           )}
           <div role="group" aria-label="Tipo de movimiento" className="flex gap-2 pt-3">
             <Button
+              aria-pressed={tipo === 'retiro'}
               variant={tipo === 'retiro' ? 'default' : 'outline'}
               onClick={() => {
                 setTipo('retiro');
@@ -480,6 +481,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
               Retiro
             </Button>
             <Button
+              aria-pressed={tipo === 'deposito'}
               variant={tipo === 'deposito' ? 'default' : 'outline'}
               onClick={() => {
                 setTipo('deposito');

@@ -596,12 +596,20 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
               dejar fuera los más antiguos.
             </p>
           )}
+          {/*
+            LOS DOS BOTÓNES QUE SIEMPRE FALLABAN, y eran los ÚNICOS de la pantalla.
+
+            Decían «Exportar a Excel» y «Exportar a PDF», y el servidor contestaba a
+            los dos lo mismo: `CONFIGURACION_INVALIDA · Ese formato no se exporta
+            todavía. Hoy: csv.` El único formato que existe es CSV —`FORMATOS` de
+            reportes tiene un solo elemento— y esta pantalla no lo ofrecía. Así que
+            la única acción propia de «Registros» era pedir dos cosas imposibles: el
+            contador pedía «mándame el mes» y la respuesta volvía a ser una captura
+            de pantalla. Lo encontró el rastreador: 422 en las dos.
+          */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={alExportar('xlsx')}>
-              Exportar a Excel
-            </Button>
-            <Button size="sm" variant="outline" onClick={alExportar('pdf')}>
-              Exportar a PDF
+            <Button size="sm" variant="outline" onClick={alExportar('csv')}>
+              Exportar a CSV
             </Button>
             {descarga !== null && (
               <Badge variant="secondary" asChild>

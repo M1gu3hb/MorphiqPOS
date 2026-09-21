@@ -329,6 +329,7 @@ export function Caja({ estadoInicial }: CajaProps) {
                 <Button
                   key={opcion.clave}
                   type="button"
+                  aria-pressed={origen === opcion.clave}
                   variant={origen === opcion.clave ? 'default' : 'outline'}
                   onClick={() => {
                     setOrigen(opcion.clave);

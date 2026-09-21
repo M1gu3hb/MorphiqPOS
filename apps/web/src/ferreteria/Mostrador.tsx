@@ -97,6 +97,15 @@ export interface MostradorProps {
   readonly clienteInicial?: ClienteDeMostrador | null;
   /** La caja cerrada no bloquea el mostrador: armar no es cobrar. */
   readonly cajaCerrada?: boolean;
+  /**
+   * LO QUE SE VIENE BUSCANDO, cuando quien llega ya sabe qué quiere.
+   *
+   * La pantalla de Entradas tiene un «Buscar…» por cada renglón del proveedor que
+   * no se pudo emparejar, y llevaba a `/ferreteria/catalogo`, que **no existe**:
+   * 404. El sitio donde se busca material por su descripción es ÉSTE, y ahora la
+   * búsqueda llega con la descripción ya escrita en vez de obligar a teclearla.
+   */
+  readonly consultaInicial?: string;
 }
 
 interface Partida {
@@ -119,11 +128,16 @@ interface ResultadoNotaMostrador {
   readonly totalCentavos: string;
 }
 
-export function Mostrador({ filasIniciales, clienteInicial, cajaCerrada = false }: MostradorProps) {
+export function Mostrador({
+  filasIniciales,
+  clienteInicial,
+  cajaCerrada = false,
+  consultaInicial = '',
+}: MostradorProps) {
   const voc = useVocabulario();
   const enrutador = useRouter();
   const [filas, setFilas] = useState<readonly MaterialDeMostrador[] | null>(filasIniciales ?? null);
-  const [consulta, setConsulta] = useState('');
+  const [consulta, setConsulta] = useState(consultaInicial);
   const [partidas, setPartidas] = useState<readonly Partida[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);

@@ -793,7 +793,9 @@ export function Entradas({
                           <span className="font-mono text-xs">{linea.codigoProveedor}</span>
                           <span className="flex-1">{linea.descripcion}</span>
                           <Button asChild size="sm" variant="outline">
-                            <a href={`/ferreteria/catalogo?buscar=${encodeURI(linea.descripcion)}`}>
+                            <a
+                              href={`/ferreteria/mostrador?buscar=${encodeURIComponent(linea.descripcion)}`}
+                            >
                               Buscar…
                             </a>
                           </Button>

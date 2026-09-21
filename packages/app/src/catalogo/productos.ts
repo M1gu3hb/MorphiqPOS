@@ -116,19 +116,29 @@ export const cambiarPrecioProducto = definirComando<
   paquetes: PAQUETES,
   entrada: entradaCambiarPrecio,
   async ejecutar(ctx, entrada) {
-    const costo = desdeTexto(entrada.costoUnitario);
+    // Lo que no viene no se toca: el costo y el mayoreo son opcionales, y escribir
+    // un cero donde la pantalla no mandó nada borraría el costo del producto.
+    const costo = entrada.costoUnitario === undefined ? null : desdeTexto(entrada.costoUnitario);
     const fila = await ctx.paso('actualizar_precios', () =>
       ctx.tx
         .updateTable('productos')
         .set({
           precio_venta_centavos: desdeTexto(entrada.precioVenta),
-          costo_unitario_centavos: costo,
-          precio_mayoreo_centavos:
-            entrada.precioMayoreo === null ? null : desdeTexto(entrada.precioMayoreo),
-          cantidad_minima_mayoreo:
-            entrada.cantidadMinimaMayoreo === null
-              ? null
-              : cantidadATexto(cantidad(entrada.cantidadMinimaMayoreo)),
+          ...(costo === null ? {} : { costo_unitario_centavos: costo }),
+          ...(entrada.precioMayoreo === undefined
+            ? {}
+            : {
+                precio_mayoreo_centavos:
+                  entrada.precioMayoreo === null ? null : desdeTexto(entrada.precioMayoreo),
+              }),
+          ...(entrada.cantidadMinimaMayoreo === undefined
+            ? {}
+            : {
+                cantidad_minima_mayoreo:
+                  entrada.cantidadMinimaMayoreo === null
+                    ? null
+                    : cantidadATexto(cantidad(entrada.cantidadMinimaMayoreo)),
+              }),
           ...(entrada.precioVariable === undefined
             ? {}
             : { precio_por_unidad_variable_centavos: desdeTexto(entrada.precioVariable) }),
@@ -143,14 +153,18 @@ export const cambiarPrecioProducto = definirComando<
         .executeTakeFirst(),
     );
     const id = exigirProducto(fila);
-    await ctx.paso('sincronizar_costo_insumo', () =>
-      ctx.tx
-        .updateTable('insumos')
-        .set({ costo_unitario_centavos: costo, updated_at: ctx.ahora })
-        .where('producto_id', '=', id)
-        .where('organizacion_id', '=', ctx.ambito.organizacionId)
-        .execute(),
-    );
+    // El insumo espejo se sincroniza SÓLO cuando el costo vino en la petición: sin
+    // costo no hay nada que copiar, y copiar un cero descuadraría la valuación.
+    if (costo !== null) {
+      await ctx.paso('sincronizar_costo_insumo', () =>
+        ctx.tx
+          .updateTable('insumos')
+          .set({ costo_unitario_centavos: costo, updated_at: ctx.ahora })
+          .where('producto_id', '=', id)
+          .where('organizacion_id', '=', ctx.ambito.organizacionId)
+          .execute(),
+      );
+    }
     ctx.auditar({ entidadId: id, payload: { precioActualizado: true } });
     return { id };
   },

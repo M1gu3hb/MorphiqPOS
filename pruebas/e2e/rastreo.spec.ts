@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import {
   abrirCajaPorLaRuta,
@@ -93,6 +93,10 @@ const TECHO_DE_NAVEGACION_MS = 30_000;
 /** Y el techo de un `evaluate`, que tampoco lo tiene y también puede colgarse. */
 const TECHO_DE_EVALUACION_MS = 20_000;
 
+/** Cuánto se le da a una pantalla para acabar de pintarse, y cada cuánto se mira. */
+const TECHO_DE_PINTADO_MS = 15_000;
+const MUESTRA_DE_PINTADO_MS = 400;
+
 /**
  * Le pone techo a cualquier promesa, porque `page.evaluate` no acepta uno.
  *
@@ -144,7 +148,21 @@ function leerDeclarados(): ReadonlyMap<string, string> {
   const declarados = new Map<string, string>();
   if (!existsSync(DECLARADOS)) return declarados;
   const texto = readFileSync(DECLARADOS, 'utf8');
+  /**
+   * Las lineas dentro de un bloque de codigo NO son declaraciones.
+   *
+   * El archivo ensena el formato con un ejemplo dentro de sus comillas triples, y
+   * sin esto la prueba lo leia como una declaracion de verdad y despues exigia
+   * borrarla por no corresponder a ningun boton: una puerta que encuentra su propio
+   * ejemplo y se queja de el.
+   */
+  let dentroDeUnBloque = false;
   for (const linea of texto.split(/\r?\n/)) {
+    if (/^\s*```/.test(linea)) {
+      dentroDeUnBloque = !dentroDeUnBloque;
+      continue;
+    }
+    if (dentroDeUnBloque) continue;
     const encaja = /^\s*CLIC-SIN-EFECTO\s+(\S+)\s+«([^»]*)»\s*[—-]\s*(.+?)\s*$/.exec(linea);
     if (encaja === null) continue;
     declarados.set(`${encaja[1] ?? ''} «${encaja[2] ?? ''}»`, encaja[3] ?? '');
@@ -159,6 +177,13 @@ const RUIDO_DE_CONSOLA = [
   /Failed to load resource: the server responded with a status of 404 .*\.(png|jpg|jpeg|webp|svg|ico)/i,
   // La extensión de React, que no está instalada en el navegador de la prueba.
   /Download the React DevTools/i,
+  /**
+   * Y NADA MÁS. En particular, NO se declara como ruido el 401 que salía en
+   * `/login-pos`: era la configuración del negocio pidiéndose sin sesión, y se
+   * arregló montando ese proveedor sólo cuando hay cookie. Declararlo como ruido
+   * habría escondido el defecto en vez de cerrarlo, que es exactamente lo que esta
+   * vuelta vino a dejar de hacer.
+   */
 ];
 
 interface Clicable {
@@ -169,6 +194,21 @@ interface Clicable {
   readonly href: string | null;
   readonly deshabilitado: boolean;
   readonly visible: boolean;
+  /**
+   * YA ES LA OPCION PUESTA, y volver a tocarla no cambia nada.
+   *
+   * Lo dice el propio elemento: `aria-pressed`, `aria-selected`, `aria-checked`,
+   * `aria-current` o el `data-state` de un componente de pestanas. Un filtro que
+   * ya esta seleccionado, la leche que el cafe YA lleva, la pestana abierta: tocar
+   * eso no hace nada y ESTA BIEN que no haga nada. Apagarlo o deshabilitarlo seria
+   * peor, porque hay que poder volver a el desde otro.
+   *
+   * Sin esta regla, la pantalla de opciones de la bebida sola aportaba veintiseis
+   * «botones muertos» que no estan muertos: son la eleccion actual. Y al declararlos
+   * uno por uno, la lista de excepciones se vuelve ruido donde deberia haber
+   * defectos.
+   */
+  readonly yaActiva: boolean;
 }
 
 /**
@@ -208,9 +248,93 @@ async function enumerar(page: Page): Promise<readonly Clicable[]> {
         href: elemento.getAttribute('href'),
         deshabilitado: html.disabled === true || elemento.getAttribute('aria-disabled') === 'true',
         visible: html.offsetParent !== null || elemento.getClientRects().length > 0,
+        yaActiva:
+          elemento.getAttribute('aria-pressed') === 'true' ||
+          elemento.getAttribute('aria-selected') === 'true' ||
+          elemento.getAttribute('aria-checked') === 'true' ||
+          (elemento.getAttribute('aria-current') ?? 'false') !== 'false' ||
+          ['active', 'checked', 'on'].includes(elemento.getAttribute('data-state') ?? ''),
       };
     });
   });
+}
+
+/**
+ * ESPERA A QUE EL MENÚ SEA EL DEL NEGOCIO, y no el de otro.
+ *
+ * ── El parpadeo que envenenaba la lista de pantallas ──────────────────
+ * El marco heredado pinta la barra con `paquete_modo: 'tienda'` MIENTRAS la
+ * configuración del negocio viaja —está escrito en su propio código: «la plantilla
+ * más restrictiva no parpadea hacia arriba»—. Así que durante ese instante una
+ * cafetería ofrece las pantallas de la tiendita.
+ *
+ * El rastreador enumeraba el menú en ese instante y se llevaba `/abarrotes/cobrar`,
+ * `/abarrotes/fiado`, `/abarrotes/producto`… y después, al ir a tocarlas, ya no
+ * estaban: cinco «la entrada del menú no abrió su pantalla» que no eran defectos del
+ * producto sino del momento en que se miró.
+ *
+ * Se espera a que la lista de destinos se REPITA: dos muestras iguales seguidas y
+ * el menú ya es el del negocio.
+ */
+async function esperarAQueElMenuSeAsiente(page: Page, menu: Locator): Promise<void> {
+  const rutas = (): Promise<string> =>
+    menu.getByRole('link').evaluateAll((enlaces) =>
+      enlaces
+        .map((enlace) => enlace.getAttribute('href') ?? '')
+        .sort((a, b) => a.localeCompare(b))
+        .join('|'),
+    );
+
+  let anterior = '';
+  const limite = Date.now() + TECHO_DE_PINTADO_MS;
+  while (Date.now() < limite) {
+    const ahora = await conTecho(rutas(), TECHO_DE_EVALUACION_MS, 'leer el menú');
+    if (ahora === anterior && ahora !== '') return;
+    anterior = ahora;
+    await page.waitForTimeout(MUESTRA_DE_PINTADO_MS);
+  }
+}
+
+/**
+ * ESPERA A QUE LA PANTALLA ACABE DE PINTARSE, y no a que el HTML llegue.
+ *
+ * ── El defecto que esto arregla, y era el que vacíaba el rastreo ────────
+ * La primera corrida completa dijo «16 pantallas · 0 toques» y «0 pieza(s)
+ * interactiva(s)» en pantallas que tienen doce botones a la vista. No era que no
+ * hubiera botones: es que se contaban ANTES de que existieran. Estas pantallas son
+ * componentes de cliente que piden sus datos en un `useEffect`; con
+ * `domcontentloaded` el marco ya está y el contenido todavía no.
+ *
+ * Un rastreador que mide una pantalla vacía da verde sin haber tocado nada, que es
+ * la peor clase de verde.
+ *
+ * ── Y por qué no `networkidle` ──────────────────────────────────
+ * Porque varias de estas pantallas consultan EN BUCLE —la cocina refresca cada
+ * pocos segundos— y la red nunca queda quieta: esperarla dejó el navegador colgado
+ * hasta que Chromium enseñó «This page couldn't load», y Playwright lo advierte de
+ * su propia API. Lo que se espera es que el NÚMERO de piezas interactivas se
+ * ESTABILICE: dos muestras iguales seguidas y se da por pintada.
+ */
+async function esperarAQueSePinte(page: Page): Promise<number> {
+  const contar = (): Promise<number> =>
+    page.evaluate(() => {
+      const raiz = document.querySelector('main') ?? document.body;
+      return raiz.querySelectorAll(
+        'button, a[href], [role="button"], input[type="submit"], input[type="button"]',
+      ).length;
+    });
+
+  let anterior = -1;
+  const limite = Date.now() + TECHO_DE_PINTADO_MS;
+  while (Date.now() < limite) {
+    const ahora = await conTecho(contar(), TECHO_DE_EVALUACION_MS, 'contar piezas');
+    // Estable Y con algo dentro: una pantalla que todavía no trajo sus datos
+    // también da dos ceros seguidos, y eso es lo que había que dejar de creer.
+    if (ahora === anterior && ahora > 0) return ahora;
+    anterior = ahora;
+    await page.waitForTimeout(MUESTRA_DE_PINTADO_MS);
+  }
+  return anterior;
 }
 
 /**
@@ -224,11 +348,52 @@ async function huella(page: Page): Promise<string> {
   return page.evaluate(() => {
     const texto = (document.body.innerText ?? '').replace(/\s+/g, ' ').trim();
     const dialogos = document.querySelectorAll('[role="dialog"], dialog[open], [role="alert"]');
+    /**
+     * EL ESTADO DE LO INTERACTIVO, que el texto NO dice.
+     *
+     * ── El punto ciego que esto cierra ─────────────────────────────
+     * Elegir «Del banco» en la caja de la tiendita cambia el ESTADO y el color del
+     * botón, y nada más: ni una petición, ni la URL, ni una palabra del texto. La
+     * huella miraba `innerText` y el número de nodos, así que ese toque parecía no
+     * hacer nada y el rastreador acusó a cuatro botones que funcionan.
+     *
+     * Ahora entra `aria-pressed`, `aria-selected`, `aria-checked`, `data-state` y la
+     * CLASE de cada pieza interactiva: un cambio de variante es un cambio visible,
+     * y confundirlo con un botón muerto es exactamente lo que esta prueba no debe
+     * hacer —un falso positivo cuesta lo mismo que un defecto—.
+     */
+    const estados = [
+      ...document.querySelectorAll(
+        'button, a[href], [role="button"], input[type="submit"], input[type="button"], [role="tab"]',
+      ),
+    ]
+      .map((elemento) =>
+        [
+          elemento.getAttribute('aria-pressed') ?? '',
+          elemento.getAttribute('aria-selected') ?? '',
+          elemento.getAttribute('aria-checked') ?? '',
+          elemento.getAttribute('aria-current') ?? '',
+          elemento.getAttribute('data-state') ?? '',
+          elemento.getAttribute('class') ?? '',
+        ].join(','),
+      )
+      .join(';');
+    /**
+     * Y EL FOCO. Un botón que deja el cursor donde se va a escribir —«Nuevo
+     * servicio»— hace algo aunque no cambie una palabra de la pantalla.
+     */
+    const enfocado = document.activeElement;
+    const foco =
+      enfocado === null
+        ? ''
+        : `${enfocado.tagName}:${enfocado.getAttribute('id') ?? ''}:${enfocado.getAttribute('name') ?? ''}`;
     return [
       document.querySelectorAll('*').length,
       dialogos.length,
       texto.length,
       texto.slice(0, 6000),
+      estados.slice(0, 6000),
+      foco,
     ].join('|');
   });
 }
@@ -327,8 +492,24 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
     const abrio = await abrirCajaPorLaRuta(page, 150_000);
     bitacora(diario, abrio ? 'caja abierta para el rastreo' : 'la caja ya estaba abierta');
 
+    /**
+     * EL TABLERO, que es donde vive el MENÚ.
+     *
+     * El marco de `(modelos)` es a propósito casi nada —«cada modelo tiene su
+     * propia jerarquía y su propia pantalla de inicio; un marco con opinión se la
+     * quitaría a los cinco»— así que las pantallas de los cinco modelos NO traen
+     * barra lateral. La barra es del marco `(interno)`, y el tablero es `/`.
+     *
+     * Y la casa de quien entra es una pantalla de modelo: el rastreo aterrizaba en
+     * el mapa de mesas, buscaba el menú ahí, encontraba la navegación de ZONAS del
+     * salón —que también es un `nav`— y se paraba diciendo que el menú no ofrecía
+     * ninguna pantalla. No era verdad: estaba mirando el sitio equivocado.
+     */
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
     // ── EL MENÚ · de aquí salen las pantallas, no de una lista mía ─────────
     const menu = await menuLateral(page);
+    await esperarAQueElMenuSeAsiente(page, menu);
     const entradas = await menu.getByRole('link').evaluateAll((enlaces) =>
       enlaces
         .map((enlace) => ({
@@ -344,11 +525,37 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         'colgaban de ningún sitio.',
     ).toBeGreaterThan(5);
 
+    // EL MENÚ ENTERO a la bitácora. Sin esto, un menú que ofrece dos cosas distintas
+    // con el mismo nombre no se ve en ninguna parte.
+    bitacora(diario, `menú · ${String(entradas.length)} entrada(s)`);
+    for (const e of entradas) bitacora(diario, `   ${e.ruta} «${e.etiqueta}»`);
+
+    /**
+     * DOS ENTRADAS CON EL MISMO NOMBRE Y DISTINTO DESTINO.
+     *
+     * `navegacionDePlantilla` lo prohibe con estas palabras: «un menú con dos
+     * entradas llamadas «Caja» que van a sitios distintos no es un menú completo:
+     * es uno que obliga a adivinar». Si aparece, el menú que se PINTA no es el que
+     * esa función devuelve, y quien lo usa tiene que adivinar cuál de las dos es la
+     * suya. Se mide aquí porque aquí es donde se ve lo que de verdad se pinta.
+     */
+    const porEtiqueta = new Map<string, Set<string>>();
+    for (const e of entradas) {
+      const rutas = porEtiqueta.get(e.etiqueta) ?? new Set<string>();
+      rutas.add(e.ruta);
+      porEtiqueta.set(e.etiqueta, rutas);
+    }
+    const ambiguas = [...porEtiqueta.entries()]
+      .filter(([, rutas]) => rutas.size > 1)
+      .map(([etiqueta, rutas]) => `«${etiqueta}» → ${[...rutas].sort().join(' y ')}`);
+    for (const linea of ambiguas) bitacora(diario, `AMBIGUA ${linea}`);
+
     const muertos: Hallazgo[] = [];
     const inalcanzables: Hallazgo[] = [];
     const externos: string[] = [];
     const declaradosUsados = new Set<string>();
     let tocados = 0;
+    let yaActivas = 0;
 
     for (const entrada of entradas) {
       // ── 1 · SE ABRE POR EL MENÚ ─────────────────────────────────────────
@@ -356,9 +563,20 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
       // un botón muerto como cualquier otro, y así se caza.
       bitacora(diario, `→ ${entrada.ruta} «${entrada.etiqueta}»`);
       try {
+        // Al TABLERO primero: la pantalla anterior puede ser de un modelo, y esas no
+        // traen barra lateral. Es una navegación por pantalla, no por botón.
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
         const menuDeLaVuelta = await menuLateral(page);
+        // Por su HREF y no por su nombre: con dos entradas llamadas igual, el nombre
+        // abre la que está primero en el DOM —que no es la que se enumeró— y la
+        // prueba acusa a la pantalla equivocada. Pasó con «Caja», «Recetas» y
+        // «Registros» del restaurante: el clic se iba a `/abarrotes/caja`.
+        // El VISIBLE: la barra puede traer el mismo destino dos veces —una en el
+        // cajón de teléfono, oculta— y `.first()` a secas se queda esperando por la
+        // que nadie puede tocar. Pasó con tres entradas de la ferretería.
         await menuDeLaVuelta
-          .getByRole('link', { name: entrada.etiqueta, exact: true })
+          .locator(`a[href="${entrada.ruta}"]`)
+          .filter({ visible: true })
           .first()
           .click({ timeout: TECHO_DE_ACCION_MS });
         await page.waitForURL((url) => url.pathname === entrada.ruta, { timeout: 20_000 });
@@ -378,15 +596,24 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         continue;
       }
 
+      const pintadas = await esperarAQueSePinte(page);
       const inventario = await conTecho(
         enumerar(page),
         TECHO_DE_EVALUACION_MS,
         `enumerar ${entrada.ruta}`,
       );
-      bitacora(diario, `   ${String(inventario.length)} pieza(s) interactiva(s)`);
+      bitacora(
+        diario,
+        `   ${String(inventario.length)} pieza(s) interactiva(s)` +
+          (pintadas === 0 ? ' — la pantalla no pintó NADA que se pueda tocar' : ''),
+      );
 
       for (const pieza of inventario) {
         if (pieza.deshabilitado || !pieza.visible) continue;
+        if (pieza.yaActiva) {
+          yaActivas += 1;
+          continue;
+        }
         if (esSalir(pieza.etiqueta)) continue;
         if (pieza.etiquetaHtml === 'a' && saleDeLaAplicacion(pieza.href)) {
           externos.push(`${entrada.ruta} «${pieza.etiqueta}» → ${pieza.href ?? ''}`);
@@ -414,6 +641,15 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         }
 
         const suyo = page.locator(pieza.camino);
+        // Se ESPERA a que vuelva a existir. Preguntar `count()` justo después del
+        // `goto` devolvía 0 en casi todas —el contenido llega después— y el rastreo
+        // apuntaba 36 piezas «que no reaparecen» sin haber tocado ninguna.
+        await suyo
+          .first()
+          .waitFor({ state: 'attached', timeout: TECHO_DE_ACCION_MS })
+          .catch(() => {
+            /* si no vuelve, lo dice el conteo de abajo */
+          });
         if ((await suyo.count()) !== 1) {
           // No reaparece: depende de un estado que este rastreo no reproduce —una fila
           // seleccionada, un diálogo abierto—. No es un defecto; es el límite de rastrear
@@ -438,6 +674,13 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         };
         page.on('request', contar);
 
+        // EL RATÓN PRIMERO. Hay tarjetas cuyos botones sólo aparecen —o sólo reciben
+        // el clic— al pasar por encima: «Imprimir ficha», «Editar receta» y «Eliminar
+        // receta» de la pantalla de recetas son de ésas, y sin esto salen como
+        // «no se pudo tocar» cuando un usuario de escritorio las toca sin problema.
+        await suyo.hover({ timeout: 3_000 }).catch(() => {
+          /* si no se puede ni pasar por encima, el clic lo dirá */
+        });
         try {
           await suyo.click({ timeout: 7_000 });
         } catch (fallo) {
@@ -502,7 +745,8 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
     const resumen =
       `${String(entradas.length)} pantalla(s) · ${String(tocados)} toque(s) · ` +
       `${String(inalcanzables.length)} que no reaparecen · ${String(externos.length)} enlace(s) ` +
-      `fuera de la aplicación · ${String(declaradosUsados.size)} declarado(s) sin efecto`;
+      `fuera de la aplicación · ${String(yaActivas)} ya seleccionada(s) · ` +
+      `${String(declaradosUsados.size)} declarado(s) sin efecto`;
     test.info().annotations.push({ type: 'rastreo', description: resumen });
     bitacora(diario, `— ${resumen}`);
     for (const m of muertos) bitacora(diario, `MUERTO ${m.ruta} «${m.etiqueta}» · ${m.motivo}`);

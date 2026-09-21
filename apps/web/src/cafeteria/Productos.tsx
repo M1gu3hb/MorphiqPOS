@@ -38,7 +38,9 @@ import { useVocabulario } from '~/cliente/vocabulario';
  */
 
 const RUTA_PRECIO = '/api/catalogo/productos/precio';
-const RUTA_ACTUALIZAR = '/api/catalogo/productos/actualizar';
+// La perilla de «hoy no hay» escribe por el PUENTE y no por
+// `catalogo.actualizar_producto`, que no acepta ese campo. Ver `cambiarDisponible`.
+const RUTA_ESCRIBIR = '/api/datos/escribir';
 
 const IMPORTE_CON_FORMA = /^\d{1,7}(?:[.,]\d{1,2})?$/;
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
@@ -192,7 +194,12 @@ export function Productos({ productosIniciales }: ProductosProps) {
     }
     setOcupado(true);
     setError(null);
-    invocarComando(RUTA_PRECIO, { productoId: elegido.id, precioVentaCentavos: centavos })
+    // `importe` es una cadena en PESOS, no un número de centavos: con
+    // `precioVentaCentavos` el comando contestaba 400 en cada guardado.
+    invocarComando(RUTA_PRECIO, {
+      productoId: elegido.id,
+      precioVenta: (centavos / 100).toFixed(2),
+    })
       .then(() => {
         const actualizado = { ...elegido, precio_venta: centavos / 100 };
         setElegido(actualizado);
@@ -210,10 +217,26 @@ export function Productos({ productosIniciales }: ProductosProps) {
     const siguiente = { ...producto, visible_en_pos: !producto.visible_en_pos };
     setProductos((productos ?? []).map((p) => (p.id === producto.id ? siguiente : p)));
     if (elegido?.id === producto.id) setElegido(siguiente);
-    invocarComando(RUTA_ACTUALIZAR, {
-      productoId: producto.id,
-      // El comando sí se llama `disponible`: es su entrada, no un campo del puente.
-      disponible: siguiente.visible_en_pos,
+    /**
+     * ── ESTA PERILLA NUNCA GUARDÓ NADA ──────────────────────────────
+     * Publicaba en `catalogo.actualizar_producto` con `{productoId, disponible}` y
+     * un comentario que decía «el comando sí se llama `disponible`». **No existe**:
+     * `entradaActualizarProducto` pide `nombre`, `descripcion`, `categoriaId`,
+     * `marca`, `imagenUrl`, `visibleEnPos`, `permiteVentaSinStock` y `stockMinimo`,
+     * y ninguno de ellos es `disponible`. CADA toque contestaba **400**, y la
+     * perilla volvía a su sitio con un mensaje genérico: el barista marcaba «hoy no
+     * hay» y el menú público seguía ofreciendo la bebida. El rastreador lo contó
+     * dieciséis veces, una por producto.
+     *
+     * Se escribe por el PUENTE, que es donde vive ese campo y lo que ya hace la
+     * misma perilla del restaurante: una columna, una escritura, sin inventar un
+     * comando para un booleano.
+     */
+    invocarComando(RUTA_ESCRIBIR, {
+      entidad: 'ProductoTerminado',
+      operacion: 'update',
+      id: producto.id,
+      datos: { visible_en_pos: siguiente.visible_en_pos },
     }).catch((fallo: unknown) => {
       // Se devuelve la perilla a su sitio: dejarla movida haría creer que el
       // menú público cambió cuando no cambió.
@@ -287,6 +310,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
                 <Button
                   key={opcion.clave}
                   type="button"
+                  aria-pressed={canal === opcion.clave}
                   variant={canal === opcion.clave ? 'default' : 'outline'}
                   onClick={() => {
                     setCanal(opcion.clave);

@@ -198,8 +198,9 @@ export function OpcionesDeLaBebida({
     setEnviando(true);
     setError(null);
     try {
+      if (productoId === undefined) return;
       const datos = await invocarComando<{ readonly lineaId?: string }>(RUTA_AGREGAR, {
-        productoId: productoId ?? null,
+        productoId,
         opciones: activas.map((o) => o.id),
         alergias: marcasDeAlergia,
         nota: nota.trim(),
@@ -399,10 +400,29 @@ export function OpcionesDeLaBebida({
               ⚠️ Alergia: {marcasDeAlergia.join(' · ')}
             </p>
           )}
+          {/*
+            SIN BEBIDA NO SE AGREGA NADA, y antes se intentaba.
+
+            `cafeteria.agregar_linea` pide `productoId: z.uuid()`, y esta pantalla
+            mandaba `productoId ?? null` cuando se abría desde el menú —que es el
+            Único sitio desde donde se llega—. Resultado: **400 en cada toque de
+            AGREGAR**, con las opciones ya elegidas y el mensaje genérico de un fallo
+            de validación. La ruta acepta la bebida en `?producto=`; sin ella, lo
+            honesto es apagar el botón y decir qué falta.
+          */}
+          {productoId === undefined && (
+            <p role="status" className="text-sm text-muted-foreground">
+              Elige primero {voc.enFrase('producto')} en{' '}
+              <a className="underline" href="/cafeteria/cobrar">
+                Cobrar
+              </a>
+              : estas opciones se agregan a una bebida, y todavía no hay ninguna.
+            </p>
+          )}
           <Button
             type="button"
             size="lg"
-            disabled={enviando}
+            disabled={enviando || productoId === undefined}
             onClick={() => {
               void agregar();
             }}

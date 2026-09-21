@@ -5,7 +5,7 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -132,6 +132,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
   });
   const [intercalable, setIntercalable] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const nombreRef = useRef<HTMLInputElement>(null);
   const [ocupado, setOcupado] = useState(false);
 
   useEffect(() => {
@@ -184,6 +185,15 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
     setMinutos({ activa1: '', pasiva: '0', activa2: '0', cierre: '0' });
     setIntercalable(true);
     setError(null);
+    /**
+     * Y EL FOCO AL NOMBRE, que es lo que faltaba para que el botón haga algo.
+     *
+     * Con el formulario ya vacío —al abrir la pantalla, sin nada elegido— este botón
+     * limpiaba lo que ya estaba limpio: cero efecto, y el rastreador lo contó como
+     * botón muerto con razón. Dejar el cursor donde se va a escribir es lo que
+     * cualquiera espera de «Nuevo», y además se nota.
+     */
+    nombreRef.current?.focus();
   }
 
   function guardar(): void {
@@ -291,6 +301,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
           <Label htmlFor="nombre">Nombre</Label>
           <Input
             id="nombre"
+            ref={nombreRef}
             className="h-[calc(var(--altura-control)*1.2)]"
             value={nombre}
             onChange={(evento) => {

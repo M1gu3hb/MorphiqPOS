@@ -247,7 +247,15 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [ahora, setAhora] = useState(0);
   const [contando, setContando] = useState(false);
-  const [conteos, setConteos] = useState<Readonly<Record<string, string>>>({});
+  /**
+   * EL CONTEO DE LECHE, con la forma que el comando pide.
+   *
+   * `cafeteria.contar_leche` cuenta CARTONES CERRADOS y los CUARTOS del abierto
+   * —«nadie dice 380 ml», lo dice su propio esquema— y esta pantalla mandaba un
+   * solo número por leche, sin `almacenId`. Cada conteo contestaba **400**, y el
+   * conteo de leche es lo que decide si hoy se compra o no.
+   */
+  const [conteos, setConteos] = useState<Readonly<Record<string, ConteoDeUnaLeche>>>({});
   const [resultado, setResultado] = useState<ResultadoConteo | null>(null);
   const esPC = useEsPC();
 
@@ -289,14 +297,29 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
       if (almacen === null) return;
       setOcupado(insumo.id);
       try {
+        /**
+         * ── ESTE AJUSTE CONTESTABA 400 SIEMPRE ───────────────────────
+         * Dos cosas, las dos en el contrato del comando:
+         *
+         *  · `cantidad` viaja como TEXTO. `numeric(14,4)` no cabe en un `number` sin
+         *    perder el cuarto decimal, y ese decimal es la merma del mes. Aquí iba
+         *    `-1` y `1` como números: `ENTRADA_INVALIDA` en cada toque.
+         *  · `motivo` es una CLAVE de `motivos_merma` —`ajuste_conteo`, `muestra`,
+         *    `caducado`…— y desde la 062 `movimientos_stock.motivo` apunta a esa
+         *    tabla: una frase tecleada aborta el ajuste. Lo que el operador dice va
+         *    en `nota`, que es para lo que existe.
+         *
+         * El rastreador lo contó veintiséis veces, dos por insumo.
+         */
         await invocarComando(RUTA_AJUSTAR, {
           almacenId: almacen,
           insumoId: insumo.id,
-          cantidad: delta,
-          // La palabra del GIRO, no «barra» tecleada: este motivo se lee después en
+          cantidad: String(delta),
+          motivo: 'ajuste_conteo',
+          // La palabra del GIRO, no «barra» tecleada: esto se lee después en
           // Registros, y en un negocio cuya preparación se llama de otro modo decía
           // barra igualmente.
-          motivo: `Ajuste en ${voc.singular('preparacion')}: ${delta > 0 ? 'entrada' : 'salida'}`,
+          nota: `Ajuste en ${voc.singular('preparacion')}: ${delta > 0 ? 'entrada' : 'salida'}`,
         });
         // La fila se reescribe, no se muta: quien tuviera la lista anterior
         // sigue teniendo una lista coherente.
@@ -316,7 +339,8 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
         setOcupado(null);
       }
     },
-    [almacen],
+    // `voc` entra porque la NOTA del ajuste lleva la palabra del giro.
+    [almacen, voc],
   );
 
   const leches = useMemo(
@@ -327,11 +351,20 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
   const contarLeche = useCallback(async (): Promise<void> => {
     setOcupado('conteo');
     try {
+      if (almacen === null) {
+        setError('Elige primero el almacén: un conteo sin almacén no cuadra contra nada.');
+        return;
+      }
       const datos = await invocarComando<ResultadoConteo>(RUTA_CONTAR_LECHE, {
-        conteos: leches.map((insumo) => ({
-          insumoId: insumo.id,
-          cantidad: Number(conteos[insumo.id] ?? '0'),
-        })),
+        almacenId: almacen,
+        conteos: leches.map((insumo) => {
+          const suyo = conteos[insumo.id];
+          return {
+            insumoId: insumo.id,
+            cartonesCerrados: Number(suyo?.cerrados ?? '0'),
+            cuartosDelAbierto: suyo?.cuartos ?? 0,
+          };
+        }),
       });
       setResultado(datos);
       setError(null);
@@ -340,7 +373,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
     } finally {
       setOcupado(null);
     }
-  }, [leches, conteos]);
+  }, [leches, conteos, almacen]);
 
   const visibles = useMemo(() => {
     const aguja = sinAcentos(busqueda.trim());
@@ -627,13 +660,19 @@ function Ajuste({ insumo, grande, sinAlmacen, ocupado, onAjustar }: AjusteProps)
   );
 }
 
+/** Lo que se cuenta de una leche: cartones cerrados y cuartos del que está abierto. */
+export interface ConteoDeUnaLeche {
+  readonly cerrados: string;
+  readonly cuartos: 0 | 1 | 2 | 3 | 4;
+}
+
 interface ConteoDeLecheProps {
   readonly abierto: boolean;
   readonly leches: readonly InsumoDeInventario[];
-  readonly conteos: Readonly<Record<string, string>>;
+  readonly conteos: Readonly<Record<string, ConteoDeUnaLeche>>;
   readonly resultado: ResultadoConteo | null;
   readonly ocupado: boolean;
-  readonly onCambiar: (conteos: Readonly<Record<string, string>>) => void;
+  readonly onCambiar: (conteos: Readonly<Record<string, ConteoDeUnaLeche>>) => void;
   readonly onCerrar: () => void;
   readonly onConfirmar: () => Promise<void>;
 }
@@ -672,18 +711,59 @@ function ConteoDeLeche({
           <div className="flex flex-col gap-3">
             {leches.map((insumo, indice) => (
               <div key={insumo.id}>
-                <Label htmlFor={`conteo-${insumo.id}`}>
-                  {insumo.nombre} ({insumo.unidad_base ?? 'unidad'})
-                </Label>
-                <Input
-                  id={`conteo-${insumo.id}`}
-                  inputMode="decimal"
-                  autoFocus={indice === 0}
-                  value={conteos[insumo.id] ?? ''}
-                  onChange={(evento) => {
-                    onCambiar({ ...conteos, [insumo.id]: evento.target.value });
-                  }}
-                />
+                <Label htmlFor={`conteo-${insumo.id}`}>{insumo.nombre}</Label>
+                {/*
+                  DOS datos por leche, que son los que el comando cuenta: los cartones
+                  CERRADOS —que se cuentan mirando— y cuánto queda del ABIERTO, en
+                  cuartos. Antes había un solo campo en la unidad base y el conteo
+                  contestaba 400 en cada confirmación.
+                */}
+                <div className="flex items-end gap-2">
+                  <div className="grow">
+                    <Input
+                      id={`conteo-${insumo.id}`}
+                      inputMode="numeric"
+                      placeholder="Cartones cerrados"
+                      autoFocus={indice === 0}
+                      value={conteos[insumo.id]?.cerrados ?? ''}
+                      onChange={(evento) => {
+                        onCambiar({
+                          ...conteos,
+                          [insumo.id]: {
+                            cerrados: evento.target.value,
+                            cuartos: conteos[insumo.id]?.cuartos ?? 0,
+                          },
+                        });
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`abierto-${insumo.id}`} className="text-xs">
+                      Del abierto
+                    </Label>
+                    <select
+                      id={`abierto-${insumo.id}`}
+                      className="h-[var(--altura-control)] rounded-md border border-input bg-background px-2 text-base"
+                      value={String(conteos[insumo.id]?.cuartos ?? 0)}
+                      onChange={(evento) => {
+                        const cuartos = Number(evento.target.value) as 0 | 1 | 2 | 3 | 4;
+                        onCambiar({
+                          ...conteos,
+                          [insumo.id]: {
+                            cerrados: conteos[insumo.id]?.cerrados ?? '',
+                            cuartos,
+                          },
+                        });
+                      }}
+                    >
+                      <option value="0">vacío</option>
+                      <option value="1">¼</option>
+                      <option value="2">½</option>
+                      <option value="3">¾</option>
+                      <option value="4">lleno</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             ))}
             <Button

@@ -3858,3 +3858,99 @@ guardadas), no 404.
 Bloque 1 cerrado. Lo siguiente es el **rastreador**: una prueba genérica que abre las 62 pantallas en
 las cinco demos, hace clic en CADA elemento interactivo y exige que cada clic haga algo —red, URL o
 DOM—, contra PRODUCCIÓN.
+
+---
+
+## 2026-09-21 · Fase 2.3 · bloques 2 a 5 · EL RASTREADOR, y lo que destapó
+
+### 0 · Lo que este bloque cambia de fondo
+
+Las cuatro vueltas anteriores cerraron con una puerta escrita **a partir de los fallos ya
+conocidos**, y la auditoría siguiente encontró cosas obvias. Este bloque construyó lo contrario: una
+prueba que **no sabe qué busca** —toca cada botón de cada pantalla y exige que cada toque haga algo—
+y **tres puertas nuevas** que nacieron de lo que esa prueba encontró, cada una cerrando la CLASE
+entera del defecto y no el caso.
+
+Resultado en números: **69 defectos reales arreglados**, de los cuales 21 son «la pantalla publica
+algo que el comando no acepta», 8 «el tipo que la pantalla declara no es el que el puente entrega»,
+6 «el enlace lleva a una pantalla que no existe» y 31 controles que no hacían nada.
+
+### 1 · EL RASTREADOR, y los cinco defectos que tenía ÉL
+
+La primera corrida contra producción se pasó **35 minutos con 2,2 segundos de CPU gastados y cero
+salida**. No trabajaba: esperaba. Playwright no pone techo a una acción por omisión
+—`actionTimeout: 0`— así que un clic sobre un elemento que no aparece espera lo que dure la prueba.
+Los cinco defectos del propio rastreador, arreglados antes de creerle nada:
+
+| Defecto suyo | Qué lo delató |
+| --- | --- |
+| Sin techo por acción: un clic colgado se come la hora entera, en silencio | 35 min sin una línea |
+| Sin bitácora: el resumen sale al final, así que no hay forma de saber si avanza | lo mismo |
+| Contaba las piezas ANTES de que la pantalla se pintara: «16 pantallas · 0 toques» | 0 piezas en pantallas con doce botones |
+| Leía el MENÚ en la pantalla de aterrizaje, que en los cinco modelos no tiene barra | «el menú no ofrece ninguna pantalla», con 16 entradas |
+| La huella era ciega al ESTADO: un filtro que se pone no cambia el texto | acusó a cuatro botones que funcionan |
+
+Y uno más, del ayudante de sesión: el clic de una entrada del menú iba **por su nombre**, así que con
+dos entradas llamadas igual abría la que está primero en el DOM —`/abarrotes/caja` en un
+restaurante—, que redirige al mapa de mesas, y la prueba acusaba a `/restaurante/caja` de no abrir.
+
+### 2 · EL 403 QUE NO DEJABA NI ENTRAR
+
+Lo primero que encontró, y ninguna de las treinta puertas lo había visto:
+
+```
+POST /api/auth/entrar   origin: https://morphiqpos-kappa.vercel.app  →  403
+POST /api/datos/consultar                                            →  403
+```
+
+`APP_URL` apuntaba al dominio propio —cuyo DNS Miguel está configurando— y la frontera de escritura
+rechaza cualquier otro origen. Un despliegue de Vercel se sirve **siempre** también por su
+`*.vercel.app`: **nadie podía entrar desde la URL del despliegue**. Las suites no lo ven porque
+corren con `APP_URL=http://localhost:3200`, donde el origen coincide siempre.
+
+Arreglo: `APP_URL_ALTERNAS`, una lista de orígenes, **sin leer el `Host` de la petición** (R-17 sigue
+en pie: leerlo es dejar que quien ataca declare el origen esperado).
+
+### 3 · LA PANTALLA QUE MATABA EL NAVEGADOR
+
+`MapaDeMesas` declaraba `readonly numero: string` y el puente sirve ese campo con
+`conversion: 'entero'`. El orden llamaba `a.numero.localeCompare(b.numero)` sobre un número:
+
+```
+TypeError: e.numero.localeCompare is not a function
+```
+
+El mesero entra con su PIN, aterriza en el mapa —es su casa— y ve la página de error de Chrome.
+Reproducido a mano contra producción. No lo vio ninguna puerta: TypeScript cree la declaración
+—`consultarPuente<T>` no valida en ejecución—, el HTML abre en 200, la respuesta es `{ok:true}`, la
+e2e comprueba el rótulo «Mesas» que se pinta ANTES de que lleguen los datos, y un error de consola no
+es un 500.
+
+### 4 · LAS TRES PUERTAS NUEVAS, y lo que cada una destapó
+
+| Puerta | Compara | Destapó |
+| --- | --- | --- |
+| `verify:tipos-de-pantalla` | el tipo que la pantalla DECLARA contra la `conversion` del puente | **8**, dos de ellas pantallas muertas: `cafeteria/Recetas` hacía `.replace` sobre un número |
+| `verify:enlaces` | cada `href` interno contra las pantallas que `app/` sirve | **6** 404 en la cara del usuario, uno a una pantalla que no existe en ninguna parte |
+| `verify:entradas-de-comando` | lo que la pantalla PUBLICA contra lo que el comando ACEPTA | **21**: cambiar un precio, identificar a una clienta, contar la leche, capturar una receta, abrir un rollo y cortarlo no funcionaban |
+
+La cadena pasa de **31 a 34 eslabones**, y las tres están en CI.
+
+### 5 · EL ESLABÓN 31, CORRIENDO POR PRIMERA VEZ EN ESTA MÁQUINA
+
+```
+Test Files  5 passed (5)
+     Tests  10 passed (10)
+  Duration  22.63s
+```
+
+Contra una **rama del proyecto de Supabase** —una base entera, aislada, con las 110 migraciones del
+ledger aplicadas— y **sin Docker**. Cuatro reportes seguidos dijeron que este eslabón necesitaba
+Docker. No lo necesitaba: el arnés sacaba el PUERTO de la URL y abría el socket contra `localhost`
+SIEMPRE, así que con una base remota la espera se agotaba **sin intentar ni una vez** el `select 1`
+que sí habría contestado. La receta entera está en `docs/fase-2/BASE-DE-PRUEBAS.md`.
+
+### EN QUÉ IBA
+
+Bloques 2 a 5 en marcha: las tres puertas nuevas verdes, los 69 defectos arreglados, y la corrida
+final del rastreador contra producción con todo mergeado.

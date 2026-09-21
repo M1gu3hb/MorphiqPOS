@@ -209,7 +209,9 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
     }
     setGuardando(true);
     setError(null);
-    invocarComando(RUTA_PRECIO, { productoId, precioVentaCentavos: centavos })
+    // `importe` es una cadena en PESOS. Antes iba `precioVentaCentavos` —un número de
+    // centavos que el esquema no conoce— y cada guardado contestaba 400.
+    invocarComando(RUTA_PRECIO, { productoId, precioVenta: (centavos / 100).toFixed(2) })
       .then(() => {
         setFicha(ficha === null ? null : { ...ficha, precio_venta: centavos / 100 });
         setAviso('Precio guardado.');
@@ -242,12 +244,20 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
     }
     setGuardando(true);
     setError(null);
+    /**
+     * Dos cosas que el comando NO acepta como iban:
+     *
+     *  · `precioCentavos` se llama `precioVentaCentavos` en `entradaCrearPresentacion`;
+     *  · `codigoBarras` es `optional()` y NO `nullable()`: mandar `null` es un 400. Sin
+     *    código, la clave no viaja.
+     */
+    const codigo = nueva.codigo.trim();
     invocarComando<PresentacionDeProducto>(RUTA_PRESENTACION, {
       productoId,
       nombre: nueva.nombre.trim(),
       factor: nueva.factor.replace(',', '.'),
-      precioCentavos: centavos,
-      codigoBarras: nueva.codigo.trim() === '' ? null : nueva.codigo.trim(),
+      precioVentaCentavos: centavos,
+      ...(codigo === '' ? {} : { codigoBarras: codigo }),
     })
       .then((creada) => {
         setPresentaciones([...(presentaciones ?? []), creada]);
@@ -352,6 +362,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
             <Button
               key={tasa.bp}
               type="button"
+              aria-pressed={ficha.tasa_iva_bp === tasa.bp}
               variant={ficha.tasa_iva_bp === tasa.bp ? 'default' : 'outline'}
               onClick={() => {
                 cambiarPerilla({ tasa_iva_bp: tasa.bp });

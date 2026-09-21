@@ -41,8 +41,21 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * remate del retazo en venta, que pasa en la pantalla de cobro.
  */
 
-const RUTA_PIEZAS = '/api/inventario/pieza-abierta';
-const RUTA_CORTAR = '/api/inventario/cortar';
+/**
+ * TRES rutas, y antes eran dos mal repartidas.
+ *
+ * · PREGUNTAR qué piezas hay → `piezas-abiertas`, que es una lectura. Antes se
+ *   preguntaba en `pieza-abierta` —el comando de ABRIR— y contestaba 400: la
+ *   pantalla decía «No hay ninguna abierta» con los rollos abiertos en la base.
+ * · ABRIR una pieza → `pieza-abierta`, que es eso.
+ * · CORTAR → `/api/ferreteria/cortar`, que corta Y ABRE LA NOTA. `inventario.cortar`
+ *   exige `ordenLineaId` porque anota el corte contra la línea que se cobra, y esta
+ *   pantalla no tiene una: el corte del mostrador crea la nota, y su folio es el
+ *   número que el cliente canta en la caja.
+ */
+const RUTA_PREGUNTAR_PIEZAS = '/api/inventario/piezas-abiertas';
+const RUTA_ABRIR_PIEZA = '/api/inventario/pieza-abierta';
+const RUTA_CORTAR = '/api/ferreteria/cortar';
 
 const MEDIDA_CON_FORMA = /^\d{1,9}$/;
 
@@ -102,7 +115,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
 
   function consultar(necesitaBase: string | null): void {
     invocarComando<{ readonly piezas: readonly PiezaViva[]; readonly recomendada: string | null }>(
-      RUTA_PIEZAS,
+      RUTA_PREGUNTAR_PIEZAS,
       { productoId, necesitaBase },
     )
       .then((salida) => {
@@ -155,9 +168,11 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
     }
     setOcupado(true);
     setError(null);
-    invocarComando(RUTA_PIEZAS, {
+    invocarComando(RUTA_ABRIR_PIEZA, {
       productoId,
-      // El almacén NO se manda: sale de la sesión del servidor (R16).
+      // El almacén NO se manda: sale de la sesión del servidor (R16). El esquema lo
+      // exigía y por eso esto contestaba 400 en cada apertura; ahora es opcional y el
+      // comando resuelve el principal de la sucursal.
       medidaBase: base,
       folio: nueva.folio.trim(),
       ubicacionId: null,
@@ -184,15 +199,18 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
     }
     setOcupado(true);
     setError(null);
-    invocarComando(RUTA_CORTAR, {
-      productoId,
-      piezaAbiertaId: corte.piezaId,
-      medidaEntregadaBase: entregada,
-      mermaBase: merma,
+    invocarComando<{ readonly folio: string }>(RUTA_CORTAR, {
+      materialId: productoId,
+      piezaId: corte.piezaId,
+      medida: entregada,
+      desperdicio: merma,
     })
-      .then(() => {
+      .then((salida) => {
         setCorte({ piezaId: '', metros: '', merma: '0.10' });
-        setAviso('Cortado.');
+        // El folio se DICE: el corte abrió una nota y ese número es lo que el cliente
+        // canta en la caja. «Cortado.» a secas dejaba al mostradorista sin nada que
+        // decirle.
+        setAviso(`Cortado. Nota ${salida.folio}: se cobra en caja.`);
         consultar(null);
       })
       .catch((fallo: unknown) => {

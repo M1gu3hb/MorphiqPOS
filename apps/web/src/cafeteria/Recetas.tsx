@@ -39,7 +39,9 @@ import { useVocabulario } from '~/cliente/vocabulario';
  */
 
 const RUTA_GUARDAR = '/api/inventario/recetas';
-const RUTA_ELIMINAR = '/api/inventario/recetas/eliminar';
+// Quitar una línea es GUARDAR la receta sin ella: `inventario.eliminar_receta`
+// borra la receta entera y archiva el producto, que no es lo que pide un
+// ingrediente de menos. Ver `eliminar`.
 
 const CANTIDAD_CON_FORMA = /^\d{1,6}(?:[.,]\d{1,4})?$/;
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
@@ -96,6 +98,19 @@ export interface LineaDeReceta {
   readonly costo_unitario_base_snapshot: number | null;
   /** No se sirve: la columna no existe. Ver la cabecera. */
   readonly aplica_canal?: string;
+}
+
+/**
+ * El canal de una línea, tal como lo entiende el comando.
+ *
+ * En la base es `text[]` y nulo significa «todos» (083). El puente lo sirve como
+ * viene; aquí se traduce a la palabra que el esquema acepta.
+ */
+export function canalDe(valor: string | undefined): 'ambos' | 'aqui' | 'llevar' {
+  if (valor === undefined || valor === '') return 'ambos';
+  if (valor.includes('llevar')) return 'llevar';
+  if (valor.includes('aqui')) return 'aqui';
+  return 'ambos';
 }
 
 export interface InsumoDisponible {
@@ -189,12 +204,10 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
     };
   }, [productosIniciales, insumosIniciales]);
 
-  function elegir(producto: ProductoConReceta): void {
-    setElegido(producto);
-    setLineas(null);
-    setError(null);
+  /** Las líneas de la receta de ese producto, leídas del puente. */
+  function leerLineas(productoId: string): void {
     consultarPuente<LineaDeReceta>('RecetaEscandallo', {
-      filtro: { producto_id: producto.id },
+      filtro: { producto_id: productoId },
       limite: 60,
     })
       .then((filas) => {
@@ -203,6 +216,13 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
       .catch(() => {
         setLineas([]);
       });
+  }
+
+  function elegir(producto: ProductoConReceta): void {
+    setElegido(producto);
+    setLineas(null);
+    setError(null);
+    leerLineas(producto.id);
   }
 
   function agregar(): void {
@@ -218,14 +238,43 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
     }
     setOcupado(true);
     setError(null);
-    invocarComando<LineaDeReceta>(RUTA_GUARDAR, {
+    /**
+     * ── AGREGAR UN INGREDIENTE NUNCA FUNCIONÓ ────────────────────────
+     * Mandaba `{productoId, insumoId, cantidad, aplicaCanal}` y
+     * `inventario.guardar_receta` REEMPLAZA la receta entera con
+     * `{productoId, ingredientes: […]}`: cada «Agregar» contestaba **400** y la
+     * receta de una bebida no se podía capturar. Y la unidad no es opcional: el
+     * comando exige que sea la MISMA del insumo, porque una receta en litros sobre
+     * un insumo en mililitros descuenta mil veces de menos.
+     *
+     * Se manda la lista completa —las líneas que ya había más la nueva— porque eso es
+     * lo que el comando escribe: un `delete` y un `insert` de todo, en una
+     * transacción.
+     */
+    const yaEstaban = (lineas ?? []).map((linea) => ({
+      insumoId: linea.ingrediente_id,
+      cantidad: String(linea.cantidad_usada),
+      unidad: linea.unidad,
+      mermaBp: 0,
+      aplicaCanal: canalDe(linea.aplica_canal),
+    }));
+    invocarComando(RUTA_GUARDAR, {
       productoId: elegido.id,
-      insumoId: insumo.id,
-      cantidad: nueva.cantidad.replace(',', '.'),
-      aplicaCanal: nueva.canal,
+      ingredientes: [
+        ...yaEstaban,
+        {
+          insumoId: insumo.id,
+          cantidad: nueva.cantidad.replace(',', '.'),
+          unidad: insumo.unidad_base,
+          mermaBp: 0,
+          aplicaCanal: nueva.canal,
+        },
+      ],
     })
-      .then((creada) => {
-        setLineas([...(lineas ?? []), creada]);
+      .then(() => {
+        // Se vuelve a leer: los identificadores de las líneas son nuevos —el comando
+        // borra y reinserta— y conservar los viejos dejaría la pantalla mintiendo.
+        leerLineas(elegido.id);
         setNueva({ insumoId: '', cantidad: '', canal: 'ambos' });
       })
       .catch((fallo: unknown) => {
@@ -236,9 +285,28 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
       });
   }
 
+  /**
+   * QUITAR UNA LÍNEA es guardar la receta SIN ella.
+   *
+   * ── Lo que hacía, y por qué era peor que no funcionar ───────────────
+   * Publicaba `{recetaId}` en `inventario.eliminar_receta`, que pide `{productoId}`:
+   * 400 en cada intento. Y si hubiera acertado el nombre habría sido peor, porque
+   * ese comando **borra la receta entera y archiva el producto**: quitar un
+   * ingrediente habría retirado la bebida de la carta.
+   */
   function eliminar(linea: LineaDeReceta): void {
+    if (elegido === null) return;
     setOcupado(true);
-    invocarComando(RUTA_ELIMINAR, { recetaId: linea.id })
+    const quedan = (lineas ?? [])
+      .filter((l) => l.id !== linea.id)
+      .map((l) => ({
+        insumoId: l.ingrediente_id,
+        cantidad: String(l.cantidad_usada),
+        unidad: l.unidad,
+        mermaBp: 0,
+        aplicaCanal: canalDe(l.aplica_canal),
+      }));
+    invocarComando(RUTA_GUARDAR, { productoId: elegido.id, ingredientes: quedan })
       .then(() => {
         setLineas((lineas ?? []).filter((l) => l.id !== linea.id));
       })
