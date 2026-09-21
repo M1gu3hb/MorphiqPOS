@@ -184,6 +184,15 @@ const RUIDO_DE_CONSOLA = [
   // Chromium lo escribe cuando una imagen del catálogo no está en el almacén de la
   // demostración. No es la aplicación fallando: es un dato que la demo no tiene.
   /Failed to load resource: the server responded with a status of 404 .*\.(png|jpg|jpeg|webp|svg|ico)/i,
+  /**
+   * El 503 del almacén de archivos, que YA está declarado —con su motivo y su fecha
+   * de caducidad— en `FALLOS_QUE_SON_UNA_DECISION` de `ayudantes/sesion.ts`.
+   *
+   * Se repite aquí porque el navegador lo escribe TAMBIÉN en la consola
+   * —«Failed to load resource… 503»— y esa línea no pasa por el vigilante de red.
+   * Dos vigilantes, una sola decisión: el día que el bucket exista se borran las dos.
+   */
+  /Failed to load resource: the server responded with a status of 503 /i,
   // La extensión de React, que no está instalada en el navegador de la prueba.
   /Download the React DevTools/i,
   /**

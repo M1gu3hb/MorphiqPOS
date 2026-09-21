@@ -1090,7 +1090,28 @@ export async function abrirPantalla(
  * La clave es `<código> <ruta>` tal como se imprime. Cada fila lleva por qué, y la
  * lista sólo puede encogerse: una fila nueva hay que explicarla.
  */
-const FALLOS_QUE_SON_UNA_DECISION: Readonly<Record<string, string>> = {};
+const FALLOS_QUE_SON_UNA_DECISION: Readonly<Record<string, string>> = {
+  /**
+   * EL ALMACÉN DE ARCHIVOS QUE ESTE DESPLIEGUE NO TIENE.
+   *
+   * `STORAGE_ENDPOINT` apunta a `http://localhost:9000` —el MinIO de desarrollo— y
+   * en Vercel eso es `ECONNREFUSED`: ninguna operación de archivo puede funcionar.
+   * NO es un defecto del código y no se puede arreglar en el código: falta una
+   * credencial de bucket, que son cuatro variables de entorno y se crean en el
+   * tablero de Supabase (Project Settings → Storage → S3 access keys).
+   *
+   * Lo que SÍ se arregló: el fallo dejo de ser un 500 «No fue posible completar la
+   * operación» y es un **503 `ALMACEN_NO_DISPONIBLE`** con el endpoint y las cuatro
+   * variables escritos en el mensaje. Por eso esta línea puede existir: el fallo
+   * dice exactamente qué falta.
+   *
+   * Se borra el día que el bucket exista, y ese día esta prueba vuelve a exigirlo.
+   */
+  '503 /api/reportes/exportar':
+    'Este despliegue no tiene bucket: STORAGE_ENDPOINT apunta a localhost. El exporte ' +
+    'contesta 503 con las cuatro variables que hay que configurar. Se borra cuando el ' +
+    'bucket exista.',
+};
 
 /**
  * QUÉ se estaba pidiendo, no sólo por dónde.
