@@ -128,6 +128,26 @@ export async function consultarViva(
     }
   }
 
+  return consultarEn(cadena, sql);
+}
+
+/**
+ * Lo mismo, contra una cadena que llega por argumento.
+ *
+ * `verificar-entorno.mjs` la necesita porque su base NO es la de la aplicación:
+ * es un Postgres 17 ajeno donde se comprueba que el esquema completo aplica
+ * (A-27). El transporte y el TLS son los mismos; lo único que cambia es a dónde
+ * apunta, y eso es justamente el punto de esa puerta.
+ *
+ * Vive aquí, y no en el script, porque `pg` es una dependencia de este paquete:
+ * un script de `scripts/` no puede resolverlo, y duplicar el TLS a mano sería la
+ * manera de que un día uno de los dos lo baje sin que nadie lo note.
+ */
+export async function consultarEn(
+  cadena: string,
+  sql: string,
+  valores: readonly unknown[] = [],
+): Promise<{ readonly rows: readonly Record<string, unknown>[] }> {
   // El TLS sale de `tlsPara`, el MISMO que usa la aplicación: raíz de Supabase
   // fijada y `rejectUnauthorized: true`. Que esta conexión sólo lea catálogo no
   // es excusa para bajarlo — por ese canal viaja también la contraseña de la
@@ -141,7 +161,7 @@ export async function consultarViva(
 
   await cliente.connect();
   try {
-    const resultado = await cliente.query(sql);
+    const resultado = await cliente.query(sql, [...valores]);
     return { rows: resultado.rows as readonly Record<string, unknown>[] };
   } finally {
     await cliente.end();

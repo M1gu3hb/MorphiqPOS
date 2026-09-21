@@ -530,17 +530,17 @@ salieron tres puertas que cierran la CLASE y no el caso.
 | Bloque | Qué | Estado |
 |---|---|---|
 | **1** | Producción sirviendo el código nuevo y las cinco demos | ✅ PR #1 fusionado; `ORGANIZACION` con los seis negocios; `/api/auth/empleados` devuelve 6 negocios y 29 personas |
-| **2** | El rastreador, contra producción, y arreglar lo que saque | ✅ `pruebas/e2e/rastreo.spec.ts`. **69 defectos reales arreglados** (§ detalle en el reporte) |
+| **2** | El rastreador, contra producción, y arreglar lo que saque | ✅ `pruebas/e2e/rastreo.spec.ts`. **56 defectos arreglados** —69 controles y llamadas— (la lista completa, en el reporte 017) |
 | **3** | Los dos agujeros de la puerta de rutas llamadas | ✅ plantillas visibles y segmentos dinámicos que ya no aprueban un verbo; salió ROJA y nombró las tres |
 | **4** | Los seis defectos conocidos | ✅ los seis, y nueve más del mismo linaje |
-| **5** | Todas las puertas verdes, con `test:integracion` corriendo | ✅ eslabón 31 en verde contra una rama de Supabase, **sin Docker** |
+| **5** | Todas las puertas verdes, con `test:integracion` corriendo | ✅ `pnpm verify` completo en **0** en la punta (`ee75b0f`): los 34 eslabones, el 31 contra una rama de Supabase |
 
 ### Las tres puertas nuevas
 
 | Eslabón | Puerta | Qué compara | Destapó |
 |---|---|---|---|
 | 13 | `verify:tipos-de-pantalla` | el tipo DECLARADO contra la `conversion` del puente | **8**, dos pantallas muertas |
-| 14 | `verify:enlaces` | cada `href` interno contra las pantallas que `app/` sirve | **6** 404 |
+| 14 | `verify:enlaces` | cada `href` interno contra las pantallas que `app/` sirve | **7** 404 |
 | 15 | `verify:entradas-de-comando` | lo que la pantalla PUBLICA contra lo que el comando ACEPTA | **21** |
 
 La cadena pasa de **31 a 34 eslabones**. Las tres están en CI y las tres se validaron mutando.

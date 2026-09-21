@@ -3871,9 +3871,13 @@ prueba que **no sabe qué busca** —toca cada botón de cada pantalla y exige q
 y **tres puertas nuevas** que nacieron de lo que esa prueba encontró, cada una cerrando la CLASE
 entera del defecto y no el caso.
 
-Resultado en números: **69 defectos reales arreglados**, de los cuales 21 son «la pantalla publica
-algo que el comando no acepta», 8 «el tipo que la pantalla declara no es el que el puente entrega»,
-6 «el enlace lleva a una pantalla que no existe» y 31 controles que no hacían nada.
+Resultado en números: **56 defectos arreglados, uno por uno**, que suman **69 controles y llamadas**
+—un solo renglón puede cubrir 27 botones idénticos—. De los 56: **2** dejaban el sistema inservible, **7**
+eran controles que no hacían nada (31 botones), **7** enlaces a pantallas que no existen, **8** tipos
+que la pantalla declaraba mal, **19** pantallas que hablaban un idioma que el servidor no entiende
+(21 llamadas), **5** de la corrida contra producción y **8 del propio rastreador**, antes de creerle
+nada. La lista
+completa, con el arreglo de cada uno, está en `docs/reports/017-fase-2.3-el-cierre.md`.
 
 ### 1 · EL RASTREADOR, y los cinco defectos que tenía ÉL
 
@@ -3931,7 +3935,7 @@ es un 500.
 | Puerta | Compara | Destapó |
 | --- | --- | --- |
 | `verify:tipos-de-pantalla` | el tipo que la pantalla DECLARA contra la `conversion` del puente | **8**, dos de ellas pantallas muertas: `cafeteria/Recetas` hacía `.replace` sobre un número |
-| `verify:enlaces` | cada `href` interno contra las pantallas que `app/` sirve | **6** 404 en la cara del usuario, uno a una pantalla que no existe en ninguna parte |
+| `verify:enlaces` | cada `href` interno contra las pantallas que `app/` sirve | **7** 404 en la cara del usuario (en 6 líneas: dos botones con el mismo `href`), uno a una pantalla que no existe en ninguna parte |
 | `verify:entradas-de-comando` | lo que la pantalla PUBLICA contra lo que el comando ACEPTA | **21**: cambiar un precio, identificar a una clienta, contar la leche, capturar una receta, abrir un rollo y cortarlo no funcionaban |
 
 La cadena pasa de **31 a 34 eslabones**, y las tres están en CI.
@@ -3944,13 +3948,50 @@ Test Files  5 passed (5)
   Duration  22.63s
 ```
 
-Contra una **rama del proyecto de Supabase** —una base entera, aislada, con las 110 migraciones del
+Contra una **rama del proyecto de Supabase** —una base entera, aislada, con las 109 migraciones del
 ledger aplicadas— y **sin Docker**. Cuatro reportes seguidos dijeron que este eslabón necesitaba
 Docker. No lo necesitaba: el arnés sacaba el PUERTO de la URL y abría el socket contra `localhost`
 SIEMPRE, así que con una base remota la espera se agotaba **sin intentar ni una vez** el `select 1`
 que sí habría contestado. La receta entera está en `docs/fase-2/BASE-DE-PRUEBAS.md`.
 
-### EN QUÉ IBA
+### 6 · LA CADENA ENTERA, EN LA PUNTA, EN VERDE
 
-Bloques 2 a 5 en marcha: las tres puertas nuevas verdes, los 69 defectos arreglados, y la corrida
-final del rastreador contra producción con todo mergeado.
+`pnpm verify` completo contra `ee75b0f` —los 34 eslabones, `APP_URL` en producción y
+`DATABASE_URL_PRUEBAS` en la rama de Supabase— salió en **0**. `verify:acople` incluido: 109
+migraciones, RLS en 172 relaciones, 103 rutas, 128 rutas llamadas, 5 suites que cobran, y CI con
+sus cinco checks verdes en la punta. Y `test:integracion` de último: 5 archivos, 10 pruebas, 17.36 s.
+
+### 7 · Y LA ÚLTIMA MENCIÓN DE DOCKER, QUITADA DE DONDE MÁS DAÑO HACÍA
+
+`verify:entorno` seguía imprimiendo «la comprobación en vivo NO se ejecutó: no hay Docker en esta
+máquina», y con eso **aprobaba A-27** —«el backend completo debe poder correr en la PC de un
+cliente»— sin haberlo probado nunca. El arreglo no es borrar el mensaje: es que la comprobación
+corra. A-27 tiene dos mitades y ahora cada una corre cuando puede:
+
+| Mitad | Con qué se prueba | Qué falla si se rompe |
+| --- | --- | --- |
+| el **esquema** en un Postgres ajeno | `DATABASE_URL_PRUEBAS` — una rama del proyecto basta | que la cadena sea la de la aplicación · que el motor no sea el que fija el compose · que el ledger de allí no cuadre con el disco |
+| el **empaquetado** offline | `docker compose config`, si hay motor | que el compose no valide |
+
+Cuando sólo una corre, la puerta dice **qué mitad falta** en vez de callarlo. La fila de excepción
+sólo cubre el caso en que no corre ninguna, y sin esa fila la puerta **falla**.
+
+```
+  · en vivo: el esquema completo (109 migraciones) esta aplicado en un Postgres 17 AJENO al de la aplicacion
+  · pendiente: el EMPAQUETADO offline no se valido (no hay motor de contenedores en esta maquina): de A-27 esta demostrado que el esquema viaja, no que el paquete arranca
+✓ Entorno local: 3 servicios, imagenes fijadas, 9 variables declaradas.
+```
+
+Destructivas que FALLAN: la base de pruebas apunta al mismo proyecto que la aplicación · el compose
+fija Postgres 16 y la base ajena corre 17 · una migración más en disco que en el ledger de allí · ni
+base ajena ni compose con la fila de excepción borrada.
+Inocuas que PASAN: sin `DATABASE_URL_PRUEBAS` pero con la excepción declarada (sale «pendiente» y
+en 0) · una línea en blanco de más en el script.
+
+### CERRADO
+
+El reporte del cierre es `docs/reports/017-fase-2.3-el-cierre.md`: la tabla de las ocho condiciones,
+la salida literal de las puertas, la URL de producción y la lista completa de lo que destapó el
+rastreador con su arreglo. Lo que queda fuera son dos cosas que no arregla el código y están
+escritas con sus comandos: el bucket de archivos (una credencial S3 de Supabase) y la decisión de
+producto del pedido anticipado.

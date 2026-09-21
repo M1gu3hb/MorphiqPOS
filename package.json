@@ -30,7 +30,7 @@
     "verify:arranque": "node scripts/verificar-arranque.mjs",
     "verify:historico": "node scripts/verificar-historico.mjs",
     "verify:tsconfig": "node scripts/verificar-tsconfig.mjs",
-    "verify:entorno": "node scripts/verificar-entorno.mjs",
+    "verify:entorno": "node --conditions=react-server scripts/verificar-entorno.mjs",
     "verify:cabeceras": "node scripts/verificar-cabeceras.mjs",
     "verify:certificado": "node --conditions=react-server scripts/verificar-certificado.mjs",
     "verify:esquema": "node --conditions=react-server scripts/verificar-esquema-aplicado.mjs",
