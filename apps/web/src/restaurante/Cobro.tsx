@@ -79,6 +79,14 @@ export interface CobroProps {
   readonly lineasIniciales?: readonly LineaDeCuenta[];
   readonly onCobrada?: (ordenId: string) => void;
   readonly onImprimir?: (ordenId: string) => void;
+  /**
+   * LA CUENTA QUE SE VA A COBRAR, cuando quien llega ya eligió una.
+   *
+   * Sin esto, la pantalla siempre tomaba «la primera cuenta solicitada», y por eso
+   * el botón de cada fila de la pantalla de Caja no podía llevar a NINGUNA en
+   * concreto: el cajero elige a Mesa 7 y habría cobrado la que estuviera primero.
+   */
+  readonly cuentaId?: string;
 }
 
 /** Pesos a centavos contando dígitos: `1234.995 * 100` pierde medio centavo. */
@@ -148,7 +156,13 @@ function renglonesDePago(
   }).filter((renglon) => renglon.montoCentavos > 0 || renglon.propinaCentavos > 0);
 }
 
-export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }: CobroProps) {
+export function Cobro({
+  cuentaInicial,
+  lineasIniciales,
+  onCobrada,
+  onImprimir,
+  cuentaId,
+}: CobroProps) {
   const voc = useVocabulario();
   const [cuenta, setCuenta] = useState<CuentaPorCobrar | null | undefined>(cuentaInicial);
   const [lineas, setLineas] = useState<readonly LineaDeCuenta[]>(lineasIniciales ?? []);
@@ -178,7 +192,8 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
     const sigueMontada = (): boolean => !control.signal.aborted;
     void (async () => {
       try {
-        const filtro = { estado: 'cuenta_solicitada' };
+        // Con una cuenta dicha se pide ESA; sin ella, la primera que pidió su cuenta.
+        const filtro = cuentaId === undefined ? { estado: 'cuenta_solicitada' } : { id: cuentaId };
         const [fila] = await consultarPuente<CuentaPorCobrar>('Venta', {
           filtro,
           limite: 1,
@@ -203,7 +218,7 @@ export function Cobro({ cuentaInicial, lineasIniciales, onCobrada, onImprimir }:
     return () => {
       control.abort();
     };
-  }, [cuentaInicial, voc]);
+  }, [cuentaInicial, cuentaId, voc]);
 
   const venta = aCentavos(cuenta?.total);
   const suPropina = propina ?? aCentavos(cuenta?.propina_monto);

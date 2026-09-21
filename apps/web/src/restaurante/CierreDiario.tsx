@@ -67,7 +67,11 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *    su transacción; si difieren gana la del corte, y se ve al cerrar.
  * 2. `caja.cerrar` todavía no recibe el fondo que se deja en el cajón, así que
  *    viaja en `notas`. Cuando el comando lo acepte, sube a campo propio.
- * 3. El PDF no se genera aquí: la pantalla avisa por `onDescargarPdf`.
+ * 3. El comprobante no se genera aquí: la pantalla avisa por `onImprimirElCierre`,
+ *    y quien la monta decide cómo se imprime. NO hay generador de PDF en el
+ *    sistema —`FORMATOS` de reportes sólo tiene `csv`— y el botón decía
+ *    «Descargar el PDF del cierre»: una promesa que nada podía cumplir, y que
+ *    además no hacía NADA porque ninguna página pasaba el callback.
  * 4. Los importes se formatean con funciones locales y no importadas de otra
  *    pantalla: una pantalla no depende de otra, y el módulo común de dinero no
  *    es uno de los dos archivos que este encargo puede escribir.
@@ -140,7 +144,7 @@ export interface MesaQueBloquea {
 export interface CierreDiarioProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly datosIniciales?: DatosDelDia;
-  readonly onDescargarPdf?: (corte: ResultadoDelCierre) => void;
+  readonly onImprimirElCierre?: (corte: ResultadoDelCierre) => void;
 }
 
 /** Pesos a centavos contando dígitos: `1234.995 * 100` pierde medio centavo. */
@@ -312,12 +316,12 @@ type Dialogo =
   | { readonly tipo: 'confirmar' }
   | { readonly tipo: 'bloqueo'; readonly mesas: readonly MesaQueBloquea[] };
 
-export function CierreDiario({ datosIniciales, onDescargarPdf }: CierreDiarioProps) {
+export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiarioProps) {
   const voc = useVocabulario();
   const [datos, setDatos] = useState<DatosDelDia | null>(datosIniciales ?? null);
   const [contado, setContado] = useState('');
   const [fondo, setFondo] = useState('');
-  const [conPdf, setConPdf] = useState(true);
+  const [alImprimir, setAlImprimir] = useState(true);
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [corte, setCorte] = useState<ResultadoDelCierre | null>(null);
@@ -402,8 +406,8 @@ export function CierreDiario({ datosIniciales, onDescargarPdf }: CierreDiarioPro
           Esperado {enPesos(Number(corte.efectivoEsperadoCentavos))} · contado{' '}
           {enPesos(centavosDeTexto(contado) ?? 0)}
         </p>
-        <Button className="w-full" onClick={() => onDescargarPdf?.(corte)}>
-          Descargar el PDF del cierre
+        <Button className="w-full" onClick={() => onImprimirElCierre?.(corte)}>
+          Imprimir el cierre
         </Button>
       </div>
     );
@@ -466,7 +470,7 @@ export function CierreDiario({ datosIniciales, onDescargarPdf }: CierreDiarioPro
       });
       setDialogo(null);
       setCorte(hecho);
-      if (conPdf) onDescargarPdf?.(hecho);
+      if (alImprimir) onImprimirElCierre?.(hecho);
     } catch (fallo) {
       setDialogo(null);
       setError(mensajeDe(fallo, 'No se pudo cerrar la caja.'));
@@ -542,9 +546,9 @@ export function CierreDiario({ datosIniciales, onDescargarPdf }: CierreDiarioPro
         )}
 
         <div className="flex items-center gap-2">
-          <Switch id="pdf" checked={conPdf} onCheckedChange={setConPdf} />
-          <Label htmlFor="pdf" className="font-normal">
-            Descargar el PDF al terminar
+          <Switch id="imprimir" checked={alImprimir} onCheckedChange={setAlImprimir} />
+          <Label htmlFor="imprimir" className="font-normal">
+            Imprimir el cierre al terminar
           </Label>
         </div>
         <Button

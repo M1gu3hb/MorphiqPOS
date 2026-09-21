@@ -113,8 +113,22 @@ export interface FilaDeProducto {
 export interface ProductosProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly filasIniciales?: readonly FilaDeProducto[];
-  readonly onEditarProducto?: (productoId: string) => void;
 }
+
+/**
+ * ── EL NOMBRE DEL PLATILLO ERA UN BOTÓN QUE NO ABRÍA NADA ─────────────
+ * Había un `onEditarProducto?: (productoId: string) => void` y el nombre de cada
+ * platillo era un `<button>` con `hover:underline` que llamaba `onEditarProducto?.()`.
+ * **Ninguna página pasaba ese callback**, así que los 27 platillos del catálogo eran
+ * 27 botones que se subrayaban al pasar el ratón y no hacían nada. El rastreador los
+ * contó uno por uno.
+ *
+ * Y no se arregla pasándolo: no hay a dónde ir. El editor completo del catálogo es
+ * la pantalla HEREDADA —que no se toca, y que no admite un producto en la URL— y esta
+ * pantalla ya edita lo que le toca en el sitio: el interruptor «Mostrar/Quitar del
+ * POS» de cada tarjeta. Un control que no puede cumplir lo que promete se quita: el
+ * nombre vuelve a ser lo que es, un nombre.
+ */
 
 /** Un área desconocida cuenta como «sin comanda»: es el valor por omisión. */
 export function claveArea(valor: string | null): ClaveArea {
@@ -144,7 +158,7 @@ function mensajeDe(fallo: unknown, porOmision: string): string {
   return fallo.error.mensaje;
 }
 
-export function Productos({ filasIniciales, onEditarProducto }: ProductosProps) {
+export function Productos({ filasIniciales }: ProductosProps) {
   const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly FilaDeProducto[]>(filasIniciales ?? []);
   const [cargando, setCargando] = useState(filasIniciales === undefined);
@@ -334,13 +348,7 @@ export function Productos({ filasIniciales, onEditarProducto }: ProductosProps) 
                   style={foto === null ? undefined : { backgroundImage: `url("${foto}")` }}
                 />
                 <div className={DATOS}>
-                  <button
-                    type="button"
-                    className="text-left text-base font-semibold hover:underline"
-                    onClick={() => onEditarProducto?.(producto.id)}
-                  >
-                    {producto.nombre}
-                  </button>
+                  <p className="text-left text-base font-semibold">{producto.nombre}</p>
                   <div className="flex flex-wrap items-center gap-1">
                     <Badge variant="secondary">{AREAS[claveArea(producto.area_preparacion)]}</Badge>
                     {producto.categoria_nombre !== null && (

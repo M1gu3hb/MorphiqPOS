@@ -93,6 +93,10 @@ const TECHO_DE_NAVEGACION_MS = 30_000;
 /** Y el techo de un `evaluate`, que tampoco lo tiene y también puede colgarse. */
 const TECHO_DE_EVALUACION_MS = 20_000;
 
+/** Cuánto se le da a una pantalla para acabar de pintarse, y cada cuánto se mira. */
+const TECHO_DE_PINTADO_MS = 15_000;
+const MUESTRA_DE_PINTADO_MS = 400;
+
 /**
  * Le pone techo a cualquier promesa, porque `page.evaluate` no acepta uno.
  *
@@ -214,6 +218,48 @@ async function enumerar(page: Page): Promise<readonly Clicable[]> {
 }
 
 /**
+ * ESPERA A QUE LA PANTALLA ACABE DE PINTARSE, y no a que el HTML llegue.
+ *
+ * ── El defecto que esto arregla, y era el que vacíaba el rastreo ────────
+ * La primera corrida completa dijo «16 pantallas · 0 toques» y «0 pieza(s)
+ * interactiva(s)» en pantallas que tienen doce botones a la vista. No era que no
+ * hubiera botones: es que se contaban ANTES de que existieran. Estas pantallas son
+ * componentes de cliente que piden sus datos en un `useEffect`; con
+ * `domcontentloaded` el marco ya está y el contenido todavía no.
+ *
+ * Un rastreador que mide una pantalla vacía da verde sin haber tocado nada, que es
+ * la peor clase de verde.
+ *
+ * ── Y por qué no `networkidle` ──────────────────────────────────
+ * Porque varias de estas pantallas consultan EN BUCLE —la cocina refresca cada
+ * pocos segundos— y la red nunca queda quieta: esperarla dejó el navegador colgado
+ * hasta que Chromium enseñó «This page couldn't load», y Playwright lo advierte de
+ * su propia API. Lo que se espera es que el NÚMERO de piezas interactivas se
+ * ESTABILICE: dos muestras iguales seguidas y se da por pintada.
+ */
+async function esperarAQueSePinte(page: Page): Promise<number> {
+  const contar = (): Promise<number> =>
+    page.evaluate(() => {
+      const raiz = document.querySelector('main') ?? document.body;
+      return raiz.querySelectorAll(
+        'button, a[href], [role="button"], input[type="submit"], input[type="button"]',
+      ).length;
+    });
+
+  let anterior = -1;
+  const limite = Date.now() + TECHO_DE_PINTADO_MS;
+  while (Date.now() < limite) {
+    const ahora = await conTecho(contar(), TECHO_DE_EVALUACION_MS, 'contar piezas');
+    // Estable Y con algo dentro: una pantalla que todavía no trajo sus datos
+    // también da dos ceros seguidos, y eso es lo que había que dejar de creer.
+    if (ahora === anterior && ahora > 0) return ahora;
+    anterior = ahora;
+    await page.waitForTimeout(MUESTRA_DE_PINTADO_MS);
+  }
+  return anterior;
+}
+
+/**
  * La huella de la pantalla: lo que un toque tendría que cambiar.
  *
  * Lleva el texto ENTERO —con sus números— porque subir una cantidad de 1 a 2 es un
@@ -327,6 +373,21 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
     const abrio = await abrirCajaPorLaRuta(page, 150_000);
     bitacora(diario, abrio ? 'caja abierta para el rastreo' : 'la caja ya estaba abierta');
 
+    /**
+     * EL TABLERO, que es donde vive el MENÚ.
+     *
+     * El marco de `(modelos)` es a propósito casi nada —«cada modelo tiene su
+     * propia jerarquía y su propia pantalla de inicio; un marco con opinión se la
+     * quitaría a los cinco»— así que las pantallas de los cinco modelos NO traen
+     * barra lateral. La barra es del marco `(interno)`, y el tablero es `/`.
+     *
+     * Y la casa de quien entra es una pantalla de modelo: el rastreo aterrizaba en
+     * el mapa de mesas, buscaba el menú ahí, encontraba la navegación de ZONAS del
+     * salón —que también es un `nav`— y se paraba diciendo que el menú no ofrecía
+     * ninguna pantalla. No era verdad: estaba mirando el sitio equivocado.
+     */
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
     // ── EL MENÚ · de aquí salen las pantallas, no de una lista mía ─────────
     const menu = await menuLateral(page);
     const entradas = await menu.getByRole('link').evaluateAll((enlaces) =>
@@ -344,6 +405,31 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         'colgaban de ningún sitio.',
     ).toBeGreaterThan(5);
 
+    // EL MENÚ ENTERO a la bitácora. Sin esto, un menú que ofrece dos cosas distintas
+    // con el mismo nombre no se ve en ninguna parte.
+    bitacora(diario, `menú · ${String(entradas.length)} entrada(s)`);
+    for (const e of entradas) bitacora(diario, `   ${e.ruta} «${e.etiqueta}»`);
+
+    /**
+     * DOS ENTRADAS CON EL MISMO NOMBRE Y DISTINTO DESTINO.
+     *
+     * `navegacionDePlantilla` lo prohibe con estas palabras: «un menú con dos
+     * entradas llamadas «Caja» que van a sitios distintos no es un menú completo:
+     * es uno que obliga a adivinar». Si aparece, el menú que se PINTA no es el que
+     * esa función devuelve, y quien lo usa tiene que adivinar cuál de las dos es la
+     * suya. Se mide aquí porque aquí es donde se ve lo que de verdad se pinta.
+     */
+    const porEtiqueta = new Map<string, Set<string>>();
+    for (const e of entradas) {
+      const rutas = porEtiqueta.get(e.etiqueta) ?? new Set<string>();
+      rutas.add(e.ruta);
+      porEtiqueta.set(e.etiqueta, rutas);
+    }
+    const ambiguas = [...porEtiqueta.entries()]
+      .filter(([, rutas]) => rutas.size > 1)
+      .map(([etiqueta, rutas]) => `«${etiqueta}» → ${[...rutas].sort().join(' y ')}`);
+    for (const linea of ambiguas) bitacora(diario, `AMBIGUA ${linea}`);
+
     const muertos: Hallazgo[] = [];
     const inalcanzables: Hallazgo[] = [];
     const externos: string[] = [];
@@ -356,9 +442,16 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
       // un botón muerto como cualquier otro, y así se caza.
       bitacora(diario, `→ ${entrada.ruta} «${entrada.etiqueta}»`);
       try {
+        // Al TABLERO primero: la pantalla anterior puede ser de un modelo, y esas no
+        // traen barra lateral. Es una navegación por pantalla, no por botón.
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
         const menuDeLaVuelta = await menuLateral(page);
+        // Por su HREF y no por su nombre: con dos entradas llamadas igual, el nombre
+        // abre la que está primero en el DOM —que no es la que se enumeró— y la
+        // prueba acusa a la pantalla equivocada. Pasó con «Caja», «Recetas» y
+        // «Registros» del restaurante: el clic se iba a `/abarrotes/caja`.
         await menuDeLaVuelta
-          .getByRole('link', { name: entrada.etiqueta, exact: true })
+          .locator(`a[href="${entrada.ruta}"]`)
           .first()
           .click({ timeout: TECHO_DE_ACCION_MS });
         await page.waitForURL((url) => url.pathname === entrada.ruta, { timeout: 20_000 });
@@ -378,12 +471,17 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         continue;
       }
 
+      const pintadas = await esperarAQueSePinte(page);
       const inventario = await conTecho(
         enumerar(page),
         TECHO_DE_EVALUACION_MS,
         `enumerar ${entrada.ruta}`,
       );
-      bitacora(diario, `   ${String(inventario.length)} pieza(s) interactiva(s)`);
+      bitacora(
+        diario,
+        `   ${String(inventario.length)} pieza(s) interactiva(s)` +
+          (pintadas === 0 ? ' — la pantalla no pintó NADA que se pueda tocar' : ''),
+      );
 
       for (const pieza of inventario) {
         if (pieza.deshabilitado || !pieza.visible) continue;
@@ -414,6 +512,15 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         }
 
         const suyo = page.locator(pieza.camino);
+        // Se ESPERA a que vuelva a existir. Preguntar `count()` justo después del
+        // `goto` devolvía 0 en casi todas —el contenido llega después— y el rastreo
+        // apuntaba 36 piezas «que no reaparecen» sin haber tocado ninguna.
+        await suyo
+          .first()
+          .waitFor({ state: 'attached', timeout: TECHO_DE_ACCION_MS })
+          .catch(() => {
+            /* si no vuelve, lo dice el conteo de abajo */
+          });
         if ((await suyo.count()) !== 1) {
           // No reaparece: depende de un estado que este rastreo no reproduce —una fila
           // seleccionada, un diálogo abierto—. No es un defecto; es el límite de rastrear
