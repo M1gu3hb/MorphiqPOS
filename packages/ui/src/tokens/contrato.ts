@@ -9,11 +9,21 @@
  * Sale de `05-SISTEMA-DE-DISENO §3, §4, §5 y §9`.
  */
 
-/** Los estilos intercambiables. F1.0 construye los dos primeros. */
-export const ESTILOS_F1_0 = ['premium', 'editorial'] as const;
-export type EstiloF1_0 = (typeof ESTILOS_F1_0)[number];
+/**
+ * LOS ESTILOS CONSTRUIDOS, y todos pasan la misma auditoria.
+ *
+ * `morphiq` va primero porque es EL BASE: es la paleta de Miguel, es de donde se
+ * derivan los nombres en ingles que pinta la aplicacion, y los demas son
+ * variaciones sobre su esqueleto. Los otros dos son de la Fase 1.
+ *
+ * Esta lista se llamaba `ESTILOS_F1_0`. El nombre ataba una constante viva a una
+ * fase que ya paso, y con ella la auditoria: anadir un estilo obligaba a mirar dos
+ * veces si «F1_0» seguia queriendo decir «todos». Ahora dice lo que hace.
+ */
+export const ESTILOS_CONSTRUIDOS = ['morphiq', 'premium', 'editorial'] as const;
+export type EstiloConstruido = (typeof ESTILOS_CONSTRUIDOS)[number];
 
-/** Claro y oscuro son ortogonales al estilo: 2 estilos x 2 modos. */
+/** Claro y oscuro son ortogonales al estilo: N estilos x 2 modos. */
 export const MODOS = ['claro', 'oscuro'] as const;
 export type Modo = (typeof MODOS)[number];
 
@@ -33,6 +43,21 @@ export const TOKENS_COLOR = [
   'primario-texto',
   'acento',
   'acento-texto',
+  /**
+   * EL ACENTO SUAVE: una superficie teñida, y la tinta que va encima.
+   *
+   * No es lo mismo que `acento`, y la diferencia importa. `acento` es un color
+   * saturado que sostiene texto claro —una insignia, un boton secundario—. Esto es la
+   * SUPERFICIE tenue: el fondo de un elemento al pasar el raton, la fila resaltada de
+   * una tabla, el chip de un filtro puesto.
+   *
+   * Existe porque la paleta de Miguel ya lo tenia y el contrato no: su `--accent` es
+   * un azul clarisimo (`199 89% 92%`) con tinta azul oscura encima. Sin este par,
+   * derivar `--accent` de `acento` habria pintado de cian oscuro cada superficie de
+   * hover de la aplicacion — es decir, habria «unificado» rompiendo su diseno.
+   */
+  'acento-suave',
+  'acento-suave-texto',
   'exito',
   'exito-texto',
   'advertencia',
@@ -51,6 +76,23 @@ export const TOKENS_COLOR = [
   'lateral-fondo',
   'lateral-texto',
   'lateral-activo',
+  /**
+   * La tinta del elemento ACTIVO de la barra lateral.
+   *
+   * La barra pinta el activo con un degradado de `lateral-activo` y le pone texto
+   * encima. Sin un token para esa tinta, el componente heredado escribia `text-white`
+   * a mano sobre un azul de claridad 60 %: **3.1:1**, por debajo de AA para texto
+   * normal, en el elemento que dice donde estas.
+   */
+  'lateral-activo-texto',
+  /**
+   * El fondo de un elemento de la barra al pasar el raton.
+   *
+   * La barra lateral es OSCURA en los dos modos —decision de Miguel, y se conserva—,
+   * asi que su hover no puede salir del acento suave de la pagina: en modo claro eso
+   * seria una superficie clarisima sobre una barra casi negra. Necesita el suyo.
+   */
+  'lateral-hover',
   'lateral-borde',
 ] as const;
 
@@ -225,6 +267,26 @@ export const PARES_DE_CONTRASTE: readonly ParDeContraste[] = [
     fondo: 'lateral-fondo',
     minimo: 4.5,
     porque: 'Navegacion lateral',
+  },
+  {
+    frente: 'lateral-activo-texto',
+    fondo: 'lateral-activo',
+    minimo: 4.5,
+    porque:
+      'La tinta del elemento ACTIVO de la barra: es lo que dice donde estas, y se lee ' +
+      'de reojo diez horas al dia',
+  },
+  {
+    frente: 'acento-suave-texto',
+    fondo: 'acento-suave',
+    minimo: 4.5,
+    porque: 'Tinta sobre la superficie tenue: el hover del menu y la fila resaltada',
+  },
+  {
+    frente: 'lateral-texto',
+    fondo: 'lateral-hover',
+    minimo: 4.5,
+    porque: 'El rotulo de la barra lateral cuando el raton esta encima',
   },
   {
     frente: 'borde-fuerte',

@@ -3995,3 +3995,210 @@ la salida literal de las puertas, la URL de producción y la lista completa de l
 rastreador con su arreglo. Lo que queda fuera son dos cosas que no arregla el código y están
 escritas con sus comandos: el bucket de archivos (una credencial S3 de Supabase) y la decisión de
 producto del pedido anticipado.
+
+---
+
+# ETAPA 2.35 · EL DISEÑO
+
+Miguel entró a ver el sistema y lo primero que dijo fue que el diseño está horrible. Tenía razón, y
+la causa estaba medida: **`packages/ui/src/estilos/index.css` no lo importaba nadie.**
+
+## BLOQUE 0 · lo que quedó de la 2.3
+
+### 0.1 · EL RASTREADOR, EN CI
+
+No estaba en `.github/workflows/`, así que una regresión de botón muerto volvía sin que nada la
+detectara. Ahora es un trabajo propio, **en matriz de cinco** —uno por modelo, `fail-fast: false`—
+y cada uno **se provisiona solo**: su Postgres, sus migraciones, su negocio de demostración con su
+equipo y su catálogo, su build y su servidor. No habla con producción ni con el preview: sin
+secretos, y por eso corre en el pull request de cualquiera.
+
+Los cinco en serie son 42 minutos de reloj; en matriz, el reloj es el del modelo más lento. Y el
+rastreo **no reintenta**: la configuración da un reintento en CI para distinguir fragilidad de un
+contenedor con mal día, y aquí eso duplicaría el trabajo más lento de la tubería para volver a tirar
+el dado sobre algo que no falla una vez de cada tres.
+
+`scripts/sembrar-demos.mjs` reventaba con `ENOENT .env` antes de leer una sola variable, lo que lo
+dejaba fuera de cualquier sitio que no fuera una laptop. Ahora si no hay `.env` no pasa nada: las
+variables llegan por el entorno del trabajo.
+
+### 0.2 a 0.5 · EL RASTREADOR, COMPLETO
+
+**0.2 · El tercio que faltaba.** El encargo pedía «botón, enlace y FORMULARIO» y el selector sólo
+miraba botones y enlaces. Ahora hay **cuatro clases de pieza y cada una con su promesa**:
+
+| Clase | Qué se le exige |
+| --- | --- |
+| `boton` | que pase algo: petición, URL, DOM, diálogo o pestaña |
+| `campo` | que lo que se teclea SE QUEDE |
+| `eleccion` | que lo que se elige SE QUEDE |
+| `marca` | que la marca CAMBIE de estado |
+
+Más el `<form>`, que se **envía** con `requestSubmit` —el camino del Enter, no el del botón— y que
+tiene que hacer algo aunque sea que el servidor lo rechace. Para eso hay una **ventana de sondeo**:
+mientras se manda basura a propósito, un 400 o un 422 de la API es la validación funcionando y no
+una respuesta rota. Un 404 sigue siendo una ruta que no existe y un 5xx sigue siendo que revienta.
+
+**0.3 · Profundidad 2.** El ámbito era el `main` y Radix monta diálogos, menús y listas en un portal
+al final del `body`; y como entre toque y toque se RECARGA, la recarga cerraba el diálogo antes de
+que nadie mirara dentro. Todo lo que vive dentro de un diálogo de cobro, de alta o de confirmación
+**no lo tocaba nadie**.
+
+**0.4 · Lo que quedó sin tocar, dicho y con techo.** El cubo `inalcanzables` se llenaba, se anotaba
+«si hay alguno» y su tamaño no salía en ninguna parte: una corrida en la que la mitad de las piezas
+no se pudieron volver a encontrar se leía igual de verde que una en la que se tocó todo. Ahora sale
+en el resumen con su porcentaje, cada una con su ruta y su motivo en la bitácora, y **por encima del
+15 % la corrida falla**: «cero botones muertos» pasaría a significar «cero de los que pude tocar»,
+que es otra frase.
+
+**0.5 · Las cuatro sin menú.** Los dos `acceso-por-pin`, el portal del comensal y el menú público
+están exentas del MENÚ por razones buenas y escritas —se ven antes de que exista sesión, o las abre
+el cliente con un QR—. Exentas del menú no es exentas del rastreo: ahora se llega por su URL. Si con
+sesión abierta una redirige a la casa, se anota y se sigue, que es lo correcto y no un defecto.
+
+### Y OCHO DEFECTOS DEL PROPIO RASTREADOR, antes de creerle nada
+
+La primera corrida con profundidad 2 acusó a **66 piezas** de la tiendita, 36 de ellas con «no se
+pudo tocar» —incluidos «Cancelar» y «Cerrar» de un diálogo que Miguel usa todos los días—. Se midió
+en vez de creerlo: dentro del diálogo de «Registrar gasto», `elementFromPoint` devolvía la pieza
+correcta y `pointer-events` valía `auto` en todas. Un humano las toca sin problema.
+
+| # | Qué tenía | Cómo se vio |
+| --- | --- | --- |
+| 1 | **Buscaba las piezas de la capa por el camino del DOM.** La capa vive en un portal al final del `body`: en cuanto React repinta, esos `nth-child` apuntan a otro nodo —al velo, que sí está cubierto por el diálogo— | 36 «no se pudo tocar» que eran uno solo |
+| 2 | **Un toque puede abrir OTRA capa.** El primer clic del diálogo era un desplegable; su lista se monta encima y tapa el diálogo entero, así que todo lo que venía después estaba de verdad cubierto | ahora, si un toque abre una capa nueva, se cierra antes de seguir |
+| 3 | **La identidad era sólo el rótulo.** El rótulo vacío de un botón casa con el de un campo vacío, así que la posición podía apuntar a otra cosa y `fill` contestaba «Element is not an `<input>`» | ahora se exige la misma etiqueta HTML |
+| 4 | **Un `fill` que no se puede aplicar no es un campo muerto.** «Element is not an `<input>`» y «Malformed value» son límites de la SONDA | van al cubo de «sin alcance», no al de muertos |
+| 5 | **Acusaba con una sola vía.** `fill` pone el valor y lanza un `input`; hay componentes que escuchan `keydown` | antes de acusar se teclea **tecla por tecla**, que sólo puede quitar falsos positivos |
+
+**De 66 hallazgos a 12.** Los 54 que se fueron no eran defectos de la aplicación: eran defectos de
+la prueba, y un falso positivo cuesta lo mismo que un defecto.
+
+### 0.6 · LA PUERTA DE CABECERAS MEDÍA SOBRE UN 404
+
+`verificar-cabeceras.mjs` comprobaba las cabeceras contra **`/estilos`**, una ruta que se borró al
+portar el frontend. Las cabeceras de seguridad las pone el proxy y salen **igual en la página de
+error**, así que la puerta llevaba meses dando verde sin haber mirado una sola pantalla de la
+aplicación. Y lo que comprueba no es decorativo: si los `<script>` de Next no llevaran el nonce, la
+aplicación se serviría sin hidratar —se ve bien y no responde a un clic— y ese verde no lo habría
+notado.
+
+Ahora mide contra `/login-pos`, y **falla si la ruta sonda devuelve 404**, que es el cerrojo que
+faltaba. `docs/ARRANQUE-CODEX.md` mandaba abrir ahí: corregido.
+
+Destructiva que FALLA: devolver `RUTA_SONDA` a `/estilos` → `✗ La ruta sonda … devuelve 404`.
+
+### 0.7 · «SERVIDOR LOCAL» ERA UNA URL DE PRODUCCIÓN
+
+`verificar-acople.mjs` decidía entre «local» y «despliegue» por **cuál variable se había puesto**, no
+por lo que hay al otro lado. Así que una corrida con `APP_URL=https://morphiqpos-kappa.vercel.app`
+—que es exactamente cómo se corrió la vuelta 2.3— imprimía «contra el servidor LOCAL
+(https://…vercel.app)»: el rótulo y la URL de la misma línea se contradecían. Y por esa rama tampoco
+se comprobaba el MURO, que es lo único que distingue «el despliegue contestó» de «la Protección de
+Despliegue contestó por él».
+
+Ahora lo decide el HOST, y el muro se comprueba en cualquier URL que no sea de esta máquina:
+
+```
+despliegue    REMOTO https://morphiqpos-kappa.vercel.app → 200 · sin credencial · sin muro por delante
+```
+
+Destructiva que FALLA: apuntar a un preview con protección →
+`DESPLIEGUE: … contestó un 302 a vercel.com/sso-api, que es la Protección de Despliegue de Vercel y
+no la aplicación`.
+
+### 0.8 · EL ALMACÉN DE ARCHIVOS, CONECTADO
+
+En producción no se podía guardar un solo archivo: `STORAGE_ENDPOINT` valía `http://localhost:9000`.
+Y en la etapa del diseño eso no es un pendiente cualquiera —**el logo del negocio y las imágenes del
+menú son parte del diseño**—.
+
+El endpoint S3 de Supabase **no se puede usar con la credencial que este despliegue tiene**, y está
+medido: con la llave de servicio contesta `InvalidAccessKeyId`, y como *session token* contesta
+«the session token should be a valid JWT token». Este proyecto usa el formato de llaves nuevo
+(`sb_secret_…`), que no es un JWT; la otra vía son llaves de acceso S3, que sólo se crean en el panel.
+
+Así que hay **dos conductores** en `packages/data/src/archivos.ts` y **una sola decisión legible**:
+si el endpoint termina en `/storage/v1` es la API de Supabase; cualquier otra cosa es S3. **S3 sigue
+siendo el de por omisión y no se va**: A-27 exige que el backend corra en la PC de un cliente con su
+MinIO al lado. Las cinco operaciones del conductor nuevo están probadas contra el proyecto de verdad
+—guardar, leer con su `content-type`, copiar, sumar 44 bytes bajo un prefijo, devolver `null` para lo
+que no existe y borrar hasta dejarlo en cero—. Detalle completo en `docs/fase-2/VERCEL-ENTORNO.md §8`.
+
+Y el conductor comprueba que `STORAGE_ACCESS_KEY` sea la referencia del endpoint: la llave de un
+proyecto contra el bucket de otro es el fallo clásico de despliegue, y sin eso se manifiesta como un
+400 del almacenamiento cuatro pantallas más adelante.
+
+---
+
+## BLOQUE 1 · ENCHUFAR EL SISTEMA QUE YA EXISTÍA
+
+### Lo que estaba pasando, medido en el CSS servido
+
+`verify:primitivas` OBLIGA a las 36 primitivas a escribir `shadow-1..4` y `h-(--altura-control)` en
+unos 190 sitios. En el paquete que el navegador recibía:
+
+```
+.shadow-1 …… no existía como regla
+--altura-control …… no estaba declarada en ninguna parte
+--sombra-*, --espacio-* …… cero apariciones
+```
+
+Es decir: **el sistema pintaba con tokens que no existían**, y `width:var(--altura-control)` era una
+declaración inválida que el navegador tiraba. Por eso todo se veía plano y sin jerarquía.
+
+Hoy, en el mismo archivo:
+
+```
+.shadow-1{--tw-shadow:var(--sombra-1);box-shadow:…}
+--altura-control:2.5rem
+--sombra-2:0 1px 3px 0 hsl(var(--sombra-tinte) / .1), …
+--fondo:220 20% 98%
+```
+
+Y medido en el navegador, sobre el tablero de la tiendita: `shadow-1` computa
+`rgba(15, 23, 41, 0.06) 0px 1px 2px 0px` —con el tinte de su azul de tinta, no un gris— y
+`h-(--altura-control)` computa una altura de verdad.
+
+### UN SOLO VOCABULARIO
+
+Había dos: el inglés de shadcn —vivo, el que pintaba todo— y el español de `packages/ui` —con
+contrato, perillas y auditoría de contraste, y muerto—. Dos vocabularios garantizan que uno se queda
+atrás, y uno ya se había quedado.
+
+La unificación va **en un solo sentido**: `packages/ui/src/estilos/morphiq.css` es la fuente, y los
+nombres en inglés son alias suyos. Al revés no serviría: el inglés no tiene perillas, ni contrato, ni
+auditoría. Los 244 archivos del heredado siguen escribiendo `bg-card` y `text-muted-foreground` sin
+cambiar una clase, y **el modo oscuro desapareció de su hoja**: antes había que acordarse de tocar
+dos bloques por cada color.
+
+### EL ESTILO `morphiq`, que es el suyo
+
+Su azul `217 91%`, su fondo `220 20% 98%`, su tinta `222 47% 11%`, su barra casi negra, sus cinco
+colores de gráfica. **Seis valores no se pudieron conservar tal cual, y los seis por la misma razón:
+no llegaban a AA.**
+
+| Token | Suyo | Contraste | Ahora | Contraste |
+| --- | --- | --- | --- | --- |
+| `--primary` (el botón de COBRAR) | `217 91% 55%` | 3.42:1 | `217 91% 45%` | **4.99:1** |
+| `--input` (el borde de un campo) | `215 20% 88%` | 1.33:1 | `215 16% 48%` | **3.21:1** |
+| `--success` | `152 60% 40%` | 3.58:1 | `152 60% 33%` | 4.5+ |
+| `--destructive` | `0 72% 51%` | 4.08:1 | `0 72% 42%` | 4.5+ |
+| `--info` | `199 89% 48%` | bajo | `199 89% 32%` | 4.5+ |
+| `--sidebar-primary` (el activo del menú) | `217 91% 60%` | 3.6:1 | `217 91% 45%` | **4.99:1** |
+
+Todos conservan **su tono y su saturación**, que es la marca; lo único que baja es la claridad. Y la
+auditoría no es una opinión: `packages/ui/src/tokens/sistema.test.ts` calcula cada par en los tres
+estilos y los dos modos, **139 pruebas**.
+
+Cuatro tokens nuevos, y los cuatro porque su paleta ya distinguía lo que el contrato no:
+`acento-suave` y `acento-suave-texto` —la superficie teñida del hover, que no es lo mismo que un
+acento saturado—, `lateral-activo-texto` y `lateral-hover` —la barra es oscura en los dos modos, así
+que su hover no puede salir del acento de la página—.
+
+### Y LAS PERILLAS, ENCHUFADAS
+
+`useApariencia` estaba escrito desde la Fase 1 y **no lo llamaba nadie**. Ahora el servidor pone los
+cinco atributos en el `<html>` —sin ellos no hay `--fondo`, y sin `--fondo` no hay `--background`,
+así que la primera pintura saldría en blanco y negro— y `ProveedorDeApariencia` los vuelve estado
+para poder cambiarlos **sin recargar**. Es la mitad de la etapa 5, ya hecha.

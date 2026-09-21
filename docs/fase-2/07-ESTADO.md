@@ -558,3 +558,54 @@ vez de fingir que aparta.
 **El dominio** `pos-mh-astral-systems.com` es tarea de Miguel y no un pendiente de esta fase. Lo que
 esta vuelta sí arregló es que el despliegue funcione **por las dos URLs**: con `APP_URL` en el dominio
 propio, toda escritura desde `morphiqpos-kappa.vercel.app` contestaba 403 y nadie podía ni entrar.
+
+---
+
+## ETAPA 2.35 · EL DISEÑO
+
+Miguel entró a ver el sistema y dijo que el diseño está horrible. La causa estaba medida:
+`packages/ui/src/estilos/index.css` **no lo importaba nadie**, así que las clases que
+`verify:primitivas` obliga a escribir en unos 190 sitios —`shadow-1..4`, `h-(--altura-control)`— no
+emitían una sola línea de CSS.
+
+| Bloque | Qué | Estado |
+| --- | --- | --- |
+| **0** | Cerrar los nueve pendientes de la 2.3 | ✅ los nueve |
+| **1** | Enchufar el sistema de diseño y unificar el vocabulario | ✅ |
+| **2** | La librería: superficies, controles, datos, dinero, gráficas, navegación, movimiento | ⬜ |
+| **3** | Los ocho estilos | 🟨 `morphiq` (el base) + los dos de la Fase 1 |
+| **4** | Aplicarlo a las 69 pantallas | ⬜ |
+| **5** | El selector, en Modo Presentación | 🟨 el hook y el proveedor, enchufados |
+| **6** | Las puertas del diseño | 🟨 la de contraste ya existía y ahora audita 3 estilos |
+
+### Bloque 0, punto por punto
+
+| # | Qué quedaba | Qué se hizo |
+| --- | --- | --- |
+| 0.1 | El rastreador no era una puerta | Trabajo propio en CI, **matriz de cinco modelos**, cada uno con su Postgres, sus migraciones y su demo sembrada. Sin secretos: corre en cualquier PR |
+| 0.2 | El selector no incluía formularios | Cuatro clases de pieza —botón, campo, elección, marca— más el `<form>`, que se envía con `requestSubmit` |
+| 0.3 | Profundidad 1: los diálogos de Radix no se abrían | Profundidad 2, con la capa resuelta por posición y cerrando lo que un toque abra |
+| 0.4 | `inalcanzables` se contaba y no exigía nada | Sale en el resumen con su porcentaje y **falla por encima del 15 %** |
+| 0.5 | Cuatro pantallas nunca visitadas | Se llega por su URL; si con sesión redirigen, se anota y se sigue |
+| 0.6 | `verify:cabeceras` medía contra `/estilos`, borrada | Mide contra `/login-pos` y **falla si la ruta sonda es un 404** |
+| 0.7 | `verify:acople` rotulaba «LOCAL» una URL de producción | Lo decide el host, y comprueba el muro en cualquier URL remota |
+| 0.8 | `STORAGE_ENDPOINT` en `localhost:9000` | Bucket `morphiqpos` creado, cuatro variables puestas en `production` y `preview`, y un **segundo conductor** para la API de Supabase (su endpoint S3 exige llaves que sólo se crean en el panel) |
+| 0.9 | Sin almacén no se puede ver media fase de UI | Cerrado por 0.8 |
+
+### Y ocho defectos del propio rastreador
+
+La primera corrida con profundidad 2 acusó a **66 piezas** de la tiendita; se midió antes de
+creerlo y **54 eran suyos**, no de la aplicación. Detalle en la bitácora.
+
+### Bloque 1 · lo que cambia de golpe
+
+- `packages/ui/src/estilos/index.css`, **importado**. `.shadow-1` ya emite CSS y `--altura-control`
+  ya está declarada: medido en el paquete servido y en el navegador.
+- **Un solo vocabulario**: `morphiq.css` es la fuente y los nombres en inglés son alias suyos. El
+  modo oscuro desapareció de la hoja del heredado.
+- **Seis valores de su paleta corregidos** —tono y saturación intactos, sólo baja la claridad—
+  porque no llegaban a AA. El botón de COBRAR estaba en 3.42:1.
+- `useApariencia`, enchufado: el servidor pone los cinco atributos y un proveedor los vuelve estado
+  para cambiarlos sin recargar.
+- `pnpm ui:auditar` — los fallos de contraste de un estilo juntos, con su medida, para afinar los
+  cinco que faltan.

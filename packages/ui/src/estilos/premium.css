@@ -34,6 +34,8 @@
   --primario: 231 84% 48%;
   --primario-texto: 0 0% 100%;
   --acento: 265 68% 46%;
+  --acento-suave: 265 70% 95%;
+  --acento-suave-texto: 265 60% 26%;
   --acento-texto: 0 0% 100%;
 
   --exito: 152 62% 26%;
@@ -62,10 +64,12 @@
   --lateral-fondo: 224 32% 10%;
   --lateral-texto: 220 20% 92%;
   --lateral-activo: 231 84% 66%;
+  --lateral-activo-texto: 224 44% 10%;
+  --lateral-hover: 224 26% 18%;
   --lateral-borde: 224 22% 20%;
 }
 
-[data-estilo='premium'].oscuro {
+[data-estilo='premium'].dark {
   --sombra-tinte: 224 60% 2%;
 
   --fondo: 224 34% 7%;
@@ -84,6 +88,8 @@
   --primario: 231 90% 72%;
   --primario-texto: 224 44% 10%;
   --acento: 265 84% 76%;
+  --acento-suave: 265 30% 20%;
+  --acento-suave-texto: 265 60% 88%;
   --acento-texto: 265 44% 12%;
 
   --exito: 152 58% 64%;
@@ -107,5 +113,7 @@
   --lateral-fondo: 224 32% 9%;
   --lateral-texto: 220 20% 90%;
   --lateral-activo: 231 90% 72%;
+  --lateral-activo-texto: 224 44% 10%;
+  --lateral-hover: 224 26% 16%;
   --lateral-borde: 224 20% 18%;
 }

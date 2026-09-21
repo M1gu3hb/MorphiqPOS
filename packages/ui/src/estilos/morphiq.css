@@ -1,0 +1,202 @@
+/**
+ * Estilo `morphiq` — EL BASE. El de Miguel.
+ *
+ * ── Por qué este archivo existe, y qué problema cierra ─────────────────────
+ * Había DOS vocabularios de tokens conviviendo:
+ *
+ *   · el inglés de shadcn, en `apps/web/heredado/index.css`, VIVO: es lo que
+ *     pintaba la aplicación entera y lo que Miguel escribió;
+ *   · el español de `packages/ui`, con su contrato y sus cuatro perillas,
+ *     MUERTO: `estilos/index.css` no lo importaba nadie.
+ *
+ * Dos vocabularios es la garantía de que uno se queda atrás — y uno ya se había
+ * quedado: `verify:primitivas` obliga a 36 primitivas a escribir `shadow-1..4` y
+ * `h-(--altura-control)` en unos 190 sitios, y esas clases **no emitían una sola
+ * línea de CSS**. El sistema pintaba con tokens que no existían, y por eso todo se
+ * veía plano.
+ *
+ * La unificación va en un solo sentido: **este archivo es la fuente**, y los
+ * nombres en inglés se DERIVAN de él (ver el final de `heredado/index.css`). Al
+ * revés no serviría: el inglés no tiene perillas, ni contrato, ni auditoría de
+ * contraste, así que derivar de él sería quedarse sin las tres cosas.
+ *
+ * ── Sus valores, y los tres que hubo que corregir ──────────────────────────
+ * Cada valor de Miguel está aquí: su azul `217 91%`, su fondo `220 20% 98%`, su
+ * tinta `222 47% 11%`, su barra lateral casi negra, sus cinco colores de gráfica.
+ * Lo que NO se pudo conservar tal cual son los pares que no llegaban a AA, y está
+ * dicho uno por uno más abajo con su razón y su medida. La accesibilidad es la
+ * restricción de ENTRADA del diseño, no una revisión del final: un POS que se opera
+ * diez horas al día con prisa no puede tener el botón de COBRAR por debajo de 4.5:1.
+ *
+ * Los colores van en HSL sin la función `hsl()`, que es la convención que los dos
+ * sistemas ya usaban. Permite `hsl(var(--fondo) / 0.5)` sin duplicar un token por
+ * cada opacidad.
+ */
+
+[data-estilo='morphiq'] {
+  /* El tinte de las sombras: su azul de tinta, no un gris neutro. Es lo que hace
+     que una sombra se sienta del mismo sistema que el resto. */
+  --sombra-tinte: 222 47% 11%;
+
+  --fondo: 220 20% 98%;
+  --fondo-sutil: 215 25% 94%;
+  --superficie: 0 0% 100%;
+  --superficie-elevada: 0 0% 100%;
+
+  --texto: 222 47% 11%;
+  /* Su `--muted-foreground`, tal cual: 4.61:1 sobre el fondo. Pasa, y por poco;
+     por eso no se aclara ni un punto. */
+  --texto-sutil: 215 16% 46%;
+  /* Tercer nivel de tinta, que su paleta no tenía. Sólo para texto GRANDE y marcas
+     de agua: 3.17:1 sobre el fondo, que es el mínimo de WCAG para texto grande. */
+  --texto-tenue: 215 14% 56%;
+
+  --borde: 215 20% 88%;
+  /**
+   * EL BORDE DE UN CAMPO, más oscuro que el de una tarjeta.
+   *
+   * Su `--input` valía lo mismo que `--border` —`215 20% 88%`— y eso es 1.33:1 sobre
+   * el fondo: un campo de formulario cuyo borde nadie ve. WCAG 1.4.11 pide 3:1 para
+   * los elementos no textuales, y un cajero que no distingue dónde empieza el campo
+   * teclea fuera de él. Mismo tono, oscurecido hasta 3.21:1.
+   */
+  --borde-fuerte: 215 16% 48%;
+  --anillo: 217 91% 45%;
+
+  /**
+   * SU AZUL, oscurecido lo justo para que el rótulo se lea.
+   *
+   * `217 91% 55%` con texto blanco da **3.42:1**, y el rótulo de un botón es texto
+   * normal: hacen falta 4.5. Ese botón es el de COBRAR. Se conserva su TONO y su
+   * SATURACIÓN —que es la marca— y se baja la claridad a 45%: **4.99:1**.
+   *
+   * Lo mismo pasa con el anillo de foco, que era el mismo color.
+   */
+  --primario: 217 91% 45%;
+  --primario-texto: 0 0% 100%;
+  /**
+   * Su acento era un AZUL CLARÍSIMO de relleno (`199 89% 92%`) con texto azul
+   * oscuro encima: eso es una superficie, no un acento. Como token de acento se
+   * conserva su pareja —el `199 89%` del cian— a una claridad que sostiene texto
+   * blanco: 4.53:1. La superficie clara sigue viva donde estaba, en el nombre
+   * inglés `--accent`, que es quien la usa.
+   */
+  --acento: 199 89% 32%;
+  /* SU superficie de acento, tal cual: el azul clarisimo con tinta azul oscura.
+     Es lo que pinta el hover del menu y la fila resaltada. 7.53:1. */
+  --acento-suave: 199 89% 92%;
+  --acento-suave-texto: 217 91% 26%;
+  --acento-texto: 0 0% 100%;
+
+  /* Su verde de éxito, oscurecido de 40% a 33%: blanco sobre el suyo daba 3.58:1. */
+  --exito: 152 60% 33%;
+  --exito-texto: 0 0% 100%;
+  /* Su ámbar, intacto. Con TEXTO OSCURO, que es lo que él ya hacía: blanco sobre
+     ámbar no llega a 4.5 sin ensuciar el color hasta que deja de leerse como aviso. */
+  --advertencia: 38 92% 50%;
+  --advertencia-texto: 222 47% 11%;
+  /* Su rojo, de 51% a 42%: blanco sobre el suyo daba 4.08:1. */
+  --peligro: 0 72% 42%;
+  --peligro-texto: 0 0% 100%;
+  /* Su cian informativo, de 48% a 32% por lo mismo. */
+  --info: 199 89% 32%;
+  --info-texto: 0 0% 100%;
+
+  /* Sus cinco colores de gráfica, tal cual, más un sexto que su paleta no tenía. */
+  --grafico-1: 217 91% 55%;
+  --grafico-2: 199 89% 48%;
+  --grafico-3: 152 60% 40%;
+  --grafico-4: 38 92% 50%;
+  --grafico-5: 280 60% 55%;
+  --grafico-6: 340 65% 45%;
+
+  /* El velo del modal guarda el TINTE y no la opacidad, para que un diálogo sobre
+     fondo claro y otro sobre fondo oscuro se sientan del mismo sistema. */
+  --velo: 222 47% 11%;
+
+  --lateral-fondo: 222 47% 7%;
+  --lateral-texto: 215 20% 88%;
+  /**
+   * EL ELEMENTO ACTIVO DE LA BARRA, oscurecido para que su texto se lea.
+   *
+   * Su `--sidebar-primary` era `217 91% 60%` y el componente le pone `text-white`
+   * encima: **3.6:1**, por debajo de AA en el elemento que dice donde estas. Mismo
+   * tono y misma saturacion, claridad a 45 %: **4.99:1**. Sobre una barra casi negra
+   * (`222 47% 7%`) un azul de 45 % se ve perfectamente, y de hecho se ve mas serio.
+   */
+  --lateral-activo: 217 91% 45%;
+  --lateral-activo-texto: 0 0% 100%;
+  --lateral-hover: 222 35% 14%;
+  --lateral-borde: 222 30% 16%;
+}
+
+/**
+ * MODO OSCURO.
+ *
+ * La clase es `dark`, que es la que pone su `ThemeContext` y la única que existe
+ * en la aplicación. `oscuro:` es el nombre de la variante de Tailwind que apunta a
+ * esa misma clase: un modo oscuro con dos nombres, no dos modos oscuros.
+ */
+[data-estilo='morphiq'].dark {
+  --sombra-tinte: 222 60% 2%;
+
+  --fondo: 222 47% 6%;
+  --fondo-sutil: 222 30% 14%;
+  --superficie: 222 40% 10%;
+  --superficie-elevada: 222 40% 10%;
+
+  --texto: 215 20% 92%;
+  --texto-sutil: 215 15% 66%;
+  --texto-tenue: 215 14% 52%;
+
+  --borde: 222 25% 18%;
+  --borde-fuerte: 215 14% 52%;
+  --anillo: 217 91% 68%;
+
+  /**
+   * En oscuro el problema se invierte: su `217 91% 60%` con texto BLANCO da 3.85:1,
+   * y la salida no es oscurecer el azul —sobre un fondo casi negro un azul oscuro
+   * desaparece— sino aclararlo y poner tinta encima, que es lo que hace cualquier
+   * sistema serio en oscuro. 8.51:1.
+   */
+  --primario: 217 91% 68%;
+  --primario-texto: 222 47% 8%;
+  --acento: 199 89% 66%;
+  --acento-suave: 222 30% 18%;
+  --acento-suave-texto: 215 20% 92%;
+  --acento-texto: 199 60% 8%;
+
+  --exito: 152 55% 62%;
+  --exito-texto: 152 45% 7%;
+  --advertencia: 38 92% 62%;
+  --advertencia-texto: 222 47% 10%;
+  --peligro: 0 80% 70%;
+  --peligro-texto: 0 50% 9%;
+  --info: 199 89% 66%;
+  --info-texto: 199 60% 8%;
+
+  --grafico-1: 217 91% 68%;
+  /**
+   * El cian de su gráfica, movido a TURQUESA en oscuro y sólo en oscuro.
+   *
+   * Aclarados los dos para que se vean sobre el fondo casi negro, su azul y su cian
+   * quedan a 0.084 de distancia perceptual y el mínimo es 0.12: dos series que se
+   * confunden en una pantalla barata con poca luz, que es la pantalla donde esto va a
+   * correr. En una gráfica el color SÍ carga información, así que ahí no vale
+   * «parecido». A 188° se separan a 0.155 y siguen siendo la misma familia.
+   */
+  --grafico-2: 188 85% 58%;
+  --grafico-3: 152 55% 55%;
+  --grafico-4: 38 92% 62%;
+  --grafico-5: 280 70% 72%;
+  --grafico-6: 340 75% 65%;
+
+  --velo: 222 60% 3%;
+
+  --lateral-fondo: 222 50% 4%;
+  --lateral-texto: 215 20% 88%;
+  --lateral-activo: 217 91% 68%;
+  --lateral-activo-texto: 222 47% 8%;
+  --lateral-hover: 222 35% 10%;
+  --lateral-borde: 222 30% 12%;
+}

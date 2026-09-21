@@ -6,13 +6,13 @@ import { describe, expect, it } from 'vitest';
 import { contrasteLegible, distanciaPerceptual, leerHsl } from './color';
 import {
   DISTANCIA_MINIMA_ENTRE_GRAFICOS,
-  ESTILOS_F1_0,
+  ESTILOS_CONSTRUIDOS,
   MODOS,
   PARES_DE_CONTRASTE,
   PERILLAS,
   TOKENS_BASE,
   TOKENS_COLOR,
-  type EstiloF1_0,
+  type EstiloConstruido,
   type Modo,
 } from './contrato';
 import { CLAVES_ESTILO, ESTILOS, atributosDeEstilo } from './estilos';
@@ -30,29 +30,38 @@ const AQUI = dirname(fileURLToPath(import.meta.url));
 const CARPETA = join(AQUI, '..', 'estilos');
 
 const base: BloqueCss[] = leerArchivo(join(CARPETA, 'base.css'));
-const hojas: Record<EstiloF1_0, BloqueCss[]> = {
+const hojas: Record<EstiloConstruido, BloqueCss[]> = {
+  morphiq: leerArchivo(join(CARPETA, 'morphiq.css')),
   premium: leerArchivo(join(CARPETA, 'premium.css')),
   editorial: leerArchivo(join(CARPETA, 'editorial.css')),
 };
 
-/** Los selectores activos para un estilo y un modo concretos. */
-function selectoresActivos(estilo: EstiloF1_0, modo: Modo): string[] {
+/**
+ * Los selectores activos para un estilo y un modo concretos.
+ *
+ * La clase del modo oscuro es `dark` y no `oscuro`. Es la que pone su `ThemeContext`
+ * y la unica que existe en el `<html>` de la aplicacion; `oscuro:` es el nombre de la
+ * variante de Tailwind que apunta a esa MISMA clase. Las hojas del sistema decian
+ * `.oscuro`, asi que su modo oscuro no se activaba nunca en la aplicacion de verdad:
+ * la prueba pasaba y el navegador no veia ni un token.
+ */
+function selectoresActivos(estilo: EstiloConstruido, modo: Modo): string[] {
   const raiz = `[data-estilo='${estilo}']`;
-  return modo === 'claro' ? [':root', raiz] : [':root', raiz, `${raiz}.oscuro`];
+  return modo === 'claro' ? [':root', raiz] : [':root', raiz, `${raiz}.dark`];
 }
 
-function tokensDe(estilo: EstiloF1_0, modo: Modo): Map<string, string> {
+function tokensDe(estilo: EstiloConstruido, modo: Modo): Map<string, string> {
   return resolverTokens([...base, ...hojas[estilo]], selectoresActivos(estilo, modo));
 }
 
 describe('el contrato de tokens', () => {
-  it.each(ESTILOS_F1_0)('%s declara los tokens que no son de color', (estilo) => {
+  it.each(ESTILOS_CONSTRUIDOS)('%s declara los tokens que no son de color', (estilo) => {
     const tokens = tokensDe(estilo, 'claro');
     const faltantes = TOKENS_BASE.filter((token) => !tokens.has(token));
     expect(faltantes, `faltan en ${estilo}`).toEqual([]);
   });
 
-  for (const estilo of ESTILOS_F1_0) {
+  for (const estilo of ESTILOS_CONSTRUIDOS) {
     for (const modo of MODOS) {
       it(`${estilo} en ${modo} declara los ${String(TOKENS_COLOR.length)} tokens de color`, () => {
         const tokens = tokensDe(estilo, modo);
@@ -71,7 +80,7 @@ describe('el contrato de tokens', () => {
   }
 
   it('claro y oscuro son paletas distintas, no la misma repetida', () => {
-    for (const estilo of ESTILOS_F1_0) {
+    for (const estilo of ESTILOS_CONSTRUIDOS) {
       const claro = tokensDe(estilo, 'claro');
       const oscuro = tokensDe(estilo, 'oscuro');
       expect(oscuro.get('fondo'), estilo).not.toBe(claro.get('fondo'));
@@ -173,7 +182,7 @@ describe('las 4 perillas estructurales', () => {
 });
 
 describe('contraste AA en los 2 estilos x 2 modos (F1.0-P5)', () => {
-  for (const estilo of ESTILOS_F1_0) {
+  for (const estilo of ESTILOS_CONSTRUIDOS) {
     for (const modo of MODOS) {
       const tokens = tokensDe(estilo, modo);
 

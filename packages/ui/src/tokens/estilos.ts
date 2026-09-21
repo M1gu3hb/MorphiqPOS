@@ -30,6 +30,22 @@ export interface DefinicionEstilo {
 }
 
 export const ESTILOS: Readonly<Record<string, DefinicionEstilo>> = {
+  morphiq: {
+    clave: 'morphiq',
+    nombre: 'Morphiq',
+    referencia: 'el de Miguel',
+    para:
+      'EL BASE. Es el que ya vende y el que el cliente conoce: su azul, su radio de ' +
+      '0.75rem, sus sombras suaves. Todo lo demas son variaciones sobre este esqueleto.',
+    perillas: {
+      // Su `--radius: 0.75rem` es exactamente el `--radio-lg` de la perilla `media`,
+      // y su elevacion son sombras suaves: ni biseles ni lineas duras.
+      densidad: 'normal',
+      redondeo: 'media',
+      elevacion: 'sombra',
+      movimiento: 'normal',
+    },
+  },
   premium: {
     clave: 'premium',
     nombre: 'Premium',
@@ -56,7 +72,7 @@ export const ESTILOS: Readonly<Record<string, DefinicionEstilo>> = {
   },
 };
 
-/** Los estilos construidos hasta hoy. `industrial` llega en F1.4 y `skeuomorfico` en F1.5. */
+/** Los estilos construidos hasta hoy. Los ocho de la etapa 2.35 entran aqui. */
 export const CLAVES_ESTILO = Object.keys(ESTILOS);
 
 /**

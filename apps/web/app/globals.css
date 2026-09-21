@@ -12,6 +12,31 @@
 
 @import 'tailwindcss';
 @import 'tw-animate-css';
+
+/* ===========================================================================
+   EL SISTEMA DE DISEÑO, ENCHUFADO. Etapa 2.35.
+   ---------------------------------------------------------------------------
+   Esta línea no existía, y era LA causa de que todo se viera plano.
+
+   `packages/ui/src/estilos/index.css` trae los tokens que no dependen del
+   estilo —`--espacio-*`, `--radio-*`, `--sombra-0..4`, `--altura-control`—, las
+   cuatro perillas (`data-densidad|redondeo|elevacion|movimiento`) y la paleta de
+   cada estilo. Está escrito y probado desde la Fase 1, y **ningún archivo de
+   `apps/web` lo importaba**.
+
+   Lo que eso significaba, medido en el CSS compilado: `verify:primitivas` OBLIGA
+   a las 36 primitivas a escribir `shadow-1..4` y `h-(--altura-control)` en unos
+   190 sitios, y en el paquete servido `.shadow-1` NO EXISTÍA como regla y
+   `--altura-control` no estaba declarada en ninguna parte —así que
+   `width:var(--altura-control)` era una declaración inválida—. El sistema
+   pintaba con tokens que no existían.
+
+   Va ANTES del heredado a propósito: su hoja ahora DERIVA sus nombres en inglés
+   de estos tokens, y aunque las variables de CSS se resuelven al usarse —no al
+   declararse—, leerlo en este orden es leerlo en el orden en que manda.
+   =========================================================================== */
+@import '@morphiqpos/ui/estilos.css';
+
 @import '../heredado/index.css';
 
 /* Tailwind escanea archivos para descubrir clases. Su código vive en
@@ -75,6 +100,21 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  /* --- LA ESCALA DE ELEVACIÓN DEL SISTEMA -------------------------------
+     `shadow-1` … `shadow-4`, que es lo que `verify:primitivas` exige en las 36
+     primitivas y lo que hasta hoy no emitía una sola línea de CSS: Tailwind 4
+     genera `shadow-<clave>` a partir de `--shadow-*`, y esas claves no existían.
+
+     Los valores salen de la perilla `data-elevacion`, así que cambiarla cambia la
+     profundidad de la aplicación entera sin tocar un componente: `sombra` da
+     sombras suaves, `doble-bisel` añade luz arriba y sombra dentro, `linea-dura`
+     las vuelve un desplazamiento sólido y `plana` las apaga. */
+  --shadow-0: var(--sombra-0);
+  --shadow-1: var(--sombra-1);
+  --shadow-2: var(--sombra-2);
+  --shadow-3: var(--sombra-3);
+  --shadow-4: var(--sombra-4);
 
   /* --- animation: el acordeón de Radix --------------------------------- */
   --animate-accordion-down: accordion-down 0.2s ease-out;
