@@ -64,16 +64,16 @@ PIN** y obliga a reenrolar a todo el mundo, así que se fija una vez y no se toc
 
 ## Los comandos que vas a usar
 
-| Comando                                           | Qué hace                                                        |
-| ------------------------------------------------- | --------------------------------------------------------------- |
-| `pnpm dev`                                        | Levanta la aplicación                                           |
-| `pnpm verify`                                     | **La puerta completa.** Es lo que decide si algo está terminado |
-| `pnpm test:unit`                                  | Pruebas unitarias. Menos de un segundo, sin base de datos       |
-| `pnpm test:integracion`                           | Contra Postgres real. Pide `DATABASE_URL_PRUEBAS` —una rama de Supabase vale—  |
-| `pnpm test:e2e`                                   | Playwright. Necesita un build                                   |
-| `pnpm lint` · `pnpm typecheck`                    | Cero errores, siempre                                           |
-| `pnpm db:up` · `db:down` · `db:reset` · `db:logs` | El entorno local                                                |
-| `pnpm ui:tokenizar`                               | Tokeniza una primitiva recién agregada de shadcn                |
+| Comando                                           | Qué hace                                                                      |
+| ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `pnpm dev`                                        | Levanta la aplicación                                                         |
+| `pnpm verify`                                     | **La puerta completa.** Es lo que decide si algo está terminado               |
+| `pnpm test:unit`                                  | Pruebas unitarias. Menos de un segundo, sin base de datos                     |
+| `pnpm test:integracion`                           | Contra Postgres real. Pide `DATABASE_URL_PRUEBAS` —una rama de Supabase vale— |
+| `pnpm test:e2e`                                   | Playwright. Necesita un build                                                 |
+| `pnpm lint` · `pnpm typecheck`                    | Cero errores, siempre                                                         |
+| `pnpm db:up` · `db:down` · `db:reset` · `db:logs` | El entorno local                                                              |
+| `pnpm ui:tokenizar`                               | Tokeniza una primitiva recién agregada de shadcn                              |
 
 ### `pnpm verify` es la definición de terminado
 

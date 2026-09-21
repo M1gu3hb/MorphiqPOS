@@ -460,9 +460,7 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
          * muestra sólo se paga cuando hay una acusación que hacer.
          */
         await page.waitForTimeout(RESPIRO_MS);
-        if (
-          (await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'segunda huella')) !== antes
-        ) {
+        if ((await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'segunda huella')) !== antes) {
           continue;
         }
 
