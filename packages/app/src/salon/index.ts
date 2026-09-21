@@ -66,6 +66,8 @@ export {
   alcanzaLaCabina,
   entradaAbrirProducto,
   entradaAlcanzaCabina,
+  entradaFichaDeCabina,
+  guardarFichaDeCabina,
   type FaltanteDeCabina,
   type ResultadoAlcanza,
   type ResultadoApertura,

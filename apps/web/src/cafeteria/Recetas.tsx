@@ -82,7 +82,15 @@ export interface LineaDeReceta {
   readonly id: string;
   readonly ingrediente_id: string;
   readonly ingrediente_nombre: string | null;
-  readonly cantidad_usada: string;
+  /**
+   * La cantidad es un NÚMERO: el puente la sirve con `conversion: 'decimal'`.
+   *
+   * Declarada `string`, el costo de la receta hacía
+   * `Number(linea.cantidad_usada.replace(',', '.'))` sobre un número y la pantalla
+   * moría con `TypeError: …replace is not a function` en cuanto la receta tenía una
+   * línea. Ni 500 ni `{ok:false}`: el servidor ni se enteraba.
+   */
+  readonly cantidad_usada: number;
   readonly unidad: string;
   /** El costo CONGELADO al guardar, en pesos. */
   readonly costo_unitario_base_snapshot: number | null;
@@ -121,7 +129,7 @@ export function costoEnCanal(lineas: readonly LineaDeReceta[], canal: 'aqui' | '
     // al cobrar, y suponer lo contrario descontaría de menos.
     const aplica = linea.aplica_canal ?? 'ambos';
     if (aplica !== 'ambos' && aplica !== canal) continue;
-    const cantidad = Number(linea.cantidad_usada.replace(',', '.'));
+    const cantidad = linea.cantidad_usada;
     if (!Number.isFinite(cantidad)) continue;
     total += Math.round(cantidad * Math.round((linea.costo_unitario_base_snapshot ?? 0) * 100));
   }
@@ -308,7 +316,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
                     <li key={linea.id} className="flex items-center gap-3 py-2">
                       <span className="flex-1">{linea.ingrediente_nombre}</span>
                       <span className="tabular-nums">
-                        {linea.cantidad_usada} {linea.unidad}
+                        {String(linea.cantidad_usada)} {linea.unidad}
                       </span>
                       <span className="text-muted-foreground text-xs">
                         {CANALES.find((c) => c.clave === linea.aplica_canal)?.etiqueta ??

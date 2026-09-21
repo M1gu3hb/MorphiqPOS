@@ -76,7 +76,8 @@ export interface FichaDeProducto {
 export interface PresentacionDeProducto {
   readonly id: string;
   readonly nombre: string;
-  readonly factor: string;
+  /** El puente lo sirve con `conversion: 'decimal'`: es un NÚMERO, no texto. */
+  readonly factor: number;
   /**
    * EN PESOS y con el nombre del puente: `Presentacion` sirve
    * `precio_venta_centavos` con la conversión `dinero`.
@@ -393,7 +394,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
           {(presentaciones ?? []).map((presentacion) => (
             <li key={presentacion.id} className="flex items-baseline justify-between py-2">
               <span>{presentacion.nombre}</span>
-              <span className="text-muted-foreground text-sm">× {presentacion.factor}</span>
+              <span className="text-muted-foreground text-sm">× {String(presentacion.factor)}</span>
               <span className="tabular-nums">
                 {pesos(Math.round((presentacion.precio_venta_centavos ?? 0) * 100))}
               </span>

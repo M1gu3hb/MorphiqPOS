@@ -306,3 +306,94 @@ export const alcanzaLaCabina = definirComando<
     return { alcanza: faltantes.length === 0, faltantes };
   },
 });
+
+/**
+ * LA FICHA DE CABINA · «este producto también se usa adentro».
+ *
+ * ── El defecto que esto cierra ────────────────────────────────────
+ * La pantalla de Productos del salón guarda esos tres datos —`destino`,
+ * `factor_apertura` y `unidad_cabina`— y publicaba en
+ * `catalogo.actualizar_producto`, que **no acepta ninguno de los tres** y que
+ * exige `nombre`, `descripcion`, `categoriaId`, `visibleEnPos` y tres más que la
+ * pantalla no manda. Cada guardado moría con `ENTRADA_INVALIDA`, y aunque hubiera
+ * pasado, ese comando no escribe esas columnas: no existe ningún comando que las
+ * escriba. La pantalla cuyo trabajo entero es declarar que un producto se abre en
+ * cabina **no podía declararlo**.
+ *
+ * ── Y la regla se comprueba AQUÍ, no sólo en la base ──────────────────
+ * La 141 ya lo exige con un `check`: si el destino no es sólo venta, hacen falta
+ * el rendimiento y su unidad. Dejarlo sólo en la base convierte un dato
+ * incompleto en un 500 sin texto; aquí sale como un error de dominio con lo que
+ * falta escrito, que es lo que la pantalla puede enseñar.
+ */
+export const entradaFichaDeCabina = z
+  .object({
+    productoId: z.uuid(),
+    destino: z.enum(['venta', 'cabina', 'ambos']),
+    /** Cuántas unidades de cabina salen de UNA pieza. Hasta cuatro decimales. */
+    factorApertura: z
+      .string()
+      .trim()
+      .regex(/^\d{1,10}(?:\.\d{1,4})?$/, 'El rendimiento va con hasta cuatro decimales.')
+      .nullable(),
+    unidadCabina: z.string().trim().min(1).max(20).nullable(),
+  })
+  .superRefine((valor, ctx) => {
+    if (valor.destino === 'venta') return;
+    if (valor.factorApertura === null || Number(valor.factorApertura) <= 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['factorApertura'],
+        message: 'Un producto que entra a cabina necesita cuánto rinde al abrirse.',
+      });
+    }
+    if (valor.unidadCabina === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['unidadCabina'],
+        message: 'Un producto que entra a cabina necesita en qué unidad se mide adentro.',
+      });
+    }
+  });
+
+export const guardarFichaDeCabina = definirComando<
+  Transaccion,
+  typeof entradaFichaDeCabina,
+  { readonly id: string }
+>({
+  nombre: 'cabina.guardar_ficha',
+  entidad: 'producto',
+  escribe: true,
+  roles: [...CABINA],
+  paquetes: PAQUETES_TODOS,
+  entrada: entradaFichaDeCabina,
+  async ejecutar(ctx, entrada) {
+    const fila = await ctx.paso('guardar_ficha_de_cabina', () =>
+      ctx.tx
+        .updateTable('productos')
+        .set({
+          destino: entrada.destino,
+          factor_apertura: entrada.factorApertura,
+          unidad_cabina: entrada.unidadCabina,
+          updated_at: ctx.ahora,
+        })
+        .where('id', '=', entrada.productoId)
+        .where('organizacion_id', '=', ctx.ambito.organizacionId)
+        .returning('id')
+        .executeTakeFirst(),
+    );
+    if (fila === undefined) {
+      throw new ErrorDominio('PRODUCTO_NO_ENCONTRADO', 'Ese producto no es de este negocio.');
+    }
+
+    ctx.auditar({
+      entidadId: fila.id,
+      payload: {
+        destino: entrada.destino,
+        factorApertura: entrada.factorApertura,
+        unidadCabina: entrada.unidadCabina,
+      },
+    });
+    return { id: fila.id };
+  },
+});

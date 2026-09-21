@@ -90,7 +90,22 @@ const URGENCIA: readonly ClaveEstado[] = [
 
 export interface MesaDelMapa {
   readonly id: string;
-  readonly numero: string;
+  /**
+   * NÚMERO, y es un NÚMERO.
+   *
+   * El puente lo sirve con `conversion: 'entero'` —así está escrito en `mapa.ts`
+   * desde que las 27 entidades del restaurante tuvieron destino— y aquí estaba
+   * declarado `string`. El orden de abajo llamaba `numero.localeCompare(…)` sobre un
+   * número y la pantalla moría con `TypeError: e.numero.localeCompare is not a
+   * function` EN CUANTO llegaban las mesas: el mesero entraba con su PIN y lo que
+   * veía era la página de error del navegador.
+   *
+   * No lo vio ninguna puerta: TypeScript creyó esta declaración —`consultarPuente<T>`
+   * no valida nada en tiempo de ejecución—, el HTML abría en 200, la respuesta era
+   * `{ok:true}` y la e2e comprobaba el rótulo «Mesas», que se pinta ANTES de que
+   * lleguen los datos. Un error de consola no es un 500: el servidor ni se entera.
+   */
+  readonly numero: number;
   readonly estado: string;
   readonly zona: string | null;
   readonly capacidad: number | null;
@@ -133,7 +148,7 @@ export function porUrgencia(mesas: readonly MesaDelMapa[]): readonly MesaDelMapa
     const ia = URGENCIA.indexOf(a.estado as ClaveEstado);
     const ib = URGENCIA.indexOf(b.estado as ClaveEstado);
     if (ia !== ib) return (ia === -1 ? URGENCIA.length : ia) - (ib === -1 ? URGENCIA.length : ib);
-    return a.numero.localeCompare(b.numero, 'es-MX', { numeric: true });
+    return a.numero - b.numero;
   });
 }
 
@@ -270,7 +285,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
                   />
                 )}
 
-                <span className="text-3xl font-bold leading-none">{mesa.numero}</span>
+                <span className="text-3xl font-bold leading-none">{String(mesa.numero)}</span>
                 {/* El color NUNCA es el único portador de significado. */}
                 <span className="text-xs font-medium">{estado?.etiqueta ?? mesa.estado}</span>
 

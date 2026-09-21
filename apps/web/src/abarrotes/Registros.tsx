@@ -92,7 +92,8 @@ export interface MovimientoDeInventario {
   readonly created_date: string;
   readonly tipo_movimiento: string;
   readonly ingrediente_nombre: string | null;
-  readonly cantidad: string;
+  /** `conversion: 'decimal'` en el puente: NÚMERO. */
+  readonly cantidad: number;
   readonly motivo: string | null;
 }
 
@@ -180,7 +181,7 @@ export function componerLinea(
       hora: hora(fila.created_date),
       tipo: 'inventario',
       titulo: fila.tipo_movimiento.replace(/_/g, ' '),
-      detalle: `${fila.ingrediente_nombre ?? 'insumo'} · ${fila.cantidad}`,
+      detalle: `${fila.ingrediente_nombre ?? 'insumo'} · ${String(fila.cantidad)}`,
       importe: null,
       sinExplicacion: false,
     });
