@@ -2,6 +2,7 @@ import 'server-only';
 
 import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
+import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
@@ -101,7 +102,20 @@ export const entradaAbrirProducto = z.object({
 export const entradaAlcanzaCabina = z.object({
   /** OPCIONAL: el almacén de cabina de la sesión. Ver `entradaAbrirProducto`. */
   almacenCabinaId: z.uuid().optional(),
-  /** Lo que las citas ya agendadas van a gastar, por insumo. */
+  /**
+   * Lo que las citas ya agendadas van a gastar, por insumo.
+   *
+   * ── OPCIONAL, y por qué ─────────────────────────────────────
+   * Estaba en `.min(1)` y la única pantalla que pregunta —Productos del salón—
+   * mandaba `consumoEsperado: []` a secas, porque no tiene la agenda: cada «¿alcanza
+   * la cabina?» contestaba **400**. Y pedirle a esa pantalla que traiga el consumo
+   * del día es pedirle que calcule, con la agenda y las recetas, lo que el servidor
+   * ya puede leer en una consulta.
+   *
+   * Sin él, el comando lo DERIVA de las citas de hoy: sus servicios, las recetas de
+   * esos servicios, sumadas por insumo. Con él, se respeta lo que llega —sirve para
+   * preguntar por un escenario: «¿y si entran tres tintes más?»—.
+   */
   consumoEsperado: z
     .array(
       z.object({
@@ -109,8 +123,8 @@ export const entradaAlcanzaCabina = z.object({
         cantidadBase: z.string().regex(/^\d{1,10}(\.\d{1,4})?$/, 'Cantidad con 4 decimales.'),
       }),
     )
-    .min(1)
-    .max(200),
+    .max(200)
+    .optional(),
 });
 
 export interface ResultadoApertura {
@@ -289,7 +303,41 @@ export const alcanzaLaCabina = definirComando<
     const hayPorInsumo = new Map(existencias.map((e) => [e.insumo_id, aEscala(e.cantidad)]));
     const faltantes: FaltanteDeCabina[] = [];
 
-    for (const necesario of entrada.consumoEsperado) {
+    /**
+     * EL CONSUMO DEL DÍA, cuando quien pregunta no lo trae.
+     *
+     * Las citas de hoy —en la zona del negocio, que es la única que sabe cuándo
+     * empieza el día—, sus servicios, y las recetas de esos servicios sumadas por
+     * insumo. Las canceladas y las que no llegaron no gastan nada.
+     */
+    const esperado =
+      entrada.consumoEsperado ??
+      (await ctx.paso('consumo_del_dia', async () => {
+        const filas = await ctx.tx
+          .selectFrom('citas')
+          .innerJoin('cita_servicios', 'cita_servicios.cita_id', 'citas.id')
+          .innerJoin('recetas', 'recetas.producto_id', 'cita_servicios.servicio_id')
+          .innerJoin('organizaciones', 'organizaciones.id', 'citas.organizacion_id')
+          // La suma va como SQL literal: `fn.sum` desnudo arrastra su `this` fuera del
+          // constructor de expresiones y el lint lo prohíbe con razón.
+          .select([
+            'recetas.insumo_id as insumoId',
+            sql<string>`sum(recetas.cantidad::numeric)`.as('cantidad'),
+          ])
+          .where('citas.organizacion_id', '=', organizacionId)
+          .where('citas.estado', 'not in', ['cancelada', 'no_llego'])
+          .where(
+            sql<boolean>`(citas.agendada_para at time zone organizaciones.zona_horaria)::date = (${ctx.ahora} at time zone organizaciones.zona_horaria)::date`,
+          )
+          .groupBy('recetas.insumo_id')
+          .execute();
+        return filas.map((fila) => ({
+          insumoId: fila.insumoId,
+          cantidadBase: Number(fila.cantidad).toFixed(4),
+        }));
+      }));
+
+    for (const necesario of esperado) {
       const hay = hayPorInsumo.get(necesario.insumoId) ?? 0n;
       const hara = aEscala(necesario.cantidadBase);
       if (hay < hara) {

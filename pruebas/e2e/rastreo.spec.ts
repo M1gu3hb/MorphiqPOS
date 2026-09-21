@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import {
   abrirCajaPorLaRuta,
@@ -177,6 +177,13 @@ const RUIDO_DE_CONSOLA = [
   /Failed to load resource: the server responded with a status of 404 .*\.(png|jpg|jpeg|webp|svg|ico)/i,
   // La extensión de React, que no está instalada en el navegador de la prueba.
   /Download the React DevTools/i,
+  /**
+   * Y NADA MÁS. En particular, NO se declara como ruido el 401 que salía en
+   * `/login-pos`: era la configuración del negocio pidiéndose sin sesión, y se
+   * arregló montando ese proveedor sólo cuando hay cookie. Declararlo como ruido
+   * habría escondido el defecto en vez de cerrarlo, que es exactamente lo que esta
+   * vuelta vino a dejar de hacer.
+   */
 ];
 
 interface Clicable {
@@ -250,6 +257,42 @@ async function enumerar(page: Page): Promise<readonly Clicable[]> {
       };
     });
   });
+}
+
+/**
+ * ESPERA A QUE EL MENÚ SEA EL DEL NEGOCIO, y no el de otro.
+ *
+ * ── El parpadeo que envenenaba la lista de pantallas ──────────────────
+ * El marco heredado pinta la barra con `paquete_modo: 'tienda'` MIENTRAS la
+ * configuración del negocio viaja —está escrito en su propio código: «la plantilla
+ * más restrictiva no parpadea hacia arriba»—. Así que durante ese instante una
+ * cafetería ofrece las pantallas de la tiendita.
+ *
+ * El rastreador enumeraba el menú en ese instante y se llevaba `/abarrotes/cobrar`,
+ * `/abarrotes/fiado`, `/abarrotes/producto`… y después, al ir a tocarlas, ya no
+ * estaban: cinco «la entrada del menú no abrió su pantalla» que no eran defectos del
+ * producto sino del momento en que se miró.
+ *
+ * Se espera a que la lista de destinos se REPITA: dos muestras iguales seguidas y
+ * el menú ya es el del negocio.
+ */
+async function esperarAQueElMenuSeAsiente(page: Page, menu: Locator): Promise<void> {
+  const rutas = (): Promise<string> =>
+    menu.getByRole('link').evaluateAll((enlaces) =>
+      enlaces
+        .map((enlace) => enlace.getAttribute('href') ?? '')
+        .sort((a, b) => a.localeCompare(b))
+        .join('|'),
+    );
+
+  let anterior = '';
+  const limite = Date.now() + TECHO_DE_PINTADO_MS;
+  while (Date.now() < limite) {
+    const ahora = await conTecho(rutas(), TECHO_DE_EVALUACION_MS, 'leer el menú');
+    if (ahora === anterior && ahora !== '') return;
+    anterior = ahora;
+    await page.waitForTimeout(MUESTRA_DE_PINTADO_MS);
+  }
 }
 
 /**
@@ -466,6 +509,7 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
 
     // ── EL MENÚ · de aquí salen las pantallas, no de una lista mía ─────────
     const menu = await menuLateral(page);
+    await esperarAQueElMenuSeAsiente(page, menu);
     const entradas = await menu.getByRole('link').evaluateAll((enlaces) =>
       enlaces
         .map((enlace) => ({

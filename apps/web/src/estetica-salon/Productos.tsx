@@ -235,9 +235,16 @@ export function Productos({ productosIniciales }: ProductosProps) {
   function preguntarSiAlcanza(): void {
     setOcupado(true);
     setError(null);
+    /**
+     * SIN CONSUMO: lo calcula el servidor con la agenda de hoy.
+     *
+     * Antes iba `consumoEsperado: []` y el esquema exigía al menos uno: cada
+     * «¿alcanza?» contestaba 400. Esta pantalla no tiene la agenda —ni tiene por
+     * qué—, y el servidor sí: las citas de hoy, sus servicios y sus recetas.
+     */
     invocarComando<{ readonly alcanza: boolean; readonly faltantes: readonly FaltanteDeCabina[] }>(
       RUTA_ALCANZA,
-      { consumoEsperado: [] },
+      {},
     )
       .then((salida) => {
         // Se devuelven TODOS los faltantes: quien va a comprar hace un viaje, y
