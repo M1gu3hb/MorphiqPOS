@@ -3871,11 +3871,11 @@ prueba que **no sabe qué busca** —toca cada botón de cada pantalla y exige q
 y **tres puertas nuevas** que nacieron de lo que esa prueba encontró, cada una cerrando la CLASE
 entera del defecto y no el caso.
 
-Resultado en números: **56 defectos arreglados, uno por uno**, que suman **69 controles y llamadas**
-—un solo renglón puede cubrir 27 botones idénticos—. De los 56: **2** dejaban el sistema inservible, **7**
-eran controles que no hacían nada (31 botones), **7** enlaces a pantallas que no existen, **8** tipos
-que la pantalla declaraba mal, **19** pantallas que hablaban un idioma que el servidor no entiende
-(21 llamadas), **5** de la corrida contra producción y **8 del propio rastreador**, antes de creerle
+Resultado en números: **58 defectos arreglados, uno por uno**. Un renglón no es un botón —uno solo son
+los 27 platillos del catálogo del restaurante—. De los 58: **2** dejaban el sistema inservible, **7**
+eran controles que no hacían nada, **7** enlaces a pantallas que no existen, **8** tipos que la
+pantalla declaraba mal, **19** pantallas que hablaban un idioma que el servidor no entiende (21
+llamadas rotas), **5** de la corrida contra producción y **10 del propio rastreador**, antes de creerle
 nada. La lista
 completa, con el arreglo de cada uno, está en `docs/reports/017-fase-2.3-el-cierre.md`.
 
