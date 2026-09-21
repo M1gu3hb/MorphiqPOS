@@ -45,7 +45,7 @@ export function manejadorDeComando<E extends ZodType, S>(
     // sólo la tenían las de gestión, así que un formulario de otro sitio podía
     // llegar a `venta.cobrar` con la cookie del cajero adjunta — que es
     // exactamente el CSRF que `SameSite=Lax` no cubre por sí solo.
-    if (!peticionDeEscrituraValida(peticion, entorno.APP_URL)) {
+    if (!peticionDeEscrituraValida(peticion, entorno.APP_URL, entorno.APP_URL_ALTERNAS)) {
       return new Response(
         JSON.stringify({
           ok: false,

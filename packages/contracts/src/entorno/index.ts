@@ -82,6 +82,34 @@ export const esquemaEntorno = z.object({
   APP_URL: urlHttp('APP_URL'),
 
   /**
+   * LOS OTROS ORIGENES DESDE LOS QUE SE SIRVE ESTE MISMO DESPLIEGUE.
+   *
+   * Lista separada por comas, y OPCIONAL. `APP_URL` sigue siendo la direccion
+   * canonica —la de los enlaces de un ticket, la del portal QR— y esto es solo
+   * la lista de origenes que la frontera de escritura tambien acepta.
+   *
+   * ── El defecto que obliga a que esto exista ─────────────────────────────
+   * La frontera de escritura compara el `Origin` del navegador contra `APP_URL`
+   * y rechaza con 403 cualquier otro. Correcto contra CSRF, y a la vez: un
+   * despliegue de Vercel se sirve SIEMPRE por su dominio `*.vercel.app` ademas
+   * del dominio propio. Con `APP_URL` puesta al dominio propio —y su DNS
+   * todavia sin configurar— la aplicacion contestaba 403 a TODA escritura
+   * hecha desde la URL del despliegue, empezando por `/api/auth/entrar`: NADIE
+   * podia ni entrar. Ninguna puerta lo vio, porque las suites corren con
+   * `APP_URL=http://localhost:3200`, donde el origen siempre coincide.
+   *
+   * Lo encontro el rastreador la primera vez que alguien toco la aplicacion
+   * desplegada de verdad.
+   *
+   * ── Por que una lista y no el Host de la peticion ────────────────────────
+   * Porque el origen esperado tiene que nacer de la CONFIGURACION y nunca de la
+   * peticion (R-17): leer el `Host` seria dejar que quien ataca lo declare. Una
+   * lista la escribe quien despliega, igual que `ORGANIZACION`, que ya admite
+   * varios negocios por la misma razon.
+   */
+  APP_URL_ALTERNAS: z.string().trim().optional(),
+
+  /**
    * A que negocio sirve ESTE despliegue, por su `slug`.
    *
    * La pantalla de acceso ensena la lista de empleados ANTES de que exista

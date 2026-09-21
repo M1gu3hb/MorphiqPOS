@@ -95,7 +95,14 @@ export async function ejecutarComandoHttp<E extends ZodType, S>(
   definicion: Parameters<typeof comando<E, S>>[0],
   peticion: Request,
 ): Promise<Response> {
-  if (!peticionDeEscrituraValida(peticion, validarEntorno(process.env).APP_URL)) {
+  const entornoDelComando = validarEntorno(process.env);
+  if (
+    !peticionDeEscrituraValida(
+      peticion,
+      entornoDelComando.APP_URL,
+      entornoDelComando.APP_URL_ALTERNAS,
+    )
+  ) {
     return Response.json(errorHttp('SIN_PERMISO', 'Petición de escritura rechazada.'), {
       status: ESTADO_HTTP.SIN_PERMISO,
     });
@@ -153,11 +160,13 @@ export async function conSesion<T>(
   fn: (sesion: SesionDeNegocio) => Promise<T | Response>,
   opciones: { readonly multipart?: boolean; readonly roles?: readonly Rol[] } = {},
 ): Promise<Response> {
-  const appUrl = validarEntorno(process.env).APP_URL;
+  const entorno = validarEntorno(process.env);
+  const appUrl = entorno.APP_URL;
+  const alternas = entorno.APP_URL_ALTERNAS;
   const peticionValida =
     opciones.multipart === true
-      ? peticionMultipartValida(peticion, appUrl)
-      : peticionDeEscrituraValida(peticion, appUrl);
+      ? peticionMultipartValida(peticion, appUrl, alternas)
+      : peticionDeEscrituraValida(peticion, appUrl, alternas);
   if (!peticionValida) {
     return Response.json(errorHttp('SIN_PERMISO', 'Petición de lectura rechazada.'), {
       status: ESTADO_HTTP.SIN_PERMISO,

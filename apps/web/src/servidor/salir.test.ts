@@ -22,7 +22,11 @@ describe('POST /api/auth/salir', () => {
     const codigo = readFileSync(RUTA, 'utf8');
 
     expect(codigo).toMatch(/async function POST\(peticion: Request\)/);
-    expect(codigo).toContain('peticionDeEscrituraValida(peticion, entorno.APP_URL)');
+    // Con la canónica Y los orígenes alternos: sin los alternos, cerrar sesión
+    // contestaba 403 desde la URL del despliegue, igual que entrar.
+    expect(codigo).toMatch(
+      /peticionDeEscrituraValida\(peticion, entorno\.APP_URL, entorno\.APP_URL_ALTERNAS\)/,
+    );
     expect(codigo).toContain('leerCookie(peticion.headers.get');
     expect(codigo).toContain('await cerrarSesion(');
     expect(codigo).toContain('cookieDeCierre(');
