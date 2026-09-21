@@ -354,6 +354,29 @@ async function esperarAQueElMenuSeAsiente(page: Page, menu: Locator): Promise<vo
     );
 
   /**
+   * LA SEÑAL QUE NO ES UNA HEURÍSTICA: que el menú traiga LAS PANTALLAS DE SU MODELO.
+   *
+   * La demostración dice cuál es en su propio slug —`demo-acople-estetica`— y cada
+   * modelo tiene su prefijo de rutas. Mientras la configuración viaja, el marco
+   * heredado pinta el menú de la TIENDITA; en cuanto llega, aparecen las del modelo.
+   * Así que esperar «hasta que haya al menos una ruta de mi prefijo» es exacto, y no
+   * un tiempo inventado: tres segundos bastaron cuatro veces y a la quinta no.
+   *
+   * Para la tiendita el prefijo coincide con el del parpadeo, y ahí no hay nada que
+   * distinguir —su menú correcto ES el que se pinta primero—, así que el tiempo
+   * mínimo se queda como segundo cerrojo.
+   */
+  const prefijos: Readonly<Record<string, string>> = {
+    tienda: '/abarrotes/',
+    cafeteria: '/cafeteria/',
+    restaurante: '/restaurante/',
+    ferreteria: '/ferreteria/',
+    estetica: '/estetica-salon/',
+  };
+  const modelo = (process.env['MORPHIQPOS_ORG_DEMO'] ?? '').replace('demo-acople-', '');
+  const miPrefijo = prefijos[modelo];
+
+  /**
    * Y NO BASTA CON QUE SE REPITA DOS VECES.
    *
    * El menú de la tiendita es ESTABLE mientras la configuración viaja: dos muestras
@@ -370,7 +393,8 @@ async function esperarAQueElMenuSeAsiente(page: Page, menu: Locator): Promise<vo
   while (Date.now() < limite) {
     const ahora = await conTecho(rutas(), TECHO_DE_EVALUACION_MS, 'leer el menú');
     const estable = ahora === anterior && ahora !== '';
-    if (estable && Date.now() - desde >= ESPERA_MINIMA_DEL_MENU_MS) return;
+    const conLoSuyo = miPrefijo === undefined || ahora.includes(miPrefijo);
+    if (estable && conLoSuyo && Date.now() - desde >= ESPERA_MINIMA_DEL_MENU_MS) return;
     anterior = ahora;
     await page.waitForTimeout(MUESTRA_DE_PINTADO_MS);
   }

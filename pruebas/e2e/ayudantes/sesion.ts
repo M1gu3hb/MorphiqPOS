@@ -1172,9 +1172,22 @@ export function vigilarFallos(page: Page): () => void {
   });
 
   return function exigirSinFallos(): void {
-    const distintas = [...new Set(reventadas)].filter(
-      (fallo) => FALLOS_QUE_SON_UNA_DECISION[fallo] === undefined,
-    );
+    /**
+     * Una declaración de `<código> <ruta>` cubre TAMBÉN sus sufijos de entidad.
+     *
+     * El fallo se imprime con lo que se estaba pidiendo —`503 /api/reportes/exportar ·
+     * CorteCaja.list`— y eso es útil para leerlo, pero obligaría a declarar una línea
+     * por entidad para un fallo que es de la RUTA: el despliegue no tiene bucket, y no
+     * lo tiene más para `CorteCaja` que para `Venta`. Si la declaración no lleva
+     * sufijo, cubre la ruta entera; si lo lleva, sólo ese caso.
+     */
+    const declarado = (fallo: string): boolean => {
+      if (FALLOS_QUE_SON_UNA_DECISION[fallo] !== undefined) return true;
+      return Object.keys(FALLOS_QUE_SON_UNA_DECISION).some(
+        (clave) => !clave.includes(' · ') && fallo.startsWith(`${clave} · `),
+      );
+    };
+    const distintas = [...new Set(reventadas)].filter((fallo) => !declarado(fallo));
     expect(
       distintas,
       `La aplicación devolvió ${String(reventadas.length)} respuesta(s) rotas mientras se ` +
