@@ -342,8 +342,16 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
         insumoId: enCurso.id,
         // La cantidad viaja como TEXTO: `numeric(14,4)` no cabe en un `number`
         // sin perder el cuarto decimal, y ese decimal es la merma del mes.
-        delta: String(enCurso.delta),
-        motivo: enCurso.motivo.trim(),
+        //
+        // Y se llama `cantidad`, no `delta`: así lo pide `entradaAjustarStock`. Con
+        // `delta` faltaba un campo obligatorio y sobraba uno desconocido, así que
+        // TODO ajuste de esta pantalla contestaba `ENTRADA_INVALIDA`.
+        cantidad: String(enCurso.delta),
+        // `motivo` es una CLAVE de `motivos_merma` y desde la 062
+        // `movimientos_stock.motivo` apunta a esa tabla: lo que el operador escribe
+        // —y esta pantalla EXIGE que escriba algo— va en `nota`, que es su sitio.
+        motivo: 'ajuste_conteo',
+        nota: enCurso.motivo.trim(),
       });
       // Lo ajustado se refleja al vuelo; el valor definitivo llega con la
       // siguiente lectura. Pintar el número viejo haría dudar de si se guardó.

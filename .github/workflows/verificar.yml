@@ -212,6 +212,14 @@ jobs:
       - name: Enlaces internos
         run: pnpm verify:enlaces
 
+      # Lo que una pantalla PUBLICA contra lo que el comando ACEPTA. Cazó
+      # veintiuna: cambiar un precio, identificar a una clienta, contar la leche,
+      # capturar una receta, abrir un rollo y cortarlo NO funcionaban en ninguno de
+      # sus modelos, y un pago de crédito se aplicaba a la factura equivocada sin
+      # error en ninguna parte.
+      - name: Entradas de comando
+        run: pnpm verify:entradas
+
       - name: El heredado sin tocar
         run: pnpm verify:aspecto
 

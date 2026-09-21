@@ -39,12 +39,19 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * de recordatorio, que necesita el canal de salida que está bloqueado.
  */
 
-const RUTA_IDENTIFICAR = '/api/lealtad/identificar';
+// Identificar por teléfono es una LECTURA y va por el puente: la ruta
+// `/api/lealtad/identificar` sirve `lealtad.otorgar_sellos`, que es otra cosa.
 const RUTA_CANJEAR = '/api/lealtad/canjear';
 const RUTA_AJUSTAR = '/api/lealtad/ajustar';
 
 /** Diez dígitos, como se teclea en México. */
 const TELEFONO_CON_FORMA = /^\d{10}$/;
+
+/** Lo mínimo de un producto para poder ofrecerlo como premio. */
+export interface PremioPosible {
+  readonly id: string;
+  readonly nombre: string;
+}
 
 export interface ClienteConSellos {
   readonly id: string;
@@ -103,6 +110,9 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
     recientesIniciales ?? null,
   );
   const [confirmandoCanje, setConfirmandoCanje] = useState(false);
+  /** El premio que se lleva. Lo pide el comando: congela su costo en el ledger. */
+  const [premio, setPremio] = useState('');
+  const [premios, setPremios] = useState<readonly PremioPosible[] | null>(null);
   const [motivo, setMotivo] = useState('');
   const [ajuste, setAjuste] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +131,20 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
         .catch(() => {
           if (sigueMontada()) setRecientes([]);
         });
+      // Lo que se puede dar como premio. Hace falta AQUÍ porque el canje anota el
+      // costo del producto que se entrega, y ese costo se congela en el ledger.
+      consultarPuente<PremioPosible>('ProductoTerminado', {
+        filtro: { activo: true },
+        orden: 'nombre',
+        limite: 200,
+        signal: control.signal,
+      })
+        .then((filas) => {
+          if (sigueMontada()) setPremios(filas);
+        })
+        .catch(() => {
+          if (sigueMontada()) setPremios([]);
+        });
     };
     const arranque = setTimeout(cargar);
     return () => {
@@ -138,8 +162,22 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
     setOcupado(true);
     setError(null);
     setAviso(null);
-    invocarComando<ClienteConSellos>(RUTA_IDENTIFICAR, { telefono: limpio })
-      .then((encontrado) => {
+    /**
+     * ── IDENTIFICAR NUNCA FUNCIONÓ, y es lo PRIMERO que hace esta pantalla ──
+     * Publicaba `{telefono}` en `/api/lealtad/identificar`, que es el comando
+     * `lealtad.otorgar_sellos` y pide `{clienteId, ordenId}`: cada búsqueda
+     * contestaba **400** y la tarjeta de sellos no se podía abrir nunca. La ruta ni
+     * identifica ni debería: buscar por teléfono es una LECTURA, y las lecturas van
+     * por el puente —que además ya sirve los `sellos` derivados del ledger—.
+     */
+    consultarPuente<ClienteConSellos>('Cliente', { filtro: { telefono: limpio }, limite: 1 })
+      .then((filas) => {
+        const encontrado = filas[0];
+        if (encontrado === undefined) {
+          setCliente(null);
+          setError('Con ese teléfono no hay nadie registrado todavía.');
+          return;
+        }
         setCliente(encontrado);
         setConfirmandoCanje(false);
       })
@@ -156,7 +194,16 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
     if (cliente === null) return;
     setOcupado(true);
     setError(null);
-    invocarComando<ClienteConSellos>(RUTA_CANJEAR, { clienteId: cliente.id })
+    if (premio === '') {
+      setError('Elige qué se lleva: el premio se anota con su costo congelado.');
+      return;
+    }
+    /**
+     * EL PREMIO VIAJA, porque `lealtad.canjear` congela su COSTO en el movimiento.
+     * Antes iba sólo `{clienteId}` y contestaba 400: se podía confirmar el canje y
+     * la tarjeta no se vaciaba —ni el premio se anotaba— nunca.
+     */
+    invocarComando<ClienteConSellos>(RUTA_CANJEAR, { clienteId: cliente.id, productoId: premio })
       .then((actualizado) => {
         setCliente(actualizado);
         setConfirmandoCanje(false);
@@ -279,6 +326,30 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
                 Al canjear, la tarjeta vuelve a cero. Canjear por error cuesta un café entero y una
                 discusión.
               </p>
+              {/*
+                QUÉ SE LLEVA. No es un adorno: `lealtad.canjear` congela el COSTO del
+                producto en el movimiento —el premio de hace un año se valuó con el
+                costo de hace un año— y sin producto el comando contesta 400. Antes no
+                se preguntaba, y el canje no se podía hacer nunca.
+              */}
+              <div>
+                <Label htmlFor="premio">Qué se lleva</Label>
+                <select
+                  id="premio"
+                  className="h-[var(--altura-control)] w-full rounded-md border border-input bg-background px-3 text-base"
+                  value={premio}
+                  onChange={(evento) => {
+                    setPremio(evento.target.value);
+                  }}
+                >
+                  <option value="">Elige el premio…</option>
+                  {(premios ?? []).map((posible) => (
+                    <option key={posible.id} value={posible.id}>
+                      {posible.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="flex gap-2">
                 <Button
                   className="h-[calc(var(--altura-control)*1.2)] flex-1"

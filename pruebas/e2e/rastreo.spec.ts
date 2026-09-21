@@ -187,6 +187,21 @@ interface Clicable {
   readonly href: string | null;
   readonly deshabilitado: boolean;
   readonly visible: boolean;
+  /**
+   * YA ES LA OPCION PUESTA, y volver a tocarla no cambia nada.
+   *
+   * Lo dice el propio elemento: `aria-pressed`, `aria-selected`, `aria-checked`,
+   * `aria-current` o el `data-state` de un componente de pestanas. Un filtro que
+   * ya esta seleccionado, la leche que el cafe YA lleva, la pestana abierta: tocar
+   * eso no hace nada y ESTA BIEN que no haga nada. Apagarlo o deshabilitarlo seria
+   * peor, porque hay que poder volver a el desde otro.
+   *
+   * Sin esta regla, la pantalla de opciones de la bebida sola aportaba veintiseis
+   * «botones muertos» que no estan muertos: son la eleccion actual. Y al declararlos
+   * uno por uno, la lista de excepciones se vuelve ruido donde deberia haber
+   * defectos.
+   */
+  readonly yaActiva: boolean;
 }
 
 /**
@@ -226,6 +241,12 @@ async function enumerar(page: Page): Promise<readonly Clicable[]> {
         href: elemento.getAttribute('href'),
         deshabilitado: html.disabled === true || elemento.getAttribute('aria-disabled') === 'true',
         visible: html.offsetParent !== null || elemento.getClientRects().length > 0,
+        yaActiva:
+          elemento.getAttribute('aria-pressed') === 'true' ||
+          elemento.getAttribute('aria-selected') === 'true' ||
+          elemento.getAttribute('aria-checked') === 'true' ||
+          (elemento.getAttribute('aria-current') ?? 'false') !== 'false' ||
+          ['active', 'checked', 'on'].includes(elemento.getAttribute('data-state') ?? ''),
       };
     });
   });
@@ -449,6 +470,7 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
     const externos: string[] = [];
     const declaradosUsados = new Set<string>();
     let tocados = 0;
+    let yaActivas = 0;
 
     for (const entrada of entradas) {
       // ── 1 · SE ABRE POR EL MENÚ ─────────────────────────────────────────
@@ -499,6 +521,10 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
 
       for (const pieza of inventario) {
         if (pieza.deshabilitado || !pieza.visible) continue;
+        if (pieza.yaActiva) {
+          yaActivas += 1;
+          continue;
+        }
         if (esSalir(pieza.etiqueta)) continue;
         if (pieza.etiquetaHtml === 'a' && saleDeLaAplicacion(pieza.href)) {
           externos.push(`${entrada.ruta} «${pieza.etiqueta}» → ${pieza.href ?? ''}`);
@@ -623,7 +649,8 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
     const resumen =
       `${String(entradas.length)} pantalla(s) · ${String(tocados)} toque(s) · ` +
       `${String(inalcanzables.length)} que no reaparecen · ${String(externos.length)} enlace(s) ` +
-      `fuera de la aplicación · ${String(declaradosUsados.size)} declarado(s) sin efecto`;
+      `fuera de la aplicación · ${String(yaActivas)} ya seleccionada(s) · ` +
+      `${String(declaradosUsados.size)} declarado(s) sin efecto`;
     test.info().annotations.push({ type: 'rastreo', description: resumen });
     bitacora(diario, `— ${resumen}`);
     for (const m of muertos) bitacora(diario, `MUERTO ${m.ruta} «${m.etiqueta}» · ${m.motivo}`);

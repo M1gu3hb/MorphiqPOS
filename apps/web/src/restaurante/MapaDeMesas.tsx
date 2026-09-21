@@ -220,9 +220,16 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
           aria-label="Zonas del salón"
           className="flex gap-1 overflow-x-auto md:overflow-visible"
         >
+          {/*
+            `aria-pressed` no es decoración: es lo ÚNICO que dice qué zona está puesta a
+            quien no ve el color del botón. Faltaba en las dos, así que un lector de
+            pantalla anunciaba cuatro botones iguales y ninguno «pulsado». El catálogo
+            de este mismo modelo ya lo pone en su fila de filtros; esta se quedó atrás.
+          */}
           <Button
             type="button"
             size="sm"
+            aria-pressed={zona === null}
             variant={zona === null ? 'default' : 'ghost'}
             onClick={() => {
               setZona(null);
@@ -235,6 +242,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
               key={z}
               type="button"
               size="sm"
+              aria-pressed={zona === z}
               variant={zona === z ? 'default' : 'ghost'}
               onClick={() => {
                 setZona(z);

@@ -7,9 +7,8 @@ import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { useEffect, useState } from 'react';
 
-import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { consultarPuente } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
-import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
  * PANTALLA · cafeteria · menu-publico-y-pedido-anticipado
@@ -44,7 +43,8 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * pago en línea y el aviso por mensaje, que dependen de decisiones de Miguel.
  */
 
-const RUTA_PROGRAMAR = '/api/portal/pedido-anticipado';
+/** El salto de línea del pedido redactado. */
+const CHR_SALTO = '\n';
 
 /** Quince minutos: lo que la barra puede sostener de verdad. */
 const MINUTOS_POR_TRAMO = 15;
@@ -113,11 +113,6 @@ export function totalDelCarrito(lineas: readonly LineaDelCarrito[]): number {
   return lineas.reduce((suma, linea) => suma + linea.precioCentavos * linea.cantidad, 0);
 }
 
-function mensajeDe(fallo: unknown, voc: Vocabulario): string {
-  if (fallo instanceof ErrorApi) return fallo.message;
-  return `No se pudo apartar ${voc.enFrase('unidad_servicio')}. Vuelve a intentarlo.`;
-}
-
 export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: MenuPublicoProps) {
   const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoPublico[] | null>(
@@ -128,9 +123,8 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
   const [telefono, setTelefono] = useState('');
   const [tramo, setTramo] = useState<string | null>(null);
   const [reloj, setReloj] = useState(ahora ?? 0);
-  const [folio, setFolio] = useState<string | null>(null);
+  const [pedidoEnTexto, setPedidoEnTexto] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
 
   useEffect(() => {
     if (ahora !== undefined) return;
@@ -202,24 +196,44 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
       setError('Elige qué quieres y para qué hora.');
       return;
     }
-    setOcupado(true);
-    setError(null);
-    invocarComando<{ readonly folio: string }>(RUTA_PROGRAMAR, {
-      nombrePedido: nombre.trim(),
-      telefono: telefono.trim() === '' ? null : telefono.trim(),
-      paraLas: tramo,
-      lineas: carrito.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad })),
-    })
-      .then((salida) => {
-        setFolio(salida.folio);
-        setCarrito([]);
+    /**
+     * ── LO QUE ESTE BOTÓN PROMETÍA Y EL SISTEMA NO PUEDE CUMPLIR ──────────
+     * Publicaba en `cafeteria.programar_pedido` con `{nombrePedido, paraLas, lineas}`,
+     * y ese comando pide `{ordenId, nombre, horaPrometida}` —ninguno de los tres— y
+     * **exige que la orden esté PAGADA**: «el pedido anticipado se cobra antes: sin
+     * cobro es una reserva y las reservas no llegan», lo dice su propio código. Por si
+     * quedara duda, su ruta va por `manejadorDeComando`, que exige SESIÓN: el teléfono
+     * de una clienta no tiene ninguna.
+     *
+     * Tres imposibilidades a la vez, y la cabecera de esta pantalla prometiendo lo
+     * contrario —«se aparta y se paga en la barra»—. No se puede arreglar aquí: hace
+     * falta decidir si se cobra en línea o si se aceptan reservas sin prenda, y eso
+     * NO lo decide una pantalla. Queda dicho en el informe.
+     *
+     * Lo que sí se puede, y es lo que hace: el sistema REDACTA el pedido y la persona
+     * lo lleva. Es la misma regla del fiado —el sistema redacta, la persona manda— y
+     * resuelve la mitad del dolor: llegar con el pedido escrito en vez de pensarlo en
+     * la fila.
+     */
+    const lineas = carrito
+      .map((l) => {
+        const suyo = productos?.find((p) => p.id === l.productoId);
+        return `${String(l.cantidad)} × ${suyo?.nombre ?? 'producto'}`;
       })
-      .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo, voc));
-      })
-      .finally(() => {
-        setOcupado(false);
-      });
+      .join(CHR_SALTO);
+    const texto = [
+      `Pedido de ${nombre.trim()}`,
+      `Para las ${tramo.slice(11, 16)}`,
+      '',
+      lineas,
+      '',
+      `Total aproximado ${PESOS.format(totalDelCarrito(carrito) / 100)}`,
+    ].join(CHR_SALTO);
+    setPedidoEnTexto(texto);
+    // Sin permiso de portapapeles queda el texto a la vista, que es suficiente.
+    void navigator.clipboard.writeText(texto).catch(() => {
+      /* el texto ya está en pantalla */
+    });
   }
 
   if (productos === null) {
@@ -231,14 +245,24 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
     );
   }
 
-  if (folio !== null) {
+  if (pedidoEnTexto !== null) {
     return (
-      <main className="mx-auto max-w-lg space-y-4 p-6 text-center">
-        <h1 className="text-2xl font-semibold">Ya está apartado</h1>
-        <p className="text-4xl font-semibold tabular-nums">{folio}</p>
-        <p className="text-muted-foreground">
-          Se paga en {voc.enFrase('preparacion')} al recogerlo. Di tu nombre y ya está.
+      <main className="mx-auto max-w-lg space-y-4 p-6">
+        <h1 className="text-2xl font-semibold">Tu pedido, listo para pedirlo</h1>
+        <p className="text-muted-foreground text-sm">
+          Se copió solo. Enséñalo o léelo en {voc.enFrase('preparacion')}: se paga al recogerlo.
         </p>
+        <pre className="whitespace-pre-wrap rounded border border-border bg-card p-3 text-sm">
+          {pedidoEnTexto}
+        </pre>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setPedidoEnTexto(null);
+          }}
+        >
+          Cambiar el pedido
+        </Button>
       </main>
     );
   }
@@ -372,11 +396,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
           />
         </div>
 
-        <Button
-          className="h-[calc(var(--altura-control)*1.4)] w-full text-base"
-          disabled={ocupado}
-          onClick={apartar}
-        >
+        <Button className="h-[calc(var(--altura-control)*1.4)] w-full text-base" onClick={apartar}>
           Apartar
         </Button>
       </section>

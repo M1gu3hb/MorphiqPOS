@@ -38,8 +38,12 @@ const mutaciones = [
   },
   {
     ruta: 'packages/app/src/catalogo/productos.ts',
-    antes: 'const costo = desdeTexto(entrada.costoUnitario);',
-    despues: 'const costo = 0n;',
+    // El costo pasó a ser OPCIONAL en `cambiar_precio` —las dos pantallas que
+    // cambian un precio no lo tienen a mano y mandarlo obligaba a reescribirlo—
+    // así que la línea mutada cambió de forma. La mutación es la misma: poner el
+    // costo en cero cuando SÍ viene.
+    antes: 'entrada.costoUnitario === undefined ? null : desdeTexto(entrada.costoUnitario)',
+    despues: '0n',
     indice: 0,
     nombre: 'costo actualizado en cero',
   },

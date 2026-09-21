@@ -37,6 +37,18 @@ const ingrediente = z.object({
   cantidad: z.string().regex(/^\d{1,10}(?:\.\d{1,4})?$/),
   unidad,
   mermaBp: z.number().int().min(0).max(10_000),
+  /**
+   * EN QUÉ CANALES entra esta línea. `'ambos'` = en todos, que es nulo en la base.
+   *
+   * ── Por qué entra ahora ────────────────────────────────────────
+   * La columna `recetas.aplica_canal` existe desde la 083 —«nulo = aplica a todos»— y
+   * es la que mete el vaso y la tapa en el costo de lo que se lleva. La pantalla de
+   * recetas de la cafetería pregunta el canal de cada línea desde el primer día y
+   * este comando no lo aceptaba: el dato se elegía y no se guardaba en ninguna
+   * parte. Un campo que la interfaz pide y el comando no escribe es una promesa
+   * silenciosa, que es la peor clase.
+   */
+  aplicaCanal: z.enum(['ambos', 'aqui', 'llevar']).default('ambos'),
 });
 
 export const entradaGuardarReceta = z.object({
@@ -88,7 +100,13 @@ export const guardarReceta = definirComando<
       .executeTakeFirst();
     if (producto === undefined)
       throw new ErrorDominio('CATALOGO_INVALIDO', 'El producto no existe.');
-    const filas: { insumoId: string; cantidad: string; unidad: string; mermaBp: number }[] = [];
+    const filas: {
+      insumoId: string;
+      cantidad: string;
+      unidad: string;
+      mermaBp: number;
+      canales: string | null;
+    }[] = [];
     for (const item of entrada.ingredientes) {
       const insumo = await ctx.tx
         .selectFrom('insumos')
@@ -108,6 +126,10 @@ export const guardarReceta = definirComando<
         cantidad: cantidadATexto(cantidad(item.cantidad)),
         unidad: item.unidad,
         mermaBp: item.mermaBp,
+        // Nulo = todos los canales, que es lo que la 083 prefiere a sembrar el
+        // arreglo completo: «no depende del canal» y «aplica a los cuatro de hoy» no
+        // son la misma afirmación, y la segunda envejece mal.
+        canales: item.aplicaCanal === 'ambos' ? null : `{${item.aplicaCanal}}`,
       });
     }
     await ctx.paso('reemplazar_receta', async () => {
@@ -122,9 +144,9 @@ export const guardarReceta = definirComando<
 
       const valores = filas.map(
         (item) =>
-          sql`(${ctx.ambito.organizacionId}, ${entrada.productoId}, ${item.insumoId}, ${item.cantidad}, ${item.unidad}, ${item.mermaBp})`,
+          sql`(${ctx.ambito.organizacionId}, ${entrada.productoId}, ${item.insumoId}, ${item.cantidad}, ${item.unidad}, ${item.mermaBp}, ${item.canales})`,
       );
-      await sql`insert into recetas (organizacion_id, producto_id, insumo_id, cantidad, unidad, merma_bp) values ${sql.join(valores)}`.execute(
+      await sql`insert into recetas (organizacion_id, producto_id, insumo_id, cantidad, unidad, merma_bp, aplica_canal) values ${sql.join(valores)}`.execute(
         ctx.tx,
       );
     });
