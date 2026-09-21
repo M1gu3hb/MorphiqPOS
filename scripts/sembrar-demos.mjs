@@ -22,10 +22,18 @@
  * `demo-acople-`, y además rechaza explícitamente los cuatro por su slug:
  * `F2.3-REGLAS §4.5`.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
-// El `.env` a mano: este script no pasa por Next, que es quien lo carga.
-for (const linea of readFileSync('.env', 'utf8').split('\n')) {
+/**
+ * El `.env` a mano: este script no pasa por Next, que es quien lo carga.
+ *
+ * Y SI NO HAY, no pasa nada: en CI las variables llegan por el entorno del
+ * trabajo y el archivo no existe. Antes esto reventaba con `ENOENT .env` antes de
+ * leer una sola variable, lo que dejaba la siembra fuera de cualquier sitio que no
+ * fuera una laptop con su `.env` — y con ella el rastreador, que necesita las cinco
+ * demostraciones sembradas para poder tocar algo.
+ */
+for (const linea of (existsSync('.env') ? readFileSync('.env', 'utf8') : '').split('\n')) {
   const encontrado = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(linea.trim());
   if (encontrado !== null && process.env[encontrado[1]] === undefined) {
     process.env[encontrado[1]] = encontrado[2].replace(/^["']|["']$/g, '');

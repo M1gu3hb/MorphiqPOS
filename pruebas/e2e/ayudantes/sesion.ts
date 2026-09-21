@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import type { Locator, Page, PlaywrightWorkerArgs, Response, TestInfo } from '@playwright/test';
 
 /**
@@ -1137,8 +1137,27 @@ function loQuePedia(respuesta: Response): string {
   }
 }
 
-export function vigilarFallos(page: Page): () => void {
+/**
+ * QUÉ SE LE PERDONA AL SERVIDOR MIENTRAS SE LE MANDA BASURA A PROPÓSITO.
+ *
+ * El rastreador envía formularios con datos de sonda para comprobar que el camino del
+ * `<form>` existe. El servidor hace lo correcto: los rechaza. Un 400
+ * `ENTRADA_INVALIDA` ahí no es una respuesta rota —es la validación funcionando—, y
+ * contarlo como fallo haría que la aplicación pareciera reventar justo cuando mejor se
+ * comporta.
+ *
+ * Se perdona SOLO el 400 y el 422, SOLO mientras `sondeando()` diga que sí, y se
+ * cuenta para que salga en el resumen. Un 404 sigue siendo una ruta que no existe, un
+ * 5xx sigue siendo que revienta y un `{ok:false}` con 200 sigue siendo un dato que no
+ * llegó.
+ */
+export interface OpcionesDeVigilancia {
+  readonly sondeando?: () => boolean;
+}
+
+export function vigilarFallos(page: Page, opciones: OpcionesDeVigilancia = {}): () => void {
   const reventadas: string[] = [];
+  const rechazosDeSonda: string[] = [];
   const cuerpos: Promise<void>[] = [];
 
   page.on('response', (respuesta) => {
@@ -1147,6 +1166,10 @@ export function vigilarFallos(page: Page): () => void {
 
     // Sólo la API: un 404 de un `.map` o de un icono no es un botón roto.
     const esApi = ruta.startsWith('/api/');
+    if (esApi && (estado === 400 || estado === 422) && opciones.sondeando?.() === true) {
+      rechazosDeSonda.push(`${String(estado)} ${ruta}`);
+      return;
+    }
     if (estado >= 500 || (esApi && estado >= 400)) {
       reventadas.push(`${String(estado)} ${ruta}${loQuePedia(respuesta)}`);
       return;
@@ -1172,6 +1195,12 @@ export function vigilarFallos(page: Page): () => void {
   });
 
   return function exigirSinFallos(): void {
+    if (rechazosDeSonda.length > 0) {
+      test.info().annotations.push({
+        type: 'sondas-rechazadas',
+        description: `${String(rechazosDeSonda.length)} formulario(s) de sonda rechazados por el servidor: ${[...new Set(rechazosDeSonda)].join(', ')}`,
+      });
+    }
     /**
      * Una declaración de `<código> <ruta>` cubre TAMBÉN sus sufijos de entidad.
      *

@@ -1266,6 +1266,37 @@ function credencialDelMuro() {
 
 const MURO = credencialDelMuro();
 
+/**
+ * ¿ESTA URL ES DE ESTA MÁQUINA? Lo dice el HOST, no la variable que la trajo.
+ *
+ * ── El rótulo que mentía ────────────────────────────────────────────────
+ * Esto decidía «LOCAL» o «despliegue» por CUÁL VARIABLE se había puesto: con
+ * `MORPHIQPOS_URL_DESPLIEGUE` era un despliegue y con `APP_URL` era local. Así que una
+ * corrida con `APP_URL=https://morphiqpos-kappa.vercel.app` —que es exactamente cómo se
+ * corrió la vuelta 2.3— imprimía «contra el servidor LOCAL (https://…vercel.app)»:
+ * el rótulo y la URL de la misma línea se contradecían.
+ *
+ * Y no era sólo el rótulo. Por esa rama tampoco se comprobaba el MURO, que es lo único
+ * que distingue «el despliegue contestó» de «la Protección de Despliegue contestó por
+ * él». Una puerta que dice contra qué midió tiene que saberlo de verdad.
+ */
+function esDeEstaMaquina(base) {
+  try {
+    const anfitrion = new URL(base).hostname.toLowerCase();
+    return anfitrion === 'localhost' || anfitrion === '127.0.0.1' || anfitrion === '::1';
+  } catch {
+    return false;
+  }
+}
+
+/** ¿Esto lo contestó el muro de Vercel y no la aplicación? */
+function huelloDelMuro(respuesta) {
+  if (respuesta.status === 401) return 'un 401 del muro';
+  const aDonde = respuesta.headers.get('location') ?? '';
+  if (aDonde.includes('vercel.com/sso-api')) return 'un 302 a vercel.com/sso-api';
+  return null;
+}
+
 async function comprobarDespliegue() {
   const despliegue = entorno('MORPHIQPOS_URL_DESPLIEGUE');
   const local = entorno('APP_URL');
@@ -1276,15 +1307,13 @@ async function comprobarDespliegue() {
     return undefined;
   }
 
-  if (despliegue === undefined) {
+  const enEstaMaquina = esDeEstaMaquina(base);
+
+  if (enEstaMaquina) {
     // La salida escrita en §8.1: sin token de Vercel, la comprobación se hace
     // contra el servidor local, se DICE, y no bloquea el 0. Sin esta salida el
     // encargo sería imposible de cerrar y a la vez estaría prohibido detenerse.
-    if (existsSync(ENTORNO_VERCEL)) {
-      notas.push(
-        `despliegue    contra el servidor LOCAL (${base}) · ver docs/fase-2/VERCEL-ENTORNO.md`,
-      );
-    } else {
+    if (!existsSync(ENTORNO_VERCEL)) {
       fallos.push(
         'DESPLIEGUE: no hay URL de despliegue y tampoco docs/fase-2/VERCEL-ENTORNO.md ' +
           'que declare por qué. Una de las dos cosas tiene que existir.',
@@ -1302,8 +1331,27 @@ async function comprobarDespliegue() {
 
   const ok = respuesta.status === 200 || (respuesta.status >= 300 && respuesta.status < 400);
   exigir(ok, `DESPLIEGUE: ${base} devolvió ${respuesta.status}`);
-  if (ok && despliegue !== undefined) {
-    notas.push(`despliegue    ${base} → ${respuesta.status} · ${MURO.como}`);
+
+  // EL MURO, en cualquier URL que no sea de esta máquina. Da igual qué variable la
+  // trajo: si lo que contesta es la Protección de Despliegue, todo lo que esta puerta
+  // mida después es del muro y no de la aplicación, y decir «rutas vivas» sería falso.
+  const muro = enEstaMaquina ? null : huelloDelMuro(respuesta);
+  if (muro !== null) {
+    fallos.push(
+      `DESPLIEGUE: ${base} contestó ${muro}, que es la Protección de Despliegue de Vercel y ` +
+        'no la aplicación. Lo que se mida a partir de aquí es del muro. Pasa una credencial ' +
+        '—MORPHIQPOS_BYPASS_VERCEL o MORPHIQPOS_COOKIE_VERCEL— o apunta a una URL sin muro; ' +
+        'ver docs/fase-2/VERCEL-ENTORNO.md §2.',
+    );
+  }
+
+  if (ok) {
+    notas.push(
+      enEstaMaquina
+        ? `despliegue    contra el servidor de ESTA MÁQUINA (${base}) → ${respuesta.status} · ver docs/fase-2/VERCEL-ENTORNO.md`
+        : `despliegue    REMOTO ${base} → ${respuesta.status} · ${MURO.como} · ` +
+            (muro === null ? 'sin muro por delante' : `DETRÁS DEL MURO (${muro})`),
+    );
   }
   return base;
 }
