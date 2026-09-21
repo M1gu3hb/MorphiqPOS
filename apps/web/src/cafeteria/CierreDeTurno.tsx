@@ -402,7 +402,7 @@ export function CierreDeTurno({
           con el fondo desglosado por denominación.
         </p>
         <Button asChild>
-          <a href="/cafeteria/caja">Abrir el turno</a>
+          <a href="/cafeteria/turno">Abrir el turno</a>
         </Button>
         {error !== null && (
           <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-2">

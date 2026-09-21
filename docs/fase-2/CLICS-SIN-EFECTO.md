@@ -30,7 +30,21 @@ CLIC-SIN-EFECTO /ruta «Texto del botón» — el motivo, en una frase
 
 ## La lista
 
-Vacía. Cada línea que se añada aquí es un botón que el producto promete y no cumple, o una decisión
-que hay que poder defender en una frase.
+Cada línea es un botón que el producto promete y no cumple, o una decisión que hay que poder
+defender en una frase. Todas las de abajo son **la misma decisión**: un filtro que YA está puesto.
+
+### El filtro que ya está seleccionado
+
+Las pestañas de filtro nacen con una activa —«Todas», o la primera— y volver a tocarla no cambia
+nada, porque el estado ya es ése. No es un botón muerto: es un botón en su sitio, con su
+`aria-pressed` diciendo que está puesto. Cambiar eso —apagarla, o deshabilitarla— sería peor: la
+pestaña activa tiene que seguir viéndose y siendo tocable para volver a ella desde otra.
+
+El rastreador vuelve al estado inicial entre toque y toque, así que siempre encuentra la primera
+seleccionada. Por eso son exactamente estas y no las demás de su fila.
+
+CLIC-SIN-EFECTO /restaurante/mapa-de-mesas «Todas» — es la zona ya seleccionada al abrir; tocarla otra vez no cambia el filtro
+CLIC-SIN-EFECTO /restaurante/productos «Todas» — es el área ya seleccionada al abrir; tocarla otra vez no cambia el filtro
+CLIC-SIN-EFECTO /restaurante/caja «Pendientes 0» — es la pestaña ya seleccionada al abrir, y con cero cuentas no hay lista que cambiar
 
 <!-- CLIC-SIN-EFECTO /ruta «Texto» — motivo -->

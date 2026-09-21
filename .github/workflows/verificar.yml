@@ -205,6 +205,13 @@ jobs:
       - name: Tipos de pantalla contra el puente
         run: pnpm verify:tipos-de-pantalla
 
+      # Cada `href` interno contra las pantallas que `app/` sirve de verdad. Cazó
+      # seis 404 en la cara del usuario, uno de ellos a una pantalla que no existe
+      # en ninguna parte del sistema. La puerta de «rutas llamadas» no los ve:
+      # aquélla comprueba las de `/api/`.
+      - name: Enlaces internos
+        run: pnpm verify:enlaces
+
       - name: El heredado sin tocar
         run: pnpm verify:aspecto
 

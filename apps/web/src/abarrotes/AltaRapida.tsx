@@ -159,6 +159,9 @@ export function AltaRapida({
   );
   const [fallaCategorias, setFallaCategorias] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
+  // La PRIMERA categoría se crea aquí. Ver el vacío de más abajo.
+  const [nuevaCategoria, setNuevaCategoria] = useState('');
+  const [creandoCategoria, setCreandoCategoria] = useState(false);
 
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,10 +181,50 @@ export function AltaRapida({
         // Lo capturado NO se borra por un fallo de lectura: el cajero ya tecleó.
         if (sigueMontada()) setFallaCategorias('No se pudieron leer las categorías.');
       });
+
     return () => {
       control.abort();
     };
   }, [categoriasIniciales, intento]);
+
+  /**
+   * LA PRIMERA CATEGORÍA, CREADA AQUÍ.
+   *
+   * ── Lo que había antes, y por qué no servía ───────────────────────
+   * El vacío decía «Todavía no hay categorías, y son las que cargan el impuesto» y
+   * ofrecía «Crear la primera categoría» apuntando a `/abarrotes/categorias`: una
+   * pantalla que **no existe en ninguna parte del sistema**. 404, y el alta de
+   * productos bloqueada —la categoría es obligatoria— sin ninguna salida.
+   *
+   * No hay pantalla de categorías que arreglar el enlace, y no hacía falta: la
+   * entidad `CategoriaProducto` tiene `escritura: 'directa'` en el puente, así que
+   * se crea desde aquí con la misma ruta con la que esta pantalla ya escribe. El
+   * vacío pasa de señalar una puerta cerrada a resolver lo que falta.
+   */
+  const crearCategoria = async (): Promise<void> => {
+    const limpio = nuevaCategoria.trim();
+    if (limpio === '') {
+      setFallaCategorias('Pon el nombre de la categoría.');
+      return;
+    }
+    setCreandoCategoria(true);
+    setFallaCategorias(null);
+    try {
+      await invocarComando<unknown>('/api/datos/escribir', {
+        entidad: 'CategoriaProducto',
+        operacion: 'create',
+        datos: { nombre: limpio, activo: true },
+      });
+      setNuevaCategoria('');
+      // Se vuelven a leer: el identificador lo pone el servidor y es el que el
+      // selector de abajo necesita.
+      setIntento((n) => n + 1);
+    } catch (fallo: unknown) {
+      setFallaCategorias(mensajeDe(fallo));
+    } finally {
+      setCreandoCategoria(false);
+    }
+  };
 
   function cancelar(): void {
     if (onCancelar !== undefined) {
@@ -439,9 +482,29 @@ export function AltaRapida({
                   De la categoría salen la tasa de IVA y el régimen de IEPS. Con seis bien puestas,
                   los 1,800 productos quedan clasificados sin decidir uno por uno.
                 </p>
-                <Button asChild size="sm" className="mt-2">
-                  <a href="/abarrotes/categorias">Crear la primera categoría</a>
-                </Button>
+                <div className="mt-2 flex flex-wrap items-end gap-2">
+                  <div className="grow">
+                    <Label htmlFor="categoria-nueva">Nombre de la categoría</Label>
+                    <Input
+                      id="categoria-nueva"
+                      value={nuevaCategoria}
+                      placeholder="Abarrotes, Bebidas, Limpieza…"
+                      onChange={(evento) => {
+                        setNuevaCategoria(evento.target.value);
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={creandoCategoria}
+                    onClick={() => {
+                      void crearCategoria();
+                    }}
+                  >
+                    {creandoCategoria ? 'Creando…' : 'Crear la primera categoría'}
+                  </Button>
+                </div>
               </div>
             )}
 

@@ -148,7 +148,21 @@ function leerDeclarados(): ReadonlyMap<string, string> {
   const declarados = new Map<string, string>();
   if (!existsSync(DECLARADOS)) return declarados;
   const texto = readFileSync(DECLARADOS, 'utf8');
+  /**
+   * Las lineas dentro de un bloque de codigo NO son declaraciones.
+   *
+   * El archivo ensena el formato con un ejemplo dentro de sus comillas triples, y
+   * sin esto la prueba lo leia como una declaracion de verdad y despues exigia
+   * borrarla por no corresponder a ningun boton: una puerta que encuentra su propio
+   * ejemplo y se queja de el.
+   */
+  let dentroDeUnBloque = false;
   for (const linea of texto.split(/\r?\n/)) {
+    if (/^\s*```/.test(linea)) {
+      dentroDeUnBloque = !dentroDeUnBloque;
+      continue;
+    }
+    if (dentroDeUnBloque) continue;
     const encaja = /^\s*CLIC-SIN-EFECTO\s+(\S+)\s+«([^»]*)»\s*[—-]\s*(.+?)\s*$/.exec(linea);
     if (encaja === null) continue;
     declarados.set(`${encaja[1] ?? ''} «${encaja[2] ?? ''}»`, encaja[3] ?? '');

@@ -333,7 +333,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
             del día. Por eso esto es un muro y no un aviso.
           </p>
           <Button asChild>
-            <a href="/cafeteria/caja">Abrir turno</a>
+            <a href="/cafeteria/turno">Abrir turno</a>
           </Button>
         </div>
         {banda}
@@ -352,7 +352,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           productos con precio, aparecen aquí y se cobran tocándolos.
         </p>
         <Button asChild>
-          <a href="/catalogo">Cargar el menú</a>
+          <a href="/cafeteria/productos">Cargar el menú</a>
         </Button>
         {banda}
       </div>

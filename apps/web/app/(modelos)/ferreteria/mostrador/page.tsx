@@ -1,13 +1,23 @@
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+
 import { Mostrador } from '~/ferreteria/Mostrador';
 
 /**
  * La pantalla insignia de la ferretería: armar la nota con el cliente enfrente.
  *
- * La página es una línea a propósito — el componente vive en `apps/web/src/`,
- * donde el verificador de primitivas sí vigila los literales.
+ * ── `?buscar=` · el enlace que daba 404 ────────────────────────────────────
+ * La pantalla de Entradas ofrece «Buscar…» por cada renglón del proveedor que no
+ * se pudo emparejar, y llevaba a `/ferreteria/catalogo`, que no existe. El sitio
+ * donde se busca material por su descripción es éste, así que aquí se lee el
+ * parámetro y la búsqueda llega escrita.
  */
 export const dynamic = 'force-dynamic';
 
 export default function Pagina() {
-  return <Mostrador />;
+  const parametros = useSearchParams();
+  const buscar = parametros.get('buscar');
+
+  return buscar === null || buscar === '' ? <Mostrador /> : <Mostrador consultaInicial={buscar} />;
 }
