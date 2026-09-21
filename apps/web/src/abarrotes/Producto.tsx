@@ -362,6 +362,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
             <Button
               key={tasa.bp}
               type="button"
+              aria-pressed={ficha.tasa_iva_bp === tasa.bp}
               variant={ficha.tasa_iva_bp === tasa.bp ? 'default' : 'outline'}
               onClick={() => {
                 cambiarPerilla({ tasa_iva_bp: tasa.bp });

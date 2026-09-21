@@ -328,6 +328,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
           {hoyToca.map((proveedor) => (
             <Button
               key={proveedor.id}
+              aria-pressed={elegido?.id === proveedor.id}
               variant={elegido?.id === proveedor.id ? 'default' : 'outline'}
               className="h-[calc(var(--altura-control)*1.4)] w-full justify-start text-base"
               onClick={() => {

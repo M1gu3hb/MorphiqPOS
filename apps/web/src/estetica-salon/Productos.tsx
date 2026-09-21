@@ -331,6 +331,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
                 <Button
                   key={destino.clave}
                   type="button"
+                  aria-pressed={elegido.destino === destino.clave}
                   variant={elegido.destino === destino.clave ? 'default' : 'outline'}
                   onClick={() => {
                     guardarFicha(destino.clave);

@@ -446,8 +446,8 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
             <Button
               key={opcion.clave}
               type="button"
-              variant={canal === opcion.clave ? 'default' : 'outline'}
               aria-pressed={canal === opcion.clave}
+              variant={canal === opcion.clave ? 'default' : 'outline'}
               className="min-h-20"
               onClick={() => {
                 setCanal(opcion.clave);
@@ -469,6 +469,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           <Button
             type="button"
             size="sm"
+            aria-pressed={categoria === null}
             variant={categoria === null ? 'default' : 'ghost'}
             onClick={() => {
               setCategoria(null);
@@ -481,6 +482,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
               key={nombreCategoria}
               type="button"
               size="sm"
+              aria-pressed={categoria === nombreCategoria}
               variant={categoria === nombreCategoria ? 'default' : 'ghost'}
               onClick={() => {
                 setCategoria(nombreCategoria);

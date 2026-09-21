@@ -305,11 +305,52 @@ async function huella(page: Page): Promise<string> {
   return page.evaluate(() => {
     const texto = (document.body.innerText ?? '').replace(/\s+/g, ' ').trim();
     const dialogos = document.querySelectorAll('[role="dialog"], dialog[open], [role="alert"]');
+    /**
+     * EL ESTADO DE LO INTERACTIVO, que el texto NO dice.
+     *
+     * ── El punto ciego que esto cierra ─────────────────────────────
+     * Elegir «Del banco» en la caja de la tiendita cambia el ESTADO y el color del
+     * botón, y nada más: ni una petición, ni la URL, ni una palabra del texto. La
+     * huella miraba `innerText` y el número de nodos, así que ese toque parecía no
+     * hacer nada y el rastreador acusó a cuatro botones que funcionan.
+     *
+     * Ahora entra `aria-pressed`, `aria-selected`, `aria-checked`, `data-state` y la
+     * CLASE de cada pieza interactiva: un cambio de variante es un cambio visible,
+     * y confundirlo con un botón muerto es exactamente lo que esta prueba no debe
+     * hacer —un falso positivo cuesta lo mismo que un defecto—.
+     */
+    const estados = [
+      ...document.querySelectorAll(
+        'button, a[href], [role="button"], input[type="submit"], input[type="button"], [role="tab"]',
+      ),
+    ]
+      .map((elemento) =>
+        [
+          elemento.getAttribute('aria-pressed') ?? '',
+          elemento.getAttribute('aria-selected') ?? '',
+          elemento.getAttribute('aria-checked') ?? '',
+          elemento.getAttribute('aria-current') ?? '',
+          elemento.getAttribute('data-state') ?? '',
+          elemento.getAttribute('class') ?? '',
+        ].join(','),
+      )
+      .join(';');
+    /**
+     * Y EL FOCO. Un botón que deja el cursor donde se va a escribir —«Nuevo
+     * servicio»— hace algo aunque no cambie una palabra de la pantalla.
+     */
+    const enfocado = document.activeElement;
+    const foco =
+      enfocado === null
+        ? ''
+        : `${enfocado.tagName}:${enfocado.getAttribute('id') ?? ''}:${enfocado.getAttribute('name') ?? ''}`;
     return [
       document.querySelectorAll('*').length,
       dialogos.length,
       texto.length,
       texto.slice(0, 6000),
+      estados.slice(0, 6000),
+      foco,
     ].join('|');
   });
 }
@@ -486,8 +527,12 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         // abre la que está primero en el DOM —que no es la que se enumeró— y la
         // prueba acusa a la pantalla equivocada. Pasó con «Caja», «Recetas» y
         // «Registros» del restaurante: el clic se iba a `/abarrotes/caja`.
+        // El VISIBLE: la barra puede traer el mismo destino dos veces —una en el
+        // cajón de teléfono, oculta— y `.first()` a secas se queda esperando por la
+        // que nadie puede tocar. Pasó con tres entradas de la ferretería.
         await menuDeLaVuelta
           .locator(`a[href="${entrada.ruta}"]`)
+          .filter({ visible: true })
           .first()
           .click({ timeout: TECHO_DE_ACCION_MS });
         await page.waitForURL((url) => url.pathname === entrada.ruta, { timeout: 20_000 });
@@ -585,6 +630,13 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         };
         page.on('request', contar);
 
+        // EL RATÓN PRIMERO. Hay tarjetas cuyos botones sólo aparecen —o sólo reciben
+        // el clic— al pasar por encima: «Imprimir ficha», «Editar receta» y «Eliminar
+        // receta» de la pantalla de recetas son de ésas, y sin esto salen como
+        // «no se pudo tocar» cuando un usuario de escritorio las toca sin problema.
+        await suyo.hover({ timeout: 3_000 }).catch(() => {
+          /* si no se puede ni pasar por encima, el clic lo dirá */
+        });
         try {
           await suyo.click({ timeout: 7_000 });
         } catch (fallo) {

@@ -310,6 +310,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
                 <Button
                   key={opcion.clave}
                   type="button"
+                  aria-pressed={canal === opcion.clave}
                   variant={canal === opcion.clave ? 'default' : 'outline'}
                   onClick={() => {
                     setCanal(opcion.clave);

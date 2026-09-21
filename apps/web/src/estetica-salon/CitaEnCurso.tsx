@@ -458,6 +458,11 @@ export function CitaEnCurso({
                 <Button
                   type="button"
                   className="mt-3 min-h-20 w-full text-lg"
+                  // SIN CITA no hay nada que guardar: `capturar` se iba de vuelta en su
+                  // primera línea y el botón no hacía nada, sin decir por qué. El
+                  // rastreador lo contó como muerto, y lo era en ese estado.
+                  disabled={cita === null}
+                  title={cita === null ? 'Abre una cita para guardar su fórmula' : undefined}
                   onClick={() => {
                     void capturar(punto);
                   }}

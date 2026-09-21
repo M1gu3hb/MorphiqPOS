@@ -328,6 +328,7 @@ export function Registros({
             <Button
               key={opcion.clave}
               type="button"
+              aria-pressed={tipo === opcion.clave}
               variant={tipo === opcion.clave ? 'default' : 'outline'}
               onClick={() => {
                 setTipo(opcion.clave);

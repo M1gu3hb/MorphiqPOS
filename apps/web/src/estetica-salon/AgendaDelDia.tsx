@@ -736,13 +736,19 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         aria-label="Filtrar por profesional"
         className="mb-2 flex gap-1 overflow-x-auto md:hidden"
       >
-        <Button size="sm" variant={soloDe === null ? 'default' : 'ghost'} onClick={filtrar(null)}>
+        <Button
+          size="sm"
+          aria-pressed={soloDe === null}
+          variant={soloDe === null ? 'default' : 'ghost'}
+          onClick={filtrar(null)}
+        >
           Todo
         </Button>
         {columnas.map((c) => (
           <Button
             key={c.nombre}
             size="sm"
+            aria-pressed={soloDe === c.nombre}
             variant={soloDe === c.nombre ? 'default' : 'ghost'}
             onClick={filtrar(c.nombre)}
           >

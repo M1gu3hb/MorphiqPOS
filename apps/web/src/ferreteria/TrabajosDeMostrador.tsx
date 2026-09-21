@@ -366,6 +366,7 @@ export function TrabajosDeMostrador({
           <Button
             key={opcion.clave}
             type="button"
+            aria-pressed={pestana === opcion.clave}
             variant={pestana === opcion.clave ? 'default' : 'outline'}
             onClick={() => {
               setPestana(opcion.clave);

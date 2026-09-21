@@ -361,6 +361,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
             <Button
               key={opcion}
               type="button"
+              aria-pressed={tramo === opcion}
               variant={tramo === opcion ? 'default' : 'outline'}
               className="h-[calc(var(--altura-control)*1.2)]"
               onClick={() => {
