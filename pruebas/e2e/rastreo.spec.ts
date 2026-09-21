@@ -98,6 +98,15 @@ const TECHO_DE_PINTADO_MS = 15_000;
 const MUESTRA_DE_PINTADO_MS = 400;
 
 /**
+ * Lo mínimo que se espera al menú, además de que se repita.
+ *
+ * El marco heredado pinta la barra de la TIENDITA mientras la configuración del
+ * negocio viaja, y ese menú equivocado es perfectamente estable mientras dura.
+ * Tres segundos es de sobra para una consulta que en producción tarda medio.
+ */
+const ESPERA_MINIMA_DEL_MENU_MS = 3_000;
+
+/**
  * Le pone techo a cualquier promesa, porque `page.evaluate` no acepta uno.
  *
  * Si se agota, LANZA con lo que se estaba haciendo. Un fallo con nombre se arregla;
@@ -247,7 +256,23 @@ async function enumerar(page: Page): Promise<readonly Clicable[]> {
         etiquetaHtml: elemento.tagName.toLowerCase(),
         href: elemento.getAttribute('href'),
         deshabilitado: html.disabled === true || elemento.getAttribute('aria-disabled') === 'true',
-        visible: html.offsetParent !== null || elemento.getClientRects().length > 0,
+        /**
+         * VISIBLE es TENER TAMAÑO, no tener un padre posicionado.
+         *
+         * ── Los 68 hallazgos que este `||` inventó ───────────────────────
+         * La pantalla de recetas del heredado es un acordeón que cierra sus filas con
+         * `gridTemplateRows: '0fr'` y `overflow-hidden`: los botones de dentro siguen
+         * teniendo `offsetParent` y un rectángulo —de ALTO CERO—, así que entraban al
+         * inventario y después no se podían tocar. 68 «no se pudo tocar» en la tiendita
+         * que no eran defectos: eran botones dentro de un cajón cerrado.
+         *
+         * Nadie puede tocar algo de tamaño cero. Si el acordeón se abre, sus botones
+         * miden y entran; cerrado, no existen para esto —y eso se cuenta aparte—.
+         */
+        visible: (() => {
+          const caja = elemento.getBoundingClientRect();
+          return caja.width > 0 && caja.height > 0;
+        })(),
         yaActiva:
           elemento.getAttribute('aria-pressed') === 'true' ||
           elemento.getAttribute('aria-selected') === 'true' ||
@@ -285,11 +310,24 @@ async function esperarAQueElMenuSeAsiente(page: Page, menu: Locator): Promise<vo
         .join('|'),
     );
 
+  /**
+   * Y NO BASTA CON QUE SE REPITA DOS VECES.
+   *
+   * El menú de la tiendita es ESTABLE mientras la configuración viaja: dos muestras
+   * a 400 ms de distancia pueden caer las dos dentro del parpadeo y dar por asentado
+   * el menú equivocado. Pasó en la corrida contra producción de la estética: se
+   * llevó `/abarrotes/cobrar` y después no estaba.
+   *
+   * Así que se exige lo uno Y lo otro: que se repita, y que haya pasado el tiempo en
+   * el que esa consulta ya tuvo que contestar.
+   */
+  const desde = Date.now();
   let anterior = '';
-  const limite = Date.now() + TECHO_DE_PINTADO_MS;
+  const limite = desde + TECHO_DE_PINTADO_MS;
   while (Date.now() < limite) {
     const ahora = await conTecho(rutas(), TECHO_DE_EVALUACION_MS, 'leer el menú');
-    if (ahora === anterior && ahora !== '') return;
+    const estable = ahora === anterior && ahora !== '';
+    if (estable && Date.now() - desde >= ESPERA_MINIMA_DEL_MENU_MS) return;
     anterior = ahora;
     await page.waitForTimeout(MUESTRA_DE_PINTADO_MS);
   }
