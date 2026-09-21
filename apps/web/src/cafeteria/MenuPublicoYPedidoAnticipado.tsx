@@ -248,7 +248,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
   if (pedidoEnTexto !== null) {
     return (
       <main className="mx-auto max-w-lg space-y-4 p-6">
-        <h1 className="text-2xl font-semibold">Tu pedido, listo para pedirlo</h1>
+        <h1 className="text-2xl font-semibold">{voc.titulo('orden')} listo para pedirlo</h1>
         <p className="text-muted-foreground text-sm">
           Se copió solo. Enséñalo o léelo en {voc.enFrase('preparacion')}: se paga al recogerlo.
         </p>

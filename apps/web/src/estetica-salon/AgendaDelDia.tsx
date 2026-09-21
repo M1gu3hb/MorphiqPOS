@@ -862,9 +862,24 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         </aside>
       </div>
 
-      {/* Fijo abajo, a la altura del pulgar de quien sostiene la tablet. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background p-2">
-        <Button size="lg" className="w-full md:mx-auto md:w-64" onClick={irAAgendar}>
+      {/*
+        Fijo abajo, a la altura del pulgar de quien sostiene la tablet.
+
+        ── Y CENTRADO DE VERDAD, que es lo que lo dejaba INCLICABLE ─────────
+        Tenía `md:mx-auto md:w-64` sobre el propio botón, y `mx-auto` no centra un
+        `inline-flex` —que es lo que renderiza este botón—: se quedaba pegado a la
+        IZQUIERDA, en la franja que la barra lateral del marco heredado ocupa
+        —`fixed left-0 w-60 z-30`—. Medido en 1280×720: el botón en `x: 8..264` y
+        `elementFromPoint` de su centro devolviendo el pie de la barra lateral.
+        Resultado: en el TABLERO de una estética —su pantalla de inicio— la acción
+        principal no recibía el clic. En `/estetica-salon/agenda-del-dia` sí, porque
+        ahí no hay barra que lo tape; el mismo componente, dos marcos.
+
+        Centrar con `flex justify-center` funciona en los dos marcos sin que el
+        componente tenga que saber en cuál está.
+      */}
+      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center border-t border-border bg-background p-2">
+        <Button size="lg" className="w-full md:w-64" onClick={irAAgendar}>
           + Agendar
         </Button>
       </div>
