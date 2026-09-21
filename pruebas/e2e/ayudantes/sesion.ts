@@ -604,17 +604,36 @@ export async function entrar(page: Page): Promise<string> {
   const conNombre = page
     .getByRole('button')
     .filter({ has: page.getByText(elegido.nombre, { exact: true }) });
-  const tarjeta =
+
+  /**
+   * Y CUÁNDO EL NEGOCIO NO SALE EN LA TARJETA.
+   *
+   * La pantalla de acceso escribe el negocio en cada tarjeta sólo cuando el
+   * despliegue sirve a VARIOS —y hace bien: en un despliegue de un solo negocio, ese
+   * nombre es la misma línea repetida en todas las tarjetas—. Producción sirve a
+   * seis, así que ahí sale; un trabajo de CI levanta un servidor con UNA
+   * `ORGANIZACION`, así que ahí no.
+   *
+   * La primera corrida del rastreo en CI murió justo aquí, con la tarjeta delante:
+   * `button "D Demo Administrador"`, sin el negocio. Así que se busca por nombre Y
+   * negocio cuando eso da una, y por nombre a secas cuando el negocio no se pinta.
+   * Lo que NO se relaja es la conclusión: tiene que haber exactamente UNA. Si dos
+   * personas se llaman igual en el mismo negocio, esto sigue fallando en vez de
+   * entrar con una al azar.
+   */
+  const conNegocio =
     elegido.negocio === undefined || elegido.negocio === ''
       ? conNombre
       : conNombre.filter({ has: page.getByText(elegido.negocio, { exact: true }) });
+  const tarjeta = (await conNegocio.count()) === 1 ? conNegocio : conNombre;
 
   await expect(
     tarjeta,
     `La pantalla de acceso no enseña UNA tarjeta de «${elegido.nombre}»` +
       (elegido.negocio === undefined ? '' : ` en «${elegido.negocio}»`) +
-      '. Con varios negocios en un despliegue hay un dueño en cada uno, y la tarjeta se ' +
-      'identifica por nombre Y negocio.',
+      '. Con varios negocios en un despliegue hay un dueño en cada uno, y la tarjeta ' +
+      'lleva el negocio; con uno solo, no lo lleva y basta el nombre. En los dos casos ' +
+      'tiene que haber exactamente una.',
   ).toHaveCount(1);
   await tarjeta.click();
   await expect(page.getByText(`Iniciando como: ${elegido.nombre}`)).toBeVisible();
