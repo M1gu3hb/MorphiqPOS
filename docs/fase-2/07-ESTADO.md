@@ -809,7 +809,11 @@ que el texto que se extraía del nodo no era `$42.90` sino `$`, `42` y `.90` sep
 tanto una prueba como **copiar el total y pegarlo**—. Y la señal de reposo del restaurante pedía
 «Cobrado · cambio», un literal que el rediseño del 4.1 cambió.
 
-Lo que sigue pendiente y no es de código: **que CI las corra**. Hoy no las corre.
+**Y ahora CI corre cuatro de las cinco.** Entraron a la matriz de `Rastreo`, que ya se provisiona
+con su organización, su PIN y un despliegue de UN negocio. `estetica` queda fuera **a propósito**:
+agenda una cita, necesita huecos libres en lo que queda del día y el trabajo corre en
+`America/Mexico_City` a cualquier hora — de noche sería roja por el reloj, y una puerta que enrojece
+por la hora enseña a ignorar el rojo. Entra el día que la prueba agende en una fecha fija.
 
 ### La ceguera de las puertas, barrida
 

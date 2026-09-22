@@ -294,6 +294,20 @@ jobs:
         # casualidad: `organizaciones_paquete_compatible_con_giro` lo exige desde
         # la 166, y la guarda de `app/(modelos)/` redirige cuando no coinciden.
         modelo: [restaurante, cafeteria, tienda, ferreteria, estetica]
+        # Y la suite de cobro de cada uno, que NO se llama igual que su modelo: la
+        # de `tienda` es `abarrotes` y la de `estetica` es `estetica-salon`. Vacía
+        # significa «no la corras», y la única vacía lleva su razón en el paso.
+        include:
+          - modelo: restaurante
+            suite: restaurante
+          - modelo: cafeteria
+            suite: cafeteria
+          - modelo: tienda
+            suite: abarrotes
+          - modelo: ferreteria
+            suite: ferreteria
+          - modelo: estetica
+            suite: ''
 
     services:
       postgres:
@@ -405,6 +419,34 @@ jobs:
           MORPHIQPOS_DEMO_PERSONA: Demo
           MORPHIQPOS_DEMO_PIN: '1234'
         run: pnpm test:e2e pruebas/e2e/rastreo.spec.ts --project=escritorio
+
+      # LA SUITE DE SU MODELO, que hasta hoy no corría en ninguna parte.
+      #
+      # ── Lo que costó no correrlas ─────────────────────────────────────────
+      # Este flujo lanzaba DOS de los ocho especs que existen —`estilos` y
+      # `rastreo`— y `pnpm verify` acaba en `test:integracion`, que es vitest. Así
+      # que las cinco que comprueban un TOTAL COBRADO contra el servidor llevaban
+      # sin correr desde la vuelta 2.3, y en la 2.35 guardaban DOS defectos, los dos
+      # metidos por esa misma etapa y uno de ellos de DINERO: la pantalla de cobro
+      # de la tienda enseñaba `$42.00` para un producto de `$42.90`, porque `Dinero`
+      # partía el importe en tres hijos de un `inline-flex`.
+      #
+      # Una puerta que no corre no es una puerta. Van DESPUÉS del rastreo porque el
+      # rastreo termina soltando la caja, que es el estado que estas suites saben
+      # abrir; y si el rastreo falla, éstas no llegan a correr, que también informa.
+      #
+      # `estetica` queda fuera A PROPÓSITO y no por descuido: su suite necesita
+      # HUECOS LIBRES en lo que queda del día —agenda una cita— y este trabajo corre
+      # en `America/Mexico_City` a cualquier hora. Corriéndola de noche sería roja
+      # por el reloj, y una puerta que enrojece por la hora enseña a ignorar el rojo.
+      # Se incluirá el día que la prueba agende en una fecha fija en vez de «hoy».
+      - name: La suite de su modelo
+        if: matrix.suite != ''
+        env:
+          MORPHIQPOS_ORG_DEMO: demo-acople-${{ matrix.modelo }}
+          MORPHIQPOS_DEMO_PERSONA: Demo
+          MORPHIQPOS_DEMO_PIN: '1234'
+        run: pnpm test:e2e pruebas/e2e/${{ matrix.suite }}.spec.ts --project=escritorio
 
       # La bitácora en vivo del rastreo y las trazas de lo que falló. Sin esto, un
       # fallo en CI dice «hay botones muertos» y no cuáles.

@@ -4891,3 +4891,27 @@ relajó a `/Cobrado/` a secas, que aparecería en cualquier estado que lleve esa
 
 Dos defectos reales de las cinco, los dos **míos y de esta etapa**, los dos invisibles para todas las
 puertas que sí corren. Eso es lo que costaba no correr estas cinco.
+
+### Y las cuatro que se pueden, ya corren en CI
+
+El hueco que quedaba de esto no era de código: era que **CI lanzaba dos de los ocho especs**. Cuatro
+de las cinco suites de modelo entran a la matriz de `Rastreo`, que ya se provisiona con su
+organización, su PIN y un despliegue de UN negocio — es el sitio donde encajaban sin montar nada
+nuevo. Van **después** del rastreo, que termina soltando la caja, que es el estado que estas suites
+saben abrir; y si el rastreo falla, éstas no llegan a correr, que también informa.
+
+Y el nombre no es el del modelo: la de `tienda` es `abarrotes` y la de `estetica` es
+`estetica-salon`. La correspondencia va en el `include` de la matriz, con la vacía —`estetica`—
+llevando su razón escrita en el paso.
+
+**Por qué `estetica` no entra, dicho y no tapado:** su suite agenda una cita y necesita huecos libres
+en lo que queda del día, y ese trabajo corre en `America/Mexico_City` a cualquier hora. De noche sería
+roja por el reloj, y **una puerta que enrojece por la hora enseña a ignorar el rojo**. Entra el día que
+la prueba agende en una fecha fija en vez de «hoy».
+
+### Y la puerta de los ocho estilos, otra vez, después de tocar `Dinero`
+
+`/sistema` pinta `Dinero` nueve veces, así que cambiar su caja de `inline-flex` a contenido en línea
+podía mover el amontonamiento o el foco que la puerta 6.4 mide. Se volvió a correr: **17 passed
+(29.9s)**. No movió ninguno de los dos — que era lo esperado, porque lo que se quitó era un `gap` de
+un píxel y un contenedor flex que no hacía falta, no la jerarquía.

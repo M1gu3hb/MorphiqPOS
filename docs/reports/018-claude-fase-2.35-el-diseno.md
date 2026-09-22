@@ -948,6 +948,11 @@ ACOPLE DE LA FASE 2 · lo escrito contra lo conectado
   marcas e2e    62 pantalla(s) de modelo se abren con una afirmación de CONTENIDO
   cobro e2e     5 de 5 suites comprueban un TOTAL COBRADO contra el servidor
   rutas llamadas 129 rutas distintas se llaman desde las pantallas
+  ci            10 check(s) VERDES en el commit de la rama
+
+  — y su ÚLTIMO eslabón, test:integracion, no corre aquí: hace falta una base
+    desechable, y la única alcanzable desde esta máquina es el proyecto de verdad.
+    En CI sí corre, con su Postgres en el 5433, y está en verde.
 
 $ # LA CONDICIÓN 2, LEÍDA EN EL CSS QUE SIRVE EL DESPLIEGUE — no en el que compila
 $ curl <el despliegue>/_next/static/immutable/chunks/{2ajj4ghvv8w9m,3u6yiw8a0rvp4}.css
@@ -970,7 +975,7 @@ $ pnpm test:e2e pruebas/e2e/galeria.spec.ts     5 modelos · 160 capturas · tod
 
 | Comando | Resultado | Salida relevante |
 |---|---|---|
-| `pnpm verify` | ✅ los 34 eslabones + los 6 nuevos | El último eslabón, `verify:acople`, espera a CI: `Verde es verde cuando termina` |
+| `pnpm verify` | 🟡 **33 de 34** | Los 33 primeros en verde, e incluyen `verify:acople` contra el despliegue remoto —que además exige los checks de CI en verde: `Verde es verde cuando termina`—. El 34, `test:integracion`, no puede correr aquí: §9.8 |
 | `pnpm verify:primitivas` | ✅ | `deuda de ritmo fuera de packages/ui: 0 de 0 permitidos, en 0 archivo(s)` · `Cero literales de color, altura, sombra, variante, espacio, texto o duracion en el sistema` |
 | `pnpm verify:estilos` | ✅ | `8 estilo(s) × 2 modos, todos en AA` |
 | `pnpm verify:rastro` | ✅ | `Rastro: 189 comando(s) que escriben, todos con auditoría (5 por delegación)` |
@@ -981,8 +986,8 @@ $ pnpm test:e2e pruebas/e2e/galeria.spec.ts     5 modelos · 160 capturas · tod
 | `pnpm test:unit` | ✅ | `Test Files 244 passed (244)` · `Tests 3117 passed (3117)` |
 | `pnpm build` | ✅ | `Compiled successfully in 27.3s` |
 | `pnpm verify:cabeceras` | ✅ | `6 presentes y correctas, nonce por peticion` · y contra un despliegue http también |
-| `pnpm verify:acople` **contra el despliegue** | ✅ salvo CI | `despliegue REMOTO … → 200 · con la cookie de un enlace compartido · sin muro por delante` · `103 declaradas · 82 probadas por HTTP` |
-| `pnpm test:e2e` (`estilos.spec.ts`) | ✅ | `17 passed` |
+| `pnpm verify:acople` **contra el despliegue** | ✅ | `despliegue REMOTO … → 200 · con la cookie de un enlace compartido · sin muro por delante` · `103 declaradas · 82 probadas por HTTP` |
+| `pnpm test:e2e` (`estilos.spec.ts`) | ✅ | `17 passed` · y `17 passed (29.9s)` otra vez **después** de tocar `Dinero`, que `/sistema` pinta nueve veces: el cambio de `inline-flex` a contenido en línea no movió ni el amontonamiento ni el foco |
 | `pnpm test:e2e` (`galeria.spec.ts`) | ✅ | 5 modelos, 160 capturas, todas con estado < 400. La de `cafeteria/lista` **regenerada** después del arreglo del bagel: las ocho anteriores retrataban un bagel en la familia «Leche» |
 | `pnpm test:e2e` (`rastreo.spec.ts`, cafetería) | ✅ | `1 passed (8.8m)` con el arreglo. Antes, la misma corrida en ROJO con `400 /api/cafeteria/contar-leche`, en CI y en local |
 | `pnpm test:e2e` (`abarrotes.spec.ts`) | ✅ | `1 passed (3.8m)` con el arreglo de `Dinero`. Antes, ROJO: `Expected 4290, Received 4200` |
@@ -1097,9 +1102,16 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
    | `ferreteria` | ✅ | Pasó — su total no usa `Dinero` |
    | `restaurante` | 🔴 → ✅ | La señal de reposo pedía una frase que el rediseño cambió (§5, error 14) |
 
-   **Lo que sigue pendiente:** que CI las corra. Hoy no las corre, y las dos veces que sirvieron fue
-   porque las lancé yo. Y `estetica-salon` no se pudo dejar en verde: necesita horas por delante en el
-   día y era casi medianoche.
+   **Y ahora CI las corre.** Cuatro de las cinco entraron a la matriz de `Rastreo`, que ya se
+   provisiona con su organización, su PIN y un despliegue de UN negocio: es el sitio donde encajaban
+   sin montar nada. Van **después** del rastreo, que termina soltando la caja —el estado que estas
+   suites saben abrir—.
+
+   `estetica` queda fuera **a propósito y dicho**: su suite agenda una cita y necesita huecos libres
+   en lo que queda del día, y ese trabajo corre en `America/Mexico_City` a cualquier hora. De noche
+   sería roja por el reloj, y **una puerta que enrojece por la hora enseña a ignorar el rojo**. Entra
+   el día que la prueba agende en una fecha fija en vez de «hoy»; hasta entonces es el hueco
+   declarado, no uno tapado.
 10. **Lo que este reporte afirma y no puedo respaldar ejecutando algo:** que las pantallas «se sienten
    suyas». Es un juicio visual. La galería existe precisamente porque yo no puedo emitirlo.
 
@@ -1146,6 +1158,7 @@ va aquí.
 |---|---|---|---|
 | Fusionar el PR #11 a `main` | Miguel | Condición 10 de TERMINADO | No: está todo en la rama, y su despliegue está vivo y comprobado desde fuera |
 | El secreto de *bypass* de la protección de Vercel, para que CI pueda correr `verify:acople` contra el despliegue | Miguel | Que la comprobación remota no dependa de un enlace compartido de 23 h | No: hoy se usó la cookie del enlace, que es la vía 2 de `VERCEL-ENTORNO §3` |
+| Una base desechable para `test:integracion` en local: o Docker encendido, o una RAMA de Supabase —que cuesta centavos por hora **en tu cuenta**— | Miguel | El eslabón 34 de `pnpm verify`, que hoy sólo se cubre en CI | No: no se apunta a la base de verdad, que es lo único alcanzable desde aquí y recibiría DDL || Decidir si `estetica-salon.spec.ts` agenda en una fecha fija en vez de «hoy» | Miguel | Que la quinta suite pueda entrar a CI sin enrojecer por la hora | No: queda declarada fuera, con su razón en el propio paso del flujo |
 
 ## 13. Estado al cerrar
 
@@ -1160,9 +1173,12 @@ va aquí.
   donde el producto cuesta $42.90—. Los dos arreglados y en verde. §5, errores 13 y 14.
 - **Rama integrada a `main`:** no, y a propósito (§9.2). PR
   [#11](https://github.com/M1gu3hb/MorphiqPOS/pull/11) abierto, con su título y su descripción al día.
-- **El despliegue de la rama:** vivo con `a1f1eee` y comprobado desde fuera.
-- **Bloqueos activos: uno.** La fusión a `main`, que toca la caja con la que cuatro negocios cobran:
-  es de Miguel. El 400 de la cafetería está cerrado (§5, error 12).
+- **El despliegue de la rama:** vivo con el commit de la rama y comprobado desde fuera —82 rutas por
+  HTTP y los tokens de los ocho estilos leídos en el CSS que sirve—.
+- **Bloqueos activos: uno, y dos huecos declarados.** El bloqueo es la fusión a `main`, que toca la
+  caja con la que cuatro negocios cobran: es de Miguel. Los huecos: `test:integracion` no corre en
+  esta máquina (§9.8) y `estetica-salon.spec.ts` no se pudo dejar en verde porque necesita horas por
+  delante en el día (§9.9). El 400 de la cafetería, en cambio, está **cerrado** (§5, error 12).
 - **Siguiente tarea:** recomponer las 41 pantallas que siguen con su composición heredada, modelo
   por modelo, con la galería al lado.
 
