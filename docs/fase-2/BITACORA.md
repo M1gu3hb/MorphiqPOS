@@ -4340,3 +4340,198 @@ workflow. La barrida de los ocho estilos va **antes** del rastreo y en **un solo
 diez segundos contra catorce minutos, así que un estilo roto se sabe ya en vez de al final; y
 `/sistema` es la misma página en los cinco giros, luego cinco copias serían cuatro veces el mismo
 veredicto.
+
+## ETAPA 2.35 · BLOQUE 4 · APLICARLO A LAS 69 PANTALLAS
+
+### La tercera vez la misma enfermedad, y la última que quedaba
+
+`base.css` declara `--tamano-xs … --tamano-3xl` desde la Fase 1. El contrato los exige.
+`sistema.test.ts` comprueba que están. Y **nadie los mapeaba a Tailwind**: lo que se pintaba
+era la escala por omisión de Tailwind y los siete tokens eran siete declaraciones inertes.
+
+Es el mismo fallo que la hoja de estilos que nadie importaba (bloque 1) y que
+`--area-tactil-minima`, declarado en cuatro densidades y usado por **un** componente de treinta
+y seis (bloque 6.4). Tres veces: un sistema escrito, probado y sin aplicar.
+
+Medido tras enchufarla: `text-xl` 22 px donde antes 20, `text-2xl` 28 donde 24, `text-3xl` 36
+donde 30. La escala del contrato tiene más **contraste** que la de Tailwind, y ese contraste es
+la mitad de la jerarquía: lo que hace que un título mande sin tener que ponerlo en negrita.
+
+### El octavo paso · `display`
+
+Las pantallas escribían `text-5xl xl:text-6xl`, `text-6xl md:text-7xl xl:text-8xl`, `text-4xl`…
+a mano, fuera de la escala y distinto en cada modelo. Todos eran el mismo problema: **lo que se
+lee de lejos**. El total que el cajero dice en voz alta con alguien enfrente; el número de una
+comanda que se lee a dos metros con las manos ocupadas; el dígito de un teclado de PIN.
+
+```css
+--tamano-display: clamp(2.5rem, 1.25rem + 4vw, 5rem);
+```
+
+40 px en el teléfono de un técnico, 71 en el monitor de una tiendita, 80 en la pantalla de una
+barra — sin tres saltos de punto de ruptura escritos a mano en cada pantalla. Es el **único**
+paso fluido: todo lo demás se lee de cerca, y ahí un tamaño que baila al redimensionar molesta.
+
+### Las cinco pantallas de cobro
+
+Las que Miguel señaló. `Dinero` en cada importe —cifras tabulares, el símbolo y los centavos un
+escalón por debajo del cuerpo del número, los negativos en rojo **y** entre paréntesis—;
+`Superficie` en las tarjetas, con el total subido a nivel 2 y el desglose en 1; `Vacio` en los
+estados vacíos.
+
+Dos decisiones que se repiten en las cinco:
+
+- **El rótulo va debajo del número.** Lo que el ojo busca al girar la pantalla es la cifra; la
+  palabra «total» sólo confirma qué es.
+- **El cambio manda en la confirmación**, no el total. El total ya se dijo en voz alta; lo que
+  queda por hacer es contar el vuelto.
+
+Y una que **no** se tocó: `ferreteria/Mostrador` dice en su propio comentario «grande para
+leerse de reojo, y NO lo más grande de la pantalla». En una ferretería lo que se compara es el
+precio por unidad, no el total. Se respeta.
+
+### Cero emoji · 36 sitios en 16 archivos
+
+Un emoji no es un icono: lo dibuja el sistema operativo, así que el mismo carácter es una cosa
+en el Windows de la tiendita, otra en el Android del técnico y otra en el iPad del mesero; no
+hereda `currentColor`, así que no se puede poner en el color de peligro; y no escala con la
+tipografía. `⚠️` marcaba las alergias en siete pantallas de cinco modelos.
+
+Lo que **no** se persigue, y está en la regla: los glifos tipográficos monocromos —✓ ✗ ✕ ⚠ ▸ ▾
+▊— se quedan. No son emoji: heredan el color, escalan, y varios están puestos a propósito para
+que el color no sea el único portador de significado. La regla busca los pictogramas
+`1F000-1FAFF` y el **selector de variación U+FE0F**, que es el carácter invisible que convierte
+`⚠` en `⚠️`.
+
+### Una gráfica por tablero, y la que su giro pide
+
+Ninguna por decoración. Una gráfica ocupa el sitio de tres renglones de cifras, y en un tablero
+que se lee en cuatro segundos eso sólo se paga cuando la **longitud** contesta algo que una
+columna de números no contesta. El criterio sale del que ya estaba escrito: la tiendita prohíbe
+la dona de métodos de pago —«en 390 px una lista ordenada contesta mejor y ocupa menos»—.
+
+| Tablero | Gráfica | Qué contesta que un número no |
+| --- | --- | --- |
+| cafetería | La ráfaga **hora por hora** | El pico dice cuánto; esto dice cuándo y **cuánto dura**. 45 bebidas en una hora suelta es un día raro; 40, 45 y 38 seguidas son tres horas en las que hace falta un tercero |
+| ferretería | La cartera por obra | La lista dice quién y cuánto; la barra dice la **proporción** — si son cuatro obras parecidas o una que se comió la mitad |
+| tienda | Lo que se vence esta semana, a costo | Si el remate del sábado empieza por uno solo o hay que bajarle el precio a los cinco |
+| estética | A dónde se fue lo cobrado del mes | Cuatro renglones dicen cuánto se fue; ninguno dice si la comisión se llevó un tercio o dos |
+| restaurante | — | El heredado ya trae su dona, es código de Miguel y lo cubre `verify:aspecto`. Añadirle una sería cambiarle su tablero para cumplir una cuota |
+
+La de la cafetería salió de una consulta que **ya la calculaba**: `group by 1 order by bebidas
+desc limit 1` agrupaba las horas del día y tiraba todas menos una. La forma del día se estaba
+calculando y descartando en la misma línea.
+
+Y la de estética **no** va en la ocupación de mañana, que es su estrella: ésa ya se dibuja —cada
+profesional lleva su barra de relleno—. Poner otra encima sería adorno.
+
+### Diecisiete estados vacíos
+
+El texto ya estaba bien y no se tocó: estas pantallas ya enseñaban en vez de disculparse. Lo que
+faltaba era la **forma** — cada vacío con su propio relleno, su propio centrado, y ninguno con
+icono. Un bloque de texto centrado sin icono se lee como un error; con icono se lee como una
+invitación, y ésa es toda la diferencia entre «algo falla» y «esto todavía no empieza».
+
+Cuatro que **no** se convirtieron, cada una con su razón: `cafeteria/Recogida` es un tablero de
+pared y meterlo en el componente lo encogería; dos vacíos **en línea** viven dentro de un
+formulario, junto al campo que los resuelve; y el del tablero de restaurante es del heredado.
+
+### Cada demostración con su piel
+
+Las cinco se sembraban iguales, así que un cliente al que se le enseñan los cinco negocios veía
+cinco veces el mismo programa con otras palabras. Ahora: ferretería → TALLER, estética →
+CRISTAL, tienda → BLOQUE, restaurante → NOCHE, cafetería → MORPHIQ. RELIEVE, TERMINAL y PAPEL
+quedan sin repartir a propósito: los ve quien abra el selector.
+
+Se aplica con el **mismo comando** que usa Miguel delante del cliente, y va **después** de
+sembrar porque `resetear_demo` reescribe la configuración del negocio.
+
+### Y ahí apareció que el selector NUNCA pudo guardar
+
+`configuracion.fijar_apariencia` declara `escribe: true` y no llamaba a `ctx.auditar`.
+`definirComando` lo exige —«declarar sensible algo que no deja rastro convierte la auditoría en
+un adorno»— y lanza `SinRastro` **después** de escribir: la transacción se deshace y quien lo usa
+ve un error interno. Cada vez que alguien tocaba «Guardar para el negocio», la pantalla decía
+«No se pudo guardar la apariencia».
+
+No lo vio ninguna puerta. El comando compila, los tipos son correctos, la ruta responde y el
+fallo ocurre dentro de la transacción. Apareció al llamarlo desde la siembra — la primera vez que
+algo distinto de una pantalla lo ejecutó.
+
+El hueco es general: `definirComando` comprueba la auditoría en el **envoltorio**, y las 248
+pruebas de comandos llaman a `.ejecutar()` directamente. Cualquiera de los 189 comandos que
+escriben podía estar roto así con sus pruebas en verde. `verify:rastro` los mira ahora a los 189.
+
+Y su primera versión **acusó en falso a dos de tres**: conocía una sola forma de delegar y hay
+dos. La misma proporción que el rastreador de la 2.3 la primera vez que corrió, y por la misma
+razón — creer la primera señal.
+
+### El ritmo de las 69, de una vez · 919 → 0
+
+`tokenizar-pantallas.mjs`: 831 literales en 64 pantallas. Un codemod, no un retoque archivo por
+archivo, y se queda en el repositorio como evidencia de que la adopción fue sistemática.
+
+En densidad `normal` la conversión **no mueve un píxel** —`--espacio-4` vale exactamente lo que
+valía `p-4`—. Lo que gana es que las cuatro perillas dejan de ser de la biblioteca y pasan a ser
+de la aplicación. Medido en la galería, misma pantalla y mismo ancho: la lista de existencias
+entra **nueve** renglones en BLOQUE —densidad `guantes`— y **once** en TERMINAL —`compacta`—.
+Antes entraban los mismos en las ocho.
+
+Los negativos también, y ahí está la sutileza: un `-mx-4` existe para **cancelar** el `p-4` de su
+padre. Si el relleno escala con la densidad y el margen negativo no, en `guantes` el padre abre
+1.4 veces más y el pie deja de llegar al borde. Los dos o ninguno.
+
+## ETAPA 2.35 · BLOQUE 6.5 · LA GALERÍA, Y EL BOTÓN QUE MATABA MEDIA APLICACIÓN
+
+160 retratos: cinco modelos × cuatro pantallas × ocho estilos. Y cuatro de las cinco pantallas de
+cobro salieron con la pantalla de error del navegador.
+
+```jsx
+const Comp = asChild ? Slot.Root : "button"
+…
+{cargando && !asChild ? <Rueda /> : null}
+{children}
+```
+
+`Slot` exige **un solo** hijo elemento. Con `asChild`, esas dos líneas le pasan dos —el `null` y
+el elemento— y revienta. No es un aviso de consola: la página entera muere, en el servidor con un
+500 y en el navegador al hidratar. Y `asChild` está en cada estado vacío, en cada atajo de cada
+tablero y en cada «Ir a caja»: lo que se rompía era media aplicación, desde que el bloque 2 le
+puso al botón su estado de cargando.
+
+**El rastreador SÍ lo cazó en CI**, y con el mensaje exacto para el que se escribió: «El navegador
+escribió errores mientras se tocaba la aplicación. Un error de consola no devuelve 500 ni
+`{ok:false}`». Lo que falló fue mío: no lo miré. Lo encontré por otro camino, retratando la
+galería, y el commit de ese arreglo decía que el rastreador «no corrió» — es falso, corrió y
+falló dos veces.
+
+La lección que sí es del sistema: la puerta de los ocho estilos —que corre en cada empuje y mira
+`/sistema` en segundos— **tampoco** lo vio, porque `/sistema` documentaba los seis variantes, los
+cuatro tamaños, el deshabilitado y el cargando, y **no** el modo `asChild`. Lo que no está en la
+página del lenguaje no lo mira la puerta del lenguaje. Ahora está.
+
+### Y la galería aprendió de sí misma
+
+Su primera versión dio **verde** sobre ocho capturas de «This page couldn't load»: la espera de
+contenido la pasaba porque esa página también tiene texto. Una galería que no puede fallar no es
+una galería: es una carpeta con imágenes, y el retrato de un fallo puesto en un informe es peor
+que no tener informe, porque se firma como si fuera el producto.
+
+## ETAPA 2.35 · LOS TRES HALLAZGOS DEL RASTREADOR
+
+Ninguno devuelve 500 ni `{ok:false}`: los tres viven en la consola del navegador.
+
+1. **`upgrade-insecure-requests` rompe un despliegue sin TLS.** La CSP la ponía siempre. Contra
+   un servidor que no habla TLS, el navegador pide https a un puerto de texto plano y la petición
+   no llega. Y **A-27 dice que el backend tiene que poder correr en la PC de un cliente sin
+   internet**: una caja en la trastienda, servida por http en la LAN, es ese escenario. Ahora la
+   decide `APP_URL` —la misma variable de la que sale el Origen esperado de una escritura— y
+   nunca la petición.
+2. **El portal del comensal latía contra una ruta que no existe.** Tiene un estado vacío bien
+   escrito para quien llega sin escanear, y un efecto corre **antes** de que el componente decida
+   qué pinta: con el token vacío pedía `/api/publico/qr/` cada cuatro segundos, para siempre, con
+   404 cada vez. La pantalla se ve perfecta; el 404 sólo existe en la consola.
+3. **La ventana de sonda del propio rastreador se cerraba pronto.** El 400 de un formulario de
+   sonda es la validación funcionando, y en un contenedor de CI llega más tarde que en una
+   laptop: aterrizaba con la ventana cerrada y la corrida acusaba a la aplicación de romperse
+   justo cuando mejor se comporta.

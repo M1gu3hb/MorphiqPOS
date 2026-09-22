@@ -694,3 +694,33 @@ Y `--area-tactil-minima`, que estaba declarado en las cuatro densidades y lo usa
 componente de treinta y seis, hoy se mide: tamaño **o** distancia, la regla de WCAG 2.5.8 con el
 número del sistema. `normal` sube de 40 a 44 px —es la densidad que recibe una tableta recién
 configurada— y `compacta` declara que es de ratón, con el mínimo AA de 24.
+
+### Bloque 4 · aplicado a las 69 pantallas
+
+| Qué | Antes | Ahora |
+| --- | --- | --- |
+| Pantallas que usan la biblioteca del bloque 2 | 1 (la de documentación) | **31 de 72** |
+| Literales de ritmo fuera de `packages/ui` | 919 | **0** |
+| Emoji usados como icono | 36 en 16 archivos | **0**, y con su puerta |
+| Escala tipográfica del contrato | declarada y **sin aplicar** | enchufada; `text-xl` 22 px donde antes 20 |
+| Tableros con gráfica | 0 de 5 | **4 de 5** (el del restaurante ya traía la suya) |
+| Demostraciones con piel propia | 0 de 5 | **5 de 5** |
+
+Lo que **no** está: las 69 pantallas no están recompuestas una por una. Tienen el ritmo, la
+tipografía, el dinero, los vacíos y los tableros del sistema; lo que conserva cada una es su
+composición, que es la que su `04-INTERFAZ.md` decidió y que esta etapa no fue a cambiar.
+
+### Bloque 6 · las cinco puertas, y lo que cada una cazó
+
+| # | Puerta | Vista ROJA con | Lo que cazó de verdad |
+| --- | --- | --- | --- |
+| 6.1 | Ritmo (espacio, tipografía, duración, curva) | `gap-4` real en el sistema · `duration-200` en el botón · un `gap-12` nuevo → «la deuda SUBIÓ» | 919 literales, hoy 0 |
+| 6.2 | Contraste de los ocho, en la cadena y en CI | Ya validada en el bloque 3 | Ocho estilos × dos modos, todos en AA |
+| 6.3 | Movimiento reducido, en el navegador | `--duracion-normal: 200ms` en `terminal.css` → rojo, **y las 370 unitarias en verde** | El hueco de especificidad entre dos verdes |
+| 6.4 | Los ocho estilos en un navegador | Cuatro mutaciones | La rejilla de avisos que se tragaba los clics de una esquina de todas las pantallas, y la isla que caía encima del abanico |
+| 6.5 | La galería · 160 retratos | Dos hijos de vuelta junto al `Slot` → `/sistema` en 500 | **El botón `asChild` que mataba media aplicación** |
+
+Y una sexta que no estaba en la lista y hacía falta: **`verify:rastro`**, que exige que los 189
+comandos que declaran escribir dejen rastro. `definirComando` ya lo comprueba en ejecución, y las
+248 pruebas de comandos llaman a `.ejecutar()` directamente, así que esa comprobación no la
+probaba nadie: `configuracion.fijar_apariencia` llevaba toda la etapa 5 sin poder guardar.
