@@ -810,7 +810,10 @@ tanto una prueba como **copiar el total y pegarlo**—. Y la señal de reposo de
 «Cobrado · cambio», un literal que el rediseño del 4.1 cambió.
 
 **Y ahora CI corre cuatro de las cinco.** Entraron a la matriz de `Rastreo`, que ya se provisiona
-con su organización, su PIN y un despliegue de UN negocio. `estetica` queda fuera **a propósito**:
+con su organización, su PIN y un despliegue de UN negocio — y **con la demostración sembrada otra
+vez entre el rastreo y la suite**: la primera corrida con las cuatro dentro dejó tres en verde y la
+cafetería en rojo, porque el rastreador acaba de tocar cada botón de cada pantalla y la demo que la
+suite encuentra no es la que espera. `estetica` queda fuera **a propósito**:
 agenda una cita, necesita huecos libres en lo que queda del día y el trabajo corre en
 `America/Mexico_City` a cualquier hora — de noche sería roja por el reloj, y una puerta que enrojece
 por la hora enseña a ignorar el rojo. Entra el día que la prueba agende en una fecha fija.

@@ -3,10 +3,12 @@
 - **Agente:** Claude Code (Opus 5)
 - **Carril:** el de ambos — esta etapa toca `packages/ui`, las 72 pantallas de los cinco
   modelos y las puertas de la cadena, así que no vive en un carril
-- **Rama:** `carril-a` → PR [#11](https://github.com/M1gu3hb/MorphiqPOS/pull/11)
-- **Fecha inicio / fin:** 2026-09-20 → 2026-09-21
+- **Rama:** `fase-2` → PR [#11](https://github.com/M1gu3hb/MorphiqPOS/pull/11) contra `main`
+- **Fecha inicio / fin:** 2026-09-20 → 2026-09-22
 - **Commits:** `54bda85` … `f8a938f` (24 commits), más el que trae este reporte al día
-- **Tareas cubiertas:** etapas 0.1 a 0.9, 1, 2, 3, 4.1 a 4.5, 5, 6.1 a 6.5 de la Fase 2.35
+- **Tareas cubiertas:** etapas 0.1 a 0.9, 1, 2, 3, 4.1 a 4.5, 5 y 6.1 a 6.5 de la Fase 2.35 — más
+  lo que fue saliendo al cerrarlas: la ceguera de tres puertas, las cinco suites de modelo que nadie
+  corría, y meter cuatro de ellas a CI
 
 > **Esto es la etapa 2.35 de la Fase 2. No es la Fase 3.**
 
@@ -1123,6 +1125,16 @@ alguien compara al píxel, ésa es la diferencia y está escrita aquí.
    y cuesta segundos. Y no al revés: poner la suite antes dejaría al rastreador —el gate que cuesta
    catorce minutos y cazó el `Button asChild`— heredando una venta cobrada y una caja abierta.
 
+   Medido en dos corridas de CI, que es como se sabe que el arreglo era el arreglo:
+
+   | | `tienda` | `ferreteria` | `restaurante` | `cafeteria` | `estetica` |
+   | --- | --- | --- | --- | --- | --- |
+   | Sin resembrar | ✅ | ✅ | ✅ | 🔴 | saltada |
+   | Con resiembra | ✅ | ✅ | ✅ | ✅ | saltada |
+
+   Lo que hace útil la primera fila es justamente que tres pasaran: un fallo que sólo toca a uno de
+   cuatro con el mismo paso delante señala el **estado** y no el paso.
+
    `estetica` queda fuera **a propósito y dicho**: su suite agenda una cita y necesita huecos libres
    en lo que queda del día, y ese trabajo corre en `America/Mexico_City` a cualquier hora. De noche
    sería roja por el reloj, y **una puerta que enrojece por la hora enseña a ignorar el rojo**. Entra
@@ -1174,7 +1186,8 @@ va aquí.
 |---|---|---|---|
 | Fusionar el PR #11 a `main` | Miguel | Condición 10 de TERMINADO | No: está todo en la rama, y su despliegue está vivo y comprobado desde fuera |
 | El secreto de *bypass* de la protección de Vercel, para que CI pueda correr `verify:acople` contra el despliegue | Miguel | Que la comprobación remota no dependa de un enlace compartido de 23 h | No: hoy se usó la cookie del enlace, que es la vía 2 de `VERCEL-ENTORNO §3` |
-| Una base desechable para `test:integracion` en local: o Docker encendido, o una RAMA de Supabase —que cuesta centavos por hora **en tu cuenta**— | Miguel | El eslabón 34 de `pnpm verify`, que hoy sólo se cubre en CI | No: no se apunta a la base de verdad, que es lo único alcanzable desde aquí y recibiría DDL || Decidir si `estetica-salon.spec.ts` agenda en una fecha fija en vez de «hoy» | Miguel | Que la quinta suite pueda entrar a CI sin enrojecer por la hora | No: queda declarada fuera, con su razón en el propio paso del flujo |
+| Una base desechable para `test:integracion` en local: o Docker encendido, o una RAMA de Supabase —que cuesta centavos por hora **en tu cuenta**— | Miguel | El eslabón 36 de `pnpm verify`, que hoy sólo se cubre en CI | No: no se apunta a la base de verdad, que es lo único alcanzable desde aquí y recibiría DDL |
+| Decidir si `estetica-salon.spec.ts` agenda en una fecha fija en vez de «hoy» | Miguel | Que la quinta suite pueda entrar a CI sin enrojecer por la hora | No: queda declarada fuera, con su razón en el propio paso del flujo |
 
 ## 13. Estado al cerrar
 

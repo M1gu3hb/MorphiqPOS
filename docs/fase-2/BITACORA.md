@@ -4946,3 +4946,16 @@ trabajo —`configuracion.resetear_demo`, con su transacción y su auditoría—
 **Y por qué no al revés:** poner la suite ANTES del rastreo también arregla el choque, y deja al
 rastreador heredando una venta cobrada y una caja abierta. Entre proteger el gate barato y proteger el
 que cuesta catorce minutos y cazó el `Button asChild`, se protege el segundo.
+
+### Y con la resiembra en medio, las cuatro en verde en CI
+
+Corrida `35695290770`, la siguiente: `tienda`, `ferreteria` y **`cafeteria`** —la que había caído—
+las tres con `siembra:success suite:success`. La medición completa del arreglo, en dos corridas:
+
+| | `tienda` | `ferreteria` | `restaurante` | `cafeteria` | `estetica` |
+| --- | --- | --- | --- | --- | --- |
+| Sin resembrar (`35694329860`) | ✅ | ✅ | ✅ | 🔴 | saltada |
+| Con resiembra (`35695290770`) | ✅ | ✅ | ✅ | ✅ | saltada |
+
+Lo que hace útil la primera fila es justamente que tres pasaran: un fallo que sólo toca a uno de
+cuatro con el mismo paso delante señala el ESTADO y no el paso.
