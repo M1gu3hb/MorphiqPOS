@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { GUION_SIN_PARPADEO } from '@/tema-arranque';
 import { NOMBRE_COOKIE } from '@morphiqpos/app/http';
 import { APARIENCIA_POR_OMISION, aparienciaDeLaOrganizacion } from '@morphiqpos/app/configuracion';
+import { negociosDelDespliegue } from '@morphiqpos/app/negocio';
 
 import { sesionDelServidor } from '~/servidor/http';
 
@@ -25,6 +26,33 @@ import './globals.css';
  */
 const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--mh-inter' });
 const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--mh-dm-sans' });
+
+/**
+ * De qué negocio es la piel que se pinta, con sesión y sin ella.
+ *
+ * Aparte del componente porque tiene tres caminos y cada uno con su razón, y un
+ * ternario de tres ramas dentro del `layout` esconde la de en medio — que es la única
+ * que no es obvia.
+ *
+ * NUNCA lanza. Es un dato decorativo: una pantalla de acceso que no abre porque el
+ * color no se pudo leer sería un desastre causado por un adorno.
+ */
+async function aparienciaDelDespliegue(
+  sesion: { readonly organizacionId: string } | null,
+  host: string | null,
+) {
+  if (sesion !== null) return aparienciaDeLaOrganizacion(sesion.organizacionId);
+  try {
+    const negocios = await negociosDelDespliegue(process.env['ORGANIZACION'], host);
+    // Uno solo: es SU pantalla de acceso. Varios —las cinco demostraciones en un
+    // despliegue— no tienen una respuesta correcta, y se pinta con la base.
+    const unico = negocios.length === 1 ? negocios[0] : undefined;
+    if (unico === undefined) return APARIENCIA_POR_OMISION;
+    return await aparienciaDeLaOrganizacion(unico.organizacionId);
+  } catch {
+    return APARIENCIA_POR_OMISION;
+  }
+}
 
 export const metadata: Metadata = {
   title: 'MH Astral POS',
@@ -64,20 +92,33 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
   /**
    * LA APARIENCIA DEL NEGOCIO, resuelta EN EL SERVIDOR.
    *
-   * Sin sesión —la pantalla de acceso— no hay negocio del que leerla, y se pinta con
-   * la base: es la marca de la plataforma, que es lo que esa pantalla enseña.
+   * Va aquí y no en un efecto del cliente porque los tokens de color viven bajo
+   * `[data-estilo]` y los nombres en inglés que pinta la aplicación derivan de ellos:
+   * aplicarlo tras hidratar sería medio segundo de otro estilo en CADA carga. Y nunca
+   * lanza: si la base no contesta se pinta con el estilo base y la aplicación sigue.
    *
-   * Con sesión se lee la del negocio. Va aquí y no en un efecto del cliente porque
-   * los tokens de color viven bajo `[data-estilo]` y los nombres en inglés que pinta
-   * la aplicación derivan de ellos: aplicarlo tras hidratar sería medio segundo de
-   * otro estilo en CADA carga. Y nunca lanza: si la base no contesta, se pinta con
-   * el estilo base y la aplicación sigue.
+   * ── Y LA PANTALLA DE ACCESO TAMBIÉN, cuando se puede ─────────────────────
+   * Antes se pintaba siempre con el estilo base «porque sin sesión no hay negocio del
+   * que leerla». Sí lo hay: un despliegue sirve a UN negocio (R16) y el servidor ya
+   * sabe cuál —`negociosDelDespliegue`, del host o de la configuración—, que es la
+   * misma resolución con la que la pantalla de acceso arma sus tarjetas de personas.
+   *
+   * Importa porque los atributos llegan en el PRIMER pintado del día, antes de que
+   * nadie teclee un PIN: la primera pantalla con tokens que se abra ya está en el
+   * estilo de su negocio, sin el salto de medio segundo que habría si el estilo
+   * llegara al entrar. Y no es un parámetro del cliente —eso sería R16 al revés—: es
+   * configuración del servidor, la misma con la que esa pantalla arma sus tarjetas.
+   *
+   * Lo que NO cambia, y está bien que no cambie: la pantalla de acceso EN SÍ. Es de
+   * `heredado/`, se pinta con su propio degradado y la cubre `verify:aspecto`. Los
+   * atributos están puestos en su `<html>`; lo que no hay es una sola clase suya que
+   * los consuma, y cambiárselas sería romper el diseño que Miguel entregó.
+   *
+   * Cuando el despliegue sirve a VARIOS —las cinco demostraciones a la vez— no hay
+   * una respuesta correcta, y ahí sí se pinta con la base.
    */
   const sesion = conSesion ? await sesionDelServidor() : null;
-  const apariencia =
-    sesion === null
-      ? APARIENCIA_POR_OMISION
-      : await aparienciaDeLaOrganizacion(sesion.organizacionId);
+  const apariencia = await aparienciaDelDespliegue(sesion, cabeceras.get('host'));
 
   return (
     <html
@@ -96,8 +137,9 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
        * los pusiera React tras hidratar, la primera pintura sería sin tokens —un
        * destello de página en blanco y negro— en cada carga.
        *
-       * `morphiq` es el base y de momento es el de todos. En la etapa 5 lo elige
-       * cada organización desde Modo Presentación y esto leerá su preferencia.
+       * Desde la etapa 5 el estilo lo elige cada organización desde Modo Presentación,
+       * y desde la 4.4 cada demostración nace con el suyo. Esto ya no es siempre
+       * `morphiq`: es lo que ese negocio guardó.
        */
       data-estilo={apariencia.estilo}
       data-densidad={apariencia.densidad}
