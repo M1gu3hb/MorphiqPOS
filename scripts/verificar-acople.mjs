@@ -962,6 +962,21 @@ const GIRO_DE_LA_CARPETA = {
 const NO_ES_LA_ENTIDAD = [
   'punto de venta',
   'precio de venta',
+  /**
+   * «UNIDAD DE VENTA» es la palabra de la FERRETERÍA, y está en su propia ficha.
+   *
+   * `modelos/02-retail/ferreteria/00-FICHA-Y-EJES.md` la lleva como eje: «Pieza,
+   * metro, kilo y pieza-por-kilo, con corte físico del material». Es el mismo
+   * compuesto que las dos líneas de arriba —el sustantivo es «unidad», no la nota que
+   * se cobra— y el toggle que la rotula elige entre metro, pieza y caja, no entre
+   * documentos.
+   *
+   * La puerta la vio por primera vez el 21-09-2026, y no porque el rótulo sea nuevo
+   * —lleva ahí desde `bdb3c69`—: un `accept="image/*"` de la misma pantalla abría un
+   * comentario fantasma que dejaba 170 líneas de ese archivo sin leer. Arreglado en
+   * `textosVisibles`; esta línea es lo que quedó debajo.
+   */
+  'unidad de venta',
   'corte de caja',
   'punto de partida',
   'cuenta el',
@@ -1032,11 +1047,45 @@ function textosVisibles(fuente) {
   // mensaje es lo que hace que alguien pueda ir a arreglarlo, y colapsar un
   // comentario de ocho líneas en un espacio lo desplazaba todo lo que viene detrás.
   const enBlanco = (trozo) => trozo.replaceAll(/[^\n]/g, ' ');
-  const sinProsa = fuente
+
+  /**
+   * `accept="image/*"` NO ABRE UN COMENTARIO, y durante meses sí lo abrió.
+   *
+   * El `/*` de ese tipo MIME entraba como apertura de bloque, el buscador corría
+   * hasta el `*` + `/` siguiente —que estaba 170 líneas más abajo— y esta función
+   * devolvía en blanco todo lo que había en medio. En `ferreteria/FichaDePieza.tsx`
+   * eso escondía el cuerpo entero de la ficha, incluido un `aria-label` con la
+   * palabra de otro giro, y la puerta informaba «0 rótulos con la palabra de otro
+   * giro» sobre un archivo que **no había leído**.
+   *
+   * Es el fallo de esta familia que más caro sale: la puerta no se quejó, dio verde,
+   * y el verde afirmaba una propiedad de un texto que nunca miró. Cualquier pantalla
+   * con cámara —y son varias— tenía el mismo agujero.
+   *
+   * Se neutralizan los dos delimitadores DENTRO de una cadena entrecomillada, y se
+   * sustituye el `*` por un espacio para no mover ni un carácter: los números de
+   * línea del mensaje tienen que seguir llevando a donde está la cosa.
+   */
+  const sinFalsosDelimitadores = fuente.replaceAll(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, (cadena) =>
+    cadena.replaceAll(/\/\*|\*\//g, (delimitador) => delimitador.replace('*', ' ')),
+  );
+
+  const sinProsa = sinFalsosDelimitadores
     .replaceAll(/\{\/\*[\s\S]*?\*\/\}/g, enBlanco)
     .replaceAll(/\/\*[\s\S]*?\*\//g, enBlanco)
-    .replaceAll(/^\s*\/\/.*$/gm, '')
-    .replaceAll(/^\s*\*.*$/gm, '');
+    /**
+     * SANGRÍA HORIZONTAL, no cualquier espacio, y por eso la línea iba corrida.
+     *
+     * La clase `\s` incluye el salto de línea. Con ella, el ancla de principio de
+     * línea prendía en una línea EN BLANCO, la sangría se comía el salto siguiente y
+     * la marca de comentario casaba en la línea de ABAJO: se borraban las dos juntas,
+     * la cuenta perdía una línea, y el mensaje mandaba a alguien una línea antes de
+     * donde está la cosa —«:535» para un `aria-label` que vive en la 536—.
+     *
+     * `[^\S\n]` es espacio y tabulador, y nada más.
+     */
+    .replaceAll(/^[^\S\n]*\/\/.*$/gm, '')
+    .replaceAll(/^[^\S\n]*\*.*$/gm, '');
 
   const encontrados = [];
   const anotar = (indice, texto, largoMaximo) => {

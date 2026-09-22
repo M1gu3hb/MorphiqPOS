@@ -4535,3 +4535,94 @@ Ninguno devuelve 500 ni `{ok:false}`: los tres viven en la consola del navegador
    sonda es la validación funcionando, y en un contenedor de CI llega más tarde que en una
    laptop: aterrizaba con la ventana cerrada y la corrida acusaba a la aplicación de romperse
    justo cuando mejor se comporta.
+
+## ETAPA 2.35 · LA PUERTA QUE DABA VERDE SOBRE UN ARCHIVO QUE NO HABÍA LEÍDO
+
+`pnpm verify` completo, por primera vez en la etapa, trajo una acusación nueva:
+
+```
+VOCABULARIO: 1 pantalla(s) usan la palabra de OTRO giro …
+  ferreteria/FichaDePieza.tsx:536  «venta»  Unidad de venta  · tienda llama así a «orden»; aquí es «nota»
+```
+
+El cierre de la 2.3 —reporte 017— decía «**0** rótulos con la palabra de otro giro». Y el rótulo no
+es nuevo: lleva ahí desde `bdb3c69`, sin una coma de diferencia. Así que una de las dos afirmaciones
+era falsa, y había que averiguar cuál **antes** de tocar el rótulo.
+
+### La medición, por mutación
+
+| Archivo | Puerta | Resultado |
+| --- | --- | --- |
+| el de ANTES de la etapa | la de antes | `0 rótulos con la palabra de otro giro` |
+| el de HOY | la de antes | 1 · `FichaDePieza.tsx:535` |
+| el de ANTES de la etapa | **la arreglada** | 1 · `FichaDePieza.tsx:502` |
+
+La tercera fila es la que importa: **con el archivo intacto, la puerta arreglada SÍ lo ve**. No lo
+introdujo esta etapa. La puerta llevaba meses sin leer ese trozo.
+
+### `accept="image/*"` abría un comentario
+
+`textosVisibles` quita la prosa antes de buscar rótulos, y para los bloques usaba
+`/\/\*[\s\S]*?\*\//g`. El `/` + `*` del tipo MIME de ese `accept` entra como apertura, el buscador
+corre hasta el `*` + `/` siguiente —que estaba **170 líneas más abajo**— y la función devolvía en
+blanco todo lo que había en medio: el cuerpo entero de la ficha de la pieza, con su `aria-label`
+dentro.
+
+Es el fallo más caro de esta familia. No es que la puerta se callara: **dio verde, y el verde
+afirmaba una propiedad de un texto que nunca miró**. Cualquier pantalla con cámara tenía el mismo
+agujero. Ahora se neutralizan los dos delimitadores dentro de una cadena entrecomillada, cambiando
+el `*` por un espacio para no mover ni un carácter —los números de línea del mensaje son lo que
+permite ir a arreglar la cosa—.
+
+### Y el número de línea iba corrido
+
+`^\s*//` : `\s` incluye el salto de línea. El ancla prendía en una línea **en blanco**, la sangría
+se comía el salto, y la marca de comentario casaba en la línea de abajo: las dos se borraban juntas
+y la cuenta perdía una línea. El mensaje mandaba a alguien a la 535 por algo que vive en la 536.
+`[^\S\n]` es espacio y tabulador, y nada más.
+
+### Lo que quedó debajo: «unidad de venta» es de la ferretería
+
+Con la puerta viendo de verdad, el rótulo se juzga por lo que dice la ficha del propio giro:
+`modelos/02-retail/ferreteria/00-FICHA-Y-EJES.md` lleva **«Unidad de venta»** como eje —«Pieza,
+metro, kilo y pieza-por-kilo, con corte físico del material»—. Es el mismo compuesto que
+`punto de venta` y `precio de venta`, ya declarados: el sustantivo es «unidad», y el toggle que lo
+rotula elige entre metro, pieza y caja, no entre documentos. Declarado con su cita, no renombrado:
+renombrarlo habría alejado la pantalla de lo que su propia ficha dice.
+
+---
+
+## ETAPA 2.35 · LA CAFETERÍA, TERCERA VEZ — Y LA PUERTA QUE ACUSABA SIN DECIR QUÉ
+
+La corrida de CI de `38b1e4e` dejó la cafetería en rojo por tercera vez, con la misma firma:
+
+```
+/cafeteria/inventario · Failed to load resource: the server responded with a status of 400
+```
+
+**Y hay que decirlo: el arreglo 3 de `bdcec0c` —la ventana de sonda que se cerraba pronto— se
+escribió como si fuera LA causa de las dos veces anteriores, y con el 400 de vuelta esa atribución
+no se sostiene.** La ventana era corta y alargarla es correcto; que fuera la causa es otra cosa, y
+no estaba medido. Queda dicho aquí en vez de dejarlo pasar.
+
+### Por qué tres veces y sin saber de dónde salía
+
+Porque la acusación **no se puede accionar**. El navegador escribe «Failed to load resource… 400»
+sin decir qué pidió, y esa pantalla habla con una decena de rutas. Las tres veces hubo que salir a
+buscarlo a mano.
+
+Y el rastreador **ya sabía la respuesta**, en la otra puerta: el vigilante de red ve el 400 en la
+RESPUESTA y tiene la ruta, el estado y —por `loQuePedia`— la entidad y la operación. Las dos
+puertas veían el mismo fallo, y la que hablaba primero era **la que menos sabía**, porque el orden
+de los `expect` estaba al revés.
+
+Dos cambios, los dos en el rastreador:
+
+1. **El vigilante de red va primero.** El primer fallo que se lee es el que trae la ruta. La puerta
+   de la consola no se relaja: sigue detrás, y es la única que ve un `TypeError` del cliente, que no
+   deja rastro en ninguna respuesta.
+2. **La línea de consola dice el recurso.** `location().url` de un mensaje de recurso ES la URL que
+   falló; se recorta el origen y se calla cuando no aporta.
+
+El 400 de la cafetería **sigue sin diagnosticar**. Lo que cambia es que la próxima corrida dirá qué
+ruta fue, en vez de en qué pantalla estaba el cursor.

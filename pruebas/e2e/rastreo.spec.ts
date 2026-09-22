@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type ConsoleMessage, type Locator, type Page } from '@playwright/test';
 
 import {
   abrirCajaPorLaRuta,
@@ -220,6 +220,28 @@ const RUIDO_DE_CONSOLA = [
    * vuelta vino a dejar de hacer.
    */
 ];
+
+/**
+ * QUÉ RECURSO FALLÓ, no sólo en qué pantalla.
+ *
+ * ── Por qué hacía falta ───────────────────────────────────────────────────
+ * «`/cafeteria/inventario` · Failed to load resource… 400» es una acusación que no
+ * se puede accionar: el navegador escribe esa línea sin decir QUÉ pidió, y esa
+ * pantalla habla con una decena de rutas. Le pasó a la cafetería tres veces y las
+ * tres hubo que salir a buscar a mano de dónde salía el 400.
+ *
+ * `location().url` de un mensaje de consola de recurso ES la URL del recurso, que es
+ * exactamente lo que falta. Se recorta el origen —igual que la pantalla— y se calla
+ * cuando no aporta: si es la propia página, o si viene vacío, la línea queda como
+ * estaba. Es el mismo servicio que `loQuePedia` presta al vigilante de red.
+ */
+function recursoDe(mensaje: ConsoleMessage): string {
+  const url = mensaje.location().url;
+  if (url === '') return '';
+  const relativa = url.replace(/^https?:\/\/[^/]+/, '');
+  if (relativa === '' || url === mensaje.page()?.url()) return '';
+  return ` ← ${relativa.slice(0, 120)}`;
+}
 
 /**
  * QUÉ CLASE DE PIEZA ES, porque no se tocan igual.
@@ -909,7 +931,9 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
        * cafetería acusando a la aplicación de romperse justo cuando se comporta bien.
        */
       if (sondeando && /Failed to load resource.*\b(400|422)\b/i.test(texto)) return;
-      enLaConsola.push(`${page.url().replace(/^https?:\/\/[^/]+/, '')} · ${texto.slice(0, 200)}`);
+      enLaConsola.push(
+        `${page.url().replace(/^https?:\/\/[^/]+/, '')} · ${texto.slice(0, 200)}${recursoDe(mensaje)}`,
+      );
     });
     page.on('pageerror', (fallo) => {
       enLaConsola.push(`${page.url().replace(/^https?:\/\/[^/]+/, '')} · ${fallo.message}`);
@@ -1735,13 +1759,30 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         'docs/fase-2/CLICS-SIN-EFECTO.md.',
     ).toEqual([]);
 
+    /**
+     * EL VIGILANTE DE RED VA PRIMERO, y el orden importa.
+     *
+     * Las dos puertas ven el mismo 4xx por caminos distintos: el vigilante de red lo
+     * ve en la RESPUESTA y sabe la ruta, el estado y —por `loQuePedia`— la entidad y
+     * la operación; el navegador lo escribe además en la consola y ahí sólo dice
+     * «Failed to load resource… 400».
+     *
+     * Estaba al revés, y cuando los dos tenían algo que decir el que hablaba era el
+     * que menos sabía: «`/cafeteria/inventario` · Failed to load resource… 400», sin
+     * decir QUÉ se pidió, en una pantalla que habla con una decena de rutas. Hubo que
+     * salir a buscarlo a mano tres veces.
+     *
+     * Con el vigilante de red delante, el primer fallo que se lee es el que trae la
+     * ruta. La puerta de la consola no se relaja: sigue detrás, y es la ÚNICA que ve
+     * un `TypeError` del cliente, que no deja rastro en ninguna respuesta.
+     */
+    exigirSinFallos();
+
     expect(
       [...new Set(enLaConsola)],
       'El navegador escribió errores mientras se tocaba la aplicación. Un error de consola no ' +
         'devuelve 500 ni `{ok:false}`: la pantalla se queda a medias y el servidor no se entera.',
     ).toEqual([]);
-
-    exigirSinFallos();
 
     /**
      * CUÁNTO QUEDÓ SIN TOCAR, y un techo.
