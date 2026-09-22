@@ -4915,3 +4915,34 @@ la prueba agende en una fecha fija en vez de «hoy».
 podía mover el amontonamiento o el foco que la puerta 6.4 mide. Se volvió a correr: **17 passed
 (29.9s)**. No movió ninguno de los dos — que era lo esperado, porque lo que se quitó era un `gap` de
 un píxel y un contenedor flex que no hacía falta, no la jerarquía.
+
+### Y un número que estaba mal en mi propio reporte: la cadena tiene 36, no 34
+
+El encargo dice «los 34 eslabones, más los nuevos», y yo escribí «33 de 34» en tres sitios del
+reporte. Contados con `node` sobre el propio `package.json`: **36**. Los 34 del encargo más
+`verify:estilos` y `verify:rastro`, que nacieron en esta etapa — o sea que el «más los nuevos» del
+encargo era literal y yo lo había ignorado al hacer la cuenta.
+
+Corregido a **35 de 36** en el reporte, en el estado y en el PR. Es un número pequeño y es el número
+que resume la condición 9: si se cita mal, el resto del reporte pierde el derecho a que se le crea.
+
+### Y la primera corrida con las suites dentro enseñó por qué el orden importa
+
+De los cuatro trabajos que las estrenaron, **tres en verde** —`tienda` (→ `abarrotes`), `ferreteria`
+y `restaurante`—, `estetica` **saltada** —como estaba escrito— y `cafeteria` **ROJA**:
+
+```
+«/cafeteria/cobrar» abrió en 200 y NO enseñó lo suyo (/Cobrar|Turno cerrado/).
+```
+
+En local esa misma suite había pasado en 56 s. Y las otras tres pasaron aquí, lo cual es justo lo que
+señala la causa: no es la suite ni la pantalla, es **el estado**. El paso anterior es el rastreador, que acaba de tocar CADA BOTÓN de cada pantalla —turnos
+incluidos—, así que la demostración que la suite encuentra no es la que la suite espera. Ninguna de
+las dos está mal; lo que estaba mal era ponerlas seguidas.
+
+Se siembra la demostración otra vez entre las dos. Es el mismo comando que ya corre más arriba en el
+trabajo —`configuracion.resetear_demo`, con su transacción y su auditoría— y cuesta segundos.
+
+**Y por qué no al revés:** poner la suite ANTES del rastreo también arregla el choque, y deja al
+rastreador heredando una venta cobrada y una caja abierta. Entre proteger el gate barato y proteger el
+que cuesta catorce minutos y cazó el `Button asChild`, se protege el segundo.

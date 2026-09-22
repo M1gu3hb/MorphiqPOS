@@ -5,7 +5,7 @@
   modelos y las puertas de la cadena, así que no vive en un carril
 - **Rama:** `carril-a` → PR [#11](https://github.com/M1gu3hb/MorphiqPOS/pull/11)
 - **Fecha inicio / fin:** 2026-09-20 → 2026-09-21
-- **Commits:** `54bda85` … `0d39491` (22 commits)
+- **Commits:** `54bda85` … `f8a938f` (24 commits), más el que trae este reporte al día
 - **Tareas cubiertas:** etapas 0.1 a 0.9, 1, 2, 3, 4.1 a 4.5, 5, 6.1 a 6.5 de la Fase 2.35
 
 > **Esto es la etapa 2.35 de la Fase 2. No es la Fase 3.**
@@ -495,7 +495,7 @@ verdad hay hoy enfrente.
 | 6 | Las 69 pantallas rediseñadas, cada modelo sintiéndose suyo | 🔴 **parcial** | Tienen el ritmo (919 literales → **0**), la tipografía, el dinero, los vacíos, los tableros y la piel de su giro. **NO** están recompuestas una por una: 31 de 72 usan la biblioteca del bloque 2. Detalle y razón en §8 |
 | 7 | El selector en Modo presentación, cambiando en vivo y guardando por organización | ✅ | `93c4c43` + `5878846` · y ojo: **guardaba nada** hasta `5878846`, porque `configuracion.fijar_apariencia` no dejaba rastro y el comando moría con `SinRastro` después de escribir. Lo destapó una puerta nueva, no una prueba |
 | 8 | Las cinco puertas de la etapa 6, cada una demostrada en rojo antes que en verde | ✅ | `b1de071`, `3275f3a`, `3581942`, `719c131` · **seis**, no cinco: hizo falta `verify:rastro`. Las mutaciones de cada una, en §3 y en su commit |
-| 9 | `pnpm verify` en 0. Los 34 eslabones, más los nuevos | 🟡 **todos menos el último** | Sección 6. Los 33 primeros en verde en local, **incluido `verify:acople` contra el despliegue remoto**, que además exige los checks de CI en verde —`Verde es verde cuando termina`— y eso ata la 8, la 9 y la 10 entre sí. El eslabón 34, `test:integracion`, **no puede correr en esta máquina** y sí corre en CI: §9.8 |
+| 9 | `pnpm verify` en 0. Los 34 eslabones, más los nuevos | 🟡 **todos menos el último** | Sección 6. La cadena tiene hoy **36 eslabones** —los 34 del encargo más `verify:estilos` y `verify:rastro`, que nacieron en esta etapa— y **35 están en verde en local**, incluido `verify:acople` contra el despliegue remoto, que además exige los checks de CI en verde: `Verde es verde cuando termina`, y eso ata la 8, la 9 y la 10 entre sí. El 36, `test:integracion`, **no puede correr en esta máquina** y sí corre en CI: §9.8 |
 | 10 | Todo desplegado en producción y comprobado desde fuera. Nada de localhost para declarar terminado | 🟡 **a medias** | El despliegue de la rama está **vivo con el commit de hoy** (`a1f1eee`) y comprobado **desde fuera**: `verify:acople` remoto da `200 · sin muro por delante` y prueba **82 rutas por HTTP** contra Vercel, no contra localhost. Lo que **no** se hizo: fusionar a `main` ni tocar *Production*. Razón en §9.2 |
 
 ---
@@ -899,7 +899,7 @@ Los ajenos y los míos. Sobre todo los míos.
 ### La salida de las puertas
 
 ```text
-$ pnpm verify   (los 34 eslabones, más los seis nuevos)
+$ pnpm verify   (36 eslabones: los 34 del encargo, más verify:estilos y verify:rastro)
 
   verify:arranque … verify:aspecto … verify:enlaces … verify:entradas   ✓
   verify:primitivas   ✓ Las pantallas ya tienen su ritmo en tokens.
@@ -975,7 +975,7 @@ $ pnpm test:e2e pruebas/e2e/galeria.spec.ts     5 modelos · 160 capturas · tod
 
 | Comando | Resultado | Salida relevante |
 |---|---|---|
-| `pnpm verify` | 🟡 **33 de 34** | Los 33 primeros en verde, e incluyen `verify:acople` contra el despliegue remoto —que además exige los checks de CI en verde: `Verde es verde cuando termina`—. El 34, `test:integracion`, no puede correr aquí: §9.8 |
+| `pnpm verify` | 🟡 **35 de 36** | Los 35 primeros en verde, e incluyen `verify:acople` contra el despliegue remoto —que además exige los checks de CI en verde: `Verde es verde cuando termina`—. El 36, `test:integracion`, no puede correr aquí: §9.8 |
 | `pnpm verify:primitivas` | ✅ | `deuda de ritmo fuera de packages/ui: 0 de 0 permitidos, en 0 archivo(s)` · `Cero literales de color, altura, sombra, variante, espacio, texto o duracion en el sistema` |
 | `pnpm verify:estilos` | ✅ | `8 estilo(s) × 2 modos, todos en AA` |
 | `pnpm verify:rastro` | ✅ | `Rastro: 189 comando(s) que escriben, todos con auditoría (5 por delegación)` |
@@ -1026,6 +1026,17 @@ estética→`cristal`, tienda→`bloque`, restaurante→`noche`, cafetería→`m
 **Lo que la galería prueba y lo que no.** Prueba que las 40 combinaciones cargan, responden < 400 y
 no son la página de error del navegador — eso no es poco: así se encontró el `Button asChild`. **No**
 prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la galería.
+
+**Los ocho de `cafeteria/lista` están regenerados.** Esa pantalla es `/cafeteria/inventario`, y los
+retratos anteriores tenían un bagel pintado en la familia «Leche» (§5, error 12). El retrato de un
+defecto puesto en un informe se firma como si fuera el producto, así que se volvieron a tomar: 160
+siguen siendo 160, y 32 por modelo.
+
+**Y lo que la galería NO refleja, dicho:** los retratos son anteriores al arreglo de `<Dinero>` (§5,
+error 13), así que las pantallas de cobro se ven ahí con el importe en un `inline-flex` con un `gap`
+de **un píxel**. No se volvieron a tomar las 40 por eso: el defecto era del TEXTO que se extrae del
+nodo, no de lo que se ve, y un píxel entre el `$` y la cifra no cambia el retrato. Si algún día
+alguien compara al píxel, ésa es la diferencia y está escrita aquí.
 
 ---
 
@@ -1082,7 +1093,7 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
    `MORPHIQPOS_BYPASS_VERCEL`, que es un secreto que **sólo se genera en el panel** y que por eso está
    en §12 como pendiente de Miguel. No apagué la Protección de Despliegue para evitarlo: es un cambio
    de seguridad persistente sobre un proyecto con datos de cuatro negocios que cobran.
-8. **`test:integracion`, el último eslabón de `pnpm verify`, NO puede correr en esta máquina.**
+8. **`test:integracion`, el eslabón 36 y último de `pnpm verify`, NO puede correr en esta máquina.**
    Necesita una base desechable: o Docker —que no está— o `DATABASE_URL_PRUEBAS`. La única base
    alcanzable desde aquí es el **proyecto Supabase de verdad**, y esas pruebas aplican DDL: apuntarlas
    ahí sería correr migraciones contra los datos de cuatro negocios. La vía que el propio helper
@@ -1104,8 +1115,13 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
 
    **Y ahora CI las corre.** Cuatro de las cinco entraron a la matriz de `Rastreo`, que ya se
    provisiona con su organización, su PIN y un despliegue de UN negocio: es el sitio donde encajaban
-   sin montar nada. Van **después** del rastreo, que termina soltando la caja —el estado que estas
-   suites saben abrir—.
+   sin montar nada. Van **después** del rastreo, y **con la demostración sembrada otra vez en medio**:
+   la primera corrida con las suites dentro dejó **tres en verde** —`tienda`, `ferreteria` y
+   `restaurante`—, `estetica` saltada y **`cafeteria` en rojo** —«/cafeteria/cobrar abrió en 200 y NO enseñó lo suyo»— cuando en local
+   había pasado en 56 s. La diferencia era el estado: el rastreador acaba de tocar cada botón de cada
+   pantalla, turnos incluidos. Se resiembra en medio, que es el mismo comando que ya corre más arriba
+   y cuesta segundos. Y no al revés: poner la suite antes dejaría al rastreador —el gate que cuesta
+   catorce minutos y cazó el `Button asChild`— heredando una venta cobrada y una caja abierta.
 
    `estetica` queda fuera **a propósito y dicho**: su suite agenda una cita y necesita huecos libres
    en lo que queda del día, y ese trabajo corre en `America/Mexico_City` a cualquier hora. De noche
@@ -1164,7 +1180,7 @@ va aquí.
 
 - **Bloques de la etapa 2.35 terminados:** 0, 1, 2, 3, 5 y 6 completos; 4 completo excepto la
   recomposición pantalla-por-pantalla.
-- **Condiciones de TERMINADO:** **7 en verde** (1, 2, 3, 4, 5, 7 y 8); la **9** con 33 de sus 34
+- **Condiciones de TERMINADO:** **7 en verde** (1, 2, 3, 4, 5, 7 y 8); la **9** con **35 de sus 36**
   eslabones en verde en local y el último —`test:integracion`— cubierto sólo por CI; la **10 a
   medias**; la **6 parcial**. Siete no son diez, y redondear hacia arriba en la última línea del
   reporte sería exactamente lo que este reporte viene a no hacer.

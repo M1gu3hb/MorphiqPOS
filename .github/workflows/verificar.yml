@@ -440,6 +440,22 @@ jobs:
       # en `America/Mexico_City` a cualquier hora. Corriéndola de noche sería roja
       # por el reloj, y una puerta que enrojece por la hora enseña a ignorar el rojo.
       # Se incluirá el día que la prueba agende en una fecha fija en vez de «hoy».
+      # Y LA DEMOSTRACIÓN SE VUELVE A SEMBRAR ANTES, porque el rastreo la deja usada.
+      #
+      # La primera vez que estas suites entraron aquí, la de la cafetería falló con
+      # «/cafeteria/cobrar abrió en 200 y NO enseñó lo suyo» — y en local había pasado
+      # en 56 s. La diferencia es el estado: el rastreador acaba de tocar CADA BOTÓN de
+      # cada pantalla, turnos incluidos, así que la demostración que la suite encuentra
+      # no es la que la suite espera. No es un defecto de ninguna de las dos.
+      #
+      # Es el mismo comando que ya corre más arriba —`configuracion.resetear_demo`, con
+      # su transacción y su auditoría— y cuesta segundos. La alternativa era poner la
+      # suite ANTES del rastreo, y entonces el rastreador heredaría una venta cobrada y
+      # una caja abierta: se arregla el barato y se protege el gate que más cuesta.
+      - name: La demostración, otra vez
+        if: matrix.suite != ''
+        run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
+
       - name: La suite de su modelo
         if: matrix.suite != ''
         env:

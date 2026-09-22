@@ -737,7 +737,7 @@ probaba nadie: `configuracion.fijar_apariencia` llevaba toda la etapa 5 sin pode
 | 6 | Las 69 pantallas rediseñadas, cada modelo sintiéndose suyo | 🔴 **parcial** · 31 de 72 usan la biblioteca; ninguna recompuesta una por una |
 | 7 | El selector en Modo presentación, cambiando en vivo y guardando por organización | ✅ |
 | 8 | Las cinco puertas de la etapa 6, en rojo antes que en verde | ✅ · son **seis** |
-| 9 | `pnpm verify` en 0 | ⏳ · la cadena entera en verde salvo el último eslabón, que espera a CI |
+| 9 | `pnpm verify` en 0 | 🟡 · **35 de 36** eslabones en verde en local; el 36, `test:integracion`, sólo corre en CI |
 | 10 | Desplegado y comprobado **desde fuera** | ✅ para el despliegue de la rama · 🔴 `main` no fusionado |
 
 ### Lo comprobado contra el despliegue REMOTO, no contra localhost
