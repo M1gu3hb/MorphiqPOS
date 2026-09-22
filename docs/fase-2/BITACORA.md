@@ -5024,3 +5024,13 @@ caso es exactamente la clase de verde falso que esta puerta existe para evitar.
 **trabajo propio**, «Adopción del sistema de diseño»: mientras las pantallas se recomponen esta
 puerta está roja a propósito, y como paso del trabajo de tipos cortaría los tipos, las pruebas y
 el build de cada empujón.
+
+### Bloque 6, primer intento: la fusión la deniega la política de esta sesión
+
+`gh pr merge 11 --merge --match-head-commit 0f04fc2` → **denegado por el clasificador de
+permisos de Claude Code** («Production Deploy»). El encargo lo previó: se deja dicho y se sigue.
+No se intenta por otra vía —el conector de GitHub haría lo mismo que se acaba de denegar—.
+
+Consecuencia que hay que saber: el PR #11 sigue a `fase-2`, así que desde este empujón **ya no
+es el `0f04fc2` que se auditó**, sino ese más el cierre en curso. El punto limpio y auditado es
+`0f04fc2`; si Miguel quiere fusionar exactamente eso, es ese commit.
