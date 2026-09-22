@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactElement, ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { cn } from '../utilidades/cn';
 
@@ -167,6 +167,16 @@ export function BarraLateral({
  *
  * Lleva su respiro contra el área segura: sin él, en un teléfono con barra de gestos
  * el último renglón de la fila queda debajo de la barra del sistema.
+ *
+ * ── Y PUBLICA SU ALTURA, porque no es el único que vive abajo ─────────────
+ * `Isla` se ancla al mismo `bottom-0` y al mismo `z-40`. Con los dos montados —el
+ * carrito de un pedido en la mesa con su navegación debajo, que es una pantalla real
+ * y no un supuesto— la isla caía ENCIMA de la barra y tapaba sus destinos.
+ *
+ * Se MIDE en vez de calcularse: la altura depende de la densidad, del área segura del
+ * teléfono y de si algún destino lleva insignia. Un número escrito a mano acertaría en
+ * una densidad y mentiría en las otras tres. El `ResizeObserver` la mantiene al día
+ * cuando cambia la perilla, que es algo que pasa EN VIVO delante de un cliente.
  */
 export function AbanicoInferior({
   destinos,
@@ -180,8 +190,31 @@ export function AbanicoInferior({
   readonly className?: string;
 }): ReactElement {
   const cabe = destinos.slice(0, 5);
+  const barra = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const nodo = barra.current;
+    if (nodo === null) return undefined;
+
+    const raiz = document.documentElement;
+    const publicar = () => {
+      raiz.style.setProperty('--alto-abanico', `${String(Math.round(nodo.offsetHeight))}px`);
+    };
+    publicar();
+
+    const observador = new ResizeObserver(publicar);
+    observador.observe(nodo);
+    return () => {
+      observador.disconnect();
+      // Se QUITA al desmontar: si se quedara, una pantalla sin abanico dejaría la
+      // isla flotando a 60 px del suelo sin nada debajo que lo explique.
+      raiz.style.removeProperty('--alto-abanico');
+    };
+  }, []);
+
   return (
     <nav
+      ref={barra}
       aria-label="Navegación"
       className={cn(
         'fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-background/95 backdrop-blur-sm',

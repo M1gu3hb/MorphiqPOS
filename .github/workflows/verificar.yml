@@ -375,6 +375,20 @@ jobs:
       - name: Sembrar la demostración
         run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
 
+      # LOS OCHO ESTILOS, EN UN NAVEGADOR, y antes del rastreo a propósito.
+      #
+      # Dura diez segundos y el rastreo catorce minutos: si un estilo esconde un
+      # botón, se sabe ya en vez de al final. Y va en UN SOLO modelo porque lo que
+      # mide —que los tokens lleguen, que nada tape a nadie, que se acierte al tocar
+      # y que el foco se vea— no depende del giro: `/sistema` es la misma página en
+      # los cinco. Correrlo cinco veces serían cuatro copias del mismo veredicto.
+      #
+      # `test:e2e` construye y levanta el servidor él mismo; el build lo comparte con
+      # el paso siguiente por la caché de turbo, así que no se paga dos veces.
+      - name: Los ocho estilos, en el navegador
+        if: matrix.modelo == 'tienda'
+        run: pnpm test:e2e pruebas/e2e/estilos.spec.ts --project=escritorio
+
       # Playwright construye y levanta el servidor él mismo (`webServer` de
       # `playwright.config.ts`), heredando el entorno de este trabajo.
       - name: Tocar cada botón de cada pantalla

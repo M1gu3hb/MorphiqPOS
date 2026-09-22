@@ -206,7 +206,11 @@ export function PaginaDelSistema() {
             <Button variant="destructive">Eliminar</Button>
             <Button variant="link">¿Qué es esto?</Button>
           </div>
-          <div className="flex flex-wrap items-center gap-(--espacio-2)">
+          {/* La fila de TAMAÑOS respira más que la de variantes, y no por estética:
+              `xs` y `sm` quedan por debajo del objetivo táctil de su densidad, así que
+              lo que les permite pasar es la separación —la excepción de WCAG 2.5.8—. A
+              `gap-(--espacio-2)` quedaban a 11 px con guantes y no se aciertan. */}
+          <div className="flex flex-wrap items-center gap-(--espacio-4)">
             <Button size="xs">xs</Button>
             <Button size="sm">sm</Button>
             <Button>normal</Button>

@@ -103,6 +103,17 @@ export function Superficie({
  * de nivel 3 anclada a un borde, por encima del contenido y por debajo de los
  * diálogos. Lleva su propio respiro contra el área segura del teléfono, porque una
  * isla pegada al borde inferior queda debajo de la barra de gestos.
+ *
+ * ── Y POR ENCIMA DEL ABANICO, que es lo que faltaba ───────────────────────
+ * `AbanicoInferior` también vive en `bottom-0` y también en `z-40`. Los dos son
+ * patrones DE TELÉFONO, así que la pantalla que los pide a la vez es justo la que
+ * importa: el carrito de un pedido en la mesa, con su navegación debajo. Puestos los
+ * dos, la isla caía ENCIMA de la barra y tapaba sus destinos — y dos botones
+ * superpuestos son un botón muerto y un toque equivocado.
+ *
+ * Lo mide el abanico y lo publica en `--alto-abanico`; aquí sólo se suma. No se
+ * calcula la altura aquí porque depende de la densidad, del área segura y de si algún
+ * destino lleva insignia: medirla es lo único que no miente.
  */
 export function Isla({
   children,
@@ -118,7 +129,7 @@ export function Isla({
       className={cn(
         'pointer-events-none fixed inset-x-0 z-40 flex justify-center px-(--espacio-4)',
         posicion === 'abajo'
-          ? 'bottom-0 pb-[max(var(--espacio-4),env(safe-area-inset-bottom))]'
+          ? 'bottom-0 pb-[calc(var(--alto-abanico,0px)+max(var(--espacio-4),env(safe-area-inset-bottom)))]'
           : 'top-0 pt-[max(var(--espacio-4),env(safe-area-inset-top))]',
         className,
       )}

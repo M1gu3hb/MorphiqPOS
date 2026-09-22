@@ -21,7 +21,7 @@ import { Slot } from "radix-ui"
  * desaparece; la caja se opera con teclado diez horas al día.
  */
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-(--duracion-rapida) ease-[cubic-bezier(0.23,1,0.32,1)] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97] active:shadow-0 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 oscuro:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-(--duracion-rapida) ease-(--curva-entrada) outline-none focus-visible:ring-[3px] focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97] active:shadow-0 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 oscuro:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -42,10 +42,10 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-(--altura-control) px-4 py-2 has-[>svg]:px-3",
+        default: "h-(--altura-control) px-(--espacio-4) py-2 has-[>svg]:px-(--espacio-3)",
         xs: "h-[calc(var(--altura-control)*0.6)] gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-[calc(var(--altura-control)*0.85)] gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-        lg: "h-[calc(var(--altura-control)*1.15)] rounded-md px-6 has-[>svg]:px-4",
+        sm: "h-[calc(var(--altura-control)*0.85)] gap-1.5 rounded-md px-(--espacio-3) has-[>svg]:px-2.5",
+        lg: "h-[calc(var(--altura-control)*1.15)] rounded-md px-(--espacio-6) has-[>svg]:px-(--espacio-4)",
         icon: "size-(--altura-control)",
         "icon-xs": "size-[calc(var(--altura-control)*0.6)] rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-[calc(var(--altura-control)*0.85)]",

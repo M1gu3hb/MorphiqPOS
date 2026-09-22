@@ -73,7 +73,7 @@
 
   /* Valores por omision de las cuatro perillas. Se sobrescriben con los
      atributos data-* en <html>. */
-  --altura-control: 2.5rem;
+  --altura-control: 2.75rem;
   --radio-sm: 0.25rem;
   --radio-md: 0.5rem;
   --radio-lg: 0.75rem;
@@ -96,12 +96,34 @@
    (operacion) en tablet -> comoda. (operacion) en escritorio -> compacta.
    (gestion) -> normal.
 
-   Nota de accesibilidad (§4): "compacta" nunca baja de 44x44 px de objetivo
-   tactil efectivo aunque el control se vea de 32 px. Se logra con area de toque
-   extendida, no agrandando el control. */
+   --------------------------------------------------------------------------
+   `--area-tactil-minima` Y COMO SE COMPRUEBA, que es lo que aqui faltaba.
+
+   Esta nota decia que "compacta nunca baja de 44x44 px de objetivo tactil
+   efectivo [...] con area de toque extendida". Eso era una PROMESA: el token
+   estaba declarado en las cuatro densidades y lo usaba UN componente de los
+   treinta y seis. La misma enfermedad que la hoja de estilos que nadie
+   importaba.
+
+   Y el area de toque extendida —un ::after invisible mas grande que el
+   control— es peor que no tenerla en el caso que importa: en una lista con
+   `gap-px` el recuadro de una fila se monta sobre la de arriba y se come sus
+   clics. Un boton tapado por el area invisible de su vecino es exactamente el
+   boton muerto que se queria evitar.
+
+   Asi que la regla es la de WCAG 2.5.8, con el numero del sistema en vez de su
+   minimo de 24 px: un control pasa si su lado corto llega a
+   `--area-tactil-minima`, O si esta lo bastante separado como para que un
+   objetivo de ese tamano centrado en el no toque el de ningun otro control.
+   Tamano O distancia, no tamano a cualquier precio.
+
+   Lo comprueba `pruebas/e2e/estilos.spec.ts` en los ocho estilos, en un
+   navegador de verdad y sobre la caja calculada. Un token de accesibilidad que
+   ninguna puerta mide vuelve a ser una promesa.
+   -------------------------------------------------------------------------- */
 /* CON GUANTES. 56 px de control, que es a lo que se acierta con un guante puesto y
-   con prisa: una ferreteria en invierno, un taller, una cocina. El minimo de WCAG
-   son 44 y se cumple en las otras tres; esto es el minimo de una mano con guante. */
+   con prisa: una ferreteria en invierno, un taller, una cocina. El minimo tactil
+   son 44 y se cumple en las otras dos de tacto; esto es el de una mano con guante. */
 [data-densidad='guantes'] {
   --factor-espacio: 1.4;
   --altura-control: 3.5rem;
@@ -114,16 +136,34 @@
   --area-tactil-minima: 3rem;
 }
 
+/* NORMAL, la de por omision: 44 px y no 40.
+
+   Estaba en 2.5rem —40 px— y esa es la densidad que recibe una tableta recien
+   configurada, antes de que nadie toque una perilla. 44 es el minimo al que se
+   acierta con el pulgar y con prisa, y era el requisito escrito de esta etapa;
+   40 no lo cumplia. Sube el control, no solo el area: un boton que se ve de 40
+   y se toca en 44 sigue pareciendo pequeno, y el aspecto tambien informa. */
 [data-densidad='normal'] {
   --factor-espacio: 1;
-  --altura-control: 2.5rem;
+  --altura-control: 2.75rem;
   --area-tactil-minima: 2.75rem;
 }
 
+/* COMPACTA es la densidad de RATON Y TECLADO, y por eso su minimo es otro.
+
+   base.css ya lo decia arriba: "(operacion) en escritorio -> compacta". Con
+   raton el minimo que corresponde es el de WCAG 2.5.8 nivel AA —24 px— y el
+   control mide 32, que lo pasa con holgura. Exigirle 44 px de separacion a una
+   densidad cuyo proposito es caber mas en la pantalla la dejaria en rojo
+   siempre y acabaria en una exencion; declarar que no es una densidad de tacto
+   es lo que de verdad es.
+
+   Quien opere con el dedo en compacta lo hace habiendo elegido "compacta" en un
+   selector que dice lo que hace. Es una decision suya, no un descuido nuestro. */
 [data-densidad='compacta'] {
   --factor-espacio: 0.75;
   --altura-control: 2rem;
-  --area-tactil-minima: 2.75rem;
+  --area-tactil-minima: 1.5rem;
 }
 
 /* =========================================================== PERILLA 2

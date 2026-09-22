@@ -122,18 +122,20 @@ export function Tabla<F>({
         <thead className="sticky top-0 z-10 bg-muted">
           <tr>
             {seleccion === undefined ? null : (
-              <th scope="col" className="w-10 px-(--espacio-3) py-(--espacio-2)">
-                <input
-                  type="checkbox"
-                  aria-label={todasElegidas ? 'Quitar la selección' : 'Seleccionar todo'}
-                  checked={todasElegidas}
-                  onChange={() => {
-                    seleccion.alCambiar(
-                      todasElegidas ? new Set() : new Set(filas.map((f) => claveDe(f))),
-                    );
-                  }}
-                  className="size-4 accent-primary"
-                />
+              <th scope="col" className="w-10 p-0">
+                <label className="flex min-h-(--area-tactil-minima) cursor-pointer items-center justify-center px-(--espacio-3)">
+                  <input
+                    type="checkbox"
+                    aria-label={todasElegidas ? 'Quitar la selección' : 'Seleccionar todo'}
+                    checked={todasElegidas}
+                    onChange={() => {
+                      seleccion.alCambiar(
+                        todasElegidas ? new Set() : new Set(filas.map((f) => claveDe(f))),
+                      );
+                    }}
+                    className="size-4 accent-primary"
+                  />
+                </label>
               </th>
             )}
             {columnas.map((columna) => {
@@ -148,7 +150,10 @@ export function Tabla<F>({
                   // que no lo vea.
                   aria-sort={esLaOrdenada ? (ascendente ? 'ascending' : 'descending') : undefined}
                   className={cn(
-                    'px-(--espacio-3) py-(--espacio-2) text-xs font-medium tracking-wide text-muted-foreground uppercase',
+                    'text-xs font-medium tracking-wide text-muted-foreground uppercase',
+                    // Ordenable: el relleno pasa AL BOTON, para que se pueda tocar
+                    // toda la cabecera y no solo los 16 px de alto de su texto.
+                    ordenable ? 'p-0' : 'px-(--espacio-3) py-(--espacio-2)',
                     columna.numerica === true ? 'text-right' : 'text-left',
                     columna.desde === undefined ? '' : DESDE[columna.desde],
                   )}
@@ -159,7 +164,10 @@ export function Tabla<F>({
                       onClick={() => {
                         alternarOrden(columna.clave);
                       }}
-                      className="inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                      className={cn(
+                        'flex min-h-(--area-tactil-minima) w-full items-center gap-1 px-(--espacio-3) hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                        columna.numerica === true ? 'justify-end' : 'justify-start',
+                      )}
                     >
                       {columna.titulo}
                       <span aria-hidden="true" className={esLaOrdenada ? '' : 'opacity-30'}>
@@ -212,23 +220,43 @@ export function Tabla<F>({
                 )}
               >
                 {seleccion === undefined ? null : (
-                  <td className="px-(--espacio-3) py-(--espacio-2)">
-                    <input
-                      type="checkbox"
-                      aria-label={`Seleccionar ${clave}`}
-                      checked={elegida}
+                  /**
+                   * LA CELDA ENTERA MARCA, no los 16 px de la casilla.
+                   *
+                   * Una casilla nativa mide 16x16 y no se le puede poner un area de
+                   * toque por dentro: es un elemento reemplazado, no admite `::after`
+                   * ni padding. Asi que lo que crece es la ZONA, con un `<label>` que
+                   * llena la celda: la altura de la fila por el ancho de la columna,
+                   * y ni un pixel fuera —nada se monta sobre la fila de arriba—.
+                   *
+                   * El `stopPropagation` va en el LABEL y no solo en la casilla: el
+                   * clic del label burbujea por su cuenta hasta la fila, asi que sin
+                   * el, marcar abriria la ficha. Ya pasaba con la casilla suelta.
+                   */
+                  <td className="p-0">
+                    <label
+                      className="flex min-h-(--area-tactil-minima) cursor-pointer items-center justify-center px-(--espacio-3)"
                       onClick={(evento) => {
-                        // Marcar no es activar: sin esto, marcar abre la fila.
                         evento.stopPropagation();
                       }}
-                      onChange={() => {
-                        const siguiente = new Set(seleccion.elegidas);
-                        if (elegida) siguiente.delete(clave);
-                        else siguiente.add(clave);
-                        seleccion.alCambiar(siguiente);
-                      }}
-                      className="size-4 accent-primary"
-                    />
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`Seleccionar ${clave}`}
+                        checked={elegida}
+                        onClick={(evento) => {
+                          // Marcar no es activar: sin esto, marcar abre la fila.
+                          evento.stopPropagation();
+                        }}
+                        onChange={() => {
+                          const siguiente = new Set(seleccion.elegidas);
+                          if (elegida) siguiente.delete(clave);
+                          else siguiente.add(clave);
+                          seleccion.alCambiar(siguiente);
+                        }}
+                        className="size-4 accent-primary"
+                      />
+                    </label>
                   </td>
                 )}
                 {columnas.map((columna) => (
