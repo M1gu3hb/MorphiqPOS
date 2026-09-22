@@ -96,6 +96,30 @@ test.describe('los ocho estilos, en el navegador', () => {
         estilo,
       );
 
+      // ── 0 · LOS IMPORTES SE LEEN ENTEROS ───────────────────────────────
+      // `<Dinero>` enseñó $42.00 por $42.90: partido en bloques, lo que se LEÍA eran
+      // tres renglones. `innerText` es lo único que ve eso —el `textContent` estaba
+      // bien—, y sólo un navegador lo calcula. Cada importe de `/sistema`, en cada
+      // estilo: sin saltos, y con las mismas cifras que oye un lector de pantalla.
+      const importes = await page.locator('[data-dinero]').evaluateAll((nodos) =>
+        nodos.map((nodo) => ({
+          leido: (nodo as HTMLElement).innerText,
+          oido: nodo.getAttribute('aria-label') ?? '',
+        })),
+      );
+      expect(
+        importes.length,
+        'En /sistema no hay ni un <Dinero>: la prueba no mide nada',
+      ).toBeGreaterThan(0);
+      for (const { leido, oido } of importes) {
+        expect(leido, `En ${estilo} un importe se lee partido: «${leido}»`).toMatch(
+          /^\(?\$?[\d,]+\.\d{2}\)?$/,
+        );
+        expect(leido.replace(/\D/g, ''), `En ${estilo} «${leido}» no es «${oido}»`).toBe(
+          oido.replace(/\D/g, ''),
+        );
+      }
+
       // ── 1 · LOS TOKENS LLEGAN ──────────────────────────────────────────
       const tokens = await page.evaluate(() => {
         const raiz = getComputedStyle(document.documentElement);

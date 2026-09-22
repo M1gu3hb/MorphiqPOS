@@ -18,7 +18,7 @@
  *   3 · **Se opera con teclado.** Foco visible siempre, y en dos capas para que se
  *       vea sobre cualquier fondo.
  */
-export { Dinero, Cifra, type DineroProps, type TamanoDeDinero } from './dinero';
+export { Dinero, Cifra, dineroEnTexto, type DineroProps, type TamanoDeDinero } from './dinero';
 export {
   Superficie,
   Isla,

@@ -5034,3 +5034,60 @@ No se intenta por otra vía —el conector de GitHub haría lo mismo que se acab
 Consecuencia que hay que saber: el PR #11 sigue a `fase-2`, así que desde este empujón **ya no
 es el `0f04fc2` que se auditó**, sino ese más el cierre en curso. El punto limpio y auditado es
 `0f04fc2`; si Miguel quiere fusionar exactamente eso, es ese commit.
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 3 · el dinero, con las pruebas que no tenía
+
+**Dónde iba:** bloque 3 cerrado en unitarias. La comprobación de navegador de los importes
+(`estilos.spec.ts`, sección 0) está escrita y **se corre en la primera construcción local del
+bloque 2**, no antes: construir para una sola prueba es media hora.
+
+### Un proyecto de pruebas nuevo, porque no se podía pintar un componente
+
+`packages/ui` tenía UN archivo de prueba. No era desidia: la configuración raíz resuelve con la
+condición `react-server`, y con ella `react` es la versión de servidor —sin hooks— y
+`react-dom/server` es un módulo que LANZA al importarse. `vitest.config.ts` pasa a tener dos
+proyectos: `unidad` (lo de siempre, idéntico) y `componentes` (`packages/ui/src/**/*.test.tsx`, sin
+esa condición).
+
+### Lo que se probó, y por qué `textContent` no bastaba
+
+El encargo pide comprobar «el `textContent` completo, que es lo que se rompió». **No es lo que se
+rompió**, y está medido en la propia prueba: con el `inline-flex` de antes, el `textContent` del
+importe era `$42.90` —correcto— y lo que se LEÍA era `$\n42\n.90`. Lo que partió el importe es la
+regla de `innerText`: los hijos de un flex o un grid son bloques y cada bloque va en su renglón.
+Una prueba de `textContent` sola habría seguido en verde con el defecto puesto.
+
+Así que `packages/ui/src/pruebas/lectura.ts` da las dos lecturas sobre el marcado de
+`react-dom/server`: `textoPlano` (el `textContent`) y `textoLeido` (con la regla de los bloques).
+Y en el navegador, donde `innerText` es de verdad, `estilos.spec.ts` compara cada `[data-dinero]`
+de `/sistema` en los ocho estilos contra su `aria-label`.
+
+| Prueba | Casos |
+| --- | --- |
+| `<Dinero>` | **$42.90** explícito; centavos 00, 05, 09, 90, 99; $0.05; cero; negativos `($42.90)`; seis cifras `$123,456.78` y `$999,999.99`; sin símbolo; los cinco tamaños; el `aria-label`; y ninguna pieza con `flex`/`grid` |
+| `dineroEnTexto` | Nueva. El mismo importe para donde no cabe un componente (un `aria-label`, el portapapeles, un eje SVG) y **carácter por carácter** igual a lo que se lee en `<Dinero>` |
+| `<Cifra>` | `12 kg`, `1.50 m`, `1,234`, `-3 pz`, y ninguna pieza apilada |
+| `<Button asChild>` | Se pinta como el `<a>` que se le da; con `cargando` puesto no revienta; sin `asChild`, cargando deshabilita, anuncia y pinta la rueda |
+
+### 3.2 · `Cifra` tenía el mismo defecto, y uno más
+
+`inline-flex items-baseline gap-1`, el patrón exacto. Y además el **aire entre el valor y la
+unidad lo ponía el `gap`**, no el texto: copiado, «12 kg» salía «12kg». Ahora va en línea y con un
+espacio de verdad en el texto.
+
+### 3.4 · el patrón, buscado en todo `packages/ui`
+
+Se buscó todo lo que pinta cifras (`tabular-nums`, `font-numeros`) dentro de un contenedor que
+apile: **sólo `Cifra`**. El resto —la insignia del abanico, el porcentaje de `Progreso`, el centro
+de la dona, las celdas de `Tabla`— pinta el valor en UN nodo. Lo dijo la búsqueda, no una
+suposición.
+
+### Las tres mutaciones
+
+```
+M1 · <Dinero> con `inline-flex items-baseline gap-px` de vuelta → 13 en ROJO (los 12 importes y
+     la de «ninguna pieza apila»)
+M2 · <Cifra> con `inline-flex gap-1` y sin el espacio          → 3 en ROJO
+M3 · <Button asChild> con la rueda junto a {children}           → 2 en ROJO
+restaurado                                                      → 24 de 24
+```

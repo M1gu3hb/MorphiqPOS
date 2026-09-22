@@ -79,6 +79,27 @@ function partir(centavos: number): { readonly pesos: string; readonly centavos: 
   };
 }
 
+/**
+ * EL MISMO IMPORTE, EN TEXTO · para donde no cabe un componente.
+ *
+ * Un `aria-label`, el texto que se copia al portapapeles, el mensaje de WhatsApp de un
+ * fiado, la etiqueta de un eje de gráfica en SVG. Ahí no se puede poner `<Dinero>`, y
+ * escribir otro formateador en la pantalla es exactamente como el sistema acaba con
+ * tres formatos de dinero distintos.
+ *
+ * Da **carácter por carácter** lo que se lee en `<Dinero>` —su prueba lo compara—, y
+ * `verify:adopcion` rechaza que se pinte como contenido: entre dos `<span>` el importe
+ * es `<Dinero>`, con sus cifras tabulares y su jerarquía.
+ */
+export function dineroEnTexto(
+  centavos: number,
+  { sinSimbolo = false }: { readonly sinSimbolo?: boolean } = {},
+): string {
+  const partes = partir(centavos);
+  const importe = `${sinSimbolo ? '' : '$'}${partes.pesos}.${partes.centavos}`;
+  return centavos < 0 ? `(${importe})` : importe;
+}
+
 export function Dinero({
   centavos,
   tamano = 'base',
@@ -119,6 +140,9 @@ export function Dinero({
       // Lo que lee un lector de pantalla: el importe entero, sin paréntesis ni
       // símbolos sueltos que se deletreen.
       aria-label={`${negativo ? 'menos ' : ''}${partes.pesos} pesos con ${partes.centavos} centavos`}
+      // Para que una prueba de navegador encuentre TODOS los importes de una pantalla y
+      // compare lo que se lee con lo que dice el `aria-label`.
+      data-dinero=""
     >
       {negativo ? <span aria-hidden="true">(</span> : null}
       {sinSimbolo ? null : (
@@ -156,22 +180,25 @@ export function Cifra({
   readonly tamano?: TamanoDeDinero;
   readonly className?: string;
 }): ReactElement {
+  /**
+   * EN LÍNEA, y con un ESPACIO de verdad entre el valor y la unidad.
+   *
+   * Era `inline-flex items-baseline gap-1` —el mismo patrón que partió el importe de
+   * `Dinero`—: los hijos de un flex son bloques, así que lo que se leía era `12` y
+   * `kg` en renglones distintos, y el `gap` ponía el aire que el texto no tenía:
+   * copiado, «12 kg» salía «12kg». El espacio va en el TEXTO, que es donde se lee.
+   */
   return (
-    <span
-      className={cn(
-        'inline-flex items-baseline gap-1 font-numeros tabular-nums whitespace-nowrap',
-        TAMANOS[tamano],
-        className,
-      )}
-    >
-      <span>
-        {valor.toLocaleString('es-MX', {
-          minimumFractionDigits: decimales,
-          maximumFractionDigits: decimales,
-        })}
-      </span>
+    <span className={cn('font-numeros tabular-nums whitespace-nowrap', TAMANOS[tamano], className)}>
+      {valor.toLocaleString('es-MX', {
+        minimumFractionDigits: decimales,
+        maximumFractionDigits: decimales,
+      })}
       {unidad === undefined ? null : (
-        <span className={cn('text-muted-foreground', SECUNDARIO[tamano])}>{unidad}</span>
+        <>
+          {' '}
+          <span className={cn('text-muted-foreground', SECUNDARIO[tamano])}>{unidad}</span>
+        </>
       )}
     </span>
   );
