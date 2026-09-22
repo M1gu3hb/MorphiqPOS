@@ -227,6 +227,16 @@ export function PaginaDelSistema() {
             >
               {cargando ? 'Cobrando…' : 'Tócame: cargando'}
             </Button>
+            {/* EL BOTÓN QUE ES UN ENLACE · `asChild`.
+                No es un adorno de catálogo: es el modo que usan todos los estados
+                vacíos y todos los atajos de los tableros —«Ir a caja», «Ver el mapa»—,
+                y faltaba en esta página. Faltando aquí, el día que `asChild` se rompió
+                —`Slot` exige UN hijo y recibía dos— esta página siguió en verde
+                mientras media aplicación moría al hidratar. Lo que no está aquí no lo
+                mira la puerta de los ocho estilos. */}
+            <Button asChild variant="outline">
+              <a href="/sistema">Botón que es un enlace</a>
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground">
             Púlsalos y no los sueltes: el hundimiento de 1 px y la sombra que se acorta son lo que

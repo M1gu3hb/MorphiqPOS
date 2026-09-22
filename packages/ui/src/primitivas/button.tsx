@@ -90,22 +90,53 @@ function Button({
     /** Mientras es `true` el boton no se puede pulsar y lo dice. */
     cargando?: boolean
   }) {
-  const Comp = asChild ? Slot.Root : "button"
+  const comunes = {
+    "data-slot": "button",
+    "data-variant": variant,
+    "data-size": size,
+    className: cn(buttonVariants({ variant, size, className })),
+  } as const
+
+  /**
+   * `asChild` SE DEVUELVE APARTE, y no es una simetria perdida: es un fallo real.
+   *
+   * `Slot` exige UN SOLO hijo elemento. Escrito con los dos hijos juntos
+   *
+   *     {cargando && !asChild ? <Rueda /> : null}
+   *     {children}
+   *
+   * un `<Button asChild>` le pasa DOS —`null` y el elemento—, y Slot revienta con
+   * «Slot failed to slot onto its children». No es un aviso: la pagina entera muere
+   * al hidratar y el navegador enseña su pantalla de error.
+   *
+   * Y `asChild` esta en cada estado vacio, en cada tablero y en cada atajo que lleva
+   * a otra pantalla, asi que lo que se rompia era media aplicacion. Aparecio
+   * retratando la galeria de los ocho estilos: cuatro de las cinco pantallas de cobro
+   * salian con la pantalla de error del navegador en vez de con la pantalla.
+   *
+   * `cargando` no tiene sentido aqui de todos modos: quien pone `asChild` manda su
+   * propio elemento —un `<a>`— y no se le puede deshabilitar ni meterle una rueda sin
+   * tocar su marcado.
+   */
+  if (asChild) {
+    return (
+      <Slot.Root {...comunes} {...props}>
+        {children}
+      </Slot.Root>
+    )
+  }
 
   return (
-    <Comp
-      data-slot="button"
-      data-variant={variant}
-      data-size={size}
+    <button
+      {...comunes}
       data-cargando={cargando ? "" : undefined}
       aria-busy={cargando || undefined}
-      disabled={asChild ? undefined : cargando || props.disabled}
-      className={cn(buttonVariants({ variant, size, className }))}
+      disabled={cargando || props.disabled}
       {...props}
     >
-      {cargando && !asChild ? <Rueda /> : null}
+      {cargando ? <Rueda /> : null}
       {children}
-    </Comp>
+    </button>
   )
 }
 
