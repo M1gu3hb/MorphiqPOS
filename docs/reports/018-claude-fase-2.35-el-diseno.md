@@ -5,7 +5,7 @@
   modelos y las puertas de la cadena, así que no vive en un carril
 - **Rama:** `carril-a` → PR [#11](https://github.com/M1gu3hb/MorphiqPOS/pull/11)
 - **Fecha inicio / fin:** 2026-09-20 → 2026-09-21
-- **Commits:** `54bda85` … `38b1e4e` (19 commits)
+- **Commits:** `54bda85` … `0d39491` (22 commits)
 - **Tareas cubiertas:** etapas 0.1 a 0.9, 1, 2, 3, 4.1 a 4.5, 5, 6.1 a 6.5 de la Fase 2.35
 
 > **Esto es la etapa 2.35 de la Fase 2. No es la Fase 3.**
@@ -495,7 +495,7 @@ verdad hay hoy enfrente.
 | 6 | Las 69 pantallas rediseñadas, cada modelo sintiéndose suyo | 🔴 **parcial** | Tienen el ritmo (919 literales → **0**), la tipografía, el dinero, los vacíos, los tableros y la piel de su giro. **NO** están recompuestas una por una: 31 de 72 usan la biblioteca del bloque 2. Detalle y razón en §8 |
 | 7 | El selector en Modo presentación, cambiando en vivo y guardando por organización | ✅ | `93c4c43` + `5878846` · y ojo: **guardaba nada** hasta `5878846`, porque `configuracion.fijar_apariencia` no dejaba rastro y el comando moría con `SinRastro` después de escribir. Lo destapó una puerta nueva, no una prueba |
 | 8 | Las cinco puertas de la etapa 6, cada una demostrada en rojo antes que en verde | ✅ | `b1de071`, `3275f3a`, `3581942`, `719c131` · **seis**, no cinco: hizo falta `verify:rastro`. Las mutaciones de cada una, en §3 y en su commit |
-| 9 | `pnpm verify` en 0. Los 34 eslabones, más los nuevos | ⏳ | Sección 6 · la cadena entera en verde; el último eslabón espera a CI a propósito — `Verde es verde cuando termina` — y eso ata la 8, la 9 y la 10 entre sí |
+| 9 | `pnpm verify` en 0. Los 34 eslabones, más los nuevos | 🟡 **todos menos el último** | Sección 6. Los 33 primeros en verde en local, **incluido `verify:acople` contra el despliegue remoto**, que además exige los checks de CI en verde —`Verde es verde cuando termina`— y eso ata la 8, la 9 y la 10 entre sí. El eslabón 34, `test:integracion`, **no puede correr en esta máquina** y sí corre en CI: §9.8 |
 | 10 | Todo desplegado en producción y comprobado desde fuera. Nada de localhost para declarar terminado | 🟡 **a medias** | El despliegue de la rama está **vivo con el commit de hoy** (`a1f1eee`) y comprobado **desde fuera**: `verify:acople` remoto da `200 · sin muro por delante` y prueba **82 rutas por HTTP** contra Vercel, no contra localhost. Lo que **no** se hizo: fusionar a `main` ni tocar *Production*. Razón en §9.2 |
 
 ---
@@ -572,7 +572,7 @@ oscuro) pasan contraste AA en la cadena y en CI.
 
 | Qué | Antes | Ahora |
 | --- | --- | --- |
-| Pantallas que usan la biblioteca del bloque 2 | 1 (la de documentación) | **31 de 72** |
+| Pantallas que usan la biblioteca del bloque 2 | 1 (la de documentación) | **31 de 72** — y para ser exacto: 29 de modelo, más `/sistema` y el selector de apariencia |
 | Literales de ritmo fuera de `packages/ui` | 919 | **0** |
 | Emoji usados como icono | 36 en 16 archivos | **0**, y con su puerta |
 | Escala tipográfica del contrato | declarada y **sin aplicar** | enchufada; `text-xl` da 22 px donde antes daba 20 |
@@ -764,6 +764,32 @@ Los ajenos y los míos. Sobre todo los míos.
   `precio de venta`, ya declarados. Declarado con su cita, **no renombrado**: renombrarlo habría
   alejado la pantalla de lo que su ficha dice.
 
+- **Y tenía hermanos: once sitios, seis leyendo archivos con cámara.** `accept="image/*"` está en
+  **siete** archivos de este repositorio, y el mismo patrón de quitar comentarios vivía en once
+  lugares de siete scripts. Medida la ceguera, puerta por puerta:
+
+  | Puerta | Archivo | Ciega sobre |
+  | --- | --- | --- |
+  | `verify:primitivas` | `estetica-salon/CitaEnCurso.tsx` | 512 |
+  | `verify:primitivas` | `ferreteria/Entradas.tsx` | 1 433 |
+  | `verify:primitivas` | `ferreteria/FichaDePieza.tsx` | 3 196 |
+  | `verify:aspecto` | `heredado/…/IdentidadNegocio.jsx` | 1 679 |
+  | `verify:acople` (rutas llamadas) | las tres pantallas de arriba | 5 147 |
+
+  **`verify:primitivas` es la puerta que certifica «deuda de ritmo 0 de 0», «cero emoji» y la regla
+  6.1b**, y lo hacía sin leer 5 141 caracteres de tres pantallas.
+
+- **Y lo que escondía era NADA.** Se corrieron las trece reglas sobre el trozo invisible: cero
+  hallazgos. El «0 de 0» estaba bien —**por casualidad**. Nadie lo había comprobado, y la próxima
+  pantalla con cámara que meta un `gap-4` detrás de su `accept` pasa la puerta en silencio. Se
+  arregló en los nueve sitios con un solo ayudante, `scripts/lib/sin-prosa.mjs`, que declara en su
+  cabecera los dos casos que **no** cubre en vez de aparentarlos.
+
+- **La mutación, que aquí va DENTRO del punto ciego:** quitar la corrección no sirve, porque la
+  ceguera no rompe nada — calla. Con un `shadow-lg` metido en el tramo invisible de
+  `FichaDePieza.tsx`: **1** en el archivo, **0** para la puerta vieja, **1** para la nueva. Y la
+  puerta arreglada sale en rojo sobre esa mutación y en verde al restaurarla.
+
 ### Error 12 — La cafetería cayó tres veces y la puerta no decía de dónde · **CERRADO**
 
 - **Qué pasaba:** el rastreador dejaba la cafetería en rojo en CI con
@@ -808,6 +834,51 @@ Los ajenos y los míos. Sobre todo los míos.
   movía—. Ahora `entrar()` escucha la respuesta de `/api/auth/entrar` y **dice su estado**, con el
   403 explicado y el `APP_URL` que hace falta escrito en el mensaje.
 
+### Error 13 — `<Dinero>` partía el importe en tres, y el total se leía mal · **MÍO, del bloque 4.1**
+
+- **Qué pasaba:** «Aceite de maíz 1 L» cuesta **$42.90** y la prueba de cobro de la tienda leyó
+  **$42.00** en la pantalla. `Dinero` pinta el importe en **tres hermanos** dentro de un
+  `inline-flex` con `gap-px`:
+
+  ```jsx
+  <span class="inline-flex items-baseline gap-px …">
+    <span>$</span><span>42</span><span>.90</span>
+  </span>
+  ```
+
+  Visualmente es correcto, y a un lector de pantalla le llega bien —el `aria-label` dice «42 pesos
+  con 90 centavos»—. Pero los hijos de un `inline-flex` son elementos de **bloque**: el texto que se
+  extrae del nodo no es `$42.90`, son `$`, `42` y `.90` **separados**. Cualquier cosa que lea el texto
+  en vez del `aria-label` —una prueba, un `innerText`, **copiar el total y pegarlo**— ve un número
+  partido.
+
+- **Quién lo metió: yo, en el bloque 4.1**, al cambiar `enPesos(total)` por
+  `<Dinero centavos={total} …>` en las cinco pantallas de cobro. 37 usos en diez pantallas.
+- **Por qué no se vio, y por qué eso lo empeora:** la cafetería **pasa** — sus importes acaban en
+  `.00`, y ahí `$ 45` y `$45.00` son el mismo número. El defecto sólo asoma cuando los centavos no
+  son cero. Y ninguna puerta lo miraba: las cinco suites que comprueban un TOTAL COBRADO contra el
+  servidor **no corren ni en `pnpm verify` ni en CI** (§9).
+- **Cómo lo resolví:** quitándole el `inline-flex` y el `gap-px`. Los tres trozos vuelven a ser
+  contenido **en línea**, que se alinea a la línea base por sí solo —para eso estaba el
+  `items-baseline`— y se lee como un solo número. El `$` y los centavos siguen un escalón por debajo,
+  que es para lo que el componente existe.
+- **Por qué el componente y no la prueba:** arreglar la prueba habría dejado el total imposible de
+  copiar en las diez pantallas que lo pintan. La prueba tenía razón.
+- **¿Estaba en verde para todas las puertas antes?** Sí, para todas las que corren.
+
+### Error 14 — La señal de reposo del restaurante pedía una frase que yo cambié · **MÍO, del bloque 4.1**
+
+- **Qué pasaba:** la suite del restaurante cayó con «la pantalla de cobro no contestó nada al
+  confirmar», que es **lo contrario** de lo que ocurría: contestó perfectamente.
+- **Causa:** el bloque 4.1 rediseñó el acuse. Era una línea —«Cobrado · cambio $12.00 · la mesa pasa
+  sola a limpieza»— y pasó a tener jerarquía: «Cobrado» arriba, el **cambio** en grande porque es lo
+  único que queda por hacer, y el total y la mesa debajo, en pequeño. La suite seguía pidiendo el
+  literal viejo.
+- **Cómo lo resolví:** moviendo la señal a `/pasa sola a limpieza/`, que sigue siendo exclusiva del
+  acuse y **no depende del diccionario del giro** —delante puede decir «la mesa» o «la estación»—. No
+  se relajó a `/Cobrado/` a secas, que casaría con cualquier estado que lleve esa palabra.
+- **La lección:** cuando se rediseña una copia que una puerta lee, la puerta es parte del rediseño.
+
 ### Errores míos, de proceso
 
 | Qué hice mal | Qué costó | Qué hago ahora |
@@ -843,10 +914,10 @@ $ pnpm verify   (los 34 eslabones, más los seis nuevos)
   format:check        All matched files use Prettier code style!
   lint                ✓
   typecheck           ✓  7 successful, 7 total
-  verify:pruebas      ✓ Pruebas: 243 unitarias en la puerta correcta, 5 de integración
+  verify:pruebas      ✓ Pruebas: 244 unitarias en la puerta correcta, 5 de integración
                         cubiertas, cero scripts que esquiven la raíz.
-  test:unit           Test Files  243 passed (243)
-                      Tests      3106 passed (3106)
+  test:unit           Test Files  244 passed (244)
+                      Tests      3117 passed (3117)
   verify:mutaciones-backend  ✓ 104 mutaciones rechazadas, versión restaurada en verde
   verify:catalogo · verify:inventario · verify:comandos-catalogo ·
   verify:comandos-inventario · verify:venta · verify:identidad · verify:paquetes  ✓
@@ -903,17 +974,23 @@ $ pnpm test:e2e pruebas/e2e/galeria.spec.ts     5 modelos · 160 capturas · tod
 | `pnpm verify:primitivas` | ✅ | `deuda de ritmo fuera de packages/ui: 0 de 0 permitidos, en 0 archivo(s)` · `Cero literales de color, altura, sombra, variante, espacio, texto o duracion en el sistema` |
 | `pnpm verify:estilos` | ✅ | `8 estilo(s) × 2 modos, todos en AA` |
 | `pnpm verify:rastro` | ✅ | `Rastro: 189 comando(s) que escriben, todos con auditoría (5 por delegación)` |
-| `pnpm verify:pruebas` | ✅ | `243 unitarias en la puerta correcta, 5 de integración cubiertas, cero scripts que esquiven la raíz` |
+| `pnpm verify:pruebas` | ✅ | `244 unitarias en la puerta correcta, 5 de integración cubiertas, cero scripts que esquiven la raíz` |
 | `pnpm format:check` | ✅ | `All matched files use Prettier code style!` |
 | `pnpm lint` | ✅ | sin errores |
 | `pnpm typecheck` | ✅ | sin errores |
-| `pnpm test:unit` | ✅ | `Test Files 243 passed (243)` · `Tests 3106 passed (3106)` |
+| `pnpm test:unit` | ✅ | `Test Files 244 passed (244)` · `Tests 3117 passed (3117)` |
 | `pnpm build` | ✅ | `Compiled successfully in 27.3s` |
 | `pnpm verify:cabeceras` | ✅ | `6 presentes y correctas, nonce por peticion` · y contra un despliegue http también |
 | `pnpm verify:acople` **contra el despliegue** | ✅ salvo CI | `despliegue REMOTO … → 200 · con la cookie de un enlace compartido · sin muro por delante` · `103 declaradas · 82 probadas por HTTP` |
 | `pnpm test:e2e` (`estilos.spec.ts`) | ✅ | `17 passed` |
 | `pnpm test:e2e` (`galeria.spec.ts`) | ✅ | 5 modelos, 160 capturas, todas con estado < 400. La de `cafeteria/lista` **regenerada** después del arreglo del bagel: las ocho anteriores retrataban un bagel en la familia «Leche» |
 | `pnpm test:e2e` (`rastreo.spec.ts`, cafetería) | ✅ | `1 passed (8.8m)` con el arreglo. Antes, la misma corrida en ROJO con `400 /api/cafeteria/contar-leche`, en CI y en local |
+| `pnpm test:e2e` (`abarrotes.spec.ts`) | ✅ | `1 passed (3.8m)` con el arreglo de `Dinero`. Antes, ROJO: `Expected 4290, Received 4200` |
+| `pnpm test:e2e` (`restaurante.spec.ts`) | ✅ | `1 passed (44.1s)` con la señal corregida. Antes, ROJO: «no contestó nada al confirmar» |
+| `pnpm test:e2e` (`cafeteria.spec.ts`) | ✅ | `1 passed (56.0s)` |
+| `pnpm test:e2e` (`ferreteria.spec.ts`) | ✅ | `1 passed (43.9s)` |
+| `pnpm test:e2e` (`estetica-salon.spec.ts`) | 🔴 **sin verde** | «La agenda no tiene un hueco libre en lo que queda del día». Eran las 23:54; la propia prueba dice que no es defecto del código. §9.9 |
+| `pnpm test:integracion` | ⬜ **no aquí** | Necesita una base desechable: sin Docker y con la única base alcanzable siendo el proyecto de verdad, no se corre en esta máquina. **CI sí, y en verde.** §9.8 |
 
 **Contra la base real:** las cinco operaciones del conductor de almacenamiento nuevo se probaron
 contra el proyecto Supabase de verdad (guardar, leer con su `content-type`, copiar, sumar 44 bytes
@@ -972,13 +1049,13 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
    trabajo de otra sesión, y decir lo contrario sería mentir sobre lo único que Miguel va a mirar.
 2. **No fusioné a `main` ni toqué el entorno _Production_, y es una decisión, no un olvido.** El
    encargo dice *«Todo desplegado en producción y comprobado desde fuera. Nada de localhost»*, y la
-   mitad de eso **sí** está: el despliegue de la rama está vivo con `a1f1eee`, y `verify:acople`
-   corrió **contra él desde fuera** —`despliegue REMOTO … → 200 · sin muro por delante`, **82 rutas
-   probadas por HTTP**—, no contra localhost. Lo que no hice es empujar a `main`. Dos razones, las
-   una escrita antes que yo: `VERCEL-ENTORNO §4` dice *«**Production NO se tocó**: es lo que usan
-   cuatro negocios para cobrar y esa decisión es de Miguel»*. Cuando escribí este párrafo había una
-   segunda —el 400 de la cafetería sin diagnosticar— y **esa ya no está**: se cerró (§5, error 12).
-   Queda la primera, que es de Miguel y no mía. El PR
+   mitad de eso **sí** está: el despliegue de la rama está vivo con el commit de hoy, y
+   `verify:acople` corrió **contra él desde fuera** —`despliegue REMOTO … → 200 · sin muro por
+   delante`, **82 rutas probadas por HTTP**—, no contra localhost. Lo que no hice es empujar a
+   `main`, y queda **una** razón, escrita antes que yo: `VERCEL-ENTORNO §4` dice
+   *«**Production NO se tocó**: es lo que usan cuatro negocios para cobrar y esa decisión es de
+   Miguel»*. Cuando escribí este párrafo había una segunda —el 400 de la cafetería sin
+   diagnosticar— y **esa ya no está**: se cerró (§5, error 12). El PR
    [#11](https://github.com/M1gu3hb/MorphiqPOS/pull/11) está listo, con su título y su descripción al
    día, a una pulsación.
 3. **El 503 de `/api/reportes/exportar`** sigue declarado en `FALLOS_QUE_SON_UNA_DECISION`. Con el
@@ -986,18 +1063,54 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
    un cambio de código.
 4. **La prueba de contraste de los ocho estilos NO la validé por mutación en esta etapa** — venía
    validada del bloque 3, y lo digo en vez de contarla como sexta mutación.
-5. **`verify:aspecto` no cambió** en los 75 archivos heredados. No los toqué y no afirmo nada sobre
+5. **El mensaje nuevo de `entrar()` lo vi en ROJO pero no en VERDE.** Tengo la evidencia de que el
+   mensaje viejo era inservible —tres corridas con `waitForURL: Timeout` y una captura del teclado
+   numérico— y el código que lee el estado de `/api/auth/entrar` está probado por tipos y lint, pero
+   **no volví a poner `APP_URL` en el 3000 a propósito para ver el 403 explicado saliendo**. Es la
+   mutación que le falta, y la declaro en vez de contarla.
+6. **`verify:aspecto` no cambió** en los 75 archivos heredados. No los toqué y no afirmo nada sobre
    ellos.
-6. **No corrí `pnpm test:e2e` completo** en esta etapa: corrí `estilos.spec.ts`, `galeria.spec.ts` y
-   `rastreo.spec.ts` (en CI). El resto de los especs los corre la cadena.
-7. **Lo que este reporte afirma y no puedo respaldar ejecutando algo:** que las pantallas «se sienten
+7. **El `pnpm verify` en 0 depende de una cookie de 23 horas, y esa cookie muere con cada
+   despliegue.** La cookie de un enlace compartido de Vercel está atada al despliegue que la emitió:
+   una corrida de la cadena quedó en rojo por eso mismo —`302 a vercel.com/sso-api`, que la puerta
+   nombró bien— y hubo que pedir una nueva. Para que esto sea repetible hace falta
+   `MORPHIQPOS_BYPASS_VERCEL`, que es un secreto que **sólo se genera en el panel** y que por eso está
+   en §12 como pendiente de Miguel. No apagué la Protección de Despliegue para evitarlo: es un cambio
+   de seguridad persistente sobre un proyecto con datos de cuatro negocios que cobran.
+8. **`test:integracion`, el último eslabón de `pnpm verify`, NO puede correr en esta máquina.**
+   Necesita una base desechable: o Docker —que no está— o `DATABASE_URL_PRUEBAS`. La única base
+   alcanzable desde aquí es el **proyecto Supabase de verdad**, y esas pruebas aplican DDL: apuntarlas
+   ahí sería correr migraciones contra los datos de cuatro negocios. La vía que el propio helper
+   recomienda es una RAMA de Supabase, que **cuesta dinero en la cuenta de Miguel**, y eso no lo
+   decido yo. **CI sí lo corre** —con su Postgres en el 5433— y está en verde. Todo lo anterior de la
+   cadena queda en verde en local; ese último eslabón se cubre en CI y no aquí.
+9. **CI no corre las cinco suites de modelo, y por eso las corrí a mano — y encontraron dos defectos
+   míos.** `verificar.yml` sólo lanza `estilos.spec.ts` y `rastreo.spec.ts`, y `pnpm verify` termina
+   en `test:integracion`. Así que las cinco que comprueban un **TOTAL COBRADO contra el servidor** no
+   corrían desde la 2.3, y esta etapa tocó ocho de sus pantallas. Corridas:
+
+   | Suite | Resultado | Qué era |
+   | --- | --- | --- |
+   | `abarrotes` | 🔴 → ✅ | El total leía `$42.00` donde la pantalla decía `$42.90` (§5, error 13) |
+   | `cafeteria` | ✅ | Pasó — y pasó porque sus importes acaban en `.00` |
+   | `estetica-salon` | 🔴 **y no es defecto** | «La agenda no tiene un hueco libre en lo que queda del día». Eran las **23:54**. Lo dice la propia prueba, y **sigue sin correr en verde** |
+   | `ferreteria` | ✅ | Pasó — su total no usa `Dinero` |
+   | `restaurante` | 🔴 → ✅ | La señal de reposo pedía una frase que el rediseño cambió (§5, error 14) |
+
+   **Lo que sigue pendiente:** que CI las corra. Hoy no las corre, y las dos veces que sirvieron fue
+   porque las lancé yo. Y `estetica-salon` no se pudo dejar en verde: necesita horas por delante en el
+   día y era casi medianoche.
+10. **Lo que este reporte afirma y no puedo respaldar ejecutando algo:** que las pantallas «se sienten
    suyas». Es un juicio visual. La galería existe precisamente porque yo no puedo emitirlo.
 
 ---
 
 ## 10. Gate `morphiq-prs`
 
-- **Superficies activadas:** S1, S2, S3, S4, S5, S7, S8, S10, S11, S14, S15.
+- **Superficies activadas:** S1, S2, S3, S4, S5, S7, S8, **S9**, S10, S11, S14, S15. S9 —archivos
+  subidos por usuarios— la tenía fuera en el primer borrador y es justo la que esta etapa movió: el
+  punto 0.8 conectó el almacén porque **el logo del negocio y las imágenes del menú son parte del
+  diseño**.
 - **BLOCKERS abiertos: ninguno.** Hubo uno y era del código: el release gate del `01` exige «no hay
   errores de runtime relevantes en consola», y el rastreador escribía un **400 en
   `/cafeteria/inventario`**. Diagnosticado y cerrado (§5, error 12): era un bagel en la familia
@@ -1020,6 +1133,7 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
 |---|---|---|
 | `apps/web/src/mh/**` | Frontend portado del restaurante; sus literales los cubre su propio parche dark y está exento de la puerta de ritmo. No lo toqué | MEDIA |
 | `apps/web/app/api/reportes/exportar` | 503 declarado como decisión; depende del despliegue | MEDIA |
+| `docs/fase-1/F1-08-COMANDOS-Y-RUTAS.md` | El catálogo commiteado está **2 083 líneas stale**: `pnpm docs:comandos` genera hoy todos los comandos de la Fase 2 y el archivo sigue con los de la Fase 1. Ninguna puerta lo mira, porque `docs:comandos` no está en `pnpm verify`. Lo vi al comprobar que mi cambio al generador no alteraba su salida —no la altera— y **no lo regeneré**: son 2 000 líneas de un documento de la Fase 1 y no es de esta etapa | MEDIA |
 
 ## 12. Pendientes cruzados
 
@@ -1037,10 +1151,13 @@ va aquí.
 
 - **Bloques de la etapa 2.35 terminados:** 0, 1, 2, 3, 5 y 6 completos; 4 completo excepto la
   recomposición pantalla-por-pantalla.
-- **Condiciones de TERMINADO:** **7 en verde** (1, 2, 3, 4, 5, 7 y 8), la **9** con la cadena entera
-  en verde y el último eslabón esperando a CI, la **10 a medias** y la **6 parcial**. Las dos últimas,
-  en §9.1 y §9.2. Siete no son ocho, y redondear hacia arriba en la última línea del reporte sería
-  exactamente lo que este reporte viene a no hacer.
+- **Condiciones de TERMINADO:** **7 en verde** (1, 2, 3, 4, 5, 7 y 8); la **9** con 33 de sus 34
+  eslabones en verde en local y el último —`test:integracion`— cubierto sólo por CI; la **10 a
+  medias**; la **6 parcial**. Siete no son diez, y redondear hacia arriba en la última línea del
+  reporte sería exactamente lo que este reporte viene a no hacer.
+- **Lo que encontraron las cinco suites de modelo al correrlas por primera vez desde la 2.3:** dos
+  defectos, **los dos míos y de esta etapa**, uno de ellos de **dinero** —un total que decía $42.00
+  donde el producto cuesta $42.90—. Los dos arreglados y en verde. §5, errores 13 y 14.
 - **Rama integrada a `main`:** no, y a propósito (§9.2). PR
   [#11](https://github.com/M1gu3hb/MorphiqPOS/pull/11) abierto, con su título y su descripción al día.
 - **El despliegue de la rama:** vivo con `a1f1eee` y comprobado desde fuera.
@@ -1083,3 +1200,18 @@ va aquí.
    síntoma palabra por palabra («el rastro decía timeout esperando la navegación»). Leerlo no me
    salvó; lo que lo cierra es que el fallo lo diga **cuando falla**. Si escribes un aviso en un
    documento y no en el mensaje de error, lo has anotado, no arreglado.
+10. **Cuando encuentres un defecto en una puerta, busca el patrón, no el archivo.** El comentario
+    fantasma salió en `verificar-acople.mjs`; un `grep` del mismo patrón dio **once sitios en siete
+    scripts**, seis de ellos leyendo archivos con `accept="image/*"`. Y la medición dijo que no
+    escondían nada **hoy**, que es la peor de las dos respuestas posibles: un número correcto por
+    casualidad se lee igual que uno comprobado.
+11. **Para validar una puerta que da VERDE de más, la mutación va DENTRO del punto ciego.** Quitar la
+    corrección no sirve: la ceguera no rompe nada, calla. Hay que meter la violación donde la puerta
+    no mira y contar quién la ve —`1` en el archivo, `0` para la vieja, `1` para la nueva—.
+12. **Las puertas que no corren no son puertas.** Las cinco suites de modelo llevaban desde la 2.3 sin
+    correr y guardaban dos defectos míos de esta etapa, uno de ellos **de dinero**. Antes de creerte
+    cubierto, mira qué lanza CI de verdad: `verificar.yml` lanza dos especs de los ocho que hay.
+13. **Y una de proceso, que me costó el reporte entero:** abrir un archivo en modo `w` lo TRUNCA antes
+    de escribir. Un `UnicodeEncodeError` a mitad del `write` —un emoji escrito como dos escapes `\u`,
+    que forman un par suelto— dejó este reporte en **cero bytes**. Se recuperó del último commit y se
+    rehízo. Ahora el parche escribe a un temporal y hace `os.replace` al final.

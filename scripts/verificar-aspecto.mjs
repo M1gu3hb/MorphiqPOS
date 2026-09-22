@@ -46,6 +46,8 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
+import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
+
 const CARPETA = 'apps/web/heredado';
 const PERMITIDOS = 'scripts/aspecto-permitido.json';
 
@@ -161,9 +163,17 @@ function versionAnterior(ruta) {
   }
 }
 
-/** Quita comentarios: cambiar un comentario no cambia el aspecto. */
+/**
+ * Quita comentarios: cambiar un comentario no cambia el aspecto.
+ *
+ * Los delimitadores que viven DENTRO de una cadena se desactivan primero:
+ * `accept="image/*"` abría un comentario y esto se comía 1 679 caracteres de
+ * `configuracion/IdentidadNegocio.jsx`, que es justamente la pantalla del logo.
+ */
 function sinComentarios(texto) {
-  return texto.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+  return sinFalsosDelimitadores(texto)
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^\s*\/\/.*$/gm, ' ');
 }
 
 /** Cada cadena literal que aparece dentro de una expresión. */

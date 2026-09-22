@@ -92,10 +92,26 @@ export function Dinero({
 
   return (
     <span
-      // `tabular-nums` es la razón de ser de este componente: sin él, una columna
-      // de importes no se puede comparar de un vistazo aunque esté alineada.
+      /**
+       * `tabular-nums` es la razón de ser de este componente: sin él, una columna de
+       * importes no se puede comparar de un vistazo aunque esté alineada.
+       *
+       * ── Y por qué esto NO es un `inline-flex` ──────────────────────────
+       * Lo fue, con `items-baseline` y `gap-px`, y **partía el número**. Los hijos de
+       * un contenedor flex son elementos de BLOQUE, así que el texto que se extrae de
+       * este nodo no era `$42.90`: eran `$`, `42` y `.90` separados. A un lector de
+       * pantalla le llega bien —para eso está el `aria-label`— pero cualquier cosa
+       * que lea el TEXTO ve un número roto: **copiar el total y pegarlo** daba
+       * «$ 42 .90», y la prueba de cobro de la tienda leyó **$42.00** donde la
+       * pantalla decía $42.90.
+       *
+       * En línea no hace falta flex para nada de lo que este componente quiere: el
+       * contenido en línea se alinea a la línea base por sí solo —era lo único que
+       * `items-baseline` estaba pidiendo— y el `$` y los centavos siguen un escalón
+       * por debajo por tamaño y opacidad, que es donde vive la jerarquía.
+       */
       className={cn(
-        'inline-flex items-baseline gap-px font-numeros tabular-nums whitespace-nowrap',
+        'font-numeros tabular-nums whitespace-nowrap',
         TAMANOS[tamano],
         color,
         className,

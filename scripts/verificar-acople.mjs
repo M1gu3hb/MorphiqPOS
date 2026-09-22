@@ -47,6 +47,7 @@ import {
 } from '../packages/data/src/verificacion/consulta-directa.ts';
 import { DICCIONARIOS } from '../packages/domain/src/vocabulario/diccionarios.ts';
 import { problemasDeSeguridad } from '../packages/data/src/verificacion/rls.ts';
+import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
 import { MODELOS, pantallasEsperadas, rutasEsperadas } from './verificar-cobertura.mjs';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -1051,26 +1052,19 @@ function textosVisibles(fuente) {
   /**
    * `accept="image/*"` NO ABRE UN COMENTARIO, y durante meses sí lo abrió.
    *
-   * El `/*` de ese tipo MIME entraba como apertura de bloque, el buscador corría
-   * hasta el `*` + `/` siguiente —que estaba 170 líneas más abajo— y esta función
+   * El `/` + `*` de ese tipo MIME entraba como apertura de bloque, el buscador corría
+   * hasta el cierre siguiente —que estaba 170 líneas más abajo— y esta función
    * devolvía en blanco todo lo que había en medio. En `ferreteria/FichaDePieza.tsx`
    * eso escondía el cuerpo entero de la ficha, incluido un `aria-label` con la
    * palabra de otro giro, y la puerta informaba «0 rótulos con la palabra de otro
    * giro» sobre un archivo que **no había leído**.
    *
    * Es el fallo de esta familia que más caro sale: la puerta no se quejó, dio verde,
-   * y el verde afirmaba una propiedad de un texto que nunca miró. Cualquier pantalla
-   * con cámara —y son varias— tenía el mismo agujero.
-   *
-   * Se neutralizan los dos delimitadores DENTRO de una cadena entrecomillada, y se
-   * sustituye el `*` por un espacio para no mover ni un carácter: los números de
-   * línea del mensaje tienen que seguir llevando a donde está la cosa.
+   * y el verde afirmaba una propiedad de un texto que nunca miró. Y no era el único
+   * sitio: el mismo patrón estaba en once, y en seis leyendo archivos con cámara.
+   * El ayudante vive aparte porque la regla es una sola.
    */
-  const sinFalsosDelimitadores = fuente.replaceAll(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, (cadena) =>
-    cadena.replaceAll(/\/\*|\*\//g, (delimitador) => delimitador.replace('*', ' ')),
-  );
-
-  const sinProsa = sinFalsosDelimitadores
+  const sinProsa = sinFalsosDelimitadores(fuente)
     .replaceAll(/\{\/\*[\s\S]*?\*\/\}/g, enBlanco)
     .replaceAll(/\/\*[\s\S]*?\*\//g, enBlanco)
     /**
@@ -1488,7 +1482,7 @@ function comprobarMarcasDeContenido() {
     }
     // Sin comentarios: una tabla dentro de un comentario no abre nada. Es el
     // mismo recorte que el del cobro, y por la misma razón.
-    const codigo = readFileSync(ruta, 'utf8')
+    const codigo = sinFalsosDelimitadores(readFileSync(ruta, 'utf8'))
       .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
       .replaceAll(/^\s*\/\/.*$/gm, ' ');
 
@@ -1549,7 +1543,7 @@ function comprobarQueLasPruebasCobran() {
       continue;
     }
     // Sin comentarios: una llamada dentro de un comentario no cobra nada.
-    const codigo = readFileSync(ruta, 'utf8')
+    const codigo = sinFalsosDelimitadores(readFileSync(ruta, 'utf8'))
       .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
       .replaceAll(/^\s*\/\/.*$/gm, ' ');
 
@@ -1995,7 +1989,7 @@ function comprobarQueLasRutasQueSeLlamanExisten() {
       // SIN COMENTARIOS: una ruta nombrada en un comentario no la llama nadie, y
       // contarla hacía que esta puerta pidiera declarar la ruta que el comentario
       // de al lado explica que ya no se usa.
-      const texto = readFileSync(ruta, 'utf8')
+      const texto = sinFalsosDelimitadores(readFileSync(ruta, 'utf8'))
         .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
         .replaceAll(/^\s*\/\/.*$/gm, ' ');
       for (const llamada of llamadasDelTexto(texto)) {

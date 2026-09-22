@@ -319,9 +319,22 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     await page.getByRole('button', { name: 'efectivo', exact: false }).first().click();
     await page.getByRole('button', { name: /^COBRAR/ }).click();
 
-    // El reposo de esta pantalla es el acuse: «Cobrado · cambio … · la mesa pasa
-    // sola a limpieza».
-    await exigirCobroAceptado(page, /Cobrado · cambio/);
+    /**
+     * El reposo de esta pantalla es el acuse, y la frase cambió con el rediseño.
+     *
+     * Era una línea —«Cobrado · cambio $12.00 · la mesa pasa sola a limpieza»— y el
+     * bloque 4.1 la partió en jerarquía: «Cobrado» arriba, el CAMBIO en grande
+     * —porque es lo único que queda por hacer, contarlo y darlo— y el total y la mesa
+     * debajo, en pequeño. La señal tenía que moverse con la copia, y no se movió: la
+     * suite pedía un literal que ya no existe y fallaba diciendo «la pantalla de cobro
+     * no contestó nada al confirmar», que es lo contrario de lo que pasaba.
+     *
+     * Se apunta a «pasa sola a limpieza» y no a «Cobrado»: sigue siendo exclusivo del
+     * acuse —no aparece en ningún otro estado de esta pantalla— y no depende del
+     * diccionario del giro, que es lo que decide si delante dice «la mesa» o «la
+     * estación».
+     */
+    await exigirCobroAceptado(page, /pasa sola a limpieza/);
 
     const venta = await exigirVentaCobrada(page, precioCentavos, idsDeAntes);
     test.info().annotations.push({

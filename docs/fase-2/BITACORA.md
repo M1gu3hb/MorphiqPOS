@@ -4719,3 +4719,175 @@ es que el fallo lo diga en el momento en que falla, y eso es lo que ahora hace `
 respuesta de `/api/auth/entrar`, dice su estado y, si es 403, nombra la variable y el puerto.
 
 Una trampa documentada que vuelve a morder es una trampa que había que cerrar, no anotar.
+
+### Y un aviso sobre el dominio propio
+
+`pos-mh-astral-systems.com` —el dominio que `VERCEL-ENTORNO §7` nombra como el propio— **no sirve
+este despliegue**. Hoy contesta `402 Payment Required` y devuelve una página de **Base44**: «POS MH
+is currently unavailable». Comprobado desde fuera el 2026-09-22.
+
+Importa por una razón concreta y ya documentada: si alguna vez se pone `APP_URL` ahí sin que el DNS
+apunte a Vercel, **toda escritura será un 403** —es el fallo de §7 de ese mismo documento, que ya
+pasó una vez— y el síntoma será «no se puede ni entrar». El despliegue de la fase vive en el alias de
+rama, y ahí es donde se comprueba.
+
+## ETAPA 2.35 · EL COMENTARIO FANTASMA TENÍA SEIS HERMANOS
+
+Arreglado el de `verificar-acople.mjs`, la pregunta obligada era si el patrón estaba en otro sitio.
+Lo estaba, en once, y **seis de ellos leen archivos que contienen `accept="image/*"`**:
+
+```
+scripts/verificar-primitivas.mjs:277        apps/web + packages/ui
+scripts/verificar-aspecto.mjs:166           apps/web/heredado
+scripts/verificar-acople.mjs:1074-1075      (el ya arreglado)
+scripts/verificar-acople.mjs:1491, 1553     pruebas/e2e/<modelo>.spec.ts
+scripts/verificar-acople.mjs:1999           apps/web
+```
+
+Y `accept="image/*"` no es raro: está en **siete** archivos de este repositorio —tres pantallas de
+`apps/web/src` y cuatro del frontend heredado—.
+
+### Medido, no supuesto
+
+Se corrió la función de cada puerta tal cual, y la misma con los delimitadores neutralizados, y se
+comparó cuántos caracteres ve una y no la otra:
+
+| Puerta | Archivo | Ciega sobre |
+| --- | --- | --- |
+| `verify:primitivas` | `estetica-salon/CitaEnCurso.tsx` | 512 |
+| `verify:primitivas` | `ferreteria/Entradas.tsx` | 1 433 |
+| `verify:primitivas` | `ferreteria/FichaDePieza.tsx` | 3 196 |
+| `verify:aspecto` | `heredado/…/IdentidadNegocio.jsx` | 1 679 |
+| `verify:acople` (rutas llamadas) | las tres pantallas de arriba | 5 147 |
+
+**`verify:primitivas` es la puerta que certifica «deuda de ritmo 0 de 0», «cero emoji» y la regla
+nueva del token**, y lo hacía sin leer 5 141 caracteres de tres pantallas.
+
+### Y lo que escondía era: NADA
+
+Se corrieron las trece reglas de la puerta sobre el trozo que no veía, una por una: **cero hallazgos
+nuevos**. El «0 de 0» estaba bien.
+
+Lo cual es exactamente el motivo por el que esto se arregla igual. El número era correcto **por
+casualidad**: nadie lo había comprobado, y la próxima pantalla con cámara que meta un `gap-4` detrás de
+su `accept="image/*"` va a pasar la puerta en silencio. Una puerta en la que hay que confiar por suerte
+no es una puerta; y este arreglo no tiene coste porque no hay deuda que pagar detrás.
+
+### Un solo ayudante, y lo que declara que NO cubre
+
+`scripts/lib/sin-prosa.mjs` neutraliza los dos delimitadores dentro de una cadena entrecomillada
+cambiando el `*` por un espacio —**sin mover un carácter**, para que los números de línea sigan
+sirviendo— y se aplica antes de quitar comentarios en los seis sitios.
+
+No es un parser de JavaScript y el archivo lo dice: no mira cadenas de plantilla con acentos graves
+—pueden cruzar líneas y ahí romper algo es más caro que el hueco que tapa— ni cadenas partidas con
+barra invertida. Hoy, en este repositorio, no existe ninguno de los dos casos. Un hueco declarado es
+honesto; una puerta que aparenta cubrirlo, no.
+
+### Dónde quedó puesto, y la mutación que lo prueba
+
+Nueve sitios de siete archivos pasan ahora por el ayudante: los cinco de
+`verificar-acople.mjs`, y uno en `verificar-primitivas.mjs`, `verificar-aspecto.mjs`,
+`verificar-arranque.mjs`, `verificar-entradas-de-comando.mjs`, `venta/contratos.mjs` y
+`generar-catalogo-comandos.mjs`.
+
+La mutación es la que había que hacer, porque la ceguera no produce un fallo: produce un **verde
+falso**. Así que se mete la violación DENTRO del tramo ciego y se mira quién la ve:
+
+```
+shadow-lg en ferreteria/FichaDePieza.tsx, linea ~430 (dentro del tramo ciego)
+  en el archivo                 : 1
+  lo que ve la puerta CIEGA     : 0     ← el verde falso, medido
+  lo que ve la puerta ARREGLADA : 1
+```
+
+Y con la puerta arreglada, `verify:primitivas` sale en ROJO sobre esa mutación —«Puentea la perilla
+de elevacion. Usa shadow-1 … shadow-4»— y en VERDE al restaurar. Las seis puertas tocadas pasan:
+`arranque`, `entradas`, `primitivas`, `aspecto`, `venta` y `acople`.
+
+El ayudante lleva su propia comprobación de seis casos, hecha a mano: `accept="image/*"` y `"a*/b"`
+se neutralizan, un comentario de verdad y una URL con `//` no se tocan, y **la longitud del texto se
+conserva** en los seis.
+
+### Un hallazgo de paso: el catálogo de comandos está 2 083 líneas stale
+
+Comprobando que el cambio al generador no alteraba su salida —no la altera—, salió que
+`docs/fase-1/F1-08-COMANDOS-Y-RUTAS.md` es el de la Fase 1: `pnpm docs:comandos` genera hoy 2 083
+líneas más, todas las de la Fase 2. **Ninguna puerta lo mira**, porque `docs:comandos` no está en
+`pnpm verify`. No se regeneró: son dos mil líneas de un documento de otra fase y no es de esta etapa.
+Queda dicho.
+
+## ETAPA 2.35 · `<Dinero>` PARTÍA EL IMPORTE EN TRES, Y EL TOTAL SE LEÍA MAL
+
+Las cinco suites de modelo no se habían corrido en toda la etapa —CI sólo lanza `estilos` y
+`rastreo`, y `pnpm verify` acaba en `test:integracion`, que es vitest— así que se corrieron. La
+primera cayó:
+
+```
+abarrotes · Error: El total de la pantalla no es el precio del producto.
+            Precio: 4290 centavos; total: 4200.
+```
+
+«Aceite de maíz 1 L» cuesta **$42.90** y la prueba leyó **$42.00** en la pantalla de cobro.
+
+### La causa es el componente que el bloque 4.1 puso ahí
+
+`Dinero` pinta el importe en **tres hermanos** dentro de un `inline-flex` con `gap-px`:
+
+```jsx
+<span class="inline-flex items-baseline gap-px …">
+  <span>$</span><span>42</span><span>.90</span>
+</span>
+```
+
+Visualmente es correcto y a un lector de pantalla le llega bien —el `aria-label` dice «42 pesos con
+90 centavos»—. Pero los hijos de un `inline-flex` son **elementos de bloque**, así que el texto que
+se extrae del nodo no es `$42.90`: es `$`, `42` y `.90` **separados**. Cualquier cosa que lea el
+texto en vez del `aria-label` —una prueba, un `innerText`, **copiar y pegar el total**— ve un número
+partido.
+
+Y la prueba, que toma la primera cantidad con `/\$\s*[\d,]+(?:\.\d{1,2})?/`, casaba `$ 42` y se
+quedaba sin los centavos: **4200**.
+
+### Por qué no se vio antes, y por qué eso lo empeora
+
+Porque la cafetería **pasó**: sus importes acaban en `.00`, y ahí `$ 45` y `$45.00` son el mismo
+número. El defecto sólo se ve cuando hay centavos distintos de cero, que es una de cada N veces. Lo
+metió el bloque 4.1 al cambiar `enPesos(total)` por `<Dinero centavos={total} …>` en las cinco
+pantallas de cobro, y ninguna puerta lo miró porque las cinco suites que comprueban un TOTAL COBRADO
+contra el servidor no corren ni en `pnpm verify` ni en CI.
+
+### El arreglo, y por qué se arregla el componente y no la prueba
+
+Se le quita el `inline-flex` y el `gap-px`: los tres trozos vuelven a ser contenido **en línea**, que
+se alinea a la línea base por sí solo —para eso estaba el `items-baseline`— y se lee como un solo
+número. El `$` y los centavos siguen un escalón por debajo, que es lo que el componente existe para
+hacer.
+
+Arreglar la prueba en vez del componente habría dejado el total imposible de copiar en las diez
+pantallas que lo pintan, y con 37 usos en el repositorio.
+
+### Y una segunda del mismo sitio: la señal de reposo que se quedó atrás
+
+El restaurante cayó con «la pantalla de cobro no contestó nada al confirmar», que es lo contrario de
+lo que pasaba: contestó perfectamente. El bloque 4.1 rediseñó su acuse —era una línea, «Cobrado ·
+cambio $12.00 · la mesa pasa sola a limpieza», y pasó a tener jerarquía: «Cobrado» arriba, el CAMBIO
+en grande porque es lo único que queda por hacer, y el total y la mesa debajo— y **la suite seguía
+pidiendo el literal viejo**.
+
+Se movió la señal a «pasa sola a limpieza», que sigue siendo exclusiva del acuse y **no depende del
+diccionario del giro**: delante puede decir «la mesa» o «la estación», y la frase aguanta. No se
+relajó a `/Cobrado/` a secas, que aparecería en cualquier estado que lleve esa palabra.
+
+### El resumen de las cinco, tal cual
+
+| Suite | Resultado | Qué era |
+| --- | --- | --- |
+| `abarrotes` | 🔴 → ✅ | El total leía `$42.00` donde la pantalla decía `$42.90`. **Defecto mío, del 4.1** |
+| `cafeteria` | ✅ | Pasó — y pasó porque sus importes acaban en `.00` |
+| `estetica-salon` | 🔴 **no es defecto** | «La agenda no tiene un hueco libre en lo que queda del día». Eran las **23:54**: la suite necesita horas por delante y a esa hora no las hay. Lo dice la propia prueba |
+| `ferreteria` | ✅ | Pasó — su total no usa `Dinero` |
+| `restaurante` | 🔴 → ✅ | La señal de reposo pedía una frase que el rediseño cambió |
+
+Dos defectos reales de las cinco, los dos **míos y de esta etapa**, los dos invisibles para todas las
+puertas que sí corren. Eso es lo que costaba no correr estas cinco.

@@ -699,7 +699,7 @@ configurada— y `compacta` declara que es de ratón, con el mínimo AA de 24.
 
 | Qué | Antes | Ahora |
 | --- | --- | --- |
-| Pantallas que usan la biblioteca del bloque 2 | 1 (la de documentación) | **31 de 72** |
+| Pantallas que usan la biblioteca del bloque 2 | 1 (la de documentación) | **31 de 72** (29 de modelo + `/sistema` + el selector) |
 | Literales de ritmo fuera de `packages/ui` | 919 | **0** |
 | Emoji usados como icono | 36 en 16 archivos | **0**, y con su puerta |
 | Escala tipográfica del contrato | declarada y **sin aplicar** | enchufada; `text-xl` 22 px donde antes 20 |
@@ -760,9 +760,10 @@ declarar sola.
 
 **Lo que NO se hizo, y es una decisión:** no se fusionó a `main` ni se tocó el entorno *Production*.
 `VERCEL-ENTORNO §4` ya lo dejó escrito —«**Production NO se tocó**: es lo que usan cuatro negocios
-para cobrar y esa decisión es de Miguel»— y con el 400 de la cafetería todavía sin diagnosticar no
-hay nada que justifique empujar a la caja con la que cuatro negocios cobran mañana. El despliegue de
-la rama **sí** está vivo, comprobado desde fuera y con el commit de hoy: `a1f1eee`.
+para cobrar y esa decisión es de Miguel»—. Cuando se escribió este párrafo había una segunda razón —el
+400 de la cafetería sin diagnosticar— y **esa ya no está**: era un bagel en la familia «Leche», está
+cerrado, y el rastreador de la cafetería pasa. Queda la primera, que es de Miguel. El despliegue de la
+rama **sí** está vivo y comprobado desde fuera.
 
 ### La puerta que daba verde sobre un archivo que no había leído
 
@@ -787,3 +788,34 @@ esas propiedades las publica Radix en tiempo de ejecución y la forma larga ahí
 
 Validada por mutación: `xl:h-[var(--altura-control)]` de vuelta en `Turno.tsx` la pone en rojo, y la
 forma larga de un `--radix-select-trigger-height` **pasa**, que es lo que tenía que pasar.
+
+### Las cinco suites de modelo, corridas por primera vez desde la 2.3
+
+CI sólo lanza `estilos.spec.ts` y `rastreo.spec.ts`, y `pnpm verify` termina en `test:integracion`,
+que es vitest. Así que las cinco que comprueban un **TOTAL COBRADO contra el servidor** llevaban sin
+correr desde la vuelta anterior — y esta etapa tocó ocho de sus pantallas.
+
+| Suite | Resultado | Qué era |
+| --- | --- | --- |
+| `abarrotes` | 🔴 → ✅ | El total leía `$42.00` donde la pantalla decía `$42.90` |
+| `cafeteria` | ✅ | Pasó — y pasó porque sus importes acaban en `.00` |
+| `estetica-salon` | 🔴 **no es defecto** | «La agenda no tiene un hueco libre en lo que queda del día». Eran las 23:54 |
+| `ferreteria` | ✅ | Pasó — su total no usa `Dinero` |
+| `restaurante` | 🔴 → ✅ | La señal de reposo pedía una frase que el rediseño cambió |
+
+**Dos defectos reales, los dos míos y de esta etapa, uno de ellos de dinero.** `<Dinero>` pintaba el
+importe en tres hermanos dentro de un `inline-flex`: los hijos de un flex son elementos de bloque, así
+que el texto que se extraía del nodo no era `$42.90` sino `$`, `42` y `.90` separados —y eso rompe
+tanto una prueba como **copiar el total y pegarlo**—. Y la señal de reposo del restaurante pedía
+«Cobrado · cambio», un literal que el rediseño del 4.1 cambió.
+
+Lo que sigue pendiente y no es de código: **que CI las corra**. Hoy no las corre.
+
+### La ceguera de las puertas, barrida
+
+`accept="image/*"` abría un comentario fantasma en el quitador de prosa de tres puertas y dejaba sin
+leer 5 141 caracteres para `verify:primitivas`, 1 679 para `verify:aspecto` y 5 147 para
+`verify:acople`. Medido: **no escondía ningún hallazgo** — el «0 de 0» estaba bien por casualidad.
+Arreglado en nueve sitios de siete scripts con un solo ayudante, `scripts/lib/sin-prosa.mjs`, y
+validado metiendo la violación DENTRO del tramo ciego: `1` en el archivo, `0` para la puerta vieja,
+`1` para la nueva.

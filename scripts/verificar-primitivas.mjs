@@ -18,6 +18,8 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
+
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /** Carpetas donde la regla aplica. Crece con el monorepo. */
@@ -274,7 +276,16 @@ function estaExenta(ruta) {
  * puede ser una URL.
  */
 function sinComentarios(texto) {
-  const sinBloques = texto.replaceAll(/\/\*[\s\S]*?\*\//g, '');
+  /**
+   * Y los delimitadores que viven DENTRO de una cadena se desactivan antes.
+   *
+   * `accept="image/*"` abría un comentario y este quitador se comía todo hasta el
+   * cierre siguiente: 5 141 caracteres de tres pantallas —`CitaEnCurso`, `Entradas` y
+   * `FichaDePieza`— quedaban fuera de las trece reglas, incluidas la del ritmo, la del
+   * emoji y la del token. Medido, lo que escondía era **nada**; el «0 de 0» estaba bien
+   * por casualidad, y una puerta en la que hay que confiar por suerte no es una puerta.
+   */
+  const sinBloques = sinFalsosDelimitadores(texto).replaceAll(/\/\*[\s\S]*?\*\//g, '');
   return sinBloques
     .split('\n')
     .filter((linea) => {
