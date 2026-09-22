@@ -4202,3 +4202,141 @@ que su hover no puede salir del acento de la página—.
 cinco atributos en el `<html>` —sin ellos no hay `--fondo`, y sin `--fondo` no hay `--background`,
 así que la primera pintura saldría en blanco y negro— y `ProveedorDeApariencia` los vuelve estado
 para poder cambiarlos **sin recargar**. Es la mitad de la etapa 5, ya hecha.
+
+## ETAPA 2.35 · BLOQUE 6 · LAS PUERTAS
+
+Una puerta sirve si se ha visto ROJA. Las cinco se mutaron contra el código real y se miraron
+fallar antes de darlas por buenas; las mutaciones están en el mensaje de cada commit.
+
+### 6.1 · EL RITMO, no sólo el color
+
+`verify:primitivas` ya prohibía literales de color, altura, sombra y variante. Le faltaban cuatro
+que puentean una perilla exactamente igual de bien:
+
+- **espacio** — con `gap-4` fijo, cambiar la densidad a `compacta` no junta **nada**. La perilla
+  queda de adorno.
+- **tipografía** — `text-[13px]` se sale de la escala y no responde a nada.
+- **duración** — las duraciones son tres y salen de la perilla de movimiento. Con una literal, el
+  estilo TERMINAL, que las pone a cero a propósito, **sigue animando**.
+- **curva** — la misma historia con `ease-[cubic-bezier(…)]`.
+
+**El trinquete, y por qué no es una exención disfrazada.** Las 69 pantallas se escribieron con
+literales, que es lo que hace cualquiera cuando los tokens no emiten CSS — y hasta el bloque 1 no
+emitían. Exigir cero hoy dejaría la puerta roja hasta que el bloque 4 convierta las 69, y una
+puerta que lleva semanas en rojo deja de leerse: se salta. Así que la regla se aplica **entera**
+dentro de `packages/ui/src` —la biblioteca tiene que ser ejemplar, y hoy tiene cero— y fuera se
+cuenta contra un techo de **919 literales en 68 archivos** que sólo puede bajar. Un literal nuevo
+pone la puerta roja hoy.
+
+Y cuenta **literales, no archivos**. Con la cuenta por archivo, como estaba al principio, añadir
+un segundo `gap-12` a una pantalla que ya tenía uno no subía el número y el trinquete no trincaba
+nada.
+
+**El quita-comentarios, que ya se equivocó una vez en esta fase.** Un comentario que menciona
+`cn('p-2', 'p-4')` para explicar por qué existe `twMerge` es documentación, no un literal; sin
+quitarlos, la regla acusaba a `utilidades/cn.ts` por su propia explicación. Pero la versión
+ingenua —cortar la línea en el primer `//`— se comió el `https://` de una constante y **escondió
+una mutación que debía fallar**. Ahora se quitan líneas completas que empiezan por `//` o por `*`,
+y bloques `/* */`. Un `//` a mitad de línea puede ser una URL, y se respeta.
+
+### 6.3 · EL MOVIMIENTO REDUCIDO, y el hueco entre dos verdes
+
+De las cuatro cosas que cada estilo tiene que cumplir, `prefers-reduced-motion` era la única sin
+puerta de verdad. Tenía el CSS correcto y una prueba que comprobaba que el bloque existe. Y con
+las dos en verde el movimiento puede seguir encendido, porque lo que decide no es que el bloque
+esté: es la **especificidad**.
+
+```css
+@media (prefers-reduced-motion: reduce) { :root { --duracion-normal: 0ms } }
+[data-estilo='terminal'] { --duracion-normal: 200ms }
+```
+
+Las dos reglas apuntan al mismo `<html>` y las dos valen 0,1,0 —una consulta de medios **no** suma
+especificidad—, así que gana la que va después. Hoy gana la buena por el **orden** de
+`estilos/index.css`, no por ser más fuerte. Y «TERMINAL no tiene movimiento» es lo más natural que
+alguien puede escribir en `terminal.css` el mes que viene.
+
+Se midió: con esa línea añadida, la puerta nueva se pone roja —`--duracion-normal = .2s`— y las
+**370 pruebas de `sistema.test.ts` siguen verdes**. Ése es el hueco, medido en vez de supuesto.
+
+La prueba sube además la perilla a `expresiva` a propósito: si la preferencia del sistema sólo
+ganara con la perilla baja, no estaría ganando.
+
+### 6.4 · LOS OCHO ESTILOS EN UN NAVEGADOR, y los dos botones muertos
+
+«Un estilo que esconde un botón detrás de otro es un botón muerto.» La puerta encontró dos, y
+ninguno lo había traído esta etapa.
+
+**Uno · la rejilla de avisos se tragaba los clics de una esquina de todas las pantallas.**
+`heredado/components/ui/toast.jsx` pinta un `div` `fixed` de 420 px anclado abajo a la derecha,
+con `pointer-events: auto` y **vacío** la mayor parte del tiempo. Y son dos, porque
+`ToastProvider` pinta otro idéntico por fuera. Se le preguntó a `elementFromPoint` qué había
+encima del destino «Caja» del abanico inferior y lo que recibía el toque era la rejilla, no el
+botón. `pointer-events-none` en la rejilla es lo que trae shadcn de origen —esta copia lo perdió—
+y los avisos siguen siendo interactivos porque cada uno ya lleva `pointer-events-auto`.
+
+Toca un archivo del heredado, así que va con su excepción declarada en `aspecto-permitido.json` y
+su motivo escrito: **no cambia un píxel de lo que Miguel ve, cambia dónde llega el dedo.**
+
+**Dos · la isla flotante caía encima del abanico.** Los dos en `bottom-0`, los dos en `z-40`, y
+los dos son patrones **de teléfono** — así que la pantalla que los pide a la vez es justo la que
+importa: el carrito de un pedido en la mesa con su navegación debajo. El «Cobrar» de una quedaba a
+34 px del «Cobrar» de la otra. El abanico ahora **mide** su altura y la publica en
+`--alto-abanico`; la isla se la suma. Medida y no calculada: depende de la densidad, del área
+segura y de si algún destino lleva insignia, y un número a mano acertaría en una densidad de
+cuatro. Un `ResizeObserver` la mantiene al día cuando la perilla cambia **en vivo**.
+
+### El área táctil: una promesa de tres años, y el remedio que era peor
+
+`--area-tactil-minima` estaba declarado en las cuatro densidades y lo usaba **un** componente de
+los treinta y seis. La nota de `base.css` prometía «área de toque extendida», y ese remedio es
+peor que no tenerlo en el caso que importa: un `::after` invisible más grande que el control se
+monta sobre la fila de arriba en una lista con `gap-px` y **se come sus clics**. El botón muerto
+causado por la cura.
+
+Así que la regla es **tamaño o distancia**: un control pasa si su lado corto llega al mínimo de su
+densidad, o si está lo bastante separado como para que un objetivo de ese tamaño centrado en él no
+toque el de ningún otro. Es WCAG 2.5.8 con el número del sistema en vez de su mínimo de 24 px, y
+se mide **contra el token**: si mañana alguien lo baja, lo baja a la vista de todos en `base.css`
+y no escondido en una constante de una prueba.
+
+Dos números cambiaron, los dos con razón:
+
+| Densidad | Control | Mínimo táctil | Por qué |
+| --- | --- | --- | --- |
+| `guantes` | 56 px | 56 px | A lo que se acierta con un guante puesto y con prisa |
+| `comoda` | 48 px | 48 px | La tableta |
+| `normal` | **44 px** (era 40) | 44 px | Es la densidad que recibe una tableta recién configurada, antes de que nadie toque una perilla. Sube el **control** y no sólo el área: un botón que se ve de 40 y se toca en 44 sigue pareciendo pequeño, y el aspecto también informa |
+| `compacta` | 32 px | **24 px** (era 44) | `base.css` ya decía «(operación) en escritorio → compacta»: es la densidad de **ratón y teclado**, y su mínimo es el de WCAG 2.5.8 AA. Exigirle 44 de separación a una densidad cuyo propósito es caber más la dejaría roja para siempre y acabaría en una exención |
+
+Y dos piezas de la tabla se hicieron tocables de verdad: la casilla de selección medía 16×16 y
+ahora marca **la celda entera** —un `<label>` que la llena, no un recuadro invisible que
+sobresale—, y la cabecera ordenable pasa su relleno al botón, de 16 px de alto al mínimo de su
+densidad.
+
+### Lo que esta puerta NO cubre, dicho en vez de supuesto
+
+- **Las composiciones propias de cada pantalla.** 69 × 8 son 552 recorridos, que en CI son horas.
+  `/sistema` tiene una de cada pieza, así que un estilo que rompa una la rompe ahí; una pantalla
+  que ordene mal las suyas, no.
+- **Que cada pantalla reserve hueco al final para su barra fija.** Eso es de cada pantalla.
+
+### Las dos falsas acusaciones que se corrigieron antes de creerlas
+
+La misma disciplina de la 2.3, y por la misma razón: allí costó 66 falsos positivos.
+
+- **`sticky` no es `fixed`.** Metiéndolos en la misma capa, la cabecera pegajosa de la tabla salía
+  «tapada por el abanico» en cuatro estilos, porque en algún punto del scroll pasa por debajo de
+  él. Una pegajosa viaja con su contenido; una fija vive en la ventana. Cuatro acusaciones falsas.
+- **Comparar el flujo contra una barra fija mide el scroll, no un defecto.** Un botón salía
+  «apretado» en `papel` y suelto en `morphiq` sólo por el interlineado, que mueve el contenido a
+  otro sitio. Se compara anclado con anclado y flujo con flujo; dos barras fijas sí entre ellas,
+  porque las dos están siempre donde están.
+
+### En CI
+
+`verify:estilos` va en `pnpm verify` detrás de `verify:primitivas` y es un paso propio del
+workflow. La barrida de los ocho estilos va **antes** del rastreo y en **un solo** modelo: dura
+diez segundos contra catorce minutos, así que un estilo roto se sabe ya en vez de al final; y
+`/sistema` es la misma página en los cinco giros, luego cinco copias serían cuatro veces el mismo
+veredicto.

@@ -609,3 +609,88 @@ creerlo y **54 eran suyos**, no de la aplicación. Detalle en la bitácora.
   para cambiarlos sin recargar.
 - `pnpm ui:auditar` — los fallos de contraste de un estilo juntos, con su medida, para afinar los
   cinco que faltan.
+
+### Bloque 2 · la biblioteca, y la página donde se ve viva
+
+`packages/ui/src/sistema/` — once piezas que las 69 pantallas no tenían y escribían a mano cada
+una a su manera:
+
+| Pieza | Lo que resuelve |
+| --- | --- |
+| `superficie.tsx` | `Superficie`, `Isla`, `BarraFija`. Cinco niveles con **una sola lógica de luz**: dos sombras que apuntan a soles distintos se notan aunque nadie sepa decir qué está mal |
+| `dinero.tsx` | `Dinero`, `Cifra`. Cifras tabulares siempre, el símbolo más pequeño que el número, negativos en rojo **y** entre paréntesis |
+| `tabla.tsx` | `Tabla`, `ListaDeTarjetas`. Cabecera fija, números a la derecha, scroll propio, fila activa con teclado y ordenación que dice por qué |
+| `estados.tsx` | `Vacio`, `Esqueleto`, `EsqueletoDeLista`, `ErrorDePantalla`. Los tres estados que siempre se olvidan |
+| `grafica.tsx` | Cinco tipos en SVG, sin una dependencia de gráficas |
+| `navegacion.tsx` | `BarraLateral`, `AbanicoInferior`, `Migas`. Tres formas para tres dispositivos, no una que se encoge |
+| `retroalimentacion.tsx` | Avisos, indicador de guardado y el diálogo de lo irreversible, que dice el **nombre** de lo que se borra |
+| `movimiento.ts` | `VIAJE`, `viaje`, `conTransicion`: las transiciones de vista, con su salida cuando el navegador no las tiene |
+
+Y `/sistema`, la página viva **dentro de la aplicación y no en Storybook**: un Storybook es un
+segundo proyecto con su copia de los estilos, y la copia es el problema —en cuanto diverge,
+documenta un botón que ya no es el botón—. Esta corre con los proveedores y el CSS de verdad, y
+cambia el estilo y las cuatro perillas **en vivo** sobre estas mismas piezas.
+
+### Bloque 3 · los ocho estilos
+
+**UN SOLO JUEGO DE COMPONENTES. N JUEGOS DE TOKENS.** 69 × 8 son 552 reescrituras si se hace mal
+y cero si los componentes no saben en qué estilo están. Lo que los tokens no pueden decir —el
+desenfoque del cristal, el hundido del relieve, la textura del taller, la monoespaciada del
+terminal— vive en `capas.css`, en **un** archivo a propósito: así se ve de un vistazo cuánta
+excepción se ha acumulado.
+
+| Estilo | Para qué giro, y qué tuvo que resolver |
+| --- | --- |
+| `morphiq` | El suyo, el que ya vende. Todo lo demás se deriva de aquí |
+| `cristal` | Estética, spa, joyería. El desenfoque va **sólo** en las capas flotantes: `backdrop-filter` sobre superficies grandes mata el INP en los equipos donde esto va a correr |
+| `relieve` | Recepción, panel grande y quieto. Su fondo no es blanco sino gris medio —lo único sobre lo que se puede tallar hacia arriba y hacia abajo— y el texto se fuerza a AA aunque rompa la pureza |
+| `taller` | Ferretería, taller, refaccionaria. Densidad `guantes`, una perilla nueva |
+| `bloque` | Mostrador rápido en hora pico. Feo y legible a propósito; a metro y medio lo que se lee es el grosor |
+| `terminal` | Quien viene de un POS viejo. `movimiento: nula`, y ámbar y no verde: el fósforo P3 cansa menos en jornada larga |
+| `papel` | Despacho, consultorio, agencia. Sin sombras, la jerarquía la hace la escala |
+| `noche` | Barra, cocina, taquilla. Negro real y **nada** de blanco puro: un `#fff` sobre negro a las once deslumbra y obliga a apartar la vista del cliente |
+
+`premium` y `editorial` de la Fase 1 se **retiran**: `papel` es el editorial afinado y `premium`
+ocupaba el mismo territorio que `morphiq`. Dos nombres para un sitio es la misma enfermedad que
+dos vocabularios de tokens.
+
+Los ocho pasan AA en los dos modos, **calculado**: 370 pruebas en `sistema.test.ts`. No a la
+primera —la auditoría sacó once pares de series de gráfica demasiado juntas y dos tintas de barra
+lateral por debajo de 4.5— y la dirección correcta es ajustar la paleta a la puerta, no la puerta
+a la paleta.
+
+### Bloque 5 · el selector, donde Miguel lo pidió
+
+En Configuración → Modo Presentación, la pantalla desde la que cambia de modelo delante de un
+prospecto. Vista previa **de verdad** —una tarjeta, un botón, una cifra y una línea de tabla con
+los tokens de ESE estilo, no un cuadrito de color—, las cuatro perillas, cambio en vivo sin
+recargar, y guardado **por organización**: la apariencia es la marca del negocio, no una
+preferencia de quien está en la caja. Si la cambiara un cajero, el siguiente turno encontraría
+otro sistema. `demo1234` no se toca.
+
+### Bloque 6 · las cinco puertas de diseño
+
+| # | Qué mide | Vista ROJA con |
+| --- | --- | --- |
+| 6.1 | **Ritmo**: espacio, tipografía, duración y curva literales. Cero dentro de `packages/ui`; fuera, un trinquete de 919 literales que **sólo puede bajar** | Un `gap-4` real en el sistema · `duration-200` en el botón · un `gap-12` nuevo en una pantalla → «la deuda SUBIÓ: 920» |
+| 6.2 | **Contraste de los ocho** en `pnpm verify` y en CI. Ocho estilos × dos modos, calculado | Ya validada en el bloque 3 |
+| 6.3 | **Movimiento reducido**, en el navegador. El bloque `@media` existía y la prueba lo comprobaba, y entre las dos había un hueco de **especificidad**: las dos reglas valen 0,1,0 y gana la última | `--duracion-normal: 200ms` en `terminal.css` → rojo, **y las 370 unitarias siguen verdes** |
+| 6.4 | **Los ocho estilos en un navegador**: que los tokens lleguen, que nada tape a nadie, que se acierte al tocar y que el foco se vea | Cuatro mutaciones, y **dos botones muertos que ya existían** (abajo) |
+| 6.5 | Capturas de las pantallas × 8 estilos | Pendiente **a propósito**: van después del bloque 4, o retratarían el diseño sin aplicar |
+
+### Los dos botones muertos que encontró la 6.4
+
+- **La rejilla de avisos se tragaba los clics de una esquina de todas las pantallas.**
+  `heredado/components/ui/toast.jsx` pinta un `div` fijo de 420 px abajo a la derecha con
+  `pointer-events: auto`, vacío la mayor parte del tiempo — y son **dos**, porque
+  `ToastProvider` pinta otro idéntico por fuera. La prueba preguntó por el destino «Caja» del
+  abanico inferior y lo que recibía el toque era la rejilla. `pointer-events-none` es lo que
+  trae shadcn de origen y esta copia lo perdió.
+- **La isla flotante caía encima del abanico**: los dos en `bottom-0`, los dos en `z-40`, y los
+  dos son patrones de teléfono — así que la pantalla que los pide a la vez es justo la que
+  importa. El abanico ahora **mide** su altura y la publica en `--alto-abanico`.
+
+Y `--area-tactil-minima`, que estaba declarado en las cuatro densidades y lo usaba **un**
+componente de treinta y seis, hoy se mide: tamaño **o** distancia, la regla de WCAG 2.5.8 con el
+número del sistema. `normal` sube de 40 a 44 px —es la densidad que recibe una tableta recién
+configurada— y `compacta` declara que es de ratón, con el mínimo AA de 24.
