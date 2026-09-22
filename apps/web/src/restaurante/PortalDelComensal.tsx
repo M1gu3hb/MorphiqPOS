@@ -169,7 +169,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
   // esqueleto, en blanco, para siempre.
   if (token === '' && datosIniciales === undefined) {
     return (
-      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+      <main className="mx-auto max-w-prose space-y-(--espacio-3) p-(--espacio-8) text-center">
         {/* El estado vacío habla el giro igual que el resto: una cafetería con
             barra lee «el QR de la barra», no «de la mesa». Con la palabra
             tecleada, el día que la dueña la cambie esta pantalla se queda atrás
@@ -195,7 +195,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
 
   if (datos === null) {
     return (
-      <div className="space-y-4 p-4">
+      <div className="space-y-(--espacio-4) p-(--espacio-4)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -205,7 +205,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
   const secciones = [...new Set(datos.menu.map((p) => p.seccion))];
 
   return (
-    <main className="mx-auto max-w-lg space-y-6 p-4">
+    <main className="mx-auto max-w-lg space-y-(--espacio-6) p-(--espacio-4)">
       <header className="flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-semibold">{datos.negocio.nombre}</h1>
@@ -225,7 +225,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
       {aviso !== null && <p className="text-sm">{aviso}</p>}
 
       {enseñaCuenta(datos) && datos.cuenta !== null && (
-        <section className="rounded-lg border p-4">
+        <section className="rounded-lg border p-(--espacio-4)">
           <h2 className="mb-2 font-medium">Tu {voc.singular('orden')}</h2>
           <ul className="divide-y">
             {datos.cuenta.lineas.map((linea) => (
@@ -248,7 +248,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
         </section>
       )}
 
-      <section className="flex gap-3">
+      <section className="flex gap-(--espacio-3)">
         <Button
           className="h-[calc(var(--altura-control)*1.4)] flex-1 text-base"
           disabled={enviando}

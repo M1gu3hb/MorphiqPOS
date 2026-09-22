@@ -280,7 +280,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
   // probada porque respondía 200.
   if (productoId === '' && fichaInicial === undefined) {
     return (
-      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+      <main className="mx-auto max-w-prose space-y-(--espacio-3) p-(--espacio-8) text-center">
         <h1 className="text-xl font-semibold">
           Aquí se abre la ficha de {vocabulario.enFraseCon('un', 'producto')}
         </h1>
@@ -297,7 +297,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
 
   if (ficha === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-56" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -310,7 +310,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
   const margen = margenDe(enCentavos(ficha.precio_venta), enCentavos(ficha.costo_calculado_actual));
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">{ficha.nombre}</h1>
         <p className="text-muted-foreground text-sm">
@@ -325,9 +325,9 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
       )}
       {aviso !== null && <p className="text-sm">{aviso}</p>}
 
-      <section className="space-y-3 rounded-lg border p-4">
+      <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
         <h2 className="font-medium">Precio y margen</h2>
-        <div className="flex items-end gap-3">
+        <div className="flex items-end gap-(--espacio-3)">
           <div>
             <Label htmlFor="precio">Precio de venta</Label>
             <Input
@@ -355,7 +355,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
         {margen === null && <p className="text-sm">Sin precio no hay margen que calcular.</p>}
       </section>
 
-      <section className="space-y-3 rounded-lg border p-4">
+      <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
         <h2 className="font-medium">Impuesto</h2>
         <div className="flex flex-wrap gap-2">
           {TASAS_IVA.map((tasa) => (
@@ -374,7 +374,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
         </div>
       </section>
 
-      <section className="space-y-3 rounded-lg border p-4">
+      <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
         <h2 className="font-medium">Caducidad</h2>
         <p className="text-muted-foreground text-sm">
           Enciéndela sólo en lo que de verdad caduca: una lista llena de lo que no se lee.
@@ -393,7 +393,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
 
       <Separator />
 
-      <section className="space-y-3">
+      <section className="space-y-(--espacio-3)">
         <h2 className="font-medium">Presentaciones</h2>
         <p className="text-muted-foreground text-sm">
           Cada una con su precio: el de la caja no es el de la pieza multiplicado.
@@ -413,7 +413,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
           ))}
         </ul>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-(--espacio-3) md:grid-cols-4">
           <div>
             <Label htmlFor="pres-nombre">Nombre</Label>
             <Input

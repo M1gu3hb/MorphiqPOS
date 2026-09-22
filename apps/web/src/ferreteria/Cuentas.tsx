@@ -359,17 +359,17 @@ export function Cuentas({
   // primero que dice es que no se aplicó ningún pago.
   const banda =
     error === null ? null : (
-      <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
+      <p role="alert" className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm">
         {error} · Ningún pago quedó registrado.
       </p>
     );
 
   if (renglones === null && error === null) {
     return (
-      <div className="space-y-3 p-4">
+      <div className="space-y-(--espacio-3) p-(--espacio-4)">
         <Skeleton className="h-5 w-40" />
         {/* Esqueletos con la forma de la cartera: las cifras no saltan al llegar. */}
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-(--espacio-3) sm:grid-cols-3">
           {Array.from({ length: 3 }, (_, i) => (
             <Skeleton key={i} className="h-20 w-full rounded-lg" />
           ))}
@@ -400,30 +400,33 @@ export function Cuentas({
   }
 
   return (
-    <div className="p-4">
-      <h1 className="mb-3 text-xl font-bold">Cuentas</h1>
+    <div className="p-(--espacio-4)">
+      <h1 className="mb-(--espacio-3) text-xl font-bold">Cuentas</h1>
       {banda}
       {aviso !== null && (
-        <p role="status" className="mb-3 rounded-md border border-border bg-muted p-2 text-sm">
+        <p
+          role="status"
+          className="mb-(--espacio-3) rounded-md border border-border bg-muted p-2 text-sm"
+        >
           {aviso}
         </p>
       )}
 
       {/* Primero el total, después lo vencido, después lo que ya entró hoy. */}
-      <dl className="mb-3 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-border bg-card p-3">
+      <dl className="mb-(--espacio-3) grid gap-(--espacio-3) sm:grid-cols-3">
+        <div className="rounded-lg border border-border bg-card p-(--espacio-3)">
           <dt className="text-xs uppercase text-muted-foreground">Lo que me deben</dt>
           <dd className="text-2xl font-bold tabular-nums">{enPesos(totalDebido)}</dd>
           <dd className="text-xs text-muted-foreground">{clientes.length} clientes</dd>
         </div>
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3">
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-(--espacio-3)">
           <dt className="text-xs uppercase text-muted-foreground">Vencido · 31 días o más</dt>
           <dd className="text-2xl font-bold tabular-nums">{enPesos(totalVencido)}</dd>
           <dd className="text-xs text-muted-foreground">
             {new Set(atrasados.map((fila) => fila.cliente_id)).size} clientes
           </dd>
         </div>
-        <div className="rounded-lg border border-border bg-card p-3">
+        <div className="rounded-lg border border-border bg-card p-(--espacio-3)">
           <dt className="text-xs uppercase text-muted-foreground">Cobrado hoy</dt>
           <dd className="text-2xl font-bold tabular-nums">{enPesos(cobradoHoy)}</dd>
           <dd className="text-xs text-muted-foreground">
@@ -439,7 +442,7 @@ export function Cuentas({
         </div>
       </dl>
 
-      <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center">
+      <div className="mb-(--espacio-3) flex flex-col gap-2 md:flex-row md:items-center">
         <Input
           type="search"
           aria-label={`Buscar ${voc.singular('cliente')} u obra`}
@@ -470,7 +473,7 @@ export function Cuentas({
 
       {/* La cabecera de columnas es de tablet para arriba: en teléfono cada
           renglón se explica solo y una cabecera ahí sería una línea perdida. */}
-      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_9rem_7rem_6rem] gap-3 px-3 pb-1 text-xs uppercase text-muted-foreground md:grid">
+      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_9rem_7rem_6rem] gap-(--espacio-3) px-(--espacio-3) pb-1 text-xs uppercase text-muted-foreground md:grid">
         <span>{voc.titulo('cliente')} / obra</span>
         <span className="text-right">Debe</span>
         <span>Más viejo</span>
@@ -493,7 +496,7 @@ export function Cuentas({
                   onClick={() => {
                     setAbierto(desplegado ? null : cliente.id);
                   }}
-                  className="grid flex-1 grid-cols-[minmax(0,1fr)_7rem] items-center gap-x-3 gap-y-1 rounded-lg p-3 text-left hover:bg-accent md:grid-cols-[minmax(0,1fr)_7rem_9rem_7rem_6rem]"
+                  className="grid flex-1 grid-cols-[minmax(0,1fr)_7rem] items-center gap-x-(--espacio-3) gap-y-1 rounded-lg p-(--espacio-3) text-left hover:bg-accent md:grid-cols-[minmax(0,1fr)_7rem_9rem_7rem_6rem]"
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">
@@ -531,14 +534,14 @@ export function Cuentas({
                   <a
                     href={`tel:${cliente.telefono}`}
                     aria-label={`Llamar a ${cliente.nombre}`}
-                    className="px-3 py-4 text-lg hover:bg-accent"
+                    className="px-(--espacio-3) py-(--espacio-4) text-lg hover:bg-accent"
                   >
                     <Phone aria-hidden="true" className="inline size-4 shrink-0" />
                   </a>
                 )}
                 <Button
                   size="sm"
-                  className="mr-3"
+                  className="mr-(--espacio-3)"
                   onClick={() => {
                     abrirFicha(cliente.id);
                   }}
@@ -548,7 +551,10 @@ export function Cuentas({
               </div>
 
               {desplegado && (
-                <ul id={`obras-${cliente.id}`} className="border-t border-border px-3 py-2">
+                <ul
+                  id={`obras-${cliente.id}`}
+                  className="border-t border-border px-(--espacio-3) py-2"
+                >
                   {cliente.obras.map((obra) => {
                     const suyo = tramoDe(obra.dias_mas_viejo ?? 0);
                     return (
@@ -575,7 +581,7 @@ export function Cuentas({
       </ul>
 
       {visibles.length === 0 && (
-        <p className="p-4 text-sm text-muted-foreground">
+        <p className="p-(--espacio-4) text-sm text-muted-foreground">
           {voc.conDeterminante('ningun', 'cliente')} cae en este filtro. Quita la búsqueda o vuelve
           a «Todos».
         </p>
@@ -600,7 +606,7 @@ export function Cuentas({
             </SheetDescription>
           </SheetHeader>
 
-          <div className="space-y-3 px-4 pb-6">
+          <div className="space-y-(--espacio-3) px-(--espacio-4) pb-(--espacio-6)">
             <div role="group" aria-label="Método del pago" className="flex gap-2">
               {METODOS.map((uno) => (
                 <Button
@@ -630,7 +636,7 @@ export function Cuentas({
                 ))}
               </div>
             ) : pendientes.length === 0 ? (
-              <p className="rounded-md border border-border p-3 text-sm">
+              <p className="rounded-md border border-border p-(--espacio-3) text-sm">
                 Este cliente no tiene remisiones abiertas: su saldo ya quedó aplicado a documentos
                 cerrados.
               </p>
@@ -644,7 +650,7 @@ export function Cuentas({
                   {pendientes.map((doc) => (
                     <li
                       key={doc.id}
-                      className="flex items-center gap-3 rounded-md border border-border p-2"
+                      className="flex items-center gap-(--espacio-3) rounded-md border border-border p-2"
                     >
                       <Checkbox
                         id={`doc-${doc.id}`}
@@ -672,7 +678,7 @@ export function Cuentas({
             )}
 
             <Separator />
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-(--espacio-3)">
               <span className="text-lg font-bold tabular-nums">{enPesos(sumaElegida)}</span>
               <Button
                 disabled={enviando || elegidos.length === 0 || elegida === null}

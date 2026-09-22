@@ -86,7 +86,7 @@ type Canal = (typeof CANALES)[number];
 const TOLERANCIA_CENTAVOS = 2000;
 
 const SECCION = 'rounded-lg border border-border bg-card text-card-foreground shadow-1';
-const TITULO = 'cursor-pointer p-3 text-sm font-semibold uppercase tracking-wide';
+const TITULO = 'cursor-pointer p-(--espacio-3) text-sm font-semibold uppercase tracking-wide';
 
 /** La venta del día tal como la nombra el puente. Los importes van en PESOS. */
 export interface VentaDelDia {
@@ -360,10 +360,10 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
 
   if (datos === null) {
     return (
-      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <div className="grid gap-(--espacio-4) p-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_24rem]">
         {/* Esqueletos con la forma de las cuatro secciones: nada salta de sitio. */}
         <Skeleton className="h-72 w-full rounded-lg xl:order-2" />
-        <div className="space-y-4 xl:order-1">
+        <div className="space-y-(--espacio-4) xl:order-1">
           <Skeleton className="h-40 w-full rounded-lg" />
           <Skeleton className="h-28 w-full rounded-lg" />
           <Skeleton className="h-40 w-full rounded-lg" />
@@ -396,12 +396,17 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
     const diferencia = Number(corte.diferenciaCentavos);
     const cerrado = semaforoDe(diferencia);
     return (
-      <div role="status" className="mx-auto max-w-lg space-y-3 p-8 text-center">
+      <div
+        role="status"
+        className="mx-auto max-w-lg space-y-(--espacio-3) p-(--espacio-8) text-center"
+      >
         <p className="text-sm uppercase text-muted-foreground">
           Corte {corte.serie}-{corte.folio} · {corte.numeroVentas} tickets
         </p>
-        <p className={`rounded-lg border-2 p-4 ${cerrado.clase}`}>
-          <span className="block text-4xl font-bold tabular-nums">{enPesos(diferencia)}</span>
+        <p className={`rounded-lg border-2 p-(--espacio-4) ${cerrado.clase}`}>
+          <span className="block font-numeros text-display font-bold tabular-nums">
+            {enPesos(diferencia)}
+          </span>
           <span className="font-medium">
             {cerrado.marca} {cerrado.texto}
           </span>
@@ -484,7 +489,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
   }
 
   return (
-    <div className="grid items-start gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="grid items-start gap-(--espacio-4) p-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_24rem]">
       <h1 className="text-xl font-bold xl:col-span-2">Cierre diario y arqueo</h1>
       <div className="xl:col-span-2">{banda}</div>
 
@@ -492,7 +497,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
           el foco; en PC se va al carril derecho con `xl:order-2`. */}
       <section
         aria-labelledby="titulo-conteo"
-        className={`sticky top-0 z-10 space-y-3 p-3 xl:order-2 xl:top-4 ${SECCION}`}
+        className={`sticky top-0 z-10 space-y-(--espacio-3) p-(--espacio-3) xl:order-2 xl:top-4 ${SECCION}`}
       >
         <h2 id="titulo-conteo" className="text-sm font-semibold uppercase tracking-wide">
           4 · Conteo de efectivo y fondo
@@ -533,7 +538,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
         {cuenta !== null && (
           <dl
             role="status"
-            className={`grid grid-cols-2 gap-1 rounded-md border-2 p-3 text-sm ${semaforo.clase}`}
+            className={`grid grid-cols-2 gap-1 rounded-md border-2 p-(--espacio-3) text-sm ${semaforo.clase}`}
           >
             <dt>Esperado</dt>
             <dd className="text-right tabular-nums">{enPesos(esperado)}</dd>
@@ -574,10 +579,10 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
 
       {/* 1 · 2 · 3 en el orden del PDF. `details` nativo: el teclado y el lector
           de pantalla ya saben abrirlo, y en teléfono se colapsan sin código. */}
-      <div className="space-y-4 xl:order-1">
+      <div className="space-y-(--espacio-4) xl:order-1">
         <details open className={SECCION}>
           <summary className={TITULO}>1 · Resumen financiero (sin propinas)</summary>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 p-3 pt-0 md:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-x-(--espacio-4) gap-y-(--espacio-3) p-(--espacio-3) pt-0 md:grid-cols-4">
             {financiero.map(([rotulo, valor]) => (
               <div key={rotulo}>
                 <dt className="text-xs text-muted-foreground">{rotulo}</dt>
@@ -589,7 +594,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
 
         <details open className={SECCION}>
           <summary className={TITULO}>2 · Propinas del día (pendientes de liquidar)</summary>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 p-3 pt-0 md:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-x-(--espacio-4) gap-y-(--espacio-3) p-(--espacio-3) pt-0 md:grid-cols-4">
             {propinas.map(([rotulo, monto]) => (
               <div key={rotulo}>
                 <dt className="text-xs capitalize text-muted-foreground">{rotulo}</dt>
@@ -597,7 +602,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
               </div>
             ))}
           </dl>
-          <p className="px-3 pb-3 text-xs text-muted-foreground">
+          <p className="px-(--espacio-3) pb-(--espacio-3) text-xs text-muted-foreground">
             No entran en la utilidad: son dinero de {voc.enFrase('responsable', true)} que pasó por
             la caja.
           </p>

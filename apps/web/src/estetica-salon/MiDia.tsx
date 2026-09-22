@@ -358,14 +358,14 @@ export function MiDia({
     error === null ? null : (
       <p
         role="alert"
-        className="mb-3 rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
+        className="mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
       >
         {error} · Se muestra lo último que se pudo leer.
       </p>
     );
 
   const encabezado = (
-    <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+    <header className="mb-(--espacio-4) flex flex-wrap items-baseline justify-between gap-2">
       <h1 className="text-2xl font-bold">{nombreProfesional ?? 'Mi día'}</h1>
       <p className="text-sm text-muted-foreground">
         {reloj === null
@@ -392,10 +392,10 @@ export function MiDia({
   if (yo === null) {
     // Sin sesión que diga quién mira no se consulta nada. Ver el docblock.
     return (
-      <div className="mx-auto w-full max-w-2xl p-4">
+      <div className="mx-auto w-full max-w-2xl p-(--espacio-4)">
         {encabezado}
         {banda}
-        <p className="mb-3 text-base">¿Quién eres? Tu día sólo lo ves tú.</p>
+        <p className="mb-(--espacio-3) text-base">¿Quién eres? Tu día sólo lo ves tú.</p>
         {equipo === null ? (
           <div className="flex flex-col gap-2">
             {Array.from({ length: 4 }, (_, i) => (
@@ -426,12 +426,12 @@ export function MiDia({
 
   if (citas === null) {
     return (
-      <div className="mx-auto w-full max-w-6xl p-4">
+      <div className="mx-auto w-full max-w-6xl p-(--espacio-4)">
         {encabezado}
         {banda}
         {/* Esqueletos con la forma de lo que llega, no un spinner: así nada
             salta al cargar y el ojo ya sabe dónde va a mirar. */}
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid gap-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_20rem]">
           <Skeleton className="min-h-40 w-full rounded-xl" />
           <Skeleton className="min-h-28 w-full rounded-xl" />
           <Skeleton className="min-h-40 w-full rounded-xl" />
@@ -441,12 +441,12 @@ export function MiDia({
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-4">
+    <div className="mx-auto w-full max-w-6xl p-(--espacio-4)">
       {encabezado}
       {banda}
       {/* Teléfono: una columna en el orden del documento. PC: el dinero y su
           desglose se van a la derecha, que es donde ella los verifica. */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid gap-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_20rem]">
         <section aria-labelledby="ahora" className="xl:col-start-1 xl:row-start-1">
           <h2 id="ahora" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
             Ahora
@@ -464,7 +464,7 @@ export function MiDia({
               />
             </div>
           ) : (
-            <article className="rounded-xl border-2 border-primary bg-card p-4 shadow-2">
+            <article className="rounded-xl border-2 border-primary bg-card p-(--espacio-4) shadow-2">
               {actual.alergias && (
                 // Arriba del todo: un error aquí no es un descuadre.
                 <Badge variant="destructive" className="mb-2">
@@ -480,7 +480,7 @@ export function MiDia({
                 {enPesos(aCentavos(actual.precioPesos))}
               </p>
               {actual.minutosProcesado !== null && (
-                <div className="mt-3">
+                <div className="mt-(--espacio-3)">
                   <Progress
                     value={Math.min(100, (actual.minutosProcesado / MINUTOS_PROCESADO_TOPE) * 100)}
                     aria-label="Avance del procesado"
@@ -491,7 +491,7 @@ export function MiDia({
               )}
               <Button
                 type="button"
-                className="mt-4 min-h-20 w-full text-base"
+                className="mt-(--espacio-4) min-h-20 w-full text-base"
                 onClick={() => {
                   abrir(actual.id);
                 }}
@@ -507,7 +507,7 @@ export function MiDia({
             Hoy llevas
           </h2>
           {/* Dos renglones, nunca uno, y sin total debajo: ese número no existe. */}
-          <dl className="rounded-xl border border-border bg-card p-4">
+          <dl className="rounded-xl border border-border bg-card p-(--espacio-4)">
             <div className="flex items-baseline justify-between gap-2">
               <dt className="text-sm">Comisión</dt>
               <dd className="text-2xl font-bold tabular-nums">
@@ -526,7 +526,7 @@ export function MiDia({
                 )}
               </dd>
             </div>
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className="mt-(--espacio-3) text-sm text-muted-foreground">
               {citas.length} {citas.length === 1 ? 'cita' : 'citas'} · {pendientes.length} por
               atender
             </p>
@@ -546,7 +546,7 @@ export function MiDia({
                     onClick={() => {
                       abrir(renglon.cita.id);
                     }}
-                    className="flex min-h-20 w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left hover:bg-accent hover:text-accent-foreground"
+                    className="flex min-h-20 w-full items-center gap-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-3) text-left hover:bg-accent hover:text-accent-foreground"
                   >
                     <span className="text-lg font-bold tabular-nums">
                       {aHora(renglon.cita.inicio)}
@@ -563,7 +563,7 @@ export function MiDia({
               ) : (
                 <li
                   key={`hueco-${renglon.desde}`}
-                  className="rounded-lg border border-dashed border-primary/40 bg-primary/10 p-3"
+                  className="rounded-lg border border-dashed border-primary/40 bg-primary/10 p-(--espacio-3)"
                 >
                   <p className="text-sm font-semibold">
                     {aHora(renglon.desde)}–{aHora(renglon.hasta)} · libre
@@ -575,7 +575,7 @@ export function MiDia({
               ),
             )}
             {resto.length === 0 && (
-              <li className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+              <li className="rounded-lg border border-dashed border-border p-(--espacio-3) text-sm text-muted-foreground">
                 Nada más después de ésta.
               </li>
             )}
@@ -591,7 +591,7 @@ export function MiDia({
           <h2 id="detalle" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
             {voc.titulo('linea_orden')} por {voc.singular('linea_orden')}
           </h2>
-          <ul className="rounded-xl border border-border bg-card p-3 text-sm">
+          <ul className="rounded-xl border border-border bg-card p-(--espacio-3) text-sm">
             {(ganancia?.detalle ?? []).map((linea) => (
               <li key={linea.id} className="flex justify-between gap-2 py-1">
                 <span className="min-w-0 truncate">{linea.concepto}</span>

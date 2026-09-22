@@ -216,7 +216,7 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
 
   if (resumen === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-56" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -224,7 +224,7 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Cortes</h1>
         <p className="text-muted-foreground text-sm">
@@ -239,14 +239,14 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
       )}
 
       {abierta && !cerrado && (
-        <section className="space-y-3 rounded-lg border p-4">
+        <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
           <div>
             <h2 className="font-medium">Cuenta el cajón</h2>
             <p className="text-muted-foreground text-sm">
               Por denominación. Faltar $500 y faltar un billete de $500 son dos problemas distintos.
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-(--espacio-3)">
             {DENOMINACIONES.map((denominacion) => (
               <div key={denominacion}>
                 <Label htmlFor={`d-${String(denominacion)}`}>
@@ -293,7 +293,7 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
       )}
 
       {cerrado && (
-        <section className="space-y-2 rounded-lg border p-4">
+        <section className="space-y-2 rounded-lg border p-(--espacio-4)">
           <h2 className="font-medium">Turno cerrado</h2>
           <p className="text-muted-foreground text-sm">
             Esperado {pesos(esperado)} · contado {pesos(contadoDelCorte)}

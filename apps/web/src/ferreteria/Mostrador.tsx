@@ -75,9 +75,10 @@ const LISTAS = ['tinaco', 'contacto', 'llave'] as const;
 // rejilla es LA MISMA en la cabecera y en cada fila: así las columnas cuadran
 // en PC sin un segundo marcado, y en el pasillo la misma fila es una tarjeta de
 // dos renglones — medida arriba, precio y ubicación abajo.
-const REJILLA = 'grid grid-cols-3 gap-x-3 gap-y-1 xl:grid-cols-[7rem_7rem_6rem_6rem_6rem_5rem]';
+const REJILLA =
+  'grid grid-cols-3 gap-x-(--espacio-3) gap-y-1 xl:grid-cols-[7rem_7rem_6rem_6rem_6rem_5rem]';
 const FILA = `${REJILLA} w-full rounded-md border border-border bg-card p-2 text-left text-card-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring xl:items-center xl:py-1`;
-const BANDA = 'mb-3 rounded-md border p-2 text-sm';
+const BANDA = 'mb-(--espacio-3) rounded-md border p-2 text-sm';
 const GRUPO =
   'min-h-20 rounded-md border border-border bg-secondary p-2 text-sm font-semibold text-secondary-foreground hover:bg-accent hover:text-accent-foreground';
 
@@ -287,7 +288,7 @@ export function Mostrador({
   }
 
   return (
-    <div className="p-3 pb-24 xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-start xl:gap-4 xl:pb-3">
+    <div className="p-(--espacio-3) pb-[calc(var(--espacio-12)*2)] xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-start xl:gap-(--espacio-4) xl:pb-(--espacio-3)">
       <h1 className="sr-only">Mostrador</h1>
 
       {/* TERCIARIO · arriba a la derecha en PC, arriba del todo en el pasillo:
@@ -366,12 +367,15 @@ export function Mostrador({
         )}
 
         {cajaCerrada && (
-          <p className={`${BANDA} mt-3 border-border bg-warning/20`}>
+          <p className={`${BANDA} mt-(--espacio-3) border-border bg-warning/20`}>
             La caja está cerrada. Se arman notas y cotizaciones; no se cobra.
           </p>
         )}
         {error !== null && (
-          <p role="alert" className={`${BANDA} mt-3 border-destructive bg-destructive/15`}>
+          <p
+            role="alert"
+            className={`${BANDA} mt-(--espacio-3) border-destructive bg-destructive/15`}
+          >
             {error} · Lo que ya estaba en pantalla sigue sirviendo.
           </p>
         )}
@@ -379,13 +383,13 @@ export function Mostrador({
         {filas === null ? (
           // Esqueleto con la forma de la tabla, nunca un spinner: el ojo ya sabe
           // dónde va a mirar cuando el índice termine de llegar.
-          <div className="mt-3 space-y-2">
+          <div className="mt-(--espacio-3) space-y-2">
             {Array.from({ length: 6 }, (_, i) => (
               <Skeleton key={i} className="h-20 w-full rounded-md xl:h-5" />
             ))}
           </div>
         ) : palabras.length === 0 ? (
-          <section aria-label="Punto de partida" className="mt-3">
+          <section aria-label="Punto de partida" className="mt-(--espacio-3)">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {GRUPOS.map((grupo) => (
                 <button
@@ -400,7 +404,7 @@ export function Mostrador({
                 </button>
               ))}
             </div>
-            <p className="mt-4 text-sm text-muted-foreground">Listas de trabajo:</p>
+            <p className="mt-(--espacio-4) text-sm text-muted-foreground">Listas de trabajo:</p>
             <div className="mt-1 flex flex-wrap gap-2">
               {LISTAS.map((lista) => (
                 <Button
@@ -419,7 +423,7 @@ export function Mostrador({
           </section>
         ) : resultados.length === 0 ? (
           // Es la pantalla que salva o pierde la venta. Nunca dice «no hay» y ya.
-          <section aria-label="Sin resultados exactos" className="mt-3">
+          <section aria-label="Sin resultados exactos" className="mt-(--espacio-3)">
             <p className="text-lg font-semibold">No tenemos de esa medida.</p>
             <p className="mt-2 text-sm text-muted-foreground">
               Pero éstas le pueden servir — son de la misma familia, no equivalencias declaradas:
@@ -434,7 +438,7 @@ export function Mostrador({
             <Button
               type="button"
               variant="outline"
-              className="mt-3"
+              className="mt-(--espacio-3)"
               onClick={() => {
                 // El alta rápida vive en el catálogo; aquí se llega con lo tecleado.
                 // Se navega con el enrutador y no recargando la página: el
@@ -447,7 +451,7 @@ export function Mostrador({
             </Button>
           </section>
         ) : (
-          <section aria-label="Resultados" className="mt-3">
+          <section aria-label="Resultados" className="mt-(--espacio-3)">
             <p className={`${REJILLA} hidden px-2 text-xs text-muted-foreground xl:grid`}>
               <span>Medida</span>
               <span>Acabado</span>
@@ -471,7 +475,7 @@ export function Mostrador({
       <aside
         id="la-venta"
         aria-label={voc.conArticulo('orden')}
-        className={`${ventaAbierta ? 'fixed inset-x-0 bottom-0 z-20 max-h-[70dvh] overflow-y-auto' : 'hidden xl:block'} rounded-md border border-border bg-card p-3 text-card-foreground xl:static xl:col-start-2 xl:row-start-2 xl:max-h-none`}
+        className={`${ventaAbierta ? 'fixed inset-x-0 bottom-0 z-20 max-h-[70dvh] overflow-y-auto' : 'hidden xl:block'} rounded-md border border-border bg-card p-(--espacio-3) text-card-foreground xl:static xl:col-start-2 xl:row-start-2 xl:max-h-none`}
       >
         {/* «La venta» es de la tiendita: en una ferretería lo que se arma en el
             pasillo es una NOTA, y es la palabra que el cliente oye en la caja. */}
@@ -479,7 +483,7 @@ export function Mostrador({
           {voc.conArticulo('orden')}
         </h2>
         {partidas.length === 0 ? (
-          <p className="py-3 text-sm text-muted-foreground">
+          <p className="py-(--espacio-3) text-sm text-muted-foreground">
             Todavía nada. Busque {voc.enFrase('producto')} y presione Enter sobre el resultado.
           </p>
         ) : (
@@ -546,7 +550,7 @@ export function Mostrador({
           {PESOS.format(total / 100)}
         </p>
 
-        <div className="mt-3 grid gap-2">
+        <div className="mt-(--espacio-3) grid gap-2">
           <Button
             type="button"
             disabled={partidas.length === 0 || cajaCerrada || enviando}
@@ -585,7 +589,7 @@ export function Mostrador({
         onClick={() => {
           setVentaAbierta((abierta) => !abierta);
         }}
-        className="fixed inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-border bg-primary p-3 text-primary-foreground tabular-nums xl:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-border bg-primary p-(--espacio-3) text-primary-foreground tabular-nums xl:hidden"
       >
         <span>{partidas.length} partidas</span>
         <span className="font-semibold">

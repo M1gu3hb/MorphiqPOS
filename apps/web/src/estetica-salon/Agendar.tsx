@@ -448,7 +448,7 @@ export function Agendar({
 
   if (servicios === null) {
     return (
-      <div className="space-y-4 p-4 lg:ml-auto lg:w-[420px]">
+      <div className="space-y-(--espacio-4) p-(--espacio-4) lg:ml-auto lg:w-[420px]">
         <Skeleton className="h-5 w-32" />
         {/* Esqueletos con la forma de los cuatro pasos: la estructura de la
             conversación no cambia y dibujarla ya es correcto. */}
@@ -466,7 +466,7 @@ export function Agendar({
   // y lo que le falta no es esta pantalla sino su equipo y su carta.
   if (servicios.length === 0 || equipo.length === 0) {
     return (
-      <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-8 text-center">
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-(--espacio-4) p-(--espacio-8) text-center">
         <p className="text-lg font-semibold">Antes de agendar hay que decir qué se ofrece.</p>
         <p className="text-sm text-muted-foreground">
           {equipo.length === 0
@@ -488,7 +488,7 @@ export function Agendar({
         aria-label={`Agendar ${voc.enFraseCon('un', 'orden')}`}
         className="flex min-h-dvh w-full flex-col bg-background lg:w-[420px] lg:border-l lg:border-border lg:shadow-3"
       >
-        <header className="flex flex-wrap items-center gap-2 border-b border-border p-4">
+        <header className="flex flex-wrap items-center gap-2 border-b border-border p-(--espacio-4)">
           <h1 className="flex-1 text-xl font-bold">Agendar</h1>
           <Button
             type="button"
@@ -527,17 +527,20 @@ export function Agendar({
         </header>
 
         {error !== null && (
-          <p role="alert" className="border-b border-destructive/40 bg-destructive/15 p-3 text-sm">
+          <p
+            role="alert"
+            className="border-b border-destructive/40 bg-destructive/15 p-(--espacio-3) text-sm"
+          >
             {error}
           </p>
         )}
         {aviso !== null && (
-          <p role="status" className="border-b border-border bg-success/20 p-3 text-sm">
+          <p role="status" className="border-b border-border bg-success/20 p-(--espacio-3) text-sm">
             {aviso}
           </p>
         )}
 
-        <div className="flex-1 space-y-5 overflow-y-auto p-4">
+        <div className="flex-1 space-y-(--espacio-5) overflow-y-auto p-(--espacio-4)">
           <section className={clasePaso(paso === 0)} aria-labelledby="paso-quien">
             <h2 id="paso-quien" className="text-sm font-semibold text-muted-foreground">
               1 · ¿Quién?
@@ -567,7 +570,7 @@ export function Agendar({
                       setProfesionalId(profesionalDeSiempre(fila.id, citas, deCita));
                       setPaso(1);
                     }}
-                    className={`w-full rounded-md border px-3 py-2 text-left text-sm ${claseElegible(
+                    className={`w-full rounded-md border px-(--espacio-3) py-2 text-left text-sm ${claseElegible(
                       fila.id === clientaId,
                     )}`}
                   >
@@ -691,7 +694,7 @@ export function Agendar({
                     onClick={() => {
                       setElegido(hueco);
                     }}
-                    className={`flex w-full items-baseline gap-3 rounded-md border px-3 py-2 text-left ${claseElegible(
+                    className={`flex w-full items-baseline gap-(--espacio-3) rounded-md border px-(--espacio-3) py-2 text-left ${claseElegible(
                       elegido?.inicio.getTime() === hueco.inicio.getTime(),
                     )}`}
                   >
@@ -705,7 +708,7 @@ export function Agendar({
               ))}
             </ul>
 
-            <Separator className="my-3" />
+            <Separator className="my-(--espacio-3)" />
             <div className="flex flex-wrap items-center gap-2">
               <Label htmlFor="otra-fecha" className="text-sm">
                 ¿Otra fecha?
@@ -760,7 +763,7 @@ export function Agendar({
         </div>
 
         {/* Fijo abajo: en tablet y teléfono es lo único que siempre se alcanza. */}
-        <footer className="sticky bottom-0 space-y-2 border-t border-border bg-card p-4">
+        <footer className="sticky bottom-0 space-y-2 border-t border-border bg-card p-(--espacio-4)">
           {/* Lo que aparece AL CONFIRMAR y no antes. */}
           {clientaElegida?.alergias === true && (
             <p

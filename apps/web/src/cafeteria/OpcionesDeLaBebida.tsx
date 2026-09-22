@@ -76,7 +76,7 @@ import { useVocabulario } from '~/cliente/vocabulario';
 
 const CHIP = [
   'flex min-h-[var(--area-tactil-minima)] flex-col items-center justify-center gap-0.5',
-  'rounded-md border-2 px-3 py-2 text-center transition-colors',
+  'rounded-md border-2 px-(--espacio-3) py-2 text-center transition-colors',
   'md:min-h-[calc(var(--area-tactil-minima)*1.2)]',
   'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
 ].join(' ');
@@ -219,7 +219,7 @@ export function OpcionesDeLaBebida({
     // Esqueletos con la forma de los grupos, no un spinner: el ojo ya sabe
     // dónde va a mirar y nada salta de sitio cuando llegan los datos.
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 p-4">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-(--espacio-5) p-(--espacio-4)">
         <Skeleton className="h-20 w-full rounded-lg" />
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="flex flex-col gap-2">
@@ -232,16 +232,16 @@ export function OpcionesDeLaBebida({
   }
 
   return (
-    <div className="flex min-h-dvh justify-center bg-background md:items-center md:p-6">
+    <div className="flex min-h-dvh justify-center bg-background md:items-center md:p-(--espacio-6)">
       <section
         aria-labelledby="titulo-bebida"
         className="flex w-full max-w-2xl flex-col bg-card text-card-foreground md:rounded-xl md:border md:border-border md:shadow-3"
       >
-        <header className="flex items-center justify-between gap-3 border-b border-border p-4">
+        <header className="flex items-center justify-between gap-(--espacio-3) border-b border-border p-(--espacio-4)">
           <h1 id="titulo-bebida" className="text-2xl font-bold uppercase">
             {productoNombre}
           </h1>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-(--espacio-3)">
             <p className="text-xl font-semibold tabular-nums">{pesos(precioBaseCentavos)}</p>
             <Button
               type="button"
@@ -260,7 +260,7 @@ export function OpcionesDeLaBebida({
         {error !== null && (
           <p
             role="alert"
-            className="mx-4 mt-4 rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
+            className="mx-(--espacio-4) mt-(--espacio-4) rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
           >
             <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> {error} Se puede
             agregar la bebida sencilla.
@@ -269,7 +269,7 @@ export function OpcionesDeLaBebida({
 
         {grupos.length === 0 && error === null ? (
           // El vacío ENSEÑA: dice qué falta declarar y lleva a declararlo.
-          <div className="flex flex-col items-start gap-3 p-4">
+          <div className="flex flex-col items-start gap-(--espacio-3) p-(--espacio-4)">
             <p className="text-lg font-semibold">
               {voc.conDeterminante('este', 'linea_orden')} se agrega tal cual.
             </p>
@@ -283,7 +283,7 @@ export function OpcionesDeLaBebida({
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-5 p-4">
+          <div className="flex flex-col gap-(--espacio-5) p-(--espacio-4)">
             {grupos.map((grupo) => {
               const esExtras = grupo.nombre === 'Extras';
               return (
@@ -300,7 +300,7 @@ export function OpcionesDeLaBebida({
                       onClick={() => {
                         setExtrasAbiertos((abierto) => !abierto);
                       }}
-                      className="mb-2 w-full rounded-md border border-input px-3 py-2 text-sm font-semibold md:hidden"
+                      className="mb-2 w-full rounded-md border border-input px-(--espacio-3) py-2 text-sm font-semibold md:hidden"
                     >
                       {extrasAbiertos ? '− Ocultar extras' : `+ Extras (${grupo.opciones.length})`}
                     </button>
@@ -357,7 +357,7 @@ export function OpcionesDeLaBebida({
                         alternarAlergia(alergeno);
                       }}
                       className={[
-                        'rounded-md border-2 px-3 py-2 text-sm font-semibold',
+                        'rounded-md border-2 px-(--espacio-3) py-2 text-sm font-semibold',
                         marcado
                           ? 'border-destructive bg-destructive/25 text-foreground'
                           : 'border-input bg-background hover:bg-accent hover:text-accent-foreground',
@@ -404,7 +404,7 @@ export function OpcionesDeLaBebida({
           </div>
         )}
 
-        <footer className="sticky bottom-0 mt-auto flex flex-col gap-2 border-t border-border bg-card p-4 md:mt-0 md:rounded-b-xl">
+        <footer className="sticky bottom-0 mt-auto flex flex-col gap-2 border-t border-border bg-card p-(--espacio-4) md:mt-0 md:rounded-b-xl">
           {marcasDeAlergia.length > 0 && (
             // No se colapsa nunca: viaja en rojo a la tarjeta de barra (F-316).
             <p className="rounded-md border border-destructive bg-destructive/15 px-2 py-1 text-sm font-semibold">

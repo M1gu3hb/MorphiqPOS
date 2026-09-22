@@ -83,9 +83,11 @@ type EstadoDestino = Col['destino'];
 
 const RUTA_TRANSICION = '/api/restaurante/transicionar-pedido';
 const TELEFONO = '(max-width: 767px)';
-const SECCION = 'flex flex-col gap-3 rounded-lg border border-border pb-3';
-const BANDA = 'flex justify-between px-3 py-2 text-sm font-bold tracking-wide uppercase';
-const TARJETA = 'mx-3 rounded-lg border border-border bg-card p-3 text-card-foreground shadow-1';
+const SECCION = 'flex flex-col gap-(--espacio-3) rounded-lg border border-border pb-(--espacio-3)';
+const BANDA =
+  'flex justify-between px-(--espacio-3) py-2 text-sm font-bold tracking-wide uppercase';
+const TARJETA =
+  'mx-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
 const ALERGIA = 'mt-2 rounded-md border border-destructive bg-destructive/15 p-2 text-sm font-bold';
 
 export interface ItemDeComanda {
@@ -212,7 +214,7 @@ export function Cocina({ filasIniciales }: CocinaProps) {
   // Esqueletos con la forma de las columnas: la pantalla no salta al cargar.
   if (comandas === null) {
     return (
-      <div className="grid min-h-dvh gap-4 p-4 md:grid-cols-3">
+      <div className="grid min-h-dvh gap-(--espacio-4) p-(--espacio-4) md:grid-cols-3">
         {COLUMNAS.map((col) => (
           <Skeleton key={col.estado} className="h-40 w-full rounded-lg" />
         ))}
@@ -225,7 +227,7 @@ export function Cocina({ filasIniciales }: CocinaProps) {
   ));
 
   return (
-    <div className="flex min-h-dvh flex-col gap-4 bg-background p-4 text-foreground">
+    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-background p-(--espacio-4) text-foreground">
       <h1 className="text-xl font-bold tracking-wide uppercase">{voc.titulo('preparacion')}</h1>
       {error !== null && (
         <p role="alert" className="rounded-md border border-destructive p-2 text-sm">
@@ -262,7 +264,7 @@ export function Cocina({ filasIniciales }: CocinaProps) {
           ))}
         </Tabs>
       ) : (
-        <div className="grid flex-1 gap-4 md:grid-cols-3">{columnas}</div>
+        <div className="grid flex-1 gap-(--espacio-4) md:grid-cols-3">{columnas}</div>
       )}
     </div>
   );
@@ -301,7 +303,9 @@ function Columna({ col, filas, ahora, onAvanzar }: ColumnaProps) {
                   <span className="font-semibold">{item.cantidad ?? 1}</span>{' '}
                   {item.producto_nombre ?? 'Producto sin nombre'}
                   {item.notas !== null && item.notas !== '' && (
-                    <span className="block pl-4 text-xs text-muted-foreground">{item.notas}</span>
+                    <span className="block pl-(--espacio-4) text-xs text-muted-foreground">
+                      {item.notas}
+                    </span>
                   )}
                 </li>
               ))}
@@ -315,7 +319,7 @@ function Columna({ col, filas, ahora, onAvanzar }: ColumnaProps) {
               </p>
             )}
             <Button
-              className="mt-3 w-full"
+              className="mt-(--espacio-3) w-full"
               variant={col.destino === 'entregado' ? 'outline' : 'default'}
               aria-label={`${col.accion} — ${mesa}`}
               onClick={() => {

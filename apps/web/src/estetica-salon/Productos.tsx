@@ -261,7 +261,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
   if (productos === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -269,8 +269,8 @@ export function Productos({ productosIniciales }: ProductosProps) {
   }
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[20rem_1fr]">
-      <section className="space-y-3">
+    <main className="mx-auto grid max-w-5xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[20rem_1fr]">
+      <section className="space-y-(--espacio-3)">
         <h1 className="text-2xl font-semibold">{voc.titulo('producto', true)}</h1>
         <ul className="divide-y">
           {productos.map((producto) => (
@@ -315,7 +315,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
         )}
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-(--espacio-4)">
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -352,7 +352,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
             {elegido.destino !== 'venta' && (
               <>
                 <Separator />
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-(--espacio-3) md:grid-cols-2">
                   <div>
                     <Label htmlFor="factor">Rinde al abrirse</Label>
                     <Input
@@ -395,7 +395,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
                 <Separator />
 
-                <div className="flex items-end gap-3">
+                <div className="flex items-end gap-(--espacio-3)">
                   <div className="w-28">
                     <Label htmlFor="piezas">Piezas</Label>
                     <Input

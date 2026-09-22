@@ -190,7 +190,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
 
   if (clientes === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -198,8 +198,8 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
   }
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[20rem_1fr]">
-      <section className="space-y-3">
+    <main className="mx-auto grid max-w-5xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[20rem_1fr]">
+      <section className="space-y-(--espacio-3)">
         <h1 className="text-2xl font-semibold">Facturación</h1>
         <p className="text-muted-foreground text-sm">
           Todavía no se timbra. Lo que se hace es dejar el hueco limpio.
@@ -227,7 +227,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
         </ul>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-(--espacio-4)">
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -245,7 +245,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
           <>
             <h2 className="text-xl font-medium">{elegido.nombre}</h2>
 
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-(--espacio-3) md:grid-cols-2">
               <div>
                 <Label htmlFor="rfc">RFC</Label>
                 <Input
@@ -285,7 +285,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
                 <Label htmlFor="uso">Uso del CFDI</Label>
                 <select
                   id="uso"
-                  className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-3"
+                  className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
                   value={datos.uso}
                   onChange={(evento) => {
                     setDatos({ ...datos, uso: evento.target.value });

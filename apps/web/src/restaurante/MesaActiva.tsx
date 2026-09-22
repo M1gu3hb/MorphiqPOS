@@ -323,7 +323,7 @@ export function MesaActiva(props: MesaActivaProps) {
   if (productos === null) {
     // Esqueletos con la forma real del encabezado y del catálogo, no un spinner.
     return (
-      <div className="grid grid-cols-2 gap-2 p-3 md:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 p-(--espacio-3) md:grid-cols-3 xl:grid-cols-4">
         <Skeleton className="col-span-full h-20 rounded-lg" />
         {Array.from({ length: 9 }, (_, i) => (
           <Skeleton key={i} className="min-h-24 w-full rounded-lg" />
@@ -333,7 +333,7 @@ export function MesaActiva(props: MesaActivaProps) {
   }
 
   const panel = (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-(--espacio-3)">
       {listos.length > 0 && (
         <section aria-label="Listos para recoger" className="rounded-lg border p-2">
           <h2 className="text-xs font-bold uppercase">► Listos para recoger ({listos.length})</h2>
@@ -390,7 +390,7 @@ export function MesaActiva(props: MesaActivaProps) {
       </section>
       <section
         aria-label={`Agregar a ${voc.enFrase('orden')}, sin enviar`}
-        className="border-t pt-3"
+        className="border-t pt-(--espacio-3)"
       >
         <h2 className="text-xs font-bold uppercase text-primary">
           Agregar a {voc.enFrase('orden')}
@@ -432,7 +432,7 @@ export function MesaActiva(props: MesaActivaProps) {
 
   return (
     <div className="min-h-dvh bg-background pb-28 xl:pb-0">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b bg-background p-3">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b bg-background p-(--espacio-3)">
         <Button variant="ghost" size="sm" aria-label="Volver al mapa" onClick={volverAlMapa}>
           ←
         </Button>
@@ -445,7 +445,10 @@ export function MesaActiva(props: MesaActivaProps) {
         {listos.length > 0 && <Badge className="ml-auto xl:hidden">{listos.length} listos</Badge>}
       </header>
       {error !== null && (
-        <p role="alert" className="mx-3 mt-3 rounded-md border border-destructive p-2 text-sm">
+        <p
+          role="alert"
+          className="mx-(--espacio-3) mt-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
+        >
           {error} · Se muestra el último dato conocido.
         </p>
       )}
@@ -455,7 +458,7 @@ export function MesaActiva(props: MesaActivaProps) {
            que no tiene dónde caer. */
         <section
           aria-label={`Abrir ${voc.enFrase('unidad_servicio')}`}
-          className="mx-auto mt-6 max-w-md space-y-4 rounded-lg border border-border p-6 text-center"
+          className="mx-auto mt-(--espacio-6) max-w-md space-y-(--espacio-4) rounded-lg border border-border p-(--espacio-6) text-center"
         >
           <p className="text-xl font-semibold">
             {voc.titulo('unidad_servicio')} {mesa.numero} está libre
@@ -464,7 +467,7 @@ export function MesaActiva(props: MesaActivaProps) {
             ¿Para cuántas personas? Es el primer dato de {voc.enFrase('orden')}: de ahí salen el
             reparto y el tiempo de servicio.
           </p>
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-(--espacio-3)">
             <Button
               variant="outline"
               size="lg"
@@ -503,7 +506,7 @@ export function MesaActiva(props: MesaActivaProps) {
       )}
 
       <div
-        className={`grid gap-4 p-3 xl:grid-cols-[1fr_22rem] ${
+        className={`grid gap-(--espacio-4) p-(--espacio-3) xl:grid-cols-[1fr_22rem] ${
           mesa !== null && mesa.venta_activa_id === null ? 'hidden' : ''
         }`}
       >
@@ -517,7 +520,7 @@ export function MesaActiva(props: MesaActivaProps) {
           />
           {visibles.length === 0 ? (
             /* El vacío enseña: dice qué falta y lleva a donde se resuelve. */
-            <p className="mt-2 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            <p className="mt-2 rounded-lg border border-dashed p-(--espacio-6) text-center text-sm text-muted-foreground">
               No hay {voc.plural('producto')} que se llamen así.{' '}
               <a href="/productos">Ir a {voc.titulo('producto', true)}</a>
             </p>
@@ -558,12 +561,12 @@ export function MesaActiva(props: MesaActivaProps) {
         size="lg"
         onClick={abrirHoja}
         aria-label={`Abrir el pedido: ${piezas} platillos, ${pesos(total)}`}
-        className="fixed bottom-4 right-4 rounded-full px-5 font-bold tabular-nums xl:hidden"
+        className="fixed bottom-4 right-4 rounded-full px-(--espacio-5) font-bold tabular-nums xl:hidden"
       >
         {piezas} · {pesos(total)}
       </Button>
       <Sheet open={hoja} onOpenChange={setHoja}>
-        <SheetContent side="bottom" className="max-h-[70dvh] overflow-y-auto p-4">
+        <SheetContent side="bottom" className="max-h-[70dvh] overflow-y-auto p-(--espacio-4)">
           <SheetTitle>Pedido de la mesa {mesa?.numero ?? ''}</SheetTitle>
           {panel}
         </SheetContent>

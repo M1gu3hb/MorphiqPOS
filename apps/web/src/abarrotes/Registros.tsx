@@ -304,13 +304,13 @@ export function Registros({
   const porPreguntar = linea.filter((r) => r.sinExplicacion).length;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
+    <main className="mx-auto max-w-4xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Registros</h1>
         <p className="text-muted-foreground text-sm">Qué pasó, en orden y en una sola lista.</p>
       </header>
 
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end gap-(--espacio-3)">
         <div>
           <Label htmlFor="dia">Día</Label>
           <Input
@@ -357,7 +357,7 @@ export function Registros({
 
       <ul className="divide-y">
         {visibles.map((renglon) => (
-          <li key={renglon.id} className="flex items-baseline gap-4 py-2">
+          <li key={renglon.id} className="flex items-baseline gap-(--espacio-4) py-2">
             <span className="w-14 tabular-nums">{renglon.hora}</span>
             <span className="flex-1">
               <span className="font-medium capitalize">{renglon.titulo}</span>

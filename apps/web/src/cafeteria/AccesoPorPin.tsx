@@ -69,12 +69,12 @@ const HTTP_DEMASIADOS_INTENTOS = 429;
 const PAUSA_DEL_SALUDO = 1200;
 const DIGITOS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 const CLASES_REJILLA =
-  'mx-auto grid w-full max-w-5xl grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3';
+  'mx-auto grid w-full max-w-5xl grid-cols-1 gap-(--espacio-4) md:grid-cols-2 md:gap-(--espacio-6) xl:grid-cols-3';
 const CLASES_TARJETA =
-  'flex w-full items-center gap-4 rounded-2xl border-2 bg-card p-4 text-left ' +
+  'flex w-full items-center gap-(--espacio-4) rounded-2xl border-2 bg-card p-(--espacio-4) text-left ' +
   'text-card-foreground shadow-1 transition-colors hover:bg-accent hover:text-accent-foreground ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
-  'md:flex-col md:justify-center md:gap-3 md:p-8 md:text-center';
+  'md:flex-col md:justify-center md:gap-(--espacio-3) md:p-(--espacio-8) md:text-center';
 
 export interface EmpleadoDeAcceso {
   readonly id: string;
@@ -158,11 +158,11 @@ function TecladoNumerico({
     <section
       aria-label={`Teclear el PIN de ${empleado.nombre}`}
       className={
-        'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-5 md:max-w-md ' +
-        'md:flex-none md:rounded-2xl md:border md:border-border md:bg-card md:p-6 md:shadow-2'
+        'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-(--espacio-5) md:max-w-md ' +
+        'md:flex-none md:rounded-2xl md:border md:border-border md:bg-card md:p-(--espacio-6) md:shadow-2'
       }
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-(--espacio-3)">
         <Avatar className="size-20 border-2 text-xl" style={{ borderColor: empleado.color }}>
           {typeof empleado.foto === 'string' && <AvatarImage src={empleado.foto} alt="" />}
           <AvatarFallback className="font-bold">{iniciales(empleado.nombre)}</AvatarFallback>
@@ -188,7 +188,7 @@ function TecladoNumerico({
         <span aria-hidden>{'•'.repeat(digitos) + '◦'.repeat(LARGO_PIN - digitos)}</span>
       </p>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-(--espacio-3)">
         {teclas.map((tecla) => (
           <Button
             key={tecla.valor}
@@ -345,7 +345,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
       : error;
 
   return (
-    <main className="flex min-h-dvh flex-col gap-6 bg-background p-4 text-foreground md:p-8">
+    <main className="flex min-h-dvh flex-col gap-(--espacio-6) bg-background p-(--espacio-4) text-foreground md:p-(--espacio-8)">
       <h1 className="mx-auto text-xl font-bold md:text-2xl">¿Quién está operando?</h1>
 
       {/* La banda no vacía la pantalla: debajo sigue habiendo con quién entrar. */}
@@ -358,7 +358,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
       {turno !== null && (
         <p
           aria-live="polite"
-          className="mx-auto max-w-5xl rounded-md border border-border bg-success/15 px-4 py-2"
+          className="mx-auto max-w-5xl rounded-md border border-border bg-success/15 px-(--espacio-4) py-2"
         >
           {turno}
         </p>
@@ -375,7 +375,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
       {/* El documento dice que este estado no existe: siempre hay alguien. Si
           aparece no es un vacío, es un despliegue sin plantilla. */}
       {empleados?.length === 0 && (
-        <section className="mx-auto flex max-w-lg flex-col items-center gap-4 text-center">
+        <section className="mx-auto flex max-w-lg flex-col items-center gap-(--espacio-4) text-center">
           <p className="text-lg font-semibold">Todavía no hay nadie dado de alta.</p>
           <p className="text-sm text-muted-foreground">
             Estas tarjetas son la plantilla del negocio. Quien entra por aquí abre su presencia en

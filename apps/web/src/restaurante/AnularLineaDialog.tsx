@@ -123,7 +123,7 @@ export function AnularLineaDialog({
              leerlo antes de elegir, no después de haber decidido. */
           <p
             role="status"
-            className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground"
+            className="rounded-md border border-border bg-muted p-(--espacio-3) text-sm text-muted-foreground"
           >
             Este platillo ya salió de cocina: el insumo ya se gastó y no vuelve al almacén. La
             cuenta baja, el inventario no.

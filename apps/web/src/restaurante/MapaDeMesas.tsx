@@ -186,11 +186,13 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
 
   if (mesas === null) {
     return (
-      <div className="p-4">
-        <h1 className="mb-4 text-2xl font-bold">{voc.titulo('unidad_servicio', true)}</h1>
+      <div className="p-(--espacio-4)">
+        <h1 className="mb-(--espacio-4) text-2xl font-bold">
+          {voc.titulo('unidad_servicio', true)}
+        </h1>
         {/* Esqueletos con la forma de las mesas, no un spinner: así la pantalla
             no salta al cargar y el ojo ya sabe dónde va a mirar. */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-(--espacio-3) md:grid-cols-4 xl:grid-cols-6">
           {Array.from({ length: 12 }, (_, i) => (
             <Skeleton key={i} className="h-28 w-full rounded-lg" />
           ))}
@@ -218,8 +220,8 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
   }
 
   return (
-    <div className="p-4">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="p-(--espacio-4)">
+      <header className="mb-(--espacio-4) flex flex-wrap items-center justify-between gap-(--espacio-3)">
         <h1 className="text-2xl font-bold">{voc.titulo('unidad_servicio', true)}</h1>
         <nav
           aria-label="Zonas del salón"
@@ -260,14 +262,17 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
       </header>
 
       {error !== null && (
-        <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
+        <p
+          role="alert"
+          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
+        >
           {error} · Se muestra el último dato conocido.
         </p>
       )}
 
       {/* Rejilla en teléfono, plano escalado de tablet para arriba. Las mesas
           nunca bajan de 64 px de lado: es el mínimo que un dedo acierta. */}
-      <ul className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+      <ul className="grid grid-cols-2 gap-(--espacio-3) md:grid-cols-4 xl:grid-cols-6">
         {visibles.map((mesa) => {
           const estado = esEstado(mesa.estado) ? ESTADOS[mesa.estado] : null;
           return (
@@ -304,7 +309,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
                 <span className="text-xs font-medium">{estado?.etiqueta ?? mesa.estado}</span>
 
                 {mesa.cliente_temporal !== null && (
-                  <Badge variant="secondary" className="mt-1 max-w-full truncate text-[11px]">
+                  <Badge variant="secondary" className="mt-1 max-w-full truncate text-xs">
                     {mesa.cliente_temporal}
                     {mesa.personas_actuales === null
                       ? ''
@@ -326,7 +331,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
         })}
       </ul>
 
-      <footer className="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <footer className="mt-(--espacio-6) flex flex-wrap gap-x-(--espacio-4) gap-y-1 text-xs text-muted-foreground">
         {Object.entries(ESTADOS).map(([clave, estado]) => (
           <span key={clave} className="flex items-center gap-1">
             <span aria-hidden className={`h-2 w-2 rounded-full border ${estado.clase}`} />

@@ -308,34 +308,35 @@ function recorrer(dir, encontrados) {
 }
 
 /**
- * EL TRINQUETE DEL RITMO.
+ * EL TRINQUETE DEL RITMO, que llego a CERO y por eso se queda.
  *
- * ── Por que no se puede exigir a cero HOY ─────────────────────────────────
- * Las cuatro reglas nuevas —espacio, tipografia, duracion y curva— son tan correctas
- * como las de color: un `gap-4` fijo PUENTEA la perilla de densidad, asi que cambiar
- * a `compacta` no junta nada, y una `duration-200` literal sigue animando en el
- * estilo TERMINAL, que pone las duraciones a cero a proposito.
+ * ── Que mide ──────────────────────────────────────────────────────────────
+ * Las cuatro reglas de ritmo —espacio, tipografia, duracion y curva— son tan
+ * correctas como las de color: un `gap-4` fijo PUENTEA la perilla de densidad, asi que
+ * cambiar a `compacta` no junta nada, y una `duration-200` literal sigue animando en
+ * el estilo TERMINAL, que pone las duraciones a cero a proposito.
  *
- * Y a la vez: las 69 pantallas de `apps/web/src` se escribieron con literales, que es
- * lo normal cuando los tokens no emitian CSS. Exigir cero hoy seria dejar la puerta
- * en rojo hasta que la etapa 4 convierta las 69, y una puerta que lleva semanas en
- * rojo deja de leerse.
+ * ── Por que era un techo y no un cero ─────────────────────────────────────
+ * Las 69 pantallas se escribieron con literales, que es lo normal cuando los tokens no
+ * emiten CSS — y hasta la etapa 1 no emitian. Exigir cero el primer dia habria dejado
+ * la puerta roja durante toda la etapa, y una puerta que lleva semanas en rojo deja de
+ * leerse: se salta. Asi que se conto contra un techo que solo podia bajar.
  *
- * Asi que la regla se aplica ENTERA en `packages/ui/src` —la libreria tiene que ser
- * ejemplar, sin excusa— y fuera de ahi se cuenta contra un TECHO que solo puede
- * bajar. Si aparece un literal nuevo, la puerta se pone roja hoy; cuando una pantalla
- * se convierte, se baja el numero. No es una exencion: es una deuda con nombre,
- * medida y con una sola direccion posible.
+ * ── El registro, que es la unica forma de que un trinquete no mienta ──────
+ * 919 · al nacer la regla, sobre las 69 pantallas tal como estaban.
+ * 860 · con una regla MAS —los tamanos de texto fuera de los ocho pasos del contrato,
+ *       que anadieron 25 hallazgos— y aun asi 59 menos: los cinco cobros, la cocina,
+ *       la barra y los quince archivos de los emoji.
+ * 828 · diecisiete estados vacios convertidos a la biblioteca.
+ *   0 · `tokenizar-pantallas.mjs`: 831 literales en 64 pantallas, de una vez. La
+ *       conversion no mueve un pixel en densidad `normal` —`--espacio-4` vale
+ *       exactamente lo que valia `p-4`— y es lo que hace que `guantes` y `compacta`
+ *       signifiquen algo en las 69, no solo en la libreria.
  *
- * ── El registro del techo, que es la unica forma de que un trinquete no mienta ──
- * 919 · al nacer la regla, con las cuatro de ritmo (espacio, tipografia, duracion,
- *       curva) sobre las 69 pantallas tal como estaban.
- * 860 · etapa 4, con una regla MAS —los tamanos de texto fuera de los ocho pasos del
- *       contrato, que anadio 25 hallazgos— y aun asi 59 menos: los cinco cobros, la
- *       cocina, la barra y los quince archivos de los emoji quedaron tokenizados.
- *       Si sube, el numero de arriba dice exactamente contra que comparar.
+ * El techo se queda en CERO y el mecanismo tambien: lo que era una deuda es ahora el
+ * suelo, y un literal nuevo pone la puerta roja el dia que se escribe.
  */
-const TECHO_DE_RITMO = 828;
+const TECHO_DE_RITMO = 0;
 
 const hallazgos = [];
 for (const carpeta of VIGILADAS) recorrer(carpeta, hallazgos);

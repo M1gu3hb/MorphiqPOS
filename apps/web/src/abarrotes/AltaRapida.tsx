@@ -287,7 +287,7 @@ export function AltaRapida({
   }
 
   return (
-    <main className="flex min-h-dvh justify-center bg-background sm:items-center sm:p-6">
+    <main className="flex min-h-dvh justify-center bg-background sm:items-center sm:p-(--espacio-6)">
       {/* Teléfono: el diálogo ES la pantalla, los campos arriba y las acciones
           pegadas abajo, sobre el teclado. Tablet y PC: hoja centrada. */}
       <form
@@ -299,7 +299,7 @@ export function AltaRapida({
         onKeyDown={(evento) => {
           if (evento.key === 'Escape') cancelar();
         }}
-        className="flex min-h-dvh w-full flex-col gap-4 bg-card p-4 text-card-foreground sm:min-h-0 sm:max-w-2xl sm:rounded-xl sm:border sm:border-border sm:p-6 sm:shadow-3"
+        className="flex min-h-dvh w-full flex-col gap-(--espacio-4) bg-card p-(--espacio-4) text-card-foreground sm:min-h-0 sm:max-w-2xl sm:rounded-xl sm:border sm:border-border sm:p-(--espacio-6) sm:shadow-3"
       >
         <header>
           <h1 id="alta-titulo" className="text-xl font-bold sm:text-2xl">
@@ -310,7 +310,7 @@ export function AltaRapida({
           </p>
         </header>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted p-3">
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted p-(--espacio-3)">
           <span className="text-sm text-muted-foreground">Código</span>
           {codigo === '' ? (
             <span className="text-sm">Sin código · se le pone después desde la ficha</span>
@@ -324,7 +324,10 @@ export function AltaRapida({
 
         {/* El conflicto no vacía nada: ofrece el camino correcto y deja el otro. */}
         {ocupado !== null && (
-          <div role="alert" className="rounded-md border border-warning bg-warning/15 p-3">
+          <div
+            role="alert"
+            className="rounded-md border border-warning bg-warning/15 p-(--espacio-3)"
+          >
             <p className="text-sm font-medium">
               Este código ya es de «{ocupado.nombre}». ¿Es una presentación nueva de ese producto?
             </p>
@@ -355,19 +358,22 @@ export function AltaRapida({
         {error !== null && (
           <p
             role="alert"
-            className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm"
+            className="rounded-md border border-destructive bg-destructive/10 p-(--espacio-3) text-sm"
           >
             {error}
           </p>
         )}
 
         {guardado !== null && (
-          <p role="status" className="rounded-md border border-success bg-success/15 p-3 text-sm">
+          <p
+            role="status"
+            className="rounded-md border border-success bg-success/15 p-(--espacio-3) text-sm"
+          >
             «{guardado}» quedó en el catálogo y en la venta. Escanea el siguiente.
           </p>
         )}
 
-        <div className="grid gap-4">
+        <div className="grid gap-(--espacio-4)">
           <div className="grid gap-2">
             <Label htmlFor="nombre">
               Nombre <span className="text-muted-foreground">· obligatorio</span>
@@ -387,7 +393,7 @@ export function AltaRapida({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-(--espacio-4) sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="precio">
                 Precio <span className="text-muted-foreground">· obligatorio</span>
@@ -474,7 +480,7 @@ export function AltaRapida({
 
             {categorias !== null && categorias.length === 0 && (
               // El vacío ENSEÑA: dice para qué sirve lo que falta y lleva a crearlo.
-              <div className="rounded-md border border-dashed border-border p-3">
+              <div className="rounded-md border border-dashed border-border p-(--espacio-3)">
                 <p className="text-sm font-medium">
                   Todavía no hay categorías, y son las que cargan el impuesto.
                 </p>
@@ -546,7 +552,7 @@ export function AltaRapida({
               ▸ Más datos (stock, mínimo, presentaciones)
             </Button>
           </CollapsibleTrigger>
-          <CollapsibleContent className="grid gap-4 pt-3 sm:grid-cols-2">
+          <CollapsibleContent className="grid gap-(--espacio-4) pt-(--espacio-3) sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="stock">Stock inicial</Label>
               <Input
@@ -580,7 +586,7 @@ export function AltaRapida({
           </CollapsibleContent>
         </Collapsible>
 
-        <footer className="sticky bottom-0 mt-auto flex flex-col-reverse gap-2 border-t border-border bg-card py-3 sm:static sm:mt-0 sm:flex-row sm:justify-end sm:border-0 sm:py-0">
+        <footer className="sticky bottom-0 mt-auto flex flex-col-reverse gap-2 border-t border-border bg-card py-(--espacio-3) sm:static sm:mt-0 sm:flex-row sm:justify-end sm:border-0 sm:py-0">
           <Button type="button" variant="ghost" onClick={cancelar}>
             Cancelar · Esc
           </Button>

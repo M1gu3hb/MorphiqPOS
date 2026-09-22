@@ -66,7 +66,7 @@ const HTTP_DEMASIADOS_INTENTOS = 429;
 const CANTIDAD_VALIDA = /^\d{1,10}(?:\.\d{1,4})?$/;
 
 /** Las cinco columnas de PC. En teléfono no hay columnas: hay tarjeta. */
-const COLUMNAS = 'md:grid md:grid-cols-[3fr_1.3fr_1fr_1fr_1.3fr] md:gap-3';
+const COLUMNAS = 'md:grid md:grid-cols-[3fr_1.3fr_1fr_1fr_1.3fr] md:gap-(--espacio-3)';
 
 export interface ProductoConMargen {
   readonly id: string;
@@ -241,8 +241,8 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
 
   if (filas === null) {
     return (
-      <div className="p-4">
-        <h1 className="mb-4 text-2xl font-bold">Recetas</h1>
+      <div className="p-(--espacio-4)">
+        <h1 className="mb-(--espacio-4) text-2xl font-bold">Recetas</h1>
         {/* Esqueletos con la forma de la fila, nunca un giro: así nada salta al
             llegar el dato y el ojo ya sabe dónde va a mirar. */}
         <div className="flex flex-col gap-2">
@@ -256,7 +256,7 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
 
   if (filas.length === 0) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-(--espacio-4) p-(--espacio-8) text-center">
         <p className="max-w-md text-lg">
           Todavía no hay platillos en la carta. Sin platillos no hay recetas, y sin recetas no
           sabemos cuánto cuesta cada plato ni cuánto ganas con él.
@@ -271,8 +271,8 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
   const conReceta = filas.filter((fila) => fila.lineas.length > 0).length;
 
   return (
-    <div className="p-4">
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div className="p-(--espacio-4)">
+      <header className="mb-(--espacio-4) flex flex-wrap items-end justify-between gap-(--espacio-3)">
         <h1 className="text-2xl font-bold">Recetas</h1>
         {/* La cobertura, arriba: capturar quince recetas y creer que terminaste
             es lo que hace que el consumo teórico no cuadre nunca. */}
@@ -283,12 +283,18 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
       </header>
 
       {error !== null && (
-        <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
+        <p
+          role="alert"
+          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
+        >
           {error}
         </p>
       )}
 
-      <div aria-hidden className={`hidden px-3 pb-1 text-xs text-muted-foreground ${COLUMNAS}`}>
+      <div
+        aria-hidden
+        className={`hidden px-(--espacio-3) pb-1 text-xs text-muted-foreground ${COLUMNAS}`}
+      >
         {['Platillo', 'Receta', 'Costo', 'Precio', 'Margen'].map((titulo) => (
           <span key={titulo}>{titulo}</span>
         ))}
@@ -350,7 +356,7 @@ function Platillo({
     <li>
       <Collapsible className="rounded-lg border border-border bg-card shadow-1">
         <CollapsibleTrigger
-          className={`group flex w-full flex-col gap-1 p-3 text-left md:items-center ${COLUMNAS}`}
+          className={`group flex w-full flex-col gap-1 p-(--espacio-3) text-left md:items-center ${COLUMNAS}`}
         >
           <span className="flex items-start justify-between gap-2">
             <span className="flex flex-col">
@@ -386,19 +392,19 @@ function Platillo({
           </span>
         </CollapsibleTrigger>
 
-        <CollapsibleContent className="border-t border-border p-3">
+        <CollapsibleContent className="border-t border-border p-(--espacio-3)">
           {fila.lineas.length === 0 ? (
             // El vacío explica la consecuencia; el botón de abajo es su salida.
-            <p className="mb-3 text-sm">
+            <p className="mb-(--espacio-3) text-sm">
               {voc.conDeterminante('este', 'linea_orden')} no tiene receta. Sin receta no sabemos
               cuánto cuesta ni cuánto ganas con él.
             </p>
           ) : (
-            <ul className="mb-3 flex flex-col text-sm">
+            <ul className="mb-(--espacio-3) flex flex-col text-sm">
               {fila.lineas.map((linea) => (
                 <li
                   key={linea.id}
-                  className="flex justify-between gap-3 border-b border-border py-1"
+                  className="flex justify-between gap-(--espacio-3) border-b border-border py-1"
                 >
                   <span>
                     {linea.ingrediente_nombre ?? 'Ingrediente'} ·{' '}

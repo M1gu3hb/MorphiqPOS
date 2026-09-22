@@ -53,17 +53,19 @@ import { useVocabulario } from '~/cliente/vocabulario';
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const HTTP_DEMASIADOS_INTENTOS = 429;
 
-const BLOQUE = 'mt-3 rounded-md border border-border bg-card p-3 text-card-foreground shadow-1';
+const BLOQUE =
+  'mt-(--espacio-3) rounded-md border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
 const TITULO = 'text-xs font-bold uppercase tracking-wide text-muted-foreground';
-const OPCION = 'flex items-start gap-3 rounded-md border p-3 hover:bg-accent';
+const OPCION =
+  'flex items-start gap-(--espacio-3) rounded-md border p-(--espacio-3) hover:bg-accent';
 const AVISO = 'mt-2 rounded-md border border-warning/60 bg-warning/15 p-2 text-sm font-medium';
 const MALO = 'mt-2 rounded-md border border-destructive bg-destructive/15 p-2 text-sm font-medium';
 const NOTA = 'mt-1 text-xs tabular-nums text-muted-foreground';
 /** Los campos crecen en el teléfono: se teclean de pie y con una mano. */
 const CAMPOS =
-  'mt-2 grid gap-3 md:grid-cols-2 [&_input]:h-[calc(var(--altura-control)*1.4)] [&_input]:text-2xl md:[&_input]:text-lg';
+  'mt-2 grid gap-(--espacio-3) md:grid-cols-2 [&_input]:h-[calc(var(--altura-control)*1.4)] [&_input]:text-2xl md:[&_input]:text-lg';
 const BARRA =
-  'fixed inset-x-0 bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-background p-3 md:static md:mt-3 md:rounded-md md:border';
+  'fixed inset-x-0 bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-background p-(--espacio-3) md:static md:mt-(--espacio-3) md:rounded-md md:border';
 
 /** Una pieza física de la que se corta. El descuento sale de ÉSTA, no del total. */
 export interface PiezaDeCorte {
@@ -235,10 +237,10 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
     // Con la forma de los tres bloques, no un spinner: el ojo ya sabe dónde va
     // a mirar y la pantalla no salta cuando llega el dato.
     return (
-      <div className="mx-auto w-full max-w-3xl p-3">
+      <div className="mx-auto w-full max-w-3xl p-(--espacio-3)">
         <Skeleton className="h-20 w-full rounded-md" />
-        <Skeleton className="mt-3 h-40 w-full rounded-md" />
-        <Skeleton className="mt-3 h-40 w-full rounded-md" />
+        <Skeleton className="mt-(--espacio-3) h-40 w-full rounded-md" />
+        <Skeleton className="mt-(--espacio-3) h-40 w-full rounded-md" />
       </div>
     );
   }
@@ -340,7 +342,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl p-3 pb-32 md:pb-4">
+    <div className="mx-auto w-full max-w-3xl p-(--espacio-3) pb-32 md:pb-(--espacio-4)">
       <h1 className="text-xl font-bold md:text-2xl">Cortar · {material.nombre}</h1>
 
       {error !== null && (
@@ -416,7 +418,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
             </p>
           </div>
         </div>
-        <dl className="mt-3 grid grid-cols-2 gap-x-2 border-t border-border pt-2 text-sm">
+        <dl className="mt-(--espacio-3) grid grid-cols-2 gap-x-2 border-t border-border pt-2 text-sm">
           <dt>Se descuenta del rollo</dt>
           <dd className="text-right font-semibold tabular-nums">
             {metros(descuento)} {material.unidad}

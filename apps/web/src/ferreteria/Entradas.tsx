@@ -85,14 +85,15 @@ const UMBRAL_DORMIDO_CENTAVOS = 500_000;
 const CLAVE_GUARDAR = 'guardar';
 
 /** Las clases largas viven arriba para que cada elemento quepa en una línea. */
-const TARJETA = 'rounded-lg border border-border bg-card p-3 text-card-foreground shadow-1';
+const TARJETA =
+  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
 const BANDA = 'rounded-md border p-2 text-sm';
 const PENDIENTE = `${BANDA} flex flex-wrap items-center gap-2 border-warning bg-warning/20`;
 const ELEGIDA =
   'rounded-md border border-primary bg-primary/15 p-2 text-left text-sm font-semibold';
 const OTRA =
   'rounded-md border border-border bg-secondary p-2 text-left text-sm text-secondary-foreground';
-const REJILLA = 'grid gap-3 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start';
+const REJILLA = 'grid gap-(--espacio-3) xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start';
 
 /** Los tres caminos, en el orden en que resuelven el problema. */
 const CAMINOS = [
@@ -509,9 +510,9 @@ export function Entradas({
     // Esqueletos con la forma de los tres bloques, nunca un giro que gira: el
     // ojo ya sabe dónde va a mirar cuando lleguen los datos.
     return (
-      <div className="p-3">
+      <div className="p-(--espacio-3)">
         <h1 className="text-2xl font-bold">Entradas</h1>
-        <div className={`mt-3 ${REJILLA}`}>
+        <div className={`mt-(--espacio-3) ${REJILLA}`}>
           <Skeleton className="h-40 w-full rounded-lg xl:h-80" />
           <div className="space-y-2">
             {Array.from({ length: 4 }, (_, i) => (
@@ -524,8 +525,8 @@ export function Entradas({
   }
 
   return (
-    <div className="p-3">
-      <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+    <div className="p-(--espacio-3)">
+      <header className="mb-(--espacio-3) flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold">Entradas</h1>
         <p className="text-sm text-muted-foreground">
           Recepción y pedido · {proveedor?.nombre ?? 'sin proveedor'}
@@ -533,7 +534,10 @@ export function Entradas({
       </header>
 
       {error !== null && (
-        <p role="alert" className={`${BANDA} mb-3 border-destructive bg-destructive/15`}>
+        <p
+          role="alert"
+          className={`${BANDA} mb-(--espacio-3) border-destructive bg-destructive/15`}
+        >
           <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> {error} · Lo que
           ya estaba capturado sigue en pantalla.
         </p>
@@ -569,7 +573,7 @@ export function Entradas({
         </section>
 
         <main className={`${TARJETA} xl:col-start-1 xl:row-start-1 xl:row-span-2`}>
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-end gap-(--espacio-3)">
             <div className="min-w-48 flex-1">
               <Label htmlFor="proveedor">Proveedor</Label>
               <Select
@@ -649,7 +653,7 @@ export function Entradas({
           </div>
 
           {/* Los tres caminos. En teléfono no se ofrecen. */}
-          <div className="mt-3 hidden gap-2 md:grid md:grid-cols-3">
+          <div className="mt-(--espacio-3) hidden gap-2 md:grid md:grid-cols-3">
             {CAMINOS.map((paso) => (
               <button
                 key={paso.clave}
@@ -670,7 +674,7 @@ export function Entradas({
           </div>
 
           {/* El proveedor chico de diez líneas, en el pasillo. */}
-          <div className="mt-3 md:hidden">
+          <div className="mt-(--espacio-3) md:hidden">
             <Label htmlFor="foto">Recepción rápida · foto de la nota</Label>
             <Input id="foto" type="file" accept="image/*" capture="environment" className="mt-1" />
             <p className="mt-1 text-xs text-muted-foreground">
@@ -678,7 +682,7 @@ export function Entradas({
             </p>
           </div>
 
-          <div className="mt-4 border-t border-border pt-4">
+          <div className="mt-(--espacio-4) border-t border-border pt-(--espacio-4)">
             {nota === null ? (
               // El VACÍO enseña qué resuelve la pantalla, y abre el camino.
               <>
@@ -689,7 +693,7 @@ export function Entradas({
                   de que se venda a pérdida. Una entrada capturada el mismo día evita una semana en
                   negativo.
                 </p>
-                <Button type="button" className="mt-3" onClick={iniciar}>
+                <Button type="button" className="mt-(--espacio-3)" onClick={iniciar}>
                   Recibir nota
                 </Button>
               </>
@@ -702,7 +706,10 @@ export function Entradas({
                 </p>
 
                 {/* ── El camino ③, capturado contra el catálogo ────────────── */}
-                <section aria-label={`Capturar ${voc.singular('linea_orden')}`} className="mt-3">
+                <section
+                  aria-label={`Capturar ${voc.singular('linea_orden')}`}
+                  className="mt-(--espacio-3)"
+                >
                   <h2 className="text-sm font-semibold">Capturar {voc.singular('linea_orden')}</h2>
                   <div className="mt-1 flex flex-wrap items-end gap-2">
                     <div className="min-w-48 flex-1">
@@ -785,7 +792,7 @@ export function Entradas({
                 </section>
 
                 {pendientes > 0 && (
-                  <section aria-label="Líneas sin emparejar" className="mt-3">
+                  <section aria-label="Líneas sin emparejar" className="mt-(--espacio-3)">
                     <h2 className="text-sm font-semibold">
                       Sin emparejar — resuélvelas o quedan fuera
                     </h2>
@@ -827,7 +834,7 @@ export function Entradas({
                 {nota.subidas.length > 0 && (
                   <section
                     aria-label={`${voc.titulo('producto', true)} que subieron de costo`}
-                    className="mt-3"
+                    className="mt-(--espacio-3)"
                   >
                     <h2 className="text-sm font-semibold">
                       ⚠ {nota.subidas.length} {voc.plural('producto')} subieron de costo
@@ -866,7 +873,7 @@ export function Entradas({
                   </section>
                 )}
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+                <div className="mt-(--espacio-4) flex flex-wrap items-center justify-between gap-2 border-t border-border pt-(--espacio-3)">
                   <p className="tabular-nums">
                     <span className="text-lg font-semibold">
                       {PESOS.format(nota.totalCentavos / 100)}
@@ -943,7 +950,7 @@ export function Entradas({
               ))}
             </ul>
           )}
-          <p className="mt-3 border-t border-border pt-2 text-sm tabular-nums">
+          <p className="mt-(--espacio-3) border-t border-border pt-2 text-sm tabular-nums">
             Estimado {PESOS.format(estimado / 100)} ·{' '}
             {faltante === 0
               ? 'llega al mínimo del proveedor'

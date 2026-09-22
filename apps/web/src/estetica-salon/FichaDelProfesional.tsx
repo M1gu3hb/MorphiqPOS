@@ -133,7 +133,7 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
   // «Mi día»— y sin esto la pantalla se quedaba en su esqueleto para siempre.
   if (profesionalId === '' && diaInicial === undefined) {
     return (
-      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+      <main className="mx-auto max-w-prose space-y-(--espacio-3) p-(--espacio-8) text-center">
         <h1 className="text-xl font-semibold">Aquí se abre la ficha de una profesional</h1>
         <p className="text-sm text-muted-foreground">
           Su día, sus citas, lo que lleva cobrado y su comisión. Se elige en Liquidación —o cada una
@@ -148,7 +148,7 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
 
   if (dia === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -156,7 +156,7 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
   }
 
   return (
-    <main className="mx-auto max-w-lg space-y-6 p-4">
+    <main className="mx-auto max-w-lg space-y-(--espacio-6) p-(--espacio-4)">
       <header>
         <h1 className="text-2xl font-semibold">Mi día</h1>
         <p className="text-muted-foreground text-sm">{dia.fecha}</p>
@@ -169,7 +169,7 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
       )}
 
       {dia.siguiente !== null && (
-        <section className="rounded-lg border-2 p-4">
+        <section className="rounded-lg border-2 p-(--espacio-4)">
           <p className="text-muted-foreground text-sm">Sigue</p>
           <p className="text-2xl font-semibold">{dia.siguiente.clienta ?? 'Sin nombre'}</p>
           <p className="text-lg">{dia.siguiente.servicio}</p>
@@ -187,12 +187,12 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
         <p className="text-muted-foreground">Hoy no tienes {voc.plural('orden')}.</p>
       )}
 
-      <section className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg border p-4">
+      <section className="grid grid-cols-2 gap-(--espacio-4)">
+        <div className="rounded-lg border p-(--espacio-4)">
           <p className="text-muted-foreground text-sm">Comisión de hoy</p>
           <p className="text-2xl font-semibold tabular-nums">{pesos(dia.comisionDelDiaCentavos)}</p>
         </div>
-        <div className="rounded-lg border p-4">
+        <div className="rounded-lg border p-(--espacio-4)">
           {/* Separada del salón, siempre: no se comisiona y no es suya. */}
           <p className="text-muted-foreground text-sm">Propina de hoy</p>
           <p className="text-2xl font-semibold tabular-nums">{pesos(dia.propinaDelDiaCentavos)}</p>
@@ -205,7 +205,7 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
         <h2 className="mb-2 font-medium">Todo el día</h2>
         <ul className="divide-y">
           {dia.citas.map((cita) => (
-            <li key={cita.citaServicioId} className="py-3">
+            <li key={cita.citaServicioId} className="py-(--espacio-3)">
               <div className="flex items-baseline justify-between">
                 <span className="font-medium">{cita.clienta ?? 'Sin nombre'}</span>
                 <span className="tabular-nums">{hora(cita.inicio)}</span>

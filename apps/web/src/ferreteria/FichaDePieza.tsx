@@ -265,7 +265,10 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
 
   const banda =
     error === null ? null : (
-      <p role="alert" className="mb-3 rounded-md border border-destructive bg-destructive/15 p-2">
+      <p
+        role="alert"
+        className="mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2"
+      >
         {error} · Lo que ya está en pantalla sigue sirviendo.
       </p>
     );
@@ -274,9 +277,9 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
     // Esqueleto con la forma de la ficha —foto y renglones—, nunca un spinner:
     // el ojo ya sabe dónde va a mirar cuando lleguen los datos.
     return (
-      <div className="mx-auto max-w-5xl p-3">
-        <Skeleton className="mb-3 h-5 w-2/3" />
-        <div className="grid gap-4 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+      <div className="mx-auto max-w-5xl p-(--espacio-3)">
+        <Skeleton className="mb-(--espacio-3) h-5 w-2/3" />
+        <div className="grid gap-(--espacio-4) md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
           <Skeleton className="aspect-square w-full rounded-md" />
           <div className="space-y-2">
             {Array.from({ length: 7 }, (_, i) => (
@@ -338,19 +341,19 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
   const importe = (elegida?.precioCentavos ?? 0) * (Number.isFinite(pedidas) ? pedidas : 0);
 
   return (
-    <article className="mx-auto max-w-5xl p-3 pb-4 text-sm">
+    <article className="mx-auto max-w-5xl p-(--espacio-3) pb-(--espacio-4) text-sm">
       {banda}
-      <header className="mb-3">
+      <header className="mb-(--espacio-3)">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{pieza.familia}</p>
         <h1 className="text-lg font-semibold md:text-xl">{pieza.nombre}</h1>
       </header>
 
       {/* En teléfono la foto va primero y a ancho completo; de tablet para
           arriba pasa a columna y los datos se leen a su lado. Un solo marcado. */}
-      <div className="grid gap-4 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+      <div className="grid gap-(--espacio-4) md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
         <section aria-label="Foto de la pieza">
           {pieza.fotoUrl === null ? (
-            <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-border bg-muted p-4 text-center">
+            <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-border bg-muted p-(--espacio-4) text-center">
               <span className="inline-flex items-center gap-(--espacio-2) text-lg font-semibold">
                 <Camera aria-hidden="true" className="inline size-4 shrink-0" /> Tomar foto
               </span>
@@ -387,7 +390,7 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         <section aria-label="Medida y atributos">
           <p className="text-3xl font-bold leading-tight">{pieza.medidaPulgada}</p>
           <p className="text-lg text-muted-foreground">{pieza.medidaMilimetro}</p>
-          <dl className="mt-3 grid gap-x-4 sm:grid-cols-2">
+          <dl className="mt-(--espacio-3) grid gap-x-(--espacio-4) sm:grid-cols-2">
             {atributos.map(([etiqueta, valor]) => (
               <div
                 key={etiqueta}
@@ -401,10 +404,13 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         </section>
       </div>
 
-      <Separator className="my-4" />
+      <Separator className="my-(--espacio-4)" />
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <section aria-label="Existencia" className="rounded-md border border-border bg-card p-3">
+      <div className="grid gap-(--espacio-3) md:grid-cols-3">
+        <section
+          aria-label="Existencia"
+          className="rounded-md border border-border bg-card p-(--espacio-3)"
+        >
           <p className="text-xs font-semibold uppercase text-muted-foreground">Hay</p>
           <p className="text-2xl font-bold tabular-nums">{NUMERO.format(pieza.existencia)} pz</p>
           <p className="text-muted-foreground">
@@ -412,11 +418,17 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
             {pieza.pesoKg === null ? '' : ` · ≈ ${NUMERO.format(pieza.pesoKg)} kg`}
           </p>
         </section>
-        <section aria-label="Ubicación" className="rounded-md border border-border bg-card p-3">
+        <section
+          aria-label="Ubicación"
+          className="rounded-md border border-border bg-card p-(--espacio-3)"
+        >
           <p className="text-xs font-semibold uppercase text-muted-foreground">Dónde</p>
           <p className="text-xl font-semibold">{pieza.ubicacion ?? 'Sin ubicación registrada'}</p>
         </section>
-        <section aria-label="Precios" className="rounded-md border border-border bg-card p-3">
+        <section
+          aria-label="Precios"
+          className="rounded-md border border-border bg-card p-(--espacio-3)"
+        >
           <p className="text-xs font-semibold uppercase text-muted-foreground">Precio</p>
           {pieza.unidades.map((u) => (
             <p key={u.clave} className="flex justify-between gap-2">
@@ -431,7 +443,7 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
 
       {/* El alta de equivalentes va desplegada y arriba de todo lo demás: es el
           control más importante de la pantalla, y escondido no se usaría. */}
-      <section aria-labelledby="titulo-equivalentes" className="mt-4">
+      <section aria-labelledby="titulo-equivalentes" className="mt-(--espacio-4)">
         <h2 id="titulo-equivalentes" className="font-semibold">
           Equivalentes ({equivalentes.length})
         </h2>
@@ -488,9 +500,12 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         </form>
       </section>
 
-      <dl className="mt-4">
+      <dl className="mt-(--espacio-4)">
         {relaciones.map(([titulo, lineas, vacio]) => (
-          <div key={titulo} className="flex flex-wrap gap-x-3 border-b border-border py-1">
+          <div
+            key={titulo}
+            className="flex flex-wrap gap-x-(--espacio-3) border-b border-border py-1"
+          >
             <dt className="w-24 font-semibold">{titulo}</dt>
             <dd className={lineas.length === 0 ? 'text-muted-foreground' : ''}>
               {lineas.length === 0 ? vacio : lineas.join(' · ')}
@@ -501,7 +516,7 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
 
       {/* En el pasillo la barra se pega abajo —el pulgar la alcanza sin subir—;
           en PC se queda donde cae, al final de la ficha. */}
-      <footer className="sticky bottom-0 z-10 -mx-3 mt-4 flex flex-wrap items-end gap-3 border-t border-border bg-background p-3 shadow-2 md:static md:mx-0 md:rounded-md md:border">
+      <footer className="sticky bottom-0 z-10 -mx-(--espacio-3) mt-(--espacio-4) flex flex-wrap items-end gap-(--espacio-3) border-t border-border bg-background p-(--espacio-3) shadow-2 md:static md:mx-0 md:rounded-md md:border">
         <div>
           <Label htmlFor="cantidad">Cantidad</Label>
           <Input
@@ -524,7 +539,7 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
           }}
         >
           {pieza.unidades.map((u) => (
-            <ToggleGroupItem key={u.clave} value={u.clave} className="px-3">
+            <ToggleGroupItem key={u.clave} value={u.clave} className="px-(--espacio-3)">
               {u.etiqueta}
             </ToggleGroupItem>
           ))}

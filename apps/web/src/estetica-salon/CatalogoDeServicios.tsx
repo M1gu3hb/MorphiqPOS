@@ -255,7 +255,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
 
   if (servicios === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -263,8 +263,8 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
   }
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[20rem_1fr]">
-      <section className="space-y-3">
+    <main className="mx-auto grid max-w-5xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[20rem_1fr]">
+      <section className="space-y-(--espacio-3)">
         <h1 className="text-2xl font-semibold">{voc.titulo('linea_orden', true)}</h1>
         <Button variant="outline" className="w-full" onClick={nuevo}>
           Nuevo {voc.singular('linea_orden')}
@@ -290,7 +290,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
         </ul>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-(--espacio-4)">
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -334,7 +334,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
             procesado desaparecen de la agenda.
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-(--espacio-3) md:grid-cols-4">
           {TRAMOS.map((tramo) => (
             <div key={tramo.clave}>
               <Label htmlFor={`t-${tramo.clave}`}>{tramo.etiqueta}</Label>
@@ -370,7 +370,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
         </p>
 
         {elegido !== null && (
-          <div className="rounded border p-3 text-sm">
+          <div className="rounded border p-(--espacio-3) text-sm">
             <p>Ocupa a la persona: {minutosDeProfesional(elegido)} min</p>
             <p>Ocupa la estación: {minutosDeEstacion(elegido)} min</p>
             <p>Se pueden vender a otra clienta: {minutosIntercalables(elegido)} min</p>

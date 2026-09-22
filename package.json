@@ -47,7 +47,7 @@
     "ui:tokenizar": "node scripts/tokenizar-primitivas.mjs",
     "ui:auditar": "node --conditions=react-server scripts/auditar-estilo.mjs",
     "verify:estilos": "node --conditions=react-server scripts/auditar-estilo.mjs",
-    "verify:primitivas": "node scripts/tokenizar-primitivas.mjs --verificar && node scripts/verificar-primitivas.mjs",
+    "verify:primitivas": "node scripts/tokenizar-primitivas.mjs --verificar && node scripts/tokenizar-pantallas.mjs --verificar && node scripts/verificar-primitivas.mjs",
     "verify:rastro": "node scripts/verificar-rastro.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -77,10 +77,11 @@ const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN
 // `FILA` es la tarjeta de teléfono y tablet; en PC esa MISMA tarjeta se aplana en
 // una fila compacta con `xl:contents`, sin un segundo marcado — dos marcados
 // serían dos sitios donde equivocarse.
-const BANDA = 'mb-3 rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
-const MURO = 'w-full max-w-md rounded-lg border border-border bg-warning/15 p-6 shadow-2';
+const BANDA = 'mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
+const MURO =
+  'w-full max-w-md rounded-lg border border-border bg-warning/15 p-(--espacio-6) shadow-2';
 const FILA =
-  'flex flex-col gap-1 rounded-lg border border-border bg-card p-3 text-card-foreground xl:flex-row xl:items-center xl:gap-4 xl:rounded-none xl:border-x-0 xl:border-t-0 xl:px-3 xl:py-2';
+  'flex flex-col gap-1 rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground xl:flex-row xl:items-center xl:gap-(--espacio-4) xl:rounded-none xl:border-x-0 xl:border-t-0 xl:px-(--espacio-3) xl:py-2';
 const COBRAR =
   'flex flex-col gap-1 text-left hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring xl:contents';
 const MESA = 'text-xl font-semibold md:text-2xl xl:w-36 xl:shrink-0 xl:text-base';
@@ -234,7 +235,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
 
   const vendido = turno === null ? '' : PESOS.format(Number(turno.ventasCentavos) / 100);
   const resumen = turno !== null && (
-    <dl className="grid w-full max-w-md grid-cols-2 gap-2 rounded-lg border border-border bg-card p-4">
+    <dl className="grid w-full max-w-md grid-cols-2 gap-2 rounded-lg border border-border bg-card p-(--espacio-4)">
       <dt className="text-sm text-muted-foreground">Vendido en el turno</dt>
       <dd className="justify-self-end font-bold tabular-nums">{vendido}</dd>
       <dt className="text-sm text-muted-foreground">
@@ -248,8 +249,8 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
   // cargar y el ojo ya sabe dónde va a caer la cifra.
   if (filas === null || turno === null) {
     return (
-      <div className="p-4">
-        <h1 className="mb-4 text-2xl font-bold">Caja</h1>
+      <div className="p-(--espacio-4)">
+        <h1 className="mb-(--espacio-4) text-2xl font-bold">Caja</h1>
         <div className="flex flex-col gap-2">
           {Array.from({ length: 6 }, (_, i) => (
             <Skeleton key={i} className="h-20 w-full rounded-lg" />
@@ -261,7 +262,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
 
   if (!turno.abierta) {
     return (
-      <main className="flex min-h-dvh items-center justify-center p-4">
+      <main className="flex min-h-dvh items-center justify-center p-(--espacio-4)">
         <section aria-labelledby="caja-muro" className={MURO}>
           <h1 id="caja-muro" className="text-2xl font-bold">
             <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Caja cerrada
@@ -270,11 +271,11 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
             Sin sesión de caja, un cobro no entra en ningún corte. Declara el fondo y ábrela.
           </p>
           {banda}
-          <label htmlFor="caja-fondo" className="mt-4 block text-sm font-medium">
+          <label htmlFor="caja-fondo" className="mt-(--espacio-4) block text-sm font-medium">
             Fondo inicial
           </label>
           <Input id="caja-fondo" inputMode="decimal" value={fondo} onChange={alEscribirFondo} />
-          <Button className="mt-4 w-full" onClick={alAbrirCaja}>
+          <Button className="mt-(--espacio-4) w-full" onClick={alAbrirCaja}>
             Abrir caja
           </Button>
         </section>
@@ -283,8 +284,8 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
   }
 
   return (
-    <main className="p-4">
-      <header className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <main className="p-(--espacio-4)">
+      <header className="mb-(--espacio-4) flex flex-col gap-(--espacio-3) xl:flex-row xl:items-center xl:justify-between">
         <h1 className="text-2xl font-bold">Caja</h1>
         {/* En tablet y teléfono los tres ocupan una fila de ancho completo. */}
         <nav aria-label="Estado de la caja" className="grid grid-cols-3 gap-2 xl:flex">
@@ -327,7 +328,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
             Historial
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="buscar" className="mt-3 max-w-sm">
+        <TabsContent value="buscar" className="mt-(--espacio-3) max-w-sm">
           <Input
             id="caja-buscar"
             aria-label={`Buscar ${voc.singular('orden')}`}
@@ -335,10 +336,10 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
             onChange={alBuscar}
           />
         </TabsContent>
-        <TabsContent value="resumen" className="mt-3">
+        <TabsContent value="resumen" className="mt-(--espacio-3)">
           {resumen}
         </TabsContent>
-        <TabsContent value="historial" className="mt-3 text-sm text-muted-foreground">
+        <TabsContent value="historial" className="mt-(--espacio-3) text-sm text-muted-foreground">
           Los cobros ya cerrados viven en Registros, con su folio y su corte.
         </TabsContent>
       </Tabs>
@@ -346,7 +347,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
       {(pestana === 'pendientes' || pestana === 'buscar') &&
         (visibles.length === 0 ? (
           // El vacío ENSEÑA: el resumen del turno es lo que el cajero haría con ese hueco.
-          <section className="mt-6">
+          <section className="mt-(--espacio-6)">
             <Vacio
               icono={<CircleCheckBig />}
               titulo={`${voc.conDeterminante('ningun', 'unidad_servicio')} está esperando pagar.`}
@@ -355,15 +356,15 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
             </Vacio>
           </section>
         ) : (
-          <ul className="mt-3 flex flex-col gap-2 xl:gap-0">
+          <ul className="mt-(--espacio-3) flex flex-col gap-2 xl:gap-0">
             {visibles.map((fila) => (
               <li key={fila.id} className={FILA}>
                 <button type="button" onClick={() => onCobrar?.(fila.id)} className={COBRAR}>
-                  <span className="flex items-baseline justify-between gap-3 xl:contents">
+                  <span className="flex items-baseline justify-between gap-(--espacio-3) xl:contents">
                     <span className={MESA}>{rotulo(fila.mesa_numero, voc)}</span>
                     <span className={TOTAL}>{PESOS.format(fila.total ?? 0)}</span>
                   </span>
-                  <span className="flex flex-wrap gap-x-3 text-xs text-muted-foreground xl:contents">
+                  <span className="flex flex-wrap gap-x-(--espacio-3) text-xs text-muted-foreground xl:contents">
                     <span className="xl:w-28 xl:shrink-0 xl:text-sm">
                       {fila.codigo_caja ?? '—'}
                     </span>

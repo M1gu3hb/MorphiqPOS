@@ -45,7 +45,7 @@ import { useVocabulario } from '~/cliente/vocabulario';
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
 /** La banda de error. Nunca es sólo color: siempre lleva su frase. */
-const BANDA = 'mb-3 rounded-md border border-destructive bg-destructive/10 p-2 text-sm';
+const BANDA = 'mb-(--espacio-3) rounded-md border border-destructive bg-destructive/10 p-2 text-sm';
 
 export interface LineaPrecuenta {
   readonly id: string;
@@ -183,7 +183,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
         <div
           role="status"
           aria-label="Armando la precuenta"
-          className="mx-auto space-y-2 bg-card p-3 shadow-2"
+          className="mx-auto space-y-2 bg-card p-(--espacio-3) shadow-2"
           style={estilo}
         >
           <Skeleton className="mx-auto h-5 w-32" />
@@ -225,7 +225,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
   }
   return (
     <div className="min-h-dvh bg-muted/40">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 xl:flex-row xl:items-start xl:justify-center xl:gap-10 xl:py-10">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-4) xl:flex-row xl:items-start xl:justify-center xl:gap-(--espacio-10) xl:py-(--espacio-10)">
         <main className="w-full min-w-0 xl:w-auto">
           {/* Sólo para el lector de pantalla: lo PRIMERO que se ve es la hoja. */}
           <h1 className="sr-only">Precuenta</h1>
@@ -237,7 +237,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
           {hoja()}
         </main>
         {hayHoja && (
-          <aside className="sticky bottom-0 z-10 -mx-4 border-t border-border bg-background p-4 md:mx-auto md:w-full md:max-w-sm md:rounded-xl md:border md:shadow-2 xl:bottom-auto xl:top-10 xl:mx-0 xl:w-60 xl:self-start">
+          <aside className="sticky bottom-0 z-10 -mx-(--espacio-4) border-t border-border bg-background p-(--espacio-4) md:mx-auto md:w-full md:max-w-sm md:rounded-xl md:border md:shadow-2 xl:bottom-auto xl:top-10 xl:mx-0 xl:w-60 xl:self-start">
             {falloImpresion && (
               <p role="alert" className={BANDA}>
                 No se pudo imprimir. Puedes enseñar esta pantalla al {voc.singular('cliente')} y
@@ -286,7 +286,7 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
   return (
     <article
       aria-label={`Precuenta de la mesa ${mesa}, folio ${cuenta.folio}`}
-      className="mx-auto bg-card p-3 font-mono text-xs leading-snug text-card-foreground shadow-2"
+      className="mx-auto bg-card p-(--espacio-3) font-mono text-xs leading-snug text-card-foreground shadow-2"
       style={estilo}
     >
       <header className="text-center">

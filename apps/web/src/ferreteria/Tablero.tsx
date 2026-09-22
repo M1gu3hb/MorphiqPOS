@@ -33,11 +33,11 @@ const PESOS = new Intl.NumberFormat('es-MX', {
   maximumFractionDigits: 0,
 });
 
-const TARJETA = 'rounded-xl border border-border bg-card p-4 text-card-foreground';
+const TARJETA = 'rounded-xl border border-border bg-card p-(--espacio-4) text-card-foreground';
 const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
 const CIFRA = 'text-3xl font-bold tabular-nums';
 const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
-const RENGLON = 'flex items-baseline justify-between gap-3 py-1';
+const RENGLON = 'flex items-baseline justify-between gap-(--espacio-3) py-1';
 
 interface DeudorDeObra {
   readonly cliente: string;
@@ -163,9 +163,12 @@ export function Tablero({ datosIniciales }: TableroProps) {
 
   if (error !== null) {
     return (
-      <main className="space-y-3 p-4">
+      <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Buen día</h1>
-        <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-3">
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
+        >
           {error}
         </p>
       </main>
@@ -174,7 +177,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
 
   if (datos === null) {
     return (
-      <main className="space-y-3 p-4">
+      <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Buen día</h1>
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-32 w-full" />
@@ -186,7 +189,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
     datos;
 
   return (
-    <main className="space-y-3 p-4">
+    <main className="space-y-(--espacio-3) p-(--espacio-4)">
       {/* La misma forma que el `PageHeader` heredado: el bloque del título y, de
           hermano, el de las acciones. */}
       <header className="flex flex-wrap items-end justify-between gap-2">
@@ -204,7 +207,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
         </div>
       </header>
 
-      <div className="grid gap-3 xl:grid-cols-2">
+      <div className="grid gap-(--espacio-3) xl:grid-cols-2">
         {/* 1 · LA CARTERA. Primero, porque es lo que no vuelve. */}
         <section className={TARJETA} aria-labelledby="t-cartera">
           <h2 id="t-cartera" className={ROTULO}>

@@ -310,7 +310,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
 
   if (productos === null || turno === undefined) {
     return (
-      <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <div className="grid gap-(--espacio-3) p-(--espacio-3) xl:grid-cols-[minmax(0,1fr)_24rem]">
         {/* Esqueletos con la forma de las tarjetas, no un spinner: así nada
             salta al llegar los datos y el ojo ya sabe dónde va a mirar. */}
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5">
@@ -325,8 +325,8 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
 
   if (turno === null) {
     return (
-      <div className="mx-auto max-w-md space-y-4 p-8 text-center">
-        <div className="space-y-3 rounded-lg border border-warning/60 bg-warning/15 p-6">
+      <div className="mx-auto max-w-md space-y-(--espacio-4) p-(--espacio-8) text-center">
+        <div className="space-y-(--espacio-3) rounded-lg border border-warning/60 bg-warning/15 p-(--espacio-6)">
           <p className="text-xl font-semibold">Turno cerrado</p>
           <p className="text-sm">
             Un cobro sin turno no pertenece a ningún corte: no habría a qué caja cuadrarlo al final
@@ -343,7 +343,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
 
   if (productos.length === 0) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
+      <div className="mx-auto max-w-lg space-y-(--espacio-4) p-(--espacio-8) text-center">
         <p className="text-xl font-semibold">
           Todavía no hay {voc.plural('linea_orden')} en {voc.enFrase('preparacion')}.
         </p>
@@ -399,7 +399,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
   );
 
   return (
-    <div className="grid gap-3 p-3 pb-48 xl:grid-cols-[minmax(0,1fr)_24rem] xl:pb-3">
+    <div className="grid gap-(--espacio-3) p-(--espacio-3) pb-48 xl:grid-cols-[minmax(0,1fr)_24rem] xl:pb-(--espacio-3)">
       <header className="flex flex-wrap items-center justify-between gap-2 xl:col-span-2">
         <h1 className="text-xl font-bold">
           Cobrar
@@ -427,7 +427,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           que la conversación del mostrador los produce. */}
       <section
         aria-label={`Nombre y canal del ${voc.singular('unidad_servicio')}`}
-        className="sticky top-0 z-20 space-y-2 rounded-lg border border-border bg-card p-3 xl:static xl:col-start-2 xl:row-start-2"
+        className="sticky top-0 z-20 space-y-2 rounded-lg border border-border bg-card p-(--espacio-3) xl:static xl:col-start-2 xl:row-start-2"
       >
         <div className="space-y-1">
           <Label htmlFor="cobrar-nombre">Nombre</Label>
@@ -529,7 +529,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           para una mano que llega desde abajo. */}
       <aside
         aria-label={voc.titulo('unidad_servicio')}
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 xl:static xl:col-start-2 xl:row-start-3 xl:rounded-lg xl:border"
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-(--espacio-3) xl:static xl:col-start-2 xl:row-start-3 xl:rounded-lg xl:border"
       >
         {lineas.length === 0 ? (
           <p className="pb-2 text-center text-sm text-muted-foreground">

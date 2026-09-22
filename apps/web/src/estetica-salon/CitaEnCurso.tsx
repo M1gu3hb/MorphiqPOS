@@ -207,7 +207,7 @@ export function FilasDeFormula({ componentes = [], minutos = 0 }: FilasDeFormula
   return (
     <ul className="mt-1 text-sm tabular-nums">
       {componentes.map((c) => (
-        <li key={c.nombre} className="flex justify-between gap-3">
+        <li key={c.nombre} className="flex justify-between gap-(--espacio-3)">
           <span>{c.nombre}</span>
           <span>{`${String(c.cantidad)} ${c.unidad}`}</span>
         </li>
@@ -348,7 +348,7 @@ export function CitaEnCurso({
 
   if (visitas === null) {
     return (
-      <div className="space-y-3 p-4">
+      <div className="space-y-(--espacio-3) p-(--espacio-4)">
         <Skeleton className="h-20 w-full rounded-lg" />
         {/* El bloque de «la vez pasada» es lo primero que aparece: su hueco se
             reserva con la forma que va a tener, para que nada salte al cargar. */}
@@ -367,8 +367,8 @@ export function CitaEnCurso({
   const abiertos = servicios.filter((s) => s.estado !== 'cerrado');
 
   return (
-    <div className="p-4 pb-24 md:pb-4">
-      <header className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+    <div className="p-(--espacio-4) pb-[calc(var(--espacio-12)*2)] md:pb-(--espacio-4)">
+      <header className="mb-(--espacio-3) flex flex-wrap items-center gap-x-(--espacio-3) gap-y-1">
         <Button
           type="button"
           size="sm"
@@ -392,13 +392,16 @@ export function CitaEnCurso({
       {error !== null && (
         <p
           role="alert"
-          className="mb-3 rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
+          className="mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
         >
           {error}
         </p>
       )}
       {guardada && (
-        <p role="status" className="mb-3 rounded-md border border-border bg-success/20 p-2 text-sm">
+        <p
+          role="status"
+          className="mb-(--espacio-3) rounded-md border border-border bg-success/20 p-2 text-sm"
+        >
           Fórmula guardada en su historial.
         </p>
       )}
@@ -406,10 +409,10 @@ export function CitaEnCurso({
       {/* Teléfono: una columna, la cita primero. Tablet y PC: el historial a la
           izquierda —la vista que se acuerda de todo cuando la estilista grita
           «¿qué le pusimos la vez pasada?»— y la cita en curso a la derecha. */}
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+      <div className="grid gap-(--espacio-4) md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <section
           aria-labelledby="titulo-historial"
-          className="order-2 rounded-lg border border-border bg-card p-3 text-card-foreground md:order-1"
+          className="order-2 rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground md:order-1"
         >
           <h2
             id="titulo-historial"
@@ -433,10 +436,10 @@ export function CitaEnCurso({
           )}
         </section>
 
-        <div className="order-1 space-y-3 md:order-2">
+        <div className="order-1 space-y-(--espacio-3) md:order-2">
           <section
             aria-labelledby="titulo-formula"
-            className="rounded-lg border border-border bg-card p-3 text-card-foreground shadow-1"
+            className="rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1"
           >
             <h2
               id="titulo-formula"
@@ -458,7 +461,7 @@ export function CitaEnCurso({
                 {/* Solo y enorme: se toca con el nudillo o con el dorso del dedo. */}
                 <Button
                   type="button"
-                  className="mt-3 min-h-20 w-full text-lg"
+                  className="mt-(--espacio-3) min-h-20 w-full text-lg"
                   // SIN CITA no hay nada que guardar: `capturar` se iba de vuelta en su
                   // primera línea y el botón no hacía nada, sin decir por qué. El
                   // rastreador lo contó como muerto, y lo era en ese estado.
@@ -482,7 +485,7 @@ export function CitaEnCurso({
                 </Button>
               </>
             ) : (
-              <div className="mt-3 space-y-2 rounded-md border border-border p-2">
+              <div className="mt-(--espacio-3) space-y-2 rounded-md border border-border p-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label htmlFor="mezclado">Mezclé (g)</Label>
@@ -578,7 +581,7 @@ export function CitaEnCurso({
 
           <section
             aria-labelledby="titulo-servicios"
-            className="rounded-lg border border-border bg-card p-3 text-card-foreground"
+            className="rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground"
           >
             <h2
               id="titulo-servicios"
@@ -646,7 +649,7 @@ export function CitaEnCurso({
 
       {/* Pegado abajo en el teléfono, donde llega el pulgar con la otra mano
           ocupada. En tablet vuelve al flujo: ahí la pantalla cabe entera. */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background p-3 md:static md:border-0 md:p-0 md:pt-3">
+      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background p-(--espacio-3) md:static md:border-0 md:p-0 md:pt-(--espacio-3)">
         <Button
           type="button"
           className="min-h-20 w-full text-lg"

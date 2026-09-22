@@ -74,7 +74,7 @@ const MOTIVO_EN_PALABRAS = 'Diferencia de conteo físico';
 // Las clases largas viven arriba para que cada elemento quepa en una línea. El
 // 3.5rem es el objetivo táctil de 56 px del documento: una medida de diseño con
 // una razón detrás, no un número suelto.
-const MARCO = 'mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 p-4';
+const MARCO = 'mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-4)';
 const CAMPO = 'min-h-[3.5rem] text-center text-2xl font-bold tabular-nums';
 const PRINCIPAL = 'min-h-[3.5rem] w-full text-lg font-semibold';
 const BANDA = 'rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
@@ -402,7 +402,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
             {resumen.importeVisible && <> · +{pesos(resumen.sobranteCentavos)}</>}
           </li>
         </ul>
-        <div className="border-t border-border pt-3">
+        <div className="border-t border-border pt-(--espacio-3)">
           {resumen.importeVisible ? (
             <>
               <p className="text-lg font-bold tabular-nums">
@@ -485,7 +485,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
         </p>
       )}
 
-      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[16rem_1fr]">
+      <div className="flex flex-col gap-(--espacio-4) xl:grid xl:grid-cols-[16rem_1fr]">
         {/* En teléfono no hay lista: estorba, y el diagrama del documento no la
             tiene. De tablet arriba es una cinta; en PC, la columna izquierda
             del layout de dos columnas que el documento sí decide. */}
@@ -511,7 +511,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
           ))}
         </nav>
 
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-(--espacio-4)">
           <form
             onSubmit={(evento) => {
               evento.preventDefault();
@@ -537,7 +537,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
             <p className="text-lg font-semibold">Ya contaste los {total} productos de la zona.</p>
           ) : (
             <form
-              className="flex flex-col gap-3"
+              className="flex flex-col gap-(--espacio-3)"
               onSubmit={(evento) => {
                 evento.preventDefault();
                 registrar();
@@ -545,7 +545,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
             >
               {/* Ni una palabra del esperado aquí: es la regla del arqueo. */}
               <h2 className="text-2xl font-bold">{actual.nombre}</h2>
-              <div className="flex gap-3">
+              <div className="flex gap-(--espacio-3)">
                 <CampoDeConteo id="cajas" etiqueta="cajas" valor={cajas} alCambiar={setCajas} />
                 <CampoDeConteo id="piezas" etiqueta="piezas" valor={piezas} alCambiar={setPiezas} />
               </div>
@@ -560,7 +560,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
         </section>
       </div>
 
-      <footer className="mt-auto flex flex-col gap-2 pt-4">
+      <footer className="mt-auto flex flex-col gap-2 pt-(--espacio-4)">
         <p className="text-sm">
           Contados {contados} de {total}
         </p>

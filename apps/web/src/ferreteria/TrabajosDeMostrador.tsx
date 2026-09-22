@@ -345,7 +345,7 @@ export function TrabajosDeMostrador({
   const cargando = apartados === null || listas === null || garantias === null;
   if (cargando) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-56" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -353,7 +353,7 @@ export function TrabajosDeMostrador({
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Trabajos de mostrador</h1>
         <p className="text-muted-foreground text-sm">
@@ -391,7 +391,10 @@ export function TrabajosDeMostrador({
           )}
           <ul className="divide-y">
             {apartados.map((nota) => (
-              <li key={nota.notaId} className="flex items-center gap-3 py-3">
+              <li
+                key={nota.notaId}
+                className="flex items-center gap-(--espacio-3) py-(--espacio-3)"
+              >
                 <span className="w-24 font-medium">{nota.folio}</span>
                 <span className="flex-1">{nota.cliente}</span>
                 <span className="tabular-nums">{pesos(nota.totalCentavos)}</span>
@@ -416,20 +419,23 @@ export function TrabajosDeMostrador({
               </li>
             ))}
           </ul>
-          <p className="text-muted-foreground mt-3 text-sm">
+          <p className="text-muted-foreground mt-(--espacio-3) text-sm">
             Material apartado es material que no se vende: por eso caduca y por eso se ve cuándo.
           </p>
         </section>
       )}
 
       {pestana === 'listas' && (
-        <section className="space-y-4">
+        <section className="space-y-(--espacio-4)">
           {listas.length === 0 && (
             <p className="text-muted-foreground text-sm">No hay listas abiertas.</p>
           )}
           <ul className="divide-y">
             {listas.map((lista) => (
-              <li key={lista.listaId} className="flex items-center gap-3 py-3">
+              <li
+                key={lista.listaId}
+                className="flex items-center gap-(--espacio-3) py-(--espacio-3)"
+              >
                 <span className="w-24 font-medium">{lista.folio}</span>
                 <span className="flex-1">{lista.cliente}</span>
                 <span className="tabular-nums">
@@ -441,7 +447,7 @@ export function TrabajosDeMostrador({
 
           <Separator />
 
-          <div className="space-y-3">
+          <div className="space-y-(--espacio-3)">
             <h2 className="font-medium">Capturar una lista</h2>
             <div>
               <Label htmlFor="quien">De quién</Label>
@@ -484,7 +490,10 @@ export function TrabajosDeMostrador({
           )}
           <ul className="divide-y">
             {garantias.map((garantia) => (
-              <li key={garantia.garantiaId} className="flex items-center gap-3 py-3">
+              <li
+                key={garantia.garantiaId}
+                className="flex items-center gap-(--espacio-3) py-(--espacio-3)"
+              >
                 <span className="flex-1">
                   {garantia.piezas} pz · {garantia.estado}
                 </span>
@@ -503,7 +512,7 @@ export function TrabajosDeMostrador({
               </li>
             ))}
           </ul>
-          <p className="text-muted-foreground mt-3 text-sm">
+          <p className="text-muted-foreground mt-(--espacio-3) text-sm">
             Un negocio mediano pierde entre $20,000 y $60,000 al año porque nadie lleva esta cuenta.
           </p>
         </section>

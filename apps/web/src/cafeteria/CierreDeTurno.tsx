@@ -69,7 +69,7 @@ const RUTA_NADIE_VINO = '/api/cafeteria/no-recogido';
 
 /** Hasta $20 de descuadre es morralla; más arriba es una pregunta. */
 const TOLERANCIA_CENTAVOS = 2_000;
-const CAJA = 'rounded-lg border border-border bg-card p-3 text-card-foreground';
+const CAJA = 'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground';
 const CIFRA = 'flex items-baseline justify-between gap-2 border-b border-border py-1';
 
 /** Los cuatro campos del conteo. Los dos primeros son obligatorios. */
@@ -219,7 +219,7 @@ async function leerFila(signal?: AbortSignal): Promise<readonly PedidoEnFila[]> 
 function Cifras({ lista, vacio }: { readonly lista: readonly Cifra[]; readonly vacio: string }) {
   if (lista.length === 0) return <p className="text-muted-foreground">{vacio}</p>;
   return (
-    <dl className="grid gap-x-6 sm:grid-cols-2">
+    <dl className="grid gap-x-(--espacio-6) sm:grid-cols-2">
       {lista.map((cifra) => (
         <div key={cifra.etiqueta} className={CIFRA}>
           <dt className="text-muted-foreground">{cifra.etiqueta}</dt>
@@ -383,7 +383,7 @@ export function CierreDeTurno({
 
   if (turno === undefined) {
     return (
-      <div className="grid gap-3 p-3 xl:grid-cols-[22rem_minmax(0,1fr)]">
+      <div className="grid gap-(--espacio-3) p-(--espacio-3) xl:grid-cols-[22rem_minmax(0,1fr)]">
         {/* Esqueletos con la forma del conteo y del resumen, nunca un spinner:
             así nada salta de sitio cuando llegan los datos. */}
         <Skeleton className="h-64 w-full rounded-lg" />
@@ -394,7 +394,7 @@ export function CierreDeTurno({
 
   if (turno === null && !cerrado) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
+      <div className="mx-auto max-w-lg space-y-(--espacio-4) p-(--espacio-8) text-center">
         <p className="text-xl font-semibold">No hay ningún turno abierto que cerrar.</p>
         <p className="text-muted-foreground">
           El cierre cuenta dos recipientes físicos —el cajón y el bote— contra lo que el turno dice
@@ -414,7 +414,7 @@ export function CierreDeTurno({
   }
 
   return (
-    <div className="grid gap-3 p-3 pb-8 xl:grid-cols-[22rem_minmax(0,1fr)] xl:items-start">
+    <div className="grid gap-(--espacio-3) p-(--espacio-3) pb-(--espacio-8) xl:grid-cols-[22rem_minmax(0,1fr)] xl:items-start">
       <header className="flex flex-wrap items-baseline justify-between gap-2 xl:col-span-2">
         <h1 className="text-xl font-bold">Cierre de turno</h1>
         <p className="text-sm text-muted-foreground">
@@ -446,7 +446,7 @@ export function CierreDeTurno({
           PC: es lo primero, y lo único obligatorio de la pantalla. */}
       <section
         aria-label="Conteo del cajón y del bote"
-        className={`sticky top-0 z-20 space-y-3 ${CAJA} xl:static`}
+        className={`sticky top-0 z-20 space-y-(--espacio-3) ${CAJA} xl:static`}
       >
         <div className="grid grid-cols-2 gap-2">
           {CAMPOS.map((campo) => (
@@ -543,7 +543,7 @@ export function CierreDeTurno({
 
         <AccordionItem value="bote">
           <AccordionTrigger>Bote y reparto</AccordionTrigger>
-          <AccordionContent className="space-y-3">
+          <AccordionContent className="space-y-(--espacio-3)">
             <p className="text-lg font-semibold tabular-nums">
               Total a repartir: {cerrado ? enPesos(contadoBote) : '—'}
             </p>

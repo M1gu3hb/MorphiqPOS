@@ -228,13 +228,13 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
     // Esqueletos con la forma de los dos números y de la lista, no un spinner:
     // así nada salta de sitio cuando llegan los datos.
     return (
-      <div className="p-4 lg:p-6">
+      <div className="p-(--espacio-4) lg:p-(--espacio-6)">
         <h1 className="text-2xl font-bold">Fiado</h1>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-(--espacio-3) grid gap-(--espacio-3) sm:grid-cols-2">
           <Skeleton className="h-20 w-full rounded-xl" />
           <Skeleton className="h-20 w-full rounded-xl" />
         </div>
-        <div className="mt-6 space-y-4">
+        <div className="mt-(--espacio-6) space-y-(--espacio-4)">
           {Array.from({ length: 8 }, (_, i) => (
             <Skeleton key={i} className="h-5 w-full rounded-md" />
           ))}
@@ -263,24 +263,24 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
   }
 
   return (
-    <div className="p-4 lg:p-6">
+    <div className="p-(--espacio-4) lg:p-(--espacio-6)">
       <h1 className="text-2xl font-bold">Fiado</h1>
 
       {/* Lo primero que se ve: el total de la cartera y lo que ya urge. */}
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <Card className="gap-1 px-4 py-4">
+      <div className="mt-(--espacio-3) grid gap-(--espacio-3) sm:grid-cols-2">
+        <Card className="gap-1 px-(--espacio-4) py-(--espacio-4)">
           <p className="text-sm text-muted-foreground">Lo que me deben</p>
           <p className="text-3xl font-bold tabular-nums">{enPesos(deben)}</p>
           <p className="text-sm text-muted-foreground">{filas.length} clientes</p>
         </Card>
-        <Card className="gap-1 border-destructive bg-destructive/10 px-4 py-4">
+        <Card className="gap-1 border-destructive bg-destructive/10 px-(--espacio-4) py-(--espacio-4)">
           <p className="text-sm font-medium">Más de 30 días</p>
           <p className="text-3xl font-bold tabular-nums">{enPesos(vencido)}</p>
           <p className="text-sm">{vencidas.length} clientes · son a los que hay que hablarles</p>
         </Card>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-(--espacio-4) flex flex-wrap items-center gap-2">
         <Label htmlFor="fiado-buscar" className="sr-only">
           Buscar {voc.singular('cliente')} por nombre o teléfono
         </Label>
@@ -310,14 +310,17 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
       {error !== null && (
         // Encima del último dato conocido, nunca en su lugar, y lo primero que
         // dice es que ningún saldo se movió.
-        <p role="alert" className="mt-3 rounded-md border border-destructive p-2 text-sm">
+        <p
+          role="alert"
+          className="mt-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
+        >
           {error} · Ningún saldo cambió.
         </p>
       )}
 
-      <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start">
+      <div className="mt-(--espacio-4) flex flex-col gap-(--espacio-4) lg:flex-row lg:items-start">
         <section className={`min-w-0 flex-1 ${ficha === null ? '' : 'pb-64 lg:pb-0'}`}>
-          <div className="hidden grid-cols-[1fr_auto_auto_auto] gap-x-4 border-b border-border px-2 pb-2 text-xs font-medium text-muted-foreground md:grid">
+          <div className="hidden grid-cols-[1fr_auto_auto_auto] gap-x-(--espacio-4) border-b border-border px-2 pb-2 text-xs font-medium text-muted-foreground md:grid">
             <span>{voc.titulo('cliente')}</span>
             <span className="text-right">Debe</span>
             <span>Más viejo</span>
@@ -333,7 +336,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
                   <button
                     type="button"
                     aria-pressed={fila.cliente_id === elegido}
-                    className="grid w-full grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 rounded-md px-2 py-3 text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[1fr_auto_auto_auto]"
+                    className="grid w-full grid-cols-[1fr_auto] items-center gap-x-(--espacio-4) gap-y-1 rounded-md px-2 py-(--espacio-3) text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[1fr_auto_auto_auto]"
                     onClick={() => {
                       setElegido(fila.cliente_id);
                       setMonto('');
@@ -374,7 +377,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
           </ul>
 
           {visibles.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
+            <p className="p-(--espacio-4) text-sm text-muted-foreground">
               Nadie cae en ese filtro. Buena señal, si era «a quién hablarle».
             </p>
           )}
@@ -385,7 +388,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
           // los dos sitios, porque el contenido de la ficha es el mismo.
           <aside
             aria-label={`Ficha de ${ficha.nombre}`}
-            className="fixed inset-x-0 bottom-0 z-20 max-h-[70dvh] overflow-y-auto border-t border-border bg-card p-4 text-card-foreground shadow-3 lg:static lg:w-80 lg:shrink-0 lg:rounded-xl lg:border lg:shadow-1"
+            className="fixed inset-x-0 bottom-0 z-20 max-h-[70dvh] overflow-y-auto border-t border-border bg-card p-(--espacio-4) text-card-foreground shadow-3 lg:static lg:w-80 lg:shrink-0 lg:rounded-xl lg:border lg:shadow-1"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -418,12 +421,12 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
 
             {/* «Paga los viernes» es el dato que hace útil el módulo. */}
             {ficha.nota !== null && (
-              <p className="mt-3 rounded-md bg-muted p-2 text-sm text-muted-foreground">
+              <p className="mt-(--espacio-3) rounded-md bg-muted p-2 text-sm text-muted-foreground">
                 {ficha.nota}
               </p>
             )}
 
-            <Label htmlFor="fiado-monto" className="mt-4">
+            <Label htmlFor="fiado-monto" className="mt-(--espacio-4)">
               Cuánto abona
             </Label>
             <Input
@@ -439,7 +442,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
             <Button
               type="button"
               size="lg"
-              className="mt-3 w-full"
+              className="mt-(--espacio-3) w-full"
               disabled={enviando}
               onClick={() => {
                 void abonar(ficha);

@@ -227,7 +227,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
   // un id vacío. Sin esto se quedaba en su esqueleto, en blanco, para siempre.
   if (productoId === '' && piezasIniciales === undefined) {
     return (
-      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+      <main className="mx-auto max-w-prose space-y-(--espacio-3) p-(--espacio-8) text-center">
         {/* Con el sustantivo del giro: una ferretería lee «material» y una
             tiendita «producto». Tecleado, el diccionario deja de mandar justo en
             el estado que más se ve —esta pantalla se monta sin material
@@ -248,7 +248,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
 
   if (piezas === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -256,7 +256,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">{voc.titulo('producto')}</h1>
         <p className="text-muted-foreground text-sm">
@@ -271,7 +271,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
       )}
       {aviso !== null && <p className="text-sm">{aviso}</p>}
 
-      <section className="flex items-end gap-3">
+      <section className="flex items-end gap-(--espacio-3)">
         <div>
           <Label htmlFor="necesita">Hacen falta (m)</Label>
           <Input
@@ -296,7 +296,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
         )}
         <ul className="divide-y">
           {piezas.map((pieza) => (
-            <li key={pieza.piezaId} className="flex items-center gap-3 py-2">
+            <li key={pieza.piezaId} className="flex items-center gap-(--espacio-3) py-2">
               <span className="w-20 font-medium">{pieza.folio}</span>
               <span className="flex-1 tabular-nums">{enMetros(pieza.medidaRestanteBase)} m</span>
               <span className="text-muted-foreground text-sm">
@@ -323,9 +323,9 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
 
       <Separator />
 
-      <section className="space-y-3 rounded-lg border p-4">
+      <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
         <h2 className="font-medium">Cortar</h2>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-(--espacio-3) md:grid-cols-3">
           <div>
             <Label htmlFor="corte-pieza">Pieza</Label>
             <Input
@@ -373,9 +373,9 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
         </Button>
       </section>
 
-      <section className="space-y-3 rounded-lg border p-4">
+      <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
         <h2 className="font-medium">Abrir un rollo</h2>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-(--espacio-3) md:grid-cols-2">
           <div>
             <Label htmlFor="nueva-folio">Rótulo</Label>
             <Input

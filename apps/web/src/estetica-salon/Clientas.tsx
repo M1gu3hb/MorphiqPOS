@@ -220,7 +220,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
 
   if (clientas === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -236,8 +236,8 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
         );
 
   return (
-    <main className="mx-auto grid max-w-6xl gap-6 p-6 md:grid-cols-[20rem_1fr]">
-      <section className="space-y-3">
+    <main className="mx-auto grid max-w-6xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[20rem_1fr]">
+      <section className="space-y-(--espacio-3)">
         <h1 className="text-2xl font-semibold">{voc.titulo('cliente', true)}</h1>
         <div>
           <Label htmlFor="buscar">Buscar</Label>
@@ -292,7 +292,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
         </ul>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-(--espacio-4)">
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -318,7 +318,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
 
             {/* Arriba de todo y en rojo: es el único dato de esta pantalla que
                 puede mandar a alguien al hospital. */}
-            <div className="border-destructive rounded-lg border-2 p-4">
+            <div className="border-destructive rounded-lg border-2 p-(--espacio-4)">
               <Label htmlFor="alergias" className="text-destructive text-base font-semibold">
                 Alergias
               </Label>
@@ -386,7 +386,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
                     Hace {ultima.diasDesde} día{ultima.diasDesde === 1 ? '' : 's'}
                     {ultima.resultado === null ? '' : ` · ${ultima.resultado}`}
                   </p>
-                  <pre className="bg-muted mt-2 overflow-x-auto rounded p-3 text-sm">
+                  <pre className="bg-muted mt-2 overflow-x-auto rounded p-(--espacio-3) text-sm">
                     {JSON.stringify(ultima.formula, null, 2)}
                   </pre>
                 </>

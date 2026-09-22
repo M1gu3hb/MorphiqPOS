@@ -88,7 +88,8 @@ const DIAS_HASTA_ENTREGA = 2;
 const DIAS_GRANO_AMBAR = 25;
 const DIAS_GRANO_ROJO = 30;
 
-const TARJETA = 'rounded-lg border border-border bg-card p-3 text-card-foreground shadow-1';
+const TARJETA =
+  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
 const CHIP = 'rounded-md px-2 py-1 text-xs font-semibold';
 
 /** Las cinco familias, en el orden en que se camina el local. */
@@ -402,10 +403,10 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
 
   if (insumos === null) {
     return (
-      <div className="min-h-dvh bg-background p-4 text-foreground">
-        <h1 className="mb-4 text-2xl font-bold">Inventario</h1>
+      <div className="min-h-dvh bg-background p-(--espacio-4) text-foreground">
+        <h1 className="mb-(--espacio-4) text-2xl font-bold">Inventario</h1>
         {/* Esqueletos con la forma de las tarjetas: la pantalla no salta. */}
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-(--espacio-3) md:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-24 w-full rounded-lg" />
           ))}
@@ -415,8 +416,8 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
   }
 
   return (
-    <div className="flex min-h-dvh flex-col gap-4 bg-background p-4 text-foreground">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-background p-(--espacio-4) text-foreground">
+      <header className="flex flex-wrap items-center justify-between gap-(--espacio-3)">
         <h1 className="text-2xl font-bold">Inventario</h1>
         {/* La tarea del cierre tiene botón propio y grande: no es una fila más. */}
         <Button
@@ -459,7 +460,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
         <>
           {diasGrano !== null && (
             <section className={TARJETA} aria-label="Lote de grano abierto">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <div className="flex flex-wrap items-baseline gap-x-(--espacio-3) gap-y-1">
                 <span className="font-bold">☕ Grano abierto</span>
                 <span className={`${CHIP} ${claseDeGrano(diasGrano)}`}>
                   {diasGrano} días desde el tueste
@@ -471,7 +472,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
 
           {alertas.length > 0 && (
             <section
-              className="rounded-lg border border-warning/40 bg-warning/15 p-3"
+              className="rounded-lg border border-warning/40 bg-warning/15 p-(--espacio-3)"
               aria-label="Lo que no llega a la próxima entrega"
             >
               <h2 className="mb-2 text-sm font-bold uppercase">No llega a la próxima entrega</h2>
@@ -558,7 +559,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
                     </TableBody>
                   </Table>
                 ) : (
-                  <ul className="grid gap-3 md:grid-cols-2">
+                  <ul className="grid gap-(--espacio-3) md:grid-cols-2">
                     {grupo.filas.map((insumo) => (
                       <li key={insumo.id} className={TARJETA}>
                         <div className="flex items-start justify-between gap-2">
@@ -710,7 +711,7 @@ function ConteoDeLeche({
         </DialogHeader>
 
         {resultado === null ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-(--espacio-3)">
             {leches.map((insumo, indice) => (
               <div key={insumo.id}>
                 <Label htmlFor={`conteo-${insumo.id}`}>{insumo.nombre}</Label>

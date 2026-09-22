@@ -278,9 +278,9 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
     // Esqueletos con la forma de lo que viene, no un giro: así nada salta de
     // sitio al llegar los datos y el ojo ya sabe dónde va a mirar.
     return (
-      <div className="p-4 md:p-6">
-        <h1 className="mb-4 text-2xl font-bold">Existencias</h1>
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="p-(--espacio-4) md:p-(--espacio-6)">
+        <h1 className="mb-(--espacio-4) text-2xl font-bold">Existencias</h1>
+        <div className="mb-(--espacio-4) grid grid-cols-1 gap-(--espacio-3) sm:grid-cols-2 xl:grid-cols-4">
           {CONTADORES.map((c) => (
             <Skeleton key={c.clave} className="h-24 w-full rounded-lg" />
           ))}
@@ -293,8 +293,8 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
   }
 
   return (
-    <div className="p-4 md:p-6">
-      <header className="mb-4">
+    <div className="p-(--espacio-4) md:p-(--espacio-6)">
+      <header className="mb-(--espacio-4)">
         <h1 className="text-2xl font-bold">Existencias</h1>
         <p className="text-sm text-muted-foreground">
           Qué hay, qué está dormido y qué está abierto. Atajos: «/» busca ·{' '}
@@ -303,13 +303,16 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
       </header>
 
       {error !== null && (
-        <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
+        <p
+          role="alert"
+          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
+        >
           {error} · Se muestra el último dato conocido.
         </p>
       )}
 
       {/* Los cuatro números SON los cuatro filtros. Apilados en teléfono. */}
-      <ul className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <ul className="mb-(--espacio-4) grid grid-cols-1 gap-(--espacio-3) sm:grid-cols-2 xl:grid-cols-4">
         {tarjetas.map((t) => {
           const activo = contador === t.clave;
           return (
@@ -320,7 +323,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
                 onClick={() => {
                   setContador(activo ? null : t.clave);
                 }}
-                className={`w-full rounded-lg border-2 p-3 text-left transition-colors ${
+                className={`w-full rounded-lg border-2 p-(--espacio-3) text-left transition-colors ${
                   activo
                     ? 'border-primary bg-primary/15 text-foreground'
                     : 'border-border bg-card text-card-foreground hover:bg-accent'
@@ -367,7 +370,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
         </Superficie>
       ) : (
         <>
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-(--espacio-3) flex flex-wrap items-center gap-2">
             <Input
               ref={buscador}
               value={consulta}
@@ -487,7 +490,10 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
             ) : (
               <ul className="flex flex-col gap-2">
                 {dormidas.map((f) => (
-                  <li key={f.id} className="rounded-lg border border-border bg-card p-3">
+                  <li
+                    key={f.id}
+                    className="rounded-lg border border-border bg-card p-(--espacio-3)"
+                  >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="font-medium text-card-foreground">{f.nombre}</span>
                       {verDinero && (

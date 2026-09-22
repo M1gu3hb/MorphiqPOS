@@ -110,9 +110,9 @@ const BLOQUE =
   'relative flex h-full w-full flex-col gap-0.5 overflow-hidden rounded-md border p-2 text-left hover:border-primary focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
 const COLUMNA = 'relative w-44 shrink-0 rounded-md border border-border xl:w-52';
 const BANDA =
-  'mb-3 flex flex-wrap items-center gap-2 rounded-md border border-destructive bg-destructive/10 p-2 text-sm';
+  'mb-(--espacio-3) flex flex-wrap items-center gap-2 rounded-md border border-destructive bg-destructive/10 p-2 text-sm';
 const VACIO =
-  'flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-8 text-center';
+  'flex flex-col items-center gap-(--espacio-3) rounded-lg border border-dashed border-border p-(--espacio-8) text-center';
 
 export interface BloqueDeAgenda {
   /** El del SERVICIO de la cita: una cita con dos servicios son dos bloques. */
@@ -655,7 +655,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
   };
 
   const encabezado = (
-    <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <header className="mb-(--espacio-3) flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <h1 className="text-xl font-bold">{msDia === null ? 'Agenda' : DIA.format(msDia)}</h1>
         {dia === 0 ? <Badge variant="secondary">Hoy</Badge> : null}
@@ -691,7 +691,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
   // Un spinner en el centro no diría nada que la rejilla no diga mejor.
   if (bloques === null) {
     return (
-      <div className="p-3">
+      <div className="p-(--espacio-3)">
         {encabezado}
         <div className="flex gap-2" style={{ height: '20rem' }}>
           {Array.from({ length: 4 }, (_, i) => (
@@ -704,7 +704,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
 
   if (bloques.length === 0) {
     return (
-      <div className="p-3">
+      <div className="p-(--espacio-3)">
         {encabezado}
         {banda}
         {/* El borde discontinuo se queda: es lo que dice «aquí CABE algo» en vez de
@@ -738,7 +738,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
   }
 
   return (
-    <div className="p-3 pb-24">
+    <div className="p-(--espacio-3) pb-[calc(var(--espacio-12)*2)]">
       {encabezado}
       {banda}
 
@@ -788,7 +788,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
       {/* TABLET y PC · la rejilla. Encabezado y cuerpo son dos filas paralelas
           con los mismos anchos: así las columnas cuadran sin un segundo marcado
           y los nombres se quedan pegados arriba mientras las horas corren. */}
-      <div className="hidden gap-3 md:flex">
+      <div className="hidden gap-(--espacio-3) md:flex">
         <div className="min-w-0 flex-1 overflow-x-auto">
           <div className="min-w-max">
             <div className="sticky top-0 z-20 flex gap-2 bg-background pb-1">
@@ -846,7 +846,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         {/* PC · el panel de quien puede actuar sobre esta lista. */}
         <aside aria-label="Pendientes de hoy" className="hidden w-80 shrink-0 xl:block">
           <h2 className="mb-1 text-sm font-semibold">Sin confirmar ({sinConfirmar.length})</h2>
-          <ul className="mb-3 flex flex-col gap-1">
+          <ul className="mb-(--espacio-3) flex flex-col gap-1">
             {sinConfirmar.map((b) => (
               <li key={b.id} className="truncate rounded-md border border-warning p-1 text-xs">
                 {b.inicio} · {b.profesional} · {b.clienta ?? 'sin nombre'}

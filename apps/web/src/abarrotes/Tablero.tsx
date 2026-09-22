@@ -51,11 +51,11 @@ const PESOS_EXACTOS = new Intl.NumberFormat('es-MX', { style: 'currency', curren
 /** La referencia del giro para la diferencia de conteo, en puntos base. */
 const CONTEO_ACEPTABLE_BP = 250;
 
-const TARJETA = 'rounded-xl border border-border bg-card p-4 text-card-foreground';
+const TARJETA = 'rounded-xl border border-border bg-card p-(--espacio-4) text-card-foreground';
 const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
 const CIFRA = 'text-3xl font-bold tabular-nums';
 const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
-const RENGLON = 'flex items-baseline justify-between gap-3 py-1';
+const RENGLON = 'flex items-baseline justify-between gap-(--espacio-3) py-1';
 
 interface PorPedir {
   readonly proveedor: string;
@@ -179,9 +179,12 @@ export function Tablero({ datosIniciales }: TableroProps) {
 
   if (error !== null) {
     return (
-      <main className="space-y-3 p-4">
+      <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Buen día</h1>
-        <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-3">
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
+        >
           {error}
         </p>
       </main>
@@ -190,7 +193,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
 
   if (datos === null) {
     return (
-      <main className="space-y-3 p-4">
+      <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Buen día</h1>
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-32 w-full" />
@@ -203,7 +206,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
   const diferencia = Number(conteo.diferenciaCentavos);
 
   return (
-    <main className="space-y-3 p-4">
+    <main className="space-y-(--espacio-3) p-(--espacio-4)">
       {/* La MISMA forma que el `PageHeader` heredado —el bloque del título y, de
           hermano, el de las acciones— porque es la relación por la que la prueba
           encuentra las acciones de un tablero sin agarrarse a una clase. */}

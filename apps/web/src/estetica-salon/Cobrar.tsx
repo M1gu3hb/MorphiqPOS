@@ -317,7 +317,7 @@ export function Cobrar({
     error === null ? null : (
       <p
         role="alert"
-        className="rounded-md border border-destructive bg-destructive/15 p-3 text-sm md:col-span-2"
+        className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3) text-sm md:col-span-2"
       >
         {error}
       </p>
@@ -345,7 +345,10 @@ export function Cobrar({
           Elige {voc.enFraseCon('un', 'orden')} terminad{voc.terminacion('orden')} para cobrar
         </h1>
         {aviso !== null && (
-          <p role="status" className="rounded-md border border-border bg-success/20 p-3 text-sm">
+          <p
+            role="status"
+            className="rounded-md border border-border bg-success/20 p-(--espacio-3) text-sm"
+          >
             {aviso}
           </p>
         )}
@@ -428,7 +431,7 @@ export function Cobrar({
   );
 
   return (
-    <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_28rem]">
+    <div className="grid gap-(--espacio-3) p-(--espacio-3) md:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_28rem]">
       <header className="flex flex-wrap items-baseline gap-2 md:col-span-2">
         <h1 className="text-xl font-bold">
           {nombres.get(cita.cliente_id ?? '') ?? `Sin ${voc.singular('cliente')}`}

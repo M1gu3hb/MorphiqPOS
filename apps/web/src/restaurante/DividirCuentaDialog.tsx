@@ -138,11 +138,11 @@ export function DividirCuentaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-(--espacio-4) md:grid-cols-2">
           {partes.map((parte, indice) => (
             <section
               key={indice}
-              className="rounded-lg border border-border bg-card p-3 text-card-foreground"
+              className="rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground"
             >
               <Label className="mb-2 block font-semibold">Cuenta {indice + 1}</Label>
               <ul className="space-y-1">
@@ -186,7 +186,7 @@ export function DividirCuentaDialog({
           ))}
         </div>
 
-        <div className="flex items-center justify-between gap-3 text-sm">
+        <div className="flex items-center justify-between gap-(--espacio-3) text-sm">
           <Button
             type="button"
             variant="ghost"

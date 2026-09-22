@@ -320,7 +320,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
 
   if (productos === null || insumos === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -331,9 +331,9 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
   const llevar = lineas === null ? 0 : costoEnCanal(lineas, 'llevar');
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[18rem_1fr]">
+    <main className="mx-auto grid max-w-5xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[18rem_1fr]">
       <section>
-        <h1 className="mb-3 text-2xl font-semibold">Recetas</h1>
+        <h1 className="mb-(--espacio-3) text-2xl font-semibold">Recetas</h1>
         <ul className="divide-y">
           {productos.map((producto) => (
             <li key={producto.id}>
@@ -353,7 +353,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
         </ul>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-(--espacio-4)">
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -381,7 +381,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
               <>
                 <ul className="divide-y">
                   {lineas.map((linea) => (
-                    <li key={linea.id} className="flex items-center gap-3 py-2">
+                    <li key={linea.id} className="flex items-center gap-(--espacio-3) py-2">
                       <span className="flex-1">{linea.ingrediente_nombre}</span>
                       <span className="tabular-nums">
                         {String(linea.cantidad_usada)} {linea.unidad}
@@ -407,7 +407,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
 
                 <Separator />
 
-                <div className="flex gap-8">
+                <div className="flex gap-(--espacio-8)">
                   <div>
                     <p className="text-muted-foreground text-sm">Aquí cuesta</p>
                     <p className="text-xl font-semibold tabular-nums">{pesos(aqui)}</p>
@@ -424,12 +424,12 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
 
                 <Separator />
 
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="grid gap-(--espacio-3) md:grid-cols-4">
                   <div className="md:col-span-2">
                     <Label htmlFor="insumo">Insumo</Label>
                     <select
                       id="insumo"
-                      className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-3"
+                      className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
                       value={nueva.insumoId}
                       onChange={(evento) => {
                         setNueva({ ...nueva, insumoId: evento.target.value });
@@ -459,7 +459,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
                     <Label htmlFor="canal">Cuándo</Label>
                     <select
                       id="canal"
-                      className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-3"
+                      className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
                       value={nueva.canal}
                       onChange={(evento) => {
                         setNueva({ ...nueva, canal: evento.target.value });

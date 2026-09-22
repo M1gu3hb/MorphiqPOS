@@ -202,9 +202,10 @@ const PERIODOS = [
 
 const TABLA = 'hidden max-h-[70dvh] overflow-auto rounded-lg border border-border md:block';
 const SOLO_PC = 'hidden xl:table-cell';
-const TARJETA = 'rounded-lg border border-border bg-card p-3 text-card-foreground shadow-1';
-const BANDA = 'mb-3 rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
-const AVISO = 'mb-3 rounded-md border border-border bg-warning/15 p-2 text-sm';
+const TARJETA =
+  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
+const BANDA = 'mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
+const AVISO = 'mb-(--espacio-3) rounded-md border border-border bg-warning/15 p-2 text-sm';
 
 /** El rango vivo del periodo, en milisegundos. `hasta` incluye el día escrito. */
 export function rangoDe(clave: string, desde: string, hasta: string): readonly [number, number] {
@@ -385,7 +386,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
           titulo={`Sin ${actual.rotulo.toLowerCase()} en este periodo.`}
           explicacion="Aquí el periodo es lo que manda. Ábrelo y vuelve a preguntar."
         />
-        <div className="mt-3 flex flex-wrap justify-center gap-2">
+        <div className="mt-(--espacio-3) flex flex-wrap justify-center gap-2">
           <Button
             variant="secondary"
             onClick={() => {
@@ -479,7 +480,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
         <ul className="flex flex-col gap-2 md:hidden">
           {visibles.map((fila, indice) => (
             <li key={textoDe(fila['id']) ?? String(indice)} className={TARJETA}>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-(--espacio-3) gap-y-1 text-sm">
                 {principales.map((columna) => (
                   <Fragment key={columna.campo}>
                     <dt className="text-muted-foreground">{rotuloDe(columna, voc)}</dt>
@@ -497,11 +498,11 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
   }
 
   return (
-    <main className="p-4">
+    <main className="p-(--espacio-4)">
       <h1 className="text-2xl font-bold">Registros</h1>
 
       {/* 1 · El periodo. Arriba, en botones y siempre visible: es LA acción. */}
-      <nav aria-label="Periodo consultado" className="mt-3 flex flex-wrap gap-1">
+      <nav aria-label="Periodo consultado" className="mt-(--espacio-3) flex flex-wrap gap-1">
         {PERIODOS.map((opcion) => (
           <Button
             key={opcion.clave}
@@ -518,7 +519,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
       </nav>
 
       {periodo === 'personalizado' && (
-        <div className="mt-2 flex flex-wrap items-end gap-3">
+        <div className="mt-2 flex flex-wrap items-end gap-(--espacio-3)">
           <div>
             <label htmlFor="registros-desde" className="block text-sm font-medium">
               Desde
@@ -549,8 +550,8 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
       )}
 
       {/* 2 · El resumen del periodo y el buscador universal, en la misma línea. */}
-      <section className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <dl className="flex items-center gap-6">
+      <section className="mt-(--espacio-3) flex flex-col gap-(--espacio-3) md:flex-row md:items-center md:justify-between">
+        <dl className="flex items-center gap-(--espacio-6)">
           <div>
             <dt className="text-xs text-muted-foreground">Registros</dt>
             <dd className="text-xl font-bold tabular-nums">{String(visibles.length)}</dd>
@@ -573,7 +574,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
       </section>
 
       {/* 3 · Las pestañas. Las cuatro últimas no existen en teléfono. */}
-      <Tabs value={pestana} onValueChange={alCambiarPestana} className="mt-4">
+      <Tabs value={pestana} onValueChange={alCambiarPestana} className="mt-(--espacio-4)">
         <TabsList className="overflow-x-auto">
           {PESTANAS.map((opcion, indice) => (
             <TabsTrigger
@@ -588,7 +589,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
 
         {/* Un solo panel, el de la pestaña viva: seis paneles serían seis
             lecturas montadas a la vez para enseñar una. */}
-        <TabsContent value={pestana} className="mt-3">
+        <TabsContent value={pestana} className="mt-(--espacio-3)">
           {error !== null && (
             <p role="alert" className={BANDA}>
               {error} · Se muestra el último dato conocido.
@@ -612,7 +613,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
             contador pedía «mándame el mes» y la respuesta volvía a ser una captura
             de pantalla. Lo encontró el rastreador: 422 en las dos.
           */}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-(--espacio-3) flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={alExportar('csv')}>
               Exportar a CSV
             </Button>

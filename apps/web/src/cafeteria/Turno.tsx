@@ -80,7 +80,8 @@ const FECHA = new Intl.DateTimeFormat('es-MX', {
 });
 
 // Las clases largas viven arriba para que cada elemento quepa en una línea.
-const PANEL = 'rounded-lg border border-border bg-card p-4 text-card-foreground shadow-1';
+const PANEL =
+  'rounded-lg border border-border bg-card p-(--espacio-4) text-card-foreground shadow-1';
 // Teclado numérico grande en tablet y teléfono; en PC el campo vuelve a la
 // altura de control del sistema, porque ahí se teclea con teclado de verdad.
 const CAMPO = 'h-20 text-center text-3xl font-bold tabular-nums xl:h-[var(--altura-control)]';
@@ -298,12 +299,12 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
 
   if (cargando) {
     return (
-      <div className="space-y-3 p-4">
+      <div className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Turno</h1>
         {/* Esqueletos con la forma de los paneles, nunca un spinner: nada salta
             al llegar los datos y el ojo ya sabe dónde va a caer la cifra. */}
         <Skeleton className="h-20 w-full max-w-md rounded-lg" />
-        <div className="grid gap-3 xl:grid-cols-3">
+        <div className="grid gap-(--espacio-3) xl:grid-cols-3">
           {Array.from({ length: 3 }, (_, i) => (
             <Skeleton key={i} className="h-28 w-full rounded-lg" />
           ))}
@@ -320,11 +321,14 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
 
   const lista = (filas: readonly MovimientoDelTurno[], vacio: string) =>
     filas.length === 0 ? (
-      <p className="p-4 text-sm text-muted-foreground">{vacio}</p>
+      <p className="p-(--espacio-4) text-sm text-muted-foreground">{vacio}</p>
     ) : (
       <ul className="divide-y divide-border">
         {filas.map((m) => (
-          <li key={`${m.registradoEn}-${m.tipo}`} className="grid gap-1 p-3 md:grid-cols-2">
+          <li
+            key={`${m.registradoEn}-${m.tipo}`}
+            className="grid gap-1 p-(--espacio-3) md:grid-cols-2"
+          >
             <span className="font-medium">
               {m.motivo ?? 'Sin motivo'} <span className="text-muted-foreground">· {m.tipo}</span>
             </span>
@@ -337,9 +341,9 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
     );
 
   const registro = (cual: TipoMovimiento, boton: string, filas: readonly MovimientoDelTurno[]) => (
-    <div className="grid gap-3 pt-3 xl:grid-cols-2">
+    <div className="grid gap-(--espacio-3) pt-(--espacio-3) xl:grid-cols-2">
       <form
-        className={`${PANEL} grid gap-3`}
+        className={`${PANEL} grid gap-(--espacio-3)`}
         onSubmit={(evento) => {
           evento.preventDefault();
           void registrar(cual, monto, motivo);
@@ -357,8 +361,8 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
   );
 
   return (
-    <div className="space-y-4 p-4">
-      <header className="flex flex-wrap items-center gap-3">
+    <div className="space-y-(--espacio-4) p-(--espacio-4)">
+      <header className="flex flex-wrap items-center gap-(--espacio-3)">
         <h1 className="text-2xl font-bold">Turno</h1>
         {/* El estado se lee: el color nunca es el único que lo dice. */}
         <Badge variant={abierto ? 'default' : 'secondary'}>
@@ -367,7 +371,10 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
       </header>
 
       {error !== null && (
-        <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-3">
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
+        >
           {error} · Nada se movió; la pantalla conserva el último dato conocido.
         </p>
       )}
@@ -393,7 +400,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
         </section>
       ) : (
         <form
-          className={`${PANEL} space-y-4`}
+          className={`${PANEL} space-y-(--espacio-4)`}
           onSubmit={(evento) => {
             evento.preventDefault();
             void abrirTurno();
@@ -405,7 +412,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
             y quedarse sin morralla a media ráfaga cuesta media ráfaga.
           </p>
           {/* PC: los tres en fila. Tablet y teléfono: apilados y grandes. */}
-          <div className="grid gap-3 xl:grid-cols-3">
+          <div className="grid gap-(--espacio-3) xl:grid-cols-3">
             {DENOMINACIONES.map((d) => (
               <div key={d.clave}>
                 {campo(`fondo-${d.clave}`, d.etiqueta, fondo[d.clave], alEscribirFondo(d.clave))}
@@ -424,7 +431,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
 
       {cambioAbierto && (
         <form
-          className={`${PANEL} grid gap-3 xl:max-w-md`}
+          className={`${PANEL} grid gap-(--espacio-3) xl:max-w-md`}
           onSubmit={(evento) => {
             evento.preventDefault();
             void registrar('deposito', montoCambio, MOTIVO_CAMBIO);
@@ -445,8 +452,8 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           <TabsTrigger value="historial">Historial</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="resumen" className="pt-3">
-          <dl className={`${PANEL} grid grid-cols-2 gap-3 xl:max-w-xl`}>
+        <TabsContent value="resumen" className="pt-(--espacio-3)">
+          <dl className={`${PANEL} grid grid-cols-2 gap-(--espacio-3) xl:max-w-xl`}>
             <dt className="text-sm text-muted-foreground">Vendido en el turno</dt>
             <dd className="justify-self-end font-bold tabular-nums">
               {PESOS.format(Number(estado?.ventasCentavos ?? '0') / 100)}
@@ -459,7 +466,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
             <dd className="justify-self-end font-bold tabular-nums">
               {PESOS.format(Number(estado?.fondoInicialCentavos ?? '0') / 100)}
             </dd>
-            <dd className={`col-span-2 rounded-md p-3 text-sm ${aviso.clase}`}>
+            <dd className={`col-span-2 rounded-md p-(--espacio-3) text-sm ${aviso.clase}`}>
               Cambio en caja: {cambio === null ? '—' : PESOS.format(cambio / 100)} · {aviso.palabra}
               . El bote no se mira durante el turno: se cuenta en el cierre.
             </dd>
@@ -472,7 +479,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
             tipo === 'retiro' ? 'Registrar retiro' : 'Registrar entrada',
             movimientos,
           )}
-          <div role="group" aria-label="Tipo de movimiento" className="flex gap-2 pt-3">
+          <div role="group" aria-label="Tipo de movimiento" className="flex gap-2 pt-(--espacio-3)">
             <Button
               aria-pressed={tipo === 'retiro'}
               variant={tipo === 'retiro' ? 'default' : 'outline'}
@@ -502,7 +509,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           )}
         </TabsContent>
 
-        <TabsContent value="historial" className="pt-3">
+        <TabsContent value="historial" className="pt-(--espacio-3)">
           {historial.length === 0 ? (
             // El vacío ENSEÑA: dice qué va a aparecer y para qué va a servir.
             <div className={PANEL}>
@@ -516,7 +523,10 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           ) : (
             <ul className={`${PANEL} divide-y divide-border p-0`}>
               {historial.map((corte) => (
-                <li key={corte.id} className="grid gap-1 p-3 md:grid-cols-3 md:items-center">
+                <li
+                  key={corte.id}
+                  className="grid gap-1 p-(--espacio-3) md:grid-cols-3 md:items-center"
+                >
                   <span className="font-medium">Folio {corte.folio ?? 's/f'}</span>
                   <span className="text-sm text-muted-foreground">
                     {cuando(corte.fecha_apertura)} → {cuando(corte.fecha_cierre)} ·{' '}

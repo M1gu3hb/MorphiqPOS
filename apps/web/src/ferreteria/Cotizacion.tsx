@@ -64,9 +64,10 @@ const MOTIVOS = ['Precio', 'Tiempo de entrega', 'No había', 'Se fue con otro', 
 
 const CABECERAS = ['Material', 'Precio', 'Cant.', 'Desc. %', 'Importe'];
 
-const FRANJA = 'rounded-lg border border-border bg-card p-3 text-card-foreground shadow-1';
+const FRANJA =
+  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
 const FILA =
-  'grid grid-cols-[1fr_auto] items-center gap-x-3 rounded-md border border-border bg-card p-2 text-sm text-card-foreground';
+  'grid grid-cols-[1fr_auto] items-center gap-x-(--espacio-3) rounded-md border border-border bg-card p-2 text-sm text-card-foreground';
 const SUGERENCIA =
   'w-full rounded-md border border-border bg-card p-2 text-left text-sm text-card-foreground hover:bg-accent hover:text-accent-foreground';
 const CAMPO = 'hidden w-20 text-right tabular-nums md:block';
@@ -345,7 +346,7 @@ export function Cotizacion({
 
   if (catalogo === null) {
     return (
-      <div className="space-y-2 p-4">
+      <div className="space-y-2 p-(--espacio-4)">
         <Skeleton className="h-20 w-full rounded-lg" />
         {Array.from({ length: 8 }, (_, i) => (
           <Skeleton key={i} className="h-[var(--altura-control)] w-full rounded-md" />
@@ -355,8 +356,8 @@ export function Cotizacion({
   }
 
   return (
-    <div className="space-y-3 p-4">
-      <header className={`${FRANJA} flex flex-wrap items-end justify-between gap-4`}>
+    <div className="space-y-(--espacio-3) p-(--espacio-4)">
+      <header className={`${FRANJA} flex flex-wrap items-end justify-between gap-(--espacio-4)`}>
         <div>
           <h1 className="text-xl font-bold">{clienteNombre ?? 'Cotización sin cliente'}</h1>
           <p className="text-sm text-muted-foreground">{clienteObra ?? 'Obra por definir'}</p>
@@ -394,7 +395,7 @@ export function Cotizacion({
         </p>
       )}
 
-      <div className="grid gap-3 xl:grid-cols-[22rem_1fr]">
+      <div className="grid gap-(--espacio-3) xl:grid-cols-[22rem_1fr]">
         {/* El buscador, en UNA columna como la pantalla 1. No existe bajo `md`. */}
         <section className="hidden md:block" aria-labelledby="titulo-buscador">
           <h2 id="titulo-buscador" className="mb-2 text-sm font-semibold">

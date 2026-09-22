@@ -379,7 +379,7 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
   if (filas === null) {
     // Esqueletos con la forma de la tabla, no un giro en el centro.
     return (
-      <div className="flex flex-col gap-3 p-4">
+      <div className="flex flex-col gap-(--espacio-3) p-(--espacio-4)">
         <Skeleton className="h-20 w-full rounded-lg" />
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <Skeleton key={i} className="h-20 w-full rounded-lg" />
@@ -405,8 +405,8 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
   );
 
   return (
-    <main className="flex min-h-dvh flex-col gap-4 bg-background p-4 text-foreground">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
+    <main className="flex min-h-dvh flex-col gap-(--espacio-4) bg-background p-(--espacio-4) text-foreground">
+      <header className="flex flex-wrap items-baseline justify-between gap-(--espacio-3)">
         <h1 className="text-xl font-bold uppercase tracking-wide">Inventario</h1>
         <p className="text-sm tabular-nums text-muted-foreground">
           {ordenadas.length} insumos · {urgentes.length} por atender
@@ -423,7 +423,10 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
       {/* Lo urgente, arriba de todo y antes del buscador: son los seis
           renglones por los que se abrió esta pantalla. */}
       {urgentes.length > 0 && (
-        <section aria-label="Lo que hay que atender hoy" className="rounded-lg border p-3">
+        <section
+          aria-label="Lo que hay que atender hoy"
+          className="rounded-lg border p-(--espacio-3)"
+        >
           <h2 className="text-xs font-bold uppercase text-muted-foreground">
             Hay que atender hoy ({urgentes.length})
           </h2>
@@ -497,9 +500,12 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
 
           {/* Tablet y teléfono · tarjetas: se leen caminando la bodega, y el
               ajuste queda donde alcanza el pulgar. */}
-          <ul className="grid gap-3 md:grid-cols-2 xl:hidden">
+          <ul className="grid gap-(--espacio-3) md:grid-cols-2 xl:hidden">
             {visibles.map((fila) => (
-              <li key={fila.id} className="rounded-lg border bg-card p-3 text-card-foreground">
+              <li
+                key={fila.id}
+                className="rounded-lg border bg-card p-(--espacio-3) text-card-foreground"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold leading-tight">{fila.nombre}</p>
                   <Semaforo nivel={nivelDe(fila)} />
@@ -512,7 +518,7 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
                     {pesos(fila.valor_inventario)}
                   </span>
                 </p>
-                <div className="mt-3">{ajustador(fila)}</div>
+                <div className="mt-(--espacio-3)">{ajustador(fila)}</div>
               </li>
             ))}
           </ul>

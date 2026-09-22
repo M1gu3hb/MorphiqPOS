@@ -69,7 +69,8 @@ const SEGUNDOS_ROJO = 360;
 const SEGUNDOS_DESHACER = 60;
 const LLAMADOS_PARA_ABANDONAR = 3;
 
-const TARJETA = 'rounded-lg border border-border bg-card p-3 text-card-foreground shadow-1';
+const TARJETA =
+  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
 const CHIP = 'rounded-md px-2 py-1 text-sm font-semibold tabular-nums';
 const BANDA = 'rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
 
@@ -223,7 +224,7 @@ export function Barra({ filasIniciales }: BarraProps) {
   // Esqueletos con la forma de las tarjetas: la pantalla no salta al cargar.
   if (pedidos === null) {
     return (
-      <div className="grid min-h-dvh gap-4 bg-background p-4 md:grid-cols-2">
+      <div className="grid min-h-dvh gap-(--espacio-4) bg-background p-(--espacio-4) md:grid-cols-2">
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-40 w-full rounded-lg" />
         ))}
@@ -247,8 +248,8 @@ export function Barra({ filasIniciales }: BarraProps) {
   ));
 
   return (
-    <div className="flex min-h-dvh flex-col gap-4 bg-background p-4 text-foreground">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
+    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-background p-(--espacio-4) text-foreground">
+      <header className="flex flex-wrap items-baseline justify-between gap-(--espacio-3)">
         <h1 className="text-xl font-bold tracking-wide uppercase">{voc.titulo('preparacion')}</h1>
         <p className="text-sm text-muted-foreground tabular-nums">
           {promedio === null
@@ -267,7 +268,7 @@ export function Barra({ filasIniciales }: BarraProps) {
       {enFila.length === 0 && listos.length === 0 ? (
         // El único vacío de la aplicación que es una BUENA noticia, y se ve así:
         // el tipo más grande de la pantalla, y ni una sola disculpa.
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg bg-success/15 p-8 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-(--espacio-3) rounded-lg bg-success/15 p-(--espacio-8) text-center">
           <p className="text-display font-bold">La fila está vacía.</p>
           <p className="text-muted-foreground">Buen momento para reponer leche.</p>
         </div>
@@ -289,7 +290,7 @@ export function Barra({ filasIniciales }: BarraProps) {
           ))}
         </Tabs>
       ) : (
-        <div className="grid flex-1 gap-4 md:grid-cols-2">{secciones}</div>
+        <div className="grid flex-1 gap-(--espacio-4) md:grid-cols-2">{secciones}</div>
       )}
 
       {recien.length > 0 && (
@@ -341,7 +342,7 @@ function Columna({
   return (
     <section
       aria-labelledby={id}
-      className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-3"
+      className="flex flex-col gap-(--espacio-3) rounded-lg border border-border bg-muted/40 p-(--espacio-3)"
     >
       <h2 id={id} className="flex justify-between text-sm font-bold tracking-wide uppercase">
         <span>{titulo}</span>
@@ -394,7 +395,9 @@ function Columna({
                   <span className="font-semibold">{item.cantidad ?? 1}</span>{' '}
                   {item.producto_nombre ?? 'Producto sin nombre'}
                   {item.notas !== null && item.notas !== '' && (
-                    <span className="block pl-4 text-xs text-muted-foreground">{item.notas}</span>
+                    <span className="block pl-(--espacio-4) text-xs text-muted-foreground">
+                      {item.notas}
+                    </span>
                   )}
                 </li>
               ))}
@@ -409,7 +412,7 @@ function Columna({
               </p>
             )}
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-(--espacio-3) flex flex-wrap gap-2">
               {listo ? (
                 <>
                   <Button
@@ -452,7 +455,7 @@ function Columna({
                 // Un botón, dos efectos: el comando sella `lista_en` al llamar.
                 <Button
                   type="button"
-                  className="w-full py-5 text-lg font-bold"
+                  className="w-full py-(--espacio-5) text-lg font-bold"
                   disabled={espera}
                   aria-label={`Marcar listo y llamar a ${nombre}`}
                   onClick={() => {

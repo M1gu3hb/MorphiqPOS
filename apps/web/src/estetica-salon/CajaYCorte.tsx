@@ -174,7 +174,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
 
   if (estado === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -187,7 +187,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
   const esperado = Number(corte?.efectivoEsperadoCentavos ?? 0);
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-6">
+    <main className="mx-auto max-w-2xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Caja y corte</h1>
         <p className="text-muted-foreground text-sm">
@@ -202,7 +202,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
       )}
 
       {!abierta && (
-        <section className="space-y-3 rounded-lg border p-4">
+        <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
           <Label htmlFor="fondo">Fondo con el que abres</Label>
           <Input
             id="fondo"
@@ -225,7 +225,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
 
       {abierta && (
         <>
-          <section className="space-y-2 rounded-lg border p-4">
+          <section className="space-y-2 rounded-lg border p-(--espacio-4)">
             <h2 className="font-medium">El día</h2>
             <p className="flex justify-between">
               <span>Cobrado</span>
@@ -261,7 +261,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
           )}
 
           {!cerrado && (
-            <section className="space-y-3 rounded-lg border p-4">
+            <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
               <Label htmlFor="contado">Lo que contaste en el cajón</Label>
               <Input
                 id="contado"
@@ -283,7 +283,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
           )}
 
           {cerrado && (
-            <section className="space-y-2 rounded-lg border p-4">
+            <section className="space-y-2 rounded-lg border p-(--espacio-4)">
               <h2 className="font-medium">Día cerrado</h2>
               <p className="text-muted-foreground text-sm">
                 Esperado {pesos(esperado)} · contado{' '}

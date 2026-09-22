@@ -385,12 +385,18 @@ export function Caja({
   const banda = (
     <>
       {error !== null && (
-        <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
+        <p
+          role="alert"
+          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
+        >
           {error} · Ninguna nota se marcó como pagada.
         </p>
       )}
       {avisoBanco !== null && (
-        <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
+        <p
+          role="alert"
+          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
+        >
           {avisoBanco} · Ninguna transferencia se marcó como confirmada.
         </p>
       )}
@@ -399,11 +405,11 @@ export function Caja({
 
   if (notas === null) {
     return (
-      <div className="space-y-3 p-4">
+      <div className="space-y-(--espacio-3) p-(--espacio-4)">
         <Skeleton className="h-5 w-40" />
         {banda}
         {/* Esqueletos con la forma de la caja: el total no salta de sitio al llegar. */}
-        <div className="grid gap-4 md:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
+        <div className="grid gap-(--espacio-4) md:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
           <Skeleton className="h-72 w-full rounded-lg" />
           <Skeleton className="h-72 w-full rounded-lg" />
         </div>
@@ -432,18 +438,21 @@ export function Caja({
   }
 
   return (
-    <div className="p-4">
-      <h1 className="mb-3 text-xl font-bold">Caja</h1>
+    <div className="p-(--espacio-4)">
+      <h1 className="mb-(--espacio-3) text-xl font-bold">Caja</h1>
       {banda}
 
       {/* TELÉFONO · otra pantalla, no ésta encogida. Fuera del mostrador lo
           único que se hace es cotejar una transferencia contra el banco. */}
-      <section aria-label="Transferencias por confirmar" className="space-y-3 md:hidden">
+      <section
+        aria-label="Transferencias por confirmar"
+        className="space-y-(--espacio-3) md:hidden"
+      >
         <p className="text-sm text-muted-foreground">
           La caja se opera en el mostrador. Desde el teléfono sólo se confirman transferencias.
         </p>
         {transferencias.length === 0 ? (
-          <p className="rounded-lg border border-border p-4 text-sm">
+          <p className="rounded-lg border border-border p-(--espacio-4) text-sm">
             Ninguna transferencia espera confirmación. Cuando un cliente pague su cuenta así, el
             pago aparece aquí para cotejarlo contra el banco — y hasta entonces su saldo no baja.
           </p>
@@ -452,7 +461,7 @@ export function Caja({
             {transferencias.map((transferencia) => (
               <li
                 key={transferencia.pagoId}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+                className="flex items-center justify-between gap-(--espacio-3) rounded-lg border border-border p-(--espacio-3)"
               >
                 <span className="min-w-0">
                   <span className="block font-medium tabular-nums">
@@ -483,8 +492,8 @@ export function Caja({
       {/* PC y TABLET · las notas a la izquierda, la que se cobra a la derecha.
           En tablet la columna de notas se estrecha, pero no se esconde: elegir
           a quién cobrar es la mitad del trabajo. */}
-      <div className="hidden gap-4 md:grid md:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
-        <aside className="space-y-4">
+      <div className="hidden gap-(--espacio-4) md:grid md:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
+        <aside className="space-y-(--espacio-4)">
           <section aria-label={`${voc.titulo('orden', true)} pendientes`}>
             <h2 className="mb-2 text-sm font-semibold uppercase">
               Notas pendientes ({pendientes.length})
@@ -569,10 +578,10 @@ export function Caja({
 
         <section
           aria-label={`${voc.titulo('orden')} seleccionad${voc.terminacion('orden')}`}
-          className="space-y-3"
+          className="space-y-(--espacio-3)"
         >
           {seleccionada === null ? (
-            <p className="rounded-lg border border-border p-6 text-center text-muted-foreground">
+            <p className="rounded-lg border border-border p-(--espacio-6) text-center text-muted-foreground">
               Elige {voc.enFraseCon('un', 'orden')} de la izquierda para cobrarla.
             </p>
           ) : (
@@ -596,9 +605,12 @@ export function Caja({
                 )}
               </header>
 
-              <ul className="space-y-1 rounded-lg border border-border p-3 text-sm">
+              <ul className="space-y-1 rounded-lg border border-border p-(--espacio-3) text-sm">
                 {suyas.map((linea) => (
-                  <li key={linea.id} className="flex items-baseline justify-between gap-3">
+                  <li
+                    key={linea.id}
+                    className="flex items-baseline justify-between gap-(--espacio-3)"
+                  >
                     <span className="min-w-0 truncate">{linea.producto_nombre ?? 'Material'}</span>
                     <span className="shrink-0 tabular-nums text-muted-foreground">
                       {linea.cantidad ?? 1} {linea.unidad ?? 'pz'}
@@ -614,12 +626,12 @@ export function Caja({
                   sin agarrarse de una clase de CSS. */}
               <section
                 aria-label={`Total de ${voc.enFrase('orden')}`}
-                className="rounded-lg border border-border bg-card p-4 text-center text-card-foreground"
+                className="rounded-lg border border-border bg-card p-(--espacio-4) text-center text-card-foreground"
               >
                 <span className="block text-sm font-medium uppercase text-muted-foreground">
                   Total
                 </span>
-                <span className="block text-4xl font-bold tabular-nums xl:text-5xl">
+                <span className="block font-numeros text-display font-bold tabular-nums">
                   {enPesos(total)}
                 </span>
               </section>

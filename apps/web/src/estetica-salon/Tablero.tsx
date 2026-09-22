@@ -53,12 +53,12 @@ const PRODUCTO_QUE_APRIETA_BP = 1000;
 /** Una propina que lleva más de una semana en el cajón ya es desorden. */
 const DIAS_DE_PROPINA_QUE_APRIETAN = 7;
 
-const TARJETA = 'rounded-xl border border-border bg-card p-4 text-card-foreground';
+const TARJETA = 'rounded-xl border border-border bg-card p-(--espacio-4) text-card-foreground';
 const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
 const CIFRA = 'text-3xl font-bold tabular-nums';
 const CIFRA_ENORME = 'font-numeros text-display font-bold tabular-nums';
 const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
-const RENGLON = 'flex items-baseline justify-between gap-3 py-1';
+const RENGLON = 'flex items-baseline justify-between gap-(--espacio-3) py-1';
 const AVISO = 'text-sm font-semibold text-destructive';
 const AL_PIE = 'text-sm text-muted-foreground';
 
@@ -210,9 +210,12 @@ export function Tablero({ datosIniciales }: TableroProps) {
 
   if (error !== null) {
     return (
-      <main className="space-y-3 p-4">
+      <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Cómo va el salón</h1>
-        <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-3">
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
+        >
           {error}
         </p>
       </main>
@@ -221,7 +224,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
 
   if (datos === null) {
     return (
-      <main className="space-y-3 p-4">
+      <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Cómo va el salón</h1>
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-32 w-full" />
@@ -232,7 +235,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
   const { manana, seVan, noLlegaron, porProfesional, venta, producto, leQuedo, propina } = datos;
 
   return (
-    <main className="space-y-3 p-4">
+    <main className="space-y-(--espacio-3) p-(--espacio-4)">
       <header className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">Cómo va el salón</h1>
@@ -253,7 +256,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
         <h2 id="t-manana" className={ROTULO}>
           Ocupación de mañana
         </h2>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-(--espacio-4) md:grid-cols-3">
           <div>
             <p className={CIFRA_ENORME}>{manana.hayHorario ? entero(manana.ocupacionBp) : '—'}</p>
             <p className={AL_PIE}>
@@ -285,7 +288,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
           </ul>
         </div>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="mt-(--espacio-4) grid gap-(--espacio-4) md:grid-cols-2">
           <div>
             <h3 className={ROTULO}>Huecos</h3>
             {manana.huecos.length === 0 ? (
@@ -327,7 +330,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       </section>
 
       {/* ── 2 y 3 · la cartera que se va, y la que no llegó ─────────────── */}
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-(--espacio-3) md:grid-cols-2">
         <section className={TARJETA} aria-labelledby="t-se-van">
           <h2 id="t-se-van" className={ROTULO}>
             Se están yendo
@@ -378,7 +381,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       </div>
 
       {/* ── 4 y 5 · la semana de cada quien, y el dinero de hoy ─────────── */}
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-(--espacio-3) md:grid-cols-2">
         <section className={TARJETA} aria-labelledby="t-semana">
           <h2 id="t-semana" className={ROTULO}>
             Ocupación de la semana
@@ -461,7 +464,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       </section>
 
       {/* ── 7 y 8 · lo que quedó, y lo que no es del salón ──────────────── */}
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-(--espacio-3) md:grid-cols-2">
         <section className={TARJETA} aria-labelledby="t-quedo">
           <h2 id="t-quedo" className={ROTULO}>
             Lo que le quedó al salón
@@ -483,7 +486,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
               <dt>− Gastos</dt>
               <dd className="tabular-nums">{pesos(leQuedo.gastosCentavos)}</dd>
             </div>
-            <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-border pt-2">
+            <div className="mt-1 flex items-baseline justify-between gap-(--espacio-3) border-t border-border pt-2">
               <dt className="font-semibold">Le quedó</dt>
               <dd className={CIFRA_CHICA}>
                 {pesos(leQuedo.quedoCentavos)} · {entero(leQuedo.quedoBp)}

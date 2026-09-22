@@ -214,7 +214,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
 
   if (profesionales === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -222,8 +222,8 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
   }
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[18rem_1fr]">
-      <section className="space-y-3">
+    <main className="mx-auto grid max-w-5xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[18rem_1fr]">
+      <section className="space-y-(--espacio-3)">
         <h1 className="text-2xl font-semibold">Liquidación</h1>
         <div>
           <Label htmlFor="desde">Desde</Label>
@@ -274,7 +274,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
         </ul>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-(--espacio-4)">
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -288,7 +288,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
         {elegida !== null && comisiones !== null && comprobante === null && (
           <>
             <h2 className="text-xl font-medium">{elegida.nombreCompleto}</h2>
-            <div className="flex gap-8">
+            <div className="flex gap-(--espacio-8)">
               <div>
                 <p className="text-muted-foreground text-sm">Causado</p>
                 <p className="text-xl tabular-nums">{pesos(comisiones.causadoCentavos)}</p>
@@ -330,7 +330,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
         )}
 
         {comprobante !== null && (
-          <div className="space-y-3 rounded-lg border p-4">
+          <div className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
             <h2 className="text-xl font-medium">{comprobante.nombreCompleto}</h2>
             <ul className="divide-y">
               {renglonesDe(comprobante, voc.singular('unidad_servicio')).map((renglon) => (

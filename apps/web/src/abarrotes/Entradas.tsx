@@ -295,7 +295,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
 
   if (proveedores === null || diaSemana === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-56" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -306,7 +306,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
   const avisos = lineas.map(avisoDeCosto).filter((a): a is AvisoDeCosto => a !== null);
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-6">
+    <main className="mx-auto max-w-5xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Entradas</h1>
         <p className="text-muted-foreground text-sm">Quién viene hoy y qué hay que pedirle.</p>
@@ -319,7 +319,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
       )}
       {guardada !== null && <p className="text-sm">{guardada}</p>}
 
-      <section className="grid gap-6 md:grid-cols-[18rem_1fr]">
+      <section className="grid gap-(--espacio-6) md:grid-cols-[18rem_1fr]">
         <div className="space-y-2">
           <h2 className="font-medium">Hoy toca</h2>
           {hoyToca.length === 0 && (
@@ -342,7 +342,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
             </Button>
           ))}
 
-          <Separator className="my-3" />
+          <Separator className="my-(--espacio-3)" />
 
           <h2 className="font-medium">Los demás</h2>
           {proveedores
@@ -362,7 +362,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
             ))}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-(--espacio-4)">
           {elegido === null && (
             <p className="text-muted-foreground">Elige un proveedor para ver qué pedirle.</p>
           )}
@@ -378,7 +378,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
               )}
               <ul className="divide-y">
                 {(sugerido ?? []).map((renglon) => (
-                  <li key={renglon.insumoId} className="flex items-center gap-3 py-2">
+                  <li key={renglon.insumoId} className="flex items-center gap-(--espacio-3) py-2">
                     <span className="flex-1">{renglon.nombre}</span>
                     <span className="text-muted-foreground text-sm tabular-nums">
                       hay {renglon.existencia} · 14d {renglon.ventaCatorceDias}
@@ -407,11 +407,14 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
                   Agrega del sugerido, o captura lo que traiga el repartidor.
                 </p>
               )}
-              <ul className="space-y-3">
+              <ul className="space-y-(--espacio-3)">
                 {lineas.map((linea, indice) => (
-                  <li key={`${linea.insumoId}-${String(indice)}`} className="rounded border p-3">
+                  <li
+                    key={`${linea.insumoId}-${String(indice)}`}
+                    className="rounded border p-(--espacio-3)"
+                  >
                     <p className="font-medium">{linea.nombre}</p>
-                    <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <div className="mt-2 grid grid-cols-2 gap-(--espacio-3) md:grid-cols-4">
                       <div>
                         <Label htmlFor={`unidad-${String(indice)}`}>Unidad</Label>
                         <Input

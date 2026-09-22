@@ -217,7 +217,7 @@ export function Caja({ estadoInicial }: CajaProps) {
 
   if (estado === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-56" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -225,7 +225,7 @@ export function Caja({ estadoInicial }: CajaProps) {
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-6">
+    <main className="mx-auto max-w-2xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Caja</h1>
         <p className="text-muted-foreground text-sm">
@@ -242,7 +242,7 @@ export function Caja({ estadoInicial }: CajaProps) {
       )}
 
       {!abierta && (
-        <section className="space-y-4 rounded-lg border p-4">
+        <section className="space-y-(--espacio-4) rounded-lg border p-(--espacio-4)">
           <div>
             <h2 className="font-medium">Fondo con el que abres</h2>
             <p className="text-muted-foreground text-sm">
@@ -250,7 +250,10 @@ export function Caja({ estadoInicial }: CajaProps) {
             </p>
           </div>
           {DENOMINACIONES.map((denominacion) => (
-            <div key={denominacion.clave} className="grid grid-cols-[1fr_auto] items-center gap-3">
+            <div
+              key={denominacion.clave}
+              className="grid grid-cols-[1fr_auto] items-center gap-(--espacio-3)"
+            >
               <Label htmlFor={`fondo-${denominacion.clave}`}>
                 {denominacion.etiqueta}
                 <span className="text-muted-foreground ml-2 text-xs">{denominacion.ayuda}</span>
@@ -278,7 +281,7 @@ export function Caja({ estadoInicial }: CajaProps) {
 
       {abierta && (
         <>
-          <section className="rounded-lg border p-4">
+          <section className="rounded-lg border p-(--espacio-4)">
             <h2 className="font-medium">Lo que debería haber</h2>
             <p className="text-3xl font-semibold tabular-nums">
               {pesos(estado.fondoEsperadoCentavos)}
@@ -291,14 +294,14 @@ export function Caja({ estadoInicial }: CajaProps) {
 
           <Separator />
 
-          <section className="space-y-3 rounded-lg border p-4">
+          <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
             <div>
               <h2 className="font-medium">Meter cambio</h2>
               <p className="text-muted-foreground text-sm">
                 No es {voc.enFraseCon('un', 'orden')}: es fondo. Sube lo que la caja debería tener.
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-(--espacio-3)">
               <div className="flex-1">
                 <Label htmlFor="cambio-monedas">Monedas</Label>
                 <Input
@@ -348,7 +351,7 @@ export function Caja({ estadoInicial }: CajaProps) {
             </Button>
           </section>
 
-          <section className="space-y-3 rounded-lg border p-4">
+          <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
             <div>
               <h2 className="font-medium">Retirar</h2>
               <p className="text-muted-foreground text-sm">

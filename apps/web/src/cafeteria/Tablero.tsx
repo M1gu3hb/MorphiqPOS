@@ -40,11 +40,11 @@ const BEBIDAS_POR_HORA_QUE_APRIETAN = 45;
 /** Del cobro a la entrega: bajar de 180 a 120 s deja atender 50 % más gente. */
 const SEGUNDOS_QUE_APRIETAN = 180;
 
-const TARJETA = 'rounded-xl border border-border bg-card p-4 text-card-foreground';
+const TARJETA = 'rounded-xl border border-border bg-card p-(--espacio-4) text-card-foreground';
 const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
 const CIFRA = 'text-3xl font-bold tabular-nums';
 const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
-const RENGLON = 'flex items-baseline justify-between gap-3 py-1';
+const RENGLON = 'flex items-baseline justify-between gap-(--espacio-3) py-1';
 
 interface BebidaDelDia {
   readonly producto: string;
@@ -167,9 +167,12 @@ export function Tablero({ datosIniciales }: TableroProps) {
 
   if (error !== null) {
     return (
-      <main className="space-y-3 p-4">
+      <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Buen día</h1>
-        <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-3">
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
+        >
           {error}
         </p>
       </main>
@@ -178,7 +181,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
 
   if (datos === null) {
     return (
-      <main className="space-y-3 p-4">
+      <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Buen día</h1>
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-32 w-full" />
@@ -191,7 +194,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
   const totalMezcla = mezcla.reduce((suma, m) => suma + Number(m.centavos), 0);
 
   return (
-    <main className="space-y-3 p-4">
+    <main className="space-y-(--espacio-3) p-(--espacio-4)">
       <header className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">Buen día</h1>
@@ -210,7 +213,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       {!datos.turnoAbierto && (
         <p
           role="status"
-          className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground"
+          className="rounded-md border border-border bg-muted/40 p-(--espacio-3) text-sm text-muted-foreground"
         >
           Sin turno abierto: lo del turno está en cero porque todavía no empieza, no porque haya ido
           mal. Ábrelo en Turno y el tablero se llena solo.
@@ -218,7 +221,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       )}
 
       {/* ── FILA 1 · los cuatro de las 10:30 ────────────────────────────── */}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-4">
         <section className={TARJETA} aria-labelledby="t-rafaga">
           <h2 id="t-rafaga" className={ROTULO}>
             Lo cobrado en la ráfaga
@@ -302,7 +305,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       </div>
 
       {/* ── FILA 2 · los cinco del dinero ───────────────────────────────── */}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-4">
         <section className={TARJETA} aria-labelledby="t-cajon">
           <h2 id="t-cajon" className={ROTULO}>
             Efectivo en el cajón
@@ -363,7 +366,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       </section>
 
       {/* ── BLOQUES DE ABAJO ────────────────────────────────────────────── */}
-      <div className="grid gap-3 xl:grid-cols-2">
+      <div className="grid gap-(--espacio-3) xl:grid-cols-2">
         <section className={TARJETA} aria-labelledby="t-mezcla">
           <h2 id="t-mezcla" className={ROTULO}>
             Mezcla del día

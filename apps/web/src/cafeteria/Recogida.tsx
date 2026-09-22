@@ -66,9 +66,10 @@ const MS_DESTACADO = 20_000;
 const MS_REFRESCO = 2000;
 
 const MARCO =
-  'pointer-events-none flex min-h-dvh select-none flex-col justify-between gap-8 ' +
-  'bg-background p-8 text-foreground';
-const ZONA = 'flex w-full flex-1 flex-col items-center justify-center gap-6 text-center';
+  'pointer-events-none flex min-h-dvh select-none flex-col justify-between gap-(--espacio-8) ' +
+  'bg-background p-(--espacio-8) text-foreground';
+const ZONA =
+  'flex w-full flex-1 flex-col items-center justify-center gap-(--espacio-6) text-center';
 const ROTULO =
   'text-[clamp(1.25rem,3vw,2.5rem)] font-semibold uppercase tracking-[0.4em] text-muted-foreground';
 const NOMBRE_ENORME = 'text-[clamp(6rem,17vw,17rem)] font-black uppercase leading-none break-words';
@@ -204,7 +205,7 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
         <div className={ZONA}>
           <Skeleton className="h-5 w-40 rounded-full" />
           <Skeleton className="h-40 w-full max-w-3xl rounded-3xl" />
-          <div className="flex flex-wrap justify-center gap-4">
+          <div className="flex flex-wrap justify-center gap-(--espacio-4)">
             <Skeleton className="h-20 w-48 rounded-2xl" />
             <Skeleton className="h-20 w-48 rounded-2xl" />
           </div>
@@ -221,9 +222,9 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
         <section className={ZONA} aria-live="polite">
           {/* La palabra arriba y el nombre debajo: el cartel se entiende sin
               haberlo visto nunca antes, que es el caso de casi todos. */}
-          <div className="rounded-[2.5rem] bg-success/15 px-10 py-12">
+          <div className="rounded-[2.5rem] bg-success/15 px-(--espacio-10) py-(--espacio-12)">
             <p className={ROTULO}>Listo</p>
-            <p className={`mt-4 ${NOMBRE_ENORME}`}>{nombreVisible(destacado)}</p>
+            <p className={`mt-(--espacio-4) ${NOMBRE_ENORME}`}>{nombreVisible(destacado)}</p>
           </div>
         </section>
       ) : tambien.length > 0 ? (
@@ -231,7 +232,7 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
         // pantalla entera y siguen leyéndose desde la puerta.
         <section className={ZONA} aria-live="polite">
           <p className={ROTULO}>Listos</p>
-          <ul className="grid gap-x-16 gap-y-8 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="grid gap-x-(--espacio-16) gap-y-(--espacio-8) sm:grid-cols-2 xl:grid-cols-3">
             {tambien.map((pedido) => (
               <li key={pedido.id} className={NOMBRE_GRANDE}>
                 {nombreVisible(pedido)}
@@ -253,14 +254,14 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
       )}
 
       {destacado !== null && tambien.length > 0 && (
-        <section className="flex flex-col items-center gap-4" aria-live="polite">
+        <section className="flex flex-col items-center gap-(--espacio-4)" aria-live="polite">
           <Separator className="max-w-3xl" />
           <p className="text-[clamp(0.875rem,1.5vw,1.25rem)] tracking-[0.3em] text-muted-foreground uppercase">
             También listos
           </p>
-          <ul className="flex flex-wrap items-baseline justify-center gap-x-6 gap-y-3">
+          <ul className="flex flex-wrap items-baseline justify-center gap-x-(--espacio-6) gap-y-(--espacio-3)">
             {tambien.map((pedido, indice) => (
-              <li key={pedido.id} className="flex items-baseline gap-x-6">
+              <li key={pedido.id} className="flex items-baseline gap-x-(--espacio-6)">
                 {indice > 0 && (
                   <span aria-hidden className="text-muted-foreground">
                     ·
@@ -273,7 +274,7 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
         </section>
       )}
 
-      <footer className="flex items-end justify-between gap-4">
+      <footer className="flex items-end justify-between gap-(--espacio-4)">
         {sinConexion ? (
           // Un punto y su palabra. Ni «error», ni un código, ni un reintento.
           <p role="alert" className="flex items-center gap-2 text-sm text-muted-foreground">

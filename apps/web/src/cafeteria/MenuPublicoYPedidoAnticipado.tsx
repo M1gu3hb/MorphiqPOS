@@ -238,7 +238,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
 
   if (productos === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -247,12 +247,12 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
 
   if (pedidoEnTexto !== null) {
     return (
-      <main className="mx-auto max-w-lg space-y-4 p-6">
+      <main className="mx-auto max-w-lg space-y-(--espacio-4) p-(--espacio-6)">
         <h1 className="text-2xl font-semibold">{voc.titulo('orden')} listo para pedirlo</h1>
         <p className="text-muted-foreground text-sm">
           Se copió solo. Enséñalo o léelo en {voc.enFrase('preparacion')}: se paga al recogerlo.
         </p>
-        <pre className="whitespace-pre-wrap rounded border border-border bg-card p-3 text-sm">
+        <pre className="whitespace-pre-wrap rounded border border-border bg-card p-(--espacio-3) text-sm">
           {pedidoEnTexto}
         </pre>
         <Button
@@ -272,7 +272,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
   const tramos = tramosDesde(reloj);
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-4">
+    <main className="mx-auto max-w-2xl space-y-(--espacio-6) p-(--espacio-4)">
       <header>
         <h1 className="text-2xl font-semibold">Pide antes de llegar</h1>
         <p className="text-muted-foreground text-sm">
@@ -300,7 +300,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
                         el menú cambió y pregunte en la barra. */}
                     {!producto.visible_en_pos && <span className="ml-2 text-sm">hoy no hay</span>}
                   </span>
-                  <span className="flex items-center gap-3">
+                  <span className="flex items-center gap-(--espacio-3)">
                     <span className="tabular-nums">
                       {pesos(Math.round((producto.precio_venta ?? 0) * 100))}
                     </span>
@@ -323,7 +323,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
 
       <Separator />
 
-      <section className="space-y-3">
+      <section className="space-y-(--espacio-3)">
         <h2 className="font-medium">Tu {voc.singular('unidad_servicio')}</h2>
         {carrito.length === 0 && (
           <p className="text-muted-foreground text-sm">Todavía no has puesto nada.</p>
@@ -334,7 +334,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
               <span>
                 {linea.cantidad} × {linea.nombre}
               </span>
-              <span className="flex items-center gap-3">
+              <span className="flex items-center gap-(--espacio-3)">
                 <span className="tabular-nums">{pesos(linea.precioCentavos * linea.cantidad)}</span>
                 <Button
                   size="sm"
@@ -354,7 +354,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
         )}
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-(--espacio-3)">
         <h2 className="font-medium">¿Para qué hora?</h2>
         <div className="flex flex-wrap gap-2">
           {tramos.map((opcion) => (

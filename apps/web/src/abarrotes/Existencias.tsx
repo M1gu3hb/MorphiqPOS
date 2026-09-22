@@ -71,10 +71,10 @@ const SIN_PROVEEDOR = 'Sin proveedor';
 const FORMATO_DIA = new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short' });
 
 const CLASE_CONTADOR =
-  'flex flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring';
+  'flex flex-col items-start gap-1 rounded-lg border-2 p-(--espacio-4) text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring';
 const CLASE_INACTIVO = 'border-border bg-card hover:bg-accent hover:text-accent-foreground';
 const CLASE_TARJETA =
-  'flex items-center justify-between gap-2 rounded-md border border-border bg-card p-3';
+  'flex items-center justify-between gap-2 rounded-md border border-border bg-card p-(--espacio-3)';
 
 export interface FilaExistencia {
   readonly id: string;
@@ -295,9 +295,9 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
     // Esqueletos con la forma final —tres contadores y sus filas— para que la
     // pantalla no salte al llegar el dato y el ojo ya sepa dónde mirar.
     return (
-      <div className="p-4">
-        <h1 className="mb-4 text-2xl font-bold">Existencias</h1>
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+      <div className="p-(--espacio-4)">
+        <h1 className="mb-(--espacio-4) text-2xl font-bold">Existencias</h1>
+        <div className="mb-(--espacio-4) grid gap-(--espacio-3) sm:grid-cols-3">
           {CONTADORES.map(([clave]) => (
             <Skeleton key={clave} className="h-24 w-full rounded-lg" />
           ))}
@@ -312,8 +312,8 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
   }
 
   return (
-    <div className="p-4">
-      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+    <div className="p-(--espacio-4)">
+      <header className="mb-(--espacio-4) flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold">Existencias</h1>
         <p className="text-sm text-muted-foreground">
           Qué hay, qué falta y qué se va a echar a perder · {String(datos.length)} productos
@@ -323,7 +323,10 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
       {/* La banda de error NUNCA vacía la pantalla: un dato de hace un minuto
           sirve para ir al mayorista; una pantalla en blanco, no. */}
       {error !== null && (
-        <p role="alert" className="mb-3 rounded-md border border-destructive p-2 text-sm">
+        <p
+          role="alert"
+          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
+        >
           {error}
           {datos.length > 0 ? ' · Se muestra el último dato conocido.' : ' · Vuelve a intentarlo.'}
         </p>
@@ -344,7 +347,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
         </Superficie>
       ) : (
         <>
-          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <div className="mb-(--espacio-4) grid gap-(--espacio-3) sm:grid-cols-3">
             {CONTADORES.map(([clave, titulo, pie]) => {
               const activo = lente === clave;
               return (
@@ -370,7 +373,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
             })}
           </div>
 
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-(--espacio-3) flex flex-wrap items-center gap-2">
             <Input
               ref={campoBusqueda}
               type="search"
@@ -427,7 +430,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
               </TableBody>
             </Table>
             {visibles.length === 0 && (
-              <p className="p-6 text-center text-sm text-muted-foreground">
+              <p className="p-(--espacio-6) text-center text-sm text-muted-foreground">
                 Nada cae en este filtro. Buena señal.
               </p>
             )}
@@ -436,12 +439,12 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
           {/* TELÉFONO. Otra pantalla, no la misma encogida. */}
           <div className="md:hidden">
             {porProveedor.length === 0 ? (
-              <p className="p-6 text-center text-sm text-muted-foreground">
+              <p className="p-(--espacio-6) text-center text-sm text-muted-foreground">
                 Nada urgente ahora mismo. El anaquel está en orden.
               </p>
             ) : (
               porProveedor.map(([nombre, suyas]) => (
-                <section key={nombre} className="mb-4">
+                <section key={nombre} className="mb-(--espacio-4)">
                   <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide">
                     {nombre} · {String(suyas.length)}
                   </h2>

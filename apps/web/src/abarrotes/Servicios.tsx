@@ -408,11 +408,11 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
 
   if (saldos === null || operaciones === null) {
     return (
-      <div className="space-y-3 p-4">
+      <div className="space-y-(--espacio-3) p-(--espacio-4)">
         <Skeleton className="h-5 w-40" />
         {/* Esqueletos con la forma de los dos carriles: el botón de cobrar no
             salta de sitio cuando llegan los datos. */}
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-(--espacio-4) xl:grid-cols-2">
           <Skeleton className="h-80 w-full rounded-lg" />
           <Skeleton className="hidden h-80 w-full rounded-lg md:block" />
         </div>
@@ -445,7 +445,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
   }
 
   return (
-    <div className="flex min-h-dvh flex-col gap-3 p-4">
+    <div className="flex min-h-dvh flex-col gap-(--espacio-3) p-(--espacio-4)">
       <header className="flex flex-wrap items-end justify-between gap-2">
         <h1 className="text-xl font-bold">Servicios</h1>
         {/* TELÉFONO · una operación a la vez, elegida de una lista. */}
@@ -479,10 +479,10 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
       )}
 
       {/* PC dos columnas · TABLET dos filas apiladas · TELÉFONO sólo la elegida. */}
-      <div className="grid flex-1 gap-4 xl:grid-cols-2">
+      <div className="grid flex-1 gap-(--espacio-4) xl:grid-cols-2">
         <section
           aria-labelledby="titulo-recarga"
-          className={`${carrilMovil === 'recarga' ? '' : 'hidden'} space-y-3 rounded-lg border border-border bg-card p-4 md:block`}
+          className={`${carrilMovil === 'recarga' ? '' : 'hidden'} space-y-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-4) md:block`}
         >
           <h2 id="titulo-recarga" className="text-sm font-bold uppercase tracking-wide">
             Recarga
@@ -584,7 +584,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
 
         <section
           aria-labelledby="titulo-servicio"
-          className={`${carrilMovil === 'servicio' ? '' : 'hidden'} space-y-3 rounded-lg border border-border bg-card p-4 md:block`}
+          className={`${carrilMovil === 'servicio' ? '' : 'hidden'} space-y-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-4) md:block`}
         >
           <h2 id="titulo-servicio" className="text-sm font-bold uppercase tracking-wide">
             Pago de servicio
@@ -686,7 +686,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
 
       {/* Pegada abajo: el aviso de saldo no puede depender de que alguien se
           acuerde de mirar, y en teléfono es lo que el dueño vino a ver. */}
-      <footer className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-card px-4 py-2 text-sm">
+      <footer className="sticky bottom-0 -mx-(--espacio-4) -mb-(--espacio-4) flex flex-wrap items-center gap-x-(--espacio-4) gap-y-1 border-t border-border bg-card px-(--espacio-4) py-2 text-sm">
         <span>
           Saldo de recargas: <strong>{enPesos(saldoTotal)}</strong>
         </span>

@@ -247,7 +247,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
   if (productos === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -255,9 +255,9 @@ export function Productos({ productosIniciales }: ProductosProps) {
   }
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[1fr_22rem]">
+    <main className="mx-auto grid max-w-5xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[1fr_22rem]">
       <section>
-        <h1 className="mb-3 text-2xl font-semibold">{voc.titulo('producto', true)}</h1>
+        <h1 className="mb-(--espacio-3) text-2xl font-semibold">{voc.titulo('producto', true)}</h1>
         {error !== null && (
           <p role="alert" className="text-destructive mb-2 text-sm">
             {error}
@@ -265,7 +265,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
         )}
         <ul className="divide-y">
           {productos.map((producto) => (
-            <li key={producto.id} className="flex items-center gap-3 py-2">
+            <li key={producto.id} className="flex items-center gap-(--espacio-3) py-2">
               <button
                 type="button"
                 className="flex-1 text-left"
@@ -295,14 +295,14 @@ export function Productos({ productosIniciales }: ProductosProps) {
         </ul>
       </section>
 
-      <aside className="space-y-4">
+      <aside className="space-y-(--espacio-4)">
         {elegido === null && (
           <p className="text-muted-foreground">
             Elige {voc.enFraseCon('un', 'producto')} para ver su margen.
           </p>
         )}
         {elegido !== null && (
-          <div className="space-y-4 rounded-lg border p-4">
+          <div className="space-y-(--espacio-4) rounded-lg border p-(--espacio-4)">
             <h2 className="font-medium">{elegido.nombre}</h2>
 
             <div className="flex gap-2">

@@ -252,7 +252,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-6">
+    <main className="mx-auto max-w-2xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">{voc.titulo('cliente', true)} y sellos</h1>
         <p className="text-muted-foreground text-sm">
@@ -267,7 +267,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
       )}
       {aviso !== null && <p className="text-sm">{aviso}</p>}
 
-      <section className="flex items-end gap-3">
+      <section className="flex items-end gap-(--espacio-3)">
         <div className="flex-1">
           <Label htmlFor="telefono">Teléfono</Label>
           <Input
@@ -291,7 +291,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
       </section>
 
       {cliente !== null && (
-        <section className="space-y-4 rounded-lg border p-4">
+        <section className="space-y-(--espacio-4) rounded-lg border p-(--espacio-4)">
           <div>
             <h2 className="text-xl font-medium">{cliente.nombre}</h2>
             <p className="text-muted-foreground text-sm">{cliente.telefono ?? 'sin teléfono'}</p>
@@ -321,7 +321,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
           )}
 
           {confirmandoCanje && (
-            <div className="space-y-2 rounded border p-3">
+            <div className="space-y-2 rounded border p-(--espacio-3)">
               <p className="text-sm">
                 Al canjear, la tarjeta vuelve a cero. Canjear por error cuesta un café entero y una
                 discusión.
@@ -336,7 +336,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
                 <Label htmlFor="premio">Qué se lleva</Label>
                 <select
                   id="premio"
-                  className="h-[var(--altura-control)] w-full rounded-md border border-input bg-background px-3 text-base"
+                  className="h-[var(--altura-control)] w-full rounded-md border border-input bg-background px-(--espacio-3) text-base"
                   value={premio}
                   onChange={(evento) => {
                     setPremio(evento.target.value);
@@ -375,7 +375,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
 
           <div className="space-y-2">
             <h3 className="font-medium">Ajustar a mano</h3>
-            <div className="flex gap-3">
+            <div className="flex gap-(--espacio-3)">
               <div className="w-28">
                 <Label htmlFor="ajuste">Sellos</Label>
                 <Input

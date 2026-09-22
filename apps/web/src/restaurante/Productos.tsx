@@ -70,15 +70,17 @@ const MARGEN_JUSTO = 40;
 const HTTP_DEMASIADOS_INTENTOS = 429;
 
 // Las clases largas viven arriba para que cada elemento quepa en una línea.
-const BANDA = 'mb-3 rounded-md border border-destructive bg-destructive/15 p-3 text-sm';
-const REJILLA = 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
+const BANDA =
+  'mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-(--espacio-3) text-sm';
+const REJILLA = 'grid grid-cols-1 gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
 const TARJETA =
-  'flex h-full gap-3 rounded-lg border border-border bg-card p-3 text-card-foreground shadow-1 md:flex-col';
+  'flex h-full gap-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1 md:flex-col';
 const FOTO =
   'h-20 w-20 shrink-0 rounded-md border border-border bg-muted bg-cover bg-center md:h-32 md:w-full';
 const DATOS = 'flex min-w-0 flex-1 flex-col gap-1';
 const CHIP = 'w-fit rounded-full px-2 py-0.5 text-xs';
-const VACIO = 'flex flex-col items-center gap-4 rounded-lg border border-border p-8 text-center';
+const VACIO =
+  'flex flex-col items-center gap-(--espacio-4) rounded-lg border border-border p-(--espacio-8) text-center';
 
 interface Semaforo {
   readonly texto: string;
@@ -249,8 +251,8 @@ export function Productos({ filasIniciales }: ProductosProps) {
     // Esqueletos con la forma de las tarjetas, no un spinner: la pantalla no
     // salta al cargar y el ojo ya sabe dónde va a mirar.
     return (
-      <div className="p-4">
-        <h1 className="mb-4 text-2xl font-bold">{voc.titulo('producto', true)}</h1>
+      <div className="p-(--espacio-4)">
+        <h1 className="mb-(--espacio-4) text-2xl font-bold">{voc.titulo('producto', true)}</h1>
         <div className={REJILLA}>
           {Array.from({ length: 8 }, (_, i) => (
             <Skeleton key={i} className="h-40 w-full rounded-lg" />
@@ -261,8 +263,8 @@ export function Productos({ filasIniciales }: ProductosProps) {
   }
 
   return (
-    <div className="p-4">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="p-(--espacio-4)">
+      <header className="mb-(--espacio-4) flex flex-wrap items-center justify-between gap-(--espacio-3)">
         <div>
           <h1 className="text-2xl font-bold">{voc.titulo('producto', true)}</h1>
           {/* La leyenda enseña el semáforo una vez, para que el chip de cada
@@ -275,7 +277,7 @@ export function Productos({ filasIniciales }: ProductosProps) {
         {nuevo}
       </header>
 
-      <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center">
+      <div className="mb-(--espacio-4) flex flex-col gap-2 md:flex-row md:items-center">
         <Input
           type="search"
           value={busqueda}
@@ -387,7 +389,7 @@ export function Productos({ filasIniciales }: ProductosProps) {
       )}
 
       {filas.length > 0 && visibles.length === 0 && (
-        <p className="mt-4 text-center text-muted-foreground">
+        <p className="mt-(--espacio-4) text-center text-muted-foreground">
           {voc.conDeterminante('ningun', 'producto')} coincide con la búsqueda ni con el área
           elegida.
         </p>

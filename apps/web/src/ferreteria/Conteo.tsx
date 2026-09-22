@@ -200,7 +200,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
   // abierta esta pantalla se quedaba en su esqueleto, en blanco, para siempre.
   if (tomaId === '' && clavesIniciales === undefined) {
     return (
-      <main className="mx-auto max-w-prose space-y-3 p-8 text-center">
+      <main className="mx-auto max-w-prose space-y-(--espacio-3) p-(--espacio-8) text-center">
         <h1 className="text-xl font-semibold">Aquí se cuenta una zona del almacén</h1>
         <p className="text-muted-foreground text-sm">
           El conteo cíclico cuenta un anaquel al día en vez de cerrar la cortina un domingo entero.
@@ -215,7 +215,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
 
   if (claves === null) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-(--espacio-4) p-(--espacio-6)">
         <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -225,8 +225,8 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
   const calibrada = elegida !== null && elegida.peso_por_pieza_mg !== null;
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[20rem_1fr]">
-      <section className="space-y-3">
+    <main className="mx-auto grid max-w-5xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[20rem_1fr]">
+      <section className="space-y-(--espacio-3)">
         <h1 className="text-2xl font-semibold">Conteo</h1>
         <ul className="divide-y">
           {claves.map((clave) => (
@@ -251,7 +251,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
         </ul>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-(--espacio-4)">
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -268,13 +268,13 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
             <h2 className="text-xl font-medium">{elegida.nombre}</h2>
 
             {!calibrada && (
-              <div className="space-y-3 rounded-lg border p-4">
+              <div className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
                 <h3 className="font-medium">Primero se calibra</h3>
                 <p className="text-muted-foreground text-sm">
                   Se pesa una muestra y se cuentan sus piezas de verdad. Sin esto, dividir es
                   inventarse el número.
                 </p>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-(--espacio-3) md:grid-cols-2">
                   <div>
                     <Label htmlFor="m-peso">Peso de la muestra (g)</Label>
                     <Input
@@ -311,9 +311,9 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
             )}
 
             {calibrada && (
-              <div className="space-y-3 rounded-lg border p-4">
+              <div className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
                 <h3 className="font-medium">Pesar</h3>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-(--espacio-3) md:grid-cols-2">
                   <div>
                     <Label htmlFor="p-total">Lo que marca la báscula (g)</Label>
                     <Input
@@ -353,7 +353,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
             )}
 
             {estimacion !== null && (
-              <div className="space-y-2 rounded-lg border p-4">
+              <div className="space-y-2 rounded-lg border p-(--espacio-4)">
                 <p className="text-2xl font-semibold">{leerEstimacion(estimacion)}</p>
                 <p className="text-muted-foreground text-sm">
                   Entre {estimacion.minimo} y {estimacion.maximo}. Es una estimación por peso, no un
