@@ -5271,3 +5271,35 @@ D-14 en `05-DECISIONES.md`: las pantallas heredadas se quedan con la estructura 
 llevan los tokens del sistema por los alias, son las que cobran hoy y cada modelo trae las suyas
 para lo que más se usa—, y la base no se mueve. Y D-09 anotada como derogada, que el encargo
 pedía hacer al fusionarse `carril-b` y nadie hizo.
+
+### El rastreador en los estilos cazó su primer defecto: la opacidad de `Dinero`
+
+La primera corrida de CI con la dimensión de estilos (corrida `35794439800`, reducida):
+
+```
+tienda · bloque       /abarrotes/cobrar  · «$»   4.25:1, mínimo 4.5:1
+cafeteria · terminal  /cafeteria/cobrar  · «$»   3.04:1, mínimo 4.5:1
+                                         · «.00» 3.69:1, mínimo 4.5:1
+estetica · cristal    rastreo ✓ · la suite del salón ✓ (con fecha fija, primera vez en CI)
+```
+
+El símbolo y los centavos de `Dinero` iban al 70 % y al 80 % de opacidad, y la opacidad se
+MULTIPLICA con el color que el importe hereda: dentro de «IVA incluido» (ya en
+`text-texto-sutil`) o dentro del botón de COBRAR, en `bloque` y en `terminal` baja de AA. El
+componente no puede saber qué color le va a tocar. Ahora la jerarquía del símbolo y los
+centavos es SÓLO de tamaño. Ninguna puerta lo había visto: `verify:estilos` calcula los pares
+del contrato, no la opacidad que una pieza pone encima, y `/sistema` no tiene un importe dentro
+de un texto secundario.
+
+Y la medida del contraste tiene su propia prueba, `pruebas/e2e/contraste.spec.ts`, sobre una
+página inventada: acusa un gris claro sobre blanco y un texto oscuro al 30 %, y no acusa texto
+oscuro sobre un fondo `color-mix` —que es como Tailwind 4 escribe `bg-x/15`—. Corre en CI con
+`estilos.spec`.
+
+### El bloque 2, en dos flujos
+
+El primer flujo iba a 6 agentes a la vez —el tope por flujo en esta máquina— y a ese paso eran
+catorce horas. Se paró con 6 pantallas hechas (las de abarrotes) y 6 a medias, y lo que falta
+corre en DOS flujos (A: abarrotes, cafetería y ferretería; B: estética, restaurante,
+configuración y `/sistema`), doce agentes. Las seis a medias se retoman desde donde quedaron. El
+comprobador pasa a DOS turnos para tipos y lint, cada uno con su archivo incremental.

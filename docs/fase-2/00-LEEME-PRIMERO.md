@@ -34,6 +34,9 @@ FASE 2   LOS ~78 MODELOS DE NEGOCIO DEL MAPA                   ⬅ ESTO
          · 2.3  ACOPLE de esos cinco al punto de venta vivo    ✅ 17-09-2026
                 migraciones aplicadas, plantillas, menú,
                 datos de demostración y producción
+         · 2.35 El lenguaje visual: el sistema enchufado, ocho  🔄 en curso
+                estilos, la biblioteca y las pantallas
+                recompuestas (`verify:adopcion` es su marcador)
          · 2.4  La siguiente tanda de diez: farmacia, taller
                 mecánico, panadería-pastelería, barbería…      ⬜ pendiente
          · …    y así, de diez en diez, hasta los 78           ⬜ pendiente

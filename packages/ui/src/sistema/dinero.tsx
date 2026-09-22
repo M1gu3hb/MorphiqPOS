@@ -14,7 +14,7 @@ import { cn } from '../utilidades/cn';
  *       `8` y una columna de precios deja de estar alineada aunque lo esté. Una
  *       columna que baila es una columna que no se puede comparar de un vistazo.
  *   2 · **El símbolo pesa lo mismo que la cantidad.** El `$` no es información: es
- *       gramática. Va más pequeño y más tenue para que el número mande.
+ *       gramática. Va más pequeño para que el número mande.
  *   3 · **Los centavos compiten con los pesos.** En «$1,234.50» lo que se decide
  *       está en los pesos. Los centavos van un punto más pequeños: se leen si hacen
  *       falta y no roban el primer golpe de vista.
@@ -46,10 +46,19 @@ const TAMANOS: Readonly<Record<TamanoDeDinero, string>> = {
   total: 'text-display font-bold tracking-tight',
 };
 
-/** El símbolo y los centavos, un escalón por debajo del cuerpo del número. */
+/**
+ * El símbolo y los centavos, un escalón por debajo del cuerpo del número.
+ *
+ * SÓLO por tamaño. Iban además al 70 % y al 80 % de opacidad, y el rastreador en los
+ * ocho estilos lo midió: dentro de un texto que ya es secundario —«IVA incluido» en
+ * `text-texto-sutil`— el símbolo en el estilo `bloque` quedaba en 4.25:1, por debajo de
+ * AA. La opacidad se MULTIPLICA con el color que el importe hereda, y el componente no
+ * sabe qué color le va a tocar; el tamaño no depende de eso.
+ */
 const SECUNDARIO: Readonly<Record<TamanoDeDinero, string>> = {
   // A este tamano no se puede bajar otro escalon sin dejar de leerse, asi que el
-  // simbolo y los centavos van igual que el cuerpo y lo que los separa es la opacidad.
+  // simbolo y los centavos van igual que el cuerpo: a 12 px manda leerse, no la
+  // jerarquia.
   xs: 'text-xs',
   sm: 'text-xs',
   base: 'text-sm',
@@ -129,7 +138,7 @@ export function Dinero({
        * En línea no hace falta flex para nada de lo que este componente quiere: el
        * contenido en línea se alinea a la línea base por sí solo —era lo único que
        * `items-baseline` estaba pidiendo— y el `$` y los centavos siguen un escalón
-       * por debajo por tamaño y opacidad, que es donde vive la jerarquía.
+       * por debajo por tamaño, que es donde vive la jerarquía.
        */
       className={cn(
         'font-numeros tabular-nums whitespace-nowrap',
@@ -146,12 +155,12 @@ export function Dinero({
     >
       {negativo ? <span aria-hidden="true">(</span> : null}
       {sinSimbolo ? null : (
-        <span aria-hidden="true" className={cn('opacity-70', SECUNDARIO[tamano])}>
+        <span aria-hidden="true" className={SECUNDARIO[tamano]}>
           $
         </span>
       )}
       <span aria-hidden="true">{partes.pesos}</span>
-      <span aria-hidden="true" className={cn('opacity-80', SECUNDARIO[tamano])}>
+      <span aria-hidden="true" className={SECUNDARIO[tamano]}>
         .{partes.centavos}
       </span>
       {negativo ? <span aria-hidden="true">)</span> : null}

@@ -458,7 +458,7 @@ jobs:
       # el paso siguiente por la caché de turbo, así que no se paga dos veces.
       - name: Los ocho estilos, en el navegador
         if: matrix.modelo == 'tienda' && (matrix.estilo == 'reducido' || matrix.estilo == 'morphiq')
-        run: pnpm test:e2e pruebas/e2e/estilos.spec.ts --project=escritorio
+        run: pnpm test:e2e pruebas/e2e/estilos.spec.ts pruebas/e2e/contraste.spec.ts --project=escritorio
 
       # Playwright construye y levanta el servidor él mismo (`webServer` de
       # `playwright.config.ts`), heredando el entorno de este trabajo.

@@ -8,7 +8,7 @@
  * varias pantallas recomponiéndose a la vez, el estado a medias de otra no debe poner
  * en rojo ésta. Los tipos y el lint cargan el programa entero de TypeScript —un
  * gigabyte y medio cada vez—, así que van por TURNO: un candado en disco hace que dos
- * comprobaciones no los corran a la vez y se coman la memoria de la máquina.
+ * comprobaciones de más no los corran a la vez y se coman la memoria de la máquina.
  *
  * Sale en 1 si cualquiera de las seis encuentra algo en el archivo.
  *
@@ -105,21 +105,33 @@ const inicio = Date.now();
 // La carpeta del candado tiene que existir: sin ella `mkdirSync` falla SIEMPRE, y
 // un fallo siempre se lee como «ocupado» y se espera para siempre.
 mkdirSync(dirname(CANDADO), { recursive: true });
+/**
+ * DOS TURNOS, no uno. Con doce pantallas recomponiéndose a la vez, un solo turno hacía
+ * cola; dos caben en la memoria de esta máquina (cada `tsc` son ~1.5 GB). Cada turno
+ * lleva su propio archivo incremental: dos `tsc` escribiendo el mismo se lo rompen.
+ */
+const TURNOS = 2;
+let turno = -1;
 for (;;) {
-  try {
-    mkdirSync(CANDADO, { recursive: false });
-    break;
-  } catch {
-    // Un candado de más de diez minutos es de una comprobación que murió: se retira.
-    if (existsSync(CANDADO) && Date.now() - statSync(CANDADO).mtimeMs > 600_000)
-      rmSync(CANDADO, { recursive: true, force: true });
-    if (Date.now() - inicio > 1_800_000) {
-      console.error('✗ Media hora esperando turno para los tipos: hay un candado atascado.');
-      process.exit(1);
+  for (let i = 0; i < TURNOS && turno === -1; i += 1) {
+    const candado = `${CANDADO}-${String(i)}`;
+    try {
+      mkdirSync(candado, { recursive: false });
+      turno = i;
+    } catch {
+      // Un candado de más de diez minutos es de una comprobación que murió: se retira.
+      if (existsSync(candado) && Date.now() - statSync(candado).mtimeMs > 600_000)
+        rmSync(candado, { recursive: true, force: true });
     }
-    execFileSync(process.execPath, ['-e', 'setTimeout(()=>{},3000)']);
   }
+  if (turno !== -1) break;
+  if (Date.now() - inicio > 1_800_000) {
+    console.error('✗ Media hora esperando turno para los tipos: hay un candado atascado.');
+    process.exit(1);
+  }
+  execFileSync(process.execPath, ['-e', 'setTimeout(()=>{},3000)']);
 }
+const MI_CANDADO = `${CANDADO}-${String(turno)}`;
 try {
   const tipos = correr(HERRAMIENTAS.tsc, [
     '--noEmit',
@@ -127,7 +139,7 @@ try {
     'apps/web/tsconfig.json',
     '--incremental',
     '--tsBuildInfoFile',
-    'node_modules/.cache/tsc-pantallas.tsbuildinfo',
+    `node_modules/.cache/tsc-pantallas-${String(turno)}.tsbuildinfo`,
   ]);
   const propios = delArchivo(tipos.salida);
   if (propios.length > 0) fallos.push(['tipos', propios]);
@@ -141,7 +153,7 @@ try {
     fallos.push(['lint', lint.salida.split('\n').filter((l) => l.trim() !== '')]);
   }
 } finally {
-  rmSync(CANDADO, { recursive: true, force: true });
+  rmSync(MI_CANDADO, { recursive: true, force: true });
 }
 
 if (fallos.length === 0) {
