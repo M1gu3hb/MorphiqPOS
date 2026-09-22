@@ -3,6 +3,7 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primitivas/tabs';
+import { Check, Clock, Flame, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -17,8 +18,8 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ── Tres columnas y no una lista con estados ─────────────────────────────
  * A dos metros la POSICIÓN de una tarjeta dice su estado más rápido que
  * cualquier etiqueta, y moverla de columna es un toque que cambia lo que ve
- * todo el mundo. El color nunca va solo: cada columna trae palabra, conteo y
- * emoji. Y el rojo no es de aquí: queda para lo que está MAL —la alergia—,
+ * todo el mundo. El color nunca va solo: cada columna trae palabra, conteo e
+ * icono. Y el rojo no es de aquí: queda para lo que está MAL —la alergia—,
  * porque si significara «apúrate», el día que signifique «alguien se puede
  * morir» ya nadie lo miraría.
  *
@@ -42,8 +43,14 @@ import { useVocabulario } from '~/cliente/vocabulario';
 const COLUMNAS = [
   {
     estado: 'nuevo',
-    titulo: '🕐 Nuevos',
-    corto: '🕐 Nuevos',
+    // El icono NO es decoración en una pantalla de cocina: se lee a dos metros,
+    // con vapor y con las manos ocupadas, y la forma se reconoce antes que la
+    // palabra. Antes eran emoji —🕐 🔥 ✅— y un emoji lo dibuja el sistema: el
+    // mismo carácter salía de un color en el Windows del negocio, de otro en el
+    // Android del repartidor, y no heredaba el color de su banda.
+    Icono: Clock,
+    titulo: 'Nuevos',
+    corto: 'Nuevos',
     accion: 'Iniciar',
     destino: 'en_preparacion',
     banda: 'bg-primary text-primary-foreground',
@@ -51,8 +58,9 @@ const COLUMNAS = [
   },
   {
     estado: 'en_preparacion',
-    titulo: '🔥 En preparación',
-    corto: '🔥 En prep.',
+    Icono: Flame,
+    titulo: 'En preparación',
+    corto: 'En prep.',
     accion: 'Marcar listo',
     destino: 'listo',
     banda: 'bg-warning text-warning-foreground',
@@ -60,8 +68,9 @@ const COLUMNAS = [
   },
   {
     estado: 'listo',
-    titulo: '✅ Listos',
-    corto: '✅ Listos',
+    Icono: Check,
+    titulo: 'Listos',
+    corto: 'Listos',
     accion: 'Quitar de la lista',
     destino: 'entregado',
     banda: 'bg-success text-success-foreground',
@@ -225,9 +234,15 @@ export function Cocina({ filasIniciales }: CocinaProps) {
       )}
       {comandas.length === 0 ? (
         // El único vacío de la aplicación que es una BUENA noticia, y se ve así:
-        // el tipo más grande de la pantalla, y sin una sola disculpa.
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg bg-success/15 p-8 text-center">
-          <p className="text-4xl font-bold sm:text-5xl">Sin comandas pendientes.</p>
+        // el tipo más grande de la pantalla, y sin una sola disculpa. Va en el paso
+        // `display` por la misma razón que un total: se lee desde la plancha, a dos
+        // metros, sin acercarse.
+        <div className="flex flex-1 flex-col items-center justify-center gap-(--espacio-3) rounded-lg bg-success/15 p-(--espacio-8) text-center">
+          <Check
+            aria-hidden="true"
+            className="size-[calc(var(--altura-control)*1.4)] shrink-0 text-success"
+          />
+          <p className="text-display font-bold">Sin comandas pendientes.</p>
           <p className="text-muted-foreground">Lo que se envíe desde el salón aparece aquí solo.</p>
         </div>
       ) : esTelefono ? (
@@ -235,6 +250,7 @@ export function Cocina({ filasIniciales }: CocinaProps) {
           <TabsList className="w-full">
             {grupos.map(({ col, filas }) => (
               <TabsTrigger key={col.estado} value={col.estado}>
+                <col.Icono aria-hidden="true" className="mr-1 inline size-4 shrink-0" />
                 {col.corto} ({filas.length})
               </TabsTrigger>
             ))}
@@ -263,7 +279,10 @@ function Columna({ col, filas, ahora, onAvanzar }: ColumnaProps) {
   return (
     <section aria-labelledby={`col-${col.estado}`} className={`${SECCION} ${col.tinte}`}>
       <h2 id={`col-${col.estado}`} className={`${BANDA} ${col.banda}`}>
-        <span>{col.titulo}</span>
+        <span className="inline-flex items-center gap-(--espacio-2)">
+          <col.Icono aria-hidden="true" className="size-4 shrink-0" />
+          {col.titulo}
+        </span>
         <span>({filas.length})</span>
       </h2>
       {filas.map((comanda) => {
@@ -290,7 +309,10 @@ function Columna({ col, filas, ahora, onAvanzar }: ColumnaProps) {
             {/* No se colapsa ni espera a que nadie la pida: es lo único de toda
                 la aplicación que se enseña sin haberlo pedido. */}
             {comanda.notas_alergias !== null && comanda.notas_alergias !== '' && (
-              <p className={ALERGIA}>⚠️ ALERGIA: {comanda.notas_alergias}</p>
+              <p className={ALERGIA}>
+                <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> ALERGIA:{' '}
+                {comanda.notas_alergias}
+              </p>
             )}
             <Button
               className="mt-3 w-full"

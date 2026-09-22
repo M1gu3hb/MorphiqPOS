@@ -316,7 +316,10 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
 
           {/* Puntos, nunca números: la pantalla está de cara al comedor. Quien
               no puede verlos recibe la cuenta en palabras. */}
-          <p aria-live="polite" className="text-center text-4xl tracking-[0.4em] text-primary">
+          <p
+            aria-live="polite"
+            className="font-numeros text-center text-3xl tracking-[0.4em] text-primary"
+          >
             <span className="sr-only">{pin.length} de 4 dígitos tecleados</span>
             <span aria-hidden>{'•'.repeat(pin.length) + '◦'.repeat(LARGO_PIN - pin.length)}</span>
           </p>

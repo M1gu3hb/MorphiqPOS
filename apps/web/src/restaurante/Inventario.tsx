@@ -432,7 +432,7 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
       <Input
         value={busqueda}
         aria-label="Buscar insumo"
-        placeholder="Buscar insumo…  🔍"
+        placeholder="Buscar insumo…"
         onChange={(evento) => {
           setBusqueda(evento.target.value);
         }}

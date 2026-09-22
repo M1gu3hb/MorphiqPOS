@@ -10,6 +10,7 @@ import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'rea
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
+import { TriangleAlert } from 'lucide-react';
 
 /**
  * PANTALLA · restaurante · caja
@@ -262,7 +263,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
       <main className="flex min-h-dvh items-center justify-center p-4">
         <section aria-labelledby="caja-muro" className={MURO}>
           <h1 id="caja-muro" className="text-2xl font-bold">
-            ⚠️ Caja cerrada
+            <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Caja cerrada
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Sin sesión de caja, un cobro no entra en ningún corte. Declara el fondo y ábrela.

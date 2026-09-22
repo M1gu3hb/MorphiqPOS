@@ -6,6 +6,7 @@ import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@morphiqpos/ui/primitivas/toggle-group';
+import { Camera } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -347,7 +348,9 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         <section aria-label="Foto de la pieza">
           {pieza.fotoUrl === null ? (
             <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-border bg-muted p-4 text-center">
-              <span className="text-lg font-semibold">📷 Tomar foto</span>
+              <span className="inline-flex items-center gap-(--espacio-2) text-lg font-semibold">
+                <Camera aria-hidden="true" className="inline size-4 shrink-0" /> Tomar foto
+              </span>
               <span className="text-xs text-muted-foreground">
                 Ponle una moneda al lado: sin escala la foto no dice nada.
               </span>

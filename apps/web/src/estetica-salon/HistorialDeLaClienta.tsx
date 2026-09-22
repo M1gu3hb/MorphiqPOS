@@ -11,6 +11,7 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
+import { Camera } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -589,9 +590,7 @@ function Foto({ visita, tipo = 'antes', onVerFoto }: FotoProps) {
         onVerFoto?.(visita?.id ?? '', tipo);
       }}
     >
-      <span aria-hidden className="text-xl">
-        📷
-      </span>
+      <Camera aria-hidden="true" className="size-5 shrink-0" />
       <span>{tipo === 'antes' ? 'Antes' : 'Después'}</span>
       <span className="tabular-nums">{enFecha(visita?.fecha ?? null)}</span>
     </button>

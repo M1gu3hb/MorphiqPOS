@@ -3,6 +3,7 @@
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { PartyPopper, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
@@ -279,9 +280,10 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
                 {/* La celebración arriba a la izquierda: para que cualquiera que
                     pase sepa que ahí va el postre con vela. */}
                 {mesa.celebracion_especial && (
-                  <span className="absolute left-1 top-1 text-sm" aria-label="Celebración">
-                    🎉
-                  </span>
+                  <PartyPopper
+                    aria-label="Celebración"
+                    className="absolute top-1 left-1 size-4 shrink-0"
+                  />
                 )}
                 {/* El color del mesero arriba a la derecha: identifica sus mesas
                     de un barrido, sin leer nombres. */}
@@ -309,12 +311,10 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
                 {/* Esquina propia, separada de todo: un error aquí no es un
                     descuadre, es una urgencia médica. */}
                 {mesa.notas_alergias && (
-                  <span
-                    className="absolute bottom-1 left-1 text-sm"
+                  <TriangleAlert
+                    className="absolute bottom-1 left-1 size-4 shrink-0 text-destructive"
                     aria-label={`Hay alergias declaradas en ${voc.enFraseCon('este', 'unidad_servicio')}`}
-                  >
-                    ⚠️
-                  </span>
+                  />
                 )}
               </button>
             </li>

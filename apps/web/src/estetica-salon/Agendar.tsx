@@ -6,6 +6,7 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -766,8 +767,9 @@ export function Agendar({
               role="alert"
               className="rounded-md border border-destructive/40 bg-destructive/15 p-2 text-sm"
             >
-              ⚠️ {voc.conDeterminante('este', 'cliente')} tiene alergias declaradas. Revísalas antes
-              de aplicar.
+              <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" />{' '}
+              {voc.conDeterminante('este', 'cliente')} tiene alergias declaradas. Revísalas antes de
+              aplicar.
             </p>
           )}
           {(clientaElegida?.faltas_6m ?? 0) >= 2 && (

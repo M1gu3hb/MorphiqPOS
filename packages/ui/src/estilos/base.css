@@ -31,6 +31,18 @@
   --tamano-xl: 1.375rem;
   --tamano-2xl: 1.75rem;
   --tamano-3xl: 2.25rem;
+  /* DISPLAY · el paso de lo que se lee DE LEJOS, no de cerca.
+     El total de un cobro no se consulta: el cajero lo dice en voz alta con alguien
+     esperando enfrente, y si tiene que buscarlo lo dice mal. El número de una comanda
+     en cocina se lee a dos metros con las manos ocupadas. El dígito de un teclado de
+     PIN se acierta con el pulgar. Los tres son el mismo problema y por eso son un
+     mismo paso.
+
+     Es el ÚNICO paso fluido de la escala, y por eso: son 40 px en el teléfono de un
+     técnico, 71 en el monitor de una tiendita y 80 en la pantalla de una barra, sin
+     tres saltos de punto de ruptura escritos a mano en cada pantalla. Todo lo demás
+     se lee de cerca, y ahí un tamaño que baila al redimensionar sólo molesta. */
+  --tamano-display: clamp(2.5rem, 1.25rem + 4vw, 5rem);
 
   --peso-normal: 400;
   --peso-medio: 500;

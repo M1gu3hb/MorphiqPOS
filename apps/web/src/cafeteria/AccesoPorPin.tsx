@@ -180,7 +180,10 @@ function TecladoNumerico({
 
       {/* Puntos, nunca números: la pantalla mira a la fila. Quien no puede
           verlos recibe la cuenta en palabras. */}
-      <p aria-live="polite" className="text-center text-4xl tracking-[0.4em] text-primary">
+      <p
+        aria-live="polite"
+        className="font-numeros text-center text-3xl tracking-[0.4em] text-primary"
+      >
         <span className="sr-only">{digitos} de 4 dígitos tecleados</span>
         <span aria-hidden>{'•'.repeat(digitos) + '◦'.repeat(LARGO_PIN - digitos)}</span>
       </p>
@@ -400,7 +403,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
                   setError(null);
                 }}
               >
-                <Avatar className="size-24 text-3xl md:size-40 md:text-5xl">
+                <Avatar className="size-24 text-3xl md:size-40 md:text-display">
                   {typeof empleado.foto === 'string' && <AvatarImage src={empleado.foto} alt="" />}
                   <AvatarFallback className="font-bold">
                     {iniciales(empleado.nombre)}

@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from '@morphiqpos/ui/primitivas/sheet';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Phone } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -529,7 +530,7 @@ export function Cuentas({
                     aria-label={`Llamar a ${cliente.nombre}`}
                     className="px-3 py-4 text-lg hover:bg-accent"
                   >
-                    <span aria-hidden>📞</span>
+                    <Phone aria-hidden="true" className="inline size-4 shrink-0" />
                   </a>
                 )}
                 <Button

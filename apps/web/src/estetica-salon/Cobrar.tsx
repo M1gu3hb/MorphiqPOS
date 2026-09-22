@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@morphiqpos/ui/primitivas/select';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Dinero, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
+import { Scissors } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -324,13 +325,13 @@ export function Cobrar({
 
   if (citas === null) {
     return (
-      <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid gap-(--espacio-3) p-(--espacio-3) md:grid-cols-[minmax(0,1fr)_22rem]">
         {/* El total con esqueleto y nada tocable: un botón vivo sobre un total
             que aún no existe es la forma de cobrar un número equivocado. */}
-        <Skeleton className="h-20 w-full rounded-lg md:col-start-2" />
-        <div className="space-y-2 md:col-start-1 md:row-start-1">
+        <Esqueleto className="h-20 w-full md:col-start-2" />
+        <div className="flex flex-col gap-(--espacio-2) md:col-start-1 md:row-start-1">
           {Array.from({ length: 4 }, (_, indice) => (
-            <Skeleton key={indice} className="h-[var(--altura-control)] w-full rounded-md" />
+            <Esqueleto key={indice} className="h-(--altura-control) w-full" />
           ))}
         </div>
       </div>
@@ -339,7 +340,7 @@ export function Cobrar({
 
   if (cita === null) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4 p-4">
+      <div className="mx-auto flex max-w-2xl flex-col gap-(--espacio-4) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">
           Elige {voc.enFraseCon('un', 'orden')} terminad{voc.terminacion('orden')} para cobrar
         </h1>
@@ -351,32 +352,34 @@ export function Cobrar({
         {banda}
         {citas.length === 0 ? (
           // El vacío ENSEÑA: dice por qué está vacío y qué hacer, no se disculpa.
-          <div className="space-y-3 rounded-lg border border-border bg-card p-6">
-            <p className="text-lg font-semibold">
-              {voc.conDeterminante('ningun', 'orden')} está list{voc.terminacion('orden')} para
-              cobrar.
-            </p>
-            <p className="text-muted-foreground">
-              Una cita se cobra cuando el servicio está CERRADO, y no antes: cerrarlo es donde se
-              captura la fórmula y donde se descuenta el material de cabina. Cierra el servicio en
-              la agenda y vuelve aquí.
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRecarga((previa) => previa + 1);
-              }}
-            >
-              Volver a mirar
-            </Button>
-          </div>
+          <Superficie relleno={6}>
+            <Vacio
+              icono={<Scissors />}
+              titulo={`${voc.conDeterminante('ningun', 'orden')} está list${voc.terminacion('orden')} para cobrar.`}
+              explicacion="Una cita se cobra cuando el servicio está CERRADO, y no antes: cerrarlo es donde se captura la fórmula y donde se descuenta el material de cabina. Cierra el servicio en la agenda y vuelve aquí."
+              accion={
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setRecarga((previa) => previa + 1);
+                  }}
+                >
+                  Volver a mirar
+                </Button>
+              }
+              className="py-0"
+            />
+          </Superficie>
         ) : (
-          <ul className="space-y-2">
+          <ul className="flex flex-col gap-(--espacio-2)">
             {citas.map((fila) => (
               <li key={fila.id}>
+                {/* La tarjeta sube de sombra al pasar por encima: la elección de a
+                    quién se cobra es la decisión de esta pantalla, y una lista que
+                    no responde al dedo no se lee como una lista de opciones. */}
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent"
+                  className="flex w-full items-center justify-between gap-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-4) text-left shadow-1 transition-[background-color,box-shadow] duration-(--duracion-rapida) hover:bg-accent hover:shadow-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   onClick={() => {
                     setCitaId(fila.id);
                     setAviso(null);
@@ -391,9 +394,11 @@ export function Cobrar({
                       {fila.folio ?? 'Sin folio'} · {lineasDe(servicios, fila.id).length} conceptos
                     </span>
                   </span>
-                  <span className="shrink-0 text-lg font-bold tabular-nums">
-                    {enPesos(totalDe(lineasDe(servicios, fila.id)))}
-                  </span>
+                  <Dinero
+                    centavos={totalDe(lineasDe(servicios, fila.id))}
+                    tamano="lg"
+                    className="shrink-0"
+                  />
                 </button>
               </li>
             ))}
@@ -404,9 +409,9 @@ export function Cobrar({
   }
 
   const listaDeLineas = (
-    <ul className="space-y-2">
+    <ul className="flex flex-col gap-(--espacio-2)">
       {lineas.map((linea) => (
-        <li key={linea.id} className="flex items-start justify-between gap-3">
+        <li key={linea.id} className="flex items-start justify-between gap-(--espacio-3)">
           <span className="min-w-0">
             <span className="block truncate">
               {nombres.get(linea.servicio_id ?? '') ?? 'Servicio'}
@@ -416,7 +421,7 @@ export function Cobrar({
               ▸ {nombres.get(linea.profesional_id ?? '') ?? 'Sin asignar'}
             </Badge>
           </span>
-          <span className="shrink-0 tabular-nums">{enPesos(aCentavos(linea.precio_centavos))}</span>
+          <Dinero centavos={aCentavos(linea.precio_centavos)} tamano="sm" className="shrink-0" />
         </li>
       ))}
     </ul>
@@ -445,20 +450,27 @@ export function Cobrar({
 
       {/* El bloque del dinero va PRIMERO en el DOM: en teléfono es lo que se ve
           sin desplazar, y en tablet es la columna derecha del documento. */}
-      <aside
+      <Superficie
+        nivel={2}
+        relleno={4}
+        como="aside"
         aria-label="Cobro"
-        className="space-y-3 rounded-lg border border-border bg-card p-4 md:col-start-2 md:row-start-3"
+        className="flex flex-col gap-(--espacio-3) md:col-start-2 md:row-start-3"
       >
-        <p className="text-sm font-medium uppercase text-muted-foreground">Total</p>
-        <p className="text-4xl font-bold tabular-nums xl:text-5xl">{enPesos(total)}</p>
+        <span className="flex flex-col">
+          <Dinero centavos={total} tamano="total" className="leading-none" />
+          <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Total
+          </span>
+        </span>
         {anticipo > 0 && (
-          <p className="flex justify-between border-b border-border pb-2 text-sm tabular-nums">
+          <p className="flex items-baseline justify-between border-b border-border pb-(--espacio-2) text-sm">
             <span>− anticipo</span>
-            <span>{enPesos(anticipo)}</span>
+            <Dinero centavos={anticipo} tamano="sm" />
           </p>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-(--espacio-2)">
           {METODOS.map((opcion) => (
             <Button
               key={opcion.clave}
@@ -552,35 +564,43 @@ export function Cobrar({
           }}
         >
           <span>{enviando ? 'Cobrando…' : 'COBRAR'}</span>
-          <span className="tabular-nums">{enPesos(total + propina)}</span>
+          <Dinero centavos={total + propina} tamano="lg" />
         </Button>
         {bloqueo !== null && <p className="text-center text-sm">{bloqueo}</p>}
-      </aside>
+      </Superficie>
 
-      <section
+      <Superficie
+        relleno={0}
+        como="section"
         aria-label={`Conceptos de ${voc.enFrase('orden')}`}
-        className="rounded-lg border border-border bg-card md:col-start-1 md:row-start-3"
+        className="md:col-start-1 md:row-start-3"
       >
         {/* `details` nativo: el teclado y el lector de pantalla ya saben abrirlo.
             En tablet y PC no hay nada que abrir — las líneas están a la vista. */}
         <details className="md:hidden">
-          <summary className="cursor-pointer p-4 text-sm">({lineas.length} conceptos)</summary>
-          <div className="px-4 pb-4">{listaDeLineas}</div>
+          <summary className="cursor-pointer p-(--espacio-4) text-sm">
+            ({lineas.length} conceptos)
+          </summary>
+          <div className="px-(--espacio-4) pb-(--espacio-4)">{listaDeLineas}</div>
         </details>
-        <div className="hidden space-y-3 p-4 md:block">
+        <div className="hidden flex-col gap-(--espacio-3) p-(--espacio-4) md:flex">
           {listaDeLineas}
-          <dl className="space-y-1 border-t border-border pt-3 text-sm tabular-nums">
-            <div className="flex justify-between">
+          <dl className="flex flex-col gap-(--espacio-1) border-t border-border pt-(--espacio-3) text-sm">
+            <div className="flex items-baseline justify-between">
               <dt>Subtotal</dt>
-              <dd>{enPesos(total)}</dd>
+              <dd>
+                <Dinero centavos={total} tamano="sm" />
+              </dd>
             </div>
-            <div className="flex justify-between text-muted-foreground">
+            <div className="flex items-baseline justify-between text-muted-foreground">
               <dt>IVA incluido</dt>
-              <dd>{enPesos(ivaIncluidoDe(total))}</dd>
+              <dd>
+                <Dinero centavos={ivaIncluidoDe(total)} tamano="sm" />
+              </dd>
             </div>
           </dl>
         </div>
-      </section>
+      </Superficie>
     </div>
   );
 }

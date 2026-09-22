@@ -145,8 +145,45 @@ const REGLAS = [
     deRitmo: true,
     patron: /\btext-\[[0-9.]+(?:px|rem|em)\]/g,
     porque:
-      'La escala tipografica son siete pasos y salen del contrato: text-xs … text-3xl. ' +
-      'Un tamano suelto es el principio de tener veinte',
+      'La escala tipografica son ocho pasos y salen del contrato: text-xs … text-3xl y ' +
+      'text-display. Un tamano suelto es el principio de tener veinte',
+  },
+  {
+    nombre: 'tamano de texto fuera de la escala',
+    deRitmo: true,
+    // Por encima de `text-3xl` ya no hay contrato: son los tamanos por omision de
+    // Tailwind, que no se declararon en ninguna parte y no responden a nada. El
+    // unico caso legitimo de «mas grande que 3xl» es un total que se lee en voz alta
+    // desde el otro lado del mostrador, y ese tiene su paso: `text-display`.
+    patron: /\btext-(?:4xl|5xl|6xl|7xl|8xl|9xl)\b/g,
+    porque:
+      'Fuera de los ocho pasos del contrato. Para un total que se dice en alto usa ' +
+      'text-display, que es fluido; para lo demas, text-3xl es el techo',
+  },
+  {
+    nombre: 'emoji usado como icono',
+    /**
+     * UN EMOJI NO ES UN ICONO, y en un POS eso se paga.
+     *
+     * Lo dibuja el SISTEMA OPERATIVO: el mismo caracter es una cosa en el Windows
+     * de la tiendita, otra en el Android del tecnico y otra en el iPad del mesero.
+     * No hereda `currentColor`, asi que no se puede poner en el color de peligro.
+     * No escala con la tipografia. Y en una pantalla que avisa de una ALERGIA, eso
+     * no es una discusion estetica.
+     *
+     * Se buscan los pictogramas de verdad —los bloques 1F000-1FAFF— y el SELECTOR
+     * DE VARIACION U+FE0F, que es lo que convierte un glifo de texto en un emoji de
+     * color: `⚠` es tipografia y `⚠️` es una imagen, y la unica diferencia entre los
+     * dos es ese caracter invisible.
+     *
+     * NO se persiguen los glifos tipograficos monocromos —✓ ✗ ✕ ⚠ ▸ ▾ ▊— porque no
+     * son emoji: heredan el color, escalan con el texto, y varios estan puestos a
+     * proposito para que el color no sea el unico portador de significado.
+     */
+    patron: /[\u{1F000}-\u{1FAFF}]|️|✅|❌/gu,
+    porque:
+      'Los emoji los dibuja el sistema operativo: cambian de forma en cada equipo, ' +
+      'no heredan el color y no escalan. Usa un icono de lucide-react',
   },
   {
     nombre: 'variante dark: en vez de oscuro:',
@@ -273,8 +310,16 @@ function recorrer(dir, encontrados) {
  * bajar. Si aparece un literal nuevo, la puerta se pone roja hoy; cuando una pantalla
  * se convierte, se baja el numero. No es una exencion: es una deuda con nombre,
  * medida y con una sola direccion posible.
+ *
+ * ── El registro del techo, que es la unica forma de que un trinquete no mienta ──
+ * 919 · al nacer la regla, con las cuatro de ritmo (espacio, tipografia, duracion,
+ *       curva) sobre las 69 pantallas tal como estaban.
+ * 860 · etapa 4, con una regla MAS —los tamanos de texto fuera de los ocho pasos del
+ *       contrato, que anadio 25 hallazgos— y aun asi 59 menos: los cinco cobros, la
+ *       cocina, la barra y los quince archivos de los emoji quedaron tokenizados.
+ *       Si sube, el numero de arriba dice exactamente contra que comparar.
  */
-const TECHO_DE_RITMO = 919;
+const TECHO_DE_RITMO = 860;
 
 const hallazgos = [];
 for (const carpeta of VIGILADAS) recorrer(carpeta, hallazgos);

@@ -3,7 +3,8 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Dinero, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
+import { LockKeyhole, ScanBarcode } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -379,11 +380,11 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
     // Esqueletos con la forma de la venta, no un spinner: así nada salta al
     // llegar el catálogo y el ojo ya sabe dónde va a mirar.
     return (
-      <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <Skeleton className="min-h-40 w-full rounded-lg md:order-2" />
-        <div className="space-y-2 md:order-1">
+      <div className="grid gap-(--espacio-3) p-(--espacio-3) md:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <Esqueleto className="min-h-40 w-full md:order-2" />
+        <div className="flex flex-col gap-(--espacio-2) md:order-1">
           {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="h-5 w-full rounded-md" />
+            <Esqueleto key={i} className="h-5 w-full" />
           ))}
         </div>
       </div>
@@ -392,58 +393,70 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
 
   if (caja === null) {
     return (
-      <div className="mx-auto max-w-md space-y-3 rounded-lg border border-warning/60 bg-warning/15 p-6 text-center">
-        <p className="text-xl font-semibold">La caja está cerrada</p>
-        <p className="text-sm">
-          Una venta sin caja no pertenece a ningún corte: al terminar el día no habría contra qué
-          cuadrarla. Por eso esto es un muro y no un aviso.
-        </p>
-        <Button asChild>
-          <a href="/caja">Ábrela para empezar a vender</a>
-        </Button>
+      <div className="mx-auto max-w-md p-(--espacio-4)">
+        {/* UN MURO, no un vacío: el borde de aviso y el fondo teñido dicen «esto no
+            es que falte algo, es que no se puede pasar». */}
+        <div className="rounded-lg border border-warning bg-warning/15 p-(--espacio-6)">
+          <Vacio
+            icono={<LockKeyhole />}
+            titulo="La caja está cerrada"
+            explicacion="Una venta sin caja no pertenece a ningún corte: al terminar el día no habría contra qué cuadrarla. Por eso esto es un muro y no un aviso."
+            accion={
+              <Button asChild>
+                <a href="/caja">Ábrela para empezar a vender</a>
+              </Button>
+            }
+            className="py-0"
+          />
+        </div>
       </div>
     );
   }
 
   if (productos.length === 0) {
     return (
-      <div className="mx-auto max-w-lg space-y-3 p-8 text-center">
-        <p className="text-xl font-semibold">Todavía no hay nada que escanear.</p>
-        <p className="text-muted-foreground">
-          Esta pantalla vive del código de barras: en cuanto el catálogo tenga productos con su
-          código y su precio, pasar el lector por uno lo pone en la lista y lo cobra.
-        </p>
-        <Button asChild>
-          <a href="/productos">Cargar el catálogo</a>
-        </Button>
+      <div className="mx-auto max-w-lg p-(--espacio-4)">
+        <Vacio
+          icono={<ScanBarcode />}
+          titulo="Todavía no hay nada que escanear."
+          explicacion="Esta pantalla vive del código de barras: en cuanto el catálogo tenga productos con su código y su precio, pasar el lector por uno lo pone en la lista y lo cobra."
+          accion={
+            <Button asChild>
+              <a href="/productos">Cargar el catálogo</a>
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   return (
-    <div className="grid gap-3 p-3 pb-56 md:grid-cols-[minmax(0,1fr)_18rem] md:pb-48 xl:grid-cols-[minmax(0,1fr)_26rem] xl:pb-3">
+    <div className="grid gap-(--espacio-3) p-(--espacio-3) pb-56 md:grid-cols-[minmax(0,1fr)_18rem] md:pb-48 xl:grid-cols-[minmax(0,1fr)_26rem] xl:pb-(--espacio-3)">
       {/* En teléfono el total se queda pegado arriba; de tablet para arriba es
           la cabeza de la columna derecha. En los dos casos es lo primero. */}
-      <section
+      <Superficie
+        nivel={2}
+        relleno={4}
+        como="section"
         aria-label={`Total de ${voc.enFrase('orden')}`}
-        className="sticky top-0 z-20 rounded-lg border border-border bg-card p-4 text-center md:static md:col-start-2 md:row-start-1"
+        className="sticky top-0 z-20 flex flex-col items-center gap-(--espacio-1) text-center md:static md:col-start-2 md:row-start-1"
       >
-        <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Total</p>
-        <p className="text-6xl font-bold leading-none tabular-nums md:text-7xl xl:text-8xl">
-          {enPesos(total)}
-        </p>
+        <Dinero centavos={total} tamano="total" className="leading-none" />
+        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Total</p>
         {/* En teléfono desaparecen el desglose y el conteo: ahí no se vende. */}
-        <p className="mt-2 hidden justify-center gap-4 text-sm text-muted-foreground md:flex">
+        <p className="mt-(--espacio-1) hidden items-baseline justify-center gap-(--espacio-4) text-sm text-muted-foreground md:flex">
           <span>{piezas} artículos</span>
-          <span className="tabular-nums">IVA incluido {enPesos(ivaIncluido(total))}</span>
+          <span className="inline-flex items-baseline gap-1">
+            IVA incluido <Dinero centavos={ivaIncluido(total)} tamano="sm" />
+          </span>
         </p>
-      </section>
+      </Superficie>
 
       <section
         aria-label={`${voc.titulo('orden')} en curso`}
-        className="space-y-2 md:col-start-1 md:row-span-3"
+        className="flex flex-col gap-(--espacio-2) md:col-start-1 md:row-span-3"
       >
-        <div className="space-y-1">
+        <div className="flex flex-col gap-(--espacio-1)">
           <Label htmlFor="cobrar-busqueda">Código o nombre · F2</Label>
           <Input
             id="cobrar-busqueda"
@@ -478,22 +491,26 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
             automático que mueva de sitio las de arriba mientras se verifican. */}
         <ul className="min-h-32 divide-y divide-border rounded-lg border border-border">
           {lineas.length === 0 && (
-            <li className="flex min-h-32 flex-col items-center justify-center gap-1 p-6 text-center">
-              <span aria-hidden className="text-3xl tracking-widest">
-                ▊▌▊▎▊
-              </span>
-              <p className="text-lg font-medium">Escanea el primer {voc.singular('producto')}</p>
-              <p className="text-sm text-muted-foreground">
-                El lector ya está escuchando: no hay nada que tocar.
-              </p>
+            <li className="min-h-32">
+              {/* El código de barras dibujado con bloques y no un icono genérico: esta
+                  pantalla ES el lector, y lo primero que se ve tiene que decirlo. */}
+              <Vacio
+                icono={
+                  <span aria-hidden className="text-3xl tracking-widest">
+                    ▊▌▊▎▊
+                  </span>
+                }
+                titulo={`Escanea el primer ${voc.singular('producto')}`}
+                explicacion="El lector ya está escuchando: no hay nada que tocar."
+              />
             </li>
           )}
           {lineas.map((linea) => (
             <li
               key={linea.productoId}
-              className={`flex items-center gap-2 p-2 ${destacada === linea.productoId ? 'bg-primary/15' : ''}`}
+              className={`flex items-center gap-(--espacio-2) p-(--espacio-2) ${destacada === linea.productoId ? 'bg-primary/15' : ''}`}
             >
-              <span className="w-12 shrink-0 text-right font-bold tabular-nums">
+              <span className="w-12 shrink-0 text-right font-numeros font-bold tabular-nums">
                 {linea.cantidad} ×
               </span>
               <span className="flex-1 truncate">
@@ -505,11 +522,15 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
               </span>
               {/* La tablet pierde el precio unitario si no cabe. Nunca pierde
                   la cantidad: es la que se verifica de reojo. */}
-              <span className="hidden w-20 text-right tabular-nums text-muted-foreground xl:inline">
-                {enPesos(linea.precioCentavos)}
+              <span className="hidden w-20 text-right xl:inline">
+                <Dinero
+                  centavos={linea.precioCentavos}
+                  tamano="sm"
+                  className="text-muted-foreground"
+                />
               </span>
-              <span className="w-24 shrink-0 text-right font-medium tabular-nums">
-                {enPesos(linea.precioCentavos * linea.cantidad)}
+              <span className="w-24 shrink-0 text-right font-medium">
+                <Dinero centavos={linea.precioCentavos * linea.cantidad} />
               </span>
               <Button
                 size="sm"
@@ -530,7 +551,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
           del borde inferior, a la altura del pulgar y sin nada que sostener. */}
       <aside
         aria-label="Cobro"
-        className="fixed inset-x-0 bottom-0 z-20 space-y-2 border-t border-border bg-card p-3 md:col-start-2 md:row-start-2 xl:static xl:rounded-lg xl:border"
+        className="fixed inset-x-0 bottom-0 z-20 flex flex-col gap-(--espacio-2) border-t border-border bg-card p-(--espacio-3) shadow-3 md:col-start-2 md:row-start-2 xl:static xl:rounded-lg xl:border xl:shadow-1"
       >
         {metodo === null ? (
           <>
@@ -580,8 +601,10 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
                 />
                 {/* El cambio en grande porque es el número que se dice en voz
                     alta y el que causa discusiones. Se lee a un metro. */}
-                <p className="text-sm font-medium uppercase text-muted-foreground">Cambio</p>
-                <p className="text-4xl font-bold tabular-nums xl:text-5xl">{enPesos(cambio)}</p>
+                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Cambio
+                </p>
+                <Dinero centavos={cambio} tamano="total" className="leading-none" />
                 <div className="flex flex-wrap gap-1">
                   {[total, ...DENOMINACIONES].map((monto, indice) => (
                     <Button

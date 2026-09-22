@@ -12,6 +12,7 @@ import {
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Milk } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -426,7 +427,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
             setContando(true);
           }}
         >
-          🥛 Contar leche
+          <Milk aria-hidden="true" className="inline size-4 shrink-0" /> Contar leche
         </Button>
       </header>
 

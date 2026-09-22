@@ -354,7 +354,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
                   }}
                 >
                   <span className="text-xs font-medium uppercase tracking-wide">{titulo}</span>
-                  <span className="text-4xl font-bold leading-none tabular-nums">
+                  <span className="font-numeros text-display font-bold tabular-nums leading-none">
                     {String(resumen[clave].length)}
                   </span>
                   {/* La palabra, no sólo el borde: el filtro activo se lee. */}

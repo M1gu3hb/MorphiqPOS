@@ -18,6 +18,7 @@ import {
 } from './formula-de-cabina';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
+import { Camera } from 'lucide-react';
 
 /**
  * PANTALLA · estetica-salon · cita-en-curso
@@ -623,7 +624,7 @@ export function CitaEnCurso({
                   key={momento}
                   className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border text-sm"
                 >
-                  <span aria-hidden>📷</span>
+                  <Camera aria-hidden="true" className="inline size-4 shrink-0" />
                   <span>{fotos.includes(momento) ? `${momento} · tomada ✓` : momento}</span>
                   <input
                     type="file"

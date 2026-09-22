@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@morphiqpos/ui/primitivas/select';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -533,7 +534,8 @@ export function Entradas({
 
       {error !== null && (
         <p role="alert" className={`${BANDA} mb-3 border-destructive bg-destructive/15`}>
-          ⚠️ {error} · Lo que ya estaba capturado sigue en pantalla.
+          <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> {error} · Lo que
+          ya estaba capturado sigue en pantalla.
         </p>
       )}
 

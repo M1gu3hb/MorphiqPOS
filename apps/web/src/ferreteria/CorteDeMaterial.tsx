@@ -5,6 +5,7 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { RadioGroup, RadioGroupItem } from '@morphiqpos/ui/primitivas/radio-group';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { TriangleAlert } from 'lucide-react';
 import { useEffect, useState, type ChangeEvent } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -370,8 +371,8 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
         </RadioGroup>
         {!elegida.abierta && abiertos > 0 && (
           <p role="alert" className={AVISO}>
-            ⚠️ Hay {metros(abiertos)} {material.unidad} abiertos. Si abres uno nuevo, esos se
-            quedan.
+            <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Hay{' '}
+            {metros(abiertos)} {material.unidad} abiertos. Si abres uno nuevo, esos se quedan.
           </p>
         )}
       </section>
@@ -412,7 +413,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
           <dt>Queda en {elegida.folio}</dt>
           <dd className="text-right font-semibold tabular-nums">
             {metros(queda)} {material.unidad}
-            {retazoChico ? ' · ⚠️ retazo chico' : ''}
+            {retazoChico ? ' · retazo chico' : ''}
           </dd>
         </dl>
         {excede && (

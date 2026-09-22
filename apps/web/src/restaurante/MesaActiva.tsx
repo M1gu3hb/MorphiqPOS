@@ -513,7 +513,7 @@ export function MesaActiva(props: MesaActivaProps) {
             value={busqueda}
             onChange={buscar}
             aria-label={`Buscar ${voc.singular('linea_orden')}`}
-            placeholder={`Buscar ${voc.singular('linea_orden')}…  🔍`}
+            placeholder={`Buscar ${voc.singular('linea_orden')}…`}
           />
           {visibles.length === 0 ? (
             /* El vacío enseña: dice qué falta y lleva a donde se resuelve. */

@@ -2,7 +2,8 @@
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Dinero, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
+import { ReceiptText } from 'lucide-react';
 import { useEffect, useState, type MouseEvent } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -230,7 +231,10 @@ export function Cobro({
   // La pantalla no se vacía por un error: la banda va encima del último dato.
   const banda =
     error === null ? null : (
-      <p role="alert" className="rounded-md border border-destructive p-2 text-sm">
+      <p
+        role="alert"
+        className="rounded-md border border-destructive bg-destructive/10 p-2 text-sm text-foreground"
+      >
         {error} · La cuenta NO se marcó como pagada.
       </p>
     );
@@ -257,9 +261,9 @@ export function Cobro({
   // Esqueletos con la forma del cobro: así el total no salta de sitio al cargar.
   if (cuenta === undefined) {
     return (
-      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <Skeleton className="h-64 w-full rounded-lg" />
-        <Skeleton className="h-64 w-full rounded-lg" />
+      <div className="grid gap-(--espacio-4) p-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <Esqueleto className="h-64 w-full" />
+        <Esqueleto className="h-64 w-full" />
         {banda}
       </div>
     );
@@ -267,54 +271,81 @@ export function Cobro({
   // El vacío ENSEÑA de dónde salen las cuentas; no se disculpa por no tener.
   if (cuenta === null) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">
-          {voc.conDeterminante('ningun', 'orden')} está esperando cobro.
-        </p>
-        <p className="text-muted-foreground">
-          {voc.conDeterminante('un', 'orden')} llega aquí cuando {voc.enFrase('responsable')} la
-          cierra y {voc.enFrase('cliente')} pide pagar.
-        </p>
-        <Button asChild>
-          <a href="/restaurante/mapa-de-mesas">Ver el mapa de {voc.plural('unidad_servicio')}</a>
-        </Button>
+      <div className="mx-auto max-w-lg p-(--espacio-4)">
+        <Vacio
+          icono={<ReceiptText />}
+          titulo={`${voc.conDeterminante('ningun', 'orden')} está esperando cobro.`}
+          explicacion={`${voc.conDeterminante('un', 'orden')} llega aquí cuando ${voc.enFrase('responsable')} la cierra y ${voc.enFrase('cliente')} pide pagar.`}
+          accion={
+            <Button asChild>
+              <a href="/restaurante/mapa-de-mesas">
+                Ver el mapa de {voc.plural('unidad_servicio')}
+              </a>
+            </Button>
+          }
+        />
         {banda}
       </div>
     );
   }
   if (cambio !== null) {
     return (
-      <div role="status" className="mx-auto max-w-lg space-y-3 p-8 text-center">
-        <p className="text-4xl font-bold tabular-nums">{enPesos(total)}</p>
-        <p>Cobrado · cambio {enPesos(cambio)} · la mesa pasa sola a limpieza.</p>
-        <Button className="w-full" onClick={() => onImprimir?.(cuenta.id)}>
-          Imprimir ticket
-        </Button>
+      <div role="status" className="mx-auto max-w-lg p-(--espacio-4)">
+        {/* COBRADO · el cambio pesa más que el total, porque es lo único que queda
+            por hacer: contarlo y darlo. El total ya se leyó en voz alta. */}
+        <Superficie
+          nivel={2}
+          relleno={6}
+          como="section"
+          className="flex flex-col items-center gap-(--espacio-3) text-center"
+        >
+          <p className="text-sm font-medium tracking-wide text-success uppercase">Cobrado</p>
+          <span className="flex flex-col items-center gap-(--espacio-1)">
+            <span className="text-xs text-muted-foreground">Cambio</span>
+            <Dinero centavos={cambio} tamano="total" />
+          </span>
+          <p className="text-sm text-muted-foreground">
+            Se cobraron <Dinero centavos={total} tamano="sm" /> ·{' '}
+            {voc.conArticulo('unidad_servicio')} pasa sola a limpieza.
+          </p>
+          <Button className="w-full" onClick={() => onImprimir?.(cuenta.id)}>
+            Imprimir ticket
+          </Button>
+        </Superficie>
       </div>
     );
   }
 
   const detalle = (
-    <div className="rounded-lg border border-border bg-card p-4 text-card-foreground">
-      <ul className="space-y-1 text-sm">
+    <Superficie relleno={4}>
+      <ul className="flex flex-col gap-(--espacio-1) text-sm">
         {lineas.map((linea) => (
-          <li key={linea.id} className="flex items-baseline justify-between gap-3">
+          <li key={linea.id} className="flex items-baseline justify-between gap-(--espacio-3)">
             <span className="truncate">
-              {linea.cantidad ?? 1} × {linea.producto_nombre ?? 'Platillo'}
+              {/* La cantidad en cifras tabulares: una columna de «2 ×», «12 ×» que
+                  no está alineada se relee, y aquí se relee con gente esperando. */}
+              <span className="font-numeros tabular-nums">{linea.cantidad ?? 1}</span> ×{' '}
+              {linea.producto_nombre ?? 'Platillo'}
             </span>
-            <span className="tabular-nums">{enPesos(aCentavos(linea.total))}</span>
+            <Dinero centavos={aCentavos(linea.total)} tamano="sm" />
           </li>
         ))}
       </ul>
-      <dl className="mt-3 grid grid-cols-2 border-t border-border pt-3 text-sm">
+      <dl className="mt-(--espacio-3) grid grid-cols-2 gap-y-(--espacio-1) border-t border-border pt-(--espacio-3) text-sm">
         <dt className="text-muted-foreground">Subtotal</dt>
-        <dd className="text-right tabular-nums">{enPesos(aCentavos(cuenta.subtotal))}</dd>
+        <dd className="text-right">
+          <Dinero centavos={aCentavos(cuenta.subtotal)} tamano="sm" />
+        </dd>
         <dt className="text-muted-foreground">Impuestos</dt>
-        <dd className="text-right tabular-nums">{enPesos(aCentavos(cuenta.impuestos))}</dd>
+        <dd className="text-right">
+          <Dinero centavos={aCentavos(cuenta.impuestos)} tamano="sm" />
+        </dd>
         <dt className="text-muted-foreground">Propina</dt>
-        <dd className="text-right tabular-nums">{enPesos(suPropina)}</dd>
+        <dd className="text-right">
+          <Dinero centavos={suPropina} tamano="sm" />
+        </dd>
       </dl>
-    </div>
+    </Superficie>
   );
 
   function elegirMetodo(evento: MouseEvent<HTMLButtonElement>): void {
@@ -325,43 +356,55 @@ export function Cobro({
   }
 
   return (
-    <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
+    <div className="grid gap-(--espacio-4) p-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_26rem]">
       <h1 className="text-xl font-bold xl:col-span-2">
         Cobro · {cuenta.codigo_caja ?? 'sin código'} · {cuenta.cliente_nombre ?? 'sin nombre'}
       </h1>
       <div className="xl:col-span-2">{banda}</div>
       {/* El cobro va primero en el DOM: en teléfono es lo único que se ve. */}
-      <section aria-label="Cobro" className="space-y-3 xl:order-2">
-        <div className="rounded-lg border border-border bg-card p-4 text-center">
-          <p className="text-sm font-medium uppercase text-muted-foreground">Total</p>
-          <p className="text-5xl font-bold tabular-nums xl:text-6xl">{enPesos(total)}</p>
-        </div>
+      <section
+        aria-label="Cobro"
+        className="flex flex-col gap-(--espacio-3) xl:order-2 xl:self-start"
+      >
+        {/* EL TOTAL, en la superficie más alta de la pantalla y a solas.
+            Sube de nivel 1 a 2 a propósito: lo que se lee desde el otro lado del
+            mostrador tiene que separarse del papel, no compartir plano con el
+            desglose. Y el rótulo va DEBAJO del número: lo que el ojo busca es la
+            cifra, y la palabra «total» sólo confirma qué es. */}
+        <Superficie nivel={2} relleno={4} className="flex flex-col items-center gap-(--espacio-1)">
+          <Dinero centavos={total} tamano="total" />
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Total a cobrar
+          </p>
+        </Superficie>
         {/* «Sin propina» pesa lo mismo que los porcentajes: es voluntaria. */}
         {pendiente && (
-          <div className="space-y-2 rounded-lg border border-warning/50 p-3">
+          <div className="flex flex-col gap-(--espacio-2) rounded-lg border border-warning bg-warning/10 p-(--espacio-3)">
             <p role="alert" className="text-sm font-medium">
               Confirma la propina antes de cobrar.
             </p>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-(--espacio-2)">
               {PROPINAS.map((puntos) => (
                 <Button
                   key={puntos}
                   value={Math.round((venta * puntos) / 10000)}
                   variant="outline"
-                  className="min-h-20 flex-col"
+                  className="h-auto flex-col py-(--espacio-3)"
                   onClick={elegirPropina}
                 >
                   <span>{puntos === 0 ? 'Sin' : `${puntos / 100} %`}</span>
-                  <span className="text-xs tabular-nums">
-                    {enPesos(Math.round((venta * puntos) / 10000))}
-                  </span>
+                  <Dinero
+                    centavos={Math.round((venta * puntos) / 10000)}
+                    tamano="xs"
+                    className="text-muted-foreground"
+                  />
                 </Button>
               ))}
             </div>
           </div>
         )}
         {/* La palomita: el color no puede ser el único que diga cuál está. */}
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
+        <div className="grid grid-cols-2 gap-(--espacio-2) xl:grid-cols-1">
           {METODOS.map((opcion) => (
             <Button
               key={opcion}
@@ -377,7 +420,7 @@ export function Cobro({
           ))}
         </div>
         {metodo === 'efectivo' && (
-          <label className="block space-y-1 text-sm">
+          <label className="flex flex-col gap-(--espacio-1) text-sm">
             Recibido
             <Input
               inputMode="decimal"
@@ -386,7 +429,12 @@ export function Cobro({
                 setRecibido(evento.target.value);
               }}
             />
-            <span className="tabular-nums">Cambio {enPesos(Math.max(mano - total, 0))}</span>
+            {/* El cambio, al peso de un dato y no de una etiqueta: es el número que
+                el cajero saca del cajón, y se equivoca si lo tiene que buscar. */}
+            <span className="flex items-baseline justify-between">
+              <span className="text-muted-foreground">Cambio</span>
+              <Dinero centavos={Math.max(mano - total, 0)} tamano="lg" />
+            </span>
           </label>
         )}
         {/* El desglose exacto: cada campo lleva el importe COMPLETO que entra por
@@ -394,7 +442,7 @@ export function Cobro({
             separarlas es aritmética, no una segunda cuenta que pedirle a mano. */}
         {metodo === 'mixto' &&
           BASES.map((base) => (
-            <label key={base} className="block space-y-1 text-sm capitalize">
+            <label key={base} className="flex flex-col gap-(--espacio-1) text-sm capitalize">
               {base}
               <Input
                 inputMode="decimal"
@@ -407,6 +455,7 @@ export function Cobro({
           ))}
         <Button
           size="lg"
+          cargando={enviando}
           className="w-full text-lg"
           disabled={enviando || bloqueo !== null}
           onClick={() => {
@@ -420,7 +469,10 @@ export function Cobro({
       {/* `details` nativo: el teclado y el lector de pantalla ya saben abrirlo. */}
       <section aria-label={voc.conArticulo('orden')} className="xl:order-1">
         <details className="rounded-lg border border-border xl:hidden">
-          <summary className="cursor-pointer p-3 text-sm">{lineas.length} platillos</summary>
+          <summary className="flex cursor-pointer items-baseline justify-between p-(--espacio-3) text-sm">
+            <span>{lineas.length} platillos</span>
+            <span className="text-muted-foreground">ver el desglose</span>
+          </summary>
           {detalle}
         </details>
         <div className="hidden xl:block">{detalle}</div>

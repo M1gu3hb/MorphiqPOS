@@ -5,6 +5,7 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
+import { TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -261,7 +262,8 @@ export function OpcionesDeLaBebida({
             role="alert"
             className="mx-4 mt-4 rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
           >
-            ⚠️ {error} Se puede agregar la bebida sencilla.
+            <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> {error} Se puede
+            agregar la bebida sencilla.
           </p>
         )}
 
@@ -340,7 +342,9 @@ export function OpcionesDeLaBebida({
             })}
 
             <fieldset className="min-w-0">
-              <legend className={ROTULO}>⚠️ Alergia</legend>
+              <legend className={ROTULO}>
+                <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Alergia
+              </legend>
               <div className="flex flex-wrap items-center gap-2">
                 {ALERGENOS.map((alergeno) => {
                   const marcado = alergias.includes(alergeno);
@@ -359,7 +363,14 @@ export function OpcionesDeLaBebida({
                           : 'border-input bg-background hover:bg-accent hover:text-accent-foreground',
                       ].join(' ')}
                     >
-                      {marcado ? '⚠️ ' : ''}
+                      {marcado ? (
+                        <>
+                          <TriangleAlert
+                            aria-hidden="true"
+                            className="inline size-4 shrink-0"
+                          />{' '}
+                        </>
+                      ) : null}
                       {alergeno}
                     </button>
                   );
@@ -397,7 +408,8 @@ export function OpcionesDeLaBebida({
           {marcasDeAlergia.length > 0 && (
             // No se colapsa nunca: viaja en rojo a la tarjeta de barra (F-316).
             <p className="rounded-md border border-destructive bg-destructive/15 px-2 py-1 text-sm font-semibold">
-              ⚠️ Alergia: {marcasDeAlergia.join(' · ')}
+              <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Alergia:{' '}
+              {marcasDeAlergia.join(' · ')}
             </p>
           )}
           {/*

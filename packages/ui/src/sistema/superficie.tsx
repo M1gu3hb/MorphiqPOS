@@ -1,4 +1,4 @@
-import type { ElementType, ReactElement, ReactNode } from 'react';
+import type { ElementType, HTMLAttributes, ReactElement, ReactNode } from 'react';
 
 import { cn } from '../utilidades/cn';
 
@@ -42,7 +42,21 @@ const ELEVACION: Readonly<Record<NivelDeElevacion, string>> = {
   4: 'shadow-4',
 };
 
-export interface SuperficieProps {
+/**
+ * Lo demás que una superficie tiene que poder llevar.
+ *
+ * Una superficie es un CONTENEDOR: la pantalla que la usa necesita ponerle su
+ * `aria-label` —una `<section>` sin nombre no aparece en el índice de un lector de
+ * pantalla—, su `role`, su `id` o un `data-*` para una prueba. Sin esto había que
+ * envolverla en un `div` sólo para colgarle un atributo, y ese `div` de más es
+ * exactamente lo que convierte un sistema en un andamio.
+ *
+ * Se excluye `className` porque ya es una prop propia —con `cn`, que resuelve los
+ * conflictos de Tailwind— y dejarla pasar dos veces haría que una ganara por orden.
+ */
+type AtributosDeSuperficie = Omit<HTMLAttributes<HTMLElement>, 'className' | 'children' | 'color'>;
+
+export interface SuperficieProps extends AtributosDeSuperficie {
   readonly children: ReactNode;
   readonly nivel?: NivelDeElevacion;
   /** El borde: en los estilos planos es lo único que separa una superficie de otra. */
@@ -78,6 +92,7 @@ export function Superficie({
   relleno = 4,
   como: Como = 'div',
   className,
+  ...resto
 }: SuperficieProps): ReactElement {
   return (
     <Como
@@ -90,6 +105,7 @@ export function Superficie({
         conBorde ? 'border border-border' : '',
         className,
       )}
+      {...resto}
     >
       {children}
     </Como>

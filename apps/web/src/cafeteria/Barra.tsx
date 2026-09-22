@@ -3,6 +3,7 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primitivas/tabs';
+import { BellRing, Coffee, CupSoda, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -267,7 +268,7 @@ export function Barra({ filasIniciales }: BarraProps) {
         // El único vacío de la aplicación que es una BUENA noticia, y se ve así:
         // el tipo más grande de la pantalla, y ni una sola disculpa.
         <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg bg-success/15 p-8 text-center">
-          <p className="text-4xl font-bold sm:text-6xl">La fila está vacía.</p>
+          <p className="text-display font-bold">La fila está vacía.</p>
           <p className="text-muted-foreground">Buen momento para reponer leche.</p>
         </div>
       ) : esTelefono ? (
@@ -355,10 +356,18 @@ function Columna({
           <article key={pedido.id} className={TARJETA}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               {/* Lo más grande de la pantalla: es el dato que se dice en voz alta. */}
-              <h3 className="text-3xl leading-none font-bold xl:text-4xl">{nombre}</h3>
+              <h3 className="text-3xl leading-none font-bold">{nombre}</h3>
               {/* El canal, chiquito: el barista ya sabe qué vaso usar por él. */}
               <span className="text-sm text-muted-foreground">
-                {pedido.origen_pedido === 'para_llevar' ? '🥤 para llevar' : '☕ aquí'}
+                {pedido.origen_pedido === 'para_llevar' ? (
+                  <>
+                    <CupSoda aria-hidden="true" className="inline size-4 shrink-0" /> para llevar
+                  </>
+                ) : (
+                  <>
+                    <Coffee aria-hidden="true" className="inline size-4 shrink-0" /> aquí
+                  </>
+                )}
               </span>
             </div>
 
@@ -369,7 +378,11 @@ function Columna({
               </span>
               {campanas > 0 && (
                 <span className={`${CHIP} bg-secondary text-secondary-foreground`}>
-                  <span aria-hidden>{'🔔'.repeat(Math.min(campanas, 3))} </span>
+                  <span aria-hidden="true" className="inline-flex">
+                    {Array.from({ length: Math.min(campanas, 3) }, (_, indice) => (
+                      <BellRing key={indice} className="inline size-4 shrink-0" />
+                    ))}
+                  </span>{' '}
                   {campanas} llamado{campanas === 1 ? '' : 's'}
                 </span>
               )}
@@ -391,7 +404,8 @@ function Columna({
                 un descuadre, es una urgencia médica. */}
             {pedido.notas_alergias !== null && pedido.notas_alergias !== '' && (
               <p className="mt-2 rounded-md border border-destructive bg-destructive/15 p-2 text-sm font-bold">
-                <span aria-hidden>⚠️ </span>ALERGIA: {pedido.notas_alergias}
+                <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> ALERGIA:{' '}
+                {pedido.notas_alergias}
               </p>
             )}
 
@@ -407,7 +421,8 @@ function Columna({
                       void onAccion(RUTA_LLAMAR, pedido.id, true);
                     }}
                   >
-                    <span aria-hidden>🔔 </span>Llamar otra vez
+                    <BellRing aria-hidden="true" className="inline size-4 shrink-0" /> Llamar otra
+                    vez
                   </Button>
                   <Button
                     type="button"

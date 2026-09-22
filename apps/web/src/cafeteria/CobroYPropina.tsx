@@ -4,7 +4,8 @@ import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Progress } from '@morphiqpos/ui/primitivas/progress';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Dinero, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
+import { CupSoda } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -300,9 +301,9 @@ export function CobroYPropina({
   // Esqueletos con la forma de las dos pantallas: el TOTAL no salta de sitio.
   if (pedido === undefined) {
     return (
-      <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_28rem]">
-        <Skeleton className="h-64 w-full rounded-lg" />
-        <Skeleton className="h-64 w-full rounded-lg" />
+      <div className="grid gap-(--espacio-3) p-(--espacio-3) xl:grid-cols-[minmax(0,1fr)_28rem]">
+        <Esqueleto className="h-64 w-full" />
+        <Esqueleto className="h-64 w-full" />
         {banda}
       </div>
     );
@@ -311,17 +312,17 @@ export function CobroYPropina({
   // El vacío ENSEÑA de dónde salen los cobros; no se disculpa por no tener uno.
   if (pedido === null) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">
-          No hay {voc.enFraseCon('ningun', 'unidad_servicio')} esperando cobro.
-        </p>
-        <p className="text-muted-foreground">
-          Un pedido llega aquí en cuanto se arma en la barra. Al cobrarlo se registra el pago, se
-          descuenta el inventario y se encola para prepararlo — todo en el mismo toque.
-        </p>
-        <Button asChild>
-          <a href="/cafeteria/cobrar">Armar {voc.enFraseCon('un', 'unidad_servicio')}</a>
-        </Button>
+      <div className="mx-auto max-w-lg p-(--espacio-4)">
+        <Vacio
+          icono={<CupSoda />}
+          titulo={`No hay ${voc.enFraseCon('ningun', 'unidad_servicio')} esperando cobro.`}
+          explicacion="Un pedido llega aquí en cuanto se arma en la barra. Al cobrarlo se registra el pago, se descuenta el inventario y se encola para prepararlo — todo en el mismo toque."
+          accion={
+            <Button asChild>
+              <a href="/cafeteria/cobrar">Armar {voc.enFraseCon('un', 'unidad_servicio')}</a>
+            </Button>
+          }
+        />
         {banda}
       </div>
     );
@@ -329,43 +330,61 @@ export function CobroYPropina({
 
   if (cambio !== null) {
     return (
-      <div role="status" className="mx-auto max-w-lg space-y-3 p-8 text-center">
-        <p className="text-5xl font-bold tabular-nums">{enPesos(total)}</p>
-        <p>
-          Cobrado · cambio {enPesos(cambio)} · propina {enPesos(propina ?? 0)} ({origen}) · ya está
-          en la fila de la barra.
-        </p>
+      <div role="status" className="mx-auto max-w-lg p-(--espacio-4)">
+        {/* El CAMBIO manda en la confirmación, no el total: el total ya se dijo en voz
+            alta y lo que queda por hacer es contar el vuelto. */}
+        <Superficie
+          nivel={2}
+          relleno={6}
+          como="section"
+          className="flex flex-col items-center gap-(--espacio-3) text-center"
+        >
+          <p className="text-sm font-medium tracking-wide text-success uppercase">Cobrado</p>
+          <span className="flex flex-col items-center gap-(--espacio-1)">
+            <span className="text-xs text-muted-foreground">Cambio</span>
+            <Dinero centavos={cambio} tamano="total" />
+          </span>
+          <p className="text-sm text-muted-foreground">
+            Se cobraron <Dinero centavos={total} tamano="sm" /> · propina{' '}
+            <Dinero centavos={propina ?? 0} tamano="sm" /> ({origen}) · ya está en la fila de la
+            barra.
+          </p>
+        </Superficie>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_28rem]">
-      <header className="flex flex-wrap items-baseline gap-2 xl:col-span-2">
+    <div className="grid gap-(--espacio-3) p-(--espacio-3) xl:grid-cols-[minmax(0,1fr)_28rem]">
+      <header className="flex flex-wrap items-baseline gap-(--espacio-2) xl:col-span-2">
         <h1 className="text-xl font-bold">{pedido.cliente_nombre ?? 'Sin nombre'}</h1>
         <Badge variant="secondary">{pedido.canal === 'aqui' ? 'Aquí' : 'Para llevar'}</Badge>
         <div className="w-full">{banda}</div>
       </header>
 
-      <section aria-label={`Terminal del ${voc.singular('responsable')}`} className="space-y-3">
-        <ul className="space-y-1 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground">
+      <section
+        aria-label={`Terminal del ${voc.singular('responsable')}`}
+        className="flex flex-col gap-(--espacio-3)"
+      >
+        <Superficie relleno={3} como="ul" className="flex flex-col gap-(--espacio-1) text-sm">
           {lineas.map((linea) => (
-            <li key={linea.id} className="flex items-baseline justify-between gap-3">
+            <li key={linea.id} className="flex items-baseline justify-between gap-(--espacio-3)">
               <span className="truncate">
-                {linea.cantidad ?? 1} × {linea.producto_nombre ?? 'Producto'}
+                <span className="font-numeros tabular-nums">{linea.cantidad ?? 1}</span> ×{' '}
+                {linea.producto_nombre ?? 'Producto'}
               </span>
-              <span className="tabular-nums">{enPesos(aCentavos(linea.total))}</span>
+              <Dinero centavos={aCentavos(linea.total)} tamano="sm" />
             </li>
           ))}
-          <li className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
+          <li className="flex items-baseline justify-between gap-(--espacio-3) border-t border-border pt-(--espacio-1) font-semibold">
             <span>Total con propina</span>
-            <span className="tabular-nums">{enPesos(total)}</span>
+            <Dinero centavos={total} tamano="lg" />
           </li>
-        </ul>
+        </Superficie>
 
         {/* Los cuatro métodos en 2×2, como el documento. La palomita —y no sólo
             el relleno— dice cuál está elegido: el color nunca va solo. */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-(--espacio-2)">
           {METODOS.map((opcion) => (
             <Button
               key={opcion}
@@ -383,7 +402,7 @@ export function CobroYPropina({
         </div>
 
         {metodo === 'efectivo' && (
-          <label className="block space-y-1 text-sm">
+          <label className="flex flex-col gap-(--espacio-1) text-sm">
             Recibido
             <Input
               inputMode="decimal"
@@ -392,7 +411,10 @@ export function CobroYPropina({
                 setRecibido(evento.target.value);
               }}
             />
-            <span className="tabular-nums">Cambio {enPesos(Math.max(mano - total, 0))}</span>
+            <span className="flex items-baseline justify-between">
+              <span className="text-muted-foreground">Cambio</span>
+              <Dinero centavos={Math.max(mano - total, 0)} tamano="lg" />
+            </span>
           </label>
         )}
 
@@ -434,29 +456,38 @@ export function CobroYPropina({
         aria-label={
           segundaPantallaConectada ? 'Lo que ve el cliente' : 'Respaldo de propina en la terminal'
         }
-        className="flex flex-col items-center gap-4 rounded-lg border-2 border-primary/40 bg-card p-4 text-center text-card-foreground shadow-2"
+        className="flex flex-col items-center gap-(--espacio-4) rounded-lg border-2 border-primary bg-card p-(--espacio-4) text-center text-card-foreground shadow-2"
       >
         {!segundaPantallaConectada && (
           <Badge variant="outline">Respaldo · queda marcado como capturado por el empleado</Badge>
         )}
-        <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Total</p>
-        <p className="text-6xl font-bold tabular-nums">{enPesos(total)}</p>
+        {/* La cara del cliente: el total primero y el rótulo debajo. Lo que la
+            persona busca al girar la pantalla es la cifra, no la palabra «total». */}
+        <Dinero centavos={total} tamano="total" className="leading-none" />
+        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Total</p>
 
         {propina !== null && (
-          <p className="text-lg">
-            {propina === 0 ? 'Sin propina' : `Propina ${enPesos(propina)}`} · ¡gracias!
+          <p className="inline-flex items-baseline gap-1 text-lg">
+            {propina === 0 ? (
+              'Sin propina'
+            ) : (
+              <>
+                Propina <Dinero centavos={propina} tamano="lg" />
+              </>
+            )}{' '}
+            · ¡gracias!
           </p>
         )}
 
         {propina === null && otro === null && (
           // Cinco celdas idénticas: la salida no se esconde. En teléfono la fila
           // se parte en dos, nunca en una lista con «Sin propina» al pie.
-          <div className="grid w-full grid-cols-3 gap-2 sm:grid-cols-5">
+          <div className="grid w-full grid-cols-3 gap-(--espacio-2) sm:grid-cols-5">
             {PROPINAS.map((opcion) => (
               <Button
                 key={opcion.texto}
                 variant="outline"
-                className="min-h-20 text-base tabular-nums"
+                className="min-h-20 font-numeros text-base tabular-nums"
                 onClick={() => {
                   if (opcion.centavos === null) setOtro('');
                   else setPropina(opcion.centavos);

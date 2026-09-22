@@ -4,6 +4,7 @@ import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Progress } from '@morphiqpos/ui/primitivas/progress';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { TriangleAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -463,7 +464,8 @@ export function MiDia({
               {actual.alergias && (
                 // Arriba del todo: un error aquí no es un descuadre.
                 <Badge variant="destructive" className="mb-2">
-                  ⚠️ Revisa alergias en su ficha
+                  <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Revisa
+                  alergias en su ficha
                 </Badge>
               )}
               <p className="text-2xl font-bold leading-tight">
@@ -549,7 +551,9 @@ export function MiDia({
                       {renglon.cita.servicio ?? 'Servicio'} ·{' '}
                       {renglon.cita.clienteNombre ?? renglon.cita.folio ?? 'Sin nombre'}
                     </span>
-                    {renglon.cita.alergias && <span aria-label="Con alergias">⚠️</span>}
+                    {renglon.cita.alergias && (
+                      <TriangleAlert aria-label="Con alergias" className="inline size-4 shrink-0" />
+                    )}
                   </button>
                 </li>
               ) : (

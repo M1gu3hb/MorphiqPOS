@@ -132,6 +132,15 @@ export const TOKENS_BASE = [
   'tamano-xl',
   'tamano-2xl',
   'tamano-3xl',
+  /**
+   * El paso de DISPLAY, y por que es el octavo y no un `text-5xl` suelto.
+   *
+   * Las pantallas escribian `text-5xl xl:text-6xl` a mano para el total del cobro
+   * —fuera de la escala, sin tokens y distinto en cada modelo—. Es el unico importe
+   * que no se lee: se dice en voz alta con alguien esperando enfrente. Asi que tiene
+   * su paso, es fluido, y sale del contrato como los otros siete.
+   */
+  'tamano-display',
   'peso-normal',
   'peso-medio',
   'peso-fuerte',

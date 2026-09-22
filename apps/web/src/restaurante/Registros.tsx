@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@morphiqpos/ui/primitivas/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primitivas/tabs';
+import { TriangleAlert } from 'lucide-react';
 import { Fragment, type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -592,8 +593,9 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
           )}
           {filas !== null && filas.length >= VENTANA && (
             <p role="status" className={AVISO}>
-              ⚠️ Se leyeron los {String(VENTANA)} registros más recientes: un periodo largo puede
-              dejar fuera los más antiguos.
+              <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Se leyeron los{' '}
+              {String(VENTANA)} registros más recientes: un periodo largo puede dejar fuera los más
+              antiguos.
             </p>
           )}
           {/*

@@ -3,6 +3,7 @@
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { TriangleAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -371,9 +372,10 @@ export function Bloque({ bloque, ocupado = false, onTocar }: BloqueProps) {
         </span>
         {/* Esquina propia: un error aquí no es un descuadre, es una quemadura. */}
         {bloque.alergia && (
-          <span className="ml-auto" aria-label="Alergia en el expediente">
-            🔺
-          </span>
+          <TriangleAlert
+            aria-label="Alergia en el expediente"
+            className="ml-auto size-4 shrink-0 text-destructive"
+          />
         )}
       </span>
       {bloque.clienta !== null && (

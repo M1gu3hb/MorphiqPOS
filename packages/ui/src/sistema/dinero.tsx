@@ -40,8 +40,10 @@ const TAMANOS: Readonly<Record<TamanoDeDinero, string>> = {
   base: 'text-base',
   lg: 'text-xl font-medium',
   // El total domina la pantalla de cobro: es lo primero que se ve y lo único que
-  // se lee desde el otro lado del mostrador.
-  total: 'text-3xl font-bold tracking-tight',
+  // se lee desde el otro lado del mostrador. Va en el paso `display`, que es fluido
+  // —de 40 a 64 px según la ventana— porque a esa distancia el tamaño que sobra en
+  // un monitor de 13 pulgadas falta en la pantalla de una barra.
+  total: 'text-display font-bold tracking-tight',
 };
 
 /** El símbolo y los centavos, un escalón por debajo del cuerpo del número. */
@@ -52,7 +54,7 @@ const SECUNDARIO: Readonly<Record<TamanoDeDinero, string>> = {
   sm: 'text-xs',
   base: 'text-sm',
   lg: 'text-base',
-  total: 'text-xl',
+  total: 'text-2xl',
 };
 
 export interface DineroProps {

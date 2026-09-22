@@ -3,6 +3,7 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { MapPin } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -311,7 +312,7 @@ export function Mostrador({
               Recoge: {cliente.recoge ?? '—'}{' '}
               {cliente.recogeAutorizado
                 ? '· autorizado'
-                : '· ⚠️ no está en la lista. ¿Le hablas antes de despachar?'}
+                : '· NO está en la lista. ¿Le hablas antes de despachar?'}
             </p>
           </>
         )}
@@ -632,7 +633,9 @@ function FilaMaterial({ material, onAgregar }: FilaMaterialProps) {
         {negativo ? '✖ revisar' : `${material.existencia} ${material.unidad}`}
       </span>
       {/* En negritas siempre: en el pasillo es el dato que se está usando. */}
-      <span className="text-right font-bold xl:text-left">📍 {material.ubicacion ?? '—'}</span>
+      <span className="inline-flex items-center gap-1 text-right font-bold xl:text-left">
+        <MapPin aria-hidden="true" className="inline size-4 shrink-0" /> {material.ubicacion ?? '—'}
+      </span>
     </button>
   );
 }

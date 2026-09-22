@@ -116,6 +116,29 @@
   --shadow-3: var(--sombra-3);
   --shadow-4: var(--sombra-4);
 
+  /* --- LA ESCALA TIPOGRÁFICA DEL SISTEMA, ENCHUFADA --------------------
+     El mismo hallazgo que el de la elevación, y en el mismo sitio: `base.css`
+     declara `--tamano-xs … --tamano-3xl` desde la Fase 1, el contrato los exige y
+     `sistema.test.ts` comprueba que están. Y **nadie los mapeaba a Tailwind**, así
+     que lo que se pintaba de verdad era la escala POR OMISIÓN de Tailwind y los
+     ocho tokens eran ocho declaraciones inertes. Tres veces la misma enfermedad:
+     un sistema escrito, probado y sin aplicar.
+
+     La escala del contrato tiene más CONTRASTE que la de Tailwind —1.375 contra
+     1.25 en `xl`, 2.25 contra 1.875 en `3xl`—, y ese contraste es la mitad de la
+     jerarquía: lo que hace que un título mande sin tener que ponerlo en negrita.
+
+     `display` es el octavo paso y el único fluido: el total de una pantalla de
+     cobro no se lee, se dice en voz alta desde el otro lado del mostrador. */
+  --text-xs: var(--tamano-xs);
+  --text-sm: var(--tamano-sm);
+  --text-base: var(--tamano-base);
+  --text-lg: var(--tamano-lg);
+  --text-xl: var(--tamano-xl);
+  --text-2xl: var(--tamano-2xl);
+  --text-3xl: var(--tamano-3xl);
+  --text-display: var(--tamano-display);
+
   /* --- animation: el acordeón de Radix --------------------------------- */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
