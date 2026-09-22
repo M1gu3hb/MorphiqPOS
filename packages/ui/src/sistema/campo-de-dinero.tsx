@@ -1,7 +1,7 @@
 'use client';
 
 import type { ComponentProps, ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Input } from '../primitivas/input';
 import { cn } from '../utilidades/cn';
@@ -53,14 +53,17 @@ export function CampoDeDinero({
   ...resto
 }: CampoDeDineroProps): ReactElement {
   const [texto, setTexto] = useState(() => textoParaCampo(centavos));
+  const [ultimoDeFuera, setUltimoDeFuera] = useState(centavos);
 
   // Si el importe cambia DESDE FUERA —un botón de efectivo rápido, «exacto»—, el texto
   // lo sigue. Si es el mismo importe que ya dice el texto («42.» y 4200), no se toca:
-  // reescribirlo borraría el punto que alguien está tecleando.
-  useEffect(() => {
+  // reescribirlo borraría el punto que alguien está tecleando. Se ajusta DURANTE el
+  // pintado y no en un efecto: un efecto pintaría primero el texto viejo y después el
+  // nuevo, dos pasadas por un solo cambio.
+  if (centavos !== ultimoDeFuera) {
+    setUltimoDeFuera(centavos);
     if (centavosDeTexto(texto) !== centavos) setTexto(textoParaCampo(centavos));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo reacciona al importe de fuera
-  }, [centavos]);
+  }
 
   return (
     <div className={cn('relative', className)}>

@@ -174,4 +174,17 @@ describe('verify:adopcion · el analizador', () => {
     );
     expect(hallazgos(texto)).toEqual([]);
   });
+
+  it('la tesela hecha con Superficie interactiva tampoco, y una Superficie quieta sí', () => {
+    const tesela = conCambio(
+      '<p>Total',
+      '<ul>{filas.map((f) => (<li key={f.id}><Superficie como="button" interactiva><Dinero centavos={f.c} /></Superficie></li>))}</ul><p>Total',
+    );
+    expect(hallazgos(tesela)).toEqual([]);
+    const fila = conCambio(
+      '<p>Total',
+      '<ul>{filas.map((f) => (<li key={f.id}><Superficie><span>{f.n}</span><Dinero centavos={f.c} /></Superficie></li>))}</ul><p>Total',
+    );
+    expect(hallazgos(fila).map((h) => h.condicion)).toContain('1.2');
+  });
 });
