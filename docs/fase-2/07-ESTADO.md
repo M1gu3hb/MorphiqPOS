@@ -724,3 +724,49 @@ Y una sexta que no estaba en la lista y hacía falta: **`verify:rastro`**, que e
 comandos que declaran escribir dejen rastro. `definirComando` ya lo comprueba en ejecución, y las
 248 pruebas de comandos llaman a `.ejecutar()` directamente, así que esa comprobación no la
 probaba nadie: `configuracion.fijar_apariencia` llevaba toda la etapa 5 sin poder guardar.
+
+### La tabla de las diez condiciones de TERMINADO
+
+| # | Condición | Estado |
+| --- | --- | --- |
+| 1 | Los nueve puntos de la etapa 0, cerrados | ✅ |
+| 2 | `estilos/index.css` enchufado, `shadow-1..4` y `h-(--altura-control)` emitiendo CSS de verdad | ✅ |
+| 3 | Un solo vocabulario de tokens | ✅ |
+| 4 | La librería de la etapa 2, con su página viva | ✅ |
+| 5 | Los ocho estilos, cada uno completo y pasando contraste y foco | ✅ |
+| 6 | Las 69 pantallas rediseñadas, cada modelo sintiéndose suyo | 🔴 **parcial** · 31 de 72 usan la biblioteca; ninguna recompuesta una por una |
+| 7 | El selector en Modo presentación, cambiando en vivo y guardando por organización | ✅ |
+| 8 | Las cinco puertas de la etapa 6, en rojo antes que en verde | ✅ · son **seis** |
+| 9 | `pnpm verify` en 0 | ⏳ · la cadena entera en verde salvo el último eslabón, que espera a CI |
+| 10 | Desplegado y comprobado **desde fuera** | ✅ para el despliegue de la rama · 🔴 `main` no fusionado |
+
+### Lo comprobado contra el despliegue REMOTO, no contra localhost
+
+`verify:acople` contra `https://morphiqpos-git-fase-2-mh-astral-systems.vercel.app`, con la cookie
+de un enlace compartido —la vía 2 de `VERCEL-ENTORNO §3`, que no cambia la protección del
+proyecto—:
+
+```
+despliegue    REMOTO … → 200 · con la cookie de un enlace compartido · sin muro por delante
+rutas         103 declaradas · 82 probadas por HTTP · 21 dinámicas o exceptuadas
+vocabulario   … 0 tecleados a mano · 0 rótulos con la palabra de otro giro
+✗ El acople NO está terminado · 1 cosa(s) pendientes:
+  · CI: 7 check(s) todavía corriendo en a1f1eee. Verde es verde cuando termina.
+```
+
+Lo único pendiente es CI, y eso es una propiedad buena de la puerta: **`verify` no puede dar verde
+mientras CI no lo dé**, así que las condiciones 8, 9 y 10 están atadas entre sí y ninguna se puede
+declarar sola.
+
+**Lo que NO se hizo, y es una decisión:** no se fusionó a `main` ni se tocó el entorno *Production*.
+`VERCEL-ENTORNO §4` ya lo dejó escrito —«**Production NO se tocó**: es lo que usan cuatro negocios
+para cobrar y esa decisión es de Miguel»— y con el 400 de la cafetería todavía sin diagnosticar no
+hay nada que justifique empujar a la caja con la que cuatro negocios cobran mañana. El despliegue de
+la rama **sí** está vivo, comprobado desde fuera y con el commit de hoy: `a1f1eee`.
+
+### La puerta que daba verde sobre un archivo que no había leído
+
+`accept="image/*"` abría un comentario fantasma en `textosVisibles` y dejaba **170 líneas** de
+`ferreteria/FichaDePieza.tsx` sin leer. El cierre de la 2.3 informó «0 rótulos con la palabra de
+otro giro» sobre un archivo que la puerta no había mirado. Medido por mutación: con el archivo
+INTACTO de antes de la etapa y la puerta arreglada, el rótulo aparece. Detalle en `BITACORA.md`.
