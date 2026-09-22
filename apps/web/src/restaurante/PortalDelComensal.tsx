@@ -108,6 +108,19 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
 
   useEffect(() => {
     if (datosIniciales !== undefined) return;
+    /**
+     * SIN TOKEN NO SE LATE, y esto era un defecto de verdad.
+     *
+     * Abajo hay un estado vacío para cuando alguien llega aquí sin escanear nada, y
+     * está bien escrito. Pero un efecto corre ANTES de que el componente decida qué
+     * pinta: con el token vacío, esta pantalla pedía `/api/publico/qr/` —sin token—
+     * cada cuatro segundos, PARA SIEMPRE, y el servidor contestaba 404 cada vez.
+     *
+     * No lo vio nadie porque la pantalla se ve perfecta: el vacío se pinta igual y el
+     * 404 sólo existe en la consola y en el registro del servidor. Lo cazó el
+     * rastreador, que es exactamente para lo que mira la consola.
+     */
+    if (token === '') return;
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
 

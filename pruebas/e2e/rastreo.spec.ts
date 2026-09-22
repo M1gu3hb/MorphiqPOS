@@ -1584,6 +1584,22 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
             `   formulario «${formulario.etiqueta}» no se pudo enviar: ${String(fallo).split('\n')[0] ?? ''}`,
           );
         } finally {
+          /**
+           * LA VENTANA DE SONDA SE CIERRA TARDE, A PROPÓSITO.
+           *
+           * Se cerraba justo después del respiro, y eso es una CARRERA: el 400 del
+           * servidor —que es la validación funcionando— llega cuando llega, y en un
+           * contenedor de CI llega más tarde que en una laptop. Si aterriza un
+           * milisegundo después, el navegador escribe «Failed to load resource: 400»
+           * con la ventana ya cerrada y la corrida acusa a la aplicación de romperse
+           * justo cuando mejor se comporta. Le pasó a la cafetería dos veces.
+           *
+           * Un segundo entero de cola: la sonda no vuelve a tocar nada en ese rato, así
+           * que lo único que puede entrar por ahí es la respuesta que ella misma
+           * provocó. Y sigue tapando SÓLO el 400 y el 422: un 404 es una ruta que no
+           * existe y un 5xx es que revienta, con ventana o sin ella.
+           */
+          await page.waitForTimeout(RESPIRO_MS * 2);
           sondeando = false;
           page.off('request', contar);
         }
