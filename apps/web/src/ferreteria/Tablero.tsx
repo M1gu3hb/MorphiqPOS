@@ -2,6 +2,7 @@
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { GraficaDeBarras } from '@morphiqpos/ui/sistema';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
@@ -211,6 +212,27 @@ export function Tablero({ datosIniciales }: TableroProps) {
           </h2>
           <p className={CIFRA}>{pesos(cartera.totalCentavos)}</p>
           <p className="text-sm text-muted-foreground">Vencido {pesos(cartera.vencidoCentavos)}</p>
+          {/* LA CARTERA, DIBUJADA. Es el indicador estrella del giro —«la pérdida que
+              no admite vuelta atrás»— y la lista de abajo ya dice quién y cuánto; lo
+              que la lista NO dice es la PROPORCIÓN: si son cuatro obras parecidas o
+              una sola que se comió la mitad. Eso decide a quién se le habla hoy, y es
+              exactamente lo que una barra contesta y una columna de cifras no.
+              Empieza en cero siempre, como todas las de este sistema. */}
+          {cartera.masViejos.length > 1 && (
+            <GraficaDeBarras
+              className="mt-(--espacio-3)"
+              titulo="Las obras que más deben, por saldo"
+              ejes={cartera.masViejos.map((quien) => quien.obra ?? quien.cliente)}
+              series={[
+                {
+                  etiqueta: 'Saldo',
+                  valores: cartera.masViejos.map((quien) => Number(quien.saldoCentavos)),
+                },
+              ]}
+              formato={(valor) => PESOS.format(valor / 100)}
+              alto={150}
+            />
+          )}
           {cartera.masViejos.length > 0 && (
             <ul className="mt-2 divide-y divide-border">
               {cartera.masViejos.map((quien) => (

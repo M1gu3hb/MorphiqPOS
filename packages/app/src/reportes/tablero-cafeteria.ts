@@ -61,6 +61,18 @@ export interface TableroDeCafeteria {
   };
   /** 2 · Bebidas por hora en el pico: decide si mañana hace falta un tercero. */
   readonly pico: { readonly bebidasPorHora: number; readonly hora: string | null };
+  /**
+   * 2b · LA RÁFAGA HORA POR HORA, que es la forma del negocio.
+   *
+   * El pico solo dice CUÁNTO; esto dice CUÁNDO y CUÁNTO DURA, y son dos decisiones
+   * distintas: 45 bebidas en una hora aislada es un día raro, y 40, 45 y 38 seguidas
+   * son tres horas en las que hace falta un tercero en la barra. La misma consulta
+   * que ya agrupaba por hora para sacar el máximo devuelve ahora la serie entera: no
+   * cuesta una lectura más.
+   *
+   * En orden de HORA y no de volumen, que es como se lee una ráfaga.
+   */
+  readonly ritmo: readonly { readonly hora: string; readonly bebidas: number }[];
   /** 3 · Del cobro a la entrega, en segundos: decide si hay que mover la barra. */
   readonly entrega: { readonly segundos: number | null; readonly comandas: number };
   /** 4 · Lo que se acaba primero, en DÍAS y no en litros. */
@@ -115,25 +127,36 @@ export const tableroDeCafeteria = definirComando<
     );
     const turno = await ctx.paso('turno_abierto', () => leerTurno(ctx.tx, organizacionId));
 
-    const [rafaga, pico, entrega, seAcaba, delTurno, mezcla, porUtilidad, grano, merma, sellos] =
-      await Promise.all([
-        leerRafaga(ctx.tx, organizacionId, dia),
-        leerPico(ctx.tx, organizacionId, dia),
-        leerEntrega(ctx.tx, organizacionId, dia),
-        leerSeAcaba(ctx.tx, organizacionId),
-        leerDelTurno(ctx.tx, turno),
-        leerMezcla(ctx.tx, organizacionId, dia),
-        leerPorUtilidad(ctx.tx, organizacionId, dia),
-        leerGrano(ctx.tx, organizacionId),
-        leerMerma(ctx.tx, organizacionId, turno),
-        leerSellos(ctx.tx, organizacionId, dia),
-      ]);
+    const [
+      rafaga,
+      delReloj,
+      entrega,
+      seAcaba,
+      delTurno,
+      mezcla,
+      porUtilidad,
+      grano,
+      merma,
+      sellos,
+    ] = await Promise.all([
+      leerRafaga(ctx.tx, organizacionId, dia),
+      leerPico(ctx.tx, organizacionId, dia),
+      leerEntrega(ctx.tx, organizacionId, dia),
+      leerSeAcaba(ctx.tx, organizacionId),
+      leerDelTurno(ctx.tx, turno),
+      leerMezcla(ctx.tx, organizacionId, dia),
+      leerPorUtilidad(ctx.tx, organizacionId, dia),
+      leerGrano(ctx.tx, organizacionId),
+      leerMerma(ctx.tx, organizacionId, turno),
+      leerSellos(ctx.tx, organizacionId, dia),
+    ]);
 
     return {
       fecha: dia.fecha,
       turnoAbierto: turno !== null,
       rafaga,
-      pico,
+      pico: delReloj.pico,
+      ritmo: delReloj.ritmo,
       entrega,
       seAcaba,
       cajon: delTurno.cajon,
@@ -211,7 +234,18 @@ async function leerPico(
   tx: Transaccion,
   organizacionId: string,
   dia: LimitesDelDia,
-): Promise<TableroDeCafeteria['pico']> {
+): Promise<{
+  readonly pico: TableroDeCafeteria['pico'];
+  readonly ritmo: TableroDeCafeteria['ritmo'];
+}> {
+  /**
+   * La serie ENTERA, ordenada por hora, y el máximo se saca de ella.
+   *
+   * Antes esta consulta terminaba en `order by bebidas desc limit 1`: agrupaba las
+   * veinticuatro horas del día y tiraba veintitrés para quedarse con una. La ráfaga
+   * de la mañana —lo que define a una cafetería, y lo que su §4.4 pone primero— se
+   * estaba calculando y descartando en la misma línea.
+   */
   const filas = await sql<{ hora: string; bebidas: string }>`
     select to_char(date_trunc('hour', o.created_at at time zone z.zona), 'HH24:MI') as hora,
            count(l.id)                                                             as bebidas
@@ -223,13 +257,21 @@ async function leerPico(
        and o.created_at >= ${dia.desde}
        and o.created_at < ${dia.hasta}
      group by 1
-     order by bebidas desc
-     limit 1
+     order by 1
   `.execute(tx);
-  const fila = filas.rows[0];
+
+  const ritmo = filas.rows.map((fila) => ({
+    hora: fila.hora,
+    bebidas: Number(fila.bebidas),
+  }));
+  const mayor = ritmo.reduce<(typeof ritmo)[number] | null>(
+    (mejor, fila) => (mejor === null || fila.bebidas > mejor.bebidas ? fila : mejor),
+    null,
+  );
+
   return {
-    bebidasPorHora: Number(fila?.bebidas ?? 0),
-    hora: fila?.hora ?? null,
+    pico: { bebidasPorHora: mayor?.bebidas ?? 0, hora: mayor?.hora ?? null },
+    ritmo,
   };
 }
 

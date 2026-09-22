@@ -3,6 +3,7 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Progress } from '@morphiqpos/ui/primitivas/progress';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { GraficaDeBarras } from '@morphiqpos/ui/sistema';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
@@ -489,6 +490,32 @@ export function Tablero({ datosIniciales }: TableroProps) {
               </dd>
             </div>
           </dl>
+          {/* LA GRÁFICA DE ESTE TABLERO, y por qué va aquí y no en la ocupación.
+              La ocupación de mañana ya se dibuja: cada profesional lleva su barra de
+              relleno, que es exactamente la gráfica que ese número necesita. Lo que no
+              se ve en ninguna parte es la PROPORCIÓN de esta resta —cuatro renglones
+              de cifras dicen cuánto se fue, y ninguno dice si la comisión se llevó un
+              tercio o dos—, y de esa proporción sale la decisión más cara del salón:
+              si se contrata a alguien más o si se sube el precio. */}
+          <GraficaDeBarras
+            className="mt-(--espacio-3)"
+            titulo="De lo cobrado del mes, a dónde se fue"
+            ejes={['Cobrado', 'Comisión', 'Insumo', 'Gastos', 'Le quedó']}
+            series={[
+              {
+                etiqueta: 'Del mes',
+                valores: [
+                  Number(leQuedo.ventaCentavos),
+                  Number(leQuedo.comisionCentavos),
+                  Number(leQuedo.materialCentavos),
+                  Number(leQuedo.gastosCentavos),
+                  Number(leQuedo.quedoCentavos),
+                ],
+              },
+            ]}
+            formato={(valor) => PESOS.format(valor / 100)}
+            alto={150}
+          />
           <p className={AL_PIE}>
             Con la comisión restada, siempre: sin ella este renglón diría 78 % donde hay 28 %, y
             sobre ese 78 % se contrata gente que no se puede pagar.

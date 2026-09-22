@@ -2,6 +2,7 @@
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { GraficaDeBarras } from '@morphiqpos/ui/sistema';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
@@ -66,6 +67,17 @@ export interface TableroDeCafeteria {
     readonly bebidas: number;
   };
   readonly pico: { readonly bebidasPorHora: number; readonly hora: string | null };
+  /**
+   * La serie de la ráfaga, hora por hora. La forma del día, no sólo su máximo.
+   *
+   * OPCIONAL aquí y obligatorio en el servidor, y no es un descuido: esta interfaz es
+   * lo que el CLIENTE puede dar por cierto, e `invocarComando<T>` no valida nada en
+   * tiempo de ejecución —el tipo es una promesa, no una garantía—. Durante un
+   * despliegue el servidor puede ser todavía el de ayer, y el de ayer no manda este
+   * campo. En esta misma fase ese modo de fallo costó una pantalla en blanco: el mapa
+   * de mesas llamando `localeCompare` sobre un número que el puente servía entero.
+   */
+  readonly ritmo?: readonly { readonly hora: string; readonly bebidas: number }[];
   readonly entrega: { readonly segundos: number | null; readonly comandas: number };
   readonly seAcaba: {
     readonly insumo: string | null;
@@ -174,7 +186,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
     );
   }
 
-  const { rafaga, pico, entrega, seAcaba, cajon, costoPorBebida, tarjeta, utilidad } = datos;
+  const { rafaga, pico, ritmo, entrega, seAcaba, cajon, costoPorBebida, tarjeta, utilidad } = datos;
   const { mezcla, porUtilidad, grano, merma, sellos } = datos;
   const totalMezcla = mezcla.reduce((suma, m) => suma + Number(m.centavos), 0);
 
@@ -217,6 +229,12 @@ export function Tablero({ datosIniciales }: TableroProps) {
           </p>
         </section>
 
+        {/* 2 · EL PICO, y debajo LA FORMA DEL DÍA.
+            El número dice cuánto; la gráfica dice cuándo y cuánto DURA, y son dos
+            decisiones distintas: 45 bebidas en una hora suelta es un día raro, y 40,
+            45 y 38 seguidas son tres horas en las que hace falta un tercero. Es la
+            única gráfica de este tablero, y es la que define al giro: una cafetería
+            ES su ráfaga de la mañana. */}
         <section className={TARJETA} aria-labelledby="t-pico">
           <h2 id="t-pico" className={ROTULO}>
             {voc.titulo('linea_orden', true)} por hora en el pico
@@ -234,6 +252,22 @@ export function Tablero({ datosIniciales }: TableroProps) {
               ? ' · con dos personas la fila se sale a la calle'
               : ''}
           </p>
+          {/* `?? []` y no `ritmo.length` a secas: `invocarComando<T>` NO valida nada en
+              tiempo de ejecución, así que el tipo es una promesa y no una garantía. En
+              esta misma fase eso costó una pantalla en blanco —el mapa de mesas
+              llamando `localeCompare` sobre un número— y el modo de fallo es idéntico:
+              un servidor de una versión anterior devuelve el tablero sin este campo y
+              lo que ve la dueña es la página de error del navegador, no un hueco. */}
+          {(ritmo ?? []).length > 1 && (
+            <GraficaDeBarras
+              className="mt-(--espacio-3)"
+              titulo={`${voc.titulo('linea_orden', true)} por hora, de la apertura al cierre`}
+              ejes={(ritmo ?? []).map((punto) => punto.hora)}
+              series={[{ etiqueta: 'Hoy', valores: (ritmo ?? []).map((punto) => punto.bebidas) }]}
+              formato={(valor) => String(Math.round(valor))}
+              alto={140}
+            />
+          )}
         </section>
 
         <section className={TARJETA} aria-labelledby="t-entrega">

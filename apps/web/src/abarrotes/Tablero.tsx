@@ -2,6 +2,7 @@
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { GraficaDeBarras } from '@morphiqpos/ui/sistema';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
@@ -347,6 +348,29 @@ export function Tablero({ datosIniciales }: TableroProps) {
           <p className="text-sm text-muted-foreground">Nada se vence esta semana.</p>
         ) : (
           <ul className="divide-y divide-border">
+            {/* LA ÚNICA GRÁFICA DE ESTE TABLERO, y va aquí y no en la venta.
+                §4.4 prohíbe la dona de métodos de pago —«en 390 px una lista ordenada
+                contesta mejor y ocupa menos»— y el mismo criterio decide dónde SÍ
+                cabe una: donde la pregunta es «¿cuál primero?» y las magnitudes son
+                comparables. La lista de abajo dice qué y cuánto; lo que no dice es si
+                el remate del sábado empieza por uno solo que se come la mitad del
+                riesgo o hay que bajarle el precio a los cinco. */}
+            {porVencer.length > 1 && (
+              <li className="pb-(--espacio-3)">
+                <GraficaDeBarras
+                  titulo="Lo que se vence esta semana, a costo"
+                  ejes={porVencer.map((fila) => fila.producto)}
+                  series={[
+                    {
+                      etiqueta: 'A costo',
+                      valores: porVencer.map((fila) => Number(fila.valorCentavos)),
+                    },
+                  ]}
+                  formato={(valor) => PESOS.format(valor / 100)}
+                  alto={140}
+                />
+              </li>
+            )}
             {porVencer.map((fila) => (
               <li key={`${fila.producto}-${fila.dias}`} className={RENGLON}>
                 <span className="min-w-0 flex-1 truncate">{fila.producto}</span>
