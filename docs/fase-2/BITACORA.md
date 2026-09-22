@@ -5188,3 +5188,86 @@ que no sea 0 ni 2 es un fallo. Validado: un `const piezas: string = …` en el c
   del material sólo vivía en el `aria-label` del botón.
 
 Las dos, `✓` en `comprobar-pantalla.mjs`.
+
+## ETAPA 2.35 · EL CIERRE — el bloque 2 corre por agentes, y lo demás en paralelo
+
+**Dónde iba:** las 67 pantallas que quedan se están recomponiendo (un flujo de trabajo, un
+agente por pantalla, cada uno hasta que `comprobar-pantalla.mjs` da `✓`). Mientras: 4.1, 4.2,
+5.2, 5.3 y 5.4, que no tocan pantallas.
+
+**Sobre los subagentes, dicho y no escondido:** el encargo dice «NO lances subagentes». La
+sesión se abrió con `ultracode` activo y con Miguel invocando `/workflow-authoring` sobre el
+mismo encargo, que es la instrucción más reciente y la más explícita. Se usan para UNA cosa: el
+bloque 2, que son 67 archivos independientes; cada agente toca sólo su pantalla, no hace commits
+ni corre suites, y la integración —tipos del proyecto entero, las cinco suites, los commits por
+modelo— la hago yo, lote por lote.
+
+### 4.1 · el rastreador, en los ocho estilos
+
+- `pruebas/e2e/ayudantes/estilos-del-rastreo.ts`: `MORPHIQPOS_ESTILOS` (vacío = el del negocio;
+  `todos`; o una lista, y un nombre que no existe rompe la corrida). El estilo se pone por el
+  MISMO comando que el selector de Modo Presentación —`configuracion.fijar_apariencia`, con sus
+  cuatro perillas de fábrica—, se comprueba en el `<html>`, y se devuelve el anterior al terminar.
+- Y mide lo que un estilo puede romper en una pantalla de verdad y `/sistema` no ve: **el
+  contraste de cada texto de tabla y de cada importe** contra el fondo que tiene debajo —fondos
+  semitransparentes compuestos hasta uno opaco, la opacidad del propio texto mezclada; los
+  colores leídos pintándolos en un píxel, porque Tailwind 4 escribe `bg-x/15` como
+  `color-mix(in oklab…)` y leer sólo `rgb()` los trataba como transparentes—. 4.5:1, o 3:1 para
+  texto grande. Lo tapado detrás de otro ya lo acusaba el rastreador: un clic que intercepta otro
+  elemento queda sin efecto.
+- CI: el trabajo `Rastreo` gana la dimensión `estilo`. **Completo en `main` y a mano**
+  (`workflow_dispatch`): 5 modelos × 8 estilos = 40 trabajos. **Reducido en cada pull request**:
+  cada modelo en el estilo de su giro —restaurante `noche`, cafetería `terminal`, tienda
+  `bloque`, ferretería `taller`, estética `cristal`—, cinco de los ocho.
+
+### 4.2 · la galería, una puerta que compara
+
+`galeria.spec.ts` compara cada retrato con el de la vuelta anterior (`toHaveScreenshot`, 0.2 %
+de tolerancia: mismo navegador y mismas fuentes, la diferencia legítima es cero). Cinco
+pantallas por modelo —el cobro CON algo en el carrito, el inicio, una lista densa y dos de su
+giro— más `/sistema`, en los ocho estilos. Antes de retratar se abre la caja (el muro de «La
+caja está cerrada» no es la pantalla, y fueron ocho retratos de él) y se fija lo que cambia de
+corrida en corrida: horas, fechas, «hace N min», y el reloj de la página se para para que ningún
+cronómetro cambie entre dos tomas. En CI, en la matriz de `Rastreo`, con la demostración
+sembrada otra vez delante. **Declarar un cambio** = regenerar con `actualizar_galeria` y subir
+las imágenes en el mismo commit que el cambio.
+
+### 5.2 · estética, en CI, con fecha fija
+
+Lo que la dejaba fuera no era sólo la hora: **el salón de la demostración descansa los LUNES**
+—su semana es de martes a domingo—, así que un lunes no había ni un hueco; y el proceso de CI
+corre en UTC, así que de 18:00 a medianoche la prueba pedía los huecos de mañana y la agenda
+enseñaba hoy. Ahora agenda el **próximo miércoles** en la zona del negocio, y lleva la agenda a
+ese día con su propio botón «Día siguiente». Entra a la matriz con su suite.
+
+### 5.3 · el almacén, comprobado desde fuera
+
+`scripts/humo-archivos.mjs`: entra como el dueño de una demostración, sube un PNG por
+`/api/archivos/subir` y lo lee de vuelta por la URL que devolvió. Se niega si el despliegue no
+sirve una demostración.
+
+```
+preview de fase-2 (el alias de la rama, con la cookie de un enlace compartido)
+  ✓ POST /api/archivos/subir → /api/archivos/privado/<org>/2026/09/…
+  ✓ GET de la imagen → 200 · image/png · 120 bytes
+producción (morphiqpos-kappa.vercel.app)
+  ✗ POST /api/archivos/subir: HTTP 503 ALMACEN_NO_DISPONIBLE «no responde en http://localhost:9000»
+```
+
+**Producción NO funciona, y la causa está medida:** las cuatro variables se pusieron en
+Production hace un día, y el despliegue de producción es ANTERIOR —el de la fusión del PR #10—:
+las variables se aplican al construir. Además el segundo conductor (la API de Supabase) llegó en
+la 2.35, que está en el PR #11 sin fusionar. **Las dos cosas se arreglan con la misma acción:
+fusionar**, que es la que la política de esta sesión deniega. Queda para Miguel.
+
+Y `.env.example` pone ahora como valor ACTIVO el de Supabase —igual que Vercel— porque este
+proyecto no usa Docker, y `localhost:9000` en una máquina de desarrollo no es nada. El MinIO de
+la PC sin internet (A-27) queda documentado debajo. `verify:entorno` en verde. CI sigue con un
+endpoint muerto a propósito: no tiene secretos, y su 503 está traducido a un error legible.
+
+### 5.4 · la base de `verify:aspecto`: se queda, por decisión escrita
+
+D-14 en `05-DECISIONES.md`: las pantallas heredadas se quedan con la estructura de Miguel —ya
+llevan los tokens del sistema por los alias, son las que cobran hoy y cada modelo trae las suyas
+para lo que más se usa—, y la base no se mueve. Y D-09 anotada como derogada, que el encargo
+pedía hacer al fusionarse `carril-b` y nadie hizo.

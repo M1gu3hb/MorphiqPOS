@@ -1,154 +1,173 @@
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { expect, test, type Page } from '@playwright/test';
 
-import { expect, test } from '@playwright/test';
-
-import { entrar, vigilarFallos } from './ayudantes/sesion';
+import { ESTILOS } from '../../packages/ui/src/tokens/estilos.ts';
+import { abrirCajaPorLaRuta, consultarPuente, entrar, vigilarFallos } from './ayudantes/sesion';
 
 /**
- * LA GALERÍA · la pantalla que más importa de cada modelo, en los ocho estilos.
+ * LA GALERÍA · una PUERTA que compara, no una carpeta con fotos.
  *
- * ── Para qué existe, y por qué no es una prueba ──────────────────────────
- * Esto no afirma nada: RETRATA. Es lo que se mira cuando hay que decidir si un estilo
- * sirve para un giro, y lo que va en el informe de la etapa — «pon la pantalla al lado
- * de la misma pantalla del modelo más cercano» es el último examen del diseño, y no se
- * puede hacer sin las dos imágenes.
+ * ── Qué era, y por qué no bastaba ────────────────────────────────────────
+ * Retrataba y no comparaba: sin un `expect` de diferencia no podía fallar, no estaba ni
+ * en `pnpm verify` ni en CI, y eran cuatro pantallas de sesenta y nueve. Y la de
+ * «cobro» de la tienda era el MURO de «La caja está cerrada» —el rastreador la deja
+ * cerrada—: ocho retratos del mismo muro, firmados como el diseño de la pantalla.
  *
- * Por eso no está en la cadena de `pnpm verify` ni en el rastreo de CI: cuarenta
- * capturas con cinco sesiones son minutos, y no hay nada que se ponga rojo. Se corre a
- * mano, con la demostración del modelo sembrada:
+ * ── Qué es ahora ─────────────────────────────────────────────────────────
+ * Cada retrato se compara con el de la vuelta anterior (`toHaveScreenshot`): si una
+ * pantalla cambia y nadie lo declaró, la puerta se pone roja y deja la imagen de la
+ * diferencia. DECLARAR un cambio es regenerar los retratos —el trabajo de CI a mano
+ * con `actualizar_galeria`, o `--update-snapshots`— y que el cambio de las imágenes
+ * viaje en el mismo commit que el cambio de la pantalla: el diff de PNG es la
+ * declaración, y se revisa como se revisa el código.
  *
- *   MORPHIQPOS_ORG_DEMO=demo-acople-ferreteria MORPHIQPOS_DEMO_PERSONA=Demo \
- *   MORPHIQPOS_DEMO_PIN=1234 MORPHIQPOS_URL_DESPLIEGUE=http://localhost:3200 \
- *   pnpm test:e2e pruebas/e2e/galeria.spec.ts --project=escritorio
+ * Los retratos que cuentan son los de CI (Linux): las fuentes se dibujan distinto en
+ * cada sistema operativo, así que los de Windows no se comparan con nada.
  *
- * ── Qué se retrata, y por qué esas cuatro ────────────────────────────────
- * LA DE COBRO de cada modelo, porque es la que Miguel señaló: se usa de 40 a 400 veces
- * al día, siempre con una persona esperando enfrente, y es donde el total, el dinero y
- * el objetivo táctil se juegan de verdad. LA DE INICIO, porque es la primera que se ve
- * y la que el cliente juzga en cuatro segundos. UNA LISTA DENSA —el catálogo o las
- * existencias—, porque una demostración recién sembrada tiene sus veintitantas filas y
- * es el único retrato con CONTENIDO de verdad: el resto sale, con razón, en su estado
- * vacío. Y `/sistema`, la página del lenguaje, que enseña de una vez el total grande,
- * los seis botones, la tabla, el dinero y las cinco gráficas.
+ * ── Qué se retrata ───────────────────────────────────────────────────────
+ * Cinco pantallas por modelo, con DATOS: el cobro con algo en el carrito, el inicio,
+ * una lista densa, y dos propias de su giro; más `/sistema` una vez. En los ocho
+ * estilos. Antes de retratar se abre la caja —el muro no es la pantalla— y se fija lo
+ * que cambia de corrida en corrida: las horas, las fechas y los relojes que corren.
  *
- * Que la mayoría salga VACÍA no es un defecto del retrato: es lo que ve un negocio el
- * primer día, y es precisamente lo que la etapa 4 fue a arreglar. Se dice, no se
- * esconde llenando la base a mano para la foto.
- *
- * ── Cómo se cambia el estilo, y qué NO prueba eso ────────────────────────
- * Escribiendo los cinco atributos en el `<html>`, que es exactamente lo que hace
- * `useApariencia`. Aquí se hace a mano porque el selector vive en Configuración y
- * entrar a cambiarlo entre captura y captura serían ocho viajes por pantalla.
- *
- * Eso significa que esta galería NO prueba el camino del selector — lo prueba
- * `estilos.spec.ts`, que cambia el estilo POR el selector de `/sistema` y comprueba
- * que los tokens llegan. Aquí sólo se retrata el resultado. Dicho, no supuesto.
+ * ── Cómo se cambia el estilo ─────────────────────────────────────────────
+ * Escribiendo los cinco atributos en el `<html>`, que es lo que hace `useApariencia`.
+ * No prueba el camino del selector —eso es `estilos.spec.ts`—: retrata el resultado.
  */
 
-const ESTILOS = [
-  'morphiq',
-  'cristal',
-  'relieve',
-  'taller',
-  'bloque',
-  'terminal',
-  'papel',
-  'noche',
-] as const;
+interface Retrato {
+  readonly ruta: string;
+  readonly de: string;
+  /** Lo que se hace antes de retratar para que la pantalla tenga algo que enseñar. */
+  readonly preparar?: (page: Page) => Promise<void>;
+}
 
-/** Las perillas que declara cada estilo. Es la misma tabla de `tokens/estilos.ts`. */
-const PERILLAS: Readonly<
-  Record<string, { densidad: string; redondeo: string; elevacion: string; movimiento: string }>
-> = {
-  morphiq: { densidad: 'normal', redondeo: 'media', elevacion: 'sombra', movimiento: 'normal' },
-  cristal: { densidad: 'normal', redondeo: 'amplia', elevacion: 'sombra', movimiento: 'expresiva' },
-  relieve: {
-    densidad: 'normal',
-    redondeo: 'amplia',
-    elevacion: 'doble-bisel',
-    movimiento: 'sutil',
-  },
-  taller: {
-    densidad: 'guantes',
-    redondeo: 'media',
-    elevacion: 'doble-bisel',
-    movimiento: 'normal',
-  },
-  bloque: { densidad: 'guantes', redondeo: 'nula', elevacion: 'linea-dura', movimiento: 'sutil' },
-  terminal: { densidad: 'compacta', redondeo: 'nula', elevacion: 'plana', movimiento: 'nula' },
-  papel: { densidad: 'normal', redondeo: 'sutil', elevacion: 'plana', movimiento: 'sutil' },
-  noche: { densidad: 'comoda', redondeo: 'media', elevacion: 'sombra', movimiento: 'sutil' },
-};
+interface ConNombre {
+  readonly nombre?: string | null;
+  readonly precio_venta?: number | null;
+}
 
-/**
- * La pantalla de COBRO de cada modelo y la de INICIO, por su ruta.
- *
- * Las rutas no se adivinan: son las que el menú de cada modelo sirve, y las mismas que
- * recorre el rastreador.
- */
-const RETRATOS: Readonly<
-  Record<string, readonly { readonly ruta: string; readonly de: string }[]>
-> = {
+/** Un producto con nombre y precio, del catálogo de la demo. */
+async function unProducto(page: Page, entidad: string): Promise<string> {
+  const filas = await consultarPuente<ConNombre>(page, entidad, { limite: 40 });
+  const elegido = filas.find((f) => (f.nombre ?? '') !== '' && (f.precio_venta ?? 1) > 0);
+  if (elegido?.nombre === undefined || elegido.nombre === null) {
+    throw new Error(`La demo no tiene ningún ${entidad} con nombre: no hay qué retratar.`);
+  }
+  return elegido.nombre;
+}
+
+const RETRATOS: Readonly<Record<string, readonly Retrato[]>> = {
   tienda: [
-    { ruta: '/abarrotes/cobrar', de: 'cobro' },
+    {
+      ruta: '/abarrotes/cobrar',
+      de: 'cobro',
+      preparar: async (page) => {
+        const buscador = page.getByLabel('Código o nombre · F2');
+        await buscador.fill(await unProducto(page, 'ProductoTerminado'));
+        await buscador.press('Enter');
+      },
+    },
     { ruta: '/', de: 'inicio' },
     { ruta: '/abarrotes/existencias', de: 'lista' },
+    { ruta: '/abarrotes/fiado', de: 'fiado' },
+    { ruta: '/abarrotes/cortes', de: 'cortes' },
     { ruta: '/sistema', de: 'sistema' },
   ],
   cafeteria: [
-    { ruta: '/cafeteria/cobro-y-propina', de: 'cobro' },
+    {
+      ruta: '/cafeteria/cobrar',
+      de: 'cobro',
+      preparar: async (page) => {
+        await page
+          .getByRole('button', { name: await unProducto(page, 'ProductoTerminado') })
+          .first()
+          .click();
+        await page.getByRole('button', { name: 'Aquí' }).click();
+      },
+    },
     { ruta: '/', de: 'inicio' },
     { ruta: '/cafeteria/inventario', de: 'lista' },
-    { ruta: '/sistema', de: 'sistema' },
+    { ruta: '/cafeteria/barra', de: 'barra' },
+    { ruta: '/cafeteria/productos', de: 'productos' },
   ],
   restaurante: [
-    { ruta: '/restaurante/cobro', de: 'cobro' },
+    { ruta: '/restaurante/mapa-de-mesas', de: 'mesas' },
     { ruta: '/', de: 'inicio' },
     { ruta: '/restaurante/inventario', de: 'lista' },
-    { ruta: '/sistema', de: 'sistema' },
+    { ruta: '/restaurante/cocina', de: 'cocina' },
+    { ruta: '/restaurante/productos', de: 'productos' },
   ],
   ferreteria: [
-    { ruta: '/ferreteria/mostrador', de: 'cobro' },
+    {
+      ruta: '/ferreteria/mostrador',
+      de: 'cobro',
+      preparar: async (page) => {
+        const material = await unProducto(page, 'MaterialMostrador');
+        await page.locator('#buscador').fill(material.split(' ')[0] ?? material);
+      },
+    },
     { ruta: '/', de: 'inicio' },
     { ruta: '/ferreteria/existencias', de: 'lista' },
-    { ruta: '/sistema', de: 'sistema' },
+    { ruta: '/ferreteria/cuentas', de: 'cuentas' },
+    { ruta: '/ferreteria/material', de: 'material' },
   ],
   estetica: [
-    { ruta: '/estetica-salon/cobrar', de: 'cobro' },
+    { ruta: '/estetica-salon/agenda-del-dia', de: 'agenda' },
     { ruta: '/', de: 'inicio' },
     { ruta: '/estetica-salon/catalogo-de-servicios', de: 'lista' },
-    { ruta: '/sistema', de: 'sistema' },
+    { ruta: '/estetica-salon/clientas', de: 'clientas' },
+    { ruta: '/estetica-salon/productos', de: 'productos' },
   ],
 };
 
 const MODELO = (process.env['MORPHIQPOS_ORG_DEMO'] ?? '').replace('demo-acople-', '');
-const CARPETA = join('docs', 'reports', 'galeria', MODELO);
 
-test.describe('la galería de los ocho estilos', () => {
-  test.describe.configure({ mode: 'serial', timeout: 300_000 });
+/**
+ * LO QUE CAMBIA DE CORRIDA EN CORRIDA, fijado antes del retrato.
+ *
+ * Una hora, una fecha o un «hace 3 min» cambian cada vez que se corre sin que la
+ * pantalla haya cambiado, y una puerta que se pone roja por el reloj enseña a ignorar
+ * el rojo. Se reescriben en el texto de la página —no se tapan con un rectángulo:
+ * el hueco del texto sigue ahí, con su tipografía y su ancho aproximado—.
+ */
+async function fijarLoQueCambia(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const cambios: readonly (readonly [RegExp, string])[] = [
+      [/\b\d{1,2}:\d{2}(:\d{2})?(\s?(a\.?\s?m\.?|p\.?\s?m\.?))?/gi, '00:00'],
+      [/\b\d{4}-\d{2}-\d{2}\b/g, '2026-01-01'],
+      [/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g, '01/01/2026'],
+      [/\b\d{1,2} de [a-záéíóú]+( de \d{4})?/gi, '1 de enero'],
+      [/\b(lunes|martes|miércoles|jueves|viernes|sábado|domingo)\b/gi, 'día'],
+      [/\bhace \d+\s?(s|seg|min|minutos?|h|horas?|d|días?)\b/gi, 'hace 0 min'],
+    ];
+    const caminante = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let nodo = caminante.nextNode(); nodo !== null; nodo = caminante.nextNode()) {
+      const antes = nodo.textContent ?? '';
+      let despues = antes;
+      for (const [patron, fijo] of cambios) despues = despues.replace(patron, fijo);
+      if (despues !== antes) nodo.textContent = despues;
+    }
+  });
+}
 
-  test(`${MODELO || 'sin modelo'}: sus dos pantallas, en los ocho estilos`, async ({ page }) => {
-    expect(
-      RETRATOS[MODELO],
-      'Falta `MORPHIQPOS_ORG_DEMO`, o su modelo no está en la tabla de retratos.',
-    ).toBeDefined();
+test.describe('la galería · cada pantalla contra la vuelta anterior', () => {
+  test.describe.configure({ mode: 'serial', timeout: 600_000 });
 
+  test(`${MODELO || 'sin modelo'}: sus pantallas, en los ocho estilos`, async ({ page }) => {
+    const retratos = RETRATOS[MODELO];
+    expect(retratos, 'Falta `MORPHIQPOS_ORG_DEMO`, o su modelo no está en la tabla.').toBeDefined();
+
+    // El reloj de la página, instalado ANTES de cargar nada: corre normal, y se para
+    // justo antes de cada retrato para que ningún cronómetro cambie entre dos tomas.
+    await page.clock.install();
     vigilarFallos(page);
-    mkdirSync(CARPETA, { recursive: true });
     await entrar(page);
+    // La caja, abierta: con ella cerrada tres modelos enseñan un MURO, y el muro no
+    // es la pantalla. La deja cerrada el rastreador que corre antes.
+    await abrirCajaPorLaRuta(page, 150_000);
 
-    for (const retrato of RETRATOS[MODELO] ?? []) {
+    for (const retrato of retratos ?? []) {
       const respuesta = await page.goto(retrato.ruta, { waitUntil: 'domcontentloaded' });
-      /**
-       * Se espera a que haya CONTENIDO, no a un tiempo: una captura de un esqueleto
-       * retrata el estado de carga y no el diseño.
-       *
-       * Y se mide por el TEXTO y no por un selector de estructura. `main` no existe en
-       * todas —las de `heredado/` montan su propio armazón— y `body > div` casa con el
-       * envoltorio del enrutador, que no es visible: esperar a ese primer `div` agotó
-       * los cinco minutos de la prueba sin que faltara nada en la pantalla.
-       */
       await page
         .waitForFunction(() => document.body.innerText.trim().length > 40, undefined, {
           timeout: 30_000,
@@ -157,27 +176,24 @@ test.describe('la galería de los ocho estilos', () => {
       await page.waitForLoadState('networkidle').catch(() => undefined);
 
       /**
-       * QUE LO RETRATADO SEA LA PANTALLA, y no la página de error del navegador.
-       *
-       * Sin esto la galería dio VERDE sobre ocho capturas de «This page couldn't load»:
-       * el servidor se estaba reiniciando entre modelos, la navegación fallo, y la
-       * espera de contenido la pasó igual porque esa página también tiene texto.
-       *
-       * Una galería que no puede fallar no es una galería: es una carpeta con
-       * imágenes. Y el retrato de un fallo puesto en un informe es peor que no tener
-       * informe, porque se firma como si fuera el producto.
+       * QUE LO RETRATADO SEA LA PANTALLA, y no la página de error del navegador ni un
+       * esqueleto: la galería ya dio verde una vez sobre ocho capturas de «This page
+       * couldn't load».
        */
-      expect(
-        respuesta?.status() ?? 0,
-        `«${retrato.ruta}» no respondió: se estaba retratando una página de error.`,
-      ).toBeLessThan(400);
+      expect(respuesta?.status() ?? 0, `«${retrato.ruta}» no respondió.`).toBeLessThan(400);
       const texto = await page.evaluate(() => document.body.innerText);
-      expect(
-        texto,
-        `«${retrato.ruta}» enseña la página de error del navegador, no la pantalla.`,
-      ).not.toMatch(/page couldn|no se pudo cargar la página|ERR_CONNECTION/i);
+      expect(texto, `«${retrato.ruta}» enseña una página de error.`).not.toMatch(
+        /page couldn|no se pudo cargar la página|ERR_CONNECTION/i,
+      );
+      expect(texto, `«${retrato.ruta}» enseña el muro de la caja cerrada.`).not.toMatch(
+        /La caja está cerrada/,
+      );
 
-      for (const estilo of ESTILOS) {
+      await retrato.preparar?.(page);
+      await page.waitForLoadState('networkidle').catch(() => undefined);
+
+      for (const [estilo, definicion] of Object.entries(ESTILOS)) {
+        await page.clock.resume();
         await page.evaluate(
           ({ clave, perillas }) => {
             const raiz = document.documentElement;
@@ -187,16 +203,23 @@ test.describe('la galería de los ocho estilos', () => {
             raiz.setAttribute('data-elevacion', perillas.elevacion);
             raiz.setAttribute('data-movimiento', perillas.movimiento);
           },
-          { clave: estilo, perillas: PERILLAS[estilo] ?? PERILLAS['morphiq'] },
+          { clave: estilo, perillas: definicion.perillas },
         );
-        // Lo justo para que acaben las transiciones de color: una captura a mitad de
-        // una transición sale con el color de en medio, que no es de ningún estilo.
-        await page.waitForTimeout(350);
-        await page.screenshot({
-          path: join(CARPETA, `${retrato.de}-${estilo}.png`),
+        await fijarLoQueCambia(page);
+        await page.clock.pauseAt(Date.now() + 1_000);
+        await expect(
+          page,
+          `«${retrato.ruta}» en ${estilo} cambió y nadie lo declaró.`,
+        ).toHaveScreenshot(`${MODELO}-${retrato.de}-${estilo}.png`, {
+          animations: 'disabled',
+          caret: 'hide',
           fullPage: false,
+          // Mismo navegador, mismas fuentes, misma máquina: la diferencia legítima es
+          // cero. Esto sólo absorbe el suavizado de un borde, no un color cambiado.
+          maxDiffPixelRatio: 0.002,
         });
       }
+      await page.clock.resume();
     }
   });
 });

@@ -12,6 +12,12 @@ import {
   soltarLaCaja,
   vigilarFallos,
 } from './ayudantes/sesion.ts';
+import {
+  estilosDelRastreo,
+  ponerEstilo,
+  textosIlegibles,
+  type EstiloDelRastreo,
+} from './ayudantes/estilos-del-rastreo.ts';
 
 /**
  * EL RASTREADOR · la prueba que NO sabe qué busca.
@@ -879,944 +885,988 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
     await exigirDemostracion(playwright, info);
   });
 
+  /** Cómo devolver el estilo que el negocio tenía antes de esta corrida. */
+  let devolverElEstilo: () => Promise<void> = () => Promise.resolve();
+
   test.afterEach(async ({ page }, info) => {
     info.annotations.push({ type: 'caja', description: await soltarLaCaja(page) });
+    await devolverElEstilo();
+    devolverElEstilo = () => Promise.resolve();
   });
 
-  test('cada toque hace algo, y nada revienta por el camino', async ({ page }) => {
-    test.setTimeout(TECHO_MS);
+  /**
+   * UNA CORRIDA POR ESTILO (`MORPHIQPOS_ESTILOS`, ver `ayudantes/estilos-del-rastreo`).
+   * Sin la variable, una sola en el estilo del negocio, como hasta ahora.
+   */
+  for (const estilo of estilosDelRastreo()) {
+    test(`${nombreDeLaCorrida(estilo)}cada toque hace algo, y nada revienta por el camino`, async ({
+      page,
+    }) => {
+      test.setTimeout(TECHO_MS);
 
-    // Sin esto, una acción sin techo espera lo que dure la prueba entera (una hora).
-    page.setDefaultTimeout(TECHO_DE_ACCION_MS);
-    page.setDefaultNavigationTimeout(TECHO_DE_NAVEGACION_MS);
+      // Sin esto, una acción sin techo espera lo que dure la prueba entera (una hora).
+      page.setDefaultTimeout(TECHO_DE_ACCION_MS);
+      page.setDefaultNavigationTimeout(TECHO_DE_NAVEGACION_MS);
 
-    const diario = test.info().outputPath('rastreo.log');
-    bitacora(diario, `rastreo de ${process.env['MORPHIQPOS_ORG_DEMO'] ?? '(sin org)'}`);
+      const diario = test.info().outputPath('rastreo.log');
+      bitacora(diario, `rastreo de ${process.env['MORPHIQPOS_ORG_DEMO'] ?? '(sin org)'}`);
 
-    const declarados = leerDeclarados();
-    /**
-     * LA VENTANA DE SONDEO, y por qué hace falta.
-     *
-     * Enviar un formulario con datos de sonda es una escritura de verdad, y el servidor
-     * hace lo correcto: la rechaza con 400 `ENTRADA_INVALIDA`. Eso NO es una respuesta
-     * rota —es la validación funcionando— y sin esta ventana el rastreo acusaría a la
-     * aplicación de reventar justo cuando mejor se comporta.
-     *
-     * Sólo tapa el 400 y el 422, y sólo mientras se envía un formulario de sonda: un
-     * 404 sigue siendo una ruta que no existe, un 5xx sigue siendo que revienta, y un
-     * `{ok:false}` con 200 sigue siendo un dato que no llegó.
-     */
-    let sondeando = false;
-    const exigirSinFallos = vigilarFallos(page, { sondeando: () => sondeando });
-
-    /**
-     * LOS ERRORES DE CONSOLA, que hasta hoy no miraba nadie.
-     *
-     * Un `TypeError: x is not a function` en el cliente no devuelve 500 ni `{ok:false}`:
-     * la pantalla se queda a medias y el servidor no se entera. Es exactamente la
-     * forma en que un botón «funciona» en la puerta y no hace nada en la mano.
-     */
-    const enLaConsola: string[] = [];
-    page.on('console', (mensaje) => {
-      if (mensaje.type() !== 'error') return;
-      const texto = mensaje.text();
-      if (RUIDO_DE_CONSOLA.some((patron) => patron.test(texto))) return;
+      const declarados = leerDeclarados();
       /**
-       * Y EL RUIDO QUE HACE EL PROPIO SONDEO.
+       * LA VENTANA DE SONDEO, y por qué hace falta.
        *
-       * Al enviar un formulario con datos de sonda, el servidor lo rechaza —400, que
-       * es la validación funcionando— y el navegador escribe «Failed to load resource:
-       * 400» en la consola por su cuenta. Eso ya está contemplado en el vigilante de
-       * respuestas; aquí llegaba por otra puerta y hacía fallar la corrida de la
-       * cafetería acusando a la aplicación de romperse justo cuando se comporta bien.
+       * Enviar un formulario con datos de sonda es una escritura de verdad, y el servidor
+       * hace lo correcto: la rechaza con 400 `ENTRADA_INVALIDA`. Eso NO es una respuesta
+       * rota —es la validación funcionando— y sin esta ventana el rastreo acusaría a la
+       * aplicación de reventar justo cuando mejor se comporta.
+       *
+       * Sólo tapa el 400 y el 422, y sólo mientras se envía un formulario de sonda: un
+       * 404 sigue siendo una ruta que no existe, un 5xx sigue siendo que revienta, y un
+       * `{ok:false}` con 200 sigue siendo un dato que no llegó.
        */
-      if (sondeando && /Failed to load resource.*\b(400|422)\b/i.test(texto)) return;
-      enLaConsola.push(
-        `${page.url().replace(/^https?:\/\/[^/]+/, '')} · ${texto.slice(0, 200)}${recursoDe(mensaje)}`,
-      );
-    });
-    page.on('pageerror', (fallo) => {
-      enLaConsola.push(`${page.url().replace(/^https?:\/\/[^/]+/, '')} · ${fallo.message}`);
-    });
+      let sondeando = false;
+      const exigirSinFallos = vigilarFallos(page, { sondeando: () => sondeando });
 
-    // Un `confirm()` nativo ES un efecto: se anota y se descarta, que es lo que hace
-    // quien no quiere borrar nada. Sin este manejador, Playwright lo descarta solo y
-    // el toque parecería no haber hecho nada.
-    let dialogosNativos = 0;
-    page.on('dialog', (dialogo) => {
-      dialogosNativos += 1;
-      void dialogo.dismiss();
-    });
-
-    /**
-     * IMPRIMIR Y COPIAR SON EFECTOS, y ninguno de los dos se ve.
-     *
-     * `window.print()` abre el diálogo del sistema operativo —no un diálogo de la
-     * página, así que no llega por `page.on('dialog')`— y `clipboard.writeText` escribe
-     * en el portapapeles: los dos dejan la página EXACTAMENTE igual. Sin instrumentar
-     * los dos, cada botón de imprimir y cada botón de copiar del sistema sale como un
-     * botón muerto, que es lo que le pasó a «Imprimir» del ticket de la ferretería.
-     *
-     * Se envuelven ANTES de que cargue nada —`addInitScript` corre en cada documento
-     * nuevo, antes del código de la página— y se cuentan en el `window`. La alternativa
-     * era declararlos uno por uno como clics sin efecto, y eso es exactamente la lista
-     * de excepciones que crece con la misma excepción repetida.
-     */
-    await page.addInitScript(() => {
-      const ventana = window as unknown as { __rastreoInvisibles?: number };
-      ventana.__rastreoInvisibles = 0;
-      // NO se llama al original: abrir el diálogo de impresión del sistema deja el
-      // navegador bloqueado esperando a una persona que no existe.
-      window.print = () => {
-        ventana.__rastreoInvisibles = (ventana.__rastreoInvisibles ?? 0) + 1;
-      };
-      const portapapeles = navigator.clipboard as
-        { writeText?: (texto: string) => Promise<void> } | undefined;
-      if (portapapeles?.writeText !== undefined) {
-        const original = portapapeles.writeText.bind(portapapeles);
-        portapapeles.writeText = async (texto: string) => {
-          ventana.__rastreoInvisibles = (ventana.__rastreoInvisibles ?? 0) + 1;
-          return original(texto).catch(() => undefined);
-        };
-      }
-    });
-
-    /** Cuántas veces se ha impreso o copiado desde que cargó esta página. */
-    const invisibles = async (): Promise<number> =>
-      page
-        .evaluate(
-          () => (window as unknown as { __rastreoInvisibles?: number }).__rastreoInvisibles ?? 0,
-        )
-        .catch(() => 0);
-
-    // Abrir una pestaña TAMBIÉN es un efecto: es lo que hacen «Mandar por WhatsApp»
-    // y los que llevan a un documento. Sin contarlo, un botón que abre WhatsApp se
-    // vería exactamente igual que uno muerto.
-    let pestanasAbiertas = 0;
-    page.on('popup', (abierta) => {
-      pestanasAbiertas += 1;
-      void abierta.close();
-    });
-
-    await entrar(page);
-
-    /**
-     * LA CAJA, ABIERTA ANTES DE EMPEZAR.
-     *
-     * No es un adorno: con la caja cerrada, tres de los cinco modelos aterrizan en
-     * un MURO —«La caja está cerrada. Una venta sin caja no pertenece a ningún
-     * corte»— que no trae menú lateral, y el rastreo se moría ahí sin haber tocado
-     * un solo botón. Y la deja cerrada el propio rastreo anterior: tocar todos los
-     * botones incluye tocar «cerrar caja», y `soltarLaCaja` la cierra al terminar
-     * para que la corrida siguiente pueda abrir la suya.
-     *
-     * Se abre por la MISMA ruta que usa el botón, con las mismas cabeceras: pasa por
-     * el mismo comando y el mismo gate de rol. Lo que se salta es el diálogo.
-     */
-    const abrio = await abrirCajaPorLaRuta(page, 150_000);
-    bitacora(diario, abrio ? 'caja abierta para el rastreo' : 'la caja ya estaba abierta');
-
-    /**
-     * EL TABLERO, que es donde vive el MENÚ.
-     *
-     * El marco de `(modelos)` es a propósito casi nada —«cada modelo tiene su
-     * propia jerarquía y su propia pantalla de inicio; un marco con opinión se la
-     * quitaría a los cinco»— así que las pantallas de los cinco modelos NO traen
-     * barra lateral. La barra es del marco `(interno)`, y el tablero es `/`.
-     *
-     * Y la casa de quien entra es una pantalla de modelo: el rastreo aterrizaba en
-     * el mapa de mesas, buscaba el menú ahí, encontraba la navegación de ZONAS del
-     * salón —que también es un `nav`— y se paraba diciendo que el menú no ofrecía
-     * ninguna pantalla. No era verdad: estaba mirando el sitio equivocado.
-     */
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-
-    // ── EL MENÚ · de aquí salen las pantallas, no de una lista mía ─────────
-    const menu = await menuLateral(page);
-    await esperarAQueElMenuSeAsiente(page, menu);
-    const entradas = await menu.getByRole('link').evaluateAll((enlaces) =>
-      enlaces
-        .map((enlace) => ({
-          ruta: enlace.getAttribute('href') ?? '',
-          etiqueta: (enlace.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        }))
-        .filter((entrada) => entrada.ruta.startsWith('/')),
-    );
-    expect(
-      entradas.length,
-      'El menú de esta demostración no ofrece ninguna pantalla. Sin menú no hay nada que ' +
-        'rastrear, y es el defecto que la vuelta 2 encontró: las pantallas existían y no ' +
-        'colgaban de ningún sitio.',
-    ).toBeGreaterThan(5);
-
-    // EL MENÚ ENTERO a la bitácora. Sin esto, un menú que ofrece dos cosas distintas
-    // con el mismo nombre no se ve en ninguna parte.
-    bitacora(diario, `menú · ${String(entradas.length)} entrada(s)`);
-    for (const e of entradas) bitacora(diario, `   ${e.ruta} «${e.etiqueta}»`);
-
-    /**
-     * DOS ENTRADAS CON EL MISMO NOMBRE Y DISTINTO DESTINO.
-     *
-     * `navegacionDePlantilla` lo prohibe con estas palabras: «un menú con dos
-     * entradas llamadas «Caja» que van a sitios distintos no es un menú completo:
-     * es uno que obliga a adivinar». Si aparece, el menú que se PINTA no es el que
-     * esa función devuelve, y quien lo usa tiene que adivinar cuál de las dos es la
-     * suya. Se mide aquí porque aquí es donde se ve lo que de verdad se pinta.
-     */
-    const porEtiqueta = new Map<string, Set<string>>();
-    for (const e of entradas) {
-      const rutas = porEtiqueta.get(e.etiqueta) ?? new Set<string>();
-      rutas.add(e.ruta);
-      porEtiqueta.set(e.etiqueta, rutas);
-    }
-    const ambiguas = [...porEtiqueta.entries()]
-      .filter(([, rutas]) => rutas.size > 1)
-      .map(([etiqueta, rutas]) => `«${etiqueta}» → ${[...rutas].sort().join(' y ')}`);
-    for (const linea of ambiguas) bitacora(diario, `AMBIGUA ${linea}`);
-
-    const muertos: Hallazgo[] = [];
-    const inalcanzables: Hallazgo[] = [];
-    const externos: string[] = [];
-    const declaradosUsados = new Set<string>();
-    let tocados = 0;
-    let yaActivas = 0;
-    /** Piezas que SÍ se podían tocar. Es el denominador del umbral de alcance. */
-    let elegibles = 0;
-    let enCapas = 0;
-    let camposSondeados = 0;
-    /** Campos de un tipo que la sonda no sabe teclear. Se cuentan, no se callan. */
-    let camposSinSonda = 0;
-    let formulariosEnviados = 0;
-    let pantallasBarridas = 0;
-    /** Las de `PANTALLAS_SIN_MENU` que no se barrieron, con su motivo. */
-    const sinMenuNoVisitadas: string[] = [];
-
-    /**
-     * TOCAR UNA PIEZA, según lo que esa pieza promete.
-     *
-     * Devuelve el motivo por el que está muerta, o `null` si cumplió. El estado inicial
-     * lo restaura quien llama —recargando— y por eso aquí no se deshace nada: dentro de
-     * una capa flotante no se puede recargar sin cerrarla.
-     */
-    async function tocar(pieza: Clicable, suyo: Locator): Promise<string | null> {
-      // ── CAMPO · lo que se teclea SE QUEDA ──────────────────────────────
-      if (pieza.clase === 'campo') {
-        if (pieza.soloLectura) return null;
-        const sonda = sondaPara(pieza.tipo);
-        if (sonda === null) {
-          camposSinSonda += 1;
-          return null;
-        }
-        camposSondeados += 1;
-        try {
-          await suyo.fill(sonda, { timeout: 5_000 });
-        } catch (fallo) {
-          const razon = String(fallo).split('\n')[0] ?? '';
-          /**
-           * LA SONDA NO SE PUDO APLICAR, QUE NO ES LO MISMO QUE UN CAMPO MUERTO.
-           *
-           * «Element is not an <input>» y «Malformed value» son límites de la SONDA —ahí
-           * no hay un campo, o el valor no vale para ese tipo de campo— y acusar por eso
-           * es inventar un defecto. Un campo que de verdad no se puede escribir —tapado,
-           * deshabilitado sin decirlo— falla de otra forma: por tiempo o por «not
-           * visible», y eso sí cuenta.
-           */
-          if (/not an <input>|Malformed value|does not have a role/i.test(razon)) {
-            return `SONDA:${razon}`;
-          }
-          return `no se pudo teclear en el campo (${razon})`;
-        }
-        const quedo = await suyo.inputValue({ timeout: 5_000 }).catch(() => '');
+      /**
+       * LOS ERRORES DE CONSOLA, que hasta hoy no miraba nadie.
+       *
+       * Un `TypeError: x is not a function` en el cliente no devuelve 500 ni `{ok:false}`:
+       * la pantalla se queda a medias y el servidor no se entera. Es exactamente la
+       * forma en que un botón «funciona» en la puerta y no hace nada en la mano.
+       */
+      const enLaConsola: string[] = [];
+      page.on('console', (mensaje) => {
+        if (mensaje.type() !== 'error') return;
+        const texto = mensaje.text();
+        if (RUIDO_DE_CONSOLA.some((patron) => patron.test(texto))) return;
         /**
-         * Un campo con máscara reescribe lo que se teclea, y eso no es estar muerto:
-         * «5512345678» puede quedar «55 1234 5678» y un campo de dinero puede quedar
-         * «2.00». Lo que delata al campo muerto es que **no cambió NADA**: sigue
-         * exactamente como estaba antes de tocarlo.
-         */
-        if (quedo === sonda || quedo !== pieza.valor) return null;
-
-        /**
-         * ANTES DE ACUSAR, SE TECLEA DE VERDAD.
+         * Y EL RUIDO QUE HACE EL PROPIO SONDEO.
          *
-         * `fill` pone el valor y lanza un evento `input`; hay componentes que escuchan
-         * `keydown` o que sólo aceptan el cambio si viene de pulsaciones. Un campo
-         * REALMENTE muerto —un `value` sin `onChange`— no acepta ni lo uno ni lo otro,
-         * así que esta segunda vía sólo puede quitar falsos positivos, nunca añadir
-         * defectos. Y cuesta una décima de segundo en los pocos campos que llegan aquí.
+         * Al enviar un formulario con datos de sonda, el servidor lo rechaza —400, que
+         * es la validación funcionando— y el navegador escribe «Failed to load resource:
+         * 400» en la consola por su cuenta. Eso ya está contemplado en el vigilante de
+         * respuestas; aquí llegaba por otra puerta y hacía fallar la corrida de la
+         * cafetería acusando a la aplicación de romperse justo cuando se comporta bien.
          */
-        await suyo.click({ timeout: 3_000 }).catch(() => undefined);
-        await suyo.pressSequentially(sonda, { delay: 15, timeout: 5_000 }).catch(() => undefined);
-        const trasTeclear = await suyo.inputValue({ timeout: 5_000 }).catch(() => '');
-        if (trasTeclear !== pieza.valor) return null;
-        return `el campo no acepta lo que se teclea: sigue en «${pieza.valor}» tras escribir «${sonda}» con \`fill\` Y tecla por tecla (un \`value\` sin \`onChange\` se ve así)`;
-      }
-
-      // ── ELECCIÓN · lo que se elige SE QUEDA ────────────────────────────
-      if (pieza.clase === 'eleccion') {
-        const opciones = await suyo
-          .locator('option')
-          .evaluateAll((lista) =>
-            lista
-              .map((o) => ({
-                valor: (o as HTMLOptionElement).value,
-                deshabilitada: (o as HTMLOptionElement).disabled,
-              }))
-              .filter((o) => !o.deshabilitada),
-          )
-          .catch(() => []);
-        const otra = opciones.find((o) => o.valor !== pieza.valor);
-        // Un selector con una sola opción no puede cambiar, y no es un defecto suyo.
-        if (otra === undefined) return null;
-        try {
-          await suyo.selectOption(otra.valor, { timeout: 5_000 });
-        } catch (fallo) {
-          return `no se pudo elegir en el selector (${String(fallo).split('\n')[0] ?? ''})`;
-        }
-        const quedo = await suyo.inputValue({ timeout: 5_000 }).catch(() => '');
-        if (quedo === otra.valor) return null;
-        return `el selector no guarda lo que se elige: sigue en «${pieza.valor}» tras elegir «${otra.valor}»`;
-      }
-
-      // ── MARCA · la marca CAMBIA ────────────────────────────────────────
-      if (pieza.clase === 'marca') {
-        const estadoDe = async (): Promise<string> =>
-          suyo
-            .evaluate((elemento) => {
-              const html = elemento as HTMLElement & { checked?: boolean };
-              return [
-                html.checked === true ? '1' : '0',
-                elemento.getAttribute('aria-checked') ?? '',
-                elemento.getAttribute('data-state') ?? '',
-              ].join('/');
-            })
-            .catch(() => '');
-        const antes = await estadoDe();
-        try {
-          await suyo.click({ timeout: 5_000 });
-        } catch (fallo) {
-          return `no se pudo marcar (${String(fallo).split('\n')[0] ?? ''})`;
-        }
-        await page.waitForTimeout(RESPIRO_MS);
-        if ((await estadoDe()) !== antes) return null;
-        return `la marca no cambia de estado al tocarla (sigue en «${antes}»)`;
-      }
-
-      // ── BOTÓN · que pase algo ──────────────────────────────────────────
-      const antes = await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella inicial');
-      const urlAntes = page.url();
-      const dialogosAntes = dialogosNativos;
-      const pestanasAntes = pestanasAbiertas;
-      const invisiblesAntes = await invisibles();
-      let peticiones = 0;
-      const contar = (): void => {
-        peticiones += 1;
-      };
-      page.on('request', contar);
-
-      // EL RATÓN PRIMERO. Hay tarjetas cuyos botones sólo aparecen —o sólo reciben
-      // el clic— al pasar por encima: «Imprimir ficha», «Editar receta» y «Eliminar
-      // receta» de la pantalla de recetas son de ésas, y sin esto salen como
-      // «no se pudo tocar» cuando un usuario de escritorio las toca sin problema.
-      await suyo.hover({ timeout: 3_000 }).catch(() => {
-        /* si no se puede ni pasar por encima, el clic lo dirá */
+        if (sondeando && /Failed to load resource.*\b(400|422)\b/i.test(texto)) return;
+        enLaConsola.push(
+          `${page.url().replace(/^https?:\/\/[^/]+/, '')} · ${texto.slice(0, 200)}${recursoDe(mensaje)}`,
+        );
       });
-      try {
-        await suyo.click({ timeout: 7_000 });
-      } catch (fallo) {
-        page.off('request', contar);
-        return `no se pudo tocar (${String(fallo).split('\n')[0] ?? ''})`;
-      }
+      page.on('pageerror', (fallo) => {
+        enLaConsola.push(`${page.url().replace(/^https?:\/\/[^/]+/, '')} · ${fallo.message}`);
+      });
 
-      await page.waitForTimeout(RESPIRO_MS);
-      page.off('request', contar);
-
-      const hizoAlgo =
-        peticiones > 0 ||
-        page.url() !== urlAntes ||
-        dialogosNativos > dialogosAntes ||
-        pestanasAbiertas > pestanasAntes ||
-        (await invisibles()) > invisiblesAntes;
-      if (hizoAlgo) return null;
-      if (
-        (await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella tras el toque')) !== antes
-      ) {
-        return null;
-      }
+      // Un `confirm()` nativo ES un efecto: se anota y se descarta, que es lo que hace
+      // quien no quiere borrar nada. Sin este manejador, Playwright lo descarta solo y
+      // el toque parecería no haber hecho nada.
+      let dialogosNativos = 0;
+      page.on('dialog', (dialogo) => {
+        dialogosNativos += 1;
+        void dialogo.dismiss();
+      });
 
       /**
-       * NO PASÓ NADA. Antes de acusar, se comprueba que la pantalla estuviera quieta.
+       * IMPRIMIR Y COPIAR SON EFECTOS, y ninguno de los dos se ve.
        *
-       * Una pantalla que se mueve sola —la cocina refresca, el turno cuenta minutos—
-       * no invalida lo de arriba, pero sí lo de abajo: si su huella cambia sin que
-       * nadie la toque, «la huella no cambió» tampoco significa nada... y si cambia
-       * sola, el caso de arriba ya la habría dado por buena. Así que la segunda
-       * muestra sólo se paga cuando hay una acusación que hacer.
+       * `window.print()` abre el diálogo del sistema operativo —no un diálogo de la
+       * página, así que no llega por `page.on('dialog')`— y `clipboard.writeText` escribe
+       * en el portapapeles: los dos dejan la página EXACTAMENTE igual. Sin instrumentar
+       * los dos, cada botón de imprimir y cada botón de copiar del sistema sale como un
+       * botón muerto, que es lo que le pasó a «Imprimir» del ticket de la ferretería.
+       *
+       * Se envuelven ANTES de que cargue nada —`addInitScript` corre en cada documento
+       * nuevo, antes del código de la página— y se cuentan en el `window`. La alternativa
+       * era declararlos uno por uno como clics sin efecto, y eso es exactamente la lista
+       * de excepciones que crece con la misma excepción repetida.
        */
-      await page.waitForTimeout(RESPIRO_MS);
-      if ((await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'segunda huella')) !== antes) {
-        return null;
-      }
-      return 'ni petición, ni URL, ni DOM';
-    }
+      await page.addInitScript(() => {
+        const ventana = window as unknown as { __rastreoInvisibles?: number };
+        ventana.__rastreoInvisibles = 0;
+        // NO se llama al original: abrir el diálogo de impresión del sistema deja el
+        // navegador bloqueado esperando a una persona que no existe.
+        window.print = () => {
+          ventana.__rastreoInvisibles = (ventana.__rastreoInvisibles ?? 0) + 1;
+        };
+        const portapapeles = navigator.clipboard as
+          { writeText?: (texto: string) => Promise<void> } | undefined;
+        if (portapapeles?.writeText !== undefined) {
+          const original = portapapeles.writeText.bind(portapapeles);
+          portapapeles.writeText = async (texto: string) => {
+            ventana.__rastreoInvisibles = (ventana.__rastreoInvisibles ?? 0) + 1;
+            return original(texto).catch(() => undefined);
+          };
+        }
+      });
 
-    /** Cuántas capas flotantes hay abiertas ahora mismo. */
-    async function capasAbiertas(): Promise<number> {
-      return page.locator(SELECTOR_DE_CAPA).filter({ visible: true }).count();
-    }
+      /** Cuántas veces se ha impreso o copiado desde que cargó esta página. */
+      const invisibles = async (): Promise<number> =>
+        page
+          .evaluate(
+            () => (window as unknown as { __rastreoInvisibles?: number }).__rastreoInvisibles ?? 0,
+          )
+          .catch(() => 0);
 
-    /**
-     * PROFUNDIDAD 2 · lo que hay DENTRO de la capa que se acaba de abrir.
-     *
-     * ── Por qué el rastreo se quedaba en profundidad 1 ─────────────────────
-     * El ámbito era el `main`, y Radix monta diálogos, menús y listas en un portal al
-     * final del `body`. Y como entre toque y toque se RECARGA para volver al estado
-     * inicial, la recarga cerraba el diálogo antes de que nadie mirara dentro. Así que
-     * todo lo que vive dentro de un diálogo —el cobro, el alta, la confirmación de
-     * borrado, el selector de un combo— no lo tocaba nadie.
-     *
-     * ── Los dos defectos que tuvo esto ANTES de creerle nada ───────────────
-     * La primera versión acusó a 66 piezas en la tiendita, 36 de ellas con «no se pudo
-     * tocar». Era falso, y se midió por qué: dentro del diálogo de «Registrar gasto»,
-     * `elementFromPoint` devolvía la pieza correcta y `pointer-events` valía `auto` en
-     * todas. Es decir, un humano las toca sin problema.
-     *
-     *   1 · SE BUSCABAN POR EL CAMINO DEL DOM. La capa vive en un portal al final del
-     *       `body`, así que en cuanto React repinta —o en cuanto se abre un selector
-     *       encima— los `nth-child` de ese camino apuntan a OTRO nodo: al velo, por
-     *       ejemplo, que sí está cubierto por el diálogo. De ahí los treinta y seis
-     *       «no se pudo tocar». Ahora se busca por POSICIÓN dentro de la capa, y se
-     *       comprueba que la etiqueta siga siendo la misma antes de tocarla.
-     *   2 · UN TOQUE PUEDE ABRIR OTRA CAPA. El primer clic del diálogo era un
-     *       desplegable; su lista se monta ENCIMA y tapa el diálogo entero, así que
-     *       todo lo que venía después estaba de verdad cubierto. Ahora, si un toque
-     *       abre una capa nueva, se cierra antes de seguir con la siguiente pieza.
-     *
-     * ── Lo que aquí NO se puede hacer, y se dice ───────────────────────────
-     * Dentro de la capa no se vuelve al estado inicial entre toque y toque: recargar
-     * la cerraría. Así que se recorre en el orden del DOM y se para en cuanto la capa
-     * se cierra —que también es un efecto: un toque la cerró—. Es un barrido, no el
-     * aislamiento de la pantalla, y por eso sus toques se cuentan aparte.
-     */
-    async function barrerCapa(ruta: string, desde: string): Promise<void> {
-      const capasAlAbrir = await capasAbiertas();
-      if (capasAlAbrir === 0) return;
+      // Abrir una pestaña TAMBIÉN es un efecto: es lo que hacen «Mandar por WhatsApp»
+      // y los que llevan a un documento. Sin contarlo, un botón que abre WhatsApp se
+      // vería exactamente igual que uno muerto.
+      let pestanasAbiertas = 0;
+      page.on('popup', (abierta) => {
+        pestanasAbiertas += 1;
+        void abierta.close();
+      });
 
-      const capa = (): Locator => page.locator(SELECTOR_DE_CAPA).filter({ visible: true }).last();
-      const dentro = await conTecho(
-        enumerar(page, 'capa'),
-        TECHO_DE_EVALUACION_MS,
-        `enumerar la capa de ${ruta}`,
+      await entrar(page);
+      devolverElEstilo = await ponerEstilo(page, estilo);
+      bitacora(diario, `estilo: ${estilo ?? 'el del negocio'}`);
+
+      /**
+       * LA CAJA, ABIERTA ANTES DE EMPEZAR.
+       *
+       * No es un adorno: con la caja cerrada, tres de los cinco modelos aterrizan en
+       * un MURO —«La caja está cerrada. Una venta sin caja no pertenece a ningún
+       * corte»— que no trae menú lateral, y el rastreo se moría ahí sin haber tocado
+       * un solo botón. Y la deja cerrada el propio rastreo anterior: tocar todos los
+       * botones incluye tocar «cerrar caja», y `soltarLaCaja` la cierra al terminar
+       * para que la corrida siguiente pueda abrir la suya.
+       *
+       * Se abre por la MISMA ruta que usa el botón, con las mismas cabeceras: pasa por
+       * el mismo comando y el mismo gate de rol. Lo que se salta es el diálogo.
+       */
+      const abrio = await abrirCajaPorLaRuta(page, 150_000);
+      bitacora(diario, abrio ? 'caja abierta para el rastreo' : 'la caja ya estaba abierta');
+
+      /**
+       * EL TABLERO, que es donde vive el MENÚ.
+       *
+       * El marco de `(modelos)` es a propósito casi nada —«cada modelo tiene su
+       * propia jerarquía y su propia pantalla de inicio; un marco con opinión se la
+       * quitaría a los cinco»— así que las pantallas de los cinco modelos NO traen
+       * barra lateral. La barra es del marco `(interno)`, y el tablero es `/`.
+       *
+       * Y la casa de quien entra es una pantalla de modelo: el rastreo aterrizaba en
+       * el mapa de mesas, buscaba el menú ahí, encontraba la navegación de ZONAS del
+       * salón —que también es un `nav`— y se paraba diciendo que el menú no ofrecía
+       * ninguna pantalla. No era verdad: estaba mirando el sitio equivocado.
+       */
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+      // ── EL MENÚ · de aquí salen las pantallas, no de una lista mía ─────────
+      const menu = await menuLateral(page);
+      await esperarAQueElMenuSeAsiente(page, menu);
+      const entradas = await menu.getByRole('link').evaluateAll((enlaces) =>
+        enlaces
+          .map((enlace) => ({
+            ruta: enlace.getAttribute('href') ?? '',
+            etiqueta: (enlace.textContent ?? '').replace(/\s+/g, ' ').trim(),
+          }))
+          .filter((entrada) => entrada.ruta.startsWith('/')),
       );
-      const tocables = dentro.filter((p) => !p.deshabilitado && p.visible && !p.yaActiva);
-      if (tocables.length === 0) {
-        await page.keyboard.press('Escape').catch(() => undefined);
-        return;
+      expect(
+        entradas.length,
+        'El menú de esta demostración no ofrece ninguna pantalla. Sin menú no hay nada que ' +
+          'rastrear, y es el defecto que la vuelta 2 encontró: las pantallas existían y no ' +
+          'colgaban de ningún sitio.',
+      ).toBeGreaterThan(5);
+
+      // EL MENÚ ENTERO a la bitácora. Sin esto, un menú que ofrece dos cosas distintas
+      // con el mismo nombre no se ve en ninguna parte.
+      bitacora(diario, `menú · ${String(entradas.length)} entrada(s)`);
+      for (const e of entradas) bitacora(diario, `   ${e.ruta} «${e.etiqueta}»`);
+
+      /**
+       * DOS ENTRADAS CON EL MISMO NOMBRE Y DISTINTO DESTINO.
+       *
+       * `navegacionDePlantilla` lo prohibe con estas palabras: «un menú con dos
+       * entradas llamadas «Caja» que van a sitios distintos no es un menú completo:
+       * es uno que obliga a adivinar». Si aparece, el menú que se PINTA no es el que
+       * esa función devuelve, y quien lo usa tiene que adivinar cuál de las dos es la
+       * suya. Se mide aquí porque aquí es donde se ve lo que de verdad se pinta.
+       */
+      const porEtiqueta = new Map<string, Set<string>>();
+      for (const e of entradas) {
+        const rutas = porEtiqueta.get(e.etiqueta) ?? new Set<string>();
+        rutas.add(e.ruta);
+        porEtiqueta.set(e.etiqueta, rutas);
       }
-      bitacora(diario, `   ⤵ capa abierta por «${desde}» · ${String(tocables.length)} pieza(s)`);
+      const ambiguas = [...porEtiqueta.entries()]
+        .filter(([, rutas]) => rutas.size > 1)
+        .map(([etiqueta, rutas]) => `«${etiqueta}» → ${[...rutas].sort().join(' y ')}`);
+      for (const linea of ambiguas) bitacora(diario, `AMBIGUA ${linea}`);
 
-      for (const pieza of tocables) {
-        if (esSalir(pieza.etiqueta)) continue;
-        if (pieza.etiquetaHtml === 'a' && saleDeLaAplicacion(pieza.href)) {
-          externos.push(`${ruta} (capa) «${pieza.etiqueta}» → ${pieza.href ?? ''}`);
-          continue;
-        }
-        // La capa pudo cerrarse con el toque anterior: eso es un efecto, no un fallo,
-        // y lo que queda dentro se verá la próxima vez que se abra.
-        if ((await capasAbiertas()) < capasAlAbrir) break;
+      const muertos: Hallazgo[] = [];
+      const inalcanzables: Hallazgo[] = [];
+      /** Los textos de una tabla densa, o un importe, que no llegan a AA sobre su fondo. */
+      const ilegibles: string[] = [];
+      const externos: string[] = [];
+      const declaradosUsados = new Set<string>();
+      let tocados = 0;
+      let yaActivas = 0;
+      /** Piezas que SÍ se podían tocar. Es el denominador del umbral de alcance. */
+      let elegibles = 0;
+      let enCapas = 0;
+      let camposSondeados = 0;
+      /** Campos de un tipo que la sonda no sabe teclear. Se cuentan, no se callan. */
+      let camposSinSonda = 0;
+      let formulariosEnviados = 0;
+      let pantallasBarridas = 0;
+      /** Las de `PANTALLAS_SIN_MENU` que no se barrieron, con su motivo. */
+      const sinMenuNoVisitadas: string[] = [];
 
-        const suyo = capa().locator(SELECCION_DE_PIEZAS).nth(pieza.indice);
-        if ((await suyo.count()) !== 1) {
-          inalcanzables.push({
-            ruta,
-            etiqueta: `capa › ${pieza.etiqueta}`,
-            camino: `pieza ${String(pieza.indice)} de la capa`,
-            motivo: 'la capa ya no tiene esa pieza',
-          });
-          continue;
-        }
-        /**
-         * Y QUE SIGA SIENDO LA MISMA PIEZA: el mismo rótulo Y LA MISMA COSA.
-         *
-         * La posición aguanta un repintado, pero no aguanta que la capa cambie de
-         * contenido —un paso siguiente, una línea de compra que se añade—. Comprobar
-         * sólo el rótulo no bastaba, y el rastreo lo demostró solo: en el diálogo de
-         * «Registrar compra», tres campos llegaban a `locator.fill` y Playwright
-         * contestaba «Element is not an <input>». Es decir, la posición había dejado de
-         * apuntar a un campo y el rótulo vacío de un botón casa con el de un campo
-         * vacío. Ahora se exige que la ETIQUETA HTML sea la misma, que es lo que de
-         * verdad lo identifica.
-         */
-        const ahora = await suyo.evaluate((e) => {
-          const html = e as HTMLElement & { innerText?: string; type?: string };
-          const etiquetaHtml = e.tagName.toLowerCase();
-          const rol = e.getAttribute('role') ?? '';
-          // LA MISMA FIRMA que al enumerar, calculada igual. Si las dos expresiones se
-          // separaran, esta comprobación diría que nada es lo que era.
-          return [
-            etiquetaHtml,
-            rol,
-            (html.type ?? '').toLowerCase(),
-            e.getAttribute('name') ?? '',
-            e.getAttribute('placeholder') ?? '',
-            etiquetaHtml === 'button' || rol === 'button'
-              ? (html.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)
-              : '',
-          ].join('|');
-        });
-        const mismoSitio = ahora === pieza.firma;
-        if (!mismoSitio) {
-          inalcanzables.push({
-            ruta,
-            etiqueta: `capa › ${pieza.etiqueta}`,
-            camino: `pieza ${String(pieza.indice)} de la capa`,
-            motivo: `en su sitio hay otra pieza (${ahora.slice(0, 70)})`,
-          });
-          continue;
-        }
-        if (!(await suyo.isVisible()) || !(await suyo.isEnabled())) continue;
+      /**
+       * TOCAR UNA PIEZA, según lo que esa pieza promete.
+       *
+       * Devuelve el motivo por el que está muerta, o `null` si cumplió. El estado inicial
+       * lo restaura quien llama —recargando— y por eso aquí no se deshace nada: dentro de
+       * una capa flotante no se puede recargar sin cerrarla.
+       */
+      async function tocar(pieza: Clicable, suyo: Locator): Promise<string | null> {
+        // ── CAMPO · lo que se teclea SE QUEDA ──────────────────────────────
+        if (pieza.clase === 'campo') {
+          if (pieza.soloLectura) return null;
+          const sonda = sondaPara(pieza.tipo);
+          if (sonda === null) {
+            camposSinSonda += 1;
+            return null;
+          }
+          camposSondeados += 1;
+          try {
+            await suyo.fill(sonda, { timeout: 5_000 });
+          } catch (fallo) {
+            const razon = String(fallo).split('\n')[0] ?? '';
+            /**
+             * LA SONDA NO SE PUDO APLICAR, QUE NO ES LO MISMO QUE UN CAMPO MUERTO.
+             *
+             * «Element is not an <input>» y «Malformed value» son límites de la SONDA —ahí
+             * no hay un campo, o el valor no vale para ese tipo de campo— y acusar por eso
+             * es inventar un defecto. Un campo que de verdad no se puede escribir —tapado,
+             * deshabilitado sin decirlo— falla de otra forma: por tiempo o por «not
+             * visible», y eso sí cuenta.
+             */
+            if (/not an <input>|Malformed value|does not have a role/i.test(razon)) {
+              return `SONDA:${razon}`;
+            }
+            return `no se pudo teclear en el campo (${razon})`;
+          }
+          const quedo = await suyo.inputValue({ timeout: 5_000 }).catch(() => '');
+          /**
+           * Un campo con máscara reescribe lo que se teclea, y eso no es estar muerto:
+           * «5512345678» puede quedar «55 1234 5678» y un campo de dinero puede quedar
+           * «2.00». Lo que delata al campo muerto es que **no cambió NADA**: sigue
+           * exactamente como estaba antes de tocarlo.
+           */
+          if (quedo === sonda || quedo !== pieza.valor) return null;
 
-        elegibles += 1;
-        const motivo = await tocar(pieza, suyo);
-        tocados += 1;
-        enCapas += 1;
-
-        /**
-         * LO QUE ESTE TOQUE ABRIÓ, cerrado antes de seguir.
-         *
-         * Un desplegable dentro de un diálogo monta su lista ENCIMA del diálogo y lo
-         * tapa entero. Sin cerrarla, todas las piezas siguientes están de verdad
-         * cubiertas y el rastreo las acusa a todas — 36 de una sola pasada.
-         */
-        let sobran = (await capasAbiertas()) - capasAlAbrir;
-        while (sobran > 0) {
-          await page.keyboard.press('Escape').catch(() => undefined);
-          await page.waitForTimeout(200);
-          const ahoraHay = (await capasAbiertas()) - capasAlAbrir;
-          if (ahoraHay >= sobran) break;
-          sobran = ahoraHay;
-        }
-
-        if (motivo === null) continue;
-        if (motivo.startsWith('SONDA:')) {
-          inalcanzables.push({
-            ruta,
-            etiqueta: `capa › ${pieza.etiqueta}`,
-            camino: `pieza ${String(pieza.indice)} de la capa`,
-            motivo: motivo.slice('SONDA:'.length),
-          });
-          continue;
+          /**
+           * ANTES DE ACUSAR, SE TECLEA DE VERDAD.
+           *
+           * `fill` pone el valor y lanza un evento `input`; hay componentes que escuchan
+           * `keydown` o que sólo aceptan el cambio si viene de pulsaciones. Un campo
+           * REALMENTE muerto —un `value` sin `onChange`— no acepta ni lo uno ni lo otro,
+           * así que esta segunda vía sólo puede quitar falsos positivos, nunca añadir
+           * defectos. Y cuesta una décima de segundo en los pocos campos que llegan aquí.
+           */
+          await suyo.click({ timeout: 3_000 }).catch(() => undefined);
+          await suyo.pressSequentially(sonda, { delay: 15, timeout: 5_000 }).catch(() => undefined);
+          const trasTeclear = await suyo.inputValue({ timeout: 5_000 }).catch(() => '');
+          if (trasTeclear !== pieza.valor) return null;
+          return `el campo no acepta lo que se teclea: sigue en «${pieza.valor}» tras escribir «${sonda}» con \`fill\` Y tecla por tecla (un \`value\` sin \`onChange\` se ve así)`;
         }
 
-        const clave = `${ruta} «${pieza.etiqueta}»`;
-        if (declarados.has(clave)) {
-          declaradosUsados.add(clave);
-          continue;
-        }
-        muertos.push({
-          ruta,
-          etiqueta: `capa de «${desde}» › ${pieza.etiqueta}`,
-          camino: `pieza ${String(pieza.indice)} de la capa`,
-          motivo,
-        });
-        bitacora(diario, `   ¡MUERTO EN LA CAPA! «${pieza.etiqueta}» · ${motivo}`);
-      }
-
-      // Se cierra con Escape y no con su botón de cerrar: el botón ya se tocó arriba
-      // como cualquier otro, y si NO cerrara sería él el que está muerto.
-      await page.keyboard.press('Escape').catch(() => undefined);
-      await page.waitForTimeout(RESPIRO_MS);
-    }
-
-    /**
-     * BARRER UNA PANTALLA ENTERA: sus piezas, sus capas y sus formularios.
-     *
-     * `abrir` es cómo se llega: por el menú en las que cuelgan de él, por la URL en las
-     * cuatro que no cuelgan de ninguno (§0.5). Devuelve `false` si no se pudo abrir.
-     */
-    async function barrerPantalla(
-      ruta: string,
-      etiqueta: string,
-      abrir: () => Promise<void>,
-    ): Promise<void> {
-      bitacora(diario, `→ ${ruta} «${etiqueta}»`);
-      try {
-        await abrir();
-      } catch (fallo) {
-        const razon = String(fallo).split('\n')[0] ?? '';
-        muertos.push({
-          ruta,
-          etiqueta,
-          camino: 'menú lateral',
-          motivo: `la entrada del menú no abrió su pantalla (${razon})`,
-        });
-        bitacora(diario, `   ¡MUERTA! la entrada del menú no abrió: ${razon}`);
-        return;
-      }
-
-      pantallasBarridas += 1;
-      const pintadas = await esperarAQueSePinte(page);
-      const inventario = await conTecho(enumerar(page), TECHO_DE_EVALUACION_MS, `enumerar ${ruta}`);
-      const formularios = await conTecho(
-        enumerarFormularios(page),
-        TECHO_DE_EVALUACION_MS,
-        `enumerar los formularios de ${ruta}`,
-      );
-      const porClase = inventario.reduce<Record<string, number>>((cuenta, pieza) => {
-        cuenta[pieza.clase] = (cuenta[pieza.clase] ?? 0) + 1;
-        return cuenta;
-      }, {});
-      bitacora(
-        diario,
-        `   ${String(inventario.length)} pieza(s) interactiva(s) ` +
-          `(${Object.entries(porClase)
-            .map(([clase, cuantas]) => `${String(cuantas)} ${clase}`)
-            .join(' · ')}) · ${String(formularios.length)} formulario(s)` +
-          (pintadas === 0 ? ' — la pantalla no pintó NADA que se pueda tocar' : ''),
-      );
-
-      for (const pieza of inventario) {
-        if (pieza.deshabilitado || !pieza.visible) continue;
-        if (pieza.yaActiva) {
-          yaActivas += 1;
-          continue;
-        }
-        if (esSalir(pieza.etiqueta)) continue;
-        if (pieza.etiquetaHtml === 'a' && saleDeLaAplicacion(pieza.href)) {
-          externos.push(`${ruta} «${pieza.etiqueta}» → ${pieza.href ?? ''}`);
-          continue;
+        // ── ELECCIÓN · lo que se elige SE QUEDA ────────────────────────────
+        if (pieza.clase === 'eleccion') {
+          const opciones = await suyo
+            .locator('option')
+            .evaluateAll((lista) =>
+              lista
+                .map((o) => ({
+                  valor: (o as HTMLOptionElement).value,
+                  deshabilitada: (o as HTMLOptionElement).disabled,
+                }))
+                .filter((o) => !o.deshabilitada),
+            )
+            .catch(() => []);
+          const otra = opciones.find((o) => o.valor !== pieza.valor);
+          // Un selector con una sola opción no puede cambiar, y no es un defecto suyo.
+          if (otra === undefined) return null;
+          try {
+            await suyo.selectOption(otra.valor, { timeout: 5_000 });
+          } catch (fallo) {
+            return `no se pudo elegir en el selector (${String(fallo).split('\n')[0] ?? ''})`;
+          }
+          const quedo = await suyo.inputValue({ timeout: 5_000 }).catch(() => '');
+          if (quedo === otra.valor) return null;
+          return `el selector no guarda lo que se elige: sigue en «${pieza.valor}» tras elegir «${otra.valor}»`;
         }
 
-        // ── SE VUELVE AL ESTADO INICIAL ───────────────────────────────────
-        // Con `goto` y no con el menú: el menú ya demostró que lleva ahí, y hacerlo
-        // por él en cada toque triplicaría el rastreo sin probar nada nuevo.
-        // `commit` y no `load`: lo que hace falta es que la navegación EMPIECE; el
-        // localizador de abajo espera por el elemento, que es esperar por una
-        // condición en vez de por la carga entera de una página con veinte
-        // consultas. Contra un despliegue real son segundos por toque.
-        try {
-          await page.goto(ruta, { waitUntil: 'commit' });
-        } catch (fallo) {
-          muertos.push({
-            ruta,
-            etiqueta: pieza.etiqueta,
-            camino: pieza.camino,
-            motivo: `la pantalla no volvió a abrir (${String(fallo).split('\n')[0] ?? ''})`,
-          });
-          bitacora(diario, `   ¡la pantalla no volvió a abrir! ${ruta}`);
-          continue;
+        // ── MARCA · la marca CAMBIA ────────────────────────────────────────
+        if (pieza.clase === 'marca') {
+          const estadoDe = async (): Promise<string> =>
+            suyo
+              .evaluate((elemento) => {
+                const html = elemento as HTMLElement & { checked?: boolean };
+                return [
+                  html.checked === true ? '1' : '0',
+                  elemento.getAttribute('aria-checked') ?? '',
+                  elemento.getAttribute('data-state') ?? '',
+                ].join('/');
+              })
+              .catch(() => '');
+          const antes = await estadoDe();
+          try {
+            await suyo.click({ timeout: 5_000 });
+          } catch (fallo) {
+            return `no se pudo marcar (${String(fallo).split('\n')[0] ?? ''})`;
+          }
+          await page.waitForTimeout(RESPIRO_MS);
+          if ((await estadoDe()) !== antes) return null;
+          return `la marca no cambia de estado al tocarla (sigue en «${antes}»)`;
         }
 
-        const suyo = page.locator(pieza.camino);
-        // Se ESPERA a que vuelva a existir. Preguntar `count()` justo después del
-        // `goto` devolvía 0 en casi todas —el contenido llega después— y el rastreo
-        // apuntaba 36 piezas «que no reaparecen» sin haber tocado ninguna.
-        await suyo
-          .first()
-          .waitFor({ state: 'attached', timeout: TECHO_DE_ACCION_MS })
-          .catch(() => {
-            /* si no vuelve, lo dice el conteo de abajo */
-          });
-        if ((await suyo.count()) !== 1) {
-          // No reaparece: depende de un estado que este rastreo no reproduce —una fila
-          // seleccionada, un diálogo abierto—. No es un defecto; es el límite de rastrear
-          // sin saber qué se busca, y se cuenta para que se vea cuánto queda fuera.
-          inalcanzables.push({
-            ruta,
-            etiqueta: pieza.etiqueta,
-            camino: pieza.camino,
-            motivo: 'no reaparece al recargar',
-          });
-          continue;
-        }
-        if (!(await suyo.isVisible()) || !(await suyo.isEnabled())) continue;
-
-        elegibles += 1;
-        const motivo = await tocar(pieza, suyo);
-        tocados += 1;
-
-        // ── Y LO QUE ABRIÓ, por dentro ─────────────────────────────────────
-        if (pieza.clase === 'boton') await barrerCapa(ruta, pieza.etiqueta);
-
-        if (motivo === null) continue;
-        if (motivo.startsWith('SONDA:')) {
-          inalcanzables.push({
-            ruta,
-            etiqueta: pieza.etiqueta,
-            camino: pieza.camino,
-            motivo: motivo.slice('SONDA:'.length),
-          });
-          continue;
-        }
-
-        const clave = `${ruta} «${pieza.etiqueta}»`;
-        if (declarados.has(clave)) {
-          declaradosUsados.add(clave);
-          continue;
-        }
-        muertos.push({ ruta, etiqueta: pieza.etiqueta, camino: pieza.camino, motivo });
-        bitacora(diario, `   ¡MUERTO! «${pieza.etiqueta}» ${pieza.camino} · ${motivo}`);
-      }
-
-      // ── LOS FORMULARIOS · enviar, que es la cuarta cosa ──────────────────
-      for (const formulario of formularios) {
-        try {
-          await page.goto(ruta, { waitUntil: 'commit' });
-        } catch {
-          continue;
-        }
-        const suyo = page.locator(formulario.camino);
-        await suyo
-          .first()
-          .waitFor({ state: 'attached', timeout: TECHO_DE_ACCION_MS })
-          .catch(() => undefined);
-        if ((await suyo.count()) !== 1) {
-          inalcanzables.push({
-            ruta,
-            etiqueta: formulario.etiqueta,
-            camino: formulario.camino,
-            motivo: 'el formulario no reaparece al recargar',
-          });
-          continue;
-        }
-
-        const antes = await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella del formulario');
+        // ── BOTÓN · que pase algo ──────────────────────────────────────────
+        const antes = await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella inicial');
         const urlAntes = page.url();
+        const dialogosAntes = dialogosNativos;
+        const pestanasAntes = pestanasAbiertas;
+        const invisiblesAntes = await invisibles();
         let peticiones = 0;
         const contar = (): void => {
           peticiones += 1;
         };
         page.on('request', contar);
 
-        /**
-         * SE ENVÍA CON `requestSubmit`, no pulsando un botón.
-         *
-         * Pulsar el botón de envío ya lo hace el barrido de arriba; lo que aquí se
-         * prueba es el CAMINO DEL FORMULARIO: su validación nativa, su `onSubmit` y lo
-         * que el servidor contesta. `requestSubmit` es lo que dispara el navegador al
-         * pulsar Enter en un campo, así que es ese camino exactamente —y no `submit()`,
-         * que se salta la validación y los manejadores de React—.
-         */
-        sondeando = true;
+        // EL RATÓN PRIMERO. Hay tarjetas cuyos botones sólo aparecen —o sólo reciben
+        // el clic— al pasar por encima: «Imprimir ficha», «Editar receta» y «Eliminar
+        // receta» de la pantalla de recetas son de ésas, y sin esto salen como
+        // «no se pudo tocar» cuando un usuario de escritorio las toca sin problema.
+        await suyo.hover({ timeout: 3_000 }).catch(() => {
+          /* si no se puede ni pasar por encima, el clic lo dirá */
+        });
         try {
-          await suyo.evaluate((elemento) => {
-            (elemento as HTMLFormElement).requestSubmit();
-          });
-          await page.waitForTimeout(RESPIRO_MS * 2);
+          await suyo.click({ timeout: 7_000 });
         } catch (fallo) {
-          bitacora(
-            diario,
-            `   formulario «${formulario.etiqueta}» no se pudo enviar: ${String(fallo).split('\n')[0] ?? ''}`,
-          );
-        } finally {
-          /**
-           * LA VENTANA DE SONDA SE CIERRA TARDE, A PROPÓSITO.
-           *
-           * Se cerraba justo después del respiro, y eso es una CARRERA: el 400 del
-           * servidor —que es la validación funcionando— llega cuando llega, y en un
-           * contenedor de CI llega más tarde que en una laptop. Si aterriza un
-           * milisegundo después, el navegador escribe «Failed to load resource: 400»
-           * con la ventana ya cerrada y la corrida acusa a la aplicación de romperse
-           * justo cuando mejor se comporta. Le pasó a la cafetería dos veces.
-           *
-           * Un segundo entero de cola: la sonda no vuelve a tocar nada en ese rato, así
-           * que lo único que puede entrar por ahí es la respuesta que ella misma
-           * provocó. Y sigue tapando SÓLO el 400 y el 422: un 404 es una ruta que no
-           * existe y un 5xx es que revienta, con ventana o sin ella.
-           */
-          await page.waitForTimeout(RESPIRO_MS * 2);
-          sondeando = false;
           page.off('request', contar);
+          return `no se pudo tocar (${String(fallo).split('\n')[0] ?? ''})`;
         }
-        formulariosEnviados += 1;
+
+        await page.waitForTimeout(RESPIRO_MS);
+        page.off('request', contar);
 
         const hizoAlgo =
           peticiones > 0 ||
           page.url() !== urlAntes ||
-          (await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella tras enviar')) !== antes;
-        if (hizoAlgo) continue;
-
-        const clave = `${ruta} «${formulario.etiqueta}»`;
-        if (declarados.has(clave)) {
-          declaradosUsados.add(clave);
-          continue;
+          dialogosNativos > dialogosAntes ||
+          pestanasAbiertas > pestanasAntes ||
+          (await invisibles()) > invisiblesAntes;
+        if (hizoAlgo) return null;
+        if (
+          (await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella tras el toque')) !== antes
+        ) {
+          return null;
         }
+
         /**
-         * Un formulario vacío que no hace NADA al enviarse.
+         * NO PASÓ NADA. Antes de acusar, se comprueba que la pantalla estuviera quieta.
          *
-         * Ni una petición, ni un cambio de URL, ni un mensaje de validación. Eso es un
-         * `<form>` sin `onSubmit` y sin `action`: el Enter del cajero no hace nada y
-         * nadie se lo dijo. Si de verdad no debe enviarse —porque todo pasa por su
-         * botón—, se declara con su motivo como cualquier otro clic sin efecto.
+         * Una pantalla que se mueve sola —la cocina refresca, el turno cuenta minutos—
+         * no invalida lo de arriba, pero sí lo de abajo: si su huella cambia sin que
+         * nadie la toque, «la huella no cambió» tampoco significa nada... y si cambia
+         * sola, el caso de arriba ya la habría dado por buena. Así que la segunda
+         * muestra sólo se paga cuando hay una acusación que hacer.
          */
-        muertos.push({
-          ruta,
-          etiqueta: formulario.etiqueta,
-          camino: formulario.camino,
-          motivo: 'el formulario no hace nada al enviarse: ni petición, ni URL, ni un aviso',
-        });
-        bitacora(diario, `   ¡FORMULARIO MUERTO! «${formulario.etiqueta}» ${formulario.camino}`);
+        await page.waitForTimeout(RESPIRO_MS);
+        if ((await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'segunda huella')) !== antes) {
+          return null;
+        }
+        return 'ni petición, ni URL, ni DOM';
       }
-    }
 
-    for (const entrada of entradas) {
-      await barrerPantalla(entrada.ruta, entrada.etiqueta, async () => {
-        // Al TABLERO primero: la pantalla anterior puede ser de un modelo, y esas no
-        // traen barra lateral. Es una navegación por pantalla, no por botón.
-        await page.goto('/', { waitUntil: 'domcontentloaded' });
-        const menuDeLaVuelta = await menuLateral(page);
-        // Por su HREF y no por su nombre: con dos entradas llamadas igual, el nombre
-        // abre la que está primero en el DOM —que no es la que se enumeró— y la
-        // prueba acusa a la pantalla equivocada. Pasó con «Caja», «Recetas» y
-        // «Registros» del restaurante: el clic se iba a `/abarrotes/caja`.
-        // El VISIBLE: la barra puede traer el mismo destino dos veces —una en el
-        // cajón de teléfono, oculta— y `.first()` a secas se queda esperando por la
-        // que nadie puede tocar. Pasó con tres entradas de la ferretería.
-        await menuDeLaVuelta
-          .locator(`a[href="${entrada.ruta}"]`)
-          .filter({ visible: true })
-          .first()
-          .click({ timeout: TECHO_DE_ACCION_MS });
-        await page.waitForURL((url) => url.pathname === entrada.ruta, { timeout: 20_000 });
-        await page.waitForLoadState('domcontentloaded');
-      });
-    }
+      /** Cuántas capas flotantes hay abiertas ahora mismo. */
+      async function capasAbiertas(): Promise<number> {
+        return page.locator(SELECTOR_DE_CAPA).filter({ visible: true }).count();
+      }
 
-    /**
-     * LAS CUATRO QUE NO CUELGAN DE NINGÚN MENÚ, por su URL.
-     *
-     * Están exentas del MENÚ por razones buenas y escritas —`EXCEPCIONES-COBERTURA.md`:
-     * las dos de acceso con PIN se ven ANTES de que exista sesión, y el portal del
-     * comensal y el menú público los abre el CLIENTE con un QR—. Exentas del menú no es
-     * exentas del rastreo: son pantallas con botones como cualquier otra, y el
-     * rastreador no las visitaba NUNCA.
-     *
-     * Se filtran por el prefijo de este modelo: el portal del comensal es del
-     * restaurante, y una ferretería no lo sirve.
-     */
-    const prefijoDelModelo = PREFIJO_DEL_MODELO[modeloDeLaDemo()] ?? '/ninguno/';
-    for (const ruta of PANTALLAS_SIN_MENU.filter((r) => r.startsWith(prefijoDelModelo))) {
-      await barrerPantalla(
-        ruta,
-        'sin menú, por URL',
-        async () => {
-          await page.goto(ruta, { waitUntil: 'domcontentloaded' });
+      /**
+       * PROFUNDIDAD 2 · lo que hay DENTRO de la capa que se acaba de abrir.
+       *
+       * ── Por qué el rastreo se quedaba en profundidad 1 ─────────────────────
+       * El ámbito era el `main`, y Radix monta diálogos, menús y listas en un portal al
+       * final del `body`. Y como entre toque y toque se RECARGA para volver al estado
+       * inicial, la recarga cerraba el diálogo antes de que nadie mirara dentro. Así que
+       * todo lo que vive dentro de un diálogo —el cobro, el alta, la confirmación de
+       * borrado, el selector de un combo— no lo tocaba nadie.
+       *
+       * ── Los dos defectos que tuvo esto ANTES de creerle nada ───────────────
+       * La primera versión acusó a 66 piezas en la tiendita, 36 de ellas con «no se pudo
+       * tocar». Era falso, y se midió por qué: dentro del diálogo de «Registrar gasto»,
+       * `elementFromPoint` devolvía la pieza correcta y `pointer-events` valía `auto` en
+       * todas. Es decir, un humano las toca sin problema.
+       *
+       *   1 · SE BUSCABAN POR EL CAMINO DEL DOM. La capa vive en un portal al final del
+       *       `body`, así que en cuanto React repinta —o en cuanto se abre un selector
+       *       encima— los `nth-child` de ese camino apuntan a OTRO nodo: al velo, por
+       *       ejemplo, que sí está cubierto por el diálogo. De ahí los treinta y seis
+       *       «no se pudo tocar». Ahora se busca por POSICIÓN dentro de la capa, y se
+       *       comprueba que la etiqueta siga siendo la misma antes de tocarla.
+       *   2 · UN TOQUE PUEDE ABRIR OTRA CAPA. El primer clic del diálogo era un
+       *       desplegable; su lista se monta ENCIMA y tapa el diálogo entero, así que
+       *       todo lo que venía después estaba de verdad cubierto. Ahora, si un toque
+       *       abre una capa nueva, se cierra antes de seguir con la siguiente pieza.
+       *
+       * ── Lo que aquí NO se puede hacer, y se dice ───────────────────────────
+       * Dentro de la capa no se vuelve al estado inicial entre toque y toque: recargar
+       * la cerraría. Así que se recorre en el orden del DOM y se para en cuanto la capa
+       * se cierra —que también es un efecto: un toque la cerró—. Es un barrido, no el
+       * aislamiento de la pantalla, y por eso sus toques se cuentan aparte.
+       */
+      async function barrerCapa(ruta: string, desde: string): Promise<void> {
+        const capasAlAbrir = await capasAbiertas();
+        if (capasAlAbrir === 0) return;
+
+        const capa = (): Locator => page.locator(SELECTOR_DE_CAPA).filter({ visible: true }).last();
+        const dentro = await conTecho(
+          enumerar(page, 'capa'),
+          TECHO_DE_EVALUACION_MS,
+          `enumerar la capa de ${ruta}`,
+        );
+        const tocables = dentro.filter((p) => !p.deshabilitado && p.visible && !p.yaActiva);
+        if (tocables.length === 0) {
+          await page.keyboard.press('Escape').catch(() => undefined);
+          return;
+        }
+        bitacora(diario, `   ⤵ capa abierta por «${desde}» · ${String(tocables.length)} pieza(s)`);
+
+        for (const pieza of tocables) {
+          if (esSalir(pieza.etiqueta)) continue;
+          if (pieza.etiquetaHtml === 'a' && saleDeLaAplicacion(pieza.href)) {
+            externos.push(`${ruta} (capa) «${pieza.etiqueta}» → ${pieza.href ?? ''}`);
+            continue;
+          }
+          // La capa pudo cerrarse con el toque anterior: eso es un efecto, no un fallo,
+          // y lo que queda dentro se verá la próxima vez que se abra.
+          if ((await capasAbiertas()) < capasAlAbrir) break;
+
+          const suyo = capa().locator(SELECCION_DE_PIEZAS).nth(pieza.indice);
+          if ((await suyo.count()) !== 1) {
+            inalcanzables.push({
+              ruta,
+              etiqueta: `capa › ${pieza.etiqueta}`,
+              camino: `pieza ${String(pieza.indice)} de la capa`,
+              motivo: 'la capa ya no tiene esa pieza',
+            });
+            continue;
+          }
           /**
-           * Con sesión abierta, una pantalla de ENTRAR puede redirigir a la casa: es lo
-           * correcto y no es un defecto. Se anota y se sigue, en vez de acusarla.
+           * Y QUE SIGA SIENDO LA MISMA PIEZA: el mismo rótulo Y LA MISMA COSA.
+           *
+           * La posición aguanta un repintado, pero no aguanta que la capa cambie de
+           * contenido —un paso siguiente, una línea de compra que se añade—. Comprobar
+           * sólo el rótulo no bastaba, y el rastreo lo demostró solo: en el diálogo de
+           * «Registrar compra», tres campos llegaban a `locator.fill` y Playwright
+           * contestaba «Element is not an <input>». Es decir, la posición había dejado de
+           * apuntar a un campo y el rótulo vacío de un botón casa con el de un campo
+           * vacío. Ahora se exige que la ETIQUETA HTML sea la misma, que es lo que de
+           * verdad lo identifica.
            */
-          const donde = new URL(page.url()).pathname;
-          if (donde !== ruta) throw new Error(`redirige a ${donde} con la sesión abierta`);
-        },
-        'anotar',
-      );
-    }
+          const ahora = await suyo.evaluate((e) => {
+            const html = e as HTMLElement & { innerText?: string; type?: string };
+            const etiquetaHtml = e.tagName.toLowerCase();
+            const rol = e.getAttribute('role') ?? '';
+            // LA MISMA FIRMA que al enumerar, calculada igual. Si las dos expresiones se
+            // separaran, esta comprobación diría que nada es lo que era.
+            return [
+              etiquetaHtml,
+              rol,
+              (html.type ?? '').toLowerCase(),
+              e.getAttribute('name') ?? '',
+              e.getAttribute('placeholder') ?? '',
+              etiquetaHtml === 'button' || rol === 'button'
+                ? (html.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)
+                : '',
+            ].join('|');
+          });
+          const mismoSitio = ahora === pieza.firma;
+          if (!mismoSitio) {
+            inalcanzables.push({
+              ruta,
+              etiqueta: `capa › ${pieza.etiqueta}`,
+              camino: `pieza ${String(pieza.indice)} de la capa`,
+              motivo: `en su sitio hay otra pieza (${ahora.slice(0, 70)})`,
+            });
+            continue;
+          }
+          if (!(await suyo.isVisible()) || !(await suyo.isEnabled())) continue;
 
-    // El resumen va en las ANOTACIONES de la corrida y no en la consola: así queda en
-    // el informe de Playwright, se lee con el reportero JSON y no depende de que
-    // alguien estuviera mirando la terminal.
-    const fueraDeAlcance =
-      elegibles + inalcanzables.length === 0
-        ? 0
-        : inalcanzables.length / (elegibles + inalcanzables.length);
-    const resumen =
-      `${String(pantallasBarridas)} pantalla(s) · ${String(tocados)} toque(s) ` +
-      `(${String(enCapas)} dentro de capas · ${String(camposSondeados)} campo(s) sondeado(s) · ` +
-      `${String(camposSinSonda)} de un tipo que la sonda no teclea · ` +
-      `${String(formulariosEnviados)} formulario(s) enviado(s)) · ` +
-      `${String(inalcanzables.length)} sin alcance (${(fueraDeAlcance * 100).toFixed(1)} %) · ` +
-      `${String(externos.length)} enlace(s) fuera de la aplicación · ` +
-      `${String(yaActivas)} ya seleccionada(s) · ` +
-      `${String(declaradosUsados.size)} declarado(s) sin efecto`;
-    test.info().annotations.push({ type: 'rastreo', description: resumen });
-    bitacora(diario, `— ${resumen}`);
-    for (const m of muertos) bitacora(diario, `MUERTO ${m.ruta} «${m.etiqueta}» · ${m.motivo}`);
-    for (const c of new Set(enLaConsola)) bitacora(diario, `CONSOLA ${c}`);
-    if (externos.length > 0) {
-      test.info().annotations.push({ type: 'rastreo-fuera', description: externos.join(' | ') });
-    }
-    if (inalcanzables.length > 0) {
-      test.info().annotations.push({
-        type: 'rastreo-sin-alcance',
-        description: inalcanzables.map((x) => `${x.ruta} «${x.etiqueta}»`).join(' | '),
-      });
-      for (const x of inalcanzables) {
-        bitacora(diario, `SIN ALCANCE ${x.ruta} «${x.etiqueta}» · ${x.motivo}`);
+          elegibles += 1;
+          const motivo = await tocar(pieza, suyo);
+          tocados += 1;
+          enCapas += 1;
+
+          /**
+           * LO QUE ESTE TOQUE ABRIÓ, cerrado antes de seguir.
+           *
+           * Un desplegable dentro de un diálogo monta su lista ENCIMA del diálogo y lo
+           * tapa entero. Sin cerrarla, todas las piezas siguientes están de verdad
+           * cubiertas y el rastreo las acusa a todas — 36 de una sola pasada.
+           */
+          let sobran = (await capasAbiertas()) - capasAlAbrir;
+          while (sobran > 0) {
+            await page.keyboard.press('Escape').catch(() => undefined);
+            await page.waitForTimeout(200);
+            const ahoraHay = (await capasAbiertas()) - capasAlAbrir;
+            if (ahoraHay >= sobran) break;
+            sobran = ahoraHay;
+          }
+
+          if (motivo === null) continue;
+          if (motivo.startsWith('SONDA:')) {
+            inalcanzables.push({
+              ruta,
+              etiqueta: `capa › ${pieza.etiqueta}`,
+              camino: `pieza ${String(pieza.indice)} de la capa`,
+              motivo: motivo.slice('SONDA:'.length),
+            });
+            continue;
+          }
+
+          const clave = `${ruta} «${pieza.etiqueta}»`;
+          if (declarados.has(clave)) {
+            declaradosUsados.add(clave);
+            continue;
+          }
+          muertos.push({
+            ruta,
+            etiqueta: `capa de «${desde}» › ${pieza.etiqueta}`,
+            camino: `pieza ${String(pieza.indice)} de la capa`,
+            motivo,
+          });
+          bitacora(diario, `   ¡MUERTO EN LA CAPA! «${pieza.etiqueta}» · ${motivo}`);
+        }
+
+        // Se cierra con Escape y no con su botón de cerrar: el botón ya se tocó arriba
+        // como cualquier otro, y si NO cerrara sería él el que está muerto.
+        await page.keyboard.press('Escape').catch(() => undefined);
+        await page.waitForTimeout(RESPIRO_MS);
       }
-    }
-    if (sinMenuNoVisitadas.length > 0) {
-      test.info().annotations.push({
-        type: 'rastreo-sin-menu',
-        description: sinMenuNoVisitadas.join(' | '),
-      });
-    }
 
-    // ── 3 · LO QUE SE EXIGE ─────────────────────────────────────────────────
-    expect(
-      muertos.map((m) => `${m.ruta} «${m.etiqueta}» · ${m.motivo} · ${m.camino}`),
-      'Hay botones que no hacen NADA al tocarlos: ni sale una petición, ni cambia la URL, ni ' +
-        'cambia el DOM. Cada uno es una promesa que la pantalla hace y no cumple. Si alguno ' +
-        'no debe hacer nada a propósito, decláralo con su motivo en ' +
-        'docs/fase-2/CLICS-SIN-EFECTO.md.',
-    ).toEqual([]);
+      /**
+       * BARRER UNA PANTALLA ENTERA: sus piezas, sus capas y sus formularios.
+       *
+       * `abrir` es cómo se llega: por el menú en las que cuelgan de él, por la URL en las
+       * cuatro que no cuelgan de ninguno (§0.5). Devuelve `false` si no se pudo abrir.
+       */
+      async function barrerPantalla(
+        ruta: string,
+        etiqueta: string,
+        abrir: () => Promise<void>,
+      ): Promise<void> {
+        bitacora(diario, `→ ${ruta} «${etiqueta}»`);
+        try {
+          await abrir();
+        } catch (fallo) {
+          const razon = String(fallo).split('\n')[0] ?? '';
+          muertos.push({
+            ruta,
+            etiqueta,
+            camino: 'menú lateral',
+            motivo: `la entrada del menú no abrió su pantalla (${razon})`,
+          });
+          bitacora(diario, `   ¡MUERTA! la entrada del menú no abrió: ${razon}`);
+          return;
+        }
 
-    /**
-     * EL VIGILANTE DE RED VA PRIMERO, y el orden importa.
-     *
-     * Las dos puertas ven el mismo 4xx por caminos distintos: el vigilante de red lo
-     * ve en la RESPUESTA y sabe la ruta, el estado y —por `loQuePedia`— la entidad y
-     * la operación; el navegador lo escribe además en la consola y ahí sólo dice
-     * «Failed to load resource… 400».
-     *
-     * Estaba al revés, y cuando los dos tenían algo que decir el que hablaba era el
-     * que menos sabía: «`/cafeteria/inventario` · Failed to load resource… 400», sin
-     * decir QUÉ se pidió, en una pantalla que habla con una decena de rutas. Hubo que
-     * salir a buscarlo a mano tres veces.
-     *
-     * Con el vigilante de red delante, el primer fallo que se lee es el que trae la
-     * ruta. La puerta de la consola no se relaja: sigue detrás, y es la ÚNICA que ve
-     * un `TypeError` del cliente, que no deja rastro en ninguna respuesta.
-     */
-    exigirSinFallos();
+        pantallasBarridas += 1;
+        const pintadas = await esperarAQueSePinte(page);
+        for (const hallazgo of await conTecho(
+          textosIlegibles(page),
+          TECHO_DE_EVALUACION_MS,
+          `medir el contraste de ${ruta}`,
+        )) {
+          ilegibles.push(`${ruta} · ${hallazgo}`);
+          bitacora(diario, `   ILEGIBLE ${hallazgo}`);
+        }
+        const inventario = await conTecho(
+          enumerar(page),
+          TECHO_DE_EVALUACION_MS,
+          `enumerar ${ruta}`,
+        );
+        const formularios = await conTecho(
+          enumerarFormularios(page),
+          TECHO_DE_EVALUACION_MS,
+          `enumerar los formularios de ${ruta}`,
+        );
+        const porClase = inventario.reduce<Record<string, number>>((cuenta, pieza) => {
+          cuenta[pieza.clase] = (cuenta[pieza.clase] ?? 0) + 1;
+          return cuenta;
+        }, {});
+        bitacora(
+          diario,
+          `   ${String(inventario.length)} pieza(s) interactiva(s) ` +
+            `(${Object.entries(porClase)
+              .map(([clase, cuantas]) => `${String(cuantas)} ${clase}`)
+              .join(' · ')}) · ${String(formularios.length)} formulario(s)` +
+            (pintadas === 0 ? ' — la pantalla no pintó NADA que se pueda tocar' : ''),
+        );
 
-    expect(
-      [...new Set(enLaConsola)],
-      'El navegador escribió errores mientras se tocaba la aplicación. Un error de consola no ' +
-        'devuelve 500 ni `{ok:false}`: la pantalla se queda a medias y el servidor no se entera.',
-    ).toEqual([]);
+        for (const pieza of inventario) {
+          if (pieza.deshabilitado || !pieza.visible) continue;
+          if (pieza.yaActiva) {
+            yaActivas += 1;
+            continue;
+          }
+          if (esSalir(pieza.etiqueta)) continue;
+          if (pieza.etiquetaHtml === 'a' && saleDeLaAplicacion(pieza.href)) {
+            externos.push(`${ruta} «${pieza.etiqueta}» → ${pieza.href ?? ''}`);
+            continue;
+          }
 
-    /**
-     * CUÁNTO QUEDÓ SIN TOCAR, y un techo.
-     *
-     * ── El cubo que se contaba y no exigía nada ─────────────────────────
-     * `inalcanzables` se llenaba, se anotaba «si hay alguno» y **su tamaño no salía en
-     * ninguna parte**: una corrida en la que la mitad de las piezas no se pudieron
-     * volver a encontrar se leía igual de verde que una en la que se tocó todo. Eso es
-     * un cupo silencioso, que es lo que esta fase vino a dejar de hacer: quien lee
-     * «5 de 5 en verde» tiene derecho a saber sobre cuánto.
-     *
-     * El techo es una FRACCIÓN y no un número: una pantalla con tres piezas y una sin
-     * alcance no dice nada, y cien sin alcance de seiscientas dicen que el rastreo ya no
-     * rastrea. Y no salta con menos de `MINIMO_PARA_EL_TECHO`, para que una pantalla
-     * pequeña no tire la corrida.
-     */
-    const porcentaje = `${(fueraDeAlcance * 100).toFixed(1)} %`;
-    expect(
-      inalcanzables.length >= MINIMO_PARA_EL_TECHO && fueraDeAlcance > TECHO_SIN_ALCANCE
-        ? `${String(inalcanzables.length)} de ${String(elegibles + inalcanzables.length)} (${porcentaje})`
-        : null,
-      `Demasiadas piezas quedaron SIN TOCAR: ${porcentaje} de las que se enumeraron no se pudieron ` +
-        `volver a encontrar al recargar, y el techo es ${String(TECHO_SIN_ALCANCE * 100)} %. Eso no ` +
-        'es un defecto de la aplicación: es que el rastreo ya no rastrea, porque depende de un ' +
-        'estado que no reproduce. Están en la bitácora con su ruta y su motivo, bajo «SIN ALCANCE».',
-    ).toBeNull();
+          // ── SE VUELVE AL ESTADO INICIAL ───────────────────────────────────
+          // Con `goto` y no con el menú: el menú ya demostró que lleva ahí, y hacerlo
+          // por él en cada toque triplicaría el rastreo sin probar nada nuevo.
+          // `commit` y no `load`: lo que hace falta es que la navegación EMPIECE; el
+          // localizador de abajo espera por el elemento, que es esperar por una
+          // condición en vez de por la carga entera de una página con veinte
+          // consultas. Contra un despliegue real son segundos por toque.
+          try {
+            await page.goto(ruta, { waitUntil: 'commit' });
+          } catch (fallo) {
+            muertos.push({
+              ruta,
+              etiqueta: pieza.etiqueta,
+              camino: pieza.camino,
+              motivo: `la pantalla no volvió a abrir (${String(fallo).split('\n')[0] ?? ''})`,
+            });
+            bitacora(diario, `   ¡la pantalla no volvió a abrir! ${ruta}`);
+            continue;
+          }
 
-    // Una declaración que ya no hace falta es una excepción que sobrevive a su
-    // motivo, y esta lista sólo puede encogerse.
-    const sobrantes = [...declarados.keys()].filter((clave) => !declaradosUsados.has(clave));
-    expect(
-      sobrantes,
-      'Estas declaraciones de CLICS-SIN-EFECTO.md ya no corresponden a ningún botón de esta ' +
-        'demostración: o el botón cambió de texto, o ya hace algo. Bórralas.',
-    ).toEqual([]);
-  });
+          const suyo = page.locator(pieza.camino);
+          // Se ESPERA a que vuelva a existir. Preguntar `count()` justo después del
+          // `goto` devolvía 0 en casi todas —el contenido llega después— y el rastreo
+          // apuntaba 36 piezas «que no reaparecen» sin haber tocado ninguna.
+          await suyo
+            .first()
+            .waitFor({ state: 'attached', timeout: TECHO_DE_ACCION_MS })
+            .catch(() => {
+              /* si no vuelve, lo dice el conteo de abajo */
+            });
+          if ((await suyo.count()) !== 1) {
+            // No reaparece: depende de un estado que este rastreo no reproduce —una fila
+            // seleccionada, un diálogo abierto—. No es un defecto; es el límite de rastrear
+            // sin saber qué se busca, y se cuenta para que se vea cuánto queda fuera.
+            inalcanzables.push({
+              ruta,
+              etiqueta: pieza.etiqueta,
+              camino: pieza.camino,
+              motivo: 'no reaparece al recargar',
+            });
+            continue;
+          }
+          if (!(await suyo.isVisible()) || !(await suyo.isEnabled())) continue;
+
+          elegibles += 1;
+          const motivo = await tocar(pieza, suyo);
+          tocados += 1;
+
+          // ── Y LO QUE ABRIÓ, por dentro ─────────────────────────────────────
+          if (pieza.clase === 'boton') await barrerCapa(ruta, pieza.etiqueta);
+
+          if (motivo === null) continue;
+          if (motivo.startsWith('SONDA:')) {
+            inalcanzables.push({
+              ruta,
+              etiqueta: pieza.etiqueta,
+              camino: pieza.camino,
+              motivo: motivo.slice('SONDA:'.length),
+            });
+            continue;
+          }
+
+          const clave = `${ruta} «${pieza.etiqueta}»`;
+          if (declarados.has(clave)) {
+            declaradosUsados.add(clave);
+            continue;
+          }
+          muertos.push({ ruta, etiqueta: pieza.etiqueta, camino: pieza.camino, motivo });
+          bitacora(diario, `   ¡MUERTO! «${pieza.etiqueta}» ${pieza.camino} · ${motivo}`);
+        }
+
+        // ── LOS FORMULARIOS · enviar, que es la cuarta cosa ──────────────────
+        for (const formulario of formularios) {
+          try {
+            await page.goto(ruta, { waitUntil: 'commit' });
+          } catch {
+            continue;
+          }
+          const suyo = page.locator(formulario.camino);
+          await suyo
+            .first()
+            .waitFor({ state: 'attached', timeout: TECHO_DE_ACCION_MS })
+            .catch(() => undefined);
+          if ((await suyo.count()) !== 1) {
+            inalcanzables.push({
+              ruta,
+              etiqueta: formulario.etiqueta,
+              camino: formulario.camino,
+              motivo: 'el formulario no reaparece al recargar',
+            });
+            continue;
+          }
+
+          const antes = await conTecho(
+            huella(page),
+            TECHO_DE_EVALUACION_MS,
+            'huella del formulario',
+          );
+          const urlAntes = page.url();
+          let peticiones = 0;
+          const contar = (): void => {
+            peticiones += 1;
+          };
+          page.on('request', contar);
+
+          /**
+           * SE ENVÍA CON `requestSubmit`, no pulsando un botón.
+           *
+           * Pulsar el botón de envío ya lo hace el barrido de arriba; lo que aquí se
+           * prueba es el CAMINO DEL FORMULARIO: su validación nativa, su `onSubmit` y lo
+           * que el servidor contesta. `requestSubmit` es lo que dispara el navegador al
+           * pulsar Enter en un campo, así que es ese camino exactamente —y no `submit()`,
+           * que se salta la validación y los manejadores de React—.
+           */
+          sondeando = true;
+          try {
+            await suyo.evaluate((elemento) => {
+              (elemento as HTMLFormElement).requestSubmit();
+            });
+            await page.waitForTimeout(RESPIRO_MS * 2);
+          } catch (fallo) {
+            bitacora(
+              diario,
+              `   formulario «${formulario.etiqueta}» no se pudo enviar: ${String(fallo).split('\n')[0] ?? ''}`,
+            );
+          } finally {
+            /**
+             * LA VENTANA DE SONDA SE CIERRA TARDE, A PROPÓSITO.
+             *
+             * Se cerraba justo después del respiro, y eso es una CARRERA: el 400 del
+             * servidor —que es la validación funcionando— llega cuando llega, y en un
+             * contenedor de CI llega más tarde que en una laptop. Si aterriza un
+             * milisegundo después, el navegador escribe «Failed to load resource: 400»
+             * con la ventana ya cerrada y la corrida acusa a la aplicación de romperse
+             * justo cuando mejor se comporta. Le pasó a la cafetería dos veces.
+             *
+             * Un segundo entero de cola: la sonda no vuelve a tocar nada en ese rato, así
+             * que lo único que puede entrar por ahí es la respuesta que ella misma
+             * provocó. Y sigue tapando SÓLO el 400 y el 422: un 404 es una ruta que no
+             * existe y un 5xx es que revienta, con ventana o sin ella.
+             */
+            await page.waitForTimeout(RESPIRO_MS * 2);
+            sondeando = false;
+            page.off('request', contar);
+          }
+          formulariosEnviados += 1;
+
+          const hizoAlgo =
+            peticiones > 0 ||
+            page.url() !== urlAntes ||
+            (await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'huella tras enviar')) !== antes;
+          if (hizoAlgo) continue;
+
+          const clave = `${ruta} «${formulario.etiqueta}»`;
+          if (declarados.has(clave)) {
+            declaradosUsados.add(clave);
+            continue;
+          }
+          /**
+           * Un formulario vacío que no hace NADA al enviarse.
+           *
+           * Ni una petición, ni un cambio de URL, ni un mensaje de validación. Eso es un
+           * `<form>` sin `onSubmit` y sin `action`: el Enter del cajero no hace nada y
+           * nadie se lo dijo. Si de verdad no debe enviarse —porque todo pasa por su
+           * botón—, se declara con su motivo como cualquier otro clic sin efecto.
+           */
+          muertos.push({
+            ruta,
+            etiqueta: formulario.etiqueta,
+            camino: formulario.camino,
+            motivo: 'el formulario no hace nada al enviarse: ni petición, ni URL, ni un aviso',
+          });
+          bitacora(diario, `   ¡FORMULARIO MUERTO! «${formulario.etiqueta}» ${formulario.camino}`);
+        }
+      }
+
+      for (const entrada of entradas) {
+        await barrerPantalla(entrada.ruta, entrada.etiqueta, async () => {
+          // Al TABLERO primero: la pantalla anterior puede ser de un modelo, y esas no
+          // traen barra lateral. Es una navegación por pantalla, no por botón.
+          await page.goto('/', { waitUntil: 'domcontentloaded' });
+          const menuDeLaVuelta = await menuLateral(page);
+          // Por su HREF y no por su nombre: con dos entradas llamadas igual, el nombre
+          // abre la que está primero en el DOM —que no es la que se enumeró— y la
+          // prueba acusa a la pantalla equivocada. Pasó con «Caja», «Recetas» y
+          // «Registros» del restaurante: el clic se iba a `/abarrotes/caja`.
+          // El VISIBLE: la barra puede traer el mismo destino dos veces —una en el
+          // cajón de teléfono, oculta— y `.first()` a secas se queda esperando por la
+          // que nadie puede tocar. Pasó con tres entradas de la ferretería.
+          await menuDeLaVuelta
+            .locator(`a[href="${entrada.ruta}"]`)
+            .filter({ visible: true })
+            .first()
+            .click({ timeout: TECHO_DE_ACCION_MS });
+          await page.waitForURL((url) => url.pathname === entrada.ruta, { timeout: 20_000 });
+          await page.waitForLoadState('domcontentloaded');
+        });
+      }
+
+      /**
+       * LAS CUATRO QUE NO CUELGAN DE NINGÚN MENÚ, por su URL.
+       *
+       * Están exentas del MENÚ por razones buenas y escritas —`EXCEPCIONES-COBERTURA.md`:
+       * las dos de acceso con PIN se ven ANTES de que exista sesión, y el portal del
+       * comensal y el menú público los abre el CLIENTE con un QR—. Exentas del menú no es
+       * exentas del rastreo: son pantallas con botones como cualquier otra, y el
+       * rastreador no las visitaba NUNCA.
+       *
+       * Se filtran por el prefijo de este modelo: el portal del comensal es del
+       * restaurante, y una ferretería no lo sirve.
+       */
+      const prefijoDelModelo = PREFIJO_DEL_MODELO[modeloDeLaDemo()] ?? '/ninguno/';
+      for (const ruta of PANTALLAS_SIN_MENU.filter((r) => r.startsWith(prefijoDelModelo))) {
+        await barrerPantalla(
+          ruta,
+          'sin menú, por URL',
+          async () => {
+            await page.goto(ruta, { waitUntil: 'domcontentloaded' });
+            /**
+             * Con sesión abierta, una pantalla de ENTRAR puede redirigir a la casa: es lo
+             * correcto y no es un defecto. Se anota y se sigue, en vez de acusarla.
+             */
+            const donde = new URL(page.url()).pathname;
+            if (donde !== ruta) throw new Error(`redirige a ${donde} con la sesión abierta`);
+          },
+          'anotar',
+        );
+      }
+
+      // El resumen va en las ANOTACIONES de la corrida y no en la consola: así queda en
+      // el informe de Playwright, se lee con el reportero JSON y no depende de que
+      // alguien estuviera mirando la terminal.
+      const fueraDeAlcance =
+        elegibles + inalcanzables.length === 0
+          ? 0
+          : inalcanzables.length / (elegibles + inalcanzables.length);
+      const resumen =
+        `${String(pantallasBarridas)} pantalla(s) · ${String(tocados)} toque(s) ` +
+        `(${String(enCapas)} dentro de capas · ${String(camposSondeados)} campo(s) sondeado(s) · ` +
+        `${String(camposSinSonda)} de un tipo que la sonda no teclea · ` +
+        `${String(formulariosEnviados)} formulario(s) enviado(s)) · ` +
+        `${String(inalcanzables.length)} sin alcance (${(fueraDeAlcance * 100).toFixed(1)} %) · ` +
+        `${String(externos.length)} enlace(s) fuera de la aplicación · ` +
+        `${String(yaActivas)} ya seleccionada(s) · ` +
+        `${String(declaradosUsados.size)} declarado(s) sin efecto`;
+      test.info().annotations.push({ type: 'rastreo', description: resumen });
+      bitacora(diario, `— ${resumen}`);
+      for (const m of muertos) bitacora(diario, `MUERTO ${m.ruta} «${m.etiqueta}» · ${m.motivo}`);
+      for (const c of new Set(enLaConsola)) bitacora(diario, `CONSOLA ${c}`);
+      if (externos.length > 0) {
+        test.info().annotations.push({ type: 'rastreo-fuera', description: externos.join(' | ') });
+      }
+      if (inalcanzables.length > 0) {
+        test.info().annotations.push({
+          type: 'rastreo-sin-alcance',
+          description: inalcanzables.map((x) => `${x.ruta} «${x.etiqueta}»`).join(' | '),
+        });
+        for (const x of inalcanzables) {
+          bitacora(diario, `SIN ALCANCE ${x.ruta} «${x.etiqueta}» · ${x.motivo}`);
+        }
+      }
+      if (sinMenuNoVisitadas.length > 0) {
+        test.info().annotations.push({
+          type: 'rastreo-sin-menu',
+          description: sinMenuNoVisitadas.join(' | '),
+        });
+      }
+
+      // ── 3 · LO QUE SE EXIGE ─────────────────────────────────────────────────
+      expect(
+        muertos.map((m) => `${m.ruta} «${m.etiqueta}» · ${m.motivo} · ${m.camino}`),
+        'Hay botones que no hacen NADA al tocarlos: ni sale una petición, ni cambia la URL, ni ' +
+          'cambia el DOM. Cada uno es una promesa que la pantalla hace y no cumple. Si alguno ' +
+          'no debe hacer nada a propósito, decláralo con su motivo en ' +
+          'docs/fase-2/CLICS-SIN-EFECTO.md.',
+      ).toEqual([]);
+
+      /**
+       * EL VIGILANTE DE RED VA PRIMERO, y el orden importa.
+       *
+       * Las dos puertas ven el mismo 4xx por caminos distintos: el vigilante de red lo
+       * ve en la RESPUESTA y sabe la ruta, el estado y —por `loQuePedia`— la entidad y
+       * la operación; el navegador lo escribe además en la consola y ahí sólo dice
+       * «Failed to load resource… 400».
+       *
+       * Estaba al revés, y cuando los dos tenían algo que decir el que hablaba era el
+       * que menos sabía: «`/cafeteria/inventario` · Failed to load resource… 400», sin
+       * decir QUÉ se pidió, en una pantalla que habla con una decena de rutas. Hubo que
+       * salir a buscarlo a mano tres veces.
+       *
+       * Con el vigilante de red delante, el primer fallo que se lee es el que trae la
+       * ruta. La puerta de la consola no se relaja: sigue detrás, y es la ÚNICA que ve
+       * un `TypeError` del cliente, que no deja rastro en ninguna respuesta.
+       */
+      exigirSinFallos();
+
+      expect(
+        ilegibles,
+        `Hay texto de tabla o importes que no se leen en ${estilo ?? 'el estilo del negocio'}: no ` +
+          'llegan a 4.5:1 sobre el fondo que de verdad tienen debajo (3:1 si es texto grande). ' +
+          'Un dato que no se lee es un dato que no está.',
+      ).toEqual([]);
+
+      expect(
+        [...new Set(enLaConsola)],
+        'El navegador escribió errores mientras se tocaba la aplicación. Un error de consola no ' +
+          'devuelve 500 ni `{ok:false}`: la pantalla se queda a medias y el servidor no se entera.',
+      ).toEqual([]);
+
+      /**
+       * CUÁNTO QUEDÓ SIN TOCAR, y un techo.
+       *
+       * ── El cubo que se contaba y no exigía nada ─────────────────────────
+       * `inalcanzables` se llenaba, se anotaba «si hay alguno» y **su tamaño no salía en
+       * ninguna parte**: una corrida en la que la mitad de las piezas no se pudieron
+       * volver a encontrar se leía igual de verde que una en la que se tocó todo. Eso es
+       * un cupo silencioso, que es lo que esta fase vino a dejar de hacer: quien lee
+       * «5 de 5 en verde» tiene derecho a saber sobre cuánto.
+       *
+       * El techo es una FRACCIÓN y no un número: una pantalla con tres piezas y una sin
+       * alcance no dice nada, y cien sin alcance de seiscientas dicen que el rastreo ya no
+       * rastrea. Y no salta con menos de `MINIMO_PARA_EL_TECHO`, para que una pantalla
+       * pequeña no tire la corrida.
+       */
+      const porcentaje = `${(fueraDeAlcance * 100).toFixed(1)} %`;
+      expect(
+        inalcanzables.length >= MINIMO_PARA_EL_TECHO && fueraDeAlcance > TECHO_SIN_ALCANCE
+          ? `${String(inalcanzables.length)} de ${String(elegibles + inalcanzables.length)} (${porcentaje})`
+          : null,
+        `Demasiadas piezas quedaron SIN TOCAR: ${porcentaje} de las que se enumeraron no se pudieron ` +
+          `volver a encontrar al recargar, y el techo es ${String(TECHO_SIN_ALCANCE * 100)} %. Eso no ` +
+          'es un defecto de la aplicación: es que el rastreo ya no rastrea, porque depende de un ' +
+          'estado que no reproduce. Están en la bitácora con su ruta y su motivo, bajo «SIN ALCANCE».',
+      ).toBeNull();
+
+      // Una declaración que ya no hace falta es una excepción que sobrevive a su
+      // motivo, y esta lista sólo puede encogerse.
+      const sobrantes = [...declarados.keys()].filter((clave) => !declaradosUsados.has(clave));
+      expect(
+        sobrantes,
+        'Estas declaraciones de CLICS-SIN-EFECTO.md ya no corresponden a ningún botón de esta ' +
+          'demostración: o el botón cambió de texto, o ya hace algo. Bórralas.',
+      ).toEqual([]);
+    });
+  }
 });
+
+function nombreDeLaCorrida(estilo: EstiloDelRastreo): string {
+  return estilo === null ? '' : `${estilo} · `;
+}

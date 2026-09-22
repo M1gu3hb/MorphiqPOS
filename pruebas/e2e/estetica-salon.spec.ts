@@ -77,15 +77,42 @@ function enPesosDelSalon(centavos: number): string {
   );
 }
 
+/** La zona del negocio. La de la PRUEBA —la del proceso que la corre— no es de fiar. */
+const ZONA_DEL_NEGOCIO = 'America/Mexico_City';
+const MS_DIA = 86_400_000;
+
 /**
- * 'YYYY-MM-DD' del día LOCAL, que es el del negocio cuando el servidor es éste.
+ * 'YYYY-MM-DD' en la zona del NEGOCIO, no en la del proceso.
  *
- * Con `toISOString` la fecha se toma en UTC, y a las 19:00 de México eso ya es el día
- * siguiente: se pedirían los huecos de mañana para agendar hoy.
+ * Era `getFullYear()`/`getDate()` del proceso, y el proceso de CI corre en UTC: entre
+ * las 18:00 y la medianoche de México eso ya es mañana, así que la prueba pedía los
+ * huecos de un día y la agenda —que el navegador pinta en la zona del negocio— enseñaba
+ * otro.
  */
-function fechaLocalDePrueba(cuando: Date): string {
-  const dos = (n: number): string => String(n).padStart(2, '0');
-  return `${String(cuando.getFullYear())}-${dos(cuando.getMonth() + 1)}-${dos(cuando.getDate())}`;
+function fechaDelNegocio(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_DEL_NEGOCIO }).format(new Date(ms));
+}
+
+/**
+ * EL DÍA DE LA PRUEBA: el próximo MIÉRCOLES, nunca hoy.
+ *
+ * La suite agendaba «hoy», y hoy depende de la hora y del día en que se corra: el salón
+ * de la demostración descansa los LUNES —su semana es de martes a domingo, como la de
+ * cualquier salón—, así que un lunes no había un solo hueco; y de noche los de hoy ya se
+ * habían gastado. Por eso estaba fuera de CI, y estética era el único modelo sin total
+ * cobrado verificado en CI.
+ *
+ * Un miércoles FUTURO trabajan las dos estilistas, y el día entero está libre en una base
+ * recién sembrada. Nada depende ya de la hora: iniciar la cita sella `inicio_real` con la
+ * hora de verdad —es el walk-in que llega antes—, y la agenda se lleva a ese día con su
+ * propio botón «Día siguiente», como lo haría la recepcionista.
+ */
+function diaDeLaPrueba(ahoraMs: number): { readonly fecha: string; readonly diasDesdeHoy: number } {
+  const hoy = fechaDelNegocio(ahoraMs);
+  const diaDeLaSemana = new Date(`${hoy}T12:00:00Z`).getUTCDay();
+  const MIERCOLES = 3;
+  const diasDesdeHoy = (MIERCOLES - diaDeLaSemana + 7) % 7 || 7;
+  return { fecha: fechaDelNegocio(ahoraMs + diasDesdeHoy * MS_DIA), diasDesdeHoy };
 }
 
 /** El fondo con el que la prueba abre la caja del salón, en centavos. */
@@ -493,8 +520,8 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
      * cuando de verdad se llena, el fallo lo dice con esas palabras y con el comando
      * que la vuelve a sembrar.
      */
-    const dia = fechaLocalDePrueba(new Date());
-    const diaSiguiente = fechaLocalDePrueba(new Date(Date.now() + 86_400_000));
+    const { fecha: dia, diasDesdeHoy } = diaDeLaPrueba(Date.now());
+    const diaSiguiente = fechaDelNegocio(Date.parse(`${dia}T12:00:00Z`) + MS_DIA);
     const respuestaHuecos = await page.request.post('/api/agenda/huecos', {
       headers: cabecerasDeEscrituraDePrueba(),
       data: { desde: dia, hasta: diaSiguiente, minutos: 30 },
@@ -536,7 +563,7 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
       .sort((a, b) => (b.minutos ?? 0) - (a.minutos ?? 0));
     expect(
       candidatos.length,
-      'La agenda de la demo no tiene un solo hueco libre en lo que queda del día, así que no ' +
+      `La agenda de la demo no tiene un solo hueco libre el ${dia}, el día de la prueba, así que no ` +
         'hay dónde agendar. No es un defecto del código: las corridas anteriores la ' +
         'llenaron, y una cita COBRADA sigue ocupando su hora. Vuelve a sembrarla:\n' +
         '  node --conditions=react-server scripts/sembrar-demos.mjs --solo demo-acople-estetica',
@@ -605,6 +632,10 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
      * México caía en el día siguiente y la rejilla volvía a verse vacía—.
      */
     await abrirPantalla(page, '/estetica-salon/agenda-del-dia', /citas|ocupado/);
+    // Al día de la cita, con el botón de la propia agenda: la recepcionista hace lo mismo.
+    for (let paso = 0; paso < diasDesdeHoy; paso += 1) {
+      await page.getByRole('button', { name: 'Día siguiente' }).click();
+    }
     /**
      * EL BLOQUE DE ESTA CITA, por su HORA y por su clienta.
      *

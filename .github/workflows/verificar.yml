@@ -29,6 +29,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Para correr el rastreo COMPLETO —cinco modelos por ocho estilos— sin empujar a
+  # `main`: es el que cualquiera lanza antes de fusionar un cambio de diseño.
+  workflow_dispatch:
+    inputs:
+      actualizar_galeria:
+        description: 'Regenerar los retratos de la galería (declarar un cambio de diseño)'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -311,7 +319,7 @@ jobs:
   # demostración con su equipo y su catálogo. No habla con producción ni con el
   # preview: sin secretos, y por eso puede correr en un pull request de cualquiera.
   rastreo:
-    name: Rastreo · ${{ matrix.modelo }}
+    name: Rastreo · ${{ matrix.modelo }} · ${{ matrix.estilo }}
     runs-on: ubuntu-latest
     # El techo del modelo más lento (13.8 min de rastreo) más el arranque:
     # instalar, migrar, sembrar, construir y levantar el servidor.
@@ -324,20 +332,31 @@ jobs:
         # casualidad: `organizaciones_paquete_compatible_con_giro` lo exige desde
         # la 166, y la guarda de `app/(modelos)/` redirige cuando no coinciden.
         modelo: [restaurante, cafeteria, tienda, ferreteria, estetica]
-        # Y la suite de cobro de cada uno, que NO se llama igual que su modelo: la
-        # de `tienda` es `abarrotes` y la de `estetica` es `estetica-salon`. Vacía
-        # significa «no la corras», y la única vacía lleva su razón en el paso.
+        # LOS OCHO ESTILOS. Un estilo que esconde un botón detrás de otro, o que deja
+        # ilegible una tabla densa, es un botón muerto en una pantalla de verdad —y
+        # `/sistema` no lo ve—. Completo (5 × 8 = 40 trabajos) en `main` y a mano
+        # (`workflow_dispatch`); en cada pull request, REDUCIDO: cada modelo en el
+        # estilo de su giro, que son cinco de los ocho.
+        estilo: ${{ fromJSON((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && '["morphiq","cristal","relieve","taller","bloque","terminal","papel","noche"]' || '["reducido"]') }}
+        # Y la suite de cobro de cada uno, que NO se llama igual que su modelo: la de
+        # `tienda` es `abarrotes` y la de `estetica` es `estetica-salon`. `propio`
+        # es el estilo del rastreo reducido.
         include:
           - modelo: restaurante
             suite: restaurante
+            propio: noche
           - modelo: cafeteria
             suite: cafeteria
+            propio: terminal
           - modelo: tienda
             suite: abarrotes
+            propio: bloque
           - modelo: ferreteria
             suite: ferreteria
+            propio: taller
           - modelo: estetica
-            suite: ''
+            suite: estetica-salon
+            propio: cristal
 
     services:
       postgres:
@@ -438,7 +457,7 @@ jobs:
       # `test:e2e` construye y levanta el servidor él mismo; el build lo comparte con
       # el paso siguiente por la caché de turbo, así que no se paga dos veces.
       - name: Los ocho estilos, en el navegador
-        if: matrix.modelo == 'tienda'
+        if: matrix.modelo == 'tienda' && (matrix.estilo == 'reducido' || matrix.estilo == 'morphiq')
         run: pnpm test:e2e pruebas/e2e/estilos.spec.ts --project=escritorio
 
       # Playwright construye y levanta el servidor él mismo (`webServer` de
@@ -448,6 +467,7 @@ jobs:
           MORPHIQPOS_ORG_DEMO: demo-acople-${{ matrix.modelo }}
           MORPHIQPOS_DEMO_PERSONA: Demo
           MORPHIQPOS_DEMO_PIN: '1234'
+          MORPHIQPOS_ESTILOS: ${{ matrix.estilo == 'reducido' && matrix.propio || matrix.estilo }}
         run: pnpm test:e2e pruebas/e2e/rastreo.spec.ts --project=escritorio
 
       # LA SUITE DE SU MODELO, que hasta hoy no corría en ninguna parte.
@@ -465,11 +485,11 @@ jobs:
       # rastreo termina soltando la caja, que es el estado que estas suites saben
       # abrir; y si el rastreo falla, éstas no llegan a correr, que también informa.
       #
-      # `estetica` queda fuera A PROPÓSITO y no por descuido: su suite necesita
-      # HUECOS LIBRES en lo que queda del día —agenda una cita— y este trabajo corre
-      # en `America/Mexico_City` a cualquier hora. Corriéndola de noche sería roja
-      # por el reloj, y una puerta que enrojece por la hora enseña a ignorar el rojo.
-      # Se incluirá el día que la prueba agende en una fecha fija en vez de «hoy».
+      # `estetica` estuvo fuera: agendaba «hoy», y hoy no tiene huecos un lunes —el
+      # salón de la demostración descansa— ni de noche. Desde el cierre de la 2.35 la
+      # prueba agenda el PRÓXIMO MIÉRCOLES en la zona del negocio y lleva la agenda a
+      # ese día con su botón «Día siguiente»: ya no depende de la hora, y entra.
+      #
       # Y LA DEMOSTRACIÓN SE VUELVE A SEMBRAR ANTES, porque el rastreo la deja usada.
       #
       # La primera vez que estas suites entraron aquí, la de la cafetería falló con
@@ -483,16 +503,42 @@ jobs:
       # suite ANTES del rastreo, y entonces el rastreador heredaría una venta cobrada y
       # una caja abierta: se arregla el barato y se protege el gate que más cuesta.
       - name: La demostración, otra vez
-        if: matrix.suite != ''
+        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
         run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
 
       - name: La suite de su modelo
-        if: matrix.suite != ''
+        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
         env:
           MORPHIQPOS_ORG_DEMO: demo-acople-${{ matrix.modelo }}
           MORPHIQPOS_DEMO_PERSONA: Demo
           MORPHIQPOS_DEMO_PIN: '1234'
         run: pnpm test:e2e pruebas/e2e/${{ matrix.suite }}.spec.ts --project=escritorio
+
+      # LA GALERÍA, contra la vuelta anterior. Cada retrato se compara con el que está
+      # en el repositorio (`pruebas/e2e/galeria.spec.ts-snapshots`): un cambio de
+      # diseño que nadie declaró la pone en rojo y deja la imagen de la diferencia en
+      # el artefacto. Declarar es regenerar —este flujo a mano con
+      # `actualizar_galeria`— y subir las imágenes nuevas con el cambio que las motiva.
+      - name: La demostración, para la galería
+        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
+        run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
+
+      - name: La galería, contra la vuelta anterior
+        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
+        env:
+          MORPHIQPOS_ORG_DEMO: demo-acople-${{ matrix.modelo }}
+          MORPHIQPOS_DEMO_PERSONA: Demo
+          MORPHIQPOS_DEMO_PIN: '1234'
+        run: pnpm test:e2e pruebas/e2e/galeria.spec.ts --project=escritorio ${{ inputs.actualizar_galeria && '--update-snapshots=all' || '' }}
+
+      - name: Los retratos de la galería
+        if: always() && (matrix.estilo == 'reducido' || matrix.estilo == 'morphiq')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: galeria-${{ matrix.modelo }}
+          path: pruebas/e2e/galeria.spec.ts-snapshots
+          retention-days: 14
+          if-no-files-found: ignore
 
       # La bitácora en vivo del rastreo y las trazas de lo que falló. Sin esto, un
       # fallo en CI dice «hay botones muertos» y no cuáles.
@@ -500,7 +546,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rastreo-${{ matrix.modelo }}
+          name: rastreo-${{ matrix.modelo }}-${{ matrix.estilo }}
           path: |
             pruebas/e2e/.resultados
             playwright-report
