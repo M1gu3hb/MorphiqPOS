@@ -18,6 +18,9 @@ export default defineConfig({
       'packages/*/src/**/*.test.ts',
       'apps/*/src/**/*.test.ts',
       'capabilities/*/**/*.test.ts',
+      // Los analizadores de las puertas: una puerta sin pruebas propias sólo se ha
+      // visto fallar sobre el código real, y eso no dice si PUEDE aprobar.
+      'scripts/**/*.test.ts',
     ],
     exclude: [
       '**/node_modules/**',

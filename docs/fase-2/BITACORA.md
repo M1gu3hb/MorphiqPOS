@@ -4959,3 +4959,68 @@ las tres con `siembra:success suite:success`. La medición completa del arreglo,
 
 Lo que hace útil la primera fila es justamente que tres pasaran: un fallo que sólo toca a uno de
 cuatro con el mismo paso delante señala el ESTADO y no el paso.
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 1 · `verify:adopcion`, la métrica que no se puede jugar
+
+**Dónde iba:** bloque 1 cerrado. Siguiente: fusionar el PR #11 tal como está (limpio en
+`0f04fc2`) antes de empujar nada rojo encima, y después el bloque 3 (el dinero).
+
+«31 de 72 usan la biblioteca» era verdad y no decía nada: la auditoría de Miguel encontró 22
+que importaban UN símbolo, 4 que importaban sólo la gráfica, y `tabla.tsx` usada por un solo
+archivo, el de documentación. Importar contaba como adoptar.
+
+### Cómo mide ahora
+
+`scripts/verificar-adopcion.mjs`, con el analizador en `scripts/lib/adopcion.mjs` (+
+`adopcion-jsx.mjs`). Lee el **árbol de sintaxis de TypeScript**, no el texto: una expresión
+regular no distingue un `<table>` de la palabra en un comentario, ni un `dineroEnTexto()` en un
+`aria-label` de uno pintado entre dos `<span>`. Una pantalla está adoptada si cumple las cuatro:
+
+| | Qué cuenta como incumplir |
+| --- | --- |
+| 1.1 | Un elemento con radio + fondo + (borde **o** sombra), o la `Card` de primitivas. «Borde o sombra» y no «y»: una tarjeta de shadcn sin sombra sigue siendo una superficie a mano, y exigir las cuatro dejaba pasar la mayoría |
+| 1.2 | `<table>`/`<tr>`/`<td>`…, los `Table*` de primitivas, un `role` de tabla, y **filas de datos a mano**: un `.map()` que pinta `<li>`/`<div>` con `Dinero` o `Cifra` dentro. Sin esto, cambiar `<Table>` por `<ul>` aprobaba |
+| 1.3 | `Intl.NumberFormat` con moneda, `/ 100` formateado, un `$` pegado a una expresión, un formateador propio (`enPesos`, `PESOS`…), o `dineroEnTexto()` pintado como contenido —incluso guardado antes en una constante— |
+| 1.4 | Pinta `Vacio`, un esqueleto y un error **importados del sistema** —un `Vacio` propio no cuenta—; y ninguno a mano: `Skeleton` de primitivas, `role="alert"`, `animate-spin`, un icono `Loader`, el texto «Cargando» |
+
+Los estados que una pantalla de verdad no tiene van en `SIN_ESTADO`, con su razón, y la puerta
+falla también al revés si la pantalla acaba pintándolo.
+
+### Salió ROJA: 69 de 69
+
+```
+0 de 69 pantallas adoptadas · 69 en rojo
+  1.1 superficies a mano ........ 40
+  1.2 tablas o filas a mano ..... 10
+  1.3 dinero a mano ............. 51
+  1.4 estados fuera del sistema . 68
+  (3 archivo(s) sin interfaz: proveedores, no pantallas)
+```
+
+**Más rojo que las 66 que el encargo esperaba, y la diferencia está medida, no supuesta.** Las
+«seis de verdad» —las de cobro— tampoco pasan, cada una por algo concreto. `abarrotes/Cobrar`,
+línea por línea: un aviso de caja cerrada hecho con `rounded-lg border bg-warning/15` (:399),
+dos errores `<p role="alert">` a mano (:479, :484), el carrito como `<li>` con `Dinero` en un
+`.map` (:509), `enPesos` definido (:122) y usado en los botones de efectivo rápido (:618), y
+`(monto / 100).toFixed(2)` para rellenar el campo de lo recibido (:615). Y ninguna pinta
+`ErrorDePantalla`.
+
+Y los **72** del encargo son 69 pantallas y **tres proveedores**: `cliente/vocabulario`,
+`proveedores/Apariencia` y `proveedores/Proveedores` no pintan un solo elemento —son contextos—, y
+la puerta lo dice en su fila en vez de contarlos como pantallas adoptadas gratis.
+
+### Vista en ROJO y en VERDE a voluntad
+
+`scripts/lib/adopcion.test.ts`, 23 pruebas: una pantalla inventada que cumple las cuatro sale
+limpia, y cada prueba le mete UNA violación. La primera corrida dio 22 de 23 — la del `$` en una
+plantilla falló, y **el defecto era de la prueba**: `String.replace` con una cadena de reemplazo
+convierte `$$` en `$`, así que el dólar que la prueba metía desaparecía antes de llegar al
+analizador. Arreglado con una función de reemplazo. Una prueba de puerta que no ve su propio
+caso es exactamente la clase de verde falso que esta puerta existe para evitar.
+
+### En la cadena y en CI
+
+`pnpm verify` pasa a **37 eslabones** (`verify:adopcion` después de `verify:estilos`). En CI es un
+**trabajo propio**, «Adopción del sistema de diseño»: mientras las pantallas se recomponen esta
+puerta está roja a propósito, y como paso del trabajo de tipos cortaría los tipos, las pruebas y
+el build de cada empujón.
