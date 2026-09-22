@@ -3,6 +3,8 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Superficie, Vacio } from '@morphiqpos/ui/sistema';
+import { Boxes } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -328,16 +330,18 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
       )}
 
       {datos.length === 0 ? (
-        <section className="rounded-lg border border-border bg-card p-8 text-center">
-          <p className="mb-2 text-lg font-medium">Aquí va a vivir tu anaquel.</p>
-          <p className="mx-auto mb-4 max-w-prose text-sm text-muted-foreground">
-            En cuanto captures tu primera entrada de mercancía, esta pantalla te dice qué está bajo
-            mínimo, qué se vence esta semana y qué salió en negativo porque faltó capturar algo.
-          </p>
-          <Button asChild>
-            <a href="/inventario">Capturar mi primera entrada</a>
-          </Button>
-        </section>
+        <Superficie relleno={4} como="section">
+          <Vacio
+            icono={<Boxes />}
+            titulo="Aquí va a vivir tu anaquel."
+            explicacion="En cuanto captures tu primera entrada de mercancía, esta pantalla te dice qué está bajo mínimo, qué se vence esta semana y qué salió en negativo porque faltó capturar algo."
+            accion={
+              <Button asChild>
+                <a href="/inventario">Capturar mi primera entrada</a>
+              </Button>
+            }
+          />
+        </Superficie>
       ) : (
         <>
           <div className="mb-4 grid gap-3 sm:grid-cols-3">

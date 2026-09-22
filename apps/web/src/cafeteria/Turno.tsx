@@ -6,6 +6,8 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primitivas/tabs';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { History } from 'lucide-react';
 import { type ChangeEvent, useCallback, useEffect, useState } from 'react';
 
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
@@ -503,12 +505,13 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
         <TabsContent value="historial" className="pt-3">
           {historial.length === 0 ? (
             // El vacío ENSEÑA: dice qué va a aparecer y para qué va a servir.
-            <div className={`${PANEL} space-y-2`}>
-              <p className="text-lg font-semibold">Todavía no hay turnos cerrados.</p>
-              <p className="text-sm text-muted-foreground">
-                Cada turno que se cierre deja aquí su folio, quién lo abrió y cuánto se contó. Es lo
-                que se mira cuando una caja no cuadra y hay que saber de qué día viene.
-              </p>
+            <div className={PANEL}>
+              <Vacio
+                className="py-(--espacio-6)"
+                icono={<History />}
+                titulo="Todavía no hay turnos cerrados."
+                explicacion="Cada turno que se cierre deja aquí su folio, quién lo abrió y cuánto se contó. Es lo que se mira cuando una caja no cuadra y hay que saber de qué día viene."
+              />
             </div>
           ) : (
             <ul className={`${PANEL} divide-y divide-border p-0`}>

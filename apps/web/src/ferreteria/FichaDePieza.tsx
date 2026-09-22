@@ -6,7 +6,8 @@ import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@morphiqpos/ui/primitivas/toggle-group';
-import { Camera } from 'lucide-react';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { Camera, ZoomIn } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -290,22 +291,24 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
   if (pieza === null) {
     // El vacío ENSEÑA: dice qué resuelve esta pantalla y cómo se llega a ella.
     return (
-      <div className="mx-auto flex max-w-xl flex-col items-start gap-3 p-6">
+      <div className="mx-auto flex max-w-xl flex-col gap-(--espacio-3) p-(--espacio-6)">
         {banda}
-        <h1 className="text-xl font-bold">Aquí se amplía una pieza</h1>
-        <p className="text-muted-foreground">
-          La ficha se abre desde el mostrador: toca el renglón del material y verás su foto con
-          escala, la medida en pulgada y en milímetro, cuánto hay, de qué gaveta se saca y qué le
-          puede sustituir.
-        </p>
-        <Button
-          type="button"
-          onClick={() => {
-            enrutador.push('/ferreteria/mostrador');
-          }}
-        >
-          Ir al mostrador a buscar una pieza
-        </Button>
+        <h1 className="sr-only">Ficha de pieza</h1>
+        <Vacio
+          icono={<ZoomIn />}
+          titulo="Aquí se amplía una pieza"
+          explicacion="La ficha se abre desde el mostrador: toca el renglón del material y verás su foto con escala, la medida en pulgada y en milímetro, cuánto hay, de qué gaveta se saca y qué le puede sustituir."
+          accion={
+            <Button
+              type="button"
+              onClick={() => {
+                enrutador.push('/ferreteria/mostrador');
+              }}
+            >
+              Ir al mostrador a buscar una pieza
+            </Button>
+          }
+        />
       </div>
     );
   }

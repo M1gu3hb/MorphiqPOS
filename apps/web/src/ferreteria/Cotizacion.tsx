@@ -4,6 +4,8 @@ import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { FileText } from 'lucide-react';
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -429,16 +431,16 @@ export function Cotizacion({
 
           {sinPartidas && (
             // El vacío ENSEÑA el flujo; no se disculpa por estar vacío.
-            <div className="rounded-lg border border-dashed border-border p-6 text-sm">
-              <p className="font-medium">Una cotización empieza por {voc.enFrase('producto')}.</p>
-              <p className="mt-2 text-muted-foreground">
-                Búscalo por nombre o por medida: cantidad, precio y descuento se editan aquí mismo.
-                Elige la vigencia —7, 15 o 30 días— y mándala por WhatsApp. Cuando el contratista
-                conteste, se marca ganada o perdida desde esta pantalla.
-              </p>
-              <p className="mt-2 text-muted-foreground md:hidden">
-                Desde el teléfono se consulta y se reenvía. Ábrela en la computadora para armarla.
-              </p>
+            <div className="rounded-lg border border-dashed border-border">
+              <Vacio
+                icono={<FileText />}
+                titulo={`Una cotización empieza por ${voc.enFrase('producto')}.`}
+                explicacion="Búscalo por nombre o por medida: cantidad, precio y descuento se editan aquí mismo. Elige la vigencia —7, 15 o 30 días— y mándala por WhatsApp. Cuando el contratista conteste, se marca ganada o perdida desde esta pantalla."
+              >
+                <p className="max-w-prose text-sm text-muted-foreground md:hidden">
+                  Desde el teléfono se consulta y se reenvía. Ábrela en la computadora para armarla.
+                </p>
+              </Vacio>
             </div>
           )}
 

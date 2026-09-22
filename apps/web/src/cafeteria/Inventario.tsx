@@ -12,6 +12,7 @@ import {
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Vacio } from '@morphiqpos/ui/sistema';
 import { Milk } from 'lucide-react';
 import {
   Table,
@@ -443,17 +444,17 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
 
       {insumos.length === 0 ? (
         // El vacío ENSEÑA lo que esta pantalla va a hacer, y no se disculpa.
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-          <p className="text-2xl font-bold">Aquí va a vivir lo que hay que reponer.</p>
-          <p className="max-w-prose text-muted-foreground">
-            Leche, café, empaque, ingredientes y alimentos — agrupados como se camina el local y
-            ordenados por lo que se acaba primero, con los días que alcanza delante de la
-            existencia.
-          </p>
-          <Button asChild>
-            <a href="/inventario">Dar de alta el primer insumo</a>
-          </Button>
-        </div>
+        <Vacio
+          className="flex-1"
+          icono={<Milk />}
+          titulo="Aquí va a vivir lo que hay que reponer."
+          explicacion="Leche, café, empaque, ingredientes y alimentos — agrupados como se camina el local y ordenados por lo que se acaba primero, con los días que alcanza delante de la existencia."
+          accion={
+            <Button asChild>
+              <a href="/inventario">Dar de alta el primer insumo</a>
+            </Button>
+          }
+        />
       ) : (
         <>
           {diasGrano !== null && (

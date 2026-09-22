@@ -73,6 +73,14 @@ const PREFIJOS = [
   'placeholder',
 ];
 
+/**
+ * El rango de los PICTOGRAMAS de verdad, construido y no escrito.
+ *
+ * `1F000`–`1FAFF` son las fichas de mahjong, los emoticonos, los simbolos de
+ * transporte y los objetos: todo lo que un sistema operativo dibuja a su manera.
+ */
+const PICTOGRAMAS = `${String.fromCodePoint(0x1f000)}-${String.fromCodePoint(0x1faff)}`;
+
 const REGLAS = [
   {
     nombre: 'color de la paleta de Tailwind',
@@ -180,7 +188,15 @@ const REGLAS = [
      * son emoji: heredan el color, escalan con el texto, y varios estan puestos a
      * proposito para que el color no sea el unico portador de significado.
      */
-    patron: /[\u{1F000}-\u{1FAFF}]|️|✅|❌/gu,
+    // El patron se CONSTRUYE en vez de escribirse como literal, y por una razon
+    // concreta: uno de los caracteres que busca —el selector de variacion U+FE0F—
+    // es INVISIBLE. Escrito dentro de una expresion regular literal, cualquiera lo
+    // borra al reformatear el archivo sin ver que borro nada, y la regla se queda
+    // muda justo para el caso que mas importa: el `⚠️` de las alergias.
+    patron: new RegExp(
+      `[${PICTOGRAMAS}]|${String.fromCodePoint(0xfe0f)}|${String.fromCodePoint(0x2705)}|${String.fromCodePoint(0x274c)}`,
+      'gu',
+    ),
     porque:
       'Los emoji los dibuja el sistema operativo: cambian de forma en cada equipo, ' +
       'no heredan el color y no escalan. Usa un icono de lucide-react',
@@ -319,7 +335,7 @@ function recorrer(dir, encontrados) {
  *       cocina, la barra y los quince archivos de los emoji quedaron tokenizados.
  *       Si sube, el numero de arriba dice exactamente contra que comparar.
  */
-const TECHO_DE_RITMO = 860;
+const TECHO_DE_RITMO = 828;
 
 const hallazgos = [];
 for (const carpeta of VIGILADAS) recorrer(carpeta, hallazgos);

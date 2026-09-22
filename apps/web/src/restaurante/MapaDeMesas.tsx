@@ -3,7 +3,8 @@
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { PartyPopper, TriangleAlert } from 'lucide-react';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { LayoutGrid, PartyPopper, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
@@ -199,16 +200,19 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
   }
 
   if (mesas.length === 0) {
+    // El vacío ENSEÑA, no se disculpa: lleva directo a donde se resuelve.
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
-        <p className="text-lg text-muted-foreground">
-          Todavía no hay {voc.plural('unidad_servicio')} configurad
-          {voc.terminacion('unidad_servicio', true)}.
-        </p>
-        {/* El vacío ENSEÑA, no se disculpa: lleva directo a donde se resuelve. */}
-        <Button asChild>
-          <a href="/configuracion">Crear mi primer mapa de {voc.plural('unidad_servicio')}</a>
-        </Button>
+      <div className="flex min-h-dvh flex-col items-center justify-center p-(--espacio-8)">
+        <Vacio
+          icono={<LayoutGrid />}
+          titulo={`Todavía no hay ${voc.plural('unidad_servicio')} configurad${voc.terminacion('unidad_servicio', true)}.`}
+          explicacion={`El mapa es la pantalla de inicio del mesero: la memoria del salón es espacial, no alfabética, y por eso ${voc.conArticulo('unidad_servicio')} va en su sitio real y no en una lista.`}
+          accion={
+            <Button asChild>
+              <a href="/configuracion">Crear mi primer mapa de {voc.plural('unidad_servicio')}</a>
+            </Button>
+          }
+        />
       </div>
     );
   }

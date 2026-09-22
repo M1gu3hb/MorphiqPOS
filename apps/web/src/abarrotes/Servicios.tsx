@@ -12,6 +12,8 @@ import {
   SelectValue,
 } from '@morphiqpos/ui/primitivas/select';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { Smartphone } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -420,18 +422,24 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
   }
 
   if (error === null && listaSaldos.length === 0 && listaOperaciones.length === 0) {
+    // El vacío ENSEÑA el negocio que falta; no se disculpa por no tener datos.
     return (
-      <div className="mx-auto max-w-xl space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">Aquí se cobra dinero ajeno y se gana comisión.</p>
-        {/* El vacío ENSEÑA el negocio que falta; no se disculpa por no tener datos. */}
-        <p className="text-muted-foreground">
-          Una recarga de $50 te deja {enPesos(comisionDeRecarga(5000))} y un recibo de luz
-          {` ${enPesos(comisionDeServicio('CFE'))}`}. Treinta operaciones al día son cerca de $200
-          diarios que hoy no estás cobrando, y además traen gente a la tienda.
-        </p>
-        <Button asChild>
-          <a href="/configuracion">Dar de alta mi cuenta de comisionista</a>
-        </Button>
+      <div className="mx-auto max-w-xl p-(--espacio-8)">
+        <Vacio
+          icono={<Smartphone />}
+          titulo="Aquí se cobra dinero ajeno y se gana comisión."
+          accion={
+            <Button asChild>
+              <a href="/configuracion">Dar de alta mi cuenta de comisionista</a>
+            </Button>
+          }
+        >
+          <p className="max-w-prose text-sm text-muted-foreground">
+            Una recarga de $50 te deja {enPesos(comisionDeRecarga(5000))} y un recibo de luz
+            {` ${enPesos(comisionDeServicio('CFE'))}`}. Treinta operaciones al día son cerca de $200
+            diarios que hoy no estás cobrando, y además traen gente a la tienda.
+          </p>
+        </Vacio>
       </div>
     );
   }

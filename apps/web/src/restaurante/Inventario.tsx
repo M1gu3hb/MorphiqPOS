@@ -5,6 +5,8 @@ import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { PackageOpen, SearchX } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -439,12 +441,22 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
       />
 
       {visibles.length === 0 ? (
-        /* El vacío ENSEÑA: dice qué pasó y qué se puede hacer. */
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          {ordenadas.length === 0
-            ? 'La alacena está vacía. Da de alta insumos para empezar a medir el consumo.'
-            : 'Ningún insumo se llama así. Busca por otra palabra o borra el filtro.'}
-        </p>
+        /* El vacío ENSEÑA: dice qué pasó y qué se puede hacer. Son DOS vacíos
+           distintos —la alacena sin nada y un filtro que no encuentra— y por eso
+           llevan icono distinto: el segundo no es un problema del negocio. */
+        <div className="rounded-lg border border-dashed">
+          <Vacio
+            icono={ordenadas.length === 0 ? <PackageOpen /> : <SearchX />}
+            titulo={
+              ordenadas.length === 0 ? 'La alacena está vacía.' : 'Ningún insumo se llama así.'
+            }
+            explicacion={
+              ordenadas.length === 0
+                ? 'Da de alta insumos para empezar a medir el consumo.'
+                : 'Busca por otra palabra o borra el filtro.'
+            }
+          />
+        </div>
       ) : (
         <>
           {/* PC · tabla densa: se lee sentado y de un vistazo. */}

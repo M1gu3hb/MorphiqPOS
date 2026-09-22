@@ -3,7 +3,8 @@
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { TriangleAlert } from 'lucide-react';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { CalendarPlus, TriangleAlert, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -706,23 +707,31 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
       <div className="p-3">
         {encabezado}
         {banda}
+        {/* El borde discontinuo se queda: es lo que dice «aquí CABE algo» en vez de
+            «aquí no hay nada», y en una agenda esa diferencia es el negocio. */}
         <div className={VACIO}>
-          <p className="text-lg font-semibold">
-            {hayEquipo ? 'Hoy no hay citas todavía.' : 'Primero da de alta a tu equipo.'}
-          </p>
-          <p className="max-w-md text-sm text-muted-foreground">
-            {hayEquipo
-              ? 'El día está entero, y eso es una oportunidad: el hueco de las 3 pm no se recupera mañana.'
-              : 'Cada profesional es una columna de esta rejilla. Sin ninguno, la cita no tiene dónde caer.'}
-          </p>
-          <Button size="lg" onClick={irAAgendar}>
-            {hayEquipo ? 'Agendar' : 'Dar de alta al equipo'}
-          </Button>
-          {hayEquipo ? (
-            <Button variant="ghost" onClick={mover(1)}>
-              Abrir la agenda de mañana ›
-            </Button>
-          ) : null}
+          <Vacio
+            className="py-0"
+            icono={hayEquipo ? <CalendarPlus /> : <Users />}
+            titulo={hayEquipo ? 'Hoy no hay citas todavía.' : 'Primero da de alta a tu equipo.'}
+            explicacion={
+              hayEquipo
+                ? 'El día está entero, y eso es una oportunidad: el hueco de las 3 pm no se recupera mañana.'
+                : 'Cada profesional es una columna de esta rejilla. Sin ninguno, la cita no tiene dónde caer.'
+            }
+            accion={
+              <span className="flex flex-wrap items-center justify-center gap-(--espacio-2)">
+                <Button size="lg" onClick={irAAgendar}>
+                  {hayEquipo ? 'Agendar' : 'Dar de alta al equipo'}
+                </Button>
+                {hayEquipo ? (
+                  <Button variant="ghost" onClick={mover(1)}>
+                    Abrir la agenda de mañana ›
+                  </Button>
+                ) : null}
+              </span>
+            }
+          />
         </div>
       </div>
     );

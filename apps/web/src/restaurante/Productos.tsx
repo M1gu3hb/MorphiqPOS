@@ -4,6 +4,8 @@ import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { UtensilsCrossed } from 'lucide-react';
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -324,13 +326,13 @@ export function Productos({ filasIniciales }: ProductosProps) {
       {filas.length === 0 && error === null ? (
         // El vacío ENSEÑA la consecuencia, no se disculpa.
         <div className={VACIO}>
-          <p className="text-lg font-semibold">Todavía no hay {voc.plural('producto')}.</p>
-          <p className="max-w-prose text-muted-foreground">
-            Sin catálogo no hay nada que cobrar ni nada que llegue a {voc.enFrase('preparacion')}:
-            cada {voc.singular('producto')} lleva su precio, su área de preparación y, cuando tiene
-            receta, su costo y su margen.
-          </p>
-          {nuevo}
+          <Vacio
+            className="py-0"
+            icono={<UtensilsCrossed />}
+            titulo={`Todavía no hay ${voc.plural('producto')}.`}
+            explicacion={`Sin catálogo no hay nada que cobrar ni nada que llegue a ${voc.enFrase('preparacion')}: cada ${voc.singular('producto')} lleva su precio, su área de preparación y, cuando tiene receta, su costo y su margen.`}
+            accion={nuevo}
+          />
         </div>
       ) : (
         <ul className={REJILLA}>

@@ -22,11 +22,20 @@ import { cn } from '../utilidades/cn';
  * El texto lo pone quien llama, con el vocabulario de SU giro. Aquí no hay ni una
  * palabra de producto: poner «No hay productos» aquí sería escribir «productos» en
  * una ferretería que dice «materiales».
+ *
+ * ── `children`, y por qué no bastaban título, explicación y acción ────────
+ * Los mejores vacíos del sistema traen algo más: la pantalla de existencias de una
+ * ferretería enumera las CUATRO PREGUNTAS que va a contestar en cuanto entre la
+ * primera nota, y ésa es la mitad de por qué el vacío no se lee como un fallo. Eso no
+ * es la explicación —es una lista— ni es la acción —no se toca—. Sin un hueco propio,
+ * cada pantalla con ese contenido se quedaba fuera del componente y volvía a
+ * escribirse a mano, que es exactamente como muere una biblioteca.
  */
 export function Vacio({
   icono,
   titulo,
   explicacion,
+  children,
   accion,
   className,
 }: {
@@ -34,6 +43,8 @@ export function Vacio({
   readonly icono?: ReactNode;
   readonly titulo: string;
   readonly explicacion?: string;
+  /** Lo que la pantalla va a hacer cuando tenga datos: una lista, unos ejemplos. */
+  readonly children?: ReactNode;
   /** Qué hacer ahora. Un vacío sin salida es una pared. */
   readonly accion?: ReactNode;
   readonly className?: string;
@@ -57,6 +68,7 @@ export function Vacio({
       {explicacion === undefined ? null : (
         <p className="max-w-prose text-sm text-muted-foreground">{explicacion}</p>
       )}
+      {children}
       {accion === undefined ? null : <div className="mt-(--espacio-2)">{accion}</div>}
     </div>
   );

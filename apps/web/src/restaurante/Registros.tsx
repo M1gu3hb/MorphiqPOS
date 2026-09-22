@@ -13,7 +13,8 @@ import {
   TableRow,
 } from '@morphiqpos/ui/primitivas/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primitivas/tabs';
-import { TriangleAlert } from 'lucide-react';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { CalendarSearch, TriangleAlert } from 'lucide-react';
 import { Fragment, type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -377,11 +378,13 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
   } else if (visibles.length === 0) {
     // El vacío ENSEÑA cuál es la palanca: casi siempre el periodo es muy corto.
     cuerpo = (
-      <section className={`${TARJETA} text-center`}>
-        <p className="text-lg font-medium">Sin {actual.rotulo.toLowerCase()} en este periodo.</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Aquí el periodo es lo que manda. Ábrelo y vuelve a preguntar.
-        </p>
+      <section className={TARJETA}>
+        <Vacio
+          className="py-(--espacio-6)"
+          icono={<CalendarSearch />}
+          titulo={`Sin ${actual.rotulo.toLowerCase()} en este periodo.`}
+          explicacion="Aquí el periodo es lo que manda. Ábrelo y vuelve a preguntar."
+        />
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           <Button
             variant="secondary"

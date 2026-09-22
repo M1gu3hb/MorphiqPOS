@@ -5,6 +5,8 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Progress } from '@morphiqpos/ui/primitivas/progress';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { ClipboardCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -360,15 +362,17 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
   // lo lee, y de eso depende que mañana vuelva a abrir la pantalla.
   if (filas.length === 0) {
     return (
-      <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-6 text-center">
-        <p className="text-xl font-bold">Hoy no toca ninguna zona.</p>
-        <p className="text-sm text-muted-foreground">
-          El conteo cíclico parte el anaquel en zonas y cuenta una al día, en veinte minutos, en vez
-          de cerrar la cortina un domingo entero. La que más se mueve vuelve a tocar antes.
-        </p>
-        <Button asChild className={PRINCIPAL}>
-          <a href="/configuracion">Programar las zonas del anaquel</a>
-        </Button>
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center p-(--espacio-6)">
+        <Vacio
+          icono={<ClipboardCheck />}
+          titulo="Hoy no toca ninguna zona."
+          explicacion="El conteo cíclico parte el anaquel en zonas y cuenta una al día, en veinte minutos, en vez de cerrar la cortina un domingo entero. La que más se mueve vuelve a tocar antes."
+          accion={
+            <Button asChild className={PRINCIPAL}>
+              <a href="/configuracion">Programar las zonas del anaquel</a>
+            </Button>
+          }
+        />
       </div>
     );
   }

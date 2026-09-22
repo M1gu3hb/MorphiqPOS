@@ -6,6 +6,8 @@ import { Card } from '@morphiqpos/ui/primitivas/card';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { HandCoins } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -244,15 +246,18 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
   if (filas.length === 0) {
     // El vacío ENSEÑA el flujo: dice con qué tecla nace un fiado.
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
+      <div className="flex min-h-dvh flex-col items-center justify-center p-(--espacio-8)">
         <h1 className="text-2xl font-bold">Fiado</h1>
-        <p className="max-w-md text-muted-foreground">
-          Todavía no le fías a nadie. Cuando cobres una venta con «Fiado» (F11), el cliente aparece
-          aquí con su saldo, sus días y su límite.
-        </p>
-        <Button asChild>
-          <a href="/abarrotes/cobrar">Ir a cobrar</a>
-        </Button>
+        <Vacio
+          icono={<HandCoins />}
+          titulo="Todavía no le fías a nadie."
+          explicacion="Cuando cobres una venta con «Fiado» (F11), el cliente aparece aquí con su saldo, sus días y su límite."
+          accion={
+            <Button asChild>
+              <a href="/abarrotes/cobrar">Ir a cobrar</a>
+            </Button>
+          }
+        />
       </div>
     );
   }

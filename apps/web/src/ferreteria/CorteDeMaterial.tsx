@@ -5,7 +5,8 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { RadioGroup, RadioGroupItem } from '@morphiqpos/ui/primitivas/radio-group';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { TriangleAlert } from 'lucide-react';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { Scissors, TriangleAlert } from 'lucide-react';
 import { useEffect, useState, type ChangeEvent } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -246,16 +247,26 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   // en vez de disculparse por no tener datos.
   if (material === null || elegida === null) {
     return (
-      <div className="mx-auto flex max-w-lg flex-col items-start gap-3 p-5">
+      <div className="mx-auto flex max-w-lg flex-col gap-(--espacio-3) p-(--espacio-5)">
         <h1 className="text-xl font-bold">Cortar {voc.singular('producto')}</h1>
-        <p className="text-muted-foreground">
-          {material === null
-            ? `${voc.conDeterminante('ningun', 'producto')} está marcado todavía como pieza continua. Continuo es el que se vende por medida: cable, manguera, cadena, tubo.`
-            : `No hay ninguna pieza de ${material.nombre} registrada. Un corte descuenta de una pieza concreta con su folio; sin piezas, el metraje sería inventado.`}
-        </p>
-        <Button asChild>
-          <a href="/ferreteria/mostrador">Registrar la primera pieza</a>
-        </Button>
+        <Vacio
+          icono={<Scissors />}
+          titulo={
+            material === null
+              ? `${voc.conDeterminante('ningun', 'producto')} está marcado todavía como pieza continua.`
+              : `No hay ninguna pieza de ${material.nombre} registrada.`
+          }
+          explicacion={
+            material === null
+              ? 'Continuo es el que se vende por medida: cable, manguera, cadena, tubo.'
+              : 'Un corte descuenta de una pieza concreta con su folio; sin piezas, el metraje sería inventado.'
+          }
+          accion={
+            <Button asChild>
+              <a href="/ferreteria/mostrador">Registrar la primera pieza</a>
+            </Button>
+          }
+        />
       </div>
     );
   }

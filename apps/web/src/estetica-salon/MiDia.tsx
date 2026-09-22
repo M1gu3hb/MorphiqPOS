@@ -4,7 +4,8 @@ import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Progress } from '@morphiqpos/ui/primitivas/progress';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { TriangleAlert } from 'lucide-react';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { CalendarPlus, TriangleAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -451,13 +452,16 @@ export function MiDia({
             Ahora
           </h2>
           {actual === null ? (
-            // El vacío ENSEÑA: dice qué se puede hacer con el día por delante.
-            <div className="rounded-xl border border-dashed border-border p-6 text-center">
-              <p className="mb-1 text-lg font-semibold">Hoy no tienes {voc.plural('orden')}.</p>
-              <p className="mb-4 text-sm text-muted-foreground">
-                El día entero está libre: cabe {voc.enFraseCon('un', 'linea_orden')} sin mover nada.
-              </p>
-              {walkIn}
+            // El vacío ENSEÑA: dice qué se puede hacer con el día por delante. El
+            // borde discontinuo se queda: dice «aquí CABE algo», que es el punto.
+            <div className="rounded-xl border border-dashed border-border p-(--espacio-6)">
+              <Vacio
+                className="py-0"
+                icono={<CalendarPlus />}
+                titulo={`Hoy no tienes ${voc.plural('orden')}.`}
+                explicacion={`El día entero está libre: cabe ${voc.enFraseCon('un', 'linea_orden')} sin mover nada.`}
+                accion={walkIn}
+              />
             </div>
           ) : (
             <article className="rounded-xl border-2 border-primary bg-card p-4 shadow-2">

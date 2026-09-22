@@ -13,7 +13,8 @@ import {
   SheetTitle,
 } from '@morphiqpos/ui/primitivas/sheet';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { Phone } from 'lucide-react';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { FileSignature, Phone } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -381,17 +382,19 @@ export function Cuentas({
   }
 
   if (renglones !== null && renglones.length === 0) {
+    // El vacío ENSEÑA el flujo: de dónde sale un cliente de cuenta.
     return (
-      <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">Todavía no le das crédito a nadie.</p>
-        {/* El vacío ENSEÑA el flujo: de dónde sale un cliente de cuenta. */}
-        <p className="text-muted-foreground">
-          Cuando despaches con «Remisión a cuenta» (F11) en el mostrador, el cliente aparece aquí
-          con su obra, su antigüedad y su límite.
-        </p>
-        <Button asChild>
-          <a href="/ferreteria/mostrador">Ir al mostrador</a>
-        </Button>
+      <div className="mx-auto max-w-lg p-(--espacio-8)">
+        <Vacio
+          icono={<FileSignature />}
+          titulo="Todavía no le das crédito a nadie."
+          explicacion="Cuando despaches con «Remisión a cuenta» (F11) en el mostrador, el cliente aparece aquí con su obra, su antigüedad y su límite."
+          accion={
+            <Button asChild>
+              <a href="/ferreteria/mostrador">Ir al mostrador</a>
+            </Button>
+          }
+        />
       </div>
     );
   }

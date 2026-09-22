@@ -4,6 +4,8 @@ import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { CircleCheckBig } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -411,17 +413,20 @@ export function Caja({
 
   if (todas.length === 0) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
+      <div className="mx-auto max-w-lg p-(--espacio-8)">
         {banda}
-        <p className="text-xl font-semibold">La caja está al día.</p>
-        {/* El vacío ENSEÑA de dónde salen las notas; no se disculpa por no tener. */}
-        <p className="text-muted-foreground">
-          Una nota llega aquí cuando el mostrador la cierra. Mientras no haya ninguna, el sitio
-          donde mirar es el mostrador.
-        </p>
-        <Button asChild>
-          <a href="/ferreteria/mostrador">Ir al mostrador</a>
-        </Button>
+        {/* El vacío ENSEÑA de dónde salen las notas; no se disculpa por no tener.
+            Y lleva la palomita y no un hueco: «al día» es una buena noticia. */}
+        <Vacio
+          icono={<CircleCheckBig />}
+          titulo="La caja está al día."
+          explicacion="Una nota llega aquí cuando el mostrador la cierra. Mientras no haya ninguna, el sitio donde mirar es el mostrador."
+          accion={
+            <Button asChild>
+              <a href="/ferreteria/mostrador">Ir al mostrador</a>
+            </Button>
+          }
+        />
       </div>
     );
   }

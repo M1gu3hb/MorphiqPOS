@@ -3,6 +3,8 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Superficie, Vacio } from '@morphiqpos/ui/sistema';
+import { Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -202,13 +204,21 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
         ? 'Abre la mesa en el mapa y pide la precuenta desde ahí: el código para caja es el de esa cuenta, no el de la mesa.'
         : `Una hoja en blanco manda al ${voc.singular('cliente')} a caja sin nada que revisar. Toma la orden y vuelve: la hoja se arma sola.`;
       return (
-        <section className="mx-auto max-w-prose rounded-xl border border-border bg-card p-6 text-center text-card-foreground">
-          <p className="mb-2 text-lg font-semibold">{titulo}</p>
-          <p className="mb-4 text-sm text-muted-foreground">{texto}</p>
-          <Button asChild>
-            <a href="/restaurante/mapa-de-mesas">Ir al mapa de {voc.plural('unidad_servicio')}</a>
-          </Button>
-        </section>
+        <Superficie radio="lg" relleno={6} como="section" className="mx-auto max-w-prose">
+          <Vacio
+            className="py-0"
+            icono={<Printer />}
+            titulo={titulo}
+            explicacion={texto}
+            accion={
+              <Button asChild>
+                <a href="/restaurante/mapa-de-mesas">
+                  Ir al mapa de {voc.plural('unidad_servicio')}
+                </a>
+              </Button>
+            }
+          />
+        </Superficie>
       );
     }
     return <Hoja cuenta={cuenta} lineas={lineas} estilo={estilo} copia={copia} />;

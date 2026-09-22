@@ -5,12 +5,13 @@ import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primitivas/tabs';
+import { Vacio } from '@morphiqpos/ui/sistema';
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
-import { TriangleAlert } from 'lucide-react';
+import { CircleCheckBig, TriangleAlert } from 'lucide-react';
 
 /**
  * PANTALLA · restaurante · caja
@@ -345,11 +346,13 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
       {(pestana === 'pendientes' || pestana === 'buscar') &&
         (visibles.length === 0 ? (
           // El vacío ENSEÑA: el resumen del turno es lo que el cajero haría con ese hueco.
-          <section className="mt-6 flex flex-col items-center gap-4 text-center">
-            <p className="text-lg">
-              {voc.conDeterminante('ningun', 'unidad_servicio')} está esperando pagar.
-            </p>
-            {resumen}
+          <section className="mt-6">
+            <Vacio
+              icono={<CircleCheckBig />}
+              titulo={`${voc.conDeterminante('ningun', 'unidad_servicio')} está esperando pagar.`}
+            >
+              {resumen}
+            </Vacio>
           </section>
         ) : (
           <ul className="mt-3 flex flex-col gap-2 xl:gap-0">

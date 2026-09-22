@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from '@morphiqpos/ui/primitivas/select';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import { Superficie, Vacio } from '@morphiqpos/ui/sistema';
+import { PackageSearch } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -342,23 +344,27 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
       {filas.length === 0 ? (
         // El vacío ENSEÑA: dice qué cuatro preguntas contesta esta pantalla y
         // por dónde entra el primer dato. No se disculpa por estar vacía.
-        <section className="rounded-lg border border-border bg-card p-4 text-card-foreground">
-          <h2 className="mb-2 text-lg font-semibold">Todavía no hay existencias que leer</h2>
-          <p className="mb-3 text-sm text-muted-foreground">
-            En cuanto entre la primera nota de proveedor, aquí se contestan cuatro preguntas sin
-            abrir un solo reporte:
-          </p>
-          <ul className="mb-4 flex flex-col gap-1 text-sm">
-            {CONTADORES.map((c) => (
-              <li key={c.clave}>
-                <span className="font-medium">{c.titulo}</span> · {c.pregunta}
-              </li>
-            ))}
-          </ul>
-          <Button asChild>
-            <a href="/ferreteria/entradas">Recibir la primera nota</a>
-          </Button>
-        </section>
+        <Superficie relleno={4} como="section">
+          <Vacio
+            className="py-(--espacio-6)"
+            icono={<PackageSearch />}
+            titulo="Todavía no hay existencias que leer"
+            explicacion="En cuanto entre la primera nota de proveedor, aquí se contestan cuatro preguntas sin abrir un solo reporte:"
+            accion={
+              <Button asChild>
+                <a href="/ferreteria/entradas">Recibir la primera nota</a>
+              </Button>
+            }
+          >
+            <ul className="flex flex-col gap-1 text-left text-sm">
+              {CONTADORES.map((c) => (
+                <li key={c.clave}>
+                  <span className="font-medium">{c.titulo}</span> · {c.pregunta}
+                </li>
+              ))}
+            </ul>
+          </Vacio>
+        </Superficie>
       ) : (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">

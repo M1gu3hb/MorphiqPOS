@@ -13,6 +13,8 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Switch } from '@morphiqpos/ui/primitivas/switch';
+import { Vacio } from '@morphiqpos/ui/sistema';
+import { Lock } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -374,15 +376,17 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
   // El vacío ENSEÑA de dónde sale un cierre; no se disculpa por no tenerlo.
   if (!datos.cajaAbierta && corte === null) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">No hay ninguna caja abierta que cerrar.</p>
-        <p className="text-muted-foreground">
-          El día se cierra desde la terminal donde se abrió la caja: ahí vive el fondo que se contó
-          por la mañana y de esa sesión cuelgan las ventas que entran al corte.
-        </p>
-        <Button asChild>
-          <a href="/restaurante/caja">Ir a la caja</a>
-        </Button>
+      <div className="mx-auto max-w-lg p-(--espacio-8)">
+        <Vacio
+          icono={<Lock />}
+          titulo="No hay ninguna caja abierta que cerrar."
+          explicacion="El día se cierra desde la terminal donde se abrió la caja: ahí vive el fondo que se contó por la mañana y de esa sesión cuelgan las ventas que entran al corte."
+          accion={
+            <Button asChild>
+              <a href="/restaurante/caja">Ir a la caja</a>
+            </Button>
+          }
+        />
         {banda}
       </div>
     );
