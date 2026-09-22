@@ -74,7 +74,7 @@
 }
 
 /** La noche de verdad: negro real y luz mínima suficiente. */
-[data-estilo='noche'].dark {
+[data-estilo='noche'][data-modo='oscuro'] {
   --sombra-tinte: 0 0% 0%;
 
   --fondo: 220 20% 4%;

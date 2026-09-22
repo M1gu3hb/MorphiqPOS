@@ -77,17 +77,17 @@ const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN
 // `FILA` es la tarjeta de teléfono y tablet; en PC esa MISMA tarjeta se aplana en
 // una fila compacta con `xl:contents`, sin un segundo marcado — dos marcados
 // serían dos sitios donde equivocarse.
-const BANDA = 'mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
+const BANDA = 'mb-(--espacio-3) rounded-md border border-peligro bg-peligro/15 p-2 text-sm';
 const MURO =
-  'w-full max-w-md rounded-lg border border-border bg-warning/15 p-(--espacio-6) shadow-2';
+  'w-full max-w-md rounded-lg border border-borde bg-advertencia/15 p-(--espacio-6) shadow-2';
 const FILA =
-  'flex flex-col gap-1 rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground xl:flex-row xl:items-center xl:gap-(--espacio-4) xl:rounded-none xl:border-x-0 xl:border-t-0 xl:px-(--espacio-3) xl:py-2';
+  'flex flex-col gap-1 rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto xl:flex-row xl:items-center xl:gap-(--espacio-4) xl:rounded-none xl:border-x-0 xl:border-t-0 xl:px-(--espacio-3) xl:py-2';
 const COBRAR =
-  'flex flex-col gap-1 text-left hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring xl:contents';
+  'flex flex-col gap-1 text-left hover:text-acento-suave-texto focus-visible:outline-2 focus-visible:outline-anillo xl:contents';
 const MESA = 'text-xl font-semibold md:text-2xl xl:w-36 xl:shrink-0 xl:text-base';
 const TOTAL =
   'text-2xl font-bold tabular-nums md:text-3xl xl:order-last xl:ml-auto xl:w-32 xl:text-right xl:text-base';
-const ESPERA = 'font-medium text-foreground xl:w-24 xl:shrink-0 xl:text-sm';
+const ESPERA = 'font-medium text-texto xl:w-24 xl:shrink-0 xl:text-sm';
 const SOLO_PC = 'hidden md:inline-flex';
 
 /** Texto de espera: el dato se lee siempre, nunca se infiere de un color. */
@@ -235,10 +235,10 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
 
   const vendido = turno === null ? '' : PESOS.format(Number(turno.ventasCentavos) / 100);
   const resumen = turno !== null && (
-    <dl className="grid w-full max-w-md grid-cols-2 gap-2 rounded-lg border border-border bg-card p-(--espacio-4)">
-      <dt className="text-sm text-muted-foreground">Vendido en el turno</dt>
+    <dl className="grid w-full max-w-md grid-cols-2 gap-2 rounded-lg border border-borde bg-superficie p-(--espacio-4)">
+      <dt className="text-sm text-texto-sutil">Vendido en el turno</dt>
       <dd className="justify-self-end font-bold tabular-nums">{vendido}</dd>
-      <dt className="text-sm text-muted-foreground">
+      <dt className="text-sm text-texto-sutil">
         {voc.titulo('orden', true)} cobrad{voc.terminacion('orden', true)}
       </dt>
       <dd className="justify-self-end font-bold tabular-nums">{String(turno.numeroVentas)}</dd>
@@ -267,7 +267,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
           <h1 id="caja-muro" className="text-2xl font-bold">
             <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Caja cerrada
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-texto-sutil">
             Sin sesión de caja, un cobro no entra en ningún corte. Declara el fondo y ábrela.
           </p>
           {banda}
@@ -339,7 +339,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
         <TabsContent value="resumen" className="mt-(--espacio-3)">
           {resumen}
         </TabsContent>
-        <TabsContent value="historial" className="mt-(--espacio-3) text-sm text-muted-foreground">
+        <TabsContent value="historial" className="mt-(--espacio-3) text-sm text-texto-sutil">
           Los cobros ya cerrados viven en Registros, con su folio y su corte.
         </TabsContent>
       </Tabs>
@@ -364,7 +364,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
                     <span className={MESA}>{rotulo(fila.mesa_numero, voc)}</span>
                     <span className={TOTAL}>{PESOS.format(fila.total ?? 0)}</span>
                   </span>
-                  <span className="flex flex-wrap gap-x-(--espacio-3) text-xs text-muted-foreground xl:contents">
+                  <span className="flex flex-wrap gap-x-(--espacio-3) text-xs text-texto-sutil xl:contents">
                     <span className="xl:w-28 xl:shrink-0 xl:text-sm">
                       {fila.codigo_caja ?? '—'}
                     </span>

@@ -346,11 +346,11 @@ export function MesaActiva(props: MesaActivaProps) {
       <section
         aria-label={`${voc.titulo('orden')} actual, ya enviad${voc.terminacion('orden')} a ${voc.enFrase('preparacion')}`}
       >
-        <h2 className="text-xs font-bold uppercase text-muted-foreground">
+        <h2 className="text-xs font-bold uppercase text-texto-sutil">
           {voc.titulo('orden')} actual
         </h2>
         {enviadas.length === 0 && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Mesa {mesa?.numero ?? ''} abierta para {mesa?.personas_actuales ?? 0} personas. Toca un
             platillo para empezar.
           </p>
@@ -361,7 +361,7 @@ export function MesaActiva(props: MesaActivaProps) {
               <span className="truncate">
                 {l.cantidad} × {l.producto_nombre}
               </span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">{pesos(l.total)}</span>
+              <span className="shrink-0 tabular-nums text-texto-sutil">{pesos(l.total)}</span>
               {/* Lo enviado no se edita: se ANULA, y con motivo. Un botón de
                   «−» aquí borraría del pedido un platillo que la cocina ya
                   tiene en la plancha. */}
@@ -392,11 +392,11 @@ export function MesaActiva(props: MesaActivaProps) {
         aria-label={`Agregar a ${voc.enFrase('orden')}, sin enviar`}
         className="border-t pt-(--espacio-3)"
       >
-        <h2 className="text-xs font-bold uppercase text-primary">
+        <h2 className="text-xs font-bold uppercase text-primario">
           Agregar a {voc.enFrase('orden')}
         </h2>
         {pendientes.length === 0 && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Toca {voc.enFraseCon('un', 'linea_orden')} para agregarlo.
           </p>
         )}
@@ -431,8 +431,8 @@ export function MesaActiva(props: MesaActivaProps) {
   );
 
   return (
-    <div className="min-h-dvh bg-background pb-28 xl:pb-0">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b bg-background p-(--espacio-3)">
+    <div className="min-h-dvh bg-fondo pb-28 xl:pb-0">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b bg-fondo p-(--espacio-3)">
         <Button variant="ghost" size="sm" aria-label="Volver al mapa" onClick={volverAlMapa}>
           ←
         </Button>
@@ -447,7 +447,7 @@ export function MesaActiva(props: MesaActivaProps) {
       {error !== null && (
         <p
           role="alert"
-          className="mx-(--espacio-3) mt-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
+          className="mx-(--espacio-3) mt-(--espacio-3) rounded-md border border-peligro p-2 text-sm"
         >
           {error} · Se muestra el último dato conocido.
         </p>
@@ -458,12 +458,12 @@ export function MesaActiva(props: MesaActivaProps) {
            que no tiene dónde caer. */
         <section
           aria-label={`Abrir ${voc.enFrase('unidad_servicio')}`}
-          className="mx-auto mt-(--espacio-6) max-w-md space-y-(--espacio-4) rounded-lg border border-border p-(--espacio-6) text-center"
+          className="mx-auto mt-(--espacio-6) max-w-md space-y-(--espacio-4) rounded-lg border border-borde p-(--espacio-6) text-center"
         >
           <p className="text-xl font-semibold">
             {voc.titulo('unidad_servicio')} {mesa.numero} está libre
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             ¿Para cuántas personas? Es el primer dato de {voc.enFrase('orden')}: de ahí salen el
             reparto y el tiempo de servicio.
           </p>
@@ -520,7 +520,7 @@ export function MesaActiva(props: MesaActivaProps) {
           />
           {visibles.length === 0 ? (
             /* El vacío enseña: dice qué falta y lleva a donde se resuelve. */
-            <p className="mt-2 rounded-lg border border-dashed p-(--espacio-6) text-center text-sm text-muted-foreground">
+            <p className="mt-2 rounded-lg border border-dashed p-(--espacio-6) text-center text-sm text-texto-sutil">
               No hay {voc.plural('producto')} que se llamen así.{' '}
               <a href="/productos">Ir a {voc.titulo('producto', true)}</a>
             </p>
@@ -534,13 +534,13 @@ export function MesaActiva(props: MesaActivaProps) {
                     type="button"
                     disabled={p.agotado === true}
                     onClick={tocar(p.id, 1)}
-                    className={`flex min-h-24 w-full flex-col justify-between rounded-lg border p-2 text-left ${p.agotado === true ? 'bg-muted text-muted-foreground' : 'bg-card text-card-foreground hover:border-primary'}`}
+                    className={`flex min-h-24 w-full flex-col justify-between rounded-lg border p-2 text-left ${p.agotado === true ? 'bg-fondo-sutil text-texto-sutil' : 'bg-superficie text-texto hover:border-primario'}`}
                   >
                     <span className="line-clamp-2 text-sm font-semibold leading-tight">
                       {p.nombre}
                     </span>
                     {/* El precio, en segundo plano: se busca el platillo. */}
-                    <span className="mt-1 text-xs tabular-nums text-muted-foreground">
+                    <span className="mt-1 text-xs tabular-nums text-texto-sutil">
                       {p.agotado === true ? 'Agotado' : pesos(p.precio_venta)}
                     </span>
                   </button>
@@ -572,7 +572,7 @@ export function MesaActiva(props: MesaActivaProps) {
         </SheetContent>
       </Sheet>
       <Dialog open={falloEnvio} onOpenChange={setFalloEnvio}>
-        <DialogContent className="border-2 border-destructive">
+        <DialogContent className="border-2 border-peligro">
           <DialogTitle>La comanda NO llegó a {voc.singular('preparacion')}</DialogTitle>
           <p role="alert" className="text-sm">
             Vuelve a intentar: el pedido sigue completo en la pantalla y el reintento usa la misma

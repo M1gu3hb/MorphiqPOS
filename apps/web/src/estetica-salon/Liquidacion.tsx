@@ -266,7 +266,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
               >
                 {profesional.nombreCompleto}
                 {profesional.rentaEstacion && (
-                  <span className="text-muted-foreground ml-2 text-xs">renta</span>
+                  <span className="text-texto-sutil ml-2 text-xs">renta</span>
                 )}
               </button>
             </li>
@@ -276,29 +276,27 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
 
       <section className="space-y-(--espacio-4)">
         {error !== null && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-peligro text-sm">
             {error}
           </p>
         )}
 
-        {elegida === null && (
-          <p className="text-muted-foreground">Elige a quién se le va a pagar.</p>
-        )}
+        {elegida === null && <p className="text-texto-sutil">Elige a quién se le va a pagar.</p>}
 
         {elegida !== null && comisiones !== null && comprobante === null && (
           <>
             <h2 className="text-xl font-medium">{elegida.nombreCompleto}</h2>
             <div className="flex gap-(--espacio-8)">
               <div>
-                <p className="text-muted-foreground text-sm">Causado</p>
+                <p className="text-texto-sutil text-sm">Causado</p>
                 <p className="text-xl tabular-nums">{pesos(comisiones.causadoCentavos)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground text-sm">Ya liquidado</p>
+                <p className="text-texto-sutil text-sm">Ya liquidado</p>
                 <p className="text-xl tabular-nums">{pesos(comisiones.liquidadoCentavos)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground text-sm">Pendiente</p>
+                <p className="text-texto-sutil text-sm">Pendiente</p>
                 <p className="text-xl font-semibold tabular-nums">
                   {pesos(comisiones.pendienteCentavos)}
                 </p>
@@ -310,7 +308,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
               {comisiones.lineas.map((linea) => (
                 <li key={linea.comisionId} className="flex items-baseline justify-between py-1">
                   <span>{linea.causadaEn.slice(0, 10)}</span>
-                  <span className="text-muted-foreground">
+                  <span className="text-texto-sutil">
                     {linea.tipo} · {(linea.tasaBp / 100).toFixed(1)} % de{' '}
                     {pesos(linea.baseCentavos)}
                   </span>
@@ -348,7 +346,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
               <span>Se le paga</span>
               <span className="tabular-nums">{pesos(comprobante.totalCentavos)}</span>
             </p>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-texto-sutil text-sm">
               La propina va aparte de la comisión: no es del salón y no se comisiona.
             </p>
           </div>

@@ -14,7 +14,8 @@
  *   1.3 cero dinero formateado a mano · 1.4 sus tres estados salen del sistema
  *
  * Sale en 1 mientras UNA no cumpla. `--detalle` lista cada hallazgo con su línea;
- * `--json` lo da para una máquina; `--solo <modelo>` recorta a una carpeta.
+ * `--json` lo da para una máquina; `--solo <modelo>` recorta a una carpeta, y
+ * `--solo <modelo>/<Pantalla>` a una sola pantalla.
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
@@ -61,7 +62,7 @@ for (const ruta of archivos(PANTALLAS).sort()) {
     .split(sep)
     .join('/')
     .replace(/\.tsx$/, '');
-  if (solo !== null && !pantalla.startsWith(`${solo}/`)) continue;
+  if (solo !== null && pantalla !== solo && !pantalla.startsWith(`${solo}/`)) continue;
   const { interfaz, hallazgos, pinta } = analizarPantalla(readFileSync(ruta, 'utf8'), ruta);
   if (!interfaz) {
     filas.push({ pantalla, interfaz, hallazgos: [] });

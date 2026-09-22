@@ -249,10 +249,10 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
     return (
       <main className="mx-auto max-w-lg space-y-(--espacio-4) p-(--espacio-6)">
         <h1 className="text-2xl font-semibold">{voc.titulo('orden')} listo para pedirlo</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Se copió solo. Enséñalo o léelo en {voc.enFrase('preparacion')}: se paga al recogerlo.
         </p>
-        <pre className="whitespace-pre-wrap rounded border border-border bg-card p-(--espacio-3) text-sm">
+        <pre className="whitespace-pre-wrap rounded border border-borde bg-superficie p-(--espacio-3) text-sm">
           {pedidoEnTexto}
         </pre>
         <Button
@@ -275,13 +275,13 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
     <main className="mx-auto max-w-2xl space-y-(--espacio-6) p-(--espacio-4)">
       <header>
         <h1 className="text-2xl font-semibold">Pide antes de llegar</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Se aparta y se paga en {voc.enFrase('preparacion')}. Sin fila.
         </p>
       </header>
 
       {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-peligro text-sm">
           {error}
         </p>
       )}
@@ -294,7 +294,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
               .filter((p) => p.familia === familia)
               .map((producto) => (
                 <li key={producto.id} className="flex items-center justify-between py-2">
-                  <span className={producto.visible_en_pos ? '' : 'text-muted-foreground'}>
+                  <span className={producto.visible_en_pos ? '' : 'text-texto-sutil'}>
                     {producto.nombre}
                     {/* Lo agotado se VE: esconderlo hace que el cliente crea que
                         el menú cambió y pregunte en la barra. */}
@@ -326,7 +326,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
       <section className="space-y-(--espacio-3)">
         <h2 className="font-medium">Tu {voc.singular('unidad_servicio')}</h2>
         {carrito.length === 0 && (
-          <p className="text-muted-foreground text-sm">Todavía no has puesto nada.</p>
+          <p className="text-texto-sutil text-sm">Todavía no has puesto nada.</p>
         )}
         <ul className="divide-y">
           {carrito.map((linea) => (

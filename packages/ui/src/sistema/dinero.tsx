@@ -109,7 +109,7 @@ export function Dinero({
 }: DineroProps): ReactElement {
   const negativo = centavos < 0;
   const partes = partir(centavos);
-  const color = negativo ? 'text-destructive' : conSigno && centavos > 0 ? 'text-success' : '';
+  const color = negativo ? 'text-peligro' : conSigno && centavos > 0 ? 'text-exito' : '';
 
   return (
     <span
@@ -197,7 +197,7 @@ export function Cifra({
       {unidad === undefined ? null : (
         <>
           {' '}
-          <span className={cn('text-muted-foreground', SECUNDARIO[tamano])}>{unidad}</span>
+          <span className={cn('text-texto-sutil', SECUNDARIO[tamano])}>{unidad}</span>
         </>
       )}
     </span>

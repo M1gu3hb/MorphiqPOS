@@ -355,13 +355,13 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
 
       <section className="space-y-(--espacio-4)">
         {error !== null && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-peligro text-sm">
             {error}
           </p>
         )}
 
         {elegido === null && (
-          <p className="text-muted-foreground">
+          <p className="text-texto-sutil">
             Elige {voc.enFraseCon('un', 'linea_orden')} para ver qué lleva.
           </p>
         )}
@@ -370,7 +370,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
           <>
             <div>
               <h2 className="text-xl font-medium">{elegido.nombre}</h2>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-texto-sutil text-sm">
                 Se vende a {pesos(Math.round((elegido.precio_venta ?? 0) * 100))}
               </p>
             </div>
@@ -386,7 +386,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
                       <span className="tabular-nums">
                         {String(linea.cantidad_usada)} {linea.unidad}
                       </span>
-                      <span className="text-muted-foreground text-xs">
+                      <span className="text-texto-sutil text-xs">
                         {CANALES.find((c) => c.clave === linea.aplica_canal)?.etiqueta ??
                           linea.aplica_canal ??
                           'ambos'}
@@ -409,15 +409,15 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
 
                 <div className="flex gap-(--espacio-8)">
                   <div>
-                    <p className="text-muted-foreground text-sm">Aquí cuesta</p>
+                    <p className="text-texto-sutil text-sm">Aquí cuesta</p>
                     <p className="text-xl font-semibold tabular-nums">{pesos(aqui)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground text-sm">Para llevar cuesta</p>
+                    <p className="text-texto-sutil text-sm">Para llevar cuesta</p>
                     <p className="text-xl font-semibold tabular-nums">{pesos(llevar)}</p>
                   </div>
                 </div>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-texto-sutil text-sm">
                   La diferencia es el empaque. Cargarlo siempre infla el de mesa; no cargarlo nunca
                   regala cinco pesos por bebida.
                 </p>
@@ -429,7 +429,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
                     <Label htmlFor="insumo">Insumo</Label>
                     <select
                       id="insumo"
-                      className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
+                      className="border-borde-fuerte h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
                       value={nueva.insumoId}
                       onChange={(evento) => {
                         setNueva({ ...nueva, insumoId: evento.target.value });
@@ -459,7 +459,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
                     <Label htmlFor="canal">Cuándo</Label>
                     <select
                       id="canal"
-                      className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
+                      className="border-borde-fuerte h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
                       value={nueva.canal}
                       onChange={(evento) => {
                         setNueva({ ...nueva, canal: evento.target.value });

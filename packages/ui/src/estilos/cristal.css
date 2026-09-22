@@ -73,7 +73,7 @@
   --lateral-borde: 215 35% 26%;
 }
 
-[data-estilo='cristal'].dark {
+[data-estilo='cristal'][data-modo='oscuro'] {
   --sombra-tinte: 220 60% 2%;
 
   --fondo: 218 40% 8%;

@@ -51,8 +51,8 @@ const PESOS_EXACTOS = new Intl.NumberFormat('es-MX', { style: 'currency', curren
 /** La referencia del giro para la diferencia de conteo, en puntos base. */
 const CONTEO_ACEPTABLE_BP = 250;
 
-const TARJETA = 'rounded-xl border border-border bg-card p-(--espacio-4) text-card-foreground';
-const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
+const TARJETA = 'rounded-xl border border-borde bg-superficie p-(--espacio-4) text-texto';
+const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-texto-sutil';
 const CIFRA = 'text-3xl font-bold tabular-nums';
 const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
 const RENGLON = 'flex items-baseline justify-between gap-(--espacio-3) py-1';
@@ -181,10 +181,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
     return (
       <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Buen día</h1>
-        <p
-          role="alert"
-          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
-        >
+        <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-(--espacio-3)">
           {error}
         </p>
       </main>
@@ -213,7 +210,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       <header className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">Buen día</h1>
-          <p className="text-sm text-muted-foreground">{comoFecha(datos.fecha)}</p>
+          <p className="text-sm text-texto-sutil">{comoFecha(datos.fecha)}</p>
         </div>
         <div className="flex gap-2">
           <Button asChild size="sm">
@@ -233,7 +230,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
           {voc.titulo('orden')} de hoy
         </h2>
         <p className={CIFRA}>{pesos(venta.hoyCentavos)}</p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           {comparacion(venta.hoyCentavos, venta.referenciaCentavos)} ·{' '}
           {voc.conNumero('orden', venta.tickets)}
         </p>
@@ -247,7 +244,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
         <p className={CIFRA}>
           {pesos(margen.hoyCentavos)} <span className={CIFRA_CHICA}>{porciento(margen.hoyBp)}</span>
         </p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           En el mes {pesos(margen.mesCentavos)} · {porciento(margen.mesBp)}
         </p>
       </section>
@@ -258,22 +255,20 @@ export function Tablero({ datosIniciales }: TableroProps) {
           Qué pedir
         </h2>
         {porPedir.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nada bajo mínimo: el surtido está completo.
-          </p>
+          <p className="text-sm text-texto-sutil">Nada bajo mínimo: el surtido está completo.</p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="divide-y divide-borde">
             {porPedir.map((fila) => (
               <li key={fila.proveedor} className={RENGLON}>
                 <span className="min-w-0 flex-1 truncate">
                   {fila.proveedor}
                   {fila.pasaManana && (
-                    <span className="ml-2 rounded-md bg-primary/15 px-1 text-xs font-semibold text-primary">
+                    <span className="ml-2 rounded-md bg-primario/15 px-1 text-xs font-semibold text-primario">
                       pasa mañana
                     </span>
                   )}
                 </span>
-                <span className="text-sm text-muted-foreground">{fila.claves} claves</span>
+                <span className="text-sm text-texto-sutil">{fila.claves} claves</span>
                 <span className="tabular-nums">{pesos(fila.importeCentavos)}</span>
               </li>
             ))}
@@ -292,7 +287,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
         {!conteo.hayConteos ? (
           <>
             <p className={CIFRA_CHICA}>Sin conteos este mes</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-texto-sutil">
               El conteo cíclico no se está haciendo: un cero aquí sería mentira.
             </p>
             <Button asChild size="sm" variant="secondary" className="mt-2">
@@ -305,8 +300,8 @@ export function Tablero({ datosIniciales }: TableroProps) {
             <p
               className={
                 Math.abs(conteo.sobreVentaBp) > CONTEO_ACEPTABLE_BP
-                  ? 'text-sm font-semibold text-destructive'
-                  : 'text-sm text-muted-foreground'
+                  ? 'text-sm font-semibold text-peligro'
+                  : 'text-sm text-texto-sutil'
               }
             >
               {porciento(Math.abs(conteo.sobreVentaBp))} de la venta del mes · la referencia del
@@ -323,15 +318,15 @@ export function Tablero({ datosIniciales }: TableroProps) {
           Lo que me deben
         </h2>
         <p className={CIFRA}>{pesos(fiado.totalCentavos)}</p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           Vencido {pesos(fiado.vencidoCentavos)} · otorgado hoy {pesos(fiado.otorgadoHoyCentavos)}
         </p>
         {fiado.masViejos.length > 0 && (
-          <ul className="mt-2 divide-y divide-border">
+          <ul className="mt-2 divide-y divide-borde">
             {fiado.masViejos.map((quien) => (
               <li key={`${quien.cliente}-${quien.dias}`} className={RENGLON}>
                 <span className="min-w-0 flex-1 truncate">{quien.cliente}</span>
-                <span className="text-sm text-muted-foreground">{quien.dias} d</span>
+                <span className="text-sm text-texto-sutil">{quien.dias} d</span>
                 <span className="tabular-nums">{pesos(quien.saldoCentavos)}</span>
               </li>
             ))}
@@ -348,9 +343,9 @@ export function Tablero({ datosIniciales }: TableroProps) {
           Se vence esta semana
         </h2>
         {porVencer.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nada se vence esta semana.</p>
+          <p className="text-sm text-texto-sutil">Nada se vence esta semana.</p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="divide-y divide-borde">
             {/* LA ÚNICA GRÁFICA DE ESTE TABLERO, y va aquí y no en la venta.
                 §4.4 prohíbe la dona de métodos de pago —«en 390 px una lista ordenada
                 contesta mejor y ocupa menos»— y el mismo criterio decide dónde SÍ
@@ -377,9 +372,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             {porVencer.map((fila) => (
               <li key={`${fila.producto}-${fila.dias}`} className={RENGLON}>
                 <span className="min-w-0 flex-1 truncate">{fila.producto}</span>
-                <span
-                  className={fila.dias <= 0 ? 'text-sm font-semibold text-destructive' : 'text-sm'}
-                >
+                <span className={fila.dias <= 0 ? 'text-sm font-semibold text-peligro' : 'text-sm'}>
                   {fila.dias <= 0 ? 'vencido' : `en ${String(fila.dias)} d`}
                 </span>
                 <span className="tabular-nums">{pesos(fila.valorCentavos)}</span>
@@ -399,12 +392,12 @@ export function Tablero({ datosIniciales }: TableroProps) {
             <p className={CIFRA_CHICA}>
               Abierta · {pesosExactos(caja.efectivoEsperadoCentavos)} en el cajón
             </p>
-            <p className="text-sm text-muted-foreground">La tiene {caja.quien ?? 'sin firma'}</p>
+            <p className="text-sm text-texto-sutil">La tiene {caja.quien ?? 'sin firma'}</p>
           </>
         ) : (
           <p className={CIFRA_CHICA}>Cerrada</p>
         )}
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           {caja.diferenciaUltimoCierreCentavos === null
             ? 'Todavía no hay ningún corte.'
             : `Último cierre: ${pesosExactos(caja.diferenciaUltimoCierreCentavos)} de diferencia.`}

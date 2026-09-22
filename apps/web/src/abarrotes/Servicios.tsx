@@ -398,10 +398,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
 
   const banda =
     error === null ? null : (
-      <p
-        role="alert"
-        className="rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
-      >
+      <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-2 text-sm">
         {error} · No se cobró nada y la caja no se movió.
       </p>
     );
@@ -434,7 +431,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
             </Button>
           }
         >
-          <p className="max-w-prose text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm text-texto-sutil">
             Una recarga de $50 te deja {enPesos(comisionDeRecarga(5000))} y un recibo de luz
             {` ${enPesos(comisionDeServicio('CFE'))}`}. Treinta operaciones al día son cerca de $200
             diarios que hoy no estás cobrando, y además traen gente a la tienda.
@@ -473,7 +470,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
 
       {banda}
       {aviso !== null && (
-        <p role="status" className="rounded-md border border-border bg-accent p-2 text-sm">
+        <p role="status" className="rounded-md border border-borde bg-acento-suave p-2 text-sm">
           {aviso}
         </p>
       )}
@@ -482,7 +479,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
       <div className="grid flex-1 gap-(--espacio-4) xl:grid-cols-2">
         <section
           aria-labelledby="titulo-recarga"
-          className={`${carrilMovil === 'recarga' ? '' : 'hidden'} space-y-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-4) md:block`}
+          className={`${carrilMovil === 'recarga' ? '' : 'hidden'} space-y-(--espacio-3) rounded-lg border border-borde bg-superficie p-(--espacio-4) md:block`}
         >
           <h2 id="titulo-recarga" className="text-sm font-bold uppercase tracking-wide">
             Recarga
@@ -566,7 +563,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
           </Button>
           {/* El motivo se escribe, no se insinúa con un botón gris: el color
               nunca es el único que dice por qué algo no se puede. */}
-          <p id="razon-recarga" className="text-xs text-muted-foreground">
+          <p id="razon-recarga" className="text-xs text-texto-sutil">
             {sinSaldo
               ? 'Sin saldo con este operador: deposita para seguir recargando.'
               : digitos.length !== DIGITOS_TELEFONO
@@ -584,7 +581,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
 
         <section
           aria-labelledby="titulo-servicio"
-          className={`${carrilMovil === 'servicio' ? '' : 'hidden'} space-y-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-4) md:block`}
+          className={`${carrilMovil === 'servicio' ? '' : 'hidden'} space-y-(--espacio-3) rounded-lg border border-borde bg-superficie p-(--espacio-4) md:block`}
         >
           <h2 id="titulo-servicio" className="text-sm font-bold uppercase tracking-wide">
             Pago de servicio
@@ -672,7 +669,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
           >
             COBRAR {enPesos(importeCentavos)}
           </Button>
-          <p id="razon-servicio" className="text-xs text-muted-foreground">
+          <p id="razon-servicio" className="text-xs text-texto-sutil">
             {proveedorServicio === null
               ? 'Elige el servicio: pagar el recibo del proveedor equivocado no tiene vuelta.'
               : referencia.trim().length < DIGITOS_REFERENCIA
@@ -686,7 +683,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
 
       {/* Pegada abajo: el aviso de saldo no puede depender de que alguien se
           acuerde de mirar, y en teléfono es lo que el dueño vino a ver. */}
-      <footer className="sticky bottom-0 -mx-(--espacio-4) -mb-(--espacio-4) flex flex-wrap items-center gap-x-(--espacio-4) gap-y-1 border-t border-border bg-card px-(--espacio-4) py-2 text-sm">
+      <footer className="sticky bottom-0 -mx-(--espacio-4) -mb-(--espacio-4) flex flex-wrap items-center gap-x-(--espacio-4) gap-y-1 border-t border-borde bg-superficie px-(--espacio-4) py-2 text-sm">
         <span>
           Saldo de recargas: <strong>{enPesos(saldoTotal)}</strong>
         </span>
@@ -705,7 +702,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
             Sin esto el saldo sólo puede bajar, y el panel acabaría enseñando un
             número que no se puede arreglar desde ninguna pantalla. */}
         <span className="ml-auto flex items-center gap-2">
-          <Label htmlFor="cargar-saldo" className="text-xs text-muted-foreground">
+          <Label htmlFor="cargar-saldo" className="text-xs text-texto-sutil">
             Cargar saldo de {proveedorRecarga}
           </Label>
           <Input

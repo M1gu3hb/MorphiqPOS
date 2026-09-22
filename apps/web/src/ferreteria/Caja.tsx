@@ -385,18 +385,12 @@ export function Caja({
   const banda = (
     <>
       {error !== null && (
-        <p
-          role="alert"
-          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
-        >
+        <p role="alert" className="mb-(--espacio-3) rounded-md border border-peligro p-2 text-sm">
           {error} · Ninguna nota se marcó como pagada.
         </p>
       )}
       {avisoBanco !== null && (
-        <p
-          role="alert"
-          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
-        >
+        <p role="alert" className="mb-(--espacio-3) rounded-md border border-peligro p-2 text-sm">
           {avisoBanco} · Ninguna transferencia se marcó como confirmada.
         </p>
       )}
@@ -448,11 +442,11 @@ export function Caja({
         aria-label="Transferencias por confirmar"
         className="space-y-(--espacio-3) md:hidden"
       >
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           La caja se opera en el mostrador. Desde el teléfono sólo se confirman transferencias.
         </p>
         {transferencias.length === 0 ? (
-          <p className="rounded-lg border border-border p-(--espacio-4) text-sm">
+          <p className="rounded-lg border border-borde p-(--espacio-4) text-sm">
             Ninguna transferencia espera confirmación. Cuando un cliente pague su cuenta así, el
             pago aparece aquí para cotejarlo contra el banco — y hasta entonces su saldo no baja.
           </p>
@@ -461,7 +455,7 @@ export function Caja({
             {transferencias.map((transferencia) => (
               <li
                 key={transferencia.pagoId}
-                className="flex items-center justify-between gap-(--espacio-3) rounded-lg border border-border p-(--espacio-3)"
+                className="flex items-center justify-between gap-(--espacio-3) rounded-lg border border-borde p-(--espacio-3)"
               >
                 <span className="min-w-0">
                   <span className="block font-medium tabular-nums">
@@ -470,7 +464,7 @@ export function Caja({
                   {/* Las horas esperando van en la lista: una de hace veinte
                       minutos y una de hace tres días no se revisan con la misma
                       prisa. */}
-                  <span className="block truncate text-sm text-muted-foreground">
+                  <span className="block truncate text-sm text-texto-sutil">
                     {transferencia.referencia ?? 'sin referencia'} · hace{' '}
                     {transferencia.horasEsperando} h
                   </span>
@@ -512,8 +506,8 @@ export function Caja({
                       }}
                       className={[
                         'flex w-full items-baseline gap-2 rounded-md px-2 py-2 text-left',
-                        'transition-colors hover:bg-accent hover:text-accent-foreground',
-                        activa ? 'bg-accent text-accent-foreground' : '',
+                        'transition-colors hover:bg-acento-suave hover:text-acento-suave-texto',
+                        activa ? 'bg-acento-suave text-acento-suave-texto' : '',
                       ].join(' ')}
                     >
                       {/* El punto, no sólo el fondo: el color nunca decide solo. */}
@@ -528,7 +522,7 @@ export function Caja({
                     </button>
                     {/* Avisa ANTES de liberar el material, no después. */}
                     {faltan !== null && faltan <= AVISO_MINUTOS && (
-                      <p className="px-2 text-xs text-muted-foreground">
+                      <p className="px-2 text-xs text-texto-sutil">
                         ⏱ {nota.codigo_caja ?? voc.conDeterminante('este', 'orden')}{' '}
                         {faltan > 0 ? `vence en ${faltan} min` : 'ya venció'}
                       </p>
@@ -547,7 +541,7 @@ export function Caja({
               Cerradas, sin entregar ({porEntregar.length})
             </h2>
             {porEntregar.length === 0 ? (
-              <p className="px-2 text-xs text-muted-foreground">Nada cerrado espera en el andén.</p>
+              <p className="px-2 text-xs text-texto-sutil">Nada cerrado espera en el andén.</p>
             ) : (
               <ul className="space-y-1">
                 {porEntregar.map((nota) => (
@@ -562,14 +556,14 @@ export function Caja({
           </section>
 
           <Separator />
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Por cobrar · {pendientes.length} notas · {enPesos(sumaDe(pendientes))}
           </p>
           {/* Lo apartado no se cobra hoy, y tampoco se esconde: es material
               comprometido, y no verlo es como el patio se llena de pedidos de
               clientes que no volvieron. */}
           {apartadas.length > 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-texto-sutil">
               Apartadas · {apartadas.length} notas · {enPesos(sumaDe(apartadas))} esperando a su
               dueño
             </p>
@@ -581,7 +575,7 @@ export function Caja({
           className="space-y-(--espacio-3)"
         >
           {seleccionada === null ? (
-            <p className="rounded-lg border border-border p-(--espacio-6) text-center text-muted-foreground">
+            <p className="rounded-lg border border-borde p-(--espacio-6) text-center text-texto-sutil">
               Elige {voc.enFraseCon('un', 'orden')} de la izquierda para cobrarla.
             </p>
           ) : (
@@ -591,7 +585,7 @@ export function Caja({
                   Nota {seleccionada.codigo_caja ?? '—'} · {seleccionada.atendio ?? 'mostrador'} ·{' '}
                   {horaDe(seleccionada.creada)}
                 </h2>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-texto-sutil">
                   {nombreDe(seleccionada)}
                   {seleccionada.obra === null ? '' : ` · obra ${seleccionada.obra}`}
                 </p>
@@ -605,14 +599,14 @@ export function Caja({
                 )}
               </header>
 
-              <ul className="space-y-1 rounded-lg border border-border p-(--espacio-3) text-sm">
+              <ul className="space-y-1 rounded-lg border border-borde p-(--espacio-3) text-sm">
                 {suyas.map((linea) => (
                   <li
                     key={linea.id}
                     className="flex items-baseline justify-between gap-(--espacio-3)"
                   >
                     <span className="min-w-0 truncate">{linea.producto_nombre ?? 'Material'}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                    <span className="shrink-0 tabular-nums text-texto-sutil">
                       {linea.cantidad ?? 1} {linea.unidad ?? 'pz'}
                     </span>
                     <span className="shrink-0 tabular-nums">{enPesos(aCentavos(linea.total))}</span>
@@ -626,11 +620,9 @@ export function Caja({
                   sin agarrarse de una clase de CSS. */}
               <section
                 aria-label={`Total de ${voc.enFrase('orden')}`}
-                className="rounded-lg border border-border bg-card p-(--espacio-4) text-center text-card-foreground"
+                className="rounded-lg border border-borde bg-superficie p-(--espacio-4) text-center text-texto"
               >
-                <span className="block text-sm font-medium uppercase text-muted-foreground">
-                  Total
-                </span>
+                <span className="block text-sm font-medium uppercase text-texto-sutil">Total</span>
                 <span className="block font-numeros text-display font-bold tabular-nums">
                   {enPesos(total)}
                 </span>

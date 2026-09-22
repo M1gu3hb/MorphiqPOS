@@ -148,6 +148,6 @@
    `text-white` escrito a mano —el activo de la barra lateral lo lleva— y en penumbra
    eso deslumbra. Aquí se le pone techo a cualquier blanco que se cuele.
    ═══════════════════════════════════════════════════════════════════════════ */
-[data-estilo='noche'].dark .text-white {
+[data-estilo='noche'][data-modo='oscuro'] .text-white {
   color: hsl(var(--texto));
 }

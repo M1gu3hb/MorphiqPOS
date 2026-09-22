@@ -69,10 +69,9 @@ const SEGUNDOS_ROJO = 360;
 const SEGUNDOS_DESHACER = 60;
 const LLAMADOS_PARA_ABANDONAR = 3;
 
-const TARJETA =
-  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
+const TARJETA = 'rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1';
 const CHIP = 'rounded-md px-2 py-1 text-sm font-semibold tabular-nums';
-const BANDA = 'rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
+const BANDA = 'rounded-md border border-peligro bg-peligro/15 p-2 text-sm';
 
 export interface ItemDeBarra {
   readonly id: string;
@@ -112,9 +111,9 @@ export function reloj(segundos: number): string {
 
 /** El color nunca va solo: cada tramo trae su palabra. */
 export function urgencia(segundos: number): { readonly clase: string; readonly palabra: string } {
-  if (segundos >= SEGUNDOS_ROJO) return { clase: 'bg-destructive/25', palabra: 'muy tarde' };
-  if (segundos >= SEGUNDOS_AMBAR) return { clase: 'bg-warning/30', palabra: 'tarde' };
-  return { clase: 'bg-muted text-muted-foreground', palabra: 'a tiempo' };
+  if (segundos >= SEGUNDOS_ROJO) return { clase: 'bg-peligro/25', palabra: 'muy tarde' };
+  if (segundos >= SEGUNDOS_AMBAR) return { clase: 'bg-advertencia/30', palabra: 'tarde' };
+  return { clase: 'bg-fondo-sutil text-texto-sutil', palabra: 'a tiempo' };
 }
 
 /** Lo nuevo entra por abajo: dentro de la columna manda la hora de llegada. */
@@ -224,7 +223,7 @@ export function Barra({ filasIniciales }: BarraProps) {
   // Esqueletos con la forma de las tarjetas: la pantalla no salta al cargar.
   if (pedidos === null) {
     return (
-      <div className="grid min-h-dvh gap-(--espacio-4) bg-background p-(--espacio-4) md:grid-cols-2">
+      <div className="grid min-h-dvh gap-(--espacio-4) bg-fondo p-(--espacio-4) md:grid-cols-2">
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-40 w-full rounded-lg" />
         ))}
@@ -248,10 +247,10 @@ export function Barra({ filasIniciales }: BarraProps) {
   ));
 
   return (
-    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-background p-(--espacio-4) text-foreground">
+    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-fondo p-(--espacio-4) text-texto">
       <header className="flex flex-wrap items-baseline justify-between gap-(--espacio-3)">
         <h1 className="text-xl font-bold tracking-wide uppercase">{voc.titulo('preparacion')}</h1>
-        <p className="text-sm text-muted-foreground tabular-nums">
+        <p className="text-sm text-texto-sutil tabular-nums">
           {promedio === null
             ? `Sin ${voc.plural('unidad_servicio')} en espera`
             : `⏱ prom. en fila ${reloj(promedio)}`}
@@ -268,9 +267,9 @@ export function Barra({ filasIniciales }: BarraProps) {
       {enFila.length === 0 && listos.length === 0 ? (
         // El único vacío de la aplicación que es una BUENA noticia, y se ve así:
         // el tipo más grande de la pantalla, y ni una sola disculpa.
-        <div className="flex flex-1 flex-col items-center justify-center gap-(--espacio-3) rounded-lg bg-success/15 p-(--espacio-8) text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-(--espacio-3) rounded-lg bg-exito/15 p-(--espacio-8) text-center">
           <p className="text-display font-bold">La fila está vacía.</p>
-          <p className="text-muted-foreground">Buen momento para reponer leche.</p>
+          <p className="text-texto-sutil">Buen momento para reponer leche.</p>
         </div>
       ) : esTelefono ? (
         // En teléfono la barra sobrevive entera: una columna y dos pestañas,
@@ -294,7 +293,7 @@ export function Barra({ filasIniciales }: BarraProps) {
       )}
 
       {recien.length > 0 && (
-        <footer className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <footer className="flex flex-wrap items-center gap-2 text-sm text-texto-sutil">
           <span>Entregados hace un momento:</span>
           {recien.map((p) => (
             <Button
@@ -342,7 +341,7 @@ function Columna({
   return (
     <section
       aria-labelledby={id}
-      className="flex flex-col gap-(--espacio-3) rounded-lg border border-border bg-muted/40 p-(--espacio-3)"
+      className="flex flex-col gap-(--espacio-3) rounded-lg border border-borde bg-fondo-sutil/40 p-(--espacio-3)"
     >
       <h2 id={id} className="flex justify-between text-sm font-bold tracking-wide uppercase">
         <span>{titulo}</span>
@@ -359,7 +358,7 @@ function Columna({
               {/* Lo más grande de la pantalla: es el dato que se dice en voz alta. */}
               <h3 className="text-3xl leading-none font-bold">{nombre}</h3>
               {/* El canal, chiquito: el barista ya sabe qué vaso usar por él. */}
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-texto-sutil">
                 {pedido.origen_pedido === 'para_llevar' ? (
                   <>
                     <CupSoda aria-hidden="true" className="inline size-4 shrink-0" /> para llevar
@@ -378,7 +377,7 @@ function Columna({
                 {reloj(segundosDesde(pedido.created_date, ahora))} · {tramo.palabra}
               </span>
               {campanas > 0 && (
-                <span className={`${CHIP} bg-secondary text-secondary-foreground`}>
+                <span className={`${CHIP} bg-fondo-sutil text-texto`}>
                   <span aria-hidden="true" className="inline-flex">
                     {Array.from({ length: Math.min(campanas, 3) }, (_, indice) => (
                       <BellRing key={indice} className="inline size-4 shrink-0" />
@@ -395,7 +394,7 @@ function Columna({
                   <span className="font-semibold">{item.cantidad ?? 1}</span>{' '}
                   {item.producto_nombre ?? 'Producto sin nombre'}
                   {item.notas !== null && item.notas !== '' && (
-                    <span className="block pl-(--espacio-4) text-xs text-muted-foreground">
+                    <span className="block pl-(--espacio-4) text-xs text-texto-sutil">
                       {item.notas}
                     </span>
                   )}
@@ -406,7 +405,7 @@ function Columna({
             {/* No se colapsa ni espera a que nadie la pida: un error aquí no es
                 un descuadre, es una urgencia médica. */}
             {pedido.notas_alergias !== null && pedido.notas_alergias !== '' && (
-              <p className="mt-2 rounded-md border border-destructive bg-destructive/15 p-2 text-sm font-bold">
+              <p className="mt-2 rounded-md border border-peligro bg-peligro/15 p-2 text-sm font-bold">
                 <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> ALERGIA:{' '}
                 {pedido.notas_alergias}
               </p>

@@ -73,9 +73,9 @@ import { useVocabulario } from '~/cliente/vocabulario';
 
 /** Los tres tramos de antigüedad. El color SIEMPRE viaja con su palabra. */
 const SEMAFORO = [
-  { hasta: 15, punto: 'bg-success', palabra: 'al corriente' },
-  { hasta: 30, punto: 'bg-warning', palabra: 'por vencer' },
-  { hasta: Number.POSITIVE_INFINITY, punto: 'bg-destructive', palabra: 'vencido' },
+  { hasta: 15, punto: 'bg-exito', palabra: 'al corriente' },
+  { hasta: 30, punto: 'bg-advertencia', palabra: 'por vencer' },
+  { hasta: Number.POSITIVE_INFINITY, punto: 'bg-peligro', palabra: 'vencido' },
 ] as const;
 
 /** A partir de aquí la deuda cuenta como vencida, en la cifra y en el filtro. */
@@ -359,7 +359,7 @@ export function Cuentas({
   // primero que dice es que no se aplicó ningún pago.
   const banda =
     error === null ? null : (
-      <p role="alert" className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm">
+      <p role="alert" className="mb-(--espacio-3) rounded-md border border-peligro p-2 text-sm">
         {error} · Ningún pago quedó registrado.
       </p>
     );
@@ -406,7 +406,7 @@ export function Cuentas({
       {aviso !== null && (
         <p
           role="status"
-          className="mb-(--espacio-3) rounded-md border border-border bg-muted p-2 text-sm"
+          className="mb-(--espacio-3) rounded-md border border-borde bg-fondo-sutil p-2 text-sm"
         >
           {aviso}
         </p>
@@ -414,22 +414,22 @@ export function Cuentas({
 
       {/* Primero el total, después lo vencido, después lo que ya entró hoy. */}
       <dl className="mb-(--espacio-3) grid gap-(--espacio-3) sm:grid-cols-3">
-        <div className="rounded-lg border border-border bg-card p-(--espacio-3)">
-          <dt className="text-xs uppercase text-muted-foreground">Lo que me deben</dt>
+        <div className="rounded-lg border border-borde bg-superficie p-(--espacio-3)">
+          <dt className="text-xs uppercase text-texto-sutil">Lo que me deben</dt>
           <dd className="text-2xl font-bold tabular-nums">{enPesos(totalDebido)}</dd>
-          <dd className="text-xs text-muted-foreground">{clientes.length} clientes</dd>
+          <dd className="text-xs text-texto-sutil">{clientes.length} clientes</dd>
         </div>
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-(--espacio-3)">
-          <dt className="text-xs uppercase text-muted-foreground">Vencido · 31 días o más</dt>
+        <div className="rounded-lg border border-peligro/40 bg-peligro/10 p-(--espacio-3)">
+          <dt className="text-xs uppercase text-texto-sutil">Vencido · 31 días o más</dt>
           <dd className="text-2xl font-bold tabular-nums">{enPesos(totalVencido)}</dd>
-          <dd className="text-xs text-muted-foreground">
+          <dd className="text-xs text-texto-sutil">
             {new Set(atrasados.map((fila) => fila.cliente_id)).size} clientes
           </dd>
         </div>
-        <div className="rounded-lg border border-border bg-card p-(--espacio-3)">
-          <dt className="text-xs uppercase text-muted-foreground">Cobrado hoy</dt>
+        <div className="rounded-lg border border-borde bg-superficie p-(--espacio-3)">
+          <dt className="text-xs uppercase text-texto-sutil">Cobrado hoy</dt>
           <dd className="text-2xl font-bold tabular-nums">{enPesos(cobradoHoy)}</dd>
-          <dd className="text-xs text-muted-foreground">
+          <dd className="text-xs text-texto-sutil">
             {METODOS.map(
               (uno) =>
                 `${uno.etiqueta} ${enPesos(
@@ -473,7 +473,7 @@ export function Cuentas({
 
       {/* La cabecera de columnas es de tablet para arriba: en teléfono cada
           renglón se explica solo y una cabecera ahí sería una línea perdida. */}
-      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_9rem_7rem_6rem] gap-(--espacio-3) px-(--espacio-3) pb-1 text-xs uppercase text-muted-foreground md:grid">
+      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_9rem_7rem_6rem] gap-(--espacio-3) px-(--espacio-3) pb-1 text-xs uppercase text-texto-sutil md:grid">
         <span>{voc.titulo('cliente')} / obra</span>
         <span className="text-right">Debe</span>
         <span>Más viejo</span>
@@ -487,7 +487,7 @@ export function Cuentas({
           const excede = cliente.limite > 0 && cliente.debe > cliente.limite;
           const desplegado = abierto === cliente.id;
           return (
-            <li key={cliente.id} className="rounded-lg border border-border bg-card">
+            <li key={cliente.id} className="rounded-lg border border-borde bg-superficie">
               <div className="flex items-center">
                 <button
                   type="button"
@@ -496,15 +496,13 @@ export function Cuentas({
                   onClick={() => {
                     setAbierto(desplegado ? null : cliente.id);
                   }}
-                  className="grid flex-1 grid-cols-[minmax(0,1fr)_7rem] items-center gap-x-(--espacio-3) gap-y-1 rounded-lg p-(--espacio-3) text-left hover:bg-accent md:grid-cols-[minmax(0,1fr)_7rem_9rem_7rem_6rem]"
+                  className="grid flex-1 grid-cols-[minmax(0,1fr)_7rem] items-center gap-x-(--espacio-3) gap-y-1 rounded-lg p-(--espacio-3) text-left hover:bg-acento-suave md:grid-cols-[minmax(0,1fr)_7rem_9rem_7rem_6rem]"
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">
                       <span aria-hidden>{desplegado ? '▾' : '▸'}</span> {cliente.nombre}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      {cliente.obras.length} obra(s)
-                    </span>
+                    <span className="text-xs text-texto-sutil">{cliente.obras.length} obra(s)</span>
                     {/* El aviso de límite es OTRO problema que la antigüedad. */}
                     {excede && (
                       <Badge variant="destructive" className="ml-2">
@@ -520,10 +518,10 @@ export function Cuentas({
                     <span aria-hidden className={`h-2 w-2 rounded-full ${tramo.punto}`} />
                     {cliente.dias} d · {tramo.palabra}
                   </span>
-                  <span className="hidden text-right text-sm tabular-nums text-muted-foreground md:block">
+                  <span className="hidden text-right text-sm tabular-nums text-texto-sutil md:block">
                     {cliente.limite === 0 ? 'sin límite' : enPesos(cliente.limite)}
                   </span>
-                  <span className="hidden text-sm text-muted-foreground md:block">
+                  <span className="hidden text-sm text-texto-sutil md:block">
                     {cliente.diasUltimoPago === null
                       ? 'sin pagos'
                       : `hace ${cliente.diasUltimoPago} d`}
@@ -534,7 +532,7 @@ export function Cuentas({
                   <a
                     href={`tel:${cliente.telefono}`}
                     aria-label={`Llamar a ${cliente.nombre}`}
-                    className="px-(--espacio-3) py-(--espacio-4) text-lg hover:bg-accent"
+                    className="px-(--espacio-3) py-(--espacio-4) text-lg hover:bg-acento-suave"
                   >
                     <Phone aria-hidden="true" className="inline size-4 shrink-0" />
                   </a>
@@ -553,7 +551,7 @@ export function Cuentas({
               {desplegado && (
                 <ul
                   id={`obras-${cliente.id}`}
-                  className="border-t border-border px-(--espacio-3) py-2"
+                  className="border-t border-borde px-(--espacio-3) py-2"
                 >
                   {cliente.obras.map((obra) => {
                     const suyo = tramoDe(obra.dias_mas_viejo ?? 0);
@@ -565,7 +563,7 @@ export function Cuentas({
                         <span className="min-w-0 truncate">· {obra.obra_nombre ?? 'Sin obra'}</span>
                         <span className="flex shrink-0 items-center gap-2 tabular-nums">
                           {enPesos(obra.saldo_centavos ?? 0)}
-                          <span className="text-muted-foreground">
+                          <span className="text-texto-sutil">
                             {obra.dias_mas_viejo ?? 0} d · {suyo.palabra}
                           </span>
                           <span aria-hidden className={`h-2 w-2 rounded-full ${suyo.punto}`} />
@@ -581,7 +579,7 @@ export function Cuentas({
       </ul>
 
       {visibles.length === 0 && (
-        <p className="p-(--espacio-4) text-sm text-muted-foreground">
+        <p className="p-(--espacio-4) text-sm text-texto-sutil">
           {voc.conDeterminante('ningun', 'cliente')} cae en este filtro. Quita la búsqueda o vuelve
           a «Todos».
         </p>
@@ -624,7 +622,7 @@ export function Cuentas({
               ))}
             </div>
 
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-texto-sutil">
               El pago se aplica a documentos, no al saldo. Viene marcado el más viejo; el cliente
               decide.
             </p>
@@ -636,13 +634,13 @@ export function Cuentas({
                 ))}
               </div>
             ) : pendientes.length === 0 ? (
-              <p className="rounded-md border border-border p-(--espacio-3) text-sm">
+              <p className="rounded-md border border-borde p-(--espacio-3) text-sm">
                 Este cliente no tiene remisiones abiertas: su saldo ya quedó aplicado a documentos
                 cerrados.
               </p>
             ) : (
               <>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-texto-sutil text-xs">
                   Lo que marques SUMA el importe. El pago se aplica a lo que venció primero, que es
                   como se lleva una cuenta de crédito.
                 </p>
@@ -650,7 +648,7 @@ export function Cuentas({
                   {pendientes.map((doc) => (
                     <li
                       key={doc.id}
-                      className="flex items-center gap-(--espacio-3) rounded-md border border-border p-2"
+                      className="flex items-center gap-(--espacio-3) rounded-md border border-borde p-2"
                     >
                       <Checkbox
                         id={`doc-${doc.id}`}
@@ -667,7 +665,7 @@ export function Cuentas({
                         <span className="font-medium">
                           {doc.folio ?? 'Sin folio'} · {enPesos(doc.saldo_documento_centavos ?? 0)}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-texto-sutil">
                           {doc.obra_nombre ?? 'Sin obra'} · {doc.dias ?? 0} días
                         </span>
                       </label>

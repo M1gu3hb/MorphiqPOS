@@ -78,10 +78,10 @@ const CHIP = [
   'flex min-h-(--area-tactil-minima) flex-col items-center justify-center gap-0.5',
   'rounded-md border-2 px-(--espacio-3) py-2 text-center transition-colors',
   'md:min-h-[calc(var(--area-tactil-minima)*1.2)]',
-  'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+  'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-anillo/50',
 ].join(' ');
 
-const ROTULO = 'mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground';
+const ROTULO = 'mb-2 text-xs font-bold uppercase tracking-wide text-texto-sutil';
 
 /** Los dos alérgenos de este giro. Cualquier otro entra por el campo libre. */
 const ALERGENOS = ['Frutos secos', 'Lácteos'] as const;
@@ -99,9 +99,9 @@ export interface OpcionesDeLaBebidaProps {
 }
 
 function claseChip(activa: boolean, agotado: boolean): string {
-  if (agotado) return 'border-border bg-muted text-muted-foreground';
-  if (activa) return 'border-primary bg-primary text-primary-foreground';
-  return 'border-input bg-background hover:bg-accent hover:text-accent-foreground';
+  if (agotado) return 'border-borde bg-fondo-sutil text-texto-sutil';
+  if (activa) return 'border-primario bg-primario text-primario-texto';
+  return 'border-borde-fuerte bg-fondo hover:bg-acento-suave hover:text-acento-suave-texto';
 }
 
 export function OpcionesDeLaBebida({
@@ -232,12 +232,12 @@ export function OpcionesDeLaBebida({
   }
 
   return (
-    <div className="flex min-h-dvh justify-center bg-background md:items-center md:p-(--espacio-6)">
+    <div className="flex min-h-dvh justify-center bg-fondo md:items-center md:p-(--espacio-6)">
       <section
         aria-labelledby="titulo-bebida"
-        className="flex w-full max-w-2xl flex-col bg-card text-card-foreground md:rounded-xl md:border md:border-border md:shadow-3"
+        className="flex w-full max-w-2xl flex-col bg-superficie text-texto md:rounded-xl md:border md:border-borde md:shadow-3"
       >
-        <header className="flex items-center justify-between gap-(--espacio-3) border-b border-border p-(--espacio-4)">
+        <header className="flex items-center justify-between gap-(--espacio-3) border-b border-borde p-(--espacio-4)">
           <h1 id="titulo-bebida" className="text-2xl font-bold uppercase">
             {productoNombre}
           </h1>
@@ -260,7 +260,7 @@ export function OpcionesDeLaBebida({
         {error !== null && (
           <p
             role="alert"
-            className="mx-(--espacio-4) mt-(--espacio-4) rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
+            className="mx-(--espacio-4) mt-(--espacio-4) rounded-md border border-peligro bg-peligro/15 p-2 text-sm"
           >
             <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> {error} Se puede
             agregar la bebida sencilla.
@@ -273,7 +273,7 @@ export function OpcionesDeLaBebida({
             <p className="text-lg font-semibold">
               {voc.conDeterminante('este', 'linea_orden')} se agrega tal cual.
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-texto-sutil">
               Todavía no declara grupos de opciones. La leche, el tamaño, la temperatura y los
               extras se declaran una sola vez en Configuración › Opciones de bebida, cada uno con su
               diferencia de precio, y desde entonces aparecen aquí solos.
@@ -300,7 +300,7 @@ export function OpcionesDeLaBebida({
                       onClick={() => {
                         setExtrasAbiertos((abierto) => !abierto);
                       }}
-                      className="mb-2 w-full rounded-md border border-input px-(--espacio-3) py-2 text-sm font-semibold md:hidden"
+                      className="mb-2 w-full rounded-md border border-borde-fuerte px-(--espacio-3) py-2 text-sm font-semibold md:hidden"
                     >
                       {extrasAbiertos ? '− Ocultar extras' : `+ Extras (${grupo.opciones.length})`}
                     </button>
@@ -359,8 +359,8 @@ export function OpcionesDeLaBebida({
                       className={[
                         'rounded-md border-2 px-(--espacio-3) py-2 text-sm font-semibold',
                         marcado
-                          ? 'border-destructive bg-destructive/25 text-foreground'
-                          : 'border-input bg-background hover:bg-accent hover:text-accent-foreground',
+                          ? 'border-peligro bg-peligro/25 text-texto'
+                          : 'border-borde-fuerte bg-fondo hover:bg-acento-suave hover:text-acento-suave-texto',
                       ].join(' ')}
                     >
                       {marcado ? (
@@ -404,10 +404,10 @@ export function OpcionesDeLaBebida({
           </div>
         )}
 
-        <footer className="sticky bottom-0 mt-auto flex flex-col gap-2 border-t border-border bg-card p-(--espacio-4) md:mt-0 md:rounded-b-xl">
+        <footer className="sticky bottom-0 mt-auto flex flex-col gap-2 border-t border-borde bg-superficie p-(--espacio-4) md:mt-0 md:rounded-b-xl">
           {marcasDeAlergia.length > 0 && (
             // No se colapsa nunca: viaja en rojo a la tarjeta de barra (F-316).
-            <p className="rounded-md border border-destructive bg-destructive/15 px-2 py-1 text-sm font-semibold">
+            <p className="rounded-md border border-peligro bg-peligro/15 px-2 py-1 text-sm font-semibold">
               <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Alergia:{' '}
               {marcasDeAlergia.join(' · ')}
             </p>
@@ -423,7 +423,7 @@ export function OpcionesDeLaBebida({
             honesto es apagar el botón y decir qué falta.
           */}
           {productoId === undefined && (
-            <p role="status" className="text-sm text-muted-foreground">
+            <p role="status" className="text-sm text-texto-sutil">
               Elige primero {voc.enFrase('producto')} en{' '}
               <a className="underline" href="/cafeteria/cobrar">
                 Cobrar

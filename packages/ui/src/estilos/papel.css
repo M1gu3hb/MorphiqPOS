@@ -73,7 +73,7 @@
   --lateral-borde: 36 18% 85%;
 }
 
-[data-estilo='papel'].dark {
+[data-estilo='papel'][data-modo='oscuro'] {
   --sombra-tinte: 30 30% 2%;
 
   --fondo: 30 12% 9%;

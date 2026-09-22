@@ -96,8 +96,7 @@ const DIAS_HASTA_ENTREGA = 2;
 const DIAS_GRANO_AMBAR = 25;
 const DIAS_GRANO_ROJO = 30;
 
-const TARJETA =
-  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
+const TARJETA = 'rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1';
 const CHIP = 'rounded-md px-2 py-1 text-xs font-semibold';
 
 /** Las cinco familias, en el orden en que se camina el local. */
@@ -204,19 +203,19 @@ export function urgenciaDe(insumo: InsumoDeInventario): Urgencia {
   const critico = insumo.stock_critico;
   const minimo = insumo.stock_minimo;
   if ((dias !== null && dias < 1) || (critico !== null && stock <= critico)) {
-    return { orden: 0, palabra: 'no llega a mañana', clase: 'bg-destructive/25 text-foreground' };
+    return { orden: 0, palabra: 'no llega a mañana', clase: 'bg-peligro/25 text-texto' };
   }
   if ((dias !== null && dias < DIAS_HASTA_ENTREGA) || (minimo !== null && stock <= minimo)) {
-    return { orden: 1, palabra: 'no llega a la entrega', clase: 'bg-warning/30 text-foreground' };
+    return { orden: 1, palabra: 'no llega a la entrega', clase: 'bg-advertencia/30 text-texto' };
   }
-  return { orden: 2, palabra: 'alcanza', clase: 'bg-muted text-muted-foreground' };
+  return { orden: 2, palabra: 'alcanza', clase: 'bg-fondo-sutil text-texto-sutil' };
 }
 
 /** Verde bajo 8 %, ámbar de 8 a 12, rojo arriba de 12. */
 export function semaforoDeMerma(porcentaje: number): Omit<Urgencia, 'orden'> {
-  if (porcentaje > 12) return { palabra: 'merma alta', clase: 'bg-destructive/25' };
-  if (porcentaje >= 8) return { palabra: 'merma en el límite', clase: 'bg-warning/30' };
-  return { palabra: 'merma normal', clase: 'bg-success/25' };
+  if (porcentaje > 12) return { palabra: 'merma alta', clase: 'bg-peligro/25' };
+  if (porcentaje >= 8) return { palabra: 'merma en el límite', clase: 'bg-advertencia/30' };
+  return { palabra: 'merma normal', clase: 'bg-exito/25' };
 }
 
 export function diasDesde(fecha: string | null, ahora: number): number | null {
@@ -455,7 +454,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
 
   if (insumos === null) {
     return (
-      <div className="min-h-dvh bg-background p-(--espacio-4) text-foreground">
+      <div className="min-h-dvh bg-fondo p-(--espacio-4) text-texto">
         <h1 className="mb-(--espacio-4) text-2xl font-bold">Inventario</h1>
         {/* Esqueletos con la forma de las tarjetas: la pantalla no salta. */}
         <div className="grid gap-(--espacio-3) md:grid-cols-2 lg:grid-cols-3">
@@ -468,7 +467,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
   }
 
   return (
-    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-background p-(--espacio-4) text-foreground">
+    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-fondo p-(--espacio-4) text-texto">
       <header className="flex flex-wrap items-center justify-between gap-(--espacio-3)">
         <h1 className="text-2xl font-bold">Inventario</h1>
         {/* La tarea del cierre tiene botón propio y grande: no es una fila más. */}
@@ -487,10 +486,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
 
       {/* La banda avisa y NO vacía la pantalla: debajo sigue el último conteo. */}
       {error !== null && (
-        <p
-          role="alert"
-          className="rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
-        >
+        <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-2 text-sm">
           {error} · Se muestra el último inventario conocido.
         </p>
       )}
@@ -517,14 +513,14 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
                 <span className={`${CHIP} ${claseDeGrano(diasGrano)}`}>
                   {diasGrano} días desde el tueste
                 </span>
-                <span className="text-sm text-muted-foreground">{consejoDeGrano(diasGrano)}</span>
+                <span className="text-sm text-texto-sutil">{consejoDeGrano(diasGrano)}</span>
               </div>
             </section>
           )}
 
           {alertas.length > 0 && (
             <section
-              className="rounded-lg border border-warning/40 bg-warning/15 p-(--espacio-3)"
+              className="rounded-lg border border-advertencia/40 bg-advertencia/15 p-(--espacio-3)"
               aria-label="Lo que no llega a la próxima entrega"
             >
               <h2 className="mb-2 text-sm font-bold uppercase">No llega a la próxima entrega</h2>
@@ -547,7 +543,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
           )}
 
           <div className="max-w-sm">
-            <Label htmlFor="buscar-insumo" className="text-sm text-muted-foreground">
+            <Label htmlFor="buscar-insumo" className="text-sm text-texto-sutil">
               Buscar insumo
             </Label>
             <Input
@@ -562,7 +558,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
           </div>
 
           {grupos.length === 0 ? (
-            <p className="text-muted-foreground">Ningún insumo se llama así.</p>
+            <p className="text-texto-sutil">Ningún insumo se llama así.</p>
           ) : (
             grupos.map((grupo, indice) => (
               <section key={grupo.familia} aria-labelledby={`familia-${indice}`}>
@@ -570,8 +566,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
                   id={`familia-${indice}`}
                   className="mb-2 text-sm font-bold tracking-wide uppercase"
                 >
-                  {grupo.familia}{' '}
-                  <span className="text-muted-foreground">({grupo.filas.length})</span>
+                  {grupo.familia} <span className="text-texto-sutil">({grupo.filas.length})</span>
                 </h2>
                 {esPC ? (
                   <Table>
@@ -594,7 +589,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
                             </span>
                           </TableCell>
                           <TableCell className="tabular-nums">{textoDeStock(insumo)}</TableCell>
-                          <TableCell className="tabular-nums text-muted-foreground">
+                          <TableCell className="tabular-nums text-texto-sutil">
                             {formatear(insumo.stock_minimo)}
                           </TableCell>
                           <TableCell>
@@ -622,7 +617,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
                         </div>
                         <p className="mt-1 tabular-nums">
                           <span className="text-xl font-bold">{textoDeDias(insumo)}</span>
-                          <span className="text-muted-foreground">
+                          <span className="text-texto-sutil">
                             {' · '}
                             {textoDeStock(insumo)} · mínimo {formatear(insumo.stock_minimo)}
                           </span>
@@ -663,9 +658,9 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
 }
 
 function claseDeGrano(dias: number): string {
-  if (dias >= DIAS_GRANO_ROJO) return 'bg-destructive/25';
-  if (dias >= DIAS_GRANO_AMBAR) return 'bg-warning/30';
-  return 'bg-muted text-muted-foreground';
+  if (dias >= DIAS_GRANO_ROJO) return 'bg-peligro/25';
+  if (dias >= DIAS_GRANO_AMBAR) return 'bg-advertencia/30';
+  return 'bg-fondo-sutil text-texto-sutil';
 }
 
 function textoDeDias(insumo: InsumoDeInventario): string {
@@ -810,7 +805,7 @@ function ConteoDeLeche({
                     </Label>
                     <select
                       id={`abierto-${insumo.id}`}
-                      className="h-(--altura-control) rounded-md border border-input bg-background px-2 text-base"
+                      className="h-(--altura-control) rounded-md border border-borde-fuerte bg-fondo px-2 text-base"
                       value={String(conteos[insumo.id]?.cuartos ?? 0)}
                       onChange={(evento) => {
                         const cuartos = Number(evento.target.value) as 0 | 1 | 2 | 3 | 4;

@@ -317,7 +317,7 @@ export function Cobrar({
     error === null ? null : (
       <p
         role="alert"
-        className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3) text-sm md:col-span-2"
+        className="rounded-md border border-peligro bg-peligro/15 p-(--espacio-3) text-sm md:col-span-2"
       >
         {error}
       </p>
@@ -347,7 +347,7 @@ export function Cobrar({
         {aviso !== null && (
           <p
             role="status"
-            className="rounded-md border border-border bg-success/20 p-(--espacio-3) text-sm"
+            className="rounded-md border border-borde bg-exito/20 p-(--espacio-3) text-sm"
           >
             {aviso}
           </p>
@@ -382,7 +382,7 @@ export function Cobrar({
                     no responde al dedo no se lee como una lista de opciones. */}
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-4) text-left shadow-1 transition-[background-color,box-shadow] duration-(--duracion-rapida) hover:bg-accent hover:shadow-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="flex w-full items-center justify-between gap-(--espacio-3) rounded-lg border border-borde bg-superficie p-(--espacio-4) text-left shadow-1 transition-[background-color,box-shadow] duration-(--duracion-rapida) hover:bg-acento-suave hover:shadow-2 focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none"
                   onClick={() => {
                     setCitaId(fila.id);
                     setAviso(null);
@@ -393,7 +393,7 @@ export function Cobrar({
                     <span className="block truncate font-semibold">
                       {nombres.get(fila.cliente_id ?? '') ?? `Sin ${voc.singular('cliente')}`}
                     </span>
-                    <span className="block text-sm text-muted-foreground">
+                    <span className="block text-sm text-texto-sutil">
                       {fila.folio ?? 'Sin folio'} · {lineasDe(servicios, fila.id).length} conceptos
                     </span>
                   </span>
@@ -436,7 +436,7 @@ export function Cobrar({
         <h1 className="text-xl font-bold">
           {nombres.get(cita.cliente_id ?? '') ?? `Sin ${voc.singular('cliente')}`}
         </h1>
-        <span className="text-sm text-muted-foreground">{cita.folio ?? 'Sin folio'}</span>
+        <span className="text-sm text-texto-sutil">{cita.folio ?? 'Sin folio'}</span>
         <Button
           variant="ghost"
           size="sm"
@@ -462,12 +462,12 @@ export function Cobrar({
       >
         <span className="flex flex-col">
           <Dinero centavos={total} tamano="total" className="leading-none" />
-          <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <span className="text-xs font-medium tracking-wide text-texto-sutil uppercase">
             Total
           </span>
         </span>
         {anticipo > 0 && (
-          <p className="flex items-baseline justify-between border-b border-border pb-(--espacio-2) text-sm">
+          <p className="flex items-baseline justify-between border-b border-borde pb-(--espacio-2) text-sm">
             <span>− anticipo</span>
             <Dinero centavos={anticipo} tamano="sm" />
           </p>
@@ -510,7 +510,7 @@ export function Cobrar({
         )}
 
         <div className="space-y-2">
-          <p className="text-sm font-medium uppercase text-muted-foreground">Propina</p>
+          <p className="text-sm font-medium uppercase text-texto-sutil">Propina</p>
           <div className="flex flex-wrap gap-2">
             {PROPINAS.map((porcentaje) => (
               <Button
@@ -588,14 +588,14 @@ export function Cobrar({
         </details>
         <div className="hidden flex-col gap-(--espacio-3) p-(--espacio-4) md:flex">
           {listaDeLineas}
-          <dl className="flex flex-col gap-(--espacio-1) border-t border-border pt-(--espacio-3) text-sm">
+          <dl className="flex flex-col gap-(--espacio-1) border-t border-borde pt-(--espacio-3) text-sm">
             <div className="flex items-baseline justify-between">
               <dt>Subtotal</dt>
               <dd>
                 <Dinero centavos={total} tamano="sm" />
               </dd>
             </div>
-            <div className="flex items-baseline justify-between text-muted-foreground">
+            <div className="flex items-baseline justify-between text-texto-sutil">
               <dt>IVA incluido</dt>
               <dd>
                 <Dinero centavos={ivaIncluidoDe(total)} tamano="sm" />

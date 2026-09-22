@@ -100,10 +100,9 @@ export function aCentavos(texto: string): number {
 
 /** El color va siempre con su palabra: solo, no dice nada a quien no lo ve. */
 export function semaforoDe(dias: number): { readonly clase: string; readonly palabra: string } {
-  if (dias >= ROJO_DESDE)
-    return { clase: 'bg-destructive/20 border-destructive', palabra: 'vencido' };
-  if (dias >= AMBAR_DESDE) return { clase: 'bg-warning/25 border-border', palabra: 'se tarda' };
-  return { clase: 'bg-success/20 border-border', palabra: 'al corriente' };
+  if (dias >= ROJO_DESDE) return { clase: 'bg-peligro/20 border-peligro', palabra: 'vencido' };
+  if (dias >= AMBAR_DESDE) return { clase: 'bg-advertencia/25 border-borde', palabra: 'se tarda' };
+  return { clase: 'bg-exito/20 border-borde', palabra: 'al corriente' };
 }
 
 /** Deber más de lo aprobado. Problema de monto, independiente de los días. */
@@ -269,11 +268,11 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
       {/* Lo primero que se ve: el total de la cartera y lo que ya urge. */}
       <div className="mt-(--espacio-3) grid gap-(--espacio-3) sm:grid-cols-2">
         <Card className="gap-1 px-(--espacio-4) py-(--espacio-4)">
-          <p className="text-sm text-muted-foreground">Lo que me deben</p>
+          <p className="text-sm text-texto-sutil">Lo que me deben</p>
           <p className="text-3xl font-bold tabular-nums">{enPesos(deben)}</p>
-          <p className="text-sm text-muted-foreground">{filas.length} clientes</p>
+          <p className="text-sm text-texto-sutil">{filas.length} clientes</p>
         </Card>
-        <Card className="gap-1 border-destructive bg-destructive/10 px-(--espacio-4) py-(--espacio-4)">
+        <Card className="gap-1 border-peligro bg-peligro/10 px-(--espacio-4) py-(--espacio-4)">
           <p className="text-sm font-medium">Más de 30 días</p>
           <p className="text-3xl font-bold tabular-nums">{enPesos(vencido)}</p>
           <p className="text-sm">{vencidas.length} clientes · son a los que hay que hablarles</p>
@@ -310,17 +309,14 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
       {error !== null && (
         // Encima del último dato conocido, nunca en su lugar, y lo primero que
         // dice es que ningún saldo se movió.
-        <p
-          role="alert"
-          className="mt-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
-        >
+        <p role="alert" className="mt-(--espacio-3) rounded-md border border-peligro p-2 text-sm">
           {error} · Ningún saldo cambió.
         </p>
       )}
 
       <div className="mt-(--espacio-4) flex flex-col gap-(--espacio-4) lg:flex-row lg:items-start">
         <section className={`min-w-0 flex-1 ${ficha === null ? '' : 'pb-64 lg:pb-0'}`}>
-          <div className="hidden grid-cols-[1fr_auto_auto_auto] gap-x-(--espacio-4) border-b border-border px-2 pb-2 text-xs font-medium text-muted-foreground md:grid">
+          <div className="hidden grid-cols-[1fr_auto_auto_auto] gap-x-(--espacio-4) border-b border-borde px-2 pb-2 text-xs font-medium text-texto-sutil md:grid">
             <span>{voc.titulo('cliente')}</span>
             <span className="text-right">Debe</span>
             <span>Más viejo</span>
@@ -332,11 +328,11 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
               const dias = fila.dias_mas_viejo ?? 0;
               const luz = semaforoDe(dias);
               return (
-                <li key={fila.cliente_id} className="border-b border-border">
+                <li key={fila.cliente_id} className="border-b border-borde">
                   <button
                     type="button"
                     aria-pressed={fila.cliente_id === elegido}
-                    className="grid w-full grid-cols-[1fr_auto] items-center gap-x-(--espacio-4) gap-y-1 rounded-md px-2 py-(--espacio-3) text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[1fr_auto_auto_auto]"
+                    className="grid w-full grid-cols-[1fr_auto] items-center gap-x-(--espacio-4) gap-y-1 rounded-md px-2 py-(--espacio-3) text-left transition-colors hover:bg-acento-suave focus-visible:ring-2 focus-visible:ring-anillo md:grid-cols-[1fr_auto_auto_auto]"
                     onClick={() => {
                       setElegido(fila.cliente_id);
                       setMonto('');
@@ -345,7 +341,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{fila.nombre}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span className="block truncate text-xs text-texto-sutil">
                         {fila.telefono ?? 'sin teléfono'}
                       </span>
                     </span>
@@ -353,16 +349,16 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
                       {enPesos(fila.saldo_centavos ?? 0)}
                     </span>
                     <span className="col-span-2 flex flex-wrap items-center gap-1 md:col-span-1">
-                      <Badge className={`${luz.clase} whitespace-nowrap text-foreground`}>
+                      <Badge className={`${luz.clase} whitespace-nowrap text-texto`}>
                         {dias} días · {luz.palabra}
                       </Badge>
                       {excedeLimite(fila) && (
-                        <Badge variant="outline" className="border-destructive">
+                        <Badge variant="outline" className="border-peligro">
                           <span aria-hidden>⚠</span> pasa su límite
                         </Badge>
                       )}
                     </span>
-                    <span className="hidden text-right text-xs text-muted-foreground md:block">
+                    <span className="hidden text-right text-xs text-texto-sutil md:block">
                       <span className="block tabular-nums">
                         {fila.limite_centavos === null
                           ? 'sin límite'
@@ -377,7 +373,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
           </ul>
 
           {visibles.length === 0 && (
-            <p className="p-(--espacio-4) text-sm text-muted-foreground">
+            <p className="p-(--espacio-4) text-sm text-texto-sutil">
               Nadie cae en ese filtro. Buena señal, si era «a quién hablarle».
             </p>
           )}
@@ -388,12 +384,12 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
           // los dos sitios, porque el contenido de la ficha es el mismo.
           <aside
             aria-label={`Ficha de ${ficha.nombre}`}
-            className="fixed inset-x-0 bottom-0 z-20 max-h-[70dvh] overflow-y-auto border-t border-border bg-card p-(--espacio-4) text-card-foreground shadow-3 lg:static lg:w-80 lg:shrink-0 lg:rounded-xl lg:border lg:shadow-1"
+            className="fixed inset-x-0 bottom-0 z-20 max-h-[70dvh] overflow-y-auto border-t border-borde bg-superficie p-(--espacio-4) text-texto shadow-3 lg:static lg:w-80 lg:shrink-0 lg:rounded-xl lg:border lg:shadow-1"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-bold">{ficha.nombre}</h2>
-                <p className="text-sm text-muted-foreground">{ficha.telefono ?? 'sin teléfono'}</p>
+                <p className="text-sm text-texto-sutil">{ficha.telefono ?? 'sin teléfono'}</p>
               </div>
               <Button
                 type="button"
@@ -410,7 +406,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
             <p className="mt-2 text-2xl font-bold tabular-nums">
               {enPesos(ficha.saldo_centavos ?? 0)}
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-texto-sutil">
               más viejo {ficha.dias_mas_viejo ?? 0} días · {hace(ficha.ultimo_abono_dias)}
             </p>
             {excedeLimite(ficha) && (
@@ -421,7 +417,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
 
             {/* «Paga los viernes» es el dato que hace útil el módulo. */}
             {ficha.nota !== null && (
-              <p className="mt-(--espacio-3) rounded-md bg-muted p-2 text-sm text-muted-foreground">
+              <p className="mt-(--espacio-3) rounded-md bg-fondo-sutil p-2 text-sm text-texto-sutil">
                 {ficha.nota}
               </p>
             )}
@@ -450,7 +446,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
             >
               {enviando ? 'Registrando…' : 'Registrar abono'}
             </Button>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="mt-2 text-xs text-texto-sutil">
               En efectivo, al saldo más viejo primero. Entra al cajón y al corte del día.
             </p>
           </aside>

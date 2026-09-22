@@ -27,7 +27,15 @@ export {
   type NivelDeElevacion,
 } from './superficie';
 export { Vacio, Esqueleto, EsqueletoDeLista, ErrorDePantalla } from './estados';
-export { Tabla, ListaDeTarjetas, type ColumnaDeTabla, type TablaProps } from './tabla';
+export { Tabla, type ColumnaDeTabla, type TablaProps, type TonoDeFila } from './tabla';
+export { ListaDeTarjetas } from './lista-de-tarjetas';
+export { TablaAdaptable, type TablaAdaptableProps } from './tabla-adaptable';
+export {
+  CampoDeDinero,
+  centavosDeTexto,
+  textoParaCampo,
+  type CampoDeDineroProps,
+} from './campo-de-dinero';
 export {
   GraficaDeBarras,
   GraficaDeLineas,

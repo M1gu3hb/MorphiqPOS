@@ -45,6 +45,9 @@ import {
   esContenido,
 } from './adopcion-jsx.mjs';
 
+/** Las funciones del sistema que dan un importe como TEXTO: para atributos, no para pintar. */
+const IMPORTE_EN_TEXTO = new Set(['dineroEnTexto', 'textoParaCampo']);
+
 /**
  * Analiza una pantalla. Devuelve `{ interfaz, hallazgos, pinta }`:
  * `hallazgos` es una lista de `{ condicion, motivo, linea }` y `pinta` dice qué
@@ -94,7 +97,12 @@ export function analizarPantalla(texto, nombre = 'pantalla.tsx') {
     componentes.some((n) => !/(Provider|Toaster)$|^Proveedor|^Contexto\./.test(n));
 
   // ── Los elementos, uno por uno ─────────────────────────────────────────
-  for (const a of minusculas) {
+  // `Link` de Next se mira igual que una etiqueta: es un `<a>` con otro nombre, y una
+  // tesela escrita sobre él es tan a mano como escrita sobre un `<div>`.
+  const conClases = aperturas.filter(
+    (a) => /^[a-z]/.test(nombreDeEtiqueta(a)) || nombreDeEtiqueta(a) === 'Link',
+  );
+  for (const a of conClases) {
     const tag = nombreDeEtiqueta(a);
     const clase = atributo(a, 'className');
     const clases = clase?.initializer === undefined ? [] : clasesDe(clase.initializer);
@@ -192,11 +200,11 @@ export function analizarPantalla(texto, nombre = 'pantalla.tsx') {
     // 1.4 · «Cargando» como texto
     if (ts.isJsxText(nodo) && /\bcargando\b/i.test(nodo.text))
       anotar('1.4', 'carga a mano (texto «Cargando»)', nodo);
-    // 1.3 · dineroEnTexto: sólo fuera del contenido
+    // 1.3 · el importe en texto (dineroEnTexto, textoParaCampo): sólo fuera del contenido
     if (
       ts.isVariableDeclaration(nodo) &&
       nodo.initializer !== undefined &&
-      /\bdineroEnTexto\s*\(/.test(nodo.initializer.getText(fuente)) &&
+      /\b(dineroEnTexto|textoParaCampo)\s*\(/.test(nodo.initializer.getText(fuente)) &&
       ts.isIdentifier(nodo.name)
     ) {
       contaminados.add(nodo.name.text);
@@ -210,7 +218,7 @@ export function analizarPantalla(texto, nombre = 'pantalla.tsx') {
     if (
       ts.isCallExpression(nodo) &&
       ts.isIdentifier(nodo.expression) &&
-      nodo.expression.text === 'dineroEnTexto' &&
+      IMPORTE_EN_TEXTO.has(nodo.expression.text) &&
       esContenido(nodo)
     )
       pintados.push(nodo);
@@ -224,7 +232,8 @@ export function analizarPantalla(texto, nombre = 'pantalla.tsx') {
     ts.forEachChild(nodo, buscarPintado);
   };
   buscarPintado(fuente);
-  for (const p of pintados) anotar('1.3', 'dineroEnTexto() pintado como contenido: es <Dinero>', p);
+  for (const p of pintados)
+    anotar('1.3', 'importe en texto pintado como contenido: es <Dinero>', p);
 
   // ── 1.2 · filas de datos a mano ──────────────────────────────────────────
   const buscarMapas = (nodo) => {
@@ -241,7 +250,16 @@ export function analizarPantalla(texto, nombre = 'pantalla.tsx') {
       if (raiz !== undefined) {
         const tag = nombreDeEtiqueta(aperturaDe(raiz));
         const hijos = hijosElemento(raiz);
-        const esTesela = hijos.length === 1 && TESELAS.has(nombreDeEtiqueta(aperturaDe(hijos[0])));
+        // Una tesela es UN control por elemento de la lista: un botón, un enlace, una
+        // etiqueta, o la `Superficie` interactiva que los envuelve. Eso es una rejilla
+        // de cosas que se tocan —los productos del cobro—, no filas de datos.
+        const unico = hijos.length === 1 ? aperturaDe(hijos[0]) : undefined;
+        const esTesela =
+          unico !== undefined &&
+          (TESELAS.has(nombreDeEtiqueta(unico)) ||
+            (nombreDeEtiqueta(unico) === 'Superficie' &&
+              (atributo(unico, 'interactiva') !== undefined ||
+                ['button', 'a', 'label'].includes(valorLiteral(atributo(unico, 'como')) ?? ''))));
         const conCifras = aperturasEn(raiz).some((a) =>
           ['Dinero', 'Cifra'].includes(nombreDeEtiqueta(a)),
         );

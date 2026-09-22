@@ -142,7 +142,7 @@ export function DividirCuentaDialog({
           {partes.map((parte, indice) => (
             <section
               key={indice}
-              className="rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground"
+              className="rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto"
             >
               <Label className="mb-2 block font-semibold">Cuenta {indice + 1}</Label>
               <ul className="space-y-1">
@@ -201,9 +201,7 @@ export function DividirCuentaDialog({
               de dividir está apagado. Un botón inerte sin motivo es la forma
               más rápida de que alguien cierre el diálogo y cobre mal. */}
           <span
-            className={
-              faltanPorRepartir === 0 ? 'text-muted-foreground' : 'font-medium text-destructive'
-            }
+            className={faltanPorRepartir === 0 ? 'text-texto-sutil' : 'font-medium text-peligro'}
           >
             {faltanPorRepartir === 0
               ? 'Todo repartido'
@@ -212,7 +210,7 @@ export function DividirCuentaDialog({
         </div>
 
         {error !== null && (
-          <p role="alert" className="text-sm font-medium text-destructive">
+          <p role="alert" className="text-sm font-medium text-peligro">
             {error}
           </p>
         )}

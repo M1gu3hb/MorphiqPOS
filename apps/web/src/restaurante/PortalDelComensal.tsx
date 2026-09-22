@@ -190,7 +190,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
         <h1 className="text-xl font-semibold">
           Este portal se abre con el QR de {vocabulario.enFrase('unidad_servicio')}
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           {vocabulario.conDeterminante('cada', 'unidad_servicio')} tiene su código: al escanearlo,{' '}
           {vocabulario.enFrase('cliente')} ve la carta de este negocio, pide y pide{' '}
           {vocabulario.enFrase('orden')} desde su teléfono. El código lleva{' '}
@@ -224,12 +224,12 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
           <h1 className="text-2xl font-semibold">{datos.negocio.nombre}</h1>
           {/* «Mesa» en un restaurante, «estación» en una estética, «bahía» en un
               taller. El sustantivo sale del giro del negocio, no de esta línea. */}
-          <p className="text-muted-foreground text-sm">
+          <p className="text-texto-sutil text-sm">
             {vocabulario.conArticulo('unidad_servicio')} {datos.mesa.numero}
           </p>
         </div>
         {sinConexion && (
-          <span className="text-muted-foreground text-xs" aria-label="sin conexión">
+          <span className="text-texto-sutil text-xs" aria-label="sin conexión">
             ●
           </span>
         )}
@@ -255,7 +255,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
             <span>Total</span>
             <span className="tabular-nums">{pesos(datos.cuenta.totalCentavos)}</span>
           </p>
-          <p className="text-muted-foreground mt-2 text-sm">
+          <p className="text-texto-sutil mt-2 text-sm">
             Se paga en {voc.enFrase('unidad_servicio')}. Desde aquí sólo se pide.
           </p>
         </section>
@@ -300,7 +300,7 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
       ))}
 
       {!puedeSeguirPidiendo(datos) && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           {datos.mesa.estado === 'cuenta_solicitada'
             ? `Ya pediste ${voc.enFrase('orden')}. Si falta algo, llama al ${voc.singular('responsable')}.`
             : 'Hoy no se pide desde aquí: pídele a quien te atiende.'}

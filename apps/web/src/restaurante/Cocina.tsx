@@ -53,8 +53,8 @@ const COLUMNAS = [
     corto: 'Nuevos',
     accion: 'Iniciar',
     destino: 'en_preparacion',
-    banda: 'bg-primary text-primary-foreground',
-    tinte: 'bg-primary/10',
+    banda: 'bg-primario text-primario-texto',
+    tinte: 'bg-primario/10',
   },
   {
     estado: 'en_preparacion',
@@ -63,8 +63,8 @@ const COLUMNAS = [
     corto: 'En prep.',
     accion: 'Marcar listo',
     destino: 'listo',
-    banda: 'bg-warning text-warning-foreground',
-    tinte: 'bg-warning/10',
+    banda: 'bg-advertencia text-advertencia-texto',
+    tinte: 'bg-advertencia/10',
   },
   {
     estado: 'listo',
@@ -73,8 +73,8 @@ const COLUMNAS = [
     corto: 'Listos',
     accion: 'Quitar de la lista',
     destino: 'entregado',
-    banda: 'bg-success text-success-foreground',
-    tinte: 'bg-success/10',
+    banda: 'bg-exito text-exito-texto',
+    tinte: 'bg-exito/10',
   },
 ] as const;
 
@@ -83,12 +83,12 @@ type EstadoDestino = Col['destino'];
 
 const RUTA_TRANSICION = '/api/restaurante/transicionar-pedido';
 const TELEFONO = '(max-width: 767px)';
-const SECCION = 'flex flex-col gap-(--espacio-3) rounded-lg border border-border pb-(--espacio-3)';
+const SECCION = 'flex flex-col gap-(--espacio-3) rounded-lg border border-borde pb-(--espacio-3)';
 const BANDA =
   'flex justify-between px-(--espacio-3) py-2 text-sm font-bold tracking-wide uppercase';
 const TARJETA =
-  'mx-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
-const ALERGIA = 'mt-2 rounded-md border border-destructive bg-destructive/15 p-2 text-sm font-bold';
+  'mx-(--espacio-3) rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1';
+const ALERGIA = 'mt-2 rounded-md border border-peligro bg-peligro/15 p-2 text-sm font-bold';
 
 export interface ItemDeComanda {
   readonly id: string;
@@ -227,10 +227,10 @@ export function Cocina({ filasIniciales }: CocinaProps) {
   ));
 
   return (
-    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-background p-(--espacio-4) text-foreground">
+    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-fondo p-(--espacio-4) text-texto">
       <h1 className="text-xl font-bold tracking-wide uppercase">{voc.titulo('preparacion')}</h1>
       {error !== null && (
-        <p role="alert" className="rounded-md border border-destructive p-2 text-sm">
+        <p role="alert" className="rounded-md border border-peligro p-2 text-sm">
           {error} · Se muestra el último tablero conocido.
         </p>
       )}
@@ -239,13 +239,13 @@ export function Cocina({ filasIniciales }: CocinaProps) {
         // el tipo más grande de la pantalla, y sin una sola disculpa. Va en el paso
         // `display` por la misma razón que un total: se lee desde la plancha, a dos
         // metros, sin acercarse.
-        <div className="flex flex-1 flex-col items-center justify-center gap-(--espacio-3) rounded-lg bg-success/15 p-(--espacio-8) text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-(--espacio-3) rounded-lg bg-exito/15 p-(--espacio-8) text-center">
           <Check
             aria-hidden="true"
-            className="size-[calc(var(--altura-control)*1.4)] shrink-0 text-success"
+            className="size-[calc(var(--altura-control)*1.4)] shrink-0 text-exito"
           />
           <p className="text-display font-bold">Sin comandas pendientes.</p>
-          <p className="text-muted-foreground">Lo que se envíe desde el salón aparece aquí solo.</p>
+          <p className="text-texto-sutil">Lo que se envíe desde el salón aparece aquí solo.</p>
         </div>
       ) : esTelefono ? (
         <Tabs defaultValue="nuevo">
@@ -293,7 +293,7 @@ function Columna({ col, filas, ahora, onAvanzar }: ColumnaProps) {
           <article key={comanda.id} className={TARJETA}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-lg font-bold">{mesa}</h3>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-texto-sutil">
                 {haceCuanto(comanda.created_date, ahora)}
               </span>
             </div>
@@ -303,7 +303,7 @@ function Columna({ col, filas, ahora, onAvanzar }: ColumnaProps) {
                   <span className="font-semibold">{item.cantidad ?? 1}</span>{' '}
                   {item.producto_nombre ?? 'Producto sin nombre'}
                   {item.notas !== null && item.notas !== '' && (
-                    <span className="block pl-(--espacio-4) text-xs text-muted-foreground">
+                    <span className="block pl-(--espacio-4) text-xs text-texto-sutil">
                       {item.notas}
                     </span>
                   )}

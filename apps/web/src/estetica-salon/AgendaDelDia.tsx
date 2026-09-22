@@ -58,17 +58,17 @@ import { APERTURA, aMinutos, CIERRE, posicionDe, PX } from './agenda-geometria';
 
 /** Los nueve estados del bloque. El color nunca viaja solo: cada uno da su palabra. */
 const ESTADOS = {
-  agendada: { nombre: 'Agendada', clase: 'bg-muted text-muted-foreground border-border' },
-  sin_confirmar: { nombre: 'Sin confirmar', clase: 'bg-warning/30 border-warning' },
-  en_curso: { nombre: 'En curso', clase: 'bg-primary/25 border-primary' },
+  agendada: { nombre: 'Agendada', clase: 'bg-fondo-sutil text-texto-sutil border-borde' },
+  sin_confirmar: { nombre: 'Sin confirmar', clase: 'bg-advertencia/30 border-advertencia' },
+  en_curso: { nombre: 'En curso', clase: 'bg-primario/25 border-primario' },
   // «Cabe una cita» lleva el sustantivo del giro y por eso se resuelve al pintar:
   // en una barbería cabe un CORTE y en un spa una SESIÓN. Ver `nombreDelEstado`.
-  procesado: { nombre: 'Cabe una cita', clase: 'bg-primary/10 border-dashed border-primary/40' },
-  cobrada: { nombre: 'Cobrada', clase: 'bg-success/30 border-success' },
-  sin_cobrar: { nombre: 'SIN COBRAR', clase: 'bg-card text-card-foreground border-success' },
-  no_llego: { nombre: 'No llegó', clase: 'bg-destructive/25 border-destructive' },
-  apartado: { nombre: 'Apartado', clase: 'bg-muted/60 text-muted-foreground border-dashed' },
-  hueco: { nombre: 'Hueco', clase: 'bg-background border-dashed border-primary/40' },
+  procesado: { nombre: 'Cabe una cita', clase: 'bg-primario/10 border-dashed border-primario/40' },
+  cobrada: { nombre: 'Cobrada', clase: 'bg-exito/30 border-exito' },
+  sin_cobrar: { nombre: 'SIN COBRAR', clase: 'bg-superficie text-texto border-exito' },
+  no_llego: { nombre: 'No llegó', clase: 'bg-peligro/25 border-peligro' },
+  apartado: { nombre: 'Apartado', clase: 'bg-fondo-sutil/60 text-texto-sutil border-dashed' },
+  hueco: { nombre: 'Hueco', clase: 'bg-fondo border-dashed border-primario/40' },
 } as const;
 
 type ClaveEstado = keyof typeof ESTADOS;
@@ -107,12 +107,12 @@ const RAYADO = {
   backgroundImage: 'repeating-linear-gradient(45deg,currentColor 0 3px,transparent 3px 9px)',
 };
 const BLOQUE =
-  'relative flex h-full w-full flex-col gap-0.5 overflow-hidden rounded-md border p-2 text-left hover:border-primary focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
-const COLUMNA = 'relative w-44 shrink-0 rounded-md border border-border xl:w-52';
+  'relative flex h-full w-full flex-col gap-0.5 overflow-hidden rounded-md border p-2 text-left hover:border-primario focus-visible:outline-2 focus-visible:outline-anillo disabled:opacity-50';
+const COLUMNA = 'relative w-44 shrink-0 rounded-md border border-borde xl:w-52';
 const BANDA =
-  'mb-(--espacio-3) flex flex-wrap items-center gap-2 rounded-md border border-destructive bg-destructive/10 p-2 text-sm';
+  'mb-(--espacio-3) flex flex-wrap items-center gap-2 rounded-md border border-peligro bg-peligro/10 p-2 text-sm';
 const VACIO =
-  'flex flex-col items-center gap-(--espacio-3) rounded-lg border border-dashed border-border p-(--espacio-8) text-center';
+  'flex flex-col items-center gap-(--espacio-3) rounded-lg border border-dashed border-borde p-(--espacio-8) text-center';
 
 export interface BloqueDeAgenda {
   /** El del SERVICIO de la cita: una cita con dos servicios son dos bloques. */
@@ -375,7 +375,7 @@ export function Bloque({ bloque, ocupado = false, onTocar }: BloqueProps) {
         {bloque.alergia && (
           <TriangleAlert
             aria-label="Alergia en el expediente"
-            className="ml-auto size-4 shrink-0 text-destructive"
+            className="ml-auto size-4 shrink-0 text-peligro"
           />
         )}
       </span>
@@ -671,7 +671,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
           </Button>
         )}
       </div>
-      <p className="text-sm tabular-nums text-muted-foreground">
+      <p className="text-sm tabular-nums text-texto-sutil">
         {resumen.citas} citas · {resumen.ocupacion}% ocupado · {resumen.huecos.length} huecos
       </p>
     </header>
@@ -771,9 +771,9 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         {enOrden.map((b, i) => (
           <li key={b.id} className="flex flex-col gap-1">
             {i === iAhora && horaAhora !== null ? (
-              <span className="flex items-center gap-2 text-xs font-bold text-primary">
-                <span aria-hidden className="h-0.5 flex-1 bg-primary" /> Ahora · {horaAhora}
-                <span aria-hidden className="h-0.5 flex-1 bg-primary" />
+              <span className="flex items-center gap-2 text-xs font-bold text-primario">
+                <span aria-hidden className="h-0.5 flex-1 bg-primario" /> Ahora · {horaAhora}
+                <span aria-hidden className="h-0.5 flex-1 bg-primario" />
               </span>
             ) : null}
             <Badge variant="outline">
@@ -791,7 +791,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
       <div className="hidden gap-(--espacio-3) md:flex">
         <div className="min-w-0 flex-1 overflow-x-auto">
           <div className="min-w-max">
-            <div className="sticky top-0 z-20 flex gap-2 bg-background pb-1">
+            <div className="sticky top-0 z-20 flex gap-2 bg-fondo pb-1">
               <span className="w-10 shrink-0" />
               {columnas.map((c) => (
                 <h2
@@ -808,7 +808,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
                 {HORAS.map((m) => (
                   <li
                     key={m}
-                    className="absolute text-xs tabular-nums text-muted-foreground"
+                    className="absolute text-xs tabular-nums text-texto-sutil"
                     style={{ top: `${(m - APERTURA) * PX}px` }}
                   >
                     {aHora(m)}
@@ -818,7 +818,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
               {columnas.map((c) => (
                 <ol
                   key={c.nombre}
-                  className={`${COLUMNA} ${c.renta ? 'bg-muted/40' : 'bg-card'}`}
+                  className={`${COLUMNA} ${c.renta ? 'bg-fondo-sutil/40' : 'bg-superficie'}`}
                   style={{ height: `${ALTO}px` }}
                 >
                   {/* Sin `inset-x-1`: el ancho lo decide `posicionDe`, que parte la
@@ -833,7 +833,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
               {minutosAhora === null || horaAhora === null ? null : (
                 <div
                   ref={linea}
-                  className="pointer-events-none absolute inset-x-0 z-10 flex border-t-2 border-primary"
+                  className="pointer-events-none absolute inset-x-0 z-10 flex border-t-2 border-primario"
                   style={{ top: `${(minutosAhora - APERTURA) * PX}px` }}
                 >
                   <Badge className="tabular-nums">Ahora · {horaAhora}</Badge>
@@ -848,7 +848,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
           <h2 className="mb-1 text-sm font-semibold">Sin confirmar ({sinConfirmar.length})</h2>
           <ul className="mb-(--espacio-3) flex flex-col gap-1">
             {sinConfirmar.map((b) => (
-              <li key={b.id} className="truncate rounded-md border border-warning p-1 text-xs">
+              <li key={b.id} className="truncate rounded-md border border-advertencia p-1 text-xs">
                 {b.inicio} · {b.profesional} · {b.clienta ?? 'sin nombre'}
               </li>
             ))}
@@ -889,7 +889,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         Centrar con `flex justify-center` funciona en los dos marcos sin que el
         componente tenga que saber en cuál está.
       */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center border-t border-border bg-background p-2">
+      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center border-t border-borde bg-fondo p-2">
         <Button size="lg" className="w-full md:w-64" onClick={irAAgendar}>
           + Agendar
         </Button>

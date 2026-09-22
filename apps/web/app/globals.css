@@ -48,10 +48,13 @@
    `ThemeContext`, que es el único sistema de tema de la aplicación. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* `oscuro:` es como escriben el modo oscuro las 36 primitivas de
-   `@morphiqpos/ui`, que siguen vivas donde ya estaban. Apunta a la MISMA
-   clase: no hay dos modos oscuros, hay uno con dos nombres. */
-@custom-variant oscuro (&:where(.dark, .dark *));
+/* `oscuro:` es como escribe el modo oscuro el sistema —las primitivas, la
+   biblioteca y las pantallas de los modelos—, y apunta a `data-modo`, que es
+   SU atributo. `.dark` es el de Miguel: lo pone su `ThemeContext` y lo leen
+   los 244 archivos del heredado con `dark:`. El guion `GUION_DEL_MODO` de
+   `app/layout.tsx` deriva uno del otro antes del primer pintado y en cada
+   cambio, así que hay UN modo oscuro y cada código lo llama en su idioma. */
+@custom-variant oscuro (&:where([data-modo='oscuro'], [data-modo='oscuro'] *));
 
 @theme inline {
   /* --- colors, de su tailwind.config.js ------------------------------- */
@@ -95,6 +98,50 @@
   --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* --- LOS COLORES DEL SISTEMA, CON SU NOMBRE ------------------------------
+     Hasta aquí sólo existían las utilidades en INGLÉS —`bg-card`,
+     `text-muted-foreground`—, que son alias de estos tokens para los 244
+     archivos del heredado. `packages/ui` y las pantallas de los modelos
+     escriben con el nombre del sistema: `bg-superficie`, `text-texto-sutil`,
+     `text-peligro`. Un color, un nombre; el inglés queda sólo donde lo escribió
+     Miguel. `verify:primitivas` lo exige fuera del heredado. */
+  --color-fondo: hsl(var(--fondo));
+  --color-fondo-sutil: hsl(var(--fondo-sutil));
+  --color-superficie: hsl(var(--superficie));
+  --color-superficie-elevada: hsl(var(--superficie-elevada));
+  --color-texto: hsl(var(--texto));
+  --color-texto-sutil: hsl(var(--texto-sutil));
+  --color-texto-tenue: hsl(var(--texto-tenue));
+  --color-borde: hsl(var(--borde));
+  --color-borde-fuerte: hsl(var(--borde-fuerte));
+  --color-anillo: hsl(var(--anillo));
+  --color-primario: hsl(var(--primario));
+  --color-primario-texto: hsl(var(--primario-texto));
+  --color-acento: hsl(var(--acento));
+  --color-acento-texto: hsl(var(--acento-texto));
+  --color-acento-suave: hsl(var(--acento-suave));
+  --color-acento-suave-texto: hsl(var(--acento-suave-texto));
+  --color-exito: hsl(var(--exito));
+  --color-exito-texto: hsl(var(--exito-texto));
+  --color-advertencia: hsl(var(--advertencia));
+  --color-advertencia-texto: hsl(var(--advertencia-texto));
+  --color-peligro: hsl(var(--peligro));
+  --color-peligro-texto: hsl(var(--peligro-texto));
+  --color-info-texto: hsl(var(--info-texto));
+  --color-grafico-1: hsl(var(--grafico-1));
+  --color-grafico-2: hsl(var(--grafico-2));
+  --color-grafico-3: hsl(var(--grafico-3));
+  --color-grafico-4: hsl(var(--grafico-4));
+  --color-grafico-5: hsl(var(--grafico-5));
+  --color-grafico-6: hsl(var(--grafico-6));
+  --color-velo: hsl(var(--velo));
+  --color-lateral-fondo: hsl(var(--lateral-fondo));
+  --color-lateral-texto: hsl(var(--lateral-texto));
+  --color-lateral-activo: hsl(var(--lateral-activo));
+  --color-lateral-activo-texto: hsl(var(--lateral-activo-texto));
+  --color-lateral-hover: hsl(var(--lateral-hover));
+  --color-lateral-borde: hsl(var(--lateral-borde));
 
   /* --- borderRadius: los tres derivados de --radius -------------------- */
   --radius-lg: var(--radius);

@@ -123,7 +123,7 @@ export function AnularLineaDialog({
              leerlo antes de elegir, no después de haber decidido. */
           <p
             role="status"
-            className="rounded-md border border-border bg-muted p-(--espacio-3) text-sm text-muted-foreground"
+            className="rounded-md border border-borde bg-fondo-sutil p-(--espacio-3) text-sm text-texto-sutil"
           >
             Este platillo ya salió de cocina: el insumo ya se gastó y no vuelve al almacén. La
             cuenta baja, el inventario no.
@@ -137,7 +137,7 @@ export function AnularLineaDialog({
           {motivosDe(voc).map((opcion) => (
             <label
               key={opcion.clave}
-              className="flex cursor-pointer items-center gap-2 rounded-md border border-border p-2 text-sm hover:bg-accent hover:text-accent-foreground"
+              className="flex cursor-pointer items-center gap-2 rounded-md border border-borde p-2 text-sm hover:bg-acento-suave hover:text-acento-suave-texto"
             >
               <input
                 type="radio"
@@ -167,7 +167,7 @@ export function AnularLineaDialog({
         </div>
 
         {error !== null && (
-          <p role="alert" className="text-sm font-medium text-destructive">
+          <p role="alert" className="text-sm font-medium text-peligro">
             {error}
           </p>
         )}

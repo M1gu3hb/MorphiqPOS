@@ -283,7 +283,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
                 }}
               >
                 {producto.nombre}
-                <span className="text-muted-foreground ml-2 text-xs">
+                <span className="text-texto-sutil ml-2 text-xs">
                   {DESTINOS.find((d) => d.clave === producto.destino)?.etiqueta ?? 'sin destino'}
                 </span>
               </button>
@@ -317,14 +317,14 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
       <section className="space-y-(--espacio-4)">
         {error !== null && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-peligro text-sm">
             {error}
           </p>
         )}
         {aviso !== null && <p className="text-sm">{aviso}</p>}
 
         {elegido === null && (
-          <p className="text-muted-foreground">
+          <p className="text-texto-sutil">
             Elige {voc.enFraseCon('un', 'producto')} para ver su destino.
           </p>
         )}
@@ -379,7 +379,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
                     />
                   </div>
                 </div>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-texto-sutil text-sm">
                   Si entrara «uno» en vez del rendimiento, el consumo de tres semanas daría negativo
                   al segundo servicio.
                 </p>

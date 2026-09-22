@@ -212,7 +212,7 @@ export function FilasDeFormula({ componentes = [], minutos = 0 }: FilasDeFormula
           <span>{`${String(c.cantidad)} ${c.unidad}`}</span>
         </li>
       ))}
-      <li className="text-muted-foreground">{`${String(minutos)} min de proceso`}</li>
+      <li className="text-texto-sutil">{`${String(minutos)} min de proceso`}</li>
     </ul>
   );
 }
@@ -384,7 +384,7 @@ export function CitaEnCurso({
         {/* La alergia SIEMPRE visible y con palabra, no sólo con color: un error
             aquí no es un descuadre, es una urgencia médica. */}
         {alergias !== null && <Badge variant="destructive">{`⚠ Alergia · ${alergias}`}</Badge>}
-        <p className="w-full text-sm text-muted-foreground">
+        <p className="w-full text-sm text-texto-sutil">
           {`${cita?.servicio ?? 'Servicio'} · ${cita?.hora ?? '--:--'} · ⏱ en curso ${reloj}`}
         </p>
       </header>
@@ -392,7 +392,7 @@ export function CitaEnCurso({
       {error !== null && (
         <p
           role="alert"
-          className="mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
+          className="mb-(--espacio-3) rounded-md border border-peligro bg-peligro/15 p-2 text-sm"
         >
           {error}
         </p>
@@ -400,7 +400,7 @@ export function CitaEnCurso({
       {guardada && (
         <p
           role="status"
-          className="mb-(--espacio-3) rounded-md border border-border bg-success/20 p-2 text-sm"
+          className="mb-(--espacio-3) rounded-md border border-borde bg-exito/20 p-2 text-sm"
         >
           Fórmula guardada en su historial.
         </p>
@@ -412,21 +412,18 @@ export function CitaEnCurso({
       <div className="grid gap-(--espacio-4) md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <section
           aria-labelledby="titulo-historial"
-          className="order-2 rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground md:order-1"
+          className="order-2 rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto md:order-1"
         >
-          <h2
-            id="titulo-historial"
-            className="text-xs font-semibold uppercase text-muted-foreground"
-          >
+          <h2 id="titulo-historial" className="text-xs font-semibold uppercase text-texto-sutil">
             Historial
           </h2>
           {visitas.length === 0 ? (
-            <p className="mt-1 text-sm text-muted-foreground">{`${primero} viene por primera vez.`}</p>
+            <p className="mt-1 text-sm text-texto-sutil">{`${primero} viene por primera vez.`}</p>
           ) : (
             <ul className="mt-2 space-y-2">
               {visitas.map((v) => (
-                <li key={v.id} className="rounded-md border border-border p-2">
-                  <p className="text-xs text-muted-foreground">
+                <li key={v.id} className="rounded-md border border-borde p-2">
+                  <p className="text-xs text-texto-sutil">
                     {`${DIA.format(new Date(v.fecha))} · ${v.servicio}`}
                   </p>
                   <FilasDeFormula componentes={v.componentes ?? []} minutos={v.minutos} />
@@ -439,12 +436,9 @@ export function CitaEnCurso({
         <div className="order-1 space-y-(--espacio-3) md:order-2">
           <section
             aria-labelledby="titulo-formula"
-            className="rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1"
+            className="rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1"
           >
-            <h2
-              id="titulo-formula"
-              className="text-xs font-semibold uppercase text-muted-foreground"
-            >
+            <h2 id="titulo-formula" className="text-xs font-semibold uppercase text-texto-sutil">
               {ultima === null
                 ? 'Fórmula de partida'
                 : `La vez pasada · ${DIA.format(new Date(ultima.fecha))}`}
@@ -485,7 +479,7 @@ export function CitaEnCurso({
                 </Button>
               </>
             ) : (
-              <div className="mt-(--espacio-3) space-y-2 rounded-md border border-border p-2">
+              <div className="mt-(--espacio-3) space-y-2 rounded-md border border-borde p-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label htmlFor="mezclado">Mezclé (g)</Label>
@@ -512,7 +506,7 @@ export function CitaEnCurso({
                     />
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-texto-sutil">
                   {`Sobrante al bote: ${String(sobrante(mezcla.mezclado, mezcla.usado))} g`}
                 </p>
                 <ul className="space-y-1">
@@ -581,15 +575,12 @@ export function CitaEnCurso({
 
           <section
             aria-labelledby="titulo-servicios"
-            className="rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground"
+            className="rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto"
           >
-            <h2
-              id="titulo-servicios"
-              className="text-xs font-semibold uppercase text-muted-foreground"
-            >
+            <h2 id="titulo-servicios" className="text-xs font-semibold uppercase text-texto-sutil">
               {voc.titulo('linea_orden', true)}
             </h2>
-            <ul className="mt-1 divide-y divide-border">
+            <ul className="mt-1 divide-y divide-borde">
               {servicios.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-2 py-1 text-sm">
                   <span>{s.servicio_nombre ?? 'Servicio'}</span>
@@ -600,7 +591,7 @@ export function CitaEnCurso({
                 </li>
               ))}
               {servicios.length === 0 && (
-                <li className="py-1 text-sm text-muted-foreground">
+                <li className="py-1 text-sm text-texto-sutil">
                   Todavía no hay {voc.plural('linea_orden')} en {voc.enFraseCon('este', 'orden')}.
                 </li>
               )}
@@ -616,7 +607,7 @@ export function CitaEnCurso({
           </section>
 
           <section aria-labelledby="titulo-fotos">
-            <h2 id="titulo-fotos" className="text-xs font-semibold uppercase text-muted-foreground">
+            <h2 id="titulo-fotos" className="text-xs font-semibold uppercase text-texto-sutil">
               Fotos
             </h2>
             {/* Un toque y se abre la cámara: `capture` evita el paso por la
@@ -625,7 +616,7 @@ export function CitaEnCurso({
               {(['antes', 'después'] as const).map((momento) => (
                 <label
                   key={momento}
-                  className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border text-sm"
+                  className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-borde text-sm"
                 >
                   <Camera aria-hidden="true" className="inline size-4 shrink-0" />
                   <span>{fotos.includes(momento) ? `${momento} · tomada ✓` : momento}</span>
@@ -649,7 +640,7 @@ export function CitaEnCurso({
 
       {/* Pegado abajo en el teléfono, donde llega el pulgar con la otra mano
           ocupada. En tablet vuelve al flujo: ahí la pantalla cabe entera. */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background p-(--espacio-3) md:static md:border-0 md:p-0 md:pt-(--espacio-3)">
+      <div className="fixed inset-x-0 bottom-0 border-t border-borde bg-fondo p-(--espacio-3) md:static md:border-0 md:p-0 md:pt-(--espacio-3)">
         <Button
           type="button"
           className="min-h-20 w-full text-lg"
@@ -660,7 +651,7 @@ export function CitaEnCurso({
         >
           {cerrando ? 'Cerrando…' : 'Cerrar servicio'}
         </Button>
-        <p className="mt-1 text-center text-xs text-muted-foreground">
+        <p className="mt-1 text-center text-xs text-texto-sutil">
           Cerrar no cobra: consume el material de cabina y deja la cita lista para la caja.
         </p>
       </div>

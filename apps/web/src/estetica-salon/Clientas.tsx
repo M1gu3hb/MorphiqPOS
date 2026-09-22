@@ -267,7 +267,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
                 }}
               >
                 {clienta.nombre}
-                <span className="text-muted-foreground ml-2 text-xs">{clienta.telefono ?? ''}</span>
+                <span className="text-texto-sutil ml-2 text-xs">{clienta.telefono ?? ''}</span>
               </button>
             </li>
           ))}
@@ -278,15 +278,13 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
         <h2 className="font-medium">Les toca volver</h2>
         {porVolver === null && <Skeleton className="h-[calc(var(--altura-control)*2)] w-full" />}
         {porVolver !== null && porVolver.length === 0 && (
-          <p className="text-muted-foreground text-sm">Nadie va con retraso.</p>
+          <p className="text-texto-sutil text-sm">Nadie va con retraso.</p>
         )}
         <ul className="divide-y">
           {(porVolver ?? []).slice(0, 10).map((clienta) => (
             <li key={clienta.clienteId} className="flex items-baseline justify-between py-2">
               <span>{clienta.nombre}</span>
-              <span className="text-muted-foreground text-sm">
-                {clienta.diasDeRetraso} d de retraso
-              </span>
+              <span className="text-texto-sutil text-sm">{clienta.diasDeRetraso} d de retraso</span>
             </li>
           ))}
         </ul>
@@ -294,13 +292,13 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
 
       <section className="space-y-(--espacio-4)">
         {error !== null && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-peligro text-sm">
             {error}
           </p>
         )}
 
         {elegida === null && (
-          <p className="text-muted-foreground">
+          <p className="text-texto-sutil">
             Elige {voc.enFraseCon('un', 'cliente')} para abrir su expediente.
           </p>
         )}
@@ -318,8 +316,8 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
 
             {/* Arriba de todo y en rojo: es el único dato de esta pantalla que
                 puede mandar a alguien al hospital. */}
-            <div className="border-destructive rounded-lg border-2 p-(--espacio-4)">
-              <Label htmlFor="alergias" className="text-destructive text-base font-semibold">
+            <div className="border-peligro rounded-lg border-2 p-(--espacio-4)">
+              <Label htmlFor="alergias" className="text-peligro text-base font-semibold">
                 Alergias
               </Label>
               <Textarea
@@ -332,7 +330,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
                 }}
               />
               {expediente.alergias.trim() === '' && (
-                <p className="text-destructive mt-1 text-sm">
+                <p className="text-peligro mt-1 text-sm">
                   Sin contestar. «Ninguna conocida» también es una respuesta.
                 </p>
               )}
@@ -378,7 +376,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
             <div>
               <h3 className="font-medium">Última fórmula</h3>
               {ultima === null && (
-                <p className="text-muted-foreground text-sm">Todavía no hay ninguna.</p>
+                <p className="text-texto-sutil text-sm">Todavía no hay ninguna.</p>
               )}
               {ultima !== null && (
                 <>
@@ -386,7 +384,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
                     Hace {ultima.diasDesde} día{ultima.diasDesde === 1 ? '' : 's'}
                     {ultima.resultado === null ? '' : ` · ${ultima.resultado}`}
                   </p>
-                  <pre className="bg-muted mt-2 overflow-x-auto rounded p-(--espacio-3) text-sm">
+                  <pre className="bg-fondo-sutil mt-2 overflow-x-auto rounded p-(--espacio-3) text-sm">
                     {JSON.stringify(ultima.formula, null, 2)}
                   </pre>
                 </>

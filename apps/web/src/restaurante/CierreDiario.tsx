@@ -85,7 +85,7 @@ type Canal = (typeof CANALES)[number];
 /** Por debajo de esto el descuadre es «se me fue un peso»; por encima, no. */
 const TOLERANCIA_CENTAVOS = 2000;
 
-const SECCION = 'rounded-lg border border-border bg-card text-card-foreground shadow-1';
+const SECCION = 'rounded-lg border border-borde bg-superficie text-texto shadow-1';
 const TITULO = 'cursor-pointer p-(--espacio-3) text-sm font-semibold uppercase tracking-wide';
 
 /** La venta del día tal como la nombra el puente. Los importes van en PESOS. */
@@ -244,15 +244,15 @@ export interface Semaforo {
 /** Dice la PALABRA además del color: el color nunca viaja solo. */
 export function semaforoDe(diferencia: number): Semaforo {
   if (diferencia === 0) {
-    return { texto: 'Cuadra exacto', marca: '✓', clase: 'border-success bg-success/15' };
+    return { texto: 'Cuadra exacto', marca: '✓', clase: 'border-exito bg-exito/15' };
   }
   const falta = diferencia < 0;
   if (Math.abs(diferencia) <= TOLERANCIA_CENTAVOS) {
     const texto = falta ? 'Falta poco' : 'Sobra poco';
-    return { texto, marca: '•', clase: 'border-warning bg-warning/15' };
+    return { texto, marca: '•', clase: 'border-advertencia bg-advertencia/15' };
   }
   const texto = falta ? 'FALTA dinero en el cajón' : 'SOBRA dinero en el cajón';
-  return { texto, marca: '!', clase: 'border-destructive bg-destructive/20' };
+  return { texto, marca: '!', clase: 'border-peligro bg-peligro/20' };
 }
 
 /** Traduce el fallo a algo accionable. El 429 no es un código: es el estado. */
@@ -350,10 +350,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
   // La pantalla NUNCA se vacía por un error: la banda va encima del último dato.
   const banda =
     error === null ? null : (
-      <p
-        role="alert"
-        className="rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
-      >
+      <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-2 text-sm">
         {error} · La caja NO se cerró.
       </p>
     );
@@ -400,7 +397,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
         role="status"
         className="mx-auto max-w-lg space-y-(--espacio-3) p-(--espacio-8) text-center"
       >
-        <p className="text-sm uppercase text-muted-foreground">
+        <p className="text-sm uppercase text-texto-sutil">
           Corte {corte.serie}-{corte.folio} · {corte.numeroVentas} tickets
         </p>
         <p className={`rounded-lg border-2 p-(--espacio-4) ${cerrado.clase}`}>
@@ -411,7 +408,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
             {cerrado.marca} {cerrado.texto}
           </span>
         </p>
-        <p className="text-muted-foreground">
+        <p className="text-texto-sutil">
           Esperado {enPesos(Number(corte.efectivoEsperadoCentavos))} · contado{' '}
           {enPesos(centavosDeTexto(contado) ?? 0)}
         </p>
@@ -516,7 +513,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
               setContado(evento.target.value);
             }}
           />
-          <p id="ayuda-contado" className="text-xs text-muted-foreground">
+          <p id="ayuda-contado" className="text-xs text-texto-sutil">
             Cuenta el cajón antes de mirar nada más: el esperado aparece cuando escribas, para que
             el arqueo siga siendo un control y no un número que se copia.
           </p>
@@ -571,7 +568,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
           CERRAR CAJA
         </Button>
         {cuenta === null && (
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm text-texto-sutil">
             Escribe primero el efectivo contado.
           </p>
         )}
@@ -585,7 +582,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
           <dl className="grid grid-cols-2 gap-x-(--espacio-4) gap-y-(--espacio-3) p-(--espacio-3) pt-0 md:grid-cols-4">
             {financiero.map(([rotulo, valor]) => (
               <div key={rotulo}>
-                <dt className="text-xs text-muted-foreground">{rotulo}</dt>
+                <dt className="text-xs text-texto-sutil">{rotulo}</dt>
                 <dd className="text-lg font-semibold tabular-nums">{valor}</dd>
               </div>
             ))}
@@ -597,12 +594,12 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
           <dl className="grid grid-cols-2 gap-x-(--espacio-4) gap-y-(--espacio-3) p-(--espacio-3) pt-0 md:grid-cols-4">
             {propinas.map(([rotulo, monto]) => (
               <div key={rotulo}>
-                <dt className="text-xs capitalize text-muted-foreground">{rotulo}</dt>
+                <dt className="text-xs capitalize text-texto-sutil">{rotulo}</dt>
                 <dd className="text-lg font-semibold tabular-nums">{enPesos(monto)}</dd>
               </div>
             ))}
           </dl>
-          <p className="px-(--espacio-3) pb-(--espacio-3) text-xs text-muted-foreground">
+          <p className="px-(--espacio-3) pb-(--espacio-3) text-xs text-texto-sutil">
             No entran en la utilidad: son dinero de {voc.enFrase('responsable', true)} que pasó por
             la caja.
           </p>
@@ -661,12 +658,12 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
               {dialogo.mesas.map((mesa) => (
                 <li
                   key={mesa.id}
-                  className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border p-2 text-sm"
+                  className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-borde p-2 text-sm"
                 >
                   <span className="font-semibold">{mesa.rotulo}</span>
-                  <span className="text-muted-foreground">{mesa.mesero}</span>
+                  <span className="text-texto-sutil">{mesa.mesero}</span>
                   <span className="tabular-nums">{enPesos(mesa.total)}</span>
-                  <span className="text-muted-foreground">abierta {mesa.abierta}</span>
+                  <span className="text-texto-sutil">abierta {mesa.abierta}</span>
                 </li>
               ))}
             </ul>

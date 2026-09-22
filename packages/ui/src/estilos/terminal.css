@@ -76,7 +76,7 @@
  * fósforo nunca apagó del todo, y el negro absoluto contra un ámbar saturado produce
  * un halo que cansa. Éste es el negro que tenían.
  */
-[data-estilo='terminal'].dark {
+[data-estilo='terminal'][data-modo='oscuro'] {
   --sombra-tinte: 0 0% 0%;
 
   --fondo: 120 16% 6%;

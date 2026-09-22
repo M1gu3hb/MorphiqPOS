@@ -5091,3 +5091,100 @@ M2 · <Cifra> con `inline-flex gap-1` y sin el espacio          → 3 en ROJO
 M3 · <Button asChild> con la rueda junto a {children}           → 2 en ROJO
 restaurado                                                      → 24 de 24
 ```
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 5.1 · un solo vocabulario, también dentro de `packages/ui`
+
+**Dónde iba:** 5.1 hecho; la biblioteca, ampliada para que las 69 pantallas puedan cumplir; las
+dos pantallas de cobro, recompuestas y con su comprobación en verde. Siguiente: verlas en el
+navegador con sus dos suites y lanzar la recomposición del resto por lotes de modelo.
+
+### Los colores: 1 633 usos en inglés, en 108 archivos
+
+La condición 3 de la vuelta pasada decía «un vocabulario» y era verdad sólo para las variables de
+CSS: las **utilidades** de Tailwind sólo existían en inglés —`bg-card`, `text-muted-foreground`—
+porque `globals.css` no mapeaba ni un token español. Así que el sistema entero, incluido
+`packages/ui`, escribía con los alias que `heredado/index.css` deriva para el código de Miguel.
+
+- `globals.css` declara ahora `--color-fondo`, `--color-superficie`, `--color-texto-sutil`,
+  `--color-peligro`… los 36 tokens del sistema como utilidades.
+- `scripts/traducir-vocabulario.mjs` traduce, con su variante y su opacidad
+  (`oscuro:hover:bg-destructive/40` → `oscuro:hover:bg-peligro/40`), en `packages/ui/src`,
+  `apps/web/src` y `apps/web/app`: **1 633 utilidades en 108 archivos**. La tabla es la de
+  `heredado/index.css` al revés, y vive en `scripts/lib/vocabulario-de-color.mjs` para que el
+  traductor y la puerta no puedan opinar distinto.
+- El heredado no se toca: sigue en inglés contra los alias. Es el código de Miguel.
+
+### El modo oscuro: `.dark` era de Miguel, y el sistema tenía que tener el suyo
+
+`capas.css` y los ocho estilos declaraban `[data-estilo='…'].dark` mientras `verify:primitivas`
+prohibía `dark:` porque «la clase del sistema es `oscuro`». Ahora los ocho estilos cambian su
+paleta bajo **`[data-modo='oscuro']`**, y la variante `oscuro:` apunta ahí. `.dark` la sigue
+poniendo el `ThemeContext` de Miguel; `apps/web/src/proveedores/modo.ts` es el único puente —un
+guion en el `<head>`, detrás del que pone la clase, que escribe `data-modo` antes del primer
+pintado y lo mantiene con un `MutationObserver` sobre el atributo `class`—. Un modo, cada código
+en su idioma.
+
+`auditar-estilo.mjs` (`verify:estilos`) y `sistema.test.ts` resuelven el modo oscuro con el
+selector nuevo.
+
+### La puerta, dentro de `packages/ui`
+
+`verify:primitivas` gana dos reglas, las dos vistas en ROJO:
+
+```
+M1 · text-muted-foreground de vuelta en sistema/estados.tsx → «color del sistema escrito con
+     su alias en inglés», exit 1
+M2 · `.dark .x {…}` añadido a estilos/capas.css             → «modo oscuro con la clase de
+     Miguel en una hoja del sistema», exit 1
+```
+
+La M2 tardó en salir roja, y la razón es de contarse: la regla la escribí desde un `heredoc` de
+Python y el `\b` de la expresión regular llegó al archivo como un BACKSPACE (0x08). `/\.dark␈/`
+no casa con nada: la regla existía, compilaba y **no podía fallar**. Lo vio la mutación, no la
+lectura. Arreglado reescribiendo el byte, y comprobado que no quedaba otro 0x08 en `scripts`,
+`packages/ui` ni `apps/web`.
+
+## ETAPA 2.35 · EL CIERRE — la biblioteca, ampliada para que las pantallas puedan cumplir
+
+Lo que faltaba para que una pantalla real pudiera pasar las cuatro sin volver a escribir a mano:
+
+| Pieza | Qué se le añadió, y qué pantalla lo pedía |
+| --- | --- |
+| `Superficie` | Todos los atributos de su etiqueta (`como="button"` con `type` y `disabled`, `como="label"` con `htmlFor`), `ref`, `interactiva` (la tesela: sube, se hunde a 0.98, foco en dos capas) y `activa`. Las teselas de producto del cobro eran `<button>` escritos a mano |
+| `Tabla` | `etiqueta`, `pie` (totales POR columna), `tonoDeFila` (con la regla de que el color nunca va solo), `viajeDeFila`, y que un botón DENTRO de una celda no active la fila: tocar «−» en el pedido abría la ficha |
+| `ListaDeTarjetas` | A su propio archivo, y con `Superficie`: era un `<button disabled>` siempre —no dejaba ni seleccionar su texto— y una celda con su propio control acababa siendo un botón dentro de un botón |
+| `TablaAdaptable` | Nueva. La misma lista como tabla densa en la PC y como tarjetas de dos renglones por debajo de `xl`, pintando UNA de las dos —pintar las dos y esconder una deja la lista dos veces para el lector de pantalla y para las pruebas— |
+| `CampoDeDinero` | Nuevo. La pantalla habla sólo en centavos; el texto lo lleva el campo. Sustituye al `Input` + `parseFloat` + `(c / 100).toFixed(2)` que cada pantalla escribía a su manera |
+| Transiciones de vista | CSS en `base.css`: sólo viaja lo que tiene nombre, la raíz no se funde —en un cobro que agrega 500 productos al día, fundirla es un parpadeo por toque—, y dura lo que la perilla de movimiento diga |
+
+Y `verify:adopcion` reconoce ahora `textoParaCampo` como importe en texto (no se pinta), `Link`
+como etiqueta (una tesela sobre `Link` es tan a mano como sobre un `<div>`) y la `Superficie`
+interactiva como tesela —una rejilla de productos que se tocan no es una tabla—.
+
+### `scripts/comprobar-pantalla.mjs`: las seis puertas de UNA pantalla
+
+Formato, adopción, tokens, vocabulario, tipos y lint, filtrados al archivo, con los tipos y el
+lint por turno (un candado en disco: cada corrida carga el programa entero de TypeScript). La
+primera versión **daba verde sin haber corrido los tipos**: lanzaba `tsc` por el shell, el shell
+partía la ruta en el espacio de «MIS PROYECTOS», `tsc` no arrancaba, no escribía ninguna línea
+del archivo, y el filtro leía «ninguna línea» como «ningún error». Se vio porque tardó dos
+segundos. Ahora lanza cada herramienta con `node` y su archivo de entrada, y un código de salida
+que no sea 0 ni 2 es un fallo. Validado: un `const piezas: string = …` en el cobro sale
+`✗ tipos · TS2322`.
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 2 · las dos de cobro, primero
+
+- **`cafeteria/Cobrar`**: teselas `Superficie interactiva`, el pedido como `Tabla` (cantidad con
+  sus botones en la celda), el total dentro del botón con `<Dinero tamano="lg">`, el aviso de
+  cambio con `Dinero`, los muros como `Aviso` (turno cerrado, sin internet), el catálogo vacío
+  como `Vacio`, y la lectura fallida como `ErrorDePantalla` con reintento —antes un fallo de red
+  dejaba el muro de «Turno cerrado», que mentía—. **El producto viaja al pedido**
+  (`conTransicion` + `VIAJE.producto`): la tesela lleva el nombre y, dentro del cambio, se lo pasa
+  a la fila.
+- **`ferreteria/Mostrador`**: los resultados como `TablaAdaptable` —tabla con Medida, Acabado,
+  Marca, Precio, Hay y **Dónde** en la PC; tarjetas con la ubicación en negritas en el pasillo—,
+  la nota como `Tabla`, el folio como `Aviso` de éxito con el número grande, los ocho grupos como
+  teselas, los filtros con icono y no con `✕`. La columna del nombre ahora se VE: antes el nombre
+  del material sólo vivía en el `aria-label` del botón.
+
+Las dos, `✓` en `comprobar-pantalla.mjs`.

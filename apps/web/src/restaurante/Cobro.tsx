@@ -233,7 +233,7 @@ export function Cobro({
     error === null ? null : (
       <p
         role="alert"
-        className="rounded-md border border-destructive bg-destructive/10 p-2 text-sm text-foreground"
+        className="rounded-md border border-peligro bg-peligro/10 p-2 text-sm text-texto"
       >
         {error} · La cuenta NO se marcó como pagada.
       </p>
@@ -299,12 +299,12 @@ export function Cobro({
           como="section"
           className="flex flex-col items-center gap-(--espacio-3) text-center"
         >
-          <p className="text-sm font-medium tracking-wide text-success uppercase">Cobrado</p>
+          <p className="text-sm font-medium tracking-wide text-exito uppercase">Cobrado</p>
           <span className="flex flex-col items-center gap-(--espacio-1)">
-            <span className="text-xs text-muted-foreground">Cambio</span>
+            <span className="text-xs text-texto-sutil">Cambio</span>
             <Dinero centavos={cambio} tamano="total" />
           </span>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Se cobraron <Dinero centavos={total} tamano="sm" /> ·{' '}
             {voc.conArticulo('unidad_servicio')} pasa sola a limpieza.
           </p>
@@ -331,16 +331,16 @@ export function Cobro({
           </li>
         ))}
       </ul>
-      <dl className="mt-(--espacio-3) grid grid-cols-2 gap-y-(--espacio-1) border-t border-border pt-(--espacio-3) text-sm">
-        <dt className="text-muted-foreground">Subtotal</dt>
+      <dl className="mt-(--espacio-3) grid grid-cols-2 gap-y-(--espacio-1) border-t border-borde pt-(--espacio-3) text-sm">
+        <dt className="text-texto-sutil">Subtotal</dt>
         <dd className="text-right">
           <Dinero centavos={aCentavos(cuenta.subtotal)} tamano="sm" />
         </dd>
-        <dt className="text-muted-foreground">Impuestos</dt>
+        <dt className="text-texto-sutil">Impuestos</dt>
         <dd className="text-right">
           <Dinero centavos={aCentavos(cuenta.impuestos)} tamano="sm" />
         </dd>
-        <dt className="text-muted-foreground">Propina</dt>
+        <dt className="text-texto-sutil">Propina</dt>
         <dd className="text-right">
           <Dinero centavos={suPropina} tamano="sm" />
         </dd>
@@ -373,13 +373,13 @@ export function Cobro({
             cifra, y la palabra «total» sólo confirma qué es. */}
         <Superficie nivel={2} relleno={4} className="flex flex-col items-center gap-(--espacio-1)">
           <Dinero centavos={total} tamano="total" />
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <p className="text-xs font-medium tracking-wide text-texto-sutil uppercase">
             Total a cobrar
           </p>
         </Superficie>
         {/* «Sin propina» pesa lo mismo que los porcentajes: es voluntaria. */}
         {pendiente && (
-          <div className="flex flex-col gap-(--espacio-2) rounded-lg border border-warning bg-warning/10 p-(--espacio-3)">
+          <div className="flex flex-col gap-(--espacio-2) rounded-lg border border-advertencia bg-advertencia/10 p-(--espacio-3)">
             <p role="alert" className="text-sm font-medium">
               Confirma la propina antes de cobrar.
             </p>
@@ -396,7 +396,7 @@ export function Cobro({
                   <Dinero
                     centavos={Math.round((venta * puntos) / 10000)}
                     tamano="xs"
-                    className="text-muted-foreground"
+                    className="text-texto-sutil"
                   />
                 </Button>
               ))}
@@ -432,7 +432,7 @@ export function Cobro({
             {/* El cambio, al peso de un dato y no de una etiqueta: es el número que
                 el cajero saca del cajón, y se equivoca si lo tiene que buscar. */}
             <span className="flex items-baseline justify-between">
-              <span className="text-muted-foreground">Cambio</span>
+              <span className="text-texto-sutil">Cambio</span>
               <Dinero centavos={Math.max(mano - total, 0)} tamano="lg" />
             </span>
           </label>
@@ -468,10 +468,10 @@ export function Cobro({
       </section>
       {/* `details` nativo: el teclado y el lector de pantalla ya saben abrirlo. */}
       <section aria-label={voc.conArticulo('orden')} className="xl:order-1">
-        <details className="rounded-lg border border-border xl:hidden">
+        <details className="rounded-lg border border-borde xl:hidden">
           <summary className="flex cursor-pointer items-baseline justify-between p-(--espacio-3) text-sm">
             <span>{lineas.length} platillos</span>
-            <span className="text-muted-foreground">ver el desglose</span>
+            <span className="text-texto-sutil">ver el desglose</span>
           </summary>
           {detalle}
         </details>

@@ -105,10 +105,10 @@ function Seccion({
   readonly children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-(--espacio-4) border-t border-border pt-(--espacio-8)">
+    <section className="flex flex-col gap-(--espacio-4) border-t border-borde pt-(--espacio-8)">
       <header className="flex flex-col gap-(--espacio-1)">
         <h2 className="text-xl font-semibold tracking-tight">{titulo}</h2>
-        <p className="max-w-prose text-sm text-muted-foreground">{cuando}</p>
+        <p className="max-w-prose text-sm text-texto-sutil">{cuando}</p>
       </header>
       {children}
     </section>
@@ -124,8 +124,8 @@ export function PaginaDelSistema() {
   const [cargando, setCargando] = useState(false);
 
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <BarraFija className="border-b border-border">
+    <div className="min-h-dvh bg-fondo text-texto">
+      <BarraFija className="border-b border-borde">
         <div className="mx-auto flex max-w-5xl flex-col gap-(--espacio-3) px-(--espacio-4) py-(--espacio-4)">
           <Migas pasos={[{ rotulo: 'MorphiqPOS' }, { rotulo: 'Sistema de diseño' }]} />
           <h1 className="text-2xl font-semibold tracking-tight">El sistema, en vivo</h1>
@@ -133,14 +133,14 @@ export function PaginaDelSistema() {
           {/* EL SELECTOR · el estilo y las cuatro perillas, sobre estas mismas
               piezas. Cambiar aquí no recarga nada: son cinco atributos del <html>. */}
           <div className="flex flex-wrap items-end gap-(--espacio-4)">
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            <label className="flex flex-col gap-1 text-xs text-texto-sutil">
               Estilo
               <select
                 value={apariencia.estilo}
                 onChange={(evento) => {
                   cambiarEstilo(evento.target.value);
                 }}
-                className="h-(--altura-control) rounded-md border border-input bg-card px-(--espacio-2) text-sm text-foreground"
+                className="h-(--altura-control) rounded-md border border-borde-fuerte bg-superficie px-(--espacio-2) text-sm text-texto"
               >
                 {CLAVES_ESTILO.map((clave) => (
                   <option key={clave} value={clave}>
@@ -151,7 +151,7 @@ export function PaginaDelSistema() {
             </label>
 
             {(['densidad', 'redondeo', 'elevacion', 'movimiento'] as const).map((perilla) => (
-              <label key={perilla} className="flex flex-col gap-1 text-xs text-muted-foreground">
+              <label key={perilla} className="flex flex-col gap-1 text-xs text-texto-sutil">
                 {perilla[0]?.toUpperCase()}
                 {perilla.slice(1)}
                 <select
@@ -161,7 +161,7 @@ export function PaginaDelSistema() {
                     // los suyos: lo garantiza la lista que pinta las opciones.
                     ajustar(perilla, evento.target.value as never);
                   }}
-                  className="h-(--altura-control) rounded-md border border-input bg-card px-(--espacio-2) text-sm text-foreground"
+                  className="h-(--altura-control) rounded-md border border-borde-fuerte bg-superficie px-(--espacio-2) text-sm text-texto"
                 >
                   {PERILLAS[perilla].map((valor) => (
                     <option key={valor} value={valor}>
@@ -172,7 +172,7 @@ export function PaginaDelSistema() {
               </label>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">{ESTILOS[apariencia.estilo]?.para ?? ''}</p>
+          <p className="text-xs text-texto-sutil">{ESTILOS[apariencia.estilo]?.para ?? ''}</p>
         </div>
       </BarraFija>
 
@@ -185,7 +185,7 @@ export function PaginaDelSistema() {
             {([0, 1, 2, 3, 4] as const).map((nivel: NivelDeElevacion) => (
               <Superficie key={nivel} nivel={nivel} className="text-center text-sm">
                 <p className="font-medium">nivel {nivel}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-texto-sutil">
                   {['sección', 'tarjeta', 'levantada', 'flota', 'bloquea'][nivel]}
                 </p>
               </Superficie>
@@ -238,7 +238,7 @@ export function PaginaDelSistema() {
               <a href="/sistema">Botón que es un enlace</a>
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-texto-sutil">
             Púlsalos y no los sueltes: el hundimiento de 1 px y la sombra que se acorta son lo que
             hace que un botón se sienta real.
           </p>
@@ -432,7 +432,7 @@ export function PaginaDelSistema() {
           titulo="Navegación"
           cuando="Tres formas para tres dispositivos, no una que se encoge. El abanico inferior es del teléfono; la barra lateral, de la PC y la tableta."
         >
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             El abanico está abajo del todo, fijo, para que se pueda tocar con el pulgar. La barra
             lateral vive en el marco de la aplicación.
           </p>
@@ -455,13 +455,13 @@ export function PaginaDelSistema() {
         {/* La isla queda al final para que no tape las secciones de arriba. */}
         <Isla>
           <span className="flex items-center gap-(--espacio-4) px-(--espacio-2) text-sm">
-            <span className="text-muted-foreground">Total</span>
+            <span className="text-texto-sutil">Total</span>
             <Dinero centavos={43900} tamano="lg" />
             <Button size="sm">Cobrar</Button>
           </span>
         </Isla>
 
-        <p className="pb-32 text-xs text-muted-foreground">
+        <p className="pb-32 text-xs text-texto-sutil">
           Cambia el estilo y las perillas de arriba: nada de esta página se vuelve a montar, y lo
           que ves es lo mismo que ve la caja.
         </p>

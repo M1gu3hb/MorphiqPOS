@@ -67,11 +67,11 @@ const MS_REFRESCO = 2000;
 
 const MARCO =
   'pointer-events-none flex min-h-dvh select-none flex-col justify-between gap-(--espacio-8) ' +
-  'bg-background p-(--espacio-8) text-foreground';
+  'bg-fondo p-(--espacio-8) text-texto';
 const ZONA =
   'flex w-full flex-1 flex-col items-center justify-center gap-(--espacio-6) text-center';
 const ROTULO =
-  'text-[clamp(1.25rem,3vw,2.5rem)] font-semibold uppercase tracking-[0.4em] text-muted-foreground';
+  'text-[clamp(1.25rem,3vw,2.5rem)] font-semibold uppercase tracking-[0.4em] text-texto-sutil';
 const NOMBRE_ENORME = 'text-[clamp(6rem,17vw,17rem)] font-black uppercase leading-none break-words';
 const NOMBRE_GRANDE = 'text-[clamp(3rem,9vw,7rem)] font-black uppercase leading-none break-words';
 const NOMBRE_MEDIO = 'text-[clamp(1.75rem,5vw,4rem)] font-bold uppercase leading-none';
@@ -222,7 +222,7 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
         <section className={ZONA} aria-live="polite">
           {/* La palabra arriba y el nombre debajo: el cartel se entiende sin
               haberlo visto nunca antes, que es el caso de casi todos. */}
-          <div className="rounded-[2.5rem] bg-success/15 px-(--espacio-10) py-(--espacio-12)">
+          <div className="rounded-[2.5rem] bg-exito/15 px-(--espacio-10) py-(--espacio-12)">
             <p className={ROTULO}>Listo</p>
             <p className={`mt-(--espacio-4) ${NOMBRE_ENORME}`}>{nombreVisible(destacado)}</p>
           </div>
@@ -246,7 +246,7 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
           <p className="text-[clamp(2.5rem,7vw,6rem)] leading-tight font-black text-balance">
             Tu nombre aparecerá aquí
           </p>
-          <p className="max-w-3xl text-[clamp(1.125rem,2.5vw,2rem)] text-muted-foreground">
+          <p className="max-w-3xl text-[clamp(1.125rem,2.5vw,2rem)] text-texto-sutil">
             En cuanto tu {voc.singular('unidad_servicio')} esté listo lo verás en esta pantalla y lo
             oirás en voz alta. No tienes que hacer nada.
           </p>
@@ -256,14 +256,14 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
       {destacado !== null && tambien.length > 0 && (
         <section className="flex flex-col items-center gap-(--espacio-4)" aria-live="polite">
           <Separator className="max-w-3xl" />
-          <p className="text-[clamp(0.875rem,1.5vw,1.25rem)] tracking-[0.3em] text-muted-foreground uppercase">
+          <p className="text-[clamp(0.875rem,1.5vw,1.25rem)] tracking-[0.3em] text-texto-sutil uppercase">
             También listos
           </p>
           <ul className="flex flex-wrap items-baseline justify-center gap-x-(--espacio-6) gap-y-(--espacio-3)">
             {tambien.map((pedido, indice) => (
               <li key={pedido.id} className="flex items-baseline gap-x-(--espacio-6)">
                 {indice > 0 && (
-                  <span aria-hidden className="text-muted-foreground">
+                  <span aria-hidden className="text-texto-sutil">
                     ·
                   </span>
                 )}
@@ -277,15 +277,15 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
       <footer className="flex items-end justify-between gap-(--espacio-4)">
         {sinConexion ? (
           // Un punto y su palabra. Ni «error», ni un código, ni un reintento.
-          <p role="alert" className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span aria-hidden className="h-3 w-3 rounded-full border border-border bg-muted" />
+          <p role="alert" className="flex items-center gap-2 text-sm text-texto-sutil">
+            <span aria-hidden className="h-3 w-3 rounded-full border border-borde bg-fondo-sutil" />
             Sin conexión · estos son los últimos nombres
           </p>
         ) : (
           <span />
         )}
         {nombreNegocio !== undefined && nombreNegocio !== '' && (
-          <p className="text-[clamp(1rem,1.5vw,1.5rem)] font-semibold text-muted-foreground">
+          <p className="text-[clamp(1rem,1.5vw,1.5rem)] font-semibold text-texto-sutil">
             {nombreNegocio}
           </p>
         )}

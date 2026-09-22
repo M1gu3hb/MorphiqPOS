@@ -356,7 +356,7 @@ export function TrabajosDeMostrador({
     <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Trabajos de mostrador</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           El clavo donde se pinchan los papeles, sin papeles.
         </p>
       </header>
@@ -378,7 +378,7 @@ export function TrabajosDeMostrador({
       </div>
 
       {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-peligro text-sm">
           {error}
         </p>
       )}
@@ -387,7 +387,7 @@ export function TrabajosDeMostrador({
       {pestana === 'apartados' && (
         <section>
           {apartados.length === 0 && (
-            <p className="text-muted-foreground text-sm">No hay nada apartado.</p>
+            <p className="text-texto-sutil text-sm">No hay nada apartado.</p>
           )}
           <ul className="divide-y">
             {apartados.map((nota) => (
@@ -400,9 +400,7 @@ export function TrabajosDeMostrador({
                 <span className="tabular-nums">{pesos(nota.totalCentavos)}</span>
                 <span
                   className={
-                    nota.diasRestantes <= 0
-                      ? 'text-destructive text-sm'
-                      : 'text-muted-foreground text-sm'
+                    nota.diasRestantes <= 0 ? 'text-peligro text-sm' : 'text-texto-sutil text-sm'
                   }
                 >
                   {leerVencimiento(nota.diasRestantes)}
@@ -419,7 +417,7 @@ export function TrabajosDeMostrador({
               </li>
             ))}
           </ul>
-          <p className="text-muted-foreground mt-(--espacio-3) text-sm">
+          <p className="text-texto-sutil mt-(--espacio-3) text-sm">
             Material apartado es material que no se vende: por eso caduca y por eso se ve cuándo.
           </p>
         </section>
@@ -428,7 +426,7 @@ export function TrabajosDeMostrador({
       {pestana === 'listas' && (
         <section className="space-y-(--espacio-4)">
           {listas.length === 0 && (
-            <p className="text-muted-foreground text-sm">No hay listas abiertas.</p>
+            <p className="text-texto-sutil text-sm">No hay listas abiertas.</p>
           )}
           <ul className="divide-y">
             {listas.map((lista) => (
@@ -472,7 +470,7 @@ export function TrabajosDeMostrador({
                   setTextoLista(evento.target.value);
                 }}
               />
-              <p className="text-muted-foreground mt-1 text-sm">
+              <p className="text-texto-sutil mt-1 text-sm">
                 Un renglón por línea. No se traduce al capturar: se empareja después.
               </p>
             </div>
@@ -486,7 +484,7 @@ export function TrabajosDeMostrador({
       {pestana === 'garantias' && (
         <section>
           {garantias.length === 0 && (
-            <p className="text-muted-foreground text-sm">No hay nada en el proveedor.</p>
+            <p className="text-texto-sutil text-sm">No hay nada en el proveedor.</p>
           )}
           <ul className="divide-y">
             {garantias.map((garantia) => (
@@ -503,8 +501,8 @@ export function TrabajosDeMostrador({
                 <span
                   className={
                     garantia.diasEsperando > 30
-                      ? 'text-destructive text-sm'
-                      : 'text-muted-foreground text-sm'
+                      ? 'text-peligro text-sm'
+                      : 'text-texto-sutil text-sm'
                   }
                 >
                   {garantia.diasEsperando} d esperando
@@ -512,7 +510,7 @@ export function TrabajosDeMostrador({
               </li>
             ))}
           </ul>
-          <p className="text-muted-foreground mt-(--espacio-3) text-sm">
+          <p className="text-texto-sutil mt-(--espacio-3) text-sm">
             Un negocio mediano pierde entre $20,000 y $60,000 al año porque nadie lleva esta cuenta.
           </p>
         </section>

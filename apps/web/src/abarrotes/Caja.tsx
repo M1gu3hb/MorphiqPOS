@@ -228,7 +228,7 @@ export function Caja({ estadoInicial }: CajaProps) {
     <main className="mx-auto max-w-2xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Caja</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           {abierta
             ? `Abierta desde las ${(estado.abiertaEn ?? '').slice(11, 16)}`
             : 'Cerrada. Ábrela para poder cobrar.'}
@@ -236,7 +236,7 @@ export function Caja({ estadoInicial }: CajaProps) {
       </header>
 
       {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-peligro text-sm">
           {error}
         </p>
       )}
@@ -245,7 +245,7 @@ export function Caja({ estadoInicial }: CajaProps) {
         <section className="space-y-(--espacio-4) rounded-lg border p-(--espacio-4)">
           <div>
             <h2 className="font-medium">Fondo con el que abres</h2>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-texto-sutil text-sm">
               Por montones. «$1,500» no dice si se puede dar cambio; cuánto hay en monedas, sí.
             </p>
           </div>
@@ -256,7 +256,7 @@ export function Caja({ estadoInicial }: CajaProps) {
             >
               <Label htmlFor={`fondo-${denominacion.clave}`}>
                 {denominacion.etiqueta}
-                <span className="text-muted-foreground ml-2 text-xs">{denominacion.ayuda}</span>
+                <span className="text-texto-sutil ml-2 text-xs">{denominacion.ayuda}</span>
               </Label>
               <Input
                 id={`fondo-${denominacion.clave}`}
@@ -286,7 +286,7 @@ export function Caja({ estadoInicial }: CajaProps) {
             <p className="text-3xl font-semibold tabular-nums">
               {pesos(estado.fondoEsperadoCentavos)}
             </p>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-texto-sutil text-sm">
               {pesos(estado.fondoMonedasCentavos)} en monedas · {pesos(estado.fondoChicosCentavos)}{' '}
               en chicos
             </p>
@@ -297,7 +297,7 @@ export function Caja({ estadoInicial }: CajaProps) {
           <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
             <div>
               <h2 className="font-medium">Meter cambio</h2>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-texto-sutil text-sm">
                 No es {voc.enFraseCon('un', 'orden')}: es fondo. Sube lo que la caja debería tener.
               </p>
             </div>
@@ -354,7 +354,7 @@ export function Caja({ estadoInicial }: CajaProps) {
           <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
             <div>
               <h2 className="font-medium">Retirar</h2>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-texto-sutil text-sm">
                 Lo que sale del cajón lleva escrito a dónde va.
               </p>
             </div>

@@ -11,6 +11,7 @@ import { negociosDelDespliegue } from '@morphiqpos/app/negocio';
 import { sesionDelServidor } from '~/servidor/http';
 
 import { CABECERA_NONCE } from '~/seguridad/csp';
+import { GUION_DEL_MODO } from '~/proveedores/modo';
 import { Proveedores } from '~/proveedores/Proveedores';
 
 import './globals.css';
@@ -150,6 +151,8 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
       <head>
         {/* Pone la clase del tema ANTES del primer pintado. */}
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: GUION_SIN_PARPADEO }} />
+        {/* Y el modo del SISTEMA, derivado de esa clase: `data-modo`. Detrás, no antes. */}
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: GUION_DEL_MODO }} />
       </head>
       <body>
         <Proveedores conSesion={conSesion} estilo={apariencia.estilo}>

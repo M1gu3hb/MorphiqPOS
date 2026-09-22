@@ -55,14 +55,14 @@ const DIGITOS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 const CLASES_REJILLA =
   'mx-auto grid w-full max-w-4xl grid-cols-2 gap-(--espacio-3) md:grid-cols-3 md:gap-(--espacio-6) xl:grid-cols-4';
 const CLASES_TARJETA =
-  'flex w-full flex-col items-center gap-2 rounded-xl border-2 bg-card p-(--espacio-4) text-card-foreground ' +
-  'shadow-1 transition-colors hover:bg-accent hover:text-accent-foreground md:gap-(--espacio-3) md:p-(--espacio-6) ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+  'flex w-full flex-col items-center gap-2 rounded-xl border-2 bg-superficie p-(--espacio-4) text-texto ' +
+  'shadow-1 transition-colors hover:bg-acento-suave hover:text-acento-suave-texto md:gap-(--espacio-3) md:p-(--espacio-6) ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-anillo';
 const CLASES_TECLADO =
   'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-(--espacio-5) md:max-w-md md:flex-none ' +
-  'md:rounded-xl md:border md:border-border md:bg-card md:p-(--espacio-6) md:shadow-2';
+  'md:rounded-xl md:border md:border-borde md:bg-superficie md:p-(--espacio-6) md:shadow-2';
 const CLASES_BANDA =
-  'mx-auto w-full max-w-4xl rounded-md border border-destructive bg-destructive/15 p-(--espacio-3) text-sm';
+  'mx-auto w-full max-w-4xl rounded-md border border-peligro bg-peligro/15 p-(--espacio-3) text-sm';
 
 export interface EmpleadoDeAcceso {
   readonly id: string;
@@ -232,7 +232,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
   ] as const;
 
   return (
-    <main className="flex min-h-dvh flex-col gap-(--espacio-6) bg-background p-(--espacio-4) text-foreground md:p-(--espacio-8)">
+    <main className="flex min-h-dvh flex-col gap-(--espacio-6) bg-fondo p-(--espacio-4) text-texto md:p-(--espacio-8)">
       <h1 className="mx-auto text-2xl font-bold md:text-3xl">¿Quién está operando?</h1>
 
       {/* La banda no vacía la pantalla: debajo sigue habiendo con quién entrar. */}
@@ -255,7 +255,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
       {empleados?.length === 0 && (
         <section className="mx-auto flex max-w-lg flex-col items-center gap-(--espacio-4) text-center">
           <p className="text-lg font-semibold">Todavía no hay nadie dado de alta.</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Estas tarjetas son la plantilla del negocio: cada persona con un puesto activo y un PIN
             aparece aquí. Sin nadie en ella no hay a quién atribuir una venta ni una propina.
           </p>
@@ -286,9 +286,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
                   </AvatarFallback>
                 </Avatar>
                 <span className="text-base font-semibold md:text-lg">{empleado.nombre}</span>
-                <span className="text-xs text-muted-foreground md:text-sm">
-                  {empleado.etiqueta}
-                </span>
+                <span className="text-xs text-texto-sutil md:text-sm">{empleado.etiqueta}</span>
               </button>
             </li>
           ))}
@@ -305,7 +303,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
           >
             <p className="flex-1 text-xl font-semibold">
               {seleccionado.nombre}
-              <span className="block text-sm font-normal text-muted-foreground">
+              <span className="block text-sm font-normal text-texto-sutil">
                 {seleccionado.etiqueta}
               </span>
             </p>
@@ -318,7 +316,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
               no puede verlos recibe la cuenta en palabras. */}
           <p
             aria-live="polite"
-            className="font-numeros text-center text-3xl tracking-[0.4em] text-primary"
+            className="font-numeros text-center text-3xl tracking-[0.4em] text-primario"
           >
             <span className="sr-only">{pin.length} de 4 dígitos tecleados</span>
             <span aria-hidden>{'•'.repeat(pin.length) + '◦'.repeat(LARGO_PIN - pin.length)}</span>

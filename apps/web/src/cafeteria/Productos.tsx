@@ -259,7 +259,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
       <section>
         <h1 className="mb-(--espacio-3) text-2xl font-semibold">{voc.titulo('producto', true)}</h1>
         {error !== null && (
-          <p role="alert" className="text-destructive mb-2 text-sm">
+          <p role="alert" className="text-peligro mb-2 text-sm">
             {error}
           </p>
         )}
@@ -273,12 +273,10 @@ export function Productos({ productosIniciales }: ProductosProps) {
                   elegir(producto);
                 }}
               >
-                <span className={producto.visible_en_pos ? '' : 'text-muted-foreground'}>
+                <span className={producto.visible_en_pos ? '' : 'text-texto-sutil'}>
                   {producto.nombre}
                 </span>
-                <span className="text-muted-foreground ml-2 text-xs capitalize">
-                  {producto.familia}
-                </span>
+                <span className="text-texto-sutil ml-2 text-xs capitalize">{producto.familia}</span>
               </button>
               <span className="tabular-nums">{pesos(enCentavos(producto.precio_venta))}</span>
               <Button
@@ -297,7 +295,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
       <aside className="space-y-(--espacio-4)">
         {elegido === null && (
-          <p className="text-muted-foreground">
+          <p className="text-texto-sutil">
             Elige {voc.enFraseCon('un', 'producto')} para ver su margen.
           </p>
         )}
@@ -354,7 +352,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
               return (
                 <div key={opcion.clave}>
                   <p className="font-medium">{opcion.etiqueta}</p>
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-texto-sutil text-sm">
                     Entra {pesos(resultado.netoCentavos)} · cuesta{' '}
                     {pesos(enCentavos(elegido.costo_calculado_actual))}
                   </p>
@@ -366,7 +364,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
               );
             })}
 
-            <p className="text-muted-foreground text-sm">
+            <p className="text-texto-sutil text-sm">
               La comisión se calcula sobre el precio, no sobre el margen: es lo que de verdad cobra
               la plataforma.
             </p>

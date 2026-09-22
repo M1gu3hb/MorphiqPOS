@@ -33,8 +33,8 @@ const PESOS = new Intl.NumberFormat('es-MX', {
   maximumFractionDigits: 0,
 });
 
-const TARJETA = 'rounded-xl border border-border bg-card p-(--espacio-4) text-card-foreground';
-const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
+const TARJETA = 'rounded-xl border border-borde bg-superficie p-(--espacio-4) text-texto';
+const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-texto-sutil';
 const CIFRA = 'text-3xl font-bold tabular-nums';
 const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
 const RENGLON = 'flex items-baseline justify-between gap-(--espacio-3) py-1';
@@ -165,10 +165,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
     return (
       <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Buen día</h1>
-        <p
-          role="alert"
-          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
-        >
+        <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-(--espacio-3)">
           {error}
         </p>
       </main>
@@ -195,7 +192,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       <header className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">Buen día</h1>
-          <p className="text-sm text-muted-foreground">{comoFecha(datos.fecha)}</p>
+          <p className="text-sm text-texto-sutil">{comoFecha(datos.fecha)}</p>
         </div>
         <div className="flex gap-2">
           <Button asChild size="sm">
@@ -214,7 +211,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Lo que me deben
           </h2>
           <p className={CIFRA}>{pesos(cartera.totalCentavos)}</p>
-          <p className="text-sm text-muted-foreground">Vencido {pesos(cartera.vencidoCentavos)}</p>
+          <p className="text-sm text-texto-sutil">Vencido {pesos(cartera.vencidoCentavos)}</p>
           {/* LA CARTERA, DIBUJADA. Es el indicador estrella del giro —«la pérdida que
               no admite vuelta atrás»— y la lista de abajo ya dice quién y cuánto; lo
               que la lista NO dice es la PROPORCIÓN: si son cuatro obras parecidas o
@@ -237,16 +234,16 @@ export function Tablero({ datosIniciales }: TableroProps) {
             />
           )}
           {cartera.masViejos.length > 0 && (
-            <ul className="mt-2 divide-y divide-border">
+            <ul className="mt-2 divide-y divide-borde">
               {cartera.masViejos.map((quien) => (
                 <li key={`${quien.cliente}-${quien.obra ?? ''}`} className={RENGLON}>
                   <span className="min-w-0 flex-1 truncate">
                     {quien.cliente}
                     {quien.obra !== null && (
-                      <span className="text-muted-foreground"> · {quien.obra}</span>
+                      <span className="text-texto-sutil"> · {quien.obra}</span>
                     )}
                   </span>
-                  <span className="text-sm text-muted-foreground">{quien.dias} d</span>
+                  <span className="text-sm text-texto-sutil">{quien.dias} d</span>
                   <span className="tabular-nums">{pesos(quien.saldoCentavos)}</span>
                 </li>
               ))}
@@ -263,15 +260,15 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Dinero dormido
           </h2>
           <p className={CIFRA}>{pesos(dormido.dineroCentavos)}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             {porciento(dormido.delInventarioBp)} del inventario · sin venta en 90 días
           </p>
           {dormido.peores.length > 0 && (
-            <ul className="mt-2 divide-y divide-border">
+            <ul className="mt-2 divide-y divide-borde">
               {dormido.peores.map((linea) => (
                 <li key={linea.linea} className={RENGLON}>
                   <span className="min-w-0 flex-1 truncate">{linea.linea}</span>
-                  <span className="text-sm text-muted-foreground">{linea.claves} claves</span>
+                  <span className="text-sm text-texto-sutil">{linea.claves} claves</span>
                   <span className="tabular-nums">{pesos(linea.dineroCentavos)}</span>
                 </li>
               ))}
@@ -291,8 +288,8 @@ export function Tablero({ datosIniciales }: TableroProps) {
           <p
             className={
               aCredito.remisionesSinFirma > 0
-                ? 'text-sm font-semibold text-destructive'
-                : 'text-sm text-muted-foreground'
+                ? 'text-sm font-semibold text-peligro'
+                : 'text-sm text-texto-sutil'
             }
           >
             {porciento(aCredito.sobreVentaBp)} de la venta ·{' '}
@@ -311,7 +308,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             {pesos(venta.hoyCentavos)}{' '}
             <span className={CIFRA_CHICA}>margen {porciento(margen.hoyBp)}</span>
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             {comparacion(venta.hoyCentavos, venta.referenciaCentavos)} ·{' '}
             {voc.conNumero('orden', venta.tickets)}
           </p>
@@ -323,20 +320,20 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Qué pedir
           </h2>
           {porPedir.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nada que se mueva está bajo mínimo.</p>
+            <p className="text-sm text-texto-sutil">Nada que se mueva está bajo mínimo.</p>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-borde">
               {porPedir.map((fila) => (
                 <li key={fila.proveedor} className={RENGLON}>
                   <span className="min-w-0 flex-1 truncate">
                     {fila.proveedor}
                     {fila.pasaManana && (
-                      <span className="ml-2 rounded-md bg-primary/15 px-1 text-xs font-semibold text-primary">
+                      <span className="ml-2 rounded-md bg-primario/15 px-1 text-xs font-semibold text-primario">
                         pasa mañana
                       </span>
                     )}
                   </span>
-                  <span className="text-sm text-muted-foreground">{fila.claves} claves</span>
+                  <span className="text-sm text-texto-sutil">{fila.claves} claves</span>
                   <span className="tabular-nums">{pesos(fila.importeCentavos)}</span>
                 </li>
               ))}
@@ -350,13 +347,13 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Mostrador
           </h2>
           {mostrador.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Todavía no se ha cobrado nada hoy.</p>
+            <p className="text-sm text-texto-sutil">Todavía no se ha cobrado nada hoy.</p>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-borde">
               {mostrador.map((quien) => (
                 <li key={quien.persona} className={RENGLON}>
                   <span className="min-w-0 flex-1 truncate">{quien.persona}</span>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-texto-sutil">
                     {(quien.lineasPorVentaBp / 100).toFixed(1)} líneas por {voc.singular('orden')}
                   </span>
                   <span className="tabular-nums">{pesos(quien.ventaCentavos)}</span>
@@ -373,11 +370,11 @@ export function Tablero({ datosIniciales }: TableroProps) {
           </h2>
           <p className={CIFRA}>{pesos(porPagar.totalCentavos)}</p>
           {porPagar.documentos.length > 0 && (
-            <ul className="mt-2 divide-y divide-border">
+            <ul className="mt-2 divide-y divide-borde">
               {porPagar.documentos.map((doc) => (
                 <li key={`${doc.proveedor}-${doc.dia}`} className={RENGLON}>
                   <span className="min-w-0 flex-1 truncate">{doc.proveedor}</span>
-                  <span className="text-sm text-muted-foreground">{doc.dia}</span>
+                  <span className="text-sm text-texto-sutil">{doc.dia}</span>
                   <span className="tabular-nums">{pesos(doc.saldoCentavos)}</span>
                 </li>
               ))}
@@ -390,7 +387,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
           <h2 id="t-pendientes" className={ROTULO}>
             Pendientes que se enfrían
           </h2>
-          <ul className="divide-y divide-border">
+          <ul className="divide-y divide-borde">
             <li className={RENGLON}>
               <span className="flex-1">Garantías sin resolver</span>
               <span className={CIFRA_CHICA}>{pendientes.garantias}</span>

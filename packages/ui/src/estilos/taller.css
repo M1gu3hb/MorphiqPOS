@@ -71,7 +71,7 @@
   --lateral-borde: 24 14% 26%;
 }
 
-[data-estilo='taller'].dark {
+[data-estilo='taller'][data-modo='oscuro'] {
   --sombra-tinte: 24 40% 2%;
 
   --fondo: 24 14% 10%;

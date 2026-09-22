@@ -2,8 +2,19 @@
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { MapPin } from 'lucide-react';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  EsqueletoDeLista,
+  Superficie,
+  Tabla,
+  TablaAdaptable,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { ChevronDown, ChevronUp, MapPin, Minus, Plus, Search, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -20,24 +31,22 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ── Por qué arranca CON los ocho grupos y no en blanco ───────────────────
  * `abarrotes` abre con la lista vacía y «escanea el primer producto». Aquí eso
  * sería un error: la primera pregunta del mostradorista al cliente es «¿de qué
- * es?», y los ocho grupos de línea son esa pregunta convertida en botones. El
- * estado inicial no es un vacío: es un punto de partida.
+ * es?», y los ocho grupos de línea son esa pregunta convertida en botones.
+ *
+ * ── Por qué los resultados son una TABLA en la PC y tarjetas en el pasillo ─
+ * En el mostrador se COMPARA —cinco tornillos de la misma medida, ¿galvanizado o
+ * negro?, ¿Truper o Pretul?—, y comparar es leer una columna de arriba abajo: medida,
+ * acabado, marca, precio, existencia y DÓNDE, cada una alineada. En la tableta del
+ * pasillo se camina hacia el rack, y la misma fila es una tarjeta con la ubicación
+ * en negritas. Es la misma lista con las mismas columnas (`TablaAdaptable`).
  *
  * ── Por qué el total NO es lo más grande ─────────────────────────────────
- * En `abarrotes` el total es lo mayor de la aplicación porque el cliente lo lee
- * desde el otro lado. Aquí el cliente no mira la pantalla: mira la pieza que le
- * acaban de poner enfrente. El total importa al final, no durante, y agrandarlo
- * le robaría a la búsqueda el espacio donde de verdad se resuelve la venta.
+ * Aquí el cliente no mira la pantalla: mira la pieza que le acaban de poner
+ * enfrente. El total importa al final, no durante.
  *
  * ── Por qué la franja del cliente está arriba y no en el cobro ───────────
  * Porque en una remisión a crédito NO HAY COBRO. El saldo, el límite y quién
- * recoge tienen que verse ANTES de despachar o no se ven nunca. Es la única
- * excepción a «aquí no van avisos», y su ausencia es el dolor 1 del modelo.
- *
- * ── Por qué existe la columna «Dónde» ────────────────────────────────────
- * F-152, la columna que `abarrotes` no tiene. Sin ella el resultado encuentra
- * el material y no termina la venta: el empleado nuevo sabe que hay 2,340 y no
- * sabe de qué gaveta sacarlos.
+ * recoge tienen que verse ANTES de despachar o no se ven nunca.
  *
  * ── Por qué no hay esqueleto mientras se teclea ──────────────────────────
  * El índice vive en memoria del cliente y filtrar es local: por debajo de 100
@@ -45,16 +54,11 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * índice, que sí cruza la red, y una sola vez.
  *
  * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
- * Caben la búsqueda con su miga de pan, los ocho grupos, la tabla, la venta, la
- * franja del cliente y las dos salidas. Quedan FUERA, cada una en su pantalla:
- * el corte de material (F6), la ficha con foto (F5), la cotización (F8),
- * suspender (F9) y el diálogo de PIN sobre el límite. La equivalencia real
- * (F-060) y la medida inmediata mayor y menor salen de `equivalencias` y del
- * índice en micrómetros; mientras no existan, el estado de cero resultados
- * aproxima por familia — y lo dice con todas sus letras en la pantalla.
+ * Quedan FUERA, cada una en su pantalla: el corte de material (F6), la ficha con
+ * foto (F5), la cotización (F8), suspender (F9) y el diálogo de PIN sobre el
+ * límite. La equivalencia real (F-060) sale de `equivalencias`; mientras no
+ * exista, cero resultados aproxima por familia y lo dice en la pantalla.
  */
-
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
 /** «¿De qué es?», convertido en botones. No son productos: son puntos de partida. */
 const GRUPOS = [
@@ -70,17 +74,6 @@ const GRUPOS = [
 
 /** F-153: el conocimiento del mostradorista. Aquí sólo siembran la búsqueda. */
 const LISTAS = ['tinaco', 'contacto', 'llave'] as const;
-
-// Las clases largas viven arriba para que cada elemento quepa en una línea. La
-// rejilla es LA MISMA en la cabecera y en cada fila: así las columnas cuadran
-// en PC sin un segundo marcado, y en el pasillo la misma fila es una tarjeta de
-// dos renglones — medida arriba, precio y ubicación abajo.
-const REJILLA =
-  'grid grid-cols-3 gap-x-(--espacio-3) gap-y-1 xl:grid-cols-[7rem_7rem_6rem_6rem_6rem_5rem]';
-const FILA = `${REJILLA} w-full rounded-md border border-border bg-card p-2 text-left text-card-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring xl:items-center xl:py-1`;
-const BANDA = 'mb-(--espacio-3) rounded-md border p-2 text-sm';
-const GRUPO =
-  'min-h-20 rounded-md border border-border bg-secondary p-2 text-sm font-semibold text-secondary-foreground hover:bg-accent hover:text-accent-foreground';
 
 export interface ClienteDeMostrador {
   readonly id: string;
@@ -100,12 +93,9 @@ export interface MostradorProps {
   /** La caja cerrada no bloquea el mostrador: armar no es cobrar. */
   readonly cajaCerrada?: boolean;
   /**
-   * LO QUE SE VIENE BUSCANDO, cuando quien llega ya sabe qué quiere.
-   *
-   * La pantalla de Entradas tiene un «Buscar…» por cada renglón del proveedor que
-   * no se pudo emparejar, y llevaba a `/ferreteria/catalogo`, que **no existe**:
-   * 404. El sitio donde se busca material por su descripción es ÉSTE, y ahora la
-   * búsqueda llega con la descripción ya escrita en vez de obligar a teclearla.
+   * LO QUE SE VIENE BUSCANDO, cuando quien llega ya sabe qué quiere: la pantalla
+   * de Entradas manda aquí cada renglón del proveedor que no pudo emparejar, con
+   * su descripción ya escrita.
    */
   readonly consultaInicial?: string;
 }
@@ -116,18 +106,66 @@ interface Partida {
 }
 
 /**
- * Lo que devuelve `ferreteria.crear_nota_mostrador`.
- *
- * Se declara aquí y no se importa del comando: ese módulo es `server-only` y
- * esta pantalla corre en el navegador. El contrato son estos cuatro campos, y
- * está escrito en los dos lados a propósito —importarlo arrastraría el paquete
- * del servidor al bundle del cliente—.
+ * Lo que devuelve `ferreteria.crear_nota_mostrador`. Se declara aquí y no se
+ * importa del comando: ese módulo es `server-only` y esta pantalla corre en el
+ * navegador.
  */
 interface ResultadoNotaMostrador {
   readonly ordenId: string;
   readonly notaId: string;
   readonly folio: string;
   readonly totalCentavos: string;
+}
+
+/** Las columnas de un resultado. Cada una se gana su lugar (`04-INTERFAZ` §1). */
+function columnasDeResultado(
+  nombreDeMaterial: string,
+): readonly ColumnaDeTabla<MaterialDeMostrador>[] {
+  return [
+    {
+      clave: 'material',
+      titulo: nombreDeMaterial,
+      celda: (m) => (
+        <span className="flex flex-col">
+          <span className="text-base font-semibold">{m.medida}</span>
+          <span className="text-xs text-texto-sutil">{m.nombre}</span>
+        </span>
+      ),
+    },
+    { clave: 'acabado', titulo: 'Acabado', desde: 'md', celda: (m) => m.acabado ?? '—' },
+    { clave: 'marca', titulo: 'Marca', desde: 'lg', celda: (m) => m.marca ?? '—' },
+    {
+      clave: 'precio',
+      titulo: 'Precio',
+      numerica: true,
+      orden: (m) => m.precioCentavos,
+      celda: (m) => <Dinero centavos={m.precioCentavos} tamano="sm" />,
+    },
+    {
+      clave: 'hay',
+      titulo: 'Hay',
+      numerica: true,
+      orden: (m) => m.existencia,
+      // Negativo es un dato que NO es verdad: falta capturar una entrada. Se dice.
+      celda: (m) =>
+        m.existencia < 0 ? (
+          <span className="font-medium text-peligro">revisar entradas</span>
+        ) : (
+          <Cifra valor={m.existencia} unidad={m.unidad} />
+        ),
+    },
+    {
+      clave: 'donde',
+      titulo: 'Dónde',
+      // En negritas siempre: en el pasillo es el dato que se está usando.
+      celda: (m) => (
+        <span className="inline-flex items-center gap-(--espacio-1) font-bold">
+          <MapPin aria-hidden="true" className="size-4 shrink-0" />
+          {m.ubicacion ?? 'sin capturar'}
+        </span>
+      ),
+    },
+  ];
 }
 
 export function Mostrador({
@@ -139,6 +177,8 @@ export function Mostrador({
   const voc = useVocabulario();
   const enrutador = useRouter();
   const [filas, setFilas] = useState<readonly MaterialDeMostrador[] | null>(filasIniciales ?? null);
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
   const [consulta, setConsulta] = useState(consultaInicial);
   const [partidas, setPartidas] = useState<readonly Partida[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -152,24 +192,20 @@ export function Mostrador({
   useEffect(() => {
     if (filasIniciales !== undefined) return;
     let vivo = true;
-    // El índice se hidrata una vez al abrir, de la vista `materiales_mostrador`
-    // (168): precio y existencia EN VIVO —cambian con cada venta— y los
-    // atributos de display con su valor original, `1/4"` y no `6350`.
+    // El índice se hidrata una vez al abrir, de la vista `materiales_mostrador`:
+    // precio y existencia EN VIVO, y los atributos con su valor original.
     consultarPuente<MaterialDeMostrador>('MaterialMostrador', { limite: 6000 })
       .then((leidas) => {
         if (vivo) setFilas(leidas);
       })
       .catch((fallo: unknown) => {
-        // La pantalla no se vacía por un error de red: se avisa y se sigue.
-        if (vivo) {
-          setFilas([]);
-          setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar el catálogo.');
-        }
+        if (vivo)
+          setFalloDeCarga(fallo instanceof Error ? fallo.message : 'No se pudo leer el catálogo.');
       });
     return () => {
       vivo = false;
     };
-  }, [filasIniciales]);
+  }, [filasIniciales, intento]);
 
   const palabras = useMemo(
     () =>
@@ -181,11 +217,11 @@ export function Mostrador({
   const resultados = useMemo(() => buscar(filas ?? [], palabras), [filas, palabras]);
   const total = partidas.reduce((suma, p) => suma + p.material.precioCentavos * p.cantidad, 0);
   const sobreLimite = cliente !== null && cliente.saldoCentavos > cliente.limiteCentavos;
+  const columnas = useMemo(() => columnasDeResultado(voc.titulo('producto')), [voc]);
 
   useEffect(() => {
-    // Escribir desde cualquier parte va al buscador —la acción principal no
-    // gasta ninguna tecla— y la letra no se pierde por el camino. Esc limpia la
-    // búsqueda; con la búsqueda ya vacía, limpia la venta.
+    // Escribir desde cualquier parte va al buscador —la acción principal no gasta
+    // ninguna tecla—. Esc limpia la búsqueda; con la búsqueda vacía, la venta.
     function alTeclear(evento: KeyboardEvent): void {
       const enCampo = evento.target instanceof HTMLInputElement;
       if (evento.key === 'Escape') {
@@ -222,13 +258,7 @@ export function Mostrador({
     );
   }
 
-  /** Las rutas salen de `05-DATOS-Y-BACKEND` §6; no se inventa ninguna. */
-  /**
-   * Crear la nota. Es el primer paso de las dos salidas del mostrador.
-   *
-   * Devuelve la nota creada en vez de tragársela porque el folio es lo que el
-   * cliente dice en la caja —«la N-114»— y la remisión necesita la orden.
-   */
+  /** Crear la nota: el primer paso de las dos salidas del mostrador. */
   async function crearLaNota(): Promise<ResultadoNotaMostrador> {
     return invocarComando<ResultadoNotaMostrador>('/api/venta/mandar-a-caja', {
       clienteId: cliente?.id ?? null,
@@ -242,9 +272,7 @@ export function Mostrador({
     try {
       const nota = await crearLaNota();
       setPartidas([]);
-      // El folio se queda a la vista: es el número que el mostradorista le dice
-      // al cliente para que lo cante en la caja. Sin enseñarlo, la nota llega a
-      // la caja y nadie sabe pedirla.
+      // El folio se queda a la vista: es el número que el cliente canta en la caja.
       setFolioEnCaja(nota.folio);
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo mandar la venta.');
@@ -254,14 +282,9 @@ export function Mostrador({
   }
 
   /**
-   * La otra salida: se lo lleva a crédito, firmando.
-   *
-   * Son DOS comandos en fila y no uno, porque `credito.registrar_remision` pide
-   * una orden que ya exista —sube el saldo del cliente por un importe, y ese
-   * importe son las líneas de una venta, no un número que manda el navegador—.
-   * Si el segundo falla, la nota se queda en la caja como pendiente de cobro:
-   * recuperable, y el material no ha salido. Al revés —remisión antes de venta—
-   * el saldo del cliente subiría por algo que no existe.
+   * La otra salida: se lo lleva a crédito, firmando. Son DOS comandos en fila: la
+   * remisión pide una orden que ya exista, y si el segundo falla la nota se queda
+   * en la caja como pendiente de cobro —recuperable, y el material no ha salido—.
    */
   async function remisionACuenta(): Promise<void> {
     if (cliente === null) return;
@@ -273,9 +296,6 @@ export function Mostrador({
         ordenId: nota.ordenId,
         clienteId: cliente.id,
         importeCentavos: Number(nota.totalCentavos),
-        // Quien firma es quien viene por el material: el autorizado de la cuenta
-        // si hay uno, y si no el cliente. Un documento de entrega sin nombre de
-        // quien recibió no sirve para nada, que es el talonario de papel de hoy.
         nombreFirmante: cliente.recoge ?? cliente.nombre,
       });
       setPartidas([]);
@@ -287,23 +307,210 @@ export function Mostrador({
     }
   }
 
+  const columnasDeLaNota: readonly ColumnaDeTabla<Partida>[] = [
+    {
+      clave: 'partida',
+      titulo: voc.titulo('producto'),
+      celda: (p) => (
+        <span className="flex flex-col">
+          <span className="font-medium">
+            {p.material.nombre} {p.material.medida}
+          </span>
+          <span className="text-xs text-texto-sutil">
+            <Cifra valor={p.cantidad} unidad={p.material.unidad} tamano="xs" /> ×{' '}
+            <Dinero centavos={p.material.precioCentavos} tamano="xs" />
+          </span>
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (p) => <Dinero centavos={p.material.precioCentavos * p.cantidad} tamano="sm" />,
+    },
+    {
+      clave: 'acciones',
+      titulo: 'Cantidad',
+      celda: (p) => (
+        <span className="flex justify-end gap-(--espacio-1)">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label={`Quitar una pieza de ${p.material.nombre}`}
+            onClick={() => {
+              cambiarCantidad(p.material.id, -1);
+            }}
+          >
+            <Minus />
+          </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label={`Agregar una pieza de ${p.material.nombre}`}
+            onClick={() => {
+              cambiarCantidad(p.material.id, 1);
+            }}
+          >
+            <Plus />
+          </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Quitar la partida ${p.material.nombre}`}
+            onClick={() => {
+              cambiarCantidad(p.material.id, -p.cantidad);
+            }}
+          >
+            <X />
+          </Button>
+        </span>
+      ),
+    },
+  ];
+
+  const busqueda = (() => {
+    if (falloDeCarga !== null) {
+      return (
+        <ErrorDePantalla
+          titulo="No se pudo leer el catálogo del mostrador"
+          queHacer="Sin el índice no se encuentra nada. Revisa la conexión y vuelve a leerlo; lo que ya está en la nota no se pierde."
+          detalle={falloDeCarga}
+          reintentar={
+            <Button
+              onClick={() => {
+                setFalloDeCarga(null);
+                setFilas(null);
+                setIntento((previo) => previo + 1);
+              }}
+            >
+              Volver a leer
+            </Button>
+          }
+        />
+      );
+    }
+    // La forma de la tabla, nunca una rueda: el ojo ya sabe dónde va a mirar.
+    if (filas === null) return <EsqueletoDeLista filas={6} />;
+    if (palabras.length === 0) {
+      return (
+        <section aria-label="Punto de partida" className="flex flex-col gap-(--espacio-3)">
+          <div className="grid grid-cols-2 gap-(--espacio-2) sm:grid-cols-4">
+            {GRUPOS.map((grupo) => (
+              <Superficie
+                key={grupo}
+                como="button"
+                type="button"
+                interactiva
+                relleno={3}
+                radio="md"
+                className="min-h-20 text-sm font-semibold"
+                onClick={() => {
+                  setConsulta(grupo);
+                }}
+              >
+                {grupo}
+              </Superficie>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-(--espacio-2)">
+            <span className="text-sm text-texto-sutil">Listas de trabajo:</span>
+            {LISTAS.map((lista) => (
+              <Button
+                key={lista}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setConsulta(lista);
+                }}
+              >
+                para un {lista}
+              </Button>
+            ))}
+          </div>
+        </section>
+      );
+    }
+    if (resultados.length === 0) {
+      // La pantalla que salva o pierde la venta. Nunca dice «no hay» y ya.
+      return (
+        <Vacio
+          titulo="No tenemos de esa medida."
+          explicacion="Pero éstas le pueden servir — son de la misma familia, no equivalencias declaradas:"
+          accion={
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                // Con el enrutador y no recargando: las partidas que ya llevaba
+                // tienen que seguir ahí al volver del alta.
+                enrutador.push(`/ferreteria/catalogo?alta=${encodeURIComponent(consulta)}`);
+              }}
+            >
+              Dar de alta {voc.enFraseCon('este', 'producto')}
+            </Button>
+          }
+          className="items-stretch text-left"
+        >
+          <TablaAdaptable
+            etiqueta="Materiales de la misma familia"
+            principal="material"
+            columnas={columnas}
+            filas={cercanas(filas, palabras)}
+            claveDe={(m) => m.id}
+            alActivar={(id) => {
+              const material = filas.find((m) => m.id === id);
+              if (material !== undefined) agregar(material);
+            }}
+            tonoDeFila={(m) => (m.existencia <= 0 ? 'tenue' : undefined)}
+          />
+        </Vacio>
+      );
+    }
+    return (
+      <TablaAdaptable
+        etiqueta="Resultados"
+        principal="material"
+        columnas={columnas}
+        filas={resultados}
+        claveDe={(m) => m.id}
+        alActivar={(id) => {
+          const material = resultados.find((m) => m.id === id);
+          if (material !== undefined) agregar(material);
+        }}
+        // Se atenúa, pero NO se esconde: saber que el material existe aunque no
+        // haya permite decir «te lo pido para el jueves», que es una venta.
+        tonoDeFila={(m) => (m.existencia <= 0 ? 'tenue' : undefined)}
+        alto="max-h-[65vh]"
+      />
+    );
+  })();
+
   return (
     <div className="p-(--espacio-3) pb-[calc(var(--espacio-12)*2)] xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-start xl:gap-(--espacio-4) xl:pb-(--espacio-3)">
       <h1 className="sr-only">Mostrador</h1>
 
-      {/* TERCIARIO · arriba a la derecha en PC, arriba del todo en el pasillo:
-          se lee antes de despachar, que es cuando sirve. */}
-      <section
+      {/* TERCIARIO · arriba a la derecha en PC, arriba del todo en el pasillo: se
+          lee antes de despachar, que es cuando sirve. */}
+      <Superficie
+        como="section"
+        relleno={3}
+        radio="md"
         aria-label={`${voc.titulo('cliente')} y obra`}
-        className={`${BANDA} ${sobreLimite ? 'border-destructive bg-destructive/15' : 'border-border bg-card'} xl:col-start-2 xl:row-start-1`}
+        className={`mb-(--espacio-3) text-sm xl:col-start-2 xl:row-start-1 xl:mb-0 ${sobreLimite ? 'border-peligro bg-peligro/10' : ''}`}
       >
         <p className="font-semibold">{cliente?.nombre ?? 'Público en general · contado'}</p>
         {cliente !== null && (
           <>
-            <p className="text-muted-foreground">Obra: {cliente.obra ?? 'sin obra asignada'}</p>
-            <p className="tabular-nums">
-              Debe {PESOS.format(cliente.saldoCentavos / 100)} · {cliente.diasVencido} d · límite{' '}
-              {PESOS.format(cliente.limiteCentavos / 100)}
+            <p className="text-texto-sutil">Obra: {cliente.obra ?? 'sin obra asignada'}</p>
+            <p>
+              Debe <Dinero centavos={cliente.saldoCentavos} tamano="sm" /> ·{' '}
+              <Cifra valor={cliente.diasVencido} unidad="d" tamano="sm" /> · límite{' '}
+              <Dinero centavos={cliente.limiteCentavos} tamano="sm" />
             </p>
             {/* El color no es el único portador: la condición va escrita. */}
             {sobreLimite && (
@@ -317,31 +524,37 @@ export function Mostrador({
             </p>
           </>
         )}
-      </section>
+      </Superficie>
 
-      <main className="xl:col-start-1 xl:row-start-1 xl:row-span-2">
-        <label htmlFor="buscador" className="sr-only">
-          Buscar {voc.singular('producto')} por nombre, medida, acabado o marca
-        </label>
-        <Input
-          id="buscador"
-          ref={buscador}
-          autoFocus
-          value={consulta}
-          onChange={(evento) => {
-            setConsulta(evento.target.value);
-          }}
-          placeholder="⌕  tornillo 1/4 x 2"
-          className="text-lg"
-        />
+      <main className="flex flex-col gap-(--espacio-3) xl:col-start-1 xl:row-span-2 xl:row-start-1">
+        <div className="relative">
+          <label htmlFor="buscador" className="sr-only">
+            Buscar {voc.singular('producto')} por nombre, medida, acabado o marca
+          </label>
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-5 -translate-y-1/2 text-texto-sutil"
+          />
+          <Input
+            id="buscador"
+            ref={buscador}
+            autoFocus
+            value={consulta}
+            onChange={(evento) => {
+              setConsulta(evento.target.value);
+            }}
+            placeholder="tornillo 1/4 x 2"
+            className="h-[calc(var(--altura-control)*1.25)] pl-(--espacio-10) text-lg"
+          />
+        </div>
 
-        {/* Miga de pan: enseña dónde estás y se quita POR PARTES, que es como
-            se corrige una búsqueda que se pasó de estrecha. */}
+        {/* Miga de pan: enseña dónde estás y se quita POR PARTES, que es como se
+            corrige una búsqueda que se pasó de estrecha. */}
         {palabras.length > 0 && (
-          <nav aria-label="Filtros de la búsqueda" className="mt-2 flex flex-wrap gap-1">
+          <nav aria-label="Filtros de la búsqueda" className="flex flex-wrap gap-(--espacio-1)">
             {palabras.map((palabra, indice) => (
               <Button
-                key={`${palabra}-${indice}`}
+                key={`${palabra}-${String(indice)}`}
                 type="button"
                 size="sm"
                 variant="secondary"
@@ -350,7 +563,8 @@ export function Mostrador({
                   setConsulta(palabras.filter((_, i) => i !== indice).join(' '));
                 }}
               >
-                {palabra} ✕
+                {palabra}
+                <X aria-hidden="true" />
               </Button>
             ))}
             <Button
@@ -367,193 +581,59 @@ export function Mostrador({
         )}
 
         {cajaCerrada && (
-          <p className={`${BANDA} mt-(--espacio-3) border-border bg-warning/20`}>
-            La caja está cerrada. Se arman notas y cotizaciones; no se cobra.
-          </p>
+          <Aviso tono="atencion" titulo="La caja está cerrada.">
+            Se arman notas y cotizaciones; no se cobra.
+          </Aviso>
         )}
         {error !== null && (
-          <p
-            role="alert"
-            className={`${BANDA} mt-(--espacio-3) border-destructive bg-destructive/15`}
-          >
-            {error} · Lo que ya estaba en pantalla sigue sirviendo.
-          </p>
+          <Aviso tono="peligro" titulo={error}>
+            Lo que ya estaba en pantalla sigue sirviendo.
+          </Aviso>
         )}
 
-        {filas === null ? (
-          // Esqueleto con la forma de la tabla, nunca un spinner: el ojo ya sabe
-          // dónde va a mirar cuando el índice termine de llegar.
-          <div className="mt-(--espacio-3) space-y-2">
-            {Array.from({ length: 6 }, (_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-md xl:h-5" />
-            ))}
-          </div>
-        ) : palabras.length === 0 ? (
-          <section aria-label="Punto de partida" className="mt-(--espacio-3)">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {GRUPOS.map((grupo) => (
-                <button
-                  key={grupo}
-                  type="button"
-                  className={GRUPO}
-                  onClick={() => {
-                    setConsulta(grupo);
-                  }}
-                >
-                  {grupo}
-                </button>
-              ))}
-            </div>
-            <p className="mt-(--espacio-4) text-sm text-muted-foreground">Listas de trabajo:</p>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {LISTAS.map((lista) => (
-                <Button
-                  key={lista}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setConsulta(lista);
-                  }}
-                >
-                  para un {lista}
-                </Button>
-              ))}
-            </div>
-          </section>
-        ) : resultados.length === 0 ? (
-          // Es la pantalla que salva o pierde la venta. Nunca dice «no hay» y ya.
-          <section aria-label="Sin resultados exactos" className="mt-(--espacio-3)">
-            <p className="text-lg font-semibold">No tenemos de esa medida.</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Pero éstas le pueden servir — son de la misma familia, no equivalencias declaradas:
-            </p>
-            <ul className="mt-2 space-y-1">
-              {cercanas(filas, palabras).map((material) => (
-                <li key={material.id}>
-                  <FilaMaterial material={material} onAgregar={agregar} />
-                </li>
-              ))}
-            </ul>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-(--espacio-3)"
-              onClick={() => {
-                // El alta rápida vive en el catálogo; aquí se llega con lo tecleado.
-                // Se navega con el enrutador y no recargando la página: el
-                // mostradorista vuelve con el material dado de alta y las
-                // partidas que ya llevaba tienen que seguir ahí.
-                enrutador.push(`/ferreteria/catalogo?alta=${encodeURIComponent(consulta)}`);
-              }}
-            >
-              Dar de alta {voc.enFraseCon('este', 'producto')}
-            </Button>
-          </section>
-        ) : (
-          <section aria-label="Resultados" className="mt-(--espacio-3)">
-            <p className={`${REJILLA} hidden px-2 text-xs text-muted-foreground xl:grid`}>
-              <span>Medida</span>
-              <span>Acabado</span>
-              <span>Marca</span>
-              <span>Precio</span>
-              <span>Hay</span>
-              <span>Dónde</span>
-            </p>
-            <ul className="space-y-1 xl:space-y-0">
-              {resultados.map((material) => (
-                <li key={material.id}>
-                  <FilaMaterial material={material} onAgregar={agregar} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        {busqueda}
       </main>
 
       {/* SECUNDARIO · siempre visible en PC, plegado en una barra en el pasillo. */}
-      <aside
+      <Superficie
+        como="aside"
         id="la-venta"
+        relleno={3}
+        radio="md"
         aria-label={voc.conArticulo('orden')}
-        className={`${ventaAbierta ? 'fixed inset-x-0 bottom-0 z-20 max-h-[70dvh] overflow-y-auto' : 'hidden xl:block'} rounded-md border border-border bg-card p-(--espacio-3) text-card-foreground xl:static xl:col-start-2 xl:row-start-2 xl:max-h-none`}
+        className={`${ventaAbierta ? 'fixed inset-x-0 bottom-0 z-20 flex max-h-[70dvh] overflow-y-auto' : 'hidden xl:flex'} flex-col gap-(--espacio-3) xl:static xl:col-start-2 xl:row-start-2 xl:max-h-none`}
       >
         {/* «La venta» es de la tiendita: en una ferretería lo que se arma en el
             pasillo es una NOTA, y es la palabra que el cliente oye en la caja. */}
-        <h2 className="text-sm font-semibold uppercase text-muted-foreground">
+        <h2 className="text-sm font-semibold text-texto-sutil uppercase">
           {voc.conArticulo('orden')}
         </h2>
-        {partidas.length === 0 ? (
-          <p className="py-(--espacio-3) text-sm text-muted-foreground">
-            Todavía nada. Busque {voc.enFrase('producto')} y presione Enter sobre el resultado.
-          </p>
-        ) : (
-          <ul className="my-2 space-y-2">
-            {partidas.map((partida) => (
-              <li key={partida.material.id} className="border-b border-border pb-2">
-                <p className="text-sm font-medium">
-                  {partida.material.nombre} {partida.material.medida}
-                </p>
-                <div className="flex items-center justify-between gap-2 text-sm tabular-nums">
-                  <span>
-                    {partida.cantidad} {partida.material.unidad} ×{' '}
-                    {PESOS.format(partida.material.precioCentavos / 100)}
-                  </span>
-                  <span className="font-semibold">
-                    {PESOS.format((partida.material.precioCentavos * partida.cantidad) / 100)}
-                  </span>
-                </div>
-                <div className="mt-1 flex gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    aria-label={`Quitar una pieza de ${partida.material.nombre}`}
-                    onClick={() => {
-                      cambiarCantidad(partida.material.id, -1);
-                    }}
-                  >
-                    −
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    aria-label={`Agregar una pieza de ${partida.material.nombre}`}
-                    onClick={() => {
-                      cambiarCantidad(partida.material.id, 1);
-                    }}
-                  >
-                    +
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`Quitar la partida ${partida.material.nombre}`}
-                    onClick={() => {
-                      cambiarCantidad(partida.material.id, -partida.cantidad);
-                    }}
-                  >
-                    Quitar
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <Tabla
+          etiqueta={`Partidas de ${voc.conArticulo('orden').toLowerCase()}`}
+          columnas={columnasDeLaNota}
+          filas={partidas}
+          claveDe={(p) => p.material.id}
+          alto="max-h-[40vh]"
+          vacio={
+            <Vacio
+              titulo="Todavía nada."
+              explicacion={`Busque ${voc.enFrase('producto')} y presione Enter sobre el resultado.`}
+              className="py-(--espacio-4)"
+            />
+          }
+        />
 
-        {/* Grande para leerse de reojo, y NO lo más grande de la pantalla. */}
-        <p className="flex items-baseline justify-between text-xl font-semibold tabular-nums">
-          <span className="text-sm font-normal text-muted-foreground">
-            {partidas.length} partidas
-          </span>
-          {PESOS.format(total / 100)}
+        {/* Legible de reojo, y NO lo más grande de la pantalla. */}
+        <p className="flex items-baseline justify-between">
+          <span className="text-sm text-texto-sutil">{partidas.length} partidas</span>
+          <Dinero centavos={total} tamano="lg" />
         </p>
 
-        <div className="mt-(--espacio-3) grid gap-2">
+        <div className="grid gap-(--espacio-2)">
           <Button
             type="button"
             disabled={partidas.length === 0 || cajaCerrada || enviando}
+            cargando={enviando}
             onClick={() => {
               void mandarACaja();
             }}
@@ -570,17 +650,18 @@ export function Mostrador({
           >
             {sobreLimite ? 'Remisión a cuenta · pide PIN · F11' : 'Remisión a cuenta · F11'}
           </Button>
-          {/* El número, grande y en su sitio: es lo único que el cliente se
-              lleva del mostrador, y va a decirlo en voz alta a tres metros. */}
+          {/* El número, grande y en su sitio: es lo único que el cliente se lleva
+              del mostrador, y va a decirlo en voz alta a tres metros. */}
           {folioEnCaja !== null && (
-            <p role="status" className="rounded-md border border-border p-2 text-center text-sm">
-              {voc.titulo('orden')}{' '}
-              <span className="text-base font-bold tabular-nums">{folioEnCaja}</span> está en la
-              caja.
-            </p>
+            <Aviso tono="exito" titulo={`${voc.titulo('orden')} ${folioEnCaja} está en la caja.`}>
+              <span className="block font-numeros text-3xl font-bold text-texto">
+                {folioEnCaja}
+              </span>
+              Es lo que el cliente dice al pagar.
+            </Aviso>
           )}
         </div>
-      </aside>
+      </Superficie>
 
       <button
         type="button"
@@ -589,57 +670,14 @@ export function Mostrador({
         onClick={() => {
           setVentaAbierta((abierta) => !abierta);
         }}
-        className="fixed inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-border bg-primary p-(--espacio-3) text-primary-foreground tabular-nums xl:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-borde bg-primario p-(--espacio-3) text-primario-texto xl:hidden"
       >
         <span>{partidas.length} partidas</span>
-        <span className="font-semibold">
-          {PESOS.format(total / 100)} {ventaAbierta ? '▾' : '▴'}
+        <span className="flex items-center gap-(--espacio-2) font-semibold">
+          <Dinero centavos={total} />
+          {ventaAbierta ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
         </span>
       </button>
     </div>
-  );
-}
-
-interface FilaMaterialProps {
-  readonly material: MaterialDeMostrador;
-  readonly onAgregar: (material: MaterialDeMostrador) => void;
-}
-
-/**
- * La misma fila sirve de renglón de tabla en PC y de tarjeta en el pasillo.
- *
- * Es un `button` y no una celda porque el resultado se agrega con Enter y se
- * recorre con Tab: la tabla de atajos lo pide y el navegador ya lo sabe hacer.
- */
-function FilaMaterial({ material, onAgregar }: FilaMaterialProps) {
-  const agotado = material.existencia === 0;
-  const negativo = material.existencia < 0;
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        onAgregar(material);
-      }}
-      // Se atenúa, pero NO se esconde: saber que el material existe aunque no
-      // haya permite decir «te lo pido para el jueves», que es una venta.
-      className={`${FILA} ${agotado || negativo ? 'opacity-70' : ''}`}
-      aria-label={`${material.nombre} ${material.medida}, ${PESOS.format(material.precioCentavos / 100)}, hay ${material.existencia} ${material.unidad}, en ${material.ubicacion ?? 'ubicación sin capturar'}`}
-    >
-      <span className="col-span-2 text-lg font-semibold xl:col-span-1 xl:text-base">
-        {material.medida}
-      </span>
-      <span className="text-sm text-muted-foreground">{material.acabado ?? '—'}</span>
-      <span className="text-sm text-muted-foreground">{material.marca ?? '—'}</span>
-      <span className="font-semibold tabular-nums">
-        {PESOS.format(material.precioCentavos / 100)}
-      </span>
-      <span className="text-sm tabular-nums">
-        {negativo ? '✖ revisar' : `${material.existencia} ${material.unidad}`}
-      </span>
-      {/* En negritas siempre: en el pasillo es el dato que se está usando. */}
-      <span className="inline-flex items-center gap-1 text-right font-bold xl:text-left">
-        <MapPin aria-hidden="true" className="inline size-4 shrink-0" /> {material.ubicacion ?? '—'}
-      </span>
-    </button>
   );
 }

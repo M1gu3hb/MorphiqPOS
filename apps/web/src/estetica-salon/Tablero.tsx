@@ -53,14 +53,14 @@ const PRODUCTO_QUE_APRIETA_BP = 1000;
 /** Una propina que lleva más de una semana en el cajón ya es desorden. */
 const DIAS_DE_PROPINA_QUE_APRIETAN = 7;
 
-const TARJETA = 'rounded-xl border border-border bg-card p-(--espacio-4) text-card-foreground';
-const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
+const TARJETA = 'rounded-xl border border-borde bg-superficie p-(--espacio-4) text-texto';
+const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-texto-sutil';
 const CIFRA = 'text-3xl font-bold tabular-nums';
 const CIFRA_ENORME = 'font-numeros text-display font-bold tabular-nums';
 const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
 const RENGLON = 'flex items-baseline justify-between gap-(--espacio-3) py-1';
-const AVISO = 'text-sm font-semibold text-destructive';
-const AL_PIE = 'text-sm text-muted-foreground';
+const AVISO = 'text-sm font-semibold text-peligro';
+const AL_PIE = 'text-sm text-texto-sutil';
 
 interface OcupacionDeAlguien {
   readonly nombre: string;
@@ -212,10 +212,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
     return (
       <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Cómo va el salón</h1>
-        <p
-          role="alert"
-          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
-        >
+        <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-(--espacio-3)">
           {error}
         </p>
       </main>
@@ -446,7 +443,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
                 <span
                   className={
                     persona.conProductoBp < PRODUCTO_QUE_APRIETA_BP
-                      ? 'font-semibold tabular-nums text-destructive'
+                      ? 'font-semibold tabular-nums text-peligro'
                       : 'tabular-nums'
                   }
                 >
@@ -486,7 +483,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
               <dt>− Gastos</dt>
               <dd className="tabular-nums">{pesos(leQuedo.gastosCentavos)}</dd>
             </div>
-            <div className="mt-1 flex items-baseline justify-between gap-(--espacio-3) border-t border-border pt-2">
+            <div className="mt-1 flex items-baseline justify-between gap-(--espacio-3) border-t border-borde pt-2">
               <dt className="font-semibold">Le quedó</dt>
               <dd className={CIFRA_CHICA}>
                 {pesos(leQuedo.quedoCentavos)} · {entero(leQuedo.quedoBp)}

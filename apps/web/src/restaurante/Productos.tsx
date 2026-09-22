@@ -71,16 +71,16 @@ const HTTP_DEMASIADOS_INTENTOS = 429;
 
 // Las clases largas viven arriba para que cada elemento quepa en una línea.
 const BANDA =
-  'mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-(--espacio-3) text-sm';
+  'mb-(--espacio-3) rounded-md border border-peligro bg-peligro/15 p-(--espacio-3) text-sm';
 const REJILLA = 'grid grid-cols-1 gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
 const TARJETA =
-  'flex h-full gap-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1 md:flex-col';
+  'flex h-full gap-(--espacio-3) rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1 md:flex-col';
 const FOTO =
-  'h-20 w-20 shrink-0 rounded-md border border-border bg-muted bg-cover bg-center md:h-32 md:w-full';
+  'h-20 w-20 shrink-0 rounded-md border border-borde bg-fondo-sutil bg-cover bg-center md:h-32 md:w-full';
 const DATOS = 'flex min-w-0 flex-1 flex-col gap-1';
 const CHIP = 'w-fit rounded-full px-2 py-0.5 text-xs';
 const VACIO =
-  'flex flex-col items-center gap-(--espacio-4) rounded-lg border border-border p-(--espacio-8) text-center';
+  'flex flex-col items-center gap-(--espacio-4) rounded-lg border border-borde p-(--espacio-8) text-center';
 
 interface Semaforo {
   readonly texto: string;
@@ -89,11 +89,12 @@ interface Semaforo {
 
 /** El margen con su palabra y su color, en ese orden de importancia. */
 export function semaforoDeMargen(margen: number | null): Semaforo {
-  if (margen === null) return { texto: 'Sin receta · sin costo', clase: 'bg-muted' };
+  if (margen === null) return { texto: 'Sin receta · sin costo', clase: 'bg-fondo-sutil' };
   const cifra = `${Math.round(margen)} %`;
-  if (margen >= MARGEN_SANO) return { texto: `Margen ${cifra} · sano`, clase: 'bg-success/25' };
-  if (margen >= MARGEN_JUSTO) return { texto: `Margen ${cifra} · justo`, clase: 'bg-warning/30' };
-  return { texto: `Margen ${cifra} · bajo`, clase: 'bg-destructive/25' };
+  if (margen >= MARGEN_SANO) return { texto: `Margen ${cifra} · sano`, clase: 'bg-exito/25' };
+  if (margen >= MARGEN_JUSTO)
+    return { texto: `Margen ${cifra} · justo`, clase: 'bg-advertencia/30' };
+  return { texto: `Margen ${cifra} · bajo`, clase: 'bg-peligro/25' };
 }
 
 /**
@@ -269,7 +270,7 @@ export function Productos({ filasIniciales }: ProductosProps) {
           <h1 className="text-2xl font-bold">{voc.titulo('producto', true)}</h1>
           {/* La leyenda enseña el semáforo una vez, para que el chip de cada
               tarjeta se lea sin adivinar qué significa el color. */}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-texto-sutil">
             {visibles.length} de {filas.length} · margen sano 60 % o más · justo 40 a 60 · bajo
             menos de 40
           </p>
@@ -365,7 +366,7 @@ export function Productos({ filasIniciales }: ProductosProps) {
                   <p className="text-xl font-bold tabular-nums md:text-2xl">
                     {PESOS.format(producto.precio_venta ?? 0)}
                   </p>
-                  <p className="text-xs tabular-nums text-muted-foreground">
+                  <p className="text-xs tabular-nums text-texto-sutil">
                     {costo === null ? 'Costo sin calcular' : `Costo ${PESOS.format(costo)}`}
                   </p>
                   <span className={`${CHIP} ${margen.clase}`}>{margen.texto}</span>
@@ -389,7 +390,7 @@ export function Productos({ filasIniciales }: ProductosProps) {
       )}
 
       {filas.length > 0 && visibles.length === 0 && (
-        <p className="mt-(--espacio-4) text-center text-muted-foreground">
+        <p className="mt-(--espacio-4) text-center text-texto-sutil">
           {voc.conDeterminante('ningun', 'producto')} coincide con la búsqueda ni con el área
           elegida.
         </p>

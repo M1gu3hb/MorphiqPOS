@@ -45,7 +45,7 @@ const hojas = Object.fromEntries(
  */
 function selectoresActivos(estilo: EstiloConstruido, modo: Modo): string[] {
   const raiz = `[data-estilo='${estilo}']`;
-  return modo === 'claro' ? [':root', raiz] : [':root', raiz, `${raiz}.dark`];
+  return modo === 'claro' ? [':root', raiz] : [':root', raiz, `${raiz}[data-modo='oscuro']`];
 }
 
 function tokensDe(estilo: EstiloConstruido, modo: Modo): Map<string, string> {

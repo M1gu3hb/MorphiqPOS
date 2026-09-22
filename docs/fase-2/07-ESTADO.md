@@ -826,3 +826,23 @@ leer 5 141 caracteres para `verify:primitivas`, 1 679 para `verify:aspecto` y 5 
 Arreglado en nueve sitios de siete scripts con un solo ayudante, `scripts/lib/sin-prosa.mjs`, y
 validado metiendo la violación DENTRO del tramo ciego: `1` en el archivo, `0` para la puerta vieja,
 `1` para la nueva.
+
+---
+
+## ETAPA 2.35 · EL CIERRE (22-09-2026)
+
+El encargo del cierre: que la métrica de adopción no se pueda jugar, las pantallas recompuestas de
+verdad, el dinero con pruebas, las dos condiciones que se dieron por buenas, las deudas que
+quedaban y fusionar.
+
+| Bloque | Qué | Estado |
+| --- | --- | --- |
+| **1** | `verify:adopcion`: las cuatro condiciones sobre el árbol de sintaxis, en la cadena (37 eslabones) y en CI como trabajo propio | ✅ salió ROJA: **0 de 69 adoptadas** (y 3 proveedores sin interfaz) |
+| **2** | Recomponer las pantallas con la biblioteca | 🟨 las dos de cobro (`cafeteria/Cobrar`, `ferreteria/Mostrador`) con sus suites en verde; el resto, por lotes de modelo |
+| **3** | `<Dinero>`, `<Cifra>` y `<Button asChild>` con pruebas; `Cifra` arreglada | ✅ 24 pruebas de componentes y una de navegador en `estilos.spec`, las cuatro mutaciones en rojo |
+| **4** | El rastreador en los ocho estilos; la galería como puerta | ⬜ |
+| **5.1** | Un solo vocabulario dentro de `packages/ui` | ✅ 1 633 utilidades traducidas, `[data-modo='oscuro']`, dos reglas nuevas en `verify:primitivas` |
+| **5.2–5.4** | Estética en CI con fecha fija · almacén en producción · la base de `verify:aspecto` | ⬜ |
+| **6** | Fusionar | ✗ la política de la sesión deniega la fusión; el punto auditado es `0f04fc2` |
+
+`pnpm verify:adopcion` es el marcador: una sesión nueva lo corre y sabe cuántas faltan y cuáles.

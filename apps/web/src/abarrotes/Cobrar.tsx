@@ -396,7 +396,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
       <div className="mx-auto max-w-md p-(--espacio-4)">
         {/* UN MURO, no un vacío: el borde de aviso y el fondo teñido dicen «esto no
             es que falte algo, es que no se puede pasar». */}
-        <div className="rounded-lg border border-warning bg-warning/15 p-(--espacio-6)">
+        <div className="rounded-lg border border-advertencia bg-advertencia/15 p-(--espacio-6)">
           <Vacio
             icono={<LockKeyhole />}
             titulo="La caja está cerrada"
@@ -442,9 +442,9 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
         className="sticky top-0 z-20 flex flex-col items-center gap-(--espacio-1) text-center md:static md:col-start-2 md:row-start-1"
       >
         <Dinero centavos={total} tamano="total" className="leading-none" />
-        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Total</p>
+        <p className="text-xs font-medium tracking-widest text-texto-sutil uppercase">Total</p>
         {/* En teléfono desaparecen el desglose y el conteo: ahí no se vende. */}
-        <p className="mt-(--espacio-1) hidden items-baseline justify-center gap-(--espacio-4) text-sm text-muted-foreground md:flex">
+        <p className="mt-(--espacio-1) hidden items-baseline justify-center gap-(--espacio-4) text-sm text-texto-sutil md:flex">
           <span>{piezas} artículos</span>
           <span className="inline-flex items-baseline gap-1">
             IVA incluido <Dinero centavos={ivaIncluido(total)} tamano="sm" />
@@ -471,17 +471,17 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
             }}
           />
           {hallazgo !== undefined && (
-            <p className="text-sm text-muted-foreground">Enter agrega: {hallazgo.nombre}</p>
+            <p className="text-sm text-texto-sutil">Enter agrega: {hallazgo.nombre}</p>
           )}
         </div>
 
         {error !== null && (
-          <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-2">
+          <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-2">
             {error} · La venta sigue completa aquí: no se perdió nada.
           </p>
         )}
         {sinCatalogar !== null && (
-          <p role="alert" className="rounded-md border border-warning/60 bg-warning/15 p-2">
+          <p role="alert" className="rounded-md border border-advertencia/60 bg-advertencia/15 p-2">
             El código {sinCatalogar} no está en el catálogo. Búscalo por nombre con F2, o dalo de
             alta sin salir de la venta.
           </p>
@@ -489,7 +489,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
 
         {/* La lista crece hacia abajo con la última visible: nunca un scroll
             automático que mueva de sitio las de arriba mientras se verifican. */}
-        <ul className="min-h-32 divide-y divide-border rounded-lg border border-border">
+        <ul className="min-h-32 divide-y divide-borde rounded-lg border border-borde">
           {lineas.length === 0 && (
             <li className="min-h-32">
               {/* El código de barras dibujado con bloques y no un icono genérico: esta
@@ -508,7 +508,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
           {lineas.map((linea) => (
             <li
               key={linea.productoId}
-              className={`flex items-center gap-(--espacio-2) p-(--espacio-2) ${destacada === linea.productoId ? 'bg-primary/15' : ''}`}
+              className={`flex items-center gap-(--espacio-2) p-(--espacio-2) ${destacada === linea.productoId ? 'bg-primario/15' : ''}`}
             >
               <span className="w-12 shrink-0 text-right font-numeros font-bold tabular-nums">
                 {linea.cantidad} ×
@@ -517,17 +517,13 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
                 {linea.nombre}
                 {/* El color nunca es el único portador: va la palabra. */}
                 {linea.sinExistencia && (
-                  <span className="ml-1 text-xs text-muted-foreground">● sin existencia</span>
+                  <span className="ml-1 text-xs text-texto-sutil">● sin existencia</span>
                 )}
               </span>
               {/* La tablet pierde el precio unitario si no cabe. Nunca pierde
                   la cantidad: es la que se verifica de reojo. */}
               <span className="hidden w-20 text-right xl:inline">
-                <Dinero
-                  centavos={linea.precioCentavos}
-                  tamano="sm"
-                  className="text-muted-foreground"
-                />
+                <Dinero centavos={linea.precioCentavos} tamano="sm" className="text-texto-sutil" />
               </span>
               <span className="w-24 shrink-0 text-right font-medium">
                 <Dinero centavos={linea.precioCentavos * linea.cantidad} />
@@ -551,7 +547,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
           del borde inferior, a la altura del pulgar y sin nada que sostener. */}
       <aside
         aria-label="Cobro"
-        className="fixed inset-x-0 bottom-0 z-20 flex flex-col gap-(--espacio-2) border-t border-border bg-card p-(--espacio-3) shadow-3 md:col-start-2 md:row-start-2 xl:static xl:rounded-lg xl:border xl:shadow-1"
+        className="fixed inset-x-0 bottom-0 z-20 flex flex-col gap-(--espacio-2) border-t border-borde bg-superficie p-(--espacio-3) shadow-3 md:col-start-2 md:row-start-2 xl:static xl:rounded-lg xl:border xl:shadow-1"
       >
         {metodo === null ? (
           <>
@@ -601,7 +597,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
                 />
                 {/* El cambio en grande porque es el número que se dice en voz
                     alta y el que causa discusiones. Se lee a un metro. */}
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                <p className="text-xs font-medium tracking-wide text-texto-sutil uppercase">
                   Cambio
                 </p>
                 <Dinero centavos={cambio} tamano="total" className="leading-none" />
@@ -650,7 +646,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
           funcionó: el tercer canal, el que se mira de reojo. */}
       <footer
         role="status"
-        className="hidden justify-between text-xs text-muted-foreground md:col-span-2 md:row-start-3 md:flex"
+        className="hidden justify-between text-xs text-texto-sutil md:col-span-2 md:row-start-3 md:flex"
       >
         <span>Caja abierta · {caja.usuario_apertura_nombre ?? 'sin nombre'}</span>
         <span>{ultimo === null ? 'Sin escaneos todavía' : `Últ: ${ultimo} ✓`}</span>

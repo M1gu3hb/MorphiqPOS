@@ -30,7 +30,7 @@ export function Progreso({
   const acotado = determinado ? Math.max(0, Math.min(100, valor)) : 0;
   return (
     <div className={cn('flex flex-col gap-(--espacio-1)', className)}>
-      <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+      <div className="flex items-baseline justify-between text-xs text-texto-sutil">
         <span>{etiqueta}</span>
         {determinado ? (
           <span className="font-numeros tabular-nums">{`${String(Math.round(acotado))} %`}</span>
@@ -42,11 +42,11 @@ export function Progreso({
         aria-valuenow={determinado ? Math.round(acotado) : undefined}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-fondo-sutil"
       >
         <div
           className={cn(
-            'h-full rounded-full bg-primary',
+            'h-full rounded-full bg-primario',
             determinado
               ? 'transition-[width] duration-(--duracion-normal) ease-(--curva-entrada)'
               : 'w-1/3 animate-pulse',
@@ -147,7 +147,7 @@ export function IndicadorDeGuardado({
       aria-live="polite"
       className={cn(
         'flex items-center gap-(--espacio-2) text-xs transition-opacity duration-(--duracion-normal)',
-        visible === 'error' ? 'text-destructive' : 'text-muted-foreground',
+        visible === 'error' ? 'text-peligro' : 'text-texto-sutil',
         visible === 'quieto' ? 'opacity-0' : 'opacity-100',
         className,
       )}
@@ -220,12 +220,12 @@ export function ConfirmacionDestructiva({
       />
       {/* Un diálogo NO escala desde su disparador: aparece centrado y por eso su
           origen es el centro. Lo que escala desde su disparador son los popovers. */}
-      <div className="relative w-full max-w-md rounded-lg border border-border bg-card p-(--espacio-6) shadow-4">
+      <div className="relative w-full max-w-md rounded-lg border border-borde bg-superficie p-(--espacio-6) shadow-4">
         <h2 id="confirmacion-titulo" className="text-lg font-medium">
           Esto no se puede deshacer
         </h2>
-        <p id="confirmacion-cuerpo" className="mt-(--espacio-2) text-sm text-muted-foreground">
-          Se va a eliminar <strong className="text-foreground">{queSeBorra}</strong>
+        <p id="confirmacion-cuerpo" className="mt-(--espacio-2) text-sm text-texto-sutil">
+          Se va a eliminar <strong className="text-texto">{queSeBorra}</strong>
           {consecuencia === undefined ? '.' : `. ${consecuencia}`}
         </p>
         <div className="mt-(--espacio-6) flex justify-end gap-(--espacio-2)">
@@ -233,14 +233,14 @@ export function ConfirmacionDestructiva({
             ref={cancelar}
             type="button"
             onClick={alCancelar}
-            className="h-(--altura-control) rounded-md border border-border px-(--espacio-4) text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.97]"
+            className="h-(--altura-control) rounded-md border border-borde px-(--espacio-4) text-sm hover:bg-fondo-sutil focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none active:scale-[0.97]"
           >
             Cancelar
           </button>
           <button
             type="button"
             onClick={alConfirmar}
-            className="h-(--altura-control) rounded-md bg-destructive px-(--espacio-4) text-sm font-medium text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.97]"
+            className="h-(--altura-control) rounded-md bg-peligro px-(--espacio-4) text-sm font-medium text-peligro-texto hover:bg-peligro/90 focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none active:scale-[0.97]"
           >
             {textoConfirmar}
           </button>
@@ -272,11 +272,15 @@ export function Aviso({
 }): ReactElement {
   const estilo = {
     info: { caja: 'border-info/40 bg-info/5', texto: 'text-info', simbolo: 'i' },
-    exito: { caja: 'border-success/40 bg-success/5', texto: 'text-success', simbolo: '✓' },
-    atencion: { caja: 'border-warning/50 bg-warning/10', texto: 'text-foreground', simbolo: '!' },
+    exito: { caja: 'border-exito/40 bg-exito/5', texto: 'text-exito', simbolo: '✓' },
+    atencion: {
+      caja: 'border-advertencia/50 bg-advertencia/10',
+      texto: 'text-texto',
+      simbolo: '!',
+    },
     peligro: {
-      caja: 'border-destructive/40 bg-destructive/5',
-      texto: 'text-destructive',
+      caja: 'border-peligro/40 bg-peligro/5',
+      texto: 'text-peligro',
       simbolo: '×',
     },
   }[tono];
@@ -302,7 +306,7 @@ export function Aviso({
       <div className="flex-1">
         <p className={cn('text-sm font-medium', estilo.texto)}>{titulo}</p>
         {children === undefined ? null : (
-          <div className="mt-(--espacio-1) text-sm text-muted-foreground">{children}</div>
+          <div className="mt-(--espacio-1) text-sm text-texto-sutil">{children}</div>
         )}
       </div>
       {accion}

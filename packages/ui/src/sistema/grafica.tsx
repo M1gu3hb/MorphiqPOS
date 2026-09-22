@@ -95,7 +95,7 @@ function escalas(
 /** La leyenda: el color NUNCA va solo. */
 function Leyenda({ series }: { readonly series: readonly SerieDeGrafica[] }): ReactElement {
   return (
-    <ul className="flex flex-wrap items-center gap-x-(--espacio-4) gap-y-(--espacio-1) text-xs text-muted-foreground">
+    <ul className="flex flex-wrap items-center gap-x-(--espacio-4) gap-y-(--espacio-1) text-xs text-texto-sutil">
       {series.map((serie, indice) => (
         <li key={serie.etiqueta} className="flex items-center gap-(--espacio-2)">
           <span
@@ -165,7 +165,7 @@ export function GraficaDeBarras({
             x={MARGEN.izquierda + porGrupo * columna + porGrupo / 2}
             y={alto - 6}
             textAnchor="middle"
-            className="fill-muted-foreground text-xs"
+            className="fill-texto-sutil text-xs"
           >
             {etiqueta}
           </text>
@@ -218,14 +218,14 @@ function EjeY({
               x2={480 - MARGEN.derecha}
               y1={posicion}
               y2={posicion}
-              className="stroke-border"
+              className="stroke-borde"
               strokeWidth={1}
             />
             <text
               x={MARGEN.izquierda - 6}
               y={posicion + 3}
               textAnchor="end"
-              className="fill-muted-foreground text-xs"
+              className="fill-texto-sutil text-xs"
             >
               {formato(Math.round(maximo * fraccion))}
             </text>
@@ -264,7 +264,7 @@ export function GraficaDeLineas({
             x={x(indice, ejes.length)}
             y={alto - 6}
             textAnchor="middle"
-            className="fill-muted-foreground text-xs"
+            className="fill-texto-sutil text-xs"
           >
             {etiqueta}
           </text>
@@ -421,12 +421,12 @@ export function GraficaDeDona({
           x={80}
           y={78}
           textAnchor="middle"
-          className="fill-foreground text-lg font-medium font-numeros"
+          className="fill-texto text-lg font-medium font-numeros"
         >
           {formato(total)}
         </text>
         {etiquetaCentro === undefined ? null : (
-          <text x={80} y={94} textAnchor="middle" className="fill-muted-foreground text-xs">
+          <text x={80} y={94} textAnchor="middle" className="fill-texto-sutil text-xs">
             {etiquetaCentro}
           </text>
         )}
@@ -476,7 +476,7 @@ export function MapaDeCalorPorHora({
             <tr>
               <th className="sr-only">Día</th>
               {horas.map((hora) => (
-                <th key={hora} scope="col" className="px-0.5 font-normal text-muted-foreground">
+                <th key={hora} scope="col" className="px-0.5 font-normal text-texto-sutil">
                   {hora}
                 </th>
               ))}
@@ -487,7 +487,7 @@ export function MapaDeCalorPorHora({
               <tr key={dia}>
                 <th
                   scope="row"
-                  className="pr-(--espacio-2) text-right font-normal text-muted-foreground"
+                  className="pr-(--espacio-2) text-right font-normal text-texto-sutil"
                 >
                   {dia}
                 </th>
@@ -516,7 +516,7 @@ export function MapaDeCalorPorHora({
           </tbody>
         </table>
       </div>
-      <p className="flex items-center gap-(--espacio-2) text-xs text-muted-foreground">
+      <p className="flex items-center gap-(--espacio-2) text-xs text-texto-sutil">
         <span>menos</span>
         {[0.06, 0.3, 0.55, 0.8, 1].map((intensidad) => (
           <span

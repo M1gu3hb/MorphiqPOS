@@ -54,18 +54,19 @@ const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN
 const HTTP_DEMASIADOS_INTENTOS = 429;
 
 const BLOQUE =
-  'mt-(--espacio-3) rounded-md border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
-const TITULO = 'text-xs font-bold uppercase tracking-wide text-muted-foreground';
+  'mt-(--espacio-3) rounded-md border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1';
+const TITULO = 'text-xs font-bold uppercase tracking-wide text-texto-sutil';
 const OPCION =
-  'flex items-start gap-(--espacio-3) rounded-md border p-(--espacio-3) hover:bg-accent';
-const AVISO = 'mt-2 rounded-md border border-warning/60 bg-warning/15 p-2 text-sm font-medium';
-const MALO = 'mt-2 rounded-md border border-destructive bg-destructive/15 p-2 text-sm font-medium';
-const NOTA = 'mt-1 text-xs tabular-nums text-muted-foreground';
+  'flex items-start gap-(--espacio-3) rounded-md border p-(--espacio-3) hover:bg-acento-suave';
+const AVISO =
+  'mt-2 rounded-md border border-advertencia/60 bg-advertencia/15 p-2 text-sm font-medium';
+const MALO = 'mt-2 rounded-md border border-peligro bg-peligro/15 p-2 text-sm font-medium';
+const NOTA = 'mt-1 text-xs tabular-nums text-texto-sutil';
 /** Los campos crecen en el teléfono: se teclean de pie y con una mano. */
 const CAMPOS =
   'mt-2 grid gap-(--espacio-3) md:grid-cols-2 [&_input]:h-[calc(var(--altura-control)*1.4)] [&_input]:text-2xl md:[&_input]:text-lg';
 const BARRA =
-  'fixed inset-x-0 bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-background p-(--espacio-3) md:static md:mt-(--espacio-3) md:rounded-md md:border';
+  'fixed inset-x-0 bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 border-t border-borde bg-fondo p-(--espacio-3) md:static md:mt-(--espacio-3) md:rounded-md md:border';
 
 /** Una pieza física de la que se corta. El descuento sale de ÉSTA, no del total. */
 export interface PiezaDeCorte {
@@ -158,11 +159,11 @@ interface OpcionProps {
 function Opcion({ valor, titulo, nota, activa }: OpcionProps) {
   const campo = `opcion-${valor}`;
   return (
-    <div className={`${OPCION} ${activa ? 'border-primary bg-primary/10' : 'border-border'}`}>
+    <div className={`${OPCION} ${activa ? 'border-primario bg-primario/10' : 'border-borde'}`}>
       <RadioGroupItem value={valor} id={campo} className="mt-1" />
       <Label htmlFor={campo} className="flex-1 flex-col items-start gap-0">
         <span className="font-semibold">{titulo}</span>
-        <span className="font-normal tabular-nums text-muted-foreground">{nota}</span>
+        <span className="font-normal tabular-nums text-texto-sutil">{nota}</span>
       </Label>
     </div>
   );
@@ -354,7 +355,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
       {/* EL FOLIO, que es lo único que el cliente se lleva del pasillo, y lo que
           quedó del rollo, que es lo que el mostradorista tiene que rotular. */}
       {hecho !== null && (
-        <p role="status" className={`${BLOQUE} border-primary`}>
+        <p role="status" className={`${BLOQUE} border-primario`}>
           Cortados{' '}
           <span className="font-bold tabular-nums">
             {hecho.entregado} {material.unidad}
@@ -418,7 +419,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
             </p>
           </div>
         </div>
-        <dl className="mt-(--espacio-3) grid grid-cols-2 gap-x-2 border-t border-border pt-2 text-sm">
+        <dl className="mt-(--espacio-3) grid grid-cols-2 gap-x-2 border-t border-borde pt-2 text-sm">
           <dt>Se descuenta del rollo</dt>
           <dd className="text-right font-semibold tabular-nums">
             {metros(descuento)} {material.unidad}

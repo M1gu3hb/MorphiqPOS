@@ -71,9 +71,9 @@ const DIGITOS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 const CLASES_REJILLA =
   'mx-auto grid w-full max-w-5xl grid-cols-1 gap-(--espacio-4) md:grid-cols-2 md:gap-(--espacio-6) xl:grid-cols-3';
 const CLASES_TARJETA =
-  'flex w-full items-center gap-(--espacio-4) rounded-2xl border-2 bg-card p-(--espacio-4) text-left ' +
-  'text-card-foreground shadow-1 transition-colors hover:bg-accent hover:text-accent-foreground ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
+  'flex w-full items-center gap-(--espacio-4) rounded-2xl border-2 bg-superficie p-(--espacio-4) text-left ' +
+  'text-texto shadow-1 transition-colors hover:bg-acento-suave hover:text-acento-suave-texto ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-anillo ' +
   'md:flex-col md:justify-center md:gap-(--espacio-3) md:p-(--espacio-8) md:text-center';
 
 export interface EmpleadoDeAcceso {
@@ -159,7 +159,7 @@ function TecladoNumerico({
       aria-label={`Teclear el PIN de ${empleado.nombre}`}
       className={
         'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-(--espacio-5) md:max-w-md ' +
-        'md:flex-none md:rounded-2xl md:border md:border-border md:bg-card md:p-(--espacio-6) md:shadow-2'
+        'md:flex-none md:rounded-2xl md:border md:border-borde md:bg-superficie md:p-(--espacio-6) md:shadow-2'
       }
     >
       <div className="flex items-center gap-(--espacio-3)">
@@ -169,9 +169,7 @@ function TecladoNumerico({
         </Avatar>
         <p className="flex-1 text-lg font-semibold">
           {empleado.nombre}
-          <span className="block text-sm font-normal text-muted-foreground">
-            {empleado.etiqueta}
-          </span>
+          <span className="block text-sm font-normal text-texto-sutil">{empleado.etiqueta}</span>
         </p>
         <Button type="button" variant="ghost" size="sm" onClick={onVolver}>
           No soy yo
@@ -182,7 +180,7 @@ function TecladoNumerico({
           verlos recibe la cuenta en palabras. */}
       <p
         aria-live="polite"
-        className="font-numeros text-center text-3xl tracking-[0.4em] text-primary"
+        className="font-numeros text-center text-3xl tracking-[0.4em] text-primario"
       >
         <span className="sr-only">{digitos} de 4 dígitos tecleados</span>
         <span aria-hidden>{'•'.repeat(digitos) + '◦'.repeat(LARGO_PIN - digitos)}</span>
@@ -345,20 +343,20 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
       : error;
 
   return (
-    <main className="flex min-h-dvh flex-col gap-(--espacio-6) bg-background p-(--espacio-4) text-foreground md:p-(--espacio-8)">
+    <main className="flex min-h-dvh flex-col gap-(--espacio-6) bg-fondo p-(--espacio-4) text-texto md:p-(--espacio-8)">
       <h1 className="mx-auto text-xl font-bold md:text-2xl">¿Quién está operando?</h1>
 
       {/* La banda no vacía la pantalla: debajo sigue habiendo con quién entrar. */}
       {banda !== null && (
-        <Alert variant="destructive" className="mx-auto max-w-5xl border-destructive">
-          <AlertDescription className="text-foreground">{banda}</AlertDescription>
+        <Alert variant="destructive" className="mx-auto max-w-5xl border-peligro">
+          <AlertDescription className="text-texto">{banda}</AlertDescription>
         </Alert>
       )}
 
       {turno !== null && (
         <p
           aria-live="polite"
-          className="mx-auto max-w-5xl rounded-md border border-border bg-success/15 px-(--espacio-4) py-2"
+          className="mx-auto max-w-5xl rounded-md border border-borde bg-exito/15 px-(--espacio-4) py-2"
         >
           {turno}
         </p>
@@ -377,7 +375,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
       {empleados?.length === 0 && (
         <section className="mx-auto flex max-w-lg flex-col items-center gap-(--espacio-4) text-center">
           <p className="text-lg font-semibold">Todavía no hay nadie dado de alta.</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Estas tarjetas son la plantilla del negocio. Quien entra por aquí abre su presencia en
             el turno, y esas horas son las que reparten el bote de propina al cerrar. Sin nadie en
             ella no hay a quién atribuir una venta ni una hora.
@@ -411,9 +409,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
                 </Avatar>
                 <span className="flex flex-col gap-1">
                   <span className="text-2xl font-semibold md:text-3xl">{empleado.nombre}</span>
-                  <span className="text-sm text-muted-foreground md:text-base">
-                    {empleado.etiqueta}
-                  </span>
+                  <span className="text-sm text-texto-sutil md:text-base">{empleado.etiqueta}</span>
                 </span>
               </button>
             </li>

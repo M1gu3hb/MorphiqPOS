@@ -190,13 +190,13 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
     <main className="mx-auto max-w-2xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Caja y corte</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           {abierta ? 'El día está abierto.' : 'Ábrelo para poder cobrar.'}
         </p>
       </header>
 
       {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-peligro text-sm">
           {error}
         </p>
       )}
@@ -246,7 +246,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
               <span>Propinas entregadas</span>
               <span className="tabular-nums">− {pesos(estado.propinasEntregadasCentavos)}</span>
             </p>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-texto-sutil text-sm">
               La propina no es un gasto del salón: es dinero de {voc.enFrase('cliente', true)} que
               pasó por el cajón.
             </p>
@@ -285,7 +285,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
           {cerrado && (
             <section className="space-y-2 rounded-lg border p-(--espacio-4)">
               <h2 className="font-medium">Día cerrado</h2>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-texto-sutil text-sm">
                 Esperado {pesos(esperado)} · contado{' '}
                 {PESOS.format(Number(corte.efectivoContadoCentavos) / 100)}
               </p>

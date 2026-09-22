@@ -80,8 +80,7 @@ const FECHA = new Intl.DateTimeFormat('es-MX', {
 });
 
 // Las clases largas viven arriba para que cada elemento quepa en una línea.
-const PANEL =
-  'rounded-lg border border-border bg-card p-(--espacio-4) text-card-foreground shadow-1';
+const PANEL = 'rounded-lg border border-borde bg-superficie p-(--espacio-4) text-texto shadow-1';
 // Teclado numérico grande en tablet y teléfono; en PC el campo vuelve a la
 // altura de control del sistema, porque ahí se teclea con teclado de verdad.
 const CAMPO = 'h-20 text-center text-3xl font-bold tabular-nums xl:h-(--altura-control)';
@@ -140,10 +139,10 @@ export function avisoDeCambio(centavos: number | null): {
   readonly clase: string;
   readonly palabra: string;
 } {
-  if (centavos === null) return { clase: 'bg-muted', palabra: 'sin desglose en esta sesión' };
-  if (centavos < CAMBIO_URGENTE) return { clase: 'bg-destructive/20', palabra: 'consíguelo ya' };
-  if (centavos < CAMBIO_POCO) return { clase: 'bg-warning/25', palabra: 'va quedando poco' };
-  return { clase: 'bg-muted', palabra: 'alcanza' };
+  if (centavos === null) return { clase: 'bg-fondo-sutil', palabra: 'sin desglose en esta sesión' };
+  if (centavos < CAMBIO_URGENTE) return { clase: 'bg-peligro/20', palabra: 'consíguelo ya' };
+  if (centavos < CAMBIO_POCO) return { clase: 'bg-advertencia/25', palabra: 'va quedando poco' };
+  return { clase: 'bg-fondo-sutil', palabra: 'alcanza' };
 }
 
 /** Qué impide registrar, con palabras: un botón apagado y mudo se intenta tres veces. */
@@ -321,16 +320,16 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
 
   const lista = (filas: readonly MovimientoDelTurno[], vacio: string) =>
     filas.length === 0 ? (
-      <p className="p-(--espacio-4) text-sm text-muted-foreground">{vacio}</p>
+      <p className="p-(--espacio-4) text-sm text-texto-sutil">{vacio}</p>
     ) : (
-      <ul className="divide-y divide-border">
+      <ul className="divide-y divide-borde">
         {filas.map((m) => (
           <li
             key={`${m.registradoEn}-${m.tipo}`}
             className="grid gap-1 p-(--espacio-3) md:grid-cols-2"
           >
             <span className="font-medium">
-              {m.motivo ?? 'Sin motivo'} <span className="text-muted-foreground">· {m.tipo}</span>
+              {m.motivo ?? 'Sin motivo'} <span className="text-texto-sutil">· {m.tipo}</span>
             </span>
             <span className="tabular-nums md:justify-self-end">
               {PESOS.format(Number(m.montoCentavos) / 100)} · {cuando(m.registradoEn)}
@@ -351,7 +350,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
       >
         {campo('movimiento-monto', 'Cuánto', monto, alEscribir(setMonto))}
         {campo('movimiento-motivo', 'Por qué', motivo, alEscribir(setMotivo), false)}
-        <p className="text-sm text-muted-foreground">{bloqueo ?? 'Entra al corte del turno.'}</p>
+        <p className="text-sm text-texto-sutil">{bloqueo ?? 'Entra al corte del turno.'}</p>
         <Button type="submit" size="lg" disabled={enviando || !abierto || bloqueo !== null}>
           {boton}
         </Button>
@@ -371,10 +370,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
       </header>
 
       {error !== null && (
-        <p
-          role="alert"
-          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
-        >
+        <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-(--espacio-3)">
           {error} · Nada se movió; la pantalla conserva el último dato conocido.
         </p>
       )}
@@ -407,7 +403,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           }}
         >
           <h2 className="text-lg font-semibold">Fondo de apertura</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Se cuenta por denominación y no de un jalón: el total no dice con qué vas a dar cambio,
             y quedarse sin morralla a media ráfaga cuesta media ráfaga.
           </p>
@@ -454,15 +450,15 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
 
         <TabsContent value="resumen" className="pt-(--espacio-3)">
           <dl className={`${PANEL} grid grid-cols-2 gap-(--espacio-3) xl:max-w-xl`}>
-            <dt className="text-sm text-muted-foreground">Vendido en el turno</dt>
+            <dt className="text-sm text-texto-sutil">Vendido en el turno</dt>
             <dd className="justify-self-end font-bold tabular-nums">
               {PESOS.format(Number(estado?.ventasCentavos ?? '0') / 100)}
             </dd>
-            <dt className="text-sm text-muted-foreground">
+            <dt className="text-sm text-texto-sutil">
               {voc.titulo('unidad_servicio', true)} cobrad{voc.terminacion('unidad_servicio', true)}
             </dt>
             <dd className="justify-self-end font-bold tabular-nums">{estado?.numeroVentas ?? 0}</dd>
-            <dt className="text-sm text-muted-foreground">Fondo de apertura</dt>
+            <dt className="text-sm text-texto-sutil">Fondo de apertura</dt>
             <dd className="justify-self-end font-bold tabular-nums">
               {PESOS.format(Number(estado?.fondoInicialCentavos ?? '0') / 100)}
             </dd>
@@ -521,14 +517,14 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
               />
             </div>
           ) : (
-            <ul className={`${PANEL} divide-y divide-border p-0`}>
+            <ul className={`${PANEL} divide-y divide-borde p-0`}>
               {historial.map((corte) => (
                 <li
                   key={corte.id}
                   className="grid gap-1 p-(--espacio-3) md:grid-cols-3 md:items-center"
                 >
                   <span className="font-medium">Folio {corte.folio ?? 's/f'}</span>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-texto-sutil">
                     {cuando(corte.fecha_apertura)} → {cuando(corte.fecha_cierre)} ·{' '}
                     {corte.usuario_apertura_nombre ?? 'sin nombre'}
                   </span>

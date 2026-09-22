@@ -39,20 +39,20 @@ function VistaPrevia({ estilo }: { readonly estilo: string }) {
   return (
     <div
       {...atributosDeEstilo(estilo)}
-      className="pointer-events-none rounded-md bg-background p-(--espacio-3) text-foreground"
+      className="pointer-events-none rounded-md bg-fondo p-(--espacio-3) text-texto"
     >
       <Superficie nivel={2} relleno={3} className="flex flex-col gap-(--espacio-2)">
         <div className="flex items-baseline justify-between">
-          <span className="text-xs text-muted-foreground">Total</span>
+          <span className="text-xs text-texto-sutil">Total</span>
           <Dinero centavos={43900} tamano="lg" />
         </div>
         <div className="flex items-center gap-(--espacio-2)">
-          <span className="h-(--altura-control) flex-1 rounded-md bg-primary" />
-          <span className="h-(--altura-control) w-10 rounded-md border border-input bg-card" />
+          <span className="h-(--altura-control) flex-1 rounded-md bg-primario" />
+          <span className="h-(--altura-control) w-10 rounded-md border border-borde-fuerte bg-superficie" />
         </div>
         <div className="flex flex-col gap-px">
-          <span className="h-1.5 w-full rounded-sm bg-muted" />
-          <span className="h-1.5 w-4/5 rounded-sm bg-muted" />
+          <span className="h-1.5 w-full rounded-sm bg-fondo-sutil" />
+          <span className="h-1.5 w-4/5 rounded-sm bg-fondo-sutil" />
         </div>
       </Superficie>
     </div>
@@ -99,7 +99,7 @@ export function SelectorDeApariencia() {
     <section className="flex flex-col gap-(--espacio-4)">
       <header>
         <h3 className="text-lg font-semibold">Estilo visual</h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           Cambia al instante en toda la aplicación. Se guarda para el negocio entero, no sólo para
           esta computadora.
         </p>
@@ -118,14 +118,14 @@ export function SelectorDeApariencia() {
                   cambiarEstilo(clave);
                   setMensaje(null);
                 }}
-                className={`flex w-full flex-col gap-(--espacio-2) rounded-lg border p-(--espacio-2) text-left transition-[box-shadow,border-color] duration-(--duracion-rapida) focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
-                  elegido ? 'border-primary shadow-2' : 'border-border hover:shadow-1'
+                className={`flex w-full flex-col gap-(--espacio-2) rounded-lg border p-(--espacio-2) text-left transition-[box-shadow,border-color] duration-(--duracion-rapida) focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none ${
+                  elegido ? 'border-primario shadow-2' : 'border-borde hover:shadow-1'
                 }`}
               >
                 <VistaPrevia estilo={clave} />
                 <span className="px-1">
                   <span className="block text-sm font-medium">{definicion?.nombre ?? clave}</span>
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="block text-xs text-texto-sutil">
                     {definicion?.referencia ?? ''}
                   </span>
                 </span>
@@ -135,11 +135,11 @@ export function SelectorDeApariencia() {
         })}
       </ul>
 
-      <p className="text-sm text-muted-foreground">{ESTILOS[apariencia.estilo]?.para ?? ''}</p>
+      <p className="text-sm text-texto-sutil">{ESTILOS[apariencia.estilo]?.para ?? ''}</p>
 
       <div className="flex flex-wrap items-end gap-(--espacio-4)">
         {(['densidad', 'redondeo', 'elevacion', 'movimiento'] as const).map((perilla) => (
-          <label key={perilla} className="flex flex-col gap-1 text-xs text-muted-foreground">
+          <label key={perilla} className="flex flex-col gap-1 text-xs text-texto-sutil">
             <span className="capitalize">{perilla}</span>
             <select
               value={apariencia[perilla]}
@@ -147,7 +147,7 @@ export function SelectorDeApariencia() {
                 ajustar(perilla, evento.target.value as never);
                 setMensaje(null);
               }}
-              className="h-(--altura-control) rounded-md border border-input bg-card px-(--espacio-2) text-sm text-foreground"
+              className="h-(--altura-control) rounded-md border border-borde-fuerte bg-superficie px-(--espacio-2) text-sm text-texto"
             >
               {PERILLAS[perilla].map((valor) => (
                 <option key={valor} value={valor}>
@@ -169,7 +169,7 @@ export function SelectorDeApariencia() {
           Guardar para el negocio
         </Button>
         {mensaje === null ? null : (
-          <p aria-live="polite" className="text-sm text-muted-foreground">
+          <p aria-live="polite" className="text-sm text-texto-sutil">
             {mensaje}
           </p>
         )}

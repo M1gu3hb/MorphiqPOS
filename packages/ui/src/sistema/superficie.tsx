@@ -1,4 +1,4 @@
-import type { ElementType, HTMLAttributes, ReactElement, ReactNode } from 'react';
+import type { AllHTMLAttributes, ElementType, ReactElement, ReactNode, Ref } from 'react';
 
 import { cn } from '../utilidades/cn';
 
@@ -53,8 +53,17 @@ const ELEVACION: Readonly<Record<NivelDeElevacion, string>> = {
  *
  * Se excluye `className` porque ya es una prop propia —con `cn`, que resuelve los
  * conflictos de Tailwind— y dejarla pasar dos veces haría que una ganara por orden.
+ *
+ * Y TODOS los atributos de HTML, no sólo los comunes: una superficie también es la
+ * tesela que se toca (`como="button"`, con su `type` y su `disabled`), la opción
+ * de un grupo (`como="label"`, con su `htmlFor`) o el formulario entero
+ * (`como="form"`, con su `onSubmit`). Con sólo los comunes, esas pantallas
+ * volvían a escribir la superficie a mano para poder poner un `type`.
  */
-type AtributosDeSuperficie = Omit<HTMLAttributes<HTMLElement>, 'className' | 'children' | 'color'>;
+type AtributosDeSuperficie = Omit<
+  AllHTMLAttributes<HTMLElement>,
+  'className' | 'children' | 'color' | 'size' | 'wrap' | 'as'
+>;
 
 export interface SuperficieProps extends AtributosDeSuperficie {
   readonly children: ReactNode;
@@ -68,6 +77,21 @@ export interface SuperficieProps extends AtributosDeSuperficie {
   /** Qué etiqueta se pinta. `section`, `article`, `aside`… no todo es un `div`. */
   readonly como?: ElementType;
   readonly className?: string;
+  /** Para medirla o llevarle el foco. En React 19 `ref` es una prop más. */
+  readonly ref?: Ref<HTMLElement>;
+  /**
+   * INTERACTIVA: la tesela que se toca —un producto en la rejilla del cobro, una mesa,
+   * una opción de un grupo—. Sube un nivel al pasar encima, se hunde al pulsarla
+   * —`scale(0.98)`: la interfaz oyó—, y el foco se ve en dos capas. Cada pantalla lo
+   * escribía a su manera y cada una respondía distinto al mismo dedo.
+   */
+  readonly interactiva?: boolean;
+  /**
+   * La elegida de un grupo: el anillo del primario, y la pantalla le pone además su
+   * `aria-pressed` o su `aria-current`. El anillo no es lo único que la marca: la
+   * pantalla dice con texto o con icono por qué está elegida.
+   */
+  readonly activa?: boolean;
 }
 
 const RADIOS = {
@@ -91,18 +115,25 @@ export function Superficie({
   radio = 'lg',
   relleno = 4,
   como: Como = 'div',
+  interactiva = false,
+  activa = false,
   className,
   ...resto
 }: SuperficieProps): ReactElement {
   return (
     <Como
       data-nivel={nivel}
+      data-activa={activa ? '' : undefined}
       className={cn(
-        'bg-card text-card-foreground',
+        'bg-superficie text-texto',
         RADIOS[radio],
         RELLENOS[relleno],
         ELEVACION[nivel],
-        conBorde ? 'border border-border' : '',
+        conBorde ? 'border border-borde' : '',
+        interactiva
+          ? 'cursor-pointer text-left transition-[box-shadow,transform] duration-(--duracion-rapida) ease-(--curva-entrada) outline-none hover:shadow-2 focus-visible:ring-[3px] focus-visible:ring-anillo/60 focus-visible:ring-offset-2 focus-visible:ring-offset-fondo active:scale-[0.98] active:shadow-0 disabled:cursor-not-allowed disabled:opacity-50'
+          : '',
+        activa ? 'border-primario ring-2 ring-primario' : '',
         className,
       )}
       {...resto}
@@ -179,7 +210,7 @@ export function BarraFija({
     <div
       data-pegada={pegada ? '' : undefined}
       className={cn(
-        'sticky top-0 z-30 bg-background/95 backdrop-blur-sm transition-shadow duration-(--duracion-normal)',
+        'sticky top-0 z-30 bg-fondo/95 backdrop-blur-sm transition-shadow duration-(--duracion-normal)',
         pegada ? 'shadow-2' : 'shadow-0',
         className,
       )}

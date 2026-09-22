@@ -73,7 +73,7 @@
   --lateral-borde: 0 0% 30%;
 }
 
-[data-estilo='bloque'].dark {
+[data-estilo='bloque'][data-modo='oscuro'] {
   --sombra-tinte: 48 30% 94%;
 
   --fondo: 0 0% 8%;

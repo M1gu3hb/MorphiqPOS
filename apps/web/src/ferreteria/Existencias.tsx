@@ -296,17 +296,14 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
     <div className="p-(--espacio-4) md:p-(--espacio-6)">
       <header className="mb-(--espacio-4)">
         <h1 className="text-2xl font-bold">Existencias</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           Qué hay, qué está dormido y qué está abierto. Atajos: «/» busca ·{' '}
           {CONTADORES.map((c) => c.tecla).join(' · ')} filtran.
         </p>
       </header>
 
       {error !== null && (
-        <p
-          role="alert"
-          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
-        >
+        <p role="alert" className="mb-(--espacio-3) rounded-md border border-peligro p-2 text-sm">
           {error} · Se muestra el último dato conocido.
         </p>
       )}
@@ -325,15 +322,15 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
                 }}
                 className={`w-full rounded-lg border-2 p-(--espacio-3) text-left transition-colors ${
                   activo
-                    ? 'border-primary bg-primary/15 text-foreground'
-                    : 'border-border bg-card text-card-foreground hover:bg-accent'
+                    ? 'border-primario bg-primario/15 text-texto'
+                    : 'border-borde bg-superficie text-texto hover:bg-acento-suave'
                 }`}
               >
-                <span className="block text-xs font-medium uppercase text-muted-foreground">
+                <span className="block text-xs font-medium uppercase text-texto-sutil">
                   {t.titulo}
                 </span>
                 <span className="block text-2xl font-bold leading-tight">{t.cifra}</span>
-                <span className="block text-xs text-muted-foreground">{t.nota}</span>
+                <span className="block text-xs text-texto-sutil">{t.nota}</span>
                 {/* El recuadro marcado no puede ser la única señal de «filtrado». */}
                 <span className="sr-only">
                   {t.pregunta} Atajo: {t.tecla}. {activo ? 'Filtro activo.' : ''}
@@ -435,13 +432,13 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
                           onClick={() => {
                             setDetalle(detalle === f.id ? null : f.id);
                           }}
-                          className="ml-1 rounded border border-border px-1 text-xs hover:bg-accent"
+                          className="ml-1 rounded border border-borde px-1 text-xs hover:bg-acento-suave"
                         >
                           {f.piezasAbiertas === 1 ? '+ab' : `+${MILES.format(f.piezasAbiertas)}ct`}
                         </button>
                       )}
                       {detalle === f.id && (
-                        <span className="block text-xs text-muted-foreground">
+                        <span className="block text-xs text-texto-sutil">
                           {MILES.format(f.piezasAbiertas)} abiertas · la más vieja lleva{' '}
                           {MILES.format(f.diasAbiertaMasVieja ?? 0)} días
                         </span>
@@ -465,7 +462,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
                 ))}
                 {visibles.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-sm text-muted-foreground">
+                    <TableCell colSpan={6} className="text-sm text-texto-sutil">
                       Ninguna clave cumple estos filtros. Quita uno y vuelve a mirar.
                     </TableCell>
                   </TableRow>
@@ -484,7 +481,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
               Dormido · lo que no hay que volver a pedir
             </h2>
             {dormidas.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-texto-sutil">
                 Nada dormido: todo lo que hay se mueve dentro del ciclo de su línea.
               </p>
             ) : (
@@ -492,17 +489,17 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
                 {dormidas.map((f) => (
                   <li
                     key={f.id}
-                    className="rounded-lg border border-border bg-card p-(--espacio-3)"
+                    className="rounded-lg border border-borde bg-superficie p-(--espacio-3)"
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-medium text-card-foreground">{f.nombre}</span>
+                      <span className="font-medium text-texto">{f.nombre}</span>
                       {verDinero && (
                         <span className="shrink-0 font-bold">
                           {PESOS.format(f.dineroParadoCentavos / 100)}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-texto-sutil">
                       {cantidadDe(f)} ·{' '}
                       {f.diasInventario === null
                         ? 'sin venta nunca'

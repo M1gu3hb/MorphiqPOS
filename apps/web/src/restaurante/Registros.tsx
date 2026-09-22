@@ -200,12 +200,11 @@ const PERIODOS = [
   { clave: 'personalizado', rotulo: 'Personalizado' },
 ];
 
-const TABLA = 'hidden max-h-[70dvh] overflow-auto rounded-lg border border-border md:block';
+const TABLA = 'hidden max-h-[70dvh] overflow-auto rounded-lg border border-borde md:block';
 const SOLO_PC = 'hidden xl:table-cell';
-const TARJETA =
-  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
-const BANDA = 'mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
-const AVISO = 'mb-(--espacio-3) rounded-md border border-border bg-warning/15 p-2 text-sm';
+const TARJETA = 'rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1';
+const BANDA = 'mb-(--espacio-3) rounded-md border border-peligro bg-peligro/15 p-2 text-sm';
+const AVISO = 'mb-(--espacio-3) rounded-md border border-borde bg-advertencia/15 p-2 text-sm';
 
 /** El rango vivo del periodo, en milisegundos. `hasta` incluye el día escrito. */
 export function rangoDe(clave: string, desde: string, hasta: string): readonly [number, number] {
@@ -413,7 +412,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
             tablet las columnas secundarias se esconden y salen al expandir. */}
         <div className={TABLA}>
           <Table>
-            <TableHeader className="sticky top-0 bg-card">
+            <TableHeader className="sticky top-0 bg-superficie">
               <TableRow>
                 {principales.map((columna) => (
                   <TableHead key={columna.campo}>{rotuloDe(columna, voc)}</TableHead>
@@ -460,7 +459,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
                           <dl className="grid grid-cols-2 gap-1 text-sm">
                             {secundarias.map((columna) => (
                               <Fragment key={columna.campo}>
-                                <dt className="text-muted-foreground">{rotuloDe(columna, voc)}</dt>
+                                <dt className="text-texto-sutil">{rotuloDe(columna, voc)}</dt>
                                 <dd>{celda(fila, columna)}</dd>
                               </Fragment>
                             ))}
@@ -483,7 +482,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
               <dl className="grid grid-cols-[auto_1fr] gap-x-(--espacio-3) gap-y-1 text-sm">
                 {principales.map((columna) => (
                   <Fragment key={columna.campo}>
-                    <dt className="text-muted-foreground">{rotuloDe(columna, voc)}</dt>
+                    <dt className="text-texto-sutil">{rotuloDe(columna, voc)}</dt>
                     <dd className={columna.tipo === 'dinero' ? 'font-bold tabular-nums' : ''}>
                       {celda(fila, columna)}
                     </dd>
@@ -553,12 +552,12 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
       <section className="mt-(--espacio-3) flex flex-col gap-(--espacio-3) md:flex-row md:items-center md:justify-between">
         <dl className="flex items-center gap-(--espacio-6)">
           <div>
-            <dt className="text-xs text-muted-foreground">Registros</dt>
+            <dt className="text-xs text-texto-sutil">Registros</dt>
             <dd className="text-xl font-bold tabular-nums">{String(visibles.length)}</dd>
           </div>
           {suma !== null && importe !== null && (
             <div>
-              <dt className="text-xs text-muted-foreground">{importe.rotulo}</dt>
+              <dt className="text-xs text-texto-sutil">{importe.rotulo}</dt>
               <dd className="text-xl font-bold tabular-nums">{PESOS.format(suma)}</dd>
             </div>
           )}

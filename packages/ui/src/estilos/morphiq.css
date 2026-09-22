@@ -133,11 +133,13 @@
 /**
  * MODO OSCURO.
  *
- * La clase es `dark`, que es la que pone su `ThemeContext` y la única que existe
- * en la aplicación. `oscuro:` es el nombre de la variante de Tailwind que apunta a
- * esa misma clase: un modo oscuro con dos nombres, no dos modos oscuros.
+ * Bajo `data-modo='oscuro'`, que es el atributo del SISTEMA. La `.dark` es la de
+ * Miguel —la pone su `ThemeContext` y la leen los 244 archivos del heredado—, y
+ * `app/layout.tsx` deriva una de la otra antes del primer pintado. Un modo oscuro,
+ * cada código en su idioma: aquí no se escribe `.dark`, y `verify:primitivas` lo
+ * exige.
  */
-[data-estilo='morphiq'].dark {
+[data-estilo='morphiq'][data-modo='oscuro'] {
   --sombra-tinte: 222 60% 2%;
 
   --fondo: 222 47% 6%;

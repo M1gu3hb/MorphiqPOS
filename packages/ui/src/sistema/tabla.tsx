@@ -64,7 +64,40 @@ export interface TablaProps<F> {
   readonly vacio?: ReactNode;
   /** Alto máximo del cuerpo. Sin esto, la cabecera fija no tiene contra qué fijarse. */
   readonly alto?: string;
+  /** El nombre de la tabla para un lector de pantalla: una tabla sin nombre es «tabla». */
+  readonly etiqueta?: string;
+  /**
+   * EL PIE: los totales, cada uno debajo de SU columna —por `clave`—, pegado abajo
+   * como la cabecera arriba. Un total que no está bajo su columna obliga a buscarlo.
+   */
+  readonly pie?: Readonly<Record<string, ReactNode>>;
+  /**
+   * El tono de una fila: lo que está bajo mínimo, lo vencido, lo que ya se entregó. Es
+   * un fondo, y NUNCA va solo: la celda dice con texto o con icono por qué.
+   */
+  readonly tonoDeFila?: (fila: F) => TonoDeFila | undefined;
+  /** El nombre de viaje de la fila, para la transición que la convierte en panel. */
+  readonly viajeDeFila?: (fila: F) => string | undefined;
   readonly className?: string;
+}
+
+export type TonoDeFila = 'advertencia' | 'peligro' | 'exito' | 'tenue';
+
+const TONOS: Readonly<Record<TonoDeFila, string>> = {
+  advertencia: 'bg-advertencia/10',
+  peligro: 'bg-peligro/5',
+  exito: 'bg-exito/5',
+  tenue: 'text-texto-sutil',
+};
+
+/**
+ * ¿El clic vino de un control DENTRO de la fila? Un botón de «quitar» o un campo de
+ * cantidad en una celda no activan la fila: sin esto, tocar «−» abría la ficha.
+ */
+function desdeUnControl(objetivo: EventTarget, fila: HTMLElement): boolean {
+  if (!(objetivo instanceof Element)) return false;
+  const control = objetivo.closest('button, a, input, select, textarea, label, [role="button"]');
+  return control !== null && control !== fila && fila.contains(control);
 }
 
 export function Tabla<F>({
@@ -76,6 +109,10 @@ export function Tabla<F>({
   seleccion,
   vacio,
   alto = 'max-h-[60vh]',
+  etiqueta,
+  pie,
+  tonoDeFila,
+  viajeDeFila,
   className,
 }: TablaProps<F>): ReactElement {
   const [ordenPor, setOrdenPor] = useState<string | null>(null);
@@ -117,9 +154,9 @@ export function Tabla<F>({
 
   return (
     // EL SCROLL ES SUYO, no de la página: `overflow-auto` aquí y no en un ancestro.
-    <div className={cn('w-full overflow-auto rounded-lg border border-border', alto, className)}>
-      <table className="w-full border-collapse text-sm">
-        <thead className="sticky top-0 z-10 bg-muted">
+    <div className={cn('w-full overflow-auto rounded-lg border border-borde', alto, className)}>
+      <table className="w-full border-collapse text-sm" aria-label={etiqueta}>
+        <thead className="sticky top-0 z-10 bg-fondo-sutil">
           <tr>
             {seleccion === undefined ? null : (
               <th scope="col" className="w-10 p-0">
@@ -133,7 +170,7 @@ export function Tabla<F>({
                         todasElegidas ? new Set() : new Set(filas.map((f) => claveDe(f))),
                       );
                     }}
-                    className="size-4 accent-primary"
+                    className="size-4 accent-primario"
                   />
                 </label>
               </th>
@@ -150,7 +187,7 @@ export function Tabla<F>({
                   // que no lo vea.
                   aria-sort={esLaOrdenada ? (ascendente ? 'ascending' : 'descending') : undefined}
                   className={cn(
-                    'text-xs font-medium tracking-wide text-muted-foreground uppercase',
+                    'text-xs font-medium tracking-wide text-texto-sutil uppercase',
                     // Ordenable: el relleno pasa AL BOTON, para que se pueda tocar
                     // toda la cabecera y no solo los 16 px de alto de su texto.
                     ordenable ? 'p-0' : 'px-(--espacio-3) py-(--espacio-2)',
@@ -165,7 +202,7 @@ export function Tabla<F>({
                         alternarOrden(columna.clave);
                       }}
                       className={cn(
-                        'flex min-h-(--area-tactil-minima) w-full items-center gap-1 px-(--espacio-3) hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                        'flex min-h-(--area-tactil-minima) w-full items-center gap-1 px-(--espacio-3) hover:text-texto focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none',
                         columna.numerica === true ? 'justify-end' : 'justify-start',
                       )}
                     >
@@ -187,16 +224,22 @@ export function Tabla<F>({
             const clave = claveDe(fila);
             const esActiva = activa === clave;
             const elegida = seleccion?.elegidas.has(clave) === true;
+            const tono = tonoDeFila?.(fila);
+            const nombreDeViaje = viajeDeFila?.(fila);
             return (
               <tr
                 key={clave}
+                style={
+                  nombreDeViaje === undefined ? undefined : { viewTransitionName: nombreDeViaje }
+                }
                 data-activa={esActiva ? '' : undefined}
                 aria-selected={seleccion === undefined ? undefined : elegida}
                 tabIndex={alActivar === undefined ? undefined : 0}
                 onClick={
                   alActivar === undefined
                     ? undefined
-                    : () => {
+                    : (evento) => {
+                        if (desdeUnControl(evento.target, evento.currentTarget)) return;
                         alActivar(clave);
                       }
                 }
@@ -207,16 +250,18 @@ export function Tabla<F>({
                         // Enter y espacio: la fila se comporta como lo que es, un
                         // control. Sin esto, una tabla sólo se opera con ratón.
                         if (evento.key !== 'Enter' && evento.key !== ' ') return;
+                        if (desdeUnControl(evento.target, evento.currentTarget)) return;
                         evento.preventDefault();
                         alActivar(clave);
                       }
                 }
                 className={cn(
-                  'border-t border-border transition-colors duration-(--duracion-rapida)',
+                  'border-t border-borde transition-colors duration-(--duracion-rapida)',
                   alActivar === undefined
                     ? ''
-                    : 'cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                  esActiva ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/60',
+                    : 'cursor-pointer focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none',
+                  tono === undefined ? '' : TONOS[tono],
+                  esActiva ? 'bg-acento-suave text-acento-suave-texto' : 'hover:bg-fondo-sutil/60',
                 )}
               >
                 {seleccion === undefined ? null : (
@@ -254,7 +299,7 @@ export function Tabla<F>({
                           else siguiente.add(clave);
                           seleccion.alCambiar(siguiente);
                         }}
-                        className="size-4 accent-primary"
+                        className="size-4 accent-primario"
                       />
                     </label>
                   </td>
@@ -275,90 +320,26 @@ export function Tabla<F>({
             );
           })}
         </tbody>
+        {pie === undefined ? null : (
+          <tfoot className="sticky bottom-0 z-10 border-t-2 border-borde bg-fondo-sutil font-medium">
+            <tr>
+              {seleccion === undefined ? null : <td />}
+              {columnas.map((columna) => (
+                <td
+                  key={columna.clave}
+                  className={cn(
+                    'px-(--espacio-3) py-(--espacio-2)',
+                    columna.numerica === true ? 'text-right font-numeros tabular-nums' : '',
+                    columna.desde === undefined ? '' : DESDE[columna.desde],
+                  )}
+                >
+                  {pie[columna.clave]}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
-  );
-}
-
-/**
- * LA MISMA TABLA, EN TARJETAS · para la tableta y el teléfono.
- *
- * Una tabla de doce columnas en un teléfono no se arregla con scroll horizontal: se
- * arregla dejando de ser una tabla. Cada fila pasa a ser una tarjeta con su título,
- * su dato principal a la derecha y el resto debajo en pares etiqueta/valor.
- *
- * Es el MISMO modelo de columnas, así que una pantalla no mantiene dos listas de
- * campos que se desincronizan a la tercera semana.
- */
-export function ListaDeTarjetas<F>({
-  columnas,
-  filas,
-  claveDe,
-  principal,
-  alActivar,
-  vacio,
-  className,
-}: {
-  readonly columnas: readonly ColumnaDeTabla<F>[];
-  readonly filas: readonly F[];
-  readonly claveDe: (fila: F) => string;
-  /** La columna que manda: va grande, arriba. Normalmente el nombre o el total. */
-  readonly principal: string;
-  readonly alActivar?: (clave: string) => void;
-  readonly vacio?: ReactNode;
-  readonly className?: string;
-}): ReactElement {
-  if (filas.length === 0 && vacio !== undefined) return <>{vacio}</>;
-
-  const laPrincipal = columnas.find((c) => c.clave === principal);
-  const lasDemas = columnas.filter((c) => c.clave !== principal);
-
-  return (
-    <ul className={cn('flex flex-col gap-(--espacio-2)', className)}>
-      {filas.map((fila) => {
-        const clave = claveDe(fila);
-        return (
-          <li key={clave}>
-            <button
-              type="button"
-              disabled={alActivar === undefined}
-              onClick={
-                alActivar === undefined
-                  ? undefined
-                  : () => {
-                      alActivar(clave);
-                    }
-              }
-              className={cn(
-                'flex w-full flex-col gap-(--espacio-2) rounded-lg border border-border bg-card p-(--espacio-4) text-left shadow-1',
-                'transition-[box-shadow,transform] duration-(--duracion-rapida)',
-                alActivar === undefined
-                  ? 'cursor-default'
-                  : 'hover:shadow-2 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-              )}
-            >
-              {laPrincipal === undefined ? null : (
-                <span className="text-base font-medium">{laPrincipal.celda(fila)}</span>
-              )}
-              <dl className="grid grid-cols-2 gap-x-(--espacio-4) gap-y-(--espacio-1)">
-                {lasDemas.map((columna) => (
-                  <div key={columna.clave} className="flex items-baseline justify-between gap-2">
-                    <dt className="text-xs text-muted-foreground">{columna.titulo}</dt>
-                    <dd
-                      className={cn(
-                        'text-sm',
-                        columna.numerica === true ? 'font-numeros tabular-nums' : '',
-                      )}
-                    >
-                      {columna.celda(fila)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
   );
 }

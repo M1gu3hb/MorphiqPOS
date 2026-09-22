@@ -40,8 +40,8 @@ const BEBIDAS_POR_HORA_QUE_APRIETAN = 45;
 /** Del cobro a la entrega: bajar de 180 a 120 s deja atender 50 % más gente. */
 const SEGUNDOS_QUE_APRIETAN = 180;
 
-const TARJETA = 'rounded-xl border border-border bg-card p-(--espacio-4) text-card-foreground';
-const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
+const TARJETA = 'rounded-xl border border-borde bg-superficie p-(--espacio-4) text-texto';
+const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-texto-sutil';
 const CIFRA = 'text-3xl font-bold tabular-nums';
 const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
 const RENGLON = 'flex items-baseline justify-between gap-(--espacio-3) py-1';
@@ -169,10 +169,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
     return (
       <main className="space-y-(--espacio-3) p-(--espacio-4)">
         <h1 className="text-2xl font-bold">Buen día</h1>
-        <p
-          role="alert"
-          className="rounded-md border border-destructive bg-destructive/15 p-(--espacio-3)"
-        >
+        <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-(--espacio-3)">
           {error}
         </p>
       </main>
@@ -198,7 +195,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       <header className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">Buen día</h1>
-          <p className="text-sm text-muted-foreground">{comoFecha(datos.fecha)}</p>
+          <p className="text-sm text-texto-sutil">{comoFecha(datos.fecha)}</p>
         </div>
         <div className="flex gap-2">
           <Button asChild size="sm">
@@ -213,7 +210,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
       {!datos.turnoAbierto && (
         <p
           role="status"
-          className="rounded-md border border-border bg-muted/40 p-(--espacio-3) text-sm text-muted-foreground"
+          className="rounded-md border border-borde bg-fondo-sutil/40 p-(--espacio-3) text-sm text-texto-sutil"
         >
           Sin turno abierto: lo del turno está en cero porque todavía no empieza, no porque haya ido
           mal. Ábrelo en Turno y el tablero se llena solo.
@@ -227,7 +224,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Lo cobrado en la ráfaga
           </h2>
           <p className={CIFRA}>{pesos(rafaga.hoyCentavos)}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             07:00 a 10:30 · {comparacion(rafaga.hoyCentavos, rafaga.referenciaCentavos)}
           </p>
         </section>
@@ -246,8 +243,8 @@ export function Tablero({ datosIniciales }: TableroProps) {
           <p
             className={
               pico.bebidasPorHora >= BEBIDAS_POR_HORA_QUE_APRIETAN
-                ? 'text-sm font-semibold text-destructive'
-                : 'text-sm text-muted-foreground'
+                ? 'text-sm font-semibold text-peligro'
+                : 'text-sm text-texto-sutil'
             }
           >
             {pico.hora === null ? 'sin movimiento todavía' : `la hora de las ${pico.hora}`}
@@ -281,8 +278,8 @@ export function Tablero({ datosIniciales }: TableroProps) {
           <p
             className={
               entrega.segundos !== null && entrega.segundos > SEGUNDOS_QUE_APRIETAN
-                ? 'text-sm font-semibold text-destructive'
-                : 'text-sm text-muted-foreground'
+                ? 'text-sm font-semibold text-peligro'
+                : 'text-sm text-texto-sutil'
             }
           >
             {entrega.comandas === 0
@@ -296,7 +293,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Lo que se acaba primero
           </h2>
           <p className={CIFRA}>{seAcaba.dias === null ? '—' : `${String(seAcaba.dias)} d`}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             {seAcaba.insumo === null
               ? 'todavía no hay consumo que medir'
               : `${seAcaba.insumo} · quedan ${seAcaba.existencia} ${seAcaba.unidad ?? ''}`}
@@ -311,7 +308,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Efectivo en el cajón
           </h2>
           <p className={CIFRA}>{pesos(cajon.efectivoCentavos)}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             El cajón está en {voc.enFrase('preparacion')}, a la vista de la calle.
           </p>
         </section>
@@ -321,7 +318,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Cambio disponible
           </h2>
           <p className={CIFRA}>{pesos(cajon.cambioCentavos)}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             En monedas y billetes chicos. Quedarse sin cambio a las 8:00 con quince personas en fila
             es perder la ráfaga entera.
           </p>
@@ -332,7 +329,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Costo por {voc.singular('linea_orden')}
           </h2>
           <p className={CIFRA}>{pesosExactos(costoPorBebida.centavos)}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             {costoPorBebida.bebidas} en el turno · si sube, o el molino está mal calibrado o alguien
             sirve de más
           </p>
@@ -343,9 +340,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Tarjeta del turno
           </h2>
           <p className={CIFRA}>{pesos(tarjeta.centavos)}</p>
-          <p className="text-sm text-muted-foreground">
-            {porciento(tarjeta.deLaVentaBp)} de lo cobrado
-          </p>
+          <p className="text-sm text-texto-sutil">{porciento(tarjeta.deLaVentaBp)} de lo cobrado</p>
         </section>
       </div>
 
@@ -355,12 +350,12 @@ export function Tablero({ datosIniciales }: TableroProps) {
         </h2>
         <p
           className={
-            Number(utilidad.centavos) < 0 ? `${CIFRA} text-destructive` : `${CIFRA} text-success`
+            Number(utilidad.centavos) < 0 ? `${CIFRA} text-peligro` : `${CIFRA} text-exito`
           }
         >
           {pesos(utilidad.centavos)}
         </p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           {porciento(utilidad.margenBp)} de margen, con los gastos del turno ya restados
         </p>
       </section>
@@ -372,7 +367,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Mezcla del día
           </h2>
           {mezcla.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Todavía no se cobra nada hoy.</p>
+            <p className="text-sm text-texto-sutil">Todavía no se cobra nada hoy.</p>
           ) : (
             <ul className="space-y-1">
               {mezcla.map((canal) => {
@@ -381,16 +376,14 @@ export function Tablero({ datosIniciales }: TableroProps) {
                   <li key={canal.canal}>
                     <div className={RENGLON}>
                       <span className="flex-1">{CANALES[canal.canal] ?? canal.canal}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {Math.round(parte * 100)} %
-                      </span>
+                      <span className="text-sm text-texto-sutil">{Math.round(parte * 100)} %</span>
                       <span className="tabular-nums">{pesos(canal.centavos)}</span>
                     </div>
                     {/* La barra es la proporción, que es lo único que una gráfica
                         hace mejor que una lista. */}
-                    <div className="h-1 w-full rounded-full bg-muted">
+                    <div className="h-1 w-full rounded-full bg-fondo-sutil">
                       <div
-                        className="h-1 rounded-full bg-primary"
+                        className="h-1 rounded-full bg-primario"
                         style={{ width: `${String(Math.round(parte * 100))}%` }}
                       />
                     </div>
@@ -406,19 +399,19 @@ export function Tablero({ datosIniciales }: TableroProps) {
             {voc.titulo('linea_orden', true)} por utilidad
           </h2>
           {porUtilidad.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Todavía no se vende nada hoy.</p>
+            <p className="text-sm text-texto-sutil">Todavía no se vende nada hoy.</p>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-borde">
               {porUtilidad.map((bebida) => (
                 <li key={bebida.producto} className={RENGLON}>
                   <span className="min-w-0 flex-1 truncate">{bebida.producto}</span>
-                  <span className="text-sm text-muted-foreground">{bebida.unidades}</span>
+                  <span className="text-sm text-texto-sutil">{bebida.unidades}</span>
                   <span className="tabular-nums">{pesos(bebida.utilidadCentavos)}</span>
                 </li>
               ))}
             </ul>
           )}
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-xs text-texto-sutil">
             Por lo que DEJAN, no por unidades: el latte vende más y el americano deja más.
           </p>
         </section>
@@ -431,8 +424,8 @@ export function Tablero({ datosIniciales }: TableroProps) {
           <p
             className={
               grano.dias !== null && grano.optimos !== null && grano.dias > grano.optimos
-                ? 'text-sm font-semibold text-destructive'
-                : 'text-sm text-muted-foreground'
+                ? 'text-sm font-semibold text-peligro'
+                : 'text-sm text-texto-sutil'
             }
           >
             {grano.dias === null
@@ -448,13 +441,13 @@ export function Tablero({ datosIniciales }: TableroProps) {
             Merma de {voc.singular('preparacion')} del turno
           </h2>
           {merma.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin merma declarada en este turno.</p>
+            <p className="text-sm text-texto-sutil">Sin merma declarada en este turno.</p>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-borde">
               {merma.map((motivo) => (
                 <li key={motivo.motivo} className={RENGLON}>
                   <span className="min-w-0 flex-1 truncate">{motivo.motivo}</span>
-                  <span className="text-sm text-muted-foreground">{motivo.veces}</span>
+                  <span className="text-sm text-texto-sutil">{motivo.veces}</span>
                   <span className="tabular-nums">{pesosExactos(motivo.costoCentavos)}</span>
                 </li>
               ))}
@@ -469,7 +462,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
           <p className={CIFRA_CHICA}>
             {sellos.otorgadosHoy} otorgados hoy · {sellos.vivos} vivos
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Costarían {pesos(sellos.costoSiSeCanjeanCentavos)} si se canjearan todos.
           </p>
         </section>

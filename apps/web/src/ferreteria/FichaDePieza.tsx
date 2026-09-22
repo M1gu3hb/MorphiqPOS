@@ -267,7 +267,7 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
     error === null ? null : (
       <p
         role="alert"
-        className="mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2"
+        className="mb-(--espacio-3) rounded-md border border-peligro bg-peligro/15 p-2"
       >
         {error} · Lo que ya está en pantalla sigue sirviendo.
       </p>
@@ -344,7 +344,7 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
     <article className="mx-auto max-w-5xl p-(--espacio-3) pb-(--espacio-4) text-sm">
       {banda}
       <header className="mb-(--espacio-3)">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{pieza.familia}</p>
+        <p className="text-xs uppercase tracking-wide text-texto-sutil">{pieza.familia}</p>
         <h1 className="text-lg font-semibold md:text-xl">{pieza.nombre}</h1>
       </header>
 
@@ -353,11 +353,11 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
       <div className="grid gap-(--espacio-4) md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
         <section aria-label="Foto de la pieza">
           {pieza.fotoUrl === null ? (
-            <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-border bg-muted p-(--espacio-4) text-center">
+            <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-borde bg-fondo-sutil p-(--espacio-4) text-center">
               <span className="inline-flex items-center gap-(--espacio-2) text-lg font-semibold">
                 <Camera aria-hidden="true" className="inline size-4 shrink-0" /> Tomar foto
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-texto-sutil">
                 Ponle una moneda al lado: sin escala la foto no dice nada.
               </span>
               <input
@@ -376,12 +376,12 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
             <div
               role="img"
               aria-label={`Foto de ${pieza.nombre} con una moneda de referencia`}
-              className="aspect-square w-full rounded-md border border-border bg-muted bg-cover bg-center"
+              className="aspect-square w-full rounded-md border border-borde bg-fondo-sutil bg-cover bg-center"
               style={{ backgroundImage: `url("${pieza.fotoUrl.replace(/["\\]/g, '')}")` }}
             />
           )}
           {fotoElegida !== null && (
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-texto-sutil">
               Foto lista: {fotoElegida} · se sube cuando se guarde la pieza.
             </p>
           )}
@@ -389,14 +389,11 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
 
         <section aria-label="Medida y atributos">
           <p className="text-3xl font-bold leading-tight">{pieza.medidaPulgada}</p>
-          <p className="text-lg text-muted-foreground">{pieza.medidaMilimetro}</p>
+          <p className="text-lg text-texto-sutil">{pieza.medidaMilimetro}</p>
           <dl className="mt-(--espacio-3) grid gap-x-(--espacio-4) sm:grid-cols-2">
             {atributos.map(([etiqueta, valor]) => (
-              <div
-                key={etiqueta}
-                className="flex justify-between gap-2 border-b border-border py-1"
-              >
-                <dt className="text-muted-foreground">{etiqueta}</dt>
+              <div key={etiqueta} className="flex justify-between gap-2 border-b border-borde py-1">
+                <dt className="text-texto-sutil">{etiqueta}</dt>
                 <dd className="text-right font-medium">{valor ?? '—'}</dd>
               </div>
             ))}
@@ -409,30 +406,30 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
       <div className="grid gap-(--espacio-3) md:grid-cols-3">
         <section
           aria-label="Existencia"
-          className="rounded-md border border-border bg-card p-(--espacio-3)"
+          className="rounded-md border border-borde bg-superficie p-(--espacio-3)"
         >
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Hay</p>
+          <p className="text-xs font-semibold uppercase text-texto-sutil">Hay</p>
           <p className="text-2xl font-bold tabular-nums">{NUMERO.format(pieza.existencia)} pz</p>
-          <p className="text-muted-foreground">
+          <p className="text-texto-sutil">
             {pieza.desglose ?? 'sin desglose de empaque'}
             {pieza.pesoKg === null ? '' : ` · ≈ ${NUMERO.format(pieza.pesoKg)} kg`}
           </p>
         </section>
         <section
           aria-label="Ubicación"
-          className="rounded-md border border-border bg-card p-(--espacio-3)"
+          className="rounded-md border border-borde bg-superficie p-(--espacio-3)"
         >
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Dónde</p>
+          <p className="text-xs font-semibold uppercase text-texto-sutil">Dónde</p>
           <p className="text-xl font-semibold">{pieza.ubicacion ?? 'Sin ubicación registrada'}</p>
         </section>
         <section
           aria-label="Precios"
-          className="rounded-md border border-border bg-card p-(--espacio-3)"
+          className="rounded-md border border-borde bg-superficie p-(--espacio-3)"
         >
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Precio</p>
+          <p className="text-xs font-semibold uppercase text-texto-sutil">Precio</p>
           {pieza.unidades.map((u) => (
             <p key={u.clave} className="flex justify-between gap-2">
-              <span className="text-muted-foreground">{u.etiqueta}</span>
+              <span className="text-texto-sutil">{u.etiqueta}</span>
               <span className="font-semibold tabular-nums">
                 {PESOS.format(u.precioCentavos / 100)}
               </span>
@@ -449,7 +446,7 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         </h2>
         <ul className="mt-1">
           {equivalentes.map((eq) => (
-            <li key={eq.id} className="flex justify-between gap-2 border-b border-border py-1">
+            <li key={eq.id} className="flex justify-between gap-2 border-b border-borde py-1">
               <span>
                 {eq.nombre}
                 {eq.nota === null ? '' : ` · ${eq.nota}`}
@@ -504,10 +501,10 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         {relaciones.map(([titulo, lineas, vacio]) => (
           <div
             key={titulo}
-            className="flex flex-wrap gap-x-(--espacio-3) border-b border-border py-1"
+            className="flex flex-wrap gap-x-(--espacio-3) border-b border-borde py-1"
           >
             <dt className="w-24 font-semibold">{titulo}</dt>
-            <dd className={lineas.length === 0 ? 'text-muted-foreground' : ''}>
+            <dd className={lineas.length === 0 ? 'text-texto-sutil' : ''}>
               {lineas.length === 0 ? vacio : lineas.join(' · ')}
             </dd>
           </div>
@@ -516,7 +513,7 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
 
       {/* En el pasillo la barra se pega abajo —el pulgar la alcanza sin subir—;
           en PC se queda donde cae, al final de la ficha. */}
-      <footer className="sticky bottom-0 z-10 -mx-(--espacio-3) mt-(--espacio-4) flex flex-wrap items-end gap-(--espacio-3) border-t border-border bg-background p-(--espacio-3) shadow-2 md:static md:mx-0 md:rounded-md md:border">
+      <footer className="sticky bottom-0 z-10 -mx-(--espacio-3) mt-(--espacio-4) flex flex-wrap items-end gap-(--espacio-3) border-t border-borde bg-fondo p-(--espacio-3) shadow-2 md:static md:mx-0 md:rounded-md md:border">
         <div>
           <Label htmlFor="cantidad">Cantidad</Label>
           <Input

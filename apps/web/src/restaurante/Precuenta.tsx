@@ -45,7 +45,7 @@ import { useVocabulario } from '~/cliente/vocabulario';
 const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
 /** La banda de error. Nunca es sólo color: siempre lleva su frase. */
-const BANDA = 'mb-(--espacio-3) rounded-md border border-destructive bg-destructive/10 p-2 text-sm';
+const BANDA = 'mb-(--espacio-3) rounded-md border border-peligro bg-peligro/10 p-2 text-sm';
 
 export interface LineaPrecuenta {
   readonly id: string;
@@ -183,7 +183,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
         <div
           role="status"
           aria-label="Armando la precuenta"
-          className="mx-auto space-y-2 bg-card p-(--espacio-3) shadow-2"
+          className="mx-auto space-y-2 bg-superficie p-(--espacio-3) shadow-2"
           style={estilo}
         >
           <Skeleton className="mx-auto h-5 w-32" />
@@ -224,7 +224,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
     return <Hoja cuenta={cuenta} lineas={lineas} estilo={estilo} copia={copia} />;
   }
   return (
-    <div className="min-h-dvh bg-muted/40">
+    <div className="min-h-dvh bg-fondo-sutil/40">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-4) xl:flex-row xl:items-start xl:justify-center xl:gap-(--espacio-10) xl:py-(--espacio-10)">
         <main className="w-full min-w-0 xl:w-auto">
           {/* Sólo para el lector de pantalla: lo PRIMERO que se ve es la hoja. */}
@@ -237,7 +237,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
           {hoja()}
         </main>
         {hayHoja && (
-          <aside className="sticky bottom-0 z-10 -mx-(--espacio-4) border-t border-border bg-background p-(--espacio-4) md:mx-auto md:w-full md:max-w-sm md:rounded-xl md:border md:shadow-2 xl:bottom-auto xl:top-10 xl:mx-0 xl:w-60 xl:self-start">
+          <aside className="sticky bottom-0 z-10 -mx-(--espacio-4) border-t border-borde bg-fondo p-(--espacio-4) md:mx-auto md:w-full md:max-w-sm md:rounded-xl md:border md:shadow-2 xl:bottom-auto xl:top-10 xl:mx-0 xl:w-60 xl:self-start">
             {falloImpresion && (
               <p role="alert" className={BANDA}>
                 No se pudo imprimir. Puedes enseñar esta pantalla al {voc.singular('cliente')} y
@@ -257,7 +257,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
               {imprimiendo ? 'Imprimiendo…' : 'Imprimir'}
             </Button>
             {/* Un botón apagado sin motivo es peor que uno que falla. */}
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="mt-2 text-xs text-texto-sutil">
               {sinTotal
                 ? `El total de ${voc.enFraseCon('este', 'orden')} no llegó a esta pantalla. Pídela desde caja.`
                 : `Se ve a tamaño real: papel de ${anchoMm} mm.`}
@@ -286,12 +286,12 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
   return (
     <article
       aria-label={`Precuenta de la mesa ${mesa}, folio ${cuenta.folio}`}
-      className="mx-auto bg-card p-(--espacio-3) font-mono text-xs leading-snug text-card-foreground shadow-2"
+      className="mx-auto bg-superficie p-(--espacio-3) font-mono text-xs leading-snug text-texto shadow-2"
       style={estilo}
     >
       <header className="text-center">
         <p className="text-base font-bold tracking-widest">PRE-CUENTA</p>
-        <p className="text-muted-foreground">No es comprobante de pago</p>
+        <p className="text-texto-sutil">No es comprobante de pago</p>
         {/* En la CABECERA y no al pie: lo que se mira de una hoja reimpresa es
             arriba, y lo que hay que mirar después es el total. */}
         {copia !== null && copia > 1 && (
@@ -308,7 +308,7 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
           <li key={linea.id} className="mb-1 flex justify-between gap-2">
             <span className="min-w-0">
               <span className="font-bold">{linea.cantidad}×</span> {linea.producto_nombre}
-              <span className="block text-muted-foreground">
+              <span className="block text-texto-sutil">
                 {PESOS.format(linea.precio_unitario_snapshot)} c/u
                 {linea.notas_producto === null ? '' : ` · ${linea.notas_producto}`}
               </span>
@@ -330,10 +330,10 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
       </dl>
       <Separator className="my-2" />
       <section className="text-center">
-        <p className="text-muted-foreground">CÓDIGO PARA CAJA</p>
+        <p className="text-texto-sutil">CÓDIGO PARA CAJA</p>
         <p className="text-2xl font-bold tracking-widest">{cuenta.codigo_caja ?? cuenta.folio}</p>
       </section>
-      <p className="mt-2 text-center text-muted-foreground">Pasa a caja con este código.</p>
+      <p className="mt-2 text-center text-texto-sutil">Pasa a caja con este código.</p>
     </article>
   );
 }

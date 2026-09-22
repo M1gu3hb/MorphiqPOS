@@ -58,15 +58,15 @@ export function Vacio({
     >
       {icono === undefined ? null : (
         <div
-          className="text-muted-foreground [&_svg]:size-[calc(var(--altura-control)*1.15)]"
+          className="text-texto-sutil [&_svg]:size-[calc(var(--altura-control)*1.15)]"
           aria-hidden="true"
         >
           {icono}
         </div>
       )}
-      <p className="text-lg font-medium text-foreground">{titulo}</p>
+      <p className="text-lg font-medium text-texto">{titulo}</p>
       {explicacion === undefined ? null : (
-        <p className="max-w-prose text-sm text-muted-foreground">{explicacion}</p>
+        <p className="max-w-prose text-sm text-texto-sutil">{explicacion}</p>
       )}
       {children}
       {accion === undefined ? null : <div className="mt-(--espacio-2)">{accion}</div>}
@@ -95,7 +95,11 @@ export function Esqueleto({
   return (
     <div
       aria-hidden="true"
-      className={cn('animate-pulse bg-muted', redondo ? 'rounded-full' : 'rounded-md', className)}
+      className={cn(
+        'animate-pulse bg-fondo-sutil',
+        redondo ? 'rounded-full' : 'rounded-md',
+        className,
+      )}
     />
   );
 }
@@ -153,14 +157,14 @@ export function ErrorDePantalla({
     <div
       role="alert"
       className={cn(
-        'flex flex-col items-start gap-(--espacio-2) rounded-lg border border-destructive/40 bg-destructive/5 p-(--espacio-4)',
+        'flex flex-col items-start gap-(--espacio-2) rounded-lg border border-peligro/40 bg-peligro/5 p-(--espacio-4)',
         className,
       )}
     >
-      <p className="font-medium text-foreground">{titulo}</p>
-      <p className="text-sm text-muted-foreground">{queHacer}</p>
+      <p className="font-medium text-texto">{titulo}</p>
+      <p className="text-sm text-texto-sutil">{queHacer}</p>
       {detalle === undefined ? null : (
-        <code className="max-w-full overflow-x-auto rounded-sm bg-muted px-(--espacio-2) py-(--espacio-1) text-xs text-muted-foreground">
+        <code className="max-w-full overflow-x-auto rounded-sm bg-fondo-sutil px-(--espacio-2) py-(--espacio-1) text-xs text-texto-sutil">
           {detalle}
         </code>
       )}

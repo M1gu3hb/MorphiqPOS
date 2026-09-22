@@ -114,16 +114,16 @@ function soloTexto(valor: FormDataEntryValue | null): string {
 }
 
 const ALERGIA =
-  'mb-(--espacio-4) rounded-lg border-2 border-destructive bg-destructive/15 p-(--espacio-3) shadow-2';
-const BANDA = 'mb-(--espacio-3) rounded-md border border-destructive bg-destructive/10 p-2 text-sm';
-const TARJETA = 'rounded-lg border border-border bg-card p-(--espacio-4) text-card-foreground';
-const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
+  'mb-(--espacio-4) rounded-lg border-2 border-peligro bg-peligro/15 p-(--espacio-3) shadow-2';
+const BANDA = 'mb-(--espacio-3) rounded-md border border-peligro bg-peligro/10 p-2 text-sm';
+const TARJETA = 'rounded-lg border border-borde bg-superficie p-(--espacio-4) text-texto';
+const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-texto-sutil';
 const DOS_COLUMNAS =
   'grid gap-(--espacio-4) xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start';
 const FOTO =
   'flex aspect-square w-24 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md ' +
-  'border border-border bg-muted text-xs text-muted-foreground transition-colors ' +
-  'hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring';
+  'border border-borde bg-fondo-sutil text-xs text-texto-sutil transition-colors ' +
+  'hover:bg-acento-suave hover:text-acento-suave-texto focus-visible:outline-2 focus-visible:outline-anillo';
 
 export function enFecha(iso: string | null, largo = false): string {
   const tiempo = iso === null ? Number.NaN : Date.parse(iso);
@@ -316,7 +316,7 @@ export function HistorialDeLaClienta({
         <h1 className="text-xl font-semibold">
           Aquí se abre el expediente de {voc.enFraseCon('un', 'cliente')}
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           Sus visitas, sus fórmulas, sus fotos y cuándo le toca volver. Se abre desde la lista: toca
           su nombre y su historia aparece aquí.
         </p>
@@ -386,11 +386,11 @@ export function HistorialDeLaClienta({
     <header className="mb-(--espacio-4)">
       <div className="flex flex-wrap items-baseline justify-between gap-x-(--espacio-4) gap-y-1">
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{nombre}</h1>
-        <p className="text-sm tabular-nums text-muted-foreground">
+        <p className="text-sm tabular-nums text-texto-sutil">
           {telefonoVelado(clienta?.telefono ?? null)}
         </p>
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-1 text-sm text-texto-sutil">
         {habitual === null ? 'Sin profesional habitual' : `Viene con ${habitual}`}
         {clienta?.frecuenciaDias == null
           ? ''
@@ -422,7 +422,7 @@ export function HistorialDeLaClienta({
         {/* El vacío ENSEÑA: los tres datos que sí sirven dentro de cinco semanas. */}
         <form onSubmit={alEmpezar} className={TARJETA}>
           <h2 className="text-lg font-semibold">{nombre} viene por primera vez.</h2>
-          <p className="mb-(--espacio-4) mt-1 text-sm text-muted-foreground">
+          <p className="mb-(--espacio-4) mt-1 text-sm text-texto-sutil">
             Tres respuestas ahora valen más que media hora de memoria en la próxima{' '}
             {voc.singular('orden')}.
           </p>
@@ -449,7 +449,7 @@ export function HistorialDeLaClienta({
       {alergia}
 
       {vuelta !== null && (
-        <section className="mb-(--espacio-4) flex flex-wrap items-center gap-(--espacio-3) rounded-lg border border-primary/40 bg-primary/10 p-(--espacio-3)">
+        <section className="mb-(--espacio-4) flex flex-wrap items-center gap-(--espacio-3) rounded-lg border border-primario/40 bg-primario/10 p-(--espacio-3)">
           <p className="text-base font-semibold">
             Toca volver: <span className="tabular-nums">{enFecha(vuelta, true)}</span>
           </p>
@@ -469,7 +469,7 @@ export function HistorialDeLaClienta({
       <div className={DOS_COLUMNAS}>
         <div>
           {ultima !== null && (
-            <section className={`${TARJETA} mb-(--espacio-4) border-primary/50 shadow-2`}>
+            <section className={`${TARJETA} mb-(--espacio-4) border-primario/50 shadow-2`}>
               <h2 className={ROTULO}>Última visita</h2>
               <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-lg font-semibold">
                 <span className="tabular-nums">{enFecha(ultima.fecha, true)}</span>
@@ -480,7 +480,7 @@ export function HistorialDeLaClienta({
               </p>
               <p className="mt-1 text-base">{ultima.servicio ?? 'Servicio sin nombre'}</p>
               {/* La acción principal de la pantalla: VER LA ÚLTIMA FÓRMULA. */}
-              <p className="mt-2 rounded-md bg-muted p-2 font-mono text-sm tabular-nums">
+              <p className="mt-2 rounded-md bg-fondo-sutil p-2 font-mono text-sm tabular-nums">
                 {ultima.formula ?? 'Sin fórmula capturada en esta visita.'}
               </p>
               {ultima.fotos.length > 0 && (
@@ -491,7 +491,7 @@ export function HistorialDeLaClienta({
                 </div>
               )}
               {ultima.nota !== null && (
-                <p className="mt-(--espacio-3) border-l-2 border-border pl-(--espacio-3) text-sm italic text-muted-foreground">
+                <p className="mt-(--espacio-3) border-l-2 border-borde pl-(--espacio-3) text-sm italic text-texto-sutil">
                   «{ultima.nota}»
                   {ultima.notaPrivada && (
                     <Badge variant="outline" className="ml-2 not-italic">
@@ -512,14 +512,14 @@ export function HistorialDeLaClienta({
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <ul className="mt-2 divide-y divide-border">
+              <ul className="mt-2 divide-y divide-borde">
                 {visitas.slice(1).map((v) => (
                   <li key={v.id} className="flex flex-wrap items-baseline gap-x-2 py-2 text-sm">
                     <span className="w-20 shrink-0 font-medium tabular-nums">
                       {enFecha(v.fecha)}
                     </span>
-                    <span className="text-muted-foreground">{v.profesional ?? 'sin dato'}</span>
-                    <span className="basis-full text-muted-foreground sm:basis-auto">
+                    <span className="text-texto-sutil">{v.profesional ?? 'sin dato'}</span>
+                    <span className="basis-full text-texto-sutil sm:basis-auto">
                       {v.servicio ?? 'Servicio sin nombre'}
                     </span>
                     <span className="ml-auto tabular-nums">
@@ -531,7 +531,7 @@ export function HistorialDeLaClienta({
             </CollapsibleContent>
           </Collapsible>
 
-          <p className="mt-(--espacio-4) text-sm text-muted-foreground">
+          <p className="mt-(--espacio-4) text-sm text-texto-sutil">
             Gastado en 12 meses: <span className="tabular-nums">{PESOS.format(gastado / 100)}</span>
           </p>
         </div>
@@ -540,7 +540,7 @@ export function HistorialDeLaClienta({
         <aside aria-label="Galería de fotos" className="hidden xl:block">
           <h2 className={`mb-2 ${ROTULO}`}>Fotos</h2>
           {galeria.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-texto-sutil">
               Todavía no hay fotos. Se suben al cerrar el servicio, y sólo si ella lo autorizó.
             </p>
           ) : (

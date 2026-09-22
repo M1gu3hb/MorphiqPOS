@@ -309,11 +309,11 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
     <main className="mx-auto max-w-5xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Entradas</h1>
-        <p className="text-muted-foreground text-sm">Quién viene hoy y qué hay que pedirle.</p>
+        <p className="text-texto-sutil text-sm">Quién viene hoy y qué hay que pedirle.</p>
       </header>
 
       {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-peligro text-sm">
           {error}
         </p>
       )}
@@ -323,7 +323,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
         <div className="space-y-2">
           <h2 className="font-medium">Hoy toca</h2>
           {hoyToca.length === 0 && (
-            <p className="text-muted-foreground text-sm">Hoy no viene nadie de ruta.</p>
+            <p className="text-texto-sutil text-sm">Hoy no viene nadie de ruta.</p>
           )}
           {hoyToca.map((proveedor) => (
             <Button
@@ -336,9 +336,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
               }}
             >
               {proveedor.nombre}
-              <span className="text-muted-foreground ml-2 text-xs">
-                {proveedor.frecuencia ?? ''}
-              </span>
+              <span className="text-texto-sutil ml-2 text-xs">{proveedor.frecuencia ?? ''}</span>
             </Button>
           ))}
 
@@ -364,7 +362,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
 
         <div className="space-y-(--espacio-4)">
           {elegido === null && (
-            <p className="text-muted-foreground">Elige un proveedor para ver qué pedirle.</p>
+            <p className="text-texto-sutil">Elige un proveedor para ver qué pedirle.</p>
           )}
 
           {elegido !== null && (
@@ -372,7 +370,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
               <h2 className="font-medium">Pedido sugerido · {elegido.nombre}</h2>
               {sugerido === null && <Skeleton className="h-32 w-full" />}
               {sugerido !== null && sugerido.length === 0 && (
-                <p className="text-muted-foreground text-sm">
+                <p className="text-texto-sutil text-sm">
                   No hay sugerencia: falta historia de {voc.plural('orden')} de este proveedor.
                 </p>
               )}
@@ -380,7 +378,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
                 {(sugerido ?? []).map((renglon) => (
                   <li key={renglon.insumoId} className="flex items-center gap-(--espacio-3) py-2">
                     <span className="flex-1">{renglon.nombre}</span>
-                    <span className="text-muted-foreground text-sm tabular-nums">
+                    <span className="text-texto-sutil text-sm tabular-nums">
                       hay {renglon.existencia} · 14d {renglon.ventaCatorceDias}
                     </span>
                     <span className="font-medium tabular-nums">
@@ -403,7 +401,7 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
 
               <h2 className="font-medium">La nota</h2>
               {lineas.length === 0 && (
-                <p className="text-muted-foreground text-sm">
+                <p className="text-texto-sutil text-sm">
                   Agrega del sugerido, o captura lo que traiga el repartidor.
                 </p>
               )}

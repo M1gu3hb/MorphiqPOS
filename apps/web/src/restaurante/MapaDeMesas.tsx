@@ -45,29 +45,29 @@ import { useVocabulario } from '~/cliente/vocabulario';
 
 /** Los ocho estados del ciclo de una mesa, con su color y su palabra. */
 const ESTADOS = {
-  libre: { etiqueta: 'Libre', clase: 'bg-muted text-muted-foreground border-border' },
+  libre: { etiqueta: 'Libre', clase: 'bg-fondo-sutil text-texto-sutil border-borde' },
   esperando_orden: {
     etiqueta: 'Esperando orden',
-    clase: 'bg-secondary text-secondary-foreground border-border',
+    clase: 'bg-fondo-sutil text-texto border-borde',
   },
   pedido_enviado: {
     etiqueta: 'Pedido enviado',
-    clase: 'bg-primary/15 text-foreground border-primary/40',
+    clase: 'bg-primario/15 text-texto border-primario/40',
   },
   en_preparacion: {
     etiqueta: 'En preparación',
-    clase: 'bg-primary/30 text-foreground border-primary/60',
+    clase: 'bg-primario/30 text-texto border-primario/60',
   },
   esperando_entrega: {
     etiqueta: 'Esperando entrega',
-    clase: 'bg-accent text-accent-foreground border-border',
+    clase: 'bg-acento-suave text-acento-suave-texto border-borde',
   },
-  ocupada: { etiqueta: 'Ocupada', clase: 'bg-card text-card-foreground border-primary' },
+  ocupada: { etiqueta: 'Ocupada', clase: 'bg-superficie text-texto border-primario' },
   cuenta_solicitada: {
     etiqueta: 'Cuenta solicitada',
-    clase: 'bg-destructive/20 text-foreground border-destructive',
+    clase: 'bg-peligro/20 text-texto border-peligro',
   },
-  limpieza: { etiqueta: 'Limpieza', clase: 'bg-muted/60 text-muted-foreground border-dashed' },
+  limpieza: { etiqueta: 'Limpieza', clase: 'bg-fondo-sutil/60 text-texto-sutil border-dashed' },
 } as const;
 
 type ClaveEstado = keyof typeof ESTADOS;
@@ -262,10 +262,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
       </header>
 
       {error !== null && (
-        <p
-          role="alert"
-          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
-        >
+        <p role="alert" className="mb-(--espacio-3) rounded-md border border-peligro p-2 text-sm">
           {error} · Se muestra el último dato conocido.
         </p>
       )}
@@ -283,7 +280,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
                 className={[
                   'relative flex min-h-28 w-full flex-col items-center justify-center gap-1',
                   'rounded-lg border-2 p-2 text-center transition-colors',
-                  estado?.clase ?? 'bg-muted text-muted-foreground border-border',
+                  estado?.clase ?? 'bg-fondo-sutil text-texto-sutil border-borde',
                 ].join(' ')}
               >
                 {/* La celebración arriba a la izquierda: para que cualquiera que
@@ -299,7 +296,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
                 {mesa.mesero_asignado_color !== null && (
                   <span
                     aria-hidden
-                    className="absolute right-1 top-1 h-3 w-3 rounded-full border border-border"
+                    className="absolute right-1 top-1 h-3 w-3 rounded-full border border-borde"
                     style={{ backgroundColor: mesa.mesero_asignado_color }}
                   />
                 )}
@@ -321,7 +318,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
                     descuadre, es una urgencia médica. */}
                 {mesa.notas_alergias && (
                   <TriangleAlert
-                    className="absolute bottom-1 left-1 size-4 shrink-0 text-destructive"
+                    className="absolute bottom-1 left-1 size-4 shrink-0 text-peligro"
                     aria-label={`Hay alergias declaradas en ${voc.enFraseCon('este', 'unidad_servicio')}`}
                   />
                 )}
@@ -331,7 +328,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
         })}
       </ul>
 
-      <footer className="mt-(--espacio-6) flex flex-wrap gap-x-(--espacio-4) gap-y-1 text-xs text-muted-foreground">
+      <footer className="mt-(--espacio-6) flex flex-wrap gap-x-(--espacio-4) gap-y-1 text-xs text-texto-sutil">
         {Object.entries(ESTADOS).map(([clave, estado]) => (
           <span key={clave} className="flex items-center gap-1">
             <span aria-hidden className={`h-2 w-2 rounded-full border ${estado.clase}`} />

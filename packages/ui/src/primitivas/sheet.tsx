@@ -59,7 +59,7 @@ function SheetContent({
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "fixed z-50 flex flex-col gap-(--espacio-4) bg-background shadow-3 transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-(--duracion-normal) data-[state=open]:animate-in data-[state=open]:duration-(--duracion-lenta)",
+          "fixed z-50 flex flex-col gap-(--espacio-4) bg-fondo shadow-3 transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-(--duracion-normal) data-[state=open]:animate-in data-[state=open]:duration-(--duracion-lenta)",
           side === "right" &&
             "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
           side === "left" &&
@@ -74,7 +74,7 @@ function SheetContent({
       >
         {children}
         {showCloseButton && (
-          <SheetPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary">
+          <SheetPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-fondo transition-opacity hover:opacity-100 focus:ring-2 focus:ring-anillo focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-fondo-sutil">
             <XIcon className="size-4" />
             <span className="sr-only">Close</span>
           </SheetPrimitive.Close>
@@ -111,7 +111,7 @@ function SheetTitle({
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("font-semibold text-foreground", className)}
+      className={cn("font-semibold text-texto", className)}
       {...props}
     />
   )
@@ -124,7 +124,7 @@ function SheetDescription({
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-sm text-texto-sutil", className)}
       {...props}
     />
   )

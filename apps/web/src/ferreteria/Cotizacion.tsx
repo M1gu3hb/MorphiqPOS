@@ -64,12 +64,11 @@ const MOTIVOS = ['Precio', 'Tiempo de entrega', 'No había', 'Se fue con otro', 
 
 const CABECERAS = ['Material', 'Precio', 'Cant.', 'Desc. %', 'Importe'];
 
-const FRANJA =
-  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
+const FRANJA = 'rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1';
 const FILA =
-  'grid grid-cols-[1fr_auto] items-center gap-x-(--espacio-3) rounded-md border border-border bg-card p-2 text-sm text-card-foreground';
+  'grid grid-cols-[1fr_auto] items-center gap-x-(--espacio-3) rounded-md border border-borde bg-superficie p-2 text-sm text-texto';
 const SUGERENCIA =
-  'w-full rounded-md border border-border bg-card p-2 text-left text-sm text-card-foreground hover:bg-accent hover:text-accent-foreground';
+  'w-full rounded-md border border-borde bg-superficie p-2 text-left text-sm text-texto hover:bg-acento-suave hover:text-acento-suave-texto';
 const CAMPO = 'hidden w-20 text-right tabular-nums md:block';
 
 type Seguimiento = 'pendiente' | 'ganada' | 'perdida';
@@ -360,14 +359,14 @@ export function Cotizacion({
       <header className={`${FRANJA} flex flex-wrap items-end justify-between gap-(--espacio-4)`}>
         <div>
           <h1 className="text-xl font-bold">{clienteNombre ?? 'Cotización sin cliente'}</h1>
-          <p className="text-sm text-muted-foreground">{clienteObra ?? 'Obra por definir'}</p>
+          <p className="text-sm text-texto-sutil">{clienteObra ?? 'Obra por definir'}</p>
         </div>
         <div
           role="group"
           aria-label="Vigencia de la cotización"
           className="flex items-center gap-1"
         >
-          <span className="mr-1 text-xs text-muted-foreground">Vigencia obligatoria</span>
+          <span className="mr-1 text-xs text-texto-sutil">Vigencia obligatoria</span>
           {VIGENCIAS.map((dias) => (
             <Button
               key={dias}
@@ -389,7 +388,7 @@ export function Cotizacion({
       {nota !== null && (
         <p
           role={nota.malo ? 'alert' : 'status'}
-          className={`rounded-md border p-2 text-sm ${nota.malo ? 'border-destructive bg-destructive/15' : 'border-border bg-success/20'}`}
+          className={`rounded-md border p-2 text-sm ${nota.malo ? 'border-peligro bg-peligro/15' : 'border-borde bg-exito/20'}`}
         >
           {nota.texto} {nota.malo && 'Lo que ya armaste sigue aquí.'}
         </p>
@@ -418,7 +417,7 @@ export function Cotizacion({
                   }}
                 >
                   <span className="font-medium">{m.nombre}</span>{' '}
-                  <span className="text-muted-foreground">{m.medida}</span>
+                  <span className="text-texto-sutil">{m.medida}</span>
                 </button>
               </li>
             ))}
@@ -432,13 +431,13 @@ export function Cotizacion({
 
           {sinPartidas && (
             // El vacío ENSEÑA el flujo; no se disculpa por estar vacío.
-            <div className="rounded-lg border border-dashed border-border">
+            <div className="rounded-lg border border-dashed border-borde">
               <Vacio
                 icono={<FileText />}
                 titulo={`Una cotización empieza por ${voc.enFrase('producto')}.`}
                 explicacion="Búscalo por nombre o por medida: cantidad, precio y descuento se editan aquí mismo. Elige la vigencia —7, 15 o 30 días— y mándala por WhatsApp. Cuando el contratista conteste, se marca ganada o perdida desde esta pantalla."
               >
-                <p className="max-w-prose text-sm text-muted-foreground md:hidden">
+                <p className="max-w-prose text-sm text-texto-sutil md:hidden">
                   Desde el teléfono se consulta y se reenvía. Ábrela en la computadora para armarla.
                 </p>
               </Vacio>
@@ -458,7 +457,7 @@ export function Cotizacion({
               <li key={p.material.id} className={`${FILA} ${columnas}`}>
                 <span className="font-medium">
                   {p.material.nombre}{' '}
-                  <span className="font-normal text-muted-foreground">{p.material.medida}</span>
+                  <span className="font-normal text-texto-sutil">{p.material.medida}</span>
                 </span>
                 {/* En teléfono la partida es un renglón de consulta, no un campo. */}
                 <span className="text-right tabular-nums md:hidden">
@@ -523,7 +522,7 @@ export function Cotizacion({
         ))}
         {seguimiento === 'perdida' && (
           <div className="w-full" role="group" aria-label="Motivo por el que se perdió">
-            <p className="mb-1 text-xs text-muted-foreground">
+            <p className="mb-1 text-xs text-texto-sutil">
               ¿Por qué se perdió? A los seis meses este campo dice si es precio o si es surtido.
             </p>
             <div className="flex flex-wrap gap-1">

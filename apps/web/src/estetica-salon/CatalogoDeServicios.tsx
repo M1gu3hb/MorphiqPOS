@@ -280,7 +280,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
                 }}
               >
                 {servicio.nombre}
-                <span className="text-muted-foreground ml-2 text-xs">
+                <span className="text-texto-sutil ml-2 text-xs">
                   {minutosDeEstacion(servicio)} min ·{' '}
                   {pesos(Math.round((servicio.precio_venta ?? 0) * 100))}
                 </span>
@@ -292,7 +292,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
 
       <section className="space-y-(--espacio-4)">
         {error !== null && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-peligro text-sm">
             {error}
           </p>
         )}
@@ -320,7 +320,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
               setPrecio(evento.target.value);
             }}
           />
-          <p className="text-muted-foreground mt-1 text-sm">
+          <p className="text-texto-sutil mt-1 text-sm">
             Cada profesional puede tener el suyo: Karla cobra más y tarda menos.
           </p>
         </div>
@@ -329,7 +329,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
 
         <div>
           <h2 className="font-medium">La duración, por tramos</h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-texto-sutil text-sm">
             Un tinte no dura 110 minutos: dura 40, 45, 15 y 10. Con un solo número, los 45 del
             procesado desaparecen de la agenda.
           </p>
@@ -347,7 +347,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
                   setMinutos({ ...minutos, [tramo.clave]: evento.target.value });
                 }}
               />
-              <p className="text-muted-foreground mt-1 text-xs">{tramo.ayuda}</p>
+              <p className="text-texto-sutil mt-1 text-xs">{tramo.ayuda}</p>
             </div>
           ))}
         </div>
@@ -364,7 +364,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
             ? `El procesado libera a la ${voc.singular('responsable')}`
             : 'El procesado exige vigilancia'}
         </Button>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Suponerlo siempre libre haría que la agenda prometiera huecos que no existen, y eso se
           paga con una clienta esperando.
         </p>

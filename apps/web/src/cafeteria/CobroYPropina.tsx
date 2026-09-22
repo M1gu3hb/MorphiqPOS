@@ -270,10 +270,7 @@ export function CobroYPropina({
   // La pantalla NUNCA se vacía por un error: la banda va encima del último dato.
   const banda =
     error === null ? null : (
-      <p
-        role="alert"
-        className="rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
-      >
+      <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-2 text-sm">
         {error} · No se cobró nada y el pedido no entró a la fila de la barra.
       </p>
     );
@@ -339,12 +336,12 @@ export function CobroYPropina({
           como="section"
           className="flex flex-col items-center gap-(--espacio-3) text-center"
         >
-          <p className="text-sm font-medium tracking-wide text-success uppercase">Cobrado</p>
+          <p className="text-sm font-medium tracking-wide text-exito uppercase">Cobrado</p>
           <span className="flex flex-col items-center gap-(--espacio-1)">
-            <span className="text-xs text-muted-foreground">Cambio</span>
+            <span className="text-xs text-texto-sutil">Cambio</span>
             <Dinero centavos={cambio} tamano="total" />
           </span>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Se cobraron <Dinero centavos={total} tamano="sm" /> · propina{' '}
             <Dinero centavos={propina ?? 0} tamano="sm" /> ({origen}) · ya está en la fila de la
             barra.
@@ -376,7 +373,7 @@ export function CobroYPropina({
               <Dinero centavos={aCentavos(linea.total)} tamano="sm" />
             </li>
           ))}
-          <li className="flex items-baseline justify-between gap-(--espacio-3) border-t border-border pt-(--espacio-1) font-semibold">
+          <li className="flex items-baseline justify-between gap-(--espacio-3) border-t border-borde pt-(--espacio-1) font-semibold">
             <span>Total con propina</span>
             <Dinero centavos={total} tamano="lg" />
           </li>
@@ -412,7 +409,7 @@ export function CobroYPropina({
               }}
             />
             <span className="flex items-baseline justify-between">
-              <span className="text-muted-foreground">Cambio</span>
+              <span className="text-texto-sutil">Cambio</span>
               <Dinero centavos={Math.max(mano - total, 0)} tamano="lg" />
             </span>
           </label>
@@ -456,7 +453,7 @@ export function CobroYPropina({
         aria-label={
           segundaPantallaConectada ? 'Lo que ve el cliente' : 'Respaldo de propina en la terminal'
         }
-        className="flex flex-col items-center gap-(--espacio-4) rounded-lg border-2 border-primary bg-card p-(--espacio-4) text-center text-card-foreground shadow-2"
+        className="flex flex-col items-center gap-(--espacio-4) rounded-lg border-2 border-primario bg-superficie p-(--espacio-4) text-center text-texto shadow-2"
       >
         {!segundaPantallaConectada && (
           <Badge variant="outline">Respaldo · queda marcado como capturado por el empleado</Badge>
@@ -464,7 +461,7 @@ export function CobroYPropina({
         {/* La cara del cliente: el total primero y el rótulo debajo. Lo que la
             persona busca al girar la pantalla es la cifra, no la palabra «total». */}
         <Dinero centavos={total} tamano="total" className="leading-none" />
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Total</p>
+        <p className="text-xs font-medium tracking-wide text-texto-sutil uppercase">Total</p>
 
         {propina !== null && (
           <p className="inline-flex items-baseline gap-1 text-lg">
@@ -527,7 +524,7 @@ export function CobroYPropina({
               value={(espera / ESPERA) * 100}
               aria-label="Tiempo antes de cobrar sin propina"
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-texto-sutil">
               Si no tocas nada, se cobra sin propina en {String(espera)} s.
             </p>
           </div>

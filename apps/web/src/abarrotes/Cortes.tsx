@@ -227,13 +227,13 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
     <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Cortes</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           {abierta ? 'Cuenta el cajón y ciérralo.' : 'No hay turno abierto.'}
         </p>
       </header>
 
       {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-peligro text-sm">
           {error}
         </p>
       )}
@@ -242,7 +242,7 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
         <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
           <div>
             <h2 className="font-medium">Cuenta el cajón</h2>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-texto-sutil text-sm">
               Por denominación. Faltar $500 y faltar un billete de $500 son dos problemas distintos.
             </p>
           </div>
@@ -295,7 +295,7 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
       {cerrado && (
         <section className="space-y-2 rounded-lg border p-(--espacio-4)">
           <h2 className="font-medium">Turno cerrado</h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-texto-sutil text-sm">
             Esperado {pesos(esperado)} · contado {pesos(contadoDelCorte)}
           </p>
           <p className="text-2xl font-semibold">
@@ -315,13 +315,13 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
         <h2 className="mb-2 font-medium">Cortes anteriores</h2>
         {historico === null && <Skeleton className="h-24 w-full" />}
         {historico !== null && historico.length === 0 && (
-          <p className="text-muted-foreground text-sm">Todavía no hay cortes.</p>
+          <p className="text-texto-sutil text-sm">Todavía no hay cortes.</p>
         )}
         <ul className="divide-y">
           {(historico ?? []).map((corte) => (
             <li key={corte.id} className="flex items-baseline justify-between py-2">
               <span>{(corte.fecha_cierre ?? '').slice(0, 10)}</span>
-              <span className="text-muted-foreground text-sm">
+              <span className="text-texto-sutil text-sm">
                 {corte.usuario_cajero_nombre ?? 'sin firma'}
               </span>
               <span className="tabular-nums">

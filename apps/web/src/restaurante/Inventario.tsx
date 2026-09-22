@@ -67,19 +67,19 @@ const NIVELES = {
   agotado: {
     etiqueta: 'Agotado',
     glifo: '■',
-    clase: 'bg-destructive text-destructive-foreground border-destructive',
+    clase: 'bg-peligro text-peligro-texto border-peligro',
   },
   critico: {
     etiqueta: 'Crítico',
     glifo: '▲',
-    clase: 'bg-destructive/20 text-foreground border-destructive',
+    clase: 'bg-peligro/20 text-texto border-peligro',
   },
-  bajo: { etiqueta: 'Bajo', glifo: '●', clase: 'bg-warning/30 text-foreground border-border' },
-  medio: { etiqueta: 'Medio', glifo: '◐', clase: 'bg-muted text-muted-foreground border-border' },
+  bajo: { etiqueta: 'Bajo', glifo: '●', clase: 'bg-advertencia/30 text-texto border-borde' },
+  medio: { etiqueta: 'Medio', glifo: '◐', clase: 'bg-fondo-sutil text-texto-sutil border-borde' },
   suficiente: {
     etiqueta: 'Suficiente',
     glifo: '○',
-    clase: 'bg-success/20 text-foreground border-border',
+    clase: 'bg-exito/20 text-texto border-borde',
   },
 } as const;
 
@@ -243,7 +243,7 @@ function Ajustador(props: AjustadorProps) {
             }}
           />
           {!hayAlmacen && (
-            <p role="alert" className="text-xs text-muted-foreground">
+            <p role="alert" className="text-xs text-texto-sutil">
               Falta el almacén: esta pantalla todavía no lo resuelve sola.
             </p>
           )}
@@ -405,17 +405,17 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
   );
 
   return (
-    <main className="flex min-h-dvh flex-col gap-(--espacio-4) bg-background p-(--espacio-4) text-foreground">
+    <main className="flex min-h-dvh flex-col gap-(--espacio-4) bg-fondo p-(--espacio-4) text-texto">
       <header className="flex flex-wrap items-baseline justify-between gap-(--espacio-3)">
         <h1 className="text-xl font-bold uppercase tracking-wide">Inventario</h1>
-        <p className="text-sm tabular-nums text-muted-foreground">
+        <p className="text-sm tabular-nums text-texto-sutil">
           {ordenadas.length} insumos · {urgentes.length} por atender
         </p>
       </header>
 
       {/* La banda avisa, pero NO vacía la pantalla: debajo sigue la alacena. */}
       {error !== null && (
-        <p role="alert" className="rounded-md border border-destructive p-2 text-sm">
+        <p role="alert" className="rounded-md border border-peligro p-2 text-sm">
           {error} · Se muestra el último dato conocido.
         </p>
       )}
@@ -427,7 +427,7 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
           aria-label="Lo que hay que atender hoy"
           className="rounded-lg border p-(--espacio-3)"
         >
-          <h2 className="text-xs font-bold uppercase text-muted-foreground">
+          <h2 className="text-xs font-bold uppercase text-texto-sutil">
             Hay que atender hoy ({urgentes.length})
           </h2>
           <p className="mt-1 text-sm">{urgentes.map((f) => f.nombre).join(' · ')}</p>
@@ -485,7 +485,7 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
                     <TableCell className="tabular-nums">
                       {cifra(fila.stock_actual, fila.unidad_base)}
                     </TableCell>
-                    <TableCell className="tabular-nums text-muted-foreground">
+                    <TableCell className="tabular-nums text-texto-sutil">
                       {cifra(fila.stock_minimo, fila.unidad_base)}
                     </TableCell>
                     {/* Cocina lo recibe en `null` y aquí se pinta «—»: el rol
@@ -504,7 +504,7 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
             {visibles.map((fila) => (
               <li
                 key={fila.id}
-                className="rounded-lg border bg-card p-(--espacio-3) text-card-foreground"
+                className="rounded-lg border bg-superficie p-(--espacio-3) text-texto"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold leading-tight">{fila.nombre}</p>
@@ -512,7 +512,7 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
                 </div>
                 <p className="mt-1 text-sm tabular-nums">
                   {cifra(fila.stock_actual, fila.unidad_base)}
-                  <span className="text-muted-foreground">
+                  <span className="text-texto-sutil">
                     {' '}
                     · mín. {cifra(fila.stock_minimo, fila.unidad_base)} ·{' '}
                     {pesos(fila.valor_inventario)}

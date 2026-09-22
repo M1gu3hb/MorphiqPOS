@@ -19,6 +19,7 @@ import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
+import { EN_INGLES } from './lib/vocabulario-de-color.mjs';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -223,6 +224,19 @@ const REGLAS = [
     porque: 'Escribe el token en la forma corta de Tailwind 4: h-(--altura-control)',
   },
   {
+    nombre: 'color del sistema escrito con su alias en inglés',
+    /**
+     * UN COLOR, UN NOMBRE. `bg-card` y `bg-superficie` pintan lo mismo: el primero es
+     * el alias que `heredado/index.css` deriva del segundo para el código de Miguel.
+     * La etapa 2.35 declaró un solo vocabulario y dentro de `packages/ui` seguían
+     * `text-destructive`, `text-success` y `text-muted-foreground` —1 633 usos en 108
+     * archivos entre el sistema y las pantallas—. El heredado sigue en inglés: esta
+     * puerta no lo mira.
+     */
+    patron: EN_INGLES,
+    porque: 'Escribe el color con su nombre del sistema: `node scripts/traducir-vocabulario.mjs`',
+  },
+  {
     nombre: 'variante dark: en vez de oscuro:',
     // Sin espacio despues de los dos puntos: `dark: 'oscuro'` es una clave de
     // objeto —la configuracion de next-themes— y no una variante de Tailwind.
@@ -370,6 +384,29 @@ const TECHO_DE_RITMO = 0;
 
 const hallazgos = [];
 for (const carpeta of VIGILADAS) recorrer(carpeta, hallazgos);
+
+/**
+ * `.dark` EN LAS HOJAS DEL SISTEMA. La clase es la de Miguel —la pone su
+ * `ThemeContext`—; los ocho estilos cambian su paleta bajo `[data-modo='oscuro']`,
+ * que `app/layout.tsx` deriva de ella. `capas.css` declaraba
+ * `[data-estilo='cristal'].dark` mientras esta misma puerta prohibía `dark:` en los
+ * componentes: dos nombres para un modo, uno en cada archivo.
+ */
+const HOJAS = join(RAIZ, 'packages', 'ui', 'src', 'estilos');
+for (const nombre of existsSync(HOJAS) ? readdirSync(HOJAS) : []) {
+  if (!nombre.endsWith('.css')) continue;
+  const texto = sinComentarios(readFileSync(join(HOJAS, nombre), 'utf8'));
+  const coincidencias = texto.match(/\.dark\b/g);
+  if (coincidencias === null) continue;
+  hallazgos.push({
+    archivo: relative(RAIZ, join(HOJAS, nombre)),
+    regla: 'modo oscuro con la clase de Miguel en una hoja del sistema',
+    deRitmo: false,
+    cuantos: coincidencias.length,
+    porque: "El modo del sistema es [data-modo='oscuro']; `.dark` es la del heredado",
+    ejemplos: ['.dark'],
+  });
+}
 
 const esDelSistema = (archivo) => archivo.split(sep).join('/').startsWith('packages/ui/src');
 const enDeuda = hallazgos.filter((h) => h.deRitmo === true && !esDelSistema(h.archivo));

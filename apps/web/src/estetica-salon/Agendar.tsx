@@ -233,8 +233,8 @@ function clasePaso(visible: boolean): string {
 /** Las tres clases de una tarjeta que se puede elegir. */
 function claseElegible(elegida: boolean): string {
   return elegida
-    ? 'border-primary bg-primary/15 font-semibold'
-    : 'border-border hover:bg-accent hover:text-accent-foreground';
+    ? 'border-primario bg-primario/15 font-semibold'
+    : 'border-borde hover:bg-acento-suave hover:text-acento-suave-texto';
 }
 
 export function Agendar({
@@ -468,7 +468,7 @@ export function Agendar({
     return (
       <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-(--espacio-4) p-(--espacio-8) text-center">
         <p className="text-lg font-semibold">Antes de agendar hay que decir qué se ofrece.</p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           {equipo.length === 0
             ? 'Da de alta a tu equipo: cada cita cuelga de una persona y de su horario.'
             : 'Da de alta tus servicios con su duración: de ahí salen los huecos que caben.'}
@@ -486,9 +486,9 @@ export function Agendar({
     <div className="lg:flex lg:justify-end">
       <section
         aria-label={`Agendar ${voc.enFraseCon('un', 'orden')}`}
-        className="flex min-h-dvh w-full flex-col bg-background lg:w-[420px] lg:border-l lg:border-border lg:shadow-3"
+        className="flex min-h-dvh w-full flex-col bg-fondo lg:w-[420px] lg:border-l lg:border-borde lg:shadow-3"
       >
-        <header className="flex flex-wrap items-center gap-2 border-b border-border p-(--espacio-4)">
+        <header className="flex flex-wrap items-center gap-2 border-b border-borde p-(--espacio-4)">
           <h1 className="flex-1 text-xl font-bold">Agendar</h1>
           <Button
             type="button"
@@ -515,9 +515,7 @@ export function Agendar({
                   setPaso(i);
                 }}
                 className={`flex-1 rounded-md px-1 py-1 text-xs ${
-                  i === paso
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground'
+                  i === paso ? 'bg-primario text-primario-texto' : 'bg-fondo-sutil text-texto-sutil'
                 }`}
               >
                 {i + 1} {titulo}
@@ -529,20 +527,20 @@ export function Agendar({
         {error !== null && (
           <p
             role="alert"
-            className="border-b border-destructive/40 bg-destructive/15 p-(--espacio-3) text-sm"
+            className="border-b border-peligro/40 bg-peligro/15 p-(--espacio-3) text-sm"
           >
             {error}
           </p>
         )}
         {aviso !== null && (
-          <p role="status" className="border-b border-border bg-success/20 p-(--espacio-3) text-sm">
+          <p role="status" className="border-b border-borde bg-exito/20 p-(--espacio-3) text-sm">
             {aviso}
           </p>
         )}
 
         <div className="flex-1 space-y-(--espacio-5) overflow-y-auto p-(--espacio-4)">
           <section className={clasePaso(paso === 0)} aria-labelledby="paso-quien">
-            <h2 id="paso-quien" className="text-sm font-semibold text-muted-foreground">
+            <h2 id="paso-quien" className="text-sm font-semibold text-texto-sutil">
               1 · ¿Quién?
             </h2>
             <Label htmlFor="buscar-clienta" className="sr-only">
@@ -575,7 +573,7 @@ export function Agendar({
                     )}`}
                   >
                     {fila.nombre ?? 'Sin nombre'}
-                    <span className="ml-2 text-muted-foreground">{fila.telefono ?? ''}</span>
+                    <span className="ml-2 text-texto-sutil">{fila.telefono ?? ''}</span>
                   </button>
                 </li>
               ))}
@@ -612,7 +610,7 @@ export function Agendar({
           </section>
 
           <section className={clasePaso(paso === 1)} aria-labelledby="paso-que">
-            <h2 id="paso-que" className="text-sm font-semibold text-muted-foreground">
+            <h2 id="paso-que" className="text-sm font-semibold text-texto-sutil">
               2 · ¿Qué?
             </h2>
             <ul className="grid grid-cols-2 gap-2">
@@ -631,7 +629,7 @@ export function Agendar({
                     )}`}
                   >
                     <span>{fila.nombre ?? 'Servicio'}</span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-texto-sutil">
                       {fila.tiempo_preparacion_estimado ?? DURACION_POR_OMISION_MIN} min
                     </span>
                   </button>
@@ -641,7 +639,7 @@ export function Agendar({
           </section>
 
           <section className={clasePaso(paso === 2)} aria-labelledby="paso-con-quien">
-            <h2 id="paso-con-quien" className="text-sm font-semibold text-muted-foreground">
+            <h2 id="paso-con-quien" className="text-sm font-semibold text-texto-sutil">
               3 · ¿Con quién?
             </h2>
             <ul className="flex flex-wrap gap-2">
@@ -668,18 +666,18 @@ export function Agendar({
           </section>
 
           <section className={clasePaso(paso === 3)} aria-labelledby="paso-cuando">
-            <h2 id="paso-cuando" className="text-sm font-semibold text-muted-foreground">
+            <h2 id="paso-cuando" className="text-sm font-semibold text-texto-sutil">
               4 · ¿Cuándo?
             </h2>
             {profesionalId === null && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-texto-sutil">
                 Elige con quién y aquí aparecen los huecos que caben.
               </p>
             )}
             {sinLugarEstaSemana && (
               <p
                 role="status"
-                className="rounded-md border border-warning/40 bg-warning/20 p-2 text-sm"
+                className="rounded-md border border-advertencia/40 bg-advertencia/20 p-2 text-sm"
               >
                 No hay lugar esta semana con {nombreDe(profesionalId)}. Abajo están los de la
                 siguiente.
@@ -698,7 +696,7 @@ export function Agendar({
                       elegido?.inicio.getTime() === hueco.inicio.getTime(),
                     )}`}
                   >
-                    <span className="w-20 text-xs tracking-wide text-muted-foreground">
+                    <span className="w-20 text-xs tracking-wide text-texto-sutil">
                       {etiquetaDeDia(hueco.inicio, ahora)}
                     </span>
                     <span className="text-lg font-semibold">{laHora(hueco.inicio)}</span>
@@ -727,7 +725,7 @@ export function Agendar({
 
             {conOtraPersona.length > 0 && (
               <div className="space-y-1 pt-2">
-                <p className="text-sm text-muted-foreground">¿Le sirve con otra persona?</p>
+                <p className="text-sm text-texto-sutil">¿Le sirve con otra persona?</p>
                 <div className="flex flex-wrap gap-2">
                   {conOtraPersona.map((hueco) => (
                     <Button
@@ -763,12 +761,12 @@ export function Agendar({
         </div>
 
         {/* Fijo abajo: en tablet y teléfono es lo único que siempre se alcanza. */}
-        <footer className="sticky bottom-0 space-y-2 border-t border-border bg-card p-(--espacio-4)">
+        <footer className="sticky bottom-0 space-y-2 border-t border-borde bg-superficie p-(--espacio-4)">
           {/* Lo que aparece AL CONFIRMAR y no antes. */}
           {clientaElegida?.alergias === true && (
             <p
               role="alert"
-              className="rounded-md border border-destructive/40 bg-destructive/15 p-2 text-sm"
+              className="rounded-md border border-peligro/40 bg-peligro/15 p-2 text-sm"
             >
               <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" />{' '}
               {voc.conDeterminante('este', 'cliente')} tiene alergias declaradas. Revísalas antes de
@@ -776,7 +774,7 @@ export function Agendar({
             </p>
           )}
           {(clientaElegida?.faltas_6m ?? 0) >= 2 && (
-            <p className="rounded-md border border-warning/40 bg-warning/20 p-2 text-sm">
+            <p className="rounded-md border border-advertencia/40 bg-advertencia/20 p-2 text-sm">
               Ha faltado {clientaElegida?.faltas_6m ?? 0} veces en 6 meses. ¿Pedir anticipo?
             </p>
           )}

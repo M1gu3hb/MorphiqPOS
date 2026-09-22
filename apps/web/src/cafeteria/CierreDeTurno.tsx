@@ -69,8 +69,8 @@ const RUTA_NADIE_VINO = '/api/cafeteria/no-recogido';
 
 /** Hasta $20 de descuadre es morralla; más arriba es una pregunta. */
 const TOLERANCIA_CENTAVOS = 2_000;
-const CAJA = 'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground';
-const CIFRA = 'flex items-baseline justify-between gap-2 border-b border-border py-1';
+const CAJA = 'rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto';
+const CIFRA = 'flex items-baseline justify-between gap-2 border-b border-borde py-1';
 
 /** Los cuatro campos del conteo. Los dos primeros son obligatorios. */
 const CAMPOS = [
@@ -156,11 +156,11 @@ export function enPesos(centavos: number): string {
 
 /** El semáforo del arqueo. La palabra manda; el color sólo acompaña. */
 export function semaforo(diferencia: number): { readonly clase: string; readonly palabra: string } {
-  if (diferencia === 0) return { clase: 'bg-success/25', palabra: 'cuadró exacto' };
+  if (diferencia === 0) return { clase: 'bg-exito/25', palabra: 'cuadró exacto' };
   if (Math.abs(diferencia) <= TOLERANCIA_CENTAVOS) {
-    return { clase: 'bg-warning/25', palabra: diferencia > 0 ? 'sobra poco' : 'falta poco' };
+    return { clase: 'bg-advertencia/25', palabra: diferencia > 0 ? 'sobra poco' : 'falta poco' };
   }
-  return { clase: 'bg-destructive/25', palabra: diferencia > 0 ? 'SOBRA' : 'FALTA' };
+  return { clase: 'bg-peligro/25', palabra: diferencia > 0 ? 'SOBRA' : 'FALTA' };
 }
 
 /** Minutos que un pedido lleva esperando desde que se cobró. */
@@ -217,12 +217,12 @@ async function leerFila(signal?: AbortSignal): Promise<readonly PedidoEnFila[]> 
 
 /** Dos columnas de etiqueta y número. La misma forma en las tres secciones. */
 function Cifras({ lista, vacio }: { readonly lista: readonly Cifra[]; readonly vacio: string }) {
-  if (lista.length === 0) return <p className="text-muted-foreground">{vacio}</p>;
+  if (lista.length === 0) return <p className="text-texto-sutil">{vacio}</p>;
   return (
     <dl className="grid gap-x-(--espacio-6) sm:grid-cols-2">
       {lista.map((cifra) => (
         <div key={cifra.etiqueta} className={CIFRA}>
-          <dt className="text-muted-foreground">{cifra.etiqueta}</dt>
+          <dt className="text-texto-sutil">{cifra.etiqueta}</dt>
           <dd className="font-medium tabular-nums">{cifra.valor}</dd>
         </div>
       ))}
@@ -396,7 +396,7 @@ export function CierreDeTurno({
     return (
       <div className="mx-auto max-w-lg space-y-(--espacio-4) p-(--espacio-8) text-center">
         <p className="text-xl font-semibold">No hay ningún turno abierto que cerrar.</p>
-        <p className="text-muted-foreground">
+        <p className="text-texto-sutil">
           El cierre cuenta dos recipientes físicos —el cajón y el bote— contra lo que el turno dice
           que debería haber. Sin turno no hay contra qué contar: el turno se abre al empezar el día,
           con el fondo desglosado por denominación.
@@ -405,7 +405,7 @@ export function CierreDeTurno({
           <a href="/cafeteria/turno">Abrir el turno</a>
         </Button>
         {error !== null && (
-          <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-2">
+          <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-2">
             {error}
           </p>
         )}
@@ -417,7 +417,7 @@ export function CierreDeTurno({
     <div className="grid gap-(--espacio-3) p-(--espacio-3) pb-(--espacio-8) xl:grid-cols-[22rem_minmax(0,1fr)] xl:items-start">
       <header className="flex flex-wrap items-baseline justify-between gap-2 xl:col-span-2">
         <h1 className="text-xl font-bold">Cierre de turno</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           {turno?.usuario_apertura_nombre ?? 'Turno sin nombre'}
           {resultado === null ? '' : ` · corte ${resultado.serie}-${resultado.folio}`}
         </p>
@@ -426,7 +426,7 @@ export function CierreDeTurno({
       {error !== null && (
         <p
           role="alert"
-          className="rounded-md border border-destructive bg-destructive/15 p-2 text-sm xl:col-span-2"
+          className="rounded-md border border-peligro bg-peligro/15 p-2 text-sm xl:col-span-2"
         >
           {error} · No se cerró ni se repartió nada.
         </p>
@@ -435,7 +435,7 @@ export function CierreDeTurno({
       {fila.length > 0 && !cerrado && (
         <p
           role="alert"
-          className="rounded-md border border-warning/60 bg-warning/15 p-2 text-sm xl:col-span-2"
+          className="rounded-md border border-advertencia/60 bg-advertencia/15 p-2 text-sm xl:col-span-2"
         >
           Hay {fila.length} pedido(s) cobrados que nadie ha entregado. El turno no cierra hasta
           resolverlos uno por uno.
@@ -470,7 +470,7 @@ export function CierreDeTurno({
 
         {/* ... y HASTA ENTONCES los dos esperados con sus dos semáforos. */}
         {resultado !== null && (
-          <dl className="space-y-2 border-t border-border pt-2 text-sm">
+          <dl className="space-y-2 border-t border-borde pt-2 text-sm">
             {[
               {
                 nombre: 'Cajón',
@@ -509,7 +509,7 @@ export function CierreDeTurno({
             </Button>
             {/* Un botón apagado sin razón es un muro mudo. */}
             {faltaContar && (
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="text-center text-sm text-texto-sutil">
                 Cuenta el cajón y el bote. Los dos, antes de ver nada.
               </p>
             )}
@@ -549,7 +549,7 @@ export function CierreDeTurno({
             </p>
             {partes === null ? (
               <>
-                <p className="text-muted-foreground">
+                <p className="text-texto-sutil">
                   Se reparte por las horas de cada quien y se confirma delante de las personas del
                   turno: después del botón se cuentan billetes sobre la barra.
                 </p>
@@ -611,12 +611,12 @@ export function CierreDeTurno({
           </DialogHeader>
           <ul className="space-y-2">
             {fila.map((pedido) => (
-              <li key={pedido.id} className="space-y-2 rounded-md border border-border p-2">
+              <li key={pedido.id} className="space-y-2 rounded-md border border-borde p-2">
                 <p className="font-medium">
                   {pedido.nombre_pedido ?? 'Sin nombre'} ·{' '}
                   {pedido.items?.[0]?.producto_nombre ?? 'Bebida'}
                 </p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-texto-sutil">
                   Esperando {minutosEsperando(pedido.created_date, reloj)} min
                 </p>
                 <div className="flex flex-wrap gap-2">

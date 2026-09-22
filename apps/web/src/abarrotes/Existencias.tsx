@@ -71,10 +71,11 @@ const SIN_PROVEEDOR = 'Sin proveedor';
 const FORMATO_DIA = new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short' });
 
 const CLASE_CONTADOR =
-  'flex flex-col items-start gap-1 rounded-lg border-2 p-(--espacio-4) text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring';
-const CLASE_INACTIVO = 'border-border bg-card hover:bg-accent hover:text-accent-foreground';
+  'flex flex-col items-start gap-1 rounded-lg border-2 p-(--espacio-4) text-left transition-colors focus-visible:ring-2 focus-visible:ring-anillo';
+const CLASE_INACTIVO =
+  'border-borde bg-superficie hover:bg-acento-suave hover:text-acento-suave-texto';
 const CLASE_TARJETA =
-  'flex items-center justify-between gap-2 rounded-md border border-border bg-card p-(--espacio-3)';
+  'flex items-center justify-between gap-2 rounded-md border border-borde bg-superficie p-(--espacio-3)';
 
 export interface FilaExistencia {
   readonly id: string;
@@ -172,11 +173,11 @@ function proveedorDe(fila: FilaExistencia): string {
 
 /** Símbolo, clase y razón. El color nunca es el único portador del significado. */
 function marcaDe(fila: FilaExistencia, ahora: number): readonly [string, string, string] | null {
-  const negra = 'bg-destructive text-destructive-foreground';
+  const negra = 'bg-peligro text-peligro-texto';
   if (esNegativo(fila)) return ['✖', negra, 'Probablemente falta capturar una entrada'];
-  if (estaBajoMinimo(fila)) return ['▼', 'bg-warning/30 text-foreground', 'Por debajo del mínimo'];
+  if (estaBajoMinimo(fila)) return ['▼', 'bg-advertencia/30 text-texto', 'Por debajo del mínimo'];
   if (seVence(fila, ahora))
-    return ['◔', 'bg-accent text-accent-foreground', 'Se vence esta semana'];
+    return ['◔', 'bg-acento-suave text-acento-suave-texto', 'Se vence esta semana'];
   return null;
 }
 
@@ -315,7 +316,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
     <div className="p-(--espacio-4)">
       <header className="mb-(--espacio-4) flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold">Existencias</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           Qué hay, qué falta y qué se va a echar a perder · {String(datos.length)} productos
         </p>
       </header>
@@ -323,10 +324,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
       {/* La banda de error NUNCA vacía la pantalla: un dato de hace un minuto
           sirve para ir al mayorista; una pantalla en blanco, no. */}
       {error !== null && (
-        <p
-          role="alert"
-          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
-        >
+        <p role="alert" className="mb-(--espacio-3) rounded-md border border-peligro p-2 text-sm">
           {error}
           {datos.length > 0 ? ' · Se muestra el último dato conocido.' : ' · Vuelve a intentarlo.'}
         </p>
@@ -355,7 +353,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
                   key={clave}
                   type="button"
                   aria-pressed={activo}
-                  className={`${CLASE_CONTADOR} ${activo ? 'border-primary bg-primary/15' : CLASE_INACTIVO}`}
+                  className={`${CLASE_CONTADOR} ${activo ? 'border-primario bg-primario/15' : CLASE_INACTIVO}`}
                   onClick={() => {
                     setLente(activo ? 'todo' : clave);
                   }}
@@ -365,7 +363,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
                     {String(resumen[clave].length)}
                   </span>
                   {/* La palabra, no sólo el borde: el filtro activo se lee. */}
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-texto-sutil">
                     {activo ? 'filtrando · toca para quitar' : pie}
                   </span>
                 </button>
@@ -430,7 +428,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
               </TableBody>
             </Table>
             {visibles.length === 0 && (
-              <p className="p-(--espacio-6) text-center text-sm text-muted-foreground">
+              <p className="p-(--espacio-6) text-center text-sm text-texto-sutil">
                 Nada cae en este filtro. Buena señal.
               </p>
             )}
@@ -439,7 +437,7 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
           {/* TELÉFONO. Otra pantalla, no la misma encogida. */}
           <div className="md:hidden">
             {porProveedor.length === 0 ? (
-              <p className="p-(--espacio-6) text-center text-sm text-muted-foreground">
+              <p className="p-(--espacio-6) text-center text-sm text-texto-sutil">
                 Nada urgente ahora mismo. El anaquel está en orden.
               </p>
             ) : (

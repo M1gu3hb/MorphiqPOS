@@ -67,7 +67,7 @@ export function BarraLateral({
       aria-label="Navegación principal"
       data-colapsada={colapsada ? '' : undefined}
       className={cn(
-        'flex h-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+        'flex h-full flex-col border-r border-lateral-borde bg-lateral-fondo text-lateral-texto',
         'transition-[width] duration-(--duracion-normal) ease-(--curva-entrada)',
         colapsada ? 'w-16' : 'w-60',
         className,
@@ -83,9 +83,9 @@ export function BarraLateral({
             {/* El título del grupo desaparece al colapsar, pero el grupo sigue
                 separado por el espacio: la estructura no se pierde. */}
             {colapsada ? (
-              <div className="my-(--espacio-2) border-t border-sidebar-border" />
+              <div className="my-(--espacio-2) border-t border-lateral-borde" />
             ) : (
-              <p className="px-(--espacio-2) py-(--espacio-1) text-xs font-medium tracking-wide text-sidebar-foreground/60 uppercase">
+              <p className="px-(--espacio-2) py-(--espacio-1) text-xs font-medium tracking-wide text-lateral-texto/60 uppercase">
                 {grupo.titulo}
               </p>
             )}
@@ -105,11 +105,11 @@ export function BarraLateral({
                       className={cn(
                         'relative flex w-full items-center gap-(--espacio-3) rounded-md px-(--espacio-3) py-(--espacio-2) text-sm',
                         'transition-[background-color,color] duration-(--duracion-rapida)',
-                        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                        'focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none',
                         '[&_svg]:size-4 [&_svg]:shrink-0',
                         esActivo
-                          ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground'
-                          : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                          ? 'bg-lateral-activo font-medium text-lateral-activo-texto'
+                          : 'text-lateral-texto/80 hover:bg-lateral-hover hover:text-lateral-texto',
                       )}
                     >
                       {/* La barra del borde: se localiza de reojo, y no depende del
@@ -117,7 +117,7 @@ export function BarraLateral({
                       {esActivo ? (
                         <span
                           aria-hidden="true"
-                          className="absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-full bg-sidebar-primary-foreground"
+                          className="absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-full bg-lateral-activo-texto"
                         />
                       ) : null}
                       {destino.icono}
@@ -125,7 +125,7 @@ export function BarraLateral({
                       {destino.insignia === undefined || destino.insignia === 0 ? null : (
                         <span
                           className={cn(
-                            'ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-xs font-numeros text-destructive-foreground tabular-nums',
+                            'ml-auto rounded-full bg-peligro px-1.5 py-0.5 text-xs font-numeros text-peligro-texto tabular-nums',
                             colapsada ? 'absolute top-1 right-1 ml-0 px-1 py-0' : '',
                           )}
                         >
@@ -141,14 +141,14 @@ export function BarraLateral({
         ))}
       </div>
 
-      <div className="border-t border-sidebar-border p-(--espacio-2)">
+      <div className="border-t border-lateral-borde p-(--espacio-2)">
         <button
           type="button"
           onClick={() => {
             setColapsada((previo) => !previo);
           }}
           aria-expanded={!colapsada}
-          className="flex w-full items-center justify-center rounded-md py-(--espacio-2) text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="flex w-full items-center justify-center rounded-md py-(--espacio-2) text-sm text-lateral-texto/70 hover:bg-lateral-hover focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none"
         >
           <span aria-hidden="true">{colapsada ? '»' : '«'}</span>
           <span className="sr-only">{colapsada ? 'Ampliar el menú' : 'Colapsar el menú'}</span>
@@ -217,7 +217,7 @@ export function AbanicoInferior({
       ref={barra}
       aria-label="Navegación"
       className={cn(
-        'fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-background/95 backdrop-blur-sm',
+        'fixed inset-x-0 bottom-0 z-40 flex border-t border-borde bg-fondo/95 backdrop-blur-sm',
         'pb-[env(safe-area-inset-bottom)]',
         className,
       )}
@@ -236,7 +236,7 @@ export function AbanicoInferior({
               'relative flex flex-1 flex-col items-center gap-1 py-(--espacio-2) text-xs',
               'transition-colors duration-(--duracion-rapida) active:scale-[0.97]',
               '[&_svg]:size-5',
-              esActivo ? 'text-primary' : 'text-muted-foreground',
+              esActivo ? 'text-primario' : 'text-texto-sutil',
             )}
           >
             {destino.icono}
@@ -245,11 +245,11 @@ export function AbanicoInferior({
             {esActivo ? (
               <span
                 aria-hidden="true"
-                className="absolute inset-x-6 top-0 h-0.5 rounded-full bg-primary"
+                className="absolute inset-x-6 top-0 h-0.5 rounded-full bg-primario"
               />
             ) : null}
             {destino.insignia === undefined || destino.insignia === 0 ? null : (
-              <span className="absolute top-1 right-1/4 rounded-full bg-destructive px-1 text-xs font-numeros text-destructive-foreground tabular-nums">
+              <span className="absolute top-1 right-1/4 rounded-full bg-peligro px-1 text-xs font-numeros text-peligro-texto tabular-nums">
                 {destino.insignia}
               </span>
             )}
@@ -281,19 +281,19 @@ export function Migas({
           return (
             <li key={paso.rotulo} className="flex items-center gap-1">
               {indice > 0 ? (
-                <span aria-hidden="true" className="text-muted-foreground">
+                <span aria-hidden="true" className="text-texto-sutil">
                   /
                 </span>
               ) : null}
               {ultimo || paso.alIr === undefined ? (
-                <span aria-current={ultimo ? 'page' : undefined} className="text-foreground">
+                <span aria-current={ultimo ? 'page' : undefined} className="text-texto">
                   {paso.rotulo}
                 </span>
               ) : (
                 <button
                   type="button"
                   onClick={paso.alIr}
-                  className="rounded-sm text-muted-foreground hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="rounded-sm text-texto-sutil hover:text-texto hover:underline focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none"
                 >
                   {paso.rotulo}
                 </button>

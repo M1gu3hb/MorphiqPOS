@@ -202,7 +202,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
     return (
       <main className="mx-auto max-w-prose space-y-(--espacio-3) p-(--espacio-8) text-center">
         <h1 className="text-xl font-semibold">Aquí se cuenta una zona del almacén</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           El conteo cíclico cuenta un anaquel al día en vez de cerrar la cortina un domingo entero.
           Se abre desde Existencias, eligiendo la zona que toca; aquí sólo se captura lo contado.
         </p>
@@ -242,7 +242,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                 }}
               >
                 {clave.nombre}
-                <span className="text-muted-foreground ml-2 text-xs">
+                <span className="text-texto-sutil ml-2 text-xs">
                   {clave.peso_por_pieza_mg === null ? 'sin calibrar' : 'se pesa'}
                 </span>
               </button>
@@ -253,15 +253,13 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
 
       <section className="space-y-(--espacio-4)">
         {error !== null && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-peligro text-sm">
             {error}
           </p>
         )}
         {aviso !== null && <p className="text-sm">{aviso}</p>}
 
-        {elegida === null && (
-          <p className="text-muted-foreground">Elige una clave para contarla.</p>
-        )}
+        {elegida === null && <p className="text-texto-sutil">Elige una clave para contarla.</p>}
 
         {elegida !== null && (
           <>
@@ -270,7 +268,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
             {!calibrada && (
               <div className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
                 <h3 className="font-medium">Primero se calibra</h3>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-texto-sutil text-sm">
                   Se pesa una muestra y se cuentan sus piezas de verdad. Sin esto, dividir es
                   inventarse el número.
                 </p>
@@ -337,7 +335,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                         setPesada({ ...pesada, tara: evento.target.value });
                       }}
                     />
-                    <p className="text-muted-foreground mt-1 text-xs">
+                    <p className="text-texto-sutil mt-1 text-xs">
                       No restarla suma dos kilos de plástico al conteo.
                     </p>
                   </div>
@@ -355,7 +353,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
             {estimacion !== null && (
               <div className="space-y-2 rounded-lg border p-(--espacio-4)">
                 <p className="text-2xl font-semibold">{leerEstimacion(estimacion)}</p>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-texto-sutil text-sm">
                   Entre {estimacion.minimo} y {estimacion.maximo}. Es una estimación por peso, no un
                   conteo pieza por pieza, y así queda anotada.
                 </p>
@@ -370,7 +368,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
             <Separator />
 
             {calibrada && (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-texto-sutil text-sm">
                 Una pieza pesa {String(elegida.peso_por_pieza_mg)} mg, con ±
                 {String(elegida.tolerancia_peso_pct)} % de tolerancia.
               </p>

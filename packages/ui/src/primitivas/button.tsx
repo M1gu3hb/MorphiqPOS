@@ -21,25 +21,25 @@ import { Slot } from "radix-ui"
  * desaparece; la caja se opera con teclado diez horas al día.
  */
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-(--duracion-rapida) ease-(--curva-entrada) outline-none focus-visible:ring-[3px] focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97] active:shadow-0 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 oscuro:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-(--duracion-rapida) ease-(--curva-entrada) outline-none focus-visible:ring-[3px] focus-visible:ring-anillo/60 focus-visible:ring-offset-2 focus-visible:ring-offset-fondo active:scale-[0.97] active:shadow-0 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-peligro aria-invalid:ring-peligro/20 oscuro:aria-invalid:ring-peligro/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-primario text-primario-texto hover:bg-primario/90",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20 oscuro:bg-destructive/60 oscuro:focus-visible:ring-destructive/40",
+          "bg-peligro text-peligro-texto hover:bg-peligro/90 focus-visible:ring-peligro/20 oscuro:bg-peligro/60 oscuro:focus-visible:ring-peligro/40",
         outline:
-          "border bg-background shadow-1 hover:bg-accent hover:text-accent-foreground oscuro:border-input oscuro:bg-input/30 oscuro:hover:bg-input/50",
+          "border bg-fondo shadow-1 hover:bg-acento-suave hover:text-acento-suave-texto oscuro:border-borde-fuerte oscuro:bg-borde-fuerte/30 oscuro:hover:bg-borde-fuerte/50",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-fondo-sutil text-texto hover:bg-fondo-sutil/80",
         // La sexta intencion. Cobrado, confirmado, entregado: acciones que CIERRAN
         // algo bien. Sin ella, «Cobrar» y «Eliminar» se dibujaban con la misma
         // variante y el color dejaba de significar.
         success:
-          "bg-success text-success-foreground shadow-1 hover:bg-success/90",
+          "bg-exito text-exito-texto shadow-1 hover:bg-exito/90",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground oscuro:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "hover:bg-acento-suave hover:text-acento-suave-texto oscuro:hover:bg-acento-suave/50",
+        link: "text-primario underline-offset-4 hover:underline",
       },
       size: {
         default: "h-(--altura-control) px-(--espacio-4) py-2 has-[>svg]:px-(--espacio-3)",

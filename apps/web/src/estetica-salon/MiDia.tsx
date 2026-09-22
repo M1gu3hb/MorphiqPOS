@@ -358,7 +358,7 @@ export function MiDia({
     error === null ? null : (
       <p
         role="alert"
-        className="mb-(--espacio-3) rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
+        className="mb-(--espacio-3) rounded-md border border-peligro bg-peligro/15 p-2 text-sm"
       >
         {error} · Se muestra lo último que se pudo leer.
       </p>
@@ -367,7 +367,7 @@ export function MiDia({
   const encabezado = (
     <header className="mb-(--espacio-4) flex flex-wrap items-baseline justify-between gap-2">
       <h1 className="text-2xl font-bold">{nombreProfesional ?? 'Mi día'}</h1>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-texto-sutil">
         {reloj === null
           ? 'Hoy'
           : reloj.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -448,13 +448,13 @@ export function MiDia({
           desglose se van a la derecha, que es donde ella los verifica. */}
       <div className="grid gap-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_20rem]">
         <section aria-labelledby="ahora" className="xl:col-start-1 xl:row-start-1">
-          <h2 id="ahora" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+          <h2 id="ahora" className="mb-2 text-xs font-semibold uppercase text-texto-sutil">
             Ahora
           </h2>
           {actual === null ? (
             // El vacío ENSEÑA: dice qué se puede hacer con el día por delante. El
             // borde discontinuo se queda: dice «aquí CABE algo», que es el punto.
-            <div className="rounded-xl border border-dashed border-border p-(--espacio-6)">
+            <div className="rounded-xl border border-dashed border-borde p-(--espacio-6)">
               <Vacio
                 className="py-0"
                 icono={<CalendarPlus />}
@@ -464,7 +464,7 @@ export function MiDia({
               />
             </div>
           ) : (
-            <article className="rounded-xl border-2 border-primary bg-card p-(--espacio-4) shadow-2">
+            <article className="rounded-xl border-2 border-primario bg-superficie p-(--espacio-4) shadow-2">
               {actual.alergias && (
                 // Arriba del todo: un error aquí no es un descuadre.
                 <Badge variant="destructive" className="mb-2">
@@ -475,7 +475,7 @@ export function MiDia({
               <p className="text-2xl font-bold leading-tight">
                 {actual.clienteNombre ?? actual.folio ?? 'Sin nombre'}
               </p>
-              <p className="mt-1 text-base text-muted-foreground">
+              <p className="mt-1 text-base text-texto-sutil">
                 {actual.servicio ?? 'Servicio'} · {aHora(actual.inicio)} ·{' '}
                 {enPesos(aCentavos(actual.precioPesos))}
               </p>
@@ -503,30 +503,28 @@ export function MiDia({
         </section>
 
         <section aria-labelledby="ganado" className="xl:col-start-2 xl:row-start-1">
-          <h2 id="ganado" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+          <h2 id="ganado" className="mb-2 text-xs font-semibold uppercase text-texto-sutil">
             Hoy llevas
           </h2>
           {/* Dos renglones, nunca uno, y sin total debajo: ese número no existe. */}
-          <dl className="rounded-xl border border-border bg-card p-(--espacio-4)">
+          <dl className="rounded-xl border border-borde bg-superficie p-(--espacio-4)">
             <div className="flex items-baseline justify-between gap-2">
               <dt className="text-sm">Comisión</dt>
               <dd className="text-2xl font-bold tabular-nums">
                 {enPesos(ganancia?.comisionCentavos ?? 0)}
               </dd>
             </div>
-            <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-border pt-2">
+            <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-borde pt-2">
               <dt className="text-sm">Propina</dt>
               <dd className="text-2xl font-bold tabular-nums">
                 {propina === null ? (
-                  <span className="text-base font-normal text-muted-foreground">
-                    sin dato todavía
-                  </span>
+                  <span className="text-base font-normal text-texto-sutil">sin dato todavía</span>
                 ) : (
                   enPesos(propina)
                 )}
               </dd>
             </div>
-            <p className="mt-(--espacio-3) text-sm text-muted-foreground">
+            <p className="mt-(--espacio-3) text-sm text-texto-sutil">
               {citas.length} {citas.length === 1 ? 'cita' : 'citas'} · {pendientes.length} por
               atender
             </p>
@@ -534,7 +532,7 @@ export function MiDia({
         </section>
 
         <section aria-labelledby="sigue" className="xl:col-start-1 xl:row-start-2">
-          <h2 id="sigue" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+          <h2 id="sigue" className="mb-2 text-xs font-semibold uppercase text-texto-sutil">
             Sigue
           </h2>
           <ul className="flex flex-col gap-2">
@@ -546,7 +544,7 @@ export function MiDia({
                     onClick={() => {
                       abrir(renglon.cita.id);
                     }}
-                    className="flex min-h-20 w-full items-center gap-(--espacio-3) rounded-lg border border-border bg-card p-(--espacio-3) text-left hover:bg-accent hover:text-accent-foreground"
+                    className="flex min-h-20 w-full items-center gap-(--espacio-3) rounded-lg border border-borde bg-superficie p-(--espacio-3) text-left hover:bg-acento-suave hover:text-acento-suave-texto"
                   >
                     <span className="text-lg font-bold tabular-nums">
                       {aHora(renglon.cita.inicio)}
@@ -563,19 +561,19 @@ export function MiDia({
               ) : (
                 <li
                   key={`hueco-${renglon.desde}`}
-                  className="rounded-lg border border-dashed border-primary/40 bg-primary/10 p-(--espacio-3)"
+                  className="rounded-lg border border-dashed border-primario/40 bg-primario/10 p-(--espacio-3)"
                 >
                   <p className="text-sm font-semibold">
                     {aHora(renglon.desde)}–{aHora(renglon.hasta)} · libre
                   </p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-texto-sutil">
                     {renglon.minutos} min sin nadie. Cabe un corte.
                   </p>
                 </li>
               ),
             )}
             {resto.length === 0 && (
-              <li className="rounded-lg border border-dashed border-border p-(--espacio-3) text-sm text-muted-foreground">
+              <li className="rounded-lg border border-dashed border-borde p-(--espacio-3) text-sm text-texto-sutil">
                 Nada más después de ésta.
               </li>
             )}
@@ -588,10 +586,10 @@ export function MiDia({
           aria-labelledby="detalle"
           className="hidden md:block xl:col-start-2 xl:row-start-2"
         >
-          <h2 id="detalle" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+          <h2 id="detalle" className="mb-2 text-xs font-semibold uppercase text-texto-sutil">
             {voc.titulo('linea_orden')} por {voc.singular('linea_orden')}
           </h2>
-          <ul className="rounded-xl border border-border bg-card p-(--espacio-3) text-sm">
+          <ul className="rounded-xl border border-borde bg-superficie p-(--espacio-3) text-sm">
             {(ganancia?.detalle ?? []).map((linea) => (
               <li key={linea.id} className="flex justify-between gap-2 py-1">
                 <span className="min-w-0 truncate">{linea.concepto}</span>
@@ -599,7 +597,7 @@ export function MiDia({
               </li>
             ))}
             {(ganancia?.detalle ?? []).length === 0 && (
-              <li className="py-1 text-muted-foreground">
+              <li className="py-1 text-texto-sutil">
                 Todavía no se cierra {voc.enFraseCon('ningun', 'linea_orden')}.
               </li>
             )}

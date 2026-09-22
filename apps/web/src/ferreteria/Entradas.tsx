@@ -85,14 +85,12 @@ const UMBRAL_DORMIDO_CENTAVOS = 500_000;
 const CLAVE_GUARDAR = 'guardar';
 
 /** Las clases largas viven arriba para que cada elemento quepa en una línea. */
-const TARJETA =
-  'rounded-lg border border-border bg-card p-(--espacio-3) text-card-foreground shadow-1';
+const TARJETA = 'rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1';
 const BANDA = 'rounded-md border p-2 text-sm';
-const PENDIENTE = `${BANDA} flex flex-wrap items-center gap-2 border-warning bg-warning/20`;
+const PENDIENTE = `${BANDA} flex flex-wrap items-center gap-2 border-advertencia bg-advertencia/20`;
 const ELEGIDA =
-  'rounded-md border border-primary bg-primary/15 p-2 text-left text-sm font-semibold';
-const OTRA =
-  'rounded-md border border-border bg-secondary p-2 text-left text-sm text-secondary-foreground';
+  'rounded-md border border-primario bg-primario/15 p-2 text-left text-sm font-semibold';
+const OTRA = 'rounded-md border border-borde bg-fondo-sutil p-2 text-left text-sm text-texto';
 const REJILLA = 'grid gap-(--espacio-3) xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start';
 
 /** Los tres caminos, en el orden en que resuelven el problema. */
@@ -528,16 +526,13 @@ export function Entradas({
     <div className="p-(--espacio-3)">
       <header className="mb-(--espacio-3) flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold">Entradas</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           Recepción y pedido · {proveedor?.nombre ?? 'sin proveedor'}
         </p>
       </header>
 
       {error !== null && (
-        <p
-          role="alert"
-          className={`${BANDA} mb-(--espacio-3) border-destructive bg-destructive/15`}
-        >
+        <p role="alert" className={`${BANDA} mb-(--espacio-3) border-peligro bg-peligro/15`}>
           <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> {error} · Lo que
           ya estaba capturado sigue en pantalla.
         </p>
@@ -546,25 +541,25 @@ export function Entradas({
       <div className={REJILLA}>
         {/* PRIMERO SE VE · quién llega, para no volver a pedirle lo que trae. */}
         <section aria-label="Ruta del proveedor" className={`${TARJETA} xl:col-start-2`}>
-          <h2 className="text-sm font-semibold uppercase text-muted-foreground">En camino</h2>
+          <h2 className="text-sm font-semibold uppercase text-texto-sutil">En camino</h2>
           {ruta === null ? (
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-texto-sutil">
               Elige un proveedor y aquí sale cuándo pasa y qué conviene pedirle.
             </p>
           ) : (
             <>
               <p className="mt-2 flex flex-wrap justify-between gap-2 text-sm">
                 <span className="font-medium">{ruta.proveedor}</span>
-                <span className="tabular-nums text-muted-foreground">
+                <span className="tabular-nums text-texto-sutil">
                   {cuandoLlega(ruta.diasHastaLaVisita)}
                 </span>
               </p>
-              <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+              <p className="mt-1 text-xs tabular-nums text-texto-sutil">
                 Se pide para {ruta.diasDeCobertura} días · {ordenadas.length}{' '}
                 {voc.plural('producto')} por pedir · {PESOS.format(estimado / 100)}
               </p>
               {/* Lo que el sistema NO sabe, dicho aquí y no fingido. */}
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-xs text-texto-sutil">
                 El sistema no lleva pedidos en tránsito: lo que se ve es la ruta del proveedor y lo
                 que habría que pedirle hoy.
               </p>
@@ -666,7 +661,7 @@ export function Entradas({
                 }}
               >
                 {paso.etiqueta}
-                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                <span className="mt-1 block text-xs font-normal text-texto-sutil">
                   {paso.ayuda}
                 </span>
               </button>
@@ -677,17 +672,17 @@ export function Entradas({
           <div className="mt-(--espacio-3) md:hidden">
             <Label htmlFor="foto">Recepción rápida · foto de la nota</Label>
             <Input id="foto" type="file" accept="image/*" capture="environment" className="mt-1" />
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-texto-sutil">
               Hasta diez líneas. Las notas largas se capturan en la computadora.
             </p>
           </div>
 
-          <div className="mt-(--espacio-4) border-t border-border pt-(--espacio-4)">
+          <div className="mt-(--espacio-4) border-t border-borde pt-(--espacio-4)">
             {nota === null ? (
               // El VACÍO enseña qué resuelve la pantalla, y abre el camino.
               <>
                 <p className="font-semibold">Todavía no hay ninguna nota en captura.</p>
-                <p className="mt-1 max-w-prose text-sm text-muted-foreground">
+                <p className="mt-1 max-w-prose text-sm text-texto-sutil">
                   Elige un camino y captura la nota del proveedor: el sistema empareja lo que
                   reconoce, tú resuelves sólo lo que no, y te avisa de lo que subió de costo antes
                   de que se venda a pérdida. Una entrada capturada el mismo día evita una semana en
@@ -769,7 +764,7 @@ export function Entradas({
                       {partidas.map((p) => (
                         <li
                           key={p.insumoId}
-                          className={`${BANDA} flex flex-wrap items-center gap-2 border-border bg-muted`}
+                          className={`${BANDA} flex flex-wrap items-center gap-2 border-borde bg-fondo-sutil`}
                         >
                           <span className="flex-1">{p.nombre}</span>
                           <span className="tabular-nums">
@@ -841,14 +836,14 @@ export function Entradas({
                     </h2>
                     <ul className="mt-1 space-y-1">
                       {nota.subidas.map((subida) => (
-                        <li key={subida.id} className={`${BANDA} border-border bg-muted`}>
+                        <li key={subida.id} className={`${BANDA} border-borde bg-fondo-sutil`}>
                           <p className="tabular-nums">
                             <span className="font-medium">{subida.material}</span>{' '}
                             {PESOS.format(subida.costoAnteriorCentavos / 100)} →{' '}
                             {PESOS.format(subida.costoNuevoCentavos / 100)}
                           </p>
                           <div className="mt-1 flex flex-wrap items-center gap-2 tabular-nums">
-                            <span className="text-muted-foreground">
+                            <span className="text-texto-sutil">
                               Venta sugerida {PESOS.format(subida.precioSugeridoCentavos / 100)}{' '}
                               (hoy {PESOS.format(subida.precioHoyCentavos / 100)})
                             </span>
@@ -873,12 +868,12 @@ export function Entradas({
                   </section>
                 )}
 
-                <div className="mt-(--espacio-4) flex flex-wrap items-center justify-between gap-2 border-t border-border pt-(--espacio-3)">
+                <div className="mt-(--espacio-4) flex flex-wrap items-center justify-between gap-2 border-t border-borde pt-(--espacio-3)">
                   <p className="tabular-nums">
                     <span className="text-lg font-semibold">
                       {PESOS.format(nota.totalCentavos / 100)}
                     </span>{' '}
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-texto-sutil">
                       {aCredito ? `· vence ${nota.vence ?? `a ${dias} días`}` : '· de contado'}
                     </span>
                   </p>
@@ -914,16 +909,16 @@ export function Entradas({
         </main>
 
         <section aria-label="Pedido sugerido" className={`${TARJETA} xl:col-start-2`}>
-          <h2 className="text-sm font-semibold uppercase text-muted-foreground">
+          <h2 className="text-sm font-semibold uppercase text-texto-sutil">
             Pedido sugerido · {proveedor?.nombre ?? '—'}
           </h2>
           {ordenadas.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-texto-sutil">
               Sin sugerencias: se arman con la venta de los últimos días y el mínimo de cada
               material. Recibe un par de notas y esta lista empieza a decir qué pedir y qué no.
             </p>
           ) : (
-            <ul className="mt-2 divide-y divide-border">
+            <ul className="mt-2 divide-y divide-borde">
               {ordenadas.map((fila) => (
                 <li key={fila.id} className="py-2">
                   <p className="flex flex-wrap items-baseline justify-between gap-2">
@@ -932,15 +927,15 @@ export function Entradas({
                       {fila.importeCentavos === 0 ? '▸ 0 ◂' : fila.sugerido}
                     </span>
                   </p>
-                  <p className="text-xs tabular-nums text-muted-foreground">
+                  <p className="text-xs tabular-nums text-texto-sutil">
                     Hay {fila.hay} · vendido {fila.vendido90d}
                   </p>
                   {/* El color no es el único portador: la razón va escrita. */}
                   <p
                     className={`mt-1 text-xs tabular-nums ${
                       fila.dormidoCentavos >= UMBRAL_DORMIDO_CENTAVOS
-                        ? 'font-semibold text-destructive-foreground'
-                        : 'text-muted-foreground'
+                        ? 'font-semibold text-peligro-texto'
+                        : 'text-texto-sutil'
                     }`}
                   >
                     {fila.dormidoCentavos >= UMBRAL_DORMIDO_CENTAVOS ? '⚠ ' : ''}
@@ -950,7 +945,7 @@ export function Entradas({
               ))}
             </ul>
           )}
-          <p className="mt-(--espacio-3) border-t border-border pt-2 text-sm tabular-nums">
+          <p className="mt-(--espacio-3) border-t border-borde pt-2 text-sm tabular-nums">
             Estimado {PESOS.format(estimado / 100)} ·{' '}
             {faltante === 0
               ? 'llega al mínimo del proveedor'
@@ -979,7 +974,7 @@ export function Entradas({
             </Button>
           </div>
           {avisoDelPedido !== null && (
-            <p role="status" className="mt-2 text-xs text-muted-foreground">
+            <p role="status" className="mt-2 text-xs text-texto-sutil">
               {avisoDelPedido}
             </p>
           )}

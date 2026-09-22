@@ -295,3 +295,25 @@
     --duracion-lenta: 0ms;
   }
 }
+
+/* LAS TRANSICIONES DE VISTA · lo que viaja, y nada más.
+   `conTransicion` (sistema/movimiento.ts) envuelve un cambio en
+   `document.startViewTransition`, y las piezas con nombre —`VIAJE.producto(id)`,
+   `VIAJE.mesa(id)`, `VIAJE.fila(id)`— viajan de su sitio viejo al nuevo: el producto
+   de la rejilla al renglón del pedido, la fila de la tabla al panel que la detalla.
+
+   La página entera NO se funde. Por omisión el navegador disuelve la raíz completa en
+   cada transición, y en una pantalla de cobro que agrega un producto 500 veces al día
+   eso es un parpadeo de toda la pantalla por cada toque. La raíz cambia seca; lo único
+   que se mueve es lo que tiene nombre, con la duración y la curva de la perilla —y en
+   `nula`, o con la preferencia del sistema, dura cero—. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-group(*) {
+  animation-duration: var(--duracion-normal);
+  animation-timing-function: var(--curva-entrada);
+}

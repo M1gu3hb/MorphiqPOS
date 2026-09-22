@@ -110,11 +110,11 @@ const VACIO: Borrador = { productoId: '', insumoId: '', cantidad: '', unidad: 'g
 
 /** El semáforo del margen. La PALABRA acompaña al color: el color nunca va solo. */
 export function semaforoDeMargen(margen: number | null): { etiqueta: string; clase: string } {
-  if (!Number.isFinite(margen)) return { etiqueta: 'Sin costo', clase: 'bg-muted' };
+  if (!Number.isFinite(margen)) return { etiqueta: 'Sin costo', clase: 'bg-fondo-sutil' };
   const valor = margen ?? 0;
-  if (valor >= MARGEN_SANO) return { etiqueta: 'Sano', clase: 'bg-success/30' };
-  if (valor >= MARGEN_AJUSTADO) return { etiqueta: 'Ajustado', clase: 'bg-warning/35' };
-  return { etiqueta: 'En riesgo', clase: 'bg-destructive/25' };
+  if (valor >= MARGEN_SANO) return { etiqueta: 'Sano', clase: 'bg-exito/30' };
+  if (valor >= MARGEN_AJUSTADO) return { etiqueta: 'Ajustado', clase: 'bg-advertencia/35' };
+  return { etiqueta: 'En riesgo', clase: 'bg-peligro/25' };
 }
 
 /**
@@ -276,24 +276,21 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
         <h1 className="text-2xl font-bold">Recetas</h1>
         {/* La cobertura, arriba: capturar quince recetas y creer que terminaste
             es lo que hace que el consumo teórico no cuadre nunca. */}
-        <p className="text-sm text-muted-foreground">
-          <strong className="text-foreground">{conReceta}</strong> de {filas.length} platillos
-          tienen receta
+        <p className="text-sm text-texto-sutil">
+          <strong className="text-texto">{conReceta}</strong> de {filas.length} platillos tienen
+          receta
         </p>
       </header>
 
       {error !== null && (
-        <p
-          role="alert"
-          className="mb-(--espacio-3) rounded-md border border-destructive p-2 text-sm"
-        >
+        <p role="alert" className="mb-(--espacio-3) rounded-md border border-peligro p-2 text-sm">
           {error}
         </p>
       )}
 
       <div
         aria-hidden
-        className={`hidden px-(--espacio-3) pb-1 text-xs text-muted-foreground ${COLUMNAS}`}
+        className={`hidden px-(--espacio-3) pb-1 text-xs text-texto-sutil ${COLUMNAS}`}
       >
         {['Platillo', 'Receta', 'Costo', 'Precio', 'Margen'].map((titulo) => (
           <span key={titulo}>{titulo}</span>
@@ -346,7 +343,7 @@ function Platillo({
     ? ` · ${String(Math.round(producto.margen_bruto_actual ?? 0))}%`
     : '';
   const insignia = (
-    <Badge variant="outline" className={`${semaforo.clase} border-border`}>
+    <Badge variant="outline" className={`${semaforo.clase} border-borde`}>
       {semaforo.etiqueta}
       {cifra}
     </Badge>
@@ -354,14 +351,14 @@ function Platillo({
 
   return (
     <li>
-      <Collapsible className="rounded-lg border border-border bg-card shadow-1">
+      <Collapsible className="rounded-lg border border-borde bg-superficie shadow-1">
         <CollapsibleTrigger
           className={`group flex w-full flex-col gap-1 p-(--espacio-3) text-left md:items-center ${COLUMNAS}`}
         >
           <span className="flex items-start justify-between gap-2">
             <span className="flex flex-col">
               <span className="font-medium">{producto.nombre}</span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-texto-sutil">
                 {producto.categoria_nombre ?? 'Sin categoría'}
               </span>
             </span>
@@ -371,17 +368,17 @@ function Platillo({
             {fila.lineas.length === 0 ? (
               <Badge variant="secondary">Sin receta</Badge>
             ) : (
-              <span className="text-muted-foreground">
+              <span className="text-texto-sutil">
                 {String(fila.lineas.length)} ingrediente{fila.lineas.length === 1 ? '' : 's'}
               </span>
             )}
           </span>
           <span className="text-sm tabular-nums">
-            <span className="text-muted-foreground md:hidden">Costo </span>
+            <span className="text-texto-sutil md:hidden">Costo </span>
             {dinero(producto.costo_calculado_actual)}
           </span>
           <span className="text-sm tabular-nums">
-            <span className="text-muted-foreground md:hidden">Precio </span>
+            <span className="text-texto-sutil md:hidden">Precio </span>
             {dinero(producto.precio_venta)}
           </span>
           <span className="hidden items-center justify-between gap-2 md:flex">
@@ -392,7 +389,7 @@ function Platillo({
           </span>
         </CollapsibleTrigger>
 
-        <CollapsibleContent className="border-t border-border p-(--espacio-3)">
+        <CollapsibleContent className="border-t border-borde p-(--espacio-3)">
           {fila.lineas.length === 0 ? (
             // El vacío explica la consecuencia; el botón de abajo es su salida.
             <p className="mb-(--espacio-3) text-sm">
@@ -404,7 +401,7 @@ function Platillo({
               {fila.lineas.map((linea) => (
                 <li
                   key={linea.id}
-                  className="flex justify-between gap-(--espacio-3) border-b border-border py-1"
+                  className="flex justify-between gap-(--espacio-3) border-b border-borde py-1"
                 >
                   <span>
                     {linea.ingrediente_nombre ?? 'Ingrediente'} ·{' '}

@@ -255,13 +255,13 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
     <main className="mx-auto max-w-2xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">{voc.titulo('cliente', true)} y sellos</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Se identifica por teléfono: la tarjeta de cartón se pierde y el teléfono no.
         </p>
       </header>
 
       {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-peligro text-sm">
           {error}
         </p>
       )}
@@ -294,7 +294,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
         <section className="space-y-(--espacio-4) rounded-lg border p-(--espacio-4)">
           <div>
             <h2 className="text-xl font-medium">{cliente.nombre}</h2>
-            <p className="text-muted-foreground text-sm">{cliente.telefono ?? 'sin teléfono'}</p>
+            <p className="text-texto-sutil text-sm">{cliente.telefono ?? 'sin teléfono'}</p>
           </div>
 
           <div>
@@ -302,7 +302,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
               {cliente.sellos} / {metaDeSellos(cliente)}
             </p>
             <p className="text-lg">{loQueFalta(cliente)}</p>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-texto-sutil text-sm">
               {cliente.premiosCanjeados} premio{cliente.premiosCanjeados === 1 ? '' : 's'} canjeado
               {cliente.premiosCanjeados === 1 ? '' : 's'}
             </p>
@@ -336,7 +336,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
                 <Label htmlFor="premio">Qué se lleva</Label>
                 <select
                   id="premio"
-                  className="h-(--altura-control) w-full rounded-md border border-input bg-background px-(--espacio-3) text-base"
+                  className="h-(--altura-control) w-full rounded-md border border-borde-fuerte bg-fondo px-(--espacio-3) text-base"
                   value={premio}
                   onChange={(evento) => {
                     setPremio(evento.target.value);
@@ -424,7 +424,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
               >
                 {reciente.nombre}
               </button>
-              <span className="text-muted-foreground text-sm tabular-nums">
+              <span className="text-texto-sutil text-sm tabular-nums">
                 {reciente.sellos} / {reciente.sellosParaPremio}
               </span>
             </li>

@@ -287,7 +287,7 @@ export function AltaRapida({
   }
 
   return (
-    <main className="flex min-h-dvh justify-center bg-background sm:items-center sm:p-(--espacio-6)">
+    <main className="flex min-h-dvh justify-center bg-fondo sm:items-center sm:p-(--espacio-6)">
       {/* Teléfono: el diálogo ES la pantalla, los campos arriba y las acciones
           pegadas abajo, sobre el teclado. Tablet y PC: hoja centrada. */}
       <form
@@ -299,19 +299,19 @@ export function AltaRapida({
         onKeyDown={(evento) => {
           if (evento.key === 'Escape') cancelar();
         }}
-        className="flex min-h-dvh w-full flex-col gap-(--espacio-4) bg-card p-(--espacio-4) text-card-foreground sm:min-h-0 sm:max-w-2xl sm:rounded-xl sm:border sm:border-border sm:p-(--espacio-6) sm:shadow-3"
+        className="flex min-h-dvh w-full flex-col gap-(--espacio-4) bg-superficie p-(--espacio-4) text-texto sm:min-h-0 sm:max-w-2xl sm:rounded-xl sm:border sm:border-borde sm:p-(--espacio-6) sm:shadow-3"
       >
         <header>
           <h1 id="alta-titulo" className="text-xl font-bold sm:text-2xl">
             {voc.titulo('producto')} nuevo
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-texto-sutil">
             Tres datos y vuelves a {voc.enFrase('orden')}. Lo demás se corrige solo.
           </p>
         </header>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted p-(--espacio-3)">
-          <span className="text-sm text-muted-foreground">Código</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-fondo-sutil p-(--espacio-3)">
+          <span className="text-sm text-texto-sutil">Código</span>
           {codigo === '' ? (
             <span className="text-sm">Sin código · se le pone después desde la ficha</span>
           ) : (
@@ -326,7 +326,7 @@ export function AltaRapida({
         {ocupado !== null && (
           <div
             role="alert"
-            className="rounded-md border border-warning bg-warning/15 p-(--espacio-3)"
+            className="rounded-md border border-advertencia bg-advertencia/15 p-(--espacio-3)"
           >
             <p className="text-sm font-medium">
               Este código ya es de «{ocupado.nombre}». ¿Es una presentación nueva de ese producto?
@@ -358,7 +358,7 @@ export function AltaRapida({
         {error !== null && (
           <p
             role="alert"
-            className="rounded-md border border-destructive bg-destructive/10 p-(--espacio-3) text-sm"
+            className="rounded-md border border-peligro bg-peligro/10 p-(--espacio-3) text-sm"
           >
             {error}
           </p>
@@ -367,7 +367,7 @@ export function AltaRapida({
         {guardado !== null && (
           <p
             role="status"
-            className="rounded-md border border-success bg-success/15 p-(--espacio-3) text-sm"
+            className="rounded-md border border-exito bg-exito/15 p-(--espacio-3) text-sm"
           >
             «{guardado}» quedó en el catálogo y en la venta. Escanea el siguiente.
           </p>
@@ -376,7 +376,7 @@ export function AltaRapida({
         <div className="grid gap-(--espacio-4)">
           <div className="grid gap-2">
             <Label htmlFor="nombre">
-              Nombre <span className="text-muted-foreground">· obligatorio</span>
+              Nombre <span className="text-texto-sutil">· obligatorio</span>
             </Label>
             {/* El foco arranca aquí: el código ya está puesto y es lo único que
                 el cajero no tiene que teclear. */}
@@ -396,12 +396,12 @@ export function AltaRapida({
           <div className="grid gap-(--espacio-4) sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="precio">
-                Precio <span className="text-muted-foreground">· obligatorio</span>
+                Precio <span className="text-texto-sutil">· obligatorio</span>
               </Label>
               <div className="relative">
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-texto-sutil"
                 >
                   $
                 </span>
@@ -425,7 +425,7 @@ export function AltaRapida({
               <div className="relative">
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-texto-sutil"
                 >
                   $
                 </span>
@@ -442,7 +442,7 @@ export function AltaRapida({
                   }}
                 />
               </div>
-              <p id="costo-nota" className="text-xs text-muted-foreground">
+              <p id="costo-nota" className="text-xs text-texto-sutil">
                 Opcional · se corrige solo en la primera compra.
               </p>
             </div>
@@ -450,7 +450,7 @@ export function AltaRapida({
 
           <div className="grid gap-2">
             <Label htmlFor="categoria">
-              Categoría <span className="text-muted-foreground">· obligatorio</span>
+              Categoría <span className="text-texto-sutil">· obligatorio</span>
             </Label>
 
             {categorias === null && fallaCategorias === null && (
@@ -480,11 +480,11 @@ export function AltaRapida({
 
             {categorias !== null && categorias.length === 0 && (
               // El vacío ENSEÑA: dice para qué sirve lo que falta y lleva a crearlo.
-              <div className="rounded-md border border-dashed border-border p-(--espacio-3)">
+              <div className="rounded-md border border-dashed border-borde p-(--espacio-3)">
                 <p className="text-sm font-medium">
                   Todavía no hay categorías, y son las que cargan el impuesto.
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-texto-sutil">
                   De la categoría salen la tasa de IVA y el régimen de IEPS. Con seis bien puestas,
                   los 1,800 productos quedan clasificados sin decidir uno por uno.
                 </p>
@@ -538,7 +538,7 @@ export function AltaRapida({
                     ))}
                   </SelectContent>
                 </Select>
-                <p id="categoria-nota" className="text-xs text-muted-foreground">
+                <p id="categoria-nota" className="text-xs text-texto-sutil">
                   De aquí salen el IVA y el IEPS del {voc.singular('producto')}.
                 </p>
               </>
@@ -579,14 +579,14 @@ export function AltaRapida({
                 }}
               />
             </div>
-            <p className="text-xs text-muted-foreground sm:col-span-2">
+            <p className="text-xs text-texto-sutil sm:col-span-2">
               Las presentaciones (caja, paquete, medio kilo) se agregan desde la ficha del producto,
               con la venta ya cobrada.
             </p>
           </CollapsibleContent>
         </Collapsible>
 
-        <footer className="sticky bottom-0 mt-auto flex flex-col-reverse gap-2 border-t border-border bg-card py-(--espacio-3) sm:static sm:mt-0 sm:flex-row sm:justify-end sm:border-0 sm:py-0">
+        <footer className="sticky bottom-0 mt-auto flex flex-col-reverse gap-2 border-t border-borde bg-superficie py-(--espacio-3) sm:static sm:mt-0 sm:flex-row sm:justify-end sm:border-0 sm:py-0">
           <Button type="button" variant="ghost" onClick={cancelar}>
             Cancelar · Esc
           </Button>

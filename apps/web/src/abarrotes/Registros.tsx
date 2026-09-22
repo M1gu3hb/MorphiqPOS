@@ -307,7 +307,7 @@ export function Registros({
     <main className="mx-auto max-w-4xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">Registros</h1>
-        <p className="text-muted-foreground text-sm">Qué pasó, en orden y en una sola lista.</p>
+        <p className="text-texto-sutil text-sm">Qué pasó, en orden y en una sola lista.</p>
       </header>
 
       <div className="flex flex-wrap items-end gap-(--espacio-3)">
@@ -352,7 +352,7 @@ export function Registros({
       {cargando && <Skeleton className="h-64 w-full" />}
 
       {!cargando && visibles.length === 0 && (
-        <p className="text-muted-foreground">Ese día no tiene movimientos.</p>
+        <p className="text-texto-sutil">Ese día no tiene movimientos.</p>
       )}
 
       <ul className="divide-y">
@@ -361,9 +361,9 @@ export function Registros({
             <span className="w-14 tabular-nums">{renglon.hora}</span>
             <span className="flex-1">
               <span className="font-medium capitalize">{renglon.titulo}</span>
-              <span className="text-muted-foreground ml-2 text-sm">{renglon.detalle}</span>
+              <span className="text-texto-sutil ml-2 text-sm">{renglon.detalle}</span>
               {renglon.sinExplicacion && (
-                <span className="text-destructive ml-2 text-sm">sin explicación</span>
+                <span className="text-peligro ml-2 text-sm">sin explicación</span>
               )}
             </span>
             {renglon.importe !== null && <span className="tabular-nums">{renglon.importe}</span>}

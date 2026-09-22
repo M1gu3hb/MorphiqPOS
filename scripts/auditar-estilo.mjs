@@ -52,9 +52,10 @@ for (const estilo of estilos) {
   const raiz = `[data-estilo='${estilo}']`;
 
   for (const modo of MODOS) {
-    // La clase del modo oscuro es `dark`, que es la que pone el ThemeContext y la
-    // única que existe en el <html> de la aplicación.
-    const activos = modo === 'claro' ? [':root', raiz] : [':root', raiz, `${raiz}.dark`];
+    // El modo oscuro del sistema es `data-modo='oscuro'`, que `app/layout.tsx`
+    // deriva de la `.dark` del ThemeContext de Miguel antes del primer pintado.
+    const activos =
+      modo === 'claro' ? [':root', raiz] : [':root', raiz, `${raiz}[data-modo='oscuro']`];
     const tokens = resolverTokens(bloques, activos);
     const malos = [];
 

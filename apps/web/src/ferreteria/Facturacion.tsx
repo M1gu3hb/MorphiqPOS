@@ -201,7 +201,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
     <main className="mx-auto grid max-w-5xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[20rem_1fr]">
       <section className="space-y-(--espacio-3)">
         <h1 className="text-2xl font-semibold">Facturación</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Todavía no se timbra. Lo que se hace es dejar el hueco limpio.
         </p>
         <ul className="divide-y">
@@ -217,7 +217,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
                   }}
                 >
                   {cliente.nombre}
-                  <span className="text-muted-foreground ml-2 text-xs">
+                  <span className="text-texto-sutil ml-2 text-xs">
                     {huecos.length === 0 ? 'completo' : `falta ${huecos.join(', ')}`}
                   </span>
                 </button>
@@ -229,14 +229,14 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
 
       <section className="space-y-(--espacio-4)">
         {error !== null && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-peligro text-sm">
             {error}
           </p>
         )}
         {aviso !== null && <p className="text-sm">{aviso}</p>}
 
         {elegido === null && (
-          <p className="text-muted-foreground">
+          <p className="text-texto-sutil">
             Elige {voc.enFraseCon('un', 'cliente')} para capturar sus datos.
           </p>
         )}
@@ -285,7 +285,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
                 <Label htmlFor="uso">Uso del CFDI</Label>
                 <select
                   id="uso"
-                  className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
+                  className="border-borde-fuerte h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
                   value={datos.uso}
                   onChange={(evento) => {
                     setDatos({ ...datos, uso: evento.target.value });
@@ -312,20 +312,20 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
 
             <div>
               <h3 className="font-medium">Remisiones del periodo</h3>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-texto-sutil text-sm">
                 Un contratista se lleva {voc.singular('producto')} quince veces al mes y quiere una
                 sola factura.
               </p>
             </div>
             {remisiones === null && <Skeleton className="h-24 w-full" />}
             {remisiones !== null && remisiones.length === 0 && (
-              <p className="text-muted-foreground text-sm">No hay remisiones sin facturar.</p>
+              <p className="text-texto-sutil text-sm">No hay remisiones sin facturar.</p>
             )}
             <ul className="divide-y">
               {(remisiones ?? []).map((remision) => (
                 <li key={remision.id} className="flex items-baseline justify-between py-2">
                   <span>{remision.folio}</span>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-texto-sutil text-sm">
                     {(remision.entregada_en ?? '').slice(0, 10)}
                   </span>
                   <span className="tabular-nums">{pesos(remision.importe_centavos)}</span>
@@ -339,7 +339,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
               </p>
             )}
 
-            <p className="text-muted-foreground text-sm">
+            <p className="text-texto-sutil text-sm">
               El timbrado está bloqueado hasta que se elija PAC: mete un costo mensual y una
               obligación fiscal que no decide una pantalla. Lo de debajo ya está construido.
             </p>

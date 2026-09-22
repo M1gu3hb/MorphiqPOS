@@ -284,7 +284,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
         <h1 className="text-xl font-semibold">
           Aquí se abre la ficha de {vocabulario.enFraseCon('un', 'producto')}
         </h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Precio, costo, margen, impuesto, caducidad y presentaciones. Se llega desde el catálogo:
           toca el renglón {vocabulario.conDeterminante('ese', 'producto')} y su ficha se abre aquí.
         </p>
@@ -313,13 +313,13 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
     <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">{ficha.nombre}</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           {vocabulario.conArticulo('producto')} · {ficha.codigo_barras ?? ficha.sku ?? 'Sin código'}
         </p>
       </header>
 
       {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-peligro text-sm">
           {error}
         </p>
       )}
@@ -348,7 +348,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
             Guardar
           </Button>
         </div>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Cuesta {pesos(enCentavos(ficha.costo_calculado_actual))}
           {margen !== null && ` · deja ${margen.pesos} (${margen.porcentaje} %)`}
         </p>
@@ -376,7 +376,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
 
       <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
         <h2 className="font-medium">Caducidad</h2>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Enciéndela sólo en lo que de verdad caduca: una lista llena de lo que no se lee.
         </p>
         <Button
@@ -395,7 +395,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
 
       <section className="space-y-(--espacio-3)">
         <h2 className="font-medium">Presentaciones</h2>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Cada una con su precio: el de la caja no es el de la pieza multiplicado.
         </p>
         {presentaciones === null && (
@@ -405,7 +405,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
           {(presentaciones ?? []).map((presentacion) => (
             <li key={presentacion.id} className="flex items-baseline justify-between py-2">
               <span>{presentacion.nombre}</span>
-              <span className="text-muted-foreground text-sm">× {String(presentacion.factor)}</span>
+              <span className="text-texto-sutil text-sm">× {String(presentacion.factor)}</span>
               <span className="tabular-nums">
                 {pesos(Math.round((presentacion.precio_venta_centavos ?? 0) * 100))}
               </span>

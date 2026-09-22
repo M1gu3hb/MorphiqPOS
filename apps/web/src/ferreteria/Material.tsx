@@ -235,7 +235,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
         <h1 className="text-xl font-semibold">
           Aquí se abre {voc.enFraseCon('un', 'producto')} que se corta
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           Los rollos abiertos con su etiqueta, lo que queda en cada uno y de cuál conviene cortar.
           Se llega desde el mostrador: busca {voc.enFrase('producto')} y toca su renglón.
         </p>
@@ -259,13 +259,13 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
     <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
       <header>
         <h1 className="text-2xl font-semibold">{voc.titulo('producto')}</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-texto-sutil text-sm">
           Lo que hay abierto. El trabajo es acabarse los abiertos, no abrir otro.
         </p>
       </header>
 
       {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-peligro text-sm">
           {error}
         </p>
       )}
@@ -291,22 +291,20 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
 
       <section>
         <h2 className="mb-2 font-medium">Piezas abiertas</h2>
-        {piezas.length === 0 && (
-          <p className="text-muted-foreground text-sm">No hay ninguna abierta.</p>
-        )}
+        {piezas.length === 0 && <p className="text-texto-sutil text-sm">No hay ninguna abierta.</p>}
         <ul className="divide-y">
           {piezas.map((pieza) => (
             <li key={pieza.piezaId} className="flex items-center gap-(--espacio-3) py-2">
               <span className="w-20 font-medium">{pieza.folio}</span>
               <span className="flex-1 tabular-nums">{enMetros(pieza.medidaRestanteBase)} m</span>
-              <span className="text-muted-foreground text-sm">
+              <span className="text-texto-sutil text-sm">
                 {pieza.diasAbierta} d abierta
                 {pieza.estado === 'retazo' ? ' · retazo' : ''}
               </span>
               {recomendada === pieza.piezaId && (
                 <span className="text-sm font-medium">corta de ésta</span>
               )}
-              {!pieza.alcanza && <span className="text-muted-foreground text-sm">no alcanza</span>}
+              {!pieza.alcanza && <span className="text-texto-sutil text-sm">no alcanza</span>}
               <Button
                 size="sm"
                 variant="outline"
@@ -359,7 +357,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
                 setCorte({ ...corte, merma: evento.target.value });
               }}
             />
-            <p className="text-muted-foreground mt-1 text-xs">
+            <p className="text-texto-sutil mt-1 text-xs">
               Viene puesta: el cero es mentira, cortar cable deja puntas.
             </p>
           </div>
@@ -387,7 +385,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
                 setNueva({ ...nueva, folio: evento.target.value });
               }}
             />
-            <p className="text-muted-foreground mt-1 text-xs">
+            <p className="text-texto-sutil mt-1 text-xs">
               Corto, porque se escribe con plumón en la cinta.
             </p>
           </div>

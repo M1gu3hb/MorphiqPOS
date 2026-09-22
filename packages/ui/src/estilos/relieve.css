@@ -74,7 +74,7 @@
   --lateral-borde: 220 14% 74%;
 }
 
-[data-estilo='relieve'].dark {
+[data-estilo='relieve'][data-modo='oscuro'] {
   /* En oscuro la luz viene de arriba igual, pero el material es más oscuro que la
      sombra que proyecta: por eso el tinte casi negro. */
   --sombra-tinte: 220 40% 4%;

@@ -77,7 +77,7 @@ const MOTIVO_EN_PALABRAS = 'Diferencia de conteo físico';
 const MARCO = 'mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-4)';
 const CAMPO = 'min-h-[3.5rem] text-center text-2xl font-bold tabular-nums';
 const PRINCIPAL = 'min-h-[3.5rem] w-full text-lg font-semibold';
-const BANDA = 'rounded-md border border-destructive bg-destructive/15 p-2 text-sm';
+const BANDA = 'rounded-md border border-peligro bg-peligro/15 p-2 text-sm';
 
 export interface ProductoDeConteo {
   readonly id: string;
@@ -393,16 +393,16 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
           <li>
             <span aria-hidden>✓</span> {resumen.cuadraron} cuadraron
           </li>
-          <li className="rounded-md bg-destructive/15 p-1">
+          <li className="rounded-md bg-peligro/15 p-1">
             <span aria-hidden>▼</span> {resumen.faltaron} faltaron
             {resumen.importeVisible && <> · −{pesos(resumen.faltanteCentavos)}</>}
           </li>
-          <li className="rounded-md bg-success/15 p-1">
+          <li className="rounded-md bg-exito/15 p-1">
             <span aria-hidden>▲</span> {resumen.sobraron} sobró
             {resumen.importeVisible && <> · +{pesos(resumen.sobranteCentavos)}</>}
           </li>
         </ul>
-        <div className="border-t border-border pt-(--espacio-3)">
+        <div className="border-t border-borde pt-(--espacio-3)">
           {resumen.importeVisible ? (
             <>
               <p className="text-lg font-bold tabular-nums">
@@ -410,7 +410,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
                 {pesos(Math.abs(resumen.netoCentavos))} ({resumen.porcentaje.toFixed(1)} %)
               </p>
               {/* Sin este renglón el porcentaje no le dice nada a Don Chuy. */}
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-texto-sutil">
                 El promedio del retail mexicano es 1.5–2.5 %.
               </p>
             </>
@@ -421,7 +421,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
                 {Math.abs(resumen.sobraron - resumen.faltaron)} productos
               </p>
               {/* Se dice por qué falta el peso, en vez de enseñar un cero. */}
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-texto-sutil">
                 El importe en pesos lo ve quien ve costos. El conteo se cierra igual.
               </p>
             </>
@@ -429,12 +429,12 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
         </div>
         <ul className="flex flex-col gap-2">
           {resumen.desviados.map((p) => (
-            <li key={p.id} className="rounded-md border border-border bg-card p-2 text-sm">
-              <p className="text-card-foreground">
+            <li key={p.id} className="rounded-md border border-borde bg-superficie p-2 text-sm">
+              <p className="text-texto">
                 {p.nombre} · esperado {p.esperado} · contaste {conteos[p.id] ?? 0}
               </p>
               {/* En palabras y no la clave: la clave es para la base. */}
-              <p className="text-xs text-muted-foreground">Motivo: {MOTIVO_EN_PALABRAS}</p>
+              <p className="text-xs text-texto-sutil">Motivo: {MOTIVO_EN_PALABRAS}</p>
               <Button
                 type="button"
                 size="sm"
@@ -450,7 +450,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
           ))}
         </ul>
         {cerrada ? (
-          <p role="status" className="rounded-md border border-border p-2 text-sm">
+          <p role="status" className="rounded-md border border-borde p-2 text-sm">
             Zona cerrada. Cada ajuste quedó como un movimiento con su motivo.
           </p>
         ) : (
@@ -473,7 +473,7 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
     <div className={MARCO}>
       <header>
         <h1 className="text-xl font-bold">Zona: {zona}</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-texto-sutil">
           {diasSinContar === undefined ? '' : `Hace ${diasSinContar} días · `}
           {total} prod.
         </p>

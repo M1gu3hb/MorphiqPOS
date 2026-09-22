@@ -111,6 +111,18 @@ describe('verify:adopcion · el analizador', () => {
         '{dineroEnTexto(total)}',
       ],
       [
+        '1.3',
+        'textoParaCampo como contenido',
+        '<Dinero centavos={total} />',
+        '{textoParaCampo(total)}',
+      ],
+      [
+        '1.1',
+        'tesela a mano sobre Link',
+        '<p>Total',
+        '<Link href="/x" className="rounded-lg border bg-superficie">Ir</Link><p>Total',
+      ],
+      [
         '1.4',
         'Skeleton de primitivas',
         'import {',
@@ -143,7 +155,7 @@ describe('verify:adopcion · el analizador', () => {
       'export function Pantalla({ filas, estado, total }) {\n  const etiqueta = dineroEnTexto(total);',
     );
     expect(hallazgos(texto).map((h) => h.motivo)).toContain(
-      'dineroEnTexto() pintado como contenido: es <Dinero>',
+      'importe en texto pintado como contenido: es <Dinero>',
     );
   });
 
