@@ -151,6 +151,35 @@ export const fijarApariencia = definirComando<
       );
     }
 
+    /**
+     * EL RASTRO, que faltaba — y sin el este comando NUNCA pudo guardar nada.
+     *
+     * `definirComando` exige que todo comando con `escribe: true` llame a
+     * `ctx.auditar`: «declarar sensible algo que no deja rastro convierte la auditoria
+     * en un adorno». Sin esta llamada lanzaba `SinRastro` DESPUES de escribir, la
+     * transaccion se deshacia y el selector devolvia «No se pudo guardar la
+     * apariencia» cada vez que alguien lo tocaba.
+     *
+     * No lo vio ninguna puerta: el comando compila, la ruta responde y el fallo sale
+     * dentro de la transaccion, en ejecucion. Aparecio al llamarlo desde la siembra de
+     * las demostraciones, que es la primera vez que algo distinto del navegador lo
+     * ejecuto. Un comando que solo prueba una pantalla es un comando sin probar.
+     *
+     * Y el rastro tiene valor propio: la apariencia es la MARCA del negocio y la
+     * cambia el dueño. «¿Quien puso el sistema en amarillo?» es una pregunta que se
+     * hace, y la contesta esta fila.
+     */
+    ctx.auditar({
+      entidadId: ctx.ambito.organizacionId,
+      payload: {
+        estilo: entrada.estilo,
+        densidad: entrada.densidad,
+        redondeo: entrada.redondeo,
+        elevacion: entrada.elevacion,
+        movimiento: entrada.movimiento,
+      },
+    });
+
     return {
       estilo: entrada.estilo,
       densidad: entrada.densidad,

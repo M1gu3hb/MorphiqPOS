@@ -106,6 +106,14 @@ jobs:
       - name: Contraste de los ocho estilos
         run: pnpm verify:estilos
 
+      # Todo comando que declara escribir deja rastro. `definirComando` ya lo exige en
+      # ejecución, y las 248 pruebas de comandos llaman a `.ejecutar()` directamente,
+      # así que esa exigencia no la comprueba nadie: un comando puede estar roto de
+      # esta forma exacta con sus pruebas en verde. `configuracion.fijar_apariencia`
+      # lo estuvo, y nunca pudo guardar nada.
+      - name: Todo comando que escribe deja rastro
+        run: pnpm verify:rastro
+
       # --- Formato, lint y tipos -------------------------------------------
       - name: Formato
         run: pnpm format:check
