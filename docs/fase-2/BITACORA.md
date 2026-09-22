@@ -4626,3 +4626,96 @@ Dos cambios, los dos en el rastreador:
 
 El 400 de la cafetería **sigue sin diagnosticar**. Lo que cambia es que la próxima corrida dirá qué
 ruta fue, en vez de en qué pantalla estaba el cursor.
+
+## ETAPA 2.35 · EL 400 DE LA CAFETERÍA · UN BAGEL ENTRE LAS LECHES
+
+La primera corrida con el vigilante de red delante dijo en una línea lo que tres corridas no habían
+dicho:
+
+```
+Error: La aplicación devolvió 1 respuesta(s) rotas mientras se abrían sus pantallas:
+       400 /api/cafeteria/contar-leche.
+```
+
+Reproducido en local, idéntico. Y lo que bloqueaba reproducirlo no era el defecto: era que las
+suites locales corren en el **3200** y el `.env` de desarrollo pone `APP_URL` en el **3000**, así que
+la frontera de escritura (R-17) contestaba **403 a todo, empezando por entrar**. El contador de
+intentos fallidos del PIN no se movía —el PIN nunca llegaba a comprobarse— y el fallo salía como
+`waitForURL: Timeout`. Tres intentos perdidos ahí. Ahora `entrar()` escucha la respuesta de
+`/api/auth/entrar` y **dice su estado**, con el 403 explicado.
+
+### La causa: `familiaDe` metía un bagel en la familia «Leche»
+
+La pantalla agrupa por familia con pistas en el nombre, y la familia «Leche» lleva la pista `crema`.
+En la demostración de la cafetería eso mete **«Bagel integral con queso crema»** —`unidad_base` =
+`pieza`— entre las leches, y el diálogo de conteo ofrece contarlo **por cartones**. El comando hace
+lo correcto y lo rechaza:
+
+```
+CONFIGURACION_INVALIDA · «Bagel integral con queso crema» no se mide en mililitros:
+                         no se cuenta por cartones.
+```
+
+que sale como 400.
+
+**No es un artefacto del rastreador.** No hay que teclear nada: le pasa a un barista **cada vez que
+abre el conteo de leche** y pulsa confirmar, con los campos vacíos. Y le pasará a cualquier negocio
+que tenga un «pan con crema» o un «pastel de crema» en el catálogo.
+
+Medido sobre los datos reales de la demostración:
+
+| | Familia «Leche» |
+| --- | --- |
+| Antes | Bagel integral con queso crema (`pieza`) · Crema para batir · Leche deslactosada · Leche entera |
+| Ahora | Crema para batir · Leche deslactosada · Leche entera — y el bagel cae en **Alimentos** |
+
+No se quita la pista: **«Crema para batir» sí es leche y sí se cuenta por cartones**. Lo que se hace
+es exigirle a la familia la unidad que la hace significar algo —mililitros—, que es **la misma regla
+que el comando aplica**. Lo que no encaja sigue buscando familia abajo, y `bagel` entra en las pistas
+de Alimentos para que caiga donde se camina el pan y no en «Ingredientes».
+
+### Y el otro agujero del mismo diálogo, que no era la causa pero estaba
+
+El campo de «cartones cerrados» es texto libre —`inputMode="numeric"` es una pista para el teclado
+del teléfono, no una validación— y la pantalla mandaba `Number(texto)` tal cual. Una letra es `NaN`,
+`12.5` no es entero y `999` se pasa del tope de 200: las tres las rechaza el comando con 400, y lo
+único que el barista veía era la banda genérica **sin saber qué campo**. Ahora se valida donde se
+teclea —el campo se marca mientras se escribe— y el aviso dice el nombre de la leche y el rango.
+
+**Y esto hay que decirlo con cuidado, porque es la segunda vez esta noche:** el arreglo del campo es
+correcto y **no es la causa del 400**. La causa es el bagel. Se escriben los dos, con cuál era cuál.
+
+### La lección, que es de puertas y no de leche
+
+Tres corridas para encontrar una ruta que **el propio rastreador ya sabía**. El vigilante de red
+tenía la ruta, el estado y la entidad; la puerta de la consola tenía «en qué pantalla estaba el
+cursor», y hablaba primero porque su `expect` estaba antes. **Cuando dos puertas ven el mismo fallo,
+que hable primero la que más sabe.**
+
+### ¿Tiene hermanos? Buscado, y no
+
+El patrón es «la pantalla clasifica por el NOMBRE y el comando exige una UNIDAD». Se buscó en el
+resto de `apps/web/src`:
+
+- El clasificador por pistas existe **sólo** en la alacena de la cafetería. No hay otro.
+- El otro comando que compara unidades es `inventario.guardar_receta`
+  (`UNIDAD_INCOMPATIBLE`), y la pantalla de recetas toma la unidad **del propio insumo**
+  (`unidad: insumo.unidad_base`), así que no puede mandar una que no encaje.
+
+Se dice porque «arreglé el caso que salió» y «busqué si hay más» no son la misma frase.
+
+### Y el 403 del 3200 YA ESTABA ESCRITO AQUÍ
+
+Buscando si el hallazgo tenía hermanos salió algo peor: este mismo fallo está documentado en esta
+misma bitácora, en la 2.3, con el mismo síntoma palabra por palabra —
+
+> **1 · `APP_URL` contra el origen del navegador.** […] el servidor de las pruebas vive en el 3200
+> mientras el `.env` dice 3000. Resultado: `/api/auth/entrar` devolvía **403 SIN_PERMISO**, la
+> pantalla se quedaba en el teclado numérico y el rastro decía «timeout esperando la navegación».
+
+Estaba escrito, con su causa y su síntoma, y **volví a perder tres corridas en él**. La conclusión no
+es «hay que leer la bitácora»: es que **un aviso en un documento no es un arreglo**. Lo que lo arregla
+es que el fallo lo diga en el momento en que falla, y eso es lo que ahora hace `entrar()` — escucha la
+respuesta de `/api/auth/entrar`, dice su estado y, si es 403, nombra la variable y el puerto.
+
+Una trampa documentada que vuelve a morder es una trampa que había que cerrar, no anotar.

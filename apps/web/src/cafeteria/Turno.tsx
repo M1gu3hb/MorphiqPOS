@@ -84,7 +84,7 @@ const PANEL =
   'rounded-lg border border-border bg-card p-(--espacio-4) text-card-foreground shadow-1';
 // Teclado numérico grande en tablet y teléfono; en PC el campo vuelve a la
 // altura de control del sistema, porque ahí se teclea con teclado de verdad.
-const CAMPO = 'h-20 text-center text-3xl font-bold tabular-nums xl:h-[var(--altura-control)]';
+const CAMPO = 'h-20 text-center text-3xl font-bold tabular-nums xl:h-(--altura-control)';
 
 export interface MovimientoDelTurno {
   readonly tipo: string;

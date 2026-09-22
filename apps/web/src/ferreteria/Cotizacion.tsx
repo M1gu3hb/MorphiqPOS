@@ -349,7 +349,7 @@ export function Cotizacion({
       <div className="space-y-2 p-(--espacio-4)">
         <Skeleton className="h-20 w-full rounded-lg" />
         {Array.from({ length: 8 }, (_, i) => (
-          <Skeleton key={i} className="h-[var(--altura-control)] w-full rounded-md" />
+          <Skeleton key={i} className="h-(--altura-control) w-full rounded-md" />
         ))}
       </div>
     );

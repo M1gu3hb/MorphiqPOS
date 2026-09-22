@@ -770,3 +770,20 @@ la rama **sí** está vivo, comprobado desde fuera y con el commit de hoy: `a1f1
 `ferreteria/FichaDePieza.tsx` sin leer. El cierre de la 2.3 informó «0 rótulos con la palabra de
 otro giro» sobre un archivo que la puerta no había mirado. Medido por mutación: con el archivo
 INTACTO de antes de la etapa y la puerta arreglada, el rótulo aparece. Detalle en `BITACORA.md`.
+
+### La condición 3 la firmé antes de tiempo
+
+«Un solo vocabulario de tokens» quedó en verde en el bloque 1, y quedaban **nueve pantallas**
+escribiendo el mismo token con la otra forma:
+
+```
+h-[var(--altura-control)]        ← nueve sitios, en 8 archivos
+h-(--altura-control)             ← lo que el contrato obliga en las 36 primitivas
+```
+
+Las dos compilan a lo mismo, y por eso nadie las veía: es exactamente cómo una de las dos se queda
+atrás. Convertidas, y con su regla en `verify:primitivas` —**6.1b**—, que deja fuera `--radix-*`:
+esas propiedades las publica Radix en tiempo de ejecución y la forma larga ahí es la idiomática.
+
+Validada por mutación: `xl:h-[var(--altura-control)]` de vuelta en `Turno.tsx` la pone en rojo, y la
+forma larga de un `--radix-select-trigger-height` **pasa**, que es lo que tenía que pasar.

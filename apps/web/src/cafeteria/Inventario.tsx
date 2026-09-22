@@ -27,6 +27,14 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  avisoDeConteoInvalido,
+  cartonesDe,
+  primeraLecheInvalida,
+  seCuentaPorCartones,
+  type ConteoTecleado,
+} from './conteo-de-leche';
+
 /**
  * PANTALLA · cafeteria · inventario
  *
@@ -101,7 +109,9 @@ const PISTAS: readonly (readonly [Familia, readonly string[]])[] = [
   ['Leche', ['leche', 'lactea', 'crema']],
   ['Café', ['cafe', 'grano', 'espresso']],
   ['Empaque', ['vaso', 'tapa', 'manga', 'servilleta', 'popote', 'empaque', 'bolsa']],
-  ['Alimentos', ['pan', 'galleta', 'panader', 'sandwich', 'reposter']],
+  // `bagel` entra porque sin él «Bagel integral con queso crema» no cae en ninguna
+  // pista de comida y acababa en Ingredientes. Un bagel se camina con el pan.
+  ['Alimentos', ['pan', 'galleta', 'panader', 'sandwich', 'reposter', 'bagel', 'bollo']],
 ];
 
 /** Los nombres son los del PUENTE, en snake_case. Aquí no se traduce nada. */
@@ -159,7 +169,22 @@ function sinAcentos(texto: string): string {
 export function familiaDe(insumo: InsumoDeInventario): Familia {
   const texto = sinAcentos(`${insumo.categoria_nombre ?? ''} ${insumo.nombre}`);
   for (const [familia, pistas] of PISTAS) {
-    if (pistas.some((pista) => texto.includes(pista))) return familia;
+    if (!pistas.some((pista) => texto.includes(pista))) continue;
+    /**
+     * LA FAMILIA «LECHE» ES LÍQUIDA, Y LA PISTA `crema` NO LO SABÍA.
+     *
+     * «Bagel integral con queso crema» —`unidad_base` = `pieza`— caía en Leche por
+     * esa pista, se pintaba entre las leches y el diálogo ofrecía contarlo POR
+     * CARTONES. El comando lo rechazaba con `CONFIGURACION_INVALIDA`, que sale como
+     * 400: el rastreador lo cazó tres veces y le pasa a un barista cada vez que abre
+     * el conteo. Lo mismo hará cualquier «pan con crema» o «pastel de crema».
+     *
+     * No se quita la pista —«Crema para batir» sí es leche y sí se cuenta— sino que
+     * la familia exige la unidad que la hace significar algo, que es la MISMA regla
+     * que el comando aplica. Lo que no encaja sigue buscando familia abajo.
+     */
+    if (familia === 'Leche' && !seCuentaPorCartones(insumo.unidad_base)) continue;
+    return familia;
   }
   return 'Ingredientes';
 }
@@ -347,7 +372,18 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
   );
 
   const leches = useMemo(
-    () => (insumos ?? []).filter((insumo) => familiaDe(insumo) === 'Leche'),
+    () =>
+      (insumos ?? []).filter(
+        (insumo) =>
+          familiaDe(insumo) === 'Leche' &&
+          // SEGUNDO CERROJO, a propósito: `familiaDe` ya no deja entrar en Leche nada
+          // que no se mida en mililitros, así que hoy esta condición no quita ninguna
+          // fila. Se queda porque lo que el diálogo ofrece contar POR CARTONES es lo
+          // único que el comando acepta, y esa promesa no debería depender de cómo se
+          // agrupe la tabla: el día que alguien añada una familia o cambie una pista,
+          // el conteo sigue ofreciendo sólo lo contable.
+          seCuentaPorCartones(insumo.unidad_base),
+      ),
     [insumos],
   );
 
@@ -358,13 +394,29 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
         setError('Elige primero el almacén: un conteo sin almacén no cuadra contra nada.');
         return;
       }
+      /**
+       * ── SE VALIDA AQUÍ, Y NO SE LE MANDA BASURA AL COMANDO ────────
+       * El campo de cartones es texto libre, y esto mandaba `Number(texto)` tal
+       * cual: una letra es `NaN`, `12.5` no es entero y `999` se pasa del tope de
+       * 200. Las tres las rechaza el comando con un 400 `ENTRADA_INVALIDA`, y lo
+       * único que el barista veía era la banda genérica, sin saber qué campo.
+       *
+       * El rastreador lo cazó en CI —`400 /api/cafeteria/contar-leche`— tecleando
+       * datos de sonda en ese campo. La validación del comando SIGUE siendo la
+       * frontera; esto es lo otro que hacía falta: fallar pronto y decir cuál.
+       */
+      const invalida = primeraLecheInvalida(leches, conteos);
+      if (invalida !== null) {
+        setError(avisoDeConteoInvalido(invalida));
+        return;
+      }
       const datos = await invocarComando<ResultadoConteo>(RUTA_CONTAR_LECHE, {
         almacenId: almacen,
         conteos: leches.map((insumo) => {
           const suyo = conteos[insumo.id];
           return {
             insumoId: insumo.id,
-            cartonesCerrados: Number(suyo?.cerrados ?? '0'),
+            cartonesCerrados: cartonesDe(suyo?.cerrados ?? '') ?? 0,
             cuartosDelAbierto: suyo?.cuartos ?? 0,
           };
         }),
@@ -663,11 +715,13 @@ function Ajuste({ insumo, grande, sinAlmacen, ocupado, onAjustar }: AjusteProps)
   );
 }
 
-/** Lo que se cuenta de una leche: cartones cerrados y cuartos del que está abierto. */
-export interface ConteoDeUnaLeche {
-  readonly cerrados: string;
-  readonly cuartos: 0 | 1 | 2 | 3 | 4;
-}
+/**
+ * Lo que se cuenta de una leche: cartones cerrados y cuartos del que está abierto.
+ *
+ * La forma vive en `conteo-de-leche.ts`, junto a lo que decide si es válida: dos
+ * declaraciones de la misma cosa garantizan que una se queda atrás.
+ */
+export type ConteoDeUnaLeche = ConteoTecleado;
 
 interface ConteoDeLecheProps {
   readonly abierto: boolean;
@@ -728,6 +782,16 @@ function ConteoDeLeche({
                       inputMode="numeric"
                       placeholder="Cartones cerrados"
                       autoFocus={indice === 0}
+                      /**
+                       * SE MARCA MIENTRAS SE TECLEA, no al confirmar.
+                       *
+                       * `inputMode` es una pista para el teclado del teléfono, no
+                       * una validación: aquí entra cualquier cosa. Sin esta marca,
+                       * un `12.5` se veía igual que un `12` hasta que el comando
+                       * contestaba 400 y la banda decía «entrada inválida» sin
+                       * señalar el campo.
+                       */
+                      aria-invalid={cartonesDe(conteos[insumo.id]?.cerrados ?? '') === null}
                       value={conteos[insumo.id]?.cerrados ?? ''}
                       onChange={(evento) => {
                         onCambiar({
@@ -746,7 +810,7 @@ function ConteoDeLeche({
                     </Label>
                     <select
                       id={`abierto-${insumo.id}`}
-                      className="h-[var(--altura-control)] rounded-md border border-input bg-background px-2 text-base"
+                      className="h-(--altura-control) rounded-md border border-input bg-background px-2 text-base"
                       value={String(conteos[insumo.id]?.cuartos ?? 0)}
                       onChange={(evento) => {
                         const cuartos = Number(evento.target.value) as 0 | 1 | 2 | 3 | 4;

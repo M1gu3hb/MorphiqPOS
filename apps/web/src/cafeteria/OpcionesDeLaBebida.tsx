@@ -75,7 +75,7 @@ import { useVocabulario } from '~/cliente/vocabulario';
  */
 
 const CHIP = [
-  'flex min-h-[var(--area-tactil-minima)] flex-col items-center justify-center gap-0.5',
+  'flex min-h-(--area-tactil-minima) flex-col items-center justify-center gap-0.5',
   'rounded-md border-2 px-(--espacio-3) py-2 text-center transition-colors',
   'md:min-h-[calc(var(--area-tactil-minima)*1.2)]',
   'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',

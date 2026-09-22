@@ -638,10 +638,48 @@ export async function entrar(page: Page): Promise<string> {
   await tarjeta.click();
   await expect(page.getByText(`Iniciando como: ${elegido.nombre}`)).toBeVisible();
 
+  /**
+   * QUÉ CONTESTÓ EL SERVIDOR AL PIN, porque «no salió de /login-pos» no lo dice.
+   *
+   * ── Lo que costó ──────────────────────────────────────────────────────────
+   * El fallo salía como `waitForURL: Timeout 30000ms exceeded` con la pantalla de
+   * acceso en la captura, y de ahí no se deduce NADA: puede ser el PIN cambiado, la
+   * credencial bloqueada por intentos, la persona equivocada… o un **403 de la
+   * frontera de escritura** porque el `APP_URL` del servidor no coincide con el
+   * origen del navegador (R-17). Fue lo último, tres corridas seguidas, y ni el
+   * contador de intentos fallidos se movió —el PIN nunca llegó a comprobarse—.
+   *
+   * Se escucha la RESPUESTA de `/api/auth/entrar` y se dice su estado. El vigilante
+   * de fallos también la vería, pero su `expect` corre al FINAL de la prueba: cuando
+   * la sesión no arranca, esta función se cae antes y ese aviso nunca se lee.
+   */
+  const respuestaDelPin = page
+    .waitForResponse((respuesta) => new URL(respuesta.url()).pathname === '/api/auth/entrar', {
+      timeout: 15_000,
+    })
+    .catch(() => null);
+
   // El teclado son botones con el dígito como nombre accesible. `exact` porque sin
   // él «1» también casaría con «10» si algún día hay uno.
   for (const digito of PIN_DEMO) {
     await page.getByRole('button', { name: digito, exact: true }).click();
+  }
+
+  const delPin = await respuestaDelPin;
+  if (delPin !== null && delPin.status() !== 200) {
+    const estado = delPin.status();
+    throw new Error(
+      [
+        `El servidor contestó ${String(estado)} al PIN de «${elegido.nombre}».`,
+        estado === 403
+          ? 'Un 403 aquí es la frontera de escritura (R-17): el `APP_URL` del servidor no ' +
+            'coincide con el origen del navegador. Las suites locales corren en el 3200, así ' +
+            'que hace falta `APP_URL=http://localhost:3200` — el `.env` de desarrollo apunta ' +
+            'al 3000 y con él ninguna escritura pasa, empezando por entrar.'
+          : 'Un 401 es el PIN; un 423 o un 429, la credencial bloqueada por intentos; un 400, ' +
+            'la forma del cuerpo.',
+      ].join(' '),
+    );
   }
 
   // `POSLogin` manda el PIN solo al cuarto dígito y salta a `ROLE_HOME_ROUTES`. Un

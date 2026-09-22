@@ -510,7 +510,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
             inputMode="decimal"
             placeholder="0.00"
             aria-describedby="ayuda-contado"
-            className="h-[var(--altura-control)] text-2xl tabular-nums"
+            className="h-(--altura-control) text-2xl tabular-nums"
             value={contado}
             onChange={(evento) => {
               setContado(evento.target.value);
@@ -527,7 +527,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
             id="fondo"
             inputMode="decimal"
             placeholder="0.00"
-            className="h-[var(--altura-control)] tabular-nums"
+            className="h-(--altura-control) tabular-nums"
             value={fondo}
             onChange={(evento) => {
               setFondo(evento.target.value);

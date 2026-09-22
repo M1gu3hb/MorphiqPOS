@@ -488,8 +488,8 @@ verdad hay hoy enfrente.
 | # | Condición | Estado | Evidencia |
 |---|---|---|---|
 | 1 | Los nueve puntos de la etapa 0, cerrados | ✅ | `54bda85`, `d9ae0ff` · los nueve, uno por uno, en §3 · 0.8 probado contra el proyecto Supabase real, no simulado |
-| 2 | `estilos/index.css` enchufado, y `shadow-1..4` y `h-(--altura-control)` emitiendo CSS de verdad | ✅ | `f68d3a9` · antes: `.shadow-1` no existía como regla y `--altura-control` no estaba declarada en ninguna parte del paquete servido. Hoy las tres aparecen en el CSS que el navegador recibe, y `pruebas/e2e/estilos.spec.ts` las lee con `getComputedStyle` en los ocho estilos |
-| 3 | Un solo vocabulario de tokens | ✅ | `f68d3a9` · `verify:primitivas` prohíbe literales de color, altura, sombra, variante, espacio, texto y duración dentro del sistema: **0** |
+| 2 | `estilos/index.css` enchufado, y `shadow-1..4` y `h-(--altura-control)` emitiendo CSS de verdad | ✅ | `f68d3a9` · antes: `.shadow-1` no existía como regla y `--altura-control` no estaba declarada en ninguna parte del paquete servido. Hoy las tres aparecen en el CSS que el navegador recibe, y `pruebas/e2e/estilos.spec.ts` las lee con `getComputedStyle` en los ocho estilos. Y leídas también en el CSS que **sirve el despliegue**, no en el que compila: §6 |
+| 3 | Un solo vocabulario de tokens | ✅ | `f68d3a9` · `verify:primitivas` prohíbe literales de color, altura, sombra, variante, espacio, texto y duración dentro del sistema: **0**. Y esto lo firmé antes de tiempo: quedaban **9 pantallas** escribiendo `h-[var(--altura-control)]` donde el contrato obliga `h-(--altura-control)` — el mismo token, dos formas, que es exactamente lo que esta condición prohíbe. Convertidas, y con su regla (6.1b) |
 | 4 | La librería de la etapa 2, con su página viva | ✅ | `16fb446` (librería) + `065553f` (`/sistema`, la página donde se cambia el estilo delante del cliente) |
 | 5 | Los ocho estilos, cada uno completo y pasando contraste y foco | ✅ | `065553f` · `verify:estilos` → `8 estilo(s) × 2 modos, todos en AA` · el foco lo mide `estilos.spec.ts` en un navegador real, estilo por estilo |
 | 6 | Las 69 pantallas rediseñadas, cada modelo sintiéndose suyo | 🔴 **parcial** | Tienen el ritmo (919 literales → **0**), la tipografía, el dinero, los vacíos, los tableros y la piel de su giro. **NO** están recompuestas una por una: 31 de 72 usan la biblioteca del bloque 2. Detalle y razón en §8 |
@@ -604,6 +604,7 @@ parpadeo de estilo al cargar. Lo que este bloque **no** hizo, y `5878846` sí: g
 | # | Puerta | Vista ROJA con | Lo que cazó |
 |---|---|---|---|
 | 6.1 | Ritmo (espacio, tipografía, duración, curva) | `gap-4` real en el sistema · `duration-200` en el botón · un `gap-12` nuevo → «la deuda SUBIÓ» | 919 literales, hoy 0 |
+| 6.1b | **Un token, una forma** (regla nueva, dentro de 6.1) | `xl:h-[var(--altura-control)]` de vuelta en `Turno.tsx` → rojo · y la forma larga de un `--radix-*` → PASA, que es lo que tenía que pasar | **9 pantallas** escribían `h-[var(--altura-control)]` donde el contrato obliga `h-(--altura-control)`. Dos formas del mismo token son dos vocabularios, y la condición 3 decía que había uno |
 | 6.2 | Contraste de los ocho, en la cadena y en CI | Ya validada en el bloque 3 | Ocho estilos × dos modos, todos en AA |
 | 6.3 | Movimiento reducido, en el navegador | `--duracion-normal: 200ms` en `terminal.css` → rojo, **y las 370 unitarias en verde** | El hueco de especificidad entre dos verdes |
 | 6.4 | Los ocho estilos en un navegador | Cuatro mutaciones | La rejilla de avisos que se tragaba los clics de una esquina de **todas** las pantallas, y la isla que caía encima del abanico |
@@ -763,26 +764,49 @@ Los ajenos y los míos. Sobre todo los míos.
   `precio de venta`, ya declarados. Declarado con su cita, **no renombrado**: renombrarlo habría
   alejado la pantalla de lo que su ficha dice.
 
-### Error 12 — La cafetería cayó tres veces y la puerta no decía de dónde · **SIN CERRAR**
+### Error 12 — La cafetería cayó tres veces y la puerta no decía de dónde · **CERRADO**
 
-- **Qué pasa:** el rastreador deja la cafetería en rojo en CI con
-  `/cafeteria/inventario · Failed to load resource: … 400`. Tres corridas, misma firma.
-- **Mi propia atribución, corregida:** el arreglo 3 de `bdcec0c` —la ventana de sonda que se cerraba
-  pronto— se escribió **como si fuera la causa** de las dos caídas anteriores. Con el 400 de vuelta,
-  esa atribución no se sostiene. La ventana era corta y alargarla es correcto; que fuera la causa es
-  otra cosa, y no estaba medido.
-- **Por qué tres veces sin saber de dónde salía:** la acusación **no se puede accionar**. El navegador
-  escribe esa línea sin decir qué pidió, y esa pantalla habla con una decena de rutas. Y el rastreador
-  **ya sabía la respuesta en la otra puerta**: el vigilante de red ve el 400 en la respuesta y tiene
-  la ruta, el estado y —por `loQuePedia`— la entidad y la operación. Las dos puertas veían el mismo
-  fallo y hablaba primero **la que menos sabía**, porque el orden de los `expect` estaba al revés.
-- **Qué hice:** puse el vigilante de red delante, y la línea de consola ahora lleva el recurso que
-  falló (`location().url`). La puerta de la consola no se relaja: sigue detrás, y es la única que ve
-  un `TypeError` del cliente.
-- **Qué NO hice:** diagnosticarlo. Intenté reproducirlo en local tres veces y no pasé del acceso: la
-  base de desarrollo tiene nueve organizaciones y el despliegue de CI sirve a una, así que la pantalla
-  de acceso no se comporta igual. **Lo dejo abierto y dicho** en vez de declarar arreglado lo que no
-  medí. La próxima corrida dirá qué ruta fue.
+- **Qué pasaba:** el rastreador dejaba la cafetería en rojo en CI con
+  `/cafeteria/inventario · Failed to load resource: … 400`. Tres corridas, misma firma, y ninguna
+  decía QUÉ ruta.
+- **Por qué costó tres corridas:** la acusación no se podía accionar, y el rastreador **ya sabía la
+  respuesta en la otra puerta**. El vigilante de red ve el 400 en la respuesta y tiene la ruta, el
+  estado y —por `loQuePedia`— la entidad y la operación; la puerta de la consola sólo tiene «en qué
+  pantalla estaba el cursor», y hablaba primero porque su `expect` estaba antes. Puse el de red
+  delante y la primera corrida dijo en una línea lo que tres no habían dicho:
+  **`400 /api/cafeteria/contar-leche`**.
+- **La causa: un bagel en la familia «Leche».** La pantalla agrupa por familia con pistas en el
+  nombre, y «Leche» lleva la pista `crema`. En la demostración eso mete **«Bagel integral con queso
+  crema»** —`unidad_base` = `pieza`— entre las leches, y el diálogo ofrece contarlo **por cartones**.
+  El comando hace lo correcto:
+  `CONFIGURACION_INVALIDA · «Bagel integral con queso crema» no se mide en mililitros`, que sale como
+  400. **No es un artefacto del rastreador:** no hay que teclear nada, le pasa a un barista cada vez
+  que abre el conteo y pulsa confirmar. Y le pasará a cualquier negocio con un «pan con crema».
+- **Medido sobre los 16 insumos reales de la demostración:**
+
+  | | Familia «Leche» |
+  | --- | --- |
+  | Antes | **Bagel integral con queso crema** (`pieza`) · Crema para batir · Leche deslactosada · Leche entera |
+  | Ahora | Crema para batir · Leche deslactosada · Leche entera — y el bagel cae en **Alimentos** |
+
+- **Cómo lo resolví:** no quitando la pista —«Crema para batir» sí es leche y sí se cuenta— sino
+  exigiéndole a la familia la unidad que la hace significar algo, mililitros, que es **la misma regla
+  que el comando aplica**. Vive en un solo sitio, `conteo-de-leche.ts`, con 11 pruebas.
+- **Y el otro agujero del mismo diálogo, que NO era la causa:** el campo de «cartones cerrados» es
+  texto libre y la pantalla mandaba `Number(texto)` tal cual — una letra es `NaN`, `12.5` no es
+  entero, `999` se pasa del tope de 200, y las tres las rechaza el comando con 400 sin que el barista
+  sepa qué campo. Ahora se valida donde se teclea y el aviso dice el nombre y el rango. **Es correcto
+  y no es la causa**, y lo digo porque escribir un arreglo cercano como si fuera la causa es
+  exactamente lo que hice mal antes esta noche con la ventana de sonda.
+- **Mi atribución anterior, corregida:** el arreglo 3 de `bdcec0c` —la ventana de sonda— se escribió
+  como si fuera la causa de las dos caídas previas. No lo era. La ventana era corta y alargarla es
+  correcto; la causa era el bagel.
+- **Lo que también costó tres intentos: reproducirlo en local.** `entrar()` fallaba con
+  `waitForURL: Timeout` y una captura de la pantalla de acceso. Era un **403 de la frontera de
+  escritura (R-17)**: las suites locales corren en el 3200 y el `.env` de desarrollo pone `APP_URL`
+  en el 3000, así que el PIN nunca llegaba a comprobarse —ni el contador de intentos fallidos se
+  movía—. Ahora `entrar()` escucha la respuesta de `/api/auth/entrar` y **dice su estado**, con el
+  403 explicado y el `APP_URL` que hace falta escrito en el mensaje.
 
 ### Errores míos, de proceso
 
@@ -823,9 +847,10 @@ $ pnpm verify   (los 34 eslabones, más los seis nuevos)
                         cubiertas, cero scripts que esquiven la raíz.
   test:unit           Test Files  243 passed (243)
                       Tests      3106 passed (3106)
-  verify:mutaciones-backend  ✓ 20+ mutaciones rechazadas, versión restaurada en verde
+  verify:mutaciones-backend  ✓ 104 mutaciones rechazadas, versión restaurada en verde
   verify:catalogo · verify:inventario · verify:comandos-catalogo ·
   verify:comandos-inventario · verify:venta · verify:identidad · verify:paquetes  ✓
+                      (18 + 20 + 9 + 5 mutaciones detectadas, cada tanda restaurada en verde)
   build               ✓ Compiled successfully in 27.3s
   verify:cabeceras    ✓ Cabeceras de seguridad: 6 presentes y correctas,
                         nonce por peticion.
@@ -853,6 +878,19 @@ ACOPLE DE LA FASE 2 · lo escrito contra lo conectado
   cobro e2e     5 de 5 suites comprueban un TOTAL COBRADO contra el servidor
   rutas llamadas 129 rutas distintas se llaman desde las pantallas
 
+$ # LA CONDICIÓN 2, LEÍDA EN EL CSS QUE SIRVE EL DESPLIEGUE — no en el que compila
+$ curl <el despliegue>/_next/static/immutable/chunks/{2ajj4ghvv8w9m,3u6yiw8a0rvp4}.css
+
+  .shadow-1{--tw-shadow:var(--sombra-1);box-shadow:…,var(--tw-shadow)}   ← existe como regla
+  height:var(--altura-control)                                          ← declaración válida
+  --altura-control:2.75rem   (y 2rem · 3rem · 3.5rem, las densidades)
+  --sombra-1:0 1px 2px 0 hsl(var(--sombra-tinte) / .05)   (y `none` en `papel`)
+  --espacio-4 · --area-tactil-minima · --tamano-display   presentes
+  --tamano-display:clamp(2.5rem, 1.25rem + 4vw, 5rem)     el octavo escalón
+
+  data-estilo=  morphiq 2 · cristal 7 · relieve 4 · taller 6 ·
+                bloque 7 · terminal 4 · papel 5 · noche 3     los ocho, servidos
+
 $ pnpm test:e2e pruebas/e2e/estilos.spec.ts     17 passed
 $ pnpm test:e2e pruebas/e2e/galeria.spec.ts     5 modelos · 160 capturas · todas < 400
 ```
@@ -874,7 +912,8 @@ $ pnpm test:e2e pruebas/e2e/galeria.spec.ts     5 modelos · 160 capturas · tod
 | `pnpm verify:cabeceras` | ✅ | `6 presentes y correctas, nonce por peticion` · y contra un despliegue http también |
 | `pnpm verify:acople` **contra el despliegue** | ✅ salvo CI | `despliegue REMOTO … → 200 · con la cookie de un enlace compartido · sin muro por delante` · `103 declaradas · 82 probadas por HTTP` |
 | `pnpm test:e2e` (`estilos.spec.ts`) | ✅ | `17 passed` |
-| `pnpm test:e2e` (`galeria.spec.ts`) | ✅ | 5 modelos, 160 capturas, todas con estado < 400 |
+| `pnpm test:e2e` (`galeria.spec.ts`) | ✅ | 5 modelos, 160 capturas, todas con estado < 400. La de `cafeteria/lista` **regenerada** después del arreglo del bagel: las ocho anteriores retrataban un bagel en la familia «Leche» |
+| `pnpm test:e2e` (`rastreo.spec.ts`, cafetería) | ✅ | `1 passed (8.8m)` con el arreglo. Antes, la misma corrida en ROJO con `400 /api/cafeteria/contar-leche`, en CI y en local |
 
 **Contra la base real:** las cinco operaciones del conductor de almacenamiento nuevo se probaron
 contra el proyecto Supabase de verdad (guardar, leer con su `content-type`, copiar, sumar 44 bytes
@@ -936,10 +975,10 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
    mitad de eso **sí** está: el despliegue de la rama está vivo con `a1f1eee`, y `verify:acople`
    corrió **contra él desde fuera** —`despliegue REMOTO … → 200 · sin muro por delante`, **82 rutas
    probadas por HTTP**—, no contra localhost. Lo que no hice es empujar a `main`. Dos razones, las
-   dos escritas antes que yo: `VERCEL-ENTORNO §4` dice *«**Production NO se tocó**: es lo que usan
-   cuatro negocios para cobrar y esa decisión es de Miguel»*, y **el 400 de la cafetería sigue sin
-   diagnosticar** (§5, error 11). Desplegar la caja con la que cuatro negocios cobran mañana, con un
-   fallo del rastreador abierto, no es autonomía: es prisa. El PR
+   una escrita antes que yo: `VERCEL-ENTORNO §4` dice *«**Production NO se tocó**: es lo que usan
+   cuatro negocios para cobrar y esa decisión es de Miguel»*. Cuando escribí este párrafo había una
+   segunda —el 400 de la cafetería sin diagnosticar— y **esa ya no está**: se cerró (§5, error 12).
+   Queda la primera, que es de Miguel y no mía. El PR
    [#11](https://github.com/M1gu3hb/MorphiqPOS/pull/11) está listo, con su título y su descripción al
    día, a una pulsación.
 3. **El 503 de `/api/reportes/exportar`** sigue declarado en `FALLOS_QUE_SON_UNA_DECISION`. Con el
@@ -959,11 +998,15 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
 ## 10. Gate `morphiq-prs`
 
 - **Superficies activadas:** S1, S2, S3, S4, S5, S7, S8, S10, S11, S14, S15.
-- **BLOCKERS abiertos:** ninguno en el código. **Uno de proceso:** «producción responde
-  correctamente» no se puede afirmar hasta el redespliegue (§9.2).
+- **BLOCKERS abiertos: ninguno.** Hubo uno y era del código: el release gate del `01` exige «no hay
+  errores de runtime relevantes en consola», y el rastreador escribía un **400 en
+  `/cafeteria/inventario`**. Diagnosticado y cerrado (§5, error 12): era un bagel en la familia
+  «Leche». El rastreador de la cafetería pasa en local, `1 passed (8.8m)`, y la corrida de CI con el
+  arreglo es la que decide.
 - **CRITICAL abiertos y aceptados:** la condición 6 (§9.1), aceptada con su razón escrita.
-- **Checks que NO pude verificar:** todo lo que exige producción viva — dominio del cliente, HSTS
-  contra el dominio real, Lighthouse sobre las páginas productivas.
+- **Checks que NO pude verificar:** lo que exige el dominio del cliente vivo — HSTS contra el dominio
+  propio y Lighthouse sobre las páginas productivas. Lo que **sí** se verificó contra un despliegue
+  real, no localhost: 82 rutas por HTTP, las cabeceras de seguridad, y el acceso con PIN.
 - **Zero AI-slop:** sin degradados morado-azul, sin cristal por todas partes, sin radio uniforme de
   12px, **cero emoji como icono** (36 → 0, con puerta), sombras con lógica de luz por estilo, y
   ninguna animación decorativa — `prefers-reduced-motion` se mide en un navegador y lleva las tres
@@ -980,6 +1023,11 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
 
 ## 12. Pendientes cruzados
 
+La plantilla manda copiar esto a `docs/reports/PENDIENTES-CRUZADOS.md`, y ese archivo está
+**CERRADO** desde que `carril-b` se integró a `main` el 2026-09-08: ya no hay dos carriles ni dos
+agentes. No lo reabro para no fabricar una coordinación que no existe; lo que necesito es de Miguel y
+va aquí.
+
 | Necesito | De quién | Para qué tarea | ¿Puse un STUB? |
 |---|---|---|---|
 | Fusionar el PR #11 a `main` | Miguel | Condición 10 de TERMINADO | No: está todo en la rama, y su despliegue está vivo y comprobado desde fuera |
@@ -989,16 +1037,17 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
 
 - **Bloques de la etapa 2.35 terminados:** 0, 1, 2, 3, 5 y 6 completos; 4 completo excepto la
   recomposición pantalla-por-pantalla.
-- **Condiciones de TERMINADO:** 8 de 10 en verde, la 10 a medias y la 6 parcial. Las dos, en §9.1 y
-  §9.2.
+- **Condiciones de TERMINADO:** **7 en verde** (1, 2, 3, 4, 5, 7 y 8), la **9** con la cadena entera
+  en verde y el último eslabón esperando a CI, la **10 a medias** y la **6 parcial**. Las dos últimas,
+  en §9.1 y §9.2. Siete no son ocho, y redondear hacia arriba en la última línea del reporte sería
+  exactamente lo que este reporte viene a no hacer.
 - **Rama integrada a `main`:** no, y a propósito (§9.2). PR
   [#11](https://github.com/M1gu3hb/MorphiqPOS/pull/11) abierto, con su título y su descripción al día.
 - **El despliegue de la rama:** vivo con `a1f1eee` y comprobado desde fuera.
-- **Bloqueos activos:** dos. **(a)** El 400 de la cafetería en el rastreador, sin diagnosticar
-  (§5, error 12) — la próxima corrida de CI ya dirá qué ruta es. **(b)** La fusión a `main`, que
-  toca la caja con la que cuatro negocios cobran: es de Miguel.
-- **Siguiente tarea:** cerrar el 400 con lo que diga la corrida nueva; después, recomponer las 41
-  pantallas que siguen con su composición heredada, modelo por modelo, con la galería al lado.
+- **Bloqueos activos: uno.** La fusión a `main`, que toca la caja con la que cuatro negocios cobran:
+  es de Miguel. El 400 de la cafetería está cerrado (§5, error 12).
+- **Siguiente tarea:** recomponer las 41 pantallas que siguen con su composición heredada, modelo
+  por modelo, con la galería al lado.
 
 ## 14. Para el que retome esto
 
@@ -1027,4 +1076,10 @@ prueba que se vean bien; eso lo tiene que mirar Miguel, y para eso está la gale
    parece un problema de diseño hasta que cuesta tres vueltas.
 8. **No confundas «arreglé algo cerca» con «encontré la causa».** Alargué la ventana de sonda del
    rastreador y lo escribí como si fuera la causa de dos caídas de la cafetería. Volvió a caer. Si no
-   viste la causa, escribe que no la viste.
+   viste la causa, escribe que no la viste. Me volvió a pasar el mismo día con el campo de cartones:
+   correcto, y tampoco era la causa.
+9. **Una trampa documentada no es una trampa cerrada.** El 403 del 3200 que me costó tres corridas
+   reproducir **está escrito en esta misma bitácora**, desde la 2.3, con su causa y con el mismo
+   síntoma palabra por palabra («el rastro decía timeout esperando la navegación»). Leerlo no me
+   salvó; lo que lo cierra es que el fallo lo diga **cuando falla**. Si escribes un aviso en un
+   documento y no en el mensaje de error, lo has anotado, no arreglado.

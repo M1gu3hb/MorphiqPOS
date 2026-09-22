@@ -202,6 +202,25 @@ const REGLAS = [
       'no heredan el color y no escalan. Usa un icono de lucide-react',
   },
   {
+    nombre: 'token del sistema escrito con la forma larga',
+    /**
+     * DOS FORMAS DE ESCRIBIR EL MISMO TOKEN SON DOS VOCABULARIOS.
+     *
+     * `h-(--altura-control)` y `h-[var(--altura-control)]` compilan a lo mismo, y la
+     * etapa 2.35 vino justamente a que hubiera UN solo vocabulario: el contrato
+     * OBLIGA la forma corta en las 36 primitivas, y nueve pantallas usaban la larga
+     * para los mismos tokens. Nadie lo veía porque las dos funcionan — y eso es
+     * exactamente cómo una de las dos se queda atrás.
+     *
+     * `--radix-*` queda fuera: esas propiedades las publica Radix en tiempo de
+     * ejecución —la altura del disparador de un `Select`, el ancho del menú— y no son
+     * tokens de este sistema. La forma larga ahí es la idiomática y viene del
+     * upstream de shadcn.
+     */
+    patron: /\[var\(--(?!radix-)[a-z-]+\)\]/g,
+    porque: 'Escribe el token en la forma corta de Tailwind 4: h-(--altura-control)',
+  },
+  {
     nombre: 'variante dark: en vez de oscuro:',
     // Sin espacio despues de los dos puntos: `dark: 'oscuro'` es una clave de
     // objeto —la configuracion de next-themes— y no una variante de Tailwind.

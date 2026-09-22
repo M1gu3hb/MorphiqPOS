@@ -336,7 +336,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
                 <Label htmlFor="premio">Qué se lleva</Label>
                 <select
                   id="premio"
-                  className="h-[var(--altura-control)] w-full rounded-md border border-input bg-background px-(--espacio-3) text-base"
+                  className="h-(--altura-control) w-full rounded-md border border-input bg-background px-(--espacio-3) text-base"
                   value={premio}
                   onChange={(evento) => {
                     setPremio(evento.target.value);

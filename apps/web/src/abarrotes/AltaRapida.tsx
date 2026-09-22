@@ -456,7 +456,7 @@ export function AltaRapida({
             {categorias === null && fallaCategorias === null && (
               // Esqueleto con la forma del control, no un giro: la hoja no salta
               // cuando llegan las categorías.
-              <Skeleton className="h-[var(--altura-control)] w-full rounded-md" />
+              <Skeleton className="h-(--altura-control) w-full rounded-md" />
             )}
 
             {fallaCategorias !== null && (
