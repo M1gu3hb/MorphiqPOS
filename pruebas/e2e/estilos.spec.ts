@@ -295,3 +295,102 @@ test.describe('los ocho estilos, en el navegador', () => {
     });
   }
 });
+
+/**
+ * EL MOVIMIENTO SE PUEDE APAGAR, y la preferencia del sistema gana SIEMPRE.
+ *
+ * ── Por qué esto necesita un navegador ────────────────────────────────────
+ * `base.css` tiene el bloque correcto y `sistema.test.ts` comprueba que existe. Y con
+ * las dos cosas verdes el movimiento puede seguir encendido, porque lo que decide no
+ * es que el bloque esté: es la ESPECIFICIDAD.
+ *
+ *     @media (prefers-reduced-motion: reduce) { :root { --duracion-normal: 0ms } }
+ *     [data-estilo='terminal'] { --duracion-normal: 200ms }
+ *
+ * Las dos reglas apuntan al mismo `<html>` y las dos valen 0,1,0 —una consulta de
+ * medios NO suma especificidad—, así que gana la que va DESPUÉS. Hoy gana la buena
+ * porque el bloque está al final de `base.css` y las hojas de estilo no tocan las
+ * duraciones. El día que una lo haga —y «TERMINAL no tiene movimiento» es lo más
+ * natural que se puede escribir en `terminal.css`— la preferencia del sistema deja de
+ * cumplirse, en silencio, y las dos puertas de arriba siguen en verde.
+ *
+ * Eso no es una hipótesis: es el mismo tipo de fallo con el que abrió esta etapa. Una
+ * hoja perfecta que nadie aplica.
+ *
+ * Y el movimiento reducido no es una comodidad: para quien tiene un trastorno
+ * vestibular, una interfaz que se desliza produce náusea de verdad.
+ */
+test.describe('el movimiento se puede apagar', () => {
+  test.describe('con la preferencia del sistema en «reducir»', () => {
+    test.use({ reducedMotion: 'reduce' });
+
+    for (const estilo of ESTILOS) {
+      test(`${estilo}: las tres duraciones quedan en cero`, async ({ page }) => {
+        await page.goto('/sistema', { waitUntil: 'domcontentloaded' });
+        await page.getByRole('heading', { name: 'El sistema, en vivo' }).waitFor();
+        await page.getByLabel('Estilo').selectOption(estilo);
+        await page.waitForFunction(
+          (clave) => document.documentElement.getAttribute('data-estilo') === clave,
+          estilo,
+        );
+
+        // Se sube la perilla al máximo A PROPÓSITO: si la preferencia del sistema sólo
+        // ganara con la perilla baja, no estaría ganando.
+        await page.getByLabel('movimiento').selectOption('expresiva');
+        await page.waitForFunction(
+          () => document.documentElement.getAttribute('data-movimiento') === 'expresiva',
+        );
+
+        const duraciones = await page.evaluate(() => {
+          const raiz = getComputedStyle(document.documentElement);
+          return (['rapida', 'normal', 'lenta'] as const).map((cual) => ({
+            cual,
+            valor: raiz.getPropertyValue(`--duracion-${cual}`).trim(),
+          }));
+        });
+
+        const encendidas = duraciones.filter(({ valor }) => Number.parseFloat(valor) !== 0);
+        expect(
+          encendidas.map((d) => `--duracion-${d.cual} = ${d.valor}`),
+          `En ${estilo}, con «reducir movimiento» puesto en el sistema y la perilla en ` +
+            '«expresiva», quedan duraciones encendidas. La preferencia del sistema no es ' +
+            'negociable ni por estilo ni por configuración del cliente: gana siempre. ' +
+            'Comprueba que ninguna hoja de estilo redefina --duracion-* después de base.css.',
+        ).toEqual([]);
+      });
+    }
+  });
+
+  /**
+   * Y LA PERILLA TAMBIÉN TIENE QUE FUNCIONAR, sin la preferencia del sistema.
+   *
+   * Un token que siempre vale cero pasaría la prueba de arriba y sería una perilla
+   * muerta. Aquí se comprueba que las cuatro posiciones se distinguen: `nula` en cero
+   * y `expresiva` por encima de `normal`, que es lo que la hace expresiva.
+   */
+  test('las cuatro posiciones de la perilla dan cuatro movimientos distintos', async ({ page }) => {
+    await page.goto('/sistema', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: 'El sistema, en vivo' }).waitFor();
+
+    const medidas: Record<string, number> = {};
+    for (const posicion of ['nula', 'sutil', 'normal', 'expresiva'] as const) {
+      await page.getByLabel('movimiento').selectOption(posicion);
+      await page.waitForFunction(
+        (cual) => document.documentElement.getAttribute('data-movimiento') === cual,
+        posicion,
+      );
+      medidas[posicion] = await page.evaluate(() =>
+        Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--duracion-normal'),
+        ),
+      );
+    }
+
+    // Crecientes, no sólo distintas: una perilla cuyo «expresiva» anima menos que su
+    // «sutil» tiene los nombres al revés, y eso no lo ve una comprobación de igualdad.
+    expect(medidas['nula'], '«nula» tiene que ser cero: es para quien teclea.').toBe(0);
+    expect(Number(medidas['sutil'])).toBeGreaterThan(0);
+    expect(Number(medidas['normal'])).toBeGreaterThan(Number(medidas['sutil']));
+    expect(Number(medidas['expresiva'])).toBeGreaterThan(Number(medidas['normal']));
+  });
+});
