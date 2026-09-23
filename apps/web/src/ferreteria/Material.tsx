@@ -3,9 +3,19 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState } from 'react';
+import {
+  Aviso,
+  Cifra,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { Check, Scissors, TriangleAlert } from 'lucide-react';
+import { useEffect, useState, type ReactElement } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -36,6 +46,14 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * inventario que no cuenta la merma del corte se desvía siempre en la misma
  * dirección hasta que el conteo anual lo descubre.
  *
+ * ── Cómo se reparte (`04-INTERFAZ` §PANTALLA 3) ─────────────────────────
+ * Primero se ve DE DÓNDE se corta y CUÁNTO QUEDA: la pregunta «¿de cuál corto?» y
+ * la lista de rollos, con lo que queda en cada uno como la cifra que manda. En la PC
+ * el corte vive a la derecha, fijo, porque es la acción principal; en el teléfono
+ * —junto al rack, de pie— todo va en una columna con los campos grandes, y el corte
+ * queda justo debajo de la lista. Abrir un rollo va AL FINAL y más callado: es lo
+ * que se hace cuando ninguno de los abiertos alcanza, no antes.
+ *
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
  * Caben ver lo abierto, abrir una pieza, cortar y marcar retazo. Queda fuera el
  * remate del retazo en venta, que pasa en la pantalla de cobro.
@@ -62,6 +80,17 @@ const MEDIDA_CON_FORMA = /^\d{1,9}$/;
 /** Micrómetros por metro. Todo lo continuo vive en la unidad base entera. */
 const MICRAS_POR_METRO = 1_000_000;
 
+const MERMA_PROPUESTA = '0.10';
+
+const TITULO = 'text-sm font-semibold tracking-wide text-texto-sutil uppercase';
+const NOTA = 'text-xs text-texto-sutil';
+/**
+ * Los campos numéricos crecen en el teléfono: se teclean de pie, junto al rack, y
+ * con una mano. En la PC vuelven a un tamaño de formulario.
+ */
+const CAMPO_NUMERICO =
+  'h-[calc(var(--altura-control)*1.4)] text-right font-numeros text-2xl tabular-nums md:text-lg';
+
 export interface PiezaViva {
   readonly piezaId: string;
   readonly folio: string;
@@ -84,6 +113,20 @@ export interface MaterialProps {
   readonly piezasIniciales?: readonly PiezaViva[];
 }
 
+/** Dónde pasó algo: el aviso va junto a lo que lo provocó, no arriba de todo. */
+type Seccion = 'buscar' | 'cortar' | 'abrir';
+
+interface Mensaje {
+  readonly donde: Seccion;
+  readonly texto: string;
+}
+
+/** Lo que salió bien. El folio va aparte porque se pinta grande. */
+interface Hecho extends Mensaje {
+  readonly detalle: string;
+  readonly folio?: string;
+}
+
 /** Metros con dos decimales: es como se dice en el mostrador. */
 export function enMetros(base: string): string {
   return (Number(base) / MICRAS_POR_METRO).toFixed(2);
@@ -97,9 +140,108 @@ export function aBase(metros: string): string | null {
   return String(Math.round(valor * MICRAS_POR_METRO));
 }
 
+/** La unidad base, como número de metros para `Cifra`. */
+function metrosDe(base: string | number): number {
+  return Number(base) / MICRAS_POR_METRO;
+}
+
 function mensajeDe(fallo: unknown): string {
   if (fallo instanceof ErrorApi) return fallo.message;
   return 'No se pudo. Vuelve a intentarlo.';
+}
+
+/**
+ * Por qué una fila se ve distinta, EN TEXTO: el tono de la fila nunca va solo.
+ */
+function EstadoDePieza({
+  pieza,
+  esLaRecomendada,
+}: {
+  readonly pieza: PiezaViva;
+  readonly esLaRecomendada: boolean;
+}): ReactElement | null {
+  const esRetazo = pieza.estado === 'retazo';
+  if (!esLaRecomendada && !esRetazo && pieza.alcanza) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-x-(--espacio-2) text-xs">
+      {esLaRecomendada && (
+        <span className="inline-flex items-center gap-(--espacio-1) font-semibold text-texto">
+          <Check aria-hidden="true" className="size-4 shrink-0 text-exito" />
+          corta de ésta
+        </span>
+      )}
+      {esRetazo && <span className="text-texto-sutil">retazo</span>}
+      {!pieza.alcanza && <span className="text-texto-sutil">no alcanza</span>}
+    </span>
+  );
+}
+
+/** Las columnas de la lista de rollos. Lo que queda es la cifra que manda. */
+function columnasDePiezas({
+  recomendada,
+  elegida,
+  elegir,
+}: {
+  readonly recomendada: string | null;
+  readonly elegida: string;
+  readonly elegir: (piezaId: string) => void;
+}): readonly ColumnaDeTabla<PiezaViva>[] {
+  return [
+    {
+      clave: 'rotulo',
+      titulo: 'Rótulo',
+      orden: (p) => p.folio,
+      celda: (p) => (
+        <span className="flex flex-col gap-(--espacio-1)">
+          {/* Como está escrito con plumón en la cinta: es lo que se busca en el rack. */}
+          <span className="font-numeros text-base font-bold">{p.folio}</span>
+          <EstadoDePieza pieza={p} esLaRecomendada={recomendada === p.piezaId} />
+        </span>
+      ),
+    },
+    {
+      clave: 'queda',
+      titulo: 'Queda',
+      numerica: true,
+      orden: (p) => Number(p.medidaRestanteBase),
+      celda: (p) => (
+        <Cifra
+          valor={metrosDe(p.medidaRestanteBase)}
+          decimales={2}
+          unidad="m"
+          className="font-semibold"
+        />
+      ),
+    },
+    {
+      clave: 'abierta',
+      titulo: 'Abierta',
+      numerica: true,
+      desde: 'sm',
+      orden: (p) => p.diasAbierta,
+      celda: (p) => <Cifra valor={p.diasAbierta} unidad="d" tamano="sm" />,
+    },
+    {
+      clave: 'cortar',
+      titulo: 'Cortar',
+      celda: (p) => (
+        <span className="flex justify-end">
+          <Button
+            type="button"
+            size="sm"
+            variant={recomendada === p.piezaId ? 'default' : 'outline'}
+            aria-pressed={elegida === p.piezaId}
+            onClick={() => {
+              elegir(p.piezaId);
+            }}
+          >
+            <Scissors aria-hidden="true" />
+            Cortar
+          </Button>
+        </span>
+      ),
+    },
+  ];
 }
 
 export function Material({ productoId, piezasIniciales }: MaterialProps) {
@@ -108,10 +250,12 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
   const [recomendada, setRecomendada] = useState<string | null>(null);
   const [necesita, setNecesita] = useState('');
   const [nueva, setNueva] = useState({ folio: '', metros: '' });
-  const [corte, setCorte] = useState({ piezaId: '', metros: '', merma: '0.10' });
-  const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
+  const [corte, setCorte] = useState({ piezaId: '', metros: '', merma: MERMA_PROPUESTA });
+  const [error, setError] = useState<Mensaje | null>(null);
+  const [hecho, setHecho] = useState<Hecho | null>(null);
+  const [ocupado, setOcupado] = useState<Seccion | null>(null);
+  /** La lectura de las piezas falló. Sin piezas leídas es la pantalla; con ellas, un aviso. */
+  const [falloDeLectura, setFalloDeLectura] = useState<string | null>(null);
 
   function consultar(necesitaBase: string | null): void {
     invocarComando<{ readonly piezas: readonly PiezaViva[]; readonly recomendada: string | null }>(
@@ -119,11 +263,14 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
       { productoId, necesitaBase },
     )
       .then((salida) => {
+        setFalloDeLectura(null);
         setPiezas(salida.piezas);
         setRecomendada(salida.recomendada);
       })
-      .catch(() => {
-        setPiezas([]);
+      .catch((fallo: unknown) => {
+        // NUNCA una lista vacía: «no hay ninguna abierta» con los rollos en el rack
+        // es justo el defecto que esta pantalla ya tuvo.
+        setFalloDeLectura(mensajeDe(fallo));
       });
   }
 
@@ -146,28 +293,42 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productoId, piezasIniciales]);
 
+  /** Volver a leer: el estado se limpia EN EL CLIC, no en el efecto. */
+  function volverALeer(): void {
+    setFalloDeLectura(null);
+    consultar(null);
+  }
+
   function buscar(): void {
     const base = aBase(necesita);
     if (base === null) {
-      setError('Pon cuántos metros hacen falta.');
+      setError({ donde: 'buscar', texto: 'Pon cuántos metros hacen falta.' });
       return;
     }
     setError(null);
     consultar(base);
   }
 
+  function elegir(piezaId: string): void {
+    setCorte((actual) => ({ ...actual, piezaId }));
+    // En el teléfono el corte queda debajo de la lista: el foco lo trae a la vista
+    // y deja el teclado listo para los metros.
+    document.getElementById('corte-metros')?.focus();
+  }
+
   function abrirPieza(): void {
     const base = aBase(nueva.metros);
     if (base === null || !MEDIDA_CON_FORMA.test(base)) {
-      setError('Pon cuánto trae el rollo.');
+      setError({ donde: 'abrir', texto: 'Pon cuánto trae el rollo.' });
       return;
     }
     if (nueva.folio.trim() === '') {
-      setError('El rollo lleva rótulo: es como se vuelve a encontrar.');
+      setError({ donde: 'abrir', texto: 'El rollo lleva rótulo: es como se vuelve a encontrar.' });
       return;
     }
-    setOcupado(true);
+    setOcupado('abrir');
     setError(null);
+    setHecho(null);
     invocarComando(RUTA_ABRIR_PIEZA, {
       productoId,
       // El almacén NO se manda: sale de la sesión del servidor (R16). El esquema lo
@@ -179,14 +340,18 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
     })
       .then(() => {
         setNueva({ folio: '', metros: '' });
-        setAviso('Pieza abierta. No se movió existencia: el rollo ya estaba contado.');
+        setHecho({
+          donde: 'abrir',
+          texto: 'Pieza abierta.',
+          detalle: 'No se movió existencia: el rollo ya estaba contado.',
+        });
         consultar(null);
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setError({ donde: 'abrir', texto: mensajeDe(fallo) });
       })
       .finally(() => {
-        setOcupado(false);
+        setOcupado(null);
       });
   }
 
@@ -194,11 +359,12 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
     const entregada = aBase(corte.metros);
     const merma = aBase(corte.merma) ?? '0';
     if (corte.piezaId === '' || entregada === null) {
-      setError('Elige de qué pieza y cuántos metros.');
+      setError({ donde: 'cortar', texto: 'Elige de qué pieza y cuántos metros.' });
       return;
     }
-    setOcupado(true);
+    setOcupado('cortar');
     setError(null);
+    setHecho(null);
     invocarComando<{ readonly folio: string }>(RUTA_CORTAR, {
       materialId: productoId,
       piezaId: corte.piezaId,
@@ -206,19 +372,52 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
       desperdicio: merma,
     })
       .then((salida) => {
-        setCorte({ piezaId: '', metros: '', merma: '0.10' });
+        setCorte({ piezaId: '', metros: '', merma: MERMA_PROPUESTA });
         // El folio se DICE: el corte abrió una nota y ese número es lo que el cliente
         // canta en la caja. «Cortado.» a secas dejaba al mostradorista sin nada que
         // decirle.
-        setAviso(`Cortado. Nota ${salida.folio}: se cobra en caja.`);
+        setHecho({
+          donde: 'cortar',
+          texto: `Cortado. ${voc.titulo('orden')} ${salida.folio}: se cobra en caja.`,
+          detalle: 'Es lo que el cliente dice al pagar.',
+          folio: salida.folio,
+        });
         consultar(null);
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setError({ donde: 'cortar', texto: mensajeDe(fallo) });
       })
       .finally(() => {
-        setOcupado(false);
+        setOcupado(null);
       });
+  }
+
+  /** Lo que NO pasó cuando algo falla: es lo que el mostradorista necesita saber. */
+  function avisoDeError(donde: Seccion): ReactElement | null {
+    if (error?.donde !== donde) return null;
+    const noPaso: Readonly<Record<Seccion, string | null>> = {
+      buscar: null,
+      cortar: `El rollo no se descontó y no se abrió ${voc.enFraseCon('ningun', 'orden')}.`,
+      abrir: 'No se abrió ninguna pieza.',
+    };
+    return (
+      <Aviso tono="peligro" titulo={error.texto}>
+        {noPaso[donde]}
+      </Aviso>
+    );
+  }
+
+  function avisoDeHecho(donde: Seccion): ReactElement | null {
+    if (hecho?.donde !== donde) return null;
+    return (
+      <Aviso tono="exito" titulo={hecho.texto}>
+        {/* El número, grande: es lo único que el cliente se lleva del pasillo. */}
+        {hecho.folio === undefined ? null : (
+          <span className="block font-numeros text-3xl font-bold text-texto">{hecho.folio}</span>
+        )}
+        {hecho.detalle}
+      </Aviso>
+    );
   }
 
   // El VACÍO QUE ENSEÑA: esta pantalla es la ficha de UN material continuo.
@@ -227,185 +426,335 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
   // un id vacío. Sin esto se quedaba en su esqueleto, en blanco, para siempre.
   if (productoId === '' && piezasIniciales === undefined) {
     return (
-      <main className="mx-auto max-w-prose space-y-(--espacio-3) p-(--espacio-8) text-center">
+      <main className="mx-auto w-full max-w-prose p-(--espacio-3) md:p-(--espacio-8)">
+        <h1 className="sr-only">{voc.titulo('producto')}</h1>
         {/* Con el sustantivo del giro: una ferretería lee «material» y una
             tiendita «producto». Tecleado, el diccionario deja de mandar justo en
             el estado que más se ve —esta pantalla se monta sin material
             elegido—. */}
-        <h1 className="text-xl font-semibold">
-          Aquí se abre {voc.enFraseCon('un', 'producto')} que se corta
-        </h1>
-        <p className="text-sm text-texto-sutil">
-          Los rollos abiertos con su etiqueta, lo que queda en cada uno y de cuál conviene cortar.
-          Se llega desde el mostrador: busca {voc.enFrase('producto')} y toca su renglón.
-        </p>
-        <Button asChild>
-          <a href="/ferreteria/mostrador">Ir al mostrador</a>
-        </Button>
+        <Vacio
+          icono={<Scissors />}
+          titulo={`Aquí se abre ${voc.enFraseCon('un', 'producto')} que se corta`}
+          explicacion={`Los rollos abiertos con su etiqueta, lo que queda en cada uno y de cuál conviene cortar. Se llega desde el mostrador: busca ${voc.enFrase('producto')} y toca su renglón.`}
+          accion={
+            <Button asChild>
+              <a href="/ferreteria/mostrador">Ir al mostrador</a>
+            </Button>
+          }
+        />
       </main>
     );
   }
 
-  if (piezas === null) {
+  // NO LEYÓ NADA: sin la lista no se sabe de cuál rollo cortar, y fingir que no hay
+  // ninguno abierto mandaría a abrir otro.
+  if (piezas === null && falloDeLectura !== null) {
     return (
-      <div className="space-y-(--espacio-4) p-(--espacio-6)">
-        <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <main className="mx-auto w-full max-w-3xl p-(--espacio-3) md:p-(--espacio-6)">
+        <h1 className="sr-only">{voc.titulo('producto')}</h1>
+        <ErrorDePantalla
+          titulo="No se pudieron leer las piezas abiertas"
+          queHacer="Sin la lista no se sabe de cuál rollo conviene cortar. Revisa la conexión y vuelve a leerla."
+          detalle={falloDeLectura}
+          reintentar={
+            <Button type="button" onClick={volverALeer}>
+              Volver a leer
+            </Button>
+          }
+        />
+      </main>
     );
   }
 
+  // La forma de lo que viene: el título, la pregunta y la lista de rollos.
+  if (piezas === null) {
+    return (
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-(--espacio-4) p-(--espacio-3) md:p-(--espacio-6)">
+        <h1 className="sr-only">{voc.titulo('producto')}</h1>
+        <Esqueleto className="h-[calc(var(--altura-control)*0.9)] w-48" />
+        <Esqueleto className="h-[calc(var(--altura-control)*1.4)] w-full max-w-md" />
+        <EsqueletoDeLista filas={4} />
+      </main>
+    );
+  }
+
+  const piezaDelCorte = piezas.find((p) => p.piezaId === corte.piezaId);
+  const laRecomendada = piezas.find((p) => p.piezaId === recomendada);
+  const entregadaBase = aBase(corte.metros);
+  // Lo que sale del rollo es lo entregado MÁS la merma, en la unidad base entera.
+  const descuentoBase =
+    entregadaBase === null ? null : Number(entregadaBase) + Number(aBase(corte.merma) ?? '0');
+  const quedaBase =
+    piezaDelCorte === undefined || descuentoBase === null
+      ? null
+      : Number(piezaDelCorte.medidaRestanteBase) - descuentoBase;
+  const abiertosBase = piezas.reduce((suma, p) => suma + Number(p.medidaRestanteBase), 0);
+  const columnas = columnasDePiezas({ recomendada, elegida: corte.piezaId, elegir });
+
   return (
-    <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
-      <header>
-        <h1 className="text-2xl font-semibold">{voc.titulo('producto')}</h1>
-        <p className="text-texto-sutil text-sm">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-(--espacio-4) p-(--espacio-3) md:p-(--espacio-6) lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-x-(--espacio-6)">
+      <header className="flex flex-col gap-(--espacio-1) lg:col-span-2">
+        <h1 className="text-xl font-bold md:text-2xl">{voc.titulo('producto')}</h1>
+        <p className="text-sm text-texto-sutil">
           Lo que hay abierto. El trabajo es acabarse los abiertos, no abrir otro.
         </p>
       </header>
 
-      {error !== null && (
-        <p role="alert" className="text-peligro text-sm">
-          {error}
-        </p>
-      )}
-      {aviso !== null && <p className="text-sm">{aviso}</p>}
+      {/* En el teléfono esta columna se DISUELVE en la de la página, para que el
+          corte quede entre la lista y «abrir un rollo»: abrir es lo último. */}
+      <div className="contents lg:col-start-1 lg:row-start-2 lg:flex lg:flex-col lg:gap-(--espacio-4)">
+        {/* PRIMERO · la pregunta. Enter la hace, como en cualquier campo. */}
+        <Superficie
+          como="form"
+          aria-label="¿De cuál corto?"
+          relleno={4}
+          radio="md"
+          className="flex flex-col gap-(--espacio-3)"
+          onSubmit={(evento) => {
+            evento.preventDefault();
+            buscar();
+          }}
+        >
+          <div className="flex flex-wrap items-end gap-(--espacio-3)">
+            <div className="flex flex-col gap-(--espacio-1)">
+              <Label htmlFor="necesita">Hacen falta (m)</Label>
+              <Input
+                id="necesita"
+                inputMode="decimal"
+                className={`w-40 ${CAMPO_NUMERICO}`}
+                value={necesita}
+                onChange={(evento) => {
+                  setNecesita(evento.target.value);
+                }}
+              />
+            </div>
+            <Button type="submit" className="h-[calc(var(--altura-control)*1.4)]">
+              ¿De cuál corto?
+            </Button>
+          </div>
+          {/* La respuesta, en una línea y en grande: el rótulo es lo que se busca
+              en el rack. La lista lo marca también, con su porqué. */}
+          {laRecomendada !== undefined && (
+            <p className="flex flex-wrap items-baseline gap-x-(--espacio-2) text-base">
+              <span>Corta de</span>
+              <span className="font-numeros text-xl font-bold">{laRecomendada.folio}</span>
+              <span className="text-texto-sutil">· quedan</span>
+              <Cifra valor={metrosDe(laRecomendada.medidaRestanteBase)} decimales={2} unidad="m" />
+            </p>
+          )}
+          {avisoDeError('buscar')}
+        </Superficie>
 
-      <section className="flex items-end gap-(--espacio-3)">
-        <div>
-          <Label htmlFor="necesita">Hacen falta (m)</Label>
-          <Input
-            id="necesita"
-            inputMode="decimal"
-            className="h-[calc(var(--altura-control)*1.4)] w-40 text-right text-lg"
-            value={necesita}
-            onChange={(evento) => {
-              setNecesita(evento.target.value);
+        <section aria-labelledby="t-piezas" className="flex flex-col gap-(--espacio-2)">
+          <h2 id="t-piezas" className={TITULO}>
+            Piezas abiertas
+          </h2>
+          {/* Se leyó antes y la relectura falló: lo de la lista es de ANTES, y eso
+              se dice en vez de vaciarla. */}
+          {falloDeLectura !== null && (
+            <Aviso
+              tono="peligro"
+              titulo="No se pudieron volver a leer las piezas."
+              accion={
+                <Button type="button" variant="outline" size="sm" onClick={volverALeer}>
+                  Volver a leer
+                </Button>
+              }
+            >
+              Lo que queda en cada rollo puede ser de antes del último movimiento. {falloDeLectura}
+            </Aviso>
+          )}
+          <Tabla
+            etiqueta="Piezas abiertas"
+            columnas={columnas}
+            filas={piezas}
+            claveDe={(p) => p.piezaId}
+            activa={corte.piezaId}
+            // El tono nunca va solo: la celda del rótulo dice por qué.
+            tonoDeFila={(p) => {
+              if (p.piezaId === recomendada) return 'exito';
+              return p.alcanza ? undefined : 'tenue';
             }}
+            vacio={
+              <Superficie radio="md" relleno={0} nivel={0}>
+                <Vacio
+                  titulo="No hay ninguna abierta."
+                  explicacion="Cuando se abra un rollo, aquí aparece con su rótulo y lo que le queda."
+                  className="py-(--espacio-6)"
+                />
+              </Superficie>
+            }
+          />
+        </section>
+
+        {/* AL FINAL, y más callado: se abre otro cuando ninguno de los abiertos
+            alcanza, no antes. */}
+        <Superficie
+          como="section"
+          aria-labelledby="t-abrir"
+          nivel={0}
+          relleno={4}
+          radio="md"
+          className="order-last flex flex-col gap-(--espacio-3) lg:order-none"
+        >
+          <h2 id="t-abrir" className={TITULO}>
+            Abrir un rollo
+          </h2>
+          {/* UNA línea, antes de abrir: evita el retazo antes de crearlo. */}
+          {abiertosBase > 0 && (
+            <p className="flex items-start gap-(--espacio-2) text-sm font-medium">
+              <TriangleAlert
+                aria-hidden="true"
+                className="mt-(--espacio-1) size-4 shrink-0 text-advertencia"
+              />
+              <span>
+                Hay <Cifra valor={metrosDe(abiertosBase)} decimales={2} unidad="m" tamano="sm" />{' '}
+                abiertos. Si abres uno nuevo, esos se quedan.
+              </span>
+            </p>
+          )}
+          <div className="grid gap-(--espacio-3) md:grid-cols-2">
+            <div className="flex flex-col gap-(--espacio-1)">
+              <Label htmlFor="nueva-folio">Rótulo</Label>
+              <Input
+                id="nueva-folio"
+                className="h-[calc(var(--altura-control)*1.2)] font-numeros"
+                placeholder="R-115"
+                value={nueva.folio}
+                onChange={(evento) => {
+                  setNueva({ ...nueva, folio: evento.target.value });
+                }}
+              />
+              <p className={NOTA}>Corto, porque se escribe con plumón en la cinta.</p>
+            </div>
+            <div className="flex flex-col gap-(--espacio-1)">
+              <Label htmlFor="nueva-metros">Trae (m)</Label>
+              <Input
+                id="nueva-metros"
+                inputMode="decimal"
+                className="h-[calc(var(--altura-control)*1.2)] text-right font-numeros tabular-nums"
+                value={nueva.metros}
+                onChange={(evento) => {
+                  setNueva({ ...nueva, metros: evento.target.value });
+                }}
+              />
+            </div>
+          </div>
+          {avisoDeError('abrir')}
+          {avisoDeHecho('abrir')}
+          <Button
+            type="button"
+            variant="outline"
+            className="self-start"
+            disabled={ocupado !== null}
+            cargando={ocupado === 'abrir'}
+            onClick={abrirPieza}
+          >
+            Abrir
+          </Button>
+        </Superficie>
+      </div>
+
+      {/* LA ACCIÓN PRINCIPAL · a la derecha y fija en la PC; en el teléfono, justo
+          debajo de la lista de la que se elige. */}
+      <Superficie
+        como="section"
+        aria-labelledby="t-cortar"
+        nivel={2}
+        relleno={4}
+        radio="md"
+        className="flex flex-col gap-(--espacio-4) lg:sticky lg:top-(--espacio-3) lg:col-start-2 lg:row-start-2"
+      >
+        <h2 id="t-cortar" className="flex items-center gap-(--espacio-2) text-lg font-semibold">
+          <Scissors aria-hidden="true" className="size-5 shrink-0 text-texto-sutil" />
+          Cortar
+        </h2>
+        <div className="flex flex-col gap-(--espacio-1)">
+          <Label htmlFor="corte-pieza">Pieza</Label>
+          <Input
+            id="corte-pieza"
+            className="h-[calc(var(--altura-control)*1.2)] font-numeros text-lg font-bold"
+            placeholder="elígela arriba"
+            readOnly
+            value={piezaDelCorte?.folio ?? ''}
           />
         </div>
-        <Button className="h-[calc(var(--altura-control)*1.4)]" onClick={buscar}>
-          ¿De cuál corto?
-        </Button>
-      </section>
-
-      <section>
-        <h2 className="mb-2 font-medium">Piezas abiertas</h2>
-        {piezas.length === 0 && <p className="text-texto-sutil text-sm">No hay ninguna abierta.</p>}
-        <ul className="divide-y">
-          {piezas.map((pieza) => (
-            <li key={pieza.piezaId} className="flex items-center gap-(--espacio-3) py-2">
-              <span className="w-20 font-medium">{pieza.folio}</span>
-              <span className="flex-1 tabular-nums">{enMetros(pieza.medidaRestanteBase)} m</span>
-              <span className="text-texto-sutil text-sm">
-                {pieza.diasAbierta} d abierta
-                {pieza.estado === 'retazo' ? ' · retazo' : ''}
-              </span>
-              {recomendada === pieza.piezaId && (
-                <span className="text-sm font-medium">corta de ésta</span>
-              )}
-              {!pieza.alcanza && <span className="text-texto-sutil text-sm">no alcanza</span>}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setCorte({ ...corte, piezaId: pieza.piezaId });
-                }}
-              >
-                Cortar
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <Separator />
-
-      <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
-        <h2 className="font-medium">Cortar</h2>
-        <div className="grid gap-(--espacio-3) md:grid-cols-3">
-          <div>
-            <Label htmlFor="corte-pieza">Pieza</Label>
-            <Input
-              id="corte-pieza"
-              className="h-[calc(var(--altura-control)*1.2)]"
-              placeholder="elígela arriba"
-              readOnly
-              value={piezas.find((p) => p.piezaId === corte.piezaId)?.folio ?? ''}
-            />
-          </div>
-          <div>
+        <div className="grid grid-cols-2 gap-(--espacio-3)">
+          <div className="flex flex-col gap-(--espacio-1)">
             <Label htmlFor="corte-metros">Metros</Label>
             <Input
               id="corte-metros"
               inputMode="decimal"
-              className="h-[calc(var(--altura-control)*1.2)] text-right"
+              className={CAMPO_NUMERICO}
               value={corte.metros}
               onChange={(evento) => {
                 setCorte({ ...corte, metros: evento.target.value });
               }}
             />
           </div>
-          <div>
+          <div className="flex flex-col gap-(--espacio-1)">
             <Label htmlFor="corte-merma">Merma (m)</Label>
             <Input
               id="corte-merma"
               inputMode="decimal"
-              className="h-[calc(var(--altura-control)*1.2)] text-right"
+              className={CAMPO_NUMERICO}
               value={corte.merma}
               onChange={(evento) => {
                 setCorte({ ...corte, merma: evento.target.value });
               }}
             />
-            <p className="text-texto-sutil mt-1 text-xs">
-              Viene puesta: el cero es mentira, cortar cable deja puntas.
-            </p>
           </div>
+          <p className={`col-span-2 ${NOTA}`}>
+            La merma viene puesta: el cero es mentira, cortar cable deja puntas.
+          </p>
         </div>
+
+        {/* Lo que va a pasar con el rollo, ANTES de cortar: cuánto sale y cuánto
+            queda para rotular. */}
+        {descuentoBase !== null && (
+          <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-(--espacio-3) gap-y-(--espacio-2) border-t border-borde pt-(--espacio-3)">
+            <dt className="text-sm text-texto-sutil">Se descuenta del rollo</dt>
+            <dd className="text-right">
+              <Cifra valor={metrosDe(descuentoBase)} decimales={2} unidad="m" tamano="sm" />
+            </dd>
+            {piezaDelCorte !== undefined && quedaBase !== null && (
+              <>
+                <dt className="font-semibold">Queda en {piezaDelCorte.folio}</dt>
+                <dd className="flex flex-wrap items-baseline justify-end gap-x-(--espacio-2) text-right">
+                  <Cifra
+                    valor={metrosDe(quedaBase)}
+                    decimales={2}
+                    unidad="m"
+                    tamano="lg"
+                    className={`font-bold ${quedaBase < 0 ? 'text-peligro' : ''}`}
+                  />
+                  {quedaBase < 0 && (
+                    <span className="inline-flex items-center gap-(--espacio-1) text-sm font-medium">
+                      <TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-peligro" />
+                      no alcanza
+                    </span>
+                  )}
+                </dd>
+              </>
+            )}
+          </dl>
+        )}
+
+        {avisoDeError('cortar')}
+        {avisoDeHecho('cortar')}
+
         <Button
-          className="h-[calc(var(--altura-control)*1.4)] w-full text-base"
-          disabled={ocupado}
+          type="button"
+          size="lg"
+          className="w-full text-base"
+          disabled={ocupado !== null}
+          cargando={ocupado === 'cortar'}
           onClick={cortar}
         >
+          {ocupado === 'cortar' ? null : <Scissors aria-hidden="true" />}
           Registrar el corte
         </Button>
-      </section>
-
-      <section className="space-y-(--espacio-3) rounded-lg border p-(--espacio-4)">
-        <h2 className="font-medium">Abrir un rollo</h2>
-        <div className="grid gap-(--espacio-3) md:grid-cols-2">
-          <div>
-            <Label htmlFor="nueva-folio">Rótulo</Label>
-            <Input
-              id="nueva-folio"
-              className="h-[calc(var(--altura-control)*1.2)]"
-              placeholder="R-115"
-              value={nueva.folio}
-              onChange={(evento) => {
-                setNueva({ ...nueva, folio: evento.target.value });
-              }}
-            />
-            <p className="text-texto-sutil mt-1 text-xs">
-              Corto, porque se escribe con plumón en la cinta.
-            </p>
-          </div>
-          <div>
-            <Label htmlFor="nueva-metros">Trae (m)</Label>
-            <Input
-              id="nueva-metros"
-              inputMode="decimal"
-              className="h-[calc(var(--altura-control)*1.2)] text-right"
-              value={nueva.metros}
-              onChange={(evento) => {
-                setNueva({ ...nueva, metros: evento.target.value });
-              }}
-            />
-          </div>
-        </div>
-        <Button variant="outline" disabled={ocupado} onClick={abrirPieza}>
-          Abrir
-        </Button>
-      </section>
+      </Superficie>
     </main>
   );
 }

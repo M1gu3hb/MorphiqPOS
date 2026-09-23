@@ -3,12 +3,31 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
-import { useEffect, useState } from 'react';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  Superficie,
+  TablaAdaptable,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  Check,
+  ClipboardList,
+  Clock,
+  PackageCheck,
+  ShieldCheck,
+  TriangleAlert,
+} from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
  * PANTALLA · ferreteria · trabajos-de-mostrador
@@ -22,9 +41,14 @@ import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
  * son la misma persona en la misma barra, y separarlas en tres pantallas obliga
  * a buscar en tres.
  *
+ * ── Por qué las tres pestañas enseñan su CUENTA ─────────────────────────
+ * El clavo se lee de un vistazo: cuántos papeles hay y cuántos ya se enfriaron.
+ * Una pestaña que sólo dice su nombre obliga a abrirla para saber si hay algo.
+ *
  * ── Por qué la nota apartada CADUCA y se dice cuándo ────────────────────
  * Material apartado es material que no se vende. Sin fecha, el anaquel se llena
- * de cosas de alguien que no volvió, y la existencia miente hacia arriba.
+ * de cosas de alguien que no volvió, y la existencia miente hacia arriba. Por eso
+ * la tabla abre ordenada por lo que vence primero.
  *
  * ── Por qué la lista se captura TAL CUAL la dijo el albañil ─────────────
  * «Diez de varilla del tres» no es una clave del catálogo, y traducirla al
@@ -33,6 +57,11 @@ import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
  *
  * ── Y por qué la garantía enseña los DÍAS esperando ─────────────────────
  * «Lleva 90 días» es lo que hace que alguien llame al proveedor. «Pendiente» no.
+ * Por eso abre ordenada por la más vieja, y en el teléfono los días son lo grande.
+ *
+ * ── Tabla en la PC, tarjetas en el pasillo ──────────────────────────────
+ * Las tres listas son `TablaAdaptable`: en la PC del mostrador se comparan en
+ * columnas; en el teléfono del pasillo cada papel es una tarjeta.
  *
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
  * Caben las tres listas, apartar, entregar, capturar una lista y recibir una
@@ -53,13 +82,15 @@ import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
  *
  * Ahora cada cosa se lee por donde se lee: los apartados y las listas por el
  * PUENTE —que es el único camino de lectura— y las garantías por el comando de
- * lectura que ya existía y no tenía ruta.
+ * lectura que ya existía y no tenía ruta. Y una lectura que falla ya no se
+ * disfraza de lista vacía: se dice que no se pudo leer.
  */
 const RUTA_ENTREGAR = '/api/venta/nota-mostrador/entregar';
 const RUTA_LISTA = '/api/venta/lista-trabajo';
 const RUTA_GARANTIAS_PENDIENTES = '/api/inventario/garantias-pendientes';
 
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+/** Una garantía que pasa de aquí ya es dinero que alguien tiene que ir a cobrar. */
+const DIAS_DE_GARANTIA_FRIA = 30;
 
 const PESTANAS = [
   { clave: 'apartados', etiqueta: 'Apartado' },
@@ -68,6 +99,11 @@ const PESTANAS = [
 ] as const;
 
 type Pestana = (typeof PESTANAS)[number]['clave'];
+
+/** Qué lectura no llegó, con su motivo. `null` es que llegó o que no se ha pedido. */
+type Fallos = Readonly<Record<Pestana, string | null>>;
+
+const SIN_FALLOS: Fallos = { apartados: null, listas: null, garantias: null };
 
 export interface NotaApartada {
   readonly notaId: string;
@@ -120,6 +156,12 @@ interface FilaDeLista {
   readonly surtidos: number;
 }
 
+/** Lo que salió mal al TOCAR algo, y lo que por eso no pasó. */
+interface FalloDeComando {
+  readonly titulo: string;
+  readonly queNoPaso: string;
+}
+
 /**
  * Cuántos días de CALENDARIO faltan, que es lo que el mostrador pregunta.
  *
@@ -138,7 +180,7 @@ function comoNotaApartada(fila: FilaDeNotaApartada): NotaApartada {
     notaId: fila.nota_id,
     folio: fila.codigo_caja ?? 'sin folio',
     cliente: fila.cliente_nombre ?? 'sin nombre',
-    // A texto: el importe viaja en centavos enteros y `pesos()` lo divide.
+    // A texto: el importe viaja en centavos enteros y `<Dinero>` lo vuelve número.
     totalCentavos: String(fila.totalCentavos),
     venceEn: fila.vence ?? '',
     diasRestantes: diasHasta(fila.vence),
@@ -168,10 +210,6 @@ export interface TrabajosProps {
   readonly almacenId?: never;
 }
 
-function pesos(centavos: string): string {
-  return PESOS.format(Number(centavos) / 100);
-}
-
 /** «Vence hoy» y «le quedan 3 días» no se leen igual, y no se atienden igual. */
 export function leerVencimiento(dias: number): string {
   if (dias < 0) return `Venció hace ${String(-dias)} d`;
@@ -185,11 +223,445 @@ function mensajeDe(fallo: unknown): string {
   return 'No se pudo. Vuelve a intentarlo.';
 }
 
+function motivoDeLectura(fallo: unknown): string {
+  return fallo instanceof Error ? fallo.message : 'No se pudo leer.';
+}
+
+// ── El clavo de un vistazo ────────────────────────────────────────────────
+
+interface Resumen {
+  readonly cuenta: number | null;
+  readonly detalle: string;
+  /** Hay algo que ya se enfrió: el detalle va en rojo y con su icono. */
+  readonly urgente: boolean;
+}
+
+function resumirApartados(notas: readonly NotaApartada[]): Resumen {
+  const vencidas = notas.filter((n) => n.diasRestantes <= 0).length;
+  if (vencidas === 0) return { cuenta: notas.length, detalle: 'ninguna vencida', urgente: false };
+  const detalle =
+    vencidas === 1 ? '1 vence hoy o ya venció' : `${String(vencidas)} vencen hoy o ya vencieron`;
+  return { cuenta: notas.length, detalle, urgente: true };
+}
+
+function resumirListas(listas: readonly ListaDeTrabajo[]): Resumen {
+  const porSurtir = listas.reduce((suma, l) => suma + Math.max(0, l.lineas - l.surtidas), 0);
+  const detalle =
+    porSurtir === 0
+      ? 'nada por surtir'
+      : `${String(porSurtir)} ${porSurtir === 1 ? 'renglón' : 'renglones'} por surtir`;
+  return { cuenta: listas.length, detalle, urgente: false };
+}
+
+function resumirGarantias(garantias: readonly GarantiaPendiente[]): Resumen {
+  const frias = garantias.filter((g) => g.diasEsperando > DIAS_DE_GARANTIA_FRIA).length;
+  return {
+    cuenta: garantias.length,
+    detalle:
+      frias === 0
+        ? `ninguna de más de ${String(DIAS_DE_GARANTIA_FRIA)} días`
+        : `${String(frias)} con más de ${String(DIAS_DE_GARANTIA_FRIA)} días`,
+    urgente: frias > 0,
+  };
+}
+
+function Pestanas({
+  pestana,
+  resumenes,
+  fallos,
+  alElegir,
+}: {
+  readonly pestana: Pestana;
+  readonly resumenes: Readonly<Record<Pestana, Resumen | null>>;
+  readonly fallos: Fallos;
+  readonly alElegir: (pestana: Pestana) => void;
+}) {
+  return (
+    <ul aria-label="Qué papeles ver" className="grid grid-cols-3 gap-(--espacio-2)">
+      {PESTANAS.map((opcion) => {
+        const elegida = pestana === opcion.clave;
+        const resumen = resumenes[opcion.clave];
+        const sinLeer = fallos[opcion.clave] !== null;
+        return (
+          <li key={opcion.clave} className="flex">
+            <Superficie
+              como="button"
+              type="button"
+              interactiva
+              activa={elegida}
+              aria-pressed={elegida}
+              relleno={3}
+              radio="md"
+              className="flex w-full flex-col items-start gap-(--espacio-1)"
+              onClick={() => {
+                alElegir(opcion.clave);
+              }}
+            >
+              <span className="flex w-full items-center justify-between gap-(--espacio-1) text-sm font-semibold">
+                {opcion.etiqueta}
+                {elegida && <Check aria-hidden="true" className="size-4 shrink-0 text-primario" />}
+              </span>
+              {resumen === null ? (
+                sinLeer ? (
+                  <span className="text-xs text-peligro">sin leer</span>
+                ) : (
+                  <Esqueleto className="h-(--espacio-8) w-(--espacio-10)" />
+                )
+              ) : (
+                <>
+                  <span className="font-numeros text-2xl font-semibold tabular-nums">
+                    {resumen.cuenta}
+                  </span>
+                  <span
+                    className={
+                      resumen.urgente
+                        ? 'text-xs font-medium text-peligro'
+                        : 'text-xs text-texto-sutil'
+                    }
+                  >
+                    {resumen.detalle}
+                  </span>
+                </>
+              )}
+            </Superficie>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// ── Los tres estados de una lectura ───────────────────────────────────────
+
+/**
+ * NO LEYÓ, TODAVÍA NO, O YA: los tres estados de cada pestaña, en el mismo orden.
+ *
+ * Cada pestaña los tiene por separado: que las garantías no llegaran no es razón
+ * para esconder lo apartado, y el formulario de la lista sirve aunque la lista de
+ * listas no se haya podido leer.
+ */
+function SegunLectura<F>({
+  filas,
+  fallo,
+  titulo,
+  queHacer,
+  alReintentar,
+  children,
+}: {
+  readonly filas: readonly F[] | null;
+  readonly fallo: string | null;
+  readonly titulo: string;
+  readonly queHacer: string;
+  readonly alReintentar: () => void;
+  readonly children: (filas: readonly F[]) => ReactNode;
+}) {
+  if (fallo !== null) {
+    return (
+      <ErrorDePantalla
+        titulo={titulo}
+        queHacer={queHacer}
+        detalle={fallo}
+        reintentar={
+          <Button type="button" onClick={alReintentar}>
+            Volver a leer
+          </Button>
+        }
+      />
+    );
+  }
+  // La forma de la tabla, nunca una rueda: el ojo ya sabe dónde va a mirar.
+  if (filas === null) return <EsqueletoDeLista filas={5} />;
+  return <>{children(filas)}</>;
+}
+
+// ── Apartado ──────────────────────────────────────────────────────────────
+
+function Vencimiento({ dias }: { readonly dias: number }) {
+  if (dias > 0) return <span className="text-texto-sutil">{leerVencimiento(dias)}</span>;
+  // El color no va solo: el icono y la frase dicen que ya no hay plazo.
+  return (
+    <span className="inline-flex items-center gap-(--espacio-1) font-medium text-peligro">
+      <TriangleAlert aria-hidden="true" className="size-4 shrink-0" />
+      {leerVencimiento(dias)}
+    </span>
+  );
+}
+
+function TablaDeApartados({
+  notas,
+  ocupado,
+  alEntregar,
+}: {
+  readonly notas: readonly NotaApartada[];
+  readonly ocupado: boolean;
+  readonly alEntregar: (nota: NotaApartada) => void;
+}) {
+  const voc = useVocabulario();
+  // Lo que vence primero, arriba: es lo que hay que llamar hoy.
+  const porVencer = useMemo(
+    () => notas.toSorted((a, b) => a.diasRestantes - b.diasRestantes),
+    [notas],
+  );
+  const apartadoTotal = notas.reduce((suma, n) => suma + Number(n.totalCentavos), 0);
+  const columnas: readonly ColumnaDeTabla<NotaApartada>[] = [
+    {
+      clave: 'folio',
+      titulo: voc.titulo('orden'),
+      orden: (n) => n.folio,
+      celda: (n) => <span className="font-medium">{n.folio}</span>,
+    },
+    {
+      clave: 'cliente',
+      titulo: voc.titulo('cliente'),
+      orden: (n) => n.cliente,
+      celda: (n) => n.cliente,
+    },
+    {
+      clave: 'total',
+      titulo: 'Importe',
+      numerica: true,
+      orden: (n) => Number(n.totalCentavos),
+      celda: (n) => <Dinero centavos={Number(n.totalCentavos)} tamano="sm" />,
+    },
+    {
+      clave: 'vence',
+      titulo: 'Vence',
+      orden: (n) => n.diasRestantes,
+      celda: (n) => <Vencimiento dias={n.diasRestantes} />,
+    },
+    {
+      clave: 'entrega',
+      titulo: 'Entrega',
+      celda: (n) => (
+        <Button
+          type="button"
+          size="sm"
+          disabled={ocupado}
+          onClick={() => {
+            alEntregar(n);
+          }}
+        >
+          Entregar
+        </Button>
+      ),
+    },
+  ];
+  return (
+    <TablaAdaptable
+      etiqueta={`${voc.titulo('orden', true)} apartadas`}
+      principal="cliente"
+      desde="lg"
+      columnas={columnas}
+      filas={porVencer}
+      claveDe={(n) => n.notaId}
+      tonoDeFila={(n) => (n.diasRestantes <= 0 ? 'peligro' : undefined)}
+      pie={{
+        folio: <span className="text-texto-sutil">Apartado</span>,
+        total: <Dinero centavos={apartadoTotal} tamano="sm" />,
+      }}
+      alto="max-h-[60vh]"
+      vacio={
+        <Vacio
+          icono={<PackageCheck />}
+          titulo="No hay nada apartado."
+          explicacion={`Cuando se aparta ${voc.enFraseCon('un', 'orden')}, aquí se ve de quién es y cuándo vence.`}
+        />
+      }
+    />
+  );
+}
+
+// ── Listas ────────────────────────────────────────────────────────────────
+
+function TablaDeListas({ listas }: { readonly listas: readonly ListaDeTrabajo[] }) {
+  const voc = useVocabulario();
+  const columnas: readonly ColumnaDeTabla<ListaDeTrabajo>[] = [
+    {
+      clave: 'folio',
+      titulo: 'Folio',
+      orden: (l) => l.folio,
+      celda: (l) => <span className="font-medium">{l.folio}</span>,
+    },
+    {
+      clave: 'cliente',
+      titulo: voc.titulo('cliente'),
+      orden: (l) => l.cliente,
+      celda: (l) => l.cliente,
+    },
+    {
+      clave: 'surtido',
+      titulo: 'Surtido',
+      numerica: true,
+      orden: (l) => l.lineas - l.surtidas,
+      celda: (l) => (
+        <span className="tabular-nums">
+          {l.surtidas} de {l.lineas}
+        </span>
+      ),
+    },
+  ];
+  return (
+    <TablaAdaptable
+      etiqueta="Listas de trabajo abiertas"
+      principal="cliente"
+      desde="lg"
+      columnas={columnas}
+      filas={listas}
+      claveDe={(l) => l.listaId}
+      alto="max-h-[60vh]"
+      vacio={
+        <Vacio
+          icono={<ClipboardList />}
+          titulo="No hay listas abiertas."
+          explicacion="La que dicte el albañil se captura en «Capturar una lista», tal cual la dijo."
+        />
+      }
+    />
+  );
+}
+
+function CapturaDeLista({
+  nombre,
+  texto,
+  ocupado,
+  alCambiarNombre,
+  alCambiarTexto,
+  alGuardar,
+}: {
+  readonly nombre: string;
+  readonly texto: string;
+  readonly ocupado: boolean;
+  readonly alCambiarNombre: (valor: string) => void;
+  readonly alCambiarTexto: (valor: string) => void;
+  readonly alGuardar: () => void;
+}) {
+  return (
+    <Superficie
+      como="section"
+      aria-labelledby="capturar-lista"
+      relleno={4}
+      radio="md"
+      className="flex flex-col gap-(--espacio-3)"
+    >
+      <h2 id="capturar-lista" className="font-semibold">
+        Capturar una lista
+      </h2>
+      <div className="flex flex-col gap-(--espacio-1)">
+        <Label htmlFor="quien">De quién</Label>
+        <Input
+          id="quien"
+          className="h-[calc(var(--altura-control)*1.2)]"
+          placeholder="Don Beto, obra de la esquina"
+          value={nombre}
+          onChange={(evento) => {
+            alCambiarNombre(evento.target.value);
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-(--espacio-1)">
+        <Label htmlFor="lista">Lo que pidió, tal cual</Label>
+        <Textarea
+          id="lista"
+          rows={6}
+          placeholder={'diez de varilla del tres\nun bulto de cemento\ndos kilos de clavo'}
+          value={texto}
+          onChange={(evento) => {
+            alCambiarTexto(evento.target.value);
+          }}
+        />
+        <p className="text-sm text-texto-sutil">
+          Un renglón por línea. No se traduce al capturar: se empareja después.
+        </p>
+      </div>
+      <Button type="button" disabled={ocupado} cargando={ocupado} onClick={alGuardar}>
+        Guardar la lista
+      </Button>
+    </Superficie>
+  );
+}
+
+// ── Garantías ─────────────────────────────────────────────────────────────
+
+function Esperando({ dias }: { readonly dias: number }) {
+  if (dias <= DIAS_DE_GARANTIA_FRIA) {
+    return (
+      <span className="text-texto-sutil">
+        <Cifra valor={dias} unidad="d" /> esperando
+      </span>
+    );
+  }
+  // «Lleva 90 días» es lo que hace que alguien llame al proveedor. «Pendiente» no.
+  return (
+    <span className="inline-flex items-center gap-(--espacio-1) font-semibold text-peligro">
+      <Clock aria-hidden="true" className="size-4 shrink-0" />
+      <Cifra valor={dias} unidad="d" /> esperando
+    </span>
+  );
+}
+
+function TablaDeGarantias({ garantias }: { readonly garantias: readonly GarantiaPendiente[] }) {
+  // La más vieja arriba: es la que ya debería estar cobrada.
+  const porAntiguedad = useMemo(
+    () => garantias.toSorted((a, b) => b.diasEsperando - a.diasEsperando),
+    [garantias],
+  );
+  const enElProveedor = garantias.reduce((suma, g) => suma + Number(g.valorCentavos), 0);
+  const columnas: readonly ColumnaDeTabla<GarantiaPendiente>[] = [
+    { clave: 'estado', titulo: 'Estado', orden: (g) => g.estado, celda: (g) => g.estado },
+    {
+      clave: 'piezas',
+      titulo: 'Piezas',
+      numerica: true,
+      orden: (g) => g.piezas,
+      celda: (g) => <Cifra valor={g.piezas} unidad="pz" />,
+    },
+    {
+      clave: 'valor',
+      titulo: 'Valor',
+      numerica: true,
+      orden: (g) => Number(g.valorCentavos),
+      celda: (g) => <Dinero centavos={Number(g.valorCentavos)} tamano="sm" />,
+    },
+    {
+      clave: 'esperando',
+      titulo: 'Esperando',
+      orden: (g) => g.diasEsperando,
+      celda: (g) => <Esperando dias={g.diasEsperando} />,
+    },
+  ];
+  return (
+    <TablaAdaptable
+      etiqueta="Garantías en el proveedor"
+      principal="esperando"
+      desde="lg"
+      columnas={columnas}
+      filas={porAntiguedad}
+      claveDe={(g) => g.garantiaId}
+      tonoDeFila={(g) => (g.diasEsperando > DIAS_DE_GARANTIA_FRIA ? 'peligro' : undefined)}
+      pie={{
+        estado: <span className="text-texto-sutil">En el proveedor</span>,
+        valor: <Dinero centavos={enElProveedor} tamano="sm" />,
+      }}
+      alto="max-h-[60vh]"
+      vacio={
+        <Vacio
+          icono={<ShieldCheck />}
+          titulo="No hay nada en el proveedor."
+          explicacion="Cuando una pieza se manda a garantía, aquí se cuentan los días que lleva esperando."
+        />
+      }
+    />
+  );
+}
+
+// ── La pantalla ───────────────────────────────────────────────────────────
+
 export function TrabajosDeMostrador({
   apartadosIniciales,
   listasIniciales,
   garantiasIniciales,
 }: TrabajosProps) {
+  const voc = useVocabulario();
   const [pestana, setPestana] = useState<Pestana>('apartados');
   const [apartados, setApartados] = useState<readonly NotaApartada[] | null>(
     apartadosIniciales ?? null,
@@ -198,9 +670,11 @@ export function TrabajosDeMostrador({
   const [garantias, setGarantias] = useState<readonly GarantiaPendiente[] | null>(
     garantiasIniciales ?? null,
   );
+  const [fallos, setFallos] = useState<Fallos>(SIN_FALLOS);
+  const [intento, setIntento] = useState(0);
   const [textoLista, setTextoLista] = useState('');
   const [nombreLista, setNombreLista] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FalloDeComando | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -214,6 +688,13 @@ export function TrabajosDeMostrador({
     }
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
+    /** Una lectura que no llegó se DICE: ya no se disfraza de lista vacía. */
+    const fallar =
+      (cual: Pestana) =>
+      (fallo: unknown): void => {
+        if (sigueMontada())
+          setFallos((previos) => ({ ...previos, [cual]: motivoDeLectura(fallo) }));
+      };
     const cargar = (): void => {
       // Las notas apartadas, las listas y las garantías son del NEGOCIO: ninguna
       // de las tres consultas de abajo lleva almacén.
@@ -233,18 +714,14 @@ export function TrabajosDeMostrador({
           .then((filas) => {
             if (sigueMontada()) setApartados(filas.map(comoNotaApartada));
           })
-          .catch(() => {
-            if (sigueMontada()) setApartados([]);
-          });
+          .catch(fallar('apartados'));
       }
       if (listasIniciales === undefined) {
         consultarPuente<FilaDeLista>('ListaDeTrabajo', { limite: 60, signal: control.signal })
           .then((filas) => {
             if (sigueMontada()) setListas(filas.map(comoLista));
           })
-          .catch(() => {
-            if (sigueMontada()) setListas([]);
-          });
+          .catch(fallar('listas'));
       }
       if (garantiasIniciales === undefined) {
         invocarComando<{ readonly pendientes: readonly GarantiaPendiente[] }>(
@@ -255,9 +732,7 @@ export function TrabajosDeMostrador({
           .then((salida) => {
             if (sigueMontada()) setGarantias(salida.pendientes);
           })
-          .catch(() => {
-            if (sigueMontada()) setGarantias([]);
-          });
+          .catch(fallar('garantias'));
       }
     };
     const arranque = setTimeout(cargar);
@@ -265,7 +740,16 @@ export function TrabajosDeMostrador({
       clearTimeout(arranque);
       control.abort();
     };
-  }, [apartadosIniciales, listasIniciales, garantiasIniciales]);
+  }, [apartadosIniciales, listasIniciales, garantiasIniciales, intento]);
+
+  /** Se limpia EN EL CLIC: lo que no llegó vuelve a su esqueleto y se relee. */
+  function volverALeer(): void {
+    if (fallos.apartados !== null) setApartados(null);
+    if (fallos.listas !== null) setListas(null);
+    if (fallos.garantias !== null) setGarantias(null);
+    setFallos(SIN_FALLOS);
+    setIntento((previo) => previo + 1);
+  }
 
   function entregar(nota: NotaApartada): void {
     setOcupado(true);
@@ -276,7 +760,10 @@ export function TrabajosDeMostrador({
         setAviso(`Entregada la ${nota.folio}.`);
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setError({
+          titulo: mensajeDe(fallo),
+          queNoPaso: `La ${nota.folio} sigue apartada: no salió material.`,
+        });
       })
       .finally(() => {
         setOcupado(false);
@@ -289,7 +776,10 @@ export function TrabajosDeMostrador({
       .map((t) => t.trim())
       .filter((t) => t !== '');
     if (nombreLista.trim() === '' || renglones.length === 0) {
-      setError('La lista lleva nombre y al menos un renglón.');
+      setError({
+        titulo: 'La lista lleva nombre y al menos un renglón.',
+        queNoPaso: 'No se guardó nada.',
+      });
       return;
     }
     setOcupado(true);
@@ -335,182 +825,96 @@ export function TrabajosDeMostrador({
         setAviso('Lista capturada tal cual la dictó.');
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setError({
+          titulo: mensajeDe(fallo),
+          queNoPaso: 'La lista no se guardó; lo escrito sigue en el formulario.',
+        });
       })
       .finally(() => {
         setOcupado(false);
       });
   }
 
-  const cargando = apartados === null || listas === null || garantias === null;
-  if (cargando) {
-    return (
-      <div className="space-y-(--espacio-4) p-(--espacio-6)">
-        <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-56" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
+  const resumenes: Readonly<Record<Pestana, Resumen | null>> = {
+    apartados: apartados === null ? null : resumirApartados(apartados),
+    listas: listas === null ? null : resumirListas(listas),
+    garantias: garantias === null ? null : resumirGarantias(garantias),
+  };
 
   return (
-    <main className="mx-auto max-w-3xl space-y-(--espacio-6) p-(--espacio-6)">
-      <header>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-(--espacio-4) p-(--espacio-3) md:p-(--espacio-6)">
+      <header className="flex flex-col gap-(--espacio-1)">
         <h1 className="text-2xl font-semibold">Trabajos de mostrador</h1>
-        <p className="text-texto-sutil text-sm">
+        <p className="text-sm text-texto-sutil">
           El clavo donde se pinchan los papeles, sin papeles.
         </p>
       </header>
 
-      <div className="flex gap-2">
-        {PESTANAS.map((opcion) => (
-          <Button
-            key={opcion.clave}
-            type="button"
-            aria-pressed={pestana === opcion.clave}
-            variant={pestana === opcion.clave ? 'default' : 'outline'}
-            onClick={() => {
-              setPestana(opcion.clave);
-            }}
-          >
-            {opcion.etiqueta}
-          </Button>
-        ))}
-      </div>
+      <Pestanas pestana={pestana} resumenes={resumenes} fallos={fallos} alElegir={setPestana} />
 
       {error !== null && (
-        <p role="alert" className="text-peligro text-sm">
-          {error}
-        </p>
+        <Aviso tono="peligro" titulo={error.titulo}>
+          {error.queNoPaso}
+        </Aviso>
       )}
-      {aviso !== null && <p className="text-sm">{aviso}</p>}
+      {aviso !== null && <Aviso tono="exito" titulo={aviso} />}
 
       {pestana === 'apartados' && (
-        <section>
-          {apartados.length === 0 && (
-            <p className="text-texto-sutil text-sm">No hay nada apartado.</p>
-          )}
-          <ul className="divide-y">
-            {apartados.map((nota) => (
-              <li
-                key={nota.notaId}
-                className="flex items-center gap-(--espacio-3) py-(--espacio-3)"
-              >
-                <span className="w-24 font-medium">{nota.folio}</span>
-                <span className="flex-1">{nota.cliente}</span>
-                <span className="tabular-nums">{pesos(nota.totalCentavos)}</span>
-                <span
-                  className={
-                    nota.diasRestantes <= 0 ? 'text-peligro text-sm' : 'text-texto-sutil text-sm'
-                  }
-                >
-                  {leerVencimiento(nota.diasRestantes)}
-                </span>
-                <Button
-                  size="sm"
-                  disabled={ocupado}
-                  onClick={() => {
-                    entregar(nota);
-                  }}
-                >
-                  Entregar
-                </Button>
-              </li>
-            ))}
-          </ul>
-          <p className="text-texto-sutil mt-(--espacio-3) text-sm">
+        <section
+          aria-label={`${voc.titulo('orden', true)} apartadas`}
+          className="flex flex-col gap-(--espacio-3)"
+        >
+          <SegunLectura
+            filas={apartados}
+            fallo={fallos.apartados}
+            titulo={`No se pudieron leer ${voc.conArticulo('orden', true).toLowerCase()} apartadas`}
+            queHacer="Revisa la conexión y vuelve a leer. No se entregó nada: el material sigue apartado."
+            alReintentar={volverALeer}
+          >
+            {(notas) => <TablaDeApartados notas={notas} ocupado={ocupado} alEntregar={entregar} />}
+          </SegunLectura>
+          <p className="text-sm text-texto-sutil">
             Material apartado es material que no se vende: por eso caduca y por eso se ve cuándo.
           </p>
         </section>
       )}
 
       {pestana === 'listas' && (
-        <section className="space-y-(--espacio-4)">
-          {listas.length === 0 && (
-            <p className="text-texto-sutil text-sm">No hay listas abiertas.</p>
-          )}
-          <ul className="divide-y">
-            {listas.map((lista) => (
-              <li
-                key={lista.listaId}
-                className="flex items-center gap-(--espacio-3) py-(--espacio-3)"
-              >
-                <span className="w-24 font-medium">{lista.folio}</span>
-                <span className="flex-1">{lista.cliente}</span>
-                <span className="tabular-nums">
-                  {lista.surtidas} de {lista.lineas}
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <Separator />
-
-          <div className="space-y-(--espacio-3)">
-            <h2 className="font-medium">Capturar una lista</h2>
-            <div>
-              <Label htmlFor="quien">De quién</Label>
-              <Input
-                id="quien"
-                className="h-[calc(var(--altura-control)*1.2)]"
-                placeholder="Don Beto, obra de la esquina"
-                value={nombreLista}
-                onChange={(evento) => {
-                  setNombreLista(evento.target.value);
-                }}
-              />
-            </div>
-            <div>
-              <Label htmlFor="lista">Lo que pidió, tal cual</Label>
-              <Textarea
-                id="lista"
-                rows={6}
-                placeholder={'diez de varilla del tres\nun bulto de cemento\ndos kilos de clavo'}
-                value={textoLista}
-                onChange={(evento) => {
-                  setTextoLista(evento.target.value);
-                }}
-              />
-              <p className="text-texto-sutil mt-1 text-sm">
-                Un renglón por línea. No se traduce al capturar: se empareja después.
-              </p>
-            </div>
-            <Button disabled={ocupado} onClick={capturarLista}>
-              Guardar la lista
-            </Button>
-          </div>
-        </section>
+        <div className="flex flex-col gap-(--espacio-4) lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+          <section aria-label="Listas de trabajo abiertas">
+            <SegunLectura
+              filas={listas}
+              fallo={fallos.listas}
+              titulo="No se pudieron leer las listas de trabajo"
+              queHacer="Revisa la conexión y vuelve a leer. Mientras, una lista nueva se puede capturar."
+              alReintentar={volverALeer}
+            >
+              {(abiertas) => <TablaDeListas listas={abiertas} />}
+            </SegunLectura>
+          </section>
+          <CapturaDeLista
+            nombre={nombreLista}
+            texto={textoLista}
+            ocupado={ocupado}
+            alCambiarNombre={setNombreLista}
+            alCambiarTexto={setTextoLista}
+            alGuardar={capturarLista}
+          />
+        </div>
       )}
 
       {pestana === 'garantias' && (
-        <section>
-          {garantias.length === 0 && (
-            <p className="text-texto-sutil text-sm">No hay nada en el proveedor.</p>
-          )}
-          <ul className="divide-y">
-            {garantias.map((garantia) => (
-              <li
-                key={garantia.garantiaId}
-                className="flex items-center gap-(--espacio-3) py-(--espacio-3)"
-              >
-                <span className="flex-1">
-                  {garantia.piezas} pz · {garantia.estado}
-                </span>
-                <span className="tabular-nums">{pesos(garantia.valorCentavos)}</span>
-                {/* «Lleva 90 días» es lo que hace que alguien llame al
-                    proveedor. «Pendiente» no. */}
-                <span
-                  className={
-                    garantia.diasEsperando > 30
-                      ? 'text-peligro text-sm'
-                      : 'text-texto-sutil text-sm'
-                  }
-                >
-                  {garantia.diasEsperando} d esperando
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="text-texto-sutil mt-(--espacio-3) text-sm">
+        <section aria-label="Garantías en el proveedor" className="flex flex-col gap-(--espacio-3)">
+          <SegunLectura
+            filas={garantias}
+            fallo={fallos.garantias}
+            titulo="No se pudieron leer las garantías pendientes"
+            queHacer="Revisa la conexión y vuelve a leer. Las garantías siguen registradas: sólo no llegaron."
+            alReintentar={volverALeer}
+          >
+            {(pendientes) => <TablaDeGarantias garantias={pendientes} />}
+          </SegunLectura>
+          <p className="text-sm text-texto-sutil">
             Un negocio mediano pierde entre $20,000 y $60,000 al año porque nadie lleva esta cuenta.
           </p>
         </section>
