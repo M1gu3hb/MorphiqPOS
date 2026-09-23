@@ -2,11 +2,6 @@
 
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@morphiqpos/ui/primitivas/collapsible';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import {
   Select,
@@ -15,8 +10,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@morphiqpos/ui/primitivas/select';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  Progreso,
+  Superficie,
+  Tabla,
+  VIAJE,
+  Vacio,
+  conTransicion,
+  type ColumnaDeTabla,
+  type TamanoDeDinero,
+} from '@morphiqpos/ui/sistema';
+import { ArrowLeft, ChefHat, ClipboardList } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -34,7 +46,16 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * que el margen lleva semáforo —verde arriba de 60 %, ámbar de 40 a 60, rojo
  * debajo— y la lista se ordena por urgencia: lo que pierde dinero primero, lo
  * que ni siquiera tiene receta después, y hasta el final lo sano. Alfabético
- * escondería los seis platillos que importan entre noventa que no.
+ * escondería los seis platillos que importan entre noventa que no. El número del
+ * margen va en cifras y más grande que el precio; la palabra lo acompaña, porque
+ * el color nunca va solo.
+ *
+ * ── La fila se convierte en panel ────────────────────────────────────────
+ * Abrir un platillo es la fila que se expande hasta ser su receta: en PC y
+ * tableta horizontal, a un panel fijo al lado de la lista —se capturan treinta
+ * seguidas sin perder de vista cuál falta—; en teléfono, el panel ocupa el lugar
+ * de la lista y «Volver» la devuelve. La fila y el panel llevan el mismo nombre
+ * de viaje (`VIAJE.fila`), nunca los dos a la vez.
  *
  * ── La cantidad se teclea en la unidad que uno quiera ────────────────────
  * En cocina se dice «250 gramos» y «medio litro». Obligar a teclear en unidad
@@ -45,13 +66,11 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * `inventario.guardar_receta` reemplaza el escandallo en una transacción.
  * Enviar sólo la línea nueva dejaría al platillo con un único ingrediente.
  *
- * ── Fuera de alcance, para caber en 300 líneas ───────────────────────────
+ * ── Fuera de alcance ─────────────────────────────────────────────────────
  * Editar o quitar una línea ya capturada, capturar la merma al agregar (se
- * manda en cero y se ve en la fila abierta), el aviso de cordura al guardar
+ * manda en cero y se ve en la receta abierta), el aviso de cordura al guardar
  * («cuesta $412 y se vende en $180») y la importación por Excel.
  */
-
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
 /** Las únicas unidades que el comando admite. Ampliarlas es abrir el error de mil. */
 const UNIDADES = ['g', 'kg', 'ml', 'l', 'pieza', 'm'] as const;
@@ -64,9 +83,14 @@ const MARGEN_AJUSTADO = 40;
 const PUNTOS_BASE_POR_PUNTO = 100;
 const HTTP_DEMASIADOS_INTENTOS = 429;
 const CANTIDAD_VALIDA = /^\d{1,10}(?:\.\d{1,4})?$/;
+/** El puente entrega PESOS —ya dividió los centavos— y `Dinero` pinta centavos enteros. */
+const CENTAVOS_POR_PESO = 100;
+const DECIMALES_MAXIMOS = 4;
+const PORCENTAJE_COMPLETO = 100;
 
-/** Las cinco columnas de PC. En teléfono no hay columnas: hay tarjeta. */
-const COLUMNAS = 'md:grid md:grid-cols-[3fr_1.3fr_1fr_1fr_1.3fr] md:gap-(--espacio-3)';
+/** Lista y panel lado a lado desde la tableta horizontal; debajo, uno a la vez. */
+const MARCO =
+  'grid gap-(--espacio-4) p-(--espacio-4) lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:items-start';
 
 export interface ProductoConMargen {
   readonly id: string;
@@ -108,6 +132,14 @@ type Campo = 'productoId' | 'insumoId' | 'cantidad' | 'unidad';
 type Borrador = Readonly<Record<Campo, string>>;
 const VACIO: Borrador = { productoId: '', insumoId: '', cantidad: '', unidad: 'g' };
 
+/** Lo que se le dice a quien captura: un dato que falta, o un comando que falló. */
+interface Problema {
+  readonly tono: 'atencion' | 'peligro';
+  readonly titulo: string;
+  /** Lo que pasó y lo que NO pasó: si la receta se guardó o quedó como estaba. */
+  readonly consecuencia: string | null;
+}
+
 /** El semáforo del margen. La PALABRA acompaña al color: el color nunca va solo. */
 export function semaforoDeMargen(margen: number | null): { etiqueta: string; clase: string } {
   if (!Number.isFinite(margen)) return { etiqueta: 'Sin costo', clase: 'bg-fondo-sutil' };
@@ -116,6 +148,10 @@ export function semaforoDeMargen(margen: number | null): { etiqueta: string; cla
   if (valor >= MARGEN_AJUSTADO) return { etiqueta: 'Ajustado', clase: 'bg-advertencia/35' };
   return { etiqueta: 'En riesgo', clase: 'bg-peligro/25' };
 }
+
+/** Rojo en el semáforo: el platillo se vende, pero deja menos de lo que debe. */
+const pierdeMargen = (margen: number | null): boolean =>
+  Number.isFinite(margen) && (margen ?? 0) < MARGEN_AJUSTADO;
 
 /**
  * La lista es una cola de trabajo, no un catálogo.
@@ -143,8 +179,13 @@ export function armarFilas(
     });
 }
 
-const dinero = (valor: number | null): string =>
-  Number.isFinite(valor) ? PESOS.format(valor ?? 0) : '—';
+const aCentavos = (pesos: number): number => Math.round(pesos * CENTAVOS_POR_PESO);
+
+/** Cuántos decimales tiene lo que se capturó: «0.25 kg» no se lee «0 kg». */
+function decimalesDe(valor: number): number {
+  const [, fraccion = ''] = String(valor).split('.');
+  return Math.min(fraccion.length, DECIMALES_MAXIMOS);
+}
 
 /** El límite de intentos no es un código: es el 429, y vive en `estado`. */
 function mensajeDeFallo(fallo: unknown): string {
@@ -171,15 +212,168 @@ async function leerTodo(signal: AbortSignal) {
   return { filas: armarFilas(productos, lineas), ingredientes };
 }
 
+/* ── Las piezas que se repiten en la lista y en el panel ──────────────── */
+
+/** Un importe que puede no existir todavía: sin costo calculado es «—», no «$0.00». */
+function Importe({
+  pesos,
+  tamano = 'sm',
+}: {
+  readonly pesos: number | null;
+  readonly tamano?: TamanoDeDinero;
+}) {
+  if (pesos === null || !Number.isFinite(pesos)) {
+    return <span className="text-texto-tenue">—</span>;
+  }
+  return <Dinero centavos={aCentavos(pesos)} tamano={tamano} />;
+}
+
+/** El margen: la cifra, que es lo que se lee, y el semáforo con su palabra al lado. */
+function Margen({
+  margen,
+  tamano = 'base',
+}: {
+  readonly margen: number | null;
+  readonly tamano?: TamanoDeDinero;
+}) {
+  const semaforo = semaforoDeMargen(margen);
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-(--espacio-2)">
+      {Number.isFinite(margen) ? (
+        <Cifra
+          valor={Math.round(margen ?? 0)}
+          unidad="%"
+          tamano={tamano}
+          className="font-semibold"
+        />
+      ) : null}
+      <Badge variant="outline" className={`${semaforo.clase} border-borde`}>
+        {semaforo.etiqueta}
+      </Badge>
+    </span>
+  );
+}
+
+const ingredientes = (cuantos: number): string =>
+  `${String(cuantos)} ingrediente${cuantos === 1 ? '' : 's'}`;
+
+/** Si tiene receta: el segundo dato de la jerarquía, dicho con palabras. */
+function EstadoDeReceta({ fila }: { readonly fila: FilaDeReceta }) {
+  if (fila.lineas.length === 0) return <Badge variant="secondary">Sin receta</Badge>;
+  return <span className="text-texto-sutil">{ingredientes(fila.lineas.length)}</span>;
+}
+
+/** Las columnas de la lista, en el orden de la jerarquía leída de derecha a izquierda. */
+function columnasDePlatillos(tituloDePlatillo: string): readonly ColumnaDeTabla<FilaDeReceta>[] {
+  return [
+    {
+      clave: 'platillo',
+      titulo: tituloDePlatillo,
+      orden: (fila) => fila.producto.nombre,
+      celda: (fila) => (
+        <span className="flex flex-col gap-(--espacio-1)">
+          <span className="font-medium">{fila.producto.nombre}</span>
+          <span className="text-xs text-texto-sutil">
+            {fila.producto.categoria_nombre ?? 'Sin categoría'}
+          </span>
+          {/* En teléfono no cabe la columna «Receta»: el dato baja aquí. */}
+          <span className="text-xs sm:hidden">
+            <EstadoDeReceta fila={fila} />
+          </span>
+        </span>
+      ),
+    },
+    {
+      clave: 'receta',
+      titulo: 'Receta',
+      desde: 'sm',
+      orden: (fila) => fila.lineas.length,
+      celda: (fila) => <EstadoDeReceta fila={fila} />,
+    },
+    {
+      clave: 'costo',
+      titulo: 'Costo',
+      numerica: true,
+      desde: 'md',
+      orden: (fila) => fila.producto.costo_calculado_actual ?? -1,
+      celda: (fila) => <Importe pesos={fila.producto.costo_calculado_actual} />,
+    },
+    {
+      clave: 'precio',
+      titulo: 'Precio',
+      numerica: true,
+      desde: 'md',
+      orden: (fila) => fila.producto.precio_venta ?? -1,
+      celda: (fila) => <Importe pesos={fila.producto.precio_venta} />,
+    },
+    {
+      clave: 'margen',
+      titulo: 'Margen',
+      numerica: true,
+      orden: (fila) => fila.producto.margen_bruto_actual ?? Number.MAX_SAFE_INTEGER,
+      celda: (fila) => <Margen margen={fila.producto.margen_bruto_actual} />,
+    },
+  ];
+}
+
+/** Las líneas de la receta abierta: qué lleva, cuánto, cuánto se tira y cuánto cuesta. */
+const COLUMNAS_DE_LINEAS: readonly ColumnaDeTabla<LineaDeReceta>[] = [
+  {
+    clave: 'ingrediente',
+    titulo: 'Ingrediente',
+    celda: (linea) => (
+      <span className="font-medium">{linea.ingrediente_nombre ?? 'Ingrediente'}</span>
+    ),
+  },
+  {
+    clave: 'cantidad',
+    titulo: 'Cantidad',
+    numerica: true,
+    celda: (linea) => {
+      const cantidad = linea.cantidad_usada ?? 0;
+      return (
+        <Cifra
+          valor={cantidad}
+          decimales={decimalesDe(cantidad)}
+          tamano="sm"
+          {...(linea.unidad_usada === null ? {} : { unidad: linea.unidad_usada })}
+        />
+      );
+    },
+  },
+  {
+    clave: 'merma',
+    titulo: 'Merma',
+    numerica: true,
+    desde: 'sm',
+    celda: (linea) => {
+      const merma = linea.merma_porcentaje ?? 0;
+      return <Cifra valor={merma} decimales={decimalesDe(merma)} unidad="%" tamano="sm" />;
+    },
+  },
+  {
+    clave: 'costo',
+    titulo: 'Costo',
+    numerica: true,
+    celda: (linea) => <Importe pesos={linea.costo_linea_calculado} />,
+  },
+];
+
 export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps) {
   const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly FilaDeReceta[] | null>(filasIniciales ?? null);
   const [insumos, setInsumos] = useState<readonly IngredienteDisponible[]>(
     ingredientesIniciales ?? [],
   );
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  // Cada intento de lectura es un número: el botón de reintentar lo sube y el
+  // efecto lee otra vez. El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const [viajando, setViajando] = useState<string | null>(null);
   const [borrador, setBorrador] = useState<Borrador>(VACIO);
   const [guardando, setGuardando] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [problema, setProblema] = useState<Problema | null>(null);
 
   useEffect(() => {
     if (filasIniciales !== undefined) return undefined;
@@ -191,18 +385,55 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
         setFilas(leido.filas);
         setInsumos(leido.ingredientes);
       })
-      // La pantalla no se vacía por un fallo de red: a media captura, el dueño
-      // prefiere el último dato conocido a una hoja en blanco.
       .catch((fallo: unknown) => {
-        if (sigueMontada()) setError(mensajeDeFallo(fallo));
+        if (sigueMontada()) setFalloDeCarga(mensajeDeFallo(fallo));
       });
     return () => {
       control.abort();
     };
-  }, [filasIniciales]);
+  }, [filasIniciales, intento]);
 
-  // Un solo borrador para toda la lista: aunque haya dos platillos abiertos,
-  // nadie captura dos recetas a la vez, y `productoId` dice de quién es.
+  function reintentarCarga(): void {
+    setFalloDeCarga(null);
+    setFilas(null);
+    setIntento((previo) => previo + 1);
+  }
+
+  /**
+   * La fila se convierte en el panel. Antes del cambio la FILA lleva el nombre;
+   * dentro del cambio se lo quita y lo toma el PANEL, y `flushSync` hace que el
+   * navegador fotografíe el estado nuevo ya pintado. Nunca los dos a la vez: con
+   * dos elementos del mismo nombre el navegador no anima ninguno.
+   */
+  function abrir(id: string): void {
+    if (id === abierta) return;
+    flushSync(() => {
+      setViajando(id);
+    });
+    void conTransicion(() => {
+      flushSync(() => {
+        setViajando(null);
+        setAbierta(id);
+        setProblema(null);
+      });
+    });
+  }
+
+  /** En teléfono: el panel vuelve a ser la fila de la que salió. */
+  function volver(): void {
+    const id = abierta;
+    if (id === null) return;
+    void conTransicion(() => {
+      flushSync(() => {
+        setAbierta(null);
+        setViajando(id);
+        setProblema(null);
+      });
+    });
+  }
+
+  // Un solo borrador para toda la lista: nadie captura dos recetas a la vez, y
+  // `productoId` dice de quién es.
   const escribir = (productoId: string, cambio: Partial<Borrador>) => {
     setBorrador((previo) => ({
       ...(previo.productoId === productoId ? previo : VACIO),
@@ -214,10 +445,15 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
   const agregar = async (fila: FilaDeReceta) => {
     const datos = borrador.productoId === fila.producto.id ? borrador : VACIO;
     if (datos.insumoId === '' || !CANTIDAD_VALIDA.test(datos.cantidad)) {
-      setError('Elige un ingrediente y escribe una cantidad como 250 o 0.5.');
+      setProblema({
+        tono: 'atencion',
+        titulo: 'Elige un ingrediente y escribe una cantidad como 250 o 0.5.',
+        consecuencia: null,
+      });
       return;
     }
     setGuardando(fila.producto.id);
+    let seGuardo = false;
     try {
       await invocarComando(RUTA_GUARDAR, {
         productoId: fila.producto.id,
@@ -226,256 +462,307 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
           { insumoId: datos.insumoId, cantidad: datos.cantidad, unidad: datos.unidad, mermaBp: 0 },
         ],
       });
+      seGuardo = true;
       // Se relee entero: el costo y el margen los recalcula el servidor en
       // cascada, y son los dos números por los que alguien captura esto.
       const leido = await leerTodo(new AbortController().signal);
       setFilas(leido.filas);
       setBorrador(VACIO);
-      setError(null);
+      setProblema(null);
     } catch (fallo: unknown) {
-      setError(mensajeDeFallo(fallo));
+      setProblema({
+        tono: seGuardo ? 'atencion' : 'peligro',
+        titulo: mensajeDeFallo(fallo),
+        consecuencia: seGuardo
+          ? 'El ingrediente sí se guardó; lo que no se pudo es releer el costo y el margen. Vuelve a abrir la pantalla para verlos.'
+          : 'No se guardó nada: la receta quedó como estaba.',
+      });
     } finally {
       setGuardando(null);
     }
   };
 
+  const cabecera = (
+    <div className="flex flex-col gap-(--espacio-1)">
+      <h1 className="text-2xl font-bold">Recetas</h1>
+      <p className="text-sm text-texto-sutil">
+        Por urgencia: lo que deja poco margen primero, lo que no tiene receta después.
+      </p>
+    </div>
+  );
+
+  if (falloDeCarga !== null) {
+    return (
+      <div className={MARCO}>
+        <header className="lg:col-span-2">{cabecera}</header>
+        <ErrorDePantalla
+          className="lg:col-span-2"
+          titulo="No se pudo leer el recetario"
+          queHacer="Sin los platillos y sus ingredientes no hay costo ni margen que enseñar. Revisa la conexión y vuelve a intentarlo."
+          detalle={falloDeCarga}
+          reintentar={<Button onClick={reintentarCarga}>Volver a intentar</Button>}
+        />
+      </div>
+    );
+  }
+
   if (filas === null) {
     return (
-      <div className="p-(--espacio-4)">
-        <h1 className="mb-(--espacio-4) text-2xl font-bold">Recetas</h1>
-        {/* Esqueletos con la forma de la fila, nunca un giro: así nada salta al
+      <div aria-busy="true" className={MARCO}>
+        <header className="lg:col-span-2">{cabecera}</header>
+        {/* La forma de la lista y del panel, nunca una rueda: así nada salta al
             llegar el dato y el ojo ya sabe dónde va a mirar. */}
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 8 }, (_, indice) => (
-            <Skeleton key={indice} className="h-20 w-full rounded-lg" />
-          ))}
-        </div>
+        <EsqueletoDeLista filas={8} />
+        <Esqueleto className="hidden h-80 w-full lg:block" />
       </div>
     );
   }
 
   if (filas.length === 0) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-(--espacio-4) p-(--espacio-8) text-center">
-        <p className="max-w-md text-lg">
-          Todavía no hay platillos en la carta. Sin platillos no hay recetas, y sin recetas no
-          sabemos cuánto cuesta cada plato ni cuánto ganas con él.
-        </p>
-        <Button asChild>
-          <a href="/restaurante/productos">Crear mi primer {voc.singular('linea_orden')}</a>
-        </Button>
+      <div className={MARCO}>
+        <header className="lg:col-span-2">{cabecera}</header>
+        <Vacio
+          className="lg:col-span-2"
+          icono={<ChefHat />}
+          titulo={`Todavía no hay ${voc.plural('linea_orden')} en la carta.`}
+          explicacion={`Sin ${voc.plural('linea_orden')} no hay recetas, y sin recetas no sabemos cuánto cuesta cada plato ni cuánto ganas con él.`}
+          accion={
+            <Button asChild>
+              <a href="/restaurante/productos">Crear mi primer {voc.singular('linea_orden')}</a>
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   const conReceta = filas.filter((fila) => fila.lineas.length > 0).length;
+  const filaAbierta = filas.find((fila) => fila.producto.id === abierta) ?? null;
 
   return (
-    <div className="p-(--espacio-4)">
-      <header className="mb-(--espacio-4) flex flex-wrap items-end justify-between gap-(--espacio-3)">
-        <h1 className="text-2xl font-bold">Recetas</h1>
+    <div className={MARCO}>
+      <header className="flex flex-wrap items-end justify-between gap-(--espacio-3) lg:col-span-2">
+        {cabecera}
         {/* La cobertura, arriba: capturar quince recetas y creer que terminaste
             es lo que hace que el consumo teórico no cuadre nunca. */}
-        <p className="text-sm text-texto-sutil">
-          <strong className="text-texto">{conReceta}</strong> de {filas.length} platillos tienen
-          receta
-        </p>
+        <Progreso
+          className="w-full sm:w-72"
+          valor={(conReceta / filas.length) * PORCENTAJE_COMPLETO}
+          etiqueta={`${String(conReceta)} de ${voc.conNumero('linea_orden', filas.length)} tienen receta`}
+        />
       </header>
 
-      {error !== null && (
-        <p role="alert" className="mb-(--espacio-3) rounded-md border border-peligro p-2 text-sm">
-          {error}
-        </p>
+      <Tabla
+        etiqueta={voc.titulo('linea_orden', true)}
+        columnas={columnasDePlatillos(voc.titulo('linea_orden'))}
+        filas={filas}
+        claveDe={(fila) => fila.producto.id}
+        {...(filaAbierta === null ? {} : { activa: filaAbierta.producto.id })}
+        alActivar={abrir}
+        viajeDeFila={(fila) =>
+          fila.producto.id === viajando ? VIAJE.fila(fila.producto.id) : undefined
+        }
+        tonoDeFila={(fila) =>
+          pierdeMargen(fila.producto.margen_bruto_actual) ? 'peligro' : undefined
+        }
+        alto="max-h-[70vh]"
+        className={filaAbierta === null ? '' : 'hidden lg:block'}
+      />
+
+      {filaAbierta === null ? (
+        <Vacio
+          className="hidden lg:flex"
+          icono={<ClipboardList />}
+          titulo={`Elige ${voc.enFraseCon('un', 'linea_orden')} para ver de qué está hecho.`}
+          explicacion="Sus ingredientes, lo que cuesta cada uno y el margen que deja."
+        />
+      ) : (
+        <PanelDeReceta
+          fila={filaAbierta}
+          insumos={insumos}
+          datos={borrador.productoId === filaAbierta.producto.id ? borrador : VACIO}
+          guardando={guardando === filaAbierta.producto.id}
+          problema={problema}
+          textoDeVolver={`Volver a ${voc.enFrase('linea_orden', true)}`}
+          alEscribir={(cambio) => {
+            escribir(filaAbierta.producto.id, cambio);
+          }}
+          alAgregar={() => {
+            void agregar(filaAbierta);
+          }}
+          alVolver={volver}
+        />
       )}
-
-      <div
-        aria-hidden
-        className={`hidden px-(--espacio-3) pb-1 text-xs text-texto-sutil ${COLUMNAS}`}
-      >
-        {['Platillo', 'Receta', 'Costo', 'Precio', 'Margen'].map((titulo) => (
-          <span key={titulo}>{titulo}</span>
-        ))}
-      </div>
-
-      <ul className="flex flex-col gap-2">
-        {filas.map((fila) => (
-          <Platillo
-            key={fila.producto.id}
-            fila={fila}
-            insumos={insumos}
-            datos={borrador.productoId === fila.producto.id ? borrador : VACIO}
-            guardando={guardando === fila.producto.id}
-            alEscribir={(cambio) => {
-              escribir(fila.producto.id, cambio);
-            }}
-            alAgregar={() => {
-              void agregar(fila);
-            }}
-          />
-        ))}
-      </ul>
     </div>
   );
 }
 
-interface ParametrosDePlatillo {
+/* ── El panel ─────────────────────────────────────────────────────────── */
+
+interface PanelDeRecetaProps {
   readonly fila: FilaDeReceta;
   readonly insumos: readonly IngredienteDisponible[];
   readonly datos: Borrador;
   readonly guardando: boolean;
+  readonly problema: Problema | null;
+  readonly textoDeVolver: string;
   readonly alEscribir: (cambio: Partial<Borrador>) => void;
   readonly alAgregar: () => void;
+  readonly alVolver: () => void;
 }
 
-/** Una fila expandible. Vive aquí abajo para no anidar el archivo entero. */
-function Platillo({
+/** La receta abierta: sus tres números, sus líneas y la acción principal. */
+function PanelDeReceta({
   fila,
   insumos,
   datos,
   guardando,
+  problema,
+  textoDeVolver,
   alEscribir,
   alAgregar,
-}: ParametrosDePlatillo) {
+  alVolver,
+}: PanelDeRecetaProps) {
   const voc = useVocabulario();
   const producto = fila.producto;
-  const semaforo = semaforoDeMargen(producto.margen_bruto_actual);
-  const cifra = Number.isFinite(producto.margen_bruto_actual)
-    ? ` · ${String(Math.round(producto.margen_bruto_actual ?? 0))}%`
-    : '';
-  const insignia = (
-    <Badge variant="outline" className={`${semaforo.clase} border-borde`}>
-      {semaforo.etiqueta}
-      {cifra}
-    </Badge>
-  );
 
   return (
-    <li>
-      <Collapsible className="rounded-lg border border-borde bg-superficie shadow-1">
-        <CollapsibleTrigger
-          className={`group flex w-full flex-col gap-1 p-(--espacio-3) text-left md:items-center ${COLUMNAS}`}
-        >
-          <span className="flex items-start justify-between gap-2">
-            <span className="flex flex-col">
-              <span className="font-medium">{producto.nombre}</span>
-              <span className="text-xs text-texto-sutil">
-                {producto.categoria_nombre ?? 'Sin categoría'}
-              </span>
-            </span>
-            <span className="md:hidden">{insignia}</span>
-          </span>
-          <span className="text-sm">
-            {fila.lineas.length === 0 ? (
-              <Badge variant="secondary">Sin receta</Badge>
-            ) : (
-              <span className="text-texto-sutil">
-                {String(fila.lineas.length)} ingrediente{fila.lineas.length === 1 ? '' : 's'}
-              </span>
-            )}
-          </span>
-          <span className="text-sm tabular-nums">
-            <span className="text-texto-sutil md:hidden">Costo </span>
-            {dinero(producto.costo_calculado_actual)}
-          </span>
-          <span className="text-sm tabular-nums">
-            <span className="text-texto-sutil md:hidden">Precio </span>
-            {dinero(producto.precio_venta)}
-          </span>
-          <span className="hidden items-center justify-between gap-2 md:flex">
-            {insignia}
-            <span aria-hidden className="transition-transform group-data-[state=open]:rotate-180">
-              ▾
-            </span>
-          </span>
-        </CollapsibleTrigger>
+    <Superficie
+      como="section"
+      nivel={1}
+      conBorde
+      relleno={4}
+      aria-label={`Receta de ${producto.nombre}`}
+      style={{ viewTransitionName: VIAJE.fila(producto.id) }}
+      className="flex flex-col gap-(--espacio-4) lg:sticky lg:top-(--espacio-4)"
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="self-start lg:hidden"
+        onClick={alVolver}
+      >
+        <ArrowLeft aria-hidden="true" />
+        {textoDeVolver}
+      </Button>
 
-        <CollapsibleContent className="border-t border-borde p-(--espacio-3)">
-          {fila.lineas.length === 0 ? (
-            // El vacío explica la consecuencia; el botón de abajo es su salida.
-            <p className="mb-(--espacio-3) text-sm">
-              {voc.conDeterminante('este', 'linea_orden')} no tiene receta. Sin receta no sabemos
-              cuánto cuesta ni cuánto ganas con él.
-            </p>
-          ) : (
-            <ul className="mb-(--espacio-3) flex flex-col text-sm">
-              {fila.lineas.map((linea) => (
-                <li
-                  key={linea.id}
-                  className="flex justify-between gap-(--espacio-3) border-b border-borde py-1"
-                >
-                  <span>
-                    {linea.ingrediente_nombre ?? 'Ingrediente'} ·{' '}
-                    {String(linea.cantidad_usada ?? 0)} {linea.unidad_usada ?? ''} · merma{' '}
-                    {String(linea.merma_porcentaje ?? 0)}%
-                  </span>
-                  <span className="tabular-nums">{dinero(linea.costo_linea_calculado)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+      <header className="flex flex-col gap-(--espacio-1)">
+        <h2 className="text-xl font-bold">{producto.nombre}</h2>
+        <p className="text-sm text-texto-sutil">{producto.categoria_nombre ?? 'Sin categoría'}</p>
+      </header>
 
-          {/* La acción principal. En teléfono los campos se apilan a lo ancho
-              completo; de tablet para arriba es una línea, que es como se
-              capturan treinta seguidas sin levantar la mano del teclado. */}
-          <form
-            className="flex flex-wrap items-center gap-2"
-            onSubmit={(evento) => {
-              evento.preventDefault();
-              alAgregar();
+      {/* Los tres números en el orden de la jerarquía: el margen, grande. */}
+      <dl className="flex flex-wrap items-end gap-x-(--espacio-6) gap-y-(--espacio-3)">
+        <div className="flex flex-col gap-(--espacio-1)">
+          <dt className="text-xs text-texto-sutil">Margen</dt>
+          <dd>
+            <Margen margen={producto.margen_bruto_actual} tamano="lg" />
+          </dd>
+        </div>
+        <div className="flex flex-col gap-(--espacio-1)">
+          <dt className="text-xs text-texto-sutil">Costo</dt>
+          <dd>
+            <Importe pesos={producto.costo_calculado_actual} tamano="base" />
+          </dd>
+        </div>
+        <div className="flex flex-col gap-(--espacio-1)">
+          <dt className="text-xs text-texto-sutil">Precio</dt>
+          <dd>
+            <Importe pesos={producto.precio_venta} tamano="base" />
+          </dd>
+        </div>
+      </dl>
+
+      <Tabla
+        etiqueta={`Ingredientes de ${producto.nombre}`}
+        columnas={COLUMNAS_DE_LINEAS}
+        filas={fila.lineas}
+        claveDe={(linea) => linea.id}
+        alto="max-h-[40vh]"
+        pie={{
+          ingrediente: 'Costo del platillo',
+          costo: <Importe pesos={producto.costo_calculado_actual} />,
+        }}
+        vacio={
+          // El vacío explica la consecuencia; el formulario de abajo es su salida.
+          <Vacio
+            className="py-(--espacio-6)"
+            titulo={`${voc.conDeterminante('este', 'linea_orden')} no tiene receta.`}
+            explicacion="Sin receta no sabemos cuánto cuesta ni cuánto ganas con él."
+          />
+        }
+      />
+
+      {problema === null ? null : (
+        <Aviso tono={problema.tono} titulo={problema.titulo}>
+          {problema.consecuencia}
+        </Aviso>
+      )}
+
+      {/* La acción principal. En teléfono el ingrediente va a lo ancho y la
+          cantidad con su unidad debajo; desde la tableta es una sola línea, que es
+          como se capturan treinta seguidas sin levantar la mano del teclado. */}
+      <form
+        className="flex flex-col gap-(--espacio-2) border-t border-borde pt-(--espacio-4)"
+        onSubmit={(evento) => {
+          evento.preventDefault();
+          alAgregar();
+        }}
+      >
+        <div className="grid grid-cols-2 gap-(--espacio-2) sm:grid-cols-[minmax(0,1fr)_5.5rem_6rem]">
+          <Select
+            value={datos.insumoId}
+            onValueChange={(valor) => {
+              alEscribir({ insumoId: valor });
             }}
           >
-            <Select
-              value={datos.insumoId}
-              onValueChange={(valor) => {
-                alEscribir({ insumoId: valor });
-              }}
-            >
-              <SelectTrigger aria-label="Ingrediente" className="w-full sm:w-56">
-                <SelectValue placeholder="Elige el ingrediente" />
-              </SelectTrigger>
-              <SelectContent>
-                {insumos.map((insumo) => (
-                  <SelectItem key={insumo.id} value={insumo.id}>
-                    {insumo.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              aria-label="Cantidad"
-              inputMode="decimal"
-              placeholder="250"
-              className="w-24"
-              value={datos.cantidad}
-              onChange={(evento) => {
-                alEscribir({ cantidad: evento.target.value });
-              }}
-            />
-            {/* La unidad la elige quien captura: en cocina se dice «250 gramos»,
-                no «250». Convertir es trabajo del servidor, no del cocinero. */}
-            <Select
-              value={datos.unidad}
-              onValueChange={(valor) => {
-                alEscribir({ unidad: valor });
-              }}
-            >
-              <SelectTrigger aria-label="Unidad de la cantidad" className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {UNIDADES.map((unidad) => (
-                  <SelectItem key={unidad} value={unidad}>
-                    {unidad}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button type="submit" disabled={guardando}>
-              {guardando ? 'Guardando…' : 'Agregar ingrediente'}
-            </Button>
-          </form>
-        </CollapsibleContent>
-      </Collapsible>
-    </li>
+            <SelectTrigger aria-label="Ingrediente" className="col-span-2 w-full sm:col-span-1">
+              <SelectValue placeholder="Elige el ingrediente" />
+            </SelectTrigger>
+            <SelectContent>
+              {insumos.map((insumo) => (
+                <SelectItem key={insumo.id} value={insumo.id}>
+                  {insumo.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            aria-label="Cantidad"
+            inputMode="decimal"
+            placeholder="250"
+            className="w-full"
+            value={datos.cantidad}
+            onChange={(evento) => {
+              alEscribir({ cantidad: evento.target.value });
+            }}
+          />
+          {/* La unidad la elige quien captura: en cocina se dice «250 gramos»,
+              no «250». Convertir es trabajo del servidor, no del cocinero. */}
+          <Select
+            value={datos.unidad}
+            onValueChange={(valor) => {
+              alEscribir({ unidad: valor });
+            }}
+          >
+            <SelectTrigger aria-label="Unidad de la cantidad" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {UNIDADES.map((unidad) => (
+                <SelectItem key={unidad} value={unidad}>
+                  {unidad}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button type="submit" disabled={guardando} className="w-full sm:w-auto sm:self-end">
+          {guardando ? 'Guardando…' : 'Agregar ingrediente'}
+        </Button>
+      </form>
+    </Superficie>
   );
 }

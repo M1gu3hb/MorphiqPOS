@@ -1,21 +1,26 @@
 'use client';
 
-import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@morphiqpos/ui/primitivas/table';
+import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primitivas/tabs';
-import { Vacio } from '@morphiqpos/ui/sistema';
-import { CalendarSearch, TriangleAlert } from 'lucide-react';
-import { Fragment, type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  EsqueletoDeLista,
+  Superficie,
+  TablaAdaptable,
+  VIAJE,
+  Vacio,
+  conTransicion,
+  dineroEnTexto,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { CalendarSearch, Download, FileSpreadsheet, Search, X } from 'lucide-react';
+import { Fragment, type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
+import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -34,17 +39,25 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * hacerse. Y cambiar de pestaña NO lo reinicia: la misma pregunta se repite
  * sobre el mismo rango mirando otro dato.
  *
+ * ── Por qué el importe del periodo es lo más grande ──────────────────────
+ * Porque ES la respuesta. El resumen va en su propia superficie, con el
+ * buscador al lado: es lo primero que se ve (`04-INTERFAZ`, «Registros»), y el
+ * mismo total vuelve a estar al pie de su columna, donde el ojo lo busca.
+ *
  * ── Por qué Cortes va primero y no Ventas ────────────────────────────────
  * Porque «¿cuánto vendí?» ya lo contesta el tablero. Aquí la unidad de consulta
  * de este negocio es el corte, y ponerlo segundo le cobraría un clic a la
  * pregunta más frecuente, varias veces al día.
  *
- * ── Por qué en teléfono desaparecen cuatro pestañas ──────────────────────
- * Porque nadie audita compras en 375 px. Las dos primeras se quedan; las otras
- * cuatro no se encogen: se esconden. Encogerlas sería fingir que se pueden leer
- * y hacer perder el viaje a quien lo intente.
+ * ── PC, tableta y teléfono ───────────────────────────────────────────────
+ * En PC la tabla es densa, de cabecera fija, con TODAS sus columnas. En la
+ * tableta —el dispositivo del modelo— caben menos: las secundarias salen al
+ * pedir «Ver más», y la fila se convierte en una hoja de detalle anclada abajo
+ * (`VIAJE.fila`), que no empuja nada de lo que está bajo el dedo. En teléfono
+ * son tarjetas, y cuatro pestañas desaparecen: nadie audita compras en 375 px.
+ * Encogerlas sería fingir que se pueden leer.
  *
- * ── Recortado, para que el archivo quepa en 300 líneas ───────────────────
+ * ── Recortado, para que el archivo quepa ─────────────────────────────────
  * · El puente sólo filtra por IGUALDAD, así que el rango NO viaja al servidor:
  *   se lee una ventana de las filas más recientes y el periodo se aplica aquí.
  *   Pasada esa ventana faltarían las más viejas del rango, y por eso hay un
@@ -72,7 +85,7 @@ interface Columna {
   readonly voz?:
     'unidad_servicio' | 'orden' | 'linea_orden' | 'responsable' | 'cliente' | 'producto';
   readonly tipo: 'texto' | 'dinero' | 'fecha';
-  /** En PC es una columna más; en tablet y teléfono sale al expandir la fila. */
+  /** En PC es una columna más; en tableta y teléfono sale al abrir la fila. */
   readonly secundaria?: boolean;
 }
 
@@ -84,6 +97,14 @@ interface Pestana {
   readonly columnas: readonly Columna[];
 }
 
+/** Una fila con su clave ya resuelta: la tabla y la hoja hablan de la misma. */
+interface FilaDeRegistro {
+  readonly clave: string;
+  readonly registro: Registro;
+}
+
+type Vocabulario = ReturnType<typeof useVocabulario>;
+
 /**
  * El rótulo que se lee: el del diccionario cuando la columna lo declara.
  *
@@ -91,7 +112,7 @@ interface Pestana {
  * devuelve cadena vacía y se cae al rótulo escrito, que es mejor que una columna
  * sin encabezado.
  */
-function rotuloDe(columna: Columna, voc: ReturnType<typeof useVocabulario>): string {
+function rotuloDe(columna: Columna, voc: Vocabulario): string {
   if (columna.voz === undefined) return columna.rotulo;
   const suyo = voc.titulo(columna.voz);
   return suyo === '' ? columna.rotulo : suyo;
@@ -188,8 +209,11 @@ const PESTANAS = [
 const EN_TELEFONO = 2;
 const VENTANA = 300;
 const MS_DIA = 86_400_000;
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const FECHA = new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+/** Desde este ancho (`xl`) la tabla enseña TODAS sus columnas y la fila ya no se abre. */
+const ANCHO_DE_PC = '(min-width: 1280px)';
+/** El `id` de la hoja de detalle, para el `aria-controls` del botón que la abre. */
+const HOJA = 'registro-abierto';
 
 const PERIODOS = [
   { clave: 'hoy', rotulo: 'Hoy' },
@@ -199,12 +223,6 @@ const PERIODOS = [
   { clave: 'anio', rotulo: 'Este año' },
   { clave: 'personalizado', rotulo: 'Personalizado' },
 ];
-
-const TABLA = 'hidden max-h-[70dvh] overflow-auto rounded-lg border border-borde md:block';
-const SOLO_PC = 'hidden xl:table-cell';
-const TARJETA = 'rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1';
-const BANDA = 'mb-(--espacio-3) rounded-md border border-peligro bg-peligro/15 p-2 text-sm';
-const AVISO = 'mb-(--espacio-3) rounded-md border border-borde bg-advertencia/15 p-2 text-sm';
 
 /** El rango vivo del periodo, en milisegundos. `hasta` incluye el día escrito. */
 export function rangoDe(clave: string, desde: string, hasta: string): readonly [number, number] {
@@ -221,6 +239,23 @@ export function rangoDe(clave: string, desde: string, hasta: string): readonly [
   return [Number.isNaN(inicio) ? dia : inicio, Number.isNaN(tope) ? fin : tope + MS_DIA];
 }
 
+/** ¿La pantalla está en PC? Sin ancho que medir —servidor, primer pintado— se asume que sí. */
+function suscribirAlAncho(avisar: () => void): () => void {
+  const medio = window.matchMedia(ANCHO_DE_PC);
+  medio.addEventListener('change', avisar);
+  return () => {
+    medio.removeEventListener('change', avisar);
+  };
+}
+
+function useEsPc(): boolean {
+  return useSyncExternalStore(
+    suscribirAlAncho,
+    () => window.matchMedia(ANCHO_DE_PC).matches,
+    () => true,
+  );
+}
+
 /**
  * Lo que trae el puente es `unknown`: puede ser un objeto anidado, y de esos
  * `String(...)` saca «[object Object]» sin quejarse. Un registro con esa
@@ -234,11 +269,31 @@ function comoTexto(valor: unknown): string | null {
   return null;
 }
 
-/** Lo que se lee en la celda. Nunca en blanco: un hueco no dice si falta o es cero. */
+/**
+ * El puente trae los importes en PESOS; la pantalla trabaja en centavos enteros.
+ * Se cuentan dígitos y no se multiplica: `58.995 * 100` pierde medio centavo.
+ */
+function aCentavos(valor: unknown): number | null {
+  if (valor === null || valor === undefined || valor === '') return null;
+  const importe = Number(valor);
+  if (!Number.isFinite(importe)) return null;
+  const [entero = '0', decimal = '00'] = Math.abs(importe).toFixed(2).split('.');
+  return (importe < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+}
+
+/**
+ * La celda como TEXTO: lo que se lee en una columna de texto o de fecha, y lo que
+ * el buscador compara. Nunca en blanco: un hueco no dice si falta o es cero. El
+ * importe sale aquí sólo para que «1,250» encuentre su fila; en pantalla un
+ * importe es `<Dinero>` (ver `pintarCelda`).
+ */
 export function celda(fila: Registro, columna: Columna): string {
   const valor = fila[columna.campo];
   if (valor === null || valor === undefined || valor === '') return '—';
-  if (columna.tipo === 'dinero') return PESOS.format(Number(valor));
+  if (columna.tipo === 'dinero') {
+    const centavos = aCentavos(valor);
+    return centavos === null ? '—' : dineroEnTexto(centavos);
+  }
   const texto = comoTexto(valor);
   // Ni «[object Object]» ni una cadena vacía: la raya dice «aquí no hay nada
   // legible», que es exactamente lo que pasa.
@@ -248,6 +303,52 @@ export function celda(fila: Registro, columna: Columna): string {
     return Number.isNaN(instante) ? texto : FECHA.format(instante);
   }
   return texto;
+}
+
+/** La celda en pantalla: el importe con `<Dinero>`, la fecha en cifras que no bailan. */
+function pintarCelda(fila: Registro, columna: Columna): ReactNode {
+  if (columna.tipo === 'dinero') {
+    const centavos = aCentavos(fila[columna.campo]);
+    return centavos === null ? '—' : <Dinero centavos={centavos} tamano="sm" />;
+  }
+  if (columna.tipo === 'fecha') {
+    return (
+      <span className="font-numeros whitespace-nowrap tabular-nums">{celda(fila, columna)}</span>
+    );
+  }
+  return celda(fila, columna);
+}
+
+/** Con qué se ordena una columna: el importe en centavos, la fecha en su instante. */
+function ordenDe(fila: Registro, columna: Columna): number {
+  if (columna.tipo === 'dinero') return aCentavos(fila[columna.campo]) ?? 0;
+  const instante = Date.parse(comoTexto(fila[columna.campo]) ?? '');
+  return Number.isNaN(instante) ? 0 : instante;
+}
+
+/**
+ * Las columnas de la pestaña. En PC, todas; fuera de la PC, las principales y el
+ * botón que abre la fila, porque las secundarias no caben y salen en la hoja.
+ */
+function columnasDe(
+  pestana: Pestana,
+  voc: Vocabulario,
+  esPc: boolean,
+  detalle: (fila: FilaDeRegistro) => ReactNode,
+): readonly ColumnaDeTabla<FilaDeRegistro>[] {
+  const propias = pestana.columnas
+    .filter((columna) => esPc || columna.secundaria !== true)
+    .map((columna): ColumnaDeTabla<FilaDeRegistro> => ({
+      clave: columna.campo,
+      titulo: rotuloDe(columna, voc),
+      numerica: columna.tipo === 'dinero',
+      celda: (fila) => pintarCelda(fila.registro, columna),
+      ...(columna.tipo === 'texto'
+        ? {}
+        : { orden: (fila: FilaDeRegistro) => ordenDe(fila.registro, columna) }),
+    }));
+  if (esPc) return propias;
+  return [...propias, { clave: 'detalle', titulo: 'Detalle', celda: detalle }];
 }
 
 function textoDe(valor: unknown): string | null {
@@ -273,6 +374,7 @@ export interface RegistrosProps {
 
 export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
   const voc = useVocabulario();
+  const esPc = useEsPc();
   const [pestana, setPestana] = useState(pestanaInicial ?? 'cortes');
   const [periodo, setPeriodo] = useState('hoy');
   const [desde, setDesde] = useState('');
@@ -280,11 +382,17 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
   const [busqueda, setBusqueda] = useState('');
   const [filas, setFilas] = useState<readonly Registro[] | null>(filasIniciales ?? null);
   const [error, setError] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
   const [abierta, setAbierta] = useState<string | null>(null);
+  /** La fila que está viajando a la hoja: sólo ella lleva el nombre del viaje. */
+  const [viajando, setViajando] = useState<string | null>(null);
   const [descarga, setDescarga] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
+  const [falloAlExportar, setFalloAlExportar] = useState<string | null>(null);
 
   const actual: Pestana = PESTANAS.find((p) => p.clave === pestana) ?? PESTANAS[0];
   const importe = actual.columnas.find((c) => c.tipo === 'dinero') ?? null;
+  const [primera, ...resto] = actual.columnas;
 
   useEffect(() => {
     // Un centinela `let vivo` el compilador lo da por siempre-verdadero; el
@@ -308,38 +416,84 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
     return () => {
       control.abort();
     };
-  }, [actual.entidad, filasIniciales]);
+  }, [actual.entidad, filasIniciales, intento]);
 
-  const visibles = useMemo(() => {
-    const [inicio, tope] = rangoDe(periodo, desde, hasta);
-    const aguja = busqueda.trim().toLowerCase();
-    return (filas ?? []).filter((fila) => {
-      const instante = Date.parse(comoTexto(fila[actual.campoFecha]) ?? '');
-      if (!Number.isNaN(instante) && (instante < inicio || instante > tope)) return false;
-      if (aguja === '') return true;
-      return actual.columnas
-        .map((columna) => celda(fila, columna))
-        .join(' ')
-        .toLowerCase()
-        .includes(aguja);
-    });
-  }, [filas, periodo, desde, hasta, busqueda, actual]);
+  // Sin `useMemo` a mano: el compilador de React memoiza esto solo, y una
+  // memoización escrita que él no puede conservar le hace saltarse el componente.
+  const [desdeElPeriodo, hastaElPeriodo] = rangoDe(periodo, desde, hasta);
+  const aguja = busqueda.trim().toLowerCase();
+  const visibles = (filas ?? []).filter((fila) => {
+    const instante = Date.parse(comoTexto(fila[actual.campoFecha]) ?? '');
+    if (!Number.isNaN(instante) && (instante < desdeElPeriodo || instante > hastaElPeriodo))
+      return false;
+    if (aguja === '') return true;
+    return actual.columnas
+      .map((columna) => celda(fila, columna))
+      .join(' ')
+      .toLowerCase()
+      .includes(aguja);
+  });
 
-  const suma = useMemo(() => {
-    if (importe === null) return null;
-    return visibles.reduce((total, fila) => total + Number(fila[importe.campo] ?? 0), 0);
-  }, [visibles, importe]);
+  const filasVisibles = visibles.map((registro, indice): FilaDeRegistro => ({
+    clave: textoDe(registro['id']) ?? String(indice),
+    registro,
+  }));
+
+  /** La suma en CENTAVOS: sumar pesos con decimales acumula medio centavo por fila. */
+  const suma =
+    importe === null
+      ? null
+      : visibles.reduce((total, fila) => total + (aCentavos(fila[importe.campo]) ?? 0), 0);
+
+  // En PC todo está a la vista: la hoja sólo existe donde las columnas no caben.
+  const filaAbierta = esPc ? null : (filasVisibles.find((f) => f.clave === abierta) ?? null);
 
   const alCambiarPestana = (valor: string) => {
     setPestana(valor);
     setAbierta(null);
     setDescarga(null);
+    setFalloAlExportar(null);
+    setError(null);
     if (filasIniciales === undefined) setFilas(null);
   };
 
-  const alBuscar = (evento: ChangeEvent<HTMLInputElement>) => {
-    setBusqueda(evento.target.value);
+  const reintentar = () => {
+    setError(null);
+    setFilas(null);
+    setIntento((previo) => previo + 1);
   };
+
+  /**
+   * La fila se convierte en la hoja. Antes del cambio la FILA lleva el nombre;
+   * dentro del cambio se lo quita y lo toma la HOJA, y `flushSync` hace que el
+   * navegador fotografíe el estado nuevo ya pintado. Nunca los dos a la vez: con
+   * dos elementos del mismo nombre el navegador no anima ninguno.
+   */
+  function abrir(clave: string): void {
+    flushSync(() => {
+      setViajando(clave);
+    });
+    void conTransicion(() => {
+      flushSync(() => {
+        setViajando(null);
+        setAbierta(clave);
+      });
+    });
+  }
+
+  /** El camino de vuelta: la hoja se recoge en su fila. */
+  function cerrar(): void {
+    const clave = abierta;
+    if (clave === null) return;
+    void conTransicion(() => {
+      flushSync(() => {
+        setAbierta(null);
+        setViajando(clave);
+      });
+    }).finally(() => {
+      setViajando(null);
+    });
+  }
 
   // Ruta por convención /api/<dominio>/<verbo>: el documento no la nombra. El
   // archivo llega como ENLACE y no como descarga sola porque una descarga que
@@ -347,6 +501,8 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
   const alExportar = (formato: string) => () => {
     const [inicio, tope] = rangoDe(periodo, desde, hasta);
     setDescarga(null);
+    setFalloAlExportar(null);
+    setExportando(true);
     invocarComando<{ readonly url: string }>('/api/reportes/exportar', {
       entidad: actual.entidad,
       formato,
@@ -357,172 +513,127 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
         setDescarga(respuesta.url);
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setFalloAlExportar(mensajeDe(fallo));
+      })
+      .finally(() => {
+        setExportando(false);
       });
   };
 
-  const principales = actual.columnas.filter((columna) => columna.secundaria !== true);
-  const secundarias = actual.columnas.filter((columna) => columna.secundaria === true);
+  const botonDeDetalle = (fila: FilaDeRegistro): ReactNode => {
+    const expandida = filaAbierta?.clave === fila.clave;
+    return (
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-expanded={expandida}
+        aria-controls={expandida ? HOJA : undefined}
+        onClick={() => {
+          if (expandida) cerrar();
+          else abrir(fila.clave);
+        }}
+      >
+        {expandida ? 'Ocultar' : 'Ver más'}
+      </Button>
+    );
+  };
+
+  const columnas = columnasDe(actual, voc, esPc, botonDeDetalle);
+  const pie =
+    importe === null || suma === null || primera === undefined
+      ? undefined
+      : { [primera.campo]: 'Total', [importe.campo]: <Dinero centavos={suma} tamano="sm" /> };
 
   let cuerpo: ReactNode;
-  if (filas === null) {
+  if (filas === null && error !== null) {
+    // No leyó nada: se dice qué pasó y se ofrece volver a leer, sin perder el periodo.
+    cuerpo = (
+      <ErrorDePantalla
+        titulo="No se pudo leer esta pestaña."
+        queHacer="Vuelve a intentarlo: el periodo y la búsqueda se conservan."
+        detalle={error}
+        reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+      />
+    );
+  } else if (filas === null) {
     // Esqueletos con la forma de las filas, nunca un rehilete: la tabla no salta
     // al llegar el dato y el ojo ya sabe dónde va a caer cada cifra.
-    cuerpo = (
-      <div className="flex flex-col gap-2">
-        {Array.from({ length: 8 }, (_, i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-lg md:h-(--altura-control)" />
-        ))}
-      </div>
-    );
-  } else if (visibles.length === 0) {
+    cuerpo = <EsqueletoDeLista filas={8} />;
+  } else if (filasVisibles.length === 0) {
     // El vacío ENSEÑA cuál es la palanca: casi siempre el periodo es muy corto.
     cuerpo = (
-      <section className={TARJETA}>
+      <Superficie como="section" relleno={0}>
         <Vacio
-          className="py-(--espacio-6)"
           icono={<CalendarSearch />}
           titulo={`Sin ${actual.rotulo.toLowerCase()} en este periodo.`}
           explicacion="Aquí el periodo es lo que manda. Ábrelo y vuelve a preguntar."
+          accion={
+            <div className="flex flex-wrap justify-center gap-(--espacio-2)">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setPeriodo('30d');
+                }}
+              >
+                Ver 30 días
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPeriodo('anio');
+                }}
+              >
+                Ver este año
+              </Button>
+            </div>
+          }
         />
-        <div className="mt-(--espacio-3) flex flex-wrap justify-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setPeriodo('30d');
-            }}
-          >
-            Ver 30 días
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setPeriodo('anio');
-            }}
-          >
-            Ver este año
-          </Button>
-        </div>
-      </section>
+      </Superficie>
     );
   } else {
+    // Tableta y PC comparten la MISMA tabla densa de cabecera fija; en teléfono,
+    // la misma lista en tarjetas con el importe arriba. Se pinta una sola.
     cuerpo = (
-      <>
-        {/* Tablet y PC comparten la MISMA tabla densa de cabecera fija. En
-            tablet las columnas secundarias se esconden y salen al expandir. */}
-        <div className={TABLA}>
-          <Table>
-            <TableHeader className="sticky top-0 bg-superficie">
-              <TableRow>
-                {principales.map((columna) => (
-                  <TableHead key={columna.campo}>{rotuloDe(columna, voc)}</TableHead>
-                ))}
-                {secundarias.map((columna) => (
-                  <TableHead key={columna.campo} className={SOLO_PC}>
-                    {columna.rotulo}
-                  </TableHead>
-                ))}
-                <TableHead className="xl:hidden">Detalle</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibles.map((fila, indice) => {
-                const clave = textoDe(fila['id']) ?? String(indice);
-                const expandida = abierta === clave;
-                return (
-                  <Fragment key={clave}>
-                    <TableRow>
-                      {principales.map((columna) => (
-                        <TableCell key={columna.campo}>{celda(fila, columna)}</TableCell>
-                      ))}
-                      {secundarias.map((columna) => (
-                        <TableCell key={columna.campo} className={SOLO_PC}>
-                          {celda(fila, columna)}
-                        </TableCell>
-                      ))}
-                      <TableCell className="xl:hidden">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          aria-expanded={expandida}
-                          onClick={() => {
-                            setAbierta(expandida ? null : clave);
-                          }}
-                        >
-                          {expandida ? 'Ocultar' : 'Ver más'}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    {expandida && (
-                      <TableRow className="xl:hidden">
-                        <TableCell colSpan={principales.length + 1}>
-                          <dl className="grid grid-cols-2 gap-1 text-sm">
-                            {secundarias.map((columna) => (
-                              <Fragment key={columna.campo}>
-                                <dt className="text-texto-sutil">{rotuloDe(columna, voc)}</dt>
-                                <dd>{celda(fila, columna)}</dd>
-                              </Fragment>
-                            ))}
-                          </dl>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Teléfono: tarjetas. Cinco columnas en 375 px se leen girando el
-            aparato, y nadie gira el teléfono para auditar un corte. */}
-        <ul className="flex flex-col gap-2 md:hidden">
-          {visibles.map((fila, indice) => (
-            <li key={textoDe(fila['id']) ?? String(indice)} className={TARJETA}>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-(--espacio-3) gap-y-1 text-sm">
-                {principales.map((columna) => (
-                  <Fragment key={columna.campo}>
-                    <dt className="text-texto-sutil">{rotuloDe(columna, voc)}</dt>
-                    <dd className={columna.tipo === 'dinero' ? 'font-bold tabular-nums' : ''}>
-                      {celda(fila, columna)}
-                    </dd>
-                  </Fragment>
-                ))}
-              </dl>
-            </li>
-          ))}
-        </ul>
-      </>
+      <TablaAdaptable
+        etiqueta={`${actual.rotulo} del periodo`}
+        desde="md"
+        principal={importe?.campo ?? actual.campoFecha}
+        columnas={columnas}
+        filas={filasVisibles}
+        claveDe={(fila) => fila.clave}
+        alto="max-h-[70dvh]"
+        viajeDeFila={(fila) => (fila.clave === viajando ? VIAJE.fila(fila.clave) : undefined)}
+        {...(filaAbierta === null ? {} : { activa: filaAbierta.clave })}
+        {...(pie === undefined ? {} : { pie })}
+      />
     );
   }
 
   return (
-    <main className="p-(--espacio-4)">
-      <h1 className="text-2xl font-bold">Registros</h1>
-
+    <main className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
       {/* 1 · El periodo. Arriba, en botones y siempre visible: es LA acción. */}
-      <nav aria-label="Periodo consultado" className="mt-(--espacio-3) flex flex-wrap gap-1">
-        {PERIODOS.map((opcion) => (
-          <Button
-            key={opcion.clave}
-            size="sm"
-            variant={periodo === opcion.clave ? 'default' : 'ghost'}
-            aria-pressed={periodo === opcion.clave}
-            onClick={() => {
-              setPeriodo(opcion.clave);
-            }}
-          >
-            {opcion.rotulo}
-          </Button>
-        ))}
-      </nav>
+      <header className="flex flex-col gap-(--espacio-3) lg:flex-row lg:items-center lg:justify-between">
+        <h1 className="text-2xl font-bold">Registros</h1>
+        <nav aria-label="Periodo consultado" className="flex flex-wrap gap-(--espacio-1)">
+          {PERIODOS.map((opcion) => (
+            <Button
+              key={opcion.clave}
+              variant={periodo === opcion.clave ? 'default' : 'ghost'}
+              aria-pressed={periodo === opcion.clave}
+              onClick={() => {
+                setPeriodo(opcion.clave);
+              }}
+            >
+              {opcion.rotulo}
+            </Button>
+          ))}
+        </nav>
+      </header>
 
       {periodo === 'personalizado' && (
-        <div className="mt-2 flex flex-wrap items-end gap-(--espacio-3)">
-          <div>
-            <label htmlFor="registros-desde" className="block text-sm font-medium">
-              Desde
-            </label>
+        <div className="flex flex-wrap items-end gap-(--espacio-3) lg:justify-end">
+          <div className="flex flex-col gap-(--espacio-1)">
+            <Label htmlFor="registros-desde">Desde</Label>
             <Input
               id="registros-desde"
               type="date"
@@ -532,10 +643,8 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
               }}
             />
           </div>
-          <div>
-            <label htmlFor="registros-hasta" className="block text-sm font-medium">
-              Hasta
-            </label>
+          <div className="flex flex-col gap-(--espacio-1)">
+            <Label htmlFor="registros-hasta">Hasta</Label>
             <Input
               id="registros-hasta"
               type="date"
@@ -548,59 +657,60 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
         </div>
       )}
 
-      {/* 2 · El resumen del periodo y el buscador universal, en la misma línea. */}
-      <section className="mt-(--espacio-3) flex flex-col gap-(--espacio-3) md:flex-row md:items-center md:justify-between">
-        <dl className="flex items-center gap-(--espacio-6)">
-          <div>
-            <dt className="text-xs text-texto-sutil">Registros</dt>
-            <dd className="text-xl font-bold tabular-nums">{String(visibles.length)}</dd>
-          </div>
+      {/* 2 · El resumen del periodo y el buscador universal, en la misma superficie. */}
+      <Superficie
+        como="section"
+        aria-label="Resumen del periodo"
+        className="flex flex-col gap-(--espacio-4) md:flex-row md:items-end md:justify-between"
+      >
+        <dl className="flex flex-wrap items-end gap-x-(--espacio-8) gap-y-(--espacio-3)">
           {suma !== null && importe !== null && (
             <div>
               <dt className="text-xs text-texto-sutil">{importe.rotulo}</dt>
-              <dd className="text-xl font-bold tabular-nums">{PESOS.format(suma)}</dd>
+              <dd>
+                <Dinero centavos={suma} tamano="total" />
+              </dd>
             </div>
           )}
+          <div>
+            <dt className="text-xs text-texto-sutil">Registros</dt>
+            <dd>
+              <Cifra valor={visibles.length} tamano="lg" />
+            </dd>
+          </div>
         </dl>
-        <Input
-          type="search"
-          aria-label="Buscar dentro del periodo"
-          placeholder="Folio, persona, concepto…"
-          value={busqueda}
-          onChange={alBuscar}
-          className="md:max-w-xs"
-        />
-      </section>
+        <div className="relative md:w-80">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-4 -translate-y-1/2 text-texto-sutil"
+          />
+          <Input
+            type="search"
+            aria-label="Buscar dentro del periodo"
+            placeholder="Folio, persona, concepto…"
+            value={busqueda}
+            onChange={(evento) => {
+              setBusqueda(evento.target.value);
+            }}
+            className="pl-(--espacio-8)"
+          />
+        </div>
+      </Superficie>
 
       {/* 3 · Las pestañas. Las cuatro últimas no existen en teléfono. */}
-      <Tabs value={pestana} onValueChange={alCambiarPestana} className="mt-(--espacio-4)">
-        <TabsList className="overflow-x-auto">
-          {PESTANAS.map((opcion, indice) => (
-            <TabsTrigger
-              key={opcion.clave}
-              value={opcion.clave}
-              className={indice < EN_TELEFONO ? '' : 'hidden md:inline-flex'}
-            >
-              {opcion.rotulo}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {/* Un solo panel, el de la pestaña viva: seis paneles serían seis
-            lecturas montadas a la vez para enseñar una. */}
-        <TabsContent value={pestana} className="mt-(--espacio-3)">
-          {error !== null && (
-            <p role="alert" className={BANDA}>
-              {error} · Se muestra el último dato conocido.
-            </p>
-          )}
-          {filas !== null && filas.length >= VENTANA && (
-            <p role="status" className={AVISO}>
-              <TriangleAlert aria-hidden="true" className="inline size-4 shrink-0" /> Se leyeron los{' '}
-              {String(VENTANA)} registros más recientes: un periodo largo puede dejar fuera los más
-              antiguos.
-            </p>
-          )}
+      <Tabs value={pestana} onValueChange={alCambiarPestana} className="gap-(--espacio-3)">
+        <div className="flex flex-wrap items-center justify-between gap-(--espacio-3)">
+          <TabsList className="max-w-full overflow-x-auto">
+            {PESTANAS.map((opcion, indice) => (
+              <TabsTrigger
+                key={opcion.clave}
+                value={opcion.clave}
+                className={indice < EN_TELEFONO ? '' : 'hidden md:inline-flex'}
+              >
+                {opcion.rotulo}
+              </TabsTrigger>
+            ))}
+          </TabsList>
           {/*
             LOS DOS BOTÓNES QUE SIEMPRE FALLABAN, y eran los ÚNICOS de la pantalla.
 
@@ -612,19 +722,78 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
             contador pedía «mándame el mes» y la respuesta volvía a ser una captura
             de pantalla. Lo encontró el rastreador: 422 en las dos.
           */}
-          <div className="mb-(--espacio-3) flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={alExportar('csv')}>
+          <div className="flex flex-wrap items-center gap-(--espacio-2)">
+            <Button size="sm" variant="outline" cargando={exportando} onClick={alExportar('csv')}>
+              <FileSpreadsheet aria-hidden="true" />
               Exportar a CSV
             </Button>
             {descarga !== null && (
-              <Badge variant="secondary" asChild>
-                <a href={descarga}>Descargar el archivo listo</a>
-              </Badge>
+              <Button asChild size="sm" variant="secondary">
+                <a href={descarga}>
+                  <Download aria-hidden="true" />
+                  Descargar el archivo listo
+                </a>
+              </Button>
             )}
           </div>
+        </div>
+
+        {/* Un solo panel, el de la pestaña viva: seis paneles serían seis
+            lecturas montadas a la vez para enseñar una. */}
+        <TabsContent value={pestana} className="flex flex-col gap-(--espacio-3)">
+          {falloAlExportar !== null && (
+            <Aviso tono="peligro" titulo={falloAlExportar}>
+              No se generó ningún archivo.
+            </Aviso>
+          )}
+          {error !== null && filas !== null && (
+            <Aviso tono="peligro" titulo={error}>
+              Se muestra el último dato conocido.
+            </Aviso>
+          )}
+          {filas !== null && filas.length >= VENTANA && (
+            <Aviso
+              tono="atencion"
+              titulo={`Se leyeron los ${String(VENTANA)} registros más recientes.`}
+            >
+              Un periodo largo puede dejar fuera los más antiguos.
+            </Aviso>
+          )}
           {cuerpo}
         </TabsContent>
       </Tabs>
+
+      {/* La hoja de la fila abierta: anclada abajo, no empuja la tabla que se toca. */}
+      {filaAbierta !== null && primera !== undefined && (
+        <Superficie
+          como="aside"
+          id={HOJA}
+          nivel={3}
+          aria-label={`${rotuloDe(primera, voc)} ${celda(filaAbierta.registro, primera)}`}
+          style={{ viewTransitionName: VIAJE.fila(filaAbierta.clave) }}
+          className="fixed inset-x-(--espacio-3) bottom-(--espacio-3) z-20 mx-auto flex max-h-[60dvh] max-w-xl flex-col gap-(--espacio-3) overflow-y-auto"
+        >
+          <header className="flex items-start justify-between gap-(--espacio-3)">
+            <div>
+              <p className="text-xs text-texto-sutil uppercase">{rotuloDe(primera, voc)}</p>
+              <h2 className="text-xl font-semibold">
+                {pintarCelda(filaAbierta.registro, primera)}
+              </h2>
+            </div>
+            <Button size="icon-sm" variant="ghost" aria-label="Cerrar el detalle" onClick={cerrar}>
+              <X />
+            </Button>
+          </header>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-(--espacio-4) gap-y-(--espacio-2) text-sm">
+            {resto.map((columna) => (
+              <Fragment key={columna.campo}>
+                <dt className="text-texto-sutil">{rotuloDe(columna, voc)}</dt>
+                <dd className="text-right">{pintarCelda(filaAbierta.registro, columna)}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </Superficie>
+      )}
     </main>
   );
 }

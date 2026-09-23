@@ -9,12 +9,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@morphiqpos/ui/primitivas/dialog';
-import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Label } from '@morphiqpos/ui/primitivas/label';
-import { useMemo, useState } from 'react';
+import { Aviso, Cifra, Tabla, Vacio, type ColumnaDeTabla } from '@morphiqpos/ui/sistema';
+import { Check, CircleAlert, Minus, Plus, UtensilsCrossed } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
+import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
  * F-321 · Dividir la cuenta.
@@ -38,6 +39,24 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * Es fricción deliberada, la misma que el desglose del pago mixto. Una división
  * con unidades sin repartir es una cuenta madre con sobrante que nadie va a
  * cobrar, y se descubre al cierre.
+ *
+ * ── Cómo se ve: UNA tabla, platillos por cuentas ─────────────────────────
+ * Se abre desde la mesa activa, en la tableta del mesero (`04-INTERFAZ` · Mesa
+ * activa). Cada renglón es un platillo y cada columna una cuenta, con su «−» y
+ * su «+»; la columna «Por repartir» va pegada al nombre. Antes eran tarjetas por
+ * cuenta que repetían la lista entera en cada una, y lo que faltaba se sabía
+ * sólo como un número global: había que recorrer todas para encontrar DÓNDE.
+ * Aquí el renglón que aún tiene unidades sueltas se tiñe y dice cuántas, y el pie
+ * dice cuánto se lleva cada cuenta —y cuál se quedó sin nada, que el servidor
+ * rechaza—. Los botones miden el alto de un control completo: se tocan con el
+ * pulgar, de pie. Con muchas cuentas la tabla se desplaza por dentro, no la
+ * página. El botón de dividir se estira hasta la esquina inferior derecha, que
+ * es donde cae el pulgar derecho.
+ *
+ * ── Estados ──────────────────────────────────────────────────────────────
+ * Recibe los platillos por props y no lee nada: no hay esqueleto, porque no hay
+ * lectura que esperar. Sí hay vacío —una cuenta sin platillos enviados no tiene
+ * qué repartir— y el comando puede fallar: eso es un aviso que dice qué NO pasó.
  */
 
 export interface LineaParaDividir {
@@ -61,6 +80,176 @@ interface Parte {
 }
 
 const MAXIMO_PARTES = 8;
+
+/** Una cantidad no entera se enseña con sus decimales: redondearla mentiría. */
+function decimalesDe(valor: number): number {
+  return Number.isInteger(valor) ? 0 : 2;
+}
+
+/** Cuántas unidades se lleva una parte, sumando todos sus platillos. */
+function unidadesDe(parte: Parte): number {
+  return Object.values(parte.tomas).reduce((a, n) => a + n, 0);
+}
+
+interface ControlDeUnidadesProps {
+  readonly nombre: string;
+  /** «la cuenta 2», ya en frase: va dentro de los nombres de los botones. */
+  readonly cuenta: string;
+  readonly tomadas: number;
+  readonly puedeSumar: boolean;
+  readonly bloqueado: boolean;
+  readonly alMover: (delta: number) => void;
+}
+
+/**
+ * «−», las unidades, «+». Cada botón se apaga cuando no puede hacer nada —cero
+ * tomadas, o nada por repartir de ese platillo—: un botón que no responde al
+ * toque se lee como una pantalla trabada.
+ */
+function ControlDeUnidades({
+  nombre,
+  cuenta,
+  tomadas,
+  puedeSumar,
+  bloqueado,
+  alMover,
+}: ControlDeUnidadesProps) {
+  return (
+    <span className="inline-flex items-center gap-(--espacio-1)">
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        aria-label={`Quitar ${nombre} de ${cuenta}`}
+        disabled={bloqueado || tomadas <= 0}
+        onClick={() => {
+          alMover(-1);
+        }}
+      >
+        <Minus />
+      </Button>
+      <output
+        aria-label={`Unidades de ${nombre} en ${cuenta}`}
+        className="inline-block min-w-[3ch] text-center"
+      >
+        <Cifra
+          valor={tomadas}
+          decimales={decimalesDe(tomadas)}
+          className={tomadas > 0 ? 'font-semibold' : 'text-texto-tenue'}
+        />
+      </output>
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        aria-label={`Añadir ${nombre} a ${cuenta}`}
+        disabled={bloqueado || !puedeSumar}
+        onClick={() => {
+          alMover(1);
+        }}
+      >
+        <Plus />
+      </Button>
+    </span>
+  );
+}
+
+/** Lo que falta de UN platillo. En cero, la palomita: el tono de la fila nunca va solo. */
+function PorRepartir({ valor }: { readonly valor: number }) {
+  if (valor > 0) {
+    return <Cifra valor={valor} decimales={decimalesDe(valor)} className="font-semibold" />;
+  }
+  return (
+    <span className="inline-flex items-center gap-(--espacio-1) text-texto-sutil">
+      <Check aria-hidden="true" className="size-4 text-exito" />
+      <Cifra valor={0} />
+    </span>
+  );
+}
+
+interface ArmadoDeColumnas {
+  readonly voc: Vocabulario;
+  readonly partes: readonly Parte[];
+  readonly pendientes: Readonly<Record<string, number>>;
+  readonly bloqueado: boolean;
+  readonly mover: (indiceParte: number, lineaId: string, delta: number) => void;
+}
+
+const claveDeParte = (indice: number): string => `parte-${String(indice)}`;
+
+function columnasDe({
+  voc,
+  partes,
+  pendientes,
+  bloqueado,
+  mover,
+}: ArmadoDeColumnas): readonly ColumnaDeTabla<LineaParaDividir>[] {
+  const deLasPartes = partes.map((parte, indice): ColumnaDeTabla<LineaParaDividir> => ({
+    clave: claveDeParte(indice),
+    titulo: `${voc.titulo('orden')} ${String(indice + 1)}`,
+    numerica: true,
+    celda: (linea) => (
+      <ControlDeUnidades
+        nombre={linea.nombre}
+        cuenta={`${voc.enFrase('orden')} ${String(indice + 1)}`}
+        tomadas={parte.tomas[linea.id] ?? 0}
+        puedeSumar={(pendientes[linea.id] ?? 0) > 0}
+        bloqueado={bloqueado}
+        alMover={(delta) => {
+          mover(indice, linea.id, delta);
+        }}
+      />
+    ),
+  }));
+  return [
+    {
+      clave: 'platillo',
+      titulo: voc.titulo('linea_orden'),
+      celda: (linea) => (
+        <span className="line-clamp-2 min-w-40">
+          <Cifra valor={linea.cantidad} decimales={decimalesDe(linea.cantidad)} /> ×{' '}
+          <span className="font-medium">{linea.nombre}</span>
+        </span>
+      ),
+    },
+    {
+      clave: 'pendiente',
+      titulo: 'Por repartir',
+      numerica: true,
+      celda: (linea) => <PorRepartir valor={pendientes[linea.id] ?? 0} />,
+    },
+    ...deLasPartes,
+  ];
+}
+
+/**
+ * El pie: cuántas unidades se lleva cada cuenta. Una cuenta vacía no pasa del
+ * servidor —cada parte tiene que llevarse algo—; en cuanto ya no falta nada por
+ * repartir, esa cuenta es lo único que queda por resolver, y se pinta en rojo.
+ */
+function pieDeParte(voc: Vocabulario, parte: Parte, faltan: number): ReactNode {
+  const unidades = unidadesDe(parte);
+  if (unidades > 0) return <Cifra valor={unidades} decimales={decimalesDe(unidades)} />;
+  return (
+    <span className={`text-xs ${faltan === 0 ? 'text-peligro' : 'text-texto-sutil'}`}>
+      {voc.conDeterminante('ningun', 'linea_orden')}
+    </span>
+  );
+}
+
+function pieDe(
+  voc: Vocabulario,
+  partes: readonly Parte[],
+  faltan: number,
+): Readonly<Record<string, ReactNode>> {
+  return {
+    platillo: `${voc.titulo('linea_orden', true)} por ${voc.singular('orden')}`,
+    pendiente: <Cifra valor={faltan} decimales={decimalesDe(faltan)} className="font-semibold" />,
+    ...Object.fromEntries(
+      partes.map((parte, indice) => [claveDeParte(indice), pieDeParte(voc, parte, faltan)]),
+    ),
+  };
+}
 
 export function DividirCuentaDialog({
   abierto,
@@ -122,6 +311,9 @@ export function DividirCuentaDialog({
     }
   }
 
+  const columnas = columnasDe({ voc, partes, pendientes, bloqueado: enviando, mover });
+  const enElMaximo = partes.length >= MAXIMO_PARTES;
+
   return (
     <Dialog
       open={abierto}
@@ -129,7 +321,9 @@ export function DividirCuentaDialog({
         if (!v) onCerrar();
       }}
     >
-      <DialogContent className="max-w-3xl">
+      {/* Ancho de tableta en horizontal: dos o tres cuentas caben sin desplazar.
+          En teléfono se desplaza por dentro y el botón nunca queda fuera. */}
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl lg:max-w-5xl">
         <DialogHeader>
           <DialogTitle>Dividir {voc.enFrase('orden')}</DialogTitle>
           <DialogDescription>
@@ -138,97 +332,96 @@ export function DividirCuentaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-(--espacio-4) md:grid-cols-2">
-          {partes.map((parte, indice) => (
-            <section
-              key={indice}
-              className="rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto"
-            >
-              <Label className="mb-2 block font-semibold">Cuenta {indice + 1}</Label>
-              <ul className="space-y-1">
-                {lineas.map((linea) => (
-                  <li key={linea.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="truncate">{linea.nombre}</span>
-                    <span className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        size="icon-xs"
-                        variant="outline"
-                        aria-label={`Quitar ${linea.nombre} de la cuenta ${String(indice + 1)}`}
-                        onClick={() => {
-                          mover(indice, linea.id, -1);
-                        }}
-                      >
-                        −
-                      </Button>
-                      <Input
-                        readOnly
-                        className="w-10 text-center"
-                        value={parte.tomas[linea.id] ?? 0}
-                        aria-label={`Unidades de ${linea.nombre} en la cuenta ${String(indice + 1)}`}
-                      />
-                      <Button
-                        type="button"
-                        size="icon-xs"
-                        variant="outline"
-                        aria-label={`Añadir ${linea.nombre} a la cuenta ${String(indice + 1)}`}
-                        onClick={() => {
-                          mover(indice, linea.id, 1);
-                        }}
-                      >
-                        +
-                      </Button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+        {lineas.length === 0 ? (
+          <Vacio
+            icono={<UtensilsCrossed />}
+            titulo={`Todavía no hay ${voc.plural('linea_orden')} que repartir`}
+            explicacion={`Sólo se reparte lo que ya se envió a ${voc.enFrase('preparacion')}.`}
+            accion={
+              <Button type="button" variant="outline" onClick={onCerrar}>
+                Volver a {voc.enFrase('unidad_servicio')}
+              </Button>
+            }
+            className="py-(--espacio-8)"
+          />
+        ) : (
+          <>
+            <Tabla
+              etiqueta={`Dividir ${voc.enFrase('orden')}`}
+              columnas={columnas}
+              filas={lineas}
+              claveDe={(linea) => linea.id}
+              tonoDeFila={(linea) => ((pendientes[linea.id] ?? 0) > 0 ? 'advertencia' : undefined)}
+              pie={pieDe(voc, partes, faltanPorRepartir)}
+              alto="max-h-[55dvh]"
+            />
 
-        <div className="flex items-center justify-between gap-(--espacio-3) text-sm">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={partes.length >= MAXIMO_PARTES}
-            onClick={() => {
-              setPartes((p) => [...p, { tomas: {} }]);
-            }}
-          >
-            Añadir {voc.enFraseCon('otro', 'orden')}
-          </Button>
-          {/* El contador de lo que falta: es lo que explica por qué el botón
-              de dividir está apagado. Un botón inerte sin motivo es la forma
-              más rápida de que alguien cierre el diálogo y cobre mal. */}
-          <span
-            className={faltanPorRepartir === 0 ? 'text-texto-sutil' : 'font-medium text-peligro'}
-          >
-            {faltanPorRepartir === 0
-              ? 'Todo repartido'
-              : `Faltan ${String(faltanPorRepartir)} por repartir`}
-          </span>
-        </div>
+            <div className="flex flex-wrap items-center justify-between gap-(--espacio-3)">
+              <span className="inline-flex flex-wrap items-center gap-(--espacio-2)">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={enElMaximo || enviando}
+                  onClick={() => {
+                    setPartes((p) => [...p, { tomas: {} }]);
+                  }}
+                >
+                  <Plus aria-hidden="true" />
+                  Añadir {voc.enFraseCon('otro', 'orden')}
+                </Button>
+                {enElMaximo ? (
+                  <span className="text-xs text-texto-sutil">
+                    Hasta {MAXIMO_PARTES} {voc.plural('orden')}
+                  </span>
+                ) : null}
+              </span>
+              {/* El contador de lo que falta: es lo que explica por qué el botón
+                  de dividir está apagado. Un botón inerte sin motivo es la forma
+                  más rápida de que alguien cierre el diálogo y cobre mal. */}
+              <p
+                role="status"
+                className={`inline-flex items-center gap-(--espacio-2) text-sm ${faltanPorRepartir === 0 ? 'text-texto-sutil' : 'font-medium text-texto'}`}
+              >
+                {faltanPorRepartir === 0 ? (
+                  <Check aria-hidden="true" className="size-4 text-exito" />
+                ) : (
+                  <CircleAlert aria-hidden="true" className="size-4 text-advertencia" />
+                )}
+                {faltanPorRepartir === 0
+                  ? 'Todo repartido'
+                  : `Faltan ${String(faltanPorRepartir)} por repartir`}
+              </p>
+            </div>
 
-        {error !== null && (
-          <p role="alert" className="text-sm font-medium text-peligro">
-            {error}
-          </p>
+            {/* Qué pasó y, sobre todo, qué NO pasó: la cuenta sigue entera. */}
+            {error !== null && (
+              <Aviso tono="peligro" titulo={error}>
+                No se dividió nada: {voc.enFrase('orden')} sigue como estaba.
+              </Aviso>
+            )}
+
+            {/* Cancelar a su ancho y Dividir estirado hasta la esquina inferior
+                derecha, donde cae el pulgar. En teléfono, uno sobre otro. */}
+            <DialogFooter className="sm:grid sm:grid-cols-[auto_minmax(0,1fr)]">
+              <Button type="button" variant="outline" size="lg" onClick={onCerrar}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                cargando={enviando}
+                disabled={faltanPorRepartir !== 0 || enviando}
+                onClick={() => {
+                  void dividir();
+                }}
+              >
+                {enviando
+                  ? 'Dividiendo…'
+                  : `Dividir en ${String(partes.length)} ${voc.plural('orden')}`}
+              </Button>
+            </DialogFooter>
+          </>
         )}
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onCerrar}>
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            disabled={faltanPorRepartir !== 0 || enviando}
-            onClick={() => {
-              void dividir();
-            }}
-          >
-            {enviando ? 'Dividiendo…' : 'Dividir'}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

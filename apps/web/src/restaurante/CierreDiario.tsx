@@ -9,21 +9,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@morphiqpos/ui/primitivas/dialog';
-import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Switch } from '@morphiqpos/ui/primitivas/switch';
-import { Vacio } from '@morphiqpos/ui/sistema';
-import { Lock } from 'lucide-react';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@morphiqpos/ui/primitivas/table';
-import { useEffect, useState } from 'react';
+  Aviso,
+  CampoDeDinero,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  dineroEnTexto,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { ChevronDown, CircleCheck, Lock, OctagonAlert, Printer, TriangleAlert } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -46,7 +48,8 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * con el orden: el conteo vive en su propia columna —fija arriba en teléfono y
  * tablet, carril derecho pegajoso en PC—, así que encabeza la jerarquía sin
  * desordenar el 1·2·3. En el DOM va primero, que es lo que decide el foco y lo
- * que oye un lector de pantalla.
+ * que oye un lector de pantalla. Es además la única superficie levantada
+ * (`nivel 2`): las tres secciones del corte se leen, el conteo se opera.
  *
  * ── Las mesas abiertas son un MURO, y se comprueba DOS veces ─────────────
  * Al abrir el diálogo y otra vez justo antes de ejecutar. Entre una cosa y la
@@ -74,19 +77,22 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *    sistema —`FORMATOS` de reportes sólo tiene `csv`— y el botón decía
  *    «Descargar el PDF del cierre»: una promesa que nada podía cumplir, y que
  *    además no hacía NADA porque ninguna página pasaba el callback.
- * 4. Los importes se formatean con funciones locales y no importadas de otra
- *    pantalla: una pantalla no depende de otra, y el módulo común de dinero no
- *    es uno de los dos archivos que este encargo puede escribir.
+ * 4. Todo importe se pinta con `Dinero` y se teclea con `CampoDeDinero`, del
+ *    sistema: la pantalla habla sólo en centavos. El único importe en TEXTO es
+ *    el de `notas`, y sale de `dineroEnTexto`, el mismo formato que se lee.
  */
 
 const CANALES = ['efectivo', 'tarjeta', 'transferencia'] as const;
 type Canal = (typeof CANALES)[number];
 
+const NOMBRE_DEL_CANAL: Readonly<Record<Canal, string>> = {
+  efectivo: 'Efectivo',
+  tarjeta: 'Tarjeta',
+  transferencia: 'Transferencia',
+};
+
 /** Por debajo de esto el descuadre es «se me fue un peso»; por encima, no. */
 const TOLERANCIA_CENTAVOS = 2000;
-
-const SECCION = 'rounded-lg border border-borde bg-superficie text-texto shadow-1';
-const TITULO = 'cursor-pointer p-(--espacio-3) text-sm font-semibold uppercase tracking-wide';
 
 /** La venta del día tal como la nombra el puente. Los importes van en PESOS. */
 export interface VentaDelDia {
@@ -156,21 +162,6 @@ function aCentavos(pesos: number | null | undefined): number {
   return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
 }
 
-/** Centavos a pesos para una persona. Aritmética entera de punta a punta. */
-export function enPesos(monto: number): string {
-  const bruto = Math.abs(monto);
-  const con = String(Math.trunc(bruto / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${monto < 0 ? '-' : ''}$${con}.${(bruto % 100).toString().padStart(2, '0')}`;
-}
-
-/** Lo que se teclea. `null` es «todavía no hay un importe», nunca cero. */
-export function centavosDeTexto(texto: string): number | null {
-  const limpio = texto.trim().replace(/[\s,$]/g, '');
-  const partes = /^(\d{1,9})(?:\.(\d{1,2}))?$/.exec(limpio);
-  if (partes === null) return null;
-  return Number(partes[1]) * 100 + Number((partes[2] ?? '').padEnd(2, '0'));
-}
-
 export interface ResumenDelDia {
   readonly ventas: number;
   readonly tickets: number;
@@ -235,24 +226,44 @@ export function esperadoEnCaja(datos: DatosDelDia, resumen: ResumenDelDia): numb
   return datos.fondoInicial + entra - resumen.gastosEnEfectivo;
 }
 
+/** Los tres tonos del arqueo: cuadra, se fue poco, se fue mucho. */
+export type TonoDelArqueo = 'exito' | 'atencion' | 'peligro';
+
 export interface Semaforo {
   readonly texto: string;
-  readonly marca: string;
-  readonly clase: string;
+  readonly tono: TonoDelArqueo;
 }
 
 /** Dice la PALABRA además del color: el color nunca viaja solo. */
 export function semaforoDe(diferencia: number): Semaforo {
-  if (diferencia === 0) {
-    return { texto: 'Cuadra exacto', marca: '✓', clase: 'border-exito bg-exito/15' };
-  }
+  if (diferencia === 0) return { texto: 'Cuadra exacto', tono: 'exito' };
   const falta = diferencia < 0;
   if (Math.abs(diferencia) <= TOLERANCIA_CENTAVOS) {
-    const texto = falta ? 'Falta poco' : 'Sobra poco';
-    return { texto, marca: '•', clase: 'border-advertencia bg-advertencia/15' };
+    return { texto: falta ? 'Falta poco' : 'Sobra poco', tono: 'atencion' };
   }
   const texto = falta ? 'FALTA dinero en el cajón' : 'SOBRA dinero en el cajón';
-  return { texto, marca: '!', clase: 'border-peligro bg-peligro/20' };
+  return { texto, tono: 'peligro' };
+}
+
+/** El tinte de la caja de cada tono: el fondo y el borde, nunca solos. */
+const TINTE_DEL_TONO: Readonly<Record<TonoDelArqueo, string>> = {
+  exito: 'border-exito/50 bg-exito/10',
+  atencion: 'border-advertencia/60 bg-advertencia/15',
+  peligro: 'border-peligro/50 bg-peligro/10',
+};
+
+/**
+ * El icono de cada tono. Es la FORMA del estado —círculo, triángulo, octágono—,
+ * así que el semáforo se lee también sin color.
+ */
+function IconoDelTono({ tono }: { readonly tono: TonoDelArqueo }) {
+  if (tono === 'exito') {
+    return <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-exito" />;
+  }
+  if (tono === 'atencion') {
+    return <TriangleAlert aria-hidden="true" className="size-5 shrink-0 text-advertencia" />;
+  }
+  return <OctagonAlert aria-hidden="true" className="size-5 shrink-0 text-peligro" />;
 }
 
 /** Traduce el fallo a algo accionable. El 429 no es un código: es el estado. */
@@ -318,13 +329,73 @@ type Dialogo =
   | { readonly tipo: 'confirmar' }
   | { readonly tipo: 'bloqueo'; readonly mesas: readonly MesaQueBloquea[] };
 
+/** Un renglón del método de pago: lo que entró por ese canal, venta y propina. */
+interface FilaDeCanal {
+  readonly canal: Canal;
+  readonly ventas: number;
+  readonly propinas: number;
+}
+
+/**
+ * Una cifra con su rótulo, dentro de un `<dl>`. Es la pieza de las secciones 1 y
+ * 2 —«Ventas reales», «Ticket promedio»— y va con el rótulo ENCIMA y pequeño:
+ * lo que se compara de un vistazo es la cifra, y en la rejilla de cuatro las
+ * cifras quedan alineadas en su renglón.
+ */
+function Indicador({
+  rotulo,
+  children,
+}: {
+  readonly rotulo: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-(--espacio-1)">
+      <dt className="text-xs text-texto-sutil">{rotulo}</dt>
+      <dd className="text-texto">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * Una sección del corte, en el orden del PDF. `details` nativo: el teclado y el
+ * lector de pantalla ya saben abrirlo, y en teléfono se pliega sin código. El
+ * número va tenue delante del título: es el orden del documento, no un adorno.
+ */
+function SeccionDelCorte({
+  numero,
+  titulo,
+  children,
+}: {
+  readonly numero: number;
+  readonly titulo: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <Superficie como="details" open relleno={0} className="group">
+      <summary className="flex min-h-(--area-tactil-minima) cursor-pointer list-none items-center gap-(--espacio-2) px-(--espacio-4) text-sm font-semibold tracking-wide uppercase [&::-webkit-details-marker]:hidden">
+        <span className="font-numeros text-texto-tenue tabular-nums">{numero} ·</span>{' '}
+        <span className="flex-1">{titulo}</span>
+        <ChevronDown aria-hidden="true" className="size-4 text-texto-sutil group-open:rotate-180" />
+      </summary>
+      <div className="px-(--espacio-4) pb-(--espacio-4)">{children}</div>
+    </Superficie>
+  );
+}
+
 export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiarioProps) {
   const voc = useVocabulario();
   const [datos, setDatos] = useState<DatosDelDia | null>(datosIniciales ?? null);
-  const [contado, setContado] = useState('');
-  const [fondo, setFondo] = useState('');
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  // Cada intento de lectura es un número: el botón de reintentar lo sube y el
+  // efecto lee otra vez. El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
+  /** Lo que se contó en el cajón. `null` es «todavía no hay un importe», nunca cero. */
+  const [contado, setContado] = useState<number | null>(null);
+  const [fondo, setFondo] = useState<number | null>(null);
   const [alImprimir, setAlImprimir] = useState(true);
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
+  const [releyendo, setReleyendo] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [corte, setCorte] = useState<ResultadoDelCierre | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -340,32 +411,57 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
         if (sigueMontada()) setDatos(frescos);
       })
       .catch((fallo: unknown) => {
-        if (sigueMontada()) setError(mensajeDe(fallo, 'No se pudo leer el día.'));
+        if (sigueMontada()) setFalloDeCarga(mensajeDe(fallo, 'No se pudo leer el día.'));
       });
     return () => {
       control.abort();
     };
-  }, [datosIniciales]);
+  }, [datosIniciales, intento]);
 
-  // La pantalla NUNCA se vacía por un error: la banda va encima del último dato.
-  const banda =
+  function reintentar(): void {
+    setFalloDeCarga(null);
+    setDatos(null);
+    setIntento((previo) => previo + 1);
+  }
+
+  // La pantalla NUNCA se vacía por un error de comando: el aviso va encima del
+  // último dato, y dice lo que NO pasó.
+  const avisoDeFallo =
     error === null ? null : (
-      <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-2 text-sm">
-        {error} · La caja NO se cerró.
-      </p>
+      <Aviso tono="peligro" titulo={error}>
+        La caja NO se cerró.
+      </Aviso>
     );
 
   if (datos === null) {
-    return (
-      <div className="grid gap-(--espacio-4) p-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_24rem]">
-        {/* Esqueletos con la forma de las cuatro secciones: nada salta de sitio. */}
-        <Skeleton className="h-72 w-full rounded-lg xl:order-2" />
-        <div className="space-y-(--espacio-4) xl:order-1">
-          <Skeleton className="h-40 w-full rounded-lg" />
-          <Skeleton className="h-28 w-full rounded-lg" />
-          <Skeleton className="h-40 w-full rounded-lg" />
+    if (falloDeCarga !== null) {
+      return (
+        <div className="mx-auto max-w-lg p-(--espacio-6)">
+          <ErrorDePantalla
+            titulo="No se pudo leer el día"
+            queHacer="Sin las ventas, los gastos y el salón de hoy no hay corte que cuadrar. Revisa la conexión y vuelve a leer: no se cerró nada."
+            detalle={falloDeCarga}
+            reintentar={<Button onClick={reintentar}>Volver a leer</Button>}
+          />
         </div>
-        {banda}
+      );
+    }
+    return (
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Leyendo el día"
+        className="grid items-start gap-(--espacio-4) p-(--espacio-3) md:p-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_24rem]"
+      >
+        {/* La forma del conteo y de las tres secciones, no una rueda: al llegar
+            los datos nada salta de sitio, y el ojo ya sabe dónde va a mirar. */}
+        <Esqueleto className="h-(--altura-control) w-72 max-w-full xl:col-span-2" />
+        <Esqueleto className="h-80 w-full rounded-lg xl:col-start-2 xl:row-start-2" />
+        <div className="flex flex-col gap-(--espacio-4) xl:col-start-1 xl:row-start-2">
+          <Esqueleto className="h-48 w-full rounded-lg" />
+          <Esqueleto className="h-36 w-full rounded-lg" />
+          <Esqueleto className="h-48 w-full rounded-lg" />
+        </div>
       </div>
     );
   }
@@ -373,7 +469,8 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
   // El vacío ENSEÑA de dónde sale un cierre; no se disculpa por no tenerlo.
   if (!datos.cajaAbierta && corte === null) {
     return (
-      <div className="mx-auto max-w-lg p-(--espacio-8)">
+      <div className="mx-auto flex max-w-lg flex-col gap-(--espacio-4) p-(--espacio-6)">
+        {avisoDeFallo}
         <Vacio
           icono={<Lock />}
           titulo="No hay ninguna caja abierta que cerrar."
@@ -384,7 +481,6 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
             </Button>
           }
         />
-        {banda}
       </div>
     );
   }
@@ -393,26 +489,43 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
     const diferencia = Number(corte.diferenciaCentavos);
     const cerrado = semaforoDe(diferencia);
     return (
-      <div
-        role="status"
-        className="mx-auto max-w-lg space-y-(--espacio-3) p-(--espacio-8) text-center"
-      >
-        <p className="text-sm uppercase text-texto-sutil">
-          Corte {corte.serie}-{corte.folio} · {corte.numeroVentas} tickets
-        </p>
-        <p className={`rounded-lg border-2 p-(--espacio-4) ${cerrado.clase}`}>
-          <span className="block font-numeros text-display font-bold tabular-nums">
-            {enPesos(diferencia)}
-          </span>
-          <span className="font-medium">
-            {cerrado.marca} {cerrado.texto}
-          </span>
-        </p>
-        <p className="text-texto-sutil">
-          Esperado {enPesos(Number(corte.efectivoEsperadoCentavos))} · contado{' '}
-          {enPesos(centavosDeTexto(contado) ?? 0)}
-        </p>
-        <Button className="w-full" onClick={() => onImprimirElCierre?.(corte)}>
+      <div className="mx-auto flex max-w-lg flex-col gap-(--espacio-4) p-(--espacio-6)">
+        <header className="flex flex-col gap-(--espacio-1) text-center">
+          <h1 className="text-xl font-bold">Caja cerrada</h1>
+          <p className="text-sm text-texto-sutil">
+            Corte {corte.serie}-{corte.folio} · {corte.numeroVentas} tickets
+          </p>
+        </header>
+        {/* LA respuesta del día, y lo único grande: ¿cuadró? La cifra manda y la
+            palabra con su forma dice cómo leerla. */}
+        <Superficie
+          role="status"
+          nivel={0}
+          relleno={6}
+          className={`flex flex-col items-center gap-(--espacio-2) text-center ${TINTE_DEL_TONO[cerrado.tono]}`}
+        >
+          <Dinero centavos={diferencia} tamano="total" />
+          <p className="flex items-center gap-(--espacio-2) font-medium">
+            <IconoDelTono tono={cerrado.tono} />
+            {cerrado.texto}
+          </p>
+        </Superficie>
+        <dl className="grid grid-cols-2 gap-(--espacio-4)">
+          <Indicador rotulo="Esperado">
+            <Dinero centavos={Number(corte.efectivoEsperadoCentavos)} tamano="lg" />
+          </Indicador>
+          <Indicador rotulo="Contado">
+            <Dinero centavos={contado ?? 0} tamano="lg" />
+          </Indicador>
+        </dl>
+        <Button
+          size="lg"
+          className="w-full"
+          onClick={() => {
+            onImprimirElCierre?.(corte);
+          }}
+        >
+          <Printer aria-hidden="true" />
           Imprimir el cierre
         </Button>
       </div>
@@ -420,28 +533,63 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
   }
 
   const resumen = resumirDia(datos.ventas, datos.gastos);
-  const cuenta = centavosDeTexto(contado);
-  const dejado = centavosDeTexto(fondo) ?? 0;
+  const cuenta = contado;
+  const dejado = fondo ?? 0;
   const esperado = esperadoEnCaja(datos, resumen);
   const semaforo = semaforoDe((cuenta ?? 0) - esperado);
-  const financiero: readonly (readonly [string, string])[] = [
-    ['Ventas reales', enPesos(resumen.ventas)],
-    ['Tickets', `${resumen.tickets}`],
-    ['Ticket promedio', enPesos(resumen.promedio)],
-    ['Costo de ventas', enPesos(resumen.costo)],
-    ['Utilidad bruta', enPesos(resumen.utilidad)],
-    ['Margen promedio', `${(resumen.margen / 100).toFixed(2)} %`],
-    ['Gastos operativos', enPesos(resumen.gastos)],
-    ['Utilidad neta est.', enPesos(resumen.neta)],
+  const totalDePropinas = CANALES.reduce((suman, canal) => suman + resumen.propinas[canal], 0);
+  const filasDeCanal: readonly FilaDeCanal[] = CANALES.map((canal) => ({
+    canal,
+    ventas: resumen.porCanal[canal],
+    propinas: resumen.propinas[canal],
+  }));
+  const ventasPorCanal = filasDeCanal.reduce((suman, fila) => suman + fila.ventas, 0);
+
+  const columnasDeCanal: readonly ColumnaDeTabla<FilaDeCanal>[] = [
+    { clave: 'metodo', titulo: 'Método', celda: (fila) => NOMBRE_DEL_CANAL[fila.canal] },
+    {
+      clave: 'ventas',
+      titulo: 'Ventas',
+      numerica: true,
+      celda: (fila) => <Dinero centavos={fila.ventas} tamano="sm" />,
+    },
+    {
+      clave: 'propinas',
+      titulo: 'Propinas',
+      numerica: true,
+      celda: (fila) => <Dinero centavos={fila.propinas} tamano="sm" />,
+    },
+    {
+      clave: 'total',
+      titulo: 'Total',
+      numerica: true,
+      celda: (fila) => (
+        <Dinero centavos={fila.ventas + fila.propinas} tamano="sm" className="font-semibold" />
+      ),
+    },
   ];
-  const propinas: readonly (readonly [string, number])[] = [
-    ['Total', CANALES.reduce((suman, canal) => suman + resumen.propinas[canal], 0)],
-    ...CANALES.map((canal) => [canal, resumen.propinas[canal]] as readonly [string, number]),
+
+  const columnasDeMesa: readonly ColumnaDeTabla<MesaQueBloquea>[] = [
+    {
+      clave: 'mesa',
+      titulo: voc.titulo('unidad_servicio'),
+      celda: (mesa) => <span className="font-semibold">{mesa.rotulo}</span>,
+    },
+    { clave: 'mesero', titulo: voc.titulo('responsable'), celda: (mesa) => mesa.mesero },
+    {
+      clave: 'total',
+      titulo: 'Total',
+      numerica: true,
+      celda: (mesa) => <Dinero centavos={mesa.total} tamano="sm" />,
+    },
+    { clave: 'tiempo', titulo: 'Tiempo', celda: (mesa) => mesa.abierta },
   ];
+  const conCuentaViva = `${voc.plural('unidad_servicio')} con ${voc.singular('orden')} abiert${voc.terminacion('orden')}`;
 
   /** Primera verificación: al abrir el diálogo. */
   async function pedirCierre(): Promise<void> {
     setError(null);
+    setReleyendo(true);
     try {
       const frescos = await leerElDia(new AbortController().signal);
       setDatos(frescos);
@@ -452,6 +600,8 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
       );
     } catch (fallo) {
       setError(mensajeDe(fallo, 'No se pudo releer el salón.'));
+    } finally {
+      setReleyendo(false);
     }
   }
 
@@ -472,7 +622,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
       }
       const hecho = await invocarComando<ResultadoDelCierre>('/api/caja/cerrar', {
         efectivoContadoCentavos: String(contadoCentavos),
-        notas: `Dinero dejado en caja (fondo): ${enPesos(dejado)}`,
+        notas: `Dinero dejado en caja (fondo): ${dineroEnTexto(dejado)}`,
       });
       setDialogo(null);
       setCorte(hecho);
@@ -486,72 +636,79 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
   }
 
   return (
-    <div className="grid items-start gap-(--espacio-4) p-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="grid items-start gap-(--espacio-4) p-(--espacio-3) md:p-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_24rem]">
       <h1 className="text-xl font-bold xl:col-span-2">Cierre diario y arqueo</h1>
-      <div className="xl:col-span-2">{banda}</div>
 
       {/* 4 · CONTEO — primero en el DOM porque encabeza la jerarquía y se lleva
-          el foco; en PC se va al carril derecho con `xl:order-2`. */}
-      <section
+          el foco. Fijo arriba en teléfono y tablet —con tope de alto, para que
+          nunca tape el corte entero— y carril derecho pegajoso en PC. */}
+      <Superficie
+        como="section"
+        nivel={2}
         aria-labelledby="titulo-conteo"
-        className={`sticky top-0 z-10 space-y-(--espacio-3) p-(--espacio-3) xl:order-2 xl:top-4 ${SECCION}`}
+        className="sticky top-0 z-20 flex max-h-[65dvh] flex-col gap-(--espacio-3) overflow-y-auto xl:top-(--espacio-4) xl:col-start-2 xl:row-start-2 xl:max-h-none xl:overflow-visible"
       >
-        <h2 id="titulo-conteo" className="text-sm font-semibold uppercase tracking-wide">
-          4 · Conteo de efectivo y fondo
+        <h2 id="titulo-conteo" className="text-sm font-semibold tracking-wide uppercase">
+          <span className="font-numeros text-texto-tenue tabular-nums">4 ·</span> Conteo de efectivo
+          y fondo
         </h2>
-        <div className="space-y-1">
-          <Label htmlFor="contado">Efectivo contado físicamente *</Label>
-          <Input
-            id="contado"
-            autoFocus
-            inputMode="decimal"
-            placeholder="0.00"
-            aria-describedby="ayuda-contado"
-            className="h-(--altura-control) text-2xl tabular-nums"
-            value={contado}
-            onChange={(evento) => {
-              setContado(evento.target.value);
-            }}
-          />
-          <p id="ayuda-contado" className="text-xs text-texto-sutil">
-            Cuenta el cajón antes de mirar nada más: el esperado aparece cuando escribas, para que
-            el arqueo siga siendo un control y no un número que se copia.
-          </p>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="fondo">Dinero dejado en caja (fondo)</Label>
-          <Input
-            id="fondo"
-            inputMode="decimal"
-            placeholder="0.00"
-            className="h-(--altura-control) tabular-nums"
-            value={fondo}
-            onChange={(evento) => {
-              setFondo(evento.target.value);
-            }}
-          />
+        <div className="grid gap-(--espacio-3) sm:grid-cols-2 xl:grid-cols-1">
+          <div className="flex flex-col gap-(--espacio-1) sm:col-span-2 xl:col-span-1">
+            <Label htmlFor="contado">Efectivo contado físicamente *</Label>
+            {/* El campo que manda: el más grande de la pantalla, porque es lo
+                único que aquí se TECLEA y se teclea contando billetes. */}
+            <CampoDeDinero
+              id="contado"
+              autoFocus
+              placeholder="0.00"
+              aria-describedby="ayuda-contado"
+              centavos={contado}
+              alCambiar={setContado}
+              tamano="grande"
+            />
+            <p id="ayuda-contado" className="text-xs text-texto-sutil">
+              Cuenta el cajón antes de mirar nada más: el esperado aparece cuando escribas, para que
+              el arqueo siga siendo un control y no un número que se copia.
+            </p>
+          </div>
+          <div className="flex flex-col gap-(--espacio-1)">
+            <Label htmlFor="fondo">Dinero dejado en caja (fondo)</Label>
+            <CampoDeDinero id="fondo" placeholder="0.00" centavos={fondo} alCambiar={setFondo} />
+          </div>
         </div>
 
         {cuenta !== null && (
-          <dl
+          <Superficie
             role="status"
-            className={`grid grid-cols-2 gap-1 rounded-md border-2 p-(--espacio-3) text-sm ${semaforo.clase}`}
+            nivel={0}
+            radio="md"
+            relleno={3}
+            className={`flex flex-col gap-(--espacio-2) ${TINTE_DEL_TONO[semaforo.tono]}`}
           >
-            <dt>Esperado</dt>
-            <dd className="text-right tabular-nums">{enPesos(esperado)}</dd>
-            <dt className="font-semibold">
-              {semaforo.marca} {semaforo.texto}
-            </dt>
-            <dd className="text-right text-lg font-bold tabular-nums">
-              {enPesos(cuenta - esperado)}
-            </dd>
-            <dd className="col-span-2 text-xs">
-              A entregar hoy: {enPesos(Math.max(cuenta - dejado, 0))}
-            </dd>
-          </dl>
+            <p className="flex items-center gap-(--espacio-2) text-sm font-semibold">
+              <IconoDelTono tono={semaforo.tono} />
+              {semaforo.texto}
+            </p>
+            <dl className="grid grid-cols-[1fr_auto] items-baseline gap-x-(--espacio-3) gap-y-(--espacio-1) text-sm">
+              <dt className="text-texto-sutil">Esperado</dt>
+              <dd className="text-right">
+                <Dinero centavos={esperado} tamano="sm" />
+              </dd>
+              <dt className="text-texto-sutil">Diferencia</dt>
+              <dd className="text-right">
+                <Dinero centavos={cuenta - esperado} tamano="lg" className="font-bold" />
+              </dd>
+              <dt className="text-texto-sutil">A entregar hoy</dt>
+              <dd className="text-right">
+                <Dinero centavos={Math.max(cuenta - dejado, 0)} tamano="sm" />
+              </dd>
+            </dl>
+          </Superficie>
         )}
 
-        <div className="flex items-center gap-2">
+        {avisoDeFallo}
+
+        <div className="flex items-center gap-(--espacio-2)">
           <Switch id="imprimir" checked={alImprimir} onCheckedChange={setAlImprimir} />
           <Label htmlFor="imprimir" className="font-normal">
             Imprimir el cierre al terminar
@@ -559,8 +716,9 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
         </div>
         <Button
           size="lg"
-          className="w-full text-lg"
+          className="h-[calc(var(--altura-control)*1.5)] w-full text-lg"
           disabled={enviando || cuenta === null}
+          cargando={releyendo}
           onClick={() => {
             void pedirCierre();
           }}
@@ -572,68 +730,75 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
             Escribe primero el efectivo contado.
           </p>
         )}
-      </section>
+      </Superficie>
 
-      {/* 1 · 2 · 3 en el orden del PDF. `details` nativo: el teclado y el lector
-          de pantalla ya saben abrirlo, y en teléfono se colapsan sin código. */}
-      <div className="space-y-(--espacio-4) xl:order-1">
-        <details open className={SECCION}>
-          <summary className={TITULO}>1 · Resumen financiero (sin propinas)</summary>
-          <dl className="grid grid-cols-2 gap-x-(--espacio-4) gap-y-(--espacio-3) p-(--espacio-3) pt-0 md:grid-cols-4">
-            {financiero.map(([rotulo, valor]) => (
-              <div key={rotulo}>
-                <dt className="text-xs text-texto-sutil">{rotulo}</dt>
-                <dd className="text-lg font-semibold tabular-nums">{valor}</dd>
-              </div>
-            ))}
+      {/* 1 · 2 · 3 en el orden del PDF. */}
+      <div className="flex flex-col gap-(--espacio-4) xl:col-start-1 xl:row-start-2">
+        <SeccionDelCorte numero={1} titulo="Resumen financiero (sin propinas)">
+          <dl className="grid grid-cols-2 gap-(--espacio-4) md:grid-cols-4">
+            <Indicador rotulo="Ventas reales">
+              <Dinero centavos={resumen.ventas} tamano="lg" />
+            </Indicador>
+            <Indicador rotulo="Tickets">
+              <Cifra valor={resumen.tickets} tamano="lg" />
+            </Indicador>
+            <Indicador rotulo="Ticket promedio">
+              <Dinero centavos={resumen.promedio} tamano="lg" />
+            </Indicador>
+            <Indicador rotulo="Costo de ventas">
+              <Dinero centavos={resumen.costo} tamano="lg" />
+            </Indicador>
+            <Indicador rotulo="Utilidad bruta">
+              <Dinero centavos={resumen.utilidad} tamano="lg" />
+            </Indicador>
+            <Indicador rotulo="Margen promedio">
+              <Cifra valor={resumen.margen / 100} decimales={2} unidad="%" tamano="lg" />
+            </Indicador>
+            <Indicador rotulo="Gastos operativos">
+              <Dinero centavos={resumen.gastos} tamano="lg" />
+            </Indicador>
+            <Indicador rotulo="Utilidad neta est.">
+              <Dinero centavos={resumen.neta} tamano="lg" />
+            </Indicador>
           </dl>
-        </details>
+        </SeccionDelCorte>
 
-        <details open className={SECCION}>
-          <summary className={TITULO}>2 · Propinas del día (pendientes de liquidar)</summary>
-          <dl className="grid grid-cols-2 gap-x-(--espacio-4) gap-y-(--espacio-3) p-(--espacio-3) pt-0 md:grid-cols-4">
-            {propinas.map(([rotulo, monto]) => (
-              <div key={rotulo}>
-                <dt className="text-xs capitalize text-texto-sutil">{rotulo}</dt>
-                <dd className="text-lg font-semibold tabular-nums">{enPesos(monto)}</dd>
-              </div>
-            ))}
+        <SeccionDelCorte numero={2} titulo="Propinas del día (pendientes de liquidar)">
+          <dl className="grid grid-cols-2 gap-(--espacio-4) md:grid-cols-4">
+            <Indicador rotulo="Total">
+              <Dinero centavos={totalDePropinas} tamano="lg" />
+            </Indicador>
+            <Indicador rotulo={NOMBRE_DEL_CANAL.efectivo}>
+              <Dinero centavos={resumen.propinas.efectivo} tamano="lg" />
+            </Indicador>
+            <Indicador rotulo={NOMBRE_DEL_CANAL.tarjeta}>
+              <Dinero centavos={resumen.propinas.tarjeta} tamano="lg" />
+            </Indicador>
+            <Indicador rotulo={NOMBRE_DEL_CANAL.transferencia}>
+              <Dinero centavos={resumen.propinas.transferencia} tamano="lg" />
+            </Indicador>
           </dl>
-          <p className="px-(--espacio-3) pb-(--espacio-3) text-xs text-texto-sutil">
+          <p className="mt-(--espacio-3) text-xs text-texto-sutil">
             No entran en la utilidad: son dinero de {voc.enFrase('responsable', true)} que pasó por
             la caja.
           </p>
-        </details>
+        </SeccionDelCorte>
 
-        <details open className={SECCION}>
-          <summary className={TITULO}>3 · Métodos de pago (ventas + propinas)</summary>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Método</TableHead>
-                <TableHead className="text-right">Ventas</TableHead>
-                <TableHead className="text-right">Propinas</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {CANALES.map((canal) => (
-                <TableRow key={canal}>
-                  <TableCell className="capitalize">{canal}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {enPesos(resumen.porCanal[canal])}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {enPesos(resumen.propinas[canal])}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">
-                    {enPesos(resumen.porCanal[canal] + resumen.propinas[canal])}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </details>
+        <SeccionDelCorte numero={3} titulo="Métodos de pago (ventas + propinas)">
+          <Tabla
+            etiqueta="Métodos de pago"
+            columnas={columnasDeCanal}
+            filas={filasDeCanal}
+            claveDe={(fila) => fila.canal}
+            alto="max-h-none"
+            pie={{
+              metodo: 'Total',
+              ventas: <Dinero centavos={ventasPorCanal} tamano="sm" />,
+              propinas: <Dinero centavos={totalDePropinas} tamano="sm" />,
+              total: <Dinero centavos={ventasPorCanal + totalDePropinas} tamano="sm" />,
+            }}
+          />
+        </SeccionDelCorte>
       </div>
 
       <Dialog
@@ -645,28 +810,34 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {dialogo?.tipo === 'bloqueo' ? 'Hay mesas con cuenta abierta' : '¿Cerrar la caja?'}
+              {dialogo?.tipo === 'bloqueo' ? `Hay ${conCuentaViva}` : '¿Cerrar la caja?'}
             </DialogTitle>
             <DialogDescription>
               {dialogo?.tipo === 'bloqueo'
-                ? 'Cobra o cancela estas cuentas antes de cerrar: si la caja se cierra ahora, esas ventas quedan fuera del corte y ya no las cuadra nadie.'
+                ? `Cobra o cancela ${voc.enFraseCon('este', 'orden', true)} antes de cerrar: si la caja se cierra ahora, esas ventas quedan fuera del corte y ya no las cuadra nadie.`
                 : 'El corte se sella y no se puede editar. El salón se vuelve a revisar justo antes de ejecutar.'}
             </DialogDescription>
           </DialogHeader>
           {dialogo?.tipo === 'bloqueo' && (
-            <ul className="max-h-[50vh] space-y-2 overflow-y-auto">
-              {dialogo.mesas.map((mesa) => (
-                <li
-                  key={mesa.id}
-                  className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-borde p-2 text-sm"
-                >
-                  <span className="font-semibold">{mesa.rotulo}</span>
-                  <span className="text-texto-sutil">{mesa.mesero}</span>
-                  <span className="tabular-nums">{enPesos(mesa.total)}</span>
-                  <span className="text-texto-sutil">abierta {mesa.abierta}</span>
-                </li>
-              ))}
-            </ul>
+            <Tabla
+              etiqueta={conCuentaViva}
+              columnas={columnasDeMesa}
+              filas={dialogo.mesas}
+              claveDe={(mesa) => mesa.id}
+              alto="max-h-[50vh]"
+            />
+          )}
+          {/* Lo que se va a sellar, tal como se tecleó: un cero de más en el
+              conteo se ve aquí, no en el corte impreso. */}
+          {dialogo?.tipo === 'confirmar' && cuenta !== null && (
+            <dl className="grid grid-cols-2 gap-(--espacio-4)">
+              <Indicador rotulo="Efectivo contado">
+                <Dinero centavos={cuenta} tamano="lg" />
+              </Indicador>
+              <Indicador rotulo="Dinero dejado en caja">
+                <Dinero centavos={dejado} tamano="lg" />
+              </Indicador>
+            </dl>
           )}
           <DialogFooter>
             {dialogo?.tipo === 'bloqueo' ? (
@@ -678,6 +849,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
             ) : (
               <Button
                 disabled={enviando || cuenta === null}
+                cargando={enviando}
                 onClick={() => {
                   if (cuenta !== null) void cerrar(cuenta);
                 }}

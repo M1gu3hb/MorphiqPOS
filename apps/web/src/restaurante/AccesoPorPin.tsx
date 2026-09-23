@@ -2,8 +2,19 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@morphiqpos/ui/primitivas/avatar';
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useCallback, useEffect, useState } from 'react';
+import {
+  Aviso,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  VIAJE,
+  Vacio,
+  conTransicion,
+  viaje,
+} from '@morphiqpos/ui/sistema';
+import { Circle, Delete, UsersRound } from 'lucide-react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando, obtenerApi } from '~/cliente/api';
 
@@ -12,17 +23,37 @@ import { ErrorApi, invocarComando, obtenerApi } from '~/cliente/api';
  *
  * Identificar quién está operando, en dos segundos. 30-80 veces al día, todos
  * los roles. Primero las tarjetas; el teclado aparece DONDE estaban ellas.
+ * Jerarquía: tarjetas, teclado y nada más. El dispositivo que manda es la
+ * tableta del mesero; la PC de caja y el teléfono se derivan de ella.
  *
  * ── Por qué tarjetas con cara y no un campo de usuario ──────────
  * Porque el mesero no va a teclear su nombre ocho veces al día, y porque la
  * cara elimina el error de entrar con la sesión de otro — que es lo que rompe
- * la atribución de propinas. El color de la tarjeta es el mismo que después
- * pinta el punto de las mesas que atiende.
+ * la atribución de propinas.
+ *
+ * ── Por qué una rejilla de tarjetas iguales, y no filas ─────────
+ * Porque en un restaurante son diez o quince personas —meseros, cajero,
+ * cocina—, no dos o tres como en la cafetería. Reconocer una cara entre quince
+ * pide verlas todas a la vez y del mismo tamaño: dos columnas en el teléfono,
+ * tres en la tableta —las más grandes, porque es donde más se entra— y cuatro
+ * en la PC, centradas.
+ *
+ * ── El color de la persona va en su CARA ────────────────────────
+ * Es el mismo que después pinta el punto de las mesas que atiende. Va en el
+ * anillo de sus iniciales y no en el borde de la tarjeta: la tarjeta es una
+ * `Superficie` como todas, así el foco y el pulsado se leen igual que en
+ * cualquier otra tesela del sistema.
+ *
+ * ── La tarjeta SE CONVIERTE en el teclado ───────────────────────
+ * La tarjeta tocada crece hasta ser el panel del PIN (`VIAJE.fila`) y «No soy
+ * yo» la devuelve a su sitio. En una tableta que pasa de mano en mano el
+ * movimiento dice, sin leer, de QUIÉN es el PIN que se va a teclear. Dura lo que
+ * la perilla de movimiento diga, y cero con la preferencia del sistema.
  *
  * ── Por qué el PIN no se manda solo al cuarto dígito ────────────
  * Porque un dedo que resbala mandaría un PIN equivocado sin que nadie lo
- * pidiera, y cada envío gasta uno de los tres intentos. Gastarlos lleva al
- * bloqueo, y un bloqueo a media comida deja la caja sin quién la opere.
+ * pidiera, y cada envío gasta uno de los intentos. Gastarlos lleva al bloqueo,
+ * y un bloqueo a media comida deja la caja sin quién la opere.
  *
  * ── Por qué lee por `obtenerApi` y no por el puente ─────────────
  * Porque el puente resuelve el ámbito de UNA SESIÓN y aquí la sesión todavía no
@@ -30,13 +61,12 @@ import { ErrorApi, invocarComando, obtenerApi } from '~/cliente/api';
  * devuelve nombre, puesto y color, nunca el hash: el PIN se verifica en el
  * servidor, con Argon2id, en `POST /api/auth/entrar`.
  *
- * ── Lo que NO va, y lo que se recortó para caber en 300 líneas ──
+ * ── Lo que NO va ────────────────────────────────────────────────
  * Ni recuperación de PIN, ni registro, ni «recordarme»: el documento los
- * prohíbe. Quedaron fuera el nombre del negocio en la cabecera —el documento
- * pide «tarjetas, teclado y nada más»—, el botón de reintentar la lectura de la
- * plantilla —hoy se reintenta recargando— y partir el teclado en su propio
- * componente. El endpoint tampoco manda fotografías todavía: la tarjeta enseña
- * las iniciales sobre el color de la persona y el campo `foto` ya está aceptado.
+ * prohíbe. Tampoco el nombre del negocio en la cabecera —el documento pide
+ * «tarjetas, teclado y nada más»—. El endpoint no manda fotografías todavía: la
+ * tarjeta enseña las iniciales sobre el color de la persona y el campo `foto`
+ * ya está aceptado.
  */
 
 const LARGO_PIN = 4;
@@ -51,18 +81,21 @@ const SEGUNDOS_DE_BLOQUEO = 60;
  * impuso; si se creyera a sí mismo, recargar la página borraría el bloqueo.
  */
 const HTTP_DEMASIADOS_INTENTOS = 429;
+const SIN_PLANTILLA = 'No se pudo leer la plantilla.';
+/** Lo que se reserva mientras llega la plantilla: una sala típica, no una rueda. */
+const TARJETAS_DE_ESPERA = 8;
 const DIGITOS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 const CLASES_REJILLA =
   'mx-auto grid w-full max-w-4xl grid-cols-2 gap-(--espacio-3) md:grid-cols-3 md:gap-(--espacio-6) xl:grid-cols-4';
 const CLASES_TARJETA =
-  'flex w-full flex-col items-center gap-2 rounded-xl border-2 bg-superficie p-(--espacio-4) text-texto ' +
-  'shadow-1 transition-colors hover:bg-acento-suave hover:text-acento-suave-texto md:gap-(--espacio-3) md:p-(--espacio-6) ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-anillo';
+  'flex h-full w-full flex-col items-center gap-(--espacio-2) text-center md:gap-(--espacio-3) md:p-(--espacio-6)';
+/**
+ * En teléfono el teclado ES la pantalla: sin caja alrededor. De tableta para
+ * arriba es un panel levantado en el hueco que dejaron las tarjetas.
+ */
 const CLASES_TECLADO =
-  'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-(--espacio-5) md:max-w-md md:flex-none ' +
-  'md:rounded-xl md:border md:border-borde md:bg-superficie md:p-(--espacio-6) md:shadow-2';
-const CLASES_BANDA =
-  'mx-auto w-full max-w-4xl rounded-md border border-peligro bg-peligro/15 p-(--espacio-3) text-sm';
+  'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-(--espacio-5) rounded-none border-0 bg-fondo p-0 shadow-0 ' +
+  'md:max-w-md md:flex-none md:rounded-lg md:border md:bg-superficie md:p-(--espacio-6) md:shadow-2';
 
 export interface EmpleadoDeAcceso {
   readonly id: string;
@@ -90,11 +123,200 @@ function mensajeDe(fallo: unknown, porDefecto: string): string {
   return fallo instanceof Error ? fallo.message : porDefecto;
 }
 
+/** La cara: sus iniciales sobre un velo de su color, y el anillo del color entero. */
+function Cara({
+  empleado,
+  className,
+}: {
+  readonly empleado: EmpleadoDeAcceso;
+  readonly className: string;
+}) {
+  return (
+    <Avatar aria-hidden className={`border-4 ${className}`} style={{ borderColor: empleado.color }}>
+      {typeof empleado.foto === 'string' && <AvatarImage src={empleado.foto} alt="" />}
+      <AvatarFallback
+        className="font-bold text-texto"
+        style={{ backgroundColor: `color-mix(in oklab, ${empleado.color} 16%, transparent)` }}
+      >
+        {iniciales(empleado.nombre)}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
+interface AvisosDeAccesoProps {
+  readonly sinConexion: boolean;
+  readonly segundosBloqueo: number | null;
+  readonly error: string | null;
+  /** Fuera del panel se alinea con la rejilla; dentro, ocupa el ancho del panel. */
+  readonly className: string;
+}
+
+/**
+ * Una sola banda: lo que impide entrar AHORA manda sobre lo anterior. Y no
+ * vacía la pantalla: debajo sigue habiendo con quién entrar.
+ */
+function AvisosDeAcceso({ sinConexion, segundosBloqueo, error, className }: AvisosDeAccesoProps) {
+  if (sinConexion) {
+    return (
+      <Aviso tono="atencion" titulo="Sin conexión con el servidor." className={className}>
+        No se puede entrar hasta que vuelva la red.
+      </Aviso>
+    );
+  }
+  if (segundosBloqueo !== null) {
+    return (
+      <Aviso tono="peligro" titulo={error ?? 'Demasiados intentos.'} className={className}>
+        Vuelve a intentar en {segundosBloqueo} s.
+      </Aviso>
+    );
+  }
+  if (error !== null) return <Aviso tono="peligro" titulo={error} className={className} />;
+  return null;
+}
+
+interface TecladoNumericoProps {
+  readonly empleado: EmpleadoDeAcceso;
+  readonly digitos: number;
+  readonly deshabilitado: boolean;
+  readonly enviando: boolean;
+  /** Los avisos van DENTRO del panel: es donde están los ojos al teclear. */
+  readonly avisos: ReactNode;
+  /** Un dígito, `borrar` o `entrar`: qué hacer con la tecla lo sabe el padre. */
+  readonly onTecla: (tecla: string) => void;
+  readonly onVolver: () => void;
+}
+
+function TecladoNumerico({
+  empleado,
+  digitos,
+  deshabilitado,
+  enviando,
+  avisos,
+  onTecla,
+  onVolver,
+}: TecladoNumericoProps) {
+  const teclas = [
+    ...DIGITOS.map((digito) => ({
+      texto: digito,
+      valor: digito,
+      tipo: 'outline' as const,
+      apagada: false,
+    })),
+    { texto: 'Borrar', valor: 'borrar', tipo: 'ghost', apagada: digitos === 0 },
+    { texto: '0', valor: '0', tipo: 'outline', apagada: false },
+    { texto: 'Entrar', valor: 'entrar', tipo: 'default', apagada: digitos < LARGO_PIN },
+  ] as const;
+
+  return (
+    <Superficie
+      como="section"
+      nivel={2}
+      relleno={6}
+      aria-label={`Teclear el PIN de ${empleado.nombre}`}
+      style={viaje(VIAJE.fila(empleado.id))}
+      className={CLASES_TECLADO}
+    >
+      <div className="flex items-center gap-(--espacio-3)">
+        <Cara empleado={empleado} className="size-20 text-xl" />
+        <p className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-xl font-semibold">{empleado.nombre}</span>
+          <span className="text-sm text-texto-sutil">{empleado.etiqueta}</span>
+        </p>
+        <Button type="button" variant="ghost" size="sm" onClick={onVolver}>
+          No soy yo
+        </Button>
+      </div>
+
+      {avisos}
+
+      {/* Puntos, nunca números: la pantalla está de cara al comedor. Quien
+          no puede verlos recibe la cuenta en palabras. */}
+      <p aria-live="polite" className="flex justify-center gap-(--espacio-4) py-(--espacio-2)">
+        <span className="sr-only">
+          {digitos} de {LARGO_PIN} dígitos tecleados
+        </span>
+        {Array.from({ length: LARGO_PIN }, (_, indice) => (
+          <Circle
+            key={indice}
+            aria-hidden
+            className={
+              indice < digitos ? 'size-5 fill-primario text-primario' : 'size-5 text-borde-fuerte'
+            }
+          />
+        ))}
+      </p>
+
+      <div className="grid grid-cols-3 gap-(--espacio-3)">
+        {teclas.map((tecla) => (
+          <Button
+            key={tecla.valor}
+            type="button"
+            variant={tecla.tipo}
+            disabled={deshabilitado || tecla.apagada}
+            cargando={tecla.valor === 'entrar' && enviando}
+            className={`h-20 md:h-24 ${tecla.valor.length === 1 ? 'font-numeros text-2xl font-semibold' : 'text-base'}`}
+            onClick={() => {
+              onTecla(tecla.valor);
+            }}
+          >
+            {tecla.valor === 'borrar' ? <Delete aria-hidden /> : null}
+            {tecla.texto}
+          </Button>
+        ))}
+      </div>
+    </Superficie>
+  );
+}
+
+interface RejillaDeTarjetasProps {
+  readonly empleados: readonly EmpleadoDeAcceso[];
+  /** La tarjeta a la que vuelve el panel: lleva el nombre del viaje de regreso. */
+  readonly deVuelta: string | null;
+  readonly onElegir: (empleado: EmpleadoDeAcceso, tarjeta: HTMLElement) => void;
+}
+
+/** Foto redonda, nombre y puesto debajo; todas del mismo tamaño. */
+function RejillaDeTarjetas({ empleados, deVuelta, onElegir }: RejillaDeTarjetasProps) {
+  return (
+    <ul className={CLASES_REJILLA}>
+      {empleados.map((empleado) => (
+        <li key={empleado.id}>
+          <Superficie
+            como="button"
+            type="button"
+            interactiva
+            relleno={4}
+            style={deVuelta === empleado.id ? viaje(VIAJE.fila(empleado.id)) : undefined}
+            onClick={(evento) => {
+              onElegir(empleado, evento.currentTarget);
+            }}
+            className={CLASES_TARJETA}
+          >
+            <Cara empleado={empleado} className="size-20 text-2xl md:size-28 md:text-3xl" />
+            <span className="flex w-full min-w-0 flex-col gap-(--espacio-1)">
+              <span className="text-base leading-tight font-semibold text-balance md:text-lg">
+                {empleado.nombre}
+              </span>
+              <span className="text-xs text-texto-sutil md:text-sm">{empleado.etiqueta}</span>
+            </span>
+          </Superficie>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps) {
   const [empleados, setEmpleados] = useState<readonly EmpleadoDeAcceso[] | null>(
     empleadosIniciales ?? null,
   );
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  // Cada lectura es un número: reintentar lo sube y el efecto lee otra vez. El
+  // estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
   const [seleccionado, setSeleccionado] = useState<EmpleadoDeAcceso | null>(null);
+  const [deVuelta, setDeVuelta] = useState<string | null>(null);
   const [pin, setPin] = useState('');
   const [intentos, setIntentos] = useState(INTENTOS);
   const [segundosBloqueo, setSegundosBloqueo] = useState<number | null>(null);
@@ -113,12 +335,12 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
         setEmpleados(datos.usuarios);
       })
       .catch((fallo: unknown) => {
-        if (!control.signal.aborted) setError(mensajeDe(fallo, 'No se pudo leer la plantilla.'));
+        if (!control.signal.aborted) setFalloDeCarga(mensajeDe(fallo, SIN_PLANTILLA));
       });
     return () => {
       control.abort();
     };
-  }, [empleadosIniciales]);
+  }, [empleadosIniciales, intento]);
 
   useEffect(() => {
     const actualizar = () => {
@@ -166,7 +388,8 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
         const restantes = limite ? 0 : intentos - 1;
         setIntentos(restantes <= 0 ? INTENTOS : restantes);
         if (restantes <= 0) setSegundosBloqueo(SEGUNDOS_DE_BLOQUEO);
-        const cuantos = restantes === 1 ? 'Queda 1 intento.' : `Quedan ${restantes} intentos.`;
+        const cuantos =
+          restantes === 1 ? 'Te queda 1 intento.' : `Te quedan ${restantes} intentos.`;
         setError(
           restantes > 0 ? `PIN incorrecto. ${cuantos}` : mensajeDe(fallo, 'Demasiados intentos.'),
         );
@@ -178,9 +401,34 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
     [intentos, onEntro],
   );
 
+  /**
+   * La tarjeta crece hasta ser el teclado. Antes del cambio la TARJETA lleva el
+   * nombre del viaje; dentro del cambio se lo quita y lo lleva el PANEL, y
+   * `flushSync` hace que el navegador fotografíe el estado nuevo ya pintado.
+   */
+  function elegir(empleado: EmpleadoDeAcceso, tarjeta: HTMLElement): void {
+    tarjeta.style.viewTransitionName = VIAJE.fila(empleado.id);
+    void conTransicion(() => {
+      flushSync(() => {
+        tarjeta.style.viewTransitionName = '';
+        setSeleccionado(empleado);
+        setError(null);
+      });
+    });
+  }
+
+  /** «No soy yo» y `Esc`: el panel vuelve a ser la tarjeta de donde salió. */
   function volver(): void {
-    setSeleccionado(null);
-    setPin('');
+    const deQuien = seleccionado?.id ?? null;
+    void conTransicion(() => {
+      flushSync(() => {
+        setDeVuelta(deQuien);
+        setSeleccionado(null);
+        setPin('');
+      });
+    }).finally(() => {
+      setDeVuelta(null);
+    });
   }
 
   function pulsar(tecla: string): void {
@@ -212,134 +460,93 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
     };
   });
 
-  // Una sola banda: lo que impide entrar AHORA manda sobre lo anterior.
-  const banda = sinConexion
-    ? 'Sin conexión con el servidor. No se puede entrar hasta que vuelva la red.'
-    : hayBloqueo
-      ? `${error ?? 'Demasiados intentos.'} Vuelve a intentar en ${segundosBloqueo} s.`
-      : error;
+  function reintentar(): void {
+    setFalloDeCarga(null);
+    setEmpleados(null);
+    setIntento((previo) => previo + 1);
+  }
 
-  const teclas = [
-    ...DIGITOS.map((digito) => ({
-      texto: digito,
-      valor: digito,
-      tipo: 'outline' as const,
-      apagada: false,
-    })),
-    { texto: 'Borrar', valor: 'borrar', tipo: 'ghost', apagada: pin === '' },
-    { texto: '0', valor: '0', tipo: 'outline', apagada: false },
-    { texto: 'Entrar', valor: 'entrar', tipo: 'default', apagada: pin.length < LARGO_PIN },
-  ] as const;
+  const avisos = (
+    <AvisosDeAcceso
+      sinConexion={sinConexion}
+      segundosBloqueo={segundosBloqueo}
+      error={error}
+      className="w-full"
+    />
+  );
+
+  function cuerpo(): ReactNode {
+    if (seleccionado !== null) {
+      return (
+        <TecladoNumerico
+          empleado={seleccionado}
+          digitos={pin.length}
+          deshabilitado={deshabilitado}
+          enviando={enviando}
+          avisos={avisos}
+          onTecla={pulsar}
+          onVolver={volver}
+        />
+      );
+    }
+    if (falloDeCarga !== null) {
+      return (
+        <ErrorDePantalla
+          titulo="No se pudo leer la plantilla"
+          queHacer="Sin saber quién trabaja aquí no hay tarjeta que tocar ni PIN que teclear. Revisa la conexión y vuelve a intentarlo."
+          {...(falloDeCarga === SIN_PLANTILLA ? {} : { detalle: falloDeCarga })}
+          reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+          className="mx-auto w-full max-w-lg"
+        />
+      );
+    }
+    if (empleados === null) {
+      // La forma de las tarjetas, no una rueda: al llegar nadie salta de sitio.
+      return (
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="Leyendo quién puede entrar"
+          className={CLASES_REJILLA}
+        >
+          {Array.from({ length: TARJETAS_DE_ESPERA }, (_, indice) => (
+            <Esqueleto key={indice} className="h-44 w-full rounded-lg md:h-60" />
+          ))}
+        </div>
+      );
+    }
+    if (empleados.length === 0) {
+      // El documento dice que este estado no existe: siempre hay alguien. Si
+      // aparece no es un vacío, es un despliegue sin plantilla.
+      return (
+        <Vacio
+          icono={<UsersRound />}
+          titulo="Todavía no hay nadie dado de alta."
+          explicacion="Estas tarjetas son la plantilla del negocio: cada persona con un puesto activo y un PIN aparece aquí. Sin nadie en ella no hay a quién atribuir una venta ni una propina."
+          accion={
+            <Button asChild>
+              <a href="/configuracion">Dar de alta a la primera persona</a>
+            </Button>
+          }
+          className="mx-auto max-w-lg"
+        />
+      );
+    }
+    return <RejillaDeTarjetas empleados={empleados} deVuelta={deVuelta} onElegir={elegir} />;
+  }
 
   return (
     <main className="flex min-h-dvh flex-col gap-(--espacio-6) bg-fondo p-(--espacio-4) text-texto md:p-(--espacio-8)">
-      <h1 className="mx-auto text-2xl font-bold md:text-3xl">¿Quién está operando?</h1>
-
-      {/* La banda no vacía la pantalla: debajo sigue habiendo con quién entrar. */}
-      {banda !== null && (
-        <p role="alert" className={CLASES_BANDA}>
-          {banda}
-        </p>
-      )}
-
-      {empleados === null && error === null && (
-        <div className={CLASES_REJILLA} aria-hidden>
-          {Array.from({ length: 8 }, (_, indice) => (
-            <Skeleton key={indice} className="h-40 w-full rounded-xl md:h-52" />
-          ))}
-        </div>
-      )}
-
-      {/* El documento dice que este estado no existe: siempre hay alguien. Si
-          aparece no es un vacío, es un despliegue sin plantilla. */}
-      {empleados?.length === 0 && (
-        <section className="mx-auto flex max-w-lg flex-col items-center gap-(--espacio-4) text-center">
-          <p className="text-lg font-semibold">Todavía no hay nadie dado de alta.</p>
-          <p className="text-sm text-texto-sutil">
-            Estas tarjetas son la plantilla del negocio: cada persona con un puesto activo y un PIN
-            aparece aquí. Sin nadie en ella no hay a quién atribuir una venta ni una propina.
-          </p>
-          <Button asChild>
-            <a href="/configuracion">Dar de alta a la primera persona</a>
-          </Button>
-        </section>
-      )}
-
-      {seleccionado === null && empleados !== null && empleados.length > 0 && (
-        <ul className={CLASES_REJILLA}>
-          {empleados.map((empleado) => (
-            <li key={empleado.id}>
-              {/* El borde lleva el color; el nombre y el puesto van en letra. */}
-              <button
-                type="button"
-                className={CLASES_TARJETA}
-                style={{ borderColor: empleado.color }}
-                onClick={() => {
-                  setSeleccionado(empleado);
-                  setError(null);
-                }}
-              >
-                <Avatar className="size-20 text-2xl md:size-28 md:text-3xl">
-                  {typeof empleado.foto === 'string' && <AvatarImage src={empleado.foto} alt="" />}
-                  <AvatarFallback className="font-bold">
-                    {iniciales(empleado.nombre)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-base font-semibold md:text-lg">{empleado.nombre}</span>
-                <span className="text-xs text-texto-sutil md:text-sm">{empleado.etiqueta}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* En teléfono el teclado ocupa la pantalla entera; de tablet para arriba
-          es un panel centrado en el hueco que dejaron las tarjetas. */}
-      {seleccionado !== null && (
-        <section aria-label={`Teclear el PIN de ${seleccionado.nombre}`} className={CLASES_TECLADO}>
-          <div
-            className="flex items-center gap-(--espacio-3) border-b-4 pb-(--espacio-3)"
-            style={{ borderColor: seleccionado.color }}
-          >
-            <p className="flex-1 text-xl font-semibold">
-              {seleccionado.nombre}
-              <span className="block text-sm font-normal text-texto-sutil">
-                {seleccionado.etiqueta}
-              </span>
-            </p>
-            <Button type="button" variant="ghost" size="sm" onClick={volver}>
-              No soy yo
-            </Button>
-          </div>
-
-          {/* Puntos, nunca números: la pantalla está de cara al comedor. Quien
-              no puede verlos recibe la cuenta en palabras. */}
-          <p
-            aria-live="polite"
-            className="font-numeros text-center text-3xl tracking-[0.4em] text-primario"
-          >
-            <span className="sr-only">{pin.length} de 4 dígitos tecleados</span>
-            <span aria-hidden>{'•'.repeat(pin.length) + '◦'.repeat(LARGO_PIN - pin.length)}</span>
-          </p>
-
-          <div className="grid grid-cols-3 gap-(--espacio-3)">
-            {teclas.map((tecla) => (
-              <Button
-                key={tecla.valor}
-                type="button"
-                variant={tecla.tipo}
-                disabled={deshabilitado || tecla.apagada}
-                className={`h-20 md:h-24 ${tecla.valor.length === 1 ? 'text-2xl font-bold' : ''}`}
-                onClick={() => {
-                  pulsar(tecla.valor);
-                }}
-              >
-                {tecla.texto}
-              </Button>
-            ))}
-          </div>
-        </section>
-      )}
+      <h1 className="text-center text-2xl font-bold md:text-3xl">¿Quién está operando?</h1>
+      {seleccionado === null ? (
+        <AvisosDeAcceso
+          sinConexion={sinConexion}
+          segundosBloqueo={segundosBloqueo}
+          error={error}
+          className="mx-auto w-full max-w-4xl"
+        />
+      ) : null}
+      {cuerpo()}
     </main>
   );
 }

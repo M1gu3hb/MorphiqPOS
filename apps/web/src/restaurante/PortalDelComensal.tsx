@@ -1,8 +1,19 @@
 'use client';
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import {
+  Aviso,
+  BarraFija,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { BellRing, QrCode, ReceiptText, UtensilsCrossed } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useVocabulario } from '~/cliente/vocabulario';
 
@@ -32,12 +43,35 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * cuenta no ofrece pedir más. Enseñar todo siempre es cómo alguien pide un café
  * después de que el mesero ya cerró la caja.
  *
+ * ── Una pantalla de teléfono, y sólo de teléfono ────────────────────────
+ * Nadie escanea un QR desde una PC: se diseña a 375 px, en una columna, y no se
+ * deriva a nada más (04-INTERFAZ, «Portal del comensal»). Arriba, el nombre del
+ * restaurante y la mesa; debajo, las secciones de la carta en una franja que se
+ * queda pegada al hacer scroll, porque una carta de cuarenta platillos se recorre
+ * saltando de sección, no leyéndola entera.
+ *
+ * ── Por qué la atención va ABAJO, fija, y el aviso con ella ─────────────
+ * El teléfono se sostiene con una mano y el pulgar llega al borde de abajo: ahí
+ * viven «pedir la cuenta» y «llamar al mesero», alcanzables en cualquier punto de
+ * la carta. Y la respuesta —«ya va la cuenta», «levanta la mano»— sale en esa misma
+ * barra, donde está el dedo: arriba de una carta ya recorrida no la ve nadie.
+ *
+ * ── Por qué la carta es una tabla por sección ───────────────────────────
+ * Lo que se compara en una carta es el precio, y un precio se compara en una
+ * columna a la derecha, en cifras tabulares. Una tarjeta por platillo sin foto es
+ * aire; una fila es la carta impresa que el comensal ya sabe leer.
+ *
+ * ── Nunca en blanco, nunca técnico ──────────────────────────────────────
+ * Quien lee esto es un cliente, no un operador. Sin conexión se queda lo último
+ * que llegó y se dice «llama a tu mesero»; si el servidor contesta que el código
+ * no sirve, se enseña SU mensaje, que está escrito para el comensal. Antes, las dos
+ * cosas eran un esqueleto que no terminaba nunca.
+ *
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
  * Caben el menú, la cuenta, pedir la cuenta y llamar al mesero. Queda fuera el
- * pedido desde el portal cuando el negocio lo tiene apagado.
+ * pedido desde el portal cuando el negocio lo tiene apagado, y la valoración al
+ * final del consumo.
  */
-
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
 /** Cada cuánto se refresca. Diez segundos: la cuenta cambia mientras se come. */
 const MS_REFRESCO = 10_000;
@@ -72,10 +106,6 @@ export interface PortalProps {
   readonly datosIniciales?: PayloadDelPortal;
 }
 
-function pesos(centavos: string): string {
-  return PESOS.format(Number(centavos) / 100);
-}
-
 /** Una mesa libre no enseña cuenta: enseña el menú. */
 export function enseñaCuenta(datos: PayloadDelPortal): boolean {
   return datos.cuenta !== null && datos.cuenta.lineas.length > 0;
@@ -89,6 +119,7 @@ export function puedeSeguirPidiendo(datos: PayloadDelPortal): boolean {
 interface Respuesta {
   readonly ok: boolean;
   readonly datos?: PayloadDelPortal;
+  readonly error?: { readonly mensaje?: unknown };
 }
 
 /** Lo mínimo para creerle a la respuesta: que diga si salió bien. */
@@ -96,15 +127,40 @@ function esRespuesta(valor: unknown): valor is Respuesta {
   return typeof valor === 'object' && valor !== null && 'ok' in valor;
 }
 
+/**
+ * El mensaje que el servidor escribió para el comensal, si lo escribió. Los
+ * errores del portal que se escapan al envoltorio llevan el suyo —«Este código QR
+ * ya no es válido»— y los internos uno que no enseña nada del servidor.
+ */
+function mensajeDe(cuerpo: Respuesta): string | null {
+  const mensaje = cuerpo.error?.mensaje;
+  return typeof mensaje === 'string' && mensaje !== '' ? mensaje : null;
+}
+
+type Solicitud = 'cuenta' | 'mesero';
+
+interface AvisoDeSolicitud {
+  readonly tono: 'exito' | 'peligro';
+  readonly texto: string;
+}
+
+/** El id del ancla de cada sección: su posición, porque el nombre es texto libre. */
+function anclaDe(indice: number): string {
+  return `portal-seccion-${String(indice)}`;
+}
+
 export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
-  const voc = useVocabulario();
   // F-017 · Cómo llama este negocio a la unidad de servicio. Lo resuelve el
   // envoltorio de servidor, así que en la primera pintada ya está.
-  const vocabulario = useVocabulario();
+  const voc = useVocabulario();
   const [datos, setDatos] = useState<PayloadDelPortal | null>(datosIniciales ?? null);
   const [sinConexion, setSinConexion] = useState(false);
-  const [enviando, setEnviando] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [rechazo, setRechazo] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState<Solicitud | null>(null);
+  const [aviso, setAviso] = useState<AvisoDeSolicitud | null>(null);
+  // Cada intento es un número: el botón de reintentar lo sube y el efecto vuelve
+  // a latir en ese instante, sin esperar los diez segundos.
+  const [intento, setIntento] = useState(0);
 
   useEffect(() => {
     if (datosIniciales !== undefined) return;
@@ -138,11 +194,18 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
           if (cuerpo.ok && cuerpo.datos !== undefined) {
             setDatos(cuerpo.datos);
             setSinConexion(false);
+            setRechazo(null);
+            return;
+          }
+          // Contestó, y dijo que no. No es la red: se dice lo que dijo.
+          if (!cuerpo.ok) {
+            setSinConexion(false);
+            setRechazo(mensajeDe(cuerpo) ?? 'Este código ya no está activo.');
           }
         })
         .catch(() => {
-          // Ni se vacía ni enseña el fallo: se queda lo último y se enciende el
-          // punto. Una pantalla en blanco en una terraza es una pantalla que se
+          // Ni se vacía ni enseña el fallo técnico: se queda lo último y se
+          // avisa. Una pantalla en blanco en una terraza es una pantalla que se
           // cierra.
           if (sigueMontada()) setSinConexion(true);
         });
@@ -155,23 +218,32 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
       clearInterval(latido);
       control.abort();
     };
-  }, [token, datosIniciales]);
+  }, [token, datosIniciales, intento]);
 
-  function solicitar(tipo: 'cuenta' | 'mesero'): void {
-    setEnviando(true);
+  function reintentar(): void {
+    setSinConexion(false);
+    setRechazo(null);
+    setIntento((previo) => previo + 1);
+  }
+
+  function solicitar(tipo: Solicitud): void {
+    setEnviando(tipo);
     fetch(`/api/publico/qr/${token}/solicitud`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-morphiqpos-request': '1' },
       body: JSON.stringify({ tipo }),
     })
       .then(() => {
-        setAviso(tipo === 'cuenta' ? `Ya va ${voc.enFrase('orden')}.` : 'Ya viene alguien.');
+        setAviso({
+          tono: 'exito',
+          texto: tipo === 'cuenta' ? `Ya va ${voc.enFrase('orden')}.` : 'Ya viene alguien.',
+        });
       })
       .catch(() => {
-        setAviso('No se pudo avisar. Levanta la mano.');
+        setAviso({ tono: 'peligro', texto: 'No se pudo avisar. Levanta la mano.' });
       })
       .finally(() => {
-        setEnviando(false);
+        setEnviando(null);
       });
   }
 
@@ -182,130 +254,242 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
   // esqueleto, en blanco, para siempre.
   if (token === '' && datosIniciales === undefined) {
     return (
-      <main className="mx-auto max-w-prose space-y-(--espacio-3) p-(--espacio-8) text-center">
+      <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center p-(--espacio-4)">
         {/* El estado vacío habla el giro igual que el resto: una cafetería con
             barra lee «el QR de la barra», no «de la mesa». Con la palabra
             tecleada, el día que la dueña la cambie esta pantalla se queda atrás
             —y es la primera que ve un cliente—. */}
-        <h1 className="text-xl font-semibold">
-          Este portal se abre con el QR de {vocabulario.enFrase('unidad_servicio')}
-        </h1>
-        <p className="text-sm text-texto-sutil">
-          {vocabulario.conDeterminante('cada', 'unidad_servicio')} tiene su código: al escanearlo,{' '}
-          {vocabulario.enFrase('cliente')} ve la carta de este negocio, pide y pide{' '}
-          {vocabulario.enFrase('orden')} desde su teléfono. El código lleva{' '}
-          {vocabulario.enFrase('unidad_servicio')} dentro, así que sin él esta pantalla no sabe a
-          cuál pertenece — y adivinarla sería mandarle {vocabulario.enFrase('orden')} a otro.
-        </p>
-        <Button asChild>
-          <a href="/restaurante/mapa-de-mesas">
-            Ver el mapa de {vocabulario.plural('unidad_servicio')}
-          </a>
-        </Button>
+        <Vacio
+          icono={<QrCode />}
+          titulo={`Este portal se abre con el QR de ${voc.enFrase('unidad_servicio')}`}
+          explicacion={`${voc.conDeterminante('cada', 'unidad_servicio')} tiene su código: al escanearlo, ${voc.enFrase('cliente')} ve la carta de este negocio, pide y pide ${voc.enFrase('orden')} desde su teléfono. El código lleva ${voc.enFrase('unidad_servicio')} dentro, así que sin él esta pantalla no sabe a cuál pertenece — y adivinarla sería mandarle ${voc.enFrase('orden')} a otro.`}
+          accion={
+            <Button asChild>
+              <a href="/restaurante/mapa-de-mesas">
+                Ver el mapa de {voc.plural('unidad_servicio')}
+              </a>
+            </Button>
+          }
+        />
+      </main>
+    );
+  }
+
+  const mesero = voc.singular('responsable');
+
+  if (datos === null && (rechazo !== null || sinConexion)) {
+    return (
+      <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center p-(--espacio-4)">
+        <ErrorDePantalla
+          titulo={rechazo ?? `Sin internet. Llama a tu ${mesero}.`}
+          queHacer={
+            rechazo === null
+              ? 'La carta se vuelve a pedir sola: en cuanto haya señal, aparece aquí.'
+              : `Pídele a tu ${mesero} que te atienda en ${voc.enFrase('unidad_servicio')}.`
+          }
+          reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+        />
       </main>
     );
   }
 
   if (datos === null) {
     return (
-      <div className="space-y-(--espacio-4) p-(--espacio-4)">
-        <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <main
+        aria-busy="true"
+        className="mx-auto flex w-full max-w-lg flex-col gap-(--espacio-4) p-(--espacio-4) pt-(--espacio-6)"
+      >
+        {/* La forma de lo que viene —nombre, mesa, secciones y la carta—, no una
+            rueda: al llegar nada salta de sitio. */}
+        <div className="flex flex-col gap-(--espacio-2)">
+          <Esqueleto className="h-(--altura-control) w-2/3" />
+          <Esqueleto className="h-4 w-24" />
+        </div>
+        <div className="flex gap-(--espacio-2)">
+          <Esqueleto redondo className="h-[calc(var(--altura-control)*0.85)] w-24" />
+          <Esqueleto redondo className="h-[calc(var(--altura-control)*0.85)] w-24" />
+          <Esqueleto redondo className="h-[calc(var(--altura-control)*0.85)] w-24" />
+        </div>
+        <EsqueletoDeLista filas={8} />
+      </main>
     );
   }
 
   const secciones = [...new Set(datos.menu.map((p) => p.seccion))];
+  const unidad = voc.enFrase('unidad_servicio');
+
+  const columnasDelMenu: readonly ColumnaDeTabla<ProductoDelMenu>[] = [
+    { clave: 'platillo', titulo: voc.titulo('producto'), celda: (p) => p.nombre },
+    {
+      clave: 'precio',
+      titulo: 'Precio',
+      numerica: true,
+      celda: (p) => <Dinero centavos={Number(p.precioCentavos)} tamano="sm" />,
+    },
+  ];
+
+  const columnasDeLaCuenta: readonly ColumnaDeTabla<LineaDeLaCuenta>[] = [
+    {
+      clave: 'platillo',
+      titulo: voc.titulo('linea_orden'),
+      celda: (linea) => (
+        <span>
+          <span className="font-numeros tabular-nums">{linea.cantidad} ×</span> {linea.nombre}
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (linea) => <Dinero centavos={Number(linea.totalCentavos)} tamano="sm" />,
+    },
+  ];
+
+  // Lo que la pantalla no pudo refrescar: se queda lo último y se dice.
+  const problema = rechazo ?? (sinConexion ? `Sin internet. Llama a tu ${mesero}.` : null);
 
   return (
-    <main className="mx-auto max-w-lg space-y-(--espacio-6) p-(--espacio-4)">
-      <header className="flex items-baseline justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{datos.negocio.nombre}</h1>
-          {/* «Mesa» en un restaurante, «estación» en una estética, «bahía» en un
-              taller. El sustantivo sale del giro del negocio, no de esta línea. */}
-          <p className="text-texto-sutil text-sm">
-            {vocabulario.conArticulo('unidad_servicio')} {datos.mesa.numero}
-          </p>
-        </div>
-        {sinConexion && (
-          <span className="text-texto-sutil text-xs" aria-label="sin conexión">
-            ●
-          </span>
-        )}
+    <main className="mx-auto flex w-full max-w-lg flex-col pb-[calc(var(--espacio-16)*3)]">
+      <header className="flex flex-col gap-(--espacio-1) px-(--espacio-4) pt-(--espacio-6) pb-(--espacio-3)">
+        <h1 className="text-2xl font-semibold text-balance">{datos.negocio.nombre}</h1>
+        {/* «Mesa» en un restaurante, «estación» en una estética, «bahía» en un
+            taller. El sustantivo sale del giro del negocio, no de esta línea. */}
+        <p className="text-sm text-texto-sutil">
+          {voc.conArticulo('unidad_servicio')}{' '}
+          <span className="font-numeros font-semibold text-texto">{datos.mesa.numero}</span>
+        </p>
       </header>
 
-      {aviso !== null && <p className="text-sm">{aviso}</p>}
-
-      {enseñaCuenta(datos) && datos.cuenta !== null && (
-        <section className="rounded-lg border p-(--espacio-4)">
-          <h2 className="mb-2 font-medium">Tu {voc.singular('orden')}</h2>
-          <ul className="divide-y">
-            {datos.cuenta.lineas.map((linea) => (
-              <li key={linea.id} className="flex items-baseline justify-between py-2">
-                <span>
-                  {linea.cantidad} × {linea.nombre}
-                </span>
-                <span className="tabular-nums">{pesos(linea.totalCentavos)}</span>
-              </li>
+      {/* Las secciones, pegadas arriba: la carta se recorre saltando. */}
+      {secciones.length > 1 && (
+        <BarraFija className="px-(--espacio-4) py-(--espacio-2)">
+          <nav
+            aria-label="Secciones de la carta"
+            className="flex gap-(--espacio-2) overflow-x-auto"
+          >
+            {secciones.map((seccion, indice) => (
+              <Button
+                key={seccion}
+                asChild
+                variant="outline"
+                size="sm"
+                className="rounded-full capitalize"
+              >
+                <a href={`#${anclaDe(indice)}`}>{seccion}</a>
+              </Button>
             ))}
-          </ul>
-          <Separator className="my-2" />
-          <p className="flex items-baseline justify-between text-xl font-semibold">
-            <span>Total</span>
-            <span className="tabular-nums">{pesos(datos.cuenta.totalCentavos)}</span>
-          </p>
-          <p className="text-texto-sutil mt-2 text-sm">
-            Se paga en {voc.enFrase('unidad_servicio')}. Desde aquí sólo se pide.
-          </p>
-        </section>
+          </nav>
+        </BarraFija>
       )}
 
-      <section className="flex gap-(--espacio-3)">
-        <Button
-          className="h-[calc(var(--altura-control)*1.4)] flex-1 text-base"
-          disabled={enviando}
-          onClick={() => {
-            solicitar('cuenta');
-          }}
-        >
-          Pedir {voc.enFrase('orden')}
-        </Button>
-        <Button
-          variant="outline"
-          className="h-[calc(var(--altura-control)*1.4)] flex-1 text-base"
-          disabled={enviando}
-          onClick={() => {
-            solicitar('mesero');
-          }}
-        >
-          Llamar al {voc.singular('responsable')}
-        </Button>
-      </section>
+      <div className="flex flex-col gap-(--espacio-6) px-(--espacio-4) pt-(--espacio-3)">
+        {problema !== null && (
+          <Aviso tono="atencion" titulo={problema}>
+            Lo que ves es lo último que llegó.
+          </Aviso>
+        )}
 
-      {secciones.map((seccion) => (
-        <section key={seccion}>
-          <h2 className="mb-2 font-medium capitalize">{seccion}</h2>
-          <ul className="divide-y">
-            {datos.menu
-              .filter((producto) => producto.seccion === seccion)
-              .map((producto) => (
-                <li key={producto.id} className="flex items-baseline justify-between py-2">
-                  <span>{producto.nombre}</span>
-                  <span className="tabular-nums">{pesos(producto.precioCentavos)}</span>
-                </li>
-              ))}
-          </ul>
-        </section>
-      ))}
+        {!puedeSeguirPidiendo(datos) &&
+          (datos.mesa.estado === 'cuenta_solicitada' ? (
+            <Aviso tono="info" titulo={`Ya pediste ${voc.enFrase('orden')}.`}>
+              Si falta algo, llama al {mesero}.
+            </Aviso>
+          ) : (
+            <Aviso tono="info" titulo="Hoy no se pide desde aquí: pídele a quien te atiende." />
+          ))}
 
-      {!puedeSeguirPidiendo(datos) && (
-        <p className="text-texto-sutil text-sm">
-          {datos.mesa.estado === 'cuenta_solicitada'
-            ? `Ya pediste ${voc.enFrase('orden')}. Si falta algo, llama al ${voc.singular('responsable')}.`
-            : 'Hoy no se pide desde aquí: pídele a quien te atiende.'}
-        </p>
-      )}
+        {enseñaCuenta(datos) && datos.cuenta !== null && (
+          <section aria-labelledby="portal-cuenta" className="flex flex-col gap-(--espacio-2)">
+            <h2 id="portal-cuenta" className="text-lg font-semibold">
+              Tu {voc.singular('orden')}
+            </h2>
+            {/* Un recibo: el importe a la derecha y el total pegado abajo, bajo
+                su columna, aunque la cuenta sea larga. */}
+            <Tabla
+              etiqueta={`${voc.titulo('linea_orden', true)} de ${voc.enFrase('orden')}`}
+              columnas={columnasDeLaCuenta}
+              filas={datos.cuenta.lineas}
+              claveDe={(linea) => linea.id}
+              alto="max-h-[50dvh]"
+              pie={{
+                platillo: 'Total',
+                importe: <Dinero centavos={Number(datos.cuenta.totalCentavos)} tamano="lg" />,
+              }}
+            />
+            <p className="text-sm text-texto-sutil">
+              Se paga en {unidad}. Desde aquí sólo se pide.
+            </p>
+          </section>
+        )}
+
+        {datos.menu.length === 0 ? (
+          <Vacio
+            icono={<UtensilsCrossed />}
+            titulo={`Todavía no hay ${voc.plural('producto')} en la carta.`}
+            explicacion={`Pídele la carta a tu ${mesero}: desde aquí se le avisa con el botón de abajo.`}
+          />
+        ) : (
+          secciones.map((seccion, indice) => (
+            <section
+              key={seccion}
+              id={anclaDe(indice)}
+              aria-labelledby={`${anclaDe(indice)}-titulo`}
+              className="flex scroll-mt-(--espacio-16) flex-col gap-(--espacio-2)"
+            >
+              <h2 id={`${anclaDe(indice)}-titulo`} className="text-lg font-semibold capitalize">
+                {seccion}
+              </h2>
+              <Tabla
+                etiqueta={seccion}
+                columnas={columnasDelMenu}
+                filas={datos.menu.filter((producto) => producto.seccion === seccion)}
+                claveDe={(producto) => producto.id}
+                alto="max-h-none"
+              />
+            </section>
+          ))
+        )}
+      </div>
+
+      {/* LA ATENCIÓN · abajo y fija, al alcance del pulgar en cualquier punto de la
+          carta. La respuesta sale aquí mismo, donde está el dedo. */}
+      <Superficie
+        como="aside"
+        nivel={3}
+        relleno={3}
+        aria-label={`Atención en ${unidad}`}
+        className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-lg flex-col gap-(--espacio-2) rounded-b-none pb-[max(var(--espacio-3),env(safe-area-inset-bottom))]"
+      >
+        {aviso !== null && <Aviso tono={aviso.tono} titulo={aviso.texto} />}
+        <div className="grid grid-cols-2 gap-(--espacio-2)">
+          <Button
+            size="lg"
+            className="h-auto min-h-[calc(var(--altura-control)*1.6)] flex-col gap-(--espacio-1) py-(--espacio-2) text-base whitespace-normal"
+            disabled={enviando !== null}
+            cargando={enviando === 'cuenta'}
+            onClick={() => {
+              solicitar('cuenta');
+            }}
+          >
+            {enviando === 'cuenta' ? null : <ReceiptText aria-hidden="true" />}
+            Pedir {voc.enFrase('orden')}
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            className="h-auto min-h-[calc(var(--altura-control)*1.6)] flex-col gap-(--espacio-1) py-(--espacio-2) text-base whitespace-normal"
+            disabled={enviando !== null}
+            cargando={enviando === 'mesero'}
+            onClick={() => {
+              solicitar('mesero');
+            }}
+          >
+            {enviando === 'mesero' ? null : <BellRing aria-hidden="true" />}
+            Llamar al {mesero}
+          </Button>
+        </div>
+      </Superficie>
     </main>
   );
 }

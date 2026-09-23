@@ -2,9 +2,17 @@
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { Superficie, Vacio } from '@morphiqpos/ui/sistema';
-import { Printer } from 'lucide-react';
+import {
+  Aviso,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { Check, Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -31,21 +39,17 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * y monoespaciado — segunda jerarquía, después del total.
  *
  * ── Ni la impresora ni la red detienen el turno ──────────────────────────
- * Los dos fallos van con `role="alert"` y NUNCA vacían la pantalla; el de
- * impresión dice la salida que dicta el documento: enseñar esta hoja y llevar
- * al comensal a caja con el código.
+ * Si no se pudo LEER la cuenta, la pantalla lo dice y ofrece reintentar: una
+ * precuenta a medias no se entrega. Si no se pudo IMPRIMIR, la hoja se queda
+ * en pantalla y el aviso dice la salida que dicta el documento: enseñar esta
+ * hoja y llevar al comensal a caja con el código.
  *
  * ── Lo que no hace ───────────────────────────────────────────────────────
  * No cobra ni fija propina: el mesero no cobra, y eso es control interno. Si
  * el puente recorta el dinero —es de rol caja— la hoja dice «a definir en
- * caja»; si falta el TOTAL el botón se apaga y dice por qué. Fuera de alcance
- * por el límite de 300 líneas: el rollo de 58 mm comparte maqueta con el de 80.
+ * caja»; si falta el TOTAL el botón se apaga y dice por qué. Fuera de alcance:
+ * el rollo de 58 mm comparte maqueta con el de 80.
  */
-
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
-
-/** La banda de error. Nunca es sólo color: siempre lleva su frase. */
-const BANDA = 'mb-(--espacio-3) rounded-md border border-peligro bg-peligro/10 p-2 text-sm';
 
 export interface LineaPrecuenta {
   readonly id: string;
@@ -84,9 +88,37 @@ export interface PrecuentaProps {
   readonly ancho?: 58 | 80;
 }
 
+/**
+ * La densidad del rollo, sobre la tabla del sistema.
+ *
+ * La tabla viene con el ritmo de una pantalla de PC: cuerpo `sm`, doce píxeles
+ * de relleno por lado y la cabecera en gris. En 80 mm —302 px— eso deja al
+ * nombre del platillo la mitad del papel, y el corte que la pantalla esconde es
+ * justo el que el comensal ve impreso. Aquí se lleva al cuerpo y al margen del
+ * papel; la cabecera, las cifras tabulares y la alineación siguen siendo suyas.
+ */
+const TABLA_DE_ROLLO =
+  'rounded-none border-x-0 border-dashed [&_table]:text-xs [&_td]:px-(--espacio-1) [&_td]:py-(--espacio-1) [&_th]:px-(--espacio-1) [&_th]:py-(--espacio-1) [&_thead]:bg-superficie';
+
+/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
+function aCentavos(pesos: number): number {
+  if (!Number.isFinite(pesos)) return 0;
+  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
+  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+}
+
 /** Un importe recortado por rol llega vacío, no en cero. Se dice, no se finge. */
-function importe(valor: number | null | undefined): string {
-  return valor == null ? '—' : PESOS.format(valor);
+function Importe({
+  pesos,
+  tamano = 'xs',
+  className = '',
+}: {
+  readonly pesos: number | null | undefined;
+  readonly tamano?: 'xs' | 'lg';
+  readonly className?: string;
+}) {
+  if (pesos == null) return <span className={className}>—</span>;
+  return <Dinero centavos={aCentavos(pesos)} tamano={tamano} className={className} />;
 }
 
 function idDeLaUrl(): string | null {
@@ -110,6 +142,9 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
    * mesa que siguió consumiendo, y el número es lo que le hace mirar el total.
    */
   const [copia, setCopia] = useState<number | null>(null);
+  // Cada intento de lectura es un número: reintentar lo sube y el efecto lee otra
+  // vez. El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
 
   useEffect(() => {
     if (cuentaInicial !== undefined) return;
@@ -149,7 +184,13 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
     return () => {
       vivo = false;
     };
-  }, [cuentaInicial, ordenId, voc]);
+  }, [cuentaInicial, ordenId, voc, intento]);
+
+  function reintentar(): void {
+    setError(null);
+    setCuenta(undefined);
+    setIntento((previo) => previo + 1);
+  }
 
   async function imprimir(): Promise<void> {
     if (cuenta == null) return;
@@ -171,27 +212,46 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
     }
   }
 
-  const hayHoja = cuenta != null && lineas.length > 0;
-  const sinTotal = importe(cuenta?.total) === '—';
+  const hayHoja = error === null && cuenta != null && lineas.length > 0;
+  const sinTotal = cuenta?.total == null;
   const codigo = cuenta?.codigo_caja ?? cuenta?.folio ?? '';
   // Milímetros de verdad; el tope del 100 % evita el desborde a 320 px.
   const estilo = { width: `${anchoMm}mm`, maxWidth: '100%' };
+
   function hoja() {
+    // No leyó: una hoja a medias manda al comensal a caja con un total que no es.
+    if (error !== null) {
+      return (
+        <ErrorDePantalla
+          className="mx-auto max-w-prose"
+          titulo={`No se pudo leer ${voc.enFrase('orden')}`}
+          queHacer="No entregues una precuenta a medias: revisa la conexión y vuelve a intentarlo."
+          detalle={error}
+          reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+        />
+      );
+    }
     // Esqueleto con la FORMA de la hoja: así nada salta cuando llegan los datos.
     if (cuenta === undefined) {
       return (
-        <div
+        <Superficie
+          nivel={2}
+          radio="sm"
+          relleno={3}
           role="status"
+          aria-busy="true"
           aria-label="Armando la precuenta"
-          className="mx-auto space-y-2 bg-superficie p-(--espacio-3) shadow-2"
+          className="mx-auto flex flex-col gap-(--espacio-2)"
           style={estilo}
         >
-          <Skeleton className="mx-auto h-5 w-32" />
+          <Esqueleto className="mx-auto h-5 w-32" />
+          <Esqueleto className="mx-auto h-3 w-40" />
           {Array.from({ length: 8 }, (_, i) => (
-            <Skeleton key={i} className="h-3 w-full" />
+            <Esqueleto key={i} className="h-3 w-full" />
           ))}
-          <Skeleton className="mx-auto h-20 w-40" />
-        </div>
+          <Esqueleto className="ml-auto h-5 w-28" />
+          <Esqueleto className="mx-auto h-20 w-40" />
+        </Superficie>
       );
     }
     // El vacío ENSEÑA de dónde sale una precuenta; no se disculpa por no tenerla.
@@ -223,46 +283,60 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
     }
     return <Hoja cuenta={cuenta} lineas={lineas} estilo={estilo} copia={copia} />;
   }
+
   return (
-    <div className="min-h-dvh bg-fondo-sutil/40">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-4) xl:flex-row xl:items-start xl:justify-center xl:gap-(--espacio-10) xl:py-(--espacio-10)">
+    <div className="min-h-dvh bg-fondo-sutil">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-4) md:py-(--espacio-8) xl:flex-row xl:items-start xl:justify-center xl:gap-(--espacio-10) xl:py-(--espacio-10)">
         <main className="w-full min-w-0 xl:w-auto">
           {/* Sólo para el lector de pantalla: lo PRIMERO que se ve es la hoja. */}
           <h1 className="sr-only">Precuenta</h1>
-          {error !== null && (
-            <p role="alert" className={`mx-auto max-w-prose ${BANDA}`}>
-              {error} No se pudo leer la cuenta completa: no entregues una precuenta a medias.
-            </p>
-          )}
           {hoja()}
         </main>
         {hayHoja && (
-          <aside className="sticky bottom-0 z-10 -mx-(--espacio-4) border-t border-borde bg-fondo p-(--espacio-4) md:mx-auto md:w-full md:max-w-sm md:rounded-xl md:border md:shadow-2 xl:bottom-auto xl:top-10 xl:mx-0 xl:w-60 xl:self-start">
+          // Teléfono: barra a sangre pegada abajo, donde llega el pulgar. Tablet: la
+          // misma barra, angosta y flotando sobre la hoja. PC: la columna de al lado.
+          <Superficie
+            como="aside"
+            nivel={3}
+            relleno={4}
+            aria-label="Imprimir la precuenta"
+            className="sticky bottom-0 z-10 -mx-(--espacio-4) flex flex-col gap-(--espacio-3) rounded-none border-x-0 border-b-0 md:bottom-(--espacio-4) md:mx-auto md:w-full md:max-w-sm md:rounded-lg md:border-x md:border-b xl:top-(--espacio-10) xl:bottom-auto xl:mx-0 xl:w-64 xl:self-start xl:shadow-1"
+          >
             {falloImpresion && (
-              <p role="alert" className={BANDA}>
-                No se pudo imprimir. Puedes enseñar esta pantalla al {voc.singular('cliente')} y
-                llevarlo a caja con el código {codigo}.
-              </p>
+              <Aviso tono="peligro" titulo="No se pudo imprimir.">
+                Puedes enseñar esta pantalla al {voc.singular('cliente')} y llevarlo a caja con el
+                código <span className="font-mono font-bold tracking-widest">{codigo}</span>.
+              </Aviso>
             )}
             {/* Un solo botón: el mesero no cobra, y eso es control interno. */}
             <Button
               type="button"
               size="lg"
-              className="w-full"
+              className="min-h-[calc(var(--altura-control)*1.5)] w-full text-lg"
               disabled={imprimiendo || sinTotal}
               onClick={() => {
                 void imprimir();
               }}
             >
+              <Printer aria-hidden />
               {imprimiendo ? 'Imprimiendo…' : 'Imprimir'}
             </Button>
             {/* Un botón apagado sin motivo es peor que uno que falla. */}
-            <p className="mt-2 text-xs text-texto-sutil">
+            <p className="text-xs text-texto-sutil">
               {sinTotal
                 ? `El total de ${voc.enFraseCon('este', 'orden')} no llegó a esta pantalla. Pídela desde caja.`
                 : `Se ve a tamaño real: papel de ${anchoMm} mm.`}
             </p>
-          </aside>
+            {copia === null || falloImpresion ? null : (
+              <p
+                role="status"
+                className="flex items-center gap-(--espacio-1) text-xs text-texto-sutil"
+              >
+                <Check aria-hidden className="size-4 text-exito" />
+                Hoja {copia} enviada a la impresora.
+              </p>
+            )}
+          </Superficie>
         )}
       </div>
     </div>
@@ -279,14 +353,40 @@ interface HojaProps {
 
 /** La hoja térmica. Lo que se ve aquí es lo que sale del rollo. */
 function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
+  const voc = useVocabulario();
   const mesa = cuenta.mesa_numero === null ? '—' : String(cuenta.mesa_numero);
   const propina = cuenta.propina_monto;
-  // La propina no decidida se DICE: el hueco lo rellena el comensal en su cabeza.
-  const propinaTexto = propina == null ? 'a definir en caja' : PESOS.format(propina);
+
+  const columnas: readonly ColumnaDeTabla<LineaPrecuenta>[] = [
+    {
+      clave: 'platillo',
+      titulo: voc.titulo('linea_orden'),
+      celda: (linea) => (
+        <span className="block min-w-0">
+          <span className="font-bold">{linea.cantidad}×</span> {linea.producto_nombre}
+          <span className="block text-texto-sutil">
+            <Importe pesos={linea.precio_unitario_snapshot} /> c/u
+            {linea.notas_producto === null ? '' : ` · ${linea.notas_producto}`}
+          </span>
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (linea) => <Importe pesos={linea.total} />,
+    },
+  ];
+
   return (
-    <article
+    <Superficie
+      como="article"
+      nivel={2}
+      radio="sm"
+      relleno={3}
       aria-label={`Precuenta de la mesa ${mesa}, folio ${cuenta.folio}`}
-      className="mx-auto bg-superficie p-(--espacio-3) font-mono text-xs leading-snug text-texto shadow-2"
+      className="mx-auto flex flex-col gap-(--espacio-2) font-mono text-xs leading-snug text-texto"
       style={estilo}
     >
       <header className="text-center">
@@ -295,45 +395,55 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
         {/* En la CABECERA y no al pie: lo que se mira de una hoja reimpresa es
             arriba, y lo que hay que mirar después es el total. */}
         {copia !== null && copia > 1 && (
-          <p className="font-bold tracking-widest">REIMPRESIÓN · {copia}ª HOJA</p>
+          <p className="mt-(--espacio-1) font-bold tracking-widest">REIMPRESIÓN · {copia}ª HOJA</p>
         )}
       </header>
-      <Separator className="my-2" />
       <p className="text-center">
         Folio {cuenta.folio} · Mesa {mesa} · {cuenta.personas ?? '—'} personas
       </p>
-      <Separator className="my-2" />
-      <ul>
-        {lineas.map((linea) => (
-          <li key={linea.id} className="mb-1 flex justify-between gap-2">
-            <span className="min-w-0">
-              <span className="font-bold">{linea.cantidad}×</span> {linea.producto_nombre}
-              <span className="block text-texto-sutil">
-                {PESOS.format(linea.precio_unitario_snapshot)} c/u
-                {linea.notas_producto === null ? '' : ` · ${linea.notas_producto}`}
-              </span>
-            </span>
-            <span className="tabular-nums">{PESOS.format(linea.total)}</span>
-          </li>
-        ))}
-      </ul>
-      <Separator className="my-2" />
-      <dl className="grid grid-cols-2 gap-x-2 tabular-nums">
+
+      <Tabla
+        etiqueta={voc.titulo('linea_orden', true)}
+        columnas={columnas}
+        filas={lineas}
+        claveDe={(linea) => linea.id}
+        alto="max-h-none"
+        className={TABLA_DE_ROLLO}
+      />
+
+      {/* 1 · EL TOTAL. Es lo que el comensal busca primero, y lo único que se lee
+          desde el otro lado de la mesa. */}
+      <dl className="grid grid-cols-[1fr_auto] gap-x-(--espacio-2) gap-y-(--espacio-1)">
         <dt>Subtotal</dt>
-        <dd className="text-right">{importe(cuenta.subtotal)}</dd>
+        <dd className="text-right">
+          <Importe pesos={cuenta.subtotal} />
+        </dd>
         <dt>IVA</dt>
-        <dd className="text-right">{importe(cuenta.impuestos)}</dd>
+        <dd className="text-right">
+          <Importe pesos={cuenta.impuestos} />
+        </dd>
         <dt>Propina</dt>
-        <dd className="text-right">{propinaTexto}</dd>
-        <dt className="mt-1 text-lg font-bold">TOTAL</dt>
-        <dd className="mt-1 text-right text-lg font-bold">{importe(cuenta.total)}</dd>
+        <dd className="text-right">
+          {/* La propina no decidida se DICE: el hueco lo rellena el comensal en su cabeza. */}
+          {propina == null ? 'a definir en caja' : <Importe pesos={propina} />}
+        </dd>
+        <dt className="mt-(--espacio-1) self-baseline text-lg font-bold">TOTAL</dt>
+        <dd className="mt-(--espacio-1) self-baseline text-right text-lg">
+          <Importe pesos={cuenta.total} tamano="lg" className="font-bold" />
+        </dd>
       </dl>
-      <Separator className="my-2" />
-      <section className="text-center">
+
+      <Separator />
+
+      {/* 2 · EL CÓDIGO PARA CAJA. El comensal camina con este papel en la mano y
+          el cajero busca ESTA cuenta, no la mesa, entre veinte pendientes. */}
+      <section className="text-center" aria-label="Código para caja">
         <p className="text-texto-sutil">CÓDIGO PARA CAJA</p>
-        <p className="text-2xl font-bold tracking-widest">{cuenta.codigo_caja ?? cuenta.folio}</p>
+        <p className="mt-(--espacio-1) border-2 border-dashed border-borde-fuerte px-(--espacio-2) py-(--espacio-2) text-2xl font-bold tracking-widest">
+          {cuenta.codigo_caja ?? cuenta.folio}
+        </p>
       </section>
-      <p className="mt-2 text-center text-texto-sutil">Pasa a caja con este código.</p>
-    </article>
+      <p className="text-center text-texto-sutil">Pasa a caja con este código.</p>
+    </Superficie>
   );
 }

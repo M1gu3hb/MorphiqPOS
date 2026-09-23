@@ -3,9 +3,17 @@
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { Vacio } from '@morphiqpos/ui/sistema';
-import { UtensilsCrossed } from 'lucide-react';
+import {
+  Aviso,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  ListaDeTarjetas,
+  Superficie,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { Eye, EyeOff, ImageOff, Plus, Search, SearchX, UtensilsCrossed } from 'lucide-react';
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -23,12 +31,21 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * Quien mantiene el catálogo reconoce el platillo por la foto, y esa misma
  * imagen es la que verá el comensal en el menú QR. Una tabla de nombres esconde
  * justo el error que más duele —la foto que no corresponde— hasta publicarlo.
+ * Por eso es `ListaDeTarjetas` y no `Tabla`: la foto va en la cabeza de cada
+ * tarjeta, y la que falta se DICE («Sin foto»), no se deja en un gris mudo.
+ *
+ * ── La tarjeta es una ficha: etiqueta a la izquierda, dato a la derecha ──
+ * Precio, costo, margen y si está en el POS, un renglón cada uno y alineados:
+ * es como se revisa una carta, de arriba abajo, comparando el precio con lo que
+ * cuesta. El precio va grande porque es lo que se cobra; el costo al lado, en
+ * pequeño, porque sólo sirve para leer el margen.
  *
  * ── El ÁREA DE PREPARACIÓN manda en la tarjeta ───────────────────────────
  * Es el campo que casi ningún sistema tiene y el que decide a qué pantalla de
  * cocina llega el platillo: un postre marcado «barra» no aparece nunca en la
  * comanda de cocina, y la mesa espera un plato que nadie está haciendo. Por eso
- * no es un dato del pie: es marca con palabra propia y es el filtro principal.
+ * no es un dato del pie: es marca con palabra propia junto al nombre, y es el
+ * filtro principal —con cuántos hay en cada área, que es la pregunta real—.
  *
  * ── El margen, con los mismos cortes que la receta ───────────────────────
  * Verde arriba de 60 %, ámbar de 40 a 60, rojo debajo de 40. Son los cortes que
@@ -38,19 +55,18 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * lo recibe. Sin receta no hay costo: se dice «sin receta», no un cero falso.
  *
  * ── Teléfono: una columna ────────────────────────────────────────────────
- * La tarjeta se acuesta —miniatura a la izquierda, datos a la derecha— y sólo
- * desde tablet hay de dos a cuatro columnas. Un marcado que se reacomoda, no
- * dos: dos serían dos sitios donde equivocarse.
+ * La cabeza de la tarjeta se acuesta —miniatura a la izquierda, nombre a la
+ * derecha— y sólo desde tablet hay de dos a cuatro columnas con la foto a lo
+ * ancho. Un marcado que se reacomoda, no dos: dos serían dos sitios donde
+ * equivocarse.
  *
- * ── Fuera de alcance, para caber en 300 líneas ───────────────────────────
+ * ── Fuera de alcance ─────────────────────────────────────────────────────
  * El alta y la edición son formulario propio, y la receta es otra pantalla:
  * aquí se ENCUENTRA un producto, se ve si gana dinero y se hace lo único que
  * urge en servicio —sacarlo del POS cuando se acabó—, por `/api/datos/escribir`,
  * el puente de catálogo que ya existe. Quedan fuera el filtro por categoría —se
  * lee en la tarjeta, no filtra— y el orden: llega por nombre desde el puente.
  */
-
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
 /** Las cuatro áreas que acepta la base (migración 045), con su palabra. */
 const AREAS = {
@@ -68,33 +84,36 @@ const FILTROS: readonly (ClaveArea | null)[] = [null, 'cocina', 'barra', 'ambos'
 const MARGEN_SANO = 60;
 const MARGEN_JUSTO = 40;
 const HTTP_DEMASIADOS_INTENTOS = 429;
+const TARJETAS_AL_CARGAR = 8;
 
-// Las clases largas viven arriba para que cada elemento quepa en una línea.
-const BANDA =
-  'mb-(--espacio-3) rounded-md border border-peligro bg-peligro/15 p-(--espacio-3) text-sm';
-const REJILLA = 'grid grid-cols-1 gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
-const TARJETA =
-  'flex h-full gap-(--espacio-3) rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1 md:flex-col';
+/**
+ * La rejilla: una columna en teléfono, de dos a cuatro desde tablet. La ficha de
+ * cada tarjeta va a UNA columna (`[&_dl]`): el renglón del POS lleva un botón, y a
+ * media tarjeta no cabe junto a su etiqueta. Y la ficha va al PIE de una tarjeta que
+ * llena su celda: con nombres de uno y de dos renglones, los precios de una misma
+ * fila de la rejilla quedan a la misma altura y se comparan de un vistazo.
+ */
+const REJILLA =
+  'grid grid-cols-1 gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 [&_dl]:mt-auto [&_dl]:grid-cols-1 [&>li>*]:h-full';
+/** La foto: miniatura en teléfono, a lo ancho desde tablet. Sin borde: no es una caja. */
 const FOTO =
-  'h-20 w-20 shrink-0 rounded-md border border-borde bg-fondo-sutil bg-cover bg-center md:h-32 md:w-full';
-const DATOS = 'flex min-w-0 flex-1 flex-col gap-1';
-const CHIP = 'w-fit rounded-full px-2 py-0.5 text-xs';
-const VACIO =
-  'flex flex-col items-center gap-(--espacio-4) rounded-lg border border-borde p-(--espacio-8) text-center';
+  'flex size-20 shrink-0 flex-col items-center justify-center gap-1 rounded-md bg-fondo-sutil bg-cover bg-center text-xs text-texto-sutil md:h-32 md:w-full';
 
 interface Semaforo {
   readonly texto: string;
   readonly clase: string;
 }
 
-/** El margen con su palabra y su color, en ese orden de importancia. */
+/**
+ * El margen con su palabra y su color, en ese orden de importancia. El texto va
+ * en el renglón «Margen» de la ficha, así que no repite la palabra.
+ */
 export function semaforoDeMargen(margen: number | null): Semaforo {
-  if (margen === null) return { texto: 'Sin receta · sin costo', clase: 'bg-fondo-sutil' };
+  if (margen === null) return { texto: 'Sin receta', clase: 'bg-fondo-sutil' };
   const cifra = `${Math.round(margen)} %`;
-  if (margen >= MARGEN_SANO) return { texto: `Margen ${cifra} · sano`, clase: 'bg-exito/25' };
-  if (margen >= MARGEN_JUSTO)
-    return { texto: `Margen ${cifra} · justo`, clase: 'bg-advertencia/30' };
-  return { texto: `Margen ${cifra} · bajo`, clase: 'bg-peligro/25' };
+  if (margen >= MARGEN_SANO) return { texto: `${cifra} · sano`, clase: 'bg-exito/25' };
+  if (margen >= MARGEN_JUSTO) return { texto: `${cifra} · justo`, clase: 'bg-advertencia/30' };
+  return { texto: `${cifra} · bajo`, clase: 'bg-peligro/25' };
 }
 
 /**
@@ -132,12 +151,20 @@ export interface ProductosProps {
  * la pantalla HEREDADA —que no se toca, y que no admite un producto en la URL— y esta
  * pantalla ya edita lo que le toca en el sitio: el interruptor «Mostrar/Quitar del
  * POS» de cada tarjeta. Un control que no puede cumplir lo que promete se quita: el
- * nombre vuelve a ser lo que es, un nombre.
+ * nombre vuelve a ser lo que es, un nombre. Por lo mismo la tarjeta NO se activa al
+ * tocarla (`ListaDeTarjetas` sin `alActivar`): no hay ficha que abrir.
  */
 
 /** Un área desconocida cuenta como «sin comanda»: es el valor por omisión. */
 export function claveArea(valor: string | null): ClaveArea {
   return valor !== null && valor in AREAS ? (valor as ClaveArea) : 'ninguno';
+}
+
+/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
+function aCentavos(pesos: number | null): number {
+  if (pesos === null || !Number.isFinite(pesos)) return 0;
+  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
+  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
 }
 
 /** El catálogo vivo. El borrado es suave, así que lo inactivo no se pide. */
@@ -161,6 +188,13 @@ function mensajeDe(fallo: unknown, porOmision: string): string {
   if (fallo.error.codigo === 'SIN_PERMISO') return 'Tu usuario no puede cambiar el catálogo.';
   if (fallo.error.codigo === 'PAQUETE_NO_INCLUYE') return 'Tu paquete no incluye el catálogo.';
   return fallo.error.mensaje;
+}
+
+/** Cuántos hay en cada área: la cuenta que cuelga de cada filtro. */
+function cuentaPorArea(filas: readonly FilaDeProducto[]): Readonly<Record<ClaveArea, number>> {
+  const cuenta = { cocina: 0, barra: 0, ambos: 0, ninguno: 0 };
+  for (const fila of filas) cuenta[claveArea(fila.area_preparacion)] += 1;
+  return cuenta;
 }
 
 export function Productos({ filasIniciales }: ProductosProps) {
@@ -207,6 +241,8 @@ export function Productos({ filasIniciales }: ProductosProps) {
     });
   }, [filas, busqueda, area]);
 
+  const porArea = useMemo(() => cuentaPorArea(filas), [filas]);
+
   /** Lo único que se cambia sin salir: se acabó el pescado, fuera del POS. */
   const alternarEnPos = async (producto: FilaDeProducto): Promise<void> => {
     const valor = !(producto.visible_en_pos ?? false);
@@ -230,8 +266,14 @@ export function Productos({ filasIniciales }: ProductosProps) {
     }
   };
 
+  /** Vuelve a leer el catálogo. Con algo ya leído, se queda en pantalla mientras. */
+  const reintentar = (): void => {
+    setCargando(filas.length === 0);
+    setIntento((n) => n + 1);
+  };
+
   /**
-   * EL SUSTANTIVO DEL GIRO, en las seis veces que esta pantalla lo dice.
+   * EL SUSTANTIVO DEL GIRO, en las veces que esta pantalla lo dice.
    *
    * Decía «Productos» seis veces, y en un restaurante el catálogo es de
    * PLATILLOS: es la palabra que usa quien lo mantiene y la que la carta lleva
@@ -244,31 +286,159 @@ export function Productos({ filasIniciales }: ProductosProps) {
    */
   const nuevo = (
     <Button asChild>
-      <a href="/productos">Nuevo {voc.singular('producto')}</a>
+      <a href="/productos">
+        <Plus aria-hidden="true" />
+        Nuevo {voc.singular('producto')}
+      </a>
     </Button>
   );
 
+  const titulo = <h1 className="text-2xl font-bold">{voc.titulo('producto', true)}</h1>;
+
   if (cargando) {
-    // Esqueletos con la forma de las tarjetas, no un spinner: la pantalla no
-    // salta al cargar y el ojo ya sabe dónde va a mirar.
+    // Esqueletos con la forma de las tarjetas —foto, nombre, ficha—, no una
+    // rueda: la pantalla no salta al cargar y el ojo ya sabe dónde va a mirar.
     return (
-      <div className="p-(--espacio-4)">
-        <h1 className="mb-(--espacio-4) text-2xl font-bold">{voc.titulo('producto', true)}</h1>
-        <div className={REJILLA}>
-          {Array.from({ length: 8 }, (_, i) => (
-            <Skeleton key={i} className="h-40 w-full rounded-lg" />
+      <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
+        {titulo}
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label={`Cargando ${voc.plural('producto')}`}
+          className={REJILLA}
+        >
+          {Array.from({ length: TARJETAS_AL_CARGAR }, (_, i) => (
+            <Superficie key={i} className="flex flex-col gap-(--espacio-3)">
+              <Esqueleto className="size-20 md:h-32 md:w-full" />
+              <Esqueleto className="h-5 w-3/4" />
+              <Esqueleto className="h-4 w-1/2" />
+              <Esqueleto className="h-(--altura-control) w-full" />
+            </Superficie>
           ))}
         </div>
       </div>
     );
   }
 
+  if (error !== null && filas.length === 0) {
+    // No leyó nada: no hay catálogo que enseñar, y un vacío aquí mentiría
+    // diciendo «todavía no hay» cuando lo que no hay es conexión.
+    return (
+      <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
+        {titulo}
+        <ErrorDePantalla
+          className="max-w-lg"
+          titulo={error}
+          queHacer={`Sin el catálogo no se ve qué cobra cada ${voc.singular('producto')} ni a qué área de preparación llega. Aquí no se cambió nada: vuelve a intentarlo.`}
+          reintentar={
+            <Button type="button" onClick={reintentar}>
+              Reintentar
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  const columnas: readonly ColumnaDeTabla<FilaDeProducto>[] = [
+    {
+      clave: 'producto',
+      titulo: voc.titulo('producto'),
+      celda: (producto) => {
+        const foto = producto.imagen_url;
+        const enPos = producto.visible_en_pos ?? false;
+        return (
+          <span className="flex items-center gap-(--espacio-3) md:flex-col md:items-stretch">
+            <span
+              role="img"
+              className={FOTO}
+              aria-label={foto === null ? `${producto.nombre}, sin foto` : producto.nombre}
+              style={foto === null ? undefined : { backgroundImage: `url("${foto}")` }}
+            >
+              {/* La foto que falta se dice: es la que el comensal no va a ver. */}
+              {foto === null && (
+                <>
+                  <ImageOff aria-hidden="true" className="size-5" />
+                  <span aria-hidden="true">Sin foto</span>
+                </>
+              )}
+            </span>
+            <span className="flex min-w-0 flex-col gap-(--espacio-1)">
+              <span className="line-clamp-2 text-base font-semibold">{producto.nombre}</span>
+              <span className="flex flex-wrap items-center gap-1">
+                <Badge variant="secondary">{AREAS[claveArea(producto.area_preparacion)]}</Badge>
+                {producto.categoria_nombre !== null && (
+                  <Badge variant="outline">{producto.categoria_nombre}</Badge>
+                )}
+                {/* El estado se dice con palabras: el botón de abajo cambia
+                    de texto, pero la marca la lee quien sólo mira. */}
+                {!enPos && <Badge variant="destructive">Oculto en el POS</Badge>}
+              </span>
+            </span>
+          </span>
+        );
+      },
+    },
+    {
+      clave: 'precio',
+      titulo: 'Precio',
+      numerica: true,
+      celda: (producto) => <Dinero centavos={aCentavos(producto.precio_venta)} tamano="lg" />,
+    },
+    {
+      clave: 'costo',
+      titulo: 'Costo',
+      numerica: true,
+      celda: (producto) =>
+        producto.costo_calculado_actual === null ? (
+          <span className="text-texto-sutil">Sin calcular</span>
+        ) : (
+          <Dinero centavos={aCentavos(producto.costo_calculado_actual)} tamano="sm" />
+        ),
+    },
+    {
+      clave: 'margen',
+      titulo: 'Margen',
+      celda: (producto) => {
+        const margen = semaforoDeMargen(producto.margen_bruto_actual);
+        return (
+          <span
+            className={`rounded-full px-(--espacio-2) py-0.5 text-xs font-medium tabular-nums ${margen.clase}`}
+          >
+            {margen.texto}
+          </span>
+        );
+      },
+    },
+    {
+      clave: 'pos',
+      titulo: 'En el POS',
+      celda: (producto) => {
+        const enPos = producto.visible_en_pos ?? false;
+        return (
+          <Button
+            type="button"
+            size="sm"
+            variant={enPos ? 'outline' : 'secondary'}
+            cargando={guardando === producto.id}
+            onClick={() => {
+              void alternarEnPos(producto);
+            }}
+          >
+            {enPos ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+            {enPos ? 'Quitar del POS' : 'Mostrar en el POS'}
+          </Button>
+        );
+      },
+    },
+  ];
+
   return (
-    <div className="p-(--espacio-4)">
-      <header className="mb-(--espacio-4) flex flex-wrap items-center justify-between gap-(--espacio-3)">
-        <div>
-          <h1 className="text-2xl font-bold">{voc.titulo('producto', true)}</h1>
-          {/* La leyenda enseña el semáforo una vez, para que el chip de cada
+    <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
+      <header className="flex flex-wrap items-end justify-between gap-(--espacio-3)">
+        <div className="flex flex-col gap-(--espacio-1)">
+          {titulo}
+          {/* La leyenda enseña el semáforo una vez, para que el margen de cada
               tarjeta se lea sin adivinar qué significa el color. */}
           <p className="text-xs text-texto-sutil">
             {visibles.length} de {filas.length} · margen sano 60 % o más · justo 40 a 60 · bajo
@@ -278,19 +448,26 @@ export function Productos({ filasIniciales }: ProductosProps) {
         {nuevo}
       </header>
 
-      <div className="mb-(--espacio-4) flex flex-col gap-2 md:flex-row md:items-center">
-        <Input
-          type="search"
-          value={busqueda}
-          aria-label={`Buscar ${voc.enFraseCon('un', 'producto')} por nombre`}
-          placeholder={`Buscar ${voc.enFraseCon('un', 'producto')}…`}
-          className="md:max-w-xs"
-          onChange={(evento: ChangeEvent<HTMLInputElement>) => {
-            setBusqueda(evento.target.value);
-          }}
-        />
+      <div className="flex flex-col gap-(--espacio-2) md:flex-row md:items-center">
+        <div className="relative md:w-80">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-4 -translate-y-1/2 text-texto-sutil"
+          />
+          <Input
+            type="search"
+            value={busqueda}
+            aria-label={`Buscar ${voc.enFraseCon('un', 'producto')} por nombre`}
+            placeholder={`Buscar ${voc.enFraseCon('un', 'producto')}…`}
+            className="pl-(--espacio-8)"
+            onChange={(evento: ChangeEvent<HTMLInputElement>) => {
+              setBusqueda(evento.target.value);
+            }}
+          />
+        </div>
         {/* «Enséñame todo lo que sale de la barra» es la pregunta real de quien
-            revisa el catálogo: el área es el filtro de primera fila. */}
+            revisa el catálogo: el área es el filtro de primera fila, y cada
+            botón dice cuántos hay antes de tocarlo. */}
         <nav aria-label="Filtrar por área de preparación" className="flex flex-wrap gap-1">
           {FILTROS.map((clave) => (
             <Button
@@ -304,96 +481,53 @@ export function Productos({ filasIniciales }: ProductosProps) {
               }}
             >
               {clave === null ? 'Todas' : AREAS[clave]}
+              <span className="font-numeros font-normal tabular-nums">
+                {clave === null ? filas.length : porArea[clave]}
+              </span>
             </Button>
           ))}
         </nav>
       </div>
 
       {error !== null && (
-        <p role="alert" className={BANDA}>
-          {error}{' '}
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            onClick={() => {
-              setCargando(filas.length === 0);
-              setIntento((n) => n + 1);
-            }}
-          >
-            Reintentar
-          </Button>
-        </p>
+        <Aviso
+          tono="peligro"
+          titulo={error}
+          accion={
+            <Button type="button" size="sm" variant="outline" onClick={reintentar}>
+              Reintentar
+            </Button>
+          }
+        >
+          El POS sigue como estaba.
+        </Aviso>
       )}
 
-      {filas.length === 0 && error === null ? (
+      {filas.length === 0 ? (
         // El vacío ENSEÑA la consecuencia, no se disculpa.
-        <div className={VACIO}>
+        <Superficie nivel={0} relleno={0} className="border-dashed">
           <Vacio
-            className="py-0"
             icono={<UtensilsCrossed />}
             titulo={`Todavía no hay ${voc.plural('producto')}.`}
             explicacion={`Sin catálogo no hay nada que cobrar ni nada que llegue a ${voc.enFrase('preparacion')}: cada ${voc.singular('producto')} lleva su precio, su área de preparación y, cuando tiene receta, su costo y su margen.`}
             accion={nuevo}
           />
-        </div>
+        </Superficie>
       ) : (
-        <ul className={REJILLA}>
-          {visibles.map((producto) => {
-            const margen = semaforoDeMargen(producto.margen_bruto_actual);
-            const enPos = producto.visible_en_pos ?? false;
-            const foto = producto.imagen_url;
-            const costo = producto.costo_calculado_actual;
-            return (
-              <li key={producto.id} className={TARJETA}>
-                <div
-                  role="img"
-                  className={FOTO}
-                  aria-label={foto === null ? `${producto.nombre}, sin foto` : producto.nombre}
-                  style={foto === null ? undefined : { backgroundImage: `url("${foto}")` }}
-                />
-                <div className={DATOS}>
-                  <p className="text-left text-base font-semibold">{producto.nombre}</p>
-                  <div className="flex flex-wrap items-center gap-1">
-                    <Badge variant="secondary">{AREAS[claveArea(producto.area_preparacion)]}</Badge>
-                    {producto.categoria_nombre !== null && (
-                      <Badge variant="outline">{producto.categoria_nombre}</Badge>
-                    )}
-                    {/* El estado se dice con palabras: el botón de abajo cambia
-                        de texto, pero la marca la lee quien sólo mira. */}
-                    {!enPos && <Badge variant="destructive">Oculto en el POS</Badge>}
-                  </div>
-                  <p className="text-xl font-bold tabular-nums md:text-2xl">
-                    {PESOS.format(producto.precio_venta ?? 0)}
-                  </p>
-                  <p className="text-xs tabular-nums text-texto-sutil">
-                    {costo === null ? 'Costo sin calcular' : `Costo ${PESOS.format(costo)}`}
-                  </p>
-                  <span className={`${CHIP} ${margen.clase}`}>{margen.texto}</span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={enPos ? 'outline' : 'secondary'}
-                    disabled={guardando === producto.id}
-                    className="mt-auto w-full"
-                    onClick={() => {
-                      void alternarEnPos(producto);
-                    }}
-                  >
-                    {enPos ? 'Quitar del POS' : 'Mostrar en el POS'}
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {filas.length > 0 && visibles.length === 0 && (
-        <p className="mt-(--espacio-4) text-center text-texto-sutil">
-          {voc.conDeterminante('ningun', 'producto')} coincide con la búsqueda ni con el área
-          elegida.
-        </p>
+        <ListaDeTarjetas
+          columnas={columnas}
+          filas={visibles}
+          claveDe={(producto) => producto.id}
+          principal="producto"
+          className={REJILLA}
+          vacio={
+            <Vacio
+              icono={<SearchX />}
+              titulo={`${voc.conDeterminante('ningun', 'producto')} coincide con la búsqueda ni con el área elegida.`}
+              explicacion="Borra la búsqueda o elige «Todas» para volver a ver el catálogo completo."
+            />
+          }
+        />
       )}
     </div>
   );
