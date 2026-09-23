@@ -33,7 +33,38 @@ const PANTALLAS = join(RAIZ, 'apps', 'web', 'src');
  * esa pantalla —no «pendiente»—. La puerta falla también al revés: si la pantalla
  * acaba pintando el estado, la fila sobra y hay que borrarla.
  */
-export const SIN_ESTADO = [];
+export const SIN_ESTADO = [
+  {
+    pantalla: 'restaurante/AnularLineaDialog',
+    estado: 'vacio',
+    razon:
+      'Diálogo: recibe por props la orden, la línea, el platillo y si ya se preparó, y sus cuatro motivos son fijos del giro. No hay ninguna lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'restaurante/AnularLineaDialog',
+    estado: 'cargando',
+    razon:
+      'Diálogo: no lee nada —ni consultarPuente ni una espera antes de pintarse—. Lo único asíncrono es el comando, y mientras corre el botón pasa a «Quitando…» con `cargando`.',
+  },
+  {
+    pantalla: 'restaurante/DividirCuentaDialog',
+    estado: 'cargando',
+    razon:
+      'Diálogo: MesaActiva le pasa por props los platillos enviados y la orden; no hay lectura que esperar. Lo único asíncrono es el comando dividir-cuenta, pintado con el botón `cargando` («Dividiendo…»).',
+  },
+  {
+    pantalla: 'configuracion/SelectorDeApariencia',
+    estado: 'vacio',
+    razon:
+      'Los ocho estilos y sus perillas son constantes del sistema de diseño (ESTILOS, PERILLAS), no datos de la red: no hay ninguna lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'configuracion/SelectorDeApariencia',
+    estado: 'cargando',
+    razon:
+      'La apariencia la escribe el servidor en el <html> antes de la primera pintura y el proveedor no hace fetch. Lo único asíncrono es el POST de guardar, con el botón en `cargando`.',
+  },
+];
 
 const argumentos = process.argv.slice(2);
 const conDetalle = argumentos.includes('--detalle');

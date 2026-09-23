@@ -26,11 +26,13 @@ import {
   Superficie,
   Tabla,
   Vacio,
+  dineroEnTexto,
   type ColumnaDeTabla,
   type EstadoDeGuardado,
   type NivelDeElevacion,
 } from '@morphiqpos/ui/sistema';
 import { CLAVES_ESTILO, ESTILOS, PERILLAS } from '@morphiqpos/ui/tokens';
+import { Banknote, FileSpreadsheet, LayoutGrid, Wallet } from 'lucide-react';
 
 import { useAparienciaEnVivo } from '~/proveedores/Apariencia';
 
@@ -94,6 +96,23 @@ const COLUMNAS: readonly ColumnaDeTabla<FilaDeEjemplo>[] = [
   },
 ];
 
+/** Las cuatro perillas, en el orden en que se explican, con su nombre escrito bien. */
+const PERILLAS_EN_ORDEN = ['densidad', 'redondeo', 'elevacion', 'movimiento'] as const;
+const ROTULO_DE_PERILLA: Record<(typeof PERILLAS_EN_ORDEN)[number], string> = {
+  densidad: 'Densidad',
+  redondeo: 'Redondeo',
+  elevacion: 'Elevación',
+  movimiento: 'Movimiento',
+};
+
+/**
+ * El selector nativo, vestido como el `Input` de primitivas: el mismo borde, la misma
+ * sombra de reposo y el mismo anillo de foco. Nativo a propósito: la prueba de los ocho
+ * estilos lo cambia con `selectOption`, que es el camino por el que se cambia a mano.
+ */
+const SELECTOR =
+  'h-(--altura-control) rounded-md border border-borde-fuerte bg-superficie px-(--espacio-2) text-sm text-texto shadow-1 outline-none transition-[color,box-shadow] duration-(--duracion-rapida) focus-visible:border-anillo focus-visible:ring-[3px] focus-visible:ring-anillo/50';
+
 function Seccion({
   titulo,
   cuando,
@@ -140,7 +159,7 @@ export function PaginaDelSistema() {
                 onChange={(evento) => {
                   cambiarEstilo(evento.target.value);
                 }}
-                className="h-(--altura-control) rounded-md border border-borde-fuerte bg-superficie px-(--espacio-2) text-sm text-texto"
+                className={SELECTOR}
               >
                 {CLAVES_ESTILO.map((clave) => (
                   <option key={clave} value={clave}>
@@ -150,10 +169,9 @@ export function PaginaDelSistema() {
               </select>
             </label>
 
-            {(['densidad', 'redondeo', 'elevacion', 'movimiento'] as const).map((perilla) => (
+            {PERILLAS_EN_ORDEN.map((perilla) => (
               <label key={perilla} className="flex flex-col gap-1 text-xs text-texto-sutil">
-                {perilla[0]?.toUpperCase()}
-                {perilla.slice(1)}
+                {ROTULO_DE_PERILLA[perilla]}
                 <select
                   value={apariencia[perilla]}
                   onChange={(evento) => {
@@ -161,7 +179,7 @@ export function PaginaDelSistema() {
                     // los suyos: lo garantiza la lista que pinta las opciones.
                     ajustar(perilla, evento.target.value as never);
                   }}
-                  className="h-(--altura-control) rounded-md border border-borde-fuerte bg-superficie px-(--espacio-2) text-sm text-texto"
+                  className={SELECTOR}
                 >
                   {PERILLAS[perilla].map((valor) => (
                     <option key={valor} value={valor}>
@@ -287,6 +305,7 @@ export function PaginaDelSistema() {
           <div className="grid gap-(--espacio-4) md:grid-cols-3">
             <Superficie relleno={0}>
               <Vacio
+                icono={<FileSpreadsheet />}
                 titulo="Todavía no hay nada aquí"
                 explicacion="Un vacío sin salida es una pared. Éste enseña por dónde empezar."
                 accion={<Button size="sm">Importar desde Excel</Button>}
@@ -317,8 +336,8 @@ export function PaginaDelSistema() {
               <GraficaDeBarras
                 titulo="Ticket promedio por mesero"
                 ejes={['Lupita', 'Toño', 'Rosa', 'Beatriz']}
-                series={[{ etiqueta: 'Promedio', valores: [318, 402, 275, 361] }]}
-                formato={(valor) => `$${String(valor)}`}
+                series={[{ etiqueta: 'Promedio', valores: [31_800, 40_200, 27_500, 36_100] }]}
+                formato={dineroEnTexto}
               />
             </Superficie>
             <Superficie>
@@ -347,11 +366,11 @@ export function PaginaDelSistema() {
                 titulo="Cómo se cobró hoy"
                 etiquetaCentro="cobrado"
                 partes={[
-                  { etiqueta: 'Efectivo', valor: 6200 },
-                  { etiqueta: 'Tarjeta', valor: 3400 },
-                  { etiqueta: 'Transferencia', valor: 900 },
+                  { etiqueta: 'Efectivo', valor: 620_000 },
+                  { etiqueta: 'Tarjeta', valor: 340_000 },
+                  { etiqueta: 'Transferencia', valor: 90_000 },
                 ]}
-                formato={(valor) => `$${valor.toLocaleString('es-MX')}`}
+                formato={dineroEnTexto}
               />
             </Superficie>
           </div>
@@ -382,7 +401,7 @@ export function PaginaDelSistema() {
             <Aviso tono="info" titulo="El corte se hace a ciegas">
               Nunca se enseña lo esperado antes de contar.
             </Aviso>
-            <Aviso tono="exito" titulo="Cobrado $439.00" />
+            <Aviso tono="exito" titulo={`Cobrado ${dineroEnTexto(43_900)}`} />
             <Aviso tono="atencion" titulo="Quedan 3 piezas de Concha de vainilla" />
             <Aviso tono="peligro" titulo="No se pudo cobrar con tarjeta">
               La terminal no contestó. Cobra en efectivo o vuelve a intentarlo.
@@ -438,14 +457,14 @@ export function PaginaDelSistema() {
           </p>
           <AbanicoInferior
             destinos={[
-              { clave: 'cobrar', rotulo: 'Cobrar', icono: <span aria-hidden="true">$</span> },
+              { clave: 'cobrar', rotulo: 'Cobrar', icono: <Banknote aria-hidden="true" /> },
               {
                 clave: 'mesas',
                 rotulo: 'Mesas',
-                icono: <span aria-hidden="true">▦</span>,
+                icono: <LayoutGrid aria-hidden="true" />,
                 insignia: 3,
               },
-              { clave: 'caja', rotulo: 'Caja', icono: <span aria-hidden="true">▣</span> },
+              { clave: 'caja', rotulo: 'Caja', icono: <Wallet aria-hidden="true" /> },
             ]}
             activo="cobrar"
             alIr={() => undefined}

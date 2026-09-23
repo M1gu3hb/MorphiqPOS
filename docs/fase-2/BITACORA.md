@@ -5330,3 +5330,34 @@ forma —«12,34.50», «1,2,3», «12,5000»— sale `null` y la pantalla lo di
 
 Y `experimental.viewTransition` en `next.config`: «la mesa que se expande hasta ser la cuenta»
 cruza una navegación, y sólo el enrutador puede envolver el cambio de página en una transición.
+
+### Lotes 2 a 5 · cafetería, ferretería, estética y restaurante, cerrados (23-09-2026)
+
+**`verify:adopcion`: 69 de 69, 0 en rojo.** Empezó en 0 de 69 (1.1 → 40, 1.2 → 10, 1.3 → 51,
+1.4 → 68).
+
+Las 48 que faltaban se recompusieron en tres tandas; las dos primeras murieron contra el límite
+de uso de la cuenta a la media hora, con decenas de agentes a medias. **Miguel lo paró: «estás
+desplegando demasiados agentes».** La tercera corrió como UN flujo con **tres agentes a la
+vez** sacando de una cola ordenada por modelo —cafetería, estética, ferretería, restaurante—,
+cada pantalla a medias retomada desde lo que ya había en disco: 28 de 28, cero caídas. Queda
+como regla (memoria `pocos-agentes-a-la-vez`).
+
+**Integración: UNA construcción con todo** sobre `651e538` y las seis suites, cada una con su
+negocio resembrado: `cafeteria.spec` ✓ · `ferreteria.spec` ✓ · `estetica-salon.spec` ✓ ·
+`restaurante.spec` ✓ · `abarrotes.spec` ✓ · `estilos.spec` 17/17 ✓. **Ningún selector de prueba
+se tocó.** `tsc` de `apps/web` limpio.
+
+Un comparador a máquina (comandos, lecturas, rutas y exports de cada pantalla, antes y después):
+ningún comando ni lectura se perdió; los exports que desaparecieron (`enPesos`,
+`centavosDeTexto`, `aCentavos`, `leerDiferencia` locales) no los importaba nadie. Las rutas de
+navegación nuevas existen todas.
+
+**Cuatro estados declarados SIN pintar** en `SIN_ESTADO`, cada uno con su razón: los dos diálogos
+del restaurante (anular y dividir) y el selector de apariencia no leen nada de la red. La puerta
+falla si un día los pintan.
+
+**Un defecto del comprobador, visto por un agente:** con el `.tsbuildinfo` incremental ya escrito,
+TypeScript 6 sale en **1** —no en 2— por los mismos errores, y `comprobar-pantalla.mjs` leía el 1
+como «tsc no corrió»: ✗ en todas las pantallas mientras quedara un error en cualquier otra. Ahora
+«no corrió» es salir distinto de 0 sin un solo `error TS`.

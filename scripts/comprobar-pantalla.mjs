@@ -143,9 +143,13 @@ try {
   ]);
   const propios = delArchivo(tipos.salida);
   if (propios.length > 0) fallos.push(['tipos', propios]);
-  // tsc sale en 0 (limpio) o en 2 (errores, de éste u otro archivo). Cualquier otra
-  // cosa es que no corrió, y eso no puede leerse como verde.
-  if (tipos.codigo !== 0 && tipos.codigo !== 2) {
+  // tsc sale en 0 (limpio) o con errores —de éste u otro archivo—. El código de los
+  // errores NO es fijo: la primera corrida sale en 2 y, ya con el `.tsbuildinfo`
+  // incremental escrito, TypeScript 6 sale en 1 por los mismos errores. Leerlo como «no
+  // corrió» ponía en ✗ TODAS las pantallas mientras quedara un error en cualquier otra.
+  // Lo que distingue «no corrió» es que no dijo nada: sale distinto de 0 sin un solo
+  // `error TS`.
+  if (tipos.codigo !== 0 && !/error TS\d+/.test(tipos.salida)) {
     fallos.push(['tipos', ['tsc no corrió:', ...tipos.salida.split('\n').slice(0, 5)]]);
   }
   const lint = correr(HERRAMIENTAS.eslint, [absoluto]);
