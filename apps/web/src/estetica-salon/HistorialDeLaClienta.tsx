@@ -9,9 +9,18 @@ import {
 } from '@morphiqpos/ui/primitivas/collapsible';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
-import { Camera } from 'lucide-react';
+import {
+  Aviso,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { BookUser, CalendarPlus, Camera, ChevronDown, NotebookPen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -91,7 +100,6 @@ export interface HistorialDeLaClientaProps {
   readonly onHistorialEmpezado?: () => void;
 }
 
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const CORTO = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' });
 const LARGO = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long' });
 const UN_DIA_MS = 24 * 60 * 60 * 1000;
@@ -113,17 +121,13 @@ function soloTexto(valor: FormDataEntryValue | null): string {
   return typeof valor === 'string' ? valor : '';
 }
 
-const ALERGIA =
-  'mb-(--espacio-4) rounded-lg border-2 border-peligro bg-peligro/15 p-(--espacio-3) shadow-2';
-const BANDA = 'mb-(--espacio-3) rounded-md border border-peligro bg-peligro/10 p-2 text-sm';
-const TARJETA = 'rounded-lg border border-borde bg-superficie p-(--espacio-4) text-texto';
+/** El rótulo de cada bloque: pequeño, en versalitas, y NUNCA lo que se lee primero. */
 const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-texto-sutil';
+/** Una columna en tablet y teléfono; en PC la derecha es la galería (§4.3.5). */
 const DOS_COLUMNAS =
   'grid gap-(--espacio-4) xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start';
-const FOTO =
-  'flex aspect-square w-24 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md ' +
-  'border border-borde bg-fondo-sutil text-xs text-texto-sutil transition-colors ' +
-  'hover:bg-acento-suave hover:text-acento-suave-texto focus-visible:outline-2 focus-visible:outline-anillo';
+/** El marco de la pantalla: el mismo en los cuatro estados, para que nada salte. */
+const MARCO = 'mx-auto flex w-full flex-col gap-(--espacio-4) p-(--espacio-4)';
 
 export function enFecha(iso: string | null, largo = false): string {
   const tiempo = iso === null ? Number.NaN : Date.parse(iso);
@@ -249,7 +253,15 @@ export function HistorialDeLaClienta({
   const [visitas, setVisitas] = useState<readonly VisitaDelHistorial[] | null>(
     visitasIniciales ?? null,
   );
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * Dos fallos distintos, y cada uno se pinta distinto: si NO SE LEYÓ el
+   * expediente, la pantalla no tiene nada que enseñar (`ErrorDePantalla`); si se
+   * leyó y falló después —una relectura o el comando de abrirlo—, lo que ya
+   * estaba se queda y el aviso dice qué pasó y qué no.
+   */
+  const [falloDeLectura, setFalloDeLectura] = useState<string | null>(null);
+  const [falloDeComando, setFalloDeComando] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
   const [intento, setIntento] = useState(0);
   /**
    * El reloj NO se lee durante el render: da un valor en el servidor y otro en
@@ -274,68 +286,90 @@ export function HistorialDeLaClienta({
       .then((leido) => {
         setClienta(leido.clienta);
         setVisitas(leido.visitas);
-        setError(null);
+        setFalloDeLectura(null);
       })
       // La pantalla NUNCA se vacía por un fallo de red: lo que ya estaba se
-      // queda, y la banda dice qué pasó y ofrece volver a intentarlo.
+      // queda, y el aviso dice qué pasó y ofrece volver a intentarlo.
       .catch((fallo: unknown) => {
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer el expediente.');
+        // Abortada es la lectura que se reemplazó o se desmontó: eso no es un
+        // fallo, y pintarlo sería enseñar un error que nadie provocó.
+        if (control.signal.aborted) return;
+        setFalloDeLectura(
+          fallo instanceof Error ? fallo.message : 'No se pudo leer el expediente.',
+        );
       });
     return () => {
       control.abort();
     };
   }, [clienteId, visitasIniciales, intento]);
 
-  const banda =
-    error === null ? null : (
-      <p role="alert" className={BANDA}>
-        {error}{' '}
-        <Button
-          type="button"
-          size="xs"
-          variant="outline"
-          onClick={() => {
-            setError(null);
-            setIntento((n) => n + 1);
-          }}
-        >
-          Reintentar
-        </Button>
-      </p>
-    );
+  // El estado se limpia EN EL CLIC, no en el efecto: lo que ya se leyó se queda.
+  function reintentar(): void {
+    setFalloDeLectura(null);
+    setIntento((n) => n + 1);
+  }
 
-  // Cargando y fallo-sin-datos comparten marco: el esqueleto tiene la forma del
-  // expediente, así que nada salta cuando llega, y la banda cabe encima.
   // El VACÍO QUE ENSEÑA: el historial es de UNA clienta.
   //
   // `page.tsx` lo monta sin ninguna —se llega desde la lista de clientas o desde la
   // cita— y sin esto la pantalla se quedaba en su esqueleto para siempre.
   if ((clienteId === undefined || clienteId === '') && clientaInicial === undefined) {
     return (
-      <main className="mx-auto max-w-prose space-y-(--espacio-3) p-(--espacio-8) text-center">
-        <h1 className="text-xl font-semibold">
-          Aquí se abre el expediente de {voc.enFraseCon('un', 'cliente')}
-        </h1>
-        <p className="text-sm text-texto-sutil">
-          Sus visitas, sus fórmulas, sus fotos y cuándo le toca volver. Se abre desde la lista: toca
-          su nombre y su historia aparece aquí.
-        </p>
-        <Button asChild>
-          <a href="/estetica-salon/clientas">Ver {voc.plural('cliente')}</a>
-        </Button>
+      <main className="mx-auto w-full max-w-2xl p-(--espacio-4)">
+        <h1 className="sr-only">Historial de {voc.enFrase('cliente')}</h1>
+        <Vacio
+          icono={<BookUser />}
+          titulo={`Aquí se abre el expediente de ${voc.enFraseCon('un', 'cliente')}`}
+          explicacion="Sus visitas, sus fórmulas, sus fotos y cuándo le toca volver. Se abre desde la lista: toca su nombre y su historia aparece aquí."
+          accion={
+            <Button asChild size="lg">
+              <a href="/estetica-salon/clientas">Ver {voc.plural('cliente')}</a>
+            </Button>
+          }
+        />
       </main>
     );
   }
 
   if (visitas === null) {
+    // No se leyó nada: no hay última fórmula ni alergias que enseñar, y eso se
+    // dice con todas sus letras en vez de dejar un esqueleto que nunca termina.
+    if (falloDeLectura !== null) {
+      return (
+        <div className="mx-auto w-full max-w-lg p-(--espacio-6)">
+          <ErrorDePantalla
+            titulo={`No se pudo leer el historial de ${voc.enFrase('cliente')}`}
+            queHacer="Sin él no se ven sus alergias ni su última fórmula. Revisa la conexión y vuelve a intentarlo."
+            detalle={falloDeLectura}
+            reintentar={
+              <Button type="button" onClick={reintentar}>
+                Reintentar
+              </Button>
+            }
+          />
+        </div>
+      );
+    }
+    // La FORMA del expediente, no una rueda: nombre, la franja de «toca volver»,
+    // la última visita y, en PC, la galería. Al llegar los datos nada salta.
     return (
-      <div className="mx-auto w-full max-w-6xl p-(--espacio-4)">
-        {banda}
-        <Skeleton className="mb-(--espacio-4) h-20 w-full rounded-lg" />
-        <Skeleton className="mb-(--espacio-4) h-24 w-full rounded-lg" />
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Cargando el historial"
+        className={`${MARCO} max-w-6xl`}
+      >
+        <div className="flex flex-col gap-(--espacio-2)">
+          <Esqueleto className="h-(--altura-control) w-2/3 max-w-sm" />
+          <Esqueleto className="h-4 w-1/2 max-w-xs" />
+        </div>
+        <Esqueleto className="h-[calc(var(--altura-control)*1.6)] w-full rounded-lg" />
         <div className={DOS_COLUMNAS}>
-          <Skeleton className="h-52 w-full rounded-lg" />
-          <Skeleton className="hidden h-52 w-full rounded-lg xl:block" />
+          <div className="flex flex-col gap-(--espacio-4)">
+            <Esqueleto className="h-56 w-full rounded-lg" />
+            <Esqueleto className="h-(--altura-control) w-full rounded-lg" />
+          </div>
+          <Esqueleto className="hidden h-72 w-full rounded-lg xl:block" />
         </div>
       </div>
     );
@@ -344,6 +378,7 @@ export function HistorialDeLaClienta({
   const nombre = clienta?.nombre ?? voc.conDeterminante('este', 'cliente');
   const habitual = clienta?.profesionalHabitual ?? null;
   const ultima = visitas[0] ?? null;
+  const anteriores = visitas.slice(1);
   const vuelta = tocaVolver(ultima?.fecha ?? null, clienta?.frecuenciaDias ?? null);
   const hace12Meses = reloj - 365 * UN_DIA_MS;
   const gastado = visitas
@@ -364,9 +399,13 @@ export function HistorialDeLaClienta({
      * del estado vacío, así que ninguna clienta nueva podía empezar su historia.
      */
     if (clienteId === undefined || clienteId === '') {
-      setError('Este historial no sabe de quién es: ábrelo desde la lista de clientas.');
+      setFalloDeComando(
+        `Este historial no sabe de quién es: ábrelo desde la lista de ${voc.plural('cliente')}.`,
+      );
       return;
     }
+    setFalloDeComando(null);
+    setEnviando(true);
     invocarComando('/api/expediente/abrir', {
       clienteId,
       comoLlego: soloTexto(datos.get('comoLlego')),
@@ -378,19 +417,28 @@ export function HistorialDeLaClienta({
         setIntento((n) => n + 1);
       })
       .catch((fallo: unknown) => {
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo guardar el expediente.');
+        setFalloDeComando(
+          fallo instanceof Error ? fallo.message : 'No se pudo guardar el expediente.',
+        );
+      })
+      .finally(() => {
+        setEnviando(false);
       });
   };
 
   const cabecera = (
-    <header className="mb-(--espacio-4)">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-(--espacio-4) gap-y-1">
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{nombre}</h1>
+    <header className="flex flex-col gap-(--espacio-1)">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-(--espacio-4) gap-y-(--espacio-1)">
+        {/* Identifica, no manda: en la jerarquía del expediente los datos van al
+            final (§4.3.5), así que el nombre no le gana en tamaño ni a la alergia
+            ni a la fórmula. */}
+        <h1 className="text-xl font-bold tracking-tight md:text-2xl">{nombre}</h1>
+        {/* Velado: la tablet la ve la sala entera. */}
         <p className="text-sm tabular-nums text-texto-sutil">
           {telefonoVelado(clienta?.telefono ?? null)}
         </p>
       </div>
-      <p className="mt-1 text-sm text-texto-sutil">
+      <p className="text-sm text-texto-sutil">
         {habitual === null ? 'Sin profesional habitual' : `Viene con ${habitual}`}
         {clienta?.frecuenciaDias == null
           ? ''
@@ -400,162 +448,286 @@ export function HistorialDeLaClienta({
     </header>
   );
 
-  // Arriba de todo y con palabra propia: el color nunca la porta solo.
+  // Arriba de todo y con palabra propia: el color nunca la porta solo. Es el
+  // `Aviso` de peligro —`role="alert"` permanente— con la sustancia en grande,
+  // porque es lo que se busca con la clienta ya sentada.
   const alergia =
     clienta !== null && (clienta.banderaAlergia || clienta.alergias !== null) ? (
-      <section role="alert" className={ALERGIA}>
-        <p className="font-bold uppercase tracking-wide">
-          <span aria-hidden>⚠ </span>Alergia · {clienta.alergias ?? 'sin detallar'}
+      <Aviso tono="peligro" titulo="Alergia" className="border-2 border-peligro bg-peligro/10">
+        <p className="text-xl font-bold text-texto md:text-2xl">
+          {clienta.alergias ?? 'Sin detallar'}
         </p>
         {clienta.pruebaMechaFecha !== null && (
-          <p className="mt-1 text-sm">Prueba de mecha: {enFecha(clienta.pruebaMechaFecha, true)}</p>
+          <p className="mt-(--espacio-1) text-sm text-texto">
+            Prueba de mecha:{' '}
+            <span className="tabular-nums">{enFecha(clienta.pruebaMechaFecha, true)}</span>
+          </p>
         )}
-      </section>
+      </Aviso>
     ) : null;
+
+  const avisoDeLectura =
+    falloDeLectura === null ? null : (
+      <Aviso
+        tono="peligro"
+        titulo="No se pudo volver a leer el historial."
+        accion={
+          <Button type="button" size="sm" variant="outline" onClick={reintentar}>
+            Reintentar
+          </Button>
+        }
+      >
+        Lo que ves es lo último que se leyó. {falloDeLectura}
+      </Aviso>
+    );
 
   if (visitas.length === 0) {
     return (
-      <div className="mx-auto w-full max-w-2xl p-(--espacio-4)">
-        {banda}
+      <div className={`${MARCO} max-w-2xl`}>
         {cabecera}
         {alergia}
+        {avisoDeLectura}
         {/* El vacío ENSEÑA: los tres datos que sí sirven dentro de cinco semanas. */}
-        <form onSubmit={alEmpezar} className={TARJETA}>
-          <h2 className="text-lg font-semibold">{nombre} viene por primera vez.</h2>
-          <p className="mb-(--espacio-4) mt-1 text-sm text-texto-sutil">
-            Tres respuestas ahora valen más que media hora de memoria en la próxima{' '}
-            {voc.singular('orden')}.
-          </p>
-          <div className="grid gap-(--espacio-3)">
-            <Campo id="comoLlego" etiqueta="Cómo llegó" pista="Recomendación, Instagram…" />
-            <Campo id="queBusca" etiqueta="Qué busca" pista="Cubrir canas, aclarar medio tono…" />
-            <div className="grid gap-1.5">
-              <Label htmlFor="alergias">Alergias conocidas</Label>
-              <Textarea id="alergias" name="alergias" rows={2} placeholder="PPD, amoniaco…" />
-            </div>
-          </div>
-          <Button type="submit" className="mt-(--espacio-4) w-full sm:w-auto">
-            Empezar su historial
-          </Button>
-        </form>
+        <Superficie relleno={0}>
+          <form onSubmit={alEmpezar}>
+            <Vacio
+              icono={<NotebookPen />}
+              titulo={`${nombre} viene por primera vez.`}
+              explicacion={`Tres respuestas ahora valen más que media hora de memoria en la próxima ${voc.singular('orden')}.`}
+              className="px-(--espacio-4) py-(--espacio-8) sm:px-(--espacio-8)"
+            >
+              <div className="grid w-full max-w-md gap-(--espacio-3) text-left">
+                <Campo id="comoLlego" etiqueta="Cómo llegó" pista="Recomendación, Instagram…" />
+                <Campo
+                  id="queBusca"
+                  etiqueta="Qué busca"
+                  pista="Cubrir canas, aclarar medio tono…"
+                />
+                <div className="grid gap-(--espacio-2)">
+                  <Label htmlFor="alergias">Alergias conocidas</Label>
+                  <Textarea id="alergias" name="alergias" rows={2} placeholder="PPD, amoniaco…" />
+                </div>
+                {falloDeComando !== null && (
+                  <Aviso tono="peligro" titulo={falloDeComando}>
+                    Su historial no se empezó: lo que escribiste sigue aquí.
+                  </Aviso>
+                )}
+                {/* Al pie de la columna y a lo ancho: es el tercio de abajo, donde llega el
+                    pulgar con la tablet en la mano. */}
+                <Button type="submit" size="lg" cargando={enviando} className="mt-(--espacio-2)">
+                  Empezar su historial
+                </Button>
+              </div>
+            </Vacio>
+          </form>
+        </Superficie>
       </div>
     );
   }
 
+  const columnasAnteriores: readonly ColumnaDeTabla<VisitaDelHistorial>[] = [
+    {
+      clave: 'fecha',
+      titulo: 'Fecha',
+      orden: (v) => v.fecha ?? '',
+      celda: (v) => <span className="font-medium tabular-nums">{enFecha(v.fecha)}</span>,
+    },
+    {
+      clave: 'servicio',
+      titulo: voc.titulo('linea_orden'),
+      celda: (v) => v.servicio ?? 'Servicio sin nombre',
+    },
+    {
+      clave: 'profesional',
+      titulo: voc.titulo('responsable'),
+      desde: 'sm',
+      celda: (v) => <span className="text-texto-sutil">{v.profesional ?? 'sin dato'}</span>,
+    },
+    {
+      // «Misma fórmula» se ve comparando renglones: por eso va en columna, y sólo
+      // donde hay ancho para leerla entera.
+      clave: 'formula',
+      titulo: 'Fórmula',
+      desde: 'lg',
+      celda: (v) => (
+        <span className="font-mono text-xs tabular-nums text-texto-sutil">
+          {v.formula ?? 'Sin fórmula'}
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (v) => <Dinero centavos={v.precioCentavos ?? 0} tamano="sm" />,
+    },
+  ];
+
   return (
-    <div className="mx-auto w-full max-w-6xl p-(--espacio-4)">
-      {banda}
+    <div className={`${MARCO} max-w-6xl`}>
       {cabecera}
       {alergia}
+      {avisoDeLectura}
 
       {vuelta !== null && (
-        <section className="mb-(--espacio-4) flex flex-wrap items-center gap-(--espacio-3) rounded-lg border border-primario/40 bg-primario/10 p-(--espacio-3)">
-          <p className="text-base font-semibold">
+        <Superficie
+          como="section"
+          nivel={0}
+          relleno={3}
+          aria-label="Toca volver"
+          className="flex flex-wrap items-center gap-(--espacio-3) border-primario/40 bg-primario/10"
+        >
+          <p className="text-lg font-semibold">
             Toca volver: <span className="tabular-nums">{enFecha(vuelta, true)}</span>
           </p>
           {/* Pegado a la fecha: se agenda mientras todavía está en la silla. */}
           <Button
             type="button"
+            size="lg"
             className="ml-auto"
             onClick={() => {
               onAgendar?.(clienteId ?? '');
             }}
           >
+            <CalendarPlus aria-hidden="true" />
             Agendar
           </Button>
-        </section>
+        </Superficie>
       )}
 
       <div className={DOS_COLUMNAS}>
-        <div>
+        <div className="flex flex-col gap-(--espacio-4)">
           {ultima !== null && (
-            <section className={`${TARJETA} mb-(--espacio-4) border-primario/50 shadow-2`}>
-              <h2 className={ROTULO}>Última visita</h2>
-              <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-lg font-semibold">
-                <span className="tabular-nums">{enFecha(ultima.fecha, true)}</span>
-                <span>· {ultima.profesional ?? 'sin profesional'}</span>
-                <span className="ml-auto tabular-nums">
-                  {PESOS.format((ultima.precioCentavos ?? 0) / 100)}
-                </span>
-              </p>
-              <p className="mt-1 text-base">{ultima.servicio ?? 'Servicio sin nombre'}</p>
-              {/* La acción principal de la pantalla: VER LA ÚLTIMA FÓRMULA. */}
-              <p className="mt-2 rounded-md bg-fondo-sutil p-2 font-mono text-sm tabular-nums">
-                {ultima.formula ?? 'Sin fórmula capturada en esta visita.'}
-              </p>
-              {ultima.fotos.length > 0 && (
-                <div className="mt-(--espacio-3) flex gap-2 overflow-x-auto pb-1">
-                  {ultima.fotos.map((tipo) => (
-                    <Foto key={tipo} visita={ultima} tipo={tipo} onVerFoto={onVerFoto} />
-                  ))}
+            <Superficie
+              como="section"
+              nivel={2}
+              aria-labelledby="historial-ultima-visita"
+              className="flex flex-col gap-(--espacio-3) border-primario/50"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-x-(--espacio-4) gap-y-(--espacio-1)">
+                <div className="flex flex-col gap-(--espacio-1)">
+                  <h2 id="historial-ultima-visita" className={ROTULO}>
+                    Última visita
+                  </h2>
+                  <p className="text-lg font-semibold">
+                    <span className="tabular-nums">{enFecha(ultima.fecha, true)}</span>
+                    {' · '}
+                    {ultima.profesional ?? 'sin profesional'}
+                  </p>
+                  <p className="text-base text-texto-sutil">
+                    {ultima.servicio ?? 'Servicio sin nombre'}
+                  </p>
                 </div>
+                <Dinero centavos={ultima.precioCentavos ?? 0} tamano="base" />
+              </div>
+
+              {/* La acción principal de la pantalla: VER LA ÚLTIMA FÓRMULA. Se lee en
+                  voz alta mientras se pesa, así que es lo más grande después de la
+                  alergia, en una línea y con cifras que no bailan. */}
+              <div className="flex flex-col gap-(--espacio-1)">
+                <p className={ROTULO}>Fórmula</p>
+                {ultima.formula === null ? (
+                  <p className="text-base text-texto-sutil">
+                    Sin fórmula capturada en esta visita.
+                  </p>
+                ) : (
+                  <p className="rounded-md bg-fondo-sutil px-(--espacio-3) py-(--espacio-3) font-mono text-lg font-semibold tabular-nums md:text-xl xl:text-2xl">
+                    {ultima.formula}
+                  </p>
+                )}
+              </div>
+
+              {/* En tablet y teléfono las fotos van en tira, dentro de su visita. */}
+              {ultima.fotos.length > 0 && (
+                <ul
+                  aria-label="Fotos de la última visita"
+                  className="flex gap-(--espacio-2) overflow-x-auto pb-(--espacio-1)"
+                >
+                  {ultima.fotos.map((tipo) => (
+                    <li key={tipo}>
+                      <Foto visita={ultima} tipo={tipo} onVerFoto={onVerFoto} />
+                    </li>
+                  ))}
+                </ul>
               )}
+
               {ultima.nota !== null && (
-                <p className="mt-(--espacio-3) border-l-2 border-borde pl-(--espacio-3) text-sm italic text-texto-sutil">
+                <blockquote className="flex flex-wrap items-baseline gap-(--espacio-2) text-sm italic text-texto-sutil">
                   «{ultima.nota}»
                   {ultima.notaPrivada && (
-                    <Badge variant="outline" className="ml-2 not-italic">
+                    <Badge variant="outline" className="not-italic">
                       Privada
                     </Badge>
                   )}
-                </p>
+                </blockquote>
               )}
-            </section>
+            </Superficie>
           )}
 
           {/* Colapsadas: nueve de cada diez consultas mueren en la última fórmula. */}
-          <Collapsible className={TARJETA}>
-            <CollapsibleTrigger asChild>
-              <Button type="button" variant="ghost" className="w-full justify-between">
-                <span>Antes · {visitas.length - 1} visitas</span>
-                <span aria-hidden>▾</span>
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <ul className="mt-2 divide-y divide-borde">
-                {visitas.slice(1).map((v) => (
-                  <li key={v.id} className="flex flex-wrap items-baseline gap-x-2 py-2 text-sm">
-                    <span className="w-20 shrink-0 font-medium tabular-nums">
-                      {enFecha(v.fecha)}
-                    </span>
-                    <span className="text-texto-sutil">{v.profesional ?? 'sin dato'}</span>
-                    <span className="basis-full text-texto-sutil sm:basis-auto">
-                      {v.servicio ?? 'Servicio sin nombre'}
-                    </span>
-                    <span className="ml-auto tabular-nums">
-                      {PESOS.format((v.precioCentavos ?? 0) / 100)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </CollapsibleContent>
-          </Collapsible>
+          <Superficie como="section" relleno={0} aria-label="Visitas anteriores">
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="group min-h-(--area-tactil-minima) w-full justify-between px-(--espacio-4)"
+                >
+                  <span>
+                    Antes · {anteriores.length} {anteriores.length === 1 ? 'visita' : 'visitas'}
+                  </span>
+                  <ChevronDown aria-hidden="true" className="group-data-[state=open]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-(--espacio-3) pb-(--espacio-3)">
+                <Tabla
+                  etiqueta="Visitas anteriores"
+                  columnas={columnasAnteriores}
+                  filas={anteriores}
+                  claveDe={(v) => v.id}
+                  alto="max-h-[50vh]"
+                  vacio={
+                    <Vacio
+                      titulo="No hay visitas antes de la última."
+                      className="py-(--espacio-4)"
+                    />
+                  }
+                />
+              </CollapsibleContent>
+            </Collapsible>
+          </Superficie>
 
-          <p className="mt-(--espacio-4) text-sm text-texto-sutil">
-            Gastado en 12 meses: <span className="tabular-nums">{PESOS.format(gastado / 100)}</span>
+          <p className="flex items-baseline gap-(--espacio-2) text-sm text-texto-sutil">
+            Gastado en 12 meses: <Dinero centavos={gastado} tamano="sm" />
           </p>
         </div>
 
-        {/* En PC la derecha son fotos: comparar color se hace mirando. */}
-        <aside aria-label="Galería de fotos" className="hidden xl:block">
-          <h2 className={`mb-2 ${ROTULO}`}>Fotos</h2>
+        {/* En PC la derecha son fotos: comparar color se hace mirando. Se queda
+            pegada mientras la izquierda corre, para comparar sin perderla. */}
+        <Superficie
+          como="aside"
+          nivel={0}
+          aria-label="Galería de fotos"
+          className="hidden xl:sticky xl:top-(--espacio-4) xl:flex xl:flex-col xl:gap-(--espacio-3)"
+        >
+          <h2 className={ROTULO}>Fotos</h2>
           {galeria.length === 0 ? (
-            <p className="text-sm text-texto-sutil">
-              Todavía no hay fotos. Se suben al cerrar el servicio, y sólo si ella lo autorizó.
-            </p>
+            <Vacio
+              icono={<Camera />}
+              titulo="Todavía no hay fotos."
+              explicacion="Se suben al cerrar el servicio, y sólo si ella lo autorizó."
+              className="px-(--espacio-2) py-(--espacio-6)"
+            />
           ) : (
-            <div className="grid grid-cols-2 gap-2">
+            <ul className="flex flex-wrap gap-(--espacio-2)">
               {galeria.map(({ visita, tipo }) => (
-                <Foto
-                  key={`${visita.id}-${tipo}`}
-                  visita={visita}
-                  tipo={tipo}
-                  onVerFoto={onVerFoto}
-                />
+                <li key={`${visita.id}-${tipo}`}>
+                  <Foto visita={visita} tipo={tipo} onVerFoto={onVerFoto} />
+                </li>
               ))}
-            </div>
+            </ul>
           )}
-        </aside>
+        </Superficie>
       </div>
     </div>
   );
@@ -569,7 +741,7 @@ interface CampoProps {
 
 function Campo({ id = 'campo', etiqueta = '', pista = '' }: CampoProps) {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-(--espacio-2)">
       <Label htmlFor={id}>{etiqueta}</Label>
       <Input id={id} name={id} placeholder={pista} />
     </div>
@@ -585,9 +757,14 @@ export interface FotoProps {
 /** Ficha, no miniatura: el visor vive fuera y ésta sólo dice cuál pedirle. */
 function Foto({ visita, tipo = 'antes', onVerFoto }: FotoProps) {
   return (
-    <button
+    <Superficie
+      como="button"
       type="button"
-      className={FOTO}
+      interactiva
+      nivel={0}
+      radio="md"
+      relleno={0}
+      className="flex aspect-square w-24 shrink-0 flex-col items-center justify-center gap-(--espacio-1) bg-fondo-sutil text-xs text-texto-sutil"
       onClick={() => {
         onVerFoto?.(visita?.id ?? '', tipo);
       }}
@@ -595,6 +772,6 @@ function Foto({ visita, tipo = 'antes', onVerFoto }: FotoProps) {
       <Camera aria-hidden="true" className="size-5 shrink-0" />
       <span>{tipo === 'antes' ? 'Antes' : 'Después'}</span>
       <span className="tabular-nums">{enFecha(visita?.fecha ?? null)}</span>
-    </button>
+    </Superficie>
   );
 }
