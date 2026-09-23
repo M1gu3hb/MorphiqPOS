@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 
@@ -207,9 +208,20 @@ export function Tabla<F>({
                       )}
                     >
                       {columna.titulo}
-                      <span aria-hidden="true" className={esLaOrdenada ? '' : 'opacity-30'}>
-                        {esLaOrdenada && !ascendente ? '▾' : '▴'}
-                      </span>
+                      {/*
+                       * La marca de «se puede ordenar» iba al 30 % de opacidad y el rastreador
+                       * la midió en 1.64:1: una pista que no se ve no dice nada. Ahora es un
+                       * icono en el color de la cabecera, a opacidad plena, y la columna
+                       * ORDENADA cambia de forma —flecha arriba o abajo— y de color, no sólo
+                       * de intensidad.
+                       */}
+                      {esLaOrdenada && ascendente ? (
+                        <ArrowUp aria-hidden="true" className="size-3.5 shrink-0 text-texto" />
+                      ) : esLaOrdenada ? (
+                        <ArrowDown aria-hidden="true" className="size-3.5 shrink-0 text-texto" />
+                      ) : (
+                        <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0" />
+                      )}
                     </button>
                   ) : (
                     columna.titulo

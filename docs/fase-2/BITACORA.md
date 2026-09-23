@@ -5361,3 +5361,13 @@ falla si un día los pintan.
 TypeScript 6 sale en **1** —no en 2— por los mismos errores, y `comprobar-pantalla.mjs` leía el 1
 como «tsc no corrió»: ✗ en todas las pantallas mientras quedara un error en cualquier otra. Ahora
 «no corrió» es salir distinto de 0 sin un solo `error TS`.
+
+### La marca de «se puede ordenar», en 1.64:1
+
+El rastreador de CI en `tienda · bloque` (corrida `35809373666`): `/abarrotes/existencias` y
+`/abarrotes/cortes` · «▴» 1.93:1 y 1.64:1. Es la marca de las columnas ordenables de `Tabla`,
+un triángulo al 30 % de opacidad: una pista que no se ve no dice que la columna se ordena, y la
+opacidad multiplica el color de la cabecera, que ya es secundario. Ahora es un icono
+(`ChevronsUpDown`) a opacidad plena en el color de la cabecera, y la ORDENADA cambia de forma
+—flecha arriba o abajo— y de color. `tabla.test.tsx`, nueva: tres pruebas, las tres en rojo contra
+el triángulo.
