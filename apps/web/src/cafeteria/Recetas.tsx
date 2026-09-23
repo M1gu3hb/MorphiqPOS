@@ -1,11 +1,35 @@
 'use client';
 
+import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState } from 'react';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  Superficie,
+  Tabla,
+  VIAJE,
+  Vacio,
+  conTransicion,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  Check,
+  ClipboardList,
+  CupSoda,
+  OctagonAlert,
+  Plus,
+  ShoppingBag,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -18,7 +42,7 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ── Por qué el empaque va en la receta y por CANAL ──────────────────────
  * El vaso para llevar, la tapa y la manga cuestan entre $3 y $5, y sólo se
  * gastan cuando el pedido sale por la puerta. Cargarlos siempre infla el costo
- * del que se toma en mesa; no cargarlos nunca es regalar cinco pesos por bebida
+ * del que se toma aquí; no cargarlos nunca es regalar cinco pesos por bebida
  * para llevar. Es una línea de receta condicionada al canal, y es lo que arregla
  * el margen de TODAS las bebidas.
  *
@@ -33,9 +57,25 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * decisión de subir el precio o cambiar de proveedor se puede tomar aquí, que es
  * donde se tiene toda la información.
  *
+ * ── Lo que va grande: el MARGEN, con semáforo ───────────────────────────
+ * Es lo primero en la jerarquía del documento de interfaz: verde arriba de 65%,
+ * ámbar de 50 a 65%, rojo debajo de 50%. No son los umbrales de `restaurante`
+ * (60/40): una bebida de café con food cost de 30–35% debería dejar 65–70%, y
+ * con los del restaurante saldrían en verde bebidas que están mal. El color no va
+ * solo: cada tramo lleva su icono y su palabra.
+ *
+ * ── La fila se convierte en panel ───────────────────────────────────────
+ * En la terminal la lista de bebidas vive a la izquierda y la receta a la
+ * derecha, lejos de la fila. Al tocar una bebida, su fila viaja hasta el panel
+ * (`VIAJE.fila`): dice de quién es la receta sin leer el nombre. Dura lo que
+ * diga la perilla de movimiento, y cero con la preferencia del sistema.
+ *
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
  * Caben ver, editar y costear la receta, con sus líneas por canal. Queda fuera
- * el escandallo de producción por lotes, que es de otro arquetipo.
+ * el escandallo de producción por lotes, que es de otro arquetipo, y la tabla de
+ * variantes (leche, tamaño), que necesita una lectura que el puente aún no sirve.
+ * `merma_bp` no se enseña: vale cero en casi todas las líneas de una cafetería, y
+ * un campo que siempre vale cero enseña a ignorar los campos.
  */
 
 const RUTA_GUARDAR = '/api/inventario/recetas';
@@ -44,7 +84,13 @@ const RUTA_GUARDAR = '/api/inventario/recetas';
 // ingrediente de menos. Ver `eliminar`.
 
 const CANTIDAD_CON_FORMA = /^\d{1,6}(?:[.,]\d{1,4})?$/;
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+
+/** El semáforo del margen, en puntos porcentuales. Ver la cabecera. */
+const MARGEN_SANO = 65;
+const MARGEN_JUSTO = 50;
+
+/** Los decimales que una cantidad de receta puede traer: los del comando. */
+const DECIMALES_MAXIMOS = 4;
 
 /** El empaque sólo se gasta cuando el pedido sale por la puerta. */
 const CANALES = [
@@ -52,6 +98,10 @@ const CANALES = [
   { clave: 'aqui', etiqueta: 'Sólo aquí' },
   { clave: 'llevar', etiqueta: 'Sólo para llevar' },
 ] as const;
+
+/** Un `<select>` nativo con la forma de un campo del sistema. */
+const CAMPO_DE_LISTA =
+  'h-(--altura-control) w-full rounded-md border border-borde-fuerte bg-fondo px-(--espacio-3) text-sm focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none disabled:opacity-50';
 
 export interface ProductoConReceta {
   readonly id: string;
@@ -126,8 +176,17 @@ export interface RecetasProps {
   readonly insumosIniciales?: readonly InsumoDisponible[];
 }
 
-function pesos(centavos: number): string {
-  return PESOS.format(centavos / 100);
+/** Pesos del puente a centavos enteros: el dinero de la pantalla es entero. */
+function aCentavos(pesos: number | null): number {
+  if (pesos === null || !Number.isFinite(pesos)) return 0;
+  return Math.round(pesos * 100);
+}
+
+/** Lo que cuesta UNA línea con el costo congelado al guardar, en centavos. */
+function costoDeLinea(linea: LineaDeReceta): number {
+  const cantidad = linea.cantidad_usada;
+  if (!Number.isFinite(cantidad)) return 0;
+  return Math.round(cantidad * aCentavos(linea.costo_unitario_base_snapshot));
 }
 
 /**
@@ -144,17 +203,57 @@ export function costoEnCanal(lineas: readonly LineaDeReceta[], canal: 'aqui' | '
     // al cobrar, y suponer lo contrario descontaría de menos.
     const aplica = linea.aplica_canal ?? 'ambos';
     if (aplica !== 'ambos' && aplica !== canal) continue;
-    const cantidad = linea.cantidad_usada;
-    if (!Number.isFinite(cantidad)) continue;
-    total += Math.round(cantidad * Math.round((linea.costo_unitario_base_snapshot ?? 0) * 100));
+    total += costoDeLinea(linea);
   }
   return total;
+}
+
+/** El margen bruto en puntos enteros, o nada si no hay precio contra qué medirlo. */
+function margenDe(precioCentavos: number, costoCentavos: number): number | null {
+  if (precioCentavos <= 0) return null;
+  return Math.round(((precioCentavos - costoCentavos) * 100) / precioCentavos);
+}
+
+interface Semaforo {
+  readonly palabra: string;
+  readonly clase: string;
+  readonly Icono: LucideIcon;
+}
+
+function semaforoDe(margen: number): Semaforo {
+  if (margen > MARGEN_SANO) return { palabra: 'margen sano', clase: 'bg-exito/20', Icono: Check };
+  if (margen >= MARGEN_JUSTO)
+    return { palabra: 'margen justo', clase: 'bg-advertencia/30', Icono: TriangleAlert };
+  return { palabra: 'margen bajo', clase: 'bg-peligro/15 text-peligro', Icono: OctagonAlert };
+}
+
+/** Cuántos decimales trae la cantidad, para no redondear 0.5 g a 1 g. */
+function decimalesDe(valor: number): number {
+  const [, fraccion = ''] = String(valor).split('.');
+  return Math.min(fraccion.length, DECIMALES_MAXIMOS);
 }
 
 function mensajeDe(fallo: unknown): string {
   if (fallo instanceof ErrorApi) return fallo.message;
   return 'No se pudo guardar la receta. Vuelve a intentarlo.';
 }
+
+/** Lo que se le dice a quien captura: un dato que falta, o un comando que falló. */
+interface Problema {
+  readonly tono: 'atencion' | 'peligro';
+  readonly texto: string;
+}
+
+interface NuevaLinea {
+  readonly insumoId: string;
+  readonly cantidad: string;
+  readonly canal: string;
+}
+
+const LINEA_EN_BLANCO: NuevaLinea = { insumoId: '', cantidad: '', canal: 'ambos' };
+
+const MARCO =
+  'mx-auto grid w-full max-w-6xl gap-(--espacio-4) p-(--espacio-4) lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:p-(--espacio-6)';
 
 export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) {
   const voc = useVocabulario();
@@ -164,16 +263,33 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
   const [insumos, setInsumos] = useState<readonly InsumoDisponible[] | null>(
     insumosIniciales ?? null,
   );
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  // Cada intento de lectura es un número: el botón de reintentar lo sube, y el
+  // efecto lee otra vez. El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
   const [elegido, setElegido] = useState<ProductoConReceta | null>(null);
+  const [viajando, setViajando] = useState<string | null>(null);
   const [lineas, setLineas] = useState<readonly LineaDeReceta[] | null>(null);
-  const [nueva, setNueva] = useState({ insumoId: '', cantidad: '', canal: 'ambos' });
-  const [error, setError] = useState<string | null>(null);
+  const [falloDeLineas, setFalloDeLineas] = useState<string | null>(null);
+  const [nueva, setNueva] = useState<NuevaLinea>(LINEA_EN_BLANCO);
+  const [problema, setProblema] = useState<Problema | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  /**
+   * De qué bebida son las líneas que se están leyendo. Tocar dos bebidas seguidas
+   * lanza dos lecturas, y la primera puede llegar después: sin esto, la receta de
+   * una se pintaba bajo el nombre de la otra, y «Agregar» la guardaba ahí.
+   */
+  const lineasDe = useRef<string | null>(null);
+  const campoDeInsumo = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
     if (productosIniciales !== undefined && insumosIniciales !== undefined) return;
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
+    const fallar = (fallo: unknown): void => {
+      if (!sigueMontada()) return;
+      setFalloDeCarga(fallo instanceof Error ? fallo.message : 'No se pudo leer el menú.');
+    };
     const cargar = (): void => {
       if (productosIniciales === undefined) {
         consultarPuente<ProductoConReceta>('ProductoTerminado', {
@@ -183,18 +299,14 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
           .then((filas) => {
             if (sigueMontada()) setProductos(filas);
           })
-          .catch(() => {
-            if (sigueMontada()) setProductos([]);
-          });
+          .catch(fallar);
       }
       if (insumosIniciales === undefined) {
         consultarPuente<InsumoDisponible>('Ingrediente', { limite: 200, signal: control.signal })
           .then((filas) => {
             if (sigueMontada()) setInsumos(filas);
           })
-          .catch(() => {
-            if (sigueMontada()) setInsumos([]);
-          });
+          .catch(fallar);
       }
     };
     const arranque = setTimeout(cargar);
@@ -202,42 +314,80 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
       clearTimeout(arranque);
       control.abort();
     };
-  }, [productosIniciales, insumosIniciales]);
+  }, [productosIniciales, insumosIniciales, intento]);
+
+  function reintentarCarga(): void {
+    setFalloDeCarga(null);
+    setProductos(productosIniciales ?? null);
+    setInsumos(insumosIniciales ?? null);
+    setIntento((previo) => previo + 1);
+  }
 
   /** Las líneas de la receta de ese producto, leídas del puente. */
   function leerLineas(productoId: string): void {
+    lineasDe.current = productoId;
     consultarPuente<LineaDeReceta>('RecetaEscandallo', {
       filtro: { producto_id: productoId },
       limite: 60,
     })
       .then((filas) => {
-        setLineas(filas);
+        if (lineasDe.current === productoId) setLineas(filas);
       })
-      .catch(() => {
-        setLineas([]);
+      .catch((fallo: unknown) => {
+        if (lineasDe.current !== productoId) return;
+        setFalloDeLineas(fallo instanceof Error ? fallo.message : 'No se pudo leer la receta.');
       });
+  }
+
+  function reintentarLineas(): void {
+    if (elegido === null) return;
+    setFalloDeLineas(null);
+    setLineas(null);
+    leerLineas(elegido.id);
   }
 
   function elegir(producto: ProductoConReceta): void {
     setElegido(producto);
     setLineas(null);
-    setError(null);
+    setFalloDeLineas(null);
+    setProblema(null);
     leerLineas(producto.id);
+  }
+
+  /**
+   * La fila se convierte en el panel. Antes del cambio la FILA lleva el nombre;
+   * dentro del cambio se lo quita y lo toma el PANEL, y `flushSync` hace que el
+   * navegador fotografíe el estado nuevo ya pintado. Nunca los dos a la vez: con
+   * dos elementos del mismo nombre el navegador no anima ninguno.
+   */
+  function abrir(id: string): void {
+    if (id === elegido?.id) return;
+    const producto = (productos ?? []).find((p) => p.id === id);
+    if (producto === undefined) return;
+    flushSync(() => {
+      setViajando(id);
+    });
+    void conTransicion(() => {
+      flushSync(() => {
+        setViajando(null);
+        elegir(producto);
+      });
+    });
   }
 
   function agregar(): void {
     if (elegido === null) return;
     const insumo = (insumos ?? []).find((i) => i.id === nueva.insumoId);
     if (insumo === undefined) {
-      setError('Elige un insumo.');
+      setProblema({ tono: 'atencion', texto: 'Elige un ingrediente.' });
       return;
     }
     if (!CANTIDAD_CON_FORMA.test(nueva.cantidad)) {
-      setError('La cantidad va con hasta cuatro decimales.');
+      setProblema({ tono: 'atencion', texto: 'La cantidad va con hasta cuatro decimales.' });
       return;
     }
     setOcupado(true);
-    setError(null);
+    setProblema(null);
     /**
      * ── AGREGAR UN INGREDIENTE NUNCA FUNCIONÓ ────────────────────────
      * Mandaba `{productoId, insumoId, cantidad, aplicaCanal}` y
@@ -274,11 +424,14 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
       .then(() => {
         // Se vuelve a leer: los identificadores de las líneas son nuevos —el comando
         // borra y reinserta— y conservar los viejos dejaría la pantalla mintiendo.
+        // Sólo si sigue abierta la misma bebida: si ya se eligió otra, releer ésta
+        // pintaría su receta bajo el nombre de la nueva.
+        if (lineasDe.current !== elegido.id) return;
         leerLineas(elegido.id);
-        setNueva({ insumoId: '', cantidad: '', canal: 'ambos' });
+        setNueva(LINEA_EN_BLANCO);
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setProblema({ tono: 'peligro', texto: mensajeDe(fallo) });
       })
       .finally(() => {
         setOcupado(false);
@@ -297,6 +450,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
   function eliminar(linea: LineaDeReceta): void {
     if (elegido === null) return;
     setOcupado(true);
+    setProblema(null);
     const quedan = (lineas ?? [])
       .filter((l) => l.id !== linea.id)
       .map((l) => ({
@@ -308,179 +462,462 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
       }));
     invocarComando(RUTA_GUARDAR, { productoId: elegido.id, ingredientes: quedan })
       .then(() => {
+        if (lineasDe.current !== elegido.id) return;
         setLineas((lineas ?? []).filter((l) => l.id !== linea.id));
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setProblema({ tono: 'peligro', texto: mensajeDe(fallo) });
       })
       .finally(() => {
         setOcupado(false);
       });
   }
 
-  if (productos === null || insumos === null) {
+  const cabecera = (
+    <header className="flex flex-col gap-(--espacio-1) lg:col-span-2">
+      <h1 className="text-2xl font-bold">Recetas</h1>
+      <p className="text-sm text-texto-sutil">
+        Qué lleva, cuánto cuesta aquí y para llevar, y cuánto deja.
+      </p>
+    </header>
+  );
+
+  if (falloDeCarga !== null) {
     return (
-      <div className="space-y-(--espacio-4) p-(--espacio-6)">
-        <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <main className={MARCO}>
+        {cabecera}
+        <ErrorDePantalla
+          className="lg:col-span-2"
+          titulo="No se pudo leer el menú ni los ingredientes"
+          queHacer="Sin ellos no se puede armar ni costear una receta. Revisa la conexión y vuelve a intentarlo."
+          detalle={falloDeCarga}
+          reintentar={<Button onClick={reintentarCarga}>Volver a intentar</Button>}
+        />
+      </main>
     );
   }
 
-  const aqui = lineas === null ? 0 : costoEnCanal(lineas, 'aqui');
-  const llevar = lineas === null ? 0 : costoEnCanal(lineas, 'llevar');
+  if (productos === null || insumos === null) {
+    return (
+      <main aria-busy="true" className={MARCO}>
+        {cabecera}
+        {/* La forma de la lista y del panel, no una rueda: al llegar los datos nada
+            salta, y el ojo ya sabe dónde va a mirar. */}
+        <EsqueletoDeLista filas={8} />
+        <Esqueleto className="h-80 w-full rounded-lg" />
+      </main>
+    );
+  }
+
+  if (productos.length === 0) {
+    return (
+      <main className={MARCO}>
+        {cabecera}
+        <Vacio
+          className="lg:col-span-2"
+          icono={<CupSoda />}
+          titulo={`Todavía no hay ${voc.plural('linea_orden')} en el menú`}
+          explicacion={`Cada receta es de ${voc.enFraseCon('un', 'linea_orden')} del menú: en cuanto el menú tenga sus productos con precio, aparecen aquí para decir qué llevan y cuánto cuestan.`}
+          accion={
+            <Button asChild>
+              <a href="/cafeteria/productos">Cargar el menú</a>
+            </Button>
+          }
+        />
+      </main>
+    );
+  }
+
+  const columnasDeProducto: readonly ColumnaDeTabla<ProductoConReceta>[] = [
+    {
+      clave: 'nombre',
+      titulo: voc.titulo('linea_orden'),
+      orden: (producto) => producto.nombre,
+      celda: (producto) => (
+        <span className="flex flex-col">
+          <span className="font-medium">{producto.nombre}</span>
+          <span className="text-xs text-texto-sutil">{producto.familia}</span>
+        </span>
+      ),
+    },
+    {
+      clave: 'precio',
+      titulo: 'Precio',
+      numerica: true,
+      orden: (producto) => aCentavos(producto.precio_venta),
+      celda: (producto) => <Dinero centavos={aCentavos(producto.precio_venta)} tamano="sm" />,
+    },
+  ];
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-(--espacio-6) p-(--espacio-6) md:grid-cols-[18rem_1fr]">
-      <section>
-        <h1 className="mb-(--espacio-3) text-2xl font-semibold">Recetas</h1>
-        <ul className="divide-y">
-          {productos.map((producto) => (
-            <li key={producto.id}>
-              <button
-                type="button"
-                className={`w-full py-2 text-left ${
-                  elegido?.id === producto.id ? 'font-medium' : ''
-                }`}
+    <main className={MARCO}>
+      {cabecera}
+      <Tabla
+        etiqueta={voc.titulo('linea_orden', true)}
+        columnas={columnasDeProducto}
+        filas={productos}
+        claveDe={(producto) => producto.id}
+        {...(elegido === null ? {} : { activa: elegido.id })}
+        alActivar={abrir}
+        viajeDeFila={(producto) => (producto.id === viajando ? VIAJE.fila(producto.id) : undefined)}
+        alto="max-h-72 lg:max-h-[70vh]"
+      />
+
+      {elegido === null ? (
+        <Vacio
+          icono={<ClipboardList />}
+          titulo={`Elige ${voc.enFraseCon('un', 'linea_orden')} para ver qué lleva.`}
+          explicacion="Su costo aquí y para llevar sale al lado del precio: es donde se decide si hay que subirlo."
+        />
+      ) : (
+        <Superficie
+          como="section"
+          nivel={1}
+          conBorde
+          relleno={4}
+          aria-label={`Receta de ${elegido.nombre}`}
+          style={{ viewTransitionName: VIAJE.fila(elegido.id) }}
+          className="flex flex-col gap-(--espacio-4) lg:sticky lg:top-(--espacio-4)"
+        >
+          <header className="flex flex-wrap items-baseline justify-between gap-(--espacio-2)">
+            <h2 className="text-xl font-bold">{elegido.nombre}</h2>
+            <p className="text-sm text-texto-sutil">
+              Se vende a <Dinero centavos={aCentavos(elegido.precio_venta)} tamano="base" />
+            </p>
+          </header>
+
+          {problema === null ? null : (
+            <Aviso tono={problema.tono} titulo={problema.texto}>
+              {problema.tono === 'peligro'
+                ? 'La receta quedó como estaba: no se guardó ningún cambio.'
+                : null}
+            </Aviso>
+          )}
+
+          <ContenidoDeReceta
+            producto={elegido}
+            lineas={lineas}
+            fallo={falloDeLineas}
+            ocupado={ocupado}
+            alQuitar={eliminar}
+            alReintentar={reintentarLineas}
+            campoDeInsumo={campoDeInsumo}
+          />
+
+          {lineas === null || falloDeLineas !== null ? null : (
+            <FormularioDeLinea
+              insumos={insumos}
+              nueva={nueva}
+              ocupado={ocupado}
+              campoDeInsumo={campoDeInsumo}
+              alCambiar={setNueva}
+              alAgregar={agregar}
+            />
+          )}
+        </Superficie>
+      )}
+    </main>
+  );
+}
+
+/* ── El panel, por piezas ─────────────────────────────────────────────── */
+
+interface ContenidoDeRecetaProps {
+  readonly producto: ProductoConReceta;
+  readonly lineas: readonly LineaDeReceta[] | null;
+  readonly fallo: string | null;
+  readonly ocupado: boolean;
+  readonly alQuitar: (linea: LineaDeReceta) => void;
+  readonly alReintentar: () => void;
+  readonly campoDeInsumo: RefObject<HTMLSelectElement | null>;
+}
+
+/** El costo por canal y las líneas: lo que se lee de la receta, en sus tres estados. */
+function ContenidoDeReceta({
+  producto,
+  lineas,
+  fallo,
+  ocupado,
+  alQuitar,
+  alReintentar,
+  campoDeInsumo,
+}: ContenidoDeRecetaProps) {
+  if (fallo !== null) {
+    // Sin las líneas no se ofrece agregar ni quitar: el comando reemplaza la receta
+    // entera, y guardar sobre una lista que no se leyó borraría las que ya tiene.
+    return (
+      <ErrorDePantalla
+        titulo={`No se pudo leer la receta de ${producto.nombre}`}
+        queHacer="Mientras no se lea no se puede agregar ni quitar nada: se guardaría sin las líneas que ya tiene. Vuelve a intentarlo."
+        detalle={fallo}
+        reintentar={<Button onClick={alReintentar}>Volver a intentar</Button>}
+      />
+    );
+  }
+
+  if (lineas === null) return <EsqueletoDeLista filas={4} />;
+
+  const precio = aCentavos(producto.precio_venta);
+
+  const columnas: readonly ColumnaDeTabla<LineaDeReceta>[] = [
+    {
+      clave: 'ingrediente',
+      titulo: 'Ingrediente',
+      celda: (linea) => linea.ingrediente_nombre ?? 'Sin nombre',
+    },
+    {
+      clave: 'cantidad',
+      titulo: 'Cantidad',
+      numerica: true,
+      celda: (linea) => (
+        <Cifra
+          valor={linea.cantidad_usada}
+          unidad={linea.unidad}
+          decimales={decimalesDe(linea.cantidad_usada)}
+          tamano="sm"
+        />
+      ),
+    },
+    {
+      clave: 'canal',
+      titulo: 'Cuándo',
+      celda: (linea) => <EtiquetaDeCanal canal={canalDe(linea.aplica_canal)} />,
+    },
+    {
+      clave: 'costo',
+      titulo: 'Costo',
+      numerica: true,
+      celda: (linea) => <Dinero centavos={costoDeLinea(linea)} tamano="sm" />,
+    },
+    {
+      clave: 'quitar',
+      titulo: '',
+      celda: (linea) => (
+        <span className="flex justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={ocupado}
+            aria-label={`Quitar ${linea.ingrediente_nombre ?? 'la línea'} de la receta`}
+            onClick={() => {
+              alQuitar(linea);
+            }}
+          >
+            Quitar
+          </Button>
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      {lineas.length === 0 ? null : (
+        <CostoPorCanal
+          precio={precio}
+          aqui={costoEnCanal(lineas, 'aqui')}
+          llevar={costoEnCanal(lineas, 'llevar')}
+        />
+      )}
+      <Tabla
+        etiqueta={`Ingredientes de ${producto.nombre}`}
+        columnas={columnas}
+        filas={lineas}
+        claveDe={(linea) => linea.id}
+        alto="max-h-[50vh]"
+        vacio={
+          <Vacio
+            icono={<ClipboardList />}
+            titulo={`${producto.nombre} no tiene receta.`}
+            explicacion="Sin receta no sabemos cuánto cuesta ni cuánto ganas con ella."
+            accion={
+              <Button
+                variant="outline"
                 onClick={() => {
-                  elegir(producto);
+                  campoDeInsumo.current?.focus();
                 }}
               >
-                {producto.nombre}
-              </button>
-            </li>
+                <Plus aria-hidden="true" />
+                Agregar el primer ingrediente
+              </Button>
+            }
+          />
+        }
+      />
+    </>
+  );
+}
+
+function EtiquetaDeCanal({ canal }: { readonly canal: 'ambos' | 'aqui' | 'llevar' }) {
+  const etiqueta = CANALES.find((c) => c.clave === canal)?.etiqueta ?? 'Siempre';
+  if (canal === 'ambos') return <span className="text-texto-sutil">{etiqueta}</span>;
+  // El empaque se ve distinto: es la línea que sólo cuesta cuando el pedido sale.
+  return (
+    <Badge variant="outline">
+      {canal === 'llevar' ? <ShoppingBag aria-hidden="true" /> : null}
+      {etiqueta}
+    </Badge>
+  );
+}
+
+/** Lo que cuesta en cada canal, y lo que deja: el margen es lo que va grande. */
+function CostoPorCanal({
+  precio,
+  aqui,
+  llevar,
+}: {
+  readonly precio: number;
+  readonly aqui: number;
+  readonly llevar: number;
+}) {
+  return (
+    <div className="flex flex-col gap-(--espacio-2)">
+      <div className="grid grid-cols-2 gap-(--espacio-4)">
+        <MargenDeCanal etiqueta="Aquí cuesta" costo={aqui} precio={precio} />
+        <MargenDeCanal etiqueta="Para llevar cuesta" costo={llevar} precio={precio} />
+      </div>
+      <p className="text-sm text-texto-sutil">
+        La diferencia es el empaque. Cargarlo siempre infla el costo de lo que se toma aquí; no
+        cargarlo nunca regala cinco pesos por bebida.
+      </p>
+    </div>
+  );
+}
+
+function MargenDeCanal({
+  etiqueta,
+  costo,
+  precio,
+}: {
+  readonly etiqueta: string;
+  readonly costo: number;
+  readonly precio: number;
+}) {
+  const margen = margenDe(precio, costo);
+  const semaforo = margen === null ? null : semaforoDe(margen);
+  return (
+    <div className="flex flex-col gap-(--espacio-1)">
+      <p className="text-sm text-texto-sutil">
+        {etiqueta} <Dinero centavos={costo} tamano="lg" className="font-semibold text-texto" />
+      </p>
+      {margen === null || semaforo === null ? (
+        <p className="text-sm text-texto-sutil">Sin precio de venta no hay margen que medir.</p>
+      ) : (
+        <>
+          <p className="flex items-baseline gap-(--espacio-2)">
+            <Cifra valor={margen} unidad="%" tamano="total" className="font-bold" />
+            <span className="text-sm text-texto-sutil">de margen</span>
+          </p>
+          <p
+            className={`flex w-fit items-center gap-(--espacio-1) rounded-md px-(--espacio-2) py-(--espacio-1) text-xs font-medium ${semaforo.clase}`}
+          >
+            <semaforo.Icono aria-hidden="true" className="size-3.5" />
+            {semaforo.palabra}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface FormularioDeLineaProps {
+  readonly insumos: readonly InsumoDisponible[];
+  readonly nueva: NuevaLinea;
+  readonly ocupado: boolean;
+  readonly campoDeInsumo: RefObject<HTMLSelectElement | null>;
+  readonly alCambiar: (nueva: NuevaLinea) => void;
+  readonly alAgregar: () => void;
+}
+
+/** La acción principal de la pantalla: agregar un ingrediente. */
+function FormularioDeLinea({
+  insumos,
+  nueva,
+  ocupado,
+  campoDeInsumo,
+  alCambiar,
+  alAgregar,
+}: FormularioDeLineaProps) {
+  const unidad = insumos.find((i) => i.id === nueva.insumoId)?.unidad_base;
+  return (
+    <form
+      aria-label="Agregar un ingrediente"
+      onSubmit={(evento) => {
+        // El formulario es para que Enter en la cantidad agregue; la página no se va.
+        evento.preventDefault();
+        alAgregar();
+      }}
+      className="grid gap-(--espacio-3) border-t border-borde pt-(--espacio-4) sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-end"
+    >
+      {insumos.length === 0 ? (
+        <Aviso
+          tono="atencion"
+          titulo="Todavía no hay ingredientes dados de alta"
+          className="sm:col-span-3"
+          accion={
+            <Button asChild variant="outline">
+              <a href="/cafeteria/inventario">Ir al inventario</a>
+            </Button>
+          }
+        >
+          Una receta se arma con los ingredientes del inventario.
+        </Aviso>
+      ) : null}
+      <div className="flex flex-col gap-(--espacio-1)">
+        <Label htmlFor="insumo">Ingrediente</Label>
+        <select
+          id="insumo"
+          ref={campoDeInsumo}
+          className={CAMPO_DE_LISTA}
+          value={nueva.insumoId}
+          onChange={(evento) => {
+            alCambiar({ ...nueva, insumoId: evento.target.value });
+          }}
+        >
+          <option value="">Elige…</option>
+          {insumos.map((insumo) => (
+            <option key={insumo.id} value={insumo.id}>
+              {insumo.nombre} ({insumo.unidad_base})
+            </option>
           ))}
-        </ul>
-      </section>
-
-      <section className="space-y-(--espacio-4)">
-        {error !== null && (
-          <p role="alert" className="text-peligro text-sm">
-            {error}
-          </p>
-        )}
-
-        {elegido === null && (
-          <p className="text-texto-sutil">
-            Elige {voc.enFraseCon('un', 'linea_orden')} para ver qué lleva.
-          </p>
-        )}
-
-        {elegido !== null && (
-          <>
-            <div>
-              <h2 className="text-xl font-medium">{elegido.nombre}</h2>
-              <p className="text-texto-sutil text-sm">
-                Se vende a {pesos(Math.round((elegido.precio_venta ?? 0) * 100))}
-              </p>
-            </div>
-
-            {lineas === null && <Skeleton className="h-32 w-full" />}
-
-            {lineas !== null && (
-              <>
-                <ul className="divide-y">
-                  {lineas.map((linea) => (
-                    <li key={linea.id} className="flex items-center gap-(--espacio-3) py-2">
-                      <span className="flex-1">{linea.ingrediente_nombre}</span>
-                      <span className="tabular-nums">
-                        {String(linea.cantidad_usada)} {linea.unidad}
-                      </span>
-                      <span className="text-texto-sutil text-xs">
-                        {CANALES.find((c) => c.clave === linea.aplica_canal)?.etiqueta ??
-                          linea.aplica_canal ??
-                          'ambos'}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={ocupado}
-                        onClick={() => {
-                          eliminar(linea);
-                        }}
-                      >
-                        Quitar
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-
-                <Separator />
-
-                <div className="flex gap-(--espacio-8)">
-                  <div>
-                    <p className="text-texto-sutil text-sm">Aquí cuesta</p>
-                    <p className="text-xl font-semibold tabular-nums">{pesos(aqui)}</p>
-                  </div>
-                  <div>
-                    <p className="text-texto-sutil text-sm">Para llevar cuesta</p>
-                    <p className="text-xl font-semibold tabular-nums">{pesos(llevar)}</p>
-                  </div>
-                </div>
-                <p className="text-texto-sutil text-sm">
-                  La diferencia es el empaque. Cargarlo siempre infla el de mesa; no cargarlo nunca
-                  regala cinco pesos por bebida.
-                </p>
-
-                <Separator />
-
-                <div className="grid gap-(--espacio-3) md:grid-cols-4">
-                  <div className="md:col-span-2">
-                    <Label htmlFor="insumo">Insumo</Label>
-                    <select
-                      id="insumo"
-                      className="border-borde-fuerte h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
-                      value={nueva.insumoId}
-                      onChange={(evento) => {
-                        setNueva({ ...nueva, insumoId: evento.target.value });
-                      }}
-                    >
-                      <option value="">Elige…</option>
-                      {insumos.map((insumo) => (
-                        <option key={insumo.id} value={insumo.id}>
-                          {insumo.nombre} ({insumo.unidad_base})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="cantidad">Cantidad</Label>
-                    <Input
-                      id="cantidad"
-                      inputMode="decimal"
-                      className="h-[calc(var(--altura-control)*1.2)] text-right"
-                      value={nueva.cantidad}
-                      onChange={(evento) => {
-                        setNueva({ ...nueva, cantidad: evento.target.value });
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="canal">Cuándo</Label>
-                    <select
-                      id="canal"
-                      className="border-borde-fuerte h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-(--espacio-3)"
-                      value={nueva.canal}
-                      onChange={(evento) => {
-                        setNueva({ ...nueva, canal: evento.target.value });
-                      }}
-                    >
-                      {CANALES.map((canal) => (
-                        <option key={canal.clave} value={canal.clave}>
-                          {canal.etiqueta}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <Button variant="outline" disabled={ocupado} onClick={agregar}>
-                  Agregar a la receta
-                </Button>
-              </>
-            )}
-          </>
-        )}
-      </section>
-    </main>
+        </select>
+      </div>
+      <div className="flex flex-col gap-(--espacio-1)">
+        <Label htmlFor="cantidad">
+          Cantidad{' '}
+          {unidad === undefined ? null : <span className="text-texto-sutil">en {unidad}</span>}
+        </Label>
+        <Input
+          id="cantidad"
+          inputMode="decimal"
+          className="text-right font-numeros tabular-nums"
+          value={nueva.cantidad}
+          onChange={(evento) => {
+            alCambiar({ ...nueva, cantidad: evento.target.value });
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-(--espacio-1)">
+        <Label htmlFor="canal">Cuándo</Label>
+        <select
+          id="canal"
+          className={CAMPO_DE_LISTA}
+          value={nueva.canal}
+          onChange={(evento) => {
+            alCambiar({ ...nueva, canal: evento.target.value });
+          }}
+        >
+          {CANALES.map((canal) => (
+            <option key={canal.clave} value={canal.clave}>
+              {canal.etiqueta}
+            </option>
+          ))}
+        </select>
+      </div>
+      <Button type="submit" disabled={ocupado} className="sm:col-span-3 sm:justify-self-end">
+        <Plus aria-hidden="true" />
+        Agregar a la receta
+      </Button>
+    </form>
   );
 }

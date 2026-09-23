@@ -1,14 +1,23 @@
 'use client';
 
-import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@morphiqpos/ui/primitivas/tabs';
-import { Vacio } from '@morphiqpos/ui/sistema';
-import { History } from 'lucide-react';
-import { type ChangeEvent, useCallback, useEffect, useState } from 'react';
+import {
+  Aviso,
+  CampoDeDinero,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { Coins, History, Lock, LockOpen, Plus, ReceiptText } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -25,7 +34,7 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * desglose —monedas, $20 y $50, $100 y más— es lo único que permite el **aviso
  * de cambio bajo**, que es el indicador exclusivo de este giro.
  *
- * ── Por qué `+ Entrada de cambio` tiene botón propio y los demás no ──────
+ * ── Por qué `Entrada de cambio` tiene botón propio y los demás no ────────
  * Se usa ocho veces al día; el retiro, una por semana. Ponerlos al mismo nivel
  * haría que el frecuente costara lo mismo que el raro. Por eso vive arriba, al
  * lado de la apertura, y pide un solo número. El retiro, el gasto y la entrada
@@ -38,6 +47,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * esta pantalla enseñara el efectivo esperado, nadie contaría —se teclearía esa
  * cifra— y el corte dejaría de detectar faltantes. Ese corte **cierra también
  * la sesión**, a diferencia de `restaurante`.
+ *
+ * ── La jerarquía, de arriba abajo ────────────────────────────────────────
+ * 1 el estado del turno, 2 sus acciones —en la misma franja, porque son las que
+ * cambian ese estado—, 3 el resumen y 4 el historial. En tableta y teléfono la
+ * franja se apila y los botones ocupan el ancho: la tableta está en un soporte
+ * y el dedo llega sin mirar.
  *
  * ── Lo que NO va aquí ────────────────────────────────────────────────────
  * El catálogo, la barra y el inventario. Y no va la propina como cifra suelta:
@@ -61,7 +76,8 @@ const DENOMINACIONES = [
 ] as const;
 
 type ClaveDenominacion = (typeof DENOMINACIONES)[number]['clave'];
-type Desglose = Record<ClaveDenominacion, string>;
+/** Cada cajón en centavos; `null` mientras lo tecleado no sea un importe. */
+type Desglose = Readonly<Record<ClaveDenominacion, number | null>>;
 type TipoMovimiento = 'retiro' | 'deposito' | 'gasto';
 
 /** Los dos umbrales de morralla, en centavos. Bajo el segundo es urgencia. */
@@ -70,8 +86,15 @@ const CAMBIO_URGENTE = 25_000;
 const MOTIVO_CAMBIO = 'Entrada de cambio';
 /** La pantalla del conteo a ciegas, del mismo documento §4.3. */
 const RUTA_ARQUEO = '/cafeteria/cierre-de-turno-y-arqueo';
+const FONDO_VACIO: Desglose = { monedas: null, chicos: null, grandes: null };
 
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+/** Cómo se dice cada tipo del servidor en la fila; uno desconocido se enseña tal cual. */
+const TIPO_EN_PALABRAS: Readonly<Record<string, string>> = {
+  retiro: 'Retiro',
+  deposito: 'Entrada',
+  gasto: 'Gasto',
+};
+
 const FECHA = new Intl.DateTimeFormat('es-MX', {
   day: '2-digit',
   month: 'short',
@@ -80,10 +103,18 @@ const FECHA = new Intl.DateTimeFormat('es-MX', {
 });
 
 // Las clases largas viven arriba para que cada elemento quepa en una línea.
-const PANEL = 'rounded-lg border border-borde bg-superficie p-(--espacio-4) text-texto shadow-1';
-// Teclado numérico grande en tablet y teléfono; en PC el campo vuelve a la
-// altura de control del sistema, porque ahí se teclea con teclado de verdad.
-const CAMPO = 'h-20 text-center text-3xl font-bold tabular-nums xl:h-(--altura-control)';
+const CONTENEDOR =
+  'mx-auto flex w-full max-w-6xl flex-col gap-(--espacio-4) p-(--espacio-3) md:p-(--espacio-4)';
+const FRANJA =
+  'flex flex-col gap-(--espacio-4) xl:flex-row xl:items-center xl:justify-between xl:gap-(--espacio-6)';
+// Los botones que cambian el cajón: alto de dedo y todo el ancho en la tableta. El
+// alto sale de la perilla de densidad, no de un número: en «compacta» encoge con todo.
+const ALTO_DE_DEDO = 'min-h-[calc(var(--altura-control)*1.4)]';
+const BOTON_DE_CAJA = `${ALTO_DE_DEDO} w-full xl:w-auto`;
+// La chapa del candado, junto al estado: del mismo alto que el título y su línea.
+const CHAPA = 'size-[calc(var(--altura-control)*1.25)] shrink-0';
+const REGISTRO =
+  'grid gap-(--espacio-3) pt-(--espacio-3) xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:items-start';
 
 export interface MovimientoDelTurno {
   readonly tipo: string;
@@ -121,17 +152,17 @@ export interface TurnoProps {
 }
 
 /**
- * Texto tecleado a centavos, con aritmética entera. `parseFloat` está prohibido
- * por R15: `58.995 * 100` pierde medio centavo y el arqueo deja de cuadrar.
+ * Pesos del puente a centavos contando dígitos: `58.995 * 100` pierde medio
+ * centavo y el arqueo deja de cuadrar (R15).
  */
-export function centavosDeTexto(texto: string): number {
-  const limpio = texto.replace(/[^\d.,]/g, '').replace(',', '.');
-  const [entero = '', decimal = ''] = limpio.split('.');
-  return (entero === '' ? 0 : Number(entero)) * 100 + Number(`${decimal}00`.slice(0, 2));
+function centavosDePesos(pesos: number): number {
+  if (!Number.isFinite(pesos)) return 0;
+  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
+  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
 }
 
 export function totalDelFondo(fondo: Desglose): number {
-  return DENOMINACIONES.reduce((suma, d) => suma + centavosDeTexto(fondo[d.clave]), 0);
+  return DENOMINACIONES.reduce((suma, d) => suma + (fondo[d.clave] ?? 0), 0);
 }
 
 /** El aviso de cambio: su clase y su palabra. La palabra es la que manda. */
@@ -139,15 +170,18 @@ export function avisoDeCambio(centavos: number | null): {
   readonly clase: string;
   readonly palabra: string;
 } {
-  if (centavos === null) return { clase: 'bg-fondo-sutil', palabra: 'sin desglose en esta sesión' };
-  if (centavos < CAMBIO_URGENTE) return { clase: 'bg-peligro/20', palabra: 'consíguelo ya' };
+  if (centavos === null) {
+    return { clase: 'bg-fondo-sutil text-texto-sutil', palabra: 'sin desglose en esta sesión' };
+  }
+  if (centavos < CAMBIO_URGENTE)
+    return { clase: 'bg-peligro/15 text-peligro', palabra: 'consíguelo ya' };
   if (centavos < CAMBIO_POCO) return { clase: 'bg-advertencia/25', palabra: 'va quedando poco' };
-  return { clase: 'bg-fondo-sutil', palabra: 'alcanza' };
+  return { clase: 'bg-fondo-sutil text-texto-sutil', palabra: 'alcanza' };
 }
 
 /** Qué impide registrar, con palabras: un botón apagado y mudo se intenta tres veces. */
-export function bloqueoDelMovimiento(monto: string, motivo: string): string | null {
-  if (centavosDeTexto(monto) <= 0) return 'Falta cuánto.';
+export function bloqueoDelMovimiento(monto: number | null, motivo: string): string | null {
+  if (monto === null || monto <= 0) return 'Falta cuánto.';
   if (motivo.trim().length < 3) return 'Falta por qué, aunque sean tres letras.';
   return null;
 }
@@ -168,20 +202,79 @@ function cuando(iso: string | null): string {
   return Number.isNaN(fecha.getTime()) ? 'sin fecha' : FECHA.format(fecha);
 }
 
+/** El movimiento: qué fue, cuándo y cuánto. Un recibo, no un escaparate. */
+const COLUMNAS_DE_MOVIMIENTO: readonly ColumnaDeTabla<MovimientoDelTurno>[] = [
+  {
+    clave: 'motivo',
+    titulo: 'Movimiento',
+    celda: (m) => (
+      <span className="flex flex-col">
+        <span className="font-medium">{m.motivo ?? 'Sin motivo'}</span>
+        <span className="text-xs text-texto-sutil">{TIPO_EN_PALABRAS[m.tipo] ?? m.tipo}</span>
+      </span>
+    ),
+  },
+  {
+    clave: 'hora',
+    titulo: 'Hora',
+    celda: (m) => <span className="text-texto-sutil">{cuando(m.registradoEn)}</span>,
+  },
+  {
+    clave: 'importe',
+    titulo: 'Importe',
+    numerica: true,
+    celda: (m) => <Dinero centavos={Number(m.montoCentavos)} tamano="sm" />,
+  },
+];
+
+/** Lo que se mira cuando una caja no cuadra: de qué día viene y cuánto se contó. */
+const COLUMNAS_DEL_HISTORIAL: readonly ColumnaDeTabla<CorteDelHistorial>[] = [
+  {
+    clave: 'folio',
+    titulo: 'Folio',
+    celda: (corte) => (
+      <span className="font-medium font-numeros tabular-nums">{corte.folio ?? 's/f'}</span>
+    ),
+  },
+  { clave: 'apertura', titulo: 'Apertura', celda: (corte) => cuando(corte.fecha_apertura) },
+  { clave: 'cierre', titulo: 'Cierre', celda: (corte) => cuando(corte.fecha_cierre) },
+  {
+    clave: 'abrio',
+    titulo: 'Abrió',
+    desde: 'md',
+    celda: (corte) => corte.usuario_apertura_nombre ?? 'sin nombre',
+  },
+  {
+    clave: 'contado',
+    titulo: 'Contado',
+    numerica: true,
+    celda: (corte) =>
+      corte.efectivo_contado === null ? (
+        <span className="text-texto-sutil">en curso</span>
+      ) : (
+        <Dinero centavos={centavosDePesos(corte.efectivo_contado)} tamano="sm" />
+      ),
+  },
+];
+
 export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoProps) {
   const voc = useVocabulario();
   const [estado, setEstado] = useState<EstadoDelTurno | null>(estadoInicial ?? null);
   const [historial, setHistorial] = useState<readonly CorteDelHistorial[]>(filasIniciales ?? []);
   const [cargando, setCargando] = useState(estadoInicial === undefined);
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [fondo, setFondo] = useState<Desglose>({ monedas: '', chicos: '', grandes: '' });
+  const [fondo, setFondo] = useState<Desglose>(FONDO_VACIO);
   const [cambio, setCambio] = useState<number | null>(null);
   const [cambioAbierto, setCambioAbierto] = useState(false);
-  const [montoCambio, setMontoCambio] = useState('');
+  const [montoCambio, setMontoCambio] = useState<number | null>(null);
   const [tipo, setTipo] = useState<TipoMovimiento>('retiro');
-  const [monto, setMonto] = useState('');
+  const [monto, setMonto] = useState<number | null>(null);
   const [motivo, setMotivo] = useState('');
+  // Cada intento de lectura es un número: el botón de reintentar lo sube y el
+  // efecto lee otra vez. El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
 
   /**
    * Lee, y NO pinta. La separación no es estilo: un `setState` dentro de la
@@ -207,15 +300,21 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
       })
       .catch((fallo: unknown) => {
         // La pantalla no se queda colgada en el esqueleto por un fallo de red:
-        // se dice qué pasó y se deja hacer lo poco que se puede sin datos.
+        // dice qué pasó y deja volver a leer.
         if (!sigueMontada()) return;
-        setError(mensajeDe(fallo, 'No se pudo leer el turno.'));
+        setFalloDeCarga(mensajeDe(fallo, 'No se pudo leer el turno.'));
         setCargando(false);
       });
     return () => {
       control.abort();
     };
-  }, [estadoInicial, leerTurno]);
+  }, [estadoInicial, leerTurno, intento]);
+
+  function volverALeer(): void {
+    setFalloDeCarga(null);
+    setCargando(true);
+    setIntento((previo) => previo + 1);
+  }
 
   /** Escribe, relee y deja la pantalla contando la verdad del servidor. */
   async function ejecutar(accion: () => Promise<void>, respaldo: string): Promise<void> {
@@ -240,75 +339,88 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
       });
       // El desglose no viaja: la morralla declarada se queda aquí, que es el
       // único sitio donde existe mientras la apertura acepte una sola cifra.
-      setCambio(centavosDeTexto(fondo.monedas) + centavosDeTexto(fondo.chicos));
+      setCambio((fondo.monedas ?? 0) + (fondo.chicos ?? 0));
       onTurnoAbierto?.(datos.sesionCajaId);
     }, 'No se pudo abrir el turno. No se abrió nada.');
 
-  const registrar = (cual: TipoMovimiento, texto: string, razon: string) =>
+  const registrar = (cual: TipoMovimiento, centavos: number | null, razon: string) =>
     ejecutar(async () => {
-      const centavos = centavosDeTexto(texto);
+      const importe = centavos ?? 0;
       // El signo lo pone el servidor a partir del tipo: un gasto que llegara
       // positivo sumaría al arqueo en vez de restarle.
       await invocarComando('/api/caja/movimiento', {
         tipo: cual,
-        montoCentavos: centavos,
+        montoCentavos: importe,
         motivo: razon.trim(),
       });
-      if (razon === MOTIVO_CAMBIO) setCambio((previo) => (previo ?? 0) + centavos);
-      setMonto('');
+      if (razon === MOTIVO_CAMBIO) setCambio((previo) => (previo ?? 0) + importe);
+      setMonto(null);
       setMotivo('');
-      setMontoCambio('');
+      setMontoCambio(null);
       setCambioAbierto(false);
     }, 'No se pudo registrar. El cajón no cambió.');
 
-  const alEscribir =
-    (fijar: (valor: string) => void) => (evento: ChangeEvent<HTMLInputElement>) => {
-      fijar(evento.target.value);
-    };
-
-  const alEscribirFondo = (clave: ClaveDenominacion) => (evento: ChangeEvent<HTMLInputElement>) => {
-    const valor = evento.target.value;
-    setFondo((previo) => ({
-      monedas: clave === 'monedas' ? valor : previo.monedas,
-      chicos: clave === 'chicos' ? valor : previo.chicos,
-      grandes: clave === 'grandes' ? valor : previo.grandes,
-    }));
-  };
-
-  /** Un campo con su etiqueta de verdad: todo control tiene nombre accesible. */
-  const campo = (
+  /** Un importe con su etiqueta de verdad: todo control tiene nombre accesible. */
+  const campoDeDinero = (
     id: string,
     etiqueta: string,
-    valor: string,
-    cambiar: (evento: ChangeEvent<HTMLInputElement>) => void,
-    dinero = true,
+    centavos: number | null,
+    alCambiar: (centavos: number | null) => void,
   ) => (
-    <div className="grid gap-1">
+    <div className="grid gap-(--espacio-1)">
       <Label htmlFor={id}>{etiqueta}</Label>
-      <Input
+      <CampoDeDinero
         id={id}
-        value={valor}
-        onChange={cambiar}
-        className={dinero ? CAMPO : ''}
-        inputMode={dinero ? 'decimal' : 'text'}
-        placeholder={dinero ? '0.00' : 'Garrafón de agua para el mostrador'}
+        tamano="grande"
+        placeholder="0.00"
+        centavos={centavos}
+        alCambiar={alCambiar}
       />
     </div>
   );
 
+  // La cabecera se pinta igual en las tres formas —leyendo, sin leer y leída—:
+  // el título no salta y el ojo ya sabe dónde va a caer el estado.
+  const titulo = <h1 className="text-2xl font-bold">Turno</h1>;
+
   if (cargando) {
     return (
-      <div className="space-y-(--espacio-3) p-(--espacio-4)">
-        <h1 className="text-2xl font-bold">Turno</h1>
-        {/* Esqueletos con la forma de los paneles, nunca un spinner: nada salta
-            al llegar los datos y el ojo ya sabe dónde va a caer la cifra. */}
-        <Skeleton className="h-20 w-full max-w-md rounded-lg" />
-        <div className="grid gap-(--espacio-3) xl:grid-cols-3">
-          {Array.from({ length: 3 }, (_, i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-lg" />
-          ))}
+      <div className={CONTENEDOR}>
+        <Superficie como="header" className={FRANJA}>
+          <div className="flex items-center gap-(--espacio-3)">
+            <Esqueleto redondo className={CHAPA} />
+            <div className="flex flex-col gap-(--espacio-2)">
+              {titulo}
+              <Esqueleto className="h-4 w-40" />
+            </div>
+          </div>
+          <Esqueleto className="h-[calc(var(--altura-control)*1.4)] w-full xl:w-96" />
+        </Superficie>
+        {/* La forma de las pestañas y del panel, nunca una rueda. */}
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="Leyendo el turno"
+          className="flex flex-col gap-(--espacio-3)"
+        >
+          <Esqueleto className="h-(--altura-control) w-full max-w-md" />
+          <Esqueleto className="h-48 w-full rounded-lg xl:max-w-3xl" />
         </div>
-        <Skeleton className="h-40 w-full rounded-lg" />
+      </div>
+    );
+  }
+
+  if (falloDeCarga !== null) {
+    return (
+      <div className={CONTENEDOR}>
+        {titulo}
+        <ErrorDePantalla
+          className="max-w-2xl"
+          titulo="No se pudo leer el turno"
+          queHacer="Sin saber si la caja está abierta no se puede abrir, mover dinero ni cortar. Revisa la conexión y vuelve a leerlo."
+          detalle={falloDeCarga}
+          reintentar={<Button onClick={volverALeer}>Volver a leer</Button>}
+        />
       </div>
     );
   }
@@ -317,128 +429,221 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
   const movimientos = estado?.movimientos ?? [];
   const aviso = avisoDeCambio(cambio);
   const bloqueo = bloqueoDelMovimiento(monto, motivo);
-
-  const lista = (filas: readonly MovimientoDelTurno[], vacio: string) =>
-    filas.length === 0 ? (
-      <p className="p-(--espacio-4) text-sm text-texto-sutil">{vacio}</p>
-    ) : (
-      <ul className="divide-y divide-borde">
-        {filas.map((m) => (
-          <li
-            key={`${m.registradoEn}-${m.tipo}`}
-            className="grid gap-1 p-(--espacio-3) md:grid-cols-2"
-          >
-            <span className="font-medium">
-              {m.motivo ?? 'Sin motivo'} <span className="text-texto-sutil">· {m.tipo}</span>
-            </span>
-            <span className="tabular-nums md:justify-self-end">
-              {PESOS.format(Number(m.montoCentavos) / 100)} · {cuando(m.registradoEn)}
-            </span>
-          </li>
-        ))}
-      </ul>
-    );
+  const fondoDeclarado = totalDelFondo(fondo);
 
   const registro = (cual: TipoMovimiento, boton: string, filas: readonly MovimientoDelTurno[]) => (
-    <div className="grid gap-(--espacio-3) pt-(--espacio-3) xl:grid-cols-2">
-      <form
-        className={`${PANEL} grid gap-(--espacio-3)`}
-        onSubmit={(evento) => {
-          evento.preventDefault();
-          void registrar(cual, monto, motivo);
-        }}
-      >
-        {campo('movimiento-monto', 'Cuánto', monto, alEscribir(setMonto))}
-        {campo('movimiento-motivo', 'Por qué', motivo, alEscribir(setMotivo), false)}
-        <p className="text-sm text-texto-sutil">{bloqueo ?? 'Entra al corte del turno.'}</p>
-        <Button type="submit" size="lg" disabled={enviando || !abierto || bloqueo !== null}>
-          {boton}
-        </Button>
-      </form>
-      <div className={`${PANEL} p-0`}>{lista(filas, 'Todavía no hay nada que listar aquí.')}</div>
-    </div>
+    <>
+      {abierto ? null : (
+        // Un muro de negocio, dicho: el botón apagado solo no explica nada.
+        <Aviso tono="atencion" titulo="El turno está cerrado." className="mt-(--espacio-3)">
+          Retiros, entradas y gastos se registran con el turno abierto: si no, no caen en ningún
+          corte.
+        </Aviso>
+      )}
+      <div className={REGISTRO}>
+        <Superficie
+          como="form"
+          className="grid gap-(--espacio-3)"
+          onSubmit={(evento) => {
+            evento.preventDefault();
+            void registrar(cual, monto, motivo);
+          }}
+        >
+          {cual === 'gasto' ? null : (
+            <div
+              role="group"
+              aria-label="Tipo de movimiento"
+              className="grid grid-cols-2 gap-(--espacio-2)"
+            >
+              <Button
+                type="button"
+                aria-pressed={tipo === 'retiro'}
+                variant={tipo === 'retiro' ? 'default' : 'outline'}
+                onClick={() => {
+                  setTipo('retiro');
+                }}
+              >
+                Retiro
+              </Button>
+              <Button
+                type="button"
+                aria-pressed={tipo === 'deposito'}
+                variant={tipo === 'deposito' ? 'default' : 'outline'}
+                onClick={() => {
+                  setTipo('deposito');
+                }}
+              >
+                Entrada general
+              </Button>
+            </div>
+          )}
+          {campoDeDinero('movimiento-monto', 'Cuánto', monto, setMonto)}
+          <div className="grid gap-(--espacio-1)">
+            <Label htmlFor="movimiento-motivo">Por qué</Label>
+            <Input
+              id="movimiento-motivo"
+              value={motivo}
+              placeholder="Garrafón de agua para el mostrador"
+              onChange={(evento) => {
+                setMotivo(evento.target.value);
+              }}
+            />
+          </div>
+          <p className="text-sm text-texto-sutil">{bloqueo ?? 'Entra al corte del turno.'}</p>
+          <Button
+            type="submit"
+            size="lg"
+            className={ALTO_DE_DEDO}
+            disabled={enviando || !abierto || bloqueo !== null}
+          >
+            {boton}
+          </Button>
+        </Superficie>
+        <Tabla
+          etiqueta={cual === 'gasto' ? 'Gastos del turno' : 'Movimientos del turno'}
+          columnas={COLUMNAS_DE_MOVIMIENTO}
+          filas={filas}
+          claveDe={(m) => `${m.registradoEn}-${m.tipo}`}
+          vacio={
+            <Superficie>
+              <Vacio
+                className="py-(--espacio-4)"
+                icono={<ReceiptText />}
+                titulo="Todavía no hay nada que listar aquí."
+                explicacion="Cada registro del turno aparece aquí con su hora y su importe, y entra al corte."
+              />
+            </Superficie>
+          }
+        />
+      </div>
+    </>
   );
 
   return (
-    <div className="space-y-(--espacio-4) p-(--espacio-4)">
-      <header className="flex flex-wrap items-center gap-(--espacio-3)">
-        <h1 className="text-2xl font-bold">Turno</h1>
-        {/* El estado se lee: el color nunca es el único que lo dice. */}
-        <Badge variant={abierto ? 'default' : 'secondary'}>
-          {abierto ? `Abierto desde ${cuando(estado.abiertaEn)}` : 'Cerrado'}
-        </Badge>
-      </header>
+    <div className={CONTENEDOR}>
+      {/* 1 · EL ESTADO, y a su lado lo que lo cambia. El color nunca es el único
+          que lo dice: la palabra y el candado van con él. */}
+      <Superficie como="header" className={FRANJA}>
+        <div className="flex items-center gap-(--espacio-3)">
+          <span
+            aria-hidden="true"
+            className={`flex ${CHAPA} items-center justify-center rounded-full ${abierto ? 'bg-exito/15 text-exito' : 'bg-fondo-sutil text-texto-sutil'}`}
+          >
+            {abierto ? <LockOpen /> : <Lock />}
+          </span>
+          <div className="flex flex-col">
+            {titulo}
+            <p className="text-base font-semibold text-texto-sutil">
+              {abierto ? `Abierto desde ${cuando(estado.abiertaEn)}` : 'Cerrado'}
+            </p>
+          </div>
+        </div>
 
-      {error !== null && (
-        <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-(--espacio-3)">
-          {error} · Nada se movió; la pantalla conserva el último dato conocido.
-        </p>
+        {abierto ? (
+          <section
+            aria-label="Acciones de caja"
+            className="grid gap-(--espacio-2) sm:grid-cols-3 xl:flex xl:flex-wrap xl:justify-end"
+          >
+            <Button asChild size="lg" className={BOTON_DE_CAJA}>
+              <a href={RUTA_ARQUEO}>Cerrar turno</a>
+            </Button>
+            <Button
+              size="lg"
+              className={BOTON_DE_CAJA}
+              variant={cambioAbierto ? 'secondary' : 'default'}
+              aria-expanded={cambioAbierto}
+              aria-controls="entrada-de-cambio"
+              onClick={() => {
+                setCambioAbierto(!cambioAbierto);
+              }}
+            >
+              <Plus aria-hidden="true" />
+              Entrada de cambio
+            </Button>
+            <Button asChild size="lg" variant="outline" className={BOTON_DE_CAJA}>
+              <a href={RUTA_ARQUEO}>Corte de turno</a>
+            </Button>
+          </section>
+        ) : null}
+      </Superficie>
+
+      {error === null ? null : (
+        <Aviso tono="peligro" titulo={error}>
+          Nada se movió; la pantalla conserva el último dato conocido.
+        </Aviso>
       )}
 
-      {abierto ? (
-        <section aria-label="Acciones de caja" className="flex flex-wrap gap-2">
-          <Button asChild size="lg">
-            <a href={RUTA_ARQUEO}>Cerrar turno</a>
-          </Button>
-          <Button
-            size="lg"
-            variant={cambioAbierto ? 'secondary' : 'default'}
-            aria-expanded={cambioAbierto}
-            onClick={() => {
-              setCambioAbierto(!cambioAbierto);
-            }}
-          >
-            + Entrada de cambio
-          </Button>
-          <Button asChild size="lg" variant="outline">
-            <a href={RUTA_ARQUEO}>Corte de turno</a>
-          </Button>
-        </section>
-      ) : (
-        <form
-          className={`${PANEL} space-y-(--espacio-4)`}
+      {/* 2 · LA APERTURA. PC: los tres cajones en fila. Tableta y teléfono:
+          apilados, y cada uno con su campo grande. */}
+      {abierto ? null : (
+        <Superficie
+          como="form"
+          aria-labelledby="fondo-de-apertura"
+          className="flex flex-col gap-(--espacio-4)"
           onSubmit={(evento) => {
             evento.preventDefault();
             void abrirTurno();
           }}
         >
-          <h2 className="text-lg font-semibold">Fondo de apertura</h2>
-          <p className="text-sm text-texto-sutil">
-            Se cuenta por denominación y no de un jalón: el total no dice con qué vas a dar cambio,
-            y quedarse sin morralla a media ráfaga cuesta media ráfaga.
-          </p>
-          {/* PC: los tres en fila. Tablet y teléfono: apilados y grandes. */}
+          <div className="flex flex-col gap-(--espacio-1)">
+            <h2 id="fondo-de-apertura" className="text-lg font-semibold">
+              Fondo de apertura
+            </h2>
+            <p className="max-w-prose text-sm text-texto-sutil">
+              Se cuenta por denominación y no de un jalón: el total no dice con qué vas a dar
+              cambio, y quedarse sin morralla a media ráfaga cuesta media ráfaga.
+            </p>
+          </div>
           <div className="grid gap-(--espacio-3) xl:grid-cols-3">
             {DENOMINACIONES.map((d) => (
               <div key={d.clave}>
-                {campo(`fondo-${d.clave}`, d.etiqueta, fondo[d.clave], alEscribirFondo(d.clave))}
+                {campoDeDinero(`fondo-${d.clave}`, d.etiqueta, fondo[d.clave], (centavos) => {
+                  setFondo((previo) => ({ ...previo, [d.clave]: centavos }));
+                })}
               </div>
             ))}
           </div>
-          <p className="text-sm">
-            Fondo declarado:{' '}
-            <strong className="tabular-nums">{PESOS.format(totalDelFondo(fondo) / 100)}</strong>
-          </p>
-          <Button type="submit" size="lg" disabled={enviando || totalDelFondo(fondo) <= 0}>
-            Abrir turno
-          </Button>
-        </form>
+          <div className="flex flex-col gap-(--espacio-3) border-t border-borde pt-(--espacio-4) xl:flex-row xl:items-center xl:justify-between">
+            <p className="flex items-baseline justify-between gap-(--espacio-3) xl:justify-start">
+              <span className="text-sm text-texto-sutil">Fondo declarado</span>
+              <Dinero centavos={fondoDeclarado} tamano="lg" />
+            </p>
+            <Button
+              type="submit"
+              size="lg"
+              className={BOTON_DE_CAJA}
+              disabled={enviando || fondoDeclarado <= 0}
+            >
+              Abrir turno
+            </Button>
+          </div>
+        </Superficie>
       )}
 
-      {cambioAbierto && (
-        <form
-          className={`${PANEL} grid gap-(--espacio-3) xl:max-w-md`}
+      {/* El movimiento de ocho veces al día: un número y un botón, justo debajo
+          del que lo abre. */}
+      {cambioAbierto ? (
+        <Superficie
+          como="form"
+          id="entrada-de-cambio"
+          aria-label="Entrada de cambio"
+          className="grid gap-(--espacio-3) xl:max-w-md"
           onSubmit={(evento) => {
             evento.preventDefault();
             void registrar('deposito', montoCambio, MOTIVO_CAMBIO);
           }}
         >
-          {campo('cambio-monto', 'Cuánta morralla entró', montoCambio, alEscribir(setMontoCambio))}
-          <Button type="submit" size="lg" disabled={enviando || centavosDeTexto(montoCambio) <= 0}>
+          {campoDeDinero('cambio-monto', 'Cuánta morralla entró', montoCambio, setMontoCambio)}
+          <Button
+            type="submit"
+            size="lg"
+            className={ALTO_DE_DEDO}
+            disabled={enviando || (montoCambio ?? 0) <= 0}
+          >
             Registrar entrada de cambio
           </Button>
-        </form>
-      )}
+        </Superficie>
+      ) : null}
 
       <Tabs defaultValue={abierto ? 'resumen' : 'historial'}>
         <TabsList className="flex w-full overflow-x-auto">
@@ -448,25 +653,48 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           <TabsTrigger value="historial">Historial</TabsTrigger>
         </TabsList>
 
+        {/* 3 · EL RESUMEN. Lo vendido manda; el cambio va aparte y con su palabra. */}
         <TabsContent value="resumen" className="pt-(--espacio-3)">
-          <dl className={`${PANEL} grid grid-cols-2 gap-(--espacio-3) xl:max-w-xl`}>
-            <dt className="text-sm text-texto-sutil">Vendido en el turno</dt>
-            <dd className="justify-self-end font-bold tabular-nums">
-              {PESOS.format(Number(estado?.ventasCentavos ?? '0') / 100)}
-            </dd>
-            <dt className="text-sm text-texto-sutil">
-              {voc.titulo('unidad_servicio', true)} cobrad{voc.terminacion('unidad_servicio', true)}
-            </dt>
-            <dd className="justify-self-end font-bold tabular-nums">{estado?.numeroVentas ?? 0}</dd>
-            <dt className="text-sm text-texto-sutil">Fondo de apertura</dt>
-            <dd className="justify-self-end font-bold tabular-nums">
-              {PESOS.format(Number(estado?.fondoInicialCentavos ?? '0') / 100)}
-            </dd>
-            <dd className={`col-span-2 rounded-md p-(--espacio-3) text-sm ${aviso.clase}`}>
-              Cambio en caja: {cambio === null ? '—' : PESOS.format(cambio / 100)} · {aviso.palabra}
-              . El bote no se mira durante el turno: se cuenta en el cierre.
-            </dd>
-          </dl>
+          <Superficie className="xl:max-w-3xl">
+            <dl className="grid gap-(--espacio-4) sm:grid-cols-3">
+              <div className="flex flex-col gap-(--espacio-1)">
+                <dt className="text-sm text-texto-sutil">Vendido en el turno</dt>
+                <dd>
+                  <Dinero centavos={Number(estado?.ventasCentavos ?? '0')} tamano="total" />
+                </dd>
+              </div>
+              <div className="flex flex-col gap-(--espacio-1)">
+                <dt className="text-sm text-texto-sutil">
+                  {voc.titulo('unidad_servicio', true)} cobrad
+                  {voc.terminacion('unidad_servicio', true)}
+                </dt>
+                <dd>
+                  <Cifra valor={estado?.numeroVentas ?? 0} tamano="lg" />
+                </dd>
+              </div>
+              <div className="flex flex-col gap-(--espacio-1)">
+                <dt className="text-sm text-texto-sutil">Fondo de apertura</dt>
+                <dd>
+                  <Dinero centavos={Number(estado?.fondoInicialCentavos ?? '0')} tamano="lg" />
+                </dd>
+              </div>
+              <div
+                className={`flex flex-col gap-(--espacio-1) rounded-md p-(--espacio-3) text-sm sm:col-span-3 ${aviso.clase}`}
+              >
+                <dt className="flex items-center gap-(--espacio-2) font-medium">
+                  <Coins aria-hidden="true" className="size-4" />
+                  Cambio en caja
+                </dt>
+                <dd className="flex flex-wrap items-baseline gap-(--espacio-2)">
+                  {cambio === null ? '—' : <Dinero centavos={cambio} tamano="base" />}
+                  <span className="font-semibold">· {aviso.palabra}</span>
+                </dd>
+                <dd className="text-xs">
+                  El bote no se mira durante el turno: se cuenta en el cierre.
+                </dd>
+              </div>
+            </dl>
+          </Superficie>
         </TabsContent>
 
         <TabsContent value="movimientos">
@@ -475,26 +703,6 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
             tipo === 'retiro' ? 'Registrar retiro' : 'Registrar entrada',
             movimientos,
           )}
-          <div role="group" aria-label="Tipo de movimiento" className="flex gap-2 pt-(--espacio-3)">
-            <Button
-              aria-pressed={tipo === 'retiro'}
-              variant={tipo === 'retiro' ? 'default' : 'outline'}
-              onClick={() => {
-                setTipo('retiro');
-              }}
-            >
-              Retiro
-            </Button>
-            <Button
-              aria-pressed={tipo === 'deposito'}
-              variant={tipo === 'deposito' ? 'default' : 'outline'}
-              onClick={() => {
-                setTipo('deposito');
-              }}
-            >
-              Entrada general
-            </Button>
-          </div>
         </TabsContent>
 
         <TabsContent value="gastos">
@@ -505,38 +713,25 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           )}
         </TabsContent>
 
+        {/* 4 · EL HISTORIAL. El detalle de cada corte es otra pantalla. */}
         <TabsContent value="historial" className="pt-(--espacio-3)">
-          {historial.length === 0 ? (
-            // El vacío ENSEÑA: dice qué va a aparecer y para qué va a servir.
-            <div className={PANEL}>
-              <Vacio
-                className="py-(--espacio-6)"
-                icono={<History />}
-                titulo="Todavía no hay turnos cerrados."
-                explicacion="Cada turno que se cierre deja aquí su folio, quién lo abrió y cuánto se contó. Es lo que se mira cuando una caja no cuadra y hay que saber de qué día viene."
-              />
-            </div>
-          ) : (
-            <ul className={`${PANEL} divide-y divide-borde p-0`}>
-              {historial.map((corte) => (
-                <li
-                  key={corte.id}
-                  className="grid gap-1 p-(--espacio-3) md:grid-cols-3 md:items-center"
-                >
-                  <span className="font-medium">Folio {corte.folio ?? 's/f'}</span>
-                  <span className="text-sm text-texto-sutil">
-                    {cuando(corte.fecha_apertura)} → {cuando(corte.fecha_cierre)} ·{' '}
-                    {corte.usuario_apertura_nombre ?? 'sin nombre'}
-                  </span>
-                  <span className="tabular-nums md:justify-self-end">
-                    {corte.efectivo_contado === null
-                      ? 'en curso'
-                      : PESOS.format(corte.efectivo_contado)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <Tabla
+            etiqueta="Historial de turnos"
+            columnas={COLUMNAS_DEL_HISTORIAL}
+            filas={historial}
+            claveDe={(corte) => corte.id}
+            vacio={
+              // El vacío ENSEÑA: dice qué va a aparecer y para qué va a servir.
+              <Superficie>
+                <Vacio
+                  className="py-(--espacio-6)"
+                  icono={<History />}
+                  titulo="Todavía no hay turnos cerrados."
+                  explicacion="Cada turno que se cierre deja aquí su folio, quién lo abrió y cuánto se contó. Es lo que se mira cuando una caja no cuadra y hay que saber de qué día viene."
+                />
+              </Superficie>
+            }
+          />
         </TabsContent>
       </Tabs>
     </div>

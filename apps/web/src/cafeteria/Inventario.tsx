@@ -11,23 +11,44 @@ import {
 } from '@morphiqpos/ui/primitivas/dialog';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { Vacio } from '@morphiqpos/ui/sistema';
-import { Milk } from 'lucide-react';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@morphiqpos/ui/primitivas/table';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+  Aviso,
+  Cifra,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  ListaDeTarjetas,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+  type TamanoDeDinero,
+  type TonoDeFila,
+} from '@morphiqpos/ui/sistema';
+import {
+  CircleCheck,
+  Coffee,
+  Milk,
+  Minus,
+  OctagonAlert,
+  Plus,
+  Search,
+  TriangleAlert,
+} from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import {
+  TOPE_DE_CARTONES,
   avisoDeConteoInvalido,
   cartonesDe,
   primeraLecheInvalida,
@@ -64,11 +85,18 @@ import {
  * merma viviera en un reporte, nadie lo vería nunca.
  *
  * ── Tres formatos, y no uno encogido ─────────────────────────────────────
- * PC: tabla densa por familia, que es como se revisa sentada. Tablet:
- * tarjetas de dos columnas, para leerse caminando con una mano. Teléfono:
- * una columna y el ajuste con `+` y `−` grandes, que es lo único que se hace
- * de pie. El formato se decide en JS: pintarlo dos veces con `hidden lg:*`
- * haría que el lector de pantalla leyera cada insumo dos veces.
+ * PC: una `Tabla` densa por familia, que es como se revisa sentada, con la fila
+ * teñida por urgencia y la palabra en la celda. Tablet: `ListaDeTarjetas` en dos
+ * columnas, para leerse caminando con una mano. Teléfono: una columna, con los
+ * días grandes y el ajuste con `+` y `−` grandes, que es lo único que se hace de
+ * pie. El formato se decide en JS y se pinta UNO: pintarlo dos veces con
+ * `hidden lg:*` haría que el lector de pantalla leyera cada insumo dos veces.
+ *
+ * ── Los tres estados ─────────────────────────────────────────────────────
+ * Si no se leyó nada, `ErrorDePantalla` con su reintento: no hay último conteo
+ * que enseñar. Si lo que falla es un AJUSTE, la lista se queda y un `Aviso` dice
+ * que no se guardó. Si falla el CONTEO, el aviso va dentro del diálogo, que es
+ * donde está quien cuenta: detrás del diálogo nadie lo veía.
  *
  * ── Lo que NO va aquí ────────────────────────────────────────────────────
  * El costo del insumo cuando el rol es barista sin permiso de costos. No lo
@@ -82,8 +110,8 @@ import {
  * existen— y la tarjeta del grano sólo aparece si llega por prop. Tampoco hay
  * `Almacen` en el puente: el almacén sale del último movimiento del ledger,
  * que en una cafetería es siempre el mismo, y sin él el ajuste se deshabilita
- * en vez de fallar al pulsar. Recortados para caber en un archivo: el
- * buscador por código de barras y el histórico por insumo.
+ * en vez de fallar al pulsar —y un aviso dice por qué—. Recortados para caber
+ * en un archivo: el buscador por código de barras y el histórico por insumo.
  */
 
 /** Rutas declaradas en `05-DATOS-Y-BACKEND.md` §6. Ninguna se inventa aquí. */
@@ -95,9 +123,14 @@ const CONSULTA_PC = '(min-width: 1024px)';
 const DIAS_HASTA_ENTREGA = 2;
 const DIAS_GRANO_AMBAR = 25;
 const DIAS_GRANO_ROJO = 30;
+/** El semáforo de merma: verde bajo 8 %, ámbar de 8 a 12, rojo arriba de 12. */
+const MERMA_AMBAR = 8;
+const MERMA_ROJA = 12;
 
-const TARJETA = 'rounded-lg border border-borde bg-superficie p-(--espacio-3) text-texto shadow-1';
-const CHIP = 'rounded-md px-2 py-1 text-xs font-semibold';
+const PAGINA = 'flex min-h-dvh flex-col gap-(--espacio-4) bg-fondo p-(--espacio-4) text-texto';
+const CHIP = 'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold';
+/** El campo de cartones y el desplegable del abierto: se tocan con la jarra en la otra mano. */
+const ALTO_DE_CONTEO = 'h-[calc(var(--altura-control)*1.25)]';
 
 /** Las cinco familias, en el orden en que se camina el local. */
 const FAMILIAS = ['Leche', 'Café', 'Empaque', 'Ingredientes', 'Alimentos'] as const;
@@ -155,6 +188,14 @@ interface Urgencia {
   readonly clase: string;
 }
 
+/**
+ * Lo que esta pantalla espera del conteo.
+ *
+ * OJO: `cafeteria.contar_leche` contesta hoy `{ diferencias, faltanteTotalMl,
+ * fueraDeRango }`, no esto. Por eso el resultado se pinta a la defensiva —una cifra
+ * que no llega dice «—» y la merma sin dato no enciende el verde—: pintar `NaN`, o
+ * un «merma normal» que nadie calculó, es peor que no decir nada.
+ */
 interface ResultadoConteo {
   readonly contado: number;
   readonly teorico: number;
@@ -213,8 +254,9 @@ export function urgenciaDe(insumo: InsumoDeInventario): Urgencia {
 
 /** Verde bajo 8 %, ámbar de 8 a 12, rojo arriba de 12. */
 export function semaforoDeMerma(porcentaje: number): Omit<Urgencia, 'orden'> {
-  if (porcentaje > 12) return { palabra: 'merma alta', clase: 'bg-peligro/25' };
-  if (porcentaje >= 8) return { palabra: 'merma en el límite', clase: 'bg-advertencia/30' };
+  if (porcentaje > MERMA_ROJA) return { palabra: 'merma alta', clase: 'bg-peligro/25' };
+  if (porcentaje >= MERMA_AMBAR)
+    return { palabra: 'merma en el límite', clase: 'bg-advertencia/30' };
   return { palabra: 'merma normal', clase: 'bg-exito/25' };
 }
 
@@ -234,6 +276,8 @@ export function consejoDeGrano(dias: number): string {
 /**
  * Redondeo propio y no `toLocaleString`: el formato del servidor y el del
  * navegador no tienen por qué coincidir, y ahí nace un fallo de hidratación.
+ * Sólo para TEXTO corrido (la insignia de una alerta); una cifra que se pinta
+ * sola es `<Cifra>`.
  */
 function formatear(valor: number | null): string {
   return valor === null ? '—' : String(Math.round(valor * 10) / 10);
@@ -269,7 +313,13 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
     filasIniciales ?? null,
   );
   const [almacen, setAlmacen] = useState<string | null>(almacenId ?? null);
+  /** No se pudo LEER: no hay lista que enseñar. */
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  /** Falló un AJUSTE: la lista se queda, y esto dice que no se guardó. */
   const [error, setError] = useState<string | null>(null);
+  /** Falló el CONTEO: se dice dentro del diálogo, que es donde está quien cuenta. */
+  const [falloDelConteo, setFalloDelConteo] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
   const [busqueda, setBusqueda] = useState('');
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [ahora, setAhora] = useState(0);
@@ -308,16 +358,24 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
           setAlmacen(movimientos[0]?.almacen_id ?? null);
         })
         .catch((fallo: unknown) => {
-          // La pantalla NUNCA se vacía por un error de red: un conteo de hace
-          // diez minutos sigue diciendo si hay que salir por leche.
-          if (sigueMontada()) setError(mensajeDeFallo(fallo));
+          // Aquí todavía no hay lista: lo que falla es la PRIMERA lectura. Una vez
+          // leída, un ajuste fallido nunca la vacía —un conteo de hace diez minutos
+          // sigue diciendo si hay que salir por leche—.
+          if (sigueMontada()) setFalloDeCarga(mensajeDeFallo(fallo));
         });
     }
     return () => {
       clearTimeout(reloj);
       control.abort();
     };
-  }, [filasIniciales]);
+  }, [filasIniciales, intento]);
+
+  /** El estado se limpia EN EL CLIC, no en el efecto. */
+  function reintentar(): void {
+    setFalloDeCarga(null);
+    setInsumos(null);
+    setIntento((previo) => previo + 1);
+  }
 
   const ajustar = useCallback(
     async (insumo: InsumoDeInventario, delta: number): Promise<void> => {
@@ -390,7 +448,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
     setOcupado('conteo');
     try {
       if (almacen === null) {
-        setError('Elige primero el almacén: un conteo sin almacén no cuadra contra nada.');
+        setFalloDelConteo('Elige primero el almacén: un conteo sin almacén no cuadra contra nada.');
         return;
       }
       /**
@@ -406,7 +464,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
        */
       const invalida = primeraLecheInvalida(leches, conteos);
       if (invalida !== null) {
-        setError(avisoDeConteoInvalido(invalida));
+        setFalloDelConteo(avisoDeConteoInvalido(invalida));
         return;
       }
       const datos = await invocarComando<ResultadoConteo>(RUTA_CONTAR_LECHE, {
@@ -421,9 +479,10 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
         }),
       });
       setResultado(datos);
+      setFalloDelConteo(null);
       setError(null);
     } catch (fallo: unknown) {
-      setError(mensajeDeFallo(fallo));
+      setFalloDelConteo(mensajeDeFallo(fallo));
     } finally {
       setOcupado(null);
     }
@@ -452,43 +511,76 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
   const alertas = useMemo(() => visibles.filter((i) => urgenciaDe(i).orden < 2), [visibles]);
   const diasGrano = diasDesde(loteGranoInicial?.fecha_tueste ?? null, ahora);
 
-  if (insumos === null) {
+  if (falloDeCarga !== null) {
     return (
-      <div className="min-h-dvh bg-fondo p-(--espacio-4) text-texto">
-        <h1 className="mb-(--espacio-4) text-2xl font-bold">Inventario</h1>
-        {/* Esqueletos con la forma de las tarjetas: la pantalla no salta. */}
-        <div className="grid gap-(--espacio-3) md:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-24 w-full rounded-lg" />
-          ))}
-        </div>
+      <div className={PAGINA}>
+        <h1 className="text-2xl font-bold">Inventario</h1>
+        <ErrorDePantalla
+          className="max-w-lg"
+          titulo="No se pudo leer el inventario"
+          queHacer="Sin la lista no se sabe qué no llega a la próxima entrega ni se puede contar la leche. Revisa la conexión y vuelve a intentarlo."
+          detalle={falloDeCarga}
+          reintentar={
+            <Button type="button" onClick={reintentar}>
+              Volver a intentar
+            </Button>
+          }
+        />
       </div>
     );
   }
 
+  if (insumos === null) {
+    return (
+      <div className={PAGINA}>
+        <header className="flex flex-wrap items-center justify-between gap-(--espacio-3)">
+          <h1 className="text-2xl font-bold">Inventario</h1>
+          <Esqueleto className="h-(--altura-control) w-40" />
+        </header>
+        {/* La forma de lo que viene —las alertas arriba, la lista debajo—, no una
+            rueda: al llegar los datos nada salta de sitio. */}
+        <Esqueleto className="h-20 w-full rounded-lg" />
+        <EsqueletoDeLista filas={8} />
+      </div>
+    );
+  }
+
+  const sinAlmacen = almacen === null;
+  const pintarAjuste: PintarAjuste = (insumo, grande) => (
+    <Ajuste
+      insumo={insumo}
+      grande={grande}
+      sinAlmacen={sinAlmacen}
+      ocupado={ocupado === insumo.id}
+      onAjustar={ajustar}
+    />
+  );
+
   return (
-    <div className="flex min-h-dvh flex-col gap-(--espacio-4) bg-fondo p-(--espacio-4) text-texto">
+    <div className={PAGINA}>
       <header className="flex flex-wrap items-center justify-between gap-(--espacio-3)">
         <h1 className="text-2xl font-bold">Inventario</h1>
         {/* La tarea del cierre tiene botón propio y grande: no es una fila más. */}
         <Button
           type="button"
           size="lg"
+          className="w-full sm:w-auto"
           disabled={leches.length === 0}
           onClick={() => {
             setResultado(null);
+            setFalloDelConteo(null);
             setContando(true);
           }}
         >
-          <Milk aria-hidden="true" className="inline size-4 shrink-0" /> Contar leche
+          <Milk aria-hidden="true" /> Contar leche
         </Button>
       </header>
 
-      {/* La banda avisa y NO vacía la pantalla: debajo sigue el último conteo. */}
+      {/* El aviso NO vacía la pantalla: debajo sigue el último inventario leído. */}
       {error !== null && (
-        <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-2 text-sm">
-          {error} · Se muestra el último inventario conocido.
-        </p>
+        <Aviso tono="peligro" titulo={error}>
+          El ajuste no se guardó. Se muestra el último inventario conocido.
+        </Aviso>
       )}
 
       {insumos.length === 0 ? (
@@ -506,138 +598,24 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
         />
       ) : (
         <>
-          {diasGrano !== null && (
-            <section className={TARJETA} aria-label="Lote de grano abierto">
-              <div className="flex flex-wrap items-baseline gap-x-(--espacio-3) gap-y-1">
-                <span className="font-bold">☕ Grano abierto</span>
-                <span className={`${CHIP} ${claseDeGrano(diasGrano)}`}>
-                  {diasGrano} días desde el tueste
-                </span>
-                <span className="text-sm text-texto-sutil">{consejoDeGrano(diasGrano)}</span>
-              </div>
-            </section>
+          {sinAlmacen && (
+            <Aviso tono="atencion" titulo="Todavía no hay almacén">
+              Sale del último movimiento del inventario. Sin él ni el ajuste ni el conteo de leche
+              cuadran contra nada, y los botones de + y − quedan apagados.
+            </Aviso>
           )}
 
-          {alertas.length > 0 && (
-            <section
-              className="rounded-lg border border-advertencia/40 bg-advertencia/15 p-(--espacio-3)"
-              aria-label="Lo que no llega a la próxima entrega"
-            >
-              <h2 className="mb-2 text-sm font-bold uppercase">No llega a la próxima entrega</h2>
-              <ul className="flex flex-wrap gap-2">
-                {alertas.map((insumo) => (
-                  <li key={insumo.id}>
-                    <Badge
-                      variant={
-                        urgenciaDe(insumo).orden === 0
-                          ? ('destructive' as const)
-                          : ('secondary' as const)
-                      }
-                    >
-                      {insumo.nombre} · {textoDeDias(insumo)}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            </section>
+          {/* PRIMERO lo que no llega a la entrega; al lado, el grano abierto. */}
+          {(alertas.length > 0 || diasGrano !== null) && (
+            <div className="flex flex-col gap-(--espacio-3) lg:flex-row lg:items-start">
+              {alertas.length > 0 && <Alertas alertas={alertas} />}
+              {diasGrano !== null && <TarjetaDeGrano dias={diasGrano} />}
+            </div>
           )}
 
-          <div className="max-w-sm">
-            <Label htmlFor="buscar-insumo" className="text-sm text-texto-sutil">
-              Buscar insumo
-            </Label>
-            <Input
-              id="buscar-insumo"
-              type="search"
-              value={busqueda}
-              placeholder="leche entera, vaso 12 oz…"
-              onChange={(evento) => {
-                setBusqueda(evento.target.value);
-              }}
-            />
-          </div>
+          <Buscador valor={busqueda} alCambiar={setBusqueda} />
 
-          {grupos.length === 0 ? (
-            <p className="text-texto-sutil">Ningún insumo se llama así.</p>
-          ) : (
-            grupos.map((grupo, indice) => (
-              <section key={grupo.familia} aria-labelledby={`familia-${indice}`}>
-                <h2
-                  id={`familia-${indice}`}
-                  className="mb-2 text-sm font-bold tracking-wide uppercase"
-                >
-                  {grupo.familia} <span className="text-texto-sutil">({grupo.filas.length})</span>
-                </h2>
-                {esPC ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Insumo</TableHead>
-                        <TableHead>Días que alcanza</TableHead>
-                        <TableHead>Existencia</TableHead>
-                        <TableHead>Mínimo</TableHead>
-                        <TableHead>Ajuste</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {grupo.filas.map((insumo) => (
-                        <TableRow key={insumo.id}>
-                          <TableCell className="font-medium">{insumo.nombre}</TableCell>
-                          <TableCell>
-                            <span className={`${CHIP} ${urgenciaDe(insumo).clase}`}>
-                              {textoDeDias(insumo)} · {urgenciaDe(insumo).palabra}
-                            </span>
-                          </TableCell>
-                          <TableCell className="tabular-nums">{textoDeStock(insumo)}</TableCell>
-                          <TableCell className="tabular-nums text-texto-sutil">
-                            {formatear(insumo.stock_minimo)}
-                          </TableCell>
-                          <TableCell>
-                            <Ajuste
-                              insumo={insumo}
-                              grande={false}
-                              sinAlmacen={almacen === null}
-                              ocupado={ocupado === insumo.id}
-                              onAjustar={ajustar}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <ul className="grid gap-(--espacio-3) md:grid-cols-2">
-                    {grupo.filas.map((insumo) => (
-                      <li key={insumo.id} className={TARJETA}>
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="font-semibold">{insumo.nombre}</span>
-                          <span className={`${CHIP} ${urgenciaDe(insumo).clase}`}>
-                            {urgenciaDe(insumo).palabra}
-                          </span>
-                        </div>
-                        <p className="mt-1 tabular-nums">
-                          <span className="text-xl font-bold">{textoDeDias(insumo)}</span>
-                          <span className="text-texto-sutil">
-                            {' · '}
-                            {textoDeStock(insumo)} · mínimo {formatear(insumo.stock_minimo)}
-                          </span>
-                        </p>
-                        <div className="mt-2 flex justify-end">
-                          <Ajuste
-                            insumo={insumo}
-                            grande
-                            sinAlmacen={almacen === null}
-                            ocupado={ocupado === insumo.id}
-                            onAjustar={ajustar}
-                          />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            ))
-          )}
+          <ListaPorFamilia grupos={grupos} esPC={esPC} pintarAjuste={pintarAjuste} />
         </>
       )}
 
@@ -646,6 +624,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
         leches={leches}
         conteos={conteos}
         resultado={resultado}
+        fallo={falloDelConteo}
         ocupado={ocupado === 'conteo'}
         onCambiar={setConteos}
         onCerrar={() => {
@@ -657,19 +636,325 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
   );
 }
 
+/** Tercero en la jerarquía: se busca cuando ya se sabe qué, no para enterarse. */
+function Buscador({
+  valor,
+  alCambiar,
+}: {
+  readonly valor: string;
+  readonly alCambiar: (valor: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-(--espacio-1) sm:max-w-sm">
+      <Label htmlFor="buscar-insumo" className="text-sm text-texto-sutil">
+        Buscar insumo
+      </Label>
+      <div className="relative">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-4 -translate-y-1/2 text-texto-sutil"
+        />
+        <Input
+          id="buscar-insumo"
+          type="search"
+          value={valor}
+          placeholder="leche entera, vaso 12 oz…"
+          className="pl-(--espacio-10)"
+          onChange={(evento) => {
+            alCambiar(evento.target.value);
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+interface Grupo {
+  readonly familia: Familia;
+  readonly filas: readonly InsumoDeInventario[];
+}
+
+/**
+ * Una sección por familia, en el orden en que se camina el local. En PC, `Tabla`
+ * densa con la fila teñida; en tablet, tarjetas en dos columnas; en teléfono, una.
+ */
+function ListaPorFamilia({
+  grupos,
+  esPC,
+  pintarAjuste,
+}: {
+  readonly grupos: readonly Grupo[];
+  readonly esPC: boolean;
+  readonly pintarAjuste: PintarAjuste;
+}) {
+  if (grupos.length === 0) {
+    return (
+      <Vacio icono={<Search />} titulo="Ningún insumo se llama así." className="py-(--espacio-8)" />
+    );
+  }
+  const columnas = esPC ? columnasDeTabla(pintarAjuste) : columnasDeTarjeta(pintarAjuste);
+  return (
+    <>
+      {grupos.map((grupo, indice) => (
+        <section
+          key={grupo.familia}
+          aria-labelledby={`familia-${String(indice)}`}
+          className="flex flex-col gap-(--espacio-2)"
+        >
+          <h2
+            id={`familia-${String(indice)}`}
+            className="flex items-baseline gap-(--espacio-2) text-sm font-bold tracking-wide uppercase"
+          >
+            {grupo.familia}
+            <span className="font-normal text-texto-sutil">({grupo.filas.length})</span>
+          </h2>
+          {esPC ? (
+            <Tabla
+              etiqueta={`Insumos de la familia ${grupo.familia}`}
+              columnas={columnas}
+              filas={grupo.filas}
+              claveDe={(insumo) => insumo.id}
+              tonoDeFila={tonoDe}
+            />
+          ) : (
+            <ListaDeTarjetas
+              columnas={columnas}
+              filas={grupo.filas}
+              claveDe={(insumo) => insumo.id}
+              principal="insumo"
+              className="md:grid md:grid-cols-2"
+            />
+          )}
+        </section>
+      ))}
+    </>
+  );
+}
+
 function claseDeGrano(dias: number): string {
   if (dias >= DIAS_GRANO_ROJO) return 'bg-peligro/25';
   if (dias >= DIAS_GRANO_AMBAR) return 'bg-advertencia/30';
   return 'bg-fondo-sutil text-texto-sutil';
 }
 
-function textoDeDias(insumo: InsumoDeInventario): string {
-  const dias = diasQueAlcanza(insumo);
-  return dias === null ? 'sin dato' : `${dias} días`;
+/** La fila se tiñe por urgencia; la celda de días dice con palabras por qué. */
+function tonoDe(insumo: InsumoDeInventario): TonoDeFila | undefined {
+  const { orden } = urgenciaDe(insumo);
+  if (orden === 0) return 'peligro';
+  if (orden === 1) return 'advertencia';
+  return undefined;
 }
 
-function textoDeStock(insumo: InsumoDeInventario): string {
+/**
+ * Lo que le queda, para la insignia de la alerta: los días si se saben, y si no la
+ * existencia. «Leche entera · sin dato» no dice nada; «Leche entera · 14 L», sí.
+ */
+function loQueQueda(insumo: InsumoDeInventario): string {
+  const dias = diasQueAlcanza(insumo);
+  if (dias !== null) return `${String(dias)} días`;
   return `${formatear(insumo.stock_actual)} ${insumo.unidad_base ?? ''}`.trim();
+}
+
+/** Una existencia, un mínimo o un resultado: `<Cifra>` si hay dato, «—» si no. */
+function Cantidad({
+  valor,
+  unidad,
+  tamano = 'sm',
+  className,
+}: {
+  readonly valor: number | null;
+  readonly unidad?: string | null;
+  readonly tamano?: TamanoDeDinero;
+  readonly className?: string;
+}) {
+  if (valor === null || !Number.isFinite(valor)) {
+    return <span className="text-texto-tenue">—</span>;
+  }
+  const redondo = Math.round(valor * 10) / 10;
+  return (
+    <Cifra
+      valor={redondo}
+      decimales={Number.isInteger(redondo) ? 0 : 1}
+      tamano={tamano}
+      {...(unidad === undefined || unidad === null ? {} : { unidad })}
+      {...(className === undefined ? {} : { className })}
+    />
+  );
+}
+
+/** Los días, que mandan, y la palabra del tramo, que dice por qué el color. */
+function DiasDeLaFila({ insumo }: { readonly insumo: InsumoDeInventario }) {
+  const dias = diasQueAlcanza(insumo);
+  const urgencia = urgenciaDe(insumo);
+  return (
+    <span className="flex flex-wrap items-center gap-(--espacio-2)">
+      {dias === null ? (
+        <span className="text-texto-sutil">sin dato</span>
+      ) : (
+        <Cantidad valor={dias} unidad="días" className="font-semibold" />
+      )}
+      <span className={`${CHIP} ${urgencia.clase}`}>{urgencia.palabra}</span>
+    </span>
+  );
+}
+
+/** La cabeza de la tarjeta: nombre y tramo arriba; los días grandes y el ajuste debajo. */
+function CabezaDeTarjeta({
+  insumo,
+  ajuste,
+}: {
+  readonly insumo: InsumoDeInventario;
+  readonly ajuste: ReactNode;
+}) {
+  const dias = diasQueAlcanza(insumo);
+  const urgencia = urgenciaDe(insumo);
+  return (
+    <span className="flex flex-col gap-(--espacio-2)">
+      <span className="flex items-start justify-between gap-(--espacio-2)">
+        <span className="font-semibold">{insumo.nombre}</span>
+        <span className={`${CHIP} shrink-0 ${urgencia.clase}`}>{urgencia.palabra}</span>
+      </span>
+      <span className="flex items-end justify-between gap-(--espacio-3)">
+        <span className="flex flex-col">
+          <span className="text-xs font-normal text-texto-sutil">Días que alcanza</span>
+          {dias === null ? (
+            <span className="font-normal text-texto-sutil">sin dato</span>
+          ) : (
+            <Cantidad valor={dias} unidad="días" tamano="lg" className="font-bold" />
+          )}
+        </span>
+        {ajuste}
+      </span>
+    </span>
+  );
+}
+
+type PintarAjuste = (insumo: InsumoDeInventario, grande: boolean) => ReactNode;
+
+/** PC: la tabla densa, una por familia. Días primero, existencia después. */
+function columnasDeTabla(
+  pintarAjuste: PintarAjuste,
+): readonly ColumnaDeTabla<InsumoDeInventario>[] {
+  return [
+    {
+      clave: 'insumo',
+      titulo: 'Insumo',
+      celda: (insumo) => <span className="font-medium">{insumo.nombre}</span>,
+    },
+    {
+      clave: 'dias',
+      titulo: 'Días que alcanza',
+      celda: (insumo) => <DiasDeLaFila insumo={insumo} />,
+    },
+    {
+      clave: 'existencia',
+      titulo: 'Existencia',
+      numerica: true,
+      celda: (insumo) => <Cantidad valor={insumo.stock_actual} unidad={insumo.unidad_base} />,
+    },
+    {
+      clave: 'minimo',
+      titulo: 'Mínimo',
+      numerica: true,
+      celda: (insumo) => (
+        <Cantidad
+          valor={insumo.stock_minimo}
+          unidad={insumo.unidad_base}
+          className="text-texto-sutil"
+        />
+      ),
+    },
+    { clave: 'ajuste', titulo: 'Ajuste', celda: (insumo) => pintarAjuste(insumo, false) },
+  ];
+}
+
+/**
+ * Tablet y teléfono: la cabeza de la tarjeta lleva lo que se lee caminando —días,
+ * tramo— y el ajuste grande; debajo, existencia y mínimo en pares.
+ */
+function columnasDeTarjeta(
+  pintarAjuste: PintarAjuste,
+): readonly ColumnaDeTabla<InsumoDeInventario>[] {
+  return [
+    {
+      clave: 'insumo',
+      titulo: 'Insumo',
+      celda: (insumo) => <CabezaDeTarjeta insumo={insumo} ajuste={pintarAjuste(insumo, true)} />,
+    },
+    {
+      clave: 'existencia',
+      titulo: 'Existencia',
+      numerica: true,
+      celda: (insumo) => <Cantidad valor={insumo.stock_actual} unidad={insumo.unidad_base} />,
+    },
+    {
+      clave: 'minimo',
+      titulo: 'Mínimo',
+      numerica: true,
+      celda: (insumo) => <Cantidad valor={insumo.stock_minimo} unidad={insumo.unidad_base} />,
+    },
+  ];
+}
+
+/**
+ * Lo que no llega a la próxima entrega, arriba de todo. Lo que no llega ni a mañana
+ * va en rojo, y además con su icono y su frase para quien no distingue el rojo.
+ */
+function Alertas({ alertas }: { readonly alertas: readonly InsumoDeInventario[] }) {
+  return (
+    <Superficie
+      como="section"
+      relleno={3}
+      aria-label="Lo que no llega a la próxima entrega"
+      className="flex min-w-0 flex-col gap-(--espacio-2) border-advertencia/50 bg-advertencia/10 lg:flex-1"
+    >
+      <h2 className="flex items-center gap-(--espacio-2) text-sm font-bold uppercase">
+        <TriangleAlert aria-hidden="true" className="size-4 shrink-0" />
+        No llega a la próxima entrega
+        <span className="font-normal text-texto-sutil">({alertas.length})</span>
+      </h2>
+      <ul className="flex flex-wrap gap-(--espacio-2)">
+        {alertas.map((insumo) => {
+          const urgente = urgenciaDe(insumo).orden === 0;
+          return (
+            <li key={insumo.id}>
+              <Badge
+                variant={urgente ? 'destructive' : 'outline'}
+                className={urgente ? 'text-sm' : 'bg-superficie text-sm'}
+              >
+                {urgente && <OctagonAlert aria-hidden="true" />}
+                {urgente && <span className="sr-only">No llega a mañana: </span>}
+                {insumo.nombre} · {loQueQueda(insumo)}
+              </Badge>
+            </li>
+          );
+        })}
+      </ul>
+    </Superficie>
+  );
+}
+
+/** F-157: el grano abierto, con los días desde el tueste y qué hacer con él. */
+function TarjetaDeGrano({ dias }: { readonly dias: number }) {
+  return (
+    <Superficie
+      como="section"
+      relleno={3}
+      aria-label="Lote de grano abierto"
+      className="flex flex-col gap-(--espacio-2) lg:w-80 lg:shrink-0"
+    >
+      <p className="flex items-center gap-(--espacio-2) font-semibold">
+        <Coffee aria-hidden="true" className="size-4 shrink-0" />
+        Grano abierto
+      </p>
+      <p>
+        <span className={`${CHIP} ${claseDeGrano(dias)}`}>
+          <Cifra valor={dias} unidad="días" tamano="sm" /> desde el tueste
+        </span>
+      </p>
+      <p className="text-sm text-texto-sutil">{consejoDeGrano(dias)}</p>
+    </Superficie>
+  );
 }
 
 interface AjusteProps {
@@ -685,28 +970,36 @@ interface AjusteProps {
  * jarra en la otra. En PC se encogen, porque ahí manda la tabla densa.
  */
 function Ajuste({ insumo, grande, sinAlmacen, ocupado, onAjustar }: AjusteProps) {
-  const tamano = grande ? ('icon-lg' as const) : ('icon-sm' as const);
   const unidad = insumo.unidad_base ?? 'unidad';
   return (
-    <div className="flex items-center gap-2">
+    <span className="flex shrink-0 items-center gap-(--espacio-2)">
       {[-1, 1].map((delta) => (
         <Button
           key={delta}
           type="button"
           variant="outline"
-          size={tamano}
+          size={grande ? 'icon-lg' : 'icon-sm'}
+          className={grande ? 'size-[calc(var(--altura-control)*1.3)]' : ''}
           disabled={sinAlmacen || ocupado}
           aria-label={`${delta > 0 ? 'Sumar' : 'Restar'} 1 ${unidad} a ${insumo.nombre}`}
           onClick={() => {
             void onAjustar(insumo, delta);
           }}
         >
-          <span aria-hidden className={grande ? 'text-2xl' : 'text-base'}>
-            {delta > 0 ? '+' : '−'}
-          </span>
+          {delta > 0 ? (
+            <Plus
+              aria-hidden="true"
+              className={grande ? 'size-[calc(var(--altura-control)*0.55)]' : 'size-4'}
+            />
+          ) : (
+            <Minus
+              aria-hidden="true"
+              className={grande ? 'size-[calc(var(--altura-control)*0.55)]' : 'size-4'}
+            />
+          )}
         </Button>
       ))}
-    </div>
+    </span>
   );
 }
 
@@ -723,6 +1016,7 @@ interface ConteoDeLecheProps {
   readonly leches: readonly InsumoDeInventario[];
   readonly conteos: Readonly<Record<string, ConteoDeUnaLeche>>;
   readonly resultado: ResultadoConteo | null;
+  readonly fallo: string | null;
   readonly ocupado: boolean;
   readonly onCambiar: (conteos: Readonly<Record<string, ConteoDeUnaLeche>>) => void;
   readonly onCerrar: () => void;
@@ -739,6 +1033,7 @@ function ConteoDeLeche({
   leches,
   conteos,
   resultado,
+  fallo,
   ocupado,
   onCambiar,
   onCerrar,
@@ -751,7 +1046,7 @@ function ConteoDeLeche({
         if (!valor) onCerrar();
       }}
     >
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Conteo de leche</DialogTitle>
           <DialogDescription>
@@ -761,77 +1056,95 @@ function ConteoDeLeche({
 
         {resultado === null ? (
           <div className="flex flex-col gap-(--espacio-3)">
-            {leches.map((insumo, indice) => (
-              <div key={insumo.id}>
-                <Label htmlFor={`conteo-${insumo.id}`}>{insumo.nombre}</Label>
-                {/*
-                  DOS datos por leche, que son los que el comando cuenta: los cartones
-                  CERRADOS —que se cuentan mirando— y cuánto queda del ABIERTO, en
-                  cuartos. Antes había un solo campo en la unidad base y el conteo
-                  contestaba 400 en cada confirmación.
-                */}
-                <div className="flex items-end gap-2">
-                  <div className="grow">
-                    <Input
-                      id={`conteo-${insumo.id}`}
-                      inputMode="numeric"
-                      placeholder="Cartones cerrados"
-                      autoFocus={indice === 0}
-                      /**
-                       * SE MARCA MIENTRAS SE TECLEA, no al confirmar.
-                       *
-                       * `inputMode` es una pista para el teclado del teléfono, no
-                       * una validación: aquí entra cualquier cosa. Sin esta marca,
-                       * un `12.5` se veía igual que un `12` hasta que el comando
-                       * contestaba 400 y la banda decía «entrada inválida» sin
-                       * señalar el campo.
-                       */
-                      aria-invalid={cartonesDe(conteos[insumo.id]?.cerrados ?? '') === null}
-                      value={conteos[insumo.id]?.cerrados ?? ''}
-                      onChange={(evento) => {
-                        onCambiar({
-                          ...conteos,
-                          [insumo.id]: {
-                            cerrados: evento.target.value,
-                            cuartos: conteos[insumo.id]?.cuartos ?? 0,
-                          },
-                        });
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`abierto-${insumo.id}`} className="text-xs">
-                      Del abierto
-                    </Label>
-                    <select
-                      id={`abierto-${insumo.id}`}
-                      className="h-(--altura-control) rounded-md border border-borde-fuerte bg-fondo px-2 text-base"
-                      value={String(conteos[insumo.id]?.cuartos ?? 0)}
-                      onChange={(evento) => {
-                        const cuartos = Number(evento.target.value) as 0 | 1 | 2 | 3 | 4;
-                        onCambiar({
-                          ...conteos,
-                          [insumo.id]: {
-                            cerrados: conteos[insumo.id]?.cerrados ?? '',
-                            cuartos,
-                          },
-                        });
-                      }}
-                    >
-                      <option value="0">vacío</option>
-                      <option value="1">¼</option>
-                      <option value="2">½</option>
-                      <option value="3">¾</option>
-                      <option value="4">lleno</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
+            <ul className="flex flex-col divide-y divide-borde">
+              {leches.map((insumo, indice) => {
+                const cerrados = conteos[insumo.id]?.cerrados ?? '';
+                const invalido = cartonesDe(cerrados) === null;
+                return (
+                  <li
+                    key={insumo.id}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-(--espacio-2) gap-y-1 py-(--espacio-3)"
+                  >
+                    {/*
+                      DOS datos por leche, que son los que el comando cuenta: los cartones
+                      CERRADOS —que se cuentan mirando— y cuánto queda del ABIERTO, en
+                      cuartos. Antes había un solo campo en la unidad base y el conteo
+                      contestaba 400 en cada confirmación.
+                    */}
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <Label htmlFor={`conteo-${insumo.id}`} className="font-semibold">
+                        {insumo.nombre}
+                      </Label>
+                      <Input
+                        id={`conteo-${insumo.id}`}
+                        inputMode="numeric"
+                        placeholder="Cartones cerrados"
+                        autoFocus={indice === 0}
+                        className={`${ALTO_DE_CONTEO} text-lg`}
+                        /**
+                         * SE MARCA MIENTRAS SE TECLEA, no al confirmar.
+                         *
+                         * `inputMode` es una pista para el teclado del teléfono, no
+                         * una validación: aquí entra cualquier cosa. Sin esta marca,
+                         * un `12.5` se veía igual que un `12` hasta que el comando
+                         * contestaba 400 y la banda decía «entrada inválida» sin
+                         * señalar el campo.
+                         */
+                        aria-invalid={invalido}
+                        aria-describedby={invalido ? `ayuda-${insumo.id}` : undefined}
+                        value={cerrados}
+                        onChange={(evento) => {
+                          onCambiar({
+                            ...conteos,
+                            [insumo.id]: {
+                              cerrados: evento.target.value,
+                              cuartos: conteos[insumo.id]?.cuartos ?? 0,
+                            },
+                          });
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor={`abierto-${insumo.id}`} className="text-xs text-texto-sutil">
+                        Del abierto
+                      </Label>
+                      <select
+                        id={`abierto-${insumo.id}`}
+                        className={`${ALTO_DE_CONTEO} rounded-md border border-borde-fuerte bg-fondo px-(--espacio-2) text-base`}
+                        value={String(conteos[insumo.id]?.cuartos ?? 0)}
+                        onChange={(evento) => {
+                          const cuartos = Number(evento.target.value) as 0 | 1 | 2 | 3 | 4;
+                          onCambiar({
+                            ...conteos,
+                            [insumo.id]: { cerrados, cuartos },
+                          });
+                        }}
+                      >
+                        <option value="0">vacío</option>
+                        <option value="1">¼</option>
+                        <option value="2">½</option>
+                        <option value="3">¾</option>
+                        <option value="4">lleno</option>
+                      </select>
+                    </div>
+                    {invalido && (
+                      <p id={`ayuda-${insumo.id}`} className="col-span-2 text-xs text-peligro">
+                        Cartones enteros, de 0 a {TOPE_DE_CARTONES}.
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {fallo !== null && (
+              <Aviso tono="peligro" titulo={fallo}>
+                El conteo no se guardó: corrige y vuelve a confirmar.
+              </Aviso>
+            )}
             <Button
               type="button"
               size="lg"
-              disabled={ocupado}
+              cargando={ocupado}
               onClick={() => {
                 void onConfirmar();
               }}
@@ -840,22 +1153,64 @@ function ConteoDeLeche({
             </Button>
           </div>
         ) : (
-          // Las tres cifras juntas, aquí y no en un reporte que nadie abre.
-          <div className="flex flex-col gap-2 tabular-nums">
-            <p>Contado: {formatear(resultado.contado)}</p>
-            <p>Teórico: {formatear(resultado.teorico)}</p>
-            <p
-              className={`${CHIP} w-fit text-sm ${semaforoDeMerma(resultado.mermaPorcentaje).clase}`}
-            >
-              Merma {formatear(resultado.mermaPorcentaje)} % ·{' '}
-              {semaforoDeMerma(resultado.mermaPorcentaje).palabra}
-            </p>
-            <Button type="button" variant="secondary" onClick={onCerrar}>
-              Cerrar
-            </Button>
-          </div>
+          <ResultadoDelConteo resultado={resultado} onCerrar={onCerrar} />
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** El semáforo lleva forma además de color: palomita, triángulo u octágono. */
+function IconoDeMerma({ porcentaje }: { readonly porcentaje: number }) {
+  const clase = 'size-5 shrink-0';
+  if (porcentaje > MERMA_ROJA) return <OctagonAlert aria-hidden="true" className={clase} />;
+  if (porcentaje >= MERMA_AMBAR) return <TriangleAlert aria-hidden="true" className={clase} />;
+  return <CircleCheck aria-hidden="true" className={clase} />;
+}
+
+/** Las tres cifras juntas, aquí y no en un reporte que nadie abre. */
+function ResultadoDelConteo({
+  resultado,
+  onCerrar,
+}: {
+  readonly resultado: ResultadoConteo;
+  readonly onCerrar: () => void;
+}) {
+  const merma = Number.isFinite(resultado.mermaPorcentaje) ? resultado.mermaPorcentaje : null;
+  const semaforo = merma === null ? null : semaforoDeMerma(merma);
+  return (
+    <div className="flex flex-col gap-(--espacio-4)">
+      <dl className="grid grid-cols-2 gap-(--espacio-3)">
+        <div className="flex flex-col gap-1">
+          <dt className="text-xs tracking-wide text-texto-sutil uppercase">Contado</dt>
+          <dd>
+            <Cantidad valor={resultado.contado} tamano="lg" />
+          </dd>
+        </div>
+        <div className="flex flex-col gap-1">
+          <dt className="text-xs tracking-wide text-texto-sutil uppercase">Teórico</dt>
+          <dd>
+            <Cantidad valor={resultado.teorico} tamano="lg" />
+          </dd>
+        </div>
+      </dl>
+      <Superficie
+        nivel={0}
+        relleno={3}
+        className={`flex items-center gap-(--espacio-3) ${semaforo?.clase ?? ''}`}
+      >
+        {merma === null ? null : <IconoDeMerma porcentaje={merma} />}
+        <span className="flex flex-col">
+          <span className="text-xs tracking-wide text-texto-sutil uppercase">Merma</span>
+          <span className="flex flex-wrap items-baseline gap-(--espacio-2)">
+            <Cantidad valor={merma} unidad="%" tamano="lg" className="font-bold" />
+            <span className="text-sm font-semibold">{semaforo?.palabra ?? 'sin dato'}</span>
+          </span>
+        </span>
+      </Superficie>
+      <Button type="button" variant="secondary" onClick={onCerrar}>
+        Cerrar
+      </Button>
+    </div>
   );
 }
