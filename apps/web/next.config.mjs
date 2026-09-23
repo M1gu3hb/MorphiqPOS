@@ -82,6 +82,15 @@ const nextConfig = {
   // No anunciar la version del framework.
   poweredByHeader: false,
 
+  /**
+   * «La mesa que se expande hasta ser la cuenta» cruza una NAVEGACIÓN: la tesela vive
+   * en `/restaurante/mapa-de-mesas` y la cabecera de la cuenta en otra ruta. Sólo el
+   * enrutador puede envolver el cambio de página en `document.startViewTransition`, y
+   * lo hace con esta bandera: sin ella los dos `<ViewTransition name>` existen y no
+   * se animan nunca. Donde el navegador no la soporta, la página cambia igual.
+   */
+  experimental: { viewTransition: true },
+
   async headers() {
     return [{ source: '/:path*', headers: cabecerasDeSeguridad }];
   },

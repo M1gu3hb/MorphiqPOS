@@ -5316,3 +5316,17 @@ hechas y 25 caídas, B con 2 hechas y 28 caídas. **Dónde iba:** `verify:adopci
 —abarrotes, las dos de cobro, `cafeteria/AccesoPorPin` y seis de estética cuyos agentes dejaron
 el archivo terminado antes de caer—. Las de estética y `AccesoPorPin` se comprueban completas
 antes de entrar a su lote; las 48 restantes se relanzan por modelo.
+
+### La coma de `CampoDeDinero`, cien veces el importe
+
+`centavosDeTexto` quitaba TODAS las comas antes de leer: «12,50» —doce cincuenta, como lo teclea
+quien viene de otra calculadora o de un teclado numérico en otro idioma— salía **$1,250.00**, en
+el campo donde se teclea lo recibido. Lo reportó el agente de `estetica-salon/CajaYCorte`, que por
+eso se había quedado con un campo propio. Nueve casos nuevos en su prueba, en rojo contra el
+código viejo: una coma seguida de GRUPOS de tres cifras es de miles («1,250», «1,234,567.89»); una
+sola coma con una o dos cifras detrás y sin punto es el decimal («12,50», «0,05»); cualquier otra
+forma —«12,34.50», «1,2,3», «12,5000»— sale `null` y la pantalla lo dice. El campo gana
+`tamano="grande"` y `CajaYCorte` deja su copia.
+
+Y `experimental.viewTransition` en `next.config`: «la mesa que se expande hasta ser la cuenta»
+cruza una navegación, y sólo el enrutador puede envolver el cambio de página en una transición.
