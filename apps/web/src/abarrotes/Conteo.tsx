@@ -3,10 +3,30 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Progress } from '@morphiqpos/ui/primitivas/progress';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { Vacio } from '@morphiqpos/ui/sistema';
-import { ClipboardCheck } from 'lucide-react';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Progreso,
+  Superficie,
+  Tabla,
+  TablaAdaptable,
+  Vacio,
+  type ColumnaDeTabla,
+  type TonoDeFila,
+} from '@morphiqpos/ui/sistema';
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  ClipboardCheck,
+  RotateCcw,
+  ScanBarcode,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -49,14 +69,21 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * El sistema no lo sabe. Acusar sin prueba es la forma más rápida de abrir un
  * conflicto injusto en una tienda donde trabaja la familia.
  *
+ * ── Cómo se pinta ────────────────────────────────────────────────────────
+ * Mientras se cuenta hay UNA superficie levantada: el producto en curso, con sus
+ * dos campos grandes y el botón de seguir debajo, donde cae el pulgar. La zona va
+ * arriba, chica, porque ya se sabe; el avance y «Terminar zona» van abajo. En el
+ * resumen el recuento es una tabla de tres renglones y la diferencia neta va
+ * aparte y grande, con su contexto pegado: es lo único que el dueño se lleva. Lo
+ * que no cuadró son tarjetas en el teléfono y tabla desde la tableta, con el
+ * esperado a la vista porque el conteo ya terminó.
+ *
  * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
  * Caben el conteo a ciegas, el escaneo, el progreso, el resumen de la zona con
  * su recuento y el cierre con ajuste. Queda FUERA el editor de motivo por
  * producto —hoy todos se cierran con el de omisión— y «Ver motivo», que es la
  * ficha del movimiento y vive en el kardex del producto.
  */
-
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
 /**
  * Nunca «robo»: el sistema no lo sabe y acusar sin prueba rompe una tienda.
@@ -71,13 +98,18 @@ const MOTIVO_POR_OMISION = 'ajuste_conteo';
 /** Lo que se le enseña a una persona. La clave es para la base, no para leerla. */
 const MOTIVO_EN_PALABRAS = 'Diferencia de conteo físico';
 
-// Las clases largas viven arriba para que cada elemento quepa en una línea. El
-// 3.5rem es el objetivo táctil de 56 px del documento: una medida de diseño con
-// una razón detrás, no un número suelto.
+// Las clases largas viven arriba para que cada elemento quepa en una línea.
+//
+// 3.5rem es el objetivo táctil de 56 px de §4.6 del documento, y va LITERAL a
+// propósito: no depende de la perilla de densidad. Con guantes, en comoda o en
+// normal, la mano que cuenta frente al congelador es la misma.
+const TACTIL = 'min-h-[3.5rem]';
 const MARCO = 'mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-4)';
-const CAMPO = 'min-h-[3.5rem] text-center text-2xl font-bold tabular-nums';
-const PRINCIPAL = 'min-h-[3.5rem] w-full text-lg font-semibold';
-const BANDA = 'rounded-md border border-peligro bg-peligro/15 p-2 text-sm';
+const ALTO_DE_CAMPO = `${TACTIL} h-[calc(var(--altura-control)*1.5)]`;
+// El `md:` repetido no es un descuido: `Input` baja el texto a `md:text-sm`, y sin
+// su propio `md:` el número del anaquel se encogía justo en la tableta.
+const CAMPO = `${ALTO_DE_CAMPO} text-center font-numeros text-3xl font-bold tabular-nums md:text-3xl`;
+const PRINCIPAL = `${TACTIL} w-full text-lg font-semibold`;
 
 export interface ProductoDeConteo {
   readonly id: string;
@@ -192,8 +224,6 @@ function mensajeDeFallo(fallo: unknown): string {
   return fallo instanceof Error ? fallo.message : 'No se pudo leer la zona de hoy.';
 }
 
-const pesos = (centavos: number): string => PESOS.format(centavos / 100);
-
 export interface CampoDeConteoProps {
   readonly id?: string;
   readonly etiqueta?: string;
@@ -203,25 +233,239 @@ export interface CampoDeConteoProps {
 
 /** Los dos campos son el mismo control: uno cuenta cajas y el otro sueltas. */
 export function CampoDeConteo({ id, etiqueta, valor, alCambiar }: CampoDeConteoProps) {
+  // El número arriba y la palabra debajo, como se dice en el anaquel: «nueve
+  // cajas». La etiqueta sigue atada al campo por `htmlFor`, que es lo que lee un
+  // lector de pantalla, y no por el orden.
   return (
-    <div className="flex-1">
-      <Label htmlFor={id}>{etiqueta}</Label>
+    <div className="flex flex-1 flex-col gap-(--espacio-1)">
       <Input
         id={id}
         inputMode="numeric"
+        autoComplete="off"
         value={valor ?? ''}
         className={CAMPO}
         onChange={(evento) => {
           alCambiar?.(evento.target.value);
         }}
       />
+      <Label htmlFor={id} className="justify-center text-texto-sutil">
+        {etiqueta}
+      </Label>
     </div>
+  );
+}
+
+/** Un renglón del recuento: cuántos productos cayeron de qué lado, y cuánto pesan. */
+interface RenglonDeRecuento {
+  readonly clave: string;
+  readonly icono: ReactNode;
+  readonly palabra: string;
+  readonly productos: number;
+  /** Con su signo: el faltante en negativo. `null` donde no hay importe que decir. */
+  readonly centavos: number | null;
+  /** El fondo del renglón, sólo cuando hay algo de ese lado. Nunca va solo. */
+  readonly tono: TonoDeFila | undefined;
+}
+
+/** Flecha Y palabra en cada renglón: el color nunca carga solo. */
+function renglonesDe(resumen: ResumenDeZona): readonly RenglonDeRecuento[] {
+  const tonoFaltaron: TonoDeFila | undefined = resumen.faltaron > 0 ? 'peligro' : undefined;
+  const tonoSobraron: TonoDeFila | undefined = resumen.sobraron > 0 ? 'exito' : undefined;
+  return [
+    {
+      clave: 'cuadraron',
+      icono: <Check className="size-4 text-exito" />,
+      palabra: 'Cuadraron',
+      productos: resumen.cuadraron,
+      centavos: null,
+      tono: undefined,
+    },
+    {
+      clave: 'faltaron',
+      icono: <ChevronDown className="size-4 text-peligro" />,
+      palabra: 'Faltaron',
+      productos: resumen.faltaron,
+      centavos: -resumen.faltanteCentavos,
+      tono: tonoFaltaron,
+    },
+    {
+      clave: 'sobraron',
+      icono: <ChevronUp className="size-4 text-exito" />,
+      palabra: 'Sobraron',
+      productos: resumen.sobraron,
+      centavos: resumen.sobranteCentavos,
+      tono: tonoSobraron,
+    },
+  ];
+}
+
+function columnasDeRecuento(
+  nombreDeProductos: string,
+  importeVisible: boolean,
+): readonly ColumnaDeTabla<RenglonDeRecuento>[] {
+  const base: readonly ColumnaDeTabla<RenglonDeRecuento>[] = [
+    {
+      clave: 'resultado',
+      titulo: 'Resultado',
+      celda: (r) => (
+        <span className="inline-flex items-center gap-(--espacio-2) font-medium">
+          <span aria-hidden="true">{r.icono}</span>
+          {r.palabra}
+        </span>
+      ),
+    },
+    {
+      clave: 'productos',
+      titulo: nombreDeProductos,
+      numerica: true,
+      celda: (r) => <Cifra valor={r.productos} tamano="sm" />,
+    },
+  ];
+  if (!importeVisible) return base;
+  return [
+    ...base,
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (r) =>
+        r.centavos === null ? (
+          <span className="text-texto-sutil">—</span>
+        ) : (
+          <Dinero centavos={r.centavos} conSigno tamano="sm" />
+        ),
+    },
+  ];
+}
+
+/** Lo contado menos lo esperado, con flecha, signo y color: los tres dicen lo mismo. */
+function Diferencia({ piezas }: { readonly piezas: number }) {
+  const falta = piezas < 0;
+  return (
+    <span className={`whitespace-nowrap ${falta ? 'text-peligro' : 'text-exito'}`}>
+      {falta ? (
+        <ChevronDown aria-hidden="true" className="inline-block size-4 align-middle" />
+      ) : (
+        <ChevronUp aria-hidden="true" className="inline-block size-4 align-middle" />
+      )}
+      {falta ? '−' : '+'}
+      <Cifra valor={Math.abs(piezas)} unidad="pz" tamano="sm" />
+    </span>
+  );
+}
+
+function columnasDeDesviados(
+  nombreDeProducto: string,
+  conteos: Readonly<Record<string, number>>,
+  alRecontar: (id: string) => void,
+): readonly ColumnaDeTabla<ProductoDeConteo>[] {
+  return [
+    {
+      clave: 'producto',
+      titulo: nombreDeProducto,
+      celda: (p) => (
+        <span className="flex items-center justify-between gap-(--espacio-3)">
+          <span className="font-medium">{p.nombre}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={`${TACTIL} xl:min-h-0`}
+            onClick={() => {
+              alRecontar(p.id);
+            }}
+          >
+            <RotateCcw aria-hidden="true" />
+            {/* A la vista, la pregunta corta; al lector, con el nombre de qué. */}
+            ¿Recontar<span className="sr-only"> {p.nombre}</span>?
+          </Button>
+        </span>
+      ),
+    },
+    {
+      clave: 'esperado',
+      titulo: 'Esperado',
+      numerica: true,
+      celda: (p) => <Cifra valor={p.esperado} unidad="pz" tamano="sm" />,
+    },
+    {
+      clave: 'contado',
+      titulo: 'Contaste',
+      numerica: true,
+      celda: (p) => <Cifra valor={conteos[p.id] ?? 0} unidad="pz" tamano="sm" />,
+    },
+    {
+      clave: 'diferencia',
+      titulo: 'Diferencia',
+      numerica: true,
+      orden: (p) => (conteos[p.id] ?? 0) - p.esperado,
+      celda: (p) => <Diferencia piezas={(conteos[p.id] ?? 0) - p.esperado} />,
+    },
+  ];
+}
+
+/**
+ * LA DIFERENCIA NETA, que es lo que el dueño se lleva de la zona. El porcentaje va
+ * grande y con su contexto pegado debajo: sin ese renglón el número no le dice nada.
+ */
+function Veredicto({
+  resumen,
+  nombreDeProductos,
+}: {
+  readonly resumen: ResumenDeZona;
+  readonly nombreDeProductos: string;
+}) {
+  const netoEnProductos = resumen.sobraron - resumen.faltaron;
+  return (
+    <Superficie
+      como="section"
+      aria-label="Diferencia neta"
+      relleno={4}
+      className="flex flex-col gap-(--espacio-2)"
+    >
+      <p className="text-sm font-medium text-texto-sutil">Diferencia neta</p>
+      {resumen.importeVisible ? (
+        <>
+          <p className="flex flex-wrap items-baseline gap-x-(--espacio-4) gap-y-(--espacio-1)">
+            <Dinero centavos={resumen.netoCentavos} tamano="lg" className="font-bold" />
+            <Cifra
+              valor={resumen.porcentaje}
+              decimales={1}
+              unidad="%"
+              tamano="lg"
+              className="text-3xl font-bold"
+            />
+          </p>
+          <p className="text-sm text-texto-sutil">El promedio del retail mexicano es 1.5–2.5 %.</p>
+        </>
+      ) : (
+        <>
+          <p className="text-3xl font-bold">
+            {netoEnProductos >= 0 ? '+' : '−'}
+            <Cifra
+              valor={Math.abs(netoEnProductos)}
+              unidad={nombreDeProductos}
+              tamano="lg"
+              className="text-3xl font-bold"
+            />
+          </p>
+          {/* Se dice por qué falta el peso, en vez de enseñar un cero. */}
+          <p className="text-sm text-texto-sutil">
+            El importe en pesos lo ve quien ve costos. El conteo se cierra igual.
+          </p>
+        </>
+      )}
+    </Superficie>
   );
 }
 
 export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoProps) {
   const voc = useVocabulario();
   const [filas, setFilas] = useState<readonly ProductoDeConteo[] | null>(filasIniciales ?? null);
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  // Cada lectura es un número: «Volver a leer» lo sube y el efecto lee otra vez.
+  // El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
   const [conteos, setConteos] = useState<Readonly<Record<string, number>>>({});
   const [idActual, setIdActual] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
@@ -243,16 +487,14 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
         if (sigueMontada()) setFilas(leidas);
       })
       .catch((fallo: unknown) => {
-        // La pantalla nunca se vacía por un error de red: se avisa y se sigue.
-        if (sigueMontada()) {
-          setFilas([]);
-          setError(mensajeDeFallo(fallo));
-        }
+        // Sin la lista de la zona no hay nada que contar: se dice qué pasó y se
+        // ofrece volver a leer, en vez de fingir que hoy no toca ninguna zona.
+        if (sigueMontada()) setFalloDeCarga(mensajeDeFallo(fallo));
       });
     return () => {
       control.abort();
     };
-  }, [filasIniciales]);
+  }, [filasIniciales, intento]);
 
   useEffect(() => {
     // Los atajos `+` y `−` del layout de PC. `Enter` no vive aquí: lo resuelve
@@ -281,6 +523,12 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
   const zona = zonaInicial ?? filas?.[0]?.zona ?? 'Zona de hoy';
   const contados = Object.keys(conteos).length;
   const total = filas?.length ?? 0;
+
+  function volverALeer(): void {
+    setFalloDeCarga(null);
+    setFilas(null);
+    setIntento((previo) => previo + 1);
+  }
 
   function elegir(producto: ProductoDeConteo | undefined): void {
     if (producto === undefined) return;
@@ -346,14 +594,40 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
     }
   }
 
-  // Esqueletos con la forma de los campos y del botón: la pantalla no salta al
-  // llegar el dato y el pulgar ya sabe dónde va a caer.
+  // No leyó nada: qué pasó, qué hacer, y el botón para hacerlo.
+  if (falloDeCarga !== null) {
+    return (
+      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center p-(--espacio-4)">
+        <ErrorDePantalla
+          titulo="No se pudo leer la zona de hoy"
+          queHacer="Sin la lista de la zona no hay qué contar, y todavía no se ha contado nada. Revisa la señal y vuelve a leerla."
+          detalle={falloDeCarga}
+          reintentar={
+            <Button type="button" className={PRINCIPAL} onClick={volverALeer}>
+              Volver a leer
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  // Esqueletos con la forma de la zona, el buscador, los campos y el botón: la
+  // pantalla no salta al llegar el dato y el pulgar ya sabe dónde va a caer.
   if (filas === null) {
     return (
-      <div className={MARCO}>
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-md" />
-        ))}
+      <div role="status" aria-busy="true" aria-label="Leyendo la zona de hoy" className={MARCO}>
+        <div className="flex flex-col gap-(--espacio-2)">
+          <Esqueleto className="h-(--espacio-6) w-2/3" />
+          <Esqueleto className="h-4 w-1/3" />
+        </div>
+        <Esqueleto className={`${TACTIL} w-full`} />
+        <Esqueleto className="h-(--espacio-8) w-1/2" />
+        <div className="flex gap-(--espacio-3)">
+          <Esqueleto className={`${ALTO_DE_CAMPO} flex-1`} />
+          <Esqueleto className={`${ALTO_DE_CAMPO} flex-1`} />
+        </div>
+        <Esqueleto className={`${TACTIL} w-full`} />
       </div>
     );
   }
@@ -377,101 +651,94 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
     );
   }
 
+  const productos = voc.plural('producto');
+
   if (enResumen) {
     return (
       <div className={MARCO}>
-        <h1 className="text-xl font-bold">
-          {zona} · {total} productos
-        </h1>
-        {error !== null && (
-          <p className={BANDA} role="alert">
-            {error}
+        <header className="flex flex-col gap-(--espacio-1)">
+          <h1 className="text-xl font-bold">
+            {zona} · {total} {productos}
+          </h1>
+          <p className="text-sm text-texto-sutil">
+            Contados {contados} de {total}
           </p>
+        </header>
+
+        {error !== null && (
+          <Aviso tono="peligro" titulo={error}>
+            No se ajustó ningún {voc.singular('producto')} y lo contado sigue aquí.
+          </Aviso>
         )}
-        {/* Flecha Y palabra en cada renglón: el color nunca carga solo. */}
-        <ul className="flex flex-col gap-1 text-sm">
-          <li>
-            <span aria-hidden>✓</span> {resumen.cuadraron} cuadraron
-          </li>
-          <li className="rounded-md bg-peligro/15 p-1">
-            <span aria-hidden>▼</span> {resumen.faltaron} faltaron
-            {resumen.importeVisible && <> · −{pesos(resumen.faltanteCentavos)}</>}
-          </li>
-          <li className="rounded-md bg-exito/15 p-1">
-            <span aria-hidden>▲</span> {resumen.sobraron} sobró
-            {resumen.importeVisible && <> · +{pesos(resumen.sobranteCentavos)}</>}
-          </li>
-        </ul>
-        <div className="border-t border-borde pt-(--espacio-3)">
-          {resumen.importeVisible ? (
-            <>
-              <p className="text-lg font-bold tabular-nums">
-                Diferencia neta {resumen.netoCentavos < 0 ? '−' : '+'}
-                {pesos(Math.abs(resumen.netoCentavos))} ({resumen.porcentaje.toFixed(1)} %)
-              </p>
-              {/* Sin este renglón el porcentaje no le dice nada a Don Chuy. */}
-              <p className="text-sm text-texto-sutil">
-                El promedio del retail mexicano es 1.5–2.5 %.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-lg font-bold tabular-nums">
-                Diferencia neta {resumen.sobraron - resumen.faltaron >= 0 ? '+' : '−'}
-                {Math.abs(resumen.sobraron - resumen.faltaron)} productos
-              </p>
-              {/* Se dice por qué falta el peso, en vez de enseñar un cero. */}
-              <p className="text-sm text-texto-sutil">
-                El importe en pesos lo ve quien ve costos. El conteo se cierra igual.
-              </p>
-            </>
-          )}
-        </div>
-        <ul className="flex flex-col gap-2">
-          {resumen.desviados.map((p) => (
-            <li key={p.id} className="rounded-md border border-borde bg-superficie p-2 text-sm">
-              <p className="text-texto">
-                {p.nombre} · esperado {p.esperado} · contaste {conteos[p.id] ?? 0}
-              </p>
+
+        <div className="flex flex-col gap-(--espacio-4) xl:grid xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] xl:items-start">
+          <div className="flex flex-col gap-(--espacio-4)">
+            <Tabla
+              etiqueta="Recuento de la zona"
+              columnas={columnasDeRecuento(voc.titulo('producto', true), resumen.importeVisible)}
+              filas={renglonesDe(resumen)}
+              claveDe={(r) => r.clave}
+              tonoDeFila={(r) => r.tono}
+              alto="max-h-none"
+            />
+            <Veredicto resumen={resumen} nombreDeProductos={productos} />
+          </div>
+
+          <div className="flex flex-col gap-(--espacio-4)">
+            <section aria-labelledby="conteo-desviados" className="flex flex-col gap-(--espacio-2)">
+              <h2 id="conteo-desviados" className="text-base font-semibold">
+                Lo que no cuadró
+              </h2>
               {/* En palabras y no la clave: la clave es para la base. */}
-              <p className="text-xs text-texto-sutil">Motivo: {MOTIVO_EN_PALABRAS}</p>
+              {resumen.desviados.length > 0 && (
+                <p className="text-sm text-texto-sutil">
+                  Se ajusta con el motivo «{MOTIVO_EN_PALABRAS}».
+                </p>
+              )}
+              <TablaAdaptable
+                etiqueta="Lo que no cuadró"
+                principal="producto"
+                desde="md"
+                columnas={columnasDeDesviados(voc.titulo('producto'), conteos, recontar)}
+                filas={resumen.desviados}
+                claveDe={(p) => p.id}
+                alto="max-h-[50vh]"
+                vacio={
+                  <Vacio
+                    icono={<Check />}
+                    titulo="Todo lo contado cuadró."
+                    explicacion={`Al cerrar la zona queda constancia de que cada ${voc.singular('producto')} se contó y cuadró.`}
+                    className="py-(--espacio-6)"
+                  />
+                }
+              />
+            </section>
+
+            {cerrada ? (
+              <Aviso tono="exito" titulo="Zona cerrada.">
+                Cada ajuste quedó como un movimiento con su motivo.
+              </Aviso>
+            ) : (
               <Button
                 type="button"
-                size="sm"
-                variant="outline"
-                className="mt-1"
+                className={PRINCIPAL}
+                cargando={guardando}
                 onClick={() => {
-                  recontar(p.id);
+                  void cerrarZona();
                 }}
               >
-                ¿Recontar {p.nombre}?
+                {guardando ? 'Ajustando…' : 'Ajustar todo y cerrar la zona'}
               </Button>
-            </li>
-          ))}
-        </ul>
-        {cerrada ? (
-          <p role="status" className="rounded-md border border-borde p-2 text-sm">
-            Zona cerrada. Cada ajuste quedó como un movimiento con su motivo.
-          </p>
-        ) : (
-          <Button
-            type="button"
-            className={PRINCIPAL}
-            disabled={guardando}
-            onClick={() => {
-              void cerrarZona();
-            }}
-          >
-            {guardando ? 'Ajustando…' : 'Ajustar todo y cerrar la zona'}
-          </Button>
-        )}
+            )}
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className={MARCO}>
-      <header>
+      <header className="flex flex-col gap-(--espacio-1)">
         <h1 className="text-xl font-bold">Zona: {zona}</h1>
         <p className="text-sm text-texto-sutil">
           {diasSinContar === undefined ? '' : `Hace ${diasSinContar} días · `}
@@ -480,36 +747,42 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
       </header>
 
       {error !== null && (
-        <p className={BANDA} role="alert">
-          {error} · Se sigue contando con lo que ya hay.
-        </p>
+        <Aviso tono="peligro" titulo={error}>
+          Se sigue contando con lo que ya hay.
+        </Aviso>
       )}
 
-      <div className="flex flex-col gap-(--espacio-4) xl:grid xl:grid-cols-[16rem_1fr]">
+      <div className="flex flex-col gap-(--espacio-4) xl:grid xl:grid-cols-[16rem_minmax(0,1fr)] xl:items-start">
         {/* En teléfono no hay lista: estorba, y el diagrama del documento no la
             tiene. De tablet arriba es una cinta; en PC, la columna izquierda
             del layout de dos columnas que el documento sí decide. */}
-        <nav
+        <Superficie
+          como="nav"
           aria-label={`${voc.titulo('producto', true)} de la zona`}
-          className="hidden gap-2 overflow-x-auto md:flex xl:flex-col xl:overflow-x-visible"
+          relleno={3}
+          className="hidden gap-(--espacio-2) overflow-x-auto md:flex xl:max-h-[70dvh] xl:flex-col xl:overflow-x-visible xl:overflow-y-auto"
         >
-          {filas.map((fila) => (
-            <Button
-              key={fila.id}
-              type="button"
-              size="sm"
-              variant={conteos[fila.id] === undefined ? ('ghost' as const) : ('secondary' as const)}
-              aria-current={fila.id === actual?.id}
-              className="justify-start whitespace-nowrap xl:w-full"
-              onClick={() => {
-                elegir(fila);
-              }}
-            >
-              <span aria-hidden>{conteos[fila.id] === undefined ? '·' : '✓'}</span>
-              {fila.nombre}
-            </Button>
-          ))}
-        </nav>
+          {filas.map((fila) => {
+            const contado = conteos[fila.id] !== undefined;
+            const enCurso = fila.id === actual?.id;
+            return (
+              <Button
+                key={fila.id}
+                type="button"
+                size="sm"
+                variant={enCurso ? 'default' : contado ? 'secondary' : 'ghost'}
+                aria-current={enCurso}
+                className={`${TACTIL} justify-start whitespace-nowrap xl:min-h-0 xl:w-full`}
+                onClick={() => {
+                  elegir(fila);
+                }}
+              >
+                {contado ? <Check aria-hidden="true" /> : <Circle aria-hidden="true" />}
+                {fila.nombre}
+              </Button>
+            );
+          })}
+        </Superficie>
 
         <section className="flex flex-col gap-(--espacio-4)">
           <form
@@ -521,53 +794,85 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
             <Label htmlFor="buscador" className="sr-only">
               Escanea o busca {voc.enFraseCon('un', 'producto')}
             </Label>
-            <Input
-              id="buscador"
-              value={busqueda}
-              autoComplete="off"
-              placeholder="⌕ escanea o busca"
-              className="min-h-[3.5rem]"
-              onChange={(evento) => {
-                setBusqueda(evento.target.value);
-              }}
-            />
+            <div className="relative">
+              <ScanBarcode
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-5 -translate-y-1/2 text-texto-sutil"
+              />
+              <Input
+                id="buscador"
+                value={busqueda}
+                autoComplete="off"
+                placeholder="escanea o busca"
+                className={`${TACTIL} pl-(--espacio-10) text-lg md:text-lg`}
+                onChange={(evento) => {
+                  setBusqueda(evento.target.value);
+                }}
+              />
+            </div>
           </form>
 
           {actual === null ? (
-            <p className="text-lg font-semibold">Ya contaste los {total} productos de la zona.</p>
+            <Vacio
+              icono={<ClipboardCheck />}
+              titulo={`Ya contaste los ${total} ${productos} de la zona.`}
+              explicacion="Toca «Terminar zona» para ver qué cuadró y cerrarla con su ajuste."
+              className="py-(--espacio-6)"
+            />
           ) : (
-            <form
-              className="flex flex-col gap-(--espacio-3)"
+            <Superficie
+              como="form"
+              nivel={2}
+              relleno={4}
+              aria-labelledby="conteo-en-curso"
+              className="flex flex-col gap-(--espacio-4)"
               onSubmit={(evento) => {
                 evento.preventDefault();
                 registrar();
               }}
             >
               {/* Ni una palabra del esperado aquí: es la regla del arqueo. */}
-              <h2 className="text-2xl font-bold">{actual.nombre}</h2>
+              <div className="flex flex-col gap-(--espacio-1)">
+                <h2 id="conteo-en-curso" className="text-2xl leading-tight font-bold">
+                  {actual.nombre}
+                </h2>
+                {actual.codigo === null ? null : (
+                  <p className="font-numeros text-xs text-texto-sutil tabular-nums">
+                    {actual.codigo}
+                  </p>
+                )}
+              </div>
               <div className="flex gap-(--espacio-3)">
                 <CampoDeConteo id="cajas" etiqueta="cajas" valor={cajas} alCambiar={setCajas} />
                 <CampoDeConteo id="piezas" etiqueta="piezas" valor={piezas} alCambiar={setPiezas} />
               </div>
-              <p aria-live="polite" className="text-center text-lg font-semibold tabular-nums">
-                = {equivalenciaEnPiezas(cajas, piezas, actual.piezasPorCaja)} pz
-              </p>
-              <Button type="submit" className={PRINCIPAL}>
-                SIGUIENTE ✓
+              <div className="flex flex-col items-center gap-(--espacio-1)">
+                <p aria-live="polite" className="text-2xl font-bold">
+                  ={' '}
+                  <Cifra
+                    valor={equivalenciaEnPiezas(cajas, piezas, actual.piezasPorCaja)}
+                    unidad="pz"
+                    tamano="lg"
+                    className="text-2xl font-bold"
+                  />
+                </p>
+                {actual.piezasPorCaja > 1 && (
+                  <p className="text-xs text-texto-sutil">
+                    Caja de <Cifra valor={actual.piezasPorCaja} unidad="pz" tamano="xs" />
+                  </p>
+                )}
+              </div>
+              <Button type="submit" size="lg" className={`${PRINCIPAL} justify-between`}>
+                SIGUIENTE
+                <Check aria-hidden="true" />
               </Button>
-            </form>
+            </Superficie>
           )}
         </section>
       </div>
 
-      <footer className="mt-auto flex flex-col gap-2 pt-(--espacio-4)">
-        <p className="text-sm">
-          Contados {contados} de {total}
-        </p>
-        <Progress
-          value={(contados / total) * 100}
-          aria-label={`Contados ${contados} de ${total}`}
-        />
+      <footer className="mt-auto flex flex-col gap-(--espacio-3) pt-(--espacio-4)">
+        <Progreso valor={(contados / total) * 100} etiqueta={`Contados ${contados} de ${total}`} />
         <Button
           type="button"
           variant="outline"

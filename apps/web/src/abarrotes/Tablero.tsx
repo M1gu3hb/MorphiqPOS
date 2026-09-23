@@ -1,9 +1,36 @@
 'use client';
 
+import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { GraficaDeBarras } from '@morphiqpos/ui/sistema';
-import { useEffect, useState } from 'react';
+import {
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  GraficaDeBarras,
+  Superficie,
+  Tabla,
+  Vacio,
+  dineroEnTexto,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  ArrowRight,
+  CalendarCheck,
+  CalendarClock,
+  Check,
+  ClipboardList,
+  Lock,
+  LockOpen,
+  MoveRight,
+  PackageCheck,
+  PackagePlus,
+  ScanBarcode,
+  TrendingDown,
+  TrendingUp,
+  TriangleAlert,
+} from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -29,6 +56,13 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * pantalla que se recompone destruye la memoria muscular, que es lo que permite
  * leerla en cuatro segundos— y lo que cambia es lo que cada tarjeta dice.
  *
+ * ── El layout, dispositivo por dispositivo (§4.4 · Layout) ─────────────────
+ * Teléfono, el principal: una columna, la venta y el margen en UNA tarjeta doble
+ * arriba, y del 3 al 7 apilados. Tableta: dos columnas, con «Qué pedir» a todo lo
+ * ancho arriba. PC: tres columnas —1, 2 y 7 a la izquierda; 3, el más grande, en
+ * medio; 4, 5 y 6 a la derecha—. El orden del DOM es el del teléfono, así que el
+ * lector de pantalla lee en el orden en que el dueño lo lee en la cama.
+ *
  * ── Qué hace cada número, en una línea ────────────────────────────────────
  * 1 · Venta de hoy contra el MISMO DÍA de la semana pasada · ¿voy bien o voy mal?
  * 2 · Margen de hoy y del mes · ¿vendí mucho o gané mucho?
@@ -41,21 +75,26 @@ import { useVocabulario } from '~/cliente/vocabulario';
 
 const RUTA = '/api/reportes/tablero-tienda';
 
-const PESOS = new Intl.NumberFormat('es-MX', {
-  style: 'currency',
-  currency: 'MXN',
-  maximumFractionDigits: 0,
-});
-const PESOS_EXACTOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
-
 /** La referencia del giro para la diferencia de conteo, en puntos base. */
 const CONTEO_ACEPTABLE_BP = 250;
 
-const TARJETA = 'rounded-xl border border-borde bg-superficie p-(--espacio-4) text-texto';
 const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-texto-sutil';
-const CIFRA = 'text-3xl font-bold tabular-nums';
-const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
-const RENGLON = 'flex items-baseline justify-between gap-(--espacio-3) py-1';
+const NOTA = 'text-sm text-texto-sutil';
+
+/**
+ * Dónde va cada indicador. Una rejilla y no tres columnas sueltas: así el orden
+ * del DOM sigue siendo el del teléfono y la PC sólo RECOLOCA.
+ */
+const REJILLA =
+  'grid gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start';
+const EN = {
+  ventaYMargen: 'xl:col-start-1 xl:row-start-1',
+  pedir: 'md:col-span-2 md:row-start-1 xl:col-span-1 xl:col-start-2 xl:row-span-3',
+  conteo: 'xl:col-start-3 xl:row-start-1',
+  fiado: 'xl:col-start-3 xl:row-start-2',
+  vence: 'xl:col-start-3 xl:row-start-3',
+  caja: 'xl:col-start-1 xl:row-start-2',
+} as const;
 
 interface PorPedir {
   readonly proveedor: string;
@@ -117,36 +156,26 @@ export interface TableroProps {
 }
 
 /**
- * La fecha del negocio, como se lee: «domingo, 20 de septiembre».
- *
- * A mediodía y no a medianoche: `new Date('2026-09-20')` es medianoche UTC, que en
- * México es el día ANTERIOR a las 18:00, y el tablero saldría fechado ayer.
+ * La fecha del negocio a mediodía y no a medianoche: `new Date('2026-09-20')` es
+ * medianoche UTC, que en México es el día ANTERIOR a las 18:00, y el tablero
+ * saldría fechado ayer.
  */
+function aMediodia(fecha: string): Date {
+  return new Date(`${fecha}T12:00:00`);
+}
+
+/** La fecha del negocio, como se lee: «domingo, 20 de septiembre». */
 function comoFecha(fecha: string): string {
   return new Intl.DateTimeFormat('es-MX', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-  }).format(new Date(`${fecha}T12:00:00`));
+  }).format(aMediodia(fecha));
 }
 
-const pesos = (centavos: string): string => PESOS.format(Number(centavos) / 100);
-const pesosExactos = (centavos: string): string => PESOS_EXACTOS.format(Number(centavos) / 100);
-const porciento = (bp: number): string => `${(bp / 100).toFixed(1)} %`;
-
-/**
- * La comparación, en la única forma que sirve: con su signo y su palabra.
- *
- * «$6,400» no significa nada; «$6,400, −18 % contra el martes pasado» sí. Cuando la
- * semana pasada no hubo venta ese día se dice eso y no se inventa un porcentaje
- * sobre cero.
- */
-function comparacion(hoy: string, referencia: string): string {
-  const base = Number(referencia);
-  if (base <= 0) return 'sin venta ese día la semana pasada';
-  const cambio = Math.round(((Number(hoy) - base) / base) * 100);
-  const signo = cambio > 0 ? '+' : '';
-  return `${signo}${String(cambio)} % contra el mismo día de la semana pasada`;
+/** El día de la semana, para decir «contra el martes pasado» y no una fórmula. */
+function diaDeLaSemana(fecha: string): string {
+  return new Intl.DateTimeFormat('es-MX', { weekday: 'long' }).format(aMediodia(fecha));
 }
 
 function mensajeDe(fallo: unknown): string {
@@ -154,10 +183,161 @@ function mensajeDe(fallo: unknown): string {
   return 'No se pudo cargar el tablero.';
 }
 
+/** Un porcentaje guardado en puntos base, con un decimal y cifras tabulares. */
+function Porcentaje({ bp }: { readonly bp: number }) {
+  return <Cifra valor={bp / 100} decimales={1} unidad="%" tamano="sm" />;
+}
+
+/**
+ * La comparación, en la única forma que sirve: con su signo, su flecha y su palabra.
+ *
+ * «$6,400» no significa nada; «$6,400, −18 % contra el martes pasado» sí. Cuando la
+ * semana pasada no hubo venta ese día se dice eso y no se inventa un porcentaje
+ * sobre cero. El verde y el rojo nunca van solos: los acompañan el signo y la flecha.
+ */
+function Comparacion({
+  hoy,
+  referencia,
+  dia,
+}: {
+  readonly hoy: string;
+  readonly referencia: string;
+  readonly dia: string;
+}) {
+  const base = Number(referencia);
+  if (base <= 0) return <span className="text-texto-sutil">sin venta el {dia} pasado</span>;
+  const cambio = Math.round(((Number(hoy) - base) / base) * 100);
+  const sube = cambio > 0;
+  const baja = cambio < 0;
+  const Flecha = sube ? TrendingUp : baja ? TrendingDown : MoveRight;
+  const tono = sube ? 'text-exito' : baja ? 'text-peligro' : 'text-texto-sutil';
+  return (
+    <span>
+      <span
+        className={`inline-flex items-center gap-(--espacio-1) font-numeros font-semibold tabular-nums ${tono}`}
+      >
+        <Flecha aria-hidden="true" className="size-4" />
+        {sube ? '+' : baja ? '−' : ''}
+        {Math.abs(cambio)} %
+      </span>{' '}
+      <span className="text-texto-sutil">contra el {dia} pasado</span>
+    </span>
+  );
+}
+
+/** Una tarjeta del tablero: su rótulo arriba, su dato, y su salida al pie. */
+function Indicador({
+  id,
+  titulo,
+  children,
+  salida,
+  className = '',
+}: {
+  readonly id: string;
+  readonly titulo: ReactNode;
+  readonly children: ReactNode;
+  /** A dónde se va a actuar sobre lo que se acaba de leer. */
+  readonly salida?: ReactNode;
+  readonly className?: string;
+}) {
+  return (
+    <Superficie
+      como="section"
+      relleno={3}
+      aria-labelledby={id}
+      className={`flex min-w-0 flex-col gap-(--espacio-2) md:p-(--espacio-4) ${className}`}
+    >
+      <h2 id={id} className={ROTULO}>
+        {titulo}
+      </h2>
+      {children}
+      {salida === undefined ? null : <div className="mt-auto pt-(--espacio-1)">{salida}</div>}
+    </Superficie>
+  );
+}
+
+/** El enlace al pie de una tarjeta: lleva a otra pantalla, no dispara nada. */
+function Salida({ href, children }: { readonly href: string; readonly children: ReactNode }) {
+  return (
+    <Button asChild size="sm" variant="secondary">
+      <a href={href}>
+        {children}
+        <ArrowRight aria-hidden="true" />
+      </a>
+    </Button>
+  );
+}
+
+/**
+ * El encabezado de los tres estados. La MISMA forma que el `PageHeader` heredado
+ * —el bloque del título y, de hermano, el de las acciones— porque es la relación
+ * por la que la prueba encuentra las acciones de un tablero sin agarrarse a una
+ * clase. Las acciones no dependen de los datos: están aunque el tablero no cargue.
+ */
+function Encabezado({ fecha }: { readonly fecha: string | null }) {
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-(--espacio-2)">
+      <div>
+        <h1 className="text-2xl font-bold">Buen día</h1>
+        {fecha === null ? null : (
+          <p className={`${NOTA} first-letter:uppercase`}>{comoFecha(fecha)}</p>
+        )}
+      </div>
+      <div className="flex gap-(--espacio-2)">
+        <Button asChild size="sm">
+          <a href="/abarrotes/cobrar">
+            <ScanBarcode aria-hidden="true" />
+            Ir a Caja
+          </a>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <a href="/abarrotes/entradas">
+            <PackagePlus aria-hidden="true" />
+            Registrar compra
+          </a>
+        </Button>
+      </div>
+    </header>
+  );
+}
+
+const COLUMNAS_DE_PEDIDO: readonly ColumnaDeTabla<PorPedir>[] = [
+  {
+    clave: 'proveedor',
+    titulo: 'Proveedor',
+    celda: (fila) => (
+      <span className="flex flex-col items-start gap-(--espacio-1)">
+        <span className="font-medium">{fila.proveedor}</span>
+        {fila.pasaManana ? (
+          <Badge>
+            <CalendarClock aria-hidden="true" />
+            pasa mañana
+          </Badge>
+        ) : null}
+      </span>
+    ),
+  },
+  {
+    clave: 'claves',
+    titulo: 'Claves',
+    numerica: true,
+    celda: (fila) => <Cifra valor={fila.claves} unidad="claves" tamano="sm" />,
+  },
+  {
+    clave: 'importe',
+    titulo: 'Importe',
+    numerica: true,
+    celda: (fila) => <Dinero centavos={Number(fila.importeCentavos)} className="font-medium" />,
+  },
+];
+
 export function Tablero({ datosIniciales }: TableroProps) {
   const voc = useVocabulario();
   const [datos, setDatos] = useState<TableroDeTienda | null>(datosIniciales ?? null);
   const [error, setError] = useState<string | null>(null);
+  // Cada lectura es un número: «Volver a intentar» lo sube y el efecto lee otra vez.
+  // El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
 
   useEffect(() => {
     if (datosIniciales !== undefined) return;
@@ -175,234 +355,345 @@ export function Tablero({ datosIniciales }: TableroProps) {
     return () => {
       control.abort();
     };
-  }, [datosIniciales]);
+  }, [datosIniciales, intento]);
 
   if (error !== null) {
     return (
-      <main className="space-y-(--espacio-3) p-(--espacio-4)">
-        <h1 className="text-2xl font-bold">Buen día</h1>
-        <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-(--espacio-3)">
-          {error}
-        </p>
+      <main className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
+        <Encabezado fecha={null} />
+        <ErrorDePantalla
+          titulo="No se pudo leer el tablero"
+          queHacer="Revisa la conexión y vuelve a intentarlo. El tablero sólo lee: en la tienda no cambió nada."
+          detalle={error}
+          reintentar={
+            <Button
+              onClick={() => {
+                setError(null);
+                setDatos(null);
+                setIntento((previo) => previo + 1);
+              }}
+            >
+              Volver a intentar
+            </Button>
+          }
+        />
       </main>
     );
   }
 
   if (datos === null) {
     return (
-      <main className="space-y-(--espacio-3) p-(--espacio-4)">
-        <h1 className="text-2xl font-bold">Buen día</h1>
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-24 w-full" />
+      <main className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
+        <Encabezado fecha={null} />
+        {/* La forma de las siete tarjetas, cada una en su sitio: al llegar los
+            datos nada salta, y el ojo ya sabe dónde va a mirar. */}
+        <div role="status" aria-busy="true" aria-label="Cargando el tablero" className={REJILLA}>
+          <Esqueleto className={`h-36 rounded-lg ${EN.ventaYMargen}`} />
+          <Esqueleto className={`h-64 rounded-lg ${EN.pedir}`} />
+          <Esqueleto className={`h-32 rounded-lg ${EN.conteo}`} />
+          <Esqueleto className={`h-48 rounded-lg ${EN.fiado}`} />
+          <Esqueleto className={`h-40 rounded-lg ${EN.vence}`} />
+          <Esqueleto className={`h-28 rounded-lg ${EN.caja}`} />
+        </div>
       </main>
     );
   }
 
   const { venta, margen, porPedir, conteo, fiado, porVencer, caja } = datos;
-  const diferencia = Number(conteo.diferenciaCentavos);
+  const dia = diaDeLaSemana(datos.fecha);
+  const totalDelPedido = porPedir.reduce((suma, fila) => suma + Number(fila.importeCentavos), 0);
+  const conteoExcede = Math.abs(conteo.sobreVentaBp) > CONTEO_ACEPTABLE_BP;
+  const faltaMaterial = Number(conteo.diferenciaCentavos) < 0;
+  const diferenciaDeCierre =
+    caja.diferenciaUltimoCierreCentavos === null
+      ? null
+      : Number(caja.diferenciaUltimoCierreCentavos);
+
+  const columnasDeFiado: readonly ColumnaDeTabla<DeudorViejo>[] = [
+    {
+      clave: 'cliente',
+      titulo: voc.titulo('cliente'),
+      celda: (quien) => <span className="line-clamp-1">{quien.cliente}</span>,
+    },
+    {
+      clave: 'dias',
+      titulo: 'Hace',
+      numerica: true,
+      celda: (quien) => <Cifra valor={quien.dias} unidad="d" tamano="sm" />,
+    },
+    {
+      clave: 'saldo',
+      titulo: 'Debe',
+      numerica: true,
+      celda: (quien) => <Dinero centavos={Number(quien.saldoCentavos)} tamano="sm" />,
+    },
+  ];
+
+  const columnasDeVencimiento: readonly ColumnaDeTabla<PorVencer>[] = [
+    {
+      clave: 'producto',
+      titulo: voc.titulo('producto'),
+      celda: (fila) => <span className="line-clamp-1">{fila.producto}</span>,
+    },
+    {
+      clave: 'cuando',
+      titulo: 'Cuándo',
+      // La palabra dice por qué la fila va en rojo: el tono nunca va solo.
+      celda: (fila) =>
+        fila.dias <= 0 ? (
+          <span className="font-semibold text-peligro">vencido</span>
+        ) : (
+          <span className="whitespace-nowrap">
+            en <Cifra valor={fila.dias} unidad="d" tamano="sm" />
+          </span>
+        ),
+    },
+    {
+      clave: 'valor',
+      titulo: 'A costo',
+      numerica: true,
+      celda: (fila) => <Dinero centavos={Number(fila.valorCentavos)} tamano="sm" />,
+    },
+  ];
 
   return (
-    <main className="space-y-(--espacio-3) p-(--espacio-4)">
-      {/* La MISMA forma que el `PageHeader` heredado —el bloque del título y, de
-          hermano, el de las acciones— porque es la relación por la que la prueba
-          encuentra las acciones de un tablero sin agarrarse a una clase. */}
-      <header className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">Buen día</h1>
-          <p className="text-sm text-texto-sutil">{comoFecha(datos.fecha)}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild size="sm">
-            <a href="/abarrotes/cobrar">Ir a Caja</a>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <a href="/abarrotes/entradas">Registrar compra</a>
-          </Button>
-        </div>
-      </header>
+    <main className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
+      <Encabezado fecha={datos.fecha} />
 
-      {/* 1 · LA VENTA, con la única comparación que sirve. */}
-      <section className={TARJETA} aria-labelledby="t-venta">
-        {/* El sustantivo del giro: una tiendita lee «Venta» y el día que la dueña
-            llame «nota» a lo que cobra, este rótulo la sigue. */}
-        <h2 id="t-venta" className={ROTULO}>
-          {voc.titulo('orden')} de hoy
-        </h2>
-        <p className={CIFRA}>{pesos(venta.hoyCentavos)}</p>
-        <p className="text-sm text-texto-sutil">
-          {comparacion(venta.hoyCentavos, venta.referenciaCentavos)} ·{' '}
-          {voc.conNumero('orden', venta.tickets)}
-        </p>
-      </section>
+      <div className={REJILLA}>
+        {/* 1 y 2 · LA TARJETA DOBLE. La venta y el margen, lado a lado en el
+            teléfono porque se leen juntos: «¿vendí mucho o gané mucho?» es UNA
+            pregunta con dos números. En la columna angosta de la PC, uno sobre otro. */}
+        <Superficie
+          relleno={0}
+          className={`grid min-w-0 grid-cols-2 divide-x divide-borde xl:grid-cols-1 xl:divide-x-0 xl:divide-y ${EN.ventaYMargen}`}
+        >
+          <section
+            aria-labelledby="t-venta"
+            className="flex min-w-0 flex-col gap-(--espacio-1) p-(--espacio-3) md:p-(--espacio-4)"
+          >
+            {/* El sustantivo del giro: una tiendita lee «Venta» y el día que la dueña
+                llame «nota» a lo que cobra, este rótulo la sigue. */}
+            <h2 id="t-venta" className={ROTULO}>
+              {voc.titulo('orden')} de hoy
+            </h2>
+            <Dinero
+              centavos={Number(venta.hoyCentavos)}
+              tamano="lg"
+              className="text-2xl font-semibold sm:text-3xl"
+            />
+            <p className="text-sm">
+              <Comparacion
+                hoy={venta.hoyCentavos}
+                referencia={venta.referenciaCentavos}
+                dia={dia}
+              />
+            </p>
+            <p className={NOTA}>{voc.conNumero('orden', venta.tickets)}</p>
+          </section>
 
-      {/* 2 · EL MARGEN, que es otra cosa que la venta. */}
-      <section className={TARJETA} aria-labelledby="t-margen">
-        <h2 id="t-margen" className={ROTULO}>
-          Margen de hoy
-        </h2>
-        <p className={CIFRA}>
-          {pesos(margen.hoyCentavos)} <span className={CIFRA_CHICA}>{porciento(margen.hoyBp)}</span>
-        </p>
-        <p className="text-sm text-texto-sutil">
-          En el mes {pesos(margen.mesCentavos)} · {porciento(margen.mesBp)}
-        </p>
-      </section>
+          {/* 2 · EL MARGEN, que es otra cosa que la venta. */}
+          <section
+            aria-labelledby="t-margen"
+            className="flex min-w-0 flex-col gap-(--espacio-1) p-(--espacio-3) md:p-(--espacio-4)"
+          >
+            <h2 id="t-margen" className={ROTULO}>
+              Margen de hoy
+            </h2>
+            <Dinero
+              centavos={Number(margen.hoyCentavos)}
+              tamano="lg"
+              className="text-2xl font-semibold sm:text-3xl"
+            />
+            <p className="text-sm font-semibold">
+              <Porcentaje bp={margen.hoyBp} />
+            </p>
+            <p className={NOTA}>
+              En el mes <Dinero centavos={Number(margen.mesCentavos)} tamano="sm" /> ·{' '}
+              <Porcentaje bp={margen.mesBp} />
+            </p>
+          </section>
+        </Superficie>
 
-      {/* 3 · QUÉ PEDIR. No «63 claves bajo mínimo»: a quién y cuánto. */}
-      <section className={TARJETA} aria-labelledby="t-pedir">
-        <h2 id="t-pedir" className={ROTULO}>
-          Qué pedir
-        </h2>
-        {porPedir.length === 0 ? (
-          <p className="text-sm text-texto-sutil">Nada bajo mínimo: el surtido está completo.</p>
-        ) : (
-          <ul className="divide-y divide-borde">
-            {porPedir.map((fila) => (
-              <li key={fila.proveedor} className={RENGLON}>
-                <span className="min-w-0 flex-1 truncate">
-                  {fila.proveedor}
-                  {fila.pasaManana && (
-                    <span className="ml-2 rounded-md bg-primario/15 px-1 text-xs font-semibold text-primario">
-                      pasa mañana
-                    </span>
-                  )}
+        {/* 3 · QUÉ PEDIR. No «63 claves bajo mínimo»: a quién y cuánto. Es el más
+            grande en la PC y va a todo lo ancho en la tableta. */}
+        <Indicador
+          id="t-pedir"
+          titulo="Qué pedir"
+          className={EN.pedir}
+          salida={<Salida href="/abarrotes/entradas">Ver el pedido renglón por renglón</Salida>}
+        >
+          <Tabla
+            etiqueta="Qué pedir, por proveedor"
+            columnas={COLUMNAS_DE_PEDIDO}
+            filas={porPedir}
+            claveDe={(fila) => fila.proveedor}
+            alto="max-h-none"
+            className="border-0"
+            pie={{
+              proveedor: 'Total',
+              importe: <Dinero centavos={totalDelPedido} className="font-semibold" />,
+            }}
+            vacio={
+              <Vacio
+                icono={<PackageCheck />}
+                titulo="Nada bajo mínimo: el surtido está completo."
+                className="py-(--espacio-6)"
+              />
+            }
+          />
+        </Indicador>
+
+        {/* 4 · EL CONTEO. Sin conteos, lo dice: un cero aquí sería mentira. */}
+        <Indicador id="t-conteo" titulo="Diferencia de conteo del mes" className={EN.conteo}>
+          {!conteo.hayConteos ? (
+            <Vacio
+              icono={<ClipboardList />}
+              titulo="Sin conteos este mes"
+              explicacion="El conteo cíclico no se está haciendo: un cero aquí sería mentira."
+              accion={<Salida href="/abarrotes/conteo">Contar una zona</Salida>}
+              className="px-0 py-(--espacio-3)"
+            />
+          ) : (
+            <>
+              <Dinero
+                centavos={Number(conteo.diferenciaCentavos)}
+                tamano="lg"
+                className="text-2xl font-semibold"
+              />
+              <p className={conteoExcede ? 'text-sm font-semibold text-peligro' : NOTA}>
+                {conteoExcede ? (
+                  <TriangleAlert
+                    aria-hidden="true"
+                    className="mr-(--espacio-1) inline size-4 align-text-bottom"
+                  />
+                ) : null}
+                <Porcentaje bp={Math.abs(conteo.sobreVentaBp)} /> de la venta del mes
+                {conteoExcede ? ', arriba de' : ' ·'} la referencia del giro, 1.5 a 2.5 %
+              </p>
+              <p className={NOTA}>
+                {conteo.tomas} zona(s) contada(s)
+                {faltaMaterial ? ' · falta material' : ''}
+              </p>
+            </>
+          )}
+        </Indicador>
+
+        {/* 5 · EL FIADO. El «otorgado hoy» es el que corrige la conducta esta noche. */}
+        <Indicador
+          id="t-fiado"
+          titulo="Lo que me deben"
+          className={EN.fiado}
+          salida={<Salida href="/abarrotes/fiado">Ver la libreta</Salida>}
+        >
+          <Dinero
+            centavos={Number(fiado.totalCentavos)}
+            tamano="lg"
+            className="text-2xl font-semibold"
+          />
+          <p className={NOTA}>
+            Vencido <Dinero centavos={Number(fiado.vencidoCentavos)} tamano="sm" /> · otorgado hoy{' '}
+            <Dinero
+              centavos={Number(fiado.otorgadoHoyCentavos)}
+              tamano="sm"
+              className="font-semibold text-texto"
+            />
+          </p>
+          {fiado.masViejos.length > 0 ? (
+            <Tabla
+              etiqueta="Los que más tiempo llevan debiendo"
+              columnas={columnasDeFiado}
+              filas={fiado.masViejos}
+              claveDe={(quien) => `${quien.cliente}-${String(quien.dias)}`}
+              alto="max-h-none"
+              className="border-0"
+            />
+          ) : null}
+        </Indicador>
+
+        {/* 6 · LO QUE SE VENCE. Merma prevenible, en las líneas de menor margen. */}
+        <Indicador id="t-vence" titulo="Se vence esta semana" className={EN.vence}>
+          {/* LA ÚNICA GRÁFICA DE ESTE TABLERO, y va aquí y no en la venta.
+              §4.4 prohíbe la dona de métodos de pago —«en 390 px una lista ordenada
+              contesta mejor y ocupa menos»— y el mismo criterio decide dónde SÍ
+              cabe una: donde la pregunta es «¿cuál primero?» y las magnitudes son
+              comparables. La tabla de abajo dice qué y cuánto; lo que no dice es si
+              el remate del sábado empieza por uno solo que se come la mitad del
+              riesgo o hay que bajarle el precio a los cinco. */}
+          {porVencer.length > 1 ? (
+            <GraficaDeBarras
+              titulo="Lo que se vence esta semana, a costo"
+              ejes={porVencer.map((fila) => fila.producto)}
+              series={[
+                {
+                  etiqueta: 'A costo',
+                  valores: porVencer.map((fila) => Number(fila.valorCentavos)),
+                },
+              ]}
+              formato={(valor) => dineroEnTexto(valor)}
+              alto={140}
+            />
+          ) : null}
+          <Tabla
+            etiqueta="Lo que se vence esta semana"
+            columnas={columnasDeVencimiento}
+            filas={porVencer}
+            claveDe={(fila) => `${fila.producto}-${String(fila.dias)}`}
+            alto="max-h-none"
+            className="border-0"
+            tonoDeFila={(fila) => (fila.dias <= 0 ? 'peligro' : undefined)}
+            vacio={
+              <Vacio
+                icono={<CalendarCheck />}
+                titulo="Nada se vence esta semana."
+                className="py-(--espacio-4)"
+              />
+            }
+          />
+        </Indicador>
+
+        {/* 7 · LA CAJA. Dos preguntas de control con una mirada. */}
+        <Indicador id="t-caja" titulo="Caja" className={EN.caja}>
+          {caja.abierta ? (
+            <>
+              <p className="flex items-center gap-(--espacio-2) font-semibold">
+                <LockOpen aria-hidden="true" className="size-4 text-exito" />
+                Abierta
+              </p>
+              <p className="text-sm">
+                <Dinero
+                  centavos={Number(caja.efectivoEsperadoCentavos)}
+                  tamano="lg"
+                  className="font-semibold"
+                />{' '}
+                en el cajón
+              </p>
+              <p className={NOTA}>La tiene {caja.quien ?? 'sin firma'}</p>
+            </>
+          ) : (
+            <p className="flex items-center gap-(--espacio-2) font-semibold">
+              <Lock aria-hidden="true" className="size-4 text-texto-sutil" />
+              Cerrada
+            </p>
+          )}
+          <p className={`flex items-center gap-(--espacio-1) ${NOTA}`}>
+            {diferenciaDeCierre === null ? (
+              'Todavía no hay ningún corte.'
+            ) : (
+              <>
+                {diferenciaDeCierre === 0 ? (
+                  <Check aria-hidden="true" className="size-4 shrink-0 text-exito" />
+                ) : (
+                  <TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-advertencia" />
+                )}
+                <span>
+                  Último cierre: <Dinero centavos={diferenciaDeCierre} tamano="sm" /> de diferencia.
                 </span>
-                <span className="text-sm text-texto-sutil">{fila.claves} claves</span>
-                <span className="tabular-nums">{pesos(fila.importeCentavos)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <Button asChild size="sm" variant="secondary" className="mt-2">
-          <a href="/abarrotes/entradas">Ver el pedido renglón por renglón</a>
-        </Button>
-      </section>
-
-      {/* 4 · EL CONTEO. Sin conteos, lo dice: un cero aquí sería mentira. */}
-      <section className={TARJETA} aria-labelledby="t-conteo">
-        <h2 id="t-conteo" className={ROTULO}>
-          Diferencia de conteo del mes
-        </h2>
-        {!conteo.hayConteos ? (
-          <>
-            <p className={CIFRA_CHICA}>Sin conteos este mes</p>
-            <p className="text-sm text-texto-sutil">
-              El conteo cíclico no se está haciendo: un cero aquí sería mentira.
-            </p>
-            <Button asChild size="sm" variant="secondary" className="mt-2">
-              <a href="/abarrotes/conteo">Contar una zona</a>
-            </Button>
-          </>
-        ) : (
-          <>
-            <p className={CIFRA}>{pesosExactos(conteo.diferenciaCentavos)}</p>
-            <p
-              className={
-                Math.abs(conteo.sobreVentaBp) > CONTEO_ACEPTABLE_BP
-                  ? 'text-sm font-semibold text-peligro'
-                  : 'text-sm text-texto-sutil'
-              }
-            >
-              {porciento(Math.abs(conteo.sobreVentaBp))} de la venta del mes · la referencia del
-              giro es 1.5 a 2.5 % · {conteo.tomas} zona(s) contada(s)
-              {diferencia < 0 ? ' · falta material' : ''}
-            </p>
-          </>
-        )}
-      </section>
-
-      {/* 5 · EL FIADO. El «otorgado hoy» es el que corrige la conducta esta noche. */}
-      <section className={TARJETA} aria-labelledby="t-fiado">
-        <h2 id="t-fiado" className={ROTULO}>
-          Lo que me deben
-        </h2>
-        <p className={CIFRA}>{pesos(fiado.totalCentavos)}</p>
-        <p className="text-sm text-texto-sutil">
-          Vencido {pesos(fiado.vencidoCentavos)} · otorgado hoy {pesos(fiado.otorgadoHoyCentavos)}
-        </p>
-        {fiado.masViejos.length > 0 && (
-          <ul className="mt-2 divide-y divide-borde">
-            {fiado.masViejos.map((quien) => (
-              <li key={`${quien.cliente}-${quien.dias}`} className={RENGLON}>
-                <span className="min-w-0 flex-1 truncate">{quien.cliente}</span>
-                <span className="text-sm text-texto-sutil">{quien.dias} d</span>
-                <span className="tabular-nums">{pesos(quien.saldoCentavos)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <Button asChild size="sm" variant="secondary" className="mt-2">
-          <a href="/abarrotes/fiado">Ver la libreta</a>
-        </Button>
-      </section>
-
-      {/* 6 · LO QUE SE VENCE. Merma prevenible, en las líneas de menor margen. */}
-      <section className={TARJETA} aria-labelledby="t-vence">
-        <h2 id="t-vence" className={ROTULO}>
-          Se vence esta semana
-        </h2>
-        {porVencer.length === 0 ? (
-          <p className="text-sm text-texto-sutil">Nada se vence esta semana.</p>
-        ) : (
-          <ul className="divide-y divide-borde">
-            {/* LA ÚNICA GRÁFICA DE ESTE TABLERO, y va aquí y no en la venta.
-                §4.4 prohíbe la dona de métodos de pago —«en 390 px una lista ordenada
-                contesta mejor y ocupa menos»— y el mismo criterio decide dónde SÍ
-                cabe una: donde la pregunta es «¿cuál primero?» y las magnitudes son
-                comparables. La lista de abajo dice qué y cuánto; lo que no dice es si
-                el remate del sábado empieza por uno solo que se come la mitad del
-                riesgo o hay que bajarle el precio a los cinco. */}
-            {porVencer.length > 1 && (
-              <li className="pb-(--espacio-3)">
-                <GraficaDeBarras
-                  titulo="Lo que se vence esta semana, a costo"
-                  ejes={porVencer.map((fila) => fila.producto)}
-                  series={[
-                    {
-                      etiqueta: 'A costo',
-                      valores: porVencer.map((fila) => Number(fila.valorCentavos)),
-                    },
-                  ]}
-                  formato={(valor) => PESOS.format(valor / 100)}
-                  alto={140}
-                />
-              </li>
+              </>
             )}
-            {porVencer.map((fila) => (
-              <li key={`${fila.producto}-${fila.dias}`} className={RENGLON}>
-                <span className="min-w-0 flex-1 truncate">{fila.producto}</span>
-                <span className={fila.dias <= 0 ? 'text-sm font-semibold text-peligro' : 'text-sm'}>
-                  {fila.dias <= 0 ? 'vencido' : `en ${String(fila.dias)} d`}
-                </span>
-                <span className="tabular-nums">{pesos(fila.valorCentavos)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* 7 · LA CAJA. Dos preguntas de control con una mirada. */}
-      <section className={TARJETA} aria-labelledby="t-caja">
-        <h2 id="t-caja" className={ROTULO}>
-          Caja
-        </h2>
-        {caja.abierta ? (
-          <>
-            <p className={CIFRA_CHICA}>
-              Abierta · {pesosExactos(caja.efectivoEsperadoCentavos)} en el cajón
-            </p>
-            <p className="text-sm text-texto-sutil">La tiene {caja.quien ?? 'sin firma'}</p>
-          </>
-        ) : (
-          <p className={CIFRA_CHICA}>Cerrada</p>
-        )}
-        <p className="text-sm text-texto-sutil">
-          {caja.diferenciaUltimoCierreCentavos === null
-            ? 'Todavía no hay ningún corte.'
-            : `Último cierre: ${pesosExactos(caja.diferenciaUltimoCierreCentavos)} de diferencia.`}
-        </p>
-      </section>
+          </p>
+        </Indicador>
+      </div>
     </main>
   );
 }

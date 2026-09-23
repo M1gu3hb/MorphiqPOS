@@ -838,7 +838,7 @@ quedaban y fusionar.
 | Bloque | Qué | Estado |
 | --- | --- | --- |
 | **1** | `verify:adopcion`: las cuatro condiciones sobre el árbol de sintaxis, en la cadena (37 eslabones) y en CI como trabajo propio | ✅ salió ROJA: **0 de 69 adoptadas** (y 3 proveedores sin interfaz) |
-| **2** | Recomponer las pantallas con la biblioteca | 🟨 las dos de cobro (`cafeteria/Cobrar`, `ferreteria/Mostrador`) con sus suites en verde; el resto, por lotes de modelo |
+| **2** | Recomponer las pantallas con la biblioteca | 🟨 las dos de cobro (`cafeteria/Cobrar`, `ferreteria/Mostrador`) y el lote de **abarrotes** (12 de 12, `abarrotes.spec` en verde); el resto, por lotes de modelo |
 | **3** | `<Dinero>`, `<Cifra>` y `<Button asChild>` con pruebas; `Cifra` arreglada | ✅ 24 pruebas de componentes y una de navegador en `estilos.spec`, las cuatro mutaciones en rojo |
 | **4** | El rastreador en los ocho estilos; la galería como puerta | ⬜ |
 | **5.1** | Un solo vocabulario dentro de `packages/ui` | ✅ 1 633 utilidades traducidas, `[data-modo='oscuro']`, dos reglas nuevas en `verify:primitivas` |

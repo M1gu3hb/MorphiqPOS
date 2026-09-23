@@ -3,8 +3,19 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Dinero, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
-import { LockKeyhole, ScanBarcode } from 'lucide-react';
+import {
+  Aviso,
+  CampoDeDinero,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { Check, Circle, Minus, PackagePlus, ScanBarcode, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -30,6 +41,13 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * línea, porque seis renglones de «Coca 600» esconden el error en vez de
  * mostrarlo.
  *
+ * ── Por qué la lista es una TABLA densa y no tarjetas ────────────────────
+ * Es un ticket que se verifica de reojo: cantidad, nombre, precio e importe,
+ * cada uno en su columna y con cifras tabulares, para que un `× 6` equivocado
+ * salte a la vista. Con 1,800 claves no hay rejilla de productos: ocuparía el
+ * sitio que necesita la lista. La línea recién escaneada se marca un segundo
+ * como fila activa, y la barra de abajo dice su nombre: el color no va solo.
+ *
  * ── Por qué el cobro EXPANDE el bloque y no abre un modal ────────────────
  * Un modal oscurece el fondo, roba el foco y obliga a dos viajes visuales.
  * Doscientas veces al día eso son minutos. Expandiendo, la lista sigue a la
@@ -54,6 +72,8 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *    que se va solo.
  * 4. Sin conexión (F-988) no se simula: la decisión de la cola sigue abierta.
  * 5. `existencia` la expondrá el puente; hoy llega vacía y el punto no sale.
+ * 6. F9, F10 y F11 van impresas junto a su desvío, pero el teclado todavía no
+ *    las escucha: hoy esos tres se tocan. F12, F2, Supr, + / − y Esc sí.
  */
 
 /** Un lector escribe cada carácter en menos de esto; una mano, jamás. */
@@ -75,6 +95,11 @@ const DESVIOS = [
 ] as const;
 
 type Metodo = 'efectivo' | (typeof DESVIOS)[number]['clave'];
+
+/** El nombre del método elegido, para que el bloque expandido diga en qué se está cobrando. */
+function etiquetaDeMetodo(metodo: Metodo): string {
+  return DESVIOS.find((desvio) => desvio.clave === metodo)?.etiqueta ?? 'Efectivo';
+}
 
 export interface ProductoDeMostrador {
   readonly id: string;
@@ -118,20 +143,6 @@ function aCentavos(pesos: number | null | undefined): number {
   return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
 }
 
-/** Centavos a pesos para una persona. Aritmética entera de punta a punta. */
-export function enPesos(centavos: number): string {
-  const bruto = Math.abs(centavos);
-  const miles = Math.trunc(bruto / 100)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${centavos < 0 ? '-' : ''}$${miles}.${(bruto % 100).toString().padStart(2, '0')}`;
-}
-
-export function centavosDeTexto(texto: string): number {
-  const limpio = texto.replace(/[^\d.]/g, '');
-  return limpio === '' ? 0 : aCentavos(Number(limpio));
-}
-
 /** El IVA que ya venía en el precio. Nunca se suma: se desglosa. */
 export function ivaIncluido(total: number): number {
   return Math.round((total * IVA_NUMERADOR) / IVA_DENOMINADOR);
@@ -172,6 +183,22 @@ export function conProducto(
   ];
 }
 
+/**
+ * La tecla, impresa junto a su acción: en ráfaga se usa por su tecla, no por su
+ * posición. Fuera del nombre del botón —el nombre es la acción— y fuera del
+ * teléfono, que no tiene teclas de función.
+ */
+function Tecla({ children }: { readonly children: string }) {
+  return (
+    <kbd
+      aria-hidden="true"
+      className="hidden rounded-sm border border-current px-(--espacio-1) font-numeros text-xs font-medium opacity-60 md:inline"
+    >
+      {children}
+    </kbd>
+  );
+}
+
 export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarProps) {
   const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoDeMostrador[] | null>(
@@ -180,13 +207,17 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
   const [caja, setCaja] = useState<CajaDelDia | null | undefined>(
     productosIniciales === undefined ? cajaInicial : (cajaInicial ?? null),
   );
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  // Cada intento de lectura es un número: reintentar lo sube y el efecto lee otra
+  // vez. El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
   const [lineas, setLineas] = useState<readonly LineaDeVenta[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [destacada, setDestacada] = useState<string | null>(null);
   const [ultimo, setUltimo] = useState<string | null>(null);
   const [sinCatalogar, setSinCatalogar] = useState<string | null>(null);
   const [metodo, setMetodo] = useState<Metodo | null>(null);
-  const [recibido, setRecibido] = useState('');
+  const [recibido, setRecibido] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const campo = useRef<HTMLInputElement>(null);
@@ -245,14 +276,21 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
       })
       .catch((fallo: unknown) => {
         if (!sigueMontada()) return;
-        setProductos([]);
-        setCaja(null);
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer el catálogo.');
+        // NO LEYÓ: ni catálogo ni caja. Antes esto caía en el muro de «caja
+        // cerrada» con el motivo escondido; ahora se dice qué pasó y se reintenta.
+        setFalloDeCarga(fallo instanceof Error ? fallo.message : 'No se pudo leer el catálogo.');
       });
     return () => {
       control.abort();
     };
-  }, [productosIniciales]);
+  }, [productosIniciales, intento]);
+
+  function reintentar(): void {
+    setFalloDeCarga(null);
+    setProductos(null);
+    setCaja(undefined);
+    setIntento((previo) => previo + 1);
+  }
 
   useEffect(() => {
     if (destacada === null) return;
@@ -323,7 +361,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
       if (evento.key === 'Escape') {
         setMetodo(null);
         setLineas([]);
-        setRecibido('');
+        setRecibido(null);
       } else if (evento.key === 'Delete' && !enCampo) {
         // Supr DESHACE la última línea: el error se corrige, no se previene.
         setLineas((previas) => previas.slice(0, -1));
@@ -343,7 +381,11 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
 
   const total = totalDe(lineas);
   const piezas = lineas.reduce((suma, linea) => suma + linea.cantidad, 0);
-  const cambio = centavosDeTexto(recibido) - total;
+  // Un campo vacío o que no es un importe cuenta como cero: el cambio sale
+  // negativo y CONFIRMAR se queda apagado hasta que lo recibido alcance.
+  const recibidoCentavos = recibido ?? 0;
+  const cambio = recibidoCentavos - total;
+  const falta = cambio < 0;
 
   /**
    * Un solo viaje. El documento no nombra la ruta, así que sigue la convención
@@ -360,11 +402,11 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
       const venta = await invocarComando<{ ventaId: string }>('/api/venta/cobrar-mostrador', {
         metodo,
         totalEsperadoCentavos: total,
-        recibidoCentavos: metodo === 'efectivo' ? centavosDeTexto(recibido) : total,
+        recibidoCentavos: metodo === 'efectivo' ? recibidoCentavos : total,
         lineas: lineas.map((l) => ({ productoId: l.productoId, cantidad: String(l.cantidad) })),
       });
       setLineas([]);
-      setRecibido('');
+      setRecibido(null);
       setMetodo(null);
       setUltimo(null);
       onCobrado?.(venta.ventaId);
@@ -376,15 +418,42 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
     }
   }
 
-  if (productos === null || caja === undefined) {
-    // Esqueletos con la forma de la venta, no un spinner: así nada salta al
-    // llegar el catálogo y el ojo ya sabe dónde va a mirar.
+  if (falloDeCarga !== null) {
     return (
-      <div className="grid gap-(--espacio-3) p-(--espacio-3) md:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <Esqueleto className="min-h-40 w-full md:order-2" />
-        <div className="flex flex-col gap-(--espacio-2) md:order-1">
-          {Array.from({ length: 6 }, (_, i) => (
-            <Esqueleto key={i} className="h-5 w-full" />
+      <div className="mx-auto max-w-lg p-(--espacio-6)">
+        <ErrorDePantalla
+          titulo="No se pudo leer el catálogo ni la caja"
+          queHacer="Sin el catálogo no se reconoce ningún código, y sin la caja no se sabe a qué corte pertenece lo que se cobra. Revisa la conexión y vuelve a intentarlo."
+          detalle={falloDeCarga}
+          reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+        />
+      </div>
+    );
+  }
+
+  if (productos === null || caja === undefined) {
+    // Esqueletos con la forma de la venta, no un spinner: el total a la derecha,
+    // el campo y los renglones del ticket a la izquierda. Así nada salta al llegar
+    // el catálogo y el ojo ya sabe dónde va a mirar.
+    return (
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Leyendo el catálogo y la caja"
+        className="grid gap-(--espacio-3) p-(--espacio-3) md:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_26rem]"
+      >
+        <div className="flex flex-col gap-(--espacio-3) md:col-start-2 md:row-start-1">
+          <Esqueleto className="h-40 w-full rounded-lg" />
+          <Esqueleto className="hidden h-48 w-full rounded-lg xl:block" />
+        </div>
+        <div className="flex flex-col gap-(--espacio-2) md:col-start-1 md:row-start-1">
+          <Esqueleto className="h-(--altura-control) w-full" />
+          {Array.from({ length: 6 }, (_, indice) => (
+            <div key={indice} className="flex items-center gap-(--espacio-3) py-(--espacio-1)">
+              <Esqueleto className="h-4 w-8" />
+              <Esqueleto className="h-4 flex-1" />
+              <Esqueleto className="h-4 w-20" />
+            </div>
           ))}
         </div>
       </div>
@@ -392,23 +461,18 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
   }
 
   if (caja === null) {
+    // UN MURO, no un vacío. La acción va DEBAJO del motivo: a su lado, en un
+    // teléfono, aplastaba el texto a una columna de tres palabras.
     return (
-      <div className="mx-auto max-w-md p-(--espacio-4)">
-        {/* UN MURO, no un vacío: el borde de aviso y el fondo teñido dicen «esto no
-            es que falte algo, es que no se puede pasar». */}
-        <div className="rounded-lg border border-advertencia bg-advertencia/15 p-(--espacio-6)">
-          <Vacio
-            icono={<LockKeyhole />}
-            titulo="La caja está cerrada"
-            explicacion="Una venta sin caja no pertenece a ningún corte: al terminar el día no habría contra qué cuadrarla. Por eso esto es un muro y no un aviso."
-            accion={
-              <Button asChild>
-                <a href="/caja">Ábrela para empezar a vender</a>
-              </Button>
-            }
-            className="py-0"
-          />
-        </div>
+      <div className="mx-auto max-w-xl px-(--espacio-4) py-(--espacio-12)">
+        <Aviso tono="atencion" titulo="La caja está cerrada">
+          <p>
+            {`${voc.conDeterminante('un', 'orden')} sin caja no pertenece a ningún corte: al terminar el día no habría contra qué cuadrarl${voc.terminacion('orden')}.`}
+          </p>
+          <Button asChild className="mt-(--espacio-3)">
+            <a href="/caja">Ábrela para empezar a vender</a>
+          </Button>
+        </Aviso>
       </div>
     );
   }
@@ -417,9 +481,9 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
     return (
       <div className="mx-auto max-w-lg p-(--espacio-4)">
         <Vacio
-          icono={<ScanBarcode />}
+          icono={<PackagePlus />}
           titulo="Todavía no hay nada que escanear."
-          explicacion="Esta pantalla vive del código de barras: en cuanto el catálogo tenga productos con su código y su precio, pasar el lector por uno lo pone en la lista y lo cobra."
+          explicacion={`Esta pantalla vive del código de barras: en cuanto el catálogo tenga ${voc.plural('producto')} con su código y su precio, pasar el lector por uno lo pone en la lista y lo cobra.`}
           accion={
             <Button asChild>
               <a href="/productos">Cargar el catálogo</a>
@@ -430,226 +494,306 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
     );
   }
 
+  const columnas: readonly ColumnaDeTabla<LineaDeVenta>[] = [
+    {
+      clave: 'cantidad',
+      titulo: 'Cant.',
+      numerica: true,
+      // Nunca se pierde, en ningún ancho: es la que se verifica de reojo.
+      celda: (linea) => <span className="font-bold">{linea.cantidad} ×</span>,
+    },
+    {
+      clave: 'producto',
+      titulo: voc.titulo('producto'),
+      celda: (linea) => (
+        <span className="line-clamp-2">
+          {linea.nombre}
+          {/* El color nunca es el único portador: va la palabra junto al punto. */}
+          {linea.sinExistencia && (
+            <span className="ml-(--espacio-2) inline-flex items-center gap-(--espacio-1) text-xs text-texto-sutil">
+              <Circle aria-hidden="true" className="size-2 fill-advertencia text-advertencia" />
+              sin existencia
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      clave: 'precio',
+      titulo: 'Precio',
+      numerica: true,
+      // La tableta pierde el precio unitario si no cabe; el importe, nunca.
+      desde: 'lg',
+      celda: (linea) => (
+        <Dinero centavos={linea.precioCentavos} tamano="sm" className="text-texto-sutil" />
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (linea) => (
+        <Dinero centavos={linea.precioCentavos * linea.cantidad} className="font-medium" />
+      ),
+    },
+    {
+      clave: 'quitar',
+      titulo: 'Quitar',
+      celda: (linea) => (
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label={`Quitar uno de ${linea.nombre}`}
+          onClick={() => {
+            setLineas(conCantidad(lineas, linea.productoId, -1));
+          }}
+        >
+          <Minus />
+        </Button>
+      ),
+    },
+  ];
+
+  const cobroEnReposo = (
+    // En la tableta, COBRAR y sus desvíos en un renglón para no comerse la lista.
+    <div className="flex flex-col gap-(--espacio-2) md:flex-row md:items-center xl:flex-col xl:items-stretch">
+      <Button
+        size="lg"
+        className="min-h-20 w-full justify-between text-lg md:flex-1 xl:flex-none"
+        disabled={lineas.length === 0}
+        onClick={() => {
+          setMetodo('efectivo');
+        }}
+      >
+        <span>COBRAR</span>
+        <Tecla>F12</Tecla>
+      </Button>
+      <div className="flex flex-wrap gap-(--espacio-1)">
+        {DESVIOS.map((desvio) => (
+          <Button
+            key={desvio.clave}
+            size="sm"
+            variant="ghost"
+            disabled={lineas.length === 0}
+            onClick={() => {
+              setMetodo(desvio.clave);
+            }}
+          >
+            {desvio.etiqueta}
+            <Tecla>{desvio.tecla}</Tecla>
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const cobroExpandido = (
+    <>
+      <h2 className="text-xs font-medium tracking-widest text-texto-sutil uppercase">
+        {etiquetaDeMetodo(metodo ?? 'efectivo')}
+      </h2>
+      {metodo === 'efectivo' && (
+        <div className="grid gap-(--espacio-3) md:grid-cols-2 md:items-center xl:grid-cols-1">
+          <div className="flex flex-col gap-(--espacio-2)">
+            <div className="flex flex-col gap-(--espacio-1)">
+              <Label htmlFor="cobrar-recibido">Recibí</Label>
+              <CampoDeDinero
+                id="cobrar-recibido"
+                autoFocus
+                centavos={recibido}
+                alCambiar={setRecibido}
+                onKeyDown={(evento) => {
+                  if (evento.key === 'Enter' && cambio >= 0 && !enviando) void confirmar();
+                }}
+                className="[&_input]:h-[calc(var(--altura-control)*1.25)] [&_input]:text-xl"
+              />
+            </div>
+            {/* `$200` es la respuesta en más de la mitad de los tickets. */}
+            <div className="grid grid-cols-4 gap-(--espacio-1)">
+              {[total, ...DENOMINACIONES].map((monto, indice) => (
+                <Button
+                  key={indice === 0 ? 'exacto' : String(monto)}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setRecibido(monto);
+                  }}
+                >
+                  {indice === 0 ? 'Exacto' : <Dinero centavos={monto} tamano="sm" />}
+                </Button>
+              ))}
+            </div>
+          </div>
+          {/* El cambio en grande porque es el número que se dice en voz alta y el
+              que causa discusiones. Se lee a un metro. Mientras no alcanza, dice
+              cuánto FALTA en vez de un cambio negativo en rojo. */}
+          <div className="flex flex-col items-center gap-(--espacio-1) text-center">
+            <p className="text-xs font-medium tracking-widest text-texto-sutil uppercase">
+              {falta ? 'Falta' : 'Cambio'}
+            </p>
+            <Dinero
+              centavos={falta ? -cambio : cambio}
+              tamano="total"
+              className={falta ? 'leading-none text-texto-sutil' : 'leading-none'}
+            />
+          </div>
+        </div>
+      )}
+      <Button
+        size="lg"
+        variant="success"
+        className="min-h-20 w-full justify-between text-lg"
+        aria-busy={enviando}
+        disabled={enviando || (metodo === 'efectivo' && falta)}
+        onClick={() => {
+          void confirmar();
+        }}
+      >
+        <span>{enviando ? 'Cobrando…' : 'CONFIRMAR'}</span>
+        <Tecla>Enter</Tecla>
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-full"
+        onClick={() => {
+          setMetodo(null);
+        }}
+      >
+        Esc para regresar
+      </Button>
+    </>
+  );
+
   return (
-    <div className="grid gap-(--espacio-3) p-(--espacio-3) pb-56 md:grid-cols-[minmax(0,1fr)_18rem] md:pb-48 xl:grid-cols-[minmax(0,1fr)_26rem] xl:pb-(--espacio-3)">
-      {/* En teléfono el total se queda pegado arriba; de tablet para arriba es
-          la cabeza de la columna derecha. En los dos casos es lo primero. */}
+    // FLEX en teléfono, rejilla de tablet para arriba: en una rejilla lo pegajoso
+    // sólo se pega dentro de su celda, y el total no se quedaba arriba.
+    <div className="flex flex-col gap-(--espacio-3) p-(--espacio-3) pb-56 md:grid md:grid-cols-[minmax(0,1fr)_18rem] md:grid-rows-[auto_1fr_auto] md:pb-48 xl:grid-cols-[minmax(0,1fr)_26rem] xl:pb-(--espacio-3)">
+      <h1 className="sr-only">Cobrar</h1>
+
+      {/* PRIMARIO · el total. En teléfono se queda pegado arriba; de tablet para
+          arriba es la cabeza de la columna derecha. En los dos casos es lo primero. */}
       <Superficie
         nivel={2}
         relleno={4}
         como="section"
         aria-label={`Total de ${voc.enFrase('orden')}`}
-        className="sticky top-0 z-20 flex flex-col items-center gap-(--espacio-1) text-center md:static md:col-start-2 md:row-start-1"
+        className="sticky top-0 z-20 flex flex-col items-center gap-(--espacio-1) text-center md:static md:col-start-2 md:row-start-1 md:self-start md:shadow-1"
       >
-        <Dinero centavos={total} tamano="total" className="leading-none" />
         <p className="text-xs font-medium tracking-widest text-texto-sutil uppercase">Total</p>
+        <Dinero centavos={total} tamano="total" className="leading-none" />
         {/* En teléfono desaparecen el desglose y el conteo: ahí no se vende. */}
-        <p className="mt-(--espacio-1) hidden items-baseline justify-center gap-(--espacio-4) text-sm text-texto-sutil md:flex">
-          <span>{piezas} artículos</span>
-          <span className="inline-flex items-baseline gap-1">
+        <p className="mt-(--espacio-2) hidden items-baseline justify-center gap-(--espacio-4) text-sm text-texto-sutil md:flex">
+          <Cifra valor={piezas} unidad={piezas === 1 ? 'artículo' : 'artículos'} tamano="sm" />
+          <span className="inline-flex items-baseline gap-(--espacio-1)">
             IVA incluido <Dinero centavos={ivaIncluido(total)} tamano="sm" />
           </span>
         </p>
       </Superficie>
 
+      {/* SECUNDARIO · la lista, con el campo de búsqueda encima. */}
       <section
         aria-label={`${voc.titulo('orden')} en curso`}
-        className="flex flex-col gap-(--espacio-2) md:col-start-1 md:row-span-3"
+        className="flex min-w-0 flex-col gap-(--espacio-2) md:col-start-1 md:row-span-2 md:row-start-1"
       >
         <div className="flex flex-col gap-(--espacio-1)">
           <Label htmlFor="cobrar-busqueda">Código o nombre · F2</Label>
-          <Input
-            id="cobrar-busqueda"
-            ref={campo}
-            value={busqueda}
-            placeholder={`${voc.conArticulo('producto')} sin código, o el que no leyó`}
-            onChange={(evento) => {
-              setBusqueda(evento.target.value);
-            }}
-            onKeyDown={(evento) => {
-              if (evento.key === 'Enter' && hallazgo !== undefined) agregar(hallazgo);
-            }}
-          />
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-4 -translate-y-1/2 text-texto-sutil"
+            />
+            <Input
+              id="cobrar-busqueda"
+              ref={campo}
+              value={busqueda}
+              placeholder={`${voc.conArticulo('producto')} sin código, o el que no leyó`}
+              onChange={(evento) => {
+                setBusqueda(evento.target.value);
+              }}
+              onKeyDown={(evento) => {
+                if (evento.key === 'Enter' && hallazgo !== undefined) agregar(hallazgo);
+              }}
+              className="pl-(--espacio-10)"
+            />
+          </div>
           {hallazgo !== undefined && (
-            <p className="text-sm text-texto-sutil">Enter agrega: {hallazgo.nombre}</p>
+            <p className="flex items-baseline justify-between gap-(--espacio-2) text-sm text-texto-sutil">
+              <span>Enter agrega: {hallazgo.nombre}</span>
+              <Dinero centavos={aCentavos(hallazgo.precio_venta)} tamano="sm" />
+            </p>
           )}
         </div>
 
-        {error !== null && (
-          <p role="alert" className="rounded-md border border-peligro bg-peligro/15 p-2">
-            {error} · La venta sigue completa aquí: no se perdió nada.
-          </p>
-        )}
         {sinCatalogar !== null && (
-          <p role="alert" className="rounded-md border border-advertencia/60 bg-advertencia/15 p-2">
-            El código {sinCatalogar} no está en el catálogo. Búscalo por nombre con F2, o dalo de
-            alta sin salir de la venta.
-          </p>
+          <Aviso tono="atencion" titulo={`El código ${sinCatalogar} no está en el catálogo.`}>
+            {`Búscalo por nombre con F2, o dalo de alta sin salir de ${voc.enFrase('orden')}.`}
+          </Aviso>
         )}
 
-        {/* La lista crece hacia abajo con la última visible: nunca un scroll
-            automático que mueva de sitio las de arriba mientras se verifican. */}
-        <ul className="min-h-32 divide-y divide-borde rounded-lg border border-borde">
-          {lineas.length === 0 && (
-            <li className="min-h-32">
-              {/* El código de barras dibujado con bloques y no un icono genérico: esta
-                  pantalla ES el lector, y lo primero que se ve tiene que decirlo. */}
+        {/* Crece hacia abajo: nunca un scroll automático que mueva las de arriba. */}
+        <Tabla
+          etiqueta={`Artículos de ${voc.enFrase('orden')}`}
+          columnas={columnas}
+          filas={lineas}
+          claveDe={(linea) => linea.productoId}
+          // La recién escaneada es la fila activa durante un segundo.
+          {...(destacada === null ? {} : { activa: destacada })}
+          alto="max-h-[50vh] md:max-h-[60vh] xl:max-h-[68vh]"
+          vacio={
+            <Superficie
+              nivel={0}
+              relleno={0}
+              className="flex min-h-64 items-center justify-center border-dashed"
+            >
+              {/* Esta pantalla ES el lector, y lo primero que se ve tiene que decirlo. */}
               <Vacio
-                icono={
-                  <span aria-hidden className="text-3xl tracking-widest">
-                    ▊▌▊▎▊
-                  </span>
-                }
+                icono={<ScanBarcode />}
                 titulo={`Escanea el primer ${voc.singular('producto')}`}
                 explicacion="El lector ya está escuchando: no hay nada que tocar."
               />
-            </li>
-          )}
-          {lineas.map((linea) => (
-            <li
-              key={linea.productoId}
-              className={`flex items-center gap-(--espacio-2) p-(--espacio-2) ${destacada === linea.productoId ? 'bg-primario/15' : ''}`}
-            >
-              <span className="w-12 shrink-0 text-right font-numeros font-bold tabular-nums">
-                {linea.cantidad} ×
-              </span>
-              <span className="flex-1 truncate">
-                {linea.nombre}
-                {/* El color nunca es el único portador: va la palabra. */}
-                {linea.sinExistencia && (
-                  <span className="ml-1 text-xs text-texto-sutil">● sin existencia</span>
-                )}
-              </span>
-              {/* La tablet pierde el precio unitario si no cabe. Nunca pierde
-                  la cantidad: es la que se verifica de reojo. */}
-              <span className="hidden w-20 text-right xl:inline">
-                <Dinero centavos={linea.precioCentavos} tamano="sm" className="text-texto-sutil" />
-              </span>
-              <span className="w-24 shrink-0 text-right font-medium">
-                <Dinero centavos={linea.precioCentavos * linea.cantidad} />
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={`Quitar uno de ${linea.nombre}`}
-                onClick={() => {
-                  setLineas(conCantidad(lineas, linea.productoId, -1));
-                }}
-              >
-                −
-              </Button>
-            </li>
-          ))}
-        </ul>
+            </Superficie>
+          }
+        />
       </section>
 
-      {/* En PC es la columna derecha; de tablet para abajo es la franja fija
-          del borde inferior, a la altura del pulgar y sin nada que sostener. */}
-      <aside
+      {/* TERCIARIO · el cobro. En PC es la columna derecha; de tablet para abajo es
+          la franja fija del borde inferior, a la altura del pulgar y sin nada que
+          sostener. */}
+      <Superficie
+        como="aside"
+        nivel={3}
+        radio="sm"
+        relleno={3}
         aria-label="Cobro"
-        className="fixed inset-x-0 bottom-0 z-20 flex flex-col gap-(--espacio-2) border-t border-borde bg-superficie p-(--espacio-3) shadow-3 md:col-start-2 md:row-start-2 xl:static xl:rounded-lg xl:border xl:shadow-1"
+        className="fixed inset-x-0 bottom-0 z-20 rounded-none xl:static xl:col-start-2 xl:row-start-2 xl:self-start xl:rounded-lg xl:shadow-1"
       >
-        {metodo === null ? (
-          <>
-            <Button
-              size="lg"
-              className="min-h-20 w-full justify-between text-lg"
-              disabled={lineas.length === 0}
-              onClick={() => {
-                setMetodo('efectivo');
-              }}
-            >
-              <span>COBRAR</span>
-              <span aria-hidden>F12</span>
-            </Button>
-            <div className="flex flex-wrap gap-1">
-              {DESVIOS.map((desvio) => (
-                <Button
-                  key={desvio.clave}
-                  size="sm"
-                  variant="ghost"
-                  disabled={lineas.length === 0}
-                  onClick={() => {
-                    setMetodo(desvio.clave);
-                  }}
-                >
-                  {desvio.etiqueta} <span aria-hidden>{desvio.tecla}</span>
-                </Button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            {metodo === 'efectivo' && (
-              <>
-                <Label htmlFor="cobrar-recibido">Recibí</Label>
-                <Input
-                  id="cobrar-recibido"
-                  autoFocus
-                  inputMode="decimal"
-                  value={recibido}
-                  onChange={(evento) => {
-                    setRecibido(evento.target.value);
-                  }}
-                  onKeyDown={(evento) => {
-                    if (evento.key === 'Enter' && cambio >= 0 && !enviando) void confirmar();
-                  }}
-                />
-                {/* El cambio en grande porque es el número que se dice en voz
-                    alta y el que causa discusiones. Se lee a un metro. */}
-                <p className="text-xs font-medium tracking-wide text-texto-sutil uppercase">
-                  Cambio
-                </p>
-                <Dinero centavos={cambio} tamano="total" className="leading-none" />
-                <div className="flex flex-wrap gap-1">
-                  {[total, ...DENOMINACIONES].map((monto, indice) => (
-                    <Button
-                      key={indice}
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setRecibido((monto / 100).toFixed(2));
-                      }}
-                    >
-                      {indice === 0 ? 'Exacto' : enPesos(monto)}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
-            <Button
-              size="lg"
-              className="min-h-20 w-full justify-between text-lg"
-              disabled={enviando || (metodo === 'efectivo' && cambio < 0)}
-              onClick={() => {
-                void confirmar();
-              }}
-            >
-              <span>{enviando ? 'Cobrando…' : 'CONFIRMAR'}</span>
-              <span aria-hidden>Enter</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full"
-              onClick={() => {
-                setMetodo(null);
-              }}
-            >
-              Esc para regresar
-            </Button>
-          </>
-        )}
-      </aside>
+        <div className="flex w-full flex-col gap-(--espacio-2) md:mx-auto md:max-w-3xl xl:max-w-none">
+          {/* El error vive EN el bloque de cobro, donde se estaba mirando. */}
+          {error !== null && (
+            <Aviso tono="peligro" titulo={error}>
+              {`${voc.conArticulo('orden')} sigue complet${voc.terminacion('orden')} en la lista: no se perdió nada.`}
+            </Aviso>
+          )}
+          {metodo === null ? cobroEnReposo : cobroExpandido}
+        </div>
+      </Superficie>
 
-      {/* El único informativo permitido, y sólo porque confirma que el escaneo
-          funcionó: el tercer canal, el que se mira de reojo. */}
+      {/* CUATERNARIO · el único informativo permitido, y sólo porque confirma que
+          el escaneo funcionó: el tercer canal, el que se mira de reojo. */}
       <footer
         role="status"
-        className="hidden justify-between text-xs text-texto-sutil md:col-span-2 md:row-start-3 md:flex"
+        className="hidden items-center justify-between gap-(--espacio-3) border-t border-borde pt-(--espacio-2) text-xs text-texto-sutil md:col-span-2 md:row-start-3 md:flex"
       >
         <span>Caja abierta · {caja.usuario_apertura_nombre ?? 'sin nombre'}</span>
-        <span>{ultimo === null ? 'Sin escaneos todavía' : `Últ: ${ultimo} ✓`}</span>
+        {ultimo === null ? (
+          <span>Sin escaneos todavía</span>
+        ) : (
+          <span className="inline-flex items-center gap-(--espacio-1)">
+            Últ: <span className="font-medium text-texto">{ultimo}</span>
+            <Check aria-hidden="true" className="size-4 text-exito" />
+          </span>
+        )}
       </footer>
     </div>
   );

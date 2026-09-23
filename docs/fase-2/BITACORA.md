@@ -5303,3 +5303,16 @@ catorce horas. Se paró con 6 pantallas hechas (las de abarrotes) y 6 a medias, 
 corre en DOS flujos (A: abarrotes, cafetería y ferretería; B: estética, restaurante,
 configuración y `/sistema`), doce agentes. Las seis a medias se retoman desde donde quedaron. El
 comprobador pasa a DOS turnos para tipos y lint, cada uno con su archivo incremental.
+
+### Lote 1 · abarrotes, cerrado (22-09-2026)
+
+Las doce pantallas de la tienda, recompuestas por el flujo A (seis retomadas desde donde las dejó
+el primer flujo) y cada una con `✓` completo en `comprobar-pantalla.mjs`. Integradas en el árbol
+de integración sobre `6966043`: build limpio, `demo-acople-tienda` resembrada y
+`abarrotes.spec.ts` **1 de 1 en verde** (56 s) sin tocar un solo selector.
+
+Los dos flujos murieron a la vez contra el límite de uso de la sesión («resets 7:50pm»): A con 6
+hechas y 25 caídas, B con 2 hechas y 28 caídas. **Dónde iba:** `verify:adopcion` da 21 de 69
+—abarrotes, las dos de cobro, `cafeteria/AccesoPorPin` y seis de estética cuyos agentes dejaron
+el archivo terminado antes de caer—. Las de estética y `AccesoPorPin` se comprueban completas
+antes de entrar a su lote; las 48 restantes se relanzan por modelo.

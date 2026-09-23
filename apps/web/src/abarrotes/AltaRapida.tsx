@@ -1,6 +1,5 @@
 'use client';
 
-import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import {
   Collapsible,
@@ -16,8 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@morphiqpos/ui/primitivas/select';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState } from 'react';
+import { Aviso, ErrorDePantalla, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
+import { Check, ChevronRight, ScanBarcode, Tags } from 'lucide-react';
+import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -50,12 +50,25 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * «Este código ya es de X» es el fallo que más va a pasar, y el camino
  * correcto casi siempre es agregar una presentación a ese producto, no crear
  * otro. Se comprueba al GUARDAR y no al abrir: entre abrir y guardar, la otra
- * caja pudo darlo de alta, y el servidor es el único que sabe la verdad.
+ * caja pudo darlo de alta, y el servidor es el único que sabe la verdad. Por eso
+ * se pinta como `Aviso` de ATENCIÓN y no de peligro: no se rompió nada.
  *
  * ── Por qué el precio viaja como TEXTO ───────────────────────────────────
  * R15: el dinero nunca pasa por punto flotante en el navegador. Aquí se valida
  * la forma con una expresión regular y se manda la cadena tal cual; quien
  * convierte a centavos es el servidor, en un solo sitio.
+ *
+ * Y por eso los dos importes NO son `CampoDeDinero`: ése habla en centavos y lee
+ * la coma como separador de miles —«18,50» serían mil ochocientos cincuenta
+ * pesos—, mientras que aquí la cadena tecleada es el dato que viaja. Se ven como
+ * él —el `$` delante, las cifras a la derecha y tabulares— sin cambiar el contrato.
+ *
+ * ── Cómo se ve, por dispositivo ──────────────────────────────────────────
+ * PC con lector (el principal): una hoja centrada de nivel 4 —lo que se pone
+ * delante de todo—, angosta, con las acciones en su franja de abajo. Teléfono: el
+ * diálogo ES la pantalla, precio y costo en la misma fila para que los tres campos
+ * queden arriba del teclado, y las acciones pegadas abajo. Lo primero que se ve es
+ * el código, grande y ya puesto; el cursor, en el nombre. Sin animación de entrada.
  *
  * ── Lo que quedó fuera, a propósito ──────────────────────────────────────
  * Las presentaciones no se capturan aquí (se agregan desde la ficha), y la
@@ -134,6 +147,35 @@ function mensajeDe(fallo: unknown): string {
     return fallo.message;
   }
   return 'No se pudo guardar. Lo capturado sigue aquí: vuelve a intentarlo.';
+}
+
+/**
+ * Un importe TECLEADO, que viaja como la cadena que se escribió (ver arriba, R15).
+ * El `$` es tipografía del campo, no parte del valor: `aria-hidden`, y fuera del
+ * texto que se manda.
+ */
+function CampoDeImporte({ className, ...resto }: ComponentProps<typeof Input>): ReactElement {
+  return (
+    <div className="relative">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-(--espacio-3) -translate-y-1/2 text-sm text-texto-sutil"
+      >
+        $
+      </span>
+      <Input
+        {...resto}
+        inputMode="decimal"
+        autoComplete="off"
+        className={`pl-(--espacio-6) text-right font-numeros tabular-nums ${className ?? ''}`}
+      />
+    </div>
+  );
+}
+
+/** «· obligatorio» junto a la etiqueta: se lee, no es un asterisco que hay que adivinar. */
+function Obligatorio(): ReactElement {
+  return <span className="font-normal text-texto-sutil">· obligatorio</span>;
 }
 
 export function AltaRapida({
@@ -286,11 +328,131 @@ export function AltaRapida({
     }
   }
 
+  // El mismo botón en los dos fallos de la categoría: limpiar EN EL CLIC y volver a leer.
+  const reintentarCategorias = (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      onClick={() => {
+        setFallaCategorias(null);
+        setIntento((n) => n + 1);
+      }}
+    >
+      Reintentar
+    </Button>
+  );
+
+  /**
+   * El fallo de la categoría, según lo que haya en pantalla. Si NO se leyó nada, la
+   * pantalla no tiene lo suyo: `ErrorDePantalla`. Si ya había lista —vacía— y lo que
+   * falló fue crear la primera, es un aviso dentro de ese vacío.
+   */
+  const falloDeCategorias =
+    fallaCategorias === null ? null : categorias === null ? (
+      <ErrorDePantalla
+        titulo={fallaCategorias}
+        queHacer="Sin categoría no se guarda: de ella salen el IVA y el IEPS. Lo que ya tecleaste no se borra."
+        reintentar={reintentarCategorias}
+      />
+    ) : (
+      <Aviso tono="peligro" titulo={fallaCategorias} accion={reintentarCategorias} />
+    );
+
+  const campoDeCategoria = (() => {
+    if (categorias === null) {
+      // Esqueleto con la forma del control, no un giro: la hoja no salta cuando
+      // llegan las categorías.
+      return (
+        falloDeCategorias ?? (
+          <div role="status" aria-busy="true" aria-label="Leyendo las categorías">
+            <Esqueleto className="h-(--altura-control) w-full" />
+          </div>
+        )
+      );
+    }
+    if (categorias.length === 0) {
+      // El vacío ENSEÑA: dice para qué sirve lo que falta y lo crea aquí mismo.
+      return (
+        <Superficie nivel={0} radio="md" relleno={0} className="border-dashed">
+          <Vacio
+            icono={<Tags />}
+            titulo="Todavía no hay categorías, y son las que cargan el impuesto."
+            explicacion="De la categoría salen la tasa de IVA y el régimen de IEPS. Con seis bien puestas, los 1,800 productos quedan clasificados sin decidir uno por uno."
+            className="px-(--espacio-4) py-(--espacio-6)"
+          >
+            <div className="flex w-full max-w-md flex-wrap items-end gap-(--espacio-2) text-left">
+              <div className="grid grow gap-(--espacio-1)">
+                <Label htmlFor="categoria-nueva">Nombre de la categoría</Label>
+                <Input
+                  id="categoria-nueva"
+                  value={nuevaCategoria}
+                  placeholder="Despensa, Limpieza, Dulces…"
+                  onChange={(evento) => {
+                    setNuevaCategoria(evento.target.value);
+                  }}
+                />
+              </div>
+              <Button
+                type="button"
+                disabled={creandoCategoria}
+                cargando={creandoCategoria}
+                onClick={() => {
+                  void crearCategoria();
+                }}
+              >
+                {creandoCategoria ? 'Creando…' : 'Crear la primera categoría'}
+              </Button>
+            </div>
+            {falloDeCategorias === null ? null : (
+              <div className="w-full max-w-md text-left">{falloDeCategorias}</div>
+            )}
+          </Vacio>
+        </Superficie>
+      );
+    }
+    return (
+      <>
+        {falloDeCategorias}
+        <Select
+          value={categoriaId}
+          onValueChange={(valor) => {
+            setCategoriaId(valor);
+          }}
+        >
+          <SelectTrigger
+            id="categoria"
+            className="w-full"
+            aria-invalid={campoMalo === 'categoria'}
+            aria-describedby="categoria-nota"
+          >
+            <SelectValue placeholder="Elige la categoría" />
+          </SelectTrigger>
+          <SelectContent>
+            {categorias.map((categoria) => (
+              <SelectItem key={categoria.id} value={categoria.id}>
+                {categoria.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p id="categoria-nota" className="text-xs text-texto-sutil">
+          De aquí salen el IVA y el IEPS del {voc.singular('producto')}.
+        </p>
+      </>
+    );
+  })();
+
   return (
     <main className="flex min-h-dvh justify-center bg-fondo sm:items-center sm:p-(--espacio-6)">
-      {/* Teléfono: el diálogo ES la pantalla, los campos arriba y las acciones
-          pegadas abajo, sobre el teclado. Tablet y PC: hoja centrada. */}
-      <form
+      {/* Teléfono: el diálogo ES la pantalla —sin radio, sin borde, sin sombra—, los
+          campos arriba y las acciones pegadas abajo, sobre el teclado. Tablet y PC:
+          una hoja centrada de nivel 4, lo que se pone delante de todo. */}
+      <Superficie
+        como="form"
+        nivel={4}
+        radio="lg"
+        relleno={0}
         aria-labelledby="alta-titulo"
         onSubmit={(evento) => {
           evento.preventDefault();
@@ -299,9 +461,9 @@ export function AltaRapida({
         onKeyDown={(evento) => {
           if (evento.key === 'Escape') cancelar();
         }}
-        className="flex min-h-dvh w-full flex-col gap-(--espacio-4) bg-superficie p-(--espacio-4) text-texto sm:min-h-0 sm:max-w-2xl sm:rounded-xl sm:border sm:border-borde sm:p-(--espacio-6) sm:shadow-3"
+        className="flex min-h-dvh w-full flex-col rounded-none border-0 shadow-0 sm:min-h-0 sm:max-w-xl sm:overflow-hidden sm:rounded-lg sm:border sm:shadow-4"
       >
-        <header>
+        <header className="flex flex-col gap-(--espacio-1) px-(--espacio-4) pt-(--espacio-4) sm:px-(--espacio-6) sm:pt-(--espacio-6)">
           <h1 id="alta-titulo" className="text-xl font-bold sm:text-2xl">
             {voc.titulo('producto')} nuevo
           </h1>
@@ -310,106 +472,109 @@ export function AltaRapida({
           </p>
         </header>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-md bg-fondo-sutil p-(--espacio-3)">
-          <span className="text-sm text-texto-sutil">Código</span>
-          {codigo === '' ? (
-            <span className="text-sm">Sin código · se le pone después desde la ficha</span>
-          ) : (
-            <>
-              <span className="font-mono text-lg font-semibold">{codigo}</span>
-              <Badge variant="secondary">ya puesto</Badge>
-            </>
-          )}
-        </div>
-
-        {/* El conflicto no vacía nada: ofrece el camino correcto y deja el otro. */}
-        {ocupado !== null && (
-          <div
-            role="alert"
-            className="rounded-md border border-advertencia bg-advertencia/15 p-(--espacio-3)"
+        <div className="flex flex-1 flex-col gap-(--espacio-4) p-(--espacio-4) sm:px-(--espacio-6) sm:pb-(--espacio-6)">
+          {/* LO PRIMERO QUE SE VE: el código que cantó el lector, grande y ya puesto.
+              Es lo único que el cajero no tiene que teclear. */}
+          <Superficie
+            nivel={0}
+            conBorde={false}
+            radio="md"
+            relleno={3}
+            className="flex flex-wrap items-center gap-x-(--espacio-3) gap-y-(--espacio-1) bg-fondo-sutil"
           >
-            <p className="text-sm font-medium">
-              Este código ya es de «{ocupado.nombre}». ¿Es una presentación nueva de ese producto?
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  onAgregarPresentacion?.(ocupado.productoId);
-                }}
-              >
-                Sí · agregar presentación
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setOcupado(null);
-                }}
-              >
-                No · corregir el código
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {error !== null && (
-          <p
-            role="alert"
-            className="rounded-md border border-peligro bg-peligro/10 p-(--espacio-3) text-sm"
-          >
-            {error}
-          </p>
-        )}
-
-        {guardado !== null && (
-          <p
-            role="status"
-            className="rounded-md border border-exito bg-exito/15 p-(--espacio-3) text-sm"
-          >
-            «{guardado}» quedó en el catálogo y en la venta. Escanea el siguiente.
-          </p>
-        )}
-
-        <div className="grid gap-(--espacio-4)">
-          <div className="grid gap-2">
-            <Label htmlFor="nombre">
-              Nombre <span className="text-texto-sutil">· obligatorio</span>
-            </Label>
-            {/* El foco arranca aquí: el código ya está puesto y es lo único que
-                el cajero no tiene que teclear. */}
-            <Input
-              id="nombre"
-              autoFocus
-              autoComplete="off"
-              value={nombre}
-              aria-invalid={campoMalo === 'nombre'}
-              placeholder="Gansito Marinela"
-              onChange={(evento) => {
-                setNombre(evento.target.value);
-              }}
-            />
-          </div>
-
-          <div className="grid gap-(--espacio-4) sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="precio">
-                Precio <span className="text-texto-sutil">· obligatorio</span>
-              </Label>
-              <div className="relative">
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-texto-sutil"
-                >
-                  $
+            <ScanBarcode aria-hidden="true" className="size-5 shrink-0 text-texto-sutil" />
+            <span className="text-sm text-texto-sutil">Código</span>
+            {codigo === '' ? (
+              <span className="text-sm">Sin código · se le pone después desde la ficha</span>
+            ) : (
+              <>
+                <span className="font-numeros text-xl font-semibold tracking-wide tabular-nums">
+                  {codigo}
                 </span>
-                <Input
+                <span className="ml-auto inline-flex items-center gap-(--espacio-1) text-xs text-texto-sutil">
+                  <Check aria-hidden="true" className="size-4 text-exito" />
+                  ya puesto
+                </span>
+              </>
+            )}
+          </Superficie>
+
+          {/* El conflicto no vacía nada: ofrece el camino correcto y deja el otro. */}
+          {ocupado !== null && (
+            <Aviso
+              tono="atencion"
+              titulo={`Este código ya es de «${ocupado.nombre}». ¿Es una presentación nueva de ese producto?`}
+            >
+              <div className="mt-(--espacio-2) flex flex-wrap gap-(--espacio-2)">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    onAgregarPresentacion?.(ocupado.productoId);
+                  }}
+                >
+                  Sí · agregar presentación
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setOcupado(null);
+                  }}
+                >
+                  No · corregir el código
+                </Button>
+              </div>
+            </Aviso>
+          )}
+
+          {/* Un campo que falta dice CUÁL (y el campo se marca); un comando que falla
+              dice además lo que no pasó. */}
+          {error !== null &&
+            (campoMalo === null ? (
+              <Aviso tono="peligro" titulo={error}>
+                {voc.conArticulo('producto')} no quedó en el catálogo.
+              </Aviso>
+            ) : (
+              <Aviso tono="peligro" titulo={error} />
+            ))}
+
+          {guardado !== null && (
+            <Aviso tono="exito" titulo={`«${guardado}» quedó en el catálogo y en la venta.`}>
+              Escanea el siguiente.
+            </Aviso>
+          )}
+
+          <div className="grid gap-(--espacio-4)">
+            <div className="grid gap-(--espacio-2)">
+              <Label htmlFor="nombre">
+                Nombre <Obligatorio />
+              </Label>
+              {/* El foco arranca aquí: el código ya está puesto y es lo único que
+                  el cajero no tiene que teclear. */}
+              <Input
+                id="nombre"
+                autoFocus
+                autoComplete="off"
+                value={nombre}
+                aria-invalid={campoMalo === 'nombre'}
+                placeholder="Gansito Marinela"
+                onChange={(evento) => {
+                  setNombre(evento.target.value);
+                }}
+              />
+            </div>
+
+            {/* Precio y costo en la MISMA fila también en el teléfono: así los tres
+                campos obligatorios caben arriba del teclado. */}
+            <div className="grid grid-cols-2 items-start gap-(--espacio-3) sm:gap-(--espacio-4)">
+              <div className="grid gap-(--espacio-2)">
+                <Label htmlFor="precio">
+                  Precio <Obligatorio />
+                </Label>
+                <CampoDeImporte
                   id="precio"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  className="pl-7"
                   value={precio}
                   aria-invalid={campoMalo === 'precio'}
                   placeholder="18.00"
@@ -418,22 +583,11 @@ export function AltaRapida({
                   }}
                 />
               </div>
-            </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="costo">Costo</Label>
-              <div className="relative">
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-texto-sutil"
-                >
-                  $
-                </span>
-                <Input
+              <div className="grid gap-(--espacio-2)">
+                <Label htmlFor="costo">Costo</Label>
+                <CampoDeImporte
                   id="costo"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  className="pl-7"
                   value={costo}
                   placeholder="14.20"
                   aria-describedby="costo-nota"
@@ -441,160 +595,88 @@ export function AltaRapida({
                     setCosto(evento.target.value);
                   }}
                 />
+                <p id="costo-nota" className="text-xs text-texto-sutil">
+                  Opcional · se corrige solo en la primera compra.
+                </p>
               </div>
-              <p id="costo-nota" className="text-xs text-texto-sutil">
-                Opcional · se corrige solo en la primera compra.
-              </p>
+            </div>
+
+            <div className="grid gap-(--espacio-2)">
+              <Label htmlFor="categoria">
+                Categoría <Obligatorio />
+              </Label>
+              {campoDeCategoria}
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="categoria">
-              Categoría <span className="text-texto-sutil">· obligatorio</span>
-            </Label>
-
-            {categorias === null && fallaCategorias === null && (
-              // Esqueleto con la forma del control, no un giro: la hoja no salta
-              // cuando llegan las categorías.
-              <Skeleton className="h-(--altura-control) w-full rounded-md" />
-            )}
-
-            {fallaCategorias !== null && (
-              <div className="flex flex-wrap items-center gap-2">
-                <p role="alert" className="text-sm">
-                  {fallaCategorias}
-                </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setFallaCategorias(null);
-                    setIntento((n) => n + 1);
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="group w-full justify-start text-texto-sutil"
+              >
+                {/* Gira sin transición: dice abierto o cerrado, no se luce. */}
+                <ChevronRight aria-hidden="true" className="group-data-[state=open]:rotate-90" />
+                Más datos (stock, mínimo, presentaciones)
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="grid grid-cols-2 gap-(--espacio-3) pt-(--espacio-3) sm:gap-(--espacio-4)">
+              <div className="grid gap-(--espacio-2)">
+                <Label htmlFor="stock">Stock inicial</Label>
+                <Input
+                  id="stock"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={stock}
+                  placeholder="0"
+                  className="text-right font-numeros tabular-nums"
+                  onChange={(evento) => {
+                    setStock(evento.target.value);
                   }}
-                >
-                  Reintentar
-                </Button>
+                />
               </div>
-            )}
-
-            {categorias !== null && categorias.length === 0 && (
-              // El vacío ENSEÑA: dice para qué sirve lo que falta y lleva a crearlo.
-              <div className="rounded-md border border-dashed border-borde p-(--espacio-3)">
-                <p className="text-sm font-medium">
-                  Todavía no hay categorías, y son las que cargan el impuesto.
-                </p>
-                <p className="mt-1 text-sm text-texto-sutil">
-                  De la categoría salen la tasa de IVA y el régimen de IEPS. Con seis bien puestas,
-                  los 1,800 productos quedan clasificados sin decidir uno por uno.
-                </p>
-                <div className="mt-2 flex flex-wrap items-end gap-2">
-                  <div className="grow">
-                    <Label htmlFor="categoria-nueva">Nombre de la categoría</Label>
-                    <Input
-                      id="categoria-nueva"
-                      value={nuevaCategoria}
-                      placeholder="Despensa, Limpieza, Dulces…"
-                      onChange={(evento) => {
-                        setNuevaCategoria(evento.target.value);
-                      }}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={creandoCategoria}
-                    onClick={() => {
-                      void crearCategoria();
-                    }}
-                  >
-                    {creandoCategoria ? 'Creando…' : 'Crear la primera categoría'}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {categorias !== null && categorias.length > 0 && (
-              <>
-                <Select
-                  value={categoriaId}
-                  onValueChange={(valor) => {
-                    setCategoriaId(valor);
+              <div className="grid gap-(--espacio-2)">
+                <Label htmlFor="minimo">Mínimo para avisar</Label>
+                <Input
+                  id="minimo"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={minimo}
+                  placeholder="0"
+                  className="text-right font-numeros tabular-nums"
+                  onChange={(evento) => {
+                    setMinimo(evento.target.value);
                   }}
-                >
-                  <SelectTrigger
-                    id="categoria"
-                    className="w-full"
-                    aria-invalid={campoMalo === 'categoria'}
-                    aria-describedby="categoria-nota"
-                  >
-                    <SelectValue placeholder="Elige la categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categorias.map((categoria) => (
-                      <SelectItem key={categoria.id} value={categoria.id}>
-                        {categoria.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p id="categoria-nota" className="text-xs text-texto-sutil">
-                  De aquí salen el IVA y el IEPS del {voc.singular('producto')}.
-                </p>
-              </>
-            )}
-          </div>
+                />
+              </div>
+              <p className="col-span-2 text-xs text-texto-sutil">
+                Las presentaciones (caja, paquete, medio kilo) se agregan desde la ficha del
+                producto, con la venta ya cobrada.
+              </p>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" className="w-full justify-start">
-              ▸ Más datos (stock, mínimo, presentaciones)
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="grid gap-(--espacio-4) pt-(--espacio-3) sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="stock">Stock inicial</Label>
-              <Input
-                id="stock"
-                inputMode="numeric"
-                autoComplete="off"
-                value={stock}
-                placeholder="0"
-                onChange={(evento) => {
-                  setStock(evento.target.value);
-                }}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="minimo">Mínimo para avisar</Label>
-              <Input
-                id="minimo"
-                inputMode="numeric"
-                autoComplete="off"
-                value={minimo}
-                placeholder="0"
-                onChange={(evento) => {
-                  setMinimo(evento.target.value);
-                }}
-              />
-            </div>
-            <p className="text-xs text-texto-sutil sm:col-span-2">
-              Las presentaciones (caja, paquete, medio kilo) se agregan desde la ficha del producto,
-              con la venta ya cobrada.
-            </p>
-          </CollapsibleContent>
-        </Collapsible>
-
-        <footer className="sticky bottom-0 mt-auto flex flex-col-reverse gap-2 border-t border-borde bg-superficie py-(--espacio-3) sm:static sm:mt-0 sm:flex-row sm:justify-end sm:border-0 sm:py-0">
+        {/* Las acciones: pegadas abajo y sobre el área segura en el teléfono —la
+            principal arriba, a la altura del pulgar—; en su franja al pie de la hoja
+            en PC, con la principal a la derecha. */}
+        <footer className="sticky bottom-0 flex flex-col-reverse gap-(--espacio-2) border-t border-borde bg-superficie px-(--espacio-4) pt-(--espacio-3) pb-[max(var(--espacio-3),env(safe-area-inset-bottom))] sm:static sm:flex-row sm:items-center sm:justify-end sm:bg-fondo-sutil sm:px-(--espacio-6) sm:py-(--espacio-4)">
           <Button type="button" variant="ghost" onClick={cancelar}>
-            Cancelar · Esc
+            Cancelar <span className="font-normal text-texto-sutil">· Esc</span>
           </Button>
-          <Button type="submit" size="lg" disabled={enviando}>
-            {enviando ? 'Guardando…' : 'Guardar y agregar · Enter'}
+          <Button type="submit" size="lg" disabled={enviando} cargando={enviando}>
+            {enviando ? (
+              'Guardando…'
+            ) : (
+              <>
+                Guardar y agregar <span className="font-normal opacity-80">· Enter</span>
+              </>
+            )}
           </Button>
         </footer>
-      </form>
+      </Superficie>
     </main>
   );
 }
