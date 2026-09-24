@@ -547,10 +547,15 @@ export function Bloque({ bloque, ocupado = false, conProfesional = false, onToca
         <span className="relative truncate text-xs">{bloque.servicio}</span>
       )}
       {bloque.estado === 'hueco' ? (
-        <span className="relative flex items-center gap-(--espacio-1) text-xs">
+        <span className="relative flex flex-wrap items-center gap-x-(--espacio-1) text-xs">
+          {/*
+            Con la columna a la mitad del ancho, el valor se partía: «·» en un renglón y
+            «~$6,525.00» en el siguiente. El valor va entero (`whitespace-nowrap`) y lo que
+            baja de renglón, si no cabe, es «Llenar».
+          */}
           <Cifra valor={minutos} unidad="min" tamano="xs" />
           {bloque.valorCentavos === null ? null : (
-            <span className="text-texto-sutil">
+            <span className="whitespace-nowrap text-texto-sutil">
               · ~<Dinero centavos={bloque.valorCentavos} tamano="xs" />
             </span>
           )}
