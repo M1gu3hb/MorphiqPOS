@@ -5419,3 +5419,40 @@ en la pieza, con su prueba en rojo primero:
   «no es un importe» ya no son el mismo `null`.
 
 76 pruebas de componentes (de 41), y cada una de las nuevas vista en rojo contra `HEAD`.
+
+### Los 152 hallazgos, verificados y arreglados
+
+Un flujo, **tres agentes a la vez**, 21 grupos de pantallas del mismo modelo, cada agente con la
+orden de VERIFICAR antes de arreglar: **143 arreglados · 3 ya resueltos por la biblioteca · 6
+pendientes** (ninguno falso). Las 60 pantallas tocadas con `✓` completo en su comprobador. Una
+construcción con todo y las seis suites: `cafeteria` ✓ · `ferreteria` ✓ · `estetica-salon` ✓ ·
+`restaurante` ✓ · `abarrotes` ✓ · `estilos` 17/17 (su regla del importe acepta ahora el «+» de
+`conSigno`). `verify:adopcion` sigue en 69 de 69.
+
+Los que más pesaban: cinco pantallas que daban a `<Dinero centavos>` lo que el puente sirve en
+PESOS (saldos de remisiones, precios de presentación, importes de facturación, el historial de la
+clienta) —se pintaba $180.00 por $18,000.00, y en `ferreteria/Cuentas` se MANDABA así en el pago—;
+`ClientesYSellos` fusionaba en la tarjeta la respuesta del canje, que no es un cliente, y
+reventaba; el pedido anticipado de la cafetería daba la hora en UTC («para las 14:15» a las 8:10);
+`abarrotes/Entradas` leía del sugerido campos que el servidor no sirve; `Cortes` cerraba el turno
+con una denominación en rojo contada como cero; `Caja` abría con Enter en el primer campo.
+
+**Los seis pendientes, dichos en la pantalla y aquí:**
+
+1. `abarrotes/Cortes` · la diferencia de los cortes pasados: `caja.cerrar` la calcula y sólo la
+   deja en la auditoría; `sesiones_caja` no guarda el esperado. Falta una migración que lo guarde y
+   `CorteCaja` que lo sirva. La columna se quitó y el alcance recortado lo dice.
+2. `ferreteria/Conteo` · nada abre una toma desde la web (`/api/inventario/conteo/abrir` no lo
+   llama ninguna pantalla): la pantalla sólo llega a su vacío, que ya no promete «se abre desde
+   Existencias».
+3. `restaurante/PortalDelComensal` · el QR real va a `/qr/[token]`, que pinta el heredado; la ruta
+   del modelo se monta sin token. Conectar `/qr/[token]` es tocar la ruta pública de los negocios
+   que cobran: no se toca sin Miguel.
+4. `restaurante/DividirCuentaDialog` · su vacío es una guarda que ningún camino alcanza hoy; se
+   queda como guarda y su cabecera lo dice. (De paso: el diálogo conservaba las partes entre
+   aperturas y apuntaba a líneas viejas; ahora cada apertura es un diálogo nuevo.)
+5. `cafeteria/OpcionesDeLaBebida` · 04-INTERFAZ pide «Avena +22» y `<Dinero>` escribe «+$22.00».
+   Decidido: el importe va como todo importe del sistema, con sus centavos; el formateador suelto
+   que ya no usaba nadie (`etiquetaDelta`, `pesos`) se borró con su prueba.
+6. `cafeteria/CierreDeTurno` · cambió exports que nadie importa (`enPesos`, `Cifra` →
+   `CifraDelTurno`); el comparador de contratos de la integración mira componentes, no tipos.

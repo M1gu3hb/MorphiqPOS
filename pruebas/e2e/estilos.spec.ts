@@ -112,8 +112,9 @@ test.describe('los ocho estilos, en el navegador', () => {
         'En /sistema no hay ni un <Dinero>: la prueba no mide nada',
       ).toBeGreaterThan(0);
       for (const { leido, oido } of importes) {
+        // Un negativo va entre paréntesis; un movimiento con `conSigno` lleva su «+».
         expect(leido, `En ${estilo} un importe se lee partido: «${leido}»`).toMatch(
-          /^\(?\$?[\d,]+\.\d{2}\)?$/,
+          /^(\+|\()?\$?[\d,]+\.\d{2}\)?$/,
         );
         expect(leido.replace(/\D/g, ''), `En ${estilo} «${leido}» no es «${oido}»`).toBe(
           oido.replace(/\D/g, ''),
