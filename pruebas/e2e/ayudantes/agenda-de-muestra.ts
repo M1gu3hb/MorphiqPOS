@@ -97,14 +97,15 @@ export async function agendarUnMiercolesDeMuestra(page: Page): Promise<void> {
       },
     });
     if (intento.status() === 200) agendadas += 1;
-    else rechazos.push(`${hueco.inicio ?? ''}: ${String(intento.status())} ${(await intento.text()).slice(0, 160)}`);
+    else {
+      const motivo = (await intento.text()).slice(0, 160);
+      rechazos.push(`${hueco.inicio ?? ''}: ${String(intento.status())} ${motivo}`);
+    }
   }
   expect(
     agendadas,
-    `No se pudo agendar ninguna cita el ${dia} para retratar la agenda (${String(candidatos.length)} ` +
-      `huecos):
-${rechazos.slice(0, 4).join('
-')}`,
+    `No se pudo agendar ninguna cita el ${dia} para retratar la agenda ` +
+      `(${String(candidatos.length)} huecos): ${rechazos.slice(0, 4).join(' | ')}`,
   ).toBeGreaterThan(0);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
