@@ -3,6 +3,8 @@ import 'server-only';
 import { ErrorDominio } from '@morphiqpos/contracts';
 import { obtenerDb, repoNegocio } from '@morphiqpos/data';
 
+import { elegirNegocioDeLaEntrada } from './entrada.ts';
+
 /**
  * A qué negocio sirve este despliegue (T2 del port del restaurante).
  *
@@ -210,4 +212,13 @@ export async function negocioDelDespliegue(
     );
   }
   return primero;
+}
+
+/** Con la base: los negocios del despliegue, y de ellos el de esta entrada. */
+export async function negocioDeLaEntrada(
+  slugConfigurado: string | undefined,
+  host: string | null | undefined,
+  pedido: string | null | undefined,
+): Promise<NegocioDelDespliegue | null> {
+  return elegirNegocioDeLaEntrada(await negociosDelDespliegue(slugConfigurado, host), pedido);
 }

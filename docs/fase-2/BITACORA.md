@@ -5557,3 +5557,53 @@ tres en el próximo miércoles por las rutas de la recepción y retrata ese día
 denegó el clasificador del modo automático («Production Deploy»): la fusión y el despliegue son de
 Miguel. El reporte es `docs/reports/019-claude-fase-2.35-el-cierre.md`, con la tabla de las diez
 —ocho ✅ y dos ✗, las dos por la fusión—.
+
+---
+
+## 24-09-2026 · Etapa 2.4 · Bloque A · la entrada es de UN negocio
+
+Rama `fase-2.4` desde `origin/fase-2` (el PR #11 no está fusionado). La sesión se cortó una vez a
+mitad del bloque (se apagó el equipo); el trabajo sin commit sobrevivió en el árbol y se retomó
+desde aquí.
+
+**Lo que había.** `GET /api/auth/empleados`, sin sesión, recorría TODOS los negocios del despliegue
+y devolvía su gente mezclada: en producción, el personal de Restaurante MH junto al de las cinco
+demos, con su `empleoId`.
+
+**Lo que hay.**
+
+- `packages/contracts/src/negocios` — las dos listas, UNA vez y por ID: los cuatro negocios reales
+  y las cinco demos, con `exigirDemo` (regla POSITIVA: sólo pasa una demo; un negocio que no esté en
+  ninguna lista se para) y `esDeUnProyectoIntocable`. La usan ya las pruebas; el bloque B la lleva
+  al servidor, a los guiones y a la integración.
+- `packages/app/src/negocio/entrada.ts` (puro, `@morphiqpos/app/entrada`): `elegirNegocioDeLaEntrada`,
+  `slugDeLaRutaDeEntrada`, `rutaDeEntrada`, `COOKIE_ENTRADA`. `apps/web/src/servidor/entrada.ts`: la
+  resolución única, en orden — la dirección pedida (y sólo ella si se pidió), el despliegue de uno
+  (o el host), la entrada recordada (cookie), la terminal de este navegador.
+- `/n/<slug>/login-pos` (404 si no se sirve), `/n/<slug>` → su entrada, `/login-pos` sin nombres en un
+  despliegue de varios (`EntradaSinNegocio`, un `Vacio` del sistema) o redirigido a la entrada
+  recordada. Nada antes del PIN.
+- La lista exige el negocio: 404 idéntico para «no se sirve» y «no existe»; pone la cookie de la
+  entrada. `entrar` acepta `negocio` (acota, nunca amplía) y también la pone.
+- A.8: `etiquetaDeRolEnElGiro` — en la estética el `mesero` es «Estilista», sin rol nuevo en la base.
+  `POSLogin` pinta `u.etiqueta` y el nombre del negocio de la entrada.
+- `pruebas/e2e/ayudantes/sesion.ts` FALLA CERRADA: exige que la demo esté en la lista, pide
+  `?negocio=<demo>` y se niega si UNA persona no trae `negocioSlug === demo` (antes dejaba pasar
+  `undefined`). Entra por `/n/<demo>/login-pos`.
+- Preview: `ORGANIZACION` = las cinco `demo-acople-*` (vía `vercel env`, sólo `preview`). Los valores de
+  Preview y Production son «Sensitive»: no se pueden leer, así que APP_URL de Production (C.18) se
+  comprobará por el comportamiento de la aplicación.
+- D-15 en `05-DECISIONES.md`: Jacaranda, Don Chuy y La Broca SÍ se sirven, cada uno en su dirección;
+  el cambio de `ORGANIZACION` de Production va al §10, **después** de fusionar.
+
+**La prueba que lo ata** (`apps/web/src/servidor/entrada-privada.test.ts`) llama al `GET` de la ruta
+de verdad con la base sustituida. Contra la ruta de `fase-2` (la que mezclaba): **7 de 8 en ROJO**.
+Con un renombre inocuo de la ruta nueva: 8 de 8 verdes.
+
+Las puertas estáticas lo pillaron dos veces y con razón: `verify:primitivas` (ritmo literal en la
+pantalla nueva) y `verify:adopcion` (un vacío hecho a mano). Arreglado con `Vacio` y tokens; sus dos
+estados sin sentido (carga, error) declarados en `SIN_ESTADO` con su razón.
+
+**En qué voy.** Las suites de navegador de A se corren al cerrar B: la base local es la VIVA
+(`.env` apunta al proyecto de producción), y el encargo pide B completo antes de la primera prueba
+que escriba ahí. Sigue: B.1 (guarda del reseteo en el servidor).

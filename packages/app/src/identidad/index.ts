@@ -12,6 +12,7 @@ export {
   empleadosParaEntrar,
   entrarConPin,
   organizacionDeQuienEntra,
+  organizacionDelDispositivo,
   type PeticionEntrar,
   type ResultadoEntrar,
 } from './entrar.ts';

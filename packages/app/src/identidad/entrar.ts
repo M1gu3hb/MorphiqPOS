@@ -270,6 +270,32 @@ export async function empleadosParaEntrar(
   return repoIdentidad.empleadosConPin(obtenerDb(), organizacionId, terminal?.sucursalId ?? null);
 }
 
+/**
+ * De cuál de los negocios servidos es la terminal de este navegador, o `null`.
+ *
+ * La cookie del dispositivo la pone el servidor DESPUÉS de un PIN correcto, así que un
+ * navegador que la trae ya entró antes en ese negocio: es su caja. La entrada lo usa
+ * para que la caja de un cliente siga abriendo SU pantalla de acceso en `/login-pos`
+ * aunque el despliegue sirva a varios negocios — sin ningún paso de enrolar antes del
+ * PIN. Un navegador sin esa cookie no es la caja de nadie, y no ve a nadie.
+ */
+export async function organizacionDelDispositivo(
+  deviceToken: string,
+  pimienta: string,
+  organizacionesServidas: readonly string[],
+): Promise<string | null> {
+  if (deviceToken === '' || organizacionesServidas.length === 0) return null;
+  const fila = await obtenerDb()
+    .selectFrom('terminales')
+    .select('organizacion_id as organizacionId')
+    .where('device_token_hash', '=', hashearDispositivo(deviceToken, pimienta))
+    .where('activa', '=', true)
+    .where('enrolada_en', 'is not', null)
+    .where('organizacion_id', 'in', [...organizacionesServidas])
+    .executeTakeFirst();
+  return fila?.organizacionId ?? null;
+}
+
 interface TerminalIdentificada {
   readonly terminalId: string;
   readonly organizacionId: string;

@@ -260,6 +260,32 @@ El encargo pidió decidir: o se recomponen también, o se declara por escrito qu
 ellas, se recomponen una por una con la guía (`GUIA-DE-RECOMPOSICION.md`) y la base de
 `verify:aspecto` se mueve A PROPÓSITO en ese commit —nunca se apaga la puerta—.
 
+## D-15 · 24-09-2026 · La entrada es de UN negocio, y el negocio lo dice la dirección
+
+**Contexto.** Producción sirve a Restaurante MH y a las cinco demos en un solo despliegue, y
+`/api/auth/empleados` —sin sesión— devolvía a la gente de los seis mezclada: nombre, rol, color y
+el `empleoId`, que es el primer factor del acceso. El cajero de un negocio veía al personal de
+otro. Un paso de «enrolar el equipo» antes del PIN lo resolvería y Miguel ya lo rechazó: le cerraba
+la puerta de su propio negocio.
+
+**Decisión.** Cada negocio tiene su dirección, `/n/<slug>/login-pos`, que no depende del DNS; el
+host con el slug, cuando exista, manda sobre ella. La lista de empleados exige el negocio y devuelve
+sólo el suyo; un slug que el despliegue no sirve es la MISMA 404 que uno que no existe. En un
+despliegue de varios negocios, `/login-pos` a secas no enseña a nadie: la caja que ya entró antes
+vuelve a su entrada (cookie de la entrada, o su terminal —la cookie del dispositivo que el servidor
+da después de un PIN correcto—), y una que nunca entró ve una pantalla sin nombres. La etiqueta del
+rol pasa por el vocabulario del giro (la estilista no es «Mesero»), sin crear un rol en la base.
+
+**Café Jacaranda, Abarrotes Don Chuy y Ferretería La Broca SÍ se sirven en producción**, cada uno
+en su dirección (A.6). Nadie los usa todavía, y con la entrada por negocio servirlos no enseña su
+gente a nadie que no tenga su dirección; no servirlos obligaría a otro despliegue el día que
+empiecen. Cambiar `ORGANIZACION` de Production está fuera de lo que esta sesión puede hacer, así que
+va al §10 del encargo con su valor exacto — **y sólo DESPUÉS de fusionar la 2.4**: con la entrada
+de `main`, que todavía mezcla, añadirlos antes enseñaría también su personal.
+
+**Preview** lleva sólo las cinco demos (`demo-acople-*`): escribe en la misma base que producción,
+y un Preview que sirva a un negocio real sería una puerta trasera. Configurado el 24-09-2026.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 **P-01 · ¿Plantilla cerrada o plantilla + perillas?**

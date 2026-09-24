@@ -161,9 +161,13 @@ export default function POSLogin() {
   // Lupita y la pantalla dice «Restaurante MH», se toca a Diana y dice «Café
   // Jacarandá». Sin elegir a nadie, el nombre del sistema, porque ninguno de los
   // negocios es «el» negocio de este despliegue.
+  //
+  // Desde la 2.4 la entrada es de UN negocio —`/api/auth/empleados` sólo devuelve la
+  // gente del de esta dirección—, así que lo normal es uno, y el título es SU nombre:
+  // sin sesión `config` todavía no es de nadie y diría el del sistema.
   const negocio = variosNegocios
     ? selectedUser?.negocio || sistema
-    : config.nombre_negocio || 'MH Astral Systems';
+    : negociosServidos[0] || config.nombre_negocio || 'MH Astral Systems';
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#04070f] via-[#0a1428] to-[#0b1d3a] relative overflow-hidden">
@@ -387,7 +391,11 @@ export default function POSLogin() {
                     </div>
                     <div className="min-w-0 w-full text-center">
                       <p className="text-white text-xs font-medium truncate">{u.nombre}</p>
-                      <p className="text-white/50 text-[10px] truncate">{ROLE_LABELS[u.rol]}</p>
+                      <p className="text-white/50 text-[10px] truncate">
+                        {/* El rol como lo llama SU giro —la estilista no es «Mesero»—;
+                            lo rotula el servidor con el vocabulario del negocio. */}
+                        {u.etiqueta || ROLE_LABELS[u.rol]}
+                      </p>
                       {/* Con varios negocios en un despliegue, el rol no basta:
                           hay un dueño en cada uno. El negocio va en la tarjeta
                           porque es lo que se elige al tocarla. */}

@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { crearVocabulario } from '@morphiqpos/domain/vocabulario';
+
 /**
  * El puente de roles (F1-02 §3).
  *
@@ -64,6 +66,27 @@ const ETIQUETAS: Readonly<Record<string, string>> = {
 
 export function etiquetaDeRol(rolDeLaBase: string): string {
   return ETIQUETAS[rolDeLaBase] ?? rolDeLaBase;
+}
+
+/**
+ * LA ETIQUETA EN EL IDIOMA DEL GIRO.
+ *
+ * El rol de la base es uno para todos los giros —`mesero` es quien atiende al
+ * cliente—, pero cada giro lo llama a su manera, y ese nombre ya está en su diccionario
+ * como `responsable`: mesero en el restaurante, barista en la cafetería, estilista en
+ * la estética. En la demo de estética las estilistas tienen rol `mesero` y la entrada
+ * las rotulaba «Mesero». Sólo se traduce el rol de quien atiende; los demás —dueño,
+ * cajero, cocina, almacén— se llaman igual en todos los giros. No se crea ningún rol
+ * nuevo en la base: esto sólo nombra.
+ */
+export function etiquetaDeRolEnElGiro(
+  rolDeLaBase: string,
+  giro: string,
+  personalizado: Parameters<typeof crearVocabulario>[1] = {},
+): string {
+  if (rolDeLaBase !== 'mesero') return etiquetaDeRol(rolDeLaBase);
+  const delGiro = crearVocabulario(giro, personalizado).titulo('responsable');
+  return delGiro === '' ? etiquetaDeRol(rolDeLaBase) : delGiro;
 }
 
 /**

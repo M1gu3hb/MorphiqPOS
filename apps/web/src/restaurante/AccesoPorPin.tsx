@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando, obtenerApi } from '~/cliente/api';
+import { negocioParaEntrar, rutaDeEmpleados } from '~/cliente/entrada';
 
 /**
  * PANTALLA · restaurante · acceso-por-pin
@@ -353,7 +354,7 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
   useEffect(() => {
     if (empleadosIniciales !== undefined) return;
     const control = new AbortController();
-    obtenerApi<{ usuarios: readonly EmpleadoDeAcceso[] }>('/api/auth/empleados', control.signal)
+    obtenerApi<{ usuarios: readonly EmpleadoDeAcceso[] }>(rutaDeEmpleados(), control.signal)
       .then((datos) => {
         setEmpleados(datos.usuarios);
       })
@@ -390,7 +391,11 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
     async (empleoId: string, tecleado: string): Promise<void> => {
       setEnviando(true);
       try {
-        await invocarComando('/api/auth/entrar', { empleoId, pin: tecleado });
+        await invocarComando('/api/auth/entrar', {
+          empleoId,
+          pin: tecleado,
+          ...negocioParaEntrar(),
+        });
         setIntentos(INTENTOS);
         setError(null);
         // A dónde va cada rol lo decide el armazón: aquí sólo se resuelve QUIÉN.

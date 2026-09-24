@@ -29,6 +29,8 @@
  * `/api/datos/escribir`, que también es un comando, sólo que delgado.
  */
 
+import { negocioParaEntrar, rutaDeEmpleados } from '~/cliente/entrada';
+
 /** Las seis operaciones que su código usa, con su semántica exacta. */
 /** Un rango cerrado sobre un campo de fecha. Los dos extremos son inclusivos. */
 export interface Rango {
@@ -254,7 +256,7 @@ const archivos = {
  */
 const auth = {
   usuarios: (): Promise<Registro[]> =>
-    fetch('/api/auth/empleados', { cache: 'no-store', credentials: 'same-origin' })
+    fetch(rutaDeEmpleados(), { cache: 'no-store', credentials: 'same-origin' })
       .then((r) => r.json())
       .then((d: { ok?: boolean; datos?: { usuarios?: Registro[] } }) => {
         if (d.ok !== true) {
@@ -265,7 +267,7 @@ const auth = {
 
   /** El PIN viaja al servidor. Nunca al revés. */
   entrar: ({ id, pin }: { id: string; pin: string }): Promise<Registro> =>
-    pedir<Registro>('/api/auth/entrar', { empleoId: id, pin }, nuevaClave()),
+    pedir<Registro>('/api/auth/entrar', { empleoId: id, pin, ...negocioParaEntrar() }, nuevaClave()),
 
   salir: (): Promise<null> => pedir<null>('/api/auth/salir', {}, nuevaClave()),
 

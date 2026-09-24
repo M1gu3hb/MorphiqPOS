@@ -1,11 +1,17 @@
 import { validarEntorno } from '@morphiqpos/contracts';
 import { leerCookie, permitir } from '@morphiqpos/app/http';
 import { empleadosParaEntrar } from '@morphiqpos/app/identidad';
-import { negociosDelDespliegue } from '@morphiqpos/app/negocio';
+import { terminosDeLaOrganizacion } from '@morphiqpos/app/configuracion';
 import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
-import { colorDePersona, etiquetaDeRol, rolMH } from '@morphiqpos/app/puente';
+import {
+  colorDePersona,
+  etiquetaDeRol,
+  etiquetaDeRolEnElGiro,
+  rolMH,
+} from '@morphiqpos/app/puente';
 
 import { NOMBRE_COOKIE_DISPOSITIVO } from '~/servidor/dispositivo';
+import { cookieDeEntrada, negocioDeEstaEntrada } from '~/servidor/entrada';
 
 /**
  * Quien puede entrar (F1.1-A-03, revisada en T2 del port del restaurante).
@@ -40,75 +46,89 @@ export async function GET(peticion: Request): Promise<Response> {
   const token = leerCookie(peticion.headers.get('cookie'), NOMBRE_COOKIE_DISPOSITIVO) ?? '';
 
   try {
-    // TODOS los negocios a los que sirve este despliegue. El HOST gana cuando la
-    // direccion lleva el slug —`mh-restaurante.morphiqpos.app` ensena solo a la
-    // gente de MH—; si no, es la lista de `ORGANIZACION`, que puede ser una sola
-    // -produccion- o varias -las cinco demostraciones en un despliegue-.
-    const negocios = await negociosDelDespliegue(
-      entorno.ORGANIZACION,
-      peticion.headers.get('host'),
-    );
+    /**
+     * EL negocio de esta entrada, y sólo él (bloque A de la 2.4).
+     *
+     * Devolvía a la gente de TODOS los negocios del despliegue mezclada, sin sesión:
+     * producción enseñaba al personal de Restaurante MH junto al de las cinco demos a
+     * cualquiera que abriera la dirección. Ahora el negocio lo dice la ENTRADA —el host
+     * cuando lleva el slug, o `?negocio=<slug>`, que manda la pantalla de
+     * `/n/<slug>/login-pos`— y tiene que ser uno de los que este despliegue sirve. El
+     * orden completo, con la entrada recordada y la terminal, está en
+     * `negocioDeEstaEntrada`.
+     *
+     * Sin negocio en un despliegue de varios, o con uno que no sirve —exista o no—, la
+     * respuesta es la MISMA 404: la entrada no puede servir para averiguar qué negocios
+     * existen. Con un despliegue de un solo negocio, sin `negocio` entra como siempre.
+     */
+    const pedido = new URL(peticion.url).searchParams.get('negocio');
+    const negocio = await negocioDeEstaEntrada({
+      host: peticion.headers.get('host'),
+      cookies: peticion.headers.get('cookie'),
+      pedido,
+      organizacionConfigurada: entorno.ORGANIZACION,
+      pimienta: entorno.PIN_PEPPER,
+    });
+    if (negocio === null) {
+      return json(404, {
+        ok: false,
+        error: { codigo: 'NO_ENCONTRADO', mensaje: 'No encontramos ese negocio.' },
+      });
+    }
+
+    // El rol de quien atiende se rotula como lo llama SU giro: en la estética las
+    // estilistas tienen rol `mesero` y salían «Mesero» (A.8).
+    // Es un rótulo: si la configuración no se pudiera leer, se rotula con el genérico.
+    const terminos = await terminosDeLaOrganizacion(negocio.organizacionId).catch(() => null);
 
     // Se devuelve con la forma que espera SU pantalla —`UsuarioPOS`— para que
     // su `POSLogin.jsx` no cambie: id, nombre, rol en su vocabulario, la
     // etiqueta real y un color estable para la tarjeta. Nunca el PIN, nunca su
-    // hash, nunca los intentos fallidos.
-    //
-    // Y cada persona viaja CON SU NEGOCIO. Es lo que permite que un despliegue
-    // sirva a los cinco: se toca a Lupita y se entra en el restaurante, se toca
-    // a Diana y se entra en la cafeteria, sin redesplegar y sin que el cliente
-    // elija negocio —elige persona, y la persona trae el suyo—.
-    const usuarios = [];
-    // `empleados` conserva SU forma cruda —con `empleoId`— porque los cuatro
-    // guiones de humo la leen asi: `empleados[0].empleoId`. Cambiarla los habria
-    // roto en silencio, y son lo que comprueba el despliegue desde fuera.
-    const empleados = [];
-    for (const negocio of negocios) {
-      const gente = await empleadosParaEntrar(negocio.organizacionId, token, entorno.PIN_PEPPER);
-      for (const e of gente) {
-        empleados.push({
-          empleoId: e.empleoId,
-          nombre: e.nombre,
-          rol: e.rol,
-          negocio: negocio.nombre,
-          negocioSlug: negocio.slug,
-        });
-        usuarios.push({
-          id: e.empleoId,
-          nombre: e.nombre,
-          rol: rolMH(e.rol) ?? e.rol,
-          etiqueta: etiquetaDeRol(e.rol),
-          color: colorDePersona(e.empleoId),
-          activo: true,
-          negocio: negocio.nombre,
-          negocioSlug: negocio.slug,
-        });
-      }
-    }
+    // hash, nunca los intentos fallidos. `empleados` conserva su forma cruda —con
+    // `empleoId` y `negocioSlug`— porque los guiones de humo y las pruebas la leen así.
+    const gente = await empleadosParaEntrar(negocio.organizacionId, token, entorno.PIN_PEPPER);
+    const empleados = gente.map((e) => ({
+      empleoId: e.empleoId,
+      nombre: e.nombre,
+      rol: e.rol,
+      negocio: negocio.nombre,
+      negocioSlug: negocio.slug,
+    }));
+    const usuarios = gente.map((e) => ({
+      id: e.empleoId,
+      nombre: e.nombre,
+      rol: rolMH(e.rol) ?? e.rol,
+      etiqueta:
+        terminos === null
+          ? etiquetaDeRol(e.rol)
+          : etiquetaDeRolEnElGiro(e.rol, terminos.giro, terminos.personalizado),
+      color: colorDePersona(e.empleoId),
+      activo: true,
+      negocio: negocio.nombre,
+      negocioSlug: negocio.slug,
+    }));
 
-    // `slug` va junto al nombre porque el nombre NO identifica a un negocio.
-    // La guarda de las pruebas de extremo a extremo comparaba por nombre y su
-    // lista traia «Cafe Jacaranda» Y «Cafeteria Jacaranda», las dos, porque
-    // nadie sabia cual era la de verdad. El slug es lo que `ORGANIZACION`
-    // resuelve y lo unico con lo que se puede afirmar «esto es la demo y no el
-    // negocio de alguien». No es un secreto: es el valor que quien configuro el
-    // despliegue escribio a mano.
-    //
-    // `negocio` y `slug` en singular siguen siendo el PRIMERO de la lista, que
-    // con un solo negocio -produccion- es el de siempre: su `POSLogin.jsx` los
-    // pinta en la cabecera y la guarda de las pruebas los compara. `negocios`
-    // es la lista entera, para cuando hay mas de uno.
-    const primero = negocios[0];
-    return json(200, {
+    // `negocios` sigue en la respuesta —con UNO— porque la precondición de las pruebas
+    // lo lee; ya no hay forma de que traiga dos.
+    const respuesta = json(200, {
       ok: true,
       datos: {
-        negocio: primero?.nombre ?? '',
-        slug: primero?.slug ?? '',
-        negocios: negocios.map((n) => ({ nombre: n.nombre, slug: n.slug })),
+        negocio: negocio.nombre,
+        slug: negocio.slug,
+        negocios: [{ nombre: negocio.nombre, slug: negocio.slug }],
         usuarios,
         empleados,
       },
     });
+    // Se recuerda la dirección por la que se entró, para que cerrar sesión —que manda
+    // a `/login-pos`— vuelva a ESTA entrada y no a la pantalla sin nombres.
+    if (pedido !== null && pedido !== '') {
+      respuesta.headers.append(
+        'set-cookie',
+        cookieDeEntrada(negocio.slug, entorno.NODE_ENV === 'production'),
+      );
+    }
+    return respuesta;
   } catch {
     // Un despliegue mal configurado tiene que decirlo en la consola del
     // servidor con su mensaje entero. Al navegador se le da lo justo: la

@@ -59,6 +59,18 @@ export const SIN_ESTADO = [
       'Los ocho estilos y sus perillas son constantes del sistema de diseño (ESTILOS, PERILLAS), no datos de la red: no hay ninguna lista que pueda llegar vacía.',
   },
   {
+    pantalla: 'entrada/EntradaSinNegocio',
+    estado: 'cargando',
+    razon:
+      'Se pinta en el servidor con el HTML y no lee nada: es la entrada de un despliegue de varios negocios cuando la dirección no nombra ninguno. No hay espera que enseñar.',
+  },
+  {
+    pantalla: 'entrada/EntradaSinNegocio',
+    estado: 'error',
+    razon:
+      'No tiene una operación que pueda fallar: ni lectura ni comando. Es un texto fijo que dice por dónde se entra; si la resolución del negocio falla, `/login-pos` ya cae aquí.',
+  },
+  {
     pantalla: 'configuracion/SelectorDeApariencia',
     estado: 'cargando',
     razon:

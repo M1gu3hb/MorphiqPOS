@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./errores": "./src/errores/index.ts",
-    "./entorno": "./src/entorno/index.ts"
+    "./entorno": "./src/entorno/index.ts",
+    "./negocios": "./src/negocios/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

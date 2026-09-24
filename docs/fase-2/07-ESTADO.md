@@ -11,6 +11,22 @@ Un modelo está **✅ terminado** cuando existen sus siete archivos, cumplen `02
 
 ---
 
+## HOJA DE RUTA DE LA FASE 2 · las etapas, en orden
+
+| Etapa | Qué | Estado |
+| --- | --- | --- |
+| 2.1 | Cimientos: worktree, puerta, tronco común | ✅ |
+| 2.2 | Los cinco primeros modelos, escritos | ✅ |
+| 2.3 | El acople de esos cinco al punto de venta vivo | ✅ 17-09-2026 |
+| 2.35 | El lenguaje visual: ocho estilos, la biblioteca, las pantallas recompuestas | ✅ 24-09-2026 (fusión pendiente de Miguel) |
+| **2.4** | **PRUEBAS Y CIERRE EN PRODUCCIÓN** de todo lo anterior: la entrada por negocio, las guardas de lo real, los pendientes, los días completos con el dinero al centavo, y la red que prueba producción sola | 🟨 en curso — rama `fase-2.4` |
+| 2.5 | La siguiente tanda de diez modelos | ⬜ |
+
+**La Fase 3 no ha empezado.** Nada de lo de arriba es la Fase 3. El reporte 014 conserva la
+numeración vieja: es histórico y no se toca.
+
+---
+
 ## CIMIENTOS
 
 | Archivo | Estado |
@@ -849,3 +865,18 @@ quedaban y fusionar.
 | **6** | Fusionar | ✗ `gh pr merge 11` lo deniega el clasificador del modo automático («Production Deploy»). CI en verde y `pnpm verify` 36 de 37 en `79bfcb5`: queda para Miguel |
 
 `pnpm verify:adopcion` es el marcador: una sesión nueva lo corre y sabe cuántas faltan y cuáles.
+
+## ETAPA 2.4 · PRUEBAS Y CIERRE EN PRODUCCIÓN (desde el 24-09-2026)
+
+Rama `fase-2.4`, sacada de `origin/fase-2` (el PR #11 sigue sin fusionar). **Nunca se empuja a
+`fase-2`.** El marcador, cuando exista: `pnpm verify:pendientes` y `pnpm verify:produccion`.
+
+| Bloque | Qué | Estado |
+| --- | --- | --- |
+| **A** | La entrada es de UN negocio: `/n/<slug>/login-pos`, la lista de empleados exige el negocio (404 igual para «no se sirve» y «no existe»), `/login-pos` sin nombres en un despliegue de varios, rol por el vocabulario del giro, Preview sólo con demos | 🟨 código, pruebas unitarias y puertas estáticas en verde (la prueba de la ruta, 7 de 8 en ROJO contra la de `fase-2`); Preview con las cinco demos; faltan las suites de navegador, que corren tras B |
+| **B** | Que nada pueda tocar un negocio real | ⬜ |
+| **C** | Los 18 pendientes | ⬜ |
+| **D** | La batería de pruebas | ⬜ |
+| **E** | Producción que se prueba sola | ⬜ |
+| **F** | Correr todo y cerrar | ⬜ |
+

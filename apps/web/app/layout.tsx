@@ -6,11 +6,13 @@ import type { ReactNode } from 'react';
 import { GUION_SIN_PARPADEO } from '@/tema-arranque';
 import { NOMBRE_COOKIE } from '@morphiqpos/app/http';
 import { APARIENCIA_POR_OMISION, aparienciaDeLaOrganizacion } from '@morphiqpos/app/configuracion';
-import { negociosDelDespliegue } from '@morphiqpos/app/negocio';
+import { negocioDeLaEntrada, slugDeLaRutaDeEntrada } from '@morphiqpos/app/negocio';
 
 import { sesionDelServidor } from '~/servidor/http';
 
 import { CABECERA_NONCE } from '~/seguridad/csp';
+
+import { CABECERA_RUTA } from '../middleware';
 import { GUION_DEL_MODO } from '~/proveedores/modo';
 import { Proveedores } from '~/proveedores/Proveedores';
 
@@ -41,15 +43,22 @@ const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--mh-dm
 async function aparienciaDelDespliegue(
   sesion: { readonly organizacionId: string } | null,
   host: string | null,
+  ruta: string | null,
 ) {
   if (sesion !== null) return aparienciaDeLaOrganizacion(sesion.organizacionId);
   try {
-    const negocios = await negociosDelDespliegue(process.env['ORGANIZACION'], host);
-    // Uno solo: es SU pantalla de acceso. Varios —las cinco demostraciones en un
-    // despliegue— no tienen una respuesta correcta, y se pinta con la base.
-    const unico = negocios.length === 1 ? negocios[0] : undefined;
-    if (unico === undefined) return APARIENCIA_POR_OMISION;
-    return await aparienciaDeLaOrganizacion(unico.organizacionId);
+    // La entrada de un negocio (`/n/<slug>/login-pos`) se pinta con SU estilo; sin
+    // dirección, el único que sirve el despliegue. Varios sin dirección —las cinco
+    // demostraciones y un cliente en un despliegue— no tienen una respuesta correcta,
+    // y se pinta con la base: es la misma regla con la que la entrada elige a quién
+    // enseñar (`elegirNegocioDeLaEntrada`), así que color y personas no discrepan.
+    const negocio = await negocioDeLaEntrada(
+      process.env['ORGANIZACION'],
+      host,
+      slugDeLaRutaDeEntrada(ruta),
+    );
+    if (negocio === null) return APARIENCIA_POR_OMISION;
+    return await aparienciaDeLaOrganizacion(negocio.organizacionId);
   } catch {
     return APARIENCIA_POR_OMISION;
   }
@@ -119,7 +128,11 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
    * una respuesta correcta, y ahí sí se pinta con la base.
    */
   const sesion = conSesion ? await sesionDelServidor() : null;
-  const apariencia = await aparienciaDelDespliegue(sesion, cabeceras.get('host'));
+  const apariencia = await aparienciaDelDespliegue(
+    sesion,
+    cabeceras.get('host'),
+    cabeceras.get(CABECERA_RUTA),
+  );
 
   return (
     <html

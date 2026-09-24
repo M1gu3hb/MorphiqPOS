@@ -13,6 +13,37 @@ Escrito el 17 de septiembre de 2026 al cerrar la etapa 2.3 de la Fase 2.
 
 ---
 
+## 0 · POR DÓNDE SE ENTRA · una dirección por negocio (desde la 2.4)
+
+Un despliegue sirve a varios negocios, y desde la etapa 2.4 **la pantalla de acceso es de UNO**:
+enseña las tarjetas de la gente de ese negocio y de ningún otro. El negocio lo dice la DIRECCIÓN,
+así que cada demo tiene la suya, y es la que se guarda como favorito en la tableta:
+
+| Demo | Entrada |
+| ------------------------- | ----------------------------------------------------------------- |
+| `demo-acople-tienda` | `https://morphiqpos-kappa.vercel.app/n/demo-acople-tienda/login-pos` |
+| `demo-acople-cafeteria` | `https://morphiqpos-kappa.vercel.app/n/demo-acople-cafeteria/login-pos` |
+| `demo-acople-restaurante` | `https://morphiqpos-kappa.vercel.app/n/demo-acople-restaurante/login-pos` |
+| `demo-acople-ferreteria` | `https://morphiqpos-kappa.vercel.app/n/demo-acople-ferreteria/login-pos` |
+| `demo-acople-estetica` | `https://morphiqpos-kappa.vercel.app/n/demo-acople-estetica/login-pos` |
+
+**En producción estas direcciones funcionan cuando Miguel fusione la etapa 2.4.** Hasta entonces
+producción sirve `main`, que todavía enseña a todos en `/login-pos`. En el Preview de una rama, la
+misma ruta sobre su alias: `https://morphiqpos-git-<rama>-mh-astral-systems.vercel.app/n/<slug>/login-pos`.
+
+Lo que hace la dirección, y lo que no:
+
+- **`/login-pos` a secas** enseña la entrada de ese negocio sólo si el despliegue sirve a UNO (o el
+  host lleva el slug: `demo-acople-tienda.<dominio>` gana sobre todo). Si sirve a varios, la caja
+  que ya entró antes vuelve sola a la suya —la recuerda una cookie, o su terminal—, y una que nunca
+  entró ve una pantalla **sin un solo nombre** que le pide la dirección de su negocio.
+- **Un slug que el despliegue no sirve es un 404**, exista o no: la entrada no dice qué negocios hay.
+- **Nada antes del PIN.** Ni enrolar el equipo ni elegir sucursal: tarjetas y PIN, como siempre.
+- En la estética, las estilistas aparecen como **«Estilista»**, no «Mesero»: la etiqueta del rol pasa
+  por el vocabulario del giro.
+
+---
+
 ## 1 · Los cinco negocios
 
 | Slug | Nombre | Giro | Plantilla | Catálogo | Caja |
