@@ -826,7 +826,7 @@ function ImporteSiSeSabe({
   readonly tamano: TamanoDeDinero;
   readonly className?: string;
 }) {
-  if (centavos === null) return <span className="text-texto-tenue">—</span>;
+  if (centavos === null) return <span className="text-texto-sutil">—</span>;
   return <Dinero centavos={centavos} tamano={tamano} className={className} />;
 }
 

@@ -155,7 +155,7 @@ function ControlDeUnidades({
         <Cifra
           valor={tomadas}
           decimales={decimalesDe(tomadas)}
-          className={tomadas > 0 ? 'font-semibold' : 'text-texto-tenue'}
+          className={tomadas > 0 ? 'font-semibold' : 'text-texto-sutil'}
         />
       </span>
       <Button

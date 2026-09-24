@@ -236,7 +236,7 @@ function Importe({
 }) {
   const centavos = centavosDelPuente(pesos);
   if (centavos === null) {
-    return <span className="text-texto-tenue">—</span>;
+    return <span className="text-texto-sutil">—</span>;
   }
   return <Dinero centavos={centavos} tamano={tamano} />;
 }

@@ -263,6 +263,13 @@ export const PARES_DE_CONTRASTE: readonly ParDeContraste[] = [
     porque: 'Etiquetas dentro de tarjetas',
   },
   {
+    frente: 'texto-sutil',
+    fondo: 'fondo-sutil',
+    minimo: 4.5,
+    porque:
+      'La cabecera y el pie de TODA tabla van en fondo-sutil. El rastreador midio sus titulos en 4.24:1 en morphiq: el par que el contrato decia cubrir no era el que se pinta',
+  },
+  {
     frente: 'texto-tenue',
     fondo: 'fondo',
     minimo: 3,

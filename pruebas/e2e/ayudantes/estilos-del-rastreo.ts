@@ -190,7 +190,21 @@ export function textosIlegibles(page: Page): Promise<string[]> {
       const clave = `${propio.slice(0, 24)}|${razon.toFixed(2)}`;
       if (vistos.has(clave)) continue;
       vistos.add(clave);
-      hallazgos.push(`«${propio.slice(0, 24)}» ${razon.toFixed(2)}:1, mínimo ${String(minimo)}:1`);
+      // DÓNDE: «"0" 3.41:1» no dice en qué columna está, y en una tabla de nueve columnas
+      // numéricas eso es la mitad del trabajo. Se nombra la cabecera de su columna.
+      const celda = elemento.closest('td, th');
+      const fila = celda?.parentElement ?? null;
+      const cabecera =
+        celda === null || fila === null
+          ? null
+          : (celda
+              .closest('table')
+              ?.querySelector('thead tr')
+              ?.children[[...fila.children].indexOf(celda)]?.textContent?.trim() ?? null);
+      const donde = cabecera === null || cabecera === '' ? '' : ` en «${cabecera.slice(0, 24)}»`;
+      hallazgos.push(
+        `«${propio.slice(0, 24)}»${donde} ${razon.toFixed(2)}:1, mínimo ${String(minimo)}:1`,
+      );
     }
     return hallazgos.slice(0, 12);
   });

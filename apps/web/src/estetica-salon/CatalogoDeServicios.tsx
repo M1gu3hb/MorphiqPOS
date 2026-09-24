@@ -527,7 +527,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
                   >
                     <span
                       aria-hidden="true"
-                      className="font-numeros text-sm text-texto-tenue tabular-nums"
+                      className="font-numeros text-sm text-texto-sutil tabular-nums"
                     >
                       {indice + 1}
                     </span>

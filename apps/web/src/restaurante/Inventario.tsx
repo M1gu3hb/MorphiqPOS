@@ -262,7 +262,7 @@ function Cantidad({
   readonly className?: string;
 }) {
   if (valor === null || !Number.isFinite(valor)) {
-    return <span className="text-texto-tenue">—</span>;
+    return <span className="text-texto-sutil">—</span>;
   }
   const redondeado = Math.round(valor * 1000) / 1000;
   return (
@@ -281,7 +281,7 @@ function Cantidad({
  * campo por campo, no la pantalla.
  */
 function ValorDelIngrediente({ valor }: { readonly valor: number | null }) {
-  if (valor === null) return <span className="text-texto-tenue">—</span>;
+  if (valor === null) return <span className="text-texto-sutil">—</span>;
   return <Dinero centavos={aCentavos(valor)} tamano="sm" />;
 }
 
@@ -352,7 +352,7 @@ function Pasos({ fila, delta, grande, onPaso }: PasosProps) {
       </Button>
       <span
         aria-live="polite"
-        className={`min-w-16 text-center font-numeros tabular-nums ${grande ? 'text-lg' : 'text-base'} ${delta === 0 ? 'text-texto-tenue' : 'font-bold'}`}
+        className={`min-w-16 text-center font-numeros tabular-nums ${grande ? 'text-lg' : 'text-base'} ${delta === 0 ? 'text-texto-sutil' : 'font-bold'}`}
       >
         {delta > 0 ? '+' : ''}
         {delta}

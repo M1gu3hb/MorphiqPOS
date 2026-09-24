@@ -221,7 +221,7 @@ function columnasDeTabla(
             size="icon-sm"
             tabIndex={-1}
             aria-label={`Cobrar ${rotulo(f.mesa_numero, voc)}`}
-            className="text-texto-tenue"
+            className="text-texto-sutil"
             onClick={() => {
               alCobrar(f.id);
             }}

@@ -475,7 +475,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
               </Superficie>
               {ESTADOS[clave].etiqueta}
               <span
-                className={`font-numeros font-semibold tabular-nums ${cuantas === 0 ? 'text-texto-tenue' : 'text-texto'}`}
+                className={`font-numeros font-semibold tabular-nums ${cuantas === 0 ? 'text-texto-sutil' : 'text-texto'}`}
               >
                 {cuantas}
               </span>

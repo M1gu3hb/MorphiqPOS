@@ -374,7 +374,7 @@ function SeccionDelCorte({
   return (
     <Superficie como="details" open relleno={0} className="group">
       <summary className="flex min-h-(--area-tactil-minima) cursor-pointer list-none items-center gap-(--espacio-2) px-(--espacio-4) text-sm font-semibold tracking-wide uppercase [&::-webkit-details-marker]:hidden">
-        <span className="font-numeros text-texto-tenue tabular-nums">{numero} ·</span>{' '}
+        <span className="font-numeros text-texto-sutil tabular-nums">{numero} ·</span>{' '}
         <span className="flex-1">{titulo}</span>
         <ChevronDown aria-hidden="true" className="size-4 text-texto-sutil group-open:rotate-180" />
       </summary>
@@ -649,7 +649,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
         className="sticky top-0 z-20 flex max-h-[65dvh] flex-col gap-(--espacio-3) overflow-y-auto xl:top-(--espacio-4) xl:col-start-2 xl:row-start-2 xl:max-h-none xl:overflow-visible"
       >
         <h2 id="titulo-conteo" className="text-sm font-semibold tracking-wide uppercase">
-          <span className="font-numeros text-texto-tenue tabular-nums">4 ·</span> Conteo de efectivo
+          <span className="font-numeros text-texto-sutil tabular-nums">4 ·</span> Conteo de efectivo
           y fondo
         </h2>
         <div className="grid gap-(--espacio-3) sm:grid-cols-2 xl:grid-cols-1">

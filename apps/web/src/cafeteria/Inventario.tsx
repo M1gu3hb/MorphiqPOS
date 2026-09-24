@@ -830,7 +830,7 @@ function Cantidad({
   readonly className?: string;
 }) {
   if (valor === null || !Number.isFinite(valor)) {
-    return <span className="text-texto-tenue">—</span>;
+    return <span className="text-texto-sutil">—</span>;
   }
   const redondo = Math.round(valor * 10) / 10;
   return (

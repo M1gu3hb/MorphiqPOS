@@ -44,9 +44,10 @@
   --superficie-elevada: 0 0% 100%;
 
   --texto: 222 47% 11%;
-  /* Su `--muted-foreground`, tal cual: 4.61:1 sobre el fondo. Pasa, y por poco;
-     por eso no se aclara ni un punto. */
-  --texto-sutil: 215 16% 46%;
+  /* Era su `--muted-foreground` tal cual (46 %): 4.61:1 sobre el fondo, pero la cabecera
+     y el pie de toda tabla van en `fondo-sutil`, y ahí el rastreador lo midió en 4.24:1.
+     A 43 % pasa sobre los dos; el contrato audita ya el par que se pinta. */
+  --texto-sutil: 215 16% 43%;
   /* Tercer nivel de tinta, que su paleta no tenía. Sólo para texto GRANDE y marcas
      de agua: 3.17:1 sobre el fondo, que es el mínimo de WCAG para texto grande. */
   --texto-tenue: 215 14% 56%;

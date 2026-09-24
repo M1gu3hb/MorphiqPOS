@@ -5456,3 +5456,19 @@ con una denominación en rojo contada como cero; `Caja` abría con Enter en el p
    que ya no usaba nadie (`etiquetaDelta`, `pesos`) se borró con su prueba.
 6. `cafeteria/CierreDeTurno` · cambió exports que nadie importa (`enPesos`, `Cifra` →
    `CifraDelTurno`); el comparador de contratos de la integración mira componentes, no tipos.
+
+### El rastreador en los ocho estilos, la primera vez completo (corrida `35956586472`)
+
+29 trabajos verdes y 16 rojos, los 16 por CONTRASTE y ninguno por un toque que reventara:
+
+- **`morphiq`, las cabeceras de toda tabla en 4.24:1.** El contrato decía que `texto-sutil` es
+  para «encabezados de tabla» y lo auditaba sobre `fondo` y `superficie`; la cabecera y el pie de
+  `Tabla` van sobre `fondo-sutil`. El par nuevo (`texto-sutil` / `fondo-sutil`, 4.5) puso a
+  `verify:estilos` en rojo sólo en `morphiq` claro; `--texto-sutil` baja de 46 % a 43 % y pasa.
+- **`restaurante/inventario` · «0» de 3.41 a 4.14:1 en siete estilos**: la cantidad del ajuste en
+  cero iba en `texto-tenue`, que el contrato reserva para texto GRANDE (3:1).
+- **`abarrotes/registros` · «—» de 3.59 a 4.14:1**: el mismo `texto-tenue` en un importe nulo.
+  Once usos de `texto-tenue` en texto chico pasan a `texto-sutil`; quedan dos, en iconos.
+
+El mensaje del rastreador decía «"0" 3.41:1» sin decir dónde; ahora nombra la cabecera de la
+columna. Las galerías no llegaron a retratar: el paso va detrás del rastreo.

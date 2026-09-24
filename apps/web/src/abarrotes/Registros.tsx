@@ -283,7 +283,7 @@ function Detalle({
 
 /** Lo que se pinta en la columna del dinero. La caja lleva signo: entra o sale. */
 function Importe({ renglon }: { readonly renglon: RenglonDeRegistro }) {
-  if (renglon.importeCentavos === null) return <span className="text-texto-tenue">—</span>;
+  if (renglon.importeCentavos === null) return <span className="text-texto-sutil">—</span>;
   return (
     <Dinero
       centavos={renglon.importeCentavos}
