@@ -89,3 +89,12 @@ describe('<Tabla> · la fila que se toca', () => {
     expect(informativa).not.toMatch(/<td[^>]*class="[^"]*(?<!min-)h-\(--area-tactil-minima\)/);
   });
 });
+
+describe('<Tabla> · las cabeceras, en una sola tipografía', () => {
+  it('la que se ordena va en mayúsculas como las demás: el botón no las pierde', () => {
+    const marcado = renderToStaticMarkup(
+      <Tabla columnas={COLUMNAS} filas={FILAS} claveDe={(p) => p.id} />,
+    );
+    expect(marcado).toMatch(/<button(?=[^>]*type="button")(?=[^>]*\buppercase\b)[^>]*>Producto/);
+  });
+});

@@ -5519,3 +5519,19 @@ pantallas SIN menú pasaba un cuarto argumento, `'anotar'`, a una función de tr
 comprueba tipos, así que nadie lo vio, y una pantalla de ENTRAR que con la sesión abierta redirige
 —lo correcto— se habría acusado como MUERTA. El modo existe ahora, y **`pnpm typecheck` incluye
 `pruebas/`**: la carpeta que más código de verificación tiene no la comprobaba nadie.
+
+### La galería en rojo, por mutación (corrida `35969114771`)
+
+Rama desechable `mutacion-galeria-roja`: las cabeceras de `Tabla` sin mayúsculas, sin regenerar
+nada. La galería se puso en ROJO en tienda (`/abarrotes/cobrar`, 2 213 píxeles), cafetería
+(`/cafeteria/inventario`, 7 821) y ferretería: **«…cambió y nadie lo declaró»**. La puerta
+compara. Pero dejó pasar dos cosas, y las dos se arreglan:
+
+- **El restaurante pasó en verde con su inventario cambiado**: la tolerancia era 0.2 % de la
+  imagen (~1 800 píxeles) y unas cabeceras en mayúsculas cambian menos. Medido entre dos vueltas
+  del MISMO código, la diferencia fue 0, 13, 44 y 45 píxeles: la tolerancia pasa a **150 píxeles**
+  absolutos.
+- **La estética pasó porque sus cabeceras ya NO iban en mayúsculas**: son ordenables, el texto va
+  dentro de un botón y el reinicio de estilos pone los botones en `text-transform: none`. Una tabla
+  con columnas ordenables y otras que no salía con las cabeceras en dos tipografías. El botón lleva
+  ahora su `uppercase`, con su prueba (roja contra el código de antes). Los retratos se regeneran.

@@ -236,8 +236,10 @@ test.describe('la galería · cada pantalla contra la vuelta anterior', () => {
           caret: 'hide',
           fullPage: false,
           // Mismo navegador, mismas fuentes, misma máquina: la diferencia legítima es
-          // cero. Esto sólo absorbe el suavizado de un borde, no un color cambiado.
-          maxDiffPixelRatio: 0.002,
+          // cero. Medido entre dos vueltas del mismo código: 45 píxeles como mucho. Iba en
+          // «0.2 % de la imagen» —unos 1 800 píxeles— y la mutación de prueba (cabeceras
+          // de tabla sin mayúsculas) pasó en verde en el inventario del restaurante.
+          maxDiffPixels: 150,
         });
       }
       await page.clock.resume();

@@ -209,7 +209,10 @@ export function Tabla<F>({
                         alternarOrden(columna.clave);
                       }}
                       className={cn(
-                        'flex min-h-(--area-tactil-minima) w-full items-center gap-1 px-(--espacio-3) hover:text-texto focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none',
+                        // `uppercase` OTRA VEZ en el botón: el reinicio de estilos pone los
+                        // botones en `text-transform: none`, y una tabla con columnas que se
+                        // ordenan y otras que no salía con las cabeceras en dos tipografías.
+                        'flex min-h-(--area-tactil-minima) w-full items-center gap-1 px-(--espacio-3) uppercase hover:text-texto focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none',
                         columna.numerica === true ? 'justify-end' : 'justify-start',
                       )}
                     >
