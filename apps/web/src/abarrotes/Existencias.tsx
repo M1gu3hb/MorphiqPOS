@@ -580,13 +580,31 @@ export function Existencias({ filasIniciales, ahora }: ExistenciasProps) {
   }
 
   const aguja = busqueda.trim();
-  const proveedoresQueFaltan = new Set(resumen.minimo.map(proveedorDe)).size;
+  // «Sin proveedor» NO es un proveedor al que se le pida: contado como uno, la
+  // tienda que aún no asigna ninguno leía «1 proveedor». Se cuentan aparte.
+  const proveedoresQueFaltan = new Set(
+    resumen.minimo.flatMap((fila) => {
+      const nombre = fila.proveedor_nombre ?? null;
+      return nombre === null ? [] : [nombre];
+    }),
+  ).size;
+  const sinProveedorQueFaltan = resumen.minimo.filter(
+    (fila) => (fila.proveedor_nombre ?? null) === null,
+  ).length;
 
-  /** El pie de cada contador. El de mínimo dice a cuántos proveedores hay que pedir. */
+  /**
+   * El pie de cada contador. El de mínimo dice a cuántos proveedores hay que pedir,
+   * y cuántos renglones no tienen a quién pedírselos.
+   */
   function pieDe(clave: Marca, pie: string): string {
-    if (clave !== 'minimo' || proveedoresQueFaltan === 0) return pie;
+    if (clave !== 'minimo') return pie;
     const proveedores = proveedoresQueFaltan === 1 ? 'proveedor' : 'proveedores';
-    return `${String(proveedoresQueFaltan)} ${proveedores} · ${pie}`;
+    const partes = [
+      proveedoresQueFaltan === 0 ? null : `${String(proveedoresQueFaltan)} ${proveedores}`,
+      sinProveedorQueFaltan === 0 ? null : `${String(sinProveedorQueFaltan)} sin proveedor`,
+      pie,
+    ];
+    return partes.filter((parte): parte is string => parte !== null).join(' · ');
   }
 
   /**

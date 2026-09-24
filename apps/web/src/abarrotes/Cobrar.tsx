@@ -187,12 +187,16 @@ export function conProducto(
  * La tecla, impresa junto a su acción: en ráfaga se usa por su tecla, no por su
  * posición. Fuera del nombre del botón —el nombre es la acción— y fuera del
  * teléfono, que no tiene teclas de función.
+ *
+ * Con el color del botón a opacidad plena: es información de uso, no adorno, y el
+ * blanco al 60 % sobre el primario o el verde de CONFIRMAR quedaba debajo del
+ * 4.5:1 de `04-INTERFAZ` §4.6. Se distingue del nombre por su tamaño y su borde.
  */
 function Tecla({ children }: { readonly children: string }) {
   return (
     <kbd
       aria-hidden="true"
-      className="hidden rounded-sm border border-current px-(--espacio-1) font-numeros text-xs font-medium opacity-60 md:inline"
+      className="hidden rounded-sm border border-current px-(--espacio-1) font-numeros text-xs font-medium md:inline"
     >
       {children}
     </kbd>
@@ -599,13 +603,13 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
               <Label htmlFor="cobrar-recibido">Recibí</Label>
               <CampoDeDinero
                 id="cobrar-recibido"
+                tamano="grande"
                 autoFocus
                 centavos={recibido}
                 alCambiar={setRecibido}
                 onKeyDown={(evento) => {
                   if (evento.key === 'Enter' && cambio >= 0 && !enviando) void confirmar();
                 }}
-                className="[&_input]:h-[calc(var(--altura-control)*1.25)] [&_input]:text-xl"
               />
             </div>
             {/* `$200` es la respuesta en más de la mitad de los tickets. */}

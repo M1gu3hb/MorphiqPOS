@@ -25,6 +25,7 @@ import { Check, ReceiptText, Smartphone, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -190,6 +191,29 @@ function mensajeDeFallo(fallo: unknown): string {
   return fallo instanceof Error ? fallo.message : 'No se pudo completar la operación.';
 }
 
+/**
+ * LOS PESOS DEL PUENTE, A CENTAVOS. `saldo_centavos`, `comision_acumulada_centavos`,
+ * `comision_centavos` y `monto_ajeno_centavos` son `conversion: 'dinero'` en
+ * `puente/mapa.ts`: llegan en PESOS aunque se llamen `…_centavos`. Leídos tal cual,
+ * el saldo salía cien veces más chico —«Saldo bajo» siempre, y «sin saldo» con
+ * saldo de sobra—. Lo que devuelven los COMANDOS ya viene en centavos.
+ */
+function saldoDelPuente(fila: SaldoDeComisionista): SaldoDeComisionista {
+  return {
+    ...fila,
+    saldo_centavos: centavosDelPuente(fila.saldo_centavos),
+    comision_acumulada_centavos: centavosDelPuente(fila.comision_acumulada_centavos),
+  };
+}
+
+function operacionDelPuente(fila: OperacionDeComision): OperacionDeComision {
+  return {
+    ...fila,
+    comision_centavos: centavosDelPuente(fila.comision_centavos),
+    monto_ajeno_centavos: centavosDelPuente(fila.monto_ajeno_centavos),
+  };
+}
+
 /** La medianoche de HOY, en ISO: el rango con el que se piden las operaciones del día. */
 function comienzoDelDia(): string {
   const ahora = new Date();
@@ -278,8 +302,8 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
       .then(([filasComisionistas, filasSaldo, filasOperaciones]) => {
         if (!sigueMontada()) return;
         setComisionistas(filasComisionistas);
-        setSaldos(saldosIniciales ?? filasSaldo);
-        setOperaciones(operacionesIniciales ?? filasOperaciones);
+        setSaldos(saldosIniciales ?? filasSaldo.map(saldoDelPuente));
+        setOperaciones(operacionesIniciales ?? filasOperaciones.map(operacionDelPuente));
       })
       .catch((causa: unknown) => {
         if (!sigueMontada()) return;
@@ -302,6 +326,13 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
   }
 
   const enviando = enCurso !== null;
+  /**
+   * EL SALDO NO SE LEYÓ: la lectura cayó y las listas quedaron vacías. De una lista
+   * vacía sale cero para todos, y cero no es «sin saldo», es «no se sabe». Mientras
+   * tanto nada se afirma —ni «sin saldo», ni «Saldo bajo»— y la recarga no se
+   * bloquea: la pantalla ya dice «Puedes seguir cobrando», y eso tiene que ser verdad.
+   */
+  const saldoSinLeer = falloDeLectura !== null;
   const listaSaldos = saldos ?? [];
   const listaOperaciones = operaciones ?? [];
   /** El nombre por su id: el saldo y la operación traen la llave, no el nombre. */
@@ -317,7 +348,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
     (fila) => comisionistas.find((c) => c.id === fila.id)?.modelo !== 'pospago',
   );
   const saldoTotal = deRecargas.reduce((suma, fila) => suma + (fila.saldo_centavos ?? 0), 0);
-  const saldoBajo = saldoTotal < MINIMO_ALERTA_CENTAVOS;
+  const saldoBajo = !saldoSinLeer && saldoTotal < MINIMO_ALERTA_CENTAVOS;
   const comisionDeHoy = listaOperaciones.reduce(
     (suma, fila) => suma + (fila.comision_centavos ?? 0),
     0,
@@ -339,7 +370,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
   const comisionServicio = proveedorServicio === null ? 0 : comisionDeServicio(proveedorServicio);
   const idDelOperador = comisionistas.find((c) => c.nombre === proveedorRecarga)?.id ?? null;
   const saldoDelOperador = saldoDe(proveedorRecarga);
-  const sinSaldo = saldoDelOperador === 0 || saldoDelOperador < montoCentavos;
+  const sinSaldo = !saldoSinLeer && (saldoDelOperador === 0 || saldoDelOperador < montoCentavos);
   const listoRecarga = digitos.length === DIGITOS_TELEFONO && montoCentavos > 0 && !sinSaldo;
   const listoServicio =
     proveedorServicio !== null &&
@@ -622,8 +653,11 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
                         ) : null}
                       </span>
                       {/* Sin saldo se dice con la palabra: el operador que ya no
-                          vende se ve ANTES de teclear el número. */}
-                      {saldo <= 0 ? (
+                          vende se ve ANTES de teclear el número. Sin lectura no se
+                          sabe, y se dice eso: no «sin saldo». */}
+                      {saldoSinLeer ? (
+                        <span className="text-xs text-texto-sutil">saldo sin leer</span>
+                      ) : saldo <= 0 ? (
                         <span className="text-xs font-medium text-peligro">sin saldo</span>
                       ) : (
                         <span className="text-xs text-texto-sutil">
@@ -861,10 +895,14 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
       >
         <p className="flex flex-wrap items-center gap-(--espacio-2) text-sm">
           <span className="text-texto-sutil">Saldo de recargas</span>
-          <Dinero
-            centavos={saldoTotal}
-            className={saldoBajo ? 'font-semibold text-peligro' : 'font-semibold'}
-          />
+          {saldoSinLeer ? (
+            <span className="font-semibold text-texto-sutil">sin leer</span>
+          ) : (
+            <Dinero
+              centavos={saldoTotal}
+              className={saldoBajo ? 'font-semibold text-peligro' : 'font-semibold'}
+            />
+          )}
           {/* El aviso NOMBRA a quién se le acabó: «saldo bajo» a secas obliga a ir a
               buscar cuál, y a las ocho de la noche eso no se hace. */}
           {saldoBajo && (

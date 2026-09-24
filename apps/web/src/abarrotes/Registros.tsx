@@ -20,6 +20,7 @@ import { CalendarX, CircleAlert, ListFilter, Package, Receipt, Wallet } from 'lu
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -157,6 +158,21 @@ function hora(fecha: string): string {
   return fecha.slice(11, 16);
 }
 
+/**
+ * HOY, con el año, el mes y el día de la hora LOCAL: `AAAA-MM-DD`.
+ *
+ * Decía `new Date().toISOString().slice(0, 10)`, que es la fecha en UTC: en México,
+ * desde las seis de la tarde ya es mañana, así que a las 22:45 —cuando el dueño
+ * revisa— la pantalla abría en el día siguiente y decía «Ese día no tiene
+ * movimientos». Es el mismo error de UTC contra hora local que el rango del día.
+ */
+function hoyEnHoraLocal(): string {
+  const ahora = new Date();
+  const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+  const dia = String(ahora.getDate()).padStart(2, '0');
+  return `${String(ahora.getFullYear())}-${mes}-${dia}`;
+}
+
 function mensajeDe(fallo: unknown, porOmision: string): string {
   return fallo instanceof Error ? fallo.message : porOmision;
 }
@@ -202,7 +218,9 @@ export function componerLinea(
       // Quién la hizo va EN la línea: cancelar una venta cobrada es la
       // operación más sensible del mostrador, y nadie abre la ficha de cada una.
       detalle: venta.usuario_cajero_nombre ?? 'sin firma',
-      importeCentavos: Math.round((venta.total ?? 0) * 100),
+      // `total` llega en PESOS (`conversion: 'dinero'`): a centavos contando dígitos,
+      // no multiplicando coma flotante.
+      importeCentavos: centavosDelPuente(venta.total) ?? 0,
       cantidad: null,
       cancelada,
       sinExplicacion: cancelada && venta.usuario_cajero_nombre === null,
@@ -347,7 +365,7 @@ export function Registros({
     // desajuste de hidratación garantizado. Y en un `setTimeout`: escribir
     // estado de forma síncrona aquí encadena renders.
     const arranque = setTimeout(() => {
-      setFecha(new Date().toISOString().slice(0, 10));
+      setFecha(hoyEnHoraLocal());
     });
     return () => {
       clearTimeout(arranque);
@@ -619,7 +637,10 @@ export function Registros({
         </div>
       </header>
 
-      {/* Un control segmentado: se elige UNO, y cada uno dice cuántos hay ese día. */}
+      {/* Un control segmentado: se elige UNO, y cada uno dice cuántos hay ese día. Del
+          alto de control por omisión y no `sm`: con 4 px entre uno y otro, sólo el
+          tamaño los deja en el área táctil del sistema, y el dueño lo abre en el
+          teléfono. */}
       <Superficie
         role="group"
         aria-label="Qué enseñar"
@@ -634,7 +655,6 @@ export function Registros({
             <Button
               key={opcion.clave}
               type="button"
-              size="sm"
               aria-pressed={elegida}
               variant={elegida ? 'default' : 'ghost'}
               onClick={() => {

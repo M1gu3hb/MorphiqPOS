@@ -19,7 +19,7 @@ import {
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import { HandCoins, Search, TriangleAlert, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -137,17 +137,27 @@ function hace(dias: number | null): string {
   return `abonó hace ${dias} días`;
 }
 
-function mensajeDe(fallo: unknown): string {
-  if (!(fallo instanceof ErrorApi)) return 'No se pudo registrar el abono.';
+/**
+ * Lo que no dejó abonar. La caja cerrada no es un fallo: es un MURO de negocio,
+ * y se enseña distinto —en ámbar y con el camino para abrirla—.
+ */
+type FalloDeAbono =
+  { readonly tipo: 'caja-cerrada' } | { readonly tipo: 'fallo'; readonly mensaje: string };
+
+function falloDe(fallo: unknown): FalloDeAbono {
+  if (!(fallo instanceof ErrorApi))
+    return { tipo: 'fallo', mensaje: 'No se pudo registrar el abono.' };
   if (fallo.estado === HTTP_DEMASIADOS_INTENTOS) {
-    return 'Demasiados intentos seguidos. Espera un momento antes de volver a registrarlo.';
+    return {
+      tipo: 'fallo',
+      mensaje: 'Demasiados intentos seguidos. Espera un momento antes de volver a registrarlo.',
+    };
   }
   // Un abono sin movimiento de caja es dinero que entró y no está en ningún
-  // corte: la base lo impide, y aquí se dice por qué en vez de «error 409».
-  if (fallo.error.codigo === 'CONFLICTO_ESTADO') {
-    return 'No hay caja abierta. Un abono sin movimiento de caja no saldría en el corte.';
-  }
-  return fallo.error.mensaje;
+  // corte: el comando lo impide. Llega como regla de negocio con su código
+  // (`comando.ts` pone el de `ErrorDominio` en `datos.regla`), no como 409.
+  if (fallo.error.datos?.['regla'] === 'CAJA_CERRADA') return { tipo: 'caja-cerrada' };
+  return { tipo: 'fallo', mensaje: fallo.error.mensaje };
 }
 
 /** La antigüedad: el color del semáforo, siempre con sus días y su palabra. */
@@ -214,9 +224,10 @@ function columnasDeCartera(tituloCliente: string): readonly ColumnaDeTabla<FilaD
         ),
     },
     {
+      // Sin `desde`: la tabla sólo existe desde `md`, y en tableta el último abono
+      // es la mitad de la respuesta a «¿le sigo fiando?».
       clave: 'ultimo-abono',
       titulo: 'Último abono',
-      desde: 'lg',
       // «Nunca ha abonado» es lo más viejo que hay: va al fondo del orden.
       orden: (f) => f.ultimo_abono_dias ?? Number.MAX_SAFE_INTEGER,
       celda: (f) => <span className="text-texto-sutil">{hace(f.ultimo_abono_dias)}</span>,
@@ -284,7 +295,7 @@ interface FichaProps {
   readonly cliente: FilaDeCartera;
   readonly monto: number | null;
   readonly enviando: boolean;
-  readonly error: string | null;
+  readonly error: FalloDeAbono | null;
   readonly alCambiarMonto: (centavos: number | null) => void;
   readonly alAbonar: () => void;
   readonly alCerrar: () => void;
@@ -351,9 +362,22 @@ function Ficha({
       </div>
 
       {/* Encima del botón, donde están los ojos, y lo primero que dice después
-          de qué pasó es que ningún saldo se movió. */}
-      {error === null ? null : (
-        <Aviso tono="peligro" titulo={error}>
+          de qué pasó es que ningún saldo se movió. La caja cerrada es un muro, no
+          un fallo: lleva el camino para abrirla. */}
+      {error === null ? null : error.tipo === 'caja-cerrada' ? (
+        <Aviso
+          tono="atencion"
+          titulo="La caja está cerrada."
+          accion={
+            <Button asChild size="sm" variant="outline">
+              <a href="/abarrotes/caja">Abrir caja</a>
+            </Button>
+          }
+        >
+          Un abono sin movimiento de caja no saldría en el corte. Ningún saldo cambió.
+        </Aviso>
+      ) : (
+        <Aviso tono="peligro" titulo={error.mensaje}>
           Ningún saldo cambió.
         </Aviso>
       )}
@@ -383,7 +407,9 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
   const [viajando, setViajando] = useState<string | null>(null);
   const [monto, setMonto] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FalloDeAbono | null>(null);
+  /** Adonde vuelve el foco cuando el vacío que lo tenía desaparece. */
+  const buscador = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (filasIniciales !== undefined) return;
@@ -474,6 +500,9 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
   }
 
   function verTodaLaCartera(): void {
+    // El botón vive en el vacío que esto desmonta: sin llevar el foco a otro lado,
+    // cae en `<body>` y quien usa teclado vuelve a empezar desde arriba.
+    buscador.current?.focus();
     setBusqueda('');
     setSoloPorCobrar(false);
   }
@@ -481,7 +510,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
   async function abonar(cliente: FilaDeCartera): Promise<void> {
     const centavos = monto ?? 0;
     if (centavos <= 0) {
-      setError('Escribe cuánto abona antes de registrarlo.');
+      setError({ tipo: 'fallo', mensaje: 'Escribe cuánto abona antes de registrarlo.' });
       return;
     }
     setEnviando(true);
@@ -503,7 +532,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
       setMonto(null);
       onAbonoRegistrado?.(cliente.cliente_id, centavos);
     } catch (fallo) {
-      setError(mensajeDe(fallo));
+      setError(falloDe(fallo));
     } finally {
       setEnviando(false);
     }
@@ -582,6 +611,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
             className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-4 -translate-y-1/2 text-texto-sutil"
           />
           <Input
+            ref={buscador}
             id="fiado-buscar"
             type="search"
             value={busqueda}

@@ -21,6 +21,7 @@ import { CalendarClock, CalendarOff, Check, Layers, PackageSearch, Plus } from '
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -116,6 +117,30 @@ export interface PresentacionDeProducto {
   readonly codigo_barras: string | null;
 }
 
+/**
+ * Lo que `catalogo.crear_presentacion` DEVUELVE (`ResultadoPresentacion`, en
+ * `packages/app/src/abarrotes/presentaciones.ts`), que no es la fila del puente:
+ * el id se llama `presentacionId`, el factor y el precio llegan como TEXTO, y el
+ * precio ya en CENTAVOS. Meterlo tal cual en la tabla pintaba un renglón sin
+ * nombre, a $0.00 y con la clave `undefined`.
+ */
+interface PresentacionCreada {
+  readonly presentacionId: string;
+  readonly productoId: string;
+  readonly factor: string;
+  readonly precioVentaCentavos: string;
+  readonly precioDerivado: boolean;
+}
+
+/** Una presentación como la pinta la tabla: el precio, ya en centavos enteros. */
+interface FilaDePresentacion {
+  readonly id: string;
+  readonly nombre: string;
+  readonly factor: number;
+  readonly precioCentavos: number;
+  readonly codigo_barras: string | null;
+}
+
 export interface ProductoProps {
   readonly productoId: string;
   readonly fichaInicial?: FichaDeProducto;
@@ -149,7 +174,18 @@ const PRESENTACION_EN_BLANCO: PresentacionNueva = {
  * tres cifras que nadie puede cobrar.
  */
 function enCentavos(importe: number | null): number {
-  return Math.round((importe ?? 0) * 100);
+  return centavosDelPuente(importe) ?? 0;
+}
+
+/** La fila del puente, con su precio en centavos. */
+function filaDelPuente(presentacion: PresentacionDeProducto): FilaDePresentacion {
+  return {
+    id: presentacion.id,
+    nombre: presentacion.nombre,
+    factor: presentacion.factor,
+    precioCentavos: enCentavos(presentacion.precio_venta_centavos),
+    codigo_barras: presentacion.codigo_barras,
+  };
 }
 
 /** Cuántos decimales enseñar de un factor: la caja trae «24», y medio kilo «0.5», no «1». */
@@ -179,13 +215,10 @@ export function margenDe(precioCentavos: number, costoCentavos: number): Margen 
 
 /** Una presentación contra el costo de lo que trae: la caja lleva 24 veces el de la pieza. */
 function margenDePresentacion(
-  presentacion: PresentacionDeProducto,
+  presentacion: FilaDePresentacion,
   costoPorUnidad: number,
 ): Margen | null {
-  return margenDe(
-    enCentavos(presentacion.precio_venta_centavos),
-    Math.round(costoPorUnidad * presentacion.factor),
-  );
+  return margenDe(presentacion.precioCentavos, Math.round(costoPorUnidad * presentacion.factor));
 }
 
 function mensajeDe(fallo: unknown): string {
@@ -218,7 +251,7 @@ function MargenEnCelda({ margen }: { readonly margen: Margen | null }) {
 /** Las columnas de una presentación: las de `04-INTERFAZ`, pantalla 8. */
 function columnasDePresentacion(
   costoPorUnidad: number,
-): readonly ColumnaDeTabla<PresentacionDeProducto>[] {
+): readonly ColumnaDeTabla<FilaDePresentacion>[] {
   return [
     {
       clave: 'nombre',
@@ -244,8 +277,8 @@ function columnasDePresentacion(
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      orden: (p) => enCentavos(p.precio_venta_centavos),
-      celda: (p) => <Dinero centavos={enCentavos(p.precio_venta_centavos)} tamano="sm" />,
+      orden: (p) => p.precioCentavos,
+      celda: (p) => <Dinero centavos={p.precioCentavos} tamano="sm" />,
     },
     {
       clave: 'margen',
@@ -282,8 +315,8 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
   // se sienta propia y no prestada.
   const vocabulario = useVocabulario();
   const [ficha, setFicha] = useState<FichaDeProducto | null>(fichaInicial ?? null);
-  const [presentaciones, setPresentaciones] = useState<readonly PresentacionDeProducto[] | null>(
-    presentacionesIniciales ?? null,
+  const [presentaciones, setPresentaciones] = useState<readonly FilaDePresentacion[] | null>(
+    () => presentacionesIniciales?.map(filaDelPuente) ?? null,
   );
   /** En centavos, como todo el dinero; `null` mientras el campo no diga un importe. */
   const [precio, setPrecio] = useState<number | null>(null);
@@ -300,73 +333,93 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
    * y el dueño daría de alta otra vez la caja que ya existe.
    */
   const [presentacionesSinLeer, setPresentacionesSinLeer] = useState(false);
-  // Cada intento de lectura es un número: reintentar lo sube y el efecto lee otra vez.
-  // El estado se limpia EN EL CLIC, no dentro del efecto.
-  const [intento, setIntento] = useState(0);
+  // Cada lectura tiene su intento: reintentar lo sube y su efecto lee otra vez. El
+  // estado se limpia EN EL CLIC, no dentro del efecto.
+  //
+  // Son DOS a propósito. Con uno solo, «Volver a leer» las presentaciones releía
+  // también la ficha y le devolvía al campo el precio guardado: el que el dueño
+  // acababa de teclear, sin guardar, desaparecía en silencio junto con su «Sin
+  // guardar».
+  const [intentoDeFicha, setIntentoDeFicha] = useState(0);
+  const [intentoDePresentaciones, setIntentoDePresentaciones] = useState(0);
 
+  // Sin id no se consulta.
+  //
+  // Estas pantallas se abren SIN nada seleccionado -`page.tsx` las monta con
+  // la cadena vacia- y consultar con ella manda un `where id = ''` a una
+  // columna uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en
+  // cada apertura. El estado de «elige algo» ya esta escrito debajo; lo que
+  // faltaba era no pedir datos de lo que nadie eligio.
   useEffect(() => {
-    if (fichaInicial !== undefined && presentacionesIniciales !== undefined) return;
+    if (fichaInicial !== undefined) return;
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
-
-    const cargar = (): void => {
-      // Sin id no se consulta.
-      //
-      // Estas pantallas se abren SIN nada seleccionado -`page.tsx` las monta con
-      // la cadena vacia- y consultar con ella manda un `where id = ''` a una
-      // columna uuid: Postgres contesta 22P02 y la pantalla se lleva un 500 en
-      // cada apertura. El estado de «elige algo» ya esta escrito debajo; lo que
-      // faltaba era no pedir datos de lo que nadie eligio.
+    const arranque = setTimeout(() => {
       if (productoId === '') return;
-      if (fichaInicial === undefined) {
-        consultarPuente<FichaDeProducto>('ProductoTerminado', {
-          filtro: { id: productoId },
-          limite: 1,
-          signal: control.signal,
+      consultarPuente<FichaDeProducto>('ProductoTerminado', {
+        filtro: { id: productoId },
+        limite: 1,
+        signal: control.signal,
+      })
+        .then((filas) => {
+          if (!sigueMontada()) return;
+          const primera = filas[0];
+          if (primera === undefined) {
+            setNoEncontrado(productoId);
+            return;
+          }
+          setFicha(primera);
+          setPrecio(enCentavos(primera.precio_venta));
         })
-          .then((filas) => {
-            if (!sigueMontada()) return;
-            const primera = filas[0];
-            if (primera === undefined) {
-              setNoEncontrado(productoId);
-              return;
-            }
-            setFicha(primera);
-            setPrecio(enCentavos(primera.precio_venta));
-          })
-          .catch((fallo: unknown) => {
-            if (!sigueMontada()) return;
-            setFalloDeLectura(fallo instanceof Error ? fallo.message : 'No se pudo leer la ficha.');
-          });
-      }
-      if (presentacionesIniciales === undefined) {
-        consultarPuente<PresentacionDeProducto>('Presentacion', {
-          filtro: { producto_id: productoId },
-          limite: 40,
-          signal: control.signal,
-        })
-          .then((filas) => {
-            if (sigueMontada()) setPresentaciones(filas);
-          })
-          .catch(() => {
-            if (!sigueMontada()) return;
-            setPresentaciones([]);
-            setPresentacionesSinLeer(true);
-          });
-      }
-    };
-    const arranque = setTimeout(cargar);
+        .catch((fallo: unknown) => {
+          if (!sigueMontada()) return;
+          setFalloDeLectura(fallo instanceof Error ? fallo.message : 'No se pudo leer la ficha.');
+        });
+    });
     return () => {
       clearTimeout(arranque);
       control.abort();
     };
-  }, [productoId, fichaInicial, presentacionesIniciales, intento]);
+  }, [productoId, fichaInicial, intentoDeFicha]);
 
-  function reintentar(): void {
-    setFalloDeLectura(null);
+  useEffect(() => {
+    if (presentacionesIniciales !== undefined) return;
+    const control = new AbortController();
+    const sigueMontada = (): boolean => !control.signal.aborted;
+    const arranque = setTimeout(() => {
+      if (productoId === '') return;
+      consultarPuente<PresentacionDeProducto>('Presentacion', {
+        filtro: { producto_id: productoId },
+        limite: 40,
+        signal: control.signal,
+      })
+        .then((filas) => {
+          if (sigueMontada()) setPresentaciones(filas.map(filaDelPuente));
+        })
+        .catch(() => {
+          if (!sigueMontada()) return;
+          setPresentaciones([]);
+          setPresentacionesSinLeer(true);
+        });
+    });
+    return () => {
+      clearTimeout(arranque);
+      control.abort();
+    };
+  }, [productoId, presentacionesIniciales, intentoDePresentaciones]);
+
+  /** Sólo las presentaciones: el precio tecleado y sin guardar se queda donde está. */
+  function releerPresentaciones(): void {
     setPresentacionesSinLeer(false);
     if (presentacionesIniciales === undefined) setPresentaciones(null);
-    setIntento((previo) => previo + 1);
+    setIntentoDePresentaciones((previo) => previo + 1);
+  }
+
+  /** La ficha no se leyó. Si tampoco las presentaciones, se piden con ella. */
+  function reintentar(): void {
+    setFalloDeLectura(null);
+    setIntentoDeFicha((previo) => previo + 1);
+    if (presentacionesSinLeer) releerPresentaciones();
   }
 
   function guardarPrecio(): void {
@@ -420,15 +473,25 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
      *    código, la clave no viaja.
      */
     const codigo = nueva.codigo.trim();
-    invocarComando<PresentacionDeProducto>(RUTA_PRESENTACION, {
+    const nombre = nueva.nombre.trim();
+    invocarComando<PresentacionCreada>(RUTA_PRESENTACION, {
       productoId,
-      nombre: nueva.nombre.trim(),
+      nombre,
       factor: nueva.factor.replace(',', '.'),
       precioVentaCentavos: centavos,
       ...(codigo === '' ? {} : { codigoBarras: codigo }),
     })
       .then((creada) => {
-        setPresentaciones([...(presentaciones ?? []), creada]);
+        // El renglón se arma con lo que el comando devuelve —id, factor y precio,
+        // que es el que quedó guardado— y con el nombre y el código que se mandaron.
+        const fila: FilaDePresentacion = {
+          id: creada.presentacionId,
+          nombre,
+          factor: Number(creada.factor),
+          precioCentavos: Number(creada.precioVentaCentavos),
+          codigo_barras: codigo === '' ? null : codigo,
+        };
+        setPresentaciones((previas) => [...(previas ?? []), fila]);
         setNueva(PRESENTACION_EN_BLANCO);
       })
       .catch((fallo: unknown) => {
@@ -513,7 +576,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
           tono="atencion"
           titulo="No se pudieron leer las presentaciones."
           accion={
-            <Button variant="outline" size="sm" onClick={reintentar}>
+            <Button variant="outline" size="sm" onClick={releerPresentaciones}>
               Volver a leer
             </Button>
           }
@@ -585,12 +648,13 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
             <Label htmlFor="precio">Precio de venta</Label>
             <CampoDeDinero
               id="precio"
+              tamano="grande"
               centavos={precio}
               alCambiar={(centavos) => {
                 setPrecio(centavos);
                 setAviso(null);
               }}
-              className="w-48 [&_input]:h-[calc(var(--altura-control)*1.15)] [&_input]:text-lg"
+              className="w-48"
             />
           </div>
           <Button type="submit" size="lg" disabled={guardando}>

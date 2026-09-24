@@ -15,12 +15,12 @@ import {
   Vacio,
   dineroEnTexto,
   type ColumnaDeTabla,
-  type TonoDeFila,
 } from '@morphiqpos/ui/sistema';
 import { ArrowDown, ArrowUp, Check, Receipt } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -52,13 +52,20 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * importe— con los números a la derecha, que se llena de arriba abajo con el
  * teclado. En la PC de la caja, que es donde se cierra, lo contado vive a la
  * derecha y se queda a la vista mientras se baja por la hoja; en tableta y
- * teléfono es una franja pegada abajo. El histórico es de lectura del dueño:
- * tabla desde la tableta, tarjetas en el teléfono, y la diferencia se puede
- * ordenar para encontrar el día que no cuadró.
+ * teléfono es una franja pegada abajo. Ahí, de pie y con el pulgar, cada campo
+ * de la hoja mide lo de un blanco táctil (`04-INTERFAZ` §4.6); en la PC vuelve a
+ * ser un renglón denso. El histórico es de lectura del dueño: tabla desde la
+ * tableta, tarjetas en el teléfono.
  *
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben contar, cerrar y ver los cortes anteriores con su diferencia. Queda
- * fuera el detalle movimiento por movimiento, que vive en REGISTROS.
+ * Caben contar, cerrar y ver los cortes anteriores: cuándo, quién cerró y cuánto
+ * contó. Queda fuera la DIFERENCIA de cada corte anterior —la columna que
+ * §PANTALLA 10 pide ordenar por omisión—: `caja.cerrar` calcula el esperado, lo
+ * devuelve y lo deja sólo en la auditoría; no lo guarda en `sesiones_caja`, y
+ * `CorteCaja` no lo sirve. Una columna «Diferencia» diría «—» en todos los
+ * renglones y ordenarla no haría nada, así que no se pinta hasta que el servidor
+ * la sirva. Queda fuera también el detalle movimiento por movimiento, que vive
+ * en REGISTROS.
  */
 
 const RUTA_CERRAR = '/api/caja/cerrar';
@@ -74,6 +81,12 @@ const DENOMINACIONES = [500_00, 200_00, 100_00, 50_00, 20_00, 10_00, 5_00, 2_00,
 const CONTENEDOR =
   'mx-auto flex w-full max-w-5xl flex-col gap-(--espacio-6) p-(--espacio-4) md:p-(--espacio-6)';
 const DOS_COLUMNAS = 'grid gap-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start';
+/**
+ * La altura de un campo de la hoja: blanco táctil de pie en tableta y teléfono
+ * (56 px de `04-INTERFAZ` §4.6), renglón denso sólo en la PC de la caja.
+ */
+const ALTO_DEL_CAMPO =
+  'h-[calc(var(--altura-control)*1.4)] xl:h-[calc(var(--altura-control)*0.85)]';
 
 /**
  * UN CORTE DEL HISTÓRICO, con los nombres que el puente SIRVE.
@@ -85,18 +98,16 @@ const DOS_COLUMNAS = 'grid gap-(--espacio-4) xl:grid-cols-[minmax(0,1fr)_20rem] 
  * enseñaba «sin firma» en cada renglón y la diferencia salía `NaN`.
  *
  * El ESPERADO no se sirve, y no es un olvido: no es una columna. Se deriva de la
- * suma de `movimientos_caja` de esa sesión, y el que decide el arqueo lo calcula
- * `caja.documento_corte`. Aquí se declara opcional para que la pantalla tenga que
- * decir «—» en vez de restar contra `undefined` y enseñar un faltante inventado.
+ * suma de `movimientos_caja` de esa sesión, y `caja.cerrar` no lo guarda. Sin él
+ * no hay diferencia que enseñar, y por eso el histórico no la pinta: una columna
+ * que dice «—» en cada renglón promete un orden que no ordena nada.
  */
 export interface CorteHecho {
   readonly id: string;
   readonly fecha_cierre: string | null;
-  /** EN PESOS, como lo sirve el puente. */
+  /** EN PESOS, como lo sirve el puente: `centavosDelPuente` lo pasa a centavos. */
   readonly efectivo_contado: number | null;
   readonly usuario_cajero_nombre: string | null;
-  /** No se sirve: se deriva de los movimientos. Ver la cabecera. */
-  readonly esperado_centavos?: number;
 }
 
 export interface ResumenDelTurno {
@@ -158,11 +169,6 @@ const TINTE: Readonly<Record<Sentido, string>> = {
   faltan: 'border-peligro bg-peligro/5',
   sobran: 'border-advertencia bg-advertencia/10',
 };
-const TONO_DE_FILA: Readonly<Record<Sentido, TonoDeFila | undefined>> = {
-  cuadra: undefined,
-  faltan: 'peligro',
-  sobran: 'advertencia',
-};
 
 /** Las piezas de una denominación. Vacío es cero; lo que no es un número, `null`. */
 function piezasDe(texto: string): number | null {
@@ -194,13 +200,12 @@ function mensajeDe(fallo: unknown): string {
 
 /** Lo contado de un corte del histórico, en centavos. `null`: no se contó. */
 function contadoDe(corte: CorteHecho): number | null {
-  return corte.efectivo_contado === null ? null : Math.round(corte.efectivo_contado * 100);
+  return centavosDelPuente(corte.efectivo_contado);
 }
 
-/** La diferencia de un corte del histórico. `null`: no hay esperado contra qué restar. */
-function diferenciaDe(corte: CorteHecho): number | null {
-  if (corte.esperado_centavos === undefined) return null;
-  return Math.round((corte.efectivo_contado ?? 0) * 100) - corte.esperado_centavos;
+/** Las piezas de algún billete o moneda no se pueden leer: «2.5» en los de $500. */
+function hayPiezasIlegibles(piezas: Readonly<Record<number, string>>): boolean {
+  return DENOMINACIONES.some((denominacion) => piezasDe(piezas[denominacion] ?? '') === null);
 }
 
 const CUANDO = new Intl.DateTimeFormat('es-MX', {
@@ -310,7 +315,7 @@ function importeDelRenglon(renglon: RenglonDeLaHoja, props: HojaDeArqueoProps): 
 
 function campoDelRenglon(renglon: RenglonDeLaHoja, props: HojaDeArqueoProps): ReactNode {
   const { denominacion } = renglon;
-  const clases = 'h-[calc(var(--altura-control)*0.85)] text-right font-numeros tabular-nums';
+  const clases = `${ALTO_DEL_CAMPO} text-right font-numeros tabular-nums`;
   if (denominacion === null) {
     return (
       <Input
@@ -498,22 +503,6 @@ function columnasDelHistorico(cajero: string): readonly ColumnaDeTabla<CorteHech
         );
       },
     },
-    {
-      clave: 'diferencia',
-      titulo: 'Diferencia',
-      numerica: true,
-      // Ascendente, el faltante más grande sale primero: el dueño entra aquí
-      // buscando el día que no cuadró. Lo que no tiene esperado va al final.
-      orden: (corte) => diferenciaDe(corte) ?? Number.MAX_SAFE_INTEGER,
-      celda: (corte) => {
-        const diferencia = diferenciaDe(corte);
-        return diferencia === null ? (
-          <SinDato porque="sin esperado contra qué comparar" />
-        ) : (
-          <Diferencia centavos={diferencia} />
-        );
-      },
-    },
   ];
 }
 
@@ -552,10 +541,6 @@ function HistoricoDeCortes({
         columnas={columnasDelHistorico(cajero)}
         filas={historico}
         claveDe={(corte) => corte.id}
-        tonoDeFila={(corte) => {
-          const diferencia = diferenciaDe(corte);
-          return diferencia === null ? undefined : TONO_DE_FILA[sentidoDe(diferencia)];
-        }}
         vacio={
           <Vacio
             icono={<Receipt />}
@@ -649,6 +634,14 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
   const cajero = voc.titulo('responsable');
 
   function cerrar(): void {
+    if (guardando) return;
+    // Un renglón en rojo NO es un cero. `totalContado` lo suma como cero, y cerrar
+    // con él mandaría un contado de menos y un faltante inventado, sin vuelta
+    // atrás. El botón sigue vivo para poder decir por qué no cierra.
+    if (hayPiezasIlegibles(piezas)) {
+      setError('Revisa las piezas marcadas en rojo: sólo piezas enteras.');
+      return;
+    }
     if (sueltos === null) {
       setError('Revisa el importe suelto: sólo pesos y centavos.');
       return;
@@ -707,7 +700,7 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
             {DENOMINACIONES.map((denominacion) => (
               <div key={denominacion} className="flex items-center gap-(--espacio-3)">
                 <Esqueleto className="h-4 w-20" />
-                <Esqueleto className="ml-auto h-[calc(var(--altura-control)*0.85)] w-24" />
+                <Esqueleto className={`ml-auto w-24 ${ALTO_DEL_CAMPO}`} />
                 <Esqueleto className="h-4 w-24" />
               </div>
             ))}

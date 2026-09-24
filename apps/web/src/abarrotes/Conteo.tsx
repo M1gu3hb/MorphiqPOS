@@ -405,6 +405,32 @@ function columnasDeDesviados(
 }
 
 /**
+ * EL NETO CON SU SENTIDO ESCRITO: flecha, palabra y color, y el importe sin signo.
+ *
+ * Era `<Dinero centavos={neto} />` a secas: un sobrante salía «$18.00» sin signo, sin
+ * color y sin palabra, y un faltante sólo se distinguía por el paréntesis contable,
+ * que no todo el que cuenta un anaquel conoce. Como en `Diferencia`, el sentido no lo
+ * carga una sola señal. En cero no hay sentido que decir: «$0.00» se lee solo.
+ */
+function SentidoDelNeto({ centavos }: { readonly centavos: number }) {
+  const importe = <Dinero centavos={Math.abs(centavos)} tamano="lg" className="font-bold" />;
+  if (centavos === 0) return importe;
+  const falta = centavos < 0;
+  return (
+    <span
+      className={`text-xl font-bold whitespace-nowrap ${falta ? 'text-peligro' : 'text-exito'}`}
+    >
+      {falta ? (
+        <ChevronDown aria-hidden="true" className="inline-block size-5 align-middle" />
+      ) : (
+        <ChevronUp aria-hidden="true" className="inline-block size-5 align-middle" />
+      )}
+      {falta ? 'Falta' : 'Sobra'} {importe}
+    </span>
+  );
+}
+
+/**
  * LA DIFERENCIA NETA, que es lo que el dueño se lleva de la zona. El porcentaje va
  * grande y con su contexto pegado debajo: sin ese renglón el número no le dice nada.
  */
@@ -427,7 +453,7 @@ function Veredicto({
       {resumen.importeVisible ? (
         <>
           <p className="flex flex-wrap items-baseline gap-x-(--espacio-4) gap-y-(--espacio-1)">
-            <Dinero centavos={resumen.netoCentavos} tamano="lg" className="font-bold" />
+            <SentidoDelNeto centavos={resumen.netoCentavos} />
             <Cifra
               valor={resumen.porcentaje}
               decimales={1}

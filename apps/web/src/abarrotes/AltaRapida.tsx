@@ -58,10 +58,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * la forma con una expresión regular y se manda la cadena tal cual; quien
  * convierte a centavos es el servidor, en un solo sitio.
  *
- * Y por eso los dos importes NO son `CampoDeDinero`: ése habla en centavos y lee
- * la coma como separador de miles —«18,50» serían mil ochocientos cincuenta
- * pesos—, mientras que aquí la cadena tecleada es el dato que viaja. Se ven como
- * él —el `$` delante, las cifras a la derecha y tabulares— sin cambiar el contrato.
+ * Y por eso los dos importes NO son `CampoDeDinero`: ése habla en centavos —entra
+ * `centavos`, sale `alCambiar(centavos)`— y aquí el dato que viaja a
+ * `/api/catalogo/alta-rapida` es la cadena tecleada. Usarlo obligaría a convertir
+ * en el navegador —de texto a centavos, y de vuelta a texto para mandarlo— lo que
+ * hoy convierte sólo el servidor, en un solo sitio. Se ven como él —el `$` delante,
+ * las cifras a la derecha y tabulares— sin cambiar el contrato.
  *
  * ── Cómo se ve, por dispositivo ──────────────────────────────────────────
  * PC con lector (el principal): una hoja centrada de nivel 4 —lo que se pone
@@ -499,10 +501,14 @@ export function AltaRapida({
             )}
           </Superficie>
 
-          {/* El conflicto no vacía nada: ofrece el camino correcto y deja el otro. */}
+          {/* El conflicto no vacía nada: ofrece el camino correcto y deja el otro. Y
+              se anuncia como ALERTA aunque sea de atención: sale al tocar Guardar y es
+              la razón de que no se guardara; un estado que llega ya escrito no se lee
+              de forma fiable, y quien usa lector se quedaría sin saber por qué. */}
           {ocupado !== null && (
             <Aviso
               tono="atencion"
+              anuncio="alerta"
               titulo={`Este código ya es de «${ocupado.nombre}». ¿Es una presentación nueva de ese producto?`}
             >
               <div className="mt-(--espacio-2) flex flex-wrap gap-(--espacio-2)">

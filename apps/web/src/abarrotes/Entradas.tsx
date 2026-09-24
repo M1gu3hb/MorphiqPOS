@@ -18,7 +18,7 @@ import {
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import { Check, ClipboardList, PackageOpen, Plus, TrendingUp, Truck } from 'lucide-react';
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -48,11 +48,14 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * con la caja en la mano, es la única forma de que se conteste; pedirla después
  * desde el catálogo es no pedirla.
  *
- * ── Y el aviso de cambio de costo trae PRECIO SUGERIDO ──────────────────
- * «El pan subió 5.2 %» no es accionable. «Subió 5.2 %, véndelo a $48 en vez de
- * $46» sí, y es lo que un tendero llamaría «el sistema me avisó antes de que
- * perdiera dinero». La fila se tiñe y dice «subió», y el aviso va pegado al
- * botón de guardar, que es donde se está mirando.
+ * ── Y el aviso de cambio de costo ────────────────────────────────────────
+ * El costo anterior es el que sirve el sugerido: lo que cuesta UNA unidad base
+ * (`costoUnitarioCentavos`). Contra él se compara lo que cuesta una unidad de
+ * la nota; si subió, la fila se tiñe y dice «subió», y el aviso va pegado al
+ * botón de guardar, que es donde se está mirando, con el costo de antes y el de
+ * ahora. «Subió 5.2 %, véndelo a $48 en vez de $46» es lo accionable, pero
+ * pide el precio de venta, y el sugerido no lo sirve: sin él no se inventa un
+ * margen, así que el precio sugerido sólo aparece cuando la línea lo trae.
  *
  * ── PC, tableta y teléfono ──────────────────────────────────────────────
  * En la PC la nota es una tabla densa de captura: se recorre con el tabulador
@@ -64,7 +67,8 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
  * Caben quién viene hoy, el sugerido, la captura de la nota con caducidad y el
  * aviso de costo. Queda fuera el canje en la misma nota, que necesita el
- * comando de devolución a proveedor.
+ * comando de devolución a proveedor, y el precio de venta sugerido, que necesita
+ * que `compras.sugerir_pedido` sirva el precio de venta de cada renglón.
  */
 
 const RUTA_RECIBIR = '/api/compras/recibir-nota';
@@ -88,6 +92,8 @@ const MARCO =
 const ROTULO = 'text-xs font-semibold tracking-wide text-texto-sutil uppercase';
 /** De pie y con una mano ocupada el campo crece; en la tabla de la PC, no. */
 const CAMPO = 'h-[calc(var(--altura-control)*1.2)] lg:h-(--altura-control)';
+/** Desde aquí la nota es tabla (`desde="lg"`): la misma consulta que usa `TablaAdaptable`. */
+const NOTA_EN_TABLA = '(min-width: 1024px)';
 
 export interface ProveedorDelDia {
   readonly id: string;
@@ -96,12 +102,21 @@ export interface ProveedorDelDia {
   readonly frecuencia: string | null;
 }
 
+/**
+ * Un renglón de `compras.sugerir_pedido`, con los nombres que el comando sirve
+ * (`packages/app/src/abarrotes/sugerencia.ts`). Las cantidades base llegan como
+ * texto decimal (`'238.0000'`) y los centavos como texto entero: la columna es
+ * `bigint`. Viene de un comando, no del puente: los centavos ya son centavos.
+ */
 export interface RenglonSugerido {
   readonly insumoId: string;
   readonly nombre: string;
-  readonly existencia: string;
-  readonly ventaCatorceDias: string;
-  readonly sugerido: string;
+  /** Lo que cuesta UNA unidad base: es el costo anterior de la nota. */
+  readonly costoUnitarioCentavos: string;
+  readonly existenciaBase: string;
+  readonly ventaDelPeriodoBase: string;
+  /** En presentaciones de compra (cajas, paquetes), no en unidades base. */
+  readonly presentacionesSugeridas: number;
   readonly unidadCompra: string;
 }
 
@@ -114,7 +129,9 @@ export interface LineaCapturada {
   readonly cantidad: string;
   readonly costoTotal: string;
   readonly caducaEl: string;
+  /** Lo que costaba una unidad base antes de esta nota. */
   readonly costoAnteriorCentavos: number | null;
+  /** Hoy siempre `null`: el sugerido no sirve el precio de venta. */
   readonly precioVentaCentavos: number | null;
 }
 
@@ -131,11 +148,15 @@ export interface EntradasProps {
   readonly hoy?: number;
 }
 
-/** El aviso que evita perder dinero: cuánto subió y a cuánto habría que venderlo. */
+/** El aviso que evita perder dinero: cuánto subió y, si se sabe, a cuánto venderlo. */
 export interface AvisoDeCosto {
   readonly nombre: string;
   readonly subidaPct: string;
-  readonly precioSugeridoCentavos: number;
+  /** Por unidad base, antes y ahora. */
+  readonly anteriorCentavos: number;
+  readonly nuevoCentavos: number;
+  /** `null` sin precio de venta: sin él no hay margen que conservar. */
+  readonly precioSugeridoCentavos: number | null;
 }
 
 /** Un renglón de la nota tal como lo pinta la tabla: con su posición y su aviso. */
@@ -166,6 +187,13 @@ function cifraDe(texto: string): number | null {
   return texto === '' || !Number.isFinite(valor) ? null : valor;
 }
 
+/** Centavos que el comando sirve como texto entero (`bigint`); `null` si no lo son. */
+function centavosEnteros(texto: string): number | null {
+  if (!/^\d+$/.test(texto)) return null;
+  const valor = Number(texto);
+  return Number.isSafeInteger(valor) ? valor : null;
+}
+
 /** Cuántas entran de verdad al inventario: 18 cajas que traen 12 son 216. */
 function entranDe(linea: LineaCapturada): number | null {
   const cantidad = cantidadDe(linea.cantidad);
@@ -180,33 +208,52 @@ function diaDeVisita(proveedor: ProveedorDelDia): string {
 }
 
 /**
- * Cuánto subió el costo por unidad y a cuánto habría que vender para no perder.
+ * Cuánto subió el costo por unidad y, si se sabe el precio, a cuánto vender.
  *
  * El margen se conserva: si vendía al 50 % sobre costo, se sugiere el mismo
  * 50 % sobre el costo nuevo. Sugerir «costo + $2» conservaría el peso y perdería
- * el porcentaje, que es lo que de verdad paga la renta.
+ * el porcentaje, que es lo que de verdad paga la renta. Sin precio de venta no
+ * hay margen que conservar, y suponer uno sería inventarle el precio al tendero.
+ *
+ * Las unidades son las de «Entran»: las mismas guardas que la columna, antes de
+ * leer nada, para que un renglón a medio teclear no tire la pantalla.
  */
 export function avisoDeCosto(linea: LineaCapturada): AvisoDeCosto | null {
-  const costoTotal = aCentavos(linea.costoTotal);
-  const cantidad = Number(linea.cantidad.replace(',', '.'));
-  const equivalencia = Number(linea.equivalencia.replace(',', '.'));
   const anterior = linea.costoAnteriorCentavos;
-  if (costoTotal === null || anterior === null || anterior <= 0) return null;
-  if (!Number.isFinite(cantidad) || !Number.isFinite(equivalencia)) return null;
-  const unidades = cantidad * equivalencia;
-  if (unidades <= 0) return null;
+  if (anterior === null || anterior <= 0) return null;
+  const costoTotal = aCentavos(linea.costoTotal);
+  const unidades = entranDe(linea);
+  if (costoTotal === null || unidades === null || unidades <= 0) return null;
 
   const nuevo = costoTotal / unidades;
   const subida = (nuevo - anterior) / anterior;
   if (subida < SUBIDA_QUE_AVISA) return null;
 
   const precio = linea.precioVentaCentavos;
-  const margen = precio === null || precio <= 0 ? 1.5 : precio / anterior;
   return {
     nombre: linea.nombre,
     subidaPct: (subida * 100).toFixed(1),
-    precioSugeridoCentavos: Math.ceil((nuevo * margen) / 100) * 100,
+    anteriorCentavos: anterior,
+    nuevoCentavos: Math.round(nuevo),
+    precioSugeridoCentavos:
+      precio === null || precio <= 0 ? null : Math.ceil((nuevo * (precio / anterior)) / 100) * 100,
   };
+}
+
+/** ¿La nota se pinta como tabla? Decide el tamaño del campo de dinero de cada renglón. */
+function useNotaEnTabla(): boolean {
+  return useSyncExternalStore(
+    (avisar) => {
+      const medio = window.matchMedia(NOTA_EN_TABLA);
+      medio.addEventListener('change', avisar);
+      return () => {
+        medio.removeEventListener('change', avisar);
+      };
+    },
+    () => window.matchMedia(NOTA_EN_TABLA).matches,
+    // Como `TablaAdaptable`: hasta saber el ancho se pinta la tabla.
+    () => true,
+  );
 }
 
 /** `0` es domingo, como `extract(dow)`. */
@@ -271,19 +318,19 @@ function columnasDelSugerido(
       clave: 'hay',
       titulo: 'Hay',
       numerica: true,
-      celda: (r) => <CifraORaya valor={cifraDe(r.existencia)} />,
+      celda: (r) => <CifraORaya valor={cifraDe(r.existenciaBase)} />,
     },
     {
       clave: 'catorce',
       titulo: '14 días',
       numerica: true,
-      celda: (r) => <CifraORaya valor={cifraDe(r.ventaCatorceDias)} />,
+      celda: (r) => <CifraORaya valor={cifraDe(r.ventaDelPeriodoBase)} />,
     },
     {
       clave: 'sugerido',
       titulo: 'Sugerido',
       numerica: true,
-      celda: (r) => <CifraORaya valor={cifraDe(r.sugerido)} unidad={r.unidadCompra} fuerte />,
+      celda: (r) => <CifraORaya valor={r.presentacionesSugeridas} unidad={r.unidadCompra} fuerte />,
     },
     {
       clave: 'agregar',
@@ -335,6 +382,7 @@ function CostoPorUnidad({ fila }: { readonly fila: FilaDeNota }): ReactElement {
 function columnasDeLaNota(
   tituloDelProducto: string,
   cambiar: Cambiar,
+  enTabla: boolean,
 ): readonly ColumnaDeTabla<FilaDeNota>[] {
   return [
     {
@@ -406,7 +454,10 @@ function columnasDeLaNota(
         <CampoDeDinero
           id={`costo-${String(indice)}`}
           aria-label={`Costo total de ${linea.nombre}`}
-          className="ml-auto w-32 [&_input]:h-[calc(var(--altura-control)*1.2)] lg:[&_input]:h-(--altura-control)"
+          // En la tarjeta se teclea de pie y se relee antes de guardar: crece, como
+          // los demás campos. En la tabla de la PC, no.
+          tamano={enTabla ? 'base' : 'grande'}
+          className="ml-auto w-32"
           centavos={centavosDeTexto(linea.costoTotal)}
           alCambiar={(centavos) => {
             cambiar(indice, { costoTotal: centavos === null ? '' : textoParaCampo(centavos) });
@@ -580,6 +631,7 @@ function RutaDelDia({
 
 export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
   const voc = useVocabulario();
+  const notaEnTabla = useNotaEnTabla();
   const [proveedores, setProveedores] = useState<readonly ProveedorDelDia[] | null>(
     proveedoresIniciales ?? null,
   );
@@ -678,10 +730,11 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
         nombre: renglon.nombre,
         unidad: renglon.unidadCompra,
         equivalencia: '1',
-        cantidad: renglon.sugerido,
+        cantidad: String(renglon.presentacionesSugeridas),
         costoTotal: '',
         caducaEl: '',
-        costoAnteriorCentavos: null,
+        // Lo que costaba una unidad base: contra esto se mide si subió.
+        costoAnteriorCentavos: centavosEnteros(renglon.costoUnitarioCentavos),
         precioVentaCentavos: null,
       },
     ]);
@@ -692,6 +745,9 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
   }
 
   function guardar(): void {
+    // Un doble toque llega antes que el re-pintado que deshabilita el botón, y
+    // cada llamada lleva su propia clave de idempotencia: la nota entraría dos veces.
+    if (guardando) return;
     if (elegido === null || lineas.length === 0) return;
     const invalida = lineas.find(
       (l) => !CANTIDAD_CON_FORMA.test(l.cantidad) || aCentavos(l.costoTotal) === null,
@@ -910,13 +966,13 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
                 desde="lg"
                 principal="producto"
                 etiqueta={`Nota de ${elegido.nombre}`}
-                columnas={columnasDeLaNota(tituloDelProducto, cambiar)}
+                columnas={columnasDeLaNota(tituloDelProducto, cambiar, notaEnTabla)}
                 filas={filasDeLaNota}
                 claveDe={(fila) => `${fila.linea.insumoId}-${String(fila.indice)}`}
                 tonoDeFila={(fila) => (fila.aviso === null ? undefined : 'advertencia')}
                 // En tarjeta, un campo por renglón en el teléfono: dos en fila no caben
                 // con la caja en la otra mano.
-                className="[&_dl]:grid-cols-1 sm:[&_dl]:grid-cols-2"
+                columnasDeTarjeta="adaptable"
                 vacio={
                   <Vacio
                     icono={<PackageOpen />}
@@ -932,8 +988,16 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
                   tono="atencion"
                   titulo={`${aviso.nombre} subió ${aviso.subidaPct} %.`}
                 >
-                  Véndelo a <Dinero centavos={aviso.precioSugeridoCentavos} tamano="sm" /> para no
-                  perder margen.
+                  Por unidad pasó de <Dinero centavos={aviso.anteriorCentavos} tamano="sm" /> a{' '}
+                  <Dinero centavos={aviso.nuevoCentavos} tamano="sm" />.{' '}
+                  {aviso.precioSugeridoCentavos === null ? (
+                    'Revisa su precio de venta.'
+                  ) : (
+                    <>
+                      Véndelo a <Dinero centavos={aviso.precioSugeridoCentavos} tamano="sm" /> para
+                      no perder margen.
+                    </>
+                  )}
                 </Aviso>
               ))}
               {error === null ? null : (

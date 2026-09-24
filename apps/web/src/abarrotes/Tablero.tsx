@@ -401,7 +401,21 @@ export function Tablero({ datosIniciales }: TableroProps) {
 
   const { venta, margen, porPedir, conteo, fiado, porVencer, caja } = datos;
   const dia = diaDeLaSemana(datos.fecha);
-  const totalDelPedido = porPedir.reduce((suma, fila) => suma + Number(fila.importeCentavos), 0);
+  /**
+   * LA SUMA DE LO QUE SE VE, y no «Total»: el servidor corta la lista en los ocho
+   * proveedores de más importe (`leerPorPedir`, `limit 8`), así que con más de ocho
+   * bajo mínimo esta suma deja fuera a los demás. Un pedido planeado con un «Total»
+   * más bajo que el real es dinero que falta el día que pasa el proveedor. Con una
+   * sola fila no hay nada que sumar.
+   */
+  const sumaDeLoVisible = porPedir.reduce((suma, fila) => suma + Number(fila.importeCentavos), 0);
+  const pieDelPedido =
+    porPedir.length < 2
+      ? undefined
+      : {
+          proveedor: `Suma de estos ${String(porPedir.length)}`,
+          importe: <Dinero centavos={sumaDeLoVisible} className="font-semibold" />,
+        };
   const conteoExcede = Math.abs(conteo.sobreVentaBp) > CONTEO_ACEPTABLE_BP;
   const faltaMaterial = Number(conteo.diferenciaCentavos) < 0;
   const diferenciaDeCierre =
@@ -530,10 +544,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
             claveDe={(fila) => fila.proveedor}
             alto="max-h-none"
             className="border-0"
-            pie={{
-              proveedor: 'Total',
-              importe: <Dinero centavos={totalDelPedido} className="font-semibold" />,
-            }}
+            pie={pieDelPedido}
             vacio={
               <Vacio
                 icono={<PackageCheck />}

@@ -64,9 +64,13 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * botón al pie de cada uno: son los dos movimientos del día y se buscan con la
  * vista, no con el ratón. En tableta y teléfono se apilan en ese orden.
  *
- * Cada panel es un formulario: Enter registra, que es como se trabaja con una
- * mano en el teclado. Y lo que sale mal se dice JUNTO al botón que se tocó, no
- * arriba de todo, que es donde nadie está mirando.
+ * Cada panel es un formulario, pero Enter en un importe NO registra: pasa al
+ * campo que sigue. Registrar desde el primer montón abría la caja con lo que
+ * llevaba tecleado y los otros dos en cero, y metía el cambio «del banco» antes de
+ * que nadie llegara a decir de dónde vino. Registran el último campo —«Billetes
+ * grandes», «A dónde va»— y el botón; en el cambio lo último es elegir el origen,
+ * así que registra sólo el botón. Y lo que sale mal se dice JUNTO al botón que se
+ * tocó, no arriba de todo, que es donde nadie está mirando.
  *
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
  * Caben abrir, meter cambio, retirar y ver el esperado del turno. Queda fuera
@@ -141,23 +145,40 @@ function sumaDe(montos: readonly (number | null)[]): number | null {
   return suma;
 }
 
+/** El campo del montón que sigue al de `indice`, o nada si ése es el último. */
+function idDelMontonSiguiente(indice: number): string | undefined {
+  const siguiente = DENOMINACIONES[indice + 1];
+  return siguiente === undefined ? undefined : `fondo-${siguiente.clave}`;
+}
+
 function mensajeDe(fallo: unknown): string {
   if (fallo instanceof ErrorApi) return fallo.message;
   return 'No se pudo. Lo capturado sigue aquí: vuelve a intentarlo.';
 }
 
+interface CampoDePesosProps extends Omit<
+  ComponentProps<'input'>,
+  'type' | 'inputMode' | 'className'
+> {
+  /**
+   * El `id` del control al que lleva Enter. Sin él, Enter hace lo de siempre en un
+   * formulario: registrarlo. Ver «Cada panel es un formulario» arriba.
+   */
+  readonly siguiente?: string | undefined;
+}
+
 /**
  * EL IMPORTE QUE SE TECLEA · con su `$` delante y las cifras a la derecha.
  *
- * Tiene la forma de `CampoDeDinero` y no es `CampoDeDinero`, por dos cosas que
- * esta pantalla necesita y la biblioteca no da: allí la coma es separador de
- * miles —aquí «12,50» son doce pesos con cincuenta, que es lo que pone el
- * teclado numérico en distribución española—, y allí el campo vacío y el mal
- * escrito salen los dos como `null`, cuando aquí un montón vacío es cero y uno
- * mal escrito detiene la apertura. Leer el mismo tecleo de otra forma sería
- * mandar otro importe al servidor.
+ * Tiene la forma de `CampoDeDinero` y no es `CampoDeDinero` porque aquí lo tecleado
+ * se guarda como TEXTO y lo lee `aCentavos`, que es lo que llega al servidor: la
+ * coma es siempre el decimal —«12,50», doce pesos con cincuenta—, cada montón
+ * admite hasta siete cifras de pesos, uno vacío es cero y uno mal escrito detiene
+ * la apertura. `CampoDeDinero` lee además «1,250» como mil doscientos cincuenta, que
+ * aquí no es un importe: pasarlo a él cambiaría lo que la caja acepta, y eso no se
+ * decide al cambiarle la cara a la pantalla.
  */
-function CampoDePesos(props: Omit<ComponentProps<'input'>, 'type' | 'inputMode' | 'className'>) {
+function CampoDePesos({ siguiente, onKeyDown, ...props }: CampoDePesosProps) {
   return (
     <div className="relative">
       <span
@@ -171,6 +192,13 @@ function CampoDePesos(props: Omit<ComponentProps<'input'>, 'type' | 'inputMode' 
         type="text"
         inputMode="decimal"
         autoComplete="off"
+        onKeyDown={(evento) => {
+          onKeyDown?.(evento);
+          if (siguiente === undefined || evento.key !== 'Enter') return;
+          // Un importe a medias no registra nada: Enter lleva al campo que sigue.
+          evento.preventDefault();
+          document.getElementById(siguiente)?.focus();
+        }}
         className="h-[calc(var(--altura-control)*1.25)] pl-(--espacio-6) text-right font-numeros text-lg tabular-nums md:text-lg"
       />
     </div>
@@ -413,6 +441,8 @@ export function Caja({ estadoInicial }: CajaProps) {
                 id={`fondo-${denominacion.clave}`}
                 // El cajero llega aquí a contar: el primer montón ya espera el número.
                 autoFocus={indice === 0}
+                // Enter pasa al montón siguiente; sólo el último abre la caja.
+                siguiente={idDelMontonSiguiente(indice)}
                 value={fondo[denominacion.clave]}
                 onChange={(evento) => {
                   setFondo({ ...fondo, [denominacion.clave]: evento.target.value });
@@ -513,6 +543,7 @@ export function Caja({ estadoInicial }: CajaProps) {
           <Label htmlFor="cambio-monedas">Monedas</Label>
           <CampoDePesos
             id="cambio-monedas"
+            siguiente="cambio-chicos"
             value={cambio.monedas}
             onChange={(evento) => {
               setCambio({ ...cambio, monedas: evento.target.value });
@@ -523,6 +554,9 @@ export function Caja({ estadoInicial }: CajaProps) {
           <Label htmlFor="cambio-chicos">Billetes chicos</Label>
           <CampoDePesos
             id="cambio-chicos"
+            // De los importes se pasa a decir de dónde vino: el origen elegido
+            // recibe el foco, y el cambio lo registra sólo el botón.
+            siguiente={`origen-${origen}`}
             value={cambio.chicos}
             onChange={(evento) => {
               setCambio({ ...cambio, chicos: evento.target.value });
@@ -539,6 +573,7 @@ export function Caja({ estadoInicial }: CajaProps) {
             return (
               <Button
                 key={opcion.clave}
+                id={`origen-${opcion.clave}`}
                 type="button"
                 aria-pressed={elegida}
                 variant={elegida ? 'default' : 'outline'}
@@ -609,6 +644,7 @@ export function Caja({ estadoInicial }: CajaProps) {
         <Label htmlFor="retiro-importe">Cuánto</Label>
         <CampoDePesos
           id="retiro-importe"
+          siguiente="retiro-motivo"
           value={retiro.importe}
           onChange={(evento) => {
             setRetiro({ ...retiro, importe: evento.target.value });
