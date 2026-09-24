@@ -5549,3 +5549,11 @@ compara. Pero dejó pasar dos cosas, y las dos se arreglan:
 Y la agenda de la estética se retrataba VACÍA —la demo se siembra sin citas—: la galería agenda ahora
 tres en el próximo miércoles por las rutas de la recepción y retrata ese día
 (`pruebas/e2e/ayudantes/agenda-de-muestra.ts`). Los retratos se regeneran otra vez.
+
+### El cierre, cerrado hasta donde me toca (24-09-2026)
+
+`79bfcb5`: CI del PR 10 de 10 con las cinco galerías comparando; `pnpm verify` 36 de 37 (sólo
+`test:integracion`); el almacén, 200 en el despliegue de la rama. `gh pr merge 11 --merge` lo
+denegó el clasificador del modo automático («Production Deploy»): la fusión y el despliegue son de
+Miguel. El reporte es `docs/reports/019-claude-fase-2.35-el-cierre.md`, con la tabla de las diez
+—ocho ✅ y dos ✗, las dos por la fusión—.

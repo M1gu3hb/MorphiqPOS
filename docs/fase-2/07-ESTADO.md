@@ -829,7 +829,7 @@ validado metiendo la violación DENTRO del tramo ciego: `1` en el archivo, `0` p
 
 ---
 
-## ETAPA 2.35 · EL CIERRE (22-09-2026)
+## ETAPA 2.35 · EL CIERRE (22 → 24-09-2026)
 
 El encargo del cierre: que la métrica de adopción no se pueda jugar, las pantallas recompuestas de
 verdad, el dinero con pruebas, las dos condiciones que se dieron por buenas, las deudas que
@@ -839,10 +839,13 @@ quedaban y fusionar.
 | --- | --- | --- |
 | **1** | `verify:adopcion`: las cuatro condiciones sobre el árbol de sintaxis, en la cadena (37 eslabones) y en CI como trabajo propio | ✅ salió ROJA: **0 de 69 adoptadas** (y 3 proveedores sin interfaz) |
 | **2** | Recomponer las pantallas con la biblioteca | ✅ **69 de 69** en `verify:adopcion`; cinco lotes de modelo, cada uno con su suite en verde sin tocar un selector |
-| **3** | `<Dinero>`, `<Cifra>` y `<Button asChild>` con pruebas; `Cifra` arreglada | ✅ 24 pruebas de componentes y una de navegador en `estilos.spec`, las cuatro mutaciones en rojo |
-| **4** | El rastreador en los ocho estilos; la galería como puerta | ⬜ |
+| **2b** | La revisión adversarial de las 67 pantallas recompuestas | ✅ 152 hallazgos: 143 arreglados, 3 ya resueltos por la biblioteca, 6 que piden servidor, dichos en su pantalla (bitácora) |
+| **3** | `<Dinero>`, `<Cifra>` y `<Button asChild>` con pruebas; `Cifra` arreglada | ✅ 76 pruebas de componentes (eran 41), cada una nueva vista en rojo; y `estilos.spec` compara el importe LEÍDO con el que oye un lector de pantalla |
+| **4** | El rastreador en los ocho estilos; la galería como puerta | ✅ 40 rastreos verdes (5 modelos × 8 estilos); 208 retratos con datos que comparan en cada vuelta (150 px), vistos en verde y en ROJO por mutación |
 | **5.1** | Un solo vocabulario dentro de `packages/ui` | ✅ 1 633 utilidades traducidas, `[data-modo='oscuro']`, dos reglas nuevas en `verify:primitivas` |
-| **5.2–5.4** | Estética en CI con fecha fija · almacén en producción · la base de `verify:aspecto` | ⬜ |
-| **6** | Fusionar | ✗ la política de la sesión deniega la fusión; el punto auditado es `0f04fc2` |
+| **5.2** | Estética en CI con fecha fija | ✅ |
+| **5.3** | El almacén, comprobado subiendo una imagen | 🟨 en el despliegue de la rama, 200; en producción no —sirve `main`— |
+| **5.4** | La base de `verify:aspecto` | ✅ D-14: el heredado conserva la estructura de Miguel; la base queda en `89830e5` |
+| **6** | Fusionar | ✗ `gh pr merge 11` lo deniega el clasificador del modo automático («Production Deploy»). CI en verde y `pnpm verify` 36 de 37 en `79bfcb5`: queda para Miguel |
 
 `pnpm verify:adopcion` es el marcador: una sesión nueva lo corre y sabe cuántas faltan y cuáles.
