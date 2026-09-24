@@ -32,20 +32,30 @@ pantalla está terminada cuando esto imprime `✓`.**
 | --- | --- | --- |
 | `Superficie` | Toda caja: tarjeta, panel, franja, tesela | `nivel` 0–4 · `radio` sm/md/lg/completo · `relleno` 0/3/4/6 · `conBorde` · `como="section"\|"aside"\|"button"\|"label"\|"li"\|"form"…` con TODOS los atributos de esa etiqueta · `interactiva` (la tesela que se toca: sube, se hunde, foco en dos capas) · `activa` (la elegida de un grupo) · `ref` · `className` para el layout y el tinte (`border-peligro bg-peligro/10`) |
 | `Isla`, `BarraFija` | Lo flotante y la cabecera pegajosa | |
-| `Tabla` | TODA lista de filas de datos | `columnas: ColumnaDeTabla[]` (`clave`, `titulo`, `celda(fila)`, `numerica`, `orden`, `desde: 'sm'\|'md'\|'lg'`) · `filas` · `claveDe` · `alActivar` (fila como control, Enter/espacio) · `seleccion` · `vacio` · `alto` · `etiqueta` (nombre para el lector) · `pie` (totales POR columna: `{ importe: <Dinero …/> }`) · `tonoDeFila(fila) → 'advertencia'\|'peligro'\|'exito'\|'tenue'` (nunca solo: la celda dice por qué) · `viajeDeFila` |
-| `TablaAdaptable` | La misma tabla en PC y tarjetas de dos renglones por debajo de `desde` (xl por omisión) | Las props de `Tabla` + `principal` (la columna que va grande en la tarjeta). Pinta UNA de las dos, no las dos |
-| `ListaDeTarjetas` | Sólo tarjetas | `columnas`, `filas`, `claveDe`, `principal`, `alActivar`, `vacio` |
-| `Dinero` | TODO importe | `centavos` · `tamano` xs/sm/base/lg/total · `conSigno` · `sinSimbolo` |
-| `Cifra` | Existencias, piezas, kilos, minutos | `valor` · `unidad` · `decimales` · `tamano` |
+| `Tabla` | TODA lista de filas de datos | `columnas: ColumnaDeTabla[]` (`clave`, `titulo`, `celda(fila)`, `numerica`, `orden`, `desde: 'sm'\|'md'\|'lg'`) · `filas` · `claveDe` · `alActivar` (fila como control, Enter/espacio) · `seleccion` · `vacio` · `alto` · `etiqueta` (nombre para el lector) · `pie` (totales POR columna: `{ importe: <Dinero …/> }`) · `tonoDeFila(fila) → 'advertencia'\|'peligro'\|'exito'\|'tenue'` (nunca solo: la celda dice por qué) · `viajeDeFila` · `activa` (la elegida: `aria-current` + seminegritas) · `etiquetaDeFila(fila)` (el NOMBRE de una fila que se toca: «Cobrar la mesa 4») |
+| `TablaAdaptable` | La misma tabla en PC y tarjetas de dos renglones por debajo de `desde` (xl por omisión) | Las props de `Tabla` + `principal` (la columna que va grande en la tarjeta) + `columnasDeTarjeta` (`'dos'`\|`'una'`\|`'adaptable'`: una en el teléfono, dos desde `sm`). Pinta UNA de las dos, no las dos, y a las tarjetas les pasa `activa`, `tonoDeFila`, `viajeDeFila`, `etiquetaDeFila` y `pie` |
+| `ListaDeTarjetas` | Sólo tarjetas | `columnas`, `filas`, `claveDe`, `principal`, `alActivar`, `vacio`, `activa`, `tonoDeFila`, `viajeDeFila`, `etiquetaDeFila`, `columnasDeTarjeta`, `pie` |
+| `Dinero` | TODO importe | `centavos` · `tamano` xs/sm/base/lg/**xl** (la cifra de un tablero o resumen)/total (SÓLO el total y el cambio del cobro) · `conSigno` (movimientos y diferencias: «+» y verde; negativos entre paréntesis) · `sinSimbolo` |
+| `Cifra` | Existencias, piezas, kilos, minutos | `valor` (acepta `null`: pinta «—») · `unidad` · `decimales` (`'auto'` por omisión: los que tiene, hasta dos) · `conSigno` · `tamano` |
 | `dineroEnTexto(c)` | El importe como TEXTO, para un `aria-label`, el portapapeles, un mensaje de WhatsApp o el `formato` de una gráfica | Nunca entre dos `<span>`: ahí es `<Dinero>` |
-| `CampoDeDinero` | El campo donde se teclea dinero | `centavos: number \| null` · `alCambiar(c \| null)` · el resto, como un `<input>` (`id`, `aria-label`, `disabled`…). Sustituye al `Input` + `parseFloat` + `(c/100).toFixed(2)`. `centavosDeTexto` y `textoParaCampo` son sus dos conversiones |
-| `Vacio` | El vacío que enseña qué hacer | `titulo` · `explicacion` · `icono` (lucide) · `accion` · `children` |
-| `Esqueleto`, `EsqueletoDeLista` | Cargando, con la forma de lo que viene | `className` para el tamaño · `filas` |
+| `CampoDeDinero` | El campo donde se teclea dinero | `centavos: number \| null` · `alCambiar(c \| null, { vacio, valido })` (el segundo dice si `null` es «vacío» o «no es un importe») · `tamano` base/grande/enorme (NUNCA `[&_input]:` desde fuera) · lee «12,50» como 12.50 y «1,250» como mil doscientos cincuenta · el resto, como un `<input>` (`id`, `aria-label`, `disabled`…). Sustituye al `Input` + `parseFloat` + `(c/100).toFixed(2)`. `centavosDeTexto` y `textoParaCampo` son sus dos conversiones |
+| `Vacio` | El vacío que enseña qué hacer | `titulo` · `explicacion` · `icono` (lucide) · `accion` · `children` · `tamano` pantalla/compacto (dentro de una tarjeta o un paso)/protagonista (el vacío que ES la pantalla: «la fila está vacía») · `tono="exito"` (buena noticia) · `nivelDeTitulo` 2/3 (encabezado) · `idDelTitulo`. NUNCA `[&>p:first-of-type]:` desde fuera |
+| `Esqueleto`, `EsqueletoDeLista`, `EsqueletoDeTabla` | Cargando, con la forma de lo que viene | `className` para el tamaño · `filas` · `columnas` (la de tabla, sin círculo de avatar) |
 | `ErrorDePantalla` | La pantalla no pudo leer lo suyo | `titulo` · `queHacer` (la frase accionable) · `detalle` · `reintentar` (un `Button`) |
-| `Aviso` | Un aviso dentro de la pantalla | `tono` info/exito/atencion/peligro · `titulo` · `children` · `accion`. `peligro` es `role="alert"`; los demás, `status` |
+| `Aviso` | Un aviso dentro de la pantalla | `tono` info/exito/atencion/peligro · `titulo` (puede llevar `<Dinero>`) · `children` · `accion` · `icono` · `id` · `anuncio`: por omisión `peligro` es alerta y lo demás estado; `'alerta'` para una validación que tiene que oírse ya, `'ninguno'` para lo que está desde que se pinta (la franja de alergia) o cambia solo (una cuenta atrás) |
 | `ConfirmacionDestructiva`, `IndicadorDeGuardado`, `Progreso` | Lo irreversible, lo guardado, lo que avanza | |
 | `GraficaDeBarras`, `GraficaDeLineas`, `GraficaDeAreaApilada`, `GraficaDeDona`, `MapaDeCalorPorHora` | Los tableros | `formato={dineroEnTexto}` cuando los valores son centavos |
 | `VIAJE`, `viaje`, `conTransicion` | Transiciones de vista | Ver §5 |
+
+**Dos trampas que la revisión adversarial encontró en varias pantallas:**
+
+- **El puente sirve en PESOS los campos con `conversion: 'dinero'`** (`packages/app/src/puente/mapa.ts`
+  → `haciaEl` divide entre 100), aunque se llamen `…_centavos`. Antes de dárselos a `<Dinero>` o de
+  mandarlos en un comando, se pasan a centavos con `centavosDelPuente` de `~/cliente/dinero-del-puente`.
+  Los de `conversion: 'entero'` ya vienen en centavos.
+- **`Button` con `cargando`** queda deshabilitado aunque se le pase `disabled={false}`; aun así, la
+  función que manda el comando empieza con `if (ocupado) return;`: un doble toque llega antes que el
+  re-pintado.
 
 Las primitivas (`@morphiqpos/ui/primitivas/<pieza>`) siguen siendo las piezas: `Button`, `Input`,
 `Label`, `Select`, `Dialog`, `Tabs`, `Badge`… Lo que ya NO se usa en una pantalla: `Card`, `Table*`
