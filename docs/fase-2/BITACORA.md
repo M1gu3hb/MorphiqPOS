@@ -5472,3 +5472,16 @@ con una denominación en rojo contada como cero; `Caja` abría con Enter en el p
 
 El mensaje del rastreador decía «"0" 3.41:1» sin decir dónde; ahora nombra la cabecera de la
 columna. Las galerías no llegaron a retratar: el paso va detrás del rastreo.
+
+### El almacén, probado desde fuera en el despliegue de la rama (24-09-2026)
+
+`node scripts/humo-archivos.mjs --base https://morphiqpos-m1havwdbj-…vercel.app` (el despliegue
+de `12714ff`), con la cookie de un enlace compartido y `MORPHIQPOS_ORIGEN` en el alias de la
+rama: entra como «Demo», sube un PNG de 32×32 por `/api/archivos/subir` y lo lee de vuelta por
+su URL → **200 · image/png · 120 bytes**. Dos cosas que no se deducían: la cookie del enlace
+compartido del ALIAS ya no deja pasar (redirige al inicio de sesión de Vercel) y la del despliegue
+sí; y la frontera de escritura rechaza con 403 un `Origin` que no sea el `APP_URL` del
+despliegue, que es el alias. `cliente-humo` acepta ahora `MORPHIQPOS_ORIGEN`.
+
+**Producción, no:** `morphiqpos-kappa` sirve `main`, que no tiene el conductor de Supabase, y
+llevarlo ahí es la fusión que la política de la sesión deniega.

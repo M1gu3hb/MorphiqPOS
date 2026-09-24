@@ -18,7 +18,7 @@
  */
 import { deflateSync } from 'node:zlib';
 
-import { exigir, llamar as llamarBase, paso, tarro } from './lib/cliente-humo.mjs';
+import { ORIGEN, exigir, llamar as llamarBase, paso, tarro } from './lib/cliente-humo.mjs';
 
 function bandera(nombre, porOmision) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -102,7 +102,7 @@ const subida = await fetch(`${BASE}/api/archivos/subir`, {
     'content-length': String(bytes.length),
     'x-morphiqpos-request': '1',
     'idempotency-key': crypto.randomUUID(),
-    origin: BASE,
+    origin: ORIGEN ?? BASE,
     cookie: cabeceraCookie(),
   },
   body: bytes,
