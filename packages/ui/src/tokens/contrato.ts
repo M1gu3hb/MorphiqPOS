@@ -270,6 +270,31 @@ export const PARES_DE_CONTRASTE: readonly ParDeContraste[] = [
       'La cabecera y el pie de TODA tabla van en fondo-sutil. El rastreador midio sus titulos en 4.24:1 en morphiq: el par que el contrato decia cubrir no era el que se pinta',
   },
   {
+    frente: 'exito',
+    fondo: 'superficie',
+    minimo: 4.5,
+    porque:
+      'Un importe que ENTRA —`<Dinero conSigno>`— va en exito sobre la tarjeta. El rastreador lo midio en 4.30:1 en morphiq: el contrato sólo auditaba exito como FONDO',
+  },
+  {
+    frente: 'exito',
+    fondo: 'fondo',
+    minimo: 4.5,
+    porque: 'El mismo importe, fuera de una tarjeta',
+  },
+  {
+    frente: 'peligro',
+    fondo: 'superficie',
+    minimo: 4.5,
+    porque: 'Un importe negativo y el texto de un error van en peligro sobre la tarjeta',
+  },
+  {
+    frente: 'peligro',
+    fondo: 'fondo',
+    minimo: 4.5,
+    porque: 'El mismo texto de error, sobre el fondo de la pagina',
+  },
+  {
     frente: 'texto-tenue',
     fondo: 'fondo',
     minimo: 3,

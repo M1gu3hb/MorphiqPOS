@@ -51,7 +51,9 @@
   --exito-texto: 150 50% 8%;
   --advertencia: 42 95% 62%;
   --advertencia-texto: 30 50% 10%;
-  --peligro: 356 90% 70%;
+  /* Como texto —un importe negativo, un error— sobre la superficie atenuada daba 3.8:1 a
+     70 %: se aclara hasta pasar. */
+  --peligro: 356 90% 78%;
   --peligro-texto: 356 50% 9%;
   --info: 200 85% 68%;
   --info-texto: 200 50% 8%;

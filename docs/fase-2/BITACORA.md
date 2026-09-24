@@ -5485,3 +5485,12 @@ despliegue, que es el alias. `cliente-humo` acepta ahora `MORPHIQPOS_ORIGEN`.
 
 **Producción, no:** `morphiqpos-kappa` sirve `main`, que no tiene el conductor de Supabase, y
 llevarlo ahí es la fusión que la política de la sesión deniega.
+
+### La segunda vuelta en los ocho estilos (corrida `35958726648`): 43 de 45
+
+Quedaron dos, y los dos eran el contrato auditando el color de un PAPEL que no es el que se pinta:
+`exito` y `peligro` se auditaban sólo como fondo de un botón, pero `<Dinero conSigno>` los usa como
+TEXTO («+$1,500.00» en `abarrotes/registros`, 4.30:1; la utilidad del tablero de la cafetería,
+4.49:1). Cuatro pares nuevos —`exito` y `peligro` sobre `fondo` y `superficie`— pusieron en rojo
+`morphiq` claro (`exito` 4.3) y `noche` claro (`peligro` 3.8 y 4.4); `--exito` de morphiq baja a
+30 % y `--peligro` de noche sube a 78 %. `verify:estilos`: 8 × 2 en AA.

@@ -90,7 +90,9 @@
   --acento-texto: 0 0% 100%;
 
   /* Su verde de éxito, oscurecido de 40% a 33%: blanco sobre el suyo daba 3.58:1. */
-  --exito: 152 60% 33%;
+  /* 33 % daba 4.30:1 COMO TEXTO sobre el fondo —el «+$1,500.00» de un importe que entra—:
+     el contrato sólo lo auditaba como fondo de un botón. */
+  --exito: 152 60% 30%;
   --exito-texto: 0 0% 100%;
   /* Su ámbar, intacto. Con TEXTO OSCURO, que es lo que él ya hacía: blanco sobre
      ámbar no llega a 4.5 sin ensuciar el color hasta que deja de leerse como aviso. */
