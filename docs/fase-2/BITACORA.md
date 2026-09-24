@@ -5494,3 +5494,12 @@ TEXTO («+$1,500.00» en `abarrotes/registros`, 4.30:1; la utilidad del tablero 
 4.49:1). Cuatro pares nuevos —`exito` y `peligro` sobre `fondo` y `superficie`— pusieron en rojo
 `morphiq` claro (`exito` 4.3) y `noche` claro (`peligro` 3.8 y 4.4); `--exito` de morphiq baja a
 30 % y `--peligro` de noche sube a 78 %. `verify:estilos`: 8 × 2 en AA.
+
+### La galería, con sus retratos de referencia (corrida `35960579053`, 45 de 45 en verde)
+
+La tercera vuelta completa en los ocho estilos salió **45 de 45**: los 40 rastreos (cinco modelos ×
+ocho estilos) y las cinco galerías, que por fin llegaron a retratar —en las dos vueltas anteriores el
+rastreo, que va antes, las cortaba—. Corrida a mano con `actualizar_galeria`: **208 retratos**
+(tienda 6 pantallas × 8 estilos; los otros cuatro modelos 5 × 8), Linux, con datos de la demo, la
+caja abierta y las horas fijadas. Se commitean como la referencia: desde aquí, cada vuelta de CI
+compara contra ellos y una pantalla que cambia sin declararlo pone la puerta en rojo.
