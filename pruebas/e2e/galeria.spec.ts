@@ -123,6 +123,23 @@ const RETRATOS: Readonly<Record<string, readonly Retrato[]>> = {
 const MODELO = (process.env['MORPHIQPOS_ORG_DEMO'] ?? '').replace('demo-acople-', '');
 
 /**
+ * EL RELOJ DE LA PÁGINA, A MEDIODÍA DEL DÍA DEL NEGOCIO.
+ *
+ * Instalado con la hora real, la galería retrataba la agenda de la estética a la hora en
+ * que corría CI: los retratos de referencia salieron a las 23:30 de México y la vuelta
+ * siguiente corrió a las 00:02 —otro día—, y la agenda «cambió» sin que nadie tocara una
+ * línea. A mediodía del día del negocio la línea de «ahora», lo que ya pasó y lo que falta
+ * caen siempre en el mismo sitio. La fecha es la de hoy en México —la de los datos que la
+ * demo acaba de sembrar—, y México no cambia de horario desde 2022: el desfase es fijo.
+ */
+function mediodiaDelNegocio(): Date {
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(
+    new Date(),
+  );
+  return new Date(`${hoy}T12:00:00-06:00`);
+}
+
+/**
  * LO QUE CAMBIA DE CORRIDA EN CORRIDA, fijado antes del retrato.
  *
  * Una hora, una fecha o un «hace 3 min» cambian cada vez que se corre sin que la
@@ -151,7 +168,9 @@ async function fijarLoQueCambia(page: Page): Promise<void> {
 }
 
 test.describe('la galería · cada pantalla contra la vuelta anterior', () => {
-  test.describe.configure({ mode: 'serial', timeout: 600_000 });
+  // Sin reintentos: el primer intento ya abrió la caja, y un segundo sólo podía fallar al
+  // abrirla otra vez —«esta sucursal ya tiene una caja abierta»— y esconder la diferencia.
+  test.describe.configure({ mode: 'serial', timeout: 600_000, retries: 0 });
 
   test(`${MODELO || 'sin modelo'}: sus pantallas, en los ocho estilos`, async ({ page }) => {
     const retratos = RETRATOS[MODELO];
@@ -159,7 +178,7 @@ test.describe('la galería · cada pantalla contra la vuelta anterior', () => {
 
     // El reloj de la página, instalado ANTES de cargar nada: corre normal, y se para
     // justo antes de cada retrato para que ningún cronómetro cambie entre dos tomas.
-    await page.clock.install();
+    await page.clock.install({ time: mediodiaDelNegocio() });
     vigilarFallos(page);
     await entrar(page);
     // La caja, abierta: con ella cerrada tres modelos enseñan un MURO, y el muro no

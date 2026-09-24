@@ -1455,16 +1455,29 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
        * `abrir` es cómo se llega: por el menú en las que cuelgan de él, por la URL en las
        * cuatro que no cuelgan de ninguno (§0.5). Devuelve `false` si no se pudo abrir.
        */
+      /**
+       * `siNoAbre`: `acusar` —lo normal— cuenta la pantalla como MUERTA; `anotar` la deja en
+       * la bitácora y sigue. Es para las pantallas SIN menú a las que se llega por URL: una de
+       * ENTRAR que, con la sesión abierta, redirige a la casa hace lo correcto. La llamada
+       * pasaba ya `'anotar'` desde `54bda85`, pero la función nunca tuvo el parámetro: el
+       * argumento sobraba sin que nadie lo viera —Playwright no comprueba tipos— y una
+       * redirección se habría acusado como «la entrada del menú no abrió».
+       */
       async function barrerPantalla(
         ruta: string,
         etiqueta: string,
         abrir: () => Promise<void>,
+        siNoAbre: 'acusar' | 'anotar' = 'acusar',
       ): Promise<void> {
         bitacora(diario, `→ ${ruta} «${etiqueta}»`);
         try {
           await abrir();
         } catch (fallo) {
           const razon = String(fallo).split('\n')[0] ?? '';
+          if (siNoAbre === 'anotar') {
+            bitacora(diario, `   no se barre: ${razon}`);
+            return;
+          }
           muertos.push({
             ruta,
             etiqueta,

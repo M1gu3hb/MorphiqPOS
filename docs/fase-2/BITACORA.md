@@ -5503,3 +5503,19 @@ rastreo, que va antes, las cortaba—. Corrida a mano con `actualizar_galeria`: 
 (tienda 6 pantallas × 8 estilos; los otros cuatro modelos 5 × 8), Linux, con datos de la demo, la
 caja abierta y las horas fijadas. Se commitean como la referencia: desde aquí, cada vuelta de CI
 compara contra ellos y una pantalla que cambia sin declararlo pone la puerta en rojo.
+
+### La galería compara: 4 de 5 verdes a la primera, y la quinta era el reloj
+
+La vuelta que comparó por primera vez contra los retratos (`35962163948`): tienda, cafetería,
+ferretería y restaurante en verde; **estética, «la agenda del día cambió y nadie lo declaró»**, 4 %
+de los píxeles. Nadie la había tocado: los retratos salieron a las 23:30 de México y la comparación
+corrió a las 00:02, OTRO día. El reloj de la página se instalaba con la hora real. Ahora se instala
+a **mediodía del día del negocio** (México, sin horario de verano desde 2022). Y la galería va sin
+reintentos: el segundo intento chocaba con la caja que el primero ya había abierto y escondía la
+diferencia detrás de «esta sucursal ya tiene una caja abierta».
+
+Y un defecto viejo del rastreador que vio `tsc` al pasar: desde `54bda85` la barrida de las
+pantallas SIN menú pasaba un cuarto argumento, `'anotar'`, a una función de tres. Playwright no
+comprueba tipos, así que nadie lo vio, y una pantalla de ENTRAR que con la sesión abierta redirige
+—lo correcto— se habría acusado como MUERTA. El modo existe ahora, y **`pnpm typecheck` incluye
+`pruebas/`**: la carpeta que más código de verificación tiene no la comprobaba nadie.

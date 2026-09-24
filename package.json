@@ -23,7 +23,7 @@
     "db:restore:drill": "node scripts/ensayar-restauracion.mjs",
     "db:bootstrap": "pnpm --filter @morphiqpos/app bootstrap",
     "db:alta-negocio": "pnpm --filter @morphiqpos/app alta-negocio",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck && tsc --noEmit -p pruebas/tsconfig.json",
     "test:unit": "vitest run",
     "test": "vitest run",
     "verify:estructura": "node scripts/verificar-estructura.mjs",
