@@ -3,11 +3,26 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState } from 'react';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  Superficie,
+  Tabla,
+  VIAJE,
+  Vacio,
+  conTransicion,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { Check, CircleAlert, FileText, Receipt } from 'lucide-react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -36,6 +51,14 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * trece caracteres con su homoclave— atrapa el 90 % de los errores de captura,
  * que es lo que se puede hacer hoy sin inventar una integración.
  *
+ * ── Cómo se ve (`04-INTERFAZ` §PANTALLA 12) ─────────────────────────────
+ * La usa el cajero o el dueño en la PC de la caja, varias veces al día. A la
+ * izquierda, la lista de clientes con lo que le falta a cada uno —es lo que hay
+ * que perseguir—; a la derecha, el panel del que se eligió: sus datos fiscales
+ * arriba y su grupo de remisiones debajo, con el total que se facturaría al pie
+ * de SU columna. Tocar una fila la convierte en el panel (`VIAJE.fila`). En
+ * tableta y teléfono es la misma lista, más corta, con el panel debajo.
+ *
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
  * Caben los datos fiscales y el grupo del mes. Queda fuera el timbrado, la
  * cancelación y el complemento de pago: los tres son P-02.
@@ -45,7 +68,13 @@ const RUTA_CLIENTE = '/api/clientes';
 
 /** Persona moral son 12; persona física, 13. Con homoclave. */
 const RFC_CON_FORMA = /^[A-ZÑ&]{3,4}\d{6}[A-Z\d]{3}$/;
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+
+/** La fecha de entrega como la dice el mostrador: «12 sep 2026». */
+const FECHA_CORTA = new Intl.DateTimeFormat('es-MX', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
 
 /** Los usos que de verdad pide un cliente de ferretería. */
 const USOS_CFDI = [
@@ -54,6 +83,12 @@ const USOS_CFDI = [
   { clave: 'I01', etiqueta: 'I01 · Construcciones' },
   { clave: 'S01', etiqueta: 'S01 · Sin efectos fiscales' },
 ] as const;
+
+/** Los campos llevan la misma altura: en la tableta de la caja se tocan con el dedo. */
+const ALTO_DE_CAMPO = 'h-[calc(var(--altura-control)*1.2)]';
+
+/** La lista angosta a la izquierda, el panel a la derecha. Por debajo de `lg`, uno sobre otro. */
+const REJILLA = 'grid gap-(--espacio-4) lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]';
 
 export interface ClienteFiscal {
   readonly id: string;
@@ -69,16 +104,44 @@ export interface RemisionPorFacturar {
   readonly folio: string;
   /** `entregada_en`, que es como lo sirve `Remision`: la fecha de la entrega. */
   readonly entregada_en: string | null;
+  /** En centavos enteros: ya convertido al leer (`remisionEnCentavos`). */
   readonly importe_centavos: number;
+}
+
+/**
+ * La remisión como la sirve el puente: `Remision.importe_centavos` va con
+ * `conversion: 'dinero'`, así que llega en PESOS aunque se llame `_centavos`.
+ */
+type RemisionDelPuente = Omit<RemisionPorFacturar, 'importe_centavos'> & {
+  readonly importe_centavos: number | null;
+};
+
+/**
+ * Los pesos del puente, a centavos, UNA vez al leer: la tabla, el orden y el total
+ * del grupo trabajan en centavos enteros. Sin esto, $1,234.50 se pintaba «$12.34».
+ * La columna es `not null`: un importe que no llega es una lectura rota, y el grupo
+ * no se arma con un total al que le falta una remisión.
+ */
+function remisionEnCentavos(remision: RemisionDelPuente): RemisionPorFacturar {
+  const importe = centavosDelPuente(remision.importe_centavos);
+  if (importe === null) {
+    throw new Error(`La remisión ${remision.folio} llegó sin importe.`);
+  }
+  return { ...remision, importe_centavos: importe };
 }
 
 export interface FacturacionProps {
   readonly clientesIniciales?: readonly ClienteFiscal[];
 }
 
-function pesos(centavos: number): string {
-  return PESOS.format(centavos / 100);
+interface DatosCapturados {
+  readonly rfc: string;
+  readonly regimen: string;
+  readonly uso: string;
+  readonly codigoPostal: string;
 }
+
+const DATOS_EN_BLANCO: DatosCapturados = { rfc: '', regimen: '', uso: 'G01', codigoPostal: '' };
 
 /** La forma del RFC. No dice si existe: dice si se tecleó algo con su forma. */
 export function rfcConForma(rfc: string): boolean {
@@ -104,17 +167,280 @@ function mensajeDe(fallo: unknown): string {
   return 'No se pudo guardar. Lo capturado sigue aquí.';
 }
 
+function datosDe(cliente: ClienteFiscal): DatosCapturados {
+  return {
+    rfc: cliente.rfc ?? '',
+    regimen: cliente.regimen_fiscal ?? '',
+    uso: cliente.uso_cfdi ?? 'G01',
+    codigoPostal: cliente.codigo_postal ?? '',
+  };
+}
+
+/**
+ * El día de la entrega, sin moverlo de zona horaria: se toma la fecha tal como
+ * viene (`AAAA-MM-DD`) y sólo se le cambia la forma.
+ */
+function fechaDeEntrega(entregadaEn: string | null): string {
+  const dia = (entregadaEn ?? '').slice(0, 10);
+  const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dia);
+  if (partes === null) return dia === '' ? '—' : dia;
+  const [, anio, mes, fecha] = partes;
+  return FECHA_CORTA.format(new Date(Number(anio), Number(mes) - 1, Number(fecha)));
+}
+
+/** Lo mismo que dice `EstadoFiscal`, en texto: para el nombre de la fila. */
+function estadoEnTexto(cliente: ClienteFiscal): string {
+  const huecos = huecosFiscales(cliente);
+  return huecos.length === 0 ? 'completo' : `falta ${huecos.join(', ')}`;
+}
+
+/**
+ * Completo, o lo que le falta. El color nunca va solo: el icono lo acompaña y la
+ * palabra lo dice. El texto no se tiñe —en la fila elegida cambia el fondo—.
+ */
+function EstadoFiscal({ cliente }: { readonly cliente: ClienteFiscal }) {
+  if (huecosFiscales(cliente).length === 0) {
+    return (
+      <span className="inline-flex items-center gap-(--espacio-1)">
+        <Check aria-hidden="true" className="size-4 shrink-0 text-exito" />
+        {estadoEnTexto(cliente)}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-(--espacio-1) font-medium">
+      <CircleAlert aria-hidden="true" className="size-4 shrink-0 text-advertencia" />
+      {estadoEnTexto(cliente)}
+    </span>
+  );
+}
+
+function columnasDeClientes(tituloCliente: string): readonly ColumnaDeTabla<ClienteFiscal>[] {
+  return [
+    {
+      clave: 'cliente',
+      titulo: tituloCliente,
+      orden: (c) => c.nombre,
+      celda: (c) => (
+        <span className="flex flex-col">
+          <span className="font-medium">{c.nombre}</span>
+          <span className="font-numeros text-xs tracking-wide text-texto-sutil">
+            {c.rfc === null || c.rfc === '' ? 'sin RFC' : c.rfc}
+          </span>
+        </span>
+      ),
+    },
+    {
+      clave: 'datos',
+      titulo: 'Datos fiscales',
+      // Por lo que falta: lo incompleto es lo que hay que perseguir.
+      orden: (c) => huecosFiscales(c).length,
+      celda: (c) => <EstadoFiscal cliente={c} />,
+    },
+  ];
+}
+
+const COLUMNAS_DE_REMISIONES: readonly ColumnaDeTabla<RemisionPorFacturar>[] = [
+  {
+    clave: 'folio',
+    titulo: 'Remisión',
+    orden: (r) => r.folio,
+    celda: (r) => <span className="font-numeros font-medium">{r.folio}</span>,
+  },
+  {
+    clave: 'entregada',
+    titulo: 'Entregada',
+    orden: (r) => r.entregada_en ?? '',
+    celda: (r) => fechaDeEntrega(r.entregada_en),
+  },
+  {
+    clave: 'importe',
+    titulo: 'Importe',
+    numerica: true,
+    orden: (r) => r.importe_centavos,
+    celda: (r) => <Dinero centavos={r.importe_centavos} tamano="sm" />,
+  },
+];
+
+/** Cuántos están listos y a cuántos hay que perseguir. Sale de la lista, no de otra lectura. */
+function ResumenFiscal({ clientes }: { readonly clientes: readonly ClienteFiscal[] }) {
+  const completos = clientes.filter((c) => huecosFiscales(c).length === 0).length;
+  return (
+    <dl className="flex gap-(--espacio-6)">
+      <div className="flex flex-col items-end gap-(--espacio-1)">
+        <dt className="text-xs font-medium tracking-wide text-texto-sutil uppercase">
+          Con datos completos
+        </dt>
+        <dd>
+          <Cifra valor={completos} unidad={`de ${String(clientes.length)}`} tamano="lg" />
+        </dd>
+      </div>
+      <div className="flex flex-col items-end gap-(--espacio-1)">
+        <dt className="text-xs font-medium tracking-wide text-texto-sutil uppercase">
+          Les falta algo
+        </dt>
+        <dd>
+          <Cifra valor={clientes.length - completos} tamano="lg" />
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+/**
+ * Los cuatro datos que pide un CFDI. El RFC va más grande y en cifras: es el que
+ * se dicta por teléfono letra por letra y el que más se equivoca al capturar.
+ */
+function CamposFiscales({
+  datos,
+  errorDeRfc,
+  campoRfc,
+  alCambiar,
+}: {
+  readonly datos: DatosCapturados;
+  readonly errorDeRfc: string | null;
+  /** Para llevar el foco al RFC cuando no tiene forma: así se lee su error. */
+  readonly campoRfc: RefObject<HTMLInputElement | null>;
+  readonly alCambiar: (datos: DatosCapturados) => void;
+}) {
+  return (
+    <div className="grid gap-(--espacio-3) md:grid-cols-2">
+      <div className="flex flex-col gap-(--espacio-2)">
+        <Label htmlFor="rfc">RFC</Label>
+        <Input
+          id="rfc"
+          ref={campoRfc}
+          className={`${ALTO_DE_CAMPO} font-numeros text-lg tracking-wide uppercase`}
+          aria-invalid={errorDeRfc !== null}
+          aria-describedby={errorDeRfc === null ? undefined : 'rfc-sin-forma'}
+          value={datos.rfc}
+          onChange={(evento) => {
+            alCambiar({ ...datos, rfc: evento.target.value });
+          }}
+        />
+        {errorDeRfc !== null && (
+          <p id="rfc-sin-forma" className="text-sm font-medium text-peligro">
+            {errorDeRfc}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-col gap-(--espacio-2)">
+        <Label htmlFor="cp">Código postal</Label>
+        <Input
+          id="cp"
+          inputMode="numeric"
+          className={`${ALTO_DE_CAMPO} font-numeros`}
+          value={datos.codigoPostal}
+          onChange={(evento) => {
+            alCambiar({ ...datos, codigoPostal: evento.target.value });
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-(--espacio-2)">
+        <Label htmlFor="regimen">Régimen fiscal</Label>
+        <Input
+          id="regimen"
+          className={`${ALTO_DE_CAMPO} font-numeros`}
+          placeholder="601"
+          value={datos.regimen}
+          onChange={(evento) => {
+            alCambiar({ ...datos, regimen: evento.target.value });
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-(--espacio-2)">
+        <Label htmlFor="uso">Uso del CFDI</Label>
+        {/* Nativo a propósito: en la tableta abre el selector del sistema. */}
+        <select
+          id="uso"
+          className={`${ALTO_DE_CAMPO} w-full rounded-md border border-borde-fuerte bg-transparent px-(--espacio-3) text-sm shadow-1 outline-none focus-visible:border-anillo focus-visible:ring-[3px] focus-visible:ring-anillo/50`}
+          value={datos.uso}
+          onChange={(evento) => {
+            alCambiar({ ...datos, uso: evento.target.value });
+          }}
+        >
+          {USOS_CFDI.map((uso) => (
+            <option key={uso.clave} value={uso.clave}>
+              {uso.etiqueta}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function Remisiones({
+  remisiones,
+  fallo,
+  nombre,
+  alReintentar,
+}: {
+  readonly remisiones: readonly RemisionPorFacturar[] | null;
+  readonly fallo: string | null;
+  readonly nombre: string;
+  readonly alReintentar: () => void;
+}) {
+  if (fallo !== null) {
+    return (
+      <ErrorDePantalla
+        titulo="No se pudieron leer sus remisiones"
+        queHacer="Sin ellas no se arma el grupo del mes. Revisa la conexión y vuelve a leerlas; los datos fiscales de arriba no se tocan."
+        detalle={fallo}
+        reintentar={
+          <Button type="button" variant="outline" onClick={alReintentar}>
+            Volver a leer
+          </Button>
+        }
+      />
+    );
+  }
+  if (remisiones === null) return <EsqueletoDeLista filas={3} />;
+  const cuantas = remisiones.length;
+  return (
+    <Tabla
+      etiqueta={`Remisiones de ${nombre}`}
+      columnas={COLUMNAS_DE_REMISIONES}
+      filas={remisiones}
+      claveDe={(r) => r.id}
+      alto="max-h-[45dvh]"
+      pie={{
+        folio: `${String(cuantas)} ${cuantas === 1 ? 'remisión' : 'remisiones'}`,
+        entregada: <span className="font-medium">Se facturaría</span>,
+        importe: <Dinero centavos={totalDelGrupo(remisiones)} tamano="lg" />,
+      }}
+      vacio={
+        <Vacio
+          icono={<Receipt />}
+          titulo="No hay remisiones sin facturar."
+          explicacion="Cuando le despaches con «Remisión a cuenta» (F11) en el mostrador, aparecen aquí para facturarlas juntas."
+          className="py-(--espacio-6)"
+        />
+      }
+    />
+  );
+}
+
 export function Facturacion({ clientesIniciales }: FacturacionProps) {
   const voc = useVocabulario();
   const [clientes, setClientes] = useState<readonly ClienteFiscal[] | null>(
     clientesIniciales ?? null,
   );
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
   const [elegido, setElegido] = useState<ClienteFiscal | null>(null);
+  /** La fila que está a punto de convertirse en panel: lleva el nombre del viaje. */
+  const [viajando, setViajando] = useState<string | null>(null);
   const [remisiones, setRemisiones] = useState<readonly RemisionPorFacturar[] | null>(null);
-  const [datos, setDatos] = useState({ rfc: '', regimen: '', uso: 'G01', codigoPostal: '' });
+  const [falloDeRemisiones, setFalloDeRemisiones] = useState<string | null>(null);
+  const [datos, setDatos] = useState<DatosCapturados>(DATOS_EN_BLANCO);
+  const [errorDeRfc, setErrorDeRfc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  /** De quién son las remisiones que se están leyendo: una respuesta tardía de otro no pinta. */
+  const remisionesDe = useRef<string | null>(null);
+  const campoRfc = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (clientesIniciales !== undefined) return;
@@ -125,8 +451,9 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
         .then((filas) => {
           if (sigueMontada()) setClientes(filas);
         })
-        .catch(() => {
-          if (sigueMontada()) setClientes([]);
+        .catch((fallo: unknown) => {
+          if (sigueMontada())
+            setFalloDeCarga(fallo instanceof Error ? fallo.message : 'No se pudo leer la lista.');
         });
     };
     const arranque = setTimeout(cargar);
@@ -134,40 +461,79 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
       clearTimeout(arranque);
       control.abort();
     };
-  }, [clientesIniciales]);
+  }, [clientesIniciales, intento]);
 
-  function abrir(cliente: ClienteFiscal): void {
-    setElegido(cliente);
-    setDatos({
-      rfc: cliente.rfc ?? '',
-      regimen: cliente.regimen_fiscal ?? '',
-      uso: cliente.uso_cfdi ?? 'G01',
-      codigoPostal: cliente.codigo_postal ?? '',
-    });
+  function leerRemisiones(clienteId: string): void {
+    remisionesDe.current = clienteId;
     setRemisiones(null);
-    setError(null);
-    setAviso(null);
-
-    consultarPuente<RemisionPorFacturar>('Remision', {
-      filtro: { cliente_id: cliente.id },
+    setFalloDeRemisiones(null);
+    consultarPuente<RemisionDelPuente>('Remision', {
+      filtro: { cliente_id: clienteId },
       limite: 60,
     })
       .then((filas) => {
-        setRemisiones(filas);
+        // Un importe que no llega lanza aquí y el `catch` de abajo lo pinta como error.
+        if (remisionesDe.current === clienteId) {
+          setRemisiones(filas.map((fila) => remisionEnCentavos(fila)));
+        }
       })
-      .catch(() => {
-        setRemisiones([]);
+      .catch((fallo: unknown) => {
+        if (remisionesDe.current !== clienteId) return;
+        setFalloDeRemisiones(
+          fallo instanceof Error ? fallo.message : 'No se pudieron leer las remisiones.',
+        );
       });
+  }
+
+  function abrir(cliente: ClienteFiscal): void {
+    setElegido(cliente);
+    setDatos(datosDe(cliente));
+    setErrorDeRfc(null);
+    setError(null);
+    setAviso(null);
+    leerRemisiones(cliente.id);
+  }
+
+  /**
+   * La fila viaja al panel. Antes del cambio la FILA lleva el nombre; dentro del
+   * cambio se lo quita y se lo pone el panel, y `flushSync` hace que el navegador
+   * fotografíe el estado nuevo ya pintado. Nunca los dos a la vez: con dos piezas
+   * del mismo nombre el navegador no anima ninguna. Por eso el cliente que ya está
+   * en el panel se vuelve a abrir sin viaje.
+   */
+  function abrirDesdeLaFila(clienteId: string): void {
+    const cliente = clientes?.find((c) => c.id === clienteId);
+    if (cliente === undefined) return;
+    if (elegido?.id === clienteId) {
+      abrir(cliente);
+      return;
+    }
+    flushSync(() => {
+      setViajando(clienteId);
+    });
+    void conTransicion(() => {
+      flushSync(() => {
+        setViajando(null);
+        abrir(cliente);
+      });
+    });
   }
 
   function guardar(): void {
     if (elegido === null) return;
     const rfc = datos.rfc.trim().toUpperCase();
     if (rfc !== '' && !rfcConForma(rfc)) {
-      setError('Ese RFC no tiene forma de RFC. Revísalo antes de guardarlo.');
+      // El error se PINTA antes de llevar el foco al campo: al entrar, el lector lee
+      // su `aria-invalid` y la descripción. Con el foco en «Guardar», pulsarlo no
+      // decía nada a quien no ve la pantalla.
+      flushSync(() => {
+        setErrorDeRfc('Ese RFC no tiene forma de RFC. Revísalo antes de guardarlo.');
+      });
+      campoRfc.current?.focus();
       return;
     }
     setOcupado(true);
+    setErrorDeRfc(null);
     setError(null);
     invocarComando<ClienteFiscal>(`${RUTA_CLIENTE}/${elegido.id}`, {
       rfc: rfc === '' ? null : rfc,
@@ -177,7 +543,9 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
     })
       .then((actualizado) => {
         setElegido(actualizado);
-        setClientes((clientes ?? []).map((c) => (c.id === elegido.id ? actualizado : c)));
+        setClientes((previos) =>
+          (previos ?? []).map((c) => (c.id === elegido.id ? actualizado : c)),
+        );
         setAviso('Guardado. El día que se pueda facturar, ya no habrá que perseguirlo.');
       })
       .catch((fallo: unknown) => {
@@ -188,164 +556,159 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
       });
   }
 
-  if (clientes === null) {
+  function reintentarCarga(): void {
+    setFalloDeCarga(null);
+    setClientes(null);
+    setIntento((previo) => previo + 1);
+  }
+
+  function contenido() {
+    if (falloDeCarga !== null) {
+      return (
+        <ErrorDePantalla
+          titulo={`No se pudo leer la lista de ${voc.plural('cliente')}`}
+          queHacer="Sin la lista no se capturan datos fiscales. Revisa la conexión y vuelve a leerla; no se modificó nada."
+          detalle={falloDeCarga}
+          reintentar={
+            <Button type="button" onClick={reintentarCarga}>
+              Volver a leer
+            </Button>
+          }
+        />
+      );
+    }
+    // La forma de lo que viene: la lista a la izquierda y el panel a la derecha.
+    if (clientes === null) {
+      return (
+        <div className={REJILLA}>
+          <EsqueletoDeLista filas={8} />
+          <Esqueleto className="hidden h-[50dvh] w-full lg:block" />
+        </div>
+      );
+    }
+    // Sin acción a propósito: «Remisión a cuenta» (F11) pide un cliente que YA
+    // exista, y ninguna pantalla de este modelo da de alta uno todavía. Mandar al
+    // mostrador era mandar a un callejón.
+    if (clientes.length === 0) {
+      return (
+        <Vacio
+          icono={<FileText />}
+          titulo="Todavía no hay a quién capturarle datos fiscales."
+          explicacion={`La lista sale de ${voc.enFrase('cliente', true)} ya dad${voc.terminacion('cliente', true)} de alta, y todavía no hay ${voc.enFraseCon('ningun', 'cliente')}. Sus datos —RFC, régimen, código postal y uso del CFDI— se piden una sola vez; así, el día que se pueda timbrar, nadie tiene que perseguirlo.`}
+        />
+      );
+    }
     return (
-      <div className="space-y-4 p-6">
-        <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
-        <Skeleton className="h-64 w-full" />
+      <div className={`${REJILLA} lg:items-start`}>
+        <Tabla
+          etiqueta={`${voc.titulo('cliente', true)} y sus datos fiscales`}
+          columnas={columnasDeClientes(voc.titulo('cliente'))}
+          filas={clientes}
+          claveDe={(c) => c.id}
+          {...(elegido === null ? {} : { activa: elegido.id })}
+          alActivar={abrirDesdeLaFila}
+          // La fila es un control: su nombre dice qué hace y cómo está ese cliente.
+          etiquetaDeFila={(c) => `Abrir ${c.nombre}: ${estadoEnTexto(c)}`}
+          viajeDeFila={(c) => (c.id === viajando ? VIAJE.fila(c.id) : undefined)}
+          alto="max-h-[40dvh] lg:max-h-[75dvh]"
+        />
+        {elegido === null ? (
+          <Vacio
+            icono={<FileText />}
+            titulo={`Elige ${voc.enFraseCon('un', 'cliente')} para capturar sus datos.`}
+            explicacion="Al abrirlo se ven sus datos fiscales y las remisiones que esperan factura."
+            className="py-(--espacio-8)"
+          />
+        ) : (
+          panel(elegido)
+        )}
       </div>
     );
   }
 
-  return (
-    <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[20rem_1fr]">
-      <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Facturación</h1>
-        <p className="text-muted-foreground text-sm">
-          Todavía no se timbra. Lo que se hace es dejar el hueco limpio.
-        </p>
-        <ul className="divide-y">
-          {clientes.map((cliente) => {
-            const huecos = huecosFiscales(cliente);
-            return (
-              <li key={cliente.id}>
-                <button
-                  type="button"
-                  className={`w-full py-2 text-left ${elegido?.id === cliente.id ? 'font-medium' : ''}`}
-                  onClick={() => {
-                    abrir(cliente);
-                  }}
-                >
-                  {cliente.nombre}
-                  <span className="text-muted-foreground ml-2 text-xs">
-                    {huecos.length === 0 ? 'completo' : `falta ${huecos.join(', ')}`}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+  /** El panel en que se convierte la fila: sus datos arriba, su grupo del mes debajo. */
+  function panel(cliente: ClienteFiscal) {
+    return (
+      <Superficie
+        como="section"
+        aria-labelledby="panel-fiscal"
+        relleno={4}
+        style={{ viewTransitionName: VIAJE.fila(cliente.id) }}
+        className="flex flex-col gap-(--espacio-4)"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-(--espacio-2)">
+          <h2 id="panel-fiscal" className="text-xl font-semibold">
+            {cliente.nombre}
+          </h2>
+          <span className="text-sm">
+            <EstadoFiscal cliente={cliente} />
+          </span>
+        </div>
 
-      <section className="space-y-4">
+        <CamposFiscales
+          datos={datos}
+          errorDeRfc={errorDeRfc}
+          campoRfc={campoRfc}
+          alCambiar={setDatos}
+        />
+
         {error !== null && (
-          <p role="alert" className="text-destructive text-sm">
+          <Aviso tono="peligro" titulo="No se guardaron los datos fiscales.">
             {error}
-          </p>
+          </Aviso>
         )}
-        {aviso !== null && <p className="text-sm">{aviso}</p>}
+        {aviso !== null && <Aviso tono="exito" titulo={aviso} />}
 
-        {elegido === null && (
-          <p className="text-muted-foreground">
-            Elige {voc.enFraseCon('un', 'cliente')} para capturar sus datos.
-          </p>
-        )}
+        <div className="flex justify-end">
+          <Button type="button" size="lg" disabled={ocupado} cargando={ocupado} onClick={guardar}>
+            Guardar datos fiscales
+          </Button>
+        </div>
 
-        {elegido !== null && (
-          <>
-            <h2 className="text-xl font-medium">{elegido.nombre}</h2>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <Label htmlFor="rfc">RFC</Label>
-                <Input
-                  id="rfc"
-                  className="h-[calc(var(--altura-control)*1.2)] uppercase"
-                  value={datos.rfc}
-                  onChange={(evento) => {
-                    setDatos({ ...datos, rfc: evento.target.value });
-                  }}
-                />
-              </div>
-              <div>
-                <Label htmlFor="cp">Código postal</Label>
-                <Input
-                  id="cp"
-                  inputMode="numeric"
-                  className="h-[calc(var(--altura-control)*1.2)]"
-                  value={datos.codigoPostal}
-                  onChange={(evento) => {
-                    setDatos({ ...datos, codigoPostal: evento.target.value });
-                  }}
-                />
-              </div>
-              <div>
-                <Label htmlFor="regimen">Régimen fiscal</Label>
-                <Input
-                  id="regimen"
-                  className="h-[calc(var(--altura-control)*1.2)]"
-                  placeholder="601"
-                  value={datos.regimen}
-                  onChange={(evento) => {
-                    setDatos({ ...datos, regimen: evento.target.value });
-                  }}
-                />
-              </div>
-              <div>
-                <Label htmlFor="uso">Uso del CFDI</Label>
-                <select
-                  id="uso"
-                  className="border-input h-[calc(var(--altura-control)*1.2)] w-full rounded-md border px-3"
-                  value={datos.uso}
-                  onChange={(evento) => {
-                    setDatos({ ...datos, uso: evento.target.value });
-                  }}
-                >
-                  {USOS_CFDI.map((uso) => (
-                    <option key={uso.clave} value={uso.clave}>
-                      {uso.etiqueta}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <Button
-              className="h-[calc(var(--altura-control)*1.4)]"
-              disabled={ocupado}
-              onClick={guardar}
-            >
-              Guardar datos fiscales
-            </Button>
-
-            <Separator />
-
-            <div>
-              <h3 className="font-medium">Remisiones del periodo</h3>
-              <p className="text-muted-foreground text-sm">
-                Un contratista se lleva {voc.singular('producto')} quince veces al mes y quiere una
-                sola factura.
-              </p>
-            </div>
-            {remisiones === null && <Skeleton className="h-24 w-full" />}
-            {remisiones !== null && remisiones.length === 0 && (
-              <p className="text-muted-foreground text-sm">No hay remisiones sin facturar.</p>
-            )}
-            <ul className="divide-y">
-              {(remisiones ?? []).map((remision) => (
-                <li key={remision.id} className="flex items-baseline justify-between py-2">
-                  <span>{remision.folio}</span>
-                  <span className="text-muted-foreground text-sm">
-                    {(remision.entregada_en ?? '').slice(0, 10)}
-                  </span>
-                  <span className="tabular-nums">{pesos(remision.importe_centavos)}</span>
-                </li>
-              ))}
-            </ul>
-            {remisiones !== null && remisiones.length > 0 && (
-              <p className="flex items-baseline justify-between text-lg font-semibold">
-                <span>Se facturaría</span>
-                <span className="tabular-nums">{pesos(totalDelGrupo(remisiones))}</span>
-              </p>
-            )}
-
-            <p className="text-muted-foreground text-sm">
-              El timbrado está bloqueado hasta que se elija PAC: mete un costo mensual y una
-              obligación fiscal que no decide una pantalla. Lo de debajo ya está construido.
+        <section
+          aria-labelledby="remisiones-del-periodo"
+          className="flex flex-col gap-(--espacio-3) border-t border-borde pt-(--espacio-4)"
+        >
+          <div className="flex flex-col gap-(--espacio-1)">
+            <h3 id="remisiones-del-periodo" className="text-base font-semibold">
+              Remisiones del periodo
+            </h3>
+            <p className="text-sm text-texto-sutil">
+              Un contratista se lleva {voc.singular('producto')} quince veces al mes y quiere una
+              sola factura.
             </p>
-          </>
-        )}
-      </section>
+          </div>
+          <Remisiones
+            remisiones={remisiones}
+            fallo={falloDeRemisiones}
+            nombre={cliente.nombre}
+            alReintentar={() => {
+              leerRemisiones(cliente.id);
+            }}
+          />
+        </section>
+
+        {/* El muro de negocio, donde iría la acción principal: TIMBRAR. */}
+        <Aviso tono="atencion" titulo="El timbrado está bloqueado hasta que se elija PAC.">
+          Mete un costo mensual y una obligación fiscal que no decide una pantalla. Lo de arriba ya
+          está construido.
+        </Aviso>
+      </Superficie>
+    );
+  }
+
+  return (
+    <main className="mx-auto flex max-w-7xl flex-col gap-(--espacio-4) p-(--espacio-4) lg:p-(--espacio-6)">
+      <header className="flex flex-wrap items-end justify-between gap-(--espacio-4)">
+        <div className="flex flex-col gap-(--espacio-1)">
+          <h1 className="text-2xl font-semibold">Facturación</h1>
+          <p className="text-sm text-texto-sutil">
+            Todavía no se timbra. Lo que se hace es dejar el hueco limpio.
+          </p>
+        </div>
+        {clientes !== null && clientes.length > 0 && <ResumenFiscal clientes={clientes} />}
+      </header>
+      {contenido()}
     </main>
   );
 }

@@ -5,8 +5,33 @@ import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Dialog, DialogContent, DialogTitle } from '@morphiqpos/ui/primitivas/dialog';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Sheet, SheetContent, SheetTitle } from '@morphiqpos/ui/primitivas/sheet';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import {
+  Aviso,
+  BarraFija,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  VIAJE,
+  Vacio,
+  dineroEnTexto,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  ArrowLeft,
+  ConciergeBell,
+  Minus,
+  Plus,
+  Search,
+  Send,
+  Split,
+  TriangleAlert,
+  Users,
+  UtensilsCrossed,
+} from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { ViewTransition, useEffect, useRef, useState, type ChangeEvent } from 'react';
 
 import { consultarPuente, invocarComando, nuevaClave } from '~/cliente/api';
 import { AnularLineaDialog } from './AnularLineaDialog';
@@ -17,41 +42,40 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * PANTALLA · restaurante · mesa-activa
  *
  * La comanda. 80-200 veces al día por mesero. No es una pantalla nueva: es la
- * mesa, abierta.
+ * mesa, abierta. Jerarquía (`04-INTERFAZ`): ENVIAR A COCINA, lo pedido, el
+ * catálogo y, al final, el total — el mesero no cobra.
  *
- * ── «Pedido actual» y «Agregar al pedido» son DOS bloques ────────────────
- * La decisión que manda aquí. Lo ya mandado a cocina no se puede confundir con
- * lo que está por mandarse: en una sola lista el mesero reenvía platillos ya
- * enviados —el error más caro del turno, porque sale comida que nadie pidió y
- * que nadie va a pagar—. Por eso la línea del borrador se puede quitar y la
- * enviada no: lo enviado ya es de la cocina.
+ * ── La mesa se expande a la cuenta ───────────────────────────────────────
+ * La cabecera lleva `<ViewTransition>` con `VIAJE.mesa(id)`, el MISMO nombre que
+ * la tesela de `MapaDeMesas`: la tesela crece hasta ser esta barra. Por eso se
+ * pinta desde el primer instante, con el id de la dirección y antes de que llegue
+ * la mesa: si naciera después, el navegador no tendría con quién emparejarla.
+ *
+ * ── «Cuenta actual» y «Agregar a la cuenta» son DOS bloques ──────────────
+ * Lo mandado a cocina no se puede confundir con lo que está por mandarse: en una
+ * sola lista el mesero reenvía platillos —el error más caro del turno—. Por eso
+ * son dos tablas: la línea del borrador se quita, la enviada sólo se ANULA.
  *
  * ── «Listos para recoger» va arriba de todo ──────────────────────────────
- * Cuando el mesero abre la mesa para agregar un postre, lo primero que tiene
- * que saber es que hay dos platos esperando en la ventana desde hace tres
- * minutos: es información que CADUCA, y el catálogo no. En teléfono no cabe
- * como bloque y viaja de insignia en el encabezado, como pide el documento.
+ * Es información que CADUCA, y el catálogo no. Lleva el acento, el tinte con el
+ * que el mapa pinta la mesa con la comida lista; fuera del panel viaja de
+ * insignia en el encabezado.
  *
  * ── En tablet el pedido es una HOJA, no un panel lateral ─────────────────
- * La tablet es el layout principal, no el degradado del de PC: el mesero la
- * sostiene con la izquierda y opera con el pulgar derecho, y el borde inferior
- * derecho es lo único que alcanza sin recolocar la mano. El precio, en cambio,
- * va en segundo plano, porque lo que se busca es el platillo.
+ * El mesero sostiene la tablet con la izquierda y opera con el pulgar derecho:
+ * el botón flotante vive en el borde inferior derecho. Y como con la hoja
+ * cerrada no se ve el borrador, cada tesela lleva su cuenta en la esquina.
  *
- * ── La clave de idempotencia sobrevive al reintento ──────────────────────
- * Se genera una por envío y sólo se renueva cuando el envío triunfa: dos toques
- * —o reintentar tras un error de red— no mandan dos comandas.
+ * ── Idempotencia y dinero ────────────────────────────────────────────────
+ * Una clave por envío, que sólo se renueva cuando el envío triunfa: dos toques
+ * no mandan dos comandas. El puente entrega pesos; se pasan a centavos contando
+ * dígitos y se suma en centavos.
  *
- * ── Recortado para caber en un archivo, y queda dicho ────────────────────
- * Fuera: las pestañas de categoría (la búsqueda cubre el hallazgo con este
- * catálogo), la nota de la comanda, «Solicitar cuenta» —que tiene pantalla
- * propia, Precuenta—, la mesa huérfana y el tiempo de servicio. Y «Listos» se
- * pinta pero no se sondea: entra por props hasta que el puente sepa filtrar los
- * items de cocina por orden.
- *
- * ── Lo que NO va aquí, aunque el sistema lo tenga ────────────────────────
- * Costos, márgenes, inventario en números, descuentos y reportes. Y no va el
- * cobro: el mesero no cobra. Esa separación es control interno.
+ * ── Recortado, y queda dicho ─────────────────────────────────────────────
+ * Fuera: las pestañas de categoría, la nota de la comanda, «Solicitar cuenta»
+ * (pantalla propia: Precuenta), la mesa huérfana y el tiempo de servicio.
+ * «Listos» entra por props hasta que el puente filtre la cocina por orden. Y no
+ * van costos, márgenes, descuentos ni el cobro: esa separación es control interno.
  */
 
 /** Un producto del catálogo. El puente entrega el dinero ya en pesos. */
@@ -70,13 +94,7 @@ export interface LineaEnviada {
   readonly total: number;
 }
 export interface MesaAbierta {
-  /**
-   * El identificador de la mesa, que hace falta para ABRIRLA.
-   *
-   * No estaba: esta pantalla sólo leía la mesa ya abierta y le bastaba con su
-   * número. Para abrir una libre hay que decirle al comando CUÁL, y el `id` es
-   * lo que el mapa pasa en la dirección y lo que el puente sirve.
-   */
+  /** Lo que el mapa pasa en la dirección, y lo que el comando pide para ABRIRLA. */
   readonly id: string;
   readonly numero: number;
   readonly estado: string;
@@ -93,20 +111,177 @@ export interface MesaActivaProps {
   readonly listosIniciales?: readonly string[];
 }
 
-const pesos = (n: number): string =>
-  n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+type Vocabulario = ReturnType<typeof useVocabulario>;
+
+/** Para cuántas personas se puede abrir, como mucho. */
+const PERSONAS_MAXIMAS = 20;
+
+/** El estado, como lo dice el salón (`04-INTERFAZ` §4.1): las palabras del mapa. */
+const ESTADOS_DE_MESA: Readonly<Record<string, string>> = {
+  libre: 'Libre',
+  esperando_orden: 'Esperando orden',
+  pedido_enviado: 'Pedido enviado',
+  en_preparacion: 'En preparación',
+  en_espera_entrega: 'Esperando entrega',
+  ocupada: 'Ocupada',
+  cuenta_solicitada: 'Cuenta solicitada',
+  limpieza: 'Limpieza',
+};
+
+/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
+function aCentavos(pesos: number): number {
+  if (!Number.isFinite(pesos)) return 0;
+  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
+  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+}
+
 const volverAlMapa = (): void => {
   window.history.back();
 };
 
+/** Lo ya enviado de una cuenta, o el fallo. Quien llama decide dónde se dice. */
+type LecturaDeLoEnviado =
+  | { readonly leidas: true; readonly lineas: readonly LineaEnviada[] }
+  | { readonly leidas: false; readonly fallo: unknown };
+
+const SIN_LINEAS: LecturaDeLoEnviado = { leidas: true, lineas: [] };
+
+async function leerLoEnviado(
+  ordenId: string,
+  opciones: { readonly signal?: AbortSignal } = {},
+): Promise<LecturaDeLoEnviado> {
+  try {
+    const filtro = { venta_id: ordenId };
+    const lineas = await consultarPuente<LineaEnviada>('DetalleVenta', {
+      filtro,
+      limite: 120,
+      ...opciones,
+    });
+    return { leidas: true, lineas };
+  } catch (fallo: unknown) {
+    return { leidas: false, fallo };
+  }
+}
+
+/** Lo ya enviado: se lee, y se ANULA con motivo. Nunca se edita. */
+function columnasDeLoEnviado(
+  voc: Vocabulario,
+  anular: (linea: LineaEnviada) => () => void,
+): readonly ColumnaDeTabla<LineaEnviada>[] {
+  return [
+    {
+      clave: 'platillo',
+      titulo: voc.titulo('linea_orden'),
+      celda: (l) => (
+        <span className="line-clamp-2">
+          <span className="font-numeros font-semibold tabular-nums">{l.cantidad} ×</span>{' '}
+          {l.producto_nombre}
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (l) => <Dinero centavos={aCentavos(l.total)} tamano="sm" />,
+    },
+    {
+      clave: 'anular',
+      titulo: '',
+      celda: (l) => (
+        <span className="flex justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`Anular ${l.producto_nombre}`}
+            onClick={anular(l)}
+          >
+            Anular
+          </Button>
+        </span>
+      ),
+    },
+  ];
+}
+
+/** Lo que está por mandarse: se quita con el botón de su línea, se suma tocando. */
+function columnasDelBorrador(
+  voc: Vocabulario,
+  cantidadDe: (producto: ProductoDeComanda) => number,
+  tocar: (productoId: string, delta: number) => () => void,
+): readonly ColumnaDeTabla<ProductoDeComanda>[] {
+  return [
+    {
+      clave: 'cantidad',
+      titulo: 'Cant.',
+      celda: (p) => (
+        <span className="flex items-center gap-(--espacio-2)">
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={tocar(p.id, -1)}
+            aria-label={`Quitar ${p.nombre}`}
+          >
+            <Minus />
+          </Button>
+          <span className="min-w-5 text-center font-numeros font-semibold tabular-nums">
+            {cantidadDe(p)}
+          </span>
+        </span>
+      ),
+    },
+    {
+      clave: 'platillo',
+      titulo: voc.titulo('linea_orden'),
+      celda: (p) => <span className="line-clamp-2">{p.nombre}</span>,
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (p) => <Dinero centavos={aCentavos(p.precio_venta) * cantidadDe(p)} tamano="sm" />,
+    },
+  ];
+}
+
+/** Cargando: la forma real del catálogo y del panel, no una rueda. */
+function EsqueletoDeLaComanda({ etiqueta }: { readonly etiqueta: string }) {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={etiqueta}
+      className="grid gap-(--espacio-4) p-(--espacio-3) xl:grid-cols-[minmax(0,1fr)_22rem]"
+    >
+      <div className="flex flex-col gap-(--espacio-3)">
+        <Esqueleto className="h-[calc(var(--altura-control)*1.25)] w-full" />
+        <div className="grid grid-cols-2 gap-(--espacio-2) md:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 12 }, (_, i) => (
+            <Esqueleto key={i} className="min-h-24 w-full rounded-lg" />
+          ))}
+        </div>
+      </div>
+      <Esqueleto className="hidden h-96 w-full rounded-lg xl:block" />
+    </div>
+  );
+}
+
 export function MesaActiva(props: MesaActivaProps) {
   const voc = useVocabulario();
   const { mesaInicial, productosIniciales } = props;
+  /** Desde el primer render: da nombre al viaje antes de que llegue la mesa. */
+  const idDeLaDireccion = useSearchParams().get('mesa');
   const [mesa, setMesa] = useState<MesaAbierta | null>(mesaInicial ?? null);
   const [productos, setProductos] = useState<readonly ProductoDeComanda[] | null>(
     productosIniciales ?? (mesaInicial === undefined ? null : []),
   );
   const [enviadas, setEnviadas] = useState<readonly LineaEnviada[]>(props.lineasIniciales ?? []);
+  /**
+   * Lo enviado NO se pudo leer nunca: no hay «último dato conocido» que enseñar, y
+   * pintar el vacío de mesa recién abierta haría que el mesero lo volviera a mandar.
+   */
+  const [falloLineas, setFalloLineas] = useState<string | null>(null);
+  const [releyendo, setReleyendo] = useState(false);
   /** Producto → cantidad todavía sin enviar. Nunca se muta: se recrea. */
   const [borrador, setBorrador] = useState<Readonly<Record<string, number>>>({});
   const [busqueda, setBusqueda] = useState('');
@@ -117,54 +292,57 @@ export function MesaActiva(props: MesaActivaProps) {
   /** Para cuántas personas se abre. Dos es la mesa más común de un comedor. */
   const [personasAlAbrir, setPersonasAlAbrir] = useState(2);
   const [abriendo, setAbriendo] = useState(false);
-  /**
-   * F-324 · La línea que se está anulando, o `null`. Es un identificador y no
-   * un booleano: dos líneas distintas no pueden compartir el mismo diálogo, y
-   * guardar «está abierto» acabaría anulando la línea equivocada.
-   */
+  /** F-324 · La línea que se anula: una línea, no un «está abierto» compartido. */
   const [anulando, setAnulando] = useState<LineaEnviada | null>(null);
   /** F-321 · Dividir la cuenta. Sólo se ofrece cuando hay algo que repartir. */
   const [dividiendo, setDividiendo] = useState(false);
+  /**
+   * Cada vez que se abre «Dividir», un diálogo NUEVO. Se queda montado para poder cerrar
+   * con su animación, y así sus partes sobrevivían de una apertura a la otra: tras dividir,
+   * lo que se había repartido apuntaba a líneas que ya no existían.
+   */
+  const [aperturaDeDividir, setAperturaDeDividir] = useState(0);
+  /** Cada lectura es un número: «Volver a intentar» lo sube y el efecto relee. */
+  const [intento, setIntento] = useState(0);
   const claveEnvio = useRef(nuevaClave());
   const refBusqueda = useRef<HTMLInputElement>(null);
   const listos = props.listosIniciales ?? [];
 
   useEffect(() => {
     if (mesaInicial !== undefined) return;
-    const id = new URLSearchParams(window.location.search).get('mesa');
-    // El centinela es la señal de aborto y no un `let vivo`: además de decir si
-    // la pantalla sigue montada, CANCELA las dos consultas en vuelo. Un mesero
-    // que entra y sale de tres mesas seguidas dejaba antes tres lecturas vivas.
+    // La señal de aborto, no un `let vivo`: además CANCELA las consultas en vuelo.
     const control = new AbortController();
     const señal = control.signal;
-    /**
-     * Se pregunta con una LLAMADA y no leyendo la propiedad dos veces: tras el
-     * primer `if (señal.aborted)` el compilador da por hecho que sigue en
-     * falso, y entre un `await` y el siguiente eso deja de ser cierto.
-     */
-    const sigueMontada = (): boolean => !control.signal.aborted;
     void (async () => {
       try {
         const [mesas, catalogo] = await Promise.all([
-          consultarPuente<MesaAbierta>('Mesa', { filtro: { id }, limite: 1, signal: señal }),
+          consultarPuente<MesaAbierta>('Mesa', {
+            filtro: { id: idDeLaDireccion },
+            limite: 1,
+            signal: señal,
+          }),
           consultarPuente<ProductoDeComanda>('ProductoTerminado', { limite: 300, signal: señal }),
         ]);
+        const orden = mesas[0]?.venta_activa_id ?? null;
+        // Lo enviado se lee ANTES de pintar la comanda: sin ello, «Cuenta actual»
+        // diría «toca un platillo para empezar» sobre una cuenta que ya los lleva.
+        const loEnviado =
+          orden === null ? SIN_LINEAS : await leerLoEnviado(orden, { signal: señal });
         if (señal.aborted) return;
         setMesa(mesas[0] ?? null);
         setProductos(catalogo);
-        const orden = mesas[0]?.venta_activa_id ?? null;
-        if (orden === null) return;
-        const filtro = { venta_id: orden };
-        const lineas = await consultarPuente<LineaEnviada>('DetalleVenta', {
-          filtro,
-          limite: 120,
-          signal: señal,
-        });
-        if (sigueMontada()) setEnviadas(lineas);
+        if (loEnviado.leidas) {
+          setEnviadas(loEnviado.lineas);
+          setFalloLineas(null);
+        } else {
+          setFalloLineas(
+            loEnviado.fallo instanceof Error
+              ? loEnviado.fallo.message
+              : `No se pudo leer ${voc.enFrase('orden')}.`,
+          );
+        }
       } catch (fallo: unknown) {
-        // La pantalla NUNCA se vacía por un error de red: el mesero prefiere un
-        // dato de hace diez segundos a una pantalla en blanco. Y un aborto no
-        // es un error: es esta misma pantalla, que ya no está.
+        // Un aborto no es un error: es esta misma pantalla, que ya no está.
         if (señal.aborted) return;
         setError(
           fallo instanceof Error
@@ -176,22 +354,27 @@ export function MesaActiva(props: MesaActivaProps) {
     return () => {
       control.abort();
     };
-  }, [mesaInicial, voc]);
+  }, [mesaInicial, voc, idDeLaDireccion, intento]);
+
+  const mesaLibre = mesa !== null && mesa.venta_activa_id === null;
+  const comandaVisible = productos !== null && !mesaLibre;
 
   useEffect(() => {
-    // El foco sólo donde hay teclado físico: en la tablet abriría el teclado en
-    // pantalla y taparía justo el catálogo que el mesero viene a tocar.
+    // Sólo con teclado físico (en la tablet el teclado en pantalla taparía el
+    // catálogo), y cuando el catálogo APARECE: antes no hay campo que enfocar.
+    if (!comandaVisible) return;
     if (window.matchMedia('(min-width: 1280px)').matches) refBusqueda.current?.focus();
-  }, []);
+  }, [comandaVisible]);
 
   const catalogo = productos ?? [];
   const texto = busqueda.trim().toLocaleLowerCase('es-MX');
   const visibles = catalogo.filter((p) => p.nombre.toLocaleLowerCase('es-MX').includes(texto));
   const pendientes = catalogo.filter((p) => (borrador[p.id] ?? 0) > 0);
   const piezas = Object.values(borrador).reduce((s, n) => s + n, 0);
+  const cantidadDe = (p: ProductoDeComanda): number => borrador[p.id] ?? 0;
   const total =
-    enviadas.reduce((s, l) => s + l.total, 0) +
-    pendientes.reduce((s, p) => s + p.precio_venta * (borrador[p.id] ?? 0), 0);
+    enviadas.reduce((s, l) => s + aCentavos(l.total), 0) +
+    pendientes.reduce((s, p) => s + aCentavos(p.precio_venta) * cantidadDe(p), 0);
   const alergias = mesa?.notas_alergias ?? null;
   const sinEnviar = piezas === 0 || enviando;
 
@@ -203,19 +386,16 @@ export function MesaActiva(props: MesaActivaProps) {
     });
   };
 
+  function reintentar(): void {
+    setError(null);
+    setProductos(null);
+    setIntento((previo) => previo + 1);
+  }
+
   /**
-   * ABRIR LA MESA, cuando se llega a una que está libre.
-   *
-   * ── Por qué vive aquí y no en el mapa ──────────────────────────────────
-   * Porque «¿cuántas personas?» es el PRIMER DATO DE LA COMANDA, no una
-   * propiedad del plano: decide el reparto de la cuenta, el tiempo de servicio y
-   * hasta el tamaño de la jarra. El mapa lleva a la mesa; la mesa se abre donde
-   * se va a levantar el pedido, con el mesero ya mirando el catálogo.
-   *
-   * Y hace falta porque hasta hoy **no había ninguna forma de abrir una mesa
-   * desde la interfaz**: `/api/restaurante/abrir-mesa` existía, el mapa no
-   * pasaba su callback y esta pantalla daba por hecho que la mesa ya venía
-   * abierta. El restaurante entero empezaba por una puerta que no existía.
+   * ABRIR LA MESA, cuando se llega a una libre. Vive aquí y no en el mapa porque
+   * «¿cuántas personas?» es el PRIMER DATO DE LA COMANDA: decide el reparto de la
+   * cuenta y el tiempo de servicio, y se contesta ya mirando el catálogo.
    */
   async function abrirLaMesa(): Promise<void> {
     if (mesa?.venta_activa_id != null) return;
@@ -229,9 +409,10 @@ export function MesaActiva(props: MesaActivaProps) {
       });
       // Se vuelve a leer la mesa en vez de suponer su nuevo estado: la apertura
       // escribe el estado, la cuenta y la hora, y el encabezado los enseña.
-      const [frescas] = await Promise.all([
-        consultarPuente<MesaAbierta>('Mesa', { filtro: { id: mesa.id }, limite: 1 }),
-      ]);
+      const frescas = await consultarPuente<MesaAbierta>('Mesa', {
+        filtro: { id: mesa.id },
+        limite: 1,
+      });
       setMesa(frescas[0] ?? mesa);
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo abrir la mesa.');
@@ -253,7 +434,7 @@ export function MesaActiva(props: MesaActivaProps) {
       // Lo enviado cruza al bloque de arriba con identificadores provisionales;
       // los definitivos llegan con la siguiente lectura de la mesa.
       const nuevas = pendientes.map((p, i) => ({
-        id: `${clave}-${i}`,
+        id: `${clave}-${String(i)}`,
         producto_nombre: p.nombre,
         cantidad: borrador[p.id] ?? 0,
         total: p.precio_venta * (borrador[p.id] ?? 0),
@@ -281,22 +462,29 @@ export function MesaActiva(props: MesaActivaProps) {
   };
 
   /**
-   * Tras anular o dividir, la pantalla NO adivina cómo quedó la cuenta: la
-   * vuelve a leer. Restar la línea en el cliente parecería más rápido, pero una
-   * división reparte líneas entre cuentas nuevas y el servidor es el único que
-   * sabe cuáles se quedaron en la madre.
+   * Tras anular o dividir, la cuenta se RELEE: una división reparte líneas entre
+   * cuentas nuevas y sólo el servidor sabe cuáles se quedaron en la madre.
    */
   async function recargarLineas(): Promise<void> {
     const orden = mesa?.venta_activa_id ?? null;
     if (orden === null) return;
-    try {
-      const filtro = { venta_id: orden };
-      setEnviadas(await consultarPuente<LineaEnviada>('DetalleVenta', { filtro, limite: 120 }));
-    } catch (fallo: unknown) {
-      setError(
-        fallo instanceof Error ? fallo.message : `No se pudo releer ${voc.enFrase('orden')}.`,
-      );
+    // Si nunca se leyeron, el fallo se queda en su bloque: arriba diría «se muestra
+    // el último dato conocido», y no hay ninguno.
+    const nuncaSeLeyeron = falloLineas !== null;
+    setReleyendo(true);
+    const loEnviado = await leerLoEnviado(orden);
+    setReleyendo(false);
+    if (loEnviado.leidas) {
+      setEnviadas(loEnviado.lineas);
+      setFalloLineas(null);
+      return;
     }
+    const mensaje =
+      loEnviado.fallo instanceof Error
+        ? loEnviado.fallo.message
+        : `No se pudo releer ${voc.enFrase('orden')}.`;
+    if (nuncaSeLeyeron) setFalloLineas(mensaje);
+    else setError(mensaje);
   }
 
   const abrirAnular = (linea: LineaEnviada) => () => {
@@ -306,6 +494,7 @@ export function MesaActiva(props: MesaActivaProps) {
     setAnulando(null);
   };
   const abrirDividir = (): void => {
+    setAperturaDeDividir((n) => n + 1);
     setDividiendo(true);
   };
   const cerrarDividir = (): void => {
@@ -319,263 +508,394 @@ export function MesaActiva(props: MesaActivaProps) {
     setDividiendo(false);
     void recargarLineas();
   };
+  const releerLoEnviado = (): void => {
+    void recargarLineas();
+  };
+  /** Sin lo enviado no hay total: sumar sólo el borrador daría un total que no es. */
+  const totalConocido = falloLineas === null;
 
-  if (productos === null) {
-    // Esqueletos con la forma real del encabezado y del catálogo, no un spinner.
-    return (
-      <div className="grid grid-cols-2 gap-2 p-3 md:grid-cols-3 xl:grid-cols-4">
-        <Skeleton className="col-span-full h-20 rounded-lg" />
-        {Array.from({ length: 9 }, (_, i) => (
-          <Skeleton key={i} className="min-h-24 w-full rounded-lg" />
-        ))}
-      </div>
+  const numero = mesa === null ? '—' : String(mesa.numero);
+  const personasDeLaMesa = mesa?.personas_actuales ?? null;
+  const mesaId = mesa?.id ?? idDeLaDireccion;
+
+  /* ── La cabecera: la mesa, abierta. Es el DESTINO del viaje del mapa. ───── */
+  const barra = (
+    <BarraFija className="border-b border-borde">
+      <header className="flex flex-wrap items-center gap-x-(--espacio-3) gap-y-(--espacio-2) px-(--espacio-3) py-(--espacio-2)">
+        <Button variant="ghost" size="icon" aria-label="Volver al mapa" onClick={volverAlMapa}>
+          <ArrowLeft />
+        </Button>
+        {/* El número es lo más grande: es lo que se grita en el salón. */}
+        <h1 className="text-2xl font-bold">
+          {voc.titulo('unidad_servicio')}{' '}
+          <span className="font-numeros tabular-nums">{numero}</span>
+        </h1>
+        {mesa !== null && (
+          <Badge variant="secondary">
+            {ESTADOS_DE_MESA[mesa.estado] ?? mesa.estado.replace(/_/g, ' ')}
+          </Badge>
+        )}
+        {personasDeLaMesa !== null && (
+          <span className="inline-flex items-center gap-(--espacio-1) text-sm text-texto-sutil">
+            <Users aria-hidden="true" className="size-4" />
+            {personasDeLaMesa} personas
+          </span>
+        )}
+        {/* Nunca sólo el icono: un error aquí no es un descuadre, es médico. */}
+        {alergias !== null && (
+          <Badge variant="destructive">
+            <TriangleAlert aria-hidden="true" />
+            Alergias: {alergias}
+          </Badge>
+        )}
+        {listos.length > 0 && (
+          <Badge className="ml-auto xl:hidden">
+            <ConciergeBell aria-hidden="true" />
+            {listos.length} listos
+          </Badge>
+        )}
+      </header>
+    </BarraFija>
+  );
+  /* Por FUERA de la barra: el viaje se pone en su primer nodo, la barra entera. */
+  const cabecera =
+    mesaId === null ? (
+      barra
+    ) : (
+      <ViewTransition name={VIAJE.mesa(mesaId)} share="auto" default="none">
+        {barra}
+      </ViewTransition>
     );
-  }
 
+  /* ── El panel de la cuenta: a la derecha en PC, en la hoja en tableta. ──── */
   const panel = (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-(--espacio-4)">
       {listos.length > 0 && (
-        <section aria-label="Listos para recoger" className="rounded-lg border p-2">
-          <h2 className="text-xs font-bold uppercase">► Listos para recoger ({listos.length})</h2>
-          <p className="text-sm">{listos.join(' · ')}</p>
-        </section>
+        <Superficie
+          como="section"
+          nivel={0}
+          radio="md"
+          relleno={3}
+          aria-label="Listos para recoger"
+          className="border-acento bg-acento-suave text-acento-suave-texto"
+        >
+          {/* El texto va en `acento-suave-texto`, el par del tinte: `text-acento` sobre
+              `bg-acento-suave` no llega a 4.5:1 en `noche` ni en `bloque`. */}
+          <h2 className="flex items-center gap-(--espacio-2) text-xs font-bold uppercase">
+            <ConciergeBell aria-hidden="true" className="size-4" />
+            Listos para recoger ({listos.length})
+          </h2>
+          <p className="mt-(--espacio-1) text-sm font-medium">{listos.join(' · ')}</p>
+        </Superficie>
       )}
-      {/* «Pedido» es la palabra de una CAFETERÍA: aquí la unidad es la mesa y lo
-          que se manda es la cuenta. Con el sustantivo de otro giro en la pantalla
-          que un mesero mira todo el turno, el sistema se siente prestado. */}
+      {/* «Pedido» es de la CAFETERÍA: aquí lo que se manda es la cuenta. */}
       <section
         aria-label={`${voc.titulo('orden')} actual, ya enviad${voc.terminacion('orden')} a ${voc.enFrase('preparacion')}`}
+        className="flex flex-col gap-(--espacio-2)"
       >
-        <h2 className="text-xs font-bold uppercase text-muted-foreground">
+        <h2 className="text-xs font-bold tracking-wide text-texto-sutil uppercase">
           {voc.titulo('orden')} actual
         </h2>
-        {enviadas.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Mesa {mesa?.numero ?? ''} abierta para {mesa?.personas_actuales ?? 0} personas. Toca un
-            platillo para empezar.
-          </p>
-        )}
-        <ul className="mt-1 space-y-1 text-sm">
-          {enviadas.map((l) => (
-            <li key={l.id} className="flex items-baseline justify-between gap-2">
-              <span className="truncate">
-                {l.cantidad} × {l.producto_nombre}
-              </span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">{pesos(l.total)}</span>
-              {/* Lo enviado no se edita: se ANULA, y con motivo. Un botón de
-                  «−» aquí borraría del pedido un platillo que la cocina ya
-                  tiene en la plancha. */}
+        {falloLineas === null ? (
+          <>
+            <Tabla
+              etiqueta={`${voc.titulo('orden')} actual`}
+              columnas={columnasDeLoEnviado(voc, abrirAnular)}
+              filas={enviadas}
+              claveDe={(l) => l.id}
+              alto="max-h-none"
+              vacio={
+                <Vacio
+                  titulo={`${voc.titulo('unidad_servicio')} ${numero} abiert${voc.terminacion('unidad_servicio')} para ${String(personasDeLaMesa ?? 0)} personas.`}
+                  explicacion={`Toca ${voc.enFraseCon('un', 'linea_orden')} para empezar.`}
+                  className="px-(--espacio-3) py-(--espacio-4)"
+                />
+              }
+            />
+            {enviadas.length > 0 && (
               <Button
                 size="sm"
-                variant="ghost"
-                aria-label={`Anular ${l.producto_nombre}`}
-                onClick={abrirAnular(l)}
+                variant="outline"
+                className="w-full"
+                onClick={abrirDividir}
+                aria-label={`Dividir ${voc.enFrase('orden')} de ${voc.enFrase('unidad_servicio')}`}
               >
-                Anular
+                <Split aria-hidden="true" />
+                Dividir {voc.singular('orden')}
               </Button>
-            </li>
-          ))}
-        </ul>
-        {enviadas.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-2 w-full"
-            onClick={abrirDividir}
-            aria-label={`Dividir ${voc.enFrase('orden')} de ${voc.enFrase('unidad_servicio')}`}
-          >
-            Dividir {voc.singular('orden')}
-          </Button>
+            )}
+          </>
+        ) : (
+          /* No leyó nada: ni el vacío de mesa recién abierta ni «Dividir», que
+             repartiría una cuenta que la pantalla no conoce. */
+          <ErrorDePantalla
+            titulo={`No se pudo leer lo ya enviado a ${voc.enFrase('preparacion')}`}
+            queHacer={`Hasta leerlo no se sabe qué lleva ${voc.enFrase('orden')} ni cuánto suma. Antes de volver a mandar ${voc.enFraseCon('un', 'linea_orden')}, confírmalo con ${voc.enFrase('preparacion')}.`}
+            detalle={falloLineas}
+            reintentar={
+              <Button size="sm" variant="outline" cargando={releyendo} onClick={releerLoEnviado}>
+                Volver a intentar
+              </Button>
+            }
+          />
         )}
       </section>
       <section
         aria-label={`Agregar a ${voc.enFrase('orden')}, sin enviar`}
-        className="border-t pt-3"
+        className="flex flex-col gap-(--espacio-2) border-t border-borde pt-(--espacio-4)"
       >
-        <h2 className="text-xs font-bold uppercase text-primary">
+        <h2 className="text-xs font-bold tracking-wide text-primario uppercase">
           Agregar a {voc.enFrase('orden')}
         </h2>
-        {pendientes.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Toca {voc.enFraseCon('un', 'linea_orden')} para agregarlo.
-          </p>
-        )}
-        <ul className="mt-1 space-y-1 text-sm">
-          {pendientes.map((p) => (
-            <li key={p.id} className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={tocar(p.id, -1)}
-                aria-label={`Quitar ${p.nombre}`}
-              >
-                −
-              </Button>
-              <span className="w-5 text-center tabular-nums">{borrador[p.id] ?? 0}</span>
-              <span className="min-w-0 flex-1 truncate">{p.nombre}</span>
-              <span className="shrink-0 tabular-nums">
-                {pesos(p.precio_venta * (borrador[p.id] ?? 0))}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <Tabla
+          etiqueta={`Agregar a ${voc.enFrase('orden')}`}
+          columnas={columnasDelBorrador(voc, cantidadDe, tocar)}
+          filas={pendientes}
+          claveDe={(p) => p.id}
+          alto="max-h-none"
+          vacio={
+            <p className="text-sm text-texto-sutil">
+              Toca {voc.enFraseCon('un', 'linea_orden')} para agregarlo.
+            </p>
+          }
+        />
       </section>
-      <Button size="lg" className="w-full font-bold" disabled={sinEnviar} onClick={enviar}>
+      <Button
+        size="lg"
+        className="min-h-[calc(var(--altura-control)*1.6)] w-full text-lg font-bold"
+        disabled={sinEnviar}
+        onClick={enviar}
+      >
+        <Send aria-hidden="true" />
         {enviando ? 'Enviando…' : 'ENVIAR A COCINA'}
       </Button>
-      <p className="flex items-baseline justify-between border-t pt-2 font-bold">
-        <span className="text-sm">TOTAL</span>
-        <span className="text-lg tabular-nums">{pesos(total)}</span>
-      </p>
+      {totalConocido && (
+        <p className="flex items-baseline justify-between border-t border-borde pt-(--espacio-3)">
+          <span className="text-sm font-bold">TOTAL</span>
+          <Dinero centavos={total} tamano="lg" />
+        </p>
+      )}
     </div>
   );
 
-  return (
-    <div className="min-h-dvh bg-background pb-28 xl:pb-0">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b bg-background p-3">
-        <Button variant="ghost" size="sm" aria-label="Volver al mapa" onClick={volverAlMapa}>
-          ←
-        </Button>
-        <h1 className="text-xl font-bold">Mesa {mesa?.numero ?? '—'}</h1>
-        {/* El estado viaja en minúsculas y con guiones bajos; aquí se lee. */}
-        <Badge variant="secondary">{(mesa?.estado ?? 'sin datos').replace(/_/g, ' ')}</Badge>
-        <span className="text-sm">{mesa?.personas_actuales ?? 0} personas</span>
-        {/* Nunca sólo el icono: un error aquí no es un descuadre, es médico. */}
-        {alergias !== null && <Badge variant="destructive">⚠ Alergias: {alergias}</Badge>}
-        {listos.length > 0 && <Badge className="ml-auto xl:hidden">{listos.length} listos</Badge>}
-      </header>
-      {error !== null && (
-        <p role="alert" className="mx-3 mt-3 rounded-md border border-destructive p-2 text-sm">
-          {error} · Se muestra el último dato conocido.
+  /* ── MESA LIBRE · lo único que se puede hacer aquí es abrirla. ──────────── */
+  const abrir =
+    mesa === null ? null : (
+      /* El catálogo con la mesa cerrada sería un pedido sin dónde caer. */
+      <Superficie
+        como="section"
+        nivel={2}
+        relleno={6}
+        aria-label={`Abrir ${voc.enFrase('unidad_servicio')}`}
+        className="mx-auto mt-(--espacio-6) flex max-w-md flex-col items-center gap-(--espacio-4) text-center"
+      >
+        <p className="text-xl font-semibold">
+          {voc.titulo('unidad_servicio')} {mesa.numero} está libre
         </p>
-      )}
-      {mesa !== null && mesa.venta_activa_id === null && (
-        /* MESA LIBRE · lo único que se puede hacer aquí es abrirla, así que es lo
-           único que se enseña: el catálogo con una mesa cerrada sería un pedido
-           que no tiene dónde caer. */
-        <section
-          aria-label={`Abrir ${voc.enFrase('unidad_servicio')}`}
-          className="mx-auto mt-6 max-w-md space-y-4 rounded-lg border border-border p-6 text-center"
-        >
-          <p className="text-xl font-semibold">
-            {voc.titulo('unidad_servicio')} {mesa.numero} está libre
-          </p>
-          <p className="text-sm text-muted-foreground">
-            ¿Para cuántas personas? Es el primer dato de {voc.enFrase('orden')}: de ahí salen el
-            reparto y el tiempo de servicio.
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <Button
-              variant="outline"
-              size="lg"
-              aria-label="Una persona menos"
-              disabled={personasAlAbrir <= 1}
-              onClick={() => {
-                setPersonasAlAbrir(Math.max(1, personasAlAbrir - 1));
-              }}
-            >
-              −
-            </Button>
-            <span className="min-w-16 text-3xl font-bold tabular-nums">{personasAlAbrir}</span>
-            <Button
-              variant="outline"
-              size="lg"
-              aria-label="Una persona más"
-              disabled={personasAlAbrir >= 20}
-              onClick={() => {
-                setPersonasAlAbrir(Math.min(20, personasAlAbrir + 1));
-              }}
-            >
-              +
-            </Button>
-          </div>
+        <p className="text-sm text-texto-sutil">
+          ¿Para cuántas personas? Es el primer dato de {voc.enFrase('orden')}: de ahí salen el
+          reparto y el tiempo de servicio.
+        </p>
+        <div className="flex items-center justify-center gap-(--espacio-6)">
           <Button
-            size="lg"
-            className="w-full"
-            disabled={abriendo}
+            variant="outline"
+            size="icon-lg"
+            aria-label="Una persona menos"
+            disabled={personasAlAbrir <= 1}
             onClick={() => {
-              void abrirLaMesa();
+              setPersonasAlAbrir(Math.max(1, personasAlAbrir - 1));
             }}
           >
-            {abriendo ? 'Abriendo…' : `Abrir ${voc.enFrase('unidad_servicio')}`}
+            <Minus />
           </Button>
-        </section>
-      )}
+          <span
+            aria-live="polite"
+            className="min-w-16 font-numeros text-display font-bold tabular-nums"
+          >
+            {personasAlAbrir}
+          </span>
+          <Button
+            variant="outline"
+            size="icon-lg"
+            aria-label="Una persona más"
+            disabled={personasAlAbrir >= PERSONAS_MAXIMAS}
+            onClick={() => {
+              setPersonasAlAbrir(Math.min(PERSONAS_MAXIMAS, personasAlAbrir + 1));
+            }}
+          >
+            <Plus />
+          </Button>
+        </div>
+        <Button
+          size="lg"
+          className="min-h-[calc(var(--altura-control)*1.6)] w-full text-lg font-bold"
+          disabled={abriendo}
+          onClick={() => {
+            void abrirLaMesa();
+          }}
+        >
+          {abriendo ? 'Abriendo…' : `Abrir ${voc.enFrase('unidad_servicio')}`}
+        </Button>
+      </Superficie>
+    );
 
-      <div
-        className={`grid gap-4 p-3 xl:grid-cols-[1fr_22rem] ${
-          mesa !== null && mesa.venta_activa_id === null ? 'hidden' : ''
-        }`}
+  /* El vacío enseña: dice qué falta y lleva a donde se resuelve. */
+  const vacioDelCatalogo = (
+    <Vacio
+      icono={texto === '' ? <UtensilsCrossed /> : <Search />}
+      titulo={
+        texto === ''
+          ? `Todavía no hay ${voc.plural('producto')}.`
+          : `No hay ${voc.plural('producto')} que se llamen así.`
+      }
+      accion={
+        <Button asChild variant="outline">
+          <a href="/productos">Ir a {voc.titulo('producto', true)}</a>
+        </Button>
+      }
+    />
+  );
+
+  const comanda = (
+    <div className="grid gap-(--espacio-4) p-(--espacio-3) xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+      <section
+        aria-label={`Catálogo de ${voc.plural('linea_orden')}`}
+        className="flex flex-col gap-(--espacio-3)"
       >
-        <section aria-label={`Catálogo de ${voc.plural('linea_orden')}`}>
+        <div className="relative">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-5 -translate-y-1/2 text-texto-sutil"
+          />
           <Input
             ref={refBusqueda}
             value={busqueda}
             onChange={buscar}
             aria-label={`Buscar ${voc.singular('linea_orden')}`}
-            placeholder={`Buscar ${voc.singular('linea_orden')}…  🔍`}
+            placeholder={`Buscar ${voc.singular('linea_orden')}…`}
+            className="h-[calc(var(--altura-control)*1.25)] pl-(--espacio-10) text-lg"
           />
-          {visibles.length === 0 ? (
-            /* El vacío enseña: dice qué falta y lleva a donde se resuelve. */
-            <p className="mt-2 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No hay {voc.plural('producto')} que se llamen así.{' '}
-              <a href="/productos">Ir a {voc.titulo('producto', true)}</a>
-            </p>
-          ) : (
-            /* Dos columnas en teléfono, tres en tablet —la zona de toque nunca
-               baja de 96 px— y cuatro en PC, donde el panel ya ocupa su sitio. */
-            <ul className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
-              {visibles.map((p) => (
+        </div>
+        {visibles.length === 0 ? (
+          vacioDelCatalogo
+        ) : (
+          /* La zona de toque nunca baja de 96 px: la acierta un pulgar. */
+          <ul className="grid grid-cols-2 gap-(--espacio-2) md:grid-cols-3 xl:grid-cols-4">
+            {visibles.map((p) => {
+              const agotado = p.agotado === true;
+              const enBorrador = cantidadDe(p);
+              return (
                 <li key={p.id}>
-                  <button
+                  <Superficie
+                    como="button"
                     type="button"
-                    disabled={p.agotado === true}
+                    interactiva
+                    relleno={3}
+                    activa={enBorrador > 0}
+                    disabled={agotado}
                     onClick={tocar(p.id, 1)}
-                    className={`flex min-h-24 w-full flex-col justify-between rounded-lg border p-2 text-left ${p.agotado === true ? 'bg-muted text-muted-foreground' : 'bg-card text-card-foreground hover:border-primary'}`}
+                    className={`relative flex min-h-24 w-full flex-col items-start justify-between gap-(--espacio-2) ${agotado ? 'bg-fondo-sutil text-texto-sutil' : ''}`}
                   >
-                    <span className="line-clamp-2 text-sm font-semibold leading-tight">
+                    <span className="line-clamp-2 pr-(--espacio-6) text-base leading-tight font-semibold">
                       {p.nombre}
                     </span>
-                    {/* El precio, en segundo plano: se busca el platillo. */}
-                    <span className="mt-1 text-xs tabular-nums text-muted-foreground">
-                      {p.agotado === true ? 'Agotado' : pesos(p.precio_venta)}
-                    </span>
-                  </button>
+                    {/* El precio, en segundo plano; «Agotado», con palabra. */}
+                    {agotado ? (
+                      <span className="text-xs font-medium">Agotado</span>
+                    ) : (
+                      <Dinero
+                        centavos={aCentavos(p.precio_venta)}
+                        tamano="xs"
+                        className="text-texto-sutil"
+                      />
+                    )}
+                    {/* El anillo solo no dice cuántos: el número sí. */}
+                    {enBorrador > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute top-(--espacio-2) right-(--espacio-2) flex h-[calc(var(--altura-control)*0.6)] min-w-[calc(var(--altura-control)*0.6)] items-center justify-center rounded-full px-(--espacio-1) bg-primario font-numeros text-xs font-bold text-primario-texto tabular-nums"
+                      >
+                        {enBorrador}
+                      </span>
+                    )}
+                  </Superficie>
                 </li>
-              ))}
-            </ul>
-          )}
-        </section>
-        <aside
-          aria-label={`Pedido de ${voc.enFrase('unidad_servicio')}`}
-          className="sticky top-20 hidden self-start xl:block"
-        >
-          {panel}
-        </aside>
-      </div>
-      {/* Tablet y teléfono: el pedido vive donde alcanza el pulgar derecho. */}
-      <Button
-        size="lg"
-        onClick={abrirHoja}
-        aria-label={`Abrir el pedido: ${piezas} platillos, ${pesos(total)}`}
-        className="fixed bottom-4 right-4 rounded-full px-5 font-bold tabular-nums xl:hidden"
+              );
+            })}
+          </ul>
+        )}
+      </section>
+      <Superficie
+        como="aside"
+        relleno={4}
+        aria-label={`Pedido de ${voc.enFrase('unidad_servicio')}`}
+        className="sticky top-20 hidden max-h-[calc(100dvh-6rem)] overflow-y-auto xl:block"
       >
-        {piezas} · {pesos(total)}
-      </Button>
+        {panel}
+      </Superficie>
+    </div>
+  );
+
+  const contenido = (() => {
+    if (productos === null) {
+      if (error === null) {
+        return <EsqueletoDeLaComanda etiqueta={`Cargando ${voc.enFrase('unidad_servicio')}`} />;
+      }
+      // No leyó nada: no hay «último dato conocido» que enseñar.
+      return (
+        <div className="mx-auto max-w-lg p-(--espacio-6)">
+          <ErrorDePantalla
+            titulo={`No se pudo leer ${voc.enFrase('unidad_servicio')} ni ${voc.enFrase('producto', true)}`}
+            queHacer={`Sin eso no se puede levantar la comanda: no se sabría a qué ${voc.singular('orden')} va ni qué se puede pedir. Revisa la conexión y vuelve a intentarlo.`}
+            detalle={error}
+            reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+          />
+        </div>
+      );
+    }
+    return mesaLibre ? abrir : comanda;
+  })();
+
+  return (
+    <div className="min-h-dvh bg-fondo pb-28 xl:pb-0">
+      {cabecera}
+      {productos !== null && error !== null && (
+        <Aviso tono="peligro" titulo={error} className="mx-(--espacio-3) mt-(--espacio-3)">
+          Se muestra el último dato conocido.
+        </Aviso>
+      )}
+      {contenido}
+      {comandaVisible && (
+        /* Tablet y teléfono: la cuenta vive donde alcanza el pulgar derecho. */
+        <Button
+          size="lg"
+          onClick={abrirHoja}
+          aria-label={`Abrir el pedido: ${voc.conNumero('linea_orden', piezas)}${totalConocido ? `, ${dineroEnTexto(total)}` : ''}`}
+          className="fixed right-(--espacio-4) bottom-(--espacio-4) z-20 min-h-[calc(var(--altura-control)*1.6)] gap-(--espacio-3) rounded-full px-(--espacio-6) text-lg font-bold shadow-3 xl:hidden"
+        >
+          <span className="font-numeros tabular-nums">{piezas}</span>
+          {totalConocido && (
+            <>
+              <span aria-hidden="true">·</span>
+              <Dinero centavos={total} tamano="base" />
+            </>
+          )}
+        </Button>
+      )}
       <Sheet open={hoja} onOpenChange={setHoja}>
-        <SheetContent side="bottom" className="max-h-[70dvh] overflow-y-auto p-4">
+        <SheetContent side="bottom" className="max-h-[70dvh] overflow-y-auto p-(--espacio-4)">
           <SheetTitle>Pedido de la mesa {mesa?.numero ?? ''}</SheetTitle>
           {panel}
         </SheetContent>
       </Sheet>
       <Dialog open={falloEnvio} onOpenChange={setFalloEnvio}>
-        <DialogContent className="border-2 border-destructive">
+        <DialogContent className="border-2 border-peligro">
           <DialogTitle>La comanda NO llegó a {voc.singular('preparacion')}</DialogTitle>
-          <p role="alert" className="text-sm">
-            Vuelve a intentar: el pedido sigue completo en la pantalla y el reintento usa la misma
-            clave, así que no puede duplicarse.
-          </p>
-          <Button disabled={enviando} onClick={enviar}>
+          <Aviso tono="peligro" titulo="Vuelve a intentar.">
+            El pedido sigue completo en la pantalla y el reintento usa la misma clave, así que no
+            puede duplicarse.
+          </Aviso>
+          <Button size="lg" disabled={enviando} onClick={enviar}>
             {enviando ? 'Enviando…' : 'Reintentar envío'}
           </Button>
         </DialogContent>
@@ -586,8 +906,7 @@ export function MesaActiva(props: MesaActivaProps) {
           ordenId={mesa.venta_activa_id}
           lineaId={anulando.id}
           nombreDelPlatillo={anulando.producto_nombre}
-          /* «Ya se preparó» no es una suposición: es que cocina lo dejó en la
-             ventana. De ahí sale el aviso de que el insumo ya se gastó. */
+          /* «Ya se preparó» = cocina lo dejó en la ventana: el insumo ya se gastó. */
           yaSePreparo={listos.includes(anulando.producto_nombre)}
           onCerrar={cerrarAnular}
           onAnulada={traslaAnulacion}
@@ -595,6 +914,7 @@ export function MesaActiva(props: MesaActivaProps) {
       )}
       {mesa?.venta_activa_id != null && (
         <DividirCuentaDialog
+          key={aperturaDeDividir}
           abierto={dividiendo}
           ordenId={mesa.venta_activa_id}
           lineas={enviadas.map((l) => ({

@@ -1,0 +1,153 @@
+/**
+ * LA CAPA FINA · lo que los tokens no pueden expresar.
+ *
+ * ── Por qué existe, y por qué es un solo archivo ──────────────────────────
+ * La regla de arquitectura de esta fase es **un solo juego de componentes, N juegos
+ * de tokens**: 69 pantallas por 8 estilos son 552 reescrituras si se hace mal, y
+ * cero si los componentes no saben en qué estilo están.
+ *
+ * Pero hay cuatro cosas que un token de color no puede decir: el DESENFOQUE del
+ * cristal, la TEXTURA del metal y del papel, la FUENTE monoespaciada del terminal y
+ * el grosor de las líneas del brutalismo. Eso vive aquí, y vive en UN archivo a
+ * propósito: así se ve de un vistazo cuánta excepción se ha acumulado. El día que
+ * esto crezca a trescientas líneas, el sistema habrá dejado de ser un sistema.
+ *
+ * Todo lo de aquí cuelga de `[data-estilo='…']`, así que un estilo no puede filtrar
+ * sobre otro.
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CRISTAL · el desenfoque, y sólo donde no cuesta caro.
+   ───────────────────────────────────────────────────────────────────────────
+   `backdrop-filter` sobre superficies grandes mata el INP en equipos de gama baja,
+   que son exactamente los equipos donde esto va a correr. Así que se aplica SÓLO a
+   las capas flotantes —diálogo, menú, popover, barra fija, isla—, que son pocas y
+   pequeñas, y NUNCA a una tarjeta de una lista de doscientas.
+
+   El borde de luz de arriba es lo que hace que se lea como cristal y no como un
+   panel gris: es el reflejo del canto.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-estilo='cristal'] [role='dialog'],
+[data-estilo='cristal'] [role='alertdialog'],
+[data-estilo='cristal'] [role='menu'],
+[data-estilo='cristal'] [data-slot='popover-content'],
+[data-estilo='cristal'] [data-radix-popper-content-wrapper] > * {
+  background-color: hsl(var(--superficie-elevada) / 0.82);
+  backdrop-filter: blur(16px) saturate(140%);
+  border-top-color: hsl(0 0% 100% / 0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RELIEVE · el hundido de verdad al pulsar.
+   ───────────────────────────────────────────────────────────────────────────
+   La perilla `doble-bisel` ya da la luz de arriba y la sombra de abajo. Lo que falta
+   es lo que pasa al PULSAR: en neumorphism un control no baja, se INVIERTE —la luz
+   pasa abajo y la sombra arriba— y eso no es una sombra más pequeña, es otra sombra.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-estilo='relieve'] button:active:not(:disabled),
+[data-estilo='relieve'] [role='button']:active {
+  box-shadow:
+    inset 2px 2px 5px hsl(var(--sombra-tinte) / 0.5),
+    inset -2px -2px 5px hsl(0 0% 100% / 0.6);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TALLER · metal cepillado y papel de nota.
+   ───────────────────────────────────────────────────────────────────────────
+   Dos degradados repetidos de 3 px, no una imagen: una textura en PNG serían 40 kB
+   que hay que descargar para que un botón parezca metal. El cepillado va en las
+   superficies y la trama del papel en el fondo, que es de dónde salen los dos
+   materiales del oficio.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-estilo='taller'] body {
+  background-image: repeating-linear-gradient(
+    0deg,
+    hsl(var(--sombra-tinte) / 0.04) 0,
+    hsl(var(--sombra-tinte) / 0.04) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+
+[data-estilo='taller'] [data-slot='card'],
+[data-estilo='taller'] [data-nivel='2'],
+[data-estilo='taller'] [data-nivel='3'] {
+  background-image: repeating-linear-gradient(
+    90deg,
+    hsl(0 0% 100% / 0.5) 0,
+    hsl(0 0% 100% / 0.5) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TERMINAL · monoespaciada en TODO, que es lo que lo hace un terminal.
+   ───────────────────────────────────────────────────────────────────────────
+   No es decoración: quien viene de un POS viejo lee en rejilla, y una proporcional
+   rompe la rejilla. La fuente es la misma `--fuente-numeros` que ya usa el dinero,
+   así que no se descarga nada nuevo.
+
+   El subrayado del foco en vez del anillo: en un terminal el cursor es un bloque, y
+   un anillo redondeado sobre una rejilla de caracteres se ve prestado.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-estilo='terminal'] body {
+  font-family: var(--fuente-numeros);
+  letter-spacing: 0.01em;
+}
+
+[data-estilo='terminal'] :focus-visible {
+  outline: 2px solid hsl(var(--anillo));
+  outline-offset: 0;
+  border-radius: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BLOQUE · el grosor, que es lo único que la perilla no lleva.
+   ───────────────────────────────────────────────────────────────────────────
+   `linea-dura` ya da la sombra desplazada y sólida y sube el borde a 2 px. El
+   brutalismo pide 3, y pide que el texto pese: a metro y medio, en hora pico, lo que
+   se lee es el grosor.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-estilo='bloque'] {
+  --borde-ancho: 3px;
+}
+
+[data-estilo='bloque'] h1,
+[data-estilo='bloque'] h2,
+[data-estilo='bloque'] h3 {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+[data-estilo='bloque'] button {
+  font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAPEL · la tipografía hace el trabajo que no hace la sombra.
+   ───────────────────────────────────────────────────────────────────────────
+   Sin sombras, lo único que puede crear jerarquía es la escala y el aire. Los
+   títulos van con tracking cerrado y peso alto, y el cuerpo con una interlínea más
+   amplia que en los demás estilos: es una pantalla para LEER.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-estilo='papel'] h1,
+[data-estilo='papel'] h2 {
+  letter-spacing: -0.03em;
+}
+
+[data-estilo='papel'] p {
+  line-height: var(--interlinea-amplia);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NOCHE · nada de blanco puro, ni siquiera por accidente.
+   ───────────────────────────────────────────────────────────────────────────
+   El token de texto ya está a 88 %, pero un componente heredado puede llevar un
+   `text-white` escrito a mano —el activo de la barra lateral lo lleva— y en penumbra
+   eso deslumbra. Aquí se le pone techo a cualquier blanco que se cuele.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-estilo='noche'][data-modo='oscuro'] .text-white {
+  color: hsl(var(--texto));
+}

@@ -1,0 +1,127 @@
+/**
+ * Estilo `noche` — alto contraste para poca luz.
+ *
+ * NO ES «modo oscuro». El modo oscuro es ortogonal al estilo y lo tienen los ocho.
+ * Esto es un estilo pensado para **operar a oscuras**: la barra de un bar, la línea
+ * caliente de una cocina, la taquilla de un cine, el escenario de un antro. Sitios
+ * donde la pantalla es la única fuente de luz de la cara de quien la usa.
+ *
+ * SU PUNTO DE VISTA, y las tres reglas que lo hacen distinto de un oscuro normal:
+ *
+ *   1 · **Nada de blanco puro.** Un `#fff` sobre negro a las once de la noche
+ *       deslumbra, deja post-imagen y obliga a apartar la vista del cliente. El
+ *       texto va a `0 0% 88%` como máximo.
+ *   2 · **El acento es luminoso, no saturado.** Lo que se tiene que ver de lejos en
+ *       penumbra es el brillo, no el color.
+ *   3 · **El fondo es negro de verdad.** En un OLED, un negro real apaga el píxel:
+ *       menos luz emitida en total y menos halo alrededor del texto.
+ *
+ * ── Su «modo claro», que es un modo ATENUADO ──────────────────────────────
+ * Un estilo para la oscuridad no tiene modo claro de verdad, y fingirlo sería
+ * inventarse un producto. Lo que tiene es el modo de la **hora azul**: ni negro
+ * cerrado ni blanco —una barra a las siete de la tarde, con luz que entra—. Sirve
+ * para el turno de tarde sin cambiar de estilo a media jornada.
+ */
+
+[data-estilo='noche'] {
+  --sombra-tinte: 220 40% 2%;
+
+  /* La hora azul: pizarra, no papel. */
+  --fondo: 220 16% 22%;
+  --fondo-sutil: 220 16% 27%;
+  --superficie: 220 16% 26%;
+  --superficie-elevada: 220 14% 31%;
+
+  --texto: 210 16% 92%;
+  --texto-sutil: 210 10% 76%;
+  --texto-tenue: 210 8% 62%;
+
+  --borde: 220 12% 36%;
+  --borde-fuerte: 210 12% 66%;
+  --anillo: 175 90% 62%;
+
+  --primario: 175 90% 62%;
+  --primario-texto: 190 60% 8%;
+  --acento: 265 80% 74%;
+  --acento-texto: 265 50% 10%;
+  --acento-suave: 220 18% 33%;
+  --acento-suave-texto: 210 16% 92%;
+
+  --exito: 150 70% 62%;
+  --exito-texto: 150 50% 8%;
+  --advertencia: 42 95% 62%;
+  --advertencia-texto: 30 50% 10%;
+  /* Como texto —un importe negativo, un error— sobre la superficie atenuada daba 3.8:1 a
+     70 %: se aclara hasta pasar. */
+  --peligro: 356 90% 78%;
+  --peligro-texto: 356 50% 9%;
+  --info: 200 85% 68%;
+  --info-texto: 200 50% 8%;
+
+  --grafico-1: 175 90% 62%;
+  --grafico-2: 265 80% 74%;
+  --grafico-3: 42 95% 62%;
+  --grafico-4: 356 90% 70%;
+  --grafico-5: 110 65% 60%;
+  --grafico-6: 205 85% 66%;
+
+  --velo: 220 40% 2%;
+
+  --lateral-fondo: 220 20% 15%;
+  --lateral-texto: 210 16% 88%;
+  --lateral-activo: 175 90% 62%;
+  --lateral-activo-texto: 190 60% 8%;
+  --lateral-hover: 220 18% 22%;
+  --lateral-borde: 220 14% 28%;
+}
+
+/** La noche de verdad: negro real y luz mínima suficiente. */
+[data-estilo='noche'][data-modo='oscuro'] {
+  --sombra-tinte: 0 0% 0%;
+
+  --fondo: 220 20% 4%;
+  --fondo-sutil: 220 18% 8%;
+  --superficie: 220 18% 7%;
+  --superficie-elevada: 220 16% 11%;
+
+  /* 88 % y no 100 %: el techo de blanco que no deslumbra en penumbra. */
+  --texto: 210 14% 88%;
+  --texto-sutil: 210 10% 70%;
+  --texto-tenue: 210 8% 55%;
+
+  --borde: 220 14% 18%;
+  --borde-fuerte: 210 12% 58%;
+  --anillo: 175 95% 58%;
+
+  --primario: 175 95% 58%;
+  --primario-texto: 190 70% 5%;
+  --acento: 265 90% 72%;
+  --acento-texto: 265 60% 7%;
+  --acento-suave: 220 22% 15%;
+  --acento-suave-texto: 210 14% 88%;
+
+  --exito: 150 75% 56%;
+  --exito-texto: 150 60% 5%;
+  --advertencia: 42 100% 58%;
+  --advertencia-texto: 30 60% 7%;
+  --peligro: 356 95% 68%;
+  --peligro-texto: 356 60% 6%;
+  --info: 200 90% 64%;
+  --info-texto: 200 60% 5%;
+
+  --grafico-1: 175 95% 58%;
+  --grafico-2: 265 90% 72%;
+  --grafico-3: 42 100% 58%;
+  --grafico-4: 356 95% 68%;
+  --grafico-5: 110 70% 56%;
+  --grafico-6: 205 90% 62%;
+
+  --velo: 0 0% 0%;
+
+  --lateral-fondo: 220 24% 2%;
+  --lateral-texto: 210 14% 86%;
+  --lateral-activo: 175 95% 58%;
+  --lateral-activo-texto: 190 70% 5%;
+  --lateral-hover: 220 20% 10%;
+  --lateral-borde: 220 16% 14%;
+}

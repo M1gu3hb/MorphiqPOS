@@ -10,6 +10,8 @@ import { POSAuthProvider } from '@/lib/POSAuthContext';
 import { queryClientInstance } from '@/lib/query-client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 
+import { ProveedorDeApariencia } from './Apariencia';
+
 /**
  * Los proveedores de la aplicación — los SUYOS, en su orden.
  *
@@ -37,26 +39,31 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 export function Proveedores({
   children,
   conSesion,
+  estilo,
 }: {
   readonly children: ReactNode;
   readonly conSesion: boolean;
+  /** El estilo que el servidor ya puso en el `<html>`. Aquí se vuelve estado. */
+  readonly estilo: string;
 }) {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <POSAuthProvider>
-          {conSesion ? <ConfigProvider>{children}</ConfigProvider> : children}
-        </POSAuthProvider>
-        <Toaster />
-        <SonnerToaster
-          richColors
-          position="top-right"
-          closeButton
-          duration={3500}
-          visibleToasts={4}
-          swipeDirections={['top', 'right']}
-        />
-      </QueryClientProvider>
-    </ThemeProvider>
+    <ProveedorDeApariencia estiloInicial={estilo}>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <POSAuthProvider>
+            {conSesion ? <ConfigProvider>{children}</ConfigProvider> : children}
+          </POSAuthProvider>
+          <Toaster />
+          <SonnerToaster
+            richColors
+            position="top-right"
+            closeButton
+            duration={3500}
+            visibleToasts={4}
+            swipeDirections={['top', 'right']}
+          />
+        </QueryClientProvider>
+      </ThemeProvider>
+    </ProveedorDeApariencia>
   );
 }

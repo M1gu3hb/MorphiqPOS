@@ -1,0 +1,123 @@
+/**
+ * Estilo `papel` — minimalista editorial. Notion · Linear · Craft.
+ *
+ * PARA: despachos, consultorios, agencias, inmobiliarias. Negocios donde el sistema
+ * tiene que DESAPARECER y lo que se mira es el contenido: un expediente, un
+ * contrato, una propuesta.
+ *
+ * SU PUNTO DE VISTA: cero sombras. La jerarquía la hacen el ESPACIO y la ESCALA
+ * tipográfica, no la profundidad. Lo que separa una superficie de otra es una línea
+ * de un píxel, y por eso su perilla de elevación es `plana` y su `borde-fuerte`
+ * trabaja más que en ningún otro estilo.
+ *
+ * El blanco es CÁLIDO (`40 30% 98%`) y no puro: un blanco puro en una pantalla es
+ * más brillante que el papel y cansa en una jornada de ocho horas leyendo.
+ *
+ * Es el heredero directo del estilo `editorial` de la Fase 1 —su paleta es la misma,
+ * afinada— y ocupa su sitio con el nombre que Miguel pidió.
+ */
+
+[data-estilo='papel'] {
+  --sombra-tinte: 30 20% 20%;
+
+  --fondo: 40 30% 98%;
+  --fondo-sutil: 40 24% 95%;
+  --superficie: 40 40% 99%;
+  --superficie-elevada: 0 0% 100%;
+
+  --texto: 30 14% 11%;
+  --texto-sutil: 30 8% 38%;
+  --texto-tenue: 30 8% 50%;
+
+  --borde: 36 18% 88%;
+  /* Trabaja más que en ningún otro estilo: sin sombras, la línea es lo único que
+     dice dónde acaba un campo. */
+  --borde-fuerte: 30 10% 45%;
+  --anillo: 18 68% 38%;
+
+  --primario: 18 68% 38%;
+  --primario-texto: 40 40% 99%;
+  --acento: 176 42% 26%;
+  --acento-texto: 40 40% 99%;
+  --acento-suave: 176 34% 92%;
+  --acento-suave-texto: 176 42% 20%;
+
+  --exito: 152 45% 28%;
+  --exito-texto: 40 40% 99%;
+  --advertencia: 38 80% 52%;
+  --advertencia-texto: 30 30% 12%;
+  --peligro: 4 62% 40%;
+  --peligro-texto: 40 40% 99%;
+  --info: 205 55% 32%;
+  --info-texto: 40 40% 99%;
+
+  /* Seis tonos repartidos por la rueda y todos APAGADOS, que es lo que pide este
+     estilo: una grafica saturada en una pagina de papel es una mancha. La distancia
+     entre dos series se mide en OKLab, no a ojo. */
+  --grafico-1: 18 68% 44%;
+  --grafico-2: 152 48% 28%;
+  --grafico-3: 210 58% 44%;
+  --grafico-4: 44 78% 46%;
+  --grafico-5: 272 40% 50%;
+  --grafico-6: 330 50% 42%;
+
+  --velo: 30 20% 20%;
+
+  /* La barra lateral es CLARA en este estilo, al revés que en los demás: una barra
+     oscura sobre una página de papel es una mancha, y aquí el sistema desaparece. */
+  --lateral-fondo: 40 22% 95%;
+  --lateral-texto: 30 14% 16%;
+  --lateral-activo: 18 68% 38%;
+  --lateral-activo-texto: 40 40% 99%;
+  --lateral-hover: 40 18% 89%;
+  --lateral-borde: 36 18% 85%;
+}
+
+[data-estilo='papel'][data-modo='oscuro'] {
+  --sombra-tinte: 30 30% 2%;
+
+  --fondo: 30 12% 9%;
+  --fondo-sutil: 30 10% 13%;
+  --superficie: 30 11% 12%;
+  --superficie-elevada: 30 11% 15%;
+
+  --texto: 40 24% 94%;
+  --texto-sutil: 40 12% 70%;
+  --texto-tenue: 40 10% 56%;
+
+  --borde: 30 10% 22%;
+  --borde-fuerte: 40 10% 55%;
+  --anillo: 20 78% 64%;
+
+  --primario: 20 78% 64%;
+  --primario-texto: 20 60% 10%;
+  --acento: 176 46% 58%;
+  --acento-texto: 176 46% 8%;
+  --acento-suave: 176 24% 18%;
+  --acento-suave-texto: 176 40% 86%;
+
+  --exito: 152 45% 58%;
+  --exito-texto: 152 40% 8%;
+  --advertencia: 38 80% 62%;
+  --advertencia-texto: 30 30% 10%;
+  --peligro: 4 72% 68%;
+  --peligro-texto: 4 50% 9%;
+  --info: 205 60% 66%;
+  --info-texto: 205 50% 8%;
+
+  --grafico-1: 20 78% 64%;
+  --grafico-2: 152 52% 56%;
+  --grafico-3: 215 75% 70%;
+  --grafico-4: 48 85% 62%;
+  --grafico-5: 286 60% 72%;
+  --grafico-6: 330 65% 62%;
+
+  --velo: 30 30% 3%;
+
+  --lateral-fondo: 30 12% 11%;
+  --lateral-texto: 40 20% 90%;
+  --lateral-activo: 20 78% 64%;
+  --lateral-activo-texto: 20 60% 10%;
+  --lateral-hover: 30 10% 17%;
+  --lateral-borde: 30 10% 20%;
+}

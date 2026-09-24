@@ -149,6 +149,11 @@ git worktree add "D:\MIS PROYECTOS\Master POS\morphiqpos-fase2" -b fase-2 carril
 
 **Excepción única:** si Codex ya publicó su cierre de Fase 1 y `carril-b` está fusionada a `main`, esta restricción queda derogada. Anótalo aquí cuando pase.
 
+> **Derogada.** `carril-b` está fusionada a `main` (lo dice el encargo de la etapa 2.35 y la
+> rama ya no recibe trabajo). Anotado el 22-09-2026, en el cierre de la 2.35 —tarde: el
+> encargo pedía anotarlo al pasar—. Lo que rige ahora sobre `heredado/` es D-14 y
+> `verify:aspecto`: se puede cambiar, a propósito y moviendo su base, nunca a escondidas.
+
 ---
 
 ## D-10 · 14-09-2026 · `btree_gist` está disponible; el solape de citas no es bloqueante
@@ -227,6 +232,33 @@ Es exactamente el fallo de la Fase 1, donde 41 commits de trabajo de seguridad e
 La carpeta de fuera queda como histórico y se deja de tocar.
 
 ---
+
+## D-14 · 22-09-2026 · Las pantallas heredadas se quedan con la estructura de Miguel, y con los tokens del sistema
+
+**Contexto.** El cierre de la etapa 2.35 recompuso las pantallas de los cinco modelos con la
+biblioteca (`apps/web/src`). `apps/web/heredado/` —el punto de venta que lleva meses
+cobrando: accesos, ventas, compras, registros, portal QR, configuración— no se tocó, y
+`verify:aspecto` sigue comparándolo contra `89830e5`, el commit en que Miguel lo entregó.
+El encargo pidió decidir: o se recomponen también, o se declara por escrito que se quedan.
+
+**Decisión.** **Se quedan con la estructura y los componentes de Miguel**, y la base de
+`verify:aspecto` no se mueve. Tres razones:
+
+1. **Ya llevan el lenguaje donde importa.** Desde la etapa 2.35 sus nombres en inglés
+   —`bg-card`, `text-muted-foreground`— son ALIAS de los tokens del sistema
+   (`heredado/index.css`): cambian con el estilo, con el modo oscuro y con las cuatro
+   perillas igual que las pantallas de los modelos. Lo que no tienen es la biblioteca
+   (`Superficie`, `Tabla`, `Dinero`), y eso es composición, no color.
+2. **Son las que cobran hoy.** Cuatro negocios operan con ellas. Recomponerlas es tocar el
+   flujo de dinero de un cliente que paga sin que su dueño lo haya pedido, y `verify:aspecto`
+   existe precisamente para que eso no pase sin decidirlo.
+3. **Cada modelo trae ya las suyas para lo que más se usa.** El cobro, la caja, el catálogo y
+   el inventario de cada giro son pantallas de `apps/web/src`, recompuestas; las heredadas
+   que perdieron su sitio en el menú están declaradas en `EXCEPCIONES-COBERTURA.md`.
+
+**Lo que queda dicho para cuando cambie.** El día que Miguel quiera el lenguaje nuevo en
+ellas, se recomponen una por una con la guía (`GUIA-DE-RECOMPOSICION.md`) y la base de
+`verify:aspecto` se mueve A PROPÓSITO en ese commit —nunca se apaga la puerta—.
 
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 

@@ -1,11 +1,28 @@
 'use client';
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState } from 'react';
+import {
+  Aviso,
+  CampoDeDinero,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  CircleAlert,
+  CircleCheck,
+  LockKeyhole,
+  LockKeyholeOpen,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
+import { useEffect, useRef, useState, type Ref } from 'react';
+import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -36,6 +53,17 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * pendientes deja el inventario de tinte inflado hasta que alguien se acuerde,
  * y nadie se acuerda.
  *
+ * ── Cómo se reparte · la tableta de recepción y la PC de la noche ───────
+ * `04-INTERFAZ` §4.3.8: 1 el estado · 2 el movimiento del día · 3 el arqueo. Arriba,
+ * si el día está abierto. Debajo, lo que entró y lo que salió como un RECIBO —una
+ * tabla con una sola columna de importes, que se lee de arriba abajo—. Y al pie, el
+ * arqueo con el botón grande: en la tableta y en el teléfono es lo último que se
+ * toca. En la PC el arqueo va a la derecha y el día se queda abierto a su lado,
+ * porque ahí es donde se revisa cuando algo no cuadró.
+ *
+ * La diferencia es lo más grande de la pantalla y sólo aparece al cerrar, con su
+ * palabra —cuadra, faltan, sobran—, su icono y su tinte. El color nunca va solo.
+ *
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
  * Caben abrir, el resumen del día con sus salidas, el arqueo y el cierre. Queda
  * fuera el detalle de cada cobro, que vive en el histórico de citas.
@@ -45,8 +73,12 @@ const RUTA_ESTADO = '/api/caja/estado';
 const RUTA_ABRIR = '/api/caja/abrir';
 const RUTA_CERRAR = '/api/caja/cerrar';
 
-const IMPORTE_CON_FORMA = /^\d{1,7}(?:[.,]\d{1,2})?$/;
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+/** El marco de la pantalla: una columna en la tableta, dos en la PC. */
+const MARCO =
+  'mx-auto flex w-full max-w-2xl flex-col gap-(--espacio-6) p-(--espacio-4) sm:p-(--espacio-6) xl:max-w-5xl';
+const REJILLA = 'grid gap-(--espacio-6) xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start';
+/** Los dos botones del día se tocan con el pulgar, de pie, al abrir y al cerrar. */
+const BOTON_DEL_DIA = 'h-[calc(var(--altura-control)*1.4)] w-full text-base';
 
 /**
  * Lo que `caja.cerrar` devuelve, y de donde sale el ESPERADO de verdad.
@@ -79,22 +111,76 @@ export interface CajaYCorteProps {
   readonly estadoInicial?: EstadoDelSalon;
 }
 
-function pesos(centavos: string | number): string {
-  return PESOS.format(Number(centavos) / 100);
+/** Un renglón del día. Con signo: lo que entró suma, lo que salió del cajón resta. */
+interface Movimiento {
+  readonly clave: string;
+  readonly concepto: string;
+  readonly nota?: string;
+  readonly centavos: number;
 }
 
-function aCentavos(texto: string): number | null {
-  const limpio = texto.trim().replace(',', '.');
-  if (limpio === '' || !IMPORTE_CON_FORMA.test(limpio)) return null;
-  const [enteros = '0', decimales = ''] = limpio.split('.');
-  return Number(enteros) * 100 + Number(decimales.padEnd(2, '0'));
+/** Lo que salió mal, y de quién: una corrección del tecleo o un rechazo del servidor. */
+interface Tropiezo {
+  readonly mensaje: string;
+  readonly delServidor: boolean;
 }
+
+type TonoDeDiferencia = 'exito' | 'peligro' | 'atencion';
+
+/** Cómo se lee la diferencia del arqueo: su palabra, su importe y su tono. */
+export interface LecturaDeDiferencia {
+  readonly palabra: 'Cuadra exacto' | 'Faltan' | 'Sobran';
+  /** Siempre positivo: la palabra ya dice hacia dónde. */
+  readonly centavos: number;
+  readonly tono: TonoDeDiferencia;
+}
+
+/** Cómo está el día: se lee antes que cualquier número. */
+type Situacion = 'abierta' | 'cerrada' | 'cortada';
+
+const SITUACIONES: Readonly<
+  Record<Situacion, { readonly icono: LucideIcon; readonly frase: string; readonly tinte: string }>
+> = {
+  abierta: { icono: LockKeyholeOpen, frase: 'El día está abierto.', tinte: 'text-exito' },
+  cerrada: { icono: LockKeyhole, frase: 'Ábrelo para poder cobrar.', tinte: 'text-texto-sutil' },
+  cortada: { icono: LockKeyhole, frase: 'El día quedó cerrado.', tinte: 'text-texto-sutil' },
+};
+
+/** El tinte y el icono de la diferencia. El icono va SIEMPRE con la palabra. */
+const DIFERENCIAS: Readonly<
+  Record<TonoDeDiferencia, { readonly icono: LucideIcon; readonly tinte: string }>
+> = {
+  exito: { icono: CircleCheck, tinte: 'border-exito bg-exito/10' },
+  peligro: { icono: TriangleAlert, tinte: 'border-peligro bg-peligro/10' },
+  atencion: { icono: CircleAlert, tinte: 'border-advertencia bg-advertencia/10' },
+};
+
+/** El recibo del día: el concepto con su nota, y una sola columna de importes. */
+const COLUMNAS_DEL_DIA: readonly ColumnaDeTabla<Movimiento>[] = [
+  {
+    clave: 'concepto',
+    titulo: 'Movimiento',
+    celda: (m) => (
+      <span className="flex flex-col gap-(--espacio-1)">
+        <span className="font-medium">{m.concepto}</span>
+        {m.nota === undefined ? null : <span className="text-xs text-texto-sutil">{m.nota}</span>}
+      </span>
+    ),
+  },
+  {
+    clave: 'importe',
+    titulo: 'Importe',
+    numerica: true,
+    // Con signo: lo que entró en verde, lo que salió en rojo y entre paréntesis.
+    celda: (m) => <Dinero centavos={m.centavos} conSigno />,
+  },
+];
 
 /** «Faltan $340», no «−340»: leído de prisa a las nueve de la noche se confunde. */
-export function leerDiferencia(centavos: number): string {
-  if (centavos === 0) return 'Cuadra exacto';
-  if (centavos < 0) return `Faltan ${PESOS.format(-centavos / 100)}`;
-  return `Sobran ${PESOS.format(centavos / 100)}`;
+export function leerDiferencia(centavos: number): LecturaDeDiferencia {
+  if (centavos === 0) return { palabra: 'Cuadra exacto', centavos: 0, tono: 'exito' };
+  if (centavos < 0) return { palabra: 'Faltan', centavos: -centavos, tono: 'peligro' };
+  return { palabra: 'Sobran', centavos, tono: 'atencion' };
 }
 
 function mensajeDe(fallo: unknown): string {
@@ -102,14 +188,187 @@ function mensajeDe(fallo: unknown): string {
   return 'No se pudo. Vuelve a intentarlo.';
 }
 
+/** Los cuatro renglones del día, en el orden en que se explican: lo que entró y lo que salió. */
+function movimientosDe(estado: EstadoDelSalon, notaDePropina: string): readonly Movimiento[] {
+  return [
+    { clave: 'cobrado', concepto: 'Cobrado', centavos: Number(estado.cobradoCentavos) },
+    {
+      clave: 'rentas',
+      concepto: 'Rentas cobradas',
+      centavos: Number(estado.rentasCobradasCentavos),
+    },
+    // La salida más grande del día, y sale del mismo cajón: un corte que no la ve
+    // encuentra $18,000 de menos un viernes cada quince.
+    {
+      clave: 'liquidaciones',
+      concepto: 'Liquidaciones pagadas',
+      centavos: -Number(estado.liquidacionesCentavos),
+    },
+    {
+      clave: 'propinas',
+      concepto: 'Propinas entregadas',
+      nota: notaDePropina,
+      centavos: -Number(estado.propinasEntregadasCentavos),
+    },
+  ];
+}
+
+/** Lo que salió mal, JUNTO al botón que se tocó, y lo que NO pasó. */
+function AvisoDeTropiezo({
+  tropiezo,
+  siRechaza,
+}: {
+  readonly tropiezo: Tropiezo | null;
+  readonly siRechaza?: string;
+}) {
+  if (tropiezo === null) return null;
+  if (tropiezo.delServidor) {
+    return (
+      <Aviso tono="peligro" titulo={tropiezo.mensaje}>
+        {siRechaza}
+      </Aviso>
+    );
+  }
+  return (
+    <Aviso tono="atencion" titulo={tropiezo.mensaje}>
+      No se mandó nada.
+    </Aviso>
+  );
+}
+
+function Encabezado({
+  situacion,
+  refDeLaLinea,
+}: {
+  readonly situacion: Situacion | 'leyendo' | null;
+  /** La línea que dice cómo está el día: adonde va el foco al abrirlo. */
+  readonly refDeLaLinea?: Ref<HTMLParagraphElement>;
+}) {
+  let linea = null;
+  if (situacion === 'leyendo') linea = <Esqueleto className="h-5 w-48" />;
+  else if (situacion !== null) {
+    const { icono: Icono, frase, tinte } = SITUACIONES[situacion];
+    linea = (
+      <p
+        ref={refDeLaLinea}
+        tabIndex={-1}
+        className="flex items-center gap-(--espacio-2) font-medium outline-none"
+      >
+        <Icono aria-hidden="true" className={`size-5 shrink-0 ${tinte}`} />
+        {frase}
+      </p>
+    );
+  }
+  return (
+    <header className="flex flex-col gap-(--espacio-2)">
+      <h1 className="text-2xl font-semibold">Caja y corte</h1>
+      {linea}
+    </header>
+  );
+}
+
+/** El recibo del día. En la PC se queda abierto junto al arqueo: es la cascada. */
+function ElDia({ movimientos }: { readonly movimientos: readonly Movimiento[] }) {
+  return (
+    <section aria-labelledby="el-dia-titulo" className="flex flex-col gap-(--espacio-3)">
+      <h2 id="el-dia-titulo" className="font-semibold">
+        El día
+      </h2>
+      <Tabla
+        etiqueta="Movimiento del día"
+        columnas={COLUMNAS_DEL_DIA}
+        filas={movimientos}
+        claveDe={(m) => m.clave}
+        alto="max-h-none"
+      />
+    </section>
+  );
+}
+
+/**
+ * La respuesta a «¿cuadró?», que es la pregunta de la pantalla.
+ *
+ * Recibe el foco al llegar —`ref` y `tabIndex={-1}`—: «Cerrar el día» se desmonta con
+ * el arqueo y, sin esto, el foco caía al `body` y con lector de pantalla no se oía
+ * nada. Su nombre lleva la palabra y el importe, que es lo que tiene que oírse.
+ *
+ * Las etiquetas van en `text-texto` y no en `text-texto-sutil`: sobre el tinte de la
+ * diferencia el sutil no llega a 4.5:1, y es justo el momento en que se lee el arqueo.
+ */
+function Resultado({
+  corte,
+  ref,
+}: {
+  readonly corte: ResultadoDelCorte;
+  readonly ref: Ref<HTMLElement>;
+}) {
+  const lectura = leerDiferencia(Number(corte.diferenciaCentavos));
+  const { icono: Icono, tinte } = DIFERENCIAS[lectura.tono];
+  // Lo dice el CIERRE, que es quien lo calculo sumando los movimientos del dia.
+  const esperado = Number(corte.efectivoEsperadoCentavos);
+  return (
+    <Superficie
+      como="section"
+      ref={ref}
+      tabIndex={-1}
+      relleno={4}
+      aria-labelledby="corte-titulo corte-lectura"
+      className={`flex flex-col gap-(--espacio-4) outline-none sm:p-(--espacio-6) ${tinte}`}
+    >
+      <h2 id="corte-titulo" className="text-sm font-medium text-texto">
+        Día cerrado
+      </h2>
+      <p
+        id="corte-lectura"
+        className="flex flex-wrap items-center gap-(--espacio-2) text-3xl leading-none font-semibold"
+      >
+        <Icono aria-hidden="true" className="size-[0.9em] shrink-0" />
+        <span>{lectura.palabra}</span>{' '}
+        {lectura.centavos === 0 ? null : (
+          <Dinero
+            centavos={lectura.centavos}
+            tamano="lg"
+            className="text-3xl leading-none font-semibold"
+          />
+        )}
+      </p>
+      <dl className="grid grid-cols-2 gap-(--espacio-3) border-t border-borde pt-(--espacio-3)">
+        <div className="flex flex-col gap-(--espacio-1)">
+          <dt className="text-xs text-texto">Esperado</dt>
+          <dd>
+            <Dinero centavos={esperado} />
+          </dd>
+        </div>
+        <div className="flex flex-col gap-(--espacio-1)">
+          <dt className="text-xs text-texto">Contado</dt>
+          <dd>
+            <Dinero centavos={Number(corte.efectivoContadoCentavos)} />
+          </dd>
+        </div>
+      </dl>
+    </Superficie>
+  );
+}
+
 export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
   const voc = useVocabulario();
   const [estado, setEstado] = useState<EstadoDelSalon | null>(estadoInicial ?? null);
-  const [fondo, setFondo] = useState('');
-  const [contado, setContado] = useState('');
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  // Cada lectura es un número: «Volver a leer» lo sube y el efecto lee otra vez.
+  const [intento, setIntento] = useState(0);
+  const [fondo, setFondo] = useState<number | null>(null);
+  const [contado, setContado] = useState<number | null>(null);
   const [corte, setCorte] = useState<ResultadoDelCorte | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [tropiezo, setTropiezo] = useState<Tropiezo | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  /**
+   * ADONDE VA EL FOCO cuando el botón que se tocó desaparece. «Abrir el día» y
+   * «Cerrar el día» viven en la rama que su propio éxito desmonta: sin llevar el foco
+   * a lo que la sustituye, cae al `body` y con lector de pantalla no se oye ni que el
+   * día se abrió ni si cuadró.
+   */
+  const lineaDelEstado = useRef<HTMLParagraphElement>(null);
+  const resultado = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (estadoInicial !== undefined) return;
@@ -121,7 +380,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
           if (sigueMontada()) setEstado(datos);
         })
         .catch((fallo: unknown) => {
-          if (sigueMontada()) setError(mensajeDe(fallo));
+          if (sigueMontada()) setFalloDeCarga(mensajeDe(fallo));
         });
     };
     const arranque = setTimeout(cargar);
@@ -129,23 +388,27 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
       clearTimeout(arranque);
       control.abort();
     };
-  }, [estadoInicial]);
+  }, [estadoInicial, intento]);
 
   function abrir(): void {
-    const centavos = aCentavos(fondo);
+    const centavos = fondo;
     if (centavos === null) {
-      setError('Revisa el fondo: sólo pesos y centavos.');
+      setTropiezo({ mensaje: 'Revisa el fondo: sólo pesos y centavos.', delServidor: false });
       return;
     }
     setOcupado(true);
-    setError(null);
+    setTropiezo(null);
     invocarComando(RUTA_ABRIR, { fondoInicialCentavos: centavos })
       .then(() => invocarComando<EstadoDelSalon>(RUTA_ESTADO, {}))
       .then((datos) => {
-        setEstado(datos);
+        // Pintado YA, para que la línea «El día está abierto.» exista al enfocarla.
+        flushSync(() => {
+          setEstado(datos);
+        });
+        if (datos.sesionCajaId !== null) lineaDelEstado.current?.focus();
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setTropiezo({ mensaje: mensajeDe(fallo), delServidor: true });
       })
       .finally(() => {
         setOcupado(false);
@@ -153,149 +416,171 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
   }
 
   function cerrar(): void {
-    const centavos = aCentavos(contado);
+    const centavos = contado;
     if (centavos === null) {
-      setError('Pon lo que contaste.');
+      setTropiezo({ mensaje: 'Pon lo que contaste.', delServidor: false });
       return;
     }
     setOcupado(true);
-    setError(null);
+    setTropiezo(null);
     invocarComando<ResultadoDelCorte>(RUTA_CERRAR, { efectivoContadoCentavos: centavos })
-      .then((resultado) => {
-        setCorte(resultado);
+      .then((cierre) => {
+        // Pintado YA, para que la respuesta exista al llevarle el foco.
+        flushSync(() => {
+          setCorte(cierre);
+        });
+        resultado.current?.focus();
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setTropiezo({ mensaje: mensajeDe(fallo), delServidor: true });
       })
       .finally(() => {
         setOcupado(false);
       });
   }
 
-  if (estado === null) {
+  if (falloDeCarga !== null) {
     return (
-      <div className="space-y-4 p-6">
-        <Skeleton className="h-[calc(var(--altura-control)*0.9)] w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <main className={MARCO}>
+        <Encabezado situacion={null} />
+        <ErrorDePantalla
+          titulo="No se pudo leer el estado de la caja."
+          queHacer="Sin él no se sabe si el día está abierto ni qué salió del cajón. Revisa la conexión y vuelve a leerlo: desde aquí no se movió nada."
+          detalle={falloDeCarga}
+          reintentar={
+            <Button
+              type="button"
+              onClick={() => {
+                setFalloDeCarga(null);
+                setIntento((previo) => previo + 1);
+              }}
+            >
+              Volver a leer
+            </Button>
+          }
+        />
+      </main>
+    );
+  }
+
+  if (estado === null) {
+    // La forma del día abierto —que es como se encuentra casi siempre—, no una
+    // rueda: al llegar el estado nada salta de sitio.
+    return (
+      <main className={MARCO}>
+        <Encabezado situacion="leyendo" />
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="Leyendo el estado de la caja"
+          className={REJILLA}
+        >
+          <div className="flex flex-col gap-(--espacio-3)">
+            <Esqueleto className="h-5 w-24" />
+            <Esqueleto className="h-56 w-full rounded-lg" />
+          </div>
+          <Esqueleto className="h-64 w-full rounded-lg" />
+        </div>
+      </main>
     );
   }
 
   const abierta = estado.sesionCajaId !== null;
-  const cerrado = corte !== null;
-  // Lo dice el CIERRE, que es quien lo calculo sumando los movimientos del dia.
-  const esperado = Number(corte?.efectivoEsperadoCentavos ?? 0);
 
-  return (
-    <main className="mx-auto max-w-2xl space-y-6 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Caja y corte</h1>
-        <p className="text-muted-foreground text-sm">
-          {abierta ? 'El día está abierto.' : 'Ábrelo para poder cobrar.'}
-        </p>
-      </header>
-
-      {error !== null && (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      )}
-
-      {!abierta && (
-        <section className="space-y-3 rounded-lg border p-4">
-          <Label htmlFor="fondo">Fondo con el que abres</Label>
-          <Input
-            id="fondo"
-            inputMode="decimal"
-            className="h-[calc(var(--altura-control)*1.4)] w-40 text-right text-lg"
-            value={fondo}
-            onChange={(evento) => {
-              setFondo(evento.target.value);
-            }}
+  if (!abierta) {
+    return (
+      <main className={MARCO}>
+        <Encabezado situacion="cerrada" />
+        {/* El vacío de esta pantalla: sin caja no hay día que enseñar, y lo que
+            toca es abrirla con el botón grande. */}
+        <Superficie
+          como="section"
+          relleno={4}
+          aria-label="Abrir la caja"
+          className="flex flex-col gap-(--espacio-4) sm:p-(--espacio-6) xl:max-w-xl"
+        >
+          <Vacio
+            icono={<LockKeyhole />}
+            titulo="La caja está cerrada"
+            explicacion="El fondo es lo que dejas en el cajón para dar cambio, y contra él se cuadra el corte de la noche."
+            className="items-start gap-(--espacio-2) p-0 text-left"
           />
-          <Button
-            className="h-[calc(var(--altura-control)*1.4)] w-full text-base"
-            disabled={ocupado}
-            onClick={abrir}
-          >
+          <div className="flex flex-col gap-(--espacio-2)">
+            <Label htmlFor="fondo" className="text-base font-semibold">
+              Fondo con el que abres
+            </Label>
+            <CampoDeDinero
+              id="fondo"
+              tamano="grande"
+              centavos={fondo}
+              alCambiar={setFondo}
+              aria-invalid={tropiezo !== null && !tropiezo.delServidor}
+            />
+          </div>
+          <AvisoDeTropiezo tropiezo={tropiezo} />
+          <Button size="lg" className={BOTON_DEL_DIA} cargando={ocupado} onClick={abrir}>
             Abrir el día
           </Button>
-        </section>
-      )}
+        </Superficie>
+      </main>
+    );
+  }
 
-      {abierta && (
-        <>
-          <section className="space-y-2 rounded-lg border p-4">
-            <h2 className="font-medium">El día</h2>
-            <p className="flex justify-between">
-              <span>Cobrado</span>
-              <span className="tabular-nums">{pesos(estado.cobradoCentavos)}</span>
-            </p>
-            <p className="flex justify-between">
-              <span>Rentas cobradas</span>
-              <span className="tabular-nums">{pesos(estado.rentasCobradasCentavos)}</span>
-            </p>
-            <Separator />
-            {/* La salida más grande del día, y sale del mismo cajón: un corte
-                que no la ve encuentra $18,000 de menos un viernes cada quince. */}
-            <p className="flex justify-between">
-              <span>Liquidaciones pagadas</span>
-              <span className="tabular-nums">− {pesos(estado.liquidacionesCentavos)}</span>
-            </p>
-            <p className="flex justify-between">
-              <span>Propinas entregadas</span>
-              <span className="tabular-nums">− {pesos(estado.propinasEntregadasCentavos)}</span>
-            </p>
-            <p className="text-muted-foreground text-sm">
-              La propina no es un gasto del salón: es dinero de {voc.enFrase('cliente', true)} que
-              pasó por el cajón.
-            </p>
-          </section>
+  const cerrado = corte !== null;
+  const notaDePropina = `La propina no es un gasto del salón: es dinero de ${voc.enFrase('cliente', true)} que pasó por el cajón.`;
+  const sinCerrar = estado.citasSinCerrar;
 
-          {estado.citasSinCerrar > 0 && (
-            <p className="text-sm">
-              Hay {estado.citasSinCerrar} servicio{estado.citasSinCerrar === 1 ? '' : 's'} sin
-              cerrar. Sin cerrarlos, el producto de cabina no se descontó y el inventario de tinte
-              queda inflado.
-            </p>
+  return (
+    <main className={MARCO}>
+      <Encabezado situacion={cerrado ? 'cortada' : 'abierta'} refDeLaLinea={lineaDelEstado} />
+
+      <div className={REJILLA}>
+        <ElDia movimientos={movimientosDe(estado, notaDePropina)} />
+
+        <div className="flex flex-col gap-(--espacio-4)">
+          {sinCerrar > 0 && (
+            <Aviso
+              tono="atencion"
+              titulo={`Hay ${voc.conNumero('linea_orden', sinCerrar)} sin cerrar`}
+            >
+              Sin cerrarl{voc.terminacion('linea_orden', sinCerrar !== 1)}, el producto de cabina no
+              se descontó y el inventario de tinte queda inflado.
+            </Aviso>
           )}
 
-          {!cerrado && (
-            <section className="space-y-3 rounded-lg border p-4">
-              <Label htmlFor="contado">Lo que contaste en el cajón</Label>
-              <Input
-                id="contado"
-                inputMode="decimal"
-                className="h-[calc(var(--altura-control)*1.4)] w-40 text-right text-lg"
-                value={contado}
-                onChange={(evento) => {
-                  setContado(evento.target.value);
-                }}
-              />
-              <Button
-                className="h-[calc(var(--altura-control)*1.4)] w-full text-base"
-                disabled={ocupado}
-                onClick={cerrar}
-              >
+          {cerrado ? (
+            <Resultado corte={corte} ref={resultado} />
+          ) : (
+            <Superficie
+              como="section"
+              relleno={4}
+              aria-labelledby="contado-titulo"
+              className="flex flex-col gap-(--espacio-4) sm:p-(--espacio-6)"
+            >
+              <div className="flex flex-col gap-(--espacio-2)">
+                <Label id="contado-titulo" htmlFor="contado" className="text-base font-semibold">
+                  Lo que contaste en el cajón
+                </Label>
+                {/* A ciegas: con el esperado delante, todo el mundo teclea ese número. */}
+                <p className="text-sm text-texto-sutil">
+                  Haz el conteo sin ver el esperado: aparece al cerrar, con la diferencia.
+                </p>
+                <CampoDeDinero
+                  id="contado"
+                  tamano="grande"
+                  centavos={contado}
+                  alCambiar={setContado}
+                  aria-invalid={tropiezo !== null && !tropiezo.delServidor}
+                />
+              </div>
+              <AvisoDeTropiezo tropiezo={tropiezo} siRechaza="El día sigue abierto." />
+              <Button size="lg" className={BOTON_DEL_DIA} cargando={ocupado} onClick={cerrar}>
                 Cerrar el día
               </Button>
-            </section>
+            </Superficie>
           )}
-
-          {cerrado && (
-            <section className="space-y-2 rounded-lg border p-4">
-              <h2 className="font-medium">Día cerrado</h2>
-              <p className="text-muted-foreground text-sm">
-                Esperado {pesos(esperado)} · contado{' '}
-                {PESOS.format(Number(corte.efectivoContadoCentavos) / 100)}
-              </p>
-              <p className="text-2xl font-semibold">
-                {leerDiferencia(Number(corte.diferenciaCentavos))}
-              </p>
-            </section>
-          )}
-        </>
-      )}
+        </div>
+      </div>
     </main>
   );
 }

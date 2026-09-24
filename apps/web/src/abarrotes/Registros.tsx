@@ -3,10 +3,24 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState } from 'react';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+  type TamanoDeDinero,
+  type TonoDeFila,
+} from '@morphiqpos/ui/sistema';
+import { CalendarX, CircleAlert, ListFilter, Package, Receipt, Wallet } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -36,6 +50,15 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * contestar una pregunta de una, y a las diez de la noche eso es una pantalla
  * que se cierra sin usar.
  *
+ * ── Cómo se lee, en la PC del mostrador ─────────────────────────────────
+ * `04-INTERFAZ` §4.3: el dispositivo principal es la PC y la densidad es alta.
+ * Es una TABLA densa de un renglón por hecho —hora, tipo, qué pasó, detalle e
+ * importe—, con la hora en cifras tabulares a la izquierda porque es por donde
+ * entra la pregunta. Lo que hay que preguntar hoy se tiñe de peligro y lo DICE
+ * en la celda; la cancelación se tiñe de advertencia y su importe va tachado.
+ * En el teléfono del dueño la misma tabla se queda en hora, qué pasó e importe,
+ * con el detalle en un segundo renglón chico: se lee igual, de arriba abajo.
+ *
  * ── Alcance recortado, dicho aquí ───────────────────────────────────────
  * Caben la línea de tiempo del día, el filtro por tipo y el detalle de cada
  * renglón. Queda fuera la exportación, que es del reporte y no del registro.
@@ -52,7 +75,15 @@ const TIPOS = [
 
 type Tipo = (typeof TIPOS)[number]['clave'];
 
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+/** De dónde sale un renglón: las tres fuentes de la línea de tiempo. */
+type Origen = Exclude<Tipo, 'todo'>;
+
+/** La forma de cada fuente, además de su palabra: el color no es lo único que la dice. */
+const ICONOS: Readonly<Record<Origen, ReactNode>> = {
+  venta: <Receipt aria-hidden="true" className="size-4 shrink-0" />,
+  caja: <Wallet aria-hidden="true" className="size-4 shrink-0" />,
+  inventario: <Package aria-hidden="true" className="size-4 shrink-0" />,
+};
 
 /**
  * LAS TRES FUENTES, con los nombres que el puente SIRVE.
@@ -100,10 +131,18 @@ export interface MovimientoDeInventario {
 export interface RenglonDeRegistro {
   readonly id: string;
   readonly hora: string;
-  readonly tipo: Tipo;
+  readonly tipo: Origen;
   readonly titulo: string;
   readonly detalle: string;
-  readonly importe: string | null;
+  /**
+   * EN CENTAVOS, y en la caja CON SIGNO: lo que entra al cajón y lo que sale. `null`
+   * en inventario, que mueve piezas y no dinero. Se pinta con `<Dinero>`, nunca aquí.
+   */
+  readonly importeCentavos: number | null;
+  /** Cuánto se movió de inventario. `null` en lo que no es inventario. */
+  readonly cantidad: number | null;
+  /** La venta cobrada que se canceló: su importe va tachado, no borrado. */
+  readonly cancelada: boolean;
   /** Lo que hay que preguntar esta misma noche. */
   readonly sinExplicacion: boolean;
 }
@@ -115,12 +154,27 @@ export interface RegistrosProps {
   readonly inventarioInicial?: readonly MovimientoDeInventario[];
 }
 
-function pesos(centavos: number): string {
-  return PESOS.format(centavos / 100);
-}
-
 function hora(fecha: string): string {
   return fecha.slice(11, 16);
+}
+
+/**
+ * HOY, con el año, el mes y el día de la hora LOCAL: `AAAA-MM-DD`.
+ *
+ * Decía `new Date().toISOString().slice(0, 10)`, que es la fecha en UTC: en México,
+ * desde las seis de la tarde ya es mañana, así que a las 22:45 —cuando el dueño
+ * revisa— la pantalla abría en el día siguiente y decía «Ese día no tiene
+ * movimientos». Es el mismo error de UTC contra hora local que el rango del día.
+ */
+function hoyEnHoraLocal(): string {
+  const ahora = new Date();
+  const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+  const dia = String(ahora.getDate()).padStart(2, '0');
+  return `${String(ahora.getFullYear())}-${mes}-${dia}`;
+}
+
+function mensajeDe(fallo: unknown, porOmision: string): string {
+  return fallo instanceof Error ? fallo.message : porOmision;
 }
 
 /** Lo que sale del cajón sin explicación. Entrar no necesita motivo; salir sí. */
@@ -145,6 +199,12 @@ export function componerLinea(
    * plantillas— decía «Venta» en una ferretería que sólo habla de notas.
    */
   comoSeLlamaLaVenta = 'Venta',
+  /**
+   * Cómo se llama lo que entra y sale del anaquel cuando el movimiento no trae
+   * nombre: «producto» en la tiendita, «material» en la ferretería. Decía «insumo»,
+   * que es la palabra de la cocina y en una tienda está apagada.
+   */
+  comoSeLlamaElProducto = 'producto',
 ): readonly RenglonDeRegistro[] {
   const renglones: RenglonDeRegistro[] = [];
 
@@ -158,7 +218,11 @@ export function componerLinea(
       // Quién la hizo va EN la línea: cancelar una venta cobrada es la
       // operación más sensible del mostrador, y nadie abre la ficha de cada una.
       detalle: venta.usuario_cajero_nombre ?? 'sin firma',
-      importe: pesos(Math.round((venta.total ?? 0) * 100)),
+      // `total` llega en PESOS (`conversion: 'dinero'`): a centavos contando dígitos,
+      // no multiplicando coma flotante.
+      importeCentavos: centavosDelPuente(venta.total) ?? 0,
+      cantidad: null,
+      cancelada,
       sinExplicacion: cancelada && venta.usuario_cajero_nombre === null,
     });
   }
@@ -170,7 +234,9 @@ export function componerLinea(
       tipo: 'caja',
       titulo: movimiento.tipo.replace(/_/g, ' '),
       detalle: movimiento.motivo ?? movimiento.empleado_nombre ?? 'sin motivo',
-      importe: pesos(movimiento.monto_centavos),
+      importeCentavos: movimiento.monto_centavos,
+      cantidad: null,
+      cancelada: false,
       sinExplicacion: saleSinExplicacion(movimiento),
     });
   }
@@ -181,13 +247,91 @@ export function componerLinea(
       hora: hora(fila.created_date),
       tipo: 'inventario',
       titulo: fila.tipo_movimiento.replace(/_/g, ' '),
-      detalle: `${fila.ingrediente_nombre ?? 'insumo'} · ${String(fila.cantidad)}`,
-      importe: null,
+      detalle: fila.ingrediente_nombre ?? comoSeLlamaElProducto,
+      importeCentavos: null,
+      cantidad: fila.cantidad,
+      cancelada: false,
       sinExplicacion: false,
     });
   }
 
   return renglones.sort((a, b) => b.hora.localeCompare(a.hora));
+}
+
+/** Los decimales que la cantidad TRAE, hasta tres: 1.5 kg no se redondea a 2. */
+function decimalesDe(cantidad: number): number {
+  const [, fraccion = ''] = String(cantidad).split('.');
+  return Math.min(3, fraccion.length);
+}
+
+/** El detalle del renglón: quién o por qué, y en inventario cuánto. */
+function Detalle({
+  renglon,
+  tamano,
+}: {
+  readonly renglon: RenglonDeRegistro;
+  readonly tamano: TamanoDeDinero;
+}) {
+  if (renglon.cantidad === null) return <>{renglon.detalle}</>;
+  return (
+    <>
+      {renglon.detalle} ·{' '}
+      <Cifra valor={renglon.cantidad} decimales={decimalesDe(renglon.cantidad)} tamano={tamano} />
+    </>
+  );
+}
+
+/** Lo que se pinta en la columna del dinero. La caja lleva signo: entra o sale. */
+function Importe({ renglon }: { readonly renglon: RenglonDeRegistro }) {
+  if (renglon.importeCentavos === null) return <span className="text-texto-sutil">—</span>;
+  return (
+    <Dinero
+      centavos={renglon.importeCentavos}
+      tamano="sm"
+      conSigno={renglon.tipo === 'caja'}
+      className={renglon.cancelada ? 'line-through' : ''}
+    />
+  );
+}
+
+/**
+ * El tono de la fila, y NUNCA solo: la celda dice «sin explicación» o «cancelada».
+ * Lo que hay que preguntar hoy gana sobre la cancelación que sí tiene firma.
+ */
+function tonoDe(renglon: RenglonDeRegistro): TonoDeFila | undefined {
+  if (renglon.sinExplicacion) return 'peligro';
+  if (renglon.cancelada) return 'advertencia';
+  return undefined;
+}
+
+/** Cargando: la forma de la tabla que viene —hora, tipo, qué pasó, importe—. */
+function EsqueletoDeRegistros() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Leyendo los registros del día"
+      className="flex flex-col rounded-lg border border-borde"
+    >
+      <div className="flex items-center gap-(--espacio-4) bg-fondo-sutil px-(--espacio-3) py-(--espacio-2)">
+        <Esqueleto className="h-3 w-10" />
+        <Esqueleto className="hidden h-3 w-16 sm:block" />
+        <Esqueleto className="h-3 w-24" />
+        <Esqueleto className="ml-auto h-3 w-16" />
+      </div>
+      {Array.from({ length: 8 }, (_, indice) => (
+        <div
+          key={indice}
+          className="flex items-center gap-(--espacio-4) border-t border-borde px-(--espacio-3) py-(--espacio-2)"
+        >
+          <Esqueleto className="h-4 w-10" />
+          <Esqueleto className="hidden h-4 w-20 sm:block" />
+          <Esqueleto className="h-4 flex-1" />
+          <Esqueleto className="h-4 w-20" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function Registros({
@@ -206,6 +350,14 @@ export function Registros({
   const [inventario, setInventario] = useState<readonly MovimientoDeInventario[] | null>(
     inventarioInicial ?? null,
   );
+  /** Lo que no se pudo leer. Una lista vacía por un 400 diría «no pasó nada», y mentiría. */
+  const [fallo, setFallo] = useState<string | null>(null);
+  // Cada lectura es un número: «Volver a leer» lo sube y el efecto lee otra vez.
+  const [intento, setIntento] = useState(0);
+  const conTodoInicial =
+    ventasIniciales !== undefined &&
+    movimientosIniciales !== undefined &&
+    inventarioInicial !== undefined;
 
   useEffect(() => {
     if (dia !== undefined || fecha !== '') return;
@@ -213,7 +365,7 @@ export function Registros({
     // desajuste de hidratación garantizado. Y en un `setTimeout`: escribir
     // estado de forma síncrona aquí encadena renders.
     const arranque = setTimeout(() => {
-      setFecha(new Date().toISOString().slice(0, 10));
+      setFecha(hoyEnHoraLocal());
     });
     return () => {
       clearTimeout(arranque);
@@ -241,6 +393,9 @@ export function Registros({
      * sobre el día entero, que es lo único que existe para contar. Es el mismo
      * defecto que la agenda del salón tuvo con `Cita`, y se arregla igual: por rango.
      *
+     * Por lo mismo, un `.catch` ya no deja la lista vacía: pinta el error, y el
+     * vacío queda para el día que de verdad no tuvo nada.
+     *
      * Cada entidad nombra su fecha a su manera y hay que respetarlo: `Venta` y
      * `MovimientoInventario` sirven `created_date`; `MovimientoCaja`, `created_at`.
      *
@@ -265,8 +420,8 @@ export function Registros({
         .then((filas) => {
           if (sigueMontada()) setVentas(filas);
         })
-        .catch(() => {
-          if (sigueMontada()) setVentas([]);
+        .catch((error: unknown) => {
+          if (sigueMontada()) setFallo(mensajeDe(error, 'No se pudieron leer las ventas.'));
         });
       consultarPuente<MovimientoRegistrado>('MovimientoCaja', {
         rango: delDia('created_at'),
@@ -276,8 +431,9 @@ export function Registros({
         .then((filas) => {
           if (sigueMontada()) setMovimientos(filas);
         })
-        .catch(() => {
-          if (sigueMontada()) setMovimientos([]);
+        .catch((error: unknown) => {
+          if (sigueMontada())
+            setFallo(mensajeDe(error, 'No se pudieron leer los movimientos de caja.'));
         });
       consultarPuente<MovimientoDeInventario>('MovimientoInventario', {
         rango: delDia('created_date'),
@@ -287,8 +443,9 @@ export function Registros({
         .then((filas) => {
           if (sigueMontada()) setInventario(filas);
         })
-        .catch(() => {
-          if (sigueMontada()) setInventario([]);
+        .catch((error: unknown) => {
+          if (sigueMontada())
+            setFallo(mensajeDe(error, 'No se pudieron leer los movimientos de inventario.'));
         });
     };
     const arranque = setTimeout(cargar);
@@ -296,80 +453,237 @@ export function Registros({
       clearTimeout(arranque);
       control.abort();
     };
-  }, [fecha, ventasIniciales, movimientosIniciales, inventarioInicial]);
+  }, [fecha, ventasIniciales, movimientosIniciales, inventarioInicial, intento]);
+
+  /**
+   * Se limpia EN EL GESTO, no en el efecto: al cambiar de día lo del día anterior no
+   * se queda en pantalla con la fecha nueva encima, que es leer un día por otro.
+   */
+  function olvidarLoLeido(): void {
+    setFallo(null);
+    if (conTodoInicial) return;
+    setVentas(null);
+    setMovimientos(null);
+    setInventario(null);
+  }
+
+  function volverALeer(): void {
+    olvidarLoLeido();
+    setIntento((previo) => previo + 1);
+  }
+
+  const nombreDeVenta = voc.titulo('orden') === '' ? 'Venta' : voc.titulo('orden');
+  const nombreDelProducto = voc.singular('producto') === '' ? 'producto' : voc.singular('producto');
+  const ventasEnFrase =
+    voc.enFrase('orden', true) === '' ? 'las ventas' : voc.enFrase('orden', true);
 
   const cargando = ventas === null || movimientos === null || inventario === null;
-  const linea = cargando ? [] : componerLinea(ventas, movimientos, inventario, voc.titulo('orden'));
+  const linea = cargando
+    ? []
+    : componerLinea(ventas, movimientos, inventario, nombreDeVenta, nombreDelProducto);
   const visibles = tipo === 'todo' ? linea : linea.filter((r) => r.tipo === tipo);
   const porPreguntar = linea.filter((r) => r.sinExplicacion).length;
 
-  return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Registros</h1>
-        <p className="text-muted-foreground text-sm">Qué pasó, en orden y en una sola lista.</p>
-      </header>
+  function etiquetaDe(opcion: (typeof TIPOS)[number]): string {
+    return 'voz' in opcion && voc.titulo(opcion.voz, true) !== ''
+      ? voc.titulo(opcion.voz, true)
+      : opcion.etiqueta;
+  }
 
-      <div className="flex flex-wrap items-end gap-3">
+  function cuantosDe(clave: Tipo): number {
+    return clave === 'todo' ? linea.length : linea.filter((r) => r.tipo === clave).length;
+  }
+
+  /** La palabra de cada fuente en su columna: «Venta» la pone el giro. */
+  function nombreDeOrigen(origen: Origen): string {
+    if (origen === 'venta') return nombreDeVenta;
+    return origen === 'caja' ? 'Caja' : 'Inventario';
+  }
+
+  const columnas: readonly ColumnaDeTabla<RenglonDeRegistro>[] = [
+    {
+      clave: 'hora',
+      titulo: 'Hora',
+      // Ordenable: de lo más reciente a lo más viejo por omisión, y al revés para
+      // leer el día como pasó.
+      orden: (r) => r.hora,
+      celda: (r) => <span className="font-numeros text-texto-sutil tabular-nums">{r.hora}</span>,
+    },
+    {
+      clave: 'tipo',
+      titulo: 'Tipo',
+      desde: 'sm',
+      celda: (r) => (
+        <span className="inline-flex items-center gap-(--espacio-2) whitespace-nowrap text-texto-sutil">
+          {ICONOS[r.tipo]}
+          {nombreDeOrigen(r.tipo)}
+        </span>
+      ),
+    },
+    {
+      clave: 'que',
+      titulo: 'Qué pasó',
+      celda: (r) => (
+        <span className="flex flex-col gap-(--espacio-1)">
+          <span className="flex flex-wrap items-center gap-x-(--espacio-2)">
+            <span className="inline-block font-medium first-letter:uppercase">{r.titulo}</span>
+            {r.sinExplicacion && (
+              <span className="inline-flex items-center gap-(--espacio-1) text-xs font-semibold text-peligro">
+                <CircleAlert aria-hidden="true" className="size-4 shrink-0" />
+                sin explicación
+              </span>
+            )}
+          </span>
+          {/* En el teléfono el detalle no cabe en su columna: va aquí, chico. */}
+          <span className="text-xs text-texto-sutil md:hidden">
+            <span className="sm:hidden">{nombreDeOrigen(r.tipo)} · </span>
+            <Detalle renglon={r} tamano="xs" />
+          </span>
+        </span>
+      ),
+    },
+    {
+      clave: 'detalle',
+      titulo: 'Detalle',
+      desde: 'md',
+      celda: (r) => (
+        <span className="text-texto-sutil">
+          <Detalle renglon={r} tamano="sm" />
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (r) => <Importe renglon={r} />,
+    },
+  ];
+
+  const vacio =
+    linea.length === 0 ? (
+      <Vacio
+        icono={<CalendarX />}
+        titulo="Ese día no tiene movimientos."
+        explicacion={`Aquí salen, en orden, ${ventasEnFrase}, los movimientos de caja y los de inventario de ese día. Elige otro día arriba.`}
+      />
+    ) : (
+      <Vacio
+        icono={<ListFilter />}
+        titulo="Ese día no tiene movimientos de este tipo."
+        accion={
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setTipo('todo');
+            }}
+          >
+            Ver todo
+          </Button>
+        }
+      />
+    );
+
+  const contenido = (() => {
+    if (fallo !== null) {
+      return (
+        <ErrorDePantalla
+          titulo="No se pudo leer lo que pasó ese día."
+          queHacer="Sin eso, esta lista diría que no pasó nada, y no sería cierto. Revisa la conexión y vuelve a leerlo: desde aquí no se cambia nada."
+          detalle={fallo}
+          reintentar={
+            <Button type="button" onClick={volverALeer}>
+              Volver a leer
+            </Button>
+          }
+        />
+      );
+    }
+    // La forma de la tabla, nunca una rueda: el ojo ya sabe dónde va a mirar.
+    if (cargando) return <EsqueletoDeRegistros />;
+    return (
+      <Tabla
+        etiqueta="Registros del día"
+        columnas={columnas}
+        filas={visibles}
+        claveDe={(r) => r.id}
+        tonoDeFila={tonoDe}
+        alto="max-h-[70vh]"
+        vacio={vacio}
+      />
+    );
+  })();
+
+  return (
+    <main className="mx-auto flex max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-4) md:p-(--espacio-6)">
+      <header className="flex flex-wrap items-end justify-between gap-(--espacio-4)">
         <div>
+          <h1 className="text-2xl font-semibold">Registros</h1>
+          <p className="text-sm text-texto-sutil">Qué pasó, en orden y en una sola lista.</p>
+        </div>
+        <div className="flex flex-col gap-(--espacio-1)">
           <Label htmlFor="dia">Día</Label>
           <Input
             id="dia"
             type="date"
-            className="h-[calc(var(--altura-control)*1.2)] w-48"
+            className="h-[calc(var(--altura-control)*1.2)] w-48 font-numeros tabular-nums"
             value={fecha}
             onChange={(evento) => {
+              olvidarLoLeido();
               setFecha(evento.target.value);
             }}
           />
         </div>
-        <div className="flex gap-2">
-          {TIPOS.map((opcion) => (
+      </header>
+
+      {/* Un control segmentado: se elige UNO, y cada uno dice cuántos hay ese día. Del
+          alto de control por omisión y no `sm`: con 4 px entre uno y otro, sólo el
+          tamaño los deja en el área táctil del sistema, y el dueño lo abre en el
+          teléfono. */}
+      <Superficie
+        role="group"
+        aria-label="Qué enseñar"
+        nivel={0}
+        radio="md"
+        relleno={0}
+        className="flex w-fit flex-wrap gap-(--espacio-1) bg-fondo-sutil p-(--espacio-1)"
+      >
+        {TIPOS.map((opcion) => {
+          const elegida = tipo === opcion.clave;
+          return (
             <Button
               key={opcion.clave}
               type="button"
-              aria-pressed={tipo === opcion.clave}
-              variant={tipo === opcion.clave ? 'default' : 'outline'}
+              aria-pressed={elegida}
+              variant={elegida ? 'default' : 'ghost'}
               onClick={() => {
                 setTipo(opcion.clave);
               }}
             >
-              {'voz' in opcion && voc.titulo(opcion.voz, true) !== ''
-                ? voc.titulo(opcion.voz, true)
-                : opcion.etiqueta}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {porPreguntar > 0 && (
-        <p className="text-sm">
-          Hay {porPreguntar} movimiento{porPreguntar === 1 ? '' : 's'} sin explicación. Es lo que
-          hay que preguntar hoy, no mañana.
-        </p>
-      )}
-
-      {cargando && <Skeleton className="h-64 w-full" />}
-
-      {!cargando && visibles.length === 0 && (
-        <p className="text-muted-foreground">Ese día no tiene movimientos.</p>
-      )}
-
-      <ul className="divide-y">
-        {visibles.map((renglon) => (
-          <li key={renglon.id} className="flex items-baseline gap-4 py-2">
-            <span className="w-14 tabular-nums">{renglon.hora}</span>
-            <span className="flex-1">
-              <span className="font-medium capitalize">{renglon.titulo}</span>
-              <span className="text-muted-foreground ml-2 text-sm">{renglon.detalle}</span>
-              {renglon.sinExplicacion && (
-                <span className="text-destructive ml-2 text-sm">sin explicación</span>
+              {etiquetaDe(opcion)}
+              {cargando || fallo !== null ? null : (
+                <span
+                  className={`font-numeros text-xs tabular-nums ${elegida ? '' : 'text-texto-sutil'}`}
+                >
+                  {cuantosDe(opcion.clave)}
+                </span>
               )}
-            </span>
-            {renglon.importe !== null && <span className="tabular-nums">{renglon.importe}</span>}
-          </li>
-        ))}
-      </ul>
+            </Button>
+          );
+        })}
+      </Superficie>
+
+      {porPreguntar > 0 && fallo === null && (
+        <Aviso
+          tono="atencion"
+          titulo={`Hay ${String(porPreguntar)} movimiento${porPreguntar === 1 ? '' : 's'} sin explicación.`}
+        >
+          Es lo que hay que preguntar hoy, no mañana.
+        </Aviso>
+      )}
+
+      {contenido}
     </main>
   );
 }

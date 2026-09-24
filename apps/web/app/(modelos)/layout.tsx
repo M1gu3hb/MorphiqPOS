@@ -36,7 +36,7 @@ export default async function LayoutDeModelos({ children }: { children: ReactNod
 
   return (
     <ProveedorDeVocabulario terminos={terminos}>
-      <div className="min-h-dvh bg-background text-foreground">{children}</div>
+      <div className="min-h-dvh bg-fondo text-texto">{children}</div>
     </ProveedorDeVocabulario>
   );
 }

@@ -3995,3 +3995,1565 @@ la salida literal de las puertas, la URL de producción y la lista completa de l
 rastreador con su arreglo. Lo que queda fuera son dos cosas que no arregla el código y están
 escritas con sus comandos: el bucket de archivos (una credencial S3 de Supabase) y la decisión de
 producto del pedido anticipado.
+
+---
+
+# ETAPA 2.35 · EL DISEÑO
+
+Miguel entró a ver el sistema y lo primero que dijo fue que el diseño está horrible. Tenía razón, y
+la causa estaba medida: **`packages/ui/src/estilos/index.css` no lo importaba nadie.**
+
+## BLOQUE 0 · lo que quedó de la 2.3
+
+### 0.1 · EL RASTREADOR, EN CI
+
+No estaba en `.github/workflows/`, así que una regresión de botón muerto volvía sin que nada la
+detectara. Ahora es un trabajo propio, **en matriz de cinco** —uno por modelo, `fail-fast: false`—
+y cada uno **se provisiona solo**: su Postgres, sus migraciones, su negocio de demostración con su
+equipo y su catálogo, su build y su servidor. No habla con producción ni con el preview: sin
+secretos, y por eso corre en el pull request de cualquiera.
+
+Los cinco en serie son 42 minutos de reloj; en matriz, el reloj es el del modelo más lento. Y el
+rastreo **no reintenta**: la configuración da un reintento en CI para distinguir fragilidad de un
+contenedor con mal día, y aquí eso duplicaría el trabajo más lento de la tubería para volver a tirar
+el dado sobre algo que no falla una vez de cada tres.
+
+`scripts/sembrar-demos.mjs` reventaba con `ENOENT .env` antes de leer una sola variable, lo que lo
+dejaba fuera de cualquier sitio que no fuera una laptop. Ahora si no hay `.env` no pasa nada: las
+variables llegan por el entorno del trabajo.
+
+### 0.2 a 0.5 · EL RASTREADOR, COMPLETO
+
+**0.2 · El tercio que faltaba.** El encargo pedía «botón, enlace y FORMULARIO» y el selector sólo
+miraba botones y enlaces. Ahora hay **cuatro clases de pieza y cada una con su promesa**:
+
+| Clase | Qué se le exige |
+| --- | --- |
+| `boton` | que pase algo: petición, URL, DOM, diálogo o pestaña |
+| `campo` | que lo que se teclea SE QUEDE |
+| `eleccion` | que lo que se elige SE QUEDE |
+| `marca` | que la marca CAMBIE de estado |
+
+Más el `<form>`, que se **envía** con `requestSubmit` —el camino del Enter, no el del botón— y que
+tiene que hacer algo aunque sea que el servidor lo rechace. Para eso hay una **ventana de sondeo**:
+mientras se manda basura a propósito, un 400 o un 422 de la API es la validación funcionando y no
+una respuesta rota. Un 404 sigue siendo una ruta que no existe y un 5xx sigue siendo que revienta.
+
+**0.3 · Profundidad 2.** El ámbito era el `main` y Radix monta diálogos, menús y listas en un portal
+al final del `body`; y como entre toque y toque se RECARGA, la recarga cerraba el diálogo antes de
+que nadie mirara dentro. Todo lo que vive dentro de un diálogo de cobro, de alta o de confirmación
+**no lo tocaba nadie**.
+
+**0.4 · Lo que quedó sin tocar, dicho y con techo.** El cubo `inalcanzables` se llenaba, se anotaba
+«si hay alguno» y su tamaño no salía en ninguna parte: una corrida en la que la mitad de las piezas
+no se pudieron volver a encontrar se leía igual de verde que una en la que se tocó todo. Ahora sale
+en el resumen con su porcentaje, cada una con su ruta y su motivo en la bitácora, y **por encima del
+15 % la corrida falla**: «cero botones muertos» pasaría a significar «cero de los que pude tocar»,
+que es otra frase.
+
+**0.5 · Las cuatro sin menú.** Los dos `acceso-por-pin`, el portal del comensal y el menú público
+están exentas del MENÚ por razones buenas y escritas —se ven antes de que exista sesión, o las abre
+el cliente con un QR—. Exentas del menú no es exentas del rastreo: ahora se llega por su URL. Si con
+sesión abierta una redirige a la casa, se anota y se sigue, que es lo correcto y no un defecto.
+
+### Y OCHO DEFECTOS DEL PROPIO RASTREADOR, antes de creerle nada
+
+La primera corrida con profundidad 2 acusó a **66 piezas** de la tiendita, 36 de ellas con «no se
+pudo tocar» —incluidos «Cancelar» y «Cerrar» de un diálogo que Miguel usa todos los días—. Se midió
+en vez de creerlo: dentro del diálogo de «Registrar gasto», `elementFromPoint` devolvía la pieza
+correcta y `pointer-events` valía `auto` en todas. Un humano las toca sin problema.
+
+| # | Qué tenía | Cómo se vio |
+| --- | --- | --- |
+| 1 | **Buscaba las piezas de la capa por el camino del DOM.** La capa vive en un portal al final del `body`: en cuanto React repinta, esos `nth-child` apuntan a otro nodo —al velo, que sí está cubierto por el diálogo— | 36 «no se pudo tocar» que eran uno solo |
+| 2 | **Un toque puede abrir OTRA capa.** El primer clic del diálogo era un desplegable; su lista se monta encima y tapa el diálogo entero, así que todo lo que venía después estaba de verdad cubierto | ahora, si un toque abre una capa nueva, se cierra antes de seguir |
+| 3 | **La identidad era sólo el rótulo.** El rótulo vacío de un botón casa con el de un campo vacío, así que la posición podía apuntar a otra cosa y `fill` contestaba «Element is not an `<input>`» | ahora se exige la misma etiqueta HTML |
+| 4 | **Un `fill` que no se puede aplicar no es un campo muerto.** «Element is not an `<input>`» y «Malformed value» son límites de la SONDA | van al cubo de «sin alcance», no al de muertos |
+| 5 | **Acusaba con una sola vía.** `fill` pone el valor y lanza un `input`; hay componentes que escuchan `keydown` | antes de acusar se teclea **tecla por tecla**, que sólo puede quitar falsos positivos |
+
+**De 66 hallazgos a 12.** Los 54 que se fueron no eran defectos de la aplicación: eran defectos de
+la prueba, y un falso positivo cuesta lo mismo que un defecto.
+
+### 0.6 · LA PUERTA DE CABECERAS MEDÍA SOBRE UN 404
+
+`verificar-cabeceras.mjs` comprobaba las cabeceras contra **`/estilos`**, una ruta que se borró al
+portar el frontend. Las cabeceras de seguridad las pone el proxy y salen **igual en la página de
+error**, así que la puerta llevaba meses dando verde sin haber mirado una sola pantalla de la
+aplicación. Y lo que comprueba no es decorativo: si los `<script>` de Next no llevaran el nonce, la
+aplicación se serviría sin hidratar —se ve bien y no responde a un clic— y ese verde no lo habría
+notado.
+
+Ahora mide contra `/login-pos`, y **falla si la ruta sonda devuelve 404**, que es el cerrojo que
+faltaba. `docs/ARRANQUE-CODEX.md` mandaba abrir ahí: corregido.
+
+Destructiva que FALLA: devolver `RUTA_SONDA` a `/estilos` → `✗ La ruta sonda … devuelve 404`.
+
+### 0.7 · «SERVIDOR LOCAL» ERA UNA URL DE PRODUCCIÓN
+
+`verificar-acople.mjs` decidía entre «local» y «despliegue» por **cuál variable se había puesto**, no
+por lo que hay al otro lado. Así que una corrida con `APP_URL=https://morphiqpos-kappa.vercel.app`
+—que es exactamente cómo se corrió la vuelta 2.3— imprimía «contra el servidor LOCAL
+(https://…vercel.app)»: el rótulo y la URL de la misma línea se contradecían. Y por esa rama tampoco
+se comprobaba el MURO, que es lo único que distingue «el despliegue contestó» de «la Protección de
+Despliegue contestó por él».
+
+Ahora lo decide el HOST, y el muro se comprueba en cualquier URL que no sea de esta máquina:
+
+```
+despliegue    REMOTO https://morphiqpos-kappa.vercel.app → 200 · sin credencial · sin muro por delante
+```
+
+Destructiva que FALLA: apuntar a un preview con protección →
+`DESPLIEGUE: … contestó un 302 a vercel.com/sso-api, que es la Protección de Despliegue de Vercel y
+no la aplicación`.
+
+### 0.8 · EL ALMACÉN DE ARCHIVOS, CONECTADO
+
+En producción no se podía guardar un solo archivo: `STORAGE_ENDPOINT` valía `http://localhost:9000`.
+Y en la etapa del diseño eso no es un pendiente cualquiera —**el logo del negocio y las imágenes del
+menú son parte del diseño**—.
+
+El endpoint S3 de Supabase **no se puede usar con la credencial que este despliegue tiene**, y está
+medido: con la llave de servicio contesta `InvalidAccessKeyId`, y como *session token* contesta
+«the session token should be a valid JWT token». Este proyecto usa el formato de llaves nuevo
+(`sb_secret_…`), que no es un JWT; la otra vía son llaves de acceso S3, que sólo se crean en el panel.
+
+Así que hay **dos conductores** en `packages/data/src/archivos.ts` y **una sola decisión legible**:
+si el endpoint termina en `/storage/v1` es la API de Supabase; cualquier otra cosa es S3. **S3 sigue
+siendo el de por omisión y no se va**: A-27 exige que el backend corra en la PC de un cliente con su
+MinIO al lado. Las cinco operaciones del conductor nuevo están probadas contra el proyecto de verdad
+—guardar, leer con su `content-type`, copiar, sumar 44 bytes bajo un prefijo, devolver `null` para lo
+que no existe y borrar hasta dejarlo en cero—. Detalle completo en `docs/fase-2/VERCEL-ENTORNO.md §8`.
+
+Y el conductor comprueba que `STORAGE_ACCESS_KEY` sea la referencia del endpoint: la llave de un
+proyecto contra el bucket de otro es el fallo clásico de despliegue, y sin eso se manifiesta como un
+400 del almacenamiento cuatro pantallas más adelante.
+
+---
+
+## BLOQUE 1 · ENCHUFAR EL SISTEMA QUE YA EXISTÍA
+
+### Lo que estaba pasando, medido en el CSS servido
+
+`verify:primitivas` OBLIGA a las 36 primitivas a escribir `shadow-1..4` y `h-(--altura-control)` en
+unos 190 sitios. En el paquete que el navegador recibía:
+
+```
+.shadow-1 …… no existía como regla
+--altura-control …… no estaba declarada en ninguna parte
+--sombra-*, --espacio-* …… cero apariciones
+```
+
+Es decir: **el sistema pintaba con tokens que no existían**, y `width:var(--altura-control)` era una
+declaración inválida que el navegador tiraba. Por eso todo se veía plano y sin jerarquía.
+
+Hoy, en el mismo archivo:
+
+```
+.shadow-1{--tw-shadow:var(--sombra-1);box-shadow:…}
+--altura-control:2.5rem
+--sombra-2:0 1px 3px 0 hsl(var(--sombra-tinte) / .1), …
+--fondo:220 20% 98%
+```
+
+Y medido en el navegador, sobre el tablero de la tiendita: `shadow-1` computa
+`rgba(15, 23, 41, 0.06) 0px 1px 2px 0px` —con el tinte de su azul de tinta, no un gris— y
+`h-(--altura-control)` computa una altura de verdad.
+
+### UN SOLO VOCABULARIO
+
+Había dos: el inglés de shadcn —vivo, el que pintaba todo— y el español de `packages/ui` —con
+contrato, perillas y auditoría de contraste, y muerto—. Dos vocabularios garantizan que uno se queda
+atrás, y uno ya se había quedado.
+
+La unificación va **en un solo sentido**: `packages/ui/src/estilos/morphiq.css` es la fuente, y los
+nombres en inglés son alias suyos. Al revés no serviría: el inglés no tiene perillas, ni contrato, ni
+auditoría. Los 244 archivos del heredado siguen escribiendo `bg-card` y `text-muted-foreground` sin
+cambiar una clase, y **el modo oscuro desapareció de su hoja**: antes había que acordarse de tocar
+dos bloques por cada color.
+
+### EL ESTILO `morphiq`, que es el suyo
+
+Su azul `217 91%`, su fondo `220 20% 98%`, su tinta `222 47% 11%`, su barra casi negra, sus cinco
+colores de gráfica. **Seis valores no se pudieron conservar tal cual, y los seis por la misma razón:
+no llegaban a AA.**
+
+| Token | Suyo | Contraste | Ahora | Contraste |
+| --- | --- | --- | --- | --- |
+| `--primary` (el botón de COBRAR) | `217 91% 55%` | 3.42:1 | `217 91% 45%` | **4.99:1** |
+| `--input` (el borde de un campo) | `215 20% 88%` | 1.33:1 | `215 16% 48%` | **3.21:1** |
+| `--success` | `152 60% 40%` | 3.58:1 | `152 60% 33%` | 4.5+ |
+| `--destructive` | `0 72% 51%` | 4.08:1 | `0 72% 42%` | 4.5+ |
+| `--info` | `199 89% 48%` | bajo | `199 89% 32%` | 4.5+ |
+| `--sidebar-primary` (el activo del menú) | `217 91% 60%` | 3.6:1 | `217 91% 45%` | **4.99:1** |
+
+Todos conservan **su tono y su saturación**, que es la marca; lo único que baja es la claridad. Y la
+auditoría no es una opinión: `packages/ui/src/tokens/sistema.test.ts` calcula cada par en los tres
+estilos y los dos modos, **139 pruebas**.
+
+Cuatro tokens nuevos, y los cuatro porque su paleta ya distinguía lo que el contrato no:
+`acento-suave` y `acento-suave-texto` —la superficie teñida del hover, que no es lo mismo que un
+acento saturado—, `lateral-activo-texto` y `lateral-hover` —la barra es oscura en los dos modos, así
+que su hover no puede salir del acento de la página—.
+
+### Y LAS PERILLAS, ENCHUFADAS
+
+`useApariencia` estaba escrito desde la Fase 1 y **no lo llamaba nadie**. Ahora el servidor pone los
+cinco atributos en el `<html>` —sin ellos no hay `--fondo`, y sin `--fondo` no hay `--background`,
+así que la primera pintura saldría en blanco y negro— y `ProveedorDeApariencia` los vuelve estado
+para poder cambiarlos **sin recargar**. Es la mitad de la etapa 5, ya hecha.
+
+## ETAPA 2.35 · BLOQUE 6 · LAS PUERTAS
+
+Una puerta sirve si se ha visto ROJA. Las cinco se mutaron contra el código real y se miraron
+fallar antes de darlas por buenas; las mutaciones están en el mensaje de cada commit.
+
+### 6.1 · EL RITMO, no sólo el color
+
+`verify:primitivas` ya prohibía literales de color, altura, sombra y variante. Le faltaban cuatro
+que puentean una perilla exactamente igual de bien:
+
+- **espacio** — con `gap-4` fijo, cambiar la densidad a `compacta` no junta **nada**. La perilla
+  queda de adorno.
+- **tipografía** — `text-[13px]` se sale de la escala y no responde a nada.
+- **duración** — las duraciones son tres y salen de la perilla de movimiento. Con una literal, el
+  estilo TERMINAL, que las pone a cero a propósito, **sigue animando**.
+- **curva** — la misma historia con `ease-[cubic-bezier(…)]`.
+
+**El trinquete, y por qué no es una exención disfrazada.** Las 69 pantallas se escribieron con
+literales, que es lo que hace cualquiera cuando los tokens no emiten CSS — y hasta el bloque 1 no
+emitían. Exigir cero hoy dejaría la puerta roja hasta que el bloque 4 convierta las 69, y una
+puerta que lleva semanas en rojo deja de leerse: se salta. Así que la regla se aplica **entera**
+dentro de `packages/ui/src` —la biblioteca tiene que ser ejemplar, y hoy tiene cero— y fuera se
+cuenta contra un techo de **919 literales en 68 archivos** que sólo puede bajar. Un literal nuevo
+pone la puerta roja hoy.
+
+Y cuenta **literales, no archivos**. Con la cuenta por archivo, como estaba al principio, añadir
+un segundo `gap-12` a una pantalla que ya tenía uno no subía el número y el trinquete no trincaba
+nada.
+
+**El quita-comentarios, que ya se equivocó una vez en esta fase.** Un comentario que menciona
+`cn('p-2', 'p-4')` para explicar por qué existe `twMerge` es documentación, no un literal; sin
+quitarlos, la regla acusaba a `utilidades/cn.ts` por su propia explicación. Pero la versión
+ingenua —cortar la línea en el primer `//`— se comió el `https://` de una constante y **escondió
+una mutación que debía fallar**. Ahora se quitan líneas completas que empiezan por `//` o por `*`,
+y bloques `/* */`. Un `//` a mitad de línea puede ser una URL, y se respeta.
+
+### 6.3 · EL MOVIMIENTO REDUCIDO, y el hueco entre dos verdes
+
+De las cuatro cosas que cada estilo tiene que cumplir, `prefers-reduced-motion` era la única sin
+puerta de verdad. Tenía el CSS correcto y una prueba que comprobaba que el bloque existe. Y con
+las dos en verde el movimiento puede seguir encendido, porque lo que decide no es que el bloque
+esté: es la **especificidad**.
+
+```css
+@media (prefers-reduced-motion: reduce) { :root { --duracion-normal: 0ms } }
+[data-estilo='terminal'] { --duracion-normal: 200ms }
+```
+
+Las dos reglas apuntan al mismo `<html>` y las dos valen 0,1,0 —una consulta de medios **no** suma
+especificidad—, así que gana la que va después. Hoy gana la buena por el **orden** de
+`estilos/index.css`, no por ser más fuerte. Y «TERMINAL no tiene movimiento» es lo más natural que
+alguien puede escribir en `terminal.css` el mes que viene.
+
+Se midió: con esa línea añadida, la puerta nueva se pone roja —`--duracion-normal = .2s`— y las
+**370 pruebas de `sistema.test.ts` siguen verdes**. Ése es el hueco, medido en vez de supuesto.
+
+La prueba sube además la perilla a `expresiva` a propósito: si la preferencia del sistema sólo
+ganara con la perilla baja, no estaría ganando.
+
+### 6.4 · LOS OCHO ESTILOS EN UN NAVEGADOR, y los dos botones muertos
+
+«Un estilo que esconde un botón detrás de otro es un botón muerto.» La puerta encontró dos, y
+ninguno lo había traído esta etapa.
+
+**Uno · la rejilla de avisos se tragaba los clics de una esquina de todas las pantallas.**
+`heredado/components/ui/toast.jsx` pinta un `div` `fixed` de 420 px anclado abajo a la derecha,
+con `pointer-events: auto` y **vacío** la mayor parte del tiempo. Y son dos, porque
+`ToastProvider` pinta otro idéntico por fuera. Se le preguntó a `elementFromPoint` qué había
+encima del destino «Caja» del abanico inferior y lo que recibía el toque era la rejilla, no el
+botón. `pointer-events-none` en la rejilla es lo que trae shadcn de origen —esta copia lo perdió—
+y los avisos siguen siendo interactivos porque cada uno ya lleva `pointer-events-auto`.
+
+Toca un archivo del heredado, así que va con su excepción declarada en `aspecto-permitido.json` y
+su motivo escrito: **no cambia un píxel de lo que Miguel ve, cambia dónde llega el dedo.**
+
+**Dos · la isla flotante caía encima del abanico.** Los dos en `bottom-0`, los dos en `z-40`, y
+los dos son patrones **de teléfono** — así que la pantalla que los pide a la vez es justo la que
+importa: el carrito de un pedido en la mesa con su navegación debajo. El «Cobrar» de una quedaba a
+34 px del «Cobrar» de la otra. El abanico ahora **mide** su altura y la publica en
+`--alto-abanico`; la isla se la suma. Medida y no calculada: depende de la densidad, del área
+segura y de si algún destino lleva insignia, y un número a mano acertaría en una densidad de
+cuatro. Un `ResizeObserver` la mantiene al día cuando la perilla cambia **en vivo**.
+
+### El área táctil: una promesa de tres años, y el remedio que era peor
+
+`--area-tactil-minima` estaba declarado en las cuatro densidades y lo usaba **un** componente de
+los treinta y seis. La nota de `base.css` prometía «área de toque extendida», y ese remedio es
+peor que no tenerlo en el caso que importa: un `::after` invisible más grande que el control se
+monta sobre la fila de arriba en una lista con `gap-px` y **se come sus clics**. El botón muerto
+causado por la cura.
+
+Así que la regla es **tamaño o distancia**: un control pasa si su lado corto llega al mínimo de su
+densidad, o si está lo bastante separado como para que un objetivo de ese tamaño centrado en él no
+toque el de ningún otro. Es WCAG 2.5.8 con el número del sistema en vez de su mínimo de 24 px, y
+se mide **contra el token**: si mañana alguien lo baja, lo baja a la vista de todos en `base.css`
+y no escondido en una constante de una prueba.
+
+Dos números cambiaron, los dos con razón:
+
+| Densidad | Control | Mínimo táctil | Por qué |
+| --- | --- | --- | --- |
+| `guantes` | 56 px | 56 px | A lo que se acierta con un guante puesto y con prisa |
+| `comoda` | 48 px | 48 px | La tableta |
+| `normal` | **44 px** (era 40) | 44 px | Es la densidad que recibe una tableta recién configurada, antes de que nadie toque una perilla. Sube el **control** y no sólo el área: un botón que se ve de 40 y se toca en 44 sigue pareciendo pequeño, y el aspecto también informa |
+| `compacta` | 32 px | **24 px** (era 44) | `base.css` ya decía «(operación) en escritorio → compacta»: es la densidad de **ratón y teclado**, y su mínimo es el de WCAG 2.5.8 AA. Exigirle 44 de separación a una densidad cuyo propósito es caber más la dejaría roja para siempre y acabaría en una exención |
+
+Y dos piezas de la tabla se hicieron tocables de verdad: la casilla de selección medía 16×16 y
+ahora marca **la celda entera** —un `<label>` que la llena, no un recuadro invisible que
+sobresale—, y la cabecera ordenable pasa su relleno al botón, de 16 px de alto al mínimo de su
+densidad.
+
+### Lo que esta puerta NO cubre, dicho en vez de supuesto
+
+- **Las composiciones propias de cada pantalla.** 69 × 8 son 552 recorridos, que en CI son horas.
+  `/sistema` tiene una de cada pieza, así que un estilo que rompa una la rompe ahí; una pantalla
+  que ordene mal las suyas, no.
+- **Que cada pantalla reserve hueco al final para su barra fija.** Eso es de cada pantalla.
+
+### Las dos falsas acusaciones que se corrigieron antes de creerlas
+
+La misma disciplina de la 2.3, y por la misma razón: allí costó 66 falsos positivos.
+
+- **`sticky` no es `fixed`.** Metiéndolos en la misma capa, la cabecera pegajosa de la tabla salía
+  «tapada por el abanico» en cuatro estilos, porque en algún punto del scroll pasa por debajo de
+  él. Una pegajosa viaja con su contenido; una fija vive en la ventana. Cuatro acusaciones falsas.
+- **Comparar el flujo contra una barra fija mide el scroll, no un defecto.** Un botón salía
+  «apretado» en `papel` y suelto en `morphiq` sólo por el interlineado, que mueve el contenido a
+  otro sitio. Se compara anclado con anclado y flujo con flujo; dos barras fijas sí entre ellas,
+  porque las dos están siempre donde están.
+
+### En CI
+
+`verify:estilos` va en `pnpm verify` detrás de `verify:primitivas` y es un paso propio del
+workflow. La barrida de los ocho estilos va **antes** del rastreo y en **un solo** modelo: dura
+diez segundos contra catorce minutos, así que un estilo roto se sabe ya en vez de al final; y
+`/sistema` es la misma página en los cinco giros, luego cinco copias serían cuatro veces el mismo
+veredicto.
+
+## ETAPA 2.35 · BLOQUE 4 · APLICARLO A LAS 69 PANTALLAS
+
+### La tercera vez la misma enfermedad, y la última que quedaba
+
+`base.css` declara `--tamano-xs … --tamano-3xl` desde la Fase 1. El contrato los exige.
+`sistema.test.ts` comprueba que están. Y **nadie los mapeaba a Tailwind**: lo que se pintaba
+era la escala por omisión de Tailwind y los siete tokens eran siete declaraciones inertes.
+
+Es el mismo fallo que la hoja de estilos que nadie importaba (bloque 1) y que
+`--area-tactil-minima`, declarado en cuatro densidades y usado por **un** componente de treinta
+y seis (bloque 6.4). Tres veces: un sistema escrito, probado y sin aplicar.
+
+Medido tras enchufarla: `text-xl` 22 px donde antes 20, `text-2xl` 28 donde 24, `text-3xl` 36
+donde 30. La escala del contrato tiene más **contraste** que la de Tailwind, y ese contraste es
+la mitad de la jerarquía: lo que hace que un título mande sin tener que ponerlo en negrita.
+
+### El octavo paso · `display`
+
+Las pantallas escribían `text-5xl xl:text-6xl`, `text-6xl md:text-7xl xl:text-8xl`, `text-4xl`…
+a mano, fuera de la escala y distinto en cada modelo. Todos eran el mismo problema: **lo que se
+lee de lejos**. El total que el cajero dice en voz alta con alguien enfrente; el número de una
+comanda que se lee a dos metros con las manos ocupadas; el dígito de un teclado de PIN.
+
+```css
+--tamano-display: clamp(2.5rem, 1.25rem + 4vw, 5rem);
+```
+
+40 px en el teléfono de un técnico, 71 en el monitor de una tiendita, 80 en la pantalla de una
+barra — sin tres saltos de punto de ruptura escritos a mano en cada pantalla. Es el **único**
+paso fluido: todo lo demás se lee de cerca, y ahí un tamaño que baila al redimensionar molesta.
+
+### Las cinco pantallas de cobro
+
+Las que Miguel señaló. `Dinero` en cada importe —cifras tabulares, el símbolo y los centavos un
+escalón por debajo del cuerpo del número, los negativos en rojo **y** entre paréntesis—;
+`Superficie` en las tarjetas, con el total subido a nivel 2 y el desglose en 1; `Vacio` en los
+estados vacíos.
+
+Dos decisiones que se repiten en las cinco:
+
+- **El rótulo va debajo del número.** Lo que el ojo busca al girar la pantalla es la cifra; la
+  palabra «total» sólo confirma qué es.
+- **El cambio manda en la confirmación**, no el total. El total ya se dijo en voz alta; lo que
+  queda por hacer es contar el vuelto.
+
+Y una que **no** se tocó: `ferreteria/Mostrador` dice en su propio comentario «grande para
+leerse de reojo, y NO lo más grande de la pantalla». En una ferretería lo que se compara es el
+precio por unidad, no el total. Se respeta.
+
+### Cero emoji · 36 sitios en 16 archivos
+
+Un emoji no es un icono: lo dibuja el sistema operativo, así que el mismo carácter es una cosa
+en el Windows de la tiendita, otra en el Android del técnico y otra en el iPad del mesero; no
+hereda `currentColor`, así que no se puede poner en el color de peligro; y no escala con la
+tipografía. `⚠️` marcaba las alergias en siete pantallas de cinco modelos.
+
+Lo que **no** se persigue, y está en la regla: los glifos tipográficos monocromos —✓ ✗ ✕ ⚠ ▸ ▾
+▊— se quedan. No son emoji: heredan el color, escalan, y varios están puestos a propósito para
+que el color no sea el único portador de significado. La regla busca los pictogramas
+`1F000-1FAFF` y el **selector de variación U+FE0F**, que es el carácter invisible que convierte
+`⚠` en `⚠️`.
+
+### Una gráfica por tablero, y la que su giro pide
+
+Ninguna por decoración. Una gráfica ocupa el sitio de tres renglones de cifras, y en un tablero
+que se lee en cuatro segundos eso sólo se paga cuando la **longitud** contesta algo que una
+columna de números no contesta. El criterio sale del que ya estaba escrito: la tiendita prohíbe
+la dona de métodos de pago —«en 390 px una lista ordenada contesta mejor y ocupa menos»—.
+
+| Tablero | Gráfica | Qué contesta que un número no |
+| --- | --- | --- |
+| cafetería | La ráfaga **hora por hora** | El pico dice cuánto; esto dice cuándo y **cuánto dura**. 45 bebidas en una hora suelta es un día raro; 40, 45 y 38 seguidas son tres horas en las que hace falta un tercero |
+| ferretería | La cartera por obra | La lista dice quién y cuánto; la barra dice la **proporción** — si son cuatro obras parecidas o una que se comió la mitad |
+| tienda | Lo que se vence esta semana, a costo | Si el remate del sábado empieza por uno solo o hay que bajarle el precio a los cinco |
+| estética | A dónde se fue lo cobrado del mes | Cuatro renglones dicen cuánto se fue; ninguno dice si la comisión se llevó un tercio o dos |
+| restaurante | — | El heredado ya trae su dona, es código de Miguel y lo cubre `verify:aspecto`. Añadirle una sería cambiarle su tablero para cumplir una cuota |
+
+La de la cafetería salió de una consulta que **ya la calculaba**: `group by 1 order by bebidas
+desc limit 1` agrupaba las horas del día y tiraba todas menos una. La forma del día se estaba
+calculando y descartando en la misma línea.
+
+Y la de estética **no** va en la ocupación de mañana, que es su estrella: ésa ya se dibuja —cada
+profesional lleva su barra de relleno—. Poner otra encima sería adorno.
+
+### Diecisiete estados vacíos
+
+El texto ya estaba bien y no se tocó: estas pantallas ya enseñaban en vez de disculparse. Lo que
+faltaba era la **forma** — cada vacío con su propio relleno, su propio centrado, y ninguno con
+icono. Un bloque de texto centrado sin icono se lee como un error; con icono se lee como una
+invitación, y ésa es toda la diferencia entre «algo falla» y «esto todavía no empieza».
+
+Cuatro que **no** se convirtieron, cada una con su razón: `cafeteria/Recogida` es un tablero de
+pared y meterlo en el componente lo encogería; dos vacíos **en línea** viven dentro de un
+formulario, junto al campo que los resuelve; y el del tablero de restaurante es del heredado.
+
+### Cada demostración con su piel
+
+Las cinco se sembraban iguales, así que un cliente al que se le enseñan los cinco negocios veía
+cinco veces el mismo programa con otras palabras. Ahora: ferretería → TALLER, estética →
+CRISTAL, tienda → BLOQUE, restaurante → NOCHE, cafetería → MORPHIQ. RELIEVE, TERMINAL y PAPEL
+quedan sin repartir a propósito: los ve quien abra el selector.
+
+Se aplica con el **mismo comando** que usa Miguel delante del cliente, y va **después** de
+sembrar porque `resetear_demo` reescribe la configuración del negocio.
+
+### Y ahí apareció que el selector NUNCA pudo guardar
+
+`configuracion.fijar_apariencia` declara `escribe: true` y no llamaba a `ctx.auditar`.
+`definirComando` lo exige —«declarar sensible algo que no deja rastro convierte la auditoría en
+un adorno»— y lanza `SinRastro` **después** de escribir: la transacción se deshace y quien lo usa
+ve un error interno. Cada vez que alguien tocaba «Guardar para el negocio», la pantalla decía
+«No se pudo guardar la apariencia».
+
+No lo vio ninguna puerta. El comando compila, los tipos son correctos, la ruta responde y el
+fallo ocurre dentro de la transacción. Apareció al llamarlo desde la siembra — la primera vez que
+algo distinto de una pantalla lo ejecutó.
+
+El hueco es general: `definirComando` comprueba la auditoría en el **envoltorio**, y las 248
+pruebas de comandos llaman a `.ejecutar()` directamente. Cualquiera de los 189 comandos que
+escriben podía estar roto así con sus pruebas en verde. `verify:rastro` los mira ahora a los 189.
+
+Y su primera versión **acusó en falso a dos de tres**: conocía una sola forma de delegar y hay
+dos. La misma proporción que el rastreador de la 2.3 la primera vez que corrió, y por la misma
+razón — creer la primera señal.
+
+### El ritmo de las 69, de una vez · 919 → 0
+
+`tokenizar-pantallas.mjs`: 831 literales en 64 pantallas. Un codemod, no un retoque archivo por
+archivo, y se queda en el repositorio como evidencia de que la adopción fue sistemática.
+
+En densidad `normal` la conversión **no mueve un píxel** —`--espacio-4` vale exactamente lo que
+valía `p-4`—. Lo que gana es que las cuatro perillas dejan de ser de la biblioteca y pasan a ser
+de la aplicación. Medido en la galería, misma pantalla y mismo ancho: la lista de existencias
+entra **nueve** renglones en BLOQUE —densidad `guantes`— y **once** en TERMINAL —`compacta`—.
+Antes entraban los mismos en las ocho.
+
+Los negativos también, y ahí está la sutileza: un `-mx-4` existe para **cancelar** el `p-4` de su
+padre. Si el relleno escala con la densidad y el margen negativo no, en `guantes` el padre abre
+1.4 veces más y el pie deja de llegar al borde. Los dos o ninguno.
+
+## ETAPA 2.35 · BLOQUE 6.5 · LA GALERÍA, Y EL BOTÓN QUE MATABA MEDIA APLICACIÓN
+
+160 retratos: cinco modelos × cuatro pantallas × ocho estilos. Y cuatro de las cinco pantallas de
+cobro salieron con la pantalla de error del navegador.
+
+```jsx
+const Comp = asChild ? Slot.Root : "button"
+…
+{cargando && !asChild ? <Rueda /> : null}
+{children}
+```
+
+`Slot` exige **un solo** hijo elemento. Con `asChild`, esas dos líneas le pasan dos —el `null` y
+el elemento— y revienta. No es un aviso de consola: la página entera muere, en el servidor con un
+500 y en el navegador al hidratar. Y `asChild` está en cada estado vacío, en cada atajo de cada
+tablero y en cada «Ir a caja»: lo que se rompía era media aplicación, desde que el bloque 2 le
+puso al botón su estado de cargando.
+
+**El rastreador SÍ lo cazó en CI**, y con el mensaje exacto para el que se escribió: «El navegador
+escribió errores mientras se tocaba la aplicación. Un error de consola no devuelve 500 ni
+`{ok:false}`». Lo que falló fue mío: no lo miré. Lo encontré por otro camino, retratando la
+galería, y el commit de ese arreglo decía que el rastreador «no corrió» — es falso, corrió y
+falló dos veces.
+
+La lección que sí es del sistema: la puerta de los ocho estilos —que corre en cada empuje y mira
+`/sistema` en segundos— **tampoco** lo vio, porque `/sistema` documentaba los seis variantes, los
+cuatro tamaños, el deshabilitado y el cargando, y **no** el modo `asChild`. Lo que no está en la
+página del lenguaje no lo mira la puerta del lenguaje. Ahora está.
+
+### Y la galería aprendió de sí misma
+
+Su primera versión dio **verde** sobre ocho capturas de «This page couldn't load»: la espera de
+contenido la pasaba porque esa página también tiene texto. Una galería que no puede fallar no es
+una galería: es una carpeta con imágenes, y el retrato de un fallo puesto en un informe es peor
+que no tener informe, porque se firma como si fuera el producto.
+
+## ETAPA 2.35 · LOS TRES HALLAZGOS DEL RASTREADOR
+
+Ninguno devuelve 500 ni `{ok:false}`: los tres viven en la consola del navegador.
+
+1. **`upgrade-insecure-requests` rompe un despliegue sin TLS.** La CSP la ponía siempre. Contra
+   un servidor que no habla TLS, el navegador pide https a un puerto de texto plano y la petición
+   no llega. Y **A-27 dice que el backend tiene que poder correr en la PC de un cliente sin
+   internet**: una caja en la trastienda, servida por http en la LAN, es ese escenario. Ahora la
+   decide `APP_URL` —la misma variable de la que sale el Origen esperado de una escritura— y
+   nunca la petición.
+2. **El portal del comensal latía contra una ruta que no existe.** Tiene un estado vacío bien
+   escrito para quien llega sin escanear, y un efecto corre **antes** de que el componente decida
+   qué pinta: con el token vacío pedía `/api/publico/qr/` cada cuatro segundos, para siempre, con
+   404 cada vez. La pantalla se ve perfecta; el 404 sólo existe en la consola.
+3. **La ventana de sonda del propio rastreador se cerraba pronto.** El 400 de un formulario de
+   sonda es la validación funcionando, y en un contenedor de CI llega más tarde que en una
+   laptop: aterrizaba con la ventana cerrada y la corrida acusaba a la aplicación de romperse
+   justo cuando mejor se comporta.
+
+## ETAPA 2.35 · LA PUERTA QUE DABA VERDE SOBRE UN ARCHIVO QUE NO HABÍA LEÍDO
+
+`pnpm verify` completo, por primera vez en la etapa, trajo una acusación nueva:
+
+```
+VOCABULARIO: 1 pantalla(s) usan la palabra de OTRO giro …
+  ferreteria/FichaDePieza.tsx:536  «venta»  Unidad de venta  · tienda llama así a «orden»; aquí es «nota»
+```
+
+El cierre de la 2.3 —reporte 017— decía «**0** rótulos con la palabra de otro giro». Y el rótulo no
+es nuevo: lleva ahí desde `bdb3c69`, sin una coma de diferencia. Así que una de las dos afirmaciones
+era falsa, y había que averiguar cuál **antes** de tocar el rótulo.
+
+### La medición, por mutación
+
+| Archivo | Puerta | Resultado |
+| --- | --- | --- |
+| el de ANTES de la etapa | la de antes | `0 rótulos con la palabra de otro giro` |
+| el de HOY | la de antes | 1 · `FichaDePieza.tsx:535` |
+| el de ANTES de la etapa | **la arreglada** | 1 · `FichaDePieza.tsx:502` |
+
+La tercera fila es la que importa: **con el archivo intacto, la puerta arreglada SÍ lo ve**. No lo
+introdujo esta etapa. La puerta llevaba meses sin leer ese trozo.
+
+### `accept="image/*"` abría un comentario
+
+`textosVisibles` quita la prosa antes de buscar rótulos, y para los bloques usaba
+`/\/\*[\s\S]*?\*\//g`. El `/` + `*` del tipo MIME de ese `accept` entra como apertura, el buscador
+corre hasta el `*` + `/` siguiente —que estaba **170 líneas más abajo**— y la función devolvía en
+blanco todo lo que había en medio: el cuerpo entero de la ficha de la pieza, con su `aria-label`
+dentro.
+
+Es el fallo más caro de esta familia. No es que la puerta se callara: **dio verde, y el verde
+afirmaba una propiedad de un texto que nunca miró**. Cualquier pantalla con cámara tenía el mismo
+agujero. Ahora se neutralizan los dos delimitadores dentro de una cadena entrecomillada, cambiando
+el `*` por un espacio para no mover ni un carácter —los números de línea del mensaje son lo que
+permite ir a arreglar la cosa—.
+
+### Y el número de línea iba corrido
+
+`^\s*//` : `\s` incluye el salto de línea. El ancla prendía en una línea **en blanco**, la sangría
+se comía el salto, y la marca de comentario casaba en la línea de abajo: las dos se borraban juntas
+y la cuenta perdía una línea. El mensaje mandaba a alguien a la 535 por algo que vive en la 536.
+`[^\S\n]` es espacio y tabulador, y nada más.
+
+### Lo que quedó debajo: «unidad de venta» es de la ferretería
+
+Con la puerta viendo de verdad, el rótulo se juzga por lo que dice la ficha del propio giro:
+`modelos/02-retail/ferreteria/00-FICHA-Y-EJES.md` lleva **«Unidad de venta»** como eje —«Pieza,
+metro, kilo y pieza-por-kilo, con corte físico del material»—. Es el mismo compuesto que
+`punto de venta` y `precio de venta`, ya declarados: el sustantivo es «unidad», y el toggle que lo
+rotula elige entre metro, pieza y caja, no entre documentos. Declarado con su cita, no renombrado:
+renombrarlo habría alejado la pantalla de lo que su propia ficha dice.
+
+---
+
+## ETAPA 2.35 · LA CAFETERÍA, TERCERA VEZ — Y LA PUERTA QUE ACUSABA SIN DECIR QUÉ
+
+La corrida de CI de `38b1e4e` dejó la cafetería en rojo por tercera vez, con la misma firma:
+
+```
+/cafeteria/inventario · Failed to load resource: the server responded with a status of 400
+```
+
+**Y hay que decirlo: el arreglo 3 de `bdcec0c` —la ventana de sonda que se cerraba pronto— se
+escribió como si fuera LA causa de las dos veces anteriores, y con el 400 de vuelta esa atribución
+no se sostiene.** La ventana era corta y alargarla es correcto; que fuera la causa es otra cosa, y
+no estaba medido. Queda dicho aquí en vez de dejarlo pasar.
+
+### Por qué tres veces y sin saber de dónde salía
+
+Porque la acusación **no se puede accionar**. El navegador escribe «Failed to load resource… 400»
+sin decir qué pidió, y esa pantalla habla con una decena de rutas. Las tres veces hubo que salir a
+buscarlo a mano.
+
+Y el rastreador **ya sabía la respuesta**, en la otra puerta: el vigilante de red ve el 400 en la
+RESPUESTA y tiene la ruta, el estado y —por `loQuePedia`— la entidad y la operación. Las dos
+puertas veían el mismo fallo, y la que hablaba primero era **la que menos sabía**, porque el orden
+de los `expect` estaba al revés.
+
+Dos cambios, los dos en el rastreador:
+
+1. **El vigilante de red va primero.** El primer fallo que se lee es el que trae la ruta. La puerta
+   de la consola no se relaja: sigue detrás, y es la única que ve un `TypeError` del cliente, que no
+   deja rastro en ninguna respuesta.
+2. **La línea de consola dice el recurso.** `location().url` de un mensaje de recurso ES la URL que
+   falló; se recorta el origen y se calla cuando no aporta.
+
+El 400 de la cafetería **sigue sin diagnosticar**. Lo que cambia es que la próxima corrida dirá qué
+ruta fue, en vez de en qué pantalla estaba el cursor.
+
+## ETAPA 2.35 · EL 400 DE LA CAFETERÍA · UN BAGEL ENTRE LAS LECHES
+
+La primera corrida con el vigilante de red delante dijo en una línea lo que tres corridas no habían
+dicho:
+
+```
+Error: La aplicación devolvió 1 respuesta(s) rotas mientras se abrían sus pantallas:
+       400 /api/cafeteria/contar-leche.
+```
+
+Reproducido en local, idéntico. Y lo que bloqueaba reproducirlo no era el defecto: era que las
+suites locales corren en el **3200** y el `.env` de desarrollo pone `APP_URL` en el **3000**, así que
+la frontera de escritura (R-17) contestaba **403 a todo, empezando por entrar**. El contador de
+intentos fallidos del PIN no se movía —el PIN nunca llegaba a comprobarse— y el fallo salía como
+`waitForURL: Timeout`. Tres intentos perdidos ahí. Ahora `entrar()` escucha la respuesta de
+`/api/auth/entrar` y **dice su estado**, con el 403 explicado.
+
+### La causa: `familiaDe` metía un bagel en la familia «Leche»
+
+La pantalla agrupa por familia con pistas en el nombre, y la familia «Leche» lleva la pista `crema`.
+En la demostración de la cafetería eso mete **«Bagel integral con queso crema»** —`unidad_base` =
+`pieza`— entre las leches, y el diálogo de conteo ofrece contarlo **por cartones**. El comando hace
+lo correcto y lo rechaza:
+
+```
+CONFIGURACION_INVALIDA · «Bagel integral con queso crema» no se mide en mililitros:
+                         no se cuenta por cartones.
+```
+
+que sale como 400.
+
+**No es un artefacto del rastreador.** No hay que teclear nada: le pasa a un barista **cada vez que
+abre el conteo de leche** y pulsa confirmar, con los campos vacíos. Y le pasará a cualquier negocio
+que tenga un «pan con crema» o un «pastel de crema» en el catálogo.
+
+Medido sobre los datos reales de la demostración:
+
+| | Familia «Leche» |
+| --- | --- |
+| Antes | Bagel integral con queso crema (`pieza`) · Crema para batir · Leche deslactosada · Leche entera |
+| Ahora | Crema para batir · Leche deslactosada · Leche entera — y el bagel cae en **Alimentos** |
+
+No se quita la pista: **«Crema para batir» sí es leche y sí se cuenta por cartones**. Lo que se hace
+es exigirle a la familia la unidad que la hace significar algo —mililitros—, que es **la misma regla
+que el comando aplica**. Lo que no encaja sigue buscando familia abajo, y `bagel` entra en las pistas
+de Alimentos para que caiga donde se camina el pan y no en «Ingredientes».
+
+### Y el otro agujero del mismo diálogo, que no era la causa pero estaba
+
+El campo de «cartones cerrados» es texto libre —`inputMode="numeric"` es una pista para el teclado
+del teléfono, no una validación— y la pantalla mandaba `Number(texto)` tal cual. Una letra es `NaN`,
+`12.5` no es entero y `999` se pasa del tope de 200: las tres las rechaza el comando con 400, y lo
+único que el barista veía era la banda genérica **sin saber qué campo**. Ahora se valida donde se
+teclea —el campo se marca mientras se escribe— y el aviso dice el nombre de la leche y el rango.
+
+**Y esto hay que decirlo con cuidado, porque es la segunda vez esta noche:** el arreglo del campo es
+correcto y **no es la causa del 400**. La causa es el bagel. Se escriben los dos, con cuál era cuál.
+
+### La lección, que es de puertas y no de leche
+
+Tres corridas para encontrar una ruta que **el propio rastreador ya sabía**. El vigilante de red
+tenía la ruta, el estado y la entidad; la puerta de la consola tenía «en qué pantalla estaba el
+cursor», y hablaba primero porque su `expect` estaba antes. **Cuando dos puertas ven el mismo fallo,
+que hable primero la que más sabe.**
+
+### ¿Tiene hermanos? Buscado, y no
+
+El patrón es «la pantalla clasifica por el NOMBRE y el comando exige una UNIDAD». Se buscó en el
+resto de `apps/web/src`:
+
+- El clasificador por pistas existe **sólo** en la alacena de la cafetería. No hay otro.
+- El otro comando que compara unidades es `inventario.guardar_receta`
+  (`UNIDAD_INCOMPATIBLE`), y la pantalla de recetas toma la unidad **del propio insumo**
+  (`unidad: insumo.unidad_base`), así que no puede mandar una que no encaje.
+
+Se dice porque «arreglé el caso que salió» y «busqué si hay más» no son la misma frase.
+
+### Y el 403 del 3200 YA ESTABA ESCRITO AQUÍ
+
+Buscando si el hallazgo tenía hermanos salió algo peor: este mismo fallo está documentado en esta
+misma bitácora, en la 2.3, con el mismo síntoma palabra por palabra —
+
+> **1 · `APP_URL` contra el origen del navegador.** […] el servidor de las pruebas vive en el 3200
+> mientras el `.env` dice 3000. Resultado: `/api/auth/entrar` devolvía **403 SIN_PERMISO**, la
+> pantalla se quedaba en el teclado numérico y el rastro decía «timeout esperando la navegación».
+
+Estaba escrito, con su causa y su síntoma, y **volví a perder tres corridas en él**. La conclusión no
+es «hay que leer la bitácora»: es que **un aviso en un documento no es un arreglo**. Lo que lo arregla
+es que el fallo lo diga en el momento en que falla, y eso es lo que ahora hace `entrar()` — escucha la
+respuesta de `/api/auth/entrar`, dice su estado y, si es 403, nombra la variable y el puerto.
+
+Una trampa documentada que vuelve a morder es una trampa que había que cerrar, no anotar.
+
+### Y un aviso sobre el dominio propio
+
+`pos-mh-astral-systems.com` —el dominio que `VERCEL-ENTORNO §7` nombra como el propio— **no sirve
+este despliegue**. Hoy contesta `402 Payment Required` y devuelve una página de **Base44**: «POS MH
+is currently unavailable». Comprobado desde fuera el 2026-09-22.
+
+Importa por una razón concreta y ya documentada: si alguna vez se pone `APP_URL` ahí sin que el DNS
+apunte a Vercel, **toda escritura será un 403** —es el fallo de §7 de ese mismo documento, que ya
+pasó una vez— y el síntoma será «no se puede ni entrar». El despliegue de la fase vive en el alias de
+rama, y ahí es donde se comprueba.
+
+## ETAPA 2.35 · EL COMENTARIO FANTASMA TENÍA SEIS HERMANOS
+
+Arreglado el de `verificar-acople.mjs`, la pregunta obligada era si el patrón estaba en otro sitio.
+Lo estaba, en once, y **seis de ellos leen archivos que contienen `accept="image/*"`**:
+
+```
+scripts/verificar-primitivas.mjs:277        apps/web + packages/ui
+scripts/verificar-aspecto.mjs:166           apps/web/heredado
+scripts/verificar-acople.mjs:1074-1075      (el ya arreglado)
+scripts/verificar-acople.mjs:1491, 1553     pruebas/e2e/<modelo>.spec.ts
+scripts/verificar-acople.mjs:1999           apps/web
+```
+
+Y `accept="image/*"` no es raro: está en **siete** archivos de este repositorio —tres pantallas de
+`apps/web/src` y cuatro del frontend heredado—.
+
+### Medido, no supuesto
+
+Se corrió la función de cada puerta tal cual, y la misma con los delimitadores neutralizados, y se
+comparó cuántos caracteres ve una y no la otra:
+
+| Puerta | Archivo | Ciega sobre |
+| --- | --- | --- |
+| `verify:primitivas` | `estetica-salon/CitaEnCurso.tsx` | 512 |
+| `verify:primitivas` | `ferreteria/Entradas.tsx` | 1 433 |
+| `verify:primitivas` | `ferreteria/FichaDePieza.tsx` | 3 196 |
+| `verify:aspecto` | `heredado/…/IdentidadNegocio.jsx` | 1 679 |
+| `verify:acople` (rutas llamadas) | las tres pantallas de arriba | 5 147 |
+
+**`verify:primitivas` es la puerta que certifica «deuda de ritmo 0 de 0», «cero emoji» y la regla
+nueva del token**, y lo hacía sin leer 5 141 caracteres de tres pantallas.
+
+### Y lo que escondía era: NADA
+
+Se corrieron las trece reglas de la puerta sobre el trozo que no veía, una por una: **cero hallazgos
+nuevos**. El «0 de 0» estaba bien.
+
+Lo cual es exactamente el motivo por el que esto se arregla igual. El número era correcto **por
+casualidad**: nadie lo había comprobado, y la próxima pantalla con cámara que meta un `gap-4` detrás de
+su `accept="image/*"` va a pasar la puerta en silencio. Una puerta en la que hay que confiar por suerte
+no es una puerta; y este arreglo no tiene coste porque no hay deuda que pagar detrás.
+
+### Un solo ayudante, y lo que declara que NO cubre
+
+`scripts/lib/sin-prosa.mjs` neutraliza los dos delimitadores dentro de una cadena entrecomillada
+cambiando el `*` por un espacio —**sin mover un carácter**, para que los números de línea sigan
+sirviendo— y se aplica antes de quitar comentarios en los seis sitios.
+
+No es un parser de JavaScript y el archivo lo dice: no mira cadenas de plantilla con acentos graves
+—pueden cruzar líneas y ahí romper algo es más caro que el hueco que tapa— ni cadenas partidas con
+barra invertida. Hoy, en este repositorio, no existe ninguno de los dos casos. Un hueco declarado es
+honesto; una puerta que aparenta cubrirlo, no.
+
+### Dónde quedó puesto, y la mutación que lo prueba
+
+Nueve sitios de siete archivos pasan ahora por el ayudante: los cinco de
+`verificar-acople.mjs`, y uno en `verificar-primitivas.mjs`, `verificar-aspecto.mjs`,
+`verificar-arranque.mjs`, `verificar-entradas-de-comando.mjs`, `venta/contratos.mjs` y
+`generar-catalogo-comandos.mjs`.
+
+La mutación es la que había que hacer, porque la ceguera no produce un fallo: produce un **verde
+falso**. Así que se mete la violación DENTRO del tramo ciego y se mira quién la ve:
+
+```
+shadow-lg en ferreteria/FichaDePieza.tsx, linea ~430 (dentro del tramo ciego)
+  en el archivo                 : 1
+  lo que ve la puerta CIEGA     : 0     ← el verde falso, medido
+  lo que ve la puerta ARREGLADA : 1
+```
+
+Y con la puerta arreglada, `verify:primitivas` sale en ROJO sobre esa mutación —«Puentea la perilla
+de elevacion. Usa shadow-1 … shadow-4»— y en VERDE al restaurar. Las seis puertas tocadas pasan:
+`arranque`, `entradas`, `primitivas`, `aspecto`, `venta` y `acople`.
+
+El ayudante lleva su propia comprobación de seis casos, hecha a mano: `accept="image/*"` y `"a*/b"`
+se neutralizan, un comentario de verdad y una URL con `//` no se tocan, y **la longitud del texto se
+conserva** en los seis.
+
+### Un hallazgo de paso: el catálogo de comandos está 2 083 líneas stale
+
+Comprobando que el cambio al generador no alteraba su salida —no la altera—, salió que
+`docs/fase-1/F1-08-COMANDOS-Y-RUTAS.md` es el de la Fase 1: `pnpm docs:comandos` genera hoy 2 083
+líneas más, todas las de la Fase 2. **Ninguna puerta lo mira**, porque `docs:comandos` no está en
+`pnpm verify`. No se regeneró: son dos mil líneas de un documento de otra fase y no es de esta etapa.
+Queda dicho.
+
+## ETAPA 2.35 · `<Dinero>` PARTÍA EL IMPORTE EN TRES, Y EL TOTAL SE LEÍA MAL
+
+Las cinco suites de modelo no se habían corrido en toda la etapa —CI sólo lanza `estilos` y
+`rastreo`, y `pnpm verify` acaba en `test:integracion`, que es vitest— así que se corrieron. La
+primera cayó:
+
+```
+abarrotes · Error: El total de la pantalla no es el precio del producto.
+            Precio: 4290 centavos; total: 4200.
+```
+
+«Aceite de maíz 1 L» cuesta **$42.90** y la prueba leyó **$42.00** en la pantalla de cobro.
+
+### La causa es el componente que el bloque 4.1 puso ahí
+
+`Dinero` pinta el importe en **tres hermanos** dentro de un `inline-flex` con `gap-px`:
+
+```jsx
+<span class="inline-flex items-baseline gap-px …">
+  <span>$</span><span>42</span><span>.90</span>
+</span>
+```
+
+Visualmente es correcto y a un lector de pantalla le llega bien —el `aria-label` dice «42 pesos con
+90 centavos»—. Pero los hijos de un `inline-flex` son **elementos de bloque**, así que el texto que
+se extrae del nodo no es `$42.90`: es `$`, `42` y `.90` **separados**. Cualquier cosa que lea el
+texto en vez del `aria-label` —una prueba, un `innerText`, **copiar y pegar el total**— ve un número
+partido.
+
+Y la prueba, que toma la primera cantidad con `/\$\s*[\d,]+(?:\.\d{1,2})?/`, casaba `$ 42` y se
+quedaba sin los centavos: **4200**.
+
+### Por qué no se vio antes, y por qué eso lo empeora
+
+Porque la cafetería **pasó**: sus importes acaban en `.00`, y ahí `$ 45` y `$45.00` son el mismo
+número. El defecto sólo se ve cuando hay centavos distintos de cero, que es una de cada N veces. Lo
+metió el bloque 4.1 al cambiar `enPesos(total)` por `<Dinero centavos={total} …>` en las cinco
+pantallas de cobro, y ninguna puerta lo miró porque las cinco suites que comprueban un TOTAL COBRADO
+contra el servidor no corren ni en `pnpm verify` ni en CI.
+
+### El arreglo, y por qué se arregla el componente y no la prueba
+
+Se le quita el `inline-flex` y el `gap-px`: los tres trozos vuelven a ser contenido **en línea**, que
+se alinea a la línea base por sí solo —para eso estaba el `items-baseline`— y se lee como un solo
+número. El `$` y los centavos siguen un escalón por debajo, que es lo que el componente existe para
+hacer.
+
+Arreglar la prueba en vez del componente habría dejado el total imposible de copiar en las diez
+pantallas que lo pintan, y con 37 usos en el repositorio.
+
+### Y una segunda del mismo sitio: la señal de reposo que se quedó atrás
+
+El restaurante cayó con «la pantalla de cobro no contestó nada al confirmar», que es lo contrario de
+lo que pasaba: contestó perfectamente. El bloque 4.1 rediseñó su acuse —era una línea, «Cobrado ·
+cambio $12.00 · la mesa pasa sola a limpieza», y pasó a tener jerarquía: «Cobrado» arriba, el CAMBIO
+en grande porque es lo único que queda por hacer, y el total y la mesa debajo— y **la suite seguía
+pidiendo el literal viejo**.
+
+Se movió la señal a «pasa sola a limpieza», que sigue siendo exclusiva del acuse y **no depende del
+diccionario del giro**: delante puede decir «la mesa» o «la estación», y la frase aguanta. No se
+relajó a `/Cobrado/` a secas, que aparecería en cualquier estado que lleve esa palabra.
+
+### El resumen de las cinco, tal cual
+
+| Suite | Resultado | Qué era |
+| --- | --- | --- |
+| `abarrotes` | 🔴 → ✅ | El total leía `$42.00` donde la pantalla decía `$42.90`. **Defecto mío, del 4.1** |
+| `cafeteria` | ✅ | Pasó — y pasó porque sus importes acaban en `.00` |
+| `estetica-salon` | 🔴 **no es defecto** | «La agenda no tiene un hueco libre en lo que queda del día». Eran las **23:54**: la suite necesita horas por delante y a esa hora no las hay. Lo dice la propia prueba |
+| `ferreteria` | ✅ | Pasó — su total no usa `Dinero` |
+| `restaurante` | 🔴 → ✅ | La señal de reposo pedía una frase que el rediseño cambió |
+
+Dos defectos reales de las cinco, los dos **míos y de esta etapa**, los dos invisibles para todas las
+puertas que sí corren. Eso es lo que costaba no correr estas cinco.
+
+### Y las cuatro que se pueden, ya corren en CI
+
+El hueco que quedaba de esto no era de código: era que **CI lanzaba dos de los ocho especs**. Cuatro
+de las cinco suites de modelo entran a la matriz de `Rastreo`, que ya se provisiona con su
+organización, su PIN y un despliegue de UN negocio — es el sitio donde encajaban sin montar nada
+nuevo. Van **después** del rastreo, que termina soltando la caja, que es el estado que estas suites
+saben abrir; y si el rastreo falla, éstas no llegan a correr, que también informa.
+
+Y el nombre no es el del modelo: la de `tienda` es `abarrotes` y la de `estetica` es
+`estetica-salon`. La correspondencia va en el `include` de la matriz, con la vacía —`estetica`—
+llevando su razón escrita en el paso.
+
+**Por qué `estetica` no entra, dicho y no tapado:** su suite agenda una cita y necesita huecos libres
+en lo que queda del día, y ese trabajo corre en `America/Mexico_City` a cualquier hora. De noche sería
+roja por el reloj, y **una puerta que enrojece por la hora enseña a ignorar el rojo**. Entra el día que
+la prueba agende en una fecha fija en vez de «hoy».
+
+### Y la puerta de los ocho estilos, otra vez, después de tocar `Dinero`
+
+`/sistema` pinta `Dinero` nueve veces, así que cambiar su caja de `inline-flex` a contenido en línea
+podía mover el amontonamiento o el foco que la puerta 6.4 mide. Se volvió a correr: **17 passed
+(29.9s)**. No movió ninguno de los dos — que era lo esperado, porque lo que se quitó era un `gap` de
+un píxel y un contenedor flex que no hacía falta, no la jerarquía.
+
+### Y un número que estaba mal en mi propio reporte: la cadena tiene 36, no 34
+
+El encargo dice «los 34 eslabones, más los nuevos», y yo escribí «33 de 34» en tres sitios del
+reporte. Contados con `node` sobre el propio `package.json`: **36**. Los 34 del encargo más
+`verify:estilos` y `verify:rastro`, que nacieron en esta etapa — o sea que el «más los nuevos» del
+encargo era literal y yo lo había ignorado al hacer la cuenta.
+
+Corregido a **35 de 36** en el reporte, en el estado y en el PR. Es un número pequeño y es el número
+que resume la condición 9: si se cita mal, el resto del reporte pierde el derecho a que se le crea.
+
+### Y la primera corrida con las suites dentro enseñó por qué el orden importa
+
+De los cuatro trabajos que las estrenaron, **tres en verde** —`tienda` (→ `abarrotes`), `ferreteria`
+y `restaurante`—, `estetica` **saltada** —como estaba escrito— y `cafeteria` **ROJA**:
+
+```
+«/cafeteria/cobrar» abrió en 200 y NO enseñó lo suyo (/Cobrar|Turno cerrado/).
+```
+
+En local esa misma suite había pasado en 56 s. Y las otras tres pasaron aquí, lo cual es justo lo que
+señala la causa: no es la suite ni la pantalla, es **el estado**. El paso anterior es el rastreador, que acaba de tocar CADA BOTÓN de cada pantalla —turnos
+incluidos—, así que la demostración que la suite encuentra no es la que la suite espera. Ninguna de
+las dos está mal; lo que estaba mal era ponerlas seguidas.
+
+Se siembra la demostración otra vez entre las dos. Es el mismo comando que ya corre más arriba en el
+trabajo —`configuracion.resetear_demo`, con su transacción y su auditoría— y cuesta segundos.
+
+**Y por qué no al revés:** poner la suite ANTES del rastreo también arregla el choque, y deja al
+rastreador heredando una venta cobrada y una caja abierta. Entre proteger el gate barato y proteger el
+que cuesta catorce minutos y cazó el `Button asChild`, se protege el segundo.
+
+### Y con la resiembra en medio, las cuatro en verde en CI
+
+Corrida `35695290770`, la siguiente: `tienda`, `ferreteria` y **`cafeteria`** —la que había caído—
+las tres con `siembra:success suite:success`. La medición completa del arreglo, en dos corridas:
+
+| | `tienda` | `ferreteria` | `restaurante` | `cafeteria` | `estetica` |
+| --- | --- | --- | --- | --- | --- |
+| Sin resembrar (`35694329860`) | ✅ | ✅ | ✅ | 🔴 | saltada |
+| Con resiembra (`35695290770`) | ✅ | ✅ | ✅ | ✅ | saltada |
+
+Lo que hace útil la primera fila es justamente que tres pasaran: un fallo que sólo toca a uno de
+cuatro con el mismo paso delante señala el ESTADO y no el paso.
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 1 · `verify:adopcion`, la métrica que no se puede jugar
+
+**Dónde iba:** bloque 1 cerrado. Siguiente: fusionar el PR #11 tal como está (limpio en
+`0f04fc2`) antes de empujar nada rojo encima, y después el bloque 3 (el dinero).
+
+«31 de 72 usan la biblioteca» era verdad y no decía nada: la auditoría de Miguel encontró 22
+que importaban UN símbolo, 4 que importaban sólo la gráfica, y `tabla.tsx` usada por un solo
+archivo, el de documentación. Importar contaba como adoptar.
+
+### Cómo mide ahora
+
+`scripts/verificar-adopcion.mjs`, con el analizador en `scripts/lib/adopcion.mjs` (+
+`adopcion-jsx.mjs`). Lee el **árbol de sintaxis de TypeScript**, no el texto: una expresión
+regular no distingue un `<table>` de la palabra en un comentario, ni un `dineroEnTexto()` en un
+`aria-label` de uno pintado entre dos `<span>`. Una pantalla está adoptada si cumple las cuatro:
+
+| | Qué cuenta como incumplir |
+| --- | --- |
+| 1.1 | Un elemento con radio + fondo + (borde **o** sombra), o la `Card` de primitivas. «Borde o sombra» y no «y»: una tarjeta de shadcn sin sombra sigue siendo una superficie a mano, y exigir las cuatro dejaba pasar la mayoría |
+| 1.2 | `<table>`/`<tr>`/`<td>`…, los `Table*` de primitivas, un `role` de tabla, y **filas de datos a mano**: un `.map()` que pinta `<li>`/`<div>` con `Dinero` o `Cifra` dentro. Sin esto, cambiar `<Table>` por `<ul>` aprobaba |
+| 1.3 | `Intl.NumberFormat` con moneda, `/ 100` formateado, un `$` pegado a una expresión, un formateador propio (`enPesos`, `PESOS`…), o `dineroEnTexto()` pintado como contenido —incluso guardado antes en una constante— |
+| 1.4 | Pinta `Vacio`, un esqueleto y un error **importados del sistema** —un `Vacio` propio no cuenta—; y ninguno a mano: `Skeleton` de primitivas, `role="alert"`, `animate-spin`, un icono `Loader`, el texto «Cargando» |
+
+Los estados que una pantalla de verdad no tiene van en `SIN_ESTADO`, con su razón, y la puerta
+falla también al revés si la pantalla acaba pintándolo.
+
+### Salió ROJA: 69 de 69
+
+```
+0 de 69 pantallas adoptadas · 69 en rojo
+  1.1 superficies a mano ........ 40
+  1.2 tablas o filas a mano ..... 10
+  1.3 dinero a mano ............. 51
+  1.4 estados fuera del sistema . 68
+  (3 archivo(s) sin interfaz: proveedores, no pantallas)
+```
+
+**Más rojo que las 66 que el encargo esperaba, y la diferencia está medida, no supuesta.** Las
+«seis de verdad» —las de cobro— tampoco pasan, cada una por algo concreto. `abarrotes/Cobrar`,
+línea por línea: un aviso de caja cerrada hecho con `rounded-lg border bg-warning/15` (:399),
+dos errores `<p role="alert">` a mano (:479, :484), el carrito como `<li>` con `Dinero` en un
+`.map` (:509), `enPesos` definido (:122) y usado en los botones de efectivo rápido (:618), y
+`(monto / 100).toFixed(2)` para rellenar el campo de lo recibido (:615). Y ninguna pinta
+`ErrorDePantalla`.
+
+Y los **72** del encargo son 69 pantallas y **tres proveedores**: `cliente/vocabulario`,
+`proveedores/Apariencia` y `proveedores/Proveedores` no pintan un solo elemento —son contextos—, y
+la puerta lo dice en su fila en vez de contarlos como pantallas adoptadas gratis.
+
+### Vista en ROJO y en VERDE a voluntad
+
+`scripts/lib/adopcion.test.ts`, 23 pruebas: una pantalla inventada que cumple las cuatro sale
+limpia, y cada prueba le mete UNA violación. La primera corrida dio 22 de 23 — la del `$` en una
+plantilla falló, y **el defecto era de la prueba**: `String.replace` con una cadena de reemplazo
+convierte `$$` en `$`, así que el dólar que la prueba metía desaparecía antes de llegar al
+analizador. Arreglado con una función de reemplazo. Una prueba de puerta que no ve su propio
+caso es exactamente la clase de verde falso que esta puerta existe para evitar.
+
+### En la cadena y en CI
+
+`pnpm verify` pasa a **37 eslabones** (`verify:adopcion` después de `verify:estilos`). En CI es un
+**trabajo propio**, «Adopción del sistema de diseño»: mientras las pantallas se recomponen esta
+puerta está roja a propósito, y como paso del trabajo de tipos cortaría los tipos, las pruebas y
+el build de cada empujón.
+
+### Bloque 6, primer intento: la fusión la deniega la política de esta sesión
+
+`gh pr merge 11 --merge --match-head-commit 0f04fc2` → **denegado por el clasificador de
+permisos de Claude Code** («Production Deploy»). El encargo lo previó: se deja dicho y se sigue.
+No se intenta por otra vía —el conector de GitHub haría lo mismo que se acaba de denegar—.
+
+Consecuencia que hay que saber: el PR #11 sigue a `fase-2`, así que desde este empujón **ya no
+es el `0f04fc2` que se auditó**, sino ese más el cierre en curso. El punto limpio y auditado es
+`0f04fc2`; si Miguel quiere fusionar exactamente eso, es ese commit.
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 3 · el dinero, con las pruebas que no tenía
+
+**Dónde iba:** bloque 3 cerrado en unitarias. La comprobación de navegador de los importes
+(`estilos.spec.ts`, sección 0) está escrita y **se corre en la primera construcción local del
+bloque 2**, no antes: construir para una sola prueba es media hora.
+
+### Un proyecto de pruebas nuevo, porque no se podía pintar un componente
+
+`packages/ui` tenía UN archivo de prueba. No era desidia: la configuración raíz resuelve con la
+condición `react-server`, y con ella `react` es la versión de servidor —sin hooks— y
+`react-dom/server` es un módulo que LANZA al importarse. `vitest.config.ts` pasa a tener dos
+proyectos: `unidad` (lo de siempre, idéntico) y `componentes` (`packages/ui/src/**/*.test.tsx`, sin
+esa condición).
+
+### Lo que se probó, y por qué `textContent` no bastaba
+
+El encargo pide comprobar «el `textContent` completo, que es lo que se rompió». **No es lo que se
+rompió**, y está medido en la propia prueba: con el `inline-flex` de antes, el `textContent` del
+importe era `$42.90` —correcto— y lo que se LEÍA era `$\n42\n.90`. Lo que partió el importe es la
+regla de `innerText`: los hijos de un flex o un grid son bloques y cada bloque va en su renglón.
+Una prueba de `textContent` sola habría seguido en verde con el defecto puesto.
+
+Así que `packages/ui/src/pruebas/lectura.ts` da las dos lecturas sobre el marcado de
+`react-dom/server`: `textoPlano` (el `textContent`) y `textoLeido` (con la regla de los bloques).
+Y en el navegador, donde `innerText` es de verdad, `estilos.spec.ts` compara cada `[data-dinero]`
+de `/sistema` en los ocho estilos contra su `aria-label`.
+
+| Prueba | Casos |
+| --- | --- |
+| `<Dinero>` | **$42.90** explícito; centavos 00, 05, 09, 90, 99; $0.05; cero; negativos `($42.90)`; seis cifras `$123,456.78` y `$999,999.99`; sin símbolo; los cinco tamaños; el `aria-label`; y ninguna pieza con `flex`/`grid` |
+| `dineroEnTexto` | Nueva. El mismo importe para donde no cabe un componente (un `aria-label`, el portapapeles, un eje SVG) y **carácter por carácter** igual a lo que se lee en `<Dinero>` |
+| `<Cifra>` | `12 kg`, `1.50 m`, `1,234`, `-3 pz`, y ninguna pieza apilada |
+| `<Button asChild>` | Se pinta como el `<a>` que se le da; con `cargando` puesto no revienta; sin `asChild`, cargando deshabilita, anuncia y pinta la rueda |
+
+### 3.2 · `Cifra` tenía el mismo defecto, y uno más
+
+`inline-flex items-baseline gap-1`, el patrón exacto. Y además el **aire entre el valor y la
+unidad lo ponía el `gap`**, no el texto: copiado, «12 kg» salía «12kg». Ahora va en línea y con un
+espacio de verdad en el texto.
+
+### 3.4 · el patrón, buscado en todo `packages/ui`
+
+Se buscó todo lo que pinta cifras (`tabular-nums`, `font-numeros`) dentro de un contenedor que
+apile: **sólo `Cifra`**. El resto —la insignia del abanico, el porcentaje de `Progreso`, el centro
+de la dona, las celdas de `Tabla`— pinta el valor en UN nodo. Lo dijo la búsqueda, no una
+suposición.
+
+### Las tres mutaciones
+
+```
+M1 · <Dinero> con `inline-flex items-baseline gap-px` de vuelta → 13 en ROJO (los 12 importes y
+     la de «ninguna pieza apila»)
+M2 · <Cifra> con `inline-flex gap-1` y sin el espacio          → 3 en ROJO
+M3 · <Button asChild> con la rueda junto a {children}           → 2 en ROJO
+restaurado                                                      → 24 de 24
+```
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 5.1 · un solo vocabulario, también dentro de `packages/ui`
+
+**Dónde iba:** 5.1 hecho; la biblioteca, ampliada para que las 69 pantallas puedan cumplir; las
+dos pantallas de cobro, recompuestas y con su comprobación en verde. Siguiente: verlas en el
+navegador con sus dos suites y lanzar la recomposición del resto por lotes de modelo.
+
+### Los colores: 1 633 usos en inglés, en 108 archivos
+
+La condición 3 de la vuelta pasada decía «un vocabulario» y era verdad sólo para las variables de
+CSS: las **utilidades** de Tailwind sólo existían en inglés —`bg-card`, `text-muted-foreground`—
+porque `globals.css` no mapeaba ni un token español. Así que el sistema entero, incluido
+`packages/ui`, escribía con los alias que `heredado/index.css` deriva para el código de Miguel.
+
+- `globals.css` declara ahora `--color-fondo`, `--color-superficie`, `--color-texto-sutil`,
+  `--color-peligro`… los 36 tokens del sistema como utilidades.
+- `scripts/traducir-vocabulario.mjs` traduce, con su variante y su opacidad
+  (`oscuro:hover:bg-destructive/40` → `oscuro:hover:bg-peligro/40`), en `packages/ui/src`,
+  `apps/web/src` y `apps/web/app`: **1 633 utilidades en 108 archivos**. La tabla es la de
+  `heredado/index.css` al revés, y vive en `scripts/lib/vocabulario-de-color.mjs` para que el
+  traductor y la puerta no puedan opinar distinto.
+- El heredado no se toca: sigue en inglés contra los alias. Es el código de Miguel.
+
+### El modo oscuro: `.dark` era de Miguel, y el sistema tenía que tener el suyo
+
+`capas.css` y los ocho estilos declaraban `[data-estilo='…'].dark` mientras `verify:primitivas`
+prohibía `dark:` porque «la clase del sistema es `oscuro`». Ahora los ocho estilos cambian su
+paleta bajo **`[data-modo='oscuro']`**, y la variante `oscuro:` apunta ahí. `.dark` la sigue
+poniendo el `ThemeContext` de Miguel; `apps/web/src/proveedores/modo.ts` es el único puente —un
+guion en el `<head>`, detrás del que pone la clase, que escribe `data-modo` antes del primer
+pintado y lo mantiene con un `MutationObserver` sobre el atributo `class`—. Un modo, cada código
+en su idioma.
+
+`auditar-estilo.mjs` (`verify:estilos`) y `sistema.test.ts` resuelven el modo oscuro con el
+selector nuevo.
+
+### La puerta, dentro de `packages/ui`
+
+`verify:primitivas` gana dos reglas, las dos vistas en ROJO:
+
+```
+M1 · text-muted-foreground de vuelta en sistema/estados.tsx → «color del sistema escrito con
+     su alias en inglés», exit 1
+M2 · `.dark .x {…}` añadido a estilos/capas.css             → «modo oscuro con la clase de
+     Miguel en una hoja del sistema», exit 1
+```
+
+La M2 tardó en salir roja, y la razón es de contarse: la regla la escribí desde un `heredoc` de
+Python y el `\b` de la expresión regular llegó al archivo como un BACKSPACE (0x08). `/\.dark␈/`
+no casa con nada: la regla existía, compilaba y **no podía fallar**. Lo vio la mutación, no la
+lectura. Arreglado reescribiendo el byte, y comprobado que no quedaba otro 0x08 en `scripts`,
+`packages/ui` ni `apps/web`.
+
+## ETAPA 2.35 · EL CIERRE — la biblioteca, ampliada para que las pantallas puedan cumplir
+
+Lo que faltaba para que una pantalla real pudiera pasar las cuatro sin volver a escribir a mano:
+
+| Pieza | Qué se le añadió, y qué pantalla lo pedía |
+| --- | --- |
+| `Superficie` | Todos los atributos de su etiqueta (`como="button"` con `type` y `disabled`, `como="label"` con `htmlFor`), `ref`, `interactiva` (la tesela: sube, se hunde a 0.98, foco en dos capas) y `activa`. Las teselas de producto del cobro eran `<button>` escritos a mano |
+| `Tabla` | `etiqueta`, `pie` (totales POR columna), `tonoDeFila` (con la regla de que el color nunca va solo), `viajeDeFila`, y que un botón DENTRO de una celda no active la fila: tocar «−» en el pedido abría la ficha |
+| `ListaDeTarjetas` | A su propio archivo, y con `Superficie`: era un `<button disabled>` siempre —no dejaba ni seleccionar su texto— y una celda con su propio control acababa siendo un botón dentro de un botón |
+| `TablaAdaptable` | Nueva. La misma lista como tabla densa en la PC y como tarjetas de dos renglones por debajo de `xl`, pintando UNA de las dos —pintar las dos y esconder una deja la lista dos veces para el lector de pantalla y para las pruebas— |
+| `CampoDeDinero` | Nuevo. La pantalla habla sólo en centavos; el texto lo lleva el campo. Sustituye al `Input` + `parseFloat` + `(c / 100).toFixed(2)` que cada pantalla escribía a su manera |
+| Transiciones de vista | CSS en `base.css`: sólo viaja lo que tiene nombre, la raíz no se funde —en un cobro que agrega 500 productos al día, fundirla es un parpadeo por toque—, y dura lo que la perilla de movimiento diga |
+
+Y `verify:adopcion` reconoce ahora `textoParaCampo` como importe en texto (no se pinta), `Link`
+como etiqueta (una tesela sobre `Link` es tan a mano como sobre un `<div>`) y la `Superficie`
+interactiva como tesela —una rejilla de productos que se tocan no es una tabla—.
+
+### `scripts/comprobar-pantalla.mjs`: las seis puertas de UNA pantalla
+
+Formato, adopción, tokens, vocabulario, tipos y lint, filtrados al archivo, con los tipos y el
+lint por turno (un candado en disco: cada corrida carga el programa entero de TypeScript). La
+primera versión **daba verde sin haber corrido los tipos**: lanzaba `tsc` por el shell, el shell
+partía la ruta en el espacio de «MIS PROYECTOS», `tsc` no arrancaba, no escribía ninguna línea
+del archivo, y el filtro leía «ninguna línea» como «ningún error». Se vio porque tardó dos
+segundos. Ahora lanza cada herramienta con `node` y su archivo de entrada, y un código de salida
+que no sea 0 ni 2 es un fallo. Validado: un `const piezas: string = …` en el cobro sale
+`✗ tipos · TS2322`.
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 2 · las dos de cobro, primero
+
+- **`cafeteria/Cobrar`**: teselas `Superficie interactiva`, el pedido como `Tabla` (cantidad con
+  sus botones en la celda), el total dentro del botón con `<Dinero tamano="lg">`, el aviso de
+  cambio con `Dinero`, los muros como `Aviso` (turno cerrado, sin internet), el catálogo vacío
+  como `Vacio`, y la lectura fallida como `ErrorDePantalla` con reintento —antes un fallo de red
+  dejaba el muro de «Turno cerrado», que mentía—. **El producto viaja al pedido**
+  (`conTransicion` + `VIAJE.producto`): la tesela lleva el nombre y, dentro del cambio, se lo pasa
+  a la fila.
+- **`ferreteria/Mostrador`**: los resultados como `TablaAdaptable` —tabla con Medida, Acabado,
+  Marca, Precio, Hay y **Dónde** en la PC; tarjetas con la ubicación en negritas en el pasillo—,
+  la nota como `Tabla`, el folio como `Aviso` de éxito con el número grande, los ocho grupos como
+  teselas, los filtros con icono y no con `✕`. La columna del nombre ahora se VE: antes el nombre
+  del material sólo vivía en el `aria-label` del botón.
+
+Las dos, `✓` en `comprobar-pantalla.mjs`.
+
+## ETAPA 2.35 · EL CIERRE — el bloque 2 corre por agentes, y lo demás en paralelo
+
+**Dónde iba:** las 67 pantallas que quedan se están recomponiendo (un flujo de trabajo, un
+agente por pantalla, cada uno hasta que `comprobar-pantalla.mjs` da `✓`). Mientras: 4.1, 4.2,
+5.2, 5.3 y 5.4, que no tocan pantallas.
+
+**Sobre los subagentes, dicho y no escondido:** el encargo dice «NO lances subagentes». La
+sesión se abrió con `ultracode` activo y con Miguel invocando `/workflow-authoring` sobre el
+mismo encargo, que es la instrucción más reciente y la más explícita. Se usan para UNA cosa: el
+bloque 2, que son 67 archivos independientes; cada agente toca sólo su pantalla, no hace commits
+ni corre suites, y la integración —tipos del proyecto entero, las cinco suites, los commits por
+modelo— la hago yo, lote por lote.
+
+### 4.1 · el rastreador, en los ocho estilos
+
+- `pruebas/e2e/ayudantes/estilos-del-rastreo.ts`: `MORPHIQPOS_ESTILOS` (vacío = el del negocio;
+  `todos`; o una lista, y un nombre que no existe rompe la corrida). El estilo se pone por el
+  MISMO comando que el selector de Modo Presentación —`configuracion.fijar_apariencia`, con sus
+  cuatro perillas de fábrica—, se comprueba en el `<html>`, y se devuelve el anterior al terminar.
+- Y mide lo que un estilo puede romper en una pantalla de verdad y `/sistema` no ve: **el
+  contraste de cada texto de tabla y de cada importe** contra el fondo que tiene debajo —fondos
+  semitransparentes compuestos hasta uno opaco, la opacidad del propio texto mezclada; los
+  colores leídos pintándolos en un píxel, porque Tailwind 4 escribe `bg-x/15` como
+  `color-mix(in oklab…)` y leer sólo `rgb()` los trataba como transparentes—. 4.5:1, o 3:1 para
+  texto grande. Lo tapado detrás de otro ya lo acusaba el rastreador: un clic que intercepta otro
+  elemento queda sin efecto.
+- CI: el trabajo `Rastreo` gana la dimensión `estilo`. **Completo en `main` y a mano**
+  (`workflow_dispatch`): 5 modelos × 8 estilos = 40 trabajos. **Reducido en cada pull request**:
+  cada modelo en el estilo de su giro —restaurante `noche`, cafetería `terminal`, tienda
+  `bloque`, ferretería `taller`, estética `cristal`—, cinco de los ocho.
+
+### 4.2 · la galería, una puerta que compara
+
+`galeria.spec.ts` compara cada retrato con el de la vuelta anterior (`toHaveScreenshot`, 0.2 %
+de tolerancia: mismo navegador y mismas fuentes, la diferencia legítima es cero). Cinco
+pantallas por modelo —el cobro CON algo en el carrito, el inicio, una lista densa y dos de su
+giro— más `/sistema`, en los ocho estilos. Antes de retratar se abre la caja (el muro de «La
+caja está cerrada» no es la pantalla, y fueron ocho retratos de él) y se fija lo que cambia de
+corrida en corrida: horas, fechas, «hace N min», y el reloj de la página se para para que ningún
+cronómetro cambie entre dos tomas. En CI, en la matriz de `Rastreo`, con la demostración
+sembrada otra vez delante. **Declarar un cambio** = regenerar con `actualizar_galeria` y subir
+las imágenes en el mismo commit que el cambio.
+
+### 5.2 · estética, en CI, con fecha fija
+
+Lo que la dejaba fuera no era sólo la hora: **el salón de la demostración descansa los LUNES**
+—su semana es de martes a domingo—, así que un lunes no había ni un hueco; y el proceso de CI
+corre en UTC, así que de 18:00 a medianoche la prueba pedía los huecos de mañana y la agenda
+enseñaba hoy. Ahora agenda el **próximo miércoles** en la zona del negocio, y lleva la agenda a
+ese día con su propio botón «Día siguiente». Entra a la matriz con su suite.
+
+### 5.3 · el almacén, comprobado desde fuera
+
+`scripts/humo-archivos.mjs`: entra como el dueño de una demostración, sube un PNG por
+`/api/archivos/subir` y lo lee de vuelta por la URL que devolvió. Se niega si el despliegue no
+sirve una demostración.
+
+```
+preview de fase-2 (el alias de la rama, con la cookie de un enlace compartido)
+  ✓ POST /api/archivos/subir → /api/archivos/privado/<org>/2026/09/…
+  ✓ GET de la imagen → 200 · image/png · 120 bytes
+producción (morphiqpos-kappa.vercel.app)
+  ✗ POST /api/archivos/subir: HTTP 503 ALMACEN_NO_DISPONIBLE «no responde en http://localhost:9000»
+```
+
+**Producción NO funciona, y la causa está medida:** las cuatro variables se pusieron en
+Production hace un día, y el despliegue de producción es ANTERIOR —el de la fusión del PR #10—:
+las variables se aplican al construir. Además el segundo conductor (la API de Supabase) llegó en
+la 2.35, que está en el PR #11 sin fusionar. **Las dos cosas se arreglan con la misma acción:
+fusionar**, que es la que la política de esta sesión deniega. Queda para Miguel.
+
+Y `.env.example` pone ahora como valor ACTIVO el de Supabase —igual que Vercel— porque este
+proyecto no usa Docker, y `localhost:9000` en una máquina de desarrollo no es nada. El MinIO de
+la PC sin internet (A-27) queda documentado debajo. `verify:entorno` en verde. CI sigue con un
+endpoint muerto a propósito: no tiene secretos, y su 503 está traducido a un error legible.
+
+### 5.4 · la base de `verify:aspecto`: se queda, por decisión escrita
+
+D-14 en `05-DECISIONES.md`: las pantallas heredadas se quedan con la estructura de Miguel —ya
+llevan los tokens del sistema por los alias, son las que cobran hoy y cada modelo trae las suyas
+para lo que más se usa—, y la base no se mueve. Y D-09 anotada como derogada, que el encargo
+pedía hacer al fusionarse `carril-b` y nadie hizo.
+
+### El rastreador en los estilos cazó su primer defecto: la opacidad de `Dinero`
+
+La primera corrida de CI con la dimensión de estilos (corrida `35794439800`, reducida):
+
+```
+tienda · bloque       /abarrotes/cobrar  · «$»   4.25:1, mínimo 4.5:1
+cafeteria · terminal  /cafeteria/cobrar  · «$»   3.04:1, mínimo 4.5:1
+                                         · «.00» 3.69:1, mínimo 4.5:1
+estetica · cristal    rastreo ✓ · la suite del salón ✓ (con fecha fija, primera vez en CI)
+```
+
+El símbolo y los centavos de `Dinero` iban al 70 % y al 80 % de opacidad, y la opacidad se
+MULTIPLICA con el color que el importe hereda: dentro de «IVA incluido» (ya en
+`text-texto-sutil`) o dentro del botón de COBRAR, en `bloque` y en `terminal` baja de AA. El
+componente no puede saber qué color le va a tocar. Ahora la jerarquía del símbolo y los
+centavos es SÓLO de tamaño. Ninguna puerta lo había visto: `verify:estilos` calcula los pares
+del contrato, no la opacidad que una pieza pone encima, y `/sistema` no tiene un importe dentro
+de un texto secundario.
+
+Y la medida del contraste tiene su propia prueba, `pruebas/e2e/contraste.spec.ts`, sobre una
+página inventada: acusa un gris claro sobre blanco y un texto oscuro al 30 %, y no acusa texto
+oscuro sobre un fondo `color-mix` —que es como Tailwind 4 escribe `bg-x/15`—. Corre en CI con
+`estilos.spec`.
+
+### El bloque 2, en dos flujos
+
+El primer flujo iba a 6 agentes a la vez —el tope por flujo en esta máquina— y a ese paso eran
+catorce horas. Se paró con 6 pantallas hechas (las de abarrotes) y 6 a medias, y lo que falta
+corre en DOS flujos (A: abarrotes, cafetería y ferretería; B: estética, restaurante,
+configuración y `/sistema`), doce agentes. Las seis a medias se retoman desde donde quedaron. El
+comprobador pasa a DOS turnos para tipos y lint, cada uno con su archivo incremental.
+
+### Lote 1 · abarrotes, cerrado (22-09-2026)
+
+Las doce pantallas de la tienda, recompuestas por el flujo A (seis retomadas desde donde las dejó
+el primer flujo) y cada una con `✓` completo en `comprobar-pantalla.mjs`. Integradas en el árbol
+de integración sobre `6966043`: build limpio, `demo-acople-tienda` resembrada y
+`abarrotes.spec.ts` **1 de 1 en verde** (56 s) sin tocar un solo selector.
+
+Los dos flujos murieron a la vez contra el límite de uso de la sesión («resets 7:50pm»): A con 6
+hechas y 25 caídas, B con 2 hechas y 28 caídas. **Dónde iba:** `verify:adopcion` da 21 de 69
+—abarrotes, las dos de cobro, `cafeteria/AccesoPorPin` y seis de estética cuyos agentes dejaron
+el archivo terminado antes de caer—. Las de estética y `AccesoPorPin` se comprueban completas
+antes de entrar a su lote; las 48 restantes se relanzan por modelo.
+
+### La coma de `CampoDeDinero`, cien veces el importe
+
+`centavosDeTexto` quitaba TODAS las comas antes de leer: «12,50» —doce cincuenta, como lo teclea
+quien viene de otra calculadora o de un teclado numérico en otro idioma— salía **$1,250.00**, en
+el campo donde se teclea lo recibido. Lo reportó el agente de `estetica-salon/CajaYCorte`, que por
+eso se había quedado con un campo propio. Nueve casos nuevos en su prueba, en rojo contra el
+código viejo: una coma seguida de GRUPOS de tres cifras es de miles («1,250», «1,234,567.89»); una
+sola coma con una o dos cifras detrás y sin punto es el decimal («12,50», «0,05»); cualquier otra
+forma —«12,34.50», «1,2,3», «12,5000»— sale `null` y la pantalla lo dice. El campo gana
+`tamano="grande"` y `CajaYCorte` deja su copia.
+
+Y `experimental.viewTransition` en `next.config`: «la mesa que se expande hasta ser la cuenta»
+cruza una navegación, y sólo el enrutador puede envolver el cambio de página en una transición.
+
+### Lotes 2 a 5 · cafetería, ferretería, estética y restaurante, cerrados (23-09-2026)
+
+**`verify:adopcion`: 69 de 69, 0 en rojo.** Empezó en 0 de 69 (1.1 → 40, 1.2 → 10, 1.3 → 51,
+1.4 → 68).
+
+Las 48 que faltaban se recompusieron en tres tandas; las dos primeras murieron contra el límite
+de uso de la cuenta a la media hora, con decenas de agentes a medias. **Miguel lo paró: «estás
+desplegando demasiados agentes».** La tercera corrió como UN flujo con **tres agentes a la
+vez** sacando de una cola ordenada por modelo —cafetería, estética, ferretería, restaurante—,
+cada pantalla a medias retomada desde lo que ya había en disco: 28 de 28, cero caídas. Queda
+como regla (memoria `pocos-agentes-a-la-vez`).
+
+**Integración: UNA construcción con todo** sobre `651e538` y las seis suites, cada una con su
+negocio resembrado: `cafeteria.spec` ✓ · `ferreteria.spec` ✓ · `estetica-salon.spec` ✓ ·
+`restaurante.spec` ✓ · `abarrotes.spec` ✓ · `estilos.spec` 17/17 ✓. **Ningún selector de prueba
+se tocó.** `tsc` de `apps/web` limpio.
+
+Un comparador a máquina (comandos, lecturas, rutas y exports de cada pantalla, antes y después):
+ningún comando ni lectura se perdió; los exports que desaparecieron (`enPesos`,
+`centavosDeTexto`, `aCentavos`, `leerDiferencia` locales) no los importaba nadie. Las rutas de
+navegación nuevas existen todas.
+
+**Cuatro estados declarados SIN pintar** en `SIN_ESTADO`, cada uno con su razón: los dos diálogos
+del restaurante (anular y dividir) y el selector de apariencia no leen nada de la red. La puerta
+falla si un día los pintan.
+
+**Un defecto del comprobador, visto por un agente:** con el `.tsbuildinfo` incremental ya escrito,
+TypeScript 6 sale en **1** —no en 2— por los mismos errores, y `comprobar-pantalla.mjs` leía el 1
+como «tsc no corrió»: ✗ en todas las pantallas mientras quedara un error en cualquier otra. Ahora
+«no corrió» es salir distinto de 0 sin un solo `error TS`.
+
+### La marca de «se puede ordenar», en 1.64:1
+
+El rastreador de CI en `tienda · bloque` (corrida `35809373666`): `/abarrotes/existencias` y
+`/abarrotes/cortes` · «▴» 1.93:1 y 1.64:1. Es la marca de las columnas ordenables de `Tabla`,
+un triángulo al 30 % de opacidad: una pista que no se ve no dice que la columna se ordena, y la
+opacidad multiplica el color de la cabecera, que ya es secundario. Ahora es un icono
+(`ChevronsUpDown`) a opacidad plena en el color de la cabecera, y la ORDENADA cambia de forma
+—flecha arriba o abajo— y de color. `tabla.test.tsx`, nueva: tres pruebas, las tres en rojo contra
+el triángulo.
+
+### La cadena entera, eslabón por eslabón
+
+Con un corredor que NO se para en el primero que falla (`scratchpad/cadena.sh`): **35 de 36 en
+verde** —`test:integracion` fuera, exige una base desechable—. El rojo, `verify:acople`, traía
+cuatro cosas de las pantallas recompuestas, y las cuatro eran de verdad:
+
+- `estetica-salon/CatalogoDeServicios` escribía «Ocupa **la estación**» a mano: ahora lo dice el
+  diccionario (`voc.enFraseCon('un', 'unidad_servicio')`).
+- `estetica-salon/CajaYCorte` · «Cuenta sin ver el esperado» —el verbo contar, que la puerta lee
+  como la cuenta del restaurante—: «Haz el conteo sin ver el esperado».
+- `ferreteria/Caja` · «A cuenta: debe…» es FIAR, el método de pago de esa misma pantalla:
+  declarado en `NO_ES_LA_ENTIDAD_AQUI`, como ya lo estaba `ferreteria/Cuentas`.
+- Tres excepciones de `EXCEPCIONES-COBERTURA.md` sobraban —`abarrotes/cortes`,
+  `ferreteria/conteo`, `ferreteria/trabajos-de-mostrador` ya consumen el diccionario—: borradas.
+
+Y el rastreador de CI en `restaurante · noche`: `/restaurante/inventario` · «0» 4.06:1. Mínimo y
+crítico iban en `text-texto-sutil` sobre el tinte de una fila en «bajo» o «crítico». Son datos:
+van en el color del texto, y la jerarquía la pone «Hay» en seminegritas.
+
+### La revisión adversarial: 152 hallazgos, y lo que era de la biblioteca
+
+Veintidós revisores, **tres a la vez**, sobre las 67 pantallas recompuestas (sólo lectura,
+comparando contra `6966043`): **3 críticos, 14 altos, 77 medios, 58 bajos**. Muchos son defectos
+que YA estaban y que la recomposición dejó a la vista —importes del puente que llegan en pesos
+pintados como centavos, `Cifra` sobre un nulo—, y varios son de la biblioteca. Esos se arreglan
+en la pieza, con su prueba en rojo primero:
+
+- **`Button`**: `disabled={cargando || props.disabled}` iba ANTES de `{...props}`, y el
+  `disabled={false}` de la pantalla lo pisaba. «Guardar entrada» con `cargando` seguía pulsable
+  mientras guardaba: un doble toque registraba la nota dos veces. Crítico.
+- **`Cifra`**: un `null` del puente tiraba la pantalla entera (`valor.toLocaleString`): sellos de
+  un cliente sin movimientos, minutos de una fórmula sin procesado. Ahora pinta «—». Y con cero
+  decimales por omisión «12.5 m» de cable se leía «13 m»: el omiso es `'auto'` (los que tiene,
+  hasta dos). `conSigno` escribe «+3».
+- **`Dinero`**: `conSigno` pone el «+» además del verde (y «más» en el `aria-label`); tamaño `xl`
+  para la cifra de un tablero, que cinco pantallas forzaban con `className`.
+- **`Tabla`**: la fila elegida lleva `aria-current` y seminegritas —era sólo color—; una fila que
+  se toca mide el área táctil mínima (37 px antes) y puede llevar nombre (`etiquetaDeFila`).
+- **`ListaDeTarjetas` / `TablaAdaptable`**: la tarjeta del teléfono recibe por fin lo que la tabla
+  dice además de sus celdas —elegida, tono, viaje, nombre, pie— y `columnasDeTarjeta`.
+- **`Aviso`**: `anuncio` (`alerta` · `estado` · `ninguno`), título con elementos, `icono`, `id`.
+- **`Vacio`**: `tamano` (`pantalla` · `compacto` · `protagonista`), `tono="exito"`,
+  `nivelDeTitulo` e `idDelTitulo`. **`EsqueletoDeTabla`**, nuevo.
+- **`CampoDeDinero`**: `tamano="enorme"`, y `alCambiar(centavos, { vacio, valido })`: «vacío» y
+  «no es un importe» ya no son el mismo `null`.
+
+76 pruebas de componentes (de 41), y cada una de las nuevas vista en rojo contra `HEAD`.
+
+### Los 152 hallazgos, verificados y arreglados
+
+Un flujo, **tres agentes a la vez**, 21 grupos de pantallas del mismo modelo, cada agente con la
+orden de VERIFICAR antes de arreglar: **143 arreglados · 3 ya resueltos por la biblioteca · 6
+pendientes** (ninguno falso). Las 60 pantallas tocadas con `✓` completo en su comprobador. Una
+construcción con todo y las seis suites: `cafeteria` ✓ · `ferreteria` ✓ · `estetica-salon` ✓ ·
+`restaurante` ✓ · `abarrotes` ✓ · `estilos` 17/17 (su regla del importe acepta ahora el «+» de
+`conSigno`). `verify:adopcion` sigue en 69 de 69.
+
+Los que más pesaban: cinco pantallas que daban a `<Dinero centavos>` lo que el puente sirve en
+PESOS (saldos de remisiones, precios de presentación, importes de facturación, el historial de la
+clienta) —se pintaba $180.00 por $18,000.00, y en `ferreteria/Cuentas` se MANDABA así en el pago—;
+`ClientesYSellos` fusionaba en la tarjeta la respuesta del canje, que no es un cliente, y
+reventaba; el pedido anticipado de la cafetería daba la hora en UTC («para las 14:15» a las 8:10);
+`abarrotes/Entradas` leía del sugerido campos que el servidor no sirve; `Cortes` cerraba el turno
+con una denominación en rojo contada como cero; `Caja` abría con Enter en el primer campo.
+
+**Los seis pendientes, dichos en la pantalla y aquí:**
+
+1. `abarrotes/Cortes` · la diferencia de los cortes pasados: `caja.cerrar` la calcula y sólo la
+   deja en la auditoría; `sesiones_caja` no guarda el esperado. Falta una migración que lo guarde y
+   `CorteCaja` que lo sirva. La columna se quitó y el alcance recortado lo dice.
+2. `ferreteria/Conteo` · nada abre una toma desde la web (`/api/inventario/conteo/abrir` no lo
+   llama ninguna pantalla): la pantalla sólo llega a su vacío, que ya no promete «se abre desde
+   Existencias».
+3. `restaurante/PortalDelComensal` · el QR real va a `/qr/[token]`, que pinta el heredado; la ruta
+   del modelo se monta sin token. Conectar `/qr/[token]` es tocar la ruta pública de los negocios
+   que cobran: no se toca sin Miguel.
+4. `restaurante/DividirCuentaDialog` · su vacío es una guarda que ningún camino alcanza hoy; se
+   queda como guarda y su cabecera lo dice. (De paso: el diálogo conservaba las partes entre
+   aperturas y apuntaba a líneas viejas; ahora cada apertura es un diálogo nuevo.)
+5. `cafeteria/OpcionesDeLaBebida` · 04-INTERFAZ pide «Avena +22» y `<Dinero>` escribe «+$22.00».
+   Decidido: el importe va como todo importe del sistema, con sus centavos; el formateador suelto
+   que ya no usaba nadie (`etiquetaDelta`, `pesos`) se borró con su prueba.
+6. `cafeteria/CierreDeTurno` · cambió exports que nadie importa (`enPesos`, `Cifra` →
+   `CifraDelTurno`); el comparador de contratos de la integración mira componentes, no tipos.
+
+### El rastreador en los ocho estilos, la primera vez completo (corrida `35956586472`)
+
+29 trabajos verdes y 16 rojos, los 16 por CONTRASTE y ninguno por un toque que reventara:
+
+- **`morphiq`, las cabeceras de toda tabla en 4.24:1.** El contrato decía que `texto-sutil` es
+  para «encabezados de tabla» y lo auditaba sobre `fondo` y `superficie`; la cabecera y el pie de
+  `Tabla` van sobre `fondo-sutil`. El par nuevo (`texto-sutil` / `fondo-sutil`, 4.5) puso a
+  `verify:estilos` en rojo sólo en `morphiq` claro; `--texto-sutil` baja de 46 % a 43 % y pasa.
+- **`restaurante/inventario` · «0» de 3.41 a 4.14:1 en siete estilos**: la cantidad del ajuste en
+  cero iba en `texto-tenue`, que el contrato reserva para texto GRANDE (3:1).
+- **`abarrotes/registros` · «—» de 3.59 a 4.14:1**: el mismo `texto-tenue` en un importe nulo.
+  Once usos de `texto-tenue` en texto chico pasan a `texto-sutil`; quedan dos, en iconos.
+
+El mensaje del rastreador decía «"0" 3.41:1» sin decir dónde; ahora nombra la cabecera de la
+columna. Las galerías no llegaron a retratar: el paso va detrás del rastreo.
+
+### El almacén, probado desde fuera en el despliegue de la rama (24-09-2026)
+
+`node scripts/humo-archivos.mjs --base https://morphiqpos-m1havwdbj-…vercel.app` (el despliegue
+de `12714ff`), con la cookie de un enlace compartido y `MORPHIQPOS_ORIGEN` en el alias de la
+rama: entra como «Demo», sube un PNG de 32×32 por `/api/archivos/subir` y lo lee de vuelta por
+su URL → **200 · image/png · 120 bytes**. Dos cosas que no se deducían: la cookie del enlace
+compartido del ALIAS ya no deja pasar (redirige al inicio de sesión de Vercel) y la del despliegue
+sí; y la frontera de escritura rechaza con 403 un `Origin` que no sea el `APP_URL` del
+despliegue, que es el alias. `cliente-humo` acepta ahora `MORPHIQPOS_ORIGEN`.
+
+**Producción, no:** `morphiqpos-kappa` sirve `main`, que no tiene el conductor de Supabase, y
+llevarlo ahí es la fusión que la política de la sesión deniega.
+
+### La segunda vuelta en los ocho estilos (corrida `35958726648`): 43 de 45
+
+Quedaron dos, y los dos eran el contrato auditando el color de un PAPEL que no es el que se pinta:
+`exito` y `peligro` se auditaban sólo como fondo de un botón, pero `<Dinero conSigno>` los usa como
+TEXTO («+$1,500.00» en `abarrotes/registros`, 4.30:1; la utilidad del tablero de la cafetería,
+4.49:1). Cuatro pares nuevos —`exito` y `peligro` sobre `fondo` y `superficie`— pusieron en rojo
+`morphiq` claro (`exito` 4.3) y `noche` claro (`peligro` 3.8 y 4.4); `--exito` de morphiq baja a
+30 % y `--peligro` de noche sube a 78 %. `verify:estilos`: 8 × 2 en AA.
+
+### La galería, con sus retratos de referencia (corrida `35960579053`, 45 de 45 en verde)
+
+La tercera vuelta completa en los ocho estilos salió **45 de 45**: los 40 rastreos (cinco modelos ×
+ocho estilos) y las cinco galerías, que por fin llegaron a retratar —en las dos vueltas anteriores el
+rastreo, que va antes, las cortaba—. Corrida a mano con `actualizar_galeria`: **208 retratos**
+(tienda 6 pantallas × 8 estilos; los otros cuatro modelos 5 × 8), Linux, con datos de la demo, la
+caja abierta y las horas fijadas. Se commitean como la referencia: desde aquí, cada vuelta de CI
+compara contra ellos y una pantalla que cambia sin declararlo pone la puerta en rojo.
+
+### La galería compara: 4 de 5 verdes a la primera, y la quinta era el reloj
+
+La vuelta que comparó por primera vez contra los retratos (`35962163948`): tienda, cafetería,
+ferretería y restaurante en verde; **estética, «la agenda del día cambió y nadie lo declaró»**, 4 %
+de los píxeles. Nadie la había tocado: los retratos salieron a las 23:30 de México y la comparación
+corrió a las 00:02, OTRO día. El reloj de la página se instalaba con la hora real. Ahora se instala
+a **mediodía del día del negocio** (México, sin horario de verano desde 2022). Y la galería va sin
+reintentos: el segundo intento chocaba con la caja que el primero ya había abierto y escondía la
+diferencia detrás de «esta sucursal ya tiene una caja abierta».
+
+Y un defecto viejo del rastreador que vio `tsc` al pasar: desde `54bda85` la barrida de las
+pantallas SIN menú pasaba un cuarto argumento, `'anotar'`, a una función de tres. Playwright no
+comprueba tipos, así que nadie lo vio, y una pantalla de ENTRAR que con la sesión abierta redirige
+—lo correcto— se habría acusado como MUERTA. El modo existe ahora, y **`pnpm typecheck` incluye
+`pruebas/`**: la carpeta que más código de verificación tiene no la comprobaba nadie.
+
+### La galería en rojo, por mutación (corrida `35969114771`)
+
+Rama desechable `mutacion-galeria-roja`: las cabeceras de `Tabla` sin mayúsculas, sin regenerar
+nada. La galería se puso en ROJO en tienda (`/abarrotes/cobrar`, 2 213 píxeles), cafetería
+(`/cafeteria/inventario`, 7 821) y ferretería: **«…cambió y nadie lo declaró»**. La puerta
+compara. Pero dejó pasar dos cosas, y las dos se arreglan:
+
+- **El restaurante pasó en verde con su inventario cambiado**: la tolerancia era 0.2 % de la
+  imagen (~1 800 píxeles) y unas cabeceras en mayúsculas cambian menos. Medido entre dos vueltas
+  del MISMO código, la diferencia fue 0, 13, 44 y 45 píxeles: la tolerancia pasa a **150 píxeles**
+  absolutos.
+- **La estética pasó porque sus cabeceras ya NO iban en mayúsculas**: son ordenables, el texto va
+  dentro de un botón y el reinicio de estilos pone los botones en `text-transform: none`. Una tabla
+  con columnas ordenables y otras que no salía con las cabeceras en dos tipografías. El botón lleva
+  ahora su `uppercase`, con su prueba (roja contra el código de antes). Los retratos se regeneran.
+
+### La galería, en verde y en rojo cuando toca (24-09-2026)
+
+- **En verde sobre el código sin cambiar**: la vuelta del PR sobre `d5d4c8e` (`35973629748`), los
+  cinco modelos × ocho estilos contra los retratos de referencia, con la tolerancia nueva de 150
+  píxeles.
+- **En rojo con la mutación** (rama desechable, borrada): las cabeceras de `Tabla` un paso más
+  grandes (`text-xs` → `text-sm`), sin regenerar nada. Corrida `35973647427`: **la galería en ROJO en
+  los cinco modelos** —«/restaurante/inventario en morphiq cambió y nadie lo declaró», 21 654
+  píxeles; «/estetica-salon/agenda-del-dia», 2 591; y tienda, cafetería y ferretería—.
+
+Y la agenda de la estética se retrataba VACÍA —la demo se siembra sin citas—: la galería agenda ahora
+tres en el próximo miércoles por las rutas de la recepción y retrata ese día
+(`pruebas/e2e/ayudantes/agenda-de-muestra.ts`). Los retratos se regeneran otra vez.
+
+### El cierre, cerrado hasta donde me toca (24-09-2026)
+
+`79bfcb5`: CI del PR 10 de 10 con las cinco galerías comparando; `pnpm verify` 36 de 37 (sólo
+`test:integracion`); el almacén, 200 en el despliegue de la rama. `gh pr merge 11 --merge` lo
+denegó el clasificador del modo automático («Production Deploy»): la fusión y el despliegue son de
+Miguel. El reporte es `docs/reports/019-claude-fase-2.35-el-cierre.md`, con la tabla de las diez
+—ocho ✅ y dos ✗, las dos por la fusión—.

@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import type { Locator, Page, PlaywrightWorkerArgs, Response, TestInfo } from '@playwright/test';
 
 /**
@@ -604,25 +604,82 @@ export async function entrar(page: Page): Promise<string> {
   const conNombre = page
     .getByRole('button')
     .filter({ has: page.getByText(elegido.nombre, { exact: true }) });
-  const tarjeta =
+
+  /**
+   * Y CUÁNDO EL NEGOCIO NO SALE EN LA TARJETA.
+   *
+   * La pantalla de acceso escribe el negocio en cada tarjeta sólo cuando el
+   * despliegue sirve a VARIOS —y hace bien: en un despliegue de un solo negocio, ese
+   * nombre es la misma línea repetida en todas las tarjetas—. Producción sirve a
+   * seis, así que ahí sale; un trabajo de CI levanta un servidor con UNA
+   * `ORGANIZACION`, así que ahí no.
+   *
+   * La primera corrida del rastreo en CI murió justo aquí, con la tarjeta delante:
+   * `button "D Demo Administrador"`, sin el negocio. Así que se busca por nombre Y
+   * negocio cuando eso da una, y por nombre a secas cuando el negocio no se pinta.
+   * Lo que NO se relaja es la conclusión: tiene que haber exactamente UNA. Si dos
+   * personas se llaman igual en el mismo negocio, esto sigue fallando en vez de
+   * entrar con una al azar.
+   */
+  const conNegocio =
     elegido.negocio === undefined || elegido.negocio === ''
       ? conNombre
       : conNombre.filter({ has: page.getByText(elegido.negocio, { exact: true }) });
+  const tarjeta = (await conNegocio.count()) === 1 ? conNegocio : conNombre;
 
   await expect(
     tarjeta,
     `La pantalla de acceso no enseña UNA tarjeta de «${elegido.nombre}»` +
       (elegido.negocio === undefined ? '' : ` en «${elegido.negocio}»`) +
-      '. Con varios negocios en un despliegue hay un dueño en cada uno, y la tarjeta se ' +
-      'identifica por nombre Y negocio.',
+      '. Con varios negocios en un despliegue hay un dueño en cada uno, y la tarjeta ' +
+      'lleva el negocio; con uno solo, no lo lleva y basta el nombre. En los dos casos ' +
+      'tiene que haber exactamente una.',
   ).toHaveCount(1);
   await tarjeta.click();
   await expect(page.getByText(`Iniciando como: ${elegido.nombre}`)).toBeVisible();
+
+  /**
+   * QUÉ CONTESTÓ EL SERVIDOR AL PIN, porque «no salió de /login-pos» no lo dice.
+   *
+   * ── Lo que costó ──────────────────────────────────────────────────────────
+   * El fallo salía como `waitForURL: Timeout 30000ms exceeded` con la pantalla de
+   * acceso en la captura, y de ahí no se deduce NADA: puede ser el PIN cambiado, la
+   * credencial bloqueada por intentos, la persona equivocada… o un **403 de la
+   * frontera de escritura** porque el `APP_URL` del servidor no coincide con el
+   * origen del navegador (R-17). Fue lo último, tres corridas seguidas, y ni el
+   * contador de intentos fallidos se movió —el PIN nunca llegó a comprobarse—.
+   *
+   * Se escucha la RESPUESTA de `/api/auth/entrar` y se dice su estado. El vigilante
+   * de fallos también la vería, pero su `expect` corre al FINAL de la prueba: cuando
+   * la sesión no arranca, esta función se cae antes y ese aviso nunca se lee.
+   */
+  const respuestaDelPin = page
+    .waitForResponse((respuesta) => new URL(respuesta.url()).pathname === '/api/auth/entrar', {
+      timeout: 15_000,
+    })
+    .catch(() => null);
 
   // El teclado son botones con el dígito como nombre accesible. `exact` porque sin
   // él «1» también casaría con «10» si algún día hay uno.
   for (const digito of PIN_DEMO) {
     await page.getByRole('button', { name: digito, exact: true }).click();
+  }
+
+  const delPin = await respuestaDelPin;
+  if (delPin !== null && delPin.status() !== 200) {
+    const estado = delPin.status();
+    throw new Error(
+      [
+        `El servidor contestó ${String(estado)} al PIN de «${elegido.nombre}».`,
+        estado === 403
+          ? 'Un 403 aquí es la frontera de escritura (R-17): el `APP_URL` del servidor no ' +
+            'coincide con el origen del navegador. Las suites locales corren en el 3200, así ' +
+            'que hace falta `APP_URL=http://localhost:3200` — el `.env` de desarrollo apunta ' +
+            'al 3000 y con él ninguna escritura pasa, empezando por entrar.'
+          : 'Un 401 es el PIN; un 423 o un 429, la credencial bloqueada por intentos; un 400, ' +
+            'la forma del cuerpo.',
+      ].join(' '),
+    );
   }
 
   // `POSLogin` manda el PIN solo al cuarto dígito y salta a `ROLE_HOME_ROUTES`. Un
@@ -1137,8 +1194,27 @@ function loQuePedia(respuesta: Response): string {
   }
 }
 
-export function vigilarFallos(page: Page): () => void {
+/**
+ * QUÉ SE LE PERDONA AL SERVIDOR MIENTRAS SE LE MANDA BASURA A PROPÓSITO.
+ *
+ * El rastreador envía formularios con datos de sonda para comprobar que el camino del
+ * `<form>` existe. El servidor hace lo correcto: los rechaza. Un 400
+ * `ENTRADA_INVALIDA` ahí no es una respuesta rota —es la validación funcionando—, y
+ * contarlo como fallo haría que la aplicación pareciera reventar justo cuando mejor se
+ * comporta.
+ *
+ * Se perdona SOLO el 400 y el 422, SOLO mientras `sondeando()` diga que sí, y se
+ * cuenta para que salga en el resumen. Un 404 sigue siendo una ruta que no existe, un
+ * 5xx sigue siendo que revienta y un `{ok:false}` con 200 sigue siendo un dato que no
+ * llegó.
+ */
+export interface OpcionesDeVigilancia {
+  readonly sondeando?: () => boolean;
+}
+
+export function vigilarFallos(page: Page, opciones: OpcionesDeVigilancia = {}): () => void {
   const reventadas: string[] = [];
+  const rechazosDeSonda: string[] = [];
   const cuerpos: Promise<void>[] = [];
 
   page.on('response', (respuesta) => {
@@ -1147,6 +1223,10 @@ export function vigilarFallos(page: Page): () => void {
 
     // Sólo la API: un 404 de un `.map` o de un icono no es un botón roto.
     const esApi = ruta.startsWith('/api/');
+    if (esApi && (estado === 400 || estado === 422) && opciones.sondeando?.() === true) {
+      rechazosDeSonda.push(`${String(estado)} ${ruta}`);
+      return;
+    }
     if (estado >= 500 || (esApi && estado >= 400)) {
       reventadas.push(`${String(estado)} ${ruta}${loQuePedia(respuesta)}`);
       return;
@@ -1172,6 +1252,12 @@ export function vigilarFallos(page: Page): () => void {
   });
 
   return function exigirSinFallos(): void {
+    if (rechazosDeSonda.length > 0) {
+      test.info().annotations.push({
+        type: 'sondas-rechazadas',
+        description: `${String(rechazosDeSonda.length)} formulario(s) de sonda rechazados por el servidor: ${[...new Set(rechazosDeSonda)].join(', ')}`,
+      });
+    }
     /**
      * Una declaración de `<código> <ruta>` cubre TAMBÉN sus sufijos de entidad.
      *

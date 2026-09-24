@@ -1,0 +1,121 @@
+/**
+ * Estilo `taller` — skeuomorfismo. Materiales de verdad.
+ *
+ * PARA: ferretería, taller mecánico, refaccionaria, materiales de construcción,
+ * vidriería. Gente que **trabaja con las manos** y a la que un botón que parece un
+ * botón le dice más que uno plano. No es nostalgia: es que quien monta un tablero
+ * eléctrico lee un relieve más rápido que un rectángulo de color.
+ *
+ * SU PUNTO DE VISTA: metal cepillado, papel de nota, madera. Botones con bisel y
+ * estado pulsado REAL —`elevacion: doble-bisel`— y la densidad `guantes`, que sube
+ * los controles a 56 px: en un taller en enero se cobra con guante puesto.
+ *
+ * La paleta es la de una caja de herramientas: acero, hueso, y el naranja de
+ * seguridad —el de los conos y los chalecos— como primario. Ese naranja no está
+ * elegido por bonito: es el color que en ese oficio significa «aquí».
+ *
+ * Las texturas —el cepillado del metal, la trama del papel— están en
+ * `capas/taller.css`, que es lo que los tokens no pueden expresar.
+ */
+
+[data-estilo='taller'] {
+  --sombra-tinte: 24 20% 22%;
+
+  /* Papel de nota de taller: hueso, no blanco. */
+  --fondo: 36 22% 93%;
+  --fondo-sutil: 30 16% 87%;
+  /* Acero claro: la superficie es metal, un punto más fría que el fondo. */
+  --superficie: 30 14% 96%;
+  --superficie-elevada: 30 16% 98%;
+
+  --texto: 24 24% 12%;
+  --texto-sutil: 24 10% 34%;
+  --texto-tenue: 24 8% 46%;
+
+  --borde: 30 14% 78%;
+  --borde-fuerte: 24 12% 42%;
+  --anillo: 22 90% 38%;
+
+  /* Naranja de seguridad, oscurecido hasta que el rótulo blanco se lee. */
+  --primario: 22 90% 38%;
+  --primario-texto: 36 30% 98%;
+  --acento: 205 70% 30%;
+  --acento-texto: 36 30% 98%;
+  --acento-suave: 30 40% 88%;
+  --acento-suave-texto: 24 50% 22%;
+
+  --exito: 140 55% 26%;
+  --exito-texto: 36 30% 98%;
+  --advertencia: 44 95% 50%;
+  --advertencia-texto: 24 40% 12%;
+  --peligro: 2 72% 40%;
+  --peligro-texto: 36 30% 98%;
+  --info: 205 70% 32%;
+  --info-texto: 36 30% 98%;
+
+  --grafico-1: 22 90% 46%;
+  --grafico-2: 205 70% 40%;
+  --grafico-3: 140 50% 34%;
+  --grafico-4: 44 92% 48%;
+  --grafico-5: 268 42% 48%;
+  --grafico-6: 350 62% 44%;
+
+  --velo: 24 24% 16%;
+
+  /* Hierro, con la veta oscura. */
+  --lateral-fondo: 24 18% 14%;
+  --lateral-texto: 36 20% 88%;
+  --lateral-activo: 30 95% 52%;
+  --lateral-activo-texto: 24 40% 10%;
+  --lateral-hover: 24 16% 22%;
+  --lateral-borde: 24 14% 26%;
+}
+
+[data-estilo='taller'][data-modo='oscuro'] {
+  --sombra-tinte: 24 40% 2%;
+
+  --fondo: 24 14% 10%;
+  --fondo-sutil: 24 12% 15%;
+  --superficie: 24 12% 14%;
+  --superficie-elevada: 24 11% 18%;
+
+  --texto: 36 20% 92%;
+  --texto-sutil: 36 10% 70%;
+  --texto-tenue: 36 8% 56%;
+
+  --borde: 24 12% 24%;
+  --borde-fuerte: 36 10% 56%;
+  --anillo: 22 95% 62%;
+
+  --primario: 22 95% 62%;
+  --primario-texto: 24 50% 8%;
+  --acento: 205 85% 66%;
+  --acento-texto: 205 55% 8%;
+  --acento-suave: 24 16% 22%;
+  --acento-suave-texto: 36 20% 90%;
+
+  --exito: 140 55% 56%;
+  --exito-texto: 140 45% 7%;
+  --advertencia: 44 95% 58%;
+  --advertencia-texto: 24 45% 9%;
+  --peligro: 2 85% 68%;
+  --peligro-texto: 2 50% 8%;
+  --info: 205 85% 66%;
+  --info-texto: 205 55% 8%;
+
+  --grafico-1: 22 95% 62%;
+  --grafico-2: 205 85% 62%;
+  --grafico-3: 140 55% 54%;
+  --grafico-4: 48 92% 58%;
+  --grafico-5: 268 62% 70%;
+  --grafico-6: 330 80% 70%;
+
+  --velo: 24 40% 2%;
+
+  --lateral-fondo: 24 18% 8%;
+  --lateral-texto: 36 18% 88%;
+  --lateral-activo: 22 95% 58%;
+  --lateral-activo-texto: 24 50% 8%;
+  --lateral-hover: 24 14% 16%;
+  --lateral-borde: 24 12% 20%;
+}

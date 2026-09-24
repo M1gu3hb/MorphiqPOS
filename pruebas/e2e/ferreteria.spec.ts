@@ -391,9 +391,13 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     const primeraPalabra = nombre.split(' ')[0] ?? nombre;
     await page.locator('#buscador').fill(primeraPalabra);
 
-    // El resultado es un `button` con el material entero en su nombre accesible:
-    // medida, precio, existencia y ubicación. Se toca, como en el pasillo.
-    const fila = page.getByRole('button', { name: new RegExp(comoTexto(nombre)) }).first();
+    // El resultado es una FILA de la tabla en la PC —se compara columna por columna— y
+    // una tarjeta que se toca en el pasillo (`TablaAdaptable`). Las dos llevan el
+    // material entero en su nombre accesible, y las dos se activan igual.
+    const enPc = (page.viewportSize()?.width ?? 0) >= 1280;
+    const fila = page
+      .getByRole(enPc ? 'row' : 'button', { name: new RegExp(comoTexto(nombre)) })
+      .first();
     await expect(
       fila,
       `El índice del mostrador no encontró «${nombre}» buscando «${primeraPalabra}», y el ` +

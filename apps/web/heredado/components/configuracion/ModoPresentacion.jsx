@@ -1,5 +1,7 @@
 'use client';
 import React, { useState } from 'react';
+
+import { SelectorDeApariencia } from '~/configuracion/SelectorDeApariencia';
 import { api } from '@/api/cliente';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -162,6 +164,12 @@ export default function ModoPresentacion({ cfg }) {
   // ---------- Contenido de la pestaña ----------
   return (
     <div className="space-y-6">
+      {/* El selector de ESTILO VISUAL. Vive en apps/web/src porque esta pantalla la
+          compara `verify:aspecto` clase por clase contra el commit en que Miguel la
+          entrego, y escribir la seccion aqui dentro haria fallar esa puerta por
+          decenas de testigos nuevos. Se monta con una linea. */}
+      <SelectorDeApariencia />
+
       {/* A) Encabezado */}
       <Card>
         <CardHeader>

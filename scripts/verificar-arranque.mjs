@@ -18,13 +18,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
+
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 
 const fallos = [];
 
 /** Devuelve el archivo sin comentarios, para que un contrato no se encuentre a si mismo. */
 function sinComentarios(texto) {
-  return texto
+  return sinFalsosDelimitadores(texto)
     .replaceAll(/\/\*[\s\S]*?\*\//g, '')
     .split(/\r?\n/)
     .map((linea) => linea.replace(/(^|\s)\/\/.*$/, '$1'))

@@ -21,6 +21,11 @@
   "base": "89830e59aed8688042d98c06d3521c35e95a9906",
   "permitidos": [
     {
+      "archivo": "apps/web/heredado/components/ui/toast.jsx",
+      "porque": "La rejilla de avisos es un div `fixed` de 420 px de ancho anclado abajo a la derecha, con `pointer-events: auto` y VACÍO la mayor parte del tiempo. Eso deja esa esquina MUERTA a los clics en todas las pantallas: la puerta de los ocho estilos midió `elementFromPoint` sobre el destino «Caja» del abanico inferior y lo que recibía el toque era esta rejilla, no el botón. Y son dos, porque `ToastProvider` pinta otro div idéntico por fuera. `pointer-events-none` en la rejilla es lo que trae shadcn de origen —esta copia lo perdió— y los avisos siguen siendo interactivos porque cada uno lleva ya `pointer-events-auto` en `toastVariants`. No cambia un píxel de lo que Miguel ve: cambia dónde llega el dedo.",
+      "testigos": ["+ clase:pointer-events-none", "+ clase:pointer-events-none"]
+    },
+    {
       "archivo": "apps/web/heredado/components/portalqr/PedirCuentaQR.jsx",
       "porque": "El bloque «Cargando tu cuenta…» cubría un `api.entidades.Venta.get` que este diálogo hacía al abrirse. Esa lectura ya no existe: la cuenta llega con el resto del portal en la lectura pública única, y el diálogo sólo se abre cuando el padre ya la tiene. Mantener el bloque sería dejar un giro de carga que no puede pintarse nunca.",
       "testigos": [

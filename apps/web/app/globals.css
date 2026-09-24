@@ -12,6 +12,31 @@
 
 @import 'tailwindcss';
 @import 'tw-animate-css';
+
+/* ===========================================================================
+   EL SISTEMA DE DISEÑO, ENCHUFADO. Etapa 2.35.
+   ---------------------------------------------------------------------------
+   Esta línea no existía, y era LA causa de que todo se viera plano.
+
+   `packages/ui/src/estilos/index.css` trae los tokens que no dependen del
+   estilo —`--espacio-*`, `--radio-*`, `--sombra-0..4`, `--altura-control`—, las
+   cuatro perillas (`data-densidad|redondeo|elevacion|movimiento`) y la paleta de
+   cada estilo. Está escrito y probado desde la Fase 1, y **ningún archivo de
+   `apps/web` lo importaba**.
+
+   Lo que eso significaba, medido en el CSS compilado: `verify:primitivas` OBLIGA
+   a las 36 primitivas a escribir `shadow-1..4` y `h-(--altura-control)` en unos
+   190 sitios, y en el paquete servido `.shadow-1` NO EXISTÍA como regla y
+   `--altura-control` no estaba declarada en ninguna parte —así que
+   `width:var(--altura-control)` era una declaración inválida—. El sistema
+   pintaba con tokens que no existían.
+
+   Va ANTES del heredado a propósito: su hoja ahora DERIVA sus nombres en inglés
+   de estos tokens, y aunque las variables de CSS se resuelven al usarse —no al
+   declararse—, leerlo en este orden es leerlo en el orden en que manda.
+   =========================================================================== */
+@import '@morphiqpos/ui/estilos.css';
+
 @import '../heredado/index.css';
 
 /* Tailwind escanea archivos para descubrir clases. Su código vive en
@@ -23,10 +48,13 @@
    `ThemeContext`, que es el único sistema de tema de la aplicación. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* `oscuro:` es como escriben el modo oscuro las 36 primitivas de
-   `@morphiqpos/ui`, que siguen vivas donde ya estaban. Apunta a la MISMA
-   clase: no hay dos modos oscuros, hay uno con dos nombres. */
-@custom-variant oscuro (&:where(.dark, .dark *));
+/* `oscuro:` es como escribe el modo oscuro el sistema —las primitivas, la
+   biblioteca y las pantallas de los modelos—, y apunta a `data-modo`, que es
+   SU atributo. `.dark` es el de Miguel: lo pone su `ThemeContext` y lo leen
+   los 244 archivos del heredado con `dark:`. El guion `GUION_DEL_MODO` de
+   `app/layout.tsx` deriva uno del otro antes del primer pintado y en cada
+   cambio, así que hay UN modo oscuro y cada código lo llama en su idioma. */
+@custom-variant oscuro (&:where([data-modo='oscuro'], [data-modo='oscuro'] *));
 
 @theme inline {
   /* --- colors, de su tailwind.config.js ------------------------------- */
@@ -71,10 +99,92 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
+  /* --- LOS COLORES DEL SISTEMA, CON SU NOMBRE ------------------------------
+     Hasta aquí sólo existían las utilidades en INGLÉS —`bg-card`,
+     `text-muted-foreground`—, que son alias de estos tokens para los 244
+     archivos del heredado. `packages/ui` y las pantallas de los modelos
+     escriben con el nombre del sistema: `bg-superficie`, `text-texto-sutil`,
+     `text-peligro`. Un color, un nombre; el inglés queda sólo donde lo escribió
+     Miguel. `verify:primitivas` lo exige fuera del heredado. */
+  --color-fondo: hsl(var(--fondo));
+  --color-fondo-sutil: hsl(var(--fondo-sutil));
+  --color-superficie: hsl(var(--superficie));
+  --color-superficie-elevada: hsl(var(--superficie-elevada));
+  --color-texto: hsl(var(--texto));
+  --color-texto-sutil: hsl(var(--texto-sutil));
+  --color-texto-tenue: hsl(var(--texto-tenue));
+  --color-borde: hsl(var(--borde));
+  --color-borde-fuerte: hsl(var(--borde-fuerte));
+  --color-anillo: hsl(var(--anillo));
+  --color-primario: hsl(var(--primario));
+  --color-primario-texto: hsl(var(--primario-texto));
+  --color-acento: hsl(var(--acento));
+  --color-acento-texto: hsl(var(--acento-texto));
+  --color-acento-suave: hsl(var(--acento-suave));
+  --color-acento-suave-texto: hsl(var(--acento-suave-texto));
+  --color-exito: hsl(var(--exito));
+  --color-exito-texto: hsl(var(--exito-texto));
+  --color-advertencia: hsl(var(--advertencia));
+  --color-advertencia-texto: hsl(var(--advertencia-texto));
+  --color-peligro: hsl(var(--peligro));
+  --color-peligro-texto: hsl(var(--peligro-texto));
+  --color-info-texto: hsl(var(--info-texto));
+  --color-grafico-1: hsl(var(--grafico-1));
+  --color-grafico-2: hsl(var(--grafico-2));
+  --color-grafico-3: hsl(var(--grafico-3));
+  --color-grafico-4: hsl(var(--grafico-4));
+  --color-grafico-5: hsl(var(--grafico-5));
+  --color-grafico-6: hsl(var(--grafico-6));
+  --color-velo: hsl(var(--velo));
+  --color-lateral-fondo: hsl(var(--lateral-fondo));
+  --color-lateral-texto: hsl(var(--lateral-texto));
+  --color-lateral-activo: hsl(var(--lateral-activo));
+  --color-lateral-activo-texto: hsl(var(--lateral-activo-texto));
+  --color-lateral-hover: hsl(var(--lateral-hover));
+  --color-lateral-borde: hsl(var(--lateral-borde));
+
   /* --- borderRadius: los tres derivados de --radius -------------------- */
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  /* --- LA ESCALA DE ELEVACIÓN DEL SISTEMA -------------------------------
+     `shadow-1` … `shadow-4`, que es lo que `verify:primitivas` exige en las 36
+     primitivas y lo que hasta hoy no emitía una sola línea de CSS: Tailwind 4
+     genera `shadow-<clave>` a partir de `--shadow-*`, y esas claves no existían.
+
+     Los valores salen de la perilla `data-elevacion`, así que cambiarla cambia la
+     profundidad de la aplicación entera sin tocar un componente: `sombra` da
+     sombras suaves, `doble-bisel` añade luz arriba y sombra dentro, `linea-dura`
+     las vuelve un desplazamiento sólido y `plana` las apaga. */
+  --shadow-0: var(--sombra-0);
+  --shadow-1: var(--sombra-1);
+  --shadow-2: var(--sombra-2);
+  --shadow-3: var(--sombra-3);
+  --shadow-4: var(--sombra-4);
+
+  /* --- LA ESCALA TIPOGRÁFICA DEL SISTEMA, ENCHUFADA --------------------
+     El mismo hallazgo que el de la elevación, y en el mismo sitio: `base.css`
+     declara `--tamano-xs … --tamano-3xl` desde la Fase 1, el contrato los exige y
+     `sistema.test.ts` comprueba que están. Y **nadie los mapeaba a Tailwind**, así
+     que lo que se pintaba de verdad era la escala POR OMISIÓN de Tailwind y los
+     ocho tokens eran ocho declaraciones inertes. Tres veces la misma enfermedad:
+     un sistema escrito, probado y sin aplicar.
+
+     La escala del contrato tiene más CONTRASTE que la de Tailwind —1.375 contra
+     1.25 en `xl`, 2.25 contra 1.875 en `3xl`—, y ese contraste es la mitad de la
+     jerarquía: lo que hace que un título mande sin tener que ponerlo en negrita.
+
+     `display` es el octavo paso y el único fluido: el total de una pantalla de
+     cobro no se lee, se dice en voz alta desde el otro lado del mostrador. */
+  --text-xs: var(--tamano-xs);
+  --text-sm: var(--tamano-sm);
+  --text-base: var(--tamano-base);
+  --text-lg: var(--tamano-lg);
+  --text-xl: var(--tamano-xl);
+  --text-2xl: var(--tamano-2xl);
+  --text-3xl: var(--tamano-3xl);
+  --text-display: var(--tamano-display);
 
   /* --- animation: el acordeón de Radix --------------------------------- */
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -109,6 +219,19 @@
 
 @utility font-body {
   font-family: var(--font-body);
+}
+
+/**
+ * LA FUENTE DE LOS NUMEROS, con sus cifras TABULARES.
+ *
+ * En un POS los importes se leen en columna: sin cifras de ancho fijo el `1` es mas
+ * estrecho que el `8`, los totales bailan y una columna deja de poder compararse de
+ * un vistazo. `font-numeros` es lo que usa el componente `Dinero`, y es la razon de
+ * que ese componente exista.
+ */
+@utility font-numeros {
+  font-family: var(--fuente-numeros);
+  font-variant-numeric: var(--variante-numerica);
 }
 
 /* Tailwind 4 dejó de aplicar el color de borde por omisión. Su hoja lo da por

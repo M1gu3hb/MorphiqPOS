@@ -10,6 +10,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../comando.ts';
+import { normalizarEstilo } from './apariencia.ts';
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const urlONull = z.url().nullable();
@@ -47,7 +48,24 @@ const valoresGuardados = z.object({
       logoUrl: z.string().nullable().optional(),
       colorPrimario: color.optional(),
       colorAcento: color.optional(),
-      estilo: z.enum(['base', 'editorial', 'premium']).optional(),
+      /**
+       * EL ESTILO, como CADENA y no como enumeración cerrada.
+       *
+       * Esto decía `z.enum(['base', 'editorial', 'premium'])`, y con los ocho estilos
+       * de la etapa 2.35 eso significaba que un negocio con `bloque` guardado rompe la
+       * LECTURA ENTERA de su configuración —`CONFIGURACION_INVALIDA`, la pantalla en
+       * blanco— por un campo decorativo. Un dato de apariencia jamás puede tirar la
+       * configuración de un negocio.
+       *
+       * Se valida al ESCRIBIR, que es donde importa: `configuracion.fijar_apariencia`
+       * sólo acepta los ocho. Y al leer se normaliza con `normalizarEstilo`, que
+       * traduce los tres nombres viejos y cae al base ante cualquier cosa rara.
+       */
+      estilo: z.string().optional(),
+      densidad: z.string().optional(),
+      redondeo: z.string().optional(),
+      elevacion: z.string().optional(),
+      movimiento: z.string().optional(),
     })
     .optional(),
   impuesto: z
@@ -66,7 +84,12 @@ export interface ConfiguracionOrganizacion {
   readonly logoUrl: string | null;
   readonly colorPrimario: string;
   readonly colorAcento: string;
-  readonly estilo: 'base' | 'editorial' | 'premium';
+  /** Uno de los ocho, ya normalizado: nunca es un nombre viejo ni uno inventado. */
+  readonly estilo: string;
+  readonly densidad: string;
+  readonly redondeo: string;
+  readonly elevacion: string;
+  readonly movimiento: string;
   readonly paquete: Paquete;
   readonly impuestoPuntosBase: number;
   readonly impuestoIncluidoEnPrecio: boolean;
@@ -78,7 +101,12 @@ const DEFAULTS = {
   logoUrl: null,
   colorPrimario: COLOR_PRIMARIO_DEFAULT,
   colorAcento: COLOR_ACENTO_DEFAULT,
-  estilo: 'base',
+  /* Las cinco de la apariencia son las del estilo `morphiq`, que es el base. */
+  estilo: 'morphiq',
+  densidad: 'normal',
+  redondeo: 'media',
+  elevacion: 'sombra',
+  movimiento: 'normal',
   /** IVA general de México. Es el punto de partida, no una constante. */
   impuestoPuntosBase: 1600,
   impuestoIncluidoEnPrecio: true,
@@ -118,7 +146,11 @@ export async function leerConfiguracion(
     logoUrl: guardados.apariencia?.logoUrl ?? DEFAULTS.logoUrl,
     colorPrimario: guardados.apariencia?.colorPrimario ?? DEFAULTS.colorPrimario,
     colorAcento: guardados.apariencia?.colorAcento ?? DEFAULTS.colorAcento,
-    estilo: guardados.apariencia?.estilo ?? DEFAULTS.estilo,
+    estilo: normalizarEstilo(guardados.apariencia?.estilo),
+    densidad: guardados.apariencia?.densidad ?? DEFAULTS.densidad,
+    redondeo: guardados.apariencia?.redondeo ?? DEFAULTS.redondeo,
+    elevacion: guardados.apariencia?.elevacion ?? DEFAULTS.elevacion,
+    movimiento: guardados.apariencia?.movimiento ?? DEFAULTS.movimiento,
     paquete: plantillaDeOrganizacion(fila.giro, fila.paquete),
     impuestoPuntosBase: guardados.impuesto?.puntosBase ?? DEFAULTS.impuestoPuntosBase,
     impuestoIncluidoEnPrecio:

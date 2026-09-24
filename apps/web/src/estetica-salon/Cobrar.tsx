@@ -2,7 +2,6 @@
 
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { RadioGroup, RadioGroupItem } from '@morphiqpos/ui/primitivas/radio-group';
 import {
@@ -12,7 +11,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@morphiqpos/ui/primitivas/select';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import {
+  Aviso,
+  CampoDeDinero,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  Banknote,
+  Check,
+  ChevronRight,
+  CreditCard,
+  Landmark,
+  Scissors,
+  UserRound,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -29,7 +47,8 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * Porque es el único número que se dice EN VOZ ALTA con la clienta enfrente, y
  * decir uno distinto del que se cobra es la forma más cara de equivocarse aquí.
  * Todo lo demás —subtotal, IVA, conceptos— existe para explicarlo, no para
- * competir con él.
+ * competir con él. Por eso va en el paso `total` de `Dinero`, arriba del bloque
+ * de cobro, y los conceptos son una tabla densa a su izquierda: un recibo.
  *
  * ── Lo que este cobro tiene y ningún otro del proyecto ───────────────────
  * Cada línea trae SU profesional y la propina trae DESTINATARIO. Sin el
@@ -46,13 +65,16 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * ── Por qué TRANSFERENCIA pregunta a qué cuenta ──────────────────────────
  * Porque el dinero que cae en la cuenta personal de la profesional pasa igual:
  * la única diferencia es si el negocio lo sabe. Preguntarlo sin juicio convierte
- * una fuga en un flujo declarado, y se descuenta de su liquidación.
+ * una fuga en un flujo declarado, y se descuenta de su liquidación. Por eso el
+ * botón de transferencia ocupa su renglón entero: la pregunta sale justo debajo.
  *
  * ── Por qué un fallo NO vacía la pantalla ────────────────────────────────
  * Perder un cobro de $1,130 con la clienta enfrente es inaceptable. El error es
- * una banda con `role="alert"`; la cita, el método y la propina siguen donde
- * estaban y COBRAR se puede volver a tocar. La clave de idempotencia la pone
- * `invocarComando`, así que reintentar no cobra dos veces.
+ * un `Aviso` de peligro; la cita, el método y la propina siguen donde estaban y
+ * COBRAR se puede volver a tocar. La clave de idempotencia la pone
+ * `invocarComando`, así que reintentar no cobra dos veces. Lo que sí vacía la
+ * pantalla es NO PODER LEER: sin las citas no hay a quién cobrar, y eso es un
+ * `ErrorDePantalla` con su «volver a intentar», no una lista vacía que miente.
  *
  * ── Lo que NO va aquí ────────────────────────────────────────────────────
  * La fórmula, las fotos, el historial clínico y la agenda. Aquí se cobra.
@@ -66,17 +88,18 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  *    comando exige que los pagos sumen el total congelado y todavía no sabe
  *    descontarlo (`anticipos_cita`, migración 138, no está en el puente).
  *    Cobrar de más callando es peor que no cobrar.
- * 3. El DESCUENTO con su aviso de comisión, el historial de pagos de la clienta
- *    (columna derecha de PC) y los atajos F2…F12 quedan fuera de este archivo.
+ * 3. El DESCUENTO con su aviso de comisión, el MIXTO, el historial de pagos de
+ *    la clienta (columna derecha de PC) y los atajos F2…F12 quedan fuera de este
+ *    archivo.
  * 4. El IVA se muestra con la tasa general: la configuración por producto aún no
  *    viaja por el puente y se prefiere el renglón a la cifra inventada.
  */
 
 /** Los tres métodos que acepta `venta.cobrar_cita`. Ni uno más. */
 const METODOS = [
-  { clave: 'efectivo', etiqueta: 'Efectivo' },
-  { clave: 'tarjeta', etiqueta: 'Tarjeta' },
-  { clave: 'transferencia', etiqueta: 'Transferencia' },
+  { clave: 'efectivo', etiqueta: 'Efectivo', Icono: Banknote },
+  { clave: 'tarjeta', etiqueta: 'Tarjeta', Icono: CreditCard },
+  { clave: 'transferencia', etiqueta: 'Transferencia', Icono: Landmark },
 ] as const;
 
 type Metodo = (typeof METODOS)[number]['clave'];
@@ -86,6 +109,9 @@ const PROPINAS = [12, 15, 18];
 
 /** Tasa general en puntos base. Ver el punto 4 del alcance. */
 const IVA_BP = 1600;
+
+/** Las tarjetas grises mientras se lee: las que caben sin desplazar en una tableta. */
+const TARJETAS_DE_ESPERA = 4;
 
 export interface CitaPorCobrar {
   readonly id: string;
@@ -137,20 +163,18 @@ export interface CobrarProps {
   readonly onCobrado?: (citaId: string) => void;
 }
 
+/** Lo que se acaba de cobrar, para decirlo con sus importes y su folio. */
+interface CobroHecho {
+  readonly total: number;
+  readonly propina: number;
+  readonly folio: string;
+}
+
 /** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
 export function aCentavos(pesos: number | null | undefined): number {
   if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
   const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
   return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
-}
-
-/** Centavos a pesos para una persona. Aritmética entera de punta a punta. */
-export function enPesos(centavos: number): string {
-  const bruto = Math.abs(centavos);
-  const miles = Math.trunc(bruto / 100)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${centavos < 0 ? '-' : ''}$${miles}.${(bruto % 100).toString().padStart(2, '0')}`;
 }
 
 /** Las líneas vivas de una cita. Lo cancelado no se cobra ni se enseña. */
@@ -169,6 +193,11 @@ export function totalDe(lineas: readonly ServicioDeCita[]): number {
 /** El IVA que ya viene DENTRO del precio: se explica, no se suma. */
 export function ivaIncluidoDe(total: number): number {
   return total - Math.round((total * 10_000) / (10_000 + IVA_BP));
+}
+
+/** «1 concepto», «3 conceptos»: el uno es el único singular. */
+function conceptosEnTexto(cuantos: number): string {
+  return `${cuantos} ${cuantos === 1 ? 'concepto' : 'conceptos'}`;
 }
 
 /**
@@ -209,14 +238,22 @@ export function Cobrar({
     ...(clientesIniciales ?? []),
     ...(catalogoInicial ?? []),
   ]);
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   const [citaId, setCitaId] = useState<string | null>(null);
   const [metodo, setMetodo] = useState<Metodo | null>(null);
   const [cuenta, setCuenta] = useState('salon');
   const [puntos, setPuntos] = useState<number | null>(null);
-  const [otraPropina, setOtraPropina] = useState('');
+  const [otraPropina, setOtraPropina] = useState<number | null>(null);
+  /**
+   * La `key` del campo «otro». Un porcentaje lo vacía REMONTÁNDOLO: con un texto que
+   * no es un importe («5O») `otraPropina` ya vale `null`, ponerle `null` otra vez no
+   * cambia nada, y el campo sólo reescribe su texto cuando los centavos cambian desde
+   * fuera. Quedaba «15 %» pulsado con «5O» escrito al lado.
+   */
+  const [reinicioDeOtra, setReinicioDeOtra] = useState(0);
   const [destinatario, setDestinatario] = useState('repartir');
   const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [cobrado, setCobrado] = useState<CobroHecho | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [recarga, setRecarga] = useState(0);
 
@@ -246,13 +283,21 @@ export function Cobrar({
       })
       .catch((fallo: unknown) => {
         if (!sigueMontada()) return;
-        setCitas([]);
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer la agenda del día.');
+        setFalloDeCarga(
+          fallo instanceof Error ? fallo.message : 'No se pudo leer la agenda del día.',
+        );
       });
     return () => {
       control.abort();
     };
   }, [citasIniciales, recarga]);
+
+  /** Leer otra vez desde cero. El estado se limpia EN EL CLIC, no dentro del efecto. */
+  function releer(): void {
+    setFalloDeCarga(null);
+    setCitas(null);
+    setRecarga((previa) => previa + 1);
+  }
 
   const nombres = useMemo(() => {
     const mapa = new Map<string, string>();
@@ -269,8 +314,7 @@ export function Cobrar({
   const lineas = lineasDe(servicios, citaId);
   const total = totalDe(lineas);
   const anticipo = aCentavos(cita?.anticipo);
-  const propina =
-    puntos === null ? aCentavos(Number(otraPropina)) : Math.round((total * puntos) / 100);
+  const propina = puntos === null ? (otraPropina ?? 0) : Math.round((total * puntos) / 100);
   const equipo = [...new Set(lineas.map((linea) => linea.profesional_id ?? ''))].filter(
     (id) => id !== '',
   );
@@ -295,15 +339,11 @@ export function Cobrar({
         pagos: [{ metodo: metodoActual, montoCentavos: total }],
       });
       setCitas((previas) => (previas ?? []).filter((fila) => fila.id !== citaActual.id));
-      setAviso(
-        propina > 0
-          ? `Cobrado ${enPesos(total)} · folio ${salida.folio}. La propina de ${enPesos(propina)} se entrega en mano: todavía no queda anotada.`
-          : `Cobrado ${enPesos(total)} · folio ${salida.folio}.`,
-      );
+      setCobrado({ total, propina, folio: salida.folio });
       setCitaId(null);
       setMetodo(null);
       setPuntos(null);
-      setOtraPropina('');
+      setOtraPropina(null);
       onCobrado?.(citaActual.id);
     } catch (fallo) {
       setError(mensajeDeFallo(fallo, voc));
@@ -314,87 +354,138 @@ export function Cobrar({
 
   const banda =
     error === null ? null : (
-      <p
-        role="alert"
-        className="rounded-md border border-destructive bg-destructive/15 p-3 text-sm md:col-span-2"
-      >
-        {error}
-      </p>
+      <Aviso tono="peligro" titulo={error}>
+        {voc.conArticulo('orden')}, el método y la propina siguen como estaban.
+      </Aviso>
     );
+
+  if (falloDeCarga !== null) {
+    return (
+      <div className="mx-auto w-full max-w-2xl p-(--espacio-4)">
+        <ErrorDePantalla
+          titulo="No se pudo leer lo que hay por cobrar"
+          queHacer="Mientras no se lea no se sabe a quién se cobra ni cuánto, y no se cobró nada. Revisa la conexión y vuelve a intentarlo."
+          detalle={falloDeCarga}
+          reintentar={<Button onClick={releer}>Volver a intentar</Button>}
+        />
+      </div>
+    );
+  }
 
   if (citas === null) {
     return (
-      <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_22rem]">
-        {/* El total con esqueleto y nada tocable: un botón vivo sobre un total
-            que aún no existe es la forma de cobrar un número equivocado. */}
-        <Skeleton className="h-20 w-full rounded-lg md:col-start-2" />
-        <div className="space-y-2 md:col-start-1 md:row-start-1">
-          {Array.from({ length: 4 }, (_, indice) => (
-            <Skeleton key={indice} className="h-[var(--altura-control)] w-full rounded-md" />
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label={`Leyendo ${voc.enFrase('orden', true)} por cobrar`}
+        className="mx-auto flex w-full max-w-2xl flex-col gap-(--espacio-4) p-(--espacio-4)"
+      >
+        {/* La forma de la lista que viene, y nada tocable: un botón vivo sobre un
+            importe que aún no existe es la forma de cobrar un número equivocado. */}
+        <Esqueleto className="h-[calc(var(--altura-control)*0.8)] w-3/4" />
+        <ul className="flex flex-col gap-(--espacio-2)">
+          {Array.from({ length: TARJETAS_DE_ESPERA }, (_, indice) => (
+            <li key={indice}>
+              <Superficie relleno={4} className="flex items-center gap-(--espacio-3)">
+                <span className="flex flex-1 flex-col gap-(--espacio-2)">
+                  <Esqueleto className="h-4 w-1/2" />
+                  <Esqueleto className="h-3 w-1/3" />
+                </span>
+                <Esqueleto className="h-5 w-24" />
+              </Superficie>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     );
   }
 
   if (cita === null) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4 p-4">
-        <h1 className="text-2xl font-bold">
-          Elige {voc.enFraseCon('un', 'orden')} terminad{voc.terminacion('orden')} para cobrar
-        </h1>
-        {aviso !== null && (
-          <p role="status" className="rounded-md border border-border bg-success/20 p-3 text-sm">
-            {aviso}
-          </p>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-(--espacio-4) p-(--espacio-4)">
+        <header className="flex flex-col gap-(--espacio-1)">
+          <h1 className="text-2xl font-bold">
+            Elige {voc.enFraseCon('un', 'orden')} terminad{voc.terminacion('orden')} para cobrar
+          </h1>
+          {citas.length > 0 && (
+            <p className="text-sm text-texto-sutil">
+              {voc.conNumero('orden', citas.length)} con el servicio cerrado
+            </p>
+          )}
+        </header>
+        {cobrado !== null && (
+          <Aviso tono="exito" titulo={`Cobrado · folio ${cobrado.folio}`}>
+            <Dinero centavos={cobrado.total} tamano="lg" className="text-texto" />
+            {cobrado.propina > 0 && (
+              <span className="mt-(--espacio-1) block">
+                La propina de <Dinero centavos={cobrado.propina} tamano="sm" /> se entrega en mano:
+                todavía no queda anotada.
+              </span>
+            )}
+          </Aviso>
         )}
         {banda}
         {citas.length === 0 ? (
           // El vacío ENSEÑA: dice por qué está vacío y qué hacer, no se disculpa.
-          <div className="space-y-3 rounded-lg border border-border bg-card p-6">
-            <p className="text-lg font-semibold">
-              {voc.conDeterminante('ningun', 'orden')} está list{voc.terminacion('orden')} para
-              cobrar.
-            </p>
-            <p className="text-muted-foreground">
-              Una cita se cobra cuando el servicio está CERRADO, y no antes: cerrarlo es donde se
-              captura la fórmula y donde se descuenta el material de cabina. Cierra el servicio en
-              la agenda y vuelve aquí.
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRecarga((previa) => previa + 1);
-              }}
-            >
-              Volver a mirar
-            </Button>
-          </div>
+          <Superficie relleno={6}>
+            <Vacio
+              icono={<Scissors />}
+              titulo={`${voc.conDeterminante('ningun', 'orden')} está list${voc.terminacion('orden')} para cobrar.`}
+              explicacion="Una cita se cobra cuando el servicio está CERRADO, y no antes: cerrarlo es donde se captura la fórmula y donde se descuenta el material de cabina. Cierra el servicio en la agenda y vuelve aquí."
+              accion={
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setRecarga((previa) => previa + 1);
+                  }}
+                >
+                  Volver a mirar
+                </Button>
+              }
+              className="py-0"
+            />
+          </Superficie>
         ) : (
-          <ul className="space-y-2">
+          // Una rejilla de cosas que se tocan, no una tabla: la elección de a quién
+          // se cobra es LA decisión de esta pantalla, y cada tarjeta es un botón
+          // entero que sube al pasar y se hunde al tocar.
+          <ul
+            aria-label={`${voc.titulo('orden', true)} por cobrar`}
+            className="flex flex-col gap-(--espacio-2)"
+          >
             {citas.map((fila) => (
               <li key={fila.id}>
-                <button
+                <Superficie
+                  como="button"
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent"
+                  interactiva
+                  relleno={4}
+                  className="flex w-full items-center gap-(--espacio-3)"
                   onClick={() => {
                     setCitaId(fila.id);
-                    setAviso(null);
+                    setCobrado(null);
+                    // El fallo era de OTRA cita: arrastrarlo aquí afirma de ésta, que
+                    // nadie intentó cobrar, que «sigue como estaba» tras un fallo.
+                    setError(null);
                     setDestinatario('repartir');
                   }}
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-base font-semibold">
                       {nombres.get(fila.cliente_id ?? '') ?? `Sin ${voc.singular('cliente')}`}
                     </span>
-                    <span className="block text-sm text-muted-foreground">
-                      {fila.folio ?? 'Sin folio'} · {lineasDe(servicios, fila.id).length} conceptos
+                    <span className="block text-sm text-texto-sutil">
+                      <span className="font-numeros">{fila.folio ?? 'Sin folio'}</span> ·{' '}
+                      {conceptosEnTexto(lineasDe(servicios, fila.id).length)}
                     </span>
                   </span>
-                  <span className="shrink-0 text-lg font-bold tabular-nums">
-                    {enPesos(totalDe(lineasDe(servicios, fila.id)))}
-                  </span>
-                </button>
+                  <Dinero
+                    centavos={totalDe(lineasDe(servicios, fila.id))}
+                    tamano="lg"
+                    className="shrink-0"
+                  />
+                  <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-texto-tenue" />
+                </Superficie>
               </li>
             ))}
           </ul>
@@ -403,126 +494,168 @@ export function Cobrar({
     );
   }
 
-  const listaDeLineas = (
-    <ul className="space-y-2">
-      {lineas.map((linea) => (
-        <li key={linea.id} className="flex items-start justify-between gap-3">
-          <span className="min-w-0">
-            <span className="block truncate">
-              {nombres.get(linea.servicio_id ?? '') ?? 'Servicio'}
-            </span>
-            {/* El profesional en CADA línea: sin él la comisión se la lleva una sola. */}
-            <Badge variant="secondary" className="mt-1">
-              ▸ {nombres.get(linea.profesional_id ?? '') ?? 'Sin asignar'}
-            </Badge>
-          </span>
-          <span className="shrink-0 tabular-nums">{enPesos(aCentavos(linea.precio_centavos))}</span>
-        </li>
-      ))}
-    </ul>
+  const columnas: readonly ColumnaDeTabla<ServicioDeCita>[] = [
+    {
+      clave: 'concepto',
+      titulo: 'Concepto',
+      celda: (linea) => (
+        <span className="flex flex-col items-start gap-(--espacio-1)">
+          <span>{nombres.get(linea.servicio_id ?? '') ?? 'Servicio'}</span>
+          {/* El profesional en CADA línea: sin él la comisión se la lleva una sola. */}
+          <Badge variant="secondary">
+            <UserRound aria-hidden="true" />
+            {nombres.get(linea.profesional_id ?? '') ?? 'Sin asignar'}
+          </Badge>
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (linea) => <Dinero centavos={aCentavos(linea.precio_centavos)} tamano="sm" />,
+    },
+  ];
+
+  const conceptos = (
+    <Tabla
+      etiqueta="Conceptos"
+      columnas={columnas}
+      filas={lineas}
+      claveDe={(linea) => linea.id}
+      // El subtotal bajo SU columna: es la suma de lo que está encima, no otro número.
+      pie={{ concepto: 'Subtotal', importe: <Dinero centavos={total} tamano="sm" /> }}
+    />
   );
 
   return (
-    <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_28rem]">
-      <header className="flex flex-wrap items-baseline gap-2 md:col-span-2">
-        <h1 className="text-xl font-bold">
-          {nombres.get(cita.cliente_id ?? '') ?? `Sin ${voc.singular('cliente')}`}
-        </h1>
-        <span className="text-sm text-muted-foreground">{cita.folio ?? 'Sin folio'}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto"
-          onClick={() => {
-            setCitaId(null);
-          }}
-        >
-          Elegir {voc.enFraseCon('otro', 'orden')}
-        </Button>
-      </header>
-
-      {banda}
+    <div className="grid gap-(--espacio-3) p-(--espacio-3) md:grid-cols-[minmax(0,1fr)_22rem] md:items-start xl:grid-cols-[minmax(0,1fr)_28rem] xl:gap-(--espacio-4) xl:p-(--espacio-4)">
+      <div className="flex flex-col gap-(--espacio-3) md:col-span-2">
+        <header className="flex flex-wrap items-baseline gap-x-(--espacio-3) gap-y-(--espacio-1)">
+          <h1 className="text-xl font-bold">
+            {nombres.get(cita.cliente_id ?? '') ?? `Sin ${voc.singular('cliente')}`}
+          </h1>
+          <span className="font-numeros text-sm text-texto-sutil">{cita.folio ?? 'Sin folio'}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto"
+            // Mientras se cobra no se sale: el fallo de ESTA cita caería sobre la
+            // lista o sobre otra, diciendo de ella que «sigue como estaba».
+            disabled={enviando}
+            onClick={() => {
+              setCitaId(null);
+              setError(null);
+            }}
+          >
+            Elegir {voc.enFraseCon('otro', 'orden')}
+          </Button>
+        </header>
+        {banda}
+      </div>
 
       {/* El bloque del dinero va PRIMERO en el DOM: en teléfono es lo que se ve
           sin desplazar, y en tablet es la columna derecha del documento. */}
-      <aside
+      <Superficie
+        nivel={2}
+        relleno={4}
+        como="aside"
         aria-label="Cobro"
-        className="space-y-3 rounded-lg border border-border bg-card p-4 md:col-start-2 md:row-start-3"
+        className="flex flex-col gap-(--espacio-4) md:col-start-2 md:row-start-2"
       >
-        <p className="text-sm font-medium uppercase text-muted-foreground">Total</p>
-        <p className="text-4xl font-bold tabular-nums xl:text-5xl">{enPesos(total)}</p>
-        {anticipo > 0 && (
-          <p className="flex justify-between border-b border-border pb-2 text-sm tabular-nums">
-            <span>− anticipo</span>
-            <span>{enPesos(anticipo)}</span>
-          </p>
-        )}
+        <div className="flex flex-col gap-(--espacio-1)">
+          <span className="text-xs font-medium tracking-wide text-texto-sutil uppercase">
+            Total
+          </span>
+          <Dinero centavos={total} tamano="total" className="leading-none" />
+          {anticipo > 0 && (
+            <p className="mt-(--espacio-2) flex items-baseline justify-between border-t border-borde pt-(--espacio-2) text-sm">
+              <span>− anticipo</span>
+              <Dinero centavos={anticipo} tamano="sm" />
+            </p>
+          )}
+        </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          {METODOS.map((opcion) => (
+        {/* Transferencia en su renglón entero: al elegirla, la pregunta de a qué
+            cuenta aparece justo debajo de ella y no bajo otro botón. */}
+        <div className="grid grid-cols-2 gap-(--espacio-2)">
+          {METODOS.map(({ clave, etiqueta, Icono }) => (
             <Button
-              key={opcion.clave}
+              key={clave}
               type="button"
-              variant={metodo === opcion.clave ? 'default' : 'outline'}
-              aria-pressed={metodo === opcion.clave}
-              className="min-h-20"
+              variant={metodo === clave ? 'default' : 'outline'}
+              aria-pressed={metodo === clave}
+              className={`min-h-20 text-base ${clave === 'transferencia' ? 'col-span-2' : ''}`}
               onClick={() => {
-                setMetodo(opcion.clave);
+                setMetodo(clave);
               }}
             >
-              {opcion.etiqueta}
-              {/* El color nunca es el único que dice cuál está elegido. */}
-              <span aria-hidden>{metodo === opcion.clave ? ' ✓' : ''}</span>
+              {/* El color nunca es el único que dice cuál está elegido: la marca
+                  sustituye al icono del método. */}
+              {metodo === clave ? <Check aria-hidden="true" /> : <Icono aria-hidden="true" />}
+              {etiqueta}
             </Button>
           ))}
         </div>
 
         {metodo === 'transferencia' && (
-          <RadioGroup value={cuenta} onValueChange={setCuenta} aria-label="¿A qué cuenta?">
-            <p className="text-sm font-medium">¿A qué cuenta?</p>
-            <span className="flex items-center gap-2">
-              <RadioGroupItem value="salon" id="cuenta-salon" />
-              <Label htmlFor="cuenta-salon">Cuenta del salón</Label>
-            </span>
-            <span className="flex items-center gap-2">
-              <RadioGroupItem value="profesional" id="cuenta-profesional" />
-              <Label htmlFor="cuenta-profesional">
-                Cuenta de {nombres.get(equipo[0] ?? '') ?? 'la profesional'} · se le descuenta de su
-                liquidación
-              </Label>
-            </span>
-          </RadioGroup>
+          <Superficie nivel={0} relleno={3} radio="md" className="bg-fondo-sutil">
+            <RadioGroup
+              value={cuenta}
+              onValueChange={setCuenta}
+              aria-label="¿A qué cuenta?"
+              className="gap-(--espacio-2)"
+            >
+              <p className="text-sm font-medium">¿A qué cuenta?</p>
+              <span className="flex items-center gap-(--espacio-2)">
+                <RadioGroupItem value="salon" id="cuenta-salon" />
+                <Label htmlFor="cuenta-salon">Cuenta del salón</Label>
+              </span>
+              <span className="flex items-center gap-(--espacio-2)">
+                <RadioGroupItem value="profesional" id="cuenta-profesional" />
+                <Label htmlFor="cuenta-profesional">
+                  Cuenta de {nombres.get(equipo[0] ?? '') ?? 'la profesional'} · se le descuenta de
+                  su liquidación
+                </Label>
+              </span>
+            </RadioGroup>
+          </Superficie>
         )}
 
-        <div className="space-y-2">
-          <p className="text-sm font-medium uppercase text-muted-foreground">Propina</p>
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-(--espacio-2) border-t border-borde pt-(--espacio-4)">
+          <p className="flex items-baseline justify-between gap-(--espacio-2)">
+            <span className="text-xs font-medium tracking-wide text-texto-sutil uppercase">
+              Propina
+            </span>
+            {propina > 0 && <Dinero centavos={propina} tamano="sm" />}
+          </p>
+          <div className="grid grid-cols-4 gap-(--espacio-2)">
             {PROPINAS.map((porcentaje) => (
               <Button
                 key={porcentaje}
                 type="button"
-                size="sm"
                 // Una entrada de `.map` no es literal aunque el arreglo lleve
                 // `as const`: el literal se escribe aquí, con el suyo.
                 variant={puntos === porcentaje ? ('default' as const) : ('outline' as const)}
                 aria-pressed={puntos === porcentaje}
+                className="font-numeros tabular-nums"
                 onClick={() => {
                   setPuntos(porcentaje);
-                  setOtraPropina('');
+                  setOtraPropina(null);
+                  setReinicioDeOtra((previo) => previo + 1);
                 }}
               >
                 {porcentaje}%
               </Button>
             ))}
-            <Input
+            <CampoDeDinero
+              key={reinicioDeOtra}
               aria-label="Otra propina, en pesos"
-              inputMode="decimal"
               placeholder="otro"
-              className="w-24"
-              value={otraPropina}
-              onChange={(evento) => {
+              centavos={otraPropina}
+              alCambiar={(centavos) => {
                 setPuntos(null);
-                setOtraPropina(evento.target.value);
+                setOtraPropina(centavos);
               }}
             />
           </div>
@@ -543,44 +676,46 @@ export function Cobrar({
           </Select>
         </div>
 
-        <Button
-          size="lg"
-          className="min-h-20 w-full justify-between text-lg"
-          disabled={enviando || bloqueo !== null}
-          onClick={() => {
-            if (metodo !== null) void cobrar(cita, metodo);
-          }}
-        >
-          <span>{enviando ? 'Cobrando…' : 'COBRAR'}</span>
-          <span className="tabular-nums">{enPesos(total + propina)}</span>
-        </Button>
-        {bloqueo !== null && <p className="text-center text-sm">{bloqueo}</p>}
-      </aside>
+        <div className="flex flex-col gap-(--espacio-2)">
+          <Button
+            size="lg"
+            className="min-h-20 w-full justify-between text-lg"
+            disabled={enviando || bloqueo !== null}
+            onClick={() => {
+              if (metodo !== null) void cobrar(cita, metodo);
+            }}
+          >
+            <span>{enviando ? 'Cobrando…' : 'COBRAR'}</span>
+            <Dinero centavos={total + propina} tamano="lg" />
+          </Button>
+          {bloqueo !== null && <p className="text-center text-sm text-texto-sutil">{bloqueo}</p>}
+        </div>
+      </Superficie>
 
-      <section
+      <Superficie
+        relleno={0}
+        como="section"
         aria-label={`Conceptos de ${voc.enFrase('orden')}`}
-        className="rounded-lg border border-border bg-card md:col-start-1 md:row-start-3"
+        className="md:col-start-1 md:row-start-2"
       >
         {/* `details` nativo: el teclado y el lector de pantalla ya saben abrirlo.
             En tablet y PC no hay nada que abrir — las líneas están a la vista. */}
         <details className="md:hidden">
-          <summary className="cursor-pointer p-4 text-sm">({lineas.length} conceptos)</summary>
-          <div className="px-4 pb-4">{listaDeLineas}</div>
+          <summary className="cursor-pointer p-(--espacio-4) text-sm">
+            ({conceptosEnTexto(lineas.length)})
+          </summary>
+          <div className="px-(--espacio-3) pb-(--espacio-3)">{conceptos}</div>
         </details>
-        <div className="hidden space-y-3 p-4 md:block">
-          {listaDeLineas}
-          <dl className="space-y-1 border-t border-border pt-3 text-sm tabular-nums">
-            <div className="flex justify-between">
-              <dt>Subtotal</dt>
-              <dd>{enPesos(total)}</dd>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <dt>IVA incluido</dt>
-              <dd>{enPesos(ivaIncluidoDe(total))}</dd>
-            </div>
+        <div className="hidden flex-col gap-(--espacio-3) p-(--espacio-4) md:flex">
+          {conceptos}
+          <dl className="flex items-baseline justify-between px-(--espacio-3) text-sm text-texto-sutil">
+            <dt>IVA incluido</dt>
+            <dd>
+              <Dinero centavos={ivaIncluidoDe(total)} tamano="sm" />
+            </dd>
           </dl>
         </div>
-      </section>
+      </Superficie>
     </div>
   );
 }

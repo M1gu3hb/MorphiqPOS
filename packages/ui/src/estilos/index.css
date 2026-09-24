@@ -1,5 +1,18 @@
 /* Punto de entrada del sistema de diseno.
-   La app lo importa una sola vez en su layout raiz. */
+   La app lo importa una sola vez en su layout raiz.
+
+   El ORDEN importa: `base.css` trae los tokens que no dependen del estilo y las
+   cuatro perillas; cada estilo despues fija su paleta bajo su propio selector, asi
+   que no compiten entre si. */
 @import './base.css';
-@import './premium.css';
-@import './editorial.css';
+@import './morphiq.css';
+@import './cristal.css';
+@import './relieve.css';
+@import './taller.css';
+@import './bloque.css';
+@import './terminal.css';
+@import './papel.css';
+@import './noche.css';
+
+/* Y la capa fina: lo que los tokens no pueden decir. Va al final para que gane. */
+@import './capas.css';

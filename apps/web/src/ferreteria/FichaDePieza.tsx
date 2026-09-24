@@ -3,13 +3,24 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@morphiqpos/ui/primitivas/toggle-group';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { Camera, Check, MapPin, Plus, ZoomIn } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -41,23 +52,34 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * El equivalente reemplaza; el «va con» acompaña. Es la venta complementaria,
  * media línea más por venta, que es el indicador del mostradorista.
  *
+ * ── Por qué los precios son una tabla que se toca ────────────────────────
+ * «Pieza $2.80 · kilo $195 · caja $1,180» se COMPARA en columna, y la fila que
+ * se toca es la unidad que se vende: la misma elección que el grupo de la barra
+ * de abajo, que sigue siendo la que se alcanza con el pulgar en el pasillo.
+ *
  * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
  * Caben la foto, la medida, los atributos, existencia, ubicación, precios por
  * unidad, equivalentes con su alta, «va con», «se usa en», historial del
- * cliente y AGREGAR A LA VENTA. Quedan FUERA por el límite de 300 líneas: el
- * corte de material (tiene pantalla propia) y la SUBIDA de la foto —
- * `invocarComando` manda JSON y una imagen necesita multipart—, así que el
- * botón de cámara deja la foto elegida y lo dice, en vez de fingir que subió.
+ * cliente y AGREGAR A LA VENTA. Quedan FUERA el corte de material (tiene
+ * pantalla propia) y la SUBIDA de la foto —`invocarComando` manda JSON y una
+ * imagen necesita multipart—, así que el botón de cámara deja la foto elegida
+ * y lo dice, en vez de fingir que subió. Y queda fuera AGREGAR una presentación
+ * que no es la base: `ferreteria.agregar_partida` vende en la unidad base del
+ * producto y a SU precio —su `unidad` es una medida («pieza», «kg»), no una
+ * presentación—, así que la caja se compara aquí pero no se agrega, y se dice.
  */
-
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
-const NUMERO = new Intl.NumberFormat('es-MX');
 
 /** Una forma de vender la misma pieza: «pieza», «kilo (≈91 pz)», «caja 500». */
 export interface UnidadDeVenta {
   readonly clave: string;
   readonly etiqueta: string;
-  readonly precioCentavos: number;
+  /**
+   * En centavos. `null` cuando la presentación no tiene precio propio: la base lo
+   * deriva como factor × precio base, y esta ficha no lee el precio base.
+   */
+  readonly precioCentavos: number | null;
+  /** La unidad en que se lleva la existencia: la que el mostrador cobra por omisión. */
+  readonly esBase: boolean;
 }
 
 export interface EquivalenteDeFicha {
@@ -109,7 +131,9 @@ type FilaDelPuente = Omit<PiezaDeFicha, 'unidades' | 'equivalentes' | 'vaCon' | 
     readonly id: string;
     readonly nombre: string;
     readonly factor: number | null;
+    /** EN PESOS pese al nombre: `Presentacion` lo mapea con `conversion: 'dinero'`. */
     readonly precio_venta_centavos: number | null;
+    readonly es_base?: boolean | null;
   }[];
   readonly equivalencias?: readonly {
     readonly equivalente_id: string;
@@ -130,7 +154,10 @@ export function comoFicha(fila: FilaDelPuente): PiezaDeFicha {
     unidades: (fila.unidades ?? []).map((u) => ({
       clave: u.id,
       etiqueta: u.factor === null || u.factor <= 1 ? u.nombre : `${u.nombre} (${String(u.factor)})`,
-      precioCentavos: u.precio_venta_centavos ?? 0,
+      // El puente lo sirve en pesos: $2.80 llega como 2.8 y sin esto se leía «$0.02».
+      // Sin precio propio es «—», no $0.00: la base lo deriva por factor.
+      precioCentavos: centavosDelPuente(u.precio_venta_centavos),
+      esBase: u.es_base === true,
     })),
     // `sustituto` REEMPLAZA y `complemento` ACOMPAÑA: son dos listas distintas
     // porque ofrecer una llave a quien pide teflón es ruido en el mostrador.
@@ -172,6 +199,72 @@ export function mensajeDe(fallo: unknown): string {
   return fallo instanceof Error ? fallo.message : 'No se pudo completar la operación.';
 }
 
+/** Un comando que no salió: lo que pasó y, aparte, lo que NO pasó. */
+interface FalloDeComando {
+  readonly que: string;
+  readonly queNo: string;
+}
+
+const NO_SE_AGREGO = 'No se agregó nada a la venta.';
+const NO_SE_GUARDO = 'El equivalente no se guardó.';
+
+/** El rótulo de un bloque —HAY, DÓNDE, MEDIDA—: chico, en versales, siempre igual. */
+const ROTULO = 'text-xs font-semibold tracking-wide text-texto-sutil uppercase';
+
+/** Los equivalentes se leen como el mostrador: qué es y por qué sirve, y su precio. */
+const COLUMNAS_DE_EQUIVALENTES: readonly ColumnaDeTabla<EquivalenteDeFicha>[] = [
+  {
+    clave: 'equivalente',
+    titulo: 'Le sirve',
+    celda: (eq) => (
+      <span className="flex flex-col">
+        <span className="font-medium">{eq.nombre}</span>
+        {eq.nota === null ? null : <span className="text-xs text-texto-sutil">{eq.nota}</span>}
+      </span>
+    ),
+  },
+  {
+    clave: 'precio',
+    titulo: 'Precio',
+    numerica: true,
+    celda: (eq) =>
+      eq.precioCentavos === null ? (
+        <span className="text-texto-sutil">—</span>
+      ) : (
+        <Dinero centavos={eq.precioCentavos} tamano="sm" />
+      ),
+  },
+];
+
+/** La unidad elegida lleva su marca escrita: el fondo solo no dice cuál es. */
+function columnasDePrecio(elegida: string | undefined): readonly ColumnaDeTabla<UnidadDeVenta>[] {
+  return [
+    {
+      clave: 'unidad',
+      titulo: 'Unidad',
+      celda: (u) => (
+        <span className="inline-flex items-center gap-(--espacio-1)">
+          {u.clave === elegida ? (
+            <Check aria-label="la que se vende" className="size-4 shrink-0" />
+          ) : null}
+          {u.etiqueta}
+        </span>
+      ),
+    },
+    {
+      clave: 'precio',
+      titulo: 'Precio',
+      numerica: true,
+      celda: (u) =>
+        u.precioCentavos === null ? (
+          <span className="text-texto-sutil">—</span>
+        ) : (
+          <Dinero centavos={u.precioCentavos} tamano="sm" />
+        ),
+    },
+  ];
+}
+
 export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaProps) {
   const voc = useVocabulario();
   const enrutador = useRouter();
@@ -180,9 +273,12 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
     piezaInicial?.equivalentes ?? [],
   );
   const [cargando, setCargando] = useState(piezaInicial === undefined);
-  const [error, setError] = useState<string | null>(null);
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  const [fallo, setFallo] = useState<FalloDeComando | null>(null);
+  const [intento, setIntento] = useState(0);
   const [cantidad, setCantidad] = useState('1');
-  const [unidad, setUnidad] = useState('pieza');
+  /** La presentación elegida, por su clave. `null` = nadie eligió todavía: la base. */
+  const [unidad, setUnidad] = useState<string | null>(null);
   const [propuesta, setPropuesta] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [fotoElegida, setFotoElegida] = useState<string | null>(null);
@@ -205,29 +301,42 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         const primera = cruda === undefined ? null : comoFicha(cruda);
         setPieza(primera);
         if (primera !== null) setEquivalentes(primera.equivalentes);
+        setFalloDeCarga(null);
         setCargando(false);
       })
-      .catch((fallo: unknown) => {
-        // La ficha no se vacía por un error: si ya había datos siguen sirviendo
-        // y si no los había, el estado vacío ya enseña qué hacer.
+      .catch((error: unknown) => {
+        // Un fallo deja la pantalla en su error aunque hubiera una ficha pintada:
+        // ésa sería la de OTRA pieza, no la que se pidió.
         if (!sigueMontada()) return;
-        setError(mensajeDe(fallo));
+        setFalloDeCarga(mensajeDe(error));
         setCargando(false);
       });
     return () => {
       control.abort();
     };
-  }, [piezaInicial, piezaId]);
+  }, [piezaInicial, piezaId, intento]);
+
+  /** Reintentar limpia EN EL CLIC, no en el efecto: el efecto sólo vuelve a leer. */
+  function volverALeer(): void {
+    setFalloDeCarga(null);
+    setCargando(true);
+    setIntento((previo) => previo + 1);
+  }
 
   /** Un solo sitio donde una escritura se anuncia, falla y termina. */
-  async function enviar(ruta: string, entrada: unknown, despues: () => void): Promise<void> {
+  async function enviar(
+    ruta: string,
+    entrada: unknown,
+    queNo: string,
+    despues: () => void,
+  ): Promise<void> {
     setEnviando(true);
-    setError(null);
+    setFallo(null);
     try {
       await invocarComando(ruta, entrada);
       despues();
-    } catch (fallo) {
-      setError(mensajeDe(fallo));
+    } catch (error) {
+      setFallo({ que: mensajeDe(error), queNo });
     } finally {
       setEnviando(false);
     }
@@ -235,25 +344,28 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
 
   // Las rutas de escritura no están en el documento: se usa la convención
   // /api/<dominio>/<verbo> hasta que el de datos y backend las fije.
-  function agregarALaVenta(): void {
-    if (pieza === null) return;
+  function agregarALaVenta(elegida: UnidadDeVenta | undefined): void {
+    if (pieza === null || enviando) return;
     const piezas = Number.parseInt(cantidad, 10);
     if (!Number.isFinite(piezas) || piezas <= 0) {
-      setError('Pon una cantidad mayor que cero.');
+      setFallo({ que: 'Pon una cantidad mayor que cero.', queNo: NO_SE_AGREGO });
       return;
     }
     // La cantidad va como TEXTO: quien convierte cantidades es el servidor, y un
-    // `number` de JavaScript no representa 0.1 sin error.
-    const entrada = { piezaId: pieza.id, cantidad: String(piezas), unidad };
-    void enviar('/api/ferreteria/agregar-partida', entrada, () => {
-      onAgregar?.(pieza.id, piezas, unidad);
+    // `number` de JavaScript no representa 0.1 sin error. Y SIN `unidad`: el
+    // comando vende en la unidad base del producto —la que se elige aquí—, y su
+    // `unidad` es una medida («pieza», «kg»), no la clave de una presentación.
+    const entrada = { piezaId: pieza.id, cantidad: String(piezas) };
+    void enviar('/api/ferreteria/agregar-partida', entrada, NO_SE_AGREGO, () => {
+      onAgregar?.(pieza.id, piezas, elegida?.clave ?? '');
     });
   }
 
   function declararEquivalente(): void {
     const texto = propuesta.trim();
     if (pieza === null || texto === '') return;
-    void enviar('/api/ferreteria/declarar-equivalencia', { piezaId: pieza.id, texto }, () => {
+    const entrada = { piezaId: pieza.id, texto };
+    void enviar('/api/ferreteria/declarar-equivalencia', entrada, NO_SE_GUARDO, () => {
       // Se pinta al momento: quien acaba de declararlo tiene que verlo ahí.
       const recien = { id: texto, nombre: texto, nota: 'lo dijiste tú', precioCentavos: null };
       setEquivalentes((actuales) => [...actuales, recien]);
@@ -261,27 +373,55 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
     });
   }
 
-  const banda =
-    error === null ? null : (
-      <p role="alert" className="mb-3 rounded-md border border-destructive bg-destructive/15 p-2">
-        {error} · Lo que ya está en pantalla sigue sirviendo.
-      </p>
-    );
-
   if (cargando) {
-    // Esqueleto con la forma de la ficha —foto y renglones—, nunca un spinner:
-    // el ojo ya sabe dónde va a mirar cuando lleguen los datos.
+    // Esqueleto con la forma de la ficha —foto, medida, los tres bloques—, nunca
+    // una rueda: el ojo ya sabe dónde va a mirar cuando lleguen los datos.
     return (
-      <div className="mx-auto max-w-5xl p-3">
-        <Skeleton className="mb-3 h-5 w-2/3" />
-        <div className="grid gap-4 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
-          <Skeleton className="aspect-square w-full rounded-md" />
-          <div className="space-y-2">
-            {Array.from({ length: 7 }, (_, i) => (
-              <Skeleton key={i} className="h-5 w-full" />
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Cargando la ficha de la pieza"
+        className="mx-auto flex max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-3)"
+      >
+        <div className="flex flex-col gap-(--espacio-2)">
+          <Esqueleto className="h-3 w-1/3" />
+          <Esqueleto className="h-5 w-2/3" />
+        </div>
+        <div className="grid gap-(--espacio-4) md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+          <Esqueleto className="aspect-square w-full rounded-lg" />
+          <div className="flex flex-col gap-(--espacio-2)">
+            <Esqueleto className="h-(--altura-control) w-1/2" />
+            <Esqueleto className="h-5 w-1/3" />
+            {Array.from({ length: 6 }, (_, indice) => (
+              <Esqueleto key={indice} className="h-5 w-full" />
             ))}
           </div>
         </div>
+        <div className="grid gap-(--espacio-3) md:grid-cols-3">
+          {Array.from({ length: 3 }, (_, indice) => (
+            <Esqueleto key={indice} className="h-24 w-full rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (falloDeCarga !== null) {
+    // No leyó la pieza que se pidió: no hay ficha que seguir usando —la que
+    // estuviera pintada sería la de otra—, así que se dice y se reintenta.
+    return (
+      <div className="mx-auto flex max-w-xl flex-col gap-(--espacio-3) p-(--espacio-6)">
+        <h1 className="sr-only">Ficha de pieza</h1>
+        <ErrorDePantalla
+          titulo="No se pudo leer la pieza"
+          queHacer="Sin la ficha no se ve la medida, cuánto hay ni de qué gaveta se saca. Revisa la conexión y vuelve a leerla."
+          detalle={falloDeCarga}
+          reintentar={
+            <Button type="button" onClick={volverALeer}>
+              Volver a leer
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -289,22 +429,23 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
   if (pieza === null) {
     // El vacío ENSEÑA: dice qué resuelve esta pantalla y cómo se llega a ella.
     return (
-      <div className="mx-auto flex max-w-xl flex-col items-start gap-3 p-6">
-        {banda}
-        <h1 className="text-xl font-bold">Aquí se amplía una pieza</h1>
-        <p className="text-muted-foreground">
-          La ficha se abre desde el mostrador: toca el renglón del material y verás su foto con
-          escala, la medida en pulgada y en milímetro, cuánto hay, de qué gaveta se saca y qué le
-          puede sustituir.
-        </p>
-        <Button
-          type="button"
-          onClick={() => {
-            enrutador.push('/ferreteria/mostrador');
-          }}
-        >
-          Ir al mostrador a buscar una pieza
-        </Button>
+      <div className="mx-auto flex max-w-xl flex-col gap-(--espacio-3) p-(--espacio-6)">
+        <h1 className="sr-only">Ficha de pieza</h1>
+        <Vacio
+          icono={<ZoomIn />}
+          titulo="Aquí se amplía una pieza"
+          explicacion="La ficha se abre desde el mostrador: toca el renglón del material y verás su foto con escala, la medida en pulgada y en milímetro, cuánto hay, de qué gaveta se saca y qué le puede sustituir."
+          accion={
+            <Button
+              type="button"
+              onClick={() => {
+                enrutador.push('/ferreteria/mostrador');
+              }}
+            >
+              Ir al mostrador a buscar una pieza
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -329,26 +470,49 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
     ],
   ] as const;
 
-  const elegida = pieza.unidades.find((u) => u.clave === unidad) ?? pieza.unidades[0];
+  /**
+   * UNA sola respuesta a «qué unidad se vende»: la marca de la tabla, el grupo de
+   * la barra, el importe del botón y el comando leen todos `elegida`. Mientras
+   * nadie elige, es la base —la que el comando vende—, no la primera que llegó.
+   */
+  const base = pieza.unidades.find((u) => u.esBase) ?? pieza.unidades[0];
+  const elegida = pieza.unidades.find((u) => u.clave === unidad) ?? base;
+  const seAgregaAqui = elegida === undefined || elegida.clave === base?.clave;
   const pedidas = Number.parseInt(cantidad, 10);
-  const importe = (elegida?.precioCentavos ?? 0) * (Number.isFinite(pedidas) ? pedidas : 0);
+  const precio = elegida?.precioCentavos ?? null;
+  const importe = precio === null ? null : precio * (Number.isFinite(pedidas) ? pedidas : 0);
 
   return (
-    <article className="mx-auto max-w-5xl p-3 pb-4 text-sm">
-      {banda}
-      <header className="mb-3">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{pieza.familia}</p>
+    <article className="mx-auto flex max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-3) text-sm">
+      {fallo === null ? null : (
+        <Aviso tono="peligro" titulo={fallo.que}>
+          {fallo.queNo} Lo que ya está en pantalla sigue sirviendo.
+        </Aviso>
+      )}
+
+      <header className="flex flex-col gap-(--espacio-1)">
+        <p className={ROTULO}>{pieza.familia}</p>
         <h1 className="text-lg font-semibold md:text-xl">{pieza.nombre}</h1>
       </header>
 
       {/* En teléfono la foto va primero y a ancho completo; de tablet para
           arriba pasa a columna y los datos se leen a su lado. Un solo marcado. */}
-      <div className="grid gap-4 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
-        <section aria-label="Foto de la pieza">
+      <div className="grid gap-(--espacio-4) md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+        <section aria-label="Foto de la pieza" className="flex flex-col gap-(--espacio-1)">
           {pieza.fotoUrl === null ? (
-            <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-border bg-muted p-4 text-center">
-              <span className="text-lg font-semibold">📷 Tomar foto</span>
-              <span className="text-xs text-muted-foreground">
+            <Superficie
+              como="label"
+              interactiva
+              nivel={0}
+              relleno={4}
+              className="flex min-h-48 flex-col items-center justify-center gap-(--espacio-2) border-2 border-dashed bg-fondo-sutil text-center focus-within:ring-[3px] focus-within:ring-anillo/60 md:aspect-square"
+            >
+              <Camera
+                aria-hidden="true"
+                className="size-(--altura-control) shrink-0 text-texto-sutil"
+              />
+              <span className="text-lg font-semibold">Tomar foto</span>
+              <span className="text-xs text-texto-sutil">
                 Ponle una moneda al lado: sin escala la foto no dice nada.
               </span>
               <input
@@ -360,34 +524,42 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
                   setFotoElegida(evento.target.files?.[0]?.name ?? null);
                 }}
               />
-            </label>
+            </Superficie>
           ) : (
             // Fondo y no <img> para no depender del cargador remoto de Next. Se
             // limpian comillas y barras: la URL viene de la base y entra a CSS.
-            <div
+            <Superficie
               role="img"
               aria-label={`Foto de ${pieza.nombre} con una moneda de referencia`}
-              className="aspect-square w-full rounded-md border border-border bg-muted bg-cover bg-center"
+              nivel={0}
+              relleno={0}
+              className="aspect-square w-full bg-fondo-sutil bg-cover bg-center"
               style={{ backgroundImage: `url("${pieza.fotoUrl.replace(/["\\]/g, '')}")` }}
-            />
+            >
+              {null}
+            </Superficie>
           )}
           {fotoElegida !== null && (
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="inline-flex items-center gap-(--espacio-1) text-xs text-texto-sutil">
+              <Check aria-hidden="true" className="size-4 shrink-0" />
               Foto lista: {fotoElegida} · se sube cuando se guarde la pieza.
             </p>
           )}
         </section>
 
-        <section aria-label="Medida y atributos">
-          <p className="text-3xl font-bold leading-tight">{pieza.medidaPulgada}</p>
-          <p className="text-lg text-muted-foreground">{pieza.medidaMilimetro}</p>
-          <dl className="mt-3 grid gap-x-4 sm:grid-cols-2">
+        <section aria-label="Medida y atributos" className="flex flex-col gap-(--espacio-3)">
+          <div>
+            <p className={ROTULO}>Medida</p>
+            <p className="font-numeros text-3xl leading-tight font-bold">{pieza.medidaPulgada}</p>
+            <p className="font-numeros text-lg text-texto-sutil">{pieza.medidaMilimetro}</p>
+          </div>
+          <dl className="grid gap-x-(--espacio-4) sm:grid-cols-2">
             {atributos.map(([etiqueta, valor]) => (
               <div
                 key={etiqueta}
-                className="flex justify-between gap-2 border-b border-border py-1"
+                className="flex justify-between gap-(--espacio-2) border-b border-borde py-(--espacio-2)"
               >
-                <dt className="text-muted-foreground">{etiqueta}</dt>
+                <dt className="text-texto-sutil">{etiqueta}</dt>
                 <dd className="text-right font-medium">{valor ?? '—'}</dd>
               </div>
             ))}
@@ -395,61 +567,114 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         </section>
       </div>
 
-      <Separator className="my-4" />
-
-      <div className="grid gap-3 md:grid-cols-3">
-        <section aria-label="Existencia" className="rounded-md border border-border bg-card p-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Hay</p>
-          <p className="text-2xl font-bold tabular-nums">{NUMERO.format(pieza.existencia)} pz</p>
-          <p className="text-muted-foreground">
-            {pieza.desglose ?? 'sin desglose de empaque'}
-            {pieza.pesoKg === null ? '' : ` · ≈ ${NUMERO.format(pieza.pesoKg)} kg`}
-          </p>
-        </section>
-        <section aria-label="Ubicación" className="rounded-md border border-border bg-card p-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Dónde</p>
-          <p className="text-xl font-semibold">{pieza.ubicacion ?? 'Sin ubicación registrada'}</p>
-        </section>
-        <section aria-label="Precios" className="rounded-md border border-border bg-card p-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Precio</p>
-          {pieza.unidades.map((u) => (
-            <p key={u.clave} className="flex justify-between gap-2">
-              <span className="text-muted-foreground">{u.etiqueta}</span>
-              <span className="font-semibold tabular-nums">
-                {PESOS.format(u.precioCentavos / 100)}
-              </span>
+      {/* Cuánto hay, de dónde se saca y a cuánto: lo que se dice en voz alta con
+          el cliente enfrente, en tres bloques que se leen de un vistazo. */}
+      <div className="grid gap-(--espacio-3) md:grid-cols-3">
+        <Superficie
+          como="section"
+          aria-label="Existencia"
+          relleno={3}
+          className="flex flex-col gap-(--espacio-1)"
+        >
+          <p className={ROTULO}>Hay</p>
+          {/* Negativo es un dato que NO es verdad: falta capturar una entrada. La
+              cifra se queda —es cuánta entrada falta— y la palabra dice qué es. */}
+          {pieza.existencia < 0 ? (
+            <p className="flex flex-wrap items-baseline gap-x-(--espacio-2) text-peligro">
+              <Cifra
+                valor={pieza.existencia}
+                unidad="pz"
+                tamano="lg"
+                className="text-2xl font-bold"
+              />
+              <span className="font-semibold">negativo · revisar entradas</span>
             </p>
-          ))}
-        </section>
+          ) : (
+            <Cifra
+              valor={pieza.existencia}
+              unidad="pz"
+              tamano="lg"
+              className="text-2xl font-bold"
+            />
+          )}
+          <p className="text-texto-sutil">
+            {pieza.desglose ?? 'sin desglose de empaque'}
+            {pieza.pesoKg === null ? null : (
+              <>
+                {' · ≈ '}
+                <Cifra valor={pieza.pesoKg} unidad="kg" decimales={1} tamano="sm" />
+              </>
+            )}
+          </p>
+        </Superficie>
+
+        <Superficie
+          como="section"
+          aria-label="Ubicación"
+          relleno={3}
+          className="flex flex-col gap-(--espacio-1)"
+        >
+          <p className={ROTULO}>Dónde</p>
+          {/* En negritas: en el pasillo es el dato que se está usando. */}
+          {pieza.ubicacion === null ? (
+            <p className="text-base text-texto-sutil">Sin ubicación registrada</p>
+          ) : (
+            <p className="inline-flex items-center gap-(--espacio-2) text-xl font-bold">
+              <MapPin aria-hidden="true" className="size-5 shrink-0" />
+              {pieza.ubicacion}
+            </p>
+          )}
+        </Superficie>
+
+        <Superficie como="section" aria-label="Precios" relleno={0} className="overflow-hidden">
+          <Tabla
+            etiqueta="Precio por unidad de venta"
+            columnas={columnasDePrecio(elegida?.clave)}
+            filas={pieza.unidades}
+            claveDe={(u) => u.clave}
+            {...(elegida === undefined ? {} : { activa: elegida.clave })}
+            alActivar={(clave) => {
+              setUnidad(clave);
+            }}
+            alto="max-h-48"
+            className="rounded-none border-0"
+            vacio={
+              <p className="p-(--espacio-3) text-texto-sutil">
+                <span className={`block ${ROTULO}`}>Precio</span>
+                Sin precio capturado
+              </p>
+            }
+          />
+        </Superficie>
       </div>
 
       {/* El alta de equivalentes va desplegada y arriba de todo lo demás: es el
           control más importante de la pantalla, y escondido no se usaría. */}
-      <section aria-labelledby="titulo-equivalentes" className="mt-4">
-        <h2 id="titulo-equivalentes" className="font-semibold">
+      <Superficie
+        como="section"
+        aria-labelledby="titulo-equivalentes"
+        relleno={4}
+        className="flex flex-col gap-(--espacio-3)"
+      >
+        <h2 id="titulo-equivalentes" className="text-base font-semibold">
           Equivalentes ({equivalentes.length})
         </h2>
-        <ul className="mt-1">
-          {equivalentes.map((eq) => (
-            <li key={eq.id} className="flex justify-between gap-2 border-b border-border py-1">
-              <span>
-                {eq.nombre}
-                {eq.nota === null ? '' : ` · ${eq.nota}`}
-              </span>
-              <span className="tabular-nums">
-                {eq.precioCentavos === null ? '—' : PESOS.format(eq.precioCentavos / 100)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <Tabla
+          etiqueta="Equivalentes de la pieza"
+          columnas={COLUMNAS_DE_EQUIVALENTES}
+          filas={equivalentes}
+          claveDe={(eq) => eq.id}
+          alto="max-h-60"
+          vacio={null}
+        />
         <form
-          className="mt-2 flex flex-wrap items-end gap-2"
+          className="flex flex-col gap-(--espacio-2) sm:flex-row sm:items-end"
           onSubmit={(evento) => {
             evento.preventDefault();
             declararEquivalente();
           }}
         >
-          <div className="grow">
+          <div className="flex grow flex-col gap-(--espacio-1)">
             <Label htmlFor="equivalente">
               {equivalentes.length === 0
                 ? 'Nadie ha dicho todavía qué le puede sustituir. Si sabes, dilo aquí.'
@@ -457,6 +682,18 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
             </Label>
             <Input
               id="equivalente"
+              /**
+               * REQUERIDO, y por eso enviar en vacío DICE algo.
+               *
+               * Sin esto, pulsar Enter con el campo vacío no hacía absolutamente nada:
+               * `declararEquivalente` se iba de vuelta en su primera línea y la pantalla
+               * se quedaba igual, sin un aviso. Lo destapó el rastreador en CI, que
+               * envía los formularios que encuentra. Con `required`, el navegador
+               * enseña su propio mensaje en el campo —en el idioma del sistema— y no
+               * llega a enviarse: la validación nativa es gratis y es la que un lector
+               * de pantalla ya sabe anunciar.
+               */
+              required
               value={propuesta}
               placeholder="Tornillo 6 mm × 50 mm galvanizado"
               onChange={(evento) => {
@@ -465,16 +702,20 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
             />
           </div>
           <Button type="submit" variant="secondary" disabled={enviando || propuesta.trim() === ''}>
-            ＋ Declarar
+            <Plus aria-hidden="true" />
+            Declarar
           </Button>
         </form>
-      </section>
+      </Superficie>
 
-      <dl className="mt-4">
+      <dl className="flex flex-col">
         {relaciones.map(([titulo, lineas, vacio]) => (
-          <div key={titulo} className="flex flex-wrap gap-x-3 border-b border-border py-1">
-            <dt className="w-24 font-semibold">{titulo}</dt>
-            <dd className={lineas.length === 0 ? 'text-muted-foreground' : ''}>
+          <div
+            key={titulo}
+            className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-(--espacio-3) border-b border-borde py-(--espacio-2)"
+          >
+            <dt className={ROTULO}>{titulo}</dt>
+            <dd className={lineas.length === 0 ? 'text-texto-sutil' : 'font-medium'}>
               {lineas.length === 0 ? vacio : lineas.join(' · ')}
             </dd>
           </div>
@@ -483,14 +724,20 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
 
       {/* En el pasillo la barra se pega abajo —el pulgar la alcanza sin subir—;
           en PC se queda donde cae, al final de la ficha. */}
-      <footer className="sticky bottom-0 z-10 -mx-3 mt-4 flex flex-wrap items-end gap-3 border-t border-border bg-background p-3 shadow-2 md:static md:mx-0 md:rounded-md md:border">
-        <div>
+      <Superficie
+        como="footer"
+        nivel={3}
+        radio="sm"
+        relleno={3}
+        className="sticky bottom-0 z-10 -mx-(--espacio-3) flex flex-wrap items-end gap-(--espacio-3) rounded-none md:static md:mx-0 md:rounded-lg md:shadow-1"
+      >
+        <div className="flex flex-col gap-(--espacio-1)">
           <Label htmlFor="cantidad">Cantidad</Label>
           <Input
             id="cantidad"
             inputMode="numeric"
             value={cantidad}
-            className="w-24 text-lg tabular-nums"
+            className="w-24 font-numeros text-lg tabular-nums"
             onChange={(evento) => {
               setCantidad(evento.target.value);
             }}
@@ -499,28 +746,42 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         <ToggleGroup
           type="single"
           variant="outline"
-          value={unidad}
+          value={elegida?.clave ?? ''}
           aria-label="Unidad de venta"
           onValueChange={(valor) => {
             if (valor !== '') setUnidad(valor);
           }}
         >
           {pieza.unidades.map((u) => (
-            <ToggleGroupItem key={u.clave} value={u.clave} className="px-3">
+            <ToggleGroupItem key={u.clave} value={u.clave} className="px-(--espacio-3)">
               {u.etiqueta}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        <Button type="button" size="lg" className="ml-auto" disabled={enviando} onClick={agregar}>
-          {enviando ? 'Agregando…' : `AGREGAR A LA VENTA · ${PESOS.format(importe / 100)}`}
+        <Button
+          type="button"
+          size="lg"
+          className="w-full justify-between gap-(--espacio-3) sm:ml-auto sm:w-auto"
+          disabled={enviando || !seAgregaAqui}
+          cargando={enviando}
+          aria-describedby={seAgregaAqui ? undefined : 'no-se-agrega-aqui'}
+          onClick={() => {
+            agregarALaVenta(elegida);
+          }}
+        >
+          <span>{enviando ? 'Agregando…' : 'AGREGAR A LA VENTA'}</span>
+          {importe === null ? null : <Dinero centavos={importe} />}
         </Button>
-      </footer>
+        {seAgregaAqui || base === undefined ? null : (
+          // El botón no promete lo que el comando no hace: vender la caja a precio
+          // de caja. Se compara arriba; se agrega en la unidad base.
+          <p id="no-se-agrega-aqui" className="basis-full text-texto-sutil">
+            {`«${elegida.etiqueta}» todavía no se agrega desde la ficha: aquí se vende por «${base.etiqueta}».`}
+          </p>
+        )}
+      </Superficie>
     </article>
   );
-
-  function agregar(): void {
-    agregarALaVenta();
-  }
 }
 
 /** El historial es una frase o no es nada; la lista lo unifica con las otras. */

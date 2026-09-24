@@ -45,6 +45,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
+
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 const APP = join(RAIZ, 'packages', 'app', 'src');
 const RUTAS = join(RAIZ, 'apps', 'web', 'app', 'api');
@@ -82,7 +84,9 @@ function bloque(texto, desde, abre = '{', cierra = '}') {
 
 /** El código sin comentarios: una clave citada en un comentario no es una clave. */
 function sinComentarios(texto) {
-  return texto.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  return sinFalsosDelimitadores(texto)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
 }
 
 /**

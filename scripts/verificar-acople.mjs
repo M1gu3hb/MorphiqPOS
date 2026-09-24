@@ -47,6 +47,7 @@ import {
 } from '../packages/data/src/verificacion/consulta-directa.ts';
 import { DICCIONARIOS } from '../packages/domain/src/vocabulario/diccionarios.ts';
 import { problemasDeSeguridad } from '../packages/data/src/verificacion/rls.ts';
+import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
 import { MODELOS, pantallasEsperadas, rutasEsperadas } from './verificar-cobertura.mjs';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -962,6 +963,21 @@ const GIRO_DE_LA_CARPETA = {
 const NO_ES_LA_ENTIDAD = [
   'punto de venta',
   'precio de venta',
+  /**
+   * «UNIDAD DE VENTA» es la palabra de la FERRETERÍA, y está en su propia ficha.
+   *
+   * `modelos/02-retail/ferreteria/00-FICHA-Y-EJES.md` la lleva como eje: «Pieza,
+   * metro, kilo y pieza-por-kilo, con corte físico del material». Es el mismo
+   * compuesto que las dos líneas de arriba —el sustantivo es «unidad», no la nota que
+   * se cobra— y el toggle que la rotula elige entre metro, pieza y caja, no entre
+   * documentos.
+   *
+   * La puerta la vio por primera vez el 21-09-2026, y no porque el rótulo sea nuevo
+   * —lleva ahí desde `bdb3c69`—: un `accept="image/*"` de la misma pantalla abría un
+   * comentario fantasma que dejaba 170 líneas de ese archivo sin leer. Arreglado en
+   * `textosVisibles`; esta línea es lo que quedó debajo.
+   */
+  'unidad de venta',
   'corte de caja',
   'punto de partida',
   'cuenta el',
@@ -1004,6 +1020,9 @@ const NO_ES_LA_ENTIDAD_AQUI = {
   'abarrotes/Servicios.tsx': ['servicio', 'servicios', 'cuenta'],
   // Cuentas POR COBRAR: la cartera del fiado. No es la nota de una venta.
   'ferreteria/Cuentas.tsx': ['cuenta', 'cuentas'],
+  // «A cuenta» es FIAR: el método de pago que sube el saldo del cliente —su
+  // etiqueta en la lista de métodos de esa misma pantalla—, no la nota que se cobra.
+  'ferreteria/Caja.tsx': ['cuenta'],
   // La cuenta de BANCO a la que va la propina o la comisión.
   'estetica-salon/Cobrar.tsx': ['cuenta'],
   // «Ventas» en un arqueo es el DINERO del día, la línea de un corte. La cuenta
@@ -1032,11 +1051,38 @@ function textosVisibles(fuente) {
   // mensaje es lo que hace que alguien pueda ir a arreglarlo, y colapsar un
   // comentario de ocho líneas en un espacio lo desplazaba todo lo que viene detrás.
   const enBlanco = (trozo) => trozo.replaceAll(/[^\n]/g, ' ');
-  const sinProsa = fuente
+
+  /**
+   * `accept="image/*"` NO ABRE UN COMENTARIO, y durante meses sí lo abrió.
+   *
+   * El `/` + `*` de ese tipo MIME entraba como apertura de bloque, el buscador corría
+   * hasta el cierre siguiente —que estaba 170 líneas más abajo— y esta función
+   * devolvía en blanco todo lo que había en medio. En `ferreteria/FichaDePieza.tsx`
+   * eso escondía el cuerpo entero de la ficha, incluido un `aria-label` con la
+   * palabra de otro giro, y la puerta informaba «0 rótulos con la palabra de otro
+   * giro» sobre un archivo que **no había leído**.
+   *
+   * Es el fallo de esta familia que más caro sale: la puerta no se quejó, dio verde,
+   * y el verde afirmaba una propiedad de un texto que nunca miró. Y no era el único
+   * sitio: el mismo patrón estaba en once, y en seis leyendo archivos con cámara.
+   * El ayudante vive aparte porque la regla es una sola.
+   */
+  const sinProsa = sinFalsosDelimitadores(fuente)
     .replaceAll(/\{\/\*[\s\S]*?\*\/\}/g, enBlanco)
     .replaceAll(/\/\*[\s\S]*?\*\//g, enBlanco)
-    .replaceAll(/^\s*\/\/.*$/gm, '')
-    .replaceAll(/^\s*\*.*$/gm, '');
+    /**
+     * SANGRÍA HORIZONTAL, no cualquier espacio, y por eso la línea iba corrida.
+     *
+     * La clase `\s` incluye el salto de línea. Con ella, el ancla de principio de
+     * línea prendía en una línea EN BLANCO, la sangría se comía el salto siguiente y
+     * la marca de comentario casaba en la línea de ABAJO: se borraban las dos juntas,
+     * la cuenta perdía una línea, y el mensaje mandaba a alguien una línea antes de
+     * donde está la cosa —«:535» para un `aria-label` que vive en la 536—.
+     *
+     * `[^\S\n]` es espacio y tabulador, y nada más.
+     */
+    .replaceAll(/^[^\S\n]*\/\/.*$/gm, '')
+    .replaceAll(/^[^\S\n]*\*.*$/gm, '');
 
   const encontrados = [];
   const anotar = (indice, texto, largoMaximo) => {
@@ -1266,6 +1312,37 @@ function credencialDelMuro() {
 
 const MURO = credencialDelMuro();
 
+/**
+ * ¿ESTA URL ES DE ESTA MÁQUINA? Lo dice el HOST, no la variable que la trajo.
+ *
+ * ── El rótulo que mentía ────────────────────────────────────────────────
+ * Esto decidía «LOCAL» o «despliegue» por CUÁL VARIABLE se había puesto: con
+ * `MORPHIQPOS_URL_DESPLIEGUE` era un despliegue y con `APP_URL` era local. Así que una
+ * corrida con `APP_URL=https://morphiqpos-kappa.vercel.app` —que es exactamente cómo se
+ * corrió la vuelta 2.3— imprimía «contra el servidor LOCAL (https://…vercel.app)»:
+ * el rótulo y la URL de la misma línea se contradecían.
+ *
+ * Y no era sólo el rótulo. Por esa rama tampoco se comprobaba el MURO, que es lo único
+ * que distingue «el despliegue contestó» de «la Protección de Despliegue contestó por
+ * él». Una puerta que dice contra qué midió tiene que saberlo de verdad.
+ */
+function esDeEstaMaquina(base) {
+  try {
+    const anfitrion = new URL(base).hostname.toLowerCase();
+    return anfitrion === 'localhost' || anfitrion === '127.0.0.1' || anfitrion === '::1';
+  } catch {
+    return false;
+  }
+}
+
+/** ¿Esto lo contestó el muro de Vercel y no la aplicación? */
+function huelloDelMuro(respuesta) {
+  if (respuesta.status === 401) return 'un 401 del muro';
+  const aDonde = respuesta.headers.get('location') ?? '';
+  if (aDonde.includes('vercel.com/sso-api')) return 'un 302 a vercel.com/sso-api';
+  return null;
+}
+
 async function comprobarDespliegue() {
   const despliegue = entorno('MORPHIQPOS_URL_DESPLIEGUE');
   const local = entorno('APP_URL');
@@ -1276,15 +1353,13 @@ async function comprobarDespliegue() {
     return undefined;
   }
 
-  if (despliegue === undefined) {
+  const enEstaMaquina = esDeEstaMaquina(base);
+
+  if (enEstaMaquina) {
     // La salida escrita en §8.1: sin token de Vercel, la comprobación se hace
     // contra el servidor local, se DICE, y no bloquea el 0. Sin esta salida el
     // encargo sería imposible de cerrar y a la vez estaría prohibido detenerse.
-    if (existsSync(ENTORNO_VERCEL)) {
-      notas.push(
-        `despliegue    contra el servidor LOCAL (${base}) · ver docs/fase-2/VERCEL-ENTORNO.md`,
-      );
-    } else {
+    if (!existsSync(ENTORNO_VERCEL)) {
       fallos.push(
         'DESPLIEGUE: no hay URL de despliegue y tampoco docs/fase-2/VERCEL-ENTORNO.md ' +
           'que declare por qué. Una de las dos cosas tiene que existir.',
@@ -1302,8 +1377,27 @@ async function comprobarDespliegue() {
 
   const ok = respuesta.status === 200 || (respuesta.status >= 300 && respuesta.status < 400);
   exigir(ok, `DESPLIEGUE: ${base} devolvió ${respuesta.status}`);
-  if (ok && despliegue !== undefined) {
-    notas.push(`despliegue    ${base} → ${respuesta.status} · ${MURO.como}`);
+
+  // EL MURO, en cualquier URL que no sea de esta máquina. Da igual qué variable la
+  // trajo: si lo que contesta es la Protección de Despliegue, todo lo que esta puerta
+  // mida después es del muro y no de la aplicación, y decir «rutas vivas» sería falso.
+  const muro = enEstaMaquina ? null : huelloDelMuro(respuesta);
+  if (muro !== null) {
+    fallos.push(
+      `DESPLIEGUE: ${base} contestó ${muro}, que es la Protección de Despliegue de Vercel y ` +
+        'no la aplicación. Lo que se mida a partir de aquí es del muro. Pasa una credencial ' +
+        '—MORPHIQPOS_BYPASS_VERCEL o MORPHIQPOS_COOKIE_VERCEL— o apunta a una URL sin muro; ' +
+        'ver docs/fase-2/VERCEL-ENTORNO.md §2.',
+    );
+  }
+
+  if (ok) {
+    notas.push(
+      enEstaMaquina
+        ? `despliegue    contra el servidor de ESTA MÁQUINA (${base}) → ${respuesta.status} · ver docs/fase-2/VERCEL-ENTORNO.md`
+        : `despliegue    REMOTO ${base} → ${respuesta.status} · ${MURO.como} · ` +
+            (muro === null ? 'sin muro por delante' : `DETRÁS DEL MURO (${muro})`),
+    );
   }
   return base;
 }
@@ -1391,7 +1485,7 @@ function comprobarMarcasDeContenido() {
     }
     // Sin comentarios: una tabla dentro de un comentario no abre nada. Es el
     // mismo recorte que el del cobro, y por la misma razón.
-    const codigo = readFileSync(ruta, 'utf8')
+    const codigo = sinFalsosDelimitadores(readFileSync(ruta, 'utf8'))
       .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
       .replaceAll(/^\s*\/\/.*$/gm, ' ');
 
@@ -1452,7 +1546,7 @@ function comprobarQueLasPruebasCobran() {
       continue;
     }
     // Sin comentarios: una llamada dentro de un comentario no cobra nada.
-    const codigo = readFileSync(ruta, 'utf8')
+    const codigo = sinFalsosDelimitadores(readFileSync(ruta, 'utf8'))
       .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
       .replaceAll(/^\s*\/\/.*$/gm, ' ');
 
@@ -1898,7 +1992,7 @@ function comprobarQueLasRutasQueSeLlamanExisten() {
       // SIN COMENTARIOS: una ruta nombrada en un comentario no la llama nadie, y
       // contarla hacía que esta puerta pidiera declarar la ruta que el comentario
       // de al lado explica que ya no se usa.
-      const texto = readFileSync(ruta, 'utf8')
+      const texto = sinFalsosDelimitadores(readFileSync(ruta, 'utf8'))
         .replaceAll(/\/\*[\s\S]*?\*\//g, ' ')
         .replaceAll(/^\s*\/\/.*$/gm, ' ');
       for (const llamada of llamadasDelTexto(texto)) {

@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  agrupar,
-  etiquetaDelta,
-  porOmisionDe,
-  totalCentavos,
-  type OpcionDeBebida,
-} from './opciones-de-bebida';
+import { agrupar, porOmisionDe, totalCentavos, type OpcionDeBebida } from './opciones-de-bebida';
 
 /**
  * F-027 · Los modificadores de la bebida.
@@ -128,25 +122,5 @@ describe('F-027 · lo que se cobra', () => {
 
   it('sin opciones, el total es la base', () => {
     expect(totalCentavos(4500, [])).toBe(4500);
-  });
-});
-
-describe('F-027 · la etiqueta del delta', () => {
-  it('sin centavos, se dice en voz alta: «+$22»', () => {
-    expect(etiquetaDelta(2200)).toBe('+$22');
-  });
-
-  it('con centavos, se escriben los dos', () => {
-    expect(etiquetaDelta(2250)).toBe('+$22.50');
-  });
-
-  it('el descuento lleva el signo de menos tipográfico', () => {
-    expect(etiquetaDelta(-300)).toBe('−$3');
-  });
-
-  it('un delta de cero NO se pinta', () => {
-    // «+$0» al lado de una opción es ruido que el barista aprende a ignorar, y
-    // entonces deja de mirar los que sí cuestan.
-    expect(etiquetaDelta(0)).toBeNull();
   });
 });

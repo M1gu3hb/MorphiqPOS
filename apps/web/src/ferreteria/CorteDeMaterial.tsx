@@ -4,8 +4,18 @@ import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { RadioGroup, RadioGroupItem } from '@morphiqpos/ui/primitivas/radio-group';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState, type ChangeEvent } from 'react';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  Superficie,
+  Vacio,
+} from '@morphiqpos/ui/sistema';
+import { Scissors, TriangleAlert } from 'lucide-react';
+import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -41,6 +51,13 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * sería fricción, preguntar cuando importa es cuidado. Y el costo de darlo de
  * baja va en PESOS: 6.80 m suenan a nada, $61.20 suenan a algo.
  *
+ * ── Qué va grande ────────────────────────────────────────────────────────
+ * «Primero se ve de dónde se va a cortar y cuánto queda» (`04-INTERFAZ.md`,
+ * pantalla 3): por eso lo que queda en la pieza es la cifra más grande del
+ * resumen, y el importe de la partida va en la barra, legible pero no dominante
+ * —en una ferretería el cliente mira la pieza, no la pantalla—. Lo único más
+ * grande que eso es el folio de la nota después de cortar: se canta en la caja.
+ *
  * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
  * Cabe la variante de PIEZA CONTINUA (rollo, cable, manguera, cadena). Quedan
  * FUERA la variante de TRAMO —lista los pedazos y sugiere el más chico donde
@@ -48,20 +65,16 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * lleva geometría (§2.2)—: cambian el bloque «de dónde» entero, no un detalle.
  */
 
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const HTTP_DEMASIADOS_INTENTOS = 429;
 
-const BLOQUE = 'mt-3 rounded-md border border-border bg-card p-3 text-card-foreground shadow-1';
-const TITULO = 'text-xs font-bold uppercase tracking-wide text-muted-foreground';
-const OPCION = 'flex items-start gap-3 rounded-md border p-3 hover:bg-accent';
-const AVISO = 'mt-2 rounded-md border border-warning/60 bg-warning/15 p-2 text-sm font-medium';
-const MALO = 'mt-2 rounded-md border border-destructive bg-destructive/15 p-2 text-sm font-medium';
-const NOTA = 'mt-1 text-xs tabular-nums text-muted-foreground';
-/** Los campos crecen en el teléfono: se teclean de pie y con una mano. */
-const CAMPOS =
-  'mt-2 grid gap-3 md:grid-cols-2 [&_input]:h-[calc(var(--altura-control)*1.4)] [&_input]:text-2xl md:[&_input]:text-lg';
-const BARRA =
-  'fixed inset-x-0 bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-background p-3 md:static md:mt-3 md:rounded-md md:border';
+const TITULO = 'text-sm font-semibold tracking-wide text-texto-sutil uppercase';
+const NOTA = 'text-xs text-texto-sutil';
+const CAMPOS = 'grid gap-(--espacio-3) md:grid-cols-2';
+/**
+ * Los campos crecen en el teléfono: se teclean de pie y con una mano. Van en el
+ * `Input` mismo y no desde el contenedor: `md:text-lg` le gana a su `md:text-sm`.
+ */
+const CAMPO = 'h-[calc(var(--altura-control)*1.4)] font-numeros text-2xl tabular-nums md:text-lg';
 
 /** Una pieza física de la que se corta. El descuento sale de ÉSTA, no del total. */
 export interface PiezaDeCorte {
@@ -128,7 +141,7 @@ function porAbiertas(a: PiezaDeCorte, b: PiezaDeCorte): number {
 /** Lo que hace falta saber de una pieza para elegirla sin ir al rack. */
 function notaDePieza(pieza: PiezaDeCorte, unidad: string, sugerida: boolean): string {
   if (!pieza.abierta) return `quedan ${metros(pieza.restante)} ${unidad} · hay ${pieza.iguales}`;
-  // El sugerido se dice con una palabra, no sólo con el borde de color.
+  // El sugerido se dice con una palabra, no sólo con el anillo de color.
   return `quedan ${metros(pieza.restante)} ${unidad}${sugerida ? ' · sugerido' : ''}`;
 }
 
@@ -146,21 +159,39 @@ function mensajeDe(fallo: unknown, porDefecto: string): string {
 interface OpcionProps {
   readonly valor: string;
   readonly titulo: string;
-  readonly nota: string;
+  readonly nota: ReactNode;
   readonly activa: boolean;
 }
 
-/** Una opción con su nota: dos de las tres decisiones tienen esta misma forma. */
+/**
+ * Una opción con su nota: dos de las tres decisiones tienen esta misma forma.
+ *
+ * La opción ENTERA es la etiqueta de su radio —`Superficie como="label"`—, así que
+ * el dedo en el pasillo acierta en cualquier parte del renglón y no en un círculo
+ * de 16 px. Y el nombre del radio es el texto de la etiqueta: «Rollo abierto R-114,
+ * quedan 37.00 m», que es lo que un lector de pantalla tiene que decir.
+ */
 function Opcion({ valor, titulo, nota, activa }: OpcionProps) {
   const campo = `opcion-${valor}`;
   return (
-    <div className={`${OPCION} ${activa ? 'border-primary bg-primary/10' : 'border-border'}`}>
+    <Superficie
+      como="label"
+      htmlFor={campo}
+      nivel={0}
+      radio="md"
+      relleno={3}
+      interactiva
+      activa={activa}
+      className="flex items-start gap-(--espacio-3)"
+    >
       <RadioGroupItem value={valor} id={campo} className="mt-1" />
-      <Label htmlFor={campo} className="flex-1 flex-col items-start gap-0">
+      <span className="flex min-w-0 flex-1 flex-col">
         <span className="font-semibold">{titulo}</span>
-        <span className="font-normal tabular-nums text-muted-foreground">{nota}</span>
-      </Label>
-    </div>
+        {nota === null ? null : (
+          <span className="text-sm text-texto-sutil tabular-nums">{nota}</span>
+        )}
+      </span>
+    </Superficie>
   );
 }
 
@@ -172,7 +203,15 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   const [medidaTexto, setMedidaTexto] = useState('');
   const [sobranteTexto, setSobranteTexto] = useState<string | null>(null);
   const [destino, setDestino] = useState<Destino>('abierto');
+  /** El fallo de un COMANDO: se leyó, y cortar no salió. */
   const [error, setError] = useState<string | null>(null);
+  /**
+   * El fallo de una LECTURA. Es otro estado y se pinta distinto: si no se leyó nada
+   * no hay de qué cortar —`ErrorDePantalla`—; si falló la relectura de después de un
+   * corte, lo de antes sigue a la vista con su aviso. La cadena vacía es un fallo
+   * sin detalle técnico que enseñar.
+   */
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   /** El corte que se acaba de hacer: su folio y lo que quedó. */
   const [hecho, setHecho] = useState<CorteHecho | null>(null);
@@ -213,30 +252,61 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
         setPiezas(piezasIniciales ?? leidas);
       })
       .catch((fallo: unknown) => {
-        // La pantalla no se vacía por un error de red: se avisa y se sigue.
+        // La pantalla no se vacía por un error de red: lo que ya estaba a la vista
+        // se queda, y el fallo se dice. Un vacío aquí mentiría —diría «no hay
+        // piezas» cuando lo que no hubo fue respuesta—.
         if (!sigueMontada()) return;
-        setPiezas(piezasIniciales ?? []);
-        setError(
-          mensajeDe(fallo, `No se pudo leer qué hay de ${voc.enFraseCon('este', 'producto')}.`),
-        );
+        setFalloDeCarga(mensajeDe(fallo, fallo instanceof Error ? fallo.message : ''));
       });
     return () => {
       control.abort();
     };
-  }, [materialInicial, piezasIniciales, voc, vuelta]);
+  }, [materialInicial, piezasIniciales, vuelta]);
+
+  /** Se limpia EN EL CLIC y no en el efecto: el efecto sólo vuelve a preguntar. */
+  function volverALeer(): void {
+    setFalloDeCarga(null);
+    setVuelta((cuantas) => cuantas + 1);
+  }
 
   const ordenadas = [...(piezas ?? [])].sort(porAbiertas);
   // La preselección se DERIVA; no se escribe con un setState dentro del efecto.
   const elegida = ordenadas.find((p) => p.id === piezaId) ?? ordenadas[0] ?? null;
+  const encabezadoSinMaterial = (
+    <h1 className="text-xl font-bold md:text-2xl">Cortar {voc.singular('producto')}</h1>
+  );
+
+  if (piezas === null && falloDeCarga !== null) {
+    return (
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-(--espacio-3) p-(--espacio-3)">
+        {encabezadoSinMaterial}
+        <ErrorDePantalla
+          titulo={`No se pudo leer qué hay de ${voc.enFraseCon('este', 'producto')}.`}
+          queHacer="Sin las piezas no se sabe de qué rollo cortar ni cuánto le queda. Revisa la conexión y vuelve a leerlas; no se ha cortado nada."
+          {...(falloDeCarga === '' ? {} : { detalle: falloDeCarga })}
+          reintentar={<Button onClick={volverALeer}>Volver a leer</Button>}
+        />
+      </div>
+    );
+  }
 
   if (piezas === null) {
-    // Con la forma de los tres bloques, no un spinner: el ojo ya sabe dónde va
-    // a mirar y la pantalla no salta cuando llega el dato.
+    // Con la forma de los bloques, no una rueda: el ojo ya sabe dónde va a mirar
+    // y la pantalla no salta cuando llega el dato.
     return (
-      <div className="mx-auto w-full max-w-3xl p-3">
-        <Skeleton className="h-20 w-full rounded-md" />
-        <Skeleton className="mt-3 h-40 w-full rounded-md" />
-        <Skeleton className="mt-3 h-40 w-full rounded-md" />
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-(--espacio-3) p-(--espacio-3)">
+        <Esqueleto className="h-(--altura-control) w-2/3" />
+        <Superficie relleno={3} radio="md" className="flex flex-col gap-(--espacio-3)">
+          <Esqueleto className="h-4 w-24" />
+          <EsqueletoDeLista filas={2} />
+        </Superficie>
+        <Superficie relleno={3} radio="md" className="flex flex-col gap-(--espacio-3)">
+          <Esqueleto className="h-4 w-20" />
+          <div className="grid gap-(--espacio-3) md:grid-cols-2">
+            <Esqueleto className="h-[calc(var(--altura-control)*1.4)] w-full" />
+            <Esqueleto className="h-[calc(var(--altura-control)*1.4)] w-full" />
+          </div>
+        </Superficie>
       </div>
     );
   }
@@ -245,16 +315,28 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   // en vez de disculparse por no tener datos.
   if (material === null || elegida === null) {
     return (
-      <div className="mx-auto flex max-w-lg flex-col items-start gap-3 p-5">
-        <h1 className="text-xl font-bold">Cortar {voc.singular('producto')}</h1>
-        <p className="text-muted-foreground">
-          {material === null
-            ? `${voc.conDeterminante('ningun', 'producto')} está marcado todavía como pieza continua. Continuo es el que se vende por medida: cable, manguera, cadena, tubo.`
-            : `No hay ninguna pieza de ${material.nombre} registrada. Un corte descuenta de una pieza concreta con su folio; sin piezas, el metraje sería inventado.`}
-        </p>
-        <Button asChild>
-          <a href="/ferreteria/mostrador">Registrar la primera pieza</a>
-        </Button>
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-(--espacio-3) p-(--espacio-5)">
+        {encabezadoSinMaterial}
+        <Superficie relleno={0} radio="md">
+          <Vacio
+            icono={<Scissors />}
+            titulo={
+              material === null
+                ? `${voc.conDeterminante('ningun', 'producto')} está marcado todavía como pieza continua.`
+                : `No hay ninguna pieza de ${material.nombre} registrada.`
+            }
+            explicacion={
+              material === null
+                ? 'Continuo es el que se vende por medida: cable, manguera, cadena, tubo.'
+                : 'Un corte descuenta de una pieza concreta con su folio; sin piezas, el metraje sería inventado.'
+            }
+            accion={
+              <Button asChild>
+                <a href="/ferreteria/mostrador">Registrar la primera pieza</a>
+              </Button>
+            }
+          />
+        </Superficie>
       </div>
     );
   }
@@ -269,19 +351,39 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   const excede = descuento > elegida.restante;
   // Único sitio donde una medida fraccionaria toca dinero: se redondea al
   // centavo UNA vez (R15). El servidor la rehace; esto es para verla antes.
-  const importe = PESOS.format(Math.round(medida * material.precioCentavos) / 100);
+  const importeCentavos = Math.round(medida * material.precioCentavos);
   const abiertos = ordenadas.filter((p) => p.abierta).reduce((suma, p) => suma + p.restante, 0);
-  const destinos = [
-    { clave: 'abierto' as const, texto: 'Dejarlo como rollo abierto', nota: '' },
+  const avisarAbiertos = !elegida.abierta && abiertos > 0;
+  const destinos: readonly {
+    readonly clave: Destino;
+    readonly texto: string;
+    readonly nota: ReactNode;
+  }[] = [
+    { clave: 'abierto', texto: 'Dejarlo como rollo abierto', nota: null },
     {
-      clave: 'remate' as const,
+      clave: 'remate',
       texto: 'Marcarlo como retazo de remate',
-      nota: `sugerido ${PESOS.format(material.precioRemateCentavos / 100)} / ${material.unidad}`,
+      nota: (
+        <>
+          sugerido <Dinero centavos={material.precioRemateCentavos} tamano="sm" /> /{' '}
+          {material.unidad}
+        </>
+      ),
     },
     {
-      clave: 'baja' as const,
+      clave: 'baja',
       texto: 'Darlo de baja (desperdicio)',
-      nota: `costo ${PESOS.format(Math.round(queda * material.costoCentavos) / 100)}`,
+      // En pesos y con peso: es lo que hace que el mostradorista se lo piense.
+      nota: (
+        <>
+          costo{' '}
+          <Dinero
+            centavos={Math.round(queda * material.costoCentavos)}
+            tamano="base"
+            className="font-semibold text-texto"
+          />
+        </>
+      ),
     },
   ];
 
@@ -294,8 +396,8 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   }
 
   function elegirDestino(valor: string): void {
-    // El literal lleva su propio `as const`: venir de un arreglo no lo vuelve
-    // constante, y `Destino` sí lo es.
+    // Radix entrega un `string`; los únicos valores que puede traer son las tres
+    // claves de `destinos`, que sí son `Destino`.
     setDestino(valor as Destino);
   }
 
@@ -319,7 +421,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
       setHecho(salida);
       setMedidaTexto('');
       setSobranteTexto(null);
-      setVuelta((cuantas) => cuantas + 1);
+      volverALeer();
     } catch (fallo) {
       setError(mensajeDe(fallo, 'No se pudo registrar el corte.'));
     } finally {
@@ -328,36 +430,64 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl p-3 pb-32 md:pb-4">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-(--espacio-3) p-(--espacio-3) pb-[calc(var(--espacio-16)*2)] md:pb-(--espacio-4)">
       <h1 className="text-xl font-bold md:text-2xl">Cortar · {material.nombre}</h1>
 
       {error !== null && (
-        <p role="alert" className={MALO}>
-          {error}
-        </p>
+        <Aviso tono="peligro" titulo={error}>
+          El corte no se registró: la pieza no se descontó y no se agregó nada a{' '}
+          {voc.conArticulo('orden').toLowerCase()}.
+        </Aviso>
+      )}
+
+      {/* Se leyó antes y la relectura de después del corte falló: lo de la vista
+          es de ANTES de cortar, y eso se dice en vez de vaciar la pantalla. */}
+      {falloDeCarga !== null && (
+        <Aviso
+          tono="peligro"
+          titulo="No se pudieron volver a leer las piezas."
+          accion={
+            <Button type="button" variant="outline" size="sm" onClick={volverALeer}>
+              Volver a leer
+            </Button>
+          }
+        >
+          Lo que queda en cada rollo es de antes del último corte.
+          {falloDeCarga === '' ? null : ` ${falloDeCarga}`}
+        </Aviso>
       )}
 
       {/* EL FOLIO, que es lo único que el cliente se lleva del pasillo, y lo que
           quedó del rollo, que es lo que el mostradorista tiene que rotular. */}
       {hecho !== null && (
-        <p role="status" className={`${BLOQUE} border-primary`}>
-          Cortados{' '}
-          <span className="font-bold tabular-nums">
-            {hecho.entregado} {material.unidad}
-          </span>{' '}
-          · merma {hecho.merma} {material.unidad} · Nota{' '}
-          <span className="text-lg font-bold tabular-nums">{hecho.folio}</span> está en la caja.{' '}
+        <Aviso tono="exito" titulo={`${voc.titulo('orden')} ${hecho.folio} está en la caja.`}>
+          <span className="block font-numeros text-3xl font-bold text-texto">{hecho.folio}</span>
+          Cortados {hecho.entregado} {material.unidad} · merma {hecho.merma} {material.unidad}.{' '}
           {hecho.queda === '0'
             ? 'La pieza se acabó y se cerró.'
             : `Quedan ${hecho.queda} ${material.unidad}: rotúlalos.`}
-        </p>
+        </Aviso>
       )}
 
-      <section aria-labelledby="t-donde" className={BLOQUE}>
-        <h2 id="t-donde" className={TITULO}>
+      {/* Sin `gap`: la región viva del aviso está siempre montada, y vacía no debe
+          sumar un hueco al pie del bloque. Los márgenes los pone cada pieza. */}
+      <Superficie
+        como="section"
+        aria-labelledby="t-donde"
+        relleno={3}
+        radio="md"
+        className="flex flex-col"
+      >
+        <h2 id="t-donde" className={`${TITULO} mb-(--espacio-2)`}>
           De dónde
         </h2>
-        <RadioGroup className="mt-2" value={elegida.id} onValueChange={setPiezaId}>
+        <RadioGroup
+          aria-labelledby="t-donde"
+          aria-describedby={avisarAbiertos ? 'aviso-abiertos' : undefined}
+          className="gap-(--espacio-2)"
+          value={elegida.id}
+          onValueChange={setPiezaId}
+        >
           {ordenadas.map((pieza) => (
             <Opcion
               key={pieza.id}
@@ -368,33 +498,64 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
             />
           ))}
         </RadioGroup>
-        {!elegida.abierta && abiertos > 0 && (
-          <p role="alert" className={AVISO}>
-            ⚠️ Hay {metros(abiertos)} {material.unidad} abiertos. Si abres uno nuevo, esos se
-            quedan.
-          </p>
-        )}
-      </section>
+        {/* UNA línea, pegada a la elección que la provoca, y no un recuadro: es
+            un recordatorio, no un muro. El icono y el texto la cargan, no el color.
+            Y SE ANUNCIA al elegir el rollo cerrado: la región viva existe desde antes y
+            la línea llega dentro. El `aria-describedby` del grupo sólo se lee al
+            entrar en él, y la decisión se toma con el foco ya en el radio. Es región
+            viva y no `status` a propósito: el estado de esta pantalla es el folio del
+            corte hecho, y es el único. */}
+        <div aria-live="polite">
+          {avisarAbiertos && (
+            <p
+              id="aviso-abiertos"
+              className="mt-(--espacio-2) flex items-start gap-(--espacio-2) text-sm font-medium"
+            >
+              <TriangleAlert
+                aria-hidden="true"
+                className="mt-0.5 size-4 shrink-0 text-advertencia"
+              />
+              <span>
+                Hay {metros(abiertos)} {material.unidad} abiertos. Si abres uno nuevo, esos se
+                quedan.
+              </span>
+            </p>
+          )}
+        </div>
+      </Superficie>
 
-      <section aria-labelledby="t-cuanto" className={BLOQUE}>
+      <Superficie
+        como="section"
+        aria-labelledby="t-cuanto"
+        relleno={3}
+        radio="md"
+        className="flex flex-col gap-(--espacio-3)"
+      >
         <h2 id="t-cuanto" className={TITULO}>
           Cuánto
         </h2>
         <div className={CAMPOS}>
-          <div>
+          <div className="flex flex-col gap-1">
             <Label className="flex-col items-start gap-1">
               Medida entregada ({material.unidad})
-              <Input inputMode="decimal" autoFocus value={medidaTexto} onChange={alMedir} />
+              <Input
+                inputMode="decimal"
+                autoFocus
+                className={CAMPO}
+                value={medidaTexto}
+                onChange={alMedir}
+              />
             </Label>
             <p className={NOTA}>
-              {PESOS.format(material.precioCentavos / 100)} / {material.unidad}
+              <Dinero centavos={material.precioCentavos} tamano="xs" /> / {material.unidad}
             </p>
           </div>
-          <div>
+          <div className="flex flex-col gap-1">
             <Label className="flex-col items-start gap-1">
               Desperdicio ({material.unidad})
               <Input
                 inputMode="decimal"
+                className={CAMPO}
                 value={sobranteTexto ?? metros(material.desperdicioTipico)}
                 onChange={alSobrar}
               />
@@ -404,31 +565,54 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
             </p>
           </div>
         </div>
-        <dl className="mt-3 grid grid-cols-2 gap-x-2 border-t border-border pt-2 text-sm">
-          <dt>Se descuenta del rollo</dt>
-          <dd className="text-right font-semibold tabular-nums">
-            {metros(descuento)} {material.unidad}
+        <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-(--espacio-3) gap-y-(--espacio-2) border-t border-borde pt-(--espacio-3)">
+          <dt className="text-sm text-texto-sutil">Se descuenta del rollo</dt>
+          <dd className="text-right">
+            <Cifra valor={descuento} decimales={2} unidad={material.unidad} tamano="sm" />
           </dd>
-          <dt>Queda en {elegida.folio}</dt>
-          <dd className="text-right font-semibold tabular-nums">
-            {metros(queda)} {material.unidad}
-            {retazoChico ? ' · ⚠️ retazo chico' : ''}
+          <dt className="font-semibold">Queda en {elegida.folio}</dt>
+          <dd className="flex flex-wrap items-baseline justify-end gap-x-(--espacio-2) text-right">
+            <Cifra
+              valor={queda}
+              decimales={2}
+              unidad={material.unidad}
+              tamano="lg"
+              className={`font-bold ${excede ? 'text-peligro' : ''}`}
+            />
+            {retazoChico && (
+              <span className="inline-flex items-center gap-1 text-sm font-medium">
+                <TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-advertencia" />
+                retazo chico
+              </span>
+            )}
           </dd>
         </dl>
         {excede && (
-          <p role="alert" className={MALO}>
-            No alcanza: en {elegida.folio} sólo quedan {metros(elegida.restante)} {material.unidad}.
-          </p>
+          <Aviso
+            tono="peligro"
+            titulo={`No alcanza: en ${elegida.folio} sólo quedan ${metros(elegida.restante)} ${material.unidad}.`}
+          />
         )}
-      </section>
+      </Superficie>
 
       {/* Sólo cuando importa: con 40 m sobrantes, preguntar esto es fricción. */}
       {retazoChico && (
-        <section aria-labelledby="t-resto" className={BLOQUE}>
+        <Superficie
+          como="section"
+          aria-labelledby="t-resto"
+          relleno={3}
+          radio="md"
+          className="flex flex-col gap-(--espacio-2)"
+        >
           <h2 id="t-resto" className={TITULO}>
             Qué hacer con lo que queda
           </h2>
-          <RadioGroup className="mt-2" value={destino} onValueChange={elegirDestino}>
+          <RadioGroup
+            aria-labelledby="t-resto"
+            className="gap-(--espacio-2)"
+            value={destino}
+            onValueChange={elegirDestino}
+          >
             {destinos.map((opcion) => (
               <Opcion
                 key={opcion.clave}
@@ -439,18 +623,27 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
               />
             ))}
           </RadioGroup>
-        </section>
+        </Superficie>
       )}
 
-      <footer className={BARRA}>
-        <p className="text-sm">
-          Importe de {voc.enFrase('linea_orden')}{' '}
-          <span className="text-2xl font-bold tabular-nums">{importe}</span>
+      {/* En el teléfono, fija al pulgar: junto al rack se corta de pie y con una
+          mano. En PC, en su sitio al pie de las tres decisiones. */}
+      <Superficie
+        como="footer"
+        nivel={3}
+        radio="md"
+        relleno={3}
+        className="fixed inset-x-0 bottom-0 z-10 flex flex-wrap items-center justify-between gap-(--espacio-2) rounded-none border-x-0 border-b-0 pb-[max(var(--espacio-3),env(safe-area-inset-bottom))] md:static md:rounded-md md:border md:pb-(--espacio-3) md:shadow-1"
+      >
+        <p className="flex items-baseline gap-(--espacio-2) text-sm text-texto-sutil">
+          Importe de {voc.enFrase('linea_orden')}
+          <Dinero centavos={importeCentavos} tamano="lg" className="text-texto" />
         </p>
-        <div className="flex gap-2">
+        <div className="flex w-full gap-(--espacio-2) md:w-auto">
           <Button
             type="button"
             variant="outline"
+            size="lg"
             onClick={() => {
               window.history.back();
             }}
@@ -460,15 +653,18 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
           <Button
             type="button"
             size="lg"
+            className="flex-1 md:flex-none"
             disabled={medida <= 0 || excede || enviando}
+            cargando={enviando}
             onClick={() => {
               void cortar();
             }}
           >
+            {enviando ? null : <Scissors aria-hidden="true" />}
             {enviando ? 'Cortando…' : 'Cortar y agregar'}
           </Button>
         </div>
-      </footer>
+      </Superficie>
     </div>
   );
 }

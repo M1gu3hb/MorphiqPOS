@@ -31,6 +31,18 @@
   --tamano-xl: 1.375rem;
   --tamano-2xl: 1.75rem;
   --tamano-3xl: 2.25rem;
+  /* DISPLAY · el paso de lo que se lee DE LEJOS, no de cerca.
+     El total de un cobro no se consulta: el cajero lo dice en voz alta con alguien
+     esperando enfrente, y si tiene que buscarlo lo dice mal. El número de una comanda
+     en cocina se lee a dos metros con las manos ocupadas. El dígito de un teclado de
+     PIN se acierta con el pulgar. Los tres son el mismo problema y por eso son un
+     mismo paso.
+
+     Es el ÚNICO paso fluido de la escala, y por eso: son 40 px en el teléfono de un
+     técnico, 71 en el monitor de una tiendita y 80 en la pantalla de una barra, sin
+     tres saltos de punto de ruptura escritos a mano en cada pantalla. Todo lo demás
+     se lee de cerca, y ahí un tamaño que baila al redimensionar sólo molesta. */
+  --tamano-display: clamp(2.5rem, 1.25rem + 4vw, 5rem);
 
   --peso-normal: 400;
   --peso-medio: 500;
@@ -73,7 +85,7 @@
 
   /* Valores por omision de las cuatro perillas. Se sobrescriben con los
      atributos data-* en <html>. */
-  --altura-control: 2.5rem;
+  --altura-control: 2.75rem;
   --radio-sm: 0.25rem;
   --radio-md: 0.5rem;
   --radio-lg: 0.75rem;
@@ -96,25 +108,74 @@
    (operacion) en tablet -> comoda. (operacion) en escritorio -> compacta.
    (gestion) -> normal.
 
-   Nota de accesibilidad (§4): "compacta" nunca baja de 44x44 px de objetivo
-   tactil efectivo aunque el control se vea de 32 px. Se logra con area de toque
-   extendida, no agrandando el control. */
+   --------------------------------------------------------------------------
+   `--area-tactil-minima` Y COMO SE COMPRUEBA, que es lo que aqui faltaba.
+
+   Esta nota decia que "compacta nunca baja de 44x44 px de objetivo tactil
+   efectivo [...] con area de toque extendida". Eso era una PROMESA: el token
+   estaba declarado en las cuatro densidades y lo usaba UN componente de los
+   treinta y seis. La misma enfermedad que la hoja de estilos que nadie
+   importaba.
+
+   Y el area de toque extendida —un ::after invisible mas grande que el
+   control— es peor que no tenerla en el caso que importa: en una lista con
+   `gap-px` el recuadro de una fila se monta sobre la de arriba y se come sus
+   clics. Un boton tapado por el area invisible de su vecino es exactamente el
+   boton muerto que se queria evitar.
+
+   Asi que la regla es la de WCAG 2.5.8, con el numero del sistema en vez de su
+   minimo de 24 px: un control pasa si su lado corto llega a
+   `--area-tactil-minima`, O si esta lo bastante separado como para que un
+   objetivo de ese tamano centrado en el no toque el de ningun otro control.
+   Tamano O distancia, no tamano a cualquier precio.
+
+   Lo comprueba `pruebas/e2e/estilos.spec.ts` en los ocho estilos, en un
+   navegador de verdad y sobre la caja calculada. Un token de accesibilidad que
+   ninguna puerta mide vuelve a ser una promesa.
+   -------------------------------------------------------------------------- */
+/* CON GUANTES. 56 px de control, que es a lo que se acierta con un guante puesto y
+   con prisa: una ferreteria en invierno, un taller, una cocina. El minimo tactil
+   son 44 y se cumple en las otras dos de tacto; esto es el de una mano con guante. */
+[data-densidad='guantes'] {
+  --factor-espacio: 1.4;
+  --altura-control: 3.5rem;
+  --area-tactil-minima: 3.5rem;
+}
+
 [data-densidad='comoda'] {
   --factor-espacio: 1.25;
   --altura-control: 3rem;
   --area-tactil-minima: 3rem;
 }
 
+/* NORMAL, la de por omision: 44 px y no 40.
+
+   Estaba en 2.5rem —40 px— y esa es la densidad que recibe una tableta recien
+   configurada, antes de que nadie toque una perilla. 44 es el minimo al que se
+   acierta con el pulgar y con prisa, y era el requisito escrito de esta etapa;
+   40 no lo cumplia. Sube el control, no solo el area: un boton que se ve de 40
+   y se toca en 44 sigue pareciendo pequeno, y el aspecto tambien informa. */
 [data-densidad='normal'] {
   --factor-espacio: 1;
-  --altura-control: 2.5rem;
+  --altura-control: 2.75rem;
   --area-tactil-minima: 2.75rem;
 }
 
+/* COMPACTA es la densidad de RATON Y TECLADO, y por eso su minimo es otro.
+
+   base.css ya lo decia arriba: "(operacion) en escritorio -> compacta". Con
+   raton el minimo que corresponde es el de WCAG 2.5.8 nivel AA —24 px— y el
+   control mide 32, que lo pasa con holgura. Exigirle 44 px de separacion a una
+   densidad cuyo proposito es caber mas en la pantalla la dejaria en rojo
+   siempre y acabaria en una exencion; declarar que no es una densidad de tacto
+   es lo que de verdad es.
+
+   Quien opere con el dedo en compacta lo hace habiendo elegido "compacta" en un
+   selector que dice lo que hace. Es una decision suya, no un descuido nuestro. */
 [data-densidad='compacta'] {
   --factor-espacio: 0.75;
   --altura-control: 2rem;
-  --area-tactil-minima: 2.75rem;
+  --area-tactil-minima: 1.5rem;
 }
 
 /* =========================================================== PERILLA 2
@@ -233,4 +294,26 @@
     --duracion-normal: 0ms;
     --duracion-lenta: 0ms;
   }
+}
+
+/* LAS TRANSICIONES DE VISTA · lo que viaja, y nada más.
+   `conTransicion` (sistema/movimiento.ts) envuelve un cambio en
+   `document.startViewTransition`, y las piezas con nombre —`VIAJE.producto(id)`,
+   `VIAJE.mesa(id)`, `VIAJE.fila(id)`— viajan de su sitio viejo al nuevo: el producto
+   de la rejilla al renglón del pedido, la fila de la tabla al panel que la detalla.
+
+   La página entera NO se funde. Por omisión el navegador disuelve la raíz completa en
+   cada transición, y en una pantalla de cobro que agrega un producto 500 veces al día
+   eso es un parpadeo de toda la pantalla por cada toque. La raíz cambia seca; lo único
+   que se mueve es lo que tiene nombre, con la duración y la curva de la perilla —y en
+   `nula`, o con la preferencia del sistema, dura cero—. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-group(*) {
+  animation-duration: var(--duracion-normal);
+  animation-timing-function: var(--curva-entrada);
 }

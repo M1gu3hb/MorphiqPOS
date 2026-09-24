@@ -29,6 +29,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Para correr el rastreo COMPLETO —cinco modelos por ocho estilos— sin empujar a
+  # `main`: es el que cualquiera lanza antes de fusionar un cambio de diseño.
+  workflow_dispatch:
+    inputs:
+      actualizar_galeria:
+        description: 'Regenerar los retratos de la galería (declarar un cambio de diseño)'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -100,6 +108,20 @@ jobs:
       - name: Tokens del sistema de diseño
         run: pnpm verify:primitivas
 
+      # Cada uno de los ocho estilos declara TODOS los tokens del contrato, y ningún
+      # par de color baja de AA. Se calcula, no se mira: un estilo que no pasa no se
+      # publica, por bonito que sea.
+      - name: Contraste de los ocho estilos
+        run: pnpm verify:estilos
+
+      # Todo comando que declara escribir deja rastro. `definirComando` ya lo exige en
+      # ejecución, y las 248 pruebas de comandos llaman a `.ejecutar()` directamente,
+      # así que esa exigencia no la comprueba nadie: un comando puede estar roto de
+      # esta forma exacta con sus pruebas en verde. `configuracion.fijar_apariencia`
+      # lo estuvo, y nunca pudo guardar nada.
+      - name: Todo comando que escribe deja rastro
+        run: pnpm verify:rastro
+
       # --- Formato, lint y tipos -------------------------------------------
       - name: Formato
         run: pnpm format:check
@@ -156,6 +178,36 @@ jobs:
 
       - name: Cabeceras de seguridad en vivo
         run: pnpm verify:cabeceras
+
+  adopcion:
+    name: Adopción del sistema de diseño
+    runs-on: ubuntu-latest
+    # Trabajo PROPIO y no un paso de otro: mientras las pantallas se recomponen esta
+    # puerta está en rojo a propósito —es el marcador de la etapa—, y como paso de
+    # «Formato · lint · tipos» cortaría el trabajo y dejaría sin correr los tipos,
+    # las pruebas y el build de cada empujón. Roja sola, y todo lo demás a la vista.
+    timeout-minutes: 10
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Preparar pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Preparar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Una pantalla está adoptada si cumple las CUATRO: cero superficies, tablas y
+      # dinero a mano, y sus tres estados del sistema. Importar `Vacio` no cuenta.
+      - name: Las pantallas usan el sistema, no lo importan
+        run: pnpm verify:adopcion --detalle
 
   contratos:
     name: Contratos y mutaciones
@@ -246,6 +298,260 @@ jobs:
 
       - name: Contratos del backend, mutados
         run: pnpm verify:mutaciones-backend
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # EL RASTREADOR · toca cada botón de cada pantalla, en los cinco modelos.
+  #
+  # Por qué está aquí, y por qué no estaba: la vuelta 2.3 lo construyó, corrió
+  # contra producción y destapó 58 defectos —siete de ellos botones que no hacían
+  # NADA al tocarlos—. Y después se quedó fuera de CI, así que una regresión de
+  # botón muerto volvía sin que nada la detectara. Una puerta que sólo existe en
+  # una laptop no es una puerta del proyecto; eso ya está escrito arriba, para los
+  # arneses de mutación, y vale igual para esto.
+  #
+  # UN TRABAJO POR MODELO, en paralelo. Los cinco en serie son 42 minutos de reloj
+  # —medido contra producción: restaurante 13.8, cafetería 9.4, estética 7.3,
+  # ferretería 7.0, tienda 4.3—. En matriz, el reloj es el del modelo más lento
+  # más su arranque, y un modelo que falla no oculta a los otros cuatro
+  # (`fail-fast: false`).
+  #
+  # CADA TRABAJO SE PROVISIONA SOLO: su Postgres, sus migraciones, su negocio de
+  # demostración con su equipo y su catálogo. No habla con producción ni con el
+  # preview: sin secretos, y por eso puede correr en un pull request de cualquiera.
+  rastreo:
+    name: Rastreo · ${{ matrix.modelo }} · ${{ matrix.estilo }}
+    runs-on: ubuntu-latest
+    # El techo del modelo más lento (13.8 min de rastreo) más el arranque:
+    # instalar, migrar, sembrar, construir y levantar el servidor.
+    timeout-minutes: 40
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # El giro y la plantilla son el MISMO valor en las cinco demos, y no por
+        # casualidad: `organizaciones_paquete_compatible_con_giro` lo exige desde
+        # la 166, y la guarda de `app/(modelos)/` redirige cuando no coinciden.
+        modelo: [restaurante, cafeteria, tienda, ferreteria, estetica]
+        # LOS OCHO ESTILOS. Un estilo que esconde un botón detrás de otro, o que deja
+        # ilegible una tabla densa, es un botón muerto en una pantalla de verdad —y
+        # `/sistema` no lo ve—. Completo (5 × 8 = 40 trabajos) en `main` y a mano
+        # (`workflow_dispatch`); en cada pull request, REDUCIDO: cada modelo en el
+        # estilo de su giro, que son cinco de los ocho.
+        estilo: ${{ fromJSON((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && '["morphiq","cristal","relieve","taller","bloque","terminal","papel","noche"]' || '["reducido"]') }}
+        # Y la suite de cobro de cada uno, que NO se llama igual que su modelo: la de
+        # `tienda` es `abarrotes` y la de `estetica` es `estetica-salon`. `propio`
+        # es el estilo del rastreo reducido.
+        include:
+          - modelo: restaurante
+            suite: restaurante
+            propio: noche
+          - modelo: cafeteria
+            suite: cafeteria
+            propio: terminal
+          - modelo: tienda
+            suite: abarrotes
+            propio: bloque
+          - modelo: ferreteria
+            suite: ferreteria
+            propio: taller
+          - modelo: estetica
+            suite: estetica-salon
+            propio: cristal
+
+    services:
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_USER: morphiqpos
+          POSTGRES_PASSWORD: morphiqpos_ci
+          POSTGRES_DB: morphiqpos_rastreo
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U morphiqpos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://morphiqpos:morphiqpos_ci@localhost:5433/morphiqpos_rastreo
+      # El servidor de Playwright hereda este entorno, así que estas cuatro son
+      # las del SERVIDOR y las tres de abajo las de la PRUEBA.
+      APP_URL: http://localhost:3200
+      ORGANIZACION: demo-acople-${{ matrix.modelo }}
+      # Un despliegue de CI no tiene almacén de archivos, y eso está traducido a
+      # un 503 legible con el endpoint escrito (`ErrorDeAlmacen`). Las cuatro
+      # variables existen porque el contrato del entorno las exige para arrancar.
+      STORAGE_ENDPOINT: http://localhost:9000
+      STORAGE_BUCKET: morphiqpos
+      STORAGE_ACCESS_KEY: rastreo-sin-almacen
+      STORAGE_SECRET_KEY: rastreo-sin-almacen
+      # Secretos de USAR Y TIRAR, de este trabajo y de nadie más: la base se crea
+      # y se destruye con él. Tienen que pasar el contrato del entorno —32
+      # caracteres y sin los marcadores de `.env.example`— y por eso no dicen
+      # «cambiame».
+      SESSION_SECRET: rastreo_de_ci_firma_de_sesion_efimera_2026
+      PIN_PEPPER: rastreo_de_ci_pimienta_de_pin_efimera_2026
+      NODE_ENV: production
+      TZ: America/Mexico_City
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Preparar pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Preparar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: El navegador de Playwright
+        # Sólo Chromium: el proyecto `escritorio` es Desktop Chrome y el rastreo
+        # corre ahí. Firefox y WebKit son 300 MB por cabeza que nadie usa aquí.
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: El rol de la aplicación en la base
+        env:
+          PGPASSWORD: morphiqpos_ci
+        run: |
+          CONEXION="-h localhost -p 5433 -U morphiqpos -d morphiqpos_rastreo"
+          if [ -z "$(psql $CONEXION -tAc "select 1 from pg_roles where rolname = 'morphiqpos_app'")" ]; then
+            psql $CONEXION -v ON_ERROR_STOP=1 -c "create role morphiqpos_app with login bypassrls"
+          fi
+
+      - name: Migraciones
+        run: pnpm --filter @morphiqpos/data migrate
+
+      # El negocio, su sucursal y su dueño, por las MISMAS dos órdenes con que se
+      # da de alta un negocio de verdad. Nada de SQL a mano: un alta que no pasa
+      # por el alta no prueba que el alta funcione.
+      - name: El negocio de demostración y su dueño
+        run: |
+          pnpm db:alta-negocio \
+            --slug "demo-acople-${{ matrix.modelo }}" \
+            --nombre "Demo del acople · ${{ matrix.modelo }}" \
+            --giro "${{ matrix.modelo }}" \
+            --paquete "${{ matrix.modelo }}"
+          pnpm db:bootstrap --org "demo-acople-${{ matrix.modelo }}" --persona "Demo" --pin 1234
+
+      # El catálogo, el equipo con sus seis roles, el inventario y la caja abierta
+      # con su fondo. Es el MISMO comando `configuracion.resetear_demo` que corre
+      # contra el despliegue, con su transacción y su auditoría.
+      - name: Sembrar la demostración
+        run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
+
+      # LOS OCHO ESTILOS, EN UN NAVEGADOR, y antes del rastreo a propósito.
+      #
+      # Dura diez segundos y el rastreo catorce minutos: si un estilo esconde un
+      # botón, se sabe ya en vez de al final. Y va en UN SOLO modelo porque lo que
+      # mide —que los tokens lleguen, que nada tape a nadie, que se acierte al tocar
+      # y que el foco se vea— no depende del giro: `/sistema` es la misma página en
+      # los cinco. Correrlo cinco veces serían cuatro copias del mismo veredicto.
+      #
+      # `test:e2e` construye y levanta el servidor él mismo; el build lo comparte con
+      # el paso siguiente por la caché de turbo, así que no se paga dos veces.
+      - name: Los ocho estilos, en el navegador
+        if: matrix.modelo == 'tienda' && (matrix.estilo == 'reducido' || matrix.estilo == 'morphiq')
+        run: pnpm test:e2e pruebas/e2e/estilos.spec.ts pruebas/e2e/contraste.spec.ts --project=escritorio
+
+      # Playwright construye y levanta el servidor él mismo (`webServer` de
+      # `playwright.config.ts`), heredando el entorno de este trabajo.
+      - name: Tocar cada botón de cada pantalla
+        env:
+          MORPHIQPOS_ORG_DEMO: demo-acople-${{ matrix.modelo }}
+          MORPHIQPOS_DEMO_PERSONA: Demo
+          MORPHIQPOS_DEMO_PIN: '1234'
+          MORPHIQPOS_ESTILOS: ${{ matrix.estilo == 'reducido' && matrix.propio || matrix.estilo }}
+        run: pnpm test:e2e pruebas/e2e/rastreo.spec.ts --project=escritorio
+
+      # LA SUITE DE SU MODELO, que hasta hoy no corría en ninguna parte.
+      #
+      # ── Lo que costó no correrlas ─────────────────────────────────────────
+      # Este flujo lanzaba DOS de los ocho especs que existen —`estilos` y
+      # `rastreo`— y `pnpm verify` acaba en `test:integracion`, que es vitest. Así
+      # que las cinco que comprueban un TOTAL COBRADO contra el servidor llevaban
+      # sin correr desde la vuelta 2.3, y en la 2.35 guardaban DOS defectos, los dos
+      # metidos por esa misma etapa y uno de ellos de DINERO: la pantalla de cobro
+      # de la tienda enseñaba `$42.00` para un producto de `$42.90`, porque `Dinero`
+      # partía el importe en tres hijos de un `inline-flex`.
+      #
+      # Una puerta que no corre no es una puerta. Van DESPUÉS del rastreo porque el
+      # rastreo termina soltando la caja, que es el estado que estas suites saben
+      # abrir; y si el rastreo falla, éstas no llegan a correr, que también informa.
+      #
+      # `estetica` estuvo fuera: agendaba «hoy», y hoy no tiene huecos un lunes —el
+      # salón de la demostración descansa— ni de noche. Desde el cierre de la 2.35 la
+      # prueba agenda el PRÓXIMO MIÉRCOLES en la zona del negocio y lleva la agenda a
+      # ese día con su botón «Día siguiente»: ya no depende de la hora, y entra.
+      #
+      # Y LA DEMOSTRACIÓN SE VUELVE A SEMBRAR ANTES, porque el rastreo la deja usada.
+      #
+      # La primera vez que estas suites entraron aquí, la de la cafetería falló con
+      # «/cafeteria/cobrar abrió en 200 y NO enseñó lo suyo» — y en local había pasado
+      # en 56 s. La diferencia es el estado: el rastreador acaba de tocar CADA BOTÓN de
+      # cada pantalla, turnos incluidos, así que la demostración que la suite encuentra
+      # no es la que la suite espera. No es un defecto de ninguna de las dos.
+      #
+      # Es el mismo comando que ya corre más arriba —`configuracion.resetear_demo`, con
+      # su transacción y su auditoría— y cuesta segundos. La alternativa era poner la
+      # suite ANTES del rastreo, y entonces el rastreador heredaría una venta cobrada y
+      # una caja abierta: se arregla el barato y se protege el gate que más cuesta.
+      - name: La demostración, otra vez
+        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
+        run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
+
+      - name: La suite de su modelo
+        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
+        env:
+          MORPHIQPOS_ORG_DEMO: demo-acople-${{ matrix.modelo }}
+          MORPHIQPOS_DEMO_PERSONA: Demo
+          MORPHIQPOS_DEMO_PIN: '1234'
+        run: pnpm test:e2e pruebas/e2e/${{ matrix.suite }}.spec.ts --project=escritorio
+
+      # LA GALERÍA, contra la vuelta anterior. Cada retrato se compara con el que está
+      # en el repositorio (`pruebas/e2e/galeria.spec.ts-snapshots`): un cambio de
+      # diseño que nadie declaró la pone en rojo y deja la imagen de la diferencia en
+      # el artefacto. Declarar es regenerar —este flujo a mano con
+      # `actualizar_galeria`— y subir las imágenes nuevas con el cambio que las motiva.
+      - name: La demostración, para la galería
+        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
+        run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
+
+      - name: La galería, contra la vuelta anterior
+        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
+        env:
+          MORPHIQPOS_ORG_DEMO: demo-acople-${{ matrix.modelo }}
+          MORPHIQPOS_DEMO_PERSONA: Demo
+          MORPHIQPOS_DEMO_PIN: '1234'
+        run: pnpm test:e2e pruebas/e2e/galeria.spec.ts --project=escritorio ${{ inputs.actualizar_galeria && '--update-snapshots=all' || '' }}
+
+      - name: Los retratos de la galería
+        if: always() && (matrix.estilo == 'reducido' || matrix.estilo == 'morphiq')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: galeria-${{ matrix.modelo }}
+          path: pruebas/e2e/galeria.spec.ts-snapshots
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # La bitácora en vivo del rastreo y las trazas de lo que falló. Sin esto, un
+      # fallo en CI dice «hay botones muertos» y no cuáles.
+      - name: La bitácora del rastreo
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rastreo-${{ matrix.modelo }}-${{ matrix.estilo }}
+          path: |
+            pruebas/e2e/.resultados
+            playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
 
   dependencias:
     name: Auditoría de dependencias

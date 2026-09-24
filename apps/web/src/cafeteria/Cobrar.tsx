@@ -3,8 +3,21 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import {
+  Aviso,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  VIAJE,
+  Vacio,
+  conTransicion,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { Check, CupSoda, Minus, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -18,42 +31,35 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ── Por qué una rejilla completa y no un buscador ────────────────────────
  * Porque el menú de una cafetería son 35 a 55 productos, no tres mil: caben
  * todos, con tarjetas grandes, y **reconocer es más rápido que teclear**. El
- * barista escucha «un latte grande con avena» y toca. El buscador es para el
- * producto raro, no para el flujo normal — y por eso aquí no está.
+ * barista escucha «un latte grande con avena» y toca.
  *
  * ── El nombre y el canal van ARRIBA, no en el cobro ──────────────────────
  * Porque es lo primero que se dice en un mostrador mexicano —«¿a nombre de
- * quién?», «¿aquí o para llevar?»—, antes incluso de la bebida. Ponerlos al
- * final obliga a preguntar dos veces. Y no son cosméticos: el nombre decide
- * cómo se llama el pedido en la barra (F-329) y el canal decide qué empaque se
- * consume (F-331). Por eso **sin canal no se cobra**: no se sabría qué
- * descontar. Sin nombre sí: entra como «Sin nombre» y se grita un folio, que es
- * peor pero funciona.
+ * quién?», «¿aquí o para llevar?»—. El nombre decide cómo se llama el pedido en
+ * la barra (F-329) y el canal qué empaque se consume (F-331): **sin canal no se
+ * cobra**. Sin nombre sí: entra como «Sin nombre» y se grita un folio.
  *
  * ── El total vive DENTRO del botón ───────────────────────────────────────
- * Es la diferencia más visible con el cobro de `restaurante`, y sale de que
- * aquí el que cobra es el que va a preparar: dice el total mirando al cliente,
- * con la mano ya sobre el botón. Un total arriba en grande obliga a un viaje de
- * ojos que se repite 180 veces al día. El cliente lo lee en su pantalla (F-249).
+ * La diferencia más visible con el cobro de `restaurante`: aquí el que cobra es
+ * el que va a preparar, y dice el total mirando al cliente con la mano ya sobre
+ * el botón. Por eso el botón es lo más pesado de la pantalla y el pedido es una
+ * tabla densa, no una lista de tarjetas: es un recibo, no un escaparate.
  *
- * ── Y el aviso de cambio es el único dato del encabezado ─────────────────
- * No es decorativo: quedarse sin morralla a media ráfaga cuesta media ráfaga.
- * La palabra lo dice, no sólo el color.
+ * ── El producto VIAJA al pedido ──────────────────────────────────────────
+ * Al tocar una tesela, la tesela vuela al renglón del pedido (`conTransicion`,
+ * `VIAJE.producto`). No es adorno: con fila detrás, el barista toca sin mirar el
+ * pedido, y el movimiento le confirma con el rabillo del ojo qué entró y dónde.
+ * Dura lo que la perilla de movimiento diga, y cero en `nula` o con la
+ * preferencia del sistema. Sólo viaja la tesela; la página no se funde.
  *
- * ── Lo que NO va aquí ────────────────────────────────────────────────────
- * Reportes, dashboard, inventario en números, configuración e historial. Y no
- * va el corte: cerrar el turno es otra pantalla y otro momento.
- *
- * ── Alcance recortado para caber en un archivo, dicho y no escondido ─────
- * 1. El diálogo de opciones (leche, tamaño, temperatura, extras) es OTRA
- *    pantalla del documento: aquí la tarjeta agrega el producto base.
- * 2. El cobro sale con un solo pago en efectivo por el importe exacto. La
- *    elección de método y el desglose mixto viven en el diálogo de cobro.
- * 3. `F12`, `F2` y `F3` van impresos pero no enganchados —`F12` es del
- *    navegador—; sí funcionan `Esc` (limpiar) y `F4` (aquí / para llevar).
- * 4. «Agotado» llega en el campo `agotado`; el puente todavía no expone
- *    existencia de `ProductoTerminado`, así que hoy llega vacío y la tarjeta se
- *    toca. El día que llegue, la tarjeta se apaga sola.
+ * ── Alcance, dicho y no escondido ────────────────────────────────────────
+ * 1. Las opciones (leche, tamaño, temperatura) son OTRA pantalla: aquí la
+ *    tarjeta agrega el producto base.
+ * 2. El cobro sale en efectivo por el importe exacto; el mixto vive en el
+ *    diálogo de cobro.
+ * 3. `F12`, `F2` y `F3` son del navegador; sí funcionan `Esc` y `F4`.
+ * 4. «Agotado» llega en `agotado`; hoy el puente no expone existencia de
+ *    `ProductoTerminado` y llega vacío. El día que llegue, la tesela se apaga.
  */
 
 const CANALES = [
@@ -105,15 +111,6 @@ function aCentavos(pesos: number | null | undefined): number {
   return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
 }
 
-/** Centavos a pesos para una persona. Aritmética entera de punta a punta. */
-export function enPesos(centavos: number): string {
-  const bruto = Math.abs(centavos);
-  const miles = Math.trunc(bruto / 100)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${centavos < 0 ? '-' : ''}$${miles}.${(bruto % 100).toString().padStart(2, '0')}`;
-}
-
 /** Las categorías que de verdad tienen producto. Una pestaña vacía es una trampa. */
 export function categoriasDe(productos: readonly ProductoDeBarra[]): readonly string[] {
   const vistas = new Set<string>();
@@ -156,11 +153,12 @@ export function totalDe(lineas: readonly LineaDelPedido[]): number {
   return lineas.reduce((suma, linea) => suma + linea.precioCentavos * linea.cantidad, 0);
 }
 
-/** El aviso de cambio: su clase y su palabra. La palabra es la que manda. */
+/** El aviso de cambio: su tono y su palabra. La palabra es la que manda. */
 function avisoDeCambio(centavos: number): { readonly clase: string; readonly palabra: string } {
-  if (centavos < CAMBIO_URGENTE) return { clase: 'bg-destructive/20', palabra: 'consíguelo ya' };
-  if (centavos < CAMBIO_POCO) return { clase: 'bg-warning/25', palabra: 'va quedando poco' };
-  return { clase: 'bg-muted text-muted-foreground', palabra: 'alcanza' };
+  if (centavos < CAMBIO_URGENTE)
+    return { clase: 'bg-peligro/15 text-peligro', palabra: 'consíguelo ya' };
+  if (centavos < CAMBIO_POCO) return { clase: 'bg-advertencia/25', palabra: 'va quedando poco' };
+  return { clase: 'bg-fondo-sutil text-texto-sutil', palabra: 'alcanza' };
 }
 
 /** Qué impide cobrar, con palabras. Un botón apagado sin razón es un muro mudo. */
@@ -175,16 +173,19 @@ export function bloqueoDe(
   return null;
 }
 
+interface Carga {
+  readonly productos: readonly ProductoDeBarra[];
+  readonly turno: TurnoDeBarra | null;
+}
+
 export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarProps) {
   const voc = useVocabulario();
-  const [productos, setProductos] = useState<readonly ProductoDeBarra[] | null>(
-    productosIniciales ?? null,
+  const [carga, setCarga] = useState<Carga | null>(
+    productosIniciales === undefined
+      ? null
+      : { productos: productosIniciales, turno: turnoInicial ?? null },
   );
-  // `undefined` es «todavía no se sabe»; `null` es «no hay turno abierto», que
-  // es un muro y no un aviso. Distinguirlos evita bloquear mientras carga.
-  const [turno, setTurno] = useState<TurnoDeBarra | null | undefined>(
-    productosIniciales === undefined ? turnoInicial : (turnoInicial ?? null),
-  );
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   const [lineas, setLineas] = useState<readonly LineaDelPedido[]>([]);
   const [nombre, setNombre] = useState('');
   const [canal, setCanal] = useState<Canal | null>(null);
@@ -192,6 +193,11 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [enLinea, setEnLinea] = useState(true);
+  const [viajando, setViajando] = useState<string | null>(null);
+
+  // Cada intento de lectura es un número: el botón de reintentar lo sube, y el
+  // efecto lee otra vez. El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
 
   useEffect(() => {
     if (productosIniciales !== undefined) return;
@@ -202,21 +208,25 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
     ])
       .then(([filas, turnos]) => {
         if (!vivo) return;
-        setProductos(filas.filter((fila) => fila.visible_en_pos !== false));
-        setTurno(turnos.find((fila) => fila.estado === 'abierto') ?? null);
+        setCarga({
+          productos: filas.filter((fila) => fila.visible_en_pos !== false),
+          turno: turnos.find((fila) => fila.estado === 'abierto') ?? null,
+        });
       })
       .catch((fallo: unknown) => {
-        // La pantalla no se queda colgada en el esqueleto por un fallo de red:
-        // se dice qué pasó y se deja lo poco que se puede hacer sin catálogo.
         if (!vivo) return;
-        setProductos([]);
-        setTurno(null);
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer el catálogo.');
+        setFalloDeCarga(fallo instanceof Error ? fallo.message : 'No se pudo leer el menú.');
       });
     return () => {
       vivo = false;
     };
-  }, [productosIniciales]);
+  }, [productosIniciales, intento]);
+
+  function reintentar(): void {
+    setFalloDeCarga(null);
+    setCarga(null);
+    setIntento((previo) => previo + 1);
+  }
 
   useEffect(() => {
     // Arranca en `true` y se corrige aquí: `navigator` no existe en el servidor
@@ -245,12 +255,13 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
     };
   }, []);
 
+  const productos = carga?.productos;
   const categorias = useMemo(
-    () => (productos === null ? [] : categoriasDe(productos)),
+    () => (productos === undefined ? [] : categoriasDe(productos)),
     [productos],
   );
   const visibles = useMemo(() => {
-    if (productos === null) return [];
+    if (productos === undefined) return [];
     if (categoria === null) return productos;
     return productos.filter((fila) => (fila.categoria_nombre ?? 'Otros') === categoria);
   }, [productos, categoria]);
@@ -260,11 +271,29 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
   const bloqueo = bloqueoDe(lineas, canal, enLinea);
 
   /**
+   * La tesela viaja al renglón. Antes del cambio la TESELA lleva el nombre; dentro
+   * del cambio se lo quita y se lo pone la FILA del pedido, y `flushSync` hace que
+   * el navegador fotografíe el estado nuevo ya pintado.
+   */
+  function agregar(producto: ProductoDeBarra, tesela: HTMLElement): void {
+    tesela.style.viewTransitionName = VIAJE.producto(producto.id);
+    void conTransicion(() => {
+      flushSync(() => {
+        tesela.style.viewTransitionName = '';
+        setViajando(producto.id);
+        setLineas((previas) => conProducto(previas, producto));
+      });
+    }).finally(() => {
+      tesela.style.viewTransitionName = '';
+      setViajando(null);
+    });
+  }
+
+  /**
    * La cadena documentada: se abre el borrador de la terminal, se le cuelgan
    * las líneas y se cobra. El total viaja sólo para que el servidor RECHACE si
-   * no coincide con el suyo; cobrar un número distinto del que ya se dijo en
-   * voz alta es peor que fallar. La clave de idempotencia la pone
-   * `invocarComando`, así que un doble toque no cobra dos veces.
+   * no coincide con el suyo; la clave de idempotencia la pone `invocarComando`,
+   * así que un doble toque no cobra dos veces.
    */
   async function cobrar(): Promise<void> {
     setEnviando(true);
@@ -298,138 +327,184 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
     }
   }
 
-  const banda =
-    error === null ? null : (
-      <p
-        role="alert"
-        className="rounded-md border border-destructive bg-destructive/15 p-2 text-sm xl:col-span-2"
-      >
-        {error} · El pedido no se cobró ni entró a la fila.
-      </p>
-    );
-
-  if (productos === null || turno === undefined) {
+  if (falloDeCarga !== null) {
     return (
-      <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        {/* Esqueletos con la forma de las tarjetas, no un spinner: así nada
-            salta al llegar los datos y el ojo ya sabe dónde va a mirar. */}
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5">
-          {Array.from({ length: 15 }, (_, indice) => (
-            <Skeleton key={indice} className="min-h-24 w-full rounded-lg" />
-          ))}
-        </div>
-        <Skeleton className="h-40 w-full rounded-lg xl:h-80" />
+      <div className="mx-auto max-w-lg p-(--espacio-6)">
+        <ErrorDePantalla
+          titulo="No se pudo leer el menú ni el turno"
+          queHacer="Mientras no se lean no se puede cobrar: no se sabría qué se vende ni a qué turno pertenece la venta. Revisa la conexión y vuelve a intentarlo."
+          detalle={falloDeCarga}
+          reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+        />
       </div>
     );
   }
+
+  if (carga === null) {
+    return (
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Cargando el menú"
+        className="grid gap-(--espacio-3) p-(--espacio-3) xl:grid-cols-[minmax(0,1fr)_24rem]"
+      >
+        {/* La forma de la rejilla y del pedido, no una rueda: al llegar los datos
+            nada salta, y el ojo ya sabe dónde va a mirar. */}
+        <div className="grid grid-cols-2 gap-(--espacio-2) md:grid-cols-4 xl:grid-cols-5">
+          {Array.from({ length: 15 }, (_, indice) => (
+            <Esqueleto key={indice} className="min-h-24 w-full rounded-lg" />
+          ))}
+        </div>
+        <Esqueleto className="h-40 w-full rounded-lg xl:h-80" />
+      </div>
+    );
+  }
+
+  const { turno } = carga;
 
   if (turno === null) {
     return (
-      <div className="mx-auto max-w-md space-y-4 p-8 text-center">
-        <div className="space-y-3 rounded-lg border border-warning/60 bg-warning/15 p-6">
-          <p className="text-xl font-semibold">Turno cerrado</p>
-          <p className="text-sm">
-            Un cobro sin turno no pertenece a ningún corte: no habría a qué caja cuadrarlo al final
-            del día. Por eso esto es un muro y no un aviso.
-          </p>
-          <Button asChild>
-            <a href="/cafeteria/turno">Abrir turno</a>
-          </Button>
-        </div>
-        {banda}
+      <div className="mx-auto max-w-md p-(--espacio-8)">
+        {/* Un MURO, no un aviso: un cobro sin turno no pertenece a ningún corte y
+            no habría a qué caja cuadrarlo al final del día. */}
+        <Aviso
+          tono="atencion"
+          titulo="Turno cerrado"
+          accion={
+            <Button asChild>
+              <a href="/cafeteria/turno">Abrir turno</a>
+            </Button>
+          }
+        >
+          Un cobro sin turno no pertenece a ningún corte: no habría a qué caja cuadrarlo al final
+          del día.
+        </Aviso>
       </div>
     );
   }
 
-  if (productos.length === 0) {
+  if (carga.productos.length === 0) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">
-          Todavía no hay {voc.plural('linea_orden')} en {voc.enFrase('preparacion')}.
-        </p>
-        <p className="text-muted-foreground">
-          Esta pantalla es una rejilla de lo que se vende: en cuanto el menú tenga sus 35 o 55
-          productos con precio, aparecen aquí y se cobran tocándolos.
-        </p>
-        <Button asChild>
-          <a href="/cafeteria/productos">Cargar el menú</a>
-        </Button>
-        {banda}
-      </div>
+      <Vacio
+        icono={<CupSoda />}
+        titulo={`Todavía no hay ${voc.plural('linea_orden')} en ${voc.enFrase('preparacion')}`}
+        explicacion="Esta pantalla es una rejilla de lo que se vende: en cuanto el menú tenga sus productos con precio, aparecen aquí y se cobran tocándolos."
+        accion={
+          <Button asChild>
+            <a href="/cafeteria/productos">Cargar el menú</a>
+          </Button>
+        }
+      />
     );
   }
 
   const cambio = aCentavos(turno.efectivo_inicial_contado);
   const aviso = avisoDeCambio(cambio);
-  const resumen = `${nombre.trim() === '' ? 'Sin nombre' : nombre.trim()} · ${piezas} · ${enPesos(total)}`;
+  const nombreVisible = nombre.trim() === '' ? 'Sin nombre' : nombre.trim();
 
-  const listaDelPedido = (
-    <ul className="max-h-40 space-y-1 overflow-y-auto p-1 text-sm xl:max-h-80">
-      {lineas.map((linea) => (
-        <li key={linea.productoId} className="flex items-center justify-between gap-2">
-          <span className="truncate">
-            {linea.cantidad} × {linea.nombre}
-          </span>
-          <span className="flex shrink-0 items-center gap-1">
-            <span className="tabular-nums">{enPesos(linea.precioCentavos * linea.cantidad)}</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label={`Quitar uno de ${linea.nombre}`}
-              onClick={() => {
-                setLineas(conCantidad(lineas, linea.productoId, -1));
-              }}
-            >
-              −
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label={`Agregar uno de ${linea.nombre}`}
-              onClick={() => {
-                setLineas(conCantidad(lineas, linea.productoId, 1));
-              }}
-            >
-              +
-            </Button>
-          </span>
-        </li>
-      ))}
-    </ul>
+  const columnas: readonly ColumnaDeTabla<LineaDelPedido>[] = [
+    {
+      clave: 'producto',
+      titulo: voc.titulo('linea_orden'),
+      celda: (linea) => (
+        <span className="line-clamp-2">
+          <span className="font-numeros tabular-nums">{linea.cantidad} ×</span> {linea.nombre}
+        </span>
+      ),
+    },
+    {
+      clave: 'cantidad',
+      titulo: 'Cant.',
+      celda: (linea) => (
+        <span className="flex justify-end gap-(--espacio-1)">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Quitar uno de ${linea.nombre}`}
+            onClick={() => {
+              setLineas(conCantidad(lineas, linea.productoId, -1));
+            }}
+          >
+            <Minus />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Agregar uno de ${linea.nombre}`}
+            onClick={() => {
+              setLineas(conCantidad(lineas, linea.productoId, 1));
+            }}
+          >
+            <Plus />
+          </Button>
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (linea) => <Dinero centavos={linea.precioCentavos * linea.cantidad} tamano="sm" />,
+    },
+  ];
+
+  const pedido = (
+    <Tabla
+      etiqueta={voc.titulo('unidad_servicio')}
+      columnas={columnas}
+      filas={lineas}
+      claveDe={(linea) => linea.productoId}
+      viajeDeFila={(linea) =>
+        viajando === linea.productoId ? VIAJE.producto(linea.productoId) : undefined
+      }
+      alto="max-h-40 xl:max-h-80"
+      vacio={
+        <Vacio
+          titulo={`Toca ${voc.enFraseCon('un', 'linea_orden')} para empezar.`}
+          className="py-(--espacio-4)"
+        />
+      }
+    />
   );
 
   return (
-    <div className="grid gap-3 p-3 pb-48 xl:grid-cols-[minmax(0,1fr)_24rem] xl:pb-3">
-      <header className="flex flex-wrap items-center justify-between gap-2 xl:col-span-2">
+    <div className="grid gap-(--espacio-3) p-(--espacio-3) pb-48 xl:grid-cols-[minmax(0,1fr)_24rem] xl:pb-(--espacio-3)">
+      <header className="flex flex-wrap items-center justify-between gap-(--espacio-2) xl:col-span-2">
         <h1 className="text-xl font-bold">
           Cobrar
-          <span className="ml-2 text-sm font-normal text-muted-foreground">
+          <span className="ml-(--espacio-2) text-sm font-normal text-texto-sutil">
             Turno abierto · {turno.usuario_apertura_nombre ?? 'sin nombre'}
           </span>
         </h1>
-        <p className={`rounded-md px-2 py-1 text-sm font-medium ${aviso.clase}`}>
-          Cambio {enPesos(cambio)} · {aviso.palabra}
+        {/* El único dato del encabezado: quedarse sin morralla a media ráfaga
+            cuesta media ráfaga. La palabra lo dice, no sólo el color. */}
+        <p
+          className={`rounded-md px-(--espacio-2) py-(--espacio-1) text-sm font-medium ${aviso.clase}`}
+        >
+          Cambio <Dinero centavos={cambio} tamano="sm" /> · {aviso.palabra}
         </p>
       </header>
 
-      {banda}
-      {!enLinea && (
-        <p
-          role="alert"
-          className="rounded-md border border-warning/60 bg-warning/15 p-2 text-sm xl:col-span-2"
-        >
-          Sin internet. No se puede cobrar. Aquí no hay modo sin conexión.
-        </p>
+      {error === null ? null : (
+        <Aviso tono="peligro" titulo={error} className="xl:col-span-2">
+          El pedido no se cobró ni entró a la fila.
+        </Aviso>
+      )}
+      {enLinea ? null : (
+        <Aviso tono="atencion" titulo="Sin internet. No se puede cobrar." className="xl:col-span-2">
+          Aquí no hay modo sin conexión.
+        </Aviso>
       )}
 
-      {/* Nombre y canal pegados arriba en teléfono y tablet, y en la cabecera
-          del pedido en PC: en los dos casos son lo PRIMERO, que es el orden en
-          que la conversación del mostrador los produce. */}
-      <section
+      {/* Nombre y canal pegados arriba en teléfono y tablet, y en la cabecera del
+          pedido en PC: en los dos casos son lo PRIMERO. */}
+      <Superficie
+        como="section"
+        relleno={3}
         aria-label={`Nombre y canal del ${voc.singular('unidad_servicio')}`}
-        className="sticky top-0 z-20 space-y-2 rounded-lg border border-border bg-card p-3 xl:static xl:col-start-2 xl:row-start-2"
+        className="sticky top-0 z-20 flex flex-col gap-(--espacio-2) xl:static xl:col-start-2 xl:row-start-2"
       >
-        <div className="space-y-1">
+        <div className="flex flex-col gap-(--espacio-1)">
           <Label htmlFor="cobrar-nombre">Nombre</Label>
           <Input
             id="cobrar-nombre"
@@ -441,7 +516,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
             }}
           />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-(--espacio-2)">
           {CANALES.map((opcion) => (
             <Button
               key={opcion.clave}
@@ -453,33 +528,25 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
                 setCanal(opcion.clave);
               }}
             >
-              {opcion.etiqueta}
               {/* El color no puede ser el único que diga cuál está elegido. */}
-              <span aria-hidden>{canal === opcion.clave ? ' ✓' : ''}</span>
+              {canal === opcion.clave ? <Check aria-hidden /> : null}
+              {opcion.etiqueta}
             </Button>
           ))}
         </div>
-      </section>
+      </Superficie>
 
       <section
         aria-label={`${voc.titulo('linea_orden', true)} y alimentos`}
-        className="space-y-2 xl:col-start-1 xl:row-span-2 xl:row-start-2"
+        className="flex flex-col gap-(--espacio-2) xl:col-start-1 xl:row-span-2 xl:row-start-2"
       >
-        <nav aria-label="Categorías" className="flex gap-1 overflow-x-auto pb-1">
-          <Button
-            type="button"
-            size="sm"
-            aria-pressed={categoria === null}
-            variant={categoria === null ? 'default' : 'ghost'}
-            onClick={() => {
-              setCategoria(null);
-            }}
-          >
-            Todo
-          </Button>
-          {categorias.map((nombreCategoria) => (
+        <nav
+          aria-label="Categorías"
+          className="flex gap-(--espacio-1) overflow-x-auto pb-(--espacio-1)"
+        >
+          {[null, ...categorias].map((nombreCategoria) => (
             <Button
-              key={nombreCategoria}
+              key={nombreCategoria ?? 'todo'}
               type="button"
               size="sm"
               aria-pressed={categoria === nombreCategoria}
@@ -488,67 +555,64 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
                 setCategoria(nombreCategoria);
               }}
             >
-              {nombreCategoria}
+              {nombreCategoria ?? 'Todo'}
             </Button>
           ))}
         </nav>
 
-        {/* Dos columnas en teléfono, cuatro de tablet arriba. Nunca por debajo
-            de 96 px de lado: es lo que una mano mojada acierta sin mirar. */}
-        <ul className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5">
+        {/* Dos columnas en teléfono, cuatro de tablet arriba. Nunca por debajo de
+            96 px de lado: es lo que una mano mojada acierta sin mirar. */}
+        <ul className="grid grid-cols-2 gap-(--espacio-2) md:grid-cols-4 xl:grid-cols-5">
           {visibles.map((producto) => {
             const agotado = producto.agotado === true;
             return (
               <li key={producto.id}>
-                <button
+                <Superficie
+                  como="button"
                   type="button"
+                  interactiva
+                  relleno={3}
                   disabled={agotado}
-                  onClick={() => {
-                    setLineas(conProducto(lineas, producto));
+                  onClick={(evento) => {
+                    agregar(producto, evento.currentTarget);
                   }}
-                  className={[
-                    'flex min-h-24 w-full flex-col items-center justify-center gap-1 rounded-lg',
-                    'border-2 border-border p-2 text-center transition-colors',
-                    agotado ? 'bg-muted text-muted-foreground' : 'bg-card text-card-foreground',
-                  ].join(' ')}
+                  className={`flex min-h-24 w-full flex-col items-center justify-center gap-(--espacio-1) text-center ${agotado ? 'bg-fondo-sutil text-texto-sutil' : ''}`}
                 >
                   <span className="text-sm font-semibold">{producto.nombre ?? 'Producto'}</span>
-                  <span className="tabular-nums">{enPesos(aCentavos(producto.precio_venta))}</span>
+                  <Dinero centavos={aCentavos(producto.precio_venta)} tamano="sm" />
                   {/* La palabra, no sólo el gris: el gris solo no se lee. */}
-                  {agotado && <span className="text-xs font-medium">Agotado</span>}
-                </button>
+                  {agotado ? <span className="text-xs font-medium">Agotado</span> : null}
+                </Superficie>
               </li>
             );
           })}
         </ul>
       </section>
 
-      {/* En tablet y teléfono el pedido es una barra fija en el borde inferior,
-          no un botón flotante: la tablet está montada en un soporte sobre la
-          barra, nadie la sostiene, y el borde entero es el objetivo más grande
-          para una mano que llega desde abajo. */}
-      <aside
+      {/* En tablet y teléfono el pedido es una barra fija en el borde inferior: la
+          tablet está montada en un soporte sobre la barra, nadie la sostiene, y el
+          borde entero es el objetivo más grande para una mano que llega desde abajo. */}
+      <Superficie
+        como="aside"
+        nivel={3}
+        radio="sm"
+        relleno={3}
         aria-label={voc.titulo('unidad_servicio')}
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 xl:static xl:col-start-2 xl:row-start-3 xl:rounded-lg xl:border"
+        className="fixed inset-x-0 bottom-0 z-20 flex flex-col gap-(--espacio-2) rounded-none xl:static xl:col-start-2 xl:row-start-3 xl:rounded-lg xl:shadow-1"
       >
         {lineas.length === 0 ? (
-          <p className="pb-2 text-center text-sm text-muted-foreground">
-            Toca {voc.enFraseCon('un', 'linea_orden')} para empezar.
-          </p>
+          pedido
         ) : (
           <>
-            {/* `details` nativo y no un acordeón: el teclado y el lector de
-                pantalla ya saben abrirlo. En PC no hay nada que abrir. */}
-            <details className="mb-2 rounded-md border border-border xl:hidden">
-              <summary className="cursor-pointer p-2 text-sm">{resumen}</summary>
-              {listaDelPedido}
+            {/* `details` nativo: el teclado y el lector de pantalla ya saben
+                abrirlo. En PC no hay nada que abrir. */}
+            <details className="xl:hidden">
+              <summary className="cursor-pointer py-(--espacio-1) text-sm">
+                {nombreVisible} · {piezas} · <Dinero centavos={total} tamano="sm" />
+              </summary>
+              {pedido}
             </details>
-            <div className="mb-2 hidden xl:block">
-              <p className="p-1 text-sm font-medium uppercase text-muted-foreground">
-                {voc.titulo('unidad_servicio')}
-              </p>
-              {listaDelPedido}
-            </div>
+            <div className="hidden xl:block">{pedido}</div>
           </>
         )}
 
@@ -561,10 +625,12 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           }}
         >
           <span>{enviando ? 'Cobrando…' : 'COBRAR'}</span>
-          <span className="tabular-nums">{enPesos(total)}</span>
+          <Dinero centavos={total} tamano="lg" />
         </Button>
-        {bloqueo !== null && <p className="pt-1 text-center text-sm">{bloqueo}</p>}
-      </aside>
+        {bloqueo !== null && lineas.length > 0 ? (
+          <p className="text-center text-sm text-texto-sutil">{bloqueo}</p>
+        ) : null}
+      </Superficie>
     </div>
   );
 }

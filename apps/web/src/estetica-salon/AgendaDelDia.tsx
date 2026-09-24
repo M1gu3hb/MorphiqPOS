@@ -2,19 +2,30 @@
 
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { CalendarPlus, ChevronLeft, ChevronRight, Plus, TriangleAlert, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type Ref } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
-/** El vocabulario, como lo devuelve el gancho: los ayudantes de abajo lo reciben. */
-type Vocabulario = ReturnType<typeof useVocabulario>;
-
 // La colocación de los bloques vive aparte: es aritmética pura y así se puede
 // afirmar sin navegador. Ver `agenda-geometria.ts`.
 import { APERTURA, aMinutos, CIERRE, posicionDe, PX } from './agenda-geometria';
+
+/** El vocabulario, como lo devuelve el gancho: los ayudantes de abajo lo reciben. */
+type Vocabulario = ReturnType<typeof useVocabulario>;
 
 /**
  * PANTALLA · estetica-salon · agenda-del-dia
@@ -42,6 +53,13 @@ import { APERTURA, aMinutos, CIERRE, posicionDe, PX } from './agenda-geometria';
  * El panel derecho sólo aparece en PC, porque quien está en PC es quien PUEDE
  * actuar sobre esa lista: llamar a la que no confirmó, ofrecer el hueco.
  *
+ * ── La rejilla es su propio marco de scroll ──────────────────────────────
+ * «El encabezado con los nombres no se va nunca» y, con cinco columnas o más,
+ * la columna de las horas tampoco. Las dos cosas son `sticky`, y `sticky` se
+ * pega al contenedor que hace scroll: por eso la rejilla es una `Superficie` con
+ * alto propio y su scroll dentro, no una tira que empuja la página. Con la
+ * página como contenedor, los nombres se iban con la primera hora.
+ *
  * ── Lo que NO va aquí ────────────────────────────────────────────────────
  * Totales, márgenes, gráficas, dinero acumulado. Esta pantalla es del tiempo.
  * Lo único monetario permitido es el VALOR DEL HUECO, porque es exactamente lo
@@ -50,37 +68,116 @@ import { APERTURA, aMinutos, CIERRE, posicionDe, PX } from './agenda-geometria';
  * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
  * Quedan FUERA: la lista de espera (tiene su propia entrada del puente), los
  * atajos de teclado, la franja de sin conexión con su cola de «llegó/no llegó»,
- * y el recorte de `ver_agenda_ajena` —que el puente ya resuelve al filtrar las
- * filas, así que aquí llega como una columna sola sin código de por medio.
+ * el cajón de pendientes de la tablet, y el recorte de `ver_agenda_ajena` —que
+ * el puente ya resuelve al filtrar las filas, así que aquí llega como una
+ * columna sola sin código de por medio.
  */
 
-/** Los nueve estados del bloque. El color nunca viaja solo: cada uno da su palabra. */
+/**
+ * Cómo se ve cada uno de los nueve estados del bloque.
+ *
+ * El color nunca viaja solo: cada estado da además su PALABRA, y los dos que no
+ * ocupan a la persona —el procesado y el tiempo apartado— su rayado. Las citas se
+ * levantan un nivel y el tiempo sin cita —el hueco, el procesado, lo apartado—
+ * queda al ras: así se distingue de lejos lo que ya tiene nombre de lo que
+ * todavía se puede vender.
+ */
+interface AspectoDeEstado {
+  readonly nombre: string;
+  /** Fondo y borde del bloque. */
+  readonly tinte: string;
+  /**
+   * El color de la palabra del estado. Sobre un tinte o un rayado va en `text-texto`:
+   * el gris sutil sobre el verde de «cobrada» o el azul sobre su propio rayado dan
+   * 3.8:1, y bajo la luz del salón 4.5:1 es el piso (§4.6).
+   */
+  readonly palabra: string;
+  readonly nivel: 0 | 1;
+  /** El color del rayado, o `null` si el tramo es sólido. */
+  readonly rayado: string | null;
+}
+
 const ESTADOS = {
-  agendada: { nombre: 'Agendada', clase: 'bg-muted text-muted-foreground border-border' },
-  sin_confirmar: { nombre: 'Sin confirmar', clase: 'bg-warning/30 border-warning' },
-  en_curso: { nombre: 'En curso', clase: 'bg-primary/25 border-primary' },
+  agendada: {
+    nombre: 'Agendada',
+    tinte: 'border-borde-fuerte bg-fondo-sutil',
+    palabra: 'text-texto',
+    nivel: 1,
+    rayado: null,
+  },
+  sin_confirmar: {
+    nombre: 'Sin confirmar',
+    tinte: 'border-advertencia bg-advertencia/25',
+    palabra: 'text-texto',
+    nivel: 1,
+    rayado: null,
+  },
+  en_curso: {
+    nombre: 'En curso',
+    tinte: 'border-primario bg-primario/20',
+    palabra: 'text-texto',
+    nivel: 1,
+    rayado: null,
+  },
   // «Cabe una cita» lleva el sustantivo del giro y por eso se resuelve al pintar:
   // en una barbería cabe un CORTE y en un spa una SESIÓN. Ver `nombreDelEstado`.
-  procesado: { nombre: 'Cabe una cita', clase: 'bg-primary/10 border-dashed border-primary/40' },
-  cobrada: { nombre: 'Cobrada', clase: 'bg-success/30 border-success' },
-  sin_cobrar: { nombre: 'SIN COBRAR', clase: 'bg-card text-card-foreground border-success' },
-  no_llego: { nombre: 'No llegó', clase: 'bg-destructive/25 border-destructive' },
-  apartado: { nombre: 'Apartado', clase: 'bg-muted/60 text-muted-foreground border-dashed' },
-  hueco: { nombre: 'Hueco', clase: 'bg-background border-dashed border-primary/40' },
-} as const;
+  procesado: {
+    nombre: 'Cabe una cita',
+    tinte: 'border-dashed border-primario/60 bg-primario/5',
+    // El rayado es el azul; la palabra no: del mismo tono que las franjas que la
+    // cruzan, «cabe una cita» se leía a 3.8:1.
+    palabra: 'text-texto',
+    nivel: 0,
+    rayado: 'text-primario',
+  },
+  cobrada: {
+    nombre: 'Cobrada',
+    tinte: 'border-exito/60 bg-exito/20',
+    palabra: 'text-texto',
+    nivel: 1,
+    rayado: null,
+  },
+  // El que hay que ver: el servicio se dio y el dinero no entró. Borde doble y la
+  // palabra en mayúsculas, para que se lea antes de que la clienta salga.
+  sin_cobrar: {
+    nombre: 'SIN COBRAR',
+    tinte: 'border-2 border-exito bg-superficie',
+    palabra: 'text-exito',
+    nivel: 1,
+    rayado: null,
+  },
+  no_llego: {
+    nombre: 'No llegó',
+    tinte: 'border-peligro bg-peligro/15',
+    palabra: 'text-peligro',
+    nivel: 1,
+    rayado: null,
+  },
+  apartado: {
+    nombre: 'Apartado',
+    tinte: 'border-dashed border-borde bg-fondo-sutil text-texto-sutil',
+    palabra: 'text-texto-sutil',
+    nivel: 0,
+    rayado: 'text-texto-sutil',
+  },
+  hueco: {
+    nombre: 'Hueco',
+    tinte: 'border-dashed border-primario/60 bg-fondo',
+    palabra: 'text-primario',
+    nivel: 0,
+    rayado: null,
+  },
+} as const satisfies Readonly<Record<string, AspectoDeEstado>>;
 
 type ClaveEstado = keyof typeof ESTADOS;
 
 /** Los que ocupan a la PERSONA. El procesado no: ése es el punto de la pantalla. */
 const OCUPAN: ReadonlySet<string> = new Set(['agendada', 'sin_confirmar', 'en_curso', 'cobrada']);
 
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const DIA = new Intl.DateTimeFormat('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
 
 // La jornada dibujada. Mientras el horario del salón no viva en configuración,
-// estas dos constantes son el marco: fuera de ellas no hay rejilla que pintar.
-/** Dos píxeles por minuto: una hora mide 120 px, que es donde el texto aún cabe. */
-/** Un tramo de limpieza dura 10 minutos y aun así tiene que poder leerse. */
+// `APERTURA` y `CIERRE` son el marco: fuera de ellas no hay rejilla que pintar.
 const ALTO = (CIERRE - APERTURA) * PX;
 const HORAS = Array.from({ length: (CIERRE - APERTURA) / 60 + 1 }, (_, i) => APERTURA + i * 60);
 const MS_DIA = 86_400_000;
@@ -95,22 +192,20 @@ const MS_DIA = 86_400_000;
 const MINIMO_HUECO_MIN = 30;
 const HTTP_DEMASIADOS = 429;
 
-/** El rayado del procesado y del tiempo apartado, con `currentColor`. */
+/** El envoltorio de la pantalla en sus cuatro estados. */
+const MARCO = 'flex flex-col gap-(--espacio-3) p-(--espacio-3)';
 /**
- * El rayado del bloqueo. Se apoya en `currentColor` —el color que ya trae el
- * elemento— y en `transparent`, así que no introduce ni un tono propio: la
- * textura viene de la geometría, no de la paleta.
+ * El ancho de una columna de profesional, idéntico en el encabezado y en el cuerpo:
+ * son dos filas paralelas y sólo cuadran si miden lo mismo. Crecen hasta llenar el
+ * ancho y nunca bajan de lo que un nombre y una hora necesitan.
  */
-const RAYADO = {
-  backgroundImage: 'repeating-linear-gradient(45deg,currentColor 0 3px,transparent 3px 9px)',
-};
-const BLOQUE =
-  'relative flex h-full w-full flex-col gap-0.5 overflow-hidden rounded-md border p-2 text-left hover:border-primary focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
-const COLUMNA = 'relative w-44 shrink-0 rounded-md border border-border xl:w-52';
-const BANDA =
-  'mb-3 flex flex-wrap items-center gap-2 rounded-md border border-destructive bg-destructive/10 p-2 text-sm';
-const VACIO =
-  'flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-8 text-center';
+const ANCHO = 'min-w-44 flex-1 xl:min-w-52';
+/**
+ * El alto de la rejilla: tres cuartos de la ventana. Deja arriba el encabezado del
+ * día y abajo la barra de agendar, y sigue siendo el mismo en el esqueleto para que
+ * nada salte al llegar los datos.
+ */
+const ALTO_DEL_MARCO = 'max-h-[75dvh]';
 
 export interface BloqueDeAgenda {
   /** El del SERVICIO de la cita: una cita con dos servicios son dos bloques. */
@@ -188,6 +283,15 @@ interface FilaConNombre {
 interface FilaDeExpediente {
   readonly id?: string;
   readonly alergias?: string;
+}
+
+/**
+ * Se leyó la agenda y se cayó una fuente de al lado. `sinAlergias` sube el tono:
+ * sin el expediente, el triángulo rojo no aparece y nada en la rejilla lo dice.
+ */
+interface AvisoDeLectura {
+  readonly titulo: string;
+  readonly sinAlergias: boolean;
 }
 
 export interface ColumnaDeAgenda {
@@ -319,75 +423,650 @@ export function resumenDe(bloques: readonly BloqueDeAgenda[]) {
   };
 }
 
-/** Dónde cae el bloque dentro de su columna, recortado a la jornada dibujada. */
+type ResumenDelDia = ReturnType<typeof resumenDe>;
+
 /**
  * El fallo, en palabras del GIRO.
  *
- * Los dos mensajes de abajo llevan «cita», que es el sustantivo del salón: en una
+ * Los mensajes de abajo llevan «cita», que es el sustantivo del salón: en una
  * barbería es un corte y en un taller una orden. Es la pantalla de INICIO de este
  * modelo —se abre de cuarenta a ochenta veces al día— así que es donde más se nota.
+ * `respaldo` es lo que se dice cuando el fallo no trae palabras propias: no es lo
+ * mismo no poder LEER la agenda que no poder INICIAR una cita.
  */
-function mensajeDe(fallo: unknown, voc?: Vocabulario): string {
-  const orden = voc?.singular('orden') ?? 'cita';
-  const ordenes = voc?.plural('orden') ?? 'citas';
-  if (!(fallo instanceof ErrorApi)) return 'No se pudo cargar la agenda.';
+function mensajeDe(
+  fallo: unknown,
+  voc: Vocabulario,
+  respaldo = 'No se pudo cargar la agenda.',
+): string {
+  if (!(fallo instanceof ErrorApi)) return respaldo;
   if (fallo.estado === HTTP_DEMASIADOS) return 'Demasiados intentos. Espera un momento.';
-  if (fallo.error.codigo === 'CONFLICTO_ESTADO') return `Esa ${orden} ya no está para iniciar.`;
-  if (fallo.error.codigo === 'SIN_PERMISO') return `Tu usuario no puede iniciar ${ordenes}.`;
+  if (fallo.error.codigo === 'CONFLICTO_ESTADO')
+    return `${voc.conDeterminante('ese', 'orden')} ya no está para iniciar.`;
+  if (fallo.error.codigo === 'SIN_PERMISO')
+    return `Tu usuario no puede iniciar ${voc.plural('orden')}.`;
   return fallo.error.mensaje;
 }
 
 /** El nombre del estado, con el sustantivo del giro donde lo lleva. */
 function nombreDelEstado(estado: { readonly nombre: string }, voc: Vocabulario): string {
-  return estado.nombre === 'Cabe una cita' ? `Cabe ${voc.enFrase('orden')}` : estado.nombre;
+  return estado.nombre === 'Cabe una cita'
+    ? `Cabe ${voc.enFraseCon('un', 'orden')}`
+    : estado.nombre;
+}
+
+/**
+ * EL RAYADO del procesado y del tiempo apartado.
+ *
+ * Un patrón de SVG pintado con `currentColor`: no trae ni un tono propio —el color
+ * lo pone la clase de quien lo usa— y la textura sale de la geometría, no de la
+ * paleta. El `id` sale de `useId` porque el mismo bloque se pinta dos veces a la
+ * vez —la lista del teléfono y la rejilla— y dos patrones con el mismo `id` se pisan.
+ */
+function Rayado({ className }: { readonly className: string }) {
+  const id = useId();
+  return (
+    <svg
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-0 size-full opacity-25 ${className}`}
+    >
+      <defs>
+        <pattern
+          id={id}
+          width="9"
+          height="9"
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(45)"
+        >
+          <rect width="3" height="9" fill="currentColor" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill={`url(#${id})`} />
+    </svg>
+  );
 }
 
 export interface BloqueProps {
   readonly bloque: BloqueDeAgenda;
   readonly ocupado?: boolean;
+  /** En la lista del teléfono no hay columnas: el bloque dice de quién es. */
+  readonly conProfesional?: boolean;
   readonly onTocar?: () => void;
 }
 
-/** El bloque, idéntico en la rejilla y en la lista: una sola verdad visual. */
-export function Bloque({ bloque, ocupado = false, onTocar }: BloqueProps) {
+/**
+ * El bloque, idéntico en la rejilla y en la lista: una sola verdad visual.
+ *
+ * Es una `Superficie` que se toca, con la HORA primero y la clienta después: es el
+ * orden en que la recepcionista lo lee, y el nombre accesible del botón sale en ese
+ * mismo orden.
+ */
+export function Bloque({ bloque, ocupado = false, conProfesional = false, onTocar }: BloqueProps) {
   const voc = useVocabulario();
   const estado = esEstado(bloque.estado) ? ESTADOS[bloque.estado] : ESTADOS.agendada;
-  const rayado = bloque.estado === 'procesado' || bloque.estado === 'apartado';
   const minutos = aMinutos(bloque.fin) - aMinutos(bloque.inicio);
-  const valor =
-    bloque.valorCentavos === null ? '' : ` · ~${PESOS.format(bloque.valorCentavos / 100)}`;
   return (
-    <button
+    <Superficie
+      como="button"
       type="button"
+      interactiva
+      nivel={estado.nivel}
+      radio="md"
+      relleno={0}
       disabled={ocupado}
+      aria-busy={ocupado}
       onClick={onTocar}
-      className={`${BLOQUE} ${estado.clase}`}
+      className={`relative flex h-full w-full flex-col gap-0.5 overflow-hidden px-(--espacio-2) py-(--espacio-1) ${estado.tinte}`}
     >
-      {rayado && <span aria-hidden className="absolute inset-0 opacity-25" style={RAYADO} />}
-      <span className="relative flex items-baseline gap-2">
-        <span className="text-sm font-bold tabular-nums">{bloque.inicio}</span>
-        <span className="truncate text-xs font-semibold uppercase">
+      {estado.rayado === null ? null : <Rayado className={estado.rayado} />}
+      <span className="relative flex min-w-0 items-baseline gap-(--espacio-2)">
+        <span className="font-numeros text-sm font-bold tabular-nums">{bloque.inicio}</span>
+        {conProfesional ? (
+          <span className="truncate text-sm font-semibold">
+            {bloque.profesional}
+            {bloque.renta ? ' · renta' : ''}
+          </span>
+        ) : null}
+        <span
+          className={`truncate text-xs font-semibold tracking-wide uppercase ${estado.palabra}`}
+        >
           {nombreDelEstado(estado, voc)}
         </span>
         {/* Esquina propia: un error aquí no es un descuadre, es una quemadura. */}
-        {bloque.alergia && (
-          <span className="ml-auto" aria-label="Alergia en el expediente">
-            🔺
-          </span>
-        )}
+        {bloque.alergia ? (
+          <TriangleAlert
+            aria-label="Alergia en el expediente"
+            className="ml-auto size-4 shrink-0 self-center text-peligro"
+          />
+        ) : null}
       </span>
-      {bloque.clienta !== null && (
-        <span className="relative truncate text-sm">{bloque.clienta}</span>
+      {bloque.clienta === null ? null : (
+        <span className="relative truncate text-sm font-medium">{bloque.clienta}</span>
       )}
-      {bloque.servicio !== null && (
+      {bloque.servicio === null ? null : (
         <span className="relative truncate text-xs">{bloque.servicio}</span>
       )}
-      {bloque.estado === 'hueco' && (
-        <span className="relative text-xs font-semibold">
-          {minutos} min{valor} · llenar ▸
+      {bloque.estado === 'hueco' ? (
+        <span className="relative flex flex-wrap items-center gap-x-(--espacio-1) text-xs">
+          {/*
+            Con la columna a la mitad del ancho, el valor se partía: «·» en un renglón y
+            «~$6,525.00» en el siguiente. El valor va entero (`whitespace-nowrap`) y lo que
+            baja de renglón, si no cabe, es «Llenar».
+          */}
+          <Cifra valor={minutos} unidad="min" tamano="xs" />
+          {bloque.valorCentavos === null ? null : (
+            <span className="whitespace-nowrap text-texto-sutil">
+              · ~<Dinero centavos={bloque.valorCentavos} tamano="xs" />
+            </span>
+          )}
+          <span className="ml-auto inline-flex items-center font-semibold text-primario">
+            Llenar
+            <ChevronRight aria-hidden="true" className="size-3" />
+          </span>
         </span>
-      )}
-    </button>
+      ) : null}
+    </Superficie>
+  );
+}
+
+interface ResumenProps {
+  readonly resumen: ResumenDelDia | 'leyendo';
+  /** Falso si `agenda.huecos` no respondió: entonces su cifra es «—», no un cero. */
+  readonly huecosLeidos: boolean;
+}
+
+/** Las tres cifras del encabezado. Mientras se lee, la forma del número; nunca un cero. */
+function Resumen({ resumen, huecosLeidos }: ResumenProps) {
+  const voc = useVocabulario();
+  const cifra = (valor: number | null, unidad?: string) =>
+    resumen === 'leyendo' ? (
+      <Esqueleto className="inline-block h-5 w-8 align-middle" />
+    ) : (
+      <Cifra
+        valor={valor}
+        tamano="lg"
+        className="text-texto"
+        {...(unidad === undefined ? {} : { unidad })}
+      />
+    );
+  const cuantas = resumen === 'leyendo' ? 0 : resumen.citas;
+  const ocupacion = resumen === 'leyendo' ? 0 : resumen.ocupacion;
+  // Sin la lectura de huecos, «0 huecos» afirmaría un día lleno que nadie comprobó.
+  const huecos = resumen === 'leyendo' || !huecosLeidos ? null : resumen.huecos.length;
+  return (
+    <ul
+      aria-label="Resumen del día"
+      className="flex flex-wrap items-baseline gap-x-(--espacio-4) gap-y-(--espacio-1) text-sm text-texto-sutil"
+    >
+      <li>
+        {cifra(cuantas)} {voc.plural('orden')}
+      </li>
+      <li>{cifra(ocupacion, '%')} ocupado</li>
+      <li>{cifra(huecos)} huecos</li>
+    </ul>
+  );
+}
+
+interface EncabezadoProps {
+  readonly fecha: string;
+  readonly dia: number;
+  readonly mover: (n: number) => () => void;
+  /** `null` cuando la agenda no se pudo leer: no hay cifras que dar. */
+  readonly resumen: ResumenDelDia | 'leyendo' | null;
+  readonly huecosLeidos: boolean;
+}
+
+/**
+ * El encabezado del día, en sus cuatro estados. Los dos botones de día viven aquí
+ * y se pintan siempre —cargando, vacío, con citas y con error—: sin ellos, un día
+ * que no se pudo leer sería un callejón.
+ */
+function Encabezado({ fecha, dia, mover, resumen, huecosLeidos }: EncabezadoProps) {
+  return (
+    <header className="flex flex-wrap items-center justify-between gap-x-(--espacio-4) gap-y-(--espacio-2)">
+      <div className="flex min-w-0 items-center gap-(--espacio-2)">
+        <h1 className="truncate text-2xl font-bold first-letter:uppercase">{fecha}</h1>
+        <Button size="icon" variant="outline" aria-label="Día anterior" onClick={mover(-1)}>
+          <ChevronLeft aria-hidden="true" />
+        </Button>
+        <Button size="icon" variant="outline" aria-label="Día siguiente" onClick={mover(1)}>
+          <ChevronRight aria-hidden="true" />
+        </Button>
+        {dia === 0 ? (
+          <Badge variant="secondary">Hoy</Badge>
+        ) : (
+          <Button size="sm" variant="ghost" onClick={mover(-dia)}>
+            Hoy
+          </Button>
+        )}
+      </div>
+      {resumen === null ? null : <Resumen resumen={resumen} huecosLeidos={huecosLeidos} />}
+    </header>
+  );
+}
+
+/** Dónde caen los bloques del esqueleto, en minutos desde la apertura: formas, no datos. */
+const FORMAS_DEL_ESQUELETO = [
+  {
+    clave: 'a',
+    bloques: [
+      { desde: 30, dura: 90 },
+      { desde: 180, dura: 60 },
+    ],
+  },
+  {
+    clave: 'b',
+    bloques: [
+      { desde: 0, dura: 60 },
+      { desde: 90, dura: 120 },
+    ],
+  },
+  {
+    clave: 'c',
+    bloques: [
+      { desde: 60, dura: 45 },
+      { desde: 150, dura: 90 },
+    ],
+  },
+  { clave: 'd', bloques: [{ desde: 15, dura: 120 }] },
+] as const;
+
+/**
+ * CARGANDO: la rejilla con sus columnas y sus horas ya dibujadas.
+ *
+ * La estructura del día no cambia: se dibuja de inmediato. Un spinner en el centro
+ * no diría nada que la rejilla no diga mejor, y al llegar los datos nada salta.
+ */
+function EsqueletoDeLaAgenda() {
+  return (
+    <div role="status" aria-busy="true" aria-label="Cargando la agenda del día">
+      <div className="flex flex-col gap-(--espacio-2) md:hidden">
+        {Array.from({ length: 5 }, (_, indice) => (
+          <Esqueleto key={indice} className="h-20 w-full" />
+        ))}
+      </div>
+      <Superficie relleno={0} className="hidden h-[75dvh] overflow-hidden md:block">
+        <div className="flex border-b border-borde">
+          <span className="w-14 shrink-0" />
+          {FORMAS_DEL_ESQUELETO.map((columna) => (
+            <div
+              key={columna.clave}
+              className={`border-l border-borde px-(--espacio-3) py-(--espacio-2) ${ANCHO}`}
+            >
+              <Esqueleto className="h-5 w-20" />
+            </div>
+          ))}
+        </div>
+        <div className="relative flex" style={{ height: `${ALTO}px` }}>
+          <ol aria-hidden="true" className="relative w-14 shrink-0">
+            {HORAS.map((m) => (
+              <li
+                key={m}
+                className="absolute right-(--espacio-2) font-numeros text-xs text-texto-sutil tabular-nums"
+                style={{ top: `${(m - APERTURA) * PX + 2}px` }}
+              >
+                {aHora(m)}
+              </li>
+            ))}
+          </ol>
+          {FORMAS_DEL_ESQUELETO.map((columna) => (
+            <div key={columna.clave} className={`relative border-l border-borde ${ANCHO}`}>
+              {columna.bloques.map((forma) => (
+                <div
+                  key={forma.desde}
+                  className="absolute inset-x-1"
+                  style={{ top: `${forma.desde * PX}px`, height: `${forma.dura * PX}px` }}
+                >
+                  <Esqueleto className="size-full" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </Superficie>
+    </div>
+  );
+}
+
+/** Las líneas de cada hora y, punteadas, de cada media hora: la cuadrícula del papel. */
+function LineasDeHora() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+      {HORAS.map((m) => (
+        <span
+          key={m}
+          className="absolute inset-x-0 border-t border-borde"
+          style={{ top: `${(m - APERTURA) * PX}px` }}
+        />
+      ))}
+      {HORAS.slice(1).map((m) => (
+        <span
+          key={`media-${m}`}
+          className="absolute inset-x-0 border-t border-dashed border-borde/50"
+          style={{ top: `${(m - 30 - APERTURA) * PX}px` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** La marca del ahora en la lista del teléfono: una raya entre dos bloques. */
+function MarcaDelAhora({ hora }: { readonly hora: string }) {
+  return (
+    <span className="flex items-center gap-(--espacio-2) text-xs font-bold text-primario">
+      <span aria-hidden="true" className="h-0.5 flex-1 bg-primario" />
+      <span className="font-numeros tabular-nums">Ahora · {hora}</span>
+      <span aria-hidden="true" className="h-0.5 flex-1 bg-primario" />
+    </span>
+  );
+}
+
+interface ListaDelDiaProps {
+  readonly columnas: readonly ColumnaDeAgenda[];
+  readonly enOrden: readonly BloqueDeAgenda[];
+  readonly soloDe: string | null;
+  readonly filtrar: (nombre: string | null) => () => void;
+  readonly iAhora: number;
+  readonly horaAhora: string | null;
+  readonly ocupado: string | null;
+  readonly alTocar: (b: BloqueDeAgenda) => () => void;
+}
+
+/** TELÉFONO · lista cronológica del salón entero, con su filtro rápido. */
+function ListaDelDia({
+  columnas,
+  enOrden,
+  soloDe,
+  filtrar,
+  iAhora,
+  horaAhora,
+  ocupado,
+  alTocar,
+}: ListaDelDiaProps) {
+  return (
+    <div className="flex flex-col gap-(--espacio-2) md:hidden">
+      <nav
+        aria-label="Filtrar por profesional"
+        className="flex gap-(--espacio-1) overflow-x-auto pb-(--espacio-1)"
+      >
+        <Button
+          size="sm"
+          aria-pressed={soloDe === null}
+          variant={soloDe === null ? 'default' : 'ghost'}
+          onClick={filtrar(null)}
+        >
+          Todo
+        </Button>
+        {columnas.map((c) => (
+          <Button
+            key={c.nombre}
+            size="sm"
+            aria-pressed={soloDe === c.nombre}
+            variant={soloDe === c.nombre ? 'default' : 'ghost'}
+            onClick={filtrar(c.nombre)}
+          >
+            {c.nombre}
+          </Button>
+        ))}
+      </nav>
+      <ol className="flex flex-col gap-(--espacio-2)">
+        {enOrden.map((b, i) => (
+          <li key={b.id} className="flex flex-col gap-(--espacio-1)">
+            {i === iAhora && horaAhora !== null ? <MarcaDelAhora hora={horaAhora} /> : null}
+            <Bloque bloque={b} conProfesional ocupado={ocupado === b.id} onTocar={alTocar(b)} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+interface RejillaDelDiaProps {
+  readonly columnas: readonly ColumnaDeAgenda[];
+  /** La línea del ahora, sólo hoy y sólo dentro de la jornada dibujada. */
+  readonly ahora: { readonly minutos: number; readonly hora: string } | null;
+  readonly ocupado: string | null;
+  readonly alTocar: (b: BloqueDeAgenda) => () => void;
+  readonly refDelMarco: Ref<HTMLElement>;
+}
+
+/**
+ * TABLET y PC · la rejilla. Encabezado y cuerpo son dos filas paralelas con los
+ * mismos anchos: así las columnas cuadran sin un segundo marcado, los nombres se
+ * quedan pegados arriba mientras las horas corren, y las horas se quedan pegadas a
+ * la izquierda mientras las columnas se deslizan.
+ */
+function RejillaDelDia({ columnas, ahora, ocupado, alTocar, refDelMarco }: RejillaDelDiaProps) {
+  return (
+    <Superficie
+      ref={refDelMarco}
+      como="section"
+      aria-label="Rejilla del día"
+      relleno={0}
+      className={`min-w-0 flex-1 overflow-auto ${ALTO_DEL_MARCO}`}
+    >
+      <div className="w-full min-w-max">
+        <div className="sticky top-0 z-20 flex border-b border-borde bg-superficie">
+          <span aria-hidden="true" className="sticky left-0 z-10 w-14 shrink-0 bg-superficie" />
+          {columnas.map((c) => (
+            <h2
+              key={c.nombre}
+              className={`flex items-center gap-(--espacio-2) border-l border-borde px-(--espacio-3) py-(--espacio-2) text-sm font-semibold ${ANCHO} ${c.renta ? 'bg-fondo-sutil' : ''}`}
+            >
+              <span className="min-w-0 truncate">{c.nombre}</span>
+              {c.renta ? <Badge variant="outline">renta</Badge> : null}
+            </h2>
+          ))}
+        </div>
+        <div className="relative flex" style={{ height: `${ALTO}px` }}>
+          <LineasDeHora />
+          <ol aria-label="Horas" className="sticky left-0 z-10 w-14 shrink-0 bg-superficie">
+            {HORAS.map((m) => (
+              <li
+                key={m}
+                className="absolute right-(--espacio-2) font-numeros text-xs text-texto-sutil tabular-nums"
+                style={{ top: `${(m - APERTURA) * PX + 2}px` }}
+              >
+                {aHora(m)}
+              </li>
+            ))}
+          </ol>
+          {columnas.map((c) => (
+            <ol
+              key={c.nombre}
+              aria-label={c.nombre}
+              className={`relative border-l border-borde ${ANCHO} ${c.renta ? 'bg-fondo-sutil/50' : ''}`}
+            >
+              {/* Sin `inset-x-1`: el ancho lo decide `posicionDe`, que parte la
+                  columna cuando un hueco se cruza con una cita. */}
+              {c.bloques.map((b) => (
+                <li key={b.id} className="absolute pb-0.5" style={posicionDe(b, c.bloques)}>
+                  <Bloque bloque={b} ocupado={ocupado === b.id} onTocar={alTocar(b)} />
+                </li>
+              ))}
+            </ol>
+          ))}
+          {ahora === null ? null : (
+            <div
+              className="pointer-events-none absolute inset-x-0 z-10 flex -translate-y-1/2 items-center"
+              style={{ top: `${(ahora.minutos - APERTURA) * PX}px` }}
+            >
+              {/* Pegada a la izquierda: con las columnas deslizadas, la hora del
+                  ahora sigue a la vista junto a la de la rejilla. */}
+              <Badge className="sticky left-0 font-numeros tabular-nums">
+                Ahora · {ahora.hora}
+              </Badge>
+              <span aria-hidden="true" className="h-0.5 flex-1 bg-primario" />
+            </div>
+          )}
+        </div>
+      </div>
+    </Superficie>
+  );
+}
+
+/** Lo que no ha confirmado: a quién hay que llamar. */
+function columnasSinConfirmar(voc: Vocabulario): readonly ColumnaDeTabla<BloqueDeAgenda>[] {
+  return [
+    {
+      clave: 'hora',
+      titulo: 'Hora',
+      celda: (b) => <span className="font-numeros font-semibold tabular-nums">{b.inicio}</span>,
+    },
+    {
+      clave: 'quien',
+      titulo: voc.titulo('cliente'),
+      celda: (b) => (
+        <span className="flex flex-col">
+          {/* Sin ficha no hay nombre: «sin registrar», no «el/la cliente» (§4.1.1). */}
+          <span className="font-medium">{b.clienta ?? 'Sin registrar'}</span>
+          <span className="text-xs text-texto-sutil">{b.profesional}</span>
+        </span>
+      ),
+    },
+  ];
+}
+
+/** Los huecos del día, con lo que valen: lo único monetario de la pantalla. */
+const COLUMNAS_DE_HUECOS: readonly ColumnaDeTabla<BloqueDeAgenda>[] = [
+  {
+    clave: 'hueco',
+    titulo: 'Hueco',
+    celda: (b) => (
+      <span className="flex flex-col">
+        <span className="font-numeros font-semibold tabular-nums">{b.inicio}</span>
+        <span className="text-xs text-texto-sutil">{b.profesional}</span>
+      </span>
+    ),
+  },
+  {
+    clave: 'dura',
+    titulo: 'Dura',
+    numerica: true,
+    celda: (b) => <Cifra valor={aMinutos(b.fin) - aMinutos(b.inicio)} unidad="min" tamano="sm" />,
+  },
+  {
+    clave: 'valor',
+    titulo: 'Valor',
+    numerica: true,
+    // Con tilde: es un estimado del servidor, no un precio.
+    celda: (b) =>
+      b.valorCentavos === null ? (
+        '—'
+      ) : (
+        <span>
+          ~<Dinero centavos={b.valorCentavos} tamano="sm" />
+        </span>
+      ),
+  },
+];
+
+interface PanelDePendientesProps {
+  readonly sinConfirmar: readonly BloqueDeAgenda[];
+  readonly huecos: readonly BloqueDeAgenda[];
+  /** Falso si `agenda.huecos` no respondió: la lista vacía no quiere decir «día lleno». */
+  readonly huecosLeidos: boolean;
+  readonly valor: number;
+  readonly alTocar: (b: BloqueDeAgenda) => () => void;
+}
+
+/**
+ * PC · el panel de quien puede actuar sobre esta lista. Dos tablas densas y no
+ * dos listas a mano: la hora, quién y cuánto, alineados; y el hueco se toca igual
+ * que en la rejilla, con el dedo o con Enter.
+ */
+function PanelDePendientes({
+  sinConfirmar,
+  huecos,
+  huecosLeidos,
+  valor,
+  alTocar,
+}: PanelDePendientesProps) {
+  const voc = useVocabulario();
+  return (
+    <Superficie
+      como="aside"
+      aria-label="Pendientes del día"
+      relleno={4}
+      className={`hidden w-80 shrink-0 flex-col gap-(--espacio-6) overflow-y-auto xl:flex ${ALTO_DEL_MARCO}`}
+    >
+      <section aria-label="Sin confirmar" className="flex flex-col gap-(--espacio-2)">
+        <h2 className="flex items-baseline justify-between text-sm font-semibold">
+          Sin confirmar
+          <Cifra valor={sinConfirmar.length} tamano="sm" />
+        </h2>
+        <Tabla
+          etiqueta={`${voc.titulo('orden', true)} sin confirmar`}
+          columnas={columnasSinConfirmar(voc)}
+          filas={sinConfirmar}
+          claveDe={(b) => b.id}
+          alto="max-h-[30dvh]"
+          vacio={<Vacio titulo="Nadie pendiente de confirmar." className="py-(--espacio-3)" />}
+        />
+      </section>
+      <section aria-label="Huecos" className="flex flex-col gap-(--espacio-2)">
+        <h2 className="flex items-baseline justify-between text-sm font-semibold">
+          Huecos
+          <Cifra valor={huecosLeidos ? huecos.length : null} tamano="sm" />
+        </h2>
+        <Tabla
+          etiqueta="Huecos del día"
+          columnas={COLUMNAS_DE_HUECOS}
+          filas={huecos}
+          claveDe={(b) => b.id}
+          alActivar={(id) => {
+            const hueco = huecos.find((h) => h.id === id);
+            if (hueco !== undefined) alTocar(hueco)();
+          }}
+          // La fila ES el control: sin nombre, el lector la leía como un renglón más.
+          etiquetaDeFila={(b) => `Llenar el hueco de ${b.profesional} a las ${b.inicio}`}
+          alto="max-h-[30dvh]"
+          pie={{
+            hueco: 'Total',
+            valor: (
+              <span>
+                ~<Dinero centavos={valor} tamano="sm" />
+              </span>
+            ),
+          }}
+          vacio={
+            <Vacio
+              titulo={
+                huecosLeidos ? 'Sin huecos: el día está lleno.' : 'No se pudieron leer los huecos.'
+              }
+              className="py-(--espacio-3)"
+            />
+          }
+        />
+      </section>
+    </Superficie>
+  );
+}
+
+/**
+ * Fijo abajo, a la altura del pulgar de quien sostiene la tablet.
+ *
+ * ── Y CENTRADO DE VERDAD, que es lo que lo dejaba INCLICABLE ─────────────
+ * Tenía `md:mx-auto md:w-64` sobre el propio botón, y `mx-auto` no centra un
+ * `inline-flex` —que es lo que renderiza este botón—: se quedaba pegado a la
+ * IZQUIERDA, en la franja que la barra lateral del marco heredado ocupa. En el
+ * TABLERO de una estética —su pantalla de inicio— la acción principal no recibía
+ * el clic. Centrar con `flex justify-center` funciona en los dos marcos sin que el
+ * componente tenga que saber en cuál está.
+ */
+function BarraDeAgendar({ alAgendar }: { readonly alAgendar: () => void }) {
+  return (
+    <Superficie
+      nivel={3}
+      radio="sm"
+      relleno={0}
+      className="fixed inset-x-0 bottom-0 z-30 flex justify-center rounded-none border-x-0 border-b-0 p-(--espacio-2)"
+    >
+      <Button size="lg" className="w-full md:w-64" onClick={alAgendar}>
+        <Plus aria-hidden="true" />
+        Agendar
+      </Button>
+    </Superficie>
   );
 }
 
@@ -402,8 +1081,19 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
   const [soloDe, setSoloDe] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const linea = useRef<HTMLDivElement>(null);
+  /** `agenda.dia` no se leyó: sin él no hay agenda que enseñar, sólo el error. */
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  /** Se leyó la agenda y se cayó una fuente de al lado: se dice cuál. */
+  const [avisoDeLectura, setAvisoDeLectura] = useState<AvisoDeLectura | null>(null);
+  /**
+   * Si `agenda.huecos` respondió. Sin él no hay ningún bloque `hueco`, y contarlos
+   * daría cero: el panel diría «el día está lleno» debajo del aviso que dice que
+   * los huecos no se leyeron.
+   */
+  const [huecosLeidos, setHuecosLeidos] = useState(true);
+  /** Iniciar una cita falló: se dice qué NO pasó. */
+  const [falloAlIniciar, setFalloAlIniciar] = useState<string | null>(null);
+  const rejilla = useRef<HTMLElement>(null);
   const centrada = useRef(false);
 
   // El reloj arranca DESPUÉS del montaje, nunca en el cuerpo del efecto: si el
@@ -532,13 +1222,15 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
           }
         }
         setBloques(pintables);
+        setHuecosLeidos(huecos.status === 'fulfilled');
+
+        // Sin `agenda.dia` no hay agenda: los huecos solos dibujarían un día libre
+        // que no lo es. Eso es el error de la pantalla, no un aviso.
+        setFalloDeCarga(dia.status === 'rejected' ? mensajeDe(dia.reason, voc) : null);
 
         // El aviso nombra la fuente que falló, porque «no se pudo cargar» sobre
         // una pantalla con citas dentro manda a buscar donde no está.
         const caidas = [
-          dia.status === 'rejected'
-            ? `${voc.plural('orden')}: ${mensajeDe(dia.reason, voc)}`
-            : null,
           huecos.status === 'rejected' ? `huecos: ${mensajeDe(huecos.reason, voc)}` : null,
           clientas.status === 'rejected' ? `los nombres de ${voc.enFrase('cliente', true)}` : null,
           servicios.status === 'rejected'
@@ -546,14 +1238,21 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
             : null,
           expedientes.status === 'rejected' ? 'las alergias del expediente' : null,
         ].filter((x): x is string => x !== null);
-        setError(caidas.length === 0 ? null : `No se pudo leer ${caidas.join(' · ')}.`);
+        setAvisoDeLectura(
+          caidas.length === 0
+            ? null
+            : {
+                titulo: `No se pudo leer ${caidas.join(' · ')}.`,
+                sinAlergias: expedientes.status === 'rejected',
+              },
+        );
       })
       .catch(() => {
         // `allSettled` no rechaza: esto es para un fallo del propio `then`, que
         // dejaría la pantalla en su esqueleto para siempre.
         if (sigueMontada()) {
           setBloques([]);
-          setError('No se pudo armar la agenda.');
+          setFalloDeCarga('No se pudo armar la agenda.');
         }
       });
 
@@ -567,15 +1266,26 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
   }, [bloquesIniciales, fecha, intento]);
 
   // La vista arranca centrada en la línea del ahora, y sólo la primera vez: que
-  // se reacomodara sola cada minuto sería insoportable.
+  // se reacomodara sola cada minuto sería insoportable. Se mueve la REJILLA, que es
+  // su propio marco de scroll, y no la página: el encabezado del día se queda.
   useEffect(() => {
-    if (centrada.current || linea.current === null) return;
+    const marco = rejilla.current;
+    if (centrada.current || marco === null || ahoraMs === null || dia !== 0) return;
+    const minutos = minutosDe(ahoraMs);
+    if (minutos < APERTURA || minutos > CIERRE) return;
     centrada.current = true;
-    linea.current.scrollIntoView({ block: 'center' });
-  }, [ahoraMs]);
+    marco.scrollTo({ top: Math.max(0, (minutos - APERTURA) * PX - marco.clientHeight / 2) });
+  }, [ahoraMs, bloques, dia]);
 
   const minutosAhora = ahoraMs === null || dia !== 0 ? null : minutosDe(ahoraMs);
   const horaAhora = minutosAhora === null ? null : aHora(minutosAhora);
+  const ahora =
+    minutosAhora !== null &&
+    horaAhora !== null &&
+    minutosAhora >= APERTURA &&
+    minutosAhora <= CIERRE
+      ? { minutos: minutosAhora, hora: horaAhora }
+      : null;
   const columnas = porProfesional(bloques ?? []);
   const resumen = resumenDe(bloques ?? []);
   const enOrden = ordenar(
@@ -625,20 +1335,31 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
     setOcupado(b.id);
     try {
       await invocarComando<unknown>(`/api/citas/${citaId}/iniciar`, {});
-      setError(null);
+      setFalloAlIniciar(null);
       // Y se entra a la cita: es donde se captura la fórmula y se cierra el
       // servicio. Dejar a la recepcionista en la rejilla con la cita en curso era
       // dejar el resto del recorrido sin puerta.
       enrutador.push(enLaCita);
     } catch (fallo: unknown) {
-      setError(mensajeDe(fallo, voc));
+      setFalloAlIniciar(mensajeDe(fallo, voc, `No se pudo iniciar ${voc.enFrase('orden')}.`));
     } finally {
       setOcupado(null);
     }
   };
 
+  /** Otro día, o leer otra vez: los avisos del intento anterior ya no dicen nada. */
+  const olvidarAvisos = () => {
+    setFalloDeCarga(null);
+    setAvisoDeLectura(null);
+    setFalloAlIniciar(null);
+    // Los bloques del día anterior bajo la fecha nueva serían mentira: mientras
+    // llega el otro día se ve su esqueleto. Con `bloquesIniciales` no hay lectura
+    // que los reponga, así que se quedan.
+    if (bloquesIniciales === undefined) setBloques(null);
+  };
   const mover = (n: number) => () => {
-    setDia(dia + n);
+    olvidarAvisos();
+    setDia((actual) => actual + n);
   };
   const filtrar = (n: string | null) => () => {
     setSoloDe(n);
@@ -647,244 +1368,161 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
     void tocar(b);
   };
   const reintentar = () => {
-    setError(null);
-    setIntento(intento + 1);
+    olvidarAvisos();
+    setIntento((previo) => previo + 1);
   };
 
   const encabezado = (
-    <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-2">
-        <h1 className="text-xl font-bold">{msDia === null ? 'Agenda' : DIA.format(msDia)}</h1>
-        {dia === 0 ? <Badge variant="secondary">Hoy</Badge> : null}
-        <Button size="icon-sm" variant="outline" aria-label="Día anterior" onClick={mover(-1)}>
-          ‹
-        </Button>
-        <Button size="icon-sm" variant="outline" aria-label="Día siguiente" onClick={mover(1)}>
-          ›
-        </Button>
-        {dia === 0 ? null : (
-          <Button size="sm" variant="ghost" onClick={mover(-dia)}>
-            Hoy
-          </Button>
-        )}
-      </div>
-      <p className="text-sm tabular-nums text-muted-foreground">
-        {resumen.citas} citas · {resumen.ocupacion}% ocupado · {resumen.huecos.length} huecos
-      </p>
-    </header>
+    <Encabezado
+      fecha={msDia === null ? 'Agenda' : DIA.format(msDia)}
+      dia={dia}
+      mover={mover}
+      resumen={estadoDelResumen(falloDeCarga, bloques, resumen)}
+      huecosLeidos={huecosLeidos}
+    />
   );
 
-  const banda =
-    error === null ? null : (
-      <p role="alert" className={BANDA}>
-        {error} Se muestra la última versión conocida.
-        <Button size="xs" variant="outline" onClick={reintentar}>
-          Reintentar
-        </Button>
-      </p>
-    );
-
-  // La estructura del día no cambia: se dibuja de inmediato con sus columnas.
-  // Un spinner en el centro no diría nada que la rejilla no diga mejor.
-  if (bloques === null) {
+  // AGENDAR va también en el error y en el esqueleto: es el «control fijo, siempre
+  // visible» de §4.3.1, y agendar no depende de `agenda.dia`. Con la agenda caída,
+  // esta ruta no tenía otra puerta al asistente.
+  if (falloDeCarga !== null) {
     return (
-      <div className="p-3">
+      <div className={`${MARCO} pb-[calc(var(--espacio-12)*2)]`}>
         {encabezado}
-        <div className="flex gap-2" style={{ height: '20rem' }}>
-          {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="flex-1 rounded-md" />
-          ))}
-        </div>
+        <ErrorDePantalla
+          titulo="No se pudo cargar la agenda."
+          queHacer={`Sin ella no se sabe quién sigue ni dónde cabe ${voc.enFraseCon('un', 'orden')}. Revisa la conexión y vuelve a intentarlo: lo que ya estaba agendado sigue guardado.`}
+          detalle={falloDeCarga}
+          reintentar={<Button onClick={reintentar}>Reintentar</Button>}
+        />
+        <BarraDeAgendar alAgendar={irAAgendar} />
       </div>
     );
   }
 
+  if (bloques === null) {
+    return (
+      <div className={`${MARCO} pb-[calc(var(--espacio-12)*2)]`}>
+        {encabezado}
+        <EsqueletoDeLaAgenda />
+        <BarraDeAgendar alAgendar={irAAgendar} />
+      </div>
+    );
+  }
+
+  const avisos = (
+    <>
+      {falloAlIniciar === null ? null : (
+        <Aviso tono="peligro" titulo={falloAlIniciar}>
+          {voc.conArticulo('orden')} sigue como estaba: no empezó ningún reloj.
+        </Aviso>
+      )}
+      {avisoDeLectura === null ? null : (
+        <Aviso
+          tono={avisoDeLectura.sinAlergias ? 'peligro' : 'atencion'}
+          titulo={avisoDeLectura.titulo}
+          accion={
+            <Button size="sm" variant="outline" onClick={reintentar}>
+              Reintentar
+            </Button>
+          }
+        >
+          {avisoDeLectura.sinAlergias
+            ? `Sin el expediente, el triángulo de alergia no aparece: revisa el historial de ${voc.enFraseCon('cada', 'cliente')} antes de empezar.`
+            : 'Lo que sí se leyó está en la agenda.'}
+        </Aviso>
+      )}
+    </>
+  );
+
   if (bloques.length === 0) {
     return (
-      <div className="p-3">
+      <div className={MARCO}>
         {encabezado}
-        {banda}
-        <div className={VACIO}>
-          <p className="text-lg font-semibold">
-            {hayEquipo ? 'Hoy no hay citas todavía.' : 'Primero da de alta a tu equipo.'}
-          </p>
-          <p className="max-w-md text-sm text-muted-foreground">
-            {hayEquipo
-              ? 'El día está entero, y eso es una oportunidad: el hueco de las 3 pm no se recupera mañana.'
-              : 'Cada profesional es una columna de esta rejilla. Sin ninguno, la cita no tiene dónde caer.'}
-          </p>
-          <Button size="lg" onClick={irAAgendar}>
-            {hayEquipo ? 'Agendar' : 'Dar de alta al equipo'}
-          </Button>
-          {hayEquipo ? (
-            <Button variant="ghost" onClick={mover(1)}>
-              Abrir la agenda de mañana ›
-            </Button>
-          ) : null}
-        </div>
+        {avisos}
+        {/* El borde discontinuo se queda: es lo que dice «aquí CABE algo» en vez de
+            «aquí no hay nada», y en una agenda esa diferencia es el negocio. */}
+        <Superficie nivel={0} relleno={0} className="border-dashed">
+          <Vacio
+            icono={hayEquipo ? <CalendarPlus /> : <Users />}
+            titulo={tituloDelVacio(hayEquipo, dia, voc)}
+            explicacion={
+              hayEquipo
+                ? 'El día está entero, y eso es una oportunidad: el hueco de las 3 pm no se recupera mañana.'
+                : 'Cada profesional es una columna de esta rejilla. Sin ninguno, la cita no tiene dónde caer.'
+            }
+            accion={
+              <span className="flex flex-wrap items-center justify-center gap-(--espacio-2)">
+                <Button size="lg" onClick={irAAgendar}>
+                  {hayEquipo ? <Plus aria-hidden="true" /> : null}
+                  {hayEquipo ? 'Agendar' : 'Dar de alta al equipo'}
+                </Button>
+                {hayEquipo && dia === 0 ? (
+                  <Button variant="ghost" onClick={mover(1)}>
+                    Abrir la agenda de mañana
+                    <ChevronRight aria-hidden="true" />
+                  </Button>
+                ) : null}
+              </span>
+            }
+          />
+        </Superficie>
       </div>
     );
   }
 
   return (
-    <div className="p-3 pb-24">
+    <div className={`${MARCO} pb-[calc(var(--espacio-12)*2)]`}>
       {encabezado}
-      {banda}
-
-      {/* TELÉFONO · lista cronológica del salón entero, con su filtro rápido. */}
-      <nav
-        aria-label="Filtrar por profesional"
-        className="mb-2 flex gap-1 overflow-x-auto md:hidden"
-      >
-        <Button
-          size="sm"
-          aria-pressed={soloDe === null}
-          variant={soloDe === null ? 'default' : 'ghost'}
-          onClick={filtrar(null)}
-        >
-          Todo
-        </Button>
-        {columnas.map((c) => (
-          <Button
-            key={c.nombre}
-            size="sm"
-            aria-pressed={soloDe === c.nombre}
-            variant={soloDe === c.nombre ? 'default' : 'ghost'}
-            onClick={filtrar(c.nombre)}
-          >
-            {c.nombre}
-          </Button>
-        ))}
-      </nav>
-      <ol className="flex flex-col gap-2 md:hidden">
-        {enOrden.map((b, i) => (
-          <li key={b.id} className="flex flex-col gap-1">
-            {i === iAhora && horaAhora !== null ? (
-              <span className="flex items-center gap-2 text-xs font-bold text-primary">
-                <span aria-hidden className="h-0.5 flex-1 bg-primary" /> Ahora · {horaAhora}
-                <span aria-hidden className="h-0.5 flex-1 bg-primary" />
-              </span>
-            ) : null}
-            <Badge variant="outline">
-              {b.profesional}
-              {b.renta ? ' · renta' : ''}
-            </Badge>
-            <Bloque bloque={b} ocupado={ocupado === b.id} onTocar={alTocar(b)} />
-          </li>
-        ))}
-      </ol>
-
-      {/* TABLET y PC · la rejilla. Encabezado y cuerpo son dos filas paralelas
-          con los mismos anchos: así las columnas cuadran sin un segundo marcado
-          y los nombres se quedan pegados arriba mientras las horas corren. */}
-      <div className="hidden gap-3 md:flex">
-        <div className="min-w-0 flex-1 overflow-x-auto">
-          <div className="min-w-max">
-            <div className="sticky top-0 z-20 flex gap-2 bg-background pb-1">
-              <span className="w-10 shrink-0" />
-              {columnas.map((c) => (
-                <h2
-                  key={c.nombre}
-                  className="flex w-44 shrink-0 gap-1 truncate text-sm font-bold xl:w-52"
-                >
-                  {c.nombre}
-                  {c.renta ? <Badge variant="outline">renta</Badge> : null}
-                </h2>
-              ))}
-            </div>
-            <div className="relative flex gap-2">
-              <ol className="relative w-10 shrink-0" style={{ height: `${ALTO}px` }}>
-                {HORAS.map((m) => (
-                  <li
-                    key={m}
-                    className="absolute text-xs tabular-nums text-muted-foreground"
-                    style={{ top: `${(m - APERTURA) * PX}px` }}
-                  >
-                    {aHora(m)}
-                  </li>
-                ))}
-              </ol>
-              {columnas.map((c) => (
-                <ol
-                  key={c.nombre}
-                  className={`${COLUMNA} ${c.renta ? 'bg-muted/40' : 'bg-card'}`}
-                  style={{ height: `${ALTO}px` }}
-                >
-                  {/* Sin `inset-x-1`: el ancho lo decide `posicionDe`, que parte la
-                      columna cuando un hueco se cruza con una cita. */}
-                  {c.bloques.map((b) => (
-                    <li key={b.id} className="absolute" style={posicionDe(b, c.bloques)}>
-                      <Bloque bloque={b} ocupado={ocupado === b.id} onTocar={alTocar(b)} />
-                    </li>
-                  ))}
-                </ol>
-              ))}
-              {minutosAhora === null || horaAhora === null ? null : (
-                <div
-                  ref={linea}
-                  className="pointer-events-none absolute inset-x-0 z-10 flex border-t-2 border-primary"
-                  style={{ top: `${(minutosAhora - APERTURA) * PX}px` }}
-                >
-                  <Badge className="tabular-nums">Ahora · {horaAhora}</Badge>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* PC · el panel de quien puede actuar sobre esta lista. */}
-        <aside aria-label="Pendientes de hoy" className="hidden w-80 shrink-0 xl:block">
-          <h2 className="mb-1 text-sm font-semibold">Sin confirmar ({sinConfirmar.length})</h2>
-          <ul className="mb-3 flex flex-col gap-1">
-            {sinConfirmar.map((b) => (
-              <li key={b.id} className="truncate rounded-md border border-warning p-1 text-xs">
-                {b.inicio} · {b.profesional} · {b.clienta ?? 'sin nombre'}
-              </li>
-            ))}
-          </ul>
-          <h2 className="mb-1 text-sm font-semibold">
-            Huecos ({resumen.huecos.length}) · ~{PESOS.format(resumen.valor / 100)}
-          </h2>
-          <ul className="flex flex-col gap-1">
-            {resumen.huecos.map((b) => (
-              <li key={b.id}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={alTocar(b)}
-                >
-                  {b.inicio} · {b.profesional} · {aMinutos(b.fin) - aMinutos(b.inicio)} min
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </aside>
+      {avisos}
+      <ListaDelDia
+        columnas={columnas}
+        enOrden={enOrden}
+        soloDe={soloDe}
+        filtrar={filtrar}
+        iAhora={iAhora}
+        horaAhora={horaAhora}
+        ocupado={ocupado}
+        alTocar={alTocar}
+      />
+      <div className="hidden items-start gap-(--espacio-3) md:flex">
+        <RejillaDelDia
+          columnas={columnas}
+          ahora={ahora}
+          ocupado={ocupado}
+          alTocar={alTocar}
+          refDelMarco={rejilla}
+        />
+        <PanelDePendientes
+          sinConfirmar={sinConfirmar}
+          huecos={resumen.huecos}
+          huecosLeidos={huecosLeidos}
+          valor={resumen.valor}
+          alTocar={alTocar}
+        />
       </div>
-
-      {/*
-        Fijo abajo, a la altura del pulgar de quien sostiene la tablet.
-
-        ── Y CENTRADO DE VERDAD, que es lo que lo dejaba INCLICABLE ─────────
-        Tenía `md:mx-auto md:w-64` sobre el propio botón, y `mx-auto` no centra un
-        `inline-flex` —que es lo que renderiza este botón—: se quedaba pegado a la
-        IZQUIERDA, en la franja que la barra lateral del marco heredado ocupa
-        —`fixed left-0 w-60 z-30`—. Medido en 1280×720: el botón en `x: 8..264` y
-        `elementFromPoint` de su centro devolviendo el pie de la barra lateral.
-        Resultado: en el TABLERO de una estética —su pantalla de inicio— la acción
-        principal no recibía el clic. En `/estetica-salon/agenda-del-dia` sí, porque
-        ahí no hay barra que lo tape; el mismo componente, dos marcos.
-
-        Centrar con `flex justify-center` funciona en los dos marcos sin que el
-        componente tenga que saber en cuál está.
-      */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center border-t border-border bg-background p-2">
-        <Button size="lg" className="w-full md:w-64" onClick={irAAgendar}>
-          + Agendar
-        </Button>
-      </div>
+      <BarraDeAgendar alAgendar={irAAgendar} />
     </div>
   );
+}
+
+/** Qué enseña el encabezado: las cifras, su forma mientras se leen, o nada si no se leyó. */
+function estadoDelResumen(
+  falloDeCarga: string | null,
+  bloques: readonly BloqueDeAgenda[] | null,
+  resumen: ResumenDelDia,
+): ResumenDelDia | 'leyendo' | null {
+  if (falloDeCarga !== null) return null;
+  if (bloques === null) return 'leyendo';
+  return resumen;
+}
+
+/** El vacío dice HOY sólo cuando es hoy: el día de mañana vacío no es «hoy». */
+function tituloDelVacio(hayEquipo: boolean, dia: number, voc: Vocabulario): string {
+  if (!hayEquipo) return 'Primero da de alta a tu equipo.';
+  return dia === 0
+    ? `Hoy no hay ${voc.plural('orden')} todavía.`
+    : `Ese día todavía no tiene ${voc.plural('orden')}.`;
 }
 
 const minutosDe = (ms: number) => new Date(ms).getHours() * 60 + new Date(ms).getMinutes();

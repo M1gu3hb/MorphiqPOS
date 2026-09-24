@@ -18,84 +18,89 @@
    una línea. ============================================================== */
 
 @layer base {
+  /* ==========================================================================
+     SUS TOKENS, DERIVADOS DEL SISTEMA. Etapa 2.35.
+     --------------------------------------------------------------------------
+     Aquí estaban sus valores escritos a mano, y era el único sitio donde
+     vivían. El problema no era el archivo: era que había DOS vocabularios de
+     tokens, el inglés de shadcn —éste, vivo— y el español de `packages/ui`
+     —con contrato, perillas y auditoría de contraste, y muerto porque nadie
+     importaba su hoja—. Dos vocabularios garantizan que uno se queda atrás, y
+     uno ya se había quedado: 36 primitivas escribían `shadow-1..4` y
+     `h-(--altura-control)` en unos 190 sitios, y esas clases no emitían una
+     sola línea de CSS. El sistema pintaba con tokens que no existían.
+
+     Ahora hay UNO. La fuente es `packages/ui/src/estilos/morphiq.css` —que es
+     SU paleta, valor por valor— y estos nombres son alias suyos. Los 244
+     archivos del heredado siguen escribiendo `bg-card`, `text-muted-foreground`
+     y `bg-sidebar` sin cambiar una clase.
+
+     Y el modo oscuro desapareció DE AQUÍ, que es lo que más se gana: antes
+     había que acordarse de tocar dos bloques por cada color. Ahora el estilo
+     cambia sus tokens bajo `.dark` y estos alias lo siguen solos.
+     ========================================================================== */
   :root {
     --font-heading: var(--mh-dm-sans), 'DM Sans', sans-serif;
     --font-body: var(--mh-inter), 'Inter', sans-serif;
 
-    /* MH Astral Systems — Negro / Azul eléctrico */
-    --background: 220 20% 98%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 217 91% 55%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 215 25% 95%;
-    --secondary-foreground: 222 47% 15%;
-    --muted: 215 25% 94%;
-    --muted-foreground: 215 16% 46%;
-    --accent: 199 89% 92%;
-    --accent-foreground: 217 91% 30%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 215 20% 88%;
-    --input: 215 20% 88%;
-    --ring: 217 91% 55%;
-    --radius: 0.75rem;
+    /* MH Astral Systems — Negro / Azul eléctrico, vía el sistema de diseño */
+    --background: var(--fondo);
+    --foreground: var(--texto);
+    --card: var(--superficie);
+    --card-foreground: var(--texto);
+    --popover: var(--superficie-elevada);
+    --popover-foreground: var(--texto);
+    --primary: var(--primario);
+    --primary-foreground: var(--primario-texto);
+    --secondary: var(--fondo-sutil);
+    --secondary-foreground: var(--texto);
+    --muted: var(--fondo-sutil);
+    --muted-foreground: var(--texto-sutil);
+    /* Su `--accent` es una SUPERFICIE teñida —el hover del menú, la fila
+       resaltada—, no un color saturado. En el sistema es `acento-suave`, que
+       existe precisamente porque su paleta ya distinguía las dos cosas y el
+       contrato no. */
+    --accent: var(--acento-suave);
+    --accent-foreground: var(--acento-suave-texto);
+    --destructive: var(--peligro);
+    --destructive-foreground: var(--peligro-texto);
+    --border: var(--borde);
+    /* Su `--input` valía lo mismo que `--border`: 1.33:1 sobre el fondo, un
+       campo cuyo borde nadie ve. `borde-fuerte` es ese mismo tono a 3.21:1,
+       que es lo que WCAG 1.4.11 pide de un elemento no textual. */
+    --input: var(--borde-fuerte);
+    --ring: var(--anillo);
+    /* Su radio de 0.75rem es exactamente el `--radio-lg` de la perilla
+       `redondeo: media`, que es la que declara el estilo `morphiq`. Derivarlo
+       es lo que hace que la perilla funcione de verdad en los 244 archivos. */
+    --radius: var(--radio-lg);
 
-    --success: 152 60% 40%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
-    --info: 199 89% 48%;
-    --info-foreground: 0 0% 100%;
+    --success: var(--exito);
+    --success-foreground: var(--exito-texto);
+    --warning: var(--advertencia);
+    --warning-foreground: var(--advertencia-texto);
+    --info: var(--info);
+    --info-foreground: var(--info-texto);
 
-    --chart-1: 217 91% 55%;
-    --chart-2: 199 89% 48%;
-    --chart-3: 152 60% 40%;
-    --chart-4: 38 92% 50%;
-    --chart-5: 280 60% 55%;
+    --chart-1: var(--grafico-1);
+    --chart-2: var(--grafico-2);
+    --chart-3: var(--grafico-3);
+    --chart-4: var(--grafico-4);
+    --chart-5: var(--grafico-5);
 
-    /* Sidebar — negro profundo con acento azul */
-    --sidebar-background: 222 47% 7%;
-    --sidebar-foreground: 215 20% 88%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 35% 14%;
-    --sidebar-accent-foreground: 215 20% 92%;
-    --sidebar-border: 222 30% 16%;
-    --sidebar-ring: 217 91% 60%;
-  }
-
-  .dark {
-    --background: 222 47% 6%;
-    --foreground: 215 20% 92%;
-    --card: 222 40% 10%;
-    --card-foreground: 215 20% 92%;
-    --popover: 222 40% 10%;
-    --popover-foreground: 215 20% 92%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 222 30% 14%;
-    --secondary-foreground: 215 20% 90%;
-    --muted: 222 30% 14%;
-    --muted-foreground: 215 15% 60%;
-    --accent: 222 30% 18%;
-    --accent-foreground: 215 20% 92%;
-    --destructive: 0 72% 45%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 222 25% 18%;
-    --input: 222 25% 18%;
-    --ring: 217 91% 60%;
-    --sidebar-background: 222 50% 4%;
-    --sidebar-foreground: 215 20% 88%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 35% 10%;
-    --sidebar-accent-foreground: 215 20% 90%;
-    --sidebar-border: 222 30% 12%;
-    --sidebar-ring: 217 91% 60%;
+    /* Barra lateral oscura permanente — su decisión, y se conserva: en el
+       sistema `lateral-*` es oscuro en los dos modos. */
+    --sidebar-background: var(--lateral-fondo);
+    --sidebar-foreground: var(--lateral-texto);
+    --sidebar-primary: var(--lateral-activo);
+    --sidebar-primary-foreground: var(--lateral-activo-texto);
+    /* La barra es oscura en los DOS modos, asi que su hover tiene su propio token:
+       el acento suave de la pagina es clarisimo en modo claro y sobre una barra
+       casi negra seria un parche blanco. */
+    --sidebar-accent: var(--lateral-hover);
+    --sidebar-accent-foreground: var(--lateral-texto);
+    --sidebar-border: var(--lateral-borde);
+    --sidebar-ring: var(--anillo);
   }
 }
 

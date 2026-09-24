@@ -22,10 +22,18 @@
  * `demo-acople-`, y además rechaza explícitamente los cuatro por su slug:
  * `F2.3-REGLAS §4.5`.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
-// El `.env` a mano: este script no pasa por Next, que es quien lo carga.
-for (const linea of readFileSync('.env', 'utf8').split('\n')) {
+/**
+ * El `.env` a mano: este script no pasa por Next, que es quien lo carga.
+ *
+ * Y SI NO HAY, no pasa nada: en CI las variables llegan por el entorno del
+ * trabajo y el archivo no existe. Antes esto reventaba con `ENOENT .env` antes de
+ * leer una sola variable, lo que dejaba la siembra fuera de cualquier sitio que no
+ * fuera una laptop con su `.env` — y con ella el rastreador, que necesita las cinco
+ * demostraciones sembradas para poder tocar algo.
+ */
+for (const linea of (existsSync('.env') ? readFileSync('.env', 'utf8') : '').split('\n')) {
   const encontrado = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(linea.trim());
   if (encontrado !== null && process.env[encontrado[1]] === undefined) {
     process.env[encontrado[1]] = encontrado[2].replace(/^["']|["']$/g, '');
@@ -37,6 +45,44 @@ const { obtenerDb } = await import('../packages/data/src/cliente.ts');
 const { comando } = await import('../packages/app/src/produccion.ts');
 const { resetearDemo } = await import('../packages/app/src/demostracion/index.ts');
 const { PLANTILLA_POR_GIRO } = await import('../packages/contracts/src/comandos/plantillas.ts');
+const { fijarApariencia } = await import('../packages/app/src/configuracion/apariencia.ts');
+const { ESTILOS } = await import('../packages/ui/src/tokens/estilos.ts');
+
+/**
+ * EL ESTILO DE CADA DEMOSTRACIÓN, y por qué no son las cinco iguales.
+ *
+ * «Cada modelo se siente el suyo.» Un cliente al que se le enseñan los cinco negocios
+ * con la misma piel ve cinco veces el mismo programa con otras palabras; con su piel
+ * ve su ferretería, su salón y su tiendita. La piel es además lo único que cambia sin
+ * tocar un componente: UN JUEGO DE COMPONENTES, N JUEGOS DE TOKENS.
+ *
+ * El reparto no es un gusto: sale de la razón por la que cada estilo existe, escrita
+ * en su propio archivo y en `04-SISTEMA-DE-DISENO`.
+ *
+ *   · ferretería → TALLER · «materiales de verdad: ferretería, taller, refaccionaria»,
+ *     y 56 px de control porque en enero se cobra con guante puesto.
+ *   · estética → CRISTAL · «translúcido y caro: estética, spa, joyería».
+ *   · tiendita → BLOQUE · «feo y legible a propósito: mostrador rápido, hora pico»,
+ *     que es exactamente la tiendita a las siete de la tarde.
+ *   · restaurante → NOCHE · «para operar a oscuras: barra, cocina, taquilla». Un
+ *     comedor cena con la luz baja y la comanda se lee a dos metros.
+ *   · cafetería → MORPHIQ · el base, el que ya vende. Alguno de los cinco tiene que
+ *     enseñarlo, y la cafetería es la que se mira a plena luz de la mañana.
+ *
+ * Quedan sin repartir RELIEVE, TERMINAL y PAPEL: los ve quien abra el selector, que
+ * es la otra mitad de la demostración.
+ *
+ * Se aplica con el MISMO comando que usa Miguel delante del cliente
+ * —`configuracion.fijar_apariencia`—, no escribiendo la fila a mano: una apariencia
+ * que no pasa por el comando no prueba que el comando funcione.
+ */
+const ESTILO_POR_GIRO = {
+  ferreteria: 'taller',
+  estetica: 'cristal',
+  tienda: 'bloque',
+  restaurante: 'noche',
+  cafeteria: 'morphiq',
+};
 
 /** Los cuatro negocios que cobran, por slug. No por nombre: el nombre se cambia. */
 const SLUGS_VIVOS = new Set([
@@ -162,6 +208,38 @@ for (const demo of demos) {
     console.error(`✗ «${demo.slug}»: ${resultado.error.codigo} · ${resultado.error.mensaje ?? ''}`);
     fallos += 1;
     continue;
+  }
+
+  /**
+   * LA PIEL DE LA DEMOSTRACIÓN, con las perillas que el propio estilo declara.
+   *
+   * Va DESPUÉS de sembrar y no antes porque `resetear_demo` reescribe la sección de
+   * configuración del negocio: puesta antes, la siembra se la llevaría por delante y
+   * las cinco demos volverían a verse iguales sin que nadie supiera por qué.
+   *
+   * Un fallo aquí NO cuenta como demo sin sembrar: el catálogo, el inventario y la
+   * caja ya están, y lo único que faltaría es el color. Se dice y se sigue.
+   */
+  const estilo = ESTILO_POR_GIRO[demo.giro];
+  const definicion = estilo === undefined ? undefined : ESTILOS[estilo];
+  if (definicion !== undefined) {
+    const pintada = await comando(fijarApariencia, {
+      ambito: {
+        organizacionId: demo.id,
+        sucursalId: sucursal.id,
+        terminalId: null,
+        identidadId: dueno.identidadId,
+        empleoId: dueno.empleoId,
+        rol: 'dueno',
+      },
+      entrada: { estilo, ...definicion.perillas },
+      idempotencyKey: `sembrar-demos:apariencia:${demo.slug}:${sello}:${estilo}`,
+    });
+    if (!pintada.ok) {
+      console.error(
+        `  · ${demo.slug}: sembrado, pero sin estilo «${estilo}» (${pintada.error.codigo}).`,
+      );
+    }
   }
 
   const d = resultado.datos;

@@ -11,10 +11,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@morphiqpos/ui/primitivas/select';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import {
+  Aviso,
+  CampoDeDinero,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Vacio,
+} from '@morphiqpos/ui/sistema';
+import { Check, ReceiptText, Smartphone, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -30,6 +41,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * las ventas del día con dinero ajeno y convierte el margen del mes en una
  * mentira. Por eso aquí no hay productos, ni carrito, ni total de venta.
  *
+ * ── Por qué las seis operaciones son teselas ─────────────────────────────
+ * Es lo primero que se ve (`04-INTERFAZ` §PANTALLA 3): tres operadores y tres
+ * servicios, grandes, que se tocan. Cada tesela dice además lo que decide el
+ * toque —el saldo que queda con ese operador, la comisión de ese servicio—
+ * para que el cajero no tenga que ir a buscarlo a otra parte de la pantalla.
+ *
  * ── Por qué la comisión se ve ANTES de cobrar ────────────────────────────
  * Es lo único que convierte un trámite en un negocio a los ojos del tendero.
  * Un sistema que no le enseña cuánto ganó por hacerlo no le está enseñando
@@ -44,7 +61,8 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ── Por qué en teléfono hay una lista y una sola operación ───────────────
  * Quien abre esto desde el teléfono es el dueño, y no viene a operar: viene a
  * ver cuánto lleva de comisión. Por eso la barra de abajo es lo que siempre
- * se ve, y los dos carriles se reducen a la operación que él elija.
+ * se ve —y ahí la comisión del día va primero—, y los dos carriles se reducen
+ * a la operación que él elija.
  *
  * ── Lo que quedó FUERA, dicho y no escondido ─────────────────────────────
  * 1. Las comisiones son las de referencia del documento (6 % en recarga,
@@ -74,7 +92,10 @@ const OTROS_SERVICIOS = ['Izzi', 'Totalplay', 'Gas natural', 'Agua', 'Mercado Li
 
 const COMISION_OTRO_CENTAVOS = 800;
 const PORCENTAJE_RECARGA = 6;
-const MONTOS = [20, 30, 50, 100, 200] as const;
+/** Los montos de un toque, en centavos: la recarga también es dinero. */
+const MONTOS_CENTAVOS = [2000, 3000, 5000, 10000, 20000] as const;
+/** La recarga con la que el vacío enseña cuánto se gana. */
+const RECARGA_DE_EJEMPLO_CENTAVOS = 5000;
 const MINIMO_ALERTA_CENTAVOS = 30000;
 const DIGITOS_TELEFONO = 10;
 const DIGITOS_REFERENCIA = 6;
@@ -131,18 +152,26 @@ export interface ServiciosProps {
   readonly onCobrada?: (proveedor: string, comisionCentavos: number) => void;
 }
 
-/** Centavos a pesos para una persona. Aritmética entera de punta a punta. */
-export function enPesos(centavos: number): string {
-  const miles = Math.trunc(Math.abs(centavos) / 100)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `$${miles}.${(Math.abs(centavos) % 100).toString().padStart(2, '0')}`;
-}
+/** Qué escritura está en camino: el botón que la mandó es el que lo dice. */
+type EnCurso = 'recarga' | 'pago_servicio' | 'saldo';
 
-/** Texto tecleado a centavos sin pasar por coma flotante. */
-export function aCentavos(texto: string): number {
-  const [entero = '', decimal = ''] = texto.replace(/[^\d.]/g, '').split('.');
-  return Number(entero === '' ? '0' : entero) * 100 + Number(`${decimal}00`.slice(0, 2));
+/**
+ * Lo que acaba de salir bien. Se guardan los CENTAVOS y no la frase: la frase se
+ * pinta con `<Dinero>`, y un importe hecho texto en el estado ya no se alinea.
+ */
+type Hecho =
+  | {
+      readonly tipo: 'cobro';
+      readonly operacion: string;
+      readonly recibidoCentavos: number;
+      readonly comisionCentavos: number;
+    }
+  | { readonly tipo: 'saldo'; readonly proveedor: string; readonly saldoCentavos: number };
+
+/** Lo que falló, y lo que por eso NO pasó: las dos mitades del aviso. */
+interface FalloDeOperacion {
+  readonly mensaje: string;
+  readonly queNoPaso: string;
 }
 
 export function comisionDeRecarga(centavos: number): number {
@@ -162,10 +191,57 @@ function mensajeDeFallo(fallo: unknown): string {
   return fallo instanceof Error ? fallo.message : 'No se pudo completar la operación.';
 }
 
+/**
+ * LOS PESOS DEL PUENTE, A CENTAVOS. `saldo_centavos`, `comision_acumulada_centavos`,
+ * `comision_centavos` y `monto_ajeno_centavos` son `conversion: 'dinero'` en
+ * `puente/mapa.ts`: llegan en PESOS aunque se llamen `…_centavos`. Leídos tal cual,
+ * el saldo salía cien veces más chico —«Saldo bajo» siempre, y «sin saldo» con
+ * saldo de sobra—. Lo que devuelven los COMANDOS ya viene en centavos.
+ */
+function saldoDelPuente(fila: SaldoDeComisionista): SaldoDeComisionista {
+  return {
+    ...fila,
+    saldo_centavos: centavosDelPuente(fila.saldo_centavos),
+    comision_acumulada_centavos: centavosDelPuente(fila.comision_acumulada_centavos),
+  };
+}
+
+function operacionDelPuente(fila: OperacionDeComision): OperacionDeComision {
+  return {
+    ...fila,
+    comision_centavos: centavosDelPuente(fila.comision_centavos),
+    monto_ajeno_centavos: centavosDelPuente(fila.monto_ajeno_centavos),
+  };
+}
+
 /** La medianoche de HOY, en ISO: el rango con el que se piden las operaciones del día. */
 function comienzoDelDia(): string {
   const ahora = new Date();
   return new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()).toISOString();
+}
+
+/**
+ * Un carril mientras se lee: su marco, sus tres teselas, sus campos y el botón de
+ * cobrar EN SU SITIO. Cuando llegan los datos nada salta, y el ojo ya sabe dónde
+ * va a estar el botón.
+ */
+function EsqueletoDeCarril({ className = '' }: { readonly className?: string }) {
+  return (
+    <Superficie
+      relleno={3}
+      className={`flex flex-col gap-(--espacio-3) xl:p-(--espacio-4) ${className}`}
+    >
+      <Esqueleto className="h-4 w-28" />
+      <div className="hidden grid-cols-3 gap-(--espacio-2) md:grid">
+        {Array.from({ length: 3 }, (_, indice) => (
+          <Esqueleto key={indice} className="min-h-20" />
+        ))}
+      </div>
+      <Esqueleto className="h-(--altura-control) w-full" />
+      <Esqueleto className="h-(--altura-control) w-full" />
+      <Esqueleto className="h-20 w-full" />
+    </Superficie>
+  );
 }
 
 export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: ServiciosProps) {
@@ -177,6 +253,11 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
   const [operaciones, setOperaciones] = useState<readonly OperacionDeComision[] | null>(
     operacionesIniciales ?? null,
   );
+  /** La LECTURA que no llegó. No es la de un cobro: ésa es `fallo`. */
+  const [falloDeLectura, setFalloDeLectura] = useState<string | null>(null);
+  // Cada lectura es un número: «Volver a leer» lo sube y el efecto lee otra vez.
+  // El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
   // Telcel llega elegido porque es siete de cada diez recargas: no es una
   // suposición cómoda, es un toque menos en la operación más repetida del día.
   const [proveedorRecarga, setProveedorRecarga] = useState('Telcel');
@@ -185,14 +266,15 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
   const [proveedorServicio, setProveedorServicio] = useState<string | null>(null);
   const [eleccionMovil, setEleccionMovil] = useState('recarga:Telcel');
   const [telefono, setTelefono] = useState('');
-  const [monto, setMonto] = useState('');
+  /** El monto de la recarga, en centavos. Los botones y el campo «otro» son este mismo estado. */
+  const [monto, setMonto] = useState<number | null>(null);
   const [referencia, setReferencia] = useState('');
-  const [importe, setImporte] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  /** Lo que se va a cargar de saldo, en pesos tal como se teclea. */
-  const [carga, setCarga] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [importe, setImporte] = useState<number | null>(null);
+  /** Lo que se va a cargar de saldo, en centavos. */
+  const [carga, setCarga] = useState<number | null>(null);
+  const [enCurso, setEnCurso] = useState<EnCurso | null>(null);
+  const [fallo, setFallo] = useState<FalloDeOperacion | null>(null);
+  const [hecho, setHecho] = useState<Hecho | null>(null);
 
   useEffect(() => {
     if (saldosIniciales !== undefined && operacionesIniciales !== undefined) return;
@@ -208,7 +290,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
         limite: 50,
         signal: control.signal,
       }),
-      // Las del DÍA: la lista de abajo dice «Hoy: N operaciones», y traer el
+      // Las del DÍA: la barra de abajo dice «Hoy: N operaciones», y traer el
       // histórico entero para contar las de hoy es lo que hace lenta una pantalla
       // de mostrador.
       consultarPuente<OperacionDeComision>('OperacionComision', {
@@ -220,22 +302,37 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
       .then(([filasComisionistas, filasSaldo, filasOperaciones]) => {
         if (!sigueMontada()) return;
         setComisionistas(filasComisionistas);
-        setSaldos(saldosIniciales ?? filasSaldo);
-        setOperaciones(operacionesIniciales ?? filasOperaciones);
+        setSaldos(saldosIniciales ?? filasSaldo.map(saldoDelPuente));
+        setOperaciones(operacionesIniciales ?? filasOperaciones.map(operacionDelPuente));
       })
-      .catch((fallo: unknown) => {
+      .catch((causa: unknown) => {
         if (!sigueMontada()) return;
         // Una lectura caída NO puede impedir un cobro: el agregador vive en
-        // otro sitio. La pantalla se abre igual, con la banda encima.
+        // otro sitio. La pantalla se abre igual, con el error encima.
         setSaldos((previo) => previo ?? []);
         setOperaciones((previo) => previo ?? []);
-        setError(mensajeDeFallo(fallo));
+        setFalloDeLectura(mensajeDeFallo(causa));
       });
     return () => {
       control.abort();
     };
-  }, [saldosIniciales, operacionesIniciales]);
+  }, [saldosIniciales, operacionesIniciales, intento]);
 
+  function releer(): void {
+    setFalloDeLectura(null);
+    setSaldos(saldosIniciales ?? null);
+    setOperaciones(operacionesIniciales ?? null);
+    setIntento((previo) => previo + 1);
+  }
+
+  const enviando = enCurso !== null;
+  /**
+   * EL SALDO NO SE LEYÓ: la lectura cayó y las listas quedaron vacías. De una lista
+   * vacía sale cero para todos, y cero no es «sin saldo», es «no se sabe». Mientras
+   * tanto nada se afirma —ni «sin saldo», ni «Saldo bajo»— y la recarga no se
+   * bloquea: la pantalla ya dice «Puedes seguir cobrando», y eso tiene que ser verdad.
+   */
+  const saldoSinLeer = falloDeLectura !== null;
   const listaSaldos = saldos ?? [];
   const listaOperaciones = operaciones ?? [];
   /** El nombre por su id: el saldo y la operación traen la llave, no el nombre. */
@@ -251,7 +348,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
     (fila) => comisionistas.find((c) => c.id === fila.id)?.modelo !== 'pospago',
   );
   const saldoTotal = deRecargas.reduce((suma, fila) => suma + (fila.saldo_centavos ?? 0), 0);
-  const minimo = MINIMO_ALERTA_CENTAVOS;
+  const saldoBajo = !saldoSinLeer && saldoTotal < MINIMO_ALERTA_CENTAVOS;
   const comisionDeHoy = listaOperaciones.reduce(
     (suma, fila) => suma + (fila.comision_centavos ?? 0),
     0,
@@ -260,17 +357,20 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
     .filter((fila) => (fila.saldo_centavos ?? 0) < MINIMO_ALERTA_CENTAVOS)
     .map((fila) => nombreDelComisionista.get(fila.id) ?? 'sin nombre');
 
+  /** El saldo que queda con un operador: es lo que dice su tesela. */
+  function saldoDe(nombre: string): number {
+    const id = comisionistas.find((c) => c.nombre === nombre)?.id;
+    return id === undefined ? 0 : (listaSaldos.find((fila) => fila.id === id)?.saldo_centavos ?? 0);
+  }
+
   const digitos = telefono.replace(/\D/g, '');
-  const montoCentavos = aCentavos(monto);
-  const importeCentavos = aCentavos(importe);
+  const montoCentavos = monto ?? 0;
+  const importeCentavos = importe ?? 0;
   const comisionRecarga = comisionDeRecarga(montoCentavos);
   const comisionServicio = proveedorServicio === null ? 0 : comisionDeServicio(proveedorServicio);
   const idDelOperador = comisionistas.find((c) => c.nombre === proveedorRecarga)?.id ?? null;
-  const saldoDelOperador =
-    idDelOperador === null
-      ? 0
-      : (listaSaldos.find((fila) => fila.id === idDelOperador)?.saldo_centavos ?? 0);
-  const sinSaldo = saldoDelOperador === 0 || saldoDelOperador < montoCentavos;
+  const saldoDelOperador = saldoDe(proveedorRecarga);
+  const sinSaldo = !saldoSinLeer && (saldoDelOperador === 0 || saldoDelOperador < montoCentavos);
   const listoRecarga = digitos.length === DIGITOS_TELEFONO && montoCentavos > 0 && !sinSaldo;
   const listoServicio =
     proveedorServicio !== null &&
@@ -294,17 +394,17 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
    * donde vive ese dato.
    */
   async function cargarSaldoDeRecargas(): Promise<void> {
-    const centavos = aCentavos(carga);
+    const centavos = carga ?? 0;
     if (centavos <= 0) return;
-    setEnviando(true);
-    setError(null);
-    setAviso(null);
+    setEnCurso('saldo');
+    setFallo(null);
+    setHecho(null);
     try {
-      const hecho = await invocarComando<{ readonly saldoCentavos: string }>(
+      const respuesta = await invocarComando<{ readonly saldoCentavos: string }>(
         '/api/comision/cargar-saldo',
         { proveedorServicio: proveedorRecarga, depositadoCentavos: centavos },
       );
-      const despues = Number(hecho.saldoCentavos);
+      const despues = Number(respuesta.saldoCentavos);
       setSaldos(
         idDelOperador === null
           ? listaSaldos
@@ -312,12 +412,12 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
               fila.id === idDelOperador ? { ...fila, saldo_centavos: despues } : fila,
             ),
       );
-      setCarga('');
-      setAviso(`Saldo de ${proveedorRecarga} cargado: quedan ${enPesos(despues)} por vender.`);
-    } catch (fallo) {
-      setError(mensajeDeFallo(fallo));
+      setCarga(null);
+      setHecho({ tipo: 'saldo', proveedor: proveedorRecarga, saldoCentavos: despues });
+    } catch (causa) {
+      setFallo({ mensaje: mensajeDeFallo(causa), queNoPaso: 'El saldo no se cargó.' });
     } finally {
-      setEnviando(false);
+      setEnCurso(null);
     }
   }
 
@@ -327,9 +427,9 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
     if (proveedor === null) return;
     const recibido = esRecarga ? montoCentavos : importeCentavos;
     const comision = esRecarga ? comisionRecarga : comisionServicio;
-    setEnviando(true);
-    setError(null);
-    setAviso(null);
+    setEnCurso(tipo);
+    setFallo(null);
+    setHecho(null);
     try {
       /**
        * EL CAMPO SE LLAMA `proveedorServicio`, y aquí decía `proveedor`.
@@ -342,7 +442,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
        * La clave de idempotencia la pone `invocarComando`: sin ella, un doble clic
        * con mala red cobra dos veces el mismo recibo.
        */
-      const hecho = await invocarComando<{
+      const respuesta = await invocarComando<{
         readonly saldoDelComisionistaCentavos: string;
       }>('/api/comision/registrar', {
         tipo,
@@ -366,363 +466,488 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
         // El saldo que devuelve el SERVIDOR, no una resta local: es el número con
         // el que se arquea a las nueve, y restarlo aquí lo haría depender de que
         // la pantalla supiera el saldo de partida.
-        const despues = Number(hecho.saldoDelComisionistaCentavos);
+        const despues = Number(respuesta.saldoDelComisionistaCentavos);
         setSaldos(
           listaSaldos.map((fila) =>
             fila.id === idDelOperador ? { ...fila, saldo_centavos: despues } : fila,
           ),
         );
         setTelefono('');
-        setMonto('');
+        setMonto(null);
       } else {
         setReferencia('');
-        setImporte('');
+        setImporte(null);
       }
-      // Con estas palabras, porque es la confusión número uno del giro.
-      // «venta» es la palabra del GIRO —en una ferretería es una nota— y es justo la
-      // frase donde importa: lo que se está explicando es qué NO es esto.
-      setAviso(
-        `Los ${enPesos(recibido)} entran a la caja pero no cuentan como ` +
-          `${voc.singular('orden')}. Tu ganancia son ${enPesos(comision)}.`,
-      );
+      setHecho({
+        tipo: 'cobro',
+        operacion: esRecarga ? `Recarga ${proveedor}` : `Pago de ${proveedor}`,
+        recibidoCentavos: recibido,
+        comisionCentavos: comision,
+      });
       onCobrada?.(proveedor, comision);
-    } catch (fallo) {
+    } catch (causa) {
       // Las dos cosas o ninguna: si falló, ni se cobró ni se movió la caja.
-      setError(mensajeDeFallo(fallo));
+      setFallo({
+        mensaje: mensajeDeFallo(causa),
+        queNoPaso: 'No se cobró nada y la caja no se movió.',
+      });
     } finally {
-      setEnviando(false);
+      setEnCurso(null);
     }
   }
 
-  const banda =
-    error === null ? null : (
-      <p
-        role="alert"
-        className="rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
-      >
-        {error} · No se cobró nada y la caja no se movió.
-      </p>
-    );
-
   if (saldos === null || operaciones === null) {
     return (
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-5 w-40" />
-        {/* Esqueletos con la forma de los dos carriles: el botón de cobrar no
-            salta de sitio cuando llegan los datos. */}
-        <div className="grid gap-4 xl:grid-cols-2">
-          <Skeleton className="h-80 w-full rounded-lg" />
-          <Skeleton className="hidden h-80 w-full rounded-lg md:block" />
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Cargando el saldo y las operaciones de hoy"
+        className="flex min-h-dvh flex-col gap-(--espacio-3) p-(--espacio-3) xl:p-(--espacio-4)"
+      >
+        <Esqueleto className="h-5 w-40" />
+        {/* La forma de los dos carriles: el botón de cobrar no salta de sitio
+            cuando llegan los datos. En teléfono, uno solo, como después. */}
+        <div className="grid gap-(--espacio-3) xl:grid-cols-2 xl:gap-(--espacio-4)">
+          <EsqueletoDeCarril />
+          <EsqueletoDeCarril className="hidden md:flex" />
         </div>
-        <Skeleton className="h-5 w-full" />
+        <Esqueleto className="mt-auto h-(--altura-control) w-full" />
       </div>
     );
   }
 
-  if (error === null && listaSaldos.length === 0 && listaOperaciones.length === 0) {
+  if (falloDeLectura === null && listaSaldos.length === 0 && listaOperaciones.length === 0) {
+    // El vacío ENSEÑA el negocio que falta; no se disculpa por no tener datos.
     return (
-      <div className="mx-auto max-w-xl space-y-4 p-8 text-center">
-        <p className="text-xl font-semibold">Aquí se cobra dinero ajeno y se gana comisión.</p>
-        {/* El vacío ENSEÑA el negocio que falta; no se disculpa por no tener datos. */}
-        <p className="text-muted-foreground">
-          Una recarga de $50 te deja {enPesos(comisionDeRecarga(5000))} y un recibo de luz
-          {` ${enPesos(comisionDeServicio('CFE'))}`}. Treinta operaciones al día son cerca de $200
-          diarios que hoy no estás cobrando, y además traen gente a la tienda.
-        </p>
-        <Button asChild>
-          <a href="/configuracion">Dar de alta mi cuenta de comisionista</a>
-        </Button>
+      <div className="mx-auto max-w-xl p-(--espacio-8)">
+        <Vacio
+          icono={<Smartphone />}
+          titulo="Aquí se cobra dinero ajeno y se gana comisión."
+          accion={
+            <Button asChild>
+              <a href="/configuracion">Dar de alta mi cuenta de comisionista</a>
+            </Button>
+          }
+        >
+          <p className="max-w-prose text-sm text-texto-sutil">
+            Una recarga de <Dinero centavos={RECARGA_DE_EJEMPLO_CENTAVOS} tamano="sm" /> te deja{' '}
+            <Dinero centavos={comisionDeRecarga(RECARGA_DE_EJEMPLO_CENTAVOS)} tamano="sm" /> y un
+            recibo de luz <Dinero centavos={comisionDeServicio('CFE')} tamano="sm" />. Treinta
+            operaciones al día son cerca de $200 diarios que hoy no estás cobrando, y además traen
+            gente a la tienda.
+          </p>
+        </Vacio>
       </div>
     );
   }
+
+  const avisoDelHecho = (() => {
+    if (hecho === null) return null;
+    if (hecho.tipo === 'saldo') {
+      return (
+        <Aviso tono="exito" titulo={`Saldo de ${hecho.proveedor} cargado`}>
+          Quedan <Dinero centavos={hecho.saldoCentavos} tamano="sm" /> por vender.
+        </Aviso>
+      );
+    }
+    // Con estas palabras, porque es la confusión número uno del giro.
+    // «venta» es la palabra del GIRO —en una ferretería es una nota— y es justo la
+    // frase donde importa: lo que se está explicando es qué NO es esto.
+    return (
+      <Aviso tono="exito" titulo={`Cobrado · ${hecho.operacion}`}>
+        Los <Dinero centavos={hecho.recibidoCentavos} tamano="sm" /> entran a la caja pero no
+        cuentan como {voc.singular('orden')}. Tu ganancia son{' '}
+        <Dinero centavos={hecho.comisionCentavos} tamano="sm" conSigno />.
+      </Aviso>
+    );
+  })();
 
   return (
-    <div className="flex min-h-dvh flex-col gap-3 p-4">
-      <header className="flex flex-wrap items-end justify-between gap-2">
-        <h1 className="text-xl font-bold">Servicios</h1>
-        {/* TELÉFONO · una operación a la vez, elegida de una lista. */}
-        <div className="w-full space-y-1 md:hidden">
-          <Label htmlFor="operacion-movil">Operación</Label>
-          <Select value={eleccionMovil} onValueChange={elegirEnMovil}>
-            <SelectTrigger id="operacion-movil" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RECARGAS.map((nombre) => (
-                <SelectItem key={nombre} value={`recarga:${nombre}`}>
-                  Recarga {nombre}
-                </SelectItem>
-              ))}
-              {[...SERVICIOS.map((s) => s.nombre), ...OTROS_SERVICIOS].map((nombre) => (
-                <SelectItem key={nombre} value={`servicio:${nombre}`}>
-                  Pago de {nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </header>
+    <div className="flex min-h-dvh flex-col">
+      <div className="flex flex-1 flex-col gap-(--espacio-3) p-(--espacio-3) xl:p-(--espacio-4)">
+        <header className="flex flex-wrap items-end justify-between gap-(--espacio-2)">
+          <h1 className="text-xl font-bold">Servicios</h1>
+          {/* TELÉFONO · una operación a la vez, elegida de una lista. */}
+          <div className="flex w-full flex-col gap-(--espacio-1) md:hidden">
+            <Label htmlFor="operacion-movil">Operación</Label>
+            <Select value={eleccionMovil} onValueChange={elegirEnMovil}>
+              <SelectTrigger id="operacion-movil" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RECARGAS.map((nombre) => (
+                  <SelectItem key={nombre} value={`recarga:${nombre}`}>
+                    Recarga {nombre}
+                  </SelectItem>
+                ))}
+                {[...SERVICIOS.map((s) => s.nombre), ...OTROS_SERVICIOS].map((nombre) => (
+                  <SelectItem key={nombre} value={`servicio:${nombre}`}>
+                    Pago de {nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </header>
 
-      {banda}
-      {aviso !== null && (
-        <p role="status" className="rounded-md border border-border bg-accent p-2 text-sm">
-          {aviso}
-        </p>
-      )}
-
-      {/* PC dos columnas · TABLET dos filas apiladas · TELÉFONO sólo la elegida. */}
-      <div className="grid flex-1 gap-4 xl:grid-cols-2">
-        <section
-          aria-labelledby="titulo-recarga"
-          className={`${carrilMovil === 'recarga' ? '' : 'hidden'} space-y-3 rounded-lg border border-border bg-card p-4 md:block`}
-        >
-          <h2 id="titulo-recarga" className="text-sm font-bold uppercase tracking-wide">
-            Recarga
-          </h2>
-          <div className="hidden gap-2 md:grid md:grid-cols-3">
-            {RECARGAS.map((nombre) => (
-              <Button
-                key={nombre}
-                type="button"
-                aria-pressed={proveedorRecarga === nombre}
-                variant={proveedorRecarga === nombre ? 'default' : 'outline'}
-                className="h-20 text-base"
-                onClick={() => {
-                  setProveedorRecarga(nombre);
-                }}
-              >
-                {nombre}
+        {/* La LECTURA no llegó, pero la pantalla se abre igual: el agregador vive
+            en otro sitio y un saldo sin leer no es razón para no cobrar. */}
+        {falloDeLectura === null ? null : (
+          <ErrorDePantalla
+            titulo="No se leyeron el saldo ni las operaciones de hoy"
+            queHacer="Puedes seguir cobrando. El saldo y la comisión de abajo no están al día hasta que se vuelvan a leer."
+            detalle={falloDeLectura}
+            reintentar={
+              <Button type="button" variant="outline" size="sm" onClick={releer}>
+                Volver a leer
               </Button>
-            ))}
-          </div>
+            }
+          />
+        )}
+        {fallo === null ? null : (
+          <Aviso tono="peligro" titulo={fallo.mensaje}>
+            {fallo.queNoPaso}
+          </Aviso>
+        )}
+        {avisoDelHecho}
 
-          <div className="space-y-1">
-            <Label htmlFor="telefono">Teléfono a diez dígitos</Label>
-            <Input
-              id="telefono"
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder="55 1234 5678"
-              value={telefono}
-              onChange={(evento) => {
-                setTelefono(evento.target.value);
-              }}
-            />
-          </div>
+        {/* PC dos columnas · TABLET dos filas apiladas · TELÉFONO sólo la elegida. */}
+        <div className="grid gap-(--espacio-3) xl:grid-cols-2 xl:gap-(--espacio-4)">
+          <Superficie
+            como="section"
+            relleno={3}
+            aria-labelledby="titulo-recarga"
+            className={`${carrilMovil === 'recarga' ? 'flex' : 'hidden'} flex-col gap-(--espacio-3) md:flex xl:p-(--espacio-4)`}
+          >
+            <h2
+              id="titulo-recarga"
+              className="flex items-center gap-(--espacio-2) text-sm font-bold tracking-wide uppercase"
+            >
+              <Smartphone aria-hidden="true" className="size-4 text-texto-sutil" />
+              Recarga
+            </h2>
+            <ul aria-label="Operador" className="hidden grid-cols-3 gap-(--espacio-2) md:grid">
+              {RECARGAS.map((nombre) => {
+                const elegido = proveedorRecarga === nombre;
+                const saldo = saldoDe(nombre);
+                return (
+                  <li key={nombre}>
+                    <Superficie
+                      como="button"
+                      type="button"
+                      interactiva
+                      activa={elegido}
+                      aria-pressed={elegido}
+                      relleno={3}
+                      radio="md"
+                      className="flex min-h-20 w-full flex-col justify-between gap-(--espacio-1)"
+                      onClick={() => {
+                        setProveedorRecarga(nombre);
+                      }}
+                    >
+                      <span className="flex items-center justify-between gap-(--espacio-1) text-base font-semibold">
+                        {nombre}
+                        {/* El anillo no es lo único que dice cuál está elegido. */}
+                        {elegido ? (
+                          <Check aria-hidden="true" className="size-4 text-primario" />
+                        ) : null}
+                      </span>
+                      {/* Sin saldo se dice con la palabra: el operador que ya no
+                          vende se ve ANTES de teclear el número. Sin lectura no se
+                          sabe, y se dice eso: no «sin saldo». */}
+                      {saldoSinLeer ? (
+                        <span className="text-xs text-texto-sutil">saldo sin leer</span>
+                      ) : saldo <= 0 ? (
+                        <span className="text-xs font-medium text-peligro">sin saldo</span>
+                      ) : (
+                        <span className="text-xs text-texto-sutil">
+                          saldo <Dinero centavos={saldo} tamano="xs" />
+                        </span>
+                      )}
+                    </Superficie>
+                  </li>
+                );
+              })}
+            </ul>
 
-          <fieldset className="space-y-1">
-            <legend className="text-sm font-medium">Monto</legend>
-            <div className="flex flex-wrap gap-2">
-              {MONTOS.map((pesos) => (
-                <Button
-                  key={pesos}
-                  type="button"
-                  size="sm"
-                  aria-pressed={monto === String(pesos)}
-                  variant={monto === String(pesos) ? 'default' : 'outline'}
-                  onClick={() => {
-                    setMonto(String(pesos));
-                  }}
-                >
-                  {`$${String(pesos)}`}
-                </Button>
-              ))}
-              {/* El «otro» del documento es este campo: escribir encima de un
-                  chip es lo mismo que elegirlo, con un solo estado detrás. */}
+            <div className="flex flex-col gap-(--espacio-1)">
+              <Label htmlFor="telefono">Teléfono a diez dígitos</Label>
               <Input
-                aria-label="Otro monto de recarga"
-                inputMode="decimal"
-                placeholder="Otro"
-                className="w-24"
-                value={monto}
+                id="telefono"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="55 1234 5678"
+                className="h-[calc(var(--altura-control)*1.25)] font-numeros text-lg tabular-nums"
+                value={telefono}
                 onChange={(evento) => {
-                  setMonto(evento.target.value);
+                  setTelefono(evento.target.value);
                 }}
               />
             </div>
-          </fieldset>
 
-          <p className="text-sm">
-            Comisión para la tienda: <strong>{enPesos(comisionRecarga)}</strong>
-          </p>
-          <Button
-            type="button"
-            className="h-20 w-full text-xl"
-            disabled={!listoRecarga || enviando}
-            aria-describedby="razon-recarga"
-            onClick={() => {
-              void cobrar('recarga');
-            }}
-          >
-            COBRAR {enPesos(montoCentavos)}
-          </Button>
-          {/* El motivo se escribe, no se insinúa con un botón gris: el color
-              nunca es el único que dice por qué algo no se puede. */}
-          <p id="razon-recarga" className="text-xs text-muted-foreground">
-            {sinSaldo
-              ? 'Sin saldo con este operador: deposita para seguir recargando.'
-              : digitos.length !== DIGITOS_TELEFONO
-                ? 'Faltan dígitos del teléfono.'
-                : montoCentavos === 0
-                  ? 'Elige el monto.'
-                  : 'El dinero entra a la caja; tu ganancia es la comisión.'}
-          </p>
-          {sinSaldo && (
-            <Button variant="outline" className="w-full" asChild>
-              <a href="/configuracion">Depositar saldo con el comisionista</a>
-            </Button>
-          )}
-        </section>
+            <fieldset className="flex flex-col gap-(--espacio-1)">
+              <legend className="mb-(--espacio-1) text-sm font-medium">Monto</legend>
+              <div className="grid grid-cols-3 gap-(--espacio-2)">
+                {MONTOS_CENTAVOS.map((centavos) => (
+                  <Button
+                    key={centavos}
+                    type="button"
+                    aria-pressed={monto === centavos}
+                    variant={monto === centavos ? 'default' : 'outline'}
+                    onClick={() => {
+                      setMonto(centavos);
+                    }}
+                  >
+                    <Dinero centavos={centavos} />
+                  </Button>
+                ))}
+                {/* El «otro» del documento es este campo: escribir encima de un
+                    monto es lo mismo que elegirlo, con un solo estado detrás. */}
+                <CampoDeDinero
+                  aria-label="Otro monto de recarga"
+                  placeholder="Otro"
+                  centavos={monto}
+                  alCambiar={setMonto}
+                />
+              </div>
+            </fieldset>
 
-        <section
-          aria-labelledby="titulo-servicio"
-          className={`${carrilMovil === 'servicio' ? '' : 'hidden'} space-y-3 rounded-lg border border-border bg-card p-4 md:block`}
-        >
-          <h2 id="titulo-servicio" className="text-sm font-bold uppercase tracking-wide">
-            Pago de servicio
-          </h2>
-          <div className="hidden gap-2 md:grid md:grid-cols-3">
-            {SERVICIOS.map((servicio) => (
+            <div className="mt-auto flex flex-col gap-(--espacio-2)">
+              <p className="flex items-baseline justify-between gap-(--espacio-2) text-sm">
+                <span className="text-texto-sutil">Comisión para la tienda</span>
+                <Dinero centavos={comisionRecarga} tamano="lg" conSigno />
+              </p>
               <Button
-                key={servicio.nombre}
                 type="button"
-                aria-pressed={proveedorServicio === servicio.nombre}
-                variant={proveedorServicio === servicio.nombre ? 'default' : 'outline'}
-                className="h-20 text-base"
+                size="lg"
+                className="h-20 w-full justify-between text-xl font-bold"
+                disabled={!listoRecarga || enviando}
+                aria-describedby="razon-recarga"
                 onClick={() => {
-                  setProveedorServicio(servicio.nombre);
+                  void cobrar('recarga');
                 }}
               >
-                {servicio.nombre}
+                <span>{enCurso === 'recarga' ? 'Cobrando…' : 'COBRAR'}</span>
+                <Dinero centavos={montoCentavos} tamano="lg" />
               </Button>
-            ))}
-          </div>
-          {/* Vuelve solo al hueco cuando el cajero toca uno de los tres de
-              arriba: el valor vacío es lo que el desplegable pinta como
-              marcador, así que no hay dos sitios diciendo qué está elegido. */}
-          <Select
-            value={
-              OTROS_SERVICIOS.some((n) => n === proveedorServicio) ? (proveedorServicio ?? '') : ''
-            }
-            onValueChange={(valor) => {
-              setProveedorServicio(valor);
-            }}
+              {/* El motivo se escribe, no se insinúa con un botón gris: el color
+                  nunca es el único que dice por qué algo no se puede. */}
+              <p
+                id="razon-recarga"
+                className={`text-xs ${sinSaldo ? 'font-medium text-peligro' : 'text-texto-sutil'}`}
+              >
+                {sinSaldo
+                  ? 'Sin saldo con este operador: deposita para seguir recargando.'
+                  : digitos.length !== DIGITOS_TELEFONO
+                    ? 'Faltan dígitos del teléfono.'
+                    : montoCentavos === 0
+                      ? 'Elige el monto.'
+                      : 'El dinero entra a la caja; tu ganancia es la comisión.'}
+              </p>
+              {sinSaldo && (
+                <Button variant="outline" className="w-full" asChild>
+                  <a href="/configuracion">Depositar saldo con el comisionista</a>
+                </Button>
+              )}
+            </div>
+          </Superficie>
+
+          <Superficie
+            como="section"
+            relleno={3}
+            aria-labelledby="titulo-servicio"
+            className={`${carrilMovil === 'servicio' ? 'flex' : 'hidden'} flex-col gap-(--espacio-3) md:flex xl:p-(--espacio-4)`}
           >
-            <SelectTrigger className="hidden w-full md:flex" aria-label="Otro servicio">
-              <SelectValue placeholder="Otro servicio…" />
-            </SelectTrigger>
-            <SelectContent>
-              {OTROS_SERVICIOS.map((nombre) => (
-                <SelectItem key={nombre} value={nombre}>
-                  {nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="space-y-1">
-            <Label htmlFor="referencia">Referencia</Label>
-            {/* El lector de barras teclea en el campo con foco: por eso la
-                referencia es un campo normal y no un diálogo aparte. Teclear
-                24 dígitos con fila detrás es donde se paga el recibo de otro. */}
-            <Input
-              id="referencia"
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder="Escanea el código del recibo"
-              value={referencia}
-              onChange={(evento) => {
-                setReferencia(evento.target.value);
+            <h2
+              id="titulo-servicio"
+              className="flex items-center gap-(--espacio-2) text-sm font-bold tracking-wide uppercase"
+            >
+              <ReceiptText aria-hidden="true" className="size-4 text-texto-sutil" />
+              Pago de servicio
+            </h2>
+            <ul aria-label="Servicio" className="hidden grid-cols-3 gap-(--espacio-2) md:grid">
+              {SERVICIOS.map((servicio) => {
+                const elegido = proveedorServicio === servicio.nombre;
+                return (
+                  <li key={servicio.nombre}>
+                    <Superficie
+                      como="button"
+                      type="button"
+                      interactiva
+                      activa={elegido}
+                      aria-pressed={elegido}
+                      relleno={3}
+                      radio="md"
+                      className="flex min-h-20 w-full flex-col justify-between gap-(--espacio-1)"
+                      onClick={() => {
+                        setProveedorServicio(servicio.nombre);
+                      }}
+                    >
+                      <span className="flex items-center justify-between gap-(--espacio-1) text-base font-semibold">
+                        {servicio.nombre}
+                        {elegido ? (
+                          <Check aria-hidden="true" className="size-4 text-primario" />
+                        ) : null}
+                      </span>
+                      <span className="text-xs text-texto-sutil">
+                        comisión <Dinero centavos={servicio.comisionCentavos} tamano="xs" />
+                      </span>
+                    </Superficie>
+                  </li>
+                );
+              })}
+            </ul>
+            {/* Vuelve solo al hueco cuando el cajero toca uno de los tres de
+                arriba: el valor vacío es lo que el desplegable pinta como
+                marcador, así que no hay dos sitios diciendo qué está elegido. */}
+            <Select
+              value={
+                OTROS_SERVICIOS.some((n) => n === proveedorServicio)
+                  ? (proveedorServicio ?? '')
+                  : ''
+              }
+              onValueChange={(valor) => {
+                setProveedorServicio(valor);
               }}
-            />
-          </div>
+            >
+              <SelectTrigger className="hidden w-full md:flex" aria-label="Otro servicio">
+                <SelectValue placeholder="Otro servicio…" />
+              </SelectTrigger>
+              <SelectContent>
+                {OTROS_SERVICIOS.map((nombre) => (
+                  <SelectItem key={nombre} value={nombre}>
+                    {nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <div className="space-y-1">
-            <Label htmlFor="importe">Importe del recibo</Label>
-            <Input
-              id="importe"
-              inputMode="decimal"
-              placeholder="1240.00"
-              value={importe}
-              onChange={(evento) => {
-                setImporte(evento.target.value);
-              }}
-            />
-          </div>
+            <div className="flex flex-col gap-(--espacio-1)">
+              <Label htmlFor="referencia">Referencia</Label>
+              {/* El lector de barras teclea en el campo con foco: por eso la
+                  referencia es un campo normal y no un diálogo aparte. Teclear
+                  24 dígitos con fila detrás es donde se paga el recibo de otro,
+                  y por eso va grande y en cifras tabulares: se coteja de reojo. */}
+              <Input
+                id="referencia"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="Escanea el código del recibo"
+                className="h-[calc(var(--altura-control)*1.25)] font-numeros text-lg tabular-nums"
+                value={referencia}
+                onChange={(evento) => {
+                  setReferencia(evento.target.value);
+                }}
+              />
+            </div>
 
-          <p className="text-sm">
-            Comisión para la tienda: <strong>{enPesos(comisionServicio)}</strong>
-          </p>
-          <Button
-            type="button"
-            className="h-20 w-full text-xl"
-            disabled={!listoServicio || enviando}
-            aria-describedby="razon-servicio"
-            onClick={() => {
-              void cobrar('pago_servicio');
-            }}
-          >
-            COBRAR {enPesos(importeCentavos)}
-          </Button>
-          <p id="razon-servicio" className="text-xs text-muted-foreground">
-            {proveedorServicio === null
-              ? 'Elige el servicio: pagar el recibo del proveedor equivocado no tiene vuelta.'
-              : referencia.trim().length < DIGITOS_REFERENCIA
-                ? 'Escanea o teclea la referencia completa del recibo.'
-                : importeCentavos === 0
-                  ? 'Captura el importe que dice el recibo.'
-                  : 'El dinero entra a la caja; tu ganancia es la comisión.'}
-          </p>
-        </section>
+            <div className="flex flex-col gap-(--espacio-1)">
+              <Label htmlFor="importe">Importe del recibo</Label>
+              <CampoDeDinero
+                id="importe"
+                placeholder="1240.00"
+                centavos={importe}
+                alCambiar={setImporte}
+              />
+            </div>
+
+            <div className="mt-auto flex flex-col gap-(--espacio-2)">
+              <p className="flex items-baseline justify-between gap-(--espacio-2) text-sm">
+                <span className="text-texto-sutil">Comisión para la tienda</span>
+                <Dinero centavos={comisionServicio} tamano="lg" conSigno />
+              </p>
+              <Button
+                type="button"
+                size="lg"
+                className="h-20 w-full justify-between text-xl font-bold"
+                disabled={!listoServicio || enviando}
+                aria-describedby="razon-servicio"
+                onClick={() => {
+                  void cobrar('pago_servicio');
+                }}
+              >
+                <span>{enCurso === 'pago_servicio' ? 'Cobrando…' : 'COBRAR'}</span>
+                <Dinero centavos={importeCentavos} tamano="lg" />
+              </Button>
+              <p id="razon-servicio" className="text-xs text-texto-sutil">
+                {proveedorServicio === null
+                  ? 'Elige el servicio: pagar el recibo del proveedor equivocado no tiene vuelta.'
+                  : referencia.trim().length < DIGITOS_REFERENCIA
+                    ? 'Escanea o teclea la referencia completa del recibo.'
+                    : importeCentavos === 0
+                      ? 'Captura el importe que dice el recibo.'
+                      : 'El dinero entra a la caja; tu ganancia es la comisión.'}
+              </p>
+            </div>
+          </Superficie>
+        </div>
       </div>
 
       {/* Pegada abajo: el aviso de saldo no puede depender de que alguien se
           acuerde de mirar, y en teléfono es lo que el dueño vino a ver. */}
-      <footer className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-card px-4 py-2 text-sm">
-        <span>
-          Saldo de recargas: <strong>{enPesos(saldoTotal)}</strong>
-        </span>
-        {/* El aviso NOMBRA a quién se le acabó: «saldo bajo» a secas obliga a ir a
-            buscar cuál, y a las ocho de la noche eso no se hace. */}
-        {saldoTotal < minimo && (
-          <Badge variant="destructive">
-            ⚠ Saldo bajo{bajos.length === 0 ? '' : ` · ${bajos.join(', ')}`}
-          </Badge>
-        )}
-        <span aria-hidden>·</span>
-        <span className="text-base font-semibold md:text-sm">
-          Hoy: {String(listaOperaciones.length)} operaciones · {enPesos(comisionDeHoy)} de comisión
-        </span>
+      <Superficie
+        como="footer"
+        nivel={3}
+        radio="sm"
+        relleno={3}
+        conBorde={false}
+        className="sticky bottom-0 z-20 flex flex-wrap items-center gap-x-(--espacio-4) gap-y-(--espacio-2) rounded-none border-t border-borde xl:px-(--espacio-4)"
+      >
+        <p className="flex flex-wrap items-center gap-(--espacio-2) text-sm">
+          <span className="text-texto-sutil">Saldo de recargas</span>
+          {saldoSinLeer ? (
+            <span className="font-semibold text-texto-sutil">sin leer</span>
+          ) : (
+            <Dinero
+              centavos={saldoTotal}
+              className={saldoBajo ? 'font-semibold text-peligro' : 'font-semibold'}
+            />
+          )}
+          {/* El aviso NOMBRA a quién se le acabó: «saldo bajo» a secas obliga a ir a
+              buscar cuál, y a las ocho de la noche eso no se hace. */}
+          {saldoBajo && (
+            <Badge variant="destructive">
+              <TriangleAlert aria-hidden="true" />
+              Saldo bajo{bajos.length === 0 ? '' : ` · ${bajos.join(', ')}`}
+            </Badge>
+          )}
+        </p>
+        {/* Lo que el dueño viene a ver desde el teléfono: ahí va primero. */}
+        <p className="order-first flex w-full items-baseline gap-(--espacio-2) text-sm md:order-none md:w-auto">
+          <span className="text-texto-sutil">
+            Hoy: <Cifra valor={listaOperaciones.length} tamano="sm" /> operaciones ·
+          </span>
+          <Dinero centavos={comisionDeHoy} tamano="lg" />
+          <span className="text-texto-sutil">de comisión</span>
+        </p>
         {/* CARGAR SALDO · la otra mitad del almacén de dinero.
             Sin esto el saldo sólo puede bajar, y el panel acabaría enseñando un
             número que no se puede arreglar desde ninguna pantalla. */}
-        <span className="ml-auto flex items-center gap-2">
-          <Label htmlFor="cargar-saldo" className="text-xs text-muted-foreground">
+        <div className="flex w-full items-center gap-(--espacio-2) md:ml-auto md:w-auto">
+          <Label htmlFor="cargar-saldo" className="text-xs text-texto-sutil">
             Cargar saldo de {proveedorRecarga}
           </Label>
-          <Input
+          <CampoDeDinero
             id="cargar-saldo"
-            inputMode="decimal"
-            className="w-24"
-            placeholder="$"
-            value={carga}
-            onChange={(e) => {
-              setCarga(e.target.value);
-            }}
+            className="w-28 shrink-0"
+            centavos={carga}
+            alCambiar={setCarga}
           />
           <Button
             type="button"
             size="sm"
             variant="outline"
-            disabled={aCentavos(carga) <= 0 || enviando}
+            className="shrink-0"
+            disabled={(carga ?? 0) <= 0 || enviando}
+            cargando={enCurso === 'saldo'}
             onClick={() => {
               void cargarSaldoDeRecargas();
             }}
           >
             Cargar
           </Button>
-        </span>
-      </footer>
+        </div>
+      </Superficie>
     </div>
   );
 }
