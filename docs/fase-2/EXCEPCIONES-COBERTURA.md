@@ -105,9 +105,6 @@ importar algo que no se usa para que una puerta se ponga verde.
 | `PANTALLA-SIN-VOCABULARIO restaurante/acceso-por-pin` | La entrada con PIN | Dice «¿Quién está operando?» y pinta nombres de personas. Ni mesa, ni cuenta, ni platillo: nada del diccionario. |
 | `PANTALLA-SIN-VOCABULARIO cafeteria/acceso-por-pin` | La misma, en la barra | Igual. |
 | `PANTALLA-SIN-VOCABULARIO restaurante/inventario` | Las existencias de la cocina | Habla de INSUMOS y de almacenes, que no son entidades del diccionario: el `producto` de un restaurante es el platillo, y eso se vende, no se cuenta aquí. |
-| `PANTALLA-SIN-VOCABULARIO abarrotes/cortes` | El corte de caja | Dinero, turnos y cajón. «Cuenta el cajón» es el VERBO contar, declarado ya en `NO_ES_LA_ENTIDAD`. |
-| `PANTALLA-SIN-VOCABULARIO ferreteria/conteo` | El conteo por zonas | Cuenta una zona del almacén: existencias e insumos, no la pieza que se vende por mostrador. |
-| `PANTALLA-SIN-VOCABULARIO ferreteria/trabajos-de-mostrador` | Apartados, listas y garantías | Sus tres pestañas nombran documentos del mostrador —lista, apartado, garantía—, ninguno del diccionario. La única «nota» que aparece es el folio, que es un dato. |
 
 **La puerta también falla al revés**: si una de estas seis acaba consumiendo el diccionario, la fila
 sobra y hay que borrarla. Una lista de excepciones que incluye lo que ya funciona deja de leerse.

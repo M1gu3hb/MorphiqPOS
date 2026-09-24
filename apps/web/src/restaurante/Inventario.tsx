@@ -481,29 +481,20 @@ function columnasDePC(pintar: Pintores): readonly ColumnaDeTabla<IngredienteDeIn
         />
       ),
     },
+    // Mínimo y crítico son DATOS, no notas al margen: iban en `text-texto-sutil`, y sobre el
+    // tinte de una fila en «bajo» o «crítico» el rastreador midió el «0» en 4.06:1 en
+    // `noche`. La jerarquía ya la pone «Hay», en seminegritas.
     {
       clave: 'minimo',
       titulo: 'Mínimo',
       numerica: true,
-      celda: (fila) => (
-        <Cantidad
-          valor={fila.stock_minimo}
-          unidad={fila.unidad_base}
-          className="text-texto-sutil"
-        />
-      ),
+      celda: (fila) => <Cantidad valor={fila.stock_minimo} unidad={fila.unidad_base} />,
     },
     {
       clave: 'critico',
       titulo: 'Crítico',
       numerica: true,
-      celda: (fila) => (
-        <Cantidad
-          valor={fila.stock_critico}
-          unidad={fila.unidad_base}
-          className="text-texto-sutil"
-        />
-      ),
+      celda: (fila) => <Cantidad valor={fila.stock_critico} unidad={fila.unidad_base} />,
     },
     {
       clave: 'valor',

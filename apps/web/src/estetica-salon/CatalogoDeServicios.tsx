@@ -594,7 +594,9 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
                     </dd>
                   </div>
                   <div className="flex flex-col gap-(--espacio-1)">
-                    <dt className="text-xs text-texto-sutil">Ocupa la estación</dt>
+                    <dt className="text-xs text-texto-sutil">
+                      Ocupa {voc.enFraseCon('un', 'unidad_servicio')}
+                    </dt>
                     <dd>
                       <Cifra valor={minutosDeEstacion(elegido)} unidad="min" tamano="lg" />
                     </dd>

@@ -515,7 +515,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
                 </Label>
                 {/* A ciegas: con el esperado delante, todo el mundo teclea ese número. */}
                 <p className="text-sm text-texto-sutil">
-                  Cuenta sin ver el esperado: aparece al cerrar, con la diferencia.
+                  Haz el conteo sin ver el esperado: aparece al cerrar, con la diferencia.
                 </p>
                 <CampoDeDinero
                   id="contado"

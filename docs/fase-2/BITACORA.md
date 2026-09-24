@@ -5371,3 +5371,22 @@ opacidad multiplica el color de la cabecera, que ya es secundario. Ahora es un i
 (`ChevronsUpDown`) a opacidad plena en el color de la cabecera, y la ORDENADA cambia de forma
 —flecha arriba o abajo— y de color. `tabla.test.tsx`, nueva: tres pruebas, las tres en rojo contra
 el triángulo.
+
+### La cadena entera, eslabón por eslabón
+
+Con un corredor que NO se para en el primero que falla (`scratchpad/cadena.sh`): **35 de 36 en
+verde** —`test:integracion` fuera, exige una base desechable—. El rojo, `verify:acople`, traía
+cuatro cosas de las pantallas recompuestas, y las cuatro eran de verdad:
+
+- `estetica-salon/CatalogoDeServicios` escribía «Ocupa **la estación**» a mano: ahora lo dice el
+  diccionario (`voc.enFraseCon('un', 'unidad_servicio')`).
+- `estetica-salon/CajaYCorte` · «Cuenta sin ver el esperado» —el verbo contar, que la puerta lee
+  como la cuenta del restaurante—: «Haz el conteo sin ver el esperado».
+- `ferreteria/Caja` · «A cuenta: debe…» es FIAR, el método de pago de esa misma pantalla:
+  declarado en `NO_ES_LA_ENTIDAD_AQUI`, como ya lo estaba `ferreteria/Cuentas`.
+- Tres excepciones de `EXCEPCIONES-COBERTURA.md` sobraban —`abarrotes/cortes`,
+  `ferreteria/conteo`, `ferreteria/trabajos-de-mostrador` ya consumen el diccionario—: borradas.
+
+Y el rastreador de CI en `restaurante · noche`: `/restaurante/inventario` · «0» 4.06:1. Mínimo y
+crítico iban en `text-texto-sutil` sobre el tinte de una fila en «bajo» o «crítico». Son datos:
+van en el color del texto, y la jerarquía la pone «Hay» en seminegritas.

@@ -1020,6 +1020,9 @@ const NO_ES_LA_ENTIDAD_AQUI = {
   'abarrotes/Servicios.tsx': ['servicio', 'servicios', 'cuenta'],
   // Cuentas POR COBRAR: la cartera del fiado. No es la nota de una venta.
   'ferreteria/Cuentas.tsx': ['cuenta', 'cuentas'],
+  // «A cuenta» es FIAR: el método de pago que sube el saldo del cliente —su
+  // etiqueta en la lista de métodos de esa misma pantalla—, no la nota que se cobra.
+  'ferreteria/Caja.tsx': ['cuenta'],
   // La cuenta de BANCO a la que va la propina o la comisión.
   'estetica-salon/Cobrar.tsx': ['cuenta'],
   // «Ventas» en un arqueo es el DINERO del día, la línea de un corte. La cuenta
