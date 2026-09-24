@@ -17,6 +17,7 @@ import {
   Vacio,
   conTransicion,
   type ColumnaDeTabla,
+  type TamanoDeDinero,
 } from '@morphiqpos/ui/sistema';
 import {
   Check,
@@ -32,6 +33,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -62,7 +64,9 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ámbar de 50 a 65%, rojo debajo de 50%. No son los umbrales de `restaurante`
  * (60/40): una bebida de café con food cost de 30–35% debería dejar 65–70%, y
  * con los del restaurante saldrían en verde bebidas que están mal. El color no va
- * solo: cada tramo lleva su icono y su palabra.
+ * solo: cada tramo lleva su icono y su palabra. Y sin el costo de TODAS las líneas
+ * no hay semáforo: se dice cuántas faltan. Contarlas como $0.00 pintaba de «margen
+ * sano» cualquier bebida.
  *
  * ── La fila se convierte en panel ───────────────────────────────────────
  * En la terminal la lista de bebidas vive a la izquierda y la receta a la
@@ -120,33 +124,37 @@ export interface ProductoConReceta {
 /**
  * UNA LÍNEA DE RECETA, con los nombres que el puente SIRVE.
  *
- * `RecetaEscandallo` sirve `ingrediente_id`, `ingrediente_nombre`, `cantidad_usada`
- * y `costo_unitario_base_snapshot` —el costo CONGELADO al guardar la receta, que es
- * el que explica el margen de ese día—. Los cuatro llegaban `undefined`: el
- * escandallo enseñaba el nombre vacío y el costo de la receta salía `NaN`.
+ * `RecetaEscandallo` sirve `ingrediente_id`, `ingrediente_nombre`,
+ * `cantidad_convertida_unidad_base` y `costo_linea_calculado`.
  *
- * `aplica_canal` no se sirve y no es un olvido: NO EXISTE la columna. El canal de
- * una línea de receta —«esto sólo va en el de 16 oz»— está declarado en la pantalla
- * y no en la base; hasta que exista, se trata como «ambos», que es lo que hoy hace
- * el cálculo del consumo al cobrar.
+ * `aplica_canal` no se sirve: el puente todavía no lee la columna (083). Hasta que
+ * la lea, se trata como «ambos», que es lo que hoy hace el cálculo del consumo al
+ * cobrar.
  */
 export interface LineaDeReceta {
   readonly id: string;
   readonly ingrediente_id: string;
   readonly ingrediente_nombre: string | null;
   /**
-   * La cantidad es un NÚMERO: el puente la sirve con `conversion: 'decimal'`.
+   * La cantidad EN LA UNIDAD DEL INSUMO —la que dice `unidad`—, que es la que
+   * consume el inventario y la que `guardar_receta` escribe (`recetas.cantidad`,
+   * nunca nula). Un NÚMERO: el puente la sirve con `conversion: 'decimal'`.
    *
-   * Declarada `string`, el costo de la receta hacía
-   * `Number(linea.cantidad_usada.replace(',', '.'))` sobre un número y la pantalla
-   * moría con `TypeError: …replace is not a function` en cuanto la receta tenía una
-   * línea. Ni 500 ni `{ok:false}`: el servidor ni se enteraba.
+   * Aquí se leía `cantidad_usada`, que el puente saca de `cantidad_capturada`: una
+   * columna que nadie escribe, así que llegaba SIEMPRE nula —y a `cocina` ni
+   * llegaba—. La celda pintaba nada y «Agregar» y «Quitar» mandaban la cantidad
+   * de las líneas que ya estaban como `"null"`: el comando lo rechazaba y la
+   * receta no pasaba de su primer ingrediente.
    */
-  readonly cantidad_usada: number;
+  readonly cantidad_convertida_unidad_base: number | null;
   readonly unidad: string;
-  /** El costo CONGELADO al guardar, en pesos. */
-  readonly costo_unitario_base_snapshot: number | null;
-  /** No se sirve: la columna no existe. Ver la cabecera. */
+  /**
+   * Lo que cuesta la línea, EN PESOS: el puente lo calcula en enteros con la misma
+   * aritmética que guarda el costo del producto. Nulo si al insumo le falta su
+   * costo; y NO LLEGA a quien no ve costos de insumo (`cocina`).
+   */
+  readonly costo_linea_calculado?: number | null;
+  /** No se sirve todavía. Ver la cabecera. */
   readonly aplica_canal?: string;
 }
 
@@ -176,17 +184,23 @@ export interface RecetasProps {
   readonly insumosIniciales?: readonly InsumoDisponible[];
 }
 
-/** Pesos del puente a centavos enteros: el dinero de la pantalla es entero. */
-function aCentavos(pesos: number | null): number {
-  if (pesos === null || !Number.isFinite(pesos)) return 0;
-  return Math.round(pesos * 100);
+/**
+ * Lo que cuesta UNA línea, en centavos, o `null` si no se sabe.
+ *
+ * Desconocido NO es cero: una línea sin costo que contara como $0.00 abarataba la
+ * receta y el semáforo la pintaba de «margen sano». El costo es el que calcula el
+ * puente —en pesos, de vuelta a centavos contando dígitos—, y no una
+ * multiplicación en coma flotante aquí.
+ */
+function costoDeLinea(linea: LineaDeReceta): number | null {
+  return centavosDelPuente(linea.costo_linea_calculado);
 }
 
-/** Lo que cuesta UNA línea con el costo congelado al guardar, en centavos. */
-function costoDeLinea(linea: LineaDeReceta): number {
-  const cantidad = linea.cantidad_usada;
-  if (!Number.isFinite(cantidad)) return 0;
-  return Math.round(cantidad * aCentavos(linea.costo_unitario_base_snapshot));
+/** El costo de un canal: la suma de lo que se sabe y cuántas líneas no tienen costo. */
+export interface CostoDeCanal {
+  readonly centavos: number;
+  /** Mientras no sea cero, `centavos` no es el costo: le faltan líneas. */
+  readonly sinCosto: number;
 }
 
 /**
@@ -196,16 +210,22 @@ function costoDeLinea(linea: LineaDeReceta): number {
  * puerta: un costo único mezclaría las dos y ninguno de los dos números serviría
  * para decidir el precio.
  */
-export function costoEnCanal(lineas: readonly LineaDeReceta[], canal: 'aqui' | 'llevar'): number {
-  let total = 0;
+export function costoEnCanal(
+  lineas: readonly LineaDeReceta[],
+  canal: 'aqui' | 'llevar',
+): CostoDeCanal {
+  let centavos = 0;
+  let sinCosto = 0;
   for (const linea of lineas) {
     // Sin canal declarado, la línea entra en los dos: es lo que hace el consumo
     // al cobrar, y suponer lo contrario descontaría de menos.
     const aplica = linea.aplica_canal ?? 'ambos';
     if (aplica !== 'ambos' && aplica !== canal) continue;
-    total += costoDeLinea(linea);
+    const costo = costoDeLinea(linea);
+    if (costo === null) sinCosto += 1;
+    else centavos += costo;
   }
-  return total;
+  return { centavos, sinCosto };
 }
 
 /** El margen bruto en puntos enteros, o nada si no hay precio contra qué medirlo. */
@@ -227,10 +247,37 @@ function semaforoDe(margen: number): Semaforo {
   return { palabra: 'margen bajo', clase: 'bg-peligro/15 text-peligro', Icono: OctagonAlert };
 }
 
-/** Cuántos decimales trae la cantidad, para no redondear 0.5 g a 1 g. */
-function decimalesDe(valor: number): number {
+/**
+ * Cuántos decimales trae la cantidad, para no redondear 0.0125 kg a 0.01 kg: el
+ * `'auto'` de `Cifra` se queda en dos y una receta admite cuatro.
+ */
+function decimalesDe(valor: number | null): number {
+  if (valor === null) return 0;
   const [, fraccion = ''] = String(valor).split('.');
   return Math.min(fraccion.length, DECIMALES_MAXIMOS);
+}
+
+/**
+ * Las líneas como las pide `guardar_receta`, que REEMPLAZA la receta entera.
+ *
+ * `null` si a alguna le falta la cantidad: mandarla como `"null"` la haría
+ * rechazar, y mandarla sin esa línea la borraría. Con `recetas.cantidad` nunca
+ * nula no debería pasar; si pasa, no se guarda nada.
+ */
+function lineasParaGuardar(lineas: readonly LineaDeReceta[]): LineaParaGuardar[] | null {
+  const salida: LineaParaGuardar[] = [];
+  for (const linea of lineas) {
+    const cantidad = linea.cantidad_convertida_unidad_base;
+    if (cantidad === null) return null;
+    salida.push({
+      insumoId: linea.ingrediente_id,
+      cantidad: String(cantidad),
+      unidad: linea.unidad,
+      mermaBp: 0,
+      aplicaCanal: canalDe(linea.aplica_canal),
+    });
+  }
+  return salida;
 }
 
 function mensajeDe(fallo: unknown): string {
@@ -249,6 +296,18 @@ interface NuevaLinea {
   readonly cantidad: string;
   readonly canal: string;
 }
+
+/** Una línea en la forma de `inventario.guardar_receta`. */
+interface LineaParaGuardar {
+  readonly insumoId: string;
+  readonly cantidad: string;
+  readonly unidad: string;
+  readonly mermaBp: number;
+  readonly aplicaCanal: string;
+}
+
+/** Lo que se dice cuando una línea leída no trae cantidad y no se puede reenviar. */
+const SIN_CANTIDAD = 'Una línea de esta receta llegó sin cantidad, y guardar sin ella la borraría.';
 
 const LINEA_EN_BLANCO: NuevaLinea = { insumoId: '', cantidad: '', canal: 'ambos' };
 
@@ -386,6 +445,11 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
       setProblema({ tono: 'atencion', texto: 'La cantidad va con hasta cuatro decimales.' });
       return;
     }
+    const yaEstaban = lineasParaGuardar(lineas ?? []);
+    if (yaEstaban === null) {
+      setProblema({ tono: 'peligro', texto: SIN_CANTIDAD });
+      return;
+    }
     setOcupado(true);
     setProblema(null);
     /**
@@ -401,13 +465,6 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
      * lo que el comando escribe: un `delete` y un `insert` de todo, en una
      * transacción.
      */
-    const yaEstaban = (lineas ?? []).map((linea) => ({
-      insumoId: linea.ingrediente_id,
-      cantidad: String(linea.cantidad_usada),
-      unidad: linea.unidad,
-      mermaBp: 0,
-      aplicaCanal: canalDe(linea.aplica_canal),
-    }));
     invocarComando(RUTA_GUARDAR, {
       productoId: elegido.id,
       ingredientes: [
@@ -449,17 +506,13 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
    */
   function eliminar(linea: LineaDeReceta): void {
     if (elegido === null) return;
+    const quedan = lineasParaGuardar((lineas ?? []).filter((l) => l.id !== linea.id));
+    if (quedan === null) {
+      setProblema({ tono: 'peligro', texto: SIN_CANTIDAD });
+      return;
+    }
     setOcupado(true);
     setProblema(null);
-    const quedan = (lineas ?? [])
-      .filter((l) => l.id !== linea.id)
-      .map((l) => ({
-        insumoId: l.ingrediente_id,
-        cantidad: String(l.cantidad_usada),
-        unidad: l.unidad,
-        mermaBp: 0,
-        aplicaCanal: canalDe(l.aplica_canal),
-      }));
     invocarComando(RUTA_GUARDAR, { productoId: elegido.id, ingredientes: quedan })
       .then(() => {
         if (lineasDe.current !== elegido.id) return;
@@ -544,8 +597,10 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      orden: (producto) => aCentavos(producto.precio_venta),
-      celda: (producto) => <Dinero centavos={aCentavos(producto.precio_venta)} tamano="sm" />,
+      orden: (producto) => centavosDelPuente(producto.precio_venta) ?? -1,
+      celda: (producto) => (
+        <ImporteSiSeSabe centavos={centavosDelPuente(producto.precio_venta)} tamano="sm" />
+      ),
     },
   ];
 
@@ -582,7 +637,8 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
           <header className="flex flex-wrap items-baseline justify-between gap-(--espacio-2)">
             <h2 className="text-xl font-bold">{elegido.nombre}</h2>
             <p className="text-sm text-texto-sutil">
-              Se vende a <Dinero centavos={aCentavos(elegido.precio_venta)} tamano="base" />
+              Se vende a{' '}
+              <ImporteSiSeSabe centavos={centavosDelPuente(elegido.precio_venta)} tamano="base" />
             </p>
           </header>
 
@@ -657,7 +713,7 @@ function ContenidoDeReceta({
 
   if (lineas === null) return <EsqueletoDeLista filas={4} />;
 
-  const precio = aCentavos(producto.precio_venta);
+  const precio = centavosDelPuente(producto.precio_venta);
 
   const columnas: readonly ColumnaDeTabla<LineaDeReceta>[] = [
     {
@@ -671,9 +727,9 @@ function ContenidoDeReceta({
       numerica: true,
       celda: (linea) => (
         <Cifra
-          valor={linea.cantidad_usada}
+          valor={linea.cantidad_convertida_unidad_base}
           unidad={linea.unidad}
-          decimales={decimalesDe(linea.cantidad_usada)}
+          decimales={decimalesDe(linea.cantidad_convertida_unidad_base)}
           tamano="sm"
         />
       ),
@@ -687,7 +743,7 @@ function ContenidoDeReceta({
       clave: 'costo',
       titulo: 'Costo',
       numerica: true,
-      celda: (linea) => <Dinero centavos={costoDeLinea(linea)} tamano="sm" />,
+      celda: (linea) => <ImporteSiSeSabe centavos={costoDeLinea(linea)} tamano="sm" />,
     },
     {
       clave: 'quitar',
@@ -760,15 +816,36 @@ function EtiquetaDeCanal({ canal }: { readonly canal: 'ambos' | 'aqui' | 'llevar
   );
 }
 
+/** Un importe que puede no saberse: «—», nunca $0.00 en su lugar. */
+function ImporteSiSeSabe({
+  centavos,
+  tamano,
+  className,
+}: {
+  readonly centavos: number | null;
+  readonly tamano: TamanoDeDinero;
+  readonly className?: string;
+}) {
+  if (centavos === null) return <span className="text-texto-tenue">—</span>;
+  return <Dinero centavos={centavos} tamano={tamano} className={className} />;
+}
+
+/** Por qué un canal no tiene margen, con lo que falta para tenerlo. */
+function sinMargenPorque(sinCosto: number): string {
+  if (sinCosto === 0) return 'Sin precio de venta no hay margen que medir.';
+  const cuantos = sinCosto === 1 ? 'un ingrediente' : `${String(sinCosto)} ingredientes`;
+  return `Falta el costo de ${cuantos}: sin él no hay costo ni margen que medir.`;
+}
+
 /** Lo que cuesta en cada canal, y lo que deja: el margen es lo que va grande. */
 function CostoPorCanal({
   precio,
   aqui,
   llevar,
 }: {
-  readonly precio: number;
-  readonly aqui: number;
-  readonly llevar: number;
+  readonly precio: number | null;
+  readonly aqui: CostoDeCanal;
+  readonly llevar: CostoDeCanal;
 }) {
   return (
     <div className="flex flex-col gap-(--espacio-2)">
@@ -784,24 +861,35 @@ function CostoPorCanal({
   );
 }
 
+/**
+ * El costo y el margen de un canal. Con una sola línea sin costo NO hay costo ni
+ * margen: la suma de las que sí lo tienen es un total que no es total, y su margen
+ * saldría de «sano» sobre una bebida que cuesta más.
+ */
 function MargenDeCanal({
   etiqueta,
   costo,
   precio,
 }: {
   readonly etiqueta: string;
-  readonly costo: number;
-  readonly precio: number;
+  readonly costo: CostoDeCanal;
+  readonly precio: number | null;
 }) {
-  const margen = margenDe(precio, costo);
+  const completo = costo.sinCosto === 0;
+  const margen = completo && precio !== null ? margenDe(precio, costo.centavos) : null;
   const semaforo = margen === null ? null : semaforoDe(margen);
   return (
     <div className="flex flex-col gap-(--espacio-1)">
       <p className="text-sm text-texto-sutil">
-        {etiqueta} <Dinero centavos={costo} tamano="lg" className="font-semibold text-texto" />
+        {etiqueta}{' '}
+        <ImporteSiSeSabe
+          centavos={completo ? costo.centavos : null}
+          tamano="lg"
+          className="font-semibold text-texto"
+        />
       </p>
       {margen === null || semaforo === null ? (
-        <p className="text-sm text-texto-sutil">Sin precio de venta no hay margen que medir.</p>
+        <p className="text-sm text-texto-sutil">{sinMargenPorque(costo.sinCosto)}</p>
       ) : (
         <>
           <p className="flex items-baseline gap-(--espacio-2)">

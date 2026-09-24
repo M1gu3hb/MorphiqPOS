@@ -102,13 +102,10 @@ const TOLERANCIA_CENTAVOS = 2_000;
 const HORA = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit' });
 
 /**
- * Los dos campos obligatorios, grandes: son la pantalla. El campo de dinero del
- * sistema no tiene tamaño propio, así que se alcanza su `input` desde fuera.
+ * Los cuatro campos del conteo. Los dos primeros son obligatorios y van `enorme`:
+ * son la pantalla, se teclean de pie y se releen antes de mandar un número que ya
+ * no se puede cambiar.
  */
-const CAMPO_GRANDE =
-  '[&_input]:h-[calc(var(--altura-control)*1.6)] [&_input]:text-2xl [&>span]:text-lg';
-
-/** Los cuatro campos del conteo. Los dos primeros son obligatorios. */
 const CAMPOS = [
   { clave: 'efectivo', etiqueta: 'Efectivo contado en el cajón *', grande: true },
   { clave: 'bote', etiqueta: 'Bote de propina contado *', grande: true },
@@ -118,8 +115,26 @@ const CAMPOS = [
 
 type ClaveDeConteo = (typeof CAMPOS)[number]['clave'];
 
-/** Lo que se tecleó, en centavos. `null` es «lo que hay no es un importe». */
-type Conteo = Readonly<Partial<Record<ClaveDeConteo, number | null>>>;
+/**
+ * Lo tecleado en un campo: un importe en centavos, `'vacio'` o `'ilegible'` —hay
+ * texto y no es un importe: «1.500», «1 500»—. No es lo mismo no haber contado que
+ * haber contado y escribirlo de una forma que no se lee, y la pantalla dice cuál.
+ */
+type Lectura = number | 'vacio' | 'ilegible';
+
+type Conteo = Readonly<Record<ClaveDeConteo, Lectura>>;
+
+const CONTEO_VACIO: Conteo = {
+  efectivo: 'vacio',
+  bote: 'vacio',
+  dejado: 'vacio',
+  cambio: 'vacio',
+};
+
+/** Los centavos de una lectura, o `null` si no hay importe. */
+function centavosDe(lectura: Lectura): number | null {
+  return typeof lectura === 'number' ? lectura : null;
+}
 
 /** Una cifra que llega ya escrita, por props: el canal y la merma. */
 export interface CifraDelTurno {
@@ -385,7 +400,7 @@ export function CierreDeTurno({
   const [ventas, setVentas] = useState<readonly VentaDelTurno[]>(ventasIniciales ?? []);
   const [gastos, setGastos] = useState<readonly GastoDelTurno[]>(gastosIniciales ?? []);
   const [fila, setFila] = useState<readonly PedidoEnFila[]>(filaInicial ?? []);
-  const [conteo, setConteo] = useState<Conteo>({});
+  const [conteo, setConteo] = useState<Conteo>(CONTEO_VACIO);
   const [resultado, setResultado] = useState<ResultadoCierre | null>(null);
   const [partes, setPartes] = useState<readonly ParteDelBote[] | null>(null);
   const [dialogo, setDialogo] = useState(false);
@@ -450,8 +465,11 @@ export function CierreDeTurno({
 
   const resumen = useMemo(() => resumenDelTurno(ventas, gastos), [ventas, gastos]);
   const boteEsperado = ventas.reduce((suma, v) => suma + aCentavos(v.propina_efectivo), 0);
-  const contadoBote = conteo.bote ?? 0;
-  const faltaContar = (conteo.efectivo ?? null) === null || (conteo.bote ?? null) === null;
+  const contadoBote = centavosDe(conteo.bote) ?? 0;
+  const faltaContar = conteo.efectivo === 'vacio' || conteo.bote === 'vacio';
+  // Contado, pero escrito de una forma que no se lee: el botón no cierra y la
+  // pantalla dice POR QUÉ, que no es «cuenta el cajón».
+  const conteoIlegible = conteo.efectivo === 'ilegible' || conteo.bote === 'ilegible';
   const cerrado = resultado !== null;
 
   /** Las tres salidas del diálogo y ninguna más. */
@@ -500,7 +518,7 @@ export function CierreDeTurno({
        * haya que conservarlos hará falta una migración.
        */
       const corte = await invocarComando<ResultadoCierre>(RUTA_CERRAR, {
-        efectivoContadoCentavos: conteo.efectivo ?? 0,
+        efectivoContadoCentavos: centavosDe(conteo.efectivo) ?? 0,
         boteContadoCentavos: contadoBote,
       });
       setResultado(corte);
@@ -719,26 +737,38 @@ export function CierreDeTurno({
       >
         <h2 className="text-xs font-semibold tracking-wide text-texto-sutil uppercase">Conteo</h2>
         <div className="grid grid-cols-2 gap-(--espacio-3)">
-          {CAMPOS.map((campo) => (
-            <div
-              key={campo.clave}
-              className={`flex flex-col gap-(--espacio-1) ${campo.grande ? 'col-span-2' : ''}`}
-            >
-              <Label htmlFor={`cierre-${campo.clave}`}>{campo.etiqueta}</Label>
-              <CampoDeDinero
-                id={`cierre-${campo.clave}`}
-                autoFocus={campo.clave === 'efectivo'}
-                disabled={cerrado}
-                placeholder="0.00"
-                aria-required={campo.grande || undefined}
-                centavos={conteo[campo.clave] ?? null}
-                alCambiar={(centavos) => {
-                  setConteo((previo) => ({ ...previo, [campo.clave]: centavos }));
-                }}
-                className={campo.grande ? CAMPO_GRANDE : undefined}
-              />
-            </div>
-          ))}
+          {CAMPOS.map((campo) => {
+            const id = `cierre-${campo.clave}`;
+            const ilegible = conteo[campo.clave] === 'ilegible';
+            return (
+              <div
+                key={campo.clave}
+                className={`flex flex-col gap-(--espacio-1) ${campo.grande ? 'col-span-2' : ''}`}
+              >
+                <Label htmlFor={id}>{campo.etiqueta}</Label>
+                <CampoDeDinero
+                  id={id}
+                  tamano={campo.grande ? 'enorme' : 'base'}
+                  autoFocus={campo.clave === 'efectivo'}
+                  disabled={cerrado}
+                  placeholder="0.00"
+                  aria-required={campo.grande || undefined}
+                  aria-invalid={ilegible || undefined}
+                  aria-describedby={ilegible ? `${id}-ilegible` : undefined}
+                  centavos={centavosDe(conteo[campo.clave])}
+                  alCambiar={(centavos, { vacio }) => {
+                    const lectura: Lectura = vacio ? 'vacio' : (centavos ?? 'ilegible');
+                    setConteo((previo) => ({ ...previo, [campo.clave]: lectura }));
+                  }}
+                />
+                {ilegible && (
+                  <p id={`${id}-ilegible`} className="text-sm text-peligro">
+                    Eso no es un importe: escríbelo como 1500 o 1,500.00.
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* ... y HASTA ENTONCES los dos esperados con sus dos semáforos. */}
@@ -758,7 +788,7 @@ export function CierreDeTurno({
             <Button
               size="lg"
               className="min-h-20 w-full text-lg"
-              disabled={enviando || faltaContar}
+              disabled={enviando || faltaContar || conteoIlegible}
               cargando={enviando}
               onClick={() => {
                 void cerrarTurno();
@@ -766,11 +796,18 @@ export function CierreDeTurno({
             >
               {enviando ? 'Cerrando…' : 'CERRAR TURNO'}
             </Button>
-            {/* Un botón apagado sin razón es un muro mudo. */}
-            {faltaContar && (
+            {/* Un botón apagado sin razón es un muro mudo, y con la razón
+                equivocada es peor: a quien ya contó no se le pide que cuente. */}
+            {conteoIlegible ? (
               <p className="text-center text-sm text-texto-sutil">
-                Cuenta el cajón y el bote. Los dos, antes de ver nada.
+                Corrige el conteo que no es un importe para poder cerrar.
               </p>
+            ) : (
+              faltaContar && (
+                <p className="text-center text-sm text-texto-sutil">
+                  Cuenta el cajón y el bote. Los dos, antes de ver nada.
+                </p>
+              )
             )}
           </>
         )}

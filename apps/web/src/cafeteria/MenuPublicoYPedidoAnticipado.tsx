@@ -20,6 +20,7 @@ import { Check, ChevronDown, Clock, Coffee, Plus, ShoppingBag, X } from 'lucide-
 import { useEffect, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -117,14 +118,22 @@ export interface MenuPublicoProps {
   readonly ahora?: number;
 }
 
-/** El precio del puente, que llega en pesos, a centavos enteros. */
+/** El precio del puente, que llega en pesos, a centavos enteros, sin coma flotante. */
 function centavosDe(producto: ProductoPublico): number {
-  return Math.round((producto.precio_venta ?? 0) * 100);
+  return centavosDelPuente(producto.precio_venta) ?? 0;
 }
 
-/** «14:30», del tramo en ISO. */
+/**
+ * «08:30», del tramo en ISO, EN LA HORA DE QUIEN LO VE.
+ *
+ * Era `tramo.slice(11, 16)`, y el ISO está en UTC: a las 8:10 de Monterrey la
+ * clienta veía «14:15» en los botones y en el pedido que enseña en la barra.
+ */
 function horaDelTramo(tramo: string): string {
-  return tramo.slice(11, 16);
+  const fecha = new Date(tramo);
+  const horas = String(fecha.getHours()).padStart(2, '0');
+  const minutos = String(fecha.getMinutes()).padStart(2, '0');
+  return `${horas}:${minutos}`;
 }
 
 /**
@@ -192,7 +201,9 @@ function FamiliaDelMenu({
                 onClick={() => {
                   alAgregar(producto);
                 }}
-                className={`flex min-h-[calc(var(--altura-control)*1.6)] w-full items-center gap-(--espacio-3) ${agotado ? 'bg-fondo-sutil text-texto-sutil' : ''}`}
+                // El gris ya dice «apagado»: la opacidad de `disabled` encima lo
+                // hundía a 1,9:1, ilegible al sol en la fila.
+                className={`flex min-h-[calc(var(--altura-control)*1.6)] w-full items-center gap-(--espacio-3) ${agotado ? 'bg-fondo-sutil text-texto-sutil disabled:opacity-100' : ''}`}
               >
                 <span className="flex min-w-0 flex-1 flex-col gap-(--espacio-1)">
                   <span className="font-medium">
@@ -200,8 +211,11 @@ function FamiliaDelMenu({
                     {producto.nombre}
                   </span>
                   {/* Lo agotado se VE: esconderlo hace que el cliente crea que el
-                      menú cambió y pregunte en la barra. La palabra, no sólo el gris. */}
-                  {agotado ? <span className="text-sm">hoy no hay</span> : null}
+                      menú cambió y pregunte en la barra. La palabra, no sólo el gris,
+                      y la palabra a todo contraste: es la señal que no es color. */}
+                  {agotado ? (
+                    <span className="text-sm font-medium text-texto">hoy no hay</span>
+                  ) : null}
                   {/* El pedido queda al final del menú: esto confirma, sin bajar, que
                       el toque entró. */}
                   {cuantos > 0 ? (
@@ -661,7 +675,9 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
 
           {/* Junto al botón, no arriba de la pantalla: en el teléfono el aviso tiene
               que caer donde está el dedo que acaba de tocar «Apartar». */}
-          {error === null ? null : <Aviso tono="atencion" titulo={error} />}
+          {/* `alerta`: aparece ya lleno al tocar «Apartar», y un `status` que nace
+              lleno casi nunca se lee. Es lo que impide apartar: tiene que oírse. */}
+          {error === null ? null : <Aviso tono="atencion" anuncio="alerta" titulo={error} />}
 
           <Button
             size="lg"

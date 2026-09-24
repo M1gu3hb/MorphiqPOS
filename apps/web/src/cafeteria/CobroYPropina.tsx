@@ -355,9 +355,9 @@ function CaraDelCliente({
             <Label htmlFor="cobro-propina-otra">Otra cantidad</Label>
             <CampoDeDinero
               id="cobro-propina-otra"
+              tamano="grande"
               centavos={otro}
               alCambiar={alCambiarOtro}
-              className="[&_input]:h-[calc(var(--altura-control)*1.25)] [&_input]:text-xl"
             />
           </div>
           <Button
@@ -400,10 +400,19 @@ export function CobroYPropina({
   const [lineas, setLineas] = useState<readonly LineaDelTicket[] | null>(
     lineasIniciales ?? (pedidoInicial === undefined ? null : []),
   );
+  /**
+   * Dos lecturas, dos fallos. Sin el pedido no hay nada que cobrar; sin sus líneas
+   * el total sí está y se cobra igual. Por eso reintentar las líneas NO vuelve a
+   * leer el pedido: tirarlo reiniciaría la pantalla con la cuenta atrás de la
+   * propina a medias —«se cobra sin propina en 0 s» con segundos por delante— y
+   * una propina elegida que podría caer en otro pedido.
+   */
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  const [falloDeLineas, setFalloDeLineas] = useState<string | null>(null);
   // Cada intento de lectura es un número: reintentar lo sube y el efecto lee otra
   // vez. El estado se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
+  const [intentoDeLineas, setIntentoDeLineas] = useState(0);
   const [metodo, setMetodo] = useState<Metodo>('efectivo');
   const [recibido, setRecibido] = useState<number | null>(null);
   const [partes, setPartes] = useState<Readonly<Record<Base, number | null>>>({
@@ -435,14 +444,7 @@ export function CobroYPropina({
           limite: 1,
           signal: control.signal,
         });
-        if (!sigueMontada()) return;
-        setPedido(fila ?? null);
-        if (fila === undefined) return;
-        const suyas = await consultarPuente<LineaDelTicket>('DetalleVenta', {
-          filtro: { venta_id: fila.id },
-          signal: control.signal,
-        });
-        if (sigueMontada()) setLineas(suyas);
+        if (sigueMontada()) setPedido(fila ?? null);
       } catch (fallo) {
         // Un aborto no es un error: es esta misma pantalla, que ya no está.
         if (!sigueMontada()) return;
@@ -457,6 +459,34 @@ export function CobroYPropina({
       control.abort();
     };
   }, [pedidoInicial, voc, intento]);
+
+  // Las líneas del ticket, aparte y DESPUÉS del pedido: su reintento lee sólo
+  // esto. Con el pedido dado por props, las líneas también llegan dadas.
+  const pedidoId = pedido?.id ?? null;
+  useEffect(() => {
+    if (pedidoInicial !== undefined || pedidoId === null) return;
+    const control = new AbortController();
+    const sigueMontada = (): boolean => !control.signal.aborted;
+    void (async () => {
+      try {
+        const suyas = await consultarPuente<LineaDelTicket>('DetalleVenta', {
+          filtro: { venta_id: pedidoId },
+          signal: control.signal,
+        });
+        if (sigueMontada()) setLineas(suyas);
+      } catch (fallo) {
+        if (!sigueMontada()) return;
+        setFalloDeLineas(
+          fallo instanceof Error
+            ? fallo.message
+            : `No se pudieron leer ${voc.enFrase('linea_orden', true)}.`,
+        );
+      }
+    })();
+    return () => {
+      control.abort();
+    };
+  }, [pedidoInicial, pedidoId, voc, intentoDeLineas]);
 
   useEffect(() => {
     // Los ocho segundos sólo corren cuando hay algo que cobrar y nadie decidió.
@@ -473,11 +503,19 @@ export function CobroYPropina({
     };
   }, [propina, pedido]);
 
+  /** Sólo cuando NO se leyó el pedido: no hay cuenta atrás ni propina que perder. */
   function reintentar(): void {
     setFalloDeCarga(null);
     setPedido(undefined);
     setLineas(null);
     setIntento((previo) => previo + 1);
+  }
+
+  /** Las líneas y nada más: el pedido, la propina y su cuenta atrás siguen donde iban. */
+  function reintentarLineas(): void {
+    setFalloDeLineas(null);
+    setLineas(null);
+    setIntentoDeLineas((previo) => previo + 1);
   }
 
   function anotarTexto(campo: string, texto: string): void {
@@ -525,7 +563,7 @@ export function CobroYPropina({
   }
 
   // No se leyó el pedido: sin él no hay total ni propina. Nada que enseñar debajo.
-  if (falloDeCarga !== null && pedido === undefined) {
+  if (falloDeCarga !== null) {
     return (
       <div className="mx-auto max-w-lg p-(--espacio-6)">
         <ErrorDePantalla
@@ -625,14 +663,14 @@ export function CobroYPropina({
   // El ticket es lo tercero en la jerarquía: denso, con su total en el pie. Si
   // sus líneas no llegaron, el total sí, y se puede cobrar igual.
   const ticket = (() => {
-    if (falloDeCarga !== null) {
+    if (falloDeLineas !== null) {
       return (
         <ErrorDePantalla
           titulo={`No se pudieron leer ${voc.enFrase('linea_orden', true)} de ${voc.enFraseCon('este', 'unidad_servicio')}`}
           queHacer="El total sí llegó y se puede cobrar: lo que falta es el desglose. Revisa la conexión y vuelve a intentarlo."
-          detalle={falloDeCarga}
+          detalle={falloDeLineas}
           reintentar={
-            <Button variant="outline" onClick={reintentar}>
+            <Button variant="outline" onClick={reintentarLineas}>
               Volver a intentar
             </Button>
           }
@@ -716,13 +754,13 @@ export function CobroYPropina({
             <Label htmlFor="cobro-recibido">Recibido</Label>
             <CampoDeDinero
               id="cobro-recibido"
+              tamano="grande"
               centavos={recibido}
               alCambiar={setRecibido}
               aria-invalid={ilegibles.has('recibido') ? true : undefined}
               onInput={(evento) => {
                 anotarTexto('recibido', evento.currentTarget.value);
               }}
-              className="[&_input]:h-[calc(var(--altura-control)*1.25)] [&_input]:text-xl"
             />
           </div>
           <p className="flex flex-col items-end gap-(--espacio-1)">

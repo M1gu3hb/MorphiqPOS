@@ -117,9 +117,14 @@ export interface OpcionesDeLaBebidaProps {
   readonly onAgregada?: (lineaId: string | null) => void;
 }
 
-/** El tinte de la tesela. La palomita acompaña al color: el color nunca va solo. */
+/**
+ * El tinte de la tesela. La palomita acompaña al color: el color nunca va solo.
+ *
+ * La agotada ya se apaga con el gris; la opacidad de `disabled` que trae la tesela
+ * interactiva se anula, porque encima del gris la dejaba a 1,9:1, ilegible con vapor.
+ */
 function tinteDeOpcion(activa: boolean, agotado: boolean): string {
-  if (agotado) return 'bg-fondo-sutil text-texto-sutil';
+  if (agotado) return 'bg-fondo-sutil text-texto-sutil disabled:opacity-100';
   if (activa) return 'border-primario bg-primario text-primario-texto';
   return 'border-borde-fuerte';
 }
@@ -278,7 +283,10 @@ function SelectorDeGrupo({
                   {opcion.nombre}
                 </span>
                 {delta === 0 ? null : <Diferencia centavos={delta} />}
-                {opcion.agotado ? <span className="text-xs font-medium">Agotado</span> : null}
+                {/* La palabra, a todo contraste: es lo que dice por qué no responde. */}
+                {opcion.agotado ? (
+                  <span className="text-xs font-medium text-texto">Agotado</span>
+                ) : null}
               </Superficie>
             </li>
           );

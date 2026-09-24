@@ -129,6 +129,8 @@ export function reloj(segundos: number): string {
 /**
  * El color nunca va solo: cada tramo trae su palabra. `clase` tiñe la píldora
  * del tiempo y `anillo` rodea la tarjeta entera, que es lo que se ve de lejos.
+ * El texto de la píldora sigue en `text-texto` también en rojo: rojo sobre tinte
+ * rojo apenas pasa 4.5:1, y entre vapor el contraste alto es obligatorio.
  */
 export function urgencia(segundos: number): {
   readonly clase: string;
@@ -137,7 +139,7 @@ export function urgencia(segundos: number): {
 } {
   if (segundos >= SEGUNDOS_ROJO)
     return {
-      clase: 'bg-peligro/20 text-peligro',
+      clase: 'bg-peligro/20 text-texto',
       palabra: 'muy tarde',
       anillo: 'border-peligro ring-2 ring-peligro',
     };
@@ -437,22 +439,19 @@ function EsqueletoDeBarra() {
 
 /**
  * El único vacío de la aplicación que es una BUENA noticia, y se ve así: el tipo
- * más grande de la pantalla, en el tinte del éxito, y ni una sola disculpa.
+ * más grande de la pantalla (`protagonista`, en el paso display), en el tinte del
+ * éxito (`tono="exito"`), y ni una sola disculpa. Ocupa todo el alto que queda.
  */
 function FilaVacia() {
   return (
-    <Superficie
-      nivel={0}
-      relleno={0}
-      className="flex flex-1 items-center justify-center border-exito/40 bg-exito/10"
-    >
-      <Vacio
-        icono={<Coffee />}
-        titulo="La fila está vacía."
-        explicacion="Buen momento para reponer leche."
-        className="[&>p:first-of-type]:text-display [&>p:first-of-type]:leading-none [&>p:first-of-type]:font-bold"
-      />
-    </Superficie>
+    <Vacio
+      icono={<Coffee />}
+      titulo="La fila está vacía."
+      explicacion="Buen momento para reponer leche."
+      tamano="protagonista"
+      tono="exito"
+      className="flex-1"
+    />
   );
 }
 
@@ -542,8 +541,11 @@ function TarjetaDePedido({ pedido, listo, segundos, campanas, enVuelo, onAccion 
       className={`flex flex-col gap-(--espacio-2) ${tramo.anillo}`}
     >
       <header className="flex flex-wrap items-start justify-between gap-(--espacio-2)">
-        {/* Lo más grande de la pantalla: es el dato que se dice en voz alta. */}
-        <h3 id={idNombre} className="text-2xl leading-none font-bold break-words xl:text-3xl">
+        {/* Lo más grande de la pantalla: es el dato que se dice en voz alta. En
+            el paso display en TODOS los anchos (40 px o más en el teléfono, más de
+            48 desde la tableta, que es el caso real): si no cabe, parte renglón,
+            pero la letra no baja. */}
+        <h3 id={idNombre} className="text-display leading-none font-bold break-words">
           {nombre}
         </h3>
         <CanalDelPedido origen={pedido.origen_pedido} />

@@ -35,19 +35,24 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * lectura SIEMBRA los nombres sin hablar; al encender el monitor a media mañana
  * hay ocho pedidos listos y ninguno es noticia.
  *
- * ── Por qué el error es un aviso chico en la esquina y no una banda roja ─
+ * ── Por qué el error es un punto gris en la esquina y no una banda roja ──
  * Quien lee es un cliente, no un operador. La pantalla nunca se pone en blanco
  * ni enseña un mensaje técnico: mantiene los últimos nombres y enciende, abajo a
- * la izquierda, un `Aviso` de tono `info` —su punto y su palabra al lado; el
- * color nunca va solo—. Es `status` y no `alert`: se anuncia sin interrumpir.
- * El `ErrorDePantalla` que llevan las pantallas de trabajo aquí sería ruido
- * volcado al salón, y un botón de reintentar no lo puede tocar nadie: el latido
- * ya reintenta solo cada dos segundos.
+ * la izquierda, el punto gris discreto que pide el modelo, con su palabra al
+ * lado. Es el `Aviso` del sistema —por su `status`: se anuncia sin interrumpir—
+ * sin su caja de color: el punto es su `icono`, la palabra va en el gris del
+ * texto sutil y la caja se queda sin borde ni fondo. Un aviso azul volcado al
+ * salón es justo lo que el modelo no quiere. El `ErrorDePantalla` de las
+ * pantallas de trabajo aquí sería ruido, y un botón de reintentar no lo puede
+ * tocar nadie: el latido ya reintenta solo cada dos segundos.
  *
- * ── Por qué los listos van cada uno en su tesela ─────────────────────────
+ * ── Por qué los listos van cada uno en su tesela, y a su ancho ───────────
  * En la rejilla, dos nombres de pila en mayúsculas uno junto al otro —«SOFÍA
  * REGINA»— se leen de lejos como el nombre completo de UNA persona. Cada nombre
- * en su `Superficie` es un pedido; en la fila de «también listos», igual.
+ * en su `Superficie` es un pedido; en la fila de «también listos», igual. Y cada
+ * tesela mide lo que su nombre: con columnas iguales, a 112 px, «FERNANDA» no
+ * cabía en un tercio de 1920 px y se partía en dos renglones. Un nombre se lee
+ * de un golpe o no se lee: las teselas se acomodan en renglones, nunca lo parten.
  *
  * ── Por qué sólo el nombre de pila ───────────────────────────────────────
  * «Mariana Gutiérrez» a 96 px delante de quince desconocidos es una fuga de
@@ -81,21 +86,12 @@ const ZONA =
 const ROTULO =
   'text-[clamp(1.25rem,3vw,2.5rem)] font-semibold uppercase tracking-[0.4em] text-texto-sutil';
 const NOMBRE_ENORME = 'text-[clamp(6rem,17vw,17rem)] font-black uppercase leading-none break-words';
-const NOMBRE_GRANDE =
-  'text-[clamp(3rem,9vw,7rem)] font-black uppercase leading-none break-words hyphens-auto';
+// Sin `hyphens-auto`: un nombre no se parte con guion en un cartel. `break-words`
+// queda sólo como último recurso, para el nombre que no quepa ni en un renglón entero.
+const NOMBRE_GRANDE = 'text-[clamp(3rem,9vw,7rem)] font-black uppercase leading-none break-words';
 const NOMBRE_MEDIO = 'text-[clamp(1.75rem,5vw,4rem)] font-bold uppercase leading-none';
-
-/**
- * El `Vacio` del sistema está hecho para leerse de cerca (título `lg`, explicación
- * `sm`). Éste se lee desde la puerta, así que se le sube el tipo al del cartel sin
- * tocar su forma: icono, título, explicación.
- */
-const VACIO_DE_CARTEL =
-  'flex-1 gap-(--espacio-6) ' +
-  '[&>div_svg]:size-[clamp(3rem,7vw,6rem)] ' +
-  '[&>p:first-of-type]:text-[clamp(2.5rem,7vw,6rem)] [&>p:first-of-type]:font-black ' +
-  '[&>p:first-of-type]:leading-tight [&>p:first-of-type]:text-balance ' +
-  '[&>p:nth-of-type(2)]:max-w-3xl [&>p:nth-of-type(2)]:text-[clamp(1.125rem,2.5vw,2rem)]';
+/** Las teselas de «Listos» se acomodan por renglones, cada una al ancho de su nombre. */
+const REJILLA_DE_LISTOS = 'flex max-w-full flex-wrap justify-center gap-(--espacio-6)';
 
 export interface PedidoListo {
   readonly id: string;
@@ -194,15 +190,19 @@ function PieDelCartel({
   return (
     <footer className="flex items-end justify-between gap-(--espacio-4)">
       {sinConexion ? (
-        // Un punto y su palabra. Ni «error», ni un código, ni un reintento.
+        // Un punto gris y su palabra. Ni «error», ni un código, ni un reintento, ni
+        // la caja azul de `info`: el aviso se queda con su `status` y nada más.
         <Aviso
           tono="info"
+          icono={<span className="mt-(--espacio-1) block size-3 rounded-full bg-texto-tenue" />}
           titulo={
-            yaLeyo
-              ? 'Sin conexión · estos son los últimos nombres'
-              : 'Sin conexión · los nombres aparecen en cuanto vuelva'
+            <span className="text-texto-sutil">
+              {yaLeyo
+                ? 'Sin conexión · estos son los últimos nombres'
+                : 'Sin conexión · los nombres aparecen en cuanto vuelva'}
+            </span>
           }
-          className="max-w-md p-(--espacio-3)"
+          className="max-w-md gap-(--espacio-2) border-0 bg-transparent p-0"
         />
       ) : (
         <span />
@@ -302,13 +302,13 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
         // pantalla entera y siguen leyéndose desde la puerta.
         <section className={ZONA} aria-live="polite">
           <p className={ROTULO}>Listos</p>
-          <ul className="grid w-full max-w-7xl gap-(--espacio-6) sm:grid-cols-2 xl:grid-cols-3">
+          <ul className={REJILLA_DE_LISTOS}>
             {tambien.map((pedido) => (
               <Superficie
                 key={pedido.id}
                 como="li"
-                relleno={6}
-                className={`flex min-w-0 items-center justify-center ${NOMBRE_GRANDE}`}
+                relleno={3}
+                className={`max-w-full px-(--espacio-6) ${NOMBRE_GRANDE}`}
               >
                 {nombreVisible(pedido)}
               </Superficie>
@@ -316,12 +316,14 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
           </ul>
         </section>
       ) : (
-        // El vacío ENSEÑA: quien lo lee todavía no sabe cómo funciona esto.
+        // El vacío ENSEÑA: quien lo lee todavía no sabe cómo funciona esto. Es el
+        // vacío que ES la pantalla y se lee desde la puerta: `protagonista`.
         <Vacio
+          tamano="protagonista"
           icono={<Coffee />}
           titulo="Tu nombre aparecerá aquí"
           explicacion={`En cuanto tu ${voc.singular('unidad_servicio')} esté listo lo verás en esta pantalla y lo oirás en voz alta. No tienes que hacer nada.`}
-          className={VACIO_DE_CARTEL}
+          className="flex-1"
         />
       )}
 

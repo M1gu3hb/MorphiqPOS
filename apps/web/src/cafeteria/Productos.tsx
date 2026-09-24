@@ -19,7 +19,7 @@ import {
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import { Ban, Check, Coffee, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -75,6 +75,18 @@ const RUTA_ESCRIBIR = '/api/datos/escribir';
 
 /** Siete cifras de pesos: lo más que la ficha acepta como precio. */
 const PRECIO_MAXIMO_CENTAVOS = 999_999_999;
+
+/**
+ * Desde aquí la ficha es la columna derecha (`xl:`); por debajo es una hoja que sube
+ * desde abajo y TAPA la lista. Es el `xl` de Tailwind 4: 80rem.
+ */
+const ANCHO_DE_COLUMNA = '(min-width: 80rem)';
+/** Lo más que mide la hoja: su `max-h`, y el `pb` que deja la lista por encima. */
+const ALTO_DE_LA_HOJA = '70dvh';
+
+function esHoja(): boolean {
+  return !window.matchMedia(ANCHO_DE_COLUMNA).matches;
+}
 
 /** Lo que cobran las plataformas de reparto, en puntos base. */
 const CANALES = [
@@ -278,6 +290,19 @@ function FichaDelProducto({
   alCerrar,
 }: FichaDelProductoProps) {
   const costo = enCentavos(producto.costo_calculado_actual);
+  const titulo = useRef<HTMLHeadingElement>(null);
+
+  /**
+   * POR DEBAJO DE `xl` EL FOCO ENTRA EN LA HOJA.
+   *
+   * La hoja tapa el 70 % de abajo: con el foco en la fila que la abrió, quien usa
+   * teclado seguía recorriendo filas y botones «Hoy» escondidos bajo ella. En la PC
+   * la ficha es la columna de al lado, se ve, y el foco se queda en la lista.
+   */
+  useEffect(() => {
+    if (esHoja()) titulo.current?.focus();
+  }, [producto.id]);
+
   return (
     <Superficie
       como="aside"
@@ -285,11 +310,24 @@ function FichaDelProducto({
       relleno={4}
       aria-label={`Margen de ${producto.nombre}`}
       style={{ viewTransitionName: VIAJE.fila(producto.id) }}
+      // Escape cierra la HOJA, como cierra un diálogo. En la PC no hay botón de
+      // cerrar, y un Escape tecleado en el precio no debe tirar la ficha.
+      onKeyDown={(evento: KeyboardEvent<HTMLElement>) => {
+        if (evento.key !== 'Escape' || !esHoja()) return;
+        evento.preventDefault();
+        alCerrar();
+      }}
       className="fixed inset-x-0 bottom-0 z-30 flex max-h-[70dvh] flex-col gap-(--espacio-4) overflow-y-auto rounded-b-none xl:static xl:col-start-2 xl:max-h-none xl:rounded-b-lg xl:shadow-1"
     >
       <header className="flex items-start justify-between gap-(--espacio-3)">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold">{producto.nombre}</h2>
+          <h2
+            ref={titulo}
+            tabIndex={-1}
+            className="text-xl font-semibold focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none"
+          >
+            {producto.nombre}
+          </h2>
           <p className="text-sm text-texto-sutil capitalize">{producto.familia}</p>
         </div>
         <Button
@@ -422,6 +460,34 @@ export function Productos({ productosIniciales }: ProductosProps) {
   const [precioCentavos, setPrecioCentavos] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  /** La lista, para devolverle el foco a la fila de la ficha que se cierra. */
+  const lista = useRef<HTMLElement>(null);
+  const hayFicha = elegido !== null;
+
+  /**
+   * CON LA HOJA ABIERTA, LO ENFOCADO NO QUEDA DEBAJO DE ELLA.
+   *
+   * La hoja es `fixed` y tapa el 70 % de abajo: una fila que recibía el foco con el
+   * tabulador se desplazaba «a la vista», pero a la vista quedaba bajo la hoja. El
+   * `scroll-padding` del documento le dice al navegador que esa franja no cuenta
+   * como vista (la técnica C43 de las WCAG). Sólo por debajo de `xl`, que es donde la
+   * ficha es hoja, y se devuelve el valor que había al cerrarla.
+   */
+  useEffect(() => {
+    if (!hayFicha) return;
+    const raiz = document.documentElement;
+    const previo = raiz.style.scrollPaddingBottom;
+    const columna = window.matchMedia(ANCHO_DE_COLUMNA);
+    const ajustar = (): void => {
+      raiz.style.scrollPaddingBottom = columna.matches ? previo : ALTO_DE_LA_HOJA;
+    };
+    ajustar();
+    columna.addEventListener('change', ajustar);
+    return () => {
+      columna.removeEventListener('change', ajustar);
+      raiz.style.scrollPaddingBottom = previo;
+    };
+  }, [hayFicha]);
 
   useEffect(() => {
     if (productosIniciales !== undefined) return;
@@ -485,6 +551,18 @@ export function Productos({ productosIniciales }: ProductosProps) {
         abrir(producto);
       });
     });
+  }
+
+  /**
+   * Al cerrar, el foco VUELVE a la fila que abrió la ficha. El botón de cerrar se
+   * desmonta con ella, y sin esto el foco caía en `<body>`: quien usa teclado perdía
+   * el renglón en el que iba. La fila se busca ANTES de cerrar, mientras aún es la
+   * activa; el elemento es el mismo después, así que el foco se queda en ella.
+   */
+  function cerrarFicha(): void {
+    const fila = lista.current?.querySelector<HTMLElement>('tr[data-activa]');
+    setElegido(null);
+    fila?.focus();
   }
 
   function guardarPrecio(): void {
@@ -596,7 +674,11 @@ export function Productos({ productosIniciales }: ProductosProps) {
         </Aviso>
       )}
 
-      <section aria-label={voc.titulo('producto', true)} className="min-w-0 xl:col-start-1">
+      <section
+        ref={lista}
+        aria-label={voc.titulo('producto', true)}
+        className="min-w-0 xl:col-start-1"
+      >
         <Tabla
           etiqueta={`${voc.titulo('producto', true)} con su precio y lo que deja cada canal`}
           columnas={columnas}
@@ -634,9 +716,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
           alCambiarPrecio={setPrecioCentavos}
           ocupado={ocupado}
           alGuardar={guardarPrecio}
-          alCerrar={() => {
-            setElegido(null);
-          }}
+          alCerrar={cerrarFicha}
         />
       )}
     </main>

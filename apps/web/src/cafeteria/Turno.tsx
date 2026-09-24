@@ -20,6 +20,7 @@ import { Coins, History, Lock, LockOpen, Plus, ReceiptText } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react';
 
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -65,7 +66,9 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *    en vez de inventar un número.
  * 2. El arqueo, el reparto del bote y el PDF son la pantalla de cierre.
  * 3. El historial lista los turnos por el puente; el detalle de cada corte y su
- *    reimpresión son otra pantalla.
+ *    reimpresión son otra pantalla. Se lee APARTE del turno: si falla, el turno
+ *    leído se sigue operando y el fallo se dice en su pestaña, no en toda la
+ *    pantalla.
  */
 
 /** Los tres cajones del fondo, en el orden en que se cuentan. */
@@ -152,14 +155,21 @@ export interface TurnoProps {
 }
 
 /**
- * Pesos del puente a centavos contando dígitos: `58.995 * 100` pierde medio
- * centavo y el arqueo deja de cuadrar (R15).
+ * Lo que se leyó: el turno SIEMPRE, y el historial si se pudo.
+ *
+ * Son dos lecturas de peso distinto. Sin el turno no se sabe si la caja está
+ * abierta y no hay nada que hacer; sin el historial —jerarquía 4, lo sirve el
+ * puente con sus propios permisos— se sigue abriendo, moviendo y cortando. Por
+ * eso un fallo del historial no tira la lectura: viaja aparte, con su palabra.
  */
-function centavosDePesos(pesos: number): number {
-  if (!Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+interface LecturaDelTurno {
+  readonly vivo: EstadoDelTurno;
+  /** `null` cuando el historial no se pudo leer. */
+  readonly cortes: readonly CorteDelHistorial[] | null;
+  readonly falloDeCortes: string | null;
 }
+
+const LIMITE_DEL_HISTORIAL = 20;
 
 export function totalDelFondo(fondo: Desglose): number {
   return DENOMINACIONES.reduce((suma, d) => suma + (fondo[d.clave] ?? 0), 0);
@@ -238,24 +248,33 @@ const COLUMNAS_DEL_HISTORIAL: readonly ColumnaDeTabla<CorteDelHistorial>[] = [
   },
   { clave: 'apertura', titulo: 'Apertura', celda: (corte) => cuando(corte.fecha_apertura) },
   { clave: 'cierre', titulo: 'Cierre', celda: (corte) => cuando(corte.fecha_cierre) },
+  // Sin `desde`: quién abrió es la mitad de lo que se busca cuando una caja no
+  // cuadra, y en el teléfono también. La tabla trae su propio desplazamiento.
   {
     clave: 'abrio',
     titulo: 'Abrió',
-    desde: 'md',
     celda: (corte) => corte.usuario_apertura_nombre ?? 'sin nombre',
   },
   {
     clave: 'contado',
     titulo: 'Contado',
     numerica: true,
-    celda: (corte) =>
-      corte.efectivo_contado === null ? (
+    celda: (corte) => {
+      // El puente lo sirve en PESOS: de vuelta a centavos contando dígitos.
+      const contado = centavosDelPuente(corte.efectivo_contado);
+      return contado === null ? (
         <span className="text-texto-sutil">en curso</span>
       ) : (
-        <Dinero centavos={centavosDePesos(corte.efectivo_contado)} tamano="sm" />
-      ),
+        <Dinero centavos={contado} tamano="sm" />
+      );
+    },
   },
 ];
+
+/** El historial, por el puente. Aparte del turno: ver `LecturaDelTurno`. */
+function leerHistorial(signal: AbortSignal): Promise<readonly CorteDelHistorial[]> {
+  return consultarPuente<CorteDelHistorial>('CorteCaja', { limite: LIMITE_DEL_HISTORIAL, signal });
+}
 
 export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoProps) {
   const voc = useVocabulario();
@@ -263,6 +282,8 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
   const [historial, setHistorial] = useState<readonly CorteDelHistorial[]>(filasIniciales ?? []);
   const [cargando, setCargando] = useState(estadoInicial === undefined);
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  const [falloDeHistorial, setFalloDeHistorial] = useState<string | null>(null);
+  const [leyendoHistorial, setLeyendoHistorial] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [fondo, setFondo] = useState<Desglose>(FONDO_VACIO);
@@ -280,12 +301,18 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
    * Lee, y NO pinta. La separación no es estilo: un `setState` dentro de la
    * función que el efecto llama de frente encadena un render por lectura.
    */
-  const leerTurno = useCallback(async (signal: AbortSignal) => {
-    const [vivo, cortes] = await Promise.all([
-      invocarComando<EstadoDelTurno>('/api/caja/estado', {}, { signal }),
-      consultarPuente<CorteDelHistorial>('CorteCaja', { limite: 20, signal }),
-    ]);
-    return { vivo, cortes };
+  const leerTurno = useCallback(async (signal: AbortSignal): Promise<LecturaDelTurno> => {
+    // Las dos salen a la vez, pero NO caen juntas: el historial se resuelve a su
+    // propio resultado, y sólo el fallo del turno rechaza la lectura.
+    const historialLeido = leerHistorial(signal).then(
+      (cortes) => ({ cortes, falloDeCortes: null }),
+      (fallo: unknown) => ({
+        cortes: null,
+        falloDeCortes: mensajeDe(fallo, 'No se pudo leer el historial.'),
+      }),
+    );
+    const vivo = await invocarComando<EstadoDelTurno>('/api/caja/estado', {}, { signal });
+    return { vivo, ...(await historialLeido) };
   }, []);
 
   useEffect(() => {
@@ -293,9 +320,11 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
     const control = new AbortController();
     const sigueMontada = () => !control.signal.aborted;
     leerTurno(control.signal)
-      .then(({ vivo, cortes }) => {
+      .then(({ vivo, cortes, falloDeCortes }) => {
+        if (!sigueMontada()) return;
         setEstado(vivo);
-        setHistorial(cortes);
+        if (cortes !== null) setHistorial(cortes);
+        setFalloDeHistorial(falloDeCortes);
         setCargando(false);
       })
       .catch((fallo: unknown) => {
@@ -316,15 +345,30 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
     setIntento((previo) => previo + 1);
   }
 
+  /** Sólo el historial: el turno ya está leído y no se vuelve a tapar con un esqueleto. */
+  async function volverALeerHistorial(): Promise<void> {
+    if (leyendoHistorial) return;
+    setLeyendoHistorial(true);
+    try {
+      setHistorial(await leerHistorial(new AbortController().signal));
+      setFalloDeHistorial(null);
+    } catch (fallo) {
+      setFalloDeHistorial(mensajeDe(fallo, 'No se pudo leer el historial.'));
+    } finally {
+      setLeyendoHistorial(false);
+    }
+  }
+
   /** Escribe, relee y deja la pantalla contando la verdad del servidor. */
   async function ejecutar(accion: () => Promise<void>, respaldo: string): Promise<void> {
     setEnviando(true);
     setError(null);
     try {
       await accion();
-      const { vivo, cortes } = await leerTurno(new AbortController().signal);
+      const { vivo, cortes, falloDeCortes } = await leerTurno(new AbortController().signal);
       setEstado(vivo);
-      setHistorial(cortes);
+      if (cortes !== null) setHistorial(cortes);
+      setFalloDeHistorial(falloDeCortes);
     } catch (fallo) {
       setError(mensajeDe(fallo, respaldo));
     } finally {
@@ -533,7 +577,9 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           </span>
           <div className="flex flex-col">
             {titulo}
-            <p className="text-base font-semibold text-texto-sutil">
+            {/* El nivel 1 de la pantalla: en el color del texto y no en el sutil,
+                y al menos tan pesado como las cifras del resumen. */}
+            <p className="text-xl font-semibold text-texto">
               {abierto ? `Abierto desde ${cuando(estado.abiertaEn)}` : 'Cerrado'}
             </p>
           </div>
@@ -653,14 +699,17 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           <TabsTrigger value="historial">Historial</TabsTrigger>
         </TabsList>
 
-        {/* 3 · EL RESUMEN. Lo vendido manda; el cambio va aparte y con su palabra. */}
+        {/* 3 · EL RESUMEN. Es el nivel 3: sus cifras van al paso del fondo de
+            apertura y no más arriba, para no pesar más que el estado de la franja
+            (`total` es sólo el del cobro). Lo vendido va primero; el cambio va
+            aparte y con su palabra. */}
         <TabsContent value="resumen" className="pt-(--espacio-3)">
           <Superficie className="xl:max-w-3xl">
             <dl className="grid gap-(--espacio-4) sm:grid-cols-3">
               <div className="flex flex-col gap-(--espacio-1)">
                 <dt className="text-sm text-texto-sutil">Vendido en el turno</dt>
                 <dd>
-                  <Dinero centavos={Number(estado?.ventasCentavos ?? '0')} tamano="total" />
+                  <Dinero centavos={Number(estado?.ventasCentavos ?? '0')} tamano="lg" />
                 </dd>
               </div>
               <div className="flex flex-col gap-(--espacio-1)">
@@ -713,25 +762,50 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           )}
         </TabsContent>
 
-        {/* 4 · EL HISTORIAL. El detalle de cada corte es otra pantalla. */}
+        {/* 4 · EL HISTORIAL. El detalle de cada corte es otra pantalla. Si no se
+            leyó, se dice AQUÍ: el turno de arriba sí se leyó y se sigue operando. */}
         <TabsContent value="historial" className="pt-(--espacio-3)">
-          <Tabla
-            etiqueta="Historial de turnos"
-            columnas={COLUMNAS_DEL_HISTORIAL}
-            filas={historial}
-            claveDe={(corte) => corte.id}
-            vacio={
-              // El vacío ENSEÑA: dice qué va a aparecer y para qué va a servir.
-              <Superficie>
-                <Vacio
-                  className="py-(--espacio-6)"
-                  icono={<History />}
-                  titulo="Todavía no hay turnos cerrados."
-                  explicacion="Cada turno que se cierre deja aquí su folio, quién lo abrió y cuánto se contó. Es lo que se mira cuando una caja no cuadra y hay que saber de qué día viene."
-                />
-              </Superficie>
-            }
-          />
+          <div className="flex flex-col gap-(--espacio-3)">
+            {falloDeHistorial === null ? null : (
+              <ErrorDePantalla
+                className="max-w-2xl"
+                titulo="No se pudo leer el historial de turnos"
+                queHacer="El turno de hoy sí se leyó: se puede abrir, mover dinero y cortar. Lo que falta son los turnos anteriores; vuelve a leerlos."
+                detalle={falloDeHistorial}
+                reintentar={
+                  <Button
+                    cargando={leyendoHistorial}
+                    onClick={() => {
+                      void volverALeerHistorial();
+                    }}
+                  >
+                    Volver a leer el historial
+                  </Button>
+                }
+              />
+            )}
+            {/* Sin historial leído, la tabla vacía diría «todavía no hay turnos», que
+              no es verdad: sólo se pinta si hay filas de una lectura anterior. */}
+            {falloDeHistorial !== null && historial.length === 0 ? null : (
+              <Tabla
+                etiqueta="Historial de turnos"
+                columnas={COLUMNAS_DEL_HISTORIAL}
+                filas={historial}
+                claveDe={(corte) => corte.id}
+                vacio={
+                  // El vacío ENSEÑA: dice qué va a aparecer y para qué va a servir.
+                  <Superficie>
+                    <Vacio
+                      className="py-(--espacio-6)"
+                      icono={<History />}
+                      titulo="Todavía no hay turnos cerrados."
+                      explicacion="Cada turno que se cierre deja aquí su folio, quién lo abrió y cuánto se contó. Es lo que se mira cuando una caja no cuadra y hay que saber de qué día viene."
+                    />
+                  </Superficie>
+                }
+              />
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>

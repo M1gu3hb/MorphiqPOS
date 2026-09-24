@@ -66,18 +66,6 @@ export function totalCentavos(base: number, activas: readonly OpcionDeBebida[]):
   return activas.reduce((suma, opcion) => suma + (opcion.delta_precio_centavos ?? 0), base);
 }
 
-export function pesos(centavos: number): string {
-  return `$ ${(centavos / 100).toFixed(2)}`;
-}
-
-/** `+22` se dice en voz alta; `+22.00` se lee. Los centavos sólo salen si los hay. */
-export function etiquetaDelta(centavos: number): string | null {
-  if (centavos === 0) return null;
-  const absoluto = Math.abs(centavos);
-  const cuerpo = absoluto % 100 === 0 ? absoluto / 100 : (absoluto / 100).toFixed(2);
-  return `${centavos > 0 ? '+' : '−'}$${cuerpo}`;
-}
-
 /** El límite de intentos no es un código de la API: es el 429 del estado. */
 export function mensajeDeFallo(fallo: unknown): string {
   if (!(fallo instanceof ErrorApi)) return 'No se pudo hablar con el servidor.';

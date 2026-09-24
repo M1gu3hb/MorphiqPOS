@@ -103,6 +103,51 @@ export interface ClienteConSellos {
   readonly premiosCanjeados: number;
 }
 
+/**
+ * El cliente COMO LO SIRVE EL PUENTE, que no es como lo pinta la tarjeta.
+ *
+ * `sellos` y `premiosCanjeados` salen de un `left join` a `lealtad_saldos`, y esa
+ * fila la crea el trigger con el PRIMER movimiento del ledger (088): quien todavía
+ * no ha juntado ningún sello llega con `null`. Declararlos `number` era mentir, y
+ * la mentira tiraba la pantalla al pintar la tarjeta de un cliente nuevo.
+ */
+interface ClienteDelPuente extends Omit<ClienteConSellos, 'sellos' | 'premiosCanjeados'> {
+  readonly sellos: number | null;
+  readonly premiosCanjeados: number | null;
+}
+
+/** Sin fila en el ledger no hay sellos: es cero, no «no se sabe». */
+function desdeElPuente(fila: ClienteDelPuente): ClienteConSellos {
+  return { ...fila, sellos: fila.sellos ?? 0, premiosCanjeados: fila.premiosCanjeados ?? 0 };
+}
+
+/**
+ * Lo que contestan `lealtad.canjear` y `lealtad.ajustar`: NO un cliente, sino su
+ * saldo nuevo (`ResultadoCanje` y `ResultadoSellos` en `packages/app/src/cafeteria/
+ * lealtad.ts`). Tomarlo por un cliente dejaba la tarjeta sin nombre ni sellos.
+ */
+interface SaldoConfirmado {
+  readonly clienteId: string;
+  readonly saldo: number;
+}
+
+/**
+ * La fila con el saldo que el servidor acaba de confirmar; las demás, tal cual.
+ * Un canje suma uno a los canjeados, igual que el trigger en `lealtad_saldos`.
+ */
+function conSaldoConfirmado(
+  fila: ClienteConSellos,
+  confirmado: SaldoConfirmado,
+  canjesNuevos: number,
+): ClienteConSellos {
+  if (fila.id !== confirmado.clienteId) return fila;
+  return {
+    ...fila,
+    sellos: confirmado.saldo,
+    premiosCanjeados: fila.premiosCanjeados + canjesNuevos,
+  };
+}
+
 export interface ClientesYSellosProps {
   readonly clienteInicial?: ClienteConSellos;
   readonly recientesIniciales?: readonly ClienteConSellos[];
@@ -429,9 +474,9 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
-      consultarPuente<ClienteConSellos>('Cliente', { limite: 12, signal: control.signal })
+      consultarPuente<ClienteDelPuente>('Cliente', { limite: 12, signal: control.signal })
         .then((filas) => {
-          if (sigueMontada()) setRecientes(filas);
+          if (sigueMontada()) setRecientes(filas.map(desdeElPuente));
         })
         .catch((fallo: unknown) => {
           if (sigueMontada()) setFalloDeCarga(textoDeFallo(fallo, 'No se pudo leer la lista.'));
@@ -483,7 +528,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
      * identifica ni debería: buscar por teléfono es una LECTURA, y las lecturas van
      * por el puente —que además ya sirve los `sellos` derivados del ledger—.
      */
-    consultarPuente<ClienteConSellos>('Cliente', { filtro: { telefono: limpio }, limite: 1 })
+    consultarPuente<ClienteDelPuente>('Cliente', { filtro: { telefono: limpio }, limite: 1 })
       .then((filas) => {
         const encontrado = filas[0];
         if (encontrado === undefined) {
@@ -491,7 +536,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
           setError('Con ese teléfono no hay nadie registrado todavía.');
           return;
         }
-        setCliente(encontrado);
+        setCliente(desdeElPuente(encontrado));
         setConfirmandoCanje(false);
       })
       .catch((fallo: unknown) => {
@@ -528,8 +573,22 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
     });
   }
 
+  /**
+   * El saldo confirmado va a la TARJETA y a su FILA de la lista. Si sólo cambiara la
+   * tarjeta, la fila seguiría en verde diciendo «Ya puede canjear», el resumen la
+   * seguiría contando, y al volver a tocarla la tarjeta reabriría con el saldo de
+   * antes del canje, ofreciendo canjear otra vez.
+   */
+  function aplicarSaldo(confirmado: SaldoConfirmado, canjesNuevos: number): void {
+    const actualizar = (fila: ClienteConSellos): ClienteConSellos =>
+      conSaldoConfirmado(fila, confirmado, canjesNuevos);
+    setCliente((actual) => (actual === null ? null : actualizar(actual)));
+    setRecientes((previas) => (previas === null ? null : previas.map(actualizar)));
+  }
+
   function canjear(): void {
-    if (cliente === null) return;
+    // Un doble toque llega antes que el re-pintado que apaga el botón.
+    if (ocupado || cliente === null) return;
     // La validación va ANTES de ocupar la pantalla: al revés, un «Sí, canjear»
     // sin premio dejaba todos los botones apagados para siempre.
     if (premio === '') {
@@ -543,9 +602,9 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
      * Antes iba sólo `{clienteId}` y contestaba 400: se podía confirmar el canje y
      * la tarjeta no se vaciaba —ni el premio se anotaba— nunca.
      */
-    invocarComando<ClienteConSellos>(RUTA_CANJEAR, { clienteId: cliente.id, productoId: premio })
-      .then((actualizado) => {
-        setCliente(actualizado);
+    invocarComando<SaldoConfirmado>(RUTA_CANJEAR, { clienteId: cliente.id, productoId: premio })
+      .then((confirmado) => {
+        aplicarSaldo(confirmado, 1);
         setConfirmandoCanje(false);
         setAviso('Canjeado. La tarjeta vuelve a empezar.');
       })
@@ -558,7 +617,7 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
   }
 
   function ajustar(): void {
-    if (cliente === null) return;
+    if (ocupado || cliente === null) return;
     const cantidad = Number(ajuste);
     if (!Number.isInteger(cantidad) || cantidad === 0) {
       setError('Pon cuántos sellos, en más o en menos.');
@@ -572,13 +631,13 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
     }
     setOcupado(true);
     setError(null);
-    invocarComando<ClienteConSellos>(RUTA_AJUSTAR, {
+    invocarComando<SaldoConfirmado>(RUTA_AJUSTAR, {
       clienteId: cliente.id,
       sellos: cantidad,
       motivo: motivo.trim(),
     })
-      .then((actualizado) => {
-        setCliente(actualizado);
+      .then((confirmado) => {
+        aplicarSaldo(confirmado, 0);
         setAjuste('');
         setMotivo('');
         setAviso('Ajustado.');

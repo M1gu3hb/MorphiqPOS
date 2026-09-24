@@ -189,17 +189,32 @@ interface Urgencia {
 }
 
 /**
- * Lo que esta pantalla espera del conteo.
+ * Una leche del conteo, como la contesta `cafeteria.contar_leche`
+ * (`packages/app/src/cafeteria/leche.ts`, `DiferenciaDeLeche`). Se copia aquí porque
+ * ese módulo es `server-only`.
  *
- * OJO: `cafeteria.contar_leche` contesta hoy `{ diferencias, faltanteTotalMl,
- * fueraDeRango }`, no esto. Por eso el resultado se pinta a la defensiva —una cifra
- * que no llega dice «—» y la merma sin dato no enciende el verde—: pintar `NaN`, o
- * un «merma normal» que nadie calculó, es peor que no decir nada.
+ * Esta pantalla leía `{ contado, teorico, mermaPorcentaje }`, que el comando no
+ * sirve: el resultado decía siempre «—», «—» y «sin dato», y el semáforo de merma
+ * —lo único que el conteo existe para enseñar— no se encendía nunca.
+ *
+ * Los mililitros viajan como TEXTO —`numeric` con cuatro decimales— y el desvío en
+ * puntos base sobre lo esperado: negativo es lo que falta, y ESO es la merma de barra.
  */
+interface DiferenciaDeLeche {
+  readonly insumoId: string;
+  readonly nombre: string;
+  readonly contadoMl: string;
+  readonly esperadoMl: string;
+  readonly diferenciaMl: string;
+  readonly desvioBp: number;
+}
+
+/** `ResultadoConteoLeche`: cada leche, lo que falta sumando todas y cuántas se salen. */
 interface ResultadoConteo {
-  readonly contado: number;
-  readonly teorico: number;
-  readonly mermaPorcentaje: number;
+  readonly diferencias: readonly DiferenciaDeLeche[];
+  readonly faltanteTotalMl: string;
+  /** Las que se desvían más de lo normal en barra (8 %), hacia arriba o hacia abajo. */
+  readonly fueraDeRango: number;
 }
 
 function sinAcentos(texto: string): string {
@@ -258,6 +273,50 @@ export function semaforoDeMerma(porcentaje: number): Omit<Urgencia, 'orden'> {
   if (porcentaje >= MERMA_AMBAR)
     return { palabra: 'merma en el límite', clase: 'bg-advertencia/30' };
   return { palabra: 'merma normal', clase: 'bg-exito/25' };
+}
+
+/** Los mililitros del conteo, que llegan como texto. Lo que no es un número dice «—». */
+function mlDe(texto: string): number | null {
+  const valor = Number(texto);
+  return texto.trim() === '' || !Number.isFinite(valor) ? null : valor;
+}
+
+/** Lo que una leche del conteo dice: su merma, la palabra del tramo y el tono. */
+interface LecturaDeLeche {
+  /** Lo que falta sobre el teórico, en %. `null` sin teórico: no hay contra qué medir. */
+  readonly merma: number | null;
+  readonly palabra: string;
+  readonly clase: string;
+  readonly tono: TonoDeFila | undefined;
+}
+
+function lecturaDeLeche(diferencia: DiferenciaDeLeche): LecturaDeLeche {
+  const esperado = mlDe(diferencia.esperadoMl);
+  // Sin teórico el comando contesta un desvío de 0: pintarlo en verde sería un
+  // «merma normal» que nadie midió.
+  if (esperado === null || esperado <= 0) {
+    return {
+      merma: null,
+      palabra: 'sin teórico',
+      clase: 'bg-fondo-sutil text-texto-sutil',
+      tono: undefined,
+    };
+  }
+  const merma = Math.max(0, -diferencia.desvioBp) / 100;
+  // Lo que SOBRA no es merma, pero pasado el 8 % el comando lo cuenta fuera de rango
+  // igual que un faltante: un verde ahí contradiría el total de abajo.
+  if (diferencia.desvioBp > MERMA_AMBAR * 100) {
+    return {
+      merma,
+      palabra: 'sobra fuera de rango',
+      clase: 'bg-advertencia/30',
+      tono: 'advertencia',
+    };
+  }
+  const semaforo = semaforoDeMerma(merma);
+  if (merma > MERMA_ROJA) return { merma, ...semaforo, tono: 'peligro' };
+  if (merma >= MERMA_AMBAR) return { merma, ...semaforo, tono: 'advertencia' };
+  return { merma, ...semaforo, tono: undefined };
 }
 
 export function diasDesde(fecha: string | null, ahora: number): number | null {
@@ -760,11 +819,14 @@ function Cantidad({
   valor,
   unidad,
   tamano = 'sm',
+  conSigno = false,
   className,
 }: {
   readonly valor: number | null;
   readonly unidad?: string | null;
   readonly tamano?: TamanoDeDinero;
+  /** Una diferencia: «+250 ml» lo que sobra, «-250 ml» lo que falta. */
+  readonly conSigno?: boolean;
   readonly className?: string;
 }) {
   if (valor === null || !Number.isFinite(valor)) {
@@ -776,6 +838,7 @@ function Cantidad({
       valor={redondo}
       decimales={Number.isInteger(redondo) ? 0 : 1}
       tamano={tamano}
+      conSigno={conSigno}
       {...(unidad === undefined || unidad === null ? {} : { unidad })}
       {...(className === undefined ? {} : { className })}
     />
@@ -1160,13 +1223,70 @@ function ConteoDeLeche({
   );
 }
 
-/** El semáforo lleva forma además de color: palomita, triángulo u octágono. */
-function IconoDeMerma({ porcentaje }: { readonly porcentaje: number }) {
-  const clase = 'size-5 shrink-0';
-  if (porcentaje > MERMA_ROJA) return <OctagonAlert aria-hidden="true" className={clase} />;
-  if (porcentaje >= MERMA_AMBAR) return <TriangleAlert aria-hidden="true" className={clase} />;
+/**
+ * El semáforo lleva forma además de color: palomita, triángulo u octágono. Sin
+ * teórico no hay semáforo, y tampoco icono.
+ */
+function IconoDeLectura({ lectura }: { readonly lectura: LecturaDeLeche }) {
+  const clase = 'size-4 shrink-0';
+  if (lectura.merma === null) return null;
+  if (lectura.tono === 'peligro') return <OctagonAlert aria-hidden="true" className={clase} />;
+  if (lectura.tono === 'advertencia') return <TriangleAlert aria-hidden="true" className={clase} />;
   return <CircleCheck aria-hidden="true" className={clase} />;
 }
+
+/** La cabeza de la tarjeta: la leche, y a su lado el semáforo con su palabra. */
+function CabezaDelConteo({ diferencia }: { readonly diferencia: DiferenciaDeLeche }) {
+  const lectura = lecturaDeLeche(diferencia);
+  return (
+    <span className="flex items-start justify-between gap-(--espacio-2)">
+      <span className="font-semibold">{diferencia.nombre}</span>
+      <span className={`${CHIP} shrink-0 ${lectura.clase}`}>
+        <IconoDeLectura lectura={lectura} />
+        {lectura.palabra}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Las tres cifras de CADA leche —contado, teórico y merma— y la diferencia que las
+ * une. El comando mide cada leche contra su propio teórico: sumar la entera con la de
+ * almendra en un solo porcentaje escondería justo la que se está perdiendo.
+ */
+const COLUMNAS_DEL_CONTEO: readonly ColumnaDeTabla<DiferenciaDeLeche>[] = [
+  {
+    clave: 'leche',
+    titulo: 'Leche',
+    celda: (diferencia) => <CabezaDelConteo diferencia={diferencia} />,
+  },
+  {
+    clave: 'contado',
+    titulo: 'Contado',
+    numerica: true,
+    celda: (diferencia) => <Cantidad valor={mlDe(diferencia.contadoMl)} unidad="ml" />,
+  },
+  {
+    clave: 'teorico',
+    titulo: 'Teórico',
+    numerica: true,
+    celda: (diferencia) => <Cantidad valor={mlDe(diferencia.esperadoMl)} unidad="ml" />,
+  },
+  {
+    clave: 'diferencia',
+    titulo: 'Diferencia',
+    numerica: true,
+    celda: (diferencia) => <Cantidad valor={mlDe(diferencia.diferenciaMl)} unidad="ml" conSigno />,
+  },
+  {
+    clave: 'merma',
+    titulo: 'Merma',
+    numerica: true,
+    celda: (diferencia) => (
+      <Cantidad valor={lecturaDeLeche(diferencia).merma} unidad="%" className="font-bold" />
+    ),
+  },
+];
 
 /** Las tres cifras juntas, aquí y no en un reporte que nadie abre. */
 function ResultadoDelConteo({
@@ -1176,37 +1296,40 @@ function ResultadoDelConteo({
   readonly resultado: ResultadoConteo;
   readonly onCerrar: () => void;
 }) {
-  const merma = Number.isFinite(resultado.mermaPorcentaje) ? resultado.mermaPorcentaje : null;
-  const semaforo = merma === null ? null : semaforoDeMerma(merma);
   return (
     <div className="flex flex-col gap-(--espacio-4)">
-      <dl className="grid grid-cols-2 gap-(--espacio-3)">
+      <ListaDeTarjetas
+        columnas={COLUMNAS_DEL_CONTEO}
+        filas={resultado.diferencias}
+        claveDe={(diferencia) => diferencia.insumoId}
+        principal="leche"
+        tonoDeFila={(diferencia) => lecturaDeLeche(diferencia).tono}
+        columnasDeTarjeta="adaptable"
+      />
+      {/* Lo que el comando suma: el faltante de todas y cuántas se salen del 8 %. */}
+      <Superficie como="dl" nivel={0} relleno={3} className="grid grid-cols-2 gap-(--espacio-3)">
         <div className="flex flex-col gap-1">
-          <dt className="text-xs tracking-wide text-texto-sutil uppercase">Contado</dt>
+          <dt className="text-xs tracking-wide text-texto-sutil uppercase">Falta en total</dt>
           <dd>
-            <Cantidad valor={resultado.contado} tamano="lg" />
+            <Cantidad
+              valor={mlDe(resultado.faltanteTotalMl)}
+              unidad="ml"
+              tamano="lg"
+              className="font-bold"
+            />
           </dd>
         </div>
         <div className="flex flex-col gap-1">
-          <dt className="text-xs tracking-wide text-texto-sutil uppercase">Teórico</dt>
+          <dt className="text-xs tracking-wide text-texto-sutil uppercase">Fuera de rango</dt>
           <dd>
-            <Cantidad valor={resultado.teorico} tamano="lg" />
+            <Cifra
+              valor={resultado.fueraDeRango}
+              unidad={`de ${String(resultado.diferencias.length)}`}
+              tamano="lg"
+              className="font-bold"
+            />
           </dd>
         </div>
-      </dl>
-      <Superficie
-        nivel={0}
-        relleno={3}
-        className={`flex items-center gap-(--espacio-3) ${semaforo?.clase ?? ''}`}
-      >
-        {merma === null ? null : <IconoDeMerma porcentaje={merma} />}
-        <span className="flex flex-col">
-          <span className="text-xs tracking-wide text-texto-sutil uppercase">Merma</span>
-          <span className="flex flex-wrap items-baseline gap-(--espacio-2)">
-            <Cantidad valor={merma} unidad="%" tamano="lg" className="font-bold" />
-            <span className="text-sm font-semibold">{semaforo?.palabra ?? 'sin dato'}</span>
-          </span>
-        </span>
       </Superficie>
       <Button type="button" variant="secondary" onClick={onCerrar}>
         Cerrar
