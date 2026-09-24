@@ -44,3 +44,26 @@ describe('<Button asChild>', () => {
     expect(marcado).toContain('animate-spin');
   });
 });
+
+/**
+ * `cargando` GANA a `disabled={false}`. El botón hacía `disabled={cargando || props.disabled}`
+ * y DESPUÉS `{...props}`: el `disabled: false` que traía la pantalla pisaba al calculado, y un
+ * «Guardar entrada» con `cargando` y `disabled={lineas.length === 0}` seguía pulsable mientras
+ * guardaba. Un doble toque con la red lenta registraba la nota dos veces. Lo vio la revisión
+ * adversarial de las pantallas recompuestas, no una prueba.
+ */
+describe('<Button cargando> con un `disabled` que dice que sí se puede', () => {
+  it('sigue deshabilitado mientras carga', () => {
+    const marcado = renderToStaticMarkup(
+      <Button cargando disabled={false}>
+        Guardar entrada
+      </Button>,
+    );
+    expect(marcado).toMatch(/<button[^>]* disabled=""/);
+  });
+
+  it('y sin cargar, `disabled={false}` lo deja pulsable', () => {
+    const marcado = renderToStaticMarkup(<Button disabled={false}>Guardar entrada</Button>);
+    expect(marcado).not.toMatch(/<button[^>]* disabled=""/);
+  });
+});

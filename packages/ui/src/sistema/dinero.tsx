@@ -32,13 +32,16 @@ import { cn } from '../utilidades/cn';
  */
 
 /** Cuánto pesa el importe en la jerarquía de su pantalla. */
-export type TamanoDeDinero = 'xs' | 'sm' | 'base' | 'lg' | 'total';
+export type TamanoDeDinero = 'xs' | 'sm' | 'base' | 'lg' | 'xl' | 'total';
 
 const TAMANOS: Readonly<Record<TamanoDeDinero, string>> = {
   xs: 'text-xs',
   sm: 'text-sm',
   base: 'text-base',
   lg: 'text-xl font-medium',
+  // La cifra de un TABLERO o de un resumen —«lo que me deben», «lo que debería haber»—:
+  // grande sin ser el total del cobro, que en media tarjeta de teléfono no cabe.
+  xl: 'text-3xl font-semibold tracking-tight',
   // El total domina la pantalla de cobro: es lo primero que se ve y lo único que
   // se lee desde el otro lado del mostrador. Va en el paso `display`, que es fluido
   // —de 40 a 64 px según la ventana— porque a esa distancia el tamaño que sobra en
@@ -63,6 +66,7 @@ const SECUNDARIO: Readonly<Record<TamanoDeDinero, string>> = {
   sm: 'text-xs',
   base: 'text-sm',
   lg: 'text-base',
+  xl: 'text-xl',
   total: 'text-2xl',
 };
 
@@ -70,11 +74,14 @@ export interface DineroProps {
   /** SIEMPRE en centavos. El dinero en coma flotante pierde un centavo al año. */
   readonly centavos: number;
   readonly tamano?: TamanoDeDinero;
-  /** Pinta los positivos en verde. Para movimientos, no para totales. */
-  readonly conSigno?: boolean;
+  /**
+   * Para movimientos y diferencias, no para totales: los positivos llevan «+» Y van en
+   * verde. El signo escrito es lo que dice «sobra» a quien no distingue el verde.
+   */
+  readonly conSigno?: boolean | undefined;
   /** Oculta el símbolo: para una columna cuya cabecera ya dice que es dinero. */
-  readonly sinSimbolo?: boolean;
-  readonly className?: string;
+  readonly sinSimbolo?: boolean | undefined;
+  readonly className?: string | undefined;
 }
 
 /** `123456` → `{ pesos: '1,234', centavos: '56' }`. */
@@ -117,8 +124,9 @@ export function Dinero({
   className,
 }: DineroProps): ReactElement {
   const negativo = centavos < 0;
+  const positivoConSigno = conSigno && centavos > 0;
   const partes = partir(centavos);
-  const color = negativo ? 'text-peligro' : conSigno && centavos > 0 ? 'text-exito' : '';
+  const color = negativo ? 'text-peligro' : positivoConSigno ? 'text-exito' : '';
 
   return (
     <span
@@ -148,12 +156,13 @@ export function Dinero({
       )}
       // Lo que lee un lector de pantalla: el importe entero, sin paréntesis ni
       // símbolos sueltos que se deletreen.
-      aria-label={`${negativo ? 'menos ' : ''}${partes.pesos} pesos con ${partes.centavos} centavos`}
+      aria-label={`${negativo ? 'menos ' : positivoConSigno ? 'más ' : ''}${partes.pesos} pesos con ${partes.centavos} centavos`}
       // Para que una prueba de navegador encuentre TODOS los importes de una pantalla y
       // compare lo que se lee con lo que dice el `aria-label`.
       data-dinero=""
     >
       {negativo ? <span aria-hidden="true">(</span> : null}
+      {positivoConSigno ? <span aria-hidden="true">+</span> : null}
       {sinSimbolo ? null : (
         <span aria-hidden="true" className={SECUNDARIO[tamano]}>
           $
@@ -179,16 +188,36 @@ export function Dinero({
 export function Cifra({
   valor,
   unidad,
-  decimales = 0,
+  decimales = 'auto',
+  conSigno = false,
   tamano = 'base',
   className,
 }: {
-  readonly valor: number;
-  readonly unidad?: string;
-  readonly decimales?: number;
-  readonly tamano?: TamanoDeDinero;
-  readonly className?: string;
+  /**
+   * `null` o `undefined` pintan «—». El puente sirve `null` para lo que no tiene fila
+   * todavía —los sellos de un cliente sin movimientos, los minutos de una fórmula sin
+   * procesado—, y `valor.toLocaleString()` sobre un nulo tiraba la pantalla entera.
+   */
+  readonly valor: number | null | undefined;
+  readonly unidad?: string | undefined;
+  /**
+   * `'auto'` —por omisión—: los decimales que el valor TIENE, hasta dos, y ninguno si es
+   * entero. Con cero fijo, «12.5 m» de cable se leía «13 m». Un número fija la cantidad.
+   */
+  readonly decimales?: number | 'auto' | undefined;
+  /** «+3» y «-3»: el sentido de una diferencia escrito, no sólo coloreado. */
+  readonly conSigno?: boolean | undefined;
+  readonly tamano?: TamanoDeDinero | undefined;
+  readonly className?: string | undefined;
 }): ReactElement {
+  const hayValor = typeof valor === 'number' && Number.isFinite(valor);
+  const texto = hayValor
+    ? valor.toLocaleString('es-MX', {
+        minimumFractionDigits: decimales === 'auto' ? 0 : decimales,
+        maximumFractionDigits: decimales === 'auto' ? 2 : decimales,
+      })
+    : '—';
+  const signo = hayValor && conSigno && valor > 0 ? '+' : '';
   /**
    * EN LÍNEA, y con un ESPACIO de verdad entre el valor y la unidad.
    *
@@ -199,10 +228,8 @@ export function Cifra({
    */
   return (
     <span className={cn('font-numeros tabular-nums whitespace-nowrap', TAMANOS[tamano], className)}>
-      {valor.toLocaleString('es-MX', {
-        minimumFractionDigits: decimales,
-        maximumFractionDigits: decimales,
-      })}
+      {signo}
+      {texto}
       {unidad === undefined ? null : (
         <>
           {' '}

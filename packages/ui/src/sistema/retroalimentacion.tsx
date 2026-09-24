@@ -257,18 +257,39 @@ export function ConfirmacionDestructiva({
  * icono y su palabra. Un aviso que sólo se distingue por el tono del borde no
  * existe para quien no distingue ese tono.
  */
+/**
+ * CÓMO SE ANUNCIA. Un aviso de `peligro` es una ALERTA —interrumpe al lector de
+ * pantalla—, los demás un ESTADO —esperan su turno—. Dos casos piden otra cosa:
+ *
+ *   · `alerta` en un tono que no es peligro: el error de validación que acaba de salir
+ *     al tocar «Apartar» tiene que oírse ya, aunque sea de atención.
+ *   · `ninguno`: lo que está ahí desde que se pinta y no «llega» —la franja de alergia
+ *     de un pedido— o lo que cambia solo —una cuenta atrás—. Como región viva, se
+ *     volvería a leer en cada toque o en cada segundo.
+ */
+export type AnuncioDeAviso = 'alerta' | 'estado' | 'ninguno';
+
 export function Aviso({
   tono,
   titulo,
   children,
   accion,
+  anuncio,
+  icono,
+  id,
   className,
 }: {
   readonly tono: 'info' | 'exito' | 'atencion' | 'peligro';
-  readonly titulo: string;
+  /** Puede llevar un `<Dinero>`: «Cobrado · $1,800.00» no se formatea a mano. */
+  readonly titulo: ReactNode;
   readonly children?: ReactNode;
   readonly accion?: ReactNode;
-  readonly className?: string;
+  readonly anuncio?: AnuncioDeAviso | undefined;
+  /** Un icono de lucide en lugar del símbolo: la alergia es un triángulo, no un «×». */
+  readonly icono?: ReactNode;
+  /** Para que el campo que lo provoca le apunte con `aria-describedby`. */
+  readonly id?: string | undefined;
+  readonly className?: string | undefined;
 }): ReactElement {
   const estilo = {
     info: { caja: 'border-info/40 bg-info/5', texto: 'text-info', simbolo: 'i' },
@@ -284,25 +305,35 @@ export function Aviso({
       simbolo: '×',
     },
   }[tono];
+  const comoSeAnuncia = anuncio ?? (tono === 'peligro' ? 'alerta' : 'estado');
+  const rol =
+    comoSeAnuncia === 'alerta' ? 'alert' : comoSeAnuncia === 'estado' ? 'status' : undefined;
 
   return (
     <div
-      role={tono === 'peligro' ? 'alert' : 'status'}
+      id={id}
+      role={rol}
       className={cn(
         'flex items-start gap-(--espacio-3) rounded-lg border p-(--espacio-4)',
         estilo.caja,
         className,
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'flex size-5 shrink-0 items-center justify-center rounded-full border text-xs font-bold',
-          estilo.texto,
-        )}
-      >
-        {estilo.simbolo}
-      </span>
+      {icono === undefined ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            'flex size-5 shrink-0 items-center justify-center rounded-full border text-xs font-bold',
+            estilo.texto,
+          )}
+        >
+          {estilo.simbolo}
+        </span>
+      ) : (
+        <span aria-hidden="true" className={cn('shrink-0 [&_svg]:size-5', estilo.texto)}>
+          {icono}
+        </span>
+      )}
       <div className="flex-1">
         <p className={cn('text-sm font-medium', estilo.texto)}>{titulo}</p>
         {children === undefined ? null : (

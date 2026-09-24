@@ -47,3 +47,45 @@ describe('<Tabla> · la marca de «se puede ordenar»', () => {
     );
   });
 });
+
+/**
+ * LA FILA QUE SE TOCA. En la recomposición, listas de `<button>` —clientes, huecos de la
+ * agenda, cuentas por cobrar— pasaron a filas de `Tabla` con `alActivar`, y la revisión
+ * adversarial encontró lo que perdieron: la fila elegida se marcaba SÓLO con color, la
+ * acción principal de la caja del restaurante —cobrar una cuenta— no tenía nombre, y una
+ * fila de tabla densa medía 37 px donde el giro pide un objetivo táctil de 44 a 56.
+ */
+describe('<Tabla> · la fila que se toca', () => {
+  const activable = renderToStaticMarkup(
+    <Tabla
+      columnas={COLUMNAS}
+      filas={FILAS}
+      claveDe={(p) => p.id}
+      activa="b"
+      alActivar={() => undefined}
+      etiquetaDeFila={(p) => `Abrir ${p.nombre}`}
+    />,
+  );
+
+  it('la elegida lo dice sin color: `aria-current` y seminegritas', () => {
+    expect(activable).toMatch(/<tr(?=[^>]*aria-current="true")(?=[^>]*font-semibold)[^>]*>/);
+    expect(activable.match(/aria-current="true"/g)).toHaveLength(1);
+  });
+
+  it('tiene nombre: el que le da la pantalla', () => {
+    expect(activable).toContain('aria-label="Abrir Frijol"');
+    expect(activable).toContain('aria-label="Abrir Arroz"');
+  });
+
+  it('cada celda de una fila que se toca mide al menos el área táctil mínima', () => {
+    expect(activable).toMatch(/<td[^>]*class="[^"]*(?<!min-)h-\(--area-tactil-minima\)/);
+  });
+
+  it('una tabla que sólo informa no gana nada de eso', () => {
+    const informativa = renderToStaticMarkup(
+      <Tabla columnas={COLUMNAS} filas={FILAS} claveDe={(p) => p.id} />,
+    );
+    expect(informativa).not.toContain('aria-current');
+    expect(informativa).not.toMatch(/<td[^>]*class="[^"]*(?<!min-)h-\(--area-tactil-minima\)/);
+  });
+});

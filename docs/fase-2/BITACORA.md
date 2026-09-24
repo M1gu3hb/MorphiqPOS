@@ -5390,3 +5390,32 @@ cuatro cosas de las pantallas recompuestas, y las cuatro eran de verdad:
 Y el rastreador de CI en `restaurante · noche`: `/restaurante/inventario` · «0» 4.06:1. Mínimo y
 crítico iban en `text-texto-sutil` sobre el tinte de una fila en «bajo» o «crítico». Son datos:
 van en el color del texto, y la jerarquía la pone «Hay» en seminegritas.
+
+### La revisión adversarial: 152 hallazgos, y lo que era de la biblioteca
+
+Veintidós revisores, **tres a la vez**, sobre las 67 pantallas recompuestas (sólo lectura,
+comparando contra `6966043`): **3 críticos, 14 altos, 77 medios, 58 bajos**. Muchos son defectos
+que YA estaban y que la recomposición dejó a la vista —importes del puente que llegan en pesos
+pintados como centavos, `Cifra` sobre un nulo—, y varios son de la biblioteca. Esos se arreglan
+en la pieza, con su prueba en rojo primero:
+
+- **`Button`**: `disabled={cargando || props.disabled}` iba ANTES de `{...props}`, y el
+  `disabled={false}` de la pantalla lo pisaba. «Guardar entrada» con `cargando` seguía pulsable
+  mientras guardaba: un doble toque registraba la nota dos veces. Crítico.
+- **`Cifra`**: un `null` del puente tiraba la pantalla entera (`valor.toLocaleString`): sellos de
+  un cliente sin movimientos, minutos de una fórmula sin procesado. Ahora pinta «—». Y con cero
+  decimales por omisión «12.5 m» de cable se leía «13 m»: el omiso es `'auto'` (los que tiene,
+  hasta dos). `conSigno` escribe «+3».
+- **`Dinero`**: `conSigno` pone el «+» además del verde (y «más» en el `aria-label`); tamaño `xl`
+  para la cifra de un tablero, que cinco pantallas forzaban con `className`.
+- **`Tabla`**: la fila elegida lleva `aria-current` y seminegritas —era sólo color—; una fila que
+  se toca mide el área táctil mínima (37 px antes) y puede llevar nombre (`etiquetaDeFila`).
+- **`ListaDeTarjetas` / `TablaAdaptable`**: la tarjeta del teléfono recibe por fin lo que la tabla
+  dice además de sus celdas —elegida, tono, viaje, nombre, pie— y `columnasDeTarjeta`.
+- **`Aviso`**: `anuncio` (`alerta` · `estado` · `ninguno`), título con elementos, `icono`, `id`.
+- **`Vacio`**: `tamano` (`pantalla` · `compacto` · `protagonista`), `tono="exito"`,
+  `nivelDeTitulo` e `idDelTitulo`. **`EsqueletoDeTabla`**, nuevo.
+- **`CampoDeDinero`**: `tamano="enorme"`, y `alCambiar(centavos, { vacio, valido })`: «vacío» y
+  «no es un importe» ya no son el mismo `null`.
+
+76 pruebas de componentes (de 41), y cada una de las nuevas vista en rojo contra `HEAD`.

@@ -54,8 +54,8 @@ export interface TablaProps<F> {
   readonly filas: readonly F[];
   readonly claveDe: (fila: F) => string;
   /** La fila que se está mirando. Se marca, y se lleva el foco al navegar. */
-  readonly activa?: string;
-  readonly alActivar?: (clave: string) => void;
+  readonly activa?: string | undefined;
+  readonly alActivar?: ((clave: string) => void) | undefined;
   /** Si viene, aparece la columna de selección múltiple. */
   readonly seleccion?: {
     readonly elegidas: ReadonlySet<string>;
@@ -64,27 +64,32 @@ export interface TablaProps<F> {
   /** Qué se enseña cuando no hay ni una fila. */
   readonly vacio?: ReactNode;
   /** Alto máximo del cuerpo. Sin esto, la cabecera fija no tiene contra qué fijarse. */
-  readonly alto?: string;
+  readonly alto?: string | undefined;
   /** El nombre de la tabla para un lector de pantalla: una tabla sin nombre es «tabla». */
-  readonly etiqueta?: string;
+  readonly etiqueta?: string | undefined;
   /**
    * EL PIE: los totales, cada uno debajo de SU columna —por `clave`—, pegado abajo
    * como la cabecera arriba. Un total que no está bajo su columna obliga a buscarlo.
    */
-  readonly pie?: Readonly<Record<string, ReactNode>>;
+  readonly pie?: Readonly<Record<string, ReactNode>> | undefined;
   /**
    * El tono de una fila: lo que está bajo mínimo, lo vencido, lo que ya se entregó. Es
    * un fondo, y NUNCA va solo: la celda dice con texto o con icono por qué.
    */
-  readonly tonoDeFila?: (fila: F) => TonoDeFila | undefined;
+  readonly tonoDeFila?: ((fila: F) => TonoDeFila | undefined) | undefined;
   /** El nombre de viaje de la fila, para la transición que la convierte en panel. */
-  readonly viajeDeFila?: (fila: F) => string | undefined;
-  readonly className?: string;
+  readonly viajeDeFila?: ((fila: F) => string | undefined) | undefined;
+  /**
+   * El NOMBRE de una fila que se toca, para un lector de pantalla: «Cobrar la mesa 4,
+   * $540.00». Sin él, la acción principal de una caja es una fila sin nombre.
+   */
+  readonly etiquetaDeFila?: ((fila: F) => string) | undefined;
+  readonly className?: string | undefined;
 }
 
 export type TonoDeFila = 'advertencia' | 'peligro' | 'exito' | 'tenue';
 
-const TONOS: Readonly<Record<TonoDeFila, string>> = {
+export const TONOS_DE_FILA: Readonly<Record<TonoDeFila, string>> = {
   advertencia: 'bg-advertencia/10',
   peligro: 'bg-peligro/5',
   exito: 'bg-exito/5',
@@ -114,6 +119,7 @@ export function Tabla<F>({
   pie,
   tonoDeFila,
   viajeDeFila,
+  etiquetaDeFila,
   className,
 }: TablaProps<F>): ReactElement {
   const [ordenPor, setOrdenPor] = useState<string | null>(null);
@@ -245,6 +251,14 @@ export function Tabla<F>({
                   nombreDeViaje === undefined ? undefined : { viewTransitionName: nombreDeViaje }
                 }
                 data-activa={esActiva ? '' : undefined}
+                // La elegida lo dice sin color: `aria-current` para quien no ve, y
+                // seminegritas para quien no distingue el tinte.
+                aria-current={esActiva ? 'true' : undefined}
+                aria-label={
+                  alActivar === undefined || etiquetaDeFila === undefined
+                    ? undefined
+                    : etiquetaDeFila(fila)
+                }
                 aria-selected={seleccion === undefined ? undefined : elegida}
                 tabIndex={alActivar === undefined ? undefined : 0}
                 onClick={
@@ -272,8 +286,10 @@ export function Tabla<F>({
                   alActivar === undefined
                     ? ''
                     : 'cursor-pointer focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none',
-                  tono === undefined ? '' : TONOS[tono],
-                  esActiva ? 'bg-acento-suave text-acento-suave-texto' : 'hover:bg-fondo-sutil/60',
+                  tono === undefined ? '' : TONOS_DE_FILA[tono],
+                  esActiva
+                    ? 'bg-acento-suave font-semibold text-acento-suave-texto'
+                    : 'hover:bg-fondo-sutil/60',
                 )}
               >
                 {seleccion === undefined ? null : (
@@ -321,6 +337,9 @@ export function Tabla<F>({
                     key={columna.clave}
                     className={cn(
                       'px-(--espacio-3) py-(--espacio-2)',
+                      // Una fila que se TOCA mide al menos el área táctil: en una tabla
+                      // densa de `text-sm` medía 37 px. El alto de una celda es su mínimo.
+                      alActivar === undefined ? '' : 'h-(--area-tactil-minima)',
                       columna.numerica === true ? 'text-right font-numeros tabular-nums' : '',
                       columna.desde === undefined ? '' : DESDE[columna.desde],
                     )}

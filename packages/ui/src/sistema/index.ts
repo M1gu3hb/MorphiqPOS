@@ -26,15 +26,29 @@ export {
   type SuperficieProps,
   type NivelDeElevacion,
 } from './superficie';
-export { Vacio, Esqueleto, EsqueletoDeLista, ErrorDePantalla } from './estados';
+export {
+  Vacio,
+  Esqueleto,
+  EsqueletoDeLista,
+  EsqueletoDeTabla,
+  ErrorDePantalla,
+  type TamanoDeVacio,
+  type TonoDeVacio,
+} from './estados';
 export { Tabla, type ColumnaDeTabla, type TablaProps, type TonoDeFila } from './tabla';
-export { ListaDeTarjetas } from './lista-de-tarjetas';
+export {
+  ListaDeTarjetas,
+  type ColumnasDeTarjeta,
+  type ListaDeTarjetasProps,
+} from './lista-de-tarjetas';
 export { TablaAdaptable, type TablaAdaptableProps } from './tabla-adaptable';
 export {
   CampoDeDinero,
   centavosDeTexto,
+  detalleDeTexto,
   textoParaCampo,
   type CampoDeDineroProps,
+  type DetalleDelTexto,
 } from './campo-de-dinero';
 export {
   GraficaDeBarras,
@@ -57,6 +71,7 @@ export {
   IndicadorDeGuardado,
   ConfirmacionDestructiva,
   Aviso,
+  type AnuncioDeAviso,
   type EstadoDeGuardado,
 } from './retroalimentacion';
 export { VIAJE, viaje, conTransicion } from './movimiento';

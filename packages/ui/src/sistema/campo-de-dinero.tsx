@@ -46,6 +46,22 @@ export function centavosDeTexto(texto: string): number | null {
 }
 
 /**
+ * Lo que `centavos === null` no dice: si el campo está VACÍO o si lo tecleado no es un
+ * importe. No es lo mismo en el cobro —«Recibido» vacío es «pagó exacto»; «4a» tiene
+ * que bloquear COBRAR con «Lo recibido no es un importe»— ni en un arqueo —vacío cuenta
+ * como cero; ilegible, no se cierra—.
+ */
+export interface DetalleDelTexto {
+  readonly vacio: boolean;
+  readonly valido: boolean;
+}
+
+export function detalleDeTexto(texto: string): DetalleDelTexto {
+  const vacio = texto.trim() === '';
+  return { vacio, valido: vacio || centavosDeTexto(texto) !== null };
+}
+
+/**
  * 4290 → «42.90», para el VALOR de un campo. No es para pintar: entre dos `<span>`
  * el importe es `<Dinero>`, y `verify:adopcion` lo rechaza como contenido.
  */
@@ -61,13 +77,14 @@ export interface CampoDeDineroProps extends Omit<
   'value' | 'defaultValue' | 'onChange' | 'type'
 > {
   readonly centavos: number | null;
-  readonly alCambiar: (centavos: number | null) => void;
+  /** El segundo argumento dice si `null` es «vacío» o «no es un importe». */
+  readonly alCambiar: (centavos: number | null, detalle: DetalleDelTexto) => void;
   /**
    * `grande` para el importe que ES la pantalla —el fondo con el que se abre, lo que
    * se contó en el cajón—: más alto y con cifras más grandes, porque se teclea en la
    * tableta de pie y se relee antes de mandarlo.
    */
-  readonly tamano?: 'base' | 'grande';
+  readonly tamano?: 'base' | 'grande' | 'enorme' | undefined;
 }
 
 const TAMANO_DEL_CAMPO = {
@@ -75,6 +92,12 @@ const TAMANO_DEL_CAMPO = {
   grande: {
     simbolo: 'text-base',
     campo: 'h-[calc(var(--altura-control)*1.4)] pl-(--espacio-8) text-lg md:text-lg',
+  },
+  // Lo que se CUENTA al cerrar: el campo más grande de su pantalla, que se relee de pie
+  // antes de mandar un número que ya no se puede cambiar.
+  enorme: {
+    simbolo: 'text-lg',
+    campo: 'h-[calc(var(--altura-control)*1.6)] pl-(--espacio-8) text-2xl md:text-2xl',
   },
 } as const;
 
@@ -117,7 +140,7 @@ export function CampoDeDinero({
         value={texto}
         onChange={(evento) => {
           setTexto(evento.target.value);
-          alCambiar(centavosDeTexto(evento.target.value));
+          alCambiar(centavosDeTexto(evento.target.value), detalleDeTexto(evento.target.value));
         }}
         className={cn('text-right font-numeros tabular-nums', TAMANO_DEL_CAMPO[tamano].campo)}
       />

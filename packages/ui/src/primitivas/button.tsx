@@ -131,8 +131,11 @@ function Button({
       {...comunes}
       data-cargando={cargando ? "" : undefined}
       aria-busy={cargando || undefined}
-      disabled={cargando || props.disabled}
       {...props}
+      // DESPUÉS del spread: un `disabled={false}` de la pantalla no puede dejar pulsable
+      // un botón que está guardando. Antes iba delante y un doble toque mandaba el
+      // comando dos veces.
+      disabled={cargando || props.disabled}
     >
       {cargando ? <Rueda /> : null}
       {children}

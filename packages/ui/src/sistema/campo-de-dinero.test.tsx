@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { CampoDeDinero, centavosDeTexto, textoParaCampo } from './campo-de-dinero';
+import { CampoDeDinero, centavosDeTexto, detalleDeTexto, textoParaCampo } from './campo-de-dinero';
 
 /**
  * EL CAMPO DONDE SE TECLEA DINERO. La pantalla habla en centavos; el texto lo lleva el
@@ -108,5 +108,22 @@ describe('<CampoDeDinero>', () => {
       <CampoDeDinero aria-label="Fondo" centavos={null} alCambiar={() => undefined} />,
     );
     expect(marcado).toContain('value=""');
+  });
+});
+
+describe('<CampoDeDinero> · los tamaños y lo que se le avisa a la pantalla', () => {
+  it('`enorme`: el campo que es LA pantalla —lo contado en el cajón—', () => {
+    const marcado = renderToStaticMarkup(
+      <CampoDeDinero id="contado" centavos={null} alCambiar={() => undefined} tamano="enorme" />,
+    );
+    expect(marcado).toContain('text-2xl');
+    expect(marcado).toContain('h-[calc(var(--altura-control)*1.6)]');
+  });
+
+  it('`detalleDeTexto` distingue el campo vacío de lo que no es un importe', () => {
+    expect(detalleDeTexto('')).toEqual({ vacio: true, valido: true });
+    expect(detalleDeTexto('   ')).toEqual({ vacio: true, valido: true });
+    expect(detalleDeTexto('42.90')).toEqual({ vacio: false, valido: true });
+    expect(detalleDeTexto('4a')).toEqual({ vacio: false, valido: false });
   });
 });

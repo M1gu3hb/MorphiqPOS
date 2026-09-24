@@ -100,3 +100,49 @@ describe('<Cifra> · kilos, piezas, minutos', () => {
     expect(clases.filter((c) => /^(inline-)?(flex|grid)$/.test(c))).toEqual([]);
   });
 });
+
+/**
+ * LO QUE LA REVISIÓN ADVERSARIAL ENCONTRÓ EN LAS PANTALLAS, bajado a la pieza.
+ *
+ * Cuatro pantallas pasaban a `<Cifra>` un valor que el puente sirve como `null` —los
+ * sellos de un cliente sin movimientos, los minutos de una fórmula sin procesado, la
+ * cantidad de una receta— y `valor.toLocaleString()` tiraba la pantalla entera. Y con
+ * cero decimales por omisión, «12.5 m» de cable salía «13 m». La pieza no puede
+ * confiar en que cada pantalla lo recuerde.
+ */
+describe('<Cifra> · lo que no llega y lo que no es entero', () => {
+  it('sin valor dice «—», no revienta', () => {
+    expect(pintar(<Cifra valor={null} unidad="sellos" />).leido).toBe('— sellos');
+    expect(pintar(<Cifra valor={undefined} />).leido).toBe('—');
+    expect(pintar(<Cifra valor={Number.NaN} unidad="min" />).leido).toBe('— min');
+  });
+
+  it('por omisión enseña los decimales que tiene, hasta dos, y ninguno si es entero', () => {
+    expect(pintar(<Cifra valor={12.5} unidad="m" />).leido).toBe('12.5 m');
+    expect(pintar(<Cifra valor={12.456} unidad="kg" />).leido).toBe('12.46 kg');
+    expect(pintar(<Cifra valor={12} unidad="pz" />).leido).toBe('12 pz');
+  });
+
+  it('`conSigno` escribe el sentido: una diferencia no se lee sólo por el color', () => {
+    expect(pintar(<Cifra valor={3} conSigno />).leido).toBe('+3');
+    expect(pintar(<Cifra valor={-3} conSigno />).leido).toBe('-3');
+    expect(pintar(<Cifra valor={0} conSigno />).leido).toBe('0');
+  });
+});
+
+describe('<Dinero> · la cifra de un tablero y la diferencia con signo', () => {
+  it('`xl` es el escalón entre `lg` y el total del cobro', () => {
+    const { clases, leido } = pintar(<Dinero centavos={123456} tamano="xl" />);
+    expect(leido).toBe('$1,234.56');
+    expect(clases).toContain('text-3xl');
+  });
+
+  it('`conSigno` pone el «+» a lo que sobra, además del verde', () => {
+    expect(pintar(<Dinero centavos={1800} conSigno />).leido).toBe('+$18.00');
+    expect(pintar(<Dinero centavos={-1800} conSigno />).leido).toBe('($18.00)');
+    expect(pintar(<Dinero centavos={0} conSigno />).leido).toBe('$0.00');
+    expect(renderToStaticMarkup(<Dinero centavos={1800} conSigno />)).toContain(
+      'aria-label="más 18 pesos con 00 centavos"',
+    );
+  });
+});

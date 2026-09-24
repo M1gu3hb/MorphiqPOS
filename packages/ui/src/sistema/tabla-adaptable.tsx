@@ -3,7 +3,7 @@
 import type { ReactElement } from 'react';
 import { useSyncExternalStore } from 'react';
 
-import { ListaDeTarjetas } from './lista-de-tarjetas';
+import { ListaDeTarjetas, type ColumnasDeTarjeta } from './lista-de-tarjetas';
 import { Tabla, type TablaProps } from './tabla';
 
 /**
@@ -19,6 +19,10 @@ import { Tabla, type TablaProps } from './tabla';
  * Hasta saber el ancho —en el servidor, y en el primer pintado— se pinta la tabla:
  * las pantallas que usan esto leen sus datos después de montar, así que cuando las
  * filas llegan el ancho ya se sabe y nada salta.
+ *
+ * Y a las tarjetas les pasa lo que la tabla dice ADEMÁS de sus celdas: la fila elegida,
+ * el tono, el viaje al panel, el nombre de la fila y el pie. Sin eso, en el teléfono la
+ * tarjeta elegida no se marcaba y el total desaparecía.
  */
 
 const ANCHOS = { md: 768, lg: 1024, xl: 1280 } as const;
@@ -42,12 +46,15 @@ export interface TablaAdaptableProps<F> extends TablaProps<F> {
   /** La columna que manda en la tarjeta: va grande, arriba. */
   readonly principal: string;
   /** Desde qué ancho es tabla. Por debajo, tarjetas. */
-  readonly desde?: keyof typeof ANCHOS;
+  readonly desde?: keyof typeof ANCHOS | undefined;
+  /** Cómo se reparten los pares dentro de cada tarjeta. */
+  readonly columnasDeTarjeta?: ColumnasDeTarjeta | undefined;
 }
 
 export function TablaAdaptable<F>({
   principal,
   desde = 'xl',
+  columnasDeTarjeta,
   ...tabla
 }: TablaAdaptableProps<F>): ReactElement {
   const ancha = useAlMenos(desde);
@@ -58,9 +65,15 @@ export function TablaAdaptable<F>({
       filas={tabla.filas}
       claveDe={tabla.claveDe}
       principal={principal}
-      {...(tabla.alActivar === undefined ? {} : { alActivar: tabla.alActivar })}
-      {...(tabla.vacio === undefined ? {} : { vacio: tabla.vacio })}
-      {...(tabla.className === undefined ? {} : { className: tabla.className })}
+      alActivar={tabla.alActivar}
+      activa={tabla.activa}
+      tonoDeFila={tabla.tonoDeFila}
+      viajeDeFila={tabla.viajeDeFila}
+      etiquetaDeFila={tabla.etiquetaDeFila}
+      columnasDeTarjeta={columnasDeTarjeta}
+      pie={tabla.pie}
+      vacio={tabla.vacio}
+      className={tabla.className}
     />
   );
 }
