@@ -244,6 +244,13 @@ export function Cobrar({
   const [cuenta, setCuenta] = useState('salon');
   const [puntos, setPuntos] = useState<number | null>(null);
   const [otraPropina, setOtraPropina] = useState<number | null>(null);
+  /**
+   * La `key` del campo «otro». Un porcentaje lo vacía REMONTÁNDOLO: con un texto que
+   * no es un importe («5O») `otraPropina` ya vale `null`, ponerle `null` otra vez no
+   * cambia nada, y el campo sólo reescribe su texto cuando los centavos cambian desde
+   * fuera. Quedaba «15 %» pulsado con «5O» escrito al lado.
+   */
+  const [reinicioDeOtra, setReinicioDeOtra] = useState(0);
   const [destinatario, setDestinatario] = useState('repartir');
   const [error, setError] = useState<string | null>(null);
   const [cobrado, setCobrado] = useState<CobroHecho | null>(null);
@@ -457,6 +464,9 @@ export function Cobrar({
                   onClick={() => {
                     setCitaId(fila.id);
                     setCobrado(null);
+                    // El fallo era de OTRA cita: arrastrarlo aquí afirma de ésta, que
+                    // nadie intentó cobrar, que «sigue como estaba» tras un fallo.
+                    setError(null);
                     setDestinatario('repartir');
                   }}
                 >
@@ -530,8 +540,12 @@ export function Cobrar({
             variant="ghost"
             size="sm"
             className="ml-auto"
+            // Mientras se cobra no se sale: el fallo de ESTA cita caería sobre la
+            // lista o sobre otra, diciendo de ella que «sigue como estaba».
+            disabled={enviando}
             onClick={() => {
               setCitaId(null);
+              setError(null);
             }}
           >
             Elegir {voc.enFraseCon('otro', 'orden')}
@@ -628,12 +642,14 @@ export function Cobrar({
                 onClick={() => {
                   setPuntos(porcentaje);
                   setOtraPropina(null);
+                  setReinicioDeOtra((previo) => previo + 1);
                 }}
               >
                 {porcentaje}%
               </Button>
             ))}
             <CampoDeDinero
+              key={reinicioDeOtra}
               aria-label="Otra propina, en pesos"
               placeholder="otro"
               centavos={otraPropina}

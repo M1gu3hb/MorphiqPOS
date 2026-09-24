@@ -336,6 +336,14 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
   /** El renglón que va viajando hacia el panel, sólo durante el cambio. */
   const [viajando, setViajando] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null);
+  /**
+   * LA LECTURA DE COMISIONES QUE VALE. Cada toque en un nombre la sube, lea o no
+   * lea, y una respuesta que llega con otro número se tira. Sin esto, tocar a A y
+   * enseguida a B dejaba que la respuesta tardía de A pintara su Causado, su
+   * Pendiente y sus renglones bajo el nombre de B, y «Calcular la liquidación»
+   * liquidaba a B enseñando lo que causó A.
+   */
+  const lecturaVigente = useRef(0);
 
   useEffect(() => {
     if (profesionalesIniciales !== undefined) return;
@@ -367,19 +375,22 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
     setIntento((previo) => previo + 1);
   }
 
-  function leerComisiones(profesional: FichaDeProfesional): void {
+  function leerComisiones(profesional: FichaDeProfesional, lectura: number): void {
+    // El dato, el fallo y el esqueleto son de ESTA lectura: si mientras tanto se tocó
+    // otro nombre —u otra vez el mismo con otro periodo—, lo que llega ya no es de nadie.
+    const sigueVigente = (): boolean => lecturaVigente.current === lectura;
     invocarComando<Comisiones>(`${RUTA_PROFESIONALES}/${profesional.profesionalId}/comisiones`, {
       desde: periodo.desde,
       hasta: periodo.hasta,
     })
       .then((datos) => {
-        setComisiones(datos);
+        if (sigueVigente()) setComisiones(datos);
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        if (sigueVigente()) setError(mensajeDe(fallo));
       })
       .finally(() => {
-        setLeyendo((actual) => (actual === profesional.profesionalId ? null : actual));
+        if (sigueVigente()) setLeyendo(null);
       });
   }
 
@@ -391,6 +402,10 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
    */
   function abrir(profesional: FichaDeProfesional): void {
     const conPeriodo = periodo.desde !== '' && periodo.hasta !== '';
+    // Desde este toque, ninguna lectura anterior vale: tampoco cuando éste no lee
+    // porque falta el periodo.
+    lecturaVigente.current += 1;
+    const lectura = lecturaVigente.current;
     flushSync(() => {
       setViajando(profesional.profesionalId);
     });
@@ -404,7 +419,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
         setLeyendo(conPeriodo ? profesional.profesionalId : null);
       });
       panel.current?.scrollIntoView({ block: 'nearest' });
-      if (conPeriodo) leerComisiones(profesional);
+      if (conPeriodo) leerComisiones(profesional, lectura);
     });
   }
 
@@ -619,6 +634,11 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
             const profesional = profesionales.find((p) => p.profesionalId === id);
             if (profesional !== undefined) abrir(profesional);
           }}
+          // La fila es un control: su nombre dice qué abre, no sólo «fila». Cuál está
+          // abierta lo dice la tabla con `aria-current`.
+          etiquetaDeFila={(p) =>
+            `Abrir la liquidación de ${p.nombreCompleto}${p.rentaEstacion ? `, renta de ${unidad}` : ''}`
+          }
           viajeDeFila={(p) =>
             p.profesionalId === viajando ? VIAJE.fila(p.profesionalId) : undefined
           }

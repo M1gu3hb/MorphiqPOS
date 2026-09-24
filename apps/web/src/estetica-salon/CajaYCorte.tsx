@@ -21,7 +21,8 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
+import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -235,13 +236,24 @@ function AvisoDeTropiezo({
   );
 }
 
-function Encabezado({ situacion }: { readonly situacion: Situacion | 'leyendo' | null }) {
+function Encabezado({
+  situacion,
+  refDeLaLinea,
+}: {
+  readonly situacion: Situacion | 'leyendo' | null;
+  /** La línea que dice cómo está el día: adonde va el foco al abrirlo. */
+  readonly refDeLaLinea?: Ref<HTMLParagraphElement>;
+}) {
   let linea = null;
   if (situacion === 'leyendo') linea = <Esqueleto className="h-5 w-48" />;
   else if (situacion !== null) {
     const { icono: Icono, frase, tinte } = SITUACIONES[situacion];
     linea = (
-      <p className="flex items-center gap-(--espacio-2) font-medium">
+      <p
+        ref={refDeLaLinea}
+        tabIndex={-1}
+        className="flex items-center gap-(--espacio-2) font-medium outline-none"
+      >
         <Icono aria-hidden="true" className={`size-5 shrink-0 ${tinte}`} />
         {frase}
       </p>
@@ -273,8 +285,23 @@ function ElDia({ movimientos }: { readonly movimientos: readonly Movimiento[] })
   );
 }
 
-/** La respuesta a «¿cuadró?», que es la pregunta de la pantalla. */
-function Resultado({ corte }: { readonly corte: ResultadoDelCorte }) {
+/**
+ * La respuesta a «¿cuadró?», que es la pregunta de la pantalla.
+ *
+ * Recibe el foco al llegar —`ref` y `tabIndex={-1}`—: «Cerrar el día» se desmonta con
+ * el arqueo y, sin esto, el foco caía al `body` y con lector de pantalla no se oía
+ * nada. Su nombre lleva la palabra y el importe, que es lo que tiene que oírse.
+ *
+ * Las etiquetas van en `text-texto` y no en `text-texto-sutil`: sobre el tinte de la
+ * diferencia el sutil no llega a 4.5:1, y es justo el momento en que se lee el arqueo.
+ */
+function Resultado({
+  corte,
+  ref,
+}: {
+  readonly corte: ResultadoDelCorte;
+  readonly ref: Ref<HTMLElement>;
+}) {
   const lectura = leerDiferencia(Number(corte.diferenciaCentavos));
   const { icono: Icono, tinte } = DIFERENCIAS[lectura.tono];
   // Lo dice el CIERRE, que es quien lo calculo sumando los movimientos del dia.
@@ -282,14 +309,19 @@ function Resultado({ corte }: { readonly corte: ResultadoDelCorte }) {
   return (
     <Superficie
       como="section"
+      ref={ref}
+      tabIndex={-1}
       relleno={4}
-      aria-labelledby="corte-titulo"
-      className={`flex flex-col gap-(--espacio-4) sm:p-(--espacio-6) ${tinte}`}
+      aria-labelledby="corte-titulo corte-lectura"
+      className={`flex flex-col gap-(--espacio-4) outline-none sm:p-(--espacio-6) ${tinte}`}
     >
-      <h2 id="corte-titulo" className="text-sm font-medium text-texto-sutil">
+      <h2 id="corte-titulo" className="text-sm font-medium text-texto">
         Día cerrado
       </h2>
-      <p className="flex flex-wrap items-center gap-(--espacio-2) text-3xl leading-none font-semibold">
+      <p
+        id="corte-lectura"
+        className="flex flex-wrap items-center gap-(--espacio-2) text-3xl leading-none font-semibold"
+      >
         <Icono aria-hidden="true" className="size-[0.9em] shrink-0" />
         <span>{lectura.palabra}</span>{' '}
         {lectura.centavos === 0 ? null : (
@@ -302,13 +334,13 @@ function Resultado({ corte }: { readonly corte: ResultadoDelCorte }) {
       </p>
       <dl className="grid grid-cols-2 gap-(--espacio-3) border-t border-borde pt-(--espacio-3)">
         <div className="flex flex-col gap-(--espacio-1)">
-          <dt className="text-xs text-texto-sutil">Esperado</dt>
+          <dt className="text-xs text-texto">Esperado</dt>
           <dd>
             <Dinero centavos={esperado} />
           </dd>
         </div>
         <div className="flex flex-col gap-(--espacio-1)">
-          <dt className="text-xs text-texto-sutil">Contado</dt>
+          <dt className="text-xs text-texto">Contado</dt>
           <dd>
             <Dinero centavos={Number(corte.efectivoContadoCentavos)} />
           </dd>
@@ -329,6 +361,14 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
   const [corte, setCorte] = useState<ResultadoDelCorte | null>(null);
   const [tropiezo, setTropiezo] = useState<Tropiezo | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  /**
+   * ADONDE VA EL FOCO cuando el botón que se tocó desaparece. «Abrir el día» y
+   * «Cerrar el día» viven en la rama que su propio éxito desmonta: sin llevar el foco
+   * a lo que la sustituye, cae al `body` y con lector de pantalla no se oye ni que el
+   * día se abrió ni si cuadró.
+   */
+  const lineaDelEstado = useRef<HTMLParagraphElement>(null);
+  const resultado = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (estadoInicial !== undefined) return;
@@ -361,7 +401,11 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
     invocarComando(RUTA_ABRIR, { fondoInicialCentavos: centavos })
       .then(() => invocarComando<EstadoDelSalon>(RUTA_ESTADO, {}))
       .then((datos) => {
-        setEstado(datos);
+        // Pintado YA, para que la línea «El día está abierto.» exista al enfocarla.
+        flushSync(() => {
+          setEstado(datos);
+        });
+        if (datos.sesionCajaId !== null) lineaDelEstado.current?.focus();
       })
       .catch((fallo: unknown) => {
         setTropiezo({ mensaje: mensajeDe(fallo), delServidor: true });
@@ -380,8 +424,12 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
     setOcupado(true);
     setTropiezo(null);
     invocarComando<ResultadoDelCorte>(RUTA_CERRAR, { efectivoContadoCentavos: centavos })
-      .then((resultado) => {
-        setCorte(resultado);
+      .then((cierre) => {
+        // Pintado YA, para que la respuesta exista al llevarle el foco.
+        flushSync(() => {
+          setCorte(cierre);
+        });
+        resultado.current?.focus();
       })
       .catch((fallo: unknown) => {
         setTropiezo({ mensaje: mensajeDe(fallo), delServidor: true });
@@ -484,7 +532,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
 
   return (
     <main className={MARCO}>
-      <Encabezado situacion={cerrado ? 'cortada' : 'abierta'} />
+      <Encabezado situacion={cerrado ? 'cortada' : 'abierta'} refDeLaLinea={lineaDelEstado} />
 
       <div className={REJILLA}>
         <ElDia movimientos={movimientosDe(estado, notaDePropina)} />
@@ -501,7 +549,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
           )}
 
           {cerrado ? (
-            <Resultado corte={corte} />
+            <Resultado corte={corte} ref={resultado} />
           ) : (
             <Superficie
               como="section"

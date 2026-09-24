@@ -424,6 +424,9 @@ export function Tablero({ datosIniciales }: TableroProps) {
   const { manana, seVan, noLlegaron, porProfesional, venta, producto, leQuedo, propina } = datos;
   const noShowAlto = noLlegaron.proporcionBp > NO_SHOW_QUE_APRIETA_BP;
   const propinaVieja = propina.diasLaMasVieja > DIAS_DE_PROPINA_QUE_APRIETAN;
+  /** Lo de debajo de mañana: con horario, siempre; sin él, sólo si hay a quién hablarle. */
+  const hayDetalleDeManana =
+    manana.hayHorario || manana.sinConfirmar > 0 || manana.laQuerian.length > 0;
 
   const columnasDeHuecos: readonly ColumnaDeTabla<HuecoDeManana>[] = [
     {
@@ -543,51 +546,61 @@ export function Tablero({ datosIniciales }: TableroProps) {
             />
           </div>
 
-          {manana.hayHorario ? (
-            <div className="grid border-t border-borde md:grid-cols-2 md:divide-x md:divide-borde">
-              <section
-                aria-labelledby="t-huecos"
-                className="flex min-w-0 flex-col gap-(--espacio-2) p-(--espacio-4)"
-              >
-                <h3 id="t-huecos" className={ROTULO}>
-                  Huecos
-                </h3>
-                <Tabla
-                  etiqueta="Huecos de mañana"
-                  columnas={columnasDeHuecos}
-                  filas={manana.huecos}
-                  claveDe={(hueco) => `${hueco.nombre}-${hueco.inicio}`}
-                  alto="max-h-72"
-                  vacio={
-                    <Vacio
-                      icono={<CalendarCheck />}
-                      titulo="Mañana no queda hueco vendible."
-                      explicacion="Es el día que se quiere."
-                      className="py-(--espacio-4)"
-                    />
-                  }
-                />
-                <p className={NOTA}>
-                  Valor del tiempo libre ·{' '}
-                  <Dinero
-                    centavos={Number(manana.valorDelTiempoLibreCentavos)}
-                    tamano="sm"
-                    className="font-semibold text-texto"
-                  />{' '}
-                  · estimado al ritmo de cada quien
-                </p>
-              </section>
+          {/* Sin horario no hay huecos que medir, pero SÍ puede haber citas de mañana
+              sin confirmar y gente en la lista de espera: `sinConfirmar` cuenta las
+              citas agendadas sin mirar el horario, y agendar tampoco lo mira. Así que
+              sólo los huecos dependen del horario; a quién hablarle se queda mientras
+              haya a quién. */}
+          {hayDetalleDeManana ? (
+            <div
+              className={`grid border-t border-borde ${manana.hayHorario ? 'md:grid-cols-2 md:divide-x md:divide-borde' : ''}`}
+            >
+              {manana.hayHorario ? (
+                <section
+                  aria-labelledby="t-huecos"
+                  className="flex min-w-0 flex-col gap-(--espacio-2) p-(--espacio-4)"
+                >
+                  <h3 id="t-huecos" className={ROTULO}>
+                    Huecos
+                  </h3>
+                  <Tabla
+                    etiqueta="Huecos de mañana"
+                    columnas={columnasDeHuecos}
+                    filas={manana.huecos}
+                    claveDe={(hueco) => `${hueco.nombre}-${hueco.inicio}`}
+                    alto="max-h-72"
+                    vacio={
+                      <Vacio
+                        icono={<CalendarCheck />}
+                        titulo="Mañana no queda hueco vendible."
+                        explicacion="Es el día que se quiere."
+                        className="py-(--espacio-4)"
+                      />
+                    }
+                  />
+                  <p className={NOTA}>
+                    Valor del tiempo libre ·{' '}
+                    <Dinero
+                      centavos={Number(manana.valorDelTiempoLibreCentavos)}
+                      tamano="sm"
+                      className="font-semibold text-texto"
+                    />{' '}
+                    · estimado al ritmo de cada quien
+                  </p>
+                </section>
+              ) : null}
 
               <section
                 aria-labelledby="t-la-querian"
-                className="flex min-w-0 flex-col gap-(--espacio-3) border-t border-borde p-(--espacio-4) md:border-t-0"
+                className={`flex min-w-0 flex-col gap-(--espacio-3) p-(--espacio-4) ${manana.hayHorario ? 'border-t border-borde md:border-t-0' : ''}`}
               >
                 <h3 id="t-la-querian" className={ROTULO}>
-                  Quién quería esas horas
+                  {manana.hayHorario ? 'Quién quería esas horas' : 'Quién quería mañana'}
                 </h3>
                 {manana.laQuerian.length === 0 ? (
                   <p className={NOTA}>
-                    Nadie anotado en la lista de espera para mañana. El hueco se llena llamando.
+                    Nadie anotado en la lista de espera para mañana.
+                    {manana.hayHorario ? ' El hueco se llena llamando.' : null}
                   </p>
                 ) : (
                   <ul className="flex flex-wrap gap-(--espacio-1)" aria-label="Lista de espera">

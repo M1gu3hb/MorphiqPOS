@@ -63,6 +63,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * Caben el catálogo con su destino, el factor de apertura, abrir una pieza y
  * preguntar si alcanza. Queda fuera la compra, que es del tronco. Existencias,
  * precio y kardex no llegan en esta lectura: la pantalla no los inventa.
+ *
+ * «¿Alcanza?» tampoco trae el nombre ni la unidad del material: `cabina.alcanza`
+ * devuelve sólo el id del insumo. La pantalla los toma del producto de la lista que
+ * se abre en ese insumo, y el que ningún producto surte se queda sin nombre. No dice
+ * cuántos servicios lo piden ni para cuántos alcanza, como dibuja el §4.3.9: para eso
+ * el comando tendría que devolverlo, con el nombre y la unidad del propio insumo.
  */
 
 /**
@@ -133,6 +139,9 @@ export interface ProductoDeSalon {
    */
   readonly factor_apertura: number | null;
   readonly unidad_cabina: string | null;
+  /** El insumo en que se abre el producto (`insumo_base_id`), y su nombre. */
+  readonly ingrediente_base_id?: string | null;
+  readonly ingrediente_base_nombre?: string | null;
 }
 
 export interface FaltanteDeCabina {
@@ -140,6 +149,29 @@ export interface FaltanteDeCabina {
   readonly hay: string;
   readonly hara_falta: string;
 }
+
+/**
+ * El material de un faltante, con su nombre y la unidad en que se mide en cabina.
+ *
+ * `cabina.alcanza` sólo devuelve el id del insumo. Lo que entra a cabina entra
+ * abriendo un producto —`abrir_producto` mueve su `insumo_base_id`—, así que el
+ * producto que se abre en ese insumo trae su nombre (`ingrediente_base_nombre`, del
+ * propio insumo) y su unidad de cabina. Un insumo que ningún producto de la lista
+ * surte se queda sin nombre, y la celda lo dice en vez de inventarlo.
+ */
+interface MaterialDeCabina {
+  readonly nombre: string;
+  readonly unidad: string | null;
+}
+
+/** Un comando que falló en la ficha, y lo que NO pasó por eso: de ESE intento, no de todos. */
+interface FalloDeLaFicha {
+  readonly titulo: string;
+  readonly queNoPaso: string;
+}
+
+const NO_SE_GUARDO = 'No se guardó: la ficha sigue como estaba.';
+const NO_SE_ABRIO = 'No se abrió ninguna pieza.';
 
 export interface ProductosProps {
   readonly productosIniciales?: readonly ProductoDeSalon[];
@@ -171,6 +203,20 @@ function etiquetaDeDestino(destino: string | null): string {
   return DESTINOS.find((d) => d.clave === destino)?.etiqueta ?? 'sin destino';
 }
 
+/**
+ * El nombre de la fila para un lector de pantalla: qué abre, y lo que dicen sus
+ * celdas —el destino y, en cabina, cuánto rinde o que le falta la ficha—, porque
+ * con nombre propio la fila ya no se lee celda por celda al enfocarla.
+ */
+function etiquetaDeFilaDe(lista: Lista, producto: ProductoDeSalon): string {
+  const base = `Abrir la ficha de ${producto.nombre}, ${etiquetaDeDestino(producto.destino)}`;
+  if (lista !== 'cabina') return base;
+  if (producto.factor_apertura === null || producto.unidad_cabina === null) {
+    return `${base}, falta la ficha`;
+  }
+  return `${base}, rinde ${String(producto.factor_apertura)} ${producto.unidad_cabina}`;
+}
+
 /** ¿En qué lista va? En cabina lo que se usa; en el anaquel todo lo que no es «sólo se usa». */
 function vaEn(lista: Lista, producto: ProductoDeSalon): boolean {
   if (lista === 'cabina') return producto.destino === 'cabina' || producto.destino === 'ambos';
@@ -194,35 +240,80 @@ interface Viaje {
   readonly en: Lista | 'ficha';
 }
 
-const COLUMNAS_DE_FALTANTE: readonly ColumnaDeTabla<FaltanteDeCabina>[] = [
-  {
-    clave: 'hay',
-    titulo: 'Hay',
-    numerica: true,
-    celda: (f) => <Cifra valor={Number(f.hay)} decimales={decimalesDe(f.hay)} tamano="sm" />,
-  },
-  {
-    clave: 'hara_falta',
-    titulo: 'Hacen falta',
-    numerica: true,
-    celda: (f) => (
-      <Cifra valor={Number(f.hara_falta)} decimales={decimalesDe(f.hara_falta)} tamano="sm" />
-    ),
-  },
-  {
-    clave: 'faltan',
-    titulo: 'Faltan',
-    numerica: true,
-    celda: (f) => (
-      <Cifra
-        valor={Number(f.hara_falta) - Number(f.hay)}
-        decimales={Math.max(decimalesDe(f.hay), decimalesDe(f.hara_falta))}
-        tamano="sm"
-        className="font-semibold"
-      />
-    ),
-  },
-];
+/** El material del insumo, tomado del primer producto de la lista que se abre en él. */
+function materialDelInsumo(
+  productos: readonly ProductoDeSalon[],
+  insumoId: string,
+): MaterialDeCabina | null {
+  const producto = productos.find((p) => p.ingrediente_base_id === insumoId);
+  if (producto === undefined) return null;
+  return {
+    nombre: producto.ingrediente_base_nombre ?? producto.nombre,
+    unidad: producto.unidad_cabina,
+  };
+}
+
+/** Qué material es primero —sin él no se puede comprar nada—, y sus cifras con su unidad. */
+function columnasDeFaltante(
+  materialDe: (insumoId: string) => MaterialDeCabina | null,
+): readonly ColumnaDeTabla<FaltanteDeCabina>[] {
+  const unidadDe = (f: FaltanteDeCabina): string | undefined =>
+    materialDe(f.insumoId)?.unidad ?? undefined;
+  return [
+    {
+      clave: 'material',
+      titulo: 'Material',
+      celda: (f) => {
+        const material = materialDe(f.insumoId);
+        return material === null ? (
+          <span className="text-texto-sutil">Nada de la lista se abre en él</span>
+        ) : (
+          <span className="font-medium">{material.nombre}</span>
+        );
+      },
+    },
+    {
+      clave: 'hay',
+      titulo: 'Hay',
+      numerica: true,
+      celda: (f) => (
+        <Cifra
+          valor={Number(f.hay)}
+          unidad={unidadDe(f)}
+          decimales={decimalesDe(f.hay)}
+          tamano="sm"
+        />
+      ),
+    },
+    {
+      clave: 'hara_falta',
+      titulo: 'Hacen falta',
+      numerica: true,
+      celda: (f) => (
+        <Cifra
+          valor={Number(f.hara_falta)}
+          unidad={unidadDe(f)}
+          decimales={decimalesDe(f.hara_falta)}
+          tamano="sm"
+        />
+      ),
+    },
+    {
+      clave: 'faltan',
+      titulo: 'Faltan',
+      numerica: true,
+      celda: (f) => (
+        <Cifra
+          valor={Number(f.hara_falta) - Number(f.hay)}
+          unidad={unidadDe(f)}
+          decimales={Math.max(decimalesDe(f.hay), decimalesDe(f.hara_falta))}
+          tamano="sm"
+          className="font-semibold"
+        />
+      ),
+    },
+  ];
+}
 
 export function Productos({ productosIniciales }: ProductosProps) {
   const voc = useVocabulario();
@@ -238,7 +329,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
   const [unidad, setUnidad] = useState('');
   const [piezas, setPiezas] = useState('1');
   const [faltantes, setFaltantes] = useState<readonly FaltanteDeCabina[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FalloDeLaFicha | null>(null);
   /** El fallo de «¿alcanza?» va junto a su pregunta, no en la ficha de un producto. */
   const [falloDeAgenda, setFalloDeAgenda] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -317,8 +408,15 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
   function guardarFicha(destino?: string): void {
     if (elegido === null) return;
+    // El éxito de la operación anterior se va ANTES de validar: si no, «Entraron
+    // 1000 ml a cabina.» convivía con el fallo de este intento y la pantalla decía
+    // a la vez que se abrió y que no.
+    setAviso(null);
     if (factor !== '' && !CANTIDAD_CON_FORMA.test(factor)) {
-      setError('El rendimiento va con hasta cuatro decimales.');
+      setError({
+        titulo: 'El rendimiento va con hasta cuatro decimales.',
+        queNoPaso: NO_SE_GUARDO,
+      });
       return;
     }
     setOcupado(true);
@@ -343,7 +441,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
         setAviso('Guardado.');
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setError({ titulo: mensajeDe(fallo), queNoPaso: NO_SE_GUARDO });
       })
       .finally(() => {
         setOcupado(false);
@@ -352,9 +450,11 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
   function abrirPieza(): void {
     if (elegido === null) return;
+    // Igual que al guardar: el aviso de la pieza anterior no sobrevive a este intento.
+    setAviso(null);
     const cuantas = Number(piezas);
     if (!Number.isInteger(cuantas) || cuantas <= 0) {
-      setError('Cuántas piezas se abren.');
+      setError({ titulo: 'Cuántas piezas se abren.', queNoPaso: NO_SE_ABRIO });
       return;
     }
     setOcupado(true);
@@ -368,7 +468,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
         setAviso(`Entraron ${salida.unidadesACabina} ${salida.unidadCabina} a cabina.`);
       })
       .catch((fallo: unknown) => {
-        setError(mensajeDe(fallo));
+        setError({ titulo: mensajeDe(fallo), queNoPaso: NO_SE_ABRIO });
       })
       .finally(() => {
         setOcupado(false);
@@ -528,6 +628,9 @@ export function Productos({ productosIniciales }: ProductosProps) {
           const producto = filasDe(lista).find((p) => p.id === id);
           if (producto !== undefined) abrir(producto, lista);
         }}
+        // La fila es un control: su nombre dice qué abre. Cuál está abierta lo dice la
+        // tabla con `aria-current`.
+        etiquetaDeFila={(p) => etiquetaDeFilaDe(lista, p)}
         viajeDeFila={(p) =>
           viaje?.en === lista && viaje.id === p.id ? VIAJE.fila(p.id) : undefined
         }
@@ -599,12 +702,11 @@ export function Productos({ productosIniciales }: ProductosProps) {
             <Aviso tono="atencion" titulo="No alcanza para lo agendado">
               {faltantes.length === 1
                 ? 'Falta 1 material.'
-                : `Faltan ${String(faltantes.length)} materiales.`}{' '}
-              Van todos juntos: quien va a comprar hace un solo viaje.
+                : `Faltan ${String(faltantes.length)} materiales.`}
             </Aviso>
             <Tabla
               etiqueta="Materiales que no alcanzan para lo agendado"
-              columnas={COLUMNAS_DE_FALTANTE}
+              columnas={columnasDeFaltante((insumoId) => materialDelInsumo(productos, insumoId))}
               filas={faltantes}
               claveDe={(f) => f.insumoId}
               tonoDeFila={() => 'advertencia'}
@@ -683,8 +785,8 @@ export function Productos({ productosIniciales }: ProductosProps) {
               <h2 className="text-xl font-semibold">{elegido.nombre}</h2>
 
               {error !== null && (
-                <Aviso tono="peligro" titulo={error}>
-                  No se guardó ni se abrió nada.
+                <Aviso tono="peligro" titulo={error.titulo}>
+                  {error.queNoPaso}
                 </Aviso>
               )}
               {aviso !== null && <Aviso tono="exito" titulo={aviso} />}

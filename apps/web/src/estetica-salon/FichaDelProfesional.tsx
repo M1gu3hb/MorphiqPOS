@@ -125,6 +125,15 @@ function liberaAntes(cita: CitaDeMiDia): boolean {
   return cita.libreDesde !== null && cita.libreDesde !== cita.fin;
 }
 
+/**
+ * Cuántas CITAS, no cuántos servicios: `mi-dia` trae un renglón por servicio de la
+ * cita, y un retoque con tratamiento son dos renglones de una sola clienta. El folio
+ * es de la cita. Lo cancelado no cuenta: esa cita ya no es suya.
+ */
+function citasDistintas(servicios: readonly CitaDeMiDia[]): number {
+  return new Set(servicios.filter((c) => c.estado !== 'cancelado').map((c) => c.folio)).size;
+}
+
 function mensajeDe(fallo: unknown): string {
   if (fallo instanceof ErrorApi) return fallo.message;
   return SIN_LECTURA;
@@ -186,8 +195,13 @@ function LaQueSigue({ cita }: { readonly cita: CitaDeMiDia }) {
       </div>
       {/* La palabra dice si la suelta antes —«libre a las»— o no —«hasta las»—; el
           tinte sólo lo subraya. */}
-      <p
-        className={`flex items-center gap-(--espacio-2) rounded-md px-(--espacio-3) py-(--espacio-2) text-lg font-semibold ${suelta ? 'bg-exito/10' : 'bg-fondo-sutil'}`}
+      <Superficie
+        como="p"
+        nivel={0}
+        radio="md"
+        relleno={0}
+        conBorde={false}
+        className={`flex items-center gap-(--espacio-2) px-(--espacio-3) py-(--espacio-2) text-lg font-semibold ${suelta ? 'bg-exito/10' : 'bg-fondo-sutil'}`}
       >
         {suelta ? (
           <Timer aria-hidden="true" className="size-5 shrink-0 text-exito" />
@@ -195,7 +209,7 @@ function LaQueSigue({ cita }: { readonly cita: CitaDeMiDia }) {
           <Clock aria-hidden="true" className="size-5 shrink-0 text-texto-sutil" />
         )}
         <span className="font-numeros tabular-nums">{cuandoQuedaLibre(cita)}</span>
-      </p>
+      </Superficie>
     </Superficie>
   );
 }
@@ -261,9 +275,16 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
     };
   }, [profesionalId, diaInicial, intento]);
 
+  // «Volver a intentar»: no hay nada leído, así que se vuelve al esqueleto.
   function releer(): void {
     setError(null);
     setDia(null);
+    setIntento((previo) => previo + 1);
+  }
+
+  // «Actualizar» NO tira lo que ya se leyó: sin conexión, lo de abajo sigue siendo la
+  // última versión y el aviso lo dice (§4.3.6). Si sale bien, el `.then` lo limpia.
+  function actualizar(): void {
     setIntento((previo) => previo + 1);
   }
 
@@ -319,7 +340,8 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
     );
   }
 
-  const porAtender = dia.citas.filter((cita) => ABIERTOS.has(cita.estado)).length;
+  const citasDelDia = citasDistintas(dia.citas);
+  const porAtender = citasDistintas(dia.citas.filter((cita) => ABIERTOS.has(cita.estado)));
 
   const columnas: readonly ColumnaDeTabla<CitaDeMiDia>[] = [
     {
@@ -340,6 +362,12 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
           <span className="text-xs text-texto-sutil">
             {cita.servicio} ·{' '}
             <span className="font-numeros tabular-nums">{cuandoQuedaLibre(cita)}</span>
+            {/* En el teléfono —donde más se mira— la columna de precio no cabe, y el
+                precio no se pierde: baja a este renglón. Desde `sm` lo pinta su columna. */}
+            <span className="sm:hidden">
+              {' · '}
+              <Dinero centavos={Number(cita.precioCentavos)} tamano="xs" />
+            </span>
           </span>
         </span>
       ),
@@ -402,7 +430,7 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
             </div>
           </dl>
           <p className="text-sm text-texto-sutil">
-            {voc.conNumero('orden', dia.citas.length)} ·{' '}
+            {voc.conNumero('orden', citasDelDia)} ·{' '}
             <span className="font-numeros tabular-nums">{porAtender}</span> por atender
           </p>
         </Superficie>
@@ -440,7 +468,7 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
         <Button
           variant="outline"
           className="h-[calc(var(--altura-control)*1.4)] w-full text-base md:col-start-1 md:row-start-3"
-          onClick={releer}
+          onClick={actualizar}
         >
           <RefreshCw aria-hidden="true" />
           Actualizar

@@ -442,7 +442,9 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
       <header className="flex flex-wrap items-end justify-between gap-(--espacio-3)">
         <div className="flex flex-col gap-(--espacio-1)">
           <h1 className="text-2xl font-semibold">{voc.titulo('linea_orden', true)}</h1>
-          {servicios === null ? null : (
+          {/* Sólo con el catálogo LEÍDO: tras un fallo de lectura, guardar uno deja
+              `servicios` en ese uno y la cuenta diría «1 servicio» junto al error. */}
+          {servicios === null || falloDeCarga !== null ? null : (
             <p className="text-sm text-texto-sutil">
               {voc.conNumero('linea_orden', servicios.length)}
             </p>
@@ -546,13 +548,15 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
                       <span className="text-sm text-texto-sutil">min</span>
                     </div>
 
-                    {/* La decisión va PEGADA al procesado, que es de lo único que habla. */}
+                    {/* La decisión va PEGADA al procesado, que es de lo único que habla.
+                        Sin `aria-pressed`: la etiqueta ya dice el estado y cambia con él,
+                        y con los dos se oía «exige vigilancia, no presionado», que se
+                        entiende al revés. */}
                     {tramo.clave === 'pasiva' ? (
                       <div className="col-span-2 col-start-2 flex flex-col gap-(--espacio-1)">
                         <Button
                           type="button"
                           variant={intercalable ? 'secondary' : 'outline'}
-                          aria-pressed={intercalable}
                           className="h-[calc(var(--altura-control)*1.2)] justify-start self-start"
                           onClick={() => {
                             setIntercalable(!intercalable);

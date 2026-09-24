@@ -124,14 +124,27 @@ export interface VisitaConFormula {
   readonly fecha: string;
   readonly servicio: string;
   /**
-   * Los componentes vienen DENTRO del jsonb `formula`, no como campo suelto.
+   * El jsonb congelado, tal cual lo sirve el puente (`conversion: 'json'`): lo que
+   * escribe `expediente.capturar_formula`, `{mezclado, usado, sobrante, componentes}`.
    *
-   * `FormulaAplicada` sirve `formula` —el objeto congelado tal cual se mezcló— y
-   * esta pantalla leía `componentes` en la raíz: llegaba `undefined` y la fórmula de
-   * partida salía vacía, que en un salón significa volver a adivinar la mezcla.
+   * Los materiales vienen DENTRO, no como campo suelto. Esta pantalla leía
+   * `componentes` en la raíz: llegaba `undefined` y «la vez pasada» salía vacía con
+   * cualquier clienta que vuelve, y REPETIR guardaba una fórmula sin materiales. Es
+   * dato de fuera: se lee con `formulaDe`, que no confía en su forma.
    */
-  readonly componentes?: readonly ComponenteDeFormula[];
-  readonly minutos: number;
+  readonly formula?: unknown;
+  /**
+   * `minutos_procesado`. NULO si se capturó sin procesado: `capturar_formula` guarda
+   * el cero como nulo, y el mismo comando no acepta un nulo de vuelta.
+   */
+  readonly minutos: number | null;
+}
+
+/** Lo que se puede leer de la fórmula congelada de una visita. */
+interface FormulaCongelada {
+  readonly mezclado: number | null;
+  readonly usado: number | null;
+  readonly componentes: readonly ComponenteDeFormula[];
 }
 
 export interface ServicioDeLaCita {
@@ -209,16 +222,50 @@ function entero(texto: string): number {
   return Number.isNaN(valor) ? 0 : Math.max(0, valor);
 }
 
+const esCifra = (valor: unknown): valor is number =>
+  typeof valor === 'number' && Number.isFinite(valor) && valor >= 0;
+const esNombre = (valor: unknown): valor is string =>
+  typeof valor === 'string' && valor.trim() !== '';
+
+/** Un material tal como lo acepta `capturar_formula`: si no, REPETIR lo rechazaría. */
+function esComponente(valor: unknown): valor is ComponenteDeFormula {
+  if (typeof valor !== 'object' || valor === null) return false;
+  const { nombre, cantidad, unidad } = valor as Record<string, unknown>;
+  return esNombre(nombre) && esCifra(cantidad) && esNombre(unidad);
+}
+
+/**
+ * La fórmula congelada de una visita, leída con desconfianza.
+ *
+ * Una fila vieja o a medio escribir no tira la pantalla: lo que no tiene la forma
+ * se queda fuera, y un material sin nombre no llega a REPETIR.
+ */
+function formulaDe(visita: VisitaConFormula): FormulaCongelada {
+  const crudo = visita.formula;
+  const objeto: Readonly<Record<string, unknown>> =
+    typeof crudo === 'object' && crudo !== null ? (crudo as Record<string, unknown>) : {};
+  const { mezclado, usado, componentes } = objeto;
+  return {
+    mezclado: esCifra(mezclado) ? mezclado : null,
+    usado: esCifra(usado) ? usado : null,
+    componentes: Array.isArray(componentes)
+      ? (componentes as readonly unknown[]).filter(esComponente)
+      : [],
+  };
+}
+
 function mezclaDe(visita: VisitaConFormula): Mezcla {
-  // Sin componentes servidos, una mezcla VACÍA y no un fallo: la fórmula de
-  // partida se enseña como «todavía no hay» y la estilista la captura.
-  const componentes = visita.componentes ?? [];
+  const { mezclado, usado, componentes } = formulaDe(visita);
+  // Una fila sin mezclado ni usado se lee por la suma de sus materiales: el
+  // sobrante sale en cero y no inventa un desperdicio.
   const gramos = componentes.reduce((suma, c) => suma + c.cantidad, 0);
   return {
-    mezclado: gramos,
-    usado: gramos,
+    mezclado: mezclado ?? gramos,
+    usado: usado ?? gramos,
     componentes,
-    minutos: visita.minutos,
+    // El procesado vacío llega NULO y el comando exige un número: REPETIR mandaba
+    // `minutos: null` y la fórmula no se guardaba.
+    minutos: visita.minutos ?? 0,
   };
 }
 
@@ -266,36 +313,80 @@ const COLUMNAS_DE_FORMULA: readonly ColumnaDeTabla<ComponenteDeFormula>[] = [
   },
 ];
 
-/** La fórmula de una visita del historial, dentro de su celda: un renglón por material. */
-function ResumenDeFormula({ visita }: { readonly visita: VisitaConFormula }) {
-  return (
-    <span className="flex flex-col gap-(--espacio-1)">
-      {(visita.componentes ?? []).map((c) => (
-        <span key={c.nombre} className="flex justify-between gap-(--espacio-3)">
-          <span>{c.nombre}</span>
-          <Cifra valor={c.cantidad} unidad={c.unidad} tamano="sm" />
-        </span>
-      ))}
-      <span className="text-texto-sutil">
-        <Cifra valor={visita.minutos} unidad="min" tamano="sm" /> de proceso
-      </span>
-    </span>
-  );
+/**
+ * Un renglón del historial: UN material de una visita.
+ *
+ * Material y cantidad son dos columnas de verdad, como en «la vez pasada», y no
+ * dos `<span>` alineados a mano dentro de una celda: el lector oye una fila por
+ * material y no «6.0 60 g ox 20 vol 90 ml 35 min» de corrido.
+ */
+interface RenglonDelHistorial {
+  readonly clave: string;
+  readonly visita: VisitaConFormula;
+  /** El primero de su visita lleva la fecha, el servicio y el procesado. */
+  readonly primero: boolean;
+  /** Nulo en una visita que se guardó sin materiales: un renglón que lo dice. */
+  readonly componente: ComponenteDeFormula | null;
+}
+
+function renglonesDelHistorial(
+  visitas: readonly VisitaConFormula[],
+): readonly RenglonDelHistorial[] {
+  return visitas.flatMap((visita): readonly RenglonDelHistorial[] => {
+    const { componentes } = formulaDe(visita);
+    if (componentes.length === 0) {
+      return [{ clave: visita.id, visita, primero: true, componente: null }];
+    }
+    return componentes.map((componente, indice) => ({
+      clave: `${visita.id}-${String(indice)}`,
+      visita,
+      primero: indice === 0,
+      componente,
+    }));
+  });
 }
 
 /** Las seis visitas: la vista que se acuerda de todo cuando gritan desde el lavabo. */
-const COLUMNAS_DEL_HISTORIAL: readonly ColumnaDeTabla<VisitaConFormula>[] = [
+const COLUMNAS_DEL_HISTORIAL: readonly ColumnaDeTabla<RenglonDelHistorial>[] = [
   {
     clave: 'visita',
     titulo: 'Visita',
-    celda: (v) => (
-      <span className="flex flex-col">
-        <span className="font-semibold">{DIA.format(new Date(v.fecha))}</span>
-        <span className="text-xs text-texto-sutil">{v.servicio}</span>
-      </span>
-    ),
+    celda: ({ visita, primero }) =>
+      primero ? (
+        <span className="flex flex-col">
+          <span className="font-semibold">{DIA.format(new Date(visita.fecha))}</span>
+          <span className="text-xs text-texto-sutil">{visita.servicio}</span>
+          {visita.minutos === null ? null : (
+            <span className="text-xs text-texto-sutil">
+              <Cifra valor={visita.minutos} unidad="min" tamano="xs" /> de proceso
+            </span>
+          )}
+        </span>
+      ) : (
+        // A la vista, la fecha va sólo en el primer renglón; quien recorre la tabla
+        // fila por fila la oye en cada uno.
+        <span className="sr-only">{DIA.format(new Date(visita.fecha))}</span>
+      ),
   },
-  { clave: 'formula', titulo: 'Fórmula', celda: (v) => <ResumenDeFormula visita={v} /> },
+  {
+    clave: 'material',
+    titulo: 'Material',
+    celda: ({ componente }) =>
+      componente === null ? (
+        <span className="text-texto-sutil">Sin componentes capturados</span>
+      ) : (
+        componente.nombre
+      ),
+  },
+  {
+    clave: 'cantidad',
+    titulo: 'Cantidad',
+    numerica: true,
+    celda: ({ componente }) =>
+      componente === null ? null : (
+        <Cifra valor={componente.cantidad} unidad={componente.unidad} tamano="sm" />
+      ),
+  },
 ];
 
 function columnasDeServicios(voc: Vocabulario): readonly ColumnaDeTabla<ServicioDeLaCita>[] {
@@ -379,13 +470,10 @@ export function FilasDeFormula({ componentes = [], minutos = 0 }: FilasDeFormula
         columnas={COLUMNAS_DE_FORMULA}
         filas={componentes}
         claveDe={(c) => c.nombre}
-        vacio={
-          <Vacio
-            titulo="Todavía no hay fórmula de esa visita."
-            explicacion="Captúrala con Ajustar y queda como su punto de partida."
-            className="py-(--espacio-4)"
-          />
-        }
+        // Con los materiales ya leídos de `formula`, esto sólo sale si la visita de
+        // verdad se guardó sin ellos. No promete una captura: AJUSTAR mueve los
+        // materiales que hay y no tiene con qué añadir otro.
+        vacio={<Vacio titulo="Esa visita se guardó sin materiales." className="py-(--espacio-4)" />}
       />
       <p className="text-sm text-texto-sutil">
         <Cifra valor={minutos} unidad="min" /> de proceso
@@ -717,8 +805,8 @@ export function CitaEnCurso({
               <Tabla
                 etiqueta={`Historial de ${nombre}`}
                 columnas={COLUMNAS_DEL_HISTORIAL}
-                filas={visitas}
-                claveDe={(v) => v.id}
+                filas={renglonesDelHistorial(visitas)}
+                claveDe={(r) => r.clave}
                 alto="max-h-[70vh]"
               />
             )}

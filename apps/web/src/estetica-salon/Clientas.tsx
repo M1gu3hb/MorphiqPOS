@@ -42,10 +42,14 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *
  * ── Por qué la búsqueda arriba y «les toca volver» pegado a ella ─────────
  * Es lo que la recepción hace entre clienta y clienta: encontrar a alguien para
- * agendar, y ver quién se está yendo. En la tableta del mostrador —el dispositivo
- * de esta pantalla— la búsqueda y las dos listas van en una columna y la ficha a su
+ * agendar, y ver quién se está yendo. `04-INTERFAZ` §4.3.12: la lista por omisión NO
+ * es «todas las clientas» —eso no dispara nada—, es quién se está yendo. Así que sin
+ * buscar, debajo del campo va «les toca volver»; al teclear, las que coinciden salen
+ * justo debajo del campo, y «les toca volver» se queda después. En la tableta del
+ * mostrador —el dispositivo de esta pantalla— eso va en una columna y la ficha a su
  * derecha, pegada arriba, para que abrirla no mueva la lista. En la PC son tres
- * columnas. En el teléfono la ficha aparece justo debajo de la lista, donde se tocó.
+ * columnas: la búsqueda, les toca volver y la ficha. En el teléfono la ficha aparece
+ * justo debajo de lo que se encontró, donde se tocó.
  *
  * ── Por qué las alergias van arriba de todo y en rojo ───────────────────
  * Porque es el único dato de esta pantalla que puede mandar a alguien al
@@ -83,8 +87,7 @@ const RUTA_EXPEDIENTE = '/api/clientes';
 const RUTA_POR_VOLVER = '/api/clientes/por-volver';
 const RUTA_ALTA = '/api/clientes';
 
-/** Cuántas se ven sin buscar, y cuántas de las que se están yendo. */
-const SIN_BUSCAR = 40;
+/** Cuántas de las que se están yendo se ven a la vez. */
 const POR_VOLVER_A_LA_VISTA = 10;
 
 export interface FichaDeClienta {
@@ -124,6 +127,18 @@ export interface ClientaPorVolver {
 export interface ClientasProps {
   readonly clientasIniciales?: readonly FichaDeClienta[];
   readonly porVolverIniciales?: readonly ClientaPorVolver[];
+}
+
+/**
+ * Un guardado que falló cuando su ficha ya no estaba a la vista: se abrió otra
+ * clienta —u otra vez ésta— mientras la petición viajaba, y `vaciarFicha` ya había
+ * borrado el borrador. Se guarda lo que se mandó para poder recuperarlo: tirar el
+ * fallo perdía, sin decir nada, las alergias que alguien acababa de capturar.
+ */
+interface GuardadoPerdido {
+  readonly clienta: FichaDeClienta;
+  readonly borrador: Readonly<Record<string, string>>;
+  readonly detalle: string;
 }
 
 /** Los cuatro campos del expediente, con el nombre que se lee en pantalla. */
@@ -202,12 +217,19 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
   const [falloDeAlta, setFalloDeAlta] = useState<string | null>(null);
   const [guardado, setGuardado] = useState<EstadoDeGuardado>('quieto');
   const [ocupado, setOcupado] = useState(false);
+  const [perdidos, setPerdidos] = useState<readonly GuardadoPerdido[]>([]);
   /**
    * DE QUIÉN ES LA FICHA ABIERTA, para las respuestas que llegan tarde. Se toca a
    * Ana, luego a Mariel, y el expediente de Ana llega segundo: sin esto, las
    * alergias de Ana se pintaban bajo el nombre de Mariel.
    */
   const abierta = useRef<string | null>(null);
+  /**
+   * Cuántas veces se ha vaciado la ficha. Un guardado compara la suya al volver: si
+   * cambió, el borrador que mandó ya no está en pantalla —aunque sea la misma clienta,
+   * reabierta—, y su resultado no se pinta sobre la ficha de ahora.
+   */
+  const apertura = useRef(0);
 
   useEffect(() => {
     if (clientasIniciales !== undefined && porVolverIniciales !== undefined) return;
@@ -278,13 +300,20 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
       });
   }
 
-  /** La ficha en blanco para `clienta`: nada de la anterior se queda a la vista. */
-  function vaciarFicha(clienta: FichaDeClienta): void {
+  /**
+   * La ficha en blanco para `clienta`: nada de la anterior se queda a la vista. Con
+   * `borradorInicial`, lo capturado de un guardado que falló, para volver a mandarlo.
+   */
+  function vaciarFicha(
+    clienta: FichaDeClienta,
+    borradorInicial: Record<string, string> = {},
+  ): void {
     abierta.current = clienta.id;
+    apertura.current += 1;
     setElegida(clienta);
     setExpediente(null);
     setUltima(null);
-    setBorrador({});
+    setBorrador(borradorInicial);
     setError(null);
     setGuardado('quieto');
   }
@@ -295,17 +324,23 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
    * fotografíe el estado nuevo ya pintado. Las lecturas salen después de vaciar la
    * ficha: una respuesta muy rápida no puede quedar borrada por el vaciado.
    */
-  function abrir(clienta: FichaDeClienta): void {
+  function abrir(clienta: FichaDeClienta, borradorInicial?: Record<string, string>): void {
     flushSync(() => {
       setViajando(clienta.id);
     });
     void conTransicion(() => {
       flushSync(() => {
         setViajando(null);
-        vaciarFicha(clienta);
+        vaciarFicha(clienta, borradorInicial);
       });
       leerFicha(clienta);
     });
+  }
+
+  /** Vuelve a abrir la ficha de un guardado perdido, con lo que se había capturado. */
+  function recuperar(perdido: GuardadoPerdido): void {
+    setPerdidos((previos) => previos.filter((otro) => otro.clienta.id !== perdido.clienta.id));
+    abrir(perdido.clienta, { ...perdido.borrador });
   }
 
   function reabrir(clienta: FichaDeClienta): void {
@@ -315,11 +350,13 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
 
   function guardar(): void {
     if (elegida === null) return;
-    const id = elegida.id;
+    const clienta = elegida;
+    const loQueSeManda = borrador;
+    const estaApertura = apertura.current;
     setOcupado(true);
     setError(null);
     setGuardado('guardando');
-    invocarComando<Expediente>(`${RUTA_EXPEDIENTE}/${id}/expediente`, {
+    invocarComando<Expediente>(`${RUTA_EXPEDIENTE}/${clienta.id}/expediente`, {
       // Sólo lo que se tocó. Mandar el formulario entero desde la pantalla que
       // sólo quería corregir las canas borraría las alergias.
       ...(borrador['alergias'] === undefined ? {} : { alergias: borrador['alergias'] }),
@@ -328,15 +365,30 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
       ...(borrador['que_busca'] === undefined ? {} : { queBusca: borrador['que_busca'] }),
     })
       .then((datos) => {
-        if (abierta.current !== id) return;
+        // Guardado: si su ficha ya no está a la vista, no hay nada que perder.
+        if (apertura.current !== estaApertura) return;
         setExpediente(datos);
         setBorrador({});
         setGuardado('guardado');
       })
       .catch((fallo: unknown) => {
-        if (abierta.current !== id) return;
-        setError(mensajeDe(fallo));
-        setGuardado('quieto');
+        if (apertura.current === estaApertura) {
+          setError(mensajeDe(fallo));
+          setGuardado('quieto');
+          return;
+        }
+        // Su ficha ya no está a la vista y el borrador se vació con ella: el fallo NO
+        // se tira. Se dice arriba, con nombre, y lo capturado se puede recuperar.
+        if (Object.keys(loQueSeManda).length === 0) return;
+        const perdido: GuardadoPerdido = {
+          clienta,
+          borrador: loQueSeManda,
+          detalle: fallo instanceof ErrorApi ? fallo.message : 'La conexión no respondió.',
+        };
+        setPerdidos((previos) => [
+          ...previos.filter((otro) => otro.clienta.id !== clienta.id),
+          perdido,
+        ]);
       })
       .finally(() => {
         setOcupado(false);
@@ -366,11 +418,9 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
   const visibles =
     clientas === null
       ? []
-      : filtro === ''
-        ? clientas.slice(0, SIN_BUSCAR)
-        : clientas.filter(
-            (c) => c.nombre.toLowerCase().includes(filtro) || (c.telefono ?? '').includes(filtro),
-          );
+      : clientas.filter(
+          (c) => c.nombre.toLowerCase().includes(filtro) || (c.telefono ?? '').includes(filtro),
+        );
 
   const columnasDelDirectorio: readonly ColumnaDeTabla<FichaDeClienta>[] = [
     {
@@ -400,6 +450,17 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
         />
       );
     }
+    const sinClientas = (
+      <Vacio
+        icono={<Users />}
+        titulo={`Todavía no tienes ${voc.plural('cliente')} registrad${voc.terminacion('cliente', true)}.`}
+        explicacion="Cada vez que atiendas a alguien, pídele su teléfono. Escribe su nombre en «Buscar» y se da de alta desde ahí."
+        className="py-(--espacio-8)"
+      />
+    );
+    // Sin buscar NO va la lista entera (§4.3.12): debajo del campo va a quién le toca
+    // volver. Sólo el salón que aún no tiene a nadie enseña aquí su vacío, con el consejo.
+    if (filtro === '') return clientas?.length === 0 ? sinClientas : null;
     // La forma de la lista, nunca una rueda: el ojo ya sabe dónde va a mirar.
     if (clientas === null) return <EsqueletoDeLista filas={6} />;
     const sinCoincidencias = (
@@ -420,14 +481,6 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
         )}
       </Vacio>
     );
-    const sinClientas = (
-      <Vacio
-        icono={<Users />}
-        titulo={`Todavía no tienes ${voc.plural('cliente')} registrad${voc.terminacion('cliente', true)}.`}
-        explicacion="Cada vez que atiendas a alguien, pídele su teléfono. Escribe su nombre en «Buscar» y se da de alta desde ahí."
-        className="py-(--espacio-8)"
-      />
-    );
     return (
       <Tabla
         etiqueta={voc.titulo('cliente', true)}
@@ -441,7 +494,7 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
         }}
         viajeDeFila={(c) => (c.id === viajando ? VIAJE.fila(c.id) : undefined)}
         alto="max-h-[45vh] md:max-h-[50vh] xl:max-h-[calc(100dvh-12rem)]"
-        vacio={filtro === '' ? sinClientas : sinCoincidencias}
+        vacio={sinCoincidencias}
       />
     );
   })();
@@ -455,6 +508,25 @@ export function Clientas({ clientasIniciales, porVolverIniciales }: ClientasProp
       {/* PRIMARIO · buscar. El foco arranca aquí: es la acción de la pantalla. */}
       <div className="flex flex-col gap-(--espacio-3) md:col-start-1 md:row-start-1">
         <h1 className="text-xl font-bold">{voc.titulo('cliente', true)}</h1>
+        {perdidos.map((perdido) => (
+          <Aviso
+            key={perdido.clienta.id}
+            tono="peligro"
+            titulo={`No se guardó el expediente de ${perdido.clienta.nombre}.`}
+          >
+            {perdido.detalle} Lo capturado no se perdió: recupéralo y vuelve a guardarlo.
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-(--espacio-2) flex"
+              onClick={() => {
+                recuperar(perdido);
+              }}
+            >
+              Recuperar lo capturado
+            </Button>
+          </Aviso>
+        ))}
         <div className="flex flex-col gap-(--espacio-1)">
           <Label htmlFor="buscar">Buscar</Label>
           <div className="relative">

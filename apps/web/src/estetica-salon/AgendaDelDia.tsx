@@ -86,7 +86,11 @@ interface AspectoDeEstado {
   readonly nombre: string;
   /** Fondo y borde del bloque. */
   readonly tinte: string;
-  /** El color de la palabra del estado. */
+  /**
+   * El color de la palabra del estado. Sobre un tinte o un rayado va en `text-texto`:
+   * el gris sutil sobre el verde de «cobrada» o el azul sobre su propio rayado dan
+   * 3.8:1, y bajo la luz del salón 4.5:1 es el piso (§4.6).
+   */
   readonly palabra: string;
   readonly nivel: 0 | 1;
   /** El color del rayado, o `null` si el tramo es sólido. */
@@ -97,7 +101,7 @@ const ESTADOS = {
   agendada: {
     nombre: 'Agendada',
     tinte: 'border-borde-fuerte bg-fondo-sutil',
-    palabra: 'text-texto-sutil',
+    palabra: 'text-texto',
     nivel: 1,
     rayado: null,
   },
@@ -120,14 +124,16 @@ const ESTADOS = {
   procesado: {
     nombre: 'Cabe una cita',
     tinte: 'border-dashed border-primario/60 bg-primario/5',
-    palabra: 'text-primario',
+    // El rayado es el azul; la palabra no: del mismo tono que las franjas que la
+    // cruzan, «cabe una cita» se leía a 3.8:1.
+    palabra: 'text-texto',
     nivel: 0,
     rayado: 'text-primario',
   },
   cobrada: {
     nombre: 'Cobrada',
     tinte: 'border-exito/60 bg-exito/20',
-    palabra: 'text-texto-sutil',
+    palabra: 'text-texto',
     nivel: 1,
     rayado: null,
   },
@@ -558,10 +564,16 @@ export function Bloque({ bloque, ocupado = false, conProfesional = false, onToca
   );
 }
 
+interface ResumenProps {
+  readonly resumen: ResumenDelDia | 'leyendo';
+  /** Falso si `agenda.huecos` no respondió: entonces su cifra es «—», no un cero. */
+  readonly huecosLeidos: boolean;
+}
+
 /** Las tres cifras del encabezado. Mientras se lee, la forma del número; nunca un cero. */
-function Resumen({ resumen }: { readonly resumen: ResumenDelDia | 'leyendo' }) {
+function Resumen({ resumen, huecosLeidos }: ResumenProps) {
   const voc = useVocabulario();
-  const cifra = (valor: number, unidad?: string) =>
+  const cifra = (valor: number | null, unidad?: string) =>
     resumen === 'leyendo' ? (
       <Esqueleto className="inline-block h-5 w-8 align-middle" />
     ) : (
@@ -574,7 +586,8 @@ function Resumen({ resumen }: { readonly resumen: ResumenDelDia | 'leyendo' }) {
     );
   const cuantas = resumen === 'leyendo' ? 0 : resumen.citas;
   const ocupacion = resumen === 'leyendo' ? 0 : resumen.ocupacion;
-  const huecos = resumen === 'leyendo' ? 0 : resumen.huecos.length;
+  // Sin la lectura de huecos, «0 huecos» afirmaría un día lleno que nadie comprobó.
+  const huecos = resumen === 'leyendo' || !huecosLeidos ? null : resumen.huecos.length;
   return (
     <ul
       aria-label="Resumen del día"
@@ -595,6 +608,7 @@ interface EncabezadoProps {
   readonly mover: (n: number) => () => void;
   /** `null` cuando la agenda no se pudo leer: no hay cifras que dar. */
   readonly resumen: ResumenDelDia | 'leyendo' | null;
+  readonly huecosLeidos: boolean;
 }
 
 /**
@@ -602,7 +616,7 @@ interface EncabezadoProps {
  * y se pintan siempre —cargando, vacío, con citas y con error—: sin ellos, un día
  * que no se pudo leer sería un callejón.
  */
-function Encabezado({ fecha, dia, mover, resumen }: EncabezadoProps) {
+function Encabezado({ fecha, dia, mover, resumen, huecosLeidos }: EncabezadoProps) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-x-(--espacio-4) gap-y-(--espacio-2)">
       <div className="flex min-w-0 items-center gap-(--espacio-2)">
@@ -621,7 +635,7 @@ function Encabezado({ fecha, dia, mover, resumen }: EncabezadoProps) {
           </Button>
         )}
       </div>
-      {resumen === null ? null : <Resumen resumen={resumen} />}
+      {resumen === null ? null : <Resumen resumen={resumen} huecosLeidos={huecosLeidos} />}
     </header>
   );
 }
@@ -945,6 +959,8 @@ const COLUMNAS_DE_HUECOS: readonly ColumnaDeTabla<BloqueDeAgenda>[] = [
 interface PanelDePendientesProps {
   readonly sinConfirmar: readonly BloqueDeAgenda[];
   readonly huecos: readonly BloqueDeAgenda[];
+  /** Falso si `agenda.huecos` no respondió: la lista vacía no quiere decir «día lleno». */
+  readonly huecosLeidos: boolean;
   readonly valor: number;
   readonly alTocar: (b: BloqueDeAgenda) => () => void;
 }
@@ -954,7 +970,13 @@ interface PanelDePendientesProps {
  * dos listas a mano: la hora, quién y cuánto, alineados; y el hueco se toca igual
  * que en la rejilla, con el dedo o con Enter.
  */
-function PanelDePendientes({ sinConfirmar, huecos, valor, alTocar }: PanelDePendientesProps) {
+function PanelDePendientes({
+  sinConfirmar,
+  huecos,
+  huecosLeidos,
+  valor,
+  alTocar,
+}: PanelDePendientesProps) {
   const voc = useVocabulario();
   return (
     <Superficie
@@ -980,7 +1002,7 @@ function PanelDePendientes({ sinConfirmar, huecos, valor, alTocar }: PanelDePend
       <section aria-label="Huecos" className="flex flex-col gap-(--espacio-2)">
         <h2 className="flex items-baseline justify-between text-sm font-semibold">
           Huecos
-          <Cifra valor={huecos.length} tamano="sm" />
+          <Cifra valor={huecosLeidos ? huecos.length : null} tamano="sm" />
         </h2>
         <Tabla
           etiqueta="Huecos del día"
@@ -991,6 +1013,8 @@ function PanelDePendientes({ sinConfirmar, huecos, valor, alTocar }: PanelDePend
             const hueco = huecos.find((h) => h.id === id);
             if (hueco !== undefined) alTocar(hueco)();
           }}
+          // La fila ES el control: sin nombre, el lector la leía como un renglón más.
+          etiquetaDeFila={(b) => `Llenar el hueco de ${b.profesional} a las ${b.inicio}`}
           alto="max-h-[30dvh]"
           pie={{
             hueco: 'Total',
@@ -1000,7 +1024,14 @@ function PanelDePendientes({ sinConfirmar, huecos, valor, alTocar }: PanelDePend
               </span>
             ),
           }}
-          vacio={<Vacio titulo="Sin huecos: el día está lleno." className="py-(--espacio-3)" />}
+          vacio={
+            <Vacio
+              titulo={
+                huecosLeidos ? 'Sin huecos: el día está lleno.' : 'No se pudieron leer los huecos.'
+              }
+              className="py-(--espacio-3)"
+            />
+          }
         />
       </section>
     </Superficie>
@@ -1049,6 +1080,12 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   /** Se leyó la agenda y se cayó una fuente de al lado: se dice cuál. */
   const [avisoDeLectura, setAvisoDeLectura] = useState<AvisoDeLectura | null>(null);
+  /**
+   * Si `agenda.huecos` respondió. Sin él no hay ningún bloque `hueco`, y contarlos
+   * daría cero: el panel diría «el día está lleno» debajo del aviso que dice que
+   * los huecos no se leyeron.
+   */
+  const [huecosLeidos, setHuecosLeidos] = useState(true);
   /** Iniciar una cita falló: se dice qué NO pasó. */
   const [falloAlIniciar, setFalloAlIniciar] = useState<string | null>(null);
   const rejilla = useRef<HTMLElement>(null);
@@ -1180,6 +1217,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
           }
         }
         setBloques(pintables);
+        setHuecosLeidos(huecos.status === 'fulfilled');
 
         // Sin `agenda.dia` no hay agenda: los huecos solos dibujarían un día libre
         // que no lo es. Eso es el error de la pantalla, no un aviso.
@@ -1335,12 +1373,16 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
       dia={dia}
       mover={mover}
       resumen={estadoDelResumen(falloDeCarga, bloques, resumen)}
+      huecosLeidos={huecosLeidos}
     />
   );
 
+  // AGENDAR va también en el error y en el esqueleto: es el «control fijo, siempre
+  // visible» de §4.3.1, y agendar no depende de `agenda.dia`. Con la agenda caída,
+  // esta ruta no tenía otra puerta al asistente.
   if (falloDeCarga !== null) {
     return (
-      <div className={MARCO}>
+      <div className={`${MARCO} pb-[calc(var(--espacio-12)*2)]`}>
         {encabezado}
         <ErrorDePantalla
           titulo="No se pudo cargar la agenda."
@@ -1348,15 +1390,17 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
           detalle={falloDeCarga}
           reintentar={<Button onClick={reintentar}>Reintentar</Button>}
         />
+        <BarraDeAgendar alAgendar={irAAgendar} />
       </div>
     );
   }
 
   if (bloques === null) {
     return (
-      <div className={MARCO}>
+      <div className={`${MARCO} pb-[calc(var(--espacio-12)*2)]`}>
         {encabezado}
         <EsqueletoDeLaAgenda />
+        <BarraDeAgendar alAgendar={irAAgendar} />
       </div>
     );
   }
@@ -1447,6 +1491,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         <PanelDePendientes
           sinConfirmar={sinConfirmar}
           huecos={resumen.huecos}
+          huecosLeidos={huecosLeidos}
           valor={resumen.valor}
           alTocar={alTocar}
         />

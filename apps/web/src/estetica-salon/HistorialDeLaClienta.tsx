@@ -24,6 +24,7 @@ import { BookUser, CalendarPlus, Camera, ChevronDown, NotebookPen } from 'lucide
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -217,7 +218,9 @@ async function leerExpediente(
         fecha: texto(s['fecha']),
         servicio: texto(s['servicio_nombre']),
         profesional: texto(s['profesional_nombre']),
-        precioCentavos: numero(s['precio_centavos']),
+        // El puente sirve `precio_centavos` en PESOS (`conversion: 'dinero'`): sin
+        // pasarlo a centavos, un retoque de $950.00 se pintaba «$9.50».
+        precioCentavos: centavosDelPuente(numero(s['precio_centavos'])),
         formula: enFormula(formula),
         nota: texto(formula?.['nota']),
         notaPrivada: formula?.['nota_privada'] === true,
@@ -489,9 +492,13 @@ export function HistorialDeLaClienta({
         {avisoDeLectura}
         {/* El vacío ENSEÑA: los tres datos que sí sirven dentro de cinco semanas. */}
         <Superficie relleno={0}>
-          <form onSubmit={alEmpezar}>
+          {/* El título del vacío es un ENCABEZADO y da nombre al formulario: quien
+              navega por encabezados encuentra la única acción de esta pantalla. */}
+          <form onSubmit={alEmpezar} aria-labelledby="historial-primera-vez">
             <Vacio
               icono={<NotebookPen />}
+              nivelDeTitulo={2}
+              idDelTitulo="historial-primera-vez"
               titulo={`${nombre} viene por primera vez.`}
               explicacion={`Tres respuestas ahora valen más que media hora de memoria en la próxima ${voc.singular('orden')}.`}
               className="px-(--espacio-4) py-(--espacio-8) sm:px-(--espacio-8)"
@@ -535,7 +542,14 @@ export function HistorialDeLaClienta({
     {
       clave: 'servicio',
       titulo: voc.titulo('linea_orden'),
-      celda: (v) => v.servicio ?? 'Servicio sin nombre',
+      celda: (v) => (
+        <span className="flex flex-col">
+          <span>{v.servicio ?? 'Servicio sin nombre'}</span>
+          {/* En el teléfono —el más usado— la columna de quién atendió no cabe, y el
+              dato no se pierde: baja debajo del servicio. Desde `sm` va en su columna. */}
+          <span className="text-xs text-texto-sutil sm:hidden">{v.profesional ?? 'sin dato'}</span>
+        </span>
+      ),
     },
     {
       clave: 'profesional',
@@ -631,9 +645,16 @@ export function HistorialDeLaClienta({
                     Sin fórmula capturada en esta visita.
                   </p>
                 ) : (
-                  <p className="rounded-md bg-fondo-sutil px-(--espacio-3) py-(--espacio-3) font-mono text-lg font-semibold tabular-nums md:text-xl xl:text-2xl">
+                  <Superficie
+                    como="p"
+                    nivel={0}
+                    radio="md"
+                    relleno={3}
+                    conBorde={false}
+                    className="bg-fondo-sutil font-mono text-lg font-semibold tabular-nums md:text-xl xl:text-2xl"
+                  >
                     {ultima.formula}
-                  </p>
+                  </Superficie>
                 )}
               </div>
 
