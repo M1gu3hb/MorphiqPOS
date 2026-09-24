@@ -834,6 +834,11 @@ export function Caja({
    * dos elementos del mismo nombre el navegador no anima ninguno.
    */
   function elegir(id: string): void {
+    // Mientras un cobro viaja, la cola no cambia de nota: lo que conteste —el fallo,
+    // o la nota que pasa al andén— se pinta en el panel, y el panel tiene que seguir
+    // siendo el de la nota que se está cobrando. Si no, el fallo de la nota A salía
+    // bajo el total de la B, que nadie intentó cobrar.
+    if (enviando !== null) return;
     // El aviso de un cobro fallido es de la nota que se intentó, no de la que se abre.
     setError(null);
     if (id === notaId) {
@@ -852,6 +857,8 @@ export function Caja({
   }
 
   async function sellar(nota: NotaDeCaja, metodo: MetodoDeCobro): Promise<void> {
+    // Un doble toque llega antes que el re-pintado que apaga los métodos.
+    if (enviando !== null) return;
     setEnviando(`${nota.id}·${metodo}`);
     setError(null);
     try {

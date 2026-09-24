@@ -17,7 +17,7 @@ import {
 import { Check, Scissors, TriangleAlert } from 'lucide-react';
 import { useEffect, useState, type ReactElement } from 'react';
 
-import { ErrorApi, invocarComando } from '~/cliente/api';
+import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -75,10 +75,17 @@ const RUTA_PREGUNTAR_PIEZAS = '/api/inventario/piezas-abiertas';
 const RUTA_ABRIR_PIEZA = '/api/inventario/pieza-abierta';
 const RUTA_CORTAR = '/api/ferreteria/cortar';
 
-const MEDIDA_CON_FORMA = /^\d{1,9}$/;
+/**
+ * LA UNIDAD BASE de un material continuo: su unidad de venta en DIEZMILÉSIMAS —37.5 m
+ * son 375 000—. Es la de `packages/app/src/ferreteria/corte.ts`, la de
+ * `piezas_abiertas.medida_restante_base` y la que la vista `piezas_de_material`
+ * divide entre 10 000. Aquí decía micrómetros: un rollo de 100 m se abría como uno de
+ * 10 000, y uno de 12 m que ya estaba en la base se leía aquí de 0.12.
+ */
+const DIEZMILESIMAS = 10_000;
 
-/** Micrómetros por metro. Todo lo continuo vive en la unidad base entera. */
-const MICRAS_POR_METRO = 1_000_000;
+/** «30», «0,20», «12.5», «.5»: hasta cuatro decimales, que es lo que cabe en la base. */
+const MEDIDA_TECLEADA = /^(\d{0,9})(?:[.,](\d{0,4}))?$/;
 
 const MERMA_PROPUESTA = '0.10';
 
@@ -129,20 +136,44 @@ interface Hecho extends Mensaje {
 
 /** Metros con dos decimales: es como se dice en el mostrador. */
 export function enMetros(base: string): string {
-  return (Number(base) / MICRAS_POR_METRO).toFixed(2);
+  return (Number(base) / DIEZMILESIMAS).toFixed(2);
 }
 
+/** Lo tecleado, partido en enteros y decimales. `null` si no es una medida. */
+function partesDe(texto: string): { readonly entero: string; readonly fraccion: string } | null {
+  const forma = MEDIDA_TECLEADA.exec(texto.trim());
+  if (forma === null) return null;
+  const entero = forma[1] ?? '';
+  const fraccion = forma[2] ?? '';
+  if (entero === '' && fraccion === '') return null;
+  return { entero: entero === '' ? '0' : entero, fraccion };
+}
+
+/**
+ * Lo tecleado en la unidad base entera, por TEXTO y no con `Math.round(x * 10 000)`:
+ * la coma flotante no entra en una medida. `null` si no es una medida positiva.
+ */
 export function aBase(metros: string): string | null {
-  const limpio = metros.trim().replace(',', '.');
-  if (limpio === '') return null;
-  const valor = Number(limpio);
-  if (!Number.isFinite(valor) || valor <= 0) return null;
-  return String(Math.round(valor * MICRAS_POR_METRO));
+  const partes = partesDe(metros);
+  if (partes === null) return null;
+  const base = `${partes.entero}${partes.fraccion.padEnd(4, '0')}`.replace(/^0+(?=\d)/, '');
+  return base === '0' ? null : base;
+}
+
+/**
+ * Lo tecleado en metros con punto —«0,20» es «0.20»—, que es lo que lee
+ * `/api/ferreteria/cortar`: habla en metros como la persona que teclea y los pasa a
+ * la base con `cantidad()`. `null` si no es una medida positiva.
+ */
+function aMetros(texto: string): string | null {
+  const partes = partesDe(texto);
+  if (partes === null || aBase(texto) === null) return null;
+  return partes.fraccion === '' ? partes.entero : `${partes.entero}.${partes.fraccion}`;
 }
 
 /** La unidad base, como número de metros para `Cifra`. */
 function metrosDe(base: string | number): number {
-  return Number(base) / MICRAS_POR_METRO;
+  return Number(base) / DIEZMILESIMAS;
 }
 
 function mensajeDe(fallo: unknown): string {
@@ -196,6 +227,11 @@ function columnasDePiezas({
           {/* Como está escrito con plumón en la cinta: es lo que se busca en el rack. */}
           <span className="font-numeros text-base font-bold">{p.folio}</span>
           <EstadoDePieza pieza={p} esLaRecomendada={recomendada === p.piezaId} />
+          {/* En el teléfono no cabe la columna «Abierta» y el dato va aquí: se corta
+              junto al rack, y los días dicen qué rollo conviene acabarse. */}
+          <span className="text-xs text-texto-sutil sm:hidden">
+            <Cifra valor={p.diasAbierta} unidad="d" tamano="xs" /> abierta
+          </span>
         </span>
       ),
     },
@@ -242,6 +278,106 @@ function columnasDePiezas({
       ),
     },
   ];
+}
+
+/** Lo que el vacío lee de `MaterialContinuo` para ofrecer cada material. */
+interface MaterialQueSeCorta {
+  readonly id: string;
+  readonly nombre: string;
+  readonly unidad: string;
+}
+
+/**
+ * EL VACÍO, CON SALIDA: los materiales que se venden por medida, cada uno un enlace
+ * a su ficha (`?producto=`). Decía «se llega desde el mostrador: toca su renglón», y
+ * ningún renglón enlaza aquí: la entrada «Materiales» del menú era una pared.
+ */
+function ElegirMaterial(): ReactElement {
+  const voc = useVocabulario();
+  const [materiales, setMateriales] = useState<readonly MaterialQueSeCorta[] | null>(null);
+  const [fallo, setFallo] = useState<string | null>(null);
+  const [vuelta, setVuelta] = useState(0);
+
+  useEffect(() => {
+    const control = new AbortController();
+    const sigueMontada = () => !control.signal.aborted;
+    consultarPuente<MaterialQueSeCorta>('MaterialContinuo', { limite: 60, signal: control.signal })
+      .then((leidos) => {
+        if (sigueMontada()) setMateriales(leidos);
+      })
+      .catch((error: unknown) => {
+        if (sigueMontada()) setFallo(mensajeDe(error));
+      });
+    return () => {
+      control.abort();
+    };
+  }, [vuelta]);
+
+  function volverALeer(): void {
+    setFallo(null);
+    setVuelta((previa) => previa + 1);
+  }
+
+  let eleccion: ReactElement;
+  if (fallo !== null) {
+    eleccion = (
+      <Aviso
+        tono="peligro"
+        titulo={`No se pudo leer qué ${voc.plural('producto')} se venden por medida.`}
+        accion={
+          <Button type="button" variant="outline" size="sm" onClick={volverALeer}>
+            Volver a leer
+          </Button>
+        }
+      >
+        {fallo}
+      </Aviso>
+    );
+  } else if (materiales === null) {
+    eleccion = <EsqueletoDeLista filas={3} />;
+  } else if (materiales.length === 0) {
+    eleccion = (
+      <p className="text-sm text-texto-sutil">
+        {`${voc.conDeterminante('ningun', 'producto')} está marcado todavía como pieza continua.`}
+      </p>
+    );
+  } else {
+    eleccion = (
+      <ul
+        aria-label={`${voc.titulo('producto', true)} que se venden por medida`}
+        className="flex flex-col gap-(--espacio-2) text-left"
+      >
+        {materiales.map((m) => (
+          <li key={m.id}>
+            <Superficie
+              como="a"
+              href={`/ferreteria/material?producto=${encodeURIComponent(m.id)}`}
+              interactiva
+              relleno={3}
+              radio="md"
+              className="flex min-h-(--area-tactil-minima) items-center justify-between gap-(--espacio-3)"
+            >
+              <span className="font-medium">{m.nombre}</span>
+              <span className="text-sm text-texto-sutil">por {m.unidad}</span>
+            </Superficie>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  // Con el sustantivo del giro: una ferretería lee «material» y una tiendita
+  // «producto». Tecleado, el diccionario dejaría de mandar justo en el estado que
+  // más se ve.
+  return (
+    <Vacio
+      icono={<Scissors />}
+      titulo={`Aquí se abre ${voc.enFraseCon('un', 'producto')} que se corta`}
+      explicacion="Los rollos abiertos con su etiqueta, lo que queda en cada uno y de cuál conviene cortar. Elige de lo que se vende por medida:"
+    >
+      <div className="mt-(--espacio-2) self-stretch">{eleccion}</div>
+    </Vacio>
+  );
 }
 
 export function Material({ productoId, piezasIniciales }: MaterialProps) {
@@ -317,8 +453,10 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
   }
 
   function abrirPieza(): void {
+    // Un doble toque llega antes que el re-pintado que deshabilita el botón.
+    if (ocupado !== null) return;
     const base = aBase(nueva.metros);
-    if (base === null || !MEDIDA_CON_FORMA.test(base)) {
+    if (base === null) {
       setError({ donde: 'abrir', texto: 'Pon cuánto trae el rollo.' });
       return;
     }
@@ -356,8 +494,13 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
   }
 
   function cortar(): void {
-    const entregada = aBase(corte.metros);
-    const merma = aBase(corte.merma) ?? '0';
+    // Cortar es irreversible y abre una nota: un doble toque no puede hacer dos.
+    if (ocupado !== null) return;
+    // EN METROS, como se teclean, no en la unidad base: la ruta los pasa por
+    // `cantidad()`. Mandaba la base y 30 m salían como «30000000» —treinta millones
+    // de metros— en la partida de la nota y en el descuento del rollo.
+    const entregada = aMetros(corte.metros);
+    const merma = aMetros(corte.merma) ?? '0';
     if (corte.piezaId === '' || entregada === null) {
       setError({ donde: 'cortar', texto: 'Elige de qué pieza y cuántos metros.' });
       return;
@@ -422,26 +565,13 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
 
   // El VACÍO QUE ENSEÑA: esta pantalla es la ficha de UN material continuo.
   //
-  // `page.tsx` la monta sin material elegido y el efecto, con razón, no consulta con
-  // un id vacío. Sin esto se quedaba en su esqueleto, en blanco, para siempre.
+  // `page.tsx` la monta con el `?producto=` de la dirección, y la entrada del menú
+  // llega sin él. El efecto, con razón, no consulta con un id vacío.
   if (productoId === '' && piezasIniciales === undefined) {
     return (
       <main className="mx-auto w-full max-w-prose p-(--espacio-3) md:p-(--espacio-8)">
         <h1 className="sr-only">{voc.titulo('producto')}</h1>
-        {/* Con el sustantivo del giro: una ferretería lee «material» y una
-            tiendita «producto». Tecleado, el diccionario deja de mandar justo en
-            el estado que más se ve —esta pantalla se monta sin material
-            elegido—. */}
-        <Vacio
-          icono={<Scissors />}
-          titulo={`Aquí se abre ${voc.enFraseCon('un', 'producto')} que se corta`}
-          explicacion={`Los rollos abiertos con su etiqueta, lo que queda en cada uno y de cuál conviene cortar. Se llega desde el mostrador: busca ${voc.enFrase('producto')} y toca su renglón.`}
-          accion={
-            <Button asChild>
-              <a href="/ferreteria/mostrador">Ir al mostrador</a>
-            </Button>
-          }
-        />
+        <ElegirMaterial />
       </main>
     );
   }
@@ -491,8 +621,13 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
   const abiertosBase = piezas.reduce((suma, p) => suma + Number(p.medidaRestanteBase), 0);
   const columnas = columnasDePiezas({ recomendada, elegida: corte.piezaId, elegir });
 
+  // EL ORDEN DEL DOCUMENTO ES EL DE LA LECTURA: la pregunta y la lista, el corte y,
+  // al final, abrir un rollo. En la PC la rejilla pone el corte a la derecha y abrir
+  // debajo de la lista; el teléfono no reordena nada, así que el Tab y el lector de
+  // pantalla recorren lo mismo que se ve. La tercera fila es `1fr` para que el corte,
+  // que abarca las dos, no estire la de la lista.
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-(--espacio-4) p-(--espacio-3) md:p-(--espacio-6) lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-x-(--espacio-6)">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-(--espacio-4) p-(--espacio-3) md:p-(--espacio-6) lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[auto_auto_1fr] lg:items-start lg:gap-x-(--espacio-6)">
       <header className="flex flex-col gap-(--espacio-1) lg:col-span-2">
         <h1 className="text-xl font-bold md:text-2xl">{voc.titulo('producto')}</h1>
         <p className="text-sm text-texto-sutil">
@@ -500,9 +635,7 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
         </p>
       </header>
 
-      {/* En el teléfono esta columna se DISUELVE en la de la página, para que el
-          corte quede entre la lista y «abrir un rollo»: abrir es lo último. */}
-      <div className="contents lg:col-start-1 lg:row-start-2 lg:flex lg:flex-col lg:gap-(--espacio-4)">
+      <div className="flex flex-col gap-(--espacio-4) lg:col-start-1 lg:row-start-2">
         {/* PRIMERO · la pregunta. Enter la hace, como en cualquier campo. */}
         <Superficie
           como="form"
@@ -586,84 +719,17 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
             }
           />
         </section>
-
-        {/* AL FINAL, y más callado: se abre otro cuando ninguno de los abiertos
-            alcanza, no antes. */}
-        <Superficie
-          como="section"
-          aria-labelledby="t-abrir"
-          nivel={0}
-          relleno={4}
-          radio="md"
-          className="order-last flex flex-col gap-(--espacio-3) lg:order-none"
-        >
-          <h2 id="t-abrir" className={TITULO}>
-            Abrir un rollo
-          </h2>
-          {/* UNA línea, antes de abrir: evita el retazo antes de crearlo. */}
-          {abiertosBase > 0 && (
-            <p className="flex items-start gap-(--espacio-2) text-sm font-medium">
-              <TriangleAlert
-                aria-hidden="true"
-                className="mt-(--espacio-1) size-4 shrink-0 text-advertencia"
-              />
-              <span>
-                Hay <Cifra valor={metrosDe(abiertosBase)} decimales={2} unidad="m" tamano="sm" />{' '}
-                abiertos. Si abres uno nuevo, esos se quedan.
-              </span>
-            </p>
-          )}
-          <div className="grid gap-(--espacio-3) md:grid-cols-2">
-            <div className="flex flex-col gap-(--espacio-1)">
-              <Label htmlFor="nueva-folio">Rótulo</Label>
-              <Input
-                id="nueva-folio"
-                className="h-[calc(var(--altura-control)*1.2)] font-numeros"
-                placeholder="R-115"
-                value={nueva.folio}
-                onChange={(evento) => {
-                  setNueva({ ...nueva, folio: evento.target.value });
-                }}
-              />
-              <p className={NOTA}>Corto, porque se escribe con plumón en la cinta.</p>
-            </div>
-            <div className="flex flex-col gap-(--espacio-1)">
-              <Label htmlFor="nueva-metros">Trae (m)</Label>
-              <Input
-                id="nueva-metros"
-                inputMode="decimal"
-                className="h-[calc(var(--altura-control)*1.2)] text-right font-numeros tabular-nums"
-                value={nueva.metros}
-                onChange={(evento) => {
-                  setNueva({ ...nueva, metros: evento.target.value });
-                }}
-              />
-            </div>
-          </div>
-          {avisoDeError('abrir')}
-          {avisoDeHecho('abrir')}
-          <Button
-            type="button"
-            variant="outline"
-            className="self-start"
-            disabled={ocupado !== null}
-            cargando={ocupado === 'abrir'}
-            onClick={abrirPieza}
-          >
-            Abrir
-          </Button>
-        </Superficie>
       </div>
 
-      {/* LA ACCIÓN PRINCIPAL · a la derecha y fija en la PC; en el teléfono, justo
-          debajo de la lista de la que se elige. */}
+      {/* LA ACCIÓN PRINCIPAL · a la derecha y fija en la PC, a lo alto de las dos
+          filas; en el teléfono, justo debajo de la lista de la que se elige. */}
       <Superficie
         como="section"
         aria-labelledby="t-cortar"
         nivel={2}
         relleno={4}
         radio="md"
-        className="flex flex-col gap-(--espacio-4) lg:sticky lg:top-(--espacio-3) lg:col-start-2 lg:row-start-2"
+        className="flex flex-col gap-(--espacio-4) lg:sticky lg:top-(--espacio-3) lg:col-start-2 lg:row-span-2 lg:row-start-2"
       >
         <h2 id="t-cortar" className="flex items-center gap-(--espacio-2) text-lg font-semibold">
           <Scissors aria-hidden="true" className="size-5 shrink-0 text-texto-sutil" />
@@ -753,6 +819,73 @@ export function Material({ productoId, piezasIniciales }: MaterialProps) {
         >
           {ocupado === 'cortar' ? null : <Scissors aria-hidden="true" />}
           Registrar el corte
+        </Button>
+      </Superficie>
+
+      {/* AL FINAL, y más callado, también en el documento: se abre otro cuando
+          ninguno de los abiertos alcanza, no antes. En la PC, debajo de la lista. */}
+      <Superficie
+        como="section"
+        aria-labelledby="t-abrir"
+        nivel={0}
+        relleno={4}
+        radio="md"
+        className="flex flex-col gap-(--espacio-3) lg:col-start-1 lg:row-start-3"
+      >
+        <h2 id="t-abrir" className={TITULO}>
+          Abrir un rollo
+        </h2>
+        {/* UNA línea, antes de abrir: evita el retazo antes de crearlo. */}
+        {abiertosBase > 0 && (
+          <p className="flex items-start gap-(--espacio-2) text-sm font-medium">
+            <TriangleAlert
+              aria-hidden="true"
+              className="mt-(--espacio-1) size-4 shrink-0 text-advertencia"
+            />
+            <span>
+              Hay <Cifra valor={metrosDe(abiertosBase)} decimales={2} unidad="m" tamano="sm" />{' '}
+              abiertos. Si abres uno nuevo, esos se quedan.
+            </span>
+          </p>
+        )}
+        <div className="grid gap-(--espacio-3) md:grid-cols-2">
+          <div className="flex flex-col gap-(--espacio-1)">
+            <Label htmlFor="nueva-folio">Rótulo</Label>
+            <Input
+              id="nueva-folio"
+              className="h-[calc(var(--altura-control)*1.2)] font-numeros"
+              placeholder="R-115"
+              value={nueva.folio}
+              onChange={(evento) => {
+                setNueva({ ...nueva, folio: evento.target.value });
+              }}
+            />
+            <p className={NOTA}>Corto, porque se escribe con plumón en la cinta.</p>
+          </div>
+          <div className="flex flex-col gap-(--espacio-1)">
+            <Label htmlFor="nueva-metros">Trae (m)</Label>
+            <Input
+              id="nueva-metros"
+              inputMode="decimal"
+              className="h-[calc(var(--altura-control)*1.2)] text-right font-numeros tabular-nums"
+              value={nueva.metros}
+              onChange={(evento) => {
+                setNueva({ ...nueva, metros: evento.target.value });
+              }}
+            />
+          </div>
+        </div>
+        {avisoDeError('abrir')}
+        {avisoDeHecho('abrir')}
+        <Button
+          type="button"
+          variant="outline"
+          className="self-start"
+          disabled={ocupado !== null}
+          cargando={ocupado === 'abrir'}
+          onClick={abrirPieza}
+        >
+          Abrir
         </Button>
       </Superficie>
     </main>

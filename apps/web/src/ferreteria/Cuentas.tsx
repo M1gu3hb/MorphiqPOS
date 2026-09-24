@@ -40,6 +40,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -89,10 +90,10 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *
  * ── El teléfono NO es esta pantalla encogida ─────────────────────────────
  * Es la pantalla que más se usa desde el teléfono. A 390 px cada cliente es
- * un renglón de dos líneas ordenado por vencido —la segunda lleva los días y
- * su palabra—, con su botón de llamar a un toque, y la ficha entra como hoja
- * inferior. De tablet para arriba vuelven las cinco columnas del documento y
- * la ficha se va al costado.
+ * un renglón de dos líneas ordenado por vencido —la primera lleva el nombre y lo
+ * que debe, la segunda los días y su palabra—, con su botón de llamar a un toque,
+ * y la ficha entra como hoja inferior. De tablet para arriba vuelven las cinco
+ * columnas del documento y la ficha se va al costado.
  *
  * ── Alcance recortado, dicho y no escondido ──────────────────────────────
  * 1. QUIÉN PUEDE RECOGER (F-638) y el alta de obras y autorizados no caben en
@@ -167,12 +168,26 @@ export interface DocumentoPorCobrar {
   readonly obra_nombre: string | null;
   /**
    * Los DÍAS de la remisión no se sirven: son la diferencia contra hoy, y una
-   * columna con eso dentro estaría mal el día siguiente. Se calcula al pintar.
+   * columna con eso dentro estaría mal el día siguiente. Se cuentan al leerla, que
+   * es cada vez que se abre la ficha. `null` sin fecha de entrega: «—», no «0 d».
    */
   readonly dias?: number | null;
-  /** `saldo_documento_centavos`, que es como lo sirve `Remision`. */
+  /** En CENTAVOS, como los manda el comando. El puente lo sirve en pesos: `aDocumento`. */
   readonly saldo_documento_centavos: number | null;
-  /** Cuándo se entregó: de aquí salen los días. */
+  /** Cuándo se entregó: de aquí salen los días y el orden. */
+  readonly entregada_en: string | null;
+}
+
+/**
+ * Una fila de `Remision` TAL COMO LLEGA. `saldo_documento_centavos` viene en PESOS
+ * aunque se llame así (`conversion: 'dinero'` en `puente/mapa.ts`): dárselo tal cual
+ * a `<Dinero>` pintaba $180.00 donde se debían $18,000.00, y el pago salía por eso.
+ */
+interface RemisionDelPuente {
+  readonly id: string;
+  readonly folio: string | null;
+  readonly obra_nombre: string | null;
+  readonly saldo_documento_centavos: number | null;
   readonly entregada_en: string | null;
 }
 
@@ -232,6 +247,35 @@ function obrasEnTexto(cuantas: number): string {
 
 function claveDeFila(fila: FilaDeCartera): string {
   return fila.tipo === 'cliente' ? fila.cliente.id : `obra:${fila.obra.id}`;
+}
+
+const MS_POR_DIA = 86_400_000;
+
+/** El instante de una fecha del puente; `NaN` si no hay fecha que leer. */
+function instanteDe(fecha: string | null): number {
+  return fecha === null ? Number.NaN : Date.parse(fecha);
+}
+
+/** Lo que se entregó primero, primero: es lo que se sugiere. Sin fecha, al final. */
+function porAntiguedad(a: DocumentoPorCobrar, b: DocumentoPorCobrar): number {
+  const antes = instanteDe(a.entregada_en);
+  const despues = instanteDe(b.entregada_en);
+  if (Number.isNaN(antes)) return Number.isNaN(despues) ? 0 : 1;
+  if (Number.isNaN(despues)) return -1;
+  return antes - despues;
+}
+
+/** La remisión del puente en la forma de la pantalla: el saldo en centavos, y sus días. */
+function aDocumento(remision: RemisionDelPuente, ahora: number): DocumentoPorCobrar {
+  const entrega = instanteDe(remision.entregada_en);
+  return {
+    id: remision.id,
+    folio: remision.folio,
+    obra_nombre: remision.obra_nombre,
+    saldo_documento_centavos: centavosDelPuente(remision.saldo_documento_centavos),
+    entregada_en: remision.entregada_en,
+    dias: Number.isNaN(entrega) ? null : Math.max(0, Math.floor((ahora - entrega) / MS_POR_DIA)),
+  };
 }
 
 /** Los renglones por obra se vuelven clientes con sus obras dentro (F-639). */
@@ -366,8 +410,20 @@ function ResumenDeCartera({
 }
 
 /**
+ * El renglón del nombre, en una rejilla y no en un flex. `Tabla` es de ancho
+ * automático: ahí un texto sin saltos fija el ancho mínimo de su columna, y un
+ * `truncate` no recorta nada —el nombre largo empujaba los botones de la fila fuera
+ * de la vista—. La pista `minmax(0,1fr)` no pide ancho mínimo: el nombre se recorta
+ * contra lo que dejan las otras columnas. La tercera pista es lo que se debe, que en
+ * teléfono va aquí.
+ */
+const RENGLON_DEL_NOMBRE =
+  'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-(--espacio-1) sm:grid-cols-[auto_minmax(0,1fr)]';
+
+/**
  * El nombre del cliente es el control que despliega sus obras. En teléfono lleva
- * además los días y su palabra, porque ahí la columna «Más viejo» no cabe.
+ * además lo que debe, y en su segunda línea los días y su palabra: ahí las columnas
+ * «Debe» y «Más viejo» no caben junto a los dos botones de la fila.
  */
 function CeldaDeCliente({
   cliente,
@@ -388,13 +444,14 @@ function CeldaDeCliente({
       }}
       className="flex min-h-(--area-tactil-minima) w-full min-w-0 flex-col justify-center gap-(--espacio-1) rounded-sm text-left focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none"
     >
-      <span className="flex w-full min-w-0 items-center gap-(--espacio-1)">
+      <span className={RENGLON_DEL_NOMBRE}>
         {desplegado ? (
           <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-texto-sutil" />
         ) : (
           <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-texto-sutil" />
         )}
         <span className="truncate text-base font-semibold">{cliente.nombre}</span>
+        <Dinero centavos={cliente.debe} className="font-semibold sm:hidden" />
       </span>
       <span className="flex flex-wrap items-center gap-x-(--espacio-2) gap-y-(--espacio-1) pl-(--espacio-5) text-xs text-texto-sutil">
         <span>{obrasEnTexto(cliente.obras.length)}</span>
@@ -413,13 +470,14 @@ function CeldaDeCliente({
   );
 }
 
-/** Una obra, colgada de su cliente: sangrada, y con sus días en teléfono. */
+/** Una obra, colgada de su cliente: sangrada, y con su saldo y sus días en teléfono. */
 function CeldaDeObra({ obra }: { readonly obra: RenglonDeCartera }) {
   return (
     <span className="flex min-w-0 flex-col gap-(--espacio-1) pl-(--espacio-5)">
-      <span className="flex min-w-0 items-center gap-(--espacio-1)">
+      <span className={RENGLON_DEL_NOMBRE}>
         <CornerDownRight aria-hidden="true" className="size-4 shrink-0" />
         <span className="truncate">{obra.obra_nombre ?? 'Sin obra'}</span>
+        <Dinero centavos={obra.saldo_centavos ?? 0} tamano="sm" className="sm:hidden" />
       </span>
       <span className="pl-(--espacio-5) text-xs md:hidden">
         <Semaforo dias={obra.dias_mas_viejo ?? 0} tamano="xs" />
@@ -428,7 +486,13 @@ function CeldaDeObra({ obra }: { readonly obra: RenglonDeCartera }) {
   );
 }
 
-/** Llamar a un toque y registrar el pago: así se cobra de verdad, desde la fila. */
+/**
+ * Llamar a un toque y registrar el pago: así se cobra de verdad, desde la fila.
+ *
+ * Los dos miden el área táctil —es la pantalla que más se usa desde el teléfono, con
+ * el pulgar— y van separados: llamar cuando se quería registrar el pago es un error
+ * que se nota en la cara de quien contesta.
+ */
 function CeldaDeCobranza({
   cliente,
   alRegistrarPago,
@@ -437,9 +501,9 @@ function CeldaDeCobranza({
   readonly alRegistrarPago: (clienteId: string) => void;
 }) {
   return (
-    <span className="flex items-center justify-end gap-(--espacio-1)">
+    <span className="flex items-center justify-end gap-(--espacio-2)">
       {cliente.telefono === null ? null : (
-        <Button asChild variant="outline" size="icon-sm">
+        <Button asChild variant="outline" size="icon">
           <a href={`tel:${cliente.telefono}`} aria-label={`Llamar a ${cliente.nombre}`}>
             <Phone aria-hidden="true" />
           </a>
@@ -447,15 +511,16 @@ function CeldaDeCobranza({
       )}
       <Button
         type="button"
-        size="sm"
+        className="min-w-(--area-tactil-minima)"
         aria-label={`Registrar pago de ${cliente.nombre}`}
         onClick={() => {
           alRegistrarPago(cliente.id);
         }}
       >
         <HandCoins aria-hidden="true" />
-        {/* En teléfono, sólo el icono: el nombre del cliente necesita el ancho. */}
-        <span className="hidden sm:inline">Registrar pago</span>
+        {/* La palabra, sólo en la PC: en teléfono el nombre necesita el ancho, y en
+            tablet lo necesitan las cinco columnas del documento. */}
+        <span className="hidden lg:inline">Registrar pago</span>
       </Button>
     </span>
   );
@@ -492,6 +557,8 @@ function columnasDeCartera({
       clave: 'debe',
       titulo: 'Debe',
       numerica: true,
+      // En teléfono va en la celda del nombre: junto a los dos botones no cabe.
+      desde: 'sm',
       celda: (fila) =>
         fila.tipo === 'cliente' ? (
           <Dinero centavos={fila.cliente.debe} className="font-semibold" />
@@ -527,7 +594,7 @@ function columnasDeCartera({
     {
       clave: 'ultimo',
       titulo: 'Últ. pago',
-      desde: 'lg',
+      desde: 'md',
       celda: (fila) => {
         if (fila.tipo === 'obra') return null;
         const dias = fila.cliente.diasUltimoPago;
@@ -582,7 +649,7 @@ function columnasDeDocumentos(
       clave: 'dias',
       titulo: 'Días',
       numerica: true,
-      celda: (doc) => <Cifra valor={doc.dias ?? 0} unidad="d" tamano="sm" />,
+      celda: (doc) => <Cifra valor={doc.dias} unidad="d" tamano="sm" />,
     },
     {
       clave: 'saldo',
@@ -816,6 +883,8 @@ export function Cuentas({
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pagoRegistrado, setPagoRegistrado] = useState<PagoRegistrado | null>(null);
+  /** El pago ENTRÓ y lo que falló fue volver a leer la cartera: otro aviso, no `error`. */
+  const [falloDeRelectura, setFalloDeRelectura] = useState<string | null>(null);
 
   useEffect(() => {
     if (renglonesIniciales !== undefined) return;
@@ -844,15 +913,20 @@ export function Cuentas({
     if (ficha === null || documentosIniciales !== undefined) return;
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
-    consultarPuente<DocumentoPorCobrar>('Remision', {
+    consultarPuente<RemisionDelPuente>('Remision', {
       filtro: { cliente_id: ficha },
       signal: control.signal,
     })
       .then((filas) => {
         if (!sigueMontada()) return;
+        const ahora = Date.now();
+        // El saldo llega en pesos y la lista por la entrega MÁS NUEVA
+        // (`-entregada_en`): se pasa a centavos y se da la vuelta, porque lo que
+        // se sugiere es lo que venció primero.
         const pendientes = filas
+          .map((remision) => aDocumento(remision, ahora))
           .filter((doc) => (doc.saldo_documento_centavos ?? 0) > 0)
-          .sort((a, b) => (b.dias ?? 0) - (a.dias ?? 0));
+          .toSorted(porAntiguedad);
         setDocumentos(pendientes);
         // La sugerencia es el más viejo, ya marcado. Se puede desmarcar.
         const viejo = pendientes[0];
@@ -901,6 +975,8 @@ export function Cuentas({
     setFalloDeDocumentos(null);
     setElegidos([]);
     setPagoRegistrado(null);
+    // El pago que falló era de la ficha anterior: en ésta se pintaría como suyo.
+    setError(null);
   }
 
   /**
@@ -946,7 +1022,22 @@ export function Cuentas({
     setFiltro('todos');
   }
 
+  /**
+   * Se relee la cartera entera: un pago toca el saldo de varias obras a la vez, y
+   * adivinar aquí cuál bajó cuánto es inventar el estado del servidor.
+   */
+  async function releerCartera(): Promise<void> {
+    setFalloDeRelectura(null);
+    try {
+      setRenglones(await consultarPuente<RenglonDeCartera>('CarteraPorObra', { limite: 400 }));
+    } catch (fallo) {
+      setFalloDeRelectura(mensajeDe(fallo));
+    }
+  }
+
   async function registrarPago(cliente: ClienteDeCartera): Promise<void> {
+    // Un doble toque llega antes que el re-pintado que apaga el botón.
+    if (enviando) return;
     setEnviando(true);
     setError(null);
     try {
@@ -970,19 +1061,22 @@ export function Cuentas({
         metodo,
         montoCentavos: sumaElegida,
       });
-      // Se relee la cartera entera: un pago toca el saldo de varias obras a la
-      // vez, y adivinar aquí cuál bajó cuánto es inventar el estado del servidor.
-      setRenglones(await consultarPuente<RenglonDeCartera>('CarteraPorObra', { limite: 400 }));
-      // Lo que se dice es lo que pasa: el importe sale de lo elegido y el sistema
-      // lo aplica a lo que venció primero.
-      setPagoRegistrado({ nombre: cliente.nombre, centavos: sumaElegida });
-      setFicha(null);
-      onPagoRegistrado?.(cliente.id, sumaElegida);
     } catch (fallo) {
+      // Sólo aquí es verdad que «ningún pago quedó registrado».
       setError(mensajeDe(fallo));
-    } finally {
       setEnviando(false);
+      return;
     }
+    // DESDE AQUÍ EL PAGO YA ENTRÓ. Lo que falle después no lo deshace: se cierra la
+    // ficha antes de releer, porque un fallo de la relectura con la ficha abierta y
+    // el botón encendido invitaba a registrarlo dos veces.
+    setEnviando(false);
+    // Lo que se dice es lo que pasa: el importe sale de lo elegido y el sistema
+    // lo aplica a lo que venció primero.
+    setPagoRegistrado({ nombre: cliente.nombre, centavos: sumaElegida });
+    setFicha(null);
+    onPagoRegistrado?.(cliente.id, sumaElegida);
+    await releerCartera();
   }
 
   if (falloDeCarga !== null) {
@@ -1032,6 +1126,7 @@ export function Cuentas({
     },
     alRegistrarPago: abrirFichaDesdeLaFila,
   });
+  const debeVisible = visibles.reduce((suma, cliente) => suma + cliente.debe, 0);
 
   return (
     <div className={LIENZO}>
@@ -1048,6 +1143,27 @@ export function Cuentas({
         <Aviso tono="exito" titulo={`Pago de ${pagoRegistrado.nombre} registrado.`}>
           <Dinero centavos={pagoRegistrado.centavos} tamano="sm" /> · se aplica a lo que venció
           primero.
+        </Aviso>
+      )}
+      {/* El pago entró; lo que no llegó es la cartera nueva. Dice las dos cosas, para
+          que nadie lo registre otra vez al ver el saldo de antes. */}
+      {falloDeRelectura === null ? null : (
+        <Aviso
+          tono="atencion"
+          titulo="El pago sí quedó registrado, pero la cartera no se pudo volver a leer."
+          accion={
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void releerCartera();
+              }}
+            >
+              Volver a leer
+            </Button>
+          }
+        >
+          Los saldos de abajo son de antes del pago: no lo registres otra vez. {falloDeRelectura}
         </Aviso>
       )}
 
@@ -1103,13 +1219,14 @@ export function Cuentas({
         }
         alto="max-h-[65dvh]"
         pie={{
-          cliente: voc.conNumero('cliente', visibles.length),
-          debe: (
-            <Dinero
-              centavos={visibles.reduce((suma, cliente) => suma + cliente.debe, 0)}
-              className="font-semibold"
-            />
+          // En teléfono la columna «Debe» no está: su total va junto a la cuenta.
+          cliente: (
+            <span className="flex items-baseline justify-between gap-(--espacio-2)">
+              {voc.conNumero('cliente', visibles.length)}
+              <Dinero centavos={debeVisible} className="font-semibold sm:hidden" />
+            </span>
           ),
+          debe: <Dinero centavos={debeVisible} className="font-semibold" />,
         }}
         vacio={
           <Vacio

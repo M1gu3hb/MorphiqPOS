@@ -92,6 +92,16 @@ const RUTA_GARANTIAS_PENDIENTES = '/api/inventario/garantias-pendientes';
 /** Una garantía que pasa de aquí ya es dinero que alguien tiene que ir a cobrar. */
 const DIAS_DE_GARANTIA_FRIA = 30;
 
+/**
+ * CUÁNTAS APARTADAS SE LEEN, y cuáles.
+ *
+ * Las que vencen PRIMERO (`orden: 'vence'`): por omisión el puente sirve las más
+ * nuevas, y con más de este tope se caían justo las viejas —las que ya vencieron y
+ * hay que llamar hoy—. Si llegan tantas como el tope, puede haber más: la cuenta y
+ * el total son un piso, y la pantalla lo dice en vez de darlos por el total.
+ */
+const TOPE_DE_APARTADOS = 60;
+
 const PESTANAS = [
   { clave: 'apartados', etiqueta: 'Apartado' },
   { clave: 'listas', etiqueta: 'Listas' },
@@ -231,17 +241,27 @@ function motivoDeLectura(fallo: unknown): string {
 
 interface Resumen {
   readonly cuenta: number | null;
+  /** La cuenta es un PISO: se leyó hasta el tope y puede haber más. */
+  readonly alMenos: boolean;
   readonly detalle: string;
   /** Hay algo que ya se enfrió: el detalle va en rojo y con su icono. */
   readonly urgente: boolean;
 }
 
-function resumirApartados(notas: readonly NotaApartada[]): Resumen {
+/**
+ * Con `recortada`, lo leído son las que vencen primero: las vencidas están todas,
+ * salvo que ellas solas llenen el tope, y entonces también son un piso.
+ */
+function resumirApartados(notas: readonly NotaApartada[], recortada: boolean): Resumen {
   const vencidas = notas.filter((n) => n.diasRestantes <= 0).length;
-  if (vencidas === 0) return { cuenta: notas.length, detalle: 'ninguna vencida', urgente: false };
-  const detalle =
-    vencidas === 1 ? '1 vence hoy o ya venció' : `${String(vencidas)} vencen hoy o ya vencieron`;
-  return { cuenta: notas.length, detalle, urgente: true };
+  if (vencidas === 0) {
+    return { cuenta: notas.length, alMenos: recortada, detalle: 'ninguna vencida', urgente: false };
+  }
+  const esPiso = recortada && vencidas === notas.length;
+  let detalle = `${String(vencidas)} vencen hoy o ya vencieron`;
+  if (esPiso) detalle = `${String(vencidas)} o más vencen hoy o ya vencieron`;
+  else if (vencidas === 1) detalle = '1 vence hoy o ya venció';
+  return { cuenta: notas.length, alMenos: recortada, detalle, urgente: true };
 }
 
 function resumirListas(listas: readonly ListaDeTrabajo[]): Resumen {
@@ -250,13 +270,14 @@ function resumirListas(listas: readonly ListaDeTrabajo[]): Resumen {
     porSurtir === 0
       ? 'nada por surtir'
       : `${String(porSurtir)} ${porSurtir === 1 ? 'renglón' : 'renglones'} por surtir`;
-  return { cuenta: listas.length, detalle, urgente: false };
+  return { cuenta: listas.length, alMenos: false, detalle, urgente: false };
 }
 
 function resumirGarantias(garantias: readonly GarantiaPendiente[]): Resumen {
   const frias = garantias.filter((g) => g.diasEsperando > DIAS_DE_GARANTIA_FRIA).length;
   return {
     cuenta: garantias.length,
+    alMenos: false,
     detalle:
       frias === 0
         ? `ninguna de más de ${String(DIAS_DE_GARANTIA_FRIA)} días`
@@ -311,6 +332,13 @@ function Pestanas({
                 <>
                   <span className="font-numeros text-2xl font-semibold tabular-nums">
                     {resumen.cuenta}
+                    {/* Se leyó hasta el tope: la cuenta es un piso, no el total. */}
+                    {resumen.alMenos && (
+                      <>
+                        <span aria-hidden="true">+</span>
+                        <span className="sr-only"> o más</span>
+                      </>
+                    )}
                   </span>
                   <span
                     className={
@@ -389,10 +417,13 @@ function Vencimiento({ dias }: { readonly dias: number }) {
 
 function TablaDeApartados({
   notas,
+  recortada,
   ocupado,
   alEntregar,
 }: {
   readonly notas: readonly NotaApartada[];
+  /** Se leyó hasta el tope: son las que vencen primero, y el total no es de todas. */
+  readonly recortada: boolean;
   readonly ocupado: boolean;
   readonly alEntregar: (nota: NotaApartada) => void;
 }) {
@@ -456,7 +487,11 @@ function TablaDeApartados({
       claveDe={(n) => n.notaId}
       tonoDeFila={(n) => (n.diasRestantes <= 0 ? 'peligro' : undefined)}
       pie={{
-        folio: <span className="text-texto-sutil">Apartado</span>,
+        folio: (
+          <span className="text-texto-sutil">
+            {recortada ? `Apartado en las ${String(notas.length)} que vencen primero` : 'Apartado'}
+          </span>
+        ),
         total: <Dinero centavos={apartadoTotal} tamano="sm" />,
       }}
       alto="max-h-[60vh]"
@@ -666,6 +701,8 @@ export function TrabajosDeMostrador({
   const [apartados, setApartados] = useState<readonly NotaApartada[] | null>(
     apartadosIniciales ?? null,
   );
+  // Llegaron tantas como el tope: puede haber más apartadas que las leídas.
+  const [apartadosRecortados, setApartadosRecortados] = useState(false);
   const [listas, setListas] = useState<readonly ListaDeTrabajo[] | null>(listasIniciales ?? null);
   const [garantias, setGarantias] = useState<readonly GarantiaPendiente[] | null>(
     garantiasIniciales ?? null,
@@ -708,11 +745,16 @@ export function TrabajosDeMostrador({
           // El estado que la vista calcula de los dos documentos: material
           // comprometido que no ha salido.
           filtro: { estado: 'apartada' },
-          limite: 60,
+          // Las que vencen primero, no las más nuevas: si hay tope, lo que se
+          // queda fuera es lo que todavía tiene plazo. Ver `TOPE_DE_APARTADOS`.
+          orden: 'vence',
+          limite: TOPE_DE_APARTADOS,
           signal: control.signal,
         })
           .then((filas) => {
-            if (sigueMontada()) setApartados(filas.map(comoNotaApartada));
+            if (!sigueMontada()) return;
+            setApartados(filas.map(comoNotaApartada));
+            setApartadosRecortados(filas.length >= TOPE_DE_APARTADOS);
           })
           .catch(fallar('apartados'));
       }
@@ -753,7 +795,10 @@ export function TrabajosDeMostrador({
 
   function entregar(nota: NotaApartada): void {
     setOcupado(true);
+    // Las dos voces se limpian al empezar: un «Entregada» viejo no convive con el
+    // fallo de la siguiente entrega.
     setError(null);
+    setAviso(null);
     invocarComando(RUTA_ENTREGAR, { notaId: nota.notaId })
       .then(() => {
         setApartados((apartados ?? []).filter((n) => n.notaId !== nota.notaId));
@@ -771,6 +816,7 @@ export function TrabajosDeMostrador({
   }
 
   function capturarLista(): void {
+    setAviso(null);
     const renglones = textoLista
       .split(/\r?\n/)
       .map((t) => t.trim())
@@ -836,7 +882,7 @@ export function TrabajosDeMostrador({
   }
 
   const resumenes: Readonly<Record<Pestana, Resumen | null>> = {
-    apartados: apartados === null ? null : resumirApartados(apartados),
+    apartados: apartados === null ? null : resumirApartados(apartados, apartadosRecortados),
     listas: listas === null ? null : resumirListas(listas),
     garantias: garantias === null ? null : resumirGarantias(garantias),
   };
@@ -871,7 +917,14 @@ export function TrabajosDeMostrador({
             queHacer="Revisa la conexión y vuelve a leer. No se entregó nada: el material sigue apartado."
             alReintentar={volverALeer}
           >
-            {(notas) => <TablaDeApartados notas={notas} ocupado={ocupado} alEntregar={entregar} />}
+            {(notas) => (
+              <TablaDeApartados
+                notas={notas}
+                recortada={apartadosRecortados}
+                ocupado={ocupado}
+                alEntregar={entregar}
+              />
+            )}
           </SegunLectura>
           <p className="text-sm text-texto-sutil">
             Material apartado es material que no se vende: por eso caduca y por eso se ve cuándo.

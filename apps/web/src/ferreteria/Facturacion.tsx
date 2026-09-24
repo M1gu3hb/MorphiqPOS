@@ -18,10 +18,11 @@ import {
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import { Check, CircleAlert, FileText, Receipt } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -103,7 +104,30 @@ export interface RemisionPorFacturar {
   readonly folio: string;
   /** `entregada_en`, que es como lo sirve `Remision`: la fecha de la entrega. */
   readonly entregada_en: string | null;
+  /** En centavos enteros: ya convertido al leer (`remisionEnCentavos`). */
   readonly importe_centavos: number;
+}
+
+/**
+ * La remisión como la sirve el puente: `Remision.importe_centavos` va con
+ * `conversion: 'dinero'`, así que llega en PESOS aunque se llame `_centavos`.
+ */
+type RemisionDelPuente = Omit<RemisionPorFacturar, 'importe_centavos'> & {
+  readonly importe_centavos: number | null;
+};
+
+/**
+ * Los pesos del puente, a centavos, UNA vez al leer: la tabla, el orden y el total
+ * del grupo trabajan en centavos enteros. Sin esto, $1,234.50 se pintaba «$12.34».
+ * La columna es `not null`: un importe que no llega es una lectura rota, y el grupo
+ * no se arma con un total al que le falta una remisión.
+ */
+function remisionEnCentavos(remision: RemisionDelPuente): RemisionPorFacturar {
+  const importe = centavosDelPuente(remision.importe_centavos);
+  if (importe === null) {
+    throw new Error(`La remisión ${remision.folio} llegó sin importe.`);
+  }
+  return { ...remision, importe_centavos: importe };
 }
 
 export interface FacturacionProps {
@@ -164,24 +188,29 @@ function fechaDeEntrega(entregadaEn: string | null): string {
   return FECHA_CORTA.format(new Date(Number(anio), Number(mes) - 1, Number(fecha)));
 }
 
+/** Lo mismo que dice `EstadoFiscal`, en texto: para el nombre de la fila. */
+function estadoEnTexto(cliente: ClienteFiscal): string {
+  const huecos = huecosFiscales(cliente);
+  return huecos.length === 0 ? 'completo' : `falta ${huecos.join(', ')}`;
+}
+
 /**
  * Completo, o lo que le falta. El color nunca va solo: el icono lo acompaña y la
  * palabra lo dice. El texto no se tiñe —en la fila elegida cambia el fondo—.
  */
 function EstadoFiscal({ cliente }: { readonly cliente: ClienteFiscal }) {
-  const huecos = huecosFiscales(cliente);
-  if (huecos.length === 0) {
+  if (huecosFiscales(cliente).length === 0) {
     return (
       <span className="inline-flex items-center gap-(--espacio-1)">
         <Check aria-hidden="true" className="size-4 shrink-0 text-exito" />
-        completo
+        {estadoEnTexto(cliente)}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-(--espacio-1) font-medium">
       <CircleAlert aria-hidden="true" className="size-4 shrink-0 text-advertencia" />
-      falta {huecos.join(', ')}
+      {estadoEnTexto(cliente)}
     </span>
   );
 }
@@ -265,10 +294,13 @@ function ResumenFiscal({ clientes }: { readonly clientes: readonly ClienteFiscal
 function CamposFiscales({
   datos,
   errorDeRfc,
+  campoRfc,
   alCambiar,
 }: {
   readonly datos: DatosCapturados;
   readonly errorDeRfc: string | null;
+  /** Para llevar el foco al RFC cuando no tiene forma: así se lee su error. */
+  readonly campoRfc: RefObject<HTMLInputElement | null>;
   readonly alCambiar: (datos: DatosCapturados) => void;
 }) {
   return (
@@ -277,6 +309,7 @@ function CamposFiscales({
         <Label htmlFor="rfc">RFC</Label>
         <Input
           id="rfc"
+          ref={campoRfc}
           className={`${ALTO_DE_CAMPO} font-numeros text-lg tracking-wide uppercase`}
           aria-invalid={errorDeRfc !== null}
           aria-describedby={errorDeRfc === null ? undefined : 'rfc-sin-forma'}
@@ -407,6 +440,7 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
   const [ocupado, setOcupado] = useState(false);
   /** De quién son las remisiones que se están leyendo: una respuesta tardía de otro no pinta. */
   const remisionesDe = useRef<string | null>(null);
+  const campoRfc = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (clientesIniciales !== undefined) return;
@@ -433,12 +467,15 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
     remisionesDe.current = clienteId;
     setRemisiones(null);
     setFalloDeRemisiones(null);
-    consultarPuente<RemisionPorFacturar>('Remision', {
+    consultarPuente<RemisionDelPuente>('Remision', {
       filtro: { cliente_id: clienteId },
       limite: 60,
     })
       .then((filas) => {
-        if (remisionesDe.current === clienteId) setRemisiones(filas);
+        // Un importe que no llega lanza aquí y el `catch` de abajo lo pinta como error.
+        if (remisionesDe.current === clienteId) {
+          setRemisiones(filas.map((fila) => remisionEnCentavos(fila)));
+        }
       })
       .catch((fallo: unknown) => {
         if (remisionesDe.current !== clienteId) return;
@@ -486,7 +523,13 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
     if (elegido === null) return;
     const rfc = datos.rfc.trim().toUpperCase();
     if (rfc !== '' && !rfcConForma(rfc)) {
-      setErrorDeRfc('Ese RFC no tiene forma de RFC. Revísalo antes de guardarlo.');
+      // El error se PINTA antes de llevar el foco al campo: al entrar, el lector lee
+      // su `aria-invalid` y la descripción. Con el foco en «Guardar», pulsarlo no
+      // decía nada a quien no ve la pantalla.
+      flushSync(() => {
+        setErrorDeRfc('Ese RFC no tiene forma de RFC. Revísalo antes de guardarlo.');
+      });
+      campoRfc.current?.focus();
       return;
     }
     setOcupado(true);
@@ -543,17 +586,15 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
         </div>
       );
     }
+    // Sin acción a propósito: «Remisión a cuenta» (F11) pide un cliente que YA
+    // exista, y ninguna pantalla de este modelo da de alta uno todavía. Mandar al
+    // mostrador era mandar a un callejón.
     if (clientes.length === 0) {
       return (
         <Vacio
           icono={<FileText />}
           titulo="Todavía no hay a quién capturarle datos fiscales."
-          explicacion="El contratista aparece cuando le despachas con «Remisión a cuenta» (F11) en el mostrador. Sus datos —RFC, régimen, código postal y uso del CFDI— se piden una sola vez; así, el día que se pueda timbrar, nadie tiene que perseguirlo."
-          accion={
-            <Button asChild variant="outline">
-              <a href="/ferreteria/mostrador">Ir al mostrador</a>
-            </Button>
-          }
+          explicacion={`La lista sale de ${voc.enFrase('cliente', true)} ya dad${voc.terminacion('cliente', true)} de alta, y todavía no hay ${voc.enFraseCon('ningun', 'cliente')}. Sus datos —RFC, régimen, código postal y uso del CFDI— se piden una sola vez; así, el día que se pueda timbrar, nadie tiene que perseguirlo.`}
         />
       );
     }
@@ -566,6 +607,8 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
           claveDe={(c) => c.id}
           {...(elegido === null ? {} : { activa: elegido.id })}
           alActivar={abrirDesdeLaFila}
+          // La fila es un control: su nombre dice qué hace y cómo está ese cliente.
+          etiquetaDeFila={(c) => `Abrir ${c.nombre}: ${estadoEnTexto(c)}`}
           viajeDeFila={(c) => (c.id === viajando ? VIAJE.fila(c.id) : undefined)}
           alto="max-h-[40dvh] lg:max-h-[75dvh]"
         />
@@ -602,7 +645,12 @@ export function Facturacion({ clientesIniciales }: FacturacionProps) {
           </span>
         </div>
 
-        <CamposFiscales datos={datos} errorDeRfc={errorDeRfc} alCambiar={setDatos} />
+        <CamposFiscales
+          datos={datos}
+          errorDeRfc={errorDeRfc}
+          campoRfc={campoRfc}
+          alCambiar={setDatos}
+        />
 
         {error !== null && (
           <Aviso tono="peligro" titulo="No se guardaron los datos fiscales.">

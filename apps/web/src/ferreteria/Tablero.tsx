@@ -268,10 +268,15 @@ function columnasPorPagar(hoy: string): readonly ColumnaDeTabla<DocumentoPorPaga
     {
       clave: 'vence',
       titulo: 'Vence',
-      // La palabra dice por qué la fila va en rojo: el tono nunca va solo.
+      // La palabra dice por qué la fila va en rojo —el tono nunca va solo— y la
+      // fecha, desde cuándo se debe: el servidor manda también lo ya vencido.
       celda: (doc) =>
         doc.dia < hoy ? (
-          <span className="font-semibold text-peligro">vencido</span>
+          <span className="whitespace-nowrap">
+            <span className="font-semibold text-peligro">vencido</span>
+            {' · '}
+            {conFormato(doc.dia, { day: 'numeric', month: 'short' })}
+          </span>
         ) : (
           <span className="whitespace-nowrap">
             {conFormato(doc.dia, { weekday: 'long', day: 'numeric' })}
@@ -293,18 +298,27 @@ function columnasPorPagar(hoy: string): readonly ColumnaDeTabla<DocumentoPorPaga
  * El saludo y sus dos salidas. La misma forma que el `PageHeader` heredado —el
  * bloque del título y, de hermano, el `div` de las acciones— porque las pruebas
  * encuentran las acciones por esa relación.
+ *
+ * Sin fecha hay dos casos, y no se pintan igual: CARGANDO lleva su esqueleto; el
+ * tablero que no se pudo leer no lleva nada, porque ahí nada está cargando.
  */
-function Encabezado({ fecha }: { readonly fecha: string | null }) {
+function Encabezado({
+  fecha,
+  cargando = false,
+}: {
+  readonly fecha: string | null;
+  readonly cargando?: boolean;
+}) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-(--espacio-3)">
       <div>
         <h1 className="text-2xl font-bold text-texto">Buen día</h1>
-        {fecha === null ? (
-          <Esqueleto className="mt-(--espacio-1) h-4 w-40" />
-        ) : (
+        {fecha !== null ? (
           <p className={`${NOTA} first-letter:uppercase`}>
             {conFormato(fecha, { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
+        ) : (
+          cargando && <Esqueleto className="mt-(--espacio-1) h-4 w-40" />
         )}
       </div>
       <div className="flex flex-wrap gap-(--espacio-2)">
@@ -383,7 +397,13 @@ function Indicador({
   );
 }
 
-/** Una de las cuatro cosas del cajón: la cuenta grande, apagada cuando es cero. */
+/**
+ * Una de las cuatro cosas del cajón: la cuenta grande, apagada cuando es cero.
+ *
+ * Apagada con la tinta SUTIL y no con la tenue: el cero también es dato —«no hay
+ * garantías sin resolver»—, y a 20 px sin negrita la tenue no llega al contraste
+ * del texto normal. La jerarquía la pone el peso: seminegritas sólo lo que no es cero.
+ */
 function Pendiente({ etiqueta, valor }: { readonly etiqueta: string; readonly valor: number }) {
   return (
     <div className="flex flex-col gap-(--espacio-1)">
@@ -392,7 +412,7 @@ function Pendiente({ etiqueta, valor }: { readonly etiqueta: string; readonly va
         <Cifra
           valor={valor}
           tamano="lg"
-          className={valor > 0 ? 'font-semibold text-texto' : 'text-texto-tenue'}
+          className={valor > 0 ? 'font-semibold text-texto' : 'text-texto-sutil'}
         />
       </dd>
     </div>
@@ -468,7 +488,7 @@ export function Tablero({ datosIniciales }: TableroProps) {
   if (datos === null) {
     return (
       <main className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
-        <Encabezado fecha={null} />
+        <Encabezado fecha={null} cargando />
         <TableroCargando />
       </main>
     );

@@ -69,9 +69,12 @@ const HTTP_DEMASIADOS_INTENTOS = 429;
 
 const TITULO = 'text-sm font-semibold tracking-wide text-texto-sutil uppercase';
 const NOTA = 'text-xs text-texto-sutil';
-/** Los campos crecen en el teléfono: se teclean de pie y con una mano. */
-const CAMPOS =
-  'grid gap-(--espacio-3) md:grid-cols-2 [&_input]:h-[calc(var(--altura-control)*1.4)] [&_input]:font-numeros [&_input]:text-2xl [&_input]:tabular-nums md:[&_input]:text-lg';
+const CAMPOS = 'grid gap-(--espacio-3) md:grid-cols-2';
+/**
+ * Los campos crecen en el teléfono: se teclean de pie y con una mano. Van en el
+ * `Input` mismo y no desde el contenedor: `md:text-lg` le gana a su `md:text-sm`.
+ */
+const CAMPO = 'h-[calc(var(--altura-control)*1.4)] font-numeros text-2xl tabular-nums md:text-lg';
 
 /** Una pieza física de la que se corta. El descuento sale de ÉSTA, no del total. */
 export interface PiezaDeCorte {
@@ -466,14 +469,16 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
         </Aviso>
       )}
 
+      {/* Sin `gap`: la región viva del aviso está siempre montada, y vacía no debe
+          sumar un hueco al pie del bloque. Los márgenes los pone cada pieza. */}
       <Superficie
         como="section"
         aria-labelledby="t-donde"
         relleno={3}
         radio="md"
-        className="flex flex-col gap-(--espacio-2)"
+        className="flex flex-col"
       >
-        <h2 id="t-donde" className={TITULO}>
+        <h2 id="t-donde" className={`${TITULO} mb-(--espacio-2)`}>
           De dónde
         </h2>
         <RadioGroup
@@ -494,15 +499,29 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
           ))}
         </RadioGroup>
         {/* UNA línea, pegada a la elección que la provoca, y no un recuadro: es
-            un recordatorio, no un muro. El icono y el texto la cargan, no el color. */}
-        {avisarAbiertos && (
-          <p id="aviso-abiertos" className="flex items-start gap-(--espacio-2) text-sm font-medium">
-            <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-advertencia" />
-            <span>
-              Hay {metros(abiertos)} {material.unidad} abiertos. Si abres uno nuevo, esos se quedan.
-            </span>
-          </p>
-        )}
+            un recordatorio, no un muro. El icono y el texto la cargan, no el color.
+            Y SE ANUNCIA al elegir el rollo cerrado: la región viva existe desde antes y
+            la línea llega dentro. El `aria-describedby` del grupo sólo se lee al
+            entrar en él, y la decisión se toma con el foco ya en el radio. Es región
+            viva y no `status` a propósito: el estado de esta pantalla es el folio del
+            corte hecho, y es el único. */}
+        <div aria-live="polite">
+          {avisarAbiertos && (
+            <p
+              id="aviso-abiertos"
+              className="mt-(--espacio-2) flex items-start gap-(--espacio-2) text-sm font-medium"
+            >
+              <TriangleAlert
+                aria-hidden="true"
+                className="mt-0.5 size-4 shrink-0 text-advertencia"
+              />
+              <span>
+                Hay {metros(abiertos)} {material.unidad} abiertos. Si abres uno nuevo, esos se
+                quedan.
+              </span>
+            </p>
+          )}
+        </div>
       </Superficie>
 
       <Superficie
@@ -519,7 +538,13 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
           <div className="flex flex-col gap-1">
             <Label className="flex-col items-start gap-1">
               Medida entregada ({material.unidad})
-              <Input inputMode="decimal" autoFocus value={medidaTexto} onChange={alMedir} />
+              <Input
+                inputMode="decimal"
+                autoFocus
+                className={CAMPO}
+                value={medidaTexto}
+                onChange={alMedir}
+              />
             </Label>
             <p className={NOTA}>
               <Dinero centavos={material.precioCentavos} tamano="xs" /> / {material.unidad}
@@ -530,6 +555,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
               Desperdicio ({material.unidad})
               <Input
                 inputMode="decimal"
+                className={CAMPO}
                 value={sobranteTexto ?? metros(material.desperdicioTipico)}
                 onChange={alSobrar}
               />

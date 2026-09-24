@@ -10,7 +10,6 @@ import {
   SelectValue,
 } from '@morphiqpos/ui/primitivas/select';
 import {
-  Aviso,
   Cifra,
   Dinero,
   ErrorDePantalla,
@@ -33,7 +32,7 @@ import {
   Search,
   TriangleAlert,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -66,9 +65,11 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * Quien abre el teléfono es el dueño camino al mayorista, y sólo necesita qué
  * NO volver a comprar, ordenado por dinero: una tarjeta por clave, con el
  * dinero a la derecha. Seis columnas en 390 px no son una tabla, y por eso ahí
- * tampoco van el buscador ni las listas, que no filtran esa lista. En tablet sí
- * hay tabla, pero pierde «Vendido 90 d» y «Proveedor»: es el aparato de quien
- * surte en bodega, y le basta cuánto hay y en qué gaveta.
+ * tampoco van el buscador ni las listas, que no filtran esa lista. Por lo mismo,
+ * ahí los cuatro contadores INFORMAN y no son botones: uno que dijera «filtrando»
+ * sin cambiar la lista de debajo mentiría. En tablet sí hay tabla, pero pierde
+ * «Vendido 90 d» y «Proveedor»: es el aparato de quien surte en bodega, y le basta
+ * cuánto hay y en qué gaveta.
  *
  * ── El dinero no es para todos, y lo que no cabe ─────────────────────────
  * Con `verDinero` apagado —mostradorista y almacén no ven costos— el primer
@@ -90,6 +91,38 @@ const TODAS = '·todas·';
 
 /** Lo que nunca se vendió se ordena como lo más viejo: es lo primero que se remata. */
 const NUNCA_VENDIDO = Number.MAX_SAFE_INTEGER;
+
+/** Por debajo de `md`: el teléfono, donde la lista es sólo la del dormido. */
+const TELEFONO = '(max-width: 767px)';
+
+/**
+ * Los decimales que la cantidad TRAE, hasta tres. La existencia y lo vendido son
+ * `numeric(14,4)`: el cable va en metros y el clavo en kilos, y con dos decimales
+ * «1.375 kg» se leería «1.38 kg», más de lo que hay. Tres son los gramos.
+ */
+function decimalesDe(valor: number): number {
+  const [, fraccion = ''] = String(valor).split('.');
+  return Math.min(fraccion.length, 3);
+}
+
+/**
+ * Se decide en JS y no con `hidden md:*`, que obligaría a pintar cada contador dos
+ * veces —uno que informa y otro que filtra— con el mismo texto repetido en el DOM.
+ * Es el mismo gancho de `cafeteria/Barra.tsx`.
+ */
+function useEsTelefono(): boolean {
+  return useSyncExternalStore(
+    (avisar) => {
+      const medio = window.matchMedia(TELEFONO);
+      medio.addEventListener('change', avisar);
+      return () => {
+        medio.removeEventListener('change', avisar);
+      };
+    },
+    () => window.matchMedia(TELEFONO).matches,
+    () => false,
+  );
+}
 
 const CONTADORES = [
   { clave: 'dormido', titulo: 'Dormido', tecla: 'd', pregunta: '¿Qué remato y qué no compro?' },
@@ -283,6 +316,14 @@ function CeldaHay({
   readonly abierta: boolean;
   readonly alAlternar: () => void;
 }) {
+  const hay = (
+    <Cifra
+      valor={fila.existencia}
+      decimales={decimalesDe(fila.existencia)}
+      unidad={fila.unidad}
+      tamano="sm"
+    />
+  );
   return (
     <span className="inline-flex flex-col items-end gap-(--espacio-1)">
       <span className="inline-flex items-center gap-(--espacio-2)">
@@ -290,22 +331,24 @@ function CeldaHay({
         {fila.existencia < 0 ? (
           <span className="inline-flex items-center gap-1 font-semibold text-peligro">
             <TriangleAlert aria-hidden="true" className="size-4 shrink-0" />
-            <Cifra valor={fila.existencia} unidad={fila.unidad} tamano="sm" />
+            {hay}
             <span>negativo</span>
           </span>
         ) : (
-          <Cifra valor={fila.existencia} unidad={fila.unidad} tamano="sm" />
+          hay
         )}
-        {/* Material continuo con rollos o tramos abiertos: el detalle, a un clic. */}
+        {/* Material continuo con rollos o tramos abiertos: el detalle, a un toque. La
+            tabla se ve desde la tableta de quien surte en bodega, y es la única forma
+            de ver el rollo abierto: mide el área táctil de la densidad, no menos. */}
         {fila.piezasAbiertas > 0 && (
           <Button
             type="button"
             variant="outline"
-            size="xs"
+            size="sm"
             aria-expanded={abierta}
             aria-label={`Piezas abiertas de ${fila.nombre}`}
             onClick={alAlternar}
-            className="font-numeros tabular-nums"
+            className="min-h-(--area-tactil-minima) min-w-(--area-tactil-minima) font-numeros tabular-nums"
           >
             {fila.piezasAbiertas === 1 ? '+ab' : `+${MILES.format(fila.piezasAbiertas)}ct`}
           </Button>
@@ -395,7 +438,7 @@ function columnasDeLaTabla(
       numerica: true,
       desde: 'lg',
       orden: (f) => f.vendido90,
-      celda: (f) => <Cifra valor={f.vendido90} tamano="sm" />,
+      celda: (f) => <Cifra valor={f.vendido90} decimales={decimalesDe(f.vendido90)} tamano="sm" />,
     },
     {
       clave: 'dias',
@@ -444,7 +487,14 @@ function columnasDelDormido(
       clave: 'hay',
       titulo: 'Hay',
       numerica: true,
-      celda: (f) => <Cifra valor={f.existencia} unidad={f.unidad} tamano="sm" />,
+      celda: (f) => (
+        <Cifra
+          valor={f.existencia}
+          decimales={decimalesDe(f.existencia)}
+          unidad={f.unidad}
+          tamano="sm"
+        />
+      ),
     },
     {
       clave: 'dias',
@@ -507,6 +557,52 @@ function CifraGrande({ tarjeta }: { readonly tarjeta: TarjetaContador }) {
   );
 }
 
+/**
+ * Lo de dentro de un contador. Igual en el teléfono, donde informa, y desde la
+ * tableta, donde además filtra: sólo ahí lleva su tecla y dice «filtrando».
+ */
+function ContenidoDeContador({
+  tarjeta,
+  filtra,
+  activo,
+}: {
+  readonly tarjeta: TarjetaContador;
+  readonly filtra: boolean;
+  readonly activo: boolean;
+}) {
+  return (
+    <>
+      <span className="flex items-center gap-(--espacio-2) text-xs font-semibold tracking-wide text-texto-sutil uppercase">
+        {tarjeta.titulo}
+        {/* La palabra, no sólo el anillo: el filtro activo se lee. */}
+        {filtra && activo ? (
+          <span className="ml-auto inline-flex items-center gap-1 text-texto normal-case">
+            <Check aria-hidden="true" className="size-4" />
+            filtrando
+          </span>
+        ) : null}
+        {filtra && !activo ? (
+          <kbd
+            aria-hidden="true"
+            className="ml-auto hidden rounded-sm border border-borde px-(--espacio-1) font-numeros font-medium normal-case lg:inline"
+          >
+            {tarjeta.tecla}
+          </kbd>
+        ) : null}
+      </span>
+      <span className="row-span-2 sm:row-span-1">
+        <CifraGrande tarjeta={tarjeta} />
+      </span>
+      <span className="text-xs text-texto-sutil">{tarjeta.nota}</span>
+      {filtra ? (
+        <span className="sr-only">
+          {tarjeta.pregunta} Atajo: {tarjeta.tecla}. {activo ? 'Filtro activo.' : ''}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 const MARCO = 'flex flex-col gap-(--espacio-4) p-(--espacio-4) md:p-(--espacio-6)';
 
 export function Existencias({ filasIniciales, verDinero = true }: ExistenciasProps) {
@@ -521,6 +617,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
   // vez. El estado se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
   const buscador = useRef<HTMLInputElement>(null);
+  const esTelefono = useEsTelefono();
 
   useEffect(() => {
     if (filasIniciales !== undefined) return;
@@ -536,8 +633,9 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
         if (sigueMontada()) setFilas(leidas);
       })
       .catch((fallo: unknown) => {
-        // La pantalla NO se vacía por un error de red: si ya había un dato, se
-        // avisa y se deja ver, que para decidir una compra sigue sirviendo.
+        // La pantalla lee UNA vez: sólo vuelve a leer desde su error, así que un
+        // fallo siempre es «no leyó nada» y se pinta como tal, no como un aviso
+        // sobre un último dato que no hay.
         if (sigueMontada()) setError(mensajeDe(fallo));
       });
     return () => {
@@ -545,7 +643,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
     };
   }, [filasIniciales, intento]);
 
-  /** Vuelve a leer sin tirar lo que ya se ve: el último dato conocido se queda. */
+  /** Vuelve a leer desde el error: mientras, la forma de la pantalla y no una rueda. */
   function reintentar(): void {
     setError(null);
     setIntento((previo) => previo + 1);
@@ -609,7 +707,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
     [tituloDeMaterial, verDinero],
   );
 
-  if (filas === null && error !== null) {
+  if (error !== null) {
     // No leyó nada: no hay último dato que enseñar, y una lista vacía aquí diría
     // que la bodega está vacía, que es mentira.
     return (
@@ -675,20 +773,6 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
     <div className={MARCO}>
       <Encabezado detalle={filas.length === 0 ? undefined : cuantas} />
 
-      {error !== null && (
-        <Aviso
-          tono="peligro"
-          titulo={error}
-          accion={
-            <Button type="button" variant="outline" size="sm" onClick={reintentar}>
-              Volver a leer
-            </Button>
-          }
-        >
-          Se muestra el último dato conocido.
-        </Aviso>
-      )}
-
       {filas.length === 0 ? (
         // El vacío ENSEÑA: dice qué cuatro preguntas contesta esta pantalla y
         // por dónde entra el primer dato. No se disculpa por estar vacía.
@@ -715,55 +799,41 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
         </Superficie>
       ) : (
         <>
-          {/* PRIMARIO · los cuatro números SON los cuatro filtros. Apilados en el
-              teléfono con la cifra a la derecha; en fila desde la PC. */}
+          {/* PRIMARIO · los cuatro números. Desde la tableta SON los cuatro filtros de
+              la tabla. En el teléfono, apilados con la cifra a la derecha, informan:
+              debajo va sólo el dormido (`04-INTERFAZ` · pantalla 7) y un botón que
+              dijera «filtrando» sin cambiar esa lista mentiría. */}
           <ul
-            aria-label="Filtros"
+            aria-label={esTelefono ? 'Contadores' : 'Filtros'}
             className="grid grid-cols-1 gap-(--espacio-2) sm:grid-cols-2 sm:gap-(--espacio-3) xl:grid-cols-4"
           >
             {tarjetas.map((t) => {
               const activo = contador === t.clave;
+              const forma = `grid h-full w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-(--espacio-3) gap-y-(--espacio-1) sm:grid-cols-1 sm:items-start sm:p-(--espacio-4) ${tinteDe(t, dormidas.length > 0)}`;
               return (
                 <li key={t.clave}>
-                  <Superficie
-                    como="button"
-                    type="button"
-                    interactiva
-                    activa={activo}
-                    aria-pressed={activo}
-                    aria-keyshortcuts={t.tecla}
-                    title={t.pregunta}
-                    relleno={3}
-                    onClick={() => {
-                      setContador(activo ? null : t.clave);
-                    }}
-                    className={`grid h-full w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-(--espacio-3) gap-y-(--espacio-1) sm:grid-cols-1 sm:items-start sm:p-(--espacio-4) ${tinteDe(t, dormidas.length > 0)}`}
-                  >
-                    <span className="flex items-center gap-(--espacio-2) text-xs font-semibold tracking-wide text-texto-sutil uppercase">
-                      {t.titulo}
-                      {/* La palabra, no sólo el anillo: el filtro activo se lee. */}
-                      {activo ? (
-                        <span className="ml-auto inline-flex items-center gap-1 text-texto normal-case">
-                          <Check aria-hidden="true" className="size-4" />
-                          filtrando
-                        </span>
-                      ) : (
-                        <kbd
-                          aria-hidden="true"
-                          className="ml-auto hidden rounded-sm border border-borde px-(--espacio-1) font-numeros font-medium normal-case lg:inline"
-                        >
-                          {t.tecla}
-                        </kbd>
-                      )}
-                    </span>
-                    <span className="row-span-2 sm:row-span-1">
-                      <CifraGrande tarjeta={t} />
-                    </span>
-                    <span className="text-xs text-texto-sutil">{t.nota}</span>
-                    <span className="sr-only">
-                      {t.pregunta} Atajo: {t.tecla}. {activo ? 'Filtro activo.' : ''}
-                    </span>
-                  </Superficie>
+                  {esTelefono ? (
+                    <Superficie relleno={3} className={forma}>
+                      <ContenidoDeContador tarjeta={t} filtra={false} activo={false} />
+                    </Superficie>
+                  ) : (
+                    <Superficie
+                      como="button"
+                      type="button"
+                      interactiva
+                      activa={activo}
+                      aria-pressed={activo}
+                      aria-keyshortcuts={t.tecla}
+                      title={t.pregunta}
+                      relleno={3}
+                      onClick={() => {
+                        setContador(activo ? null : t.clave);
+                      }}
+                      className={forma}
+                    >
+                      <ContenidoDeContador tarjeta={t} filtra activo={activo} />
+                    </Superficie>
+                  )}
                 </li>
               );
             })}

@@ -117,7 +117,12 @@ interface Problema {
   readonly tono: 'atencion' | 'peligro';
   readonly que: string;
   readonly queNo: string;
+  /** El `id` del campo que lo provocó, para marcarlo y apuntarle al aviso. */
+  readonly campo?: string;
 }
+
+/** El aviso del problema: el campo que lo provocó le apunta con `aria-describedby`. */
+const ID_DEL_PROBLEMA = 'conteo-problema';
 
 /** Quién lleva el nombre de viaje: la fila antes del cambio, el panel después. */
 interface Viaje {
@@ -129,6 +134,15 @@ export function aMiligramos(gramos: string): number | null {
   const limpio = gramos.trim().replace(',', '.');
   if (limpio === '' || !PESO_CON_FORMA.test(limpio)) return null;
   return Math.round(Number(limpio) * MG_POR_GRAMO);
+}
+
+/**
+ * La tara vacía es CERO —no se usó cubeta—; la mal escrita no es cero, es un error.
+ * Mandarla como cero dividía el bruto en silencio justo cuando lo mandado ya no era
+ * lo tecleado.
+ */
+function taraEnMiligramos(gramos: string): number | null {
+  return gramos.trim() === '' ? 0 : aMiligramos(gramos);
 }
 
 /** El rango, dicho como se dice en el mostrador. */
@@ -164,7 +178,10 @@ function columnasDeClaves(titulo: string): readonly ColumnaDeTabla<ClaveContable
       clave: 'material',
       titulo,
       orden: (c) => c.nombre,
-      celda: (c) => <span className="font-medium">{c.nombre}</span>,
+      // La fila ES el objetivo que se toca: 56 px en teléfono y tableta, como los
+      // botones del panel. Y el nombre sin peso propio, para que la elegida se lea en
+      // seminegritas —la marca de `Tabla` que no es color— y no se quede igual.
+      celda: (c) => <span className={`${TACTIL} flex items-center xl:min-h-0`}>{c.nombre}</span>,
     },
     {
       clave: 'bascula',
@@ -211,6 +228,7 @@ function CampoDePeso({
   valor,
   modo,
   ayuda,
+  invalido = false,
   alCambiar,
 }: {
   readonly id: string;
@@ -218,8 +236,14 @@ function CampoDePeso({
   readonly valor: string;
   readonly modo: 'decimal' | 'numeric';
   readonly ayuda?: string;
+  /** El problema del panel es de ESTE campo: se marca y le apunta al aviso. */
+  readonly invalido?: boolean;
   readonly alCambiar: (valor: string) => void;
 }): ReactElement {
+  const descripcion = [
+    ayuda === undefined ? null : `${id}-ayuda`,
+    invalido ? ID_DEL_PROBLEMA : null,
+  ].filter((parte) => parte !== null);
   return (
     <div className="flex flex-col gap-(--espacio-1)">
       <Label htmlFor={id}>{etiqueta}</Label>
@@ -229,7 +253,8 @@ function CampoDePeso({
         autoComplete="off"
         className={CAMPO}
         value={valor}
-        aria-describedby={ayuda === undefined ? undefined : `${id}-ayuda`}
+        aria-invalid={invalido ? true : undefined}
+        aria-describedby={descripcion.length === 0 ? undefined : descripcion.join(' ')}
         onChange={(evento) => {
           alCambiar(evento.target.value);
         }}
@@ -246,13 +271,15 @@ function CampoDePeso({
 /**
  * LO MÁS GRANDE DE LA PANTALLA, y sólo cuando se lo gana. Si el rango es angosto,
  * el número va en `total`; si no, el número desaparece y lo grande es el rango.
+ *
+ * No es región viva: se pinta DENTRO de la del panel, que ya existía antes de que
+ * llegara. Una región que se monta con su texto casi ningún lector la anuncia.
  */
 function Resultado({ estimacion }: { readonly estimacion: Estimacion }): ReactElement {
   return (
     <section
       aria-labelledby="conteo-estimacion"
-      aria-live="polite"
-      className="flex flex-col gap-(--espacio-2) border-t border-borde pt-(--espacio-4)"
+      className="mx-(--espacio-4) mb-(--espacio-4) flex flex-col gap-(--espacio-2) border-t border-borde pt-(--espacio-4)"
     >
       <h3
         id="conteo-estimacion"
@@ -283,7 +310,12 @@ function Resultado({ estimacion }: { readonly estimacion: Estimacion }): ReactEl
         Es una estimación por peso, no un conteo pieza por pieza, y así queda anotada.
       </p>
       {estimacion.confiable ? null : (
-        <Aviso tono="atencion" titulo="El rango es demasiado ancho para decidir con él.">
+        // Sin rol propio: se anuncia con el resto del resultado, no como otra región.
+        <Aviso
+          tono="atencion"
+          anuncio="ninguno"
+          titulo="El rango es demasiado ancho para decidir con él."
+        >
           Si importa, hay que contarlo.
         </Aviso>
       )}
@@ -305,6 +337,8 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const panel = useRef<HTMLElement>(null);
+  const lista = useRef<HTMLDivElement>(null);
+  const nombreDeLaElegida = useRef<HTMLHeadingElement>(null);
   const columnas = useMemo(() => columnasDeClaves(voc.titulo('producto')), [voc]);
 
   useEffect(() => {
@@ -350,6 +384,11 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
    * dentro del cambio se lo pasa al panel, y `flushSync` hace que el navegador
    * fotografíe el estado nuevo ya pintado. En el teléfono el panel queda donde
    * estaba la lista, así que además se trae a la vista.
+   *
+   * Y en el teléfono la lista se ESCONDE, con la fila que tenía el foco: sin mover
+   * el foco caía al `body`, y quien usa teclado o lector empezaba la pantalla de
+   * cero. Pasa al nombre de la clave elegida. En la PC la lista sigue a la vista y
+   * el foco se queda en su fila.
    */
   function elegir(id: string): void {
     const clave = claves?.find((c) => c.id === id);
@@ -366,15 +405,25 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
         setAviso(null);
       });
       panel.current?.scrollIntoView({ block: 'nearest' });
+      // Una caja con `display: none` no tiene rectángulos: así se sabe que se escondió.
+      if (lista.current?.getClientRects().length === 0) {
+        nombreDeLaElegida.current?.focus({ preventScroll: true });
+      }
     }).finally(() => {
       setViaje(null);
     });
   }
 
-  /** Sólo en el teléfono: el panel vuelve a ser su fila. */
+  /**
+   * Sólo en el teléfono: el panel vuelve a ser su fila, y el foco con él. El botón
+   * que lo tenía se desmonta con el panel; la fila se busca ANTES, mientras aún es la
+   * activa (`aria-current`), y es el mismo elemento después: la lista sólo estaba
+   * escondida.
+   */
   function volverALaLista(): void {
     if (elegida === null) return;
     const { id } = elegida;
+    const fila = lista.current?.querySelector<HTMLElement>('tr[aria-current="true"]') ?? null;
     flushSync(() => {
       setViaje({ id, en: 'panel' });
     });
@@ -383,6 +432,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
         setViaje({ id, en: 'fila' });
         setElegida(null);
       });
+      fila?.focus();
     }).finally(() => {
       setViaje(null);
     });
@@ -397,6 +447,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
         tono: 'atencion',
         que: 'La muestra va con su peso y al menos diez piezas contadas de verdad.',
         queNo: 'No se calibró nada.',
+        campo: peso === null ? 'm-peso' : 'm-piezas',
       });
       return;
     }
@@ -440,12 +491,22 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
   function contar(): void {
     if (elegida === null) return;
     const total = aMiligramos(pesada.total);
-    const tara = aMiligramos(pesada.tara) ?? 0;
+    const tara = taraEnMiligramos(pesada.tara);
     if (total === null) {
       setError({
         tono: 'atencion',
         que: 'Pon lo que marcó la báscula.',
         queNo: 'No se anotó nada.',
+        campo: 'p-total',
+      });
+      return;
+    }
+    if (tara === null) {
+      setError({
+        tono: 'atencion',
+        que: 'Lo que pesa la cubeta va en gramos, con hasta tres decimales.',
+        queNo: 'No se anotó nada.',
+        campo: 'p-tara',
       });
       return;
     }
@@ -484,7 +545,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
         <Vacio
           icono={<ClipboardList />}
           titulo="Aquí se cuenta una zona del almacén"
-          explicacion="El conteo cíclico cuenta un anaquel al día en vez de cerrar la cortina un domingo entero. Se abre desde Existencias, eligiendo la zona que toca; aquí sólo se captura lo contado."
+          explicacion="El conteo cíclico cuenta un anaquel al día en vez de cerrar la cortina un domingo entero. Aquí se captura lo contado de una toma abierta; abrirla desde Existencias todavía no está: mientras, Existencias enseña lo que hay."
           accion={
             <Button asChild className={TACTIL}>
               <a href="/ferreteria/existencias">Ir a Existencias</a>
@@ -495,11 +556,12 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
     );
   }
 
-  // No leyó nada: qué pasó, qué NO pasó, y el botón para volver a leer.
+  // No leyó nada: qué pasó, qué NO pasó, y el botón para volver a leer. Sin el
+  // `h1` «Conteo»: ése se pinta cuando la pantalla montó lo suyo, y en un fallo haría
+  // pasar la pantalla por abierta.
   if (falloDeCarga !== null) {
     return (
       <main className={MARCO}>
-        <Encabezado />
         <ErrorDePantalla
           titulo={`No se pudieron leer ${voc.enFrase('producto', true)} para contar`}
           queHacer="Sin la lista no hay qué calibrar ni qué pesar, y todavía no se anotó nada. Revisa la señal y vuelve a leerla."
@@ -515,11 +577,16 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
     );
   }
 
-  // La forma de la lista y del panel, nunca una rueda: al llegar la lista nada salta.
+  // La forma del encabezado, de la lista y del panel, nunca una rueda: al llegar la
+  // lista nada salta. El encabezado también es forma y no texto, por lo mismo que en
+  // el fallo: una pantalla que se queda cargando no ha montado lo suyo.
   if (claves === null) {
     return (
       <main className={MARCO}>
-        <Encabezado />
+        <div className="flex flex-col gap-(--espacio-1)">
+          <Esqueleto className="h-(--espacio-8) w-40" />
+          <Esqueleto className="h-4 w-56" />
+        </div>
         <div className={REJILLA}>
           <EsqueletoDeLista filas={8} />
           <div aria-hidden="true" className="hidden flex-col gap-(--espacio-3) md:flex">
@@ -535,8 +602,10 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
 
   const calibrada = elegida !== null && elegida.peso_por_pieza_mg !== null;
   const sinCalibrar = claves.filter((c) => c.peso_por_pieza_mg === null).length;
+  // El neto se ve en cuanto el bruto es un peso: con la tara vacía es el bruto, que es
+  // lo que se va a dividir. Con la tara mal escrita es «—», y `contar` no la manda.
   const brutoMg = aMiligramos(pesada.total);
-  const taraMg = aMiligramos(pesada.tara);
+  const taraMg = taraEnMiligramos(pesada.tara);
   const netoMg = brutoMg === null || taraMg === null ? null : brutoMg - taraMg;
 
   return (
@@ -548,7 +617,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
 
       <div className={REJILLA}>
         {/* En el teléfono, la lista O la clave: no caben las dos de pie frente al rack. */}
-        <div className={elegida === null ? 'min-w-0' : 'hidden min-w-0 md:block'}>
+        <div ref={lista} className={elegida === null ? 'min-w-0' : 'hidden min-w-0 md:block'}>
           <Tabla
             etiqueta={`${voc.titulo('producto', true)} para contar`}
             columnas={columnas}
@@ -565,7 +634,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                 <Vacio
                   icono={<Scale />}
                   titulo={`Todavía no hay ${voc.plural('producto')} que contar.`}
-                  explicacion={`En cuanto el catálogo tenga ${voc.plural('producto')}, aquí se calibran y se pesan. La toma se sigue abriendo desde Existencias.`}
+                  explicacion={`En cuanto el catálogo tenga ${voc.plural('producto')}, aquí se calibran y se pesan. Abrir la toma desde Existencias todavía no está.`}
                   accion={
                     <Button asChild variant="outline" className={TACTIL}>
                       <a href="/ferreteria/existencias">Ir a Existencias</a>
@@ -612,7 +681,12 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                 <ArrowLeft aria-hidden="true" />
                 Volver a la lista
               </Button>
-              <h2 id="conteo-elegida" className="text-xl font-semibold">
+              <h2
+                id="conteo-elegida"
+                ref={nombreDeLaElegida}
+                tabIndex={-1}
+                className="text-xl font-semibold focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none"
+              >
                 {elegida.nombre}
               </h2>
               <p className="text-sm text-texto-sutil">
@@ -635,8 +709,10 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
             </header>
 
             <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
+              {/* ALERTA también la validación: aparece al tocar «Contar» o «Calibrar»
+                  y tiene que oírse ya, no esperar su turno como un estado. */}
               {error !== null && (
-                <Aviso tono={error.tono} titulo={error.que}>
+                <Aviso id={ID_DEL_PROBLEMA} tono={error.tono} anuncio="alerta" titulo={error.que}>
                   {error.queNo}
                 </Aviso>
               )}
@@ -653,6 +729,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                       etiqueta="Lo que marca la báscula (g)"
                       modo="decimal"
                       valor={pesada.total}
+                      invalido={error?.campo === 'p-total'}
                       alCambiar={(total) => {
                         setPesada({ ...pesada, total });
                       }}
@@ -663,17 +740,18 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                       modo="decimal"
                       valor={pesada.tara}
                       ayuda="No restarla suma dos kilos de plástico al conteo."
+                      invalido={error?.campo === 'p-tara'}
                       alCambiar={(tara) => {
                         setPesada({ ...pesada, tara });
                       }}
                     />
                   </div>
-                  {netoMg === null ? null : (
+                  {brutoMg === null ? null : (
                     <p className="flex items-baseline justify-between border-t border-borde pt-(--espacio-2)">
                       <span className="text-sm text-texto-sutil">Neto</span>
                       <Cifra
-                        valor={netoMg / MG_POR_GRAMO}
-                        decimales={decimalesDeGramos(netoMg)}
+                        valor={netoMg === null ? null : netoMg / MG_POR_GRAMO}
+                        decimales={netoMg === null ? 'auto' : decimalesDeGramos(netoMg)}
                         unidad="g"
                         tamano="lg"
                       />
@@ -707,6 +785,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                       etiqueta="Peso de la muestra (g)"
                       modo="decimal"
                       valor={muestra.peso}
+                      invalido={error?.campo === 'm-peso'}
                       alCambiar={(peso) => {
                         setMuestra({ ...muestra, peso });
                       }}
@@ -716,6 +795,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                       etiqueta="Piezas contadas"
                       modo="numeric"
                       valor={muestra.piezas}
+                      invalido={error?.campo === 'm-piezas'}
                       alCambiar={(piezas) => {
                         setMuestra({ ...muestra, piezas });
                       }}
@@ -732,7 +812,12 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                   </Button>
                 </section>
               )}
+            </div>
 
+            {/* LA ESTIMACIÓN SE ANUNCIA: la región viva existe desde que se abre el panel
+                y el resultado llega DENTRO. Va fuera del cuerpo para que, vacía, no sume
+                un hueco más al pie del panel. */}
+            <div aria-live="polite">
               {estimacion !== null && <Resultado estimacion={estimacion} />}
             </div>
           </Superficie>

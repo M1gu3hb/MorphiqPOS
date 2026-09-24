@@ -127,6 +127,16 @@ export function margenDe(p: PartidaCotizada): number {
   return Math.round(((importe - p.material.costoCentavos * p.cantidad) / importe) * 100);
 }
 
+/**
+ * Cuántos decimales enseñar de una cantidad: los que trae, hasta cuatro, que son los
+ * que viajan al servidor (`toFixed(4)`). «12.5 m» no es «13 m», ni «1.125 kg» es «1.13».
+ */
+function decimalesDe(valor: number): number {
+  if (Number.isInteger(valor)) return 0;
+  const [, fraccion = ''] = String(valor).split('.');
+  return Math.min(4, fraccion.length);
+}
+
 /** Traduce el fallo a algo con lo que una persona pueda hacer algo. */
 function mensajeDe(fallo: unknown): string {
   if (!(fallo instanceof ErrorApi)) return 'Se perdió la conexión. La cotización no se mandó.';
@@ -194,9 +204,22 @@ function columnasDePartidas(
           </span>
           {/* En teléfono la partida es un renglón de consulta, no un campo. */}
           <span className="text-xs text-texto-sutil md:hidden">
-            <Cifra valor={p.cantidad} unidad={p.material.unidad} tamano="xs" /> ×{' '}
-            <Dinero centavos={p.precioCentavos} tamano="xs" />
+            <Cifra
+              valor={p.cantidad}
+              unidad={p.material.unidad}
+              decimales={decimalesDe(p.cantidad)}
+              tamano="xs"
+            />{' '}
+            × <Dinero centavos={p.precioCentavos} tamano="xs" />
             {p.descuentoPct > 0 ? ` · desc. ${String(p.descuentoPct)} %` : null}
+            {/* Bajo `md` no existe la columna del margen: la fila roja dice aquí por
+                qué, o el color quedaría solo. Y sólo al dueño, como la columna. */}
+            {esDuenio && margenDe(p) < 0 ? (
+              <span className="font-semibold text-peligro">
+                {' · margen '}
+                <Cifra valor={margenDe(p)} unidad="%" tamano="xs" />
+              </span>
+            ) : null}
           </span>
         </span>
       ),

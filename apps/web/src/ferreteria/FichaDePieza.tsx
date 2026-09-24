@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -62,14 +63,23 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * cliente y AGREGAR A LA VENTA. Quedan FUERA el corte de material (tiene
  * pantalla propia) y la SUBIDA de la foto —`invocarComando` manda JSON y una
  * imagen necesita multipart—, así que el botón de cámara deja la foto elegida
- * y lo dice, en vez de fingir que subió.
+ * y lo dice, en vez de fingir que subió. Y queda fuera AGREGAR una presentación
+ * que no es la base: `ferreteria.agregar_partida` vende en la unidad base del
+ * producto y a SU precio —su `unidad` es una medida («pieza», «kg»), no una
+ * presentación—, así que la caja se compara aquí pero no se agrega, y se dice.
  */
 
 /** Una forma de vender la misma pieza: «pieza», «kilo (≈91 pz)», «caja 500». */
 export interface UnidadDeVenta {
   readonly clave: string;
   readonly etiqueta: string;
-  readonly precioCentavos: number;
+  /**
+   * En centavos. `null` cuando la presentación no tiene precio propio: la base lo
+   * deriva como factor × precio base, y esta ficha no lee el precio base.
+   */
+  readonly precioCentavos: number | null;
+  /** La unidad en que se lleva la existencia: la que el mostrador cobra por omisión. */
+  readonly esBase: boolean;
 }
 
 export interface EquivalenteDeFicha {
@@ -121,7 +131,9 @@ type FilaDelPuente = Omit<PiezaDeFicha, 'unidades' | 'equivalentes' | 'vaCon' | 
     readonly id: string;
     readonly nombre: string;
     readonly factor: number | null;
+    /** EN PESOS pese al nombre: `Presentacion` lo mapea con `conversion: 'dinero'`. */
     readonly precio_venta_centavos: number | null;
+    readonly es_base?: boolean | null;
   }[];
   readonly equivalencias?: readonly {
     readonly equivalente_id: string;
@@ -142,7 +154,10 @@ export function comoFicha(fila: FilaDelPuente): PiezaDeFicha {
     unidades: (fila.unidades ?? []).map((u) => ({
       clave: u.id,
       etiqueta: u.factor === null || u.factor <= 1 ? u.nombre : `${u.nombre} (${String(u.factor)})`,
-      precioCentavos: u.precio_venta_centavos ?? 0,
+      // El puente lo sirve en pesos: $2.80 llega como 2.8 y sin esto se leía «$0.02».
+      // Sin precio propio es «—», no $0.00: la base lo deriva por factor.
+      precioCentavos: centavosDelPuente(u.precio_venta_centavos),
+      esBase: u.es_base === true,
     })),
     // `sustituto` REEMPLAZA y `complemento` ACOMPAÑA: son dos listas distintas
     // porque ofrecer una llave a quien pide teflón es ruido en el mostrador.
@@ -240,7 +255,12 @@ function columnasDePrecio(elegida: string | undefined): readonly ColumnaDeTabla<
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      celda: (u) => <Dinero centavos={u.precioCentavos} tamano="sm" />,
+      celda: (u) =>
+        u.precioCentavos === null ? (
+          <span className="text-texto-sutil">—</span>
+        ) : (
+          <Dinero centavos={u.precioCentavos} tamano="sm" />
+        ),
     },
   ];
 }
@@ -257,7 +277,8 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
   const [fallo, setFallo] = useState<FalloDeComando | null>(null);
   const [intento, setIntento] = useState(0);
   const [cantidad, setCantidad] = useState('1');
-  const [unidad, setUnidad] = useState('pieza');
+  /** La presentación elegida, por su clave. `null` = nadie eligió todavía: la base. */
+  const [unidad, setUnidad] = useState<string | null>(null);
   const [propuesta, setPropuesta] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [fotoElegida, setFotoElegida] = useState<string | null>(null);
@@ -284,8 +305,8 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         setCargando(false);
       })
       .catch((error: unknown) => {
-        // La ficha no se vacía por un error: si ya había datos siguen sirviendo
-        // y si no los había, la pantalla dice que no leyó y deja reintentar.
+        // Un fallo deja la pantalla en su error aunque hubiera una ficha pintada:
+        // ésa sería la de OTRA pieza, no la que se pidió.
         if (!sigueMontada()) return;
         setFalloDeCarga(mensajeDe(error));
         setCargando(false);
@@ -323,18 +344,20 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
 
   // Las rutas de escritura no están en el documento: se usa la convención
   // /api/<dominio>/<verbo> hasta que el de datos y backend las fije.
-  function agregarALaVenta(): void {
-    if (pieza === null) return;
+  function agregarALaVenta(elegida: UnidadDeVenta | undefined): void {
+    if (pieza === null || enviando) return;
     const piezas = Number.parseInt(cantidad, 10);
     if (!Number.isFinite(piezas) || piezas <= 0) {
       setFallo({ que: 'Pon una cantidad mayor que cero.', queNo: NO_SE_AGREGO });
       return;
     }
     // La cantidad va como TEXTO: quien convierte cantidades es el servidor, y un
-    // `number` de JavaScript no representa 0.1 sin error.
-    const entrada = { piezaId: pieza.id, cantidad: String(piezas), unidad };
+    // `number` de JavaScript no representa 0.1 sin error. Y SIN `unidad`: el
+    // comando vende en la unidad base del producto —la que se elige aquí—, y su
+    // `unidad` es una medida («pieza», «kg»), no la clave de una presentación.
+    const entrada = { piezaId: pieza.id, cantidad: String(piezas) };
     void enviar('/api/ferreteria/agregar-partida', entrada, NO_SE_AGREGO, () => {
-      onAgregar?.(pieza.id, piezas, unidad);
+      onAgregar?.(pieza.id, piezas, elegida?.clave ?? '');
     });
   }
 
@@ -383,8 +406,9 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
     );
   }
 
-  if (pieza === null && falloDeCarga !== null) {
-    // No leyó nada: no hay ficha que seguir usando, así que se dice y se reintenta.
+  if (falloDeCarga !== null) {
+    // No leyó la pieza que se pidió: no hay ficha que seguir usando —la que
+    // estuviera pintada sería la de otra—, así que se dice y se reintenta.
     return (
       <div className="mx-auto flex max-w-xl flex-col gap-(--espacio-3) p-(--espacio-6)">
         <h1 className="sr-only">Ficha de pieza</h1>
@@ -446,17 +470,20 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
     ],
   ] as const;
 
-  const elegida = pieza.unidades.find((u) => u.clave === unidad) ?? pieza.unidades[0];
+  /**
+   * UNA sola respuesta a «qué unidad se vende»: la marca de la tabla, el grupo de
+   * la barra, el importe del botón y el comando leen todos `elegida`. Mientras
+   * nadie elige, es la base —la que el comando vende—, no la primera que llegó.
+   */
+  const base = pieza.unidades.find((u) => u.esBase) ?? pieza.unidades[0];
+  const elegida = pieza.unidades.find((u) => u.clave === unidad) ?? base;
+  const seAgregaAqui = elegida === undefined || elegida.clave === base?.clave;
   const pedidas = Number.parseInt(cantidad, 10);
-  const importe = (elegida?.precioCentavos ?? 0) * (Number.isFinite(pedidas) ? pedidas : 0);
+  const precio = elegida?.precioCentavos ?? null;
+  const importe = precio === null ? null : precio * (Number.isFinite(pedidas) ? pedidas : 0);
 
   return (
     <article className="mx-auto flex max-w-5xl flex-col gap-(--espacio-4) p-(--espacio-3) text-sm">
-      {falloDeCarga === null ? null : (
-        <Aviso tono="peligro" titulo={falloDeCarga}>
-          Lo que ya está en pantalla sigue sirviendo.
-        </Aviso>
-      )}
       {fallo === null ? null : (
         <Aviso tono="peligro" titulo={fallo.que}>
           {fallo.queNo} Lo que ya está en pantalla sigue sirviendo.
@@ -550,9 +577,18 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
           className="flex flex-col gap-(--espacio-1)"
         >
           <p className={ROTULO}>Hay</p>
-          {/* Negativo es un dato que NO es verdad: falta capturar una entrada. */}
+          {/* Negativo es un dato que NO es verdad: falta capturar una entrada. La
+              cifra se queda —es cuánta entrada falta— y la palabra dice qué es. */}
           {pieza.existencia < 0 ? (
-            <p className="text-xl font-semibold text-peligro">revisar entradas</p>
+            <p className="flex flex-wrap items-baseline gap-x-(--espacio-2) text-peligro">
+              <Cifra
+                valor={pieza.existencia}
+                unidad="pz"
+                tamano="lg"
+                className="text-2xl font-bold"
+              />
+              <span className="font-semibold">negativo · revisar entradas</span>
+            </p>
           ) : (
             <Cifra
               valor={pieza.existencia}
@@ -710,7 +746,7 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
         <ToggleGroup
           type="single"
           variant="outline"
-          value={unidad}
+          value={elegida?.clave ?? ''}
           aria-label="Unidad de venta"
           onValueChange={(valor) => {
             if (valor !== '') setUnidad(valor);
@@ -726,15 +762,23 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
           type="button"
           size="lg"
           className="w-full justify-between gap-(--espacio-3) sm:ml-auto sm:w-auto"
-          disabled={enviando}
+          disabled={enviando || !seAgregaAqui}
           cargando={enviando}
+          aria-describedby={seAgregaAqui ? undefined : 'no-se-agrega-aqui'}
           onClick={() => {
-            agregarALaVenta();
+            agregarALaVenta(elegida);
           }}
         >
           <span>{enviando ? 'Agregando…' : 'AGREGAR A LA VENTA'}</span>
-          <Dinero centavos={importe} />
+          {importe === null ? null : <Dinero centavos={importe} />}
         </Button>
+        {seAgregaAqui || base === undefined ? null : (
+          // El botón no promete lo que el comando no hace: vender la caja a precio
+          // de caja. Se compara arriba; se agrega en la unidad base.
+          <p id="no-se-agrega-aqui" className="basis-full text-texto-sutil">
+            {`«${elegida.etiqueta}» todavía no se agrega desde la ficha: aquí se vende por «${base.etiqueta}».`}
+          </p>
+        )}
       </Superficie>
     </article>
   );
