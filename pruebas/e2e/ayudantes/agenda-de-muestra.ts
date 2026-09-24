@@ -59,7 +59,10 @@ export async function agendarUnMiercolesDeMuestra(page: Page): Promise<void> {
     'No se pudo dar de alta a la clienta de la galería',
   )) as { clienteId?: string };
 
+  // Un SERVICIO, no el primer producto con precio: el champú de mostrador también tiene
+  // precio y una cita con él la rechaza el servidor.
   const servicios = await consultarPuente<ServicioDelPuente>(page, 'ProductoTerminado', {
+    filtro: { tipo_venta: 'servicio' },
     limite: 40,
   });
   const servicio = servicios.find((s) => (s.nombre ?? '') !== '' && (s.precio_venta ?? 0) > 0);
@@ -81,6 +84,7 @@ export async function agendarUnMiercolesDeMuestra(page: Page): Promise<void> {
         (b.minutos ?? 0) - (a.minutos ?? 0) || (a.inicio ?? '').localeCompare(b.inicio ?? ''),
     );
   let agendadas = 0;
+  const rechazos: string[] = [];
   for (const hueco of candidatos) {
     if (agendadas === 3) break;
     const intento = await page.request.post('/api/agenda/cita', {
@@ -93,10 +97,14 @@ export async function agendarUnMiercolesDeMuestra(page: Page): Promise<void> {
       },
     });
     if (intento.status() === 200) agendadas += 1;
+    else rechazos.push(`${hueco.inicio ?? ''}: ${String(intento.status())} ${(await intento.text()).slice(0, 160)}`);
   }
   expect(
     agendadas,
-    `No se pudo agendar ninguna cita el ${dia} para retratar la agenda.`,
+    `No se pudo agendar ninguna cita el ${dia} para retratar la agenda (${String(candidatos.length)} ` +
+      `huecos):
+${rechazos.slice(0, 4).join('
+')}`,
   ).toBeGreaterThan(0);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
