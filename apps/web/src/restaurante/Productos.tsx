@@ -35,10 +35,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * tarjeta, y la que falta se DICE («Sin foto»), no se deja en un gris mudo.
  *
  * ── La tarjeta es una ficha: etiqueta a la izquierda, dato a la derecha ──
- * Precio, costo, margen y si está en el POS, un renglón cada uno y alineados:
- * es como se revisa una carta, de arriba abajo, comparando el precio con lo que
- * cuesta. El precio va grande porque es lo que se cobra; el costo al lado, en
- * pequeño, porque sólo sirve para leer el margen.
+ * Precio, costo, margen y si está en el POS, alineados: es como se revisa una
+ * carta, comparando el precio con lo que cuesta. En el teléfono va un renglón cada
+ * uno —el del POS lleva un botón, y a media tarjeta no cabe junto a su etiqueta—
+ * y desde tableta de dos en dos (`columnasDeTarjeta="adaptable"`). El precio va
+ * grande porque es lo que se cobra; el costo, en pequeño, porque sólo sirve para
+ * leer el margen.
  *
  * ── El ÁREA DE PREPARACIÓN manda en la tarjeta ───────────────────────────
  * Es el campo que casi ningún sistema tiene y el que decide a qué pantalla de
@@ -54,11 +56,13 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * escrito junto al color, porque el color solo no es un dato y el daltónico no
  * lo recibe. Sin receta no hay costo: se dice «sin receta», no un cero falso.
  *
- * ── Teléfono: una columna ────────────────────────────────────────────────
- * La cabeza de la tarjeta se acuesta —miniatura a la izquierda, nombre a la
- * derecha— y sólo desde tablet hay de dos a cuatro columnas con la foto a lo
- * ancho. Un marcado que se reacomoda, no dos: dos serían dos sitios donde
- * equivocarse.
+ * ── Una lista de una columna, en todos los anchos ────────────────────────
+ * La cabeza de la tarjeta va acostada —miniatura a la izquierda, nombre completo a
+ * la derecha—, y la lista no pasa de un ancho en el que etiqueta y dato se leen
+ * juntos. La rejilla de dos a cuatro columnas que pide `04-INTERFAZ` necesita que
+ * `ListaDeTarjetas` reparta sus tarjetas en rejilla, y no lo hace: forzarla desde
+ * aquí era meterle la mano a su marcado (`[&_dl]`, `[&>li>*]`), que se rompe sin
+ * aviso en cuanto la pieza cambia. Queda pedida a la biblioteca.
  *
  * ── Fuera de alcance ─────────────────────────────────────────────────────
  * El alta y la edición son formulario propio, y la receta es otra pantalla:
@@ -86,18 +90,11 @@ const MARGEN_JUSTO = 40;
 const HTTP_DEMASIADOS_INTENTOS = 429;
 const TARJETAS_AL_CARGAR = 8;
 
-/**
- * La rejilla: una columna en teléfono, de dos a cuatro desde tablet. La ficha de
- * cada tarjeta va a UNA columna (`[&_dl]`): el renglón del POS lleva un botón, y a
- * media tarjeta no cabe junto a su etiqueta. Y la ficha va al PIE de una tarjeta que
- * llena su celda: con nombres de uno y de dos renglones, los precios de una misma
- * fila de la rejilla quedan a la misma altura y se comparan de un vistazo.
- */
-const REJILLA =
-  'grid grid-cols-1 gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 [&_dl]:mt-auto [&_dl]:grid-cols-1 [&>li>*]:h-full';
-/** La foto: miniatura en teléfono, a lo ancho desde tablet. Sin borde: no es una caja. */
+/** El ancho de la lista: el de una ficha cuya etiqueta y dato se leen juntos. */
+const ANCHO_DE_LA_LISTA = 'max-w-4xl';
+/** La foto, en miniatura junto al nombre. Sin borde: no es una caja. */
 const FOTO =
-  'flex size-20 shrink-0 flex-col items-center justify-center gap-1 rounded-md bg-fondo-sutil bg-cover bg-center text-xs text-texto-sutil md:h-32 md:w-full';
+  'flex size-20 shrink-0 flex-col items-center justify-center gap-1 rounded-md bg-fondo-sutil bg-cover bg-center text-xs text-texto-sutil';
 
 interface Semaforo {
   readonly texto: string;
@@ -296,7 +293,7 @@ export function Productos({ filasIniciales }: ProductosProps) {
   const titulo = <h1 className="text-2xl font-bold">{voc.titulo('producto', true)}</h1>;
 
   if (cargando) {
-    // Esqueletos con la forma de las tarjetas —foto, nombre, ficha—, no una
+    // Esqueletos con la forma de las tarjetas —miniatura y nombre, ficha—, no una
     // rueda: la pantalla no salta al cargar y el ojo ya sabe dónde va a mirar.
     return (
       <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
@@ -305,13 +302,17 @@ export function Productos({ filasIniciales }: ProductosProps) {
           role="status"
           aria-busy="true"
           aria-label={`Cargando ${voc.plural('producto')}`}
-          className={REJILLA}
+          className={`flex flex-col gap-(--espacio-2) ${ANCHO_DE_LA_LISTA}`}
         >
           {Array.from({ length: TARJETAS_AL_CARGAR }, (_, i) => (
             <Superficie key={i} className="flex flex-col gap-(--espacio-3)">
-              <Esqueleto className="size-20 md:h-32 md:w-full" />
-              <Esqueleto className="h-5 w-3/4" />
-              <Esqueleto className="h-4 w-1/2" />
+              <div className="flex items-center gap-(--espacio-3)">
+                <Esqueleto className="size-20 shrink-0" />
+                <div className="flex flex-1 flex-col gap-(--espacio-2)">
+                  <Esqueleto className="h-5 w-3/4" />
+                  <Esqueleto className="h-4 w-1/2" />
+                </div>
+              </div>
               <Esqueleto className="h-(--altura-control) w-full" />
             </Superficie>
           ))}
@@ -348,7 +349,7 @@ export function Productos({ filasIniciales }: ProductosProps) {
         const foto = producto.imagen_url;
         const enPos = producto.visible_en_pos ?? false;
         return (
-          <span className="flex items-center gap-(--espacio-3) md:flex-col md:items-stretch">
+          <span className="flex items-center gap-(--espacio-3)">
             <span
               role="img"
               className={FOTO}
@@ -364,7 +365,9 @@ export function Productos({ filasIniciales }: ProductosProps) {
               )}
             </span>
             <span className="flex min-w-0 flex-col gap-(--espacio-1)">
-              <span className="line-clamp-2 text-base font-semibold">{producto.nombre}</span>
+              {/* Completo, sin recortar: es lo que identifica la tarjeta, y dos variantes
+                  largas de un mismo platillo cortadas en el mismo sitio se leen iguales. */}
+              <span className="text-base font-semibold">{producto.nombre}</span>
               <span className="flex flex-wrap items-center gap-1">
                 <Badge variant="secondary">{AREAS[claveArea(producto.area_preparacion)]}</Badge>
                 {producto.categoria_nombre !== null && (
@@ -519,7 +522,8 @@ export function Productos({ filasIniciales }: ProductosProps) {
           filas={visibles}
           claveDe={(producto) => producto.id}
           principal="producto"
-          className={REJILLA}
+          columnasDeTarjeta="adaptable"
+          className={ANCHO_DE_LA_LISTA}
           vacio={
             <Vacio
               icono={<SearchX />}

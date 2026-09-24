@@ -139,6 +139,30 @@ const volverAlMapa = (): void => {
   window.history.back();
 };
 
+/** Lo ya enviado de una cuenta, o el fallo. Quien llama decide dónde se dice. */
+type LecturaDeLoEnviado =
+  | { readonly leidas: true; readonly lineas: readonly LineaEnviada[] }
+  | { readonly leidas: false; readonly fallo: unknown };
+
+const SIN_LINEAS: LecturaDeLoEnviado = { leidas: true, lineas: [] };
+
+async function leerLoEnviado(
+  ordenId: string,
+  opciones: { readonly signal?: AbortSignal } = {},
+): Promise<LecturaDeLoEnviado> {
+  try {
+    const filtro = { venta_id: ordenId };
+    const lineas = await consultarPuente<LineaEnviada>('DetalleVenta', {
+      filtro,
+      limite: 120,
+      ...opciones,
+    });
+    return { leidas: true, lineas };
+  } catch (fallo: unknown) {
+    return { leidas: false, fallo };
+  }
+}
+
 /** Lo ya enviado: se lee, y se ANULA con motivo. Nunca se edita. */
 function columnasDeLoEnviado(
   voc: Vocabulario,
@@ -252,6 +276,12 @@ export function MesaActiva(props: MesaActivaProps) {
     productosIniciales ?? (mesaInicial === undefined ? null : []),
   );
   const [enviadas, setEnviadas] = useState<readonly LineaEnviada[]>(props.lineasIniciales ?? []);
+  /**
+   * Lo enviado NO se pudo leer nunca: no hay «último dato conocido» que enseñar, y
+   * pintar el vacío de mesa recién abierta haría que el mesero lo volviera a mandar.
+   */
+  const [falloLineas, setFalloLineas] = useState<string | null>(null);
+  const [releyendo, setReleyendo] = useState(false);
   /** Producto → cantidad todavía sin enviar. Nunca se muta: se recrea. */
   const [borrador, setBorrador] = useState<Readonly<Record<string, number>>>({});
   const [busqueda, setBusqueda] = useState('');
@@ -266,6 +296,12 @@ export function MesaActiva(props: MesaActivaProps) {
   const [anulando, setAnulando] = useState<LineaEnviada | null>(null);
   /** F-321 · Dividir la cuenta. Sólo se ofrece cuando hay algo que repartir. */
   const [dividiendo, setDividiendo] = useState(false);
+  /**
+   * Cada vez que se abre «Dividir», un diálogo NUEVO. Se queda montado para poder cerrar
+   * con su animación, y así sus partes sobrevivían de una apertura a la otra: tras dividir,
+   * lo que se había repartido apuntaba a líneas que ya no existían.
+   */
+  const [aperturaDeDividir, setAperturaDeDividir] = useState(0);
   /** Cada lectura es un número: «Volver a intentar» lo sube y el efecto relee. */
   const [intento, setIntento] = useState(0);
   const claveEnvio = useRef(nuevaClave());
@@ -277,8 +313,6 @@ export function MesaActiva(props: MesaActivaProps) {
     // La señal de aborto, no un `let vivo`: además CANCELA las consultas en vuelo.
     const control = new AbortController();
     const señal = control.signal;
-    /** Una LLAMADA: tras un `if (señal.aborted)` el compilador la da por falsa. */
-    const sigueMontada = (): boolean => !control.signal.aborted;
     void (async () => {
       try {
         const [mesas, catalogo] = await Promise.all([
@@ -289,18 +323,24 @@ export function MesaActiva(props: MesaActivaProps) {
           }),
           consultarPuente<ProductoDeComanda>('ProductoTerminado', { limite: 300, signal: señal }),
         ]);
+        const orden = mesas[0]?.venta_activa_id ?? null;
+        // Lo enviado se lee ANTES de pintar la comanda: sin ello, «Cuenta actual»
+        // diría «toca un platillo para empezar» sobre una cuenta que ya los lleva.
+        const loEnviado =
+          orden === null ? SIN_LINEAS : await leerLoEnviado(orden, { signal: señal });
         if (señal.aborted) return;
         setMesa(mesas[0] ?? null);
         setProductos(catalogo);
-        const orden = mesas[0]?.venta_activa_id ?? null;
-        if (orden === null) return;
-        const filtro = { venta_id: orden };
-        const lineas = await consultarPuente<LineaEnviada>('DetalleVenta', {
-          filtro,
-          limite: 120,
-          signal: señal,
-        });
-        if (sigueMontada()) setEnviadas(lineas);
+        if (loEnviado.leidas) {
+          setEnviadas(loEnviado.lineas);
+          setFalloLineas(null);
+        } else {
+          setFalloLineas(
+            loEnviado.fallo instanceof Error
+              ? loEnviado.fallo.message
+              : `No se pudo leer ${voc.enFrase('orden')}.`,
+          );
+        }
       } catch (fallo: unknown) {
         // Un aborto no es un error: es esta misma pantalla, que ya no está.
         if (señal.aborted) return;
@@ -428,14 +468,23 @@ export function MesaActiva(props: MesaActivaProps) {
   async function recargarLineas(): Promise<void> {
     const orden = mesa?.venta_activa_id ?? null;
     if (orden === null) return;
-    try {
-      const filtro = { venta_id: orden };
-      setEnviadas(await consultarPuente<LineaEnviada>('DetalleVenta', { filtro, limite: 120 }));
-    } catch (fallo: unknown) {
-      setError(
-        fallo instanceof Error ? fallo.message : `No se pudo releer ${voc.enFrase('orden')}.`,
-      );
+    // Si nunca se leyeron, el fallo se queda en su bloque: arriba diría «se muestra
+    // el último dato conocido», y no hay ninguno.
+    const nuncaSeLeyeron = falloLineas !== null;
+    setReleyendo(true);
+    const loEnviado = await leerLoEnviado(orden);
+    setReleyendo(false);
+    if (loEnviado.leidas) {
+      setEnviadas(loEnviado.lineas);
+      setFalloLineas(null);
+      return;
     }
+    const mensaje =
+      loEnviado.fallo instanceof Error
+        ? loEnviado.fallo.message
+        : `No se pudo releer ${voc.enFrase('orden')}.`;
+    if (nuncaSeLeyeron) setFalloLineas(mensaje);
+    else setError(mensaje);
   }
 
   const abrirAnular = (linea: LineaEnviada) => () => {
@@ -445,6 +494,7 @@ export function MesaActiva(props: MesaActivaProps) {
     setAnulando(null);
   };
   const abrirDividir = (): void => {
+    setAperturaDeDividir((n) => n + 1);
     setDividiendo(true);
   };
   const cerrarDividir = (): void => {
@@ -458,6 +508,11 @@ export function MesaActiva(props: MesaActivaProps) {
     setDividiendo(false);
     void recargarLineas();
   };
+  const releerLoEnviado = (): void => {
+    void recargarLineas();
+  };
+  /** Sin lo enviado no hay total: sumar sólo el borrador daría un total que no es. */
+  const totalConocido = falloLineas === null;
 
   const numero = mesa === null ? '—' : String(mesa.numero);
   const personasDeLaMesa = mesa?.personas_actuales ?? null;
@@ -522,9 +577,11 @@ export function MesaActiva(props: MesaActivaProps) {
           radio="md"
           relleno={3}
           aria-label="Listos para recoger"
-          className="border-acento bg-acento-suave"
+          className="border-acento bg-acento-suave text-acento-suave-texto"
         >
-          <h2 className="flex items-center gap-(--espacio-2) text-xs font-bold text-acento uppercase">
+          {/* El texto va en `acento-suave-texto`, el par del tinte: `text-acento` sobre
+              `bg-acento-suave` no llega a 4.5:1 en `noche` ni en `bloque`. */}
+          <h2 className="flex items-center gap-(--espacio-2) text-xs font-bold uppercase">
             <ConciergeBell aria-hidden="true" className="size-4" />
             Listos para recoger ({listos.length})
           </h2>
@@ -539,31 +596,48 @@ export function MesaActiva(props: MesaActivaProps) {
         <h2 className="text-xs font-bold tracking-wide text-texto-sutil uppercase">
           {voc.titulo('orden')} actual
         </h2>
-        <Tabla
-          etiqueta={`${voc.titulo('orden')} actual`}
-          columnas={columnasDeLoEnviado(voc, abrirAnular)}
-          filas={enviadas}
-          claveDe={(l) => l.id}
-          alto="max-h-none"
-          vacio={
-            <Vacio
-              titulo={`${voc.titulo('unidad_servicio')} ${numero} abiert${voc.terminacion('unidad_servicio')} para ${String(personasDeLaMesa ?? 0)} personas.`}
-              explicacion={`Toca ${voc.enFraseCon('un', 'linea_orden')} para empezar.`}
-              className="px-(--espacio-3) py-(--espacio-4)"
+        {falloLineas === null ? (
+          <>
+            <Tabla
+              etiqueta={`${voc.titulo('orden')} actual`}
+              columnas={columnasDeLoEnviado(voc, abrirAnular)}
+              filas={enviadas}
+              claveDe={(l) => l.id}
+              alto="max-h-none"
+              vacio={
+                <Vacio
+                  titulo={`${voc.titulo('unidad_servicio')} ${numero} abiert${voc.terminacion('unidad_servicio')} para ${String(personasDeLaMesa ?? 0)} personas.`}
+                  explicacion={`Toca ${voc.enFraseCon('un', 'linea_orden')} para empezar.`}
+                  className="px-(--espacio-3) py-(--espacio-4)"
+                />
+              }
             />
-          }
-        />
-        {enviadas.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full"
-            onClick={abrirDividir}
-            aria-label={`Dividir ${voc.enFrase('orden')} de ${voc.enFrase('unidad_servicio')}`}
-          >
-            <Split aria-hidden="true" />
-            Dividir {voc.singular('orden')}
-          </Button>
+            {enviadas.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={abrirDividir}
+                aria-label={`Dividir ${voc.enFrase('orden')} de ${voc.enFrase('unidad_servicio')}`}
+              >
+                <Split aria-hidden="true" />
+                Dividir {voc.singular('orden')}
+              </Button>
+            )}
+          </>
+        ) : (
+          /* No leyó nada: ni el vacío de mesa recién abierta ni «Dividir», que
+             repartiría una cuenta que la pantalla no conoce. */
+          <ErrorDePantalla
+            titulo={`No se pudo leer lo ya enviado a ${voc.enFrase('preparacion')}`}
+            queHacer={`Hasta leerlo no se sabe qué lleva ${voc.enFrase('orden')} ni cuánto suma. Antes de volver a mandar ${voc.enFraseCon('un', 'linea_orden')}, confírmalo con ${voc.enFrase('preparacion')}.`}
+            detalle={falloLineas}
+            reintentar={
+              <Button size="sm" variant="outline" cargando={releyendo} onClick={releerLoEnviado}>
+                Volver a intentar
+              </Button>
+            }
+          />
         )}
       </section>
       <section
@@ -595,10 +669,12 @@ export function MesaActiva(props: MesaActivaProps) {
         <Send aria-hidden="true" />
         {enviando ? 'Enviando…' : 'ENVIAR A COCINA'}
       </Button>
-      <p className="flex items-baseline justify-between border-t border-borde pt-(--espacio-3)">
-        <span className="text-sm font-bold">TOTAL</span>
-        <Dinero centavos={total} tamano="lg" />
-      </p>
+      {totalConocido && (
+        <p className="flex items-baseline justify-between border-t border-borde pt-(--espacio-3)">
+          <span className="text-sm font-bold">TOTAL</span>
+          <Dinero centavos={total} tamano="lg" />
+        </p>
+      )}
     </div>
   );
 
@@ -794,12 +870,16 @@ export function MesaActiva(props: MesaActivaProps) {
         <Button
           size="lg"
           onClick={abrirHoja}
-          aria-label={`Abrir el pedido: ${voc.conNumero('linea_orden', piezas)}, ${dineroEnTexto(total)}`}
+          aria-label={`Abrir el pedido: ${voc.conNumero('linea_orden', piezas)}${totalConocido ? `, ${dineroEnTexto(total)}` : ''}`}
           className="fixed right-(--espacio-4) bottom-(--espacio-4) z-20 min-h-[calc(var(--altura-control)*1.6)] gap-(--espacio-3) rounded-full px-(--espacio-6) text-lg font-bold shadow-3 xl:hidden"
         >
           <span className="font-numeros tabular-nums">{piezas}</span>
-          <span aria-hidden="true">·</span>
-          <Dinero centavos={total} tamano="base" />
+          {totalConocido && (
+            <>
+              <span aria-hidden="true">·</span>
+              <Dinero centavos={total} tamano="base" />
+            </>
+          )}
         </Button>
       )}
       <Sheet open={hoja} onOpenChange={setHoja}>
@@ -834,6 +914,7 @@ export function MesaActiva(props: MesaActivaProps) {
       )}
       {mesa?.venta_activa_id != null && (
         <DividirCuentaDialog
+          key={aperturaDeDividir}
           abierto={dividiendo}
           ordenId={mesa.venta_activa_id}
           lineas={enviadas.map((l) => ({

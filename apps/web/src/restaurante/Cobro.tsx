@@ -9,6 +9,7 @@ import {
   Dinero,
   ErrorDePantalla,
   Esqueleto,
+  EsqueletoDeTabla,
   Superficie,
   Tabla,
   Vacio,
@@ -71,14 +72,32 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  *    navegador. El atajo se instala en el `AppLayout` al acoplar.
  * 4. Sin id en la ruta se abre la cuenta que lleva más tiempo esperando.
  * 5. Lo recibido y el desglose se teclean en `CampoDeDinero`, que habla en
- *    centavos y da `null` tanto para el campo vacío como para lo que no es un
- *    importe: los dos cuentan como «no tecleó nada».
+ *    centavos. Vacío no es lo mismo que ilegible: «Recibido» vacío es «pagó
+ *    exacto», y un texto que no es un importe («15OO») apaga COBRAR y lo dice.
  */
 
 const METODOS = ['efectivo', 'tarjeta', 'transferencia', 'mixto'] as const;
 type Metodo = (typeof METODOS)[number];
 type MetodoBase = Exclude<Metodo, 'mixto'>;
 const BASES: readonly MetodoBase[] = ['efectivo', 'tarjeta', 'transferencia'];
+/** Los campos donde se teclea un importe: «Recibido» y los tres del desglose. */
+type CampoTecleado = 'recibido' | MetodoBase;
+/**
+ * Qué campo tiene un texto que NO es un importe. `CampoDeDinero` da `null` tanto
+ * para el vacío como para «15OO»; su segundo argumento es lo que los distingue.
+ */
+type Ilegibles = Readonly<Record<CampoTecleado, boolean>>;
+const NADA_ILEGIBLE: Ilegibles = {
+  recibido: false,
+  efectivo: false,
+  tarjeta: false,
+  transferencia: false,
+};
+const SIN_PARTES: Readonly<Record<MetodoBase, number | null>> = {
+  efectivo: null,
+  tarjeta: null,
+  transferencia: null,
+};
 /** Cómo se lee cada método en su tesela. El icono se reconoce antes que la palabra. */
 const METODO: Readonly<Record<Metodo, { readonly etiqueta: string; readonly Icono: LucideIcon }>> =
   {
@@ -150,14 +169,20 @@ function bloqueoDe(
   metodo: Metodo,
   recibido: number | null,
   suma: number,
+  ilegibles: Ilegibles,
   voc: Vocabulario,
 ): ReactNode {
   if (pendiente) return 'Confirma la propina antes de cobrar.';
   if (total <= 0) return `${voc.conDeterminante('este', 'orden')} no tiene importe que cobrar.`;
   if (metodo === 'efectivo') {
+    // Ilegible no es vacío: sin esto, «15OO» cobraba como si hubiera pagado exacto.
+    if (ilegibles.recibido) return 'Lo recibido no es un importe.';
     return recibido !== null && recibido > 0 && recibido < total ? 'Lo recibido no alcanza.' : null;
   }
-  if (metodo !== 'mixto' || suma === total) return null;
+  if (metodo !== 'mixto') return null;
+  // Antes que la suma: un campo ilegible contaría como cero y el «Faltan» mentiría.
+  if (BASES.some((base) => ilegibles[base])) return 'Alguno de los tres importes no es un número.';
+  if (suma === total) return null;
   const falta = total - suma;
   return falta > 0 ? (
     <>
@@ -233,73 +258,117 @@ export function Cobro({
 }: CobroProps) {
   const voc = useVocabulario();
   const [cuenta, setCuenta] = useState<CuentaPorCobrar | null | undefined>(cuentaInicial);
-  const [lineas, setLineas] = useState<readonly LineaDeCuenta[]>(lineasIniciales ?? []);
+  /**
+   * Las líneas de la cuenta. `null` es «todavía no se leyeron» —o su lectura
+   * falló—, y NO es lo mismo que `[]`: con `[]` el desglose afirma que la cuenta
+   * no tiene platillos, y eso es lo que se imprimiría en el ticket.
+   */
+  const [lineas, setLineas] = useState<readonly LineaDeCuenta[] | null>(
+    lineasIniciales ?? (cuentaInicial === undefined ? null : []),
+  );
   const [metodo, setMetodo] = useState<Metodo>('efectivo');
   // Lo que teclea el cajero, ya en centavos. `null` es «no tecleó un importe».
   const [recibido, setRecibido] = useState<number | null>(null);
-  const [partes, setPartes] = useState<Readonly<Record<MetodoBase, number | null>>>({
-    efectivo: null,
-    tarjeta: null,
-    transferencia: null,
-  });
+  const [partes, setPartes] = useState<Readonly<Record<MetodoBase, number | null>>>(SIN_PARTES);
+  const [ilegibles, setIlegibles] = useState<Ilegibles>(NADA_ILEGIBLE);
   const [propina, setPropina] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [cambio, setCambio] = useState<number | null>(null);
   /** El cobro falló: la cuenta sigue en pantalla y NO se marcó como pagada. */
   const [error, setError] = useState<string | null>(null);
-  /** La lectura falló: sin cuenta no hay nada que cobrar. */
+  /** La lectura de la cuenta falló: sin cuenta no hay nada que cobrar. */
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  /** Se leyó la cuenta y no sus líneas: el total está, el desglose no. */
+  const [falloDeLineas, setFalloDeLineas] = useState<string | null>(null);
   // Cada lectura es un número: reintentar lo sube y el efecto lee otra vez. El
   // estado se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
+  const [intentoDeLineas, setIntentoDeLineas] = useState(0);
+
+  /**
+   * LO TECLEADO ES DE ESTA CUENTA. Si la cuenta cambia —otra `?cuenta=`, o una
+   * relectura que trajo otra—, la propina elegida en centavos para la anterior
+   * se saltaría el muro de propina de ésta. Se ajusta DURANTE el pintado, como
+   * pide React para derivar estado de otro, y no en un efecto.
+   */
+  const [deQuienEsLoTecleado, setDeQuienEsLoTecleado] = useState(cuenta?.id);
+  if (cuenta?.id !== deQuienEsLoTecleado) {
+    setDeQuienEsLoTecleado(cuenta?.id);
+    setMetodo('efectivo');
+    setRecibido(null);
+    setPartes(SIN_PARTES);
+    setIlegibles(NADA_ILEGIBLE);
+    setPropina(null);
+    setCambio(null);
+    setError(null);
+    if (lineasIniciales === undefined) {
+      setLineas(null);
+      setFalloDeLineas(null);
+    }
+  }
 
   useEffect(() => {
     if (cuentaInicial !== undefined) return;
     // El centinela es la señal de aborto: dice si la pantalla sigue montada y
     // además cancela la lectura en vuelo.
     const control = new AbortController();
-    const señal = control.signal;
-    /**
-     * Se pregunta con una LLAMADA y no leyendo la propiedad dos veces: tras el
-     * primer `if (señal.aborted)` el compilador da por hecho que sigue en
-     * falso, y entre un `await` y el siguiente eso deja de ser cierto.
-     */
-    const sigueMontada = (): boolean => !control.signal.aborted;
-    void (async () => {
-      try {
-        // Con una cuenta dicha se pide ESA; sin ella, la primera que pidió su cuenta.
-        const filtro = cuentaId === undefined ? { estado: 'cuenta_solicitada' } : { id: cuentaId };
-        const [fila] = await consultarPuente<CuentaPorCobrar>('Venta', {
-          filtro,
-          limite: 1,
-          signal: señal,
-        });
-        if (señal.aborted) return;
-        setCuenta(fila ?? null);
-        if (fila === undefined) return;
-        const suyas = await consultarPuente<LineaDeCuenta>('DetalleVenta', {
-          filtro: { venta_id: fila.id },
-          signal: señal,
-        });
-        if (sigueMontada()) setLineas(suyas);
-      } catch (fallo) {
+    // Con una cuenta dicha se pide ESA; sin ella, la primera que pidió su cuenta.
+    const filtro = cuentaId === undefined ? { estado: 'cuenta_solicitada' } : { id: cuentaId };
+    consultarPuente<CuentaPorCobrar>('Venta', { filtro, limite: 1, signal: control.signal })
+      .then(([fila]) => {
+        if (!control.signal.aborted) setCuenta(fila ?? null);
+      })
+      .catch((fallo: unknown) => {
         // Un aborto no es un error: es esta misma pantalla, que ya no está.
-        if (señal.aborted) return;
+        if (control.signal.aborted) return;
         setFalloDeCarga(
           fallo instanceof Error ? fallo.message : `No se pudo leer ${voc.enFrase('orden')}.`,
         );
-      }
-    })();
+      });
     return () => {
       control.abort();
     };
   }, [cuentaInicial, cuentaId, voc, intento]);
 
+  // Las líneas van aparte y atadas al id de la cuenta que YA está en pantalla:
+  // releerlas no vuelve a pedir la cuenta, que sin `?cuenta=` podría traer otra.
+  const idDeLaCuenta = cuenta?.id;
+  useEffect(() => {
+    if (cuentaInicial !== undefined || lineasIniciales !== undefined) return;
+    if (idDeLaCuenta === undefined) return;
+    const control = new AbortController();
+    consultarPuente<LineaDeCuenta>('DetalleVenta', {
+      filtro: { venta_id: idDeLaCuenta },
+      signal: control.signal,
+    })
+      .then((suyas) => {
+        if (!control.signal.aborted) setLineas(suyas);
+      })
+      .catch((fallo: unknown) => {
+        if (control.signal.aborted) return;
+        setFalloDeLineas(
+          fallo instanceof Error
+            ? fallo.message
+            : `No se leyeron ${voc.enFrase('linea_orden', true)}.`,
+        );
+      });
+    return () => {
+      control.abort();
+    };
+  }, [cuentaInicial, lineasIniciales, idDeLaCuenta, voc, intentoDeLineas]);
+
+  /** No se leyó ni la cuenta: se vuelve a pedir entera. */
   function reintentar(): void {
     setFalloDeCarga(null);
     setCuenta(undefined);
-    setLineas([]);
     setIntento((previo) => previo + 1);
+  }
+
+  /** Se leyó la cuenta y no sus líneas: se releen SÓLO ésas, de la misma cuenta. */
+  function releerLineas(): void {
+    setFalloDeLineas(null);
+    setLineas(null);
+    setIntentoDeLineas((previo) => previo + 1);
   }
 
   const venta = aCentavos(cuenta?.total);
@@ -307,7 +376,7 @@ export function Cobro({
   const total = venta + suPropina;
   const pendiente = propina === null && SIN_DECIDIR.includes(cuenta?.propina_tipo ?? '');
   const suma = BASES.reduce((suman, base) => suman + (partes[base] ?? 0), 0);
-  const bloqueo = bloqueoDe(pendiente, total, metodo, recibido, suma, voc);
+  const bloqueo = bloqueoDe(pendiente, total, metodo, recibido, suma, ilegibles, voc);
 
   async function cobrar(id: string): Promise<void> {
     setEnviando(true);
@@ -397,11 +466,12 @@ export function Cobro({
   }
 
   const platillo = voc.titulo('linea_orden');
-  const cuantos = voc.conNumero('linea_orden', lineas.length);
-  // El desglose es un recibo: tabla densa con la cantidad y el importe alineados,
-  // y debajo lo que el comensal pregunta cuando pregunta.
-  const detalle = (
-    <div className="flex flex-col gap-(--espacio-3)">
+  const cuantos =
+    lineas === null ? voc.titulo('linea_orden', true) : voc.conNumero('linea_orden', lineas.length);
+  // Tres estados y no dos: leyéndose, ilegibles y leídas. Sólo las leídas pueden
+  // decir que la cuenta no tiene platillos; las otras dos lo afirmarían sin saberlo.
+  const renglones =
+    lineas !== null ? (
       <Tabla
         etiqueta={`${voc.titulo('linea_orden', true)} de ${voc.enFrase('orden')}`}
         columnas={columnasDeLaCuenta(platillo)}
@@ -416,6 +486,22 @@ export function Cobro({
           />
         }
       />
+    ) : falloDeLineas === null ? (
+      <EsqueletoDeTabla
+        filas={RENGLONES_DE_ESPERA}
+        columnas={3}
+        etiqueta={`Leyendo ${voc.enFrase('linea_orden', true)}`}
+      />
+    ) : (
+      <p className="px-(--espacio-3) text-sm text-texto-sutil">
+        {`No se leyeron ${voc.enFrase('linea_orden', true)}: este desglose está incompleto.`}
+      </p>
+    );
+  // El desglose es un recibo: tabla densa con la cantidad y el importe alineados,
+  // y debajo lo que el comensal pregunta cuando pregunta.
+  const detalle = (
+    <div className="flex flex-col gap-(--espacio-3)">
+      {renglones}
       <dl className="grid grid-cols-[1fr_auto] gap-x-(--espacio-4) gap-y-(--espacio-1) px-(--espacio-3) text-sm">
         <dt className="text-texto-sutil">Subtotal</dt>
         <dd className="text-right">
@@ -486,13 +572,13 @@ export function Cobro({
         </span>
       </h1>
       {/* La pantalla no se vacía por un error: el aviso va encima del último dato. */}
-      {falloDeCarga === null ? null : (
+      {falloDeLineas === null ? null : (
         <Aviso
           tono="peligro"
-          titulo={falloDeCarga}
+          titulo={falloDeLineas}
           className="xl:col-span-2"
           accion={
-            <Button size="sm" variant="outline" onClick={reintentar}>
+            <Button size="sm" variant="outline" onClick={releerLineas}>
               Volver a leer
             </Button>
           }
@@ -583,7 +669,11 @@ export function Cobro({
                 relleno={3}
                 radio="md"
                 onClick={() => {
+                  if (opcion === metodo) return;
                   setMetodo(opcion);
+                  // Los campos del método anterior se desmontan y, al volver, se
+                  // pintan de lo que quedó en centavos: lo ilegible vuelve vacío.
+                  setIlegibles(NADA_ILEGIBLE);
                 }}
                 className="relative flex min-h-(--altura-control) w-full items-center gap-(--espacio-2) text-sm font-semibold md:text-base"
               >
@@ -604,7 +694,15 @@ export function Cobro({
         {metodo === 'efectivo' ? (
           <div className="flex flex-col gap-(--espacio-2)">
             <Label htmlFor="cobro-recibido">Recibido</Label>
-            <CampoDeDinero id="cobro-recibido" centavos={recibido} alCambiar={setRecibido} />
+            <CampoDeDinero
+              id="cobro-recibido"
+              centavos={recibido}
+              aria-invalid={ilegibles.recibido}
+              alCambiar={(centavos, { valido }) => {
+                setRecibido(centavos);
+                setIlegibles((previos) => ({ ...previos, recibido: !valido }));
+              }}
+            />
             {/* El cambio, al peso de un dato y no de una etiqueta: es el número que
                 el cajero saca del cajón, y se equivoca si lo tiene que buscar. */}
             <p className="flex items-baseline justify-between">
@@ -625,8 +723,10 @@ export function Cobro({
                 <CampoDeDinero
                   id={`cobro-${base}`}
                   centavos={partes[base]}
-                  alCambiar={(centavos) => {
+                  aria-invalid={ilegibles[base]}
+                  alCambiar={(centavos, { valido }) => {
                     setPartes((previas) => ({ ...previas, [base]: centavos }));
+                    setIlegibles((previos) => ({ ...previos, [base]: !valido }));
                   }}
                 />
               </div>

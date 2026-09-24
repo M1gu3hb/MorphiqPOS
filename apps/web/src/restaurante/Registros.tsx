@@ -19,7 +19,7 @@ import {
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import { CalendarSearch, Download, FileSpreadsheet, Search, X } from 'lucide-react';
-import { Fragment, type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
+import { Fragment, type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
@@ -366,6 +366,44 @@ function mensajeDe(fallo: unknown): string {
   return fallo instanceof Error ? fallo.message : 'No se pudieron leer los registros.';
 }
 
+/** Lo que la pestaña dice cuando NO leyó: qué pasó, qué hacer y, aparte, el código. */
+interface FalloDeLectura {
+  readonly titulo: string;
+  readonly queHacer: string;
+  readonly detalle?: string;
+  /** Si leer otra vez puede salir distinto. Un permiso que falta no cambia al reintentar. */
+  readonly reintentable: boolean;
+}
+
+const REINTENTAR = 'Vuelve a intentarlo: el periodo y la búsqueda se conservan.';
+
+/**
+ * El fallo de LECTURA, con la frase que de verdad sirve. Un permiso o un paquete no se
+ * arreglan reintentando: decirle en grande «vuelve a intentarlo» a quien no tiene acceso
+ * es mandarlo a pulsar un botón que nunca va a funcionar. Lo accionable va en el título;
+ * el código técnico, en el renglón pequeño de detalle.
+ */
+function falloDeLectura(fallo: unknown): FalloDeLectura {
+  if (!(fallo instanceof ErrorApi)) {
+    return {
+      titulo: 'No se pudieron leer los registros.',
+      queHacer: `Revisa la conexión. ${REINTENTAR}`,
+      ...(fallo instanceof Error ? { detalle: fallo.message } : {}),
+      reintentable: true,
+    };
+  }
+  const sinAcceso =
+    fallo.error.codigo === 'SIN_PERMISO' || fallo.error.codigo === 'PAQUETE_NO_INCLUYE';
+  return {
+    titulo: mensajeDe(fallo),
+    queHacer: sinAcceso
+      ? 'Pídele a quien administra el negocio que te dé acceso a esta pestaña.'
+      : REINTENTAR,
+    detalle: fallo.error.codigo,
+    reintentable: !sinAcceso,
+  };
+}
+
 export interface RegistrosProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly filasIniciales?: readonly Registro[];
@@ -381,9 +419,13 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
   const [hasta, setHasta] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [filas, setFilas] = useState<readonly Registro[] | null>(filasIniciales ?? null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FalloDeLectura | null>(null);
   const [intento, setIntento] = useState(0);
   const [abierta, setAbierta] = useState<string | null>(null);
+  /** El título de la hoja: al abrirla, el foco va ahí y no se queda en la fila. */
+  const tituloDeLaHoja = useRef<HTMLHeadingElement>(null);
+  /** El botón que abrió la hoja: al cerrarla, el foco vuelve a él y no cae al `body`. */
+  const origenDeLaHoja = useRef<HTMLButtonElement | null>(null);
   /** La fila que está viajando a la hoja: sólo ella lleva el nombre del viaje. */
   const [viajando, setViajando] = useState<string | null>(null);
   const [descarga, setDescarga] = useState<string | null>(null);
@@ -408,9 +450,10 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
           }
         })
         .catch((fallo: unknown) => {
-          // La pantalla NO se vacía por un fallo: quien audita prefiere el dato
-          // de hace un minuto a una tabla en blanco que no sabe interpretar.
-          if (sigueMontada()) setError(mensajeDe(fallo));
+          // No leyó: la pestaña dice qué pasó y ofrece volver a leer. No hay «último
+          // dato» que conservar: cada pestaña lee otra entidad, y cambiar de pestaña o
+          // reintentar vacía la tabla antes de leer.
+          if (sigueMontada()) setError(falloDeLectura(fallo));
         });
     }
     return () => {
@@ -468,6 +511,10 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
    * dentro del cambio se lo quita y lo toma la HOJA, y `flushSync` hace que el
    * navegador fotografíe el estado nuevo ya pintado. Nunca los dos a la vez: con
    * dos elementos del mismo nombre el navegador no anima ninguno.
+   *
+   * El FOCO viaja con ella. La hoja es un `aside` fijo al final de `<main>`: sin
+   * moverlo, con teclado o lector se llega a ella después de recorrer los botones de
+   * todas las filas que quedan.
    */
   function abrir(clave: string): void {
     flushSync(() => {
@@ -478,10 +525,14 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
         setViajando(null);
         setAbierta(clave);
       });
+      tituloDeLaHoja.current?.focus();
     });
   }
 
-  /** El camino de vuelta: la hoja se recoge en su fila. */
+  /**
+   * El camino de vuelta: la hoja se recoge en su fila, y el foco vuelve al botón que la
+   * abrió. Sin esto, la hoja se desmontaba con el foco dentro y caía al `body`.
+   */
   function cerrar(): void {
     const clave = abierta;
     if (clave === null) return;
@@ -490,6 +541,8 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
         setAbierta(null);
         setViajando(clave);
       });
+      const origen = origenDeLaHoja.current;
+      if (origen?.isConnected === true) origen.focus();
     }).finally(() => {
       setViajando(null);
     });
@@ -528,9 +581,13 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
         variant="ghost"
         aria-expanded={expandida}
         aria-controls={expandida ? HOJA : undefined}
-        onClick={() => {
-          if (expandida) cerrar();
-          else abrir(fila.clave);
+        onClick={(evento) => {
+          if (expandida) {
+            cerrar();
+            return;
+          }
+          origenDeLaHoja.current = evento.currentTarget;
+          abrir(fila.clave);
         }}
       >
         {expandida ? 'Ocultar' : 'Ver más'}
@@ -546,13 +603,16 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
 
   let cuerpo: ReactNode;
   if (filas === null && error !== null) {
-    // No leyó nada: se dice qué pasó y se ofrece volver a leer, sin perder el periodo.
+    // No leyó nada: se dice qué pasó y qué hacer, sin perder el periodo. El botón de
+    // volver a leer sólo aparece cuando leer otra vez puede salir distinto.
     cuerpo = (
       <ErrorDePantalla
-        titulo="No se pudo leer esta pestaña."
-        queHacer="Vuelve a intentarlo: el periodo y la búsqueda se conservan."
-        detalle={error}
-        reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+        titulo={error.titulo}
+        queHacer={error.queHacer}
+        detalle={error.detalle}
+        reintentar={
+          error.reintentable ? <Button onClick={reintentar}>Volver a intentar</Button> : undefined
+        }
       />
     );
   } else if (filas === null) {
@@ -746,11 +806,6 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
               No se generó ningún archivo.
             </Aviso>
           )}
-          {error !== null && filas !== null && (
-            <Aviso tono="peligro" titulo={error}>
-              Se muestra el último dato conocido.
-            </Aviso>
-          )}
           {filas !== null && filas.length >= VENTANA && (
             <Aviso
               tono="atencion"
@@ -771,12 +826,16 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
           nivel={3}
           aria-label={`${rotuloDe(primera, voc)} ${celda(filaAbierta.registro, primera)}`}
           style={{ viewTransitionName: VIAJE.fila(filaAbierta.clave) }}
+          // `Escape` la cierra, como cualquier hoja que se abre encima de lo que se mira.
+          onKeyDown={(evento) => {
+            if (evento.key === 'Escape') cerrar();
+          }}
           className="fixed inset-x-(--espacio-3) bottom-(--espacio-3) z-20 mx-auto flex max-h-[60dvh] max-w-xl flex-col gap-(--espacio-3) overflow-y-auto"
         >
           <header className="flex items-start justify-between gap-(--espacio-3)">
             <div>
               <p className="text-xs text-texto-sutil uppercase">{rotuloDe(primera, voc)}</p>
-              <h2 className="text-xl font-semibold">
+              <h2 ref={tituloDeLaHoja} tabIndex={-1} className="text-xl font-semibold outline-none">
                 {pintarCelda(filaAbierta.registro, primera)}
               </h2>
             </div>

@@ -9,6 +9,7 @@ import {
   Aviso,
   CampoDeDinero,
   Cifra,
+  ConfirmacionDestructiva,
   Dinero,
   ErrorDePantalla,
   Esqueleto,
@@ -16,6 +17,7 @@ import {
   Superficie,
   Tabla,
   Vacio,
+  dineroEnTexto,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import {
@@ -24,6 +26,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
@@ -154,8 +157,20 @@ function importe(fila: FilaDeCaja, cifra: ReactNode): ReactNode {
   );
 }
 
+/**
+ * El nombre de la fila para un lector de pantalla: la fila ES el control de cobrar,
+ * y sin nombre la acción principal de la caja se anunciaba como «fila».
+ */
+function etiquetaDeCobro(fila: FilaDeCaja, voc: Vocabulario): string {
+  return `Cobrar ${rotulo(fila.mesa_numero, voc)} · ${dineroEnTexto(aCentavos(fila.total))}`;
+}
+
 /** La tabla del cajero en la PC: densa, cada columna alineada, el total a la derecha. */
-function columnasDeTabla(voc: Vocabulario, ahora: number): readonly ColumnaDeTabla<FilaDeCaja>[] {
+function columnasDeTabla(
+  voc: Vocabulario,
+  ahora: number,
+  alCobrar: (ventaId: string) => void,
+): readonly ColumnaDeTabla<FilaDeCaja>[] {
   return [
     {
       clave: 'codigo',
@@ -194,9 +209,25 @@ function columnasDeTabla(voc: Vocabulario, ahora: number): readonly ColumnaDeTab
     {
       clave: 'cobrar',
       titulo: 'Cobrar',
-      celda: () => (
-        <span className="flex justify-end text-texto-tenue">
-          <ChevronRight aria-hidden="true" className="size-4" />
+      // Un control de verdad, con nombre: la columna que se llama «Cobrar» no puede
+      // estar vacía para el lector de pantalla ni para quien opera por voz. Fuera del
+      // orden de tabulación porque la fila ya lo está y Enter sobre ella cobra: dos
+      // paradas por cuenta doblarían el camino del cajero. `Tabla` no activa la fila
+      // cuando el clic viene de un botón de la celda, así que no cobra dos veces.
+      celda: (f) => (
+        <span className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            tabIndex={-1}
+            aria-label={`Cobrar ${rotulo(f.mesa_numero, voc)}`}
+            className="text-texto-tenue"
+            onClick={() => {
+              alCobrar(f.id);
+            }}
+          >
+            <ChevronRight aria-hidden="true" className="size-4" />
+          </Button>
         </span>
       ),
     },
@@ -288,6 +319,10 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
   const [busqueda, setBusqueda] = useState('');
   const [fondo, setFondo] = useState<number | null>(null);
   const [ahora, setAhora] = useState(() => Date.now());
+  /** El ticket sin consumo que espera confirmación para eliminarse. */
+  const [aEliminar, setAEliminar] = useState<FilaDeCaja | null>(null);
+  /** El botón que abrió la confirmación: al cancelar, el foco vuelve ahí. */
+  const disparador = useRef<HTMLElement | null>(null);
 
   /**
    * Lee, y NO pinta.
@@ -347,21 +382,27 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
     return (filas ?? []).filter((f) => texto(f).toLowerCase().includes(aguja));
   }, [filas, busqueda, voc]);
 
+  const cobrar = useCallback(
+    (id: string) => {
+      onCobrar?.(id);
+    },
+    [onCobrar],
+  );
+
   const sinConsumo = useMemo(() => (filas ?? []).filter((f) => f.total === 0), [filas]);
-  const columnasPC = useMemo(() => columnasDeTabla(voc, ahora), [voc, ahora]);
+  const columnasPC = useMemo(() => columnasDeTabla(voc, ahora, cobrar), [voc, ahora, cobrar]);
   const columnasTarjeta = useMemo(() => columnasDeTarjeta(voc, ahora), [voc, ahora]);
 
   const alBuscar = (evento: ChangeEvent<HTMLInputElement>) => {
     setBusqueda(evento.target.value);
   };
 
-  const cobrar = (id: string) => {
-    onCobrar?.(id);
-  };
-
   // Ruta por convención /api/<dominio>/<verbo>: la salida que ya existe para anular
-  // una cuenta. Su motivo es obligatorio en la base, así que va siempre.
-  const eliminarVacio = (id: string) => () => {
+  // una cuenta. Su motivo es obligatorio en la base, así que va siempre. Llega aquí
+  // sólo desde la confirmación: anular es destructivo (04-INTERFAZ §4.6) y el botón
+  // vive encima de la lista donde se toca para cobrar cien veces al día.
+  const eliminarVacio = (id: string) => {
+    setAEliminar(null);
     const motivo = 'Cuenta sin consumo eliminada desde caja';
     invocarComando('/api/restaurante/cancelar-orden', { ordenId: id, motivo })
       .then(() => {
@@ -522,6 +563,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
       filas={visibles}
       claveDe={(f) => f.id}
       alActivar={cobrar}
+      etiquetaDeFila={(f) => etiquetaDeCobro(f, voc)}
       // El ámbar nunca va solo: la celda del total dice «sin consumo».
       tonoDeFila={(f) => (f.total === 0 ? 'advertencia' : undefined)}
       alto="max-h-[70vh]"
@@ -631,11 +673,16 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
                     <span className="font-medium text-texto">
                       {rotulo(fila.mesa_numero, voc)} · {fila.codigo_caja ?? '—'}
                     </span>
+                    {/* El nombre EMPIEZA por lo que se lee en el botón: quien lo pide
+                        por voz dice «Eliminar ticket» (WCAG 2.5.3). */}
                     <Button
                       variant="outline"
                       size="sm"
-                      aria-label={`Eliminar el ticket sin consumo de ${rotulo(fila.mesa_numero, voc)}`}
-                      onClick={eliminarVacio(fila.id)}
+                      aria-label={`Eliminar ticket sin consumo de ${rotulo(fila.mesa_numero, voc)}`}
+                      onClick={(evento) => {
+                        disparador.current = evento.currentTarget;
+                        setAEliminar(fila);
+                      }}
                     >
                       Eliminar ticket
                     </Button>
@@ -647,6 +694,22 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
           {lista}
         </>
       ) : null}
+
+      <ConfirmacionDestructiva
+        abierta={aEliminar !== null}
+        queSeBorra={
+          aEliminar === null
+            ? ''
+            : `el ticket sin consumo de ${rotulo(aEliminar.mesa_numero, voc)} · ${aEliminar.codigo_caja ?? 'sin código'}`
+        }
+        alConfirmar={() => {
+          if (aEliminar !== null) eliminarVacio(aEliminar.id);
+        }}
+        alCancelar={() => {
+          setAEliminar(null);
+          disparador.current?.focus();
+        }}
+      />
     </main>
   );
 }

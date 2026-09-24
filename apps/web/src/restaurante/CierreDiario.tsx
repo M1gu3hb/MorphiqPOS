@@ -656,7 +656,9 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
           <div className="flex flex-col gap-(--espacio-1) sm:col-span-2 xl:col-span-1">
             <Label htmlFor="contado">Efectivo contado físicamente *</Label>
             {/* El campo que manda: el más grande de la pantalla, porque es lo
-                único que aquí se TECLEA y se teclea contando billetes. */}
+                único que aquí se TECLEA y se teclea contando billetes. `enorme`
+                (text-2xl) y no `grande` (text-lg): las cifras del resumen van en
+                text-xl, y lo que se relee antes de sellar no puede quedar debajo. */}
             <CampoDeDinero
               id="contado"
               autoFocus
@@ -664,7 +666,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
               aria-describedby="ayuda-contado"
               centavos={contado}
               alCambiar={setContado}
-              tamano="grande"
+              tamano="enorme"
             />
             <p id="ayuda-contado" className="text-xs text-texto-sutil">
               Cuenta el cajón antes de mirar nada más: el esperado aparece cuando escribas, para que

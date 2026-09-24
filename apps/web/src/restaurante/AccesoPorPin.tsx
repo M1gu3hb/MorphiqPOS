@@ -13,7 +13,7 @@ import {
   viaje,
 } from '@morphiqpos/ui/sistema';
 import { Circle, Delete, UsersRound } from 'lucide-react';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando, obtenerApi } from '~/cliente/api';
@@ -94,7 +94,7 @@ const CLASES_TARJETA =
  * arriba es un panel levantado en el hueco que dejaron las tarjetas.
  */
 const CLASES_TECLADO =
-  'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-(--espacio-5) rounded-none border-0 bg-fondo p-0 shadow-0 ' +
+  'mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-(--espacio-5) rounded-none border-0 bg-fondo p-0 shadow-0 outline-none ' +
   'md:max-w-md md:flex-none md:rounded-lg md:border md:bg-superficie md:p-(--espacio-6) md:shadow-2';
 
 export interface EmpleadoDeAcceso {
@@ -165,9 +165,15 @@ function AvisosDeAcceso({ sinConexion, segundosBloqueo, error, className }: Avis
     );
   }
   if (segundosBloqueo !== null) {
+    // La cuenta atrás cambia cada segundo y la alerta se lee ENTERA con cada
+    // cambio: sesenta lecturas seguidas que tapaban los puntos del PIN. El número
+    // se ve y no se anuncia; al lector se le dice una vez, al empezar.
     return (
       <Aviso tono="peligro" titulo={error ?? 'Demasiados intentos.'} className={className}>
-        Vuelve a intentar en {segundosBloqueo} s.
+        <span aria-hidden="true">Vuelve a intentar en {segundosBloqueo} s.</span>
+        <span className="sr-only">
+          Vuelve a intentar en {String(SEGUNDOS_DE_BLOQUEO)} segundos.
+        </span>
       </Aviso>
     );
   }
@@ -208,11 +214,24 @@ function TecladoNumerico({
     { texto: 'Entrar', valor: 'entrar', tipo: 'default', apagada: digitos < LARGO_PIN },
   ] as const;
 
+  /**
+   * EL FOCO LLEGA CON EL PANEL. La tarjeta que lo tenía se desmonta al elegir, y
+   * sin esto caía en `body`: un lector de pantalla no se enteraba de que salió el
+   * teclado. Va al PANEL y no a una tecla: con el foco en un botón, el Enter
+   * físico pulsa esa tecla en vez de «Entrar».
+   */
+  const panel = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    panel.current?.focus();
+  }, []);
+
   return (
     <Superficie
       como="section"
       nivel={2}
       relleno={6}
+      ref={panel}
+      tabIndex={-1}
       aria-label={`Teclear el PIN de ${empleado.nombre}`}
       style={viaje(VIAJE.fila(empleado.id))}
       className={CLASES_TECLADO}
@@ -288,6 +307,10 @@ function RejillaDeTarjetas({ empleados, deVuelta, onElegir }: RejillaDeTarjetasP
             interactiva
             relleno={4}
             style={deVuelta === empleado.id ? viaje(VIAJE.fila(empleado.id)) : undefined}
+            // De vuelta del teclado, el foco regresa a la tarjeta de donde salió: el
+            // panel se desmonta y sin esto el foco caía en `body`. Sólo al montar la
+            // rejilla, que es cuando `deVuelta` dice de quién era el panel.
+            autoFocus={deVuelta === empleado.id}
             onClick={(evento) => {
               onElegir(empleado, evento.currentTarget);
             }}
@@ -417,7 +440,10 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
     });
   }
 
-  /** «No soy yo» y `Esc`: el panel vuelve a ser la tarjeta de donde salió. */
+  /**
+   * «No soy yo» y `Esc`: el panel vuelve a ser la tarjeta de donde salió, y el
+   * foco vuelve con él (`autoFocus` de esa tarjeta al montarse la rejilla).
+   */
   function volver(): void {
     const deQuien = seleccionado?.id ?? null;
     void conTransicion(() => {

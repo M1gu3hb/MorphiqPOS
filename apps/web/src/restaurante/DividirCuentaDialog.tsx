@@ -38,7 +38,9 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * ── Y por qué el botón se queda apagado hasta que cuadra ─────────────────
  * Es fricción deliberada, la misma que el desglose del pago mixto. Una división
  * con unidades sin repartir es una cuenta madre con sobrante que nadie va a
- * cobrar, y se descubre al cierre.
+ * cobrar, y se descubre al cierre. Y una cuenta que no se lleva nada el servidor
+ * la rechaza («La parte N quedó vacía»): también apaga el botón, y el contador lo
+ * dice con palabras —«Cuenta 3 no lleva ningún platillo»— y no sólo en rojo.
  *
  * ── Cómo se ve: UNA tabla, platillos por cuentas ─────────────────────────
  * Se abre desde la mesa activa, en la tableta del mesero (`04-INTERFAZ` · Mesa
@@ -55,8 +57,18 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  *
  * ── Estados ──────────────────────────────────────────────────────────────
  * Recibe los platillos por props y no lee nada: no hay esqueleto, porque no hay
- * lectura que esperar. Sí hay vacío —una cuenta sin platillos enviados no tiene
- * qué repartir— y el comando puede fallar: eso es un aviso que dice qué NO pasó.
+ * lectura que esperar. El vacío es una GUARDA: `MesaActiva` sólo ofrece «Dividir»
+ * con platillos enviados, así que hoy ningún camino lo pinta; si alguna vez llega
+ * una lista vacía, dice la verdad en vez de pintar una tabla sin filas. El comando
+ * sí puede fallar: eso es un aviso que dice qué NO pasó.
+ *
+ * ── Lo que se oye ────────────────────────────────────────────────────────
+ * UNA sola región viva: el contador. Cada «+» o «−» la cambia y lleva delante, sólo
+ * para el lector, qué se movió («Tacos: 1 en la cuenta 1»). Las celdas no son
+ * regiones vivas —un `<output>` lo era, y cada toque sonaba dos veces—, y un botón
+ * que no puede hacer nada se apaga con `aria-disabled` y NO con `disabled`: el mismo
+ * toque que lleva un platillo a cero apagaba el «+» que tenía el foco, y el foco se
+ * caía al `body`.
  */
 
 export interface LineaParaDividir {
@@ -102,9 +114,17 @@ interface ControlDeUnidadesProps {
 }
 
 /**
+ * Un botón que no puede hacer nada se APAGA sin soltar el foco: `aria-disabled` y el
+ * mismo aspecto que `disabled`, que sí lo suelta. El toque se ignora aquí y otra vez
+ * en `mover`.
+ */
+const APAGADO_CON_FOCO = 'aria-disabled:pointer-events-none aria-disabled:opacity-50';
+
+/**
  * «−», las unidades, «+». Cada botón se apaga cuando no puede hacer nada —cero
  * tomadas, o nada por repartir de ese platillo—: un botón que no responde al
- * toque se lee como una pantalla trabada.
+ * toque se lee como una pantalla trabada. `disabled` sólo mientras se divide: ahí
+ * el foco está en el botón de dividir, no en éstos.
  */
 function ControlDeUnidades({
   nombre,
@@ -114,6 +134,7 @@ function ControlDeUnidades({
   bloqueado,
   alMover,
 }: ControlDeUnidadesProps) {
+  const puedeQuitar = tomadas > 0;
   return (
     <span className="inline-flex items-center gap-(--espacio-1)">
       <Button
@@ -121,31 +142,32 @@ function ControlDeUnidades({
         size="icon"
         variant="outline"
         aria-label={`Quitar ${nombre} de ${cuenta}`}
-        disabled={bloqueado || tomadas <= 0}
+        aria-disabled={puedeQuitar ? undefined : true}
+        disabled={bloqueado}
+        className={APAGADO_CON_FOCO}
         onClick={() => {
-          alMover(-1);
+          if (puedeQuitar) alMover(-1);
         }}
       >
         <Minus />
       </Button>
-      <output
-        aria-label={`Unidades de ${nombre} en ${cuenta}`}
-        className="inline-block min-w-[3ch] text-center"
-      >
+      <span className="inline-block min-w-[3ch] text-center">
         <Cifra
           valor={tomadas}
           decimales={decimalesDe(tomadas)}
           className={tomadas > 0 ? 'font-semibold' : 'text-texto-tenue'}
         />
-      </output>
+      </span>
       <Button
         type="button"
         size="icon"
         variant="outline"
         aria-label={`Añadir ${nombre} a ${cuenta}`}
-        disabled={bloqueado || !puedeSumar}
+        aria-disabled={puedeSumar ? undefined : true}
+        disabled={bloqueado}
+        className={APAGADO_CON_FOCO}
         onClick={() => {
-          alMover(1);
+          if (puedeSumar) alMover(1);
         }}
       >
         <Plus />
@@ -225,16 +247,65 @@ function columnasDe({
 /**
  * El pie: cuántas unidades se lleva cada cuenta. Una cuenta vacía no pasa del
  * servidor —cada parte tiene que llevarse algo—; en cuanto ya no falta nada por
- * repartir, esa cuenta es lo único que queda por resolver, y se pinta en rojo.
+ * repartir, esa cuenta es lo único que queda por resolver: cambia de PALABRA
+ * («Vacía») y lleva el icono de alerta, además del rojo.
  */
 function pieDeParte(voc: Vocabulario, parte: Parte, faltan: number): ReactNode {
   const unidades = unidadesDe(parte);
   if (unidades > 0) return <Cifra valor={unidades} decimales={decimalesDe(unidades)} />;
+  if (faltan !== 0) {
+    return (
+      <span className="text-xs text-texto-sutil">
+        {voc.conDeterminante('ningun', 'linea_orden')}
+      </span>
+    );
+  }
   return (
-    <span className={`text-xs ${faltan === 0 ? 'text-peligro' : 'text-texto-sutil'}`}>
-      {voc.conDeterminante('ningun', 'linea_orden')}
+    <span className="inline-flex items-center gap-(--espacio-1) text-xs font-semibold text-peligro">
+      <CircleAlert aria-hidden="true" className="size-4" />
+      Vací{voc.terminacion('orden')}
     </span>
   );
+}
+
+/** «3» · «2 y 3» · «2, 3 y 5»: los números de las cuentas, dichos como en una frase. */
+function enumerar(numeros: readonly number[]): string {
+  const ultimo = numeros.at(-1);
+  if (ultimo === undefined) return '';
+  const antes = numeros.slice(0, -1).map(String);
+  return antes.length === 0 ? String(ultimo) : `${antes.join(', ')} y ${String(ultimo)}`;
+}
+
+/** Por qué no se puede dividir todavía, en palabras. `null` si ya se puede. */
+function loQueFalta(voc: Vocabulario, faltan: number, vacias: readonly number[]): string | null {
+  if (faltan !== 0) return `Faltan ${String(faltan)} por repartir`;
+  if (vacias.length === 0) return null;
+  const varias = vacias.length > 1;
+  return `${voc.titulo('orden', varias)} ${enumerar(vacias.map((i) => i + 1))} no lleva${varias ? 'n' : ''} ${voc.enFraseCon('ningun', 'linea_orden')}`;
+}
+
+/** El último «+» o «−»: qué platillo y en qué cuenta. */
+interface Movimiento {
+  readonly lineaId: string;
+  readonly indiceParte: number;
+}
+
+/**
+ * Lo que se movió, dicho para el lector de pantalla delante del contador: «Tacos: 1
+ * en la cuenta 1.». Es lo único que dice cuántas lleva la celda que se acaba de tocar.
+ */
+function queSeMovio(
+  voc: Vocabulario,
+  lineas: readonly LineaParaDividir[],
+  partes: readonly Parte[],
+  ultimo: Movimiento | null,
+): string {
+  if (ultimo === null) return '';
+  const linea = lineas.find((l) => l.id === ultimo.lineaId);
+  const parte = partes[ultimo.indiceParte];
+  if (linea === undefined || parte === undefined) return '';
+  const tomadas = parte.tomas[linea.id] ?? 0;
+  return `${linea.nombre}: ${String(tomadas)} en ${voc.enFrase('orden')} ${String(ultimo.indiceParte + 1)}. `;
 }
 
 function pieDe(
@@ -262,14 +333,19 @@ export function DividirCuentaDialog({
   const [partes, setPartes] = useState<readonly Parte[]>([{ tomas: {} }, { tomas: {} }]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ultimo, setUltimo] = useState<Movimiento | null>(null);
 
   const pendientes = useMemo(() => contarPendientes(lineas, partes), [lineas, partes]);
   const faltanPorRepartir = useMemo(
     () => Object.values(pendientes).reduce((a, n) => a + n, 0),
     [pendientes],
   );
+  // Las cuentas que no se llevan nada: el servidor las rechaza.
+  const vacias = partes.flatMap((parte, indice) => (unidadesDe(parte) === 0 ? [indice] : []));
+  const razon = loQueFalta(voc, faltanPorRepartir, vacias);
 
   function mover(indiceParte: number, lineaId: string, delta: number): void {
+    setUltimo({ lineaId, indiceParte });
     setPartes((previas) =>
       previas.map((parte, i) => {
         if (i !== indiceParte) return parte;
@@ -376,20 +452,23 @@ export function DividirCuentaDialog({
                 ) : null}
               </span>
               {/* El contador de lo que falta: es lo que explica por qué el botón
-                  de dividir está apagado. Un botón inerte sin motivo es la forma
-                  más rápida de que alguien cierre el diálogo y cobre mal. */}
+                  de dividir está apagado —unidades sueltas o una cuenta vacía—.
+                  Un botón inerte sin motivo es la forma más rápida de que alguien
+                  cierre el diálogo y cobre mal. Es la ÚNICA región viva. */}
               <p
                 role="status"
-                className={`inline-flex items-center gap-(--espacio-2) text-sm ${faltanPorRepartir === 0 ? 'text-texto-sutil' : 'font-medium text-texto'}`}
+                className={`inline-flex items-center gap-(--espacio-2) text-sm ${razon === null ? 'text-texto-sutil' : 'font-medium text-texto'}`}
               >
-                {faltanPorRepartir === 0 ? (
+                <span className="sr-only">{queSeMovio(voc, lineas, partes, ultimo)}</span>
+                {razon === null ? (
                   <Check aria-hidden="true" className="size-4 text-exito" />
                 ) : (
-                  <CircleAlert aria-hidden="true" className="size-4 text-advertencia" />
+                  <CircleAlert
+                    aria-hidden="true"
+                    className={`size-4 ${faltanPorRepartir === 0 ? 'text-peligro' : 'text-advertencia'}`}
+                  />
                 )}
-                {faltanPorRepartir === 0
-                  ? 'Todo repartido'
-                  : `Faltan ${String(faltanPorRepartir)} por repartir`}
+                {razon ?? 'Todo repartido'}
               </p>
             </div>
 
@@ -410,7 +489,7 @@ export function DividirCuentaDialog({
                 type="button"
                 size="lg"
                 cargando={enviando}
-                disabled={faltanPorRepartir !== 0 || enviando}
+                disabled={razon !== null || enviando}
                 onClick={() => {
                   void dividir();
                 }}

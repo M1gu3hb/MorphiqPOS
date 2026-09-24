@@ -15,6 +15,7 @@ import {
 } from '@morphiqpos/ui/sistema';
 import { BellRing, QrCode, ReceiptText, UtensilsCrossed } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -139,9 +140,35 @@ function mensajeDe(cuerpo: Respuesta): string | null {
 
 type Solicitud = 'cuenta' | 'mesero';
 
+/**
+ * El `tipo` que acepta `portal.crear_solicitud` por cada botón: `ordenar`, `cuenta` o
+ * `ayuda`. «Llamar al mesero» es la solicitud de AYUDA; `mesero` el esquema lo rechaza.
+ */
+const TIPO_DE_SOLICITUD: Readonly<Record<Solicitud, 'cuenta' | 'ayuda'>> = {
+  cuenta: 'cuenta',
+  mesero: 'ayuda',
+};
+
+/** El aviso ya estaba puesto (`QR_SOLICITUD_DUPLICADA`): es justo lo que se pedía. */
+const HTTP_YA_AVISADO = 409;
+
+const NO_SE_PUDO_AVISAR = 'No se pudo avisar. Levanta la mano.';
+
 interface AvisoDeSolicitud {
   readonly tono: 'exito' | 'peligro';
   readonly texto: string;
+}
+
+/**
+ * Por qué no llegó el aviso, en palabras del comensal. Las reglas del portal —cerrado,
+ * demasiadas peticiones, código que ya no sirve— traen un mensaje escrito para él; lo
+ * demás es técnico, y a quien está sentado a la mesa sólo le sirve levantar la mano.
+ */
+function porQueNoLlego(fallo: unknown): string {
+  if (!(fallo instanceof ErrorApi) || fallo.error.codigo !== 'REGLA_DE_NEGOCIO') {
+    return NO_SE_PUDO_AVISAR;
+  }
+  return fallo.error.mensaje === '' ? NO_SE_PUDO_AVISAR : fallo.error.mensaje;
 }
 
 /** El id del ancla de cada sección: su posición, porque el nombre es texto libre. */
@@ -226,21 +253,35 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
     setIntento((previo) => previo + 1);
   }
 
+  /**
+   * EL AVISO VERDE SÓLO CUANDO EL SERVIDOR LO CONFIRMA.
+   *
+   * Era un `fetch` que no miraba la respuesta: un 400, un 403, un 429 o un 500 no
+   * rechazan la promesa, así que al comensal le salía «Ya viene alguien» con la palomita
+   * aunque el aviso nunca llegara. Y no llegaba nunca: iba sin la clave de idempotencia
+   * que el servidor exige a todo comando público, y «llamar al mesero» con un `tipo` que
+   * su esquema no acepta. `invocarComando` pone la clave y lanza con el estado cuando el
+   * servidor dice que no; el 409 —ya había un aviso pendiente— sí es un éxito.
+   */
   function solicitar(tipo: Solicitud): void {
+    if (enviando !== null) return;
     setEnviando(tipo);
-    fetch(`/api/publico/qr/${token}/solicitud`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-morphiqpos-request': '1' },
-      body: JSON.stringify({ tipo }),
+    const avisado: AvisoDeSolicitud = {
+      tono: 'exito',
+      texto: tipo === 'cuenta' ? `Ya va ${voc.enFrase('orden')}.` : 'Ya viene alguien.',
+    };
+    invocarComando<unknown>(`/api/publico/qr/${token}/solicitud`, {
+      tipo: TIPO_DE_SOLICITUD[tipo],
     })
       .then(() => {
-        setAviso({
-          tono: 'exito',
-          texto: tipo === 'cuenta' ? `Ya va ${voc.enFrase('orden')}.` : 'Ya viene alguien.',
-        });
+        setAviso(avisado);
       })
-      .catch(() => {
-        setAviso({ tono: 'peligro', texto: 'No se pudo avisar. Levanta la mano.' });
+      .catch((fallo: unknown) => {
+        if (fallo instanceof ErrorApi && fallo.estado === HTTP_YA_AVISADO) {
+          setAviso(avisado);
+          return;
+        }
+        setAviso({ tono: 'peligro', texto: porQueNoLlego(fallo) });
       })
       .finally(() => {
         setEnviando(null);
@@ -306,9 +347,9 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
           <Esqueleto className="h-4 w-24" />
         </div>
         <div className="flex gap-(--espacio-2)">
-          <Esqueleto redondo className="h-[calc(var(--altura-control)*0.85)] w-24" />
-          <Esqueleto redondo className="h-[calc(var(--altura-control)*0.85)] w-24" />
-          <Esqueleto redondo className="h-[calc(var(--altura-control)*0.85)] w-24" />
+          <Esqueleto redondo className="h-(--altura-control) w-24" />
+          <Esqueleto redondo className="h-(--altura-control) w-24" />
+          <Esqueleto redondo className="h-(--altura-control) w-24" />
         </div>
         <EsqueletoDeLista filas={8} />
       </main>
@@ -368,14 +409,10 @@ export function PortalDelComensal({ token, datosIniciales }: PortalProps) {
             aria-label="Secciones de la carta"
             className="flex gap-(--espacio-2) overflow-x-auto"
           >
+            {/* Del alto de un control y no `sm`: es la navegación de la carta con el
+                pulgar, y `sm` quedaba por debajo de los 44 px de 04-INTERFAZ §4.6. */}
             {secciones.map((seccion, indice) => (
-              <Button
-                key={seccion}
-                asChild
-                variant="outline"
-                size="sm"
-                className="rounded-full capitalize"
-              >
+              <Button key={seccion} asChild variant="outline" className="rounded-full capitalize">
                 <a href={`#${anclaDe(indice)}`}>{seccion}</a>
               </Button>
             ))}

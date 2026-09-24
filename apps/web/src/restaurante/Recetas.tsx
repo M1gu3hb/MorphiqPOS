@@ -27,10 +27,11 @@ import {
   type TamanoDeDinero,
 } from '@morphiqpos/ui/sistema';
 import { ArrowLeft, ChefHat, ClipboardList } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -44,18 +45,27 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ── Manda el margen, no el nombre ────────────────────────────────────────
  * La jerarquía del documento es 1 margen · 2 si tiene receta · 3 precio, así
  * que el margen lleva semáforo —verde arriba de 60 %, ámbar de 40 a 60, rojo
- * debajo— y la lista se ordena por urgencia: lo que pierde dinero primero, lo
- * que ni siquiera tiene receta después, y hasta el final lo sano. Alfabético
- * escondería los seis platillos que importan entre noventa que no. El número del
- * margen va en cifras y más grande que el precio; la palabra lo acompaña, porque
- * el color nunca va solo.
+ * debajo— y la lista empieza ordenada por urgencia: lo que pierde dinero primero,
+ * lo que ni siquiera tiene receta después, y luego el resto de menos a más margen.
+ * Alfabético escondería los seis platillos que importan entre noventa que no. El
+ * número del margen va en cifras y más grande que el precio; la palabra lo
+ * acompaña, porque el color nunca va solo. En teléfono no caben las columnas de
+ * costo y precio: bajan a la celda del platillo, que es lo primero que se ve.
  *
  * ── La fila se convierte en panel ────────────────────────────────────────
  * Abrir un platillo es la fila que se expande hasta ser su receta: en PC y
  * tableta horizontal, a un panel fijo al lado de la lista —se capturan treinta
  * seguidas sin perder de vista cuál falta—; en teléfono, el panel ocupa el lugar
  * de la lista y «Volver» la devuelve. La fila y el panel llevan el mismo nombre
- * de viaje (`VIAJE.fila`), nunca los dos a la vez.
+ * de viaje (`VIAJE.fila`), nunca los dos a la vez. Cuando la lista se esconde, el
+ * foco va al título del panel; al volver, regresa a la fila de la que salió: sin
+ * eso caía al `body` en la tableta vertical, que es donde más se usa.
+ *
+ * ── Cada aviso sabe de qué platillo es ───────────────────────────────────
+ * Un guardado tarda —relee costo y margen— y en ese rato se abre el siguiente
+ * platillo. Lo que conteste ese guardado es del platillo que lo mandó: se pinta en
+ * SU panel, o arriba con su nombre si está abierto otro, nunca dentro del panel de
+ * otro platillo.
  *
  * ── La cantidad se teclea en la unidad que uno quiera ────────────────────
  * En cocina se dice «250 gramos» y «medio litro». Obligar a teclear en unidad
@@ -83,8 +93,6 @@ const MARGEN_AJUSTADO = 40;
 const PUNTOS_BASE_POR_PUNTO = 100;
 const HTTP_DEMASIADOS_INTENTOS = 429;
 const CANTIDAD_VALIDA = /^\d{1,10}(?:\.\d{1,4})?$/;
-/** El puente entrega PESOS —ya dividió los centavos— y `Dinero` pinta centavos enteros. */
-const CENTAVOS_POR_PESO = 100;
 const DECIMALES_MAXIMOS = 4;
 const PORCENTAJE_COMPLETO = 100;
 
@@ -134,6 +142,9 @@ const VACIO: Borrador = { productoId: '', insumoId: '', cantidad: '', unidad: 'g
 
 /** Lo que se le dice a quien captura: un dato que falta, o un comando que falló. */
 interface Problema {
+  /** De qué platillo es: un guardado lento contesta cuando ya está abierto otro. */
+  readonly productoId: string;
+  readonly platillo: string;
   readonly tono: 'atencion' | 'peligro';
   readonly titulo: string;
   /** Lo que pasó y lo que NO pasó: si la receta se guardó o quedó como estaba. */
@@ -179,8 +190,6 @@ export function armarFilas(
     });
 }
 
-const aCentavos = (pesos: number): number => Math.round(pesos * CENTAVOS_POR_PESO);
-
 /** Cuántos decimales tiene lo que se capturó: «0.25 kg» no se lee «0 kg». */
 function decimalesDe(valor: number): number {
   const [, fraccion = ''] = String(valor).split('.');
@@ -214,7 +223,10 @@ async function leerTodo(signal: AbortSignal) {
 
 /* ── Las piezas que se repiten en la lista y en el panel ──────────────── */
 
-/** Un importe que puede no existir todavía: sin costo calculado es «—», no «$0.00». */
+/**
+ * Un importe que puede no existir todavía: sin costo calculado es «—», no «$0.00».
+ * El puente lo sirve en PESOS (`conversion: 'dinero'`); `Dinero` pinta centavos.
+ */
 function Importe({
   pesos,
   tamano = 'sm',
@@ -222,10 +234,11 @@ function Importe({
   readonly pesos: number | null;
   readonly tamano?: TamanoDeDinero;
 }) {
-  if (pesos === null || !Number.isFinite(pesos)) {
+  const centavos = centavosDelPuente(pesos);
+  if (centavos === null) {
     return <span className="text-texto-tenue">—</span>;
   }
-  return <Dinero centavos={aCentavos(pesos)} tamano={tamano} />;
+  return <Dinero centavos={centavos} tamano={tamano} />;
 }
 
 /** El margen: la cifra, que es lo que se lee, y el semáforo con su palabra al lado. */
@@ -279,6 +292,15 @@ function columnasDePlatillos(tituloDePlatillo: string): readonly ColumnaDeTabla<
           {/* En teléfono no cabe la columna «Receta»: el dato baja aquí. */}
           <span className="text-xs sm:hidden">
             <EstadoDeReceta fila={fila} />
+          </span>
+          {/* Ni caben «Costo» y «Precio», y son la mitad de lo que el dueño viene a
+              ver: bajan aquí con su palabra delante. */}
+          <span className="flex flex-wrap items-baseline gap-x-(--espacio-1) text-xs text-texto-sutil md:hidden">
+            <span>Costo</span>
+            <Importe pesos={fila.producto.costo_calculado_actual} tamano="xs" />
+            <span aria-hidden="true">·</span>
+            <span>Precio</span>
+            <Importe pesos={fila.producto.precio_venta} tamano="xs" />
           </span>
         </span>
       ),
@@ -374,6 +396,9 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
   const [borrador, setBorrador] = useState<Borrador>(VACIO);
   const [guardando, setGuardando] = useState<string | null>(null);
   const [problema, setProblema] = useState<Problema | null>(null);
+  /** La lista, para saber si el panel la tapó y para devolverle el foco a su fila. */
+  const lista = useRef<HTMLDivElement>(null);
+  const tituloDelPanel = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     if (filasIniciales !== undefined) return undefined;
@@ -404,9 +429,18 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
    * dentro del cambio se lo quita y lo toma el PANEL, y `flushSync` hace que el
    * navegador fotografíe el estado nuevo ya pintado. Nunca los dos a la vez: con
    * dos elementos del mismo nombre el navegador no anima ninguno.
+   *
+   * El aviso del platillo que se deja ya se vio y se limpia; el de OTRO —un guardado
+   * que contestó con este panel abierto— se queda hasta que se abra el suyo.
+   *
+   * Si el panel tapó la lista (debajo de `lg`), la fila que tenía el foco quedó
+   * escondida; si se abrió desde el aviso de arriba, el botón se desmontó con él. En
+   * los dos casos el foco pasa al título del panel. En la PC, abierto desde la
+   * lista, la lista sigue a la vista y el foco se queda en su fila.
    */
   function abrir(id: string): void {
     if (id === abierta) return;
+    const dejada = abierta;
     flushSync(() => {
       setViajando(id);
     });
@@ -414,21 +448,30 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
       flushSync(() => {
         setViajando(null);
         setAbierta(id);
-        setProblema(null);
+        setProblema((previo) => (previo !== null && previo.productoId === dejada ? null : previo));
       });
+      const listaEscondida = lista.current !== null && lista.current.getClientRects().length === 0;
+      const sinFoco = document.activeElement === null || document.activeElement === document.body;
+      if (listaEscondida || sinFoco) tituloDelPanel.current?.focus();
     });
   }
 
-  /** En teléfono: el panel vuelve a ser la fila de la que salió. */
+  /**
+   * En teléfono: el panel vuelve a ser la fila de la que salió, y el foco también.
+   * La fila se busca ANTES del cambio, mientras aún es la activa; el elemento es el
+   * mismo después, sólo deja de estar escondido.
+   */
   function volver(): void {
     const id = abierta;
     if (id === null) return;
+    const fila = lista.current?.querySelector<HTMLElement>('tr[data-activa]') ?? null;
     void conTransicion(() => {
       flushSync(() => {
         setAbierta(null);
         setViajando(id);
-        setProblema(null);
+        setProblema((previo) => (previo !== null && previo.productoId === id ? null : previo));
       });
+      fila?.focus();
     });
   }
 
@@ -442,21 +485,29 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
     }));
   };
 
+  /**
+   * Todo lo que contesta el guardado se ata a SU platillo: el aviso, el borrador que
+   * se limpia y el «Guardando…». Mientras se relee, quien captura ya abrió el
+   * siguiente, y ése no se toca.
+   */
   const agregar = async (fila: FilaDeReceta) => {
-    const datos = borrador.productoId === fila.producto.id ? borrador : VACIO;
+    const productoId = fila.producto.id;
+    const delPlatillo = { productoId, platillo: fila.producto.nombre };
+    const datos = borrador.productoId === productoId ? borrador : VACIO;
     if (datos.insumoId === '' || !CANTIDAD_VALIDA.test(datos.cantidad)) {
       setProblema({
+        ...delPlatillo,
         tono: 'atencion',
         titulo: 'Elige un ingrediente y escribe una cantidad como 250 o 0.5.',
         consecuencia: null,
       });
       return;
     }
-    setGuardando(fila.producto.id);
+    setGuardando(productoId);
     let seGuardo = false;
     try {
       await invocarComando(RUTA_GUARDAR, {
-        productoId: fila.producto.id,
+        productoId,
         ingredientes: [
           ...fila.lineas.map(aIngrediente),
           { insumoId: datos.insumoId, cantidad: datos.cantidad, unidad: datos.unidad, mermaBp: 0 },
@@ -467,10 +518,11 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
       // cascada, y son los dos números por los que alguien captura esto.
       const leido = await leerTodo(new AbortController().signal);
       setFilas(leido.filas);
-      setBorrador(VACIO);
-      setProblema(null);
+      setBorrador((previo) => (previo.productoId === productoId ? VACIO : previo));
+      setProblema((previo) => (previo?.productoId === productoId ? null : previo));
     } catch (fallo: unknown) {
       setProblema({
+        ...delPlatillo,
         tono: seGuardo ? 'atencion' : 'peligro',
         titulo: mensajeDeFallo(fallo),
         consecuencia: seGuardo
@@ -478,15 +530,18 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
           : 'No se guardó nada: la receta quedó como estaba.',
       });
     } finally {
-      setGuardando(null);
+      setGuardando((previo) => (previo === productoId ? null : previo));
     }
   };
 
+  // Dice el orden CON EL QUE LLEGA la lista (`armarFilas`); tocar una cabecera lo
+  // cambia, y por eso dice «de entrada».
   const cabecera = (
     <div className="flex flex-col gap-(--espacio-1)">
       <h1 className="text-2xl font-bold">Recetas</h1>
       <p className="text-sm text-texto-sutil">
-        Por urgencia: lo que deja poco margen primero, lo que no tiene receta después.
+        De entrada, por urgencia: lo que pierde dinero, luego lo que no tiene receta y después de
+        menos a más margen.
       </p>
     </div>
   );
@@ -539,6 +594,10 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
 
   const conReceta = filas.filter((fila) => fila.lineas.length > 0).length;
   const filaAbierta = filas.find((fila) => fila.producto.id === abierta) ?? null;
+  // El aviso va en el panel de SU platillo; si el abierto es otro, arriba y con su nombre.
+  const idAbierto = filaAbierta?.producto.id ?? null;
+  const problemaDelPanel = problema?.productoId === idAbierto ? problema : null;
+  const problemaDeOtro = problema !== null && problema.productoId !== idAbierto ? problema : null;
 
   return (
     <div className={MARCO}>
@@ -553,22 +612,45 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
         />
       </header>
 
-      <Tabla
-        etiqueta={voc.titulo('linea_orden', true)}
-        columnas={columnasDePlatillos(voc.titulo('linea_orden'))}
-        filas={filas}
-        claveDe={(fila) => fila.producto.id}
-        {...(filaAbierta === null ? {} : { activa: filaAbierta.producto.id })}
-        alActivar={abrir}
-        viajeDeFila={(fila) =>
-          fila.producto.id === viajando ? VIAJE.fila(fila.producto.id) : undefined
-        }
-        tonoDeFila={(fila) =>
-          pierdeMargen(fila.producto.margen_bruto_actual) ? 'peligro' : undefined
-        }
-        alto="max-h-[70vh]"
-        className={filaAbierta === null ? '' : 'hidden lg:block'}
-      />
+      {problemaDeOtro === null ? null : (
+        <Aviso
+          className="lg:col-span-2"
+          tono={problemaDeOtro.tono}
+          titulo={`Receta de ${problemaDeOtro.platillo}: ${problemaDeOtro.titulo}`}
+          accion={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                abrir(problemaDeOtro.productoId);
+              }}
+            >
+              Ver la receta de {problemaDeOtro.platillo}
+            </Button>
+          }
+        >
+          {problemaDeOtro.consecuencia}
+        </Aviso>
+      )}
+
+      <div ref={lista} className={filaAbierta === null ? 'min-w-0' : 'hidden min-w-0 lg:block'}>
+        <Tabla
+          etiqueta={voc.titulo('linea_orden', true)}
+          columnas={columnasDePlatillos(voc.titulo('linea_orden'))}
+          filas={filas}
+          claveDe={(fila) => fila.producto.id}
+          {...(filaAbierta === null ? {} : { activa: filaAbierta.producto.id })}
+          alActivar={abrir}
+          viajeDeFila={(fila) =>
+            fila.producto.id === viajando ? VIAJE.fila(fila.producto.id) : undefined
+          }
+          tonoDeFila={(fila) =>
+            pierdeMargen(fila.producto.margen_bruto_actual) ? 'peligro' : undefined
+          }
+          alto="max-h-[70vh]"
+        />
+      </div>
 
       {filaAbierta === null ? (
         <Vacio
@@ -583,7 +665,8 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
           insumos={insumos}
           datos={borrador.productoId === filaAbierta.producto.id ? borrador : VACIO}
           guardando={guardando === filaAbierta.producto.id}
-          problema={problema}
+          problema={problemaDelPanel}
+          refDelTitulo={tituloDelPanel}
           textoDeVolver={`Volver a ${voc.enFrase('linea_orden', true)}`}
           alEscribir={(cambio) => {
             escribir(filaAbierta.producto.id, cambio);
@@ -605,7 +688,10 @@ interface PanelDeRecetaProps {
   readonly insumos: readonly IngredienteDisponible[];
   readonly datos: Borrador;
   readonly guardando: boolean;
+  /** Ya filtrado: sólo el aviso de ESTE platillo. */
   readonly problema: Problema | null;
+  /** El título, adonde va el foco cuando el panel tapa la lista. */
+  readonly refDelTitulo: Ref<HTMLHeadingElement>;
   readonly textoDeVolver: string;
   readonly alEscribir: (cambio: Partial<Borrador>) => void;
   readonly alAgregar: () => void;
@@ -619,6 +705,7 @@ function PanelDeReceta({
   datos,
   guardando,
   problema,
+  refDelTitulo,
   textoDeVolver,
   alEscribir,
   alAgregar,
@@ -649,7 +736,13 @@ function PanelDeReceta({
       </Button>
 
       <header className="flex flex-col gap-(--espacio-1)">
-        <h2 className="text-xl font-bold">{producto.nombre}</h2>
+        <h2
+          ref={refDelTitulo}
+          tabIndex={-1}
+          className="text-xl font-bold focus-visible:ring-2 focus-visible:ring-anillo focus-visible:outline-none"
+        >
+          {producto.nombre}
+        </h2>
         <p className="text-sm text-texto-sutil">{producto.categoria_nombre ?? 'Sin categoría'}</p>
       </header>
 

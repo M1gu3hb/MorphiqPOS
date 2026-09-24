@@ -286,14 +286,16 @@ export function Cocina({ filasIniciales }: CocinaProps) {
       )}
       {comandas.length === 0 ? (
         // El único vacío de la aplicación que es una BUENA noticia, y se ve así:
-        // el tipo más grande de la pantalla, en verde y sin una sola disculpa. El
-        // título va en el paso `display` por la misma razón que un total: se lee
-        // desde la plancha, a dos metros, sin acercarse.
+        // el tipo más grande de la pantalla, en verde y sin una sola disculpa. Es
+        // el vacío que ES la pantalla (`protagonista`: el título en el paso
+        // `display`), porque se lee desde la plancha, a dos metros, sin acercarse.
         <Vacio
-          icono={<Check className="text-exito" />}
+          icono={<Check />}
           titulo="Sin comandas pendientes."
           explicacion="Lo que se envíe desde el salón aparece aquí solo."
-          className="flex-1 rounded-lg bg-exito/15 [&>p:first-of-type]:text-display [&>p:first-of-type]:font-bold"
+          tamano="protagonista"
+          tono="exito"
+          className="flex-1"
         />
       ) : esTelefono ? (
         <Tabs defaultValue="nuevo">

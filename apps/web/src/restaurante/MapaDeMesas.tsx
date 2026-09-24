@@ -2,14 +2,7 @@
 
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import {
-  Aviso,
-  ErrorDePantalla,
-  Esqueleto,
-  Superficie,
-  VIAJE,
-  Vacio,
-} from '@morphiqpos/ui/sistema';
+import { ErrorDePantalla, Esqueleto, Superficie, VIAJE, Vacio } from '@morphiqpos/ui/sistema';
 import { LayoutGrid, PartyPopper, TriangleAlert } from 'lucide-react';
 import { ViewTransition, useEffect, useMemo, useState, type ReactNode } from 'react';
 
@@ -216,12 +209,9 @@ function Encabezado({
  */
 function PisoDelSalon({
   etiqueta,
-  apagado = false,
   children,
 }: {
   readonly etiqueta: string;
-  /** Con el último dato conocido tras un fallo: el mapa sigue, pero en gris. */
-  readonly apagado?: boolean;
   readonly children: ReactNode;
 }) {
   return (
@@ -230,7 +220,7 @@ function PisoDelSalon({
       nivel={0}
       relleno={0}
       aria-label={etiqueta}
-      className={`border-0 bg-transparent md:border md:bg-fondo-sutil md:p-(--espacio-4) ${apagado ? 'grayscale' : ''}`}
+      className="border-0 bg-transparent md:border md:bg-fondo-sutil md:p-(--espacio-4)"
     >
       {children}
     </Superficie>
@@ -258,8 +248,10 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
         if (vivo) setMesas(filas);
       })
       .catch((error: unknown) => {
-        // La pantalla NUNCA se vacía por un error de red: el mesero prefiere un
-        // dato de hace diez segundos a una pantalla en blanco.
+        // El mapa se lee UNA vez, al montarse (volver de una mesa lo monta otra
+        // vez); no hay relectura periódica. Así que un fallo siempre llega SIN
+        // mapa, y se dice con `ErrorDePantalla`: el estado «último dato conocido,
+        // en gris» de 04-INTERFAZ pide primero un mapa que se refresque solo.
         if (vivo) setFallo(error instanceof Error ? error.message : 'No se pudo leer el salón.');
       });
     return () => {
@@ -277,8 +269,8 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
   const titulo = voc.titulo('unidad_servicio', true);
 
   if (mesas === null && fallo !== null) {
-    // Sin ningún dato conocido no hay mapa que dejar en gris: se dice qué pasó y
-    // se ofrece volver a leer, que es lo único que el mesero puede hacer aquí.
+    // Sin ningún dato conocido no hay mapa que enseñar: se dice qué pasó y se
+    // ofrece volver a leer, que es lo único que el mesero puede hacer aquí.
     return (
       <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
         <Encabezado titulo={titulo} />
@@ -386,18 +378,9 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
         </nav>
       </Encabezado>
 
-      {fallo === null ? null : (
-        <Aviso tono="peligro" titulo={fallo}>
-          Se muestra el último dato conocido.
-        </Aviso>
-      )}
-
       {/* Rejilla en teléfono, piso del salón de tableta para arriba. Las mesas
           nunca bajan de 64 px de lado: es el mínimo que un dedo acierta. */}
-      <PisoDelSalon
-        etiqueta={zona === null ? titulo : `${titulo} · ${zona}`}
-        apagado={fallo !== null}
-      >
+      <PisoDelSalon etiqueta={zona === null ? titulo : `${titulo} · ${zona}`}>
         <ul className={REJILLA}>
           {visibles.map((mesa) => {
             const estado = esEstado(mesa.estado) ? ESTADOS[mesa.estado] : null;

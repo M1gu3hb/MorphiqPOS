@@ -89,16 +89,17 @@ export interface PrecuentaProps {
 }
 
 /**
- * La densidad del rollo, sobre la tabla del sistema.
+ * El borde del rollo, sobre la tabla del sistema: sólo su caja, no su marcado.
  *
- * La tabla viene con el ritmo de una pantalla de PC: cuerpo `sm`, doce píxeles
- * de relleno por lado y la cabecera en gris. En 80 mm —302 px— eso deja al
- * nombre del platillo la mitad del papel, y el corte que la pantalla esconde es
- * justo el que el comensal ve impreso. Aquí se lleva al cuerpo y al margen del
- * papel; la cabecera, las cifras tabulares y la alineación siguen siendo suyas.
+ * DIFERENCIA CON EL PAPEL, dicha y no rodeada: la tabla trae el ritmo de una
+ * pantalla de PC —cuerpo `sm`, doce píxeles de relleno por lado, la cabecera en
+ * gris— y en 80 mm (302 px) eso le deja al nombre del platillo menos ancho que el
+ * del rollo, así que aquí un nombre puede partirse donde en el papel no se parte.
+ * Llevarla a la densidad del papel es una variante de `Tabla` que la biblioteca
+ * todavía no tiene (una `densidad` de rollo: cuerpo `xs`, relleno `--espacio-1`);
+ * desde fuera sólo se alcanzaba metiendo la mano en su `<td>`.
  */
-const TABLA_DE_ROLLO =
-  'rounded-none border-x-0 border-dashed [&_table]:text-xs [&_td]:px-(--espacio-1) [&_td]:py-(--espacio-1) [&_th]:px-(--espacio-1) [&_th]:py-(--espacio-1) [&_thead]:bg-superficie';
+const TABLA_DE_ROLLO = 'rounded-none border-x-0 border-dashed';
 
 /** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
 function aCentavos(pesos: number): number {
@@ -114,7 +115,7 @@ function Importe({
   className = '',
 }: {
   readonly pesos: number | null | undefined;
-  readonly tamano?: 'xs' | 'lg';
+  readonly tamano?: 'xs' | 'xl';
   readonly className?: string;
 }) {
   if (pesos == null) return <span className={className}>—</span>;
@@ -412,7 +413,8 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
       />
 
       {/* 1 · EL TOTAL. Es lo que el comensal busca primero, y lo único que se lee
-          desde el otro lado de la mesa. */}
+          desde el otro lado de la mesa: por eso es lo más grande de la hoja, por
+          encima del código para caja. */}
       <dl className="grid grid-cols-[1fr_auto] gap-x-(--espacio-2) gap-y-(--espacio-1)">
         <dt>Subtotal</dt>
         <dd className="text-right">
@@ -429,17 +431,18 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
         </dd>
         <dt className="mt-(--espacio-1) self-baseline text-lg font-bold">TOTAL</dt>
         <dd className="mt-(--espacio-1) self-baseline text-right text-lg">
-          <Importe pesos={cuenta.total} tamano="lg" className="font-bold" />
+          <Importe pesos={cuenta.total} tamano="xl" className="font-bold" />
         </dd>
       </dl>
 
       <Separator />
 
       {/* 2 · EL CÓDIGO PARA CAJA. El comensal camina con este papel en la mano y
-          el cajero busca ESTA cuenta, no la mesa, entre veinte pendientes. */}
+          el cajero busca ESTA cuenta, no la mesa, entre veinte pendientes. Grande
+          y monoespaciado, pero un escalón por debajo del total. */}
       <section className="text-center" aria-label="Código para caja">
         <p className="text-texto-sutil">CÓDIGO PARA CAJA</p>
-        <p className="mt-(--espacio-1) border-2 border-dashed border-borde-fuerte px-(--espacio-2) py-(--espacio-2) text-2xl font-bold tracking-widest">
+        <p className="mt-(--espacio-1) border border-dashed border-borde-fuerte px-(--espacio-2) py-(--espacio-2) text-xl font-bold tracking-widest">
           {cuenta.codigo_caja ?? cuenta.folio}
         </p>
       </section>
