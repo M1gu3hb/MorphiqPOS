@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { ESTILOS } from '../../packages/ui/src/tokens/estilos.ts';
+import { agendarUnMiercolesDeMuestra } from './ayudantes/agenda-de-muestra';
 import { abrirCajaPorLaRuta, consultarPuente, entrar, vigilarFallos } from './ayudantes/sesion';
 
 /**
@@ -112,7 +113,7 @@ const RETRATOS: Readonly<Record<string, readonly Retrato[]>> = {
     { ruta: '/ferreteria/material', de: 'material' },
   ],
   estetica: [
-    { ruta: '/estetica-salon/agenda-del-dia', de: 'agenda' },
+    { ruta: '/estetica-salon/agenda-del-dia', de: 'agenda', preparar: agendarUnMiercolesDeMuestra },
     { ruta: '/', de: 'inicio' },
     { ruta: '/estetica-salon/catalogo-de-servicios', de: 'lista' },
     { ruta: '/estetica-salon/clientas', de: 'clientas' },

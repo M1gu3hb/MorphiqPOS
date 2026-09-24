@@ -5535,3 +5535,17 @@ compara. Pero dejó pasar dos cosas, y las dos se arreglan:
   dentro de un botón y el reinicio de estilos pone los botones en `text-transform: none`. Una tabla
   con columnas ordenables y otras que no salía con las cabeceras en dos tipografías. El botón lleva
   ahora su `uppercase`, con su prueba (roja contra el código de antes). Los retratos se regeneran.
+
+### La galería, en verde y en rojo cuando toca (24-09-2026)
+
+- **En verde sobre el código sin cambiar**: la vuelta del PR sobre `d5d4c8e` (`35973629748`), los
+  cinco modelos × ocho estilos contra los retratos de referencia, con la tolerancia nueva de 150
+  píxeles.
+- **En rojo con la mutación** (rama desechable, borrada): las cabeceras de `Tabla` un paso más
+  grandes (`text-xs` → `text-sm`), sin regenerar nada. Corrida `35973647427`: **la galería en ROJO en
+  los cinco modelos** —«/restaurante/inventario en morphiq cambió y nadie lo declaró», 21 654
+  píxeles; «/estetica-salon/agenda-del-dia», 2 591; y tienda, cafetería y ferretería—.
+
+Y la agenda de la estética se retrataba VACÍA —la demo se siembra sin citas—: la galería agenda ahora
+tres en el próximo miércoles por las rutas de la recepción y retrata ese día
+(`pruebas/e2e/ayudantes/agenda-de-muestra.ts`). Los retratos se regeneran otra vez.
