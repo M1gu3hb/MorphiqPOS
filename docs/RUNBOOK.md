@@ -24,11 +24,16 @@ activa, hay que decir cuál con `ORGANIZACION=<slug>` en el entorno; con una
 sola, se resuelve sola. Sin eso, la pantalla de acceso responde 500 y el
 servidor dice en su log exactamente qué falta.
 
-Para sembrar la organización de demostración de este despliegue:
+Para sembrar (dejar como recién nacida) una demostración de este despliegue:
 
 ```bash
-node scripts/sembrar-demo.mjs --org demo-ferreteria-la-broca
+node scripts/sembrar-demo.mjs --negocio demo-acople-ferreteria --base <url>
 ```
+
+**Sólo sobre una demo.** Aquí decía `--org demo-ferreteria-la-broca`: La Broca, Don Chuy
+y Jacaranda llevan `demo-` en el slug y son negocios REALES que cobran. El guion, los
+`humo-*`, `db:bootstrap`, `db:alta-negocio` y el propio reseteo del servidor se niegan
+sobre ellos (lista única por ID en `packages/contracts/src/negocios`).
 
 ---
 
@@ -150,12 +155,15 @@ vercel inspect --logs <url> --scope mh-astral-systems
 ### Humo después de desplegar
 
 ```bash
-pnpm db:bootstrap --org demo-ferreteria-la-broca --persona "Elena" --pin 4821
-node scripts/humo-venta.mjs --base https://pos-mh-astral-systems.com
+node scripts/humo-venta.mjs --base https://morphiqpos-kappa.vercel.app --negocio demo-acople-tienda
 ```
 
 Recorre los once pasos por HTTP sin importar una línea del servidor: si el
-bundle de producción se rompió, esto se entera. Hay tres más —`humo-turno.mjs`,
+bundle de producción se rompió, esto se entera. **Sólo sobre una demo, nombrada**: los
+`humo-*` exigen `--negocio demo-acople-<giro>` y se niegan —antes de mandar una sola
+petición— con cualquier negocio que no esté en la lista de demos
+(`packages/contracts/src/negocios`). Aquí decía `db:bootstrap --org
+demo-ferreteria-la-broca`, que es un negocio REAL: le habría rotado el PIN a su dueña. Hay tres más —`humo-turno.mjs`,
 `humo-accesos.mjs`, `humo-seguridad.mjs`— y todos aceptan `--base`.
 
 Las URL `*.vercel.app` están detrás del SSO del equipo. Para correr humo contra

@@ -2,7 +2,7 @@
 /**
  * El día completo del cajero (F1.1-C-10 y C-11), contra un servidor REAL.
  *
- *   node scripts/humo-turno.mjs [--base URL] [--pin 4821]
+ *   node scripts/humo-turno.mjs [--base URL] --negocio demo-acople-<giro> [--pin 1234]
  *
  * Abre caja, cobra tres ventas con métodos distintos —una de ellas MIXTA—,
  * registra un gasto y cierra cuadrando. La comprobación que vale es la última:
@@ -10,6 +10,12 @@
  * un centavo más. Si la tarjeta se contara como billetes, aquí se ve.
  */
 import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
+import {
+  demoDeLaCorrida,
+  empleadosDeLaDemo,
+  personaConRol,
+  PIN_DE_DEMO,
+} from './lib/demo-de-la-corrida.mjs';
 
 function bandera(nombre, porOmision) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -17,15 +23,25 @@ function bandera(nombre, porOmision) {
 }
 
 const BASE = bandera('base', 'http://localhost:3000');
-const PIN = bandera('pin', '4821');
+
+// ANTES DE CUALQUIER PETICIÓN: el negocio es explícito y es una demo (bloque B.3).
+const DEMO = demoDeLaCorrida('humo-turno');
+const PIN = bandera('pin', PIN_DE_DEMO.dueno);
 
 const llamar = (ruta, cuerpo, opciones) => llamarBase(BASE, ruta, cuerpo, opciones);
 const FONDO = 50_000;
 const GASTO = 7_500;
 
 paso(1, 'Entrar y dejar la caja cerrada');
-const { empleados } = exigir('empleados', await llamar('/api/auth/empleados'));
-exigir('entrar', await llamar('/api/auth/entrar', { empleoId: empleados[0].empleoId, pin: PIN }));
+const empleados = await empleadosDeLaDemo(llamar, DEMO);
+exigir(
+  'entrar',
+  await llamar('/api/auth/entrar', {
+    empleoId: personaConRol(empleados, 'dueno').empleoId,
+    pin: PIN,
+    negocio: DEMO.slug,
+  }),
+);
 
 // Un turno anterior abierto falsearía el arqueo. Se cierra contando lo esperado.
 const previo = exigir('estado de caja', await llamar('/api/caja/estado', {}));

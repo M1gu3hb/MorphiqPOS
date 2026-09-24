@@ -55,28 +55,38 @@ export const NEGOCIOS_REALES: readonly NegocioConocido[] = [
   },
 ];
 
-/** Las cinco demostraciones del acople. Las ÚNICAS sobre las que corre una prueba. */
+/**
+ * Las cinco demostraciones del acople. Las ÚNICAS sobre las que corre una prueba.
+ *
+ * El nombre es el que tienen al nacer (`db:alta-negocio`), y es al que las devuelve el
+ * reseteo si una prueba lo cambió desde la configuración. Comprobados contra la base el
+ * 24-09-2026: ID, slug y nombre.
+ */
 export const DEMOS: readonly NegocioConocido[] = [
-  { id: '1c20ddfe-535d-480c-88eb-f0d2efe3d750', slug: 'demo-acople-tienda', nombre: 'Tienda demo' },
+  {
+    id: '1c20ddfe-535d-480c-88eb-f0d2efe3d750',
+    slug: 'demo-acople-tienda',
+    nombre: 'Demo del acople · tienda',
+  },
   {
     id: 'c7fc2e42-c167-4180-9938-855f8c52896b',
     slug: 'demo-acople-cafeteria',
-    nombre: 'Cafetería demo',
+    nombre: 'Demo del acople · cafeteria',
   },
   {
     id: '33dad5ff-ffea-44a5-abd4-cce8019098a7',
     slug: 'demo-acople-restaurante',
-    nombre: 'Restaurante demo',
+    nombre: 'Demo del acople · restaurante',
   },
   {
     id: '61d447a6-9633-4709-b850-871c00ae162f',
     slug: 'demo-acople-ferreteria',
-    nombre: 'Ferretería demo',
+    nombre: 'Demo del acople · ferreteria',
   },
   {
     id: '1747ccf9-3474-4233-bd87-60e2e188fa8b',
     slug: 'demo-acople-estetica',
-    nombre: 'Estética demo',
+    nombre: 'Demo del acople · estetica',
   },
 ];
 

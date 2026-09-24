@@ -44,53 +44,17 @@ process.env['MORPHIQPOS_DB_POOL_MAX'] ??= '3';
 const { obtenerDb } = await import('../packages/data/src/cliente.ts');
 const { comando } = await import('../packages/app/src/produccion.ts');
 const { resetearDemo } = await import('../packages/app/src/demostracion/index.ts');
-const { PLANTILLA_POR_GIRO } = await import('../packages/contracts/src/comandos/plantillas.ts');
-const { fijarApariencia } = await import('../packages/app/src/configuracion/apariencia.ts');
-const { ESTILOS } = await import('../packages/ui/src/tokens/estilos.ts');
+const { DEMOS, exigirDemo } = await import('../packages/contracts/src/negocios/index.ts');
 
 /**
- * EL ESTILO DE CADA DEMOSTRACIÓN, y por qué no son las cinco iguales.
+ * LA PLANTILLA Y EL ESTILO DE CADA DEMO ya no se ponen aquí: los repone el propio
+ * `resetear_demo` (`packages/app/src/demostracion/como-nueva.ts`), para que el botón de
+ * reseteo de la aplicación deje la demo igual que esta siembra. Antes vivían aquí, y un
+ * reseteo desde la pantalla dejaba la plantilla cruzada y el estilo de la última prueba.
  *
- * «Cada modelo se siente el suyo.» Un cliente al que se le enseñan los cinco negocios
- * con la misma piel ve cinco veces el mismo programa con otras palabras; con su piel
- * ve su ferretería, su salón y su tiendita. La piel es además lo único que cambia sin
- * tocar un componente: UN JUEGO DE COMPONENTES, N JUEGOS DE TOKENS.
- *
- * El reparto no es un gusto: sale de la razón por la que cada estilo existe, escrita
- * en su propio archivo y en `04-SISTEMA-DE-DISENO`.
- *
- *   · ferretería → TALLER · «materiales de verdad: ferretería, taller, refaccionaria»,
- *     y 56 px de control porque en enero se cobra con guante puesto.
- *   · estética → CRISTAL · «translúcido y caro: estética, spa, joyería».
- *   · tiendita → BLOQUE · «feo y legible a propósito: mostrador rápido, hora pico»,
- *     que es exactamente la tiendita a las siete de la tarde.
- *   · restaurante → NOCHE · «para operar a oscuras: barra, cocina, taquilla». Un
- *     comedor cena con la luz baja y la comanda se lee a dos metros.
- *   · cafetería → MORPHIQ · el base, el que ya vende. Alguno de los cinco tiene que
- *     enseñarlo, y la cafetería es la que se mira a plena luz de la mañana.
- *
- * Quedan sin repartir RELIEVE, TERMINAL y PAPEL: los ve quien abra el selector, que
- * es la otra mitad de la demostración.
- *
- * Se aplica con el MISMO comando que usa Miguel delante del cliente
- * —`configuracion.fijar_apariencia`—, no escribiendo la fila a mano: una apariencia
- * que no pasa por el comando no prueba que el comando funcione.
+ * Y la lista de negocios vivos tampoco: la regla es POSITIVA y está en
+ * `packages/contracts/src/negocios` —sólo se siembra lo que está en `DEMOS`, por ID—.
  */
-const ESTILO_POR_GIRO = {
-  ferreteria: 'taller',
-  estetica: 'cristal',
-  tienda: 'bloque',
-  restaurante: 'noche',
-  cafeteria: 'morphiq',
-};
-
-/** Los cuatro negocios que cobran, por slug. No por nombre: el nombre se cambia. */
-const SLUGS_VIVOS = new Set([
-  'mh-restaurante',
-  'demo-cafe-jacaranda',
-  'demo-abarrotes-don-chuy',
-  'demo-ferreteria-la-broca',
-]);
 
 const soloEste = process.argv.includes('--solo')
   ? process.argv[process.argv.indexOf('--solo') + 1]
@@ -110,18 +74,32 @@ const sello = new Date()
 
 const db = obtenerDb();
 
+// Las demos, POR ID y de la lista compartida. Esto era `slug like 'demo-acople-%'`:
+// correcto hoy, pero es una regla de prefijo, y tres de los cuatro negocios reales
+// tienen un slug que empieza por `demo-`.
 const demos = await db
   .selectFrom('organizaciones')
   .select(['id', 'slug', 'nombre', 'giro', 'paquete'])
-  .where('slug', 'like', 'demo-acople-%')
+  .where(
+    'id',
+    'in',
+    DEMOS.map((d) => d.id),
+  )
   .where('activa', '=', true)
   .orderBy('slug')
   .execute();
 
 if (demos.length === 0) {
-  console.error(
-    '✗ No hay ninguna organización `demo-acople-*` activa. Créalas con `db:alta-negocio`.',
-  );
+  console.error('✗ No hay ninguna demostración activa. Créalas con `db:alta-negocio`.');
+  process.exit(1);
+}
+if (soloEste !== null && !demos.some((d) => d.slug === soloEste)) {
+  // `--solo` con un negocio que no es una demo: se dice ANTES de tocar nada.
+  try {
+    exigirDemo({ slug: soloEste }, 'sembrar-demos');
+  } catch (error) {
+    console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
+  }
   process.exit(1);
 }
 
@@ -130,11 +108,9 @@ let fallos = 0;
 for (const demo of demos) {
   if (soloEste !== null && demo.slug !== soloEste) continue;
 
-  if (SLUGS_VIVOS.has(demo.slug)) {
-    console.error(`✗ ALTO: «${demo.slug}» es un NEGOCIO VIVO. No se siembra.`);
-    fallos += 1;
-    continue;
-  }
+  // Segundo cerrojo, por ID y slug a la vez: la consulta ya filtró por la lista, así
+  // que esto no puede fallar HOY. Se queda por si alguien cambia la consulta.
+  exigirDemo({ id: demo.id, slug: demo.slug }, 'sembrar-demos');
 
   const sucursal = await db
     .selectFrom('sucursales')
@@ -167,24 +143,6 @@ for (const demo of demos) {
     continue;
   }
 
-  // La PLANTILLA de la demo, que tiene que ser la de su giro.
-  //
-  // No es cosmética: la guarda de `app/(modelos)/` redirige cuando no coincide,
-  // así que una demo de cafetería con la plantilla `restaurante` no puede abrir
-  // ninguna de sus trece pantallas. Se quedan cruzadas de verdad —la suite de
-  // navegador cambia la plantilla para comparar vocabularios, y una corrida
-  // interrumpida la deja donde estaba—, y por eso se endereza aquí en cada
-  // siembra en vez de dejarlo a que alguien se acuerde.
-  const suya = PLANTILLA_POR_GIRO[demo.giro];
-  if (suya !== undefined && demo.paquete !== suya) {
-    await db
-      .updateTable('organizaciones')
-      .set({ paquete: suya })
-      .where('id', '=', demo.id)
-      .execute();
-    console.log(`  · ${demo.slug}: plantilla «${demo.paquete}» → «${suya}»`);
-  }
-
   const resultado = await comando(resetearDemo, {
     ambito: {
       organizacionId: demo.id,
@@ -208,38 +166,6 @@ for (const demo of demos) {
     console.error(`✗ «${demo.slug}»: ${resultado.error.codigo} · ${resultado.error.mensaje ?? ''}`);
     fallos += 1;
     continue;
-  }
-
-  /**
-   * LA PIEL DE LA DEMOSTRACIÓN, con las perillas que el propio estilo declara.
-   *
-   * Va DESPUÉS de sembrar y no antes porque `resetear_demo` reescribe la sección de
-   * configuración del negocio: puesta antes, la siembra se la llevaría por delante y
-   * las cinco demos volverían a verse iguales sin que nadie supiera por qué.
-   *
-   * Un fallo aquí NO cuenta como demo sin sembrar: el catálogo, el inventario y la
-   * caja ya están, y lo único que faltaría es el color. Se dice y se sigue.
-   */
-  const estilo = ESTILO_POR_GIRO[demo.giro];
-  const definicion = estilo === undefined ? undefined : ESTILOS[estilo];
-  if (definicion !== undefined) {
-    const pintada = await comando(fijarApariencia, {
-      ambito: {
-        organizacionId: demo.id,
-        sucursalId: sucursal.id,
-        terminalId: null,
-        identidadId: dueno.identidadId,
-        empleoId: dueno.empleoId,
-        rol: 'dueno',
-      },
-      entrada: { estilo, ...definicion.perillas },
-      idempotencyKey: `sembrar-demos:apariencia:${demo.slug}:${sello}:${estilo}`,
-    });
-    if (!pintada.ok) {
-      console.error(
-        `  · ${demo.slug}: sembrado, pero sin estilo «${estilo}» (${pintada.error.codigo}).`,
-      );
-    }
   }
 
   const d = resultado.datos;

@@ -1,7 +1,6 @@
 import 'server-only';
 
 import type { Transaccion } from '@morphiqpos/data';
-import { sql } from 'kysely';
 
 /**
  * La SALA de la demostración del restaurante (E11-2).
@@ -242,26 +241,4 @@ async function sembrarMesas(
     creadas += 1;
   }
   return creadas;
-}
-
-/**
- * Borra la sala. Va con `limpiar()` del reseteo, y en ESTE orden: las mesas
- * apuntan a órdenes y las órdenes a mesas, así que primero se suelta el lado
- * de la mesa o la clave foránea aborta la transacción entera.
- */
-export async function limpiarSala(tx: Transaccion, organizacionId: string): Promise<void> {
-  await sql`update mesas set orden_activa_id = null where organizacion_id = ${organizacionId}`.execute(
-    tx,
-  );
-  await sql`delete from comanda_items where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from comandas where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from solicitudes_qr where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from liquidaciones_propina where organizacion_id = ${organizacionId}`.execute(
-    tx,
-  );
-  await sql`delete from cortes_turno where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from compra_lineas where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from compras where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from gastos where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from mesas where organizacion_id = ${organizacionId}`.execute(tx);
 }

@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { negocioReal } from '@morphiqpos/contracts/negocios';
 import { conTransaccion, type Transaccion } from '@morphiqpos/data';
 
 import { FORMA_PIN, hashearPin } from '../identidad/pin.ts';
@@ -55,6 +56,16 @@ export interface ResultadoPrimerAcceso {
 export async function prepararPrimerAcceso(
   peticion: PeticionPrimerAcceso,
 ): Promise<ResultadoPrimerAcceso> {
+  // LA GUARDA (bloque B.4 de la 2.4): sobre un negocio que cobra esto crea un dueño o
+  // le ROTA el PIN al que hay. El ejemplo del RUNBOOK lo hacía sobre La Broca. El PIN de
+  // un negocio real se cambia desde su aplicación, por su dueño; no desde un guion.
+  const real = negocioReal(peticion.organizacionSlug);
+  if (real !== null) {
+    throw new Error(
+      `«${peticion.organizacionSlug}» es ${real.nombre}, un negocio REAL que cobra: aquí no se ` +
+        'crean dueños ni se rotan PIN. Su dueño lo cambia desde Configuración → Accesos.',
+    );
+  }
   if (!FORMA_PIN.test(peticion.pin)) {
     throw new Error('El PIN tiene que ser de 4 a 8 dígitos.');
   }

@@ -38,6 +38,17 @@ if (slug === undefined || nombre === undefined) {
   );
   process.exit(1);
 }
+// LA GUARDA (bloque B.4 de la 2.4): el alta es idempotente por slug, y sobre un negocio
+// que ya cobra no tiene nada que dar de alta — sólo podría pisarle nombre, giro o
+// plantilla. Los cuatro reales se niegan antes de abrir la base.
+const { negocioReal } = await import('../../contracts/src/negocios/index.ts');
+const real = negocioReal(slug);
+if (real !== null) {
+  console.error(
+    `✗ «${slug}» es ${real.nombre}, un negocio REAL que cobra. No se da de alta otra vez.`,
+  );
+  process.exit(1);
+}
 if (!/^[a-z0-9-]{3,60}$/.test(slug)) {
   console.error('El slug son minúsculas, dígitos y guiones (3 a 60).');
   process.exit(1);

@@ -19,6 +19,12 @@
 import { deflateSync } from 'node:zlib';
 
 import { ORIGEN, exigir, llamar as llamarBase, paso, tarro } from './lib/cliente-humo.mjs';
+import {
+  demoDeLaCorrida,
+  empleadosDeLaDemo,
+  personaConRol,
+  PIN_DE_DEMO,
+} from './lib/demo-de-la-corrida.mjs';
 
 function bandera(nombre, porOmision) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -26,7 +32,10 @@ function bandera(nombre, porOmision) {
 }
 
 const BASE = bandera('base', 'http://localhost:3200');
-const PIN = bandera('pin', '1234');
+
+// ANTES DE CUALQUIER PETICIÓN: el negocio es explícito y es una demo (bloque B.3).
+const DEMO = demoDeLaCorrida('humo-archivos');
+const PIN = bandera('pin', PIN_DE_DEMO.dueno);
 const llamar = (ruta, cuerpo) => llamarBase(BASE, ruta, cuerpo);
 
 const COOKIE_DEL_MURO = process.env['MORPHIQPOS_COOKIE_VERCEL'] ?? '';
@@ -73,20 +82,16 @@ function cabeceraCookie() {
 }
 
 paso(1, 'Quién puede entrar');
-const { empleados } = exigir('GET /api/auth/empleados', await llamar('/api/auth/empleados'));
-const demo = Array.isArray(empleados) ? empleados.find((e) => e.nombre === 'Demo') : undefined;
-if (demo === undefined) {
-  console.error(
-    '✗ Este despliegue no sirve una demostración (no hay nadie llamado «Demo»). Esta prueba ' +
-      'escribe en el almacén del negocio: no se corre contra uno de verdad.',
-  );
-  process.exit(1);
-}
+// Antes buscaba «el primero que se llame Demo»: con varias demos servidas eso es la de
+// cualquiera, y con un negocio real que tuviera un «Demo» sería la suya. Ahora la demo
+// se nombra y se comprueba contra la lista antes de pedir nada.
+const empleados = await empleadosDeLaDemo(llamar, DEMO);
+const demo = personaConRol(empleados, 'dueno');
 
 paso(2, 'Entrar como el dueño de la demostración');
 exigir(
   'POST /api/auth/entrar',
-  await llamar('/api/auth/entrar', { empleoId: demo.empleoId, pin: PIN }),
+  await llamar('/api/auth/entrar', { empleoId: demo.empleoId, pin: PIN, negocio: DEMO.slug }),
 );
 
 paso(3, 'Subir una imagen');
@@ -131,4 +136,30 @@ if (leida.status !== 200 || !tipo.startsWith('image/') || recibidos.length === 0
   process.exit(1);
 }
 console.log(`✓ GET de la imagen → 200 · ${tipo} · ${String(recibidos.length)} bytes`);
-console.log('\n✓ El almacén de este despliegue guarda y devuelve imágenes.');
+
+// LO QUE SE SUBE SE BORRA (bloque B.3): esta prueba corre contra producción, y sin este
+// paso cada corrida dejaba una imagen en el almacén de la demo y su cuota subiendo sola.
+paso(5, 'Borrar la imagen y comprobar que ya no está');
+const borrado = await fetch(`${BASE}${new URL(url).pathname}`, {
+  method: 'DELETE',
+  headers: {
+    'x-morphiqpos-request': '1',
+    'idempotency-key': crypto.randomUUID(),
+    origin: ORIGEN ?? BASE,
+    cookie: cabeceraCookie(),
+  },
+  redirect: 'manual',
+});
+if (borrado.status !== 200) {
+  console.error(`✗ DELETE de la imagen: HTTP ${String(borrado.status)} ${await borrado.text()}`);
+  process.exit(1);
+}
+const despues = await fetch(`${BASE}${new URL(url).pathname}`, {
+  headers: { cookie: cabeceraCookie() },
+});
+if (despues.status !== 404) {
+  console.error(`✗ La imagen borrada todavía se lee: HTTP ${String(despues.status)}`);
+  process.exit(1);
+}
+console.log('✓ DELETE → 200, y leerla después → 404');
+console.log('\n✓ El almacén de este despliegue guarda, devuelve y borra imágenes.');

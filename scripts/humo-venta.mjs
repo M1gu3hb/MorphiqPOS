@@ -2,7 +2,7 @@
 /**
  * Humo de la venta de punta a punta, contra un servidor REAL (F1.1-C-08/C-18).
  *
- *   node scripts/humo-venta.mjs [--base http://localhost:3000] [--pin 4821]
+ *   node scripts/humo-venta.mjs [--base http://localhost:3000] --negocio demo-acople-<giro> [--pin 1234]
  *
  * Recorre la cadena entera por HTTP, como lo haría el navegador: entrar, abrir
  * caja, agregar, cobrar, ticket. **No importa una sola línea del
@@ -13,6 +13,12 @@
  * que pide `morphiq-prs §23`.
  */
 import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
+import {
+  demoDeLaCorrida,
+  empleadosDeLaDemo,
+  personaConRol,
+  PIN_DE_DEMO,
+} from './lib/demo-de-la-corrida.mjs';
 
 function bandera(nombre, porOmision) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -20,12 +26,15 @@ function bandera(nombre, porOmision) {
 }
 
 const BASE = bandera('base', 'http://localhost:3000');
-const PIN = bandera('pin', '4821');
+
+// ANTES DE CUALQUIER PETICIÓN: el negocio es explícito y es una demo (bloque B.3).
+const DEMO = demoDeLaCorrida('humo-venta');
+const PIN = bandera('pin', PIN_DE_DEMO.dueno);
 
 const llamar = (ruta, cuerpo, opciones) => llamarBase(BASE, ruta, cuerpo, opciones);
 
 paso(1, 'Listar quién puede entrar');
-const { empleados } = exigir('GET /api/auth/empleados', await llamar('/api/auth/empleados'));
+const empleados = await empleadosDeLaDemo(llamar, DEMO);
 if (!Array.isArray(empleados) || empleados.length === 0) {
   console.error('✗ El servidor no lista a nadie. Corre `pnpm db:bootstrap` primero.');
   process.exit(1);
@@ -35,10 +44,10 @@ console.log(
 );
 
 paso(2, 'Entrar con PIN');
-const primero = empleados[0];
+const primero = personaConRol(empleados, 'dueno');
 exigir(
   'POST /api/auth/entrar',
-  await llamar('/api/auth/entrar', { empleoId: primero.empleoId, pin: PIN }),
+  await llamar('/api/auth/entrar', { empleoId: primero.empleoId, pin: PIN, negocio: DEMO.slug }),
 );
 
 paso(3, 'Estado de la venta (la sesión existe)');

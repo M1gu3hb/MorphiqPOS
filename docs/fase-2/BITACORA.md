@@ -5607,3 +5607,61 @@ estados sin sentido (carga, error) declarados en `SIN_ESTADO` con su razón.
 **En qué voy.** Las suites de navegador de A se corren al cerrar B: la base local es la VIVA
 (`.env` apunta al proyecto de producción), y el encargo pide B completo antes de la primera prueba
 que escriba ahí. Sigue: B.1 (guarda del reseteo en el servidor).
+
+---
+
+## 24-09-2026 · Etapa 2.4 · Bloque B · que nada pueda tocar un negocio real
+
+**B.1 · La guarda del reseteo, en el servidor.** `resetear.ts` decía que el comando «se niega a
+correr sobre los negocios que cobran» y no era verdad: sólo comprobaba el rol, y su ruta pasaba
+directo. Ahora `exigirQueSeaDemo` es lo PRIMERO de `ejecutar` —antes de leer el giro y antes de
+`limpiar`—: regla positiva por ID contra `DEMOS`, 403 `SIN_PERMISO` con rastro «denegado».
+`resetear.test.ts` corre el envoltorio real con una conexión que apunta cada consulta: sobre cada
+negocio real contesta 403 **con cero consultas a la base**. Sin la guarda: 5 de 6 en rojo.
+
+**B.2 · El reseteo deja la demo como nueva.**
+- `limpiar` era una lista a mano y dejaba **70 tablas** con `organizacion_id` sin tocar. Ahora borra
+  TODO salvo `CONSERVADAS` (17, cada una con su razón), en el orden que
+  `scripts/generar-limpieza-de-demo.mjs` calcula del esquema (hijo antes que padre, 7 ciclos rotos
+  por columnas que admiten nulo). `tablas-del-reseteo.test.ts` lo ata al esquema sin llamar al
+  generador; se vio rojo quitando `cotizaciones`, invirtiendo `orden_lineas`/`ordenes`, con un
+  `delete` escrito a mano y suponiendo `id` como columna del padre.
+- **Defecto que destapó la primera corrida contra la base:** el generador suponía que el padre se
+  referencia por `id`, y `recursos_servicio → servicios(producto_id)` no. 42703 y el reseteo
+  entero revertido. Arreglado (la columna referida sale de la llave) y atado en la prueba.
+- Repone: equipo sembrado con su PIN publicado, cero intentos, sin bloqueo y activo (antes
+  `sembrarEquipo` saltaba a quien ya existía); el dueño con 1234; quien sobre, desactivado;
+  nombre y plantilla del giro; topes de descuento (un tope ausente se lee como CERO); la
+  configuración entera (IVA 16 % incluido, apariencia del giro, contraseña de presentación); y las
+  terminales, todas menos la de quien resetea.
+- La plantilla y el estilo salieron de `sembrar-demos.mjs`: los repone el comando, así que el botón
+  de la aplicación deja la demo igual que la siembra.
+- Contra la base: primero un ensayo por demo dentro de una transacción revertida (el que encontró
+  el 42703), después el reseteo de verdad de las cinco. Estado leído después: plantilla y estilo de
+  su giro, IVA 1600, 7 topes, 1 terminal, 0 órdenes, 0 clientes, 0 credenciales bloqueadas.
+
+**B.3 · Los `humo-*`.** `scripts/lib/demo-de-la-corrida.mjs`: negocio EXPLÍCITO (`--negocio` o
+`MORPHIQPOS_ORG_DEMO`), comprobado contra la lista ANTES DE CUALQUIER PETICIÓN; lista de empleados
+por la dirección de la demo y fallando cerrada; persona por ROL, no `empleados[0]`. `humo-accesos`
+cambia el PIN del CAJERO y se lo devuelve (3456) en un `finally`. `humo-archivos` borra lo que sube
+—no había cómo: nuevo `DELETE /api/archivos/<clave>` (sólo mandos, sólo del propio negocio, 409 si
+una fila la nombra, devuelve la cuota)—. `scripts/sembrar-demo.mjs` reseteaba POR OMISIÓN La Broca y
+le corría `db:bootstrap`: reescrito sobre el mismo ayudante. Vistos negarse sin negocio, con
+Jacaranda, con MH y con un slug inventado.
+
+**B.4.** `db:bootstrap` (en la función, para cualquier llamador) y `db:alta-negocio` se niegan sobre
+los cuatro reales; vistos negarse con La Broca y MH. RUNBOOK: fuera los ejemplos sobre La Broca.
+
+**B.5.** `prepararPostgres` se niega si la url —host directo o usuario del pooler— o
+`MORPHIQPOS_SUPABASE_PROJECT_REF` es el proyecto de producción. Visto: `pnpm test:integracion` con
+una url de producción se para en el `setup` con «ALTO». Sin la guarda, la prueba se queda
+esperando la conexión (rojo por tiempo).
+
+**B.6.** Todo lo anterior lee `packages/contracts/src/negocios`; no queda otra copia de la lista.
+
+**Lección de herramienta:** los heredocs de bash de este entorno se comen las barras invertidas
+dentro de código (`'\n'` → salto real; `\b` → retroceso). Los parches con escapes van por archivo
+(Write) o por Edit.
+
+**En qué voy.** Siguen las suites de navegador de A+B contra un build local con las cinco demos, y
+ver a los `humo-*` negarse contra ese servidor.

@@ -2,7 +2,7 @@
 /**
  * Humo del impuesto configurable (F1.1-C-12), contra un servidor REAL.
  *
- *   node scripts/humo-impuesto.mjs [--base URL] [--pin 4821]
+ *   node scripts/humo-impuesto.mjs [--base URL] --negocio demo-acople-<giro> [--pin 1234]
  *
  * Prueba lo único que importa de C-12: **cambiar el IVA en /configuracion cambia
  * el total de la siguiente cotización.** Con el impuesto incluido en el precio,
@@ -13,6 +13,12 @@
  * demostración con un IVA raro se descubriría en la peor demostración posible.
  */
 import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
+import {
+  demoDeLaCorrida,
+  empleadosDeLaDemo,
+  personaConRol,
+  PIN_DE_DEMO,
+} from './lib/demo-de-la-corrida.mjs';
 
 function bandera(nombre, porOmision) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -20,7 +26,10 @@ function bandera(nombre, porOmision) {
 }
 
 const BASE = bandera('base', 'http://localhost:3000');
-const PIN = bandera('pin', '4821');
+
+// ANTES DE CUALQUIER PETICIÓN: el negocio es explícito y es una demo (bloque B.3).
+const DEMO = demoDeLaCorrida('humo-impuesto');
+const PIN = bandera('pin', PIN_DE_DEMO.dueno);
 
 const llamar = (ruta, cuerpo, opciones) => llamarBase(BASE, ruta, cuerpo, opciones);
 
@@ -32,8 +41,15 @@ async function guardarIva(configuracion, puntosBase) {
 }
 
 paso(1, 'Entrar');
-const { empleados } = exigir('empleados', await llamar('/api/auth/empleados'));
-exigir('entrar', await llamar('/api/auth/entrar', { empleoId: empleados[0].empleoId, pin: PIN }));
+const empleados = await empleadosDeLaDemo(llamar, DEMO);
+exigir(
+  'entrar',
+  await llamar('/api/auth/entrar', {
+    empleoId: personaConRol(empleados, 'dueno').empleoId,
+    pin: PIN,
+    negocio: DEMO.slug,
+  }),
+);
 
 paso(2, 'Leer la configuración actual');
 const inicial = exigir(

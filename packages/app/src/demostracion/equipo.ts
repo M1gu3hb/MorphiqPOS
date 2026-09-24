@@ -113,6 +113,14 @@ export function equipoDelGiro(giro: Giro): readonly EmpleadoDemo[] {
  *
  * Es idempotente por (organización, nombre, apellidos): correrlo dos veces no
  * duplica a nadie, y devuelve igual el empleo de quien ya estaba.
+ *
+ * ── Y a quien ya estaba lo REPONE (bloque B.2 de la 2.4) ──────────────────
+ * Antes lo saltaba tal cual, y eso dejaba la demo como la había dejado la última
+ * prueba: `humo-accesos` le cambia el PIN a alguien, una prueba de seguridad lo
+ * bloquea por intentos, otra lo da de baja o le cambia el rol. La corrida siguiente
+ * —o la demostración delante de un cliente— no podía entrar con el PIN que
+ * `ACCESOS-DEMO.md` publica. Ahora cada persona sembrada vuelve a su rol, a su PIN,
+ * a cero intentos, sin bloqueo y activa.
  */
 export async function sembrarEquipo(
   tx: Transaccion,
@@ -129,12 +137,25 @@ export async function sembrarEquipo(
     const yaEsta = await tx
       .selectFrom('personas')
       .innerJoin('empleos', 'empleos.persona_id', 'personas.id')
-      .select(['empleos.id as empleoId'])
+      .select(['empleos.id as empleoId', 'personas.id as personaId'])
       .where('personas.organizacion_id', '=', organizacionId)
       .where('personas.nombre', '=', empleado.nombre)
       .where('personas.apellidos', '=', empleado.apellidos)
       .executeTakeFirst();
     if (yaEsta !== undefined) {
+      await tx
+        .updateTable('empleos')
+        .set({
+          rol: empleado.rol,
+          color: empleado.color,
+          activo: true,
+          vigente_hasta: null,
+          sucursal_id: sucursalId,
+          ve_todas_las_estaciones: empleado.rol === 'cocina',
+        })
+        .where('id', '=', yaEsta.empleoId)
+        .execute();
+      await reponerPin(tx, yaEsta.personaId, empleado.pin, pimienta);
       empleos.set(clave, yaEsta.empleoId);
       continue;
     }
@@ -185,4 +206,43 @@ export async function sembrarEquipo(
   }
 
   return empleos;
+}
+
+/**
+ * El PIN de una persona, como recién sembrado: el publicado, cero intentos fallidos y
+ * sin bloqueo. Si la persona perdió su credencial, se le vuelve a dar.
+ */
+export async function reponerPin(
+  tx: Transaccion,
+  personaId: string,
+  pin: string,
+  pimienta: string,
+): Promise<void> {
+  const identidad = await tx
+    .selectFrom('identidades')
+    .select('id')
+    .where('persona_id', '=', personaId)
+    .executeTakeFirst();
+  const identidadId =
+    identidad?.id ??
+    (
+      await tx
+        .insertInto('identidades')
+        .values({ persona_id: personaId })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+    ).id;
+  const hash = await hashearPin(pin, pimienta);
+  const repuesta = await tx
+    .updateTable('credenciales_pin')
+    .set({ pin_hash: hash, intentos_fallidos: 0, bloqueada_hasta: null, rotada_en: new Date() })
+    .where('identidad_id', '=', identidadId)
+    .returning('id')
+    .execute();
+  if (repuesta.length === 0) {
+    await tx
+      .insertInto('credenciales_pin')
+      .values({ identidad_id: identidadId, pin_hash: hash })
+      .execute();
+  }
 }

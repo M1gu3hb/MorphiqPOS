@@ -2,8 +2,13 @@
 /**
  * `pnpm db:bootstrap` — la puerta al sistema cerrado (F1.1-C-04).
  *
- *   pnpm db:bootstrap --org demo-ferreteria-la-broca --persona "Elena" --pin 4821
- *   pnpm db:bootstrap --org demo-cafe-jacaranda --persona "Mariana" --pin 1357 --terminal Barra
+ *   pnpm db:bootstrap --org demo-acople-ferreteria --persona "Demo" --pin 1234
+ *   pnpm db:bootstrap --org <slug-de-un-negocio-nuevo> --persona "<nombre>" --pin <4-8 dígitos>
+ *
+ * **Se niega sobre los cuatro negocios reales** (`packages/contracts/src/negocios`): ahí
+ * crearía un dueño o le rotaría el PIN al que hay. El PIN de un negocio que cobra lo
+ * cambia su dueño desde la aplicación. Los ejemplos de aquí usaban La Broca y
+ * Jacaranda, que son dos de ellos.
  *
  * Deja lista una cuenta de dueño con PIN. Eso es todo lo que hace falta: desde
  * T2 del port del restaurante ya no hay código de enrolamiento que teclear —la
@@ -36,6 +41,15 @@ const pimienta = process.env['PIN_PEPPER'];
 if (organizacionSlug === undefined || nombrePersona === undefined || pin === undefined) {
   console.error(
     'Uso: pnpm db:bootstrap --org <slug> --persona "<nombre>" --pin <4-8 dígitos> [--terminal "<nombre>"]',
+  );
+  process.exit(1);
+}
+const { negocioReal } = await import('../../contracts/src/negocios/index.ts');
+const real = negocioReal(organizacionSlug);
+if (real !== null) {
+  console.error(
+    `✗ «${organizacionSlug}» es ${real.nombre}, un negocio REAL que cobra. db:bootstrap no crea ` +
+      'dueños ni rota PIN en él: su dueño lo cambia desde Configuración → Accesos.',
   );
   process.exit(1);
 }

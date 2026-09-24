@@ -1,4 +1,5 @@
-import { PAQUETES, ErrorDominio, esGiro } from '@morphiqpos/contracts';
+import { PAQUETES, PLANTILLA_POR_GIRO, ErrorDominio, esGiro } from '@morphiqpos/contracts';
+import { demoPorId, type NegocioConocido } from '@morphiqpos/contracts/negocios';
 import { cantidad } from '@morphiqpos/domain/catalogo';
 import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
@@ -7,14 +8,22 @@ import { z } from 'zod';
 import { validarEntorno } from '@morphiqpos/contracts';
 
 import { definirComando } from '../comando.ts';
+import { Rechazo } from '../fallos.ts';
 import { hashearPin } from '../identidad/pin.ts';
 import { recalcularCostosRecetas } from '../inventario/recetas.ts';
-import { limpiarArranque, sembrarArranque, type ResumenArranque } from './arranque.ts';
+import { sembrarArranque, type ResumenArranque } from './arranque.ts';
+import {
+  APARIENCIA_DE_DEMO,
+  IMPUESTO_DE_DEMO,
+  PIN_DEL_DUENO_DE_DEMO,
+  TOPES_DE_DESCUENTO,
+} from './como-nueva.ts';
 import { semillaParaPaquete } from './datos.ts';
-import { sembrarEquipo } from './equipo.ts';
+import { equipoDelGiro, reponerPin, sembrarEquipo } from './equipo.ts';
 import { sembrarOpcionesDeBebida, type ResumenBebidas } from './bebidas.ts';
-import { limpiarSala, sembrarSala, type ResumenSala } from './sala.ts';
-import { limpiarSalon, sembrarSalon, type ResumenSalon } from './salon.ts';
+import { sembrarSala, type ResumenSala } from './sala.ts';
+import { sembrarSalon, type ResumenSalon } from './salon.ts';
+import { CICLOS, ORDEN_DE_LIMPIEZA } from './tablas-del-reseteo.ts';
 
 export const entradaResetearDemo = z.object({ confirmacion: z.literal('RESETEAR') });
 
@@ -30,7 +39,8 @@ export const entradaResetearDemo = z.object({ confirmacion: z.literal('RESETEAR'
  * sea la más importante de una demostración.
  *
  * Va con Argon2id y pimienta, el mismo camino que los PIN, y sólo en las demos:
- * este comando ya se niega a correr sobre los negocios que cobran.
+ * este comando se niega a correr sobre cualquier negocio que no sea una de las cinco
+ * (`exigirQueSeaDemo`, abajo).
  *
  * La contraseña está ESCRITA en `docs/fase-2/ACCESOS-DEMO.md`, junto a los PIN, y
  * eso no es un descuido: una demostración cuya llave no está escrita es una
@@ -38,22 +48,30 @@ export const entradaResetearDemo = z.object({ confirmacion: z.literal('RESETEAR'
  */
 export const CONTRASENA_DE_PRESENTACION_DEMO = 'demo1234';
 
-async function sembrarContrasenaDePresentacion(
+/**
+ * LA CONFIGURACIÓN DE UNA DEMO RECIÉN NACIDA, escrita entera (bloque B.2 de la 2.4).
+ *
+ * Antes sólo se le añadía la contraseña del Modo Presentación y se conservaba todo lo
+ * demás: el IVA que `humo-impuesto` movió, el estilo que alguien probó, un logo de
+ * prueba. Ahora el documento se REESCRIBE: IVA general incluido en el precio, la
+ * apariencia del giro y la contraseña. Nada de lo que dejó la corrida anterior.
+ */
+async function reponerConfiguracion(
   tx: Transaccion,
   organizacionId: string,
+  giro: keyof typeof APARIENCIA_DE_DEMO,
   pimienta: string,
 ): Promise<void> {
-  const hash = await hashearPin(CONTRASENA_DE_PRESENTACION_DEMO, pimienta);
+  const valores = {
+    impuesto: { ...IMPUESTO_DE_DEMO },
+    apariencia: { ...APARIENCIA_DE_DEMO[giro] },
+    presentacion_password_hash: await hashearPin(CONTRASENA_DE_PRESENTACION_DEMO, pimienta),
+  };
   const fila = await tx
     .selectFrom('configuracion')
-    .select(['id', 'valores', 'version'])
+    .select(['id', 'version'])
     .where('organizacion_id', '=', organizacionId)
     .executeTakeFirst();
-
-  const valores = {
-    ...((fila?.valores ?? {}) as Record<string, unknown>),
-    presentacion_password_hash: hash,
-  };
 
   if (fila === undefined) {
     await tx
@@ -62,11 +80,72 @@ async function sembrarContrasenaDePresentacion(
       .execute();
     return;
   }
+  // La versión SUBE aunque el contenido se reescriba: una pantalla abierta con la
+  // configuración de antes tiene que chocar al guardar, no pisar la recién repuesta.
   await tx
     .updateTable('configuracion')
     .set({ valores: JSON.stringify(valores), version: fila.version + 1 })
     .where('id', '=', fila.id)
     .execute();
+}
+
+/**
+ * EL EQUIPO, repuesto: cada persona sembrada con su PIN (lo hace `sembrarEquipo`), el
+ * dueño con el suyo, y cualquiera que una prueba haya dado de alta, desactivado.
+ *
+ * Al dueño no se le toca el rol ni se le desactiva: es quien resetea. Sólo se le
+ * repone el PIN publicado y se le desbloquea.
+ */
+async function reponerDueno(tx: Transaccion, organizacionId: string, pimienta: string) {
+  const duenos = await tx
+    .selectFrom('empleos')
+    .select(['id', 'persona_id as personaId'])
+    .where('organizacion_id', '=', organizacionId)
+    .where('rol', '=', 'dueno')
+    .execute();
+  for (const dueno of duenos) {
+    await tx.updateTable('empleos').set({ activo: true }).where('id', '=', dueno.id).execute();
+    await reponerPin(tx, dueno.personaId, PIN_DEL_DUENO_DE_DEMO, pimienta);
+  }
+  return duenos.map((d) => d.id);
+}
+
+async function desactivarLoQueSobra(
+  tx: Transaccion,
+  organizacionId: string,
+  seQuedan: readonly string[],
+): Promise<void> {
+  if (seQuedan.length === 0) return;
+  await tx
+    .updateTable('empleos')
+    .set({ activo: false })
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', 'not in', [...seQuedan])
+    .execute();
+}
+
+/**
+ * LA GUARDA · el reseteo sólo corre sobre una de las cinco demos (bloque B.1 de la 2.4).
+ *
+ * Aquí decía, arriba, que el comando «se niega a correr sobre los negocios que cobran»,
+ * y NO era verdad: `ejecutar` sólo comprobaba el rol y borraba ventas, catálogo e
+ * inventario. La única guarda estaba en `scripts/sembrar-demos.mjs`; la ruta
+ * `/api/catalogo/demostracion/resetear` pasaba directo, y el dueño de un negocio real
+ * que la llamara —o una prueba que se equivocara de negocio— se quedaba sin su día.
+ *
+ * La regla es POSITIVA y por ID: la organización del ámbito tiene que estar en `DEMOS`
+ * (`packages/contracts/src/negocios`). Va antes de leer nada y, sobre todo, antes de
+ * `limpiar`. Contesta 403 y deja su rastro de «denegado».
+ */
+export function exigirQueSeaDemo(organizacionId: string): NegocioConocido {
+  const demo = demoPorId(organizacionId);
+  if (demo === null) {
+    throw new Rechazo('SIN_PERMISO', 'denegado', {
+      codigo: 'SIN_PERMISO',
+      mensaje: 'Sólo una demostración se puede resetear.',
+    });
+  }
+  return demo;
 }
 
 export const resetearDemo = definirComando<
@@ -90,6 +169,7 @@ export const resetearDemo = definirComando<
   paquetes: PAQUETES,
   entrada: entradaResetearDemo,
   async ejecutar(ctx) {
+    const demo = exigirQueSeaDemo(ctx.ambito.organizacionId);
     const organizacion = await ctx.tx
       .selectFrom('organizaciones')
       .select('giro')
@@ -109,7 +189,29 @@ export const resetearDemo = definirComando<
         'Selecciona una sucursal para cargar la demostración.',
       );
     const semilla = semillaParaPaquete(organizacion.giro);
-    await ctx.paso('limpiar_demo', () => limpiar(ctx.tx, ctx.ambito.organizacionId));
+    await ctx.paso('limpiar_demo', () =>
+      limpiar(ctx.tx, ctx.ambito.organizacionId, ctx.ambito.terminalId),
+    );
+    // El negocio vuelve a su nombre y a la plantilla de su giro: la suite cambia la
+    // plantilla para comparar vocabularios, y la guarda de `app/(modelos)/` echa de sus
+    // pantallas a una demo con la plantilla cruzada.
+    await ctx.tx
+      .updateTable('organizaciones')
+      .set({ nombre: demo.nombre, paquete: PLANTILLA_POR_GIRO[giro] })
+      .where('id', '=', ctx.ambito.organizacionId)
+      .execute();
+    // Los topes de descuento: un tope que no existe se lee como cero.
+    await ctx.tx
+      .insertInto('topes_descuento')
+      .values(
+        TOPES_DE_DESCUENTO.map((t) => ({
+          organizacion_id: ctx.ambito.organizacionId,
+          rol: t.rol,
+          tope_centavos: t.topeCentavos,
+          tope_bp: t.topeBp,
+        })),
+      )
+      .execute();
     const almacen = await ctx.tx
       .insertInto('almacenes')
       .values({
@@ -333,6 +435,20 @@ export const resetearDemo = definirComando<
     const empleos = await ctx.paso('sembrar_equipo', () =>
       sembrarEquipo(ctx.tx, ctx.ambito.organizacionId, sucursalId, giro, pimienta),
     );
+    const duenos = await ctx.paso('reponer_dueno', () =>
+      reponerDueno(ctx.tx, ctx.ambito.organizacionId, pimienta),
+    );
+    // Quien no es del equipo sembrado ni dueño, lo dio de alta una prueba: se desactiva
+    // (no se borra: sus ventas ya no existen, pero su rastro en la auditoría sí).
+    await ctx.paso('desactivar_lo_que_sobra', () =>
+      desactivarLoQueSobra(ctx.tx, ctx.ambito.organizacionId, [...empleos.values(), ...duenos]),
+    );
+    if (empleos.size !== equipoDelGiro(giro).length) {
+      throw new ErrorDominio(
+        'CONFIGURACION_INVALIDA',
+        'El equipo de la demostración quedó incompleto.',
+      );
+    }
 
     // La SALA solo tiene sentido en un restaurante: mesas, zonas y estaciones.
     // Sin ella, Mesero y Cocina abren vacias y el mapa de mesas -la pantalla que
@@ -400,9 +516,10 @@ export const resetearDemo = definirComando<
       sembrarArranque(ctx.tx, ctx.ambito.organizacionId, sucursalId, semilla),
     );
 
-    // Y LA CONTRASEÑA DEL MODO PRESENTACIÓN, sin la cual esa pantalla no abre.
-    await ctx.paso('sembrar_contrasena_presentacion', () =>
-      sembrarContrasenaDePresentacion(ctx.tx, ctx.ambito.organizacionId, pimienta),
+    // Y LA CONFIGURACIÓN: IVA, apariencia del giro y la contraseña del Modo
+    // Presentación, sin la cual esa pantalla no abre.
+    await ctx.paso('reponer_configuracion', () =>
+      reponerConfiguracion(ctx.tx, ctx.ambito.organizacionId, giro, pimienta),
     );
 
     const empleados = empleos.size;
@@ -424,86 +541,61 @@ export const resetearDemo = definirComando<
 });
 
 /**
- * Borra los datos de demostración de una organización.
+ * Borra los datos de demostración de una organización: TODO lo que no está en
+ * `CONSERVADAS` (bloque B.2 de la 2.4).
+ *
+ * ── Por qué ya no es una lista escrita a mano ────────────────────────────
+ * Lo era, y se quedaba atrás con cada migración: el 24-09-2026 dejaba 70 tablas con
+ * `organizacion_id` sin tocar —cotizaciones, anticipos, lealtad, pedidos anticipados,
+ * tomas y traspasos…—. Ahora borra en el orden que `generar-limpieza-de-demo.mjs`
+ * calcula del esquema: hijo antes que padre, así que una llave `restrict` nueva no
+ * puede volver a abortar el reseteo entero (ya pasó con `remisiones → ordenes` y con
+ * `comisiones_causadas → cita_servicios`).
  *
  * ── Por qué se borra también la OPERACIÓN, y no sólo el catálogo ──────────
- * La primera versión borraba catálogo e inventario y dejaba las ventas. El
- * resultado, comprobado ejecutándolo: la clave foránea de `orden_lineas` es
- * `on delete set null`, así que **las nueve líneas de órdenes ya cobradas se
- * quedaron con `producto_id` en nulo**, en silencio. El ticket seguía
- * reimprimiéndose porque la línea guarda su propia foto del producto, pero el
- * rastro hacia el catálogo se perdía sin que nadie lo pidiera.
+ * Un reseteo de demostración devuelve el negocio a su punto de partida: eso incluye
+ * las ventas y el folio. Es destructivo a conciencia — por eso pide la palabra
+ * `RESETEAR`, sólo lo puede hacer un dueño o un administrador y sólo sobre una DEMO.
  *
- * Y además el folio seguía subiendo sobre unas ventas que ya no existían.
- *
- * Un reseteo de demostración devuelve el negocio a su punto de partida: eso
- * incluye las ventas. Es destructivo a conciencia — por eso pide la palabra
- * `RESETEAR` y sólo lo puede hacer un dueño o un administrador.
- *
- * El orden importa: hijos antes que padres, o la clave foránea lo impide.
+ * Los CLIENTES también se borran: nada los siembra, así que lo que hubiera lo dejó una
+ * prueba. Por eso ya no hace falta deshacer a mano el saldo que sube una remisión y
+ * baja un pago —el cliente entero se va—.
  */
-async function limpiar(tx: Transaccion, organizacionId: string): Promise<void> {
-  // Salon de la estetica. Va PRIMERO por la misma razon que la sala:
-  // `cita_servicios` apunta a `servicios` con `restrict` y `servicios` cuelga de
-  // `productos` con `cascade`, asi que borrar el producto antes abortaria la
-  // transaccion entera si quedo una cita.
-  await limpiarSalon(tx, organizacionId);
+async function limpiar(
+  tx: Transaccion,
+  organizacionId: string,
+  terminalQueSeQueda: string | null,
+): Promise<void> {
+  // 1 · Los ciclos de llaves, rotos poniendo su columna en nulo.
+  for (const { tabla, columna } of CICLOS) {
+    await sql`update ${sql.table(tabla)} set ${sql.ref(columna)} = null
+      where organizacion_id = ${organizacionId} and ${sql.ref(columna)} is not null`.execute(tx);
+  }
 
-  // ── Sala del restaurante ──────────────────────────────────────────────────
-  // Va PRIMERO, y no es un detalle de orden: `mesas.orden_activa_id` apunta a
-  // `ordenes` y `ordenes.mesa_id` apunta a `mesas`. Sin soltar el lado de la
-  // mesa antes, borrar órdenes aborta la transacción entera por la foránea.
-  await limpiarSala(tx, organizacionId);
+  // 2 · Todo lo demás, hijo antes que padre.
+  for (const paso of ORDEN_DE_LIMPIEZA) {
+    if (paso.via === null) {
+      await sql`delete from ${sql.table(paso.tabla)} where organizacion_id = ${organizacionId}`.execute(
+        tx,
+      );
+    } else {
+      await sql`delete from ${sql.table(paso.tabla)} where ${sql.ref(paso.via.columna)} in (
+        select ${sql.ref(paso.via.referida)} from ${sql.table(paso.via.padre)}
+        where organizacion_id = ${organizacionId}
+      )`.execute(tx);
+    }
+  }
 
-  // ── Crédito ───────────────────────────────────────────────────────────────
-  // VA ANTES QUE LAS ÓRDENES, y no por orden estético: `remisiones.orden_id`
-  // apunta a `ordenes` con **RESTRICT**. En cuanto una demo fía algo —el botón
-  // «A cuenta» de la caja de ferretería—, `delete from ordenes` aborta la
-  // transacción entera y el reseteo deja la demo exactamente como estaba.
-  await limpiarCredito(tx, organizacionId);
-
-  // ── Operación: ventas, cobros y caja ──────────────────────────────────────
-  await sql`delete from pagos where organizacion_id = ${organizacionId}`.execute(tx);
-  // Esta tabla NO lleva `organizacion_id`: cuelga de la línea, que sí lo lleva.
-  // Se filtra por la línea, no por la organización, y por eso va antes que ella.
-  await sql`delete from orden_linea_modificadores where orden_linea_id in (
-    select id from orden_lineas where organizacion_id = ${organizacionId}
-  )`.execute(tx);
-  await sql`delete from orden_lineas where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from ordenes where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from movimientos_caja where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from sesiones_caja where organizacion_id = ${organizacionId}`.execute(tx);
-  // El consecutivo vuelve a empezar. Si no, la demostración arrancaría en el
-  // folio 47 y la primera venta que se le enseña a un cliente no sería la 1.
-  await sql`delete from folios where organizacion_id = ${organizacionId}`.execute(tx);
-
-  // ── Catálogo e inventario ─────────────────────────────────────────────────
-  // El CORTE primero: `cortes_material` apunta a los dos movimientos de stock
-  // con `no action` y al producto con `restrict`, y `piezas_abiertas` al producto
-  // igual. Sin estos dos borrados, la primera demo que corte un metro de cable
-  // deja el reseteo roto para siempre.
-  await sql`delete from cortes_material where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from piezas_abiertas where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from movimientos_stock where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from existencias where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from recetas where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from producto_modificadores where organizacion_id = ${organizacionId}`.execute(
-    tx,
-  );
-  await sql`delete from modificador_opciones where modificador_id in (select id from modificadores where organizacion_id = ${organizacionId})`.execute(
-    tx,
-  );
-  await sql`delete from modificadores where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from insumos where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from productos where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from categorias where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from almacenes where organizacion_id = ${organizacionId}`.execute(tx);
-
-  // Y el proveedor, al final: despues de compras y de documentos por pagar, que
-  // lo referencian con `restrict`. Las TERMINALES no se borran -una terminal
-  // enrolada es un dispositivo de verdad, y un reseteo de demostracion no
-  // desenrola la tablet de nadie-.
-  await limpiarArranque(tx, organizacionId);
+  // 3 · Las terminales, menos la de quien resetea. Cada corrida de Playwright con una
+  //     cookie de dispositivo nueva deja una, y la lista crecía sin fin. La de quien
+  //     pide el reseteo se queda: su sesión está abierta en ella. Un navegador cuya
+  //     terminal se borró vuelve a tener una en cuanto alguien teclea su PIN.
+  if (terminalQueSeQueda === null) {
+    await sql`delete from terminales where organizacion_id = ${organizacionId}`.execute(tx);
+  } else {
+    await sql`delete from terminales
+      where organizacion_id = ${organizacionId} and id <> ${terminalQueSeQueda}`.execute(tx);
+  }
 }
 
 async function entradaInicial(
@@ -532,60 +624,4 @@ async function entradaInicial(
       referencia_tipo: 'manual',
     })
     .execute();
-}
-/**
- * EL CRÉDITO DE LA DEMO, DESHECHO CON SU ARITMÉTICA.
- *
- * ── Por qué no basta con borrar las filas ─────────────────────────────────
- * Porque el saldo del cliente NO es una vista: es una columna que la remisión
- * sube y el pago baja. Los clientes de la demo no se borran —su ficha, su límite
- * y su deuda de arranque son parte de lo que se enseña— así que borrar las
- * remisiones sin restar lo que sumaron dejaría al contratista debiendo miles de
- * pesos de documentos que ya no existen, y la demostración de la semana que
- * viene empezaría con el mejor cliente bloqueado por mora.
- *
- * Se deshace en el orden inverso al que se hizo: primero vuelve al saldo lo que
- * los pagos bajaron, después se resta lo que las remisiones subieron, y sólo
- * entonces se borran las filas.
- */
-async function limpiarCredito(tx: Transaccion, organizacionId: string): Promise<void> {
-  // 1 · Lo que los pagos aplicaron vuelve al saldo.
-  await sql`
-    update clientes c
-       set saldo_pendiente_centavos = c.saldo_pendiente_centavos + aplicado.suma
-      from (
-        select p.cliente_id, sum(a.monto_centavos) as suma
-          from pagos_credito p
-          join aplicaciones_pago a on a.pago_id = p.id
-         where p.organizacion_id = ${organizacionId}
-         group by p.cliente_id
-      ) aplicado
-     where c.id = aplicado.cliente_id
-       and c.organizacion_id = ${organizacionId}
-  `.execute(tx);
-
-  // 2 · Y lo que las remisiones subieron se resta. `greatest` porque un saldo
-  //     negativo es un cliente al que el negocio le debe dinero, y eso no es lo
-  //     que pasó: lo que pasó es que la demo se reseteó.
-  await sql`
-    update clientes c
-       set saldo_pendiente_centavos = greatest(0, c.saldo_pendiente_centavos - fiado.suma)
-      from (
-        select r.cliente_id, sum(r.importe_centavos) as suma
-          from remisiones r
-         where r.organizacion_id = ${organizacionId}
-         group by r.cliente_id
-      ) fiado
-     where c.id = fiado.cliente_id
-       and c.organizacion_id = ${organizacionId}
-  `.execute(tx);
-
-  // `aplicaciones_pago` cae con su pago (cascade), y se borra explícito: la tabla
-  // no lleva `organizacion_id`, y depender del cascade obliga a leer otra
-  // migración para saber si el borrado de al lado la arrastra.
-  await sql`delete from aplicaciones_pago where pago_id in (
-    select id from pagos_credito where organizacion_id = ${organizacionId}
-  )`.execute(tx);
-  await sql`delete from pagos_credito where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from remisiones where organizacion_id = ${organizacionId}`.execute(tx);
 }

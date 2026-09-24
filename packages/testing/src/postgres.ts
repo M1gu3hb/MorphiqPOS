@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { connect } from 'node:net';
 
+import { esDeUnProyectoIntocable } from '@morphiqpos/contracts/negocios';
 import { Client } from 'pg';
 
 /**
@@ -130,6 +131,42 @@ async function esperarPostgres(url: string, limiteMs = 60_000): Promise<boolean>
 }
 
 /**
+ * LA BASE DE LAS PRUEBAS NO PUEDE SER LA DE PRODUCCIÓN (bloque B.5 de la 2.4).
+ *
+ * `prepararPostgres` aceptaba CUALQUIER url, y las pruebas de integración hacen cosas
+ * que en una base viva son un desastre: `archivos-cuota.integracion.test.ts` hace
+ * `drop table cuotas_archivos`, que es una tabla real. Y con
+ * `MORPHIQPOS_SUPABASE_PROJECT_REF` puesto, la migración de la corrida va al proyecto
+ * vinculado (BASE-DE-PRUEBAS §2). Una url copiada del `.env` equivocado bastaba.
+ *
+ * Se niega si la url —o el proyecto vinculado— es el de producción
+ * (`wyqmzhliurwyxuyxznpb`, por su host directo o por el usuario del pooler) o el de
+ * otro cliente que esta base de código no toca. Una rama de Supabase tiene su PROPIA
+ * referencia, así que la forma recomendada sigue pasando.
+ */
+export function exigirBaseDesechable(url: string, proyectoVinculado?: string): void {
+  if (esDeUnProyectoIntocable(url)) {
+    throw new Error(
+      [
+        'ALTO: DATABASE_URL_PRUEBAS apunta al proyecto de PRODUCCIÓN (o a uno intocable).',
+        'Las pruebas de integración borran tablas y siembran datos: sólo corren contra una',
+        'base DESECHABLE —una rama de Supabase, con su propia referencia, o un Postgres',
+        'local—. Ver docs/fase-2/BASE-DE-PRUEBAS.md.',
+      ].join('\n'),
+    );
+  }
+  if (proyectoVinculado !== undefined && esDeUnProyectoIntocable(proyectoVinculado)) {
+    throw new Error(
+      [
+        'ALTO: MORPHIQPOS_SUPABASE_PROJECT_REF es el proyecto de PRODUCCIÓN.',
+        'Con esa variable puesta, la migración de la corrida iría a la base viva.',
+        'Quítala del entorno para correr las pruebas de integración.',
+      ].join('\n'),
+    );
+  }
+}
+
+/**
  * Devuelve la URL de una base lista para pruebas, o lanza explicando por que no.
  *
  * El contenedor se levanta con `--tmpfs /var/lib/postgresql/data`: los datos
@@ -139,6 +176,7 @@ async function esperarPostgres(url: string, limiteMs = 60_000): Promise<boolean>
  */
 export async function prepararPostgres(): Promise<string> {
   const delEntorno = process.env['DATABASE_URL_PRUEBAS'];
+  exigirBaseDesechable(delEntorno ?? '', process.env['MORPHIQPOS_SUPABASE_PROJECT_REF']);
   if (delEntorno !== undefined && delEntorno.length > 0) {
     if (await esperarPostgres(delEntorno, 30_000)) {
       return delEntorno;
