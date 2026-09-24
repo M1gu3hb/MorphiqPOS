@@ -225,7 +225,9 @@ test.describe('la galería · cada pantalla contra la vuelta anterior', () => {
           { clave: estilo, perillas: definicion.perillas },
         );
         await fijarLoQueCambia(page);
-        await page.clock.pauseAt(Date.now() + 1_000);
+        // El «ahora» de la PÁGINA, no el de la prueba: el reloj de la página va a mediodía
+        // del negocio y pausarlo en la hora real sería pedirle que viaje al pasado.
+        await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000);
         await expect(
           page,
           `«${retrato.ruta}» en ${estilo} cambió y nadie lo declaró.`,
