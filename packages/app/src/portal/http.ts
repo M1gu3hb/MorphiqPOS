@@ -62,7 +62,11 @@ function estadoDe(salida: Resultado<unknown>): number {
   return ESTADO_HTTP[salida.error.codigo];
 }
 
-function respuesta(estado: number, cuerpo: unknown, correlationId?: string): RespuestaDelPortal {
+export function respuesta(
+  estado: number,
+  cuerpo: unknown,
+  correlationId?: string,
+): RespuestaDelPortal {
   return {
     estado,
     cuerpo,
@@ -76,7 +80,7 @@ function respuesta(estado: number, cuerpo: unknown, correlationId?: string): Res
   };
 }
 
-function errorHttp(estado: number, codigo: string, mensaje: string): RespuestaDelPortal {
+export function errorHttp(estado: number, codigo: string, mensaje: string): RespuestaDelPortal {
   return respuesta(estado, { ok: false, error: { codigo, mensaje } });
 }
 
@@ -92,7 +96,7 @@ function errorHttp(estado: number, codigo: string, mensaje: string): RespuestaDe
  * es lo que impide que un formulario de otra página llene la cocina de pedidos
  * en nombre de una mesa cuyo código alguien fotografió.
  */
-function peticionPropia(peticion: PeticionDelPortal): boolean {
+export function peticionPropia(peticion: PeticionDelPortal): boolean {
   const tipo = peticion.headers.get('content-type') ?? '';
   if (!tipo.toLocaleLowerCase('en-US').startsWith('application/json')) return false;
   if (peticion.headers.get('x-morphiqpos-request') !== '1') return false;
@@ -212,7 +216,7 @@ export function manejadorPublico<E extends ZodType, S>(definicion: ComandoPublic
  * devuelven su unión. Un `ErrorDominio` conserva su código y su mensaje —están
  * escritos para el comensal—; cualquier otra cosa se queda en el servidor.
  */
-function respuestaDeError(
+export function respuestaDeError(
   error: unknown,
   donde: string,
   contexto: { readonly correlationId?: string; readonly organizacionId?: string },

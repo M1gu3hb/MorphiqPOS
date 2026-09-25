@@ -36,6 +36,8 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import { origenDeLaPropina } from './origen-de-propina';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
@@ -60,8 +62,11 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * ── El barista NUNCA toca la propina (F-249, regla 1) ────────────────────
  * No hay un control de propina dentro de «Terminal»: todos viven en el panel del
  * cliente. Sin segunda pantalla ese panel sigue estando, pero se rotula
- * **Respaldo** y el cobro viaja con `propinaOrigen: 'barista'`, para que el
- * reporte separe lo que eligió el cliente de lo que tecleó el empleado.
+ * **Respaldo** y el cobro viaja con el origen de la propina TECLEADA en el mostrador
+ * (`tradicional`), para que el reporte separe lo que eligió el cliente (`portal_qr`)
+ * de lo que tecleó el empleado. Mandaba `'barista'` y `'cliente'`, que no están en la
+ * lista del servidor ni en el `check` de la base: el cobro contestaba «datos
+ * incompletos» SIEMPRE y esta pantalla no cobró nunca (C.14 de la 2.4, D-18).
  *
  * ── «Sin propina» va en la MISMA fila y del mismo tamaño (regla 2) ───────
  * El diagrama la dibuja en un renglón aparte; la regla escrita dice misma fila y
@@ -143,6 +148,12 @@ export interface LineaDelTicket {
 }
 
 export interface CobroYPropinaProps {
+  /**
+   * La orden que se cobra, de la dirección (`?pedido=`): un apartado se cobra al
+   * recogerlo (C.14), y su orden está CONFIRMADA, no «por cobrar». Sin ella se abre
+   * la venta por cobrar que lleva más tiempo esperando.
+   */
+  readonly pedidoId?: string;
   /** Cuando llega —aunque sea `null`— la pantalla no consulta. Para pruebas. */
   readonly pedidoInicial?: PedidoPorCobrar | null;
   readonly lineasIniciales?: readonly LineaDelTicket[];
@@ -386,6 +397,7 @@ function CaraDelCliente({
 }
 
 export function CobroYPropina({
+  pedidoId: pedidoPedido,
   pedidoInicial,
   lineasIniciales,
   segundaPantallaConectada = false,
@@ -438,7 +450,7 @@ export function CobroYPropina({
     void (async () => {
       try {
         const [fila] = await consultarPuente<PedidoPorCobrar>('Venta', {
-          filtro: { estado: 'por_cobrar' },
+          filtro: pedidoPedido === undefined ? { estado: 'por_cobrar' } : { id: pedidoPedido },
           limite: 1,
           signal: control.signal,
         });
@@ -456,7 +468,7 @@ export function CobroYPropina({
     return () => {
       control.abort();
     };
-  }, [pedidoInicial, voc, intento]);
+  }, [pedidoPedido, pedidoInicial, voc, intento]);
 
   // Las líneas del ticket, aparte y DESPUÉS del pedido: su reintento lee sólo
   // esto. Con el pedido dado por props, las líneas también llegan dadas.
@@ -538,8 +550,8 @@ export function CobroYPropina({
   const mano = leido('recibido', recibido);
   const suma = BASES.reduce((suman, base) => suman + leido(base, partes[base]), 0);
   const bloqueo = bloqueoDe(total, metodo, mano, suma, voc);
-  /** El origen separa en el reporte lo elegido de lo tecleado. Regla 1. */
-  const origen = segundaPantallaConectada ? 'cliente' : 'barista';
+  /** El origen separa en el reporte lo elegido de lo tecleado. Regla 1, D-18. */
+  const origen = origenDeLaPropina(segundaPantallaConectada);
 
   async function cobrar(id: string): Promise<void> {
     // Sin red no se cobra (F-988, A-27): no hay cola que guarde el cobro para después.
@@ -551,7 +563,9 @@ export function CobroYPropina({
         ordenId: id,
         pagos: renglonesDePago(metodo, partes, venta, propina ?? 0, mano),
         totalEsperadoCentavos: venta,
-        propinaCentavos: propina ?? 0,
+        // La propina viaja EN CADA PAGO (`renglonesDePago`), no suelta en la raíz: el
+        // servidor valida en estricto y una clave que no conoce rechaza el cobro
+        // entero. Aquí iba `propinaCentavos` y esta pantalla no cobró nunca (C.14).
         propinaOrigen: origen,
       });
       setCambio(Number(hecho.cambioCentavos));
@@ -656,8 +670,9 @@ export function CobroYPropina({
           </span>
           <p className="text-sm text-texto-sutil">
             Se cobraron <Dinero centavos={total} tamano="sm" /> · propina{' '}
-            <Dinero centavos={propina ?? 0} tamano="sm" /> ({origen}) · ya está en la fila de la
-            barra.
+            <Dinero centavos={propina ?? 0} tamano="sm" /> (
+            {origen === 'portal_qr' ? 'la eligió el cliente' : 'la tecleó el barista'}) · ya está en
+            la fila de la barra.
           </p>
         </Superficie>
       </div>

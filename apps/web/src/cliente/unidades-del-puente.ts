@@ -132,6 +132,9 @@ export const UNIDADES_DEL_PUENTE = {
   PagoCredito: {
     monto_centavos: 'centavos',
   },
+  PedidoAnticipado: {
+    total_centavos: 'centavos',
+  },
   PiezaAbierta: {
     precio_remate_centavos: 'pesos',
     precio_remate_pesos: 'pesos',

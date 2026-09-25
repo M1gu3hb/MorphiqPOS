@@ -98,7 +98,10 @@ function enPesos(centavos: number): string {
  */
 const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
   ['acceso-por-pin', /¿Quién está operando\?/],
-  ['barra', /La fila está vacía|BARRA/],
+  // «En la fila» y no «BARRA»: la mayúscula del título es CSS, el texto es «Barra». Con
+  // la barra vacía —como estaba la demo hasta C.14, que no emitía comandas— salía
+  // lo primero; con pedidos, lo segundo.
+  ['barra', /La fila está vacía|En la fila/],
   ['cierre-de-turno-y-arqueo', /No hay ningún turno abierto|Cierre de turno/],
   ['clientes-y-sellos', /Se identifica por teléfono/],
   ['cobrar', /Turno cerrado|Cobrar/],
@@ -144,7 +147,10 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     info.annotations.push({ type: 'caja', description: await soltarLaCaja(page) });
   });
 
-  test('la cafetería habla de baristas y barra, y su plantilla no trae sala', async ({ page }) => {
+  test('la cafetería habla de baristas y barra, y su plantilla no trae sala', async ({
+    page,
+    browser,
+  }) => {
     await entrar(page);
     await exigirGiro(page, 'cafeteria', 'cafeteria');
     // Ninguna pantalla puede abrir en 200 y reventar por dentro.
@@ -320,14 +326,148 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     // bebida a preparar, y eso es un movimiento de inventario por la receta.
     await exigirInventarioMovido(page, venta.id ?? '', bebida.nombre ?? '');
 
+    /**
+     * 2a · LA BARRA LA PREPARA Y LA ENTREGA (C.14 de la 2.4).
+     *
+     * Hasta C.14 la demo no emitía comandas —sus recetas no iban a ninguna área y no
+     * había estación—, así que la barra estaba siempre vacía y el cierre nunca
+     * encontraba «cobrado sin entregar». Ahora la bebida llega a la barra, y se
+     * despacha por su tarjeta: listo y llamar, y entregar.
+     */
+    await abrirPantalla(page, '/cafeteria/barra', /En la fila|La fila está vacía/);
+    await page.getByRole('button', { name: 'Marcar listo y llamar a Sin nombre' }).first().click();
+    await page
+      .getByRole('button', { name: 'Marcar entregado el pedido de Sin nombre' })
+      .first()
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Marcar entregado el pedido de Sin nombre' }),
+      'La bebida cobrada en el mostrador no se pudo entregar desde la barra.',
+    ).toHaveCount(0, { timeout: 30_000 });
+
+    /**
+     * 2b · UN APARTADO DEL MENÚ PÚBLICO, DE PUNTA A PUNTA (C.14 de la 2.4).
+     *
+     * «Se reserva sin pago y se cobra al recoger.» La clienta, SIN sesión, aparta desde
+     * `/n/<slug>/pedir`; el personal lo prepara —la comanda llega a la barra ANTES del
+     * pago—, lo cobra al recoger y lo entrega. Antes el menú público no leía nada sin
+     * sesión y sólo redactaba el pedido para copiarlo.
+     */
+    const slug = process.env['MORPHIQPOS_ORG_DEMO'] ?? 'demo-acople-cafeteria';
+    const origen = new URL(page.url()).origin;
+    const menu = (await (
+      await page.request.get(`${origen}/api/publico/negocio/${slug}/menu`)
+    ).json()) as {
+      readonly datos?: {
+        readonly productos?: readonly {
+          readonly nombre: string;
+          readonly precioCentavos: string;
+          readonly disponible: boolean;
+        }[];
+      };
+    };
+    const apartable = menu.datos?.productos?.find(
+      (p) => p.disponible && Number(p.precioCentavos) > 0,
+    );
+    expect(
+      apartable,
+      'El menú público de la cafetería no trae ningún producto disponible: sin sesión no se ' +
+        'puede apartar nada. Sale de `/api/publico/negocio/<slug>/menu`.',
+    ).toBeDefined();
+    const apartadoCentavos = Number(apartable!.precioCentavos);
+
+    const sinSesion = await browser.newContext();
+    const clienta = await sinSesion.newPage();
+    await clienta.goto(`${origen}/n/${slug}/pedir`);
+    await clienta.getByRole('button', { name: apartable!.nombre }).first().click();
+    await clienta
+      .getByRole('button', { name: /^\d{2}:\d{2}$/ })
+      .first()
+      .click();
+    await clienta.getByLabel('Tu nombre').fill('Apartado E2E');
+    await clienta.getByRole('button', { name: 'Apartar' }).click();
+    await expect(
+      clienta.getByRole('heading', { name: 'Apartado' }),
+      'La clienta tocó «Apartar» sin sesión y no quedó apartado.',
+    ).toBeVisible({ timeout: 30_000 });
+    // Con el vocabulario de la cafetería aunque no haya sesión: sin él decía «se paga
+    // al recogerlo en .», la barra sin nombre.
+    await expect(clienta.getByText(/Se paga al recogerlo en la barra\./)).toBeVisible();
+    await sinSesion.close();
+
+    // Del lado de quien cobra: el apartado está en su lista, con su nombre.
+    await abrirPantalla(page, '/cafeteria/cobrar', /Cobrar|Turno cerrado/);
+    const apartados = page.getByRole('region', { name: 'Apartados de hoy' });
+    const suRenglon = apartados.getByRole('row', { name: /Apartado E2E/ }).last();
+    await expect(
+      suRenglon,
+      'El apartado de la clienta no aparece en «Apartados» del mostrador.',
+    ).toBeVisible({ timeout: 30_000 });
+
+    // PREPARAR: la comanda llega a la barra antes del pago.
+    await suRenglon.getByRole('button', { name: 'Preparar' }).click();
+    const cobrarApartado = suRenglon.getByRole('link', { name: 'Cobrar' });
+    await expect(cobrarApartado).toBeVisible({ timeout: 30_000 });
+    const ordenDelApartado = new URL(
+      (await cobrarApartado.getAttribute('href')) ?? '',
+      origen,
+    ).searchParams.get('pedido');
+    const comandas = await consultarPuente<{ readonly venta_id?: string }>(
+      page,
+      'PedidoPreparacion',
+      { filtro: { venta_id: ordenDelApartado }, limite: 5 },
+    );
+    expect(
+      comandas.length,
+      'Se tocó «Preparar» y la barra no recibió la comanda del apartado: sin ella, el ' +
+        'apartado se prepararía hasta cobrarlo y no adelantaría nada.',
+    ).toBeGreaterThan(0);
+
+    // COBRAR AL RECOGER, en el cobro de ESA orden. La orden ya existía —nació al
+    // apartar—, así que no es una venta NUEVA: se comprueba ESA, que quede pagada con su
+    // total.
+    await cobrarApartado.click();
+    await page.getByRole('button', { name: 'Sin propina' }).first().click();
+    await page.getByRole('button', { name: /^COBRAR/ }).click();
+    await expect
+      .poll(
+        async () => {
+          const [venta] = await consultarPuente<{
+            readonly estado?: string;
+            readonly total?: number;
+          }>(page, 'Venta', { filtro: { id: ordenDelApartado }, limite: 1 });
+          return `${venta?.estado ?? ''} ${String(Math.round((venta?.total ?? 0) * 100))}`;
+        },
+        {
+          message: 'Se cobró el apartado al recogerlo y su orden no quedó pagada con su total.',
+          timeout: 30_000,
+        },
+      )
+      .toBe(`pagada ${String(apartadoCentavos)}`);
+
+    // Y ENTREGAR, que ya se puede: está cobrado.
+    await abrirPantalla(page, '/cafeteria/cobrar', /Cobrar|Turno cerrado/);
+    const cobrado = page
+      .getByRole('region', { name: 'Apartados de hoy' })
+      .getByRole('row', { name: /Apartado E2E/ })
+      .last();
+    await cobrado.getByRole('button', { name: 'Entregar' }).click();
+    await expect(
+      page.getByRole('region', { name: 'Apartados de hoy' }).getByRole('row', {
+        name: /Apartado E2E/,
+      }),
+      'Se entregó el apartado y sigue en la lista de pendientes.',
+    ).toHaveCount(0, { timeout: 30_000 });
+
     // El cierre, con su arqueo. El esperado lo calcula el servidor sumando los
-    // movimientos del turno: la apertura con su fondo y la venta en efectivo.
+    // movimientos del turno: la apertura con su fondo, la venta en efectivo y el
+    // apartado, cobrado al recogerlo.
     await abrirPantalla(
       page,
       '/cafeteria/cierre-de-turno-y-arqueo',
       /Cierre de turno|No hay ningún turno/,
     );
-    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos;
+    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos + apartadoCentavos;
     await page.locator('#cierre-efectivo').fill((esperadoCentavos / 100).toFixed(2));
     // El bote de propina va a cero: esta venta no dejó propina, y el cierre exige
     // contar los dos antes de enseñar nada.

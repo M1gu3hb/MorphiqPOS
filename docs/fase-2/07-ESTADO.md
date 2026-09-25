@@ -875,7 +875,7 @@ Rama `fase-2.4`, sacada de `origin/fase-2` (el PR #11 sigue sin fusionar). **Nun
 | --- | --- | --- |
 | **A** | La entrada es de UN negocio: `/n/<slug>/login-pos`, la lista de empleados exige el negocio (404 igual para «no se sirve» y «no existe»), `/login-pos` sin nombres en un despliegue de varios, rol por el vocabulario del giro, Preview sólo con demos | ✅ código, pruebas y puertas en verde (la prueba de la ruta, 7 de 8 en ROJO contra la de `fase-2`); las cinco suites de modelo entrando por `/n/<demo>/login-pos`; Preview con las cinco demos |
 | **B** | Que nada pueda tocar un negocio real | ✅ B.1–B.6 hechos y vistos negarse, también contra el servidor local (reseteo 403 sin consultas; limpieza completa y en orden de llaves; humo, bootstrap, alta e integración) |
-| **C** | Los 18 pendientes | 🟨 C.1, C.2 (`verify:unidades` en 0, vista roja con 130), C.3 (cobro de estética: propina, anticipo, descuento, mixto e IVA; D-17), C.4 (sin migración: D-16), C.5 (mixto y cambio, abono por método, propina libre, teclas F; y la llave de mora que daba el navegador), C.7, C.13, C.15, C.17 y C.18 hechos; faltan C.6, C.8–C.12, C.14 (por verificar) y C.16 |
+| **C** | Los 18 pendientes | 🟨 C.1, C.2 (`verify:unidades` en 0, vista roja con 130), C.3 (cobro de estética: propina, anticipo, descuento, mixto e IVA; D-17), C.4 (sin migración: D-16), C.5 (mixto y cambio, abono por método, propina libre, teclas F; y la llave de mora que daba el navegador), C.7, C.8, C.12, C.13, C.14 (apartado público sin pago, D-18), C.15, C.17 y C.18 hechos; faltan C.6, C.9–C.11 y C.16 (barrido de color hecho, falta cerrarlo) |
 | **D** | La batería de pruebas | ⬜ |
 | **E** | Producción que se prueba sola | ⬜ |
 | **F** | Correr todo y cerrar | ⬜ |

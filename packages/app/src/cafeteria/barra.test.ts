@@ -106,6 +106,19 @@ describe('F-329 · llamar por nombre', () => {
     expect(base.campo('comandas', 'lista_en')).toEqual(AHORA);
   });
 
+  it('LISTO Y LLAMAR LO DEJA LISTO: pasa a la columna de listos (C.14 de la 2.4)', async () => {
+    // La barra separa sus columnas por ESTADO. Llamar sellaba la hora y el llamado,
+    // y el estado se quedaba «nuevo»: la tarjeta no pasaba a «Listos», que es donde
+    // está «Entregar», y ningún pedido se podía entregar desde la barra. Lo destapó el
+    // e2e cuando la demo empezó a emitir comandas.
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await llamarPedido.ejecutar(ctx, { pedidoId: COMANDA, medio: 'voz' });
+
+    expect(base.campo('comandas', 'estado')).toBe('listo');
+  });
+
   it('el segundo llamado es el segundo, y el tercero autoriza abandonarlo', async () => {
     const base = baseDe();
 

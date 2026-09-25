@@ -23,6 +23,8 @@ import { consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { ApartadosDeHoy } from './ApartadosDeHoy';
+
 /**
  * PANTALLA · cafeteria · cobrar
  *
@@ -488,6 +490,11 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           Cambio <Dinero centavos={cambio} tamano="sm" /> · {aviso.palabra}
         </p>
       </header>
+      {/* C.14 · Los apartados del menú público: se preparan, se cobran al recoger y se
+          entregan desde aquí, donde está quien cobra. */}
+      <div className="xl:col-span-2">
+        <ApartadosDeHoy />
+      </div>
 
       {error === null ? null : (
         <Aviso tono="peligro" titulo={error} className="xl:col-span-2">

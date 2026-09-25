@@ -46,3 +46,12 @@ export {
   type PedidoEnPantalla,
   type TableroDeRecogida,
 } from './recogida.ts';
+
+export { atenderApartado, servirMenuAnticipado } from './anticipado-http.ts';
+export {
+  apartarAnticipado,
+  entradaApartarAnticipado,
+  menuAnticipable,
+  type ProductoAnticipable,
+  type ResultadoApartado,
+} from './anticipado.ts';

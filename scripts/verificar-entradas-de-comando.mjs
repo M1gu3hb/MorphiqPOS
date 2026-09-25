@@ -29,9 +29,10 @@
  * que sirve esa ruta, lee su esquema `entrada` y compara las CLAVES:
  *
  *   1 · FALTA UN CAMPO OBLIGATORIO → 400 seguro, en cada toque.
- *   2 · SOBRA UN CAMPO → zod lo tira en silencio (`z.object` no es `strict`), así
- *       que la pantalla cree que guardó algo que nunca viajó. Es el defecto más
- *       difícil de ver a mano, porque no hay error en ninguna parte.
+ *   2 · SOBRA UN CAMPO → el envoltorio valida en ESTRICTO (`errores.ts` aplica
+ *       `.strict()` a todo esquema de objeto), así que el comando entero contesta 400
+ *       `unrecognized_keys`. Así estuvo `CobroYPropina` desde que nació: mandaba una
+ *       `propinaCentavos` suelta y no cobró nunca (C.14 de la 2.4).
  *
  * ── Lo que NO comprueba, dicho en vez de supuesto ─────────────────────────
  * · Los tipos de cada valor: eso es del esquema y de la prueba del comando.
@@ -192,7 +193,54 @@ function camposPorEsquema() {
       porEsquema.set(clave, { obligatorios, opcionales });
     }
   }
+  heredarExtensiones(porEsquema);
   return porEsquema;
+}
+
+/**
+ * Los esquemas hechos con `base.extend({ … })` (C.14 de la 2.4).
+ *
+ * `venta.cobrar` recibe `entradaCobrarOrdenConPropina = entradaCobrarOrden.extend({…})`,
+ * y esta puerta sólo leía `z.object({…})`: lo contaba «sin esquema legible» y NO
+ * comparaba. Así pasó `CobroYPropina`, que mandaba una clave suelta que el servidor
+ * rechaza en estricto: la pantalla no cobró nunca y ninguna puerta lo vio. Aquí la
+ * extensión hereda los campos de su base y pisa los que redeclara.
+ */
+function heredarExtensiones(porEsquema) {
+  for (const archivo of archivos(APP, (e) => e.endsWith('.ts') && !e.includes('.test.'))) {
+    const texto = readFileSync(archivo, 'utf8');
+    for (const m of texto.matchAll(/(?:export )?const (entrada\w+) = (entrada\w+)\.extend\(\{/g)) {
+      const base = resolverEsquema(porEsquema, m[2] ?? '', archivo);
+      if (base === undefined) continue;
+      const inicio = texto.indexOf('{', m.index + m[0].length - 2);
+      const cuerpo = sinComentarios(bloque(texto, inicio));
+      const obligatorios = new Set(base.obligatorios);
+      const opcionales = new Set(base.opcionales);
+      const propios = { obligatorios: new Set(), opcionales: new Set() };
+      let prof = 0;
+      let actual = '';
+      for (const caracter of cuerpo.slice(1, -1)) {
+        if ('{(['.includes(caracter)) prof += 1;
+        if ('})]'.includes(caracter)) prof -= 1;
+        if (caracter === ',' && prof === 0) {
+          registrar(actual, propios.obligatorios, propios.opcionales);
+          actual = '';
+          continue;
+        }
+        actual += caracter;
+      }
+      registrar(actual, propios.obligatorios, propios.opcionales);
+      for (const campo of propios.obligatorios) {
+        opcionales.delete(campo);
+        obligatorios.add(campo);
+      }
+      for (const campo of propios.opcionales) {
+        obligatorios.delete(campo);
+        opcionales.add(campo);
+      }
+      porEsquema.set(`${archivo}#${m[1] ?? ''}`, { obligatorios, opcionales });
+    }
+  }
 }
 
 function registrar(trozo, obligatorios, opcionales) {
@@ -341,7 +389,7 @@ for (const archivo of archivos(PANTALLAS, (e) => /\.tsx?$/.test(e) && !e.include
     if (sobran.length > 0) {
       fallos.push(
         `${donde} · SOBRA(N) ${sobran.map((c) => `\`${c}\``).join(', ')} ` +
-          `— no está(n) en ${nombreEsquema}: zod los tira EN SILENCIO`,
+          `— no está(n) en ${nombreEsquema}: el servidor valida en estricto y RECHAZA el comando entero`,
       );
     }
   }

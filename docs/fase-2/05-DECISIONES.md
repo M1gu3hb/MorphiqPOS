@@ -334,6 +334,26 @@ puntos del documento dejaban la forma abierta y había que elegir.
 5. **El anticipo en efectivo entra al cajón con su movimiento** (`anticipo_cita`, de la 135), y exige
    caja abierta. Se APLICA en el mismo cobro: la venta es la cita entera y los pagos suman el resto.
 
+## D-18 · 25-09-2026 · El apartado de la cafetería: sin sesión, sin pago y por la dirección del negocio
+
+**Contexto.** C.14 de la 2.4: «cobrar en línea exige pasarela, que es del §10. Mientras, se reserva
+sin pago y se cobra al recoger. Completo.» La forma quedaba abierta.
+
+**Decisiones.**
+1. **El menú y el apartado públicos van por la dirección del negocio**, `/n/<slug>/pedir` y
+   `/api/publico/negocio/<slug>/{menu,apartar}`, resueltos DENTRO de los negocios del despliegue
+   (lo mismo que la entrada del bloque A). Un slug ajeno, inexistente o que no es cafetería contesta
+   igual: 404. Sin token de mesa, el límite es por IP y por negocio (`LIMITES_PORTAL`, dos
+   acciones nuevas; `LIMITES` de `http/limite.ts` no se toca), tres apartados por hueco de cinco
+   minutos, y la clave de idempotencia va a `ordenes.idempotency_key`.
+2. **La orden nace CONFIRMADA, no pagada**, con precio de catálogo. «Preparar» emite su comanda antes
+   del pago (la misma `comandarLineasPendientes` del cobro, que así no la duplica), se cobra al
+   recoger y `entregar_anticipado` exige la orden pagada y cierra su comanda.
+3. **El origen de la propina de la barra, en la lista cerrada del servidor**: la que teclea el
+   barista es `tradicional` (el POS de mostrador) y la que elige el cliente en su pantalla es
+   `portal_qr` (elegida por el cliente en una pantalla suya). Sin migración: `'barista'` y
+   `'cliente'` no están en el `check propina_origen`.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

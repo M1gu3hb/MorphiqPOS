@@ -80,7 +80,22 @@ describe('F-330 · programar', () => {
     expect(salida.enElHueco).toBe(1);
   });
 
-  it('NO acepta un pedido sobre una venta sin cobrar', async () => {
+  it('SE RESERVA SIN PAGO: una orden confirmada se programa (C.14 de la 2.4)', async () => {
+    // «Cobrar en línea exige pasarela, que es del §10. Mientras, se reserva sin pago
+    // y se cobra al recoger.» Antes esto exigía la orden PAGADA.
+    const base = baseDe({ ordenes: [{ id: ORDEN, organizacion_id: ORG, estado: 'confirmada' }] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await programarPedido.ejecutar(ctx, {
+      ordenId: ORDEN,
+      nombre: 'Ana',
+      horaPrometida: A_LAS_815.toISOString(),
+    });
+
+    expect(base.campo('pedidos_anticipados', 'estado')).toBe('programado');
+  });
+
+  it('NO acepta un borrador: sin líneas confirmadas no hay nada que apartar', async () => {
     const base = baseDe({ ordenes: [{ id: ORDEN, organizacion_id: ORG, estado: 'borrador' }] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
@@ -228,6 +243,123 @@ describe('F-330 · encolar y entregar', () => {
 
     expect(salida.aTiempo).toBe(true);
     expect(salida.minutosContraLaPromesa).toBe(2);
+  });
+
+  it('NO SE ENTREGA SIN COBRAR: el apartado se paga al recoger (C.14)', async () => {
+    const base = baseDe({
+      ordenes: [{ id: ORDEN, organizacion_id: ORG, estado: 'confirmada' }],
+      pedidos_anticipados: [pedido({ estado: 'en_fila', encolado_en: AHORA })],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    const fallo = await entregarAnticipado
+      .ejecutar(ctx, { pedidoId: PEDIDO })
+      .catch((e: unknown) => e);
+
+    expect(esErrorDominio(fallo) ? fallo.codigo : fallo).toBe('ORDEN_NO_EDITABLE');
+    expect(base.campo('pedidos_anticipados', 'estado')).toBe('en_fila');
+  });
+
+  it('ENTREGAR EL APARTADO CIERRA SU COMANDA de barra (C.14)', async () => {
+    // Si no, el cierre de turno lo cuenta como «cobrado que nadie ha entregado» y no
+    // deja cerrar: el apartado se entregó por su pantalla y la barra no se enteró.
+    const base = baseDe({
+      pedidos_anticipados: [pedido({ estado: 'en_fila', encolado_en: AHORA })],
+      comandas: [
+        {
+          id: 'c1',
+          organizacion_id: ORG,
+          orden_id: ORDEN,
+          estado: 'listo',
+          lista_en: AHORA,
+          entregada_en: null,
+        },
+        {
+          id: 'c2',
+          organizacion_id: ORG,
+          orden_id: ORDEN,
+          estado: 'en_preparacion',
+          lista_en: null,
+          entregada_en: null,
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    await entregarAnticipado.ejecutar(ctx, { pedidoId: PEDIDO });
+
+    expect(base.filas('comandas').map((c) => c['estado'])).toEqual(['entregado', 'entregado']);
+    expect(base.campo('comandas', 'entregada_en', 1)).toEqual(AHORA);
+    expect(base.campo('comandas', 'lista_en', 1)).toEqual(AHORA);
+  });
+
+  it('PREPARAR MANDA LA COMANDA A LA BARRA, antes del pago (C.14)', async () => {
+    // Si la barra sólo lo viera al cobrar, el apartado no adelantaría nada: la
+    // clienta llegaría, pagaría y esperaría igual que la fila.
+    const LATTE = 'e1111111-1111-4111-8111-111111111111';
+    const base = baseDe({
+      ordenes: [
+        {
+          id: ORDEN,
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          estado: 'confirmada',
+          mesa_id: null,
+          estrategia_captura: 'mostrador',
+          codigo_caja: null,
+          notas_alergias: null,
+          celebracion_especial: false,
+          tipo_celebracion: null,
+        },
+      ],
+      pedidos_anticipados: [pedido()],
+      orden_lineas: [
+        {
+          id: 'l1',
+          organizacion_id: ORG,
+          orden_id: ORDEN,
+          producto_id: LATTE,
+          producto_nombre: 'Latte',
+          cantidad: '2',
+          unidad: 'pieza',
+          notas: null,
+          orden_visual: 1,
+          estado_preparacion: 'pendiente',
+        },
+      ],
+      productos: [
+        {
+          id: LATTE,
+          organizacion_id: ORG,
+          nombre: 'Latte',
+          activo: true,
+          tipo_venta: 'sku',
+          area_preparacion: 'barra',
+          estacion_preparacion_id: null,
+          categoria_id: null,
+          unidad_base: 'pieza',
+          nombre_porcion: null,
+          ingrediente_base_id: null,
+        },
+      ],
+      estaciones_preparacion: [
+        {
+          id: 'e2222222-2222-4222-8222-222222222222',
+          organizacion_id: ORG,
+          nombre: 'Barra',
+          es_general: true,
+          activa: true,
+        },
+      ],
+      comandas: [],
+      comanda_items: [],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await encolarPedido.ejecutar(ctx, { pedidoId: PEDIDO });
+
+    expect(base.filas('comandas')).toHaveLength(1);
+    expect(base.campo('comanda_items', 'orden_linea_id')).toBe('l1');
   });
 
   it('no se entrega dos veces', async () => {

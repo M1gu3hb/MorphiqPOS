@@ -5851,3 +5851,43 @@ de `cafeteria/CierreDeTurno.tsx` que nadie importaba son internos; sólo queda e
 **C.14, verificado y NO hecho todavía:** el menú público de la cafetería lee el puente con SESIÓN
 —desde el teléfono de una clienta no lee nada— y el pedido se «redacta» en vez de apartarse. Es el
 siguiente.
+
+## 25-09-2026 · Etapa 2.4 · C.14 · el pedido anticipado de la cafetería, de punta a punta
+
+**Lo que se construyó (D-18):** menú y apartado PÚBLICOS por la dirección del negocio
+(`/n/<slug>/pedir`, `/api/publico/negocio/<slug>/{menu,apartar}`), sin sesión y sin pago: orden
+confirmada al precio del catálogo y su pedido `programado`. En el mostrador, «Apartados»
+(`ApartadosDeHoy`): Preparar —la comanda llega a la barra ANTES del pago—, Cobrar —el cobro de ESA
+orden, `?pedido=`— y Entregar —sólo cobrado—. Límite por IP y por negocio, tres por hueco,
+idempotente. El e2e de cafetería lo recorre entero con una clienta SIN sesión y cierra el turno con
+el apartado en el arqueo: 2 de 2.
+
+**Defectos destapados por las pruebas nuevas, y arreglados** (una fase de pruebas que no encuentra
+nada, no probó):
+1. **El menú público no leía nada sin sesión** (usaba el puente) y sólo redactaba el pedido.
+2. **La barra de la demo de cafetería NUNCA recibió una comanda:** sus 18 recetas iban a `ninguno` y
+   no había estación. Ni las ventas del mostrador llegaban. Semilla arreglada (contrato rojo antes) y
+   estación general «Barra» asegurada en el reseteo.
+3. **«Listo y llamar» no dejaba el pedido listo:** sellaba hora y llamado, el estado seguía «nuevo»
+   y la tarjeta nunca pasaba a «Listos», donde está «Entregar». Ningún pedido se podía entregar desde
+   la barra (prueba roja antes).
+4. **El cierre de turno filtraba `'entregada'` y la base escribe `'entregado'`:** nada entregado
+   salía de «cobrados sin entregar» y el turno no se podía cerrar en cuanto la barra trabajaba.
+   Lista positiva de estados, atada al `check` de la 082 por un contrato.
+5. **`CobroYPropina` no cobró nunca:** mandaba `propinaCentavos` suelta en la raíz (el servidor valida
+   en estricto → 400) y `propinaOrigen` con valores fuera de la lista (`barista`/`cliente`). Y la
+   puerta `verify:entradas` no lo veía porque no entendía esquemas `.extend({…})`: ahora los entiende
+   (0 sin esquema legible, antes 4) y ve rojo el cuerpo viejo.
+6. **La página pública hablaba sin vocabulario** («se paga al recogerlo en .»): lleva el de la
+   cafetería.
+
+**Pruebas nuevas:** `portal/anticipado.test.ts` (7; cuatro mutaciones destructivas fallan: hueco,
+«hoy no hay», clave, anticipación mínima), 4 del lado del personal en `cafeteria/anticipado.test.ts`,
+1 en `barra.test.ts`, `semilla-barra.test.ts`, `fila-de-barra.test.ts`,
+`origen-de-propina.contrato.test.ts`. Batería unitaria: 3 472 en verde.
+
+**En curso:** C.16 — los tres agentes tradujeron 1 310 clases de paleta del heredado (22 dejadas a
+propósito sobre fondos que se eligen en tiempo de ejecución o en la vista previa de colores de
+marca), y `verificar-traduccion-de-color.mjs` dice que sólo cambió color. Falta el commit de sólo
+color, mover la base de `verify:aspecto`, extender la puerta de primitivas al heredado y lo de
+`index.css`.

@@ -34,6 +34,8 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { sigueEnLaFila } from './fila-de-barra';
+
 /**
  * PANTALLA · cafeteria · cierre-de-turno-y-arqueo
  *
@@ -321,7 +323,7 @@ async function leerFila(signal?: AbortSignal): Promise<readonly PedidoEnFila[]> 
     limite: 60,
     ...(signal === undefined ? {} : { signal }),
   });
-  return filas.filter((f) => f.estado !== 'entregada' && f.estado !== 'cancelada');
+  return filas.filter((f) => sigueEnLaFila(f.estado));
 }
 
 /** Cada tipo de cifra con su pieza: el dinero es `Dinero`; lo demás, `Cifra`. */

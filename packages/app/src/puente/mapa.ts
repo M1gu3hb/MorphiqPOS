@@ -2458,6 +2458,47 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  /**
+   * C.14 de la 2.4 · LOS APARTADOS DE LA CAFETERÍA, para quien los prepara y los cobra.
+   *
+   * Nacen del menú público sin sesión (`portal/anticipado.ts`) o del mostrador, con
+   * su orden CONFIRMADA y sin pagar: se cobran al recoger. La barra necesita verlos
+   * por hora para prepararlos cuando toca, y la caja, su total y si ya se cobró —el
+   * estado de la orden—, para no entregar nada sin cobrar.
+   */
+  PedidoAnticipado: {
+    tabla: 'pedidos_anticipados',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    ordenPorOmision: 'hora_prometida',
+    campos: {
+      ...soloAutomaticos(['id']),
+      orden_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
+      hora_prometida: { columna: 'hora_prometida', conversion: 'fecha', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      encolado_en: { columna: 'encolado_en', conversion: 'fecha', escribible: false },
+      entregado_en: { columna: 'entregado_en', conversion: 'fecha', escribible: false },
+    },
+    derivados: {
+      // En centavos enteros y con su nombre: `entero`, no `dinero`.
+      total_centavos: {
+        tabla: 'ordenes',
+        porColumna: 'orden_id',
+        columna: 'total_centavos',
+        conversion: 'entero',
+      },
+      // `pagada` o no: lo que decide si se puede entregar.
+      orden_estado: {
+        tabla: 'ordenes',
+        porColumna: 'orden_id',
+        columna: 'estado',
+        conversion: 'texto',
+      },
+    },
+  },
+
   Conteo: {
     tabla: 'tomas_inventario',
     rolesLectura: [...INVENTARIO],

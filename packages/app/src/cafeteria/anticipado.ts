@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { comandarLineasPendientes } from '../restaurante/comandar-pendientes.ts';
 
 /**
  * F-330 · El pedido anticipado, que es el cliente de oficina.
@@ -19,10 +20,14 @@ import { definirComando, type ContextoComando } from '../definicion.ts';
  * anticipado: es uno normal con el cliente esperando. El dato que importa —y
  * que hoy no existe— es la distancia entre `hora_prometida` y `entregado_en`.
  *
- * ── Y por qué se cobra ANTES ──────────────────────────────────────────────
- * Porque una reserva sin prenda es el no-show, y un no-show de seis cafés en la
- * hora pico es media hora de barra tirada. La orden ya está cobrada cuando el
- * pedido anticipado nace: es lo que convierte una promesa en un compromiso.
+ * ── Se reserva SIN PAGO y se cobra al recoger (C.14 de la 2.4) ──────────
+ * Aquí decía que se cobraba ANTES, porque una reserva sin prenda es el no-show. La
+ * decisión de Miguel es la otra mientras no haya pasarela (§10): «se reserva sin
+ * pago y se cobra al recoger». Así que la orden llega CONFIRMADA —desde el menú
+ * público (`portal/anticipado.ts`) o desde el mostrador—, la barra la prepara cuando
+ * toca (`encolar` emite su comanda ANTES del pago) y `entregar` exige la orden
+ * pagada: nada sale sin cobrar. El riesgo del no-show se acota con los tres pedidos
+ * por hueco y con `no_recogido`.
  */
 
 const ROLES = ['cajero', 'mesero', 'gerente', 'administrador', 'dueno'] as const;
@@ -93,12 +98,12 @@ export const programarPedido = definirComando<
     if (orden === undefined) {
       throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Esa venta no existe en este negocio.');
     }
-    if (orden.estado !== 'pagada') {
-      // Una reserva sin prenda es el no-show, y en la hora pico cuesta media
-      // hora de barra.
+    if (orden.estado !== 'confirmada' && orden.estado !== 'pagada') {
+      // Un borrador no tiene líneas confirmadas: apartarlo sería prometer una hora
+      // para algo que todavía nadie pidió. Confirmada (se cobra al recoger) o pagada.
       throw new ErrorDominio(
         'ORDEN_NO_EDITABLE',
-        'El pedido anticipado se cobra antes: sin cobro es una reserva y las reservas no llegan.',
+        'Sólo se aparta una orden confirmada: primero se arma el pedido.',
       );
     }
 
@@ -194,6 +199,20 @@ export const encolarPedido = definirComando<
       );
     }
 
+    /**
+     * Y A LA BARRA, ANTES DEL PAGO (C.14 de la 2.4).
+     *
+     * Encolar sólo cambiaba el estado del pedido: la barra lee sus comandas, y la
+     * comanda nacía hasta el COBRO. Un apartado que se prepara cuando la clienta
+     * llega y paga no adelanta nada. Se emiten aquí con la misma función que usa el
+     * cobro —las líneas que aún no salieron—, así que cobrar al recoger no las manda
+     * dos veces. El `cobrado_en` de esa comanda es, en un apartado, la hora en que
+     * entró a la barra: es desde cuándo se mide su espera.
+     */
+    await ctx.paso('comandar', () =>
+      comandarLineasPendientes(ctx.tx, ctx.ambito.organizacionId, pedido.orden_id, ctx.ahora),
+    );
+
     const minutos = Math.round(
       (pedido.hora_prometida.getTime() - ctx.ahora.getTime()) / MS_POR_MINUTO,
     );
@@ -227,6 +246,22 @@ export const entregarAnticipado = definirComando<
   async ejecutar(ctx, entrada) {
     const pedido = await cargar(ctx, entrada.pedidoId);
 
+    // Se cobra al recoger (C.14): lo que no se ha cobrado no sale de la barra.
+    const orden = await ctx.paso('cargar_orden', () =>
+      ctx.tx
+        .selectFrom('ordenes')
+        .select(['estado'])
+        .where('organizacion_id', '=', ctx.ambito.organizacionId)
+        .where('id', '=', pedido.orden_id)
+        .executeTakeFirst(),
+    );
+    if (orden?.estado !== 'pagada') {
+      throw new ErrorDominio(
+        'ORDEN_NO_EDITABLE',
+        'Cóbralo antes de entregarlo: el apartado se paga al recoger.',
+      );
+    }
+
     const tocadas = await ctx.paso('entregar', () =>
       ctx.tx
         .updateTable('pedidos_anticipados')
@@ -243,6 +278,35 @@ export const entregarAnticipado = definirComando<
         'Ese pedido ya se había entregado o se marcó como no recogido.',
       );
     }
+
+    /**
+     * Y SU COMANDA DE BARRA, ENTREGADA (C.14 de la 2.4).
+     *
+     * El apartado se entrega por aquí, no por la tarjeta de la barra; sin esto su
+     * comanda se quedaba en la fila y el cierre de turno la contaba como «cobrado
+     * que nadie ha entregado», y no dejaba cerrar. `lista_en` se sella si faltaba,
+     * igual que `cafeteria.entregar_pedido`: la bebida estuvo lista en algún momento.
+     */
+    const EN_LA_FILA = ['nuevo', 'en_preparacion', 'listo'];
+    await ctx.paso('sellar_lista', () =>
+      ctx.tx
+        .updateTable('comandas')
+        .set({ lista_en: ctx.ahora })
+        .where('organizacion_id', '=', ctx.ambito.organizacionId)
+        .where('orden_id', '=', pedido.orden_id)
+        .where('estado', 'in', EN_LA_FILA)
+        .where('lista_en', 'is', null)
+        .execute(),
+    );
+    await ctx.paso('entregar_comandas', () =>
+      ctx.tx
+        .updateTable('comandas')
+        .set({ estado: 'entregado', entregada_en: ctx.ahora })
+        .where('organizacion_id', '=', ctx.ambito.organizacionId)
+        .where('orden_id', '=', pedido.orden_id)
+        .where('estado', 'in', EN_LA_FILA)
+        .execute(),
+    );
 
     // Contra la PROMESA, no contra la preparación. Medir desde que la comanda
     // llegó a barra diría que se cumplió el compromiso cuando lo que se
@@ -267,11 +331,11 @@ export const entregarAnticipado = definirComando<
 async function cargar(
   ctx: ContextoComando<Transaccion>,
   pedidoId: string,
-): Promise<{ hora_prometida: Date; nombre: string }> {
+): Promise<{ hora_prometida: Date; nombre: string; orden_id: string }> {
   const fila = await ctx.paso('cargar_pedido', () =>
     ctx.tx
       .selectFrom('pedidos_anticipados')
-      .select(['hora_prometida', 'nombre'])
+      .select(['hora_prometida', 'nombre', 'orden_id'])
       .where('organizacion_id', '=', ctx.ambito.organizacionId)
       .where('id', '=', pedidoId)
       .executeTakeFirst(),

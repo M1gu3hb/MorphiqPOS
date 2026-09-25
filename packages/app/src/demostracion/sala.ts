@@ -160,26 +160,7 @@ async function sembrarEstaciones(tx: Transaccion, organizacionId: string): Promi
    * `mantenimiento.purgar` al resembrar los mínimos de un restaurante: una sola
    * forma de la estación general en todo el sistema.
    */
-  const general = await tx
-    .selectFrom('estaciones_preparacion')
-    .select('id')
-    .where('organizacion_id', '=', organizacionId)
-    .where('es_general', '=', true)
-    .executeTakeFirst();
-  if (general === undefined) {
-    await tx
-      .insertInto('estaciones_preparacion')
-      .values({
-        organizacion_id: organizacionId,
-        nombre: 'Cocina general',
-        descripcion: 'Estación por defecto',
-        color: '#4A5568',
-        orden: 0,
-        es_general: true,
-      })
-      .execute();
-    creadas += 1;
-  }
+  creadas += await asegurarEstacionGeneral(tx, organizacionId, 'Cocina general');
 
   for (const [indice, estacion] of ESTACIONES.entries()) {
     const existente = await tx
@@ -241,4 +222,39 @@ async function sembrarMesas(
     creadas += 1;
   }
   return creadas;
+}
+
+/**
+ * La estación GENERAL del negocio, si no la tiene: 1 si la creó, 0 si ya estaba.
+ *
+ * `resolverEstacion` cae a la general cuando la categoría del producto no tiene la
+ * suya, y sin general no se emite ninguna comanda. La usan la sala del restaurante
+ * («Cocina general») y la barra de la cafetería («Barra»), que tampoco tenía
+ * ninguna: su barra no recibía nada, ni de las ventas del mostrador ni de los
+ * apartados (C.14 de la 2.4).
+ */
+export async function asegurarEstacionGeneral(
+  tx: Transaccion,
+  organizacionId: string,
+  nombre: string,
+): Promise<number> {
+  const general = await tx
+    .selectFrom('estaciones_preparacion')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .where('es_general', '=', true)
+    .executeTakeFirst();
+  if (general !== undefined) return 0;
+  await tx
+    .insertInto('estaciones_preparacion')
+    .values({
+      organizacion_id: organizacionId,
+      nombre,
+      descripcion: 'Estación por defecto',
+      color: '#4A5568',
+      orden: 0,
+      es_general: true,
+    })
+    .execute();
+  return 1;
 }

@@ -21,7 +21,7 @@ import {
 import { semillaParaPaquete } from './datos.ts';
 import { equipoDelGiro, reponerPin, sembrarEquipo } from './equipo.ts';
 import { sembrarOpcionesDeBebida, type ResumenBebidas } from './bebidas.ts';
-import { sembrarSala, type ResumenSala } from './sala.ts';
+import { asegurarEstacionGeneral, sembrarSala, type ResumenSala } from './sala.ts';
 import { sembrarSalon, type ResumenSalon } from './salon.ts';
 import { CICLOS, ORDEN_DE_LIMPIEZA } from './tablas-del-reseteo.ts';
 
@@ -459,6 +459,13 @@ export const resetearDemo = definirComando<
             sembrarSala(ctx.tx, ctx.ambito.organizacionId, sucursalId),
           )
         : null;
+
+    // Y la BARRA de la cafetería: su estación general, o la barra no recibe comandas.
+    if (organizacion.giro === 'cafeteria') {
+      await ctx.paso('asegurar_barra', () =>
+        asegurarEstacionGeneral(ctx.tx, ctx.ambito.organizacionId, 'Barra'),
+      );
+    }
 
     // Y el SALON solo en una estetica: profesionales, muebles y los cuatro
     // tramos de cada servicio. Sin ellos la agenda del dia abre con cero
