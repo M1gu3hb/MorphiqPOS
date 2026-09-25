@@ -145,3 +145,45 @@ export {
   type ResultadoMiDia,
   type ResultadoProfesionales,
 } from './profesionales.ts';
+
+export {
+  asignacionesDeServicios,
+  entradaAsignaciones,
+  entradaGuardarServicio,
+  guardarServicio,
+  type AsignacionDeServicio,
+  type ResultadoServicio,
+} from './servicios.ts';
+
+export {
+  cancelarEspera,
+  entradaCancelarEspera,
+  entradaListaDeEspera,
+  listaDeEspera,
+  type EsperaViva,
+} from './espera-viva.ts';
+
+export {
+  entradaFotosDeClienta,
+  fotosDeClienta,
+  type FotoDelExpediente,
+} from './expediente-fotos.ts';
+
+export { anotarCita, entradaAnotarCita } from './notas.ts';
+
+export {
+  entradaExistenciasDelSalon,
+  existenciasDelSalon,
+  type ExistenciaDelSalon,
+} from './cabina-existencias.ts';
+
+export {
+  asignarRegla,
+  entradaAsignarRegla,
+  entradaGuardarRegla,
+  entradaPendientesPorProfesional,
+  guardarRegla,
+  pendientesPorProfesional,
+  type PendienteDeProfesional,
+  type ResultadoRegla,
+} from './reglas-comision.ts';

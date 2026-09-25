@@ -66,7 +66,7 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * Inventario, historial, edición de ventas y reportes de otros días. Esto
  * cierra HOY; lo demás se pregunta en «Registros».
  *
- * ── Alcance recortado, dicho y no escondido ──────────────────────────────
+ * ── Cómo se arma, pieza por pieza (C.10 de la 2.4: nada quedó fuera) ──
  * 1. El efectivo esperado se DERIVA aquí (fondo + ventas en efectivo + propina
  *    en efectivo − gastos pagados en efectivo) para poder enseñar el semáforo
  *    sin cerrar. La cifra que manda es la de `caja.cerrar`, calculada dentro de

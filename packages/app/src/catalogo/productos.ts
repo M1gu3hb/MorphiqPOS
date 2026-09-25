@@ -232,7 +232,10 @@ export const archivarProducto = definirComando<
   },
 });
 
-function valoresProducto(organizacionId: string, entrada: z.output<typeof entradaCrearProducto>) {
+export function valoresProducto(
+  organizacionId: string,
+  entrada: z.output<typeof entradaCrearProducto>,
+) {
   let mlPorPorcion: string | null = null;
   if (entrada.tipoVenta === 'porcion_contenedor') {
     const capacidadMl = entrada.capacidadMl;

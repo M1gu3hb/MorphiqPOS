@@ -65,7 +65,10 @@ export interface ResultadoEspera {
   readonly estado: string;
 }
 
-async function exigirEspera(ctx: ContextoComando<Transaccion>, esperaId: string): Promise<void> {
+export async function exigirEspera(
+  ctx: ContextoComando<Transaccion>,
+  esperaId: string,
+): Promise<void> {
   const fila = await ctx.paso('leer_espera', () =>
     ctx.tx
       .selectFrom('lista_espera_citas')

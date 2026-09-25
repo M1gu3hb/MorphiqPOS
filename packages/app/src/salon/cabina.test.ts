@@ -8,7 +8,7 @@ import {
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
 import { ambitoDe, ORG, SUCURSAL } from '../restaurante/pruebas/sala.ts';
-import { abrirProducto, alcanzaLaCabina } from './cabina.ts';
+import { abrirProducto, alcanzaLaCabina, alcanzaParaCuantos } from './cabina.ts';
 
 /**
  * F-155 · El doble destino del mismo SKU: cabina y anaquel.
@@ -279,5 +279,48 @@ describe('F-155 · los dos almacenes salen de la SESIÓN cuando no se dicen', ()
     await abrirProducto.ejecutar(ctx, APERTURA);
 
     expect(base.filas('movimientos_stock')[0]?.['almacen_id']).toBe(VENTA);
+  });
+});
+
+/**
+ * C.10 de la 2.4 · «¿Alcanza?» dice QUÉ material, en qué unidad y para cuántos servicios.
+ * Antes sólo devolvía el id de los que faltaban, y la pantalla adivinaba el nombre por el
+ * producto que lo surte.
+ */
+describe('C.10 · lo que «¿alcanza?» dice de cada material', () => {
+  it('trae el nombre y la unidad de cada insumo, y también los que alcanzan', async () => {
+    const base = baseDe({
+      existencias: [
+        { organizacion_id: ORG, almacen_id: CABINA, insumo_id: INSUMO, cantidad: '900.0000' },
+      ],
+      insumos: [
+        { id: INSUMO, organizacion_id: ORG, nombre: 'Tinte 7.1', unidad_base: 'g' },
+        { id: OTRO_INSUMO, organizacion_id: ORG, nombre: 'Oxidante 20 vol', unidad_base: 'ml' },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    const salida = await alcanzaLaCabina.ejecutar(ctx, {
+      almacenCabinaId: CABINA,
+      consumoEsperado: [
+        { insumoId: INSUMO, cantidadBase: '300.0000' },
+        { insumoId: OTRO_INSUMO, cantidadBase: '60.0000' },
+      ],
+    });
+
+    expect(salida.insumos).toEqual([
+      expect.objectContaining({ nombre: 'Tinte 7.1', unidad: 'g', falta: false }),
+      expect.objectContaining({ nombre: 'Oxidante 20 vol', unidad: 'ml', falta: true }),
+    ]);
+    // Con el consumo traído por quien pregunta no hay «cuántos servicios».
+    expect(salida.insumos[0]?.servicios).toBeNull();
+  });
+
+  it('para cuántos servicios alcanza: hacia abajo, y nunca más de los que hay', () => {
+    // Cinco tintes piden 300 g y hay 130 g: alcanza para dos.
+    expect(alcanzaParaCuantos(1_300_000n, 3_000_000n, 5)).toBe(2);
+    expect(alcanzaParaCuantos(9_000_000n, 3_000_000n, 5)).toBe(5);
+    expect(alcanzaParaCuantos(0n, 3_000_000n, 5)).toBe(0);
+    expect(alcanzaParaCuantos(1_000n, 3_000_000n, null)).toBeNull();
   });
 });
