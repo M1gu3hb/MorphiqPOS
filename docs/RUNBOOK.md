@@ -166,16 +166,9 @@ petición— con cualquier negocio que no esté en la lista de demos
 demo-ferreteria-la-broca`, que es un negocio REAL: le habría rotado el PIN a su dueña. Hay tres más —`humo-turno.mjs`,
 `humo-accesos.mjs`, `humo-seguridad.mjs`— y todos aceptan `--base`.
 
-Las URL `*.vercel.app` están detrás del SSO del equipo. Para correr humo contra
-un despliegue concreto hace falta un secreto de bypass:
-
-```bash
-vercel project protection enable morphiqpos --protection-bypass --format json --scope mh-astral-systems
-# exportar VERCEL_AUTOMATION_BYPASS_SECRET, correr el humo, y después:
-vercel project protection disable morphiqpos --protection-bypass --protection-bypass-secret <secreto> --scope mh-astral-systems
-```
-
-**Se revoca al terminar.** Un bypass vivo es una puerta abierta a los previews.
+Las URL `*.vercel.app` de un Preview están detrás de la Protección de Despliegue. Las formas de
+pasarla —el secreto de bypass, que se genera con el CLI, y el enlace compartido— están escritas en
+UN solo sitio: `docs/fase-2/VERCEL-ENTORNO.md` §3. **El secreto se revoca al terminar.**
 
 ---
 

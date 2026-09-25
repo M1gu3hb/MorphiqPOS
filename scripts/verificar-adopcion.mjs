@@ -59,6 +59,18 @@ export const SIN_ESTADO = [
       'Los ocho estilos y sus perillas son constantes del sistema de diseño (ESTILOS, PERILLAS), no datos de la red: no hay ninguna lista que pueda llegar vacía.',
   },
   {
+    pantalla: 'cliente/en-linea',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el AVISO «Sin internet. No se puede cobrar» que las cinco pantallas de cobro montan cuando se cae la red. No lista nada que pueda llegar vacío.',
+  },
+  {
+    pantalla: 'cliente/en-linea',
+    estado: 'cargando',
+    razon:
+      'El aviso lee `navigator.onLine` al montar, de forma síncrona: no hay espera que enseñar. Sin red, el aviso ES el estado.',
+  },
+  {
     pantalla: 'entrada/EntradaSinNegocio',
     estado: 'cargando',
     razon:

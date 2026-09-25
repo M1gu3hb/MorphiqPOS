@@ -290,6 +290,24 @@ de `main`, que todavía mezcla, añadirlos antes enseñaría también su persona
 **Preview** lleva sólo las cinco demos (`demo-acople-*`): escribe en la misma base que producción,
 y un Preview que sirva a un negocio real sería una puerta trasera. Configurado el 24-09-2026.
 
+## D-16 · 24-09-2026 · El corte guarda su esperado y su diferencia, sin migración nueva
+
+**Contexto.** El encargo de la 2.4 (C.4) pedía una migración para que `sesiones_caja` guardara el
+efectivo esperado, con su respaldo, su ensayo y su aplicación. El ensayo con datos de esa migración
+(178) falló: **la columna ya existía**. La migración 100 creó `efectivo_esperado_centavos` y
+`diferencia_centavos` —«se guarda calculada y no se deduce después»— y `caja.cerrar` nunca las
+escribió; `esquema.ts` tampoco las declaraba, que es por lo que nadie las usaba.
+
+**Decisión.** Sin migración. `cerrarSesion` escribe las dos columnas con el esperado que comparó y
+la diferencia; el puente las sirve en `CorteCaja` como `esperado_al_cerrar` y
+`diferencia_al_cerrar` —con nombre propio: `efectivo_esperado` y `diferencia_efectivo` los reserva
+F1-04 §20.4 como derivados de las heredadas—; el histórico de cortes las pinta ordenadas por la
+diferencia. Los cierres anteriores las traen en nulo, y la pantalla dice «no se guardó» en vez de
+re-derivarlas: la foto de lo que se firmó al cerrar no se reconstruye después.
+
+La regla de F1-04 §20.2 —«los totales no se guardan»— sigue valiendo para la sesión ABIERTA:
+mientras está abierta, el esperado se deriva siempre.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

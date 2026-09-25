@@ -30,6 +30,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -184,8 +185,9 @@ export function resumirConteo(
     if (contado === undefined) continue;
     // Un costo ausente no es un costo de cero: quien cuenta no lo ve. Se apunta y
     // el importe se calla; contar 0 haría que un faltante de mil pesos se
-    // enseñara como «$0.00 · 0.0 %», que es peor que no enseñar nada.
-    const costo = fila.costoCentavos;
+    // enseñara como «$0.00 · 0.0 %», que es peor que no enseñar nada. Por
+    // `centavosDe`, que sabe en qué unidad llega el campo y conserva el `null`.
+    const costo = centavosDe('ConteoDeZona', 'costoCentavos', fila.costoCentavos);
     if (costo === null) importeVisible = false;
     valorEsperado += fila.esperado * (costo ?? 0);
     const diferencia = contado - fila.esperado;

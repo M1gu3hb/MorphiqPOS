@@ -22,7 +22,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -110,10 +110,12 @@ export interface RemisionPorFacturar {
 
 /**
  * La remisión como la sirve el puente: `Remision.importe_centavos` va con
- * `conversion: 'dinero'`, así que llega en PESOS aunque se llame `_centavos`.
+ * `conversion: 'dinero'`, así que llega en PESOS aunque se llame `_centavos`. Por eso
+ * se lee su gemelo honesto, `importe_pesos` —la misma columna, con el nombre de lo que
+ * trae—, y no el nombre que miente.
  */
 type RemisionDelPuente = Omit<RemisionPorFacturar, 'importe_centavos'> & {
-  readonly importe_centavos: number | null;
+  readonly importe_pesos: number | null;
 };
 
 /**
@@ -121,13 +123,21 @@ type RemisionDelPuente = Omit<RemisionPorFacturar, 'importe_centavos'> & {
  * del grupo trabajan en centavos enteros. Sin esto, $1,234.50 se pintaba «$12.34».
  * La columna es `not null`: un importe que no llega es una lectura rota, y el grupo
  * no se arma con un total al que le falta una remisión.
+ *
+ * Campo por campo y no con `...remision`: la copia no arrastra `importe_pesos`, que en
+ * la forma de la pantalla sería un segundo importe en otra unidad.
  */
 function remisionEnCentavos(remision: RemisionDelPuente): RemisionPorFacturar {
-  const importe = centavosDelPuente(remision.importe_centavos);
+  const importe = centavosDe('Remision', 'importe_pesos', remision.importe_pesos);
   if (importe === null) {
     throw new Error(`La remisión ${remision.folio} llegó sin importe.`);
   }
-  return { ...remision, importe_centavos: importe };
+  return {
+    id: remision.id,
+    folio: remision.folio,
+    entregada_en: remision.entregada_en,
+    importe_centavos: importe,
+  };
 }
 
 export interface FacturacionProps {

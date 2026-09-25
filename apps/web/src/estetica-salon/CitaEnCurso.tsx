@@ -30,6 +30,7 @@ import {
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import {
   PASO,
   mover,
@@ -151,7 +152,13 @@ export interface ServicioDeLaCita {
   readonly id: string;
   /** `servicio_nombre`, que es como lo sirve `CitaServicio`. */
   readonly servicio_nombre: string | null;
-  readonly precio_centavos: number;
+  /**
+   * EN PESOS: el gemelo honesto de `precio_centavos`, la misma columna, que el puente
+   * convierte con `dinero`. Aquí se leía `precio_centavos` y se pasaba tal cual a
+   * `<Dinero centavos>`: una cita de $350.00 se veía $3.50 (C.1 de la 2.4). Se lee
+   * sólo con `centavosDe`.
+   */
+  readonly precio_pesos: number;
   readonly estado: string;
 }
 
@@ -411,7 +418,14 @@ function columnasDeServicios(voc: Vocabulario): readonly ColumnaDeTabla<Servicio
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      celda: (s) => <Dinero centavos={s.precio_centavos} tamano="sm" />,
+      // La columna no admite nulo: un nulo aquí sería una lectura rota, y se pinta
+      // $0.00 en vez de tirar la tabla con la clienta sentada.
+      celda: (s) => (
+        <Dinero
+          centavos={centavosDe('CitaServicio', 'precio_pesos', s.precio_pesos) ?? 0}
+          tamano="sm"
+        />
+      ),
     },
   ];
 }

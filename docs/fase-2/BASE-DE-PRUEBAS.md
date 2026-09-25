@@ -1,6 +1,6 @@
 # La base de las pruebas de integración · sin Docker
 
-`pnpm test:integracion` es el eslabón 31 de `pnpm verify` y el único que necesita
+`pnpm test:integracion` es el ÚLTIMO eslabón de `pnpm verify` y el único que necesita
 **un Postgres de verdad**: prueba transacciones, restricciones únicas y carreras,
 que son exactamente las tres cosas que un mock no reproduce (`13-PRUEBAS §2`).
 

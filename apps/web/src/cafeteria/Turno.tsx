@@ -20,7 +20,7 @@ import { Coins, History, Lock, LockOpen, Plus, ReceiptText } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react';
 
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -260,8 +260,9 @@ const COLUMNAS_DEL_HISTORIAL: readonly ColumnaDeTabla<CorteDelHistorial>[] = [
     titulo: 'Contado',
     numerica: true,
     celda: (corte) => {
-      // El puente lo sirve en PESOS: de vuelta a centavos contando dígitos.
-      const contado = centavosDelPuente(corte.efectivo_contado);
+      // El puente lo sirve en PESOS: de vuelta a centavos contando dígitos, según la
+      // unidad del campo en el mapa. Sin conteo el corte sigue en curso.
+      const contado = centavosDe('CorteCaja', 'efectivo_contado', corte.efectivo_contado);
       return contado === null ? (
         <span className="text-texto-sutil">en curso</span>
       ) : (

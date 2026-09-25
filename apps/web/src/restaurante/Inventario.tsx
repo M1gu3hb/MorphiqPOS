@@ -35,6 +35,7 @@ import {
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 
 /**
  * PANTALLA · restaurante · inventario
@@ -204,15 +205,6 @@ function normalizar(texto: string): string {
     .toLowerCase();
 }
 
-/**
- * El puente sirve el valor en PESOS y `<Dinero>` pide centavos. Se cuentan los
- * dígitos en vez de multiplicar: `58.995 * 100` pierde medio centavo.
- */
-function aCentavos(valor: number): number {
-  const [entero = '0', decimal = '00'] = Math.abs(valor).toFixed(2).split('.');
-  return (valor < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
-}
-
 /** Los decimales que de verdad trae una cantidad, hasta tres: 2.5 kg no es «2.500 kg». */
 function decimalesDe(valor: number): number {
   const [, decimal = ''] = String(valor).split('.');
@@ -278,11 +270,13 @@ function Cantidad({
 
 /**
  * Cocina lo recibe en `null` y aquí se pinta «—»: el rol lo recorta el puente,
- * campo por campo, no la pantalla.
+ * campo por campo, no la pantalla. El puente sirve el valor en PESOS y `<Dinero>`
+ * pide centavos: la unidad la decide `centavosDe` por la conversión del campo.
  */
-function ValorDelIngrediente({ valor }: { readonly valor: number | null }) {
-  if (valor === null) return <span className="text-texto-sutil">—</span>;
-  return <Dinero centavos={aCentavos(valor)} tamano="sm" />;
+function ValorDelIngrediente({ fila }: { readonly fila: IngredienteDeInventario }) {
+  const centavos = centavosDe('Ingrediente', 'valor_inventario', fila.valor_inventario);
+  if (centavos === null) return <span className="text-texto-sutil">—</span>;
+  return <Dinero centavos={centavos} tamano="sm" />;
 }
 
 function Semaforo({
@@ -500,7 +494,7 @@ function columnasDePC(pintar: Pintores): readonly ColumnaDeTabla<IngredienteDeIn
       clave: 'valor',
       titulo: 'Valor',
       numerica: true,
-      celda: (fila) => <ValorDelIngrediente valor={fila.valor_inventario} />,
+      celda: (fila) => <ValorDelIngrediente fila={fila} />,
     },
     {
       clave: 'ajustar',
@@ -564,7 +558,7 @@ function columnasDeTarjeta(pintar: Pintores): readonly ColumnaDeTabla<Ingredient
       clave: 'valor',
       titulo: 'Valor',
       numerica: true,
-      celda: (fila) => <ValorDelIngrediente valor={fila.valor_inventario} />,
+      celda: (fila) => <ValorDelIngrediente fila={fila} />,
     },
   ];
 }

@@ -5714,3 +5714,49 @@ están traducidas. **C.18 (parte)** · EXCEPCIONES decía «Seis» con tres fila
 
 **En qué voy.** La migración de las 130 lecturas (barrido mecánico: una cola de ≤3 agentes, uno por
 modelo). Después, C.1/C.3/C.5 y el resto del bloque.
+
+---
+
+## 24-09-2026 · Etapa 2.4 · Bloque C, segunda parte · el dinero y los datos
+
+**C.2 cerrado: `verify:unidades` en 0**, vista roja con 130 lecturas. Un barrido mecánico con una
+cola de TRES agentes (uno por modelo, dos tandas) migró 131 lecturas; el hueco que reportaron —el
+generador no veía los campos `…Centavos` en camelCase— se cerró y destapó 22 más, que migró un
+cuarto agente. **153 lecturas** en 37 pantallas pasan por `centavosDe`. Las dos puertas nuevas
+entran a la cadena (`verify:unidades`, `verify:limpieza`: 39 eslabones) y a CI.
+
+**Defectos destapados en este tramo, y arreglados:**
+1. **C.1 · `CitaEnCurso` pintaba una cita de $350.00 como $3.50** (pesos tomados por centavos).
+2. **`TrabajosDeMostrador` pintaba `NaN`** con un apartado sin total (`Number('null')`).
+3. **Opciones de la bebida: el botón AGREGAR enseñaba sólo lo que suman las opciones** —«$10.00» por
+   un latte— porque la página no pasa el precio base; ahora se lee del puente.
+4. **El respaldo lógico NO se podía restaurar:** volcaba las columnas `integer[]`/`text[]` como
+   `jsonb` («column dia_visita is of type integer[]…»). Nadie lo había visto porque ningún respaldo
+   se había cargado de verdad; lo cazó el ensayo con datos de C.4. Arreglado y re-verificado.
+5. **C.4 no necesitaba migración.** El ensayo de la 178 falló con «la columna ya existe»: la
+   migración 100 ya había creado `efectivo_esperado_centavos` y `diferencia_centavos` («se guarda
+   calculada»), y `caja.cerrar` NUNCA las escribió. La 178 se retiró; el cierre las escribe
+   (prueba roja contra el `cerrarSesion` de antes) y el histórico de cortes enseña folio y
+   diferencia, ordenado por la diferencia (§PANTALLA 10) con su palabra —Falta/Sobra/Cuadra—.
+   D-16 en `05-DECISIONES.md`. **El punto 7 del §10 (aplicar la migración de C.4) no hace falta.**
+6. **`esquema.ts` iba atrasado del esquema real: 25 columnas y 3 tablas** (entre ellas las dos de
+   arriba, que es por lo que nadie las escribía). Contrato nuevo `esquema-tipos.contrato.test.ts`,
+   rojo con 28 faltantes, verde tras generarlas con la traducción de tipos que el archivo ya usaba.
+
+**C.7 · «Mi día» es de una persona, y lo dice el servidor.** Recorte `soloDeQuienEntra` en el
+puente: para el rol de la estilista, `Profesional`, `Cita` (por sus servicios), `CitaServicio`,
+`ComisionCausada` y `Liquidacion` sólo devuelven lo de la profesional ligada al empleo de la
+sesión; sin empleo, falla cerrada. La pantalla ya no pregunta el nombre si el servidor le da una
+sola. Prueba del SQL grabado, 6 de 7 en rojo sin el recorte.
+
+**C.18 · docs.** VERCEL-ENTORNO §0/§2/§3/§4/§7 al día (el bypass SÍ se genera con el CLI; Production
+SÍ está en el 6543). **Y `APP_URL` de Production está MAL:** leída por su efecto —403 con un origen no
+permitido, 401 con uno permitido, sin sesión y sin escribir— es `pos-mh-astral-systems.com`, que hoy
+resuelve a otro proveedor y contesta 402: toda imagen que se suba en producción nacería con un enlace
+roto. Cero URLs guardadas todavía. Va al §10, con el valor exacto.
+
+**Respaldo de esta etapa:** `D:\MIS PROYECTOS\Master POS\respaldos\morphiqpos-2026-09-25T00-46-48.sql`
+(3 391 filas, sha256 en su manifiesto), cargado de verdad en el ensayo.
+
+**En qué voy.** Siguen C.3 (cobro de la estética), C.5, C.6 (el corte y su PDF), C.8, C.9 (lo que
+el puente no sirve), C.10–C.12 y C.16.

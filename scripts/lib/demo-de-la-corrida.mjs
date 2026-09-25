@@ -61,15 +61,22 @@ export async function empleadosDeLaDemo(llamar, demo) {
     process.exit(1);
   }
   const empleados = respuesta.datos.datos?.empleados ?? [];
-  const ajenos = empleados.filter((e) => e.negocioSlug !== demo.slug);
-  if (empleados.length === 0 || ajenos.length > 0) {
+  // FALLA CERRADA: una sola persona sin la marca de su negocio y no se sigue, porque ya no
+  // hay forma de saber de quién es. Con la marca en todas, se queda SÓLO con la gente de
+  // la demo. Así sirve contra la 2.4 —que ya contesta sólo con la demo— y contra `main`,
+  // que todavía mezcla a los seis negocios pero marca a cada persona.
+  const sinMarca = empleados.filter(
+    (e) => typeof e.negocioSlug !== 'string' || e.negocioSlug === '',
+  );
+  const suyos = empleados.filter((e) => e.negocioSlug === demo.slug);
+  if (sinMarca.length > 0 || suyos.length === 0) {
     console.error(
-      `✗ La lista de «${demo.slug}» trae ${String(ajenos.length)} persona(s) sin su marca ` +
-        `(de ${String(empleados.length)}). No se entra: podría ser gente de otro negocio.`,
+      `✗ La lista de empleados trae ${String(sinMarca.length)} persona(s) sin la marca de su ` +
+        `negocio y ${String(suyos.length)} de «${demo.slug}». No se entra: podría ser gente de otro negocio.`,
     );
     process.exit(1);
   }
-  return empleados;
+  return suyos;
 }
 
 /** Una persona de la demo por su ROL del servidor (`dueno`, `cajero`…). */

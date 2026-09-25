@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -104,11 +105,13 @@ export interface CobrarProps {
   readonly onCobrado?: (ordenId: string) => void;
 }
 
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+/**
+ * El precio de la tesela, en centavos. El puente lo sirve en pesos y `centavosDe` lo
+ * convierte según la unidad del campo, contando dígitos. Sin precio cuenta cero: el
+ * total viaja al cobro y el servidor lo rechaza si no coincide con el suyo.
+ */
+function precioDe(producto: ProductoDeBarra): number {
+  return centavosDe('ProductoTerminado', 'precio_venta', producto.precio_venta) ?? 0;
 }
 
 /** Las categorías que de verdad tienen producto. Una pestaña vacía es una trampa. */
@@ -143,7 +146,7 @@ export function conProducto(
     {
       productoId: producto.id,
       nombre: producto.nombre ?? 'Producto',
-      precioCentavos: aCentavos(producto.precio_venta),
+      precioCentavos: precioDe(producto),
       cantidad: 1,
     },
   ];
@@ -398,7 +401,8 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
     );
   }
 
-  const cambio = aCentavos(turno.efectivo_inicial_contado);
+  const cambio =
+    centavosDe('CorteCaja', 'efectivo_inicial_contado', turno.efectivo_inicial_contado) ?? 0;
   const aviso = avisoDeCambio(cambio);
   const nombreVisible = nombre.trim() === '' ? 'Sin nombre' : nombre.trim();
 
@@ -579,7 +583,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
                   className={`flex min-h-24 w-full flex-col items-center justify-center gap-(--espacio-1) text-center ${agotado ? 'bg-fondo-sutil text-texto-sutil' : ''}`}
                 >
                   <span className="text-sm font-semibold">{producto.nombre ?? 'Producto'}</span>
-                  <Dinero centavos={aCentavos(producto.precio_venta)} tamano="sm" />
+                  <Dinero centavos={precioDe(producto)} tamano="sm" />
                   {/* La palabra, no sólo el gris: el gris solo no se lee. */}
                   {agotado ? <span className="text-xs font-medium">Agotado</span> : null}
                 </Superficie>

@@ -34,6 +34,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
@@ -129,8 +130,11 @@ export interface ServicioDeCita {
   readonly cita_id: string | null;
   readonly servicio_id: string | null;
   readonly profesional_id: string | null;
-  /** El puente convierte `dinero` a PESOS, aunque la columna se llame centavos. */
-  readonly precio_centavos: number | null;
+  /**
+   * EN PESOS: el gemelo honesto de `precio_centavos`, la misma columna, que el puente
+   * convierte con `dinero`. Se lee sólo con `centavosDe` (`importeDeLinea`).
+   */
+  readonly precio_pesos: number | null;
   readonly estado: string | null;
 }
 
@@ -171,7 +175,13 @@ interface CobroHecho {
   readonly folio: string;
 }
 
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
+/**
+ * Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo.
+ *
+ * Ya sólo para el anticipo, que el puente todavía no sirve (punto 2 del alcance). Los
+ * importes que SÍ viajan por el puente van por `centavosDe`, que decide la unidad por
+ * el mapa y no por el nombre del campo.
+ */
 export function aCentavos(pesos: number | null | undefined): number {
   if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
   const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
@@ -187,8 +197,13 @@ export function lineasDe(
   return servicios.filter((fila) => fila.cita_id === citaId && fila.estado !== 'cancelado');
 }
 
+/** Lo que cuesta una línea, en CENTAVOS. Sin precio es cero: no se cobra lo que no llegó. */
+function importeDeLinea(linea: ServicioDeCita): number {
+  return centavosDe('CitaServicio', 'precio_pesos', linea.precio_pesos) ?? 0;
+}
+
 export function totalDe(lineas: readonly ServicioDeCita[]): number {
-  return lineas.reduce((suma, linea) => suma + aCentavos(linea.precio_centavos), 0);
+  return lineas.reduce((suma, linea) => suma + importeDeLinea(linea), 0);
 }
 
 /** El IVA que ya viene DENTRO del precio: se explica, no se suma. */
@@ -517,7 +532,7 @@ export function Cobrar({
       clave: 'importe',
       titulo: 'Importe',
       numerica: true,
-      celda: (linea) => <Dinero centavos={aCentavos(linea.precio_centavos)} tamano="sm" />,
+      celda: (linea) => <Dinero centavos={importeDeLinea(linea)} tamano="sm" />,
     },
   ];
 

@@ -1042,6 +1042,28 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
         escribible: false,
       },
+      /**
+       * EL ESPERADO Y LA DIFERENCIA DEL CORTE (C.4 de la 2.4).
+       *
+       * La migración 100 creó las dos columnas —«se guarda calculada y no se deduce
+       * después»— y `caja.cerrar` nunca las escribía, así que el histórico no podía
+       * enseñar la diferencia de un corte anterior. Ahora el cierre las escribe; los
+       * cierres anteriores las traen en nulo, y la pantalla lo dice.
+       *
+       * Con nombre PROPIO y no `efectivo_esperado`/`diferencia_efectivo`: ésos los
+       * reserva F1-04 §20.4 como derivados de las pantallas heredadas, y aquí lo que
+       * viaja es la FOTO de lo que se comparó al cerrar, no una cuarta fórmula.
+       */
+      esperado_al_cerrar: {
+        columna: 'efectivo_esperado_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      diferencia_al_cerrar: {
+        columna: 'diferencia_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
       fecha_apertura: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
       fecha_cierre: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
       usuario_apertura_id: { columna: 'empleado_abre_id', conversion: 'texto', escribible: false },
@@ -1275,6 +1297,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Profesional: {
     tabla: 'profesionales',
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'id' },
     // La agenda entera se lee por columna y por color: si el mostrador no puede
     // leer quién atiende, no hay pantalla que pintar.
     rolesLectura: [...TODOS_LOS_ROLES],
@@ -1309,6 +1332,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Cita: {
     tabla: 'citas',
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'id', porServicio: true },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: 'agendada_para',
@@ -1354,6 +1378,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   CitaServicio: {
     tabla: 'cita_servicios',
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     // Por precio y no por hora: el rango vive en columnas `tstzrange` que el
@@ -1523,6 +1548,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   ComisionCausada: {
     tabla: 'comisiones_causadas',
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     // Cada quien ve lo suyo por el filtro de la consulta; la dirección lo ve
     // todo. Lo que NO se puede es esconderlo: una comisión que la estilista no
     // puede leer es el pleito del domingo con otro nombre.
@@ -1550,6 +1576,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Liquidacion: {
     tabla: 'liquidaciones',
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     rolesLectura: [...DIRECCION, 'mesero'],
     escritura: 'comando',
     ordenPorOmision: '-periodo_hasta',

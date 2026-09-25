@@ -15,12 +15,13 @@ import {
   Vacio,
   dineroEnTexto,
   type ColumnaDeTabla,
+  type TonoDeFila,
 } from '@morphiqpos/ui/sistema';
 import { ArrowDown, ArrowUp, Check, Receipt } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -57,15 +58,13 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ser un renglón denso. El histórico es de lectura del dueño: tabla desde la
  * tableta, tarjetas en el teléfono.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben contar, cerrar y ver los cortes anteriores: cuándo, quién cerró y cuánto
- * contó. Queda fuera la DIFERENCIA de cada corte anterior —la columna que
- * §PANTALLA 10 pide ordenar por omisión—: `caja.cerrar` calcula el esperado, lo
- * devuelve y lo deja sólo en la auditoría; no lo guarda en `sesiones_caja`, y
- * `CorteCaja` no lo sirve. Una columna «Diferencia» diría «—» en todos los
- * renglones y ordenarla no haría nada, así que no se pinta hasta que el servidor
- * la sirva. Queda fuera también el detalle movimiento por movimiento, que vive
- * en REGISTROS.
+ * ── La DIFERENCIA de cada corte, que ya llega (C.4 de la 2.4) ─────────────
+ * El histórico enseña folio, cuándo, quién cerró, cuánto contó y la DIFERENCIA, que
+ * es la columna que §PANTALLA 10 ordena por omisión: el dueño entra aquí buscando el
+ * día que no cuadró. La migración 100 ya tenía las columnas del esperado y de la
+ * diferencia y `caja.cerrar` no las escribía; ahora sí. Un corte cerrado antes de eso
+ * trae la diferencia vacía y lo dice («no se guardó»), en vez de inventarla. El
+ * detalle movimiento por movimiento vive en REGISTROS.
  */
 
 const RUTA_CERRAR = '/api/caja/cerrar';
@@ -97,16 +96,18 @@ const ALTO_DEL_CAMPO =
  * `usuario_cajero_nombre`. Los cuatro llegaban `undefined`, así que el histórico
  * enseñaba «sin firma» en cada renglón y la diferencia salía `NaN`.
  *
- * El ESPERADO no se sirve, y no es un olvido: no es una columna. Se deriva de la
- * suma de `movimientos_caja` de esa sesión, y `caja.cerrar` no lo guarda. Sin él
- * no hay diferencia que enseñar, y por eso el histórico no la pinta: una columna
- * que dice «—» en cada renglón promete un orden que no ordena nada.
+ * La DIFERENCIA se sirve desde la 2.4 (C.4): la guarda `caja.cerrar` al cerrar. Los
+ * cortes anteriores la traen en nulo.
  */
 export interface CorteHecho {
   readonly id: string;
+  readonly serie?: string | null;
+  readonly folio?: string | null;
   readonly fecha_cierre: string | null;
-  /** EN PESOS, como lo sirve el puente: `centavosDelPuente` lo pasa a centavos. */
+  /** EN PESOS, como lo sirve el puente: `centavosDe` lo pasa a centavos. */
   readonly efectivo_contado: number | null;
+  /** Contado menos esperado, EN PESOS, guardado al cerrar. Nulo en un corte anterior. */
+  readonly diferencia_al_cerrar?: number | null;
   readonly usuario_cajero_nombre: string | null;
 }
 
@@ -200,7 +201,36 @@ function mensajeDe(fallo: unknown): string {
 
 /** Lo contado de un corte del histórico, en centavos. `null`: no se contó. */
 function contadoDe(corte: CorteHecho): number | null {
-  return centavosDelPuente(corte.efectivo_contado);
+  return centavosDe('CorteCaja', 'efectivo_contado', corte.efectivo_contado);
+}
+
+/** La diferencia de un corte, en centavos. `null`: el corte no la guardó. */
+function diferenciaDe(corte: CorteHecho): number | null {
+  return centavosDe('CorteCaja', 'diferencia_al_cerrar', corte.diferencia_al_cerrar);
+}
+
+/**
+ * El histórico en el orden de §PANTALLA 10: primero el que MÁS se desvió, sea faltante
+ * o sobrante; los que no guardaron diferencia, al final, y entre iguales el más reciente.
+ */
+export function enOrdenDeDiferencia(cortes: readonly CorteHecho[]): readonly CorteHecho[] {
+  return [...cortes].sort((a, b) => {
+    const da = diferenciaDe(a);
+    const db = diferenciaDe(b);
+    if (da === null || db === null) return da === db ? 0 : da === null ? 1 : -1;
+    return (
+      Math.abs(db) - Math.abs(da) || (b.fecha_cierre ?? '').localeCompare(a.fecha_cierre ?? '')
+    );
+  });
+}
+
+/** Faltante, sobrante o cuadra: el tono de la fila, que nunca va solo (lleva la palabra). */
+function tonoDelCorte(corte: CorteHecho): TonoDeFila | undefined {
+  const diferencia = diferenciaDe(corte);
+  if (diferencia === null) return undefined;
+  if (diferencia < 0) return 'peligro';
+  if (diferencia > 0) return 'advertencia';
+  return 'exito';
 }
 
 /** Las piezas de algún billete o moneda no se pueden leer: «2.5» en los de $500. */
@@ -479,6 +509,16 @@ function CorteDelTurno({
 function columnasDelHistorico(cajero: string): readonly ColumnaDeTabla<CorteHecho>[] {
   return [
     {
+      clave: 'folio',
+      titulo: 'Folio',
+      celda: (corte) =>
+        corte.folio === null || corte.folio === undefined ? (
+          <SinDato porque="sin folio" />
+        ) : (
+          <span className="tabular-nums">{`${corte.serie ?? ''}-${corte.folio}`}</span>
+        ),
+    },
+    {
       clave: 'fecha',
       titulo: 'Fecha',
       orden: (corte) => corte.fecha_cierre ?? '',
@@ -500,6 +540,23 @@ function columnasDelHistorico(cajero: string): readonly ColumnaDeTabla<CorteHech
           <SinDato porque="sin conteo" />
         ) : (
           <Dinero centavos={contado} tamano="sm" />
+        );
+      },
+    },
+    {
+      clave: 'diferencia',
+      titulo: 'Diferencia',
+      numerica: true,
+      orden: (corte) => Math.abs(diferenciaDe(corte) ?? -1),
+      celda: (corte) => {
+        const diferencia = diferenciaDe(corte);
+        if (diferencia === null) return <SinDato porque="no se guardó" />;
+        const palabra = diferencia < 0 ? 'Falta' : diferencia > 0 ? 'Sobra' : 'Cuadra';
+        return (
+          <span className="inline-flex items-baseline gap-(--espacio-2)">
+            <span className="text-xs font-medium text-texto-sutil">{palabra}</span>
+            <Dinero centavos={Math.abs(diferencia)} tamano="sm" />
+          </span>
         );
       },
     },
@@ -539,13 +596,14 @@ function HistoricoDeCortes({
         principal="fecha"
         desde="md"
         columnas={columnasDelHistorico(cajero)}
-        filas={historico}
+        filas={enOrdenDeDiferencia(historico)}
+        tonoDeFila={tonoDelCorte}
         claveDe={(corte) => corte.id}
         vacio={
           <Vacio
             icono={<Receipt />}
             titulo="Todavía no hay cortes."
-            explicacion="Cada turno que se cierra deja aquí su corte: cuándo, quién cerró y cuánto contó."
+            explicacion="Cada turno que se cierra deja aquí su corte: cuándo, quién cerró, cuánto contó y si cuadró."
           />
         }
       />

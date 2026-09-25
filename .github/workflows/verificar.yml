@@ -122,6 +122,18 @@ jobs:
       - name: Todo comando que escribe deja rastro
         run: pnpm verify:rastro
 
+      # El dinero del puente llega en la unidad que declara su `conversion`, no en la que
+      # dice su nombre: 22 campos se llaman `_centavos` y llegan en pesos, y una cita de
+      # $350.00 se pintó $3.50. Toda lectura de dinero de una fila del puente pasa por
+      # `centavosDe` (etapa 2.4, C.2).
+      - name: Unidades del dinero del puente
+        run: pnpm verify:unidades
+
+      # El reseteo de una demo borra TODA tabla salvo las que conserva con su razón, en
+      # el orden de las llaves foráneas: una tabla nueva no se puede quedar fuera (2.4, B.2).
+      - name: El reseteo de las demos cubre el esquema
+        run: pnpm verify:limpieza
+
       # --- Formato, lint y tipos -------------------------------------------
       - name: Formato
         run: pnpm format:check

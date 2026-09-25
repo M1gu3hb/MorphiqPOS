@@ -34,6 +34,7 @@ import { useSearchParams } from 'next/navigation';
 import { ViewTransition, useEffect, useRef, useState, type ChangeEvent } from 'react';
 
 import { consultarPuente, invocarComando, nuevaClave } from '~/cliente/api';
+import { centavosDe, valorDelPuente } from '~/cliente/dinero-del-puente';
 import { AnularLineaDialog } from './AnularLineaDialog';
 import { DividirCuentaDialog } from './DividirCuentaDialog';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -68,8 +69,8 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *
  * ── Idempotencia y dinero ────────────────────────────────────────────────
  * Una clave por envío, que sólo se renueva cuando el envío triunfa: dos toques
- * no mandan dos comandas. El puente entrega pesos; se pasan a centavos contando
- * dígitos y se suma en centavos.
+ * no mandan dos comandas. El puente entrega pesos; se pasan a centavos por
+ * `centavosDe` —la unidad la decide la conversión del campo— y se suma en centavos.
  *
  * ── Recortado, y queda dicho ─────────────────────────────────────────────
  * Fuera: las pestañas de categoría, la nota de la comanda, «Solicitar cuenta»
@@ -128,11 +129,14 @@ const ESTADOS_DE_MESA: Readonly<Record<string, string>> = {
   limpieza: 'Limpieza',
 };
 
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number): number {
-  if (!Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+/** El precio de un platillo, en centavos. Sin un precio legible cuenta cero, como antes. */
+function precioDe(producto: ProductoDeComanda): number {
+  return centavosDe('ProductoTerminado', 'precio_venta', producto.precio_venta) ?? 0;
+}
+
+/** Lo que suma una línea ya enviada, en centavos. */
+function importeDe(linea: LineaEnviada): number {
+  return centavosDe('DetalleVenta', 'total', linea.total) ?? 0;
 }
 
 const volverAlMapa = (): void => {
@@ -183,7 +187,7 @@ function columnasDeLoEnviado(
       clave: 'importe',
       titulo: 'Importe',
       numerica: true,
-      celda: (l) => <Dinero centavos={aCentavos(l.total)} tamano="sm" />,
+      celda: (l) => <Dinero centavos={importeDe(l)} tamano="sm" />,
     },
     {
       clave: 'anular',
@@ -239,7 +243,7 @@ function columnasDelBorrador(
       clave: 'importe',
       titulo: 'Importe',
       numerica: true,
-      celda: (p) => <Dinero centavos={aCentavos(p.precio_venta) * cantidadDe(p)} tamano="sm" />,
+      celda: (p) => <Dinero centavos={precioDe(p) * cantidadDe(p)} tamano="sm" />,
     },
   ];
 }
@@ -373,8 +377,8 @@ export function MesaActiva(props: MesaActivaProps) {
   const piezas = Object.values(borrador).reduce((s, n) => s + n, 0);
   const cantidadDe = (p: ProductoDeComanda): number => borrador[p.id] ?? 0;
   const total =
-    enviadas.reduce((s, l) => s + aCentavos(l.total), 0) +
-    pendientes.reduce((s, p) => s + aCentavos(p.precio_venta) * cantidadDe(p), 0);
+    enviadas.reduce((s, l) => s + importeDe(l), 0) +
+    pendientes.reduce((s, p) => s + precioDe(p) * cantidadDe(p), 0);
   const alergias = mesa?.notas_alergias ?? null;
   const sinEnviar = piezas === 0 || enviando;
 
@@ -432,12 +436,14 @@ export function MesaActiva(props: MesaActivaProps) {
       const entrada = { ordenId: orden, lineas };
       await invocarComando('/api/restaurante/enviar-pedido', entrada, { idempotencyKey: clave });
       // Lo enviado cruza al bloque de arriba con identificadores provisionales;
-      // los definitivos llegan con la siguiente lectura de la mesa.
+      // los definitivos llegan con la siguiente lectura de la mesa. La línea imita
+      // la fila del puente, así que su `total` va en la unidad del puente: se multiplica
+      // en centavos —entero por entero— y `valorDelPuente` lo devuelve a esa forma.
       const nuevas = pendientes.map((p, i) => ({
         id: `${clave}-${String(i)}`,
         producto_nombre: p.nombre,
         cantidad: borrador[p.id] ?? 0,
-        total: p.precio_venta * (borrador[p.id] ?? 0),
+        total: valorDelPuente('DetalleVenta', 'total', precioDe(p) * (borrador[p.id] ?? 0)),
       }));
       setEnviadas([...enviadas, ...nuevas]);
       setBorrador({});
@@ -803,11 +809,7 @@ export function MesaActiva(props: MesaActivaProps) {
                     {agotado ? (
                       <span className="text-xs font-medium">Agotado</span>
                     ) : (
-                      <Dinero
-                        centavos={aCentavos(p.precio_venta)}
-                        tamano="xs"
-                        className="text-texto-sutil"
-                      />
+                      <Dinero centavos={precioDe(p)} tamano="xs" className="text-texto-sutil" />
                     )}
                     {/* El anillo solo no dice cuántos: el número sí. */}
                     {enBorrador > 0 && (

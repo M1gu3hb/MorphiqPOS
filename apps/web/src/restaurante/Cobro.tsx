@@ -30,6 +30,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
@@ -120,7 +121,10 @@ const RENGLONES_DE_ESPERA = 5;
 const REJILLA =
   'mx-auto grid w-full max-w-2xl gap-(--espacio-4) p-(--espacio-4) xl:max-w-none xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start';
 
-/** La fila de `Venta` del puente, con sus nombres. Los importes van en PESOS. */
+/**
+ * La fila de `Venta` del puente, con sus nombres. Los importes van en PESOS y se leen
+ * sólo por `centavosDe`, que los da en centavos según la conversión de cada campo.
+ */
 export interface CuentaPorCobrar {
   readonly id: string;
   readonly codigo_caja: string | null;
@@ -156,11 +160,12 @@ export interface CobroProps {
   readonly cuentaId?: string;
 }
 
-/** Pesos a centavos contando dígitos: `1234.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+/**
+ * El importe de una línea, en centavos. `DetalleVenta.total` llega en pesos y la unidad la
+ * decide `centavosDe` contando dígitos; sin dato se pinta cero, como siempre se pintó.
+ */
+function importeDe(linea: LineaDeCuenta): number {
+  return centavosDe('DetalleVenta', 'total', linea.total) ?? 0;
 }
 
 /** Qué impide cobrar, dicho con palabras y no sólo con un botón apagado. */
@@ -245,7 +250,7 @@ function columnasDeLaCuenta(platillo: string): readonly ColumnaDeTabla<LineaDeCu
       clave: 'importe',
       titulo: 'Importe',
       numerica: true,
-      celda: (linea) => <Dinero centavos={aCentavos(linea.total)} tamano="sm" />,
+      celda: (linea) => <Dinero centavos={importeDe(linea)} tamano="sm" />,
     },
   ];
 }
@@ -373,8 +378,9 @@ export function Cobro({
     setIntentoDeLineas((previo) => previo + 1);
   }
 
-  const venta = aCentavos(cuenta?.total);
-  const suPropina = propina ?? aCentavos(cuenta?.propina_monto);
+  // En CENTAVOS: lo que se pinta y lo que viaja a `venta.cobrar` (`totalEsperadoCentavos`).
+  const venta = centavosDe('Venta', 'total', cuenta?.total) ?? 0;
+  const suPropina = propina ?? centavosDe('Venta', 'propina_monto', cuenta?.propina_monto) ?? 0;
   const total = venta + suPropina;
   const pendiente = propina === null && SIN_DECIDIR.includes(cuenta?.propina_tipo ?? '');
   const suma = BASES.reduce((suman, base) => suman + (partes[base] ?? 0), 0);
@@ -509,11 +515,11 @@ export function Cobro({
       <dl className="grid grid-cols-[1fr_auto] gap-x-(--espacio-4) gap-y-(--espacio-1) px-(--espacio-3) text-sm">
         <dt className="text-texto-sutil">Subtotal</dt>
         <dd className="text-right">
-          <Dinero centavos={aCentavos(cuenta.subtotal)} tamano="sm" />
+          <Dinero centavos={centavosDe('Venta', 'subtotal', cuenta.subtotal) ?? 0} tamano="sm" />
         </dd>
         <dt className="text-texto-sutil">Impuestos</dt>
         <dd className="text-right">
-          <Dinero centavos={aCentavos(cuenta.impuestos)} tamano="sm" />
+          <Dinero centavos={centavosDe('Venta', 'impuestos', cuenta.impuestos) ?? 0} tamano="sm" />
         </dd>
         <dt className="text-texto-sutil">Propina</dt>
         <dd className="text-right">

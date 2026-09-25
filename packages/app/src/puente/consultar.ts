@@ -38,6 +38,11 @@ import {
 export interface Ambito {
   readonly organizacionId: string;
   readonly rol: string;
+  /**
+   * El empleo de la sesión. Lo necesita el recorte `soloDeQuienEntra` (C.7 de la 2.4);
+   * sin él, una entidad con recorte no devuelve NADA a esos roles: falla cerrada.
+   */
+  readonly empleoId?: string;
 }
 
 /**
@@ -217,6 +222,32 @@ async function consultarUnaVez(
 
   // 1 · El ámbito. No es negociable y va antes que nada.
   consulta = consulta.where(`${BASE}.organizacion_id`, '=', ambito.organizacionId);
+
+  // 1b · Lo que este rol sólo ve si es SUYO (C.7 de la 2.4): las filas de la profesional
+  //      ligada al empleo de la sesión, y ninguna otra. Del ámbito, nunca del cliente.
+  const recorte = mapa.soloDeQuienEntra;
+  if (recorte?.roles.includes(ambito.rol) === true) {
+    // Sin empleo en el ámbito no hay «suyo» que buscar: cero filas, no todas.
+    const empleoId = ambito.empleoId ?? '00000000-0000-4000-8000-000000000000';
+    const libre = baseLibre(obtenerDb());
+    const suyas = libre
+      .selectFrom('profesionales')
+      .select('id' as never)
+      .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+      .where('empleo_id' as never, '=', empleoId as never);
+    consulta =
+      recorte.porServicio === true
+        ? consulta.where(
+            `${BASE}.id`,
+            'in',
+            libre
+              .selectFrom('cita_servicios')
+              .select('cita_id' as never)
+              .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+              .where('profesional_id' as never, 'in', suyas),
+          )
+        : consulta.where(`${BASE}.${recorte.columna}`, 'in', suyas);
+  }
 
   // 2 · El filtro fijo de la entidad (p. ej. categorias.tipo = 'producto').
   for (const [columna, valor] of Object.entries(mapa.filtroFijo ?? {})) {

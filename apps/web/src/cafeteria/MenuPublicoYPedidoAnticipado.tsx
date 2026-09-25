@@ -20,7 +20,7 @@ import { Check, ChevronDown, Clock, Coffee, Plus, ShoppingBag, X } from 'lucide-
 import { useEffect, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -118,9 +118,12 @@ export interface MenuPublicoProps {
   readonly ahora?: number;
 }
 
-/** El precio del puente, que llega en pesos, a centavos enteros, sin coma flotante. */
-function centavosDe(producto: ProductoPublico): number {
-  return centavosDelPuente(producto.precio_venta) ?? 0;
+/**
+ * El precio del puente, que llega en pesos, a centavos enteros, sin coma flotante.
+ * La unidad la decide el campo en el mapa (`centavosDe`), no su nombre.
+ */
+function precioEnCentavos(producto: ProductoPublico): number {
+  return centavosDe('ProductoTerminado', 'precio_venta', producto.precio_venta) ?? 0;
 }
 
 /**
@@ -225,7 +228,7 @@ function FamiliaDelMenu({
                     </span>
                   ) : null}
                 </span>
-                <Dinero centavos={centavosDe(producto)} />
+                <Dinero centavos={precioEnCentavos(producto)} />
                 {agotado ? null : (
                   <Plus aria-hidden="true" className="size-5 shrink-0 text-primario" />
                 )}
@@ -401,7 +404,7 @@ export function MenuPublicoYPedidoAnticipado({ productosIniciales, ahora }: Menu
       {
         productoId: producto.id,
         nombre: producto.nombre,
-        precioCentavos: centavosDe(producto),
+        precioCentavos: precioEnCentavos(producto),
         cantidad: 1,
       },
     ]);

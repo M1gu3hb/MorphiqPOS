@@ -20,6 +20,8 @@ export interface Almacenes {
   activo: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  tipo: Generated<string>;
 }
 
 export interface Auditoria {
@@ -257,6 +259,15 @@ export interface CortesTurno {
   idempotency_key: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  anticipos_vivos_centavos: Generated<bigint>;
+  citas_agendadas: Generated<number>;
+  citas_atendidas: Generated<number>;
+  citas_no_llegaron: Generated<number>;
+  minutos_disponibles: Generated<number>;
+  minutos_ocupados: Generated<number>;
+  propinas_por_entregar_centavos: Generated<bigint>;
+  rentas_cobradas_centavos: Generated<bigint>;
 }
 
 export interface CredencialesPin {
@@ -313,6 +324,8 @@ export interface Existencias {
   insumo_id: string;
   cantidad: Generated<string>;
   actualizado_en: Generated<Date>;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  unidad_medida: string | null;
 }
 
 export interface Folios {
@@ -496,6 +509,8 @@ export interface MovimientosCaja {
   empleado_id: string | null;
   motivo: string | null;
   created_at: Generated<Date>;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  categoria: string | null;
 }
 
 export interface MovimientosStock {
@@ -579,6 +594,8 @@ export interface OrdenLineas {
   insumo_base_nombre: string | null;
   precio_por_unidad_centavos: bigint | null;
   ml_por_porcion: string | null;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  material_centavos: Generated<bigint>;
 }
 
 export interface Ordenes {
@@ -654,6 +671,11 @@ export interface Ordenes {
    */
   precuentas_impresas: Generated<number>;
   precuenta_impresa_en: Date | null;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  cita_id: string | null;
+  cobrada_en: Date | null;
+  cuenta_destino_transferencia: string | null;
+  metodo_credito: Generated<boolean>;
 }
 
 export interface Organizaciones {
@@ -835,6 +857,9 @@ export interface Productos {
    * de tornillos borrosos sobre un mostrador sucio.
    */
   foto_mostrador_url?: string | null;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  envase_producto_id: string | null;
+  envases_por_unidad: number | null;
 }
 
 export interface Proveedores {
@@ -855,6 +880,11 @@ export interface Proveedores {
   activo: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  acepta_garantias: Generated<boolean>;
+  contacto_garantias: string | null;
+  dias_entrega: Generated<number>;
+  monto_minimo_pedido_centavos: Generated<bigint>;
 }
 
 export interface Recetas {
@@ -873,6 +903,8 @@ export interface Recetas {
   notas: string | null;
   /** F-331 · Nulo = aplica a todos los canales. Con valores, sólo a ésos. */
   aplica_canal: string[] | null;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  sustituible_por_grupo_id: string | null;
 }
 
 export interface Sesiones {
@@ -910,6 +942,16 @@ export interface SesionesCaja {
   fondo_grandes_centavos: Generated<bigint>;
   /** F-248 · Lo que había en el bote, contado. Nulo NO es cero. */
   bote_contado_centavos: bigint | null;
+  /**
+   * 100 · El efectivo esperado y la diferencia, GUARDADOS al cerrar («se guarda calculada y
+   * no se deduce después»). Faltaban en estos tipos, y `caja.cerrar` nunca los escribió
+   * hasta la 2.4 (C.4): los cierres anteriores quedan en NULL.
+   */
+  efectivo_esperado_centavos: bigint | null;
+  diferencia_centavos: bigint | null;
+  /** 100 · El saldo de las plataformas de recarga, que es dinero del negocio fuera del cajón. */
+  saldo_recargas_apertura_centavos: Generated<bigint>;
+  saldo_recargas_cierre_centavos: bigint | null;
   turno: string | null;
 }
 
@@ -972,7 +1014,51 @@ export interface Zonas {
   updated_at: Generated<Date>;
 }
 
+/** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+export interface ConteosDenominacion {
+  contado_en: Generated<Date>;
+  contado_por: string | null;
+  denominacion_centavos: bigint;
+  id: Generated<string>;
+  momento: string;
+  organizacion_id: string;
+  piezas: number;
+  sesion_caja_id: string;
+}
+
+/** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+export interface DepositosEnvase {
+  cliente_id: string | null;
+  created_at: Generated<Date>;
+  empleado_id: string | null;
+  envase_producto_id: string;
+  id: Generated<string>;
+  monto_centavos: bigint;
+  movimiento_caja_id: string | null;
+  orden_id: string | null;
+  organizacion_id: string;
+  piezas: number;
+  sesion_caja_id: string | null;
+  sucursal_id: string | null;
+  tipo: string;
+}
+
+/** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+export interface RegimenesIeps {
+  clave: string;
+  created_at: Generated<Date>;
+  cuota_centavos_por_litro: bigint | null;
+  descripcion: string;
+  id: Generated<string>;
+  tasa_bp: number | null;
+  vigente_desde: string;
+  vigente_hasta: string | null;
+}
+
 export interface Esquema {
+  conteos_denominacion: ConteosDenominacion;
+  depositos_envase: DepositosEnvase;
+  regimenes_ieps: RegimenesIeps;
   almacenes: Almacenes;
   auditoria: Auditoria;
   bitacora_sincronizacion: BitacoraSincronizacion;
@@ -1586,6 +1672,8 @@ export interface ProductoPresentaciones {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  factor_por_peso_mg: bigint | null;
 }
 
 /** F-258 · Copia de llave, entonado, corte a medida: material propio y mano de obra. */
@@ -1949,6 +2037,8 @@ export interface Equivalencias {
   bidireccional: Generated<boolean>;
   declarado_por: string | null;
   declarado_en: Generated<Date>;
+  /** Faltaba en estos tipos: la base la tiene (contrato esquema-tipos, 2.4). */
+  created_at: Generated<Date>;
 }
 
 /** F-257 · «No tengo cambio, ¿le doy un chicle?», con renglón. */

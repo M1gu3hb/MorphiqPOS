@@ -280,6 +280,11 @@ export async function cerrarSesion(
     readonly empleadoCierraId: string;
     readonly efectivoContadoCentavos: bigint;
     /**
+     * El esperado que se comparó al cerrar. Se guarda con su diferencia, que es lo que
+     * la migración 100 creó para eso y nadie escribía (C.4 de la 2.4).
+     */
+    readonly efectivoEsperadoCentavos: bigint;
+    /**
      * El bote de propina contado. `undefined` es «este negocio no tiene bote»;
      * la columna se queda en NULL, que es «no se contó» — y `repartirBote` lo
      * distingue de un cero a propósito.
@@ -302,6 +307,8 @@ export async function cerrarSesion(
       ...(datos.boteContadoCentavos === undefined
         ? {}
         : { bote_contado_centavos: datos.boteContadoCentavos }),
+      efectivo_esperado_centavos: datos.efectivoEsperadoCentavos,
+      diferencia_centavos: datos.efectivoContadoCentavos - datos.efectivoEsperadoCentavos,
       notas_cierre: datos.notasCierre,
     })
     .where('organizacion_id', '=', datos.organizacionId)

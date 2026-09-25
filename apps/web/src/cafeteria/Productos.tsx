@@ -23,6 +23,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe, valorDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -106,9 +107,10 @@ type Canal = (typeof CANALES)[number]['clave'];
  * entero de una cafetería enseñaba **`$NaN`** en cada renglón. La suite la daba por
  * probada porque el HTML respondía 200.
  *
- * Se leen en pesos y se convierten a centavos en un solo sitio —`enCentavos`—
- * porque la aritmética del margen es entera: con pesos decimales, la comisión del
- * 29 % de una plataforma sale con tres decimales que nadie puede cobrar.
+ * Se leen en pesos y se convierten a centavos en un solo sitio —`precioDe` y
+ * `costoDe`, por `centavosDe`— porque la aritmética del margen es entera: con pesos
+ * decimales, la comisión del 29 % de una plataforma sale con tres decimales que
+ * nadie puede cobrar.
  */
 export interface ProductoDeBarra {
   readonly id: string;
@@ -130,14 +132,20 @@ export interface ProductoDeBarra {
 }
 
 /**
- * Pesos del puente a centavos, con el redondeo en el ÚLTIMO paso.
+ * El precio y el costo del puente, en centavos.
  *
- * `x * 100` en punto flotante da `1233.9999999999998` para 12.34, así que el
- * redondeo va sobre el producto y no antes. Es el mismo criterio que
- * `centavosDeTexto` en las pruebas y que `desdeTexto` en el dominio.
+ * Los dos llegan en pesos, y `centavosDe` los convierte según la unidad del campo en
+ * el mapa, contando dígitos: `12.34 * 100` en coma flotante da `1233.9999999999998`.
+ * Sin dato cuenta cero, como contaba antes.
  */
-export function enCentavos(pesos: number | null): number {
-  return pesos === null ? 0 : Math.round(pesos * 100);
+function precioDe(producto: ProductoDeBarra): number {
+  return centavosDe('ProductoTerminado', 'precio_venta', producto.precio_venta) ?? 0;
+}
+
+function costoDe(producto: ProductoDeBarra): number {
+  return (
+    centavosDe('ProductoTerminado', 'costo_calculado_actual', producto.costo_calculado_actual) ?? 0
+  );
 }
 
 export interface ProductosProps {
@@ -173,11 +181,7 @@ export function margenDelCanal(
 }
 
 function margenDe(producto: ProductoDeBarra, comisionBp: number): MargenDeCanal {
-  return margenDelCanal(
-    enCentavos(producto.precio_venta),
-    enCentavos(producto.costo_calculado_actual),
-    comisionBp,
-  );
+  return margenDelCanal(precioDe(producto), costoDe(producto), comisionBp);
 }
 
 function mensajeDe(fallo: unknown): string {
@@ -232,16 +236,16 @@ function columnasDelCatalogo(
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      orden: (p) => enCentavos(p.precio_venta),
-      celda: (p) => <Dinero centavos={enCentavos(p.precio_venta)} tamano="sm" />,
+      orden: (p) => precioDe(p),
+      celda: (p) => <Dinero centavos={precioDe(p)} tamano="sm" />,
     },
     {
       clave: 'costo',
       titulo: 'Costo',
       numerica: true,
       desde: 'md',
-      orden: (p) => enCentavos(p.costo_calculado_actual),
-      celda: (p) => <Dinero centavos={enCentavos(p.costo_calculado_actual)} tamano="sm" />,
+      orden: (p) => costoDe(p),
+      celda: (p) => <Dinero centavos={costoDe(p)} tamano="sm" />,
     },
     ...porCanal,
     {
@@ -289,7 +293,7 @@ function FichaDelProducto({
   alGuardar,
   alCerrar,
 }: FichaDelProductoProps) {
-  const costo = enCentavos(producto.costo_calculado_actual);
+  const costo = costoDe(producto);
   const titulo = useRef<HTMLHeadingElement>(null);
 
   /**
@@ -525,7 +529,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
 
   function abrir(producto: ProductoDeBarra): void {
     setElegido(producto);
-    setPrecioCentavos(enCentavos(producto.precio_venta));
+    setPrecioCentavos(precioDe(producto));
     setError(null);
   }
 
@@ -581,7 +585,11 @@ export function Productos({ productosIniciales }: ProductosProps) {
       precioVenta: textoParaCampo(centavos),
     })
       .then(() => {
-        const actualizado = { ...elegido, precio_venta: centavos / 100 };
+        // La fila local imita la del puente: el precio vuelve en su unidad, pesos.
+        const actualizado = {
+          ...elegido,
+          precio_venta: valorDelPuente('ProductoTerminado', 'precio_venta', centavos),
+        };
         setElegido(actualizado);
         setProductos((productos ?? []).map((p) => (p.id === elegido.id ? actualizado : p)));
       })

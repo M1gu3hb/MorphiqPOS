@@ -23,6 +23,7 @@ import {
 } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import {
   agrupar,
   mensajeDeFallo,
@@ -260,7 +261,8 @@ function SelectorDeGrupo({
       >
         {grupo.opciones.map((opcion) => {
           const activa = estaActiva(grupo, opcion) && !opcion.agotado;
-          const delta = opcion.delta_precio_centavos ?? 0;
+          const delta =
+            centavosDe('Modificador', 'delta_precio_centavos', opcion.delta_precio_centavos) ?? 0;
           return (
             <li key={opcion.id}>
               <Superficie
@@ -351,14 +353,48 @@ function Alergias({
   );
 }
 
+/** Lo que se lee de la bebida para su precio base. */
+interface BebidaDelCatalogo {
+  readonly precio_venta: number | null;
+}
+
 export function OpcionesDeLaBebida({
   productoId,
   productoNombre = 'Bebida',
-  precioBaseCentavos = 0,
+  precioBaseCentavos,
   opcionesIniciales,
   onAgregada,
 }: OpcionesDeLaBebidaProps) {
   const voc = useVocabulario();
+  /**
+   * EL PRECIO DE LA BEBIDA, y por qué se lee aquí (defecto que destapó la 2.4).
+   *
+   * La página sólo pasa `?producto=`, no el precio, y esto valía 0 por omisión: el botón
+   * de AGREGAR enseñaba SÓLO lo que suman las opciones —«$10.00» por un latte con leche
+   * de avena—. Sin el precio por props, se lee del puente, por el camino único.
+   */
+  const [precioLeido, setPrecioLeido] = useState<number | null>(null);
+  const precioBase = precioBaseCentavos ?? precioLeido ?? 0;
+  useEffect(() => {
+    if (precioBaseCentavos !== undefined || productoId === undefined) return;
+    const control = new AbortController();
+    consultarPuente<BebidaDelCatalogo>('ProductoTerminado', {
+      filtro: { id: productoId },
+      limite: 1,
+      signal: control.signal,
+    })
+      .then(([bebida]) => {
+        if (control.signal.aborted || bebida === undefined) return;
+        setPrecioLeido(centavosDe('ProductoTerminado', 'precio_venta', bebida.precio_venta));
+      })
+      .catch(() => {
+        // Sin precio se sigue pudiendo agregar: el servidor pone el suyo al cobrar. El
+        // botón enseña lo que suman las opciones, como antes.
+      });
+    return () => {
+      control.abort();
+    };
+  }, [precioBaseCentavos, productoId]);
   const [opciones, setOpciones] = useState<readonly OpcionDeBebida[] | null>(
     opcionesIniciales ?? null,
   );
@@ -477,7 +513,7 @@ export function OpcionesDeLaBebida({
     return (
       <Marco
         nombre={productoNombre}
-        precioCentavos={precioBaseCentavos}
+        precioCentavos={precioBase}
         pie={<Esqueleto className={`${ALTO_AGREGAR} w-full`} />}
       >
         <EsqueletoDeGrupos />
@@ -534,7 +570,7 @@ export function OpcionesDeLaBebida({
         className={`${ALTO_AGREGAR} w-full justify-between text-lg font-bold`}
       >
         <span>{enviando ? 'AGREGANDO…' : 'AGREGAR'}</span>
-        <Dinero centavos={totalCentavos(precioBaseCentavos, activas)} tamano="lg" />
+        <Dinero centavos={totalCentavos(precioBase, activas)} tamano="lg" />
       </Button>
     </>
   );
@@ -542,7 +578,7 @@ export function OpcionesDeLaBebida({
   // El vacío ENSEÑA: dice qué falta declarar y lleva a declararlo.
   if (grupos.length === 0 && falloDeLectura === null) {
     return (
-      <Marco nombre={productoNombre} precioCentavos={precioBaseCentavos} pie={pie}>
+      <Marco nombre={productoNombre} precioCentavos={precioBase} pie={pie}>
         <Vacio
           icono={<CupSoda />}
           titulo={`${voc.conDeterminante('este', 'linea_orden')} se agrega tal cual.`}
@@ -558,7 +594,7 @@ export function OpcionesDeLaBebida({
   }
 
   return (
-    <Marco nombre={productoNombre} precioCentavos={precioBaseCentavos} pie={pie}>
+    <Marco nombre={productoNombre} precioCentavos={precioBase} pie={pie}>
       <div className="flex flex-col gap-(--espacio-4)">
         {falloDeLectura !== null && (
           <ErrorDePantalla

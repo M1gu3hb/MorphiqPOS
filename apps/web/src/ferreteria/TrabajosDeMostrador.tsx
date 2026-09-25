@@ -27,6 +27,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -191,7 +192,9 @@ function comoNotaApartada(fila: FilaDeNotaApartada): NotaApartada {
     folio: fila.codigo_caja ?? 'sin folio',
     cliente: fila.cliente_nombre ?? 'sin nombre',
     // A texto: el importe viaja en centavos enteros y `<Dinero>` lo vuelve número.
-    totalCentavos: String(fila.totalCentavos),
+    // Por `centavosDe`, que lee la unidad del mapa; un total ausente es cero, como
+    // en la caja, y no el «null» que `Number` volvería NaN.
+    totalCentavos: String(centavosDe('NotaDeCaja', 'totalCentavos', fila.totalCentavos) ?? 0),
     venceEn: fila.vence ?? '',
     diasRestantes: diasHasta(fila.vence),
   };

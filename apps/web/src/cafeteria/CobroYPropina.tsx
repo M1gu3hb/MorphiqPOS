@@ -33,6 +33,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
@@ -158,13 +159,6 @@ export interface CobroYPropinaProps {
  */
 export type Bloqueo = string | { readonly faltan: number };
 
-/** Pesos a centavos contando dígitos: `118.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
-}
-
 /** Hay texto y no se lee como importe. Vacío no es ilegible: es «nada». */
 function esIlegible(texto: string): boolean {
   return texto.trim() !== '' && centavosDeTexto(texto) === null;
@@ -247,7 +241,11 @@ function columnasDelTicket(nombreDeLinea: string): readonly ColumnaDeTabla<Linea
       clave: 'importe',
       titulo: 'Importe',
       numerica: true,
-      celda: (linea) => <Dinero centavos={aCentavos(linea.total)} tamano="sm" />,
+      // El puente sirve el importe en pesos; `centavosDe` lo pasa a centavos contando
+      // dígitos, según la unidad del campo y no su nombre.
+      celda: (linea) => (
+        <Dinero centavos={centavosDe('DetalleVenta', 'total', linea.total) ?? 0} tamano="sm" />
+      ),
     },
   ];
 }
@@ -536,7 +534,8 @@ export function CobroYPropina({
     return centavos ?? (ilegibles.has(campo) ? -1 : 0);
   }
 
-  const venta = aCentavos(pedido?.total);
+  // En centavos: es lo que piden `totalEsperadoCentavos` y los renglones del cobro.
+  const venta = centavosDe('Venta', 'total', pedido?.total) ?? 0;
   const total = venta + (propina ?? 0);
   const mano = leido('recibido', recibido);
   const suma = BASES.reduce((suman, base) => suman + leido(base, partes[base]), 0);

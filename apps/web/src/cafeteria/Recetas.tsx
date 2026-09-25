@@ -33,7 +33,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -193,7 +193,16 @@ export interface RecetasProps {
  * multiplicación en coma flotante aquí.
  */
 function costoDeLinea(linea: LineaDeReceta): number | null {
-  return centavosDelPuente(linea.costo_linea_calculado);
+  return centavosDe('RecetaEscandallo', 'costo_linea_calculado', linea.costo_linea_calculado);
+}
+
+/**
+ * El precio del producto en centavos, o `null` si no tiene: sin precio no hay margen
+ * que medir y la pantalla dice «—», no $0.00. Llega en pesos; `centavosDe` lo
+ * convierte según la unidad del campo en el mapa.
+ */
+function precioDe(producto: ProductoConReceta): number | null {
+  return centavosDe('ProductoTerminado', 'precio_venta', producto.precio_venta);
 }
 
 /** El costo de un canal: la suma de lo que se sabe y cuántas líneas no tienen costo. */
@@ -597,10 +606,8 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      orden: (producto) => centavosDelPuente(producto.precio_venta) ?? -1,
-      celda: (producto) => (
-        <ImporteSiSeSabe centavos={centavosDelPuente(producto.precio_venta)} tamano="sm" />
-      ),
+      orden: (producto) => precioDe(producto) ?? -1,
+      celda: (producto) => <ImporteSiSeSabe centavos={precioDe(producto)} tamano="sm" />,
     },
   ];
 
@@ -637,8 +644,7 @@ export function Recetas({ productosIniciales, insumosIniciales }: RecetasProps) 
           <header className="flex flex-wrap items-baseline justify-between gap-(--espacio-2)">
             <h2 className="text-xl font-bold">{elegido.nombre}</h2>
             <p className="text-sm text-texto-sutil">
-              Se vende a{' '}
-              <ImporteSiSeSabe centavos={centavosDelPuente(elegido.precio_venta)} tamano="base" />
+              Se vende a <ImporteSiSeSabe centavos={precioDe(elegido)} tamano="base" />
             </p>
           </header>
 
@@ -713,7 +719,7 @@ function ContenidoDeReceta({
 
   if (lineas === null) return <EsqueletoDeLista filas={4} />;
 
-  const precio = centavosDelPuente(producto.precio_venta);
+  const precio = precioDe(producto);
 
   const columnas: readonly ColumnaDeTabla<LineaDeReceta>[] = [
     {

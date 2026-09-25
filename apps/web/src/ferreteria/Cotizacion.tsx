@@ -19,6 +19,7 @@ import { Check, Copy, FileText, Search, Send } from 'lucide-react';
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -124,7 +125,10 @@ export function importeDe(p: PartidaCotizada): number {
 export function margenDe(p: PartidaCotizada): number {
   const importe = importeDe(p);
   if (importe === 0) return 0;
-  return Math.round(((importe - p.material.costoCentavos * p.cantidad) / importe) * 100);
+  // El costo es de la fila del puente: en centavos por `centavosDe`, que lee la
+  // unidad del mapa. Ausente cuenta cero, como contaba antes.
+  const costo = centavosDe('MaterialMostrador', 'costoCentavos', p.material.costoCentavos) ?? 0;
+  return Math.round(((importe - costo * p.cantidad) / importe) * 100);
 }
 
 /**
@@ -166,7 +170,12 @@ function columnasDeResultado(
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      celda: (m) => <Dinero centavos={m.precioCentavos} tamano="sm" />,
+      celda: (m) => (
+        <Dinero
+          centavos={centavosDe('MaterialMostrador', 'precioCentavos', m.precioCentavos) ?? 0}
+          tamano="sm"
+        />
+      ),
     },
   ];
 }
@@ -358,10 +367,13 @@ export function Cotizacion({
 
   function agregar(material: MaterialCotizable): void {
     setConsulta('');
+    // La partida guarda el precio YA en centavos: de aquí en adelante (importe,
+    // margen, el comando) nadie vuelve a preguntar en qué unidad llegó.
     const nueva = {
       material,
       cantidad: 1,
-      precioCentavos: material.precioCentavos,
+      precioCentavos:
+        centavosDe('MaterialMostrador', 'precioCentavos', material.precioCentavos) ?? 0,
       descuentoPct: 0,
     };
     setPartidas((previas) =>

@@ -25,6 +25,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -70,12 +71,14 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * desglose servicio por servicio: es lo que abre para verificar un número antes
  * de que le paguen, y en el teléfono estorbaría.
  *
- * ── Quién es «yo», y por qué hay un paso para decirlo ────────────────────
- * La sesión todavía no dice qué profesional mira. Sin `profesionalId` esta
- * pantalla no consulta nada y pregunta el nombre, porque enseñar el día de otra
- * persona es peor que no enseñar nada. Que conste: elegir el nombre aquí es
- * comodidad de pantalla, NO una barrera; el recorte por persona lo tiene que
- * hacer el servidor el día que la sesión sepa quién entró.
+ * ── Quién es «yo»: lo dice el SERVIDOR (C.7 de la 2.4) ────────────────────
+ * Esta pantalla preguntaba el nombre y enseñaba el día de quien se eligiera: cualquier
+ * estilista podía leer la agenda y las comisiones de otra, y aquí mismo decía que el
+ * recorte «lo tiene que hacer el servidor el día que la sesión sepa quién entró». Ya lo
+ * hace: para la estilista, el puente sólo devuelve SU ficha de `Profesional`, SUS
+ * servicios, SUS citas y SUS comisiones (`soloDeQuienEntra`). Así que la lista del
+ * equipo le llega con UNA persona —ella— y la pantalla entra directo a su día, sin
+ * preguntar. Quien dirige el salón sí recibe a todas, y elige a quién mirar.
  *
  * ── Lo que NO va aquí ────────────────────────────────────────────────────
  * La venta del salón, la comisión de nadie más, el corte y los gastos. Esta
@@ -117,8 +120,12 @@ export interface CitaDeMiDia {
   /** ISO. La hora se pinta sólo en el navegador: el servidor tiene otro huso. */
   readonly inicio: string;
   readonly estado: string;
-  /** El puente entrega el dinero en PESOS aunque la columna sea `_centavos`. */
-  readonly precioPesos: number;
+  /**
+   * En CENTAVOS: `componerElDia` ya lo convirtió con `centavosDe` desde el `precio_pesos`
+   * del puente. Aquí viajaban los pesos y cada pantalla que los pintaba tenía que
+   * acordarse de convertirlos.
+   */
+  readonly precioCentavos: number;
   readonly alergias: boolean;
   readonly minutosProcesado: number | null;
 }
@@ -126,7 +133,8 @@ export interface CitaDeMiDia {
 export interface LineaDeComision {
   readonly id: string;
   readonly concepto: string;
-  readonly pesos: number;
+  /** En CENTAVOS, como `comisionCentavos`: ya convertido con `centavosDe`. */
+  readonly centavos: number;
 }
 
 export interface GananciaDelDia {
@@ -156,7 +164,8 @@ export interface MiDiaProps {
 interface FilaCitaServicio {
   readonly id: string;
   readonly cita_id: string;
-  readonly precio_centavos: number | null;
+  /** EN PESOS: el gemelo honesto de `precio_centavos`. Se lee sólo con `centavosDe`. */
+  readonly precio_pesos: number | null;
 }
 
 interface FilaCita {
@@ -176,16 +185,10 @@ interface FilaCliente {
 interface FilaComision {
   readonly id: string;
   readonly tipo: string | null;
-  readonly monto_centavos: number | null;
+  /** EN PESOS: el gemelo honesto de `monto_centavos`. Se lee sólo con `centavosDe`. */
+  readonly monto_pesos: number | null;
   readonly causada_en: string | null;
   readonly motivo: string | null;
-}
-
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
 }
 
 function aHora(iso: string): string {
@@ -225,7 +228,7 @@ export function componerElDia(
       servicio: null,
       inicio: cuando,
       estado: cita.estado ?? 'agendada',
-      precioPesos: servicio.precio_centavos ?? 0,
+      precioCentavos: centavosDe('CitaServicio', 'precio_pesos', servicio.precio_pesos) ?? 0,
       // Hasta que la ficha exponga el campo, se busca en las notas. Un falso
       // positivo avisa de más, y en alergias ése es el error barato.
       alergias: (cita.notas ?? '').toLowerCase().includes('alergia'),
@@ -313,7 +316,13 @@ export function MiDia({
     if (yo === null) {
       consultarPuente<ProfesionalDeLaLista>('Profesional', { limite: 50, signal: control.signal })
         .then((filas) => {
-          if (sigueMontada()) setEquipo(filas.filter((f) => f.activo !== false));
+          if (!sigueMontada()) return;
+          const activas = filas.filter((f) => f.activo !== false);
+          // UNA sola: es la sesión de esa estilista, y el servidor ya recortó al resto.
+          // No hay nada que preguntar.
+          const sola = activas.length === 1 ? activas[0] : undefined;
+          if (sola !== undefined) setYo(sola.id);
+          else setEquipo(activas);
         })
         .catch((fallo: unknown) => {
           if (sigueMontada()) setError(mensajeDe(fallo, 'No se pudo leer el equipo.'));
@@ -337,14 +346,17 @@ export function MiDia({
         const delDia = comisiones.filter(
           (c) => c.causada_en !== null && esMismoDia(c.causada_en, hoy),
         );
+        // Se convierte UNA vez, renglón por renglón, y la comisión es la suma de esos
+        // mismos centavos: el total y el desglose no pueden contar distinto.
+        const detalle = delDia.map((c) => ({
+          id: c.id,
+          concepto: c.motivo ?? c.tipo ?? 'Servicio',
+          centavos: centavosDe('ComisionCausada', 'monto_pesos', c.monto_pesos) ?? 0,
+        }));
         setGanancia({
-          comisionCentavos: delDia.reduce((suma, c) => suma + aCentavos(c.monto_centavos), 0),
+          comisionCentavos: detalle.reduce((suma, linea) => suma + linea.centavos, 0),
           propinaCentavos: null,
-          detalle: delDia.map((c) => ({
-            id: c.id,
-            concepto: c.motivo ?? c.tipo ?? 'Servicio',
-            pesos: c.monto_centavos ?? 0,
-          })),
+          detalle,
         });
       })
       .catch((fallo: unknown) => {
@@ -543,7 +555,7 @@ export function MiDia({
       clave: 'comision',
       titulo: 'Comisión',
       numerica: true,
-      celda: (linea) => <Dinero centavos={aCentavos(linea.pesos)} tamano="sm" />,
+      celda: (linea) => <Dinero centavos={linea.centavos} tamano="sm" />,
     },
   ];
 
@@ -611,7 +623,7 @@ export function MiDia({
                     {aHora(actual.inicio)}
                   </span>
                   <span aria-hidden="true">·</span>
-                  <Dinero centavos={aCentavos(actual.precioPesos)} />
+                  <Dinero centavos={actual.precioCentavos} />
                 </p>
               </div>
               {actual.minutosProcesado !== null && (

@@ -208,6 +208,10 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
         serie: sesion.serie,
         empleadoCierraId: empleoId,
         efectivoContadoCentavos: contado,
+        // Lo que se comparó, guardado con su diferencia en las columnas que la migración
+        // 100 creó para eso y nadie escribía: el historial enseña la diferencia de cada
+        // corte sin re-derivarla (C.4 de la 2.4).
+        efectivoEsperadoCentavos: arqueo.efectivoEsperadoCentavos,
         // El bote sólo viaja cuando la pantalla lo contó. Sin él la columna se
         // queda en NULL, que es «no se contó», y `repartir_bote` lo distingue de
         // un cero: repartir cero cuando nadie contó sería firmar que esa noche

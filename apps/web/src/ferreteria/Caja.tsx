@@ -34,6 +34,7 @@ import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 
@@ -184,6 +185,7 @@ export interface LineaDeNota {
   readonly producto_nombre: string | null;
   readonly cantidad: number | null;
   readonly unidad: string | null;
+  /** Como lo sirve el puente: `DetalleVenta.total` es `dinero` y llega en PESOS. */
   readonly total: number | null;
 }
 
@@ -207,13 +209,6 @@ interface LecturaDePartidas {
 
 type Vocabulario = ReturnType<typeof useVocabulario>;
 
-/** Pesos a centavos contando dígitos: `1234.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
-}
-
 /** Minutos enteros que faltan. `null` cuando no caduca o todavía no hay reloj. */
 export function minutosPara(vence: string | null, ahora: number | null): number | null {
   if (vence === null || ahora === null) return null;
@@ -234,9 +229,12 @@ function nombreDe(nota: NotaDeCaja): string {
   return nota.cliente_nombre ?? 'mostrador';
 }
 
-/** El total de la nota, en centavos. Nulo es cero: una nota vacía no debe nada. */
+/**
+ * El total de la nota, en centavos. Nulo es cero: una nota vacía no debe nada. Por
+ * `centavosDe`: la unidad la dice el mapa, y es este total el que va a los comandos.
+ */
 function totalDe(nota: NotaDeCaja): number {
-  return nota.totalCentavos ?? 0;
+  return centavosDe('NotaDeCaja', 'totalCentavos', nota.totalCentavos) ?? 0;
 }
 
 function sumaDe(notas: readonly NotaDeCaja[]): number {
@@ -387,7 +385,11 @@ function columnasDePartidas(voc: Vocabulario): readonly ColumnaDeTabla<LineaDeNo
       clave: 'importe',
       titulo: 'Importe',
       numerica: true,
-      celda: (linea) => <Dinero centavos={aCentavos(linea.total)} tamano="sm" />,
+      // La unidad la dice el mapa, no el nombre: `centavosDe` cuenta dígitos, sin
+      // multiplicar coma flotante. Nulo es cero: una partida sin importe no suma.
+      celda: (linea) => (
+        <Dinero centavos={centavosDe('DetalleVenta', 'total', linea.total) ?? 0} tamano="sm" />
+      ),
     },
   ];
 }
@@ -545,8 +547,8 @@ function PanelDeLaNota({
 }: PanelDeLaNotaProps) {
   const voc = useVocabulario();
   const total = totalDe(nota);
-  const saldo = nota.saldoClienteCentavos ?? 0;
-  const limite = nota.limiteClienteCentavos ?? 0;
+  const saldo = centavosDe('NotaDeCaja', 'saldoClienteCentavos', nota.saldoClienteCentavos) ?? 0;
+  const limite = centavosDe('NotaDeCaja', 'limiteClienteCentavos', nota.limiteClienteCentavos) ?? 0;
   const excede = limite > 0 && saldo + total > limite;
   // A cuenta necesita a alguien a quien fiarle: sin ficha no hay saldo que subir
   // ni documento que cobrar después.

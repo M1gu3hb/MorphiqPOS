@@ -28,6 +28,7 @@ import { ChevronDown, CircleCheck, Lock, OctagonAlert, Printer, TriangleAlert } 
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -94,7 +95,10 @@ const NOMBRE_DEL_CANAL: Readonly<Record<Canal, string>> = {
 /** Por debajo de esto el descuadre es «se me fue un peso»; por encima, no. */
 const TOLERANCIA_CENTAVOS = 2000;
 
-/** La venta del día tal como la nombra el puente. Los importes van en PESOS. */
+/**
+ * La venta del día tal como la nombra el puente. Los importes van en PESOS, y se leen
+ * sólo por `centavosDe`: la unidad la decide la conversión del campo, no quien lo lee.
+ */
 export interface VentaDelDia {
   readonly id: string;
   readonly estado: string | null;
@@ -155,11 +159,9 @@ export interface CierreDiarioProps {
   readonly onImprimirElCierre?: (corte: ResultadoDelCierre) => void;
 }
 
-/** Pesos a centavos contando dígitos: `1234.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+/** Un gasto, en centavos. Sin monto cuenta como cero: no suma, y no rompe la suma. */
+function montoDe(gasto: GastoDelDia): number {
+  return centavosDe('GastoOperativo', 'monto', gasto.monto) ?? 0;
 }
 
 export interface ResumenDelDia {
@@ -189,12 +191,15 @@ export function resumirDia(
   gastos: readonly GastoDelDia[],
 ): ResumenDelDia {
   const pagadas = ventas.filter((venta) => venta.estado === 'pagada');
+  // Cada lector ya devuelve CENTAVOS —pasa por `centavosDe`—; lo que no vino suma cero.
   const suma = (lee: (venta: VentaDelDia) => number | null): number =>
-    pagadas.reduce((total, venta) => total + aCentavos(lee(venta)), 0);
-  const total = suma((venta) => venta.total);
-  const costo = suma((venta) => venta.costo_total_snapshot);
+    pagadas.reduce((total, venta) => total + (lee(venta) ?? 0), 0);
+  const total = suma((venta) => centavosDe('Venta', 'total', venta.total));
+  const costo = suma((venta) =>
+    centavosDe('Venta', 'costo_total_snapshot', venta.costo_total_snapshot),
+  );
   const utilidad = total - costo;
-  const operativos = gastos.reduce((lleva, gasto) => lleva + aCentavos(gasto.monto), 0);
+  const operativos = gastos.reduce((lleva, gasto) => lleva + montoDe(gasto), 0);
   return {
     ventas: total,
     tickets: pagadas.length,
@@ -205,18 +210,22 @@ export function resumirDia(
     gastos: operativos,
     neta: utilidad - operativos,
     propinas: {
-      efectivo: suma((venta) => venta.propina_efectivo),
-      tarjeta: suma((venta) => venta.propina_tarjeta),
-      transferencia: suma((venta) => venta.propina_transferencia),
+      efectivo: suma((venta) => centavosDe('Venta', 'propina_efectivo', venta.propina_efectivo)),
+      tarjeta: suma((venta) => centavosDe('Venta', 'propina_tarjeta', venta.propina_tarjeta)),
+      transferencia: suma((venta) =>
+        centavosDe('Venta', 'propina_transferencia', venta.propina_transferencia),
+      ),
     },
     porCanal: {
-      efectivo: suma((venta) => venta.monto_efectivo),
-      tarjeta: suma((venta) => venta.monto_tarjeta),
-      transferencia: suma((venta) => venta.monto_transferencia),
+      efectivo: suma((venta) => centavosDe('Venta', 'monto_efectivo', venta.monto_efectivo)),
+      tarjeta: suma((venta) => centavosDe('Venta', 'monto_tarjeta', venta.monto_tarjeta)),
+      transferencia: suma((venta) =>
+        centavosDe('Venta', 'monto_transferencia', venta.monto_transferencia),
+      ),
     },
     gastosEnEfectivo: gastos
       .filter((gasto) => gasto.metodo_pago === 'efectivo' || gasto.metodo_pago === null)
-      .reduce((lleva, gasto) => lleva + aCentavos(gasto.monto), 0),
+      .reduce((lleva, gasto) => lleva + montoDe(gasto), 0),
   };
 }
 
@@ -297,7 +306,7 @@ export function mesasQueBloquean(datos: DatosDelDia, ahora: number): readonly Me
         id: mesa.id,
         rotulo: mesa.numero === null ? 'Sin número' : `Mesa ${mesa.numero}`,
         mesero: viva?.usuario_mesero_nombre ?? mesa.mesero_asignado_nombre ?? 'sin mesero',
-        total: aCentavos(viva?.total),
+        total: centavosDe('Venta', 'total', viva?.total) ?? 0,
         abierta: desdeHace(viva?.fecha_apertura ?? null, ahora),
       };
     });
@@ -320,7 +329,8 @@ async function leerElDia(signal: AbortSignal): Promise<DatosDelDia> {
     ventas,
     gastos,
     mesas,
-    fondoInicial: aCentavos(sesion?.efectivo_inicial_contado),
+    fondoInicial:
+      centavosDe('CorteCaja', 'efectivo_inicial_contado', sesion?.efectivo_inicial_contado) ?? 0,
     cajaAbierta: sesion?.estado === 'abierto',
   };
 }

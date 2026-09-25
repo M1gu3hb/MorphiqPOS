@@ -24,7 +24,7 @@ import { BookUser, CalendarPlus, Camera, ChevronDown, NotebookPen } from 'lucide
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -218,9 +218,10 @@ async function leerExpediente(
         fecha: texto(s['fecha']),
         servicio: texto(s['servicio_nombre']),
         profesional: texto(s['profesional_nombre']),
-        // El puente sirve `precio_centavos` en PESOS (`conversion: 'dinero'`): sin
-        // pasarlo a centavos, un retoque de $950.00 se pintaba «$9.50».
-        precioCentavos: centavosDelPuente(numero(s['precio_centavos'])),
+        // El precio llega en PESOS (`conversion: 'dinero'`): sin pasarlo a centavos, un
+        // retoque de $950.00 se pintaba «$9.50». Se lee por el gemelo honesto y por el
+        // camino único (C.2 de la 2.4), no por el nombre que miente.
+        precioCentavos: centavosDe('CitaServicio', 'precio_pesos', s['precio_pesos']),
         formula: enFormula(formula),
         nota: texto(formula?.['nota']),
         notaPrivada: formula?.['nota_privada'] === true,

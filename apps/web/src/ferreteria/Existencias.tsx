@@ -35,6 +35,7 @@ import {
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -196,6 +197,14 @@ export interface TarjetaContador {
   readonly urgente: boolean;
 }
 
+/**
+ * El dinero parado de una fila, en centavos. Por `centavosDe`: la unidad la dice el
+ * mapa, no el nombre. Ausente suma cero, como sumaba antes.
+ */
+function dineroParadoDe(f: FilaDeExistencias): number {
+  return centavosDe('ExistenciaMaterial', 'dineroParadoCentavos', f.dineroParadoCentavos) ?? 0;
+}
+
 export function estaDormido(f: FilaDeExistencias): boolean {
   return f.existencia > 0 && (f.diasInventario === null || f.diasInventario > f.umbralDiasLinea);
 }
@@ -228,8 +237,8 @@ export function resumir(
   const dormidas = filas.filter(estaDormido);
   const abiertas = filas.filter(PRUEBAS.abiertos);
   const viejas = abiertas.filter((f) => (f.diasAbiertaMasVieja ?? 0) > DIAS_RETAZO_VIEJO).length;
-  const dinero = dormidas.reduce((s, f) => s + f.dineroParadoCentavos, 0);
-  const todo = filas.reduce((s, f) => s + f.dineroParadoCentavos, 0);
+  const dinero = dormidas.reduce((s, f) => s + dineroParadoDe(f), 0);
+  const todo = filas.reduce((s, f) => s + dineroParadoDe(f), 0);
   const parte = todo <= 0 ? 0 : Math.round((dinero / todo) * 100);
   const claves = `${MILES.format(dormidas.length)} claves`;
   const negativas = filas.filter(PRUEBAS.negativo).length;
@@ -478,7 +487,7 @@ function columnasDelDormido(
         <span className="flex items-baseline justify-between gap-(--espacio-3)">
           <span>{f.nombre}</span>
           {verDinero ? (
-            <Dinero centavos={f.dineroParadoCentavos} className="shrink-0 font-bold" />
+            <Dinero centavos={dineroParadoDe(f)} className="shrink-0 font-bold" />
           ) : null}
         </span>
       ),
@@ -688,10 +697,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es-MX'));
   }, [filas, contador, consulta, listas]);
   const dormidas = useMemo(
-    () =>
-      (filas ?? [])
-        .filter(estaDormido)
-        .sort((a, b) => b.dineroParadoCentavos - a.dineroParadoCentavos),
+    () => (filas ?? []).filter(estaDormido).sort((a, b) => dineroParadoDe(b) - dineroParadoDe(a)),
     [filas],
   );
   const tituloDeMaterial = voc.titulo('producto');

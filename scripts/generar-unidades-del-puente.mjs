@@ -25,7 +25,8 @@ const { MAPA } = await import('../packages/app/src/puente/mapa.ts');
 
 function unidadDe(nombre, conversion) {
   if (conversion === 'dinero') return 'pesos';
-  if (conversion === 'entero' && /centavos/.test(nombre)) return 'centavos';
+  // Sin distinguir mayúsculas: `totalCentavos` (camelCase, en NotaDeCaja) también es dinero.
+  if (conversion === 'entero' && /centavos/i.test(nombre)) return 'centavos';
   return null;
 }
 

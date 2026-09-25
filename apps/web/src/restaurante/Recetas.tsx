@@ -31,7 +31,7 @@ import { useEffect, useRef, useState, type Ref } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -224,17 +224,29 @@ async function leerTodo(signal: AbortSignal) {
 /* ── Las piezas que se repiten en la lista y en el panel ──────────────── */
 
 /**
+ * El costo y el precio del platillo, en centavos. El puente los sirve en PESOS
+ * (`conversion: 'dinero'`) y la unidad la decide `centavosDe` por esa conversión, no
+ * quien los lee. `null` es «no hay»: sin receta no hay costo calculado.
+ */
+function costoDe(producto: ProductoConMargen): number | null {
+  return centavosDe('ProductoTerminado', 'costo_calculado_actual', producto.costo_calculado_actual);
+}
+
+function precioDe(producto: ProductoConMargen): number | null {
+  return centavosDe('ProductoTerminado', 'precio_venta', producto.precio_venta);
+}
+
+/**
  * Un importe que puede no existir todavía: sin costo calculado es «—», no «$0.00».
- * El puente lo sirve en PESOS (`conversion: 'dinero'`); `Dinero` pinta centavos.
+ * Recibe CENTAVOS, ya leídos por `centavosDe`; `Dinero` los pinta.
  */
 function Importe({
-  pesos,
+  centavos,
   tamano = 'sm',
 }: {
-  readonly pesos: number | null;
+  readonly centavos: number | null;
   readonly tamano?: TamanoDeDinero;
 }) {
-  const centavos = centavosDelPuente(pesos);
   if (centavos === null) {
     return <span className="text-texto-sutil">—</span>;
   }
@@ -297,10 +309,10 @@ function columnasDePlatillos(tituloDePlatillo: string): readonly ColumnaDeTabla<
               ver: bajan aquí con su palabra delante. */}
           <span className="flex flex-wrap items-baseline gap-x-(--espacio-1) text-xs text-texto-sutil md:hidden">
             <span>Costo</span>
-            <Importe pesos={fila.producto.costo_calculado_actual} tamano="xs" />
+            <Importe centavos={costoDe(fila.producto)} tamano="xs" />
             <span aria-hidden="true">·</span>
             <span>Precio</span>
-            <Importe pesos={fila.producto.precio_venta} tamano="xs" />
+            <Importe centavos={precioDe(fila.producto)} tamano="xs" />
           </span>
         </span>
       ),
@@ -317,16 +329,16 @@ function columnasDePlatillos(tituloDePlatillo: string): readonly ColumnaDeTabla<
       titulo: 'Costo',
       numerica: true,
       desde: 'md',
-      orden: (fila) => fila.producto.costo_calculado_actual ?? -1,
-      celda: (fila) => <Importe pesos={fila.producto.costo_calculado_actual} />,
+      orden: (fila) => costoDe(fila.producto) ?? -1,
+      celda: (fila) => <Importe centavos={costoDe(fila.producto)} />,
     },
     {
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
       desde: 'md',
-      orden: (fila) => fila.producto.precio_venta ?? -1,
-      celda: (fila) => <Importe pesos={fila.producto.precio_venta} />,
+      orden: (fila) => precioDe(fila.producto) ?? -1,
+      celda: (fila) => <Importe centavos={precioDe(fila.producto)} />,
     },
     {
       clave: 'margen',
@@ -377,7 +389,15 @@ const COLUMNAS_DE_LINEAS: readonly ColumnaDeTabla<LineaDeReceta>[] = [
     clave: 'costo',
     titulo: 'Costo',
     numerica: true,
-    celda: (linea) => <Importe pesos={linea.costo_linea_calculado} />,
+    celda: (linea) => (
+      <Importe
+        centavos={centavosDe(
+          'RecetaEscandallo',
+          'costo_linea_calculado',
+          linea.costo_linea_calculado,
+        )}
+      />
+    ),
   },
 ];
 
@@ -757,13 +777,13 @@ function PanelDeReceta({
         <div className="flex flex-col gap-(--espacio-1)">
           <dt className="text-xs text-texto-sutil">Costo</dt>
           <dd>
-            <Importe pesos={producto.costo_calculado_actual} tamano="base" />
+            <Importe centavos={costoDe(producto)} tamano="base" />
           </dd>
         </div>
         <div className="flex flex-col gap-(--espacio-1)">
           <dt className="text-xs text-texto-sutil">Precio</dt>
           <dd>
-            <Importe pesos={producto.precio_venta} tamano="base" />
+            <Importe centavos={precioDe(producto)} tamano="base" />
           </dd>
         </div>
       </dl>
@@ -776,7 +796,7 @@ function PanelDeReceta({
         alto="max-h-[40vh]"
         pie={{
           ingrediente: 'Costo del platillo',
-          costo: <Importe pesos={producto.costo_calculado_actual} />,
+          costo: <Importe centavos={costoDe(producto)} />,
         }}
         vacio={
           // El vacío explica la consecuencia; el formulario de abajo es su salida.

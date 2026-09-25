@@ -25,7 +25,7 @@ import { Check, ReceiptText, Smartphone, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -128,6 +128,35 @@ export interface Comisionista {
   readonly modelo: string | null;
 }
 
+/**
+ * LAS FILAS DE `SaldoComisionista` Y `OperacionComision`, COMO LAS SIRVE EL PUENTE.
+ *
+ * `saldo_centavos`, `comision_acumulada_centavos`, `comision_centavos` y
+ * `monto_ajeno_centavos` son `conversion: 'dinero'` en `puente/mapa.ts`: llegan en PESOS
+ * aunque se llamen `…_centavos`. Leídos tal cual, el saldo salía cien veces más chico
+ * —«Saldo bajo» siempre, y «sin saldo» con saldo de sobra—. Por eso se leen sus gemelos
+ * honestos, `…_pesos` (la misma columna), y sólo al llegar: `centavosDe` los pasa a
+ * centavos y la pantalla trabaja con `SaldoDeComisionista` y `OperacionDeComision`.
+ */
+interface FilaDeSaldo {
+  readonly id: string;
+  readonly saldo_pesos: number | null;
+  readonly comision_acumulada_pesos: number | null;
+}
+
+interface FilaDeOperacion {
+  readonly id: string;
+  readonly comisionista_id: string;
+  readonly tipo: string;
+  readonly comision_pesos: number | null;
+  readonly monto_ajeno_pesos: number | null;
+  readonly created_date: string | null;
+}
+
+/**
+ * El saldo como lo usa la pantalla: EN CENTAVOS, ya convertido. Lo que devuelven los
+ * COMANDOS ya viene en centavos y se escribe aquí tal cual.
+ */
 export interface SaldoDeComisionista {
   /** ES el comisionista: la tabla tiene una fila por organización y comisionista. */
   readonly id: string;
@@ -135,6 +164,7 @@ export interface SaldoDeComisionista {
   readonly comision_acumulada_centavos: number | null;
 }
 
+/** Una operación como la usa la pantalla: sus importes EN CENTAVOS, ya convertidos. */
 export interface OperacionDeComision {
   readonly id: string;
   readonly comisionista_id: string;
@@ -192,25 +222,33 @@ function mensajeDeFallo(fallo: unknown): string {
 }
 
 /**
- * LOS PESOS DEL PUENTE, A CENTAVOS. `saldo_centavos`, `comision_acumulada_centavos`,
- * `comision_centavos` y `monto_ajeno_centavos` son `conversion: 'dinero'` en
- * `puente/mapa.ts`: llegan en PESOS aunque se llamen `…_centavos`. Leídos tal cual,
- * el saldo salía cien veces más chico —«Saldo bajo» siempre, y «sin saldo» con
- * saldo de sobra—. Lo que devuelven los COMANDOS ya viene en centavos.
+ * LOS PESOS DEL PUENTE, A CENTAVOS, una sola vez y al llegar. La unidad la decide
+ * `centavosDe` por la conversión de cada campo; `null` —no vino— se queda `null`.
  */
-function saldoDelPuente(fila: SaldoDeComisionista): SaldoDeComisionista {
+function saldoDelPuente(fila: FilaDeSaldo): SaldoDeComisionista {
   return {
-    ...fila,
-    saldo_centavos: centavosDelPuente(fila.saldo_centavos),
-    comision_acumulada_centavos: centavosDelPuente(fila.comision_acumulada_centavos),
+    id: fila.id,
+    saldo_centavos: centavosDe('SaldoComisionista', 'saldo_pesos', fila.saldo_pesos),
+    comision_acumulada_centavos: centavosDe(
+      'SaldoComisionista',
+      'comision_acumulada_pesos',
+      fila.comision_acumulada_pesos,
+    ),
   };
 }
 
-function operacionDelPuente(fila: OperacionDeComision): OperacionDeComision {
+function operacionDelPuente(fila: FilaDeOperacion): OperacionDeComision {
   return {
-    ...fila,
-    comision_centavos: centavosDelPuente(fila.comision_centavos),
-    monto_ajeno_centavos: centavosDelPuente(fila.monto_ajeno_centavos),
+    id: fila.id,
+    comisionista_id: fila.comisionista_id,
+    tipo: fila.tipo,
+    comision_centavos: centavosDe('OperacionComision', 'comision_pesos', fila.comision_pesos),
+    monto_ajeno_centavos: centavosDe(
+      'OperacionComision',
+      'monto_ajeno_pesos',
+      fila.monto_ajeno_pesos,
+    ),
+    created_date: fila.created_date,
   };
 }
 
@@ -286,14 +324,14 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
       // Las tablas existían desde la 095; lo que faltaba era que alguien las
       // conectara.
       consultarPuente<Comisionista>('Comisionista', { limite: 50, signal: control.signal }),
-      consultarPuente<SaldoDeComisionista>('SaldoComisionista', {
+      consultarPuente<FilaDeSaldo>('SaldoComisionista', {
         limite: 50,
         signal: control.signal,
       }),
       // Las del DÍA: la barra de abajo dice «Hoy: N operaciones», y traer el
       // histórico entero para contar las de hoy es lo que hace lenta una pantalla
       // de mostrador.
-      consultarPuente<OperacionDeComision>('OperacionComision', {
+      consultarPuente<FilaDeOperacion>('OperacionComision', {
         limite: 200,
         rango: { campo: 'created_date', desde: comienzoDelDia() },
         signal: control.signal,

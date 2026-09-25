@@ -40,7 +40,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -182,12 +182,14 @@ export interface DocumentoPorCobrar {
  * Una fila de `Remision` TAL COMO LLEGA. `saldo_documento_centavos` viene en PESOS
  * aunque se llame así (`conversion: 'dinero'` en `puente/mapa.ts`): dárselo tal cual
  * a `<Dinero>` pintaba $180.00 donde se debían $18,000.00, y el pago salía por eso.
+ * Por eso se lee su gemelo honesto, `saldo_documento_pesos` —la misma columna, con el
+ * nombre de lo que trae—, y no el nombre que miente.
  */
 interface RemisionDelPuente {
   readonly id: string;
   readonly folio: string | null;
   readonly obra_nombre: string | null;
-  readonly saldo_documento_centavos: number | null;
+  readonly saldo_documento_pesos: number | null;
   readonly entregada_en: string | null;
 }
 
@@ -238,7 +240,19 @@ function esDeHoy(fecha: string | null): boolean {
 }
 
 function sumaDePagos(pagos: readonly PagoDeCredito[]): number {
-  return pagos.reduce((suma, pago) => suma + (pago.monto_centavos ?? 0), 0);
+  return pagos.reduce(
+    (suma, pago) => suma + (centavosDe('PagoCredito', 'monto_centavos', pago.monto_centavos) ?? 0),
+    0,
+  );
+}
+
+/**
+ * El saldo de una obra, en centavos. `CarteraPorObra.saldo_centavos` es `entero` y ya
+ * llega en centavos, pero eso lo dice el mapa y no el nombre: se lee por `centavosDe`,
+ * en un solo sitio para las cuatro lecturas. Nulo es cero: sin saldo no se debe nada.
+ */
+function saldoDe(obra: RenglonDeCartera): number {
+  return centavosDe('CarteraPorObra', 'saldo_centavos', obra.saldo_centavos) ?? 0;
 }
 
 function obrasEnTexto(cuantas: number): string {
@@ -272,7 +286,11 @@ function aDocumento(remision: RemisionDelPuente, ahora: number): DocumentoPorCob
     id: remision.id,
     folio: remision.folio,
     obra_nombre: remision.obra_nombre,
-    saldo_documento_centavos: centavosDelPuente(remision.saldo_documento_centavos),
+    saldo_documento_centavos: centavosDe(
+      'Remision',
+      'saldo_documento_pesos',
+      remision.saldo_documento_pesos,
+    ),
     entregada_en: remision.entregada_en,
     dias: Number.isNaN(entrega) ? null : Math.max(0, Math.floor((ahora - entrega) / MS_POR_DIA)),
   };
@@ -296,9 +314,12 @@ export function agruparPorCliente(
     };
     porId.set(fila.cliente_id, {
       ...base,
-      debe: base.debe + (fila.saldo_centavos ?? 0),
+      debe: base.debe + saldoDe(fila),
       dias: Math.max(base.dias, fila.dias_mas_viejo ?? 0),
-      limite: Math.max(base.limite, fila.limite_centavos ?? 0),
+      limite: Math.max(
+        base.limite,
+        centavosDe('CarteraPorObra', 'limite_centavos', fila.limite_centavos) ?? 0,
+      ),
       obras: [...base.obras, fila],
     });
   }
@@ -355,7 +376,7 @@ function ResumenDeCartera({
   const voc = useVocabulario();
   const atrasados = renglones.filter((fila) => (fila.dias_mas_viejo ?? 0) > DIAS_VENCIDO);
   const totalDebido = clientes.reduce((suma, cliente) => suma + cliente.debe, 0);
-  const totalVencido = atrasados.reduce((suma, fila) => suma + (fila.saldo_centavos ?? 0), 0);
+  const totalVencido = atrasados.reduce((suma, fila) => suma + saldoDe(fila), 0);
   const hayVencido = totalVencido > 0;
   return (
     <Superficie
@@ -477,7 +498,7 @@ function CeldaDeObra({ obra }: { readonly obra: RenglonDeCartera }) {
       <span className={RENGLON_DEL_NOMBRE}>
         <CornerDownRight aria-hidden="true" className="size-4 shrink-0" />
         <span className="truncate">{obra.obra_nombre ?? 'Sin obra'}</span>
-        <Dinero centavos={obra.saldo_centavos ?? 0} tamano="sm" className="sm:hidden" />
+        <Dinero centavos={saldoDe(obra)} tamano="sm" className="sm:hidden" />
       </span>
       <span className="pl-(--espacio-5) text-xs md:hidden">
         <Semaforo dias={obra.dias_mas_viejo ?? 0} tamano="xs" />
@@ -563,7 +584,7 @@ function columnasDeCartera({
         fila.tipo === 'cliente' ? (
           <Dinero centavos={fila.cliente.debe} className="font-semibold" />
         ) : (
-          <Dinero centavos={fila.obra.saldo_centavos ?? 0} tamano="sm" />
+          <Dinero centavos={saldoDe(fila.obra)} tamano="sm" />
         ),
     },
     {

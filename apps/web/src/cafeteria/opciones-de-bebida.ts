@@ -1,4 +1,5 @@
 import { ErrorApi } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 
 /**
  * F-027 · Los modificadores de la bebida: lo que decide QUÉ SE COBRA.
@@ -61,9 +62,19 @@ export function porOmisionDe(grupo: GrupoDeOpciones): string | null {
   return grupo.varias ? null : (disponibles[0]?.id ?? null);
 }
 
-/** El total que va dentro del botón: la base más cada delta activo. */
+/**
+ * El total que va dentro del botón: la base más cada delta activo.
+ *
+ * El delta pasa por `centavosDe` aunque el puente ya lo sirva en centavos: la unidad
+ * la decide el campo en el mapa, no el `_centavos` del nombre. Sin delta no mueve.
+ */
 export function totalCentavos(base: number, activas: readonly OpcionDeBebida[]): number {
-  return activas.reduce((suma, opcion) => suma + (opcion.delta_precio_centavos ?? 0), base);
+  return activas.reduce(
+    (suma, opcion) =>
+      suma +
+      (centavosDe('Modificador', 'delta_precio_centavos', opcion.delta_precio_centavos) ?? 0),
+    base,
+  );
 }
 
 /** El límite de intentos no es un código de la API: es el 429 del estado. */

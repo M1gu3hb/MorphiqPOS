@@ -23,6 +23,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe, valorDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -70,7 +71,8 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * del sistema.
  *
  * ── Por qué centavos enteros ─────────────────────────────────────────────
- * El saldo vive en `saldo_pendiente_centavos` y el abono se escribe igual:
+ * El saldo llega en `saldo_centavos` de `CarteraFiado` —centavos de verdad, no el
+ * `saldo_pendiente_centavos` de `Cliente`, que llega en pesos— y el abono se escribe igual:
  * `CampoDeDinero` convierte el texto a centavos contando dígitos. Ir a pesos y
  * volver es como entra el error de redondeo (R15).
  *
@@ -117,10 +119,24 @@ export function semaforoDe(dias: number): { readonly clase: string; readonly pal
   return { clase: 'bg-exito/20 border-borde', palabra: 'al corriente' };
 }
 
+/**
+ * El saldo y el límite de una fila, en centavos. `CarteraFiado` ya los sirve en centavos
+ * (`conversion: 'entero'`), pero la unidad la decide la conversión del campo y no su
+ * nombre: por eso pasan por `centavosDe`, como cualquier dinero del puente. Sin saldo es
+ * cero —no debe nada—; sin límite es `null`, que la pantalla dice «sin límite».
+ */
+function saldoDe(fila: FilaDeCartera): number {
+  return centavosDe('CarteraFiado', 'saldo_centavos', fila.saldo_centavos) ?? 0;
+}
+
+function limiteDe(fila: FilaDeCartera): number | null {
+  return centavosDe('CarteraFiado', 'limite_centavos', fila.limite_centavos);
+}
+
 /** Deber más de lo aprobado. Problema de monto, independiente de los días. */
 export function excedeLimite(fila: FilaDeCartera): boolean {
-  const limite = fila.limite_centavos ?? 0;
-  return limite > 0 && (fila.saldo_centavos ?? 0) > limite;
+  const limite = limiteDe(fila) ?? 0;
+  return limite > 0 && saldoDe(fila) > limite;
 }
 
 /** A quién hay que hablarle: o se tardó demasiado, o ya se pasó del límite. */
@@ -200,10 +216,8 @@ function columnasDeCartera(tituloCliente: string): readonly ColumnaDeTabla<FilaD
       clave: 'debe',
       titulo: 'Debe',
       numerica: true,
-      orden: (f) => f.saldo_centavos ?? 0,
-      celda: (f) => (
-        <Dinero centavos={f.saldo_centavos ?? 0} tamano="sm" className="font-semibold" />
-      ),
+      orden: (f) => saldoDe(f),
+      celda: (f) => <Dinero centavos={saldoDe(f)} tamano="sm" className="font-semibold" />,
     },
     {
       clave: 'mas-viejo',
@@ -215,13 +229,15 @@ function columnasDeCartera(tituloCliente: string): readonly ColumnaDeTabla<FilaD
       clave: 'limite',
       titulo: 'Límite',
       numerica: true,
-      orden: (f) => f.limite_centavos ?? 0,
-      celda: (f) =>
-        f.limite_centavos === null ? (
+      orden: (f) => limiteDe(f) ?? 0,
+      celda: (f) => {
+        const limite = limiteDe(f);
+        return limite === null ? (
           <span className="text-texto-sutil">sin límite</span>
         ) : (
-          <Dinero centavos={f.limite_centavos} tamano="sm" />
-        ),
+          <Dinero centavos={limite} tamano="sm" />
+        );
+      },
     },
     {
       // Sin `desde`: la tabla sólo existe desde `md`, y en tableta el último abono
@@ -243,9 +259,9 @@ function ResumenDeCartera({
   readonly filas: readonly FilaDeCartera[];
   readonly voc: ReturnType<typeof useVocabulario>;
 }) {
-  const deben = filas.reduce((suma, f) => suma + (f.saldo_centavos ?? 0), 0);
+  const deben = filas.reduce((suma, f) => suma + saldoDe(f), 0);
   const vencidas = filas.filter((f) => (f.dias_mas_viejo ?? 0) >= ROJO_DESDE);
-  const vencido = vencidas.reduce((suma, f) => suma + (f.saldo_centavos ?? 0), 0);
+  const vencido = vencidas.reduce((suma, f) => suma + saldoDe(f), 0);
   return (
     <section aria-label="Resumen de la cartera" className="grid gap-(--espacio-2) sm:grid-cols-2">
       <Superficie relleno={4} className="flex flex-col gap-(--espacio-1)">
@@ -271,22 +287,23 @@ function ResumenDeCartera({
 
 /** El límite en la ficha: pasado, con su marca; si no, dicho en tenue. */
 function LimiteDeLaFicha({ cliente }: { readonly cliente: FilaDeCartera }) {
+  const limite = limiteDe(cliente);
   if (excedeLimite(cliente)) {
     return (
       <p className="flex items-center gap-(--espacio-1) text-sm font-medium">
         <TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-peligro" />
         <span>
-          Pasa su límite de <Dinero centavos={cliente.limite_centavos ?? 0} tamano="sm" />
+          Pasa su límite de <Dinero centavos={limite ?? 0} tamano="sm" />
         </span>
       </p>
     );
   }
-  if (cliente.limite_centavos === null) {
+  if (limite === null) {
     return <p className="text-sm text-texto-sutil">Sin límite</p>;
   }
   return (
     <p className="text-sm text-texto-sutil">
-      Límite <Dinero centavos={cliente.limite_centavos} tamano="sm" />
+      Límite <Dinero centavos={limite} tamano="sm" />
     </p>
   );
 }
@@ -337,7 +354,7 @@ function Ficha({
 
       <div className="flex flex-col gap-(--espacio-1)">
         <p className="text-sm text-texto-sutil">Debe</p>
-        <Dinero centavos={cliente.saldo_centavos ?? 0} tamano="lg" className="text-3xl font-bold" />
+        <Dinero centavos={saldoDe(cliente)} tamano="lg" className="text-3xl font-bold" />
         <p className="text-sm text-texto-sutil">
           más viejo {cliente.dias_mas_viejo ?? 0} días · {hace(cliente.ultimo_abono_dias)}
         </p>
@@ -445,11 +462,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
           f.nombre.toLowerCase().includes(texto) ||
           (f.telefono ?? '').includes(texto),
       )
-      .sort(
-        (a, b) =>
-          (b.dias_mas_viejo ?? 0) - (a.dias_mas_viejo ?? 0) ||
-          (b.saldo_centavos ?? 0) - (a.saldo_centavos ?? 0),
-      );
+      .sort((a, b) => (b.dias_mas_viejo ?? 0) - (a.dias_mas_viejo ?? 0) || saldoDe(b) - saldoDe(a));
   }, [filas, busqueda, soloPorCobrar]);
 
   const ficha = (filas ?? []).find((f) => f.cliente_id === elegido) ?? null;
@@ -524,9 +537,17 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
         metodo: 'efectivo',
       };
       await invocarComando('/api/fiado/abono', entrada);
+      // El saldo nuevo vuelve a la fila en la unidad del puente, la que `saldoDe` espera.
       const baja = (f: FilaDeCartera): FilaDeCartera =>
         f.cliente_id === cliente.cliente_id
-          ? { ...f, saldo_centavos: Math.max(0, (f.saldo_centavos ?? 0) - centavos) }
+          ? {
+              ...f,
+              saldo_centavos: valorDelPuente(
+                'CarteraFiado',
+                'saldo_centavos',
+                Math.max(0, saldoDe(f) - centavos),
+              ),
+            }
           : f;
       setFilas((previas) => (previas ?? []).map(baja));
       setMonto(null);

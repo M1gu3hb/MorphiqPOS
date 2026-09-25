@@ -21,7 +21,7 @@ import { CalendarClock, CalendarOff, Check, Layers, PackageSearch, Plus } from '
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe, valorDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -107,13 +107,14 @@ export interface PresentacionDeProducto {
   /** El puente lo sirve con `conversion: 'decimal'`: es un NÚMERO, no texto. */
   readonly factor: number;
   /**
-   * EN PESOS y con el nombre del puente: `Presentacion` sirve
-   * `precio_venta_centavos` con la conversión `dinero`.
+   * EN PESOS: `Presentacion` sirve el precio con la conversión `dinero`. Se lee por su
+   * gemelo honesto `precio_venta_pesos` —la misma columna— y no por
+   * `precio_venta_centavos`, que se llama así y también llega en pesos.
    *
    * Aquí se leía `precio_centavos`, que no existe: el six de refrescos enseñaba
    * `$NaN` en su renglón con el precio puesto en la base.
    */
-  readonly precio_venta_centavos: number | null;
+  readonly precio_venta_pesos: number | null;
   readonly codigo_barras: string | null;
 }
 
@@ -170,11 +171,18 @@ const PRESENTACION_EN_BLANCO: PresentacionNueva = {
 };
 
 /**
- * Pesos del puente a centavos enteros. El margen en pesos con decimales sale con
- * tres cifras que nadie puede cobrar.
+ * El precio y el costo de la ficha, en centavos enteros: el margen en pesos con
+ * decimales sale con tres cifras que nadie puede cobrar. La unidad en que llegan la
+ * decide `centavosDe` por la conversión del campo. Sin dato cuentan como cero.
  */
-function enCentavos(importe: number | null): number {
-  return centavosDelPuente(importe) ?? 0;
+function precioDe(ficha: FichaDeProducto): number {
+  return centavosDe('ProductoTerminado', 'precio_venta', ficha.precio_venta) ?? 0;
+}
+
+function costoDe(ficha: FichaDeProducto): number {
+  return (
+    centavosDe('ProductoTerminado', 'costo_calculado_actual', ficha.costo_calculado_actual) ?? 0
+  );
 }
 
 /** La fila del puente, con su precio en centavos. */
@@ -183,7 +191,8 @@ function filaDelPuente(presentacion: PresentacionDeProducto): FilaDePresentacion
     id: presentacion.id,
     nombre: presentacion.nombre,
     factor: presentacion.factor,
-    precioCentavos: enCentavos(presentacion.precio_venta_centavos),
+    precioCentavos:
+      centavosDe('Presentacion', 'precio_venta_pesos', presentacion.precio_venta_pesos) ?? 0,
     codigo_barras: presentacion.codigo_barras,
   };
 }
@@ -369,7 +378,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
             return;
           }
           setFicha(primera);
-          setPrecio(enCentavos(primera.precio_venta));
+          setPrecio(precioDe(primera));
         })
         .catch((fallo: unknown) => {
           if (!sigueMontada()) return;
@@ -434,7 +443,15 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
     // centavos que el esquema no conoce— y cada guardado contestaba 400.
     invocarComando(RUTA_PRECIO, { productoId, precioVenta: textoParaCampo(centavos) })
       .then(() => {
-        setFicha(ficha === null ? null : { ...ficha, precio_venta: centavos / 100 });
+        // La ficha imita la fila del puente: el precio vuelve en SU unidad, pesos.
+        setFicha(
+          ficha === null
+            ? null
+            : {
+                ...ficha,
+                precio_venta: valorDelPuente('ProductoTerminado', 'precio_venta', centavos),
+              },
+        );
         setAviso('Precio guardado.');
       })
       .catch((fallo: unknown) => {
@@ -557,8 +574,8 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
 
   if (ficha === null) return <EsqueletoDeFicha />;
 
-  const costo = enCentavos(ficha.costo_calculado_actual);
-  const precioGuardado = enCentavos(ficha.precio_venta);
+  const costo = costoDe(ficha);
+  const precioGuardado = precioDe(ficha);
   // El margen sigue al campo; con el campo vacío o ilegible, al precio guardado.
   const precioALaVista = precio ?? precioGuardado;
   const margen = margenDe(precioALaVista, costo);

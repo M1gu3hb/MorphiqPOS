@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { buscar, cercanas, normalizar, type MaterialDeMostrador } from './buscar-material';
 import { useVocabulario } from '~/cliente/vocabulario';
 
@@ -117,6 +118,14 @@ interface ResultadoNotaMostrador {
   readonly totalCentavos: string;
 }
 
+/**
+ * El precio de un material, en centavos. Por `centavosDe`: la unidad la dice el
+ * mapa, no el nombre. Ausente vale cero, como valía antes.
+ */
+function precioDe(m: MaterialDeMostrador): number {
+  return centavosDe('MaterialMostrador', 'precioCentavos', m.precioCentavos) ?? 0;
+}
+
 /** Las columnas de un resultado. Cada una se gana su lugar (`04-INTERFAZ` §1). */
 function columnasDeResultado(
   nombreDeMaterial: string,
@@ -138,8 +147,8 @@ function columnasDeResultado(
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      orden: (m) => m.precioCentavos,
-      celda: (m) => <Dinero centavos={m.precioCentavos} tamano="sm" />,
+      orden: (m) => precioDe(m),
+      celda: (m) => <Dinero centavos={precioDe(m)} tamano="sm" />,
     },
     {
       clave: 'hay',
@@ -215,7 +224,7 @@ export function Mostrador({
     [consulta],
   );
   const resultados = useMemo(() => buscar(filas ?? [], palabras), [filas, palabras]);
-  const total = partidas.reduce((suma, p) => suma + p.material.precioCentavos * p.cantidad, 0);
+  const total = partidas.reduce((suma, p) => suma + precioDe(p.material) * p.cantidad, 0);
   const sobreLimite = cliente !== null && cliente.saldoCentavos > cliente.limiteCentavos;
   const columnas = useMemo(() => columnasDeResultado(voc.titulo('producto')), [voc]);
 
@@ -318,7 +327,7 @@ export function Mostrador({
           </span>
           <span className="text-xs text-texto-sutil">
             <Cifra valor={p.cantidad} unidad={p.material.unidad} tamano="xs" /> ×{' '}
-            <Dinero centavos={p.material.precioCentavos} tamano="xs" />
+            <Dinero centavos={precioDe(p.material)} tamano="xs" />
           </span>
         </span>
       ),
@@ -327,7 +336,7 @@ export function Mostrador({
       clave: 'importe',
       titulo: 'Importe',
       numerica: true,
-      celda: (p) => <Dinero centavos={p.material.precioCentavos * p.cantidad} tamano="sm" />,
+      celda: (p) => <Dinero centavos={precioDe(p.material) * p.cantidad} tamano="sm" />,
     },
     {
       clave: 'acciones',

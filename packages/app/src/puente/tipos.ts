@@ -216,6 +216,27 @@ export interface MapaEntidad {
    */
   readonly filtroFijo?: Readonly<Record<string, string | boolean>>;
   /**
+   * LO QUE UN ROL SÓLO VE SI ES SUYO (C.7 de la 2.4).
+   *
+   * «Mi día» de la estilista preguntaba el nombre y enseñaba el día de quien se eligiera:
+   * cualquiera veía la agenda, las comisiones y las liquidaciones de otra. El recorte no
+   * puede ser de la pantalla: para estos roles, el SERVIDOR sólo devuelve las filas de la
+   * profesional ligada al empleo de la sesión (`profesionales.empleo_id`).
+   *
+   * `columna` es la que guarda el `profesional_id` de la fila (`id` en la propia
+   * `Profesional`). `porServicio` es para la cita, cuyo profesional vive en sus
+   * servicios: se ven las citas que tienen al menos un servicio suyo.
+   *
+   * Es el «el profesional sólo ve las suyas si no tiene `ver_agenda_ajena`» de
+   * `estetica-salon/05-DATOS-Y-BACKEND.md`; el permiso por persona no existe todavía, así
+   * que hoy manda el rol.
+   */
+  readonly soloDeQuienEntra?: {
+    readonly roles: readonly string[];
+    readonly columna: string;
+    readonly porServicio?: boolean;
+  };
+  /**
    * `true` cuando la tabla tiene `sucursal_id not null`.
    *
    * La sucursal la pone el SERVIDOR, igual que la organización, y sale de la

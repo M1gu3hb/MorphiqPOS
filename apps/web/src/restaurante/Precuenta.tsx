@@ -16,6 +16,7 @@ import { Check, Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -101,25 +102,22 @@ export interface PrecuentaProps {
  */
 const TABLA_DE_ROLLO = 'rounded-none border-x-0 border-dashed';
 
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number): number {
-  if (!Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
-}
-
-/** Un importe recortado por rol llega vacío, no en cero. Se dice, no se finge. */
+/**
+ * Un importe recortado por rol llega vacío, no en cero. Se dice, no se finge.
+ * Recibe CENTAVOS: quien lo llama lee el campo por `centavosDe`, que decide la
+ * unidad por la conversión del campo y devuelve `null` si no vino.
+ */
 function Importe({
-  pesos,
+  centavos,
   tamano = 'xs',
   className = '',
 }: {
-  readonly pesos: number | null | undefined;
+  readonly centavos: number | null;
   readonly tamano?: 'xs' | 'xl';
   readonly className?: string;
 }) {
-  if (pesos == null) return <span className={className}>—</span>;
-  return <Dinero centavos={aCentavos(pesos)} tamano={tamano} className={className} />;
+  if (centavos === null) return <span className={className}>—</span>;
+  return <Dinero centavos={centavos} tamano={tamano} className={className} />;
 }
 
 function idDeLaUrl(): string | null {
@@ -214,7 +212,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
   }
 
   const hayHoja = error === null && cuenta != null && lineas.length > 0;
-  const sinTotal = cuenta?.total == null;
+  const sinTotal = centavosDe('Venta', 'total', cuenta?.total) === null;
   const codigo = cuenta?.codigo_caja ?? cuenta?.folio ?? '';
   // Milímetros de verdad; el tope del 100 % evita el desborde a 320 px.
   const estilo = { width: `${anchoMm}mm`, maxWidth: '100%' };
@@ -356,7 +354,7 @@ interface HojaProps {
 function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
   const voc = useVocabulario();
   const mesa = cuenta.mesa_numero === null ? '—' : String(cuenta.mesa_numero);
-  const propina = cuenta.propina_monto;
+  const propina = centavosDe('Venta', 'propina_monto', cuenta.propina_monto);
 
   const columnas: readonly ColumnaDeTabla<LineaPrecuenta>[] = [
     {
@@ -366,7 +364,14 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
         <span className="block min-w-0">
           <span className="font-bold">{linea.cantidad}×</span> {linea.producto_nombre}
           <span className="block text-texto-sutil">
-            <Importe pesos={linea.precio_unitario_snapshot} /> c/u
+            <Importe
+              centavos={centavosDe(
+                'DetalleVenta',
+                'precio_unitario_snapshot',
+                linea.precio_unitario_snapshot,
+              )}
+            />{' '}
+            c/u
             {linea.notas_producto === null ? '' : ` · ${linea.notas_producto}`}
           </span>
         </span>
@@ -376,7 +381,7 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
       clave: 'importe',
       titulo: 'Importe',
       numerica: true,
-      celda: (linea) => <Importe pesos={linea.total} />,
+      celda: (linea) => <Importe centavos={centavosDe('DetalleVenta', 'total', linea.total)} />,
     },
   ];
 
@@ -418,20 +423,24 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
       <dl className="grid grid-cols-[1fr_auto] gap-x-(--espacio-2) gap-y-(--espacio-1)">
         <dt>Subtotal</dt>
         <dd className="text-right">
-          <Importe pesos={cuenta.subtotal} />
+          <Importe centavos={centavosDe('Venta', 'subtotal', cuenta.subtotal)} />
         </dd>
         <dt>IVA</dt>
         <dd className="text-right">
-          <Importe pesos={cuenta.impuestos} />
+          <Importe centavos={centavosDe('Venta', 'impuestos', cuenta.impuestos)} />
         </dd>
         <dt>Propina</dt>
         <dd className="text-right">
           {/* La propina no decidida se DICE: el hueco lo rellena el comensal en su cabeza. */}
-          {propina == null ? 'a definir en caja' : <Importe pesos={propina} />}
+          {propina === null ? 'a definir en caja' : <Importe centavos={propina} />}
         </dd>
         <dt className="mt-(--espacio-1) self-baseline text-lg font-bold">TOTAL</dt>
         <dd className="mt-(--espacio-1) self-baseline text-right text-lg">
-          <Importe pesos={cuenta.total} tamano="xl" className="font-bold" />
+          <Importe
+            centavos={centavosDe('Venta', 'total', cuenta.total)}
+            tamano="xl"
+            className="font-bold"
+          />
         </dd>
       </dl>
 

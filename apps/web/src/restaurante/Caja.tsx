@@ -32,6 +32,7 @@ import {
 } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 import { ChevronRight, CircleCheckBig, Search, SearchX, TriangleAlert } from 'lucide-react';
@@ -87,7 +88,7 @@ export interface FilaDeCaja {
   readonly mesa_numero: number | null;
   readonly usuario_mesero_nombre: string | null;
   readonly personas: number | null;
-  /** En PESOS, como la base lo escribe. Se pasa a centavos sólo para pintarlo. */
+  /** En PESOS, como la base lo escribe. Se lee sólo por `totalDe`, que lo da en centavos. */
   readonly total: number | null;
   readonly fecha_apertura: string | null;
 }
@@ -120,11 +121,18 @@ export function esperaDesde(iso: string | null, ahora: number): string {
   return `hace ${String(Math.floor(minutos / 60))} h`;
 }
 
-/** Pesos del puente a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+/**
+ * El total de la cuenta, en centavos. La unidad la decide `centavosDe` por la conversión
+ * del campo —`Venta.total` llega en pesos—, contando dígitos y no multiplicando. `null` es
+ * «no vino»: quien pinta decide si eso es cero, y «sin consumo» sólo lo es un cero de verdad.
+ */
+function totalDe(fila: FilaDeCaja): number | null {
+  return centavosDe('Venta', 'total', fila.total);
+}
+
+/** Lo que se pinta y se ordena: sin dato cuenta como cero, como siempre se pintó. */
+function totalCentavos(fila: FilaDeCaja): number {
+  return totalDe(fila) ?? 0;
 }
 
 function rotulo(numero: number | null, voc: Vocabulario): string {
@@ -148,7 +156,7 @@ function quien(fila: FilaDeCaja, voc: Vocabulario): string {
  * dice con palabras al lado de la cifra, porque el tono de la fila solo no se lee.
  */
 function importe(fila: FilaDeCaja, cifra: ReactNode): ReactNode {
-  if (fila.total !== 0) return cifra;
+  if (totalDe(fila) !== 0) return cifra;
   return (
     <>
       <span className="mr-(--espacio-2) text-xs font-medium text-texto-sutil">sin consumo</span>
@@ -162,7 +170,7 @@ function importe(fila: FilaDeCaja, cifra: ReactNode): ReactNode {
  * y sin nombre la acción principal de la caja se anunciaba como «fila».
  */
 function etiquetaDeCobro(fila: FilaDeCaja, voc: Vocabulario): string {
-  return `Cobrar ${rotulo(fila.mesa_numero, voc)} · ${dineroEnTexto(aCentavos(fila.total))}`;
+  return `Cobrar ${rotulo(fila.mesa_numero, voc)} · ${dineroEnTexto(totalCentavos(fila))}`;
 }
 
 /** La tabla del cajero en la PC: densa, cada columna alineada, el total a la derecha. */
@@ -203,8 +211,8 @@ function columnasDeTabla(
       clave: 'total',
       titulo: 'Total',
       numerica: true,
-      orden: (f) => f.total ?? 0,
-      celda: (f) => importe(f, <Dinero centavos={aCentavos(f.total)} className="font-semibold" />),
+      orden: (f) => totalCentavos(f),
+      celda: (f) => importe(f, <Dinero centavos={totalCentavos(f)} className="font-semibold" />),
     },
     {
       clave: 'cobrar',
@@ -250,7 +258,7 @@ function columnasDeTarjeta(voc: Vocabulario, ahora: number): readonly ColumnaDeT
           <span>
             {importe(
               f,
-              <Dinero centavos={aCentavos(f.total)} tamano="lg" className="text-2xl font-bold" />,
+              <Dinero centavos={totalCentavos(f)} tamano="lg" className="text-2xl font-bold" />,
             )}
           </span>
         </span>
@@ -389,7 +397,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
     [onCobrar],
   );
 
-  const sinConsumo = useMemo(() => (filas ?? []).filter((f) => f.total === 0), [filas]);
+  const sinConsumo = useMemo(() => (filas ?? []).filter((f) => totalDe(f) === 0), [filas]);
   const columnasPC = useMemo(() => columnasDeTabla(voc, ahora, cobrar), [voc, ahora, cobrar]);
   const columnasTarjeta = useMemo(() => columnasDeTarjeta(voc, ahora), [voc, ahora]);
 
@@ -565,7 +573,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
       alActivar={cobrar}
       etiquetaDeFila={(f) => etiquetaDeCobro(f, voc)}
       // El ámbar nunca va solo: la celda del total dice «sin consumo».
-      tonoDeFila={(f) => (f.total === 0 ? 'advertencia' : undefined)}
+      tonoDeFila={(f) => (totalDe(f) === 0 ? 'advertencia' : undefined)}
       alto="max-h-[70vh]"
       vacio={vacio}
     />

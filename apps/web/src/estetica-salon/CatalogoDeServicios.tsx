@@ -24,6 +24,7 @@ import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -92,7 +93,7 @@ export interface ServicioDelCatalogo {
    *
    * Aquí decía `precio_venta_centavos`, que la entidad NO sirve: lo expone como
    * `precio_venta`, ya convertido por `dinero`. Llegaba `undefined` y la pantalla
-   * enseñaba `$NaN`.
+   * enseñaba `$NaN`. Se lee sólo con `centavosDe` (`centavosDelPrecio`).
    */
   readonly precio_venta: number | null;
   readonly duracion_activa_1_min: number;
@@ -107,13 +108,12 @@ export interface CatalogoDeServiciosProps {
 }
 
 /**
- * Los pesos del puente a centavos, CONTANDO DÍGITOS: `58.995 * 100` pierde medio
- * centavo. Sin precio es cero, que es lo que el formulario enseñaba al abrirlo.
+ * El precio del servicio en CENTAVOS. `centavosDe` decide la unidad por el mapa —y
+ * cuenta dígitos: `58.995 * 100` pierde medio centavo—. Sin precio es cero, que es lo
+ * que el formulario enseñaba al abrirlo.
  */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+function centavosDelPrecio(servicio: ServicioDelCatalogo): number {
+  return centavosDe('ProductoTerminado', 'precio_venta', servicio.precio_venta) ?? 0;
 }
 
 /** Lo que ocupa a la PERSONA. No es la duración total, y ahí está el negocio. */
@@ -226,7 +226,7 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
   function llenarCon(servicio: ServicioDelCatalogo): void {
     setElegido(servicio);
     setNombre(servicio.nombre);
-    setPrecio(aCentavos(servicio.precio_venta));
+    setPrecio(centavosDelPrecio(servicio));
     setMinutos({
       activa1: String(servicio.duracion_activa_1_min),
       pasiva: String(servicio.duracion_pasiva_min),
@@ -392,8 +392,8 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      orden: (s) => aCentavos(s.precio_venta),
-      celda: (s) => <Dinero centavos={aCentavos(s.precio_venta)} tamano="sm" />,
+      orden: centavosDelPrecio,
+      celda: (s) => <Dinero centavos={centavosDelPrecio(s)} tamano="sm" />,
     },
   ];
 

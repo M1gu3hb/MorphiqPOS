@@ -18,6 +18,7 @@ import { Scissors, TriangleAlert } from 'lucide-react';
 import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -349,9 +350,18 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   // manguera de riego son un rollo chico que se vende igual.
   const retazoChico = queda > 0 && queda < material.umbralRetazo;
   const excede = descuento > elegida.restante;
+  // Los tres importes del material, en centavos por `centavosDe`: la unidad la
+  // dice el mapa, no el nombre. El tipo los da por presentes; el `?? 0` no cambia
+  // lo que se pintaba si alguno faltara.
+  const precioCentavos =
+    centavosDe('MaterialContinuo', 'precioCentavos', material.precioCentavos) ?? 0;
+  const costoCentavos =
+    centavosDe('MaterialContinuo', 'costoCentavos', material.costoCentavos) ?? 0;
+  const precioRemateCentavos =
+    centavosDe('MaterialContinuo', 'precioRemateCentavos', material.precioRemateCentavos) ?? 0;
   // Único sitio donde una medida fraccionaria toca dinero: se redondea al
   // centavo UNA vez (R15). El servidor la rehace; esto es para verla antes.
-  const importeCentavos = Math.round(medida * material.precioCentavos);
+  const importeCentavos = Math.round(medida * precioCentavos);
   const abiertos = ordenadas.filter((p) => p.abierta).reduce((suma, p) => suma + p.restante, 0);
   const avisarAbiertos = !elegida.abierta && abiertos > 0;
   const destinos: readonly {
@@ -365,8 +375,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
       texto: 'Marcarlo como retazo de remate',
       nota: (
         <>
-          sugerido <Dinero centavos={material.precioRemateCentavos} tamano="sm" /> /{' '}
-          {material.unidad}
+          sugerido <Dinero centavos={precioRemateCentavos} tamano="sm" /> / {material.unidad}
         </>
       ),
     },
@@ -378,7 +387,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
         <>
           costo{' '}
           <Dinero
-            centavos={Math.round(queda * material.costoCentavos)}
+            centavos={Math.round(queda * costoCentavos)}
             tamano="base"
             className="font-semibold text-texto"
           />
@@ -547,7 +556,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
               />
             </Label>
             <p className={NOTA}>
-              <Dinero centavos={material.precioCentavos} tamano="xs" /> / {material.unidad}
+              <Dinero centavos={precioCentavos} tamano="xs" /> / {material.unidad}
             </p>
           </div>
           <div className="flex flex-col gap-1">

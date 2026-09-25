@@ -46,10 +46,15 @@ export const UNIDADES_DEL_PUENTE = {
     costo_centavos: 'pesos',
     costo_pesos: 'pesos',
   },
+  ConteoDeZona: {
+    costoCentavos: 'centavos',
+  },
   CorteCaja: {
+    diferencia_al_cerrar: 'pesos',
     dinero_dejado_en_caja: 'pesos',
     efectivo_contado: 'pesos',
     efectivo_inicial_contado: 'pesos',
+    esperado_al_cerrar: 'pesos',
     fondo_esperado_apertura: 'pesos',
   },
   DetalleCompra: {
@@ -63,6 +68,12 @@ export const UNIDADES_DEL_PUENTE = {
     subtotal: 'pesos',
     total: 'pesos',
     utilidad: 'pesos',
+  },
+  Equivalencia: {
+    precioCentavos: 'centavos',
+  },
+  ExistenciaMaterial: {
+    dineroParadoCentavos: 'centavos',
   },
   GastoOperativo: {
     monto: 'pesos',
@@ -85,6 +96,15 @@ export const UNIDADES_DEL_PUENTE = {
   LiquidacionPropina: {
     total_liquidado: 'pesos',
   },
+  MaterialContinuo: {
+    costoCentavos: 'centavos',
+    precioCentavos: 'centavos',
+    precioRemateCentavos: 'centavos',
+  },
+  MaterialMostrador: {
+    costoCentavos: 'centavos',
+    precioCentavos: 'centavos',
+  },
   Modificador: {
     delta_precio_centavos: 'centavos',
   },
@@ -93,6 +113,11 @@ export const UNIDADES_DEL_PUENTE = {
   },
   MovimientoInventario: {
     costo_unitario_en_momento: 'pesos',
+  },
+  NotaDeCaja: {
+    limiteClienteCentavos: 'centavos',
+    saldoClienteCentavos: 'centavos',
+    totalCentavos: 'centavos',
   },
   Obra: {
     limite_centavos: 'pesos',

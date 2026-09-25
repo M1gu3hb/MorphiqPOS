@@ -17,6 +17,7 @@ import { Eye, EyeOff, ImageOff, Plus, Search, SearchX, UtensilsCrossed } from 'l
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -116,8 +117,8 @@ export function semaforoDeMargen(margen: number | null): Semaforo {
 /**
  * Los nombres de los campos son los del PUENTE, no unos propios: renombrarlos
  * costaría un mapeo entero para no ganar nada. `precio_venta` y
- * `costo_calculado_actual` llegan en PESOS —el puente ya dividió los centavos— y
- * `margen_bruto_actual` llega en porcentaje, no en puntos base.
+ * `costo_calculado_actual` llegan en PESOS —el puente ya dividió los centavos— y se
+ * leen sólo por `centavosDe`; `margen_bruto_actual` llega en porcentaje, no en puntos base.
  */
 export interface FilaDeProducto {
   readonly id: string;
@@ -157,11 +158,14 @@ export function claveArea(valor: string | null): ClaveArea {
   return valor !== null && valor in AREAS ? (valor as ClaveArea) : 'ninguno';
 }
 
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null): number {
-  if (pesos === null || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+/** El precio, en centavos por la conversión del campo. Sin precio se pinta cero, como antes. */
+function precioDe(producto: FilaDeProducto): number {
+  return centavosDe('ProductoTerminado', 'precio_venta', producto.precio_venta) ?? 0;
+}
+
+/** El costo, en centavos. `null` es «sin calcular»: no hay receta, y cero mentiría. */
+function costoDe(producto: FilaDeProducto): number | null {
+  return centavosDe('ProductoTerminado', 'costo_calculado_actual', producto.costo_calculado_actual);
 }
 
 /** El catálogo vivo. El borrado es suave, así que lo inactivo no se pide. */
@@ -386,18 +390,20 @@ export function Productos({ filasIniciales }: ProductosProps) {
       clave: 'precio',
       titulo: 'Precio',
       numerica: true,
-      celda: (producto) => <Dinero centavos={aCentavos(producto.precio_venta)} tamano="lg" />,
+      celda: (producto) => <Dinero centavos={precioDe(producto)} tamano="lg" />,
     },
     {
       clave: 'costo',
       titulo: 'Costo',
       numerica: true,
-      celda: (producto) =>
-        producto.costo_calculado_actual === null ? (
+      celda: (producto) => {
+        const costo = costoDe(producto);
+        return costo === null ? (
           <span className="text-texto-sutil">Sin calcular</span>
         ) : (
-          <Dinero centavos={aCentavos(producto.costo_calculado_actual)} tamano="sm" />
-        ),
+          <Dinero centavos={costo} tamano="sm" />
+        );
+      },
     },
     {
       clave: 'margen',

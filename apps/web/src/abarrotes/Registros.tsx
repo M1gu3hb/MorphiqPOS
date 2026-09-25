@@ -20,7 +20,7 @@ import { CalendarX, CircleAlert, ListFilter, Package, Receipt, Wallet } from 'lu
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
-import { centavosDelPuente } from '~/cliente/dinero-del-puente';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -177,10 +177,19 @@ function mensajeDe(fallo: unknown, porOmision: string): string {
   return fallo instanceof Error ? fallo.message : porOmision;
 }
 
+/**
+ * El monto del movimiento, en centavos y con signo. `MovimientoCaja` ya lo sirve en
+ * centavos (`conversion: 'entero'`), pero la unidad la decide la conversión del campo y
+ * no su nombre, así que pasa por `centavosDe`. `null`: no se pudo leer, y se pinta «—».
+ */
+function montoDe(movimiento: MovimientoRegistrado): number | null {
+  return centavosDe('MovimientoCaja', 'monto_centavos', movimiento.monto_centavos);
+}
+
 /** Lo que sale del cajón sin explicación. Entrar no necesita motivo; salir sí. */
 export function saleSinExplicacion(movimiento: MovimientoRegistrado): boolean {
   const vacio = movimiento.motivo === null || movimiento.motivo.trim() === '';
-  return vacio && movimiento.monto_centavos < 0;
+  return vacio && (montoDe(movimiento) ?? 0) < 0;
 }
 
 /**
@@ -220,7 +229,7 @@ export function componerLinea(
       detalle: venta.usuario_cajero_nombre ?? 'sin firma',
       // `total` llega en PESOS (`conversion: 'dinero'`): a centavos contando dígitos,
       // no multiplicando coma flotante.
-      importeCentavos: centavosDelPuente(venta.total) ?? 0,
+      importeCentavos: centavosDe('Venta', 'total', venta.total) ?? 0,
       cantidad: null,
       cancelada,
       sinExplicacion: cancelada && venta.usuario_cajero_nombre === null,
@@ -234,7 +243,7 @@ export function componerLinea(
       tipo: 'caja',
       titulo: movimiento.tipo.replace(/_/g, ' '),
       detalle: movimiento.motivo ?? movimiento.empleado_nombre ?? 'sin motivo',
-      importeCentavos: movimiento.monto_centavos,
+      importeCentavos: montoDe(movimiento),
       cantidad: null,
       cancelada: false,
       sinExplicacion: saleSinExplicacion(movimiento),

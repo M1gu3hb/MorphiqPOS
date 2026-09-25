@@ -31,6 +31,7 @@ import { Check, Milk, OctagonAlert, ShoppingBag, TriangleAlert } from 'lucide-re
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -132,7 +133,7 @@ const CONTEO_VACIO: Conteo = {
 };
 
 /** Los centavos de una lectura, o `null` si no hay importe. */
-function centavosDe(lectura: Lectura): number | null {
+function centavosDeLectura(lectura: Lectura): number | null {
   return typeof lectura === 'number' ? lectura : null;
 }
 
@@ -194,14 +195,6 @@ export interface CierreDeTurnoProps {
   readonly onCerrado?: (sesionCajaId: string) => void;
 }
 
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-export function aCentavos(valor: number | string | null | undefined): number {
-  const numero = typeof valor === 'string' ? Number(valor.replace(/[^\d.-]/g, '')) : (valor ?? 0);
-  if (!Number.isFinite(numero)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(numero).toFixed(2).split('.');
-  return (numero < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
-}
-
 export type TonoDelSemaforo = 'exito' | 'advertencia' | 'peligro';
 
 /** El semáforo del arqueo. La palabra manda; el color y la forma sólo acompañan. */
@@ -259,15 +252,30 @@ function enCentavos(centavos: number): ValorDelResumen {
   return { tipo: 'dinero', centavos };
 }
 
-/** Las diez cifras del §2, en el orden del PDF. Lo que no hay se pinta «—». */
+/**
+ * Las diez cifras del §2, en el orden del PDF. Lo que no hay se pinta «—».
+ *
+ * Los importes del puente llegan en pesos y se suman en centavos: `centavosDe` los
+ * convierte según la unidad de su campo en el mapa, contando dígitos. Una venta sin
+ * total suma cero: el renglón es la suma de lo cobrado, no una lectura aparte.
+ */
 export function resumenDelTurno(
   ventas: readonly VentaDelTurno[],
   gastos: readonly GastoDelTurno[],
 ): ResumenDelTurno {
   const cobradas = ventas.filter((v) => v.estado !== 'cancelada' && v.estado !== 'abierta');
-  const total = cobradas.reduce((suma, v) => suma + aCentavos(v.total), 0);
-  const costo = cobradas.reduce((suma, v) => suma + aCentavos(v.costo_total_snapshot), 0);
-  const gasto = gastos.reduce((suma, g) => suma + aCentavos(g.monto), 0);
+  const total = cobradas.reduce(
+    (suma, v) => suma + (centavosDe('Venta', 'total', v.total) ?? 0),
+    0,
+  );
+  const costo = cobradas.reduce(
+    (suma, v) => suma + (centavosDe('Venta', 'costo_total_snapshot', v.costo_total_snapshot) ?? 0),
+    0,
+  );
+  const gasto = gastos.reduce(
+    (suma, g) => suma + (centavosDe('GastoOperativo', 'monto', g.monto) ?? 0),
+    0,
+  );
   const bruta = total - costo;
   return {
     renglones: [
@@ -464,8 +472,11 @@ export function CierreDeTurno({
   }
 
   const resumen = useMemo(() => resumenDelTurno(ventas, gastos), [ventas, gastos]);
-  const boteEsperado = ventas.reduce((suma, v) => suma + aCentavos(v.propina_efectivo), 0);
-  const contadoBote = centavosDe(conteo.bote) ?? 0;
+  const boteEsperado = ventas.reduce(
+    (suma, v) => suma + (centavosDe('Venta', 'propina_efectivo', v.propina_efectivo) ?? 0),
+    0,
+  );
+  const contadoBote = centavosDeLectura(conteo.bote) ?? 0;
   const faltaContar = conteo.efectivo === 'vacio' || conteo.bote === 'vacio';
   // Contado, pero escrito de una forma que no se lee: el botón no cierra y la
   // pantalla dice POR QUÉ, que no es «cuenta el cajón».
@@ -518,7 +529,7 @@ export function CierreDeTurno({
        * haya que conservarlos hará falta una migración.
        */
       const corte = await invocarComando<ResultadoCierre>(RUTA_CERRAR, {
-        efectivoContadoCentavos: centavosDe(conteo.efectivo) ?? 0,
+        efectivoContadoCentavos: centavosDeLectura(conteo.efectivo) ?? 0,
         boteContadoCentavos: contadoBote,
       });
       setResultado(corte);
@@ -755,7 +766,7 @@ export function CierreDeTurno({
                   aria-required={campo.grande || undefined}
                   aria-invalid={ilegible || undefined}
                   aria-describedby={ilegible ? `${id}-ilegible` : undefined}
-                  centavos={centavosDe(conteo[campo.clave])}
+                  centavos={centavosDeLectura(conteo[campo.clave])}
                   alCambiar={(centavos, { vacio }) => {
                     const lectura: Lectura = vacio ? 'vacio' : (centavos ?? 'ilegible');
                     setConteo((previo) => ({ ...previo, [campo.clave]: lectura }));

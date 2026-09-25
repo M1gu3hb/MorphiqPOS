@@ -19,6 +19,7 @@ import { Check, Circle, Minus, PackagePlus, ScanBarcode, Search } from 'lucide-r
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 
@@ -138,11 +139,13 @@ export interface CobrarProps {
   readonly onCobrado?: (ventaId: string) => void;
 }
 
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+/**
+ * El precio del catálogo, en centavos. `precio_venta` llega del puente en PESOS; la unidad
+ * la decide `centavosDe` por la conversión del campo, contando dígitos. Sin precio cuenta
+ * como cero, como antes: la línea se agrega y el total no miente sobre lo que sí cobra.
+ */
+function precioEnCentavos(producto: ProductoDeMostrador): number {
+  return centavosDe('ProductoTerminado', 'precio_venta', producto.precio_venta) ?? 0;
 }
 
 /** El IVA que ya venía en el precio. Nunca se suma: se desglosa. */
@@ -176,7 +179,7 @@ export function conProducto(
     {
       productoId: producto.id,
       nombre: producto.nombre ?? 'Producto',
-      precioCentavos: aCentavos(producto.precio_venta),
+      precioCentavos: precioEnCentavos(producto),
       cantidad: 1,
       // Existencia 0 NO bloquea: se agrega y se marca. Bloquear aquí es perder
       // una venta real por un dato de inventario que casi nunca está al día.
@@ -730,7 +733,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
           {hallazgo !== undefined && (
             <p className="flex items-baseline justify-between gap-(--espacio-2) text-sm text-texto-sutil">
               <span>Enter agrega: {hallazgo.nombre}</span>
-              <Dinero centavos={aCentavos(hallazgo.precio_venta)} tamano="sm" />
+              <Dinero centavos={precioEnCentavos(hallazgo)} tamano="sm" />
             </p>
           )}
         </div>
