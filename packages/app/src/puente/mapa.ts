@@ -1037,7 +1037,13 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
         escribible: false,
       },
-      dinero_dejado_en_caja: {
+      /**
+       * LO RETIRADO al cerrar, que es lo que la columna guarda. Aquí iba
+       * `dinero_dejado_en_caja` leyendo esta misma columna: el cierre no la escribía, así
+       * que salía nula, y el día que la escribiera el heredado habría enseñado como
+       * «dejado» lo que se llevaron. Lo dejado es un cálculo (abajo), C.6 de la 2.4.
+       */
+      efectivo_retirado: {
         columna: 'efectivo_retirado_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -1083,6 +1089,10 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         columna: 'nombre',
         conversion: 'texto',
       },
+    },
+    calculados: {
+      // El fondo de mañana. `useCajaAbierta` lo lee como el fondo esperado de la apertura.
+      dinero_dejado_en_caja: { formula: 'dineroDejadoEnCaja', conversion: 'dinero' },
     },
   },
 

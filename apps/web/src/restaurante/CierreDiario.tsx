@@ -21,7 +21,6 @@ import {
   Superficie,
   Tabla,
   Vacio,
-  dineroEnTexto,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import { ChevronDown, CircleCheck, Lock, OctagonAlert, Printer, TriangleAlert } from 'lucide-react';
@@ -71,16 +70,15 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *    en efectivo − gastos pagados en efectivo) para poder enseñar el semáforo
  *    sin cerrar. La cifra que manda es la de `caja.cerrar`, calculada dentro de
  *    su transacción; si difieren gana la del corte, y se ve al cerrar.
- * 2. `caja.cerrar` todavía no recibe el fondo que se deja en el cajón, así que
- *    viaja en `notas`. Cuando el comando lo acepte, sube a campo propio.
+ * 2. El fondo que se deja en el cajón viaja como CAMPO (`fondoDejadoCentavos`): el
+ *    servidor guarda lo retirado y la apertura de mañana lo espera (C.6 de la 2.4).
  * 3. El comprobante no se genera aquí: la pantalla avisa por `onImprimirElCierre`,
  *    y quien la monta decide cómo se imprime. NO hay generador de PDF en el
  *    sistema —`FORMATOS` de reportes sólo tiene `csv`— y el botón decía
  *    «Descargar el PDF del cierre»: una promesa que nada podía cumplir, y que
  *    además no hacía NADA porque ninguna página pasaba el callback.
  * 4. Todo importe se pinta con `Dinero` y se teclea con `CampoDeDinero`, del
- *    sistema: la pantalla habla sólo en centavos. El único importe en TEXTO es
- *    el de `notas`, y sale de `dineroEnTexto`, el mismo formato que se lee.
+ *    sistema: la pantalla habla sólo en centavos.
  */
 
 const CANALES = ['efectivo', 'tarjeta', 'transferencia'] as const;
@@ -630,9 +628,12 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
         setDialogo({ tipo: 'bloqueo', mesas: abiertas });
         return;
       }
+      // Un NÚMERO, no su texto: `caja.cerrar` valida `efectivoContadoCentavos` como entero y
+      // rechazaba el `String(…)` que iba aquí, así que este botón no cerraba nunca (C.6 de
+      // la 2.4; el e2e cerraba por la API y no lo veía). Y el fondo que se deja es un campo.
       const hecho = await invocarComando<ResultadoDelCierre>('/api/caja/cerrar', {
-        efectivoContadoCentavos: String(contadoCentavos),
-        notas: `Dinero dejado en caja (fondo): ${dineroEnTexto(dejado)}`,
+        efectivoContadoCentavos: contadoCentavos,
+        fondoDejadoCentavos: dejado,
       });
       setDialogo(null);
       setCorte(hecho);

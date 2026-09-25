@@ -525,14 +525,17 @@ export function CierreDeTurno({
        * es una sola transacción. Y `cafeteria.repartir_bote`, que EXIGE ese
        * número, por fin lo encuentra escrito.
        *
-       * Lo que NO se guarda todavía —y se dice en vez de fingir— es «dinero que
-       * dejas en caja» y «de eso, en cambio»: `sesiones_caja` no tiene columnas
-       * para ellos. Se siguen pidiendo porque ayudan a quien cuenta, y el día que
-       * haya que conservarlos hará falta una migración.
+       * «Dinero que dejas en caja» viaja como CAMPO (C.6 de la 2.4): el servidor guarda lo
+       * retirado y la apertura del turno siguiente lo espera. «De eso, en cambio» NO se
+       * guarda aquí, y no hace falta columna: ese cambio es el fondo del turno que sigue, y
+       * su desglose se CUENTA al abrir —monedas, chicos y grandes, `Turno`—, que es donde
+       * se sabe si alcanza. Aquí va al PDF del corte, que se arma con lo que se tecleó.
        */
+      const dejado = centavosDeLectura(conteo.dejado);
       const corte = await invocarComando<ResultadoCierre>(RUTA_CERRAR, {
         efectivoContadoCentavos: centavosDeLectura(conteo.efectivo) ?? 0,
         boteContadoCentavos: contadoBote,
+        ...(dejado === null ? {} : { fondoDejadoCentavos: dejado }),
       });
       setResultado(corte);
       onCerrado?.(corte.sesionCajaId);

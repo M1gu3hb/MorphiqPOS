@@ -97,6 +97,17 @@ const RETRATOS: Readonly<Record<string, readonly Retrato[]>> = {
     { ruta: '/restaurante/inventario', de: 'lista' },
     { ruta: '/restaurante/cocina', de: 'cocina' },
     { ruta: '/restaurante/productos', de: 'productos' },
+    /**
+     * LAS HEREDADAS de su menú (C.16 de la 2.4). Su color pasó a tokens y era justo lo
+     * que se veía roto en Noche y Terminal; sin retrato, volver a romperlo no lo vería
+     * nadie. Son las cuatro del menú del restaurante que no son del modelo —el tablero
+     * de `/` ya se retrata arriba como «inicio»—, y sólo aquí: MH es un restaurante,
+     * pero la galería nunca corre sobre MH, sólo sobre `demo-acople-restaurante`.
+     */
+    { ruta: '/mesero', de: 'heredado-mesero' },
+    { ruta: '/compras', de: 'heredado-compras' },
+    { ruta: '/portal-qr', de: 'heredado-portal-qr' },
+    { ruta: '/configuracion', de: 'heredado-configuracion' },
   ],
   ferreteria: [
     {

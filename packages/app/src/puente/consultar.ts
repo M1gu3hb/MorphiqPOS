@@ -497,6 +497,17 @@ const FORMULAS: Readonly<Record<Calculo, (fila: Fila) => unknown>> = {
     if (fecha instanceof Date) return fecha.toISOString();
     return typeof fecha === 'string' && fecha.length > 0 ? fecha : null;
   },
+  /**
+   * Lo que se quedó en el cajón: contado − retirado (C.6 de la 2.4). La columna es la de
+   * lo RETIRADO —así se llama, y así la usa el corte de turno—; el fondo de mañana se
+   * deriva. Sin cualquiera de los dos, nulo: «no se dijo» no es cero.
+   */
+  dineroDejadoEnCaja(fila) {
+    const contado = enteroDe(fila['efectivo_contado']);
+    const retirado = enteroDe(fila['efectivo_retirado']);
+    if (contado === null || retirado === null) return null;
+    return Number(contado - retirado) / CENTAVOS_POR_PESO;
+  },
 };
 
 export function calcular(formula: Calculo, fila: Fila): unknown {

@@ -45,7 +45,21 @@ export interface EstadoCaja {
   readonly movimientos: readonly MovimientoVisible[];
   readonly efectivoEsperadoCentavos?: string;
   readonly diferenciaCentavos?: string;
+  /**
+   * EL FONDO POR MONTONES, como se contó al abrir (C.6 de la 2.4). La apertura ya lo
+   * guardaba y nadie lo devolvía, así que el aviso de cambio de la cafetería vivía sólo
+   * mientras su pestaña siguiera abierta. `null` cuando la sesión se abrió sin desglose
+   * —todo quedó en «monedas» por convención—: decir «sin desglose» es más honesto que
+   * enseñar como morralla un fondo del que nadie declaró la forma.
+   */
+  readonly fondoDesglosado?: DesgloseDelFondo;
 }
+
+export type DesgloseDelFondo = {
+  readonly monedasCentavos: string;
+  readonly chicosCentavos: string;
+  readonly grandesCentavos: string;
+} | null;
 
 export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja, EstadoCaja>({
   nombre: 'caja.estado',
@@ -74,9 +88,10 @@ export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja
     );
     if (sesion === null) return vacia;
 
-    const [arqueo, movimientos] = await Promise.all([
+    const [arqueo, movimientos, fondo] = await Promise.all([
       repoCaja.arqueoDeSesion(ctx.tx, organizacionId, sesion.id),
       repoCaja.movimientosDeCorte(ctx.tx, organizacionId, sesion.id),
+      repoCaja.fondoPorMontones(ctx.tx, organizacionId, sesion.id),
     ]);
 
     return {
@@ -94,6 +109,7 @@ export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja
               BigInt(entrada.efectivoContadoCentavos) - arqueo.efectivoEsperadoCentavos
             ).toString(),
           }),
+      fondoDesglosado: desgloseDeclarado(fondo),
       movimientos: movimientos.map((m) => ({
         tipo: m.tipo,
         montoCentavos: m.montoCentavos.toString(),
@@ -103,3 +119,20 @@ export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja
     };
   },
 });
+
+/**
+ * El desglose, si se declaró. Sin desglose la apertura deja todo en «monedas» con chicos y
+ * grandes en cero: eso se lee como «sin desglose», no como un fondo entero en morralla.
+ */
+export function desgloseDeclarado(fondo: {
+  readonly monedas: bigint;
+  readonly chicos: bigint;
+  readonly grandes: bigint;
+}): DesgloseDelFondo {
+  if (fondo.chicos === 0n && fondo.grandes === 0n) return null;
+  return {
+    monedasCentavos: fondo.monedas.toString(),
+    chicosCentavos: fondo.chicos.toString(),
+    grandesCentavos: fondo.grandes.toString(),
+  };
+}

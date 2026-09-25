@@ -106,6 +106,11 @@ export async function abrirSesion(
     readonly fondoMonedasCentavos?: bigint;
     readonly fondoChicosCentavos?: bigint;
     readonly fondoGrandesCentavos?: bigint;
+    /**
+     * Lo que DEBERÍA haber al abrir: lo que dejó el último cierre de la terminal. Se
+     * quedaba en el `default 0` y la «diferencia de apertura» salía igual al fondo.
+     */
+    readonly fondoEsperadoCentavos?: bigint;
   },
 ): Promise<string> {
   const fila = await tx
@@ -116,6 +121,7 @@ export async function abrirSesion(
       terminal_id: datos.terminalId,
       empleado_abre_id: datos.empleadoAbreId,
       fondo_inicial_centavos: datos.fondoInicialCentavos,
+      fondo_esperado_centavos: datos.fondoEsperadoCentavos ?? datos.fondoInicialCentavos,
       // Sin desglose, todo el fondo cuenta como monedas: las columnas son `not
       // null` y repartirlo a ciegas entre tres montones sería inventarse el
       // arqueo de mañana.
@@ -290,6 +296,8 @@ export async function cerrarSesion(
      * distingue de un cero a propósito.
      */
     readonly boteContadoCentavos?: bigint;
+    /** Lo que se retiró al cerrar (contado − lo que se deja). Sin él, NULL: «no se dijo». */
+    readonly efectivoRetiradoCentavos?: bigint;
     readonly notasCierre: string | null;
     readonly ahora: Date;
   },
@@ -307,6 +315,9 @@ export async function cerrarSesion(
       ...(datos.boteContadoCentavos === undefined
         ? {}
         : { bote_contado_centavos: datos.boteContadoCentavos }),
+      ...(datos.efectivoRetiradoCentavos === undefined
+        ? {}
+        : { efectivo_retirado_centavos: datos.efectivoRetiradoCentavos }),
       efectivo_esperado_centavos: datos.efectivoEsperadoCentavos,
       diferencia_centavos: datos.efectivoContadoCentavos - datos.efectivoEsperadoCentavos,
       notas_cierre: datos.notasCierre,
@@ -318,6 +329,55 @@ export async function cerrarSesion(
     .executeTakeFirst();
 
   return { filas: Number(resultado.numUpdatedRows), serie: datos.serie, folio };
+}
+
+/**
+ * Lo que dejó en el cajón el último cierre de la terminal: contado − retirado. `null` si
+ * no hay cierre anterior o si ese cierre no dijo cuánto dejaba (C.6 de la 2.4).
+ */
+export async function fondoDejadoPorElUltimoCierre(
+  tx: Transaccion,
+  organizacionId: string,
+  terminalId: string,
+): Promise<bigint | null> {
+  const ultimo = await tx
+    .selectFrom('sesiones_caja')
+    .select(['efectivo_contado_centavos as contado', 'efectivo_retirado_centavos as retirado'])
+    .where('organizacion_id', '=', organizacionId)
+    .where('terminal_id', '=', terminalId)
+    .where('estado', '=', 'cerrada')
+    .orderBy('cerrada_en', 'desc')
+    .limit(1)
+    .executeTakeFirst();
+  if (ultimo?.contado == null || ultimo.retirado === null) return null;
+  return ultimo.contado - ultimo.retirado;
+}
+
+/** El conteo del cajón al cerrar, denominación por denominación (F-231, momento `cierre`). */
+export async function anotarConteoDeCierre(
+  tx: Transaccion,
+  datos: {
+    readonly organizacionId: string;
+    readonly sesionCajaId: string;
+    readonly empleadoId: string;
+    readonly conteo: readonly { readonly denominacionCentavos: bigint; readonly piezas: number }[];
+    readonly ahora: Date;
+  },
+): Promise<void> {
+  await tx
+    .insertInto('conteos_denominacion')
+    .values(
+      datos.conteo.map((d) => ({
+        organizacion_id: datos.organizacionId,
+        sesion_caja_id: datos.sesionCajaId,
+        momento: 'cierre',
+        denominacion_centavos: d.denominacionCentavos,
+        piezas: d.piezas,
+        contado_en: datos.ahora,
+        contado_por: datos.empleadoId,
+      })),
+    )
+    .execute();
 }
 
 /**
@@ -643,3 +703,22 @@ export async function registrarCorteDeTurno(
 
 /** La serie de los cortes de turno, distinta de la de la caja (`CC`). */
 const SERIE_CORTE_TURNO = 'CT';
+
+/** El fondo de la sesión por montones: monedas, billetes chicos y grandes (F-984). */
+export async function fondoPorMontones(
+  db: Kysely<Esquema> | Transaccion,
+  organizacionId: string,
+  sesionCajaId: string,
+): Promise<{ readonly monedas: bigint; readonly chicos: bigint; readonly grandes: bigint }> {
+  const fila = await db
+    .selectFrom('sesiones_caja')
+    .select([
+      'fondo_monedas_centavos as monedas',
+      'fondo_chicos_centavos as chicos',
+      'fondo_grandes_centavos as grandes',
+    ])
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', sesionCajaId)
+    .executeTakeFirstOrThrow();
+  return fila;
+}

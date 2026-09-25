@@ -192,6 +192,30 @@ export const entradaCerrarCaja = z.object({
    * contó"»— así que sin esto el reparto del bote tampoco podía funcionar nunca.
    */
   boteContadoCentavos: centavosNoNegativos.optional(),
+  /**
+   * EL DINERO QUE SE QUEDA EN EL CAJÓN, que es el fondo de mañana (C.6 de la 2.4).
+   *
+   * Viajaba como texto en `notas` —«Dinero dejado en caja (fondo): $1,000.00»—, así que
+   * el día siguiente no podía compararse con nada y el PDF no podía enseñarlo. Ahora es
+   * un campo: se guarda lo RETIRADO (`efectivo_retirado_centavos`, contado − dejado) y lo
+   * dejado se deriva, igual que en el corte de turno. Sin él la columna queda en NULL,
+   * que es «no se dijo», no «se dejó cero».
+   */
+  fondoDejadoCentavos: centavosNoNegativos.optional(),
+  /**
+   * EL CONTEO por denominación (F-231): el total lo calcula la máquina. Si viaja, el
+   * efectivo contado tiene que ser su suma; si no cuadra, el cierre se rechaza en vez de
+   * guardar dos números distintos para el mismo cajón.
+   */
+  denominaciones: z
+    .array(
+      z.object({
+        denominacionCentavos: z.number().int().positive().max(100_000_00),
+        piezas: z.number().int().min(0).max(100_000),
+      }),
+    )
+    .max(20)
+    .optional(),
   notas: z.string().max(500).optional(),
 });
 

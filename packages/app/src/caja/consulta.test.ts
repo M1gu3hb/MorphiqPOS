@@ -2,7 +2,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja } from '@morphiqpos/data';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { entradaEstadoCaja, estadoDeCaja } from './consulta.ts';
+import { desgloseDeclarado, entradaEstadoCaja, estadoDeCaja } from './consulta.ts';
 
 vi.mock('@morphiqpos/data', async () => {
   const original = await vi.importActual<typeof import('@morphiqpos/data')>('@morphiqpos/data');
@@ -12,6 +12,7 @@ vi.mock('@morphiqpos/data', async () => {
       sesionAbiertaDeTerminal: vi.fn(),
       arqueoDeSesion: vi.fn(),
       movimientosDeCorte: vi.fn(),
+      fondoPorMontones: vi.fn(),
     },
   };
 });
@@ -53,6 +54,11 @@ describe('D-3 · arqueo visible después del conteo', () => {
       numeroVentas: 1,
     });
     vi.mocked(repoCaja.movimientosDeCorte).mockResolvedValue([]);
+    vi.mocked(repoCaja.fondoPorMontones).mockResolvedValue({
+      monedas: 30_000n,
+      chicos: 70_000n,
+      grandes: 100_000n,
+    });
   });
 
   it('oculta el esperado sin conteo y entrega el cálculo del servidor cuando ya se contó', async () => {
@@ -70,5 +76,21 @@ describe('D-3 · arqueo visible después del conteo', () => {
       efectivoEsperadoCentavos: '232000',
       diferenciaCentavos: '0',
     });
+  });
+});
+
+describe('C.6 · el fondo por montones vuelve con el estado', () => {
+  it('devuelve el desglose que se contó al abrir', async () => {
+    const estado = await estadoDeCaja.ejecutar(CONTEXTO, entradaEstadoCaja.parse({}));
+    expect(estado.fondoDesglosado).toEqual({
+      monedasCentavos: '30000',
+      chicosCentavos: '70000',
+      grandesCentavos: '100000',
+    });
+  });
+
+  it('una apertura sin desglose se lee como «sin desglose», no como un fondo en morralla', () => {
+    expect(desgloseDeclarado({ monedas: 200_000n, chicos: 0n, grandes: 0n })).toBe(null);
+    expect(desgloseDeclarado({ monedas: 0n, chicos: 0n, grandes: 200_000n })).not.toBe(null);
   });
 });

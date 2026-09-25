@@ -148,7 +148,11 @@ export interface CampoDerivado {
  * el mapa sólo dice cuál se aplica. Una función aquí volvería el mapa código.
  */
 export type Calculo =
-  'costoDeLineaDeReceta' | 'propinaLiquidada' | 'etiquetaSatisfaccion' | 'fechaDeCreacion';
+  | 'costoDeLineaDeReceta'
+  | 'propinaLiquidada'
+  | 'etiquetaSatisfaccion'
+  | 'fechaDeCreacion'
+  | 'dineroDejadoEnCaja';
 
 export interface CampoCalculado {
   /** Igual que en `CampoMapeado`: quién puede leerlo. `undefined` = cualquiera. */

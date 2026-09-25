@@ -5891,3 +5891,35 @@ propósito sobre fondos que se eligen en tiempo de ejecución o en la vista prev
 marca), y `verificar-traduccion-de-color.mjs` dice que sólo cambió color. Falta el commit de sólo
 color, mover la base de `verify:aspecto`, extender la puerta de primitivas al heredado y lo de
 `index.css`.
+
+## 25-09-2026 · Etapa 2.4 · C.16 cerrado (c43594b) · C.6 a medias (wip)
+
+**C.16, cerrado en `c43594b`:** base de `verify:aspecto` movida a `a92c343` con prueba en cada
+corrida (todo testigo que cambia entre las dos bases es clase de color o excepción motivada),
+`verify:primitivas` vigila la paleta del heredado (22 excepciones en 6 archivos, con número y razón),
+`PARCHE DARK` retirado, D-19. **Defecto que metió la traducción y se arregló:** dentro de los
+imprimibles, `bg-fondo-sutil`/`bg-superficie` se oscurecían en Noche bajo texto forzado a oscuro;
+los contenedores protegidos redefinen los tokens en papel y un contrato lo exige. Rastreador del
+restaurante con las heredadas del menú: Noche en verde; **Terminal falló** (en revisión).
+
+**C.6, EN QUÉ IBA EXACTAMENTE (commit wip):**
+- Hecho y probado (`caja/fondo-dejado.test.ts`, 12; seis mutaciones destructivas fallan):
+  `caja.cerrar` acepta `fondoDejadoCentavos` (guarda lo RETIRADO, contado − dejado) y
+  `denominaciones` (conteo `cierre` en `conteos_denominacion`, tiene que sumar lo contado);
+  `caja.abrir` espera lo que dejó el último cierre de la terminal (`fondo_esperado_centavos`); el
+  puente sirve `dinero_dejado_en_caja` como cálculo y `efectivo_retirado` como campo; `caja.estado`
+  devuelve el fondo por montones (`fondoDesglosado`).
+- Pantallas: el restaurante manda el contado como NÚMERO (mandaba texto y el servidor lo rechazaba:
+  su botón de cierre nunca funcionó; el e2e cerraba por API) y el dejado como campo; la cafetería
+  manda el dejado. **Falta:** `cafeteria/Turno.tsx` (mandar el desglose al abrir y leerlo del
+  estado), el dejado en abarrotes/estética, la ferretería **no tiene pantalla para abrir ni cerrar
+  la caja** (su documento la hereda de abarrotes: faltan las rutas), el comando
+  `caja.documento_del_corte`, los cinco documentos con `generatePDFBlobFromNode` y que los cinco
+  e2e cierren por la pantalla y bajen el PDF.
+
+**Identidad de los commits (encargo de Miguel del 25-09):** revisados `origin/main..` de
+`fase-2.4` (76), `fase-2` (66) y `carril-b` (1): autor y committer son todos
+`M1gu3hb <118588634+M1gu3hb@users.noreply.github.com>`. **Cero reescritos**, porque ninguno estaba
+mal. La configuración efectiva del worktree es la del repositorio (`.git/config`), que pisa la
+global (`huertabautistamiguel62@gmail.com`); no hay variables `GIT_AUTHOR_*`/`GIT_COMMITTER_*` ni
+`-c user.email=` en los comandos.

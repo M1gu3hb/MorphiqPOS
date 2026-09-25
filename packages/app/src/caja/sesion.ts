@@ -75,6 +75,13 @@ export const abrirCaja = definirComando<
     }
 
     const fondo = BigInt(entrada.fondoInicialCentavos);
+    // Lo que el cierre anterior de ESTA terminal dijo que dejaba (C.6 de la 2.4). Contra
+    // eso se mide la diferencia de apertura: el faltante que ya venía de anoche no es el
+    // de hoy. Sin cierre anterior, o sin que dijera cuánto dejaba, no hay con qué
+    // compararlo y se espera lo que se contó.
+    const dejadoAnoche = await ctx.paso('leer_lo_que_se_dejo', () =>
+      repoCaja.fondoDejadoPorElUltimoCierre(ctx.tx, organizacionId, terminalId),
+    );
     const sesionCajaId = await ctx.paso('abrir_sesion', () =>
       repoCaja.abrirSesion(ctx.tx, {
         organizacionId,
@@ -82,6 +89,7 @@ export const abrirCaja = definirComando<
         terminalId,
         empleadoAbreId: empleoId,
         fondoInicialCentavos: fondo,
+        fondoEsperadoCentavos: dejadoAnoche ?? fondo,
         // El desglose por montones, que es lo que dice si se puede dar cambio.
         // El esquema ya garantizó que la suma es el total.
         fondoMonedasCentavos: BigInt(entrada.fondoMonedasCentavos),
@@ -171,6 +179,8 @@ export interface ResultadoCorte {
   readonly diferenciaCentavos: string;
   readonly ventasCentavos: string;
   readonly numeroVentas: number;
+  /** Lo que se quedó en el cajón, si se dijo. Es el fondo esperado de la próxima apertura. */
+  readonly fondoDejadoCentavos?: string;
 }
 
 export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, ResultadoCorte>({
@@ -199,6 +209,8 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
 
     const contado = BigInt(entrada.efectivoContadoCentavos);
     const diferencia = contado - arqueo.efectivoEsperadoCentavos;
+    const retirado = retiradoDelCierre(contado, entrada.fondoDejadoCentavos);
+    exigirQueElConteoSume(contado, entrada.denominaciones);
 
     const cierre = await ctx.paso('cerrar_sesion', () =>
       repoCaja.cerrarSesion(ctx.tx, {
@@ -219,6 +231,7 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
         ...(entrada.boteContadoCentavos === undefined
           ? {}
           : { boteContadoCentavos: BigInt(entrada.boteContadoCentavos) }),
+        ...(retirado === null ? {} : { efectivoRetiradoCentavos: retirado }),
         notasCierre: entrada.notas ?? null,
         ahora: ctx.ahora,
       }),
@@ -227,6 +240,22 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
     // sobrescribe el arqueo original.
     if (cierre.filas !== 1) {
       throw new ErrorDominio('CAJA_CERRADA', 'Esa caja ya se había cerrado.');
+    }
+
+    if (entrada.denominaciones !== undefined && entrada.denominaciones.length > 0) {
+      const conteo = entrada.denominaciones;
+      await ctx.paso('anotar_conteo', () =>
+        repoCaja.anotarConteoDeCierre(ctx.tx, {
+          organizacionId,
+          sesionCajaId: sesion.id,
+          empleadoId: empleoId,
+          conteo: conteo.map((d) => ({
+            denominacionCentavos: BigInt(d.denominacionCentavos),
+            piezas: d.piezas,
+          })),
+          ahora: ctx.ahora,
+        }),
+      );
     }
 
     ctx.auditar({
@@ -250,6 +279,52 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
       diferenciaCentavos: diferencia.toString(),
       ventasCentavos: arqueo.ventasCentavos.toString(),
       numeroVentas: arqueo.numeroVentas,
+      ...(retirado === null ? {} : { fondoDejadoCentavos: (contado - retirado).toString() }),
     };
   },
 });
+
+/**
+ * Lo que se RETIRA del cajón al cerrar: todo lo contado menos lo que se queda de fondo.
+ * `null` si no se dijo cuánto se deja —la columna queda en NULL, «no se dijo»—.
+ */
+export function retiradoDelCierre(contado: bigint, fondoDejado: number | undefined): bigint | null {
+  if (fondoDejado === undefined) return null;
+  const dejado = BigInt(fondoDejado);
+  if (dejado > contado) {
+    throw new ErrorDominio(
+      'CANTIDAD_INVALIDA',
+      'No puedes dejar en el cajón más de lo que contaste.',
+      { contadoCentavos: contado.toString(), dejadoCentavos: dejado.toString() },
+    );
+  }
+  return contado - dejado;
+}
+
+/** El conteo por denominación, si viaja, tiene que sumar lo contado (F-231). */
+export function exigirQueElConteoSume(
+  contado: bigint,
+  conteo: readonly { readonly denominacionCentavos: number; readonly piezas: number }[] | undefined,
+): void {
+  if (conteo === undefined || conteo.length === 0) return;
+  const vistas = new Set<number>();
+  let suma = 0n;
+  for (const { denominacionCentavos, piezas } of conteo) {
+    if (vistas.has(denominacionCentavos)) {
+      throw new ErrorDominio(
+        'CANTIDAD_INVALIDA',
+        'Cada denominación va una sola vez en el conteo.',
+        { denominacionCentavos },
+      );
+    }
+    vistas.add(denominacionCentavos);
+    suma += BigInt(denominacionCentavos) * BigInt(piezas);
+  }
+  if (suma !== contado) {
+    throw new ErrorDominio(
+      'CANTIDAD_INVALIDA',
+      'El conteo por billetes y monedas no suma el efectivo contado.',
+      { contadoCentavos: contado.toString(), sumaDelConteoCentavos: suma.toString() },
+    );
+  }
+}
