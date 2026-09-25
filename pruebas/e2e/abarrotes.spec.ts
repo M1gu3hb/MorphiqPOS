@@ -374,17 +374,17 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     await aQuien.getByLabel('Nombre').fill(cliente);
     await aQuien.getByRole('button', { name: 'Dar de alta y elegir' }).click();
     await expect(aQuien).toBeHidden();
-    await expect(page.getByRole('complementary', { name: 'Cobro' }).getByText(cliente)).toBeVisible();
+    await expect(
+      page.getByRole('complementary', { name: 'Cobro' }).getByText(cliente),
+    ).toBeVisible();
     await page.getByRole('button', { name: 'CONFIRMAR' }).click();
     await exigirCobroAceptado(page, /Escanea el primer/);
 
     const deudaDe = async (quien: string) =>
       (
-        await consultarPuente<{ nombre?: string; saldo_centavos?: number }>(
-          page,
-          'CarteraFiado',
-          { limite: 300 },
-        )
+        await consultarPuente<{ nombre?: string; saldo_centavos?: number }>(page, 'CarteraFiado', {
+          limite: 300,
+        })
       )
         .filter((c) => c.nombre === quien)
         .reduce((suma, c) => suma + (c.saldo_centavos ?? 0), 0);
