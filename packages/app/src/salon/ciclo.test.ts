@@ -359,6 +359,20 @@ describe('venta.cobrar_cita', () => {
     expect(salida.comisiones).toHaveLength(1);
   });
 
+  it('LA ORDEN QUEDA EN LA CAJA QUE LA COBRÓ: sin eso el corte no la cuenta', async () => {
+    // El corte lee sus ventas por `ordenes.sesion_caja_id` (tickets, por método, el
+    // detalle uno por uno). La orden del salón nacía pagada SIN sesión: el pago y el
+    // movimiento sí entraban al cajón, pero el corte decía «cero ventas» — lo vio el
+    // e2e de C.10 al pedir los cobros del día.
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, pagoCompleto);
+
+    expect(base.campo('ordenes', 'sesion_caja_id')).toBe(SESION_CAJA);
+    expect(base.campo('ordenes', 'terminal_id')).toBe(TERMINAL);
+  });
+
   it('LA COMISIÓN GUARDA CON QUÉ VERSIÓN se calculó', async () => {
     // Lo ya causado no se recalcula jamás: sin la versión, una regla que cambió
     // deja el histórico sin forma de explicarse.

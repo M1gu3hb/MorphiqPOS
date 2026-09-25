@@ -102,7 +102,7 @@ describe('servicios.guardar', () => {
       profesionales: [{ profesionalId: KARLA }, { profesionalId: DANY }],
     });
     await expect(promesa).rejects.toMatchObject({ codigo: 'CATALOGO_INVALIDO' });
-    expect(conexion.consultas.some((c) => /delete from/.test(c.sql))).toBe(false);
+    expect(conexion.consultas.some((c) => c.sql.includes('delete from'))).toBe(false);
   });
 
   it('sin la lista, no se toca quién lo da', async () => {
@@ -111,7 +111,7 @@ describe('servicios.guardar', () => {
       servicioId: SERVICIO,
     });
     await promesa;
-    expect(conexion.consultas.some((c) => /servicios_profesional/.test(c.sql))).toBe(false);
+    expect(conexion.consultas.some((c) => c.sql.includes('servicios_profesional'))).toBe(false);
   });
 
   it('un procesado sin terminado no pasa el esquema', () => {

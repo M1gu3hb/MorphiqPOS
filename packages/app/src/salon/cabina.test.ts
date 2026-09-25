@@ -91,6 +91,24 @@ describe('F-155 · abrir una pieza', () => {
     expect(movimientos[1]?.['almacen_id']).toBe(CABINA);
   });
 
+  it('ENCUENTRA EL INSUMO POR LA LIGA DE REVENTA, la que escribe el alta', async () => {
+    // `insumos.producto_id` es la liga de todo producto dado de alta como se da de alta
+    // (y la de las cinco demos). Leer sólo `insumo_base_id` contestaba «no dice cuánto
+    // rinde» con la ficha completa.
+    const base = baseDe({
+      productos: [producto({ insumo_base_id: null })],
+      insumos: [{ id: OTRO_INSUMO, organizacion_id: ORG, producto_id: PRODUCTO }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    await abrirProducto.ejecutar(ctx, APERTURA);
+
+    expect(base.filas('movimientos_stock').map((m) => m['insumo_id'])).toEqual([
+      OTRO_INSUMO,
+      OTRO_INSUMO,
+    ]);
+  });
+
   it('abrir dos piezas multiplica el factor', async () => {
     const base = baseDe();
     const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);

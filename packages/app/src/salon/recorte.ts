@@ -38,7 +38,7 @@ export async function profesionalVisible(
       .selectFrom('profesionales')
       .select('id')
       .where('organizacion_id', '=', ctx.ambito.organizacionId)
-      .where('empleo_id', '=', ctx.ambito.empleoId ?? NINGUNA)
+      .where('empleo_id', '=', ctx.ambito.empleoId)
       .executeTakeFirst(),
   );
   const suya = propia?.id ?? NINGUNA;

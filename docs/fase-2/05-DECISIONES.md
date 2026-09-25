@@ -518,6 +518,54 @@ grupo de todas las líneas cada vez que se guardaba cualquiera.
    el puente sirve `aplica_canal` y `sustituible_por_grupo_id`, y la pantalla devuelve canal,
    merma y grupo de cada línea. El grupo se valida contra el negocio antes de borrar nada.
 
+## D-23 · 25-09-2026 · El salón sin nada recortado: la estilista ve lo suyo, el servicio se agenda con quien lo da
+
+**Contexto.** C.10 de la 2.4, las ocho pantallas de estética. Mapearlas contra el servidor
+destapó una fuga y cuatro caminos rotos: la agenda, «Mi día» y la liquidación dejaron de leer el
+puente —que sí recortaba a la estilista (C.7)— y sus comandos no miraban quién entraba; el
+catálogo de servicios no podía dar de alta ni corregir un servicio; nadie escribía qué profesional
+da cada servicio, así que un servicio nuevo no se podía agendar; y la regla de comisión no tenía
+comando.
+
+**Decisión.**
+
+1. **El recorte de la estilista vive también en los comandos** (`profesionalVisible`): para el rol
+   `mesero` la profesional es la del empleo de la sesión; sin pedir una se le da la suya, pidiendo
+   otra se niega, sin profesional ligada no ve ninguna. Los HUECOS no se recortan: son
+   disponibilidad, sin clientas. `ver_agenda_ajena` por persona sigue sin existir: manda el rol.
+2. **El servicio se guarda en un comando propio** (`servicios.guardar`): nombre, precio, sus tres
+   tramos y su cierre, y QUIÉN LO DA con su factor y su precio, en una transacción. El producto se
+   arma con la misma fila del alta del catálogo (`valoresProducto`), como servicio que no descuenta
+   al venderse. La lista de quién lo da se reemplaza entera; ausente, no se toca.
+3. **Agendar ofrece los huecos del servidor** (`agenda.huecos`), con la duración de los tres tramos
+   al factor de quien lo da, y sólo con quien lo da. Pide la ventana entera —aplicación, procesado y
+   terminado—: conservador (no promete un intercalado que el agendado rechace). Al confirmar vuelve a
+   la agenda; si venía de la lista de espera, la ata a la cita.
+4. **La regla de comisión se VERSIONA desde la liquidación** (`comision.guardar_regla`): la nueva
+   empieza después de la vigente, la anterior se cierra el día antes y quien la tenía —profesionales
+   y servicios— pasa a la nueva. Lo causado no se recalcula. El escalonado guarda
+   `{hastaCentavos, tasaBp}`, el formato que lee el cálculo. `comision.asignar_regla` cambia la de
+   una profesional.
+5. **Las fotos del expediente las sube quien administra.** La subida de archivos está cerrada al
+   rol de la estilista a propósito (una mutación de backend lo vigila) y no se abre: la cita en
+   curso intenta subir y, si el rol no puede, lo dice sin dar la foto por guardada. La galería la
+   lee `expediente.fotos`, con el aviso de las que no tienen consentimiento.
+6. **Sin conexión no hay cola** —ni de «llegó/no llegó», ni de fotos (F-436)—: es A-27 (F-988 en
+   EXCEPCIONES). La agenda lo dice en una franja.
+7. **El aviso de la lista de espera lo manda quien atiende** desde su WhatsApp (`wa.me`, con el
+   mensaje escrito); el proveedor de envío es F-406 (§10). «Sin confirmar» depende del
+   recordatorio, que es ese mismo proveedor.
+8. **Anaquel y cabina se leen por separado** (`cabina.existencias`): piezas en uno, gramos o
+   mililitros en el otro. `cabina.alcanza` trae nombre, unidad, cuántos servicios lo piden y para
+   cuántos alcanza.
+9. **La existencia de un producto se lee por la liga de REVENTA** (`insumos.producto_id`, la que
+   escribe el alta y descuenta la venta) y, sin ella, por la de consumo (`insumo_base_id`). Un solo
+   ayudante (`catalogo/insumo-del-producto.ts`) para todo comando que pregunte «¿qué insumo lleva la
+   existencia de este producto?». Cuatro lo preguntaban sólo por la de consumo, que ningún producto
+   dado de alta tiene.
+10. **La orden que nace pagada nace en su caja.** Todo comando que inserte una orden ya cobrada
+    escribe `sesion_caja_id` y `terminal_id`: el corte lee sus ventas por esa columna.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

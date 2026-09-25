@@ -5,6 +5,7 @@ import { repoTomas, type Transaccion } from '@morphiqpos/data';
 import { contarPorPeso, piezasDesdePeso } from '@morphiqpos/domain/inventario';
 import { z } from 'zod';
 
+import { insumoDelProducto } from '../catalogo/insumo-del-producto.ts';
 import { definirComando } from '../definicion.ts';
 
 /**
@@ -174,7 +175,7 @@ export const conteoPorPeso = definirComando<
     const producto = await ctx.paso('leer_producto', () =>
       ctx.tx
         .selectFrom('productos')
-        .select(['id', 'nombre', 'peso_por_pieza_mg', 'tolerancia_peso_pct', 'insumo_base_id'])
+        .select(['id', 'nombre', 'peso_por_pieza_mg', 'tolerancia_peso_pct'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.productoId)
         .executeTakeFirst(),
@@ -192,15 +193,19 @@ export const conteoPorPeso = definirComando<
       );
     }
 
-    if (producto.insumo_base_id === null) {
+    // El insumo por la liga de REVENTA (`insumos.producto_id`), la del alta: leer sólo
+    // `insumo_base_id` rechazaba el conteo por peso de todo producto dado de alta.
+    const insumoId = await ctx.paso('leer_insumo', () =>
+      insumoDelProducto(ctx.tx, organizacionId, producto.id),
+    );
+    if (insumoId === null) {
       // El conteo vive en `existencias`, que está por insumo. Un producto sin
-      // insumo base no tiene dónde caer contado.
+      // insumo no tiene dónde caer contado.
       throw new ErrorDominio(
         'CONFIGURACION_INVALIDA',
-        `«${producto.nombre}» no tiene insumo base: no hay existencia que contar.`,
+        `«${producto.nombre}» no lleva existencia: no hay nada que contar.`,
       );
     }
-    const insumoId = producto.insumo_base_id;
 
     const toma = await ctx.paso('leer_toma', () =>
       ctx.tx

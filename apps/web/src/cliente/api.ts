@@ -184,3 +184,25 @@ function esResultado<T>(valor: unknown): valor is Resultado<T> {
   const v = valor as { ok?: unknown };
   return typeof v.ok === 'boolean';
 }
+
+/**
+ * SUBIR UNA IMAGEN (`/api/archivos/subir`), la única escritura que no es JSON: una imagen
+ * viaja en `multipart`. Devuelve la URL que el comando del dominio guarda —la foto de la
+ * pieza, la del expediente— (C.10 de la 2.4).
+ *
+ * Mismas cabeceras que `invocarComando` —la propia y la clave de idempotencia— y la misma
+ * lectura del resultado: un 403 de un rol que no sube archivos llega como `ErrorApi` con
+ * su mensaje, que es lo que la pantalla enseña.
+ */
+export async function subirImagen(archivo: File): Promise<string> {
+  const cuerpo = new FormData();
+  cuerpo.append('archivo', archivo);
+  const respuesta = await fetch('/api/archivos/subir', {
+    method: 'POST',
+    headers: { 'idempotency-key': nuevaClave(), [CABECERA_PETICION_PROPIA]: '1' },
+    body: cuerpo,
+    credentials: 'same-origin',
+  });
+  const { file_url: url } = await leerResultado<{ readonly file_url: string }>(respuesta);
+  return url;
+}

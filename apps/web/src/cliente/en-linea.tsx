@@ -42,3 +42,25 @@ export function AvisoSinConexion({
     </Aviso>
   );
 }
+
+/**
+ * El aviso de la AGENDA cuando se cae la red (C.10 de la 2.4): la agenda queda como se leyó,
+ * y lo que la cambia —llegó, no llegó, agendar— espera a que vuelva. Sin cola local: la
+ * decisión A-27 (F-988 en EXCEPCIONES) pone toda la lógica en el servidor.
+ */
+export function AvisoDeAgendaSinConexion({
+  className,
+}: {
+  readonly className?: string | undefined;
+}): ReactElement {
+  return (
+    <Aviso
+      tono="atencion"
+      titulo="Sin internet. La agenda es la de hace un momento."
+      className={className}
+    >
+      No se puede marcar llegó ni no llegó, ni agendar, hasta que vuelva la red: aquí no hay modo
+      sin conexión, lo guarda el servidor.
+    </Aviso>
+  );
+}

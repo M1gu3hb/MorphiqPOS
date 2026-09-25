@@ -26,6 +26,8 @@ import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { CorteEnPdf } from '~/corte/CorteEnPdf';
+
+import { CobrosDelDia } from './CobrosDelDia.tsx';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -65,9 +67,10 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * La diferencia es lo más grande de la pantalla y sólo aparece al cerrar, con su
  * palabra —cuadra, faltan, sobran—, su icono y su tinte. El color nunca va solo.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben abrir, el resumen del día con sus salidas, el arqueo y el cierre. Queda
- * fuera el detalle de cada cobro, que vive en el histórico de citas.
+ * ── Y los cobros, uno por uno (C.10 de la 2.4) ──────────────────────────
+ * Debajo del resumen, cada cobro del día con su hora, a quién, cómo se pagó y quién
+ * atendió (`CobrosDelDia`, de la hoja del corte). «Vive en el histórico de citas»
+ * decía la cabecera, y ahí no estaba.
  */
 
 const RUTA_ESTADO = '/api/caja/estado';
@@ -549,7 +552,13 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
       <Encabezado situacion={cerrado ? 'cortada' : 'abierta'} refDeLaLinea={lineaDelEstado} />
 
       <div className={REJILLA}>
-        <ElDia movimientos={movimientosDe(estado, notaDePropina)} />
+        <div className="flex flex-col gap-(--espacio-4)">
+          <ElDia movimientos={movimientosDe(estado, notaDePropina)} />
+          <CobrosDelDia
+            sesionCajaId={corte?.sesionCajaId ?? estado.sesionCajaId}
+            lectura={cerrado ? 1 : 0}
+          />
+        </div>
 
         <div className="flex flex-col gap-(--espacio-4)">
           {sinCerrar > 0 && (

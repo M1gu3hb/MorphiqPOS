@@ -16,7 +16,6 @@ import {
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import {
-  Camera,
   Check,
   ChevronLeft,
   History,
@@ -40,6 +39,11 @@ import {
   type Mezcla,
 } from './formula-de-cabina';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import { CostoDelServicio } from './CostoDelServicio.tsx';
+import { FotosDeLaCita } from './FotosDeLaCita.tsx';
+import { GaleriaDeLaClienta } from './GaleriaDeLaClienta.tsx';
+import { NotaDeLaCita } from './NotaDeLaCita.tsx';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
 /**
@@ -92,17 +96,20 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * por un error de red es perder el dato para siempre. Por eso el error es un
  * `Aviso` dentro de la pantalla, nunca un `ErrorDePantalla` que la sustituya.
  *
- * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
- * Caben la cabecera con la alergia y el cronómetro, la vez pasada con REPETIR y
- * AJUSTAR, la captura de fórmula (F-154), los servicios con sus dos botones de
- * venta, las dos fotos y el cierre. Quedan FUERA: las notas (prioridad 4), la
- * galería de fotos de PC, la cola local sin conexión de F-436 —aquí sólo queda
- * marcado que la foto ya se tomó— y el costo de material con la comisión, que
- * necesita el escandallo de cabina.
+ * ── Lo demás de la cita, construido (C.10 de la 2.4) ────────────────────
+ * La NOTA de la cita, escrita con la clienta sentada (`NotaDeLaCita`,
+ * `agenda.anotar`). Las dos FOTOS se suben de verdad y se atan al servicio
+ * (`FotosDeLaCita`, `expediente.foto`); antes sólo se marcaban «tomadas» y el
+ * momento iba con acento, que el comando rechaza. La GALERÍA de sus fotos
+ * (`GaleriaDeLaClienta`). Y lo que le cuesta al salón: el material de la receta de
+ * cabina de cada servicio y la comisión cotizada (`CostoDelServicio`).
  *
- * Contra la base de hoy `FormulaAplicada` y los campos de salón de `Cliente`
- * los escriben las migraciones 137 y 142, que NO están aplicadas: la lectura
- * vuelve vacía y la pantalla cae —a propósito— en el estado de clienta nueva.
+ * Sin conexión NO hay cola local: es la decisión A-27 (F-988 en EXCEPCIONES) —toda
+ * la lógica vive en el servidor—, y una foto o una nota que se da por guardada sin
+ * haberse guardado es peor que decir que no se pudo. La pantalla lo dice.
+ *
+ * `FormulaAplicada` y los campos de salón de `Cliente` los escriben las migraciones
+ * 137 y 142, APLICADAS en el acople (`scripts/esquema-esperado.json`).
  */
 
 const DIA = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' });
@@ -117,7 +124,6 @@ const CUADRO_CON_GUANTE = 'size-[calc(var(--altura-control)*1.45)]';
 const CAMPO_CON_GUANTE =
   'h-[calc(var(--altura-control)*1.45)] font-numeros text-xl tabular-nums md:text-xl';
 const ROTULO = 'text-xs font-semibold tracking-wide text-texto-sutil uppercase';
-const MOMENTOS = ['antes', 'después'] as const;
 
 export interface VisitaConFormula {
   readonly id: string;
@@ -160,6 +166,8 @@ export interface ServicioDeLaCita {
    */
   readonly precio_pesos: number;
   readonly estado: string;
+  /** El producto-servicio: su receta de cabina es el material. */
+  readonly servicio_id?: string;
 }
 
 export interface CitaAbierta {
@@ -169,6 +177,9 @@ export interface CitaAbierta {
   readonly hora: string;
   /** Epoch en ms del inicio real. El cronómetro no se guarda: se resta. */
   readonly inicioEn: number;
+  /** La clienta, para su galería; nula en un walk-in sin ficha. */
+  readonly clienteId?: string | null;
+  readonly notas?: string | null;
   /**
    * LAS ALERGIAS NO SON DEL CLIENTE: son de su EXPEDIENTE.
    *
@@ -196,6 +207,8 @@ interface FilaCita {
   readonly id: string;
   readonly agendada_para: string;
   readonly inicio_real: string | null;
+  readonly cliente_id?: string | null;
+  readonly notas?: string | null;
 }
 
 interface FilaClienta {
@@ -290,6 +303,8 @@ function armar(
     hora: HORA.format(new Date(fila.agendada_para)),
     inicioEn: Number.isNaN(arranque) ? Date.now() : arranque,
     alergias: clienta?.alergias ?? null,
+    clienteId: fila.cliente_id ?? null,
+    notas: fila.notas ?? null,
   };
 }
 
@@ -622,7 +637,8 @@ export function CitaEnCurso({
   );
   const [ahora, setAhora] = useState<number | null>(null);
   const [mezcla, setMezcla] = useState<Mezcla | null>(null);
-  const [fotos, setFotos] = useState<readonly string[]>([]);
+  /** Sube cuando se guarda una foto: la galería se vuelve a leer. */
+  const [fotosGuardadas, setFotosGuardadas] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [guardada, setGuardada] = useState(false);
   const [cerrando, setCerrando] = useState(false);
@@ -938,46 +954,44 @@ export function CitaEnCurso({
               <h2 id="titulo-fotos" className={ROTULO}>
                 Fotos
               </h2>
-              {/* Un toque y se abre la cámara: `capture` evita el paso por la
-                  galería, que es donde se pierde el antes. */}
-              <div className="grid grid-cols-2 gap-(--espacio-3)">
-                {MOMENTOS.map((momento) => {
-                  const tomada = fotos.includes(momento);
-                  return (
-                    <Superficie
-                      key={momento}
-                      como="label"
-                      interactiva
-                      activa={tomada}
-                      nivel={0}
-                      relleno={3}
-                      radio="md"
-                      className={`flex min-h-24 flex-col items-center justify-center gap-(--espacio-1) text-center has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-anillo/60 ${tomada ? '' : 'border-dashed'}`}
-                    >
-                      {tomada ? (
-                        <Check aria-hidden="true" className="size-5 text-exito" />
-                      ) : (
-                        <Camera aria-hidden="true" className="size-5 text-texto-sutil" />
-                      )}
-                      <span className="text-sm font-medium">
-                        {tomada ? `${momento} · tomada` : momento}
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="sr-only"
-                        aria-label={`Tomar la foto de ${momento}`}
-                        onChange={(evento) => {
-                          if (evento.target.files?.[0] === undefined) return;
-                          setFotos([...fotos.filter((f) => f !== momento), momento]);
-                        }}
-                      />
-                    </Superficie>
-                  );
-                })}
-              </div>
+              <FotosDeLaCita
+                citaServicioId={abiertos[0]?.id ?? servicios[0]?.id ?? null}
+                alGuardar={() => {
+                  setFotosGuardadas((n) => n + 1);
+                }}
+              />
+              {cita?.clienteId == null ? null : (
+                <GaleriaDeLaClienta clienteId={cita.clienteId} lectura={fotosGuardadas} />
+              )}
             </section>
+
+            {cita === null ? null : (
+              <>
+                <section aria-labelledby="titulo-nota" className="flex flex-col gap-(--espacio-2)">
+                  <h2 id="titulo-nota" className={ROTULO}>
+                    Nota
+                  </h2>
+                  <NotaDeLaCita citaId={cita.id} notaInicial={cita.notas ?? null} />
+                </section>
+
+                <section aria-labelledby="titulo-costo" className="flex flex-col gap-(--espacio-2)">
+                  <h2 id="titulo-costo" className={ROTULO}>
+                    Lo que le cuesta al salón
+                  </h2>
+                  <CostoDelServicio
+                    citaId={cita.id}
+                    servicioIds={servicios
+                      .map((s) => s.servicio_id)
+                      .filter((id): id is string => id !== undefined)}
+                    precioCentavos={servicios.reduce(
+                      (suma, s) =>
+                        suma + (centavosDe('CitaServicio', 'precio_pesos', s.precio_pesos) ?? 0),
+                      0,
+                    )}
+                  />
+                </section>
+              </>
+            )}
 
             {/* Pegado abajo en el teléfono, donde llega el pulgar con la otra mano
                 ocupada. En tablet vuelve al flujo, al pie de la cita: ahí la

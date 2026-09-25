@@ -115,7 +115,7 @@ export const listaDeEspera = definirComando<
         .execute(),
     );
     const vivas = filas
-      .map((fila) => ({ fila, rango: desdeRango(String(fila.ventana)) }))
+      .map((fila) => ({ fila, rango: desdeRango(fila.ventana) }))
       .filter(({ rango }) => rango === null || rango.fin.getTime() > ctx.ahora.getTime())
       .sort(
         (a, b) =>

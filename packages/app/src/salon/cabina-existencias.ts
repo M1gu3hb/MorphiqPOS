@@ -5,7 +5,8 @@ import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
-import { almacenesDelSalon } from './cabina.ts';
+import { insumosDeProductos } from '../catalogo/insumo-del-producto.ts';
+import { almacenesParaLeer } from './cabina.ts';
 
 /**
  * `cabina.existencias` — cuánto hay de cada producto del salón EN CADA LUGAR: en el
@@ -47,27 +48,35 @@ export const existenciasDelSalon = definirComando<
   entrada: entradaExistenciasDelSalon,
   async ejecutar(ctx) {
     const { organizacionId } = ctx.ambito;
-    const almacenes = await almacenesDelSalon(ctx);
+    // Sin almacén de cabina el anaquel SÍ se puede contar: antes la lectura entera
+    // fallaba y la pantalla, que la toma como ayuda, pintaba «—» en todo.
+    const almacenes = await almacenesParaLeer(ctx);
     const productos = await ctx.paso('leer_productos', () =>
       ctx.tx
         .selectFrom('productos')
-        .select(['id', 'insumo_base_id', 'destino', 'unidad_cabina'])
+        .select(['id', 'destino', 'unidad_cabina'])
         .where('organizacion_id', '=', organizacionId)
         .where('activo', '=', true)
-        .where('insumo_base_id', 'is not', null)
         .execute(),
     );
-    const insumoIds = [
-      ...new Set(productos.map((p) => p.insumo_base_id).filter((id): id is string => id !== null)),
-    ];
+    const insumoDe = await ctx.paso('leer_insumos', () =>
+      insumosDeProductos(
+        ctx.tx,
+        organizacionId,
+        productos.map((p) => p.id),
+      ),
+    );
+    const insumoIds = [...new Set(insumoDe.values())];
     if (insumoIds.length === 0) return { existencias: [] };
 
+    const lugares =
+      almacenes.cabina === null ? [almacenes.venta] : [almacenes.venta, almacenes.cabina];
     const filas = await ctx.paso('leer_existencias', () =>
       ctx.tx
         .selectFrom('existencias')
         .select(['almacen_id', 'insumo_id', 'cantidad'])
         .where('organizacion_id', '=', organizacionId)
-        .where('almacen_id', 'in', [almacenes.venta, almacenes.cabina])
+        .where('almacen_id', 'in', lugares)
         .where('insumo_id', 'in', insumoIds)
         .execute(),
     );
@@ -76,15 +85,17 @@ export const existenciasDelSalon = definirComando<
 
     return {
       existencias: productos.flatMap((p) => {
-        if (p.insumo_base_id === null) return [];
-        const seAbre = p.destino !== 'venta' && p.unidad_cabina != null;
+        const insumoId = insumoDe.get(p.id);
+        if (insumoId === undefined) return [];
+        // Se abre si su ficha lo dice Y hay cabina donde contarlo.
+        const cabina = p.destino !== 'venta' && p.unidad_cabina != null ? almacenes.cabina : null;
         return [
           {
             productoId: p.id,
-            insumoId: p.insumo_base_id,
-            enAnaquel: cantidad(almacenes.venta, p.insumo_base_id),
-            enCabina: seAbre ? cantidad(almacenes.cabina, p.insumo_base_id) : null,
-            unidadCabina: seAbre ? (p.unidad_cabina ?? null) : null,
+            insumoId,
+            enAnaquel: cantidad(almacenes.venta, insumoId),
+            enCabina: cabina === null ? null : cantidad(cabina, insumoId),
+            unidadCabina: cabina === null ? null : (p.unidad_cabina ?? null),
           },
         ];
       }),

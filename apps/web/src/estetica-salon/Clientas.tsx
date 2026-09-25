@@ -35,6 +35,8 @@ import { flushSync } from 'react-dom';
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { GaleriaDeLaClienta } from './GaleriaDeLaClienta.tsx';
+
 /**
  * PANTALLA · estetica-salon · clientas
  *
@@ -78,9 +80,10 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * Porque se llama desde el mostrador, entre clienta y clienta, con el teléfono
  * en la mano. Un reporte que hay que ir a abrir es un reporte que no se abre.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben buscar, la ficha, el expediente con sus huecos, la última fórmula y a
- * quién le toca volver. Quedan fuera las fotos, que cuelgan del servicio.
+ * ── Y sus fotos (C.10 de la 2.4) ────────────────────────────────────────
+ * La ficha trae la galería de antes y después de cada servicio
+ * (`GaleriaDeLaClienta`, de `expediente.fotos`). «Cuelgan del servicio», decía la
+ * cabecera: cuelgan de él, y se leen de la clienta.
  */
 
 const RUTA_EXPEDIENTE = '/api/clientes';
@@ -844,6 +847,12 @@ function ExpedienteAbierto({
         </Superficie>
 
         <TarjetaDeFormula ultima={ultima} />
+        <section aria-labelledby="fotos-de-la-clienta" className="flex flex-col gap-(--espacio-2)">
+          <h3 id="fotos-de-la-clienta" className="text-sm font-semibold">
+            Sus fotos
+          </h3>
+          <GaleriaDeLaClienta clienteId={expediente.clienteId} />
+        </section>
 
         <AvisoDeHuecos expediente={expediente} />
 

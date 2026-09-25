@@ -24,6 +24,8 @@ import { flushSync } from 'react-dom';
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { ReglaDeComision } from './ReglaDeComision.tsx';
+
 /**
  * PANTALLA · estetica-salon · liquidacion
  *
@@ -62,11 +64,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * de quién son los números que se están leyendo. Dura cero con `movimiento: nula`
  * o con la preferencia del sistema.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben el periodo, el detalle por profesional, el comprobante y el pago. Queda
- * fuera la edición de la regla de comisión, que es del catálogo. La lista no
- * trae el total por persona que dibuja el documento: el puente de profesionales
- * no lo expone, y el total se ve al abrir a cada una.
+ * ── El total por persona y su regla, aquí (C.10 de la 2.4) ──────────────
+ * La lista trae lo PENDIENTE de cada una en el periodo (`liquidaciones.pendientes`),
+ * que es lo que el documento dibuja: a quién se le debe más se ve sin abrir a nadie.
+ * Y al abrir a una, su regla de comisión en palabras, con cómo cambiarla —una versión
+ * nueva desde una fecha, sin tocar lo causado— o asignarle otra (`ReglaDeComision`).
+ * Antes la regla «era del catálogo» y ningún lado la escribía.
  */
 
 const RUTA_PROFESIONALES = '/api/profesionales';
@@ -156,7 +159,10 @@ function mensajeDe(fallo: unknown): string {
 }
 
 /** La lista de personas: el nombre grande, y la renta dicha, no adivinada. */
-function columnasDeProfesionales(unidad: string): readonly ColumnaDeTabla<FichaDeProfesional>[] {
+function columnasDeProfesionales(
+  unidad: string,
+  pendienteDe: (profesionalId: string) => number | null | undefined,
+): readonly ColumnaDeTabla<FichaDeProfesional>[] {
   return [
     {
       clave: 'nombre',
@@ -170,6 +176,20 @@ function columnasDeProfesionales(unidad: string): readonly ColumnaDeTabla<FichaD
           ) : null}
         </span>
       ),
+    },
+    {
+      clave: 'pendiente',
+      titulo: 'Pendiente',
+      numerica: true,
+      orden: (p) => pendienteDe(p.profesionalId) ?? -1,
+      celda: (p) => {
+        const pendiente = pendienteDe(p.profesionalId);
+        // `undefined`: sin periodo elegido todavía; `null`: no se pudo leer.
+        if (pendiente === undefined)
+          return <span className="text-xs text-texto-sutil">elige el periodo</span>;
+        if (pendiente === null) return <span className="text-texto-sutil">—</span>;
+        return <Dinero centavos={pendiente} tamano="sm" />;
+      },
     },
   ];
 }
@@ -327,6 +347,9 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
   const [intento, setIntento] = useState(0);
   const [elegida, setElegida] = useState<FichaDeProfesional | null>(null);
   const [periodo, setPeriodo] = useState({ desde: desde ?? '', hasta: hasta ?? '' });
+  /** Lo pendiente de cada una en el periodo, en centavos; nulo mientras no se lee. */
+  const [pendientes, setPendientes] = useState<ReadonlyMap<string, number> | null>(null);
+  const [falloDePendientes, setFalloDePendientes] = useState(false);
   const [comisiones, setComisiones] = useState<Comisiones | null>(null);
   const [comprobante, setComprobante] = useState<Comprobante | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -368,6 +391,37 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
       control.abort();
     };
   }, [profesionalesIniciales, intento]);
+
+  useEffect(() => {
+    if (periodo.desde === '' || periodo.hasta === '') return;
+    let vigente = true;
+    invocarComando<{
+      readonly profesionales: readonly {
+        readonly profesionalId: string;
+        readonly pendienteCentavos: string;
+      }[];
+    }>('/api/liquidaciones/pendientes', { desde: periodo.desde, hasta: periodo.hasta })
+      .then((salida) => {
+        if (!vigente) return;
+        setFalloDePendientes(false);
+        setPendientes(
+          new Map(salida.profesionales.map((p) => [p.profesionalId, Number(p.pendienteCentavos)])),
+        );
+      })
+      .catch(() => {
+        if (vigente) setFalloDePendientes(true);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [periodo.desde, periodo.hasta, comprobante]);
+
+  /** Lo pendiente de una persona: 0 si no causó nada en el periodo. */
+  function pendienteDe(profesionalId: string): number | null | undefined {
+    if (periodo.desde === '' || periodo.hasta === '') return undefined;
+    if (falloDePendientes || pendientes === null) return null;
+    return pendientes.get(profesionalId) ?? 0;
+  }
 
   function reintentar(): void {
     setFalloDeCarga(null);
@@ -520,6 +574,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
           {encabezado}
           {aviso}
           <ResumenDeComisiones comisiones={comisiones} />
+          <ReglaDeComision profesionalId={elegida.profesionalId} />
           <section aria-labelledby="renglones-titulo" className="flex flex-col gap-(--espacio-2)">
             <h3 id="renglones-titulo" className="font-medium">
               Renglón por renglón
@@ -626,7 +681,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
 
         <Tabla
           etiqueta="Profesionales"
-          columnas={columnasDeProfesionales(unidad)}
+          columnas={columnasDeProfesionales(unidad, pendienteDe)}
           filas={profesionales}
           claveDe={(p) => p.profesionalId}
           {...(elegida === null ? {} : { activa: elegida.profesionalId })}

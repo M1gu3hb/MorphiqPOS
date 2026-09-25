@@ -525,6 +525,12 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
             total_centavos: cuenta.totalCentavos,
             cliente_id: cita.clienteId,
             empleado_cobra_id: empleoId,
+            // LA CAJA QUE LA COBRÓ. El corte lee sus ventas por esta columna —tickets,
+            // por método, el detalle uno por uno— y la orden nacía sin ella: el pago
+            // entraba al cajón y el corte decía «cero ventas» (C.10 de la 2.4). El
+            // cobro de mostrador la escribe al cerrar (`repos/ordenes/cierre.ts`).
+            terminal_id: terminalId,
+            sesion_caja_id: sesion.id,
             cerrada_en: ctx.ahora,
             created_at: ctx.ahora,
           })

@@ -738,6 +738,24 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
      * caja. Es el paso que `Cobrar` exige —lista las citas `terminada`— y el que
      * ninguna pantalla podía dar.
      */
+    // LA NOTA DE LA CITA Y LO QUE LE CUESTA AL SALÓN (C.10 de la 2.4): la nota se escribe con
+    // la clienta sentada y se guarda en la cita; el costo es material de cabina + comisión.
+    await expect(page.getByRole('heading', { name: 'Lo que le cuesta al salón' })).toBeVisible();
+    await page.getByLabel('Nota de la cita').fill('Prefiere el agua tibia');
+    await page.getByRole('button', { name: 'Guardar la nota' }).click();
+    await expect
+      .poll(
+        async () =>
+          (
+            await consultarPuente<{ readonly notas?: string | null }>(page, 'Cita', {
+              filtro: { id: citaId },
+              limite: 1,
+            })
+          )[0]?.notas ?? '',
+        { message: 'La nota escrita en la cita en curso no quedó en la cita.', timeout: 20_000 },
+      )
+      .toBe('Prefiere el agua tibia');
+
     const cerrar = page.getByRole('button', { name: 'Cerrar servicio' });
     await expect(
       cerrar,
@@ -906,6 +924,102 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
         'Liquidación por profesional',
       ],
     });
+
+    // ── C.10 DE LA 2.4 · LO QUE LAS PANTALLAS DEL SALÓN DECÍAN QUE FALTABA ──────
+    //
+    // 1 · El corte ya enseña los cobros UNO POR UNO, con la clienta.
+    await expect(page.getByRole('heading', { name: 'Los cobros, uno por uno' })).toBeVisible();
+    await expect(
+      page.getByRole('table', { name: 'Cobros del día' }).getByText('Clienta de la demostración'),
+      'El corte del salón no enseña el cobro de la cita de esta prueba.',
+    ).toBeVisible({ timeout: 20_000 });
+
+    // 2 · EL CATÁLOGO da de alta un servicio con sus TRAMOS y QUIÉN LO DA. Antes su cuerpo
+    //     no pasaba el esquema de ningún comando y la agenda no dejaba agendar nada nuevo.
+    const [conNombre] = await consultarPuente<{
+      readonly id?: string;
+      readonly nombre_corto?: string | null;
+    }>(page, 'Profesional', { filtro: { id: profesional?.id ?? '' }, limite: 1 });
+    const nombreCorto = conNombre?.nombre_corto ?? '';
+    const servicioNuevo = `Servicio E2E ${String(Date.now()).slice(-6)}`;
+    await abrirPantalla(page, '/estetica-salon/catalogo-de-servicios', /servicio/i);
+    await page.getByRole('button', { name: /^Nuevo servicio/ }).click();
+    await page.locator('#nombre').fill(servicioNuevo);
+    await page.locator('#precio').fill('450.00');
+    await page.locator('#t-activa1').fill('40');
+    await page.locator('#t-pasiva').fill('0');
+    await page.locator('#t-activa2').fill('0');
+    await page.locator('#t-cierre').fill('10');
+    await page.getByRole('checkbox', { name: nombreCorto }).check();
+    await page.getByRole('button', { name: /^Guardar servicio/ }).click();
+    await expect
+      .poll(
+        async () => {
+          const [creado] = await consultarPuente<{ readonly duracion_activa_1_min?: number }>(
+            page,
+            'ProductoTerminado',
+            { filtro: { nombre: servicioNuevo }, limite: 1 },
+          );
+          return creado?.duracion_activa_1_min ?? 0;
+        },
+        { message: 'El servicio nuevo no quedó con sus tramos.', timeout: 20_000 },
+      )
+      .toBe(40);
+
+    // 3 · AGENDARLO: sólo con quien lo da, con los huecos del SERVIDOR, y al confirmar
+    //     se vuelve a la agenda (antes no pasaba nada y un segundo toque la duplicaba).
+    await abrirPantalla(page, '/estetica-salon/agendar', /1 · ¿Quién\?/);
+    await page.locator('#buscar-clienta').fill('Clienta de la demostración');
+    await page
+      .getByRole('button', { name: /Clienta de la demostración/ })
+      .first()
+      .click();
+    await page.getByRole('button', { name: new RegExp(servicioNuevo) }).click();
+    const conQuien = page.locator('section[aria-labelledby="paso-con-quien"]');
+    await expect(
+      conQuien.locator('[aria-pressed]'),
+      'Agendar ofrece el servicio nuevo con quien no lo da.',
+    ).toHaveCount(1);
+    await conQuien.locator('[aria-pressed]').first().click();
+    const cuando = page.locator('section[aria-labelledby="paso-cuando"]');
+    await expect(
+      cuando.locator('[aria-pressed]').first(),
+      'No hay huecos del servidor para el servicio nuevo.',
+    ).toBeVisible({ timeout: 30_000 });
+    await cuando.locator('[aria-pressed]').first().click();
+    await page.getByRole('button', { name: 'Confirmar la cita' }).click();
+    await expect(page, 'Al agendar no se volvió a la agenda.').toHaveURL(/agenda-del-dia/, {
+      timeout: 30_000,
+    });
+
+    // 4 · La AGENDA trae la lista de espera en su panel.
+    await expect(page.getByRole('region', { name: 'Lista de espera' }).first()).toBeVisible();
+
+    // 5 · La LIQUIDACIÓN trae lo pendiente de cada una en el periodo.
+    const hoy = new Date();
+    const inicioDeMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const iso = (d: Date) =>
+      `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    await abrirPantalla(page, '/estetica-salon/liquidacion', /Liquidación/);
+    await page.locator('#desde').fill(iso(inicioDeMes));
+    await page.locator('#hasta').fill(iso(new Date(hoy.getTime() + 2 * 86_400_000)));
+    await expect(page.getByRole('columnheader', { name: 'Pendiente' })).toBeVisible();
+    await expect(page.getByText('elige el periodo')).toHaveCount(0, { timeout: 20_000 });
+
+    // 6 · PRODUCTOS dice cuánto hay en el anaquel —antes «—» en todo: se leía una liga
+    //     que ningún producto dado de alta tiene— y no lista los servicios como productos.
+    await abrirPantalla(page, '/estetica-salon/productos', /cabina|Productos/i);
+    const anaquel = page.getByRole('table', { name: 'Productos del anaquel' });
+    const argan = anaquel.getByRole('row', { name: /Aceite de argán 60 ml/ });
+    await expect(argan.getByRole('cell').nth(1), 'El anaquel no dice cuánto hay.').not.toHaveText(
+      '—',
+      { timeout: 20_000 },
+    );
+    await expect(
+      anaquel.getByRole('row', { name: /Corte de dama/ }),
+      'Los servicios salen listados como productos del anaquel.',
+    ).toHaveCount(0);
+    await expect(page.getByText('No se pudo leer cuánto hay de cada producto')).toHaveCount(0);
 
     exigirSinFallos();
   });

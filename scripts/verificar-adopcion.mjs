@@ -209,6 +209,60 @@ export const SIN_ESTADO = [
       'Pieza de Recetas: sólo se monta con las líneas e ingredientes ya leídos; la carga es de Recetas.',
   },
   {
+    pantalla: 'estetica-salon/CostoDelServicio',
+    estado: 'vacio',
+    razon:
+      'Pieza de la cita en curso: una cita sin servicios no tiene costo que enseñar; su vacío lo pinta CitaEnCurso.',
+  },
+  {
+    pantalla: 'estetica-salon/CostoDelServicio',
+    estado: 'error',
+    razon:
+      'Pieza informativa: si la receta o la cotización no se leen, cada cifra dice «—» en su lugar, sin tapar la cita.',
+  },
+  {
+    pantalla: 'estetica-salon/FotosDeLaCita',
+    estado: 'vacio',
+    razon:
+      'Pieza de captura: son siempre las dos teselas, antes y después; sin servicio abierto lo dice con palabras.',
+  },
+  {
+    pantalla: 'estetica-salon/FotosDeLaCita',
+    estado: 'cargando',
+    razon:
+      'Pieza de captura: no lee nada al montarse; mientras sube, la tesela dice «subiendo…».',
+  },
+  {
+    pantalla: 'estetica-salon/LaCabinaContraLaAgenda',
+    estado: 'vacio',
+    razon:
+      'Pieza de pregunta: antes de preguntar no hay lista; sin servicios de hoy lo dice con un aviso.',
+  },
+  {
+    pantalla: 'estetica-salon/LaCabinaContraLaAgenda',
+    estado: 'cargando',
+    razon:
+      'Pieza de pregunta: no lee al montarse; mientras pregunta, el botón queda apagado.',
+  },
+  {
+    pantalla: 'estetica-salon/NotaDeLaCita',
+    estado: 'vacio',
+    razon:
+      'Pieza de captura: el campo vacío ES el estado vacío, con su texto de ayuda.',
+  },
+  {
+    pantalla: 'estetica-salon/NotaDeLaCita',
+    estado: 'cargando',
+    razon:
+      'Pieza de captura: recibe la nota ya leída por CitaEnCurso; al guardar lo dice el indicador de guardado.',
+  },
+  {
+    pantalla: 'estetica-salon/ReglaDeComision',
+    estado: 'vacio',
+    razon:
+      'Pieza de la liquidación: sin regla propia lo dice con palabras («manda la de cada servicio»), no con un vacío.',
+  },
+  {
     pantalla: 'configuracion/SelectorDeApariencia',
     estado: 'vacio',
     razon:

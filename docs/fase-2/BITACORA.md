@@ -6111,3 +6111,68 @@ variable sin usar, la compilación no pasó el tipado y la suite habría corrido
 anterior; se rehízo con una mutación que compila.
 
 `verify:pendientes`: de 23 a **18** (las cinco de la cafetería).
+
+## 25-09-2026 · Etapa 2.4 · C.10 (3 de 5) · el salón, sin nada recortado
+
+**Primero, una fuga (commit propio, `f1a9a21`).** La agenda, «Mi día» y la liquidación dejaron de
+leer el puente —que desde C.7 recorta a la estilista— y pasaron a comandos que aceptaban su rol sin
+mirar quién entraba: pasando el id de otra, una estilista leía su día, sus clientas y sus
+comisiones. `profesionalVisible` aplica la misma regla del puente en `agenda.dia`,
+`profesionales.mi_dia` y `profesionales.comisiones` (D-23.1).
+
+**Las ocho pantallas, construido lo que decían que faltaba:**
+- **Catálogo de servicios:** QUIÉN LO DA, con su tiempo (factor) y su precio. Y guardar de verdad:
+  el cuerpo que mandaba no pasaba el esquema de ningún comando de producto —ni alta ni
+  corrección—, las duraciones no se escribían y nadie escribía `servicios_profesional`, sin la cual
+  la agenda no deja agendar: **un servicio nuevo no se podía agendar con nadie**
+  (`servicios.guardar`).
+- **Agendar:** los huecos del SERVIDOR (antes una rejilla con bloques de 60 min «por omisión»), la
+  duración de los tres tramos al factor de quien lo da, sólo quien lo da, el aviso de material de
+  cabina, Enter y ← →, y **volver a la agenda al confirmar**: no pasaba nada y un segundo toque
+  duplicaba la cita. Desde la lista de espera llega con la clienta y ata la espera a la cita.
+- **Agenda del día:** la lista de espera en su panel (avisar por WhatsApp de quien atiende,
+  agendar, quitar), el cajón de pendientes en la tableta, los atajos de PC y la franja sin
+  conexión (sin cola: A-27).
+- **Cita en curso:** la nota de la cita (`agenda.anotar`), las fotos que ahora SÍ se suben y se atan
+  al servicio —antes sólo se marcaban «tomadas», y con acento en «después», que el comando
+  rechaza—, la galería, y lo que le cuesta al salón: material de cabina y comisión.
+- **Clientas:** la galería de sus fotos (`expediente.fotos`; nada las leía).
+- **Liquidación:** lo pendiente de cada una en la lista y su regla de comisión: en palabras,
+  versionarla desde una fecha o asignarle otra (`comision.guardar_regla`, `asignar_regla`).
+- **Caja y corte:** los cobros del día, uno por uno.
+- **Productos:** anaquel y cabina por separado (el puente los suma y mezcla piezas con gramos),
+  precio, kardex, y «¿alcanza?» con nombre, unidad, servicios y «alcanza para».
+
+**Lo que destapó el e2e, cada uno con su prueba vista en rojo:**
+- **El corte del salón no contaba sus ventas.** La orden de la cita cobrada nacía `pagada` SIN
+  `sesion_caja_id` (ni terminal): el pago y el movimiento sí entraban al cajón —el arqueo cuadraba y
+  por eso el PDF pasaba—, pero tickets, ventas por método y el detalle uno por uno se leen por esa
+  columna y decían cero. El cobro de mostrador la escribe al cerrar (`repos/ordenes/cierre.ts`); el
+  del salón, al insertar, no. Lo vio el paso nuevo de «los cobros del día».
+- **La liga del producto con su existencia.** Hay dos en el esquema: `insumos.producto_id`, la de
+  REVENTA —la escribe el alta rápida y la lee la venta para descontar; en las cinco demos la tienen
+  todos los productos con existencia— y `productos.insumo_base_id`, la de la estrategia de consumo
+  `insumo_base`, que en las cinco demos no tiene NINGUNO. Cuatro comandos leían sólo la segunda:
+  `cabina.existencias` (mío, de esta tanda: el anaquel entero en «—»), `cabina.abrir_producto` (no
+  se podía abrir nada a cabina), la garantía de la ferretería (reponerle la pieza al cliente no la
+  sacaba del anaquel) y el conteo por peso (rechazaba todo producto dado de alta). La versión de
+  `compras.importar_nota` que estoy escribiendo para ferretería también la tomaba mal y ya no. Un ayudante (`catalogo/insumo-del-producto.ts`) manda la de reventa y
+  cae a la de consumo; D-23.9.
+- **Productos listaba los servicios** —el corte, el balayage— como «Sólo se vende», y **la
+  existencia que no se pudo leer se callaba** (`.catch(() => undefined)`): ahora se dice.
+- En el e2e: el texto «¿Quién?» lo encontraba primero en un botón oculto del paso a paso.
+
+**Otros hallazgos:** la cabecera de la cita en curso decía que las migraciones 137 y 142 no estaban
+aplicadas y lo están; la de `restaurante/CierreDiario` decía «recortado» de cosas hechas.
+
+**Dos errores míos, dichos:** el comando de la regla guardaba los escalones como `desdeCentavos`; el
+cálculo lee `hastaCentavos`, y así quedó en el commit intermedio del servidor (`4e6c7a4`). Lo vi al
+escribir la pantalla y se corrige aquí, con una prueba que exige el formato que lee
+`leerEscalones`. Y un arreglo de lint que hice en `cabina.existencias` rompió el tipo (quité un
+`?? null` que sí hacía falta) y la compilación lo paró: corrí el lint sin volver a correr los tipos.
+
+**Estado:** e2e de estética en verde con los pasos nuevos, y en ROJO con la mutación real (agendar
+sin volver a la agenda: «Al agendar no se volvió a la agenda.»). Mutando los ayudantes del
+cliente sobrevivió una: la guarda de «dentro de un campo no se roba la tecla» usaba `instanceof
+HTMLElement`, que en Node no existe, así que ESC dentro de un campo no lo veía ninguna prueba; ahora
+mira la forma del elemento y se prueba. `verify:pendientes`: quedan 9 (ferretería 8, restaurante 1).

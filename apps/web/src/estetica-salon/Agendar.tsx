@@ -21,9 +21,24 @@ import {
   UserPlus,
   UsersRound,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+
+import {
+  HUECOS_QUE_CABEN,
+  conOtraPersona as primerosConOtraPersona,
+  consumoDeLaReceta,
+  diaIso,
+  huecosParaOfrecer,
+  minutosDelServicio,
+  type Hueco,
+  type HuecoDelServidor,
+  type LineaDeReceta,
+  type ServicioConTiempos,
+} from './agendar-huecos.ts';
+import type { AsignacionGuardada } from './quien-da-el-servicio.ts';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import {
@@ -80,29 +95,24 @@ import {
  * Precio editable —se ajusta al cobrar—, notas largas, datos fiscales y nada
  * del expediente.
  *
- * ── Alcance recortado, dicho y no escondido ─────────────────────────────
- * 1. Los huecos se calculan aquí sobre la rejilla del horario menos las citas
- *    ya agendadas. El cálculo fino de F-404 vive en `domain/agenda/huecos.ts` y
- *    necesita el `tstzrange` de la 132, que el puente no sabe leer: mientras
- *    tanto cada cita ocupa un bloque por omisión. Se cambia una función.
- * 2. La duración sale de `tiempo_preparacion_estimado`; la secuencia de tres
- *    tramos (F-415) vive en `servicios`, tabla que el puente aún no expone.
- * 3. El aviso de material de cabina (F-107) no está: necesita la existencia de
- *    cabina, que tampoco viaja todavía.
- * 4. De los atajos de PC va `ESC`; `Enter` y las flechas quedan fuera.
+ * ── Cómo se agenda, pieza por pieza (C.10 de la 2.4) ───────────────────
+ * 1. Los huecos son del SERVIDOR (`agenda.huecos`, F-404): las ventanas del
+ *    horario de cada persona menos sus tramos activos reales, los bloqueos y el
+ *    procesado que la libera. Aquí se restaba una rejilla con bloques de 60 min
+ *    «por omisión», y se ofrecían horas que el agendado rechazaba.
+ * 2. La duración es la de sus tres tramos (F-415), al factor de QUIEN lo da
+ *    (`servicios.asignaciones`), y sólo se ofrece a quien lo da: sin esa fila la
+ *    agenda no deja agendar (`agenda-huecos.ts`).
+ * 3. Si el material de cabina no alcanza para el servicio, se avisa al elegirlo
+ *    (F-107, `cabina.alcanza` con la receta del servicio).
+ * 4. Atajos de PC: ESC cierra, Enter agenda la hora elegida, ← → la semana.
+ * 5. Al agendar se vuelve a la agenda; si venía de la lista de espera, la espera
+ *    queda atada a su cita. Antes no pasaba nada: un segundo toque la duplicaba.
  */
 
 /** La rejilla del día del salón. Fuera de aquí no hay nada que ofrecer. */
-const APERTURA_MIN = 9 * 60;
-const CIERRE_MIN = 19 * 60;
-const PASO_MIN = 15;
 /** Dos semanas: la primera es la respuesta y la segunda es el plan B. */
-const DIAS_HORIZONTE = 14;
-const HUECOS_QUE_CABEN = 6;
 /** Dos por día, separadas: mañana y tarde son opciones; 11:00 y 11:15 no. */
-const MAX_POR_DIA = 2;
-const SEPARACION_MIN = 150;
-const DURACION_POR_OMISION_MIN = 60;
 const DIA_MS = 86_400_000;
 
 export interface ClientaDeAgenda {
@@ -114,10 +124,9 @@ export interface ClientaDeAgenda {
   readonly faltas_6m?: number | null;
 }
 
-export interface ServicioDeAgenda {
+export interface ServicioDeAgenda extends ServicioConTiempos {
   readonly id: string;
   readonly nombre: string | null;
-  readonly tiempo_preparacion_estimado?: number | null;
 }
 
 export interface ProfesionalDeAgenda {
@@ -139,11 +148,6 @@ export interface ServicioDeCita {
   readonly profesional_id: string | null;
 }
 
-export interface Hueco {
-  readonly profesionalId: string;
-  readonly inicio: Date;
-}
-
 export interface AgendarProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly clientasIniciales?: readonly ClientaDeAgenda[];
@@ -153,28 +157,6 @@ export interface AgendarProps {
   readonly serviciosDeCitaIniciales?: readonly ServicioDeCita[];
   readonly onAgendada?: (citaId: string) => void;
   readonly onCancelar?: () => void;
-}
-
-/** La hora vive en `Cita` y la persona en `CitaServicio`: aquí se juntan. */
-export function ocupacionDe(
-  citas: readonly CitaDeAgenda[],
-  servicios: readonly ServicioDeCita[],
-): ReadonlyMap<string, readonly number[]> {
-  const horaDe = new Map<string, number>();
-  for (const cita of citas) {
-    // Mismo filtro que el índice de la 132: cancelada y reprogramada no ocupan.
-    if (cita.agendada_para === null) continue;
-    if (cita.estado === 'cancelada' || cita.estado === 'reprogramada') continue;
-    const ms = Date.parse(cita.agendada_para);
-    if (Number.isFinite(ms)) horaDe.set(cita.id, ms);
-  }
-  const ocupada = new Map<string, readonly number[]>();
-  for (const fila of servicios) {
-    const ms = fila.cita_id === null ? undefined : horaDe.get(fila.cita_id);
-    if (ms === undefined || fila.profesional_id === null) continue;
-    ocupada.set(fila.profesional_id, [...(ocupada.get(fila.profesional_id) ?? []), ms]);
-  }
-  return ocupada;
 }
 
 /** F-425 · Con quién viene siempre. Proponerla ahorra el toque más repetido. */
@@ -190,39 +172,6 @@ export function profesionalDeSiempre(
     }
   }
   return null;
-}
-
-/** Los próximos huecos que CABEN, repartidos entre días. */
-export function huecosDe(
-  desde: Date,
-  minutos: number,
-  profesionalId: string,
-  ocupada: ReadonlyMap<string, readonly number[]>,
-  cuantos: number,
-): readonly Hueco[] {
-  const encontrados: Hueco[] = [];
-  const largoMs = minutos * 60_000;
-  const bloques = ocupada.get(profesionalId) ?? [];
-  for (let dia = 0; dia < DIAS_HORIZONTE && encontrados.length < cuantos; dia += 1) {
-    let enEsteDia = 0;
-    let libreDesde = 0;
-    for (let min = APERTURA_MIN; min + minutos <= CIERRE_MIN; min += PASO_MIN) {
-      if (enEsteDia >= MAX_POR_DIA || encontrados.length >= cuantos) break;
-      const inicio = new Date(desde);
-      inicio.setDate(inicio.getDate() + dia);
-      inicio.setHours(0, min, 0, 0);
-      const t = inicio.getTime();
-      if (t < desde.getTime() || t < libreDesde) continue;
-      const choca = bloques.some(
-        (ms) => t < ms + DURACION_POR_OMISION_MIN * 60_000 && ms < t + largoMs,
-      );
-      if (choca) continue;
-      encontrados.push({ profesionalId, inicio });
-      enEsteDia += 1;
-      libreDesde = t + SEPARACION_MIN * 60_000;
-    }
-  }
-  return encontrados;
 }
 
 function aMedianoche(fecha: Date): number {
@@ -346,6 +295,16 @@ export function Agendar({
   // Cada intento de lectura es un número: el botón de reintentar lo sube y el
   // efecto lee otra vez. El estado se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
+  const enrutador = useRouter();
+  /** Quién da el servicio elegido; nulo mientras no se lee (entonces, todas). */
+  const [asignaciones, setAsignaciones] = useState<readonly AsignacionGuardada[] | null>(null);
+  /** Las ventanas libres del servidor, de todas las que lo pueden dar. */
+  const [huecosLeidos, setHuecosLeidos] = useState<readonly HuecoDelServidor[]>([]);
+  const [falloDeHuecos, setFalloDeHuecos] = useState<string | null>(null);
+  /** Los materiales de cabina que no alcanzan para el servicio elegido. */
+  const [faltaEnCabina, setFaltaEnCabina] = useState<readonly string[]>([]);
+  /** Si se llegó desde la lista de espera: la espera que esta cita cumple. */
+  const [esperaId, setEsperaId] = useState<string | null>(null);
 
   useEffect(() => {
     if (serviciosIniciales !== undefined) return;
@@ -397,22 +356,107 @@ export function Agendar({
     setIntento((previo) => previo + 1);
   }
 
-  useEffect(() => {
-    const alTeclear = (evento: KeyboardEvent) => {
-      if (evento.key !== 'Escape') return;
+  // ESC cierra; Enter agenda la hora elegida; ← → mueven la semana. Enter y las flechas
+  // no se roban dentro de un campo: ahí son del texto.
+  const alTeclear = useEffectEvent((evento: KeyboardEvent) => {
+    if (evento.key === 'Escape') {
       if (onCancelar === undefined) window.history.back();
       else onCancelar();
-    };
+      return;
+    }
+    const enCampo =
+      evento.target instanceof HTMLInputElement || evento.target instanceof HTMLTextAreaElement;
+    if (enCampo || enviando) return;
+    if (evento.key === 'Enter' && elegido !== null && servicioId !== null) {
+      evento.preventDefault();
+      void confirmar();
+    } else if (evento.key === 'ArrowRight' || evento.key === 'ArrowLeft') {
+      evento.preventDefault();
+      moverSemana(evento.key === 'ArrowRight' ? 1 : -1);
+    }
+  });
+  useEffect(() => {
     window.addEventListener('keydown', alTeclear);
     return () => {
       window.removeEventListener('keydown', alTeclear);
     };
-  }, [onCancelar]);
+  }, []);
 
-  const ocupada = useMemo(() => ocupacionDe(citas, deCita), [citas, deCita]);
+  // Desde la lista de espera se llega con la clienta y la espera en la dirección.
+  useEffect(() => {
+    const parametros = new URLSearchParams(window.location.search);
+    const arranque = setTimeout(() => {
+      const clienta = parametros.get('clienta');
+      if (clienta !== null && clienta !== '') setClientaId(clienta);
+      const espera = parametros.get('espera');
+      if (espera !== null && espera !== '') setEsperaId(espera);
+    });
+    return () => {
+      clearTimeout(arranque);
+    };
+  }, []);
+
+  // Quién da el servicio elegido, con su factor (`servicios.asignaciones`).
+  useEffect(() => {
+    if (servicioId === null || serviciosIniciales !== undefined) return;
+    let vigente = true;
+    invocarComando<{ readonly asignaciones: readonly AsignacionGuardada[] }>(
+      '/api/servicios/asignaciones',
+      { servicioId },
+    )
+      .then((salida) => {
+        if (vigente) setAsignaciones(salida.asignaciones);
+      })
+      .catch(() => {
+        if (vigente) setAsignaciones(null);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [servicioId, serviciosIniciales]);
+
+  // ¿Alcanza el material de cabina para este servicio? (F-107)
+  useEffect(() => {
+    if (servicioId === null || serviciosIniciales !== undefined) return;
+    let vigente = true;
+    consultarPuente<LineaDeReceta>('RecetaEscandallo', {
+      filtro: { producto_id: servicioId },
+      limite: 60,
+    })
+      .then((lineas) => {
+        const consumo = consumoDeLaReceta(lineas);
+        if (consumo.length === 0) return { insumos: [] };
+        return invocarComando<{
+          readonly insumos: readonly { readonly nombre: string | null; readonly falta: boolean }[];
+        }>('/api/inventario/cabina/alcanza', { consumoEsperado: consumo });
+      })
+      .then((salida) => {
+        if (vigente)
+          setFaltaEnCabina(
+            salida.insumos.filter((i) => i.falta).map((i) => i.nombre ?? 'un material'),
+          );
+      })
+      .catch(() => {
+        if (vigente) setFaltaEnCabina([]);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [servicioId, serviciosIniciales]);
+
   const clientaElegida = clientas.find((fila) => fila.id === clientaId) ?? null;
   const servicioElegido = servicios?.find((fila) => fila.id === servicioId) ?? null;
-  const minutos = servicioElegido?.tiempo_preparacion_estimado ?? DURACION_POR_OMISION_MIN;
+  // Quién da el servicio elegido, con su factor. Sin asignaciones leídas, todas.
+  const quienesLoDan = useMemo(
+    () => (asignaciones === null ? null : new Set(asignaciones.map((a) => a.profesionalId))),
+    [asignaciones],
+  );
+  const factorDe = (id: string | null): number =>
+    asignaciones?.find((a) => a.profesionalId === id)?.factorDuracionBp ?? 10_000;
+  const minutos =
+    servicioElegido === null ? null : minutosDelServicio(servicioElegido, factorDe(profesionalId));
+  const equipoDelServicio =
+    quienesLoDan === null ? equipo : equipo.filter((fila) => quienesLoDan.has(fila.id));
 
   const coincidencias = useMemo(() => {
     const aguja = busqueda.trim().toLocaleLowerCase('es-MX');
@@ -428,23 +472,50 @@ export function Agendar({
     return Number.isNaN(pedida.getTime()) || pedida < ahora ? ahora : pedida;
   }, [desdeTexto, ahora]);
 
+  // LOS HUECOS, del servidor: dos semanas desde el día que se mira.
+  useEffect(() => {
+    if (minutos === null || serviciosIniciales !== undefined) return;
+    let vigente = true;
+    const hasta = new Date(desde.getTime() + 14 * DIA_MS);
+    invocarComando<{ readonly huecos: readonly HuecoDelServidor[] }>('/api/agenda/huecos', {
+      desde: diaIso(desde),
+      hasta: diaIso(hasta),
+      minutos,
+      profesionalId: null,
+    })
+      .then((salida) => {
+        if (!vigente) return;
+        setFalloDeHuecos(null);
+        setHuecosLeidos(salida.huecos.filter((h) => new Date(h.inicio).getTime() >= Date.now()));
+      })
+      .catch((fallo: unknown) => {
+        if (vigente) setFalloDeHuecos(mensajeDe(fallo));
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [minutos, desde, serviciosIniciales]);
+
+  /** La semana siguiente o la anterior, nunca antes de hoy. */
+  function moverSemana(direccion: 1 | -1): void {
+    const otra = new Date(desde.getTime() + direccion * 7 * DIA_MS);
+    setDesdeTexto(otra < ahora ? '' : diaIso(otra));
+    setElegido(null);
+  }
+
   const huecos = useMemo(
     () =>
-      profesionalId === null
-        ? []
-        : huecosDe(desde, minutos, profesionalId, ocupada, HUECOS_QUE_CABEN),
-    [desde, minutos, profesionalId, ocupada],
+      huecosParaOfrecer(
+        huecosLeidos.filter((h) => h.profesionalId === profesionalId),
+        HUECOS_QUE_CABEN,
+      ),
+    [huecosLeidos, profesionalId],
   );
 
   /** Lo que salva la venta cuando la de siempre está llena. No se empuja. */
   const conOtraPersona = useMemo(
-    () =>
-      equipo
-        .filter((fila) => fila.id !== profesionalId)
-        .map((fila) => huecosDe(desde, minutos, fila.id, ocupada, 1)[0])
-        .filter((hueco): hueco is Hueco => hueco !== undefined)
-        .slice(0, 2),
-    [equipo, profesionalId, desde, minutos, ocupada],
+    () => primerosConOtraPersona(huecosLeidos, profesionalId, quienesLoDan),
+    [huecosLeidos, profesionalId, quienesLoDan],
   );
 
   const primero = huecos[0];
@@ -489,7 +560,12 @@ export function Agendar({
         inicio: elegido.inicio.toISOString(),
         servicios: [{ servicioId, profesionalId: elegido.profesionalId }],
       });
-      onAgendada?.(cita.citaId);
+      // Si venía de la lista de espera, la espera se ata a su cita: ya no espera.
+      if (esperaId !== null) {
+        await invocarComando(`/api/lista-espera/${esperaId}/agendar`, { citaId: cita.citaId });
+      }
+      if (onAgendada === undefined) enrutador.push('/estetica-salon/agenda-del-dia');
+      else onAgendada(cita.citaId);
     } catch (fallo) {
       setError(mensajeDe(fallo));
     } finally {
@@ -793,7 +869,7 @@ export function Agendar({
                     </span>
                     {/* La duración decide qué huecos caben: por eso va en la tesela. */}
                     <Cifra
-                      valor={fila.tiempo_preparacion_estimado ?? DURACION_POR_OMISION_MIN}
+                      valor={minutosDelServicio(fila)}
                       unidad="min"
                       tamano="sm"
                       className="text-texto-sutil"
@@ -802,6 +878,12 @@ export function Agendar({
                 </li>
               ))}
             </ul>
+            {faltaEnCabina.length === 0 ? null : (
+              <Aviso tono="atencion" titulo="El material de cabina no alcanza para este servicio.">
+                Falta {faltaEnCabina.join(', ')}. Se puede agendar; ábrelo del anaquel antes de la
+                cita.
+              </Aviso>
+            )}
           </section>
 
           <section className={clasePaso(paso === 2)} aria-labelledby="paso-con-quien">
@@ -811,8 +893,14 @@ export function Agendar({
               pregunta="¿Con quién?"
               hecho={listo.conQuien}
             />
+            {quienesLoDan !== null && quienesLoDan.size === 0 ? (
+              <Aviso tono="atencion" titulo="Nadie da este servicio todavía.">
+                Márcalo en el catálogo de servicios, en «Quién lo da»: sin eso la agenda no lo deja
+                agendar.
+              </Aviso>
+            ) : null}
             <ul className="grid grid-cols-2 gap-(--espacio-2) md:grid-cols-3 xl:grid-cols-2">
-              {equipo.map((fila) => (
+              {equipoDelServicio.map((fila) => (
                 <li key={fila.id}>
                   <Superficie
                     como="button"
@@ -857,6 +945,11 @@ export function Agendar({
                 titulo="Elige con quién y aquí aparecen los huecos que caben."
                 className="px-0 py-(--espacio-6)"
               />
+            )}
+            {falloDeHuecos === null ? null : (
+              <Aviso tono="atencion" titulo="No se pudieron leer los huecos.">
+                {falloDeHuecos} Vuelve a elegir el servicio para intentarlo otra vez.
+              </Aviso>
             )}
             {/* Nunca un «sin resultados» a secas: es una venta que se está perdiendo.
                 Se dice con palabras, abajo van los de la siguiente semana y la lista

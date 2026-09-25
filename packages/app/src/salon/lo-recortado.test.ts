@@ -85,7 +85,7 @@ describe('agenda.anotar', () => {
     await expect(anotarCita.ejecutar(ctx, { citaId: CITA, notas: 'algo' })).rejects.toMatchObject({
       codigo: 'PUENTE_SIN_PERMISO',
     });
-    expect(conexion.consultas.some((c) => /update "citas"/.test(c.sql))).toBe(false);
+    expect(conexion.consultas.some((c) => c.sql.includes('update "citas"'))).toBe(false);
     expect(conexion.consultas[0]?.parameters).toContain(EMPLEO);
   });
 
@@ -106,9 +106,18 @@ describe('cabina.existencias', () => {
         { id: 'alm-cabina', principal: false },
       ],
       [
-        { id: 'p-tinte', insumo_base_id: 'i-tinte', destino: 'ambos', unidad_cabina: 'g' },
-        { id: 'p-shampoo', insumo_base_id: 'i-shampoo', destino: 'venta', unidad_cabina: null },
+        { id: 'p-tinte', destino: 'ambos', unidad_cabina: 'g' },
+        { id: 'p-shampoo', destino: 'venta', unidad_cabina: null },
+        { id: 'p-corte', destino: 'venta', unidad_cabina: null },
       ],
+      // La liga de REVENTA, `insumos.producto_id`: la que escribe el alta y descuenta
+      // la venta. Antes sólo se leía `insumo_base_id`, que en las demos no tiene nadie,
+      // y la pantalla pintaba «—» en todo el anaquel.
+      [
+        { id: 'i-tinte', producto_id: 'p-tinte' },
+        { id: 'i-shampoo', producto_id: 'p-shampoo' },
+      ],
+      [],
       [
         { almacen_id: 'alm-venta', insumo_id: 'i-tinte', cantidad: '4.0000' },
         { almacen_id: 'alm-cabina', insumo_id: 'i-tinte', cantidad: '130.0000' },
@@ -117,6 +126,7 @@ describe('cabina.existencias', () => {
     ]);
     const { ctx } = contextoFalso(tx, ambitoDe('gerente'), AHORA);
     const { existencias } = await existenciasDelSalon.ejecutar(ctx, {});
+    // El corte —un servicio— no lleva existencia: no sale.
     expect(existencias).toEqual([
       {
         productoId: 'p-tinte',
@@ -133,10 +143,32 @@ describe('cabina.existencias', () => {
         unidadCabina: null,
       },
     ]);
-    const lectura = conexion.consultas[2];
+    const lectura = conexion.consultas[4];
     expect(lectura?.sql).toMatch(/"almacen_id" in \(\$\d+, \$\d+\)/);
     expect(lectura?.parameters.slice(0, 3)).toEqual([ORG, 'alm-venta', 'alm-cabina']);
     expect(conexion.consultas[0]?.parameters).toEqual([ORG, SUCURSAL, true]);
+  });
+
+  it('SIN ALMACÉN DE CABINA el anaquel se sigue contando', async () => {
+    // Antes la lectura entera fallaba y la pantalla, que la toma como ayuda, callaba.
+    const { tx } = transaccionGrabadora([
+      [{ id: 'alm-venta', principal: true }],
+      [{ id: 'p-tinte', destino: 'ambos', unidad_cabina: 'g' }],
+      [{ id: 'i-tinte', producto_id: 'p-tinte' }],
+      [],
+      [{ almacen_id: 'alm-venta', insumo_id: 'i-tinte', cantidad: '4.0000' }],
+    ]);
+    const { ctx } = contextoFalso(tx, ambitoDe('gerente'), AHORA);
+    const { existencias } = await existenciasDelSalon.ejecutar(ctx, {});
+    expect(existencias).toEqual([
+      {
+        productoId: 'p-tinte',
+        insumoId: 'i-tinte',
+        enAnaquel: '4.0000',
+        enCabina: null,
+        unidadCabina: null,
+      },
+    ]);
   });
 });
 
@@ -186,6 +218,29 @@ describe('comision.guardar_regla', () => {
     expect(conexion.consultas).toHaveLength(1);
   });
 
+  it('el ESCALONADO se guarda como lo lee el cálculo: hastaCentavos y tasaBp', async () => {
+    const { tx, conexion } = transaccionGrabadora([[{ id: NUEVA }]]);
+    const { ctx } = contextoFalso(tx, ambitoDe('dueno'), AHORA);
+    await guardarRegla.ejecutar(
+      ctx,
+      guardarRegla.entrada.parse({
+        ...REGLA_45,
+        reglaId: null,
+        esquema: 'escalonado',
+        escalones: [
+          { hastaCentavos: 1_000_000, tasaBp: 3_000 },
+          { hastaCentavos: 99_999_999, tasaBp: 4_500 },
+        ],
+      }),
+    );
+    const inserta = conexion.consultas[0];
+    const json = inserta?.parameters.find((p) => typeof p === 'string' && p.startsWith('['));
+    expect(JSON.parse(String(json))).toEqual([
+      { hastaCentavos: 1_000_000, tasaBp: 3_000 },
+      { hastaCentavos: 99_999_999, tasaBp: 4_500 },
+    ]);
+  });
+
   it('una escalonada sin escalones no pasa el esquema', () => {
     const intento = guardarRegla.entrada.safeParse({ ...REGLA_45, esquema: 'escalonado' });
     expect(intento.success).toBe(false);
@@ -201,7 +256,7 @@ describe('comision.asignar_regla', () => {
     await expect(
       asignarRegla.ejecutar(ctx, { profesionalId: KARLA, reglaId: REGLA }),
     ).rejects.toMatchObject({ codigo: 'PUENTE_NO_ENCONTRADO' });
-    expect(conexion.consultas.some((c) => /update "profesionales"/.test(c.sql))).toBe(false);
+    expect(conexion.consultas.some((c) => c.sql.includes('update "profesionales"'))).toBe(false);
   });
 
   it('quitar la regla propia no pregunta por ninguna regla', async () => {

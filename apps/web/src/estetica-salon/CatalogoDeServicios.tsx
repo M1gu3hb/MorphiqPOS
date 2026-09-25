@@ -27,6 +27,16 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { QuienDaElServicio } from './QuienDaElServicio.tsx';
+import {
+  asignacionesParaEditar,
+  asignacionesParaGuardar,
+  type AsignacionEditable,
+  type AsignacionGuardada,
+  type AsignacionParaGuardar,
+  type ProfesionalDelSalon,
+} from './quien-da-el-servicio.ts';
+
 /**
  * PANTALLA · estetica-salon · catalogo-de-servicios
  *
@@ -67,13 +77,17 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * la lista y el panel lado a lado, el movimiento dice cuál es la que se está
  * editando sin tener que buscarla.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben el catálogo, la secuencia de duración y el precio base. Queda fuera la
- * asignación por profesional con su factor, que vive en la ficha de cada una.
+ * ── Quién lo da, aquí mismo (C.10 de la 2.4) ────────────────────────────
+ * Cada servicio dice qué profesional lo da, en cuánto tiempo respecto al del
+ * catálogo y a qué precio (`QuienDaElServicio`). Sin eso la agenda no lo deja
+ * agendar con nadie. Y se guarda TODO en un comando, `servicios.guardar`: antes esta
+ * pantalla publicaba en los comandos de producto un cuerpo que ninguno aceptaba —no
+ * se podía dar de alta ni corregir un servicio— y las duraciones no se escribían en
+ * ninguna parte.
  */
 
-const RUTA_CREAR = '/api/catalogo/productos/crear';
-const RUTA_ACTUALIZAR = '/api/catalogo/productos/actualizar';
+const RUTA_GUARDAR = '/api/servicios/guardar';
+const RUTA_ASIGNACIONES = '/api/servicios/asignaciones';
 
 /** Los cuatro tramos, con el nombre que se usa en el salón. */
 const TRAMOS = [
@@ -174,6 +188,13 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
   const [ocupado, setOcupado] = useState(false);
   const [guardado, setGuardado] = useState<EstadoDeGuardado>('quieto');
   const [viaje, setViaje] = useState<Viaje | null>(null);
+  /** El equipo del salón: las filas de «quién lo da». */
+  const [profesionales, setProfesionales] = useState<readonly ProfesionalDelSalon[] | null>(null);
+  /** Lo guardado del servicio abierto; nulo mientras se lee. */
+  const [guardadas, setGuardadas] = useState<readonly AsignacionGuardada[] | null>(null);
+  /** Lo que se está editando; nulo mientras no se toque nada. */
+  const [editadas, setEditadas] = useState<readonly AsignacionEditable[] | null>(null);
+  const [falloDeAsignaciones, setFalloDeAsignaciones] = useState<string | null>(null);
   /**
    * El formulario que se está llenando. Sube al abrir un servicio o empezar uno
    * nuevo, y es la `key` del campo de dinero: su texto se rehace desde los centavos
@@ -188,6 +209,16 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
+      consultarPuente<ProfesionalDelSalon>('Profesional', { limite: 100, signal: control.signal })
+        .then((filas) => {
+          if (sigueMontada()) setProfesionales(filas);
+        })
+        .catch((fallo: unknown) => {
+          if (sigueMontada())
+            setFalloDeAsignaciones(
+              fallo instanceof Error ? fallo.message : 'No se pudo leer el equipo.',
+            );
+        });
       consultarPuente<ServicioDelCatalogo>('ProductoTerminado', {
         // `tipo_venta`, que es la columna. Aquí decía `tipo`, que no es campo de
         // `ProductoTerminado`: el puente contestaba 400 y el `.catch` de abajo lo
@@ -237,6 +268,22 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
     setError(null);
     setGuardado('quieto');
     setFormulario((previo) => previo + 1);
+    leerAsignaciones(servicio.id);
+  }
+
+  /** Quién da el servicio abierto, con su tiempo y su precio. */
+  function leerAsignaciones(servicioId: string): void {
+    setGuardadas(null);
+    setEditadas(null);
+    invocarComando<{ readonly asignaciones: readonly AsignacionGuardada[] }>(RUTA_ASIGNACIONES, {
+      servicioId,
+    })
+      .then((leidas) => {
+        setGuardadas(leidas.asignaciones);
+      })
+      .catch((fallo: unknown) => {
+        setFalloDeAsignaciones(mensajeDe(fallo));
+      });
   }
 
   /**
@@ -269,6 +316,9 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
     setError(null);
     setGuardado('quieto');
     setFormulario((previo) => previo + 1);
+    // Un servicio nuevo no lo da nadie todavía: se marca a mano.
+    setGuardadas([]);
+    setEditadas(null);
     /**
      * Y EL FOCO AL NOMBRE, que es lo que faltaba para que el botón haga algo.
      *
@@ -278,6 +328,13 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
      * cualquiera espera de «Nuevo», y además se nota.
      */
     nombreRef.current?.focus();
+  }
+
+  /** Lo que se enseña en «quién lo da»: lo editado, o lo guardado con el equipo leído. */
+  function asignacionesVisibles(): readonly AsignacionEditable[] | null {
+    if (editadas !== null) return editadas;
+    if (guardadas === null || profesionales === null) return null;
+    return asignacionesParaEditar(profesionales, guardadas);
   }
 
   function guardar(): void {
@@ -301,34 +358,51 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
       return;
     }
 
+    // Quién lo da viaja sólo si se leyó: sin la lista, guardar no la toca.
+    let quienLoDa: AsignacionParaGuardar[] | undefined;
+    const lista = asignacionesVisibles();
+    if (lista !== null && falloDeAsignaciones === null) {
+      const revisadas = asignacionesParaGuardar(lista);
+      if (!revisadas.ok) {
+        setError(revisadas.problema);
+        return;
+      }
+      quienLoDa = revisadas.asignaciones;
+    }
+
     setOcupado(true);
     setError(null);
     setGuardado('guardando');
-    const cuerpo = {
+    invocarComando<{ readonly servicioId: string }>(RUTA_GUARDAR, {
+      servicioId: elegido?.id ?? null,
       nombre: nombre.trim(),
-      precioVentaCentavos: centavos,
+      precioCentavos: centavos,
       duracionActiva1Min: activa1,
       duracionPasivaMin: pasiva,
       duracionActiva2Min: activa2,
       duracionCierreMin: Number(minutos.cierre) || 0,
       pasivoIntercalable: intercalable,
-    };
-    const promesa =
-      elegido === null
-        ? invocarComando<ServicioDelCatalogo>(RUTA_CREAR, { ...cuerpo, tipo: 'servicio' })
-        : invocarComando<ServicioDelCatalogo>(RUTA_ACTUALIZAR, {
-            productoId: elegido.id,
-            ...cuerpo,
-          });
-
-    promesa
-      .then((recibido) => {
-        setServicios(
-          elegido === null
-            ? [...(servicios ?? []), recibido]
-            : (servicios ?? []).map((s) => (s.id === elegido.id ? recibido : s)),
-        );
-        setElegido(recibido);
+      ...(quienLoDa === undefined ? {} : { profesionales: quienLoDa }),
+    })
+      .then(async ({ servicioId }) => {
+        // Se relee: el alta trae su id nuevo y el catálogo lo pinta del puente.
+        const filas = await consultarPuente<ServicioDelCatalogo>('ProductoTerminado', {
+          filtro: { tipo_venta: 'servicio' },
+          limite: 200,
+        });
+        setServicios(filas);
+        setElegido(filas.find((s) => s.id === servicioId) ?? null);
+        if (quienLoDa !== undefined) {
+          setGuardadas(
+            quienLoDa.map((a) => ({
+              servicioId,
+              profesionalId: a.profesionalId,
+              precioCentavos: a.precioCentavos === null ? null : String(a.precioCentavos),
+              factorDuracionBp: a.factorDuracionBp,
+            })),
+          );
+          setEditadas(null);
+        }
         setGuardado('guardado');
       })
       .catch((fallo: unknown) => {
@@ -616,6 +690,13 @@ export function CatalogoDeServicios({ serviciosIniciales }: CatalogoDeServiciosP
                 </Superficie>
               )}
             </section>
+
+            <QuienDaElServicio
+              asignaciones={asignacionesVisibles()}
+              falloDeLectura={falloDeAsignaciones}
+              minutosActivos={(Number(minutos.activa1) || 0) + (Number(minutos.activa2) || 0)}
+              alCambiar={setEditadas}
+            />
           </div>
 
           {/* GUARDAR, la acción principal, siempre a la vista: en la tableta el

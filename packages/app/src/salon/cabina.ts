@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { z } from 'zod';
 
+import { insumoDelProducto } from '../catalogo/insumo-del-producto.ts';
 import { definirComando, type ContextoComando } from '../definicion.ts';
 
 /**
@@ -48,6 +49,24 @@ const CABINA = ['mesero', 'cajero', 'gerente', 'administrador', 'dueno'] as cons
 export async function almacenesDelSalon(
   ctx: ContextoComando<Transaccion>,
 ): Promise<{ readonly venta: string; readonly cabina: string }> {
+  const { venta, cabina } = await almacenesParaLeer(ctx);
+  if (cabina === null) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Este negocio no tiene almacén de CABINA: lo que se abre para mezclar se cuenta aparte de ' +
+        'lo que se vende, o el inventario del anaquel miente. Da de alta un segundo almacén.',
+    );
+  }
+  return { venta, cabina };
+}
+
+/**
+ * Los mismos dos almacenes, para LEER: sin el de cabina el anaquel se sigue pudiendo
+ * contar (`cabina.existencias`). Escribir en cabina sí lo exige: ver arriba.
+ */
+export async function almacenesParaLeer(
+  ctx: ContextoComando<Transaccion>,
+): Promise<{ readonly venta: string; readonly cabina: string | null }> {
   const { organizacionId, sucursalId } = ctx.ambito;
   if (sucursalId === null) {
     throw new ErrorDominio(
@@ -66,21 +85,14 @@ export async function almacenesDelSalon(
       .execute(),
   );
   const venta = almacenes.find((a) => a.principal) ?? almacenes[0];
-  const cabina = almacenes.find((a) => a.id !== venta?.id);
   if (venta === undefined) {
     throw new ErrorDominio(
       'CONFIGURACION_INVALIDA',
       'Esta sucursal no tiene almacén dado de alta.',
     );
   }
-  if (cabina === undefined) {
-    throw new ErrorDominio(
-      'CONFIGURACION_INVALIDA',
-      'Este negocio no tiene almacén de CABINA: lo que se abre para mezclar se cuenta aparte de ' +
-        'lo que se vende, o el inventario del anaquel miente. Da de alta un segundo almacén.',
-    );
-  }
-  return { venta: venta.id, cabina: cabina.id };
+  const cabina = almacenes.find((a) => a.id !== venta.id);
+  return { venta: venta.id, cabina: cabina?.id ?? null };
 }
 
 export const entradaAbrirProducto = z.object({
@@ -209,7 +221,7 @@ export const abrirProducto = definirComando<
     const producto = await ctx.paso('leer_producto', () =>
       ctx.tx
         .selectFrom('productos')
-        .select(['id', 'nombre', 'destino', 'factor_apertura', 'unidad_cabina', 'insumo_base_id'])
+        .select(['id', 'nombre', 'destino', 'factor_apertura', 'unidad_cabina'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.productoId)
         .executeTakeFirst(),
@@ -227,7 +239,12 @@ export const abrirProducto = definirComando<
     }
     const factor = producto.factor_apertura;
     const unidad = producto.unidad_cabina;
-    const insumoId = producto.insumo_base_id;
+    // El insumo por la liga de REVENTA (`insumos.producto_id`), la que escribe el alta y
+    // descuenta la venta; leer sólo `insumo_base_id` dejaba sin abrir todo producto
+    // dado de alta como se da de alta.
+    const insumoId = await ctx.paso('leer_insumo', () =>
+      insumoDelProducto(ctx.tx, organizacionId, producto.id),
+    );
     if (factor == null || unidad == null || insumoId === null) {
       // El `check` de la 141 lo exige, pero aquí se puede decir QUÉ falta: un
       // 23514 sólo diría que algo de la ficha está a medias.

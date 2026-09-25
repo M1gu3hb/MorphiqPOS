@@ -15,10 +15,15 @@ import {
 } from '@morphiqpos/ui/sistema';
 import { CalendarPlus, ChevronLeft, ChevronRight, Plus, TriangleAlert, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useId, useRef, useState, type Ref } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState, type Ref } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { AvisoDeAgendaSinConexion, useEnLinea } from '~/cliente/en-linea';
+import { Sheet, SheetContent, SheetTitle } from '@morphiqpos/ui/primitivas/sheet';
+
+import { accionDeTeclaEnLaAgenda } from './atajos-de-la-agenda.ts';
+import { ListaDeEspera } from './ListaDeEspera.tsx';
 
 // La colocación de los bloques vive aparte: es aritmética pura y así se puede
 // afirmar sin navegador. Ver `agenda-geometria.ts`.
@@ -65,12 +70,19 @@ type Vocabulario = ReturnType<typeof useVocabulario>;
  * Lo único monetario permitido es el VALOR DEL HUECO, porque es exactamente lo
  * que dispara la acción de llenarlo.
  *
- * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
- * Quedan FUERA: la lista de espera (tiene su propia entrada del puente), los
- * atajos de teclado, la franja de sin conexión con su cola de «llegó/no llegó»,
- * el cajón de pendientes de la tablet, y el recorte de `ver_agenda_ajena` —que
- * el puente ya resuelve al filtrar las filas, así que aquí llega como una
- * columna sola sin código de por medio.
+ * ── Lo que acompaña a la rejilla (C.10 de la 2.4) ───────────────────────
+ * - La LISTA DE ESPERA en el panel de pendientes (`ListaDeEspera`,
+ *   `lista_espera_citas.lista`): avisar desde el WhatsApp de quien atiende, agendar
+ *   con la clienta ya elegida, o quitarla.
+ * - En la TABLETA el panel es un cajón que se abre desde el encabezado; en la PC
+ *   sigue a la derecha, abierto.
+ * - ATAJOS de PC: ← → día, H hoy, N nueva cita, W walk-in, / buscar clienta, ESC
+ *   cierra el cajón.
+ * - SIN CONEXIÓN se dice en una franja: la agenda queda como se leyó y no se puede
+ *   marcar llegó ni no llegó, ni agendar. No hay cola local: es la decisión A-27
+ *   (F-988 en EXCEPCIONES), toda la lógica vive en el servidor.
+ * - La estilista ve SU columna sola: lo recorta el servidor (`agenda.dia`, C.10),
+ *   no esta pantalla.
  */
 
 /**
@@ -975,7 +987,8 @@ interface PanelDePendientesProps {
  * dos listas a mano: la hora, quién y cuánto, alineados; y el hueco se toca igual
  * que en la rejilla, con el dedo o con Enter.
  */
-function PanelDePendientes({
+/** Lo del panel, para el costado de la PC y para el cajón de la tableta. */
+function ContenidoDePendientes({
   sinConfirmar,
   huecos,
   huecosLeidos,
@@ -984,12 +997,7 @@ function PanelDePendientes({
 }: PanelDePendientesProps) {
   const voc = useVocabulario();
   return (
-    <Superficie
-      como="aside"
-      aria-label="Pendientes del día"
-      relleno={4}
-      className={`hidden w-80 shrink-0 flex-col gap-(--espacio-6) overflow-y-auto xl:flex ${ALTO_DEL_MARCO}`}
-    >
+    <>
       <section aria-label="Sin confirmar" className="flex flex-col gap-(--espacio-2)">
         <h2 className="flex items-baseline justify-between text-sm font-semibold">
           Sin confirmar
@@ -1039,6 +1047,20 @@ function PanelDePendientes({
           }
         />
       </section>
+      <ListaDeEspera />
+    </>
+  );
+}
+
+function PanelDePendientes(props: PanelDePendientesProps) {
+  return (
+    <Superficie
+      como="aside"
+      aria-label="Pendientes del día"
+      relleno={4}
+      className={`hidden w-80 shrink-0 flex-col gap-(--espacio-6) overflow-y-auto xl:flex ${ALTO_DEL_MARCO}`}
+    >
+      <ContenidoDePendientes {...props} />
     </Superficie>
   );
 }
@@ -1093,6 +1115,9 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
   const [huecosLeidos, setHuecosLeidos] = useState(true);
   /** Iniciar una cita falló: se dice qué NO pasó. */
   const [falloAlIniciar, setFalloAlIniciar] = useState<string | null>(null);
+  /** El cajón de pendientes de la tableta. */
+  const [cajonAbierto, setCajonAbierto] = useState(false);
+  const enLinea = useEnLinea();
   const rejilla = useRef<HTMLElement>(null);
   const centrada = useRef(false);
 
@@ -1361,6 +1386,26 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
     olvidarAvisos();
     setDia((actual) => actual + n);
   };
+
+  const alTeclearAtajo = useEffectEvent((evento: KeyboardEvent) => {
+    const accion = accionDeTeclaEnLaAgenda(evento);
+    if (accion === null) return;
+    evento.preventDefault();
+    if (accion === 'anterior') mover(-1)();
+    else if (accion === 'siguiente') mover(1)();
+    else if (accion === 'hoy') {
+      olvidarAvisos();
+      setDia(0);
+    } else if (accion === 'nueva' || accion === 'walk_in') irAAgendar();
+    else if (accion === 'buscar') enrutador.push('/estetica-salon/clientas');
+    else setCajonAbierto(false);
+  });
+  useEffect(() => {
+    window.addEventListener('keydown', alTeclearAtajo);
+    return () => {
+      window.removeEventListener('keydown', alTeclearAtajo);
+    };
+  }, []);
   const filtrar = (n: string | null) => () => {
     setSoloDe(n);
   };
@@ -1372,14 +1417,46 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
     setIntento((previo) => previo + 1);
   };
 
+  const pendientes = {
+    sinConfirmar,
+    huecos: resumen.huecos,
+    huecosLeidos,
+    valor: resumen.valor,
+    alTocar,
+  };
+
   const encabezado = (
-    <Encabezado
-      fecha={msDia === null ? 'Agenda' : DIA.format(msDia)}
-      dia={dia}
-      mover={mover}
-      resumen={estadoDelResumen(falloDeCarga, bloques, resumen)}
-      huecosLeidos={huecosLeidos}
-    />
+    <>
+      <Encabezado
+        fecha={msDia === null ? 'Agenda' : DIA.format(msDia)}
+        dia={dia}
+        mover={mover}
+        resumen={estadoDelResumen(falloDeCarga, bloques, resumen)}
+        huecosLeidos={huecosLeidos}
+      />
+      {enLinea ? null : <AvisoDeAgendaSinConexion />}
+      {/* En la tableta el panel de pendientes es un CAJÓN: la rejilla se queda con el
+          ancho, y quien puede actuar sobre la lista lo abre. */}
+      <div className="flex justify-end xl:hidden">
+        <Button
+          variant="outline"
+          onClick={() => {
+            setCajonAbierto(true);
+          }}
+        >
+          Pendientes
+          <Badge variant="secondary">{sinConfirmar.length + resumen.huecos.length}</Badge>
+        </Button>
+      </div>
+      <Sheet open={cajonAbierto} onOpenChange={setCajonAbierto}>
+        <SheetContent side="right" className="w-80 overflow-y-auto p-(--espacio-4)">
+          <SheetTitle>Pendientes del día</SheetTitle>
+          <div className="flex flex-col gap-(--espacio-6)">
+            <ContenidoDePendientes {...pendientes} />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 
   // AGENDAR va también en el error y en el esqueleto: es el «control fijo, siempre
@@ -1493,13 +1570,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
           alTocar={alTocar}
           refDelMarco={rejilla}
         />
-        <PanelDePendientes
-          sinConfirmar={sinConfirmar}
-          huecos={resumen.huecos}
-          huecosLeidos={huecosLeidos}
-          valor={resumen.valor}
-          alTocar={alTocar}
-        />
+        <PanelDePendientes {...pendientes} />
       </div>
       <BarraDeAgendar alAgendar={irAAgendar} />
     </div>

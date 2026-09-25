@@ -38,9 +38,12 @@ export const entradaGuardarRegla = z
     sobreIva: z.boolean(),
     material: z.enum(['salon', 'descuenta_base', 'cobra_profesional']),
     reparto: z.enum(['por_servicio', 'todo_a_quien_tomo']).default('por_servicio'),
-    /** Para el escalonado: desde cuánto causado del periodo aplica cada tasa. */
+    /**
+     * Para el escalonado: HASTA cuánto acumulado aplica cada tasa, en el formato que lee
+     * el cálculo (`leerEscalones` de `salon/cobro.ts`): `{ hastaCentavos, tasaBp }`.
+     */
     escalones: z
-      .array(z.object({ desdeCentavos: z.number().int().min(0), tasaBp: tasa }))
+      .array(z.object({ hastaCentavos: z.number().int().min(0), tasaBp: tasa }))
       .max(10)
       .nullable()
       .default(null),
@@ -163,7 +166,7 @@ async function leerRegla(ctx: ContextoComando<Transaccion>, reglaId: string) {
   if (regla === undefined) {
     throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Esa regla no existe en este negocio.');
   }
-  return { ...regla, vigente_desde: String(regla.vigente_desde).slice(0, 10) };
+  return { ...regla, vigente_desde: regla.vigente_desde.slice(0, 10) };
 }
 
 export const entradaAsignarRegla = z.object({
@@ -246,7 +249,7 @@ export const pendientesPorProfesional = definirComando<
     const porPersona = new Map<string, { causado: bigint; liquidado: bigint }>();
     for (const fila of filas) {
       const suma = porPersona.get(fila.profesional_id) ?? { causado: 0n, liquidado: 0n };
-      const monto = BigInt(fila.monto_centavos);
+      const monto = fila.monto_centavos;
       porPersona.set(fila.profesional_id, {
         causado: suma.causado + monto,
         liquidado: suma.liquidado + (fila.liquidacion_id === null ? 0n : monto),

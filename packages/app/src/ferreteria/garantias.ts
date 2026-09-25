@@ -4,6 +4,7 @@ import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
+import { insumoDelProducto } from '../catalogo/insumo-del-producto.ts';
 import { definirComando } from '../definicion.ts';
 
 /**
@@ -105,7 +106,7 @@ export const recibirGarantia = definirComando<
     const producto = await ctx.paso('leer_producto', () =>
       ctx.tx
         .selectFrom('productos')
-        .select(['id', 'nombre', 'costo_unitario_centavos', 'insumo_base_id'])
+        .select(['id', 'nombre', 'costo_unitario_centavos'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.productoId)
         .executeTakeFirst(),
@@ -157,7 +158,12 @@ export const recibirGarantia = definirComando<
     // La pieza buena SALE del anaquel cuando se le repuso al cliente. Si sólo
     // se le recibió la fallada y se le prometió llamar, no salió nada y sumar
     // una salida aquí dejaría el inventario corto para siempre.
-    const insumoId = producto.insumo_base_id;
+    // El insumo por la liga de REVENTA, la del alta y la de la venta: leer sólo
+    // `insumo_base_id` dejaba la reposición SIN salida para todo producto dado de alta
+    // como se da de alta, y el anaquel quedaba con una pieza de más para siempre.
+    const insumoId = await ctx.paso('leer_insumo', () =>
+      insumoDelProducto(ctx.tx, organizacionId, producto.id),
+    );
     if (entrada.repuestaAlCliente && insumoId !== null) {
       await ctx.paso('salida_por_garantia', () =>
         ctx.tx

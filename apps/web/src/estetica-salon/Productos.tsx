@@ -7,6 +7,7 @@ import { Separator } from '@morphiqpos/ui/primitivas/separator';
 import {
   Aviso,
   Cifra,
+  Dinero,
   ErrorDePantalla,
   Esqueleto,
   EsqueletoDeLista,
@@ -17,12 +18,17 @@ import {
   conTransicion,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
-import { CalendarCheck, Check, Package, PackageOpen } from 'lucide-react';
+import { Check, Package, PackageOpen } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { KardexDelProducto } from '~/abarrotes/KardexDelProducto';
+
+import { LaCabinaContraLaAgenda } from './LaCabinaContraLaAgenda.tsx';
+import { sinServicios } from './productos-del-salon.ts';
 
 /**
  * PANTALLA · estetica-salon · productos
@@ -59,16 +65,15 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * VIAJA hasta ella (`VIAJE.fila`): con tres columnas en la PC, el movimiento dice
  * cuál se está editando sin tener que buscarla.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben el catálogo con su destino, el factor de apertura, abrir una pieza y
- * preguntar si alcanza. Queda fuera la compra, que es del tronco. Existencias,
- * precio y kardex no llegan en esta lectura: la pantalla no los inventa.
+ * ── Lo que se lee de cada producto (C.10 de la 2.4) ─────────────────────
+ * Cuánto hay en el anaquel, en piezas, y cuánto abierto en la cabina, en su unidad
+ * (`cabina.existencias`): el puente las suma y un tinte en piezas más gramos no es
+ * ni una cosa ni la otra. El precio del anaquel, y el kardex del producto en su
+ * ficha, con la apertura a cabina y el consumo de cada servicio.
  *
- * «¿Alcanza?» tampoco trae el nombre ni la unidad del material: `cabina.alcanza`
- * devuelve sólo el id del insumo. La pantalla los toma del producto de la lista que
- * se abre en ese insumo, y el que ningún producto surte se queda sin nombre. No dice
- * cuántos servicios lo piden ni para cuántos alcanza, como dibuja el §4.3.9: para eso
- * el comando tendría que devolverlo, con el nombre y la unidad del propio insumo.
+ * «¿Alcanza?» (`LaCabinaContraLaAgenda`) trae ya el nombre y la unidad de cada
+ * material, cuántos servicios de hoy lo piden y para cuántos alcanza, como dibuja el
+ * §4.3.9. La compra es del tronco: aquí se decide QUÉ comprar, no se compra.
  */
 
 /**
@@ -80,7 +85,6 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * La que se llama de verdad es `/api/productos/<id>/abrir`, y sí existe.
  */
 const rutaDeAbrir = (productoId: string): string => `/api/productos/${productoId}/abrir`;
-const RUTA_ALCANZA = '/api/inventario/cabina/alcanza';
 /**
  * La FICHA DE CABINA, que es lo que esta pantalla guarda.
  *
@@ -142,26 +146,23 @@ export interface ProductoDeSalon {
   /** El insumo en que se abre el producto (`insumo_base_id`), y su nombre. */
   readonly ingrediente_base_id?: string | null;
   readonly ingrediente_base_nombre?: string | null;
+  /** EN PESOS, como lo sirve el puente: el precio del anaquel. */
+  readonly precio_venta?: number | null;
+  /**
+   * Sólo la tienen los SERVICIOS (vive en `servicios`, que cuelga del producto). Aquí
+   * sirve para no listarlos: el corte y el tinte no están en el anaquel ni se abren en
+   * cabina, y salían como «Sólo se vende» con su «—» de existencia.
+   */
+  readonly duracion_activa_1_min?: number | null;
 }
 
-export interface FaltanteDeCabina {
+/** Cuánto hay de cada producto EN CADA LUGAR (`cabina.existencias`). */
+export interface ExistenciaDelSalon {
+  readonly productoId: string;
   readonly insumoId: string;
-  readonly hay: string;
-  readonly hara_falta: string;
-}
-
-/**
- * El material de un faltante, con su nombre y la unidad en que se mide en cabina.
- *
- * `cabina.alcanza` sólo devuelve el id del insumo. Lo que entra a cabina entra
- * abriendo un producto —`abrir_producto` mueve su `insumo_base_id`—, así que el
- * producto que se abre en ese insumo trae su nombre (`ingrediente_base_nombre`, del
- * propio insumo) y su unidad de cabina. Un insumo que ningún producto de la lista
- * surte se queda sin nombre, y la celda lo dice en vez de inventarlo.
- */
-interface MaterialDeCabina {
-  readonly nombre: string;
-  readonly unidad: string | null;
+  readonly enAnaquel: string;
+  readonly enCabina: string | null;
+  readonly unidadCabina: string | null;
 }
 
 /** Un comando que falló en la ficha, y lo que NO pasó por eso: de ESE intento, no de todos. */
@@ -241,80 +242,6 @@ interface Viaje {
 }
 
 /** El material del insumo, tomado del primer producto de la lista que se abre en él. */
-function materialDelInsumo(
-  productos: readonly ProductoDeSalon[],
-  insumoId: string,
-): MaterialDeCabina | null {
-  const producto = productos.find((p) => p.ingrediente_base_id === insumoId);
-  if (producto === undefined) return null;
-  return {
-    nombre: producto.ingrediente_base_nombre ?? producto.nombre,
-    unidad: producto.unidad_cabina,
-  };
-}
-
-/** Qué material es primero —sin él no se puede comprar nada—, y sus cifras con su unidad. */
-function columnasDeFaltante(
-  materialDe: (insumoId: string) => MaterialDeCabina | null,
-): readonly ColumnaDeTabla<FaltanteDeCabina>[] {
-  const unidadDe = (f: FaltanteDeCabina): string | undefined =>
-    materialDe(f.insumoId)?.unidad ?? undefined;
-  return [
-    {
-      clave: 'material',
-      titulo: 'Material',
-      celda: (f) => {
-        const material = materialDe(f.insumoId);
-        return material === null ? (
-          <span className="text-texto-sutil">Nada de la lista se abre en él</span>
-        ) : (
-          <span className="font-medium">{material.nombre}</span>
-        );
-      },
-    },
-    {
-      clave: 'hay',
-      titulo: 'Hay',
-      numerica: true,
-      celda: (f) => (
-        <Cifra
-          valor={Number(f.hay)}
-          unidad={unidadDe(f)}
-          decimales={decimalesDe(f.hay)}
-          tamano="sm"
-        />
-      ),
-    },
-    {
-      clave: 'hara_falta',
-      titulo: 'Hacen falta',
-      numerica: true,
-      celda: (f) => (
-        <Cifra
-          valor={Number(f.hara_falta)}
-          unidad={unidadDe(f)}
-          decimales={decimalesDe(f.hara_falta)}
-          tamano="sm"
-        />
-      ),
-    },
-    {
-      clave: 'faltan',
-      titulo: 'Faltan',
-      numerica: true,
-      celda: (f) => (
-        <Cifra
-          valor={Number(f.hara_falta) - Number(f.hay)}
-          unidad={unidadDe(f)}
-          decimales={Math.max(decimalesDe(f.hay), decimalesDe(f.hara_falta))}
-          tamano="sm"
-          className="font-semibold"
-        />
-      ),
-    },
-  ];
-}
-
 export function Productos({ productosIniciales }: ProductosProps) {
   const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoDeSalon[] | null>(
@@ -328,15 +255,18 @@ export function Productos({ productosIniciales }: ProductosProps) {
   const [factor, setFactor] = useState('');
   const [unidad, setUnidad] = useState('');
   const [piezas, setPiezas] = useState('1');
-  const [faltantes, setFaltantes] = useState<readonly FaltanteDeCabina[] | null>(null);
   const [error, setError] = useState<FalloDeLaFicha | null>(null);
-  /** El fallo de «¿alcanza?» va junto a su pregunta, no en la ficha de un producto. */
-  const [falloDeAgenda, setFalloDeAgenda] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [pestana, setPestana] = useState<Lista>('cabina');
   const [viaje, setViaje] = useState<Viaje | null>(null);
   const fichaRef = useRef<HTMLElement>(null);
+  /** Anaquel y cabina por separado; nulo mientras se lee o si no se pudo. */
+  const [existencias, setExistencias] = useState<ReadonlyMap<string, ExistenciaDelSalon> | null>(
+    null,
+  );
+  /** La existencia que no se pudo leer. Ayuda a decidir: se DICE, no se calla. */
+  const [falloDeExistencias, setFalloDeExistencias] = useState<string | null>(null);
 
   useEffect(() => {
     if (productosIniciales !== undefined) return;
@@ -350,12 +280,30 @@ export function Productos({ productosIniciales }: ProductosProps) {
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
+      // La existencia AYUDA a decidir; sin ella la lista y la ficha siguen sirviendo.
+      invocarComando<{ readonly existencias: readonly ExistenciaDelSalon[] }>(
+        '/api/inventario/cabina/existencias',
+        {},
+        { signal: control.signal },
+      )
+        .then((salida) => {
+          if (!sigueMontada()) return;
+          setExistencias(new Map(salida.existencias.map((e) => [e.productoId, e])));
+          setFalloDeExistencias(null);
+        })
+        // Antes se tragaba: la lista pintaba «—» en todo y nadie sabía por qué.
+        .catch((fallo: unknown) => {
+          if (sigueMontada())
+            setFalloDeExistencias(
+              fallo instanceof ErrorApi ? fallo.message : 'No se pudo leer cuánto hay.',
+            );
+        });
       consultarPuente<ProductoDeSalon>('ProductoTerminado', {
         limite: 200,
         signal: control.signal,
       })
         .then((filas) => {
-          if (sigueMontada()) setProductos(filas);
+          if (sigueMontada()) setProductos(sinServicios(filas));
         })
         .catch((fallo: unknown) => {
           // Un fallo de lectura ya NO se disfraza de catálogo vacío: «todavía no
@@ -475,33 +423,6 @@ export function Productos({ productosIniciales }: ProductosProps) {
       });
   }
 
-  function preguntarSiAlcanza(): void {
-    setOcupado(true);
-    setFalloDeAgenda(null);
-    /**
-     * SIN CONSUMO: lo calcula el servidor con la agenda de hoy.
-     *
-     * Antes iba `consumoEsperado: []` y el esquema exigía al menos uno: cada
-     * «¿alcanza?» contestaba 400. Esta pantalla no tiene la agenda —ni tiene por
-     * qué—, y el servidor sí: las citas de hoy, sus servicios y sus recetas.
-     */
-    invocarComando<{ readonly alcanza: boolean; readonly faltantes: readonly FaltanteDeCabina[] }>(
-      RUTA_ALCANZA,
-      {},
-    )
-      .then((salida) => {
-        // Se devuelven TODOS los faltantes: quien va a comprar hace un viaje, y
-        // enterarse de uno en uno son tres viajes.
-        setFaltantes(salida.faltantes);
-      })
-      .catch((fallo: unknown) => {
-        setFalloDeAgenda(mensajeDe(fallo));
-      })
-      .finally(() => {
-        setOcupado(false);
-      });
-  }
-
   const cabecera = (
     <header className="flex flex-col gap-(--espacio-1)">
       <h1 className="text-2xl font-semibold">{voc.titulo('producto', true)}</h1>
@@ -578,9 +499,29 @@ export function Productos({ productosIniciales }: ProductosProps) {
     ),
   };
 
+  const existenciaDe = (p: ProductoDeSalon) => existencias?.get(p.id);
+
   const columnasDe: Readonly<Record<Lista, readonly ColumnaDeTabla<ProductoDeSalon>[]>> = {
     cabina: [
       columnaDeProducto,
+      {
+        clave: 'en-cabina',
+        titulo: 'Hay abierto',
+        numerica: true,
+        celda: (p) => {
+          const hay = existenciaDe(p);
+          return hay?.enCabina == null ? (
+            <span className="text-texto-sutil">—</span>
+          ) : (
+            <Cifra
+              valor={Number(hay.enCabina)}
+              unidad={hay.unidadCabina ?? undefined}
+              decimales={decimalesDe(hay.enCabina)}
+              tamano="sm"
+            />
+          );
+        },
+      },
       {
         clave: 'rinde',
         titulo: 'Rinde al abrirse',
@@ -599,7 +540,36 @@ export function Productos({ productosIniciales }: ProductosProps) {
           ),
       },
     ],
-    anaquel: [columnaDeProducto],
+    anaquel: [
+      columnaDeProducto,
+      {
+        clave: 'en-anaquel',
+        titulo: 'Hay',
+        numerica: true,
+        celda: (p) => {
+          const hay = existenciaDe(p);
+          return hay === undefined ? (
+            <span className="text-texto-sutil">—</span>
+          ) : (
+            <Cifra valor={Number(hay.enAnaquel)} unidad="pz" tamano="sm" />
+          );
+        },
+      },
+      {
+        clave: 'precio',
+        titulo: 'Precio',
+        numerica: true,
+        desde: 'sm',
+        celda: (p) => {
+          const precio = centavosDe('ProductoTerminado', 'precio_venta', p.precio_venta);
+          return precio === null ? (
+            <span className="text-texto-sutil">—</span>
+          ) : (
+            <Dinero centavos={precio} tamano="sm" />
+          );
+        },
+      },
+    ],
   };
 
   const vacioDe: Readonly<
@@ -662,59 +632,14 @@ export function Productos({ productosIniciales }: ProductosProps) {
     <main className={MARCO}>
       {cabecera}
 
-      {/* 1 · LA AGENDA, arriba de todo: es lo único que sólo este modelo contesta. */}
-      <Superficie
-        como="section"
-        relleno={4}
-        aria-label="La cabina contra la agenda"
-        className="flex flex-col gap-(--espacio-3)"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-(--espacio-3)">
-          <div className="flex flex-col gap-(--espacio-1)">
-            <h2 className="text-base font-semibold">La cabina contra la agenda</h2>
-            <p className="text-sm text-texto-sutil">
-              Se calcula con {voc.enFrase('orden', true)} de hoy y las fórmulas de sus{' '}
-              {voc.plural('linea_orden')}.
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            disabled={ocupado}
-            onClick={preguntarSiAlcanza}
-          >
-            <CalendarCheck aria-hidden="true" />
-            ¿Alcanza para lo agendado?
-          </Button>
-        </div>
+      {falloDeExistencias !== null && (
+        <Aviso tono="atencion" titulo="No se pudo leer cuánto hay de cada producto">
+          La lista y la ficha sirven igual; lo que no se sabe es la existencia. {falloDeExistencias}
+        </Aviso>
+      )}
 
-        {falloDeAgenda !== null && (
-          <Aviso tono="peligro" titulo={falloDeAgenda}>
-            No se sabe todavía si alcanza. Vuelve a preguntar.
-          </Aviso>
-        )}
-        {faltantes !== null && faltantes.length === 0 && (
-          <Aviso tono="exito" titulo="Alcanza para todo lo que está agendado." />
-        )}
-        {faltantes !== null && faltantes.length > 0 && (
-          <>
-            <Aviso tono="atencion" titulo="No alcanza para lo agendado">
-              {faltantes.length === 1
-                ? 'Falta 1 material.'
-                : `Faltan ${String(faltantes.length)} materiales.`}
-            </Aviso>
-            <Tabla
-              etiqueta="Materiales que no alcanzan para lo agendado"
-              columnas={columnasDeFaltante((insumoId) => materialDelInsumo(productos, insumoId))}
-              filas={faltantes}
-              claveDe={(f) => f.insumoId}
-              tonoDeFila={() => 'advertencia'}
-              alto="max-h-64"
-            />
-          </>
-        )}
-      </Superficie>
+      {/* 1 · LA AGENDA, arriba de todo: es lo único que sólo este modelo contesta. */}
+      <LaCabinaContraLaAgenda />
 
       <div className="flex flex-col gap-(--espacio-4) md:grid md:grid-cols-[minmax(0,1fr)_20rem] md:items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24rem]">
         {/* 2 y 3 · En la tableta y el teléfono, una lista a la vez; en la PC, las dos. */}
@@ -911,6 +836,11 @@ export function Productos({ productosIniciales }: ProductosProps) {
                   </section>
                 </>
               )}
+
+              {/* Sus movimientos, del anaquel a la cabina y de la cabina al servicio. */}
+              <KardexDelProducto
+                insumoId={existenciaDe(elegido)?.insumoId ?? elegido.ingrediente_base_id ?? null}
+              />
             </>
           )}
         </Superficie>
