@@ -483,7 +483,7 @@ function PortalCliente() {
               src={brandLogo}
               alt={config?.nombre_negocio || ''}
               onError={onLogoError}
-              className="w-11 h-11 rounded-lg bg-white p-1 border shrink-0"
+              className="w-11 h-11 rounded-lg bg-superficie p-1 border shrink-0"
               style={{ objectFit: 'contain' }}
             />
           )}
@@ -504,8 +504,8 @@ function PortalCliente() {
         {/* Bienvenida */}
         {config?.portal_qr_mensaje_bienvenida && (
           <div className="rounded-2xl p-4 border bg-card text-card-foreground shadow-sm flex items-start gap-3">
-            <div className="w-9 h-9 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-              <Sparkles className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            <div className="w-9 h-9 rounded-full bg-advertencia/15 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-advertencia" />
             </div>
             <p className="text-sm">{config.portal_qr_mensaje_bienvenida}</p>
           </div>
@@ -623,13 +623,13 @@ function PortalCliente() {
             onClick={() => setShowPedirCuenta(true)}
             className={`w-full text-left rounded-2xl px-4 py-3 shadow-xl border-2 flex items-start gap-3 active:scale-[0.99] transition-transform ${
               esperandoEleccionCliente
-                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700'
-                : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700'
+                ? 'bg-advertencia/10 border-advertencia/30'
+                : 'bg-exito/10 border-exito/30'
             }`}
           >
             <Receipt
               className={`w-5 h-5 shrink-0 mt-0.5 ${
-                esperandoEleccionCliente ? 'text-amber-600' : 'text-emerald-600'
+                esperandoEleccionCliente ? 'text-advertencia' : 'text-exito'
               }`}
             />
             <div className="flex-1 min-w-0">
@@ -658,7 +658,7 @@ function PortalCliente() {
             exit={{ opacity: 0, y: 30 }}
             className="fixed bottom-28 inset-x-4 z-50 max-w-sm mx-auto"
           >
-            <div className="rounded-xl bg-blue-600 text-white px-4 py-3 shadow-2xl flex items-start gap-3">
+            <div className="rounded-xl bg-info text-info-texto px-4 py-3 shadow-2xl flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="flex-1 text-sm">
                 <p className="font-bold">Tu mesero ya vio la solicitud</p>
@@ -666,7 +666,7 @@ function PortalCliente() {
               </div>
               <button
                 onClick={() => setAvisoDescartadoId(solicitudEnCurso?.id || null)}
-                className="text-white/80 hover:text-white text-xs underline"
+                className="text-info-texto/80 hover:text-info-texto text-xs underline"
               >
                 OK
               </button>
@@ -761,7 +761,7 @@ function PortalCliente() {
             exit={{ opacity: 0, y: 30 }}
             className="fixed bottom-28 inset-x-4 z-50 max-w-sm mx-auto"
           >
-            <div className="rounded-xl bg-emerald-600 text-white px-4 py-3 shadow-2xl flex items-start gap-3">
+            <div className="rounded-xl bg-exito text-exito-texto px-4 py-3 shadow-2xl flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="flex-1 text-sm">
                 <p className="font-bold">Solicitud enviada</p>
@@ -826,7 +826,7 @@ function ProductoCardCliente({ producto, mostrarPrecios, clickable, onClick }) {
         )}
         <div className="mt-auto pt-2 flex items-center gap-2 flex-wrap">
           {mostrarPrecios && Number(producto?.precio_venta) > 0 && (
-            <p className="font-heading font-black text-base text-emerald-700 dark:text-emerald-400">
+            <p className="font-heading font-black text-base text-exito">
               {formatCurrency(producto.precio_venta)}
             </p>
           )}
@@ -845,7 +845,7 @@ function ScreenError({ titulo, texto }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="rounded-2xl bg-card text-card-foreground p-6 max-w-sm text-center shadow-lg border">
-        <AlertTriangle className="w-10 h-10 mx-auto mb-3 text-amber-500" />
+        <AlertTriangle className="w-10 h-10 mx-auto mb-3 text-advertencia" />
         <p className="font-heading font-bold text-lg">{titulo}</p>
         <p className="text-sm text-muted-foreground mt-1">{texto}</p>
       </div>

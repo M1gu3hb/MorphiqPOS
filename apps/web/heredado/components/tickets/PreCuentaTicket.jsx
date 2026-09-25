@@ -30,7 +30,7 @@ export default function PreCuentaTicket({
 
   return (
     <div
-      className="ticket-printable thermal-80 bg-white text-black mx-auto"
+      className="ticket-printable thermal-80 bg-superficie text-texto mx-auto"
       style={{
         width: '80mm',
         maxWidth: '80mm',

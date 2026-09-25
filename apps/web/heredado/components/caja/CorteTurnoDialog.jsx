@@ -73,13 +73,13 @@ export default function CorteTurnoDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="font-heading flex items-center gap-2">
-            <Scissors className="w-5 h-5 text-amber-600" />
+            <Scissors className="w-5 h-5 text-advertencia" />
             Corte de turno
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+          <div className="p-2 rounded-lg bg-advertencia/10 border border-advertencia/30 text-xs text-advertencia">
             Es un corte parcial. NO cierra la caja, NO genera PDF, NO reinicia el dashboard.
           </div>
 
@@ -109,7 +109,7 @@ export default function CorteTurnoDialog({
               />
               {efValido && (
                 <p
-                  className={`text-xs mt-1 font-medium ${diferencia >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                  className={`text-xs mt-1 font-medium ${diferencia >= 0 ? 'text-exito' : 'text-peligro'}`}
                 >
                   Diferencia: {diferencia >= 0 ? '+' : ''}
                   {formatCurrency(diferencia)}

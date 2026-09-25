@@ -32,13 +32,13 @@ export default function MesasPendientesCierreDialog({ open, onClose, mesas = [] 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-heading flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
+            <AlertTriangle className="w-5 h-5 text-advertencia" />
             No puedes cerrar caja
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
-          <div className="rounded-xl border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800/60 p-3 text-sm text-amber-900 dark:text-amber-200">
+          <div className="rounded-xl border-2 border-advertencia/30 bg-advertencia/10 p-3 text-sm text-advertencia">
             <p className="font-semibold">Hay mesas pendientes.</p>
             <p className="text-xs mt-0.5">
               Cierra, cobra o libera estas mesas antes de hacer el corte.

@@ -102,11 +102,11 @@ export default function AbrirCajaDialog({
           </div>
 
           {/* Fondo esperado */}
-          <div className="p-3 rounded-xl border-2 border-blue-200 bg-blue-50">
-            <p className="text-[10px] uppercase font-semibold text-blue-800 flex items-center gap-1">
+          <div className="p-3 rounded-xl border-2 border-info/30 bg-info/10">
+            <p className="text-[10px] uppercase font-semibold text-info flex items-center gap-1">
               <Wallet className="w-3 h-3" /> Fondo esperado del cierre anterior
             </p>
-            <p className="font-heading font-black text-xl text-blue-900 mt-0.5">
+            <p className="font-heading font-black text-xl text-info mt-0.5">
               {formatCurrency(fondo)}
             </p>
           </div>
@@ -139,10 +139,10 @@ export default function AbrirCajaDialog({
               <div
                 className={`mt-2 p-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
                   diferencia === 0
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    ? 'bg-exito/10 text-exito border border-exito/30'
                     : diferencia > 0
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-amber-50 text-amber-800 border border-amber-200'
+                      ? 'bg-exito/10 text-exito border border-exito/30'
+                      : 'bg-advertencia/10 text-advertencia border border-advertencia/30'
                 }`}
               >
                 {diferencia !== 0 && <AlertTriangle className="w-3 h-3 shrink-0" />}

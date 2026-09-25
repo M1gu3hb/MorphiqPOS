@@ -87,7 +87,7 @@ const MeseroCartFAB = forwardRef(function MeseroCartFAB(
             {isCart ? <ShoppingCart className="w-5 h-5" /> : <Receipt className="w-5 h-5" />}
             {isCart && (
               <span
-                className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-white text-[10px] font-black flex items-center justify-center"
+                className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-superficie text-[10px] font-black flex items-center justify-center"
                 style={{ color: 'hsl(4,72%,40%)' }}
               >
                 {cantidad}
@@ -118,7 +118,7 @@ const MeseroCartFAB = forwardRef(function MeseroCartFAB(
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-[65] bg-black/55"
+              className="fixed inset-0 z-[65] bg-velo/55"
             />
             <motion.div
               key="mesero-cart-panel"
@@ -126,7 +126,7 @@ const MeseroCartFAB = forwardRef(function MeseroCartFAB(
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="fixed inset-x-0 bottom-0 z-[66] bg-white rounded-t-3xl shadow-2xl flex flex-col"
+              className="fixed inset-x-0 bottom-0 z-[66] bg-superficie rounded-t-3xl shadow-2xl flex flex-col"
               style={{ maxHeight: '88dvh' }}
             >
               <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b">
@@ -204,7 +204,7 @@ const MeseroCartFAB = forwardRef(function MeseroCartFAB(
               </div>
 
               <div
-                className="px-4 py-3 border-t space-y-2 shrink-0 bg-white"
+                className="px-4 py-3 border-t space-y-2 shrink-0 bg-superficie"
                 style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
               >
                 {safeCarrito.length > 0 && (

@@ -286,39 +286,39 @@ export const PRODUCT_PLACEHOLDER_BG = {
 // Estados de stock (StockStatusBadge) — clases tailwind
 // ============================================================
 export const STOCK_BADGE_DARK_CLASSES = {
-  suficiente: 'dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
-  medio: 'dark:bg-yellow-950/60 dark:text-yellow-300 dark:border-yellow-800',
-  bajo: 'dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800',
-  critico: 'dark:bg-red-950/60 dark:text-red-300 dark:border-red-800',
-  agotado: 'dark:bg-red-900/70 dark:text-red-200 dark:border-red-700',
+  suficiente: '',
+  medio: '',
+  bajo: '',
+  critico: '',
+  agotado: '',
 };
 
 export const PREP_BADGE_DARK_CLASSES = {
-  nuevo: 'dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800',
-  en_preparacion: 'dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800',
-  listo: 'dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
-  entregado: 'dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
-  cancelado: 'dark:bg-red-950/60 dark:text-red-300 dark:border-red-800',
+  nuevo: '',
+  en_preparacion: '',
+  listo: '',
+  entregado: '',
+  cancelado: '',
 };
 
 export const MESA_BADGE_DARK_CLASSES = {
-  libre: 'dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
-  esperando_orden: 'dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900',
-  pedido_enviado: 'dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-900',
-  en_preparacion: 'dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-900',
-  en_espera_entrega: 'dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900',
-  ocupada: 'dark:bg-red-950/60 dark:text-red-300 dark:border-red-900',
-  cuenta_solicitada: 'dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-900',
-  limpieza: 'dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-900',
-  pagada: 'dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
-  cancelada: 'dark:bg-red-900/70 dark:text-red-200 dark:border-red-800',
+  libre: '',
+  esperando_orden: '',
+  pedido_enviado: '',
+  en_preparacion: '',
+  en_espera_entrega: '',
+  ocupada: '',
+  cuenta_solicitada: '',
+  limpieza: '',
+  pagada: '',
+  cancelada: '',
 };
 
 // ============================================================
 // Margen (MARGIN_CONFIG) — bg cards en Productos
 // ============================================================
 export const MARGIN_DARK_BG = {
-  high: 'dark:bg-emerald-950/40',
-  medium: 'dark:bg-yellow-950/40',
-  low: 'dark:bg-red-950/40',
+  high: '',
+  medium: '',
+  low: '',
 };

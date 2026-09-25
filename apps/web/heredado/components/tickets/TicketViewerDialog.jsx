@@ -65,7 +65,7 @@ export default function TicketViewerDialog({ venta, open, onClose }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto p-0">
-        <DialogHeader className="no-print px-5 pt-4 pb-3 border-b sticky top-0 bg-white z-10 flex-row items-center justify-between">
+        <DialogHeader className="no-print px-5 pt-4 pb-3 border-b sticky top-0 bg-superficie z-10 flex-row items-center justify-between">
           <DialogTitle className="font-heading">Ticket · {venta?.folio}</DialogTitle>
           <div className="flex gap-2">
             {/* Si el ticket no se pudo leer entero, no se ofrece imprimirlo. */}
@@ -79,7 +79,7 @@ export default function TicketViewerDialog({ venta, open, onClose }) {
             </Button>
           </div>
         </DialogHeader>
-        <div className="p-4 bg-gray-100 flex justify-center">
+        <div className="p-4 bg-fondo-sutil flex justify-center">
           {loading ? (
             <p className="text-sm text-muted-foreground py-8">Cargando ticket...</p>
           ) : error ? (

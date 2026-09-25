@@ -407,7 +407,7 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
 
         {/* Warning de compatibilidad */}
         {!compat.compatible && (
-          <div className="rounded-lg p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-800/60 text-xs text-rose-900 dark:text-rose-200 flex gap-2">
+          <div className="rounded-lg p-2.5 bg-peligro/10 border border-peligro/30 text-xs text-peligro flex gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{compat.mensaje}</span>
           </div>
@@ -415,7 +415,7 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
 
         {/* Equivalencia obligatoria si es unidad personalizada o empaque */}
         {necesitaEquivalencia && (
-          <div className="rounded-lg p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60">
+          <div className="rounded-lg p-2.5 bg-advertencia/10 border border-advertencia/30">
             <Label className="text-xs">
               ¿A cuánto equivale 1 {unidad} en {unidadBase}? *
             </Label>
@@ -432,7 +432,7 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
               }
               className="h-8"
             />
-            <p className="text-[10px] text-amber-800 dark:text-amber-200 mt-1">
+            <p className="text-[10px] text-advertencia mt-1">
               {esUnidadEstandar(unidad)
                 ? 'Esta unidad es un empaque — indica cuánto trae cada uno.'
                 : 'Esta es una unidad personalizada. Necesitamos su equivalencia para calcular el ajuste.'}
@@ -470,7 +470,7 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
             compact
           />
           {alertas && !cantidad && (
-            <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
+            <p className="text-[11px] text-exito">
               Puedes guardar solo los cambios de alertas (sin ajustar el stock actual).
             </p>
           )}
@@ -490,24 +490,24 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
               </div>
               <div className="flex justify-between">
                 <span>Ajuste aplicado</span>
-                <strong className={cambio < 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                <strong className={cambio < 0 ? 'text-peligro' : 'text-exito'}>
                   {cambio >= 0 ? '+' : ''}
                   {cambio.toLocaleString()} {unidadBase}
                 </strong>
               </div>
               <div className="flex justify-between border-t pt-1 mt-1">
                 <span>Stock nuevo</span>
-                <strong className={stockQuedariaNegativo ? 'text-rose-600' : ''}>
+                <strong className={stockQuedariaNegativo ? 'text-peligro' : ''}>
                   {stockNuevo.toLocaleString()} {unidadBase}
                 </strong>
               </div>
               {stockQuedariaNegativo && (
-                <p className="text-[11px] text-rose-600 pt-1">
+                <p className="text-[11px] text-peligro pt-1">
                   ⚠ El ajuste dejaría el stock en negativo. No se permite.
                 </p>
               )}
               {stockNoCambia && (
-                <p className="text-[11px] text-amber-700 pt-1">
+                <p className="text-[11px] text-advertencia pt-1">
                   El stock nuevo es igual al stock actual.
                 </p>
               )}

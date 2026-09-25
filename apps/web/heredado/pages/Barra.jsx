@@ -79,11 +79,11 @@ export default function Barra() {
         {ESTADOS.map((estado) => (
           <div key={estado}>
             <div
-              className={`flex items-center gap-2 mb-3 pb-2 border-b ${estado === 'nuevo' ? 'border-blue-300' : estado === 'en_preparacion' ? 'border-purple-300' : 'border-green-300'}`}
+              className={`flex items-center gap-2 mb-3 pb-2 border-b ${estado === 'nuevo' ? 'border-info/30' : estado === 'en_preparacion' ? 'border-acento/30' : 'border-exito/30'}`}
             >
-              {estado === 'nuevo' && <Clock className="w-4 h-4 text-blue-600" />}
-              {estado === 'en_preparacion' && <Coffee className="w-4 h-4 text-purple-600" />}
-              {estado === 'listo' && <CheckCircle className="w-4 h-4 text-green-600" />}
+              {estado === 'nuevo' && <Clock className="w-4 h-4 text-info" />}
+              {estado === 'en_preparacion' && <Coffee className="w-4 h-4 text-acento" />}
+              {estado === 'listo' && <CheckCircle className="w-4 h-4 text-exito" />}
               <h3 className="font-heading font-semibold">{ESTADO_LABELS[estado]}</h3>
               <span className="ml-auto text-sm font-bold">{byEstado[estado].length}</span>
             </div>
@@ -91,7 +91,7 @@ export default function Barra() {
               {byEstado[estado].map((pedido) => (
                 <Card
                   key={pedido.id}
-                  className={`border-l-4 ${estado === 'nuevo' ? 'border-l-blue-500' : estado === 'en_preparacion' ? 'border-l-purple-500' : 'border-l-green-500'}`}
+                  className={`border-l-4 ${estado === 'nuevo' ? 'border-l-info' : estado === 'en_preparacion' ? 'border-l-acento' : 'border-l-exito'}`}
                 >
                   <CardHeader className="pb-2 pt-3 px-4">
                     <div className="flex items-center justify-between">
@@ -116,7 +116,7 @@ export default function Barra() {
                             {item.cantidad}x {item.producto_nombre}
                           </span>
                           {item.notas && (
-                            <span className="text-xs text-purple-600 italic">{item.notas}</span>
+                            <span className="text-xs text-acento italic">{item.notas}</span>
                           )}
                         </div>
                       ))}
@@ -129,7 +129,7 @@ export default function Barra() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="w-full text-green-700 border-green-300"
+                        className="w-full text-exito border-exito/30"
                         onClick={() => avanzar(pedido)}
                       >
                         Entregar

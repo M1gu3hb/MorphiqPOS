@@ -37,7 +37,7 @@ export default function SoundUnlockButton({ className = '' }) {
     <button
       type="button"
       onClick={handleClick}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-bold shadow-md hover:bg-amber-600 active:scale-95 transition ${className}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-advertencia text-advertencia-texto text-xs font-bold shadow-md hover:bg-advertencia active:scale-95 transition ${className}`}
     >
       <Volume2 className="w-3.5 h-3.5" />
       Activar sonidos

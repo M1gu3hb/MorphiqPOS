@@ -315,10 +315,10 @@ export default function Inventario() {
                     {formatStockEnUnidad(ing.stock_actual, ing.unidad_base)}
                   </p>
                   {ing.consumidoHoy > 0 && (
-                    <p className="text-base font-heading font-bold text-red-600">
+                    <p className="text-base font-heading font-bold text-peligro">
                       −{Number(ing.consumidoHoy).toLocaleString()}{' '}
                       <span className="text-xs">{ing.unidad_base}</span>
-                      <span className="ml-1 text-[10px] font-normal text-red-500">hoy</span>
+                      <span className="ml-1 text-[10px] font-normal text-peligro">hoy</span>
                     </p>
                   )}
                   <p className="text-[10px] text-muted-foreground">
@@ -348,7 +348,7 @@ export default function Inventario() {
                       title="Configurar como contenedor (botella, etc.) para venta por porción"
                     >
                       <Beaker
-                        className={`w-3.5 h-3.5 ${ing.tipo_ingrediente === 'contenedor' ? 'text-emerald-600' : ''}`}
+                        className={`w-3.5 h-3.5 ${ing.tipo_ingrediente === 'contenedor' ? 'text-exito' : ''}`}
                       />
                       <span className="hidden sm:inline">
                         {ing.tipo_ingrediente === 'contenedor' ? 'Contenedor' : 'Contenedor'}
@@ -399,7 +399,7 @@ export default function Inventario() {
             <AlertDialogTitle>Eliminar / desactivar ingrediente</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               {confirmDelete && ingredienteEnUso(confirmDelete) && (
-                <span className="block text-amber-700 font-medium">
+                <span className="block text-advertencia font-medium">
                   ⚠ "{confirmDelete?.nombre}" se usa en recetas activas. Si lo eliminas, esas
                   recetas pueden quedar incompletas.
                 </span>

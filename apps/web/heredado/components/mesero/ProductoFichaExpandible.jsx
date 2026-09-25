@@ -112,7 +112,7 @@ export default function ProductoFichaExpandible({
     : '';
 
   return (
-    <div className="rounded-lg bg-white border overflow-hidden">
+    <div className="rounded-lg bg-superficie border overflow-hidden">
       {/* Header compacto */}
       <div className="flex items-center gap-2 p-2">
         <div className="flex-1 min-w-0">
@@ -127,7 +127,7 @@ export default function ProductoFichaExpandible({
             />
           </button>
           {hayModif && (
-            <p className="text-[10px] text-orange-700 italic truncate">
+            <p className="text-[10px] text-advertencia italic truncate">
               ↳ {buildNotaFinal(exclusiones, nota)}
             </p>
           )}
@@ -142,7 +142,7 @@ export default function ProductoFichaExpandible({
             </span>
             <button
               onClick={() => onCambiarCantidad && onCambiarCantidad(item.id, -1)}
-              className="w-6 h-6 rounded-full bg-white border flex items-center justify-center"
+              className="w-6 h-6 rounded-full bg-superficie border flex items-center justify-center"
               title="Quitar línea"
             >
               <X className="w-3 h-3" />
@@ -152,14 +152,14 @@ export default function ProductoFichaExpandible({
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => onCambiarCantidad && onCambiarCantidad(item.id, -1)}
-              className="w-6 h-6 rounded-full bg-white border flex items-center justify-center"
+              className="w-6 h-6 rounded-full bg-superficie border flex items-center justify-center"
             >
               <Minus className="w-3 h-3" />
             </button>
             <span className="w-6 text-center text-xs font-bold">{item?.cantidad || 0}</span>
             <button
               onClick={() => onCambiarCantidad && onCambiarCantidad(item.id, 1)}
-              className="w-6 h-6 rounded-full bg-white border flex items-center justify-center"
+              className="w-6 h-6 rounded-full bg-superficie border flex items-center justify-center"
             >
               <Plus className="w-3 h-3" />
             </button>
@@ -197,8 +197,8 @@ export default function ProductoFichaExpandible({
                           onClick={() => toggleExclusion(nombre)}
                           className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border transition-all ${
                             excluido
-                              ? 'bg-rose-100 border-rose-300 text-rose-700 line-through'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                              ? 'bg-peligro/15 border-peligro/30 text-peligro line-through'
+                              : 'bg-superficie border-borde text-texto hover:bg-fondo-sutil'
                           }`}
                         >
                           {excluido && <X className="w-2.5 h-2.5" />}

@@ -182,7 +182,7 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-50 bg-velo/50 flex items-end sm:items-center justify-center"
     >
       <motion.div
         initial={{ y: 40 }}
@@ -192,7 +192,7 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
       >
         {/* Header */}
         <div className="sticky top-0 z-10 bg-card border-b px-4 py-3 flex items-center gap-2">
-          <Receipt className="w-5 h-5 text-emerald-600 shrink-0" />
+          <Receipt className="w-5 h-5 text-exito shrink-0" />
           <p className="flex-1 font-heading font-bold">
             {venta?.propina_origen === 'pendiente_portal_qr' ||
             venta?.propina_tipo === 'pendiente_cliente'
@@ -215,8 +215,8 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
               debajo: la cuenta llega con la pantalla, así que «no hay consumo
               activo» ya no puede salir como flash falso mientras cargaba. */}
           {!venta && (
-            <div className="rounded-xl p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="rounded-xl p-4 bg-advertencia/10 border border-advertencia/30 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-advertencia shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-bold">Esta mesa no tiene consumo activo</p>
                 <p className="text-xs opacity-90 mt-1">
@@ -228,8 +228,8 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
           )}
 
           {venta && enviado && (
-            <div className="rounded-xl p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="rounded-xl p-4 bg-exito/10 border border-exito/30 flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-exito shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-bold">¡Cuenta solicitada!</p>
                 <p className="text-xs opacity-90 mt-1">
@@ -253,7 +253,7 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
                   }}
                 >
                   <div className="px-4 py-3 border-b bg-gradient-to-b from-muted/60 to-muted/30 flex items-center gap-2">
-                    <Receipt className="w-4 h-4 text-emerald-600" />
+                    <Receipt className="w-4 h-4 text-exito" />
                     <p className="text-xs font-heading font-bold uppercase tracking-wider">
                       Tu consumo
                     </p>
@@ -339,8 +339,8 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
                   }}
                 >
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-rose-100 dark:bg-rose-950/40 flex items-center justify-center">
-                      <Heart className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                    <div className="w-7 h-7 rounded-full bg-peligro/15 flex items-center justify-center">
+                      <Heart className="w-4 h-4 text-peligro" />
                     </div>
                     <p className="text-sm font-heading font-bold">¿Quieres dejar propina?</p>
                   </div>
@@ -382,7 +382,7 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
                     onClick={elegirDecidirEnCaja}
                     className={`w-full px-3 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
                       decidirEnCaja
-                        ? 'border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
+                        ? 'border-advertencia bg-advertencia/10 text-advertencia'
                         : 'border-border bg-card text-muted-foreground'
                     }`}
                   >
@@ -406,7 +406,7 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
                   <span className="font-semibold tabular-nums">{formatCurrency(subtotal)}</span>
                 </div>
                 {propinaActiva && propinaCalculada > 0 && (
-                  <div className="flex justify-between text-sm text-rose-600 dark:text-rose-400">
+                  <div className="flex justify-between text-sm text-peligro">
                     <span className="flex items-center gap-1">
                       <Heart className="w-3 h-3" />
                       Propina {pctActivo > 0 ? `(${pctActivo}%)` : ''}
@@ -417,7 +417,7 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
                   </div>
                 )}
                 {decidirEnCaja && (
-                  <div className="flex justify-between text-xs text-amber-700 dark:text-amber-400">
+                  <div className="flex justify-between text-xs text-advertencia">
                     <span className="flex items-center gap-1">
                       <Heart className="w-3 h-3" /> Propina
                     </span>
@@ -455,7 +455,7 @@ export default function PedirCuentaQR({ token, mesa, config, cuenta, onClose, on
               disabled={
                 enviando || (verPrecuenta && subtotal <= 0) || (puedeElegirPropina && !yaEligio)
               }
-              className="flex-1 h-12 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-50 active:scale-95 transition-transform"
+              className="flex-1 h-12 rounded-xl bg-exito text-exito-texto font-semibold disabled:opacity-50 active:scale-95 transition-transform"
             >
               {enviando
                 ? 'Enviando…'
@@ -477,7 +477,7 @@ function PropinaBtn({ label, sub, active, onClick }) {
       onClick={onClick}
       className={`px-2 py-2 rounded-xl border-2 text-center transition-all min-w-0 ${
         active
-          ? 'border-rose-400 bg-rose-50 text-rose-700 shadow-md dark:bg-rose-950/40 dark:text-rose-300'
+          ? 'border-peligro bg-peligro/10 text-peligro shadow-md'
           : 'border-border bg-card text-muted-foreground'
       }`}
     >

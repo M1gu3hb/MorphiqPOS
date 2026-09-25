@@ -98,7 +98,7 @@ export default function CocinaPedidoCardCompact({ pedido, onIniciar, onListo }) 
                         <span className="font-medium">{item.producto_nombre}</span>
                       </div>
                       {item.notas && (
-                        <p className="text-xs text-orange-700 italic ml-7 bg-orange-50 px-2 py-0.5 rounded mt-0.5">
+                        <p className="text-xs text-advertencia italic ml-7 bg-advertencia/10 px-2 py-0.5 rounded mt-0.5">
                           ↳ {item.notas}
                         </p>
                       )}
@@ -107,7 +107,7 @@ export default function CocinaPedidoCardCompact({ pedido, onIniciar, onListo }) 
                 })}
               </div>
               {pedido.notas && (
-                <p className="text-xs italic bg-yellow-50 border border-yellow-200 px-2 py-1 rounded mb-2">
+                <p className="text-xs italic bg-advertencia/10 border border-advertencia/30 px-2 py-1 rounded mb-2">
                   📝 {pedido.notas}
                 </p>
               )}
@@ -134,7 +134,7 @@ export default function CocinaPedidoCardCompact({ pedido, onIniciar, onListo }) 
                 </Button>
               )}
               {pedido.estado === 'listo' && (
-                <p className="text-xs text-center text-emerald-700 italic">
+                <p className="text-xs text-center text-exito italic">
                   Esperando que el mesero recoja
                 </p>
               )}

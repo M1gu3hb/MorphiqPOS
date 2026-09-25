@@ -675,7 +675,7 @@ export default function Configuracion() {
                     />
                   </div>
                   {bizForm.asignacion_mesas_activa !== true && (
-                    <div className="text-xs px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300">
+                    <div className="text-xs px-3 py-2 rounded-lg bg-advertencia/10 border border-advertencia/30 text-advertencia">
                       Para permitir pedidos desde el QR, activa primero la{' '}
                       <strong>asignación de mesas</strong>.
                     </div>
@@ -818,7 +818,7 @@ export default function Configuracion() {
                                 {u.estacion_preparacion_nombre || 'Estación'}
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-advertencia/10 text-advertencia border-advertencia/30">
                                 Sin estación
                               </span>
                             )}
@@ -933,7 +933,7 @@ export default function Configuracion() {
                     <button
                       key={z}
                       onClick={() => setZonaFiltro(z)}
-                      className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${zonaFiltro === z ? 'bg-primary text-white' : 'bg-white border text-muted-foreground'}`}
+                      className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${zonaFiltro === z ? 'bg-primary text-primario-texto' : 'bg-superficie border text-muted-foreground'}`}
                     >
                       {z}{' '}
                       <span className="opacity-60">

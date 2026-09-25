@@ -43,7 +43,7 @@ export default class SafeBoundary extends React.Component {
       } = this.props;
       if (fallback) return fallback({ error: this.state.error, reset: this.reset });
       return (
-        <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 flex items-start gap-3">
+        <div className="p-4 rounded-xl border border-peligro/30 bg-peligro/10 text-peligro flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
           <div className="flex-1 text-sm">
             <p className="font-semibold">{fallbackTitle}</p>
@@ -51,7 +51,7 @@ export default class SafeBoundary extends React.Component {
             <button
               type="button"
               onClick={this.reset}
-              className="mt-2 px-3 py-1 rounded-md bg-red-600 text-white text-xs font-semibold"
+              className="mt-2 px-3 py-1 rounded-md bg-peligro text-peligro-texto text-xs font-semibold"
             >
               Reintentar
             </button>

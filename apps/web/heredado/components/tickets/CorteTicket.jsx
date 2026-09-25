@@ -111,7 +111,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
     <div
       ref={ref}
       id="cash-cut-pdf-document"
-      className="ticket-printable letter-doc cash-cut-pdf pdf-corte-caja bg-white text-black mx-auto text-sm"
+      className="ticket-printable letter-doc cash-cut-pdf pdf-corte-caja bg-superficie text-texto mx-auto text-sm"
       style={{
         fontFamily: 'Inter, sans-serif',
         width: '210mm',
@@ -121,7 +121,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
       }}
     >
       {/* Encabezado con logo grande */}
-      <div className="flex items-center gap-4 border-b-2 border-black pb-4 mb-4 avoid-break">
+      <div className="flex items-center gap-4 border-b-2 border-borde-fuerte pb-4 mb-4 avoid-break">
         {(config?.logo_pdf_url || config?.logo_url) && (
           <img
             src={config.logo_pdf_url || config.logo_url}
@@ -143,7 +143,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
           <p className="text-xs">
             Folio: <span className="font-mono font-bold">{corte?.folio || '—'}</span>
           </p>
-          <p className="text-[10px] text-gray-600 mt-1">
+          <p className="text-[10px] text-texto-sutil mt-1">
             {config?.platform_brand || 'MH Astral Systems'}
           </p>
         </div>
@@ -249,7 +249,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
       {totalPropinas > 0 && (
         <Section title="Métodos de pago — ventas, propinas y total">
           <table className="w-full text-xs border">
-            <thead className="bg-gray-100">
+            <thead className="bg-fondo-sutil">
               <tr>
                 <th className="border px-2 py-1 text-left">Método</th>
                 <th className="border px-2 py-1 text-right">Ventas</th>
@@ -263,7 +263,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
                 <td className="border px-2 py-1 text-right">
                   {formatCurrency(metodos.efectivo.ventas)}
                 </td>
-                <td className="border px-2 py-1 text-right text-rose-700">
+                <td className="border px-2 py-1 text-right text-peligro">
                   {formatCurrency(metodos.efectivo.propinas)}
                 </td>
                 <td className="border px-2 py-1 text-right font-bold">
@@ -275,7 +275,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
                 <td className="border px-2 py-1 text-right">
                   {formatCurrency(metodos.tarjeta.ventas)}
                 </td>
-                <td className="border px-2 py-1 text-right text-rose-700">
+                <td className="border px-2 py-1 text-right text-peligro">
                   {formatCurrency(metodos.tarjeta.propinas)}
                 </td>
                 <td className="border px-2 py-1 text-right font-bold">
@@ -287,21 +287,21 @@ const CorteTicket = React.forwardRef(function CorteTicket(
                 <td className="border px-2 py-1 text-right">
                   {formatCurrency(metodos.transferencia.ventas)}
                 </td>
-                <td className="border px-2 py-1 text-right text-rose-700">
+                <td className="border px-2 py-1 text-right text-peligro">
                   {formatCurrency(metodos.transferencia.propinas)}
                 </td>
                 <td className="border px-2 py-1 text-right font-bold">
                   {formatCurrency(metodos.transferencia.total)}
                 </td>
               </tr>
-              <tr className="bg-gray-50">
+              <tr className="bg-fondo-sutil">
                 <td className="border px-2 py-1 font-bold">TOTAL</td>
                 <td className="border px-2 py-1 text-right font-bold">
                   {formatCurrency(
                     metodos.efectivo.ventas + metodos.tarjeta.ventas + metodos.transferencia.ventas,
                   )}
                 </td>
-                <td className="border px-2 py-1 text-right font-bold text-rose-700">
+                <td className="border px-2 py-1 text-right font-bold text-peligro">
                   {formatCurrency(totalPropinas)}
                 </td>
                 <td className="border px-2 py-1 text-right font-bold">
@@ -326,7 +326,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
         </Grid>
         {haySala && propinasPorMesero.length > 0 && (
           <table className="w-full text-xs border mt-2">
-            <thead className="bg-gray-100">
+            <thead className="bg-fondo-sutil">
               <tr>
                 <th className="border px-2 py-1 text-left">Mesero</th>
                 <th className="border px-2 py-1 text-right">Propinas</th>
@@ -349,7 +349,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
       {/* Detalle de ventas */}
       <Section title={`Detalle de ventas (${ventas.length})`}>
         <table className="w-full text-xs border">
-          <thead className="bg-gray-100">
+          <thead className="bg-fondo-sutil">
             <tr>
               <th className="border px-2 py-1 text-left">Folio</th>
               <th className="border px-2 py-1 text-left">Hora</th>
@@ -385,7 +385,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
                         </div>
                       );
                     })}
-                    {dets.length === 0 && <span className="text-gray-400">—</span>}
+                    {dets.length === 0 && <span className="text-texto-tenue">—</span>}
                   </td>
                   <td className="border px-2 py-1 text-right font-bold">
                     {formatCurrency(v.total)}
@@ -396,7 +396,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
             })}
             {ventas.length === 0 && (
               <tr>
-                <td colSpan="6" className="text-center text-gray-400 py-2">
+                <td colSpan="6" className="text-center text-texto-tenue py-2">
                   Sin ventas
                 </td>
               </tr>
@@ -409,7 +409,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
           6B / 1.I — Nueva columna "Cantidad real" muestra g/ml/shots para variables. */}
       <Section title="Productos vendidos">
         <table className="w-full text-xs border">
-          <thead className="bg-gray-100">
+          <thead className="bg-fondo-sutil">
             <tr>
               <th className="border px-2 py-1 text-left">Producto</th>
               <th className="border px-2 py-1 text-right">Líneas</th>
@@ -438,7 +438,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
             ))}
             {productos.length === 0 && (
               <tr>
-                <td colSpan={sinCostos ? 4 : 6} className="text-center text-gray-400 py-2">
+                <td colSpan={sinCostos ? 4 : 6} className="text-center text-texto-tenue py-2">
                   Sin productos
                 </td>
               </tr>
@@ -451,7 +451,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
       {!sinCostos && (
         <Section title="Ingredientes / insumos consumidos">
           <table className="w-full text-xs border">
-            <thead className="bg-gray-100">
+            <thead className="bg-fondo-sutil">
               <tr>
                 <th className="border px-2 py-1 text-left">Ingrediente</th>
                 <th className="border px-2 py-1 text-right">Cantidad</th>
@@ -476,7 +476,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
               ))}
               {ingredientes.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="text-center text-gray-400 py-2">
+                  <td colSpan="5" className="text-center text-texto-tenue py-2">
                     Sin consumo registrado
                   </td>
                 </tr>
@@ -490,7 +490,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
       {!sinCostos && gastos.length > 0 && (
         <Section title="Gastos operativos">
           <table className="w-full text-xs border">
-            <thead className="bg-gray-100">
+            <thead className="bg-fondo-sutil">
               <tr>
                 <th className="border px-2 py-1 text-left">Categoría</th>
                 <th className="border px-2 py-1 text-left">Descripción</th>
@@ -518,7 +518,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
       {!sinCostos && alertas.length > 0 && (
         <Section title="Inventario bajo / crítico">
           <table className="w-full text-xs border">
-            <thead className="bg-gray-100">
+            <thead className="bg-fondo-sutil">
               <tr>
                 <th className="border px-2 py-1 text-left">Ingrediente</th>
                 <th className="border px-2 py-1 text-right">Stock actual</th>
@@ -556,7 +556,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
       {cancelaciones.length > 0 && (
         <Section title="Cancelaciones">
           <table className="w-full text-xs border">
-            <thead className="bg-gray-100">
+            <thead className="bg-fondo-sutil">
               <tr>
                 <th className="border px-2 py-1 text-left">Folio</th>
                 <th className="border px-2 py-1 text-left">Motivo</th>
@@ -583,18 +583,18 @@ const CorteTicket = React.forwardRef(function CorteTicket(
       {/* Firmas */}
       <div className="grid grid-cols-2 gap-8 mt-10 text-xs">
         <div className="text-center">
-          <div className="border-t border-black pt-1">Responsable de caja</div>
+          <div className="border-t border-borde-fuerte pt-1">Responsable de caja</div>
           <p>{corte?.usuario_cajero_nombre || ''}</p>
         </div>
         <div className="text-center">
-          <div className="border-t border-black pt-1">Administrador</div>
+          <div className="border-t border-borde-fuerte pt-1">Administrador</div>
         </div>
       </div>
 
       {config?.pdf_footer && (
-        <p className="text-center text-[10px] text-gray-700 mt-4">{config.pdf_footer}</p>
+        <p className="text-center text-[10px] text-texto mt-4">{config.pdf_footer}</p>
       )}
-      <p className="text-center text-[10px] text-gray-500 mt-6">
+      <p className="text-center text-[10px] text-texto-sutil mt-6">
         Documento interno ·{' '}
         {config?.nombre_sistema || config?.platform_brand || 'MH Astral Systems'} · Generado{' '}
         {format(new Date(), 'd MMM yyyy HH:mm', { locale: es })}
@@ -608,7 +608,7 @@ export default CorteTicket;
 function Section({ title, children }) {
   return (
     <div className="mb-4">
-      <h2 className="font-bold text-sm uppercase border-b border-black mb-2">{title}</h2>
+      <h2 className="font-bold text-sm uppercase border-b border-borde-fuerte mb-2">{title}</h2>
       {children}
     </div>
   );
@@ -619,7 +619,7 @@ function Grid({ children }) {
 function Cell({ label, value, bold }) {
   return (
     <div className="border p-2 rounded">
-      <div className="text-[10px] text-gray-500 uppercase">{label}</div>
+      <div className="text-[10px] text-texto-sutil uppercase">{label}</div>
       <div className={bold ? 'font-bold' : ''}>{value}</div>
     </div>
   );

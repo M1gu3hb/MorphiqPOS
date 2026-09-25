@@ -88,7 +88,7 @@ export default function ConfiguracionQRTab({ config }) {
     <div className="space-y-4 max-w-2xl">
       {/* === BLOQUE DE AYUDA — explica qué hace cada switch del Portal QR === */}
       {/* No cambia comportamiento. Solo claridad visual para el administrador. */}
-      <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800/60 p-3 text-xs text-blue-900 dark:text-blue-200 space-y-1">
+      <div className="rounded-xl border border-info/30 bg-info/10 p-3 text-xs text-info space-y-1">
         <p className="font-bold">¿Cómo funciona el Portal QR?</p>
         <ul className="list-disc pl-4 space-y-0.5">
           <li>
@@ -114,7 +114,7 @@ export default function ConfiguracionQRTab({ config }) {
         </ul>
       </div>
 
-      <div className="rounded-xl border bg-white p-4">
+      <div className="rounded-xl border bg-superficie p-4">
         <Row
           label="Activar Portal QR"
           hint="Cuando está apagado, los QR mostrarán 'Portal no disponible'."
@@ -153,7 +153,7 @@ export default function ConfiguracionQRTab({ config }) {
         </Row>
       </div>
 
-      <div className="rounded-xl border bg-white p-4">
+      <div className="rounded-xl border bg-superficie p-4">
         <p className="text-sm font-bold mb-1">Botones de atención del cliente</p>
         <p className="text-xs text-muted-foreground mb-2">
           Controla qué opciones aparecen al cliente cuando pide atención.
@@ -187,7 +187,7 @@ export default function ConfiguracionQRTab({ config }) {
       {(() => {
         const propinasGlobalActivas = config?.propinas_activas !== false;
         return (
-          <div className="rounded-xl border bg-white p-4">
+          <div className="rounded-xl border bg-superficie p-4">
             <p className="text-sm font-bold mb-1">Cuenta y propina desde QR</p>
             <p className="text-xs text-muted-foreground mb-2">
               Controla la experiencia del comensal al pedir cuenta. La propina nunca infla las
@@ -235,7 +235,7 @@ export default function ConfiguracionQRTab({ config }) {
               />
             </Row>
             {!propinasGlobalActivas && (
-              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+              <div className="mt-2 rounded-md border border-advertencia/30 bg-advertencia/10 px-2.5 py-1.5 text-[11px] text-advertencia">
                 Las propinas globales están <strong>apagadas</strong>. Mientras estén apagadas, el
                 QR no mostrará propina al comensal aunque este switch quede activo.
               </div>
@@ -244,7 +244,7 @@ export default function ConfiguracionQRTab({ config }) {
         );
       })()}
 
-      <div className="rounded-xl border bg-white p-4 space-y-2">
+      <div className="rounded-xl border bg-superficie p-4 space-y-2">
         <Label className="text-sm font-bold">Mensaje de bienvenida</Label>
         <Textarea
           value={form.portal_qr_mensaje_bienvenida}

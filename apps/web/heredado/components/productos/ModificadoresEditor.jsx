@@ -168,7 +168,7 @@ export default function ModificadoresEditor({ value, onChange, disabled = false 
         return (
           <div
             key={g.id}
-            className={`rounded-xl border-2 overflow-hidden bg-card ${errorObligatorio ? 'border-rose-300' : 'border-border'}`}
+            className={`rounded-xl border-2 overflow-hidden bg-card ${errorObligatorio ? 'border-peligro/30' : 'border-border'}`}
           >
             {/* Header del grupo */}
             <div className="flex items-center gap-2 p-3 bg-muted/30">
@@ -194,7 +194,7 @@ export default function ModificadoresEditor({ value, onChange, disabled = false 
                 size="icon"
                 onClick={() => removeGrupo(gIdx)}
                 disabled={disabled}
-                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 shrink-0"
+                className="text-peligro hover:bg-peligro/10 hover:text-peligro shrink-0"
                 title="Eliminar grupo"
               >
                 <Trash2 className="w-4 h-4" />
@@ -203,7 +203,7 @@ export default function ModificadoresEditor({ value, onChange, disabled = false 
 
             {/* Avisos rápidos */}
             {(sinNombre || errorObligatorio) && (
-              <div className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/30 border-y border-rose-200 dark:border-rose-800/40 text-[11px] text-rose-700 dark:text-rose-300">
+              <div className="px-3 py-1.5 bg-peligro/10 border-y border-peligro/30 text-[11px] text-peligro">
                 {sinNombre && '• Falta el nombre del grupo. '}
                 {errorObligatorio &&
                   '• Un grupo obligatorio necesita al menos una opción activa con nombre.'}
@@ -232,7 +232,7 @@ export default function ModificadoresEditor({ value, onChange, disabled = false 
                             onChange={(e) => updateOpcion(gIdx, oIdx, { nombre: e.target.value })}
                             placeholder="Ej: Tres cuartos"
                             disabled={disabled}
-                            className={`h-9 flex-1 ${dup ? 'border-rose-400' : ''}`}
+                            className={`h-9 flex-1 ${dup ? 'border-peligro' : ''}`}
                           />
                           <div className="flex items-center gap-1 shrink-0">
                             <Switch
@@ -246,7 +246,7 @@ export default function ModificadoresEditor({ value, onChange, disabled = false 
                               size="icon"
                               onClick={() => removeOpcion(gIdx, oIdx)}
                               disabled={disabled}
-                              className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                              className="text-peligro hover:bg-peligro/10 hover:text-peligro"
                               title="Eliminar opción"
                             >
                               <X className="w-4 h-4" />

@@ -10,10 +10,10 @@ import { Sheet, HardDrive, RefreshCw, Clock, CheckCircle2, Info } from 'lucide-r
 
 function StatusBadge({ status }) {
   if (status === 'synced')
-    return <Badge className="bg-green-100 text-green-700 border-green-200">Sincronizado</Badge>;
+    return <Badge className="bg-exito/15 text-exito border-exito/30">Sincronizado</Badge>;
   if (status === 'failed')
-    return <Badge className="bg-red-100 text-red-700 border-red-200">Falló</Badge>;
-  return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">Pendiente</Badge>;
+    return <Badge className="bg-peligro/15 text-peligro border-peligro/30">Falló</Badge>;
+  return <Badge className="bg-advertencia/15 text-advertencia border-advertencia/30">Pendiente</Badge>;
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -31,7 +31,7 @@ function IntegrationCard({ icon: IconComponent, title, description, onConnect })
           <p className="font-semibold text-sm">{title}</p>
           <Badge
             variant="outline"
-            className="text-xs text-yellow-700 border-yellow-300 bg-yellow-50"
+            className="text-xs text-advertencia border-advertencia/30 bg-advertencia/10"
           >
             <Clock className="w-3 h-3 mr-1" />
             Pendiente de conectar
@@ -91,7 +91,7 @@ export default function IntegracionesRespaldos() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-xs">
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-info/10 border border-info/30 text-info text-xs">
             <Info className="w-4 h-4 mt-0.5 shrink-0" />
             <p>
               Las integraciones con Google Sheets y Google Drive están{' '}
@@ -123,7 +123,7 @@ export default function IntegracionesRespaldos() {
           <CardTitle className="text-base font-heading flex items-center justify-between flex-wrap gap-2">
             Cola de sincronización pendiente
             {totalPendingOrFailed > 0 && (
-              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
+              <Badge className="bg-advertencia/15 text-advertencia border-advertencia/30">
                 {totalPendingOrFailed} registros en espera
               </Badge>
             )}
@@ -132,11 +132,11 @@ export default function IntegracionesRespaldos() {
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="p-3 rounded-lg border bg-muted/30 text-center">
-              <p className="text-2xl font-bold text-yellow-600">{pendingLogs.length}</p>
+              <p className="text-2xl font-bold text-advertencia">{pendingLogs.length}</p>
               <p className="text-xs text-muted-foreground mt-1">Pendientes</p>
             </div>
             <div className="p-3 rounded-lg border bg-muted/30 text-center">
-              <p className="text-2xl font-bold text-red-500">{failedLogs.length}</p>
+              <p className="text-2xl font-bold text-peligro">{failedLogs.length}</p>
               <p className="text-xs text-muted-foreground mt-1">Con error</p>
             </div>
             <div className="p-3 rounded-lg border bg-muted/30 text-center col-span-2 sm:col-span-1">
@@ -158,7 +158,7 @@ export default function IntegracionesRespaldos() {
 
           {totalPendingOrFailed === 0 && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3 text-green-500" />
+              <CheckCircle2 className="w-3 h-3 text-exito" />
               No hay registros pendientes en cola.
             </p>
           )}

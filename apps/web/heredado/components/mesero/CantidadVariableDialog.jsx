@@ -270,7 +270,7 @@ export default function CantidadVariableDialog({ open, producto, onClose, onConf
               )}
             </div>
             {!validacion.ok && validacion.msg && (
-              <p className="text-[11px] text-rose-600 mt-1">{validacion.msg}</p>
+              <p className="text-[11px] text-peligro mt-1">{validacion.msg}</p>
             )}
           </div>
 

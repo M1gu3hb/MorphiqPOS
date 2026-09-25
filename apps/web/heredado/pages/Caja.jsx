@@ -78,25 +78,25 @@ const METODOS = [
     key: 'efectivo',
     label: 'Efectivo',
     Icon: Banknote,
-    color: 'border-green-400 bg-green-50 text-green-700',
+    color: 'border-exito bg-exito/10 text-exito',
   },
   {
     key: 'tarjeta',
     label: 'Tarjeta',
     Icon: CreditCard,
-    color: 'border-blue-400 bg-blue-50 text-blue-700',
+    color: 'border-info bg-info/10 text-info',
   },
   {
     key: 'transferencia',
     label: 'Transferencia',
     Icon: Smartphone,
-    color: 'border-purple-400 bg-purple-50 text-purple-700',
+    color: 'border-acento bg-acento/10 text-acento',
   },
   {
     key: 'mixto',
     label: 'Mixto',
     Icon: Layers,
-    color: 'border-orange-400 bg-orange-50 text-orange-700',
+    color: 'border-advertencia bg-advertencia/10 text-advertencia',
   },
 ];
 
@@ -1065,7 +1065,7 @@ export default function Caja() {
               boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
             }}
           >
-            <Landmark className="w-5 h-5 text-white" />
+            <Landmark className="w-5 h-5 text-primario-texto" />
           </div>
           <div className="min-w-0">
             <h1 className="text-xl font-heading font-bold">Caja</h1>
@@ -1128,8 +1128,8 @@ export default function Caja() {
 
       {/* Aviso si NO hay caja abierta */}
       {!hayCaja && (
-        <div className="px-4 py-3 rounded-xl bg-amber-50 border-2 border-amber-200 text-sm text-amber-900 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+        <div className="px-4 py-3 rounded-xl bg-advertencia/10 border-2 border-advertencia/30 text-sm text-advertencia flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-advertencia" />
           <div className="flex-1">
             <p className="font-bold">No hay caja abierta</p>
             <p className="text-xs opacity-90">
@@ -1154,7 +1154,7 @@ export default function Caja() {
               }}
             >
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-xl bg-superficie/20 flex items-center justify-center">
                   <ShoppingCart className="w-6 h-6" />
                 </div>
                 <div>
@@ -1188,7 +1188,7 @@ export default function Caja() {
       )}
 
       {hayCaja && cajaAbierta && (
-        <div className="px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 flex items-center gap-2 flex-wrap">
+        <div className="px-4 py-2.5 rounded-xl bg-exito/10 border border-exito/30 text-sm text-exito flex items-center gap-2 flex-wrap">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>
             Caja abierta desde{' '}
@@ -1223,7 +1223,7 @@ export default function Caja() {
           <TabsContent value="cobros">
             {ventasPendientes.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
-                <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-emerald-300" />
+                <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-exito" />
                 <p className="font-medium">Sin cobros pendientes</p>
               </div>
             ) : (
@@ -1235,7 +1235,7 @@ export default function Caja() {
                       key={v.id}
                       type="button"
                       onClick={() => (esCero ? handleEliminarTicketCero(v) : abrirVenta(v))}
-                      className={`w-full p-4 rounded-xl border-2 text-left transition-all active:scale-[0.98] ${esCero ? 'border-red-200 bg-red-50 hover:bg-red-100' : 'border-purple-200 bg-purple-50 hover:bg-purple-100'}`}
+                      className={`w-full p-4 rounded-xl border-2 text-left transition-all active:scale-[0.98] ${esCero ? 'border-peligro/30 bg-peligro/10 hover:bg-peligro/15' : 'border-acento/30 bg-acento/10 hover:bg-acento/15'}`}
                       style={{
                         boxShadow:
                           '0 2px 0 rgba(255,255,255,0.8) inset, 0 3px 8px rgba(0,0,0,0.08)',
@@ -1250,7 +1250,7 @@ export default function Caja() {
                           <p className="text-xs text-muted-foreground">{v.folio}</p>
                         </div>
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${esCero ? 'bg-red-200 text-red-800' : 'bg-purple-200 text-purple-800'}`}
+                          className={`px-2 py-1 rounded-full text-xs font-semibold ${esCero ? 'bg-peligro/20 text-peligro' : 'bg-acento/20 text-acento'}`}
                         >
                           {esCero ? 'En cero' : 'Cuenta'}
                         </span>
@@ -1266,29 +1266,29 @@ export default function Caja() {
                         <div className="mt-1 flex flex-wrap gap-1">
                           {v.propina_origen === 'pendiente_portal_qr' ||
                           v.propina_tipo === 'pendiente_cliente' ? (
-                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-advertencia/15 text-advertencia border border-advertencia/30">
                               QR: esperando propina
                             </span>
                           ) : v.propina_tipo === 'decidir_en_caja' ? (
-                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-info/15 text-info border border-info/30">
                               QR: decidir en caja
                             </span>
                           ) : v.propina_tipo === 'sin_propina' ? (
-                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-fondo-sutil text-texto border border-borde">
                               QR: sin propina
                             </span>
                           ) : v.propina_tipo === 'porcentaje' &&
                             Number(v.propina_porcentaje) > 0 ? (
-                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-peligro/15 text-peligro border border-peligro/30">
                               QR: propina {v.propina_porcentaje}% (
                               {formatCurrency(propinaDerivada(v))})
                             </span>
                           ) : propinaDerivada(v) > 0 ? (
-                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-peligro/15 text-peligro border border-peligro/30">
                               QR: propina {formatCurrency(propinaDerivada(v))}
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-info/15 text-info border border-info/30">
                               QR: cuenta solicitada
                             </span>
                           )}
@@ -1305,7 +1305,7 @@ export default function Caja() {
                         </p>
                       )}
                       <p
-                        className={`mt-2 text-xs font-semibold ${esCero ? 'text-red-700' : 'text-primary'}`}
+                        className={`mt-2 text-xs font-semibold ${esCero ? 'text-peligro' : 'text-primary'}`}
                       >
                         {esCero ? '🗑 Borrar ticket en cero →' : 'Toca para cobrar →'}
                       </p>
@@ -1321,7 +1321,7 @@ export default function Caja() {
         <TabsContent value="buscar">
           <div className="max-w-sm mx-auto space-y-4">
             <div
-              className="p-5 rounded-xl border bg-white space-y-3"
+              className="p-5 rounded-xl border bg-superficie space-y-3"
               style={{
                 boxShadow: '0 2px 0 rgba(255,255,255,0.9) inset, 0 4px 12px rgba(0,0,0,0.06)',
               }}
@@ -1380,17 +1380,17 @@ export default function Caja() {
                 const monto = Number(ventaSeleccionada?.propina_monto) || 0;
                 let titulo = 'Cuenta solicitada desde QR';
                 let mensaje = '';
-                let palette = 'bg-blue-50 border-blue-200 text-blue-900';
+                let palette = 'bg-info/10 border-info/30 text-info';
                 if (origen === 'pendiente_portal_qr' || tipo === 'pendiente_cliente') {
                   titulo = 'QR: esperando propina del comensal';
                   mensaje =
                     'El cliente aún no eligió propina en el QR. Puedes esperar o cobrar definiendo tú la propina.';
-                  palette = 'bg-amber-50 border-amber-200 text-amber-900';
+                  palette = 'bg-advertencia/10 border-advertencia/30 text-advertencia';
                 } else if (tipo === 'decidir_en_caja') {
                   titulo = 'El cliente decidió en caja';
                   mensaje =
                     'Define la propina aquí (porcentaje, monto o sin propina) antes de cobrar.';
-                  palette = 'bg-blue-50 border-blue-200 text-blue-900';
+                  palette = 'bg-info/10 border-info/30 text-info';
                 } else if (tipo === 'sin_propina') {
                   mensaje = 'El cliente eligió no dejar propina.';
                 } else if (monto > 0) {
@@ -1441,7 +1441,7 @@ export default function Caja() {
                 <span>{formatCurrency(ventaSeleccionada?.total || 0)}</span>
               </div>
               {(Number(ventaSeleccionada?.propina_monto) || 0) > 0 && (
-                <div className="flex justify-between text-sm text-rose-600">
+                <div className="flex justify-between text-sm text-peligro">
                   <span>
                     Propina{' '}
                     {ventaSeleccionada?.propina_porcentaje > 0
@@ -1457,7 +1457,7 @@ export default function Caja() {
                 <button
                   type="button"
                   onClick={() => setShowPropinaCaja(true)}
-                  className="w-full text-left text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5"
+                  className="w-full text-left text-xs text-advertencia bg-advertencia/10 border border-advertencia/30 rounded-md px-2 py-1.5"
                 >
                   {ventaSeleccionada?.propina_tipo === 'decidir_en_caja'
                     ? 'Cliente eligió decidir en caja — toca para definir propina'
@@ -1480,7 +1480,7 @@ export default function Caja() {
               </div>
             </div>
             {(!ventaSeleccionada?.total || ventaSeleccionada.total <= 0) && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
+              <div className="p-3 rounded-xl bg-peligro/10 border border-peligro/30 text-xs text-peligro">
                 Este ticket está en $0.00. No se puede cobrar. Puedes eliminarlo para limpiar la
                 caja.
               </div>
@@ -1492,7 +1492,7 @@ export default function Caja() {
                   <button
                     key={m.key}
                     onClick={() => setMetodoPago(m.key)}
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${metodoPago === m.key ? m.color + ' shadow-md' : 'border-border bg-white text-muted-foreground hover:bg-muted'}`}
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${metodoPago === m.key ? m.color + ' shadow-md' : 'border-border bg-superficie text-muted-foreground hover:bg-muted'}`}
                   >
                     <m.Icon className="w-4 h-4 shrink-0" />
                     {m.label}
@@ -1511,7 +1511,7 @@ export default function Caja() {
                 />
                 {montoEfectivo && (
                   <p
-                    className={`text-sm font-bold mt-1 ${calcularCambio() >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                    className={`text-sm font-bold mt-1 ${calcularCambio() >= 0 ? 'text-exito' : 'text-peligro'}`}
                   >
                     Cambio: {formatCurrency(calcularCambio())}
                   </p>
@@ -1552,8 +1552,8 @@ export default function Caja() {
 
                 {/* ¿Cómo se pagó la propina? — exacta, no proporcional */}
                 {(Number(ventaSeleccionada?.propina_monto) || 0) > 0 && (
-                  <div className="p-3 rounded-xl bg-rose-50 border-2 border-rose-200">
-                    <p className="text-xs font-bold text-rose-700 mb-2">
+                  <div className="p-3 rounded-xl bg-peligro/10 border-2 border-peligro/30">
+                    <p className="text-xs font-bold text-peligro mb-2">
                       ¿Cómo se pagó la propina?{' '}
                       <span className="font-mono">
                         {formatCurrency(Number(ventaSeleccionada?.propina_monto) || 0)}
@@ -1597,7 +1597,7 @@ export default function Caja() {
                       const cuadra = Math.abs(sP - pT) < 0.01;
                       return (
                         <p
-                          className={`mt-2 text-[11px] font-semibold ${cuadra ? 'text-emerald-700' : 'text-rose-700'}`}
+                          className={`mt-2 text-[11px] font-semibold ${cuadra ? 'text-exito' : 'text-peligro'}`}
                         >
                           {cuadra
                             ? `✓ Cuadra: ${formatCurrency(sP)} de propina distribuida.`
@@ -1633,7 +1633,7 @@ export default function Caja() {
               >
                 {procesando ? (
                   <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />
+                    <span className="w-4 h-4 border-2 border-borde/40 border-t-borde-fuerte rounded-full animate-spin shrink-0" />
                     {procesandoMsg || 'Procesando…'}
                   </span>
                 ) : (
@@ -1741,17 +1741,17 @@ export default function Caja() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-heading flex items-center gap-2">
-              <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+              <CheckCircle2 className="w-6 h-6 text-exito" />
               Caja cerrada correctamente
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+            <div className="p-4 rounded-xl bg-exito/10 border border-exito/30">
               <p className="text-xs text-muted-foreground">Folio del corte</p>
               <p className="font-mono font-bold text-lg">{corteCerrado?.folio}</p>
               <p className="text-xs text-muted-foreground mt-2">Total cerrado</p>
               <p
-                className={`font-heading font-black text-2xl ${config?.colorear_importes_monetarios !== false ? 'text-emerald-700 dark:text-emerald-300' : 'text-foreground'}`}
+                className={`font-heading font-black text-2xl ${config?.colorear_importes_monetarios !== false ? 'text-exito' : 'text-foreground'}`}
               >
                 {formatCurrency(corteCerrado?.total_general || resumen.totalGeneral)}
               </p>

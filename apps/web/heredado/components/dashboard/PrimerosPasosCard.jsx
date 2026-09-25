@@ -149,7 +149,7 @@ export default function PrimerosPasosCard({ progreso, ready = true }) {
                     }`}
                   >
                     {ok ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <CheckCircle2 className="w-4 h-4 text-exito shrink-0" />
                     ) : (
                       <Circle className="w-4 h-4 text-muted-foreground shrink-0" />
                     )}

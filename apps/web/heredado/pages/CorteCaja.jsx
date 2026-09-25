@@ -157,7 +157,7 @@ export default function CorteCaja() {
       />
 
       {corteAbierto && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+        <div className="p-3 bg-exito/10 border border-exito/30 rounded-lg text-sm text-exito">
           Corte abierto desde {safeFormatDate(corteAbierto.fecha_inicio, 'd MMM, HH:mm')} · Folio:{' '}
           {corteAbierto.folio}
         </div>
@@ -253,7 +253,7 @@ export default function CorteCaja() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Utilidad bruta</p>
-                <p className="font-bold text-emerald-600">
+                <p className="font-bold text-exito">
                   {formatCurrency(resumen.utilidadBruta)}
                 </p>
               </div>
@@ -278,7 +278,7 @@ export default function CorteCaja() {
               />
               {efectivoContadoValido && (
                 <p
-                  className={`text-xs mt-1 font-medium ${diferencia >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                  className={`text-xs mt-1 font-medium ${diferencia >= 0 ? 'text-exito' : 'text-peligro'}`}
                 >
                   Diferencia: {diferencia >= 0 ? '+' : ''}
                   {formatCurrency(diferencia)}

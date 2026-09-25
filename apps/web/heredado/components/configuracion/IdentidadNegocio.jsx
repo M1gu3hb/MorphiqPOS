@@ -181,7 +181,7 @@ export default function IdentidadNegocio({ cfg }) {
                 onChange={(e) => handleUpload(e, field, uploadKey)}
               />
               <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border bg-white hover:bg-muted transition-colors ${uploading === uploadKey ? 'opacity-60 pointer-events-none' : ''}`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border bg-superficie hover:bg-muted transition-colors ${uploading === uploadKey ? 'opacity-60 pointer-events-none' : ''}`}
               >
                 {uploading === uploadKey ? (
                   <>

@@ -153,7 +153,7 @@ export default function MesaEditDialog({ open, mesa, onClose, onSave, onDelete }
           </DialogHeader>
 
           {isEdit && mesaOcupada && (
-            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+            <div className="p-3 rounded-lg bg-advertencia/10 border border-advertencia/30 text-xs text-advertencia flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
               <p>
                 Esta mesa está <strong>ocupada o con venta activa</strong>. Puedes editar sus datos,

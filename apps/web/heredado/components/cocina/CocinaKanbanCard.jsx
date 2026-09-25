@@ -60,16 +60,16 @@ export default function CocinaKanbanCard({
 
   return (
     <div
-      className="rounded-xl bg-white border overflow-hidden"
+      className="rounded-xl bg-superficie border overflow-hidden"
       style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.9) inset, 0 2px 6px rgba(0,0,0,0.07)' }}
     >
       {/* Badge huérfano — solo informativo, sin botón de archivar.
           Solo se muestra cuando la venta asociada REALMENTE no existe en BD. */}
       {isHuerfano && (
         <div className="px-2 pt-2">
-          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-300">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span className="text-[11px] font-medium text-amber-800 truncate">
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-advertencia/10 border border-advertencia/30">
+            <AlertTriangle className="w-3.5 h-3.5 text-advertencia shrink-0" />
+            <span className="text-[11px] font-medium text-advertencia truncate">
               Sin venta asociada
             </span>
           </div>
@@ -122,7 +122,7 @@ export default function CocinaKanbanCard({
           </Button>
         )}
         {estado === 'listo' && (
-          <p className="text-xs text-center text-emerald-700 font-medium italic py-1">
+          <p className="text-xs text-center text-exito font-medium italic py-1">
             Esperando que el mesero recoja
           </p>
         )}
@@ -140,7 +140,7 @@ export default function CocinaKanbanCard({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[11px] border-red-300 text-red-700 hover:bg-red-50"
+                className="h-7 text-[11px] border-peligro/30 text-peligro hover:bg-peligro/10"
                 onClick={(e) => {
                   e.stopPropagation();
                   setConfirmQuitar(true);
@@ -162,14 +162,14 @@ export default function CocinaKanbanCard({
                   key={i}
                   className={
                     hayModif
-                      ? 'rounded border-l-4 border-orange-400 pl-1 bg-orange-50/40 py-0.5'
+                      ? 'rounded border-l-4 border-advertencia pl-1 bg-advertencia/40 py-0.5'
                       : ''
                   }
                 >
                   <button
                     type="button"
                     onClick={(e) => handleProductoClick(e, item)}
-                    className="w-full flex items-start gap-1.5 text-sm text-left hover:bg-white rounded px-1 py-0.5 transition-colors group"
+                    className="w-full flex items-start gap-1.5 text-sm text-left hover:bg-superficie rounded px-1 py-0.5 transition-colors group"
                     title="Ver ficha interna del producto"
                   >
                     {esVariable ? (
@@ -182,17 +182,17 @@ export default function CocinaKanbanCard({
                       </span>
                     )}
                     <span
-                      className={`flex-1 ${hayModif ? 'font-bold text-orange-900' : 'font-medium'}`}
+                      className={`flex-1 ${hayModif ? 'font-bold text-advertencia' : 'font-medium'}`}
                     >
                       {item?.producto_nombre || '—'}
                     </span>
-                    {hayModif && <AlertCircle className="w-3 h-3 text-orange-600 mt-0.5" />}
+                    {hayModif && <AlertCircle className="w-3 h-3 text-advertencia mt-0.5" />}
                     {item?.producto_id && (
                       <BookOpen className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
                     )}
                   </button>
                   {hayModif && (
-                    <p className="text-[11px] text-orange-800 italic ml-6 bg-orange-100 border border-orange-200 px-2 py-0.5 rounded mt-0.5 font-medium">
+                    <p className="text-[11px] text-advertencia italic ml-6 bg-advertencia/15 border border-advertencia/30 px-2 py-0.5 rounded mt-0.5 font-medium">
                       ↳ {item.notas}
                     </p>
                   )}
@@ -203,7 +203,7 @@ export default function CocinaKanbanCard({
             <p className="text-xs text-muted-foreground">Sin productos</p>
           )}
           {pedido?.notas && (
-            <p className="text-[11px] italic bg-yellow-50 border border-yellow-200 px-2 py-1 rounded mt-1">
+            <p className="text-[11px] italic bg-advertencia/10 border border-advertencia/30 px-2 py-1 rounded mt-1">
               📝 {pedido.notas}
             </p>
           )}

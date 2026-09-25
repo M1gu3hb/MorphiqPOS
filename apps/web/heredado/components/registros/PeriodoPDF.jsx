@@ -26,7 +26,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
 
   return (
     <div
-      className="ticket-printable letter-doc cash-cut-pdf bg-white text-black mx-auto"
+      className="ticket-printable letter-doc cash-cut-pdf bg-superficie text-texto mx-auto"
       style={{
         width: '210mm',
         minHeight: '297mm',
@@ -35,7 +35,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
       }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-black">
+      <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-borde-fuerte">
         <div className="flex items-center gap-3">
           <img
             src={config.logo_url || AZECAFE_LOGO_URL}
@@ -44,7 +44,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
           />
           <div>
             <h1 className="text-xl font-bold">{config.nombre_negocio || 'AZECAFE'}</h1>
-            <p className="text-xs text-gray-600">{config.direccion || ''}</p>
+            <p className="text-xs text-texto-sutil">{config.direccion || ''}</p>
           </div>
         </div>
         <div className="text-right">
@@ -53,7 +53,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
             {format(from, 'd MMM yyyy', { locale: es })} –{' '}
             {format(to, 'd MMM yyyy', { locale: es })}
           </p>
-          <p className="text-[10px] text-gray-500">
+          <p className="text-[10px] text-texto-sutil">
             Generado: {format(new Date(), 'd MMM yyyy, HH:mm', { locale: es })}
           </p>
         </div>
@@ -79,7 +79,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
           </tr>
           <tr>
             <td className="border px-2 py-1.5 font-medium">Propinas (no son del restaurante)</td>
-            <td className="border px-2 py-1.5 text-right text-rose-700">
+            <td className="border px-2 py-1.5 text-right text-peligro">
               {formatCurrency(totals.propinas || 0)}
             </td>
           </tr>
@@ -93,7 +93,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
             <>
               <tr>
                 <td className="border px-2 py-1.5 font-medium">Utilidad bruta</td>
-                <td className="border px-2 py-1.5 text-right text-emerald-700">
+                <td className="border px-2 py-1.5 text-right text-exito">
                   {formatCurrency(totals.utilidad || 0)}
                 </td>
               </tr>
@@ -105,17 +105,17 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
               </tr>
               <tr>
                 <td className="border px-2 py-1.5 font-medium">Compras de insumos</td>
-                <td className="border px-2 py-1.5 text-right text-amber-700">
+                <td className="border px-2 py-1.5 text-right text-advertencia">
                   −{formatCurrency(totals.compras || 0)}
                 </td>
               </tr>
               <tr>
                 <td className="border px-2 py-1.5 font-medium">Gastos operativos</td>
-                <td className="border px-2 py-1.5 text-right text-red-700">
+                <td className="border px-2 py-1.5 text-right text-peligro">
                   −{formatCurrency(totals.gastos || 0)}
                 </td>
               </tr>
-              <tr className="bg-gray-100">
+              <tr className="bg-fondo-sutil">
                 <td className="border px-2 py-2 font-bold">NETO DEL PERIODO (sin propinas)</td>
                 <td className="border px-2 py-2 text-right font-bold text-base">
                   {neto >= 0 ? '' : '−'}
@@ -133,7 +133,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
       </h3>
       {ventas.length > 0 ? (
         <table className="w-full text-[10px] border mb-4">
-          <thead className="bg-gray-100">
+          <thead className="bg-fondo-sutil">
             <tr>
               <th className="border px-1.5 py-1 text-left">Folio</th>
               <th className="border px-1.5 py-1 text-left">Fecha</th>
@@ -161,7 +161,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
             ))}
             {ventas.length > 100 && (
               <tr>
-                <td colSpan={5} className="border px-1.5 py-1 text-center text-gray-500 italic">
+                <td colSpan={5} className="border px-1.5 py-1 text-center text-texto-sutil italic">
                   ...y {ventas.length - 100} ventas más
                 </td>
               </tr>
@@ -169,7 +169,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
           </tbody>
         </table>
       ) : (
-        <p className="text-xs text-gray-500 italic">Sin ventas en este periodo.</p>
+        <p className="text-xs text-texto-sutil italic">Sin ventas en este periodo.</p>
       )}
 
       {/* Compras — solo con el módulo `compras` */}
@@ -180,7 +180,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
           </h3>
           {compras.length > 0 ? (
             <table className="w-full text-[10px] border mb-4">
-              <thead className="bg-gray-100">
+              <thead className="bg-fondo-sutil">
                 <tr>
                   <th className="border px-1.5 py-1 text-left">Fecha</th>
                   <th className="border px-1.5 py-1 text-left">Proveedor</th>
@@ -202,7 +202,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
               </tbody>
             </table>
           ) : (
-            <p className="text-xs text-gray-500 italic">Sin compras en este periodo.</p>
+            <p className="text-xs text-texto-sutil italic">Sin compras en este periodo.</p>
           )}
 
           {/* Gastos */}
@@ -211,7 +211,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
           </h3>
           {gastos.length > 0 ? (
             <table className="w-full text-[10px] border mb-4">
-              <thead className="bg-gray-100">
+              <thead className="bg-fondo-sutil">
                 <tr>
                   <th className="border px-1.5 py-1 text-left">Fecha</th>
                   <th className="border px-1.5 py-1 text-left">Categoría</th>
@@ -225,7 +225,7 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
                     <td className="border px-1.5 py-1">{g.fecha}</td>
                     <td className="border px-1.5 py-1 capitalize">{g.categoria}</td>
                     <td className="border px-1.5 py-1">{g.descripcion}</td>
-                    <td className="border px-1.5 py-1 text-right font-medium text-red-700">
+                    <td className="border px-1.5 py-1 text-right font-medium text-peligro">
                       −{formatCurrency(g.monto)}
                     </td>
                   </tr>
@@ -233,12 +233,12 @@ export default function PeriodoPDF({ data, config = {}, sinCostos = false }) {
               </tbody>
             </table>
           ) : (
-            <p className="text-xs text-gray-500 italic">Sin gastos en este periodo.</p>
+            <p className="text-xs text-texto-sutil italic">Sin gastos en este periodo.</p>
           )}
         </>
       )}
 
-      <div className="mt-8 pt-4 border-t text-[9px] text-gray-500 text-center">
+      <div className="mt-8 pt-4 border-t text-[9px] text-texto-sutil text-center">
         Documento generado automáticamente por {config.nombre_sistema || 'AZECAFE POS'}
       </div>
     </div>

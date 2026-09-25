@@ -82,7 +82,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
   const margen = totals.ingresos > 0 ? (totals.utilidad / totals.ingresos) * 100 : 0;
 
   return (
-    <Card className="p-4 bg-white/70 backdrop-blur-sm">
+    <Card className="p-4 bg-superficie/70 backdrop-blur-sm">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <Calendar className="w-5 h-5 text-primary" />
@@ -161,7 +161,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
           label="Propinas"
           value={formatCurrency(totals.propinas)}
           sub="Separadas de ventas"
-          color={colorize ? 'text-rose-600' : 'text-foreground'}
+          color={colorize ? 'text-peligro' : 'text-foreground'}
         />
         {!sinCostos && (
           <>
@@ -170,13 +170,13 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
               label="Utilidad bruta"
               value={formatCurrency(totals.utilidad)}
               sub={`${(Number.isFinite(Number(margen)) ? Number(margen) : 0).toFixed(1)}% margen`}
-              color={colorize ? 'text-emerald-600' : 'text-foreground'}
+              color={colorize ? 'text-exito' : 'text-foreground'}
             />
             <Stat
               icon={ShoppingBag}
               label="Compras"
               value={formatCurrency(totals.compras)}
-              color={colorize ? 'text-amber-600' : 'text-foreground'}
+              color={colorize ? 'text-advertencia' : 'text-foreground'}
             />
           </>
         )}
@@ -194,7 +194,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
             </p>
           </div>
           <p
-            className={`font-heading font-black text-2xl ${colorize ? (neto >= 0 ? 'text-emerald-700' : 'text-red-600') : 'text-foreground'}`}
+            className={`font-heading font-black text-2xl ${colorize ? (neto >= 0 ? 'text-exito' : 'text-peligro') : 'text-foreground'}`}
           >
             {neto >= 0 ? '' : '−'}
             {formatCurrency(Math.abs(neto))}
@@ -223,7 +223,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
 
 function Stat({ icon: Icon, label, value, sub, color }) {
   return (
-    <div className="p-3 rounded-xl border bg-white/80">
+    <div className="p-3 rounded-xl border bg-superficie/80">
       <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] mb-1">
         <Icon className="w-3.5 h-3.5" />
         {label}

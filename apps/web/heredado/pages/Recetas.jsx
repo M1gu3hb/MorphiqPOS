@@ -202,8 +202,8 @@ export default function Recetas() {
         <LoadingState label="Cargando recetas…" />
       ) : canEdit && sinInventario && productosConReceta.length === 0 ? (
         <Card className="p-8 text-center space-y-4 border-2 border-dashed">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
-            <Package className="w-7 h-7 text-amber-600 dark:text-amber-300" />
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-advertencia/15 flex items-center justify-center">
+            <Package className="w-7 h-7 text-advertencia" />
           </div>
           <div>
             <h3 className="font-heading font-bold text-lg">No hay inventario registrado todavía</h3>
@@ -269,7 +269,7 @@ export default function Recetas() {
             </div>
           ))}
           {targetProductoId && !productosConReceta.find((p) => p.id === targetProductoId) && (
-            <div className="p-4 rounded-lg bg-amber-50 border border-amber-300 text-sm text-amber-800">
+            <div className="p-4 rounded-lg bg-advertencia/10 border border-advertencia/30 text-sm text-advertencia">
               Este producto no tiene receta asociada.
             </div>
           )}

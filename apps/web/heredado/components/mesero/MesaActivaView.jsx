@@ -147,8 +147,8 @@ export default function MesaActivaView({
                 onClick={() => setCategoriaFiltro?.('todas')}
                 className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${
                   categoriaFiltro === 'todas'
-                    ? 'bg-primary text-white'
-                    : 'bg-white border text-muted-foreground'
+                    ? 'bg-primary text-primario-texto'
+                    : 'bg-superficie border text-muted-foreground'
                 }`}
               >
                 Todas
@@ -160,8 +160,8 @@ export default function MesaActivaView({
                   onClick={() => setCategoriaFiltro?.(c?.id)}
                   className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${
                     categoriaFiltro === c?.id
-                      ? 'bg-primary text-white'
-                      : 'bg-white border text-muted-foreground'
+                      ? 'bg-primary text-primario-texto'
+                      : 'bg-superficie border text-muted-foreground'
                   }`}
                 >
                   {c?.nombre || '—'}
@@ -176,7 +176,7 @@ export default function MesaActivaView({
                 key={p?.id}
                 type="button"
                 onClick={() => agregarAlCarrito?.(p)}
-                className="p-3 rounded-xl border bg-white text-left hover:bg-muted/30 active:scale-95 transition-all"
+                className="p-3 rounded-xl border bg-superficie text-left hover:bg-muted/30 active:scale-95 transition-all"
                 style={{
                   boxShadow: '0 1px 0 rgba(255,255,255,0.9) inset, 0 2px 4px rgba(0,0,0,0.06)',
                 }}
@@ -260,7 +260,7 @@ export default function MesaActivaView({
                       <button
                         type="button"
                         onClick={() => cambiarCantidad?.(item?.id, -1)}
-                        className="w-6 h-6 rounded-full bg-white border flex items-center justify-center"
+                        className="w-6 h-6 rounded-full bg-superficie border flex items-center justify-center"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
@@ -270,7 +270,7 @@ export default function MesaActivaView({
                       <button
                         type="button"
                         onClick={() => cambiarCantidad?.(item?.id, 1)}
-                        className="w-6 h-6 rounded-full bg-white border flex items-center justify-center"
+                        className="w-6 h-6 rounded-full bg-superficie border flex items-center justify-center"
                       >
                         <Plus className="w-3 h-3" />
                       </button>

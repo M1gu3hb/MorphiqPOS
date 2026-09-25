@@ -164,7 +164,7 @@ export default function Sidebar({ collapsed, onToggle }) {
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
       {/* Header */}
       <div className="flex items-center gap-3 px-3 py-4 border-b border-sidebar-border">
-        <div className="w-10 h-10 rounded-full overflow-hidden bg-white/10 flex items-center justify-center shrink-0 ring-2 ring-white/10">
+        <div className="w-10 h-10 rounded-full overflow-hidden bg-superficie/10 flex items-center justify-center shrink-0 ring-2 ring-borde/10">
           {config.logo_url ? (
             <img
               src={config.logo_url}
@@ -172,7 +172,7 @@ export default function Sidebar({ collapsed, onToggle }) {
               className="w-full h-full object-contain p-1"
             />
           ) : (
-            <Sparkles className="w-5 h-5 text-blue-300" />
+            <Sparkles className="w-5 h-5 text-info" />
           )}
         </div>
         {!collapsed && (
@@ -204,7 +204,7 @@ export default function Sidebar({ collapsed, onToggle }) {
               key={item.path}
               to={item.path}
               onClick={closeMobile}
-              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${active ? 'text-white font-semibold' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}
+              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${active ? 'text-primario-texto font-semibold' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}
               style={
                 active
                   ? {
@@ -288,7 +288,7 @@ export default function Sidebar({ collapsed, onToggle }) {
             {!collapsed && (
               <button
                 onClick={logout}
-                className="text-sidebar-foreground/50 hover:text-red-400 transition-colors p-1"
+                className="text-sidebar-foreground/50 hover:text-peligro transition-colors p-1"
                 aria-label="Salir"
               >
                 <LogOut className="w-4 h-4" />
@@ -306,7 +306,7 @@ export default function Sidebar({ collapsed, onToggle }) {
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-[70] w-11 h-11 bg-sidebar rounded-xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-transform"
+        className="lg:hidden fixed top-3 left-3 z-[70] w-11 h-11 bg-sidebar rounded-xl flex items-center justify-center text-primario-texto shadow-lg active:scale-95 transition-transform"
         aria-label="Abrir menú"
         style={{ touchAction: 'manipulation' }}
       >
@@ -318,7 +318,7 @@ export default function Sidebar({ collapsed, onToggle }) {
         <div className="fixed inset-0 z-[80] lg:hidden">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-velo/60"
             onClick={closeMobile}
             aria-label="Cerrar menú"
           />
@@ -328,7 +328,7 @@ export default function Sidebar({ collapsed, onToggle }) {
             <button
               type="button"
               onClick={closeMobile}
-              className="absolute top-2 right-2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10 active:scale-95 transition-transform"
+              className="absolute top-2 right-2 w-11 h-11 rounded-full bg-superficie/10 hover:bg-superficie/20 flex items-center justify-center text-primario-texto z-10 active:scale-95 transition-transform"
               aria-label="Cerrar menú"
               style={{ touchAction: 'manipulation' }}
             >

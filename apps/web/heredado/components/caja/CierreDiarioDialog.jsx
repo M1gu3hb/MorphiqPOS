@@ -151,13 +151,13 @@ export default function CierreDiarioDialog({
       <DialogContent className="sm:max-w-3xl max-h-[92dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading flex items-center gap-2 text-lg">
-            <Lock className="w-5 h-5 text-red-600" />
+            <Lock className="w-5 h-5 text-peligro" />
             Cierre de caja diario
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5">
-          <div className="p-3 rounded-xl bg-gradient-to-r from-red-50 to-amber-50 dark:from-red-950/40 dark:to-amber-950/40 border border-red-200 dark:border-red-900 text-xs text-red-800 dark:text-red-200 flex items-start gap-2">
+          <div className="p-3 rounded-xl bg-gradient-to-r from-peligro/10 to-advertencia/10 border border-peligro/30 text-xs text-peligro flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
             <p>
               Cerrar la caja finaliza la operación del día. Se generará un{' '}
@@ -182,14 +182,14 @@ export default function CierreDiarioDialog({
                 label="Utilidad bruta"
                 value={formatCurrency(utilidadBruta)}
                 icon={TrendingUp}
-                color={tone ? 'text-emerald-700 dark:text-emerald-300' : 'text-foreground'}
+                color={tone ? 'text-exito' : 'text-foreground'}
               />
               <KPI label="Margen prom." value={formatPercent(margen)} />
               <KPI
                 label="Gastos op."
                 value={formatCurrency(totalGastos)}
                 icon={Scissors}
-                color={tone ? 'text-rose-600 dark:text-rose-300' : 'text-foreground'}
+                color={tone ? 'text-peligro' : 'text-foreground'}
               />
               <KPI
                 label="Utilidad neta est."
@@ -198,8 +198,8 @@ export default function CierreDiarioDialog({
                 color={
                   tone
                     ? utilidadNeta >= 0
-                      ? 'text-emerald-700 dark:text-emerald-300'
-                      : 'text-rose-600 dark:text-rose-300'
+                      ? 'text-exito'
+                      : 'text-peligro'
                     : 'text-foreground'
                 }
               />
@@ -217,7 +217,7 @@ export default function CierreDiarioDialog({
                 label="Propinas totales"
                 value={formatCurrency(totalPropinas)}
                 icon={Wallet}
-                color={tone ? 'text-rose-600 dark:text-rose-300' : 'text-foreground'}
+                color={tone ? 'text-peligro' : 'text-foreground'}
               />
               <KPI label="Propina efectivo" value={formatCurrency(efPropinas)} />
               <KPI label="Propina tarjeta" value={formatCurrency(taPropinas)} />
@@ -241,7 +241,7 @@ export default function CierreDiarioDialog({
               <FilaMetodo
                 Icon={Banknote}
                 label="Efectivo"
-                color={tone ? 'text-emerald-700 dark:text-emerald-300' : 'text-foreground'}
+                color={tone ? 'text-exito' : 'text-foreground'}
                 v={totalEfectivo}
                 p={efPropinas}
                 t={efTotal}
@@ -250,7 +250,7 @@ export default function CierreDiarioDialog({
               <FilaMetodo
                 Icon={CreditCard}
                 label="Tarjeta"
-                color={tone ? 'text-blue-700 dark:text-blue-300' : 'text-foreground'}
+                color={tone ? 'text-info' : 'text-foreground'}
                 v={totalTarjeta}
                 p={taPropinas}
                 t={taTotal}
@@ -259,7 +259,7 @@ export default function CierreDiarioDialog({
               <FilaMetodo
                 Icon={Smartphone}
                 label="Transferencia"
-                color={tone ? 'text-purple-700 dark:text-purple-300' : 'text-foreground'}
+                color={tone ? 'text-acento' : 'text-foreground'}
                 v={totalTransferencia}
                 p={trPropinas}
                 t={trTotal}
@@ -268,7 +268,7 @@ export default function CierreDiarioDialog({
               <div className="grid grid-cols-4 px-3 py-2 border-t bg-muted/30 text-sm font-bold">
                 <span>Total</span>
                 <span className="text-right">{formatCurrency(totalGeneral)}</span>
-                <span className={`text-right ${tone ? 'text-rose-600 dark:text-rose-300' : ''}`}>
+                <span className={`text-right ${tone ? 'text-peligro' : ''}`}>
                   {formatCurrency(totalPropinas)}
                 </span>
                 <span className="text-right">{formatCurrency(totalCobrado)}</span>
@@ -279,17 +279,17 @@ export default function CierreDiarioDialog({
           {/* === CONTEO DE EFECTIVO === */}
           <Section title="Conteo de efectivo y fondo">
             {/* Banner destacado: efectivo esperado en el cajón */}
-            <div className="rounded-xl border-2 border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 mb-3">
+            <div className="rounded-xl border-2 border-exito/30 bg-exito/10 px-4 py-3 mb-3">
               <div className="flex items-start gap-3 flex-wrap">
-                <Banknote className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <Banknote className="w-6 h-6 text-exito shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] uppercase tracking-wide font-bold text-emerald-700 dark:text-emerald-300">
+                  <p className="text-[11px] uppercase tracking-wide font-bold text-exito">
                     Efectivo esperado en cajón
                   </p>
-                  <p className="font-heading font-black text-2xl text-emerald-800 dark:text-emerald-200 leading-tight">
+                  <p className="font-heading font-black text-2xl text-exito leading-tight">
                     {arqueoServidor ? formatCurrency(efectivoEsperado) : ''}
                   </p>
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
+                  <p className="text-[11px] text-exito mt-0.5">
                     Ventas en efectivo {formatCurrency(totalEfectivo)} + propinas en efectivo{' '}
                     {formatCurrency(efPropinas)}
                   </p>
@@ -332,10 +332,10 @@ export default function CierreDiarioDialog({
               <div
                 className={`mt-3 p-3 rounded-xl border-2 flex items-center gap-2 text-sm font-semibold ${
                   tonoDiferencia === 'cuadra'
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300'
+                    ? 'bg-exito/10 border-exito/30 text-exito'
                     : tonoDiferencia === 'sobra'
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300'
-                      : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300'
+                      ? 'bg-exito/10 border-exito/30 text-exito'
+                      : 'bg-peligro/10 border-peligro/30 text-peligro'
                 }`}
               >
                 {tonoDiferencia === 'cuadra' ? (
@@ -422,7 +422,7 @@ function FilaMetodo({ Icon, label, color, v, p, t, tone = true }) {
       </span>
       <span className="text-right font-semibold">{formatCurrency(v)}</span>
       <span
-        className={`text-right font-semibold ${tone ? 'text-rose-600 dark:text-rose-300' : ''}`}
+        className={`text-right font-semibold ${tone ? 'text-peligro' : ''}`}
       >
         {formatCurrency(p)}
       </span>

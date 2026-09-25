@@ -59,7 +59,7 @@ export default function ScannerMiniCart({
           onClick={() => setCollapsed(c => !c)}
           className="w-full flex items-center gap-2 px-3 py-2 text-left"
         >
-          <div className="h-8 w-8 rounded-full bg-white/15 flex items-center justify-center flex-shrink-0">
+          <div className="h-8 w-8 rounded-full bg-primario-texto/15 flex items-center justify-center flex-shrink-0">
             <ShoppingCart className="h-4 w-4" />
           </div>
           <div className="flex-1 min-w-0">
@@ -79,18 +79,18 @@ export default function ScannerMiniCart({
               <ul className="space-y-1">
                 {ultimos.map((item, i) => (
                   <li key={i} className="flex items-center gap-2 text-xs">
-                    <Check className="h-3 w-3 text-green-400 flex-shrink-0" />
+                    <Check className="h-3 w-3 text-exito flex-shrink-0" />
                     <span className="flex-1 truncate font-medium">
                       {item.nombre || item.producto_nombre || 'Producto'}
                     </span>
-                    <span className="text-white/70 font-bold tabular-nums">
+                    <span className="text-primario-texto/70 font-bold tabular-nums">
                       x{item.cantidad || 1}
                     </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-white/60 italic">Aún no hay escaneos</p>
+              <p className="text-xs text-primario-texto/60 italic">Aún no hay escaneos</p>
             )}
 
             <div className="flex gap-2 pt-1">
@@ -111,7 +111,7 @@ export default function ScannerMiniCart({
                 <button
                   type="button"
                   onClick={onFinish}
-                  className="flex-1 h-9 rounded-lg text-xs font-bold flex items-center justify-center gap-1 bg-white/15 hover:bg-white/25 transition-colors"
+                  className="flex-1 h-9 rounded-lg text-xs font-bold flex items-center justify-center gap-1 bg-primario-texto/15 hover:bg-primario-texto/25 transition-colors"
                 >
                   <X className="h-3.5 w-3.5" /> Terminar
                 </button>

@@ -112,11 +112,7 @@ export default function FichaResumenVariable({
   if (!resumen) return null;
 
   const margenColor = (m) =>
-    m >= 60
-      ? 'text-emerald-700 dark:text-emerald-300'
-      : m >= 40
-        ? 'text-yellow-700 dark:text-yellow-300'
-        : 'text-red-700 dark:text-red-300';
+    m >= 60 ? 'text-exito' : m >= 40 ? 'text-advertencia' : 'text-peligro';
 
   // Unidad mostrada (g, kg, ml, l, shot, copa, vaso...).
   const u = resumen.tipo === 'medida' ? resumen.unidadMostrada : resumen.nombrePorcion;
@@ -137,13 +133,13 @@ export default function FichaResumenVariable({
       <div className="grid grid-cols-3 gap-1 text-center">
         <div className="rounded-md bg-muted/50 py-1.5">
           <p className="text-[9px] text-muted-foreground uppercase">Costo / {u}</p>
-          <p className="text-xs font-bold text-orange-700 dark:text-orange-300">
+          <p className="text-xs font-bold text-advertencia">
             {resumen.hayCosto ? formatCurrency(costoVal) : '—'}
           </p>
         </div>
         <div className="rounded-md bg-muted/50 py-1.5">
           <p className="text-[9px] text-muted-foreground uppercase">Utilidad / {u}</p>
-          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+          <p className="text-xs font-bold text-exito">
             {resumen.hayCosto ? formatCurrency(resumen.utilidad) : '—'}
           </p>
         </div>
@@ -182,12 +178,12 @@ export default function FichaResumenVariable({
           <Metric
             label={`Costo / ${u}`}
             value={resumen.hayCosto ? formatCurrency(costoVal) : '—'}
-            color="text-orange-700 dark:text-orange-300"
+            color="text-advertencia"
           />
           <Metric
             label={`Utilidad / ${u}`}
             value={resumen.hayCosto ? formatCurrency(resumen.utilidad) : '—'}
-            color="text-emerald-700 dark:text-emerald-300"
+            color="text-exito"
           />
           <Metric
             label="Margen"
@@ -196,7 +192,7 @@ export default function FichaResumenVariable({
           />
         </div>
         {!resumen.hayCosto && (
-          <p className="text-[11px] text-amber-700 dark:text-amber-300">
+          <p className="text-[11px] text-advertencia">
             Costo por {u} no disponible hasta registrar inventario del ingrediente base.
           </p>
         )}
@@ -226,12 +222,12 @@ export default function FichaResumenVariable({
         <Metric
           label={`Costo / ${u}`}
           value={resumen.hayCosto ? formatCurrency(costoVal) : '—'}
-          color="text-orange-700 dark:text-orange-300"
+          color="text-advertencia"
         />
         <Metric
           label={`Utilidad / ${u}`}
           value={resumen.hayCosto ? formatCurrency(resumen.utilidad) : '—'}
-          color="text-emerald-700 dark:text-emerald-300"
+          color="text-exito"
         />
         <Metric
           label="Margen"
@@ -275,7 +271,7 @@ export default function FichaResumenVariable({
       </div>
 
       {!resumen.hayCosto && (
-        <p className="text-[11px] text-amber-700 dark:text-amber-300">
+        <p className="text-[11px] text-advertencia">
           Costo por {u} no disponible hasta registrar inventario del ingrediente base.
         </p>
       )}

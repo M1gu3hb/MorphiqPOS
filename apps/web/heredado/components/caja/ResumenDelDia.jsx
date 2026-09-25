@@ -98,10 +98,8 @@ export default function ResumenDelDia({
     );
   }
 
-  const colorMoney = colorearImportes
-    ? 'text-emerald-600 dark:text-emerald-300'
-    : 'text-foreground';
-  const colorTip = colorearImportes ? 'text-rose-600 dark:text-rose-300' : 'text-foreground';
+  const colorMoney = colorearImportes ? 'text-exito' : 'text-foreground';
+  const colorTip = colorearImportes ? 'text-peligro' : 'text-foreground';
 
   return (
     <div className="space-y-4">

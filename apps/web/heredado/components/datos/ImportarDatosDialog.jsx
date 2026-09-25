@@ -255,7 +255,7 @@ export default function ImportarDatosDialog({ open, onClose, tipo }) {
                   <p className="text-[11px] text-muted-foreground mt-2">{archivo.name}</p>
                 )}
               </div>
-              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs">
+              <div className="p-3 rounded-lg bg-advertencia/10 border border-advertencia/30 text-xs">
                 <p className="font-medium flex items-center gap-1 mb-1">
                   <Info className="w-3.5 h-3.5" /> Importante
                 </p>
@@ -392,45 +392,45 @@ function ResumenPreview({ tipo, resumen }) {
     items.push({
       label: 'Nuevos',
       value: resumen.nuevas,
-      color: 'bg-emerald-100 text-emerald-700',
+      color: 'bg-exito/15 text-exito',
     });
   if ('actualizar' in resumen)
     items.push({
       label: 'A actualizar',
       value: resumen.actualizar,
-      color: 'bg-blue-100 text-blue-700',
+      color: 'bg-info/15 text-info',
     });
   if ('validas' in resumen)
     items.push({
       label: 'Válidos',
       value: resumen.validas,
-      color: 'bg-emerald-100 text-emerald-700',
+      color: 'bg-exito/15 text-exito',
     });
   if ('advertencias' in resumen)
     items.push({
       label: 'Advertencias',
       value: resumen.advertencias,
-      color: 'bg-amber-100 text-amber-700',
+      color: 'bg-advertencia/15 text-advertencia',
     });
   if ('errores' in resumen)
-    items.push({ label: 'Errores', value: resumen.errores, color: 'bg-rose-100 text-rose-700' });
+    items.push({ label: 'Errores', value: resumen.errores, color: 'bg-peligro/15 text-peligro' });
   if ('inactivos' in resumen)
     items.push({
       label: 'Inactivos detectados',
       value: resumen.inactivos,
-      color: 'bg-amber-100 text-amber-700',
+      color: 'bg-advertencia/15 text-advertencia',
     });
   if ('duplicadasArchivo' in resumen)
     items.push({
       label: 'Duplicados en archivo',
       value: resumen.duplicadasArchivo,
-      color: 'bg-rose-100 text-rose-700',
+      color: 'bg-peligro/15 text-peligro',
     });
   if ('total' in resumen)
     items.push({
       label: 'Total filas',
       value: resumen.total,
-      color: 'bg-slate-100 text-slate-700',
+      color: 'bg-fondo-sutil text-texto',
     });
 
   return (
@@ -445,7 +445,7 @@ function ResumenPreview({ tipo, resumen }) {
       </div>
       {tipo === 'recetas' &&
         (resumen.ingredientesFaltantes?.length > 0 || resumen.productosFaltantes?.length > 0) && (
-          <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-xs space-y-2">
+          <div className="p-3 rounded-lg bg-peligro/10 border border-peligro/30 text-xs space-y-2">
             {resumen.ingredientesFaltantes?.length > 0 && (
               <div>
                 <p className="font-medium mb-1">
@@ -485,7 +485,7 @@ function ResumenPreview({ tipo, resumen }) {
           </div>
         )}
       {tipo === 'productos' && resumen.categoriasFaltantes?.length > 0 && (
-        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs">
+        <div className="p-3 rounded-lg bg-advertencia/10 border border-advertencia/30 text-xs">
           <p className="font-medium mb-1">
             Categorías nuevas detectadas ({resumen.categoriasFaltantes.length}):
           </p>
@@ -505,13 +505,13 @@ function ResumenPreview({ tipo, resumen }) {
 function FilaPreview({ fila, tipo }) {
   const icon =
     fila.status === 'error' ? (
-      <XCircle className="w-3.5 h-3.5 text-rose-500" />
+      <XCircle className="w-3.5 h-3.5 text-peligro" />
     ) : fila.status === 'advertencia' ? (
-      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+      <AlertTriangle className="w-3.5 h-3.5 text-advertencia" />
     ) : fila.status === 'actualizar' ? (
-      <Info className="w-3.5 h-3.5 text-blue-500" />
+      <Info className="w-3.5 h-3.5 text-info" />
     ) : (
-      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+      <CheckCircle2 className="w-3.5 h-3.5 text-exito" />
     );
   const titulo =
     fila.parsed?.nombre ||
@@ -563,7 +563,7 @@ function ReporteFinal({ reporte, tipo }) {
         ))}
       </div>
       {reporte.errores?.length > 0 && (
-        <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-xs">
+        <div className="p-3 rounded-lg bg-peligro/10 border border-peligro/30 text-xs">
           <p className="font-medium mb-1">Errores ({reporte.errores.length}):</p>
           <div className="max-h-40 overflow-y-auto space-y-0.5">
             {reporte.errores.map((e, i) => (

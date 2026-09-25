@@ -266,10 +266,8 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
   return (
     <div
       className="mx-4 mt-3 rounded-xl border-2 overflow-hidden
-        bg-gradient-to-b from-emerald-50 to-emerald-100
-        border-emerald-400
-        dark:from-emerald-950/60 dark:to-emerald-900/40
-        dark:border-emerald-600/70"
+        bg-gradient-to-b from-exito/10 to-exito/15
+        border-exito"
       style={{
         boxShadow: '0 1px 0 rgba(255,255,255,0.9) inset, 0 3px 10px rgba(22,163,74,0.18)',
       }}
@@ -282,13 +280,13 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
             boxShadow: '0 1px 0 rgba(255,255,255,0.25) inset, 0 2px 6px rgba(22,163,74,0.4)',
           }}
         >
-          <CheckCheck className="w-5 h-5 text-white" />
+          <CheckCheck className="w-5 h-5 text-exito-texto" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-heading font-black text-sm text-emerald-900 dark:text-emerald-100 leading-tight">
+          <p className="font-heading font-black text-sm text-exito leading-tight">
             {titulo}
           </p>
-          <p className="text-[11px] text-emerald-800/80 dark:text-emerald-200/80 leading-tight">
+          <p className="text-[11px] text-exito/80 leading-tight">
             Recoge y entrega al cliente
           </p>
         </div>
@@ -296,7 +294,7 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
           size="sm"
           onClick={handleEntregar}
           disabled={entregando}
-          className="h-8 px-3 text-xs font-bold gap-1 shrink-0 text-white"
+          className="h-8 px-3 text-xs font-bold gap-1 shrink-0 text-exito-texto"
           style={{
             background: 'linear-gradient(135deg, #16A34A 0%, #15803D 100%)',
             boxShadow: '0 1px 0 rgba(255,255,255,0.2) inset, 0 2px 6px rgba(22,163,74,0.3)',
@@ -317,7 +315,7 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
         {grupos.map((g, idx) => (
           <div
             key={`${g.nombre}-${idx}`}
-            className="rounded-lg border bg-white/80 dark:bg-slate-900/60 dark:border-emerald-800/50 px-2.5 py-1.5 flex items-start gap-2"
+            className="rounded-lg border bg-superficie/80 px-2.5 py-1.5 flex items-start gap-2"
             style={{ borderLeft: `3px solid ${g.color}` }}
           >
             <div className="flex-1 min-w-0">
@@ -325,7 +323,7 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
                 {g.nombre}
               </p>
               {g.items.length > 0 && (
-                <p className="text-[10px] text-muted-foreground dark:text-slate-300 leading-snug">
+                <p className="text-[10px] text-muted-foreground leading-snug">
                   {g.items.map((it) => `${it.cantidad}× ${it.producto_nombre}`).join(' · ')}
                 </p>
               )}
@@ -339,7 +337,7 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
                 variant="outline"
                 onClick={() => handleEntregarGrupo(g)}
                 disabled={entregando}
-                className="h-7 px-2 text-[10px] gap-1 shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+                className="h-7 px-2 text-[10px] gap-1 shrink-0 border-exito/30 text-exito hover:bg-exito/10"
                 title={`Entregar solo ${g.nombre}`}
               >
                 Entregar

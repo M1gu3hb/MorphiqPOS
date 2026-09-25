@@ -493,7 +493,7 @@ export default function RecetaFormDialog({
                 {calc.detalle.map((l, idx) => (
                   <div
                     key={idx}
-                    className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg bg-white border"
+                    className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg bg-superficie border"
                   >
                     <div className="col-span-12 sm:col-span-5">
                       <Label className="text-[10px] uppercase text-muted-foreground">
@@ -570,11 +570,11 @@ export default function RecetaFormDialog({
               precio_fijo. Para variables, el resumen real (precio/costo/utilidad/
               margen por unidad vendible o porción) ya vive en TipoVentaSection. */}
           {!esProductoVariable(tipoVentaState) && (
-            <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+            <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-exito/10 border border-exito/30">
               <Stat
                 label="Costo producción"
                 value={formatCurrency(calc.costo)}
-                color="text-orange-700"
+                color="text-advertencia"
               />
               <Stat
                 label="Precio venta"
@@ -583,17 +583,17 @@ export default function RecetaFormDialog({
               <Stat
                 label="Utilidad bruta"
                 value={formatCurrency(calc.utilidad)}
-                color="text-emerald-700"
+                color="text-exito"
               />
               <Stat
                 label="Margen"
                 value={formatPercent(calc.margen)}
                 color={
                   calc.margen >= 60
-                    ? 'text-emerald-700'
+                    ? 'text-exito'
                     : calc.margen >= 40
-                      ? 'text-yellow-700'
-                      : 'text-red-700'
+                      ? 'text-advertencia'
+                      : 'text-peligro'
                 }
               />
             </section>

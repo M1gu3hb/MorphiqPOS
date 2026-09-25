@@ -21,7 +21,7 @@ export default function StatCard({
           <p className="text-2xl font-heading font-bold text-foreground truncate">{value}</p>
           {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           {trend && (
-            <p className={`text-xs font-medium ${trendUp ? 'text-emerald-600' : 'text-red-500'}`}>
+            <p className={`text-xs font-medium ${trendUp ? 'text-exito' : 'text-peligro'}`}>
               {trendUp ? '↑' : '↓'} {trend}
             </p>
           )}

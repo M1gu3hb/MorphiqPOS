@@ -19,9 +19,9 @@ import { ROLES } from '@/lib/constants';
 
 const TIPO_ICON = { ordenar: Bell, cuenta: Receipt, ayuda: HelpCircle };
 const TIPO_COLOR = {
-  ordenar: 'bg-amber-100 text-amber-800 border-amber-300',
-  cuenta: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-  ayuda: 'bg-rose-100 text-rose-800 border-rose-300',
+  ordenar: 'bg-advertencia/15 text-advertencia border-advertencia/30',
+  cuenta: 'bg-exito/15 text-exito border-exito/30',
+  ayuda: 'bg-peligro/15 text-peligro border-peligro/30',
 };
 
 /**
@@ -128,7 +128,7 @@ export default function SolicitudesQRPanel() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {activas.map((s) => {
             const Icon = TIPO_ICON[s.tipo] || Bell;
-            const color = TIPO_COLOR[s.tipo] || 'bg-slate-100 text-slate-700 border-slate-300';
+            const color = TIPO_COLOR[s.tipo] || 'bg-fondo-sutil text-texto border-borde';
             const time = (() => {
               try {
                 return s?.fecha_creacion
@@ -144,7 +144,7 @@ export default function SolicitudesQRPanel() {
             return (
               <div
                 key={s.id}
-                className={`rounded-xl border-2 p-3 bg-white ${yaAtendida ? 'border-emerald-200' : propia ? 'border-primary' : 'border-amber-300'}`}
+                className={`rounded-xl border-2 p-3 bg-superficie ${yaAtendida ? 'border-exito/30' : propia ? 'border-primary' : 'border-advertencia/30'}`}
                 style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}
               >
                 <div className="flex items-start gap-2">
@@ -164,23 +164,23 @@ export default function SolicitudesQRPanel() {
                       </p>
                     )}
                     {sinAsignar && (
-                      <p className="text-[10px] text-amber-700 mt-0.5">
+                      <p className="text-[10px] text-advertencia mt-0.5">
                         ⚠ Mesa sin mesero asignado
                       </p>
                     )}
                     {yaAtendida && s.atendido_por_nombre && (
-                      <p className="text-[10px] text-emerald-700 mt-0.5">
+                      <p className="text-[10px] text-exito mt-0.5">
                         Atiende: {s.atendido_por_nombre}
                       </p>
                     )}
                     {/* Datos del comensal cuando es solicitud de CUENTA con propina QR */}
                     {s.tipo === 'cuenta' && (Number(s.subtotal_consumo) || 0) > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-fondo-sutil text-texto border border-borde">
                           Subtotal: {formatCurrency(Number(s.subtotal_consumo) || 0)}
                         </span>
                         {(Number(s.propina_monto_sugerida) || 0) > 0 && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-0.5">
+                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-peligro/15 text-peligro border border-peligro/30 flex items-center gap-0.5">
                             <Heart className="w-2.5 h-2.5" />
                             Propina QR: {formatCurrency(Number(s.propina_monto_sugerida) || 0)}
                             {Number(s.propina_porcentaje_sugerido) > 0 &&

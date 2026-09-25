@@ -190,9 +190,9 @@ export default function MesaMapEditor({
       {mesas.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center pointer-events-auto">
-            <UtensilsCrossed className="w-12 h-12 mx-auto mb-3 text-amber-700/40" />
-            <p className="font-heading font-bold text-amber-900/70">No hay mesas configuradas</p>
-            <p className="text-sm text-amber-800/60 mb-4">
+            <UtensilsCrossed className="w-12 h-12 mx-auto mb-3 text-advertencia/40" />
+            <p className="font-heading font-bold text-advertencia/70">No hay mesas configuradas</p>
+            <p className="text-sm text-advertencia/60 mb-4">
               Crea una mesa para comenzar a diseñar el mapa
             </p>
             {onCreateFirst && (

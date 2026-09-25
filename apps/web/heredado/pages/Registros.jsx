@@ -255,12 +255,12 @@ export default function Registros() {
           placeholder="Buscar por código de corte, folio, ticket, producto, fecha, mesa, responsable..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-10 h-11 bg-white/80 backdrop-blur-sm"
+          className="pl-10 h-11 bg-superficie/80 backdrop-blur-sm"
         />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex-wrap h-auto bg-white/70 backdrop-blur-sm">
+        <TabsList className="flex-wrap h-auto bg-superficie/70 backdrop-blur-sm">
           <TabsTrigger value="cortes" className="gap-1">
             <FileText className="w-3 h-3" />
             Cortes ({cortesFiltrados.length})
@@ -366,7 +366,7 @@ export default function Registros() {
               ventasFiltradas.slice(0, 200).map((v) => (
                 <Card
                   key={v.id}
-                  className="premium-sheen p-3 flex items-center gap-3 flex-wrap bg-white/70 backdrop-blur-sm"
+                  className="premium-sheen p-3 flex items-center gap-3 flex-wrap bg-superficie/70 backdrop-blur-sm"
                 >
                   <div className="flex-1 min-w-[180px]">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -432,7 +432,7 @@ export default function Registros() {
               comprasFiltradas.map((c) => (
                 <Card
                   key={c.id}
-                  className="premium-sheen p-3 flex items-center gap-3 flex-wrap bg-white/70 backdrop-blur-sm"
+                  className="premium-sheen p-3 flex items-center gap-3 flex-wrap bg-superficie/70 backdrop-blur-sm"
                 >
                   <div className="flex-1 min-w-[180px]">
                     <p className="font-semibold text-sm">
@@ -491,7 +491,7 @@ export default function Registros() {
               gastosFiltrados.map((g) => (
                 <Card
                   key={g.id}
-                  className="premium-sheen p-3 flex items-center gap-3 flex-wrap bg-white/70 backdrop-blur-sm"
+                  className="premium-sheen p-3 flex items-center gap-3 flex-wrap bg-superficie/70 backdrop-blur-sm"
                 >
                   <div className="flex-1 min-w-[180px]">
                     <p className="font-semibold text-sm">{g.descripcion}</p>
@@ -504,7 +504,7 @@ export default function Registros() {
                     {g.metodo_pago || '—'}
                   </Badge>
                   <p
-                    className={`font-heading font-black min-w-[80px] text-right ${config?.colorear_importes_monetarios !== false ? 'text-red-600' : 'text-foreground'}`}
+                    className={`font-heading font-black min-w-[80px] text-right ${config?.colorear_importes_monetarios !== false ? 'text-peligro' : 'text-foreground'}`}
                   >
                     −{formatCurrency(g.monto)}
                   </p>
@@ -519,8 +519,8 @@ export default function Registros() {
 
       {/* PDF de periodo (solo visible al imprimir) */}
       {pdfData && (
-        <div className="fixed inset-0 z-[9999] bg-gray-100 overflow-auto">
-          <div className="no-print sticky top-0 bg-white border-b shadow-sm flex justify-between items-center px-4 py-2">
+        <div className="fixed inset-0 z-[9999] bg-fondo-sutil overflow-auto">
+          <div className="no-print sticky top-0 bg-superficie border-b shadow-sm flex justify-between items-center px-4 py-2">
             <p className="text-sm font-medium">Vista previa del reporte</p>
             <div className="flex gap-2">
               <Button size="sm" onClick={() => window.print()}>
@@ -629,10 +629,10 @@ function CorteRow({ corte, onView, onDelete }) {
   const esCierreDiario = tipo === 'cierre_diario';
   const tipoLabel = esCierreDiario ? 'Cierre diario' : 'Corte de turno';
   const tipoCls = esCierreDiario
-    ? 'bg-red-100 text-red-700 border-red-200'
-    : 'bg-amber-100 text-amber-700 border-amber-200';
+    ? 'bg-peligro/15 text-peligro border-peligro/30'
+    : 'bg-advertencia/15 text-advertencia border-advertencia/30';
   return (
-    <Card className="p-3 flex items-center gap-3 flex-wrap bg-white/70 backdrop-blur-sm">
+    <Card className="p-3 flex items-center gap-3 flex-wrap bg-superficie/70 backdrop-blur-sm">
       <div className="flex-1 min-w-[180px]">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="font-heading font-bold text-sm">{corte.folio}</p>

@@ -210,7 +210,7 @@ export default function CorteViewerDialog({ corte, open, onClose }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto p-0">
-        <DialogHeader className="no-print px-6 pt-5 pb-3 border-b sticky top-0 bg-white z-10 flex-row items-center justify-between">
+        <DialogHeader className="no-print px-6 pt-5 pb-3 border-b sticky top-0 bg-superficie z-10 flex-row items-center justify-between">
           <DialogTitle className="font-heading">PDF de corte · {corte?.folio}</DialogTitle>
           <div className="flex gap-2">
             <Button size="sm" onClick={handlePrintCashCut} disabled={loading}>
@@ -234,7 +234,7 @@ export default function CorteViewerDialog({ corte, open, onClose }) {
             </Button>
           </div>
         </DialogHeader>
-        <div className="p-4 bg-gray-100">
+        <div className="p-4 bg-fondo-sutil">
           {loading ? (
             <p className="text-center py-12 text-muted-foreground">Cargando datos del corte...</p>
           ) : (

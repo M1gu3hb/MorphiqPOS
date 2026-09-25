@@ -53,10 +53,10 @@ export default function ExportarSeccionButton({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuItem onClick={() => run('csv')} className="gap-2 cursor-pointer">
-          <FileText className="w-4 h-4 text-blue-600" /> CSV (Excel/Sheets)
+          <FileText className="w-4 h-4 text-info" /> CSV (Excel/Sheets)
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => run('xlsx')} className="gap-2 cursor-pointer">
-          <FileSpreadsheet className="w-4 h-4 text-green-600" /> XLSX (Excel)
+          <FileSpreadsheet className="w-4 h-4 text-exito" /> XLSX (Excel)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

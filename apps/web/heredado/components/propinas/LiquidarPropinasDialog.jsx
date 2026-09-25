@@ -242,7 +242,7 @@ export default function LiquidarPropinasDialog({
       <DialogContent className="sm:max-w-lg w-[calc(100%-2rem)] max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-emerald-600" />
+            <Wallet className="w-5 h-5 text-exito" />
             Liquidar propinas
           </DialogTitle>
         </DialogHeader>
@@ -259,8 +259,8 @@ export default function LiquidarPropinasDialog({
                   onClick={() => setRango(r.id)}
                   className={`text-xs px-2 py-2 rounded-lg border-2 font-medium ${
                     rango === r.id
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                      : 'bg-white border-border text-muted-foreground'
+                      ? 'bg-exito/10 border-exito/30 text-exito'
+                      : 'bg-superficie border-border text-muted-foreground'
                   }`}
                 >
                   {r.label}
@@ -314,7 +314,7 @@ export default function LiquidarPropinasDialog({
           </div>
 
           {/* Resumen */}
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+          <div className="p-3 rounded-xl bg-exito/10 border border-exito/30">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-muted-foreground">
                 {format(range.from, 'd MMM', { locale: es })} –{' '}
@@ -322,8 +322,8 @@ export default function LiquidarPropinasDialog({
               </p>
               <p className="text-[10px] text-muted-foreground">{numeroVentas} ventas</p>
             </div>
-            <p className="text-[10px] uppercase font-semibold text-emerald-700">Total a liquidar</p>
-            <p className="font-heading font-black text-3xl text-emerald-700">
+            <p className="text-[10px] uppercase font-semibold text-exito">Total a liquidar</p>
+            <p className="font-heading font-black text-3xl text-exito">
               {formatCurrency(total)}
             </p>
           </div>
@@ -341,7 +341,7 @@ export default function LiquidarPropinasDialog({
                       <p className="font-medium truncate">{m.mesero_nombre}</p>
                       <p className="text-[10px] text-muted-foreground">{m.num_ventas} ventas</p>
                     </div>
-                    <p className="font-bold text-emerald-700">{formatCurrency(m.total)}</p>
+                    <p className="font-bold text-exito">{formatCurrency(m.total)}</p>
                   </div>
                 ))}
               </div>

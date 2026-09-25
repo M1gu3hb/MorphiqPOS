@@ -339,7 +339,7 @@ export default function EstacionesPreparacionSection({ embedded = false }) {
       )}
 
       {!cocinaGeneral && (
-        <div className="text-xs px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 flex items-start gap-2">
+        <div className="text-xs px-3 py-2 rounded-lg bg-advertencia/10 border border-advertencia/30 text-advertencia flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <div>
             Aún no existe <strong>Cocina general</strong>. Es la estación por defecto donde caen las
@@ -507,7 +507,7 @@ export default function EstacionesPreparacionSection({ embedded = false }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <AlertTriangle className="w-5 h-5 text-advertencia" />
               ¿Desactivar estación?
             </AlertDialogTitle>
             <AlertDialogDescription>

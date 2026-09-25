@@ -428,9 +428,9 @@ export default function RegistrarInventarioInicialDialog({ open, onClose, ingred
           </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-lg p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 text-xs flex gap-2">
-          <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
-          <p className="text-blue-900 dark:text-blue-100">
+        <div className="rounded-lg p-3 bg-info/10 border border-info/30 text-xs flex gap-2">
+          <Info className="w-4 h-4 shrink-0 mt-0.5 text-info" />
+          <p className="text-info">
             Si vas a registrar una <strong>compra real</strong> (de hoy o reciente), usa la opción
             "Registrar compra" desde Compras. Esa sí se cuenta como gasto.
           </p>
@@ -592,13 +592,13 @@ export default function RegistrarInventarioInicialDialog({ open, onClose, ingred
 
                 {/* Warning inline si la unidad capturada NO es compatible con la unidad base */}
                 {!compat.compatible && (
-                  <div className="rounded-lg p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-800/60 text-xs text-rose-900 dark:text-rose-200">
+                  <div className="rounded-lg p-2.5 bg-peligro/10 border border-peligro/30 text-xs text-peligro">
                     {compat.mensaje}
                   </div>
                 )}
 
                 {muestraEmpaque && (
-                  <div className="rounded-lg p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60">
+                  <div className="rounded-lg p-2.5 bg-advertencia/10 border border-advertencia/30">
                     <Label className="text-xs">
                       ¿A cuánto equivale 1 {line.unidad_compra} en unidad base (
                       {unidadBaseLinea || 'g/ml/pieza'})? *
@@ -616,7 +616,7 @@ export default function RegistrarInventarioInicialDialog({ open, onClose, ingred
                       }
                       className="h-8"
                     />
-                    <p className="text-[10px] text-amber-800 dark:text-amber-200 mt-1">
+                    <p className="text-[10px] text-advertencia mt-1">
                       {esEstandar
                         ? 'Esta unidad es un empaque — indica cuánto trae cada uno.'
                         : 'Esta es una unidad personalizada. Necesitamos su equivalencia para calcular costos.'}

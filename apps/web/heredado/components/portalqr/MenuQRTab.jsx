@@ -120,7 +120,7 @@ export default function MenuQRTab() {
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {secciones.map((s) => (
-          <div key={s.id} className="rounded-xl border bg-white overflow-hidden">
+          <div key={s.id} className="rounded-xl border bg-superficie overflow-hidden">
             {s.imagen_url ? (
               <img src={s.imagen_url} alt={s.nombre} className="w-full h-40 object-cover" />
             ) : (
@@ -132,7 +132,7 @@ export default function MenuQRTab() {
               <div className="flex items-start justify-between gap-2">
                 <p className="font-heading font-bold text-sm">{s.nombre}</p>
                 <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full ${s.activo === false ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'}`}
+                  className={`text-[10px] px-2 py-0.5 rounded-full ${s.activo === false ? 'bg-fondo-sutil text-texto-sutil' : 'bg-exito/15 text-exito'}`}
                 >
                   {s.activo === false ? 'Inactiva' : 'Activa'}
                 </span>
@@ -152,7 +152,7 @@ export default function MenuQRTab() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 text-xs text-red-600"
+                  className="h-7 text-xs text-peligro"
                   onClick={() => eliminar(s)}
                 >
                   <Trash2 className="w-3 h-3" />

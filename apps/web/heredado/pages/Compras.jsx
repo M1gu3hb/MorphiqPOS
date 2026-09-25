@@ -58,10 +58,10 @@ export default function Compras() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button
           onClick={() => setOpenCompra(true)}
-          className="premium-sheen group text-left p-6 rounded-2xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-md hover:shadow-xl transition-all hover:-translate-y-0.5"
+          className="premium-sheen group text-left p-6 rounded-2xl bg-superficie/70 backdrop-blur-xl border border-borde/60 shadow-md hover:shadow-xl transition-all hover:-translate-y-0.5"
         >
           <div className="flex items-center gap-4 mb-3">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-white shadow-lg">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primario-texto shadow-lg">
               <ShoppingBag className="w-7 h-7" />
             </div>
             <div className="flex-1">
@@ -78,10 +78,10 @@ export default function Compras() {
 
         <button
           onClick={() => setOpenGasto(true)}
-          className="premium-sheen group text-left p-6 rounded-2xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-md hover:shadow-xl transition-all hover:-translate-y-0.5"
+          className="premium-sheen group text-left p-6 rounded-2xl bg-superficie/70 backdrop-blur-xl border border-borde/60 shadow-md hover:shadow-xl transition-all hover:-translate-y-0.5"
         >
           <div className="flex items-center gap-4 mb-3">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white shadow-lg">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-advertencia to-advertencia flex items-center justify-center text-advertencia-texto shadow-lg">
               <Wallet className="w-7 h-7" />
             </div>
             <div className="flex-1">
@@ -164,14 +164,14 @@ export default function Compras() {
                     </p>
                   </div>
                   {recurrente && (
-                    <Badge className="bg-amber-100 text-amber-700 text-[10px] border-0">
+                    <Badge className="bg-advertencia/15 text-advertencia text-[10px] border-0">
                       Fijo mensual
                     </Badge>
                   )}
                   <Badge variant="secondary" className="capitalize text-[10px]">
                     {g.metodo_pago || '—'}
                   </Badge>
-                  <p className="font-heading font-black min-w-[80px] text-right text-red-600">
+                  <p className="font-heading font-black min-w-[80px] text-right text-peligro">
                     −{formatCurrency(g.monto)}
                   </p>
                 </Card>

@@ -323,7 +323,7 @@ export default function RepetirCompraDialog({ open, onClose, onSelected }) {
                     className="p-3 flex items-center gap-3 hover:bg-muted/40 cursor-pointer"
                     onClick={() => setExpandedPlantilla(expanded ? null : p.id)}
                   >
-                    <Star className="w-4 h-4 text-amber-500 shrink-0" />
+                    <Star className="w-4 h-4 text-advertencia shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{p.nombre}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">

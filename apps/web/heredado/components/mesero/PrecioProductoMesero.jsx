@@ -49,7 +49,7 @@ export function VariableBadge({ producto }) {
   if (tipo !== TIPO_VENTA.VARIABLE_MEDIDA && tipo !== TIPO_VENTA.PORCION_CONTENEDOR) return null;
   const label = tipo === TIPO_VENTA.VARIABLE_MEDIDA ? 'Variable' : 'Por porción';
   return (
-    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-advertencia/15 text-advertencia">
       {label}
     </span>
   );

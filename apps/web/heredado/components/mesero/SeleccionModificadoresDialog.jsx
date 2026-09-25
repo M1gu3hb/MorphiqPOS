@@ -172,7 +172,7 @@ export default function SeleccionModificadoresDialog({ producto, open, onClose, 
               <div className="flex items-center justify-between mb-1.5">
                 <Label className="text-sm font-bold">
                   {g.nombre}
-                  {g.obligatorio && <span className="text-rose-600 ml-1">*</span>}
+                  {g.obligatorio && <span className="text-peligro ml-1">*</span>}
                 </Label>
                 <span className="text-[10px] text-muted-foreground">
                   {g.tipo === 'multiple' ? 'Elige una o varias' : 'Elige una'}
@@ -197,7 +197,7 @@ export default function SeleccionModificadoresDialog({ producto, open, onClose, 
                           sel ? 'border-primary bg-primary' : 'border-muted-foreground/40'
                         }`}
                       >
-                        {sel && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                        {sel && <Check className="w-3 h-3 text-primario-texto" strokeWidth={3} />}
                       </div>
                       <span className="flex-1 leading-tight">{o.nombre}</span>
                     </button>
@@ -222,9 +222,9 @@ export default function SeleccionModificadoresDialog({ producto, open, onClose, 
           </div>
 
           {error && (
-            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-rose-700 dark:text-rose-300 font-medium">{error}</p>
+            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-peligro/10 border border-peligro/30">
+              <AlertCircle className="w-4 h-4 text-peligro shrink-0 mt-0.5" />
+              <p className="text-xs text-peligro font-medium">{error}</p>
             </div>
           )}
         </div>

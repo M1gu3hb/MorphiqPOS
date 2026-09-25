@@ -229,21 +229,21 @@ export default function POSLogin() {
           />
         ) : (
           <div
-            className="w-28 h-28 mb-4 rounded-2xl flex items-center justify-center text-5xl font-bold text-white/80"
+            className="w-28 h-28 mb-4 rounded-2xl flex items-center justify-center text-5xl font-bold text-primario-texto/80"
             style={{ background: 'var(--brand-primary-soft, rgba(37,99,235,0.20))' }}
           >
             M
           </div>
         )}
 
-        <h1 className="text-3xl sm:text-4xl font-heading font-black text-white tracking-wide text-center">
+        <h1 className="text-3xl sm:text-4xl font-heading font-black text-primario-texto tracking-wide text-center">
           {negocio}
         </h1>
-        <p className="text-white/60 text-sm mt-1 tracking-wider uppercase">{sistema}</p>
+        <p className="text-primario-texto/60 text-sm mt-1 tracking-wider uppercase">{sistema}</p>
 
         {selectedUser && (
           <p
-            className="mt-3 px-3 py-1 rounded-full border text-white/90 text-xs font-medium"
+            className="mt-3 px-3 py-1 rounded-full border text-primario-texto/90 text-xs font-medium"
             style={{
               background: 'var(--brand-accent-soft, rgba(56,189,248,0.15))',
               borderColor: 'var(--brand-accent, rgba(96,165,250,0.4))',
@@ -289,7 +289,7 @@ export default function POSLogin() {
                 key={idx}
                 onClick={() => setPin((p) => p.slice(0, -1))}
                 disabled={loading}
-                className="keypad-btn h-14 sm:h-16 rounded-xl bg-white/5 border border-white/10 text-white active:scale-95 transition-all flex items-center justify-center backdrop-blur-sm"
+                className="keypad-btn h-14 sm:h-16 rounded-xl bg-primario-texto/5 border border-primario-texto/10 text-primario-texto active:scale-95 transition-all flex items-center justify-center backdrop-blur-sm"
               >
                 <Delete className="w-5 h-5" />
               </button>
@@ -298,7 +298,7 @@ export default function POSLogin() {
                 key={idx}
                 onClick={() => handleKey(key)}
                 disabled={loading}
-                className="keypad-btn h-14 sm:h-16 rounded-xl bg-white/5 border border-white/10 text-white text-xl sm:text-2xl font-heading font-medium active:scale-95 transition-all backdrop-blur-sm"
+                className="keypad-btn h-14 sm:h-16 rounded-xl bg-primario-texto/5 border border-primario-texto/10 text-primario-texto text-xl sm:text-2xl font-heading font-medium active:scale-95 transition-all backdrop-blur-sm"
               >
                 {key}
               </button>
@@ -313,13 +313,13 @@ export default function POSLogin() {
           }
         `}</style>
 
-        <p className="text-center text-white/40 text-[11px] mt-4">
+        <p className="text-center text-primario-texto/40 text-[11px] mt-4">
           Toca tu nombre o escribe directamente tu PIN · Enter para entrar
         </p>
 
         {/* Banner discreto: el admin sigue usando PIN default. */}
         {usingDefaultPin && (
-          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-400/40 bg-amber-500/10 text-amber-200 text-[11px]">
+          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-advertencia/40 bg-advertencia/10 text-advertencia text-[11px]">
             <ShieldAlert className="w-3.5 h-3.5" />
             Por seguridad, cambia el PIN del administrador inicial (1234) en Configuración.
           </div>
@@ -327,31 +327,31 @@ export default function POSLogin() {
       </div>
 
       {/* USUARIOS abajo, full-width */}
-      <div className="relative z-10 border-t border-white/10 bg-black/30 backdrop-blur-md">
+      <div className="relative z-10 border-t border-primario-texto/10 bg-velo backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <p className="text-white/60 text-[10px] uppercase tracking-widest mb-2 text-center sm:text-left">
+          <p className="text-primario-texto/60 text-[10px] uppercase tracking-widest mb-2 text-center sm:text-left">
             {variosNegocios
               ? `Usuarios disponibles · ${negociosServidos.length} negocios en este despliegue`
               : 'Usuarios disponibles'}
           </p>
           {usuariosCargando ? (
-            <div className="flex items-center justify-center gap-2 py-6 text-white/60 text-sm">
-              <div className="w-4 h-4 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
+            <div className="flex items-center justify-center gap-2 py-6 text-primario-texto/60 text-sm">
+              <div className="w-4 h-4 border-2 border-primario-texto/20 border-t-primario-texto/80 rounded-full animate-spin" />
               <span>Cargando usuarios…</span>
             </div>
           ) : usuariosError ? (
-            <div className="flex flex-col items-center gap-2 py-5 text-white/60 text-sm">
+            <div className="flex flex-col items-center gap-2 py-5 text-primario-texto/60 text-sm">
               <p>No pudimos cargar los usuarios.</p>
               <button
                 type="button"
                 onClick={cargarUsuarios}
-                className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-xs hover:bg-white/20"
+                className="px-3 py-1.5 rounded-lg bg-primario-texto/10 border border-primario-texto/20 text-primario-texto text-xs hover:bg-primario-texto/20"
               >
                 Reintentar
               </button>
             </div>
           ) : !Array.isArray(usuarios) || usuarios.length === 0 ? (
-            <div className="text-center py-6 text-white/40 text-sm">
+            <div className="text-center py-6 text-primario-texto/40 text-sm">
               Sin usuarios activos. Crea uno desde Configuración.
             </div>
           ) : (
@@ -366,7 +366,7 @@ export default function POSLogin() {
                       setPin('');
                       hiddenInputRef.current?.focus();
                     }}
-                    className="user-tile group flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all bg-white/5 border-white/10"
+                    className="user-tile group flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all bg-primario-texto/5 border-primario-texto/10"
                     data-active={active ? 'true' : 'false'}
                     style={
                       active
@@ -380,7 +380,7 @@ export default function POSLogin() {
                     }
                   >
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-primario-texto"
                       style={{
                         background: active
                           ? 'var(--brand-accent, #3b82f6)'
@@ -390,8 +390,8 @@ export default function POSLogin() {
                       {u.nombre?.charAt(0).toUpperCase() || <User className="w-4 h-4" />}
                     </div>
                     <div className="min-w-0 w-full text-center">
-                      <p className="text-white text-xs font-medium truncate">{u.nombre}</p>
-                      <p className="text-white/50 text-[10px] truncate">
+                      <p className="text-primario-texto text-xs font-medium truncate">{u.nombre}</p>
+                      <p className="text-primario-texto/50 text-[10px] truncate">
                         {/* El rol como lo llama SU giro —la estilista no es «Mesero»—;
                             lo rotula el servidor con el vocabulario del negocio. */}
                         {u.etiqueta || ROLE_LABELS[u.rol]}
