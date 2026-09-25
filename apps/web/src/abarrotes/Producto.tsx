@@ -17,12 +17,22 @@ import {
   textoParaCampo,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
-import { CalendarClock, CalendarOff, Check, Layers, PackageSearch, Plus } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarClock,
+  CalendarOff,
+  Check,
+  Layers,
+  PackageSearch,
+  Plus,
+} from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe, valorDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import { CatalogoDeProductos } from './CatalogoDeProductos.tsx';
 
 /**
  * PANTALLA · abarrotes · producto
@@ -519,29 +529,22 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
       });
   }
 
-  const irAExistencias = (
+  const alCatalogo = (
     <Button asChild>
-      <a href="/abarrotes/existencias">Ir a Existencias</a>
+      <a href="/abarrotes/producto">Volver al catálogo</a>
     </Button>
   );
 
-  // El VACÍO QUE ENSEÑA, y por qué hacía falta.
+  // SIN PRODUCTO ELEGIDO, EL CATÁLOGO (C.10 de la 2.4).
   //
-  // `page.tsx` monta esta pantalla sin producto elegido —se llega a ella desde el
-  // catálogo, tocando un renglón— y el efecto, con razón, no consulta con un id
-  // vacío. Lo que faltaba es qué enseñar mientras tanto: sin esto, la pantalla se
-  // quedaba en su esqueleto PARA SIEMPRE, en blanco, y la suite la daba por
-  // probada porque respondía 200.
+  // Antes era un vacío que decía «se llega desde el catálogo» y apuntaba a Existencias, que no
+  // enlaza a ninguna ficha: con la página montando siempre el id vacío, esta ficha no se
+  // abría NUNCA. Ahora la pantalla sin producto es el catálogo, y cada renglón abre su ficha
+  // con `?producto=`.
   if (productoId === '' && fichaInicial === undefined) {
     return (
-      <main className="mx-auto w-full max-w-2xl p-(--espacio-6)">
-        <h1 className="sr-only">{vocabulario.titulo('producto')}</h1>
-        <Vacio
-          icono={<PackageSearch />}
-          titulo={`Aquí se abre la ficha de ${vocabulario.enFraseCon('un', 'producto')}`}
-          explicacion={`Precio, costo, margen, impuesto, caducidad y presentaciones. Se llega desde el catálogo: toca el renglón de ${vocabulario.enFraseCon('ese', 'producto')} y su ficha se abre aquí.`}
-          accion={irAExistencias}
-        />
+      <main className="mx-auto w-full max-w-5xl p-(--espacio-4) lg:p-(--espacio-6)">
+        <CatalogoDeProductos />
       </main>
     );
   }
@@ -566,7 +569,7 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
         <Vacio
           icono={<PackageSearch />}
           titulo={`${vocabulario.conDeterminante('este', 'producto')} no está en el catálogo`}
-          accion={irAExistencias}
+          accion={alCatalogo}
         />
       </main>
     );
@@ -629,6 +632,13 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
   return (
     <main className={`${MARCO} ${REJILLA}`}>
       <header className="flex flex-col gap-(--espacio-1) xl:col-span-2">
+        <a
+          href="/abarrotes/producto"
+          className="inline-flex w-fit items-center gap-(--espacio-1) text-sm text-texto-sutil underline-offset-2 hover:underline"
+        >
+          <ArrowLeft aria-hidden="true" className="size-4" />
+          Catálogo
+        </a>
         <h1 className="text-2xl font-semibold">{ficha.nombre}</h1>
         <p className="text-sm text-texto-sutil">
           {vocabulario.conArticulo('producto')} ·{' '}

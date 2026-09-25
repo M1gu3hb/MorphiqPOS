@@ -79,9 +79,15 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ── El abono, con su método (C.5 de la 2.4) ──────────────────────────────
  * Se registraba sólo en efectivo, con tarjeta y transferencia ya aceptadas por
  * `fiado.registrar_abono`. Ahora la ficha pregunta cómo paga: el efectivo entra al
- * cajón y al arqueo; la tarjeta y la transferencia bajan el saldo igual y van al
- * banco, así que el cajón no se mueve —registrarlas como efectivo dejaría el arqueo
- * con dinero que no está—.
+ * cajón y al arqueo; la tarjeta baja el saldo y va al banco, así que el cajón no se
+ * mueve —registrarla como efectivo dejaría el arqueo con dinero que no está—.
+ *
+ * ── Y baja la deuda DE VERDAD (C.10 de la 2.4) ───────────────────────────
+ * El abono se anotaba en un libro que nadie lee: aquí el saldo bajaba y, al recargar,
+ * volvía entero. Ahora es el pago de la cartera —el mismo que lee esta vista— y el saldo
+ * que se pinta es el que contesta el servidor, no una resta hecha aquí. La transferencia
+ * queda POR CONFIRMAR: el comprobante se ve en el teléfono del cliente y nadie sabe si es
+ * real hasta mirar el banco, así que el saldo no baja todavía y la ficha lo dice.
  *
  * La lectura es la vista `CarteraFiado`, aplicada en la base desde la Fase 2.
  */
@@ -160,6 +166,12 @@ function hace(dias: number | null): string {
  */
 type FalloDeAbono =
   { readonly tipo: 'caja-cerrada' } | { readonly tipo: 'fallo'; readonly mensaje: string };
+
+/** Lo que contesta `fiado.registrar_abono`: el pago de la cartera. */
+interface AbonoRegistrado {
+  readonly saldoDespuesCentavos: string;
+  readonly pendienteDeConfirmar: boolean;
+}
 
 function falloDe(fallo: unknown): FalloDeAbono {
   if (!(fallo instanceof ErrorApi))
@@ -320,6 +332,8 @@ export type MetodoDeAbono = (typeof METODOS_DE_ABONO)[number]['clave'];
 
 interface FichaProps {
   readonly cliente: FilaDeCartera;
+  /** Un abono por transferencia que entró y todavía no baja el saldo. */
+  readonly porConfirmar: number | null;
   readonly monto: number | null;
   readonly metodo: MetodoDeAbono;
   readonly alCambiarMetodo: (metodo: MetodoDeAbono) => void;
@@ -337,6 +351,7 @@ interface FichaProps {
  */
 function Ficha({
   cliente,
+  porConfirmar,
   monto,
   metodo,
   alCambiarMetodo,
@@ -409,6 +424,15 @@ function Ficha({
         ))}
       </div>
 
+      {porConfirmar === null ? null : (
+        <Aviso tono="info" titulo="La transferencia queda por confirmar.">
+          <span>
+            <Dinero centavos={porConfirmar} tamano="sm" /> baja del saldo cuando se vea en el banco.
+            Hasta entonces, la deuda sigue como estaba.
+          </span>
+        </Aviso>
+      )}
+
       {/* Encima del botón, donde están los ojos, y lo primero que dice después
           de qué pasó es que ningún saldo se movió. La caja cerrada es un muro, no
           un fallo: lleva el camino para abrirla. */}
@@ -437,7 +461,9 @@ function Ficha({
       <p className="text-xs text-texto-sutil">
         {metodo === 'efectivo'
           ? 'Al saldo más viejo primero. Entra al cajón y al corte del día.'
-          : 'Al saldo más viejo primero. Va al banco: el cajón no se mueve, y el corte lo cuenta por su método.'}
+          : metodo === 'tarjeta'
+            ? 'Al saldo más viejo primero. Va al banco: el cajón no se mueve, y el corte lo cuenta por su método.'
+            : 'Queda por confirmar: el saldo baja cuando alguien vea el depósito en el banco.'}
       </p>
     </Superficie>
   );
@@ -459,6 +485,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
   const [metodoDeAbono, setMetodoDeAbono] = useState<MetodoDeAbono>('efectivo');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<FalloDeAbono | null>(null);
+  const [porConfirmar, setPorConfirmar] = useState<number | null>(null);
   /** Adonde vuelve el foco cuando el vacío que lo tenía desaparece. */
   const buscador = useRef<HTMLInputElement>(null);
 
@@ -530,6 +557,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
         // Otro cliente, otro abono: el método vuelve al de casi siempre.
         setMetodoDeAbono('efectivo');
         setError(null);
+        setPorConfirmar(null);
       });
     });
   }
@@ -572,21 +600,21 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
         montoCentavos: centavos,
         metodo: metodoDeAbono,
       };
-      await invocarComando('/api/fiado/abono', entrada);
-      // El saldo nuevo vuelve a la fila en la unidad del puente, la que `saldoDe` espera.
+      const abono = await invocarComando<AbonoRegistrado>('/api/fiado/abono', entrada);
+      setMonto(null);
+      if (abono.pendienteDeConfirmar) {
+        // No baja nada todavía: pintarlo bajado sería decirle al cliente que ya pagó.
+        setPorConfirmar(centavos);
+        return;
+      }
+      setPorConfirmar(null);
+      // El saldo que contestó el servidor, en la unidad del puente que `saldoDe` espera.
+      const despues = Number(abono.saldoDespuesCentavos);
       const baja = (f: FilaDeCartera): FilaDeCartera =>
         f.cliente_id === cliente.cliente_id
-          ? {
-              ...f,
-              saldo_centavos: valorDelPuente(
-                'CarteraFiado',
-                'saldo_centavos',
-                Math.max(0, saldoDe(f) - centavos),
-              ),
-            }
+          ? { ...f, saldo_centavos: valorDelPuente('CarteraFiado', 'saldo_centavos', despues) }
           : f;
       setFilas((previas) => (previas ?? []).map(baja));
-      setMonto(null);
       onAbonoRegistrado?.(cliente.cliente_id, centavos);
     } catch (fallo) {
       setError(falloDe(fallo));
@@ -725,6 +753,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
           <Ficha
             key={ficha.cliente_id}
             cliente={ficha}
+            porConfirmar={porConfirmar}
             monto={monto}
             metodo={metodoDeAbono}
             alCambiarMetodo={setMetodoDeAbono}

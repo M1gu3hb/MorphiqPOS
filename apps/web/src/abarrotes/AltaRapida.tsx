@@ -112,9 +112,15 @@ export interface CodigoOcupado {
   readonly nombre: string;
 }
 
+/**
+ * Lo que contesta `catalogo.alta_rapida`. Decía `{ id, nombre }` y el servidor manda
+ * `productoId`: quien quisiera agregar lo recién dado de alta a la venta recibía `undefined`
+ * (C.10 de la 2.4).
+ */
 export interface ProductoDadoDeAlta {
-  readonly id: string;
+  readonly productoId: string;
   readonly nombre: string;
+  readonly codigo: string;
 }
 
 export interface AltaRapidaProps {
@@ -126,6 +132,11 @@ export interface AltaRapidaProps {
   readonly onGuardado?: (producto: ProductoDadoDeAlta) => void;
   readonly onCancelar?: () => void;
   readonly onAgregarPresentacion?: (productoId: string) => void;
+  /**
+   * Montada ENCIMA del cobro (C.10 de la 2.4): una capa de diálogo, no una segunda página.
+   * Dos `<main>` en el mismo documento son dos «contenido principal» para un lector.
+   */
+  readonly enCapa?: boolean;
 }
 
 type Campo = 'nombre' | 'precio' | 'categoria';
@@ -187,6 +198,7 @@ export function AltaRapida({
   onGuardado,
   onCancelar,
   onAgregarPresentacion,
+  enCapa = false,
 }: AltaRapidaProps) {
   const voc = useVocabulario();
   const codigo = codigoInicial?.trim() ?? '';
@@ -445,8 +457,12 @@ export function AltaRapida({
     );
   })();
 
+  const Marco = enCapa ? 'div' : 'main';
   return (
-    <main className="flex min-h-dvh justify-center bg-fondo sm:items-center sm:p-(--espacio-6)">
+    <Marco
+      {...(enCapa ? { role: 'dialog', 'aria-modal': true, 'aria-labelledby': 'alta-titulo' } : {})}
+      className={`flex min-h-dvh justify-center bg-fondo sm:items-center sm:p-(--espacio-6) ${enCapa ? 'fixed inset-0 z-50 overflow-y-auto sm:bg-fondo/90' : ''}`}
+    >
       {/* Teléfono: el diálogo ES la pantalla —sin radio, sin borde, sin sombra—, los
           campos arriba y las acciones pegadas abajo, sobre el teclado. Tablet y PC:
           una hoja centrada de nivel 4, lo que se pone delante de todo. */}
@@ -683,6 +699,6 @@ export function AltaRapida({
           </Button>
         </footer>
       </Superficie>
-    </main>
+    </Marco>
   );
 }

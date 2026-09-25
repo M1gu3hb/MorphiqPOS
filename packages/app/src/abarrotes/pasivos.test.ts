@@ -148,9 +148,65 @@ describe('F-255 · la recarga que hoy destruye el margen', () => {
   });
 });
 
-describe('F-254 · el abono de fiado', () => {
-  it('BAJA LA DEUDA: el abono entra NEGATIVO', async () => {
-    const base = baseDe();
+describe('F-254 · el abono de fiado, sobre la cartera (C.10 de la 2.4)', () => {
+  // Lo que la tienda fió: dos documentos, el más viejo vence primero.
+  const DEBE = [
+    {
+      id: 'viejo',
+      organizacion_id: ORG,
+      cliente_id: CLIENTE,
+      folio: 'CR-1',
+      emitido_en: new Date(AHORA.getTime() - 20 * 86_400_000),
+      vence_en: new Date(AHORA.getTime() - 5 * 86_400_000),
+      importe_centavos: 3_000n,
+      saldo_centavos: 3_000n,
+    },
+    {
+      id: 'nuevo',
+      organizacion_id: ORG,
+      cliente_id: CLIENTE,
+      folio: 'CR-2',
+      emitido_en: AHORA,
+      vence_en: new Date(AHORA.getTime() + 15 * 86_400_000),
+      importe_centavos: 4_000n,
+      saldo_centavos: 4_000n,
+    },
+  ];
+
+  const conCartera = (extra: Partial<TablasFalsas> = {}) =>
+    crearBaseFalsa(
+      tienda({
+        clientes: [
+          {
+            id: CLIENTE,
+            organizacion_id: ORG,
+            nombre: 'Doña Mary',
+            limite_credito_centavos: 50_000n,
+            dias_plazo: 15,
+            bloqueado_por_mora: false,
+          },
+        ],
+        documentos_credito: DEBE.map((d) => ({ ...d })),
+        pagos_credito: [],
+        aplicaciones_pago: [],
+        ...extra,
+      }),
+      {
+        predeterminados: {
+          pagos_credito: {
+            referencia: null,
+            movimiento_caja_id: null,
+            sesion_caja_id: null,
+            sucursal_id: null,
+          },
+          movimientos_caja: { referencia_tipo: null, referencia_id: null, motivo: null },
+        },
+      },
+    );
+
+  it('BAJA LA DEUDA QUE LA PANTALLA LEE: el documento más viejo primero', async () => {
+    // El abono iba a `pasivos_terceros`, que nadie lee: el saldo volvía al recargar.
+    const base = conCartera();
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     const salida = await registrarAbonoFiado.ejecutar(ctx, {
@@ -159,14 +215,32 @@ describe('F-254 · el abono de fiado', () => {
       metodo: 'efectivo',
     });
 
-    expect(salida.montoCentavos).toBe('-5000');
-    expect(base.campo('pasivos_terceros', 'naturaleza')).toBe('credito_cliente');
+    const saldos = Object.fromEntries(
+      base.filas('documentos_credito').map((d) => [d['id'], d['saldo_centavos']]),
+    );
+    expect(saldos).toEqual({ viejo: 0n, nuevo: 2_000n });
+    expect(salida.saldoDespuesCentavos).toBe('2000');
+    expect(base.filas('pagos_credito')).toHaveLength(1);
+    // Y el libro paralelo ya no se escribe.
+    expect(base.filas('pasivos_terceros')).toEqual([]);
   });
 
-  it('SÓLO EL EFECTIVO ENTRA AL CAJÓN', async () => {
-    // Un abono con tarjeta no lo toca. Registrarlo como si lo hiciera dejaría
-    // el arqueo con dinero que no está.
-    const base = baseDe();
+  it('EL EFECTIVO ENTRA AL CAJÓN como depósito, no como venta', async () => {
+    const base = conCartera();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await registrarAbonoFiado.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 5_000,
+      metodo: 'efectivo',
+    });
+
+    expect(base.campo('movimientos_caja', 'tipo')).toBe('deposito');
+    expect(base.campo('movimientos_caja', 'monto_centavos')).toBe(5_000n);
+  });
+
+  it('SÓLO EL EFECTIVO ENTRA AL CAJÓN: la tarjeta baja el saldo y no lo toca', async () => {
+    const base = conCartera();
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     await registrarAbonoFiado.ejecutar(ctx, {
@@ -176,11 +250,30 @@ describe('F-254 · el abono de fiado', () => {
     });
 
     expect(base.filas('movimientos_caja')).toEqual([]);
-    expect(base.filas('pasivos_terceros')).toHaveLength(1);
+    expect(
+      base.filas('documentos_credito').find((d) => d['id'] === 'viejo')?.['saldo_centavos'],
+    ).toBe(0n);
+  });
+
+  it('LA TRANSFERENCIA queda por confirmar: el saldo no baja hasta que alguien mire el banco', async () => {
+    const base = conCartera();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await registrarAbonoFiado.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 5_000,
+      metodo: 'transferencia',
+    });
+
+    expect(salida.pendienteDeConfirmar).toBe(true);
+    expect(base.filas('documentos_credito').map((d) => d['saldo_centavos'])).toEqual([
+      3_000n,
+      4_000n,
+    ]);
   });
 
   it('un cliente de otro negocio', async () => {
-    const base = baseDe({ clientes: [] });
+    const base = conCartera({ clientes: [] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     expect(

@@ -2,6 +2,7 @@ import 'server-only';
 
 import { ErrorDominio, plantillaDeOrganizacion } from '@morphiqpos/contracts';
 import { leyendoConReintento, obtenerDb, type Transaccion } from '@morphiqpos/data';
+import { z } from 'zod';
 
 /**
  * `ConfiguracionNegocio` — la entidad que no es una tabla con columnas.
@@ -60,6 +61,9 @@ export const CONFIG_POR_OMISION = {
   // permisiva, por la misma razón que en todos los demás sitios.
   paquete_modo: 'tienda',
   modo_presentacion_activo: false,
+  // F-148 · Cómo etiqueta su báscula el negocio. Nula = no se interpreta ninguna etiqueta:
+  // leer un importe como si fuera peso cobraría una cosa por otra sin que nada fallara.
+  bascula_etiqueta: null,
 } as const;
 
 /**
@@ -166,7 +170,53 @@ const CLAVES_EDITABLES = new Set([
   'portal_qr_cuenta_modo',
   'portal_qr_mensaje_bienvenida',
   'presentacion_ultimo_acceso',
+  'bascula_etiqueta',
 ]);
+
+/**
+ * F-148 · La báscula de etiquetas, validada AL GUARDAR (C.10 de la 2.4): un layout que no
+ * cabe en los trece dígitos del EAN leería el dígito de control como parte del importe.
+ * Todos los prefijos del mismo largo, para que el artículo empiece siempre en el mismo sitio.
+ */
+const BASCULA = z
+  .object({
+    prefijos: z
+      .array(z.string().regex(/^2\d?$/))
+      .min(1)
+      .max(10),
+    digitosArticulo: z.number().int().min(1).max(10),
+    digitosValor: z.number().int().min(1).max(10),
+    contenido: z.enum(['peso', 'importe']),
+    decimales: z.number().int().min(0).max(4),
+    verificadorInterno: z.boolean(),
+  })
+  .strict()
+  .refine((l) => new Set(l.prefijos.map((p) => p.length)).size === 1, {
+    message: 'Todos los prefijos de la báscula van del mismo largo.',
+  })
+  .refine(
+    (l) =>
+      (l.prefijos[0]?.length ?? 0) +
+        l.digitosArticulo +
+        (l.verificadorInterno ? 1 : 0) +
+        l.digitosValor ===
+      12,
+    {
+      message:
+        'El prefijo, el artículo y el valor tienen que sumar doce dígitos más el de control.',
+    },
+  );
+
+function exigirBascula(valor: unknown): void {
+  if (valor === null) return;
+  const leido = BASCULA.safeParse(valor);
+  if (!leido.success) {
+    throw new ErrorDominio(
+      'PUENTE_CAMPO_INVALIDO',
+      leido.error.issues[0]?.message ?? 'La báscula no tiene forma de etiqueta EAN-13.',
+    );
+  }
+}
 
 type Registro = Record<string, unknown>;
 
@@ -304,6 +354,7 @@ export async function guardarConfiguracionParcial(
     }
   }
   serializarConfiguracion({ ...parche });
+  if ('bascula_etiqueta' in parche) exigirBascula(parche['bascula_etiqueta']);
 
   const nombreNuevo = parche['nombre_negocio'];
   let nombreNormalizado: string | null = null;
