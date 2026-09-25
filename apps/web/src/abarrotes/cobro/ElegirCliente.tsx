@@ -3,7 +3,14 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Aviso, Dinero, EsqueletoDeLista, Vacio } from '@morphiqpos/ui/sistema';
+import {
+  Aviso,
+  Dinero,
+  EsqueletoDeLista,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
 import { Search, TriangleAlert, UserPlus, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -155,6 +162,51 @@ export function ElegirCliente({
     }
   }
 
+  const columnas: readonly ColumnaDeTabla<ClienteDelCobro>[] = [
+    {
+      clave: 'nombre',
+      titulo: 'Cliente',
+      celda: (c) => {
+        const aviso = avisoDeFiado(c, importe);
+        return (
+          <span className="flex flex-col">
+            <span className="font-medium">{c.nombre}</span>
+            <span className="text-xs text-texto-sutil">{c.telefono ?? 'sin teléfono'}</span>
+            {aviso === null ? null : (
+              <span className="inline-flex items-center gap-(--espacio-1) text-xs font-medium">
+                <TriangleAlert aria-hidden="true" className="size-3 text-advertencia" />
+                {aviso}
+              </span>
+            )}
+          </span>
+        );
+      },
+    },
+    {
+      clave: 'debe',
+      titulo: 'Debe',
+      numerica: true,
+      celda: (c) =>
+        c.debe > 0 ? (
+          <Dinero centavos={c.debe} tamano="sm" />
+        ) : (
+          <span className="text-texto-sutil">nada</span>
+        ),
+    },
+    {
+      clave: 'limite',
+      titulo: 'Límite',
+      numerica: true,
+      desde: 'sm',
+      celda: (c) =>
+        c.limite > 0 ? (
+          <Dinero centavos={c.limite} tamano="sm" className="text-texto-sutil" />
+        ) : (
+          <span className="text-texto-sutil">sin límite</span>
+        ),
+    },
+  ];
+
   if (nuevo !== null) {
     return (
       <form
@@ -237,48 +289,18 @@ export function ElegirCliente({
           explicacion="Dalo de alta con su nombre: el fiado va a nombre de alguien."
         />
       ) : (
-        <ul className="flex max-h-72 flex-col gap-(--espacio-1) overflow-y-auto">
-          {visibles.map((cliente) => {
-            const aviso = avisoDeFiado(cliente, importe);
-            return (
-              <li key={cliente.id}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="flex h-auto w-full flex-col items-stretch gap-(--espacio-1) py-(--espacio-2) text-left"
-                  onClick={() => {
-                    onElegir(cliente);
-                  }}
-                >
-                  <span className="flex items-baseline justify-between gap-(--espacio-2)">
-                    <span className="font-medium">{cliente.nombre}</span>
-                    {cliente.debe > 0 ? (
-                      <span className="inline-flex items-baseline gap-(--espacio-1) text-sm">
-                        debe <Dinero centavos={cliente.debe} tamano="sm" />
-                      </span>
-                    ) : (
-                      <span className="text-sm text-texto-sutil">no debe</span>
-                    )}
-                  </span>
-                  <span className="flex justify-between gap-(--espacio-2) text-xs text-texto-sutil">
-                    <span>{cliente.telefono ?? 'sin teléfono'}</span>
-                    {cliente.limite > 0 ? (
-                      <span className="inline-flex items-baseline gap-(--espacio-1)">
-                        límite <Dinero centavos={cliente.limite} tamano="sm" />
-                      </span>
-                    ) : null}
-                  </span>
-                  {aviso === null ? null : (
-                    <span className="inline-flex items-center gap-(--espacio-1) text-xs font-medium">
-                      <TriangleAlert aria-hidden="true" className="size-3 text-advertencia" />
-                      {aviso}
-                    </span>
-                  )}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
+        <Tabla
+          etiqueta="Clientes"
+          columnas={columnas}
+          filas={visibles}
+          claveDe={(c) => c.id}
+          alActivar={(id) => {
+            const elegido = visibles.find((c) => c.id === id);
+            if (elegido !== undefined) onElegir(elegido);
+          }}
+          etiquetaDeFila={(c) => `Elegir a ${c.nombre}`}
+          alto="max-h-72"
+        />
       )}
 
       <Button

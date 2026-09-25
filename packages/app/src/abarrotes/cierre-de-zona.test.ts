@@ -140,6 +140,48 @@ describe('inventario.ajustar_conteo', () => {
     expect(base.campo('zonas_anaquel', 'ultimo_conteo_en')).toEqual(AHORA);
   });
 
+  it('CADA DIFERENCIA CON SU MOTIVO: «caducado» no es la diferencia de conteo (C.10 de la 2.4)', async () => {
+    const base = baseDe({
+      motivos_merma: [
+        {
+          clave: MOTIVO,
+          etiqueta: 'Diferencia de conteo físico',
+          giro: null,
+          imputable: false,
+          activo: true,
+        },
+        { clave: 'caducado', etiqueta: 'Caducado', giro: null, imputable: false, activo: true },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    await ajustarConteo.ejecutar(ctx, {
+      zona: 'Reja de refrescos',
+      movimientos: [{ insumoId: INSUMO, contado: '216', motivo: 'caducado' }],
+      motivo: MOTIVO,
+      nota: null,
+    });
+
+    expect(base.campo('movimientos_stock', 'motivo')).toBe('caducado');
+  });
+
+  it('EL MOTIVO DE UN RENGLÓN también se comprueba antes de abrir la toma', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    const fallo = await ajustarConteo
+      .ejecutar(ctx, {
+        zona: 'Reja de refrescos',
+        movimientos: [{ insumoId: INSUMO, contado: '216', motivo: 'inventado' }],
+        motivo: MOTIVO,
+        nota: null,
+      })
+      .catch((e: unknown) => e);
+
+    expect(esErrorDominio(fallo) ? fallo.codigo : fallo).toBe('CONFIGURACION_INVALIDA');
+    expect(base.filas('tomas_inventario')).toHaveLength(0);
+  });
+
   it('LO QUE CUADRÓ no genera movimiento, y la zona se cierra igual', async () => {
     const base = baseDe();
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);

@@ -45,41 +45,36 @@ export function TeclasRapidas({
       <p className="text-xs font-medium tracking-widest text-texto-sutil uppercase">
         Los de siempre
       </p>
-      <ul className="flex gap-(--espacio-1) overflow-x-auto pb-(--espacio-1) md:grid md:grid-cols-4 md:overflow-visible xl:grid-cols-8">
+      <div className="flex gap-(--espacio-1) overflow-x-auto pb-(--espacio-1) md:grid md:grid-cols-4 md:overflow-visible xl:grid-cols-8">
         {productos.map((producto, indice) => {
           const tecla = teclaDe(indice);
           return (
-            <li key={producto.id} className="shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex h-14 min-w-28 flex-col items-start justify-center gap-0 px-(--espacio-2) text-left md:w-full"
-                aria-keyshortcuts={tecla ?? undefined}
-                onClick={() => {
-                  onElegir(producto);
-                }}
-              >
-                <span className="flex w-full items-baseline justify-between gap-(--espacio-1)">
-                  <span className="truncate text-sm font-medium">{producto.nombre}</span>
-                  {tecla === null ? null : (
-                    <kbd
-                      aria-hidden="true"
-                      className="hidden rounded-sm border border-current px-(--espacio-1) font-numeros text-xs md:inline"
-                    >
-                      {tecla}
-                    </kbd>
-                  )}
-                </span>
-                <Dinero
-                  centavos={producto.precioCentavos}
-                  tamano="sm"
-                  className="text-texto-sutil"
-                />
-              </Button>
-            </li>
+            <Button
+              key={producto.id}
+              type="button"
+              variant="outline"
+              className="flex h-[calc(var(--altura-control)*1.5)] min-w-28 shrink-0 flex-col items-start justify-center gap-0 px-(--espacio-2) text-left md:w-full"
+              aria-keyshortcuts={tecla ?? undefined}
+              onClick={() => {
+                onElegir(producto);
+              }}
+            >
+              <span className="flex w-full items-baseline justify-between gap-(--espacio-1)">
+                <span className="truncate text-sm font-medium">{producto.nombre}</span>
+                {tecla === null ? null : (
+                  <kbd
+                    aria-hidden="true"
+                    className="hidden rounded-sm border border-current px-(--espacio-1) font-numeros text-xs md:inline"
+                  >
+                    {tecla}
+                  </kbd>
+                )}
+              </span>
+              <Dinero centavos={producto.precioCentavos} tamano="sm" className="text-texto-sutil" />
+            </Button>
           );
         })}
-      </ul>
+      </div>
     </nav>
   );
 }

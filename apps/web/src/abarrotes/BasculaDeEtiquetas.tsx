@@ -5,7 +5,7 @@ import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Checkbox } from '@morphiqpos/ui/primitivas/checkbox';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Aviso, Superficie } from '@morphiqpos/ui/sistema';
+import { Aviso, Cifra, Dinero, Esqueleto, Superficie } from '@morphiqpos/ui/sistema';
 import { Check, Scale } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -72,17 +72,32 @@ export function layoutDelFormulario(f: Formulario): LayoutEanInterno | null {
   });
 }
 
-/** Lo que la etiqueta de prueba dice con este layout, dicho como lo diría el cajero. */
-export function lecturaDePrueba(codigo: string, layout: LayoutEanInterno | null): string | null {
+/** Lo que la etiqueta de prueba dice con este layout: el artículo y su peso o su importe. */
+export type LecturaDePrueba =
+  | { readonly tipo: 'peso'; readonly articulo: string; readonly kilos: string }
+  | { readonly tipo: 'importe'; readonly articulo: string; readonly centavos: number }
+  | { readonly tipo: 'fallo'; readonly motivo: string };
+
+export function lecturaDePrueba(
+  codigo: string,
+  layout: LayoutEanInterno | null,
+): LecturaDePrueba | null {
   const limpio = codigo.trim();
   if (limpio === '' || layout === null) return null;
   try {
     const leido = interpretarCodigoInterno(limpio, layout);
     return leido.contenido === 'peso'
-      ? `Artículo ${leido.codigoArticulo} · ${leido.valor} kg`
-      : `Artículo ${leido.codigoArticulo} · $${leido.valor}`;
+      ? { tipo: 'peso', articulo: leido.codigoArticulo, kilos: leido.valor }
+      : {
+          tipo: 'importe',
+          articulo: leido.codigoArticulo,
+          centavos: Number(leido.importeCentavos ?? 0n),
+        };
   } catch (fallo: unknown) {
-    return fallo instanceof Error ? fallo.message : 'Esa etiqueta no se pudo leer.';
+    return {
+      tipo: 'fallo',
+      motivo: fallo instanceof Error ? fallo.message : 'Esa etiqueta no se pudo leer.',
+    };
   }
 }
 
@@ -114,7 +129,7 @@ export function BasculaDeEtiquetas() {
     };
   }, []);
 
-  if (formulario === null) return null;
+  if (formulario === null) return <Esqueleto className="h-48 w-full rounded-lg" />;
   const layout = layoutDelFormulario(formulario);
   const lectura = lecturaDePrueba(prueba, layout);
 
@@ -234,8 +249,19 @@ export function BasculaDeEtiquetas() {
           }}
         />
         {lectura === null ? null : (
-          <p role="status" className="text-sm">
-            {lectura}
+          <p role="status" className="inline-flex items-baseline gap-(--espacio-1) text-sm">
+            {lectura.tipo === 'fallo' ? (
+              lectura.motivo
+            ) : (
+              <>
+                Artículo {lectura.articulo} ·{' '}
+                {lectura.tipo === 'peso' ? (
+                  <Cifra valor={Number(lectura.kilos)} unidad="kg" tamano="sm" />
+                ) : (
+                  <Dinero centavos={lectura.centavos} tamano="sm" />
+                )}
+              </>
+            )}
           </p>
         )}
       </div>

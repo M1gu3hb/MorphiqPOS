@@ -29,16 +29,15 @@ export interface PresentacionDelPuente {
   readonly id: string;
   readonly producto_id: string;
   readonly nombre: string;
-  readonly factor: number | string;
+  readonly factor: number;
   readonly codigo_barras: string | null;
   readonly precio_venta_centavos: number | null;
   readonly activa?: boolean | null;
 }
 
 /** La cantidad del puente como texto de hasta cuatro decimales, sin notación científica. */
-function factorEnTexto(factor: number | string): string {
-  const texto = typeof factor === 'number' ? factor.toFixed(4) : factor.trim();
-  return textoDeDiezmilesimas(diezmilesimas(texto));
+function factorEnTexto(factor: number): string {
+  return textoDeDiezmilesimas(diezmilesimas(factor.toFixed(4)));
 }
 
 /**

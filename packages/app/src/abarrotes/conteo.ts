@@ -322,6 +322,8 @@ export async function ejecutarCierreDeConteo(
   toma: { readonly id: string; readonly almacenId: string; readonly zonaId: string | null },
   motivo: string | null,
   nota: string | null,
+  /** El motivo de cada diferencia, si no es el de la toma (C.10 de la 2.4). */
+  motivosPorInsumo: ReadonlyMap<string, string> = new Map(),
 ): Promise<ResultadoCerrarConteo> {
   const { organizacionId, empleoId } = ctx.ambito;
 
@@ -349,7 +351,7 @@ export async function ejecutarCierreDeConteo(
           referencia_tipo: 'conteo',
           referencia_id: toma.id,
           empleado_id: empleoId,
-          motivo,
+          motivo: motivosPorInsumo.get(ajuste.insumoId) ?? motivo,
           nota: nota,
         })
         .returning('id')

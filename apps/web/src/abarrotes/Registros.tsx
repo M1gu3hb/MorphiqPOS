@@ -16,10 +16,19 @@ import {
   type TamanoDeDinero,
   type TonoDeFila,
 } from '@morphiqpos/ui/sistema';
-import { CalendarX, CircleAlert, ListFilter, Package, Receipt, Wallet } from 'lucide-react';
+import {
+  CalendarX,
+  CircleAlert,
+  Download,
+  ListFilter,
+  Package,
+  Receipt,
+  Wallet,
+} from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { csvDe, descargarTexto, pesosParaCsv } from '~/cliente/csv';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
@@ -59,9 +68,11 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * En el teléfono del dueño la misma tabla se queda en hora, qué pasó e importe,
  * con el detalle en un segundo renglón chico: se lee igual, de arriba abajo.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben la línea de tiempo del día, el filtro por tipo y el detalle de cada
- * renglón. Queda fuera la exportación, que es del reporte y no del registro.
+ * ── Y se exporta lo que se ve (C.10 de la 2.4) ─────────────────────────
+ * «Exportar» baja en CSV exactamente lo que la lista enseña —el día y el filtro
+ * elegidos—, con los importes como números que Excel suma y cada fórmula tecleada
+ * en un motivo neutralizada (`cliente/csv.ts`): lo que el contador pide el lunes
+ * sale de aquí sin copiar renglón por renglón.
  */
 
 const TIPOS = [
@@ -509,6 +520,25 @@ export function Registros({
     return origen === 'caja' ? 'Caja' : 'Inventario';
   }
 
+  function exportar(): void {
+    const texto = csvDe<RenglonDeRegistro>(
+      [
+        { titulo: 'Hora', valor: (r) => r.hora },
+        { titulo: 'Tipo', valor: (r) => nombreDeOrigen(r.tipo) },
+        { titulo: 'Qué pasó', valor: (r) => r.titulo },
+        { titulo: 'Detalle', valor: (r) => r.detalle },
+        { titulo: 'Cantidad', valor: (r) => r.cantidad },
+        { titulo: 'Importe', valor: (r) => pesosParaCsv(r.importeCentavos) },
+        {
+          titulo: 'Nota',
+          valor: (r) => (r.cancelada ? 'cancelada' : r.sinExplicacion ? 'sin explicación' : null),
+        },
+      ],
+      visibles,
+    );
+    descargarTexto(`registros-${fecha}${tipo === 'todo' ? '' : `-${tipo}`}.csv`, texto);
+  }
+
   const columnas: readonly ColumnaDeTabla<RenglonDeRegistro>[] = [
     {
       clave: 'hora',
@@ -631,18 +661,29 @@ export function Registros({
           <h1 className="text-2xl font-semibold">Registros</h1>
           <p className="text-sm text-texto-sutil">Qué pasó, en orden y en una sola lista.</p>
         </div>
-        <div className="flex flex-col gap-(--espacio-1)">
-          <Label htmlFor="dia">Día</Label>
-          <Input
-            id="dia"
-            type="date"
-            className="h-[calc(var(--altura-control)*1.2)] w-48 font-numeros tabular-nums"
-            value={fecha}
-            onChange={(evento) => {
-              olvidarLoLeido();
-              setFecha(evento.target.value);
-            }}
-          />
+        <div className="flex flex-wrap items-end gap-(--espacio-3)">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={cargando || fallo !== null || visibles.length === 0}
+            onClick={exportar}
+          >
+            <Download aria-hidden="true" />
+            Exportar
+          </Button>
+          <div className="flex flex-col gap-(--espacio-1)">
+            <Label htmlFor="dia">Día</Label>
+            <Input
+              id="dia"
+              type="date"
+              className="h-[calc(var(--altura-control)*1.2)] w-48 font-numeros tabular-nums"
+              value={fecha}
+              onChange={(evento) => {
+                olvidarLoLeido();
+                setFecha(evento.target.value);
+              }}
+            />
+          </div>
         </div>
       </header>
 

@@ -435,6 +435,47 @@ caja, y la entrada de cambio de la cafetería se registraba como depósito.
 6. **La ferretería hereda «Caja y corte» de abarrotes**, como dice su documento: «Fondo y
    movimientos» (`/ferreteria/fondo-y-movimientos`) y «Cortes» (`/ferreteria/cortes`).
 
+## D-21 · 25-09-2026 · Lo recortado de la tienda se construye: el fiado en el cobro, una sola cartera, la báscula declarada
+
+**Contexto.** C.10 de la 2.4: treinta y nueve pantallas llevaban «Alcance recortado» en su
+cabecera; al empezar el bloque quedaban veintinueve. Las seis de la tienda, al construirse,
+destaparon cuatro defectos que ninguna prueba veía: F11 (fiado) contestaba «La venta llegó
+incompleta»; un cobro fallido dejaba sus líneas en el borrador de la terminal y el siguiente las
+metía encima —el total ya no cuadraba nunca—; el abono del fiado se anotaba en un libro que nadie
+lee; y la pantalla «Productos» no abría ninguna ficha.
+
+**Decisión.**
+
+1. **El fiado es un pago del cobro, no un comando aparte.** `venta.cobrar` acepta el método
+   `fiado` (el `check` de `pagos.metodo` lo admite desde la 003) con `clienteId`, y emite el
+   documento de crédito en la MISMA transacción con la misma comprobación que
+   `credito.emitir_documento` (`emitirDocumento`, una sola aritmética). La venta suma a ventas, no
+   al cajón. La propina no se fía. Los documentos de fiado llevan serie propia `CR`: en la del
+   ticket, cada fiado se comía un folio de venta.
+2. **Una sola cartera.** `fiado.registrar_abono` —el nombre que declara el `05-DATOS-Y-BACKEND`—
+   aplica el pago con `aplicarPagoDeCredito`, el mismo de la ferretería: a lo más viejo, el
+   efectivo al cajón como depósito, la transferencia por confirmar. `pasivos_terceros` deja de
+   recibir abonos de fiado; sigue siendo el libro de recargas, servicios y cascos.
+3. **El carrito del mostrador se vacía antes de armarse**, con su propia clave de idempotencia
+   (`venta.vaciar_orden` en `armarCarrito`): en el mostrador la venta vive en la pantalla y lo que
+   quedó en el borrador es resto de un intento. Retomar una venta apartada retira el carrito vacío
+   de la caja y se niega a pisar uno con líneas.
+4. **La báscula de etiquetas (F-148) no se interpreta sin declararla.** Cada marca reparte los
+   dígitos a su manera y leer un importe como peso cobraría otra cosa sin que nada fallara. El
+   negocio la declara en el catálogo (`bascula_etiqueta`, validada en el servidor: prefijo 2x,
+   trece dígitos) y la prueba con una etiqueta real antes de guardar. Por importe, la cantidad se
+   elige para que precio × cantidad dé exactamente lo impreso.
+5. **F1–F8 contra las acciones.** El documento de abarrotes pide F1–F8 para los ocho de siempre Y
+   F2, F4, F6 y F7 para buscar, cliente, apartar y abono. Mandan las acciones: se usan en cada venta
+   que las necesita y ya están impresas. Los ocho llevan su tecla donde está libre (F1, F3, F5, F8)
+   y los demás son botones. Son los que el negocio VENDE (`venta.mas_vendidos`, 30 días), nunca los
+   primeros del catálogo: una tienda que aún no vende nada no ve fila.
+6. **El canje en la misma nota lo valora el servidor**, al costo de ANTES de la nota, y se le
+   descuenta al total de la compra. El navegador sólo dice qué, cuánto y por qué.
+7. **El kardex vive en la ficha del producto** (era «su propia pantalla» según la ficha y «la
+   ficha» según Existencias: no existía en ninguna). El conteo lo abre desde cada diferencia, y
+   cada diferencia elige su motivo de los del tronco y del giro (`inventario.motivos_de_merma`).
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

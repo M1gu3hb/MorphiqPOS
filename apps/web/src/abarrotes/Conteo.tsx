@@ -33,6 +33,12 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  MotivoDeLaDiferencia,
+  useMotivosDeMerma,
+  type MotivoDeMerma,
+} from './conteo/MotivoDeLaDiferencia.tsx';
+
 /**
  * PANTALLA · abarrotes · conteo
  *
@@ -79,11 +85,11 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * que no cuadró son tarjetas en el teléfono y tabla desde la tableta, con el
  * esperado a la vista porque el conteo ya terminó.
  *
- * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
- * Caben el conteo a ciegas, el escaneo, el progreso, el resumen de la zona con
- * su recuento y el cierre con ajuste. Queda FUERA el editor de motivo por
- * producto —hoy todos se cierran con el de omisión— y «Ver motivo», que es la
- * ficha del movimiento y vive en el kardex del producto.
+ * ── Cada diferencia con su motivo (C.10 de la 2.4) ───────────────────────
+ * Lo que no cuadró elige SU motivo —caducado, roto, faltante— de los del tronco y
+ * del giro (`conteo/MotivoDeLaDiferencia`); lo que no se elige se cierra con el de
+ * omisión. Y cada renglón abre el kardex de su producto, en la ficha: de dónde
+ * salió el esperado.
  */
 
 /**
@@ -130,6 +136,8 @@ export interface ProductoDeConteo {
    */
   readonly costoCentavos: number | null;
   readonly codigo: string | null;
+  /** De qué producto es el insumo: con él se abre su kardex. */
+  readonly producto_id?: string | null;
 }
 
 export interface ConteoProps {
@@ -360,6 +368,11 @@ function columnasDeDesviados(
   nombreDeProducto: string,
   conteos: Readonly<Record<string, number>>,
   alRecontar: (id: string) => void,
+  motivo: {
+    readonly opciones: readonly MotivoDeMerma[];
+    readonly elegidos: Readonly<Record<string, string>>;
+    readonly alElegir: (insumoId: string, clave: string) => void;
+  },
 ): readonly ColumnaDeTabla<ProductoDeConteo>[] {
   return [
     {
@@ -402,6 +415,21 @@ function columnasDeDesviados(
       numerica: true,
       orden: (p) => (conteos[p.id] ?? 0) - p.esperado,
       celda: (p) => <Diferencia piezas={(conteos[p.id] ?? 0) - p.esperado} />,
+    },
+    {
+      clave: 'motivo',
+      titulo: 'Motivo',
+      celda: (p) => (
+        <MotivoDeLaDiferencia
+          nombre={p.nombre}
+          productoId={p.producto_id}
+          opciones={motivo.opciones}
+          elegido={motivo.elegidos[p.id] ?? MOTIVO_POR_OMISION}
+          onElegir={(clave) => {
+            motivo.alElegir(p.id, clave);
+          }}
+        />
+      ),
     },
   ];
 }
@@ -503,6 +531,9 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
   const [cerrada, setCerrada] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** El motivo elegido para cada diferencia; lo que no está aquí va con el de omisión. */
+  const [motivos, setMotivos] = useState<Readonly<Record<string, string>>>({});
+  const opcionesDeMotivo = useMotivosDeMerma(enResumen);
 
   useEffect(() => {
     if (filasIniciales !== undefined) return;
@@ -612,6 +643,10 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
         movimientos: Object.entries(conteos).map(([id, contado]) => ({
           insumoId: id,
           contado: String(contado),
+          // Sólo lo que se eligió distinto: lo demás, el de la zona.
+          ...(motivos[id] === undefined || motivos[id] === MOTIVO_POR_OMISION
+            ? {}
+            : { motivo: motivos[id] }),
         })),
       });
       setCerrada(true);
@@ -720,14 +755,20 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
               {/* En palabras y no la clave: la clave es para la base. */}
               {resumen.desviados.length > 0 && (
                 <p className="text-sm text-texto-sutil">
-                  Se ajusta con el motivo «{MOTIVO_EN_PALABRAS}».
+                  Lo que no elijas se ajusta con el motivo «{MOTIVO_EN_PALABRAS}».
                 </p>
               )}
               <TablaAdaptable
                 etiqueta="Lo que no cuadró"
                 principal="producto"
                 desde="md"
-                columnas={columnasDeDesviados(voc.titulo('producto'), conteos, recontar)}
+                columnas={columnasDeDesviados(voc.titulo('producto'), conteos, recontar, {
+                  opciones: opcionesDeMotivo,
+                  elegidos: motivos,
+                  alElegir: (insumoId, clave) => {
+                    setMotivos((previos) => ({ ...previos, [insumoId]: clave }));
+                  },
+                })}
                 filas={resumen.desviados}
                 claveDe={(p) => p.id}
                 alto="max-h-[50vh]"

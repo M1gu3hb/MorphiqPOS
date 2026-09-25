@@ -56,6 +56,12 @@ export interface RenglonSugerido {
   readonly nombre: string;
   /** Lo que cuesta UNA unidad base. De aquí salen los dos importes. */
   readonly costoUnitarioCentavos: string;
+  /**
+   * A cuánto se vende UNA unidad base hoy, o nulo si el insumo no tiene producto de venta
+   * (C.10 de la 2.4). Con él, la entrada dice «subió 5.2 %, véndelo a $48 en vez de $46»
+   * conservando el margen; sin él no se inventa uno.
+   */
+  readonly precioVentaCentavos: string | null;
   /** Lo que costaría pedir lo sugerido. Es lo que decide si se pide hoy o no. */
   readonly importeCentavos: string;
   /**
@@ -76,9 +82,21 @@ export interface RenglonSugerido {
   readonly alerta: NivelDeAlerta;
 }
 
+/** Un artículo de este proveedor: lo que el canje puede llevarse (C.10 de la 2.4). */
+export interface ArticuloDelProveedor {
+  readonly insumoId: string;
+  readonly nombre: string;
+  readonly unidadBase: string;
+}
+
 export interface PedidoSugerido {
   readonly proveedorId: string;
   readonly proveedor: string;
+  /**
+   * TODO lo que se le compra, no sólo lo que hay que pedir: el canje se lleva el pan que
+   * sobra aunque hoy no haga falta pedir pan.
+   */
+  readonly articulos: readonly ArticuloDelProveedor[];
   /** `null` cuando el proveedor no tiene ruta: se le llama por teléfono. */
   readonly diasHastaLaVisita: number | null;
   readonly diasDeCobertura: number;
@@ -136,16 +154,23 @@ export const sugerenciaDePedido = definirComando<
           'unidad_compra_default as unidadCompra',
           'cantidad_por_compra_default as factorCompra',
           'costo_unitario_centavos as costoUnitario',
+          'producto_id as productoId',
         ])
         .where('organizacion_id', '=', organizacionId)
         .where('proveedor_id', '=', entrada.proveedorId)
         .where('activo', '=', true)
         .execute(),
     );
+    const delProveedor = articulos.map((a) => ({
+      insumoId: a.id,
+      nombre: a.nombre,
+      unidadBase: a.unidadBase,
+    }));
     if (articulos.length === 0) {
       return {
         proveedorId: proveedor.id,
         proveedor: proveedor.nombre,
+        articulos: delProveedor,
         diasHastaLaVisita: hastaLaVisita,
         diasDeCobertura,
         renglones: [],
@@ -166,6 +191,40 @@ export const sugerenciaDePedido = definirComando<
         .execute(),
     );
     const porInsumo = new Map(existencias.map((e) => [e.insumoId, e.cantidad]));
+
+    // El precio de venta de lo que se pide: por su insumo base o por su insumo propio, los
+    // dos caminos con que un producto se liga a su existencia.
+    const ids = articulos.map((a) => a.id);
+    const productosPropios = articulos
+      .map((a) => a.productoId)
+      .filter((id): id is string => id !== null);
+    const porBase = await ctx.paso('cargar_precios', () =>
+      ctx.tx
+        .selectFrom('productos')
+        .select(['id', 'insumo_base_id as insumoBaseId', 'precio_venta_centavos as precio'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('insumo_base_id', 'in', ids)
+        .execute(),
+    );
+    const propios =
+      productosPropios.length === 0
+        ? []
+        : await ctx.paso('cargar_precios_propios', () =>
+            ctx.tx
+              .selectFrom('productos')
+              .select(['id', 'insumo_base_id as insumoBaseId', 'precio_venta_centavos as precio'])
+              .where('organizacion_id', '=', organizacionId)
+              .where('id', 'in', productosPropios)
+              .execute(),
+          );
+    const precios = [...porBase, ...propios];
+    const precioPorInsumo = new Map<string, bigint>();
+    for (const articulo of articulos) {
+      const deBase = precios.find((p) => p.insumoBaseId === articulo.id);
+      const propio = precios.find((p) => p.id === articulo.productoId);
+      const precio = (deBase ?? propio)?.precio;
+      if (precio !== undefined) precioPorInsumo.set(articulo.id, precio);
+    }
 
     const desde = new Date(ctx.ahora.getTime() - entrada.diasDeVenta * 24 * 60 * 60 * 1000);
     const salidas = await ctx.paso('cargar_venta', () =>
@@ -239,6 +298,7 @@ export const sugerenciaDePedido = definirComando<
         insumoId: articulo.id,
         nombre: articulo.nombre,
         costoUnitarioCentavos: costo.toString(),
+        precioVentaCentavos: precioPorInsumo.get(articulo.id)?.toString() ?? null,
         importeCentavos: importe.toString(),
         dormidoCentavos: dormido.toString(),
         existenciaBase: existencia,
@@ -258,6 +318,7 @@ export const sugerenciaDePedido = definirComando<
     return {
       proveedorId: proveedor.id,
       proveedor: proveedor.nombre,
+      articulos: delProveedor,
       diasHastaLaVisita: hastaLaVisita,
       diasDeCobertura,
       renglones,

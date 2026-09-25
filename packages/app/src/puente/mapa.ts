@@ -2470,6 +2470,18 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
     },
+    derivados: {
+      // De qué producto es el insumo contado: con él, «ver el kardex» abre la ficha de
+      // ESE producto (C.10 de la 2.4).
+      producto_id: {
+        rolesLectura: [...INVENTARIO, 'cajero'],
+        tabla: 'insumos',
+        porColumna: 'insumo_id',
+        emparejaCon: 'id',
+        columna: 'producto_id',
+        conversion: 'texto',
+      },
+    },
   },
 
   /**

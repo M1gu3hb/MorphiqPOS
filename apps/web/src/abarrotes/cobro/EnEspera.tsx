@@ -3,7 +3,15 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Aviso, Dinero, EsqueletoDeLista, Vacio } from '@morphiqpos/ui/sistema';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  EsqueletoDeLista,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
 import { Hourglass, PauseCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -94,6 +102,51 @@ export function EnEspera({
     }
   }
 
+  const columnas: readonly ColumnaDeTabla<Apartada>[] = [
+    {
+      clave: 'cual',
+      titulo: 'Cuál',
+      celda: (a) => (
+        <span className="font-medium">
+          La {a.codigo}
+          {a.nota === null ? '' : ` · ${a.nota}`}
+        </span>
+      ),
+    },
+    {
+      clave: 'total',
+      titulo: 'Total',
+      numerica: true,
+      celda: (a) => <Dinero centavos={Number(a.totalCentavos)} tamano="sm" />,
+    },
+    {
+      clave: 'espera',
+      titulo: 'Espera',
+      numerica: true,
+      desde: 'sm',
+      celda: (a) => <Cifra valor={a.minutosEsperando} unidad="min" tamano="sm" />,
+    },
+    {
+      clave: 'retomar',
+      titulo: 'Retomar',
+      celda: (a) => (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-label={`Retomar la ${a.codigo}`}
+          // Retomar con una venta en la pantalla la pisaría: primero se cobra o se aparta.
+          disabled={enviando || lineas.length > 0}
+          onClick={() => {
+            void retomar(a.codigo);
+          }}
+        >
+          Retomar
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-(--espacio-4)">
       {lineas.length === 0 ? null : (
@@ -133,38 +186,12 @@ export function EnEspera({
         ) : (apartadas ?? []).length === 0 ? (
           <Vacio icono={<Hourglass />} titulo="No hay nada apartado." />
         ) : (
-          <ul className="flex flex-col gap-(--espacio-1)">
-            {(apartadas ?? []).map((apartada) => (
-              <li
-                key={apartada.ordenId}
-                className="flex items-center justify-between gap-(--espacio-2) rounded-md border border-borde px-(--espacio-3) py-(--espacio-2)"
-              >
-                <span className="flex flex-col">
-                  <span className="font-medium">
-                    La {apartada.codigo}
-                    {apartada.nota === null ? '' : ` · ${apartada.nota}`}
-                  </span>
-                  <span className="inline-flex items-baseline gap-(--espacio-1) text-xs text-texto-sutil">
-                    {apartada.lineas} {apartada.lineas === 1 ? 'renglón' : 'renglones'} ·{' '}
-                    <Dinero centavos={Number(apartada.totalCentavos)} tamano="sm" /> · hace{' '}
-                    {apartada.minutosEsperando} min
-                  </span>
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  // Retomar con una venta en la pantalla la pisaría: primero se cobra o se aparta.
-                  disabled={enviando || lineas.length > 0}
-                  onClick={() => {
-                    void retomar(apartada.codigo);
-                  }}
-                >
-                  Retomar
-                </Button>
-              </li>
-            ))}
-          </ul>
+          <Tabla
+            etiqueta="Apartadas en esta caja"
+            columnas={columnas}
+            filas={apartadas ?? []}
+            claveDe={(a) => a.ordenId}
+          />
         )}
         {lineas.length > 0 && (apartadas ?? []).length > 0 ? (
           <p className="text-xs text-texto-sutil">

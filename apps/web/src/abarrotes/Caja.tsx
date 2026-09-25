@@ -72,9 +72,11 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * así que registra sólo el botón. Y lo que sale mal se dice JUNTO al botón que se
  * tocó, no arriba de todo, que es donde nadie está mirando.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben abrir, meter cambio, retirar y ver el esperado del turno. Queda fuera
- * el cierre con arqueo por denominación, que es la pantalla CORTES.
+ * ── Y el cierre, en su pantalla ─────────────────────────────────────────
+ * Aquí se abre, se mete cambio, se retira y se ve el esperado del turno. El
+ * cierre —el arqueo por denominación, lo que se deja para mañana y el PDF del
+ * corte— es la pantalla CORTES, y con la caja abierta se llega a ella desde aquí
+ * mismo (`rutaDeCortes`): cerrar no se busca en el menú al final del día.
  */
 
 const RUTA_ABRIR = '/api/caja/abrir';
@@ -124,6 +126,8 @@ export interface EstadoDeCaja {
 export interface CajaProps {
   /** Cuando llega, la pantalla no consulta: es lo que usan las pruebas. */
   readonly estadoInicial?: EstadoDeCaja;
+  /** Dónde se cierra: la tienda y la ferretería comparten esta caja y no su menú. */
+  readonly rutaDeCortes?: string;
 }
 
 /** Centavos como TEXTO: el dinero no pasa por punto flotante en el navegador. */
@@ -226,7 +230,7 @@ function AvisoDelPanel({
   );
 }
 
-export function Caja({ estadoInicial }: CajaProps) {
+export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: CajaProps) {
   const voc = useVocabulario();
   const [estado, setEstado] = useState<EstadoDeCaja | null>(estadoInicial ?? null);
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
@@ -688,10 +692,18 @@ export function Caja({ estadoInicial }: CajaProps) {
       <header className="flex flex-wrap items-baseline justify-between gap-(--espacio-2)">
         <h1 className="text-2xl font-semibold">Caja</h1>
         {abierta ? (
-          <p className="inline-flex items-center gap-(--espacio-2) text-sm">
-            <LockKeyholeOpen aria-hidden="true" className="size-4 text-exito" />
-            Abierta desde las {(estado.abiertaEn ?? '').slice(11, 16)}
-          </p>
+          <div className="flex flex-wrap items-center gap-(--espacio-3)">
+            <p className="inline-flex items-center gap-(--espacio-2) text-sm">
+              <LockKeyholeOpen aria-hidden="true" className="size-4 text-exito" />
+              Abierta desde las {(estado.abiertaEn ?? '').slice(11, 16)}
+            </p>
+            <Button asChild size="sm" variant="outline">
+              <a href={rutaDeCortes}>
+                <LockKeyhole aria-hidden="true" />
+                Cerrar la caja
+              </a>
+            </Button>
+          </div>
         ) : null}
       </header>
 

@@ -215,10 +215,10 @@ describe('F-254 · el abono de fiado, sobre la cartera (C.10 de la 2.4)', () => 
       metodo: 'efectivo',
     });
 
-    const saldos = Object.fromEntries(
-      base.filas('documentos_credito').map((d) => [d['id'], d['saldo_centavos']]),
-    );
-    expect(saldos).toEqual({ viejo: 0n, nuevo: 2_000n });
+    const saldo = (id: string): unknown =>
+      base.filas('documentos_credito').find((d) => d['id'] === id)?.['saldo_centavos'];
+    expect(saldo('viejo')).toBe(0n);
+    expect(saldo('nuevo')).toBe(2_000n);
     expect(salida.saldoDespuesCentavos).toBe('2000');
     expect(base.filas('pagos_credito')).toHaveLength(1);
     // Y el libro paralelo ya no se escribe.

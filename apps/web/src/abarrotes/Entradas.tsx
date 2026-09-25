@@ -23,6 +23,13 @@ import { useEffect, useState, useSyncExternalStore, type ReactElement } from 're
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  CanjeDeLaNota,
+  canjesParaElServidor,
+  type ArticuloDelProveedor,
+  type CanjeCapturado,
+} from './entradas/CanjeDeLaNota.tsx';
+
 /**
  * PANTALLA · abarrotes · entradas
  *
@@ -54,8 +61,9 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * la nota; si subió, la fila se tiñe y dice «subió», y el aviso va pegado al
  * botón de guardar, que es donde se está mirando, con el costo de antes y el de
  * ahora. «Subió 5.2 %, véndelo a $48 en vez de $46» es lo accionable, pero
- * pide el precio de venta, y el sugerido no lo sirve: sin él no se inventa un
- * margen, así que el precio sugerido sólo aparece cuando la línea lo trae.
+ * pide el precio de venta, y el sugerido lo sirve (C.10 de la 2.4): con él, el
+ * aviso dice a cuánto venderlo para conservar el margen; sin él —un insumo que no
+ * se vende tal cual— no se inventa uno.
  *
  * ── PC, tableta y teléfono ──────────────────────────────────────────────
  * En la PC la nota es una tabla densa de captura: se recorre con el tabulador
@@ -64,11 +72,10 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * recepción ocurre de pie a las 6:40 con la caja en la otra mano; y el total a
  * pagar con su botón se queda pegado abajo mientras se captura.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben quién viene hoy, el sugerido, la captura de la nota con caducidad y el
- * aviso de costo. Queda fuera el canje en la misma nota, que necesita el
- * comando de devolución a proveedor, y el precio de venta sugerido, que necesita
- * que `compras.sugerir_pedido` sirva el precio de venta de cada renglón.
+ * ── Y el canje, en la misma nota (C.10 de la 2.4) ───────────────────────
+ * Lo que se lleva el repartidor se captura aquí mismo (`entradas/CanjeDeLaNota`):
+ * el servidor lo saca del inventario ligado a esta nota y le descuenta a lo que se
+ * paga lo que valía, a su costo de antes. Dos movimientos, un documento.
  */
 
 const RUTA_RECIBIR = '/api/compras/recibir-nota';
@@ -113,6 +120,8 @@ export interface RenglonSugerido {
   readonly nombre: string;
   /** Lo que cuesta UNA unidad base: es el costo anterior de la nota. */
   readonly costoUnitarioCentavos: string;
+  /** A cuánto se vende una unidad base hoy; `null` si el insumo no tiene producto. */
+  readonly precioVentaCentavos: string | null;
   readonly existenciaBase: string;
   readonly ventaDelPeriodoBase: string;
   /** En presentaciones de compra (cajas, paquetes), no en unidades base. */
@@ -131,7 +140,7 @@ export interface LineaCapturada {
   readonly caducaEl: string;
   /** Lo que costaba una unidad base antes de esta nota. */
   readonly costoAnteriorCentavos: number | null;
-  /** Hoy siempre `null`: el sugerido no sirve el precio de venta. */
+  /** A cuánto se vende una unidad base hoy; `null` si el insumo no tiene producto. */
   readonly precioVentaCentavos: number | null;
 }
 
@@ -647,6 +656,9 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [guardada, setGuardada] = useState<string | null>(null);
+  /** Todo lo que se le compra a este proveedor: lo que el canje puede llevarse. */
+  const [articulos, setArticulos] = useState<readonly ArticuloDelProveedor[]>([]);
+  const [canjes, setCanjes] = useState<readonly CanjeCapturado[]>([]);
 
   useEffect(() => {
     if (hoy !== undefined) return;
@@ -703,12 +715,15 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
   function pedirSugerido(proveedor: ProveedorDelDia): void {
     setSugerido(null);
     setSugeridoFallo(false);
-    invocarComando<{ readonly renglones: readonly RenglonSugerido[] }>(
-      `${RUTA_SUGERENCIA}/${proveedor.id}`,
-      {},
-    )
+    setArticulos([]);
+    setCanjes([]);
+    invocarComando<{
+      readonly renglones: readonly RenglonSugerido[];
+      readonly articulos: readonly ArticuloDelProveedor[];
+    }>(`${RUTA_SUGERENCIA}/${proveedor.id}`, {})
       .then((datos) => {
         setSugerido(datos.renglones);
+        setArticulos(datos.articulos);
       })
       .catch(() => {
         setSugeridoFallo(true);
@@ -735,7 +750,10 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
         caducaEl: '',
         // Lo que costaba una unidad base: contra esto se mide si subió.
         costoAnteriorCentavos: centavosEnteros(renglon.costoUnitarioCentavos),
-        precioVentaCentavos: null,
+        precioVentaCentavos:
+          renglon.precioVentaCentavos === null
+            ? null
+            : centavosEnteros(renglon.precioVentaCentavos),
       },
     ]);
   }
@@ -758,31 +776,35 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
     }
     setGuardando(true);
     setError(null);
-    invocarComando<{ readonly compraId: string; readonly caducidadesRegistradas: number }>(
-      RUTA_RECIBIR,
-      {
-        // El almacén NO se manda: sale de la sesión del servidor (R16). Esta
-        // pantalla no puede saberlo y fingir que sí la dejaba en blanco.
-        proveedorId: elegido.id,
-        lineas: lineas.map((l) => ({
-          insumoId: l.insumoId,
-          cantidadCapturada: l.cantidad.replace(',', '.'),
-          unidadCapturada: l.unidad,
-          equivalencia: l.equivalencia.replace(',', '.'),
-          costoTotal: l.costoTotal.replace(',', '.'),
-          ...(l.caducaEl === '' ? {} : { caducaEl: l.caducaEl }),
-        })),
-      },
-    )
+    invocarComando<{
+      readonly compraId: string;
+      readonly caducidadesRegistradas: number;
+      readonly canjeCentavos: string;
+    }>(RUTA_RECIBIR, {
+      // El almacén NO se manda: sale de la sesión del servidor (R16). Esta
+      // pantalla no puede saberlo y fingir que sí la dejaba en blanco.
+      proveedorId: elegido.id,
+      lineas: lineas.map((l) => ({
+        insumoId: l.insumoId,
+        cantidadCapturada: l.cantidad.replace(',', '.'),
+        unidadCapturada: l.unidad,
+        equivalencia: l.equivalencia.replace(',', '.'),
+        costoTotal: l.costoTotal.replace(',', '.'),
+        ...(l.caducaEl === '' ? {} : { caducaEl: l.caducaEl }),
+      })),
+      canjes: canjesParaElServidor(canjes),
+    })
       .then((salida) => {
+        const conCanje = salida.canjeCentavos !== '0' ? ' El canje ya se descontó.' : '';
         setGuardada(
           salida.caducidadesRegistradas > 0
             ? `Entrada guardada, con ${String(salida.caducidadesRegistradas)} caducidad${
                 salida.caducidadesRegistradas === 1 ? '' : 'es'
-              }.`
-            : 'Entrada guardada.',
+              }.${conCanje}`
+            : `Entrada guardada.${conCanje}`,
         );
         setLineas([]);
+        setCanjes([]);
       })
       .catch((fallo: unknown) => {
         setError(mensajeDe(fallo));
@@ -981,6 +1003,8 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
                   />
                 }
               />
+
+              <CanjeDeLaNota articulos={articulos} canjes={canjes} onCambiar={setCanjes} />
 
               {conAviso.map(({ clave, aviso }) => (
                 <Aviso

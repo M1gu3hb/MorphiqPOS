@@ -183,7 +183,8 @@ async function cargarMotivo(
 }
 
 /** Descuenta con guarda atómica. `delta` viene NEGATIVO del dominio. */
-async function descontarExistencia(
+/** Baja la existencia sin dejarla negativa: lo que no hay no se merma ni se devuelve. */
+export async function descontarExistencia(
   ctx: ContextoComando<Transaccion>,
   almacenId: string,
   insumoId: string,

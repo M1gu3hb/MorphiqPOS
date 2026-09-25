@@ -59,6 +59,114 @@ export const SIN_ESTADO = [
       'Diálogo: MesaActiva le pasa por props los platillos enviados y la orden; no hay lectura que esperar. Lo único asíncrono es el comando dividir-cuenta, pintado con el botón `cargando` («Dividiendo…»).',
   },
   {
+    pantalla: 'abarrotes/BasculaDeEtiquetas',
+    estado: 'vacio',
+    razon:
+      'Formulario del layout de la báscula: siempre tiene sus seis campos —con el de fábrica si el negocio no declaró uno—. No hay lista que pueda llegar vacía (C.10 de la 2.4).',
+  },
+  {
+    pantalla: 'abarrotes/cobro/AbonoRapido',
+    estado: 'vacio',
+    razon:
+      'Formulario del abono: la lista de clientes, que sí puede llegar vacía, la pinta ElegirCliente —montada dentro— con su Vacio.',
+  },
+  {
+    pantalla: 'abarrotes/cobro/AbonoRapido',
+    estado: 'cargando',
+    razon:
+      'No lee nada propio: ElegirCliente pinta su EsqueletoDeLista mientras lee los clientes, y registrar el abono pone el botón en «Registrando…».',
+  },
+  {
+    pantalla: 'abarrotes/cobro/Avisos',
+    estado: 'vacio',
+    razon:
+      'Pieza de avisos del cobro: pinta un Aviso o nada. La venta vacía la pinta Cobrar con su Vacio; aquí no hay lista.',
+  },
+  {
+    pantalla: 'abarrotes/cobro/Avisos',
+    estado: 'cargando',
+    razon:
+      'No lee nada: recibe por props lo que ya pasó —una apartada, un abono, una etiqueta mal leída— y lo dice.',
+  },
+  {
+    pantalla: 'abarrotes/cobro/BloqueDeCobro',
+    estado: 'vacio',
+    razon:
+      'El bloque de cobro no tiene lista: la venta vacía la pinta Cobrar con su Vacio, y aquí COBRAR se queda apagado sin líneas.',
+  },
+  {
+    pantalla: 'abarrotes/cobro/BloqueDeCobro',
+    estado: 'cargando',
+    razon:
+      'No lee nada: recibe el total, el método y el cliente por props. Mientras cobra, CONFIRMAR dice «Cobrando…».',
+  },
+  {
+    pantalla: 'abarrotes/cobro/TeclasRapidas',
+    estado: 'vacio',
+    razon:
+      'Sin ventas no hay «los de siempre» y la fila NO se pinta: rellenarla con los primeros del catálogo enseñaría una memoria muscular falsa (D-21).',
+  },
+  {
+    pantalla: 'abarrotes/cobro/TeclasRapidas',
+    estado: 'cargando',
+    razon:
+      'Recibe los productos por props. Mientras los más vendidos no llegan la fila no aparece, y el cobro funciona igual sin ella.',
+  },
+  {
+    pantalla: 'abarrotes/cobro/TeclasRapidas',
+    estado: 'error',
+    razon:
+      'Si los más vendidos no se leen, la fila no aparece: es una ayuda para cobrar, y un aviso de error ahí taparía la venta en curso.',
+  },
+  {
+    pantalla: 'abarrotes/cobro/columnas',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: son las columnas del ticket que Cobrar pinta en su Tabla, con el Vacio de Cobrar.',
+  },
+  {
+    pantalla: 'abarrotes/cobro/columnas',
+    estado: 'cargando',
+    razon:
+      'No es una pantalla: son las columnas del ticket; el esqueleto de la venta lo pinta Cobrar mientras lee el catálogo.',
+  },
+  {
+    pantalla: 'abarrotes/cobro/columnas',
+    estado: 'error',
+    razon:
+      'No es una pantalla: son las columnas del ticket; el fallo de lectura o de cobro lo dice Cobrar en su Aviso.',
+  },
+  {
+    pantalla: 'abarrotes/conteo/MotivoDeLaDiferencia',
+    estado: 'vacio',
+    razon:
+      'Celda de la tabla de diferencias del conteo: sin motivos leídos no pinta el selector y la diferencia se cierra con el de omisión, como antes.',
+  },
+  {
+    pantalla: 'abarrotes/conteo/MotivoDeLaDiferencia',
+    estado: 'cargando',
+    razon:
+      'Celda de una tabla ya pintada: mientras llegan los motivos se ve el enlace al kardex y el selector aparece al llegar; un esqueleto por renglón sería ruido.',
+  },
+  {
+    pantalla: 'abarrotes/conteo/MotivoDeLaDiferencia',
+    estado: 'error',
+    razon:
+      'Si los motivos no se leen, la diferencia se cierra con el motivo de omisión: el conteo no se pierde por una lista de apoyo.',
+  },
+  {
+    pantalla: 'abarrotes/entradas/CanjeDeLaNota',
+    estado: 'cargando',
+    razon:
+      'Los artículos llegan por props con el sugerido; los motivos se leen aparte y, mientras tanto, el selector ofrece «Caducado», que es el del canje.',
+  },
+  {
+    pantalla: 'abarrotes/entradas/CanjeDeLaNota',
+    estado: 'error',
+    razon:
+      'Si los motivos no se leen queda «Caducado»; y el fallo al guardar la nota —con su canje— lo dice Entradas en su Aviso, sin perder lo capturado.',
+  },
+  {
     pantalla: 'configuracion/SelectorDeApariencia',
     estado: 'vacio',
     razon:

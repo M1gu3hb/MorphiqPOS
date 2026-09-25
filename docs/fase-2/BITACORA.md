@@ -5993,3 +5993,48 @@ FUTURO, así que la agenda de hoy está vacía y la hoja la omite, como debe.
 pantalla` dejaba de comparar la lectura («sin interfaz en su archivo») y el contrato de lecturas
 del puente leía la interfaz EQUIVOCADA —su expresión encajaba con el `type X,` de un `import`—.
 Las dos siguen el import relativo (501 campos comparados, antes 475; 6 sin interfaz, antes 8).
+
+## 25-09-2026 · Etapa 2.4 · C.10 (1 de 5) · la tienda, sin nada recortado
+
+**La puerta:** `scripts/verificar-pendientes.mjs` (`verify:pendientes`). Falla con «Alcance
+recortado» en `apps/web` o `packages`, `Promise.resolve([])` en código, un importe fijado en cero
+con marca de provisional, o una fila de EXCEPCIONES sin motivo. **Corrida sobre la base de la
+etapa (`67d7a7c`, extraída con `git archive`) marca 44: LAS 39 cabeceras**, los 3
+`Promise.resolve([])` del portal y las 2 filas de EXCEPCIONES con motivo «Igual.». Al empezar
+C.10 quedaban 34 (29 cabeceras). Los del portal se reescriben con `[]` —`Promise.all` acepta
+valores— y las dos filas dicen su motivo. Tras la tienda: 23.
+
+**La tienda, construido lo que decía que faltaba:**
+- **Cobrar:** el pitido (el canal sonoro de los tres, dos tonos que bajan si el código no existe),
+  F1–F8 con lo que la tienda vende, la CAJA por su código (F-147: precio de la caja, consumo en
+  unidad base), la etiqueta de la báscula (F-148, declarada en el catálogo), el alta rápida
+  ENCIMA del cobro con el código puesto, F4 cliente + F11 fiado, F7 abono, F6 apartar y retomar.
+- **Conteo:** cada diferencia con SU motivo, y «Ver kardex» a la ficha de su producto.
+- **Entradas:** el canje en la misma nota (dos movimientos, un documento, valorado por el
+  servidor) y el precio de venta en el sugerido: «véndelo a $48 en vez de $46».
+- **Producto:** la pantalla es el catálogo, cada renglón abre su ficha (`?producto=`), la ficha
+  trae su KARDEX y el catálogo la báscula de etiquetas.
+- **Registros:** exporta a CSV lo que se ve (BOM, comillas, fórmulas neutralizadas).
+- **Caja:** «Cerrar la caja» lleva a su pantalla de cortes (la tienda y la ferretería, cada una a
+  la suya).
+
+**Defectos que destapó construirlo, y arreglados (D-21):**
+1. **F11 no fiaba:** la ruta del cobro aceptaba tres métodos y la pantalla mandaba cuatro.
+2. **Un cobro fallido dejaba a la terminal sin poder cobrar:** sus líneas se quedaban en el
+   borrador y el siguiente las metía encima; el total ya no cuadraba nunca.
+3. **El abono del fiado no bajaba la deuda:** iba a `pasivos_terceros`, que nadie lee; la ficha lo
+   pintaba bajado y al recargar volvía, y el corte no lo contaba como cobranza.
+4. **«Productos» no abría ninguna ficha:** la página montaba siempre el id vacío y nada enlazaba a
+   una; el precio y las presentaciones de la tienda no se podían tocar.
+5. **La venta apartada decía $0.00 y perdía su nota;** retomar chocaba con el índice de un
+   borrador por caja y devolvía la orden sin sus renglones.
+6. **El alta rápida contestaba `productoId` y la pantalla leía `id`.**
+
+**Pruebas:** nuevas `fiado-al-cobrar`, `presentacion`, `mas-vendidos`, `motivos-de-merma`,
+`abarrotes/cobro/cobro.test.ts`, `cliente/csv.test.ts`; ampliadas `suspender`, `pasivos`,
+`recibir-nota`, `sugerencia`, `cierre-de-zona`, `kardex`, `configuracion-limites`. Cada una vista
+ROJA con su mutación (en los commits). **El e2e de la tienda** ahora fía a un cliente nacido en el
+mostrador, abona (y el arqueo cuadra con el abono y sin el fiado), aparta y retoma, abre la ficha
+desde el catálogo con su kardex y exporta los registros: **verde**, y **rojo** con una compilación
+que devuelve a la ruta los tres métodos de antes («El servidor RECHAZÓ el cobro»).
+

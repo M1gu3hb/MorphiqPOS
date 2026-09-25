@@ -11,5 +11,5 @@ import { Caja } from '~/abarrotes/Caja';
 export const dynamic = 'force-dynamic';
 
 export default function Pagina() {
-  return <Caja />;
+  return <Caja rutaDeCortes="/ferreteria/cortes" />;
 }

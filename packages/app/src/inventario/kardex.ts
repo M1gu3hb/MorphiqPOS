@@ -1,7 +1,8 @@
 import 'server-only';
 
 import { PAQUETES_TODOS } from '@morphiqpos/contracts';
-import type { Transaccion } from '@morphiqpos/data';
+import { ErrorDominio } from '@morphiqpos/contracts';
+import { repoVentaCatalogo, type Transaccion } from '@morphiqpos/data';
 import {
   resumirKardex,
   type RenglonKardex,
@@ -37,12 +38,22 @@ const TOPE_MAXIMO = 500;
 
 export const entradaKardex = z.object({
   insumoId: z.uuid(),
-  almacenId: z.uuid(),
+  /**
+   * Sin él, el almacén principal de la sucursal de la sesión (C.10 de la 2.4): la ficha de
+   * un producto de la tienda no tiene por qué saber en qué almacén vive su anaquel.
+   */
+  almacenId: z.uuid().optional(),
   /** Inclusive. Sin él, el kardex arranca en el primer movimiento que exista. */
   desde: z.iso.datetime().optional(),
   /** Inclusive. */
   hasta: z.iso.datetime().optional(),
   limite: z.number().int().min(1).max(TOPE_MAXIMO).default(100),
+  /**
+   * Los ÚLTIMOS `limite` en vez de los primeros (C.10 de la 2.4): la ficha viene a buscar lo
+   * reciente. Los renglones salen igual en orden cronológico —el saldo corrido sólo se lee
+   * así— y `hayMas` dice entonces que hay historia MÁS VIEJA.
+   */
+  recientes: z.boolean().optional(),
 });
 
 export interface RenglonDeSalida {
@@ -83,7 +94,21 @@ export const kardexDeInsumo = definirComando<Transaccion, typeof entradaKardex, 
   modulo: 'movimientos_inventario',
   entrada: entradaKardex,
   async ejecutar(ctx, entrada) {
-    const { organizacionId } = ctx.ambito;
+    const { organizacionId, sucursalId } = ctx.ambito;
+
+    const almacenId =
+      entrada.almacenId ??
+      (sucursalId === null
+        ? null
+        : await ctx.paso('resolver_almacen', () =>
+            repoVentaCatalogo.almacenPrincipal(ctx.tx, organizacionId, sucursalId),
+          ));
+    if (almacenId === null) {
+      throw new ErrorDominio(
+        'CONFIGURACION_INVALIDA',
+        'Esta sesión no tiene almacén: di de cuál es el kardex.',
+      );
+    }
 
     const filas = await ctx.paso('leer_kardex', () => {
       let consulta = ctx.tx
@@ -101,7 +126,7 @@ export const kardexDeInsumo = definirComando<Transaccion, typeof entradaKardex, 
         ])
         .where('organizacion_id', '=', organizacionId)
         .where('insumo_id', '=', entrada.insumoId)
-        .where('almacen_id', '=', entrada.almacenId);
+        .where('almacen_id', '=', almacenId);
 
       if (entrada.desde !== undefined) {
         consulta = consulta.where('created_at', '>=', new Date(entrada.desde));
@@ -113,15 +138,18 @@ export const kardexDeInsumo = definirComando<Transaccion, typeof entradaKardex, 
       // Ascendente: el saldo corrido sólo significa algo en orden cronológico.
       // Se pide UNO MÁS que el límite para saber si hay más historia sin tener
       // que contar la tabla entera, que en una ferretería es media consulta.
+      const sentido = entrada.recientes === true ? 'desc' : 'asc';
       return consulta
-        .orderBy('created_at', 'asc')
-        .orderBy('movimiento_id', 'asc')
+        .orderBy('created_at', sentido)
+        .orderBy('movimiento_id', sentido)
         .limit(entrada.limite + 1)
         .execute();
     });
 
     const hayMas = filas.length > entrada.limite;
-    const visibles = hayMas ? filas.slice(0, entrada.limite) : filas;
+    const recortadas = hayMas ? filas.slice(0, entrada.limite) : filas;
+    // Siempre cronológico hacia fuera: el resumen y el saldo corrido se leen así.
+    const visibles = entrada.recientes === true ? [...recortadas].reverse() : recortadas;
 
     const paraDominio: RenglonKardex[] = visibles.map((f) => ({
       movimientoId: f.movimiento_id,

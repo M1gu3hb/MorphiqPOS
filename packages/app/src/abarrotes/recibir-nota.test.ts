@@ -248,6 +248,51 @@ describe('F-106 + F-631 · recibir la nota', () => {
     expect(salida.totalCentavos).toBe('48000');
   });
 
+  it('EL CANJE EN LA MISMA NOTA: sale del inventario ligado a la compra y se descuenta (C.10)', async () => {
+    // +2 cajas de leche ($480) y el repartidor se lleva 6 cartones caducados de $20.
+    const base = baseDe({
+      motivos_merma: [
+        { clave: 'caducado', etiqueta: 'Caducado', giro: null, imputable: false, activo: true },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await recibirNota.ejecutar(ctx, {
+      canjes: [{ insumoId: INSUMO_LECHE, cantidad: '6', motivo: 'caducado' }],
+      almacenId: ALMACEN,
+      proveedorId: PROVEEDOR,
+      lineas: [linea()],
+    });
+
+    const canje = base.filas('movimientos_stock').find((m) => m['tipo'] === 'devolucion_proveedor');
+    expect(canje?.['cantidad']).toBe('-6');
+    expect(canje?.['referencia_tipo']).toBe('compra');
+    expect(canje?.['referencia_id']).toBe(salida.compraId);
+    expect(canje?.['motivo']).toBe('caducado');
+    // $480 de la nota menos $120 del canje: lo que se le paga al proveedor.
+    expect(salida.canjeCentavos).toBe('12000');
+    expect(salida.totalCentavos).toBe('36000');
+    expect(base.campo('compras', 'total_centavos')).toBe(36_000n);
+  });
+
+  it('un canje con un motivo que no existe no mueve nada del canje', async () => {
+    const base = baseDe({ motivos_merma: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const codigo = await codigoDe(() =>
+      recibirNota.ejecutar(ctx, {
+        canjes: [{ insumoId: INSUMO_LECHE, cantidad: '6', motivo: 'inventado' }],
+        almacenId: ALMACEN,
+        proveedorId: PROVEEDOR,
+        lineas: [linea()],
+      }),
+    );
+
+    expect(codigo).toBe('CONFIGURACION_INVALIDA');
+    // Se comprueba ANTES de la compra: ni la nota ni el canje.
+    expect(base.filas('compras')).toHaveLength(0);
+  });
+
   it('un almacén de otro negocio no existe', async () => {
     const base = baseDe({ almacenes: [] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);

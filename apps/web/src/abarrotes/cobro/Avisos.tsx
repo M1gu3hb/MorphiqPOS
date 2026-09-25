@@ -1,6 +1,6 @@
 'use client';
 
-import { Aviso, Dinero, Esqueleto } from '@morphiqpos/ui/sistema';
+import { Aviso, Dinero } from '@morphiqpos/ui/sistema';
 
 import type { AbonoHecho } from './AbonoRapido.tsx';
 
@@ -58,35 +58,5 @@ export function AvisoDelCobro({ aviso }: { readonly aviso: AvisoDeCobro | null }
     <Aviso tono="atencion" titulo="La etiqueta no se pudo leer.">
       {aviso.motivo} Pésalo otra vez o búscalo por nombre (F2).
     </Aviso>
-  );
-}
-
-/**
- * Esqueletos con la forma de la venta, no un spinner: el total a la derecha, el campo y los
- * renglones del ticket a la izquierda. Así nada salta al llegar el catálogo.
- */
-export function EsqueletoDelCobro() {
-  return (
-    <div
-      role="status"
-      aria-busy="true"
-      aria-label="Leyendo el catálogo y la caja"
-      className="grid gap-(--espacio-3) p-(--espacio-3) md:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_26rem]"
-    >
-      <div className="flex flex-col gap-(--espacio-3) md:col-start-2 md:row-start-1">
-        <Esqueleto className="h-40 w-full rounded-lg" />
-        <Esqueleto className="hidden h-48 w-full rounded-lg xl:block" />
-      </div>
-      <div className="flex flex-col gap-(--espacio-2) md:col-start-1 md:row-start-1">
-        <Esqueleto className="h-(--altura-control) w-full" />
-        {Array.from({ length: 6 }, (_, indice) => (
-          <div key={indice} className="flex items-center gap-(--espacio-3) py-(--espacio-1)">
-            <Esqueleto className="h-4 w-8" />
-            <Esqueleto className="h-4 flex-1" />
-            <Esqueleto className="h-4 w-20" />
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }

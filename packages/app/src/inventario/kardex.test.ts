@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { contextoFalso, crearBaseFalsa, type Fila } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, ORG, SUCURSAL } from '../restaurante/pruebas/sala.ts';
 import { kardexDeInsumo } from './kardex.ts';
 
 /**
@@ -155,5 +155,72 @@ describe('F-103 · el comando', () => {
   it('el cajero no ve el kardex: es un dato de costo', () => {
     expect([...kardexDeInsumo.roles]).not.toContain('cajero');
     expect([...kardexDeInsumo.roles]).not.toContain('mesero');
+  });
+});
+
+describe('F-103 · el almacén por omisión (C.10 de la 2.4)', () => {
+  it('sin almacén, el principal de la sucursal de la sesión: la ficha no tiene por qué saberlo', async () => {
+    const base = crearBaseFalsa({
+      kardex: [
+        renglon({ movimiento_id: 'm1', cantidad: '10.0000', saldo: '10.0000' }),
+        renglon({
+          movimiento_id: 'm2',
+          almacen_id: OTRO_ALMACEN,
+          cantidad: '99.0000',
+          saldo: '99.0000',
+        }),
+      ],
+      almacenes: [
+        {
+          id: OTRO_ALMACEN,
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          principal: false,
+          activo: true,
+        },
+        { id: ALMACEN, organizacion_id: ORG, sucursal_id: SUCURSAL, principal: true, activo: true },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    const salida = await kardexDeInsumo.ejecutar(ctx, { insumoId: INSUMO, limite: 100 });
+
+    expect(salida.renglones.map((r) => r.movimientoId)).toEqual(['m1']);
+  });
+});
+
+describe('F-103 · los más recientes (C.10 de la 2.4)', () => {
+  it('con `recientes` trae los ÚLTIMOS, y los devuelve en orden cronológico', async () => {
+    const base = crearBaseFalsa({
+      kardex: [
+        renglon({
+          movimiento_id: 'm1',
+          created_at: new Date('2026-09-01T10:00:00Z'),
+          saldo: '1.0000',
+        }),
+        renglon({
+          movimiento_id: 'm2',
+          created_at: new Date('2026-09-02T10:00:00Z'),
+          saldo: '2.0000',
+        }),
+        renglon({
+          movimiento_id: 'm3',
+          created_at: new Date('2026-09-03T10:00:00Z'),
+          saldo: '3.0000',
+        }),
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    const salida = await kardexDeInsumo.ejecutar(ctx, {
+      insumoId: INSUMO,
+      almacenId: ALMACEN,
+      limite: 2,
+      recientes: true,
+    });
+
+    expect(salida.renglones.map((r) => r.movimientoId)).toEqual(['m2', 'm3']);
+    expect(salida.hayMas).toBe(true);
+    expect(salida.resumen.saldoFinal).toBe('3.0000');
   });
 });

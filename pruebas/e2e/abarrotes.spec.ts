@@ -109,7 +109,9 @@ const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
   ['entradas', /Recibir nota|proveedor/i],
   ['existencias', /Qué hay, qué falta/],
   ['fiado', /Fiado/],
-  ['producto', /Aquí se abre la ficha|Precio y margen/],
+  // Sin producto elegido, la pantalla ES el catálogo (C.10 de la 2.4): antes era un vacío
+  // que ninguna ficha llenaba, porque la página montaba siempre el id vacío.
+  ['producto', /para abrir su ficha/],
   ['registros', /Qué pasó, en orden/],
   // La pantalla enseña su ONBOARDING mientras no haya cuenta de comisionista dada
   // de alta, y eso es contenido suyo: el saldo de Telcel no lo registra nada
@@ -355,6 +357,100 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
       description: `${(totalCentavos / 100).toFixed(2)} MXN · la venta del mostrador`,
     });
 
+    // ── 5b · EL FIADO, A NOMBRE DE ALGUIEN (C.10 de la 2.4) ───────────────
+    //
+    // F11 respondía «La venta llegó incompleta»: la ruta aceptaba tres métodos y la
+    // pantalla mandaba cuatro. Aquí se fía de verdad, a un cliente que nace en el
+    // mostrador (F4), y la deuda tiene que aparecer en la cartera por lo que costó. El
+    // cajón NO se entera: el arqueo de abajo sigue siendo fondo + venta en efectivo.
+    const cliente = `Cliente e2e ${String(Date.now()).slice(-6)}`;
+    await busqueda.fill(nombre);
+    await busqueda.press('Enter');
+    await expect(enCurso.getByText(nombre, { exact: false }).first()).toBeVisible();
+    await page.keyboard.press('F11');
+    const aQuien = page.getByRole('dialog', { name: 'A quién' });
+    await expect(aQuien, 'F11 sin cliente tiene que pedir a quién se le fía.').toBeVisible();
+    await aQuien.getByRole('button', { name: 'Cliente nuevo' }).click();
+    await aQuien.getByLabel('Nombre').fill(cliente);
+    await aQuien.getByRole('button', { name: 'Dar de alta y elegir' }).click();
+    await expect(aQuien).toBeHidden();
+    await expect(page.getByRole('complementary', { name: 'Cobro' }).getByText(cliente)).toBeVisible();
+    await page.getByRole('button', { name: 'CONFIRMAR' }).click();
+    await exigirCobroAceptado(page, /Escanea el primer/);
+
+    const deudaDe = async (quien: string) =>
+      (
+        await consultarPuente<{ nombre?: string; saldo_centavos?: number }>(
+          page,
+          'CarteraFiado',
+          { limite: 300 },
+        )
+      )
+        .filter((c) => c.nombre === quien)
+        .reduce((suma, c) => suma + (c.saldo_centavos ?? 0), 0);
+    expect(
+      await deudaDe(cliente),
+      `Se le fió «${nombre}» a ${cliente} y su deuda no es lo que costó.`,
+    ).toBe(totalCentavos);
+
+    // ── 5c · EL ABONO BAJA LA DEUDA DE VERDAD, Y ENTRA AL CAJÓN (F7) ───────
+    // Antes se anotaba en un libro que nadie lee: bajaba en la pantalla y volvía al recargar.
+    const abono = Math.min(1_000, totalCentavos);
+    await page.keyboard.press('F7');
+    const abonoDialogo = page.getByRole('dialog', { name: 'Abono de fiado' });
+    await abonoDialogo.getByLabel('Nombre o teléfono').fill(cliente);
+    await abonoDialogo.getByRole('button', { name: new RegExp(cliente) }).click();
+    await abonoDialogo.getByLabel('Cuánto abona').fill((abono / 100).toFixed(2));
+    await abonoDialogo.getByRole('button', { name: 'Registrar abono' }).click();
+    await expect(abonoDialogo).toBeHidden();
+    await expect(page.getByText(`${cliente} abonó`)).toBeVisible();
+    expect(
+      await deudaDe(cliente),
+      'El abono no bajó la deuda en la cartera: la ficha lo pintaría bajado y al recargar volvería.',
+    ).toBe(totalCentavos - abono);
+
+    // ── 5d · APARTAR Y RETOMAR (F6) ───────────────────────────────────────
+    await busqueda.fill(nombre);
+    await busqueda.press('Enter');
+    await page.keyboard.press('F6');
+    const espera = page.getByRole('dialog', { name: 'Apartar o retomar' });
+    await espera.getByLabel('Para reconocerla (opcional)').fill('prueba e2e');
+    await espera.getByRole('button', { name: 'Apartar esta venta' }).click();
+    const apartada = page.getByText(/^Apartada: es la \d+\.$/);
+    await expect(apartada, 'F6 no apartó la venta.').toBeVisible();
+    const codigo = /(\d+)/.exec(await apartada.innerText())?.[1] ?? '';
+    await expect(page.getByText(/Escanea el primer/)).toBeVisible();
+    await page.keyboard.press('F6');
+    const lista = page.getByRole('dialog', { name: 'Apartar o retomar' });
+    await lista
+      .getByRole('listitem')
+      .filter({ hasText: `La ${codigo} · prueba e2e` })
+      .getByRole('button', { name: 'Retomar' })
+      .click();
+    await expect(page.getByText(`Retomada la ${codigo}.`)).toBeVisible();
+    await expect(enCurso.getByText(nombre, { exact: false }).first()).toBeVisible();
+    // Se deja como estaba: la venta retomada no se cobra aquí.
+    await page.keyboard.press('Escape');
+    await expect(page.getByText(/Escanea el primer/)).toBeVisible();
+
+    // ── 5e · EL CATÁLOGO ABRE SU FICHA, CON SU KARDEX ─────────────────────
+    await abrirPantalla(page, '/abarrotes/producto', /para abrir su ficha/);
+    await page.getByLabel('Buscar por nombre, código o categoría').fill(nombre);
+    await page.getByRole('link', { name: nombre, exact: true }).first().click();
+    await expect(page).toHaveURL(/\/abarrotes\/producto\?producto=/);
+    await expect(page.getByRole('heading', { level: 1, name: nombre })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Kardex/ })).toBeVisible();
+
+    // ── 5f · LOS REGISTROS SE EXPORTAN ────────────────────────────────────
+    await abrirPantalla(page, '/abarrotes/registros', /Qué pasó, en orden/);
+    const [csv] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Exportar' }).click(),
+    ]);
+    expect(csv.suggestedFilename()).toMatch(/^registros-\d{4}-\d{2}-\d{2}\.csv$/);
+
+    await abrirPantalla(page, '/abarrotes/cobrar', /nada que escanear|COBRAR/);
+
     // ── 6 · EL CORTE · que el dinero cuadre de verdad ─────────────────────
     //
     // Aquí es donde «el dinero cuadró» deja de ser una frase: el esperado del
@@ -368,7 +464,8 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     // «Abre la caja antes de cobrar»—.
     await abrirPantalla(page, '/abarrotes/cortes', /Cortes/);
 
-    const esperadoCentavos = FONDO_CENTAVOS + totalCentavos;
+    // El fondo, la venta en efectivo y el ABONO del fiado: el fiado mismo no entra.
+    const esperadoCentavos = FONDO_CENTAVOS + totalCentavos + abono;
     // El desglose se cuenta en «centavos sueltos» a propósito: contar por
     // denominaciones exige que $542.90 se pueda armar con billetes, y lo que se
     // prueba aquí es la aritmética del arqueo, no la de dar cambio.
@@ -393,8 +490,8 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
         `Esperado ${enPesos(esperadoCentavos)} · contado ${enPesos(esperadoCentavos)}`,
       ),
       `El arqueo no cuadra. Se abrió con ${enPesos(FONDO_CENTAVOS)}, se cobró ` +
-        `${enPesos(totalCentavos)} en efectivo, así que el esperado tiene que ser ` +
-        `${enPesos(esperadoCentavos)}.`,
+        `${enPesos(totalCentavos)} en efectivo, se fió otro tanto —que no entra— y se abonaron ` +
+        `${enPesos(abono)}, así que el esperado tiene que ser ${enPesos(esperadoCentavos)}.`,
     ).toBeVisible();
     await expect(page.getByText('Cuadra exacto')).toBeVisible();
 

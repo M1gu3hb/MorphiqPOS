@@ -29,8 +29,7 @@ export type Metodo = 'efectivo' | (typeof DESVIOS)[number]['clave'];
 
 /** Lo que hace una tecla del cobro. */
 export type AccionDeTecla =
-  | { readonly tipo: 'metodo'; readonly metodo: Metodo }
-  | { readonly tipo: 'cliente' };
+  { readonly tipo: 'metodo'; readonly metodo: Metodo } | { readonly tipo: 'cliente' };
 
 /**
  * Las teclas que este bloque IMPRIME, resueltas aquí mismo: una tecla impresa que nadie

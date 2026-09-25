@@ -33,6 +33,7 @@ import { centavosDe, valorDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import { CatalogoDeProductos } from './CatalogoDeProductos.tsx';
+import { KardexDelProducto } from './KardexDelProducto.tsx';
 
 /**
  * PANTALLA · abarrotes · producto
@@ -72,9 +73,11 @@ import { CatalogoDeProductos } from './CatalogoDeProductos.tsx';
  * una contra el mismo costo. En tableta y teléfono es una sola columna, en ese
  * orden.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben la ficha, el precio, el costo, las presentaciones y el régimen fiscal.
- * Queda fuera el kardex del producto, que es su propia pantalla.
+ * ── Lo que hay, de arriba abajo ─────────────────────────────────────────
+ * La ficha —precio, costo, margen, impuesto, caducidad—, las presentaciones y
+ * el KARDEX (`KardexDelProducto`, C.10 de la 2.4): por qué cambió su existencia,
+ * con cada motivo en palabras. Sin producto elegido, la pantalla es el catálogo
+ * (`CatalogoDeProductos`) y la báscula de etiquetas del negocio.
  */
 
 const RUTA_ACTUALIZAR = '/api/catalogo/productos/actualizar';
@@ -109,6 +112,9 @@ export interface FichaDeProducto {
   readonly costo_calculado_actual: number | null;
   readonly controla_caducidad: boolean;
   readonly tasa_iva_bp: number;
+  /** El insumo que lleva su existencia: el base, o el propio (`insumos.producto_id`). */
+  readonly ingrediente_base_id?: string | null;
+  readonly insumo_propio_id?: string | null;
 }
 
 export interface PresentacionDeProducto {
@@ -872,6 +878,9 @@ export function Producto({ productoId, fichaInicial, presentacionesIniciales }: 
           </p>
         )}
       </Superficie>
+
+      {/* F-103 · Por qué cambió su existencia: el conteo abre esta ficha en `#kardex`. */}
+      <KardexDelProducto insumoId={ficha.ingrediente_base_id ?? ficha.insumo_propio_id ?? null} />
     </main>
   );
 }
