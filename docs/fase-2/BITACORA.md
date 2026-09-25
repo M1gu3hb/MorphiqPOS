@@ -5923,3 +5923,48 @@ restaurante con las heredadas del menú: Noche en verde; **Terminal falló** (en
 mal. La configuración efectiva del worktree es la del repositorio (`.git/config`), que pisa la
 global (`huertabautistamiguel62@gmail.com`); no hay variables `GIT_AUTHOR_*`/`GIT_COMMITTER_*` ni
 `-c user.email=` en los comandos.
+
+## 25-09-2026 · Etapa 2.4 · C.6 · el corte y su PDF, en los cinco giros
+
+**Lo que se construyó (D-20):**
+- `caja.hoja_del_corte` lee en una transacción el tronco de todo corte —negocio, sesión, arqueo con
+  fondo y conteo por billete, la cascada del esperado, ventas por método con propina, detalle,
+  productos, gastos, cancelaciones con usuario, inventario bajo con su sugerido y cuánto alcanza,
+  consumo teórico, merma y consumo de la casa— y lo propio de cada giro (propina por mesero; canal,
+  bote y reparto, modificadores, merma de barra, sellos, no recogidos; cartera, dinero en tránsito,
+  salió sin cobrarse, faltantes del conteo, compras, lo que se debe, garantías, servicios de
+  mostrador, autorizaciones; liquidación por profesional, agenda del día y de mañana, producto de
+  cabina, cortesías y rehacer, anticipos y paquetes, efecto en comisión).
+- Cinco documentos (`apps/web/src/corte/`), cada uno en el orden de su §9.3, pintados en
+  `#cash-cut-pdf-document` y bajados con `generatePDFBlobFromNode` de Miguel. Se descargan solos
+  al cerrar (salvo la perilla); la cafetería espera al reparto del bote.
+- El fondo dejado es un CAMPO: `caja.cerrar` guarda lo retirado; `caja.abrir` espera lo que dejó el
+  cierre anterior; el conteo por billete se guarda (`conteos_denominacion`, `cierre`).
+
+**Defectos que salieron al cerrar POR LA PANTALLA, y arreglados:**
+1. **El cierre diario del restaurante nunca cerró:** mandaba el contado como texto y
+   `caja.cerrar` lo rechaza (entero). Su e2e cerraba por la API y no lo veía.
+2. **«Imprimir el cierre» imprimía la PANTALLA** (`window.print()`), no un corte.
+3. **La ferretería no podía abrir ni cerrar su caja desde el sistema:** su documento la hereda de
+   abarrotes y la dirección no existía. Ahora «Fondo y movimientos» y «Cortes».
+4. **La entrada de cambio de la cafetería era un depósito:** no subía el fondo esperado ni el
+   desglose. Va por `caja.entrada_cambio`, con su origen.
+5. **El puente leía «dinero dejado en caja» de la columna de lo RETIRADO**, que nadie escribía.
+6. **La apertura dejaba el fondo esperado en cero:** la «diferencia de apertura» salía igual al
+   fondo.
+7. **El desglose del fondo de la cafetería no viajaba:** el aviso de cambio moría al recargar.
+
+**Rastreador:** en Terminal acusó de muerto a «Abrir» del QR de una mesa (`/portal-qr`): la
+pestaña se abre entre 490 y 630 ms después del clic y la segunda mirada del rastreador sólo
+comparaba el DOM. Ahora mira también la pestaña y el diálogo nativo (rojo antes, verde después).
+
+**Pruebas nuevas:** `caja/fondo-dejado.test.ts` (11), `caja/corte/corte.sql.test.ts` (43: cada
+consulta lleva el negocio y se acota a su sesión o ventana), `apps/web/src/corte/corte.test.ts`
+(18). Los cinco e2e cierran POR LA PANTALLA y exigen el PDF (`ayudantes/corte.ts`).
+
+**Los cinco e2e, POR LA PANTALLA, en verde; y en ROJO con una compilación mutada** (una mutación
+por comprobación nueva): el contado como texto → el restaurante no cierra; sin el dinero dejado →
+tienda y ferretería no lo enseñan en su hoja; la hoja de otra sesión → la cafetería no ofrece el
+PDF; la liquidación con otro nombre → la estética no la trae. Restaurados, verdes otra vez.
+**Una aserción mía estaba mal** y se corrigió: la estética agenda su cita para un miércoles
+FUTURO, así que la agenda de hoy está vacía y la hoja la omite, como debe.

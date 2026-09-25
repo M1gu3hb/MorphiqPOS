@@ -1,12 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { enPesos, exigirElPdfDelCorte } from './ayudantes/corte.ts';
+
 import {
-  abrirCajaPorLaRuta,
+  abrirLaCajaSiHaceFalta,
   abrirPantalla,
   type MarcaDePantalla,
   accionesDelTablero,
   cambiarDePlantilla,
-  cerrarCajaYCuadrar,
   consultarPuente,
   entrar,
   exigirDemostracion,
@@ -356,12 +357,20 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // FOLIO, y el folio se toma en la misma transacción que el pago.
     const idsDeAntes = await ventasDeAntes(page);
 
-    // La caja de ESTA terminal, por la ruta: este modelo no tiene pantalla de
-    // apertura propia —su `/ferreteria/caja` cobra, y la apertura con
-    // denominaciones vive en la heredada— y teclear un diálogo de la plataforma
-    // anterior no prueba nada del acople. Se usa la MISMA ruta que usa el botón,
-    // con las mismas cabeceras: se salta el diálogo, no la autorización.
-    await abrirCajaPorLaRuta(page, FONDO_CENTAVOS);
+    // La caja de ESTA terminal, POR SU PANTALLA (C.6 de la 2.4). Hasta aquí se abría por
+    // la API porque la ferretería no tenía dónde abrirla: su «Caja» cobra notas, y la
+    // apertura de su documento —«Caja y corte», heredada de abarrotes— no tenía
+    // dirección. Ahora vive en «Fondo y movimientos».
+    await abrirLaCajaSiHaceFalta(
+      page,
+      {
+        ruta: '/ferreteria/fondo-y-movimientos',
+        boton: 'Abrir caja',
+        campoDelFondo: '#fondo-monedas',
+        señalAbierta: 'Lo que debería haber',
+      },
+      (FONDO_CENTAVOS / 100).toFixed(2),
+    );
 
     // El material sale del ÍNDICE, no de un nombre escrito aquí: la pantalla lee
     // `MaterialMostrador` y esto lee lo mismo, así que si mañana la semilla cambia
@@ -634,7 +643,29 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('Todo cuadró: ninguna existencia cambió.')).toBeVisible();
 
-    await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + totalCentavos);
+    // ── EL CORTE, POR SU PANTALLA, Y SU PDF (C.6 de la 2.4) ────────────────
+    // Cerraba por la API porque la ferretería no tenía pantalla de corte. Ahora es la de
+    // abarrotes, en su dirección: a ciegas, con lo que se deja, y el PDF de su §9.3.
+    const esperadoCentavos = FONDO_CENTAVOS + totalCentavos;
+    await abrirPantalla(page, '/ferreteria/cortes', /Cortes/);
+    await page.locator('#sueltos').fill((esperadoCentavos / 100).toFixed(2));
+    await page.locator('#dejado-en-el-cajon').fill((FONDO_CENTAVOS / 100).toFixed(2));
+    await page.getByRole('button', { name: 'Cerrar el turno' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Turno cerrado' }),
+      'El corte de la ferretería no se cerró desde su pantalla.',
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Cuadra exacto')).toBeVisible();
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DE CAJA',
+      textos: [
+        'Arqueo de efectivo',
+        `Dinero dejado en caja ${enPesos(FONDO_CENTAVOS)}`,
+        'De dónde salió el efectivo esperado',
+        `Efectivo esperado ${enPesos(esperadoCentavos)}`,
+        'Venta por mostradorista',
+      ],
+    });
 
     exigirSinFallos();
   });

@@ -1,0 +1,455 @@
+import 'server-only';
+
+import type { Transaccion } from '@morphiqpos/data';
+import { sql } from 'kysely';
+
+import { TOPE_DE_FILAS, hastaDe, type Ventana } from './consultas.ts';
+
+/**
+ * LO PROPIO DEL CORTE DE MOSTRADOR —tienda y ferretería— (C.6 de la 2.4): la cartera, lo
+ * que salió sin cobrarse, el dinero en tránsito, las compras y lo que se debe, los
+ * faltantes del conteo y las autorizaciones. Según sus `02-DINERO-Y-CAJA.md` §9.3.
+ */
+
+// ── Tienda y ferretería: la cartera ───────────────────────────────────────
+
+export interface Cartera {
+  readonly otorgadoCentavos: string;
+  readonly otorgados: number;
+  readonly saldoCentavos: string;
+  readonly vencidoCentavos: string;
+  readonly clientesSobreLimite: number;
+  readonly clientesBloqueados: number;
+}
+
+export async function carteraDelDia(
+  tx: Transaccion,
+  organizacionId: string,
+  sesion: Ventana,
+): Promise<Cartera> {
+  const { rows } = await sql<Cartera>`
+    select coalesce((select sum(d.importe_centavos) from documentos_credito d
+                      where d.organizacion_id = ${organizacionId}
+                        and d.emitido_en between ${sesion.abiertaEn} and ${hastaDe(sesion)}), 0)::text
+                                                                             as "otorgadoCentavos",
+           coalesce((select count(*) from documentos_credito d
+                      where d.organizacion_id = ${organizacionId}
+                        and d.emitido_en between ${sesion.abiertaEn} and ${hastaDe(sesion)}), 0)::int
+                                                                             as "otorgados",
+           coalesce((select sum(d.saldo_centavos) from documentos_credito d
+                      where d.organizacion_id = ${organizacionId} and d.saldo_centavos > 0), 0)::text
+                                                                             as "saldoCentavos",
+           coalesce((select sum(d.saldo_centavos) from documentos_credito d
+                      where d.organizacion_id = ${organizacionId} and d.saldo_centavos > 0
+                        and d.vence_en < ${hastaDe(sesion)}), 0)::text      as "vencidoCentavos",
+           (select count(*) from clientes c
+             where c.organizacion_id = ${organizacionId} and c.limite_credito_centavos > 0
+               and c.saldo_pendiente_centavos > c.limite_credito_centavos)::int as "clientesSobreLimite",
+           (select count(*) from clientes c
+             where c.organizacion_id = ${organizacionId} and c.bloqueado_por_mora)::int
+                                                                             as "clientesBloqueados"
+  `.execute(tx);
+  return (
+    rows[0] ?? {
+      otorgadoCentavos: '0',
+      otorgados: 0,
+      saldoCentavos: '0',
+      vencidoCentavos: '0',
+      clientesSobreLimite: 0,
+      clientesBloqueados: 0,
+    }
+  );
+}
+
+export interface SaldoViejo {
+  readonly cliente: string;
+  readonly saldoCentavos: string;
+  readonly dias: number;
+}
+
+/** Los cinco saldos más viejos, con sus días: el dolor de la cartera, con nombre. */
+export async function saldosMasViejos(
+  tx: Transaccion,
+  organizacionId: string,
+  sesion: Ventana,
+): Promise<readonly SaldoViejo[]> {
+  const { rows } = await sql<SaldoViejo>`
+    select c.nombre                                                   as "cliente",
+           sum(d.saldo_centavos)::text                                as "saldoCentavos",
+           extract(day from ${hastaDe(sesion)} - min(d.emitido_en))::int as "dias"
+      from documentos_credito d
+      join clientes c on c.id = d.cliente_id and c.organizacion_id = d.organizacion_id
+     where d.organizacion_id = ${organizacionId}
+       and d.saldo_centavos > 0
+     group by c.id, c.nombre
+     order by min(d.emitido_en)
+     limit 5
+  `.execute(tx);
+  return rows;
+}
+
+export interface CobroDeCartera {
+  readonly metodo: string;
+  readonly montoCentavos: string;
+  readonly abonos: number;
+}
+
+export async function cobrosDeCartera(
+  tx: Transaccion,
+  organizacionId: string,
+  sesionCajaId: string,
+): Promise<readonly CobroDeCartera[]> {
+  const { rows } = await sql<CobroDeCartera>`
+    select p.metodo                     as "metodo",
+           sum(p.monto_centavos)::text  as "montoCentavos",
+           count(*)::int                as "abonos"
+      from pagos_credito p
+     where p.organizacion_id = ${organizacionId}
+       and p.sesion_caja_id = ${sesionCajaId}
+     group by p.metodo
+     order by sum(p.monto_centavos) desc
+  `.execute(tx);
+  return rows;
+}
+
+export interface OperacionDeTerceros {
+  readonly tipo: string;
+  readonly operaciones: number;
+  readonly montoCentavos: string;
+  readonly comisionCentavos: string;
+}
+
+/** Recargas, servicios y paquetería: dinero en tránsito, no venta (F-255). */
+export async function operacionesDeTerceros(
+  tx: Transaccion,
+  organizacionId: string,
+  sesionCajaId: string,
+): Promise<readonly OperacionDeTerceros[]> {
+  const { rows } = await sql<OperacionDeTerceros>`
+    select o.tipo                                as "tipo",
+           count(*)::int                         as "operaciones",
+           sum(o.monto_ajeno_centavos)::text     as "montoCentavos",
+           sum(o.comision_centavos)::text        as "comisionCentavos"
+      from operaciones_comision o
+     where o.organizacion_id = ${organizacionId}
+       and o.sesion_caja_id = ${sesionCajaId}
+     group by o.tipo
+     order by sum(o.monto_ajeno_centavos) desc
+  `.execute(tx);
+  return rows;
+}
+
+// ── Ferretería ──────────────────────────────────────────────────────────────
+
+export interface SalioSinCobrarse {
+  readonly tipo: 'remision' | 'nota_abierta';
+  readonly folio: string | null;
+  readonly cliente: string | null;
+  readonly firmo: string | null;
+  readonly importeCentavos: string;
+}
+
+/**
+ * «¿Cuánto salió hoy sin cobrarse?»: lo entregado a cuenta con remisión, y las notas de
+ * mostrador que se armaron y se quedaron sin cobrar.
+ */
+export async function salioSinCobrarse(
+  tx: Transaccion,
+  organizacionId: string,
+  sesion: Ventana,
+): Promise<readonly SalioSinCobrarse[]> {
+  const { rows } = await sql<SalioSinCobrarse>`
+    select 'remision'                     as "tipo",
+           r.folio                        as "folio",
+           c.nombre                       as "cliente",
+           r.nombre_firmante              as "firmo",
+           r.importe_centavos::text       as "importeCentavos"
+      from remisiones r
+      left join clientes c on c.id = r.cliente_id and c.organizacion_id = r.organizacion_id
+     where r.organizacion_id = ${organizacionId}
+       and r.entregada_en between ${sesion.abiertaEn} and ${hastaDe(sesion)}
+    union all
+    select 'nota_abierta',
+           o.serie || '-' || coalesce(o.folio::text, '—'),
+           coalesce(c.nombre, o.cliente_nombre),
+           null,
+           o.total_centavos::text
+      from ordenes o
+      left join clientes c on c.id = o.cliente_id and c.organizacion_id = o.organizacion_id
+     where o.organizacion_id = ${organizacionId}
+       and o.sucursal_id = ${sesion.sucursalId}
+       and o.estado in ('confirmada', 'en_preparacion', 'lista')
+       and o.total_centavos > 0
+       and o.created_at between ${sesion.abiertaEn} and ${hastaDe(sesion)}
+     limit ${TOPE_DE_FILAS}
+  `.execute(tx);
+  return rows;
+}
+
+export interface MaterialCortado {
+  readonly producto: string;
+  readonly cortes: number;
+  readonly medidaBase: string;
+  readonly mermaBase: string;
+}
+
+export async function materialCortado(
+  tx: Transaccion,
+  organizacionId: string,
+  sesion: Ventana,
+): Promise<readonly MaterialCortado[]> {
+  const { rows } = await sql<MaterialCortado>`
+    select p.nombre                                  as "producto",
+           count(*)::int                             as "cortes",
+           sum(c.medida_entregada_base)::text        as "medidaBase",
+           sum(c.merma_base)::text                   as "mermaBase"
+      from cortes_material c
+      join productos p on p.id = c.producto_id and p.organizacion_id = c.organizacion_id
+     where c.organizacion_id = ${organizacionId}
+       and c.created_at between ${sesion.abiertaEn} and ${hastaDe(sesion)}
+     group by p.id, p.nombre
+     order by sum(c.merma_base) desc
+  `.execute(tx);
+  return rows;
+}
+
+// ── Lo que se compra y lo que se debe ───────────────────────────────────────
+
+export interface TurnoDelDia {
+  readonly folio: string;
+  readonly cortadoEn: Date;
+  readonly responsable: string | null;
+  readonly contadoCentavos: string;
+}
+
+/** Los turnos del día con su responsable y su hora: los cortes de turno de la sesión. */
+export async function turnosDelDia(
+  tx: Transaccion,
+  organizacionId: string,
+  sesionCajaId: string,
+): Promise<readonly TurnoDelDia[]> {
+  const { rows } = await sql<TurnoDelDia>`
+    select ct.serie || '-' || ct.folio::text      as "folio",
+           ct.cortado_en                           as "cortadoEn",
+           ev.nombre                               as "responsable",
+           ct.efectivo_contado_centavos::text      as "contadoCentavos"
+      from cortes_turno ct
+      left join empleados_visibles ev on ev.id = ct.empleado_id
+     where ct.organizacion_id = ${organizacionId}
+       and ct.sesion_caja_id = ${sesionCajaId}
+     order by ct.cortado_en
+  `.execute(tx);
+  return rows;
+}
+
+export interface CompraDelDia {
+  readonly proveedor: string;
+  readonly totalCentavos: string;
+  readonly metodo: string | null;
+  readonly diasDeCredito: number | null;
+  readonly factura: string | null;
+}
+
+export async function comprasDelDia(
+  tx: Transaccion,
+  organizacionId: string,
+  sesion: Ventana,
+): Promise<readonly CompraDelDia[]> {
+  const { rows } = await sql<CompraDelDia>`
+    select coalesce(p.nombre, c.proveedor_nombre)       as "proveedor",
+           c.total_centavos::text                       as "totalCentavos",
+           c.metodo_pago                                as "metodo",
+           case when c.metodo_pago is null then p.dias_credito end as "diasDeCredito",
+           c.factura_folio                              as "factura"
+      from compras c
+      left join proveedores p on p.id = c.proveedor_id and p.organizacion_id = c.organizacion_id
+     where c.organizacion_id = ${organizacionId}
+       and c.sucursal_id = ${sesion.sucursalId}
+       and c.created_at between ${sesion.abiertaEn} and ${hastaDe(sesion)}
+     order by c.created_at
+     limit ${TOPE_DE_FILAS}
+  `.execute(tx);
+  return rows;
+}
+
+export interface CuentaPorPagar {
+  readonly proveedor: string;
+  readonly folio: string;
+  readonly venceEn: Date;
+  readonly saldoCentavos: string;
+}
+
+/** Lo que vence esta semana, con su día: la deuda que no se ve hasta que llama el proveedor. */
+export async function cuentasPorPagar(
+  tx: Transaccion,
+  organizacionId: string,
+  ahora: Date,
+): Promise<readonly CuentaPorPagar[]> {
+  const { rows } = await sql<CuentaPorPagar>`
+    select p.nombre                    as "proveedor",
+           d.folio_proveedor           as "folio",
+           d.vence_en                  as "venceEn",
+           d.saldo_centavos::text      as "saldoCentavos"
+      from documentos_por_pagar d
+      join proveedores p on p.id = d.proveedor_id and p.organizacion_id = d.organizacion_id
+     where d.organizacion_id = ${organizacionId}
+       and d.saldo_centavos > 0
+       and d.vence_en < ${ahora}::timestamptz + interval '7 days'
+     order by d.vence_en
+     limit 60
+  `.execute(tx);
+  return rows;
+}
+
+export async function deudaConProveedores(
+  tx: Transaccion,
+  organizacionId: string,
+): Promise<string> {
+  const { rows } = await sql<{ total: string }>`
+    select coalesce(sum(d.saldo_centavos), 0)::text as "total"
+      from documentos_por_pagar d
+     where d.organizacion_id = ${organizacionId} and d.saldo_centavos > 0
+  `.execute(tx);
+  return rows[0]?.total ?? '0';
+}
+
+// ── Control ─────────────────────────────────────────────────────────────────
+
+export interface GarantiaAbierta {
+  readonly producto: string;
+  readonly proveedor: string;
+  readonly piezas: number;
+  readonly estado: string;
+  readonly dias: number;
+  readonly costoCentavos: string;
+}
+
+/** Lo enviado a garantía que no ha vuelto, con su antigüedad: dinero parado en el proveedor. */
+export async function garantiasAbiertas(
+  tx: Transaccion,
+  organizacionId: string,
+  ahora: Date,
+): Promise<readonly GarantiaAbierta[]> {
+  const { rows } = await sql<GarantiaAbierta>`
+    select pr.nombre                                                  as "producto",
+           p.nombre                                                   as "proveedor",
+           g.piezas                                                   as "piezas",
+           g.estado                                                   as "estado",
+           extract(day from ${ahora}::timestamptz - g.recibida_en)::int as "dias",
+           (g.piezas * g.costo_unitario_centavos)::text               as "costoCentavos"
+      from garantias_proveedor g
+      join productos pr on pr.id = g.producto_id and pr.organizacion_id = g.organizacion_id
+      join proveedores p on p.id = g.proveedor_id and p.organizacion_id = g.organizacion_id
+     where g.organizacion_id = ${organizacionId}
+       and g.estado in ('recibida', 'enviada')
+     order by g.recibida_en
+     limit 60
+  `.execute(tx);
+  return rows;
+}
+
+export interface Autorizacion {
+  readonly hora: Date;
+  readonly solicito: string | null;
+  readonly autorizo: string | null;
+  readonly rol: string;
+  readonly descuentoCentavos: string;
+  readonly topeCentavos: string;
+  readonly motivo: string;
+  /** La llave de la mora o del límite: un despacho a crédito que el dueño firmó. */
+  readonly esDeCredito: boolean;
+}
+
+/** Lo que se autorizó por encima de un tope, y POR QUIÉN. */
+export async function autorizacionesDelDia(
+  tx: Transaccion,
+  organizacionId: string,
+  sesion: Ventana,
+): Promise<readonly Autorizacion[]> {
+  const { rows } = await sql<Autorizacion>`
+    select a.created_at                     as "hora",
+           es.nombre                        as "solicito",
+           ea.nombre                        as "autorizo",
+           a.autoriza_rol                   as "rol",
+           a.descuento_centavos::text       as "descuentoCentavos",
+           a.tope_centavos::text            as "topeCentavos",
+           a.motivo                         as "motivo",
+           (a.cliente_id is not null)       as "esDeCredito"
+      from autorizaciones_descuento a
+      left join empleados_visibles es on es.id = a.solicita_empleo_id
+      left join empleados_visibles ea on ea.id = a.autoriza_empleo_id
+     where a.organizacion_id = ${organizacionId}
+       and (a.sucursal_id = ${sesion.sucursalId} or a.sucursal_id is null)
+       and a.created_at between ${sesion.abiertaEn} and ${hastaDe(sesion)}
+     order by a.created_at
+     limit ${TOPE_DE_FILAS}
+  `.execute(tx);
+  return rows;
+}
+
+export interface Faltante {
+  readonly producto: string;
+  readonly esperado: string;
+  readonly contado: string;
+  readonly unidad: string;
+  readonly costoCentavos: string;
+}
+
+/**
+ * Los faltantes y sobrantes de los conteos CERRADOS en el día: lo que el arqueo de caja no
+ * ve y que es la razón de ser del documento de abarrotes (§9.3 sección 7).
+ */
+export async function faltantesDelConteo(
+  tx: Transaccion,
+  organizacionId: string,
+  sesion: Ventana,
+): Promise<readonly Faltante[]> {
+  const { rows } = await sql<Faltante>`
+    select i.nombre                                                             as "producto",
+           rtrim(to_char(tc.esperado::numeric, 'FM999999990.###'), '.')         as "esperado",
+           rtrim(to_char(tc.contado::numeric, 'FM999999990.###'), '.')          as "contado",
+           tc.unidad                                                            as "unidad",
+           round((tc.contado::numeric - tc.esperado::numeric) * i.costo_unitario_centavos)::bigint::text
+                                                                                as "costoCentavos"
+      from toma_conteos tc
+      join tomas_inventario t on t.id = tc.toma_id
+      join insumos i on i.id = tc.insumo_id and i.organizacion_id = t.organizacion_id
+     where t.organizacion_id = ${organizacionId}
+       and t.estado = 'cerrada'
+       and t.cerrada_en between ${sesion.abiertaEn} and ${hastaDe(sesion)}
+       and tc.contado::numeric <> tc.esperado::numeric
+     order by abs((tc.contado::numeric - tc.esperado::numeric) * i.costo_unitario_centavos) desc
+     limit ${TOPE_DE_FILAS}
+  `.execute(tx);
+  return rows;
+}
+
+export interface ServicioDeMostrador {
+  readonly tipo: string;
+  readonly servicios: number;
+  readonly importeCentavos: string;
+  readonly materialCentavos: string;
+}
+
+/** Los trabajos de mostrador del día: su importe y el material que se llevaron, a costo. */
+export async function serviciosDeMostrador(
+  tx: Transaccion,
+  organizacionId: string,
+  sesionCajaId: string,
+): Promise<readonly ServicioDeMostrador[]> {
+  const { rows } = await sql<ServicioDeMostrador>`
+    select sm.tipo                           as "tipo",
+           count(*)::int                     as "servicios",
+           sum(l.total_centavos)::text       as "importeCentavos",
+           sum(l.material_centavos)::text    as "materialCentavos"
+      from servicios_mostrador sm
+      join orden_lineas l on l.id = sm.orden_linea_id and l.organizacion_id = sm.organizacion_id
+      join ordenes o on o.id = l.orden_id and o.organizacion_id = l.organizacion_id
+     where sm.organizacion_id = ${organizacionId}
+       and o.sesion_caja_id = ${sesionCajaId}
+       and o.estado in ('pagada', 'parcialmente_reembolsada')
+     group by sm.tipo
+     order by sum(l.total_centavos) desc
+  `.execute(tx);
+  return rows;
+}

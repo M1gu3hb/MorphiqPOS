@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { enPesos, exigirElPdfDelCorte } from './ayudantes/corte.ts';
+
 import {
   abrirCajaPorLaRuta,
   abrirPantalla,
@@ -7,7 +9,6 @@ import {
   accionesDelTablero,
   cabecerasDeEscrituraDePrueba,
   cambiarDePlantilla,
-  cerrarCajaYCuadrar,
   consultarPuente,
   entrar,
   exigirCobroAceptado,
@@ -399,7 +400,32 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
       'La mesa se marcó limpia y no volvió a `libre`: el ciclo de la mesa no se cierra.',
     ).toBe('libre');
 
-    await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + precioCentavos);
+    // ── EL CIERRE, POR SU PANTALLA, Y SU PDF (C.6 de la 2.4) ──────────────
+    //
+    // Cerraba por la API, y por eso nadie vio que el botón de la pantalla mandaba el
+    // contado como TEXTO y el servidor lo rechazaba: el cierre del restaurante no
+    // funcionaba. Ahora se cuenta, se deja el fondo de mañana, se confirma y se exige el
+    // PDF del corte con lo que su §9.3 pide.
+    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos;
+    await abrirPantalla(page, '/restaurante/cierre-diario-y-arqueo', /Cierre diario/);
+    await page.locator('#contado').fill((esperadoCentavos / 100).toFixed(2));
+    await page.locator('#fondo').fill((FONDO_CENTAVOS / 100).toFixed(2));
+    await page.getByRole('button', { name: 'CERRAR CAJA' }).click();
+    await page.getByRole('button', { name: 'Sí, cerrar el día' }).click({ timeout: 30_000 });
+    await expect(
+      page.getByRole('heading', { name: 'Caja cerrada' }),
+      'El cierre del día no se completó desde su pantalla.',
+    ).toBeVisible({ timeout: 30_000 });
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DE CAJA',
+      textos: [
+        `Dinero dejado en caja ${enPesos(FONDO_CENTAVOS)}`,
+        `Efectivo esperado ${enPesos(esperadoCentavos)}`,
+        `Diferencia de efectivo ${enPesos(0)}`,
+        'Resumen financiero (sin propinas)',
+        'Detalle de ventas (',
+      ],
+    });
 
     exigirSinFallos();
   });

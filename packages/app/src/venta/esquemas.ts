@@ -216,6 +216,12 @@ export const entradaCerrarCaja = z.object({
     )
     .max(20)
     .optional(),
+  /**
+   * Lo suelto que no se cuenta por piezas —las monedas de centavos—, como importe. El
+   * conteo por denominación MÁS esto tiene que dar lo contado. No se guarda como una
+   * denominación inventada: quien lea el conteo lo obtiene como contado − la suma.
+   */
+  sueltosCentavos: centavosNoNegativos.optional(),
   notas: z.string().max(500).optional(),
 });
 

@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { exigirElPdfDelCorte } from './ayudantes/corte.ts';
+
 import {
   abrirLaCajaSiHaceFalta,
   abrirPantalla,
@@ -472,6 +474,8 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     // El bote de propina va a cero: esta venta no dejó propina, y el cierre exige
     // contar los dos antes de enseñar nada.
     await page.locator('#cierre-bote').fill('0');
+    // Lo que se queda en el cajón para el turno siguiente, como CAMPO (C.6 de la 2.4).
+    await page.locator('#cierre-dejado').fill((FONDO_CENTAVOS / 100).toFixed(2));
     await page.getByRole('button', { name: 'CERRAR TURNO' }).click();
 
     await expect(
@@ -480,6 +484,21 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
         `${enPesos(precioCentavos)} en efectivo.`,
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('cuadró exacto').first()).toBeVisible();
+
+    // Y EL PDF DEL TURNO (F-234). La descarga sola espera el reparto del bote —bajado
+    // antes, saldría sin él—; aquí no hubo propina que repartir, así que se pide con el
+    // botón, como lo haría quien cierra.
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DE TURNO',
+      pulsando: true,
+      textos: [
+        'Apertura, fondo y cambio',
+        `Dinero dejado en caja ${enPesos(FONDO_CENTAVOS)}`,
+        `Efectivo esperado ${enPesos(esperadoCentavos)}`,
+        'Ventas por canal',
+        'Bebidas vendidas',
+      ],
+    });
 
     // ── 3 · CON LA PLANTILLA DE JACARANDA · sala, pero hablando de café ───
     await cambiarDePlantilla(page, 'restaurante');

@@ -5,6 +5,7 @@ import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import {
   Aviso,
+  CampoDeDinero,
   Dinero,
   ErrorDePantalla,
   Esqueleto,
@@ -21,6 +22,7 @@ import { ArrowDown, ArrowUp, Check, Receipt } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { CorteEnPdf } from '~/corte/CorteEnPdf';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
@@ -130,6 +132,7 @@ export interface ResumenDelTurno {
  * El cierre SI devuelve el arqueo entero. Se usa el suyo.
  */
 export interface ResultadoDelCorte {
+  readonly sesionCajaId: string;
   readonly efectivoEsperadoCentavos: string;
   readonly efectivoContadoCentavos: string;
   readonly diferenciaCentavos: string;
@@ -138,6 +141,11 @@ export interface ResultadoDelCorte {
 export interface CortesProps {
   readonly resumenInicial?: ResumenDelTurno;
   readonly historicoInicial?: readonly CorteHecho[];
+  /**
+   * Dónde se abre el turno. La ferretería hereda esta pantalla (su «Caja y corte» es la
+   * de abarrotes, §PANTALLA 9) y su caja vive en otra dirección.
+   */
+  readonly rutaDeCaja?: string;
 }
 
 /** «Faltan», no «−»: leído de prisa a las diez de la noche el signo se confunde. */
@@ -184,6 +192,16 @@ export function totalContado(piezas: Readonly<Record<number, string>>): number {
     (total, denominacion) => total + (piezasDe(piezas[denominacion] ?? '') ?? 0) * denominacion,
     0,
   );
+}
+
+/** Las piezas de cada billete y moneda, sin los renglones vacíos. */
+export function conteoPorDenominacion(
+  piezas: Readonly<Record<number, string>>,
+): readonly { readonly denominacionCentavos: number; readonly piezas: number }[] {
+  return DENOMINACIONES.map((denominacion) => ({
+    denominacionCentavos: denominacion,
+    piezas: piezasDe(piezas[denominacion] ?? '') ?? 0,
+  })).filter((renglon) => renglon.piezas > 0);
 }
 
 function aCentavosSueltos(texto: string): number | null {
@@ -316,6 +334,9 @@ interface HojaDeArqueoProps {
   readonly alCambiarSueltos: (texto: string) => void;
   readonly sueltos: number | null;
   readonly contado: number;
+  /** Lo que se queda en el cajón: el fondo del turno que sigue (C.6 de la 2.4). */
+  readonly dejado: number | null;
+  readonly alCambiarDejado: (centavos: number | null) => void;
   readonly guardando: boolean;
   readonly error: string | null;
   readonly alCerrar: () => void;
@@ -449,6 +470,15 @@ function HojaDeArqueo(props: HojaDeArqueoProps) {
           </span>{' '}
           <Dinero centavos={props.contado} tamano="lg" className="text-3xl font-semibold" />
         </p>
+        <div className="flex flex-col gap-(--espacio-1)">
+          <Label htmlFor="dejado-en-el-cajon">Dejas en el cajón (fondo del siguiente turno)</Label>
+          <CampoDeDinero
+            id="dejado-en-el-cajon"
+            placeholder="0.00"
+            centavos={props.dejado}
+            alCambiar={props.alCambiarDejado}
+          />
+        </div>
         <Button
           size="lg"
           className="w-full"
@@ -620,7 +650,11 @@ function HistoricoDeCortes({
   );
 }
 
-export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
+export function Cortes({
+  resumenInicial,
+  historicoInicial,
+  rutaDeCaja = '/abarrotes/caja',
+}: CortesProps) {
   const voc = useVocabulario();
   const [resumen, setResumen] = useState<ResumenDelTurno | null>(resumenInicial ?? null);
   const [falloDelTurno, setFalloDelTurno] = useState<string | null>(null);
@@ -634,6 +668,7 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
   const [intentoDelHistorico, setIntentoDelHistorico] = useState(0);
   const [piezas, setPiezas] = useState<Readonly<Record<number, string>>>({});
   const [otrosCentavos, setOtrosCentavos] = useState('');
+  const [dejado, setDejado] = useState<number | null>(null);
   const [corte, setCorte] = useState<ResultadoDelCorte | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -704,9 +739,20 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
       setError('Revisa el importe suelto: sólo pesos y centavos.');
       return;
     }
+    if (dejado !== null && dejado > contado) {
+      setError('No puedes dejar en el cajón más de lo que contaste.');
+      return;
+    }
     setGuardando(true);
     setError(null);
-    invocarComando<ResultadoDelCorte>(RUTA_CERRAR, { efectivoContadoCentavos: contado })
+    // El conteo viaja billete por billete y lo suelto aparte (F-231): el servidor exige que
+    // sumen lo contado y lo guarda por denominación. Y lo que se deja, como campo.
+    invocarComando<ResultadoDelCorte>(RUTA_CERRAR, {
+      efectivoContadoCentavos: contado,
+      denominaciones: conteoPorDenominacion(piezas),
+      sueltosCentavos: sueltos,
+      ...(dejado === null ? {} : { fondoDejadoCentavos: dejado }),
+    })
       .then((resultado) => {
         // El esperado aparece AHORA, y no antes: contar con el número delante
         // no es contar. Y sale del cierre, que es quien lo calculó sumando los
@@ -774,7 +820,11 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
       {encabezado}
 
       {corte !== null && (
-        <CorteDelTurno corte={corte} movimientosSinMotivo={resumen.movimientosSinMotivo} />
+        <>
+          <CorteDelTurno corte={corte} movimientosSinMotivo={resumen.movimientosSinMotivo} />
+          {/* El PDF del corte (§9.3), que se baja solo al cerrar (C.6 de la 2.4). */}
+          <CorteEnPdf sesionCajaId={corte.sesionCajaId} />
+        </>
       )}
 
       {corte === null && abierta && (
@@ -787,6 +837,8 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
           alCambiarSueltos={setOtrosCentavos}
           sueltos={sueltos}
           contado={contado}
+          dejado={dejado}
+          alCambiarDejado={setDejado}
           guardando={guardando}
           error={error}
           alCerrar={cerrar}
@@ -799,7 +851,7 @@ export function Cortes({ resumenInicial, historicoInicial }: CortesProps) {
           titulo="No hay turno abierto"
           accion={
             <Button asChild variant="outline" size="sm">
-              <a href="/abarrotes/caja">Ir a Caja</a>
+              <a href={rutaDeCaja}>Ir a Caja</a>
             </Button>
           }
         >

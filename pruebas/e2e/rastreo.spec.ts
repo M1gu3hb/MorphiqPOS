@@ -1275,6 +1275,17 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
          * muestra sólo se paga cuando hay una acusación que hacer.
          */
         await page.waitForTimeout(RESPIRO_MS);
+        /**
+         * LA PESTAÑA LLEGA TARDE, y se mira otra vez aquí (C.16 de la 2.4).
+         *
+         * Playwright emite `popup` cuando la pestaña nueva hace su primera navegación, no
+         * cuando se pide: medido en «Abrir» del QR de una mesa (`/portal-qr`), entre 490 y
+         * 630 ms después del clic. Con un solo respiro de 500 ms el rastreo en Terminal
+         * acusó de muerto a un botón que abre el portal del comensal. Esta segunda mirada
+         * sólo se paga cuando ya hay una acusación, y aquí se cuentan también la pestaña y
+         * el diálogo nativo, no sólo el DOM.
+         */
+        if (pestanasAbiertas > pestanasAntes || dialogosNativos > dialogosAntes) return null;
         if ((await conTecho(huella(page), TECHO_DE_EVALUACION_MS, 'segunda huella')) !== antes) {
           return null;
         }

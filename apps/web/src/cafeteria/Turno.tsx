@@ -16,7 +16,7 @@ import {
   Vacio,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
-import { Coins, History, Lock, LockOpen, Plus, ReceiptText } from 'lucide-react';
+import { Check, Coins, History, Lock, LockOpen, Plus, ReceiptText } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
@@ -60,10 +60,10 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * un bote visible todo el día es un bote que se mira todo el día.
  *
  * ── Alcance recortado, dicho y no escondido ──────────────────────────────
- * 1. `/api/caja/abrir` acepta un solo `fondoInicialCentavos`: el desglose se
- *    suma y se manda como total, así que el aviso de cambio sólo vive mientras
- *    esta pestaña siga abierta. Al recargar dice «sin desglose» con palabras,
- *    en vez de inventar un número.
+ * 1. El fondo viaja por montones y `caja.estado` lo devuelve (C.6 de la 2.4): el
+ *    aviso de cambio sobrevive a una recarga. Un turno abierto sin desglose dice
+ *    «sin desglose» con palabras, en vez de inventar un número. La entrada de
+ *    cambio va por `caja.entrada_cambio`, con su origen.
  * 2. El arqueo, el reparto del bote y el PDF son la pantalla de cierre.
  * 3. El historial lista los turnos por el puente; el detalle de cada corte y su
  *    reimpresión son otra pantalla. Se lee APARTE del turno: si falla, el turno
@@ -86,7 +86,17 @@ type TipoMovimiento = 'retiro' | 'deposito' | 'gasto';
 /** Los dos umbrales de morralla, en centavos. Bajo el segundo es urgencia. */
 const CAMBIO_POCO = 50_000;
 const CAMBIO_URGENTE = 25_000;
-const MOTIVO_CAMBIO = 'Entrada de cambio';
+/**
+ * De dónde vino el cambio. `caja.entrada_cambio` lo exige, y no es adorno: casi siempre
+ * salió de la bolsa de alguien y hay que devolvérselo. Los mismos cuatro de abarrotes.
+ */
+const ORIGENES_DEL_CAMBIO = [
+  { clave: 'banco', etiqueta: 'Del banco' },
+  { clave: 'caja_chica', etiqueta: 'De caja chica' },
+  { clave: 'dueno', etiqueta: 'De mi bolsa' },
+  { clave: 'otra_caja', etiqueta: 'De la otra caja' },
+] as const;
+type OrigenDelCambio = (typeof ORIGENES_DEL_CAMBIO)[number]['clave'];
 /** La pantalla del conteo a ciegas, del mismo documento §4.3. */
 const RUTA_ARQUEO = '/cafeteria/cierre-de-turno-y-arqueo';
 const FONDO_VACIO: Desglose = { monedas: null, chicos: null, grandes: null };
@@ -134,6 +144,12 @@ export interface EstadoDelTurno {
   readonly ventasCentavos: string;
   readonly numeroVentas: number;
   readonly movimientos: readonly MovimientoDelTurno[];
+  /** El fondo por montones como se contó al abrir; `null` si se abrió sin desglose. */
+  readonly fondoDesglosado?: {
+    readonly monedasCentavos: string;
+    readonly chicosCentavos: string;
+    readonly grandesCentavos: string;
+  } | null;
 }
 
 /** Los nombres son los del PUENTE, no unos propios: renombrarlos no gana nada. */
@@ -288,9 +304,9 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [fondo, setFondo] = useState<Desglose>(FONDO_VACIO);
-  const [cambio, setCambio] = useState<number | null>(null);
   const [cambioAbierto, setCambioAbierto] = useState(false);
   const [montoCambio, setMontoCambio] = useState<number | null>(null);
+  const [origenDelCambio, setOrigenDelCambio] = useState<OrigenDelCambio>('banco');
   const [tipo, setTipo] = useState<TipoMovimiento>('retiro');
   const [monto, setMonto] = useState<number | null>(null);
   const [motivo, setMotivo] = useState('');
@@ -379,14 +395,33 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
 
   const abrirTurno = () =>
     ejecutar(async () => {
+      // El desglose VIAJA (C.6 de la 2.4): la apertura lo guarda por montones y el estado
+      // lo devuelve, así que el aviso de cambio sobrevive a una recarga. Antes se mandaba
+      // sólo el total y la morralla vivía en esta pestaña.
       const datos = await invocarComando<{ sesionCajaId: string }>('/api/caja/abrir', {
-        fondoInicialCentavos: totalDelFondo(fondo),
+        fondoMonedasCentavos: fondo.monedas ?? 0,
+        fondoChicosCentavos: fondo.chicos ?? 0,
+        fondoGrandesCentavos: fondo.grandes ?? 0,
       });
-      // El desglose no viaja: la morralla declarada se queda aquí, que es el
-      // único sitio donde existe mientras la apertura acepte una sola cifra.
-      setCambio((fondo.monedas ?? 0) + (fondo.chicos ?? 0));
       onTurnoAbierto?.(datos.sesionCajaId);
     }, 'No se pudo abrir el turno. No se abrió nada.');
+
+  /**
+   * La entrada de cambio por SU comando (C.6 de la 2.4). Iba como un `deposito` con motivo
+   * «Entrada de cambio»: el fondo esperado no subía, el desglose no cambiaba y el corte no
+   * la podía contar como entrada de cambio. La morralla va a «monedas», que es lo que el
+   * campo pregunta.
+   */
+  const registrarCambio = () =>
+    ejecutar(async () => {
+      await invocarComando('/api/caja/entrada-cambio', {
+        monedasCentavos: montoCambio ?? 0,
+        origen: origenDelCambio,
+        motivo: null,
+      });
+      setMontoCambio(null);
+      setCambioAbierto(false);
+    }, 'No se registró la entrada de cambio.');
 
   const registrar = (cual: TipoMovimiento, centavos: number | null, razon: string) =>
     ejecutar(async () => {
@@ -398,7 +433,6 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
         montoCentavos: importe,
         motivo: razon.trim(),
       });
-      if (razon === MOTIVO_CAMBIO) setCambio((previo) => (previo ?? 0) + importe);
       setMonto(null);
       setMotivo('');
       setMontoCambio(null);
@@ -472,6 +506,7 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
 
   const abierto = estado?.abierta === true;
   const movimientos = estado?.movimientos ?? [];
+  const cambio = cambioDelFondo(estado?.fondoDesglosado);
   const aviso = avisoDeCambio(cambio);
   const bloqueo = bloqueoDelMovimiento(monto, motivo);
   const fondoDeclarado = totalDelFondo(fondo);
@@ -677,10 +712,33 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           className="grid gap-(--espacio-3) xl:max-w-md"
           onSubmit={(evento) => {
             evento.preventDefault();
-            void registrar('deposito', montoCambio, MOTIVO_CAMBIO);
+            void registrarCambio();
           }}
         >
           {campoDeDinero('cambio-monto', 'Cuánta morralla entró', montoCambio, setMontoCambio)}
+          <fieldset>
+            <legend className="mb-(--espacio-2) text-sm font-medium">De dónde vino</legend>
+            <div className="grid grid-cols-2 gap-(--espacio-2)">
+              {ORIGENES_DEL_CAMBIO.map((opcion) => {
+                const elegida = origenDelCambio === opcion.clave;
+                return (
+                  <Button
+                    key={opcion.clave}
+                    type="button"
+                    aria-pressed={elegida}
+                    variant={elegida ? 'default' : 'outline'}
+                    onClick={() => {
+                      setOrigenDelCambio(opcion.clave);
+                    }}
+                  >
+                    {/* El color no puede ser el único que diga cuál está elegido. */}
+                    {elegida ? <Check aria-hidden="true" /> : null}
+                    {opcion.etiqueta}
+                  </Button>
+                );
+              })}
+            </div>
+          </fieldset>
           <Button
             type="submit"
             size="lg"
@@ -811,4 +869,10 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
       </Tabs>
     </div>
   );
+}
+
+/** La morralla del fondo —monedas y billetes chicos—, o `null` si se abrió sin desglose. */
+export function cambioDelFondo(desglose: EstadoDelTurno['fondoDesglosado']): number | null {
+  if (desglose === undefined || desglose === null) return null;
+  return Number(desglose.monedasCentavos) + Number(desglose.chicosCentavos);
 }

@@ -210,7 +210,7 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
     const contado = BigInt(entrada.efectivoContadoCentavos);
     const diferencia = contado - arqueo.efectivoEsperadoCentavos;
     const retirado = retiradoDelCierre(contado, entrada.fondoDejadoCentavos);
-    exigirQueElConteoSume(contado, entrada.denominaciones);
+    exigirQueElConteoSume(contado, entrada.denominaciones, entrada.sueltosCentavos ?? 0);
 
     const cierre = await ctx.paso('cerrar_sesion', () =>
       repoCaja.cerrarSesion(ctx.tx, {
@@ -301,14 +301,17 @@ export function retiradoDelCierre(contado: bigint, fondoDejado: number | undefin
   return contado - dejado;
 }
 
-/** El conteo por denominación, si viaja, tiene que sumar lo contado (F-231). */
+/**
+ * El conteo por denominación, si viaja, más lo suelto tiene que sumar lo contado (F-231).
+ */
 export function exigirQueElConteoSume(
   contado: bigint,
   conteo: readonly { readonly denominacionCentavos: number; readonly piezas: number }[] | undefined,
+  sueltosCentavos = 0,
 ): void {
   if (conteo === undefined || conteo.length === 0) return;
   const vistas = new Set<number>();
-  let suma = 0n;
+  let suma = BigInt(sueltosCentavos);
   for (const { denominacionCentavos, piezas } of conteo) {
     if (vistas.has(denominacionCentavos)) {
       throw new ErrorDominio(

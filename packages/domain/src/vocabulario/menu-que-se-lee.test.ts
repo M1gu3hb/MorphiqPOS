@@ -116,7 +116,9 @@ describe('el menú que el dueño lee', () => {
       tienda: 11,
       cafeteria: 11,
       restaurante: 11,
-      ferreteria: 12,
+      // 14 desde C.6 de la 2.4: «Fondo y movimientos» y «Cortes», heredadas de abarrotes. Sin
+      // ellas la ferretería no podía abrir ni cerrar su caja desde el sistema.
+      ferreteria: 14,
       // TRECE desde el 20-09-2026: la estética estrenó su TABLERO, y en este modelo
       // no vive en `/` como en los otros cuatro. Su §4.4.1 defiende que su inicio es
       // la agenda —«a las 9:45 de la mañana, casi todos los indicadores de un

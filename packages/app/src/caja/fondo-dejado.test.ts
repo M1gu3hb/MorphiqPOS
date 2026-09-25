@@ -131,6 +131,20 @@ describe('caja.cerrar · el fondo que se deja', () => {
     expect(base.filas('conteos_denominacion')).toHaveLength(0);
   });
 
+  it('lo suelto, que no se cuenta por piezas, completa el conteo', async () => {
+    const base = baseAbierta();
+    const { ctx } = contextoFalso(base.tx, ambito(), AHORA);
+
+    await cerrarCaja.ejecutar(ctx, {
+      efectivoContadoCentavos: 400_350,
+      denominaciones: [{ denominacionCentavos: 50_000, piezas: 8 }],
+      sueltosCentavos: 350,
+    });
+
+    expect(base.campo('sesiones_caja', 'estado')).toBe('cerrada');
+    expect(base.filas('conteos_denominacion')).toHaveLength(1);
+  });
+
   it('rechaza la misma denominación dos veces', async () => {
     const base = baseAbierta();
     const { ctx } = contextoFalso(base.tx, ambito(), AHORA);
@@ -197,8 +211,8 @@ describe('el puente · `dinero_dejado_en_caja` es un cálculo, no la columna de 
     expect(
       calcular('dineroDejadoEnCaja', { efectivo_contado: 480_000n, efectivo_retirado: null }),
     ).toBe(null);
-    expect(
-      calcular('dineroDejadoEnCaja', { efectivo_contado: null, efectivo_retirado: 1n }),
-    ).toBe(null);
+    expect(calcular('dineroDejadoEnCaja', { efectivo_contado: null, efectivo_retirado: 1n })).toBe(
+      null,
+    );
   });
 });

@@ -392,6 +392,49 @@ orden y flujo siguen siendo de Miguel e intocables.
    `apps/web/src/imprimibles-en-papel.contrato.test.ts` exige que cubran todo token que
    pintan sus documentos.
 
+## D-20 · 25-09-2026 · El corte y su PDF: el fondo dejado es un campo, y cada giro arma su hoja
+
+**Contexto.** C.6 de la 2.4 (F-234). Las pantallas de cierre sólo exportaban CSV; el restaurante
+prometía «Imprimir el cierre» con `window.print()` sobre la pantalla, y el fondo que se deja en el
+cajón viajaba como texto dentro de `notas`. Al probar el cierre POR LA PANTALLA salieron tres
+defectos más: el cierre del restaurante mandaba el contado como TEXTO y el servidor lo rechazaba
+(su botón nunca cerró: el e2e cerraba por la API), la ferretería no tenía dónde abrir ni cerrar su
+caja, y la entrada de cambio de la cafetería se registraba como depósito.
+
+**Decisión.**
+
+1. **El fondo dejado es un campo, sin migración.** `caja.cerrar` recibe `fondoDejadoCentavos` y
+   guarda lo RETIRADO en `efectivo_retirado_centavos` (contado − dejado): la columna se llama así y
+   así la usa el corte de turno. El puente sirve `dinero_dejado_en_caja` como CÁLCULO (contado −
+   retirado) y ya no lee esa columna como si fuera lo dejado. `caja.abrir` espera lo que dejó el
+   último cierre de la terminal (`fondo_esperado_centavos`), y la diferencia de apertura se mide
+   contra eso. El conteo por denominación se guarda en `conteos_denominacion` (momento `cierre`) y
+   tiene que sumar lo contado, con lo suelto aparte (`sueltosCentavos`).
+2. **El desglose del cambio que se deja no se guarda al cerrar.** Ese cambio es el fondo del turno
+   que sigue, y su desglose se CUENTA al abrir (monedas, chicos, grandes), que es donde se sabe si
+   alcanza. Guardarlo también al cerrar pediría una columna nueva (una migración, que es de Miguel)
+   para un número que el conteo de la mañana ya da.
+3. **Una lectura, cinco documentos.** `caja.hoja_del_corte` lee en una transacción el tronco de
+   todos los cortes y lo propio de cada giro. La pantalla de cada giro arma SU documento, en el
+   orden de su §9.3 (`apps/web/src/corte/`), y el PDF sale con `generatePDFBlobFromNode` de Miguel
+   sobre `#cash-cut-pdf-document`. Se descarga solo al cerrar si el negocio no apagó
+   `descargar_pdf_corte_auto`; en la cafetería espera al reparto del bote, porque bajado antes
+   saldría sin él. Un fallo al leer no produce archivo.
+4. **Quién ve costos.** Dirección siempre; el cajero sólo con `mostrar_costos_a_caja`. Sin permiso
+   el documento sale sin costo, utilidad, margen ni consumo de insumo, como el `sinCostos` del
+   corte de Miguel.
+5. **Lo que el documento todavía no trae, y por qué.** La *comisión estimada de terminal* de la
+   cafetería: el sistema no conoce la tasa que cobra la terminal de cada negocio, y no hay dónde
+   escribirla (Configuración es de Miguel). *Devoluciones del día* de la ferretería: aparecerá
+   cuando F-222 escriba devoluciones con motivo y destino; hoy no hay ninguna, y una sección sin
+   filas no se pinta. *Bloqueos por mora levantados*: la base guarda el bloqueo vigente, no su
+   historia. *El renglón completo de existencia por producto* (inicial, entradas, esperado): el
+   documento enseña lo vendido y los faltantes de los conteos cerrados en el día, que son las dos
+   cifras que se miden; un «inicial» sacado de un libro que la siembra no siempre alimenta sería
+   un número inventado.
+6. **La ferretería hereda «Caja y corte» de abarrotes**, como dice su documento: «Fondo y
+   movimientos» (`/ferreteria/fondo-y-movimientos`) y «Cortes» (`/ferreteria/cortes`).
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

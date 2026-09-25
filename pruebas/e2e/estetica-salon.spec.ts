@@ -1,13 +1,14 @@
 import { expect, test, type APIResponse } from '@playwright/test';
 
+import { exigirElPdfDelCorte } from './ayudantes/corte.ts';
+
 import {
-  abrirCajaPorLaRuta,
+  abrirLaCajaSiHaceFalta,
   abrirPantalla,
   type MarcaDePantalla,
   accionesDelTablero,
   cabecerasDeEscrituraDePrueba,
   cambiarDePlantilla,
-  cerrarCajaYCuadrar,
   consultarPuente,
   entrar,
   exigirDemostracion,
@@ -430,7 +431,17 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     // que estaba rota —el ALTA DE LA CLIENTA, que publicaba en una ruta
     // inexistente— porque la demo tiene cero clientas y sin una no se pasa del
     // primer paso.
-    await abrirCajaPorLaRuta(page, FONDO_CENTAVOS);
+    // La caja, POR SU PANTALLA (C.6 de la 2.4): «Caja y corte» abre el día con su fondo.
+    await abrirLaCajaSiHaceFalta(
+      page,
+      {
+        ruta: '/estetica-salon/caja-y-corte',
+        boton: 'Abrir el día',
+        campoDelFondo: '#fondo',
+        señalAbierta: 'El día está abierto.',
+      },
+      (FONDO_CENTAVOS / 100).toFixed(2),
+    );
 
     const servicios = await consultarPuente<ServicioDelPuente>(page, 'ProductoTerminado', {
       filtro: { tipo_venta: 'servicio' },
@@ -857,7 +868,28 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
 
     // El cajón: el fondo, el anticipo del día que se dejó y el resto de hoy. La
     // propina a la mano no entró.
-    await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + precioCentavos);
+    // ── EL CORTE DEL DÍA, POR SU PANTALLA, Y SU PDF (C.6 de la 2.4) ─────────
+    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos;
+    await abrirPantalla(page, '/estetica-salon/caja-y-corte', /Caja y corte/);
+    await page.locator('#contado').fill((esperadoCentavos / 100).toFixed(2));
+    await page.locator('#dejado').fill((FONDO_CENTAVOS / 100).toFixed(2));
+    await page.getByRole('button', { name: 'Cerrar el día' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Día cerrado' }),
+      'El día del salón no se cerró desde su pantalla.',
+    ).toBeVisible({ timeout: 30_000 });
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DEL DÍA',
+      textos: [
+        'Arqueo de efectivo',
+        `Dinero dejado en caja ${enPesosDelSalon(FONDO_CENTAVOS)}`,
+        `Efectivo esperado ${enPesosDelSalon(esperadoCentavos)}`,
+        `Diferencia de efectivo ${enPesosDelSalon(0)}`,
+        // La cita de la prueba es de un miércoles FUTURO: la agenda de HOY está vacía en una
+        // demo recién sembrada y, sin filas, no se pinta. Lo que sí es de hoy es la comisión.
+        'Liquidación por profesional',
+      ],
+    });
 
     exigirSinFallos();
   });

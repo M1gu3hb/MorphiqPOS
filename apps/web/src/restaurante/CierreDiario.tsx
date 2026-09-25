@@ -23,10 +23,11 @@ import {
   Vacio,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
-import { ChevronDown, CircleCheck, Lock, OctagonAlert, Printer, TriangleAlert } from 'lucide-react';
+import { ChevronDown, CircleCheck, Lock, OctagonAlert, TriangleAlert } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { CorteEnPdf } from '~/corte/CorteEnPdf';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
@@ -72,11 +73,10 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *    su transacción; si difieren gana la del corte, y se ve al cerrar.
  * 2. El fondo que se deja en el cajón viaja como CAMPO (`fondoDejadoCentavos`): el
  *    servidor guarda lo retirado y la apertura de mañana lo espera (C.6 de la 2.4).
- * 3. El comprobante no se genera aquí: la pantalla avisa por `onImprimirElCierre`,
- *    y quien la monta decide cómo se imprime. NO hay generador de PDF en el
- *    sistema —`FORMATOS` de reportes sólo tiene `csv`— y el botón decía
- *    «Descargar el PDF del cierre»: una promesa que nada podía cumplir, y que
- *    además no hacía NADA porque ninguna página pasaba el callback.
+ * 3. El PDF del cierre lo arma `CorteEnPdf` con la hoja del servidor
+ *    (`caja.hoja_del_corte`) en el orden del §9.3, y se baja solo al cerrar. Antes
+ *    el botón «Imprimir el cierre» llamaba a un callback que ninguna página pasaba:
+ *    no hacía NADA (C.6 de la 2.4).
  * 4. Todo importe se pinta con `Dinero` y se teclea con `CampoDeDinero`, del
  *    sistema: la pantalla habla sólo en centavos.
  */
@@ -136,6 +136,7 @@ export interface DatosDelDia {
 
 /** Lo que devuelve `caja.cerrar`. Sus importes llegan como texto de BigInt. */
 export interface ResultadoDelCierre {
+  readonly sesionCajaId: string;
   readonly serie: string;
   readonly folio: string;
   readonly efectivoEsperadoCentavos: string;
@@ -154,7 +155,6 @@ export interface MesaQueBloquea {
 export interface CierreDiarioProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly datosIniciales?: DatosDelDia;
-  readonly onImprimirElCierre?: (corte: ResultadoDelCierre) => void;
 }
 
 /** Un gasto, en centavos. Sin monto cuenta como cero: no suma, y no rompe la suma. */
@@ -391,7 +391,7 @@ function SeccionDelCorte({
   );
 }
 
-export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiarioProps) {
+export function CierreDiario({ datosIniciales }: CierreDiarioProps) {
   const voc = useVocabulario();
   const [datos, setDatos] = useState<DatosDelDia | null>(datosIniciales ?? null);
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
@@ -526,16 +526,9 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
             <Dinero centavos={contado ?? 0} tamano="lg" />
           </Indicador>
         </dl>
-        <Button
-          size="lg"
-          className="w-full"
-          onClick={() => {
-            onImprimirElCierre?.(corte);
-          }}
-        >
-          <Printer aria-hidden="true" />
-          Imprimir el cierre
-        </Button>
+        {/* El PDF del cierre (§9.3), que se baja solo si quien cerró dejó encendido el
+            interruptor y el negocio no apagó la descarga automática (C.6 de la 2.4). */}
+        <CorteEnPdf sesionCajaId={corte.sesionCajaId} descargarAlCerrar={alImprimir} />
       </div>
     );
   }
@@ -637,7 +630,6 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
       });
       setDialogo(null);
       setCorte(hecho);
-      if (alImprimir) onImprimirElCierre?.(hecho);
     } catch (fallo) {
       setDialogo(null);
       setError(mensajeDe(fallo, 'No se pudo cerrar la caja.'));
@@ -724,7 +716,7 @@ export function CierreDiario({ datosIniciales, onImprimirElCierre }: CierreDiari
         <div className="flex items-center gap-(--espacio-2)">
           <Switch id="imprimir" checked={alImprimir} onCheckedChange={setAlImprimir} />
           <Label htmlFor="imprimir" className="font-normal">
-            Imprimir el cierre al terminar
+            Descargar el PDF del cierre al terminar
           </Label>
         </div>
         <Button

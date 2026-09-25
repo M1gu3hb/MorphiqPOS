@@ -25,6 +25,7 @@ import { useEffect, useRef, useState, type Ref } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
+import { CorteEnPdf } from '~/corte/CorteEnPdf';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -93,6 +94,7 @@ const BOTON_DEL_DIA = 'h-[calc(var(--altura-control)*1.4)] w-full text-base';
  * El cierre SI devuelve el arqueo entero. Se usa el suyo.
  */
 export interface ResultadoDelCorte {
+  readonly sesionCajaId: string;
   readonly efectivoEsperadoCentavos: string;
   readonly efectivoContadoCentavos: string;
   readonly diferenciaCentavos: string;
@@ -358,6 +360,8 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
   const [intento, setIntento] = useState(0);
   const [fondo, setFondo] = useState<number | null>(null);
   const [contado, setContado] = useState<number | null>(null);
+  // Lo que se queda en el cajón para mañana (C.6 de la 2.4): un campo del cierre, no una nota.
+  const [dejado, setDejado] = useState<number | null>(null);
   const [corte, setCorte] = useState<ResultadoDelCorte | null>(null);
   const [tropiezo, setTropiezo] = useState<Tropiezo | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -421,9 +425,19 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
       setTropiezo({ mensaje: 'Pon lo que contaste.', delServidor: false });
       return;
     }
+    if (dejado !== null && dejado > centavos) {
+      setTropiezo({
+        mensaje: 'No puedes dejar en el cajón más de lo que contaste.',
+        delServidor: false,
+      });
+      return;
+    }
     setOcupado(true);
     setTropiezo(null);
-    invocarComando<ResultadoDelCorte>(RUTA_CERRAR, { efectivoContadoCentavos: centavos })
+    invocarComando<ResultadoDelCorte>(RUTA_CERRAR, {
+      efectivoContadoCentavos: centavos,
+      ...(dejado === null ? {} : { fondoDejadoCentavos: dejado }),
+    })
       .then((cierre) => {
         // Pintado YA, para que la respuesta exista al llevarle el foco.
         flushSync(() => {
@@ -549,7 +563,11 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
           )}
 
           {cerrado ? (
-            <Resultado corte={corte} ref={resultado} />
+            <>
+              <Resultado corte={corte} ref={resultado} />
+              {/* El PDF del corte del día (§9.3), que se baja solo al cerrar (C.6 de la 2.4). */}
+              <CorteEnPdf sesionCajaId={corte.sesionCajaId} />
+            </>
           ) : (
             <Superficie
               como="section"
@@ -572,6 +590,12 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
                   alCambiar={setContado}
                   aria-invalid={tropiezo !== null && !tropiezo.delServidor}
                 />
+              </div>
+              <div className="flex flex-col gap-(--espacio-2)">
+                <Label htmlFor="dejado" className="text-base font-semibold">
+                  Lo que dejas en el cajón para mañana
+                </Label>
+                <CampoDeDinero id="dejado" centavos={dejado} alCambiar={setDejado} />
               </div>
               <AvisoDeTropiezo tropiezo={tropiezo} siRechaza="El día sigue abierto." />
               <Button size="lg" className={BOTON_DEL_DIA} cargando={ocupado} onClick={cerrar}>

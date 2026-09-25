@@ -31,6 +31,7 @@ import { Check, Milk, OctagonAlert, ShoppingBag, TriangleAlert } from 'lucide-re
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { CorteEnPdf } from '~/corte/CorteEnPdf';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
@@ -797,6 +798,16 @@ export function CierreDeTurno({
             />
             <Arqueo nombre="Bote" esperado={boteEsperado} diferencia={contadoBote - boteEsperado} />
           </dl>
+        )}
+        {/* El PDF del turno (§9.3). Se baja solo cuando el bote YA se repartió: bajado al
+            cerrar saldría sin su reparto, que es la mitad de lo que se firma. La `key` lo
+            vuelve a leer con el reparto escrito (C.6 de la 2.4). */}
+        {resultado !== null && (
+          <CorteEnPdf
+            key={partes === null ? 'sin-reparto' : 'con-reparto'}
+            sesionCajaId={resultado.sesionCajaId}
+            descargarAlCerrar={partes !== null}
+          />
         )}
 
         {!cerrado && (

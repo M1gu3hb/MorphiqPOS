@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { exigirElPdfDelCorte } from './ayudantes/corte.ts';
+
 import {
   abrirLaCajaSiHaceFalta,
   abrirPantalla,
@@ -372,6 +374,8 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     // prueba aquí es la aritmética del arqueo, no la de dar cambio.
     await page.locator('#sueltos').fill((esperadoCentavos / 100).toFixed(2));
     await expect(page.getByText(`Contado ${enPesos(esperadoCentavos)}`)).toBeVisible();
+    // Lo que se queda en el cajón para el turno siguiente, como CAMPO (C.6 de la 2.4).
+    await page.locator('#dejado-en-el-cajon').fill((FONDO_CENTAVOS / 100).toFixed(2));
 
     await page.getByRole('button', { name: 'Cerrar el turno' }).click();
 
@@ -393,6 +397,19 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
         `${enPesos(esperadoCentavos)}.`,
     ).toBeVisible();
     await expect(page.getByText('Cuadra exacto')).toBeVisible();
+
+    // Y EL PDF DEL CORTE (F-234): su §9.3 lo pide con la cascada del esperado, que es
+    // la sección que ningún otro giro trae.
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DE CAJA',
+      textos: [
+        'Arqueo de efectivo',
+        `Dinero dejado en caja ${enPesos(FONDO_CENTAVOS)}`,
+        'De dónde salió el efectivo esperado',
+        `Efectivo esperado ${enPesos(esperadoCentavos)}`,
+        'Resumen de ventas',
+      ],
+    });
 
     // Y EL INVENTARIO BAJÓ, por ESTA venta. Es D-01 con dinero: «una tienda sin
     // inventario no es una tienda, es una calculadora».

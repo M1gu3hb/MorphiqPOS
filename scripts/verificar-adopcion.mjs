@@ -155,6 +155,30 @@ export const SIN_ESTADO = [
       'Pieza del cobro sin operación propia que pueda fallar: si el servidor rechaza la propina, el rechazo llega al cobrar y Cobrar lo pinta en su Aviso de peligro, con todo lo capturado en su sitio.',
   },
   {
+    pantalla: 'corte/CorteEnPdf',
+    estado: 'vacio',
+    razon:
+      'Se monta sólo con la sesión que se acaba de cerrar, y una sesión cerrada siempre tiene corte: encabezado, arqueo y firmas. No hay lista que pueda llegar vacía; lo que falta dentro se omite sección por sección (C.6 de la 2.4).',
+  },
+  {
+    pantalla: 'corte/HojaDelCorte',
+    estado: 'vacio',
+    razon:
+      'Es el DOCUMENTO impreso, no una pantalla: recibe el corte ya armado por props y siempre lleva encabezado, arqueo y firmas. Sus tablas vacías no se pintan («ninguna sección en cero», §9.4 de cada giro).',
+  },
+  {
+    pantalla: 'corte/HojaDelCorte',
+    estado: 'cargando',
+    razon:
+      'Es el DOCUMENTO impreso: no lee nada, se pinta fuera de pantalla con el corte que CorteEnPdf ya leyó, y es CorteEnPdf quien pinta el Esqueleto mientras lee.',
+  },
+  {
+    pantalla: 'corte/HojaDelCorte',
+    estado: 'error',
+    razon:
+      'Es el DOCUMENTO impreso: no tiene operación que falle. Si la lectura falla, CorteEnPdf pinta su Aviso y NO se genera archivo: un PDF con ceros guardado como corte es peor que ninguno.',
+  },
+  {
     pantalla: 'configuracion/SelectorDeApariencia',
     estado: 'cargando',
     razon:

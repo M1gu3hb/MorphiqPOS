@@ -54,6 +54,7 @@ export const UNIDADES_DEL_PUENTE = {
     dinero_dejado_en_caja: 'pesos',
     efectivo_contado: 'pesos',
     efectivo_inicial_contado: 'pesos',
+    efectivo_retirado: 'pesos',
     esperado_al_cerrar: 'pesos',
     fondo_esperado_apertura: 'pesos',
   },

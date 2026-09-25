@@ -362,6 +362,24 @@ const FERRETERIA: readonly EntradaDeMenu[] = [
     modulo: 'caja_directa',
     permiso: 'ver_caja',
   },
+  /**
+   * EL CAJÓN Y SU CORTE, heredados de abarrotes (§PANTALLA 9). No tenían dirección: la
+   * ferretería no podía abrir ni cerrar su caja desde el sistema (C.6 de la 2.4).
+   */
+  {
+    ruta: '/ferreteria/fondo-y-movimientos',
+    etiqueta: 'Fondo y movimientos',
+    icono: 'Landmark',
+    modulo: 'caja_directa',
+    permiso: 'ver_caja',
+  },
+  {
+    ruta: '/ferreteria/cortes',
+    etiqueta: 'Cortes',
+    icono: 'ClipboardCheck',
+    modulo: 'cortes',
+    permiso: 'ver_caja',
+  },
   {
     ruta: '/ferreteria/cotizacion',
     etiqueta: 'Cotización',
