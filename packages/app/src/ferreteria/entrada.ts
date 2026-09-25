@@ -61,6 +61,15 @@ export const entradaRecibirEntrada = z.object({
   dias: z.number().int().min(1).max(180).nullable().default(null),
   camino: z.enum(CAMINOS_DE_ENTRADA),
   lineas: z.array(lineaDeCompra).max(400).default([]),
+  /**
+   * La foto de la nota en papel, ya subida (`/api/archivos/subir`). Queda en las notas
+   * de la compra: es con lo que se concilia cuando el proveedor reclame. Sólo https.
+   */
+  fotoDeLaNota: z
+    .url({ protocol: /^https$/ })
+    .max(500)
+    .nullable()
+    .default(null),
 });
 
 export interface ResultadoEntrada {
@@ -162,7 +171,9 @@ export const recibirEntrada = definirComando<
       // que sigue en el cajón.
       ...(entrada.aCredito ? {} : { metodoPago: 'efectivo' as const }),
       ...(folio === null ? {} : { facturaFolio: folio }),
-      notas: `Entrada capturada por ${etiquetaDelCamino(entrada.camino)}`,
+      notas:
+        `Entrada capturada por ${etiquetaDelCamino(entrada.camino)}` +
+        (entrada.fotoDeLaNota === null ? '' : ` · foto de la nota: ${entrada.fotoDeLaNota}`),
     });
 
     if (!entrada.aCredito || folio === null) {

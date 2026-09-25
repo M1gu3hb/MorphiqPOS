@@ -263,6 +263,36 @@ export const SIN_ESTADO = [
       'Pieza de la liquidación: sin regla propia lo dice con palabras («manda la de cada servicio»), no con un vacío.',
   },
   {
+    pantalla: 'ferreteria/ImportarLaNota',
+    estado: 'vacio',
+    razon:
+      'Pieza de Entradas: un campo de archivo, sin lista propia; lo que el archivo propone lo pinta la nota de Entradas con su vacío.',
+  },
+  {
+    pantalla: 'ferreteria/ImportarLaNota',
+    estado: 'cargando',
+    razon:
+      'Mientras lee el archivo el campo se deshabilita con aria-busy: no hay lista que esperar, y lo propuesto aparece en la nota de Entradas.',
+  },
+  {
+    pantalla: 'ferreteria/ImportarLaNota',
+    estado: 'error',
+    razon:
+      'El fallo —columna que falta, filas ilegibles, respuesta del servidor— sube a Entradas por alFallar y se pinta en su Aviso de peligro.',
+  },
+  {
+    pantalla: 'ferreteria/ContraElPedido',
+    estado: 'cargando',
+    razon:
+      'Pieza de Entradas: recibe la sugerencia y las partidas ya leídas por Entradas, que tiene su esqueleto; no lee nada por su cuenta.',
+  },
+  {
+    pantalla: 'ferreteria/ContraElPedido',
+    estado: 'error',
+    razon:
+      'No hace ninguna lectura propia: el fallo de la sugerencia lo dice Entradas en su Aviso, y aquí queda el vacío que lo explica.',
+  },
+  {
     pantalla: 'configuracion/SelectorDeApariencia',
     estado: 'vacio',
     razon:

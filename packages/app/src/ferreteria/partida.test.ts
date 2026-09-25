@@ -102,6 +102,51 @@ describe('ferreteria.agregar_partida', () => {
     expect(salida.subtotalCentavos).toBe('1050');
   });
 
+  it('LA CAJA SE VENDE COMO CAJA: con su precio y su factor (F-147)', async () => {
+    // La ficha comparaba la caja y sólo dejaba vender piezas: ahora pasa la presentación.
+    const CAJA = 'c1111111-1111-4111-8111-111111111111';
+    const base = crearBaseFalsa(
+      {
+        productos: [piezaDeCatalogo()],
+        producto_presentaciones: [
+          {
+            id: CAJA,
+            organizacion_id: ORG,
+            producto_id: PIEZA,
+            nombre: 'Caja',
+            factor: '100.0000',
+            precio_venta_centavos: 30_000n,
+            codigo_barras: null,
+            activa: true,
+          },
+        ],
+        ordenes: [],
+        orden_lineas: [],
+      },
+      {
+        predeterminados: {
+          ordenes: { estado: 'borrador', total_centavos: 0n },
+          orden_lineas: {
+            descuento_centavos: 0n,
+            impuesto_centavos: 0n,
+            notas: null,
+            opciones: null,
+          },
+        },
+      },
+    );
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await agregarPartida.ejecutar(ctx, {
+      piezaId: PIEZA,
+      cantidad: '1',
+      presentacionId: CAJA,
+    });
+
+    // $300 la caja, no 100 × $3.50.
+    expect(salida.subtotalCentavos).toBe('30000');
+  });
+
   it('CON UNA VENTA YA ABIERTA usa ésa: no hay dos borradores por terminal', async () => {
     const base = baseDe([borradorAbierto()]);
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);

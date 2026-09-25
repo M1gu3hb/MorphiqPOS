@@ -92,6 +92,11 @@ export const lineaDeCompra = z
     costoTotal: importe,
     caducaEl: z.iso.date().optional(),
     notas: nota.optional(),
+    /**
+     * La clave con que EL PROVEEDOR llama a este material en su hoja. Es la memoria
+     * con que `compras.importar_nota` empareja la nota siguiente, exacta y primero.
+     */
+    claveProveedor: z.string().trim().min(1).max(60).optional(),
   })
   .refine(
     (linea) => (linea.insumoId === undefined) !== (linea.nuevo === undefined),

@@ -157,6 +157,22 @@ describe('F-106 + F-631 · recibir la nota', () => {
     expect(base.campo('caducidades', 'cantidad')).toBe('24.0000');
   });
 
+  it('LA CLAVE DEL PROVEEDOR queda en la línea: es la memoria de la nota siguiente', async () => {
+    // `compras.importar_nota` empareja primero por la clave que ya se vio con ese
+    // proveedor, leyéndola de `compra_lineas.clave_proveedor`. Nadie la escribía: la
+    // memoria no crecía nunca y la segunda nota volvía a casar por nombre.
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await recibirNota.ejecutar(ctx, {
+      almacenId: ALMACEN,
+      proveedorId: PROVEEDOR,
+      lineas: [linea({ claveProveedor: 'LALA-1L-12' })],
+    });
+
+    expect(base.campo('compra_lineas', 'clave_proveedor')).toBe('LALA-1L-12');
+  });
+
   it('LA CADUCIDAD ES OPCIONAL POR LÍNEA', async () => {
     // El pan no caduca, y obligar a contestar los doce renglones hace que se
     // conteste cualquier cosa.

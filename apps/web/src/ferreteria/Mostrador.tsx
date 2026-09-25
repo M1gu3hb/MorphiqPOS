@@ -14,7 +14,7 @@ import {
   Vacio,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
-import { ChevronDown, ChevronUp, MapPin, Minus, Plus, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Maximize2, MapPin, Minus, Plus, Search, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 
@@ -22,6 +22,14 @@ import { consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { buscar, cercanas, normalizar, type MaterialDeMostrador } from './buscar-material';
 import { useVocabulario } from '~/cliente/vocabulario';
+import {
+  claveDePartida,
+  guardarLaNota,
+  leerLaNota,
+  sumarPartida,
+  tomarLoDeLaFicha,
+  type PresentacionElegida,
+} from './nota-del-mostrador.ts';
 
 /**
  * PANTALLA · ferreteria · mostrador
@@ -54,9 +62,14 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ms no hay nada que anunciar. El esqueleto es sólo para la HIDRATACIÓN del
  * índice, que sí cruza la red, y una sola vez.
  *
+ * ── La nota sobrevive a ir y volver, y la ficha le agrega (C.10 de la 2.4) ─
+ * F5 abre la ficha de la pieza que se está viendo; lo que ahí se agrega —la caja con
+ * su precio, o piezas— vuelve a esta nota, que vive en la pestaña y no se pierde al ir
+ * a la ficha, al corte o al alta (`nota-del-mostrador.ts`).
+ *
  * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
- * Quedan FUERA, cada una en su pantalla: el corte de material (F6), la ficha con
- * foto (F5), la cotización (F8), suspender (F9) y el diálogo de PIN sobre el
+ * Quedan FUERA, cada una en su pantalla: el corte de material (F6), la cotización
+ * (F8), suspender (F9), elegir al cliente de crédito y la llave del dueño sobre el
  * límite. La equivalencia real (F-060) sale de `equivalencias`; mientras no
  * exista, cero resultados aproxima por familia y lo dice en la pantalla.
  */
@@ -104,6 +117,13 @@ export interface MostradorProps {
 interface Partida {
   readonly material: MaterialDeMostrador;
   readonly cantidad: number;
+  /** La caja que la ficha eligió, o nulo: la pieza suelta. */
+  readonly presentacion: PresentacionElegida | null;
+}
+
+/** Su clave: la misma pieza suelta y en caja son dos renglones. */
+function claveDe(partida: Partida): string {
+  return claveDePartida(partida.material.id, partida.presentacion);
 }
 
 /**
@@ -124,6 +144,30 @@ interface ResultadoNotaMostrador {
  */
 function precioDe(m: MaterialDeMostrador): number {
   return centavosDe('MaterialMostrador', 'precioCentavos', m.precioCentavos) ?? 0;
+}
+
+/** Cómo se dice la pieza en el botón de su ficha: su medida o, sin ella, su nombre. */
+function nombreParaLaFicha(material: MaterialDeMostrador | undefined): string {
+  if (material === undefined) return 'la pieza';
+  return material.medida.trim() === '' ? material.nombre : material.medida;
+}
+
+/** La nota guardada en la pestaña más lo que dejó la ficha, contra el catálogo. */
+function partidasRecuperadas(catalogo: readonly MaterialDeMostrador[]): Partida[] {
+  const deLaFicha = tomarLoDeLaFicha();
+  const guardadas = deLaFicha === null ? leerLaNota() : sumarPartida(leerLaNota(), deLaFicha);
+  const porId = new Map(catalogo.map((m) => [m.id, m]));
+  return guardadas.flatMap((g): Partida[] => {
+    const material = porId.get(g.productoId);
+    return material === undefined
+      ? []
+      : [{ material, cantidad: g.cantidad, presentacion: g.presentacion }];
+  });
+}
+
+/** El precio de un renglón: el de su caja, si es una; si no, el de la pieza. */
+function precioDeLaPartida(p: Partida): number {
+  return p.presentacion === null ? precioDe(p.material) : (p.presentacion.precioCentavos ?? 0);
 }
 
 /** Las columnas de un resultado. Cada una se gana su lugar (`04-INTERFAZ` §1). */
@@ -205,7 +249,15 @@ export function Mostrador({
     // precio y existencia EN VIVO, y los atributos con su valor original.
     consultarPuente<MaterialDeMostrador>('MaterialMostrador', { limite: 6000 })
       .then((leidas) => {
-        if (vivo) setFilas(leidas);
+        if (!vivo) return;
+        setFilas(leidas);
+        // LA NOTA QUE YA IBA y lo que la ficha dejó, en cuanto hay catálogo contra el
+        // cual reconocerlos. Una sola vez: después, la nota la lleva esta pantalla.
+        if (!rehidratada.current) {
+          rehidratada.current = true;
+          const recuperadas = partidasRecuperadas(leidas);
+          if (recuperadas.length > 0) setPartidas(recuperadas);
+        }
       })
       .catch((fallo: unknown) => {
         if (vivo)
@@ -216,6 +268,19 @@ export function Mostrador({
     };
   }, [filasIniciales, intento]);
 
+  /** Hasta que la nota guardada se recupera, no se guarda nada: se pisaría con vacío. */
+  const rehidratada = useRef(false);
+  useEffect(() => {
+    if (!rehidratada.current) return;
+    guardarLaNota(
+      partidas.map((p) => ({
+        productoId: p.material.id,
+        cantidad: p.cantidad,
+        presentacion: p.presentacion,
+      })),
+    );
+  }, [partidas]);
+
   const palabras = useMemo(
     () =>
       normalizar(consulta)
@@ -224,7 +289,7 @@ export function Mostrador({
     [consulta],
   );
   const resultados = useMemo(() => buscar(filas ?? [], palabras), [filas, palabras]);
-  const total = partidas.reduce((suma, p) => suma + precioDe(p.material) * p.cantidad, 0);
+  const total = partidas.reduce((suma, p) => suma + precioDeLaPartida(p) * p.cantidad, 0);
   const sobreLimite = cliente !== null && cliente.saldoCentavos > cliente.limiteCentavos;
   const columnas = useMemo(() => columnasDeResultado(voc.titulo('producto')), [voc]);
 
@@ -250,28 +315,42 @@ export function Mostrador({
   }, [consulta]);
 
   function agregar(material: MaterialDeMostrador): void {
+    // Desde la tabla se agrega la pieza SUELTA; la caja llega desde la ficha.
+    const clave = claveDePartida(material.id, null);
     setPartidas((actuales) =>
-      actuales.some((p) => p.material.id === material.id)
-        ? actuales.map((p) =>
-            p.material.id === material.id ? { ...p, cantidad: p.cantidad + 1 } : p,
-          )
-        : [...actuales, { material, cantidad: 1 }],
+      actuales.some((p) => claveDe(p) === clave)
+        ? actuales.map((p) => (claveDe(p) === clave ? { ...p, cantidad: p.cantidad + 1 } : p))
+        : [...actuales, { material, cantidad: 1, presentacion: null }],
     );
   }
 
-  function cambiarCantidad(id: string, paso: number): void {
+  function cambiarCantidad(clave: string, paso: number): void {
     setPartidas((actuales) =>
       actuales
-        .map((p) => (p.material.id === id ? { ...p, cantidad: p.cantidad + paso } : p))
+        .map((p) => (claveDe(p) === clave ? { ...p, cantidad: p.cantidad + paso } : p))
         .filter((p) => p.cantidad > 0),
     );
+  }
+
+  /**
+   * F5 · LA FICHA de la pieza que se está viendo: el primer resultado, o la última
+   * partida si no se está buscando. La nota se queda: vive en la pestaña.
+   */
+  function abrirLaFicha(): void {
+    const pieza = resultados[0] ?? partidas.at(-1)?.material;
+    if (pieza === undefined) return;
+    enrutador.push(`/ferreteria/ficha-de-pieza?pieza=${encodeURIComponent(pieza.id)}`);
   }
 
   /** Crear la nota: el primer paso de las dos salidas del mostrador. */
   async function crearLaNota(): Promise<ResultadoNotaMostrador> {
     return invocarComando<ResultadoNotaMostrador>('/api/venta/mandar-a-caja', {
       clienteId: cliente?.id ?? null,
-      partidas: partidas.map((p) => ({ productoId: p.material.id, cantidad: p.cantidad })),
+      partidas: partidas.map((p) => ({
+        productoId: p.material.id,
+        cantidad: p.cantidad,
+        ...(p.presentacion === null ? {} : { presentacionId: p.presentacion.id }),
+      })),
     });
   }
 
@@ -322,6 +401,12 @@ export function Mostrador({
    * que se anuncia y no responde es un botón muerto.
    */
   const alTeclearFuncion = useEffectEvent((evento: KeyboardEvent) => {
+    if (evento.key === 'F5') {
+      // F5 del navegador recarga; aquí abre la ficha, como dice su botón.
+      evento.preventDefault();
+      abrirLaFicha();
+      return;
+    }
     if (evento.key !== 'F12' && evento.key !== 'F11') return;
     evento.preventDefault();
     if (enviando || partidas.length === 0) return;
@@ -346,8 +431,12 @@ export function Mostrador({
             {p.material.nombre} {p.material.medida}
           </span>
           <span className="text-xs text-texto-sutil">
-            <Cifra valor={p.cantidad} unidad={p.material.unidad} tamano="xs" /> ×{' '}
-            <Dinero centavos={precioDe(p.material)} tamano="xs" />
+            <Cifra
+              valor={p.cantidad}
+              unidad={p.presentacion?.etiqueta ?? p.material.unidad}
+              tamano="xs"
+            />{' '}
+            × <Dinero centavos={precioDeLaPartida(p)} tamano="xs" />
           </span>
         </span>
       ),
@@ -356,7 +445,7 @@ export function Mostrador({
       clave: 'importe',
       titulo: 'Importe',
       numerica: true,
-      celda: (p) => <Dinero centavos={precioDe(p.material) * p.cantidad} tamano="sm" />,
+      celda: (p) => <Dinero centavos={precioDeLaPartida(p) * p.cantidad} tamano="sm" />,
     },
     {
       clave: 'acciones',
@@ -369,7 +458,7 @@ export function Mostrador({
             variant="outline"
             aria-label={`Quitar una pieza de ${p.material.nombre}`}
             onClick={() => {
-              cambiarCantidad(p.material.id, -1);
+              cambiarCantidad(claveDe(p), -1);
             }}
           >
             <Minus />
@@ -380,7 +469,7 @@ export function Mostrador({
             variant="outline"
             aria-label={`Agregar una pieza de ${p.material.nombre}`}
             onClick={() => {
-              cambiarCantidad(p.material.id, 1);
+              cambiarCantidad(claveDe(p), 1);
             }}
           >
             <Plus />
@@ -391,7 +480,7 @@ export function Mostrador({
             variant="ghost"
             aria-label={`Quitar la partida ${p.material.nombre}`}
             onClick={() => {
-              cambiarCantidad(p.material.id, -p.cantidad);
+              cambiarCantidad(claveDe(p), -p.cantidad);
             }}
           >
             <X />
@@ -501,21 +590,29 @@ export function Mostrador({
       );
     }
     return (
-      <TablaAdaptable
-        etiqueta="Resultados"
-        principal="material"
-        columnas={columnas}
-        filas={resultados}
-        claveDe={(m) => m.id}
-        alActivar={(id) => {
-          const material = resultados.find((m) => m.id === id);
-          if (material !== undefined) agregar(material);
-        }}
-        // Se atenúa, pero NO se esconde: saber que el material existe aunque no
-        // haya permite decir «te lo pido para el jueves», que es una venta.
-        tonoDeFila={(m) => (m.existencia <= 0 ? 'tenue' : undefined)}
-        alto="max-h-[65vh]"
-      />
+      <>
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={abrirLaFicha}>
+            <Maximize2 aria-hidden="true" />
+            Ficha de {nombreParaLaFicha(resultados[0])} · F5
+          </Button>
+        </div>
+        <TablaAdaptable
+          etiqueta="Resultados"
+          principal="material"
+          columnas={columnas}
+          filas={resultados}
+          claveDe={(m) => m.id}
+          alActivar={(id) => {
+            const material = resultados.find((m) => m.id === id);
+            if (material !== undefined) agregar(material);
+          }}
+          // Se atenúa, pero NO se esconde: saber que el material existe aunque no
+          // haya permite decir «te lo pido para el jueves», que es una venta.
+          tonoDeFila={(m) => (m.existencia <= 0 ? 'tenue' : undefined)}
+          alto="max-h-[65vh]"
+        />
+      </>
     );
   })();
 
@@ -641,7 +738,7 @@ export function Mostrador({
           etiqueta={`Partidas de ${voc.conArticulo('orden').toLowerCase()}`}
           columnas={columnasDeLaNota}
           filas={partidas}
-          claveDe={(p) => p.material.id}
+          claveDe={claveDe}
           alto="max-h-[40vh]"
           vacio={
             <Vacio

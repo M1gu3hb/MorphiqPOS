@@ -6176,3 +6176,48 @@ sin volver a la agenda: «Al agendar no se volvió a la agenda.»). Mutando los 
 cliente sobrevivió una: la guarda de «dentro de un campo no se roba la tecla» usaba `instanceof
 HTMLElement`, que en Node no existe, así que ESC dentro de un campo no lo veía ninguna prueba; ahora
 mira la forma del elemento y se prueba. `verify:pendientes`: quedan 9 (ferretería 8, restaurante 1).
+
+## 25-09-2026 · Etapa 2.4 · C.10 (4 de 5) · ferretería, primera tanda: la nota del proveedor y la ficha
+
+**Entradas, sin nada recortado:**
+- **El archivo de la nota.** La cabecera decía que subirlo «necesita multipart». No: se LEE en el
+  navegador —el CSV del proveedor o el de su hoja de cálculo, con coma o punto y coma, coma decimal y
+  BOM— y viajan renglones a `compras.importar_nota`. Lo que casó entra como partida (lo que casó por
+  NOMBRE, marcado y con «No es»); lo que no, queda sin emparejar.
+- **El alta ahora mete el renglón a la nota.** Antes lo quitaba de «sin emparejar» y ya: el material
+  nacía en el catálogo y la entrada se guardaba SIN él.
+- **Lo pedido contra lo que llegó**, con lo que no llegó primero; el kardex de cada partida a un
+  toque; Enter para el siguiente renglón.
+- **La foto del teléfono no hacía nada** (un `<input type=file>` sin `onChange`): ahora se sube y
+  queda en las notas de la compra.
+
+**Lo que destapó construirlo, cada uno con su prueba vista en rojo:**
+- `compras.importar_nota` devolvía como «producto» lo que en el camino de la clave era un INSUMO, no
+  decía a qué insumo entraba la nota (sin eso no se puede guardar), comparaba el costo de la CAJA
+  contra el de la PIEZA —toda caja salía como subida fuerte de miles por ciento— y redondeaba la
+  cantidad a entero en el total (12.5 m se cobraban como 13).
+- **La clave del proveedor no se guardaba nunca** en `compra_lineas`: la «memoria» que empareja la
+  nota siguiente por su camino exacto no crecía. `lineaDeCompra` la acepta y la línea la escribe.
+- `compras.recibir_entrada` no tenía ninguna prueba: ahora seis.
+
+**La ficha de la pieza:** la foto se sube de verdad (decía «se sube cuando se guarde» y no se subía
+nunca) y se ata con `catalogo.foto_mostrador`; la caja se vende como caja (`agregar_partida` y la nota
+del mostrador aceptan la presentación, F-147). Y dos cosas más graves: la ficha **sólo se abría desde
+el menú y en la primera pieza del catálogo** (la página nunca leía qué pieza), y su **AGREGAR A LA
+VENTA escribía una venta del servidor que ninguna pantalla enseñaba**. Ahora F5 en el mostrador abre
+la de la pieza que se busca, y agregar la deja en la nota del mostrador, que vive en la pestaña y
+sobrevive a ir y volver (el comentario del alta decía que las partidas «siguen ahí al volver»: no
+seguían).
+
+**Facturación:** el timbrado, la cancelación y el complemento son del PAC (§10.3); la cabecera ya no
+dice «recortado» sino dónde está cada uno en EXCEPCIONES.
+
+Decisiones: D-24.
+
+**Estado:** e2e de ferretería en verde con el archivo de la nota (CSV de Excel en español, un
+renglón casado por nombre, uno dado de alta que ENTRA, total al centavo y las dos claves guardadas) y
+con la ficha desde el mostrador (F5, agregar, volver y recargar); en ROJO con la ficha dejando otra
+pieza («Lo agregado desde la ficha no llegó a la nota del mostrador.»). La tienda, que comparte la
+compra, sigue en verde. Un tropiezo del e2e, dicho: F5 se presionaba antes de que React pintara los
+resultados; ahora espera la búsqueda pintada, no un tiempo. `verify:pendientes`: quedan 6 (Material,
+Mostrador, TrabajosDeMostrador, Cuentas, CorteDeMaterial y el portal del comensal).

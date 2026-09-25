@@ -566,6 +566,42 @@ comando.
 10. **La orden que nace pagada nace en su caja.** Todo comando que inserte una orden ya cobrada
     escribe `sesion_caja_id` y `terminal_id`: el corte lee sus ventas por esa columna.
 
+## D-24 · 25-09-2026 · La nota del proveedor se lee en el navegador; la del mostrador vive en la pestaña
+
+**Contexto.** C.10 de la 2.4, primera tanda de ferretería: Entradas, Facturación y la ficha de la
+pieza. Entradas decía que subir el archivo «necesita multipart» y no lo hacía; el comparativo contra
+pedido sólo se elegía; el alta de un renglón sin emparejar lo sacaba de la nota; la ficha no subía la
+foto, no vendía la caja, sólo se abría en la primera pieza del catálogo y su AGREGAR escribía una
+venta que ninguna pantalla enseñaba.
+
+**Decisión.**
+
+1. **El archivo de la nota se lee en el NAVEGADOR** (CSV: coma, punto y coma o tabulador, coma
+   decimal, BOM; columnas por su nombre) y viajan RENGLONES a `compras.importar_nota`. No hay subida
+   de archivo: no hace falta. El servidor valida otra vez y PROPONE; guardar sigue siendo
+   `compras.recibir_entrada`, con todo a la vista.
+2. **`compras.importar_nota` devuelve el INSUMO al que entra la nota** (por la liga de reventa,
+   D-23.9) y su presentación de compra; compara el costo POR UNIDAD BASE —la hoja cobra la caja, el
+   insumo cuesta la pieza— y trae el precio que conserva el margen, calculado por el servidor. El
+   total respeta la cantidad con decimales.
+3. **La clave del proveedor se guarda en cada línea de compra** (`lineaDeCompra.claveProveedor`):
+   es la memoria con que la nota siguiente casa sola, y nadie la escribía.
+4. **El alta de un renglón sin emparejar es la rápida y ENTRA a la nota** con la cantidad y el costo
+   de la hoja; nace por pieza. El alta completa —categoría, precio, presentación— sigue en el
+   catálogo, en la lista de pendientes: con el repartidor esperando nadie contesta ocho campos.
+5. **«Contra pedido» es contra la sugerencia de hoy**: el sistema no lleva pedidos en tránsito. Lo
+   que no llegó va primero, para reclamarlo antes de firmar.
+6. **La foto de la nota en papel** se sube (sólo quien administra sube archivos) y queda en las notas
+   de la compra, sólo por https.
+7. **La ficha agrega a la NOTA DEL MOSTRADOR**, no a una venta del servidor: le deja al mostrador la
+   pieza, la cantidad y la presentación y vuelve a él. La presentación la valora el servidor al
+   mandar la nota a caja (`crear_nota_mostrador` acepta `presentacionId`, F-147).
+8. **La nota del mostrador vive en la pestaña** (`sessionStorage`): sobrevive a ir a la ficha, al
+   corte o al alta, y se borra al cerrar la pestaña. Es comodidad del mostradorista, no un registro:
+   lo que se cobra lo valora el servidor.
+9. **Facturación no timbra**: el timbrado, la cancelación, el complemento y la factura agrupada son
+   del PAC (§10.3) y están en EXCEPCIONES con su motivo. La pantalla lo dice.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

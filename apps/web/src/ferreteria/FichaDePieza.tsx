@@ -19,9 +19,11 @@ import { Camera, Check, MapPin, Plus, ZoomIn } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { ErrorApi, consultarPuente, invocarComando, subirImagen } from '~/cliente/api';
 import { centavosDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import { dejarParaElMostrador, precioPorFactor } from './nota-del-mostrador.ts';
 
 /**
  * PANTALLA · ferreteria · ficha-de-pieza
@@ -57,16 +59,19 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * se toca es la unidad que se vende: la misma elección que el grupo de la barra
  * de abajo, que sigue siendo la que se alcanza con el pulgar en el pasillo.
  *
- * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
- * Caben la foto, la medida, los atributos, existencia, ubicación, precios por
- * unidad, equivalentes con su alta, «va con», «se usa en», historial del
- * cliente y AGREGAR A LA VENTA. Quedan FUERA el corte de material (tiene
- * pantalla propia) y la SUBIDA de la foto —`invocarComando` manda JSON y una
- * imagen necesita multipart—, así que el botón de cámara deja la foto elegida
- * y lo dice, en vez de fingir que subió. Y queda fuera AGREGAR una presentación
- * que no es la base: `ferreteria.agregar_partida` vende en la unidad base del
- * producto y a SU precio —su `unidad` es una medida («pieza», «kg»), no una
- * presentación—, así que la caja se compara aquí pero no se agrega, y se dice.
+ * ── La foto se SUBE, y la caja se VENDE como caja (C.10 de la 2.4) ───────
+ * La cámara decía «se sube cuando se guarde la pieza» y no se subía nunca: ahora
+ * sube la imagen (`subirImagen`, sólo quien administra puede) y la ata a la pieza
+ * (`catalogo.foto_mostrador`, que no toca la ubicación). Y la presentación que no
+ * es la base se agrega con su precio y su factor: `ferreteria.agregar_partida`
+ * pasa la presentación a la venta (F-147), la línea dice «1 caja (500 pz)» y
+ * descuenta 500. El corte de material sigue en su pantalla (F6 del mostrador).
+ *
+ * ── Y «agregar» es a la NOTA DEL MOSTRADOR ────────────────────────────────
+ * Escribía una venta del servidor (`ferreteria.agregar_partida`) que ninguna pantalla
+ * enseñaba: lo agregado desde la ficha no aparecía en la nota del mostrador ni en la
+ * caja. Ahora se le deja al mostrador —la pieza, la cantidad y la presentación— y se
+ * vuelve a él, que es donde la nota se manda a caja (`nota-del-mostrador.ts`).
  */
 
 /** Una forma de vender la misma pieza: «pieza», «kilo (≈91 pz)», «caja 500». */
@@ -80,6 +85,8 @@ export interface UnidadDeVenta {
   readonly precioCentavos: number | null;
   /** La unidad en que se lleva la existencia: la que el mostrador cobra por omisión. */
   readonly esBase: boolean;
+  /** Cuántas de la base trae: 100 en la caja. Con él se enseña su precio si no tiene. */
+  readonly factor?: number | null;
 }
 
 export interface EquivalenteDeFicha {
@@ -158,6 +165,7 @@ export function comoFicha(fila: FilaDelPuente): PiezaDeFicha {
       // Sin precio propio es «—», no $0.00: la base lo deriva por factor.
       precioCentavos: centavosDelPuente(u.precio_venta_centavos),
       esBase: u.es_base === true,
+      factor: u.factor,
     })),
     // `sustituto` REEMPLAZA y `complemento` ACOMPAÑA: son dos listas distintas
     // porque ofrecer una llave a quien pide teflón es ruido en el mostrador.
@@ -205,7 +213,7 @@ interface FalloDeComando {
   readonly queNo: string;
 }
 
-const NO_SE_AGREGO = 'No se agregó nada a la venta.';
+const NO_SE_AGREGO = 'No se agregó nada a la nota.';
 const NO_SE_GUARDO = 'El equivalente no se guardó.';
 
 /** El rótulo de un bloque —HAY, DÓNDE, MEDIDA—: chico, en versales, siempre igual. */
@@ -281,7 +289,8 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
   const [unidad, setUnidad] = useState<string | null>(null);
   const [propuesta, setPropuesta] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const [fotoElegida, setFotoElegida] = useState<string | null>(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [fotoGuardada, setFotoGuardada] = useState(false);
 
   useEffect(() => {
     if (piezaInicial !== undefined) return;
@@ -351,14 +360,49 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
       setFallo({ que: 'Pon una cantidad mayor que cero.', queNo: NO_SE_AGREGO });
       return;
     }
-    // La cantidad va como TEXTO: quien convierte cantidades es el servidor, y un
-    // `number` de JavaScript no representa 0.1 sin error. Y SIN `unidad`: el
-    // comando vende en la unidad base del producto —la que se elige aquí—, y su
-    // `unidad` es una medida («pieza», «kg»), no la clave de una presentación.
-    const entrada = { piezaId: pieza.id, cantidad: String(piezas) };
-    void enviar('/api/ferreteria/agregar-partida', entrada, NO_SE_AGREGO, () => {
-      onAgregar?.(pieza.id, piezas, elegida?.clave ?? '');
-    });
+    // Lo que no es la base viaja como PRESENTACIÓN: el servidor la valora con su
+    // precio y su factor al mandar la nota a caja (F-147). Su precio, para que el
+    // mostrador enseñe el total mientras se arma: el suyo, o factor × el de la pieza.
+    const base = pieza.unidades.find((u) => u.esBase) ?? pieza.unidades[0];
+    const presentacion =
+      elegida === undefined || elegida.esBase
+        ? null
+        : {
+            id: elegida.clave,
+            etiqueta: elegida.etiqueta,
+            precioCentavos:
+              elegida.precioCentavos ??
+              (base?.precioCentavos == null || elegida.factor == null
+                ? null
+                : precioPorFactor(base.precioCentavos, elegida.factor)),
+          };
+    dejarParaElMostrador({ productoId: pieza.id, cantidad: piezas, presentacion });
+    onAgregar?.(pieza.id, piezas, elegida?.clave ?? '');
+    enrutador.push('/ferreteria/mostrador');
+  }
+
+  /** La foto: se sube y se ata a la pieza. Quien no puede subir, lo lee dicho. */
+  async function subirLaFoto(archivo: File): Promise<void> {
+    if (pieza === null) return;
+    setSubiendoFoto(true);
+    setFotoGuardada(false);
+    setFallo(null);
+    try {
+      const url = await subirImagen(archivo);
+      await invocarComando('/api/catalogo/foto-mostrador', { productoId: pieza.id, url });
+      setPieza({ ...pieza, fotoUrl: url });
+      setFotoGuardada(true);
+    } catch (error) {
+      setFallo({
+        que:
+          error instanceof ErrorApi && error.estado === 403
+            ? 'Tu usuario no puede subir fotos: la sube quien administra.'
+            : mensajeDe(error),
+        queNo: 'La foto no se guardó.',
+      });
+    } finally {
+      setSubiendoFoto(false);
+    }
   }
 
   function declararEquivalente(): void {
@@ -477,7 +521,6 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
    */
   const base = pieza.unidades.find((u) => u.esBase) ?? pieza.unidades[0];
   const elegida = pieza.unidades.find((u) => u.clave === unidad) ?? base;
-  const seAgregaAqui = elegida === undefined || elegida.clave === base?.clave;
   const pedidas = Number.parseInt(cantidad, 10);
   const precio = elegida?.precioCentavos ?? null;
   const importe = precio === null ? null : precio * (Number.isFinite(pedidas) ? pedidas : 0);
@@ -520,8 +563,10 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
                 accept="image/*"
                 capture="environment"
                 className="sr-only"
+                disabled={subiendoFoto}
                 onChange={(evento) => {
-                  setFotoElegida(evento.target.files?.[0]?.name ?? null);
+                  const archivo = evento.target.files?.[0];
+                  if (archivo !== undefined) void subirLaFoto(archivo);
                 }}
               />
             </Superficie>
@@ -539,12 +584,36 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
               {null}
             </Superficie>
           )}
-          {fotoElegida !== null && (
-            <p className="inline-flex items-center gap-(--espacio-1) text-xs text-texto-sutil">
-              <Check aria-hidden="true" className="size-4 shrink-0" />
-              Foto lista: {fotoElegida} · se sube cuando se guarde la pieza.
-            </p>
+          {pieza.fotoUrl === null ? null : (
+            // Cambiarla: la de hoy puede estar movida o sin la moneda.
+            <label className="inline-flex cursor-pointer items-center gap-(--espacio-1) text-xs font-medium text-primario focus-within:underline">
+              <Camera aria-hidden="true" className="size-4 shrink-0" />
+              Cambiar la foto
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                disabled={subiendoFoto}
+                onChange={(evento) => {
+                  const archivo = evento.target.files?.[0];
+                  if (archivo !== undefined) void subirLaFoto(archivo);
+                }}
+              />
+            </label>
           )}
+          <p
+            role="status"
+            className="inline-flex items-center gap-(--espacio-1) text-xs text-texto-sutil"
+          >
+            {subiendoFoto ? 'Subiendo la foto…' : null}
+            {fotoGuardada && !subiendoFoto ? (
+              <>
+                <Check aria-hidden="true" className="size-4 shrink-0" />
+                Foto guardada en la pieza.
+              </>
+            ) : null}
+          </p>
         </section>
 
         <section aria-label="Medida y atributos" className="flex flex-col gap-(--espacio-3)">
@@ -762,23 +831,15 @@ export function FichaDePieza({ piezaInicial, piezaId, onAgregar }: FichaDePiezaP
           type="button"
           size="lg"
           className="w-full justify-between gap-(--espacio-3) sm:ml-auto sm:w-auto"
-          disabled={enviando || !seAgregaAqui}
+          disabled={enviando}
           cargando={enviando}
-          aria-describedby={seAgregaAqui ? undefined : 'no-se-agrega-aqui'}
           onClick={() => {
             agregarALaVenta(elegida);
           }}
         >
-          <span>{enviando ? 'Agregando…' : 'AGREGAR A LA VENTA'}</span>
+          <span>AGREGAR A LA NOTA</span>
           {importe === null ? null : <Dinero centavos={importe} />}
         </Button>
-        {seAgregaAqui || base === undefined ? null : (
-          // El botón no promete lo que el comando no hace: vender la caja a precio
-          // de caja. Se compara arriba; se agrega en la unidad base.
-          <p id="no-se-agrega-aqui" className="basis-full text-texto-sutil">
-            {`«${elegida.etiqueta}» todavía no se agrega desde la ficha: aquí se vende por «${base.etiqueta}».`}
-          </p>
-        )}
       </Superficie>
     </article>
   );

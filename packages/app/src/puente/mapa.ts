@@ -3193,6 +3193,9 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
       fecha_caducidad: { columna: 'caduca_el', conversion: 'dia', escribible: false },
+      // La clave con que EL PROVEEDOR llama al material en su hoja: la memoria con que
+      // `compras.importar_nota` empareja sola la nota siguiente (C.10 de la 2.4).
+      clave_proveedor: { columna: 'clave_proveedor', conversion: 'texto', escribible: false },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
     },
   },

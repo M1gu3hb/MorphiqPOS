@@ -74,12 +74,36 @@ export interface RenglonEmparejado {
   readonly costoUnitarioCentavos: string;
   /** `null` cuando no casó con nada: hay que darlo de alta o elegirlo a mano. */
   readonly productoId: string | null;
+  /**
+   * El insumo que lleva la existencia de ese producto: es A LO QUE ENTRA la nota
+   * (`compras.recibir_entrada` recibe insumos). `null` si no casó, o si casó con un
+   * producto que no lleva existencia —un servicio—, que tampoco puede recibirse.
+   */
+  readonly insumoId: string | null;
+  /**
+   * La presentación en que se le compra ese insumo —«caja»— y cuántas unidades
+   * base trae UNA. Sin ella «3» no dice si entraron 3 piezas o 3 cajas de 100. Si
+   * el insumo no tiene presentación de compra, su unidad base y «1».
+   */
+  readonly unidadCompra: string | null;
+  readonly equivalencia: string | null;
   /** `clave` · `codigo` · `nombre` · `ninguno`. Dice POR QUÉ casó. */
   readonly porQue: string;
   /** `true` sólo cuando casó por nombre: es el único camino que se equivoca. */
   readonly dudoso: boolean;
-  /** Cuánto se movió el costo contra el último conocido, en puntos base. */
+  /** El nombre EN EL CATÁLOGO: lo que casó por nombre se revisa contra esto. */
+  readonly productoNombre: string | null;
+  /**
+   * Cuánto se movió el costo POR UNIDAD BASE contra el del insumo, en puntos base.
+   * La hoja cobra por caja y el insumo cuesta por pieza: se comparan por pieza.
+   */
   readonly variacionCostoBp: number | null;
+  /** El costo por unidad base: el de hoy y el de esta nota. En centavos. */
+  readonly costoAnteriorCentavos: string | null;
+  readonly costoNuevoCentavos: string | null;
+  /** El precio de venta de hoy y, si subió el costo, el que conserva el margen. */
+  readonly precioVentaCentavos: string | null;
+  readonly precioSugeridoCentavos: string | null;
 }
 
 export interface ResultadoImportacion {
@@ -129,14 +153,38 @@ export const importarNotaDeProveedor = definirComando<
     const catalogo = await ctx.paso('leer_catalogo', () =>
       ctx.tx
         .selectFrom('productos')
-        .select(['id', 'nombre', 'sku', 'codigo_barras', 'costo_unitario_centavos'])
+        .select(['id', 'nombre', 'sku', 'codigo_barras', 'precio_venta_centavos', 'insumo_base_id'])
         .where('organizacion_id', '=', organizacionId)
         .where('activo', '=', true)
         .execute(),
     );
 
+    // EL INSUMO DE CADA PRODUCTO: el que lleva su existencia y al que entra la nota.
+    // Manda la liga de reventa (`insumos.producto_id`, la del alta y la de la venta) y,
+    // sin ella, la de consumo (`insumo_base_id`). Se leen todas las del negocio de una
+    // vez: el catálogo de una ferretería no cabe en un `in (...)`.
+    const ligas = await ctx.paso('leer_ligas', () =>
+      ctx.tx
+        .selectFrom('insumos')
+        .select(['id', 'producto_id'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('producto_id', 'is not', null)
+        .execute(),
+    );
+    const deReventa = new Map<string, string>();
+    for (const liga of ligas)
+      if (liga.producto_id !== null) deReventa.set(liga.producto_id, liga.id);
+    const insumoDe = (producto: (typeof catalogo)[number]): string | null =>
+      deReventa.get(producto.id) ?? producto.insumo_base_id;
+
     const porCodigo = new Map<string, (typeof catalogo)[number]>();
+    // La memoria de claves guarda INSUMOS (es lo que entra en `compra_lineas`); de
+    // vuelta al producto se llega por su insumo. Antes se devolvía el insumo como si
+    // fuera el producto, y la pantalla no podía distinguirlos.
+    const productoPorInsumo = new Map<string, (typeof catalogo)[number]>();
     for (const producto of catalogo) {
+      const insumo = insumoDe(producto);
+      if (insumo !== null) productoPorInsumo.set(insumo, producto);
       if (producto.codigo_barras !== null) porCodigo.set(producto.codigo_barras, producto);
       // El SKU interno entra al mismo mapa: media ferretería se escanea por el
       // código que imprimió el negocio, y la hoja del proveedor a veces lo trae
@@ -183,18 +231,24 @@ export const importarNotaDeProveedor = definirComando<
 
     let emparejados = 0;
     let dudosos = 0;
-    let subidasFuertes = 0;
     let total = 0n;
 
-    const renglones: RenglonEmparejado[] = entrada.renglones.map((renglon, indice) => {
-      total += BigInt(renglon.costoUnitarioCentavos) * BigInt(Math.round(Number(renglon.cantidad)));
+    const emparejadosSinPresentacion = entrada.renglones.map((renglon, indice) => {
+      total += importeDelRenglon(renglon.costoUnitarioCentavos, renglon.cantidad);
 
       // 1 · La clave del proveedor. Exacta, y la única que no se equivoca.
       const porHistorico =
         renglon.claveProveedor === null ? undefined : porClave.get(renglon.claveProveedor);
       if (porHistorico !== undefined) {
         emparejados += 1;
-        return renglonDe(indice, renglon, porHistorico, 'clave', false, null);
+        const producto = productoPorInsumo.get(porHistorico);
+        return renglonDe(indice, renglon, {
+          productoId: producto?.id ?? null,
+          productoNombre: producto?.nombre ?? null,
+          insumoId: porHistorico,
+          porQue: 'clave',
+          dudoso: false,
+        });
       }
 
       // 2 · El código de barras, cuando la nota lo trae.
@@ -202,36 +256,99 @@ export const importarNotaDeProveedor = definirComando<
         renglon.codigoBarras === null ? undefined : porCodigo.get(renglon.codigoBarras);
       if (porBarras !== undefined) {
         emparejados += 1;
-        const variacion = variacionBp(
-          porBarras.costo_unitario_centavos,
-          renglon.costoUnitarioCentavos,
-        );
-        if (variacion !== null && variacion > SUBIDA_FUERTE_BP) subidasFuertes += 1;
-        return renglonDe(indice, renglon, porBarras.id, 'codigo', false, variacion);
+        return renglonDe(indice, renglon, {
+          productoId: porBarras.id,
+          productoNombre: porBarras.nombre,
+          insumoId: insumoDe(porBarras),
+          porQue: 'codigo',
+          dudoso: false,
+        });
       }
 
       // 3 · El nombre. Éste SÍ se equivoca, y por eso sale marcado.
       const tokens = aTokens(renglon.descripcion);
-      let mejor: { id: string; costo: bigint; parecido: number } | null = null;
+      let mejor: { producto: (typeof catalogo)[number]; parecido: number } | null = null;
       for (const candidato of normalizados) {
         const parecido = seParecen(tokens, candidato.tokens);
         if (parecido >= MINIMO_DE_PARECIDO && (mejor === null || parecido > mejor.parecido)) {
-          mejor = {
-            id: candidato.producto.id,
-            costo: candidato.producto.costo_unitario_centavos,
-            parecido,
-          };
+          mejor = { producto: candidato.producto, parecido };
         }
       }
       if (mejor !== null) {
         emparejados += 1;
         dudosos += 1;
-        const variacion = variacionBp(mejor.costo, renglon.costoUnitarioCentavos);
-        if (variacion !== null && variacion > SUBIDA_FUERTE_BP) subidasFuertes += 1;
-        return renglonDe(indice, renglon, mejor.id, 'nombre', true, variacion);
+        return renglonDe(indice, renglon, {
+          productoId: mejor.producto.id,
+          productoNombre: mejor.producto.nombre,
+          insumoId: insumoDe(mejor.producto),
+          porQue: 'nombre',
+          dudoso: true,
+        });
       }
 
-      return renglonDe(indice, renglon, null, 'ninguno', false, null);
+      return renglonDe(indice, renglon, {
+        productoId: null,
+        productoNombre: null,
+        insumoId: null,
+        porQue: 'ninguno',
+        dudoso: false,
+      });
+    });
+
+    // La presentación de compra de cada insumo, en UNA consulta.
+    const idsDeInsumo = [
+      ...new Set(
+        emparejadosSinPresentacion.flatMap((r) => (r.insumoId === null ? [] : [r.insumoId])),
+      ),
+    ];
+    const presentaciones =
+      idsDeInsumo.length === 0
+        ? []
+        : await ctx.paso('leer_presentaciones', () =>
+            ctx.tx
+              .selectFrom('insumos')
+              .select([
+                'id',
+                'unidad_base',
+                'unidad_compra_default',
+                'cantidad_por_compra_default',
+                'costo_unitario_centavos',
+              ])
+              .where('organizacion_id', '=', organizacionId)
+              .where('id', 'in', idsDeInsumo)
+              .execute(),
+          );
+    const presentacionDe = new Map(presentaciones.map((i) => [i.id, i]));
+    const precioDe = new Map(catalogo.map((p) => [p.id, p.precio_venta_centavos]));
+    let subidasFuertes = 0;
+    const renglones: RenglonEmparejado[] = emparejadosSinPresentacion.map((renglon) => {
+      const insumo = renglon.insumoId === null ? undefined : presentacionDe.get(renglon.insumoId);
+      // Un insumo que no es de este negocio no se recibe: queda sin emparejar.
+      if (renglon.insumoId !== null && insumo === undefined) return { ...renglon, insumoId: null };
+      if (insumo === undefined) return renglon;
+      const conPresentacion =
+        insumo.unidad_compra_default !== null && insumo.cantidad_por_compra_default !== null;
+      const equivalencia = conPresentacion ? (insumo.cantidad_por_compra_default ?? '1') : '1';
+      const costo = costoPorUnidadBase(
+        insumo.costo_unitario_centavos,
+        Number(renglon.costoUnitarioCentavos),
+        equivalencia,
+      );
+      if (costo.variacionBp !== null && costo.variacionBp > SUBIDA_FUERTE_BP) subidasFuertes += 1;
+      const precio = renglon.productoId === null ? undefined : precioDe.get(renglon.productoId);
+      return {
+        ...renglon,
+        unidadCompra: conPresentacion ? insumo.unidad_compra_default : insumo.unidad_base,
+        equivalencia,
+        variacionCostoBp: costo.variacionBp,
+        costoAnteriorCentavos: costo.anterior,
+        costoNuevoCentavos: costo.nuevo,
+        precioVentaCentavos: precio === undefined ? null : precio.toString(),
+        precioSugeridoCentavos:
+          precio === undefined || costo.variacionBp === null || costo.variacionBp <= 0
+            ? null
+            : precioConElMismoMargen(precio, insumo.costo_unitario_centavos, costo.nuevoExacto),
+      };
     });
 
     return {
@@ -257,26 +374,91 @@ function renglonDe(
     readonly cantidad: string;
     readonly costoUnitarioCentavos: number;
   },
-  productoId: string | null,
-  porQue: string,
-  dudoso: boolean,
-  variacionCostoBp: number | null,
+  emparejado: Pick<
+    RenglonEmparejado,
+    'productoId' | 'productoNombre' | 'insumoId' | 'porQue' | 'dudoso'
+  >,
 ): RenglonEmparejado {
   return {
     indice,
     descripcion: renglon.descripcion,
     cantidad: renglon.cantidad,
     costoUnitarioCentavos: renglon.costoUnitarioCentavos.toString(),
-    productoId,
-    porQue,
-    dudoso,
-    variacionCostoBp,
+    unidadCompra: null,
+    equivalencia: null,
+    variacionCostoBp: null,
+    costoAnteriorCentavos: null,
+    costoNuevoCentavos: null,
+    precioVentaCentavos: null,
+    precioSugeridoCentavos: null,
+    ...emparejado,
   };
 }
 
-function variacionBp(costoAnterior: bigint, costoNuevo: number): number | null {
-  if (costoAnterior <= 0n) return null;
-  return Number(((BigInt(costoNuevo) - costoAnterior) * 10_000n) / costoAnterior);
+/**
+ * Costo unitario × cantidad, al centavo y medio hacia arriba.
+ *
+ * La cantidad trae hasta cuatro decimales («12.5» metros de cable): antes se
+ * redondeaba a entero y 12.5 m se cobraban como 13. Aquí va en diezmilésimas y
+ * con enteros, sin flotantes.
+ */
+export function importeDelRenglon(costoUnitarioCentavos: number, cantidad: string): bigint {
+  const [enteros = '0', decimales = ''] = cantidad.split('.');
+  const diezmilesimas = BigInt(enteros) * 10_000n + BigInt(decimales.padEnd(4, '0'));
+  return (BigInt(costoUnitarioCentavos) * diezmilesimas + 5_000n) / 10_000n;
+}
+
+/** «12.5» → 125000 diezmilésimas, con enteros. */
+function diezmilesimasDe(cantidad: string): bigint {
+  const [enteros = '0', decimales = ''] = cantidad.split('.');
+  return BigInt(enteros) * 10_000n + BigInt(decimales.padEnd(4, '0').slice(0, 4));
+}
+
+/**
+ * El costo del renglón POR UNIDAD BASE contra el último conocido del insumo.
+ *
+ * La hoja del proveedor cobra por SU presentación —la caja de 100— y el costo del
+ * insumo es por pieza. Antes se comparaban tal cual: toda caja salía como «subida
+ * fuerte» de miles por ciento y el aviso dejaba de servir. Enteros, sin flotantes.
+ */
+export function costoPorUnidadBase(
+  anterior: bigint,
+  costoUnitarioCentavos: number,
+  equivalencia: string,
+): {
+  readonly variacionBp: number | null;
+  readonly anterior: string | null;
+  readonly nuevo: string;
+  /** El costo nuevo por unidad base, en diezmilésimas de centavo: para el precio. */
+  readonly nuevoExacto: bigint;
+} {
+  const equiv = diezmilesimasDe(equivalencia);
+  const nuevoExacto = equiv === 0n ? 0n : (BigInt(costoUnitarioCentavos) * 100_000_000n) / equiv;
+  const nuevo = ((nuevoExacto + 5_000n) / 10_000n).toString();
+  if (anterior <= 0n || equiv === 0n) {
+    return {
+      variacionBp: null,
+      anterior: anterior > 0n ? anterior.toString() : null,
+      nuevo,
+      nuevoExacto,
+    };
+  }
+  const variacionBp = Number((nuevoExacto - anterior * 10_000n) / anterior);
+  return { variacionBp, anterior: anterior.toString(), nuevo, nuevoExacto };
+}
+
+/**
+ * El precio que conserva el margen de hoy con el costo nuevo, al centavo: precio ×
+ * costo nuevo ÷ costo anterior. Lo calcula el servidor para que la pantalla sólo lo
+ * devuelva a `catalogo.aplicar_precio_sugerido` tal cual.
+ */
+export function precioConElMismoMargen(
+  precio: bigint,
+  anterior: bigint,
+  nuevoExacto: bigint,
+): string {
+  const divisor = anterior * 10_000n;
+  return ((precio * nuevoExacto + divisor / 2n) / divisor).toString();
 }
 
 /**

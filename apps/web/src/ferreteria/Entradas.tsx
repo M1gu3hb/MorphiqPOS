@@ -30,6 +30,7 @@ import {
   Check,
   ClipboardList,
   Copy,
+  History,
   PackageOpen,
   Phone,
   Send,
@@ -39,8 +40,13 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { KardexDelProducto } from '~/abarrotes/KardexDelProducto';
+import { ErrorApi, consultarPuente, invocarComando, subirImagen } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import { ContraElPedido } from './ContraElPedido.tsx';
+import { importeDe, pesosDe } from './entrada-del-archivo.ts';
+import { ImportarLaNota, type NotaDelArchivo } from './ImportarLaNota.tsx';
 
 /**
  * PANTALLA · ferreteria · entradas
@@ -69,11 +75,17 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *
  * ── El archivo es el camino 1 y el manual el 3 ────────────────────────────
  * Doscientas líneas a mano son dos horas mal invertidas y mal capturadas. El
- * archivo tiene su comando —`compras.importar_nota`, que empareja y PROPONE— y
- * su subida vive fuera de esta pantalla: `invocarComando` manda JSON y un archivo
- * necesita multipart. Lo que aquí se puede capturar de punta a punta es el camino
- * 3: el proveedor chico de diez renglones, y se captura contra el catálogo para
- * que no nazcan diez claves duplicadas.
+ * archivo —el CSV del proveedor— se LEE en el navegador y viaja como renglones a
+ * `compras.importar_nota`, que empareja y PROPONE (`ImportarLaNota`): lo que casó
+ * entra como partida —lo que casó por NOMBRE, marcado para revisarlo—, lo que no
+ * queda «sin emparejar» y se resuelve con el alta, que ahora SÍ lo mete a la
+ * entrada. El camino 3 es el proveedor chico de diez renglones, contra el catálogo
+ * para que no nazcan diez claves duplicadas, con Enter para el siguiente.
+ *
+ * ── El camino 2: lo pedido contra lo que llegó ────────────────────────────
+ * Lo que se le pidió —la sugerencia de hoy— contra lo que se va capturando, con lo
+ * que NO llegó primero (`ContraElPedido`): se le reclama al repartidor antes de
+ * firmarle.
  *
  * ── «Sin emparejar» va arriba del total, no en un reporte ─────────────────
  * Porque una línea sin emparejar QUEDA FUERA de la entrada. El botón de
@@ -97,11 +109,16 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * se capturan en teléfono, así que ese bloque ni siquiera se ofrece ahí:
  * ofrecerlo sería prometer algo que acaba en una captura a medias.
  *
- * ── Alcance recortado por el límite de líneas, dicho aquí ─────────────────
- * Quedan fuera, cada uno en su sitio: la SUBIDA del archivo (multipart, no JSON),
- * el comparativo línea por línea de «escanear contra pedido» (que aquí sólo se
- * elige), el alta completa del material —aquí se hace el alta rápida, marcada
- * como incompleta— y el kardex.
+ * ── El alta es la RÁPIDA, a propósito, y el kardex está a un toque ────────
+ * El alta de un renglón sin emparejar es la rápida (`compras.alta_material`): con
+ * el repartidor esperando nadie contesta ocho campos, y el material nace marcado
+ * como incompleto —categoría, precio— en la lista de pendientes del catálogo, que es
+ * donde se completa. Aquí se da de alta Y entra a la nota con su cantidad y su
+ * costo. Cada partida abre su kardex, para ver qué entró y qué salió antes de firmar.
+ *
+ * ── La foto del teléfono ──────────────────────────────────────────────────
+ * Se sube (sólo quien administra puede subir archivos) y viaja con la entrada: queda
+ * en las notas de la compra, para conciliar el papel cuando el proveedor reclame.
  */
 
 /** Debería venir del proveedor; mientras ese campo no exista, vive aquí. */
@@ -140,6 +157,9 @@ export interface LineaSinEmparejar {
   readonly id: string;
   readonly codigoProveedor: string;
   readonly descripcion: string;
+  /** Lo que traía la hoja: con esto, el alta mete el renglón a la entrada. */
+  readonly cantidad?: string;
+  readonly costoUnitarioCentavos?: number;
 }
 
 export interface SubidaDeCosto {
@@ -151,8 +171,10 @@ export interface SubidaDeCosto {
   readonly precioSugeridoCentavos: number;
 }
 
-/** Una partida capturada a mano, ya atada a un material del catálogo. */
+/** Una partida de la nota, ya atada a un material del catálogo. */
 export interface PartidaCapturada {
+  /** Única en la nota: el mismo material puede venir en dos renglones. */
+  readonly clave: string;
   readonly insumoId: string;
   readonly nombre: string;
   /** Lo que se teclea: «3» cajas, «12.5» metros. Texto: convierte el servidor. */
@@ -162,6 +184,12 @@ export interface PartidaCapturada {
   readonly equivalencia: string;
   /** Lo que costó el renglón COMPLETO, en pesos y como texto. */
   readonly costoTotal: string;
+  /** Casó POR NOMBRE al importar: el único camino que se equivoca. Se revisa. */
+  readonly porNombre?: boolean;
+  /** Lo que decía la hoja del proveedor, para revisar lo que casó por nombre. */
+  readonly delProveedor?: string | null;
+  /** La clave de SU hoja: se guarda con la línea y empareja sola la nota siguiente. */
+  readonly claveProveedor?: string | null;
 }
 
 export interface NotaEnCaptura {
@@ -208,6 +236,8 @@ export interface LineaSugerida {
   readonly importeCentavos: number;
   readonly dormidoCentavos: number;
   readonly linea: string;
+  /** Cuántas presentaciones se sugieren: lo que se compara contra lo que llegó. */
+  readonly presentaciones?: number;
 }
 
 /** Lo que contesta `compras.sugerir_pedido`, tal cual. */
@@ -296,6 +326,7 @@ function comoLinea(renglon: RespuestaSugerencia['renglones'][number]): LineaSuge
     hay: comoNumero(renglon.existenciaBase),
     vendido90d: comoNumero(renglon.ventaDelPeriodoBase),
     sugerido: `${String(renglon.presentacionesSugeridas)} ${renglon.unidadCompra}`,
+    presentaciones: renglon.presentacionesSugeridas,
     importeCentavos: Number(renglon.importeCentavos),
     dormidoCentavos: Number(renglon.dormidoCentavos),
     linea: renglon.nombre,
@@ -535,6 +566,16 @@ export function Entradas({
   const [material, setMaterial] = useState('');
   const [cantidad, setCantidad] = useState('');
   const [costoCentavos, setCostoCentavos] = useState<number | null>(null);
+  /** Lo que se dijo del archivo: cuántos renglones y qué filas no se pudieron leer. */
+  const [avisoDelArchivo, setAvisoDelArchivo] = useState<string | null>(null);
+  /** La foto de la nota en papel, ya subida: viaja con la entrada. */
+  const [fotoDeLaNota, setFotoDeLaNota] = useState<string | null>(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  /** De qué partida se está viendo el kardex. */
+  const [kardexDe, setKardexDe] = useState<{
+    readonly insumoId: string;
+    readonly nombre: string;
+  } | null>(null);
 
   // ── Los proveedores del catálogo, que es de donde sale todo lo demás ─────
   useEffect(() => {
@@ -661,7 +702,12 @@ export function Entradas({
               subidas: previa.subidas.filter((s) => s.id !== clave),
             },
       );
-      if (clave === CLAVE_GUARDAR) setFolio('');
+      if (clave === CLAVE_GUARDAR) {
+        setFolio('');
+        setFotoDeLaNota(null);
+        setAvisoDelArchivo(null);
+        setKardexDe(null);
+      }
     } catch (fallo) {
       setError(mensajeDe(fallo));
     } finally {
@@ -709,6 +755,7 @@ export function Entradas({
     }
     setError(null);
     const partida: PartidaCapturada = {
+      clave: crypto.randomUUID(),
       insumoId: elegido.id,
       nombre: elegido.nombre,
       cantidad: cantidad.trim(),
@@ -732,7 +779,7 @@ export function Entradas({
       return {
         ...base,
         partidas: juntas,
-        lineas: juntas.length,
+        lineas: juntas.length + base.sinEmparejar.length,
         // En CENTAVOS y con enteros: sumar pesos con decimales en el navegador es
         // cómo un total acaba en 1234.9999999.
         totalCentavos: juntas.reduce((suma, p) => suma + aCentavos(p.costoTotal), 0),
@@ -743,17 +790,155 @@ export function Entradas({
     setCostoCentavos(null);
   }
 
-  function quitarPartida(insumoId: string): void {
+  function quitarPartida(clave: string): void {
     setNota((previa) => {
       if (previa === null) return previa;
-      const juntas = previa.partidas.filter((p) => p.insumoId !== insumoId);
+      const juntas = previa.partidas.filter((p) => p.clave !== clave);
       return {
         ...previa,
         partidas: juntas,
-        lineas: juntas.length,
+        lineas: juntas.length + previa.sinEmparejar.length,
         totalCentavos: juntas.reduce((suma, p) => suma + aCentavos(p.costoTotal), 0),
       };
     });
+  }
+
+  /**
+   * «NO ES»: lo que casó por nombre y no es ese material vuelve a «sin emparejar»,
+   * donde se busca o se da de alta. Sin esto, la única salida era quitarlo y el
+   * renglón se perdía de la entrada.
+   */
+  function noEsEse(partida: PartidaCapturada): void {
+    setNota((previa) => {
+      if (previa === null) return previa;
+      const juntas = previa.partidas.filter((p) => p.clave !== partida.clave);
+      const pendiente: LineaSinEmparejar = {
+        id: partida.clave,
+        codigoProveedor: partida.claveProveedor ?? '—',
+        descripcion: partida.delProveedor ?? partida.nombre,
+        cantidad: partida.cantidad,
+        costoUnitarioCentavos: 0,
+      };
+      return {
+        ...previa,
+        partidas: juntas,
+        sinEmparejar: [...previa.sinEmparejar, pendiente],
+        lineas: juntas.length + previa.sinEmparejar.length + 1,
+        totalCentavos: juntas.reduce((suma, p) => suma + aCentavos(p.costoTotal), 0),
+      };
+    });
+  }
+
+  /** Lo que propuso el servidor para el archivo, sumado a lo que ya había en la nota. */
+  function recibirElArchivo(delArchivo: NotaDelArchivo): void {
+    setError(null);
+    setNota((previa) => {
+      const base = previa ?? {
+        archivo: null,
+        lineas: 0,
+        sinEmparejar: [],
+        subidas: [],
+        partidas: [],
+        totalCentavos: 0,
+        vence: null,
+      };
+      const partidas = [...base.partidas, ...delArchivo.partidas];
+      const sinEmparejar = [...base.sinEmparejar, ...delArchivo.porResolver];
+      const yaAvisadas = new Set(base.subidas.map((s) => s.id));
+      return {
+        ...base,
+        archivo: delArchivo.archivo,
+        partidas,
+        sinEmparejar,
+        subidas: [...base.subidas, ...delArchivo.subidas.filter((s) => !yaAvisadas.has(s.id))],
+        lineas: partidas.length + sinEmparejar.length,
+        totalCentavos: partidas.reduce((suma, p) => suma + aCentavos(p.costoTotal), 0),
+      };
+    });
+    const porNombre = delArchivo.partidas.filter((p) => p.porNombre).length;
+    setAvisoDelArchivo(
+      [
+        `${String(delArchivo.lineas)} renglones leídos de ${delArchivo.archivo}.`,
+        porNombre > 0 ? `${String(porNombre)} casaron por nombre: revísalos.` : '',
+        delArchivo.filasConProblema.length > 0
+          ? `No se pudieron leer las filas ${delArchivo.filasConProblema.join(', ')}: revísalas en la hoja.`
+          : '',
+      ]
+        .filter((texto) => texto !== '')
+        .join(' '),
+    );
+  }
+
+  /**
+   * EL ALTA que ahora sí mete el renglón a la entrada. Antes quitaba el renglón de
+   * «sin emparejar» y ya: el material nacía en el catálogo y la nota se guardaba SIN
+   * él, que es justo el defecto que esta pantalla existe para cerrar.
+   */
+  async function darDeAlta(linea: LineaSinEmparejar): Promise<void> {
+    setOcupado(linea.id);
+    setError(null);
+    try {
+      const costo = linea.costoUnitarioCentavos ?? 0;
+      const creado = await invocarComando<{ readonly insumoId: string; readonly nombre: string }>(
+        '/api/entradas/alta-material',
+        {
+          codigoProveedor: linea.codigoProveedor,
+          descripcion: linea.descripcion.slice(0, 120),
+          // El costo de la hoja, si lo traía; el precio nace pendiente (ver la cabecera).
+          costo: costo > 0 ? pesosDe(costo) : '',
+        },
+      );
+      setNota((previa) => {
+        if (previa === null) return previa;
+        const sinEmparejar = previa.sinEmparejar.filter((l) => l.id !== linea.id);
+        const partidas =
+          linea.cantidad === undefined
+            ? previa.partidas
+            : [
+                ...previa.partidas,
+                {
+                  clave: linea.id,
+                  insumoId: creado.insumoId,
+                  nombre: creado.nombre,
+                  cantidad: linea.cantidad,
+                  // Nace por pieza: el alta rápida no pregunta presentación.
+                  unidad: 'pieza',
+                  equivalencia: '1',
+                  costoTotal: pesosDe(importeDe(costo, linea.cantidad)),
+                  claveProveedor: linea.codigoProveedor === '—' ? null : linea.codigoProveedor,
+                },
+              ];
+        return {
+          ...previa,
+          sinEmparejar,
+          partidas,
+          lineas: partidas.length + sinEmparejar.length,
+          totalCentavos: partidas.reduce((suma, p) => suma + aCentavos(p.costoTotal), 0),
+        };
+      });
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  /** La foto de la nota en papel: se sube ya, y su enlace viaja con la entrada. */
+  async function subirLaFoto(archivo: File): Promise<void> {
+    setSubiendoFoto(true);
+    setError(null);
+    try {
+      setFotoDeLaNota(await subirImagen(archivo));
+    } catch (fallo) {
+      setFotoDeLaNota(null);
+      setError(
+        fallo instanceof ErrorApi && fallo.estado === 403
+          ? 'Tu usuario no puede subir archivos: la foto la sube quien administra. La entrada se captura igual.'
+          : mensajeDe(fallo),
+      );
+    } finally {
+      setSubiendoFoto(false);
+    }
   }
 
   const encabezado = (
@@ -808,7 +993,18 @@ export function Entradas({
     {
       clave: 'material',
       titulo: voc.titulo('producto'),
-      celda: (p) => <span className="font-medium">{p.nombre}</span>,
+      celda: (p) => (
+        <span className="flex flex-col">
+          <span className="font-medium">{p.nombre}</span>
+          {p.porNombre === true && (
+            // Lo que casó por nombre se REVISA: la hoja decía otra cosa.
+            <span className="inline-flex items-center gap-(--espacio-1) text-xs text-advertencia">
+              <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
+              casó por nombre · la hoja dice «{p.delProveedor ?? ''}»
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       clave: 'cantidad',
@@ -831,19 +1027,47 @@ export function Entradas({
     },
     {
       clave: 'quitar',
-      titulo: 'Quitar',
+      titulo: 'Acciones',
       celda: (p) => (
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          aria-label={`Quitar ${p.nombre}`}
-          onClick={() => {
-            quitarPartida(p.insumoId);
-          }}
-        >
-          <X aria-hidden="true" />
-        </Button>
+        <span className="flex justify-end gap-(--espacio-1)">
+          {p.porNombre === true && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                noEsEse(p);
+              }}
+            >
+              No es
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Kardex de ${p.nombre}`}
+            aria-pressed={kardexDe?.insumoId === p.insumoId}
+            onClick={() => {
+              setKardexDe((previo) =>
+                previo?.insumoId === p.insumoId ? null : { insumoId: p.insumoId, nombre: p.nombre },
+              );
+            }}
+          >
+            <History aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Quitar ${p.nombre}`}
+            onClick={() => {
+              quitarPartida(p.clave);
+            }}
+          >
+            <X aria-hidden="true" />
+          </Button>
+        </span>
       ),
     },
   ];
@@ -871,14 +1095,9 @@ export function Entradas({
             disabled={ocupado !== null}
             cargando={ocupado === l.id}
             onClick={() => {
-              // El alta RÁPIDA: nombre y clave del proveedor. El precio nace en
-              // cero y queda como pendiente del catálogo; inventarlo aquí acaba en
-              // la etiqueta.
-              void ejecutar('/api/entradas/alta-material', l.id, {
-                codigoProveedor: l.codigoProveedor,
-                descripcion: l.descripcion,
-                costo: '',
-              });
+              // El alta RÁPIDA: nombre, clave del proveedor y el costo de la hoja. El
+              // precio nace pendiente del catálogo; inventarlo aquí acaba en la etiqueta.
+              void darDeAlta(l);
             }}
           >
             Alta
@@ -1094,9 +1313,24 @@ export function Entradas({
           {/* El proveedor chico de diez líneas, en el pasillo. */}
           <div className="flex flex-col gap-(--espacio-1) md:hidden">
             <Label htmlFor="foto">Recepción rápida · foto de la nota</Label>
-            <Input id="foto" type="file" accept="image/*" capture="environment" />
-            <p className="text-xs text-texto-sutil">
-              Hasta diez líneas. Las notas largas se capturan en la computadora.
+            <Input
+              id="foto"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              disabled={subiendoFoto}
+              aria-busy={subiendoFoto}
+              onChange={(evento) => {
+                const archivo = evento.target.files?.[0];
+                if (archivo !== undefined) void subirLaFoto(archivo);
+              }}
+            />
+            <p role="status" className="text-xs text-texto-sutil">
+              {subiendoFoto
+                ? 'Subiendo la foto…'
+                : fotoDeLaNota === null
+                  ? 'Hasta diez líneas. Las notas largas se capturan en la computadora.'
+                  : 'Foto guardada: viaja con la entrada.'}
             </p>
           </div>
 
@@ -1151,13 +1385,48 @@ export function Entradas({
                   </dl>
                 </div>
 
+                {/* ── El camino 1, el archivo del proveedor ───────────────── */}
+                {camino === 'archivo' && (
+                  <ImportarLaNota
+                    proveedorId={proveedorId}
+                    folio={folio}
+                    alImportar={recibirElArchivo}
+                    alFallar={setError}
+                  />
+                )}
+                {avisoDelArchivo !== null && (
+                  <p role="status" className="text-sm text-texto-sutil">
+                    {avisoDelArchivo}
+                  </p>
+                )}
+
+                {/* ── El camino 2, lo pedido contra lo que llegó ──────────── */}
+                {camino === 'pedido' && (
+                  <ContraElPedido
+                    pedido={ordenadas.map((f) => ({
+                      id: f.id,
+                      material: f.material,
+                      sugerido: f.sugerido,
+                      presentaciones: f.presentaciones ?? (Number.parseInt(f.sugerido, 10) || 0),
+                    }))}
+                    llego={partidas}
+                  />
+                )}
+
                 {/* ── El camino 3, capturado contra el catálogo ────────────── */}
                 <section
                   aria-label={`Capturar ${voc.singular('linea_orden')}`}
                   className="flex flex-col gap-(--espacio-2)"
                 >
                   <h3 className="text-sm font-semibold">Capturar {voc.singular('linea_orden')}</h3>
-                  <div className="flex flex-wrap items-end gap-(--espacio-2)">
+                  {/* Un formulario: Enter en el costo agrega y deja listo el siguiente. */}
+                  <form
+                    className="flex flex-wrap items-end gap-(--espacio-2)"
+                    onSubmit={(evento) => {
+                      evento.preventDefault();
+                      agregarPartida();
+                    }}
+                  >
                     <div className="flex min-w-48 flex-1 flex-col gap-(--espacio-1)">
                       <Label htmlFor="material">{voc.titulo('producto')}</Label>
                       <Input
@@ -1201,18 +1470,45 @@ export function Entradas({
                         alCambiar={setCostoCentavos}
                       />
                     </div>
-                    <Button type="button" variant="secondary" onClick={agregarPartida}>
+                    <Button type="submit" variant="secondary">
                       Agregar
                     </Button>
-                  </div>
+                  </form>
                   {partidas.length > 0 && (
                     <Tabla
                       etiqueta={voc.titulo('linea_orden', true)}
                       columnas={columnasDePartidas}
                       filas={partidas}
-                      claveDe={(p) => p.insumoId}
+                      claveDe={(p) => p.clave}
+                      tonoDeFila={(p) => (p.porNombre === true ? 'advertencia' : undefined)}
                       alto="max-h-[40vh]"
                     />
+                  )}
+                  {kardexDe !== null && (
+                    <Superficie
+                      como="section"
+                      nivel={0}
+                      relleno={3}
+                      radio="md"
+                      aria-label={`Kardex de ${kardexDe.nombre}`}
+                      className="flex flex-col gap-(--espacio-2)"
+                    >
+                      <header className="flex items-center justify-between gap-(--espacio-2)">
+                        <h4 className="text-sm font-semibold">Kardex · {kardexDe.nombre}</h4>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="Cerrar el kardex"
+                          onClick={() => {
+                            setKardexDe(null);
+                          }}
+                        >
+                          <X aria-hidden="true" />
+                        </Button>
+                      </header>
+                      <KardexDelProducto insumoId={kardexDe.insumoId} />
+                    </Superficie>
                   )}
                 </section>
 
@@ -1282,12 +1578,15 @@ export function Entradas({
                         aCredito,
                         dias: Number(dias),
                         camino,
+                        fotoDeLaNota,
                         lineas: partidas.map((p) => ({
                           insumoId: p.insumoId,
                           cantidadCapturada: p.cantidad,
                           unidadCapturada: p.unidad,
                           equivalencia: p.equivalencia,
                           costoTotal: p.costoTotal,
+                          // La memoria de la nota siguiente: la clave de SU hoja.
+                          ...(p.claveProveedor == null ? {} : { claveProveedor: p.claveProveedor }),
                         })),
                       });
                     }}

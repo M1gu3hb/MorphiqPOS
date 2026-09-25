@@ -5,6 +5,7 @@ import { repoFolios, repoOrdenes, repoVentaCatalogo, type Transaccion } from '@m
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { ejecutarAgregarLinea } from '../venta/carrito.ts';
 import { cotizar } from '../venta/cotizar.ts';
 import { valorarLinea } from '../venta/valorar.ts';
 
@@ -48,6 +49,12 @@ const partida = z.object({
   cantidad: z.union([z.string().trim().min(1).max(20), z.number().positive()]),
   /** Para material por medida. Sin ella, la decide el catálogo. */
   unidad: z.string().trim().min(1).max(12).optional(),
+  /**
+   * La PRESENTACIÓN —la caja de 500— cuando no es la base: la línea lleva su precio y
+   * descuenta su factor (F-147). La ficha la elige y la manda al mostrador (C.10 de
+   * la 2.4); antes el mostrador sólo sabía de piezas.
+   */
+  presentacionId: z.uuid().optional(),
 });
 
 export const entradaCrearNotaMostrador = z.object({
@@ -217,6 +224,20 @@ export const crearNotaMostrador = definirComando<
 
       const cantidad =
         typeof pedida.cantidad === 'number' ? String(pedida.cantidad) : pedida.cantidad;
+
+      // La caja como caja: el precio y el factor los pone la presentación, con la
+      // misma cuenta que el carrito de la tiendita.
+      if (pedida.presentacionId !== undefined) {
+        await ctx.paso(`insertar_presentacion_${String(indice)}`, () =>
+          ejecutarAgregarLinea(ctx, ordenId, {
+            productoId: producto.id,
+            cantidad,
+            presentacionId: pedida.presentacionId,
+          }),
+        );
+        continue;
+      }
+
       const valorada = valorarLinea(producto, cantidad, pedida.unidad);
 
       await ctx.paso(`insertar_partida_${String(indice)}`, () =>

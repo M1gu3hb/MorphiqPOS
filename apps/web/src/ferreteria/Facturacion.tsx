@@ -59,9 +59,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * de SU columna. Tocar una fila la convierte en el panel (`VIAJE.fila`). En
  * tableta y teléfono es la misma lista, más corta, con el panel debajo.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben los datos fiscales y el grupo del mes. Queda fuera el timbrado, la
- * cancelación y el complemento de pago: los tres son P-02.
+ * ── Lo que depende del PAC (§10.3 del encargo 2.4) ──────────────────────
+ * El timbrado, la cancelación, el complemento de pago y la factura que junta las
+ * remisiones del mes NO se construyen: dependen del PAC, que es decisión de Miguel
+ * (P-02). Cada uno está en `EXCEPCIONES-COBERTURA.md` con su motivo —`F-940` a
+ * `F-945` y la RUTA `factura/agrupado`—, y la pantalla lo dice en su aviso en vez
+ * de ofrecer un botón que no timbra. Todo lo demás de esta pantalla está hecho.
  */
 
 const RUTA_CLIENTE = '/api/clientes';

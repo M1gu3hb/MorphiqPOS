@@ -667,6 +667,106 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
       ],
     });
 
+    // ── C.10 DE LA 2.4 · LA NOTA DEL PROVEEDOR DESDE SU ARCHIVO ──────────────
+    //
+    // «La subida necesita multipart», decía la pantalla, y no la había. El CSV se lee en
+    // el navegador y viaja como renglones: lo que casa entra como partida —lo que casó
+    // por NOMBRE, marcado—, lo que no se da de alta Y ENTRA a la nota (antes se perdía),
+    // y la clave de la hoja queda en cada línea para emparejar la nota siguiente.
+    // A crédito: no toca la caja, que ya se cerró.
+    await abrirPantalla(page, '/ferreteria/entradas', /Recepción y pedido/);
+    const sello = String(Date.now()).slice(-6);
+    const folioDeLaNota = `E2E-${sello}`;
+    const codoNuevo = `Codo PVC 90 grados E2E ${sello}`;
+    await page.locator('#folio').fill(folioDeLaNota);
+    await page.getByRole('button', { name: /Importar archivo/ }).click();
+    await page.locator('#archivo-de-la-nota').setInputFiles({
+      name: `${folioDeLaNota}.csv`,
+      mimeType: 'text/csv',
+      // Como lo guarda el Excel en español: punto y coma y coma decimal.
+      buffer: Buffer.from(
+        'Clave;Descripción;Cantidad;Costo unitario\n' +
+          'MART-16;Martillo uña pulida 16 oz;2;95,50\n' +
+          `CODO-${sello};${codoNuevo};10;4,20\n`,
+        'utf8',
+      ),
+    });
+    await expect(
+      page.getByText(/casó por nombre/).first(),
+      'El martillo del archivo no entró como partida casada por nombre.',
+    ).toBeVisible({ timeout: 30_000 });
+    const sinEmparejar = page.getByRole('table', { name: 'Líneas sin emparejar' });
+    await sinEmparejar
+      .getByRole('row', { name: new RegExp(codoNuevo) })
+      .getByRole('button', { name: 'Alta' })
+      .click();
+    await expect(
+      page.getByRole('row', { name: new RegExp(codoNuevo) }).getByRole('button', {
+        name: `Quitar ${codoNuevo}`,
+      }),
+      'Dar de alta el renglón sin emparejar no lo metió a la entrada.',
+    ).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Guardar entrada' }).click();
+    await expect(page.getByText('Todavía no hay ninguna nota en captura.')).toBeVisible({
+      timeout: 30_000,
+    });
+    const [compra] = await consultarPuente<{
+      readonly id?: string;
+      readonly notas?: string | null;
+      readonly total_compra?: number;
+    }>(page, 'CompraInsumo', { filtro: { factura_folio: folioDeLaNota }, limite: 1 });
+    expect(compra?.notas, 'La entrada no dice que se capturó del archivo.').toBe(
+      'Entrada capturada por archivo del proveedor',
+    );
+    // 2 × $95.50 + 10 × $4.20: al centavo.
+    expect(compra?.total_compra).toBe(233);
+    const lineas = await consultarPuente<{ readonly clave_proveedor?: string | null }>(
+      page,
+      'DetalleCompra',
+      { filtro: { compra_id: compra?.id ?? '' }, limite: 10 },
+    );
+    expect(
+      lineas.map((l) => l.clave_proveedor).sort(),
+      'La clave de la hoja no quedó en las líneas: la nota siguiente no casará sola.',
+    ).toEqual([`CODO-${sello}`, 'MART-16']);
+
+    // ── C.10 · LA FICHA DE LA PIEZA, DESDE EL MOSTRADOR, Y DE VUELTA ────────
+    //
+    // La ficha sólo se abría desde el menú y en la PRIMERA pieza del catálogo, y su
+    // AGREGAR escribía una venta que ninguna pantalla enseñaba. Ahora F5 abre la de la
+    // pieza que se busca, lo agregado vuelve a la nota del mostrador, y la nota
+    // sobrevive a ir, volver y recargar.
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
+    await page.locator('#buscador').fill('martillo');
+    // F5 abre la del PRIMER resultado: se espera a que la búsqueda esté pintada.
+    await expect(
+      page.getByRole('table', { name: 'Resultados' }).getByText(/Martillo uña pulida/),
+    ).toBeVisible({ timeout: 20_000 });
+    await page.keyboard.press('F5');
+    await expect(page, 'F5 no abrió la ficha de la pieza buscada.').toHaveURL(
+      /\/ferreteria\/ficha-de-pieza\?pieza=[0-9a-f-]{36}/,
+      { timeout: 30_000 },
+    );
+    await expect(page.getByRole('heading', { level: 1, name: /Martillo/ })).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.getByRole('button', { name: /AGREGAR A LA NOTA/ }).click();
+    await expect(page, 'Agregar desde la ficha no volvió al mostrador.').toHaveURL(
+      /\/ferreteria\/mostrador$/,
+      { timeout: 30_000 },
+    );
+    const laNota = page.getByRole('table', { name: /Partidas de/ });
+    await expect(
+      laNota.getByText(/Martillo/),
+      'Lo agregado desde la ficha no llegó a la nota del mostrador.',
+    ).toBeVisible({ timeout: 30_000 });
+    await page.reload();
+    await expect(
+      page.getByRole('table', { name: /Partidas de/ }).getByText(/Martillo/),
+      'La nota del mostrador no sobrevivió a recargar.',
+    ).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: /Quitar la partida Martillo/ }).click();
+
     exigirSinFallos();
   });
 });
