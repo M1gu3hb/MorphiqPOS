@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
 import { desdeMultirango, desdeRango } from './agenda.ts';
+import { profesionalExigida } from './recorte.ts';
 
 /**
  * F-420, F-426 y F-427 · Quién atiende, qué hizo y qué se le debe.
@@ -213,6 +214,8 @@ export const miDia = definirComando<Transaccion, typeof entradaMiDia, ResultadoM
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
 
+    // «Mi día» es el de quien entra: la estilista no abre el de otra (C.10).
+    const profesionalId = await profesionalExigida(ctx, entrada.profesionalId);
     const fecha = entrada.fecha ?? ctx.ahora.toISOString().slice(0, 10);
     const dia = new Date(`${fecha}T00:00:00.000Z`);
     const finDelDia = new Date(dia.getTime() + MS_POR_DIA);
@@ -249,7 +252,7 @@ export const miDia = definirComando<Transaccion, typeof entradaMiDia, ResultadoM
                 'rango_ocupacion',
               ])
               .where('organizacion_id', '=', organizacionId)
-              .where('profesional_id', '=', entrada.profesionalId)
+              .where('profesional_id', '=', profesionalId)
               .where(
                 'cita_id',
                 'in',
@@ -322,7 +325,7 @@ export const miDia = definirComando<Transaccion, typeof entradaMiDia, ResultadoM
         .selectFrom('comisiones_causadas')
         .select(['monto_centavos', 'cita_servicio_id'])
         .where('organizacion_id', '=', organizacionId)
-        .where('profesional_id', '=', entrada.profesionalId)
+        .where('profesional_id', '=', profesionalId)
         .where('causada_en', '>=', dia)
         .where('causada_en', '<', finDelDia)
         .execute(),
@@ -369,7 +372,7 @@ export const miDia = definirComando<Transaccion, typeof entradaMiDia, ResultadoM
         .selectFrom('movimientos_propina')
         .select(['monto_centavos'])
         .where('organizacion_id', '=', organizacionId)
-        .where('profesional_id', '=', entrada.profesionalId)
+        .where('profesional_id', '=', profesionalId)
         .where('created_at', '>=', dia)
         .where('created_at', '<', finDelDia)
         .execute(),
@@ -381,7 +384,7 @@ export const miDia = definirComando<Transaccion, typeof entradaMiDia, ResultadoM
       citas.find((c) => c.estado === 'pendiente' || c.estado === 'en_curso') ?? null;
 
     return {
-      profesionalId: entrada.profesionalId,
+      profesionalId: profesionalId,
       fecha,
       citas,
       comisionDelDiaCentavos: comision.reduce((s, c) => s + c.monto_centavos, 0n).toString(),
@@ -408,8 +411,10 @@ export const comisionesDelProfesional = definirComando<
     const desde = new Date(`${entrada.desde}T00:00:00.000Z`);
     const hasta = new Date(`${entrada.hasta}T00:00:00.000Z`);
 
+    // Las comisiones de OTRA no se leen pasando su id (C.10).
+    const profesionalId = await profesionalExigida(ctx, entrada.profesionalId);
     const filas = await leerComisiones(ctx, organizacionId, {
-      profesionalId: entrada.profesionalId,
+      profesionalId,
       desde,
       hasta,
     });
@@ -422,7 +427,7 @@ export const comisionesDelProfesional = definirComando<
     }
 
     return {
-      profesionalId: entrada.profesionalId,
+      profesionalId,
       desde: entrada.desde,
       hasta: entrada.hasta,
       causadoCentavos: causado.toString(),

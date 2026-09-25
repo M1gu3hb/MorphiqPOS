@@ -12,6 +12,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { profesionalVisible } from './recorte.ts';
 import { desdeMultirango, desdeRango } from './agenda.ts';
 
 /**
@@ -206,11 +207,13 @@ export const agendaDelDia = definirComando<
   async ejecutar(ctx, entrada) {
     // EL DÍA DEL NEGOCIO, no el de Greenwich. Ver `limitesDelDia`.
     const { desde: dia, hasta: finDelDia } = await limitesDelDia(ctx, entrada.fecha);
+    // La estilista ve SU columna sola: con clientas y servicios, la de otra no es suya.
+    const profesionalId = await profesionalVisible(ctx, entrada.profesionalId);
 
-    const profesionales = await leerProfesionales(ctx, entrada.profesionalId);
-    const servicios = await leerServiciosEntre(ctx, dia, finDelDia, entrada.profesionalId);
+    const profesionales = await leerProfesionales(ctx, profesionalId);
+    const servicios = await leerServiciosEntre(ctx, dia, finDelDia, profesionalId);
     const bloqueos = await leerBloqueos(ctx, dia, finDelDia);
-    const horarios = await leerHorarios(ctx, entrada.profesionalId);
+    const horarios = await leerHorarios(ctx, profesionalId);
 
     const columnas: ColumnaDeAgenda[] = profesionales.map((profesional) => {
       const ventanas = ventanasDelDia(horarios, profesional.id, entrada.fecha, dia);

@@ -5,7 +5,7 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, EMPLEO, ORG } from '../restaurante/pruebas/sala.ts';
 import {
   agendaDelDia,
   clientesPorVolver,
@@ -472,5 +472,35 @@ describe('F-951 · a quién le toca volver', () => {
     const salida = await clientesPorVolver.ejecutar(ctx, { holguraDias: 7, limite: 100 });
 
     expect(salida.clientas[0]?.diasDesde).toBe(80);
+  });
+});
+
+/** C.10 de la 2.4 · la estilista ve SU columna sola en la agenda (`agenda.dia`). */
+describe('C.10 · la agenda de la estilista', () => {
+  const dos = () =>
+    baseDe({
+      profesionales: [
+        { ...profesional(KARLA, 'Karla', 1), empleo_id: EMPLEO },
+        { ...profesional(DANY, 'Dany', 2), empleo_id: 'otro-empleo' },
+      ],
+    });
+
+  it('sin pedir a nadie, ve sólo su columna', async () => {
+    const { ctx } = contextoFalso(dos().tx, ambitoDe('mesero'), AHORA);
+    const salida = await agendaDelDia.ejecutar(ctx, { fecha: HOY, profesionalId: null });
+    expect(salida.columnas.map((c) => c.nombreCorto)).toEqual(['Karla']);
+  });
+
+  it('pidiendo la de otra, se le niega', async () => {
+    const { ctx } = contextoFalso(dos().tx, ambitoDe('mesero'), AHORA);
+    await expect(
+      agendaDelDia.ejecutar(ctx, { fecha: HOY, profesionalId: DANY }),
+    ).rejects.toMatchObject({ codigo: 'PUENTE_SIN_PERMISO' });
+  });
+
+  it('la recepción ve todas las columnas', async () => {
+    const { ctx } = contextoFalso(dos().tx, ambitoDe('cajero'), AHORA);
+    const salida = await agendaDelDia.ejecutar(ctx, { fecha: HOY, profesionalId: null });
+    expect(salida.columnas.map((c) => c.nombreCorto)).toEqual(['Karla', 'Dany']);
   });
 });

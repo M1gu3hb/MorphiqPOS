@@ -6,7 +6,7 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, EMPLEO, ORG } from '../restaurante/pruebas/sala.ts';
 import {
   comisionesDelProfesional,
   comprobanteDeLiquidacion,
@@ -77,7 +77,8 @@ function comision(cambios: Record<string, unknown> = {}): Record<string, unknown
 
 function baseDe(extra: Partial<TablasFalsas> = {}) {
   return crearBaseFalsa({
-    profesionales: [profesional(KARLA, 'Karla', 'e1')],
+    // Karla es la estilista que entra: su empleo es el de la sesión (`ambitoDe`).
+    profesionales: [profesional(KARLA, 'Karla', EMPLEO)],
     citas: [],
     cita_servicios: [],
     clientes: [],
@@ -394,5 +395,58 @@ describe('F-427 · el comprobante', () => {
     expect(
       await codigoDe(() => comprobanteDeLiquidacion.ejecutar(ctx, { liquidacionId: LIQUIDACION })),
     ).toBe('PUENTE_NO_ENCONTRADO');
+  });
+});
+
+/**
+ * C.10 de la 2.4 · LA ESTILISTA SÓLO VE LO SUYO, también por los comandos.
+ *
+ * El puente ya lo recortaba (C.7), pero «Mi día», las comisiones y la agenda leen
+ * comandos, y los comandos no miraban quién entraba: pasando el id de otra, una estilista
+ * leía su día y sus comisiones.
+ */
+describe('C.10 · el recorte de la estilista en los comandos', () => {
+  const conDany = () =>
+    baseDe({
+      profesionales: [profesional(KARLA, 'Karla', EMPLEO), profesional(DANY, 'Dany', 'e2')],
+      comisiones_causadas: [comision({ profesional_id: DANY, id: 'k-dany' })],
+    });
+
+  it('la estilista NO lee las comisiones de otra pasando su id', async () => {
+    const { ctx } = contextoFalso(conDany().tx, ambitoDe('mesero'), AHORA);
+    expect(
+      await codigoDe(() =>
+        comisionesDelProfesional.ejecutar(ctx, {
+          profesionalId: DANY,
+          desde: '2026-09-01',
+          hasta: '2026-09-30',
+        }),
+      ),
+    ).toBe('PUENTE_SIN_PERMISO');
+  });
+
+  it('ni abre «Mi día» de otra', async () => {
+    const { ctx } = contextoFalso(conDany().tx, ambitoDe('mesero'), AHORA);
+    expect(
+      await codigoDe(() => miDia.ejecutar(ctx, { profesionalId: DANY, fecha: '2026-09-16' })),
+    ).toBe('PUENTE_SIN_PERMISO');
+  });
+
+  it('la recepción sí lee las de cualquiera', async () => {
+    const { ctx } = contextoFalso(conDany().tx, ambitoDe('cajero'), AHORA);
+    const salida = await comisionesDelProfesional.ejecutar(ctx, {
+      profesionalId: DANY,
+      desde: '2026-09-01',
+      hasta: '2026-09-30',
+    });
+    expect(salida.causadoCentavos).toBe('36000');
+  });
+
+  it('una estilista sin profesional ligada no ve la de nadie', async () => {
+    const sinLigar = baseDe({ profesionales: [profesional(KARLA, 'Karla', 'otro-empleo')] });
+    const { ctx } = contextoFalso(sinLigar.tx, ambitoDe('mesero'), AHORA);
+    expect(
+      await codigoDe(() => miDia.ejecutar(ctx, { profesionalId: KARLA, fecha: '2026-09-16' })),
+    ).toBe('PUENTE_SIN_PERMISO');
   });
 });
