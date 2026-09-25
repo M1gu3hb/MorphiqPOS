@@ -152,7 +152,8 @@ export type Calculo =
   | 'propinaLiquidada'
   | 'etiquetaSatisfaccion'
   | 'fechaDeCreacion'
-  | 'dineroDejadoEnCaja';
+  | 'dineroDejadoEnCaja'
+  | 'existenciaDelProducto';
 
 export interface CampoCalculado {
   /** Igual que en `CampoMapeado`: quién puede leerlo. `undefined` = cualquiera. */

@@ -31,7 +31,15 @@ import { Check, Milk, OctagonAlert, ShoppingBag, TriangleAlert } from 'lucide-re
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import type { HojaDelServidor } from '~/corte/hoja';
 import { CorteEnPdf } from '~/corte/CorteEnPdf';
+
+import {
+  bebidasDelTurno,
+  cifrasDeCanal,
+  cifrasDeMerma,
+  type CifraDelTurno,
+} from './cifras-del-turno.ts';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
@@ -85,9 +93,10 @@ import { sigueEnLaFila } from './fila-de-barra';
  * `Aviso` de peligro con lo que NO pasó.
  *
  * ── Alcance recortado, dicho y no escondido ──────────────────────────────
- * `Bebidas`, `Comisión estimada`, el canal y la merma de barra no tienen campo
- * en el puente: entran por props o se pintan «—». En una pantalla de arqueo no
- * se inventa un número. El bote esperado sí se deriva aquí, de
+ * Las bebidas, el canal y la merma de barra salen de la hoja del corte del turno
+ * abierto (C.9 de la 2.4). La comisión estimada de terminal se pinta «—»: el
+ * sistema no conoce la tasa de la terminal de cada negocio (D-20). En una
+ * pantalla de arqueo no se inventa un número. El bote esperado sí se deriva aquí, de
  * `Venta.propina_efectivo`, así que es menos ciego que el efectivo. Y el PDF
  * que «se descarga solo» necesita una ruta de impresión que aún no existe: en
  * su lugar se enseña el folio del corte.
@@ -138,12 +147,6 @@ const CONTEO_VACIO: Conteo = {
 /** Los centavos de una lectura, o `null` si no hay importe. */
 function centavosDeLectura(lectura: Lectura): number | null {
   return typeof lectura === 'number' ? lectura : null;
-}
-
-/** Una cifra que llega ya escrita, por props: el canal y la merma. */
-interface CifraDelTurno {
-  readonly etiqueta: string;
-  readonly valor: string;
 }
 
 /** Los nombres son los del PUENTE, en snake_case. Aquí no se traduce nada. */
@@ -265,6 +268,7 @@ function enCentavos(centavos: number): ValorDelResumen {
 function resumenDelTurno(
   ventas: readonly VentaDelTurno[],
   gastos: readonly GastoDelTurno[],
+  bebidas: number | null,
 ): ResumenDelTurno {
   const cobradas = ventas.filter((v) => v.estado !== 'cancelada' && v.estado !== 'abierta');
   const total = cobradas.reduce(
@@ -288,7 +292,10 @@ function resumenDelTurno(
         etiqueta: 'Ticket promedio',
         valor: enCentavos(cobradas.length === 0 ? 0 : Math.round(total / cobradas.length)),
       },
-      { etiqueta: 'Bebidas', valor: SIN_DATO },
+      {
+        etiqueta: 'Bebidas',
+        valor: bebidas === null ? SIN_DATO : { tipo: 'cuenta', valor: bebidas },
+      },
       { etiqueta: 'Comisión estimada', valor: SIN_DATO },
       { etiqueta: 'Costo', valor: enCentavos(costo) },
       { etiqueta: 'Utilidad bruta', valor: enCentavos(bruta) },
@@ -421,6 +428,13 @@ export function CierreDeTurno({
   // estado se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
   /**
+   * LA HOJA DEL CORTE del turno abierto (C.9 de la 2.4): de ella salen las bebidas, el
+   * canal y la merma de barra, que el puente no servía y se pintaban «—». Es la misma que
+   * va al PDF: la pantalla y el papel no pueden decir cosas distintas. Si no se puede leer,
+   * esas tres cifras siguen en «—» y el resto del cierre se opera igual.
+   */
+  const [hoja, setHoja] = useState<HojaDelServidor | null>(null);
+  /**
    * El reloj NO se lee durante el render. Leerlo ahí da un valor en el
    * servidor y otro en el navegador —un desajuste de hidratación por cada
    * pedido de la fila— y además hace impura la función. Entra por el efecto y
@@ -452,10 +466,23 @@ export function CierreDeTurno({
       leerFila(senal),
     ])
       .then(([turnos, deVenta, deGasto, enFila]) => {
-        setTurno(turnos.find((t) => t.estado === 'abierto') ?? null);
+        const abierto = turnos.find((t) => t.estado === 'abierto') ?? null;
+        setTurno(abierto);
         setVentas(deVenta);
         setGastos(deGasto);
         setFila(enFila);
+        if (abierto !== null) {
+          invocarComando<HojaDelServidor>(
+            '/api/caja/hoja-del-corte',
+            { sesionCajaId: abierto.id },
+            { signal: senal },
+          )
+            .then(setHoja)
+            .catch(() => {
+              // Sin la hoja, bebidas, canal y merma quedan en «—»: el arqueo no depende de
+              // ellas y el turno se sigue cerrando.
+            });
+        }
       })
       .catch((fallo: unknown) => {
         // No leyó nada, y eso NO es «no hay turno»: se dice qué pasó y se deja
@@ -474,7 +501,12 @@ export function CierreDeTurno({
     setIntento((previo) => previo + 1);
   }
 
-  const resumen = useMemo(() => resumenDelTurno(ventas, gastos), [ventas, gastos]);
+  const resumen = useMemo(
+    () => resumenDelTurno(ventas, gastos, hoja === null ? null : bebidasDelTurno(hoja)),
+    [ventas, gastos, hoja],
+  );
+  const canales = canalesIniciales ?? (hoja === null ? [] : cifrasDeCanal(hoja));
+  const mermas = mermasIniciales ?? (hoja === null ? [] : cifrasDeMerma(hoja));
   const boteEsperado = ventas.reduce(
     (suma, v) => suma + (centavosDe('Venta', 'propina_efectivo', v.propina_efectivo) ?? 0),
     0,
@@ -871,13 +903,13 @@ export function CierreDeTurno({
               <Tabla
                 etiqueta={`${voc.titulo('linea_orden', true)} por canal`}
                 columnas={columnasDeCifras('Canal')}
-                filas={canalesIniciales ?? []}
+                filas={canales}
                 claveDe={(cifra) => cifra.etiqueta}
                 vacio={
                   <Vacio
                     icono={<ShoppingBag />}
-                    titulo="El puente aún no expone el canal de la venta ni el empaque consumido."
-                    explicacion="En cuanto lo haga, aquí van Aquí · Para llevar · Plataforma."
+                    titulo="Todavía no hay ventas cobradas en este turno."
+                    explicacion="Aquí van En taza · Para llevar · Plataforma, con el empaque que salió."
                     className="py-(--espacio-4)"
                   />
                 }
@@ -935,7 +967,7 @@ export function CierreDeTurno({
               <Tabla
                 etiqueta={`Merma de ${voc.singular('preparacion')} del turno`}
                 columnas={columnasDeCifras('Motivo')}
-                filas={mermasIniciales ?? []}
+                filas={mermas}
                 claveDe={(cifra) => cifra.etiqueta}
                 vacio={
                   <Vacio

@@ -89,6 +89,15 @@ export interface CitaDeMiDia {
   readonly libreDesde: string | null;
   /** Lo que la clienta paga. NO el margen: ése no le toca verlo. */
   readonly precioCentavos: string;
+  /**
+   * SU comisión por este servicio, cuando ya se causó (C.9 de la 2.4): el detalle que el
+   * documento pone al lado de cada cita. `null` mientras el servicio no se cobra.
+   */
+  readonly comisionCentavos: string | null;
+  /** Los minutos de procesado del servicio: el hueco en que ella queda libre. */
+  readonly minutosProcesado: number | null;
+  /** La clienta tiene alergias declaradas en su expediente. Un error aquí es una quemadura. */
+  readonly alergias: boolean;
 }
 
 export interface ResultadoMiDia {
@@ -278,6 +287,55 @@ export const miDia = definirComando<Transaccion, typeof entradaMiDia, ResultadoM
           );
     const nombrePorServicio = new Map(productos.map((p) => [p.id, p.nombre]));
 
+    const duraciones =
+      servicioIds.length === 0
+        ? []
+        : await ctx.paso('leer_procesado', () =>
+            ctx.tx
+              .selectFrom('servicios')
+              .select(['producto_id', 'duracion_pasiva_min'])
+              .where('organizacion_id', '=', organizacionId)
+              .where('producto_id', 'in', servicioIds)
+              .execute(),
+          );
+    const procesadoPorServicio = new Map(
+      duraciones.map((d) => [d.producto_id, d.duracion_pasiva_min]),
+    );
+
+    const expedientes =
+      clienteIds.length === 0
+        ? []
+        : await ctx.paso('leer_alergias', () =>
+            ctx.tx
+              .selectFrom('expedientes_belleza')
+              .select(['cliente_id', 'alergias'])
+              .where('organizacion_id', '=', organizacionId)
+              .where('cliente_id', 'in', clienteIds)
+              .execute(),
+          );
+    const conAlergias = new Set(
+      expedientes.filter((e) => e.alergias.trim() !== '').map((e) => e.cliente_id),
+    );
+
+    const comision = await ctx.paso('leer_comision_del_dia', () =>
+      ctx.tx
+        .selectFrom('comisiones_causadas')
+        .select(['monto_centavos', 'cita_servicio_id'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('profesional_id', '=', entrada.profesionalId)
+        .where('causada_en', '>=', dia)
+        .where('causada_en', '<', finDelDia)
+        .execute(),
+    );
+    const comisionPorServicio = new Map<string, bigint>();
+    for (const c of comision) {
+      if (c.cita_servicio_id === null) continue;
+      comisionPorServicio.set(
+        c.cita_servicio_id,
+        (comisionPorServicio.get(c.cita_servicio_id) ?? 0n) + c.monto_centavos,
+      );
+    }
+
     const citas: CitaDeMiDia[] = filas
       .map((f) => {
         const ocupacion = desdeRango(f.rango_ocupacion);
@@ -299,20 +357,12 @@ export const miDia = definirComando<Transaccion, typeof entradaMiDia, ResultadoM
           // y es toda la razón por la que existe esta pantalla.
           libreDesde: activos[0]?.fin.toISOString() ?? null,
           precioCentavos: f.precio_centavos.toString(),
+          comisionCentavos: comisionPorServicio.get(f.id)?.toString() ?? null,
+          minutosProcesado: procesadoPorServicio.get(f.servicio_id) ?? null,
+          alergias: clienteId !== null && conAlergias.has(clienteId),
         };
       })
       .sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime());
-
-    const comision = await ctx.paso('leer_comision_del_dia', () =>
-      ctx.tx
-        .selectFrom('comisiones_causadas')
-        .select(['monto_centavos'])
-        .where('organizacion_id', '=', organizacionId)
-        .where('profesional_id', '=', entrada.profesionalId)
-        .where('causada_en', '>=', dia)
-        .where('causada_en', '<', finDelDia)
-        .execute(),
-    );
 
     const propina = await ctx.paso('leer_propina_del_dia', () =>
       ctx.tx

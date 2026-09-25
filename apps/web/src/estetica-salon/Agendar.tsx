@@ -26,6 +26,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  conExpedienteYFaltas,
+  type ExpedienteDeClienta,
+  type FaltaDeClienta,
+} from './ficha-de-clienta.ts';
+
 /**
  * PANTALLA · estetica-salon · agendar
  *
@@ -103,7 +109,7 @@ export interface ClientaDeAgenda {
   readonly id: string;
   readonly nombre: string | null;
   readonly telefono: string | null;
-  /** Llegan el día que el puente exponga el expediente; hoy vienen vacíos. */
+  /** Del expediente de belleza y de `no_shows`, juntados al leer (`ficha-de-clienta.ts`). */
   readonly alergias?: boolean | null;
   readonly faltas_6m?: number | null;
 }
@@ -357,14 +363,20 @@ export function Agendar({
       consultarPuente<ProfesionalDeAgenda>('Profesional', { limite: 40, signal: senal }),
       consultarPuente<CitaDeAgenda>('Cita', { limite: 400, signal: senal }),
       consultarPuente<ServicioDeCita>('CitaServicio', { limite: 600, signal: senal }),
+      consultarPuente<ExpedienteDeClienta>('ExpedienteBelleza', { limite: 300, signal: senal }),
+      consultarPuente<FaltaDeClienta>('NoShow', { limite: 500, signal: senal }),
     ])
-      .then(([filasClientas, filasServicios, filasEquipo, filasCitas, filasDeCita]) => {
-        setClientas(filasClientas);
-        setServicios(filasServicios);
-        setEquipo(filasEquipo.filter((fila) => fila.activo !== false));
-        setCitas(filasCitas);
-        setDeCita(filasDeCita);
-      })
+      .then(
+        ([filasClientas, filasServicios, filasEquipo, filasCitas, filasDeCita, fichas, faltas]) => {
+          // La alergia y las faltas viven en el expediente y en `no_shows`, no en el
+          // cliente: sin juntarlas, los dos avisos de abajo no salían nunca (C.9 de la 2.4).
+          setClientas(conExpedienteYFaltas(filasClientas, fichas, faltas, new Date()));
+          setServicios(filasServicios);
+          setEquipo(filasEquipo.filter((fila) => fila.activo !== false));
+          setCitas(filasCitas);
+          setDeCita(filasDeCita);
+        },
+      )
       .catch((fallo: unknown) => {
         // Sin clientas, servicios ni equipo no hay nada que ofrecer: la lectura
         // es de todo o nada (`Promise.all`), así que no queda nada en pantalla con

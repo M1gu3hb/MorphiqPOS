@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { MAPA } from '@morphiqpos/app/puente';
 import { describe, expect, it } from 'vitest';
@@ -112,9 +112,12 @@ function camposDelTipo(
 ): readonly { nombre: string; opcional: boolean }[] | null {
   // `interface X {` y también `type X = Algo & { … }`: las dos formas aparecen, y
   // la segunda es la que usa la ficha de pieza para envolver los hijos del puente.
+  // ANCLADAS al inicio de la línea y con el `=` pegado al nombre (C.9 de la 2.4): sin eso,
+  // el `type X,` de un `import { type X } from './x.ts'` encajaba con la forma `type X … =`
+  // y el contrato leía la interfaz de más abajo, que no tenía nada que ver.
   const inicio =
-    new RegExp(`(?:export )?interface ${tipo}\\b[^{]*\\{`).exec(fuente) ??
-    new RegExp(`(?:export )?type ${tipo}\\b[^=]*=[^{]*\\{`).exec(fuente);
+    new RegExp(`^(?:export )?interface ${tipo}\\b[^{]*\\{`, 'm').exec(fuente) ??
+    new RegExp(`^(?:export )?type ${tipo}\\b(?:<[^>]*>)?\\s*=[^{]*\\{`, 'm').exec(fuente);
   if (inicio === null) return null;
   const desde = inicio.index + inicio[0].length;
   let profundidad = 1;
@@ -142,6 +145,31 @@ function camposDelTipo(
     anidado += abre - cierra;
   }
   return campos;
+}
+
+/**
+ * EL ARCHIVO DONDE VIVE EL TIPO: el de la pantalla o, si lo importa de un vecino —la lógica
+ * que se saca a un `.ts` para probarla sin navegador—, el de ese vecino (C.9 de la 2.4).
+ */
+function fuenteDelTipo(archivo: string, tipo: string): string {
+  const fuente = readFileSync(archivo, 'utf8');
+  const declarado = new RegExp(`^(?:export )?(?:interface|type) ${tipo}\\b`, 'm');
+  if (declarado.test(fuente)) return fuente;
+  for (const m of fuente.matchAll(
+    /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*'(\.{1,2}\/[^']+)'/g,
+  )) {
+    const nombres = (m[1] ?? '').split(',').map((n) => n.replace(/^\s*type\s+/, '').trim());
+    if (!nombres.includes(tipo)) continue;
+    const base = join(dirname(archivo), m[2] ?? '');
+    for (const ruta of [base, `${base}.ts`, `${base}.tsx`]) {
+      try {
+        if (statSync(ruta).isFile()) return readFileSync(ruta, 'utf8');
+      } catch {
+        // No existe con esa extensión: se prueba la siguiente.
+      }
+    }
+  }
+  return fuente;
 }
 
 /** Todo lo que el mapa declara para una entidad, con cualquier forma. */
@@ -453,7 +481,7 @@ describe('las lecturas del puente', () => {
 
     for (const lectura of lecturas()) {
       if (TIPOS_QUE_VIVEN_FUERA[lectura.tipo] !== undefined) continue;
-      const fuente = readFileSync(join(RAIZ, lectura.archivo), 'utf8');
+      const fuente = fuenteDelTipo(join(RAIZ, lectura.archivo), lectura.tipo);
       const campos = camposDelTipo(fuente, lectura.tipo);
       if (campos === null) {
         sinResolver += 1;

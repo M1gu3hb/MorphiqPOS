@@ -61,8 +61,8 @@ import { ApartadosDeHoy } from './ApartadosDeHoy';
  * 2. El cobro sale en efectivo por el importe exacto; el mixto vive en el
  *    diálogo de cobro.
  * 3. `F12`, `F2` y `F3` son del navegador; sí funcionan `Esc` y `F4`.
- * 4. «Agotado» llega en `agotado`; hoy el puente no expone existencia de
- *    `ProductoTerminado` y llega vacío. El día que llegue, la tesela se apaga.
+ * 4. «Agotado» sale de la `existencia` que el puente sirve para lo que se vende tal
+ *    cual (C.9 de la 2.4); lo de receta no tiene contador y no se apaga por eso.
  */
 
 const CANALES = [
@@ -82,7 +82,16 @@ export interface ProductoDeBarra {
   readonly precio_venta: number | null;
   readonly categoria_nombre: string | null;
   readonly visible_en_pos: boolean | null;
-  readonly agotado?: boolean | null;
+  /**
+   * La existencia de su insumo base, del puente (C.9 de la 2.4). Un producto de receta
+   * —un latte— no la tiene y llega nulo: no se marca agotado por no tener contador.
+   */
+  readonly existencia?: number | null;
+}
+
+/** Se acabó lo que se vende tal cual: su existencia llegó y ya no queda. */
+export function estaAgotado(producto: Pick<ProductoDeBarra, 'existencia'>): boolean {
+  return typeof producto.existencia === 'number' && producto.existencia <= 0;
 }
 
 export interface TurnoDeBarra {
@@ -575,7 +584,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
             96 px de lado: es lo que una mano mojada acierta sin mirar. */}
         <ul className="grid grid-cols-2 gap-(--espacio-2) md:grid-cols-4 xl:grid-cols-5">
           {visibles.map((producto) => {
-            const agotado = producto.agotado === true;
+            const agotado = estaAgotado(producto);
             return (
               <li key={producto.id}>
                 <Superficie

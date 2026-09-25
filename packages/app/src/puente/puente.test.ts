@@ -503,6 +503,13 @@ describe('los campos derivados', () => {
       'ordenes',
       'proveedores',
       'lealtad_saldos',
+      // Las dos del 25-09-2026 (C.9 de la 2.4), para que el cobro diga «Agotado»:
+      //   · `materiales_mostrador` · la existencia por producto, que el puente YA sirve a
+      //     todos los roles por `MaterialMostrador`.
+      //   · `insumos` · sólo su `id` (`insumos_por_producto` es único): dice SI el
+      //     producto tiene insumo, para no apagar lo de receta. Ni nombre, ni costo.
+      'materiales_mostrador',
+      'insumos',
     ]);
     for (const [entidad, mapa] of Object.entries(MAPA)) {
       for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {

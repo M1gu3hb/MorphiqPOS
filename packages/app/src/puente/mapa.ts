@@ -208,6 +208,40 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
     },
     derivados: {
       /**
+       * LA EXISTENCIA del producto que se vende tal cual (C.9 de la 2.4): las tres piezas de
+       * las que sale el campo calculado `existencia` (abajo).
+       *
+       * Un producto se liga a su insumo por dos caminos, y la demo usa el segundo: el
+       * producto apunta a su insumo base (`insumo_base_id`), o el insumo apunta a su
+       * producto (`insumos.producto_id`, único por producto). La existencia por el segundo
+       * camino la da `materiales_mostrador`, pero en CERO cuando no hay insumo —un latte—,
+       * así que hace falta saber si el insumo existe para no apagar lo que no tiene contador.
+       */
+      existencia_base: {
+        rolesLectura: [...TODOS_LOS_ROLES],
+        tabla: 'existencias_por_insumo',
+        porColumna: 'insumo_base_id',
+        emparejaCon: 'insumo_id',
+        columna: 'cantidad',
+        conversion: 'decimal',
+      },
+      existencia_en_mostrador: {
+        rolesLectura: [...TODOS_LOS_ROLES],
+        tabla: 'materiales_mostrador',
+        porColumna: 'id',
+        emparejaCon: 'producto_id',
+        columna: 'existencia',
+        conversion: 'decimal',
+      },
+      insumo_propio_id: {
+        rolesLectura: [...TODOS_LOS_ROLES],
+        tabla: 'insumos',
+        porColumna: 'id',
+        emparejaCon: 'producto_id',
+        columna: 'id',
+        conversion: 'texto',
+      },
+      /**
        * F-401 · LA DURACIÓN DE UN SERVICIO ES UNA SECUENCIA, no un número.
        *
        * «Un tinte no dura 110 minutos: dura 40, 45, 15 y 10», y los 45 del procesado
@@ -274,6 +308,18 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         porColumna: 'insumo_base_id',
         columna: 'nombre',
         conversion: 'texto',
+      },
+    },
+    calculados: {
+      /**
+       * La existencia del producto que se vende tal cual, por cualquiera de sus dos
+       * caminos, o nula si no tiene insumo —lo de receta no tiene contador y no se apaga
+       * por eso—. El cobro pinta «sin existencia» y «Agotado» con ella (C.9 de la 2.4).
+       */
+      existencia: {
+        rolesLectura: [...TODOS_LOS_ROLES],
+        formula: 'existenciaDelProducto',
+        conversion: 'decimal',
       },
     },
   },
@@ -1429,12 +1475,56 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         columna: 'nombre',
         conversion: 'texto',
       },
+      /**
+       * Los minutos de PROCESADO del servicio: el hueco en el que la profesional queda libre
+       * aunque la clienta siga sentada. «Mi día» los esperaba y llegaban vacíos (C.9).
+       */
+      minutos_procesado: {
+        tabla: 'servicios',
+        porColumna: 'servicio_id',
+        emparejaCon: 'producto_id',
+        columna: 'duracion_pasiva_min',
+        conversion: 'entero',
+      },
       // El corto, que es el que cabe en una columna de agenda.
       profesional_nombre: {
         tabla: 'profesionales',
         porColumna: 'profesional_id',
         columna: 'nombre_corto',
         conversion: 'texto',
+      },
+    },
+  },
+
+  /**
+   * LAS FALTAS de una clienta (F-416, C.9 de la 2.4).
+   *
+   * La agenda avisa «faltó 2 veces en seis meses» antes de apartarle una hora larga, y la
+   * leía de un `faltas_6m` que el puente nunca sirvió. Contarlas sería una vista nueva —una
+   * migración, que es de Miguel—; servir la fila y contar en la pantalla no lo es. El valor
+   * perdido es dinero del negocio: sólo para dirección.
+   */
+  NoShow: {
+    tabla: 'no_shows',
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'lectura',
+    ordenPorOmision: '-ocurrio_en',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      cita_id: { columna: 'cita_id', conversion: 'texto', escribible: false },
+      profesional_id: { columna: 'profesional_id', conversion: 'texto', escribible: false },
+      ocurrio_en: { columna: 'ocurrio_en', conversion: 'fecha', escribible: false },
+      anticipo_retenido: {
+        columna: 'anticipo_retenido',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      valor_perdido: {
+        rolesLectura: [...DIRECCION],
+        columna: 'valor_perdido_centavos',
+        conversion: 'dinero',
+        escribible: false,
       },
     },
   },

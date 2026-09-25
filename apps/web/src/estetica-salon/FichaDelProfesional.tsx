@@ -54,11 +54,10 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ancho: la que sigue y lo ganado a la izquierda, y el día entero a la derecha,
  * con su fila marcada.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben el día, lo siguiente, la comisión y la propina. Queda fuera cobrar,
- * que pasa en el mostrador y es otra pantalla. El detalle de la comisión
- * servicio por servicio que el documento pone al lado en tableta no llega en
- * `mi-dia`: el día que llegue, es una columna más de la tabla.
+ * ── Lo que va, y lo que es de otra pantalla ────────────────────────────
+ * Caben el día, lo siguiente, la comisión —del día y servicio por servicio— y la
+ * propina, con el procesado de cada servicio y la alergia de la clienta (C.9 de la
+ * 2.4). Queda fuera cobrar, que pasa en el mostrador y es otra pantalla.
  */
 
 const RUTA_MI_DIA = '/api/profesionales';
@@ -79,6 +78,12 @@ export interface CitaDeMiDia {
   readonly fin: string;
   readonly libreDesde: string | null;
   readonly precioCentavos: string;
+  /** SU comisión por este servicio, ya causada; `null` mientras no se cobra (C.9). */
+  readonly comisionCentavos?: string | null;
+  /** Los minutos de procesado: el hueco en que queda libre. */
+  readonly minutosProcesado?: number | null;
+  /** La clienta tiene alergias en su expediente. */
+  readonly alergias?: boolean;
 }
 
 export interface MiDia {
@@ -191,8 +196,19 @@ function LaQueSigue({ cita }: { readonly cita: CitaDeMiDia }) {
       </div>
       <div className="flex flex-col gap-(--espacio-1)">
         <p className="text-3xl leading-tight font-semibold">{cita.clienta ?? 'Sin nombre'}</p>
-        <p className="text-lg text-texto-sutil">{cita.servicio}</p>
+        <p className="text-lg text-texto-sutil">
+          {cita.servicio}
+          {cita.minutosProcesado === undefined || cita.minutosProcesado === null
+            ? null
+            : ` · ${String(cita.minutosProcesado)} min de procesado`}
+        </p>
       </div>
+      {/* La alergia ANTES de tocar a la clienta: un error aquí es una quemadura. */}
+      {cita.alergias === true ? (
+        <Aviso tono="peligro" titulo="Tiene alergias declaradas">
+          Revisa su expediente antes de empezar.
+        </Aviso>
+      ) : null}
       {/* La palabra dice si la suelta antes —«libre a las»— o no —«hasta las»—; el
           tinte sólo lo subraya. */}
       <Superficie
@@ -383,6 +399,22 @@ export function FichaDelProfesional({ profesionalId, diaInicial }: FichaDelProfe
       numerica: true,
       desde: 'sm',
       celda: (cita) => <Dinero centavos={Number(cita.precioCentavos)} tamano="sm" />,
+    },
+    /**
+     * EL DETALLE DE LA COMISIÓN, servicio por servicio (C.9 de la 2.4): lo que el documento
+     * pone al lado en tableta. Antes sólo llegaba el total del día; «—» mientras no se cobra.
+     */
+    {
+      clave: 'comision',
+      titulo: 'Tu comisión',
+      numerica: true,
+      desde: 'md',
+      celda: (cita) =>
+        cita.comisionCentavos === undefined || cita.comisionCentavos === null ? (
+          <span className="text-texto-sutil">—</span>
+        ) : (
+          <Dinero centavos={Number(cita.comisionCentavos)} tamano="sm" />
+        ),
     },
   ];
 

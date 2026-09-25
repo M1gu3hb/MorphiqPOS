@@ -74,7 +74,8 @@ import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
  *    que se va solo.
  * 4. Sin conexión (F-988) no hay cola, por decisión (A-27): sin red la pantalla lo
  *    DICE —«Sin internet. No se puede cobrar»— y CONFIRMAR no se deja pulsar.
- * 5. `existencia` la expondrá el puente; hoy llega vacía y el punto no sale.
+ * 5. `existencia` la sirve el puente (C.9 de la 2.4): la de su insumo base, sumada
+ *    sobre los almacenes. Sin insumo base llega nula y el punto no sale.
  *
  * ── El teclado ───────────────────────────────────────────────────────────
  * F12 efectivo, F9 tarjeta, F10 transferencia, F11 fiado, F2 al buscador, Supr

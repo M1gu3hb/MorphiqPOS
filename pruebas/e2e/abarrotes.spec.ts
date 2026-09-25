@@ -420,6 +420,19 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
         `que se cobró. Se vendió «${nombre}».`,
     ).toContain(nombre);
 
+    // Y EL PUENTE SIRVE SU EXISTENCIA (C.9 de la 2.4): el cobro pinta «sin existencia»
+    // con este campo y llegaba vacío, así que no salió nunca. Contra la base viva: el
+    // derivado se compila en Postgres y trae un número.
+    const [conExistencia] = await consultarPuente<{ existencia?: number | null }>(
+      page,
+      'ProductoTerminado',
+      { filtro: { id: producto.id }, limite: 1 },
+    );
+    expect(
+      typeof conExistencia?.existencia,
+      `El puente no sirve la existencia de «${nombre}», que tiene insumo base.`,
+    ).toBe('number');
+
     exigirSinFallos();
   });
 });

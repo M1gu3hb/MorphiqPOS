@@ -231,6 +231,42 @@ describe('F-426 · mi día', () => {
     expect(salida.propinaDelDiaCentavos).toBe('5000');
   });
 
+  /**
+   * C.9 de la 2.4 · lo que el documento pone al lado de cada cita, y que no llegaba: la
+   * comisión de ESE servicio, cuánto dura su procesado y si la clienta tiene alergias.
+   */
+  it('cada servicio trae SU comisión, su procesado y la alergia del expediente', async () => {
+    const base = baseDe({
+      ...dia,
+      comisiones_causadas: [comision(), comision({ id: 'k2', cita_servicio_id: 'otro' })],
+      servicios: [{ producto_id: 's1', organizacion_id: ORG, duracion_pasiva_min: 45 }],
+      expedientes_belleza: [
+        { cliente_id: CLIENTA, organizacion_id: ORG, alergias: 'Amoniaco: ardor en el cuero' },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    const salida = await miDia.ejecutar(ctx, { profesionalId: KARLA, fecha: '2026-09-16' });
+
+    expect(salida.citas[0]?.comisionCentavos).toBe('36000');
+    expect(salida.citas[0]?.minutosProcesado).toBe(45);
+    expect(salida.citas[0]?.alergias).toBe(true);
+  });
+
+  it('sin comisión causada, sin procesado y con el expediente en blanco, lo dice así', async () => {
+    const base = baseDe({
+      ...dia,
+      expedientes_belleza: [{ cliente_id: CLIENTA, organizacion_id: ORG, alergias: '  ' }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    const salida = await miDia.ejecutar(ctx, { profesionalId: KARLA, fecha: '2026-09-16' });
+
+    expect(salida.citas[0]?.comisionCentavos).toBeNull();
+    expect(salida.citas[0]?.minutosProcesado).toBeNull();
+    expect(salida.citas[0]?.alergias).toBe(false);
+  });
+
   it('un día sin citas devuelve la lista vacía', async () => {
     const base = baseDe();
     const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);

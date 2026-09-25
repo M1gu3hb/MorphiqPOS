@@ -28,6 +28,19 @@ import { consultarPuente } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  componerElDia,
+  esMismoDia,
+  type CitaDeMiDia,
+  type FilaCita,
+  type FilaCitaServicio,
+  type FilaCliente,
+  type FilaComision,
+  type FilaExpediente,
+} from './mi-dia.ts';
+
+export type { CitaDeMiDia } from './mi-dia.ts';
+
 /**
  * PANTALLA · estetica-salon · mi-dia
  *
@@ -84,10 +97,10 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * La venta del salón, la comisión de nadie más, el corte y los gastos. Esta
  * pantalla es de UNA persona.
  *
- * ── Alcance recortado, dicho y no escondido ──────────────────────────────
- * El nombre del servicio llega vacío: el puente no declara `Servicio`, así que
- * `CitaServicio` sólo trae su id. Llega por props, para las pruebas y para el
- * día que la entidad exista. Los minutos de procesado, igual.
+ * ── De dónde sale cada dato ─────────────────────────────────────────────
+ * El nombre del servicio y sus minutos de procesado vienen de `CitaServicio`
+ * (derivados del producto y de `servicios`), y la bandera de alergia del
+ * EXPEDIENTE, no de buscar «alergia» en las notas de la cita (C.9 de la 2.4).
  */
 
 /** Los estados en que la cita ya no espera nada de ella. */
@@ -110,25 +123,6 @@ const MINUTOS_PROCESADO_TOPE = 45;
 
 /** El rótulo de cada bloque: pequeño, en versalitas, y el mismo en los cuatro. */
 const RUBRO = 'text-xs font-semibold tracking-wide text-texto-sutil uppercase';
-
-export interface CitaDeMiDia {
-  readonly id: string;
-  readonly citaServicioId: string;
-  readonly folio: string | null;
-  readonly clienteNombre: string | null;
-  readonly servicio: string | null;
-  /** ISO. La hora se pinta sólo en el navegador: el servidor tiene otro huso. */
-  readonly inicio: string;
-  readonly estado: string;
-  /**
-   * En CENTAVOS: `componerElDia` ya lo convirtió con `centavosDe` desde el `precio_pesos`
-   * del puente. Aquí viajaban los pesos y cada pantalla que los pintaba tenía que
-   * acordarse de convertirlos.
-   */
-  readonly precioCentavos: number;
-  readonly alergias: boolean;
-  readonly minutosProcesado: number | null;
-}
 
 export interface LineaDeComision {
   readonly id: string;
@@ -161,81 +155,10 @@ export interface MiDiaProps {
   readonly onAbrirCita?: (citaId: string) => void;
 }
 
-interface FilaCitaServicio {
-  readonly id: string;
-  readonly cita_id: string;
-  /** EN PESOS: el gemelo honesto de `precio_centavos`. Se lee sólo con `centavosDe`. */
-  readonly precio_pesos: number | null;
-}
-
-interface FilaCita {
-  readonly id: string;
-  readonly folio: string | null;
-  readonly cliente_id: string | null;
-  readonly estado: string | null;
-  readonly agendada_para: string | null;
-  readonly notas: string | null;
-}
-
-interface FilaCliente {
-  readonly id: string;
-  readonly nombre: string | null;
-}
-
-interface FilaComision {
-  readonly id: string;
-  readonly tipo: string | null;
-  /** EN PESOS: el gemelo honesto de `monto_centavos`. Se lee sólo con `centavosDe`. */
-  readonly monto_pesos: number | null;
-  readonly causada_en: string | null;
-  readonly motivo: string | null;
-}
-
 function aHora(iso: string): string {
   const f = new Date(iso);
   const hh = f.getHours().toString().padStart(2, '0');
   return `${hh}:${f.getMinutes().toString().padStart(2, '0')}`;
-}
-
-export function esMismoDia(iso: string, referencia: Date): boolean {
-  const f = new Date(iso);
-  return (
-    f.getFullYear() === referencia.getFullYear() &&
-    f.getMonth() === referencia.getMonth() &&
-    f.getDate() === referencia.getDate()
-  );
-}
-
-/** Une lo que el puente devuelve en tres lecturas y lo ordena por hora. */
-export function componerElDia(
-  servicios: readonly FilaCitaServicio[],
-  citas: readonly FilaCita[],
-  clientes: readonly FilaCliente[],
-  hoy: Date,
-): readonly CitaDeMiDia[] {
-  const porCita = new Map(citas.map((c) => [c.id, c]));
-  const nombreDe = new Map(clientes.map((c) => [c.id, c.nombre]));
-  const filas: CitaDeMiDia[] = [];
-  for (const servicio of servicios) {
-    const cita = porCita.get(servicio.cita_id);
-    const cuando = cita?.agendada_para ?? null;
-    if (cita === undefined || cuando === null || !esMismoDia(cuando, hoy)) continue;
-    filas.push({
-      id: cita.id,
-      citaServicioId: servicio.id,
-      folio: cita.folio,
-      clienteNombre: cita.cliente_id === null ? null : (nombreDe.get(cita.cliente_id) ?? null),
-      servicio: null,
-      inicio: cuando,
-      estado: cita.estado ?? 'agendada',
-      precioCentavos: centavosDe('CitaServicio', 'precio_pesos', servicio.precio_pesos) ?? 0,
-      // Hasta que la ficha exponga el campo, se busca en las notas. Un falso
-      // positivo avisa de más, y en alergias ése es el error barato.
-      alergias: (cita.notas ?? '').toLowerCase().includes('alergia'),
-      minutosProcesado: null,
-    });
-  }
-  return filas.sort((a, b) => a.inicio.localeCompare(b.inicio));
 }
 
 export type Renglon =
@@ -338,11 +261,12 @@ export function MiDia({
       consultarPuente<FilaCita>('Cita', { limite: 200, signal: señal }),
       consultarPuente<FilaCliente>('Cliente', { limite: 300, signal: señal }),
       consultarPuente<FilaComision>('ComisionCausada', { filtro: mio, limite: 60, signal: señal }),
+      consultarPuente<FilaExpediente>('ExpedienteBelleza', { limite: 300, signal: señal }),
     ])
-      .then(([servicios, agenda, clientes, comisiones]) => {
+      .then(([servicios, agenda, clientes, comisiones, expedientes]) => {
         if (!sigueMontada()) return;
         const hoy = new Date();
-        setCitas(componerElDia(servicios, agenda, clientes, hoy));
+        setCitas(componerElDia(servicios, agenda, clientes, expedientes, hoy));
         const delDia = comisiones.filter(
           (c) => c.causada_en !== null && esMismoDia(c.causada_en, hoy),
         );

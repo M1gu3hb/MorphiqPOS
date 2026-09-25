@@ -5968,3 +5968,28 @@ tienda y ferretería no lo enseñan en su hoja; la hoja de otra sesión → la c
 PDF; la liquidación con otro nombre → la estética no la trae. Restaurados, verdes otra vez.
 **Una aserción mía estaba mal** y se corrigió: la estética agenda su cita para un miércoles
 FUTURO, así que la agenda de hoy está vacía y la hoja la omite, como debe.
+
+## 25-09-2026 · Etapa 2.4 · C.9 · los datos que el puente no servía
+
+**Lo que llega ahora, cada uno con su `rolesLectura`:**
+- **La existencia del producto** («Agotado» / «sin existencia» nunca salían): campo calculado
+  `ProductoTerminado.existencia` sobre tres derivados de un salto —el insumo base, o el insumo
+  propio (`insumos.producto_id`, único) con la existencia de `materiales_mostrador`—. **El e2e de
+  la tienda encontró que el primer intento no servía:** la demo liga el producto por el insumo
+  propio, no por `insumo_base_id`, y la existencia llegaba nula. Lo de receta (un latte) sigue sin
+  contador y no se apaga por eso.
+- **«Mi día» y la ficha de la profesional:** el nombre del servicio (llegaba `null` aunque el
+  puente lo derivaba), los minutos de procesado (`CitaServicio.minutos_procesado`), la comisión
+  SERVICIO POR SERVICIO (`mi-dia` la trae por cita) y la alergia del EXPEDIENTE —se buscaba la
+  palabra «alergia» en las notas de la cita: un falso negativo es una quemadura—.
+- **La agenda:** los avisos de alergia y de faltas en seis meses existían y no salían nunca
+  (`Cliente` no traía ni `alergias` ni `faltas_6m`). Se juntan con el expediente y con la entidad
+  nueva de lectura `NoShow`; sin vista nueva (sería una migración, de Miguel).
+- **El cierre de turno de la cafetería:** bebidas, canal (con el empaque) y merma de barra salen
+  de la MISMA hoja del corte que va al PDF. La comisión estimada de terminal sigue en «—» (D-20).
+- **Cocina nunca ve costos:** contrato sobre el mapa entero (`cocina-sin-costos.contrato.test.ts`).
+
+**Dos puertas que perdían cobertura al sacar lógica a un `.ts`, arregladas:** `verify:tipos-de-
+pantalla` dejaba de comparar la lectura («sin interfaz en su archivo») y el contrato de lecturas
+del puente leía la interfaz EQUIVOCADA —su expresión encajaba con el `type X,` de un `import`—.
+Las dos siguen el import relativo (501 campos comparados, antes 475; 6 sin interfaz, antes 8).

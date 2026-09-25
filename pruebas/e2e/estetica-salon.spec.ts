@@ -639,6 +639,22 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     expect(citaId, 'Agendar no devolvió la cita.').toBeTruthy();
     expect(citaServicioId, 'Agendar no devolvió el servicio de la cita.').toBeTruthy();
 
+    // LO QUE «MI DÍA» Y LA AGENDA LEEN DEL PUENTE (C.9 de la 2.4), contra la base viva: el
+    // servicio de la cita trae su nombre y sus minutos de procesado, y las faltas se leen.
+    const [delServicio] = await consultarPuente<{
+      servicio_nombre?: string | null;
+      minutos_procesado?: number | null;
+    }>(page, 'CitaServicio', { filtro: { id: citaServicioId }, limite: 1 });
+    expect(delServicio?.servicio_nombre, 'El servicio de la cita llega sin nombre.').toBeTruthy();
+    expect(
+      typeof delServicio?.minutos_procesado,
+      'El servicio de la cita llega sin sus minutos de procesado.',
+    ).toBe('number');
+    const faltas = await consultarPuente<{ cliente_id?: string | null }>(page, 'NoShow', {
+      limite: 5,
+    });
+    expect(Array.isArray(faltas), 'Las faltas no se pudieron leer del puente.').toBe(true);
+
     /**
      * 1b · EL ANTICIPO, EN EFECTIVO, el día que se agenda (C.3 de la 2.4).
      *

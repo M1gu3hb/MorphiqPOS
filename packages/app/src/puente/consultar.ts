@@ -508,6 +508,19 @@ const FORMULAS: Readonly<Record<Calculo, (fila: Fila) => unknown>> = {
     if (contado === null || retirado === null) return null;
     return Number(contado - retirado) / CENTAVOS_POR_PESO;
   },
+  /**
+   * La existencia del producto: la de su insumo base si lo tiene; si no, la de su insumo
+   * propio (`materiales_mostrador`) SÓLO cuando ese insumo existe; si no, nula. La vista
+   * da cero para un producto sin insumo, y un cero ahí apagaría un latte (C.9 de la 2.4).
+   */
+  existenciaDelProducto(fila) {
+    const base = textoDeNumero(fila['existencia_base']);
+    if (base !== null) return Number(base);
+    const propio = fila['insumo_propio_id'];
+    if (typeof propio !== 'string' || propio === '') return null;
+    const enMostrador = textoDeNumero(fila['existencia_en_mostrador']);
+    return enMostrador === null ? null : Number(enMostrador);
+  },
 };
 
 export function calcular(formula: Calculo, fila: Fila): unknown {

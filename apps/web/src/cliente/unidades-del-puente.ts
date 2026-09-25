@@ -115,6 +115,9 @@ export const UNIDADES_DEL_PUENTE = {
   MovimientoInventario: {
     costo_unitario_en_momento: 'pesos',
   },
+  NoShow: {
+    valor_perdido: 'pesos',
+  },
   NotaDeCaja: {
     limiteClienteCentavos: 'centavos',
     saldoClienteCentavos: 'centavos',
