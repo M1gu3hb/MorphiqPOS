@@ -14,6 +14,7 @@ import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
 import { exigirMotivoDeMerma } from '../inventario/motivos.ts';
+import { almacenDeLaSesion } from './recibir-nota.ts';
 
 /**
  * F-149 · Conteo cíclico por zona, sobre la toma física de E2 (F-106).
@@ -45,7 +46,11 @@ const ROLES = ['almacen', 'gerente', 'administrador', 'dueno'] as const;
 const CANTIDAD = /^\d{1,10}(\.\d{1,4})?$/;
 
 export const entradaAbrirConteo = z.object({
-  almacenId: z.uuid(),
+  /**
+   * Opcional: sin él, el almacén principal de la sucursal de la SESIÓN. El almacén es
+   * ámbito; exigírselo a la pantalla es por lo que ninguna abría una toma (C.8).
+   */
+  almacenId: z.uuid().optional(),
   alcance: z.enum(['zona', 'completo']),
   zonaId: z.uuid().optional(),
 });
@@ -148,10 +153,11 @@ export const abrirConteo = definirComando<
       }
     }
 
+    const almacenId = entrada.almacenId ?? (await almacenDeLaSesion(ctx));
     const tomaId = await ctx.paso('abrir_toma', () =>
       repoTomas.abrirToma(ctx.tx, {
         organizacionId,
-        almacenId: entrada.almacenId,
+        almacenId,
         empleadoId: empleoId,
         zonaId,
         ahora: ctx.ahora,
@@ -160,7 +166,7 @@ export const abrirConteo = definirComando<
 
     ctx.auditar({
       entidadId: tomaId,
-      payload: { alcance: entrada.alcance, zonaId, almacenId: entrada.almacenId },
+      payload: { alcance: entrada.alcance, zonaId, almacenId },
     });
 
     return { tomaId, alcance: entrada.alcance, zonaId };

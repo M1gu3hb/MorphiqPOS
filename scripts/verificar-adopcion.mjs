@@ -48,6 +48,12 @@ export const SIN_ESTADO = [
   },
   {
     pantalla: 'restaurante/DividirCuentaDialog',
+    estado: 'vacio',
+    razon:
+      'Diálogo: MesaActiva sólo ofrece «Dividir» cuando hay platillos enviados, así que nunca se abre sin líneas que repartir. Tenía un Vacio para ese caso y era una guarda inalcanzable (C.12 de la 2.4).',
+  },
+  {
+    pantalla: 'restaurante/DividirCuentaDialog',
     estado: 'cargando',
     razon:
       'Diálogo: MesaActiva le pasa por props los platillos enviados y la orden; no hay lectura que esperar. Lo único asíncrono es el comando dividir-cuenta, pintado con el botón `cargando` («Dividiendo…»).',
@@ -81,6 +87,24 @@ export const SIN_ESTADO = [
     estado: 'error',
     razon:
       'No tiene una operación que pueda fallar: ni lectura ni comando. Es un texto fijo que dice por dónde se entra; si la resolución del negocio falla, `/login-pos` ya cae aquí.',
+  },
+  {
+    pantalla: 'ferreteria/AbrirConteo',
+    estado: 'vacio',
+    razon:
+      'Pieza de Existencias: sin zonas dadas de alta sigue ofreciendo «Toda la ferretería», que es un alcance válido del comando. No hay una lista vacía que explicar; lo que se lee se espera con Esqueleto y su fallo es un Aviso.',
+  },
+  {
+    pantalla: 'ferreteria/CerrarConteo',
+    estado: 'vacio',
+    razon:
+      'Pieza del conteo: un botón de cerrar con su confirmación. No lista nada; la toma que cierra llega por props desde la dirección.',
+  },
+  {
+    pantalla: 'ferreteria/CerrarConteo',
+    estado: 'cargando',
+    razon:
+      'Pieza del conteo: no lee nada. Lo único asíncrono es el cierre, y mientras corre su botón pasa a «Cerrando…» con `cargando`.',
   },
   {
     pantalla: 'ferreteria/EfectivoYMixto',

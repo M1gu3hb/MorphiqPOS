@@ -5833,3 +5833,21 @@ GASTA en esa salida. Pruebas: el booleano del navegador ya no abre (roja antes),
 vencida, corta o ya gastada tampoco. Mutación: quitar la caducidad FALLA; quitar el filtro de «ya
 gastada» PASA porque el `WHERE orden_id is null` del `update` es un segundo cerrojo (declarado).
 Y la etiqueta del mostrador «pide PIN» —que no pedía nada— dice ahora «pasa del límite».
+
+## 25-09-2026 · Etapa 2.4 · C.8 y C.12 · el conteo de ferretería, de punta a punta, y los restos
+
+**C.8.** No era sólo el botón. Tres huecos en fila: `inventario.abrir_conteo` exigía el `almacenId`
+en la entrada —el almacén es ámbito y ninguna pantalla lo sabe—; la página de conteo montaba SIEMPRE
+`tomaId=""`, así que una toma abierta no se podía contar; y cerrarla «era del tronco» y ninguna
+pantalla lo llamaba. Ahora: el almacén lo pone la sesión (prueba roja antes); Existencias trae
+«Abrir conteo» (una zona o toda la ferretería, y si ya hay una toma abierta ofrece SEGUIRLA); la
+página lee `?toma=` (sólo un uuid); y el conteo se cierra con su ajuste desde su pantalla, con
+confirmación que dice qué pasa. El e2e de ferretería abre, llega con la toma y cierra.
+
+**C.12.** La guarda de `DividirCuentaDialog` para «sin líneas» era inalcanzable —MesaActiva sólo
+ofrece Dividir con platillos enviados—: fuera, y el estado declarado con su razón. Los doce `export`
+de `cafeteria/CierreDeTurno.tsx` que nadie importaba son internos; sólo queda el componente.
+
+**C.14, verificado y NO hecho todavía:** el menú público de la cafetería lee el puente con SESIÓN
+—desde el teléfono de una clienta no lee nada— y el pedido se «redacta» en vez de apartarse. Es el
+siguiente.

@@ -46,7 +46,7 @@ const ROLES = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
  * está» en «el servidor ya lo sabe»: el ámbito sale de la sesión, nunca de la
  * petición, y una pantalla que no puede contestarlo se quedaba en blanco.
  */
-async function almacenDeLaSesion(ctx: ContextoComando<Transaccion>): Promise<string> {
+export async function almacenDeLaSesion(ctx: ContextoComando<Transaccion>): Promise<string> {
   const { organizacionId, sucursalId } = ctx.ambito;
   if (sucursalId === null) {
     throw new ErrorDominio(

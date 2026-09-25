@@ -138,30 +138,30 @@ function centavosDeLectura(lectura: Lectura): number | null {
 }
 
 /** Una cifra que llega ya escrita, por props: el canal y la merma. */
-export interface CifraDelTurno {
+interface CifraDelTurno {
   readonly etiqueta: string;
   readonly valor: string;
 }
 
 /** Los nombres son los del PUENTE, en snake_case. Aquí no se traduce nada. */
-export interface TurnoDeCierre {
+interface TurnoDeCierre {
   readonly id: string;
   readonly estado: string | null;
   readonly usuario_apertura_nombre: string | null;
 }
 
-export interface VentaDelTurno {
+interface VentaDelTurno {
   readonly estado: string | null;
   readonly total: number | null;
   readonly costo_total_snapshot: number | null;
   readonly propina_efectivo: number | null;
 }
 
-export interface GastoDelTurno {
+interface GastoDelTurno {
   readonly monto: number | null;
 }
 
-export interface PedidoEnFila {
+interface PedidoEnFila {
   readonly id: string;
   readonly estado: string | null;
   readonly nombre_pedido: string | null;
@@ -184,7 +184,7 @@ interface ParteDelBote {
   readonly montoCentavos: string;
 }
 
-export interface CierreDeTurnoProps {
+interface CierreDeTurnoProps {
   /** Cuando llega, la pantalla no consulta: es lo que usan las pruebas. */
   readonly turnoInicial?: TurnoDeCierre | null;
   readonly ventasIniciales?: readonly VentaDelTurno[];
@@ -195,10 +195,10 @@ export interface CierreDeTurnoProps {
   readonly onCerrado?: (sesionCajaId: string) => void;
 }
 
-export type TonoDelSemaforo = 'exito' | 'advertencia' | 'peligro';
+type TonoDelSemaforo = 'exito' | 'advertencia' | 'peligro';
 
 /** El semáforo del arqueo. La palabra manda; el color y la forma sólo acompañan. */
-export function semaforo(diferencia: number): {
+function semaforo(diferencia: number): {
   readonly tono: TonoDelSemaforo;
   readonly clase: string;
   readonly palabra: string;
@@ -221,25 +221,25 @@ export function semaforo(diferencia: number): {
 }
 
 /** Minutos que un pedido lleva esperando desde que se cobró. */
-export function minutosEsperando(desde: string | null, ahora: number): number {
+function minutosEsperando(desde: string | null, ahora: number): number {
   if (desde === null) return 0;
   const minutos = Math.floor((ahora - new Date(desde).getTime()) / 60_000);
   return Number.isNaN(minutos) || minutos < 0 ? 0 : minutos;
 }
 
 /** Una cifra del resumen: dinero, un conteo, un porcentaje, o «—» si el puente no la tiene. */
-export type ValorDelResumen =
+type ValorDelResumen =
   | { readonly tipo: 'dinero'; readonly centavos: number }
   | { readonly tipo: 'cuenta'; readonly valor: number }
   | { readonly tipo: 'porcentaje'; readonly valor: number }
   | { readonly tipo: 'sinDato' };
 
-export interface RenglonDelResumen {
+interface RenglonDelResumen {
   readonly etiqueta: string;
   readonly valor: ValorDelResumen;
 }
 
-export interface ResumenDelTurno {
+interface ResumenDelTurno {
   /** Las nueve primeras cifras del §2, en el orden del PDF. */
   readonly renglones: readonly RenglonDelResumen[];
   /** La décima, la utilidad neta estimada: va al pie, debajo de su columna. */
@@ -259,7 +259,7 @@ function enCentavos(centavos: number): ValorDelResumen {
  * convierte según la unidad de su campo en el mapa, contando dígitos. Una venta sin
  * total suma cero: el renglón es la suma de lo cobrado, no una lectura aparte.
  */
-export function resumenDelTurno(
+function resumenDelTurno(
   ventas: readonly VentaDelTurno[],
   gastos: readonly GastoDelTurno[],
 ): ResumenDelTurno {

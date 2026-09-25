@@ -9,8 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@morphiqpos/ui/primitivas/dialog';
-import { Aviso, Cifra, Tabla, Vacio, type ColumnaDeTabla } from '@morphiqpos/ui/sistema';
-import { Check, CircleAlert, Minus, Plus, UtensilsCrossed } from 'lucide-react';
+import { Aviso, Cifra, Tabla, type ColumnaDeTabla } from '@morphiqpos/ui/sistema';
+import { Check, CircleAlert, Minus, Plus } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
 import { invocarComando } from '~/cliente/api';
@@ -408,99 +408,85 @@ export function DividirCuentaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {lineas.length === 0 ? (
-          <Vacio
-            icono={<UtensilsCrossed />}
-            titulo={`Todavía no hay ${voc.plural('linea_orden')} que repartir`}
-            explicacion={`Sólo se reparte lo que ya se envió a ${voc.enFrase('preparacion')}.`}
-            accion={
-              <Button type="button" variant="outline" onClick={onCerrar}>
-                Volver a {voc.enFrase('unidad_servicio')}
-              </Button>
-            }
-            className="py-(--espacio-8)"
-          />
-        ) : (
-          <>
-            <Tabla
-              etiqueta={`Dividir ${voc.enFrase('orden')}`}
-              columnas={columnas}
-              filas={lineas}
-              claveDe={(linea) => linea.id}
-              tonoDeFila={(linea) => ((pendientes[linea.id] ?? 0) > 0 ? 'advertencia' : undefined)}
-              pie={pieDe(voc, partes, faltanPorRepartir)}
-              alto="max-h-[55dvh]"
-            />
+        {/* Sin «lo enviado» no se llega aquí: MesaActiva sólo ofrece Dividir con
+            platillos enviados (C.12 de la 2.4 quitó la guarda inalcanzable). */}
+        <Tabla
+          etiqueta={`Dividir ${voc.enFrase('orden')}`}
+          columnas={columnas}
+          filas={lineas}
+          claveDe={(linea) => linea.id}
+          tonoDeFila={(linea) => ((pendientes[linea.id] ?? 0) > 0 ? 'advertencia' : undefined)}
+          pie={pieDe(voc, partes, faltanPorRepartir)}
+          alto="max-h-[55dvh]"
+        />
 
-            <div className="flex flex-wrap items-center justify-between gap-(--espacio-3)">
-              <span className="inline-flex flex-wrap items-center gap-(--espacio-2)">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={enElMaximo || enviando}
-                  onClick={() => {
-                    setPartes((p) => [...p, { tomas: {} }]);
-                  }}
-                >
-                  <Plus aria-hidden="true" />
-                  Añadir {voc.enFraseCon('otro', 'orden')}
-                </Button>
-                {enElMaximo ? (
-                  <span className="text-xs text-texto-sutil">
-                    Hasta {MAXIMO_PARTES} {voc.plural('orden')}
-                  </span>
-                ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-(--espacio-3)">
+          <span className="inline-flex flex-wrap items-center gap-(--espacio-2)">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={enElMaximo || enviando}
+              onClick={() => {
+                setPartes((p) => [...p, { tomas: {} }]);
+              }}
+            >
+              <Plus aria-hidden="true" />
+              Añadir {voc.enFraseCon('otro', 'orden')}
+            </Button>
+            {enElMaximo ? (
+              <span className="text-xs text-texto-sutil">
+                Hasta {MAXIMO_PARTES} {voc.plural('orden')}
               </span>
-              {/* El contador de lo que falta: es lo que explica por qué el botón
+            ) : null}
+          </span>
+          {/* El contador de lo que falta: es lo que explica por qué el botón
                   de dividir está apagado —unidades sueltas o una cuenta vacía—.
                   Un botón inerte sin motivo es la forma más rápida de que alguien
                   cierre el diálogo y cobre mal. Es la ÚNICA región viva. */}
-              <p
-                role="status"
-                className={`inline-flex items-center gap-(--espacio-2) text-sm ${razon === null ? 'text-texto-sutil' : 'font-medium text-texto'}`}
-              >
-                <span className="sr-only">{queSeMovio(voc, lineas, partes, ultimo)}</span>
-                {razon === null ? (
-                  <Check aria-hidden="true" className="size-4 text-exito" />
-                ) : (
-                  <CircleAlert
-                    aria-hidden="true"
-                    className={`size-4 ${faltanPorRepartir === 0 ? 'text-peligro' : 'text-advertencia'}`}
-                  />
-                )}
-                {razon ?? 'Todo repartido'}
-              </p>
-            </div>
-
-            {/* Qué pasó y, sobre todo, qué NO pasó: la cuenta sigue entera. */}
-            {error !== null && (
-              <Aviso tono="peligro" titulo={error}>
-                No se dividió nada: {voc.enFrase('orden')} sigue como estaba.
-              </Aviso>
+          <p
+            role="status"
+            className={`inline-flex items-center gap-(--espacio-2) text-sm ${razon === null ? 'text-texto-sutil' : 'font-medium text-texto'}`}
+          >
+            <span className="sr-only">{queSeMovio(voc, lineas, partes, ultimo)}</span>
+            {razon === null ? (
+              <Check aria-hidden="true" className="size-4 text-exito" />
+            ) : (
+              <CircleAlert
+                aria-hidden="true"
+                className={`size-4 ${faltanPorRepartir === 0 ? 'text-peligro' : 'text-advertencia'}`}
+              />
             )}
+            {razon ?? 'Todo repartido'}
+          </p>
+        </div>
 
-            {/* Cancelar a su ancho y Dividir estirado hasta la esquina inferior
-                derecha, donde cae el pulgar. En teléfono, uno sobre otro. */}
-            <DialogFooter className="sm:grid sm:grid-cols-[auto_minmax(0,1fr)]">
-              <Button type="button" variant="outline" size="lg" onClick={onCerrar}>
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                size="lg"
-                cargando={enviando}
-                disabled={razon !== null || enviando}
-                onClick={() => {
-                  void dividir();
-                }}
-              >
-                {enviando
-                  ? 'Dividiendo…'
-                  : `Dividir en ${String(partes.length)} ${voc.plural('orden')}`}
-              </Button>
-            </DialogFooter>
-          </>
+        {/* Qué pasó y, sobre todo, qué NO pasó: la cuenta sigue entera. */}
+        {error !== null && (
+          <Aviso tono="peligro" titulo={error}>
+            No se dividió nada: {voc.enFrase('orden')} sigue como estaba.
+          </Aviso>
         )}
+
+        {/* Cancelar a su ancho y Dividir estirado hasta la esquina inferior
+                derecha, donde cae el pulgar. En teléfono, uno sobre otro. */}
+        <DialogFooter className="sm:grid sm:grid-cols-[auto_minmax(0,1fr)]">
+          <Button type="button" variant="outline" size="lg" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            cargando={enviando}
+            disabled={razon !== null || enviando}
+            onClick={() => {
+              void dividir();
+            }}
+          >
+            {enviando
+              ? 'Dividiendo…'
+              : `Dividir en ${String(partes.length)} ${voc.plural('orden')}`}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

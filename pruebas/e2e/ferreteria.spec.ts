@@ -611,6 +611,29 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // Y cerrar es lo que hace REPETIBLE la corrida: la base permite UNA sesión
     // abierta por sucursal, y cada navegador nuevo trae su propia terminal, así
     // que una caja que se queda abierta bloquea la corrida siguiente entera.
+    /**
+     * 7 · UN CONTEO, DE PUNTA A PUNTA, POR SUS PANTALLAS (C.8 de la 2.4).
+     *
+     * `inventario.abrir_conteo` existía y ninguna pantalla lo llamaba, la página de
+     * conteo nunca leía la toma de la dirección, y cerrarla «era del tronco»: una toma
+     * de ferretería no se abría ni se cerraba. Aquí se abre desde Existencias, se llega
+     * al conteo con su toma y se cierra. Sin nada contado, nada se ajusta.
+     */
+    await abrirPantalla(page, '/ferreteria/existencias', /Existencias/);
+    await page.getByRole('button', { name: 'Abrir conteo' }).click();
+    await page.getByRole('button', { name: 'Abrir y contar' }).click();
+    await expect(
+      page,
+      'Abrir el conteo no llevó a la pantalla de conteo con su toma en la dirección.',
+    ).toHaveURL(/\/ferreteria\/conteo\?toma=[0-9a-f-]{36}/, { timeout: 30_000 });
+    await page.getByRole('button', { name: 'Cerrar el conteo' }).click();
+    await page.getByRole('button', { name: 'Sí, cerrar y ajustar' }).click();
+    await expect(
+      page.getByText('Conteo cerrado'),
+      'La toma no se cerró desde la pantalla de conteo.',
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Todo cuadró: ninguna existencia cambió.')).toBeVisible();
+
     await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + totalCentavos);
 
     exigirSinFallos();

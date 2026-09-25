@@ -38,6 +38,8 @@ import { ErrorApi, consultarPuente } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { AbrirConteo } from './AbrirConteo';
+
 /**
  * PANTALLA · ferreteria · existencias
  *
@@ -778,6 +780,7 @@ export function Existencias({ filasIniciales, verDinero = true }: ExistenciasPro
   return (
     <div className={MARCO}>
       <Encabezado detalle={filas.length === 0 ? undefined : cuantas} />
+      <AbrirConteo />
 
       {filas.length === 0 ? (
         // El vacío ENSEÑA: dice qué cuatro preguntas contesta esta pantalla y

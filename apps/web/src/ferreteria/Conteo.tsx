@@ -23,6 +23,8 @@ import { flushSync } from 'react-dom';
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { CerrarConteo } from './CerrarConteo';
+
 /**
  * PANTALLA · ferreteria · conteo
  *
@@ -64,11 +66,11 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * al elegir, y sin el viaje quien cuenta no sabe si tocó la clave que quería o la
  * de al lado. Dura cero en `movimiento: nula` o con la preferencia del sistema.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben calibrar, contar por peso y capturar a mano lo que no se pesa. Queda
- * fuera el cierre de la toma con su ajuste, que es del tronco. Y el encabezado no
- * dice todavía POR QUÉ toca esta zona —su valor sin contar y los días desde el
- * último conteo—: la lectura no los trae, y no se inventan.
+ * ── De punta a punta (C.8 de la 2.4) ─────────────────────────────────────
+ * La toma se abre en Existencias («Abrir conteo») y llega aquí en la dirección
+ * (`?toma=`); aquí se calibra, se cuenta por peso y se captura a mano lo que no se
+ * pesa; y aquí mismo se CIERRA con su ajuste (`CerrarConteo`), que antes «era del
+ * tronco» y ninguna pantalla llamaba: una toma de ferretería no terminaba nunca.
  */
 
 const RUTA_CALIBRAR = '/api/catalogo/calibrar-peso';
@@ -545,7 +547,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
         <Vacio
           icono={<ClipboardList />}
           titulo="Aquí se cuenta una zona del almacén"
-          explicacion="El conteo cíclico cuenta un anaquel al día en vez de cerrar la cortina un domingo entero. Aquí se captura lo contado de una toma abierta; abrirla desde Existencias todavía no está: mientras, Existencias enseña lo que hay."
+          explicacion="El conteo cíclico cuenta un anaquel al día en vez de cerrar la cortina un domingo entero. Aquí se captura lo contado de una toma abierta: se abre en Existencias, con «Abrir conteo», y de ahí se llega aquí con la toma ya elegida."
           accion={
             <Button asChild className={TACTIL}>
               <a href="/ferreteria/existencias">Ir a Existencias</a>
@@ -614,6 +616,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
         {voc.conNumero('producto', claves.length)}
         {sinCalibrar > 0 ? ` · ${String(sinCalibrar)} sin calibrar` : ''}
       </Encabezado>
+      {tomaId === '' ? null : <CerrarConteo tomaId={tomaId} />}
 
       <div className={REJILLA}>
         {/* En el teléfono, la lista O la clave: no caben las dos de pie frente al rack. */}
@@ -634,7 +637,7 @@ export function Conteo({ tomaId, clavesIniciales }: ConteoProps) {
                 <Vacio
                   icono={<Scale />}
                   titulo={`Todavía no hay ${voc.plural('producto')} que contar.`}
-                  explicacion={`En cuanto el catálogo tenga ${voc.plural('producto')}, aquí se calibran y se pesan. Abrir la toma desde Existencias todavía no está.`}
+                  explicacion={`En cuanto el catálogo tenga ${voc.plural('producto')}, aquí se calibran y se pesan.`}
                   accion={
                     <Button asChild variant="outline" className={TACTIL}>
                       <a href="/ferreteria/existencias">Ir a Existencias</a>
