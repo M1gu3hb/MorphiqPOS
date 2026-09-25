@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { CorteEnPdf } from '~/corte/CorteEnPdf';
 
 /**
  * PANTALLA · cafeteria · turno
@@ -59,14 +60,15 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * El catálogo, la barra y el inventario. Y no va la propina como cifra suelta:
  * un bote visible todo el día es un bote que se mira todo el día.
  *
- * ── Alcance recortado, dicho y no escondido ──────────────────────────────
+ * ── Lo que hace cada pieza, dicho ────────────────────────────────────────
  * 1. El fondo viaja por montones y `caja.estado` lo devuelve (C.6 de la 2.4): el
  *    aviso de cambio sobrevive a una recarga. Un turno abierto sin desglose dice
  *    «sin desglose» con palabras, en vez de inventar un número. La entrada de
  *    cambio va por `caja.entrada_cambio`, con su origen.
- * 2. El arqueo, el reparto del bote y el PDF son la pantalla de cierre.
- * 3. El historial lista los turnos por el puente; el detalle de cada corte y su
- *    reimpresión son otra pantalla. Se lee APARTE del turno: si falla, el turno
+ * 2. El arqueo y el reparto del bote son la pantalla de cierre.
+ * 3. El historial lista los turnos por el puente, y cada turno CERRADO abre aquí
+ *    su corte —la hoja y su PDF para reimprimirlo, el mismo documento del cierre
+ *    (`CorteEnPdf`, C.10 de la 2.4)—. Se lee APARTE del turno: si falla, el turno
  *    leído se sigue operando y el fallo se dice en su pestaña, no en toda la
  *    pantalla.
  */
@@ -300,6 +302,8 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
   const [cargando, setCargando] = useState(estadoInicial === undefined);
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   const [falloDeHistorial, setFalloDeHistorial] = useState<string | null>(null);
+  /** El turno del historial cuyo corte se está mirando. */
+  const [corteElegido, setCorteElegido] = useState<string | null>(null);
   const [leyendoHistorial, setLeyendoHistorial] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -821,8 +825,8 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
           )}
         </TabsContent>
 
-        {/* 4 · EL HISTORIAL. El detalle de cada corte es otra pantalla. Si no se
-            leyó, se dice AQUÍ: el turno de arriba sí se leyó y se sigue operando. */}
+        {/* 4 · EL HISTORIAL, y el corte de cada turno cerrado debajo. Si no se leyó,
+            se dice AQUÍ: el turno de arriba sí se leyó y se sigue operando. */}
         <TabsContent value="historial" className="pt-(--espacio-3)">
           <div className="flex flex-col gap-(--espacio-3)">
             {falloDeHistorial === null ? null : (
@@ -851,6 +855,8 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
                 columnas={COLUMNAS_DEL_HISTORIAL}
                 filas={historial}
                 claveDe={(corte) => corte.id}
+                {...(corteElegido === null ? {} : { activa: corteElegido })}
+                alActivar={setCorteElegido}
                 vacio={
                   // El vacío ENSEÑA: dice qué va a aparecer y para qué va a servir.
                   <Superficie>
@@ -864,11 +870,37 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
                 }
               />
             )}
+            <CorteDelHistorialElegido
+              corte={historial.find((c) => c.id === corteElegido) ?? null}
+            />
           </div>
         </TabsContent>
       </Tabs>
     </div>
   );
+}
+
+/**
+ * EL CORTE DE UN TURNO DEL HISTORIAL: su hoja y su PDF, para reimprimirlo. Uno abierto
+ * todavía no tiene corte —se arma al cerrarlo— y se dice con palabras.
+ */
+function CorteDelHistorialElegido({ corte }: { readonly corte: CorteDelHistorial | null }) {
+  if (corte === null) {
+    return (
+      <p className="text-sm text-texto-sutil">
+        Toca un turno cerrado para ver su corte y volver a bajar su PDF.
+      </p>
+    );
+  }
+  if (corte.fecha_cierre === null) {
+    return (
+      <p className="text-sm text-texto-sutil">
+        El turno {corte.folio ?? 's/f'} sigue abierto: su corte se arma al cerrarlo.
+      </p>
+    );
+  }
+  // Reimprimir no es cerrar: la descarga sola es del cierre, aquí se pide con el botón.
+  return <CorteEnPdf key={corte.id} sesionCajaId={corte.id} descargarAlCerrar={false} />;
 }
 
 /** La morralla del fondo —monedas y billetes chicos—, o `null` si se abrió sin desglose. */

@@ -104,3 +104,23 @@ describe('F-148 · la báscula de etiquetas se valida al guardar (C.10 de la 2.4
     ).toBe('INESPERADO');
   });
 });
+
+describe('la tasa de la terminal se valida al guardar (C.10 de la 2.4)', () => {
+  it('fuera de 0 a 1000 puntos base, o con decimales, no se guarda', async () => {
+    for (const mala of [1_001, -1, 3.6, '360']) {
+      expect(
+        await codigoDe(
+          guardarConfiguracionParcial({} as Transaccion, ORG, { comision_terminal_bp: mala }),
+        ),
+      ).toBe('PUENTE_CAMPO_INVALIDO');
+    }
+  });
+
+  it('una tasa de verdad pasa la validación y llega a la base', async () => {
+    expect(
+      await codigoDe(
+        guardarConfiguracionParcial({} as Transaccion, ORG, { comision_terminal_bp: 360 }),
+      ),
+    ).toBe('INESPERADO');
+  });
+});

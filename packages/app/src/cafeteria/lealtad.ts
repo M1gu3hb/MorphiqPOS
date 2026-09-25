@@ -386,7 +386,7 @@ async function saldoDe(ctx: ContextoComando<Transaccion>, clienteId: string): Pr
  */
 const SELLOS_POR_PREMIO_POR_OMISION = 5;
 
-async function sellosPorPremio(ctx: ContextoComando<Transaccion>): Promise<number> {
+export async function sellosPorPremio(ctx: ContextoComando<Transaccion>): Promise<number> {
   const fila = await ctx.paso('leer_configuracion', () =>
     ctx.tx
       .selectFrom('configuracion')

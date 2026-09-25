@@ -62,6 +62,20 @@ export function normalizarUnidad(texto: string): Unidad {
   return unidad;
 }
 
+/**
+ * Si dos unidades miden LO MISMO —masa con masa, volumen con volumen—, sin lanzar.
+ *
+ * Una unidad que el catálogo no conoce no mide nada comparable: `false`, y quien
+ * pregunta decide qué hacer en vez de recibir una excepción a media venta.
+ */
+export function mismaDimension(una: string, otra: string): boolean {
+  try {
+    return UNIDADES[normalizarUnidad(una)].dimension === UNIDADES[normalizarUnidad(otra)].dimension;
+  } catch {
+    return false;
+  }
+}
+
 /** El contenido de un empaque lo proporciona el catálogo, nunca se supone uno. */
 export function convertirUnidad(
   valor: Cantidad,

@@ -219,7 +219,7 @@ describe('el catálogo del cobro, desde el puente', () => {
       nombre: 'Caja',
       factor: 24,
       codigo_barras: '1750',
-      precio_venta_centavos: 380,
+      precio_venta_pesos: 380,
     });
     expect(caja.factor).toBe('24');
     expect(caja.precioCentavos).toBe(38_000);

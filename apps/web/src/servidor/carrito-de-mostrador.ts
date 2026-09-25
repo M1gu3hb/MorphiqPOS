@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { agregarBebida } from '@morphiqpos/app/cafeteria';
 import { agregarLinea, crearOrden, vaciarOrden } from '@morphiqpos/app/venta';
 import { z } from 'zod';
 
@@ -27,6 +28,16 @@ export const LineaDeMostrador = z.object({
   cantidad: z.union([z.string().min(1).max(20), z.number()]),
   /** F-147 · La caja escaneada: su precio y su factor los pone el servidor. */
   presentacionId: z.uuid().optional(),
+  /**
+   * F-027 · La bebida CON SUS OPCIONES (C.10 de la 2.4): la leche, el tamaño, los
+   * extras. Con opciones —o con alergias o nota— el renglón entra por
+   * `cafeteria.agregar_bebida`, que pone el precio con los deltas y sella lo elegido; el
+   * cobro luego sustituye la leche en el consumo. Sin esto el mostrador de la cafetería
+   * no podía cobrar un latte de avena.
+   */
+  opciones: z.array(z.uuid()).max(20).optional(),
+  alergias: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
+  nota: z.string().trim().max(200).optional(),
 });
 
 export type LineaDeMostrador = z.infer<typeof LineaDeMostrador>;
@@ -34,6 +45,16 @@ export type LineaDeMostrador = z.infer<typeof LineaDeMostrador>;
 const crear = manejadorDeComando(crearOrden);
 const vaciar = manejadorDeComando(vaciarOrden);
 const meter = manejadorDeComando(agregarLinea);
+const meterBebida = manejadorDeComando(agregarBebida);
+
+/** Si el renglón es una bebida con algo elegido: va por `cafeteria.agregar_bebida`. */
+function esBebidaConOpciones(linea: LineaDeMostrador): boolean {
+  return (
+    (linea.opciones?.length ?? 0) > 0 ||
+    (linea.alergias?.length ?? 0) > 0 ||
+    (linea.nota ?? '') !== ''
+  );
+}
 
 export function respuestaJson(estado: number, cuerpo: unknown): Response {
   return new Response(JSON.stringify(cuerpo), {
@@ -95,6 +116,38 @@ export async function armarCarrito(
   }
 
   for (const [indice, linea] of lineas.entries()) {
+    if (esBebidaConOpciones(linea)) {
+      // `agregar_bebida` no recibe la orden: usa el borrador de ESTA terminal, que es el
+      // mismo que `crear_orden` acaba de devolver. Si alguna vez no lo fuera, la bebida
+      // habría caído en otra cuenta: se para aquí en vez de cobrar una orden sin ella.
+      const respuestaBebida = await meterBebida(
+        paso(
+          {
+            productoId: linea.productoId,
+            cantidad: typeof linea.cantidad === 'number' ? String(linea.cantidad) : linea.cantidad,
+            opciones: linea.opciones ?? [],
+            alergias: linea.alergias ?? [],
+            nota: linea.nota ?? '',
+          },
+          `l${String(indice)}`,
+        ),
+      );
+      const bebida = await datosSiSalio<{ ordenId?: string }>(respuestaBebida);
+      if (bebida === null) return { ok: false, respuesta: respuestaBebida };
+      if (bebida.ordenId !== ordenId) {
+        return {
+          ok: false,
+          respuesta: respuestaJson(409, {
+            ok: false,
+            error: {
+              codigo: 'CONFLICTO',
+              mensaje: 'La bebida entró en otra cuenta de esta terminal. No se cobró nada.',
+            },
+          }),
+        };
+      }
+      continue;
+    }
     const respuestaLinea = await meter(
       paso(
         {

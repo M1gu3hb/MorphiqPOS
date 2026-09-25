@@ -68,6 +68,13 @@ const Entrada = z.object({
   totalEsperadoCentavos: z.number().int().nonnegative(),
   recibidoCentavos: z.number().int().nonnegative(),
   lineas: z.array(LineaDeMostrador).min(1).max(120),
+  /**
+   * El canal y el nombre con el que se grita el pedido: los manda el mostrador de la
+   * cafetería (C.10 de la 2.4), que cobra por aquí desde que sus bebidas llevan opciones.
+   * La tienda no los manda y `venta.cobrar` los trata como siempre.
+   */
+  canal: z.enum(['aqui', 'llevar']).optional(),
+  nombrePedido: z.string().trim().min(1).max(60).optional(),
 });
 
 const cobrar = manejadorDeComando(cobrarOrden);
@@ -100,6 +107,10 @@ export async function POST(peticion: Request): Promise<Response> {
         ordenId,
         totalEsperadoCentavos: validada.data.totalEsperadoCentavos,
         ...(validada.data.clienteId === undefined ? {} : { clienteId: validada.data.clienteId }),
+        ...(validada.data.canal === undefined ? {} : { canal: validada.data.canal }),
+        ...(validada.data.nombrePedido === undefined
+          ? {}
+          : { nombrePedido: validada.data.nombrePedido }),
         pagos: [
           {
             metodo: validada.data.metodo,

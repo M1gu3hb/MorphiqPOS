@@ -51,6 +51,11 @@ export interface NegocioDelCorte {
   readonly marca: string;
   readonly pie: string | null;
   readonly descargarAlCerrar: boolean;
+  /**
+   * La tasa de la terminal bancaria, en puntos base SIN IVA, o nula si no se declaró. Con ella
+   * el corte ESTIMA la comisión —y lo rotula—; sin ella no la inventa (C.10 de la 2.4).
+   */
+  readonly comisionTerminalBp: number | null;
 }
 
 export type ExtrasDelCorte =
@@ -431,5 +436,12 @@ export function negocioDe(
     marca: textoDe(valores['platform_brand']) ?? 'MorphiqPOS',
     pie: textoDe(valores['pdf_footer']),
     descargarAlCerrar: valores['descargar_pdf_corte_auto'] !== false,
+    comisionTerminalBp: tasaDe(valores['comision_terminal_bp']),
   };
+}
+
+function tasaDe(valor: unknown): number | null {
+  return typeof valor === 'number' && Number.isInteger(valor) && valor >= 0 && valor <= 1000
+    ? valor
+    : null;
 }

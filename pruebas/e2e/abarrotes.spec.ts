@@ -399,7 +399,9 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     await page.keyboard.press('F7');
     const abonoDialogo = page.getByRole('dialog', { name: 'Abono de fiado' });
     await abonoDialogo.getByLabel('Nombre o teléfono').fill(cliente);
-    await abonoDialogo.getByRole('button', { name: new RegExp(cliente) }).click();
+    // La lista de clientes es una TABLA desde que la adopción lo exige: cada renglón se
+    // elige y dice a quién («Elegir a …»). Aquí se buscaba un botón que ya no existe.
+    await abonoDialogo.getByRole('row', { name: `Elegir a ${cliente}` }).click();
     await abonoDialogo.getByLabel('Cuánto abona').fill((abono / 100).toFixed(2));
     await abonoDialogo.getByRole('button', { name: 'Registrar abono' }).click();
     await expect(abonoDialogo).toBeHidden();
@@ -422,10 +424,11 @@ test.describe('abarrotes · su vocabulario, sus pantallas y su dashboard', () =>
     await expect(page.getByText(/Escanea el primer/)).toBeVisible();
     await page.keyboard.press('F6');
     const lista = page.getByRole('dialog', { name: 'Apartar o retomar' });
+    // Una TABLA, como la de clientes: el renglón de la apartada y su botón.
     await lista
-      .getByRole('listitem')
+      .getByRole('row')
       .filter({ hasText: `La ${codigo} · prueba e2e` })
-      .getByRole('button', { name: 'Retomar' })
+      .getByRole('button', { name: `Retomar la ${codigo}` })
       .click();
     await expect(page.getByText(`Retomada la ${codigo}.`)).toBeVisible();
     await expect(enCurso.getByText(nombre, { exact: false }).first()).toBeVisible();

@@ -6038,3 +6038,76 @@ mostrador, abona (y el arqueo cuadra con el abono y sin el fiado), aparta y reto
 desde el catálogo con su kardex y exporta los registros: **verde**, y **rojo** con una compilación
 que devuelve a la ruta los tres métodos de antes («El servidor RECHAZÓ el cobro»).
 
+
+## 25-09-2026 · Etapa 2.4 · C.10 (2 de 5) · la cafetería, sin nada recortado
+
+**Las cinco pantallas, construido lo que decían que faltaba:**
+- **Cierre de turno:** la comisión estimada de la terminal. El negocio la declara una vez, en el
+  mismo cierre, la primera vez que falta (`comision_terminal_bp`, 0–10 %). Se estima con IVA sobre
+  las ventas y propinas con tarjeta y se resta de la utilidad neta del turno y del corte (D-22.1).
+- **Clientes y sellos:** el programa en sus tres cifras —el pasivo, a un sello, los que no vienen
+  hace 21 días—, contadas por el servidor (`lealtad.programa`); el mensaje de regreso lo redacta el
+  sistema y lo manda la dueña desde su WhatsApp.
+- **Productos:** los grupos de opciones de cada bebida y su tasa de IVA, y «Dar de alta» al
+  catálogo del tronco.
+- **Recetas:** cada línea dice qué grupo la CAMBIA («La cambia: Leche») y debajo va la tabla de
+  variantes: lo que cuesta y deja la bebida con cada leche y cada tamaño, aquí y para llevar.
+- **Turno:** el detalle y la reimpresión de cada corte del historial.
+
+**Defectos que destapó construirlo, y arreglados (D-22):**
+1. **La leche de avena no se podía cobrar desde el mostrador.** Las opciones eran «otra
+   pantalla» que metía la bebida en el borrador de la terminal; el cobro armaba su propio pedido
+   y nunca lo leía. Ahora tocar una bebida con opciones las abre ENCIMA del cobro, la línea lleva
+   lo elegido y el cobro la manda por `cafeteria.agregar_bebida`.
+2. **Aunque se hubiera cobrado, descontaba leche entera.** `recetas.sustituible_por_grupo_id`,
+   `insumo_sustituto_id` y `factor_cantidad` (084) no los leía nadie al cobrar: el latte de avena
+   bajaba la entera, el de 16 oz bajaba lo de uno de 12. Ahora el consumo aplica la receta que de
+   verdad se preparó (`recetaConOpciones`, del dominio), y la semilla declara la leche del latte.
+3. **El cobro de la cafetería tenía el mismo borrador pegado que tenía la tienda:** un cobro
+   fallido dejaba sus líneas y el siguiente las metía encima. Cobra ya por el viaje del mostrador,
+   que vacía el borrador.
+4. **Guardar una receta borraba el canal, la merma y el grupo de TODAS sus líneas.** El puente no
+   servía `aplica_canal`, la pantalla reenviaba la merma en cero, y el comando reemplaza la receta
+   entera: el vaso «sólo para llevar» volvía a «siempre» en cuanto se agregaba otro ingrediente.
+5. **Las opciones de un americano cobraban un shot extra que nadie pidió.** La vista marca «de
+   omisión» la primera opción de CADA grupo, también la de «Extras», y la pantalla la encendía:
+   $15 de más en cada bebida que pasaba por las opciones. Lo cazó el e2e en cuanto el cobro las
+   abrió. Un extra se pide; no se supone.
+
+**Cuatro cosas que di por buenas y no lo estaban, dichas:**
+- **Tres archivos de prueba de la cafetería no cargaban:** importaban de un `.tsx` y el proyecto
+  `unidad` no transforma JSX, así que el archivo moría al importar y la «mutación que falla» de
+  `TasaDeTerminal` fallaba por eso, no porque la prueba viera nada. Las funciones puras se movieron
+  a `.ts` (`tasa-de-terminal.ts`, `programa-de-sellos.ts`, `productos-de-barra.ts`) y las
+  mutaciones se rehicieron: fallan las destructivas, pasa la inocua.
+- **`verify:unidades` quedó ROJA con el commit de la tienda** (`54f265b`) y no la corrí: tres
+  lecturas de dinero del cobro de la tienda (`precio_por_unidad_variable ?? null`, y dos por su
+  nombre que miente, `_centavos` en vez del gemelo `_pesos`). Los importes estaban bien
+  convertidos; la puerta estaba roja igual. Corregido aquí, y desde este commit corro las puertas
+  de pantalla completas antes de cada commit, no las que creo que tocan.
+- **El e2e de la tienda NO estaba verde en `54f265b`, aunque la entrada de arriba lo diga.** La
+  corrida verde fue ANTES de que la puerta de adopción me hiciera pasar el selector de cliente y la
+  lista de apartadas de botones a tablas; el abono y el «Retomar» del e2e seguían buscando botones y
+  el paso se quedaba esperando. Corregido (renglón «Elegir a …» y «Retomar la N») y corrido de
+  nuevo: **verde**. La regla que me faltó: el e2e se corre sobre el código que se commitea, no
+  sobre el de una hora antes.
+- **`verify:mutaciones-backend` reventaba desde la 2.35** (`93c4c43` cambió la línea que una de sus
+  mutaciones reemplaza, y la puerta se caía en «no cambió el archivo objetivo»). CI no la corre, así
+  que nadie la vio. El ancla va ya sobre la forma actual del esquema y la puerta pasa entera.
+
+**Pruebas:** nuevas `domain/inventario/opciones` (12), `venta/opciones-en-consumo` (7, con el
+cable del cobro), `cafeteria/variantes-de-receta` (13), `cafeteria/pedido-de-barra` (7),
+`servidor/carrito-de-mostrador` (3); ampliadas `inventario.sql` (el grupo y su guarda),
+`opciones-de-bebida` (lo que devuelve al cobro y lo que empieza marcado). Mutaciones: 8 en el
+consumo (7 fallan, la inocua pasa) y 17 en la receta, las variantes, el pedido y el carrito (15
+fallan, las 2 inocuas pasan). **El e2e de la cafetería** ahora abre la receta del latte y su tabla
+de variantes, el programa y la columna de opciones; cobra un latte de avena desde el mostrador y
+exige que el ledger de ESA venta lleve «Bebida de avena» y no «Leche entera»; la barra lo entrega;
+el cierre cuadra con los dos cobros y declara la tasa de la terminal; el turno cerrado se reimprime
+desde el historial de `Turno`: **verde**, y **rojo** con una compilación en la que el consumo no
+lee las opciones de su línea («El latte de avena descontó Café en grano mezcla de la casa, Leche
+entera: tiene que llevar la avena»). Un primer intento de rojo no valía: la mutación dejaba una
+variable sin usar, la compilación no pasó el tipado y la suite habría corrido contra la compilación
+anterior; se rehízo con una mutación que compila.
+
+`verify:pendientes`: de 23 a **18** (las cinco de la cafetería).

@@ -52,6 +52,8 @@ export interface NegocioDeLaHoja {
   readonly marca: string;
   readonly pie: string | null;
   readonly descargarAlCerrar: boolean;
+  /** La tasa de la terminal en puntos base SIN IVA; nula si el negocio no la declaró. */
+  readonly comisionTerminalBp: number | null;
 }
 
 export interface HojaDelServidor {
@@ -611,6 +613,8 @@ export function resumenFinanciero(
   hoja: HojaDelServidor,
   titulo: string,
   antesDeLosMetodos: readonly Celda[] = [],
+  /** Gastos que el corte ESTIMA —la comisión de la terminal—: se dicen y se restan de la neta. */
+  estimados: readonly { readonly etiqueta: string; readonly centavos: number }[] = [],
 ): Seccion {
   const r = hoja.resumen;
   const total = centavos(r.totalCentavos);
@@ -638,10 +642,41 @@ export function resumenFinanciero(
       { etiqueta: 'Utilidad bruta', valor: dinero(total - costo) },
       { etiqueta: 'Margen', valor: porcentaje(total - costo, total) },
       { etiqueta: 'Gastos operativos', valor: dinero(gastos) },
-      { etiqueta: 'Utilidad neta estimada', valor: dinero(total - costo - gastos), fuerte: true },
+      ...estimados.map((e) => ({ etiqueta: e.etiqueta, valor: dinero(e.centavos) })),
+      {
+        etiqueta: 'Utilidad neta estimada',
+        valor: dinero(total - costo - gastos - estimados.reduce((s, e) => s + e.centavos, 0)),
+        fuerte: true,
+      },
     );
   }
   return { tipo: 'celdas', titulo, celdas };
+}
+
+/** El IVA que la terminal cobra SOBRE su comisión, en puntos base. */
+const IVA_SOBRE_COMISION_BP = 1_600;
+
+/**
+ * LA COMISIÓN ESTIMADA DE LA TERMINAL (`02-DINERO-Y-CAJA` de cafetería §7).
+ *
+ * Sobre el total cobrado con tarjeta, PROPINA INCLUIDA —la terminal cobra sobre lo que pasa
+ * por ella—, a la tasa declarada, más el IVA sobre la comisión. Es gasto, nunca un descuento
+ * de la venta, y es ESTIMACIÓN: el cargo real llega días después. Nula sin tasa declarada.
+ */
+export function comisionDeTerminal(hoja: HojaDelServidor): number | null {
+  const tasa = hoja.negocio.comisionTerminalBp;
+  if (tasa === null) return null;
+  const tarjeta = hoja.metodos.find((m) => m.metodo === 'tarjeta');
+  const base =
+    tarjeta === undefined
+      ? 0
+      : centavos(tarjeta.ventasCentavos) + centavos(tarjeta.propinasCentavos);
+  return Math.round((base * tasa * (10_000 + IVA_SOBRE_COMISION_BP)) / 100_000_000);
+}
+
+/** «3.6 % + IVA»: la tasa como se dice. */
+export function tasaEnPalabras(bp: number): string {
+  return `${(bp / 100).toLocaleString('es-MX', { maximumFractionDigits: 2 })} % + IVA`;
 }
 
 export const totalDePropinas = (hoja: HojaDelServidor): number =>

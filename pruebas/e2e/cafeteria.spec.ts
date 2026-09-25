@@ -76,6 +76,13 @@ interface BebidaDelPuente {
   readonly precio_venta?: number | null;
 }
 
+/** Una opción de bebida del puente (`Modificador`): su delta llega en centavos. */
+interface OpcionDelPuente {
+  readonly nombre?: string;
+  readonly grupo?: string | null;
+  readonly delta_precio_centavos?: number | null;
+}
+
 /** Pesos como los pinta la pantalla: `$42.90`. */
 function enPesos(centavos: number): string {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(
@@ -259,6 +266,35 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     await abrirPantalla(page, '/cafeteria/barra', /La fila está vacía|Barra/);
     await expect(page.getByRole('heading', { name: 'Barra', exact: true })).toBeVisible();
 
+    /**
+     * 2.1 · LO QUE C.10 DE LA 2.4 CONSTRUYÓ EN LAS PANTALLAS DE LA CAFETERÍA.
+     *
+     * La receta dice qué grupo CAMBIA cada línea y cuánto cuesta cada variante; el
+     * catálogo dice qué opciones abre cada bebida y su IVA; clientes y sellos enseña el
+     * pasivo del programa. Las tres eran «alcance recortado».
+     */
+    await abrirPantalla(page, '/cafeteria/recetas', /Recetas/);
+    await page
+      .getByRole('row', { name: /Latte 12 oz/ })
+      .first()
+      .click();
+    await expect(
+      page.getByRole('combobox', { name: 'Qué opción cambia Leche entera' }),
+      'La leche entera del latte no dice que la cambia el grupo «Leche»: la semilla la ' +
+        'declara (`declararLineaSustituible`) y el puente la sirve como ' +
+        '`sustituible_por_grupo_id`. Sin eso el latte de avena descuenta leche entera.',
+    ).toHaveText(/Leche/);
+    await expect(
+      page.getByText('Leche entera → Bebida de avena').first(),
+      'La tabla de variantes no enseña lo que la avena cambia en la receta.',
+    ).toBeVisible();
+
+    await abrirPantalla(page, '/cafeteria/clientes-y-sellos', /Se identifica por teléfono/);
+    await expect(page.getByText('Lo que debe el programa')).toBeVisible();
+
+    await abrirPantalla(page, '/cafeteria/productos', /Hoy no hay|Productos/);
+    await expect(page.getByRole('columnheader', { name: 'Opciones' })).toBeVisible();
+
     // ── 2.5 · SE COBRA EN LA BARRA, Y EL TURNO CUADRA ─────────────────────
     //
     // Abrir el turno con su fondo, cobrar una bebida y cerrar el turno contando
@@ -303,6 +339,18 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
       .getByRole('button', { name: bebida.nombre ?? '' })
       .first()
       .click();
+    // Una bebida con opciones las abre encima del cobro (C.10 de la 2.4). Con las de
+    // omisión —12 oz, entera, normal— el precio es el de la carta.
+    const suyas = await consultarPuente<OpcionDelPuente>(page, 'Modificador', {
+      filtro: { producto_id: bebida.id ?? '' },
+      limite: 5,
+    });
+    if (suyas.length > 0) {
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: /^AGREGAR/ })
+        .click();
+    }
 
     // «Aquí» o «Para llevar»: sin canal el botón de cobrar está bloqueado, y con
     // razón —`estrategia_cumplimiento` decide si el pedido entra a la fila de la
@@ -329,6 +377,55 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     await exigirInventarioMovido(page, venta.id ?? '', bebida.nombre ?? '');
 
     /**
+     * 2a · EL LATTE DE AVENA DESCUENTA AVENA (C.10 de la 2.4, F-027).
+     *
+     * La opción existía y nadie la aplicaba: el mostrador no podía cobrarla —las opciones
+     * eran otra pantalla que metía la bebida en un borrador que el cobro no leía— y aunque
+     * se hubiera cobrado, el consumo descontaba la receta de catálogo, con leche entera.
+     * Aquí se elige la avena en el cobro, se cobra con su delta, y el ledger de ESA venta
+     * tiene que llevar avena y NO leche entera.
+     */
+    const [latte] = await consultarPuente<BebidaDelPuente>(page, 'ProductoTerminado', {
+      filtro: { nombre: 'Latte 12 oz' },
+      limite: 1,
+    });
+    const delLatte = await consultarPuente<OpcionDelPuente>(page, 'Modificador', {
+      filtro: { producto_id: latte?.id ?? '' },
+      limite: 20,
+    });
+    const deltaAvena = delLatte.find((o) => o.nombre === 'Avena')?.delta_precio_centavos ?? 0;
+    const latteDeAvena = Math.round((latte?.precio_venta ?? 0) * 100) + deltaAvena;
+    const idsAntesDelLatte = await ventasDeAntes(page);
+
+    await page.getByRole('button', { name: 'Latte 12 oz' }).first().click();
+    const opcionesDelLatte = page.getByRole('dialog');
+    await opcionesDelLatte.getByRole('button', { name: /^Avena/ }).click();
+    await opcionesDelLatte.getByRole('button', { name: /^AGREGAR/ }).click();
+    await page.locator('#cobrar-nombre').fill('Avena E2E');
+    await page.getByRole('button', { name: 'Aquí' }).click();
+    await expect(
+      botonCobrar,
+      'El cobro no suma la avena: la línea tiene que llevar el delta de la opción.',
+    ).toContainText(enPesos(latteDeAvena));
+    await botonCobrar.click();
+    await exigirCobroAceptado(page, /para empezar\./);
+    const ventaDelLatte = await exigirVentaCobrada(page, latteDeAvena, idsAntesDelLatte);
+    const consumo = await exigirInventarioMovido(
+      page,
+      ventaDelLatte.id ?? '',
+      'Latte 12 oz con avena',
+    );
+    const insumosDelLatte = consumo.map((m) => m.ingrediente_nombre ?? '');
+    expect(
+      insumosDelLatte,
+      `El latte de avena descontó ${insumosDelLatte.join(', ')}: tiene que llevar la avena.`,
+    ).toContain('Bebida de avena');
+    expect(
+      insumosDelLatte,
+      'El latte de avena descontó LECHE ENTERA: el consumo no aplicó la opción elegida.',
+    ).not.toContain('Leche entera');
+
+    /**
      * 2a · LA BARRA LA PREPARA Y LA ENTREGA (C.14 de la 2.4).
      *
      * Hasta C.14 la demo no emitía comandas —sus recetas no iban a ninguna área y no
@@ -345,6 +442,14 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     await expect(
       page.getByRole('button', { name: 'Marcar entregado el pedido de Sin nombre' }),
       'La bebida cobrada en el mostrador no se pudo entregar desde la barra.',
+    ).toHaveCount(0, { timeout: 30_000 });
+    await page.getByRole('button', { name: 'Marcar listo y llamar a Avena E2E' }).first().click();
+    await page
+      .getByRole('button', { name: 'Marcar entregado el pedido de Avena E2E' })
+      .first()
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Marcar entregado el pedido de Avena E2E' }),
     ).toHaveCount(0, { timeout: 30_000 });
 
     /**
@@ -469,7 +574,7 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
       '/cafeteria/cierre-de-turno-y-arqueo',
       /Cierre de turno|No hay ningún turno/,
     );
-    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos + apartadoCentavos;
+    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos + latteDeAvena + apartadoCentavos;
     await page.locator('#cierre-efectivo').fill((esperadoCentavos / 100).toFixed(2));
     // El bote de propina va a cero: esta venta no dejó propina, y el cierre exige
     // contar los dos antes de enseñar nada.
@@ -485,6 +590,16 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('cuadró exacto').first()).toBeVisible();
 
+    // LA COMISIÓN DE LA TERMINAL (C.10 de la 2.4): si el negocio no la ha dicho, el cierre
+    // la pregunta aquí mismo, y desde entonces el corte la estima.
+    const tasa = page.getByLabel('Cuánto cobra tu terminal (%)');
+    if (await tasa.isVisible()) {
+      await tasa.fill('3.6');
+      await page.getByRole('button', { name: 'Guardar la tasa' }).click();
+      await expect(tasa).toHaveCount(0, { timeout: 30_000 });
+    }
+    await expect(page.getByText('Comisión estimada').first()).toBeVisible();
+
     // Y EL PDF DEL TURNO (F-234). La descarga sola espera el reparto del bote —bajado
     // antes, saldría sin él—; aquí no hubo propina que repartir, así que se pide con el
     // botón, como lo haría quien cierra.
@@ -498,6 +613,22 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
         'Ventas por canal',
         'Bebidas vendidas',
       ],
+    });
+
+    // Y SE REIMPRIME DESDE EL HISTORIAL (C.10 de la 2.4): el turno que se acaba de cerrar
+    // abre su corte en `Turno`, con el mismo PDF, sin bajarse solo.
+    await abrirPantalla(page, '/cafeteria/turno', /Turno/);
+    await page.getByRole('tab', { name: 'Historial' }).click();
+    await page
+      .getByRole('row')
+      .filter({ has: page.getByRole('cell') })
+      .filter({ hasNotText: 'en curso' })
+      .first()
+      .click();
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DE TURNO',
+      pulsando: true,
+      textos: [`Efectivo esperado ${enPesos(esperadoCentavos)}`],
     });
 
     // ── 3 · CON LA PLANTILLA DE JACARANDA · sala, pero hablando de café ───

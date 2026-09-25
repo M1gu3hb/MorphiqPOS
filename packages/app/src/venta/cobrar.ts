@@ -4,6 +4,7 @@ import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import {
   calcularConsumo,
   lineasDelCanal,
+  recetaConOpciones,
   type LineaParaConsumo,
 } from '@morphiqpos/domain/inventario';
 import type { Transaccion } from '@morphiqpos/data';
@@ -17,6 +18,7 @@ import { marcarPropinaDeOrden, registrarPagoConPropina } from '../propinas/cobro
 import { entradaCobrarOrdenConPropina } from '../propinas/esquemas.ts';
 import { cotizar, exigirTotalVigente } from './cotizar.ts';
 import { repartirPagos } from './pagos.ts';
+import { efectosDeOpcionesPorLinea } from './opciones-en-consumo.ts';
 import { cantidadAConsumir } from './presentacion.ts';
 
 /**
@@ -420,6 +422,12 @@ async function planearConsumo(
     ...new Set(lineas.map((l) => l.productoId).filter((id): id is string => id !== null)),
   ];
   const recetas = await repoVentaCatalogo.recetasDeProductos(tx, organizacionId, productoIds);
+  // F-027 · Lo que eligió el cliente: la leche que sustituye y el tamaño que escala.
+  const efectos = await efectosDeOpcionesPorLinea(
+    tx,
+    organizacionId,
+    lineas.map((l) => l.id),
+  );
 
   for (const linea of lineas) {
     if (linea.productoId === null) continue;
@@ -457,7 +465,12 @@ async function planearConsumo(
     }
 
     if (producto.estrategiaConsumo === 'receta') {
-      const ingredientes = lineasDelCanal(recetas.get(linea.productoId) ?? [], canal);
+      // La receta que DE VERDAD se preparó: la del canal, con la leche que se eligió y
+      // al tamaño que se pidió. Ver `recetaConOpciones`.
+      const ingredientes = recetaConOpciones(
+        lineasDelCanal(recetas.get(linea.productoId) ?? [], canal),
+        efectos.get(linea.id) ?? [],
+      );
       // Un producto marcado «receta» SIN líneas activas no descuenta nada. Es
       // un estado legítimo —una receta recién vaciada— y no un error: la venta
       // no se bloquea por eso.

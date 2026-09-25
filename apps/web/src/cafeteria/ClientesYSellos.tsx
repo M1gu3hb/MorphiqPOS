@@ -31,6 +31,8 @@ import { flushSync } from 'react-dom';
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { ProgramaDeSellos } from './ProgramaDeSellos.tsx';
+
 /**
  * PANTALLA · cafeteria · clientes-y-sellos
  *
@@ -64,12 +66,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * derecha; tocar una fila la convierte en el panel (`VIAJE.fila`). En tableta y
  * teléfono la tarjeta va primero y la lista baja a tarjetas.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben identificar, ver el saldo, canjear y ajustar. Queda fuera la campaña
- * de recordatorio, que necesita el canal de salida que está bloqueado. Y quedan
- * fuera el PASIVO del programa y los que no vienen hace 21 días: piden leer a
- * todos los clientes, y esta pantalla lee doce. De esos doce sí se dice quién
- * puede canjear y a quién le falta uno, que es lo que se usa en la barra.
+ * ── Arriba, el programa en sus tres cifras (C.10 de la 2.4) ─────────────
+ * El pasivo, a un sello del premio y quién no viene hace 21 días
+ * (`ProgramaDeSellos`, `lealtad.programa`): las tres miran a TODOS los del
+ * programa, así que las cuenta el servidor. El mensaje al que no viene lo redacta
+ * el sistema y lo manda la dueña desde su WhatsApp; las campañas y los segmentos
+ * no van aquí, como dice su documento (F-950 y siguientes, transversales).
  */
 
 // Identificar por teléfono es una LECTURA y va por el puente: la ruta
@@ -785,6 +787,9 @@ export function ClientesYSellos({ clienteInicial, recientesIniciales }: Clientes
           Se identifica por teléfono: la tarjeta de cartón se pierde y el teléfono no.
         </p>
       </header>
+
+      {/* 1 · 2 · 3 · el pasivo, a un sello y los inactivos: lo primero que se ve. */}
+      <ProgramaDeSellos />
 
       {/* LA ACCIÓN PRINCIPAL. Grande, con el foco, y Enter busca: el cliente dicta
           diez dígitos y el barista no suelta el teclado para ir al botón. */}

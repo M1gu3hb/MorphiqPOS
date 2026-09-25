@@ -44,7 +44,8 @@ interface FilaCliente {
   readonly id: string;
   readonly nombre: string | null;
   readonly telefono: string | null;
-  readonly limite_credito_centavos: number | null;
+  /** EN PESOS: el gemelo honesto de `limite_credito_centavos`. */
+  readonly limite_credito_pesos: number | null;
 }
 
 interface FilaCartera {
@@ -86,7 +87,7 @@ export function unirClientes(
     telefono: c.telefono,
     debe: deuda.get(c.id)?.debe ?? 0,
     diasMasViejo: deuda.get(c.id)?.dias ?? null,
-    limite: centavosDe('Cliente', 'limite_credito_centavos', c.limite_credito_centavos) ?? 0,
+    limite: centavosDe('Cliente', 'limite_credito_pesos', c.limite_credito_pesos) ?? 0,
   }));
 }
 

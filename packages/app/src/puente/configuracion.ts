@@ -64,6 +64,9 @@ export const CONFIG_POR_OMISION = {
   // F-148 · Cómo etiqueta su báscula el negocio. Nula = no se interpreta ninguna etiqueta:
   // leer un importe como si fuera peso cobraría una cosa por otra sin que nada fallara.
   bascula_etiqueta: null,
+  // La tasa de la terminal bancaria, en puntos base SIN IVA (360 = 3.6 %). Nula = no se
+  // declaró, y la comisión estimada del corte se dice «sin tasa» en vez de inventarse.
+  comision_terminal_bp: null,
 } as const;
 
 /**
@@ -171,6 +174,7 @@ const CLAVES_EDITABLES = new Set([
   'portal_qr_mensaje_bienvenida',
   'presentacion_ultimo_acceso',
   'bascula_etiqueta',
+  'comision_terminal_bp',
 ]);
 
 /**
@@ -206,6 +210,20 @@ const BASCULA = z
         'El prefijo, el artículo y el valor tienen que sumar doce dígitos más el de control.',
     },
   );
+
+/**
+ * La tasa de la terminal: entero de 0 a 1000 puntos base (0 a 10 %). El mercado va del 2 al
+ * 4 %; un 36 tecleado donde iba 3.6 cobraría una comisión diez veces mayor en cada corte.
+ */
+function exigirTasaDeTerminal(valor: unknown): void {
+  if (valor === null) return;
+  if (typeof valor !== 'number' || !Number.isInteger(valor) || valor < 0 || valor > 1000) {
+    throw new ErrorDominio(
+      'PUENTE_CAMPO_INVALIDO',
+      'La tasa de la terminal va en puntos base, de 0 a 1000 (3.6 % son 360).',
+    );
+  }
+}
 
 function exigirBascula(valor: unknown): void {
   if (valor === null) return;
@@ -355,6 +373,7 @@ export async function guardarConfiguracionParcial(
   }
   serializarConfiguracion({ ...parche });
   if ('bascula_etiqueta' in parche) exigirBascula(parche['bascula_etiqueta']);
+  if ('comision_terminal_bp' in parche) exigirTasaDeTerminal(parche['comision_terminal_bp']);
 
   const nombreNuevo = parche['nombre_negocio'];
   let nombreNormalizado: string | null = null;

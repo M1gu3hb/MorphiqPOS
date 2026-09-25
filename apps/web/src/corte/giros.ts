@@ -3,6 +3,7 @@ import {
   arqueo,
   cancelaciones,
   centavos,
+  comisionDeTerminal,
   datosDelCorte,
   detalleDeVentas,
   dinero,
@@ -17,6 +18,7 @@ import {
   porcentaje,
   productosVendidos,
   resumenFinanciero,
+  tasaEnPalabras,
   tablaSiHay,
   texto,
   totalDePropinas,
@@ -142,6 +144,7 @@ export function corteDeCafeteria(
     .filter((p) => p.familia === 'bebida')
     .reduce((suma, p) => suma + Number(p.cantidad), 0);
   const total = centavos(hoja.resumen.totalCentavos);
+  const comision = comisionDeTerminal(hoja);
 
   const propinaEfectivo = centavos(
     hoja.metodos.find((m) => m.metodo === 'efectivo')?.propinasCentavos,
@@ -245,15 +248,28 @@ export function corteDeCafeteria(
     [
       datosDelCorte(hoja, 'Corte de turno'),
       ...arqueo(hoja, 'Apertura, fondo y cambio', { desglose: true }),
-      resumenFinanciero(hoja, 'Resumen financiero (sin propinas)', [
-        { etiqueta: 'Bebidas vendidas', valor: texto(bebidas) },
-        {
-          etiqueta: 'Bebidas por ticket',
-          valor: texto(
-            hoja.resumen.tickets === 0 ? null : (bebidas / hoja.resumen.tickets).toFixed(2),
-          ),
-        },
-      ]),
+      resumenFinanciero(
+        hoja,
+        'Resumen financiero (sin propinas)',
+        [
+          { etiqueta: 'Bebidas vendidas', valor: texto(bebidas) },
+          {
+            etiqueta: 'Bebidas por ticket',
+            valor: texto(
+              hoja.resumen.tickets === 0 ? null : (bebidas / hoja.resumen.tickets).toFixed(2),
+            ),
+          },
+        ],
+        // La comisión de la terminal, ESTIMADA y rotulada así (§7): sin tasa no se inventa.
+        comision === null || hoja.negocio.comisionTerminalBp === null
+          ? []
+          : [
+              {
+                etiqueta: `Comisión estimada de terminal (${tasaEnPalabras(hoja.negocio.comisionTerminalBp)})`,
+                centavos: comision,
+              },
+            ],
+      ),
       ...tablaSiHay({
         tipo: 'tabla',
         titulo: 'Ventas por canal',

@@ -31,7 +31,7 @@ import { Check, Milk, OctagonAlert, ShoppingBag, TriangleAlert } from 'lucide-re
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import type { HojaDelServidor } from '~/corte/hoja';
+import { comisionDeTerminal, type HojaDelServidor } from '~/corte/hoja';
 import { CorteEnPdf } from '~/corte/CorteEnPdf';
 
 import {
@@ -44,6 +44,7 @@ import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import { sigueEnLaFila } from './fila-de-barra';
+import { TasaDeTerminal } from './TasaDeTerminal.tsx';
 
 /**
  * PANTALLA · cafeteria · cierre-de-turno-y-arqueo
@@ -92,14 +93,14 @@ import { sigueEnLaFila } from './fila-de-barra';
  * salida a abrirlo: es un muro de negocio, no un error. Un comando que falla →
  * `Aviso` de peligro con lo que NO pasó.
  *
- * ── Alcance recortado, dicho y no escondido ──────────────────────────────
+ * ── De dónde sale cada cifra ────────────────────────────────────────────
  * Las bebidas, el canal y la merma de barra salen de la hoja del corte del turno
- * abierto (C.9 de la 2.4). La comisión estimada de terminal se pinta «—»: el
- * sistema no conoce la tasa de la terminal de cada negocio (D-20). En una
- * pantalla de arqueo no se inventa un número. El bote esperado sí se deriva aquí, de
- * `Venta.propina_efectivo`, así que es menos ciego que el efectivo. Y el PDF
- * que «se descarga solo» necesita una ruta de impresión que aún no existe: en
- * su lugar se enseña el folio del corte.
+ * abierto (C.9 de la 2.4), la misma que va al PDF, que se baja solo al repartir el
+ * bote (C.6). La comisión de la terminal se ESTIMA con la tasa que el negocio
+ * declara —aquí mismo, la primera vez que falta (`TasaDeTerminal`, C.10)— sobre lo
+ * cobrado con tarjeta más su propina, con IVA, y resta de la utilidad como gasto.
+ * Sin tasa se pinta «—»: en una pantalla de arqueo no se inventa un número. El
+ * bote esperado se deriva de `Venta.propina_efectivo`.
  */
 
 const RUTA_CERRAR = '/api/caja/cerrar';
@@ -269,6 +270,8 @@ function resumenDelTurno(
   ventas: readonly VentaDelTurno[],
   gastos: readonly GastoDelTurno[],
   bebidas: number | null,
+  /** Estimada con la tasa declarada; nula sin tasa (o sin la hoja). */
+  comision: number | null,
 ): ResumenDelTurno {
   const cobradas = ventas.filter((v) => v.estado !== 'cancelada' && v.estado !== 'abierta');
   const total = cobradas.reduce(
@@ -296,7 +299,7 @@ function resumenDelTurno(
         etiqueta: 'Bebidas',
         valor: bebidas === null ? SIN_DATO : { tipo: 'cuenta', valor: bebidas },
       },
-      { etiqueta: 'Comisión estimada', valor: SIN_DATO },
+      { etiqueta: 'Comisión estimada', valor: comision === null ? SIN_DATO : enCentavos(comision) },
       { etiqueta: 'Costo', valor: enCentavos(costo) },
       { etiqueta: 'Utilidad bruta', valor: enCentavos(bruta) },
       {
@@ -305,7 +308,8 @@ function resumenDelTurno(
       },
       { etiqueta: 'Gastos', valor: enCentavos(gasto) },
     ],
-    netaCentavos: bruta - gasto,
+    // La comisión es GASTO, nunca un descuento de la venta (§7).
+    netaCentavos: bruta - gasto - (comision ?? 0),
   };
 }
 
@@ -502,7 +506,13 @@ export function CierreDeTurno({
   }
 
   const resumen = useMemo(
-    () => resumenDelTurno(ventas, gastos, hoja === null ? null : bebidasDelTurno(hoja)),
+    () =>
+      resumenDelTurno(
+        ventas,
+        gastos,
+        hoja === null ? null : bebidasDelTurno(hoja),
+        hoja === null ? null : comisionDeTerminal(hoja),
+      ),
     [ventas, gastos, hoja],
   );
   const canales = canalesIniciales ?? (hoja === null ? [] : cifrasDeCanal(hoja));
@@ -892,6 +902,13 @@ export function CierreDeTurno({
                 }}
                 alto="max-h-none"
               />
+              {hoja?.negocio.comisionTerminalBp !== null ? null : (
+                <TasaDeTerminal
+                  onDeclarada={(bp) => {
+                    setHoja({ ...hoja, negocio: { ...hoja.negocio, comisionTerminalBp: bp } });
+                  }}
+                />
+              )}
             </AccordionContent>
           </AccordionItem>
 

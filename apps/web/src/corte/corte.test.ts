@@ -25,6 +25,7 @@ function hoja(extras: ExtrasDelServidor, cambios: Partial<HojaDelServidor> = {})
       marca: 'MorphiqPOS',
       pie: null,
       descargarAlCerrar: true,
+      comisionTerminalBp: null,
     },
     sesion: {
       id: 's-1',
@@ -324,6 +325,61 @@ describe('cada giro, su documento', () => {
     ]);
     expect(titulos(doc.secciones)).toContain('Empaque consumido (teórico)');
     expect(titulos(doc.secciones)).toContain('Ventas por canal');
+  });
+
+  it('cafetería: la comisión de terminal se ESTIMA con la tasa declarada, sobre tarjeta + propina, y resta de la neta (C.10)', () => {
+    const extras: ExtrasDelServidor = {
+      plantilla: 'cafeteria',
+      canales: [],
+      consumoPorCanal: [],
+      modificadores: [],
+      reparto: [],
+      mermaDeBarra: [],
+      consumoDeLaCasa: [],
+      sellos: {
+        otorgados: 0,
+        canjes: 0,
+        costoCanjesCentavos: '0',
+        sellosVivos: '0',
+        clientesConSaldo: 0,
+        costoPremioCentavos: '0',
+        sellosPorPremio: 5,
+      },
+      noRecogidos: [],
+    };
+    const base = hoja(extras);
+    const conTasa = hoja(extras, {
+      negocio: { ...base.negocio, comisionTerminalBp: 360 },
+      metodos: [
+        { metodo: 'efectivo', ventasCentavos: '225000', propinasCentavos: '0', pagos: 3 },
+        { metodo: 'tarjeta', ventasCentavos: '100000', propinasCentavos: '10000', pagos: 1 },
+      ],
+    });
+    const doc = documentoDelCorte(conTasa);
+    // $1,100 con tarjeta (propina incluida) × 3.6 % × 1.16 = $45.94.
+    expect(
+      celda(
+        doc.secciones,
+        'Resumen financiero (sin propinas)',
+        'Comisión estimada de terminal (3.6 % + IVA)',
+      )?.valor,
+    ).toEqual({ tipo: 'dinero', centavos: 4594 });
+    // Venta 3,250 − costo 1,200 − comisión 45.94.
+    expect(
+      celda(doc.secciones, 'Resumen financiero (sin propinas)', 'Utilidad neta estimada')?.valor,
+    ).toEqual({ tipo: 'dinero', centavos: 325000 - 120000 - 4594 });
+
+    // Sin tasa declarada no se inventa: ni el renglón ni la resta.
+    const sinTasa = documentoDelCorte(hoja(extras));
+    expect(
+      celda(sinTasa.secciones, 'Resumen financiero (sin propinas)', 'Utilidad neta estimada')
+        ?.valor,
+    ).toEqual({ tipo: 'dinero', centavos: 325000 - 120000 });
+    const resumen = sinTasa.secciones.find((s) => s.titulo === 'Resumen financiero (sin propinas)');
+    expect(
+      resumen?.tipo === 'celdas' &&
+        resumen.celdas.some((c) => c.etiqueta.startsWith('Comisión estimada')),
+    ).toBe(false);
   });
 
   it('tienda: la cascada va antes del resumen, y el fiado no aparece si no hay cartera', () => {

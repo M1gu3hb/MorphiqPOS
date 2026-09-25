@@ -16,7 +16,7 @@ import {
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import { Check, CupSoda, Minus, Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
@@ -24,6 +24,16 @@ import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import { ApartadosDeHoy } from './ApartadosDeHoy';
+import { OpcionesDeLaBebida } from './OpcionesDeLaBebida';
+import type { EleccionDeBebida, OpcionDeBebida } from './opciones-de-bebida';
+import {
+  conBebida,
+  conCantidad,
+  lineasParaCobrar,
+  totalDe,
+  type BebidaParaElPedido,
+  type LineaDelPedido,
+} from './pedido-de-barra';
 
 /**
  * PANTALLA · cafeteria · cobrar
@@ -56,8 +66,10 @@ import { ApartadosDeHoy } from './ApartadosDeHoy';
  * preferencia del sistema. Sólo viaja la tesela; la página no se funde.
  *
  * ── Alcance, dicho y no escondido ────────────────────────────────────────
- * 1. Las opciones (leche, tamaño, temperatura) son OTRA pantalla: aquí la
- *    tarjeta agrega el producto base.
+ * 1. Una bebida con opciones abre SUS opciones encima del cobro —la leche, el tamaño,
+ *    la temperatura— y vuelve con lo elegido (C.10 de la 2.4). Antes eran otra
+ *    pantalla que metía la bebida en un borrador que este cobro nunca leía: el latte
+ *    de avena no se podía cobrar desde el mostrador.
  * 2. El cobro sale en efectivo por el importe exacto; el mixto vive en el
  *    diálogo de cobro.
  * 3. `F12`, `F2` y `F3` son del navegador; sí funcionan `Esc` y `F4`.
@@ -102,13 +114,6 @@ export interface TurnoDeBarra {
   readonly efectivo_inicial_contado: number | null;
 }
 
-export interface LineaDelPedido {
-  readonly productoId: string;
-  readonly nombre: string;
-  readonly precioCentavos: number;
-  readonly cantidad: number;
-}
-
 export interface CobrarProps {
   /** Cuando llega, la pantalla no consulta: es lo que usan las pruebas. */
   readonly productosIniciales?: readonly ProductoDeBarra[];
@@ -130,41 +135,6 @@ export function categoriasDe(productos: readonly ProductoDeBarra[]): readonly st
   const vistas = new Set<string>();
   for (const producto of productos) vistas.add(producto.categoria_nombre ?? 'Otros');
   return [...vistas].sort((a, b) => a.localeCompare(b, 'es-MX'));
-}
-
-/** Suma o resta uno. Al llegar a cero la línea desaparece: un «0 ×» no es nada. */
-export function conCantidad(
-  lineas: readonly LineaDelPedido[],
-  productoId: string,
-  paso: number,
-): readonly LineaDelPedido[] {
-  return lineas
-    .map((linea) =>
-      linea.productoId === productoId ? { ...linea, cantidad: linea.cantidad + paso } : linea,
-    )
-    .filter((linea) => linea.cantidad > 0);
-}
-
-export function conProducto(
-  lineas: readonly LineaDelPedido[],
-  producto: ProductoDeBarra,
-): readonly LineaDelPedido[] {
-  if (lineas.some((linea) => linea.productoId === producto.id)) {
-    return conCantidad(lineas, producto.id, 1);
-  }
-  return [
-    ...lineas,
-    {
-      productoId: producto.id,
-      nombre: producto.nombre ?? 'Producto',
-      precioCentavos: precioDe(producto),
-      cantidad: 1,
-    },
-  ];
-}
-
-export function totalDe(lineas: readonly LineaDelPedido[]): number {
-  return lineas.reduce((suma, linea) => suma + linea.precioCentavos * linea.cantidad, 0);
 }
 
 /** El aviso de cambio: su tono y su palabra. La palabra es la que manda. */
@@ -190,6 +160,35 @@ export function bloqueoDe(
 interface Carga {
   readonly productos: readonly ProductoDeBarra[];
   readonly turno: TurnoDeBarra | null;
+  /** Las opciones de cada bebida, por producto: la que tiene, abre sus opciones al tocarla. */
+  readonly opciones: ReadonlyMap<string, readonly OpcionDeBebida[]>;
+}
+
+/** Una opción de bebida del puente con su producto: `Modificador` sirve filas planas. */
+interface OpcionConProducto extends OpcionDeBebida {
+  readonly producto_id: string;
+}
+
+/** Las filas planas de `Modificador`, repartidas por bebida. */
+export function opcionesPorProducto(
+  filas: readonly OpcionConProducto[],
+): ReadonlyMap<string, readonly OpcionDeBebida[]> {
+  const mapa = new Map<string, OpcionDeBebida[]>();
+  for (const fila of filas)
+    mapa.set(fila.producto_id, [...(mapa.get(fila.producto_id) ?? []), fila]);
+  return mapa;
+}
+
+/** La bebida como entra al pedido: el producto base y, si se eligió, lo elegido. */
+function bebidaDe(producto: ProductoDeBarra, eleccion?: EleccionDeBebida): BebidaParaElPedido {
+  return {
+    productoId: producto.id,
+    nombre: producto.nombre ?? 'Producto',
+    precioBaseCentavos: precioDe(producto),
+    ...(eleccion === undefined
+      ? {}
+      : { opciones: eleccion.opciones, alergias: eleccion.alergias, nota: eleccion.nota }),
+  };
 }
 
 export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarProps) {
@@ -197,7 +196,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
   const [carga, setCarga] = useState<Carga | null>(
     productosIniciales === undefined
       ? null
-      : { productos: productosIniciales, turno: turnoInicial ?? null },
+      : { productos: productosIniciales, turno: turnoInicial ?? null, opciones: new Map() },
   );
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   const [lineas, setLineas] = useState<readonly LineaDelPedido[]>([]);
@@ -208,6 +207,14 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
   const [enviando, setEnviando] = useState(false);
   const [enLinea, setEnLinea] = useState(true);
   const [viajando, setViajando] = useState<string | null>(null);
+  /** La bebida cuyas opciones están abiertas encima del cobro. */
+  const [eligiendo, setEligiendo] = useState<ProductoDeBarra | null>(null);
+  // `Esc` cierra las opciones si están abiertas; si no, limpia el pedido. El escucha se
+  // registra una vez, así que lee el estado por aquí.
+  const hayOpcionesAbiertas = useRef(false);
+  useEffect(() => {
+    hayOpcionesAbiertas.current = eligiendo !== null;
+  }, [eligiendo]);
 
   // Cada intento de lectura es un número: el botón de reintentar lo sube, y el
   // efecto lee otra vez. El estado se limpia EN EL CLIC, no dentro del efecto.
@@ -219,12 +226,18 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
     Promise.all([
       consultarPuente<ProductoDeBarra>('ProductoTerminado', { limite: 300 }),
       consultarPuente<TurnoDeBarra>('CorteCaja', { limite: 1 }),
+      // Las opciones AYUDAN a cobrar: si no llegan, la bebida se cobra sencilla, al
+      // precio base, que es lo que el servidor cobra sin opciones.
+      consultarPuente<OpcionConProducto>('Modificador', { limite: 2000 }).catch(
+        (): readonly OpcionConProducto[] => [],
+      ),
     ])
-      .then(([filas, turnos]) => {
+      .then(([filas, turnos, opciones]) => {
         if (!vivo) return;
         setCarga({
           productos: filas.filter((fila) => fila.visible_en_pos !== false),
           turno: turnos.find((fila) => fila.estado === 'abierto') ?? null,
+          opciones: opcionesPorProducto(opciones),
         });
       })
       .catch((fallo: unknown) => {
@@ -251,6 +264,10 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
     anotar();
     const alTeclear = (evento: KeyboardEvent) => {
       if (evento.key === 'Escape') {
+        if (hayOpcionesAbiertas.current) {
+          setEligiendo(null);
+          return;
+        }
         setLineas([]);
         setNombre('');
         setCanal(null);
@@ -290,12 +307,17 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
    * el navegador fotografíe el estado nuevo ya pintado.
    */
   function agregar(producto: ProductoDeBarra, tesela: HTMLElement): void {
+    // Con opciones, primero se eligen: la leche y el tamaño cambian el precio y la receta.
+    if ((carga?.opciones.get(producto.id)?.length ?? 0) > 0) {
+      setEligiendo(producto);
+      return;
+    }
     tesela.style.viewTransitionName = VIAJE.producto(producto.id);
     void conTransicion(() => {
       flushSync(() => {
         tesela.style.viewTransitionName = '';
         setViajando(producto.id);
-        setLineas((previas) => conProducto(previas, producto));
+        setLineas((previas) => conBebida(previas, bebidaDe(producto)));
       });
     }).finally(() => {
       tesela.style.viewTransitionName = '';
@@ -303,29 +325,34 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
     });
   }
 
+  /** Lo elegido en las opciones entra al pedido como su propia línea. */
+  function alElegir(eleccion: EleccionDeBebida): void {
+    if (eligiendo === null) return;
+    const producto = eligiendo;
+    setLineas((previas) => conBebida(previas, bebidaDe(producto, eleccion)));
+    setEligiendo(null);
+  }
+
   /**
-   * La cadena documentada: se abre el borrador de la terminal, se le cuelgan
-   * las líneas y se cobra. El total viaja sólo para que el servidor RECHACE si
-   * no coincide con el suyo; la clave de idempotencia la pone `invocarComando`,
-   * así que un doble toque no cobra dos veces.
+   * UN SOLO VIAJE, el del mostrador (`/api/venta/cobrar-mostrador`): el servidor crea el
+   * borrador de la terminal, lo VACÍA, mete cada línea —la que lleva opciones, por
+   * `cafeteria.agregar_bebida`— y cobra. El total viaja sólo para que el servidor RECHACE
+   * si no coincide con el suyo; la clave de idempotencia la pone `invocarComando`.
+   *
+   * Antes eran N+2 viajes sin vaciar: un cobro que fallaba dejaba sus líneas en el
+   * borrador, el siguiente las metía ENCIMA y el total ya no cuadraba nunca —el mismo
+   * defecto que tenía la tienda (C.10 de la 2.4)—.
    */
   async function cobrar(): Promise<void> {
     setEnviando(true);
     setError(null);
     try {
-      const orden = await invocarComando<{ ordenId: string }>('/api/venta/crear-orden', {});
-      for (const linea of lineas) {
-        await invocarComando('/api/venta/agregar-linea', {
-          ordenId: orden.ordenId,
-          productoId: linea.productoId,
-          cantidad: String(linea.cantidad),
-        });
-      }
-      await invocarComando('/api/venta/cobrar', {
-        ordenId: orden.ordenId,
-        pagos: [{ metodo: 'efectivo', montoCentavos: total, recibidoCentavos: total }],
+      const cobrada = await invocarComando<{ ventaId: string }>('/api/venta/cobrar-mostrador', {
+        metodo: 'efectivo',
         totalEsperadoCentavos: total,
-        canal,
+        recibidoCentavos: total,
+        lineas: lineasParaCobrar(lineas),
+        ...(canal === null ? {} : { canal }),
         ...(nombre.trim() === '' ? {} : { nombrePedido: nombre.trim() }),
       });
       // Se limpia sola y vuelve al vacío: abrir un diálogo de ticket son dos
@@ -333,7 +360,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
       setLineas([]);
       setNombre('');
       setCanal(null);
-      onCobrado?.(orden.ordenId);
+      onCobrado?.(cobrada.ventaId);
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo cobrar. No se cobró nada.');
     } finally {
@@ -437,7 +464,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
             variant="ghost"
             aria-label={`Quitar uno de ${linea.nombre}`}
             onClick={() => {
-              setLineas(conCantidad(lineas, linea.productoId, -1));
+              setLineas(conCantidad(lineas, linea.clave, -1));
             }}
           >
             <Minus />
@@ -447,7 +474,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
             variant="ghost"
             aria-label={`Agregar uno de ${linea.nombre}`}
             onClick={() => {
-              setLineas(conCantidad(lineas, linea.productoId, 1));
+              setLineas(conCantidad(lineas, linea.clave, 1));
             }}
           >
             <Plus />
@@ -468,7 +495,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
       etiqueta={voc.titulo('unidad_servicio')}
       columnas={columnas}
       filas={lineas}
-      claveDe={(linea) => linea.productoId}
+      claveDe={(linea) => linea.clave}
       viajeDeFila={(linea) =>
         viajando === linea.productoId ? VIAJE.producto(linea.productoId) : undefined
       }
@@ -651,6 +678,27 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           <p className="text-center text-sm text-texto-sutil">{bloqueo}</p>
         ) : null}
       </Superficie>
+
+      {/* LAS OPCIONES DE LA BEBIDA, encima del cobro: se eligen y se vuelve con ellas. */}
+      {eligiendo === null ? null : (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-bebida"
+          className="fixed inset-0 z-40 overflow-y-auto"
+        >
+          <OpcionesDeLaBebida
+            productoId={eligiendo.id}
+            productoNombre={eligiendo.nombre ?? 'Bebida'}
+            precioBaseCentavos={precioDe(eligiendo)}
+            opcionesIniciales={carga.opciones.get(eligiendo.id) ?? []}
+            onElegidas={alElegir}
+            onCerrar={() => {
+              setEligiendo(null);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

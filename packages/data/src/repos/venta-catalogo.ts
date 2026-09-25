@@ -191,6 +191,8 @@ export interface IngredienteDeReceta {
   readonly mermaBp: number;
   /** F-331 · Nulo = aplica a todos los canales. Con valores, sólo a ésos. */
   readonly aplicaCanal: string[] | null;
+  /** F-027 · El grupo de opciones que puede sustituir esta línea: «Leche». */
+  readonly sustituiblePorGrupoId: string | null;
 }
 
 /**
@@ -231,6 +233,7 @@ export async function recetasDeProductos(
       // F-331 · A qué canales aplica esta línea. Nulo = a todos, que es lo que
       // era toda la receta histórica.
       'recetas.aplica_canal as aplicaCanal',
+      'recetas.sustituible_por_grupo_id as sustituiblePorGrupoId',
     ])
     .where('recetas.organizacion_id', '=', organizacionId)
     .where('recetas.producto_id', 'in', [...productoIds])
@@ -247,6 +250,7 @@ export async function recetasDeProductos(
       unidadBase: fila.unidadBase,
       mermaBp: fila.mermaBp,
       aplicaCanal: fila.aplicaCanal,
+      sustituiblePorGrupoId: fila.sustituiblePorGrupoId,
     });
     mapa.set(fila.productoId, lista);
   }

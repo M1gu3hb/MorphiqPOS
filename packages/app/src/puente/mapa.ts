@@ -520,6 +520,27 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       // «Receta» es femenino: la columna es `activa`.
       activo: { columna: 'activa', conversion: 'booleano', escribible: false },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
+      /**
+       * F-331 · En qué canales entra la línea: `text[]`, nulo = en todos (083). Viaja
+       * como arreglo.
+       *
+       * NO se servía, y la pantalla de recetas pregunta el canal de cada línea: el
+       * vaso «sólo para llevar» se guardaba bien, volvía como «Siempre» y el SIGUIENTE
+       * guardado —agregar o quitar cualquier otra línea— lo reescribía como «ambos»,
+       * porque el comando reemplaza la receta entera con lo que la pantalla tiene.
+       * Cada edición borraba el canal de todas las demás líneas (C.10 de la 2.4).
+       */
+      aplica_canal: { columna: 'aplica_canal', conversion: 'json', escribible: false },
+      /**
+       * F-027 · El grupo de opciones que puede sustituir esta línea (084): la leche
+       * entera del latte la sustituye el grupo «Leche». Mismo defecto que el canal si
+       * no viaja: el siguiente guardado lo borraría.
+       */
+      sustituible_por_grupo_id: {
+        columna: 'sustituible_por_grupo_id',
+        conversion: 'texto',
+        escribible: false,
+      },
     },
     derivados: {
       // Sin instantánea a propósito: `on delete restrict` impide que el insumo
@@ -2173,6 +2194,35 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       agotado: { columna: 'agotado', conversion: 'booleano', escribible: false },
       varias: { columna: 'varias', conversion: 'booleano', escribible: false },
       orden: { columna: 'orden', conversion: 'entero', escribible: false },
+    },
+    derivados: {
+      /**
+       * F-027 · Lo que la opción le hace a la RECETA (084), para la tabla de variantes
+       * de `cafeteria/Recetas` (C.10 de la 2.4): de qué grupo es —el id, que es lo que la
+       * línea de receta declara—, con qué insumo sustituye y cuánto escala. La vista
+       * lleva el `id` de la opción, así que es un salto por clave primaria.
+       *
+       * Ni costo ni existencia: el costo del sustituto lo sirve `Ingrediente` a quien
+       * puede verlo, y aquí sólo va QUÉ insumo es.
+       */
+      grupo_id: {
+        tabla: 'modificador_opciones',
+        porColumna: 'id',
+        columna: 'modificador_id',
+        conversion: 'texto',
+      },
+      insumo_sustituto_id: {
+        tabla: 'modificador_opciones',
+        porColumna: 'id',
+        columna: 'insumo_sustituto_id',
+        conversion: 'texto',
+      },
+      factor_cantidad: {
+        tabla: 'modificador_opciones',
+        porColumna: 'id',
+        columna: 'factor_cantidad',
+        conversion: 'decimal',
+      },
     },
   },
 

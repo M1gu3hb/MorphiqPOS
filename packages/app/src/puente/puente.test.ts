@@ -510,6 +510,11 @@ describe('los campos derivados', () => {
       //     producto tiene insumo, para no apagar lo de receta. Ni nombre, ni costo.
       'materiales_mostrador',
       'insumos',
+      // La del 25-09-2026 (C.10 de la 2.4): lo que una opción de bebida le hace a la
+      // receta —su grupo, su sustituto y su factor—. La opción YA la sirve el puente a
+      // todos los roles por `Modificador`; la tabla no lleva organización, pero el salto
+      // es por clave primaria desde una fila que el ámbito ya acotó.
+      'modificador_opciones',
     ]);
     for (const [entidad, mapa] of Object.entries(MAPA)) {
       for (const [clave, derivado] of Object.entries(mapa.derivados ?? {})) {

@@ -63,6 +63,18 @@ export function porOmisionDe(grupo: GrupoDeOpciones): string | null {
 }
 
 /**
+ * Si la opción de un grupo de VARIAS empieza marcada: NUNCA (C.10 de la 2.4).
+ *
+ * La vista `opciones_de_bebida` marca `por_omision` la primera opción de CADA grupo, y en
+ * «Extras» la primera es el shot extra: la pantalla lo encendía solo y un americano salía
+ * cobrado $15 de más —el e2e lo cazó en cuanto el cobro abrió las opciones—. Un extra se
+ * pide; no se supone. En los grupos de una sola, la de omisión sigue siendo la marcada.
+ */
+export function activaAlAbrir(grupo: GrupoDeOpciones, opcion: OpcionDeBebida): boolean {
+  return grupo.varias ? false : opcion.por_omision;
+}
+
+/**
  * El total que va dentro del botón: la base más cada delta activo.
  *
  * El delta pasa por `centavosDe` aunque el puente ya lo sirva en centavos: la unidad
@@ -75,6 +87,38 @@ export function totalCentavos(base: number, activas: readonly OpcionDeBebida[]):
       (centavosDe('Modificador', 'delta_precio_centavos', opcion.delta_precio_centavos) ?? 0),
     base,
   );
+}
+
+/**
+ * Lo que la pantalla de opciones DEVUELVE cuando se abre desde el cobro (C.10 de la 2.4):
+ * las opciones activas con su delta ya en centavos, las alergias y la nota. El cobro las
+ * lleva en la línea del pedido y el servidor pone el precio al cobrar.
+ */
+export interface EleccionDeBebida {
+  readonly opciones: readonly {
+    readonly id: string;
+    readonly nombre: string;
+    readonly deltaCentavos: number;
+  }[];
+  readonly alergias: readonly string[];
+  readonly nota: string;
+}
+
+export function eleccionDe(
+  activas: readonly OpcionDeBebida[],
+  alergias: readonly string[],
+  nota: string,
+): EleccionDeBebida {
+  return {
+    opciones: activas.map((opcion) => ({
+      id: opcion.id,
+      nombre: opcion.nombre,
+      deltaCentavos:
+        centavosDe('Modificador', 'delta_precio_centavos', opcion.delta_precio_centavos) ?? 0,
+    })),
+    alergias: [...alergias],
+    nota: nota.trim(),
+  };
 }
 
 /** El límite de intentos no es un código de la API: es el 429 del estado. */

@@ -25,10 +25,13 @@ import {
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import {
+  activaAlAbrir,
   agrupar,
+  eleccionDe,
   mensajeDeFallo,
   porOmisionDe,
   totalCentavos,
+  type EleccionDeBebida,
   type GrupoDeOpciones,
   type OpcionDeBebida,
 } from './opciones-de-bebida';
@@ -116,6 +119,13 @@ export interface OpcionesDeLaBebidaProps {
   /** Cuando llega, la pantalla no consulta: es lo que usan las pruebas. */
   readonly opcionesIniciales?: readonly OpcionDeBebida[];
   readonly onAgregada?: (lineaId: string | null) => void;
+  /**
+   * DESDE EL COBRO (C.10 de la 2.4): cuando llega, AGREGAR no va al servidor —devuelve lo
+   * elegido y el cobro lo pone en su pedido— y cerrar vuelve al cobro en vez de ir atrás.
+   * Sin esto la leche y el tamaño se elegían en una pantalla que el mostrador no leía.
+   */
+  readonly onElegidas?: (eleccion: EleccionDeBebida) => void;
+  readonly onCerrar?: () => void;
 }
 
 /**
@@ -138,11 +148,13 @@ function Marco({
   nombre,
   precioCentavos,
   pie,
+  alCerrar,
   children,
 }: {
   readonly nombre: string;
   readonly precioCentavos: number;
   readonly pie: ReactNode;
+  readonly alCerrar?: (() => void) | undefined;
   readonly children: ReactNode;
 }): ReactElement {
   return (
@@ -166,7 +178,8 @@ function Marco({
               size="icon-sm"
               aria-label="Cerrar sin agregar"
               onClick={() => {
-                window.history.back();
+                if (alCerrar === undefined) window.history.back();
+                else alCerrar();
               }}
             >
               <X aria-hidden="true" />
@@ -364,6 +377,8 @@ export function OpcionesDeLaBebida({
   precioBaseCentavos,
   opcionesIniciales,
   onAgregada,
+  onElegidas,
+  onCerrar,
 }: OpcionesDeLaBebidaProps) {
   const voc = useVocabulario();
   /**
@@ -457,7 +472,7 @@ export function OpcionesDeLaBebida({
   const estaActiva = useCallback(
     (grupo: GrupoDeOpciones, opcion: OpcionDeBebida): boolean =>
       grupo.varias
-        ? (sueltas[opcion.id] ?? opcion.por_omision)
+        ? (sueltas[opcion.id] ?? activaAlAbrir(grupo, opcion))
         : seleccion.get(grupo.nombre) === opcion.id,
     [seleccion, sueltas],
   );
@@ -476,7 +491,7 @@ export function OpcionesDeLaBebida({
     if (grupo.varias) {
       setSueltas((previas) => ({
         ...previas,
-        [opcion.id]: !(previas[opcion.id] ?? opcion.por_omision),
+        [opcion.id]: !(previas[opcion.id] ?? activaAlAbrir(grupo, opcion)),
       }));
       return;
     }
@@ -490,6 +505,10 @@ export function OpcionesDeLaBebida({
   };
 
   const agregar = async (): Promise<void> => {
+    if (onElegidas !== undefined) {
+      onElegidas(eleccionDe(activas, marcasDeAlergia, nota));
+      return;
+    }
     setEnviando(true);
     setError(null);
     try {
@@ -515,6 +534,7 @@ export function OpcionesDeLaBebida({
         nombre={productoNombre}
         precioCentavos={precioBase}
         pie={<Esqueleto className={`${ALTO_AGREGAR} w-full`} />}
+        alCerrar={onCerrar}
       >
         <EsqueletoDeGrupos />
       </Marco>
@@ -578,7 +598,7 @@ export function OpcionesDeLaBebida({
   // El vacío ENSEÑA: dice qué falta declarar y lleva a declararlo.
   if (grupos.length === 0 && falloDeLectura === null) {
     return (
-      <Marco nombre={productoNombre} precioCentavos={precioBase} pie={pie}>
+      <Marco nombre={productoNombre} precioCentavos={precioBase} pie={pie} alCerrar={onCerrar}>
         <Vacio
           icono={<CupSoda />}
           titulo={`${voc.conDeterminante('este', 'linea_orden')} se agrega tal cual.`}
@@ -594,7 +614,7 @@ export function OpcionesDeLaBebida({
   }
 
   return (
-    <Marco nombre={productoNombre} precioCentavos={precioBase} pie={pie}>
+    <Marco nombre={productoNombre} precioCentavos={precioBase} pie={pie} alCerrar={onCerrar}>
       <div className="flex flex-col gap-(--espacio-4)">
         {falloDeLectura !== null && (
           <ErrorDePantalla

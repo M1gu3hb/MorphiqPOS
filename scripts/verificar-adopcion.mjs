@@ -167,6 +167,48 @@ export const SIN_ESTADO = [
       'Si los motivos no se leen queda «Caducado»; y el fallo al guardar la nota —con su canje— lo dice Entradas en su Aviso, sin perder lo capturado.',
   },
   {
+    pantalla: 'cafeteria/TasaDeTerminal',
+    estado: 'vacio',
+    razon:
+      'Formulario de un solo campo —la tasa de la terminal—: no hay lista que pueda llegar vacía; aparece sólo cuando la tasa falta (C.10 de la 2.4).',
+  },
+  {
+    pantalla: 'cafeteria/TasaDeTerminal',
+    estado: 'cargando',
+    razon:
+      'No lee nada: CierreDeTurno lo monta con la hoja del corte ya leída, y guardar la tasa pone el botón en cargando.',
+  },
+  {
+    pantalla: 'cafeteria/CostoPorCanal',
+    estado: 'vacio',
+    razon:
+      'Pieza de Recetas: sólo se monta cuando la receta ya tiene líneas; la receta vacía la pinta Recetas con su Vacio.',
+  },
+  {
+    pantalla: 'cafeteria/CostoPorCanal',
+    estado: 'cargando',
+    razon:
+      'Pieza de Recetas: recibe el costo ya sumado de líneas ya leídas; el esqueleto de la carga es el de Recetas.',
+  },
+  {
+    pantalla: 'cafeteria/CostoPorCanal',
+    estado: 'error',
+    razon:
+      'Pieza de Recetas: no lee nada; si la receta no se pudo leer, Recetas pinta su ErrorDePantalla y esta pieza no se monta.',
+  },
+  {
+    pantalla: 'cafeteria/FormularioDeLinea',
+    estado: 'vacio',
+    razon:
+      'Pieza de Recetas: captura una línea; sin ingredientes dados de alta ya pinta su Aviso que lleva al inventario.',
+  },
+  {
+    pantalla: 'cafeteria/FormularioDeLinea',
+    estado: 'cargando',
+    razon:
+      'Pieza de Recetas: sólo se monta con las líneas e ingredientes ya leídos; la carga es de Recetas.',
+  },
+  {
     pantalla: 'configuracion/SelectorDeApariencia',
     estado: 'vacio',
     razon:

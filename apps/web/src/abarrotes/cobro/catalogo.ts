@@ -31,7 +31,8 @@ export interface PresentacionDelPuente {
   readonly nombre: string;
   readonly factor: number;
   readonly codigo_barras: string | null;
-  readonly precio_venta_centavos: number | null;
+  /** El precio de la presentación EN PESOS: el gemelo honesto de `precio_venta_centavos`. */
+  readonly precio_venta_pesos: number | null;
   readonly activa?: boolean | null;
 }
 
@@ -47,11 +48,7 @@ function factorEnTexto(factor: number): string {
 export function productoDeCobro(fila: ProductoDelPuente): ProductoDeCobro {
   const porMedida = fila.tipo_venta === 'variable_medida';
   const precio = porMedida
-    ? centavosDe(
-        'ProductoTerminado',
-        'precio_por_unidad_variable',
-        fila.precio_por_unidad_variable ?? null,
-      )
+    ? centavosDe('ProductoTerminado', 'precio_por_unidad_variable', fila.precio_por_unidad_variable)
     : centavosDe('ProductoTerminado', 'precio_venta', fila.precio_venta);
   return {
     id: fila.id,
@@ -71,7 +68,7 @@ export function presentacionDeCobro(fila: PresentacionDelPuente): PresentacionDe
     nombre: fila.nombre,
     factor: factorEnTexto(fila.factor),
     codigoBarras: fila.codigo_barras,
-    precioCentavos: centavosDe('Presentacion', 'precio_venta_centavos', fila.precio_venta_centavos),
+    precioCentavos: centavosDe('Presentacion', 'precio_venta_pesos', fila.precio_venta_pesos),
   };
 }
 

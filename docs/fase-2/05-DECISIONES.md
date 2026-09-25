@@ -423,9 +423,10 @@ caja, y la entrada de cambio de la cafetería se registraba como depósito.
 4. **Quién ve costos.** Dirección siempre; el cajero sólo con `mostrar_costos_a_caja`. Sin permiso
    el documento sale sin costo, utilidad, margen ni consumo de insumo, como el `sinCostos` del
    corte de Miguel.
-5. **Lo que el documento todavía no trae, y por qué.** La *comisión estimada de terminal* de la
+5. **Lo que el documento todavía no trae, y por qué.** ~~La *comisión estimada de terminal* de la
    cafetería: el sistema no conoce la tasa que cobra la terminal de cada negocio, y no hay dónde
-   escribirla (Configuración es de Miguel). *Devoluciones del día* de la ferretería: aparecerá
+   escribirla.~~ **Ya la trae (C.10, D-22 punto 1):** el negocio la declara una vez, en el mismo
+   cierre de turno. *Devoluciones del día* de la ferretería: aparecerá
    cuando F-222 escriba devoluciones con motivo y destino; hoy no hay ninguna, y una sección sin
    filas no se pinta. *Bloqueos por mora levantados*: la base guarda el bloqueo vigente, no su
    historia. *El renglón completo de existencia por producto* (inicial, entradas, esperado): el
@@ -475,6 +476,47 @@ lee; y la pantalla «Productos» no abría ninguna ficha.
 7. **El kardex vive en la ficha del producto** (era «su propia pantalla» según la ficha y «la
    ficha» según Existencias: no existía en ninguna). El conteo lo abre desde cada diferencia, y
    cada diferencia elige su motivo de los del tronco y del giro (`inventario.motivos_de_merma`).
+
+## D-22 · 25-09-2026 · La cafetería sin nada recortado: la comisión declarada, la leche que se elige es la que sale
+
+**Contexto.** C.10 de la 2.4, las cinco pantallas de la cafetería. Construirlas destapó que la
+opción de bebida —la leche, el tamaño— no llegaba a ninguna parte: el mostrador no podía cobrarla
+(la pantalla de opciones metía la bebida en un borrador que el cobro nunca leía) y, aunque se
+hubiera cobrado, el consumo descontaba la receta de catálogo. Un latte de avena descontaba leche
+entera; uno de 16 oz, lo de uno de 12. Y la pantalla de recetas borraba el canal, la merma y el
+grupo de todas las líneas cada vez que se guardaba cualquiera.
+
+**Decisión.**
+
+1. **La comisión de la terminal se declara, y la declara el negocio donde la necesita.** Clave
+   `comision_terminal_bp` en la configuración (puntos base, 0 a 1000; nula = no declarada, y
+   entonces el corte dice «—», nunca cero). La pregunta el cierre de turno la primera vez que
+   falta. Estimación: (ventas con tarjeta + propinas con tarjeta) × tasa × 1.16 —la comisión
+   lleva IVA—, y se resta de la utilidad neta estimada del turno y del corte. Es ESTIMADA porque el
+   banco la cobra por su lado; el corte lo dice.
+2. **El programa de sellos lo cuenta el servidor** (`lealtad.programa`): el pasivo, quién está a un
+   sello y quién no viene hace 21 días miran a TODOS los del programa. El mensaje al que no viene
+   lo redacta el sistema y lo manda la dueña desde su WhatsApp (`wa.me`): el proveedor de envío es
+   F-406, que es del §10, y un mensaje automático a la vecina rompe lo que sostiene el negocio.
+3. **El alta de producto de la barra es la del catálogo del tronco** (`/productos`): la foto, la
+   receta, la familia y el IVA viven ahí. La pantalla de productos de la barra enseña los grupos
+   de opciones de cada bebida y su tasa de IVA.
+4. **Las opciones se aplican al CONSUMO** (`recetaConOpciones`, del dominio): la línea que declara
+   `sustituible_por_grupo_id` cambia su insumo por el de la opción elegida de ese grupo; el factor
+   escala lo que se MIDE (g, ml) y no lo que se CUENTA —un 16 oz lleva un vaso, no 1.44; el vaso
+   grande es una sustitución del grupo «Tamaño»—; la cantidad escalada se redondea a la
+   diezmilésima, al medio hacia arriba. Un sustituto de otra dimensión no se inventa (la línea
+   queda como estaba), y uno archivado o de otro negocio no sustituye.
+5. **La tabla de variantes usa esa misma función** y el mismo redondeo que el costo de línea del
+   puente: la opción que no cambia nada cuesta al centavo lo que la receta base. Si la pantalla no
+   conoce el sustituto, la variante queda SIN costo, no con el de la leche entera.
+6. **El mostrador de la cafetería cobra en un viaje** (`/api/venta/cobrar-mostrador`, el de la
+   tienda, que vacía el borrador): la bebida con opciones, alergias o nota entra por
+   `cafeteria.agregar_bebida`. La línea del pedido se reconoce por producto + opciones + alergias
+   + nota: dos lattes de avena se suman, uno de avena y uno con entera no.
+7. **La receta se reenvía entera con todo lo que tiene.** El comando reemplaza la receta, así que
+   el puente sirve `aplica_canal` y `sustituible_por_grupo_id`, y la pantalla devuelve canal,
+   merma y grupo de cada línea. El grupo se valida contra el negocio antes de borrar nada.
 
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 

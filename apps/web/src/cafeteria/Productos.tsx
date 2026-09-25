@@ -26,6 +26,8 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe, valorDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { gruposPorProducto, ivaEnPalabras, type OpcionDeBebida } from './productos-de-barra.ts';
+
 /**
  * PANTALLA · cafeteria · productos
  *
@@ -62,11 +64,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * la PC la ficha es la columna derecha; en tableta y teléfono sube desde abajo
  * con su botón de cerrar, porque apilada bajo la lista no se vería nunca.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben el catálogo, el precio por canal con su margen y la perilla de
- * disponible. Quedan fuera las recetas, que son su propia pantalla, y el alta
- * de producto, que vive en el catálogo del tronco. Los grupos de opciones y la
- * tasa de impuesto que pide `04-INTERFAZ` no llegan en esta lectura.
+ * ── Los dos campos que la cafetería tiene y el restaurante no (C.10 de la 2.4)
+ * Los GRUPOS DE OPCIONES asignados —lo que decide si al tocar la bebida se abre el
+ * diálogo de opciones— salen de `Modificador` (la vista de las opciones de cada
+ * bebida, con su grupo), y la TASA DE IMPUESTO de `tasa_iva_bp`: el grano en bolsa
+ * va al 0 % y la bebida al 16 %. Las recetas son su pantalla (`Recetas`) y el alta
+ * de un producto nuevo es la del catálogo del tronco, a la que lleva «Dar de alta».
  */
 
 const RUTA_PRECIO = '/api/catalogo/productos/precio';
@@ -129,6 +132,8 @@ export interface ProductoDeBarra {
    * dejarían a quien escribe eligiendo cuál gana—, así que la pantalla usa el suyo.
    */
   readonly visible_en_pos: boolean;
+  /** La tasa de IVA en puntos base: 1600 la bebida, 0 el grano en bolsa. */
+  readonly tasa_iva_bp?: number | null;
 }
 
 /**
@@ -196,6 +201,7 @@ function mensajeDe(fallo: unknown): string {
 function columnasDelCatalogo(
   tituloDeProducto: string,
   alCambiarDisponible: (producto: ProductoDeBarra) => void,
+  gruposDe: (productoId: string) => readonly string[],
 ): readonly ColumnaDeTabla<ProductoDeBarra>[] {
   const porCanal = CANALES.map((canal): ColumnaDeTabla<ProductoDeBarra> => ({
     clave: `deja-${canal.clave}`,
@@ -228,9 +234,27 @@ function columnasDelCatalogo(
       celda: (p) => (
         <span className="flex flex-col">
           <span className="font-medium">{p.nombre}</span>
-          <span className="text-xs text-texto-sutil capitalize">{p.familia}</span>
+          <span className="text-xs text-texto-sutil">
+            <span className="capitalize">{p.familia}</span>
+            {ivaEnPalabras(p.tasa_iva_bp) === null
+              ? null
+              : ` · ${ivaEnPalabras(p.tasa_iva_bp) ?? ''}`}
+          </span>
         </span>
       ),
+    },
+    {
+      clave: 'opciones',
+      titulo: 'Opciones',
+      desde: 'lg',
+      celda: (p) => {
+        const grupos = gruposDe(p.id);
+        return grupos.length === 0 ? (
+          <span className="text-texto-sutil">sin opciones</span>
+        ) : (
+          <span>{grupos.join(' · ')}</span>
+        );
+      },
     },
     {
       clave: 'precio',
@@ -270,6 +294,8 @@ function columnasDelCatalogo(
 
 interface FichaDelProductoProps {
   readonly producto: ProductoDeBarra;
+  /** Los grupos de opciones que se abren al tocarla en el cobro. */
+  readonly grupos: readonly string[];
   readonly canal: Canal;
   readonly alElegirCanal: (canal: Canal) => void;
   readonly precioCentavos: number | null;
@@ -285,6 +311,7 @@ interface FichaDelProductoProps {
  */
 function FichaDelProducto({
   producto,
+  grupos,
   canal,
   alElegirCanal,
   precioCentavos,
@@ -332,7 +359,17 @@ function FichaDelProducto({
           >
             {producto.nombre}
           </h2>
-          <p className="text-sm text-texto-sutil capitalize">{producto.familia}</p>
+          <p className="text-sm text-texto-sutil">
+            <span className="capitalize">{producto.familia}</span>
+            {ivaEnPalabras(producto.tasa_iva_bp) === null
+              ? null
+              : ` · ${ivaEnPalabras(producto.tasa_iva_bp) ?? ''}`}
+          </p>
+          <p className="text-sm">
+            {grupos.length === 0
+              ? 'Sin opciones: se cobra al tocarla.'
+              : `Al tocarla pregunta: ${grupos.join(', ')}.`}
+          </p>
         </div>
         <Button
           type="button"
@@ -450,6 +487,7 @@ function FichaDelProducto({
 
 export function Productos({ productosIniciales }: ProductosProps) {
   const voc = useVocabulario();
+  const [grupos, setGrupos] = useState<ReadonlyMap<string, readonly string[]>>(new Map());
   const [productos, setProductos] = useState<readonly ProductoDeBarra[] | null>(
     productosIniciales ?? null,
   );
@@ -498,6 +536,13 @@ export function Productos({ productosIniciales }: ProductosProps) {
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
+      // Las opciones AYUDAN a leer el catálogo: si no llegan, cada producto dice «sin
+      // opciones» y el precio por canal se sigue decidiendo igual.
+      consultarPuente<OpcionDeBebida>('Modificador', { limite: 2000, signal: control.signal })
+        .then((opciones) => {
+          if (sigueMontada()) setGrupos(gruposPorProducto(opciones));
+        })
+        .catch(() => undefined);
       consultarPuente<ProductoDeBarra>('ProductoTerminado', {
         limite: 200,
         signal: control.signal,
@@ -661,7 +706,11 @@ export function Productos({ productosIniciales }: ProductosProps) {
   }
 
   const agotados = productos.filter((p) => !p.visible_en_pos).length;
-  const columnas = columnasDelCatalogo(voc.titulo('producto'), cambiarDisponible);
+  const columnas = columnasDelCatalogo(
+    voc.titulo('producto'),
+    cambiarDisponible,
+    (id) => grupos.get(id) ?? [],
+  );
 
   return (
     <main
@@ -670,10 +719,16 @@ export function Productos({ productosIniciales }: ProductosProps) {
       <header className="flex flex-wrap items-baseline justify-between gap-(--espacio-2) xl:col-span-2">
         <h1 className="text-2xl font-semibold">{voc.titulo('producto', true)}</h1>
         {/* Lo que la barra quiere saber a media mañana: cuántos y cuántos no hay. */}
-        <p className="text-sm text-texto-sutil">
-          {voc.conNumero('producto', productos.length)}
-          {agotados === 0 ? null : ` · ${String(agotados)} hoy no hay`}
-        </p>
+        <div className="flex flex-wrap items-center gap-(--espacio-3)">
+          <p className="text-sm text-texto-sutil">
+            {voc.conNumero('producto', productos.length)}
+            {agotados === 0 ? null : ` · ${String(agotados)} hoy no hay`}
+          </p>
+          {/* El alta es la del catálogo del tronco: la foto, la receta, la familia y el IVA. */}
+          <Button asChild size="sm" variant="outline">
+            <a href="/productos">Dar de alta</a>
+          </Button>
+        </div>
       </header>
 
       {error === null ? null : (
@@ -718,6 +773,7 @@ export function Productos({ productosIniciales }: ProductosProps) {
       ) : (
         <FichaDelProducto
           producto={elegido}
+          grupos={grupos.get(elegido.id) ?? []}
           canal={canal}
           alElegirCanal={setCanal}
           precioCentavos={precioCentavos}
