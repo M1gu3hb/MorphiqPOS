@@ -128,7 +128,8 @@ Next.js 16 App Router · React 19 · TypeScript estricto · Tailwind 4
 Kysely + pg · PostgreSQL 17.6 en Supabase (wyqmzhliurwyxuyxznpb)
 Vitest · Playwright · pnpm + Turborepo · desplegado en Vercel
 
-Monorepo:  apps/web  ·  apps/web/heredado (244 archivos de Miguel, NO tocar)
+Monorepo:  apps/web  ·  apps/web/heredado (244 archivos de Miguel: estructura NO se toca;
+                                     el COLOR usa tokens desde C.16, D-19)
            packages/{contracts,domain,data,app,ui,testing}
 ```
 

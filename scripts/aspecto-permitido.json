@@ -16,9 +16,15 @@
     "la ÚNICA referencia que responde a la pregunta que importa —«¿ve Miguel SU",
     "sistema?»— y por eso es la de por omisión. Comparar contra HEAD, como hacía",
     "esta puerta al principio, la deja INERTE en un árbol comprometido: no hay",
-    "nada que comparar y sale verde sin haber mirado un solo archivo."
+    "nada que comparar y sale verde sin haber mirado un solo archivo.",
+    "",
+    "`baseAnterior` y `porqueSeMovioLaBase`: la base se movió UNA vez, al commit de C.16 que sólo",
+    "traduce colores. La puerta vuelve a demostrarlo cada vez que corre, así que mover la base otra",
+    "vez sin esa prueba la pone en rojo."
   ],
-  "base": "89830e59aed8688042d98c06d3521c35e95a9906",
+  "base": "a92c3431a9dd40b47a7385730fc1553e5ebf94a9",
+  "baseAnterior": "89830e59aed8688042d98c06d3521c35e95a9906",
+  "porqueSeMovioLaBase": "C.16 de la etapa 2.4: el commit a92c343 traduce SÓLO colores de paleta a tokens del sistema en 111 archivos del heredado (en Noche y Terminal se veía roto; D-19 deroga D-14 en lo que toca al color). La puerta lo demuestra en cada corrida: todo testigo que cambia entre `baseAnterior` y `base` es, o una excepción motivada de esta lista, o una clase de color (`scripts/lib/clases-de-color.mjs`). Composición, textos e iconos siguen intocables.",
   "permitidos": [
     {
       "archivo": "apps/web/heredado/components/ui/toast.jsx",

@@ -354,6 +354,44 @@ sin pago y se cobra al recoger. Completo.» La forma quedaba abierta.
    `portal_qr` (elegida por el cliente en una pantalla suya). Sin migración: `'barista'` y
    `'cliente'` no están en el `check propina_origen`.
 
+## D-19 · 25-09-2026 · El heredado cambia de color, y SÓLO de color (deroga D-14 en lo que toca al color)
+
+**Contexto.** D-14 dejó el heredado con la estructura de Miguel «y con los tokens del sistema»,
+pero eso sólo era verdad para sus alias en inglés (`bg-card`, `text-muted-foreground`). Los
+colores FIJOS de paleta —`bg-white`, `text-emerald-700`, `dark:bg-gray-900`, más de 3 000 en
+111 archivos— no cambiaban con el estilo: en Noche y en Terminal había tarjetas blancas sobre
+fondo negro, y un parche (`PARCHE DARK` de `heredado/index.css`) que repintaba a mano algunas
+clases con `!important`. El encargo C.16 pide traducirlos.
+
+**Decisión.** **D-14 queda DEROGADA en lo que toca al color**; composición, textos, iconos,
+orden y flujo siguen siendo de Miguel e intocables.
+
+1. **Un commit de sólo color** (`a92c343`): cada clase de paleta pasa a su token por su papel
+   (superficie, texto, borde, éxito, aviso, peligro, acento), y
+   `scripts/verificar-traduccion-de-color.mjs` demuestra que, quitadas las clases de color
+   (`scripts/lib/clases-de-color.mjs`), cada archivo es idéntico carácter a carácter a su
+   original.
+2. **La base de `verify:aspecto` se movió a ese commit, y la puerta lo vuelve a demostrar en
+   cada corrida**: `aspecto-permitido.json` declara `baseAnterior` (`89830e5`) y
+   `porqueSeMovioLaBase`, y todo testigo que cambia entre las dos bases tiene que ser una clase
+   de color o una excepción motivada de la lista. Un texto o un espaciado colado en ese tramo
+   la pone en rojo; mover la base sin decir por qué, también.
+3. **El `PARCHE DARK` se retiró**: sin colores fijos que repintar, sólo tapaba los tokens.
+4. **Para que no vuelvan**, `verify:primitivas` mira ahora el heredado SÓLO por colores de
+   paleta: cero, salvo **22 excepciones en 6 archivos**, cada una con su número exacto y su
+   razón en el código (texto blanco sobre un fondo que no es del sistema: la vista previa de
+   los colores de marca, el color del mesero elegido por el negocio, degradados fijos en línea
+   de tres botones). Una más, una menos o una excepción de un archivo que ya no existe es rojo.
+
+5. **Lo impreso sigue siendo papel.** La traducción metió un defecto que se corrigió en el
+   mismo bloque: dentro de los cuatro imprimibles (pre-cuenta, corte, PDF del periodo, ficha
+   de producto) `bg-gray-100` pasó a `bg-fondo-sutil` y `bg-white` a `bg-superficie`, fondos
+   que en Noche se oscurecen bajo un texto que la protección de impresión fuerza a oscuro.
+   Los contenedores protegidos (`.ticket-printable`, `.cash-cut-pdf`, `.pdf-corte-caja`,
+   `.printable-doc`) redefinen ahora los tokens con su valor claro, y
+   `apps/web/src/imprimibles-en-papel.contrato.test.ts` exige que cubran todo token que
+   pintan sus documentos.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

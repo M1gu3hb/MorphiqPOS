@@ -18,6 +18,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { clasesDePaleta } from './lib/clases-de-color.mjs';
 import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
 import { EN_INGLES } from './lib/vocabulario-de-color.mjs';
 
@@ -408,6 +409,116 @@ for (const nombre of existsSync(HOJAS) ? readdirSync(HOJAS) : []) {
   });
 }
 
+/**
+ * EL HEREDADO, SÓLO PARA COLORES DE PALETA (C.16 de la etapa 2.4).
+ *
+ * Sus colores fijos (`bg-white`, `text-emerald-700`, `dark:bg-gray-900`…) se tradujeron
+ * a tokens en un commit de sólo color, porque en Noche y Terminal se veía roto. Esta
+ * sección es la que impide que vuelvan: el resto de las reglas de esta puerta NO
+ * aplican aquí —composición y ritmo del heredado son de Miguel (D-14)—, sólo el color.
+ *
+ * Las que quedan a propósito van en esta lista, archivo por archivo, con su NÚMERO
+ * exacto y su razón: si aparece una más, o una de éstas se va, la puerta lo dice.
+ */
+const HEREDADO = join(RAIZ, 'apps', 'web', 'heredado');
+const PALETA_PERMITIDA_EN_EL_HEREDADO = new Map([
+  [
+    'components/configuracion/ColoresSistemaSection.jsx',
+    {
+      cuantas: 12,
+      porque:
+        'La VISTA PREVIA de los colores de marca va sobre un fondo oscuro fijo (`bg-[#0a1428]`) para ' +
+        'enseñar el login y la barra lateral como quedarán: blanco sobre ese fondo, en cualquier estilo.',
+    },
+  ],
+  [
+    'components/common/MobileAdminRadialMenu.jsx',
+    {
+      cuantas: 3,
+      porque:
+        'Texto blanco sobre círculos cuyo fondo es el color de cada destino, en línea y en tiempo de ' +
+        'ejecución: un token de texto se despegaría de un fondo que no es del sistema.',
+    },
+  ],
+  [
+    'components/mesas/MesaListMobile.jsx',
+    {
+      cuantas: 2,
+      porque:
+        'La insignia del mesero va sobre SU color, elegido en Configuración (`mesero_asignado_color`): es ' +
+        'un dato del negocio, no un color del sistema.',
+    },
+  ],
+  [
+    'components/mesero/MeseroCartFAB.jsx',
+    {
+      cuantas: 2,
+      porque:
+        'El botón cambia en tiempo de ejecución entre dos degradados fijos en línea (carrito o no): ' +
+        'ningún token sirve a los dos.',
+    },
+  ],
+  [
+    'components/portalqr/ProductoPlaceholder.jsx',
+    {
+      cuantas: 2,
+      porque:
+        'El marcador de producto sin foto va sobre un degradado elegido por categoría en tiempo de ' +
+        'ejecución (`MAPA`): el texto blanco es parte de ese dibujo.',
+    },
+  ],
+  [
+    'components/propinas/PropinaDialog.jsx',
+    {
+      cuantas: 1,
+      porque:
+        'Texto blanco de un botón cuyo fondo es un degradado fijo en línea o, apagado, el del botón: ' +
+        'un token sólo acertaría en uno de los dos estados.',
+    },
+  ],
+]);
+
+function archivosDelHeredado(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entrada) => {
+    const ruta = join(dir, entrada.name);
+    if (entrada.isDirectory()) return archivosDelHeredado(ruta);
+    return /\.(jsx?|tsx?)$/.test(entrada.name) ? [ruta] : [];
+  });
+}
+
+if (existsSync(HEREDADO)) {
+  const vistas = new Set();
+  for (const ruta of archivosDelHeredado(HEREDADO)) {
+    const relativo = relative(HEREDADO, ruta).split(sep).join('/');
+    const quedan = clasesDePaleta(sinComentarios(readFileSync(ruta, 'utf8')));
+    const permitida = PALETA_PERMITIDA_EN_EL_HEREDADO.get(relativo);
+    if (permitida !== undefined) vistas.add(relativo);
+    if (quedan.length === (permitida?.cuantas ?? 0)) continue;
+    hallazgos.push({
+      archivo: relative(RAIZ, ruta),
+      regla: 'color de paleta en el heredado',
+      deRitmo: false,
+      cuantos: quedan.length,
+      porque:
+        permitida === undefined
+          ? 'El heredado usa los tokens del sistema desde C.16: un color fijo se ve roto en Noche y Terminal'
+          : `Esta lista permite ${String(permitida.cuantas)} y hay ${String(quedan.length)}: actualiza la lista con su razón, o traduce la de más`,
+      ejemplos: quedan.slice(0, 6),
+    });
+  }
+  for (const [relativo] of PALETA_PERMITIDA_EN_EL_HEREDADO) {
+    if (vistas.has(relativo)) continue;
+    hallazgos.push({
+      archivo: `apps/web/heredado/${relativo}`,
+      regla: 'excepción de paleta de un archivo que ya no existe',
+      deRitmo: false,
+      cuantos: 1,
+      porque: 'Una excepción sin archivo es un permiso en blanco: bórrala de la lista',
+      ejemplos: [relativo],
+    });
+  }
+}
+
 const esDelSistema = (archivo) => archivo.split(sep).join('/').startsWith('packages/ui/src');
 const enDeuda = hallazgos.filter((h) => h.deRitmo === true && !esDelSistema(h.archivo));
 const deuda = enDeuda.reduce((suma, h) => suma + h.cuantos, 0);
@@ -447,6 +558,11 @@ console.log(
   `  · deuda de ritmo fuera de packages/ui: ${String(deuda)} de ${String(TECHO_DE_RITMO)} ` +
     `permitidos, en ${String(enDeuda.length)} archivo(s) — espacio, tipografia y duracion ` +
     'literales que la etapa 4 convierte',
+);
+console.log(
+  `  · heredado: cero colores de paleta fuera de sus ${String(
+    [...PALETA_PERMITIDA_EN_EL_HEREDADO.values()].reduce((suma, p) => suma + p.cuantas, 0),
+  )} excepciones motivadas (C.16)`,
 );
 console.log(
   '✓ Cero literales de color, altura, sombra, variante, espacio, texto o duracion en el sistema.',

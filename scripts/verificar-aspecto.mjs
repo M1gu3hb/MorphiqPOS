@@ -46,6 +46,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
+import { CLASE_DE_COLOR } from './lib/clases-de-color.mjs';
 import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
 
 const CARPETA = 'apps/web/heredado';
@@ -130,7 +131,12 @@ const BORRADOS_PERMITIDOS = new Set(
 
 /** Descuenta los testigos permitidos de este archivo, uno a uno. */
 function sinLosPermitidos(ruta, lista, signo) {
-  const cuenta = PERMITIDO.get(ruta.split('\\').join('/'));
+  return sinLosPermitidosDe(PERMITIDO, ruta, lista, signo);
+}
+
+/** Lo mismo, contra un mapa dado: la prueba del movimiento de base usa uno propio. */
+function sinLosPermitidosDe(mapa, ruta, lista, signo) {
+  const cuenta = mapa.get(ruta.split('\\').join('/'));
   if (cuenta === undefined) return lista;
   const restantes = [];
   for (const testigo of lista) {
@@ -364,6 +370,90 @@ const cabecera =
       (avisos > 0 ? `\n${avisos} textos de aviso sí cambiaron; van listados abajo.` : '');
 
 process.stdout.write(`${cabecera}\n${informe.join('\n')}\n`);
+
+/**
+ * LA BASE SE MOVIÓ, Y SE DEMUESTRA QUE SÓLO POR COLOR (C.16 de la etapa 2.4).
+ *
+ * `aspecto-permitido.json` declara `baseAnterior`: la base estuvo en el commit donde
+ * se copió el heredado y se movió al commit de C.16 que traduce sus colores de paleta a
+ * tokens. Moverla sin más habría sido abrir la puerta: todo lo que cambió entre las dos
+ * dejaría de mirarse. Así que cada corrida lo vuelve a comprobar: todo testigo que
+ * cambia entre `baseAnterior` y `base` es, o una excepción motivada de esta misma
+ * lista, o una CLASE DE COLOR (`scripts/lib/clases-de-color.mjs`). Un texto, un icono o
+ * una clase de espaciado que se colara en ese tramo la pone en rojo.
+ */
+function esClaseDeColor(testigo) {
+  if (!testigo.startsWith('clase:')) return false;
+  // El extractor deja a veces la comilla o la llave de su literal pegada
+  // (`text-orange-900'`): se recorta el borde, no el contenido.
+  const clase = testigo.slice('clase:'.length).replace(/^['"`{(]+|['"`,;)}]+$/g, '');
+  return clase !== '' && clase.replace(CLASE_DE_COLOR, '') === '';
+}
+
+/**
+ * Los testigos con el borde de su literal recortado. Un cambio de formato mueve una
+ * clase al final de una línea y el extractor la toma con la comilla (`shadow-md'`):
+ * es la misma clase, y no puede contar como cambio de aspecto.
+ */
+function testigosLimpios(fuente) {
+  return testigos(fuente).map((t) =>
+    t.startsWith('clase:')
+      ? `clase:${t.slice('clase:'.length).replace(/^['"`{(]+|['"`,;)}]+$/g, '')}`
+      : t,
+  );
+}
+
+function pruebaDelMovimiento() {
+  let json;
+  try {
+    json = JSON.parse(readFileSync(PERMITIDOS, 'utf8'));
+  } catch {
+    return [];
+  }
+  const anterior = json.baseAnterior;
+  if (typeof anterior !== 'string' || anterior.trim() === '') return [];
+  if (typeof json.porqueSeMovioLaBase !== 'string' || json.porqueSeMovioLaBase.trim().length < 40) {
+    return ['La base se movió sin decir por qué: `porqueSeMovioLaBase` es obligatorio.'];
+  }
+  const base = json.base;
+  const frescos = permitidos();
+  const malos = [];
+  const movidos = git('diff', '--name-only', anterior, base, '--', CARPETA)
+    .split('\n')
+    .map((r) => r.trim())
+    .filter((r) => r !== '' && /\.(jsx?|tsx?)$/.test(r));
+  for (const ruta of movidos) {
+    let antes;
+    let despues;
+    try {
+      antes = git('show', `${anterior}:${ruta}`);
+    } catch {
+      continue; // nació después de la base anterior: no hay aspecto suyo que preservar
+    }
+    try {
+      despues = git('show', `${base}:${ruta}`);
+    } catch {
+      if (!BORRADOS_PERMITIDOS.has(ruta)) malos.push(`${ruta} · BORRADO entre las dos bases`);
+      continue;
+    }
+    const bruto = diferencia(testigosLimpios(antes), testigosLimpios(despues));
+    const perdidos = sinLosPermitidosDe(frescos, ruta, bruto.perdidos, '-');
+    const nuevos = sinLosPermitidosDe(frescos, ruta, bruto.nuevos, '+');
+    for (const t of perdidos) if (!esClaseDeColor(t)) malos.push(`${ruta} · - ${t}`);
+    for (const t of nuevos) if (!esClaseDeColor(t)) malos.push(`${ruta} · + ${t}`);
+  }
+  return malos;
+}
+
+const delMovimiento = pruebaDelMovimiento();
+if (delMovimiento.length > 0) {
+  process.stdout.write(
+    `\nLA BASE SE MOVIÓ Y NO SÓLO POR COLOR. Entre la base anterior y la actual cambian ` +
+      `${String(delMovimiento.length)} testigos que no son clases de color ni excepciones ` +
+      `motivadas:\n  ${delMovimiento.slice(0, 40).join('\n  ')}\n`,
+  );
+  process.exit(1);
+}
 
 if (total > 0) process.exit(1);
 if (avisos > 0) process.exit(1);
