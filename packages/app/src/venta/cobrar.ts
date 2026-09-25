@@ -9,6 +9,7 @@ import {
 import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja, repoFolios, repoOrdenes, repoStock, repoVentaCatalogo } from '@morphiqpos/data';
 
+import { emitirDocumento } from '../cartera/documento.ts';
 import { definirComando } from '../definicion.ts';
 import { comandarLineasPendientes } from '../restaurante/comandar-pendientes.ts';
 import { pasarMesaCobradaALimpieza } from '../restaurante/mesas-escrituras.ts';
@@ -16,6 +17,7 @@ import { marcarPropinaDeOrden, registrarPagoConPropina } from '../propinas/cobro
 import { entradaCobrarOrdenConPropina } from '../propinas/esquemas.ts';
 import { cotizar, exigirTotalVigente } from './cotizar.ts';
 import { repartirPagos } from './pagos.ts';
+import { cantidadAConsumir } from './presentacion.ts';
 
 /**
  * `cobrarOrden` — la tarea más importante del corte (F1.1-A-09).
@@ -119,6 +121,18 @@ export const cobrarOrden = definirComando<
     // 3 · Los pagos tienen que sumar exactamente el total. Un pago mixto son
     //     varias filas en `pagos` (corrige P1-11).
     const pagos = repartirPagos(entrada.pagos, totales.totalCentavos);
+
+    // 3.5 · Lo que se FÍA necesita a quién (C.10 de la 2.4). Antes de tocar stock o folio:
+    //       un fiado sin nombre es una deuda que nadie va a cobrar.
+    const fiado = pagos
+      .filter((p) => p.metodo === 'fiado')
+      .reduce((suma, p) => suma + p.montoCentavos, 0n);
+    if (fiado > 0n && entrada.clienteId === undefined) {
+      throw new ErrorDominio(
+        'PAGO_NO_CUADRA',
+        'Para fiar hace falta el cliente: elígelo (F4) antes de cobrar.',
+      );
+    }
 
     // 4 · La caja tiene que estar abierta: sin sesión, el efectivo no tiene
     //     dónde registrarse y el arqueo del día nace incompleto.
@@ -228,6 +242,31 @@ export const cobrarOrden = definirComando<
       }),
     );
 
+    // 8.5 · LO FIADO, EN LA MISMA TRANSACCIÓN (C.10 de la 2.4).
+    //       La venta ocurre al entregar, no al cobrar (`02-DINERO-Y-CAJA` §1 de abarrotes):
+    //       el pago `fiado` ya está en `pagos` —suma a la venta— y no movió el cajón. Aquí
+    //       queda la deuda, con la MISMA comprobación de crédito que `credito.emitir_documento`.
+    //       Si el crédito dice que no, se revierte todo: ni stock, ni folio, ni venta.
+    let documentoDelFiado: string | null = null;
+    if (fiado > 0n && entrada.clienteId !== undefined) {
+      const clienteId = entrada.clienteId;
+      await ctx.paso('sellar_cliente', () =>
+        ctx.tx
+          .updateTable('ordenes')
+          .set({ cliente_id: clienteId })
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', '=', entrada.ordenId)
+          .execute(),
+      );
+      const emitido = await emitirDocumento(ctx, {
+        clienteId,
+        origenTipo: 'venta',
+        origenId: entrada.ordenId,
+        importeCentavos: Number(fiado),
+      });
+      documentoDelFiado = emitido.folio;
+    }
+
     // 9 · Cómo se decidió la propina (porcentaje, monto a mano, desde dónde).
     //     Sólo metadatos: en `ordenes` no cabe ningún importe de propina, y por
     //     eso `total_centavos` no se puede inflar con una (F1-04 §6.1).
@@ -287,6 +326,9 @@ export const cobrarOrden = definirComando<
         totalCentavos: totales.totalCentavos.toString(),
         propinaCentavos: propinaTotal.toString(),
         metodos: pagos.map((p) => p.metodo),
+        ...(documentoDelFiado === null
+          ? {}
+          : { fiadoCentavos: fiado.toString(), clienteId: entrada.clienteId, documentoDelFiado }),
         lineas: cotizacion.lineas.length,
         movimientosStock: movimientos.length,
         comandasEmitidas: comandas.length,
@@ -390,12 +432,15 @@ async function planearConsumo(
     );
     if (producto === null) continue;
 
+    // F-147 · Una presentación trae YA su consumo en unidad base (`factor × cantidad`):
+    // la caja de 24 descuenta 24, en la unidad del insumo, sin conversión de por medio.
+    const aConsumir = cantidadAConsumir(linea, producto.unidadBaseInsumo ?? linea.unidad);
     const comun = {
       organizacionId,
       almacenId,
       ordenId,
       lineaId: linea.id,
-      cantidad: linea.cantidad,
+      cantidad: aConsumir.cantidad,
       permiteVentaSinStock: producto.permiteVentaSinStock,
     };
 
@@ -405,7 +450,7 @@ async function planearConsumo(
         ...comun,
         estrategiaConsumo: 'sku',
         insumoId: producto.insumoId,
-        unidadVenta: linea.unidad,
+        unidadVenta: aConsumir.unidadVenta,
         unidadBase: producto.unidadBaseInsumo,
       });
       continue;

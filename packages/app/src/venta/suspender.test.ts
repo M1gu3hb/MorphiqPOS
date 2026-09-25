@@ -36,20 +36,44 @@ function orden(cambios: Record<string, unknown> = {}): Record<string, unknown> {
     organizacion_id: ORG,
     terminal_id: TERMINAL,
     estado: 'borrador',
-    total_centavos: 48_700n,
+    estrategia_captura: 'mostrador',
+    // Un borrador no tiene total: se congela al cobrar.
+    total_centavos: 0n,
     codigo_espera: null,
+    notas: null,
     ...cambios,
+  };
+}
+
+function linea(id: string, ordenId: string, subtotal: bigint, visual: number) {
+  return {
+    id,
+    organizacion_id: ORG,
+    orden_id: ordenId,
+    producto_id: `p-${id}`,
+    producto_nombre: `Producto ${id}`,
+    cantidad: '1.0000',
+    unidad: 'pieza',
+    precio_unitario_centavos: subtotal,
+    costo_unitario_centavos: 0n,
+    descuento_centavos: 0n,
+    subtotal_centavos: subtotal,
+    total_centavos: subtotal,
+    es_mayoreo: false,
+    tipo_venta: 'precio_fijo',
+    orden_visual: visual,
+    codigo_barras: `75010${id}`,
+    cantidad_base_consumo: null,
+    anulada_en: null,
   };
 }
 
 function baseDe(extra: Partial<TablasFalsas> = {}) {
   return crearBaseFalsa({
     ordenes: [orden()],
-    orden_lineas: [
-      { id: 'l1', organizacion_id: ORG, orden_id: ORDEN },
-      { id: 'l2', organizacion_id: ORG, orden_id: ORDEN },
-    ],
+    orden_lineas: [linea('l1', ORDEN, 20_000n, 1), linea('l2', ORDEN, 28_700n, 2)],
     movimientos_stock: [],
+    configuracion: [],
     ...extra,
   });
 }
@@ -73,6 +97,17 @@ describe('F-224 · suspender', () => {
     expect(salida.codigo).toBe('1');
     expect(base.campo('ordenes', 'estado')).toBe('suspendida');
     expect(base.campo('ordenes', 'codigo_espera')).toBe('1');
+  });
+
+  it('GUARDA EL TOTAL y la nota: la lista no enseña «$0.00» ni pierde a quién es', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await suspenderVenta.ejecutar(ctx, { ordenId: ORDEN, nota: 'el de la gorra' });
+
+    expect(salida.totalCentavos).toBe('48700');
+    expect(base.campo('ordenes', 'total_centavos')).toBe(48_700n);
+    expect(base.campo('ordenes', 'notas')).toBe('el de la gorra');
   });
 
   it('EL CÓDIGO SE RECICLA sin chocar con los vivos', async () => {
@@ -155,6 +190,7 @@ describe('F-224 · lo que hay apartado', () => {
           id: 'a',
           estado: 'suspendida',
           codigo_espera: '1',
+          notas: 'el de la gorra',
           updated_at: new Date(AHORA.getTime() - 40 * 60_000),
         }),
         orden({
@@ -165,7 +201,7 @@ describe('F-224 · lo que hay apartado', () => {
           updated_at: AHORA,
         }),
       ],
-      orden_lineas: [{ id: 'l1', organizacion_id: ORG, orden_id: 'a' }],
+      orden_lineas: [linea('l1', 'a', 1_000n, 1)],
     });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
@@ -174,6 +210,7 @@ describe('F-224 · lo que hay apartado', () => {
     expect(salida.ventas.map((v) => v.ordenId)).toEqual(['a']);
     expect(salida.ventas[0]?.minutosEsperando).toBe(40);
     expect(salida.ventas[0]?.lineas).toBe(1);
+    expect(salida.ventas[0]?.nota).toBe('el de la gorra');
   });
 
   it('sin nada apartado devuelve la lista vacía', async () => {
@@ -200,6 +237,56 @@ describe('F-224 · retomar', () => {
     expect(salida.ordenId).toBe(ORDEN);
     expect(base.campo('ordenes', 'estado')).toBe('borrador');
     expect(base.campo('ordenes', 'codigo_espera')).toBeNull();
+  });
+
+  it('DEVUELVE LOS RENGLONES, en su orden, para volver a pintar la venta', async () => {
+    // Guardados al revés: el orden lo pone `orden_visual`, no el de la tabla.
+    const base = baseDe({
+      ordenes: [orden({ estado: 'suspendida', codigo_espera: '7' })],
+      orden_lineas: [linea('l2', ORDEN, 28_700n, 2), linea('l1', ORDEN, 20_000n, 1)],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await retomarVenta.ejecutar(ctx, { codigo: '7' });
+
+    expect(salida.renglones.map((r) => r.nombre)).toEqual(['Producto l1', 'Producto l2']);
+    expect(salida.renglones[1]).toMatchObject({
+      productoId: 'p-l2',
+      cantidad: '1.0000',
+      precioUnitarioCentavos: '28700',
+      codigoBarras: '75010l2',
+    });
+  });
+
+  it('un carrito VACÍO de esta caja se retira: si no, chocaría con el índice de un borrador por caja', async () => {
+    const base = baseDe({
+      ordenes: [
+        orden({ estado: 'suspendida', codigo_espera: '7' }),
+        orden({ id: 'vacio', estado: 'borrador' }),
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await retomarVenta.ejecutar(ctx, { codigo: '7' });
+
+    expect(base.filas('ordenes').map((o) => o['id'])).toEqual([ORDEN]);
+  });
+
+  it('una venta A MEDIAS en esta caja no se pisa', async () => {
+    const base = baseDe({
+      ordenes: [
+        orden({ estado: 'suspendida', codigo_espera: '7' }),
+        orden({ id: 'a-medias', estado: 'borrador' }),
+      ],
+      orden_lineas: [linea('l1', ORDEN, 1_000n, 1), linea('x', 'a-medias', 500n, 1)],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const codigo = await codigoDe(() => retomarVenta.ejecutar(ctx, { codigo: '7' }));
+
+    expect(codigo).toBe('CONFIGURACION_CONFLICTO');
+    expect(base.filas('ordenes')).toHaveLength(2);
+    expect(base.filas('ordenes').find((o) => o['id'] === ORDEN)?.['estado']).toBe('suspendida');
   });
 
   it('un código que no existe lo dice con el número', async () => {

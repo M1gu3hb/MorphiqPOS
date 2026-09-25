@@ -41,6 +41,11 @@ export interface LineaDeOrden {
   readonly esMayoreo: boolean;
   readonly tipoVenta: string;
   readonly ordenVisual: number;
+  /**
+   * Lo que se descuenta del inventario, en unidad base, cuando NO es la cantidad vendida:
+   * una caja de 24 vendida es `cantidad 1` y `24` aquí (F-147). Nula en el resto.
+   */
+  readonly cantidadBaseConsumo: string | null;
 }
 
 /** El borrador vivo de una terminal, si lo hay. */
@@ -114,6 +119,7 @@ export async function lineasDeOrden(
         'es_mayoreo as esMayoreo',
         'tipo_venta as tipoVenta',
         'orden_visual as ordenVisual',
+        'cantidad_base_consumo as cantidadBaseConsumo',
       ])
       .where('organizacion_id', '=', organizacionId)
       .where('orden_id', '=', ordenId)
@@ -258,6 +264,8 @@ export interface NuevaLinea {
   readonly esMayoreo: boolean;
   readonly tipoVenta: string;
   readonly ordenVisual: number;
+  /** F-147 · `factor × cantidad` de una presentación. Sin ella, nula. */
+  readonly cantidadBaseConsumo?: string | null;
 }
 
 export async function agregarLinea(tx: Transaccion, linea: NuevaLinea): Promise<string> {
@@ -279,6 +287,7 @@ export async function agregarLinea(tx: Transaccion, linea: NuevaLinea): Promise<
       es_mayoreo: linea.esMayoreo,
       tipo_venta: linea.tipoVenta,
       orden_visual: linea.ordenVisual,
+      cantidad_base_consumo: linea.cantidadBaseConsumo ?? null,
     })
     .returning('id')
     .executeTakeFirstOrThrow();

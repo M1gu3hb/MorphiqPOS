@@ -2,7 +2,13 @@ import 'server-only';
 
 /** Los comandos de venta (F1.1-A-06, A-07, A-09, A-12). */
 
-export { agregarLinea, cambiarCantidad, crearOrden, quitarLinea } from './carrito.ts';
+export { agregarLinea, cambiarCantidad, crearOrden, quitarLinea, vaciarOrden } from './carrito.ts';
+export {
+  entradaMasVendidos,
+  masVendidos,
+  type ProductoMasVendido,
+  type ResultadoMasVendidos,
+} from './mas-vendidos.ts';
 
 export {
   devolverPedido,

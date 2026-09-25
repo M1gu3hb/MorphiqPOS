@@ -111,13 +111,12 @@ export async function payloadDelPortal(
 
   // Las dos banderas de presentación DECIDEN aquí, en el servidor, y no sólo
   // viajan: con los precios apagados no salen precios, y con la precuenta
-  // apagada no salen ni totales ni líneas (hallazgo 7).
+  // apagada no salen ni totales ni líneas (hallazgo 7). El modo de menú decide
+  // qué se consulta: lo que el negocio no usa ni se pide a la base.
   const [productos, categorias, secciones, cuenta, solicitud] = await Promise.all([
-    usaCatalogo
-      ? productosVisibles(ambito.organizacionId, banderas.mostrarPrecios)
-      : Promise.resolve([]),
-    usaCatalogo ? categoriasVisibles(ambito.organizacionId) : Promise.resolve([]),
-    usaSecciones ? seccionesVisibles(ambito.organizacionId) : Promise.resolve([]),
+    usaCatalogo ? productosVisibles(ambito.organizacionId, banderas.mostrarPrecios) : [],
+    usaCatalogo ? categoriasVisibles(ambito.organizacionId) : [],
+    usaSecciones ? seccionesVisibles(ambito.organizacionId) : [],
     cuentaDeLaMesa(ambito, banderas.mostrarPrecuenta),
     solicitudDeLaMesa(ambito),
   ]);

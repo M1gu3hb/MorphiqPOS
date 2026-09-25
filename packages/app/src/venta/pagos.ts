@@ -12,8 +12,11 @@ import { ErrorDominio } from '@morphiqpos/contracts';
  * cuadra con lo que cuesta, y eso merece prueba y mutación sin base de datos.
  */
 
+/** `fiado` no es dinero que entra: es lo que se entrega a cuenta (C.10 de la 2.4). */
+export type MetodoDePago = 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado';
+
 export interface PagoEntrante {
-  readonly metodo: 'efectivo' | 'tarjeta' | 'transferencia';
+  readonly metodo: MetodoDePago;
   readonly montoCentavos: number;
   /**
    * La propina cobrada por ESTE método, exacta (F1-01 §3.3, F1-04 §38.2).
@@ -29,7 +32,7 @@ export interface PagoEntrante {
 }
 
 export interface PagoValidado {
-  readonly metodo: 'efectivo' | 'tarjeta' | 'transferencia';
+  readonly metodo: MetodoDePago;
   readonly montoCentavos: bigint;
   readonly propinaCentavos: bigint;
   readonly recibidoCentavos: bigint | null;
@@ -76,6 +79,15 @@ export function repartirPagos(
     }
 
     const recibido = pago.recibidoCentavos === undefined ? null : BigInt(pago.recibidoCentavos);
+
+    // La propina no se fía: es dinero que se le da a alguien HOY, y a cuenta no hay nada que
+    // repartir en la noche. Fiarla la metería en la deuda del cliente como si fuera venta.
+    if (pago.metodo === 'fiado' && propina > 0n) {
+      throw new ErrorDominio(
+        'PAGO_NO_CUADRA',
+        'La propina no se fía: se deja en efectivo o tarjeta.',
+      );
+    }
 
     // Sólo el efectivo devuelve cambio. El `check pago_cambio_solo_en_efectivo`
     // de la base lo impide también, pero fallar aquí da un mensaje legible en

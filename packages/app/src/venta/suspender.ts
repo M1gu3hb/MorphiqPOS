@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
+import { cotizar } from './cotizar.ts';
 
 /**
  * F-224 · La venta que se aparta para atender a otro.
@@ -73,11 +74,29 @@ export interface ResultadoEnEspera {
   readonly ventas: readonly VentaEnEspera[];
 }
 
+/** Un renglón de la venta retomada, para que el mostrador la vuelva a pintar tal cual. */
+export interface RenglonRetomado {
+  readonly productoId: string | null;
+  readonly nombre: string;
+  readonly cantidad: string;
+  readonly unidad: string;
+  readonly precioUnitarioCentavos: string;
+  /** El código con el que entró: el de la caja, si fue una presentación (F-147). */
+  readonly codigoBarras: string | null;
+  /** No nula en una presentación: lo que descuenta en unidad base. */
+  readonly cantidadBaseConsumo: string | null;
+}
+
 export interface ResultadoRetomada {
   readonly ordenId: string;
   readonly codigo: string;
   readonly lineas: number;
   readonly totalCentavos: string;
+  /**
+   * Los renglones, para el mostrador que arma la venta en la pantalla (abarrotes): sin
+   * ellos, retomar dejaba la orden viva en el servidor y la pantalla vacía (C.10 de la 2.4).
+   */
+  readonly renglones: readonly RenglonRetomado[];
 }
 
 const MS_POR_MINUTO = 60_000;
@@ -167,12 +186,25 @@ export const suspenderVenta = definirComando<
       );
     }
 
+    // El TOTAL, calculado ahora: un borrador no lo tiene —se congela al cobrar— y la
+    // lista de apartadas enseñaba «$0.00» en cada una. Y la NOTA, guardada: se pedía
+    // («el señor de la gorra») y se perdía (C.10 de la 2.4).
+    const { totales } = await ctx.paso('cotizar', () =>
+      cotizar(ctx.tx, organizacionId, entrada.ordenId),
+    );
+
     // El estado se escribe LITERAL: el contrato de «estado ⇒ columna» necesita
     // ver el valor en el objeto para saber que hay código que lo produce.
     await ctx.paso('suspender', () =>
       ctx.tx
         .updateTable('ordenes')
-        .set({ estado: 'suspendida', codigo_espera: codigo, updated_at: ctx.ahora })
+        .set({
+          estado: 'suspendida',
+          codigo_espera: codigo,
+          total_centavos: totales.totalCentavos,
+          notas: entrada.nota,
+          updated_at: ctx.ahora,
+        })
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.ordenId)
         .execute(),
@@ -189,7 +221,7 @@ export const suspenderVenta = definirComando<
       ordenId: entrada.ordenId,
       codigo,
       lineas: lineas.length,
-      totalCentavos: orden.total_centavos.toString(),
+      totalCentavos: totales.totalCentavos.toString(),
     };
   },
 });
@@ -212,7 +244,7 @@ export const ventasEnEspera = definirComando<
     const ordenes = await ctx.paso('leer_suspendidas', () =>
       ctx.tx
         .selectFrom('ordenes')
-        .select(['id', 'codigo_espera', 'total_centavos', 'updated_at'])
+        .select(['id', 'codigo_espera', 'total_centavos', 'notas', 'updated_at'])
         .where('organizacion_id', '=', organizacionId)
         .where('terminal_id', '=', terminalId)
         .where('estado', '=', 'suspendida')
@@ -242,7 +274,7 @@ export const ventasEnEspera = definirComando<
       ventas: ordenes.map((o) => ({
         ordenId: o.id,
         codigo: o.codigo_espera ?? '',
-        nota: null,
+        nota: o.notas,
         lineas: porOrden.get(o.id) ?? 0,
         totalCentavos: o.total_centavos.toString(),
         // Los minutos esperando van en la lista: una apartada hace dos minutos
@@ -292,11 +324,61 @@ export const retomarVenta = definirComando<Transaccion, typeof entradaRetomar, R
     const lineas = await ctx.paso('contar_lineas', () =>
       ctx.tx
         .selectFrom('orden_lineas')
-        .select(['id'])
+        .select([
+          'id',
+          'producto_id',
+          'producto_nombre',
+          'cantidad',
+          'unidad',
+          'precio_unitario_centavos',
+          'codigo_barras',
+          'cantidad_base_consumo',
+          'orden_visual',
+        ])
         .where('organizacion_id', '=', organizacionId)
         .where('orden_id', '=', orden.id)
+        .orderBy('orden_visual')
         .execute(),
     );
+
+    // EL CARRITO QUE YA ESTABA EN ESTA CAJA. Una caja tiene UN borrador de mostrador
+    // (`ordenes_carrito_por_terminal`), y la apartada vuelve a serlo: si ya hay otro, el
+    // `update` de abajo chocaba con el índice. Vacío —lo que deja un cobro que no se
+    // completó— se retira; con líneas, es una venta a medias y no se pisa.
+    const carrito = await ctx.paso('buscar_carrito', () =>
+      ctx.tx
+        .selectFrom('ordenes')
+        .select(['id'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('terminal_id', '=', terminalId)
+        .where('estado', '=', 'borrador')
+        .where('estrategia_captura', '=', 'mostrador')
+        .executeTakeFirst(),
+    );
+    if (carrito !== undefined) {
+      const suyas = await ctx.paso('lineas_del_carrito', () =>
+        ctx.tx
+          .selectFrom('orden_lineas')
+          .select(['id'])
+          .where('organizacion_id', '=', organizacionId)
+          .where('orden_id', '=', carrito.id)
+          .execute(),
+      );
+      if (suyas.length > 0) {
+        throw new ErrorDominio(
+          'CONFIGURACION_CONFLICTO',
+          'Hay una venta a medias en esta caja: cóbrala o apártala antes de retomar otra.',
+        );
+      }
+      await ctx.paso('retirar_carrito_vacio', () =>
+        ctx.tx
+          .deleteFrom('ordenes')
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', '=', carrito.id)
+          .where('estado', '=', 'borrador')
+          .execute(),
+      );
+    }
 
     // Vuelve a ser borrador Y LIBERA EL CÓDIGO. Dejarlo puesto haría que la
     // siguiente suspensión de esa caja tuviera que saltárselo, y a la tercera
@@ -316,6 +398,15 @@ export const retomarVenta = definirComando<Transaccion, typeof entradaRetomar, R
       codigo: entrada.codigo,
       lineas: lineas.length,
       totalCentavos: orden.total_centavos.toString(),
+      renglones: lineas.map((l) => ({
+        productoId: l.producto_id,
+        nombre: l.producto_nombre,
+        cantidad: l.cantidad,
+        unidad: l.unidad,
+        precioUnitarioCentavos: l.precio_unitario_centavos.toString(),
+        codigoBarras: l.codigo_barras,
+        cantidadBaseConsumo: l.cantidad_base_consumo,
+      })),
     };
   },
 });

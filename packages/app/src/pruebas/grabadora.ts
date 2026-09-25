@@ -60,6 +60,27 @@ class DriverGrabador implements Driver {
   }
 }
 
+/**
+ * Una transacción de Kysely REAL —el compilador de Postgres de verdad— sin base detrás: para
+ * afirmar sobre el SQL que una consulta cruda emite (su negocio, su ventana) y darle filas.
+ */
+export function transaccionGrabadora(respuestas: readonly (readonly unknown[])[] = []): {
+  readonly tx: Transaccion;
+  readonly conexion: ConexionGrabadora;
+} {
+  const conexion = new ConexionGrabadora(respuestas);
+  const db = new Kysely<never>({
+    dialect: {
+      createAdapter: () => new PostgresAdapter(),
+      createDriver: () => new DriverGrabador(conexion),
+      createIntrospector: (kysely) => new PostgresIntrospector(kysely),
+      createQueryCompiler: () => new PostgresQueryCompiler(),
+    },
+  });
+  // El único puente de tipos: una transacción de Kysely real, sin base detrás.
+  return { tx: db as unknown as Transaccion, conexion };
+}
+
 /** El envoltorio real sobre una conexión grabadora, con su fábrica de dobles. */
 export function arnesGrabador(
   respuestas: readonly (readonly unknown[])[],

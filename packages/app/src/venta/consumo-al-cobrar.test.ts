@@ -123,4 +123,13 @@ describe('el traductor del cobro contempla todas las estrategias que vende', () 
       'el cobro NO descuenta por receta: vender una arrachera no movería un gramo',
     ).toContain("=== 'receta'");
   });
+
+  it('F-147 · descuenta el consumo de la presentación, no la cantidad de cajas', () => {
+    // La caja de 24 se vende como `cantidad 1` y `cantidad_base_consumo 24`. Si el cobro
+    // descontara `linea.cantidad`, cada caja vendida bajaría UNA pieza del anaquel.
+    const codigo = cuerpo.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(codigo).toMatch(/const aConsumir = cantidadAConsumir\(linea,/);
+    expect(codigo).toMatch(/cantidad:\s*aConsumir\.cantidad/);
+    expect(codigo).toMatch(/unidadVenta:\s*aConsumir\.unidadVenta/);
+  });
 });

@@ -1,20 +1,11 @@
 import type { Transaccion } from '@morphiqpos/data';
-import {
-  Kysely,
-  PostgresAdapter,
-  PostgresIntrospector,
-  PostgresQueryCompiler,
-  type CompiledQuery,
-  type DatabaseConnection,
-  type Driver,
-  type QueryResult,
-} from 'kysely';
 import { describe, expect, it } from 'vitest';
 
 import * as consultas from './consultas.ts';
 import * as mostrador from './extras-mostrador.ts';
 import * as salon from './extras-salon.ts';
 import * as extras from './extras.ts';
+import { transaccionGrabadora } from '../../pruebas/grabadora.ts';
 
 /**
  * EL SQL QUE LA HOJA DEL CORTE EMITE DE VERDAD (C.6 de la 2.4).
@@ -30,42 +21,6 @@ import * as extras from './extras.ts';
  * los cinco e2e, que cierran por la pantalla y leen la hoja pintada contra la base viva.
  */
 
-class ConexionGrabadora implements DatabaseConnection {
-  readonly consultas: CompiledQuery[] = [];
-  async executeQuery<R>(consulta: CompiledQuery): Promise<QueryResult<R>> {
-    this.consultas.push(consulta);
-    return { rows: [] };
-  }
-  async *streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
-    yield { rows: [] };
-  }
-}
-
-class DriverGrabador implements Driver {
-  constructor(private readonly conexion: ConexionGrabadora) {}
-  init(): Promise<void> {
-    return Promise.resolve();
-  }
-  async acquireConnection(): Promise<DatabaseConnection> {
-    return this.conexion;
-  }
-  beginTransaction(): Promise<void> {
-    return Promise.resolve();
-  }
-  commitTransaction(): Promise<void> {
-    return Promise.resolve();
-  }
-  rollbackTransaction(): Promise<void> {
-    return Promise.resolve();
-  }
-  releaseConnection(): Promise<void> {
-    return Promise.resolve();
-  }
-  destroy(): Promise<void> {
-    return Promise.resolve();
-  }
-}
-
 const ORG = '11111111-1111-4111-8111-111111111111';
 const SESION = '22222222-2222-4222-8222-222222222222';
 const VENTANA = {
@@ -75,19 +30,7 @@ const VENTANA = {
 };
 const AHORA = new Date('2026-09-26T03:00:00Z');
 
-function grabadora(): { readonly tx: Transaccion; readonly conexion: ConexionGrabadora } {
-  const conexion = new ConexionGrabadora();
-  const db = new Kysely({
-    dialect: {
-      createAdapter: () => new PostgresAdapter(),
-      createDriver: () => new DriverGrabador(conexion),
-      createIntrospector: (kysely) => new PostgresIntrospector(kysely),
-      createQueryCompiler: () => new PostgresQueryCompiler(),
-    },
-  });
-  // El único puente de tipos del archivo: una transacción de Kysely real, sin base detrás.
-  return { tx: db as unknown as Transaccion, conexion };
-}
+const grabadora = () => transaccionGrabadora();
 
 type Acotada = 'sesion' | 'ventana' | 'negocio';
 

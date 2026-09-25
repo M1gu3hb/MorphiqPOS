@@ -10,7 +10,9 @@ import {
   entradaCambiarCantidad,
   entradaCrearOrden,
   entradaQuitarLinea,
+  entradaVaciarOrden,
 } from './esquemas.ts';
+import { valorarPresentacion } from './presentacion.ts';
 import { valorarLinea } from './valorar.ts';
 
 /**
@@ -126,6 +128,7 @@ export async function ejecutarAgregarLinea(
     // Con `| undefined` explícito: `exactOptionalPropertyTypes` distingue «sin la
     // propiedad» de «la propiedad en undefined», y quien llama tiene la segunda.
     readonly unidad?: string | undefined;
+    readonly presentacionId?: string | undefined;
   },
 ): Promise<{ lineaId: string; subtotalCentavos: string; cantidad: string }> {
   const { organizacionId } = ctx.ambito;
@@ -137,6 +140,10 @@ export async function ejecutarAgregarLinea(
   // distinguirlos permitiría sondear el catálogo ajeno con ids (TEN-01).
   if (producto === null) {
     throw new ErrorDominio('PRODUCTO_NO_ENCONTRADO', 'Ese producto no está disponible.');
+  }
+
+  if (entrada.presentacionId !== undefined) {
+    return agregarPresentacion(ctx, ordenId, producto, entrada.presentacionId, entrada.cantidad);
   }
 
   const valorada = valorarLinea(producto, entrada.cantidad, entrada.unidad);
@@ -168,6 +175,112 @@ export async function ejecutarAgregarLinea(
     cantidad: valorada.cantidad,
   };
 }
+
+/**
+ * F-147 · LA CAJA SE VENDE COMO CAJA.
+ *
+ * La línea dice «1 caja (24 pz)», lleva el precio de la caja —casi nunca 24 veces el de la
+ * pieza, y por eso se compra la caja— y descuenta 24 del inventario. El precio lo pone el
+ * servidor desde la presentación; si la presentación no declara el suyo, se deriva del
+ * factor, como en su comando de alta. El costo es el de la pieza por el factor: sin eso,
+ * la utilidad de la caja saldría veinticuatro veces inflada.
+ */
+async function agregarPresentacion(
+  ctx: ContextoComando<Transaccion>,
+  ordenId: string,
+  producto: repoVentaCatalogo.ProductoParaVender,
+  presentacionId: string,
+  cantidad: string,
+): Promise<{ lineaId: string; subtotalCentavos: string; cantidad: string }> {
+  const { organizacionId } = ctx.ambito;
+  const presentacion = await ctx.paso('cargar_presentacion', () =>
+    ctx.tx
+      .selectFrom('producto_presentaciones')
+      .select(['id', 'nombre', 'factor', 'precio_venta_centavos', 'codigo_barras'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', presentacionId)
+      .where('producto_id', '=', producto.id)
+      .where('activa', '=', true)
+      .executeTakeFirst(),
+  );
+  if (presentacion === undefined) {
+    throw new ErrorDominio('PRODUCTO_NO_ENCONTRADO', 'Esa presentación no está disponible.');
+  }
+
+  const valorada = valorarPresentacion(
+    producto,
+    {
+      nombre: presentacion.nombre,
+      factor: presentacion.factor,
+      precioVentaCentavos: presentacion.precio_venta_centavos,
+    },
+    cantidad,
+  );
+  const visual = await repoOrdenes.siguienteOrdenVisual(ctx.tx, organizacionId, ordenId);
+
+  const lineaId = await ctx.paso('insertar_linea', () =>
+    repoOrdenes.agregarLinea(ctx.tx, {
+      organizacionId,
+      ordenId,
+      productoId: producto.id,
+      productoNombre: valorada.nombre,
+      sku: producto.sku,
+      codigoBarras: presentacion.codigo_barras ?? producto.codigoBarras,
+      cantidad,
+      unidad: valorada.unidad,
+      precioUnitarioCentavos: valorada.precioUnitarioCentavos,
+      costoUnitarioCentavos: valorada.costoUnitarioCentavos,
+      subtotalCentavos: valorada.subtotalCentavos,
+      totalCentavos: valorada.subtotalCentavos,
+      esMayoreo: false,
+      tipoVenta: producto.tipoVenta,
+      ordenVisual: visual,
+      cantidadBaseConsumo: valorada.cantidadBaseConsumo,
+    }),
+  );
+
+  return { lineaId, subtotalCentavos: valorada.subtotalCentavos.toString(), cantidad };
+}
+
+/**
+ * Vaciar un borrador.
+ *
+ * ── El defecto que esto arregla (C.10 de la 2.4) ─────────────────────────────
+ * Cada terminal tiene UN borrador y `venta.crear_orden` lo reutiliza. El cobro de
+ * mostrador lo crea, le mete las líneas y cobra; si el cobro fallaba —el total cambió,
+ * el crédito del fiado dijo que no— las líneas se quedaban en el borrador, y el
+ * siguiente intento las volvía a meter ENCIMA: el total ya nunca cuadraba con el de la
+ * pantalla y la terminal no podía volver a cobrar. En el mostrador la venta vive en la
+ * pantalla hasta que se cobra: lo que quedó en el borrador es resto de un intento.
+ */
+export const vaciarOrden = definirComando<
+  Transaccion,
+  typeof entradaVaciarOrden,
+  { quitadas: number }
+>({
+  nombre: 'venta.vaciar_orden',
+  entidad: 'orden',
+  escribe: true,
+  roles: [...ROLES_DE_VENTA],
+  paquetes: PAQUETES_MOSTRADOR,
+  entrada: entradaVaciarOrden,
+  async ejecutar(ctx, entrada) {
+    const { organizacionId } = ctx.ambito;
+    await exigirBorrador(ctx.tx, organizacionId, entrada.ordenId);
+
+    const resultado = await ctx.paso('vaciar', () =>
+      ctx.tx
+        .deleteFrom('orden_lineas')
+        .where('organizacion_id', '=', organizacionId)
+        .where('orden_id', '=', entrada.ordenId)
+        .executeTakeFirst(),
+    );
+    const quitadas = Number(resultado.numDeletedRows);
+
+    ctx.auditar({ entidadId: entrada.ordenId, payload: { quitadas } });
+    return { quitadas };
+  },
+});
 
 export const quitarLinea = definirComando<
   Transaccion,
@@ -217,6 +330,14 @@ export const cambiarCantidad = definirComando<
     const productoId = linea?.productoId ?? null;
     if (linea === undefined || productoId === null) {
       throw new ErrorDominio('LINEA_NO_ENCONTRADA', 'Esa línea ya no está en la venta.');
+    }
+    // Una presentación (F-147) no se revalúa desde el catálogo: saldría al precio de la
+    // pieza. Se quita y se vuelve a agregar con su cantidad.
+    if (linea.cantidadBaseConsumo !== null) {
+      throw new ErrorDominio(
+        'ORDEN_NO_EDITABLE',
+        'Esa línea es una presentación: quítala y vuelve a agregarla con la cantidad nueva.',
+      );
     }
 
     // Se revalúa desde el catálogo, no se reescala el subtotal guardado: el
