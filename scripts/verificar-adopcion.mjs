@@ -83,6 +83,42 @@ export const SIN_ESTADO = [
       'No tiene una operación que pueda fallar: ni lectura ni comando. Es un texto fijo que dice por dónde se entra; si la resolución del negocio falla, `/login-pos` ya cae aquí.',
   },
   {
+    pantalla: 'estetica-salon/DescuentoDelCobro',
+    estado: 'vacio',
+    razon:
+      'Pieza del cobro: un campo de porcentaje y la frase del §3 con la cotización de ESE porcentaje. No lista nada que pueda llegar vacío; mientras cotiza pinta Esqueleto y si falla un Aviso.',
+  },
+  {
+    pantalla: 'estetica-salon/PagoDelCobro',
+    estado: 'vacio',
+    razon:
+      'Pieza del cobro: los tres métodos y el mixto son fijos del comando `venta.cobrar_cita`, y quienes atendieron llegan por props desde Cobrar. No hay lista de la red que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'estetica-salon/PagoDelCobro',
+    estado: 'cargando',
+    razon:
+      'Pieza del cobro: no lee nada. Lo que queda por cobrar llega por props, y mientras Cobrar lo cotiza enseña el Esqueleto del total y deja COBRAR apagado.',
+  },
+  {
+    pantalla: 'estetica-salon/PropinaDelCobro',
+    estado: 'vacio',
+    razon:
+      'Pieza del cobro: los tres porcentajes y los tres caminos son constantes del documento del giro, y el equipo llega por props. No hay lista de la red que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'estetica-salon/PropinaDelCobro',
+    estado: 'cargando',
+    razon:
+      'Pieza del cobro: no lee ni escribe nada. La propina viaja con el cobro, y la espera de ESE comando la pinta Cobrar en su botón («Cobrando…»).',
+  },
+  {
+    pantalla: 'estetica-salon/PropinaDelCobro',
+    estado: 'error',
+    razon:
+      'Pieza del cobro sin operación propia que pueda fallar: si el servidor rechaza la propina, el rechazo llega al cobrar y Cobrar lo pinta en su Aviso de peligro, con todo lo capturado en su sitio.',
+  },
+  {
     pantalla: 'configuracion/SelectorDeApariencia',
     estado: 'cargando',
     razon:

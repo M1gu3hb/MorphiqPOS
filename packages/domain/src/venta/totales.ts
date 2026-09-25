@@ -114,7 +114,7 @@ export function calcularTotales(
  * exacto y el error, multiplicado por doscientas ventas, es lo que hace que el
  * reporte de impuestos no cuadre con la suma de los tickets.
  */
-function impuestoExtraido(total: Centavos, tasaPuntosBase: number): Centavos {
+export function impuestoExtraido(total: Centavos, tasaPuntosBase: number): Centavos {
   if (tasaPuntosBase === 0) return CERO;
   const base = BigInt(PUNTOS_BASE_100) + BigInt(tasaPuntosBase);
   const numerador = total * BigInt(tasaPuntosBase);

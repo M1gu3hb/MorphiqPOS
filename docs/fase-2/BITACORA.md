@@ -5760,3 +5760,50 @@ roto. Cero URLs guardadas todavía. Va al §10, con el valor exacto.
 
 **En qué voy.** Siguen C.3 (cobro de la estética), C.5, C.6 (el corte y su PDF), C.8, C.9 (lo que
 el puente no sirve), C.10–C.12 y C.16.
+
+## 25-09-2026 · Etapa 2.4 · C.3 · el cobro de la estética guarda lo que captura
+
+**Lo que el encargo señalaba, y cómo quedó:**
+- **La propina se capturaba y NO se guardaba.** Ahora viaja con el cobro, cada una con su
+  destinataria y su camino, y queda en `movimientos_propina`: a la mano (recibida y entregada en el
+  mismo acto), al cajón (con su movimiento `propina` en el arqueo) o en la terminal (en el cargo de
+  la tarjeta). Repartir en proporción del servicio y la propina de apoyo —«$50 para la que me
+  lavó»—, como pide `04-INTERFAZ §4.3.4`. El acuse dice a nombre de quién quedó.
+- **El anticipo bloqueaba el cobro.** Se aplica en la misma transacción (`anticipos_cita` →
+  `aplicado`, con orden y fecha): la venta es la cita entera y los pagos suman el resto.
+- **No había descuento ni pago mixto.** Descuento en porcentaje con la frase del §3 —«el ticket baja
+  de $X a $Y · la comisión de Karla baja de $A a $B»— calculada por el SERVIDOR (comando nuevo
+  `venta.cotizar_cita`, de sólo lectura, misma función que el cobro), contra el tope del puesto
+  (F-205): por encima, lo cobra quien lo autoriza con su sesión (D-17). Mixto con los tres métodos a
+  la vista y el renglón de lo que falta o sobra.
+- **El IVA salía siempre con la tasa general.** La orden guarda el IVA extraído una vez del total con
+  la regla del NEGOCIO (`impuestoDe`), sin la propina; antes lo guardaba en cero.
+
+**Defectos destapados en el camino, y arreglados:**
+1. **La comisión se calculaba sobre el precio CON IVA** con la regla diciendo `sobre_iva = false`:
+   16 % de comisión de más en cada servicio (§7.2, pregunta 2 manda la base sin IVA). La prueba de
+   siempre esperaba 50 000 sobre $1,000; ahora 43 103. El e2e comprueba la base contra el servidor.
+2. **El anticipo en efectivo no entraba al cajón:** `anticipo.recibir` no escribía movimiento de
+   caja, así que el arqueo del día que se dejaba decía que SOBRABA. Ahora escribe `anticipo_cita` y
+   exige caja abierta. El e2e cierra la caja esperando fondo + precio entero: pasa.
+3. **«¿A qué cuenta?» se preguntaba y la respuesta se tiraba** (descuadre 1). Ahora queda en
+   `pagos.referencia`, con «pendiente de confirmar en el banco».
+4. **La orden de la cita guardaba descuento e IVA en cero**; ahora los guarda, y cada línea su parte
+   del descuento al centavo (la comisión es por línea).
+
+**Y lo que el documento de interfaz pedía y no estaba:** muro de «Abre la caja para poder cobrar»
+antes de elegir método (la cotización dice si hay caja), atajos F12/F2/F3/F4/F7/ESC, y en PC el
+historial de pagos de la clienta a la derecha. El «Alcance recortado» de `Cobrar.tsx` desapareció.
+
+**Pruebas.** `cuenta-de-cita.test.ts` (13), `cobro-de-cita.test.ts` (13), 15 nuevas del comando en
+`ciclo.test.ts` —**10 rojas contra el `cobro.ts` de antes**, 4 más rojas antes de la cuenta de la
+transferencia y la caja en la cotización— y 3 de `anticipos.test.ts` (2 rojas). Mutaciones del cobro:
+quitar el tope, quitar la entrega de la propina a la mano y quitar el IVA de la orden FALLAN (1, 1 y
+3); reordenar la suma de la propina PASA. e2e de estética en serie: 2 de 2 (el anticipo restado en
+pantalla, la propina anotada, la comisión sobre la base sin IVA y el arqueo que cuadra). Batería
+unitaria: 3 438 en verde. Puertas del frontend (adopción, primitivas, estilos, unidades, tipos de
+pantalla, lecturas, escrituras, entradas) en verde; las tres piezas sin lectura declaran por qué no
+tienen vacío/cargando/error.
+
+**Nota de corrida:** los proyectos `tablet` y `escritorio` de Playwright en paralelo chocan por la
+regla de UNA caja abierta por sucursal (el primero la abre en su terminal). Con `--workers=1` pasan.

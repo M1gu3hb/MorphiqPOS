@@ -180,7 +180,10 @@ export const autorizarDescuento = definirComando<
  * pasa por autorización hasta que alguien configure los topes, que es molesto un
  * día y es lo correcto siempre.
  */
-async function topeDe(ctx: ContextoComando<Transaccion>, rol: string): Promise<TopeDePuesto> {
+export async function topeDe(
+  ctx: ContextoComando<Transaccion>,
+  rol: string,
+): Promise<TopeDePuesto> {
   if (!(ROLES as readonly string[]).includes(rol)) {
     throw new ErrorDominio('PUESTO_INVALIDO', `«${rol}» no es uno de los puestos del sistema.`);
   }

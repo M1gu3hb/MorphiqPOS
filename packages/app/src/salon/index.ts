@@ -36,8 +36,12 @@ export {
 
 export {
   cobrarCita,
+  cotizarCita,
   entradaCobrarCita,
+  entradaCotizarCita,
   type ComisionDeLinea,
+  type CotizacionDeCita,
+  type ImpactoEnComision,
   type ResultadoCobroCita,
 } from './cobro.ts';
 

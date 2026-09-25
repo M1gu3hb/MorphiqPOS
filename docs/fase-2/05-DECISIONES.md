@@ -308,6 +308,32 @@ re-derivarlas: la foto de lo que se firmó al cerrar no se reconstruye después.
 La regla de F1-04 §20.2 —«los totales no se guardan»— sigue valiendo para la sesión ABIERTA:
 mientras está abierta, el esperado se deriva siempre.
 
+## D-17 · 25-09-2026 · El cobro del salón: tope de descuento, propina por camino, comisión sin IVA
+
+**Contexto.** C.3 de la 2.4 cerró el cobro de la estética contra su `02-DINERO-Y-CAJA`. Cuatro
+puntos del documento dejaban la forma abierta y había que elegir.
+
+**Decisiones.**
+1. **Por encima del tope de descuento, cobra quien lo autoriza, con SU sesión.** Los topes son los
+   de F-205 (`topes_descuento`, por puesto). El documento pide «PIN de la dueña»; ese PIN se teclea en
+   la entrada de siempre —con su límite de intentos— y no dentro del comando: un segundo verificador
+   de PIN sería una puerta sin `LIMITES`, y un campo «autorizado por» es poner el nombre de otro en lo
+   que uno hace (R16). `venta/descuento.ts` ya razonaba igual. La pantalla lo avisa ANTES
+   (`venta.cotizar_cita`), y el cobro contesta 403 auditado si se intenta igual.
+2. **La propina a la mano se anota como recibida Y entregada** en `movimientos_propina`, en el mismo
+   acto: queda en la cuenta de la profesional —el corte la cuenta— y su saldo no le debe nada, porque
+   el dinero no pasó por el salón. Al cajón: recibida en efectivo, atada a su movimiento de caja
+   `propina`. En terminal: recibida con tarjeta, en el cargo del pago con tarjeta. Nunca toca la
+   venta, el IVA ni `pagos.monto_centavos`.
+3. **La cuenta de la transferencia va en `pagos.referencia`**, como `cuenta-salon` o
+   `cuenta-profesional:<id>`, más ` por-confirmar`. Sin columna nueva: `pagos` ya tiene su referencia
+   libre y esto es lo que el corte y la liquidación necesitan leer de ella.
+4. **La comisión se calcula sobre la base SIN IVA** cuando la regla dice `sobre_iva = false`, que es
+   la omisión del documento (§7.2, pregunta 2). El cobro comisionaba el precio al público entero: 16 %
+   de más por servicio. Cambia lo que se causa desde hoy; lo ya causado no se recalcula (F-443).
+5. **El anticipo en efectivo entra al cajón con su movimiento** (`anticipo_cita`, de la 135), y exige
+   caja abierta. Se APLICA en el mismo cobro: la venta es la cita entera y los pagos suman el resto.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

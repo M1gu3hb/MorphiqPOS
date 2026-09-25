@@ -6,7 +6,7 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, ORG, TERMINAL } from '../restaurante/pruebas/sala.ts';
 import { aplicarAnticipo, recibirAnticipo } from './anticipos.ts';
 
 /**
@@ -52,6 +52,22 @@ const baseDe = (extra: Partial<TablasFalsas> = {}) =>
       },
     },
   });
+
+const SESION_CAJA = '5e000000-0000-4000-8000-000000000005';
+
+/** La caja abierta de la terminal del ámbito: donde entra el anticipo en efectivo. */
+const cajaAbierta: Partial<TablasFalsas> = {
+  sesiones_caja: [
+    {
+      id: SESION_CAJA,
+      organizacion_id: ORG,
+      terminal_id: TERMINAL,
+      estado: 'abierta',
+      abierta_en: AHORA,
+      cerrada_en: null,
+    },
+  ],
+};
 
 function anticipoGuardado(cambios: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -109,6 +125,49 @@ describe('F-414 · recibir', () => {
 
     expect(codigo).toBe('CONFIGURACION_CONFLICTO');
     expect(base.filas('anticipos_cita')).toEqual([]);
+  });
+
+  it('EN EFECTIVO ENTRA AL CAJÓN, con su movimiento y su sesión (C.3 de la 2.4)', async () => {
+    // El anticipo de $300 en efectivo está en el cajón desde el jueves. Sin su
+    // movimiento, el arqueo del jueves sobraba $300 —el número con el que se acusa
+    // a alguien— y el sábado, al cobrar el resto, faltaba el dinero que ya entró.
+    const base = baseDe(cajaAbierta);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await recibirAnticipo.ejecutar(ctx, {
+      citaId: CITA,
+      montoCentavos: 30_000,
+      metodo: 'efectivo',
+    });
+
+    const movimiento = base.filas('movimientos_caja')[0];
+    expect(movimiento?.['tipo']).toBe('anticipo_cita');
+    expect(movimiento?.['monto_centavos']).toBe(30_000n);
+    expect(movimiento?.['referencia_tipo']).toBe('cita');
+    const fila = base.filas('anticipos_cita')[0];
+    expect(fila?.['movimiento_caja_id']).toBe(movimiento?.['id']);
+    expect(fila?.['sesion_caja_id']).toBe(SESION_CAJA);
+  });
+
+  it('EN EFECTIVO Y SIN CAJA ABIERTA no se recibe: no tendría dónde contarse', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const codigo = await codigoDe(() =>
+      recibirAnticipo.ejecutar(ctx, { citaId: CITA, montoCentavos: 30_000, metodo: 'efectivo' }),
+    );
+
+    expect(codigo).toBe('CAJA_CERRADA');
+    expect(base.filas('anticipos_cita')).toEqual([]);
+  });
+
+  it('CON TARJETA no toca el cajón', async () => {
+    const base = baseDe(cajaAbierta);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await recibirAnticipo.ejecutar(ctx, { citaId: CITA, montoCentavos: 30_000, metodo: 'tarjeta' });
+
+    expect(base.filas('movimientos_caja')).toEqual([]);
   });
 
   it('una cita de otro negocio no existe para éste', async () => {

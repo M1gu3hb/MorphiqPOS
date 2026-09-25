@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
-import type { Transaccion } from '@morphiqpos/data';
+import { repoCaja, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
@@ -87,6 +87,17 @@ export const recibirAnticipo = definirComando<
       );
     }
 
+    /**
+     * EL EFECTIVO ENTRA AL CAJÓN, y el cajón tiene que saberlo (C.3 de la 2.4).
+     *
+     * La 138 trae `sesion_caja_id` y `movimiento_caja_id`, y la 135 el tipo
+     * `anticipo_cita`, pero aquí no se escribía ninguno: los $300 del jueves estaban
+     * en el cajón y el arqueo del jueves decía que SOBRABAN. Es dinero ajeno —un
+     * pasivo, no venta (§6.1)—, así que va en su propio tipo y nunca como `venta`.
+     * Con tarjeta o transferencia el dinero va al banco y el cajón no se mueve.
+     */
+    const caja = entrada.metodo === 'efectivo' ? await cajaAbierta(ctx) : null;
+
     // El `unique` parcial de la migración 138 es el que impide dos anticipos
     // vivos en la misma cita. Aquí no hay comprobación previa a propósito: una
     // lectura seguida de una escritura deja hueco para que dos capturas
@@ -102,6 +113,7 @@ export const recibirAnticipo = definirComando<
           monto_centavos: BigInt(entrada.montoCentavos),
           metodo: entrada.metodo,
           estado: 'vivo',
+          sesion_caja_id: caja?.id ?? null,
           recibido_en: ctx.ahora,
           recibido_por: empleoId,
           created_at: ctx.ahora,
@@ -110,6 +122,29 @@ export const recibirAnticipo = definirComando<
         .executeTakeFirstOrThrow(),
     );
 
+    if (caja !== null) {
+      const movimiento = await ctx.paso('mover_caja', () =>
+        repoCaja.registrarMovimiento(ctx.tx, {
+          organizacionId,
+          sesionCajaId: caja.id,
+          tipo: 'anticipo_cita',
+          montoCentavos: BigInt(entrada.montoCentavos),
+          referenciaTipo: 'cita',
+          referenciaId: entrada.citaId,
+          empleadoId: empleoId,
+          motivo: null,
+        }),
+      );
+      await ctx.paso('ligar_movimiento', () =>
+        ctx.tx
+          .updateTable('anticipos_cita')
+          .set({ movimiento_caja_id: movimiento.id })
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', '=', anticipo.id)
+          .execute(),
+      );
+    }
+
     ctx.auditar({
       entidadId: anticipo.id,
       payload: { citaId: entrada.citaId, montoCentavos: entrada.montoCentavos },
@@ -117,6 +152,27 @@ export const recibirAnticipo = definirComando<
     return { anticipoId: anticipo.id, estado: 'vivo' };
   },
 });
+
+/** La caja abierta en ESTA terminal, o el rechazo que dice qué hacer. */
+async function cajaAbierta(ctx: ContextoComando<Transaccion>): Promise<{ readonly id: string }> {
+  const { organizacionId, terminalId } = ctx.ambito;
+  if (terminalId === null) {
+    throw new ErrorDominio(
+      'VENTA_SIN_TERMINAL',
+      'Un anticipo en efectivo entra a un cajón: hace falta una terminal dada de alta.',
+    );
+  }
+  const sesion = await ctx.paso('cargar_caja', () =>
+    repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId),
+  );
+  if (sesion === null) {
+    throw new ErrorDominio(
+      'CAJA_CERRADA',
+      'Abre la caja antes de recibir un anticipo en efectivo.',
+    );
+  }
+  return sesion;
+}
 
 async function exigirAnticipo(
   ctx: ContextoComando<Transaccion>,

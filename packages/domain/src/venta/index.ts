@@ -1,5 +1,6 @@
 export {
   calcularTotales,
+  impuestoExtraido,
   type LineaValorada,
   type ReglaImpuesto,
   type TotalesOrden,

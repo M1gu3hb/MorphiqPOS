@@ -140,8 +140,19 @@ interface ProfesionalDelPuente {
 interface ComisionDelPuente {
   readonly cita_servicio_id?: string;
   readonly profesional_id?: string;
+  /** EN PESOS: el puente convierte `base_centavos` con `dinero`. */
+  readonly base_centavos?: number;
   readonly monto_centavos?: number;
   readonly tasa_bp?: number;
+}
+
+/**
+ * El IVA que va DENTRO de un precio al público, extraído una vez: `total × tasa /
+ * (10000 + tasa)`, al centavo más cercano (`02-DINERO-Y-CAJA §2.1` del salón). La demo
+ * no configura otra tasa, así que es la general.
+ */
+function ivaIncluidoEn(centavos: number, tasaBp = 1600): number {
+  return Math.round((centavos * tasaBp) / (10_000 + tasaBp));
 }
 
 /**
@@ -618,6 +629,25 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     expect(citaServicioId, 'Agendar no devolvió el servicio de la cita.').toBeTruthy();
 
     /**
+     * 1b · EL ANTICIPO, EN EFECTIVO, el día que se agenda (C.3 de la 2.4).
+     *
+     * Entra al cajón HOY —con su propio movimiento, que antes no se escribía y el
+     * arqueo lo contaba como sobrante— y al cobrar se APLICA: la pantalla lo enseña
+     * ya restado y el cobro sólo pide lo que falta. Al final el cajón tiene el fondo
+     * más el precio entero: el anticipo y el resto, cada uno en su día.
+     */
+    const anticipoCentavos = Math.round(precioCentavos * 0.3);
+    const anticipo = await page.request.post('/api/anticipos', {
+      headers: cabecerasDeEscrituraDePrueba(),
+      data: { citaId, montoCentavos: anticipoCentavos, metodo: 'efectivo' },
+    });
+    expect(
+      anticipo.status(),
+      `Recibir el anticipo de la cita respondió ${String(anticipo.status())}: ` +
+        (await anticipo.text()).slice(0, 300),
+    ).toBe(200);
+
+    /**
      * 2 · LA AGENDA DEL DÍA PINTA LA CITA, y tocarla la INICIA.
      *
      * Es la pantalla de inicio de la recepcionista y hasta hoy enseñaba «Hoy no hay
@@ -746,11 +776,29 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     ).toContainText(enPesosDelSalon(precioCentavos));
     await laCita.first().click();
 
+    // EL ANTICIPO YA RESTADO: se ve en su renglón y lo que se cobra hoy es el resto.
+    // Si hubiera que ir a buscarlo, se cobraría dos veces (descuadre 4).
+    const cobro = page.getByRole('complementary', { name: 'Cobro' });
+    await expect(
+      cobro.getByText('Anticipo ya pagado'),
+      'La pantalla de cobro no enseña el anticipo de la cita: el puente no lo trae o la ' +
+        'cotización no lo aplicó, y el mostrador cobraría la cita entera otra vez.',
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(cobro).toContainText(enPesosDelSalon(precioCentavos - anticipoCentavos));
+
     await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
+    // La propina, con un toque y A NOMBRE de quien atendió. A la mano: con efectivo es
+    // el camino por omisión, y no pasa por el cajón.
+    await page.getByRole('button', { name: '15%', exact: true }).click();
     await page.getByRole('button', { name: /^COBRAR/ }).click();
 
-    // El acuse de esta pantalla dice lo cobrado y su folio.
+    // El acuse de esta pantalla dice lo cobrado, su folio y a nombre de quién quedó
+    // la propina. Antes decía «se entrega en mano: todavía no queda anotada».
     await exigirCobroAceptado(page, /^Cobrado /);
+    await expect(
+      page.getByText(/anotada a nombre de/),
+      'El cobro salió, pero la propina no quedó anotada a nombre de nadie.',
+    ).toBeVisible();
 
     // La venta, con su total y su folio, en el servidor. El identificador no se
     // usa después —la comisión se busca por el SERVICIO de la cita, que es a lo
@@ -789,13 +837,26 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
      * comisión sobre 1 800 pesos, que son 7.20: un error de cien veces que en una
      * nómina se nota el día de pago y no antes.
      */
-    const esperadaCentavos = Math.round((precioCentavos * (laComision?.tasa_bp ?? 0)) / 100);
+    /**
+     * Y SOBRE LA BASE SIN IVA (§7.2, pregunta 2): «el IVA no es ingreso del salón». Se
+     * comisionaba el precio al público entero, con la regla diciendo `sobre_iva =
+     * false`: 16 % de comisión de más en cada servicio.
+     */
+    const baseSinIva = precioCentavos - ivaIncluidoEn(precioCentavos);
+    expect(
+      Math.round((laComision?.base_centavos ?? 0) * 100),
+      `La comisión se calculó sobre ${String(laComision?.base_centavos ?? 0)} pesos: la base es ` +
+        `el precio SIN IVA, ${String(baseSinIva)} centavos.`,
+    ).toBe(baseSinIva);
+    const esperadaCentavos = Math.floor((baseSinIva * (laComision?.tasa_bp ?? 0)) / 100);
     expect(
       Math.round((laComision?.monto_centavos ?? 0) * 100),
       `La comisión no cuadra con su propia tasa: ${String(laComision?.tasa_bp ?? 0)} % sobre ` +
-        `${String(precioCentavos)} centavos son ${String(esperadaCentavos)}.`,
+        `${String(baseSinIva)} centavos son ${String(esperadaCentavos)}.`,
     ).toBe(esperadaCentavos);
 
+    // El cajón: el fondo, el anticipo del día que se dejó y el resto de hoy. La
+    // propina a la mano no entró.
     await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + precioCentavos);
 
     exigirSinFallos();
