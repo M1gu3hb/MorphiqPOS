@@ -16,7 +16,7 @@ import {
 } from '@morphiqpos/ui/sistema';
 import { ChevronDown, ChevronUp, MapPin, Minus, Plus, Search, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
@@ -315,6 +315,26 @@ export function Mostrador({
       setEnviando(false);
     }
   }
+
+  /**
+   * F12 manda a caja y F11 remite a cuenta, con las MISMAS guardas que sus botones.
+   * Iban impresas en ellos sin que el teclado las escuchara (C.5 de la 2.4): un atajo
+   * que se anuncia y no responde es un botón muerto.
+   */
+  const alTeclearFuncion = useEffectEvent((evento: KeyboardEvent) => {
+    if (evento.key !== 'F12' && evento.key !== 'F11') return;
+    evento.preventDefault();
+    if (enviando || partidas.length === 0) return;
+    if (evento.key === 'F12' && !cajaCerrada) void mandarACaja();
+    if (evento.key === 'F11' && cliente !== null) void remisionACuenta();
+  });
+
+  useEffect(() => {
+    window.addEventListener('keydown', alTeclearFuncion);
+    return () => {
+      window.removeEventListener('keydown', alTeclearFuncion);
+    };
+  }, []);
 
   const columnasDeLaNota: readonly ColumnaDeTabla<Partida>[] = [
     {
@@ -657,7 +677,7 @@ export function Mostrador({
               void remisionACuenta();
             }}
           >
-            {sobreLimite ? 'Remisión a cuenta · pide PIN · F11' : 'Remisión a cuenta · F11'}
+            {sobreLimite ? 'Remisión a cuenta · pasa del límite · F11' : 'Remisión a cuenta · F11'}
           </Button>
           {/* El número, grande y en su sitio: es lo único que el cliente se lleva
               del mostrador, y va a decirlo en voz alta a tres metros. */}

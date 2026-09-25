@@ -5807,3 +5807,29 @@ tienen vacío/cargando/error.
 
 **Nota de corrida:** los proyectos `tablet` y `escritorio` de Playwright en paralelo chocan por la
 regla de UNA caja abierta por sucursal (el primero la abre en su terminal). Con `--workers=1` pasan.
+
+## 25-09-2026 · Etapa 2.4 · C.5 · cobros incompletos, teclas muertas y una llave que daba el navegador
+
+- **Ferretería · caja:** efectivo con CAMBIO (lo recibido, los billetes probables a un toque y el
+  cambio en grande; COBRAR no se enciende con menos) y PAGO MIXTO (tres métodos con su importe y lo
+  que falta o sobra). Tarjeta, transferencia y a cuenta siguen siendo un toque. El acuse dice el
+  cambio que devolvió el servidor. El e2e paga con un billete y el arqueo sigue esperando fondo +
+  total.
+- **Abarrotes · fiado:** el abono elige método (efectivo al cajón; tarjeta y transferencia al banco,
+  sin mover el arqueo). La cabecera decía que la vista `CarteraFiado` no estaba aplicada: lo está
+  (resto de C.18).
+- **Restaurante · cobro:** «Otra cantidad» en la pared de propina. La cafetería ya la tenía.
+- **Teclas muertas:** siete teclas F impresas sin escuchar —F9/F10/F11 en el cobro de abarrotes,
+  F12 en los cobros de restaurante y cafetería, F11/F12 en el mostrador de ferretería—. Ahora hacen
+  lo mismo que su botón y con su misma guarda. **Puerta nueva** `atajos-impresos.contrato.test.ts`:
+  toda tecla F impresa en `apps/web/src` tiene quien la escuche en su archivo; roja contra el código
+  de antes con las siete.
+
+**Defecto de seguridad destapado, y arreglado:** `credito.registrar_remision` aceptaba
+`autorizacionDelDueno: true` en el cuerpo, y con eso **cualquier cajero abría el bloqueo por mora**:
+la llave la decidía quien pedía la excepción. Ahora la llave es la autorización que el dueño
+registra con SU sesión (`credito.autorizar`, por importe y con caducidad), el servidor la busca y la
+GASTA en esa salida. Pruebas: el booleano del navegador ya no abre (roja antes), y una llave
+vencida, corta o ya gastada tampoco. Mutación: quitar la caducidad FALLA; quitar el filtro de «ya
+gastada» PASA porque el `WHERE orden_id is null` del `update` es un segundo cerrojo (declarado).
+Y la etiqueta del mostrador «pide PIN» —que no pedía nada— dice ahora «pasa del límite».

@@ -76,13 +76,14 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * `CampoDeDinero` convierte el texto a centavos contando dígitos. Ir a pesos y
  * volver es como entra el error de redondeo (R15).
  *
- * ── Alcance recortado, dicho y no escondido ──────────────────────────────
- * El abono se registra **en efectivo**: tarjeta y transferencia existen en
- * `fiado.registrar_abono`, pero elegir método pide un bloque que no cabe sin
- * sacrificar la ficha. «Nuevo cliente», «Exportar» y «Ver movimientos» son
- * otras pantallas y el documento no nombra sus rutas. La lectura es la vista
- * `CarteraFiado`, que las migraciones de Fase 2 escriben y NO aplican: contra
- * la base de hoy llega vacía y la pantalla enseña el flujo.
+ * ── El abono, con su método (C.5 de la 2.4) ──────────────────────────────
+ * Se registraba sólo en efectivo, con tarjeta y transferencia ya aceptadas por
+ * `fiado.registrar_abono`. Ahora la ficha pregunta cómo paga: el efectivo entra al
+ * cajón y al arqueo; la tarjeta y la transferencia bajan el saldo igual y van al
+ * banco, así que el cajón no se mueve —registrarlas como efectivo dejaría el arqueo
+ * con dinero que no está—.
+ *
+ * La lectura es la vista `CarteraFiado`, aplicada en la base desde la Fase 2.
  */
 
 /** El semáforo del documento, en días del saldo más viejo. */
@@ -308,9 +309,20 @@ function LimiteDeLaFicha({ cliente }: { readonly cliente: FilaDeCartera }) {
   );
 }
 
+/** Los tres métodos que acepta `fiado.registrar_abono`. */
+const METODOS_DE_ABONO = [
+  { clave: 'efectivo', etiqueta: 'Efectivo' },
+  { clave: 'tarjeta', etiqueta: 'Tarjeta' },
+  { clave: 'transferencia', etiqueta: 'Transferencia' },
+] as const;
+
+export type MetodoDeAbono = (typeof METODOS_DE_ABONO)[number]['clave'];
+
 interface FichaProps {
   readonly cliente: FilaDeCartera;
   readonly monto: number | null;
+  readonly metodo: MetodoDeAbono;
+  readonly alCambiarMetodo: (metodo: MetodoDeAbono) => void;
   readonly enviando: boolean;
   readonly error: FalloDeAbono | null;
   readonly alCambiarMonto: (centavos: number | null) => void;
@@ -326,6 +338,8 @@ interface FichaProps {
 function Ficha({
   cliente,
   monto,
+  metodo,
+  alCambiarMetodo,
   enviando,
   error,
   alCambiarMonto,
@@ -378,6 +392,23 @@ function Ficha({
         />
       </div>
 
+      <div role="group" aria-label="Cómo abona" className="grid grid-cols-3 gap-(--espacio-2)">
+        {METODOS_DE_ABONO.map((opcion) => (
+          <Button
+            key={opcion.clave}
+            type="button"
+            size="sm"
+            variant={metodo === opcion.clave ? 'default' : 'outline'}
+            aria-pressed={metodo === opcion.clave}
+            onClick={() => {
+              alCambiarMetodo(opcion.clave);
+            }}
+          >
+            {opcion.etiqueta}
+          </Button>
+        ))}
+      </div>
+
       {/* Encima del botón, donde están los ojos, y lo primero que dice después
           de qué pasó es que ningún saldo se movió. La caja cerrada es un muro, no
           un fallo: lleva el camino para abrirla. */}
@@ -404,7 +435,9 @@ function Ficha({
         {enviando ? 'Registrando…' : 'Registrar abono'}
       </Button>
       <p className="text-xs text-texto-sutil">
-        En efectivo, al saldo más viejo primero. Entra al cajón y al corte del día.
+        {metodo === 'efectivo'
+          ? 'Al saldo más viejo primero. Entra al cajón y al corte del día.'
+          : 'Al saldo más viejo primero. Va al banco: el cajón no se mueve, y el corte lo cuenta por su método.'}
       </p>
     </Superficie>
   );
@@ -423,6 +456,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
   /** La fila que lleva el nombre de viaje mientras se convierte en ficha, o vuelve. */
   const [viajando, setViajando] = useState<string | null>(null);
   const [monto, setMonto] = useState<number | null>(null);
+  const [metodoDeAbono, setMetodoDeAbono] = useState<MetodoDeAbono>('efectivo');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<FalloDeAbono | null>(null);
   /** Adonde vuelve el foco cuando el vacío que lo tenía desaparece. */
@@ -493,6 +527,8 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
         setViajando(null);
         setElegido(id);
         setMonto(null);
+        // Otro cliente, otro abono: el método vuelve al de casi siempre.
+        setMetodoDeAbono('efectivo');
         setError(null);
       });
     });
@@ -534,7 +570,7 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
       const entrada = {
         clienteId: cliente.cliente_id,
         montoCentavos: centavos,
-        metodo: 'efectivo',
+        metodo: metodoDeAbono,
       };
       await invocarComando('/api/fiado/abono', entrada);
       // El saldo nuevo vuelve a la fila en la unidad del puente, la que `saldoDe` espera.
@@ -690,6 +726,8 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
             key={ficha.cliente_id}
             cliente={ficha}
             monto={monto}
+            metodo={metodoDeAbono}
+            alCambiarMetodo={setMetodoDeAbono}
             enviando={enviando}
             error={error}
             alCambiarMonto={setMonto}

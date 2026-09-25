@@ -38,6 +38,9 @@ import { centavosDe } from '~/cliente/dinero-del-puente';
 import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import type { PagoDeNota } from './cobro-de-nota';
+import { EfectivoYMixto } from './EfectivoYMixto';
+
 /**
  * PANTALLA · ferreteria · caja
  *
@@ -103,13 +106,17 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * remisión y sella quién recibió. Mandarlo por el cobro habría necesitado un
  * cuarto método que no mueve caja y dejaría el arqueo cuadrando de milagro.
  *
- * ── Alcance recortado, dicho y no escondido ──────────────────────────────
- * 1. Apertura con denominaciones, movimientos, arqueo a ciegas y los cuatro
- *    bloqueos de cierre se heredan de `abarrotes` §PANTALLA 9 y viven en sus
- *    propias pantallas; por eso el pie muestra lo que esta lectura sí sabe
- *    —lo que falta por cobrar— y no el fondo del cajón, que no llega aquí.
- * 2. El desglose de pago mixto y el cálculo de cambio no caben en un archivo:
- *    esta pantalla sella un método por nota.
+ * ── Efectivo con cambio, y el pago mixto (C.5 de la 2.4) ─────────────────
+ * Esta pantalla sellaba un método por nota y en efectivo mandaba lo recibido igual
+ * al total: ni cambio ni mixto. Ahora tarjeta, transferencia y a cuenta siguen
+ * siendo un toque —no hay nada que preguntar—, y efectivo y mixto abren
+ * `EfectivoYMixto`: cuánto dio el cliente, el cambio en grande y, en mixto, cuánto
+ * por cada método. El servidor recalcula el cambio con lo recibido.
+ *
+ * ── Lo que vive en otra pantalla, a propósito ────────────────────────────
+ * Apertura con denominaciones, movimientos, arqueo a ciegas y los bloqueos de cierre
+ * son de «Caja y corte», que se hereda de `abarrotes` §PANTALLA 9: por eso el pie de
+ * ésta muestra lo que falta por cobrar y no el fondo del cajón.
  */
 
 /** Los cuatro métodos, en el orden del documento y con el mismo peso visual. */
@@ -521,6 +528,8 @@ interface PanelDeLaNotaProps {
   /** El nombre de viaje del ENCABEZADO: la fila de la cola llega ahí. */
   readonly nombreDeViaje: string;
   readonly alSellar: (metodo: MetodoDeCobro) => void;
+  /** Cobrar con estos pagos: un método exacto, efectivo con lo recibido, o mixto. */
+  readonly alCobrar: (pagos: readonly PagoDeNota[], clave: string) => void;
 }
 
 /**
@@ -544,8 +553,11 @@ function PanelDeLaNota({
   enviando,
   nombreDeViaje,
   alSellar,
+  alCobrar,
 }: PanelDeLaNotaProps) {
   const voc = useVocabulario();
+  /** Efectivo y mixto preguntan antes de cobrar; los demás métodos son un toque. */
+  const [paso, setPaso] = useState<'efectivo' | 'mixto' | null>(null);
   const total = totalDe(nota);
   const saldo = centavosDe('NotaDeCaja', 'saldoClienteCentavos', nota.saldoClienteCentavos) ?? 0;
   const limite = centavosDe('NotaDeCaja', 'limiteClienteCentavos', nota.limiteClienteCentavos) ?? 0;
@@ -644,17 +656,25 @@ function PanelDeLaNota({
             const Icono = ICONO_DE_METODO[metodo.clave];
             const bloqueado = metodo.clave === 'cuenta' && (excede || sinFicha);
             const cobrando = enviando === `${nota.id}·${metodo.clave}`;
+            const abierto = paso === 'efectivo' && metodo.clave === 'efectivo';
             return (
               <Button
                 key={metodo.clave}
                 type="button"
                 size="lg"
-                variant={bloqueado ? 'outline' : 'default'}
+                variant={bloqueado || (paso !== null && !abierto) ? 'outline' : 'default'}
+                aria-pressed={metodo.clave === 'efectivo' ? abierto : undefined}
                 disabled={enviando !== null || bloqueado}
                 cargando={cobrando}
                 className="min-h-20 flex-col gap-(--espacio-1) text-base"
                 onClick={() => {
-                  alSellar(metodo.clave);
+                  if (metodo.clave === 'efectivo') {
+                    setPaso('efectivo');
+                  } else if (metodo.clave === 'cuenta') {
+                    alSellar('cuenta');
+                  } else {
+                    alCobrar([{ metodo: metodo.clave, montoCentavos: total }], metodo.clave);
+                  }
                 }}
               >
                 {cobrando ? null : <Icono aria-hidden="true" className="size-5" />}
@@ -663,6 +683,32 @@ function PanelDeLaNota({
             );
           })}
         </div>
+        <Button
+          type="button"
+          variant={paso === 'mixto' ? 'default' : 'ghost'}
+          aria-pressed={paso === 'mixto'}
+          className="self-start"
+          disabled={enviando !== null}
+          onClick={() => {
+            setPaso('mixto');
+          }}
+        >
+          Pago mixto
+        </Button>
+        {paso === null ? null : (
+          <EfectivoYMixto
+            key={paso}
+            total={total}
+            paso={paso}
+            cobrando={enviando === `${nota.id}·${paso}`}
+            alCobrar={(pagos) => {
+              alCobrar(pagos, paso);
+            }}
+            alCancelar={() => {
+              setPaso(null);
+            }}
+          />
+        )}
 
         {/* El saldo se repite aquí porque quien cobra es otra persona, y el
             bloqueo se dice con palabras: un botón apagado no explica nada. */}
@@ -716,6 +762,11 @@ export function Caja({
   const [viajando, setViajando] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** El acuse del último cobro: su nota y el cambio que hubo que dar. */
+  const [ultimoCobro, setUltimoCobro] = useState<{
+    readonly codigo: string;
+    readonly cambio: number;
+  } | null>(null);
   // `null` mientras se leen: «ninguna espera confirmación» dicho antes de leer
   // sería una afirmación falsa, no un vacío.
   const [transferencias, setTransferencias] = useState<readonly TransferenciaPendiente[] | null>(
@@ -860,48 +911,34 @@ export function Caja({
     });
   }
 
-  async function sellar(nota: NotaDeCaja, metodo: MetodoDeCobro): Promise<void> {
+  /**
+   * Cierra la nota para la caja. `clave` es lo que gira en su botón mientras tanto:
+   * el método, `efectivo` o `mixto`.
+   */
+  async function cerrarNota(
+    nota: NotaDeCaja,
+    clave: string,
+    escribir: () => Promise<{ readonly cambioCentavos?: string }>,
+    metodo: MetodoDeCobro,
+  ): Promise<void> {
     // Sin red no se cobra (F-988, A-27): no hay cola que guarde el cobro para después.
     if (!enLinea) return;
     // Un doble toque llega antes que el re-pintado que apaga los métodos.
     if (enviando !== null) return;
-    setEnviando(`${nota.id}·${metodo}`);
+    setEnviando(`${nota.id}·${clave}`);
     setError(null);
+    setUltimoCobro(null);
     try {
-      if (metodo === 'cuenta') {
-        // A CUENTA · no entra dinero, sale material firmado. Es una remisión:
-        // sube el saldo del cliente, toma su propio folio y sella quién recibió.
-        await invocarComando('/api/credito/remision', {
-          ordenId: nota.id,
-          clienteId: nota.cliente_id,
-          importeCentavos: totalDe(nota),
-          // Quien firma es quien viene por el material: el autorizado si hay
-          // uno, y si no el cliente mismo. El documento sin nombre no sirve.
-          nombreFirmante: nota.recoge_nombre ?? nota.cliente_nombre ?? 'Sin nombre',
-        });
-      } else {
-        // El cuerpo que `venta.cobrar` pide. `totalEsperadoCentavos` no cobra:
-        // si el servidor recalcula otro total, rechaza en vez de cobrar el suyo
-        // en silencio —el cajero ya le dijo un número al cliente—.
-        await invocarComando('/api/venta/cobrar', {
-          ordenId: nota.id,
-          totalEsperadoCentavos: totalDe(nota),
-          pagos: [
-            {
-              metodo,
-              montoCentavos: totalDe(nota),
-              // En efectivo, lo recibido sirve para el cambio. Esta pantalla
-              // sella un método exacto por nota, así que es el total.
-              ...(metodo === 'efectivo' ? { recibidoCentavos: totalDe(nota) } : {}),
-            },
-          ],
-        });
-      }
+      const salida = await escribir();
       // Cerrada para la caja; el material sigue en el patio hasta que se entrega.
       setNotas(
         todas.map((fila) => (fila.id === nota.id ? { ...fila, estado: POR_ENTREGAR } : fila)),
       );
       setElegida(null);
+      setUltimoCobro({
+        codigo: nota.codigo_caja ?? '—',
+        cambio: Number(salida.cambioCentavos ?? '0'),
+      });
       onCobrada?.(nota.id, metodo);
     } catch (fallo) {
       setError(
@@ -910,6 +947,44 @@ export function Caja({
     } finally {
       setEnviando(null);
     }
+  }
+
+  /** A CUENTA · no entra dinero, sale material firmado: es una remisión. */
+  function sellar(nota: NotaDeCaja, metodo: MetodoDeCobro): Promise<void> {
+    return cerrarNota(
+      nota,
+      metodo,
+      () =>
+        invocarComando('/api/credito/remision', {
+          ordenId: nota.id,
+          clienteId: nota.cliente_id,
+          importeCentavos: totalDe(nota),
+          // Quien firma es quien viene por el material: el autorizado si hay
+          // uno, y si no el cliente mismo. El documento sin nombre no sirve.
+          nombreFirmante: nota.recoge_nombre ?? nota.cliente_nombre ?? 'Sin nombre',
+        }),
+      metodo,
+    );
+  }
+
+  /**
+   * El cuerpo que `venta.cobrar` pide, con los pagos que decidió la cajera.
+   * `totalEsperadoCentavos` no cobra: si el servidor recalcula otro total, rechaza en
+   * vez de cobrar el suyo en silencio —el cajero ya le dijo un número al cliente—.
+   */
+  function cobrar(nota: NotaDeCaja, pagos: readonly PagoDeNota[], clave: string): Promise<void> {
+    const primero = pagos[0]?.metodo ?? 'efectivo';
+    return cerrarNota(
+      nota,
+      clave,
+      () =>
+        invocarComando<{ readonly cambioCentavos?: string }>('/api/venta/cobrar', {
+          ordenId: nota.id,
+          totalEsperadoCentavos: totalDe(nota),
+          pagos,
+        }),
+      primero,
+    );
   }
 
   /**
@@ -1069,6 +1144,9 @@ export function Caja({
             alSellar={(metodo) => {
               void sellar(seleccionada, metodo);
             }}
+            alCobrar={(pagos, clave) => {
+              void cobrar(seleccionada, pagos, clave);
+            }}
           />
         )}
       </div>
@@ -1079,6 +1157,21 @@ export function Caja({
     <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
       <h1 className="text-xl font-bold">Caja</h1>
       {enLinea ? null : <AvisoSinConexion />}
+      {ultimoCobro === null ? null : (
+        <Aviso
+          tono="exito"
+          titulo={`${voc.titulo('orden')} ${ultimoCobro.codigo} cobrada`}
+          anuncio="estado"
+        >
+          {ultimoCobro.cambio > 0 ? (
+            <>
+              Cambio: <Dinero centavos={ultimoCobro.cambio} tamano="lg" />
+            </>
+          ) : (
+            'Sin cambio que dar.'
+          )}
+        </Aviso>
+      )}
       <TransferenciasDelTelefono
         transferencias={transferencias}
         avisoBanco={avisoBanco}

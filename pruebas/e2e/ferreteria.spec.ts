@@ -455,8 +455,31 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
         'pieza de un material cuesta lo que cuesta.',
     ).toBe(material.precioCentavos ?? 0);
 
-    // COBRAR EN EFECTIVO · un método por nota, que es como sella esta pantalla.
+    // COBRAR EN EFECTIVO, CON CAMBIO (C.5 de la 2.4). La caja mandaba lo recibido
+    // igual al total y no había cambio que dar. Ahora se toca un billete probable, el
+    // cambio sale en grande, y el cajón al cerrar sigue esperando fondo + total: el
+    // cambio salió del cajón con el cliente.
     await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
+    const billete = page.getByRole('button', { name: /^Recibido \d+ pesos$/ }).first();
+    await expect(
+      billete,
+      'Al elegir efectivo la caja no ofrece los billetes probables para calcular el cambio.',
+    ).toBeVisible();
+    const pesosDelBillete = Number(
+      /Recibido (\d+) pesos/.exec((await billete.getAttribute('aria-label')) ?? '')?.[1] ?? '0',
+    );
+    await billete.click();
+    const cambioEsperado = pesosDelBillete * 100 - totalCentavos;
+    await expect(
+      page.getByText('Cambio', { exact: true }),
+      'La caja no enseña el cambio con lo recibido.',
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Cobrar en efectivo' }).click();
+    await expect(
+      page.getByRole('status').filter({ hasText: /cobrada/ }),
+      `El acuse del cobro no dice el cambio: con $${String(pesosDelBillete)} por ` +
+        `${String(totalCentavos)} centavos son ${String(cambioEsperado)} de cambio.`,
+    ).toContainText(cambioEsperado > 0 ? /Cambio:/ : /Sin cambio/);
 
     // La nota deja las pendientes y pasa a «Cerradas, sin entregar»: cerrada para
     // la caja, con el material todavía en el patio. Esa lista es lo que evita

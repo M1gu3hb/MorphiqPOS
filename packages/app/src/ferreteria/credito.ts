@@ -51,8 +51,10 @@ export const entradaRegistrarRemision = z.object({
   /** Quien firmó. Si no estaba en la lista, se escribe a mano. */
   nombreFirmante: z.string().trim().min(2).max(120),
   firmaUrl: z.string().trim().max(500).optional(),
-  /** La llave del dueño, para un cliente bloqueado por mora. */
-  autorizacionDelDueno: z.boolean().default(false),
+  // La llave del dueño NO viaja aquí. Viajaba —`autorizacionDelDueno: true`— y con
+  // eso cualquier cajero abría la mora: la autorización la decidía quien pedía la
+  // excepción. Ahora es la que el dueño registró con SU sesión (`credito.autorizar`),
+  // y el servidor la busca (C.5 de la 2.4).
 });
 
 export interface ResultadoEvaluacion {
@@ -119,12 +121,15 @@ export const registrarRemision = definirComando<
     // La mora es lo ÚNICO que bloquea, y siempre con llave del dueño. Todo lo
     // demás avisa y deja pasar: convertirlo en muro apagaría el sistema la
     // primera vez que el mejor cliente venga con una urgencia.
-    if (evaluacion.veredicto === 'requiere_llave' && !entrada.autorizacionDelDueno) {
-      throw new ErrorDominio(
-        'PUENTE_SIN_PERMISO',
-        'Ese cliente está bloqueado por mora: hace falta la autorización del dueño.',
-        { motivos: evaluacion.motivos.join(', ') },
-      );
+    if (evaluacion.veredicto === 'requiere_llave') {
+      const llave = await gastarLlaveDelDueno(ctx, entrada);
+      if (!llave) {
+        throw new ErrorDominio(
+          'PUENTE_SIN_PERMISO',
+          'Ese cliente está bloqueado por mora: hace falta que el dueño autorice esta salida desde su sesión, por este importe.',
+          { motivos: evaluacion.motivos.join(', ') },
+        );
+      }
     }
 
     const yaHay = await ctx.paso('mirar_remision', () =>
@@ -369,4 +374,51 @@ async function evaluar(
   });
 
   return { evaluacion, cliente, autorizado };
+}
+
+/**
+ * La llave del dueño para ESTA salida: una autorización de crédito (`credito.autorizar`)
+ * para este cliente, vigente, por al menos este importe y sin gastar. Si la hay, se
+ * GASTA —queda atada a esta orden— en la misma transacción.
+ *
+ * «Vale para esta salida y por este monto» (`autorizacion-credito.ts`): una llave que
+ * sirviera para dos salidas sería un permiso abierto, y el muro dejaría de existir sin
+ * que nadie decidiera quitarlo. El `WHERE orden_id is null` del `update` es el cerrojo:
+ * dos remisiones a la vez no gastan la misma.
+ */
+async function gastarLlaveDelDueno(
+  ctx: ContextoComando<Transaccion>,
+  entrada: {
+    readonly ordenId: string;
+    readonly clienteId: string;
+    readonly importeCentavos: number;
+  },
+): Promise<boolean> {
+  const { organizacionId } = ctx.ambito;
+  const vigentes = await ctx.paso('buscar_llave', () =>
+    ctx.tx
+      .selectFrom('autorizaciones_descuento')
+      .select(['id', 'orden_id'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('cliente_id', '=', entrada.clienteId)
+      .where('vence_en', '>', ctx.ahora)
+      .where('descuento_centavos', '>=', BigInt(entrada.importeCentavos))
+      .orderBy('vence_en')
+      .execute(),
+  );
+  // Sin gastar, o dada para ESTA orden: una llave atada a otra salida ya se usó.
+  const llave = vigentes.find((v) => v.orden_id === null || v.orden_id === entrada.ordenId);
+  if (llave === undefined) return false;
+  if (llave.orden_id === entrada.ordenId) return true;
+
+  const gastada = await ctx.paso('gastar_llave', () =>
+    ctx.tx
+      .updateTable('autorizaciones_descuento')
+      .set({ orden_id: entrada.ordenId })
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', llave.id)
+      .where('orden_id', 'is', null)
+      .executeTakeFirst(),
+  );
+  return Number(gastada.numUpdatedRows) === 1;
 }

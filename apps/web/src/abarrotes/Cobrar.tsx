@@ -75,8 +75,12 @@ import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
  * 4. Sin conexión (F-988) no hay cola, por decisión (A-27): sin red la pantalla lo
  *    DICE —«Sin internet. No se puede cobrar»— y CONFIRMAR no se deja pulsar.
  * 5. `existencia` la expondrá el puente; hoy llega vacía y el punto no sale.
- * 6. F9, F10 y F11 van impresas junto a su desvío, pero el teclado todavía no
- *    las escucha: hoy esos tres se tocan. F12, F2, Supr, + / − y Esc sí.
+ *
+ * ── El teclado ───────────────────────────────────────────────────────────
+ * F12 efectivo, F9 tarjeta, F10 transferencia, F11 fiado, F2 al buscador, Supr
+ * deshace la última línea, + / − la cantidad y Esc empieza de nuevo. F9, F10 y F11
+ * iban impresas junto a su desvío sin que el teclado las escuchara (C.5 de la 2.4):
+ * ahora hacen lo mismo que su botón, y con la misma guarda —sin líneas, nada—.
  */
 
 /** Un lector escribe cada carácter en menos de esto; una mano, jamás. */
@@ -222,6 +226,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
   // vez. El estado se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
   const [lineas, setLineas] = useState<readonly LineaDeVenta[]>([]);
+  const hayLineas = lineas.length > 0;
   const [busqueda, setBusqueda] = useState('');
   const [destacada, setDestacada] = useState<string | null>(null);
   const [ultimo, setUltimo] = useState<string | null>(null);
@@ -381,13 +386,19 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
       } else if (evento.key === 'F12') {
         evento.preventDefault();
         setMetodo('efectivo');
+      } else {
+        const desvio = DESVIOS.find((d) => d.tecla === evento.key);
+        if (desvio === undefined) return;
+        evento.preventDefault();
+        // La misma guarda que su botón: sin líneas no hay nada que cobrar.
+        if (hayLineas) setMetodo(desvio.clave);
       }
     };
     window.addEventListener('keydown', alTeclear);
     return () => {
       window.removeEventListener('keydown', alTeclear);
     };
-  }, [agregar, metodo, porCodigo]);
+  }, [agregar, metodo, porCodigo, hayLineas]);
 
   const total = totalDe(lineas);
   const piezas = lineas.reduce((suma, linea) => suma + linea.cantidad, 0);

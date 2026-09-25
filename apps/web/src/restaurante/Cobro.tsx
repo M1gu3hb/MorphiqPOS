@@ -27,7 +27,7 @@ import {
   Split,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
@@ -65,17 +65,19 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * Inventario, reportes, historial y edición de la cuenta. Si hay que corregir un
  * platillo, se corrige en la mesa.
  *
- * ── Alcance recortado para caber en un archivo, dicho y no escondido ─────
- * 1. El documento la llama «diálogo»: el envoltorio lo pone quien la abre desde
- *    Caja. Aquí es la superficie, para que la ruta exista y se pruebe sola.
- * 2. De la propina quedan los porcentajes con su importe y «Sin propina» al
- *    mismo peso; el campo de monto libre se queda en el diálogo de Caja.
- * 3. `F12` va impreso en el botón pero no se engancha: esa tecla es del
- *    navegador. El atajo se instala en el `AppLayout` al acoplar.
- * 4. Sin id en la ruta se abre la cuenta que lleva más tiempo esperando.
- * 5. Lo recibido y el desglose se teclean en `CampoDeDinero`, que habla en
- *    centavos. Vacío no es lo mismo que ilegible: «Recibido» vacío es «pagó
- *    exacto», y un texto que no es un importe («15OO») apaga COBRAR y lo dice.
+ * ── La propina libre, y F12 (C.5 de la 2.4) ──────────────────────────────
+ * Además de los porcentajes con su importe y «Sin propina» al mismo peso, la pared
+ * de propina acepta OTRA CANTIDAD tecleada: la mesa que deja $150 redondos no es un
+ * porcentaje. Y `F12`, que iba impreso en el botón sin hacer nada, cobra —con las
+ * mismas guardas que el botón—: un atajo que se anuncia y no responde es un botón
+ * muerto.
+ *
+ * ── Cómo se abre ─────────────────────────────────────────────────────────
+ * Es la superficie del cobro, y la ruta existe para que se pruebe sola; sin id en la
+ * ruta se abre la cuenta que lleva más tiempo esperando. Lo recibido y el desglose
+ * se teclean en `CampoDeDinero`, que habla en centavos. Vacío no es lo mismo que
+ * ilegible: «Recibido» vacío es «pagó exacto», y un texto que no es un importe
+ * («15OO») apaga COBRAR y lo dice.
  */
 
 const METODOS = ['efectivo', 'tarjeta', 'transferencia', 'mixto'] as const;
@@ -279,6 +281,8 @@ export function Cobro({
   const [partes, setPartes] = useState<Readonly<Record<MetodoBase, number | null>>>(SIN_PARTES);
   const [ilegibles, setIlegibles] = useState<Ilegibles>(NADA_ILEGIBLE);
   const [propina, setPropina] = useState<number | null>(null);
+  /** La propina tecleada en «otra cantidad», antes de usarla. */
+  const [otraPropina, setOtraPropina] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [cambio, setCambio] = useState<number | null>(null);
   /** El cobro falló: la cuenta sigue en pantalla y NO se marcó como pagada. */
@@ -306,6 +310,7 @@ export function Cobro({
     setPartes(SIN_PARTES);
     setIlegibles(NADA_ILEGIBLE);
     setPropina(null);
+    setOtraPropina(null);
     setCambio(null);
     setError(null);
     if (lineasIniciales === undefined) {
@@ -406,6 +411,22 @@ export function Cobro({
       setEnviando(false);
     }
   }
+
+  // F12 cobra con las MISMAS guardas que el botón: sin cuenta, con la propina sin
+  // decidir o con un importe ilegible, la tecla no hace nada que el botón no haría.
+  const alTeclear = useEffectEvent((evento: KeyboardEvent) => {
+    if (evento.key !== 'F12') return;
+    evento.preventDefault();
+    if (cuenta === undefined || cuenta === null || enviando || bloqueo !== null) return;
+    void cobrar(cuenta.id);
+  });
+
+  useEffect(() => {
+    window.addEventListener('keydown', alTeclear);
+    return () => {
+      window.removeEventListener('keydown', alTeclear);
+    };
+  }, []);
 
   // No se leyó ni la cuenta: no hay total que leer en voz alta, así que no se
   // enseña un cobro a medias.
@@ -658,6 +679,27 @@ export function Cobro({
                 );
               })}
             </ul>
+            <div className="flex items-end gap-(--espacio-2)">
+              <span className="flex flex-1 flex-col gap-(--espacio-1)">
+                <Label htmlFor="cobro-otra-propina">Otra cantidad</Label>
+                <CampoDeDinero
+                  id="cobro-otra-propina"
+                  placeholder="0.00"
+                  centavos={otraPropina}
+                  alCambiar={setOtraPropina}
+                />
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={otraPropina === null}
+                onClick={() => {
+                  if (otraPropina !== null) setPropina(otraPropina);
+                }}
+              >
+                Usar
+              </Button>
+            </div>
           </div>
         ) : null}
 

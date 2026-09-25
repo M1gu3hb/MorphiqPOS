@@ -83,6 +83,18 @@ export const SIN_ESTADO = [
       'No tiene una operación que pueda fallar: ni lectura ni comando. Es un texto fijo que dice por dónde se entra; si la resolución del negocio falla, `/login-pos` ya cae aquí.',
   },
   {
+    pantalla: 'ferreteria/EfectivoYMixto',
+    estado: 'vacio',
+    razon:
+      'Pieza de la caja: lo recibido, los billetes probables y los tres métodos del mixto salen del total de la nota, que llega por props. No hay lista de la red que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'ferreteria/EfectivoYMixto',
+    estado: 'cargando',
+    razon:
+      'Pieza de la caja: no lee nada. Lo único asíncrono es el cobro, y mientras corre su botón pasa a «Cobrando…» con `cargando`.',
+  },
+  {
     pantalla: 'estetica-salon/DescuentoDelCobro',
     estado: 'vacio',
     razon:

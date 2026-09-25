@@ -84,9 +84,36 @@ const remision = (extra: Record<string, unknown> = {}) => ({
   importeCentavos: 600_000,
   nombreFirmante: 'Salvador',
   autorizadoId: CHAVA,
-  autorizacionDelDueno: false,
   ...extra,
 });
+
+/** La llave del dueño como la deja `credito.autorizar`: por importe y con caducidad. */
+const llaveDelDueno = (cambios: Record<string, unknown> = {}) => ({
+  autorizaciones_descuento: [
+    {
+      id: 'a7000000-0000-4000-8000-000000000001',
+      organizacion_id: ORG,
+      cliente_id: CLIENTE,
+      orden_id: null,
+      descuento_centavos: 600_000n,
+      vence_en: new Date(AHORA.getTime() + 4 * 3_600_000),
+      ...cambios,
+    },
+  ],
+});
+
+const moroso = {
+  clientes: [
+    {
+      id: CLIENTE,
+      organizacion_id: ORG,
+      nombre: 'Ing. Loera',
+      saldo_pendiente_centavos: 0n,
+      limite_credito_centavos: 5_000_000n,
+      bloqueado_por_mora: true,
+    },
+  ],
+};
 
 async function codigoDe(fn: () => Promise<unknown>): Promise<string> {
   try {
@@ -302,15 +329,48 @@ describe('credito.registrar_remision', () => {
     );
     expect(base.filas('remisiones')).toEqual([]);
 
-    // Con la llave del dueño, sale.
-    const dos = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
-    const salida = await registrarRemision.ejecutar(
-      dos.ctx,
-      remision({ autorizacionDelDueno: true }),
-    );
+    // Con la llave del dueño —la autorización que él registró con SU sesión—, sale.
+    const conLlave = baseDe({ ...moroso, ...llaveDelDueno() });
+    const dos = contextoFalso(conLlave.tx, ambitoDe('cajero'), AHORA);
+    const salida = await registrarRemision.ejecutar(dos.ctx, remision());
 
     expect(salida.veredicto).toBe('requiere_llave');
-    expect(base.filas('remisiones')).toHaveLength(1);
+    expect(conLlave.filas('remisiones')).toHaveLength(1);
+    // Y se GASTA en esta salida: queda atada a su orden.
+    expect(conLlave.campo('autorizaciones_descuento', 'orden_id')).toBe(ORDEN);
+  });
+
+  it('LA LLAVE NO LA DA EL NAVEGADOR (C.5 de la 2.4)', async () => {
+    // El cuerpo aceptaba `autorizacionDelDueno: true` y con eso cualquier cajero
+    // abría la mora: la autorización la decidía quien pedía la excepción.
+    const base = baseDe(moroso);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(
+      await codigoDe(() =>
+        registrarRemision.ejecutar(ctx, {
+          ...remision(),
+          autorizacionDelDueno: true,
+        } as Parameters<typeof registrarRemision.ejecutar>[1]),
+      ),
+    ).toBe('PUENTE_SIN_PERMISO');
+    expect(base.filas('remisiones')).toEqual([]);
+  });
+
+  it('UNA LLAVE VENCIDA, CORTA O YA GASTADA no abre la mora', async () => {
+    for (const cambios of [
+      { vence_en: new Date(AHORA.getTime() - 60_000) },
+      { descuento_centavos: 500_000n },
+      { orden_id: '0d000000-0000-4000-8000-00000000abcd' },
+    ]) {
+      const base = baseDe({ ...moroso, ...llaveDelDueno(cambios) });
+      const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+      expect(await codigoDe(() => registrarRemision.ejecutar(ctx, remision()))).toBe(
+        'PUENTE_SIN_PERMISO',
+      );
+      expect(base.filas('remisiones')).toEqual([]);
+    }
   });
 
   it('EL LÍMITE REBASADO AVISA Y DEJA PASAR', async () => {

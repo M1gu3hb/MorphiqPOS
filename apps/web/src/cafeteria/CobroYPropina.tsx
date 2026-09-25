@@ -30,7 +30,7 @@ import {
   Timer,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
@@ -89,13 +89,11 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * detener el cobro con su razón. Por eso la pantalla anota, al teclear, qué campos
  * tienen texto que no se lee como importe.
  *
- * ── Alcance recortado para caber en un archivo, dicho y no escondido ─────
- * 1. `F12` va impreso en el botón pero no enganchado: esa tecla es del navegador.
- * 2. Las cuatro cosas del cobro —pago, inventario, encolado en barra y sellos—
- *    son UNA transacción del servidor: aquí sale un solo `venta.cobrar`.
- * 3. El desglose fiscal del barista se queda en el total: las líneas del ticket
- *    sí van, subtotal e IVA no caben y se ven en el ticket impreso.
- * 4. Sin id en la ruta se abre el pedido que lleva más tiempo esperando cobro.
+ * ── F12, y lo que hace un solo cobro ─────────────────────────────────────
+ * `F12`, que iba impreso en el botón sin hacer nada, cobra con las mismas guardas
+ * que el botón (C.5 de la 2.4). Las cuatro cosas del cobro —pago, inventario,
+ * encolado en barra y sellos— son UNA transacción del servidor: aquí sale un solo
+ * `venta.cobrar`. Sin id en la ruta se abre el pedido que lleva más tiempo esperando.
  */
 
 const METODOS = ['efectivo', 'tarjeta', 'transferencia', 'mixto'] as const;
@@ -564,6 +562,22 @@ export function CobroYPropina({
       setEnviando(false);
     }
   }
+
+  // F12 cobra con las MISMAS guardas que el botón: la tecla no hace nada que el
+  // botón apagado no haría.
+  const alTeclear = useEffectEvent((evento: KeyboardEvent) => {
+    if (evento.key !== 'F12') return;
+    evento.preventDefault();
+    if (pedido === undefined || pedido === null || enviando || bloqueo !== null) return;
+    void cobrar(pedido.id);
+  });
+
+  useEffect(() => {
+    window.addEventListener('keydown', alTeclear);
+    return () => {
+      window.removeEventListener('keydown', alTeclear);
+    };
+  }, []);
 
   // No se leyó el pedido: sin él no hay total ni propina. Nada que enseñar debajo.
   if (falloDeCarga !== null) {
