@@ -5665,3 +5665,52 @@ dentro de código (`'\n'` → salto real; `\b` → retroceso). Los parches con e
 
 **En qué voy.** Siguen las suites de navegador de A+B contra un build local con las cinco demos, y
 ver a los `humo-*` negarse contra ese servidor.
+
+---
+
+## 24-09-2026 · Etapa 2.4 · A y B en el navegador; bloque C, primera parte
+
+**A y B, probados de punta a punta.** Build de producción local con `ORGANIZACION` = las cinco
+demos (`apps/web/.env.production.local`, ignorado por git) en el 3200:
+- `GET /api/auth/empleados` sin negocio → 404; con MH → 404; `/n/mh-restaurante/login-pos` → 404;
+  `/n/demo-acople-estetica/login-pos` → 200.
+- **Las cinco suites de modelo en verde** entrando por `/n/<demo>/login-pos` con la precondición
+  que falla cerrada: tienda 1.0 min, cafetería 50 s, ferretería 41 s, estética 52 s, restaurante 40 s.
+- Los cinco `humo-*` se NIEGAN contra ese servidor (sin negocio y con La Broca), y `humo-venta`,
+  `humo-turno` y `humo-accesos` corren en verde sobre la tienda. `humo-archivos` no, en local: el
+  almacén apunta a `localhost:9000` (503 claro); corre contra producción en D.11.
+
+**Defectos que destaparon las pruebas nuevas:**
+1. **`guardar_configuracion` sólo aceptaba los tres estilos de la Fase 1** y reescribía `apariencia`
+   entera: quien leía la configuración y la devolvía recibía 400 (`humo-impuesto` sobre la tienda,
+   que tiene `bloque`), y quien mandaba un nombre viejo pisaba el estilo y borraba sus perillas.
+   Ahora el estilo se acepta y se ignora (lo escribe `fijar_apariencia`) y la apariencia previa se
+   conserva. Prueba nueva, roja con el código de antes.
+2. **`humo-venta` dejaba la caja abierta** en una terminal nueva; el siguiente guion, desde otra,
+   ya no podía abrir la suya («una caja abierta por sucursal»). Ahora cierra la que abrió, con el
+   efectivo esperado, y exige diferencia 0.
+
+**C.2 · `verify:unidades`, ROJA como tenía que nacer:** 130 lecturas de dinero del puente sin
+convertir en 30 pantallas (C.1 entre ellas). Piezas:
+- `scripts/generar-unidades-del-puente.mjs` saca del mapa (`server-only`) la tabla que el navegador
+  necesita: por entidad, sus campos de dinero y si llegan en pesos o centavos
+  (`apps/web/src/cliente/unidades-del-puente.ts`, 32 entidades, 95 campos).
+- `centavosDe(entidad, campo, valor)` y `valorDelPuente(...)`: el ÚNICO camino, tipado a los campos
+  de dinero de esa entidad.
+- El analizador (`scripts/lib/unidades.mjs`) pregunta al verificador de tipos qué objetos son filas
+  del puente (el `T` de cada `consultarPuente<T>('Entidad')`), así que no confunde la respuesta de un
+  comando con una fila. 7 pruebas propias, rojas y verdes.
+- **Alias honestos:** los 22 campos que se llaman `_centavos` y llegan en pesos ganan un gemelo
+  `_pesos` en el mapa (misma columna y roles, sólo lectura), SÓLO en entidades que el puente no deja
+  escribir —las 14 son `comando` o `lectura`—, así que ningún `update` del heredado puede tropezar.
+  La puerta marca leer el nombre que miente.
+
+**C.13** · F-988 declarada en EXCEPCIONES citando A-27; las cinco pantallas de cobro dicen «Sin
+internet. No se puede cobrar» y no cobran sin red (antes sólo la cafetería).
+**C.15** · P-01 implementada, P-03 sin objeto, P-04 resuelta por D-12; sólo P-02 abierta. D-14 ya no
+dice que cuatro negocios operan con las heredadas.
+**C.17** · `EN_INGLES` no admitía el `!`; la puerta ya ve las tres `text-destructive!` (se vio roja) y
+están traducidas. **C.18 (parte)** · EXCEPCIONES decía «Seis» con tres filas.
+
+**En qué voy.** La migración de las 130 lecturas (barrido mecánico: una cola de ≤3 agentes, uno por
+modelo). Después, C.1/C.3/C.5 y el resto del bloque.

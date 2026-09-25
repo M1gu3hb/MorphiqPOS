@@ -30,6 +30,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
@@ -257,6 +258,7 @@ export function Cobro({
   cuentaId,
 }: CobroProps) {
   const voc = useVocabulario();
+  const enLinea = useEnLinea();
   const [cuenta, setCuenta] = useState<CuentaPorCobrar | null | undefined>(cuentaInicial);
   /**
    * Las líneas de la cuenta. `null` es «todavía no se leyeron» —o su lectura
@@ -379,6 +381,8 @@ export function Cobro({
   const bloqueo = bloqueoDe(pendiente, total, metodo, recibido, suma, ilegibles, voc);
 
   async function cobrar(id: string): Promise<void> {
+    // Sin red no se cobra (F-988, A-27): no hay cola que guarde el cobro para después.
+    if (!enLinea) return;
     setEnviando(true);
     setError(null);
     try {
@@ -565,6 +569,7 @@ export function Cobro({
 
   return (
     <div className={REJILLA}>
+      {enLinea ? null : <AvisoSinConexion className="xl:col-span-2" />}
       <h1 className="text-xl font-bold xl:col-span-2">
         Cobro{' '}
         <span className="font-normal text-texto-sutil">

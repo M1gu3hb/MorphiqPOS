@@ -21,7 +21,7 @@ export function EntradaSinNegocio(): ReactElement {
       <h1 className="sr-only">Pantalla de acceso</h1>
       <Superficie nivel={2} radio="lg" relleno={6} className="w-full max-w-md">
         <Vacio
-          icono={<Store aria-hidden className="size-10 text-primario" strokeWidth={1.5} />}
+          icono={<Store />}
           titulo="Entra por la dirección de tu negocio"
           explicacion="Esta caja atiende a varios negocios, así que la pantalla de acceso de cada uno tiene su propia dirección, que termina en /login-pos. Pídesela a quien administra tu negocio: después de entrar una vez, esta caja la recuerda y vuelve sola."
           tamano="compacto"

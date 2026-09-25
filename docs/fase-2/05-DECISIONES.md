@@ -249,7 +249,11 @@ El encargo pidió decidir: o se recomponen también, o se declara por escrito qu
    (`heredado/index.css`): cambian con el estilo, con el modo oscuro y con las cuatro
    perillas igual que las pantallas de los modelos. Lo que no tienen es la biblioteca
    (`Superficie`, `Tabla`, `Dinero`), y eso es composición, no color.
-2. **Son las que cobran hoy.** Cuatro negocios operan con ellas. Recomponerlas es tocar el
+2. **Son las que cobrarán.** *(Corregido el 24-09-2026, C.15 de la 2.4: aquí decía «Son las
+   que cobran hoy. Cuatro negocios operan con ellas», y no era verdad: los cuatro negocios
+   reales están dados de alta y **nadie cobra todavía** con estas pantallas. La razón de
+   fondo sigue en pie —son las de Miguel y las usarán—, pero no por un uso que no existe.)*
+   Recomponerlas es tocar el
    flujo de dinero de un cliente que paga sin que su dueño lo haya pedido, y `verify:aspecto`
    existe precisamente para que eso no pase sin decidirlo.
 3. **Cada modelo trae ya las suyas para lo que más se usa.** El cobro, la caja, el catálogo y
@@ -288,18 +292,18 @@ y un Preview que sirva a un negocio real sería una puerta trasera. Configurado 
 
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
-**P-01 · ¿Plantilla cerrada o plantilla + perillas?**
-Hoy los paquetes son bloques cerrados. La alternativa es que la plantilla sea un punto de partida y cada módulo se pueda encender y apagar (**F-016**). La segunda vende mucho mejor —permite el "sí, y además te pongo citas"— y complica el gate de paquetes, las pruebas y el soporte.
-*Recomendación: plantilla como preajuste, perillas por módulo detrás de una pantalla de administrador. Lo mejor de ambas.*
+*Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras
+tres se conservan abajo, con lo que las cerró, para que nadie las vuelva a plantear.*
 
-**P-02 · ¿Entra CFDI en la Fase 2 y en qué momento?**
+**P-02 · ¿Entra CFDI en la Fase 2 y en qué momento?** — **ABIERTA**
 No lo pide ningún arquetipo en particular: lo piden los 78. En México es lo que separa "sistema de cobro" de "sistema del negocio". Es el módulo con más superficie regulatoria y el único que ningún competidor puede no tener.
-*Recomendación: sí, y temprano — porque condiciona el modelo de datos de cliente, producto y venta. Meterlo tarde obliga a migrar todo.*
+*Recomendación: sí, y temprano — porque condiciona el modelo de datos de cliente, producto y venta. Meterlo tarde obliga a migrar todo.* Lo que falta para empezar es elegir y contratar el PAC (F-940…945), que es de Miguel.
 
-**P-03 · ¿En qué orden se atacan los arquetipos?**
-Por rendimiento: **A1 Mostrador** completo (desbloquea ~20 modelos) → **A3 Agenda** (desbloquea 22) → **A5 Cotización y crédito** (18) → **A4 Orden de trabajo** (9) → el resto.
-*Pendiente de confirmación.*
+**P-01 · ¿Plantilla cerrada o plantilla + perillas?** — **CERRADA: implementada**
+Se hizo lo recomendado: la plantilla es un preajuste y cada módulo se enciende o apaga por negocio (**F-016**). Las excepciones viven en `organizacion_modulos` (migración 058), los comandos `configuracion.fijar_modulo` y `restablecer_modulo` las escriben (`packages/app/src/configuracion/modulos.ts`), y el gate de `comando.ts` las consulta con `leerModulosActivos` para todo comando que declara módulo.
 
-**P-04 · ¿Qué pasa con los clientes que ya operan cuando cambie la plantilla?**
-Los cuatro negocios vivos tienen datos. Cualquier renombre o cambio de estructura necesita migración probada, no un `update` a mano.
-*Sin esto no se despliega nada.*
+**P-03 · ¿En qué orden se atacan los arquetipos?** — **CERRADA: sin objeto**
+Dejó de ser una decisión pendiente cuando la Fase 2 se partió en etapas: los cinco primeros modelos (2.2–2.4) ya están hechos, y el orden de la siguiente tanda es el contenido de la etapa 2.5, no una pregunta abierta de la fase.
+
+**P-04 · ¿Qué pasa con los clientes que ya operan cuando cambie la plantilla?** — **CERRADA: resuelta por D-12**
+D-12 lo resolvió: el renombre de plantillas se migra POR GIRO, con migración probada y no con un `update` a mano. Y desde la 2.4 ninguna operación de prueba, siembra o reseteo puede tocar un negocio real (`packages/contracts/src/negocios`, D-15).

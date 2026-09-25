@@ -94,7 +94,7 @@ const VE_FIADO = [...DIRECCION, 'cajero'] as const;
 const OPERACION_RESTAURANTE = [...DIRECCION, 'cajero', 'mesero', 'cocina'] as const;
 const PREPARACION = [...DIRECCION, 'cocina'] as const;
 
-export const MAPA: Readonly<Record<string, MapaEntidad>> = {
+const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   // ── Catálogo ─────────────────────────────────────────────────────────────
   ProductoTerminado: {
     tabla: 'productos',
@@ -3184,9 +3184,62 @@ const DESCUENTO_INVENTARIO_VENTA: MapaEntidad = {
   },
 };
 
+/**
+ * LOS ALIAS HONESTOS (C.2 de la 2.4).
+ *
+ * 22 campos se LLAMAN `_centavos` y llegan en PESOS (`conversion: 'dinero'`): es la forma
+ * que esperaban las pantallas heredadas, que los leen así desde hace meses y no se
+ * renombran. Pero un nombre que miente es cómo `CitaEnCurso` pintó una cita de $350.00
+ * como $3.50. Cada uno gana aquí un gemelo con el nombre verdadero —`precio_pesos` junto a
+ * `precio_centavos`—, misma columna, mismos roles de lectura, y de SÓLO LECTURA.
+ *
+ * Sólo en entidades que el puente no deja escribir (`comando` o `lectura`): esos
+ * `update` nunca pasan por aquí, así que una pantalla que reenvía la fila entera no puede
+ * tropezar con la clave nueva. Las pantallas nuevas leen el gemelo, y `verify:unidades`
+ * marca la lectura del nombre que miente.
+ */
+function nombreHonesto(nombre: string): string | null {
+  return nombre.endsWith('_centavos') ? nombre.replace(/_centavos$/, '_pesos') : null;
+}
+
+function gemelos<T extends { readonly conversion: string }>(
+  grupo: Readonly<Record<string, T>> | undefined,
+  hacer: (campo: T) => T,
+): Record<string, T> {
+  const salida: Record<string, T> = {};
+  for (const [nombre, campo] of Object.entries(grupo ?? {})) {
+    const honesto = nombreHonesto(nombre);
+    if (honesto === null || campo.conversion !== 'dinero') continue;
+    if (grupo !== undefined && Object.prototype.hasOwnProperty.call(grupo, honesto)) continue;
+    salida[honesto] = hacer(campo);
+  }
+  return salida;
+}
+
+function conAliasHonestos(entidad: MapaEntidad): MapaEntidad {
+  if (entidad.escritura === 'directa') return entidad;
+  return {
+    ...entidad,
+    campos: {
+      ...entidad.campos,
+      ...gemelos(entidad.campos, (campo) => ({ ...campo, escribible: false })),
+    },
+    ...(entidad.derivados === undefined
+      ? {}
+      : { derivados: { ...entidad.derivados, ...gemelos(entidad.derivados, (c) => c) } }),
+    ...(entidad.calculados === undefined
+      ? {}
+      : { calculados: { ...entidad.calculados, ...gemelos(entidad.calculados, (c) => c) } }),
+  };
+}
+
+export const MAPA: Readonly<Record<string, MapaEntidad>> = Object.fromEntries(
+  Object.entries(MAPA_DECLARADO).map(([nombre, entidad]) => [nombre, conAliasHonestos(entidad)]),
+);
+
 const TODAS: Readonly<Record<string, MapaEntidad>> = {
   ...MAPA,
-  DescuentoInventarioVenta: DESCUENTO_INVENTARIO_VENTA,
+  DescuentoInventarioVenta: conAliasHonestos(DESCUENTO_INVENTARIO_VENTA),
 };
 
 export function entidadMapeada(nombre: string): MapaEntidad | null {

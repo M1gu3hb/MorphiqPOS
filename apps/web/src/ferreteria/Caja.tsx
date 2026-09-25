@@ -34,6 +34,7 @@ import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -701,6 +702,7 @@ export function Caja({
   onCobrada,
 }: CajaProps) {
   const voc = useVocabulario();
+  const enLinea = useEnLinea();
   const [notas, setNotas] = useState<readonly NotaDeCaja[] | null>(notasIniciales ?? null);
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   // Cada lectura es un número: «Volver a leer» lo sube y el efecto lee otra vez.
@@ -857,6 +859,8 @@ export function Caja({
   }
 
   async function sellar(nota: NotaDeCaja, metodo: MetodoDeCobro): Promise<void> {
+    // Sin red no se cobra (F-988, A-27): no hay cola que guarde el cobro para después.
+    if (!enLinea) return;
     // Un doble toque llega antes que el re-pintado que apaga los métodos.
     if (enviando !== null) return;
     setEnviando(`${nota.id}·${metodo}`);
@@ -1072,6 +1076,7 @@ export function Caja({
   return (
     <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
       <h1 className="text-xl font-bold">Caja</h1>
+      {enLinea ? null : <AvisoSinConexion />}
       <TransferenciasDelTelefono
         transferencias={transferencias}
         avisoBanco={avisoBanco}

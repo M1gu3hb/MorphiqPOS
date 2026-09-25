@@ -54,8 +54,10 @@ paso(3, 'Estado de la venta (la sesión existe)');
 const estado = exigir('POST /api/venta/estado', await llamar('/api/venta/estado', {}));
 
 paso(4, 'Abrir caja');
-if (estado.sesionCajaId === null) {
-  exigir('POST /api/caja/abrir', await llamar('/api/caja/abrir', { fondoInicialCentavos: 50000 }));
+const FONDO = 50000;
+const abrioLaCaja = estado.sesionCajaId === null;
+if (abrioLaCaja) {
+  exigir('POST /api/caja/abrir', await llamar('/api/caja/abrir', { fondoInicialCentavos: FONDO }));
 } else {
   console.log('✓ ya había una caja abierta');
 }
@@ -137,6 +139,25 @@ const ticket = exigir('POST /api/venta/ticket', await llamar('/api/venta/ticket'
 console.log(
   `  ${ticket.organizacionNombre} · ${ticket.serie}-${ticket.folio} · total ${ticket.totalCentavos}`,
 );
+
+// LA CAJA SE CIERRA COMO SE ENCONTRÓ (2.4): la base admite UNA caja abierta por
+// sucursal, y la que este humo abría en su terminal —una nueva en cada corrida— se
+// quedaba abierta. El siguiente guion, desde otra terminal, ya no podía abrir la suya
+// («Esta sucursal ya tiene una caja abierta, en la terminal Caja 2»). Se cierra con el
+// efectivo esperado: fondo más lo cobrado en efectivo, que es todo el total.
+if (abrioLaCaja) {
+  paso(11, 'Cerrar la caja que se abrió');
+  const cierre = exigir(
+    'POST /api/caja/cerrar',
+    await llamar('/api/caja/cerrar', { efectivoContadoCentavos: FONDO + Number(total) }),
+  );
+  const diferencia = Number(cierre.diferenciaCentavos ?? 0);
+  if (diferencia !== 0) {
+    console.error(`✗ El corte no cuadra: diferencia ${String(diferencia)} centavos.`);
+    process.exit(1);
+  }
+  console.log('✓ cuadra al centavo: diferencia 0');
+}
 
 console.log(
   `\n✓ HUMO COMPLETO contra ${BASE}\n  orden ${ordenId}\n  folio ${cobro.serie}-${cobro.folio}\n`,

@@ -34,6 +34,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
@@ -231,6 +232,7 @@ export function Cobrar({
   onCobrado,
 }: CobrarProps) {
   const voc = useVocabulario();
+  const enLinea = useEnLinea();
   const [citas, setCitas] = useState<readonly CitaPorCobrar[] | null>(citasIniciales ?? null);
   const [servicios, setServicios] = useState<readonly ServicioDeCita[]>(serviciosIniciales ?? []);
   const [personas, setPersonas] = useState<readonly (PersonaDelSalon | NombradoDelSalon)[]>([
@@ -329,6 +331,8 @@ export function Cobrar({
           : null;
 
   async function cobrar(citaActual: CitaPorCobrar, metodoActual: Metodo): Promise<void> {
+    // Sin red no se cobra (F-988, A-27): no hay cola que guarde el cobro para después.
+    if (!enLinea) return;
     setEnviando(true);
     setError(null);
     try {
@@ -531,6 +535,7 @@ export function Cobrar({
   return (
     <div className="grid gap-(--espacio-3) p-(--espacio-3) md:grid-cols-[minmax(0,1fr)_22rem] md:items-start xl:grid-cols-[minmax(0,1fr)_28rem] xl:gap-(--espacio-4) xl:p-(--espacio-4)">
       <div className="flex flex-col gap-(--espacio-3) md:col-span-2">
+        {enLinea ? null : <AvisoSinConexion />}
         <header className="flex flex-wrap items-baseline gap-x-(--espacio-3) gap-y-(--espacio-1)">
           <h1 className="text-xl font-bold">
             {nombres.get(cita.cliente_id ?? '') ?? `Sin ${voc.singular('cliente')}`}

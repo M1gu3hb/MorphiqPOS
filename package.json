@@ -50,6 +50,8 @@
     "verify:primitivas": "node scripts/tokenizar-primitivas.mjs --verificar && node scripts/tokenizar-pantallas.mjs --verificar && node scripts/verificar-primitivas.mjs",
     "verify:rastro": "node scripts/verificar-rastro.mjs",
     "verify:adopcion": "node scripts/verificar-adopcion.mjs",
+    "verify:unidades": "node --conditions=react-server scripts/generar-unidades-del-puente.mjs --verificar && node scripts/verificar-unidades.mjs",
+    "verify:limpieza": "node scripts/generar-limpieza-de-demo.mjs --verificar",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

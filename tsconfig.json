@@ -6,7 +6,9 @@
     "vitest.config.ts",
     "vitest.integracion.config.ts",
     "playwright.config.ts",
-    "scripts/lib/adopcion.test.ts"
+    "scripts/lib/adopcion.test.ts",
+    "scripts/lib/unidades.test.ts",
+    "scripts/lib/vocabulario-de-color.test.ts"
   ],
   "exclude": ["node_modules", "dist", "build", ".next", ".turbo", "coverage", "historico"],
   "compilerOptions": {

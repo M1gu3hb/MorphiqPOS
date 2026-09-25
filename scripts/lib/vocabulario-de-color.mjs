@@ -51,9 +51,15 @@ const PREFIJOS =
   'bg|text|border|border-[xytblrse]|ring|ring-offset|outline|fill|stroke|accent|caret|divide|decoration|from|via|to|shadow|placeholder';
 const NOMBRES = [...TRADUCCION.keys()].join('|');
 
-/** Una utilidad de color en inglés: su prefijo, su nombre y lo que la cierra. */
+/**
+ * Una utilidad de color en inglés: su prefijo, su nombre y lo que la cierra.
+ *
+ * El `!` de «importante» cuenta a los dos lados (C.17 de la 2.4): Tailwind 4 lo pone al
+ * FINAL (`text-destructive!`) y Tailwind 3 al PRINCIPIO (`!bg-muted`). Sin él, tres
+ * primitivas llevaban `*:[svg]:text-destructive!` y esta puerta no las veía.
+ */
 export const EN_INGLES = new RegExp(
-  `(?<=^|[\\s"'\`:\\[(])(${PREFIJOS})-(${NOMBRES})(?=[/\\s"'\`\\])]|$)`,
+  `(?<=^|[\\s"'\`:\\[(!])(${PREFIJOS})-(${NOMBRES})(?=[/\\s"'\`\\])!]|$)`,
   'g',
 );
 

@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 
 /**
  * PANTALLA · abarrotes · cobrar
@@ -70,7 +71,8 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *    (F-147), el cliente de fiado (F4), el abono (F7) y suspender (F6) son
  *    suyos. Aquí el código desconocido se queda en una banda, no en un `toast`
  *    que se va solo.
- * 4. Sin conexión (F-988) no se simula: la decisión de la cola sigue abierta.
+ * 4. Sin conexión (F-988) no hay cola, por decisión (A-27): sin red la pantalla lo
+ *    DICE —«Sin internet. No se puede cobrar»— y CONFIRMAR no se deja pulsar.
  * 5. `existencia` la expondrá el puente; hoy llega vacía y el punto no sale.
  * 6. F9, F10 y F11 van impresas junto a su desvío, pero el teclado todavía no
  *    las escucha: hoy esos tres se tocan. F12, F2, Supr, + / − y Esc sí.
@@ -204,6 +206,7 @@ function Tecla({ children }: { readonly children: string }) {
 }
 
 export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarProps) {
+  const enLinea = useEnLinea();
   const voc = useVocabulario();
   const [productos, setProductos] = useState<readonly ProductoDeMostrador[] | null>(
     productosIniciales ?? null,
@@ -400,6 +403,8 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
    * `invocarComando`, así que un doble Enter no cobra dos veces.
    */
   async function confirmar(): Promise<void> {
+    // Sin red no se cobra (F-988): ni con el botón —deshabilitado— ni con Enter.
+    if (!enLinea) return;
     setEnviando(true);
     setError(null);
     try {
@@ -648,7 +653,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
         variant="success"
         className="min-h-20 w-full justify-between text-lg"
         aria-busy={enviando}
-        disabled={enviando || (metodo === 'efectivo' && falta)}
+        disabled={!enLinea || enviando || (metodo === 'efectivo' && falta)}
         onClick={() => {
           void confirmar();
         }}
@@ -674,6 +679,7 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
     // sólo se pega dentro de su celda, y el total no se quedaba arriba.
     <div className="flex flex-col gap-(--espacio-3) p-(--espacio-3) pb-56 md:grid md:grid-cols-[minmax(0,1fr)_18rem] md:grid-rows-[auto_1fr_auto] md:pb-48 xl:grid-cols-[minmax(0,1fr)_26rem] xl:pb-(--espacio-3)">
       <h1 className="sr-only">Cobrar</h1>
+      {enLinea ? null : <AvisoSinConexion className="md:col-span-2" />}
 
       {/* PRIMARIO · el total. En teléfono se queda pegado arriba; de tablet para
           arriba es la cabeza de la columna derecha. En los dos casos es lo primero. */}

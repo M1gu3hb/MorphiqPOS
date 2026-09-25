@@ -48,6 +48,7 @@ Formato de la primera columna:
 | `F-318` | Impresión de comanda en cocina | **Depende del hardware que tenga Miguel.** Térmica de red, USB, o servicio local: las tres exigen arquitecturas distintas y una de ellas obliga a instalar un agente en el sitio del cliente. Está en la lista de bloqueados del prompt. La ruta y la entidad quedan escritas para que sólo falte el conector. |
 | `F-249` | Segunda pantalla para el cliente en cafetería | **Depende del hardware.** Un segundo monitor por HDMI, una tablet emparejada o un display de cajón son tres productos distintos con tres costos distintos. Está en la lista de bloqueados del prompt. |
 | `F-406` | Recordatorio de cita por WhatsApp | **No se elige proveedor.** API oficial de Meta —con su alta, su costo por conversación y su plantilla aprobada— contra un enlace `wa.me` semiautomático. Es la decisión que el `07-ESTADO.md` marca como «la decide Miguel». El resto del no-show (F-412) sí se construye: lo que falta es sólo el canal de salida. |
+| `F-988` | Venta sin conexión con sincronización posterior | **Decisión de Miguel desde el principio, A-27** (`docs/adr/0001-acceso-postgres.md`): no hay modo desconectado en el navegador. Quien no quiera depender de internet instala el sistema COMPLETO —backend y base— en su propio servidor, en su red; por eso toda la lógica vive en la API y en Postgres, y nada en servicios propietarios. Una cola de ventas en el navegador rompería lo que ese mismo diseño protege: el folio, la existencia y la caja los decide el servidor. Las pantallas de cobro lo DICEN en vez de prometerlo: sin internet enseñan «Sin internet. No se puede cobrar» y no aceptan el cobro. |
 
 ## RUTAS
 
@@ -96,7 +97,7 @@ mencionan el vocabulario» y decía 55, un número que sonaba bien y no medía n
 `Tablero.tsx`, dos diálogos y el propio módulo, y entre ellos se colaban **trece pantallas de modelo
 que no lo consumían** —con la agenda del salón, que es su pantalla de inicio, entre ellas—.
 
-Ahora se mide una por una, contra la misma lista del §4.3 que usan las demás puertas. Seis no lo
+Ahora se mide una por una, contra la misma lista del §4.3 que usan las demás puertas. Tres no lo
 consumen, y no es un olvido: **no nombran ninguna entidad del diccionario**. Traerles el gancho sería
 importar algo que no se usa para que una puerta se ponga verde.
 
@@ -106,7 +107,7 @@ importar algo que no se usa para que una puerta se ponga verde.
 | `PANTALLA-SIN-VOCABULARIO cafeteria/acceso-por-pin` | La misma, en la barra | Igual. |
 | `PANTALLA-SIN-VOCABULARIO restaurante/inventario` | Las existencias de la cocina | Habla de INSUMOS y de almacenes, que no son entidades del diccionario: el `producto` de un restaurante es el platillo, y eso se vende, no se cuenta aquí. |
 
-**La puerta también falla al revés**: si una de estas seis acaba consumiendo el diccionario, la fila
+**La puerta también falla al revés**: si una de estas tres acaba consumiendo el diccionario, la fila
 sobra y hay que borrarla. Una lista de excepciones que incluye lo que ya funciona deja de leerse.
 
 ### Las HEREDADAS que pierden su sitio en el menú

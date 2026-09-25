@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CONFIG_POR_OMISION, PUBLICOS } from './configuracion.ts';
 import { calcular } from './consultar.ts';
 import { entidadMapeada, MAPA } from './mapa.ts';
-import { haciaEl, haciaLaBase, LIMITE_MAXIMO, type Conversion } from './tipos.ts';
+import { haciaEl, haciaLaBase, LIMITE_MAXIMO, type Conversion, type MapaEntidad } from './tipos.ts';
 
 /**
  * La prueba de IDA Y VUELTA del puente (E3-6).
@@ -72,19 +72,51 @@ describe('el puente traduce sin perder nada', () => {
   });
 });
 
+/** El campo `_centavos` del que `clave` es el gemelo honesto, o `null`. */
+function gemeloDe(mapa: MapaEntidad, clave: string): string | null {
+  if (!clave.endsWith('_pesos')) return null;
+  const original = clave.replace(/_pesos$/, '_centavos');
+  return mapa.campos[original]?.columna === mapa.campos[clave]?.columna ? original : null;
+}
+
 describe('la forma del mapa', () => {
   it('ninguna entidad declara dos campos suyos sobre la misma columna', () => {
     for (const [entidad, mapa] of Object.entries(MAPA)) {
-      const columnas = Object.values(mapa.campos)
+      const columnas = Object.entries(mapa.campos)
         // Un campo CONSTANTE no lee ni escribe su columna: el valor sale del
         // mapa. Por eso no cuenta como colisión, y por eso la prueba de abajo
         // exige que además sea de sólo lectura.
-        .filter((c) => c.constante === undefined)
-        .map((c) => c.columna);
+        .filter(([, c]) => c.constante === undefined)
+        // Y el GEMELO HONESTO (`precio_pesos` de `precio_centavos`, C.2 de la 2.4) es
+        // la misma columna a propósito, y de sólo lectura: no puede pisar a nadie al
+        // guardar. Lo ata la prueba de abajo.
+        .filter(([clave, c]) => !(c.escribible === false && gemeloDe(mapa, clave) !== null))
+        .map(([, c]) => c.columna);
       // Dos campos apuntando a la misma columna es un error de copiar y pegar
       // que sólo se ve cuando uno pisa al otro al guardar.
       expect(new Set(columnas).size, `${entidad} repite una columna`).toBe(columnas.length);
     }
+  });
+
+  it('cada campo que se llama `_centavos` y llega en PESOS tiene su gemelo honesto', () => {
+    // C.2 de la 2.4: el nombre que miente se conserva —lo leen las heredadas— y gana
+    // un gemelo `_pesos` con la MISMA columna, los MISMOS roles y de sólo lectura, en
+    // las entidades que el puente no deja escribir.
+    let gemelos = 0;
+    for (const [entidad, mapa] of Object.entries(MAPA)) {
+      if (mapa.escritura === 'directa') continue;
+      for (const [clave, campo] of Object.entries(mapa.campos)) {
+        if (!clave.endsWith('_centavos') || campo.conversion !== 'dinero') continue;
+        const honesto = mapa.campos[clave.replace(/_centavos$/, '_pesos')];
+        expect(honesto, `${entidad}.${clave} sin gemelo`).toBeDefined();
+        expect(honesto?.columna).toBe(campo.columna);
+        expect(honesto?.conversion).toBe('dinero');
+        expect(honesto?.escribible).toBe(false);
+        expect(honesto?.rolesLectura).toEqual(campo.rolesLectura);
+        gemelos += 1;
+      }
+    }
+    expect(gemelos).toBeGreaterThanOrEqual(22);
   });
 
   it('un campo constante nunca es escribible', () => {

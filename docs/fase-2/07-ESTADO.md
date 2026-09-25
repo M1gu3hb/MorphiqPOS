@@ -873,9 +873,9 @@ Rama `fase-2.4`, sacada de `origin/fase-2` (el PR #11 sigue sin fusionar). **Nun
 
 | Bloque | Qué | Estado |
 | --- | --- | --- |
-| **A** | La entrada es de UN negocio: `/n/<slug>/login-pos`, la lista de empleados exige el negocio (404 igual para «no se sirve» y «no existe»), `/login-pos` sin nombres en un despliegue de varios, rol por el vocabulario del giro, Preview sólo con demos | 🟨 código, pruebas unitarias y puertas estáticas en verde (la prueba de la ruta, 7 de 8 en ROJO contra la de `fase-2`); Preview con las cinco demos; faltan las suites de navegador, que corren tras B |
-| **B** | Que nada pueda tocar un negocio real | 🟨 B.1–B.6 hechos y vistos negarse (reseteo 403 sin consultas; limpieza completa y en orden de llaves; humo, bootstrap, alta e integración); falta verlos negarse contra un servidor local |
-| **C** | Los 18 pendientes | ⬜ |
+| **A** | La entrada es de UN negocio: `/n/<slug>/login-pos`, la lista de empleados exige el negocio (404 igual para «no se sirve» y «no existe»), `/login-pos` sin nombres en un despliegue de varios, rol por el vocabulario del giro, Preview sólo con demos | ✅ código, pruebas y puertas en verde (la prueba de la ruta, 7 de 8 en ROJO contra la de `fase-2`); las cinco suites de modelo entrando por `/n/<demo>/login-pos`; Preview con las cinco demos |
+| **B** | Que nada pueda tocar un negocio real | ✅ B.1–B.6 hechos y vistos negarse, también contra el servidor local (reseteo 403 sin consultas; limpieza completa y en orden de llaves; humo, bootstrap, alta e integración) |
+| **C** | Los 18 pendientes | 🟨 C.13, C.15 y C.17 hechos; C.2 con su puerta ROJA (130 lecturas en 30 pantallas) y en migración; C.18 a medias |
 | **D** | La batería de pruebas | ⬜ |
 | **E** | Producción que se prueba sola | ⬜ |
 | **F** | Correr todo y cerrar | ⬜ |

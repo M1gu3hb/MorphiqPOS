@@ -73,7 +73,6 @@ describe('B-05 · configuración por organización', () => {
             logoUrl: entrada.logoUrl,
             colorPrimario: entrada.colorPrimario,
             colorAcento: entrada.colorAcento,
-            estilo: entrada.estilo,
           },
           impuesto: { puntosBase: 800, incluidoEnPrecio: true },
         },
@@ -84,6 +83,39 @@ describe('B-05 · configuración por organización', () => {
       ],
     });
     expect(auditorias).toHaveLength(1);
+  });
+
+  it('NO toca el estilo ni sus perillas, aunque llegue un estilo (defecto de la 2.4)', async () => {
+    // Un negocio con `bloque` y sus perillas. Guardar su IVA mandando el estilo que leyó
+    // —o uno de la Fase 1— no puede cambiarle la piel ni borrarle las perillas.
+    const apariencia = {
+      estilo: 'bloque',
+      densidad: 'guantes',
+      redondeo: 'nula',
+      elevacion: 'linea-dura',
+      movimiento: 'sutil',
+      logoUrl: null,
+    };
+    const { ctx, operaciones } = contextoCatalogo([
+      { version: 3, valores: { apariencia } },
+      { id: ctxId() },
+      { version: 4 },
+    ]);
+    await guardarConfiguracion.ejecutar(
+      ctx,
+      guardarConfiguracion.entrada.parse({ ...entrada, estilo: 'editorial' }),
+    );
+    const guardada = operaciones[2]?.valores as {
+      valores: { apariencia: Record<string, unknown> };
+    };
+    expect(guardada.valores.apariencia).toMatchObject({
+      estilo: 'bloque',
+      densidad: 'guantes',
+      redondeo: 'nula',
+      elevacion: 'linea-dura',
+      movimiento: 'sutil',
+      colorPrimario: entrada.colorPrimario,
+    });
   });
 
   it('crea la configuración inicial si la organización aún usa defaults', async () => {

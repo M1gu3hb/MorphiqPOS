@@ -69,8 +69,6 @@ let configuracion = {
   logoUrl: inicial.logoUrl,
   colorPrimario: inicial.colorPrimario,
   colorAcento: inicial.colorAcento,
-  estilo: inicial.estilo,
-  paquete: inicial.paquete,
   impuestoIncluidoEnPrecio: inicial.impuestoIncluidoEnPrecio,
 };
 

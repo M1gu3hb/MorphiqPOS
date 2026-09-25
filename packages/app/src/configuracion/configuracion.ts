@@ -23,7 +23,18 @@ export const entradaGuardarConfiguracion = z.object({
   logoUrl: urlONull,
   colorPrimario: color,
   colorAcento: color,
-  estilo: z.enum(['base', 'editorial', 'premium']),
+  /**
+   * EL ESTILO YA NO SE GUARDA AQUÍ (defecto que destapó `humo-impuesto` en la 2.4).
+   *
+   * Esto era `z.enum(['base', 'editorial', 'premium'])`: los nombres de la Fase 1. Desde
+   * la 2.35 la lectura devuelve uno de los ocho —`bloque`, `noche`…—, así que quien leía
+   * la configuración y la devolvía tal cual recibía un 400; y quien mandaba un nombre
+   * viejo PISABA el estilo del negocio y le borraba sus cuatro perillas, porque abajo
+   * se reescribía `apariencia` entera. El estilo y sus perillas los escribe
+   * `configuracion.fijar_apariencia`, que sólo acepta los ocho. Aquí se acepta el campo
+   * —cualquier cliente que devuelva lo que leyó sigue funcionando— y se IGNORA.
+   */
+  estilo: z.string().max(40).optional(),
   /**
    * IVA en puntos base: 1600 = 16 %. Entero para que no exista un 16.000000001.
    *
@@ -203,11 +214,15 @@ export const guardarConfiguracion = definirComando<
     const valores = {
       ...(esDocumento(actual?.valores) ? actual.valores : {}),
       contacto: { telefono: entrada.telefono, direccion: entrada.direccion },
+      // Se CONSERVA lo que ya había en `apariencia` —el estilo y sus perillas, que son
+      // de `fijar_apariencia`— y sólo se pisan el logo y los dos colores.
       apariencia: {
+        ...(esDocumento(actual?.valores) && esDocumento(actual.valores['apariencia'])
+          ? actual.valores['apariencia']
+          : {}),
         logoUrl: entrada.logoUrl,
         colorPrimario: entrada.colorPrimario,
         colorAcento: entrada.colorAcento,
-        estilo: entrada.estilo,
       },
       impuesto: {
         puntosBase: entrada.impuestoPuntosBase,

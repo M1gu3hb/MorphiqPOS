@@ -33,6 +33,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
@@ -395,6 +396,7 @@ export function CobroYPropina({
   onCobrado,
 }: CobroYPropinaProps) {
   const voc = useVocabulario();
+  const enLinea = useEnLinea();
   const [pedido, setPedido] = useState<PedidoPorCobrar | null | undefined>(pedidoInicial);
   /** `null` es «todavía no llegan». Con el pedido dado por props, no se leen. */
   const [lineas, setLineas] = useState<readonly LineaDelTicket[] | null>(
@@ -543,6 +545,8 @@ export function CobroYPropina({
   const origen = segundaPantallaConectada ? 'cliente' : 'barista';
 
   async function cobrar(id: string): Promise<void> {
+    // Sin red no se cobra (F-988, A-27): no hay cola que guarde el cobro para después.
+    if (!enLinea) return;
     setEnviando(true);
     setError(null);
     try {
@@ -699,6 +703,7 @@ export function CobroYPropina({
         <h1 className="text-xl font-bold">{pedido.cliente_nombre ?? 'Sin nombre'}</h1>
         <Badge variant="secondary">{pedido.canal === 'aqui' ? 'Aquí' : 'Para llevar'}</Badge>
       </header>
+      {enLinea ? null : <AvisoSinConexion className="xl:col-span-2" />}
 
       <section
         aria-label={`Terminal del ${voc.singular('responsable')}`}
