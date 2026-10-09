@@ -77,6 +77,16 @@ export const APARIENCIA_DE_DEMO: Readonly<Record<Giro, AparienciaGuardada>> = {
 export const IMPUESTO_DE_DEMO = { puntosBase: 1600, incluidoEnPrecio: true } as const;
 
 /**
+ * CUÁNTAS CAJAS ABRE CADA DEMO A LA VEZ (F-235, 179). Lo que dice el §8.1 de su
+ * `02-DINERO-Y-CAJA`: la cafetería parte la fila en dos el fin de semana, con su fondo,
+ * su arqueo y su corte cada una; el restaurante, la tienda, la ferretería y el salón
+ * tienen un cajón. Una prueba que suba el cupo de otra demo queda deshecha al resetear.
+ */
+export function cajasSimultaneasDeDemo(giro: Giro): number {
+  return giro === 'cafeteria' ? 2 : 1;
+}
+
+/**
  * Los topes de descuento por rol, los mismos que la migración 078 siembra para todo
  * negocio. Hay que reponerlos porque un tope que no existe se lee como CERO: sin ellos,
  * tras un reseteo nadie podría descontar nada, ni el dueño.

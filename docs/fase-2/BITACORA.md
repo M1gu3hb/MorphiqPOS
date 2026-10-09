@@ -6384,3 +6384,36 @@ transferencias de la tienda; pruebas para las guardas de los guiones.
 **En qué voy:** el día completo de la tienda, empezando por las piezas compartidas que le
 faltan (devolución total y parcial, descuento con PIN de supervisor, gasto de caja, corte de
 turno).
+
+## 09-10-2026 · Etapa 2.4 · Bloque D: lo que el día completo necesitaba y no había (backend)
+
+**Construido, con sus pruebas vistas rojas por mutación:**
+- **Descuento con tope y PIN de supervisor** (F-205, D-28): `venta.aplicar_descuento`,
+  `venta.tope_de_descuento` e `identidad/supervisor.ts` + `/api/identidad/supervisor`. El cobro
+  del mostrador acepta `descuento` y **pago mixto** (`pagos`). 8 + 6 pruebas; 16 mutaciones
+  destructivas que fallan (sin exigir autorización, sin el tope de quien autoriza, sin la fila
+  de la bitácora, reparto parejo, el intento fallido sin registrar, comparar estando bloqueada,
+  cualquier puesto autoriza, sin firma, sin negocio, sin caducidad, sin la cajera…), 1 inocua.
+- **Devolución de venta total y parcial** (D-29): migración 178, `venta.devolver_venta`,
+  `venta.para_devolver`, `repoStock.regresarAlInventario`. 8 pruebas; 7 mutaciones destructivas
+  que fallan (más de lo vendido, redondeo por pedazo, cualquier método, sin sacar del cajón,
+  siempre parcial, otra sucursal, sin cobrar), 1 inocua.
+- **Varias cajas por sucursal** (F-235, D-30): migración 179, cupo en `caja.abrir`, el gasto
+  desde SU caja; la demo de la cafetería con cupo dos. `verify:rls` exige el disparador
+  sustituto.
+
+**La tanda 178–179 en la base viva**, por el procedimiento de F2.3 §4:
+- Respaldo lógico `D:\MIS PROYECTOS\Master POS\respaldos\morphiqpos-2026-10-09T06-25-04.sql`
+  (2,373,751 bytes, 3,458 inserts, sha256 igual al manifiesto).
+- Ensayo con datos sobre esa copia: correcto, los nueve negocios en su plantilla. **Defecto del
+  ensayo**: su frontera estaba fija en 57 con el comentario «se comprueba, no se supone» y
+  producción iba en la 177; ahora la lee del ledger vivo.
+- **Defecto peligroso de `pnpm db:migrate --ensayo`**: `db.mjs` no reenviaba `--ensayo` al
+  ejecutor, así que el último ensayo que manda §4.3 APLICABA la tanda. Visto leyendo antes de
+  usarlo; ahora reenvía los argumentos. Con el arreglo: «Ensayo correcto: 2 migración(es)
+  válidas, revertidas» contra `wyqmzhliurwyxuyxznpb`, y después «Aplicadas 2».
+- Contrato del esquema regenerado desde la base viva (1724 columnas, 1356 restricciones, 437
+  índices), orden de limpieza regenerado (118 tablas), `verify:esquema` y `verify:rls` en verde.
+
+**En qué voy:** las piezas de pantalla (descuento con PIN, devolución, gasto de caja, corte de
+turno, mixto) y el día completo de la tienda.

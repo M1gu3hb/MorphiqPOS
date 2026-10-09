@@ -172,7 +172,13 @@ function delegarEnData(tarea) {
     process.exit(3);
   }
 
-  process.exit(correrShim('pnpm', ['--filter', '@morphiqpos/data', tarea]));
+  // Los argumentos de después de la acción viajan con ella. Sin esto,
+  // `pnpm db:migrate --ensayo` —el último ensayo contra producción que manda
+  // F2.3-REGLAS §4.3— llegaba al ejecutor SIN `--ensayo` y APLICABA la tanda de
+  // verdad. Lo cazó la 2.4 leyendo el código antes de usarlo, no corriéndolo.
+  process.exit(
+    correrShim('pnpm', ['--filter', '@morphiqpos/data', tarea, ...process.argv.slice(3)]),
+  );
 }
 
 const accion = process.argv[2] ?? 'ayuda';

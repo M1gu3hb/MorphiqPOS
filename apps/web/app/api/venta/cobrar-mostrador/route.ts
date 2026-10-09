@@ -1,4 +1,4 @@
-import { cobrarOrden } from '@morphiqpos/app/venta';
+import { aplicarDescuento, cobrarOrden } from '@morphiqpos/app/venta';
 import { z } from 'zod';
 
 import {
@@ -58,6 +58,29 @@ import { manejadorDeComando } from '~/servidor/ruta';
 
 export const runtime = 'nodejs';
 
+/**
+ * Un renglón de un pago MIXTO (D.1 de la 2.4): el cobro de la tienda sólo aceptaba un
+ * método, y su `02-DINERO-Y-CAJA §5` define el mixto —«le abono $100 y llevo estas
+ * cosas», efectivo con tarjeta—. `venta.cobrar` ya reparte varios pagos (P1-11); faltaba
+ * dejarlos pasar. El recibido, sólo en efectivo: es de donde sale el cambio.
+ */
+const PagoDeMostrador = z.object({
+  metodo: z.enum(['efectivo', 'tarjeta', 'transferencia', 'fiado']),
+  montoCentavos: z.number().int().positive(),
+  recibidoCentavos: z.number().int().nonnegative().optional(),
+});
+
+/**
+ * El descuento de la venta (F-205, D-28): importe, motivo y, si pasa del tope de quien
+ * cobra, la autorización firmada del supervisor. Se aplica al borrador ANTES de cobrar,
+ * con `venta.aplicar_descuento`, y el total esperado ya viene descontado.
+ */
+const DescuentoDeMostrador = z.object({
+  centavos: z.number().int().positive(),
+  motivo: z.string().trim().min(4).max(200),
+  autorizacion: z.string().min(20).max(2_000).optional(),
+});
+
 const Entrada = z.object({
   /**
    * `fiado` (F11) entrega a cuenta de `clienteId` (F4). La ruta aceptaba sólo tres métodos
@@ -76,9 +99,33 @@ const Entrada = z.object({
    */
   canal: z.enum(['aqui', 'llevar']).optional(),
   nombrePedido: z.string().trim().min(1).max(60).optional(),
+  /** Si llega, manda sobre `metodo`: la venta se paga con estos renglones. */
+  pagos: z.array(PagoDeMostrador).min(2).max(4).optional(),
+  descuento: DescuentoDeMostrador.optional(),
 });
 
 const cobrar = manejadorDeComando(cobrarOrden);
+const descontar = manejadorDeComando(aplicarDescuento);
+
+/** Los pagos que se mandan a `venta.cobrar`: el mixto tal cual, o el método único por el total. */
+function pagosDe(datos: z.infer<typeof Entrada>) {
+  if (datos.pagos !== undefined) {
+    return datos.pagos.map((p) => ({
+      metodo: p.metodo,
+      montoCentavos: p.montoCentavos,
+      ...(p.metodo === 'efectivo' && p.recibidoCentavos !== undefined
+        ? { recibidoCentavos: p.recibidoCentavos }
+        : {}),
+    }));
+  }
+  return [
+    {
+      metodo: datos.metodo,
+      montoCentavos: datos.totalEsperadoCentavos,
+      ...(datos.metodo === 'efectivo' ? { recibidoCentavos: datos.recibidoCentavos } : {}),
+    },
+  ];
+}
 
 export async function POST(peticion: Request): Promise<Response> {
   const frontera = fronteraDelMostrador(peticion);
@@ -100,6 +147,22 @@ export async function POST(peticion: Request): Promise<Response> {
   if (!carrito.ok) return carrito.respuesta;
   const { ordenId } = carrito;
 
+  const { descuento } = validada.data;
+  if (descuento !== undefined) {
+    const respuestaDescuento = await descontar(
+      paso(
+        {
+          ordenId,
+          descuentoCentavos: descuento.centavos,
+          motivo: descuento.motivo,
+          ...(descuento.autorizacion === undefined ? {} : { autorizacion: descuento.autorizacion }),
+        },
+        'descuento',
+      ),
+    );
+    if ((await datosSiSalio(respuestaDescuento)) === null) return respuestaDescuento;
+  }
+
   // El total viaja para que el servidor RECHACE si no coincide con el suyo:
   // cobrar un número distinto del que ya se dijo en voz alta es peor que fallar.
   // `recibidoCentavos` sólo tiene sentido en efectivo; en tarjeta el cambio no
@@ -114,15 +177,7 @@ export async function POST(peticion: Request): Promise<Response> {
         ...(validada.data.nombrePedido === undefined
           ? {}
           : { nombrePedido: validada.data.nombrePedido }),
-        pagos: [
-          {
-            metodo: validada.data.metodo,
-            montoCentavos: validada.data.totalEsperadoCentavos,
-            ...(validada.data.metodo === 'efectivo'
-              ? { recibidoCentavos: validada.data.recibidoCentavos }
-              : {}),
-          },
-        ],
+        pagos: pagosDe(validada.data),
       },
       'cobro',
     ),

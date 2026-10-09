@@ -31,3 +31,12 @@ export {
   entradaGuardarEmpleado,
   type ResultadoGuardarEmpleado,
 } from './empleados.ts';
+
+export {
+  autorizarConPin,
+  leerAutorizacion,
+  ROLES_QUE_AUTORIZAN,
+  VIGENCIA_AUTORIZACION_SEGUNDOS,
+  type PeticionDeSupervisor,
+  type ResultadoDeSupervisor,
+} from './supervisor.ts';

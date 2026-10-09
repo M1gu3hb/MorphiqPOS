@@ -14,6 +14,7 @@ import { recalcularCostosRecetas } from '../inventario/recetas.ts';
 import { sembrarArranque, type ResumenArranque } from './arranque.ts';
 import {
   APARIENCIA_DE_DEMO,
+  cajasSimultaneasDeDemo,
   IMPUESTO_DE_DEMO,
   PIN_DEL_DUENO_DE_DEMO,
   TOPES_DE_DESCUENTO,
@@ -527,6 +528,15 @@ export const resetearDemo = definirComando<
     // Presentación, sin la cual esa pantalla no abre.
     await ctx.paso('reponer_configuracion', () =>
       reponerConfiguracion(ctx.tx, ctx.ambito.organizacionId, giro, pimienta),
+    );
+    // Y SU CUPO DE CAJAS (F-235): la cafetería abre dos; las demás, una.
+    await ctx.paso('reponer_cupo_de_cajas', () =>
+      ctx.tx
+        .updateTable('sucursales')
+        .set({ cajas_simultaneas: cajasSimultaneasDeDemo(giro) })
+        .where('organizacion_id', '=', ctx.ambito.organizacionId)
+        .where('id', '=', sucursalId)
+        .execute(),
     );
 
     const empleados = empleos.size;

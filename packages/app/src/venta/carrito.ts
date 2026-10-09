@@ -372,7 +372,7 @@ export const cambiarCantidad = definirComando<
 });
 
 /** Carga la orden y exige que siga siendo un borrador. */
-async function exigirBorrador(
+export async function exigirBorrador(
   tx: Transaccion,
   organizacionId: string,
   ordenId: string,

@@ -987,6 +987,8 @@ export interface Sucursales {
   activa: Generated<boolean>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+  /** F-235 (179) · Cuántas cajas puede haber abiertas a la vez. Uno por omisión. */
+  cajas_simultaneas: Generated<number>;
 }
 
 export interface Terminales {
@@ -1167,6 +1169,8 @@ export interface Esquema {
   aplicaciones_pago: AplicacionesPago;
   topes_descuento: TopesDescuento;
   autorizaciones_descuento: AutorizacionesDescuento;
+  devoluciones: Devoluciones;
+  devoluciones_lineas: DevolucionesLineas;
   lealtad_movimientos: LealtadMovimientos;
   lealtad_saldos: LealtadSaldos;
   lealtad_pasivo: LealtadPasivo;
@@ -1324,6 +1328,36 @@ export interface TopesDescuento {
   tope_bp: Generated<number>;
   actualizado_en: Generated<Date>;
   empleado_id: string | null;
+}
+
+/**
+ * D-29 · La devolución de una venta cobrada (178). Documento propio: el ticket original
+ * no se toca y la devolución resta de la venta del día en que se hace.
+ */
+export interface Devoluciones {
+  id: Generated<string>;
+  organizacion_id: string;
+  sucursal_id: string;
+  orden_id: string;
+  /** La caja de la que salió el efectivo; nula cuando no tocó el cajón. */
+  sesion_caja_id: string | null;
+  empleado_id: string;
+  metodo: 'efectivo' | 'tarjeta' | 'transferencia';
+  monto_centavos: bigint;
+  motivo: string;
+  regresa_al_inventario: Generated<boolean>;
+  created_at: Generated<Date>;
+}
+
+/** D-29 · Lo devuelto de cada línea, y cuánto dinero. */
+export interface DevolucionesLineas {
+  id: Generated<string>;
+  organizacion_id: string;
+  devolucion_id: string;
+  orden_linea_id: string;
+  cantidad: string;
+  monto_centavos: bigint;
+  created_at: Generated<Date>;
 }
 
 /** F-205 · Quién autorizó saltarse su tope, sobre qué venta y por qué. */

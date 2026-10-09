@@ -46,3 +46,24 @@ export {
   type ResultadoSuspension,
   type VentaEnEspera,
 } from './suspender.ts';
+
+export {
+  aplicarDescuento,
+  entradaAplicarDescuento,
+  entradaTopeDeDescuento,
+  topeDeDescuento,
+  type QuienAutoriza,
+  type ResultadoDescuentoDeMostrador,
+  type ResultadoTopeDeDescuento,
+} from './descuento-de-mostrador.ts';
+
+export {
+  devolverVenta,
+  entradaDevolverVenta,
+  entradaVentaParaDevolver,
+  ventaParaDevolver,
+  type LineaDevuelta,
+  type LineaParaDevolver,
+  type ResultadoDevolucionDeVenta,
+  type VentaParaDevolver,
+} from './devolucion-de-venta.ts';

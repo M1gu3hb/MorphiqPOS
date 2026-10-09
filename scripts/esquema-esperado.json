@@ -4951,6 +4951,204 @@
       "generada": null
     },
     {
+      "clave": "public.devoluciones.created_at",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "created_at",
+      "tipo": "timestamp with time zone",
+      "noNula": true,
+      "defaultSql": "now()",
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.empleado_id",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "empleado_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.id",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": "gen_random_uuid()",
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.metodo",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "metodo",
+      "tipo": "text",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.monto_centavos",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "monto_centavos",
+      "tipo": "bigint",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.motivo",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "motivo",
+      "tipo": "text",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.orden_id",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "orden_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.organizacion_id",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "organizacion_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.regresa_al_inventario",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "regresa_al_inventario",
+      "tipo": "boolean",
+      "noNula": true,
+      "defaultSql": "true",
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.sesion_caja_id",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "sesion_caja_id",
+      "tipo": "uuid",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones.sucursal_id",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "sucursal_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones_lineas.cantidad",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "columna": "cantidad",
+      "tipo": "numeric(14,4)",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones_lineas.created_at",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "columna": "created_at",
+      "tipo": "timestamp with time zone",
+      "noNula": true,
+      "defaultSql": "now()",
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones_lineas.devolucion_id",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "columna": "devolucion_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones_lineas.id",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "columna": "id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": "gen_random_uuid()",
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones_lineas.monto_centavos",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "columna": "monto_centavos",
+      "tipo": "bigint",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones_lineas.orden_linea_id",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "columna": "orden_linea_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.devoluciones_lineas.organizacion_id",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "columna": "organizacion_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
       "clave": "public.documentos_credito.cliente_id",
       "esquema": "public",
       "tabla": "documentos_credito",
@@ -17447,6 +17645,17 @@
       "generada": null
     },
     {
+      "clave": "public.sucursales.cajas_simultaneas",
+      "esquema": "public",
+      "tabla": "sucursales",
+      "columna": "cajas_simultaneas",
+      "tipo": "smallint",
+      "noNula": true,
+      "defaultSql": "1",
+      "identidad": null,
+      "generada": null
+    },
+    {
       "clave": "public.sucursales.created_at",
       "esquema": "public",
       "tabla": "sucursales",
@@ -22487,6 +22696,259 @@
       "diferidaInicialmente": false
     },
     {
+      "clave": "public.devoluciones.devolucion_en_efectivo_con_caja",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devolucion_en_efectivo_con_caja",
+      "tipo": "check",
+      "definicion": "CHECK (metodo <> 'efectivo'::text OR sesion_caja_id IS NOT NULL)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_empleado_id_fkey",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_empleado_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (empleado_id) REFERENCES empleos(id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_empleado_misma_org",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_empleado_misma_org",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (empleado_id, organizacion_id) REFERENCES empleos(id, organizacion_id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_id_org_unica",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_id_org_unica",
+      "tipo": "unique",
+      "definicion": "UNIQUE (id, organizacion_id)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_metodo_check",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_metodo_check",
+      "tipo": "check",
+      "definicion": "CHECK (metodo = ANY (ARRAY['efectivo'::text, 'tarjeta'::text, 'transferencia'::text]))",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_monto_centavos_check",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_monto_centavos_check",
+      "tipo": "check",
+      "definicion": "CHECK (monto_centavos > 0)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_motivo_check",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_motivo_check",
+      "tipo": "check",
+      "definicion": "CHECK (length(TRIM(BOTH FROM motivo)) >= 4 AND length(TRIM(BOTH FROM motivo)) <= 200)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_orden_id_fkey",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_orden_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_orden_misma_org",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_orden_misma_org",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (orden_id, organizacion_id) REFERENCES ordenes(id, organizacion_id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_organizacion_id_fkey",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_organizacion_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (organizacion_id) REFERENCES organizaciones(id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_pkey",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_pkey",
+      "tipo": "primary_key",
+      "definicion": "PRIMARY KEY (id)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_sesion_caja_id_fkey",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_sesion_caja_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (sesion_caja_id) REFERENCES sesiones_caja(id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_sesion_caja_misma_org",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_sesion_caja_misma_org",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (sesion_caja_id, organizacion_id) REFERENCES sesiones_caja(id, organizacion_id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_sucursal_id_fkey",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_sucursal_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (sucursal_id) REFERENCES sucursales(id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_sucursal_misma_org",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_sucursal_misma_org",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (sucursal_id, organizacion_id) REFERENCES sucursales(id, organizacion_id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_cantidad_check",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_cantidad_check",
+      "tipo": "check",
+      "definicion": "CHECK (cantidad > 0::numeric)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_devolucion_id_fkey",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_devolucion_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (devolucion_id) REFERENCES devoluciones(id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_devolucion_misma_org",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_devolucion_misma_org",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (devolucion_id, organizacion_id) REFERENCES devoluciones(id, organizacion_id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_linea_misma_org",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_linea_misma_org",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (orden_linea_id, organizacion_id) REFERENCES orden_lineas(id, organizacion_id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_monto_centavos_check",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_monto_centavos_check",
+      "tipo": "check",
+      "definicion": "CHECK (monto_centavos >= 0)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_orden_linea_id_fkey",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_orden_linea_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (orden_linea_id) REFERENCES orden_lineas(id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_organizacion_id_fkey",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_organizacion_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (organizacion_id) REFERENCES organizaciones(id) ON DELETE RESTRICT",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_pkey",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_pkey",
+      "tipo": "primary_key",
+      "definicion": "PRIMARY KEY (id)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
       "clave": "public.documentos_credito.documentos_credito_cliente_id_fkey",
       "esquema": "public",
       "tabla": "documentos_credito",
@@ -26034,7 +26496,7 @@
       "tabla": "movimientos_caja",
       "nombre": "movimientos_caja_referencia_tipo_check",
       "tipo": "check",
-      "definicion": "CHECK (referencia_tipo = ANY (ARRAY['orden'::text, 'gasto'::text, 'manual'::text, 'pasivo'::text, 'redondeo'::text, 'liquidacion'::text, 'cita'::text, 'renta'::text, 'pago_credito'::text, 'pago_proveedor'::text]))",
+      "definicion": "CHECK (referencia_tipo = ANY (ARRAY['orden'::text, 'gasto'::text, 'manual'::text, 'pasivo'::text, 'redondeo'::text, 'liquidacion'::text, 'cita'::text, 'renta'::text, 'pago_credito'::text, 'pago_proveedor'::text, 'devolucion'::text]))",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -26496,7 +26958,7 @@
       "tabla": "movimientos_stock",
       "nombre": "movimientos_stock_referencia_tipo_check",
       "tipo": "check",
-      "definicion": "CHECK (referencia_tipo = ANY (ARRAY['orden'::text, 'compra'::text, 'conteo'::text, 'manual'::text, 'consumo_interno'::text, 'anulacion'::text, 'merma_barra'::text, 'redondeo'::text, 'corte'::text, 'servicio'::text, 'garantia'::text, 'renta'::text, 'apertura_cabina'::text, 'consumo_cabina'::text, 'merma'::text, 'traspaso'::text]))",
+      "definicion": "CHECK (referencia_tipo = ANY (ARRAY['orden'::text, 'compra'::text, 'conteo'::text, 'manual'::text, 'consumo_interno'::text, 'anulacion'::text, 'merma_barra'::text, 'redondeo'::text, 'corte'::text, 'servicio'::text, 'garantia'::text, 'renta'::text, 'apertura_cabina'::text, 'consumo_cabina'::text, 'merma'::text, 'traspaso'::text, 'devolucion'::text]))",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -27223,6 +27685,17 @@
       "nombre": "orden_lineas_estado_preparacion_check",
       "tipo": "check",
       "definicion": "CHECK (estado_preparacion = ANY (ARRAY['pendiente'::text, 'en_preparacion'::text, 'listo'::text, 'entregado'::text, 'cancelado'::text]))",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.orden_lineas.orden_lineas_id_org_unica",
+      "esquema": "public",
+      "tabla": "orden_lineas",
+      "nombre": "orden_lineas_id_org_unica",
+      "tipo": "unique",
+      "definicion": "UNIQUE (id, organizacion_id)",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -32387,6 +32860,17 @@
       "diferidaInicialmente": false
     },
     {
+      "clave": "public.sucursales.sucursales_cajas_simultaneas_check",
+      "esquema": "public",
+      "tabla": "sucursales",
+      "nombre": "sucursales_cajas_simultaneas_check",
+      "tipo": "check",
+      "definicion": "CHECK (cajas_simultaneas >= 1 AND cajas_simultaneas <= 4)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
       "clave": "public.sucursales.sucursales_id_org_unica",
       "esquema": "public",
       "tabla": "sucursales",
@@ -34521,6 +35005,86 @@
       "definicion": "CREATE INDEX depositos_por_envase ON public.depositos_envase USING btree (organizacion_id, envase_producto_id, created_at DESC)"
     },
     {
+      "clave": "public.devoluciones.devoluciones_id_org_unica",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_id_org_unica",
+      "unico": true,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE UNIQUE INDEX devoluciones_id_org_unica ON public.devoluciones USING btree (id, organizacion_id)"
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_pkey",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_pkey",
+      "unico": true,
+      "primario": true,
+      "valido": true,
+      "definicion": "CREATE UNIQUE INDEX devoluciones_pkey ON public.devoluciones USING btree (id)"
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_por_dia",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_por_dia",
+      "unico": false,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE INDEX devoluciones_por_dia ON public.devoluciones USING btree (organizacion_id, created_at DESC)"
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_por_orden",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_por_orden",
+      "unico": false,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE INDEX devoluciones_por_orden ON public.devoluciones USING btree (organizacion_id, orden_id)"
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_por_sesion",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_por_sesion",
+      "unico": false,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE INDEX devoluciones_por_sesion ON public.devoluciones USING btree (organizacion_id, sesion_caja_id) WHERE (sesion_caja_id IS NOT NULL)"
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_pkey",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_pkey",
+      "unico": true,
+      "primario": true,
+      "valido": true,
+      "definicion": "CREATE UNIQUE INDEX devoluciones_lineas_pkey ON public.devoluciones_lineas USING btree (id)"
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_por_devolucion",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_por_devolucion",
+      "unico": false,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE INDEX devoluciones_lineas_por_devolucion ON public.devoluciones_lineas USING btree (organizacion_id, devolucion_id)"
+    },
+    {
+      "clave": "public.devoluciones_lineas.devoluciones_lineas_por_linea",
+      "esquema": "public",
+      "tabla": "devoluciones_lineas",
+      "nombre": "devoluciones_lineas_por_linea",
+      "unico": false,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE INDEX devoluciones_lineas_por_linea ON public.devoluciones_lineas USING btree (organizacion_id, orden_linea_id)"
+    },
+    {
       "clave": "public.documentos_credito.documentos_credito_organizacion_id_folio_key",
       "esquema": "public",
       "tabla": "documentos_credito",
@@ -35879,6 +36443,16 @@
       "primario": false,
       "valido": true,
       "definicion": "CREATE INDEX orden_linea_modificadores_por_linea ON public.orden_linea_modificadores USING btree (orden_linea_id)"
+    },
+    {
+      "clave": "public.orden_lineas.orden_lineas_id_org_unica",
+      "esquema": "public",
+      "tabla": "orden_lineas",
+      "nombre": "orden_lineas_id_org_unica",
+      "unico": true,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE UNIQUE INDEX orden_lineas_id_org_unica ON public.orden_lineas USING btree (id, organizacion_id)"
     },
     {
       "clave": "public.orden_lineas.orden_lineas_pkey",
@@ -37249,16 +37823,6 @@
       "primario": false,
       "valido": true,
       "definicion": "CREATE INDEX sesiones_caja_por_organizacion ON public.sesiones_caja USING btree (organizacion_id, abierta_en DESC)"
-    },
-    {
-      "clave": "public.sesiones_caja.sesiones_caja_una_abierta_por_sucursal",
-      "esquema": "public",
-      "tabla": "sesiones_caja",
-      "nombre": "sesiones_caja_una_abierta_por_sucursal",
-      "unico": true,
-      "primario": false,
-      "valido": true,
-      "definicion": "CREATE UNIQUE INDEX sesiones_caja_una_abierta_por_sucursal ON public.sesiones_caja USING btree (organizacion_id, sucursal_id) WHERE (estado = 'abierta'::text)"
     },
     {
       "clave": "public.sesiones_caja.sesiones_caja_una_abierta_por_terminal",

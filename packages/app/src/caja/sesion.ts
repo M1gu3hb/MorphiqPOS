@@ -49,28 +49,27 @@ export const abrirCaja = definirComando<
     }
 
     /**
-     * Y la de OTRA terminal de la misma sucursal, que la base tampoco permite.
+     * Y el CUPO de la sucursal, que la base también hace cumplir (F-235, 179).
      *
-     * `sesiones_caja_una_abierta_por_sucursal` es un índice único parcial: una
-     * sesión abierta por sucursal, no una por terminal. Sin esta comprobación la
-     * violación del índice salía como `DatabaseError sqlstate=23505` y la
-     * pantalla decía «Algo falló de nuestro lado. Nada se guardó a medias.» — que
-     * es verdad y no sirve de nada: no dice que hay una caja abierta en la
-     * terminal de al lado, que es lo único que hay que saber para resolverlo.
-     *
-     * Y hay que decirlo con todo lo que se sabe, porque el camino de salida NO es
-     * obvio: cerrar la ajena exige ser su terminal, así que desde aquí no se
-     * puede. Por eso el mensaje nombra la terminal y la salida real.
+     * Hasta la 179 era un índice único: una caja abierta por sucursal, siempre, y sin
+     * esta comprobación su violación salía como «Algo falló de nuestro lado» en vez de
+     * «hay una abierta en la terminal de al lado». Ahora el cupo es de la sucursal —uno
+     * por omisión, dos en la cafetería de fin de semana— y el mensaje nombra la terminal
+     * que la tiene, porque el camino de salida NO es obvio: cerrar la ajena exige ser su
+     * terminal.
      */
-    const deLaSucursal = await ctx.paso('buscar_sesion_sucursal', () =>
-      repoCaja.sesionAbiertaDeSucursal(ctx.tx, organizacionId, sucursalId),
+    const { cupo, abiertas } = await ctx.paso('leer_cupo_de_cajas', () =>
+      repoCaja.cupoDeCajas(ctx.tx, organizacionId, sucursalId),
     );
-    if (deLaSucursal !== null) {
+    if (abiertas.length >= cupo) {
+      const ajena = abiertas[0];
       throw new ErrorDominio(
         'CAJA_YA_ABIERTA',
-        `Esta sucursal ya tiene una caja abierta, en la terminal «${deLaSucursal.terminalNombre ?? 'sin nombre'}». ` +
-          'Sólo puede haber una a la vez: haz el corte desde ESA terminal antes de abrir aquí.',
-        { sesionCajaId: deLaSucursal.id, terminalId: deLaSucursal.terminalId },
+        cupo === 1
+          ? `Esta sucursal ya tiene una caja abierta, en la terminal «${ajena?.terminalNombre ?? 'sin nombre'}». ` +
+              'Sólo puede haber una a la vez: haz el corte desde ESA terminal antes de abrir aquí.'
+          : `Esta sucursal ya tiene sus ${String(cupo)} cajas abiertas. Cierra una antes de abrir otra.`,
+        { sesionCajaId: ajena?.id ?? null, terminalId: ajena?.terminalId ?? null, cupo },
       );
     }
 

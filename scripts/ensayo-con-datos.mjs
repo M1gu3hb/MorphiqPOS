@@ -63,8 +63,31 @@ function primeraLinea(error) {
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 const RESPALDOS = join(dirname(RAIZ), 'respaldos');
 
-/** La última versión que producción tiene aplicada hoy. Se comprueba, no se supone. */
-const FRONTERA_POR_OMISION = 57;
+/**
+ * La última versión que producción tiene aplicada HOY, leída de su ledger.
+ *
+ * Aquí había un `57` fijo con el comentario «se comprueba, no se supone», y producción
+ * iba en la 177: el ensayo aplicaba 001-057, cargaba un respaldo de un esquema 120
+ * migraciones más nuevo y reventaba con «column "tipo" of relation "almacenes" does not
+ * exist» (2.4, al ensayar la 178). Ahora se lee del ledger vivo —sólo lectura, con el
+ * proyecto comprobado— y `MORPHIQPOS_ENSAYO_FRONTERA` sólo sirve para forzarla a mano.
+ */
+async function fronteraDeProduccion() {
+  const declarada = process.env['MORPHIQPOS_ENSAYO_FRONTERA'];
+  if (declarada !== undefined && declarada !== '') return Number(declarada);
+  const { consultarViva } = await import('../packages/data/src/verificacion/consulta-directa.ts');
+  const { rows } = await consultarViva(
+    'select max(version)::int as ultima from public._migraciones',
+    {
+      proyectoEsperado: 'wyqmzhliurwyxuyxznpb',
+    },
+  );
+  const ultima = Number(rows[0]?.['ultima']);
+  if (!Number.isInteger(ultima) || ultima <= 0) {
+    throw new Error('No se pudo leer la última migración aplicada en producción.');
+  }
+  return ultima;
+}
 
 /**
  * Los roles que las migraciones nombran en sus `grant` y `revoke`.
@@ -108,7 +131,7 @@ async function main() {
   }
 
   const enDisco = leerMigraciones();
-  const frontera = Number(process.env['MORPHIQPOS_ENSAYO_FRONTERA'] ?? FRONTERA_POR_OMISION);
+  const frontera = await fronteraDeProduccion();
   const base = enDisco.filter((m) => m.version <= frontera);
   const pendientes = enDisco.filter((m) => m.version > frontera);
 

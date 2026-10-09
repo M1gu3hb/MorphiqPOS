@@ -753,3 +753,45 @@ export async function fondoPorMontones(
     .executeTakeFirstOrThrow();
   return fila;
 }
+
+/**
+ * EL CUPO DE CAJAS DE LA SUCURSAL y las que ya están abiertas (F-235, 179).
+ *
+ * `sesiones_caja_una_abierta_por_sucursal` era un índice único: una caja por sucursal,
+ * siempre. Desde la 179 el cupo es de la sucursal —uno por omisión, dos en la cafetería
+ * de fin de semana— y la base lo hace cumplir con un disparador que rechaza igual que el
+ * índice. Esto lo lee ANTES de abrir, para que el rechazo llegue con la terminal que
+ * tiene la caja y no como un 23505 sin explicación.
+ */
+export async function cupoDeCajas(
+  db: Kysely<Esquema> | Transaccion,
+  organizacionId: string,
+  sucursalId: string,
+): Promise<{
+  readonly cupo: number;
+  readonly abiertas: readonly (SesionAbierta & { readonly terminalNombre: string | null })[];
+}> {
+  const sucursal = await db
+    .selectFrom('sucursales')
+    .select('cajas_simultaneas')
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', sucursalId)
+    .executeTakeFirst();
+  const abiertas = await db
+    .selectFrom('sesiones_caja')
+    .leftJoin('terminales', 'terminales.id', 'sesiones_caja.terminal_id')
+    .select([
+      'sesiones_caja.id as id',
+      'sesiones_caja.sucursal_id as sucursalId',
+      'sesiones_caja.terminal_id as terminalId',
+      'sesiones_caja.serie as serie',
+      'sesiones_caja.fondo_inicial_centavos as fondoInicialCentavos',
+      'sesiones_caja.abierta_en as abiertaEn',
+      'terminales.nombre as terminalNombre',
+    ])
+    .where('sesiones_caja.organizacion_id', '=', organizacionId)
+    .where('sesiones_caja.sucursal_id', '=', sucursalId)
+    .where('sesiones_caja.estado', '=', 'abierta')
+    .execute();
+  return { cupo: sucursal?.cajas_simultaneas ?? 1, abiertas };
+}

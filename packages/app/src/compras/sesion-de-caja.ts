@@ -19,12 +19,18 @@ export interface SesionDeCaja {
 }
 
 /**
- * La caja abierta de la sucursal.
+ * La caja de la que sale el gasto.
  *
- * Es una sola: lo impone `sesiones_caja_una_abierta_por_sucursal` (046:85), y
- * por eso no hace falta la terminal. Si no hay ninguna, el gasto en efectivo no
- * se registra: sin sesión, el dinero sale del cajón sin quedar en ningún arqueo
- * y el corte del día nace con un faltante que nadie sabe explicar.
+ * Era «la caja abierta de la sucursal», una sola, porque lo imponía
+ * `sesiones_caja_una_abierta_por_sucursal` (046). Desde la 179 una sucursal puede tener
+ * varias (F-235: la cafetería abre dos el fin de semana), y el efectivo sale de UN cajón:
+ * el de la terminal desde la que se registra. Si se registra desde una terminal sin caja
+ * —la oficina— y la sucursal tiene una sola abierta, es ésa; si tiene varias, no se
+ * adivina: se pide registrarlo desde la caja de la que salió.
+ *
+ * Si no hay ninguna, el gasto en efectivo no se registra: sin sesión, el dinero sale del
+ * cajón sin quedar en ningún arqueo y el corte del día nace con un faltante que nadie
+ * sabe explicar.
  *
  * El día se calcula en la zona horaria de la organización, igual que el resto
  * del sistema (`catalogo/inicio.ts`): un turno que cruza la medianoche del
@@ -34,11 +40,12 @@ export async function sesionAbierta(
   tx: Transaccion,
   organizacionId: string,
   sucursalId: string,
+  terminalId: string | null = null,
 ): Promise<SesionDeCaja> {
-  const fila = await tx
+  const filas = await tx
     .selectFrom('sesiones_caja as s')
     .innerJoin('organizaciones as o', 'o.id', 's.organizacion_id')
-    .select('s.id')
+    .select(['s.id', 's.terminal_id'])
     .select(
       sql<string>`to_char((s.abierta_en at time zone o.zona_horaria)::date, 'YYYY-MM-DD')`.as(
         'fecha',
@@ -47,13 +54,21 @@ export async function sesionAbierta(
     .where('s.organizacion_id', '=', organizacionId)
     .where('s.sucursal_id', '=', sucursalId)
     .where('s.estado', '=', 'abierta')
-    .executeTakeFirst();
+    .execute();
 
-  if (fila === undefined) {
+  if (filas.length === 0) {
     throw new ErrorDominio(
       'CAJA_CERRADA',
       'No hay una caja abierta. Ábrela antes de pagar este gasto en efectivo, ' +
         'o regístralo con tarjeta o transferencia si no salió del cajón.',
+    );
+  }
+  const deEstaTerminal = filas.find((f) => terminalId !== null && f.terminal_id === terminalId);
+  const fila = deEstaTerminal ?? (filas.length === 1 ? filas[0] : undefined);
+  if (fila === undefined) {
+    throw new ErrorDominio(
+      'CAJA_CERRADA',
+      'Hay varias cajas abiertas: registra el gasto desde la terminal de la caja de la que salió el dinero.',
     );
   }
   return { id: fila.id, fecha: fila.fecha };

@@ -108,6 +108,7 @@ export const ORDEN_DE_LIMPIEZA: readonly PasoDeLimpieza[] = [
   { tabla: 'cotizacion_eventos', via: null },
   { tabla: 'cotizacion_lineas', via: null },
   { tabla: 'depositos_envase', via: null },
+  { tabla: 'devoluciones_lineas', via: null },
   { tabla: 'equivalencias', via: null },
   {
     tabla: 'esquema_propina_puntos',
@@ -185,6 +186,7 @@ export const ORDEN_DE_LIMPIEZA: readonly PasoDeLimpieza[] = [
   { tabla: 'comisionistas', via: null },
   { tabla: 'consentimientos', via: null },
   { tabla: 'cotizaciones', via: null },
+  { tabla: 'devoluciones', via: null },
   { tabla: 'documentos_credito', via: null },
   { tabla: 'documentos_por_pagar', via: null },
   { tabla: 'liquidaciones', via: null },

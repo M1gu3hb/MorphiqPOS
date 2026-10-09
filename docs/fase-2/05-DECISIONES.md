@@ -633,6 +633,84 @@ eso es CFDI: P-02. El día que se decida el PAC, la utilidad fiscal se calcula a
 corte enseña las dos, rotuladas; antes, esta es la única que se puede calcular con los datos
 que hay. Las propinas, como siempre, fuera de las dos.
 
+## D-27 · 08-10-2026 · La base desechable de la laptop es un PostgreSQL propio, no una rama de Supabase
+
+**Contexto.** La 2.4 separa lo que se prueba según lo que toca (bloque D): lo que escribe un
+día de ventas corre sobre las cinco demos; lo destructivo —dar de baja, cambiar un PIN o el
+IVA, lo «permitido» de la matriz de permisos— y la integración contra Postgres corren contra
+una base DESECHABLE. En CI es el Postgres de servicio de cada trabajo. En la laptop,
+`BASE-DE-PRUEBAS.md` proponía una rama de Supabase: cuesta por hora, vive en el mismo
+proyecto que los negocios reales y hay que acordarse de borrarla.
+
+**Decisión.** `scripts/base-desechable.mjs` levanta un clúster propio con los binarios de
+PostgreSQL ya instalados (`initdb`, `pg_ctl`; `MORPHIQPOS_PG_BIN` si no están donde se
+buscan), en un directorio temporal y en el 5435, con confianza local y nadie más conectado.
+Migra DENTRO de su proceso con la URL local —quita `MORPHIQPOS_SUPABASE_PROJECT_REF`, que
+mandaría `migrate` al proyecto vivo por el CLI (B.5)—, da de alta las cinco demos con su ID
+(`db:alta-negocio`, `db:bootstrap`) y las siembra con `configuracion.resetear_demo`. `bajar`
+lo apaga y lo borra. Los secretos del servidor contra esa base son de usar y tirar, como en
+el rastreo de CI.
+
+**Por qué.** Es la misma forma que CI (Postgres sin Supabase, `morphiqpos_app` creado a mano,
+las migraciones de verdad con su ledger) y no comparte nada con producción. La rama de
+Supabase sigue siendo válida para quien no tenga PostgreSQL instalado. La versión local puede
+no ser la 17 de producción: CI manda en eso (D.9 lo iguala allí).
+
+## D-28 · 09-10-2026 · El descuento sobre el tope se autoriza con el PIN del supervisor en la terminal de quien cobra
+
+**Contexto.** Cada `02-DINERO-Y-CAJA §3` de los giros de mostrador pide un tope de descuento
+por puesto y, por encima, «el PIN de un supervisor, y el PIN queda en la bitácora» (F-205). El
+mostrador no tenía descuento NINGUNO y `venta.autorizar_descuento` escribía autorizaciones que
+nada aplicaba; la única vía era la del salón —el supervisor entra con su sesión y cobra él—,
+que en un mostrador obliga a cerrar la sesión de la cajera con la venta armada.
+
+**Decisión.** El supervisor teclea SU PIN en la terminal de la cajera
+(`/api/identidad/supervisor`, `identidad/supervisor.ts`): se comprueba igual que al entrar
+—Argon2id con pimienta, el mismo bloqueo progresivo en el mismo renglón de
+`credenciales_pin`, el mismo límite por origen `LIMITES.entrar`— y, si su puesto autoriza
+(gerente, administrador, dueño), vuelve una autorización FIRMADA de dos minutos, atada al
+negocio y a la cajera que la pidió. `venta.aplicar_descuento` la presenta, comprueba que el tope
+de quien autoriza cubre el descuento ENTERO y escribe `autorizaciones_descuento` con quién la
+dio. El descuento se reparte exacto entre las líneas y los totales salen de `cotizar`.
+
+**Por qué no es un comando.** El intento fallido tiene que CONTAR: un comando que rechaza
+revierte su transacción y con ella el contador, así que el PIN del gerente se podría probar
+sin fin desde la caja. Aquí cada intento fallido se confirma antes de contestar. Y un PIN malo
+contesta 403, nunca 401: para el cliente un 401 es «tu sesión venció» y cerraría la de la
+cajera.
+
+## D-29 · 09-10-2026 · La devolución de venta es un documento propio, total o parcial
+
+**Contexto.** «Devolución de venta en efectivo · Encargado · − monto · Resta de ventas» está en
+los `02-DINERO-Y-CAJA` de la tienda, la ferretería y el salón, y no existía en ningún modelo:
+`venta.devolver` es la del pedido de barra, total y sólo en la fila.
+
+**Decisión.** `devoluciones` y `devoluciones_lineas` (migración 178) y `venta.devolver_venta`.
+El ticket original no se toca (ferretería §1: «el histórico no se toca»); la devolución resta
+de la venta del día en que se hace. Lo cobrado de cada línea es su parte exacta del total
+pagado; lo devuelto se calcula ACUMULADO, así que devolver a pedazos suma exactamente lo
+cobrado. Sale por un método que la venta usó y por no más de lo que entró por él (devolver en
+efectivo lo pagado con tarjeta es la forma más vieja de sacar dinero del cajón); en efectivo,
+del cajón de la terminal que devuelve, con su sesión bloqueada. La mercancía regresa al almacén
+con un movimiento `devolucion` positivo, calculado con `calcularConsumo`; lo de receta no
+regresa. La hacen el encargado y el dueño, no la cajera. Una venta a crédito o fiada no se
+devuelve en caja: se ajusta en la cuenta del cliente (queda fuera de este comando).
+
+## D-30 · 09-10-2026 · El cupo de cajas abiertas es de la sucursal (F-235)
+
+**Contexto.** El `02-DINERO-Y-CAJA §8.1` de la cafetería abre dos cajas el fin de semana, cada
+una con su fondo, arqueo y corte, y `caja/multiples.ts` (F-235) se escribió para eso. Pero la
+046 creó `sesiones_caja_una_abierta_por_sucursal`, un índice único que impedía la segunda caja
+en cualquier terminal: F-235 no podía funcionar. El restaurante, en cambio, declara una sola
+caja a propósito.
+
+**Decisión.** `sucursales.cajas_simultaneas` (179), uno por omisión —la regla de la 046 para
+todo negocio que no lo cambie—, y un disparador que BLOQUEA la sucursal antes de contar y
+rechaza con el mismo código y el mismo nombre que el índice. `caja.abrir` lee el cupo antes y
+nombra la terminal que tiene la caja; el gasto en efectivo sale del cajón de SU terminal cuando
+hay varias. La demo de la cafetería nace con cupo dos (lo repone el reseteo). `verify:rls`
+deja de exigir el índice sólo si su disparador sustituto está en la base.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

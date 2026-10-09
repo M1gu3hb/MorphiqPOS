@@ -58,6 +58,12 @@ with relaciones as (
   from pg_catalog.pg_proc p
   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public'
+), disparadores as (
+  select tg.tgname as nombre
+  from pg_catalog.pg_trigger tg
+  join pg_catalog.pg_class c on c.oid = tg.tgrelid
+  join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and not tg.tgisinternal
 )
 select json_build_object(
   'relaciones', coalesce(
@@ -70,6 +76,10 @@ select json_build_object(
   ),
   'funciones', coalesce(
     (select json_agg(row_to_json(f) order by f.clave) from funciones f),
+    '[]'::json
+  ),
+  'disparadores', coalesce(
+    (select json_agg(d.nombre order by d.nombre) from disparadores d),
     '[]'::json
   )
 ) as estado;
@@ -176,7 +186,7 @@ try {
   }
   console.log(
     `✓ RLS y grants cerrados en ${estado.relaciones.length} relaciones y ` +
-      `${estado.funciones.length} funciones; índices 046 presentes.`,
+      `${estado.funciones.length} funciones; índices 046 presentes (o su disparador sustituto).`,
   );
 } catch (error) {
   console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
