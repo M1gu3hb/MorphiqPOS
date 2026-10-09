@@ -6464,3 +6464,59 @@ verde · unitarias 335 archivos / 3,878 pruebas.
 
 **En qué voy:** el día completo de la tienda en Playwright contra la base desechable.
 
+## 09-10-2026 · Etapa 2.4 · Bloque D: el día completo de la tienda, cuadrado al centavo
+
+**`pruebas/e2e/dia-completo-abarrotes.spec.ts` PASA** (38 s, repetible): un martes de Abarrotes
+Don Chuy operado por su equipo —Poncho (almacén), Jesica (cajera), Laura (gerente en la PC del
+mostrador) y el dueño— llegando a cada pantalla POR EL MENÚ: entrada del proveedor con canje;
+apertura con $800 desglosados; ventas en efectivo, tarjeta, transferencia y MIXTO; descuento
+dentro del tope y otro autorizado con el PIN de Laura; recibo de luz (F-255); fiado y abono;
+casco que entra y que vuelve; venta apartada cancelada con motivo; devolución total y parcial;
+gasto y retiro; corte de turno a ciegas con FALTANTE; venta del segundo turno; conteo de zona
+con diferencia y ajuste; cierre a ciegas con SOBRANTE y su PDF; el dueño lee el corte.
+Conciliación: **8 ventas, $464.20 cobrados, efectivo esperado $1,718.00, sobrante $20.00 ·
+CUADRA** (pagos por método, cajas, arqueo, pasivos e inventario), y el mismo día con UN centavo
+de más NO cuadra.
+
+**Defectos que encontró el día** (todos arreglados, con prueba vista roja):
+1. Entradas sólo se llenaba desde el sugerido: sin historia de ventas no se podía recibir nada,
+   y ningún producto tenía proveedor (D-32). Ahora «Agregar a la nota» con todo el catálogo, y
+   el primer proveedor que trae un producto queda como el suyo (también los insumos nuevos).
+2. El almacén veía «Entradas» y `compras.recibir_nota` lo rechazaba.
+3. **La base rechazaba (23514) toda autorización de descuento que pasa el tope por PORCENTAJE**:
+   la 078 sólo conocía la rama del importe. Migración **180** aplicada a la base viva.
+4. **Toda recarga y todo pago de servicio (F-255) reventaban contra Postgres (23514)**: la
+   operación se anotaba con el tipo de servicio y la tabla exige el de operación (`venta`). El
+   corte agrupa ahora por el tipo del comisionista.
+5. El primer `cancelar_apartada` no escribía `cerrada_en` (lo cazó el contrato).
+6. Servicios tapaba los formularios con un «alta de comisionista» que llevaba a Configuración,
+   donde no hay nada: botón muerto delante del cobro.
+7. Conteo: no había forma de crear zonas ni de poner productos en ellas; botón muerto (D-33).
+8. **Las 61 pantallas de los modelos no tenían menú** (D-34), y la barra colapsada dejaba los
+   enlaces sin nombre accesible.
+9. `/` le pintaba a la cajera y al almacén el tablero del dueño, que su puesto no puede leer.
+10. **Las lecturas se congelaban**: el ejecutor reproducía la respuesta guardada de un
+    `caja.estado` abortado, y Cobrar decía «la caja está cerrada» con la caja abierta (D-35).
+11. El gasto de caja no confirmaba nada al registrarse.
+12. `POSAuthContext` creía sólo a `sessionStorage`: una pestaña nueva con la cookie válida
+    mandaba al PIN, y una sesión revocada seguía pintando la barra. Ahora pregunta al servidor.
+13. El 404 global era la plantilla de Base44 en inglés, con una «Admin Note» que decía que «la
+    IA no ha implementado esta página» y que se lo pidieran «en el chat».
+
+**Integración contra Postgres real (D.9)**, 15 archivos / 29 pruebas, cada una vista fallar por
+mutación: cupo de cajas (y su carrera), devoluciones concurrentes, cobro doble, último
+artículo, misma cita, recargas/recibos, descuento por porcentaje, cancelar apartada, recibir
+nota, envase, cerrar con apartadas. Los perdedores de una carrera reciben ahora un error
+legible (`CAJA_YA_ABIERTA`, `ORDEN_NO_EDITABLE`, `CONFIGURACION_CONFLICTO`), también el cobro
+doble con inventario (se re-verifica el estado bajo el candado).
+
+**La 180 en la base viva**, por F2.3 §4: respaldo `D:\MIS PROYECTOS\Master POSespaldosmorphiqpos-2026-10-09T09-03-28.sql` (2,373,949 bytes, 3,458 inserts, sha256 = manifiesto);
+ensayo con datos correcto (112 migraciones, última 180); `db:migrate --ensayo` contra
+`wyqmzhliurwyxuyxznpb` correcto; «Aplicadas 1»; contrato regenerado (1,726 columnas, 1,359
+restricciones, 437 índices); `verify:rls` en verde.
+
+**Matriz de permisos (D.3)**: `scripts/generar-matriz-de-permisos.mjs` la saca del código (220
+rutas de comando, 73 fuera con su razón) y `pruebas/e2e/matriz-de-permisos.spec.ts` la recorre.
+
+**En qué voy:** commit y empuje de esta tanda; después los otros cuatro días completos.
+

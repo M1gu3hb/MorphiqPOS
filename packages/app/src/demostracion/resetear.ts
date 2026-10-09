@@ -23,6 +23,7 @@ import { semillaParaPaquete } from './datos.ts';
 import { equipoDelGiro, reponerPin, sembrarEquipo } from './equipo.ts';
 import { sembrarOpcionesDeBebida, type ResumenBebidas } from './bebidas.ts';
 import { asegurarEstacionGeneral, sembrarSala, type ResumenSala } from './sala.ts';
+import { sembrarZonasDeTienda } from './zonas.ts';
 import { sembrarSalon, type ResumenSalon } from './salon.ts';
 import { CICLOS, ORDEN_DE_LIMPIEZA } from './tablas-del-reseteo.ts';
 
@@ -524,6 +525,15 @@ export const resetearDemo = definirComando<
       sembrarArranque(ctx.tx, ctx.ambito.organizacionId, sucursalId, semilla),
     );
 
+    // Y LAS ZONAS DEL ANAQUEL de la tienda (D-33): sin ellas el conteo cíclico no tiene
+    // qué contar y el renglón de «¿quién me está robando?» no se puede enseñar.
+    const zonas =
+      organizacion.giro === 'tienda'
+        ? await ctx.paso('sembrar_zonas_del_anaquel', () =>
+            sembrarZonasDeTienda(ctx.tx, ctx.ambito.organizacionId, sucursalId),
+          )
+        : null;
+
     // Y LA CONFIGURACIÓN: IVA, apariencia del giro y la contraseña del Modo
     // Presentación, sin la cual esa pantalla no abre.
     await ctx.paso('reponer_configuracion', () =>
@@ -551,6 +561,7 @@ export const resetearDemo = definirComando<
         ...(sala ?? {}),
         ...(salon ?? {}),
         ...(bebidas ?? {}),
+        ...(zonas ?? {}),
       },
     });
     return { productos, insumos, empleados, sala, salon, bebidas, arranque };

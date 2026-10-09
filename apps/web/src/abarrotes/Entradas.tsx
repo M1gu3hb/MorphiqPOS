@@ -21,7 +21,10 @@ import { Check, ClipboardList, PackageOpen, Plus, TrendingUp, Truck } from 'luci
 import { useEffect, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import { AgregarDelCatalogo, type InsumoDelCatalogo } from './entradas/AgregarDelCatalogo.tsx';
 
 import {
   CanjeDeLaNota,
@@ -201,6 +204,22 @@ function centavosEnteros(texto: string): number | null {
   if (!/^\d+$/.test(texto)) return null;
   const valor = Number(texto);
   return Number.isSafeInteger(valor) ? valor : null;
+}
+
+/**
+ * Lo que el canje puede llevarse: lo que se le compra a este proveedor Y lo que viene en
+ * esta nota. Sin lo segundo, la primera vez que un proveedor trae algo no podía llevarse
+ * el caducado de eso mismo (D-32).
+ */
+function articulosDelCanje(
+  delProveedor: readonly ArticuloDelProveedor[],
+  lineas: readonly LineaCapturada[],
+): readonly ArticuloDelProveedor[] {
+  const vistos = new Set(delProveedor.map((a) => a.insumoId));
+  const deLaNota = lineas
+    .filter((l) => !vistos.has(l.insumoId))
+    .map((l) => ({ insumoId: l.insumoId, nombre: l.nombre, unidadBase: l.unidad }));
+  return [...delProveedor, ...deLaNota];
 }
 
 /** Cuántas entran de verdad al inventario: 18 cajas que traen 12 son 216. */
@@ -737,6 +756,28 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
     pedirSugerido(proveedor);
   }
 
+  /** Lo que trae el repartidor y el sugerido no pidió: sin costo anterior que comparar si no se ve. */
+  function agregarDelCatalogo(insumo: InsumoDelCatalogo): void {
+    setLineas([
+      ...lineas,
+      {
+        insumoId: insumo.id,
+        nombre: insumo.nombre,
+        unidad: insumo.unidad_compra_default ?? insumo.unidad_base ?? 'pieza',
+        equivalencia: '1',
+        cantidad: '',
+        costoTotal: '',
+        caducaEl: '',
+        costoAnteriorCentavos: centavosDe(
+          'Ingrediente',
+          'costo_por_unidad_base',
+          insumo.costo_por_unidad_base,
+        ),
+        precioVentaCentavos: null,
+      },
+    ]);
+  }
+
   function agregarDesdeSugerido(renglon: RenglonSugerido): void {
     setLineas([
       ...lineas,
@@ -1004,7 +1045,16 @@ export function Entradas({ proveedoresIniciales, hoy }: EntradasProps) {
                 }
               />
 
-              <CanjeDeLaNota articulos={articulos} canjes={canjes} onCambiar={setCanjes} />
+              <AgregarDelCatalogo
+                yaEnLaNota={new Set(lineas.map((l) => l.insumoId))}
+                onAgregar={agregarDelCatalogo}
+              />
+
+              <CanjeDeLaNota
+                articulos={articulosDelCanje(articulos, lineas)}
+                canjes={canjes}
+                onCambiar={setCanjes}
+              />
 
               {conAviso.map(({ clave, aviso }) => (
                 <Aviso

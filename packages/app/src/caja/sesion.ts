@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
+import { violaIndice } from '../portal/errores-sql.ts';
 import { entradaAbrirCaja, entradaCerrarCaja, entradaMovimientoCaja } from '../venta/esquemas.ts';
 
 /**
@@ -15,13 +16,46 @@ import { entradaAbrirCaja, entradaCerrarCaja, entradaMovimientoCaja } from '../v
  * había columnas `total_ventas` y `total_efectivo` que nadie actualizaba al
  * cobrar, y el corte mostraba ceros con la caja llena.
  *
- * CASH-01/CASH-02 no las resuelve este código sino el índice
- * `sesiones_caja_una_abierta_por_terminal`: la segunda apertura concurrente
- * choca contra la base, no contra un `if`. Aquí sólo se traduce esa violación a
- * un mensaje legible.
+ * CASH-01/CASH-02 no las resuelve este código sino la base —el índice
+ * `sesiones_caja_una_abierta_por_terminal` y el disparador del cupo de la 179—: la
+ * segunda apertura concurrente choca contra la base, no contra un `if`. Aquí sólo se
+ * traduce esa violación a un mensaje legible (`traducirAperturaQuePerdio`).
  */
 
 const ROLES_DE_CAJA = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
+
+/**
+ * LA APERTURA QUE PERDIÓ LA CARRERA, con palabras (D.9 de la 2.4).
+ *
+ * Las comprobaciones de arriba leen sin bloquear: dos terminales que abren en el mismo
+ * segundo las pasan las dos, y quien separa a la segunda es la base —el índice
+ * `sesiones_caja_una_abierta_por_terminal` o el disparador del cupo de la 179, que rechaza
+ * con el nombre de `sesiones_caja_una_abierta_por_sucursal`—. Ese 23505 llegaba a la cajera
+ * como «Algo falló de nuestro lado», que invita a reintentar a ciegas; la prueba de
+ * integración de la carrera lo enseñó. Aquí se dice lo que pasó.
+ *
+ * Sólo esos dos nombres: cualquier otro fallo de la base sube tal cual, y la transacción ya
+ * está abortada, así que se relanza sin tocar nada más (`portal/errores-sql.ts`).
+ */
+function traducirAperturaQuePerdio(error: unknown, cupo: number): never {
+  if (violaIndice(error, 'sesiones_caja_una_abierta_por_sucursal')) {
+    throw new ErrorDominio(
+      'CAJA_YA_ABIERTA',
+      cupo === 1
+        ? 'Otra terminal de esta sucursal acaba de abrir su caja, y sólo puede haber una a la vez: haz el corte desde ESA terminal antes de abrir aquí.'
+        : `Otra terminal acaba de abrir la última de las ${String(cupo)} cajas de esta sucursal. Cierra una antes de abrir otra.`,
+      { cupo },
+    );
+  }
+  if (violaIndice(error, 'sesiones_caja_una_abierta_por_terminal')) {
+    throw new ErrorDominio(
+      'CAJA_YA_ABIERTA',
+      'Esta terminal acaba de abrir su caja desde otra pestaña: usa esa.',
+    );
+  }
+  throw error;
+}
+
 export const abrirCaja = definirComando<
   Transaccion,
   typeof entradaAbrirCaja,
@@ -81,21 +115,25 @@ export const abrirCaja = definirComando<
     const dejadoAnoche = await ctx.paso('leer_lo_que_se_dejo', () =>
       repoCaja.fondoDejadoPorElUltimoCierre(ctx.tx, organizacionId, terminalId),
     );
-    const sesionCajaId = await ctx.paso('abrir_sesion', () =>
-      repoCaja.abrirSesion(ctx.tx, {
-        organizacionId,
-        sucursalId,
-        terminalId,
-        empleadoAbreId: empleoId,
-        fondoInicialCentavos: fondo,
-        fondoEsperadoCentavos: dejadoAnoche ?? fondo,
-        // El desglose por montones, que es lo que dice si se puede dar cambio.
-        // El esquema ya garantizó que la suma es el total.
-        fondoMonedasCentavos: BigInt(entrada.fondoMonedasCentavos),
-        fondoChicosCentavos: BigInt(entrada.fondoChicosCentavos),
-        fondoGrandesCentavos: BigInt(entrada.fondoGrandesCentavos),
-      }),
-    );
+    const sesionCajaId = await ctx.paso('abrir_sesion', async () => {
+      try {
+        return await repoCaja.abrirSesion(ctx.tx, {
+          organizacionId,
+          sucursalId,
+          terminalId,
+          empleadoAbreId: empleoId,
+          fondoInicialCentavos: fondo,
+          fondoEsperadoCentavos: dejadoAnoche ?? fondo,
+          // El desglose por montones, que es lo que dice si se puede dar cambio.
+          // El esquema ya garantizó que la suma es el total.
+          fondoMonedasCentavos: BigInt(entrada.fondoMonedasCentavos),
+          fondoChicosCentavos: BigInt(entrada.fondoChicosCentavos),
+          fondoGrandesCentavos: BigInt(entrada.fondoGrandesCentavos),
+        });
+      } catch (error) {
+        return traducirAperturaQuePerdio(error, cupo);
+      }
+    });
 
     // El fondo entra como movimiento de apertura: así el saldo esperado es una
     // SUMA de movimientos y no «fondo más la suma», que es la clase de fórmula

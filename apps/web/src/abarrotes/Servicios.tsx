@@ -554,30 +554,29 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
     );
   }
 
-  if (falloDeLectura === null && listaSaldos.length === 0 && listaOperaciones.length === 0) {
-    // El vacío ENSEÑA el negocio que falta; no se disculpa por no tener datos.
-    return (
-      <div className="mx-auto max-w-xl p-(--espacio-8)">
-        <Vacio
-          icono={<Smartphone />}
-          titulo="Aquí se cobra dinero ajeno y se gana comisión."
-          accion={
-            <Button asChild>
-              <a href="/configuracion">Dar de alta mi cuenta de comisionista</a>
-            </Button>
-          }
-        >
-          <p className="max-w-prose text-sm text-texto-sutil">
-            Una recarga de <Dinero centavos={RECARGA_DE_EJEMPLO_CENTAVOS} tamano="sm" /> te deja{' '}
-            <Dinero centavos={comisionDeRecarga(RECARGA_DE_EJEMPLO_CENTAVOS)} tamano="sm" /> y un
-            recibo de luz <Dinero centavos={comisionDeServicio('CFE')} tamano="sm" />. Treinta
-            operaciones al día son cerca de $200 diarios que hoy no estás cobrando, y además traen
-            gente a la tienda.
-          </p>
-        </Vacio>
-      </div>
-    );
-  }
+  /**
+   * EL PRIMER DÍA: sin saldos ni operaciones. Esto era una pantalla entera que TAPABA los
+   * formularios y mandaba a «Dar de alta mi cuenta de comisionista» en Configuración, donde
+   * no hay nada de comisionistas (bloque D de la 2.4): un botón muerto delante del cobro. La
+   * cuenta del comisionista nace sola con la primera operación (`comisionistaDe`), así que el
+   * vacío ENSEÑA el negocio encima de los formularios y deja cobrar.
+   */
+  const primerDia =
+    falloDeLectura === null && listaSaldos.length === 0 && listaOperaciones.length === 0;
+  const avisoDelPrimerDia = primerDia ? (
+    <Vacio
+      icono={<Smartphone />}
+      tamano="compacto"
+      titulo="Aquí se cobra dinero ajeno y se gana comisión."
+    >
+      <p className="max-w-prose text-sm text-texto-sutil">
+        Una recarga de <Dinero centavos={RECARGA_DE_EJEMPLO_CENTAVOS} tamano="sm" /> te deja{' '}
+        <Dinero centavos={comisionDeRecarga(RECARGA_DE_EJEMPLO_CENTAVOS)} tamano="sm" /> y un recibo
+        de luz <Dinero centavos={comisionDeServicio('CFE')} tamano="sm" />. La primera operación da
+        de alta la cuenta de su proveedor; para vender recargas, carga antes su saldo abajo.
+      </p>
+    </Vacio>
+  ) : null;
 
   const avisoDelHecho = (() => {
     if (hecho === null) return null;
@@ -647,6 +646,7 @@ export function Servicios({ saldosIniciales, operacionesIniciales, onCobrada }: 
             {fallo.queNoPaso}
           </Aviso>
         )}
+        {avisoDelPrimerDia}
         {avisoDelHecho}
 
         {/* PC dos columnas · TABLET dos filas apiladas · TELÉFONO sólo la elegida. */}

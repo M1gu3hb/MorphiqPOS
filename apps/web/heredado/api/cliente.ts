@@ -271,15 +271,27 @@ const auth = {
 
   salir: (): Promise<null> => pedir<null>('/api/auth/salir', {}, nuevaClave()),
 
-  me: (): Promise<Registro> =>
-    fetch('/api/catalogo/sesion', { cache: 'no-store', credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((d: { ok?: boolean; datos?: Registro }) => {
-        if (d.ok !== true || d.datos === undefined) {
-          throw new ErrorPuente('NO_AUTENTICADO', 'Inicia sesión para continuar.', 401);
-        }
-        return d.datos;
-      }),
+  /**
+   * Quién está dentro según el servidor. Distingue «no hay sesión» (401/403: se sale) de
+   * «no se pudo preguntar» (red, 5xx: se conserva lo que había), porque sacar al cajero
+   * a media venta por un corte de red de un segundo es peor que esperarlo.
+   */
+  me: async (): Promise<Registro> => {
+    const respuesta = await fetch('/api/catalogo/sesion', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    });
+    // 401: no hay sesión. 403: la había y se revocó (baja, terminal borrada, reseteo de la
+    // demo); esta ruta admite TODOS los roles, así que aquí un 403 sólo puede ser eso.
+    if (respuesta.status === 401 || respuesta.status === 403) {
+      throw new ErrorPuente('NO_AUTENTICADO', 'Inicia sesión para continuar.', 401);
+    }
+    const d = (await respuesta.json().catch(() => ({}))) as { ok?: boolean; datos?: Registro };
+    if (!respuesta.ok || d.ok !== true || d.datos === undefined) {
+      throw new ErrorPuente('ERROR_INTERNO', 'No se pudo confirmar la sesión.', respuesta.status);
+    }
+    return d.datos;
+  },
 };
 
 /**

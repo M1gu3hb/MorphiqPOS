@@ -145,6 +145,10 @@ export const autorizarDescuento = definirComando<
           autoriza_rol: rol,
           descuento_centavos: descuento,
           tope_centavos: topeSolicitante.topeCentavos,
+          // Las dos ramas del tope (180): sin la base y el porcentaje, la base sólo podría
+          // comprobar la del importe y rechazaría la autorización que pasa por porcentaje.
+          base_centavos: base,
+          tope_bp: topeSolicitante.topeBp,
           motivo: entrada.motivo,
           created_at: ctx.ahora,
         })

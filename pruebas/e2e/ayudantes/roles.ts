@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type {
@@ -110,10 +110,14 @@ function archivoDe(persona: PersonaDeDemo): string {
   return join(CARPETA, `${persona.slug}-${persona.rol}-${limpio}.json`);
 }
 
-/** ¿El servidor reconoce todavía esta sesión? Un 401 dice que no; cualquier otro, que sí. */
+/**
+ * ¿El servidor reconoce todavía esta sesión? Sólo un 200 de `/api/catalogo/sesion`, que
+ * admite todos los roles: un 401 es que no hay, y un 403 es que la hubo y se revocó —el
+ * reseteo de la demo borra las terminales de todos menos la de quien lo pide—.
+ */
 async function sesionViva(request: APIRequestContext): Promise<boolean> {
-  const respuesta = await request.get('/api/configuracion/vocabulario');
-  return respuesta.status() !== 401;
+  const respuesta = await request.get('/api/catalogo/sesion');
+  return respuesta.status() === 200;
 }
 
 /**
@@ -126,29 +130,58 @@ export async function contextoDe(
   browser: Browser,
   info: TestInfo,
   persona: PersonaDeDemo,
+  archivo: string = archivoDe(persona),
+  dispositivo?: StorageState,
 ): Promise<BrowserContext> {
   mkdirSync(CARPETA, { recursive: true });
-  const archivo = archivoDe(persona);
   const base = opcionesDelProyecto(info);
 
   if (existsSync(archivo)) {
     const guardado = await browser.newContext({ ...base, storageState: archivo });
-    if (await sesionViva(guardado.request)) return guardado;
+    const mismoAparato =
+      dispositivo === undefined ||
+      cookieDelDispositivo(await guardado.storageState()) === cookieDelDispositivo(dispositivo);
+    if (mismoAparato && (await sesionViva(guardado.request))) return guardado;
     await guardado.close();
   }
 
-  // El estado del muro de Vercel, si la corrida lo trae: la sesión nueva se guarda
-  // junto con él, en el mismo tarro.
+  // El aparato se CONSERVA al volver a entrar: una sesión caducada en la PC del
+  // mostrador vuelve a entrar en la PC del mostrador, no en una terminal nueva. Sin
+  // aparato guardado, el estado del muro de Vercel si la corrida lo trae.
   const muro = info.project.use.storageState;
+  const previo =
+    dispositivo ?? (existsSync(archivo) ? soloElAparato(archivo) : undefined) ?? undefined;
   const contexto = await browser.newContext({
     ...base,
-    ...(typeof muro === 'string' ? { storageState: muro } : {}),
+    ...(previo === undefined
+      ? typeof muro === 'string'
+        ? { storageState: muro }
+        : {}
+      : { storageState: previo }),
   });
   const page = await contexto.newPage();
   await entrar(page, persona);
   await page.close();
   await contexto.storageState({ path: archivo });
   return contexto;
+}
+
+type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
+
+/** La cookie que identifica el APARATO (la terminal), no la sesión. */
+const COOKIE_DEL_DISPOSITIVO = 'morphiqpos_dispositivo';
+
+function cookieDelDispositivo(estado: StorageState): string | null {
+  return estado.cookies.find((c) => c.name === COOKIE_DEL_DISPOSITIVO)?.value ?? null;
+}
+
+/** Del estado guardado, sólo lo que es del aparato: la cookie del dispositivo y las del muro. */
+function soloElAparato(archivo: string): StorageState {
+  const estado = JSON.parse(readFileSync(archivo, 'utf8')) as StorageState;
+  return {
+    ...estado,
+    cookies: estado.cookies.filter((c) => !c.name.startsWith('morphiqpos_sesion')),
+  };
 }
 
 /**
@@ -170,6 +203,39 @@ export class Equipo {
     let contexto = this.#abiertos.get(clave);
     if (contexto === undefined) {
       contexto = await contextoDe(this.browser, info, persona);
+      this.#abiertos.set(clave, contexto);
+    }
+    const abiertas = contexto.pages();
+    return abiertas[0] ?? (await contexto.newPage());
+  }
+
+  /**
+   * OTRA PERSONA EN LA MISMA TERMINAL: la gerente que viene al mostrador a devolver una
+   * venta, el que entra al segundo turno. La terminal va firmada en la sesión al entrar
+   * (`identidad/entrar.ts`), así que esto ENTRA de verdad, con su PIN, en el aparato de
+   * quien ya está ahí —su cookie del dispositivo— y no en uno nuevo. Es un navegador
+   * aparte para que la sesión de quien estaba no se pierda: en la PC real, el cajero
+   * vuelve a entrar después; aquí sigue en su pestaña.
+   */
+  async paginaEnLaTerminalDe(
+    info: TestInfo,
+    deQuien: { readonly rol: RolDePrueba; readonly nombre?: string },
+    rol: RolDePrueba,
+    nombre?: string,
+  ): Promise<Page> {
+    const dueñaDelAparato = await this.pagina(info, deQuien.rol, deQuien.nombre);
+    const anfitrion = personaDe(this.slug, deQuien.rol, deQuien.nombre);
+    const persona = personaDe(this.slug, rol, nombre);
+    const clave = `${persona.rol}:${persona.nombre}@${anfitrion.rol}:${anfitrion.nombre}`;
+    let contexto = this.#abiertos.get(clave);
+    if (contexto === undefined) {
+      const estado = await dueñaDelAparato.context().storageState();
+      const aparato: StorageState = {
+        ...estado,
+        cookies: estado.cookies.filter((c) => !c.name.startsWith('morphiqpos_sesion')),
+      };
+      const archivo = archivoDe(persona).replace(/\.json$/, `-en-${anfitrion.rol}.json`);
+      contexto = await contextoDe(this.browser, info, persona, archivo, aparato);
       this.#abiertos.set(clave, contexto);
     }
     const abiertas = contexto.pages();

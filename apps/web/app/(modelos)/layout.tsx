@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import AppLayout from '@/components/common/AppLayout';
+import { ProveedorDeContenido } from '@/enrutado';
 import { ProveedorDeVocabulario } from '~/cliente/vocabulario';
 import { terminosDelServidor } from '~/servidor/vocabulario';
 
@@ -11,6 +13,11 @@ import { terminosDelServidor } from '~/servidor/vocabulario';
  * pantallas son nuevas y no dependen de esa barra lateral: al acoplar se decide
  * si entran dentro de su `AppLayout` o si conservan su propio marco, y eso es
  * una línea en el `FILE-MAP.md` de cada modelo, no una reescritura.
+ *
+ * ── El menú, que faltaba (bloque D de la 2.4) ─────────────────────────────
+ * Se decidió al fin: entran en el MISMO `AppLayout`, con su menú por rol y plantilla, en
+ * su variante `modelo` —barra colapsada, contenido sin relleno—. Sin él, ninguna de las 61
+ * pantallas llevaba a otra: la cajera en Caja no tenía cómo llegar a Cobrar.
  *
  * ── Y por qué el marco es tan poco ────────────────────────────────────────
  * Porque cada modelo tiene su propia jerarquía y su propia pantalla de inicio
@@ -36,7 +43,11 @@ export default async function LayoutDeModelos({ children }: { children: ReactNod
 
   return (
     <ProveedorDeVocabulario terminos={terminos}>
-      <div className="min-h-dvh bg-fondo text-texto">{children}</div>
+      <ProveedorDeContenido
+        contenido={<div className="min-h-dvh bg-fondo text-texto">{children}</div>}
+      >
+        <AppLayout marco="modelo" />
+      </ProveedorDeContenido>
     </ProveedorDeVocabulario>
   );
 }

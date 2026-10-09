@@ -727,6 +727,57 @@ cancelarla no mueve dinero ni inventario. Lo que sí queda es el control: motivo
 detienen. El depósito del casco (F-256) se ofrece en $10.00 por envase y se puede cambiar en el
 momento: el precio del casco lo pone el refresquero, no el sistema.
 
+## D-32 · 09-10-2026 · La nota del proveedor recibe cualquier producto, y el primer proveedor que lo trae queda como el suyo
+
+**Contexto.** Entradas (F-632) sólo llenaba la nota desde el pedido sugerido, y el sugerido
+sale de catorce días de venta de «lo que se le compra a este proveedor» (`insumos.proveedor_id`).
+Ninguna pantalla de la tienda asigna ese proveedor: los productos dados de alta en el mostrador
+no eran de nadie, así que el sugerido y el canje nunca los listaban. Una tienda nueva —o la demo
+recién reseteada— no podía recibir mercancía, aunque la pantalla decía «o captura lo que traiga
+el repartidor». Lo encontró el día completo de la tienda (bloque D).
+
+**Decisión.** La nota tiene «Agregar a la nota» con TODO el catálogo activo, además del
+sugerido; el canje puede llevarse lo del proveedor y lo que viene en esa misma nota. Y
+`compras.recibir_nota` liga al proveedor cada producto recibido que NO tenía uno: el primero que
+lo trae queda como el suyo, y desde la visita siguiente sale en su sugerido y en su canje. Nunca
+se pisa un proveedor ya puesto: cambiarlo es una decisión del dueño, no un efecto de recibir una
+nota.
+
+## D-33 · 09-10-2026 · Las zonas del anaquel se programan desde Conteo, y la demo de la tienda nace con las suyas
+
+**Contexto.** El conteo cíclico (F-149) cuenta una zona al día (`conteo_de_zona`, 173), pero
+ningún comando creaba zonas ni ponía productos en ellas: Conteo decía «Hoy no toca ninguna
+zona» para siempre y su botón llevaba a Configuración, donde no hay zonas.
+
+**Decisión.** `inventario.guardar_zona` y `inventario.asignar_zona` (almacén y encargados; ni
+caja ni cocina). El vacío de Conteo abre «Programar las zonas del anaquel» ahí mismo: se crea
+la zona con cada cuántos días toca y se dice en qué zona vive cada producto. La tienda de
+demostración nace con cuatro zonas (Refrigerador, Bebidas, Limpieza, Abarrotes) repartidas por
+el nombre del producto.
+
+## D-34 · 09-10-2026 · Las pantallas de los modelos llevan el mismo menú, en su variante «modelo»
+
+**Contexto.** El layout de `(modelos)` decía que «al acoplar se decide» si entraban en el
+`AppLayout` del heredado; nunca se decidió, y ninguna de las 61 pantallas llevaba a otra: la
+cajera en Caja no tenía cómo llegar a Cobrar sin teclear la dirección.
+
+**Decisión.** Entran en el MISMO `AppLayout`, con su menú por rol y plantilla, con
+`marco="modelo"`: la barra empieza colapsada a íconos (con nombre accesible y `aria-current`)
+y el contenido va sin el relleno de las páginas internas, para no quitarle a cada modelo su
+composición. Las páginas internas de Miguel conservan sus clases exactas. Y `/` ya no le pinta
+el tablero del dueño a quien no lo puede leer: la cajera y el almacén van a su casa, la primera
+entrada de su menú —la misma regla que usa el PIN al entrar—.
+
+## D-35 · 09-10-2026 · La idempotencia es de lo que escribe; una lectura no se guarda ni se repite
+
+**Contexto.** El ejecutor de comandos guardaba y reproducía la respuesta de CUALQUIER comando
+que trajera clave, también los de lectura. Cobrar abortaba su `caja.estado` al navegar, el
+cliente conservaba la clave del intento sin respuesta y la lectura siguiente —con la caja ya
+abierta— recibía la foto vieja: «la caja está cerrada».
+
+**Decisión.** La clave de idempotencia sólo se mira, se reclama y se guarda cuando el comando
+`escribe`. Para una lectura se ignora: se vuelve a leer siempre.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

@@ -1,0 +1,1814 @@
+{
+  "incluidas": [
+    {
+      "ruta": "/api/agenda/anotar",
+      "comando": "agenda.anotar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/agenda/cancelar",
+      "comando": "agenda.cancelar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/agenda/cerrar-servicio",
+      "comando": "agenda.cerrar_servicio",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/agenda/cita",
+      "comando": "agenda.agendar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/agenda/dia",
+      "comando": "agenda.dia",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/agenda/huecos",
+      "comando": "agenda.huecos",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/agenda/iniciar",
+      "comando": "agenda.iniciar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/agenda/no-llego",
+      "comando": "agenda.marcar_no_llego",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/agenda/proximos-huecos",
+      "comando": "agenda.proximos_huecos",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/anticipos",
+      "comando": "anticipo.recibir",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/buscar/material",
+      "comando": "catalogo.buscar_material",
+      "escribe": false,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/agregar-linea",
+      "comando": "cafeteria.agregar_bebida",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/anticipado/encolar",
+      "comando": "cafeteria.encolar_anticipado",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/anticipado/entregar",
+      "comando": "cafeteria.entregar_anticipado",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/calibracion",
+      "comando": "cafeteria.registrar_calibracion",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/contar-leche",
+      "comando": "cafeteria.contar_leche",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/deshacer-entrega",
+      "comando": "cafeteria.deshacer_entrega",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/entregar-pedido",
+      "comando": "cafeteria.entregar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/llamar-pedido",
+      "comando": "cafeteria.llamar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/lote-grano/abrir",
+      "comando": "cafeteria.abrir_lote_grano",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/merma-barra",
+      "comando": "cafeteria.registrar_merma_barra",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cafeteria/no-recogido",
+      "comando": "cafeteria.marcar_no_recogido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/abiertas",
+      "comando": "caja.abiertas",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/abrir",
+      "comando": "caja.abrir",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/cajon",
+      "comando": "caja.abrir_cajon",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/cerrar",
+      "comando": "caja.cerrar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/corte-turno",
+      "comando": "caja.corte_turno",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/eliminar-corte",
+      "comando": "caja.eliminar_corte",
+      "escribe": true,
+      "roles": ["dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/encolar-sincronizacion",
+      "comando": "caja.encolar_sincronizacion_corte",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/entrada-cambio",
+      "comando": "caja.entrada_cambio",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/estado",
+      "comando": "caja.estado",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/hoja-del-corte",
+      "comando": "caja.hoja_del_corte",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/caja/movimiento",
+      "comando": "caja.movimiento",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/alta-rapida",
+      "comando": "catalogo.alta_rapida",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/archivar",
+      "comando": "catalogo.archivar_producto",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/atributo",
+      "comando": "catalogo.declarar_atributo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/atributos",
+      "comando": "catalogo.declarar_atributo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/buscar-material",
+      "comando": "catalogo.buscar_material",
+      "escribe": false,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/calibrar-peso",
+      "comando": "catalogo.calibrar_peso",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/crear-producto",
+      "comando": "catalogo.crear_producto",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/equivalencia",
+      "comando": "catalogo.declarar_equivalencia",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/etiquetas",
+      "comando": "catalogo.etiquetas",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/fiscal-masivo",
+      "comando": "catalogo.fiscal_masivo",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/foto-mostrador",
+      "comando": "catalogo.foto_mostrador",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/linea",
+      "comando": "catalogo.declarar_linea",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/modificador",
+      "comando": "catalogo.crear_modificador",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/modificadores",
+      "comando": "catalogo.guardar_modificadores",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/presentacion",
+      "comando": "catalogo.crear_presentacion",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/catalogo/ubicacion",
+      "comando": "catalogo.asignar_ubicacion",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/citas",
+      "comando": "agenda.agendar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/citas/walk-in",
+      "comando": "agenda.walk_in",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/clientes/por-volver",
+      "comando": "agenda.por_volver",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/clientes",
+      "comando": "cliente.alta",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/comision/asignar-regla",
+      "comando": "comision.asignar_regla",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/comision/cargar-saldo",
+      "comando": "comision.cargar_saldo",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/comision/depositar",
+      "comando": "comision.depositar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/comision/liquidar",
+      "comando": "comision.liquidar_profesional",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/comision/registrar",
+      "comando": "comision.registrar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/comision/regla",
+      "comando": "comision.guardar_regla",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/compras/importar-nota",
+      "comando": "compras.importar_nota",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/compras/plantilla",
+      "comando": "compras.guardar_plantilla",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/compras/plantilla/usar",
+      "comando": "compras.usar_plantilla",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/compras/recibir-nota",
+      "comando": "compras.recibir_nota",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/compras/registrar",
+      "comando": "compras.registrar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/compras/sugerencia",
+      "comando": "compras.sugerir_pedido",
+      "escribe": false,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/configuracion/modulo-restablecer",
+      "comando": "configuracion.restablecer_modulo",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/configuracion/modulo",
+      "comando": "configuracion.fijar_modulo",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/configuracion/vocabulario-restablecer",
+      "comando": "configuracion.restablecer_termino",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/configuracion/vocabulario",
+      "comando": "configuracion.fijar_termino",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cotizacion/aprobar",
+      "comando": "cotizacion.registrar_aprobacion",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cotizacion/cerrar",
+      "comando": "cotizacion.cerrar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cotizacion/enviar",
+      "comando": "cotizacion.registrar_envio",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cotizacion",
+      "comando": "cotizacion.crear",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cotizacion/surtir",
+      "comando": "cotizacion.registrar_surtido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cotizacion/versionar",
+      "comando": "cotizacion.versionar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/autorizado-baja",
+      "comando": "credito.baja_autorizado",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/autorizado",
+      "comando": "credito.alta_autorizado",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/autorizar",
+      "comando": "credito.autorizar",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/confirmar-transferencia",
+      "comando": "credito.confirmar_transferencia",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/estado-cuenta",
+      "comando": "credito.estado_de_cuenta",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/evaluar",
+      "comando": "credito.evaluar_salida",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/limite-credito",
+      "comando": "credito.fijar_limite",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/limite",
+      "comando": "credito.fijar_muro",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/obra-cerrar",
+      "comando": "credito.cerrar_obra",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/obra",
+      "comando": "credito.crear_obra",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/pago",
+      "comando": "credito.registrar_pago",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/remision",
+      "comando": "credito.registrar_remision",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/credito/transferencias-pendientes",
+      "comando": "credito.transferencias_pendientes",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/entradas/alta-material",
+      "comando": "compras.alta_material",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/entradas/recibir",
+      "comando": "compras.recibir_entrada",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/envase/deposito",
+      "comando": "envase.mover_deposito",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/expediente/abrir",
+      "comando": "expediente.abrir",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/expediente/capturar-formula",
+      "comando": "expediente.capturar_formula",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/expediente/fotos",
+      "comando": "expediente.fotos",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/ferreteria/agregar-partida",
+      "comando": "ferreteria.agregar_partida",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/ferreteria/cortar",
+      "comando": "ferreteria.cortar_y_agregar",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/ferreteria/declarar-equivalencia",
+      "comando": "catalogo.declarar_equivalencia_dicha",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/fiado/abono",
+      "comando": "fiado.registrar_abono",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/fiado/incobrable",
+      "comando": "credito.fijar_muro",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/fiado/limite",
+      "comando": "credito.emitir_documento",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/gastos/plantilla",
+      "comando": "gastos.guardar_plantilla",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/gastos/registrar",
+      "comando": "gastos.registrar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/identidad/empleados",
+      "comando": "identidad.guardar_empleado",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/ajustar-conteo",
+      "comando": "inventario.ajustar_conteo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/asignar-zona",
+      "comando": "inventario.asignar_zona",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/cabina/alcanza",
+      "comando": "cabina.alcanza",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/cabina/existencias",
+      "comando": "cabina.existencias",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/caducidad/consumir",
+      "comando": "inventario.consumir_caducidad",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/caducidad",
+      "comando": "inventario.registrar_caducidad",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/consumo-interno",
+      "comando": "inventario.consumo_interno",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/inventario/conteo/abrir",
+      "comando": "inventario.abrir_conteo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/conteo/capturar",
+      "comando": "inventario.capturar_conteo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/conteo/cerrar",
+      "comando": "inventario.cerrar_conteo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/conteo/peso",
+      "comando": "inventario.conteo_por_peso",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/cortar",
+      "comando": "inventario.cortar_material",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/corte",
+      "comando": "inventario.cortar_material",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/garantia/resolver",
+      "comando": "inventario.resolver_garantia",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/garantia",
+      "comando": "inventario.recibir_garantia",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/garantias-pendientes",
+      "comando": "inventario.garantias_pendientes",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/guardar-zona",
+      "comando": "inventario.guardar_zona",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/kardex",
+      "comando": "inventario.kardex",
+      "escribe": false,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/merma",
+      "comando": "inventario.registrar_merma",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/motivos",
+      "comando": "inventario.motivos_de_merma",
+      "escribe": false,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/pieza-abierta/retazo",
+      "comando": "inventario.marcar_retazo",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/pieza-abierta",
+      "comando": "inventario.abrir_pieza",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/piezas-abiertas",
+      "comando": "inventario.piezas_abiertas",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/traspaso-recibir",
+      "comando": "inventario.recibir_traspaso",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/traspaso",
+      "comando": "inventario.enviar_traspaso",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/inventario/valuacion",
+      "comando": "inventario.valuar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/lealtad/ajustar",
+      "comando": "lealtad.ajustar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/lealtad/canjear",
+      "comando": "lealtad.canjear",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/lealtad/identificar",
+      "comando": "lealtad.otorgar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/lealtad/programa",
+      "comando": "lealtad.programa",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/liquidaciones/pendientes",
+      "comando": "liquidaciones.pendientes",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/liquidaciones",
+      "comando": "comision.liquidar_profesional",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/lista-espera",
+      "comando": "lista_espera_citas.anotar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/lista-espera/viva",
+      "comando": "lista_espera_citas.lista",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/pasivos/del-dia",
+      "comando": "pasivos.del_dia",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/por-pagar/pagar",
+      "comando": "por_pagar.pagar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/por-pagar/resumen",
+      "comando": "por_pagar.resumen",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/por-pagar",
+      "comando": "por_pagar.registrar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/portal/pedido-anticipado",
+      "comando": "cafeteria.programar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/precios/aplicar-sugerido",
+      "comando": "catalogo.aplicar_precio_sugerido",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/profesionales",
+      "comando": "profesionales.lista",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/propinas/entregar",
+      "comando": "propinas.entregar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/propinas/esquema",
+      "comando": "propinas.guardar_esquema",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/propinas/liquidar",
+      "comando": "propinas.liquidar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/propinas/pasivo",
+      "comando": "propinas.anotar_pasivo",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/propinas/pendientes",
+      "comando": "propinas.pendientes",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/propinas/recibir-directa",
+      "comando": "propina.recibir_directa",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/propinas/repartir-bote",
+      "comando": "cafeteria.repartir_bote",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/renta/devolver",
+      "comando": "renta.devolver",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/renta",
+      "comando": "renta.sacar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/reportes/huecos",
+      "comando": "agenda.reporte_huecos",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/reportes/ocupacion",
+      "comando": "agenda.ocupacion",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/reportes/tablero-cafeteria",
+      "comando": "reportes.tablero_cafeteria",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria"]
+    },
+    {
+      "ruta": "/api/reportes/tablero-estetica",
+      "comando": "reportes.tablero_estetica",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["estetica"]
+    },
+    {
+      "ruta": "/api/reportes/tablero-ferreteria",
+      "comando": "reportes.tablero_ferreteria",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["ferreteria"]
+    },
+    {
+      "ruta": "/api/reportes/tablero-tienda",
+      "comando": "reportes.tablero_tienda",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["tienda"]
+    },
+    {
+      "ruta": "/api/restaurante/abrir-mesa",
+      "comando": "restaurante.abrir_mesa",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/anular-linea",
+      "comando": "restaurante.anular_linea",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/asignar-mesero",
+      "comando": "restaurante.asignar_mesero",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/atender-solicitud",
+      "comando": "restaurante.atender_solicitud",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/cambiar-mesa",
+      "comando": "restaurante.cambiar_mesa",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/cancelar-orden",
+      "comando": "restaurante.cancelar_orden",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/crear-estacion",
+      "comando": "restaurante.crear_estacion",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/dividir-cuenta",
+      "comando": "restaurante.dividir_cuenta",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/entregar-pedidos",
+      "comando": "restaurante.entregar_pedidos",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/enviar-pedido",
+      "comando": "restaurante.enviar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/espera/mover",
+      "comando": "restaurante.mover_espera",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/espera/registrar",
+      "comando": "restaurante.registrar_espera",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/espera/sentar",
+      "comando": "restaurante.sentar_espera",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/imprimir-precuenta",
+      "comando": "restaurante.imprimir_precuenta",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/liberar-mesa",
+      "comando": "restaurante.liberar_mesa",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/limpiar-solicitudes",
+      "comando": "restaurante.limpiar_solicitudes",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/marchar-tiempo",
+      "comando": "restaurante.marchar_tiempo",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/relevar",
+      "comando": "restaurante.relevar_responsable",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/rotacion",
+      "comando": "restaurante.rotacion_de_mesas",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/rotar-qr",
+      "comando": "restaurante.rotar_qr",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/separar-mesas",
+      "comando": "restaurante.separar_mesas",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/solicitar-cuenta",
+      "comando": "restaurante.solicitar_cuenta",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/tiempos",
+      "comando": "restaurante.tiempos_de_preparacion",
+      "escribe": false,
+      "roles": ["administrador", "cocina", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/transicionar-pedido",
+      "comando": "restaurante.transicionar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/unir-mesas",
+      "comando": "restaurante.unir_mesas",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/vaciar-solicitudes",
+      "comando": "restaurante.vaciar_solicitudes",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/servicio/trabajo",
+      "comando": "venta.registrar_servicio",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/servicios/asignaciones",
+      "comando": "servicios.asignaciones",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/servicios/guardar",
+      "comando": "servicios.guardar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/turno/presencia/abrir",
+      "comando": "cafeteria.abrir_presencia",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/turno/presencia/ajustar",
+      "comando": "cafeteria.ajustar_presencia",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/agregar-linea",
+      "comando": "venta.agregar_linea",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/autorizar-descuento",
+      "comando": "venta.autorizar_descuento",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/buscar",
+      "comando": "venta.buscar",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/cambiar-cantidad",
+      "comando": "venta.cambiar_cantidad",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/cancelar-apartada",
+      "comando": "venta.cancelar_apartada",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/cobrar-cita",
+      "comando": "venta.cobrar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/cobrar",
+      "comando": "venta.cobrar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/cotizar-cita",
+      "comando": "venta.cotizar_cita",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/crear-orden",
+      "comando": "venta.crear_orden",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/devolver-venta",
+      "comando": "venta.devolver_venta",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/devolver",
+      "comando": "venta.devolver",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/en-espera",
+      "comando": "venta.en_espera",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/estado",
+      "comando": "venta.estado",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/lista-trabajo/cerrar",
+      "comando": "lista_trabajo.cerrar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/lista-trabajo/renglones",
+      "comando": "lista_trabajo.renglones",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/lista-trabajo",
+      "comando": "lista_trabajo.capturar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/lista-trabajo/surtir",
+      "comando": "lista_trabajo.surtir",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/mandar-a-caja",
+      "comando": "ferreteria.crear_nota_mostrador",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/mas-vendidos",
+      "comando": "venta.mas_vendidos",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/nota-mostrador/entregar",
+      "comando": "nota_mostrador.entregar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/nota-mostrador",
+      "comando": "nota_mostrador.apartar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/para-devolver",
+      "comando": "venta.para_devolver",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/quitar-linea",
+      "comando": "venta.quitar_linea",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/redondeo",
+      "comando": "venta.registrar_redondeo",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/remision",
+      "comando": "credito.registrar_remision",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/retomar",
+      "comando": "venta.retomar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/servicio",
+      "comando": "venta.registrar_servicio",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/suspender",
+      "comando": "venta.suspender",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/ticket",
+      "comando": "venta.ticket",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/tope-de-descuento",
+      "comando": "venta.tope_de_descuento",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    }
+  ],
+  "excluidas": [
+    {
+      "ruta": "/api/anticipos/[id]/aplicar",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/archivos/[...ruta]",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/archivos/subir",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/auth/empleados",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/auth/entrar",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/auth/salir",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/catalogo/categorias",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/catalogo/configuracion",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/catalogo/demostracion/resetear",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/catalogo/inicio",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/catalogo/productos/actualizar",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/catalogo/productos/codigo",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/catalogo/productos/crear",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/catalogo/productos/precio",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/catalogo/productos",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/catalogo/sesion",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/cita-servicios/[id]/cerrar",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/cita-servicios/[id]/foto",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    { "ruta": "/api/citas/[id]/cancelar", "razon": "lleva un segmento dinámico en la dirección" },
+    { "ruta": "/api/citas/[id]/cobrar", "razon": "lleva un segmento dinámico en la dirección" },
+    { "ruta": "/api/citas/[id]/iniciar", "razon": "lleva un segmento dinámico en la dirección" },
+    { "ruta": "/api/citas/[id]/no-llego", "razon": "lleva un segmento dinámico en la dirección" },
+    {
+      "ruta": "/api/citas/[id]/reprogramar",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/clientes/[id]/expediente",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    { "ruta": "/api/clientes/[id]", "razon": "lleva un segmento dinámico en la dirección" },
+    {
+      "ruta": "/api/clientes/[id]/ultima-formula",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/compras/sugerencia/[proveedorId]",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/configuracion/apariencia",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/configuracion/paquete",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/configuracion/presentacion-contrasena",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/configuracion/presentacion",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    { "ruta": "/api/cortes/[id]/pdf", "razon": "lleva un segmento dinámico en la dirección" },
+    {
+      "ruta": "/api/cotizacion/[id]/convertir",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/datos/consultar",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/datos/escribir",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/identidad/accesos",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/identidad/pin",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/identidad/supervisor",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/inventario/ajustar",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/inventario/almacenes/crear",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/inventario/inicial",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/inventario/insumos/costo",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/inventario/insumos/crear",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/inventario/recetas/eliminar",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/inventario/recetas",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/inventario/resumen",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/liquidaciones/[id]/comprobante",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/lista-espera/[id]/agendar",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/lista-espera/[id]/avisar",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/lista-espera/[id]/cancelar",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/mantenimiento/purgar-seccion",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/mantenimiento/purgar-ventas",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/mantenimiento/reiniciar-pruebas",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/mantenimiento/reiniciar-todo",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/mantenimiento/vaciar-mesas",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    { "ruta": "/api/productos/[id]/abrir", "razon": "lleva un segmento dinámico en la dirección" },
+    {
+      "ruta": "/api/productos/[id]/ficha-de-cabina",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/profesionales/[id]/comisiones",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/profesionales/[id]/mi-dia",
+      "razon": "lleva un segmento dinámico en la dirección"
+    },
+    {
+      "ruta": "/api/publico/archivo/[...ruta]",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/negocio/[slug]/apartar",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/negocio/[slug]/menu",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/qr/[token]/cuenta",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/qr/[token]/mesa",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/qr/[token]/pedido",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/qr/[token]",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/qr/[token]/solicitud",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/qr/[token]/valoracion",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/recogida/[token]",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    { "ruta": "/api/rentas/[id]/cobrar", "razon": "lleva un segmento dinámico en la dirección" },
+    {
+      "ruta": "/api/reportes/exportar",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/venta/cobrar-mostrador",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/venta/suspender-mostrador",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    }
+  ]
+}

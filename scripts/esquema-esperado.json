@@ -441,6 +441,17 @@
       "generada": null
     },
     {
+      "clave": "public.autorizaciones_descuento.base_centavos",
+      "esquema": "public",
+      "tabla": "autorizaciones_descuento",
+      "columna": "base_centavos",
+      "tipo": "bigint",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
       "clave": "public.autorizaciones_descuento.cliente_id",
       "esquema": "public",
       "tabla": "autorizaciones_descuento",
@@ -534,6 +545,17 @@
       "tabla": "autorizaciones_descuento",
       "columna": "sucursal_id",
       "tipo": "uuid",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.autorizaciones_descuento.tope_bp",
+      "esquema": "public",
+      "tabla": "autorizaciones_descuento",
+      "columna": "tope_bp",
+      "tipo": "integer",
       "noNula": false,
       "defaultSql": null,
       "identidad": null,
@@ -19297,6 +19319,28 @@
       "diferidaInicialmente": false
     },
     {
+      "clave": "public.autorizaciones_descuento.autorizacion_base_positiva",
+      "esquema": "public",
+      "tabla": "autorizaciones_descuento",
+      "nombre": "autorizacion_base_positiva",
+      "tipo": "check",
+      "definicion": "CHECK (base_centavos IS NULL OR base_centavos > 0)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.autorizaciones_descuento.autorizacion_base_y_tope_juntos",
+      "esquema": "public",
+      "tabla": "autorizaciones_descuento",
+      "nombre": "autorizacion_base_y_tope_juntos",
+      "tipo": "check",
+      "definicion": "CHECK ((base_centavos IS NULL) = (tope_bp IS NULL))",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
       "clave": "public.autorizaciones_descuento.autorizacion_con_motivo",
       "esquema": "public",
       "tabla": "autorizaciones_descuento",
@@ -19335,7 +19379,18 @@
       "tabla": "autorizaciones_descuento",
       "nombre": "autorizacion_supera_el_tope",
       "tipo": "check",
-      "definicion": "CHECK (descuento_centavos > tope_centavos)",
+      "definicion": "CHECK (descuento_centavos > tope_centavos OR base_centavos IS NOT NULL AND tope_bp IS NOT NULL AND (descuento_centavos * 10000) > (base_centavos * tope_bp))",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.autorizaciones_descuento.autorizacion_tope_bp_valido",
+      "esquema": "public",
+      "tabla": "autorizaciones_descuento",
+      "nombre": "autorizacion_tope_bp_valido",
+      "tipo": "check",
+      "definicion": "CHECK (tope_bp IS NULL OR tope_bp >= 0 AND tope_bp <= 10000)",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false

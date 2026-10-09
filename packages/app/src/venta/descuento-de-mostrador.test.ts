@@ -165,9 +165,21 @@ describe('F-205 · el descuento que pasa del tope', () => {
       autoriza_rol: 'gerente',
       descuento_centavos: 2_000n,
       tope_centavos: 5_000n,
+      base_centavos: 10_000n,
+      tope_bp: 1_000,
       motivo: 'producto golpeado',
       orden_id: CARRITO_MOSTRADOR,
     });
+    // $20 sobre $100 pasa el tope de la cajera por PORCENTAJE (20 % > 10 %) y NO por
+    // importe ($20 < $50). La 078 sólo aceptaba la rama del importe y Postgres rechazaba
+    // esta misma fila con 23514; la base falsa no hace cumplir `check`, así que aquí se
+    // afirma la regla de la 180 tal cual está escrita en SQL.
+    const descuento = fila?.['descuento_centavos'] as bigint;
+    const cumpleLa180 =
+      descuento > (fila?.['tope_centavos'] as bigint) ||
+      descuento * 10_000n >
+        (fila?.['base_centavos'] as bigint) * BigInt(fila?.['tope_bp'] as number);
+    expect(cumpleLa180).toBe(true);
   });
 
   it('una autorización de otra cajera, vencida, de otro negocio o alterada no vale', async () => {

@@ -3,7 +3,7 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Aviso, CampoDeDinero, Superficie } from '@morphiqpos/ui/sistema';
+import { Aviso, CampoDeDinero, Dinero, Superficie } from '@morphiqpos/ui/sistema';
 import { Receipt } from 'lucide-react';
 import { useState } from 'react';
 
@@ -43,6 +43,8 @@ export function GastoDeCaja({ alRegistrar }: { readonly alRegistrar: () => void 
   const [descripcion, setDescripcion] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ tono: 'peligro' | 'atencion'; texto: string } | null>(null);
+  /** Lo último que salió del cajón, para decirlo: un formulario que sólo se vacía no dice si entró. */
+  const [registrado, setRegistrado] = useState<number | null>(null);
 
   async function registrar(): Promise<void> {
     if (monto === null || monto <= 0) {
@@ -55,6 +57,7 @@ export function GastoDeCaja({ alRegistrar }: { readonly alRegistrar: () => void 
     }
     setGuardando(true);
     setAviso(null);
+    setRegistrado(null);
     try {
       await invocarComando('/api/gastos/registrar', {
         categoria,
@@ -64,6 +67,7 @@ export function GastoDeCaja({ alRegistrar }: { readonly alRegistrar: () => void 
       });
       setMonto(null);
       setDescripcion('');
+      setRegistrado(monto);
       alRegistrar();
     } catch (fallo: unknown) {
       setAviso({
@@ -136,6 +140,16 @@ export function GastoDeCaja({ alRegistrar }: { readonly alRegistrar: () => void 
       </div>
 
       {aviso === null ? null : <Aviso tono={aviso.tono} titulo={aviso.texto} />}
+      {registrado === null ? null : (
+        <Aviso
+          tono="exito"
+          titulo={
+            <span className="inline-flex flex-wrap items-baseline gap-(--espacio-1)">
+              Gasto registrado: salieron <Dinero centavos={registrado} tamano="sm" /> del cajón.
+            </span>
+          }
+        />
+      )}
 
       <div className="mt-auto">
         <Button

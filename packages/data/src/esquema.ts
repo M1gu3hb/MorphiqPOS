@@ -1371,6 +1371,9 @@ export interface AutorizacionesDescuento {
   autoriza_rol: string;
   descuento_centavos: bigint;
   tope_centavos: bigint;
+  /** 180 · La base de la venta y el tope en puntos base: la rama del porcentaje. */
+  base_centavos: bigint | null;
+  tope_bp: number | null;
   motivo: string;
   created_at: Generated<Date>;
   // ── 115 · La llave del dueño sobre el muro de crédito (sin aplicar) ────

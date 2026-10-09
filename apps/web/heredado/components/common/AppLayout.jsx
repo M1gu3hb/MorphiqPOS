@@ -11,8 +11,17 @@ import PedidoListoWatcher from './PedidoListoWatcher';
 import MobileAdminRadialMenu from './MobileAdminRadialMenu';
 import { useRouteCleanup } from '@/lib/useRouteCleanup';
 
-export default function AppLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+/**
+ * `marco="modelo"` (bloque D de la 2.4): las pantallas de los cinco modelos no tenían
+ * NINGÚN menú —su layout decía que «al acoplar se decide» y nunca se decidió—, así que la
+ * cajera en Caja no tenía cómo llegar a Cobrar sin teclear la dirección. Entran con el
+ * mismo menú por rol y plantilla, pero sin quitarles su marco: la barra empieza colapsada
+ * a íconos, el contenido va sin relleno (cada modelo tiene su propia composición a sangre)
+ * y en tableta y teléfono se deja el hueco de la hamburguesa para que no tape nada.
+ */
+export default function AppLayout({ marco = 'interno' }) {
+  const deModelo = marco === 'modelo';
+  const [collapsed, setCollapsed] = useState(deModelo);
   const { posUser, isLoading } = usePOSAuth();
   const navigate = useNavigate();
   // Libera body locks (overflow/pointer-events) si quedó algún portal pegado al cambiar de ruta.
@@ -43,7 +52,10 @@ export default function AppLayout() {
         className={`flex-1 transition-all duration-300 ${collapsed ? 'lg:ml-16' : 'lg:ml-60'} relative z-10`}
         style={{ minHeight: '100dvh' }}
       >
-        <div className="p-4 md:p-6 lg:p-8 pt-14 lg:pt-6" style={{ minHeight: '100dvh' }}>
+        <div
+          className={deModelo ? 'pt-14 lg:pt-0' : 'p-4 md:p-6 lg:p-8 pt-14 lg:pt-6'}
+          style={{ minHeight: '100dvh' }}
+        >
           <Outlet />
         </div>
       </main>

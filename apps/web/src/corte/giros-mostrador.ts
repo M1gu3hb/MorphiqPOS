@@ -118,10 +118,13 @@ export function cartera(
   ];
 }
 
+/** Por el tipo del comisionista (`comisionistas.tipo`): un recibo de luz es `recibo`. */
 const TERCERO: Readonly<Record<string, string>> = {
   recarga: 'Recargas',
-  servicio: 'Pago de servicios',
+  recibo: 'Pago de servicios',
+  servicio: 'Servicios',
   paqueteria: 'Paquetería',
+  otro: 'Otras operaciones',
 };
 
 export function terceros(hoja: HojaDelServidor, extras: ExtrasDeMostrador): readonly Seccion[] {

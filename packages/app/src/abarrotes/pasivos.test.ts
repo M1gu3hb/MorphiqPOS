@@ -324,6 +324,36 @@ describe('F-256 · el casco', () => {
   });
 });
 
+describe('F-255 · la operación del comisionista, como la acepta la base', () => {
+  // `operacion_comision_tipo_valido` (095): el tipo es el de la OPERACIÓN. La base falsa no
+  // hace cumplir `check`, así que la lista se afirma aquí tal cual está en la migración:
+  // con el tipo de servicio, Postgres rechazaba con 23514 toda recarga y todo recibo.
+  const TIPOS_DE_OPERACION = ['venta', 'compra_saldo', 'entrega', 'ajuste', 'cancelacion'];
+
+  it('una recarga y un recibo se anotan como VENTA del servicio', async () => {
+    for (const operacion of [
+      RECARGA,
+      {
+        ...RECARGA,
+        tipo: 'pago_servicio' as const,
+        proveedorServicio: 'CFE',
+        referencia: '0123456789',
+      },
+    ]) {
+      const base = baseDe();
+      const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+      await registrarComision.ejecutar(ctx, operacion);
+      const [fila] = base.filas('operaciones_comision');
+      expect(fila?.['tipo']).toBe('venta');
+      expect(TIPOS_DE_OPERACION).toContain(fila?.['tipo']);
+      // Qué servicio fue lo dice el comisionista, y por ahí agrupa el corte.
+      expect(base.filas('comisionistas')[0]?.['tipo']).toBe(
+        operacion.tipo === 'recarga' ? 'recarga' : 'recibo',
+      );
+    }
+  });
+});
+
 describe('el titular derivado de un proveedor de servicio', () => {
   it('ES ESTABLE: dos recargas a Telcel suman al mismo saldo', () => {
     expect(uuidDeProveedor('Telcel')).toBe(uuidDeProveedor('Telcel'));

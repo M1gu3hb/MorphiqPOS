@@ -78,6 +78,7 @@ interface MovimientoDeCajaDelPuente {
 }
 
 interface MovimientoDeInventarioDelPuente {
+  readonly id?: string;
   readonly tipo_movimiento?: string | null;
   /** `decimal`: puede llegar como texto (`'-2.0000'`) según el conductor. */
   readonly cantidad?: number | string | null;
@@ -129,6 +130,22 @@ function ventaDelServidor(venta: VentaDelPuente): VentaDelServidor {
   };
 }
 
+/**
+ * Los movimientos de inventario que YA EXISTÍAN al empezar el día: las entradas iniciales
+ * que siembra el reseteo. La existencia «antes» se lee después de ellas, así que el ledger
+ * que la explica tiene que empezar en el mismo punto.
+ */
+export async function movimientosDeInventarioPrevios(page: Page): Promise<ReadonlySet<string>> {
+  const filas = await consultarPuente<MovimientoDeInventarioDelPuente>(
+    page,
+    'MovimientoInventario',
+    {
+      limite: 2000,
+    },
+  );
+  return new Set(filas.map((m) => m.id ?? '').filter((id) => id !== ''));
+}
+
 export interface LecturasDelGiro {
   /** El ledger de pasivos que use el giro: recargas, abonos, cascos, anticipos. */
   readonly pasivos?: (page: Page) => Promise<readonly PasivoDelLibro[]>;
@@ -146,6 +163,8 @@ export interface LecturasDelGiro {
 export async function leerElServidor(
   page: Page,
   lecturas: LecturasDelGiro = {},
+  /** Los movimientos de inventario de antes del día, que no son de este libro. */
+  previos: ReadonlySet<string> = new Set(),
 ): Promise<ServidorDelDia> {
   const ventas = (await consultarPuente<VentaDelPuente>(page, 'Venta', { limite: 1000 }))
     .filter((v) => COBRADAS.includes(v.estado ?? ''))
@@ -178,11 +197,13 @@ export async function leerElServidor(
     cajas,
     pasivos: lecturas.pasivos === undefined ? [] : await lecturas.pasivos(page),
     comisiones: lecturas.comisiones === undefined ? [] : await lecturas.comisiones(page),
-    movimientosDeInventario: inventario.map((m) => ({
-      producto: m.ingrediente_nombre ?? '',
-      cantidad: Number(m.cantidad ?? 0),
-      origen: m.tipo_movimiento ?? '',
-    })),
+    movimientosDeInventario: inventario
+      .filter((m) => !previos.has(m.id ?? ''))
+      .map((m) => ({
+        producto: m.ingrediente_nombre ?? '',
+        cantidad: Number(m.cantidad ?? 0),
+        origen: m.tipo_movimiento ?? '',
+      })),
   };
 }
 
@@ -223,6 +244,16 @@ export class Libro {
   readonly #pasivos: PasivoDelLibro[] = [];
   readonly #comisiones: ComisionDelLibro[] = [];
   readonly #inventario = new Map<string, ExistenciaDelLibro>();
+  #previos: ReadonlySet<string> = new Set();
+
+  /** Desde aquí cuenta el inventario del día: lo de antes es de la siembra. */
+  empezarInventario(previos: ReadonlySet<string>): void {
+    this.#previos = previos;
+  }
+
+  get movimientosPrevios(): ReadonlySet<string> {
+    return this.#previos;
+  }
 
   /** Se abrió una caja con su fondo. */
   abrirCaja(referencia: string, sesionCajaId: string, fondoCentavos: number): void {
@@ -339,7 +370,7 @@ export async function exigirQueCuadre(
   for (const producto of libro.productosVigilados) {
     libro.existenciaDespues(producto, await existenciaDe(page, producto));
   }
-  const servidor = await leerElServidor(page, lecturas);
+  const servidor = await leerElServidor(page, lecturas, libro.movimientosPrevios);
   const resultado = conciliarElDia(libro.libro(), servidor);
   const { resumen } = resultado;
   test.info().annotations.push({

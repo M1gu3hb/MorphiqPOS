@@ -6,6 +6,7 @@ import { elProfesionalPuede, planearCita, type Rango } from '@morphiqpos/domain/
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { restriccionDe, sqlstate } from '../portal/errores-sql.ts';
 
 /**
  * F-400, F-402 y F-415 · Agendar, que en un salón es vender.
@@ -30,7 +31,8 @@ import { definirComando, type ContextoComando } from '../definicion.ts';
  * La comprobación de aquí existe para poder decir «Karla ya tiene a alguien a
  * esa hora» con palabras. La de la base —la exclusión GiST de la 132— existe
  * porque dos peticiones simultáneas pasan las dos por aquí y sólo una puede
- * pasar por Postgres. Ninguna de las dos sobra.
+ * pasar por Postgres. Ninguna de las dos sobra, y la que pierde en la base oye lo
+ * mismo que la que pierde aquí (`traducirReservaQuePerdio`).
  */
 
 const ROLES = ['cajero', 'mesero', 'gerente', 'administrador', 'dueno'] as const;
@@ -141,24 +143,28 @@ export const agendarCita = definirComando<Transaccion, typeof entradaAgendarCita
 
     const servicios: ServicioAgendado[] = [];
     for (const plan of planeados) {
-      const fila = await ctx.paso('crear_cita_servicio', () =>
-        ctx.tx
-          .insertInto('cita_servicios')
-          .values({
-            organizacion_id: organizacionId,
-            cita_id: cita.id,
-            servicio_id: plan.servicioId,
-            profesional_id: plan.profesionalId,
-            // El precio lo pone el SERVIDOR y se congela aquí.
-            precio_centavos: plan.precioCentavos,
-            rango_activo: comoMultirango(plan.cita.rangosActivos),
-            rango_ocupacion: comoRango(plan.cita.rangoOcupacion),
-            estado: 'pendiente',
-            created_at: ctx.ahora,
-          })
-          .returning('id')
-          .executeTakeFirstOrThrow(),
-      );
+      const fila = await ctx.paso('crear_cita_servicio', async () => {
+        try {
+          return await ctx.tx
+            .insertInto('cita_servicios')
+            .values({
+              organizacion_id: organizacionId,
+              cita_id: cita.id,
+              servicio_id: plan.servicioId,
+              profesional_id: plan.profesionalId,
+              // El precio lo pone el SERVIDOR y se congela aquí.
+              precio_centavos: plan.precioCentavos,
+              rango_activo: comoMultirango(plan.cita.rangosActivos),
+              rango_ocupacion: comoRango(plan.cita.rangoOcupacion),
+              estado: 'pendiente',
+              created_at: ctx.ahora,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+        } catch (error) {
+          return traducirReservaQuePerdio(error, plan.profesionalId);
+        }
+      });
 
       servicios.push({
         citaServicioId: fila.id,
@@ -192,6 +198,35 @@ export const agendarCita = definirComando<Transaccion, typeof entradaAgendarCita
     };
   },
 });
+
+/** La exclusión GiST de la 132: la misma persona, dos rangos activos que se pisan. */
+const EXCLUSION_DE_LA_AGENDA = 'cita_servicios_profesional_id_rango_activo_excl';
+/** `exclusion_violation` en Postgres. */
+const VIOLACION_DE_EXCLUSION = '23P01';
+
+/**
+ * LA RESERVA QUE PERDIÓ LA CARRERA, con palabras (D.9 de la 2.4).
+ *
+ * `comprobarChoques` lee la agenda sin bloquear: la recepcionista y la clienta desde el
+ * portal reservan en el mismo segundo, las dos ven el hueco libre y la exclusión de la base
+ * deja pasar sólo a una. A la otra le llegaba ese 23P01 como «Algo falló de nuestro lado»;
+ * es el mismo choque que la comprobación de palabras, y se dice igual.
+ *
+ * Sólo esa restricción: cualquier otro fallo sube tal cual, con la transacción ya abortada.
+ */
+function traducirReservaQuePerdio(error: unknown, profesionalId: string): never {
+  if (
+    sqlstate(error) === VIOLACION_DE_EXCLUSION &&
+    restriccionDe(error) === EXCLUSION_DE_LA_AGENDA
+  ) {
+    throw new ErrorDominio(
+      'CONFIGURACION_CONFLICTO',
+      'Esa persona ya tiene a alguien a esa hora: otra reserva entró mientras agendabas.',
+      { profesionalId },
+    );
+  }
+  throw error;
+}
 
 interface PlanDeServicio {
   readonly servicioId: string;

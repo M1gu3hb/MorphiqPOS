@@ -99,15 +99,27 @@ export const cobrarOrden = definirComando<
     //       además en caja metería el mismo material dos veces en el dinero. Se bloquea
     //       la orden primero: una remisión simultánea de la misma nota también la
     //       bloquea, así que una de las dos espera y después ve a la otra.
-    await ctx.paso('bloquear_orden', () =>
+    const bloqueada = await ctx.paso('bloquear_orden', () =>
       ctx.tx
         .selectFrom('ordenes')
-        .select('id')
+        .select(['id', 'estado'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.ordenId)
         .forUpdate()
         .executeTakeFirst(),
     );
+    // Y el estado otra vez, YA con el candado (bloque D de la 2.4): dos cobros simultáneos
+    // de la misma venta leyeron los dos «cobrable» antes de bloquear; el segundo, al pasar,
+    // se topaba con el ledger de inventario (23505) y la cajera veía «Algo falló». Ahora se
+    // le dice lo que pasó: ya se cobró.
+    if (
+      bloqueada !== undefined &&
+      !(repoOrdenes.ESTADOS_COBRABLES as readonly string[]).includes(bloqueada.estado)
+    ) {
+      throw new ErrorDominio('ORDEN_NO_EDITABLE', 'Esa venta ya se cobró o se canceló.', {
+        estado: bloqueada.estado,
+      });
+    }
     const remitida = await ctx.paso('mirar_remision', () =>
       ctx.tx
         .selectFrom('remisiones')

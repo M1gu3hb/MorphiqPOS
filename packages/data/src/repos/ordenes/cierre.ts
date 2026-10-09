@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { ErrorDominio } from '@morphiqpos/contracts/errores';
+
 import type { Transaccion } from '../../cliente.ts';
 
 /**
@@ -133,6 +135,14 @@ export async function marcarPagada(
     .executeTakeFirst();
 
   if (Number(resultado.numUpdatedRows) !== 1) {
-    throw new Error(`La orden ${datos.ordenId} ya no estaba cobrable al cobrarla.`);
+    // De dominio y no un `Error` suelto (D.9 de la 2.4): quien llega aquí es el SEGUNDO de
+    // dos cobros de la misma orden —el doble clic, dos pantallas con la misma cuenta—, y
+    // con un `Error` la cajera leía «Algo falló de nuestro lado» sobre una venta que SÍ
+    // quedó cobrada, una vez. La reversión de este cobro no cambia: sólo el mensaje.
+    throw new ErrorDominio(
+      'ORDEN_NO_EDITABLE',
+      'Esa venta se acaba de cobrar —o de cancelar— desde otra pantalla: no se cobró dos veces.',
+      { ordenId: datos.ordenId },
+    );
   }
 }

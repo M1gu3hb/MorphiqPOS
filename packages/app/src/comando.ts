@@ -141,7 +141,12 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
         entradaValidada = validada.datos;
 
         // ── Clave de idempotencia (R10) ─────────────────────────────────────
-        const clave = peticion.idempotencyKey;
+        // Sólo para lo que ESCRIBE. Una lectura no tiene nada que no repetir, y guardarle
+        // la respuesta la congelaba: Cobrar abortaba su `caja.estado` al navegar, el
+        // cliente conservaba la clave del intento sin respuesta y la lectura siguiente
+        // —ya con la caja abierta— recibía la foto vieja, «la caja está cerrada» (bloque D
+        // de la 2.4). Para una lectura, la clave que traiga se ignora.
+        const clave = definicion.escribe ? peticion.idempotencyKey : undefined;
         if (definicion.escribe && (clave === undefined || clave.length < CLAVE_MINIMA)) {
           throw new Rechazo('IDEMPOTENCIA_REQUERIDA', null);
         }

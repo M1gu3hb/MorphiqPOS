@@ -204,6 +204,11 @@ export default function Sidebar({ collapsed, onToggle }) {
               key={item.path}
               to={item.path}
               onClick={closeMobile}
+              // Colapsada sólo queda el ícono: sin esto el enlace no tiene nombre y un
+              // lector de pantalla —o quien no reconoce el dibujo— no sabe a dónde lleva.
+              aria-label={collapsed ? etiquetaDeNavegacion(item, vocabulario) : undefined}
+              title={collapsed ? etiquetaDeNavegacion(item, vocabulario) : undefined}
+              aria-current={active ? 'page' : undefined}
               className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${active ? 'text-primario-texto font-semibold' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}
               style={
                 active

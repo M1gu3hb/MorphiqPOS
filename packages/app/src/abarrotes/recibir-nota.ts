@@ -39,7 +39,13 @@ import { exigirMotivoDeMerma } from '../inventario/motivos.ts';
  * conteste cualquier cosa. Lo que no trae fecha, no entra a la lista.
  */
 
-const ROLES = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
+/**
+ * Quién recibe al repartidor. El ALMACÉN también (bloque D de la 2.4): es su trabajo, el
+ * menú le daba «Entradas» y el comando lo rechazaba con «Tu puesto no tiene permiso» a media
+ * nota. Recibir no toca el cajón —pagarle al proveedor es otro movimiento, de quien sí lo
+ * toca—, así que esto no le abre la caja.
+ */
+const ROLES = ['cajero', 'almacen', 'gerente', 'administrador', 'dueno'] as const;
 
 /**
  * El almacén principal de la sucursal de la SESIÓN.
@@ -239,6 +245,36 @@ export const recibirNota = definirComando<
     const insumosDelCanje = await leerInsumosDelCanje(ctx, canjes);
 
     const compra = await registrarCompra.ejecutar(ctx, entrada);
+
+    // EL PRIMER PROVEEDOR QUE LO TRAE queda como su proveedor (D-32 de la 2.4). Sin esto, un
+    // producto dado de alta en el mostrador no era de NADIE: el sugerido de pedido y el canje
+    // —que listan «lo que se le compra a este proveedor»— no lo veían nunca, y la tienda no
+    // podía ni pedirlo ni devolverlo. Sólo donde no hay proveedor: nunca se pisa el que ya
+    // tiene, porque cambiarlo es una decisión del dueño, no un efecto de recibir una nota.
+    // De las líneas YA GUARDADAS de esta compra, no de la entrada: así entran también los
+    // insumos que la nota dio de alta (`nuevo`), que en la entrada todavía no tienen id.
+    const recibidos = (
+      await ctx.paso('leer_lineas_recibidas', () =>
+        ctx.tx
+          .selectFrom('compra_lineas')
+          .select('insumo_id')
+          .where('organizacion_id', '=', organizacionId)
+          .where('compra_id', '=', compra.compraId)
+          .execute(),
+      )
+    ).map((l) => l.insumo_id);
+    if (entrada.proveedorId !== undefined && recibidos.length > 0) {
+      const proveedorId = entrada.proveedorId;
+      await ctx.paso('ligar_al_proveedor', () =>
+        ctx.tx
+          .updateTable('insumos')
+          .set({ proveedor_id: proveedorId })
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', 'in', recibidos)
+          .where('proveedor_id', 'is', null)
+          .execute(),
+      );
+    }
 
     // El canje, en la MISMA transacción: lo que se lleva sale del inventario y de la cuenta.
     const canje = await aplicarCanjes(ctx, almacenId, compra.compraId, canjes, insumosDelCanje);

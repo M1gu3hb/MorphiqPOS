@@ -119,21 +119,28 @@ export interface OperacionDeTerceros {
   readonly comisionCentavos: string;
 }
 
-/** Recargas, servicios y paquetería: dinero en tránsito, no venta (F-255). */
+/**
+ * Recargas, servicios y paquetería: dinero en tránsito, no venta (F-255). Por el tipo del
+ * COMISIONISTA —recarga, recibo, paquetería—: el de la operación es siempre `venta`.
+ */
 export async function operacionesDeTerceros(
   tx: Transaccion,
   organizacionId: string,
   sesionCajaId: string,
 ): Promise<readonly OperacionDeTerceros[]> {
   const { rows } = await sql<OperacionDeTerceros>`
-    select o.tipo                                as "tipo",
+    select c.tipo                                as "tipo",
            count(*)::int                         as "operaciones",
            sum(o.monto_ajeno_centavos)::text     as "montoCentavos",
            sum(o.comision_centavos)::text        as "comisionCentavos"
       from operaciones_comision o
+      join comisionistas c
+        on c.id = o.comisionista_id
+       and c.organizacion_id = o.organizacion_id
      where o.organizacion_id = ${organizacionId}
        and o.sesion_caja_id = ${sesionCajaId}
-     group by o.tipo
+       and o.tipo = 'venta'
+     group by c.tipo
      order by sum(o.monto_ajeno_centavos) desc
   `.execute(tx);
   return rows;

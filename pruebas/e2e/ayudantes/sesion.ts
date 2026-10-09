@@ -1495,7 +1495,12 @@ export async function exigirVentaCobrada(
  */
 export async function exigirCobroAceptado(page: Page, señalDeReposo: RegExp): Promise<void> {
   const reposo = page.getByText(señalDeReposo).first();
-  const queja = page.locator('[role="alert"]').filter({ hasText: /\S/ }).first();
+  // Sin el anunciador de rutas de Next: también es `role="alert"` y, al navegar por el
+  // menú, lleva el título de la página —«MH Astral POS»—, que no es ninguna queja.
+  const queja = page
+    .locator('[role="alert"]:not(#__next-route-announcer__)')
+    .filter({ hasText: /\S/ })
+    .first();
 
   await expect(reposo.or(queja), 'La pantalla de cobro no contestó nada al confirmar.').toBeVisible(
     {

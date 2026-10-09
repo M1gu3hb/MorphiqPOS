@@ -51,6 +51,15 @@ export {
 } from './conteo.ts';
 
 export {
+  asignarZona,
+  entradaAsignarZona,
+  entradaGuardarZona,
+  guardarZona,
+  type ZonaAsignada,
+  type ZonaGuardada,
+} from './zonas.ts';
+
+export {
   entradaSugerirPedido,
   sugerenciaDePedido,
   type PedidoSugerido,

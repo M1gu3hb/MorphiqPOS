@@ -38,6 +38,7 @@ import {
   useMotivosDeMerma,
   type MotivoDeMerma,
 } from './conteo/MotivoDeLaDiferencia.tsx';
+import { ZonasDelAnaquel } from './conteo/ZonasDelAnaquel.tsx';
 
 /**
  * PANTALLA · abarrotes · conteo
@@ -522,6 +523,8 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
   // Cada lectura es un número: «Volver a leer» lo sube y el efecto lee otra vez.
   // El estado se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
+  /** El panel de zonas, abierto desde el vacío (D-33): antes era un enlace a Configuración. */
+  const [programando, setProgramando] = useState(false);
   const [conteos, setConteos] = useState<Readonly<Record<string, number>>>({});
   const [idActual, setIdActual] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
@@ -697,6 +700,21 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
 
   // El vacío ENSEÑA qué es un conteo cíclico: es la primera vez que el encargado
   // lo lee, y de eso depende que mañana vuelva a abrir la pantalla.
+  if (filas.length === 0 && programando) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-3xl flex-col gap-(--espacio-4) p-(--espacio-4)">
+        <h1 className="text-xl font-bold">Zonas del anaquel</h1>
+        <ZonasDelAnaquel
+          onListo={() => {
+            setProgramando(false);
+            setFilas(null);
+            setIntento((previo) => previo + 1);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (filas.length === 0) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center p-(--espacio-6)">
@@ -705,8 +723,14 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
           titulo="Hoy no toca ninguna zona."
           explicacion="El conteo cíclico parte el anaquel en zonas y cuenta una al día, en veinte minutos, en vez de cerrar la cortina un domingo entero. La que más se mueve vuelve a tocar antes."
           accion={
-            <Button asChild className={PRINCIPAL}>
-              <a href="/configuracion">Programar las zonas del anaquel</a>
+            <Button
+              type="button"
+              className={PRINCIPAL}
+              onClick={() => {
+                setProgramando(true);
+              }}
+            >
+              Programar las zonas del anaquel
             </Button>
           }
         />

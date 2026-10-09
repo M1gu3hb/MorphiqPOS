@@ -459,6 +459,16 @@
         "+ clase:text-[9px]",
         "+ clase:mt-0.5"
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/common/AppLayout.jsx",
+      "porque": "Bloque D de la 2.4 · las 61 pantallas de los cinco modelos no tenian NINGUN menu: su layout montaba solo el contenido y la cajera en Caja no tenia como llegar a Cobrar sin teclear la direccion. Entran en este mismo AppLayout con la variante marco=\"modelo\": la barra empieza colapsada y el contenido va sin el relleno de las paginas internas, con solo el hueco de la hamburguesa en tableta y telefono (pt-14 lg:pt-0). Las paginas internas de Miguel conservan EXACTAMENTE sus clases (p-4 md:p-6 lg:p-8 pt-14 lg:pt-6): la variante solo existe para las de modelo.",
+      "testigos": ["+ clase:pt-14", "+ clase:lg:pt-0"]
+    },
+    {
+      "archivo": "apps/web/heredado/lib/PageNotFound.jsx",
+      "borrado": true,
+      "porque": "Bloque D de la 2.4 · era el 404 de la plataforma anterior, en ingles (\"Page Not Found\", \"Go Home\") y con una \"Admin Note\" que decia que \"la IA todavia no implemento esta pagina\" y que se pidiera \"en el chat\". Lo sustituye apps/web/app/not-found.tsx, en espanol, con el sistema de diseno y un 404 de verdad sin indexar. Miguel no lo vera menos: nunca debio verlo."
     }
   ]
 }

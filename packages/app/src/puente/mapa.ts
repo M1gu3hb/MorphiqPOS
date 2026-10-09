@@ -417,6 +417,8 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
       },
       proveedor_default_id: { columna: 'proveedor_id', conversion: 'texto' },
+      // F-149 · En qué zona del anaquel se cuenta: lo escribe `inventario.asignar_zona`.
+      zona_anaquel_id: { columna: 'zona_id', conversion: 'texto', escribible: false },
       notas: { columna: 'notas', conversion: 'texto' },
       tipo_ingrediente: { columna: 'tipo_insumo', conversion: 'texto' },
       capacidad_contenedor_ml: { columna: 'capacidad_contenedor_ml', conversion: 'decimal' },
