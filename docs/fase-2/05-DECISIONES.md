@@ -602,6 +602,22 @@ venta que ninguna pantalla enseñaba.
 9. **Facturación no timbra**: el timbrado, la cancelación, el complemento y la factura agrupada son
    del PAC (§10.3) y están en EXCEPCIONES con su motivo. La pantalla lo dice.
 
+## D-25 · 08-10-2026 · Un solo portal del comensal: el de Miguel
+
+**Contexto.** C.11 de la 2.4: había dos portales del comensal. El QR de la mesa lleva a
+`/qr/[token]`, que pinta `PortalCliente` (heredado); la ruta del modelo,
+`/restaurante/portal-del-comensal`, pintaba `PortalDelComensal` (nuevo), al que ningún
+comensal llegaba. El encargo: queda vivo el que pase el rastreador, respete estilos y
+vocabulario y tenga las funciones del de Miguel. Uno solo, documentado.
+
+**Decisión.** Queda el de **Miguel**. Tiene lo que el otro no: el pedido desde la mesa con su
+carrito, abrir la mesa por QR y la propina en vivo cuando el mesero dispara la cuenta
+(`propina_origen = 'portal_qr'`). Desde C.16 (D-19) pinta con los tokens del estilo. El
+componente nuevo se BORRA; la ruta del modelo —que declara su `04-INTERFAZ`, que exige la
+cobertura y que la lista de rutas sin sesión nombra— monta el mismo `PortalCliente`, que sin
+token dice «Mesa no encontrada · llama a un mesero». Un componente, dos direcciones, y la del
+comensal es la del QR.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras
