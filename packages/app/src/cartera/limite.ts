@@ -58,6 +58,9 @@ export const fijarLimiteDeCredito = definirComando<
         .select(['id', 'nombre', 'limite_credito_centavos'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.clienteId)
+        // Bloqueado: dos cambios a la vez dejaban en la bitácora un «antes» que ya no era
+        // el de antes (auditoría de la 2.4). Y se forma en fila con los fiados del cliente.
+        .forUpdate()
         .executeTakeFirst(),
     );
     // Un cliente de otro negocio responde igual que uno que no existe.

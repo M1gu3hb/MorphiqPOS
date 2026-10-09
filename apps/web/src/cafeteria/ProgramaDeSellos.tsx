@@ -41,7 +41,7 @@ interface Programa {
   readonly sellosPorPremio: number;
   readonly sellosVivos: number;
   readonly clientesConSaldo: number;
-  readonly pasivoCentavos: string;
+  readonly pasivoCentavos: string | null;
   readonly aUnSello: readonly ClienteDelPrograma[];
   readonly inactivos: readonly ClienteDelPrograma[];
 }
@@ -133,9 +133,11 @@ export function ProgramaDeSellos() {
         <p className="flex flex-wrap items-baseline gap-x-(--espacio-2) text-xl font-bold">
           <Cifra valor={programa.sellosVivos} unidad="sellos pendientes" />
           <span aria-hidden="true">·</span>
-          <span className="inline-flex items-baseline gap-(--espacio-1)">
-            <Dinero centavos={Number(programa.pasivoCentavos)} /> si se canjean todos
-          </span>
+          {programa.pasivoCentavos === null ? null : (
+            <span className="inline-flex items-baseline gap-(--espacio-1)">
+              <Dinero centavos={Number(programa.pasivoCentavos)} /> si se canjean todos
+            </span>
+          )}
         </p>
         <p className="w-full text-xs text-texto-sutil">
           {programa.clientesConSaldo} clientes con saldo · el premio a los{' '}

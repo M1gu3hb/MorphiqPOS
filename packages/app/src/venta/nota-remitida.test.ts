@@ -75,3 +75,33 @@ describe('el cobro de una nota remitida', () => {
     expect(base.campo('ordenes', 'estado')).toBe('pagada');
   });
 });
+
+describe('el cobro de una orden de OTRA sucursal (auditoría de la 2.4)', () => {
+  it('contesta como si no existiera, y no escribe un pago', async () => {
+    const base = crearBaseFalsa(
+      {
+        ordenes: [
+          ordenDeMesa('confirmada', {
+            cliente_id: null,
+            sucursal_id: 'a2222222-2222-4222-8222-222222222222',
+          }),
+        ],
+        orden_lineas: [linea()],
+        sesiones_caja: [sesionCajaAbierta()],
+        almacenes: [],
+        configuracion: [],
+        remisiones: [],
+      },
+      { predeterminados: PREDETERMINADOS, filasCrudas: [{ siguiente: 1n }] },
+    );
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await expect(
+      cobrarOrden.ejecutar(ctx, {
+        ordenId: CUENTA,
+        pagos: [{ metodo: 'efectivo', montoCentavos: 10_000, recibidoCentavos: 10_000 }],
+      }),
+    ).rejects.toMatchObject({ codigo: 'ORDEN_NO_ENCONTRADA' });
+    expect(base.filas('pagos')).toHaveLength(0);
+  });
+});

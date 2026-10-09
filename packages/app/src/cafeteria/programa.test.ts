@@ -72,3 +72,30 @@ describe('filasDelPrograma', () => {
     expect(consulta?.parameters).toEqual([ORG, ORG]);
   });
 });
+
+describe('lealtad.programa · el pasivo sólo para quien ve costos (auditoría de la 2.4)', () => {
+  async function pedirComo(rol: 'cajero' | 'dueno') {
+    const { programaDeSellos } = await import('./programa.ts');
+    const { contextoFalso } = await import('../restaurante/pruebas/base-falsa.ts');
+    const { ambitoDe } = await import('../restaurante/pruebas/sala.ts');
+    // Las filas del programa, el último canje y la configuración de sellos.
+    const { tx } = transaccionGrabadora([
+      [{ clienteId: 'ana', nombre: 'Ana', telefono: null, sellos: 9, ultimaVisita: hace(2) }],
+      [{ costo_centavos: 1_800n }],
+      [],
+    ]);
+    const { ctx } = contextoFalso(tx, ambitoDe(rol), AHORA);
+    return programaDeSellos.ejecutar(ctx, { diasInactivo: 21 });
+  }
+
+  it('la cajera ve los sellos, no el dinero', async () => {
+    const salida = await pedirComo('cajero');
+    expect(salida.pasivoCentavos).toBeNull();
+    expect(salida.sellosVivos).toBe(9);
+  });
+
+  it('la dueña ve el pasivo', async () => {
+    const salida = await pedirComo('dueno');
+    expect(salida.pasivoCentavos).not.toBeNull();
+  });
+});

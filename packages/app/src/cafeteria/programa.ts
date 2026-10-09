@@ -9,6 +9,9 @@ import { z } from 'zod';
 import { definirComando } from '../definicion.ts';
 import { sellosPorPremio } from './lealtad.ts';
 
+/** Quién ve lo que cuesta el programa (el pasivo va al costo del premio). */
+const VEN_COSTOS: readonly string[] = ['gerente', 'administrador', 'dueno'];
+
 /**
  * EL PROGRAMA DE SELLOS, en sus tres cifras que disparan algo (C.10 de la 2.4).
  *
@@ -44,7 +47,8 @@ export interface ResultadoPrograma {
   readonly sellosPorPremio: number;
   readonly sellosVivos: number;
   readonly clientesConSaldo: number;
-  readonly pasivoCentavos: string;
+  /** Al costo del premio: `null` para quien no ve costos (auditoría de la 2.4). */
+  readonly pasivoCentavos: string | null;
   readonly aUnSello: readonly ClienteDelPrograma[];
   readonly inactivos: readonly ClienteDelPrograma[];
 }
@@ -153,11 +157,14 @@ export const programaDeSellos = definirComando<
         .limit(1)
         .executeTakeFirst(),
     );
-    return resumirPrograma(filas, {
+    const resumen = resumirPrograma(filas, {
       ahora: ctx.ahora,
       sellosPorPremio: await sellosPorPremio(ctx),
       costoPremioCentavos: canje?.costo_centavos ?? 0n,
       diasInactivo: entrada.diasInactivo,
     });
+    // El pasivo es sellos × COSTO del premio: con él, el costo sale de una división. La
+    // cajera ve los sellos y a quién hablarle; el dinero, quien ve costos.
+    return VEN_COSTOS.includes(ctx.ambito.rol) ? resumen : { ...resumen, pasivoCentavos: null };
   },
 });

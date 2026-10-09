@@ -74,7 +74,12 @@ export const cobrarOrden = definirComando<
     const orden = await ctx.paso('cargar_orden', () =>
       repoOrdenes.ordenPorId(ctx.tx, organizacionId, entrada.ordenId),
     );
-    if (orden === null) throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Esa venta ya no existe.');
+    // De ESTA sucursal (auditoría de la 2.4): la orden se buscaba sólo por negocio, y una
+    // caja podía cobrar —o vaciar— la orden de otra sucursal sabiendo su id. Para quien
+    // cobra, una orden de otra sucursal no existe.
+    if (orden?.sucursalId !== sucursalId) {
+      throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Esa venta ya no existe.');
+    }
     // Los estados VIVOS, no sólo 'borrador'. Un restaurante cobra cuentas que
     // ya pasaron por cocina: `restaurante.enviar_pedido` deja la orden en
     // 'confirmada' y `restaurante.solicitar_cuenta` en 'cuenta_solicitada'.
