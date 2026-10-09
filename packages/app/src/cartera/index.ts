@@ -34,3 +34,5 @@ export {
   type ResultadoPendientes,
   type TransferenciaPendiente,
 } from './cobranza.ts';
+
+export { entradaFijarLimite, fijarLimiteDeCredito, type ResultadoLimite } from './limite.ts';

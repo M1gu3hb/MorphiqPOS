@@ -34,6 +34,7 @@ function ferreteria(extra: Partial<TablasFalsas> = {}): TablasFalsas {
         saldo_pendiente_centavos: 0n,
         limite_credito_centavos: 5_000_000n,
         bloqueado_por_mora: false,
+        dias_plazo: 30,
       },
     ],
     obras: [
@@ -59,6 +60,7 @@ function ferreteria(extra: Partial<TablasFalsas> = {}): TablasFalsas {
     ],
     ordenes: [{ id: ORDEN, organizacion_id: ORG, estado: 'cobrada' }],
     remisiones: [],
+    documentos_credito: [],
     ...extra,
   };
 }
@@ -276,6 +278,29 @@ describe('credito.registrar_remision', () => {
     expect(salida.saldoClienteCentavos).toBe('600000');
     expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(600_000n);
     expect(base.campo('remisiones', 'saldo_documento_centavos')).toBe(600_000n);
+  });
+
+  it('DEJA SU DOCUMENTO DE CRÉDITO, con su mismo folio: la cartera y el cobro lo ven', async () => {
+    // Sin esta fila la remisión subía el saldo y el cliente no aparecía en Cuentas ni se
+    // le podía cobrar: la cartera y los pagos se leen de `documentos_credito`.
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await registrarRemision.ejecutar(ctx, remision());
+
+    expect(base.filas('documentos_credito')).toHaveLength(1);
+    expect(base.filas('documentos_credito')[0]).toMatchObject({
+      cliente_id: CLIENTE,
+      origen_tipo: 'remision',
+      origen_id: salida.remisionId,
+      folio: salida.folio,
+      importe_centavos: 600_000n,
+      saldo_centavos: 600_000n,
+    });
+    // Vence a su plazo, desde la entrega.
+    expect(base.campo('documentos_credito', 'vence_en')).toEqual(
+      new Date(AHORA.getTime() + 30 * 86_400_000),
+    );
   });
 
   it('SE SELLA SI ESTABA EN LA LISTA, no se deriva después', async () => {

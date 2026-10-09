@@ -211,6 +211,48 @@ describe('F-614 y F-615 · registrar el pago', () => {
     expect(base.filas('aplicaciones_pago')).toHaveLength(1);
   });
 
+  it('EL PAGO A UN DOCUMENTO DE REMISIÓN baja también la remisión (C.10 de la 2.4)', async () => {
+    // La ficha de cobro de la ferretería lista las remisiones por su saldo: si el pago
+    // sólo bajara el documento, la remisión seguiría debiendo lo ya pagado.
+    const base = baseDe({
+      documentos_credito: [
+        documento({
+          id: 'doc-rem',
+          origen_tipo: 'remision',
+          origen_id: 'rem-1',
+          saldo_centavos: 60_000n,
+        }),
+      ],
+      remisiones: [{ id: 'rem-1', organizacion_id: ORG, saldo_documento_centavos: 60_000n }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await registrarPagoCredito.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 25_000,
+      metodo: 'efectivo',
+    });
+
+    expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(35_000n);
+    expect(base.campo('remisiones', 'saldo_documento_centavos')).toBe(35_000n);
+  });
+
+  it('el pago a un documento de VENTA no toca ninguna remisión', async () => {
+    const base = baseDe({
+      documentos_credito: [documento({ saldo_centavos: 60_000n })],
+      remisiones: [{ id: 'rem-1', organizacion_id: ORG, saldo_documento_centavos: 60_000n }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await registrarPagoCredito.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 25_000,
+      metodo: 'efectivo',
+    });
+
+    expect(base.campo('remisiones', 'saldo_documento_centavos')).toBe(60_000n);
+  });
+
   it('el pago NO es una venta: entra como depósito con su propia referencia', async () => {
     const base = baseDe({ documentos_credito: [documento()] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);

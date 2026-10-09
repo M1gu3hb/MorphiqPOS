@@ -443,10 +443,58 @@ async function aplicarReparto(
         .execute(),
     );
 
+    await espejarEnLaRemision(ctx, aplicacion.documentoId, aplicacion.montoCentavos);
+
     if (despues === 0n) saldados += 1;
   }
 
   return saldados;
+}
+
+/**
+ * EL MISMO PAGO EN LA REMISIÓN, cuando el documento nació de una (C.10 de la 2.4).
+ *
+ * La ferretería lleva el saldo de cada entrega en `remisiones.saldo_documento_centavos`
+ * —su ficha de cobro lista ESAS— y la cartera en `documentos_credito`. La remisión ahora
+ * deja su documento; el pago se aplica al documento y aquí baja lo mismo en la remisión,
+ * para que las dos cuentas no se separen al primer abono. Nunca abajo de cero.
+ */
+async function espejarEnLaRemision(
+  ctx: ContextoComando<Transaccion>,
+  documentoId: string,
+  montoCentavos: bigint,
+): Promise<void> {
+  const { organizacionId } = ctx.ambito;
+  const documento = await ctx.paso('leer_origen', () =>
+    ctx.tx
+      .selectFrom('documentos_credito')
+      .select(['origen_tipo', 'origen_id'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', documentoId)
+      .executeTakeFirst(),
+  );
+  if (documento?.origen_tipo !== 'remision' || documento.origen_id === null) return;
+  const remisionId = documento.origen_id;
+  const remision = await ctx.paso('leer_remision', () =>
+    ctx.tx
+      .selectFrom('remisiones')
+      .select(['saldo_documento_centavos'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', remisionId)
+      .executeTakeFirst(),
+  );
+  if (remision === undefined) return;
+  const antes = remision.saldo_documento_centavos;
+  const despues = antes > montoCentavos ? antes - montoCentavos : 0n;
+  await ctx.paso('espejar_en_remision', () =>
+    ctx.tx
+      .updateTable('remisiones')
+      .set({ saldo_documento_centavos: despues })
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', remisionId)
+      .where('saldo_documento_centavos', '=', antes)
+      .execute(),
+  );
 }
 
 export const entradaCartera = z.object({

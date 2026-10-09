@@ -293,6 +293,30 @@ export const SIN_ESTADO = [
       'No hace ninguna lectura propia: el fallo de la sugerencia lo dice Entradas en su Aviso, y aquí queda el vacío que lo explica.',
   },
   {
+    pantalla: 'ferreteria/LlaveYLimite',
+    estado: 'vacio',
+    razon:
+      'Dos formularios de la ficha del cliente (la llave y el límite): no listan nada que pueda llegar vacío; lo que falta lo dicen con su botón apagado.',
+  },
+  {
+    pantalla: 'ferreteria/LlaveYLimite',
+    estado: 'cargando',
+    razon:
+      'No leen nada: escriben. Mientras envían, el botón dice que carga (cargando) y el resultado se anuncia con su Aviso.',
+  },
+  {
+    pantalla: 'ferreteria/NuevoClienteDeCredito',
+    estado: 'vacio',
+    razon:
+      'Es un formulario de alta dentro de su hoja: no lista datos, así que no hay lista vacía que explicar.',
+  },
+  {
+    pantalla: 'ferreteria/NuevoClienteDeCredito',
+    estado: 'cargando',
+    razon:
+      'No lee nada al abrir: escribe. Mientras da de alta, su botón carga; el fallo se dice en su Aviso.',
+  },
+  {
     pantalla: 'configuracion/SelectorDeApariencia',
     estado: 'vacio',
     razon:

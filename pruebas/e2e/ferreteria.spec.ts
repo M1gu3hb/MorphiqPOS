@@ -213,6 +213,9 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
   });
 
   test('la ferretería dice Materiales donde la tiendita dice Productos', async ({ page }) => {
+    // Recorre el giro entero —venta, caja, corte, conteo, entradas, crédito—: seis minutos
+    // y no los tres de omisión.
+    test.setTimeout(360_000);
     await entrar(page);
     await exigirGiro(page, 'ferreteria', 'ferreteria');
     // Ninguna pantalla puede abrir en 200 y reventar por dentro.
@@ -766,6 +769,117 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
       'La nota del mostrador no sobrevivió a recargar.',
     ).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: /Quitar la partida Martillo/ }).click();
+
+    // ── C.10 · EL CLIENTE DE CRÉDITO: ALTA, A CUENTA DESDE EL MOSTRADOR, Y SU FICHA ──
+    //
+    // El mostrador tenía la remisión entera y NINGUNA forma de elegir al cliente; el
+    // límite no lo escribía nadie; y quién recoge, las obras, el estado de cuenta y la
+    // llave del dueño «vivían en la ficha completa», que no existía.
+    const constructora = `Constructora E2E ${sello}`;
+    await abrirPantalla(page, '/ferreteria/cuentas', /Cuentas/);
+    await page.getByRole('button', { name: 'Cliente nuevo' }).click();
+    await page.locator('#cliente-nuevo-nombre').fill(constructora);
+    await page.locator('#cliente-nuevo-telefono').fill(`55${sello}00`);
+    await page.locator('#cliente-nuevo-limite').fill('5000.00');
+    await page.getByRole('button', { name: 'Dar de alta' }).click();
+    await expect(page.getByText(`${constructora} quedó dado de alta`)).toBeVisible({
+      timeout: 30_000,
+    });
+    const [alta] = await consultarPuente<{ readonly limite_credito_pesos?: number | null }>(
+      page,
+      'Cliente',
+      { filtro: { nombre: constructora }, limite: 1 },
+    );
+    expect(alta?.limite_credito_pesos, 'El límite del cliente nuevo no se escribió.').toBe(5000);
+
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
+    await page.getByRole('button', { name: 'A cuenta de…' }).click();
+    await page.locator('#buscar-cliente').fill(constructora);
+    await page.getByRole('button', { name: `A cuenta de ${constructora}` }).click();
+    await page.locator('#recoge-a-mano').fill('Beto');
+    await page.getByRole('button', { name: `A cuenta de ${constructora}` }).click();
+    await expect(
+      page.getByRole('region', { name: /y obra/ }).getByText(constructora),
+      'El mostrador no se quedó con el cliente elegido.',
+    ).toBeVisible();
+    await page.locator('#buscador').fill('martillo');
+    const resultados = page.getByRole('table', { name: 'Resultados' });
+    await resultados.getByRole('row', { name: /Martillo uña pulida/ }).click();
+    await page.keyboard.press('F11');
+    await expect(
+      // Con la nota vacía no hay tabla: se pinta su vacío, dentro de «La nota».
+      page.getByRole('complementary', { name: /La nota/ }).getByText('Todavía nada.'),
+      'La remisión a cuenta no salió desde el mostrador.',
+    ).toBeVisible({ timeout: 30_000 });
+
+    await abrirPantalla(page, '/ferreteria/cuentas', /Cuentas/);
+    await page.getByRole('button', { name: `Registrar pago de ${constructora}` }).click();
+    await expect(
+      page.getByRole('table', { name: `Estado de cuenta de ${constructora}` }),
+      'La ficha del cliente no trae su estado de cuenta.',
+    ).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Obra nueva' }).fill('Torre E2E');
+    await page.getByRole('button', { name: 'Abrir obra' }).click();
+    await expect(
+      page.getByRole('list', { name: 'Obras abiertas' }).getByText('Torre E2E'),
+    ).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('textbox', { name: 'Puede recoger' }).fill('Beto E2E');
+    await page.getByRole('button', { name: 'Agregar a la lista' }).click();
+    await expect(
+      page.getByRole('list', { name: 'Quién puede recoger' }).getByText('Beto E2E'),
+    ).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('textbox', { name: 'Por cuánto' }).fill('1000.00');
+    // Se le da a QUIEN la pide: la base exige que no sea quien la da, y el comando
+    // escribía al dueño en las dos columnas (la llave no se podía dar nunca).
+    await page
+      .getByRole('group', { name: 'Quién la pide' })
+      .getByRole('button', { name: 'Karla' })
+      .click();
+    await page.locator('[id^="llave-motivo-"]').fill('Paga el viernes con el cheque de la obra');
+    await page.getByRole('button', { name: 'Dar la llave' }).click();
+    await expect(page.getByText('Llave dada.'), 'La llave del dueño no se dio.').toBeVisible({
+      timeout: 20_000,
+    });
+    await page.keyboard.press('Escape');
+
+    // ── C.10 · F9 APARTA, SE RETOMA TAL CUAL; F8 LA COTIZA; F6 LA CORTA ─────────
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
+    await page.locator('#buscador').fill('martillo');
+    await resultados.getByRole('row', { name: /Martillo uña pulida/ }).click();
+    await page.keyboard.press('F9');
+    await expect(page.getByText(/Nota apartada: la \d+/)).toBeVisible({ timeout: 20_000 });
+    const laNotaDelMostrador = page.getByRole('complementary', { name: /La nota/ });
+    await expect(laNotaDelMostrador.getByText('Todavía nada.')).toBeVisible();
+    await page
+      .getByRole('button', { name: /^Retomar la \d+/ })
+      .first()
+      .click();
+    await expect(
+      laNotaDelMostrador.getByText(/Martillo/),
+      'La nota apartada no se retomó con lo que llevaba.',
+    ).toBeVisible({ timeout: 20_000 });
+    await page.keyboard.press('F8');
+    await expect(page, 'F8 no llevó la nota a la cotización.').toHaveURL(
+      /\/ferreteria\/cotizacion$/,
+      {
+        timeout: 30_000,
+      },
+    );
+    await expect(
+      page.getByRole('table', { name: /de la cotización/ }).getByText(/Martillo uña pulida/),
+      'La cotización no trae lo que llevaba la nota del mostrador.',
+    ).toBeVisible({ timeout: 30_000 });
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
+    await page.locator('#buscador').fill('cable');
+    await expect(resultados.getByRole('row').nth(1)).toBeVisible({ timeout: 20_000 });
+    await page.keyboard.press('F6');
+    await expect(page, 'F6 no llevó al corte de la pieza buscada.').toHaveURL(
+      /\/ferreteria\/corte-de-material\?material=[0-9a-f-]{36}/,
+      { timeout: 30_000 },
+    );
+    await expect(page.getByRole('heading', { level: 1, name: /Cortar · .*[Cc]able/ })).toBeVisible({
+      timeout: 30_000,
+    });
 
     exigirSinFallos();
   });

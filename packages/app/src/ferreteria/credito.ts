@@ -10,6 +10,7 @@ import {
 } from '@morphiqpos/domain/venta';
 import { z } from 'zod';
 
+import { insertarDocumento } from '../cartera/documento.ts';
 import { definirComando, type ContextoComando } from '../definicion.ts';
 
 /**
@@ -183,6 +184,19 @@ export const registrarRemision = definirComando<
         .executeTakeFirstOrThrow(),
     );
 
+    // EL DOCUMENTO QUE SE DEBE, con el MISMO folio de la remisión. La cartera, el estado
+    // de cuenta y los pagos se leen de `documentos_credito`: sin esta fila la remisión
+    // subía el saldo y el cliente no aparecía en Cuentas ni se le podía cobrar (C.10 de
+    // la 2.4). Sin evaluar otra vez: el muro y la llave ya se resolvieron arriba.
+    await insertarDocumento(ctx, {
+      clienteId: entrada.clienteId,
+      origenTipo: 'remision',
+      origenId: remision.id,
+      importeCentavos: importe,
+      diasPlazo: cliente.diasPlazo,
+      folio,
+    });
+
     // El saldo del cliente sube con la ENTREGA, no con la factura. Facturar no
     // vuelve a ser venta: la venta ya se reconoció aquí, y es el error contable
     // más común del giro.
@@ -254,6 +268,8 @@ interface ClienteDeCredito {
   readonly saldo: bigint;
   readonly limite: bigint;
   readonly bloqueado: boolean;
+  /** Cuántos días de plazo tiene: lo que dice cuándo vence su documento. */
+  readonly diasPlazo: number;
 }
 
 interface AutorizadoCargado {
@@ -285,6 +301,7 @@ async function evaluar(
         'saldo_pendiente_centavos as saldo',
         'limite_credito_centavos as limite',
         'bloqueado_por_mora as bloqueado',
+        'dias_plazo as diasPlazo',
       ])
       .where('organizacion_id', '=', organizacionId)
       .where('id', '=', entrada.clienteId)
@@ -297,6 +314,7 @@ async function evaluar(
     saldo: fila.saldo,
     limite: fila.limite,
     bloqueado: fila.bloqueado,
+    diasPlazo: fila.diasPlazo,
   };
 
   const obraId = entrada.obraId;

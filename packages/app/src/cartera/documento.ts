@@ -94,8 +94,9 @@ export async function emitirDocumento(
   ctx: ContextoComando<Transaccion>,
   entrada: z.infer<typeof entradaEmitirDocumento>,
 ): Promise<ResultadoDocumento> {
-  const { organizacionId, sucursalId, empleoId } = ctx.ambito;
-  if (sucursalId === null) {
+  // La sucursal se exige ANTES de evaluar: sin ella no hay folio, y decir «pasa del
+  // límite» para luego fallar por la sucursal confunde.
+  if (ctx.ambito.sucursalId === null) {
     throw new ErrorDominio(
       'VENTA_SIN_TERMINAL',
       'El documento lleva folio por sucursal: hace falta saber en cuál se emite.',
@@ -143,40 +144,20 @@ export async function emitirDocumento(
     });
   }
 
-  // Serie PROPIA, como la remisión (`REM`): en la serie del ticket cada fiado se comía un
-  // folio de venta y la numeración de las ventas salía con huecos que nadie sabe explicar.
-  const tomado = await ctx.paso('tomar_folio', () =>
-    repoFolios.tomarFolio(ctx.tx, organizacionId, sucursalId, SERIE_DEL_FIADO),
-  );
-
-  const vence = new Date(ctx.ahora.getTime() + cliente.dias_plazo * MS_POR_DIA);
-
-  const documento = await ctx.paso('emitir', () =>
-    ctx.tx
-      .insertInto('documentos_credito')
-      .values({
-        organizacion_id: organizacionId,
-        sucursal_id: sucursalId,
-        cliente_id: entrada.clienteId,
-        origen_tipo: entrada.origenTipo,
-        origen_id: entrada.origenId ?? null,
-        folio: `${tomado.serie}-${tomado.folio.toString()}`,
-        emitido_en: ctx.ahora,
-        vence_en: vence,
-        importe_centavos: BigInt(entrada.importeCentavos),
-        // Nace debiendo todo: el saldo se decrementa al aplicar pagos.
-        saldo_centavos: BigInt(entrada.importeCentavos),
-        empleado_id: empleoId,
-        created_at: ctx.ahora,
-      })
-      .returning(['id', 'folio'])
-      .executeTakeFirstOrThrow(),
-  );
+  const documento = await insertarDocumento(ctx, {
+    clienteId: entrada.clienteId,
+    origenTipo: entrada.origenTipo,
+    origenId: entrada.origenId ?? null,
+    importeCentavos: BigInt(entrada.importeCentavos),
+    diasPlazo: cliente.dias_plazo,
+    folio: null,
+  });
+  const vence = documento.vence;
 
   const saldoDespues = saldo + BigInt(entrada.importeCentavos);
 
   return {
-    documentoId: documento.id,
+    documentoId: documento.documentoId,
     folio: documento.folio,
     venceEn: vence.toISOString(),
     saldoDelClienteCentavos: saldoDespues.toString(),
@@ -304,6 +285,75 @@ export async function cargarCliente(
 }
 
 /** Los documentos con saldo, que son los únicos que importan para decidir. */
+/**
+ * EL DOCUMENTO QUE SE DEBE, escrito: folio, vencimiento e importe, sin evaluar el crédito.
+ *
+ * Lo usan el fiado —que evalúa antes, en `emitirDocumento`— y la REMISIÓN de la
+ * ferretería, que ya pasó el muro y gastó la llave del dueño en su propio comando. Sin
+ * esto la remisión subía el saldo del cliente y no dejaba documento: la cartera y los
+ * pagos, que se leen de `documentos_credito`, no la veían (C.10 de la 2.4).
+ *
+ * El folio: el de la serie del fiado (`CR`), o el que se le dé —la remisión usa el SUYO,
+ * `REM-114`, que es el que el contratista tiene firmado—.
+ */
+export async function insertarDocumento(
+  ctx: ContextoComando<Transaccion>,
+  datos: {
+    readonly clienteId: string;
+    readonly origenTipo: 'venta' | 'remision' | 'nota_mostrador' | 'ajuste';
+    readonly origenId: string | null;
+    readonly importeCentavos: bigint;
+    readonly diasPlazo: number;
+    readonly folio: string | null;
+  },
+): Promise<{ readonly documentoId: string; readonly folio: string; readonly vence: Date }> {
+  const { organizacionId, sucursalId, empleoId } = ctx.ambito;
+  if (sucursalId === null) {
+    throw new ErrorDominio(
+      'VENTA_SIN_TERMINAL',
+      'El documento lleva folio por sucursal: hace falta saber en cuál se emite.',
+    );
+  }
+  // Serie PROPIA, como la remisión (`REM`): en la serie del ticket cada fiado se comía un
+  // folio de venta y la numeración de las ventas salía con huecos que nadie sabe explicar.
+  const folio =
+    datos.folio ??
+    (await ctx.paso('tomar_folio', async () => {
+      const tomado = await repoFolios.tomarFolio(
+        ctx.tx,
+        organizacionId,
+        sucursalId,
+        SERIE_DEL_FIADO,
+      );
+      return `${tomado.serie}-${tomado.folio.toString()}`;
+    }));
+
+  const vence = new Date(ctx.ahora.getTime() + datos.diasPlazo * MS_POR_DIA);
+
+  const documento = await ctx.paso('emitir', () =>
+    ctx.tx
+      .insertInto('documentos_credito')
+      .values({
+        organizacion_id: organizacionId,
+        sucursal_id: sucursalId,
+        cliente_id: datos.clienteId,
+        origen_tipo: datos.origenTipo,
+        origen_id: datos.origenId,
+        folio,
+        emitido_en: ctx.ahora,
+        vence_en: vence,
+        importe_centavos: datos.importeCentavos,
+        // Nace debiendo todo: el saldo se decrementa al aplicar pagos.
+        saldo_centavos: datos.importeCentavos,
+        empleado_id: empleoId,
+        created_at: ctx.ahora,
+      })
+      .returning(['id', 'folio'])
+      .executeTakeFirstOrThrow(),
+  );
+  return { documentoId: documento.id, folio: documento.folio, vence };
+}
+
 export async function documentosVivos(
   ctx: ContextoComando<Transaccion>,
   clienteId: string,

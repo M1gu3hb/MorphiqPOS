@@ -14,22 +14,46 @@ import {
   Vacio,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
-import { ChevronDown, ChevronUp, Maximize2, MapPin, Minus, Plus, Search, X } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  FileText,
+  Maximize2,
+  MapPin,
+  Minus,
+  Plus,
+  Scissors,
+  Search,
+  UserRound,
+  X,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
-import { consultarPuente, invocarComando } from '~/cliente/api';
+import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { buscar, cercanas, normalizar, type MaterialDeMostrador } from './buscar-material';
 import { useVocabulario } from '~/cliente/vocabulario';
 import {
   claveDePartida,
+  dejarParaCotizar,
   guardarLaNota,
   leerLaNota,
   sumarPartida,
   tomarLoDeLaFicha,
+  type PartidaGuardada,
   type PresentacionElegida,
 } from './nota-del-mostrador.ts';
+import { ElegirClienteDelMostrador, type EleccionDeCliente } from './ElegirClienteDelMostrador.tsx';
+import {
+  apartarNota,
+  guardarLasNotasEnEspera,
+  notasEnEspera,
+  retomarNota,
+  suscribirseALaEspera,
+  textoDeLaEspera,
+} from './notas-en-espera.ts';
 
 /**
  * PANTALLA · ferreteria · mostrador
@@ -67,11 +91,19 @@ import {
  * su precio, o piezas— vuelve a esta nota, que vive en la pestaña y no se pierde al ir
  * a la ficha, al corte o al alta (`nota-del-mostrador.ts`).
  *
- * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
- * Quedan FUERA, cada una en su pantalla: el corte de material (F6), la cotización
- * (F8), suspender (F9), elegir al cliente de crédito y la llave del dueño sobre el
- * límite. La equivalencia real (F-060) sale de `equivalencias`; mientras no
- * exista, cero resultados aproxima por familia y lo dice en la pantalla.
+ * ── A cuenta de quién, y la llave (C.10 de la 2.4) ───────────────────────
+ * El mostrador tenía la remisión entera —F11, la firma, el aviso del límite— y
+ * NINGUNA forma de elegir al cliente: ahora se elige (nombre o teléfono), con su
+ * obra y quién recoge, de la lista o a mano, y entonces se avisa. Si la mora lo
+ * bloquea, se dice dónde da el dueño la llave (Cuentas, con SU usuario) y la nota
+ * que ya se mandó a caja se REUSA al volver a F11: antes cada intento creaba otra.
+ *
+ * ── Las teclas, todas con su botón ───────────────────────────────────────
+ * F5 la ficha, F6 el corte de la pieza, F8 la nota como cotización, F9 apartarla
+ * mientras se atiende a otro (espera en este dispositivo con un número corto,
+ * `notas-en-espera.ts`), F11 a cuenta y F12 a caja. La equivalencia real (F-060)
+ * sale de `equivalencias`; mientras no exista, cero resultados aproxima por familia
+ * y lo dice en la pantalla.
  */
 
 /** «¿De qué es?», convertido en botones. No son productos: son puntos de partida. */
@@ -144,6 +176,11 @@ interface ResultadoNotaMostrador {
  */
 function precioDe(m: MaterialDeMostrador): number {
   return centavosDe('MaterialMostrador', 'precioCentavos', m.precioCentavos) ?? 0;
+}
+
+/** El código de dominio del muro, que el contrato de la ruta no lista. */
+function esElMuroDeLaMora(codigo: string): boolean {
+  return codigo === 'PUENTE_SIN_PERMISO';
 }
 
 /** Cómo se dice la pieza en el botón de su ficha: su medida o, sin ella, su nombre. */
@@ -240,7 +277,21 @@ export function Mostrador({
   /** El folio de la última nota mandada: lo que el cliente canta en la caja. */
   const [folioEnCaja, setFolioEnCaja] = useState<string | null>(null);
   const buscador = useRef<HTMLInputElement>(null);
-  const cliente = clienteInicial ?? null;
+  const [cliente, setCliente] = useState<ClienteDeMostrador | null>(clienteInicial ?? null);
+  /** Obra, autorizado y quien firma: lo que la remisión necesita del que se eligió. */
+  const [eleccion, setEleccion] = useState<Omit<EleccionDeCliente, 'cliente'> | null>(null);
+  const [eligiendo, setEligiendo] = useState(false);
+  /**
+   * La nota que ya se mandó a la caja para ESTA remisión. Si la remisión falla —la mora,
+   * la red— la nota se queda en la caja por cobrar; volver a F11 la reusa en vez de
+   * crear otra: antes cada intento dejaba una nota más en la caja.
+   */
+  const [notaEnCaja, setNotaEnCaja] = useState<ResultadoNotaMostrador | null>(null);
+  /** El muro de la mora, dicho con lo que hay que hacer. */
+  const [bloqueo, setBloqueo] = useState<string | null>(null);
+  const [avisoDeEspera, setAvisoDeEspera] = useState<string | null>(null);
+  const textoDeEspera = useSyncExternalStore(suscribirseALaEspera, textoDeLaEspera, () => null);
+  const enEspera = useMemo(() => notasEnEspera(textoDeEspera), [textoDeEspera]);
 
   useEffect(() => {
     if (filasIniciales !== undefined) return;
@@ -317,6 +368,7 @@ export function Mostrador({
   function agregar(material: MaterialDeMostrador): void {
     // Desde la tabla se agrega la pieza SUELTA; la caja llega desde la ficha.
     const clave = claveDePartida(material.id, null);
+    setNotaEnCaja(null);
     setPartidas((actuales) =>
       actuales.some((p) => claveDe(p) === clave)
         ? actuales.map((p) => (claveDe(p) === clave ? { ...p, cantidad: p.cantidad + 1 } : p))
@@ -325,6 +377,7 @@ export function Mostrador({
   }
 
   function cambiarCantidad(clave: string, paso: number): void {
+    setNotaEnCaja(null);
     setPartidas((actuales) =>
       actuales
         .map((p) => (claveDe(p) === clave ? { ...p, cantidad: p.cantidad + paso } : p))
@@ -342,10 +395,106 @@ export function Mostrador({
     enrutador.push(`/ferreteria/ficha-de-pieza?pieza=${encodeURIComponent(pieza.id)}`);
   }
 
+  /** F6 · EL CORTE de la pieza que se está viendo; la pantalla del corte dice si no es de corte. */
+  function abrirElCorte(): void {
+    const pieza = resultados[0] ?? partidas.at(-1)?.material;
+    enrutador.push(
+      pieza === undefined
+        ? '/ferreteria/corte-de-material'
+        : `/ferreteria/corte-de-material?material=${encodeURIComponent(pieza.id)}`,
+    );
+  }
+
+  /** Las partidas como se guardan: lo que viaja a la cotización y a la espera. */
+  function guardables(): PartidaGuardada[] {
+    return partidas.map((p) => ({
+      productoId: p.material.id,
+      cantidad: p.cantidad,
+      presentacion: p.presentacion,
+    }));
+  }
+
+  /** F8 · LA NOTA COMO COTIZACIÓN: la cotización la toma y el mostrador se vacía. */
+  function aCotizar(): void {
+    if (partidas.length === 0) return;
+    dejarParaCotizar(guardables());
+    setPartidas([]);
+    enrutador.push('/ferreteria/cotizacion');
+  }
+
+  /** F9 · APARTAR la nota con un número corto, para atender a otro. */
+  function apartar(): void {
+    const apartada = apartarNota(enEspera, guardables(), cliente?.nombre ?? null, new Date());
+    if (apartada === null) return;
+    if (!guardarLasNotasEnEspera(apartada.lista)) {
+      setAvisoDeEspera('Este dispositivo no deja guardar: la nota sigue aquí.');
+      return;
+    }
+    setPartidas([]);
+    setNotaEnCaja(null);
+    setAvisoDeEspera(`Nota apartada: la ${String(apartada.numero)}. Se retoma con su número.`);
+  }
+
+  /** Retomar una: si hay otra armada, se aparta primero, para no perderla. */
+  function retomar(numero: number): void {
+    const base =
+      partidas.length === 0
+        ? { lista: enEspera, numero: null }
+        : (apartarNota(enEspera, guardables(), cliente?.nombre ?? null, new Date()) ?? {
+            lista: enEspera,
+            numero: null,
+          });
+    const { lista, nota } = retomarNota(base.lista, numero);
+    if (nota === null || filas === null) return;
+    if (!guardarLasNotasEnEspera(lista)) return;
+    const porId = new Map(filas.map((m) => [m.id, m]));
+    setNotaEnCaja(null);
+    setPartidas(
+      nota.partidas.flatMap((g): Partida[] => {
+        const material = porId.get(g.productoId);
+        return material === undefined
+          ? []
+          : [{ material, cantidad: g.cantidad, presentacion: g.presentacion }];
+      }),
+    );
+    setAvisoDeEspera(
+      base.numero === null
+        ? `Retomada la ${String(numero)}.`
+        : `Retomada la ${String(numero)}; la que estaba quedó como la ${String(base.numero)}.`,
+    );
+  }
+
+  /** Lo que se eligió en la hoja del cliente, en la forma que pinta la franja. */
+  function elegirCliente(elegido: EleccionDeCliente): void {
+    const { cliente: c, ...resto } = elegido;
+    setCliente({
+      id: c.id,
+      nombre: c.nombre,
+      obra: c.obras.find((o) => o.id === resto.obraId)?.nombre ?? null,
+      saldoCentavos: c.saldoCentavos,
+      limiteCentavos: c.limiteCentavos,
+      diasVencido: c.diasVencido,
+      recoge: resto.firmante,
+      recogeAutorizado: resto.autorizadoId !== null,
+    });
+    setEleccion(resto);
+    setEligiendo(false);
+    setNotaEnCaja(null);
+    setBloqueo(null);
+  }
+
+  function quitarCliente(): void {
+    setCliente(null);
+    setEleccion(null);
+    setNotaEnCaja(null);
+    setBloqueo(null);
+  }
+
   /** Crear la nota: el primer paso de las dos salidas del mostrador. */
   async function crearLaNota(): Promise<ResultadoNotaMostrador> {
     return invocarComando<ResultadoNotaMostrador>('/api/venta/mandar-a-caja', {
       clienteId: cliente?.id ?? null,
+      ...(eleccion?.obraId == null ? {} : { obraId: eleccion.obraId }),
       partidas: partidas.map((p) => ({
         productoId: p.material.id,
         cantidad: p.cantidad,
@@ -378,18 +527,30 @@ export function Mostrador({
     if (cliente === null) return;
     setEnviando(true);
     setError(null);
+    setBloqueo(null);
     try {
-      const nota = await crearLaNota();
+      // La que ya se mandó para esta remisión, si el intento anterior falló.
+      const nota = notaEnCaja ?? (await crearLaNota());
+      setNotaEnCaja(nota);
       await invocarComando('/api/credito/remision', {
         ordenId: nota.ordenId,
         clienteId: cliente.id,
         importeCentavos: Number(nota.totalCentavos),
-        nombreFirmante: cliente.recoge ?? cliente.nombre,
+        nombreFirmante: eleccion?.firmante ?? cliente.recoge ?? cliente.nombre,
+        ...(eleccion?.obraId == null ? {} : { obraId: eleccion.obraId }),
+        ...(eleccion?.autorizadoId == null ? {} : { autorizadoId: eleccion.autorizadoId }),
       });
       setPartidas([]);
       setFolioEnCaja(null);
+      setNotaEnCaja(null);
     } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo registrar la remisión.');
+      // El muro de la mora llega como 403 con su código de dominio, que no está en el
+      // contrato de la ruta: se compara como texto.
+      if (fallo instanceof ErrorApi && esElMuroDeLaMora(fallo.error.codigo)) {
+        setBloqueo(fallo.error.mensaje);
+      } else {
+        setError(fallo instanceof Error ? fallo.message : 'No se pudo registrar la remisión.');
+      }
     } finally {
       setEnviando(false);
     }
@@ -405,6 +566,18 @@ export function Mostrador({
       // F5 del navegador recarga; aquí abre la ficha, como dice su botón.
       evento.preventDefault();
       abrirLaFicha();
+      return;
+    }
+    if (evento.key === 'F6') {
+      evento.preventDefault();
+      abrirElCorte();
+      return;
+    }
+    if (evento.key === 'F8' || evento.key === 'F9') {
+      evento.preventDefault();
+      if (enviando || partidas.length === 0) return;
+      if (evento.key === 'F8') aCotizar();
+      else apartar();
       return;
     }
     if (evento.key !== 'F12' && evento.key !== 'F11') return;
@@ -629,7 +802,27 @@ export function Mostrador({
         aria-label={`${voc.titulo('cliente')} y obra`}
         className={`mb-(--espacio-3) text-sm xl:col-start-2 xl:row-start-1 xl:mb-0 ${sobreLimite ? 'border-peligro bg-peligro/10' : ''}`}
       >
-        <p className="font-semibold">{cliente?.nombre ?? 'Público en general · contado'}</p>
+        <div className="flex flex-wrap items-center justify-between gap-(--espacio-2)">
+          <p className="font-semibold">{cliente?.nombre ?? 'Público en general · contado'}</p>
+          <span className="flex gap-(--espacio-1)">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEligiendo(true);
+              }}
+            >
+              <UserRound aria-hidden="true" />
+              {cliente === null ? 'A cuenta de…' : 'Cambiar'}
+            </Button>
+            {cliente !== null && (
+              <Button type="button" size="sm" variant="ghost" onClick={quitarCliente}>
+                Público
+              </Button>
+            )}
+          </span>
+        </div>
         {cliente !== null && (
           <>
             <p className="text-texto-sutil">Obra: {cliente.obra ?? 'sin obra asignada'}</p>
@@ -716,6 +909,15 @@ export function Mostrador({
             Lo que ya estaba en pantalla sigue sirviendo.
           </Aviso>
         )}
+        {bloqueo !== null && cliente !== null && (
+          <Aviso tono="atencion" titulo="Bloqueado por mora: hace falta la llave del dueño.">
+            {bloqueo} El dueño o el administrador la da con SU usuario en Cuentas › {cliente.nombre}{' '}
+            › La llave del dueño, por{' '}
+            <Dinero centavos={Number(notaEnCaja?.totalCentavos ?? total)} tamano="sm" />. Con la
+            llave dada, vuelve a F11: la nota {notaEnCaja?.folio ?? ''} ya está en la caja y se usa
+            la misma.
+          </Aviso>
+        )}
 
         {busqueda}
       </main>
@@ -776,6 +978,60 @@ export function Mostrador({
           >
             {sobreLimite ? 'Remisión a cuenta · pasa del límite · F11' : 'Remisión a cuenta · F11'}
           </Button>
+          <div className="grid grid-cols-3 gap-(--espacio-1)">
+            <Button type="button" variant="ghost" size="sm" onClick={abrirElCorte}>
+              <Scissors aria-hidden="true" />
+              Cortar · F6
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={partidas.length === 0 || enviando}
+              onClick={aCotizar}
+            >
+              <FileText aria-hidden="true" />
+              Cotizar · F8
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={partidas.length === 0 || enviando}
+              onClick={apartar}
+            >
+              <Clock aria-hidden="true" />
+              Apartar · F9
+            </Button>
+          </div>
+          {avisoDeEspera !== null && (
+            <p role="status" className="text-sm font-medium">
+              {avisoDeEspera}
+            </p>
+          )}
+          {enEspera.length > 0 && (
+            <section aria-label="Notas en espera" className="flex flex-col gap-(--espacio-1)">
+              <h3 className="text-xs font-semibold text-texto-sutil uppercase">En espera</h3>
+              {enEspera.map((nota) => (
+                <Button
+                  key={nota.numero}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="justify-between"
+                  disabled={filas === null}
+                  onClick={() => {
+                    retomar(nota.numero);
+                  }}
+                >
+                  <span>Retomar la {nota.numero}</span>
+                  <span className="text-texto-sutil">
+                    {nota.quien ?? `${String(nota.partidas.length)} partidas`}
+                  </span>
+                </Button>
+              ))}
+            </section>
+          )}
           {/* El número, grande y en su sitio: es lo único que el cliente se lleva
               del mostrador, y va a decirlo en voz alta a tres metros. */}
           {folioEnCaja !== null && (
@@ -788,6 +1044,14 @@ export function Mostrador({
           )}
         </div>
       </Superficie>
+
+      <ElegirClienteDelMostrador
+        abierto={eligiendo}
+        alCerrar={() => {
+          setEligiendo(false);
+        }}
+        alElegir={elegirCliente}
+      />
 
       <button
         type="button"

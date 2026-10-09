@@ -43,6 +43,16 @@ const MINIMO_DE_MOTIVO = 10;
 
 export const entradaAutorizarCredito = z.object({
   clienteId: z.uuid(),
+  /**
+   * QUIÉN LA PIDE: el empleado del mostrador que tiene al cliente enfrente.
+   *
+   * La fila vive en `autorizaciones_descuento`, cuyo `check` `autorizacion_no_es_de_uno_mismo`
+   * exige que quien pide y quien autoriza sean distintos. El comando escribía al dueño en
+   * las dos columnas: contra Postgres **la llave no se pudo dar nunca** (23514); la base
+   * falsa no modela `check` y las pruebas pasaban (C.10 de la 2.4). Y es lo correcto: la
+   * llave se le da a ALGUIEN, y nadie se la da a sí mismo.
+   */
+  solicitaEmpleoId: z.uuid(),
   /** Por cuánto vale. La autorización es de ESTA salida, no un permiso abierto. */
   importeCentavos: z.number().int().min(1).max(100_000_000),
   ordenId: z.uuid().nullable().default(null),
@@ -115,6 +125,25 @@ export const autorizarVentaACredito = definirComando<
       throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese cliente no existe en este negocio.');
     }
 
+    if (entrada.solicitaEmpleoId === empleoId) {
+      throw new ErrorDominio(
+        'CONFIGURACION_INVALIDA',
+        'La llave se le da a quien la pide: nadie se la da a sí mismo.',
+      );
+    }
+    const solicita = await ctx.paso('leer_quien_pide', () =>
+      ctx.tx
+        .selectFrom('empleos')
+        .select(['id'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', entrada.solicitaEmpleoId)
+        .where('activo', '=', true)
+        .executeTakeFirst(),
+    );
+    if (solicita === undefined) {
+      throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Quien pide la llave no es de este negocio.');
+    }
+
     // Un motivo que es una sola palabra repetida —«ok ok ok»— pasa el mínimo de
     // longitud y no dice nada. Se exige que tenga al menos dos palabras
     // distintas: es barato de comprobar y es la diferencia entre un registro que
@@ -156,7 +185,7 @@ export const autorizarVentaACredito = definirComando<
           organizacion_id: organizacionId,
           sucursal_id: sucursalId,
           orden_id: entrada.ordenId,
-          solicita_empleo_id: empleoId,
+          solicita_empleo_id: entrada.solicitaEmpleoId,
           autoriza_empleo_id: empleoId,
           autoriza_rol: ctx.ambito.rol,
           // No es un descuento: es material que sale sobre el límite. Se guarda

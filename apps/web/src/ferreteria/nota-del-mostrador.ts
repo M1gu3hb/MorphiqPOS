@@ -135,3 +135,27 @@ export function precioPorFactor(precioBaseCentavos: number, factor: number): num
   const factorEnDiezmilesimas = BigInt(Math.round(factor * 10_000));
   return Number((BigInt(precioBaseCentavos) * factorEnDiezmilesimas + 5_000n) / 10_000n);
 }
+
+const CLAVE_A_COTIZAR = 'morphiqpos.ferreteria.a-cotizar';
+
+/** F8 · El mostrador le deja a la cotización lo que lleva la nota. */
+export function dejarParaCotizar(partidas: readonly PartidaGuardada[]): void {
+  try {
+    almacen()?.setItem(CLAVE_A_COTIZAR, JSON.stringify(partidas));
+  } catch {
+    // Sin almacén la cotización empieza vacía, como antes.
+  }
+}
+
+/** La cotización lo toma UNA vez: leerlo lo borra. */
+export function tomarLoACotizar(): PartidaGuardada[] {
+  try {
+    const lugar = almacen();
+    if (lugar === null) return [];
+    const partidas = partidasGuardadas(lugar.getItem(CLAVE_A_COTIZAR));
+    lugar.removeItem(CLAVE_A_COTIZAR);
+    return partidas;
+  } catch {
+    return [];
+  }
+}

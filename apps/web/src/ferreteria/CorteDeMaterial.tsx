@@ -21,6 +21,8 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { materialParaCortar } from './corte-por-tipo.ts';
+
 /**
  * PANTALLA · ferreteria · corte-de-material
  *
@@ -120,6 +122,8 @@ export interface CorteDeMaterialProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly materialInicial?: MaterialContinuo;
   readonly piezasIniciales?: readonly PiezaDeCorte[];
+  /** El material que el mostrador mandó cortar (F6, `?material=`). */
+  readonly materialId?: string;
 }
 
 /** Dos decimales siempre: 6.8 y 6.80 son el mismo metraje y se leen distinto. */
@@ -196,9 +200,26 @@ function Opcion({ valor, titulo, nota, activa }: OpcionProps) {
   );
 }
 
-export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMaterialProps) {
+export function CorteDeMaterial({
+  materialInicial,
+  piezasIniciales,
+  materialId,
+}: CorteDeMaterialProps) {
   const voc = useVocabulario();
   const [material, setMaterial] = useState<MaterialContinuo | null>(materialInicial ?? null);
+  /**
+   * TODOS los materiales que se venden cortados. La pantalla leía sólo el PRIMERO
+   * (`limite: 1`): el cable se podía cortar y la manguera, la cadena o el tubo no, y F6
+   * desde el mostrador no tenía a dónde llegar (C.10 de la 2.4).
+   */
+  const [materiales, setMateriales] = useState<readonly MaterialContinuo[]>(
+    materialInicial === undefined ? [] : [materialInicial],
+  );
+  const [elegidoId, setElegidoId] = useState<string | null>(
+    materialId ?? materialInicial?.id ?? null,
+  );
+  /** El mostrador mandó una pieza que no se vende cortada: se dice, no se corta otra. */
+  const [noEsDeCorte, setNoEsDeCorte] = useState(false);
   const [piezas, setPiezas] = useState<readonly PiezaDeCorte[] | null>(piezasIniciales ?? null);
   const [piezaId, setPiezaId] = useState<string | null>(null);
   const [medidaTexto, setMedidaTexto] = useState('');
@@ -235,10 +256,13 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
     // sueltas traía el rack de todos los materiales continuos del negocio, y con
     // dos rollos de cable y dos de manguera la pantalla ofrecía cortar manguera
     // desde la pantalla del cable.
-    consultarPuente<MaterialContinuo>('MaterialContinuo', { limite: 1, signal: control.signal })
-      .then(async (materiales) => {
-        const elMaterial = materialInicial ?? materiales[0] ?? null;
+    consultarPuente<MaterialContinuo>('MaterialContinuo', { limite: 100, signal: control.signal })
+      .then(async (leidos) => {
+        const eleccion = materialParaCortar(leidos, elegidoId);
+        const elMaterial = materialInicial ?? eleccion.material;
         if (!sigueMontada()) return;
+        setMateriales(leidos);
+        setNoEsDeCorte(materialInicial === undefined && eleccion.noEsDeCorte);
         setMaterial(elMaterial);
         if (elMaterial === null) {
           setPiezas(piezasIniciales ?? []);
@@ -262,7 +286,7 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
     return () => {
       control.abort();
     };
-  }, [materialInicial, piezasIniciales, vuelta]);
+  }, [materialInicial, piezasIniciales, vuelta, elegidoId]);
 
   /** Se limpia EN EL CLIC y no en el efecto: el efecto sólo vuelve a preguntar. */
   function volverALeer(): void {
@@ -441,6 +465,44 @@ export function CorteDeMaterial({ materialInicial, piezasIniciales }: CorteDeMat
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-(--espacio-3) p-(--espacio-3) pb-[calc(var(--espacio-16)*2)] md:pb-(--espacio-4)">
       <h1 className="text-xl font-bold md:text-2xl">Cortar · {material.nombre}</h1>
+
+      {noEsDeCorte && (
+        <Aviso tono="atencion" titulo="Esa pieza no se vende cortada.">
+          El mostrador mandó a cortar una pieza que no está marcada como continua. Elige de qué
+          material cortar, o véndela entera en el mostrador.
+        </Aviso>
+      )}
+
+      {/* De QUÉ se corta: cable, manguera, cadena, tubo. Antes sólo el primero. */}
+      {materiales.length > 1 && (
+        <div
+          role="group"
+          aria-label={`Qué ${voc.singular('producto')} se corta`}
+          className="flex flex-wrap gap-(--espacio-1)"
+        >
+          {materiales.map((m) => (
+            <Button
+              key={m.id}
+              type="button"
+              size="sm"
+              variant={m.id === material.id ? 'default' : 'outline'}
+              aria-pressed={m.id === material.id}
+              onClick={() => {
+                if (m.id === material.id) return;
+                setElegidoId(m.id);
+                setNoEsDeCorte(false);
+                setPiezaId(null);
+                setMedidaTexto('');
+                setSobranteTexto(null);
+                setHecho(null);
+                setPiezas(null);
+              }}
+            >
+              {m.nombre}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {error !== null && (
         <Aviso tono="peligro" titulo={error}>

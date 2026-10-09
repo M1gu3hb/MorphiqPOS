@@ -22,6 +22,9 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { importeDeLinea, precioConDescuento } from './importes-de-cotizacion.ts';
+import { tomarLoACotizar, type PartidaGuardada } from './nota-del-mostrador.ts';
+
 /**
  * PANTALLA · ferreteria · cotizacion
  *
@@ -105,6 +108,46 @@ export interface PartidaCotizada {
   readonly cantidad: number;
   readonly precioCentavos: number;
   readonly descuentoPct: number;
+  /** La caja que el mostrador traía (F8): se cotiza como caja, con su precio. */
+  readonly presentacion?: { readonly id: string; readonly etiqueta: string };
+}
+
+/** Su clave: la misma pieza suelta y en caja son dos partidas. */
+function claveDeCotizada(p: PartidaCotizada): string {
+  return p.presentacion === undefined ? p.material.id : `${p.material.id}:${p.presentacion.id}`;
+}
+
+/** En qué se cotiza: la caja, si es una; si no, la unidad del material. */
+function unidadDe(p: PartidaCotizada): string {
+  return p.presentacion?.etiqueta ?? p.material.unidad;
+}
+
+/**
+ * F8 · LO QUE EL MOSTRADOR TRAÍA, contra el catálogo de la cotización: el precio de la
+ * pieza del catálogo, o el de su caja. Lo que ya no está en el catálogo no se inventa.
+ */
+function partidasDelMostrador(
+  traidas: readonly PartidaGuardada[],
+  catalogo: readonly MaterialCotizable[],
+): PartidaCotizada[] {
+  const porId = new Map(catalogo.map((m) => [m.id, m]));
+  return traidas.flatMap((g): PartidaCotizada[] => {
+    const material = porId.get(g.productoId);
+    if (material === undefined) return [];
+    const precioDePieza =
+      centavosDe('MaterialMostrador', 'precioCentavos', material.precioCentavos) ?? 0;
+    return [
+      {
+        material,
+        cantidad: g.cantidad,
+        precioCentavos: g.presentacion?.precioCentavos ?? precioDePieza,
+        descuentoPct: 0,
+        ...(g.presentacion === null
+          ? {}
+          : { presentacion: { id: g.presentacion.id, etiqueta: g.presentacion.etiqueta } }),
+      },
+    ];
+  });
 }
 
 export interface CotizacionProps {
@@ -117,8 +160,13 @@ export interface CotizacionProps {
   readonly esDuenio?: boolean;
 }
 
+/**
+ * El importe de la partida: la MISMA cuenta que se cotiza —el precio con descuento al
+ * centavo, por la cantidad— y con enteros (`importes-de-cotizacion.ts`). Antes era
+ * flotante y otra cuenta que la que viajaba al servidor.
+ */
 export function importeDe(p: PartidaCotizada): number {
-  return Math.round(p.precioCentavos * p.cantidad * (1 - p.descuentoPct / 100));
+  return importeDeLinea(p.precioCentavos, p.cantidad, p.descuentoPct);
 }
 
 /** Margen sobre el precio YA con descuento: es el número que decide bajarlo más. */
@@ -197,7 +245,7 @@ function columnasDePartidas(
       aria-label={`${clave === 'cantidad' ? 'Cantidad' : 'Descuento'} de ${p.material.nombre}`}
       className="ml-auto w-20 text-right tabular-nums"
       onChange={(evento: ChangeEvent<HTMLInputElement>) => {
-        alAjustar(p.material.id, clave, Number(evento.target.value));
+        alAjustar(claveDeCotizada(p), clave, Number(evento.target.value));
       }}
     />
   );
@@ -215,7 +263,7 @@ function columnasDePartidas(
           <span className="text-xs text-texto-sutil md:hidden">
             <Cifra
               valor={p.cantidad}
-              unidad={p.material.unidad}
+              unidad={unidadDe(p)}
               decimales={decimalesDe(p.cantidad)}
               tamano="xs"
             />{' '}
@@ -249,9 +297,7 @@ function columnasDePartidas(
         // La unidad al lado del número: tres «m» de cable no son tres piezas.
         <span className="flex items-center justify-end gap-(--espacio-2)">
           {campo(p, 'cantidad')}
-          <span className="w-(--espacio-8) text-left text-xs text-texto-sutil">
-            {p.material.unidad}
-          </span>
+          <span className="w-(--espacio-8) text-left text-xs text-texto-sutil">{unidadDe(p)}</span>
         </span>
       ),
     },
@@ -333,7 +379,11 @@ export function Cotizacion({
       signal: control.signal,
     })
       .then((filas) => {
-        if (sigueMontada()) setCatalogo(filas);
+        if (!sigueMontada()) return;
+        setCatalogo(filas);
+        // F8 · lo que el mostrador mandaba cotizar, una sola vez.
+        const traidas = partidasDelMostrador(tomarLoACotizar(), filas);
+        if (traidas.length > 0) setPartidas(traidas);
       })
       .catch((fallo: unknown) => {
         // La pantalla NO se vacía por un error de red: una cotización a medio
@@ -376,10 +426,11 @@ export function Cotizacion({
         centavosDe('MaterialMostrador', 'precioCentavos', material.precioCentavos) ?? 0,
       descuentoPct: 0,
     };
+    // Desde el buscador se agrega la pieza suelta: se junta con la suelta, no con la caja.
     setPartidas((previas) =>
-      previas.some((p) => p.material.id === material.id)
+      previas.some((p) => claveDeCotizada(p) === material.id)
         ? previas.map((p) =>
-            p.material.id === material.id ? { ...p, cantidad: p.cantidad + 1 } : p,
+            claveDeCotizada(p) === material.id ? { ...p, cantidad: p.cantidad + 1 } : p,
           )
         : [...previas, nueva],
     );
@@ -389,7 +440,7 @@ export function Cotizacion({
     const valor = Number.isFinite(crudo) ? crudo : 0;
     setPartidas((previas) =>
       previas.map((p) => {
-        if (p.material.id !== id) return p;
+        if (claveDeCotizada(p) !== id) return p;
         if (clave === 'cantidad') return { ...p, cantidad: Math.max(1, valor) };
         return { ...p, descuentoPct: Math.min(100, Math.max(0, valor)) };
       }),
@@ -436,12 +487,15 @@ export function Cotizacion({
         nombreLibre: (clienteNombre ?? '').trim() === '' ? 'Mostrador' : clienteNombre,
         lineas: partidas.map((p) => ({
           productoId: p.material.id,
-          descripcion: `${p.material.nombre} ${p.material.medida}`.trim().slice(0, 200),
+          descripcion: [p.material.nombre, p.material.medida, p.presentacion?.etiqueta ?? '']
+            .join(' ')
+            .trim()
+            .slice(0, 200),
           cantidad: p.cantidad.toFixed(4),
-          unidad: p.material.unidad,
+          unidad: unidadDe(p).slice(0, 20),
           // El descuento de la partida va en el PRECIO: la línea del comando no
-          // tiene columna de descuento, y el importe que se cobra es éste.
-          precioUnitarioCentavos: Math.round(p.precioCentavos * (1 - p.descuentoPct / 100)),
+          // tiene columna de descuento, y el importe que se cobra es éste, al centavo.
+          precioUnitarioCentavos: precioConDescuento(p.precioCentavos, p.descuentoPct),
         })),
       });
       setCreada({ id: cotizacion.cotizacionId, folio: cotizacion.folio });
@@ -649,7 +703,7 @@ export function Cotizacion({
             etiqueta={`${partidasEnTitulo} de la cotización`}
             columnas={columnasDePartidas(voc.titulo('producto'), esDuenio, ajustar)}
             filas={partidas}
-            claveDe={(p) => p.material.id}
+            claveDe={claveDeCotizada}
             tonoDeFila={(p) => (esDuenio && margenDe(p) < 0 ? 'peligro' : undefined)}
             pie={{ material: 'Total', importe: <Dinero centavos={total} tamano="base" /> }}
             vacio={

@@ -23,6 +23,7 @@ import {
   VIAJE,
   Vacio,
   conTransicion,
+  dineroEnTexto,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import {
@@ -34,7 +35,9 @@ import {
   HandCoins,
   Phone,
   Search,
+  Send,
   TriangleAlert,
+  UserPlus,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
@@ -42,6 +45,12 @@ import { flushSync } from 'react-dom';
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import { whatsappDe } from './cuenta-del-cliente.ts';
+import { EstadoDeCuenta } from './EstadoDeCuenta.tsx';
+import { LimiteDeCredito, LlaveDelDueno } from './LlaveYLimite.tsx';
+import { NuevoClienteDeCredito } from './NuevoClienteDeCredito.tsx';
+import { ObrasYQuienRecoge } from './ObrasYQuienRecoge.tsx';
 
 /**
  * PANTALLA · ferreteria · cuentas
@@ -95,13 +104,15 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * y la ficha entra como hoja inferior. De tablet para arriba vuelven las cinco
  * columnas del documento y la ficha se va al costado.
  *
- * ── Alcance recortado, dicho y no escondido ──────────────────────────────
- * 1. QUIÉN PUEDE RECOGER (F-638) y el alta de obras y autorizados no caben en
- *    300 líneas: viven en la ficha completa del cliente.
- * 2. «Nuevo cliente», «Estado de cuenta» y «A quién hablarle» tampoco; de la
- *    cobranza, esta pantalla sólo trae el teléfono a un toque.
- * 3. `/api/credito/pago` está nombrada en `05-DATOS-Y-BACKEND` §6. Las tres
- *    lecturas van por el puente, que es el único camino de lectura.
+ * ── La ficha del cliente, entera (C.10 de la 2.4) ────────────────────────
+ * La cabecera decía que QUIÉN PUEDE RECOGER, las obras, «Nuevo cliente», el estado
+ * de cuenta y «a quién hablarle» vivían en «la ficha completa del cliente», y esa
+ * ficha no existía. Ahora la hoja del pago la trae: el límite (que ningún comando
+ * escribía: `credito.fijar_limite`), la llave del dueño para UNA salida, las obras y
+ * quién recoge, y el estado de cuenta para mandarlo. «A quién hablarle» es la lista
+ * misma —los más viejos arriba, el filtro de vencidos— con su llamada y su WhatsApp
+ * escrito y sin mandar. `/api/credito/pago` está nombrada en `05-DATOS-Y-BACKEND` §6;
+ * las lecturas van por el puente, que es el único camino de lectura.
  */
 
 /** Los tres tramos de antigüedad. El color SIEMPRE viaja con su palabra. */
@@ -530,6 +541,21 @@ function CeldaDeCobranza({
           </a>
         </Button>
       )}
+      {whatsappDe(cliente.telefono) === '' || cliente.debe <= 0 ? null : (
+        // Escrito y SIN mandar: el sistema redacta, quien cobra manda.
+        <Button asChild variant="outline" size="icon">
+          <a
+            href={`https://wa.me/${whatsappDe(cliente.telefono)}?text=${encodeURIComponent(
+              `Hola ${cliente.nombre}: tienes ${dineroEnTexto(cliente.debe)} pendientes, el más viejo de hace ${String(cliente.dias)} días. ¿Cuándo pasas a abonar?`,
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Escribirle a ${cliente.nombre} por WhatsApp`}
+          >
+            <Send aria-hidden="true" />
+          </a>
+        </Button>
+      )}
       <Button
         type="button"
         className="min-w-(--area-tactil-minima)"
@@ -694,6 +720,8 @@ interface FichaDePagoProps {
   readonly alCambiarMetodo: (metodo: ClaveMetodo) => void;
   readonly alReintentarDocumentos: () => void;
   readonly alRegistrar: () => void;
+  /** El límite cambió: la cartera se vuelve a leer. */
+  readonly alCambiarLimite: () => void;
 }
 
 /** Las remisiones: su esqueleto, su error o su tabla. */
@@ -826,6 +854,22 @@ function FichaDePago(props: FichaDePagoProps) {
             Ningún pago quedó registrado.
           </Aviso>
         )}
+
+        {/* LA FICHA DEL CLIENTE: lo que la cabecera decía que vivía en otra parte. */}
+        <div className="flex flex-col gap-(--espacio-5) border-t border-borde pt-(--espacio-4)">
+          <EstadoDeCuenta
+            clienteId={cliente.id}
+            nombre={cliente.nombre}
+            telefono={cliente.telefono}
+          />
+          <ObrasYQuienRecoge clienteId={cliente.id} />
+          <LimiteDeCredito
+            clienteId={cliente.id}
+            limiteCentavos={cliente.limite}
+            alFijar={props.alCambiarLimite}
+          />
+          <LlaveDelDueno clienteId={cliente.id} />
+        </div>
       </div>
 
       <footer className="sticky bottom-0 mt-auto flex items-center justify-between gap-(--espacio-3) border-t border-borde bg-fondo p-(--espacio-4)">
@@ -890,6 +934,8 @@ export function Cuentas({
   const [pagos, setPagos] = useState<readonly PagoDeCredito[]>(pagosIniciales ?? []);
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
+  const [clienteNuevo, setClienteNuevo] = useState(false);
+  const [avisoDeAlta, setAvisoDeAlta] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<ClaveFiltro>('todos');
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -1120,19 +1166,59 @@ export function Cuentas({
 
   if (renglones === null) return <CarteraCargando />;
 
+  // «Cliente nuevo» vive en la cabecera de las DOS vistas: con la cartera vacía es
+  // justo cuando más hace falta —el primer cliente de crédito se da de alta aquí—.
+  const altaDeCliente = (
+    <>
+      <NuevoClienteDeCredito
+        abierto={clienteNuevo}
+        alCerrar={() => {
+          setClienteNuevo(false);
+        }}
+        alCrear={(nombre) => {
+          setClienteNuevo(false);
+          setAvisoDeAlta(
+            `${nombre} quedó dado de alta. Aparece en la cartera con su primera remisión.`,
+          );
+        }}
+      />
+      {avisoDeAlta === null ? null : (
+        <Aviso tono="exito" titulo={avisoDeAlta}>
+          En el mostrador ya se le puede remitir.
+        </Aviso>
+      )}
+    </>
+  );
+  const botonDeAlta = (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => {
+        setClienteNuevo(true);
+      }}
+    >
+      <UserPlus aria-hidden="true" />
+      Cliente nuevo
+    </Button>
+  );
+
   if (renglones.length === 0) {
     // El vacío ENSEÑA el flujo: de dónde sale un cliente de cuenta.
     return (
-      <div className="mx-auto max-w-lg p-(--espacio-8)">
+      <div className="mx-auto flex max-w-lg flex-col gap-(--espacio-3) p-(--espacio-8)">
         <h1 className="sr-only">Cuentas</h1>
+        {altaDeCliente}
         <Vacio
           icono={<FileSignature />}
           titulo="Todavía no le das crédito a nadie."
-          explicacion="Cuando despaches con «Remisión a cuenta» (F11) en el mostrador, el cliente aparece aquí con su obra, su antigüedad y su límite."
+          explicacion="Da de alta al cliente con su límite, y cuando despaches con «Remisión a cuenta» (F11) en el mostrador aparece aquí con su obra, su antigüedad y lo que debe."
           accion={
-            <Button asChild>
-              <a href="/ferreteria/mostrador">Ir al mostrador</a>
-            </Button>
+            <span className="flex flex-wrap justify-center gap-(--espacio-2)">
+              {botonDeAlta}
+              <Button asChild>
+                <a href="/ferreteria/mostrador">Ir al mostrador</a>
+              </Button>
+            </span>
           }
         />
       </div>
@@ -1151,7 +1237,11 @@ export function Cuentas({
 
   return (
     <div className={LIENZO}>
-      <h1 className="text-xl font-semibold">Cuentas</h1>
+      <header className="flex flex-wrap items-center justify-between gap-(--espacio-2)">
+        <h1 className="text-xl font-semibold">Cuentas</h1>
+        {botonDeAlta}
+      </header>
+      {altaDeCliente}
 
       {/* Encima del último dato conocido, nunca en lugar de él, y lo primero que
           dice es que no se aplicó ningún pago. Con la ficha abierta va dentro. */}
@@ -1296,6 +1386,9 @@ export function Cuentas({
               }}
               alRegistrar={() => {
                 void registrarPago(elegida);
+              }}
+              alCambiarLimite={() => {
+                setIntento((previo) => previo + 1);
               }}
             />
           )}
