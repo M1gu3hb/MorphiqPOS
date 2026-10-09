@@ -35,12 +35,15 @@ export {
 } from './descuento.ts';
 
 export {
+  cancelarApartada,
+  entradaCancelarApartada,
   entradaRetomar,
   entradaSuspender,
   entradaSuspendidas,
   retomarVenta,
   suspenderVenta,
   ventasEnEspera,
+  type ResultadoCancelacionApartada,
   type ResultadoEnEspera,
   type ResultadoRetomada,
   type ResultadoSuspension,

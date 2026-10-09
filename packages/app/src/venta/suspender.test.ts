@@ -7,7 +7,7 @@ import {
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
 import { ambitoDe, ORG, TERMINAL } from '../restaurante/pruebas/sala.ts';
-import { retomarVenta, suspenderVenta, ventasEnEspera } from './suspender.ts';
+import { cancelarApartada, retomarVenta, suspenderVenta, ventasEnEspera } from './suspender.ts';
 
 /**
  * F-224 · La venta que se aparta para atender a otro.
@@ -307,5 +307,39 @@ describe('F-224 · retomar', () => {
     const codigo = await codigoDe(() => retomarVenta.ejecutar(ctx, { codigo: '7' }));
 
     expect(codigo).toBe('PUENTE_NO_ENCONTRADO');
+  });
+});
+
+describe('F-224 · cancelar una venta apartada (bloque D de la 2.4)', () => {
+  const apartada = () =>
+    crearBaseFalsa({ ordenes: [orden({ estado: 'suspendida', codigo_espera: '47' })] });
+
+  it('queda cancelada, con quién, cuándo y por qué, y su código se libera', async () => {
+    const base = apartada();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cancelarApartada.ejecutar(ctx, { codigo: '47', motivo: 'no volvió por ella' });
+
+    expect(base.filas('ordenes')[0]).toMatchObject({
+      estado: 'cancelada',
+      codigo_espera: null,
+      motivo_cancelacion: 'no volvió por ella',
+      cancelada_por: ambitoDe('cajero').empleoId,
+      cancelada_en: AHORA,
+      cerrada_en: AHORA,
+    });
+  });
+
+  it('la de otra caja no se cancela desde aquí', async () => {
+    const base = crearBaseFalsa({
+      ordenes: [orden({ estado: 'suspendida', codigo_espera: '47', terminal_id: OTRA_TERMINAL })],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+    const fallo = await cancelarApartada
+      .ejecutar(ctx, { codigo: '47', motivo: 'no volvió por ella' })
+      .then(() => null)
+      .catch((e: unknown) => e);
+    expect(esErrorDominio(fallo) ? fallo.codigo : String(fallo)).toBe('PUENTE_NO_ENCONTRADO');
+    expect(base.campo('ordenes', 'estado')).toBe('suspendida');
   });
 });

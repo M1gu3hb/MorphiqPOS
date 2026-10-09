@@ -3,12 +3,14 @@
 import { Aviso, Dinero } from '@morphiqpos/ui/sistema';
 
 import type { AbonoHecho } from './AbonoRapido.tsx';
+import type { EnvaseMovido } from './DepositoDeEnvase.tsx';
 
 /** Lo que pasó fuera de la lista y hay que decir en ella. */
 export type AvisoDeCobro =
   | { readonly tipo: 'apartada'; readonly codigo: string }
   | { readonly tipo: 'retomada'; readonly codigo: string; readonly perdidos: readonly string[] }
   | { readonly tipo: 'abono'; readonly abono: AbonoHecho }
+  | { readonly tipo: 'casco'; readonly hecho: EnvaseMovido }
   | { readonly tipo: 'malLeido'; readonly motivo: string };
 
 /** Lo que pasó fuera de la lista: una venta apartada o retomada, un abono, una etiqueta mala. */
@@ -51,6 +53,25 @@ export function AvisoDelCobro({ aviso }: { readonly aviso: AvisoDeCobro | null }
             Debe <Dinero centavos={abono.debeCentavos} tamano="sm" />
           </span>
         )}
+      </Aviso>
+    );
+  }
+  if (aviso.tipo === 'casco') {
+    const { hecho } = aviso;
+    const piezas = hecho.cantidad === 1 ? 'un casco' : `${String(hecho.cantidad)} cascos`;
+    return (
+      <Aviso
+        tono="exito"
+        titulo={
+          <span className="inline-flex items-baseline gap-(--espacio-1)">
+            {hecho.devolucion ? 'Se devolvieron' : 'Entraron'}{' '}
+            <Dinero centavos={hecho.montoCentavos} tamano="sm" /> por {piezas}.
+          </span>
+        }
+      >
+        {hecho.devolucion
+          ? 'Salen del cajón y bajan del depósito que se debe.'
+          : 'No es venta: es del cliente hasta que traiga el envase.'}
       </Aviso>
     );
   }

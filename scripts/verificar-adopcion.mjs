@@ -89,6 +89,18 @@ export const SIN_ESTADO = [
       'No lee nada: recibe por props lo que ya pasó —una apartada, un abono, una etiqueta mal leída— y lo dice.',
   },
   {
+    pantalla: 'abarrotes/cobro/DepositoDeEnvase',
+    estado: 'vacio',
+    razon:
+      'Formulario del casco (F-256, bloque D de la 2.4): cuántos y a cuánto. No hay lista que pueda llegar vacía; el saldo de envases lo dice el corte.',
+  },
+  {
+    pantalla: 'abarrotes/cobro/DepositoDeEnvase',
+    estado: 'cargando',
+    razon:
+      'No lee nada antes de pintarse: lo único asíncrono es mover el depósito, y mientras corre el botón pasa a `cargando`.',
+  },
+  {
     pantalla: 'abarrotes/cobro/BloqueDeCobro',
     estado: 'vacio',
     razon:
@@ -438,6 +450,30 @@ export const SIN_ESTADO = [
     estado: 'cargando',
     razon:
       'La apariencia la escribe el servidor en el <html> antes de la primera pintura y el proveedor no hace fetch. Lo único asíncrono es el POST de guardar, con el botón en `cargando`.',
+  },
+  {
+    pantalla: 'venta/GastoDeCaja',
+    estado: 'vacio',
+    razon:
+      'Formulario del gasto en efectivo (bloque D de la 2.4): sus cinco categorías son fijas de `gastos.registrar` y no hay ninguna lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'venta/GastoDeCaja',
+    estado: 'cargando',
+    razon:
+      'No lee nada antes de pintarse: lo único asíncrono es registrar el gasto, y mientras corre el botón pasa a `cargando`.',
+  },
+  {
+    pantalla: 'venta/CorteDeTurno',
+    estado: 'vacio',
+    razon:
+      'Formulario del corte de turno (F-233, bloque D de la 2.4): un importe y una nota. No hay ninguna lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'venta/CorteDeTurno',
+    estado: 'cargando',
+    razon:
+      'No lee nada antes de pintarse —el esperado aparece DESPUÉS de contar, a ciegas—; entregar el turno pone el botón en `cargando`.',
   },
 ];
 

@@ -711,6 +711,22 @@ nombra la terminal que tiene la caja; el gasto en efectivo sale del cajón de SU
 hay varias. La demo de la cafetería nace con cupo dos (lo repone el reseteo). `verify:rls`
 deja de exigir el índice sólo si su disparador sustituto está en la base.
 
+## D-31 · 09-10-2026 · La cajera cancela su venta apartada con motivo, sin PIN; la caja no cierra con apartadas
+
+**Contexto.** La pantalla de ventas en espera de la tienda decía «cobra o cancela alguna» y no
+había manera de cancelar ninguna; y `caja.cerrar` cerraba con apartadas dentro, que quedaban
+colgadas de una caja que ya no existía (F-224, `abarrotes/02-DINERO-Y-CAJA §8.5`: «o se cobra,
+o se cancela con motivo»).
+
+**Decisión.** `venta.cancelar_apartada` lo puede hacer quien vende (los roles de mostrador),
+**sin PIN de supervisor**, porque una venta apartada no se cobró y su mercancía nunca salió:
+cancelarla no mueve dinero ni inventario. Lo que sí queda es el control: motivo obligatorio
+(4–200 caracteres), quién, cuándo, y la orden en `cancelada`, que es lo que lee la sección
+«Cancelaciones» del corte. Sólo desde la caja donde se apartó. `caja.cerrar` se niega con
+`TRANSICION_INVALIDA` mientras haya una apartada en ESA terminal; las de otra caja no la
+detienen. El depósito del casco (F-256) se ofrece en $10.00 por envase y se puede cambiar en el
+momento: el precio del casco lo pone el refresquero, no el sistema.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

@@ -411,3 +411,96 @@ export function uuidDeProveedor(nombre: string): string {
     hex.slice(20, 32),
   ].join('-');
 }
+
+export const entradaPasivosDelDia = z.object({
+  /** Desde cuándo. Sin él, las últimas 24 horas: un día de tienda, de la apertura al cierre. */
+  desde: z.iso.datetime().optional(),
+});
+
+export interface DineroAjeno {
+  /** `servicio_terceros`, `envase_retornable`, `anticipo_cliente`, `propina_por_entregar` o `abono_credito`. */
+  readonly concepto: string;
+  /** Con signo: positivo entra (el negocio debe), negativo sale (se devuelve o se entrega). */
+  readonly montoCentavos: string;
+  readonly metodo: string | null;
+  readonly registradoEn: string;
+}
+
+const DIRECCION_DEL_DIA = ['gerente', 'administrador', 'dueno'] as const;
+
+/** Un día de tienda no pasa de unos cientos de movimientos ajenos; el tope evita leer sin fin. */
+const LIMITE_DEL_DIA = 1_000;
+
+/**
+ * EL DINERO QUE PASÓ POR EL CAJÓN Y NO ES DEL NEGOCIO, del día (D.2 de la 2.4).
+ *
+ * «Lo que no es del negocio —recargas, abonos, cascos, anticipos— está en el ledger de
+ * pasivos, no en ventas»: la conciliación del día completo lo comprueba contra ESTO. Dos
+ * libros, dichos: `pasivos_terceros` (recargas y servicios, cascos, anticipos, propina por
+ * entregar) y los abonos de crédito y fiado, que desde la 2.4 bajan la cartera del cliente
+ * (`pagos_credito`) en vez de anotarse en un libro que nadie leía.
+ */
+export const pasivosDelDia = definirComando<
+  Transaccion,
+  typeof entradaPasivosDelDia,
+  { readonly movimientos: readonly DineroAjeno[] }
+>({
+  nombre: 'pasivos.del_dia',
+  entidad: 'pasivo_tercero',
+  escribe: false,
+  roles: [...DIRECCION_DEL_DIA],
+  paquetes: PAQUETES_MOSTRADOR,
+  entrada: entradaPasivosDelDia,
+  async ejecutar(ctx, entrada) {
+    const { organizacionId, sucursalId } = ctx.ambito;
+    const desde =
+      entrada.desde === undefined
+        ? new Date(ctx.ahora.getTime() - 24 * 60 * 60 * 1000)
+        : new Date(entrada.desde);
+    // Un actor de alcance organizacional (sin sucursal) ve las de todas; uno de sucursal, las suyas.
+    const consultaPasivos = ctx.tx
+      .selectFrom('pasivos_terceros')
+      .select(['naturaleza', 'monto_centavos', 'created_at'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('created_at', '>=', desde);
+    const consultaAbonos = ctx.tx
+      .selectFrom('pagos_credito')
+      .select(['monto_centavos', 'metodo', 'created_at'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('created_at', '>=', desde);
+    const [pasivos, abonos] = await ctx.paso('leer_libros', () =>
+      Promise.all([
+        (sucursalId === null
+          ? consultaPasivos
+          : consultaPasivos.where('sucursal_id', '=', sucursalId)
+        )
+          .orderBy('created_at')
+          .limit(LIMITE_DEL_DIA)
+          .execute(),
+        (sucursalId === null
+          ? consultaAbonos
+          : consultaAbonos.where('sucursal_id', '=', sucursalId)
+        )
+          .orderBy('created_at')
+          .limit(LIMITE_DEL_DIA)
+          .execute(),
+      ]),
+    );
+    return {
+      movimientos: [
+        ...pasivos.map((p) => ({
+          concepto: p.naturaleza,
+          montoCentavos: p.monto_centavos.toString(),
+          metodo: null,
+          registradoEn: p.created_at.toISOString(),
+        })),
+        ...abonos.map((a) => ({
+          concepto: 'abono_credito',
+          montoCentavos: a.monto_centavos.toString(),
+          metodo: a.metodo,
+          registradoEn: a.created_at.toISOString(),
+        })),
+      ],
+    };
+  },
+});

@@ -29,7 +29,9 @@ import { paraElServidor, type LineaDeVenta } from './lineas.ts';
  * descuento cuelga del cobro.
  *
  * La lista dice cuánto lleva cada una esperando: una de hace dos horas casi siempre es
- * alguien que ya no volvió.
+ * alguien que ya no volvió. Ésa se CANCELA con su motivo (bloque D de la 2.4): «o se
+ * cobra, o se cancela con motivo», y la caja no cierra con ninguna apartada dentro. El
+ * motivo queda en la sección de control del corte, con quién la canceló.
  */
 
 interface Apartada {
@@ -54,6 +56,8 @@ export function EnEspera({
   const [nota, setNota] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
+  /** La apartada que se está cancelando y su motivo. */
+  const [cancelando, setCancelando] = useState<{ codigo: string; motivo: string } | null>(null);
 
   useEffect(() => {
     let vigente = true;
@@ -102,6 +106,28 @@ export function EnEspera({
     }
   }
 
+  async function cancelar(): Promise<void> {
+    if (cancelando === null) return;
+    if (cancelando.motivo.trim().length < 4) {
+      setFallo('Escribe por qué se cancela.');
+      return;
+    }
+    setEnviando(true);
+    setFallo(null);
+    try {
+      await invocarComando('/api/venta/cancelar-apartada', {
+        codigo: cancelando.codigo,
+        motivo: cancelando.motivo.trim(),
+      });
+      setApartadas((previas) => (previas ?? []).filter((a) => a.codigo !== cancelando.codigo));
+      setCancelando(null);
+    } catch (error: unknown) {
+      setFallo(error instanceof Error ? error.message : 'No se pudo cancelar esa venta.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   const columnas: readonly ColumnaDeTabla<Apartada>[] = [
     {
       clave: 'cual',
@@ -145,6 +171,24 @@ export function EnEspera({
         </Button>
       ),
     },
+    {
+      clave: 'cancelar',
+      titulo: 'Cancelar',
+      celda: (a) => (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          aria-label={`Cancelar la ${a.codigo}`}
+          disabled={enviando}
+          onClick={() => {
+            setCancelando({ codigo: a.codigo, motivo: '' });
+          }}
+        >
+          Cancelar
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -176,6 +220,42 @@ export function EnEspera({
       )}
 
       {fallo === null ? null : <Aviso tono="peligro" titulo={fallo} />}
+
+      {cancelando === null ? null : (
+        <form
+          className="flex flex-col gap-(--espacio-2)"
+          onSubmit={(evento) => {
+            evento.preventDefault();
+            void cancelar();
+          }}
+        >
+          <Label htmlFor="cancelar-motivo">Por qué se cancela la {cancelando.codigo}</Label>
+          <Input
+            id="cancelar-motivo"
+            autoFocus
+            maxLength={200}
+            placeholder="no volvió por ella"
+            value={cancelando.motivo}
+            onChange={(evento) => {
+              setCancelando({ ...cancelando, motivo: evento.target.value });
+            }}
+          />
+          <div className="flex gap-(--espacio-2)">
+            <Button type="submit" variant="destructive" disabled={enviando}>
+              Cancelar la venta {cancelando.codigo}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setCancelando(null);
+              }}
+            >
+              No, dejarla apartada
+            </Button>
+          </div>
+        </form>
+      )}
 
       <section aria-labelledby="apartadas-titulo" className="flex flex-col gap-(--espacio-2)">
         <h3 id="apartadas-titulo" className="text-sm font-medium text-texto-sutil">

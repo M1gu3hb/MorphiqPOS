@@ -31,6 +31,12 @@
  * y Esc empieza de nuevo. Los ocho de siempre llevan su tecla donde está libre —F1, F3, F5 y
  * F8— porque F2, F4, F6 y F7 ya son acciones (D-21).
  *
+ * ── El descuento y el mixto (D.1 de la 2.4) ───────────────────────────────
+ * «Descuento» abre el diálogo compartido (`~/venta/DescuentoDeVenta`): lo que cabe en el tope
+ * de la cajera se aplica, y lo que no lo autoriza un supervisor tecleando SU PIN aquí mismo.
+ * El total que se dice en voz alta ya va descontado. «Mixto» es parte en efectivo y el resto
+ * con tarjeta o transferencia, cada parte a su método al centavo.
+ *
  * ── El fiado ─────────────────────────────────────────────────────────────
  * F11 va a nombre de alguien: sin cliente, pide elegirlo (F4) antes de confirmar. La venta
  * suma a ventas y no al cajón, y la deuda queda escrita en la misma transacción del cobro.
@@ -69,9 +75,11 @@ import { consultarPuente, invocarComando } from '~/cliente/api';
 import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { pitar } from '~/cliente/pitido';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { DescuentoDeVenta, type DescuentoElegido } from '~/venta/DescuentoDeVenta';
 
 import { AltaRapida, type ProductoDadoDeAlta } from './AltaRapida.tsx';
 import { AbonoRapido } from './cobro/AbonoRapido.tsx';
+import { DepositoDeEnvase } from './cobro/DepositoDeEnvase.tsx';
 import { AvisoDelCobro, type AvisoDeCobro } from './cobro/Avisos.tsx';
 import {
   CobroEnReposo,
@@ -79,6 +87,7 @@ import {
   Tecla,
   accionDeTecla,
   type Metodo,
+  type PagoMixto,
 } from './cobro/BloqueDeCobro.tsx';
 import {
   armarCatalogo,
@@ -124,12 +133,16 @@ type Panel =
   | { readonly tipo: 'alta'; readonly codigo: string }
   | { readonly tipo: 'cliente' }
   | { readonly tipo: 'abono' }
-  | { readonly tipo: 'espera' };
+  | { readonly tipo: 'espera' }
+  | { readonly tipo: 'descuento' }
+  | { readonly tipo: 'casco' };
 
 const TITULOS: Readonly<Record<Exclude<Panel['tipo'], 'alta'>, readonly [string, string]>> = {
   cliente: ['A quién', 'El fiado va a nombre de alguien: elígelo antes de cobrar.'],
   abono: ['Abono de fiado', 'Entra a su cuenta, no a la venta.'],
   espera: ['Apartar o retomar', 'La venta apartada se retoma con su número.'],
+  descuento: ['Descuento', 'Hasta tu tope se aplica solo; arriba, lo autoriza un supervisor.'],
+  casco: ['Casco', 'El depósito entra al cajón y no es venta: vuelve cuando traen el envase.'],
 };
 
 export interface CobrarProps {
@@ -175,6 +188,8 @@ export function Cobrar({
   const [metodo, setMetodo] = useState<Metodo | null>(null);
   const [recibido, setRecibido] = useState<number | null>(null);
   const [cliente, setCliente] = useState<ClienteDelCobro | null>(null);
+  const [descuento, setDescuento] = useState<DescuentoElegido | null>(null);
+  const [mixto, setMixto] = useState<PagoMixto>({ efectivoCentavos: null, resto: 'tarjeta' });
   const [panel, setPanel] = useState<Panel | null>(null);
   const [aviso, setAviso] = useState<AvisoDeCobro | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -386,6 +401,7 @@ export function Cobrar({
         setMetodo(null);
         setLineas([]);
         setRecibido(null);
+        setDescuento(null);
       } else if (evento.key === 'Delete' && !enCampo) {
         // Supr DESHACE la última línea: el error se corrige, no se previene.
         setLineas((previas) => previas.slice(0, -1));
@@ -414,7 +430,10 @@ export function Cobrar({
     };
   }, [agregar, elegirMetodo, escaneado, metodo, panel, rapidos]);
 
-  const total = totalDe(lineas);
+  const sinDescuento = totalDe(lineas);
+  /** Lo que se cobra: el descuento ya restado. Uno que ya no cabe en la venta no se aplica. */
+  const aplicado = descuento !== null && descuento.centavos < sinDescuento ? descuento : null;
+  const total = sinDescuento - (aplicado?.centavos ?? 0);
 
   /**
    * Un solo viaje (`/api/venta/cobrar-mostrador`). El total viaja para que el servidor RECHACE
@@ -432,16 +451,42 @@ export function Cobrar({
     setEnviando(true);
     setError(null);
     try {
+      const efectivoDelMixto = mixto.efectivoCentavos ?? 0;
       const venta = await invocarComando<{ ventaId: string }>('/api/venta/cobrar-mostrador', {
-        metodo,
+        metodo: metodo === 'mixto' ? 'efectivo' : metodo,
         totalEsperadoCentavos: total,
         recibidoCentavos: metodo === 'efectivo' ? (recibido ?? 0) : total,
         ...(metodo === 'fiado' && cliente !== null ? { clienteId: cliente.id } : {}),
+        ...(metodo === 'mixto'
+          ? {
+              pagos: [
+                {
+                  metodo: 'efectivo',
+                  montoCentavos: efectivoDelMixto,
+                  recibidoCentavos: efectivoDelMixto,
+                },
+                { metodo: mixto.resto, montoCentavos: total - efectivoDelMixto },
+              ],
+            }
+          : {}),
+        ...(aplicado === null
+          ? {}
+          : {
+              descuento: {
+                centavos: aplicado.centavos,
+                motivo: aplicado.motivo,
+                ...(aplicado.autorizacion === undefined
+                  ? {}
+                  : { autorizacion: aplicado.autorizacion }),
+              },
+            }),
         lineas: paraElServidor(lineas),
       });
       setLineas([]);
       setRecibido(null);
       setMetodo(null);
+      setDescuento(null);
+      setMixto({ efectivoCentavos: null, resto: 'tarjeta' });
       setUltimo(null);
       // El cliente era de ESTA venta: la siguiente empieza sin nadie.
       setCliente(null);
@@ -555,6 +600,12 @@ export function Cobrar({
       >
         <p className="text-xs font-medium tracking-widest text-texto-sutil uppercase">Total</p>
         <Dinero centavos={total} tamano="total" className="leading-none" />
+        {aplicado === null ? null : (
+          <p className="inline-flex flex-wrap items-baseline justify-center gap-(--espacio-1) text-sm text-texto-sutil">
+            descuento <Dinero centavos={aplicado.centavos} tamano="sm" />
+            {aplicado.autorizo === undefined ? null : <span>· autorizó {aplicado.autorizo}</span>}
+          </p>
+        )}
         {/* En teléfono desaparecen el desglose y el conteo: ahí no se vende. */}
         <p className="mt-(--espacio-2) hidden items-baseline justify-center gap-(--espacio-4) text-sm text-texto-sutil md:flex">
           <Cifra valor={piezas} unidad={piezas === 1 ? 'artículo' : 'artículos'} tamano="sm" />
@@ -664,6 +715,22 @@ export function Cobrar({
               onRegresar={() => {
                 setMetodo(null);
               }}
+              mixto={mixto}
+              onMixto={setMixto}
+              descuento={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    if (aplicado === null) setPanel({ tipo: 'descuento' });
+                    else setDescuento(null);
+                  }}
+                >
+                  {aplicado === null ? 'Descuento' : 'Quitar el descuento'}
+                </Button>
+              }
             />
           )}
         </div>
@@ -705,6 +772,16 @@ export function Cobrar({
             }}
           >
             Abono <Tecla>F7</Tecla>
+          </button>
+          ·
+          <button
+            type="button"
+            className="inline-flex items-center gap-(--espacio-1) underline-offset-2 hover:underline"
+            onClick={() => {
+              setPanel({ tipo: 'casco' });
+            }}
+          >
+            Casco
           </button>
         </span>
         {ultimo === null ? (
@@ -752,6 +829,22 @@ export function Cobrar({
                   onElegir={(elegido) => {
                     setCliente(elegido);
                     setPanel(null);
+                  }}
+                />
+              ) : panel.tipo === 'descuento' ? (
+                <DescuentoDeVenta
+                  base={sinDescuento}
+                  onAplicar={(elegido) => {
+                    setDescuento(elegido);
+                    setRecibido(null);
+                    setPanel(null);
+                  }}
+                />
+              ) : panel.tipo === 'casco' ? (
+                <DepositoDeEnvase
+                  onListo={(hecho) => {
+                    setPanel(null);
+                    setAviso({ tipo: 'casco', hecho });
                   }}
                 />
               ) : panel.tipo === 'abono' ? (

@@ -17,11 +17,14 @@ export {
 export {
   entradaAbonoFiado,
   entradaDepositoEnvase,
+  entradaPasivosDelDia,
   entradaRegistrarComision,
   moverDepositoEnvase,
+  pasivosDelDia,
   registrarAbonoFiado,
   registrarComision,
   uuidDeProveedor,
+  type DineroAjeno,
   type ResultadoComision,
   type ResultadoPasivo,
 } from './pasivos.ts';

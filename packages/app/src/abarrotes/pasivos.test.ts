@@ -9,6 +9,7 @@ import {
 import { ambitoDe, ORG, SESION_CAJA, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
 import {
   moverDepositoEnvase,
+  pasivosDelDia,
   registrarAbonoFiado,
   registrarComision,
   uuidDeProveedor,
@@ -338,5 +339,82 @@ describe('el titular derivado de un proveedor de servicio', () => {
     expect(uuidDeProveedor('Telcel')).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/,
     );
+  });
+});
+
+describe('pasivos.del_dia · el dinero ajeno del día, para conciliar (D.2 de la 2.4)', () => {
+  const OTRA_SUCURSAL = '99999999-9999-4999-8999-999999999999';
+  const AYER = new Date('2026-09-14T08:00:00.000Z');
+  const HOY = new Date('2026-09-15T09:00:00.000Z');
+
+  const libros = () =>
+    crearBaseFalsa({
+      pasivos_terceros: [
+        {
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          naturaleza: 'envase_retornable',
+          monto_centavos: 2_000n,
+          created_at: HOY,
+        },
+        {
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          naturaleza: 'servicio_terceros',
+          monto_centavos: 19_400n,
+          created_at: AYER,
+        },
+        {
+          organizacion_id: ORG,
+          sucursal_id: OTRA_SUCURSAL,
+          naturaleza: 'envase_retornable',
+          monto_centavos: 1_000n,
+          created_at: HOY,
+        },
+      ],
+      pagos_credito: [
+        {
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          monto_centavos: 5_000n,
+          metodo: 'efectivo',
+          created_at: HOY,
+        },
+        {
+          organizacion_id: ORG,
+          sucursal_id: OTRA_SUCURSAL,
+          monto_centavos: 7_000n,
+          metodo: 'efectivo',
+          created_at: HOY,
+        },
+      ],
+    });
+
+  it('junta los dos libros —pasivos y abonos— de ESTA sucursal y desde la hora pedida', async () => {
+    const base = libros();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    const { movimientos } = await pasivosDelDia.ejecutar(ctx, {
+      desde: '2026-09-15T00:00:00.000Z',
+    });
+
+    expect(movimientos).toEqual([
+      {
+        concepto: 'envase_retornable',
+        montoCentavos: '2000',
+        metodo: null,
+        registradoEn: HOY.toISOString(),
+      },
+      {
+        concepto: 'abono_credito',
+        montoCentavos: '5000',
+        metodo: 'efectivo',
+        registradoEn: HOY.toISOString(),
+      },
+    ]);
+  });
+
+  it('el cajero no la lee: es la vista de quien cuadra el día', () => {
+    expect(pasivosDelDia.roles).not.toContain('cajero');
   });
 });

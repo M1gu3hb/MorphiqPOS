@@ -6417,3 +6417,50 @@ turno).
 
 **En qué voy:** las piezas de pantalla (descuento con PIN, devolución, gasto de caja, corte de
 turno, mixto) y el día completo de la tienda.
+
+## 09-10-2026 · Etapa 2.4 · Bloque D: las piezas de pantalla del día completo, y la caja de la tienda
+
+**Construido** (pantallas compartidas en `apps/web/src/venta/`, montadas en la tienda):
+- **Descuento** en el cobro (`DescuentoDeVenta`): importe o porcentaje; hasta el tope se aplica,
+  arriba pide el PIN de un supervisor de la lista (`/api/identidad/supervisor`). Sin nadie que
+  autorice, lo dice con su `Vacio`. Y **pago mixto** en el bloque de cobro (efectivo + tarjeta o
+  transferencia).
+- **Devolución** total y parcial por folio (`DevolucionDeVenta`), con la MISMA cuenta que el
+  servidor (`devolucion.ts`, 4 pruebas): tres aceites de $100 se devuelven en 33.33, 33.34, 33.33.
+- **Gasto de caja** (`GastoDeCaja`) y **corte de turno que no cierra la caja** (`CorteDeTurno`,
+  F-233: a ciegas, el esperado aparece después con «sobrante/faltante» en palabras).
+- **Casco** en el cobro (`DepositoDeEnvase`, F-256): entra al cajón y no es venta; «Trae el
+  casco» lo devuelve.
+- **Cancelar una venta apartada** con motivo (`venta.cancelar_apartada` + botón en «En espera»),
+  y **la caja no cierra con apartadas** (F-224). D-31.
+- **`pasivos.del_dia`**: el dinero ajeno del día (pasivos + abonos), de la sucursal, para que la
+  conciliación del día completo lo compare.
+
+**Defectos encontrados por el día completo** (van a la lista del reporte 020):
+- La Caja de la tienda y la ferretería decía «Lo que debería haber **$NaN.NaN**»: leía tres
+  campos que `caja.estado` no devuelve; y la hora de apertura salía en UTC. Ahora un adaptador
+  tipado con el tipo del comando (`estado-de-caja.ts`).
+- «En espera» decía «cobra o cancela alguna» sin forma de cancelar; la caja cerraba con
+  apartadas dentro.
+- Ninguna pantalla de modelo llamaba a `gastos.registrar` ni a `caja.corte_turno`.
+- El primer `cancelar_apartada` no escribía `cerrada_en`: lo cazó el contrato
+  `orden_cerrada_con_fecha` antes de llegar a Postgres.
+
+**Validado por mutación** (destructivas que FALLAN · inocuas que PASAN):
+- Cierre con apartadas: sin la guarda · cuenta cualquier estado · cuenta las de otra caja ·
+  · renombrar el paso, otro mensaje.
+- Cancelar apartada: se queda suspendida · no libera el código · sin motivo · sin quién · la de
+  otra caja · sin `cerrada_en` · · payload en otro orden, renombrar el paso.
+- `pasivos.del_dia`: pasivos de todas las sucursales · abonos de todas · sin la hora de inicio ·
+  sin los abonos · el cajero la lee · · renombrar el paso, otro tope.
+- Adaptador de la caja: el campo que no existe (NaN) · montones inventados · la hora en UTC ·
+  todos administran · · `?? null` de más. Una guarda redundante (`abierta ? … : null`) que
+  ninguna prueba podía ver se quitó en vez de dejarla aparentando.
+
+Puertas: `tsc` app y web 0 · eslint 0 · `verify:adopcion` 120/120 (dos excepciones declaradas
+para el formulario del casco) · `entradas`, `rastro`, `unidades`, `limpieza`, `escrituras`,
+`lecturas`, `tipos-de-pantalla`, `enlaces`, `primitivas`, `estilos`, `aspecto`, `residuos` en
+verde · unitarias 335 archivos / 3,878 pruebas.
+
+**En qué voy:** el día completo de la tienda en Playwright contra la base desechable.
+

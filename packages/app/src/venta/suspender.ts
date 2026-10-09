@@ -410,3 +410,88 @@ export const retomarVenta = definirComando<Transaccion, typeof entradaRetomar, R
     };
   },
 });
+
+export const entradaCancelarApartada = z.object({
+  codigo: z
+    .string()
+    .trim()
+    .regex(/^\d{1,3}$/, 'El código de una venta en espera son tres dígitos.'),
+  motivo: z.string().trim().min(4).max(200),
+});
+
+export interface ResultadoCancelacionApartada {
+  readonly ordenId: string;
+  readonly codigo: string;
+}
+
+/**
+ * CANCELAR UNA VENTA APARTADA, con su motivo (F-224, bloque D de la 2.4).
+ *
+ * El cliente que dijo «ahorita vengo» y no volvió: «o se cobra, o se cancela con motivo»
+ * (`abarrotes/02-DINERO-Y-CAJA §8.5`). Y esta misma pantalla le decía a la cajera
+ * «cobra o cancela alguna» sin que existiera manera de cancelar ninguna. Queda
+ * `cancelada`, con quién, cuándo y por qué —es lo que lee la sección «Cancelaciones» del
+ * corte, la de control—. No mueve dinero ni inventario: una venta apartada no se cobró y
+ * su mercancía nunca salió del almacén.
+ */
+export const cancelarApartada = definirComando<
+  Transaccion,
+  typeof entradaCancelarApartada,
+  ResultadoCancelacionApartada
+>({
+  nombre: 'venta.cancelar_apartada',
+  entidad: 'orden',
+  escribe: true,
+  roles: [...MOSTRADOR],
+  paquetes: PAQUETES_MOSTRADOR,
+  entrada: entradaCancelarApartada,
+  async ejecutar(ctx, entrada) {
+    const { organizacionId, terminalId, empleoId } = ctx.ambito;
+    if (terminalId === null) {
+      throw new ErrorDominio(
+        'VENTA_SIN_TERMINAL',
+        'Una venta apartada se cancela en la caja donde se apartó.',
+      );
+    }
+    const orden = await ctx.paso('buscar_por_codigo', () =>
+      ctx.tx
+        .selectFrom('ordenes')
+        .select(['id'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('terminal_id', '=', terminalId)
+        .where('estado', '=', 'suspendida')
+        .where('codigo_espera', '=', entrada.codigo)
+        .forUpdate()
+        .executeTakeFirst(),
+    );
+    if (orden === undefined) {
+      throw new ErrorDominio(
+        'PUENTE_NO_ENCONTRADO',
+        `No hay ninguna venta apartada con el código ${entrada.codigo} en esta caja.`,
+      );
+    }
+    await ctx.paso('cancelar', () =>
+      ctx.tx
+        .updateTable('ordenes')
+        .set({
+          estado: 'cancelada',
+          codigo_espera: null,
+          motivo_cancelacion: entrada.motivo,
+          cancelada_por: empleoId,
+          cancelada_en: ctx.ahora,
+          // `orden_cerrada_con_fecha` (045): una orden cancelada está cerrada.
+          cerrada_en: ctx.ahora,
+          updated_at: ctx.ahora,
+        })
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', orden.id)
+        .where('estado', '=', 'suspendida')
+        .execute(),
+    );
+    ctx.auditar({
+      entidadId: orden.id,
+      payload: { codigo: entrada.codigo, motivo: entrada.motivo },
+    });
+    return { ordenId: orden.id, codigo: entrada.codigo };
+  },
+});

@@ -205,6 +205,26 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
     );
     if (sesion === null) throw new ErrorDominio('CAJA_CERRADA', 'No hay una caja abierta.');
 
+    // F-224 · «No se puede cerrar con ventas en espera» (`abarrotes/02-DINERO-Y-CAJA §8.5`):
+    // el ticket apartado del cliente que no volvió se cobra o se cancela con motivo. Cerrar
+    // con él dentro dejaba una venta viva colgada de una caja que ya no existe.
+    const apartadas = await ctx.paso('contar_apartadas', () =>
+      ctx.tx
+        .selectFrom('ordenes')
+        .select('id')
+        .where('organizacion_id', '=', organizacionId)
+        .where('terminal_id', '=', terminalId)
+        .where('estado', '=', 'suspendida')
+        .execute(),
+    );
+    if (apartadas.length > 0) {
+      throw new ErrorDominio(
+        'TRANSICION_INVALIDA',
+        `Hay ${String(apartadas.length)} venta(s) apartada(s) en esta caja: cóbralas o cancélalas con su motivo antes de cerrar.`,
+        { apartadas: apartadas.length },
+      );
+    }
+
     // El arqueo se deriva DENTRO de la transacción del cierre: si se leyera
     // antes, una venta cobrada en ese hueco quedaría fuera del corte.
     const arqueo = await ctx.paso('derivar_arqueo', () =>

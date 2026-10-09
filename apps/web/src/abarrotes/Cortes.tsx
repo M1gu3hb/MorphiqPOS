@@ -25,6 +25,7 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { CorteEnPdf } from '~/corte/CorteEnPdf';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { CorteDeTurno } from '~/venta/CorteDeTurno';
 
 /**
  * PANTALLA · abarrotes · cortes
@@ -826,6 +827,9 @@ export function Cortes({
           <CorteEnPdf sesionCajaId={corte.sesionCajaId} />
         </>
       )}
+
+      {/* F-233 · El turno que se entrega sin cerrar la caja: el sobrino se va, la tienda sigue. */}
+      {corte === null && abierta ? <CorteDeTurno /> : null}
 
       {corte === null && abierta && (
         <HojaDeArqueo

@@ -3,6 +3,7 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Aviso, CampoDeDinero, Dinero } from '@morphiqpos/ui/sistema';
+import type { ReactNode } from 'react';
 
 import { avisoDeFiado, type ClienteDelCobro } from './ElegirCliente.tsx';
 
@@ -25,7 +26,20 @@ export const DESVIOS = [
   { clave: 'fiado', etiqueta: 'Fiado', tecla: 'F11' },
 ] as const;
 
-export type Metodo = 'efectivo' | (typeof DESVIOS)[number]['clave'];
+/**
+ * `mixto` es parte en efectivo y el resto con tarjeta o transferencia (§5 de abarrotes,
+ * D.1 de la 2.4). No lleva tecla: las doce están tomadas y un mixto no es una ráfaga.
+ */
+export type Metodo = 'efectivo' | (typeof DESVIOS)[number]['clave'] | 'mixto';
+
+/** Con qué se paga lo que no va en efectivo en un mixto. */
+export type RestoDelMixto = 'tarjeta' | 'transferencia';
+
+/** Un pago mixto, ya armado: lo que va en efectivo y con qué se paga el resto. */
+export interface PagoMixto {
+  readonly efectivoCentavos: number | null;
+  readonly resto: RestoDelMixto;
+}
 
 /** Lo que hace una tecla del cobro. */
 export type AccionDeTecla =
@@ -44,7 +58,14 @@ export function accionDeTecla(evento: { readonly key: string }): AccionDeTecla |
 }
 
 function etiquetaDeMetodo(metodo: Metodo): string {
+  if (metodo === 'mixto') return 'Mixto';
   return DESVIOS.find((desvio) => desvio.clave === metodo)?.etiqueta ?? 'Efectivo';
+}
+
+/** ¿El mixto está bien armado? Algo en efectivo y algo con lo otro, nunca todo de un lado. */
+export function mixtoValido(mixto: PagoMixto, total: number): boolean {
+  const efectivo = mixto.efectivoCentavos ?? 0;
+  return efectivo > 0 && efectivo < total;
 }
 
 /**
@@ -98,6 +119,16 @@ export function CobroEnReposo({
             <Tecla>{desvio.tecla}</Tecla>
           </Button>
         ))}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!hayLineas}
+          onClick={() => {
+            onElegir('mixto');
+          }}
+        >
+          Mixto
+        </Button>
       </div>
     </div>
   );
@@ -114,6 +145,9 @@ export function CobroExpandido({
   enviando,
   onConfirmar,
   onRegresar,
+  mixto,
+  onMixto,
+  descuento,
 }: {
   readonly metodo: Metodo;
   readonly total: number;
@@ -125,12 +159,17 @@ export function CobroExpandido({
   readonly enviando: boolean;
   readonly onConfirmar: () => void;
   readonly onRegresar: () => void;
+  readonly mixto: PagoMixto;
+  readonly onMixto: (mixto: PagoMixto) => void;
+  /** El renglón del descuento y su botón: lo pinta quien sabe del descuento. */
+  readonly descuento?: ReactNode;
 }) {
   // Un campo vacío o que no es un importe cuenta como cero: el cambio sale negativo y
   // CONFIRMAR se queda apagado hasta que lo recibido alcance.
   const cambio = (recibido ?? 0) - total;
   const falta = cambio < 0;
   const sinCliente = metodo === 'fiado' && cliente === null;
+  const mixtoMal = metodo === 'mixto' && !mixtoValido(mixto, total);
   const aviso = metodo === 'fiado' && cliente !== null ? avisoDeFiado(cliente, total) : null;
 
   return (
@@ -182,6 +221,49 @@ export function CobroExpandido({
           </div>
         </div>
       )}
+      {metodo === 'mixto' && (
+        // Parte en efectivo, EXACTO —el cambio de un mixto confunde más de lo que ayuda—, y
+        // el resto con lo que se elija. Cada parte va a su método al centavo.
+        <div className="flex flex-col gap-(--espacio-2)">
+          <div className="flex flex-col gap-(--espacio-1)">
+            <Label htmlFor="cobrar-mixto-efectivo">En efectivo</Label>
+            <CampoDeDinero
+              id="cobrar-mixto-efectivo"
+              autoFocus
+              centavos={mixto.efectivoCentavos}
+              alCambiar={(efectivo) => {
+                onMixto({ ...mixto, efectivoCentavos: efectivo });
+              }}
+            />
+          </div>
+          <div
+            role="group"
+            aria-label="El resto con"
+            className="grid grid-cols-2 gap-(--espacio-1)"
+          >
+            {(['tarjeta', 'transferencia'] as const).map((resto) => (
+              <Button
+                key={resto}
+                type="button"
+                size="sm"
+                variant={mixto.resto === resto ? 'default' : 'outline'}
+                aria-pressed={mixto.resto === resto}
+                onClick={() => {
+                  onMixto({ ...mixto, resto });
+                }}
+              >
+                {resto === 'tarjeta' ? 'Tarjeta' : 'Transferencia'}
+              </Button>
+            ))}
+          </div>
+          <p className="flex items-baseline justify-between gap-(--espacio-2) text-sm">
+            <span className="text-texto-sutil">
+              {mixto.resto === 'tarjeta' ? 'Con tarjeta' : 'Por transferencia'}
+            </span>
+            <Dinero centavos={Math.max(total - (mixto.efectivoCentavos ?? 0), 0)} tamano="lg" />
+          </p>
+        </div>
+      )}
       {metodo === 'fiado' && (
         // A quién se fía, ANTES de confirmar: la venta sale de la tienda a su nombre.
         <div className="flex flex-col gap-(--espacio-2)">
@@ -204,12 +286,15 @@ export function CobroExpandido({
           </Button>
         </div>
       )}
+      {descuento}
       <Button
         size="lg"
         variant="success"
         className="min-h-20 w-full justify-between text-lg"
         aria-busy={enviando}
-        disabled={!enLinea || enviando || (metodo === 'efectivo' && falta) || sinCliente}
+        disabled={
+          !enLinea || enviando || (metodo === 'efectivo' && falta) || sinCliente || mixtoMal
+        }
         onClick={onConfirmar}
       >
         <span>{enviando ? 'Cobrando…' : 'CONFIRMAR'}</span>

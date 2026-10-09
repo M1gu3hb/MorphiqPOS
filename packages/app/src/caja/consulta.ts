@@ -37,6 +37,12 @@ export interface MovimientoVisible {
 
 export interface EstadoCaja {
   readonly abierta: boolean;
+  /**
+   * ¿La sesión administra la caja —gasto, devolución—? Lo dice el servidor para que la
+   * pantalla no le enseñe a la cajera dos paneles que le contestarían 403 (bloque D de la
+   * 2.4). No es autorización: cada comando lo vuelve a exigir.
+   */
+  readonly puedeAdministrar: boolean;
   readonly sesionCajaId: string | null;
   readonly abiertaEn: string | null;
   readonly fondoInicialCentavos: string;
@@ -61,6 +67,9 @@ export type DesgloseDelFondo = {
   readonly grandesCentavos: string;
 } | null;
 
+/** Quienes pagan un gasto o devuelven una venta desde la caja (§8.3 de cada giro). */
+const ADMINISTRAN = ['gerente', 'administrador', 'dueno'] as const;
+
 export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja, EstadoCaja>({
   nombre: 'caja.estado',
   entidad: 'sesion_caja',
@@ -71,8 +80,10 @@ export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId } = ctx.ambito;
 
+    const puedeAdministrar = (ADMINISTRAN as readonly string[]).includes(ctx.ambito.rol);
     const vacia: EstadoCaja = {
       abierta: false,
+      puedeAdministrar,
       sesionCajaId: null,
       abiertaEn: null,
       fondoInicialCentavos: '0',
@@ -96,6 +107,7 @@ export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja
 
     return {
       abierta: true,
+      puedeAdministrar,
       sesionCajaId: sesion.id,
       abiertaEn: sesion.abiertaEn.toISOString(),
       fondoInicialCentavos: arqueo.fondoInicialCentavos.toString(),

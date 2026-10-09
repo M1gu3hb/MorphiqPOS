@@ -216,3 +216,58 @@ describe('el puente · `dinero_dejado_en_caja` es un cálculo, no la columna de 
     );
   });
 });
+
+describe('caja.cerrar · F-224, no se cierra con ventas apartadas (bloque D de la 2.4)', () => {
+  it('con una apartada en esta caja se niega, y la caja sigue abierta', async () => {
+    const base = crearBaseFalsa(
+      {
+        sesiones_caja: [sesion()],
+        folios: [],
+        ordenes: [
+          {
+            id: 'ab000000-0000-4000-8000-000000000009',
+            organizacion_id: ORGANIZACION,
+            terminal_id: TERMINAL,
+            estado: 'suspendida',
+          },
+        ],
+      },
+      { filasCrudas: [{ siguiente: 3, suma: '400000', total: '300000', cuantas: '4' }] },
+    );
+    const { ctx } = contextoFalso(base.tx, ambito(), AHORA);
+
+    await expect(
+      cerrarCaja.ejecutar(ctx, { efectivoContadoCentavos: 400_000 }),
+    ).rejects.toMatchObject({ codigo: 'TRANSICION_INVALIDA' });
+    expect(base.campo('sesiones_caja', 'estado')).toBe('abierta');
+  });
+
+  it('una venta ya cobrada, o una apartada en OTRA caja, no lo impiden', async () => {
+    const base = crearBaseFalsa(
+      {
+        sesiones_caja: [sesion()],
+        folios: [],
+        ordenes: [
+          {
+            id: 'ab000000-0000-4000-8000-000000000010',
+            organizacion_id: ORGANIZACION,
+            terminal_id: TERMINAL,
+            estado: 'pagada',
+          },
+          {
+            id: 'ab000000-0000-4000-8000-000000000011',
+            organizacion_id: ORGANIZACION,
+            terminal_id: '66666666-6666-4666-8666-666666666666',
+            estado: 'suspendida',
+          },
+        ],
+      },
+      { filasCrudas: [{ siguiente: 3, suma: '400000', total: '300000', cuantas: '4' }] },
+    );
+    const { ctx } = contextoFalso(base.tx, ambito(), AHORA);
+
+    await cerrarCaja.ejecutar(ctx, { efectivoContadoCentavos: 400_000 });
+
+    expect(base.campo('sesiones_caja', 'estado')).toBe('cerrada');
+  });
+});

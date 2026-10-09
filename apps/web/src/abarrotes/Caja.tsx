@@ -22,6 +22,16 @@ import { useEffect, useState, type ComponentProps } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { DevolucionDeVenta } from '~/venta/DevolucionDeVenta';
+import { GastoDeCaja } from '~/venta/GastoDeCaja';
+
+import {
+  estadoDeLaPantalla,
+  horaDeApertura,
+  PREGUNTA_DEL_ESTADO,
+  type EstadoCajaDelServidor,
+  type EstadoDeCaja,
+} from './estado-de-caja.ts';
 
 /**
  * PANTALLA · abarrotes · caja
@@ -115,12 +125,13 @@ interface Tropiezo {
   readonly delServidor: boolean;
 }
 
-export interface EstadoDeCaja {
-  readonly sesionCajaId: string | null;
-  readonly fondoEsperadoCentavos: string;
-  readonly fondoMonedasCentavos: string;
-  readonly fondoChicosCentavos: string;
-  readonly abiertaEn: string | null;
+export type { EstadoDeCaja } from './estado-de-caja.ts';
+
+/** El estado de la caja de ESTA terminal, ya en la forma de la pantalla. */
+async function leerEstado(): Promise<EstadoDeCaja> {
+  return estadoDeLaPantalla(
+    await invocarComando<EstadoCajaDelServidor>(RUTA_ESTADO, PREGUNTA_DEL_ESTADO),
+  );
 }
 
 export interface CajaProps {
@@ -254,7 +265,7 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
     const sigueMontada = (): boolean => !control.signal.aborted;
 
     const cargar = (): void => {
-      invocarComando<EstadoDeCaja>(RUTA_ESTADO, {})
+      leerEstado()
         .then((datos) => {
           if (sigueMontada()) setEstado(datos);
         })
@@ -278,6 +289,11 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
   const fondoTecleado = sumaDe(DENOMINACIONES.map((d) => aCentavos(fondo[d.clave])));
   const entraDeCambio = sumaDe([aCentavos(cambio.monedas), aCentavos(cambio.chicos)]);
   const origenElegido = ORIGENES.find((o) => o.clave === origen)?.etiqueta ?? '';
+
+  /** Vuelve a leer la caja: un gasto o una devolución cambiaron lo que debería haber. */
+  function recargar(): void {
+    setIntento((previo) => previo + 1);
+  }
 
   function tropezar(panel: Panel, mensaje: string): void {
     setTropiezo({ panel, mensaje, delServidor: false });
@@ -307,7 +323,7 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
         fondoChicosCentavos: montos[1] ?? 0,
         fondoGrandesCentavos: montos[2] ?? 0,
       });
-      return invocarComando<EstadoDeCaja>(RUTA_ESTADO, {});
+      return leerEstado();
     });
   }
 
@@ -330,7 +346,7 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
         motivo: null,
       });
       setCambio({ monedas: '', chicos: '' });
-      return invocarComando<EstadoDeCaja>(RUTA_ESTADO, {});
+      return leerEstado();
     });
   }
 
@@ -353,7 +369,7 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
         motivo: retiro.motivo.trim(),
       });
       setRetiro({ importe: '', motivo: '' });
-      return invocarComando<EstadoDeCaja>(RUTA_ESTADO, {});
+      return leerEstado();
     });
   }
 
@@ -502,13 +518,21 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
         <div className="flex flex-col gap-(--espacio-1)">
           <dt className="text-xs text-texto-sutil">En monedas</dt>
           <dd>
-            <Dinero centavos={Number(estado.fondoMonedasCentavos)} />
+            {estado.fondoMonedasCentavos === null ? (
+              <span className="text-sm text-texto-sutil">sin desglose</span>
+            ) : (
+              <Dinero centavos={Number(estado.fondoMonedasCentavos)} />
+            )}
           </dd>
         </div>
         <div className="flex flex-col gap-(--espacio-1)">
           <dt className="text-xs text-texto-sutil">En billetes chicos</dt>
           <dd>
-            <Dinero centavos={Number(estado.fondoChicosCentavos)} />
+            {estado.fondoChicosCentavos === null ? (
+              <span className="text-sm text-texto-sutil">sin desglose</span>
+            ) : (
+              <Dinero centavos={Number(estado.fondoChicosCentavos)} />
+            )}
           </dd>
         </div>
       </dl>
@@ -695,7 +719,7 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
           <div className="flex flex-wrap items-center gap-(--espacio-3)">
             <p className="inline-flex items-center gap-(--espacio-2) text-sm">
               <LockKeyholeOpen aria-hidden="true" className="size-4 text-exito" />
-              Abierta desde las {(estado.abiertaEn ?? '').slice(11, 16)}
+              Abierta desde las {horaDeApertura(estado.abiertaEn)}
             </p>
             <Button asChild size="sm" variant="outline">
               <a href={rutaDeCortes}>
@@ -712,6 +736,13 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
           {loQueDeberiaHaber}
           {panelDeCambio}
           {panelDeRetiro}
+          {/* El gasto y la devolución son de quien administra; el servidor lo exige igual. */}
+          {estado.puedeAdministrar ? (
+            <>
+              <GastoDeCaja alRegistrar={recargar} />
+              <DevolucionDeVenta alDevolver={recargar} />
+            </>
+          ) : null}
         </div>
       ) : (
         apertura
