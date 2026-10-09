@@ -6269,12 +6269,18 @@ por bloque: A+B, el dinero de C.1–C.6 y los comandos de C.7–C.14— encontr�
    (`%77yqmz…`) ya no esconde el proyecto real.
 
 **Lo que queda de la auditoría, en orden** (se va tachando aquí):
-- C · el límite de crédito se salta con dos fiados simultáneos (sin `FOR UPDATE`).
-- C · la estilista lee expediente, fotos y fórmulas de clientas ajenas; inicia y cierra
-  citas ajenas; `profesionales.lista` da a todas.
-- C · URL de foto sin validar (`javascript:` o externa) en expediente y mostrador.
-- C · pedido público: IP del primer `x-forwarded-for`, slug sin validar antes de contar, sin
-  tope de unidades, sin clave obligatoria, carrera en la clave.
+- ~~C · el límite de crédito se salta con dos fiados simultáneos~~ → `cargarCliente` bloquea
+  el renglón del cliente: toda la cartera de un cliente se forma en fila.
+- ~~C · la estilista lee expediente, fotos y fórmulas de clientas ajenas~~ →
+  `exigirClientaPropia` (le ha dado o le tiene un servicio) y `exigirCitaPropia` (da un
+  servicio en esa cita) en `expediente.abrir`, `ultima_formula`, `foto`, `fotos`,
+  `agenda.iniciar_cita` y `cerrar_servicio`; `profesionales.lista` le da sólo la suya.
+- ~~C · URL de foto sin validar~~ → `exigirArchivoPropio`: sólo el archivo que devolvió la
+  subida, del origen de `APP_URL` y bajo `privado/<este negocio>/`, en el expediente, la
+  pieza y la nota del proveedor; y la galería no pinta ni enlaza una fila vieja que no lo sea.
+- ~~C · pedido público~~ → la IP por `origenDe`, el límite por IP (no por slug + IP), el slug
+  con forma antes de buscarlo, el cupo del negocio por su id y sólo si existe, tope de 12
+  bebidas, la clave obligatoria (400) y el choque de la misma clave devuelve el apartado.
 - R · el Host manda sobre `ORGANIZACION`; etiqueta de rol tras entrar; slug con mayúsculas;
   puente: `NoShow` sin recorte, teléfono del pedido a cocina, gramajes a cocina, y el
   contrato de cocina que no mira la columna; `confirmar_transferencia` sin guarda; abono con

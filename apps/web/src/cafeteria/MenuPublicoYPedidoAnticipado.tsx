@@ -20,6 +20,9 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useVocabulario } from '~/cliente/vocabulario';
 
+/** Lo mismo que acepta el servidor en un apartado sin pago (auditoría de la 2.4). */
+const UNIDADES_POR_PEDIDO = 12;
+
 /**
  * PANTALLA · cafeteria · menu-publico-y-pedido-anticipado
  *
@@ -409,6 +412,11 @@ export function MenuPublicoYPedidoAnticipado({
   }
 
   function agregar(producto: ProductoPublico): void {
+    // El mismo tope que el servidor (`UNIDADES_POR_PEDIDO`): se dice antes de mandarlo.
+    if (carrito.reduce((suma, linea) => suma + linea.cantidad, 0) >= UNIDADES_POR_PEDIDO) {
+      setError(`Hasta ${String(UNIDADES_POR_PEDIDO)} por pedido. Para más, pide en la barra.`);
+      return;
+    }
     clave.current = null;
     const existente = carrito.find((l) => l.productoId === producto.id);
     if (existente !== undefined) {

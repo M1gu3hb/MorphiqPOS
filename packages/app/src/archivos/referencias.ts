@@ -92,3 +92,29 @@ export async function prepararReferenciasPublicas(
   }
   return salida;
 }
+
+/**
+ * UNA FOTO DEL NEGOCIO, y no cualquier dirección (auditoría de la 2.4).
+ *
+ * Los comandos que atan una foto —el expediente de la clienta, la pieza del mostrador, la
+ * nota del proveedor— aceptaban cualquier `z.url()`: `javascript:…` o una página ajena,
+ * que la galería del dueño abría con un toque. La foto que el sistema guarda es SIEMPRE
+ * la que devolvió `archivos/subir`: del origen de `APP_URL`, bajo `privado/<este negocio>/`.
+ * Cualquier otra cosa se rechaza.
+ */
+export function exigirArchivoPropio(
+  valor: string,
+  organizacionId: string,
+  appUrl: string | undefined = process.env['APP_URL'],
+): void {
+  if (appUrl === undefined || appUrl === '') {
+    throw new ErrorDominio('CONFIGURACION_INVALIDA', 'Falta APP_URL: no se puede validar la foto.');
+  }
+  const clave = clavePrivadaDeUrl(valor, appUrl);
+  if (clave === null || !perteneceAOrganizacion(clave, organizacionId)) {
+    throw new ErrorDominio(
+      'PUENTE_CAMPO_INVALIDO',
+      'Esa foto no es un archivo de este negocio: súbela desde el sistema.',
+    );
+  }
+}

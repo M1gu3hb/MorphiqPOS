@@ -4,6 +4,7 @@ import { ErrorDominio, validarEntorno } from '@morphiqpos/contracts';
 import { conTransaccion, obtenerDb } from '@morphiqpos/data';
 
 import { cuerpoDentroDelLimite } from '../http/limite-cuerpo.ts';
+import { origenDe } from '../http/limite.ts';
 import { negocioDeLaEntrada } from '../negocio/despliegue.ts';
 import { correlationIdDe } from '../observabilidad.ts';
 import {
@@ -20,6 +21,7 @@ import {
   type PeticionDelPortal,
   type RespuestaDelPortal,
 } from './http.ts';
+import { violaIndice } from './errores-sql.ts';
 import { permitirPortal } from './limite.ts';
 
 /**
@@ -42,6 +44,8 @@ import { permitirPortal } from './limite.ts';
 
 /** La clave de idempotencia: la del navegador, con forma y largo acotados. */
 const CLAVE = /^[A-Za-z0-9-]{8,100}$/;
+/** La forma de un slug: la misma que exige el alta. Lo demás ni se busca ni se cuenta. */
+const SLUG = /^[a-z0-9-]{3,60}$/;
 
 async function negocioDeLaCafeteria(
   slug: string,
@@ -73,11 +77,14 @@ async function negocioDeLaCafeteria(
   };
 }
 
-/** La IP de quien pide, para el límite. Detrás de Vercel es la primera del reenvío. */
+/**
+ * La IP de quien pide, para el límite: la MISMA regla que el resto del sistema
+ * (`origenDe`, `http/limite.ts`) —la de Vercel, o la ÚLTIMA del reenvío, que es la que
+ * añadió el proxy más cercano—. Aquí se tomaba la PRIMERA, que la escribe el cliente:
+ * con ella falsificada cada petición caía en un cubo nuevo (auditoría de la 2.4).
+ */
 function ipDe(peticion: PeticionDelPortal): string {
-  const reenviada = peticion.headers.get('x-forwarded-for');
-  const primera = reenviada?.split(',')[0]?.trim() ?? '';
-  return primera === '' ? (peticion.headers.get('x-real-ip') ?? 'sin-ip') : primera;
+  return origenDe(peticion.headers) ?? 'sin-ip';
 }
 
 async function exigirPermiso(
@@ -103,6 +110,7 @@ export async function servirMenuAnticipado(
 ): Promise<RespuestaDelPortal> {
   const correlationId = correlationIdDe(peticion.headers.get('x-correlation-id'));
   try {
+    if (!SLUG.test(slug)) throw new ErrorDominio('QR_TOKEN_INVALIDO', 'Ese menú no existe.');
     await exigirPermiso('consulta', `anticipado:${ipDe(peticion)}`, correlationId);
     const negocio = await negocioDeLaCafeteria(slug, peticion.headers.get('host'));
     const productos = await conTransaccion((tx) => menuAnticipable(tx, negocio.organizacionId));
@@ -131,30 +139,52 @@ export async function atenderApartado(
     return errorHttp(400, 'ENTRADA_INVALIDA', 'El cuerpo de la petición no es JSON.');
   }
   const correlationId = correlationIdDe(peticion.headers.get('x-correlation-id'));
+  // SIN CLAVE NO SE APARTA (auditoría de la 2.4): sin ella un reintento del teléfono
+  // —la red de la fila es mala— apartaba otro pedido igual. La pantalla siempre la manda.
+  const clave = peticion.headers.get('idempotency-key') ?? '';
+  if (!CLAVE.test(clave)) {
+    return errorHttp(400, 'ENTRADA_INVALIDA', 'Falta la clave del pedido. Vuelve a intentarlo.');
+  }
 
   try {
-    // El límite, ANTES de todo lo demás: un intento con datos inválidos gasta cuota
-    // igual, o barrer la ruta saldría gratis.
-    await exigirPermiso('apartar_anticipado', `${slug}:${ipDe(peticion)}`, correlationId);
-    await exigirPermiso('apartados_del_negocio', slug, correlationId);
+    // El límite POR IP, antes de todo lo demás: un intento con datos inválidos gasta
+    // cuota igual, o barrer la ruta saldría gratis. Por IP y no por «slug + IP»: con el
+    // slug en la llave, rotar slugs inventados abría un cubo nuevo —y dos escrituras en
+    // `limite_tasa`— por petición (auditoría de la 2.4).
+    await exigirPermiso('apartar_anticipado', `anticipado:${ipDe(peticion)}`, correlationId);
+    if (!SLUG.test(slug)) throw new ErrorDominio('QR_TOKEN_INVALIDO', 'Ese menú no existe.');
 
     const entrada = entradaApartarAnticipado.safeParse(crudo);
     if (!entrada.success) {
       return errorHttp(400, 'ENTRADA_INVALIDA', 'Revisa tu nombre, la hora y lo que pides.');
     }
+    // El cupo del NEGOCIO, sólo para un negocio que se sirve: un slug que no existe ya
+    // contestó 404 arriba sin escribir su cubo.
     const negocio = await negocioDeLaCafeteria(slug, peticion.headers.get('host'));
-    const clave = peticion.headers.get('idempotency-key');
-    const datos = await conTransaccion((tx) =>
-      apartarAnticipado(
-        tx,
-        negocio,
-        entrada.data,
-        new Date(),
-        clave !== null && CLAVE.test(clave) ? clave : null,
-      ),
-    );
+    await exigirPermiso('apartados_del_negocio', negocio.organizacionId, correlationId);
+    const datos = await apartarOElQueYaHay(negocio, entrada.data, clave);
     return respuesta(200, { ok: true, datos }, correlationId);
   } catch (error) {
     return respuestaDeError(error, 'publico.anticipado.apartar', { correlationId });
+  }
+}
+
+/**
+ * DOS PETICIONES CON LA MISMA CLAVE A LA VEZ (auditoría de la 2.4): las dos miran «¿ya
+ * hay uno con esta clave?», las dos dicen que no, y la segunda choca con
+ * `ordenes_idempotencia` —un 500 para quien sí apartó—. Ese choque es exactamente la
+ * respuesta: el apartado ya existe. Se lee en una transacción NUEVA (la que chocó quedó
+ * abortada) y se devuelve el mismo, como si la segunda hubiera llegado después.
+ */
+export async function apartarOElQueYaHay(
+  negocio: Parameters<typeof apartarAnticipado>[1],
+  entrada: Parameters<typeof apartarAnticipado>[2],
+  clave: string,
+): ReturnType<typeof apartarAnticipado> {
+  try {
+    return await conTransaccion((tx) => apartarAnticipado(tx, negocio, entrada, new Date(), clave));
+  } catch (error) {
+    if (!violaIndice(error, 'ordenes_idempotencia')) throw error;
+    return conTransaccion((tx) => apartarAnticipado(tx, negocio, entrada, new Date(), clave));
   }
 }

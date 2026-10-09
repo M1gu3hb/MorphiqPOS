@@ -6,6 +6,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { exigirCitaPropia } from './recorte.ts';
 
 /**
  * F-412, F-407 y F-434 · Lo que le pasa a una cita que no acaba en cobro.
@@ -205,6 +206,8 @@ export const iniciarCita = definirComando<Transaccion, typeof entradaIniciarCita
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
     await cargarCita(ctx, entrada.citaId);
+    // La estilista empieza SUS citas, no las de otra (auditoría de la 2.4).
+    await exigirCitaPropia(ctx, entrada.citaId);
 
     // `llego_en` e `inicio_real` son DOS relojes distintos y los dos importan:
     // el primero mide cuánto esperó la clienta —que es el reclamo número uno de
@@ -254,6 +257,8 @@ export const cerrarServicio = definirComando<
     if (servicio === undefined) {
       throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese servicio no existe en este negocio.');
     }
+    // Cerrar descuenta cabina con sus consumos: la estilista, sólo en sus citas.
+    await exigirCitaPropia(ctx, servicio.citaId);
     if (servicio.estado === 'cerrado') {
       // Idempotente POR `cita_servicio_id`, no por clave de petición: el
       // teléfono de la estilista pierde red a mitad y reintenta, y cerrar dos

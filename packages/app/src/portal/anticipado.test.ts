@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 
 import { crearBaseFalsa, type TablasFalsas } from '../restaurante/pruebas/base-falsa.ts';
 import { ORG, SUCURSAL } from '../restaurante/pruebas/sala.ts';
-import { apartarAnticipado, menuAnticipable } from './anticipado.ts';
+import {
+  apartarAnticipado,
+  entradaApartarAnticipado,
+  menuAnticipable,
+  UNIDADES_POR_PEDIDO,
+} from './anticipado.ts';
 
 /**
  * C.14 de la etapa 2.4 · El pedido anticipado de la cafetería, sin sesión y sin pago:
@@ -172,6 +177,21 @@ describe('el pedido anticipado público', () => {
     expect(await codigoDe(() => apartarAnticipado(base.tx, NEGOCIO, apartado(), AHORA, null))).toBe(
       'CONFIGURACION_CONFLICTO',
     );
+  });
+});
+
+describe('el tope de un apartado sin pago (auditoría de la 2.4)', () => {
+  it('doce bebidas sí; trece no, aunque vayan en renglones distintos', () => {
+    expect(UNIDADES_POR_PEDIDO).toBe(12);
+    const doce = apartado({ items: [{ productoId: LATTE, cantidad: 12 }] });
+    const trece = apartado({
+      items: [
+        { productoId: LATTE, cantidad: 7 },
+        { productoId: 'a2000000-0000-4000-8000-000000000002', cantidad: 6 },
+      ],
+    });
+    expect(entradaApartarAnticipado.safeParse(doce).success).toBe(true);
+    expect(entradaApartarAnticipado.safeParse(trece).success).toBe(false);
   });
 });
 

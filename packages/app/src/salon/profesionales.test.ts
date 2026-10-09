@@ -113,6 +113,17 @@ describe('F-420 · quién atiende', () => {
     expect(salida.profesionales.map((p) => p.rentaEstacion)).toEqual([false, true]);
   });
 
+  it('LA ESTILISTA SE VE A ELLA, no el nivel ni la renta de las demás (auditoría de la 2.4)', async () => {
+    const base = baseDe({
+      profesionales: [profesional(KARLA, 'Karla', EMPLEO), profesional(DANY, 'Dany', 'e2')],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    const salida = await listaDeProfesionales.ejecutar(ctx, { incluirInactivos: false });
+
+    expect(salida.profesionales.map((p) => p.profesionalId)).toEqual([KARLA]);
+  });
+
   it('los de BAJA no salen salvo que se pidan', async () => {
     // Siguen en el histórico: se piden aparte, no se esconden.
     const base = baseDe({

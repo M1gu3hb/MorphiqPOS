@@ -1,5 +1,5 @@
 import { esErrorDominio } from '@morphiqpos/contracts';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   contextoFalso,
@@ -8,6 +8,15 @@ import {
 } from '../restaurante/pruebas/base-falsa.ts';
 import { ambitoDe, ORG, SESION_CAJA, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
 import { entradaRecibirEntrada, recibirEntrada } from './entrada.ts';
+
+// La foto que el sistema acepta es la que devolvió `archivos/subir`: del origen de
+// `APP_URL` y bajo `privado/<este negocio>/` (auditoría de la 2.4).
+beforeAll(() => {
+  vi.stubEnv('APP_URL', 'https://pos.example.mx');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 /**
  * F-631 · Guardar la entrada del proveedor (`compras.recibir_entrada`).
@@ -22,7 +31,7 @@ const AHORA = new Date('2026-09-16T12:00:00.000Z');
 const ALMACEN = 'e3000000-0000-4000-8000-000000000001';
 const PROVEEDOR = 'e4000000-0000-4000-8000-000000000001';
 const CABLE = 'e1000000-0000-4000-8000-000000000001';
-const FOTO = 'https://archivos.morphiqpos.mx/notas/nota-8812.jpg';
+const FOTO = `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000002-0000-4000-8000-000000000002.jpg`;
 
 function baseDe(extra: Partial<TablasFalsas> = {}) {
   return crearBaseFalsa(
@@ -167,20 +176,19 @@ describe('F-631 · guardar la entrada', () => {
     expect(base.campo('compras', 'notas')).toBe('Entrada capturada por captura manual');
   });
 
-  it('la foto sólo por https: un enlace cualquiera no entra a la compra', () => {
-    expect(
-      entradaRecibirEntrada.safeParse({
-        proveedorId: PROVEEDOR,
-        camino: 'manual',
-        fotoDeLaNota: 'javascript:alert(1)',
-      }).success,
-    ).toBe(false);
-    expect(
-      entradaRecibirEntrada.safeParse({
-        proveedorId: PROVEEDOR,
-        camino: 'manual',
-        fotoDeLaNota: 'http://archivos.morphiqpos.mx/nota.jpg',
-      }).success,
-    ).toBe(false);
+  it('la foto sólo si es un archivo de ESTE negocio: un enlace cualquiera no entra a la compra', async () => {
+    for (const ajena of [
+      'javascript:alert(1)',
+      'https://archivos.morphiqpos.mx/nota.jpg',
+      // El mismo origen, pero el archivo de OTRO negocio.
+      'https://pos.example.mx/api/archivos/privado/22222222-2222-4222-8222-222222222222/2026/09/00000009-0000-4000-8000-000000000009.jpg',
+    ]) {
+      const base = baseDe();
+      const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+      await expect(
+        recibirEntrada.ejecutar(ctx, deContado({ fotoDeLaNota: ajena })),
+      ).rejects.toMatchObject({ codigo: 'PUENTE_CAMPO_INVALIDO' });
+      expect(base.filas('compras')).toHaveLength(0);
+    }
   });
 });

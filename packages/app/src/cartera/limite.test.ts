@@ -87,3 +87,17 @@ describe('credito.fijar_limite', () => {
     );
   });
 });
+
+describe('la cartera de un cliente se forma en fila (auditoría de la 2.4)', () => {
+  it('cargarCliente BLOQUEA el renglón: dos fiados simultáneos no caben los dos en el límite', async () => {
+    // La carrera real se prueba contra Postgres en `test:integracion`; aquí se ata el
+    // cerrojo a SU consulta, para que quitarlo no pase en silencio.
+    const { readFileSync } = await import('node:fs');
+    const texto = readFileSync(new URL('./documento.ts', import.meta.url), 'utf8');
+    const inicio = texto.indexOf('export async function cargarCliente');
+    const cuerpo = texto.slice(inicio, texto.indexOf('\n}\n', inicio)).replace(/^\s*\/\/.*$/gm, '');
+    expect(cuerpo).toMatch(
+      /\.selectFrom\('clientes'\)[\s\S]*\.forUpdate\(\)\s*\.executeTakeFirst\(\)/,
+    );
+  });
+});

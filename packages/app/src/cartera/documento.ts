@@ -276,6 +276,12 @@ export async function cargarCliente(
       .select(['limite_credito_centavos', 'dias_plazo', 'bloqueado_por_mora'])
       .where('organizacion_id', '=', ctx.ambito.organizacionId)
       .where('id', '=', clienteId)
+      // EL CLIENTE SE BLOQUEA (auditoría de la 2.4). Dos cajas fiando al mismo cliente
+      // leían el mismo saldo vivo, las dos cabían en el límite y las dos pasaban: el
+      // cliente quedaba al doble de lo que se le permitía. Con el renglón bloqueado la
+      // segunda espera a que la primera termine y lee su documento. Todo lo que mueve
+      // la cartera de un cliente —fiar, abonar, pagar— pasa por aquí: se forma en fila.
+      .forUpdate()
       .executeTakeFirst(),
   );
   if (fila === undefined) {

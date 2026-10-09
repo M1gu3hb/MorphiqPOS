@@ -7,7 +7,7 @@ import {
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
 import { Rechazo } from '../fallos.ts';
-import { ambitoDe, ORG, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, EMPLEO, ORG, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
 import { cancelarCita, cerrarServicio, iniciarCita, marcarNoLlego } from './ciclo.ts';
 import { cobrarCita, cotizarCita } from './cobro.ts';
 
@@ -63,6 +63,8 @@ function salon(extra: Partial<TablasFalsas> = {}): TablasFalsas {
       {
         id: KARLA,
         organizacion_id: ORG,
+        // La sesión de las pruebas con rol de estilista ES Karla: da el servicio de la cita.
+        empleo_id: EMPLEO,
         nombre_corto: 'Karla',
         activo: true,
         tipo_relacion: 'empleado_comision',
@@ -258,9 +260,55 @@ describe('agenda.iniciar_cita', () => {
     expect(base.campo('citas', 'estado')).toBe('en_curso');
     expect(base.campo('citas', 'inicio_real')).toEqual(AHORA);
   });
+
+  it('LA ESTILISTA NO EMPIEZA LA CITA DE OTRA (auditoría de la 2.4)', async () => {
+    // La sesión es Sol, y el servicio de la cita lo da Karla.
+    const base = baseDe({
+      profesionales: [
+        { id: KARLA, organizacion_id: ORG, empleo_id: null, nombre_corto: 'Karla', activo: true },
+        { id: SOL, organizacion_id: ORG, empleo_id: EMPLEO, nombre_corto: 'Sol', activo: true },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    expect(await codigoDe(() => iniciarCita.ejecutar(ctx, { citaId: CITA }))).toBe(
+      'PUENTE_SIN_PERMISO',
+    );
+    expect(base.campo('citas', 'estado')).toBe('agendada');
+  });
+
+  it('recepción sí empieza cualquiera', async () => {
+    const base = baseDe({ profesionales: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    await iniciarCita.ejecutar(ctx, { citaId: CITA });
+    expect(base.campo('citas', 'estado')).toBe('en_curso');
+  });
 });
 
 describe('agenda.cerrar_servicio', () => {
+  it('LA ESTILISTA NO CIERRA NI DESCUENTA CABINA EN LA CITA DE OTRA (auditoría de la 2.4)', async () => {
+    const base = baseDe({
+      profesionales: [
+        { id: KARLA, organizacion_id: ORG, empleo_id: null, nombre_corto: 'Karla', activo: true },
+        { id: SOL, organizacion_id: ORG, empleo_id: EMPLEO, nombre_corto: 'Sol', activo: true },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    expect(
+      await codigoDe(() =>
+        cerrarServicio.ejecutar(ctx, {
+          citaServicioId: SERVICIO_CITA,
+          almacenId: ALMACEN_CABINA,
+          consumos: [{ productoId: PRODUCTO_TINTE, cantidadBase: '60' }],
+          formula: {},
+        }),
+      ),
+    ).toBe('PUENTE_SIN_PERMISO');
+    expect(base.filas('movimientos_stock')).toHaveLength(0);
+  });
+
   it('EL PRODUCTO SALE AL CERRAR, no al cobrar', async () => {
     // El tinte se mezcló cuando se mezcló. Descontarlo al cobrar haría que el
     // inventario de cabina fuera media hora atrás de la realidad.

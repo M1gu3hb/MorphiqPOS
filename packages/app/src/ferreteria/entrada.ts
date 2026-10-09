@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { recibirNota } from '../abarrotes/recibir-nota.ts';
 import { lineaDeCompra } from '../compras/esquemas.ts';
 import { registrarPorPagar } from '../compras/por-pagar.ts';
+import { exigirArchivoPropio } from '../archivos/referencias.ts';
 import { definirComando } from '../definicion.ts';
 
 /**
@@ -63,13 +64,11 @@ export const entradaRecibirEntrada = z.object({
   lineas: z.array(lineaDeCompra).max(400).default([]),
   /**
    * La foto de la nota en papel, ya subida (`/api/archivos/subir`). Queda en las notas
-   * de la compra: es con lo que se concilia cuando el proveedor reclame. Sólo https.
+   * de la compra: es con lo que se concilia cuando el proveedor reclame. Sólo un archivo
+   * de este negocio (`exigirArchivoPropio`, en el comando): «sólo https» dejaba pasar
+   * cualquier página ajena.
    */
-  fotoDeLaNota: z
-    .url({ protocol: /^https$/ })
-    .max(500)
-    .nullable()
-    .default(null),
+  fotoDeLaNota: z.url().max(500).nullable().default(null),
 });
 
 export interface ResultadoEntrada {
@@ -96,6 +95,7 @@ export const recibirEntrada = definirComando<
   entrada: entradaRecibirEntrada,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId } = ctx.ambito;
+    if (entrada.fotoDeLaNota !== null) exigirArchivoPropio(entrada.fotoDeLaNota, organizacionId);
 
     if (entrada.lineas.length === 0) {
       throw new ErrorDominio(

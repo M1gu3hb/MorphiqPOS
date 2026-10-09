@@ -4,7 +4,9 @@ import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
+import { exigirArchivoPropio } from '../archivos/referencias.ts';
 import { definirComando } from '../definicion.ts';
+import { exigirCitaPropia, exigirClientaPropia } from './recorte.ts';
 
 /**
  * F-153, F-154 y F-436 · El expediente de belleza.
@@ -132,6 +134,8 @@ export const abrirExpediente = definirComando<
     if (cliente === undefined) {
       throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Esa clienta no existe en este negocio.');
     }
+    // Alergias, antecedentes y fórmulas: la estilista, sólo de las clientas que atiende.
+    await exigirClientaPropia(ctx, entrada.clienteId);
 
     const existente = await ctx.paso('leer_expediente', () =>
       ctx.tx
@@ -238,6 +242,7 @@ export const ultimaFormula = definirComando<
   entrada: entradaUltimaFormula,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
+    await exigirClientaPropia(ctx, entrada.clienteId);
 
     let consulta = ctx.tx
       .selectFrom('formulas_aplicadas')
@@ -299,7 +304,11 @@ export const guardarFotoDeServicio = definirComando<
       ctx.tx
         .selectFrom('cita_servicios')
         .innerJoin('citas', 'citas.id', 'cita_servicios.cita_id')
-        .select(['cita_servicios.id as id', 'citas.cliente_id as cliente_id'])
+        .select([
+          'cita_servicios.id as id',
+          'cita_servicios.cita_id as cita_id',
+          'citas.cliente_id as cliente_id',
+        ])
         .where('cita_servicios.organizacion_id', '=', organizacionId)
         .where('cita_servicios.id', '=', entrada.citaServicioId)
         .executeTakeFirst(),
@@ -307,6 +316,11 @@ export const guardarFotoDeServicio = definirComando<
     if (servicio === undefined) {
       throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese servicio no existe en este negocio.');
     }
+    // La foto reemplaza la anterior del mismo momento: la estilista sólo en sus citas.
+    await exigirCitaPropia(ctx, servicio.cita_id);
+    // Y es la que devolvió la subida, de ESTE negocio: la galería del dueño la abre con un
+    // toque, y antes cabía `javascript:` o cualquier página (auditoría de la 2.4).
+    exigirArchivoPropio(entrada.url, organizacionId);
     if (servicio.cliente_id === null) {
       // La foto vive en el expediente de alguien. Sin clienta no hay expediente
       // donde ponerla, y guardarla suelta la dejaría fuera de cualquier

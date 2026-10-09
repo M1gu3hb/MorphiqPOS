@@ -1,13 +1,22 @@
 import { esErrorDominio } from '@morphiqpos/contracts';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   contextoFalso,
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, EMPLEO, ORG } from '../restaurante/pruebas/sala.ts';
 import { abrirExpediente, guardarFotoDeServicio, ultimaFormula } from './expediente.ts';
+
+// La foto que el sistema acepta es la que devolvió `archivos/subir`: del origen de
+// `APP_URL` y bajo `privado/<este negocio>/` (auditoría de la 2.4).
+beforeAll(() => {
+  vi.stubEnv('APP_URL', 'https://pos.example.mx');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 /**
  * F-153, F-154 y F-436 · El expediente de belleza.
@@ -28,6 +37,8 @@ const AHORA = new Date('2026-09-16T12:00:00.000Z');
 const CLIENTA = 'e1000000-0000-4000-8000-000000000001';
 const CITA_SERVICIO = 'e2000000-0000-4000-8000-000000000002';
 const SERVICIO = 'e3000000-0000-4000-8000-000000000003';
+/** La estilista de la sesión (`EMPLEO`), que atiende a la clienta en `c0`. */
+const ESTILISTA = 'e4000000-0000-4000-8000-000000000004';
 
 const dias = (n: number) => new Date(AHORA.getTime() + n * 86_400_000);
 
@@ -39,8 +50,18 @@ function baseDe(extra: Partial<TablasFalsas> = {}) {
       formulas_aplicadas: [],
       consentimientos: [],
       fotos_expediente: [],
-      cita_servicios: [],
-      citas: [],
+      profesionales: [{ id: ESTILISTA, organizacion_id: ORG, empleo_id: EMPLEO }],
+      // La base falsa resuelve el join sobre una fila: el cliente va en el servicio.
+      cita_servicios: [
+        {
+          id: 'e5000000-0000-4000-8000-000000000005',
+          organizacion_id: ORG,
+          cita_id: 'c0',
+          cliente_id: CLIENTA,
+          profesional_id: ESTILISTA,
+        },
+      ],
+      citas: [{ id: 'c0', organizacion_id: ORG, cliente_id: CLIENTA }],
       ...extra,
     },
     {
@@ -83,6 +104,72 @@ async function codigoDe(fn: () => Promise<unknown>): Promise<string> {
     return esErrorDominio(error) ? error.codigo : `INESPERADO: ${String(error)}`;
   }
 }
+
+describe('la estilista sólo ve a SUS clientas (auditoría de la 2.4)', () => {
+  // La clienta la atiende OTRA estilista; la de la sesión nunca le ha dado un servicio.
+  const ajena = {
+    cita_servicios: [
+      {
+        id: 'e6000000-0000-4000-8000-000000000006',
+        organizacion_id: ORG,
+        cita_id: 'c9',
+        cliente_id: CLIENTA,
+        profesional_id: 'e9000000-0000-4000-8000-000000000009',
+      },
+    ],
+    citas: [{ id: 'c9', organizacion_id: ORG, cliente_id: CLIENTA }],
+  };
+
+  it('no abre el expediente de una clienta que no atiende', async () => {
+    const base = baseDe(ajena);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+    expect(await codigoDe(() => abrirExpediente.ejecutar(ctx, { clienteId: CLIENTA }))).toBe(
+      'PUENTE_SIN_PERMISO',
+    );
+    expect(base.filas('expedientes_belleza')).toHaveLength(0);
+  });
+
+  it('no lee su última fórmula', async () => {
+    const base = baseDe(ajena);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+    expect(
+      await codigoDe(() => ultimaFormula.ejecutar(ctx, { clienteId: CLIENTA, servicioId: null })),
+    ).toBe('PUENTE_SIN_PERMISO');
+  });
+
+  it('no le toma ni le reemplaza la foto en la cita de otra', async () => {
+    const base = baseDe({
+      cita_servicios: [
+        {
+          id: CITA_SERVICIO,
+          organizacion_id: ORG,
+          cita_id: 'c1',
+          cliente_id: CLIENTA,
+          profesional_id: 'e9000000-0000-4000-8000-000000000009',
+        },
+      ],
+      citas: [{ id: 'c1', organizacion_id: ORG, cliente_id: CLIENTA }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+    expect(
+      await codigoDe(() =>
+        guardarFotoDeServicio.ejecutar(ctx, {
+          citaServicioId: CITA_SERVICIO,
+          momento: 'antes',
+          url: `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000001-0000-4000-8000-000000000001.jpg`,
+        }),
+      ),
+    ).toBe('PUENTE_SIN_PERMISO');
+    expect(base.filas('fotos_expediente')).toHaveLength(0);
+  });
+
+  it('recepción y la dueña sí ven el de cualquiera', async () => {
+    const base = baseDe(ajena);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+    await abrirExpediente.ejecutar(ctx, { clienteId: CLIENTA });
+    expect(base.filas('expedientes_belleza')).toHaveLength(1);
+  });
+});
 
 describe('F-153 · abrir el expediente', () => {
   it('la PRIMERA visita lo crea y lo dice', async () => {
@@ -211,7 +298,13 @@ describe('F-436 · la foto de antes y después', () => {
   // traería se siembran en la misma fila, como ya hace el resto de la suite.
   const servicioSembrado = {
     cita_servicios: [
-      { id: CITA_SERVICIO, organizacion_id: ORG, cita_id: 'c1', cliente_id: CLIENTA },
+      {
+        id: CITA_SERVICIO,
+        organizacion_id: ORG,
+        cita_id: 'c1',
+        cliente_id: CLIENTA,
+        profesional_id: ESTILISTA,
+      },
     ],
     citas: [{ id: 'c1', organizacion_id: ORG, cliente_id: CLIENTA }],
   };
@@ -223,7 +316,7 @@ describe('F-436 · la foto de antes y después', () => {
     const salida = await guardarFotoDeServicio.ejecutar(ctx, {
       citaServicioId: CITA_SERVICIO,
       momento: 'antes',
-      url: 'https://archivos.example.com/a.jpg',
+      url: `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000002-0000-4000-8000-000000000002.jpg`,
     });
 
     expect(salida.reemplazo).toBe(false);
@@ -241,7 +334,7 @@ describe('F-436 · la foto de antes y después', () => {
           cliente_id: CLIENTA,
           cita_servicio_id: CITA_SERVICIO,
           momento: 'antes',
-          archivo_url: 'https://archivos.example.com/vieja.jpg',
+          archivo_url: `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000003-0000-4000-8000-000000000003.jpg`,
         },
       ],
     });
@@ -250,13 +343,13 @@ describe('F-436 · la foto de antes y después', () => {
     const salida = await guardarFotoDeServicio.ejecutar(ctx, {
       citaServicioId: CITA_SERVICIO,
       momento: 'antes',
-      url: 'https://archivos.example.com/nueva.jpg',
+      url: `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000004-0000-4000-8000-000000000004.jpg`,
     });
 
     expect(salida.reemplazo).toBe(true);
     expect(base.filas('fotos_expediente')).toHaveLength(1);
     expect(base.campo('fotos_expediente', 'archivo_url')).toBe(
-      'https://archivos.example.com/nueva.jpg',
+      `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000004-0000-4000-8000-000000000004.jpg`,
     );
   });
 
@@ -269,7 +362,7 @@ describe('F-436 · la foto de antes y después', () => {
     const salida = await guardarFotoDeServicio.ejecutar(ctx, {
       citaServicioId: CITA_SERVICIO,
       momento: 'despues',
-      url: 'https://archivos.example.com/b.jpg',
+      url: `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000005-0000-4000-8000-000000000005.jpg`,
     });
 
     expect(salida.conConsentimiento).toBe(false);
@@ -297,7 +390,7 @@ describe('F-436 · la foto de antes y después', () => {
     const salida = await guardarFotoDeServicio.ejecutar(ctx, {
       citaServicioId: CITA_SERVICIO,
       momento: 'antes',
-      url: 'https://archivos.example.com/c.jpg',
+      url: `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000006-0000-4000-8000-000000000006.jpg`,
     });
 
     expect(salida.conConsentimiento).toBe(false);
@@ -323,7 +416,7 @@ describe('F-436 · la foto de antes y después', () => {
     const salida = await guardarFotoDeServicio.ejecutar(ctx, {
       citaServicioId: CITA_SERVICIO,
       momento: 'antes',
-      url: 'https://archivos.example.com/d.jpg',
+      url: `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000007-0000-4000-8000-000000000007.jpg`,
     });
 
     expect(salida.conConsentimiento).toBe(true);
@@ -335,7 +428,13 @@ describe('F-436 · la foto de antes y después', () => {
     // cualquier consentimiento.
     const base = baseDe({
       cita_servicios: [
-        { id: CITA_SERVICIO, organizacion_id: ORG, cita_id: 'c1', cliente_id: null },
+        {
+          id: CITA_SERVICIO,
+          organizacion_id: ORG,
+          cita_id: 'c1',
+          cliente_id: null,
+          profesional_id: ESTILISTA,
+        },
       ],
       citas: [{ id: 'c1', organizacion_id: ORG, cliente_id: null }],
     });
@@ -345,7 +444,7 @@ describe('F-436 · la foto de antes y después', () => {
       guardarFotoDeServicio.ejecutar(ctx, {
         citaServicioId: CITA_SERVICIO,
         momento: 'antes',
-        url: 'https://archivos.example.com/e.jpg',
+        url: `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000001-0000-4000-8000-000000000001.jpg`,
       }),
     );
 

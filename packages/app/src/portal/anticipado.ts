@@ -44,6 +44,12 @@ const HORIZONTE_MAXIMO_HORAS = 12;
 const CABEN_POR_HUECO = 3;
 const MINUTOS_DEL_HUECO = 5;
 const MS_POR_MINUTO = 60_000;
+/**
+ * Cuántas bebidas, como mucho, en un pedido sin pago y sin verificar a nadie (auditoría
+ * de la 2.4). Veinte renglones de veinte eran 400 vasos apartados por un desconocido;
+ * una oficina grande pide en la barra.
+ */
+export const UNIDADES_POR_PEDIDO = 12;
 
 export const entradaApartarAnticipado = z.object({
   /** El que se canta en la barra. */
@@ -63,7 +69,10 @@ export const entradaApartarAnticipado = z.object({
       }),
     )
     .min(1)
-    .max(20),
+    .max(20)
+    .refine((items) => items.reduce((suma, i) => suma + i.cantidad, 0) <= UNIDADES_POR_PEDIDO, {
+      message: `Hasta ${String(UNIDADES_POR_PEDIDO)} bebidas por pedido.`,
+    }),
 });
 
 export type EntradaApartarAnticipado = z.infer<typeof entradaApartarAnticipado>;

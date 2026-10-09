@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
 import { desdeMultirango, desdeRango } from './agenda.ts';
-import { profesionalExigida } from './recorte.ts';
+import { profesionalExigida, profesionalVisible } from './recorte.ts';
 
 /**
  * F-420, F-426 y F-427 · Quién atiende, qué hizo y qué se le debe.
@@ -182,6 +182,10 @@ export const listaDeProfesionales = definirComando<
       .where('organizacion_id', '=', organizacionId)
       .orderBy('orden_agenda', 'asc');
     if (!entrada.incluirInactivos) consulta = consulta.where('activo', '=', true);
+    // La estilista se ve a ella: el nivel, la foto y quién renta estación de las demás
+    // no son suyos (auditoría de la 2.4). El puente ya lo recortaba; esto no.
+    const suya = await profesionalVisible(ctx, null);
+    if (suya !== null) consulta = consulta.where('id', '=', suya);
 
     const filas = await ctx.paso('leer_profesionales', () => consulta.execute());
 

@@ -45,7 +45,7 @@ describe('expediente.fotos', () => {
       [{ id: 'cs1', servicio_id: 'tinte' }],
       [{ id: 'tinte', nombre: 'Tinte completo' }],
     ]);
-    const { ctx } = contextoFalso(tx, ambitoDe('mesero'), AHORA);
+    const { ctx } = contextoFalso(tx, ambitoDe('gerente'), AHORA);
     const { fotos } = await fotosDeClienta.ejecutar(ctx, { clienteId: CLIENTA });
 
     expect(fotos).toEqual([
@@ -65,6 +65,18 @@ describe('expediente.fotos', () => {
     const [lectura] = conexion.consultas;
     expect(lectura?.sql).toMatch(/"organizacion_id" = \$1 and "cliente_id" = \$2/);
     expect(lectura?.sql).toMatch(/order by "tomada_en" desc limit \$3/);
+  });
+
+  it('LA ESTILISTA NO VE LAS FOTOS DE UNA CLIENTA QUE NO ATIENDE (auditoría de la 2.4)', async () => {
+    // Su profesional, y ningún servicio suyo con esa clienta.
+    const { tx, conexion } = transaccionGrabadora([[{ id: 'mia' }], []]);
+    const { ctx } = contextoFalso(tx, ambitoDe('mesero'), AHORA);
+
+    await expect(fotosDeClienta.ejecutar(ctx, { clienteId: CLIENTA })).rejects.toMatchObject({
+      codigo: 'PUENTE_SIN_PERMISO',
+    });
+    // Ni una lectura de `fotos_expediente`.
+    expect(conexion.consultas.some((c) => c.sql.includes('fotos_expediente'))).toBe(false);
   });
 });
 

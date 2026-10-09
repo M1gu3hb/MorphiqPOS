@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
+import { exigirClientaPropia } from './recorte.ts';
 
 /**
  * `expediente.fotos` — las fotos del expediente de una clienta, para su galería (F-434;
@@ -48,6 +49,9 @@ export const fotosDeClienta = definirComando<
   entrada: entradaFotosDeClienta,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
+    // Las fotos de la cara de una persona: la estilista, sólo de las que atiende
+    // (auditoría de la 2.4; antes daba la galería de cualquier clienta).
+    await exigirClientaPropia(ctx, entrada.clienteId);
     const fotos = await ctx.paso('leer_fotos', () =>
       ctx.tx
         .selectFrom('fotos_expediente')

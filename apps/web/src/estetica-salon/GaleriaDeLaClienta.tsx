@@ -5,6 +5,7 @@ import { Images } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
+import { esFotoDelSistema } from '~/cliente/foto-del-sistema';
 
 /**
  * LA GALERÍA DE LA CLIENTA: sus fotos de antes y después, con su servicio (F-434; C.10 de
@@ -88,6 +89,21 @@ export function GaleriaDeLaClienta({
     <ul aria-label="Fotos de la clienta" className="grid grid-cols-3 gap-(--espacio-2)">
       {fotos.map((foto) => {
         const pie = `${foto.momento === 'antes' ? 'Antes' : 'Después'} · ${foto.servicioNombre ?? 'sin servicio'} · ${fecha(foto.tomadaEn)}`;
+        // Una fila vieja con una URL que no es del sistema no se pinta ni se enlaza.
+        if (!esFotoDelSistema(foto.url, window.location.origin)) {
+          return (
+            <li key={foto.fotoId} className="flex flex-col gap-(--espacio-1)">
+              <Superficie
+                nivel={0}
+                relleno={3}
+                className="flex aspect-square w-full items-center justify-center text-center text-xs text-texto-sutil"
+              >
+                Esta foto no es un archivo del sistema.
+              </Superficie>
+              <span className="text-xs text-texto-sutil">{pie}</span>
+            </li>
+          );
+        }
         return (
           <li key={foto.fotoId} className="flex flex-col gap-(--espacio-1)">
             <a href={foto.url} target="_blank" rel="noopener noreferrer">

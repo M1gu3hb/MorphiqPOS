@@ -58,3 +58,58 @@ export async function profesionalExigida(
 ): Promise<string> {
   return (await profesionalVisible(ctx, pedida)) ?? pedida;
 }
+
+/**
+ * LA CITA ES SUYA si da en ella al menos un servicio (auditoría de la 2.4). Para los roles
+ * de `SOLO_LO_SUYO`: iniciar, cerrar un servicio, anotar o fotografiar una cita ajena se
+ * niega con el mismo mensaje que una que no existe en su agenda. Los demás roles, pasan.
+ */
+export async function exigirCitaPropia(
+  ctx: ContextoComando<Transaccion>,
+  citaId: string,
+): Promise<void> {
+  if (!SOLO_LO_SUYO.includes(ctx.ambito.rol)) return;
+  const suya = (await profesionalVisible(ctx, null)) ?? NINGUNA;
+  const daUnServicio = await ctx.paso('leer_su_servicio', () =>
+    ctx.tx
+      .selectFrom('cita_servicios')
+      .select('id')
+      .where('organizacion_id', '=', ctx.ambito.organizacionId)
+      .where('cita_id', '=', citaId)
+      .where('profesional_id', '=', suya)
+      .executeTakeFirst(),
+  );
+  if (daUnServicio === undefined) {
+    throw new ErrorDominio('PUENTE_SIN_PERMISO', 'Sólo tocas las citas donde das un servicio.');
+  }
+}
+
+/**
+ * LA CLIENTA ES SUYA si alguna vez le dio —o le tiene agendado— un servicio (auditoría de
+ * la 2.4). El expediente lleva alergias, antecedentes y fórmulas: la estilista necesita el
+ * de las clientas que atiende, no el de todo el salón. Sin servicio con ella, se niega.
+ */
+export async function exigirClientaPropia(
+  ctx: ContextoComando<Transaccion>,
+  clienteId: string,
+): Promise<void> {
+  if (!SOLO_LO_SUYO.includes(ctx.ambito.rol)) return;
+  const suya = (await profesionalVisible(ctx, null)) ?? NINGUNA;
+  const laAtiende = await ctx.paso('leer_su_clienta', () =>
+    ctx.tx
+      .selectFrom('cita_servicios')
+      .innerJoin('citas', 'citas.id', 'cita_servicios.cita_id')
+      .select('cita_servicios.id')
+      .where('cita_servicios.organizacion_id', '=', ctx.ambito.organizacionId)
+      .where('citas.organizacion_id', '=', ctx.ambito.organizacionId)
+      .where('citas.cliente_id', '=', clienteId)
+      .where('cita_servicios.profesional_id', '=', suya)
+      .executeTakeFirst(),
+  );
+  if (laAtiende === undefined) {
+    throw new ErrorDominio(
+      'PUENTE_SIN_PERMISO',
+      'Sólo ves el expediente de las clientas que atiendes.',
+    );
+  }
+}
