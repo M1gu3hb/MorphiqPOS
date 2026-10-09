@@ -1544,6 +1544,14 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
             }
           />
         </Superficie>
+        {/* La LISTA DE ESPERA también en el día vacío (lo cazó CI a las 23:00): con la
+            agenda en blanco se escondía con el panel de pendientes, y un día sin citas es
+            justo cuando a quien espera hay que llamarle. */}
+        {hayEquipo ? (
+          <Superficie relleno={4} radio="md">
+            <ListaDeEspera />
+          </Superficie>
+        ) : null}
       </div>
     );
   }

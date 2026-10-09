@@ -83,6 +83,14 @@ const RETRATOS: Readonly<Record<string, readonly Retrato[]>> = {
           .getByRole('button', { name: await unProducto(page, 'ProductoTerminado') })
           .first()
           .click();
+        // Una bebida con opciones las abre ENCIMA del cobro (C.10 de la 2.4): con las de
+        // omisión se agrega; sin opciones no se abre nada. El diálogo tapaba «Aquí» y la
+        // galería esperaba el clic diez minutos.
+        const opciones = page.getByRole('dialog');
+        if (await opciones.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          await opciones.getByRole('button', { name: /^AGREGAR/ }).click();
+          await expect(opciones).toBeHidden();
+        }
         await page.getByRole('button', { name: 'Aquí' }).click();
       },
     },
