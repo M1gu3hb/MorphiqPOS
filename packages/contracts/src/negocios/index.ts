@@ -162,6 +162,16 @@ export function exigirDemo(
 
 /** ¿Esta URL de Postgres (o de API) es de un proyecto intocable? */
 export function esDeUnProyectoIntocable(url: string | null | undefined): boolean {
-  const texto = normalizar(url ?? '');
-  return PROYECTOS_INTOCABLES.some((ref) => texto.includes(ref));
+  const crudo = normalizar(url ?? '');
+  // DECODIFICADA antes de buscar (auditoría de la 2.4): el driver de Postgres decodifica
+  // el `%xx` del usuario, así que `postgres.%77yqmz…` se conecta al proyecto real y una
+  // búsqueda sobre el texto crudo no lo veía. Una codificación rota no se puede leer,
+  // y lo que no se puede leer se trata como intocable: falla cerrada.
+  let texto: string;
+  try {
+    texto = decodeURIComponent(crudo).toLocaleLowerCase('en-US');
+  } catch {
+    return true;
+  }
+  return PROYECTOS_INTOCABLES.some((ref) => texto.includes(ref) || crudo.includes(ref));
 }

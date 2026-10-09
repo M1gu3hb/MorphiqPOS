@@ -81,6 +81,25 @@ export interface ResultadoCorteMostrador {
   readonly totalCentavos: string;
 }
 
+/**
+ * EL PRECIO DE LA PIEZA de la que se corta: el del catálogo, salvo que sea un
+ * RETAZO con precio de remate. Sin mayoreo: el remate ya es el precio rebajado.
+ */
+export function precioDeLaPieza(
+  producto: repoVentaCatalogo.ProductoParaVender,
+  pieza: { readonly estado: string; readonly precioRemate: bigint | null } | null,
+): repoVentaCatalogo.ProductoParaVender {
+  if (pieza?.estado !== 'retazo' || pieza.precioRemate === null) return producto;
+  return {
+    ...producto,
+    precioVentaCentavos: pieza.precioRemate,
+    precioPorUnidadVariableCentavos:
+      producto.precioPorUnidadVariableCentavos === null ? null : pieza.precioRemate,
+    precioMayoreoCentavos: null,
+    cantidadMinimaMayoreo: null,
+  };
+}
+
 /** Texto con hasta cuatro decimales, que es lo que `cantidad()` admite. */
 function comoTexto(valor: string | number): string {
   return typeof valor === 'number' ? valor.toFixed(4) : valor;
@@ -149,7 +168,20 @@ export const cortarYAgregar = definirComando<
     // vez de esconderse en el precio.
     // La unidad la decide el catálogo: el mostrador corta en la unidad de venta
     // del material, no en una que la pantalla pudiera mandar.
-    const valorada = valorarLinea(producto, medidaTexto, undefined);
+    //
+    // Y si la pieza es un RETAZO con precio de remate, se cobra a ése: el remate lo
+    // puso quien ve márgenes (`inventario.marcar_retazo`) precisamente para que el
+    // pedazo salga. Antes el precio se guardaba y nadie lo cobraba (C.10 de la 2.4).
+    const pieza = await ctx.paso('leer_pieza', () =>
+      ctx.tx
+        .selectFrom('piezas_abiertas')
+        .select(['estado', 'precio_remate_centavos as precioRemate'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('producto_id', '=', producto.id)
+        .where('id', '=', entrada.piezaId)
+        .executeTakeFirst(),
+    );
+    const valorada = valorarLinea(precioDeLaPieza(producto, pieza ?? null), medidaTexto, undefined);
     const lineaId = await ctx.paso('insertar_partida', () =>
       repoOrdenes.agregarLinea(ctx.tx, {
         organizacionId,

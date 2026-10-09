@@ -87,6 +87,16 @@ export {
 } from './listas.ts';
 
 export {
+  entradaRenglonesDeLista,
+  entradaSurtirLista,
+  renglonesDeLista,
+  surtirLista,
+  type RenglonDeLista,
+  type ResultadoRenglones,
+  type ResultadoSurtidoDeLista,
+} from './surtir-lista.ts';
+
+export {
   cerrarCotizacion,
   convertirCotizacion,
   crearCotizacion,

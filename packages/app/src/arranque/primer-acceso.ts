@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { negocioReal } from '@morphiqpos/contracts/negocios';
+import { demoPorId, negocioReal } from '@morphiqpos/contracts/negocios';
 import { conTransaccion, type Transaccion } from '@morphiqpos/data';
 
 import { FORMA_PIN, hashearPin } from '../identidad/pin.ts';
@@ -77,6 +77,7 @@ export async function prepararPrimerAcceso(
 
   const preparado = await conTransaccion(async (tx) => {
     const negocio = await localizarNegocio(tx, peticion.organizacionSlug, peticion.nombreTerminal);
+    await exigirPrimerAcceso(tx, negocio);
     const personaId = await asegurarPersona(tx, negocio.organizacionId, peticion.nombrePersona);
     const identidadId = await asegurarIdentidad(tx, personaId);
     const empleoId = await asegurarEmpleo(tx, negocio, personaId);
@@ -93,6 +94,34 @@ export async function prepararPrimerAcceso(
     empleoId: preparado.empleoId,
     pinRotado: preparado.pinRotado,
   };
+}
+
+/**
+ * LA REGLA POSITIVA (auditoría de la 2.4). La guarda de arriba usa la lista de los
+ * reales, y esa lista sólo sirve para decirlo en un mensaje: un quinto cliente dado de
+ * alta mañana no estaría en ella, y `db:bootstrap` le rotaría el PIN a su dueño. Fuera
+ * de las cinco demos, este script da el PRIMER acceso y nada más: si el negocio ya tiene
+ * un dueño activo con PIN, se niega. El PIN de un negocio que ya entra lo cambia su
+ * dueño desde la aplicación. En una demo sigue siendo idempotente —rota—, que es lo que
+ * la siembra y CI necesitan.
+ */
+async function exigirPrimerAcceso(tx: Transaccion, negocio: Negocio): Promise<void> {
+  if (demoPorId(negocio.organizacionId) !== null) return;
+  const conPin = await tx
+    .selectFrom('empleos as e')
+    .innerJoin('identidades as i', 'i.persona_id', 'e.persona_id')
+    .innerJoin('credenciales_pin as c', 'c.identidad_id', 'i.id')
+    .select('e.id')
+    .where('e.organizacion_id', '=', negocio.organizacionId)
+    .where('e.rol', '=', 'dueno')
+    .where('e.activo', '=', true)
+    .executeTakeFirst();
+  if (conPin !== undefined) {
+    throw new Error(
+      `«${negocio.organizacion}» ya tiene un dueño con PIN. db:bootstrap sólo da el PRIMER acceso ` +
+        'de un negocio: el PIN de uno que ya entra lo cambia su dueño desde Configuración → Accesos.',
+    );
+  }
 }
 
 interface Negocio {

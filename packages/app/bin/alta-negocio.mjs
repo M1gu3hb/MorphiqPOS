@@ -41,8 +41,13 @@ if (slug === undefined || nombre === undefined) {
 // LA GUARDA (bloque B.4 de la 2.4): el alta es idempotente por slug, y sobre un negocio
 // que ya cobra no tiene nada que dar de alta — sólo podría pisarle nombre, giro o
 // plantilla. Los cuatro reales se niegan antes de abrir la base.
-const { negocioReal } = await import('../../contracts/src/negocios/index.ts');
+const { demoPorSlug, negocioReal } = await import('../../contracts/src/negocios/index.ts');
 const real = negocioReal(slug);
+// UNA DEMO NACE CON SU ID (auditoría de la 2.4). La lista de demos decide por ID, y un
+// alta con id aleatorio dejaba a la demo fuera de su propia lista: en una base nueva
+// —la de CI— la siembra no la encontraba y el reseteo la rechazaba como «no es una
+// demo». Toda la matriz de navegador habría salido roja en su primera corrida.
+const demo = demoPorSlug(slug);
 if (real !== null) {
   console.error(
     `✗ «${slug}» es ${real.nombre}, un negocio REAL que cobra. No se da de alta otra vez.`,
@@ -64,11 +69,21 @@ try {
       .where('slug', '=', slug)
       .executeTakeFirst();
 
+    if (existente !== undefined && demo !== null && existente.id !== demo.id) {
+      throw new Error(
+        `«${slug}» ya existe con el id ${existente.id}, y la demo es la ${demo.id}. Con otro id ` +
+          'ninguna guarda la reconoce como demo: no se siembra ni se resetea. Bórrala en una base desechable y vuelve a darla de alta.',
+      );
+    }
     const organizacion =
       existente ??
       (await tx
         .insertInto('organizaciones')
-        .values({ nombre, slug, giro, paquete })
+        .values(
+          demo === null
+            ? { nombre, slug, giro, paquete }
+            : { id: demo.id, nombre, slug, giro, paquete },
+        )
         .returning(['id', 'nombre', 'giro', 'paquete'])
         .executeTakeFirstOrThrow());
 

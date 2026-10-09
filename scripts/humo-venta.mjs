@@ -15,6 +15,7 @@
 import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
 import {
   demoDeLaCorrida,
+  enLaDemo,
   empleadosDeLaDemo,
   personaConRol,
   PIN_DE_DEMO,
@@ -45,9 +46,13 @@ console.log(
 
 paso(2, 'Entrar con PIN');
 const primero = personaConRol(empleados, 'dueno');
-exigir(
-  'POST /api/auth/entrar',
-  await llamar('/api/auth/entrar', { empleoId: primero.empleoId, pin: PIN, negocio: DEMO.slug }),
+enLaDemo(
+  exigir(
+    'POST /api/auth/entrar',
+    await llamar('/api/auth/entrar', { empleoId: primero.empleoId, pin: PIN, negocio: DEMO.slug }),
+  ),
+  DEMO,
+  'humo-venta',
 );
 
 paso(3, 'Estado de la venta (la sesión existe)');

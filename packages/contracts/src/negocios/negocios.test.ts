@@ -93,4 +93,16 @@ describe('esDeUnProyectoIntocable', () => {
       false,
     );
   });
+
+  it('el usuario CODIFICADO no esconde el proyecto: el driver lo decodifica y se conecta igual', () => {
+    expect(
+      esDeUnProyectoIntocable(
+        'postgresql://postgres.%77yqmzhliurwyxuyxznpb:x@aws-0-us-east-1.pooler.supabase.com:6543/postgres',
+      ),
+    ).toBe(true);
+  });
+
+  it('una codificación rota no se puede leer, y lo que no se lee es intocable', () => {
+    expect(esDeUnProyectoIntocable('postgresql://postgres.%E0%A4%A:x@localhost:5432/p')).toBe(true);
+  });
 });

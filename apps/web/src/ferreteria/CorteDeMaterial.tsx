@@ -21,7 +21,13 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
-import { materialParaCortar } from './corte-por-tipo.ts';
+import {
+  areaDelCorte,
+  materialParaCortar,
+  pedazoDondeCabe,
+  tipoDeCorte,
+  type TipoDeCorte,
+} from './corte-por-tipo.ts';
 
 /**
  * PANTALLA · ferreteria · corte-de-material
@@ -61,11 +67,18 @@ import { materialParaCortar } from './corte-por-tipo.ts';
  * —en una ferretería el cliente mira la pieza, no la pantalla—. Lo único más
  * grande que eso es el folio de la nota después de cortar: se canta en la caja.
  *
- * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
- * Cabe la variante de PIEZA CONTINUA (rollo, cable, manguera, cadena). Quedan
- * FUERA la variante de TRAMO —lista los pedazos y sugiere el más chico donde
- * quepa— y la de LÁMINA Y VIDRIO —pide hojas abiertas porque el sistema no
- * lleva geometría (§2.2)—: cambian el bloque «de dónde» entero, no un detalle.
+ * ── Las tres formas de cortar (C.10 de la 2.4) ───────────────────────────
+ * El `tipo_corte` del material decide la pantalla (`corte-por-tipo.ts`):
+ * · LINEAL —rollo, cable, manguera, cadena—: primero de dónde, luego cuánto.
+ * · TUBULAR —tubo, perfil, varilla—: la MEDIDA elige. Al teclear cuánto, el
+ *   sistema preselecciona el PEDAZO MÁS CHICO DONDE QUEPA (y lo dice junto al
+ *   campo): usar un tramo entero cuando sobra uno de 1.20 m para un corte de 90 cm
+ *   es crear otro retazo. Los bloques no se reordenan: el orden de tabulación tiene
+ *   que seguir al que se ve.
+ * · PLANO —lámina, vidrio, acrílico—: el sistema no lleva geometría (§2.2), así
+ *   que se elige la HOJA ABIERTA y la medida es el ÁREA, ancho × alto, que es como
+ *   se cobra.
+ * Un RETAZO con precio de remate se cobra a ése; lo decide el servidor al cortar.
  */
 
 const HTTP_DEMASIADOS_INTENTOS = 429;
@@ -88,12 +101,16 @@ export interface PiezaDeCorte {
   readonly restante: number;
   /** Cuántas piezas idénticas hay. Sólo dice algo en las cerradas. */
   readonly iguales: number;
+  /** `abierta` o `retazo`: el retazo se gasta primero y puede tener precio de remate. */
+  readonly estado?: string;
 }
 
 export interface MaterialContinuo {
   readonly id: string;
   readonly nombre: string;
   readonly unidad: string;
+  /** `lineal`, `tubular` o `plano` (migración 113). Nulo se corta como lineal. */
+  readonly tipoCorte?: string | null;
   readonly precioCentavos: number;
   readonly costoCentavos: number;
   readonly desperdicioTipico: number;
@@ -116,6 +133,8 @@ interface CorteHecho {
   readonly merma: string;
   readonly queda: string;
   readonly destino: string;
+  /** El total de la nota, en centavos: lo que la caja va a cobrar. */
+  readonly totalCentavos?: string;
 }
 
 export interface CorteDeMaterialProps {
@@ -135,6 +154,15 @@ function metros(valor: number): string {
 function aNumero(texto: string): number {
   const valor = Number(texto.replace(',', '.'));
   return Number.isFinite(valor) && valor > 0 ? valor : 0;
+}
+
+/** Cómo se llama una pieza en el pasillo, según de qué es y cómo está. */
+function nombreDePieza(pieza: PiezaDeCorte, tipo: TipoDeCorte): string {
+  if (pieza.estado === 'retazo') return 'Retazo';
+  if (!pieza.abierta) return tipo === 'plano' ? 'Hoja cerrada' : 'Rollo cerrado';
+  if (tipo === 'tubular') return 'Tramo';
+  if (tipo === 'plano') return 'Hoja abierta';
+  return 'Rollo abierto';
 }
 
 /** Abiertas primero: son la respuesta correcta y tienen que verse antes. */
@@ -223,6 +251,9 @@ export function CorteDeMaterial({
   const [piezas, setPiezas] = useState<readonly PiezaDeCorte[] | null>(piezasIniciales ?? null);
   const [piezaId, setPiezaId] = useState<string | null>(null);
   const [medidaTexto, setMedidaTexto] = useState('');
+  /** Lámina y vidrio: el corte es un rectángulo y se cobra su ÁREA. */
+  const [anchoTexto, setAnchoTexto] = useState('');
+  const [altoTexto, setAltoTexto] = useState('');
   const [sobranteTexto, setSobranteTexto] = useState<string | null>(null);
   const [destino, setDestino] = useState<Destino>('abierto');
   /** El fallo de un COMANDO: se leyó, y cortar no salió. */
@@ -294,9 +325,20 @@ export function CorteDeMaterial({
     setVuelta((cuantas) => cuantas + 1);
   }
 
+  const tipo = tipoDeCorte(material?.tipoCorte);
   const ordenadas = [...(piezas ?? [])].sort(porAbiertas);
-  // La preselección se DERIVA; no se escribe con un setState dentro del efecto.
-  const elegida = ordenadas.find((p) => p.id === piezaId) ?? ordenadas[0] ?? null;
+  // Lo que se teclea: el largo, o el área de un corte plano (ancho × alto).
+  const medidaDelCorte =
+    tipo === 'plano' ? (areaDelCorte(anchoTexto, altoTexto) ?? '') : medidaTexto;
+  const medidaPrevia = aNumero(medidaDelCorte);
+  const desperdicioPrevio = aNumero(
+    sobranteTexto ?? (material === null ? '' : metros(material.desperdicioTipico)),
+  );
+  // La preselección se DERIVA; no se escribe con un setState dentro del efecto. En el
+  // TUBO manda la medida: el pedazo más chico donde quepa, no el primero de la lista.
+  const sugerida =
+    tipo === 'tubular' ? pedazoDondeCabe(ordenadas, medidaPrevia + desperdicioPrevio) : null;
+  const elegida = ordenadas.find((p) => p.id === piezaId) ?? sugerida ?? ordenadas[0] ?? null;
   const encabezadoSinMaterial = (
     <h1 className="text-xl font-bold md:text-2xl">Cortar {voc.singular('producto')}</h1>
   );
@@ -357,7 +399,15 @@ export function CorteDeMaterial({
             }
             accion={
               <Button asChild>
-                <a href="/ferreteria/mostrador">Registrar la primera pieza</a>
+                <a
+                  href={
+                    material === null
+                      ? '/ferreteria/material'
+                      : `/ferreteria/material?producto=${material.id}`
+                  }
+                >
+                  Registrar la primera pieza
+                </a>
               </Button>
             }
           />
@@ -366,8 +416,8 @@ export function CorteDeMaterial({
     );
   }
 
-  const medida = aNumero(medidaTexto);
-  const sobrante = aNumero(sobranteTexto ?? metros(material.desperdicioTipico));
+  const medida = medidaPrevia;
+  const sobrante = desperdicioPrevio;
   const descuento = medida + sobrante;
   const queda = elegida.restante - descuento;
   // El umbral es del MATERIAL: 6.80 m de cable son un retazo y 6.80 m de
@@ -443,7 +493,8 @@ export function CorteDeMaterial({
       const salida = await invocarComando<CorteHecho>('/api/ferreteria/cortar', {
         materialId: material.id,
         piezaId: elegida.id,
-        medida,
+        // En texto con sus decimales: el área de un plano llega con cuatro.
+        medida: medidaDelCorte.replace(',', '.'),
         desperdicio: sobrante,
         destinoSobrante: retazoChico ? destino : 'abierto',
       });
@@ -453,6 +504,8 @@ export function CorteDeMaterial({
       // corte es otro— y se vuelven a leer las piezas, que acaban de cambiar.
       setHecho(salida);
       setMedidaTexto('');
+      setAnchoTexto('');
+      setAltoTexto('');
       setSobranteTexto(null);
       volverALeer();
     } catch (fallo) {
@@ -493,6 +546,8 @@ export function CorteDeMaterial({
                 setNoEsDeCorte(false);
                 setPiezaId(null);
                 setMedidaTexto('');
+                setAnchoTexto('');
+                setAltoTexto('');
                 setSobranteTexto(null);
                 setHecho(null);
                 setPiezas(null);
@@ -533,7 +588,13 @@ export function CorteDeMaterial({
       {hecho !== null && (
         <Aviso tono="exito" titulo={`${voc.titulo('orden')} ${hecho.folio} está en la caja.`}>
           <span className="block font-numeros text-3xl font-bold text-texto">{hecho.folio}</span>
-          Cortados {hecho.entregado} {material.unidad} · merma {hecho.merma} {material.unidad}.{' '}
+          Cortados {hecho.entregado} {material.unidad} · merma {hecho.merma} {material.unidad}
+          {hecho.totalCentavos === undefined ? null : (
+            <>
+              {' · '}la caja cobra <Dinero centavos={Number(hecho.totalCentavos)} tamano="sm" />
+            </>
+          )}
+          .{' '}
           {hecho.queda === '0'
             ? 'La pieza se acabó y se cerró.'
             : `Quedan ${hecho.queda} ${material.unidad}: rotúlalos.`}
@@ -564,7 +625,7 @@ export function CorteDeMaterial({
               key={pieza.id}
               valor={pieza.id}
               activa={pieza.id === elegida.id}
-              titulo={`${pieza.abierta ? 'Rollo abierto' : 'Rollo cerrado'} ${pieza.folio}`}
+              titulo={`${nombreDePieza(pieza, tipo)} ${pieza.folio}`}
               nota={notaDePieza(pieza, material.unidad, pieza.id === elegida.id)}
             />
           ))}
@@ -606,21 +667,56 @@ export function CorteDeMaterial({
           Cuánto
         </h2>
         <div className={CAMPOS}>
-          <div className="flex flex-col gap-1">
-            <Label className="flex-col items-start gap-1">
-              Medida entregada ({material.unidad})
-              <Input
-                inputMode="decimal"
-                autoFocus
-                className={CAMPO}
-                value={medidaTexto}
-                onChange={alMedir}
-              />
-            </Label>
-            <p className={NOTA}>
-              <Dinero centavos={precioCentavos} tamano="xs" /> / {material.unidad}
-            </p>
-          </div>
+          {tipo === 'plano' ? (
+            <div className="flex flex-col gap-1">
+              <div className="grid grid-cols-2 gap-(--espacio-2)">
+                <Label className="flex-col items-start gap-1">
+                  Ancho (m)
+                  <Input
+                    inputMode="decimal"
+                    autoFocus
+                    className={CAMPO}
+                    value={anchoTexto}
+                    onChange={(evento) => {
+                      setAnchoTexto(evento.target.value);
+                    }}
+                  />
+                </Label>
+                <Label className="flex-col items-start gap-1">
+                  Alto (m)
+                  <Input
+                    inputMode="decimal"
+                    className={CAMPO}
+                    value={altoTexto}
+                    onChange={(evento) => {
+                      setAltoTexto(evento.target.value);
+                    }}
+                  />
+                </Label>
+              </div>
+              <p className={NOTA}>
+                Área {medidaDelCorte === '' ? '—' : medidaDelCorte} {material.unidad} ·{' '}
+                <Dinero centavos={precioCentavos} tamano="xs" /> / {material.unidad}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <Label className="flex-col items-start gap-1">
+                Medida entregada ({material.unidad})
+                <Input
+                  inputMode="decimal"
+                  autoFocus
+                  className={CAMPO}
+                  value={medidaTexto}
+                  onChange={alMedir}
+                />
+              </Label>
+              <p className={NOTA}>
+                <Dinero centavos={precioCentavos} tamano="xs" /> / {material.unidad}
+                {tipo === 'tubular' && sugerida !== null ? ` · cabe en ${sugerida.folio}` : ''}
+              </p>
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <Label className="flex-col items-start gap-1">
               Desperdicio ({material.unidad})
@@ -662,7 +758,15 @@ export function CorteDeMaterial({
           <Aviso
             tono="peligro"
             titulo={`No alcanza: en ${elegida.folio} sólo quedan ${metros(elegida.restante)} ${material.unidad}.`}
+            accion={
+              <Button asChild variant="outline" size="sm">
+                <a href={`/ferreteria/material?producto=${material.id}`}>Abrir otra pieza</a>
+              </Button>
+            }
           />
+        )}
+        {elegida.estado === 'retazo' && (
+          <p className={NOTA}>Es un retazo: si tiene precio de remate, la caja lo cobra a ése.</p>
         )}
       </Superficie>
 

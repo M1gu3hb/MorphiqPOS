@@ -22,6 +22,7 @@
 import { llamar, exigir, paso, tarro } from './lib/cliente-humo.mjs';
 import {
   demoDeLaCorrida,
+  enLaDemo,
   empleadosDeLaDemo,
   personaConRol,
   PIN_DE_DEMO,
@@ -42,9 +43,10 @@ const PIN_NUEVO = '735192';
 const llamarAqui = (ruta, cuerpo) => llamar(BASE, ruta, cuerpo);
 
 async function entrarComo(empleoId, pin, nombre) {
-  return exigir(
-    nombre,
-    await llamar(BASE, '/api/auth/entrar', { empleoId, pin, negocio: DEMO.slug }),
+  return enLaDemo(
+    exigir(nombre, await llamar(BASE, '/api/auth/entrar', { empleoId, pin, negocio: DEMO.slug })),
+    DEMO,
+    'humo-accesos',
   );
 }
 

@@ -79,6 +79,27 @@ export async function empleadosDeLaDemo(llamar, demo) {
   return suyos;
 }
 
+/**
+ * LA SEGUNDA COMPROBACIÓN, por ID (auditoría de la 2.4): la primera decide por el SLUG
+ * que se tecleó; ésta mira el `organizacionId` que el servidor devolvió al entrar y
+ * exige que sea el de la misma demo. Un slug de demo que el despliegue resolviera a otro
+ * negocio —un alta con id aleatorio, un `ORGANIZACION` mal puesto— se para aquí, antes
+ * del primer POST que escribe. Devuelve la sesión tal cual.
+ */
+export function enLaDemo(sesion, demo, guion) {
+  const organizacionId = sesion?.organizacionId;
+  try {
+    exigirDemo(
+      { id: typeof organizacionId === 'string' ? organizacionId : '', slug: demo.slug },
+      guion,
+    );
+  } catch (error) {
+    console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+  return sesion;
+}
+
 /** Una persona de la demo por su ROL del servidor (`dueno`, `cajero`…). */
 export function personaConRol(empleados, rol) {
   const persona = empleados.find((e) => e.rol === rol);

@@ -21,6 +21,7 @@ import { deflateSync } from 'node:zlib';
 import { ORIGEN, exigir, llamar as llamarBase, paso, tarro } from './lib/cliente-humo.mjs';
 import {
   demoDeLaCorrida,
+  enLaDemo,
   empleadosDeLaDemo,
   personaConRol,
   PIN_DE_DEMO,
@@ -89,9 +90,13 @@ const empleados = await empleadosDeLaDemo(llamar, DEMO);
 const demo = personaConRol(empleados, 'dueno');
 
 paso(2, 'Entrar como el dueño de la demostración');
-exigir(
-  'POST /api/auth/entrar',
-  await llamar('/api/auth/entrar', { empleoId: demo.empleoId, pin: PIN, negocio: DEMO.slug }),
+enLaDemo(
+  exigir(
+    'POST /api/auth/entrar',
+    await llamar('/api/auth/entrar', { empleoId: demo.empleoId, pin: PIN, negocio: DEMO.slug }),
+  ),
+  DEMO,
+  'humo-archivos',
 );
 
 paso(3, 'Subir una imagen');
@@ -142,7 +147,12 @@ console.log(`✓ GET de la imagen → 200 · ${tipo} · ${String(recibidos.lengt
 paso(5, 'Borrar la imagen y comprobar que ya no está');
 const borrado = await fetch(`${BASE}${new URL(url).pathname}`, {
   method: 'DELETE',
+  // La frontera de escritura exige `content-type: application/json` y un cuerpo con su
+  // longitud; sin ellos el DELETE contestaba 403 y la imagen se quedaba en el almacén
+  // (lo cazó la auditoría de la 2.4).
+  body: '{}',
   headers: {
+    'content-type': 'application/json',
     'x-morphiqpos-request': '1',
     'idempotency-key': crypto.randomUUID(),
     origin: ORIGEN ?? BASE,

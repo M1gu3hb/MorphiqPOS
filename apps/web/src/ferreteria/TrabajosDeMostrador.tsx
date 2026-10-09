@@ -30,6 +30,8 @@ import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { SurtirLista, type ResultadoDelSurtido } from './SurtirLista.tsx';
+
 /**
  * PANTALLA · ferreteria · trabajos-de-mostrador
  *
@@ -64,10 +66,12 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * Las tres listas son `TablaAdaptable`: en la PC del mostrador se comparan en
  * columnas; en el teléfono del pasillo cada papel es una tarjeta.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben las tres listas, apartar, entregar, capturar una lista y recibir una
- * garantía. Queda fuera el surtido línea por línea de la lista, que pasa en la
- * pantalla de venta.
+ * ── Surtir la lista, aquí y no en la venta (C.10 de la 2.4) ─────────────
+ * Decía que el surtido «pasa en la pantalla de venta», y la venta no sabía de
+ * listas: se volvía a teclear todo y la lista se quedaba en «0 de 23». Ahora cada
+ * lista abierta tiene su «Surtir»: renglón por renglón se traduce lo que era texto,
+ * se dice cuánto se entrega y qué no hay, y «Mandar a caja» abre UNA nota con su
+ * folio (`lista_trabajo.surtir`). Lo entregado lo cuenta la lista.
  */
 
 /**
@@ -131,6 +135,8 @@ export interface ListaDeTrabajo {
   readonly cliente: string;
   readonly lineas: number;
   readonly surtidas: number;
+  /** `abierta` y `parcial` se surten; `surtida` y `cancelada` ya no. */
+  readonly estado: string;
 }
 
 export interface GarantiaPendiente {
@@ -165,6 +171,7 @@ interface FilaDeLista {
   readonly cliente: string | null;
   readonly renglones: number;
   readonly surtidos: number;
+  readonly estado: string;
 }
 
 /** Lo que salió mal al TOCAR algo, y lo que por eso no pasó. */
@@ -207,6 +214,7 @@ function comoLista(fila: FilaDeLista): ListaDeTrabajo {
     cliente: fila.cliente ?? 'sin nombre',
     lineas: fila.renglones,
     surtidas: fila.surtidos,
+    estado: fila.estado,
   };
 }
 
@@ -511,7 +519,18 @@ function TablaDeApartados({
 
 // ── Listas ────────────────────────────────────────────────────────────────
 
-function TablaDeListas({ listas }: { readonly listas: readonly ListaDeTrabajo[] }) {
+/** Las que todavía se pueden surtir. Las cerradas se ven, pero ya no se tocan. */
+export function seSurte(lista: ListaDeTrabajo): boolean {
+  return lista.estado === 'abierta' || lista.estado === 'parcial';
+}
+
+function TablaDeListas({
+  listas,
+  alSurtir,
+}: {
+  readonly listas: readonly ListaDeTrabajo[];
+  readonly alSurtir: (lista: ListaDeTrabajo) => void;
+}) {
   const voc = useVocabulario();
   const columnas: readonly ColumnaDeTabla<ListaDeTrabajo>[] = [
     {
@@ -537,10 +556,30 @@ function TablaDeListas({ listas }: { readonly listas: readonly ListaDeTrabajo[] 
         </span>
       ),
     },
+    {
+      clave: 'accion',
+      titulo: 'Surtir',
+      celda: (l) =>
+        seSurte(l) ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-label={`Surtir la ${l.folio}`}
+            onClick={() => {
+              alSurtir(l);
+            }}
+          >
+            <PackageCheck aria-hidden="true" /> Surtir
+          </Button>
+        ) : (
+          <span className="text-texto-sutil">{l.estado}</span>
+        ),
+    },
   ];
   return (
     <TablaAdaptable
-      etiqueta="Listas de trabajo abiertas"
+      etiqueta="Listas de trabajo"
       principal="cliente"
       desde="lg"
       columnas={columnas}
@@ -717,6 +756,8 @@ export function TrabajosDeMostrador({
   const [error, setError] = useState<FalloDeComando | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  /** La lista que se está surtiendo: su panel ocupa el lugar de la captura. */
+  const [surtiendo, setSurtiendo] = useState<ListaDeTrabajo | null>(null);
 
   useEffect(() => {
     if (
@@ -866,6 +907,7 @@ export function TrabajosDeMostrador({
             // Recién capturada: ninguno surtido todavía. Es el dato, no un cero
             // de relleno.
             surtidas: 0,
+            estado: 'abierta',
           },
           ...(listas ?? []),
         ]);
@@ -882,6 +924,20 @@ export function TrabajosDeMostrador({
       .finally(() => {
         setOcupado(false);
       });
+  }
+
+  function alSurtirse(resultado: ResultadoDelSurtido): void {
+    const folio = surtiendo?.folio ?? 'lista';
+    setSurtiendo(null);
+    setError(null);
+    setAviso(
+      resultado.notaFolio === null
+        ? `La ${folio} quedó anotada: lo que no hay va al pedido del proveedor.`
+        : `La ${folio} va a caja con la ${voc.singular('orden').toLowerCase()} ${resultado.notaFolio}.`,
+    );
+    // Lo entregado lo cuenta la vista: se vuelve a leer en vez de suponerlo.
+    setListas(null);
+    setIntento((previo) => previo + 1);
   }
 
   const resumenes: Readonly<Record<Pestana, Resumen | null>> = {
@@ -945,17 +1001,36 @@ export function TrabajosDeMostrador({
               queHacer="Revisa la conexión y vuelve a leer. Mientras, una lista nueva se puede capturar."
               alReintentar={volverALeer}
             >
-              {(abiertas) => <TablaDeListas listas={abiertas} />}
+              {(abiertas) => (
+                <TablaDeListas
+                  listas={abiertas}
+                  alSurtir={(lista) => {
+                    setAviso(null);
+                    setSurtiendo(lista);
+                  }}
+                />
+              )}
             </SegunLectura>
           </section>
-          <CapturaDeLista
-            nombre={nombreLista}
-            texto={textoLista}
-            ocupado={ocupado}
-            alCambiarNombre={setNombreLista}
-            alCambiarTexto={setTextoLista}
-            alGuardar={capturarLista}
-          />
+          {surtiendo === null ? (
+            <CapturaDeLista
+              nombre={nombreLista}
+              texto={textoLista}
+              ocupado={ocupado}
+              alCambiarNombre={setNombreLista}
+              alCambiarTexto={setTextoLista}
+              alGuardar={capturarLista}
+            />
+          ) : (
+            <SurtirLista
+              key={surtiendo.listaId}
+              lista={surtiendo}
+              alTerminar={alSurtirse}
+              alCerrar={() => {
+                setSurtiendo(null);
+              }}
+            />
+          )}
         </div>
       )}
 

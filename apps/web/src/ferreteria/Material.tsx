@@ -54,9 +54,11 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * queda justo debajo de la lista. Abrir un rollo va AL FINAL y más callado: es lo
  * que se hace cuando ninguno de los abiertos alcanza, no antes.
  *
- * ── Alcance recortado, dicho aquí ───────────────────────────────────────
- * Caben ver lo abierto, abrir una pieza, cortar y marcar retazo. Queda fuera el
- * remate del retazo en venta, que pasa en la pantalla de cobro.
+ * ── El retazo se cobra a su remate (C.10 de la 2.4) ─────────────────────
+ * Marcar retazo guardaba un precio que ningún cobro leía. Ahora el corte de una
+ * pieza `retazo` con precio de remate se valora a ése en el SERVIDOR
+ * (`precioDeLaPieza`, en `ferreteria.cortar_y_agregar`), desde esta pantalla y desde
+ * la de corte: la nota que llega a la caja ya trae el precio rebajado.
  */
 
 /**

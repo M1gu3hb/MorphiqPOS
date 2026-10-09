@@ -12,6 +12,7 @@
 import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
 import {
   demoDeLaCorrida,
+  enLaDemo,
   empleadosDeLaDemo,
   personaConRol,
   PIN_DE_DEMO,
@@ -34,13 +35,17 @@ const GASTO = 7_500;
 
 paso(1, 'Entrar y dejar la caja cerrada');
 const empleados = await empleadosDeLaDemo(llamar, DEMO);
-exigir(
-  'entrar',
-  await llamar('/api/auth/entrar', {
-    empleoId: personaConRol(empleados, 'dueno').empleoId,
-    pin: PIN,
-    negocio: DEMO.slug,
-  }),
+enLaDemo(
+  exigir(
+    'entrar',
+    await llamar('/api/auth/entrar', {
+      empleoId: personaConRol(empleados, 'dueno').empleoId,
+      pin: PIN,
+      negocio: DEMO.slug,
+    }),
+  ),
+  DEMO,
+  'humo-turno',
 );
 
 // Un turno anterior abierto falsearía el arqueo. Se cierra contando lo esperado.

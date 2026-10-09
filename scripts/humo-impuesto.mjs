@@ -15,6 +15,7 @@
 import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
 import {
   demoDeLaCorrida,
+  enLaDemo,
   empleadosDeLaDemo,
   personaConRol,
   PIN_DE_DEMO,
@@ -42,13 +43,17 @@ async function guardarIva(configuracion, puntosBase) {
 
 paso(1, 'Entrar');
 const empleados = await empleadosDeLaDemo(llamar, DEMO);
-exigir(
-  'entrar',
-  await llamar('/api/auth/entrar', {
-    empleoId: personaConRol(empleados, 'dueno').empleoId,
-    pin: PIN,
-    negocio: DEMO.slug,
-  }),
+enLaDemo(
+  exigir(
+    'entrar',
+    await llamar('/api/auth/entrar', {
+      empleoId: personaConRol(empleados, 'dueno').empleoId,
+      pin: PIN,
+      negocio: DEMO.slug,
+    }),
+  ),
+  DEMO,
+  'humo-impuesto',
 );
 
 paso(2, 'Leer la configuración actual');
