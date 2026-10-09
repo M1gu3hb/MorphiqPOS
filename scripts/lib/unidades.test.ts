@@ -101,3 +101,44 @@ describe('verify:unidades · el analizador', () => {
     expect(hallazgos).toEqual([]);
   });
 });
+
+describe('verify:unidades · los puntos ciegos de la auditoría de la 2.4', () => {
+  it('ve la fila envuelta en Readonly<F> y en F & {…}', () => {
+    const envuelta = analizar(`
+      const filas = await consultarPuente<Readonly<ServicioDeLaCita>>('CitaServicio');
+      return filas.map((s) => s.precio_centavos);`);
+    expect(envuelta.map((h) => h.campo)).toEqual(['precio_centavos']);
+    const cruzada = analizar(`
+      const filas = await consultarPuente<ServicioDeLaCita & { extra: string }>('CitaServicio');
+      return filas.map((s) => s.precio_centavos);`);
+    expect(cruzada.map((h) => h.campo)).toEqual(['precio_centavos']);
+  });
+
+  it('NO toma por fila el tipo ya convertido que se arma con Omit<F, …>', () => {
+    const hallazgos = analizar(`
+      type Convertida = Omit<ServicioDeLaCita, 'precio_centavos'> & { precio_centavos_ok: number };
+      const filas = await consultarPuente<Omit<ServicioDeLaCita, 'precio_centavos'>>('CitaServicio');
+      const ya: ServicioDeLaCita = { precio_centavos: 1, precio_pesos: 1, nombre: '' };
+      return [filas, ya.precio_centavos];`);
+    expect(hallazgos).toEqual([]);
+  });
+
+  it('la ENTIDAD EN UNA VARIABLE es un hallazgo: no se sabe qué filas son', () => {
+    const hallazgos = analizar(`
+      const entidad = 'CitaServicio';
+      const filas = await consultarPuente<ServicioDeLaCita>(entidad);
+      return filas.length;`);
+    expect(hallazgos.map((h) => h.como)).toEqual([
+      'entidad no literal: el analizador no sabe qué filas son',
+    ]);
+  });
+});
+
+describe('verify:unidades · Partial<F>', () => {
+  it('ve la fila envuelta en Partial<F>', () => {
+    const hallazgos = analizar(`
+      const filas = await consultarPuente<Partial<ServicioDeLaCita>>('CitaServicio');
+      return filas.map((s) => s.precio_centavos);`);
+    expect(hallazgos.map((h) => h.campo)).toEqual(['precio_centavos']);
+  });
+});

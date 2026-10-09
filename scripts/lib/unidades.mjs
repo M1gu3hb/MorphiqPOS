@@ -16,7 +16,25 @@
  * Lo que NO ve, dicho: una fila copiada a un tipo estructuralmente igual pero con otro
  * nombre —el verificador no la relaciona con la llamada—, y un campo de dinero leído por
  * índice con una cadena que no es literal.
+ *
+ * Lo que VE desde la auditoría de la 2.4 y antes no: la fila en una intersección `F & {…}`
+ * (se mira cada parte), y la llamada con la ENTIDAD EN UNA VARIABLE —que antes dejaba esas
+ * filas fuera sin decir nada—: ahora es un hallazgo, salvo en las pantallas declaradas en
+ * `ENTIDAD_DINAMICA_PERMITIDA` con su motivo. (`Readonly<F>` y `Partial<F>` ya los veía:
+ * el verificador resuelve esos tipos mapeados a los símbolos de F; sus pruebas lo fijan.)
  */
+
+/**
+ * Las pantallas que leen el puente con la entidad en una variable, y por qué está bien.
+ * Una más es un hallazgo: si la entidad no es literal, el analizador no sabe qué filas son.
+ */
+export const ENTIDAD_DINAMICA_PERMITIDA = new Map([
+  [
+    'apps/web/src/restaurante/Registros.tsx',
+    'Cada pestaña lee una entidad distinta y pinta sus importes por la columna `tipo: ' +
+      "'dinero'` de su definición, convertidos por un único ayudante de la pantalla.",
+  ],
+]);
 import ts from 'typescript';
 
 function sinEnvoltorios(nodo) {
@@ -55,7 +73,7 @@ function esLlamadaA(nodo, nombre) {
 function simbolosDeTipo(checker, tipo) {
   const salida = [];
   const visitar = (t) => {
-    if (t.isUnion?.()) {
+    if (t.isUnion?.() || t.isIntersection?.()) {
       for (const parte of t.types) visitar(parte);
       return;
     }
@@ -83,8 +101,28 @@ export function hallazgosDeUnidades(programa, unidades, archivos) {
 
   // 1 · Qué tipos son filas de qué entidad: de cada `consultarPuente<T>('Entidad')`.
   const entidadesDe = new Map();
+  const dinamicas = [];
   for (const fuente of fuentes) {
+    const permitida = [...ENTIDAD_DINAMICA_PERMITIDA.keys()].some((ruta) =>
+      fuente.fileName.replaceAll('\\', '/').endsWith(ruta),
+    );
     const visitar = (nodo) => {
+      if (
+        esLlamadaA(nodo, 'consultarPuente') &&
+        nodo.arguments[0] !== undefined &&
+        !ts.isStringLiteralLike(nodo.arguments[0]) &&
+        !permitida
+      ) {
+        const { line } = fuente.getLineAndCharacterOfPosition(nodo.getStart(fuente));
+        dinamicas.push({
+          archivo: fuente.fileName,
+          linea: line + 1,
+          entidad: '?',
+          campo: '?',
+          unidad: undefined,
+          como: 'entidad no literal: el analizador no sabe qué filas son',
+        });
+      }
       if (
         esLlamadaA(nodo, 'consultarPuente') &&
         nodo.typeArguments?.[0] !== undefined &&
@@ -128,7 +166,7 @@ export function hallazgosDeUnidades(programa, unidades, archivos) {
   };
 
   // 2 · Cada lectura de un campo de dinero de esas filas.
-  const hallazgos = [];
+  const hallazgos = [...dinamicas];
   for (const fuente of fuentes) {
     const anotar = (nodo, campo, entidades, como) => {
       const { line } = fuente.getLineAndCharacterOfPosition(nodo.getStart(fuente));

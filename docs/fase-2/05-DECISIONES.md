@@ -618,6 +618,21 @@ cobertura y que la lista de rutas sin sesión nombra— monta el mismo `PortalCl
 token dice «Mesa no encontrada · llama a un mesero». Un componente, dos direcciones, y la del
 comensal es la del QR.
 
+## D-26 · 08-10-2026 · La utilidad del corte es la de caja, con el IVA dentro, hasta que haya CFDI
+
+**Contexto.** La auditoría de la 2.4 señaló que `utilidad = total − costo` (`domain/venta/
+totales.ts`) deja el IVA dentro cuando los precios lo incluyen: una venta de $116 con costo
+de $50 dice $66 de utilidad y 56.9 %, no $50 y 43.1 %.
+
+**Decisión.** **No se cambia ahora**, y se dice. La utilidad que el sistema guarda por orden
+(`utilidad_centavos`) y suma el corte es la de CAJA: lo que entró menos lo que costó, con los
+costos como se capturan —con su IVA pagado, que estos negocios no acreditan línea por línea—.
+Restar el IVA de un lado y no del otro daría una cifra más baja y TAMBIÉN falsa. La utilidad
+fiscal (sin IVA, con el IVA de compras acreditado) necesita las facturas de compra y venta, y
+eso es CFDI: P-02. El día que se decida el PAC, la utilidad fiscal se calcula aparte y el
+corte enseña las dos, rotuladas; antes, esta es la única que se puede calcular con los datos
+que hay. Las propinas, como siempre, fuera de las dos.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras
