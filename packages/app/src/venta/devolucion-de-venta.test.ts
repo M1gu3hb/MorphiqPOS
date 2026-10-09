@@ -29,7 +29,9 @@ const LINEA_ACEITE = 'c1111111-1111-4111-8111-111111111111';
 const LINEA_ARROZ = 'c2222222-2222-4222-8222-222222222222';
 
 /** Tres aceites por $100.00 y un arroz por $50.00: $150.00, $100 en efectivo y $50 con tarjeta. */
-function baseDe(cambios: { estado?: string; sucursal?: string; caja?: boolean } = {}) {
+function baseDe(
+  cambios: { estado?: string; sucursal?: string; caja?: boolean; comisiones?: Fila[] } = {},
+) {
   const lineas: Fila[] = [
     linea({
       id: LINEA_ACEITE,
@@ -84,6 +86,7 @@ function baseDe(cambios: { estado?: string; sucursal?: string; caja?: boolean } 
       devoluciones: [],
       devoluciones_lineas: [],
       almacenes: [],
+      comisiones_causadas: cambios.comisiones ?? [],
     },
     { predeterminados: PREDETERMINADOS },
   );
@@ -217,5 +220,74 @@ describe('D-29 · lo que no se puede', () => {
     expect(await fallo(devolver(ctx, [{ ordenLineaId: LINEA_ARROZ, cantidad: '1' }]))).toBe(
       'TRANSICION_INVALIDA',
     );
+  });
+});
+
+/**
+ * §7.3 del salón · LA COMISIÓN DE LO DEVUELTO. Un servicio que causó comisión al cobrarse
+ * y se devuelve escribe su contrapartida NEGATIVA —con su motivo y apuntando a la que
+ * corrige—, nunca un UPDATE; y a pedazos cancela exactamente lo causado.
+ */
+describe('§7.3 · la comisión de lo devuelto', () => {
+  const KARLA = 'd1111111-1111-4111-8111-111111111111';
+  const REGLA = 'e1111111-1111-4111-8111-111111111111';
+  const causada = (extra: Fila = {}): Fila => ({
+    id: 'f1111111-1111-4111-8111-111111111111',
+    organizacion_id: ORG,
+    orden_linea_id: LINEA_ACEITE,
+    cita_servicio_id: null,
+    profesional_id: KARLA,
+    regla_id: REGLA,
+    regla_version: 3,
+    tipo: 'servicio',
+    base_centavos: 8_621n,
+    tasa_bp: 4_000,
+    monto_centavos: 3_448n,
+    liquidacion_id: 'ya-liquidada',
+    ...extra,
+  });
+
+  it('devolver una parte escribe su contrapartida, y el resto cancela EXACTO lo causado', async () => {
+    const base = baseDe({ comisiones: [causada()] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    await devolver(ctx, [{ ordenLineaId: LINEA_ACEITE, cantidad: '1' }]);
+    const [primera] = base
+      .filas('comisiones_causadas')
+      .filter((c) => c['tipo'] === 'contrapartida');
+    expect(primera).toMatchObject({
+      profesional_id: KARLA,
+      contrapartida_de_id: 'f1111111-1111-4111-8111-111111111111',
+      regla_id: REGLA,
+      regla_version: 3,
+      tasa_bp: 4_000,
+      monto_centavos: -1_149n,
+      motivo: 'devolución: venía abierto',
+    });
+    // Nace sin liquidar aunque la corregida ya se pagó: la descuenta la siguiente.
+    expect(primera?.['liquidacion_id'] ?? null).toBeNull();
+
+    await devolver(ctx, [{ ordenLineaId: LINEA_ACEITE, cantidad: '2' }]);
+    const contrapartidas = base
+      .filas('comisiones_causadas')
+      .filter((c) => c['tipo'] === 'contrapartida');
+    expect(contrapartidas.reduce((s, c) => s + (c['monto_centavos'] as bigint), 0n)).toBe(-3_448n);
+    expect(contrapartidas.reduce((s, c) => s + (c['base_centavos'] as bigint), 0n)).toBe(-8_621n);
+    // La causada no se tocó: el ledger no se edita.
+    expect(base.filas('comisiones_causadas')[0]?.['monto_centavos']).toBe(3_448n);
+  });
+
+  it('una línea sin comisión no escribe nada, y una contrapartida no se vuelve a corregir', async () => {
+    const base = baseDe({
+      comisiones: [causada({ tipo: 'contrapartida', monto_centavos: -100n })],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    await devolver(ctx, [
+      { ordenLineaId: LINEA_ACEITE, cantidad: '1' },
+      { ordenLineaId: LINEA_ARROZ, cantidad: '1' },
+    ]);
+
+    expect(base.filas('comisiones_causadas')).toHaveLength(1);
   });
 });

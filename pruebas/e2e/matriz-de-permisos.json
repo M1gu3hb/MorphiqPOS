@@ -109,7 +109,7 @@
       "ruta": "/api/cafeteria/contar-leche",
       "comando": "cafeteria.contar_leche",
       "escribe": false,
-      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "roles": ["administrador", "almacen", "cajero", "cocina", "dueno", "gerente", "mesero"],
       "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
     },
     {
@@ -270,7 +270,7 @@
       "ruta": "/api/catalogo/calibrar-peso",
       "comando": "catalogo.calibrar_peso",
       "escribe": true,
-      "roles": ["administrador", "dueno", "gerente"],
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
       "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
     },
     {
@@ -417,7 +417,7 @@
       "ruta": "/api/compras/importar-nota",
       "comando": "compras.importar_nota",
       "escribe": false,
-      "roles": ["administrador", "dueno", "gerente"],
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
       "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
     },
     {
@@ -495,6 +495,13 @@
       "comando": "cotizacion.cerrar",
       "escribe": true,
       "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/cotizacion/convertir",
+      "comando": "cotizacion.convertir_en_nota",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
       "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
     },
     {
@@ -795,7 +802,7 @@
       "ruta": "/api/inventario/conteo/peso",
       "comando": "inventario.conteo_por_peso",
       "escribe": true,
-      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
       "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
     },
     {
@@ -942,6 +949,13 @@
       "ruta": "/api/liquidaciones",
       "comando": "comision.liquidar_profesional",
       "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/liquidaciones/vista-previa",
+      "comando": "comision.vista_previa_liquidacion",
+      "escribe": false,
       "roles": ["administrador", "dueno"],
       "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
     },
@@ -1160,6 +1174,13 @@
       "comando": "restaurante.crear_estacion",
       "escribe": true,
       "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/descontar-cuenta",
+      "comando": "restaurante.descontar_cuenta",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
       "paquetes": ["restaurante"]
     },
     {
@@ -1460,6 +1481,13 @@
       "ruta": "/api/venta/mas-vendidos",
       "comando": "venta.mas_vendidos",
       "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
+      "ruta": "/api/venta/nota-mostrador/cancelar",
+      "comando": "nota_mostrador.cancelar",
+      "escribe": true,
       "roles": ["administrador", "cajero", "dueno", "gerente"],
       "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
     },
@@ -1804,6 +1832,10 @@
     },
     {
       "ruta": "/api/venta/cobrar-mostrador",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
+    },
+    {
+      "ruta": "/api/venta/preparar-mostrador",
       "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
     },
     {

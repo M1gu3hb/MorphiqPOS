@@ -147,6 +147,13 @@ export default defineConfig({
       name: 'tablet',
       use: { ...devices['Galaxy Tab S4 landscape'] },
     },
+    {
+      // EL TELÉFONO (D.6 de la 2.4). El dueño lee el corte en el coche a las doce de la
+      // noche y la estilista ve su día en el suyo: sin este proyecto, nada de eso se
+      // probaba en un ancho de teléfono. Chromium, como la tablet, por la misma razón.
+      name: 'telefono',
+      use: { ...devices['Pixel 7'] },
+    },
   ],
 
   // Sin servidor propio cuando se corre contra un despliegue: levantar uno

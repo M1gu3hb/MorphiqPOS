@@ -6,8 +6,15 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG, SESION_CAJA, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
-import { liquidarProfesional } from './liquidacion.ts';
+import {
+  ambitoDe,
+  EMPLEO,
+  ORG,
+  SESION_CAJA,
+  SUCURSAL,
+  TERMINAL,
+} from '../restaurante/pruebas/sala.ts';
+import { liquidarProfesional, vistaPreviaDeLiquidacion } from './liquidacion.ts';
 
 /**
  * F-427 y F-259 · La liquidación y su salida de caja.
@@ -70,14 +77,26 @@ const baseDe = (extra: Partial<TablasFalsas> = {}) =>
     },
   });
 
-const periodo = {
+/** Sin `propinaCentavos`: se le entrega toda la que el salón le debe. */
+const periodoConSuPropina = {
   profesionalId: KARLA,
   periodoDesde: '2026-09-01',
   periodoHasta: '2026-09-15',
   cobradoPorEllaCentavos: 0,
   anticiposCentavos: 0,
-  propinaCentavos: 0,
   rentaCentavos: 0,
+};
+
+const periodo = { ...periodoConSuPropina, propinaCentavos: 0 };
+
+/** El ledger de propina de Karla: $100 a la mano (saldo cero) y $54 por la terminal. */
+const propinas = () => {
+  const fila = { organizacion_id: ORG, profesional_id: KARLA };
+  return [
+    { ...fila, id: 'r1', tipo: 'recibida', monto_centavos: 10_000n, medio: 'efectivo' },
+    { ...fila, id: 'r2', tipo: 'entregada', monto_centavos: -10_000n, medio: 'efectivo' },
+    { ...fila, id: 'r3', tipo: 'recibida', monto_centavos: 5_400n, medio: 'tarjeta' },
+  ];
 };
 
 async function codigoDe(fn: () => Promise<unknown>): Promise<string> {
@@ -148,7 +167,18 @@ describe('comision.liquidar_profesional', () => {
   it('COMISIÓN Y PROPINA NO SE SUMAN: dos columnas', async () => {
     // La propina no es del salón: es de quien la recibió. Sumarlas haría que el
     // gasto de nómina incluyera dinero que nunca fue suyo.
-    const base = baseDe();
+    const base = baseDe({
+      movimientos_propina: [
+        {
+          id: 'r1',
+          organizacion_id: ORG,
+          profesional_id: KARLA,
+          tipo: 'recibida',
+          monto_centavos: 30_000n,
+          medio: 'tarjeta',
+        },
+      ],
+    });
     const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
 
     const salida = await liquidarProfesional.ejecutar(ctx, { ...periodo, propinaCentavos: 30_000 });
@@ -242,5 +272,91 @@ describe('comision.liquidar_profesional', () => {
     expect(await codigoDe(() => liquidarProfesional.ejecutar(ctx, periodo))).toBe(
       'PUENTE_NO_ENCONTRADO',
     );
+  });
+});
+
+/**
+ * §4.4 · LA PROPINA VA EN EL MISMO SOBRE, en su renglón, y SALE DE SU LEDGER. La pantalla
+ * no la mandaba y el comando no la cancelaba: el salón seguía debiéndola después de
+ * pagarla, y el corte la contaba como pendiente.
+ */
+describe('comision.liquidar_profesional · la propina que se le debe', () => {
+  it('sin cantidad le entrega TODA la que se le debe, y la cancela en su ledger', async () => {
+    const base = baseDe({ movimientos_propina: propinas() });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    const salida = await liquidarProfesional.ejecutar(ctx, periodoConSuPropina);
+
+    // La de la mano ya era suya: sólo se le deben los $54 de la terminal.
+    expect(salida.propinaCentavos).toBe('5400');
+    expect(salida.comisionCentavos).toBe('184000');
+    expect(salida.totalCentavos).toBe('189400');
+    expect(base.campo('movimientos_caja', 'monto_centavos')).toBe(-189_400n);
+    const entregada = base.filas('movimientos_propina').at(-1);
+    expect(entregada).toMatchObject({
+      tipo: 'entregada',
+      monto_centavos: -5_400n,
+      liquidacion_id: salida.liquidacionId,
+      movimiento_caja_id: salida.movimientoCajaId,
+      entregada_en: AHORA,
+      entregada_por: EMPLEO,
+    });
+    // El saldo queda en cero: la siguiente liquidación no la vuelve a pagar.
+    expect(
+      base.filas('movimientos_propina').reduce((s, m) => s + (m['monto_centavos'] as bigint), 0n),
+    ).toBe(0n);
+  });
+
+  it('NO SE ENTREGA MÁS PROPINA DE LA QUE SE LE DEBE, y no se escribe nada', async () => {
+    const base = baseDe({ movimientos_propina: propinas() });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    expect(
+      await codigoDe(() =>
+        liquidarProfesional.ejecutar(ctx, { ...periodo, propinaCentavos: 5_401 }),
+      ),
+    ).toBe('EFECTIVO_INSUFICIENTE');
+    expect(base.filas('liquidaciones')).toEqual([]);
+    expect(base.filas('movimientos_caja')).toEqual([]);
+    expect(base.filas('movimientos_propina')).toHaveLength(3);
+  });
+});
+
+describe('comision.vista_previa_liquidacion', () => {
+  it('ENSEÑA LO QUE SE VA A PAGAR —comisión y propina, aparte— Y NO ESCRIBE NADA', async () => {
+    const base = baseDe({ movimientos_propina: propinas() });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    const vista = await vistaPreviaDeLiquidacion.ejecutar(ctx, {
+      profesionalId: KARLA,
+      periodoDesde: '2026-09-01',
+      periodoHasta: '2026-09-15',
+    });
+
+    expect(vista).toEqual({
+      profesionalId: KARLA,
+      nombreCompleto: 'Karla Méndez',
+      comisionCentavos: '184000',
+      propinaCentavos: '5400',
+      totalCentavos: '189400',
+      cajaAbierta: true,
+    });
+    expect(base.filas('liquidaciones')).toEqual([]);
+    expect(base.filas('movimientos_caja')).toEqual([]);
+    expect(base.filas('movimientos_propina')).toHaveLength(3);
+    expect(base.campo('comisiones_causadas', 'liquidacion_id')).toBeNull();
+  });
+
+  it('dice si se puede pagar: sin caja abierta en esta terminal, no', async () => {
+    const base = baseDe({ sesiones_caja: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    const vista = await vistaPreviaDeLiquidacion.ejecutar(ctx, {
+      profesionalId: KARLA,
+      periodoDesde: '2026-09-01',
+      periodoHasta: '2026-09-15',
+    });
+
+    expect(vista.cajaAbierta).toBe(false);
   });
 });

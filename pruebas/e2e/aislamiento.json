@@ -1,0 +1,2548 @@
+{
+  "entidades": [
+    { "entidad": "AutorizadoCuenta", "tabla": "autorizados_cuenta" },
+    { "entidad": "BeneficiarioPropina", "tabla": "liquidacion_propina_beneficiarios" },
+    { "entidad": "CarteraFiado", "tabla": "cartera_por_obra" },
+    { "entidad": "CategoriaIngrediente", "tabla": "categorias" },
+    { "entidad": "Cita", "tabla": "citas" },
+    { "entidad": "CitaServicio", "tabla": "cita_servicios" },
+    { "entidad": "Cliente", "tabla": "clientes" },
+    { "entidad": "ComisionCausada", "tabla": "comisiones_causadas" },
+    { "entidad": "Comisionista", "tabla": "comisionistas" },
+    { "entidad": "CompraInsumo", "tabla": "compras" },
+    { "entidad": "ConsumoInterno", "tabla": "consumos_internos" },
+    { "entidad": "Conteo", "tabla": "tomas_inventario" },
+    { "entidad": "ConteoDeZona", "tabla": "conteo_de_zona" },
+    { "entidad": "ConteoLinea", "tabla": "toma_conteos" },
+    { "entidad": "CorteCaja", "tabla": "sesiones_caja" },
+    { "entidad": "DetalleCompra", "tabla": "compra_lineas" },
+    { "entidad": "DetalleVenta", "tabla": "orden_lineas" },
+    { "entidad": "Equivalencia", "tabla": "equivalencias" },
+    { "entidad": "EsperaMesa", "tabla": "lista_espera" },
+    { "entidad": "EsquemaPropina", "tabla": "esquemas_propina" },
+    { "entidad": "EstacionPreparacion", "tabla": "estaciones_preparacion" },
+    { "entidad": "EventoMesa", "tabla": "eventos_mesa" },
+    { "entidad": "ExistenciaMaterial", "tabla": "existencias_de_material" },
+    { "entidad": "ExpedienteBelleza", "tabla": "expedientes_belleza" },
+    { "entidad": "FormulaAplicada", "tabla": "formulas_aplicadas" },
+    { "entidad": "GastoOperativo", "tabla": "gastos" },
+    { "entidad": "Ingrediente", "tabla": "insumos" },
+    { "entidad": "IntegrationSyncLog", "tabla": "bitacora_sincronizacion" },
+    { "entidad": "Liquidacion", "tabla": "liquidaciones" },
+    { "entidad": "LiquidacionPropina", "tabla": "liquidaciones_propina" },
+    { "entidad": "ListaDeTrabajo", "tabla": "listas_de_trabajo" },
+    { "entidad": "MaterialContinuo", "tabla": "materiales_continuos" },
+    { "entidad": "MaterialMostrador", "tabla": "materiales_mostrador" },
+    { "entidad": "MenuQRSeccion", "tabla": "menu_qr_secciones" },
+    { "entidad": "Mesa", "tabla": "mesas" },
+    { "entidad": "Modificador", "tabla": "opciones_de_bebida" },
+    { "entidad": "MovimientoCaja", "tabla": "movimientos_caja" },
+    { "entidad": "MovimientoCuenta", "tabla": "movimientos_cuenta" },
+    { "entidad": "MovimientoInventario", "tabla": "movimientos_stock" },
+    { "entidad": "NoShow", "tabla": "no_shows" },
+    { "entidad": "NotaDeCaja", "tabla": "notas_de_caja" },
+    { "entidad": "Obra", "tabla": "obras" },
+    { "entidad": "OcupacionMesa", "tabla": "ocupacion_mesas" },
+    { "entidad": "OperacionComision", "tabla": "operaciones_comision" },
+    { "entidad": "PagoCredito", "tabla": "pagos_credito" },
+    { "entidad": "PedidoAnticipado", "tabla": "pedidos_anticipados" },
+    { "entidad": "PedidoPreparacion", "tabla": "comandas" },
+    { "entidad": "PedidoPreparacionItem", "tabla": "comanda_items" },
+    { "entidad": "PiezaAbierta", "tabla": "piezas_abiertas" },
+    { "entidad": "PiezaDeMaterial", "tabla": "piezas_de_material" },
+    { "entidad": "PiezaFerreteria", "tabla": "piezas_de_ferreteria" },
+    { "entidad": "PlantillaCompra", "tabla": "plantillas_compra" },
+    { "entidad": "PlantillaGasto", "tabla": "plantillas_gasto" },
+    { "entidad": "Presentacion", "tabla": "producto_presentaciones" },
+    { "entidad": "ProductoAtributo", "tabla": "producto_atributos" },
+    { "entidad": "ProductoTerminado", "tabla": "productos" },
+    { "entidad": "Profesional", "tabla": "profesionales" },
+    { "entidad": "Proveedor", "tabla": "proveedores" },
+    { "entidad": "RecetaEscandallo", "tabla": "recetas" },
+    { "entidad": "Redondeo", "tabla": "redondeos" },
+    { "entidad": "ReglaComision", "tabla": "reglas_comision" },
+    { "entidad": "Remision", "tabla": "remisiones" },
+    { "entidad": "SaldoComisionista", "tabla": "saldos_comisionista" },
+    { "entidad": "SolicitudQR", "tabla": "solicitudes_qr" },
+    { "entidad": "TiempoPreparacion", "tabla": "tiempos_preparacion" },
+    { "entidad": "Ubicacion", "tabla": "ubicaciones" },
+    { "entidad": "UnionMesa", "tabla": "uniones_mesa" },
+    { "entidad": "Venta", "tabla": "ordenes" },
+    { "entidad": "Zona", "tabla": "zonas" },
+    { "entidad": "ZonaAnaquel", "tabla": "zonas_anaquel" }
+  ],
+  "rutas": [
+    {
+      "ruta": "/api/agenda/anotar",
+      "comando": "agenda.anotar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "citaId": "⟨citas⟩", "notas": "prueba de aislamiento" },
+      "ids": [{ "camino": "citaId", "tabla": "citas" }]
+    },
+    {
+      "ruta": "/api/agenda/cancelar",
+      "comando": "agenda.cancelar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "citaId": "⟨citas⟩", "motivo": "prueba de aislamiento" },
+      "ids": [{ "camino": "citaId", "tabla": "citas" }]
+    },
+    {
+      "ruta": "/api/agenda/cerrar-servicio",
+      "comando": "agenda.cerrar_servicio",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "citaServicioId": "⟨cita_servicios⟩", "almacenId": "⟨?⟩", "consumos": [] },
+      "ids": [
+        { "camino": "citaServicioId", "tabla": "cita_servicios" },
+        { "camino": "almacenId", "tabla": null }
+      ]
+    },
+    {
+      "ruta": "/api/agenda/cita",
+      "comando": "agenda.agendar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "inicio": "⟨ahora⟩",
+        "servicios": [{ "servicioId": "⟨?⟩", "profesionalId": "⟨profesionales⟩" }]
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "servicios[0].servicioId", "tabla": null },
+        { "camino": "servicios[0].profesionalId", "tabla": "profesionales" }
+      ]
+    },
+    {
+      "ruta": "/api/agenda/dia",
+      "comando": "agenda.dia",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "fecha": "⟨hoy⟩", "profesionalId": "⟨profesionales⟩" },
+      "ids": [{ "camino": "profesionalId", "tabla": "profesionales" }]
+    },
+    {
+      "ruta": "/api/agenda/huecos",
+      "comando": "agenda.huecos",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": {
+        "desde": "⟨hoy⟩",
+        "hasta": "⟨hoy⟩",
+        "minutos": 5,
+        "profesionalId": "⟨profesionales⟩"
+      },
+      "ids": [{ "camino": "profesionalId", "tabla": "profesionales" }]
+    },
+    {
+      "ruta": "/api/agenda/iniciar",
+      "comando": "agenda.iniciar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "citaId": "⟨citas⟩" },
+      "ids": [{ "camino": "citaId", "tabla": "citas" }]
+    },
+    {
+      "ruta": "/api/agenda/no-llego",
+      "comando": "agenda.marcar_no_llego",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "citaId": "⟨citas⟩" },
+      "ids": [{ "camino": "citaId", "tabla": "citas" }]
+    },
+    {
+      "ruta": "/api/agenda/proximos-huecos",
+      "comando": "agenda.proximos_huecos",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "minutos": 5, "profesionalId": "⟨profesionales⟩" },
+      "ids": [{ "camino": "profesionalId", "tabla": "profesionales" }]
+    },
+    {
+      "ruta": "/api/anticipos",
+      "comando": "anticipo.recibir",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "citaId": "⟨citas⟩", "montoCentavos": 1, "metodo": "efectivo" },
+      "ids": [{ "camino": "citaId", "tabla": "citas" }]
+    },
+    {
+      "ruta": "/api/cafeteria/agregar-linea",
+      "comando": "cafeteria.agregar_bebida",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "productoId": "⟨productos⟩", "opciones": [] },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/cafeteria/anticipado/encolar",
+      "comando": "cafeteria.encolar_anticipado",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "pedidoId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "pedidoId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/cafeteria/anticipado/entregar",
+      "comando": "cafeteria.entregar_anticipado",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "pedidoId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "pedidoId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/cafeteria/calibracion",
+      "comando": "cafeteria.registrar_calibracion",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "shots": 1, "productoId": "⟨productos⟩" },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/cafeteria/contar-leche",
+      "comando": "cafeteria.contar_leche",
+      "escribe": false,
+      "roles": ["administrador", "almacen", "cajero", "cocina", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "almacenId": "⟨?⟩",
+        "conteos": [{ "insumoId": "⟨insumos⟩", "cartonesCerrados": 0, "cuartosDelAbierto": 0 }]
+      },
+      "ids": [
+        { "camino": "almacenId", "tabla": null },
+        { "camino": "conteos[0].insumoId", "tabla": "insumos" }
+      ]
+    },
+    {
+      "ruta": "/api/cafeteria/deshacer-entrega",
+      "comando": "cafeteria.deshacer_entrega",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "pedidoId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "pedidoId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/cafeteria/entregar-pedido",
+      "comando": "cafeteria.entregar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "pedidoId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "pedidoId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/cafeteria/llamar-pedido",
+      "comando": "cafeteria.llamar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "pedidoId": "⟨ordenes⟩", "medio": "pantalla" },
+      "ids": [{ "camino": "pedidoId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/cafeteria/lote-grano/abrir",
+      "comando": "cafeteria.abrir_lote_grano",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "insumoId": "⟨insumos⟩",
+        "fechaTueste": "prueba de aislamiento",
+        "gramosRecibidos": "prueba de aislamiento",
+        "compraLineaId": "⟨compra_lineas⟩"
+      },
+      "ids": [
+        { "camino": "insumoId", "tabla": "insumos" },
+        { "camino": "compraLineaId", "tabla": "compra_lineas" }
+      ]
+    },
+    {
+      "ruta": "/api/cafeteria/merma-barra",
+      "comando": "cafeteria.registrar_merma_barra",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "motivo": "calibracion",
+        "insumoId": "⟨insumos⟩",
+        "cantidad": "prueba de aislamiento"
+      },
+      "ids": [{ "camino": "insumoId", "tabla": "insumos" }]
+    },
+    {
+      "ruta": "/api/cafeteria/no-recogido",
+      "comando": "cafeteria.marcar_no_recogido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "pedidoId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "pedidoId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/caja/cajon",
+      "comando": "caja.abrir_cajon",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "sesionCajaId": "⟨sesiones_caja⟩", "motivo": "dar_cambio" },
+      "ids": [{ "camino": "sesionCajaId", "tabla": "sesiones_caja" }]
+    },
+    {
+      "ruta": "/api/caja/eliminar-corte",
+      "comando": "caja.eliminar_corte",
+      "escribe": true,
+      "roles": ["dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "corteId": "⟨sesiones_caja⟩" },
+      "ids": [{ "camino": "corteId", "tabla": "sesiones_caja" }]
+    },
+    {
+      "ruta": "/api/caja/encolar-sincronizacion",
+      "comando": "caja.encolar_sincronizacion_corte",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "corteId": "⟨sesiones_caja⟩" },
+      "ids": [{ "camino": "corteId", "tabla": "sesiones_caja" }]
+    },
+    {
+      "ruta": "/api/caja/hoja-del-corte",
+      "comando": "caja.hoja_del_corte",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "sesionCajaId": "⟨sesiones_caja⟩" },
+      "ids": [{ "camino": "sesionCajaId", "tabla": "sesiones_caja" }]
+    },
+    {
+      "ruta": "/api/catalogo/alta-rapida",
+      "comando": "catalogo.alta_rapida",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": {
+        "nombre": "prueba de aislamiento",
+        "precio": "prueba de aislamiento",
+        "categoriaId": "⟨categorias⟩"
+      },
+      "ids": [{ "camino": "categoriaId", "tabla": "categorias" }]
+    },
+    {
+      "ruta": "/api/catalogo/archivar",
+      "comando": "catalogo.archivar_producto",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "productoId": "⟨productos⟩" },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/catalogo/atributo",
+      "comando": "catalogo.declarar_atributo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "productoId": "⟨productos⟩",
+        "clave": "prueba de aislamiento",
+        "valor": "prueba de aislamiento",
+        "tipo": "medida"
+      },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/catalogo/atributos",
+      "comando": "catalogo.declarar_atributo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "productoId": "⟨productos⟩",
+        "clave": "prueba de aislamiento",
+        "valor": "prueba de aislamiento",
+        "tipo": "medida"
+      },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/catalogo/calibrar-peso",
+      "comando": "catalogo.calibrar_peso",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "productoId": "⟨productos⟩", "pesoMuestraMg": 1, "piezasMuestra": 10 },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/catalogo/crear-producto",
+      "comando": "catalogo.crear_producto",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": {
+        "nombre": "prueba de aislamiento",
+        "categoriaId": "⟨categorias⟩",
+        "precioVenta": "prueba de aislamiento",
+        "costoUnitario": "prueba de aislamiento",
+        "tipoVenta": "precio_fijo",
+        "unidadVenta": "pieza",
+        "estrategiaConsumo": "sku",
+        "insumoBaseId": "⟨insumos⟩",
+        "permiteVentaSinStock": false,
+        "stockMinimo": "prueba de aislamiento",
+        "visibleEnPos": false
+      },
+      "ids": [
+        { "camino": "categoriaId", "tabla": "categorias" },
+        { "camino": "insumoBaseId", "tabla": "insumos" }
+      ]
+    },
+    {
+      "ruta": "/api/catalogo/equivalencia",
+      "comando": "catalogo.declarar_equivalencia",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "productoId": "⟨productos⟩",
+        "equivalenteId": "⟨equivalencias⟩",
+        "tipo": "sustituto"
+      },
+      "ids": [
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "equivalenteId", "tabla": "equivalencias" }
+      ]
+    },
+    {
+      "ruta": "/api/catalogo/etiquetas",
+      "comando": "catalogo.etiquetas",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "productoIds": ["⟨productos⟩"] },
+      "ids": [{ "camino": "productoIds[0]", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/catalogo/fiscal-masivo",
+      "comando": "catalogo.fiscal_masivo",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "categoriaId": "⟨categorias⟩", "productoIds": [] },
+      "ids": [{ "camino": "categoriaId", "tabla": "categorias" }]
+    },
+    {
+      "ruta": "/api/catalogo/foto-mostrador",
+      "comando": "catalogo.foto_mostrador",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "productoId": "⟨productos⟩",
+        "url": "prueba de aislamiento",
+        "ubicacionId": "⟨ubicaciones⟩"
+      },
+      "ids": [
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "ubicacionId", "tabla": "ubicaciones" }
+      ]
+    },
+    {
+      "ruta": "/api/catalogo/linea",
+      "comando": "catalogo.declarar_linea",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "nombre": "prueba de aislamiento", "padreId": "⟨?⟩" },
+      "ids": [{ "camino": "padreId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/catalogo/modificador",
+      "comando": "catalogo.crear_modificador",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "productoId": "⟨productos⟩",
+        "nombre": "prueba de aislamiento",
+        "obligatorio": false,
+        "tipo": "unica",
+        "opciones": [{ "nombre": "prueba de aislamiento", "precioExtra": "prueba de aislamiento" }]
+      },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/catalogo/modificadores",
+      "comando": "catalogo.guardar_modificadores",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "productoId": "⟨productos⟩", "grupos": [] },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/catalogo/presentacion",
+      "comando": "catalogo.crear_presentacion",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "productoId": "⟨productos⟩",
+        "nombre": "prueba de aislamiento",
+        "factor": "prueba de aislamiento"
+      },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/catalogo/ubicacion",
+      "comando": "catalogo.asignar_ubicacion",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "productoId": "⟨productos⟩",
+        "almacenId": "⟨?⟩",
+        "codigo": "prueba de aislamiento",
+        "zonaId": "⟨zonas⟩"
+      },
+      "ids": [
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "almacenId", "tabla": null },
+        { "camino": "zonaId", "tabla": "zonas" }
+      ]
+    },
+    {
+      "ruta": "/api/citas",
+      "comando": "agenda.agendar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "inicio": "⟨ahora⟩",
+        "servicios": [{ "servicioId": "⟨?⟩", "profesionalId": "⟨profesionales⟩" }]
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "servicios[0].servicioId", "tabla": null },
+        { "camino": "servicios[0].profesionalId", "tabla": "profesionales" }
+      ]
+    },
+    {
+      "ruta": "/api/citas/walk-in",
+      "comando": "agenda.walk_in",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "servicios": [{ "servicioId": "⟨?⟩", "profesionalId": "⟨profesionales⟩" }]
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "servicios[0].servicioId", "tabla": null },
+        { "camino": "servicios[0].profesionalId", "tabla": "profesionales" }
+      ]
+    },
+    {
+      "ruta": "/api/comision/asignar-regla",
+      "comando": "comision.asignar_regla",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "profesionalId": "⟨profesionales⟩", "reglaId": "⟨reglas_comision⟩" },
+      "ids": [
+        { "camino": "profesionalId", "tabla": "profesionales" },
+        { "camino": "reglaId", "tabla": "reglas_comision" }
+      ]
+    },
+    {
+      "ruta": "/api/comision/liquidar",
+      "comando": "comision.liquidar_profesional",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "profesionalId": "⟨profesionales⟩",
+        "periodoDesde": "⟨hoy⟩",
+        "periodoHasta": "⟨hoy⟩"
+      },
+      "ids": [{ "camino": "profesionalId", "tabla": "profesionales" }]
+    },
+    {
+      "ruta": "/api/comision/regla",
+      "comando": "comision.guardar_regla",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": {
+        "reglaId": "⟨reglas_comision⟩",
+        "nombre": "prueba de aislamiento",
+        "esquema": "porcentaje_fijo",
+        "tasaServicioBp": 0,
+        "tasaProductoBp": 0,
+        "base": "cobrado",
+        "sobreIva": false,
+        "material": "salon",
+        "vigenteDesde": "⟨hoy⟩"
+      },
+      "ids": [{ "camino": "reglaId", "tabla": "reglas_comision" }]
+    },
+    {
+      "ruta": "/api/compras/importar-nota",
+      "comando": "compras.importar_nota",
+      "escribe": false,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "proveedorId": "⟨proveedores⟩",
+        "folioProveedor": "prueba de aislamiento",
+        "renglones": [
+          {
+            "descripcion": "prueba de aislamiento",
+            "cantidad": "prueba de aislamiento",
+            "costoUnitarioCentavos": 0
+          }
+        ]
+      },
+      "ids": [{ "camino": "proveedorId", "tabla": "proveedores" }]
+    },
+    {
+      "ruta": "/api/compras/plantilla",
+      "comando": "compras.guardar_plantilla",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "plantillaId": "⟨plantillas_compra⟩",
+        "nombre": "prueba de aislamiento",
+        "lineas": [
+          {
+            "insumoId": "⟨insumos⟩",
+            "cantidad": "prueba de aislamiento",
+            "unidadCompra": "prueba de aislamiento",
+            "equivalencia": "prueba de aislamiento",
+            "costoTotal": "prueba de aislamiento"
+          }
+        ]
+      },
+      "ids": [
+        { "camino": "plantillaId", "tabla": "plantillas_compra" },
+        { "camino": "lineas[0].insumoId", "tabla": "insumos" }
+      ]
+    },
+    {
+      "ruta": "/api/compras/plantilla/usar",
+      "comando": "compras.usar_plantilla",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "proveedorId": "⟨proveedores⟩", "plantillaId": "⟨plantillas_compra⟩" },
+      "ids": [
+        { "camino": "proveedorId", "tabla": "proveedores" },
+        { "camino": "plantillaId", "tabla": "plantillas_compra" }
+      ]
+    },
+    {
+      "ruta": "/api/compras/recibir-nota",
+      "comando": "compras.recibir_nota",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "proveedorId": "⟨proveedores⟩",
+        "plantillaCompraId": "⟨plantillas_compra⟩",
+        "lineas": [
+          {
+            "insumoId": "⟨insumos⟩",
+            "cantidadCapturada": "prueba de aislamiento",
+            "unidadCapturada": "prueba de aislamiento",
+            "equivalencia": "prueba de aislamiento",
+            "costoTotal": "prueba de aislamiento"
+          }
+        ],
+        "almacenId": "⟨?⟩",
+        "canjes": []
+      },
+      "ids": [
+        { "camino": "proveedorId", "tabla": "proveedores" },
+        { "camino": "plantillaCompraId", "tabla": "plantillas_compra" },
+        { "camino": "lineas[0].insumoId", "tabla": "insumos" },
+        { "camino": "almacenId", "tabla": null }
+      ]
+    },
+    {
+      "ruta": "/api/compras/registrar",
+      "comando": "compras.registrar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "proveedorId": "⟨proveedores⟩",
+        "plantillaCompraId": "⟨plantillas_compra⟩",
+        "lineas": [
+          {
+            "insumoId": "⟨insumos⟩",
+            "cantidadCapturada": "prueba de aislamiento",
+            "unidadCapturada": "prueba de aislamiento",
+            "equivalencia": "prueba de aislamiento",
+            "costoTotal": "prueba de aislamiento"
+          }
+        ]
+      },
+      "ids": [
+        { "camino": "proveedorId", "tabla": "proveedores" },
+        { "camino": "plantillaCompraId", "tabla": "plantillas_compra" },
+        { "camino": "lineas[0].insumoId", "tabla": "insumos" }
+      ]
+    },
+    {
+      "ruta": "/api/compras/sugerencia",
+      "comando": "compras.sugerir_pedido",
+      "escribe": false,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "proveedorId": "⟨proveedores⟩", "almacenId": "⟨?⟩" },
+      "ids": [
+        { "camino": "proveedorId", "tabla": "proveedores" },
+        { "camino": "almacenId", "tabla": null }
+      ]
+    },
+    {
+      "ruta": "/api/cotizacion/aprobar",
+      "comando": "cotizacion.registrar_aprobacion",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "cotizacionId": "⟨?⟩" },
+      "ids": [{ "camino": "cotizacionId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/cotizacion/cerrar",
+      "comando": "cotizacion.cerrar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "cotizacionId": "⟨?⟩", "resultado": "perdida" },
+      "ids": [{ "camino": "cotizacionId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/cotizacion/convertir",
+      "comando": "cotizacion.convertir_en_nota",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "cotizacionId": "⟨?⟩" },
+      "ids": [{ "camino": "cotizacionId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/cotizacion/enviar",
+      "comando": "cotizacion.registrar_envio",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "cotizacionId": "⟨?⟩", "medio": "correo" },
+      "ids": [{ "camino": "cotizacionId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/cotizacion",
+      "comando": "cotizacion.crear",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "obraId": "⟨obras⟩",
+        "lineas": [
+          {
+            "productoId": "⟨productos⟩",
+            "descripcion": "prueba de aislamiento",
+            "cantidad": "prueba de aislamiento",
+            "unidad": "prueba de aislamient",
+            "precioUnitarioCentavos": 0
+          }
+        ]
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "obraId", "tabla": "obras" },
+        { "camino": "lineas[0].productoId", "tabla": "productos" }
+      ]
+    },
+    {
+      "ruta": "/api/cotizacion/surtir",
+      "comando": "cotizacion.registrar_surtido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "cotizacionId": "⟨?⟩",
+        "entregas": [{ "lineaId": "⟨orden_lineas⟩", "cantidad": "prueba de aislamiento" }]
+      },
+      "ids": [
+        { "camino": "cotizacionId", "tabla": null },
+        { "camino": "entregas[0].lineaId", "tabla": "orden_lineas" }
+      ]
+    },
+    {
+      "ruta": "/api/cotizacion/versionar",
+      "comando": "cotizacion.versionar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "cotizacionId": "⟨?⟩",
+        "venceEl": "⟨hoy⟩",
+        "lineas": [
+          {
+            "productoId": "⟨productos⟩",
+            "descripcion": "prueba de aislamiento",
+            "cantidad": "prueba de aislamiento",
+            "unidad": "prueba de aislamient",
+            "precioUnitarioCentavos": 0
+          }
+        ]
+      },
+      "ids": [
+        { "camino": "cotizacionId", "tabla": null },
+        { "camino": "lineas[0].productoId", "tabla": "productos" }
+      ]
+    },
+    {
+      "ruta": "/api/credito/autorizado-baja",
+      "comando": "credito.baja_autorizado",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "autorizadoId": "⟨autorizados_cuenta⟩" },
+      "ids": [{ "camino": "autorizadoId", "tabla": "autorizados_cuenta" }]
+    },
+    {
+      "ruta": "/api/credito/autorizado",
+      "comando": "credito.alta_autorizado",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "obraId": "⟨obras⟩",
+        "nombre": "prueba de aislamiento"
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "obraId", "tabla": "obras" }
+      ]
+    },
+    {
+      "ruta": "/api/credito/autorizar",
+      "comando": "credito.autorizar",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "solicitaEmpleoId": "⟨empleos⟩",
+        "importeCentavos": 1,
+        "ordenId": "⟨ordenes⟩",
+        "motivo": "prueba de aislamiento"
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "solicitaEmpleoId", "tabla": "empleos" },
+        { "camino": "ordenId", "tabla": "ordenes" }
+      ]
+    },
+    {
+      "ruta": "/api/credito/confirmar-transferencia",
+      "comando": "credito.confirmar_transferencia",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "pagoId": "⟨pagos_credito⟩" },
+      "ids": [{ "camino": "pagoId", "tabla": "pagos_credito" }]
+    },
+    {
+      "ruta": "/api/credito/estado-cuenta",
+      "comando": "credito.estado_de_cuenta",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩" },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/credito/evaluar",
+      "comando": "credito.evaluar_salida",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "importeCentavos": 1,
+        "obraId": "⟨obras⟩",
+        "autorizadoId": "⟨autorizados_cuenta⟩"
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "obraId", "tabla": "obras" },
+        { "camino": "autorizadoId", "tabla": "autorizados_cuenta" }
+      ]
+    },
+    {
+      "ruta": "/api/credito/limite-credito",
+      "comando": "credito.fijar_limite",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "limiteCentavos": 0,
+        "motivo": "prueba de aislamiento"
+      },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/credito/limite",
+      "comando": "credito.fijar_muro",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩", "bloquear": false, "motivo": "prueba de aislamiento" },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/credito/obra-cerrar",
+      "comando": "credito.cerrar_obra",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "obraId": "⟨obras⟩" },
+      "ids": [{ "camino": "obraId", "tabla": "obras" }]
+    },
+    {
+      "ruta": "/api/credito/obra",
+      "comando": "credito.crear_obra",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩", "nombre": "prueba de aislamiento" },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/credito/pago",
+      "comando": "credito.registrar_pago",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩", "montoCentavos": 1, "metodo": "efectivo" },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/credito/remision",
+      "comando": "credito.registrar_remision",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "clienteId": "⟨clientes⟩",
+        "importeCentavos": 1,
+        "obraId": "⟨obras⟩",
+        "autorizadoId": "⟨autorizados_cuenta⟩",
+        "nombreFirmante": "prueba de aislamiento"
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "obraId", "tabla": "obras" },
+        { "camino": "autorizadoId", "tabla": "autorizados_cuenta" }
+      ]
+    },
+    {
+      "ruta": "/api/entradas/recibir",
+      "comando": "compras.recibir_entrada",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "proveedorId": "⟨proveedores⟩", "camino": "archivo", "lineas": [] },
+      "ids": [{ "camino": "proveedorId", "tabla": "proveedores" }]
+    },
+    {
+      "ruta": "/api/envase/deposito",
+      "comando": "envase.mover_deposito",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "montoCentavos": 1, "cantidad": 1, "productoId": "⟨productos⟩" },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/expediente/abrir",
+      "comando": "expediente.abrir",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩" },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/expediente/capturar-formula",
+      "comando": "expediente.capturar_formula",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "citaId": "⟨citas⟩" },
+      "ids": [{ "camino": "citaId", "tabla": "citas" }]
+    },
+    {
+      "ruta": "/api/expediente/fotos",
+      "comando": "expediente.fotos",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩" },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/ferreteria/agregar-partida",
+      "comando": "ferreteria.agregar_partida",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "piezaId": "⟨piezas_de_material⟩",
+        "cantidad": "prueba de aislamiento",
+        "presentacionId": "⟨producto_presentaciones⟩"
+      },
+      "ids": [
+        { "camino": "piezaId", "tabla": "piezas_de_material" },
+        { "camino": "presentacionId", "tabla": "producto_presentaciones" }
+      ]
+    },
+    {
+      "ruta": "/api/ferreteria/cortar",
+      "comando": "ferreteria.cortar_y_agregar",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "materialId": "⟨materiales_mostrador⟩",
+        "piezaId": "⟨piezas_de_material⟩",
+        "medida": "prueba de aislamient",
+        "clienteId": "⟨clientes⟩"
+      },
+      "ids": [
+        { "camino": "materialId", "tabla": "materiales_mostrador" },
+        { "camino": "piezaId", "tabla": "piezas_de_material" },
+        { "camino": "clienteId", "tabla": "clientes" }
+      ]
+    },
+    {
+      "ruta": "/api/ferreteria/declarar-equivalencia",
+      "comando": "catalogo.declarar_equivalencia_dicha",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "piezaId": "⟨piezas_de_material⟩", "texto": "prueba de aislamiento" },
+      "ids": [{ "camino": "piezaId", "tabla": "piezas_de_material" }]
+    },
+    {
+      "ruta": "/api/fiado/abono",
+      "comando": "fiado.registrar_abono",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩", "montoCentavos": 1, "metodo": "efectivo" },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/fiado/incobrable",
+      "comando": "credito.fijar_muro",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩", "bloquear": false, "motivo": "prueba de aislamiento" },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/fiado/limite",
+      "comando": "credito.emitir_documento",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "origenTipo": "venta",
+        "origenId": "⟨ordenes⟩",
+        "importeCentavos": 1
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "origenId", "tabla": "ordenes" }
+      ]
+    },
+    {
+      "ruta": "/api/gastos/plantilla",
+      "comando": "gastos.guardar_plantilla",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": {
+        "plantillaId": "⟨plantillas_compra⟩",
+        "nombre": "prueba de aislamiento",
+        "categoria": "limpieza",
+        "montoSugerido": "prueba de aislamiento",
+        "metodoPago": "efectivo",
+        "periodicidad": "mensual"
+      },
+      "ids": [{ "camino": "plantillaId", "tabla": "plantillas_compra" }]
+    },
+    {
+      "ruta": "/api/gastos/registrar",
+      "comando": "gastos.registrar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": {
+        "categoria": "limpieza",
+        "descripcion": "prueba de aislamiento",
+        "monto": "prueba de aislamiento",
+        "metodoPago": "efectivo",
+        "plantillaGastoId": "⟨plantillas_gasto⟩"
+      },
+      "ids": [{ "camino": "plantillaGastoId", "tabla": "plantillas_gasto" }]
+    },
+    {
+      "ruta": "/api/identidad/empleados",
+      "comando": "identidad.guardar_empleado",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": {
+        "empleado": "⟨empleos⟩",
+        "nombre": "prueba de aislamiento",
+        "puesto": "prueba de aislamient",
+        "estacionPreparacionId": "⟨estaciones_preparacion⟩"
+      },
+      "ids": [
+        { "camino": "empleado", "tabla": "empleos" },
+        { "camino": "estacionPreparacionId", "tabla": "estaciones_preparacion" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/ajustar-conteo",
+      "comando": "inventario.ajustar_conteo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "zona": "prueba de aislamiento",
+        "movimientos": [{ "insumoId": "⟨insumos⟩", "contado": "prueba de aislamiento" }]
+      },
+      "ids": [{ "camino": "movimientos[0].insumoId", "tabla": "insumos" }]
+    },
+    {
+      "ruta": "/api/inventario/asignar-zona",
+      "comando": "inventario.asignar_zona",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "zonaId": "⟨zonas⟩", "insumoIds": ["⟨insumos⟩"] },
+      "ids": [
+        { "camino": "zonaId", "tabla": "zonas" },
+        { "camino": "insumoIds[0]", "tabla": "insumos" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/cabina/alcanza",
+      "comando": "cabina.alcanza",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "almacenCabinaId": "⟨?⟩", "consumoEsperado": [] },
+      "ids": [{ "camino": "almacenCabinaId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/inventario/caducidad/consumir",
+      "comando": "inventario.consumir_caducidad",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "caducidadId": "⟨?⟩", "cantidad": "prueba de aislamiento", "motivo": "venta" },
+      "ids": [{ "camino": "caducidadId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/inventario/caducidad",
+      "comando": "inventario.registrar_caducidad",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "almacenId": "⟨?⟩",
+        "productoId": "⟨productos⟩",
+        "caducaEl": "⟨hoy⟩",
+        "cantidad": "prueba de aislamiento",
+        "compraId": "⟨compras⟩"
+      },
+      "ids": [
+        { "camino": "almacenId", "tabla": null },
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "compraId", "tabla": "compras" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/consumo-interno",
+      "comando": "inventario.consumo_interno",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": {
+        "tipo": "personal",
+        "productoId": "⟨productos⟩",
+        "cantidad": "prueba de aislamiento",
+        "motivo": "prueba de aislamiento",
+        "ordenId": "⟨ordenes⟩"
+      },
+      "ids": [
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "ordenId", "tabla": "ordenes" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/conteo/abrir",
+      "comando": "inventario.abrir_conteo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "almacenId": "⟨?⟩", "alcance": "zona", "zonaId": "⟨zonas⟩" },
+      "ids": [
+        { "camino": "almacenId", "tabla": null },
+        { "camino": "zonaId", "tabla": "zonas" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/conteo/capturar",
+      "comando": "inventario.capturar_conteo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "tomaId": "⟨tomas_inventario⟩",
+        "insumoId": "⟨insumos⟩",
+        "capturas": [
+          { "presentacionId": "⟨producto_presentaciones⟩", "cantidad": "prueba de aislamiento" }
+        ]
+      },
+      "ids": [
+        { "camino": "tomaId", "tabla": "tomas_inventario" },
+        { "camino": "insumoId", "tabla": "insumos" },
+        { "camino": "capturas[0].presentacionId", "tabla": "producto_presentaciones" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/conteo/cerrar",
+      "comando": "inventario.cerrar_conteo",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "tomaId": "⟨tomas_inventario⟩" },
+      "ids": [{ "camino": "tomaId", "tabla": "tomas_inventario" }]
+    },
+    {
+      "ruta": "/api/inventario/conteo/peso",
+      "comando": "inventario.conteo_por_peso",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "tomaId": "⟨tomas_inventario⟩", "productoId": "⟨productos⟩", "pesoTotalMg": 0 },
+      "ids": [
+        { "camino": "tomaId", "tabla": "tomas_inventario" },
+        { "camino": "productoId", "tabla": "productos" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/cortar",
+      "comando": "inventario.cortar_material",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenLineaId": "⟨orden_lineas⟩",
+        "productoId": "⟨productos⟩",
+        "almacenId": "⟨?⟩",
+        "medidaSolicitadaBase": 1,
+        "mermaBase": 0,
+        "piezaAbiertaId": "⟨piezas_abiertas⟩"
+      },
+      "ids": [
+        { "camino": "ordenLineaId", "tabla": "orden_lineas" },
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "almacenId", "tabla": null },
+        { "camino": "piezaAbiertaId", "tabla": "piezas_abiertas" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/corte",
+      "comando": "inventario.cortar_material",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenLineaId": "⟨orden_lineas⟩",
+        "productoId": "⟨productos⟩",
+        "almacenId": "⟨?⟩",
+        "medidaSolicitadaBase": 1,
+        "mermaBase": 0,
+        "piezaAbiertaId": "⟨piezas_abiertas⟩"
+      },
+      "ids": [
+        { "camino": "ordenLineaId", "tabla": "orden_lineas" },
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "almacenId", "tabla": null },
+        { "camino": "piezaAbiertaId", "tabla": "piezas_abiertas" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/garantia/resolver",
+      "comando": "inventario.resolver_garantia",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "garantiaId": "⟨?⟩", "estado": "enviada" },
+      "ids": [{ "camino": "garantiaId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/inventario/garantia",
+      "comando": "inventario.recibir_garantia",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "proveedorId": "⟨proveedores⟩",
+        "productoId": "⟨productos⟩",
+        "piezas": 1,
+        "falla": "prueba de aislamiento",
+        "ordenId": "⟨ordenes⟩",
+        "clienteId": "⟨clientes⟩",
+        "almacenId": "⟨?⟩"
+      },
+      "ids": [
+        { "camino": "proveedorId", "tabla": "proveedores" },
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "almacenId", "tabla": null }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/garantias-pendientes",
+      "comando": "inventario.garantias_pendientes",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "proveedorId": "⟨proveedores⟩" },
+      "ids": [{ "camino": "proveedorId", "tabla": "proveedores" }]
+    },
+    {
+      "ruta": "/api/inventario/guardar-zona",
+      "comando": "inventario.guardar_zona",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "zonaId": "⟨zonas⟩", "nombre": "prueba de aislamiento", "diasEntreConteos": 1 },
+      "ids": [{ "camino": "zonaId", "tabla": "zonas" }]
+    },
+    {
+      "ruta": "/api/inventario/kardex",
+      "comando": "inventario.kardex",
+      "escribe": false,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "insumoId": "⟨insumos⟩", "almacenId": "⟨?⟩" },
+      "ids": [
+        { "camino": "insumoId", "tabla": "insumos" },
+        { "camino": "almacenId", "tabla": null }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/merma",
+      "comando": "inventario.registrar_merma",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "almacenId": "⟨?⟩",
+        "insumoId": "⟨insumos⟩",
+        "estrategia": "insumo",
+        "cantidad": "prueba de aislamiento",
+        "unidad": "prueba de aislamient",
+        "motivoClave": "prueba de aislamiento"
+      },
+      "ids": [
+        { "camino": "almacenId", "tabla": null },
+        { "camino": "insumoId", "tabla": "insumos" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/pieza-abierta/retazo",
+      "comando": "inventario.marcar_retazo",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "piezaId": "⟨piezas_de_material⟩", "precioRemateCentavos": 0 },
+      "ids": [{ "camino": "piezaId", "tabla": "piezas_de_material" }]
+    },
+    {
+      "ruta": "/api/inventario/pieza-abierta",
+      "comando": "inventario.abrir_pieza",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "productoId": "⟨productos⟩",
+        "almacenId": "⟨?⟩",
+        "medidaBase": "prueba de aislamiento",
+        "folio": "prueba de aislamient",
+        "ubicacionId": "⟨ubicaciones⟩"
+      },
+      "ids": [
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "almacenId", "tabla": null },
+        { "camino": "ubicacionId", "tabla": "ubicaciones" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/piezas-abiertas",
+      "comando": "inventario.piezas_abiertas",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "productoId": "⟨productos⟩" },
+      "ids": [{ "camino": "productoId", "tabla": "productos" }]
+    },
+    {
+      "ruta": "/api/inventario/traspaso-recibir",
+      "comando": "inventario.recibir_traspaso",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "traspasoId": "⟨?⟩",
+        "recibido": [
+          {
+            "insumoId": "⟨insumos⟩",
+            "cantidad": "prueba de aislamiento",
+            "unidad": "prueba de aislamiento"
+          }
+        ]
+      },
+      "ids": [
+        { "camino": "traspasoId", "tabla": null },
+        { "camino": "recibido[0].insumoId", "tabla": "insumos" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/traspaso",
+      "comando": "inventario.enviar_traspaso",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "almacenOrigen": "⟨ordenes⟩",
+        "almacenDestino": "⟨ordenes⟩",
+        "lineas": [
+          {
+            "insumoId": "⟨insumos⟩",
+            "cantidad": "prueba de aislamiento",
+            "unidad": "prueba de aislamient"
+          }
+        ]
+      },
+      "ids": [
+        { "camino": "almacenOrigen", "tabla": "ordenes" },
+        { "camino": "almacenDestino", "tabla": "ordenes" },
+        { "camino": "lineas[0].insumoId", "tabla": "insumos" }
+      ]
+    },
+    {
+      "ruta": "/api/inventario/valuacion",
+      "comando": "inventario.valuar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "almacenId": "⟨?⟩" },
+      "ids": [{ "camino": "almacenId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/lealtad/ajustar",
+      "comando": "lealtad.ajustar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩", "sellos": -100, "motivo": "prueba de aislamiento" },
+      "ids": [{ "camino": "clienteId", "tabla": "clientes" }]
+    },
+    {
+      "ruta": "/api/lealtad/canjear",
+      "comando": "lealtad.canjear",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩", "productoId": "⟨productos⟩", "ordenId": "⟨ordenes⟩" },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "ordenId", "tabla": "ordenes" }
+      ]
+    },
+    {
+      "ruta": "/api/lealtad/identificar",
+      "comando": "lealtad.otorgar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "clienteId": "⟨clientes⟩", "ordenId": "⟨ordenes⟩" },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "ordenId", "tabla": "ordenes" }
+      ]
+    },
+    {
+      "ruta": "/api/liquidaciones",
+      "comando": "comision.liquidar_profesional",
+      "escribe": true,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "profesionalId": "⟨profesionales⟩",
+        "periodoDesde": "⟨hoy⟩",
+        "periodoHasta": "⟨hoy⟩"
+      },
+      "ids": [{ "camino": "profesionalId", "tabla": "profesionales" }]
+    },
+    {
+      "ruta": "/api/liquidaciones/vista-previa",
+      "comando": "comision.vista_previa_liquidacion",
+      "escribe": false,
+      "roles": ["administrador", "dueno"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "profesionalId": "⟨profesionales⟩",
+        "periodoDesde": "⟨hoy⟩",
+        "periodoHasta": "⟨hoy⟩"
+      },
+      "ids": [{ "camino": "profesionalId", "tabla": "profesionales" }]
+    },
+    {
+      "ruta": "/api/lista-espera",
+      "comando": "lista_espera_citas.anotar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "servicioId": "⟨?⟩",
+        "profesionalId": "⟨profesionales⟩",
+        "desde": "⟨ahora⟩",
+        "hasta": "⟨ahora⟩"
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "servicioId", "tabla": null },
+        { "camino": "profesionalId", "tabla": "profesionales" }
+      ]
+    },
+    {
+      "ruta": "/api/por-pagar/pagar",
+      "comando": "por_pagar.pagar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "proveedorId": "⟨proveedores⟩",
+        "montoCentavos": 1,
+        "metodo": "efectivo",
+        "sesionCajaId": "⟨sesiones_caja⟩"
+      },
+      "ids": [
+        { "camino": "proveedorId", "tabla": "proveedores" },
+        { "camino": "sesionCajaId", "tabla": "sesiones_caja" }
+      ]
+    },
+    {
+      "ruta": "/api/por-pagar/resumen",
+      "comando": "por_pagar.resumen",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "proveedorId": "⟨proveedores⟩" },
+      "ids": [{ "camino": "proveedorId", "tabla": "proveedores" }]
+    },
+    {
+      "ruta": "/api/por-pagar",
+      "comando": "por_pagar.registrar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "proveedorId": "⟨proveedores⟩",
+        "folioProveedor": "prueba de aislamiento",
+        "compraId": "⟨compras⟩",
+        "importeCentavos": 1,
+        "venceEn": "⟨ahora⟩"
+      },
+      "ids": [
+        { "camino": "proveedorId", "tabla": "proveedores" },
+        { "camino": "compraId", "tabla": "compras" }
+      ]
+    },
+    {
+      "ruta": "/api/portal/pedido-anticipado",
+      "comando": "cafeteria.programar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "nombre": "prueba de aislamiento",
+        "horaPrometida": "⟨ahora⟩"
+      },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/precios/aplicar-sugerido",
+      "comando": "catalogo.aplicar_precio_sugerido",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "materialId": "⟨materiales_mostrador⟩", "precioCentavos": 1 },
+      "ids": [{ "camino": "materialId", "tabla": "materiales_mostrador" }]
+    },
+    {
+      "ruta": "/api/propinas/entregar",
+      "comando": "propinas.entregar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "empleoBeneficiarioId": "⟨empleos⟩", "montoCentavos": 1 },
+      "ids": [{ "camino": "empleoBeneficiarioId", "tabla": "empleos" }]
+    },
+    {
+      "ruta": "/api/propinas/liquidar",
+      "comando": "propinas.liquidar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": false,
+      "cuerpo": {
+        "rangoTipo": "dia",
+        "desde": "prueba de aislamiento",
+        "hasta": "prueba de aislamiento",
+        "meseroId": "⟨empleos⟩",
+        "ordenIds": ["⟨ordenes⟩"],
+        "esquemaId": "⟨esquemas_propina⟩",
+        "beneficiarios": [{ "empleoId": "⟨empleos⟩", "puesto": "mesero" }]
+      },
+      "ids": [
+        { "camino": "meseroId", "tabla": "empleos" },
+        { "camino": "ordenIds[0]", "tabla": "ordenes" },
+        { "camino": "esquemaId", "tabla": "esquemas_propina" },
+        { "camino": "beneficiarios[0].empleoId", "tabla": "empleos" }
+      ]
+    },
+    {
+      "ruta": "/api/propinas/pasivo",
+      "comando": "propinas.anotar_pasivo",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "empleoBeneficiarioId": "⟨empleos⟩",
+        "montoCentavos": 1,
+        "ordenId": "⟨ordenes⟩",
+        "metodo": "tarjeta"
+      },
+      "ids": [
+        { "camino": "empleoBeneficiarioId", "tabla": "empleos" },
+        { "camino": "ordenId", "tabla": "ordenes" }
+      ]
+    },
+    {
+      "ruta": "/api/propinas/pendientes",
+      "comando": "propinas.pendientes",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": false,
+      "cuerpo": {
+        "desde": "prueba de aislamiento",
+        "hasta": "prueba de aislamiento",
+        "meseroId": "⟨empleos⟩"
+      },
+      "ids": [{ "camino": "meseroId", "tabla": "empleos" }]
+    },
+    {
+      "ruta": "/api/propinas/recibir-directa",
+      "comando": "propina.recibir_directa",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "profesionalId": "⟨profesionales⟩",
+        "ordenId": "⟨ordenes⟩",
+        "citaServicioId": "⟨cita_servicios⟩",
+        "montoCentavos": 1,
+        "medio": "efectivo"
+      },
+      "ids": [
+        { "camino": "profesionalId", "tabla": "profesionales" },
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "citaServicioId", "tabla": "cita_servicios" }
+      ]
+    },
+    {
+      "ruta": "/api/propinas/repartir-bote",
+      "comando": "cafeteria.repartir_bote",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "sesionCajaId": "⟨sesiones_caja⟩" },
+      "ids": [{ "camino": "sesionCajaId", "tabla": "sesiones_caja" }]
+    },
+    {
+      "ruta": "/api/renta/devolver",
+      "comando": "renta.devolver",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "rentaId": "⟨?⟩", "estado": "devuelta" },
+      "ids": [{ "camino": "rentaId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/renta",
+      "comando": "renta.sacar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "productoId": "⟨productos⟩",
+        "piezas": 1,
+        "clienteId": "⟨clientes⟩",
+        "tarifaCentavos": 0,
+        "unidadTarifa": "hora",
+        "compromisoRetorno": "⟨ahora⟩"
+      },
+      "ids": [
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "clienteId", "tabla": "clientes" }
+      ]
+    },
+    {
+      "ruta": "/api/restaurante/abrir-mesa",
+      "comando": "restaurante.abrir_mesa",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "mesaId": "⟨mesas⟩", "personas": 1 },
+      "ids": [{ "camino": "mesaId", "tabla": "mesas" }]
+    },
+    {
+      "ruta": "/api/restaurante/anular-linea",
+      "comando": "restaurante.anular_linea",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩", "lineaId": "⟨orden_lineas⟩", "motivo": "error_cocina" },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "lineaId", "tabla": "orden_lineas" }
+      ]
+    },
+    {
+      "ruta": "/api/restaurante/asignar-mesero",
+      "comando": "restaurante.asignar_mesero",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "mesaId": "⟨mesas⟩" },
+      "ids": [{ "camino": "mesaId", "tabla": "mesas" }]
+    },
+    {
+      "ruta": "/api/restaurante/atender-solicitud",
+      "comando": "restaurante.atender_solicitud",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "solicitudId": "⟨solicitudes_qr⟩", "estado": "atendida" },
+      "ids": [{ "camino": "solicitudId", "tabla": "solicitudes_qr" }]
+    },
+    {
+      "ruta": "/api/restaurante/cambiar-mesa",
+      "comando": "restaurante.cambiar_mesa",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩", "mesaDestinoId": "⟨ordenes⟩" },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "mesaDestinoId", "tabla": "ordenes" }
+      ]
+    },
+    {
+      "ruta": "/api/restaurante/cancelar-orden",
+      "comando": "restaurante.cancelar_orden",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩", "motivo": "prueba de aislamiento" },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/restaurante/descontar-cuenta",
+      "comando": "restaurante.descontar_cuenta",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "descuentoCentavos": 1,
+        "motivo": "prueba de aislamiento"
+      },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/restaurante/dividir-cuenta",
+      "comando": "restaurante.dividir_cuenta",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "particiones": [
+          { "tomas": [{ "lineaId": "⟨orden_lineas⟩", "cantidad": 1 }] },
+          { "tomas": [{ "lineaId": "⟨orden_lineas⟩", "cantidad": 1 }] }
+        ]
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "particiones[0].tomas[0].lineaId", "tabla": "orden_lineas" },
+        { "camino": "particiones[1].tomas[0].lineaId", "tabla": "orden_lineas" }
+      ]
+    },
+    {
+      "ruta": "/api/restaurante/entregar-pedidos",
+      "comando": "restaurante.entregar_pedidos",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/restaurante/enviar-pedido",
+      "comando": "restaurante.enviar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "lineas": [{ "productoId": "⟨productos⟩", "cantidad": "prueba de aislamiento" }]
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "lineas[0].productoId", "tabla": "productos" }
+      ]
+    },
+    {
+      "ruta": "/api/restaurante/espera/mover",
+      "comando": "restaurante.mover_espera",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "esperaId": "⟨lista_espera⟩", "estado": "avisado" },
+      "ids": [{ "camino": "esperaId", "tabla": "lista_espera" }]
+    },
+    {
+      "ruta": "/api/restaurante/espera/sentar",
+      "comando": "restaurante.sentar_espera",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "esperaId": "⟨lista_espera⟩", "mesaId": "⟨mesas⟩" },
+      "ids": [
+        { "camino": "esperaId", "tabla": "lista_espera" },
+        { "camino": "mesaId", "tabla": "mesas" }
+      ]
+    },
+    {
+      "ruta": "/api/restaurante/imprimir-precuenta",
+      "comando": "restaurante.imprimir_precuenta",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/restaurante/liberar-mesa",
+      "comando": "restaurante.liberar_mesa",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "mesaId": "⟨mesas⟩" },
+      "ids": [{ "camino": "mesaId", "tabla": "mesas" }]
+    },
+    {
+      "ruta": "/api/restaurante/marchar-tiempo",
+      "comando": "restaurante.marchar_tiempo",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩", "tiempoServicio": 1 },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/restaurante/relevar",
+      "comando": "restaurante.relevar_responsable",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "empleadoSaleId": "⟨empleos⟩", "empleadoEntraId": "⟨empleos⟩" },
+      "ids": [
+        { "camino": "empleadoSaleId", "tabla": "empleos" },
+        { "camino": "empleadoEntraId", "tabla": "empleos" }
+      ]
+    },
+    {
+      "ruta": "/api/restaurante/rotar-qr",
+      "comando": "restaurante.rotar_qr",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "mesaId": "⟨mesas⟩" },
+      "ids": [{ "camino": "mesaId", "tabla": "mesas" }]
+    },
+    {
+      "ruta": "/api/restaurante/separar-mesas",
+      "comando": "restaurante.separar_mesas",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "unionId": "⟨uniones_mesa⟩" },
+      "ids": [{ "camino": "unionId", "tabla": "uniones_mesa" }]
+    },
+    {
+      "ruta": "/api/restaurante/solicitar-cuenta",
+      "comando": "restaurante.solicitar_cuenta",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/restaurante/transicionar-pedido",
+      "comando": "restaurante.transicionar_pedido",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": {
+        "comandaId": "⟨comandas⟩",
+        "comandaItemId": "⟨comandas⟩",
+        "estado": "en_preparacion"
+      },
+      "ids": [
+        { "camino": "comandaId", "tabla": "comandas" },
+        { "camino": "comandaItemId", "tabla": "comandas" }
+      ]
+    },
+    {
+      "ruta": "/api/restaurante/unir-mesas",
+      "comando": "restaurante.unir_mesas",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "mesaPrincipalId": "⟨mesas⟩", "mesaIds": ["⟨mesas⟩"] },
+      "ids": [
+        { "camino": "mesaPrincipalId", "tabla": "mesas" },
+        { "camino": "mesaIds[0]", "tabla": "mesas" }
+      ]
+    },
+    {
+      "ruta": "/api/servicio/trabajo",
+      "comando": "venta.registrar_servicio",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenLineaId": "⟨orden_lineas⟩",
+        "almacenId": "⟨?⟩",
+        "tipo": "copia_llave",
+        "manoObraCentavos": 0,
+        "consumos": []
+      },
+      "ids": [
+        { "camino": "ordenLineaId", "tabla": "orden_lineas" },
+        { "camino": "almacenId", "tabla": null }
+      ]
+    },
+    {
+      "ruta": "/api/servicios/asignaciones",
+      "comando": "servicios.asignaciones",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "servicioId": "⟨?⟩" },
+      "ids": [{ "camino": "servicioId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/servicios/guardar",
+      "comando": "servicios.guardar",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": {
+        "servicioId": "⟨?⟩",
+        "nombre": "prueba de aislamiento",
+        "precioCentavos": 0,
+        "duracionActiva1Min": 1,
+        "duracionPasivaMin": 0,
+        "duracionActiva2Min": 0,
+        "duracionCierreMin": 0,
+        "pasivoIntercalable": false,
+        "profesionales": []
+      },
+      "ids": [{ "camino": "servicioId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/turno/presencia/abrir",
+      "comando": "cafeteria.abrir_presencia",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "quienEntraId": "⟨empleos⟩" },
+      "ids": [{ "camino": "quienEntraId", "tabla": "empleos" }]
+    },
+    {
+      "ruta": "/api/turno/presencia/ajustar",
+      "comando": "cafeteria.ajustar_presencia",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "presenciaId": "⟨?⟩", "motivo": "prueba de aislamiento" },
+      "ids": [{ "camino": "presenciaId", "tabla": null }]
+    },
+    {
+      "ruta": "/api/venta/agregar-linea",
+      "comando": "venta.agregar_linea",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "productoId": "⟨productos⟩",
+        "cantidad": "prueba de aislamiento",
+        "presentacionId": "⟨producto_presentaciones⟩"
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "productoId", "tabla": "productos" },
+        { "camino": "presentacionId", "tabla": "producto_presentaciones" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/autorizar-descuento",
+      "comando": "venta.autorizar_descuento",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "solicitaEmpleoId": "⟨empleos⟩",
+        "descuentoCentavos": 1,
+        "motivo": "prueba de aislamiento"
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "solicitaEmpleoId", "tabla": "empleos" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/cambiar-cantidad",
+      "comando": "venta.cambiar_cantidad",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "lineaId": "⟨orden_lineas⟩",
+        "cantidad": "prueba de aislamiento"
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "lineaId", "tabla": "orden_lineas" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/cobrar-cita",
+      "comando": "venta.cobrar_cita",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "citaId": "⟨citas⟩", "pagos": [], "propinas": [] },
+      "ids": [{ "camino": "citaId", "tabla": "citas" }]
+    },
+    {
+      "ruta": "/api/venta/cobrar",
+      "comando": "venta.cobrar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "pagos": [{ "metodo": "efectivo", "montoCentavos": 0 }],
+        "clienteId": "⟨clientes⟩"
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "clienteId", "tabla": "clientes" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/cotizar-cita",
+      "comando": "venta.cotizar_cita",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "citaId": "⟨citas⟩" },
+      "ids": [{ "camino": "citaId", "tabla": "citas" }]
+    },
+    {
+      "ruta": "/api/venta/devolver-venta",
+      "comando": "venta.devolver_venta",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "lineas": [{ "ordenLineaId": "⟨orden_lineas⟩", "cantidad": "prueba de aislamiento" }],
+        "metodo": "efectivo",
+        "motivo": "prueba de aislamiento"
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "lineas[0].ordenLineaId", "tabla": "orden_lineas" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/devolver",
+      "comando": "venta.devolver",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "pedidoId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "pedidoId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/venta/estado",
+      "comando": "venta.estado",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "ordenId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/venta/lista-trabajo/cerrar",
+      "comando": "lista_trabajo.cerrar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "listaId": "⟨listas_de_trabajo⟩", "resultado": "surtida" },
+      "ids": [{ "camino": "listaId", "tabla": "listas_de_trabajo" }]
+    },
+    {
+      "ruta": "/api/venta/lista-trabajo/renglones",
+      "comando": "lista_trabajo.renglones",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "listaId": "⟨listas_de_trabajo⟩" },
+      "ids": [{ "camino": "listaId", "tabla": "listas_de_trabajo" }]
+    },
+    {
+      "ruta": "/api/venta/lista-trabajo",
+      "comando": "lista_trabajo.capturar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "titulo": "prueba de aislamiento",
+        "clienteId": "⟨clientes⟩",
+        "obraId": "⟨obras⟩",
+        "renglones": [{ "textoPedido": "prueba de aislamiento", "productoId": "⟨productos⟩" }]
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "obraId", "tabla": "obras" },
+        { "camino": "renglones[0].productoId", "tabla": "productos" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/lista-trabajo/surtir",
+      "comando": "lista_trabajo.surtir",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "listaId": "⟨listas_de_trabajo⟩",
+        "renglones": [
+          { "renglonId": "⟨?⟩", "productoId": "⟨productos⟩", "cantidad": "prueba de aislamiento" }
+        ]
+      },
+      "ids": [
+        { "camino": "listaId", "tabla": "listas_de_trabajo" },
+        { "camino": "renglones[0].renglonId", "tabla": null },
+        { "camino": "renglones[0].productoId", "tabla": "productos" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/mandar-a-caja",
+      "comando": "ferreteria.crear_nota_mostrador",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "clienteId": "⟨clientes⟩",
+        "obraId": "⟨obras⟩",
+        "partidas": [
+          {
+            "productoId": "⟨productos⟩",
+            "cantidad": "prueba de aislamient",
+            "presentacionId": "⟨producto_presentaciones⟩"
+          }
+        ]
+      },
+      "ids": [
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "obraId", "tabla": "obras" },
+        { "camino": "partidas[0].productoId", "tabla": "productos" },
+        { "camino": "partidas[0].presentacionId", "tabla": "producto_presentaciones" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/nota-mostrador/cancelar",
+      "comando": "nota_mostrador.cancelar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "notaId": "⟨notas_de_caja⟩", "motivo": "prueba de aislamiento" },
+      "ids": [{ "camino": "notaId", "tabla": "notas_de_caja" }]
+    },
+    {
+      "ruta": "/api/venta/nota-mostrador/entregar",
+      "comando": "nota_mostrador.entregar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "notaId": "⟨notas_de_caja⟩" },
+      "ids": [{ "camino": "notaId", "tabla": "notas_de_caja" }]
+    },
+    {
+      "ruta": "/api/venta/nota-mostrador",
+      "comando": "nota_mostrador.apartar",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "notaId": "⟨notas_de_caja⟩", "apartaHasta": "⟨ahora⟩" },
+      "ids": [{ "camino": "notaId", "tabla": "notas_de_caja" }]
+    },
+    {
+      "ruta": "/api/venta/para-devolver",
+      "comando": "venta.para_devolver",
+      "escribe": false,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": false,
+      "cuerpo": { "ordenId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/venta/quitar-linea",
+      "comando": "venta.quitar_linea",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩", "lineaId": "⟨orden_lineas⟩" },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "lineaId", "tabla": "orden_lineas" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/redondeo",
+      "comando": "venta.registrar_redondeo",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "tipo": "a_favor",
+        "importeCentavos": 1,
+        "productoEspecieId": "⟨productos⟩"
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "productoEspecieId", "tabla": "productos" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/remision",
+      "comando": "credito.registrar_remision",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenId": "⟨ordenes⟩",
+        "clienteId": "⟨clientes⟩",
+        "importeCentavos": 1,
+        "obraId": "⟨obras⟩",
+        "autorizadoId": "⟨autorizados_cuenta⟩",
+        "nombreFirmante": "prueba de aislamiento"
+      },
+      "ids": [
+        { "camino": "ordenId", "tabla": "ordenes" },
+        { "camino": "clienteId", "tabla": "clientes" },
+        { "camino": "obraId", "tabla": "obras" },
+        { "camino": "autorizadoId", "tabla": "autorizados_cuenta" }
+      ]
+    },
+    {
+      "ruta": "/api/venta/servicio",
+      "comando": "venta.registrar_servicio",
+      "escribe": true,
+      "roles": ["administrador", "almacen", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": {
+        "ordenLineaId": "⟨orden_lineas⟩",
+        "almacenId": "⟨?⟩",
+        "tipo": "copia_llave",
+        "manoObraCentavos": 0,
+        "consumos": []
+      },
+      "ids": [
+        { "camino": "ordenLineaId", "tabla": "orden_lineas" },
+        { "camino": "almacenId", "tabla": null }
+      ]
+    },
+    {
+      "ruta": "/api/venta/suspender",
+      "comando": "venta.suspender",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    },
+    {
+      "ruta": "/api/venta/ticket",
+      "comando": "venta.ticket",
+      "escribe": false,
+      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "ordenId": "⟨ordenes⟩" },
+      "ids": [{ "camino": "ordenId", "tabla": "ordenes" }]
+    }
+  ]
+}

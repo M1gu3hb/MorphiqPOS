@@ -32,7 +32,15 @@ import { definirComando } from '../definicion.ts';
  */
 
 const CATALOGO = ['gerente', 'administrador', 'dueno'] as const;
-const CONTEO = ['cajero', ...CATALOGO] as const;
+/**
+ * QUIEN CUENTA, CALIBRA (bloque D de la 2.4). El almacén tiene «Conteo» en su menú
+ * (`04-INTERFAZ §4.2`, «Almacén · Existencias · Entradas · Conteo») y abre y cierra la toma
+ * (`inventario.abrir_conteo`), pero pesar y calibrar le contestaban 403: la toma se abría y
+ * no se podía contar. Calibrar es contar una muestra de verdad, que es su trabajo; el
+ * catálogo —precios, medidas— sigue siendo de quien administra.
+ */
+const CALIBRA = ['almacen', ...CATALOGO] as const;
+const CONTEO = ['almacen', 'cajero', ...CATALOGO] as const;
 
 /** Con menos piezas la muestra no vale: una sola pieza atípica mueve el promedio. */
 const MINIMO_DE_MUESTRA = 10;
@@ -86,7 +94,7 @@ export const calibrarPeso = definirComando<
   nombre: 'catalogo.calibrar_peso',
   entidad: 'producto',
   escribe: true,
-  roles: [...CATALOGO],
+  roles: [...CALIBRA],
   paquetes: PAQUETES_TODOS,
   entrada: entradaCalibrarPeso,
   async ejecutar(ctx, entrada) {

@@ -23,6 +23,9 @@ const INSUMO_LLAVE = 'i1111111-1111-4111-8111-111111111111';
 const ALMACEN = 'a1111111-1111-4111-8111-111111111111';
 const LINEA = 'l1111111-1111-4111-8111-111111111111';
 const AHORA = new Date('2026-09-15T16:00:00.000Z');
+// La partida de OTRO negocio: existe en la base y aquí no (D.4 de la 2.4).
+const OTRA_ORG = '0a000000-0000-4000-8000-0000000000ff';
+const LINEA_AJENA = 'l2222222-2222-4222-8222-2222222222ff';
 
 function ferreteria(extra: Partial<TablasFalsas> = {}): TablasFalsas {
   return {
@@ -40,6 +43,10 @@ function ferreteria(extra: Partial<TablasFalsas> = {}): TablasFalsas {
     ],
     movimientos_stock: [],
     servicios_mostrador: [],
+    orden_lineas: [
+      { id: LINEA, organizacion_id: ORG },
+      { id: LINEA_AJENA, organizacion_id: OTRA_ORG },
+    ],
     ...extra,
   };
 }
@@ -182,5 +189,31 @@ describe('venta.registrar_servicio', () => {
     expect(await codigoDe(() => registrarServicio.ejecutar(ctx, servicio()))).toBe(
       'PUENTE_NO_ENCONTRADO',
     );
+  });
+});
+
+describe('D.4 · la partida de OTRO negocio no existe aquí', () => {
+  it('no anota un servicio sobre la partida de otro negocio', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+    const codigo = await codigoDe(() =>
+      registrarServicio.ejecutar(ctx, servicio({ ordenLineaId: LINEA_AJENA, consumos: [] })),
+    );
+    expect(codigo).toBe('LINEA_NO_ENCONTRADA');
+    expect(base.filas('servicios_mostrador')).toHaveLength(0);
+  });
+
+  it('el servicio que ya tiene la partida de otro negocio no se asoma aquí', async () => {
+    // Sin el negocio en la búsqueda, esto contestaba «esa partida ya tiene su servicio».
+    const base = baseDe({
+      servicios_mostrador: [
+        { id: 's-ajeno', organizacion_id: OTRA_ORG, orden_linea_id: LINEA_AJENA },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+    const codigo = await codigoDe(() =>
+      registrarServicio.ejecutar(ctx, servicio({ ordenLineaId: LINEA_AJENA, consumos: [] })),
+    );
+    expect(codigo).toBe('LINEA_NO_ENCONTRADA');
   });
 });

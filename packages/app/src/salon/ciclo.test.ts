@@ -402,9 +402,41 @@ describe('venta.cobrar_cita', () => {
     expect(base.campo('orden_lineas', 'profesional_id')).toBe(KARLA);
     // El 50 % de los $862.07 SIN IVA, no de los $1,000 al público: la regla dice
     // `sobre_iva = false` y el documento del giro lo pide así (§7.2, pregunta 2).
-    // Aquí decía 50 000: se comisionaba el IVA, $68.97 de más por servicio.
-    expect(base.campo('comisiones_causadas', 'monto_centavos')).toBe(43_103n);
+    // Aquí decía 50 000: se comisionaba el IVA, $68.97 de más por servicio. Y son
+    // $431.035: con el redondeo único del sistema (D-36) la mitad sube, $431.04.
+    expect(base.campo('comisiones_causadas', 'monto_centavos')).toBe(43_104n);
     expect(salida.comisiones).toHaveLength(1);
+  });
+
+  it('COSTO + UTILIDAD = LA VENTA: la orden del salón ya no nace en cero', async () => {
+    // Con los dos en cero el margen del día decía que el salón no ganó nada, y la
+    // conciliación lo marcaba en cada cita cobrada. El costo es el del catálogo.
+    // La base falsa ignora el `leftJoin` con `productos`: la fila del servicio de la
+    // cita trae ya el costo que el join le pondría.
+    const base = baseDe({
+      cita_servicios: [
+        {
+          id: SERVICIO_CITA,
+          organizacion_id: ORG,
+          cita_id: CITA,
+          servicio_id: TINTE,
+          profesional_id: KARLA,
+          precio_centavos: 100_000n,
+          estado: 'cerrado',
+          cerrado_en: AHORA,
+          orden_linea_id: null,
+          costo_unitario_centavos: 12_000n,
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, pagoCompleto);
+
+    expect(base.campo('ordenes', 'costo_total_centavos')).toBe(12_000n);
+    expect(base.campo('ordenes', 'utilidad_centavos')).toBe(88_000n);
+    expect(base.campo('orden_lineas', 'costo_unitario_centavos')).toBe(12_000n);
+    expect(base.campo('orden_lineas', 'utilidad_centavos')).toBe(88_000n);
   });
 
   it('LA ORDEN QUEDA EN LA CAJA QUE LA COBRÓ: sin eso el corte no la cuenta', async () => {
@@ -836,7 +868,8 @@ describe('venta.cotizar_cita', () => {
     expect(cotizada.cajaAbierta).toBe(true);
     // Los mismos números que el cobro: 43 103 sin descuento, 38 793 con él.
     expect(cotizada.comisiones).toEqual([
-      { profesionalId: KARLA, sinDescuentoCentavos: '43103', conDescuentoCentavos: '38793' },
+      // D-36: $431.035 sube a $431.04; $387.93 es exacto.
+      { profesionalId: KARLA, sinDescuentoCentavos: '43104', conDescuentoCentavos: '38793' },
     ]);
     // Y no escribe nada.
     expect(base.filas('ordenes')).toEqual([]);

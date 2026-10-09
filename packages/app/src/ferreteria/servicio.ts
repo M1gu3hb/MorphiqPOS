@@ -78,10 +78,29 @@ export const registrarServicio = definirComando<
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
 
+    // LA PARTIDA ES DE ESTE NEGOCIO (D.4 de la 2.4). La llave foránea sólo dice que existe:
+    // sin esto, un negocio anotaba un servicio sobre la partida de OTRO, y la búsqueda de
+    // abajo —sin negocio— le contestaba «esa partida ya tiene su servicio» sobre una venta
+    // ajena: un oráculo de qué existe en otro negocio. Con un id que no existe, 23503 y
+    // «Error interno». Ahora las dos dicen lo mismo. La búsqueda lleva además el negocio
+    // como SEGUNDO cerrojo: con la partida exigida aquí, hoy no cambia ningún resultado.
+    const partida = await ctx.paso('cargar_partida', () =>
+      ctx.tx
+        .selectFrom('orden_lineas')
+        .select('id')
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', entrada.ordenLineaId)
+        .executeTakeFirst(),
+    );
+    if (partida === undefined) {
+      throw new ErrorDominio('LINEA_NO_ENCONTRADA', 'Esa partida no existe en este negocio.');
+    }
+
     const yaHay = await ctx.paso('mirar_servicio', () =>
       ctx.tx
         .selectFrom('servicios_mostrador')
         .select(['id'])
+        .where('organizacion_id', '=', organizacionId)
         .where('orden_linea_id', '=', entrada.ordenLineaId)
         .executeTakeFirst(),
     );

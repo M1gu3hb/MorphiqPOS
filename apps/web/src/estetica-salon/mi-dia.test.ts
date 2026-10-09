@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
-import { componerElDia } from './mi-dia.ts';
+import { componerElDia, leerPropinaDelDia, rutaDeLaCita, type Invocar } from './mi-dia.ts';
 
 /**
  * C.9 de la 2.4 · «Mi día» con lo que el puente SÍ sirve.
@@ -57,5 +61,42 @@ describe('componerElDia', () => {
   it('las citas de otro día no entran', () => {
     const ayer = { ...CITA, agendada_para: new Date('2026-09-24T17:00:00').toISOString() };
     expect(componerElDia([SERVICIO], [ayer], [], [], HOY)).toHaveLength(0);
+  });
+});
+
+/**
+ * D.1 de la 2.4 · «VER FÓRMULA» LLEVA A SU CITA, y «HOY LLEVAS» LEE SU PROPINA.
+ *
+ * «Ver fórmula» abría la cita en curso sin cita —el botón de guardar salía apagado— y la
+ * propina del día se quedaba en «sin dato todavía» para siempre.
+ */
+describe('Mi día · la cita y la propina', () => {
+  it('«Ver fórmula» lleva a la cita en curso DE ESA cita', () => {
+    expect(rutaDeLaCita('a1b2')).toBe('/estetica-salon/cita-en-curso?cita=a1b2');
+  });
+
+  it('la propina del día es la del servidor, y sin dato es `null`, no cero', async () => {
+    const rutas: string[] = [];
+    const conDato: Invocar = <T>(ruta: string) => {
+      rutas.push(ruta);
+      return Promise.resolve({ propinaDelDiaCentavos: '5400' } as T);
+    };
+    expect(await leerPropinaDelDia(conDato, 'karla')).toBe(5_400);
+    expect(rutas).toEqual(['/api/profesionales/karla/mi-dia']);
+
+    const sinRed: Invocar = () => Promise.reject(new Error('sin red'));
+    expect(await leerPropinaDelDia(sinRed, 'karla')).toBeNull();
+    const sinCampo: Invocar = <T>() => Promise.resolve({} as T);
+    expect(await leerPropinaDelDia(sinCampo, 'karla')).toBeNull();
+  });
+
+  it('la pantalla usa las dos: lleva a la cita y pinta la propina leída', () => {
+    const pantalla = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), 'MiDia.tsx'),
+      'utf8',
+    );
+    expect(pantalla).toContain('router.push(rutaDeLaCita(citaId))');
+    expect(pantalla).toContain('leerPropinaDelDia(invocarComando, yo)');
+    expect(pantalla).toContain('propinaCentavos: propinaDelDia,');
   });
 });

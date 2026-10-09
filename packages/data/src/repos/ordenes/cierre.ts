@@ -91,7 +91,12 @@ export async function marcarPagada(
   datos: {
     readonly organizacionId: string;
     readonly ordenId: string;
-    readonly sesionCajaId: string;
+    /**
+     * La caja donde se cobró. `null` sólo cuando no entró dinero y no hay caja que
+     * nombrar: la remisión firmada de la ferretería se puede entregar desde la tableta
+     * del pasillo, que no tiene cajón (181).
+     */
+    readonly sesionCajaId: string | null;
     readonly empleadoCobraId: string;
     readonly serie: string;
     readonly folio: bigint;

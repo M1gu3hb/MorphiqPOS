@@ -215,6 +215,8 @@ interface ResultadoConteo {
   readonly faltanteTotalMl: string;
   /** Las que se desvían más de lo normal en barra (8 %), hacia arriba o hacia abajo. */
   readonly fueraDeRango: number;
+  /** Ya se aplicó la diferencia al inventario (lo pone la pantalla, no el comando). */
+  readonly ajustado?: boolean;
 }
 
 function sinAcentos(texto: string): string {
@@ -547,6 +549,35 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
     }
   }, [leches, conteos, almacen]);
 
+  /**
+   * AJUSTAR A LO CONTADO (bloque D de la 2.4). El conteo no ajusta solo —«quien cuenta
+   * decide si la aplica»—, pero el resultado no tenía con qué aplicarla: sólo los ± de la
+   * tabla, de un mililitro por toque. Aquí, una vez visto el resultado, la diferencia de cada
+   * leche entra como un ajuste con su motivo, la misma clave que los ± de la tabla.
+   */
+  const ajustarALoContado = useCallback(async (): Promise<void> => {
+    if (almacen === null || resultado === null) return;
+    setOcupado('conteo');
+    try {
+      for (const diferencia of resultado.diferencias) {
+        if (Number(diferencia.diferenciaMl) === 0) continue;
+        await invocarComando(RUTA_AJUSTAR, {
+          almacenId: almacen,
+          insumoId: diferencia.insumoId,
+          cantidad: diferencia.diferenciaMl,
+          motivo: 'ajuste_conteo',
+          nota: `Conteo de leche: contados ${diferencia.contadoMl} ml`,
+        });
+      }
+      setResultado({ ...resultado, ajustado: true });
+      setFalloDelConteo(null);
+    } catch (fallo: unknown) {
+      setFalloDelConteo(mensajeDeFallo(fallo));
+    } finally {
+      setOcupado(null);
+    }
+  }, [almacen, resultado]);
+
   const visibles = useMemo(() => {
     const aguja = sinAcentos(busqueda.trim());
     const vivos = (insumos ?? []).filter((insumo) => insumo.activo !== false);
@@ -690,6 +721,7 @@ export function Inventario({ filasIniciales, loteGranoInicial, almacenId }: Inve
           setContando(false);
         }}
         onConfirmar={contarLeche}
+        onAjustar={ajustarALoContado}
       />
     </div>
   );
@@ -1084,6 +1116,7 @@ interface ConteoDeLecheProps {
   readonly onCambiar: (conteos: Readonly<Record<string, ConteoDeUnaLeche>>) => void;
   readonly onCerrar: () => void;
   readonly onConfirmar: () => Promise<void>;
+  readonly onAjustar: () => Promise<void>;
 }
 
 /**
@@ -1101,6 +1134,7 @@ function ConteoDeLeche({
   onCambiar,
   onCerrar,
   onConfirmar,
+  onAjustar,
 }: ConteoDeLecheProps) {
   return (
     <Dialog
@@ -1216,7 +1250,13 @@ function ConteoDeLeche({
             </Button>
           </div>
         ) : (
-          <ResultadoDelConteo resultado={resultado} onCerrar={onCerrar} />
+          <ResultadoDelConteo
+            resultado={resultado}
+            ocupado={ocupado}
+            fallo={fallo}
+            onCerrar={onCerrar}
+            onAjustar={onAjustar}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -1291,11 +1331,18 @@ const COLUMNAS_DEL_CONTEO: readonly ColumnaDeTabla<DiferenciaDeLeche>[] = [
 /** Las tres cifras juntas, aquí y no en un reporte que nadie abre. */
 function ResultadoDelConteo({
   resultado,
+  ocupado,
+  fallo,
   onCerrar,
+  onAjustar,
 }: {
   readonly resultado: ResultadoConteo;
+  readonly ocupado: boolean;
+  readonly fallo: string | null;
   readonly onCerrar: () => void;
+  readonly onAjustar: () => Promise<void>;
 }) {
+  const hayDiferencia = resultado.diferencias.some((d) => Number(d.diferenciaMl) !== 0);
   return (
     <div className="flex flex-col gap-(--espacio-4)">
       <ListaDeTarjetas
@@ -1331,6 +1378,20 @@ function ResultadoDelConteo({
           </dd>
         </div>
       </Superficie>
+      {fallo === null ? null : <Aviso tono="peligro" titulo={fallo} />}
+      {resultado.ajustado === true ? (
+        <Aviso tono="exito" titulo="Inventario ajustado a lo contado." />
+      ) : hayDiferencia ? (
+        <Button
+          type="button"
+          cargando={ocupado}
+          onClick={() => {
+            void onAjustar();
+          }}
+        >
+          Ajustar a lo contado
+        </Button>
+      ) : null}
       <Button type="button" variant="secondary" onClick={onCerrar}>
         Cerrar
       </Button>

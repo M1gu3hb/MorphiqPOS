@@ -249,6 +249,8 @@ interface CitaDelComando {
   readonly citaServicioId: string;
   readonly citaId: string;
   readonly clienteId: string | null;
+  /** Lo sirve el comando: la estilista no puede leer el catálogo de clientas. */
+  readonly clienteNombre: string | null;
   readonly servicioId: string;
   /** El del SERVICIO. El de la CITA viene aparte: significan cosas distintas. */
   readonly estado: string;
@@ -1167,9 +1169,10 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
      * otra cita, que es la capacidad que nadie más ve. Reimplementar eso en el
      * puente habría sido una segunda verdad sobre la misma agenda.
      *
-     * Los NOMBRES se piden aparte porque los comandos devuelven identificadores:
-     * la clienta y el servicio salen del puente, que es quien sabe de catálogo. Y
-     * las ALERGIAS del expediente, porque un error ahí no es un descuadre.
+     * El nombre de la CLIENTA viene con la cita (`agenda.dia`): la estilista no puede
+     * leer el catálogo de clientas, que trae saldos y crédito. El del SERVICIO sale del
+     * puente, que es quien sabe de catálogo. Y las ALERGIAS del expediente, porque un
+     * error ahí no es un descuadre.
      */
     Promise.allSettled([
       invocarComando<RespuestaDelDia>('/api/agenda/dia', { fecha }, opciones),
@@ -1179,17 +1182,15 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         { desde: fecha, hasta: diaSiguiente(fecha), minutos: MINIMO_HUECO_MIN },
         opciones,
       ),
-      consultarPuente<FilaConNombre>('Cliente', { limite: 400, signal: control.signal }),
       consultarPuente<FilaConNombre>('ProductoTerminado', { limite: 400, signal: control.signal }),
       consultarPuente<FilaDeExpediente>('ExpedienteBelleza', {
         limite: 400,
         signal: control.signal,
       }),
     ])
-      .then(([dia, huecos, clientas, servicios, expedientes]) => {
+      .then(([dia, huecos, servicios, expedientes]) => {
         if (!sigueMontada()) return;
 
-        const nombreDeClienta = nombres(clientas);
         const nombreDeServicio = nombres(servicios);
         const conAlergia =
           expedientes.status === 'fulfilled'
@@ -1217,7 +1218,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
                 inicio: horaLocal(cita.inicio),
                 fin: horaLocal(cita.fin),
                 estado,
-                clienta: nombreDeClienta.get(cita.clienteId ?? '') ?? null,
+                clienta: cita.clienteNombre,
                 servicio: nombreDeServicio.get(cita.servicioId) ?? null,
                 // El dinero de una cita no se pinta en la agenda: lo único
                 // monetario de esta pantalla es lo que CUESTA un hueco.
@@ -1257,7 +1258,6 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         // una pantalla con citas dentro manda a buscar donde no está.
         const caidas = [
           huecos.status === 'rejected' ? `huecos: ${mensajeDe(huecos.reason, voc)}` : null,
-          clientas.status === 'rejected' ? `los nombres de ${voc.enFrase('cliente', true)}` : null,
           servicios.status === 'rejected'
             ? `los nombres de ${voc.enFrase('linea_orden', true)}`
             : null,

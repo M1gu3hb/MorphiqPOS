@@ -6,7 +6,7 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, ORG, SESION_CAJA, sesionCajaAbierta } from '../restaurante/pruebas/sala.ts';
 import { evaluarSalida, registrarRemision } from './credito.ts';
 
 /**
@@ -448,16 +448,39 @@ describe('credito.registrar_remision', () => {
 
   it('UNA ORDEN, UNA REMISIÓN', async () => {
     // Dos remisiones de la misma entrega suman dos veces al saldo del cliente,
-    // y ése es el descuadre que se descubre cuando el contratista reclama.
+    // y ése es el descuadre que se descubre cuando el contratista reclama. Desde la
+    // 181 la primera CIERRA la orden como venta, así que la segunda ya no la
+    // encuentra cobrable.
     const base = baseDe();
     const uno = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
     await registrarRemision.ejecutar(uno.ctx, remision());
 
     const dos = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
     expect(await codigoDe(() => registrarRemision.ejecutar(dos.ctx, remision()))).toBe(
-      'CONFIGURACION_CONFLICTO',
+      'ORDEN_NO_EDITABLE',
     );
     expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(600_000n);
+  });
+
+  it('una nota con su remisión de antes de la 181, todavía abierta, no se remite otra vez', async () => {
+    // El segundo cerrojo: la orden sigue `confirmada` —así quedaban las remisiones
+    // antes de que fueran venta— y ya tiene su documento de entrega.
+    const base = baseDe({
+      remisiones: [
+        {
+          id: 'r1111111-1111-4111-8111-111111111111',
+          organizacion_id: ORG,
+          orden_id: ORDEN,
+          folio: 'REM-113',
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(await codigoDe(() => registrarRemision.ejecutar(ctx, remision()))).toBe(
+      'CONFIGURACION_CONFLICTO',
+    );
+    expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(0n);
   });
 
   it('EL IMPORTE LO PONE LA ORDEN: una nota de $6,000 no se remite por $1 (auditoría 2.4)', async () => {
@@ -529,5 +552,62 @@ describe('credito.registrar_remision', () => {
     expect(await codigoDe(() => registrarRemision.ejecutar(ctx, remision()))).toBe(
       'PUENTE_NO_ENCONTRADO',
     );
+  });
+});
+
+/**
+ * LA REMISIÓN ES VENTA DEL DÍA (181).
+ *
+ * `ferreteria/02-DINERO-Y-CAJA` §1 —«Material entregado con remisión firmada (crédito) ·
+ * Sí, en el momento de la entrega … Método de pago `credito`»— y §6.3 —«Es venta, método
+ * credito … baja el stock, no entra dinero»—. La remisión dejaba la orden `confirmada`,
+ * sin folio ni pago: el corte, la conciliación del día y el inventario no la veían. La
+ * salida de almacén se prueba contra Postgres (`credito.integracion.test.ts`): aquí no hay
+ * almacén sembrado y el cobro tampoco descontaría nada.
+ */
+describe('credito.registrar_remision · la venta a crédito', () => {
+  it('cierra la orden como pagada, con folio de ticket y un pago `credito` por el total', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await registrarRemision.ejecutar(ctx, remision());
+
+    // El folio del TICKET, en la serie de las ventas, aparte del `REM-…`.
+    expect(salida.ticket).toEqual({ serie: 'A', folio: '114' });
+    expect(base.campo('ordenes', 'estado')).toBe('pagada');
+    expect(base.campo('ordenes', 'serie')).toBe('A');
+    expect(base.campo('ordenes', 'folio')).toBe(114n);
+    expect(base.campo('ordenes', 'total_centavos')).toBe(600_000n);
+    expect(base.campo('ordenes', 'cerrada_en')).toEqual(AHORA);
+    // A nombre de quien debe, como el fiado del cobro.
+    expect(base.campo('ordenes', 'cliente_id')).toBe(CLIENTE);
+
+    const pagos = base.filas('pagos');
+    expect(pagos).toHaveLength(1);
+    expect(pagos[0]?.['metodo']).toBe('credito');
+    expect(pagos[0]?.['monto_centavos']).toBe(600_000n);
+    expect(pagos[0]?.['cambio_centavos']).toBe(0n);
+  });
+
+  it('el cajón no se entera: ni un movimiento de caja, con caja abierta o sin ella', async () => {
+    const sinCaja = baseDe();
+    await registrarRemision.ejecutar(
+      contextoFalso(sinCaja.tx, ambitoDe('cajero'), AHORA).ctx,
+      remision(),
+    );
+    expect(sinCaja.filas('movimientos_caja')).toHaveLength(0);
+    // Sin caja en esta terminal —la tableta del pasillo—: la venta no cuelga de ninguna.
+    expect(sinCaja.campo('pagos', 'sesion_caja_id')).toBeNull();
+    expect(sinCaja.campo('ordenes', 'sesion_caja_id')).toBeNull();
+
+    const conCaja = baseDe({ sesiones_caja: [sesionCajaAbierta()] });
+    await registrarRemision.ejecutar(
+      contextoFalso(conCaja.tx, ambitoDe('cajero'), AHORA).ctx,
+      remision(),
+    );
+    expect(conCaja.filas('movimientos_caja')).toHaveLength(0);
+    // Con la caja de esta terminal abierta, la venta cuenta en SU corte.
+    expect(conCaja.campo('pagos', 'sesion_caja_id')).toBe(SESION_CAJA);
+    expect(conCaja.campo('ordenes', 'sesion_caja_id')).toBe(SESION_CAJA);
   });
 });

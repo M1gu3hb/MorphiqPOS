@@ -6510,7 +6510,7 @@ nota, envase, cerrar con apartadas. Los perdedores de una carrera reciben ahora 
 legible (`CAJA_YA_ABIERTA`, `ORDEN_NO_EDITABLE`, `CONFIGURACION_CONFLICTO`), también el cobro
 doble con inventario (se re-verifica el estado bajo el candado).
 
-**La 180 en la base viva**, por F2.3 §4: respaldo `D:\MIS PROYECTOS\Master POSespaldosmorphiqpos-2026-10-09T09-03-28.sql` (2,373,949 bytes, 3,458 inserts, sha256 = manifiesto);
+**La 180 en la base viva**, por F2.3 §4: respaldo `D:\MIS PROYECTOS\Master POS\respaldos\morphiqpos-2026-10-09T09-03-28.sql` (2,373,949 bytes, 3,458 inserts, sha256 = manifiesto);
 ensayo con datos correcto (112 migraciones, última 180); `db:migrate --ensayo` contra
 `wyqmzhliurwyxuyxznpb` correcto; «Aplicadas 1»; contrato regenerado (1,726 columnas, 1,359
 restricciones, 437 índices); `verify:rls` en verde.
@@ -6520,3 +6520,35 @@ rutas de comando, 73 fuera con su razón) y `pruebas/e2e/matriz-de-permisos.spec
 
 **En qué voy:** commit y empuje de esta tanda; después los otros cuatro días completos.
 
+
+## 09-10-2026 · Etapa 2.4 · Bloque D: la cafetería en verde, aislamiento, y lo que quedó a medias
+
+**`dia-completo-cafeteria.spec.ts` PASA** (1.7 min, escritorio): dos cajas a la vez, cobro con
+tarjeta/transferencia/mixto/propina por «Cobro y propina», descuento, devolución, gasto, retiro,
+conteo de leche con ajuste, barra despachada, cierre con faltante y con sobrante, conciliación.
+
+**Defectos nuevos que encontraron las pruebas** (arreglados, cada uno con prueba vista roja):
+1. Con dos cajas, «Cierre de turno» de la cafetería, su «Cobrar» y el cierre diario del
+   restaurante tomaban la PRIMERA caja abierta del negocio: Diana veía el turno de Fernanda.
+   Ahora `cajaDeEstaTerminal` (`apps/web/src/cliente/caja-de-la-terminal.ts`).
+2. Cerrar con pedidos cobrados sin entregar daba «Error interno» (23514 del disparador F-262):
+   `caja.cerrar` lo dice con palabras (prueba de integración `cerrar-con-fila`).
+3. **Aislamiento (D.4), nueva prueba `aislamiento.spec.ts` + generador
+   `generar-rutas-de-aislamiento.mjs`:** `por_pagar.registrar/pagar` aceptaban el proveedor y la
+   caja de OTRO negocio (un pago colgado del arqueo ajeno); `venta.registrar_servicio` anotaba
+   sobre la partida de otro negocio y contestaba «ya tiene su servicio» sobre ventas ajenas.
+   Corregidos con su prueba. Falta: auditoría sistemática de este patrón (ids de entrada sin
+   comprobar su negocio) y considerar llaves foráneas compuestas.
+4. La agenda de la estilista no podía leer los nombres de sus clientas: `agenda.dia` los sirve.
+5. Matriz y aislamiento sin puerta de «al día»: `verify:matriz`; `verify:pendientes` entra a
+   `verify` y a CI. CI sube a `postgres:17.6` (producción corre 17.6). Proyecto `telefono` en
+   Playwright.
+
+Los agentes de estética (12 de 13 arreglos; falta walk-in/no-show) y ferretería (remisión como
+venta, migración **181** aplicada SÓLO a las bases locales, cancelar nota, descuento, cotización
+a nota, compra en efectivo, guarda de cierre con notas) entregaron; el de restaurante se detuvo
+a medias por límite de uso (revisar su borrador `dia-completo-restaurante.spec.ts`).
+
+**En qué voy:** el día de la estética falla en «Fórmula guardada en su historial.» (paso de
+Karla en la cabina, tablet). Pendiente: correr ferretería (escritorio) y restaurante (tablet);
+aplicar la 181 a la base viva por F2.3 §4; D.5–D.8, D.10–D.11; bloques E y F; reporte 020.

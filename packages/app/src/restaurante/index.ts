@@ -14,6 +14,12 @@ import 'server-only';
  */
 
 export { cancelarOrden } from './cancelacion.ts';
+export {
+  descontarCuenta,
+  entradaDescontarCuenta,
+  motivoParaNoDescontar,
+  type ResultadoDescuentoDeCuenta,
+} from './descuento-de-cuenta.ts';
 export type { ResultadoCancelacion } from './cancelacion.ts';
 
 export { abrirMesa, liberarMesa } from './mesas.ts';
@@ -21,6 +27,9 @@ export type { ResultadoAbrirMesa, ResultadoLiberarMesa } from './mesas.ts';
 
 export { enviarPedido } from './pedido.ts';
 export type { ComandaEmitida, ResultadoEnviarPedido } from './pedido.ts';
+// Los esquemas que arman las pantallas de sala, para que sus pruebas los validen contra
+// el comando de verdad y no contra una copia (día completo del restaurante, 2.4).
+export { entradaEnviarPedido, entradaSolicitarCuenta } from './esquemas.ts';
 
 export { entregarPedidos, transicionarPedido } from './preparacion.ts';
 export type { ResultadoEntrega, ResultadoTransicion } from './preparacion.ts';

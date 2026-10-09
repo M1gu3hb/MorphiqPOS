@@ -182,6 +182,86 @@ function importes(
   });
 }
 
+/**
+ * LA COMISIÓN DE LO DEVUELTO, en su CONTRAPARTIDA (§7.3 del salón, F-443).
+ *
+ * Lo que se devuelve no se comisiona: si la línea causó comisión al cobrarse —un servicio
+ * del salón con su profesional—, cada comisión suya recibe un asiento NEGATIVO por la parte
+ * que se devuelve, con su motivo y apuntando a la que corrige. Nunca un UPDATE: el ledger
+ * es inmutable (134) y la estilista tiene que poder leer «− $50, devolución del ticket».
+ *
+ * La parte se calcula ACUMULADA, igual que el dinero: lo devuelto antes más lo de ahora,
+ * menos lo devuelto antes, con el redondeo único del dominio. Devolver a pedazos cancela
+ * exactamente lo causado, ni un centavo más ni uno menos. Las que ya se liquidaron también
+ * reciben la suya: la contrapartida nace sin liquidar y la descuenta la siguiente.
+ */
+async function contrapartidasDeComision(
+  ctx: ContextoComando<Transaccion>,
+  devueltas: readonly LineaDevuelta[],
+  vendidas: ReadonlyMap<string, LineaVendida>,
+  previo: ReadonlyMap<string, { readonly cantidad: bigint; readonly monto: bigint }>,
+  motivo: string,
+): Promise<number> {
+  const { organizacionId } = ctx.ambito;
+  const causadas = await ctx.tx
+    .selectFrom('comisiones_causadas')
+    .select([
+      'id',
+      'orden_linea_id as lineaId',
+      'cita_servicio_id as citaServicioId',
+      'profesional_id as profesionalId',
+      'regla_id as reglaId',
+      'regla_version as reglaVersion',
+      'tasa_bp as tasaBp',
+      'base_centavos as base',
+      'monto_centavos as monto',
+    ])
+    .where('organizacion_id', '=', organizacionId)
+    .where(
+      'orden_linea_id',
+      'in',
+      devueltas.map((d) => d.ordenLineaId),
+    )
+    // Sólo lo causado: una contrapartida no se vuelve a corregir.
+    .where('tipo', '<>', 'contrapartida')
+    .execute();
+
+  let escritas = 0;
+  for (const causada of causadas) {
+    const vendida = causada.lineaId === null ? undefined : vendidas.get(causada.lineaId);
+    const devuelta = devueltas.find((d) => d.ordenLineaId === causada.lineaId);
+    if (vendida === undefined || devuelta === undefined) continue;
+    const total = diezmilesimas(vendida.cantidad);
+    const antes = previo.get(vendida.id)?.cantidad ?? 0n;
+    const despues = antes + diezmilesimas(devuelta.cantidad);
+    const parte = (valor: bigint): bigint =>
+      redondear(valor * despues, total) - redondear(valor * antes, total);
+    const monto = parte(causada.monto);
+    // Una comisión de cero no tiene nada que corregir, y la 134 exige el signo negativo.
+    if (monto <= 0n) continue;
+    await ctx.tx
+      .insertInto('comisiones_causadas')
+      .values({
+        organizacion_id: organizacionId,
+        orden_linea_id: causada.lineaId,
+        cita_servicio_id: causada.citaServicioId,
+        profesional_id: causada.profesionalId,
+        regla_id: causada.reglaId,
+        regla_version: causada.reglaVersion,
+        tipo: 'contrapartida',
+        base_centavos: -parte(causada.base),
+        tasa_bp: causada.tasaBp,
+        monto_centavos: -monto,
+        contrapartida_de_id: causada.id,
+        motivo: `devolución: ${motivo}`,
+        causada_en: ctx.ahora,
+      })
+      .execute();
+    escritas += 1;
+  }
+  return escritas;
+}
+
 /** Lo que regresa al almacén de cada línea vendida por pieza o por presentación. */
 async function planearRegreso(
   ctx: ContextoComando<Transaccion>,
@@ -385,6 +465,10 @@ export const devolverVenta = definirComando<
         .execute(),
     );
 
+    const contrapartidas = await ctx.paso('contrapartidas_de_comision', () =>
+      contrapartidasDeComision(ctx, devueltas, vendidas, previo, entrada.motivo),
+    );
+
     if (sesionCajaId !== null) {
       await ctx.paso('sacar_del_cajon', () =>
         repoCaja.registrarMovimiento(ctx.tx, {
@@ -436,6 +520,7 @@ export const devolverVenta = definirComando<
         motivo: entrada.motivo,
         lineas: devueltas,
         regresaAlInventario: entrada.regresaAlInventario,
+        contrapartidasDeComision: contrapartidas,
       },
     });
 

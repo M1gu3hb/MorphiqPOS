@@ -195,7 +195,9 @@ export default function Sidebar({ collapsed, onToggle }) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-4 overflow-y-auto space-y-0.5 px-2">
+      {/* Con nombre: las pantallas de modelo tienen su propia navegación —las categorías del
+          cobro— y un lector de pantalla tiene que poder distinguir la principal. */}
+      <nav aria-label="Menú principal" className="flex-1 py-4 overflow-y-auto space-y-0.5 px-2">
         {navItems.map((item) => {
           const Icon = ICON_MAP[item.icon] || Tag;
           const active = location.pathname === item.path;

@@ -2,6 +2,8 @@
 
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
+import { Input } from '@morphiqpos/ui/primitivas/input';
+import { Label } from '@morphiqpos/ui/primitivas/label';
 import {
   Aviso,
   Cifra,
@@ -530,6 +532,8 @@ interface PanelDeLaNotaProps {
   readonly alSellar: (metodo: MetodoDeCobro) => void;
   /** Cobrar con estos pagos: un método exacto, efectivo con lo recibido, o mixto. */
   readonly alCobrar: (pagos: readonly PagoDeNota[], clave: string) => void;
+  /** Cancelarla con su motivo: el cliente se fue sin pagar (`02-DINERO-Y-CAJA §8.5.1`). */
+  readonly alCancelar: (motivo: string) => void;
 }
 
 /**
@@ -554,10 +558,14 @@ function PanelDeLaNota({
   nombreDeViaje,
   alSellar,
   alCobrar,
+  alCancelar,
 }: PanelDeLaNotaProps) {
   const voc = useVocabulario();
   /** Efectivo y mixto preguntan antes de cobrar; los demás métodos son un toque. */
   const [paso, setPaso] = useState<'efectivo' | 'mixto' | null>(null);
+  /** Cancelar pregunta POR QUÉ antes de hacer nada: sin motivo, el corte no lo explica. */
+  const [cancelando, setCancelando] = useState(false);
+  const [motivo, setMotivo] = useState('');
   const total = totalDe(nota);
   const saldo = centavosDe('NotaDeCaja', 'saldoClienteCentavos', nota.saldoClienteCentavos) ?? 0;
   const limite = centavosDe('NotaDeCaja', 'limiteClienteCentavos', nota.limiteClienteCentavos) ?? 0;
@@ -727,6 +735,62 @@ function PanelDeLaNota({
             titulo="Con esta nota pasa de su límite: no se puede cobrar a cuenta."
           />
         )}
+        {/* CANCELAR, con su motivo (`02-DINERO-Y-CAJA §8.5.1`): «o se cobra, o se
+            cancela y el material vuelve a estar disponible». La caja no cierra con una
+            nota mandada y sin cobrar, así que el cliente que se va sin pagar tiene que
+            poder resolverse aquí. Se pregunta POR QUÉ antes: es lo que lee el corte. */}
+        {nota.nota_id === null ? null : cancelando ? (
+          <div className="flex flex-col gap-(--espacio-2) border-t border-borde pt-(--espacio-3)">
+            <Label htmlFor="cancelar-motivo">
+              Por qué se cancela la {nota.codigo_caja ?? voc.singular('orden')}
+            </Label>
+            <Input
+              id="cancelar-motivo"
+              placeholder="el cliente se fue sin pagar"
+              value={motivo}
+              onChange={(evento) => {
+                setMotivo(evento.target.value);
+              }}
+            />
+            <div className="flex flex-wrap justify-end gap-(--espacio-2)">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={enviando !== null}
+                onClick={() => {
+                  setCancelando(false);
+                  setMotivo('');
+                }}
+              >
+                Volver
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={enviando !== null || motivo.trim().length < 4}
+                cargando={enviando === `${nota.id}·cancelar`}
+                onClick={() => {
+                  alCancelar(motivo.trim());
+                }}
+              >
+                Cancelar la {voc.singular('orden')} {nota.codigo_caja ?? ''}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            className="self-start"
+            disabled={enviando !== null}
+            onClick={() => {
+              setCancelando(true);
+            }}
+          >
+            Cancelar la {nota.codigo_caja ?? voc.singular('orden')}
+          </Button>
+        )}
+
         {/* Un botón apagado no explica nada, y ésta es la razón más común de que
             lo esté: la nota es del mostrador, sin nadie a quien fiarle. */}
         {sinFicha && (
@@ -762,11 +826,19 @@ export function Caja({
   const [viajando, setViajando] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /** El acuse del último cobro: su nota y el cambio que hubo que dar. */
+  /**
+   * El acuse del último cobro: su nota, el cambio que hubo que dar y el folio del TICKET.
+   * La devolución busca la venta por el folio del ticket (`venta.para_devolver`), y esta
+   * pantalla sólo enseñaba el de la nota: con «N-114» la devolución encontraba el ticket
+   * 114, que es OTRA venta (bloque D de la 2.4).
+   */
   const [ultimoCobro, setUltimoCobro] = useState<{
     readonly codigo: string;
     readonly cambio: number;
+    readonly ticket: string | null;
   } | null>(null);
+  /** La última nota cancelada, dicha: desaparece de la cola y hay que saber por qué. */
+  const [ultimaCancelada, setUltimaCancelada] = useState<string | null>(null);
   // `null` mientras se leen: «ninguna espera confirmación» dicho antes de leer
   // sería una afirmación falsa, no un vacío.
   const [transferencias, setTransferencias] = useState<readonly TransferenciaPendiente[] | null>(
@@ -918,7 +990,12 @@ export function Caja({
   async function cerrarNota(
     nota: NotaDeCaja,
     clave: string,
-    escribir: () => Promise<{ readonly cambioCentavos?: string }>,
+    escribir: () => Promise<{
+      readonly cambioCentavos?: string;
+      readonly serie?: string;
+      readonly folio?: string;
+      readonly ticket?: { readonly serie: string; readonly folio: string };
+    }>,
     metodo: MetodoDeCobro,
   ): Promise<void> {
     // Sin red no se cobra (F-988, A-27): no hay cola que guarde el cobro para después.
@@ -928,6 +1005,7 @@ export function Caja({
     setEnviando(`${nota.id}·${clave}`);
     setError(null);
     setUltimoCobro(null);
+    setUltimaCancelada(null);
     try {
       const salida = await escribir();
       // Cerrada para la caja; el material sigue en el patio hasta que se entrega.
@@ -935,9 +1013,16 @@ export function Caja({
         todas.map((fila) => (fila.id === nota.id ? { ...fila, estado: POR_ENTREGAR } : fila)),
       );
       setElegida(null);
+      // El cobro contesta `serie` y `folio`; la remisión, su `ticket` (181).
+      const ticket =
+        salida.ticket ??
+        (salida.serie === undefined || salida.folio === undefined
+          ? null
+          : { serie: salida.serie, folio: salida.folio });
       setUltimoCobro({
         codigo: nota.codigo_caja ?? '—',
         cambio: Number(salida.cambioCentavos ?? '0'),
+        ticket: ticket === null ? null : `${ticket.serie}-${ticket.folio}`,
       });
       onCobrada?.(nota.id, metodo);
     } catch (fallo) {
@@ -955,14 +1040,17 @@ export function Caja({
       nota,
       metodo,
       () =>
-        invocarComando('/api/credito/remision', {
-          ordenId: nota.id,
-          clienteId: nota.cliente_id,
-          importeCentavos: totalDe(nota),
-          // Quien firma es quien viene por el material: el autorizado si hay
-          // uno, y si no el cliente mismo. El documento sin nombre no sirve.
-          nombreFirmante: nota.recoge_nombre ?? nota.cliente_nombre ?? 'Sin nombre',
-        }),
+        invocarComando<{ readonly ticket?: { readonly serie: string; readonly folio: string } }>(
+          '/api/credito/remision',
+          {
+            ordenId: nota.id,
+            clienteId: nota.cliente_id,
+            importeCentavos: totalDe(nota),
+            // Quien firma es quien viene por el material: el autorizado si hay
+            // uno, y si no el cliente mismo. El documento sin nombre no sirve.
+            nombreFirmante: nota.recoge_nombre ?? nota.cliente_nombre ?? 'Sin nombre',
+          },
+        ),
       metodo,
     );
   }
@@ -978,13 +1066,45 @@ export function Caja({
       nota,
       clave,
       () =>
-        invocarComando<{ readonly cambioCentavos?: string }>('/api/venta/cobrar', {
+        invocarComando<{
+          readonly cambioCentavos?: string;
+          readonly serie?: string;
+          readonly folio?: string;
+        }>('/api/venta/cobrar', {
           ordenId: nota.id,
           totalEsperadoCentavos: totalDe(nota),
           pagos,
         }),
       primero,
     );
+  }
+
+  /**
+   * CANCELAR LA NOTA que nadie vino a pagar (`02-DINERO-Y-CAJA §8.5.1`). No mueve dinero
+   * ni material: la nota no se había cobrado. Sale de la cola —la vista ya no la lista— y
+   * el acuse lo dice, porque una nota que desaparece sin explicación parece un error.
+   */
+  async function cancelar(nota: NotaDeCaja, motivo: string): Promise<void> {
+    if (!enLinea || enviando !== null || nota.nota_id === null) return;
+    setEnviando(`${nota.id}·cancelar`);
+    setError(null);
+    setUltimoCobro(null);
+    setUltimaCancelada(null);
+    try {
+      await invocarComando('/api/venta/nota-mostrador/cancelar', {
+        notaId: nota.nota_id,
+        motivo,
+      });
+      setNotas(todas.filter((fila) => fila.id !== nota.id));
+      setElegida(null);
+      setUltimaCancelada(nota.codigo_caja ?? '—');
+    } catch (fallo) {
+      setError(
+        fallo instanceof Error ? fallo.message : `No se pudo cancelar ${voc.enFrase('orden')}.`,
+      );
+    } finally {
+      setEnviando(null);
+    }
   }
 
   /**
@@ -1147,6 +1267,9 @@ export function Caja({
             alCobrar={(pagos, clave) => {
               void cobrar(seleccionada, pagos, clave);
             }}
+            alCancelar={(motivo) => {
+              void cancelar(seleccionada, motivo);
+            }}
           />
         )}
       </div>
@@ -1170,6 +1293,20 @@ export function Caja({
           ) : (
             'Sin cambio que dar.'
           )}
+          {ultimoCobro.ticket === null ? null : (
+            <span className="block text-sm">
+              Ticket {ultimoCobro.ticket}: es el folio que se pide para devolver.
+            </span>
+          )}
+        </Aviso>
+      )}
+      {ultimaCancelada === null ? null : (
+        <Aviso
+          tono="info"
+          titulo={`${voc.titulo('orden')} ${ultimaCancelada} cancelada`}
+          anuncio="estado"
+        >
+          El material vuelve a estar disponible; no se movió dinero.
         </Aviso>
       )}
       <TransferenciasDelTelefono

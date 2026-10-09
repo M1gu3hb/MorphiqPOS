@@ -30,7 +30,21 @@ import { definirComando } from '../definicion.ts';
  * la segunda vez el barista deja de contar.
  */
 
-const BARRA = ['mesero', 'cajero', 'gerente', 'administrador', 'dueno'] as const;
+/**
+ * Quién cuenta la leche: el barista (rol `cocina` en la cafetería), el almacén y quien
+ * atiende la caja. Es una LECTURA —compara lo contado con lo esperado y no ajusta—, y dejaba
+ * fuera justo al barista y al almacén, que tienen «Contar leche» en su pantalla de
+ * Inventario: el conteo contestaba «tu rol no puede» (bloque D de la 2.4).
+ */
+const BARRA = [
+  'cocina',
+  'almacen',
+  'mesero',
+  'cajero',
+  'gerente',
+  'administrador',
+  'dueno',
+] as const;
 
 /** Los cuartos son cómo se ve un cartón: «uno y tres cuartos». */
 const CUARTOS = [0, 1, 2, 3, 4] as const;

@@ -10,13 +10,11 @@ import {
   BarraFija,
   Dinero,
   ErrorDePantalla,
-  Esqueleto,
   Superficie,
   Tabla,
   VIAJE,
   Vacio,
   dineroEnTexto,
-  type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import {
   ArrowLeft,
@@ -30,13 +28,29 @@ import {
   Users,
   UtensilsCrossed,
 } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ViewTransition, useEffect, useRef, useState, type ChangeEvent } from 'react';
 
 import { consultarPuente, invocarComando, nuevaClave } from '~/cliente/api';
-import { centavosDe, valorDelPuente } from '~/cliente/dinero-del-puente';
+import { valorDelPuente } from '~/cliente/dinero-del-puente';
+import { AccionesDeLaMesa } from './AccionesDeLaMesa';
 import { AnularLineaDialog } from './AnularLineaDialog';
+import {
+  ESTADOS_DE_MESA,
+  EsqueletoDeLaComanda,
+  SIN_LINEAS,
+  columnasDeLoEnviado,
+  columnasDelBorrador,
+  importeDe,
+  leerLoEnviado,
+  precioDe,
+  type LineaEnviada,
+  type MesaAbierta,
+  type MesaActivaProps,
+  type ProductoDeComanda,
+} from './comanda-de-la-mesa';
 import { DividirCuentaDialog } from './DividirCuentaDialog';
+import { lineasDelEnvio } from './envio-a-cocina';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -79,202 +93,26 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * van costos, márgenes, descuentos ni el cobro: esa separación es control interno.
  */
 
-/** Un producto del catálogo. El puente entrega el dinero ya en pesos. */
-export interface ProductoDeComanda {
-  readonly id: string;
-  readonly nombre: string;
-  readonly precio_venta: number;
-  /** Hoy el puente no expone existencia: llega por props hasta que la exponga. */
-  readonly agotado?: boolean;
-}
-/** Una línea YA enviada a cocina: vive en el bloque de arriba, el intocable. */
-export interface LineaEnviada {
-  readonly id: string;
-  readonly producto_nombre: string;
-  readonly cantidad: number;
-  readonly total: number;
-}
-export interface MesaAbierta {
-  /** Lo que el mapa pasa en la dirección, y lo que el comando pide para ABRIRLA. */
-  readonly id: string;
-  readonly numero: number;
-  readonly estado: string;
-  readonly personas_actuales: number | null;
-  readonly notas_alergias: string | null;
-  readonly venta_activa_id: string | null;
-}
-export interface MesaActivaProps {
-  /** Cuando llega, la pantalla no consulta: es lo que usan las pruebas. */
-  readonly mesaInicial?: MesaAbierta;
-  readonly productosIniciales?: readonly ProductoDeComanda[];
-  readonly lineasIniciales?: readonly LineaEnviada[];
-  /** Los nombres de lo que cocina ya dejó en la ventana. */
-  readonly listosIniciales?: readonly string[];
-}
-
-type Vocabulario = ReturnType<typeof useVocabulario>;
-
 /** Para cuántas personas se puede abrir, como mucho. */
 const PERSONAS_MAXIMAS = 20;
-
-/** El estado, como lo dice el salón (`04-INTERFAZ` §4.1): las palabras del mapa. */
-const ESTADOS_DE_MESA: Readonly<Record<string, string>> = {
-  libre: 'Libre',
-  esperando_orden: 'Esperando orden',
-  pedido_enviado: 'Pedido enviado',
-  en_preparacion: 'En preparación',
-  en_espera_entrega: 'Esperando entrega',
-  ocupada: 'Ocupada',
-  cuenta_solicitada: 'Cuenta solicitada',
-  limpieza: 'Limpieza',
-};
-
-/** El precio de un platillo, en centavos. Sin un precio legible cuenta cero, como antes. */
-function precioDe(producto: ProductoDeComanda): number {
-  return centavosDe('ProductoTerminado', 'precio_venta', producto.precio_venta) ?? 0;
-}
-
-/** Lo que suma una línea ya enviada, en centavos. */
-function importeDe(linea: LineaEnviada): number {
-  return centavosDe('DetalleVenta', 'total', linea.total) ?? 0;
-}
 
 const volverAlMapa = (): void => {
   window.history.back();
 };
 
-/** Lo ya enviado de una cuenta, o el fallo. Quien llama decide dónde se dice. */
-type LecturaDeLoEnviado =
-  | { readonly leidas: true; readonly lineas: readonly LineaEnviada[] }
-  | { readonly leidas: false; readonly fallo: unknown };
-
-const SIN_LINEAS: LecturaDeLoEnviado = { leidas: true, lineas: [] };
-
-async function leerLoEnviado(
-  ordenId: string,
-  opciones: { readonly signal?: AbortSignal } = {},
-): Promise<LecturaDeLoEnviado> {
-  try {
-    const filtro = { venta_id: ordenId };
-    const lineas = await consultarPuente<LineaEnviada>('DetalleVenta', {
-      filtro,
-      limite: 120,
-      ...opciones,
-    });
-    return { leidas: true, lineas };
-  } catch (fallo: unknown) {
-    return { leidas: false, fallo };
-  }
-}
-
-/** Lo ya enviado: se lee, y se ANULA con motivo. Nunca se edita. */
-function columnasDeLoEnviado(
-  voc: Vocabulario,
-  anular: (linea: LineaEnviada) => () => void,
-): readonly ColumnaDeTabla<LineaEnviada>[] {
-  return [
-    {
-      clave: 'platillo',
-      titulo: voc.titulo('linea_orden'),
-      celda: (l) => (
-        <span className="line-clamp-2">
-          <span className="font-numeros font-semibold tabular-nums">{l.cantidad} ×</span>{' '}
-          {l.producto_nombre}
-        </span>
-      ),
-    },
-    {
-      clave: 'importe',
-      titulo: 'Importe',
-      numerica: true,
-      celda: (l) => <Dinero centavos={importeDe(l)} tamano="sm" />,
-    },
-    {
-      clave: 'anular',
-      titulo: '',
-      celda: (l) => (
-        <span className="flex justify-end">
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-label={`Anular ${l.producto_nombre}`}
-            onClick={anular(l)}
-          >
-            Anular
-          </Button>
-        </span>
-      ),
-    },
-  ];
-}
-
-/** Lo que está por mandarse: se quita con el botón de su línea, se suma tocando. */
-function columnasDelBorrador(
-  voc: Vocabulario,
-  cantidadDe: (producto: ProductoDeComanda) => number,
-  tocar: (productoId: string, delta: number) => () => void,
-): readonly ColumnaDeTabla<ProductoDeComanda>[] {
-  return [
-    {
-      clave: 'cantidad',
-      titulo: 'Cant.',
-      celda: (p) => (
-        <span className="flex items-center gap-(--espacio-2)">
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={tocar(p.id, -1)}
-            aria-label={`Quitar ${p.nombre}`}
-          >
-            <Minus />
-          </Button>
-          <span className="min-w-5 text-center font-numeros font-semibold tabular-nums">
-            {cantidadDe(p)}
-          </span>
-        </span>
-      ),
-    },
-    {
-      clave: 'platillo',
-      titulo: voc.titulo('linea_orden'),
-      celda: (p) => <span className="line-clamp-2">{p.nombre}</span>,
-    },
-    {
-      clave: 'importe',
-      titulo: 'Importe',
-      numerica: true,
-      celda: (p) => <Dinero centavos={precioDe(p) * cantidadDe(p)} tamano="sm" />,
-    },
-  ];
-}
-
-/** Cargando: la forma real del catálogo y del panel, no una rueda. */
-function EsqueletoDeLaComanda({ etiqueta }: { readonly etiqueta: string }) {
-  return (
-    <div
-      role="status"
-      aria-busy="true"
-      aria-label={etiqueta}
-      className="grid gap-(--espacio-4) p-(--espacio-3) xl:grid-cols-[minmax(0,1fr)_22rem]"
-    >
-      <div className="flex flex-col gap-(--espacio-3)">
-        <Esqueleto className="h-[calc(var(--altura-control)*1.25)] w-full" />
-        <div className="grid grid-cols-2 gap-(--espacio-2) md:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 12 }, (_, i) => (
-            <Esqueleto key={i} className="min-h-24 w-full rounded-lg" />
-          ))}
-        </div>
-      </div>
-      <Esqueleto className="hidden h-96 w-full rounded-lg xl:block" />
-    </div>
-  );
-}
+export type {
+  LineaEnviada,
+  MesaAbierta,
+  MesaActivaProps,
+  ProductoDeComanda,
+} from './comanda-de-la-mesa';
 
 export function MesaActiva(props: MesaActivaProps) {
   const voc = useVocabulario();
   const { mesaInicial, productosIniciales } = props;
   /** Desde el primer render: da nombre al viaje antes de que llegue la mesa. */
   const idDeLaDireccion = useSearchParams().get('mesa');
+  const router = useRouter();
   const [mesa, setMesa] = useState<MesaAbierta | null>(mesaInicial ?? null);
   const [productos, setProductos] = useState<readonly ProductoDeComanda[] | null>(
     productosIniciales ?? (mesaInicial === undefined ? null : []),
@@ -292,6 +130,8 @@ export function MesaActiva(props: MesaActivaProps) {
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [falloEnvio, setFalloEnvio] = useState(false);
+  /** Lo que contestó el servidor al rechazar el envío: «vuelve a intentar» solo no basta. */
+  const [motivoDelFallo, setMotivoDelFallo] = useState<string | null>(null);
   const [hoja, setHoja] = useState(false);
   /** Para cuántas personas se abre. Dos es la mesa más común de un comedor. */
   const [personasAlAbrir, setPersonasAlAbrir] = useState(2);
@@ -431,7 +271,9 @@ export function MesaActiva(props: MesaActivaProps) {
     setEnviando(true);
     setFalloEnvio(false);
     const clave = claveEnvio.current;
-    const lineas = pendientes.map((p) => ({ productoId: p.id, cantidad: borrador[p.id] ?? 0 }));
+    // La cantidad viaja como CADENA decimal, que es lo que el comando acepta
+    // (`envio-a-cocina.ts`): como número, no llegaba a cocina ni una comanda.
+    const lineas = lineasDelEnvio(borrador);
     try {
       const entrada = { ordenId: orden, lineas };
       await invocarComando('/api/restaurante/enviar-pedido', entrada, { idempotencyKey: clave });
@@ -449,8 +291,13 @@ export function MesaActiva(props: MesaActivaProps) {
       setBorrador({});
       setHoja(false);
       claveEnvio.current = nuevaClave();
-    } catch {
-      // Nunca se traga: una comanda perdida en silencio es un plato que no sale.
+      // Y los definitivos, del servidor: anular o dividir una línea provisional mandaría
+      // un identificador que no existe.
+      void recargarLineas();
+    } catch (fallo: unknown) {
+      // Nunca se traga: una comanda perdida en silencio es un plato que no sale. Y se
+      // dice POR QUÉ: un rechazo de forma no lo arregla reintentar.
+      setMotivoDelFallo(fallo instanceof Error ? fallo.message : null);
       setFalloEnvio(true);
     } finally {
       setEnviando(false);
@@ -516,6 +363,10 @@ export function MesaActiva(props: MesaActivaProps) {
   };
   const releerLoEnviado = (): void => {
     void recargarLineas();
+  };
+  /** La cuenta se mudó: se abre la mesa de destino, que es donde ahora vive. */
+  const alCambiarDeMesa = (destino: string): void => {
+    router.replace(`/restaurante/mesa-activa?mesa=${encodeURIComponent(destino)}`);
   };
   /** Sin lo enviado no hay total: sumar sólo el borrador daría un total que no es. */
   const totalConocido = falloLineas === null;
@@ -866,6 +717,17 @@ export function MesaActiva(props: MesaActivaProps) {
           Se muestra el último dato conocido.
         </Aviso>
       )}
+      {comandaVisible && mesa?.venta_activa_id != null ? (
+        <div className="px-(--espacio-3) pt-(--espacio-3)">
+          <AccionesDeLaMesa
+            mesaId={mesa.id}
+            ordenId={mesa.venta_activa_id}
+            hayEnviado={enviadas.length > 0}
+            alCambiarDeMesa={alCambiarDeMesa}
+            alUnir={releerLoEnviado}
+          />
+        </div>
+      ) : null}
       {contenido}
       {comandaVisible && (
         /* Tablet y teléfono: la cuenta vive donde alcanza el pulgar derecho. */
@@ -893,7 +755,7 @@ export function MesaActiva(props: MesaActivaProps) {
       <Dialog open={falloEnvio} onOpenChange={setFalloEnvio}>
         <DialogContent className="border-2 border-peligro">
           <DialogTitle>La comanda NO llegó a {voc.singular('preparacion')}</DialogTitle>
-          <Aviso tono="peligro" titulo="Vuelve a intentar.">
+          <Aviso tono="peligro" titulo={motivoDelFallo ?? 'Vuelve a intentar.'}>
             El pedido sigue completo en la pantalla y el reintento usa la misma clave, así que no
             puede duplicarse.
           </Aviso>

@@ -1,17 +1,20 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
-import { repoFolios, repoOrdenes, type Transaccion } from '@morphiqpos/data';
+import { repoCaja, repoFolios, repoOrdenes, repoStock, type Transaccion } from '@morphiqpos/data';
 import {
   evaluarSalidaACredito,
   type Evaluacion,
   type MotivoDeAviso,
+  type TotalesOrden,
   type Veredicto,
 } from '@morphiqpos/domain/venta';
 import { z } from 'zod';
 
 import { insertarDocumento } from '../cartera/documento.ts';
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { registrarPagoConPropina } from '../propinas/cobro.ts';
+import { planearConsumo } from '../venta/cobrar.ts';
 import { cotizar, exigirTotalVigente } from '../venta/cotizar.ts';
 
 /**
@@ -69,6 +72,11 @@ export interface ResultadoEvaluacion {
 export interface ResultadoRemision {
   readonly remisionId: string;
   readonly folio: string;
+  /**
+   * El folio del TICKET de la venta a crédito (181): la remisión es venta del día y toma
+   * su folio en la serie de las ventas. Es el que se pide para devolver.
+   */
+  readonly ticket: { readonly serie: string; readonly folio: string };
   readonly veredicto: Veredicto;
   readonly motivos: readonly MotivoDeAviso[];
   readonly autorizadoEstabaEnLista: boolean;
@@ -128,7 +136,7 @@ export const registrarRemision = definirComando<
     const orden = await ctx.paso('bloquear_orden', () =>
       ctx.tx
         .selectFrom('ordenes')
-        .select(['id', 'estado'])
+        .select(['id', 'estado', 'canal'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.ordenId)
         .forUpdate()
@@ -262,6 +270,8 @@ export const registrarRemision = definirComando<
       ctx.tx
         .updateTable('ordenes')
         .set({
+          // A nombre de quien debe, como el fiado del cobro: la venta es suya.
+          cliente_id: entrada.clienteId,
           obra_id: entrada.obraId ?? null,
           autorizado_id: entrada.autorizadoId ?? null,
           mostradorista_id: empleoId,
@@ -270,6 +280,13 @@ export const registrarRemision = definirComando<
         .where('id', '=', entrada.ordenId)
         .execute(),
     );
+
+    const venta = await cerrarVentaACredito(ctx, {
+      ordenId: entrada.ordenId,
+      sucursalId,
+      canal: orden.canal,
+      totales,
+    });
 
     ctx.auditar({
       entidadId: remision.id,
@@ -281,12 +298,14 @@ export const registrarRemision = definirComando<
         nombreFirmante: entrada.nombreFirmante,
         autorizadoEstabaEnLista: autorizado?.activo === true,
         motivos: evaluacion.motivos.join(', '),
+        ticket: `${venta.serie}-${venta.folio}`,
       },
     });
 
     return {
       remisionId: remision.id,
       folio,
+      ticket: { serie: venta.serie, folio: venta.folio },
       veredicto: evaluacion.veredicto,
       motivos: evaluacion.motivos,
       autorizadoEstabaEnLista: autorizado?.activo === true,
@@ -294,6 +313,93 @@ export const registrarRemision = definirComando<
     };
   },
 });
+
+/**
+ * LA REMISIÓN ES VENTA DEL DÍA, y se cierra como el fiado del cobro (181).
+ *
+ * `02-DINERO-Y-CAJA` lo dice dos veces: §1 —«Material entregado con remisión firmada
+ * (crédito) · Sí, en el momento de la entrega … el stock baja hoy … Método de pago
+ * `credito`»— y §6.3 —«Es venta, método credito … baja el stock, no entra dinero»—. La
+ * remisión subía el saldo y dejaba la orden `confirmada`: sin folio, sin pago y sin salida
+ * de almacén. El material salía por la puerta y para el servidor no se había vendido.
+ *
+ * Los pasos son los de `venta.cobrar` con el fiado, en su orden y con sus piezas:
+ * 1 · el almacén ANTES del folio (`planearConsumo`): si falta material, la reversión no
+ *     deja hueco en la numeración del ticket;
+ * 2 · el folio del TICKET, en la serie de las ventas, aparte del `REM-…`;
+ * 3 · un pago `credito` por el total, que suma a la venta y NO al cajón: no se escribe
+ *     ningún movimiento de caja, porque no entró un peso;
+ * 4 · la orden congelada con sus totales (`marcarPagada`).
+ *
+ * La caja que se nombra es la de ESTA terminal si está abierta —la venta cuenta en su
+ * corte, en «Resumen de ventas»—, y ninguna si no: la remisión se entrega también desde la
+ * tableta del pasillo, que no tiene cajón, y en una venta a crédito no hay cobro que exija
+ * caja (`§6.2`, puerta 3).
+ */
+async function cerrarVentaACredito(
+  ctx: ContextoComando<Transaccion>,
+  datos: {
+    readonly ordenId: string;
+    readonly sucursalId: string;
+    readonly canal: string;
+    readonly totales: TotalesOrden;
+  },
+): Promise<{ readonly serie: string; readonly folio: string }> {
+  const { organizacionId, terminalId, empleoId } = ctx.ambito;
+
+  const movimientos = await ctx.paso('planear_salida', () =>
+    planearConsumo(ctx.tx, organizacionId, datos.sucursalId, datos.ordenId, datos.canal),
+  );
+  if (movimientos.length > 0) {
+    await ctx.paso('descontar_stock', () =>
+      repoStock.aplicarMovimientos(
+        movimientos.map((m) => ({ ...m, empleadoId: empleoId })),
+        ctx.tx,
+      ),
+    );
+  }
+
+  const folio = await ctx.paso('tomar_folio_de_venta', () =>
+    repoFolios.tomarFolio(ctx.tx, organizacionId, datos.sucursalId),
+  );
+
+  const sesion =
+    terminalId === null
+      ? null
+      : await ctx.paso('cargar_caja', () =>
+          repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId),
+        );
+
+  await ctx.paso('pago_a_credito', () =>
+    registrarPagoConPropina(ctx.tx, {
+      organizacionId,
+      ordenId: datos.ordenId,
+      sesionCajaId: sesion?.id ?? null,
+      metodo: 'credito',
+      montoCentavos: datos.totales.totalCentavos,
+      propinaCentavos: 0n,
+      recibidoCentavos: null,
+      cambioCentavos: 0n,
+      referencia: null,
+      idempotencyKey: null,
+    }),
+  );
+
+  await ctx.paso('cerrar_orden', () =>
+    repoOrdenes.marcarPagada(ctx.tx, {
+      organizacionId,
+      ordenId: datos.ordenId,
+      sesionCajaId: sesion?.id ?? null,
+      empleadoCobraId: empleoId,
+      serie: folio.serie,
+      folio: folio.folio,
+      totales: datos.totales,
+      ahora: ctx.ahora,
+    }),
+  );
+
+  return { serie: folio.serie, folio: folio.folio.toString() };
+}
 
 interface ClienteDeCredito {
   readonly saldo: bigint;

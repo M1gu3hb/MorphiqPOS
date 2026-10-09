@@ -417,8 +417,12 @@ export const cobrarOrden = definirComando<
  * descuenta nada. Lo que no se puede traducir se OMITE en vez de inventarle un
  * insumo: descontar del almacén equivocado es peor que no descontar, porque el
  * error se propaga a todos los costos y nadie lo ve.
+ *
+ * Se exporta para la remisión firmada de la ferretería (`ferreteria/credito.ts`, 181),
+ * que es venta sin cobro en caja y saca el material con ESTA misma traducción: dos
+ * maneras de decidir qué sale del almacén por una venta serían dos inventarios.
  */
-async function planearConsumo(
+export async function planearConsumo(
   tx: Transaccion,
   organizacionId: string,
   sucursalId: string,

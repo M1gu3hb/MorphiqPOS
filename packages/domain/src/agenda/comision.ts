@@ -1,5 +1,7 @@
 import { CODIGOS_ERROR, ErrorDominio } from '@morphiqpos/contracts/errores';
 
+import { redondear } from '../dinero/redondeo.ts';
+
 /**
  * F-440 y F-423 · La comisión, con su regla explícita.
  *
@@ -110,7 +112,11 @@ export function calcularComision(regla: ReglaComision, linea: LineaComisionable)
   const base = baseDeCalculo(regla, linea);
   const tasaBp = tasaDe(regla, linea);
 
-  const bruta = (base * BigInt(tasaBp)) / PUNTOS_BASE;
+  // D-36 · Con el redondeo ÚNICO del sistema: la mitad se aleja del cero. La
+  // división entera truncaba, y el mismo servicio daba un centavo menos aquí que
+  // en la liquidación y en la conciliación del día. Y con la misma regla, la
+  // contrapartida de una devolución cancela exactamente lo causado.
+  const bruta: bigint = redondear(base * BigInt(tasaBp), PUNTOS_BASE);
   // El material sólo se descuenta de la comisión cuando el trato es ése. Con
   // `salon` no toca nada, y con `cobra_profesional` sale por su lado.
   const descontado = regla.material === 'descuenta_base' ? linea.materialCentavos : 0n;

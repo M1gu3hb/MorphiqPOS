@@ -39,6 +39,48 @@ export const entradaRegistrarPorPagar = z.object({
   venceEn: z.iso.datetime(),
 });
 
+/**
+ * EL PROVEEDOR Y LA CAJA SON DE ESTE NEGOCIO (D.4 de la 2.4).
+ *
+ * La llave foránea sólo dice que el id EXISTE, no de quién es. Sin esto, el dueño de un
+ * negocio registraba una factura o un pago con el proveedor de otro, y el pago en efectivo
+ * quedaba colgado de la caja de otro negocio —en SU arqueo—. Con un id que no existe, el
+ * mismo pedido reventaba en «Error interno» (23503). Ahora las dos cosas dicen lo mismo:
+ * ese proveedor, esa caja, no existen aquí. La prueba de aislamiento lo encontró.
+ */
+async function exigirProveedorPropio(
+  tx: Transaccion,
+  organizacionId: string,
+  proveedorId: string,
+): Promise<void> {
+  const proveedor = await tx
+    .selectFrom('proveedores')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', proveedorId)
+    .executeTakeFirst();
+  if (proveedor === undefined) {
+    throw new ErrorDominio('PROVEEDOR_NO_ENCONTRADO', 'Ese proveedor no existe en este negocio.');
+  }
+}
+
+async function exigirCajaPropia(
+  tx: Transaccion,
+  organizacionId: string,
+  sesionCajaId: string | null,
+): Promise<void> {
+  if (sesionCajaId === null) return;
+  const caja = await tx
+    .selectFrom('sesiones_caja')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', sesionCajaId)
+    .executeTakeFirst();
+  if (caja === undefined) {
+    throw new ErrorDominio('CORTE_NO_ENCONTRADO', 'Esa caja no existe en este negocio.');
+  }
+}
+
 export const entradaPagarAProveedor = z.object({
   proveedorId: z.uuid(),
   montoCentavos: z.number().int().min(1).max(1_000_000_000),
@@ -102,6 +144,9 @@ export const registrarPorPagar = definirComando<
     // El duplicado se busca ANTES: el mismo folio del mismo proveedor capturado
     // dos veces es la factura que se paga dos veces. La base también lo impide
     // con un `unique`, pero un 23505 no dice cuál folio chocó.
+    await ctx.paso('exigir_proveedor', () =>
+      exigirProveedorPropio(ctx.tx, organizacionId, entrada.proveedorId),
+    );
     const yaEsta = await ctx.paso('buscar_folio', () =>
       ctx.tx
         .selectFrom('documentos_por_pagar')
@@ -162,6 +207,12 @@ export const pagarAProveedor = definirComando<
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
 
+    await ctx.paso('exigir_proveedor', () =>
+      exigirProveedorPropio(ctx.tx, organizacionId, entrada.proveedorId),
+    );
+    await ctx.paso('exigir_caja', () =>
+      exigirCajaPropia(ctx.tx, organizacionId, entrada.sesionCajaId),
+    );
     const vivos = await ctx.paso('leer_documentos', () =>
       ctx.tx
         .selectFrom('documentos_por_pagar')

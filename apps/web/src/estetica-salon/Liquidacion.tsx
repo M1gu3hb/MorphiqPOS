@@ -24,6 +24,13 @@ import { flushSync } from 'react-dom';
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  comprobanteDeLaVista,
+  pagarLaLiquidacion,
+  verAntesDePagar,
+  type ComprobanteDeLaLiquidacion,
+  type VistaPrevia,
+} from './liquidacion-en-dos-pasos.ts';
 import { ReglaDeComision } from './ReglaDeComision.tsx';
 
 /**
@@ -73,8 +80,6 @@ import { ReglaDeComision } from './ReglaDeComision.tsx';
  */
 
 const RUTA_PROFESIONALES = '/api/profesionales';
-const RUTA_LIQUIDAR = '/api/liquidaciones';
-const RUTA_COMPROBANTE = '/api/liquidaciones';
 
 export interface FichaDeProfesional {
   readonly profesionalId: string;
@@ -99,18 +104,8 @@ export interface Comisiones {
   readonly lineas: readonly ComisionDeLinea[];
 }
 
-export interface Comprobante {
-  readonly liquidacionId: string;
-  readonly nombreCompleto: string;
-  readonly comisionCentavos: string;
-  readonly propinaCentavos: string;
-  readonly materialCargadoCentavos: string;
-  readonly rentaCentavos: string;
-  readonly cobradoPorEllaCentavos: string;
-  readonly anticiposCentavos: string;
-  readonly totalCentavos: string;
-  readonly pagadaEn: string | null;
-}
+/** El comprobante de la vista previa (sin sello) o el ya pagado (`pagadaEn`). */
+export type Comprobante = ComprobanteDeLaLiquidacion;
 
 export interface LiquidacionProps {
   readonly profesionalesIniciales?: readonly FichaDeProfesional[];
@@ -351,6 +346,9 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
   const [pendientes, setPendientes] = useState<ReadonlyMap<string, number> | null>(null);
   const [falloDePendientes, setFalloDePendientes] = useState(false);
   const [comisiones, setComisiones] = useState<Comisiones | null>(null);
+  /** Lo que se va a pagar, todavía sin pagar: el paso 1 de dos. */
+  const [vista, setVista] = useState<VistaPrevia | null>(null);
+  /** El comprobante SELLADO: sólo existe después de pagar. */
   const [comprobante, setComprobante] = useState<Comprobante | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -468,6 +466,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
         setViajando(null);
         setElegida(profesional);
         setComisiones(null);
+        setVista(null);
         setComprobante(null);
         setError(null);
         setLeyendo(conPeriodo ? profesional.profesionalId : null);
@@ -477,7 +476,11 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
     });
   }
 
-  function liquidar(): void {
+  /**
+   * PASO 1 · VER. Lee lo que se le va a pagar —la comisión pendiente y la propina que
+   * se le debe, en dos renglones— y no toca el cajón. Antes, este botón ya pagaba.
+   */
+  function calcular(): void {
     if (elegida === null) return;
     if (periodo.desde === '' || periodo.hasta === '') {
       setError('Elige el periodo.');
@@ -485,19 +488,23 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
     }
     setOcupado(true);
     setError(null);
-    invocarComando<{ readonly liquidacionId: string }>(RUTA_LIQUIDAR, {
-      profesionalId: elegida.profesionalId,
-      periodoDesde: periodo.desde,
-      periodoHasta: periodo.hasta,
-    })
-      .then((salida) =>
-        // El comprobante se pide ENSEGUIDA y se enseña antes de pagar: una vez
-        // pagado ya no se discute, se reclama.
-        invocarComando<Comprobante>(`${RUTA_COMPROBANTE}/${salida.liquidacionId}/comprobante`, {}),
-      )
-      .then((datos) => {
-        setComprobante(datos);
+    verAntesDePagar(invocarComando, elegida.profesionalId, periodo)
+      .then(setVista)
+      .catch((fallo: unknown) => {
+        setError(mensajeDe(fallo));
       })
+      .finally(() => {
+        setOcupado(false);
+      });
+  }
+
+  /** PASO 2 · PAGAR lo que se vio. Sale del cajón de esta terminal y se sella. */
+  function pagar(): void {
+    if (vista === null) return;
+    setOcupado(true);
+    setError(null);
+    pagarLaLiquidacion(invocarComando, vista, periodo)
+      .then(setComprobante)
       .catch((fallo: unknown) => {
         setError(mensajeDe(fallo));
       })
@@ -564,7 +571,47 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
         <>
           {encabezado}
           {aviso}
+          <Aviso tono="exito" titulo="Liquidación pagada.">
+            Salió del cajón de esta terminal, con su comisión y su propina en dos renglones.
+          </Aviso>
           <ComprobanteDePago comprobante={comprobante} unidad={unidad} />
+        </>
+      );
+    }
+    if (vista !== null) {
+      // El comprobante ANTES de pagar: una vez pagado ya no se discute, se reclama.
+      return (
+        <>
+          {encabezado}
+          {aviso}
+          <ComprobanteDePago comprobante={comprobanteDeLaVista(vista)} unidad={unidad} />
+          {vista.cajaAbierta ? null : (
+            <Aviso tono="atencion" titulo="Abre la caja de esta terminal para pagar.">
+              La liquidación sale del cajón: sin caja abierta no hay de dónde pagarla.
+            </Aviso>
+          )}
+          <div className="flex flex-wrap gap-(--espacio-2)">
+            <Button
+              size="lg"
+              className="h-[calc(var(--altura-control)*1.4)] flex-1 text-base"
+              cargando={ocupado}
+              disabled={!vista.cajaAbierta}
+              onClick={pagar}
+            >
+              Pagar la liquidación
+            </Button>
+            <Button
+              size="lg"
+              variant="ghost"
+              className="h-[calc(var(--altura-control)*1.4)]"
+              disabled={ocupado}
+              onClick={() => {
+                setVista(null);
+              }}
+            >
+              Volver
+            </Button>
+          </div>
         </>
       );
     }
@@ -600,7 +647,7 @@ export function Liquidacion({ profesionalesIniciales, desde, hasta }: Liquidacio
             size="lg"
             className="h-[calc(var(--altura-control)*1.4)] w-full text-base"
             cargando={ocupado}
-            onClick={liquidar}
+            onClick={calcular}
           >
             Calcular la liquidación
           </Button>

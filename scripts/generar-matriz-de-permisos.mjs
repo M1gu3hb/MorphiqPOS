@@ -19,113 +19,27 @@
  * antes del comando o encadenan varios— quedan fuera con su razón en `excluidas`: un 400
  * de su propio parseo llegaría antes que el permiso y la prueba no diría nada de él.
  */
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import * as prettier from 'prettier';
 
-const RAIZ_API = join('apps', 'web', 'app', 'api');
+import { rutasDeComando } from './lib/rutas-de-comando.mjs';
+
 const SALIDA = join('pruebas', 'e2e', 'matriz-de-permisos.json');
 
-/**
- * `@morphiqpos/app/<x>` → su archivo, por el mapa `exports` del paquete. La raíz no
- * depende del paquete (sólo `apps/web`), así que se resuelve como lo resolvería él.
- */
-const EXPORTS = JSON.parse(readFileSync(join('packages', 'app', 'package.json'), 'utf8')).exports;
-function archivoDelModulo(especificador) {
-  const subruta =
-    especificador === '@morphiqpos/app' ? '.' : `.${especificador.slice('@morphiqpos/app'.length)}`;
-  const destino = EXPORTS[subruta];
-  if (typeof destino !== 'string') throw new Error(`@morphiqpos/app no exporta «${subruta}».`);
-  return pathToFileURL(join('packages', 'app', destino)).href;
-}
-
-function rutas(dir) {
-  return readdirSync(dir).flatMap((nombre) => {
-    const ruta = join(dir, nombre);
-    if (statSync(ruta).isDirectory()) return rutas(ruta);
-    return nombre === 'route.ts' ? [ruta] : [];
-  });
-}
-
-/** `apps/web/app/api/caja/abrir/route.ts` → `/api/caja/abrir`. */
-function caminoDe(archivo) {
-  const relativo = relative(join('apps', 'web', 'app'), archivo).split(sep);
-  relativo.pop();
-  return `/${relativo.join('/')}`;
-}
-
-/** De qué módulo de `@morphiqpos/app` viene cada nombre importado. */
-function importados(texto) {
-  const mapa = new Map();
-  for (const m of texto.matchAll(
-    /import\s*\{([^}]*)\}\s*from\s*'(@morphiqpos\/app(?:\/[\w-]+)?)'/g,
-  )) {
-    for (const parte of m[1].split(',')) {
-      const nombre = parte
-        .trim()
-        .split(/\s+as\s+/)
-        .pop()
-        ?.trim();
-      const original = parte
-        .trim()
-        .split(/\s+as\s+/)[0]
-        ?.trim();
-      if (nombre) mapa.set(nombre, { modulo: m[2], original: original ?? nombre });
-    }
-  }
-  return mapa;
-}
-
 async function generar() {
-  const incluidas = [];
-  const excluidas = [];
-  const modulos = new Map();
-
-  for (const archivo of rutas(RAIZ_API).sort()) {
-    const texto = readFileSync(archivo, 'utf8');
-    const camino = caminoDe(archivo);
-    const directo =
-      /export\s+const\s+POST\s*=\s*manejadorDeComando(?:ConParametro)?\(\s*(\w+)/.exec(texto);
-    if (directo === null) {
-      excluidas.push({
-        ruta: camino,
-        razon: /manejadorDeComando|ejecutarComandoHttp/.test(texto)
-          ? 'no sirve UN comando por la tubería estándar: valida o encadena antes del comando'
-          : 'no es una ruta de comando (pública, de sesión o de consulta)',
-      });
-      continue;
-    }
-    if (camino.includes('[')) {
-      excluidas.push({ ruta: camino, razon: 'lleva un segmento dinámico en la dirección' });
-      continue;
-    }
-    const origen = importados(texto).get(directo[1]);
-    if (origen === undefined) {
-      excluidas.push({
-        ruta: camino,
-        razon: `el comando «${directo[1]}» no viene de @morphiqpos/app`,
-      });
-      continue;
-    }
-    if (!modulos.has(origen.modulo)) {
-      modulos.set(origen.modulo, await import(archivoDelModulo(origen.modulo)));
-    }
-    const comando = modulos.get(origen.modulo)[origen.original];
-    if (comando === undefined || !Array.isArray(comando.roles)) {
-      excluidas.push({ ruta: camino, razon: `«${origen.original}» no es un comando con roles` });
-      continue;
-    }
-    incluidas.push({
-      ruta: camino,
+  const { incluidas, excluidas } = await rutasDeComando();
+  return {
+    incluidas: incluidas.map(({ ruta, comando }) => ({
+      ruta,
       comando: comando.nombre,
       escribe: comando.escribe === true,
       roles: [...comando.roles].sort(),
       paquetes: [...comando.paquetes].sort(),
-    });
-  }
-  return { incluidas, excluidas };
+    })),
+    excluidas,
+  };
 }
 
 const matriz = await generar();

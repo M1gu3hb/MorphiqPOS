@@ -475,6 +475,36 @@ export const SIN_ESTADO = [
     razon:
       'No lee nada antes de pintarse —el esperado aparece DESPUÉS de contar, a ciegas—; entregar el turno pone el botón en `cargando`.',
   },
+  {
+    pantalla: 'venta/RetiroDeCaja',
+    estado: 'vacio',
+    razon:
+      'Formulario del retiro (D.1 de la 2.4, el de la tienda y el del salón): un importe y a dónde va. No hay ninguna lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'venta/RetiroDeCaja',
+    estado: 'cargando',
+    razon:
+      'No lee nada antes de pintarse: lo único asíncrono es registrar el retiro, y mientras corre el botón pasa a `cargando`.',
+  },
+  {
+    pantalla: 'venta/CampoDePesos',
+    estado: 'vacio',
+    razon:
+      'Es un CAMPO, no una pantalla (D.1 de la 2.4): el importe con su `$` que usan la caja de la tienda y el retiro. No pinta ninguna lista.',
+  },
+  {
+    pantalla: 'venta/CampoDePesos',
+    estado: 'cargando',
+    razon:
+      'Un campo de texto controlado por quien lo monta: no lee nada y no espera nada. La espera, si la hay, la pinta el formulario que lo contiene.',
+  },
+  {
+    pantalla: 'venta/CampoDePesos',
+    estado: 'error',
+    razon:
+      'Un campo no decide si lo tecleado está mal: lo decide `aCentavos` en el formulario que lo monta, y ése pinta su Aviso (la caja de la tienda, el retiro).',
+  },
 ];
 
 const argumentos = process.argv.slice(2);

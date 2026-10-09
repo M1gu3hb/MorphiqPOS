@@ -143,6 +143,25 @@ describe('F-400 · la rejilla del día', () => {
     expect(salida.columnas[0]?.citas[0]?.activos).toHaveLength(2);
   });
 
+  it('cada cita trae el NOMBRE de su clienta, y sólo de las de este negocio', async () => {
+    // La estilista no puede leer el catálogo de clientas por el puente (trae saldos y
+    // crédito): sin el nombre en la cita, su agenda salía con bloques sin nombre.
+    const base = baseDe({
+      cita_servicios: [tinte(), tinte({ id: 'cs2', cita_id: 'c2' })],
+      citas: [citaDe(), citaDe({ id: 'c2', folio: 'A-2', cliente_id: 'ajena' })],
+      clientes: [
+        { id: CLIENTA, organizacion_id: ORG, nombre: 'Mariana Ortiz' },
+        { id: 'ajena', organizacion_id: 'otra-org', nombre: 'De otro negocio' },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await agendaDelDia.ejecutar(ctx, { fecha: HOY, profesionalId: null });
+
+    const nombres = salida.columnas.flatMap((c) => c.citas.map((x) => x.clienteNombre));
+    expect(nombres).toEqual(['Mariana Ortiz', null]);
+  });
+
   it('el bloqueo de TODO el salón le toca a todas las columnas', async () => {
     // Pintarlo sólo en la de quien lo creó hace que la rejilla ofrezca la hora
     // de la junta en las demás.

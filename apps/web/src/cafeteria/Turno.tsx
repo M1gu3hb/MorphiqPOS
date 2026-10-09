@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { consultarPuente, ErrorApi, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { DevolucionDeVenta } from '~/venta/DevolucionDeVenta';
 import { CorteEnPdf } from '~/corte/CorteEnPdf';
 
 /**
@@ -146,6 +147,8 @@ export interface EstadoDelTurno {
   readonly ventasCentavos: string;
   readonly numeroVentas: number;
   readonly movimientos: readonly MovimientoDelTurno[];
+  /** Si quien mira administra la caja: ve la devolución (el servidor lo exige igual). */
+  readonly puedeAdministrar?: boolean;
   /** El fondo por montones como se contó al abrir; `null` si se abrió sin desglose. */
   readonly fondoDesglosado?: {
     readonly monedasCentavos: string;
@@ -754,11 +757,16 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
         </Superficie>
       ) : null}
 
-      <Tabs defaultValue={abierto ? 'resumen' : 'historial'}>
+      {/* Con `key`: al abrir o cerrar el turno la pestaña vuelve a la que toca —el resumen
+          del turno abierto, el historial del cerrado—; `defaultValue` sólo vale al montar. */}
+      <Tabs key={abierto ? 'abierto' : 'cerrado'} defaultValue={abierto ? 'resumen' : 'historial'}>
         <TabsList className="flex w-full overflow-x-auto">
           <TabsTrigger value="resumen">Resumen</TabsTrigger>
           <TabsTrigger value="movimientos">Movimientos</TabsTrigger>
           <TabsTrigger value="gastos">Gastos</TabsTrigger>
+          {abierto && estado.puedeAdministrar === true ? (
+            <TabsTrigger value="devoluciones">Devoluciones</TabsTrigger>
+          ) : null}
           <TabsTrigger value="historial">Historial</TabsTrigger>
         </TabsList>
 
@@ -824,6 +832,18 @@ export function Turno({ estadoInicial, filasIniciales, onTurnoAbierto }: TurnoPr
             movimientos.filter((m) => m.tipo === 'gasto'),
           )}
         </TabsContent>
+
+        {/* LA DEVOLUCIÓN de una venta, para quien administra (bloque D de la 2.4): un latte
+            que salió mal se devuelve aquí, del cajón de ESTE turno. */}
+        {abierto && estado.puedeAdministrar === true ? (
+          <TabsContent value="devoluciones" className="pt-(--espacio-3)">
+            <DevolucionDeVenta
+              alDevolver={() => {
+                setIntento((previo) => previo + 1);
+              }}
+            />
+          </TabsContent>
+        ) : null}
 
         {/* 4 · EL HISTORIAL, y el corte de cada turno cerrado debajo. Si no se leyó,
             se dice AQUÍ: el turno de arriba sí se leyó y se sigue operando. */}

@@ -6,7 +6,7 @@ import { centavos, repartirPorPesos } from '@morphiqpos/domain/dinero';
 import { evaluarDescuento, puedeAutorizar } from '@morphiqpos/domain/venta';
 import { z } from 'zod';
 
-import { definirComando } from '../definicion.ts';
+import { definirComando, type ContextoComando } from '../definicion.ts';
 import { leerAutorizacion } from '../identidad/supervisor.ts';
 
 import { exigirBorrador } from './carrito.ts';
@@ -71,130 +71,171 @@ export const aplicarDescuento = definirComando<
   paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaAplicarDescuento,
   async ejecutar(ctx, entrada) {
-    const { organizacionId, sucursalId, empleoId, rol } = ctx.ambito;
     await ctx.paso('exigir_borrador', () =>
-      exigirBorrador(ctx.tx, organizacionId, entrada.ordenId),
+      exigirBorrador(ctx.tx, ctx.ambito.organizacionId, entrada.ordenId),
     );
-
-    const lineas = await ctx.paso('leer_lineas', () =>
-      repoOrdenes.lineasDeOrden(ctx.tx, organizacionId, entrada.ordenId),
-    );
-    if (lineas.length === 0) {
-      throw new ErrorDominio('ORDEN_VACIA', 'No hay nada en la venta a qué descontarle.');
-    }
-    const base = lineas.reduce((suma, l) => suma + l.subtotalCentavos, 0n);
-    const descuento = BigInt(entrada.descuentoCentavos);
-    if (descuento >= base) {
-      throw new ErrorDominio(
-        'CONFIGURACION_INVALIDA',
-        'Un descuento no puede llevarse la venta entera: eso es una cortesía, y se registra aparte.',
-        { baseCentavos: base.toString() },
-      );
-    }
-
-    const tope = await topeDe(ctx, rol);
-    const veredicto = evaluarDescuento({ baseCentavos: base, descuentoCentavos: descuento, tope });
-    let autorizadoPor: string | null = null;
-    if (veredicto.veredicto !== 'libre') {
-      autorizadoPor = await ctx.paso('autorizar', async () => {
-        const carga =
-          entrada.autorizacion === undefined
-            ? null
-            : leerAutorizacion(
-                entrada.autorizacion,
-                { organizacionId, solicitaEmpleoId: empleoId },
-                secreto(),
-                ctx.ahora,
-              );
-        if (carga === null) {
-          throw new ErrorDominio(
-            'PUESTO_NO_OTORGABLE',
-            entrada.autorizacion === undefined
-              ? 'Ese descuento pasa de tu tope: que lo autorice un supervisor con su PIN.'
-              : 'La autorización venció o no es de esta venta: que el supervisor teclee su PIN otra vez.',
-            {
-              porque: veredicto.porque,
-              topeCentavos: veredicto.topeCentavos.toString(),
-              topeBp: veredicto.topeBp,
-            },
-          );
-        }
-        const topeDeQuienAutoriza = await topeDe(ctx, carga.rol);
-        if (!puedeAutorizar(descuento, base, topeDeQuienAutoriza)) {
-          throw new ErrorDominio(
-            'PUESTO_NO_OTORGABLE',
-            'Ese descuento pasa también del tope de quien lo autoriza: tiene que ser alguien por encima.',
-            { topeCentavos: topeDeQuienAutoriza.topeCentavos.toString() },
-          );
-        }
-        await ctx.tx
-          .insertInto('autorizaciones_descuento')
-          .values({
-            organizacion_id: organizacionId,
-            sucursal_id: sucursalId,
-            orden_id: entrada.ordenId,
-            solicita_empleo_id: empleoId,
-            autoriza_empleo_id: carga.supervisor,
-            autoriza_rol: carga.rol,
-            descuento_centavos: descuento,
-            tope_centavos: tope.topeCentavos,
-            // Las dos ramas del tope (180): un descuento que pasa por PORCENTAJE y no por
-            // importe se rechazaba en la base con 23514 y no se podía autorizar nunca.
-            base_centavos: base,
-            tope_bp: tope.topeBp,
-            motivo: entrada.motivo,
-            created_at: ctx.ahora,
-          })
-          .execute();
-        return carga.supervisor;
-      });
-    }
-
-    // El reparto EXACTO entre líneas, en proporción a lo que cada una vale.
-    const partes = repartirPorPesos(
-      centavos(descuento),
-      lineas.map((l) => Number(l.subtotalCentavos)),
-    );
-    await ctx.paso('repartir', async () => {
-      for (const [i, linea] of lineas.entries()) {
-        const parte = BigInt(partes[i] ?? 0n);
-        await ctx.tx
-          .updateTable('orden_lineas')
-          .set({
-            descuento_centavos: parte,
-            total_centavos: linea.subtotalCentavos - parte,
-            updated_at: ctx.ahora,
-          })
-          .where('organizacion_id', '=', organizacionId)
-          .where('orden_id', '=', entrada.ordenId)
-          .where('id', '=', linea.id)
-          .execute();
-      }
-    });
-
-    const { totales } = await ctx.paso('recalcular', () =>
-      cotizar(ctx.tx, organizacionId, entrada.ordenId),
-    );
-    await ctx.paso('anotar_totales', () =>
-      repoOrdenes.anotarTotales(ctx.tx, organizacionId, entrada.ordenId, totales),
-    );
+    const hecho = await descontarLaOrden(ctx, entrada.ordenId, entrada);
 
     ctx.auditar({
       entidadId: entrada.ordenId,
       payload: {
-        descuentoCentavos: descuento.toString(),
-        baseCentavos: base.toString(),
+        descuentoCentavos: hecho.descuentoCentavos.toString(),
+        baseCentavos: hecho.baseCentavos.toString(),
         motivo: entrada.motivo,
-        autorizadoPor,
+        autorizadoPor: hecho.autorizadoPor,
       },
     });
     return {
-      descuentoCentavos: descuento.toString(),
-      totalCentavos: totales.totalCentavos.toString(),
-      autorizadoPor,
+      descuentoCentavos: hecho.descuentoCentavos.toString(),
+      totalCentavos: hecho.totalCentavos.toString(),
+      autorizadoPor: hecho.autorizadoPor,
     };
   },
 });
+
+/** Lo que se pide descontar: cuánto, por qué y, si pasa del tope, quién lo autorizó. */
+export interface PedidoDeDescuento {
+  readonly descuentoCentavos: number;
+  readonly motivo: string;
+  readonly autorizacion?: string | undefined;
+}
+
+export interface DescuentoAplicado {
+  readonly descuentoCentavos: bigint;
+  /** Lo que valía la orden antes del descuento: la base del porcentaje del tope. */
+  readonly baseCentavos: bigint;
+  readonly totalCentavos: bigint;
+  /** El empleo de quien autorizó, o `null` si cupo en el tope propio. */
+  readonly autorizadoPor: string | null;
+}
+
+/**
+ * EL DESCUENTO SOBRE UNA ORDEN, con su tope y su supervisor: el cuerpo de
+ * `venta.aplicar_descuento`, en UN sitio (bloque D de la 2.4).
+ *
+ * Lo usan dos llamadores con la misma regla y la misma bitácora: el carrito de la tienda
+ * —un borrador, que el comando exige antes de llamar— y la NOTA de la ferretería, que el
+ * mostradorista negocia con el cliente enfrente y nace `confirmada` al mandarse a caja
+ * (`ferreteria.crear_nota_mostrador`). Una segunda copia del tope y de la autorización
+ * sería la que se queda atrás el día que el tope cambie.
+ *
+ * No exige el estado: eso lo decide quien llama. No audita: `definirComando` guarda sólo
+ * la primera entrada del rastro, y cada llamador anota la suya.
+ */
+export async function descontarLaOrden(
+  ctx: ContextoComando<Transaccion>,
+  ordenId: string,
+  pedido: PedidoDeDescuento,
+): Promise<DescuentoAplicado> {
+  const { organizacionId, sucursalId, empleoId, rol } = ctx.ambito;
+  const lineas = await ctx.paso('leer_lineas', () =>
+    repoOrdenes.lineasDeOrden(ctx.tx, organizacionId, ordenId),
+  );
+  if (lineas.length === 0) {
+    throw new ErrorDominio('ORDEN_VACIA', 'No hay nada en la venta a qué descontarle.');
+  }
+  const base = lineas.reduce((suma, l) => suma + l.subtotalCentavos, 0n);
+  const descuento = BigInt(pedido.descuentoCentavos);
+  if (descuento >= base) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Un descuento no puede llevarse la venta entera: eso es una cortesía, y se registra aparte.',
+      { baseCentavos: base.toString() },
+    );
+  }
+
+  const tope = await topeDe(ctx, rol);
+  const veredicto = evaluarDescuento({ baseCentavos: base, descuentoCentavos: descuento, tope });
+  let autorizadoPor: string | null = null;
+  if (veredicto.veredicto !== 'libre') {
+    autorizadoPor = await ctx.paso('autorizar', async () => {
+      const carga =
+        pedido.autorizacion === undefined
+          ? null
+          : leerAutorizacion(
+              pedido.autorizacion,
+              { organizacionId, solicitaEmpleoId: empleoId },
+              secreto(),
+              ctx.ahora,
+            );
+      if (carga === null) {
+        throw new ErrorDominio(
+          'PUESTO_NO_OTORGABLE',
+          pedido.autorizacion === undefined
+            ? 'Ese descuento pasa de tu tope: que lo autorice un supervisor con su PIN.'
+            : 'La autorización venció o no es de esta venta: que el supervisor teclee su PIN otra vez.',
+          {
+            porque: veredicto.porque,
+            topeCentavos: veredicto.topeCentavos.toString(),
+            topeBp: veredicto.topeBp,
+          },
+        );
+      }
+      const topeDeQuienAutoriza = await topeDe(ctx, carga.rol);
+      if (!puedeAutorizar(descuento, base, topeDeQuienAutoriza)) {
+        throw new ErrorDominio(
+          'PUESTO_NO_OTORGABLE',
+          'Ese descuento pasa también del tope de quien lo autoriza: tiene que ser alguien por encima.',
+          { topeCentavos: topeDeQuienAutoriza.topeCentavos.toString() },
+        );
+      }
+      await ctx.tx
+        .insertInto('autorizaciones_descuento')
+        .values({
+          organizacion_id: organizacionId,
+          sucursal_id: sucursalId,
+          orden_id: ordenId,
+          solicita_empleo_id: empleoId,
+          autoriza_empleo_id: carga.supervisor,
+          autoriza_rol: carga.rol,
+          descuento_centavos: descuento,
+          tope_centavos: tope.topeCentavos,
+          // Las dos ramas del tope (180): un descuento que pasa por PORCENTAJE y no por
+          // importe se rechazaba en la base con 23514 y no se podía autorizar nunca.
+          base_centavos: base,
+          tope_bp: tope.topeBp,
+          motivo: pedido.motivo,
+          created_at: ctx.ahora,
+        })
+        .execute();
+      return carga.supervisor;
+    });
+  }
+
+  // El reparto EXACTO entre líneas, en proporción a lo que cada una vale.
+  const partes = repartirPorPesos(
+    centavos(descuento),
+    lineas.map((l) => Number(l.subtotalCentavos)),
+  );
+  await ctx.paso('repartir', async () => {
+    for (const [i, linea] of lineas.entries()) {
+      const parte = BigInt(partes[i] ?? 0n);
+      await ctx.tx
+        .updateTable('orden_lineas')
+        .set({
+          descuento_centavos: parte,
+          total_centavos: linea.subtotalCentavos - parte,
+          updated_at: ctx.ahora,
+        })
+        .where('organizacion_id', '=', organizacionId)
+        .where('orden_id', '=', ordenId)
+        .where('id', '=', linea.id)
+        .execute();
+    }
+  });
+
+  const { totales } = await ctx.paso('recalcular', () => cotizar(ctx.tx, organizacionId, ordenId));
+  await ctx.paso('anotar_totales', () =>
+    repoOrdenes.anotarTotales(ctx.tx, organizacionId, ordenId, totales),
+  );
+
+  return {
+    descuentoCentavos: descuento,
+    baseCentavos: base,
+    totalCentavos: totales.totalCentavos,
+    autorizadoPor,
+  };
+}
 
 export const entradaTopeDeDescuento = z.object({});
 

@@ -33,9 +33,7 @@ import {
 } from '@/utils/unidadesMedida';
 import StockMinCritInput from '@/components/inventario/StockMinCritInput';
 import { obtenerAlmacenPrincipalId, textoDecimal } from '@/components/inventario/comandos';
-
-/** Lo que cabe en `entradaAjustarStock.motivo` (`.max(300)`). */
-const MAXIMO_MOTIVO = 300;
+import { cuerpoDelAjuste } from '~/inventario/ajuste-de-stock';
 
 /**
  * AjustarStockDialog
@@ -248,7 +246,6 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
           otro: 'Otro ajuste',
         }[tipoAjuste] || 'Ajuste manual';
 
-      const motivoFinal = `${tipoLegible}: ${motivo.trim()}`.slice(0, MAXIMO_MOTIVO);
       const almacenId = await obtenerAlmacenPrincipalId();
 
       // Se manda el DELTA con signo, no el stock final: sumar es lo que dos
@@ -257,12 +254,15 @@ export default function AjustarStockDialog({ open, onClose, ingrediente }) {
       // recalibra el costo ponderado, igual que antes.
       const resultado = await api.comandos.ejecutar(
         '/api/inventario/ajustar',
-        {
+        // `motivo` es la CLAVE de `motivos_merma` y lo escrito va en `nota` (D.1 de la
+        // 2.4): mandar la frase como motivo hacia que el servidor rechazara todo ajuste.
+        cuerpoDelAjuste({
           almacenId,
           insumoId: ingredienteIdRef,
           cantidad: textoDecimal(cambio),
-          motivo: motivoFinal,
-        },
+          tipoLegible,
+          texto: motivo,
+        }),
         claveDelDialogo.current,
       );
 

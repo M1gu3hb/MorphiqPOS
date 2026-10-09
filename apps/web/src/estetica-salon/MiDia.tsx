@@ -24,13 +24,15 @@ import {
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
-import { consultarPuente } from '~/cliente/api';
+import { consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import {
   componerElDia,
   esMismoDia,
+  leerPropinaDelDia,
+  rutaDeLaCita,
   type CitaDeMiDia,
   type FilaCita,
   type FilaCitaServicio,
@@ -262,8 +264,10 @@ export function MiDia({
       consultarPuente<FilaCliente>('Cliente', { limite: 300, signal: señal }),
       consultarPuente<FilaComision>('ComisionCausada', { filtro: mio, limite: 60, signal: señal }),
       consultarPuente<FilaExpediente>('ExpedienteBelleza', { limite: 300, signal: señal }),
+      // La propina del día la sabe el ledger de propinas; si no se lee, se dice «sin dato».
+      leerPropinaDelDia(invocarComando, yo),
     ])
-      .then(([servicios, agenda, clientes, comisiones, expedientes]) => {
+      .then(([servicios, agenda, clientes, comisiones, expedientes, propinaDelDia]) => {
         if (!sigueMontada()) return;
         const hoy = new Date();
         setCitas(componerElDia(servicios, agenda, clientes, expedientes, hoy));
@@ -279,7 +283,7 @@ export function MiDia({
         }));
         setGanancia({
           comisionCentavos: detalle.reduce((suma, linea) => suma + linea.centavos, 0),
-          propinaCentavos: null,
+          propinaCentavos: propinaDelDia,
           detalle,
         });
       })
@@ -309,8 +313,8 @@ export function MiDia({
 
   function abrir(citaId: string): void {
     if (onAbrirCita !== undefined) onAbrirCita(citaId);
-    // La fórmula vive en CITA EN CURSO (§4.3.3); esta pantalla sólo lleva ahí.
-    else router.push('/estetica-salon/cita-en-curso');
+    // La fórmula vive en CITA EN CURSO (§4.3.3); esta pantalla lleva ahí, a ESA cita.
+    else router.push(rutaDeLaCita(citaId));
   }
 
   function reintentar(): void {

@@ -2,7 +2,7 @@ import 'server-only';
 
 import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
-import { repoVentaCatalogo } from '@morphiqpos/data';
+import { repoCaja, repoVentaCatalogo } from '@morphiqpos/data';
 import { desdeTexto, sumar, type Centavos } from '@morphiqpos/domain/dinero';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
@@ -12,6 +12,7 @@ import type { LineaDeCompra } from './esquemas.ts';
 import { exigirUnidadesBaseDelGiro } from './insumos.ts';
 import { escribirLinea, resolverProveedor, type CabeceraDeCompra } from './linea.ts';
 import { lineasDePlantilla, marcarPlantillaUsada } from './plantillas.ts';
+import { cajaDeLaCompra } from './sesion-de-caja.ts';
 
 /**
  * `compras.registrar` — corrige D-12.
@@ -127,6 +128,20 @@ async function escribirCompra(
   // importe que de verdad se va a guardar.
   const total = totalDeLineas(lineas);
 
+  // LA COMPRA DE CONTADO SALE DEL CAJÓN (bloque D de la 2.4). `02-DINERO-Y-CAJA` §8.3
+  // de la ferretería —«Compra de contado al proveedor · − monto»— y la prueba 1 de su
+  // §1 —«− gastos y compras de contado»—. La compra guardaba «efectivo» en una columna
+  // y el cajón no se enteraba: el arqueo de la noche esperaba un dinero que había salido
+  // en la mano del repartidor. La caja es la MISMA regla que un gasto en efectivo
+  // (`sesion-de-caja.ts`): la de esta terminal, o la única abierta de la sucursal; sin
+  // ninguna, la compra de contado no se registra. Se busca ANTES de escribir nada.
+  const caja =
+    cabecera.metodoPago === 'efectivo' && total > 0n
+      ? await ctx.paso('cargar_caja', () =>
+          cajaDeLaCompra(ctx.tx, organizacionId, sucursalId, ctx.ambito.terminalId),
+        )
+      : null;
+
   const compra = await ctx.paso('crear_compra', () =>
     ctx.tx
       .insertInto('compras')
@@ -145,6 +160,24 @@ async function escribirCompra(
       .returning('id')
       .executeTakeFirstOrThrow(),
   );
+
+  if (caja !== null) {
+    // Como salida de dinero de la operación —el tipo `gasto`, negativo— y con la
+    // referencia que la 162 le abrió al dinero que se le entrega al proveedor: la
+    // cascada del corte lo explica como lo que es, sin confundirlo con un retiro.
+    await ctx.paso('pagar_del_cajon', () =>
+      repoCaja.registrarMovimiento(ctx.tx, {
+        organizacionId,
+        sesionCajaId: caja.id,
+        tipo: 'gasto',
+        montoCentavos: total,
+        referenciaTipo: 'pago_proveedor',
+        referenciaId: compra.id,
+        empleadoId: empleoId,
+        motivo: `compra de contado · ${proveedor.nombre}`,
+      }),
+    );
+  }
 
   // Cada línea es su propio paso NUMERADO: es lo que permite a la prueba de
   // inyección interrumpir `registrar_linea_3` —el escenario exacto de D-12— y

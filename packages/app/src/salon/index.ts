@@ -45,7 +45,14 @@ export {
   type ResultadoCobroCita,
 } from './cobro.ts';
 
-export { entradaLiquidar, liquidarProfesional, type ResultadoLiquidacion } from './liquidacion.ts';
+export {
+  entradaLiquidar,
+  entradaVistaPrevia,
+  liquidarProfesional,
+  vistaPreviaDeLiquidacion,
+  type ResultadoLiquidacion,
+  type VistaPreviaDeLiquidacion,
+} from './liquidacion.ts';
 
 export {
   aplicarAnticipo,

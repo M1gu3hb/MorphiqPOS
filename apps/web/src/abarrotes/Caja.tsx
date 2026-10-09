@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import {
   Aviso,
@@ -11,19 +10,16 @@ import {
   Superficie,
   Vacio,
 } from '@morphiqpos/ui/sistema';
-import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  Check,
-  LockKeyhole,
-  LockKeyholeOpen,
-} from 'lucide-react';
-import { useEffect, useState, type ComponentProps } from 'react';
+import { ArrowDownToLine, Check, LockKeyhole, LockKeyholeOpen } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { CampoDePesos } from '~/venta/CampoDePesos';
 import { DevolucionDeVenta } from '~/venta/DevolucionDeVenta';
 import { GastoDeCaja } from '~/venta/GastoDeCaja';
+import { aCentavos } from '~/venta/importe-tecleado';
+import { RetiroDeCaja } from '~/venta/RetiroDeCaja';
 
 import {
   estadoDeLaPantalla,
@@ -91,11 +87,7 @@ import {
 
 const RUTA_ABRIR = '/api/caja/abrir';
 const RUTA_CAMBIO = '/api/caja/entrada-cambio';
-const RUTA_MOVIMIENTO = '/api/caja/movimiento';
 const RUTA_ESTADO = '/api/caja/estado';
-
-/** Forma de un importe tecleado. Sin `Number` ni `parseFloat` de por medio. */
-const IMPORTE_CON_FORMA = /^\d{1,7}(?:[.,]\d{1,2})?$/;
 
 /** Los tres montones en que de verdad se reparte un fondo de mostrador. */
 const DENOMINACIONES = [
@@ -115,8 +107,11 @@ const ORIGENES = [
 
 type Origen = (typeof ORIGENES)[number]['clave'];
 
-/** Los tres formularios de la pantalla. El aviso sale en el que se tocó. */
-type Panel = 'apertura' | 'cambio' | 'retiro';
+/**
+ * Los formularios propios de la pantalla. El aviso sale en el que se tocó. El retiro es
+ * de `venta/RetiroDeCaja` —el mismo del salón— y lleva su aviso consigo.
+ */
+type Panel = 'apertura' | 'cambio';
 
 interface Tropiezo {
   readonly panel: Panel;
@@ -141,15 +136,6 @@ export interface CajaProps {
   readonly rutaDeCortes?: string;
 }
 
-/** Centavos como TEXTO: el dinero no pasa por punto flotante en el navegador. */
-export function aCentavos(texto: string): number | null {
-  const limpio = texto.trim().replace(',', '.');
-  if (limpio === '') return 0;
-  if (!IMPORTE_CON_FORMA.test(limpio)) return null;
-  const [enteros = '0', decimales = ''] = limpio.split('.');
-  return Number(enteros) * 100 + Number(decimales.padEnd(2, '0'));
-}
-
 /** La suma de varios importes tecleados, o `null` si alguno no es un importe. */
 function sumaDe(montos: readonly (number | null)[]): number | null {
   let suma = 0;
@@ -169,55 +155,6 @@ function idDelMontonSiguiente(indice: number): string | undefined {
 function mensajeDe(fallo: unknown): string {
   if (fallo instanceof ErrorApi) return fallo.message;
   return 'No se pudo. Lo capturado sigue aquí: vuelve a intentarlo.';
-}
-
-interface CampoDePesosProps extends Omit<
-  ComponentProps<'input'>,
-  'type' | 'inputMode' | 'className'
-> {
-  /**
-   * El `id` del control al que lleva Enter. Sin él, Enter hace lo de siempre en un
-   * formulario: registrarlo. Ver «Cada panel es un formulario» arriba.
-   */
-  readonly siguiente?: string | undefined;
-}
-
-/**
- * EL IMPORTE QUE SE TECLEA · con su `$` delante y las cifras a la derecha.
- *
- * Tiene la forma de `CampoDeDinero` y no es `CampoDeDinero` porque aquí lo tecleado
- * se guarda como TEXTO y lo lee `aCentavos`, que es lo que llega al servidor: la
- * coma es siempre el decimal —«12,50», doce pesos con cincuenta—, cada montón
- * admite hasta siete cifras de pesos, uno vacío es cero y uno mal escrito detiene
- * la apertura. `CampoDeDinero` lee además «1,250» como mil doscientos cincuenta, que
- * aquí no es un importe: pasarlo a él cambiaría lo que la caja acepta, y eso no se
- * decide al cambiarle la cara a la pantalla.
- */
-function CampoDePesos({ siguiente, onKeyDown, ...props }: CampoDePesosProps) {
-  return (
-    <div className="relative">
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-(--espacio-3) -translate-y-1/2 text-sm text-texto-sutil"
-      >
-        $
-      </span>
-      <Input
-        {...props}
-        type="text"
-        inputMode="decimal"
-        autoComplete="off"
-        onKeyDown={(evento) => {
-          onKeyDown?.(evento);
-          if (siguiente === undefined || evento.key !== 'Enter') return;
-          // Un importe a medias no registra nada: Enter lleva al campo que sigue.
-          evento.preventDefault();
-          document.getElementById(siguiente)?.focus();
-        }}
-        className="h-[calc(var(--altura-control)*1.25)] pl-(--espacio-6) text-right font-numeros text-lg tabular-nums md:text-lg"
-      />
-    </div>
-  );
 }
 
 /**
@@ -254,7 +191,6 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
   });
   const [cambio, setCambio] = useState({ monedas: '', chicos: '' });
   const [origen, setOrigen] = useState<Origen>('banco');
-  const [retiro, setRetiro] = useState({ importe: '', motivo: '' });
   const [tropiezo, setTropiezo] = useState<Tropiezo | null>(null);
   /** El panel cuyo comando va en camino: apaga los tres botones y el suyo gira. */
   const [guardando, setGuardando] = useState<Panel | null>(null);
@@ -346,29 +282,6 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
         motivo: null,
       });
       setCambio({ monedas: '', chicos: '' });
-      return leerEstado();
-    });
-  }
-
-  function retirar(): void {
-    const importe = aCentavos(retiro.importe);
-    if (importe === null || importe === 0) {
-      tropezar('retiro', 'Pon cuánto se retira.');
-      return;
-    }
-    if (retiro.motivo.trim().length < 3) {
-      // Un retiro sin motivo es la única salida de dinero que puede esconder un
-      // faltante. No se guarda sin explicación.
-      tropezar('retiro', 'Escribe a dónde va ese dinero.');
-      return;
-    }
-    void ejecutar('retiro', async () => {
-      await invocarComando(RUTA_MOVIMIENTO, {
-        tipo: 'retiro',
-        montoCentavos: -importe,
-        motivo: retiro.motivo.trim(),
-      });
-      setRetiro({ importe: '', motivo: '' });
       return leerEstado();
     });
   }
@@ -641,74 +554,6 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
     </Superficie>
   );
 
-  const panelDeRetiro = (
-    <Superficie
-      como="form"
-      nivel={0}
-      relleno={4}
-      aria-labelledby="retiro-titulo"
-      onSubmit={(evento) => {
-        evento.preventDefault();
-        retirar();
-      }}
-      className="flex flex-col gap-(--espacio-4)"
-    >
-      <div className="flex items-start gap-(--espacio-3)">
-        <ArrowUpFromLine
-          aria-hidden="true"
-          className="mt-(--espacio-1) size-5 shrink-0 text-texto-sutil"
-        />
-        <div className="flex flex-col gap-(--espacio-1)">
-          <h2 id="retiro-titulo" className="font-semibold">
-            Retirar
-          </h2>
-          <p className="text-sm text-texto-sutil">
-            Lo que sale del cajón lleva escrito a dónde va.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-(--espacio-2)">
-        <Label htmlFor="retiro-importe">Cuánto</Label>
-        <CampoDePesos
-          id="retiro-importe"
-          siguiente="retiro-motivo"
-          value={retiro.importe}
-          onChange={(evento) => {
-            setRetiro({ ...retiro, importe: evento.target.value });
-          }}
-        />
-      </div>
-      <div className="flex flex-col gap-(--espacio-2)">
-        <Label htmlFor="retiro-motivo">A dónde va</Label>
-        <Input
-          id="retiro-motivo"
-          className="h-[calc(var(--altura-control)*1.25)]"
-          placeholder="al banco · pago a Bimbo · caja fuerte"
-          value={retiro.motivo}
-          onChange={(evento) => {
-            setRetiro({ ...retiro, motivo: evento.target.value });
-          }}
-        />
-      </div>
-
-      <AvisoDelPanel tropiezo={tropiezo} panel="retiro" />
-
-      <div className="mt-auto">
-        <Button
-          type="submit"
-          size="lg"
-          variant="outline"
-          className="w-full"
-          disabled={guardando !== null}
-          cargando={guardando === 'retiro'}
-        >
-          Registrar el retiro
-        </Button>
-      </div>
-    </Superficie>
-  );
-
   return (
     <main
       className={`mx-auto flex w-full flex-col gap-(--espacio-4) p-(--espacio-4) ${abierta ? 'max-w-5xl' : 'max-w-xl'}`}
@@ -735,7 +580,7 @@ export function Caja({ estadoInicial, rutaDeCortes = '/abarrotes/cortes' }: Caja
         <div className="grid items-stretch gap-(--espacio-4) lg:grid-cols-2">
           {loQueDeberiaHaber}
           {panelDeCambio}
-          {panelDeRetiro}
+          <RetiroDeCaja alRetirar={recargar} />
           {/* El gasto y la devolución son de quien administra; el servidor lo exige igual. */}
           {estado.puedeAdministrar ? (
             <>

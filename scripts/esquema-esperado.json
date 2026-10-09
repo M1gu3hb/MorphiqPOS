@@ -28663,7 +28663,7 @@
       "tabla": "pagos",
       "nombre": "pagos_metodo_check",
       "tipo": "check",
-      "definicion": "CHECK (metodo = ANY (ARRAY['efectivo'::text, 'tarjeta'::text, 'transferencia'::text, 'fiado'::text, 'puntos'::text, 'monedero'::text]))",
+      "definicion": "CHECK (metodo = ANY (ARRAY['efectivo'::text, 'tarjeta'::text, 'transferencia'::text, 'fiado'::text, 'puntos'::text, 'monedero'::text, 'credito'::text]))",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false

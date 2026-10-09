@@ -1,7 +1,7 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
-import type { Transaccion } from '@morphiqpos/data';
+import { ErrorDominio, PAQUETES_MOSTRADOR, PAQUETES_TODOS } from '@morphiqpos/contracts';
+import { repoOrdenes, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
@@ -174,5 +174,90 @@ export const entregarNota = definirComando<Transaccion, typeof entradaEntregarNo
 
     ctx.auditar({ entidadId: entrada.notaId, payload: { entregada: true } });
     return { notaId: entrada.notaId, estado: 'entregada' };
+  },
+});
+
+/** Las notas vivas: armándose, apartadas o esperando cobro en la caja. */
+const NOTAS_QUE_SE_CANCELAN: readonly string[] = ['armando', 'apartada', 'por_cobrar'];
+
+export const entradaCancelarNota = z.object({
+  notaId: z.uuid(),
+  /** Sin motivo no se cancela: es lo que lee la sección «Cancelaciones» del corte. */
+  motivo: z.string().trim().min(4).max(200),
+});
+
+/**
+ * CANCELAR UNA NOTA QUE NADIE VINO A PAGAR (bloque D de la 2.4).
+ *
+ * `02-DINERO-Y-CAJA §8.5.1`: «una nota abierta es material comprometido que nadie cobró.
+ * O se cobra, o se cancela y el material vuelve a estar disponible». Y el cierre de caja
+ * ya no deja pasar una nota mandada y sin cobrar, así que sin esto la caja no se podría
+ * cerrar el día que un cliente se va sin pagar. Es el mismo acto que cancelar una venta
+ * apartada de la tiendita (`venta.cancelar_apartada`): la orden queda `cancelada` con
+ * quién, cuándo y por qué —y cerrada, que lo exige `orden_cerrada_con_fecha` (045)—, y
+ * la nota, `cancelada` y cerrada.
+ *
+ * No mueve dinero ni inventario: una nota sin cobrar no tocó el cajón y su material no
+ * salió del almacén. Lo que ya se cobró o salió firmado a crédito no se cancela aquí: eso
+ * es una devolución.
+ */
+export const cancelarNota = definirComando<Transaccion, typeof entradaCancelarNota, ResultadoNota>({
+  nombre: 'nota_mostrador.cancelar',
+  entidad: 'nota_mostrador',
+  escribe: true,
+  roles: [...MOSTRADOR],
+  paquetes: PAQUETES_MOSTRADOR,
+  entrada: entradaCancelarNota,
+  async ejecutar(ctx, entrada) {
+    const { organizacionId, empleoId } = ctx.ambito;
+    const nota = await cargarNota(ctx, entrada.notaId);
+    if (!NOTAS_QUE_SE_CANCELAN.includes(nota.estado)) {
+      throw new ErrorDominio(
+        'CONFIGURACION_CONFLICTO',
+        'Esa nota ya se entregó o ya estaba cancelada: no hay nada que cancelar.',
+        { estado: nota.estado },
+      );
+    }
+
+    // La ORDEN, sólo si sigue sin cobrar: el `where` del estado es el cerrojo contra el
+    // cobro que entra al mismo tiempo. Si la caja la cobró antes, no se toca nada.
+    const canceladas = await ctx.paso('cancelar_orden', () =>
+      ctx.tx
+        .updateTable('ordenes')
+        .set({
+          estado: 'cancelada',
+          motivo_cancelacion: entrada.motivo,
+          cancelada_por: empleoId,
+          cancelada_en: ctx.ahora,
+          // `orden_cerrada_con_fecha` (045): una orden cancelada está cerrada.
+          cerrada_en: ctx.ahora,
+          updated_at: ctx.ahora,
+        })
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', nota.orden_id)
+        .where('estado', 'in', [...repoOrdenes.ESTADOS_COBRABLES])
+        .executeTakeFirst(),
+    );
+    if (Number(canceladas.numUpdatedRows) !== 1) {
+      throw new ErrorDominio(
+        'ORDEN_NO_EDITABLE',
+        'Esa nota ya se cobró o salió firmada a crédito: no se cancela, se devuelve.',
+      );
+    }
+
+    await ctx.paso('cancelar_nota', () =>
+      ctx.tx
+        .updateTable('notas_mostrador')
+        .set({ estado: 'cancelada', cerrada_en: ctx.ahora, updated_at: ctx.ahora })
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', entrada.notaId)
+        .execute(),
+    );
+
+    ctx.auditar({
+      entidadId: entrada.notaId,
+      payload: { ordenId: nota.orden_id, motivo: entrada.motivo },
+    });
+    return { notaId: entrada.notaId, estado: 'cancelada' };
   },
 });

@@ -1,6 +1,13 @@
 'use client';
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@morphiqpos/ui/primitivas/dialog';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import {
@@ -16,12 +23,15 @@ import {
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import { Check, CupSoda, Minus, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { cajaDeEstaTerminal } from '~/cliente/caja-de-la-terminal';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { DescuentoDeVenta, type DescuentoElegido } from '~/venta/DescuentoDeVenta';
 
 import { ApartadosDeHoy } from './ApartadosDeHoy';
 import { OpcionesDeLaBebida } from './OpcionesDeLaBebida';
@@ -83,6 +93,15 @@ const CANALES = [
 ] as const;
 
 type Canal = (typeof CANALES)[number]['clave'];
+
+/** El descuento como lo espera el mostrador del servidor: sin a quién se lo dijo la pantalla. */
+function descuentoParaElServidor(descuento: DescuentoElegido) {
+  return {
+    centavos: descuento.centavos,
+    motivo: descuento.motivo,
+    ...(descuento.autorizacion === undefined ? {} : { autorizacion: descuento.autorizacion }),
+  };
+}
 
 /** El cambio en caja, en centavos. Los dos umbrales del documento. */
 const CAMBIO_POCO = 50_000;
@@ -205,6 +224,13 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
   const [categoria, setCategoria] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  /**
+   * El descuento (bloque D de la 2.4): hasta el tope de quien cobra se aplica; arriba, con el
+   * PIN de un supervisor, en el diálogo compartido. Viaja con el cobro, en la misma llamada.
+   */
+  const [descuento, setDescuento] = useState<DescuentoElegido | null>(null);
+  const [descontando, setDescontando] = useState(false);
+  const router = useRouter();
   const [enLinea, setEnLinea] = useState(true);
   const [viajando, setViajando] = useState<string | null>(null);
   /** La bebida cuyas opciones están abiertas encima del cobro. */
@@ -225,18 +251,19 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
     let vivo = true;
     Promise.all([
       consultarPuente<ProductoDeBarra>('ProductoTerminado', { limite: 300 }),
-      consultarPuente<TurnoDeBarra>('CorteCaja', { limite: 1 }),
+      // La caja de ESTA terminal: con dos cajas, la última del negocio puede ser la otra.
+      cajaDeEstaTerminal(),
       // Las opciones AYUDAN a cobrar: si no llegan, la bebida se cobra sencilla, al
       // precio base, que es lo que el servidor cobra sin opciones.
       consultarPuente<OpcionConProducto>('Modificador', { limite: 2000 }).catch(
         (): readonly OpcionConProducto[] => [],
       ),
     ])
-      .then(([filas, turnos, opciones]) => {
+      .then(([filas, turno, opciones]) => {
         if (!vivo) return;
         setCarga({
           productos: filas.filter((fila) => fila.visible_en_pos !== false),
-          turno: turnos.find((fila) => fila.estado === 'abierto') ?? null,
+          turno,
           opciones: opcionesPorProducto(opciones),
         });
       })
@@ -271,6 +298,7 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
         setLineas([]);
         setNombre('');
         setCanal(null);
+        setDescuento(null);
       } else if (evento.key === 'F4') {
         evento.preventDefault();
         setCanal((previo) => (previo === 'llevar' ? 'aqui' : 'llevar'));
@@ -297,7 +325,9 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
     return productos.filter((fila) => (fila.categoria_nombre ?? 'Otros') === categoria);
   }, [productos, categoria]);
 
-  const total = totalDe(lineas);
+  const sinDescuento = totalDe(lineas);
+  const aplicado = descuento !== null && descuento.centavos < sinDescuento ? descuento : null;
+  const total = sinDescuento - (aplicado?.centavos ?? 0);
   const piezas = lineas.reduce((suma, linea) => suma + linea.cantidad, 0);
   const bloqueo = bloqueoDe(lineas, canal, enLinea);
 
@@ -354,16 +384,42 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
         lineas: lineasParaCobrar(lineas),
         ...(canal === null ? {} : { canal }),
         ...(nombre.trim() === '' ? {} : { nombrePedido: nombre.trim() }),
+        ...(aplicado === null ? {} : { descuento: descuentoParaElServidor(aplicado) }),
       });
       // Se limpia sola y vuelve al vacío: abrir un diálogo de ticket son dos
       // toques por venta, 360 al día. El ticket lo decide la perilla.
       setLineas([]);
       setNombre('');
       setCanal(null);
+      setDescuento(null);
       onCobrado?.(cobrada.ventaId);
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo cobrar. No se cobró nada.');
     } finally {
+      setEnviando(false);
+    }
+  }
+
+  /**
+   * TARJETA, MIXTO O PROPINA (bloque D de la 2.4): el pedido se arma en el borrador de la
+   * terminal —con su descuento— y se cobra en «Cobro y propina», que es donde viven los
+   * cuatro métodos y la propina que decide el cliente. Aquí sólo se cobraba en efectivo
+   * exacto, y un latte con tarjeta no tenía cómo pagarse desde el mostrador.
+   */
+  async function llevarAlCobro(): Promise<void> {
+    if (canal === null) return;
+    setEnviando(true);
+    setError(null);
+    try {
+      const armado = await invocarComando<{ ordenId: string }>('/api/venta/preparar-mostrador', {
+        lineas: lineasParaCobrar(lineas),
+        ...(aplicado === null ? {} : { descuento: descuentoParaElServidor(aplicado) }),
+      });
+      const destino = new URLSearchParams({ pedido: armado.ordenId, canal });
+      if (nombre.trim() !== '') destino.set('nombre', nombre.trim());
+      router.push(`/cafeteria/cobro-y-propina?${destino.toString()}`);
+    } catch (fallo) {
+      setError(fallo instanceof Error ? fallo.message : 'No se pudo preparar el cobro.');
       setEnviando(false);
     }
   }
@@ -674,10 +730,61 @@ export function Cobrar({ productosIniciales, turnoInicial, onCobrado }: CobrarPr
           <span>{enviando ? 'Cobrando…' : 'COBRAR'}</span>
           <Dinero centavos={total} tamano="lg" />
         </Button>
+        {aplicado === null ? null : (
+          <p className="flex items-baseline justify-between gap-(--espacio-2) text-sm text-texto-sutil">
+            <span>
+              Descuento{aplicado.autorizo === undefined ? '' : ` · autorizó ${aplicado.autorizo}`}
+            </span>
+            <Dinero centavos={-aplicado.centavos} tamano="sm" />
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-(--espacio-2)">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={lineas.length === 0 || enviando}
+            onClick={() => {
+              if (aplicado === null) setDescontando(true);
+              else setDescuento(null);
+            }}
+          >
+            {aplicado === null ? 'Descuento' : 'Quitar el descuento'}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={enviando || bloqueo !== null}
+            onClick={() => {
+              void llevarAlCobro();
+            }}
+          >
+            Tarjeta, mixto o propina
+          </Button>
+        </div>
         {bloqueo !== null && lineas.length > 0 ? (
           <p className="text-center text-sm text-texto-sutil">{bloqueo}</p>
         ) : null}
       </Superficie>
+
+      <Dialog open={descontando} onOpenChange={setDescontando}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Descuento</DialogTitle>
+            <DialogDescription>
+              Hasta tu tope se aplica solo; arriba, lo autoriza un supervisor.
+            </DialogDescription>
+          </DialogHeader>
+          <DescuentoDeVenta
+            base={sinDescuento}
+            onAplicar={(elegido) => {
+              setDescuento(elegido);
+              setDescontando(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* LAS OPCIONES DE LA BEBIDA, encima del cobro: se eligen y se vuelve con ellas. */}
       {eligiendo === null ? null : (

@@ -71,8 +71,10 @@ export {
 
 export {
   apartarNota,
+  cancelarNota,
   entregarNota,
   entradaApartarNota,
+  entradaCancelarNota,
   entradaEntregarNota,
   type ResultadoNota,
 } from './notas.ts';
@@ -107,6 +109,7 @@ export {
   entradaRegistrarEnvio,
   entradaRegistrarSurtido,
   entradaVersionarCotizacion,
+  ganarCotizacion,
   registrarAprobacion,
   registrarEnvio,
   registrarSurtido,
@@ -115,6 +118,8 @@ export {
   type ResultadoSeguimiento,
   type ResultadoSurtido,
 } from './cotizacion.ts';
+
+export { convertirCotizacionEnNota, entradaConvertirEnNota } from './cotizacion-a-nota.ts';
 
 export {
   entradaFotoDeMostrador,

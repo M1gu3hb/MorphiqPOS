@@ -56,10 +56,30 @@ export async function sesionAbierta(
     .where('s.estado', '=', 'abierta')
     .execute();
 
+  const fila = laCajaDeLaQueSale(filas, terminalId, LO_QUE_SALE.gasto);
+  return { id: fila.id, fecha: fila.fecha };
+}
+
+/** Cómo se dice, en el mensaje, lo que sale del cajón. */
+const LO_QUE_SALE = {
+  gasto: { pagar: 'este gasto', registrar: 'el gasto' },
+  compra: { pagar: 'esta compra', registrar: 'la compra' },
+} as const;
+
+/**
+ * LA REGLA DE LA CAJA DE LA QUE SALE EL DINERO, una sola vez para el gasto y para la
+ * compra de contado (bloque D de la 2.4): la de esta terminal; si esta terminal no tiene,
+ * la única abierta de la sucursal; ninguna, o varias sin la de aquí, no se adivina.
+ */
+function laCajaDeLaQueSale<F extends { readonly terminal_id: string | null }>(
+  filas: readonly F[],
+  terminalId: string | null,
+  que: (typeof LO_QUE_SALE)[keyof typeof LO_QUE_SALE],
+): F {
   if (filas.length === 0) {
     throw new ErrorDominio(
       'CAJA_CERRADA',
-      'No hay una caja abierta. Ábrela antes de pagar este gasto en efectivo, ' +
+      `No hay una caja abierta. Ábrela antes de pagar ${que.pagar} en efectivo, ` +
         'o regístralo con tarjeta o transferencia si no salió del cajón.',
     );
   }
@@ -68,10 +88,33 @@ export async function sesionAbierta(
   if (fila === undefined) {
     throw new ErrorDominio(
       'CAJA_CERRADA',
-      'Hay varias cajas abiertas: registra el gasto desde la terminal de la caja de la que salió el dinero.',
+      `Hay varias cajas abiertas: registra ${que.registrar} desde la terminal de la caja de la que salió el dinero.`,
     );
   }
-  return { id: fila.id, fecha: fila.fecha };
+  return fila;
+}
+
+/**
+ * La caja de la que sale una COMPRA DE CONTADO (bloque D de la 2.4), con la misma regla
+ * que un gasto en efectivo. Sin la fecha del gasto: la compra se fecha por la entrada del
+ * material, y lo que se cuenta en el arqueo de hoy es el movimiento, que cuelga de esta
+ * caja.
+ */
+export async function cajaDeLaCompra(
+  tx: Transaccion,
+  organizacionId: string,
+  sucursalId: string,
+  terminalId: string | null,
+): Promise<{ readonly id: string }> {
+  const filas = await tx
+    .selectFrom('sesiones_caja')
+    .select(['id', 'terminal_id'])
+    .where('organizacion_id', '=', organizacionId)
+    .where('sucursal_id', '=', sucursalId)
+    .where('estado', '=', 'abierta')
+    .execute();
+  const fila = laCajaDeLaQueSale(filas, terminalId, LO_QUE_SALE.compra);
+  return { id: fila.id };
 }
 
 /**

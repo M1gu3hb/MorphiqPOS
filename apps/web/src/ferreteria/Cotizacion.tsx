@@ -517,6 +517,24 @@ export function Cotizacion({
     });
   }
 
+  /**
+   * CONVERTIR EN VENTA (F-604, bloque D de la 2.4): la cotización mandada se vuelve una
+   * nota en la caja, con los precios COTIZADOS, y queda ganada con esa orden —todo en una
+   * transacción, `cotizacion.convertir_en_nota`—. El botón estaba encendido y sin nada
+   * detrás. El folio de la nota se dice como lo dice el mostrador: es lo que el cliente
+   * canta en la caja.
+   */
+  function convertir(): void {
+    if (creada === null) return;
+    void conLaPantallaOcupada(async () => {
+      const nota = await invocarComando<{ readonly folio: string }>('/api/cotizacion/convertir', {
+        cotizacionId: creada.id,
+      });
+      setSeguimiento('ganada');
+      return `${voc.titulo('orden')} ${nota.folio} está en la caja.`;
+    });
+  }
+
   /** PERDIDA lleva motivo, y el motivo ES el dato: sin él la base la rechaza. */
   function marcarPerdida(motivo: string): void {
     if (creada === null) return;
@@ -746,7 +764,14 @@ export function Cotizacion({
             <Copy aria-hidden="true" />
             Copiar como texto
           </Button>
-          <Button type="button" variant="secondary" disabled={sinPartidas}>
+          {/* Sólo lo que se MANDÓ se convierte: la venta es de una cotización con folio. */}
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={sinPartidas || creada === null || enviando}
+            title={creada === null ? 'Primero mándala: se convierte una cotización con folio' : ''}
+            onClick={convertir}
+          >
             Convertir en venta o pedido
           </Button>
           {/* El botón apagado dice por qué, o parece roto. */}

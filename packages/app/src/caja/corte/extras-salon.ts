@@ -62,7 +62,10 @@ export async function liquidacionPorProfesional(
            and m.created_at between ${sesion.abiertaEn} and ${hasta}
       ) mp on true
       left join lateral (
-        select sum(case when m.tipo = 'entregada' then -m.monto_centavos else m.monto_centavos end) as saldo
+        -- El ledger es FIRMADO (139): lo entregado ya llega negativo. Volverle el signo
+        -- contaba dos veces la propina a la mano —recibida y entregada en el mismo acto—
+        -- y el corte decía que el salón le debía lo que nunca pasó por su cajón.
+        select sum(m.monto_centavos) as saldo
           from movimientos_propina m
          where m.organizacion_id = pr.organizacion_id and m.profesional_id = pr.id
       ) pend on true

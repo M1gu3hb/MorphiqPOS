@@ -2,7 +2,7 @@ import 'server-only';
 
 import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
-import { repoCaja } from '@morphiqpos/data';
+import { repoCaja, repoOrdenes } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
 import { violaIndice } from '../portal/errores-sql.ts';
@@ -260,6 +260,71 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
         'TRANSICION_INVALIDA',
         `Hay ${String(apartadas.length)} venta(s) apartada(s) en esta caja: cóbralas o cancélalas con su motivo antes de cerrar.`,
         { apartadas: apartadas.length },
+      );
+    }
+
+    // F-262 · «No se cierra el turno con pedidos en la fila» lo guarda un disparador
+    // (`086_turno_bote_y_cambio.sql`), y su `check_violation` llegaba a la cajera como
+    // «Error interno»: la regla se cumplía y nadie sabía qué hacer. Se cuenta igual que el
+    // disparador —la sucursal entera, porque la barra es una— para decirlo con palabras; el
+    // disparador se queda como segundo cerrojo.
+    const enLaFila = await ctx.paso('contar_pedidos_sin_entregar', () =>
+      ctx.tx
+        .selectFrom('comandas')
+        .select('id')
+        .where('organizacion_id', '=', organizacionId)
+        .where('sucursal_id', '=', sesion.sucursalId)
+        .where('cobrado_en', 'is not', null)
+        .where('estado', 'in', ['nuevo', 'en_preparacion', 'listo'])
+        .execute(),
+    );
+    if (enLaFila.length > 0) {
+      throw new ErrorDominio(
+        'TRANSICION_INVALIDA',
+        `Hay ${String(enLaFila.length)} pedido(s) cobrado(s) sin entregar: entrégalos, márcalos como no recogidos o devuélvelos antes de cerrar.`,
+        { pedidosSinEntregar: enLaFila.length },
+      );
+    }
+
+    // `ferreteria/02-DINERO-Y-CAJA §8.5.1` · «No se puede cerrar con notas de mostrador
+    // sin resolver»: una nota mandada a caja es material comprometido que nadie cobró, y
+    // cerrar con ella dejaba al patio esperando a un cliente sin que el corte lo dijera.
+    // O se cobra, o se cancela con su motivo (`nota_mostrador.cancelar`). Se cuentan las
+    // de la SUCURSAL: la nota no tiene caja hasta que se cobra, y la caja que cierra es la
+    // que la cobraría. Dos lecturas y no un `join`: la nota dice si se mandó a caja; su
+    // orden, si sigue sin cobrarse —una firmada a crédito ya es venta (181)—.
+    const mandadas = await ctx.paso('contar_notas_por_cobrar', () =>
+      ctx.tx
+        .selectFrom('notas_mostrador')
+        .select(['orden_id', 'folio'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('sucursal_id', '=', sesion.sucursalId)
+        .where('estado', '=', 'por_cobrar')
+        .execute(),
+    );
+    const sinCobrar =
+      mandadas.length === 0
+        ? []
+        : await ctx.paso('notas_sin_cobrar', () =>
+            ctx.tx
+              .selectFrom('ordenes')
+              .select('id')
+              .where('organizacion_id', '=', organizacionId)
+              .where(
+                'id',
+                'in',
+                mandadas.map((n) => n.orden_id),
+              )
+              .where('estado', 'in', [...repoOrdenes.ESTADOS_COBRABLES])
+              .execute(),
+          );
+    if (sinCobrar.length > 0) {
+      const pendientes = new Set(sinCobrar.map((o) => o.id));
+      const folios = mandadas.filter((n) => pendientes.has(n.orden_id)).map((n) => n.folio);
+      throw new ErrorDominio(
+        'TRANSICION_INVALIDA',
+        `Hay ${String(folios.length)} nota(s) mandada(s) a caja sin cobrar (${folios.join(', ')}): cóbralas o cancélalas con su motivo antes de cerrar.`,
+        { notasPorCobrar: folios.length },
       );
     }
 

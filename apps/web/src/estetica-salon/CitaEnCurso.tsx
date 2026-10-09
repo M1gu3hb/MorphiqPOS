@@ -40,6 +40,13 @@ import {
 } from './formula-de-cabina';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  leerLaCita,
+  type FilaCita,
+  type FilaClienta,
+  type ServicioDeLaCita,
+  type VisitaConFormula,
+} from './cita-en-curso.ts';
 import { CostoDelServicio } from './CostoDelServicio.tsx';
 import { FotosDeLaCita } from './FotosDeLaCita.tsx';
 import { GaleriaDeLaClienta } from './GaleriaDeLaClienta.tsx';
@@ -112,6 +119,8 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * 137 y 142, APLICADAS en el acople (`scripts/esquema-esperado.json`).
  */
 
+export type { ServicioDeLaCita, VisitaConFormula } from './cita-en-curso.ts';
+
 const DIA = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' });
 const HORA = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit' });
 
@@ -125,49 +134,11 @@ const CAMPO_CON_GUANTE =
   'h-[calc(var(--altura-control)*1.45)] font-numeros text-xl tabular-nums md:text-xl';
 const ROTULO = 'text-xs font-semibold tracking-wide text-texto-sutil uppercase';
 
-export interface VisitaConFormula {
-  readonly id: string;
-  /** ISO. Se formatea en el cliente: el servidor no sabe la zona del salón. */
-  readonly fecha: string;
-  readonly servicio: string;
-  /**
-   * El jsonb congelado, tal cual lo sirve el puente (`conversion: 'json'`): lo que
-   * escribe `expediente.capturar_formula`, `{mezclado, usado, sobrante, componentes}`.
-   *
-   * Los materiales vienen DENTRO, no como campo suelto. Esta pantalla leía
-   * `componentes` en la raíz: llegaba `undefined` y «la vez pasada» salía vacía con
-   * cualquier clienta que vuelve, y REPETIR guardaba una fórmula sin materiales. Es
-   * dato de fuera: se lee con `formulaDe`, que no confía en su forma.
-   */
-  readonly formula?: unknown;
-  /**
-   * `minutos_procesado`. NULO si se capturó sin procesado: `capturar_formula` guarda
-   * el cero como nulo, y el mismo comando no acepta un nulo de vuelta.
-   */
-  readonly minutos: number | null;
-}
-
 /** Lo que se puede leer de la fórmula congelada de una visita. */
 interface FormulaCongelada {
   readonly mezclado: number | null;
   readonly usado: number | null;
   readonly componentes: readonly ComponenteDeFormula[];
-}
-
-export interface ServicioDeLaCita {
-  readonly id: string;
-  /** `servicio_nombre`, que es como lo sirve `CitaServicio`. */
-  readonly servicio_nombre: string | null;
-  /**
-   * EN PESOS: el gemelo honesto de `precio_centavos`, la misma columna, que el puente
-   * convierte con `dinero`. Aquí se leía `precio_centavos` y se pasaba tal cual a
-   * `<Dinero centavos>`: una cita de $350.00 se veía $3.50 (C.1 de la 2.4). Se lee
-   * sólo con `centavosDe`.
-   */
-  readonly precio_pesos: number;
-  readonly estado: string;
-  /** El producto-servicio: su receta de cabina es el material. */
-  readonly servicio_id?: string;
 }
 
 export interface CitaAbierta {
@@ -201,28 +172,6 @@ export interface CitaEnCursoProps {
 export interface FilasDeFormulaProps {
   readonly componentes?: readonly ComponenteDeFormula[];
   readonly minutos?: number;
-}
-
-interface FilaCita {
-  readonly id: string;
-  readonly agendada_para: string;
-  readonly inicio_real: string | null;
-  readonly cliente_id?: string | null;
-  readonly notas?: string | null;
-}
-
-interface FilaClienta {
-  readonly nombre: string;
-  /**
-   * La 142 añade los campos de salón a la tabla viva de clientes, y el puente NO
-   * los sirve: `Cliente` no declara `alergias`.
-   *
-   * Opcional a propósito. Las alergias que esta pantalla enseña salen del
-   * EXPEDIENTE —`ExpedienteBelleza.alergias`, que la agenda ya lee para la bandera
-   * roja— y un `undefined` aquí se leería como «sin alergias», que en un salón es
-   * la confusión que quema una cabeza.
-   */
-  readonly alergias?: string | null;
 }
 
 /** Punto de partida de una clienta nueva. NUNCA un formulario en blanco. */
@@ -645,39 +594,22 @@ export function CitaEnCurso({
 
   useEffect(() => {
     if (sinRed) return;
-    // La agenda trae las DOS llaves en la URL. Encadenar cita → clienta costaría
-    // un viaje entero justo en el minuto en que ella ya está sentada.
-    const parametros = new URLSearchParams(window.location.search);
-    const citaId = parametros.get('cita');
-    const clientaId = parametros.get('clienta');
+    // La dirección dice QUÉ cita; de quién es lo dice la cita (`cita-en-curso.ts`).
+    const citaId = new URLSearchParams(window.location.search).get('cita');
     // El centinela es la señal de aborto y no un `let vivo`: además de decir si
-    // la pantalla sigue montada, CANCELA las cuatro lecturas en vuelo.
+    // la pantalla sigue montada, CANCELA las lecturas en vuelo.
     const control = new AbortController();
     const señal = control.signal;
     void (async () => {
       try {
-        const [citas, clientas, lineas, formulas] = await Promise.all([
-          consultarPuente<FilaCita>('Cita', { filtro: { id: citaId }, limite: 1, signal: señal }),
-          consultarPuente<FilaClienta>('Cliente', {
-            filtro: { id: clientaId },
-            limite: 1,
-            signal: señal,
-          }),
-          consultarPuente<ServicioDeLaCita>('CitaServicio', {
-            filtro: { cita_id: citaId },
-            limite: 20,
-            signal: señal,
-          }),
-          // El historial se degrada SOLO: si no carga, la captura sigue en pie.
-          consultarPuente<VisitaConFormula>('FormulaAplicada', {
-            filtro: { cliente_id: clientaId },
-            orden: '-fecha',
-            limite: 6,
-            signal: señal,
-          }).catch(() => null),
-        ]);
+        const {
+          cita: fila,
+          clienta,
+          lineas,
+          formulas,
+        } = await leerLaCita(consultarPuente, citaId, señal);
         if (señal.aborted) return;
-        setCita(armar(citas[0], clientas[0], lineas));
+        setCita(armar(fila, clienta, lineas));
         setServicios(lineas);
         setVisitas(formulas ?? []);
         if (formulas === null) setError('No cargó el historial. Captura igual: se sincroniza.');

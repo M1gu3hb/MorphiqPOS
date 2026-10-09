@@ -192,3 +192,44 @@ describe('F-631 · guardar la entrada', () => {
     }
   });
 });
+
+/**
+ * LA COMPRA DE CONTADO SALE DEL CAJÓN (bloque D de la 2.4).
+ *
+ * `02-DINERO-Y-CAJA` §8.3 —«Compra de contado al proveedor · − monto»— y la prueba 1 de
+ * su §1. La entrada de contado guardaba «efectivo» en la compra y el cajón no se enteraba:
+ * el arqueo esperaba el dinero que ya se había llevado el repartidor.
+ */
+describe('la entrada de contado y el cajón', () => {
+  it('DE CONTADO sale del cajón: un movimiento negativo que apunta a la compra', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    await recibirEntrada.ejecutar(ctx, deContado());
+
+    const movimientos = base.filas('movimientos_caja');
+    expect(movimientos).toHaveLength(1);
+    expect(movimientos[0]?.['sesion_caja_id']).toBe(SESION_CAJA);
+    expect(movimientos[0]?.['tipo']).toBe('gasto');
+    expect(movimientos[0]?.['monto_centavos']).toBe(-95_000n);
+    expect(movimientos[0]?.['referencia_tipo']).toBe('pago_proveedor');
+    expect(movimientos[0]?.['referencia_id']).toBe(base.campo('compras', 'id'));
+  });
+
+  it('de contado SIN caja abierta no se registra: el dinero no tendría de dónde salir', async () => {
+    const base = baseDe({ sesiones_caja: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    expect(await codigoDe(() => recibirEntrada.ejecutar(ctx, deContado()))).toBe('CAJA_CERRADA');
+    expect(base.filas('compras')).toHaveLength(0);
+  });
+
+  it('A CRÉDITO no toca el cajón', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    await recibirEntrada.ejecutar(ctx, deContado({ aCredito: true, folio: 'FV-1', dias: 30 }));
+
+    expect(base.filas('movimientos_caja')).toHaveLength(0);
+  });
+});

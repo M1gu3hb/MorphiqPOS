@@ -160,6 +160,13 @@ export interface CobroYPropinaProps {
   /** Sin ella el panel del cliente es respaldo y la propina es del barista. */
   readonly segundaPantallaConectada?: boolean;
   readonly onCobrado?: (ordenId: string) => void;
+  /**
+   * El canal y el nombre con los que se armó el pedido en Cobrar (bloque D de la 2.4): se
+   * sellan al cobrar, porque el canal decide el empaque —y con él el costo— y el nombre es
+   * el que se grita en la barra.
+   */
+  readonly canal?: 'aqui' | 'llevar';
+  readonly nombrePedido?: string;
 }
 
 /**
@@ -402,6 +409,8 @@ export function CobroYPropina({
   lineasIniciales,
   segundaPantallaConectada = false,
   onCobrado,
+  canal,
+  nombrePedido,
 }: CobroYPropinaProps) {
   const voc = useVocabulario();
   const enLinea = useEnLinea();
@@ -567,6 +576,8 @@ export function CobroYPropina({
         // servidor valida en estricto y una clave que no conoce rechaza el cobro
         // entero. Aquí iba `propinaCentavos` y esta pantalla no cobró nunca (C.14).
         propinaOrigen: origen,
+        ...(canal === undefined ? {} : { canal }),
+        ...(nombrePedido === undefined ? {} : { nombrePedido }),
       });
       setCambio(Number(hecho.cambioCentavos));
       onCobrado?.(id);
@@ -728,8 +739,13 @@ export function CobroYPropina({
   return (
     <div className="grid gap-(--espacio-4) p-(--espacio-3) xl:grid-cols-2 xl:items-start">
       <header className="flex flex-wrap items-center gap-(--espacio-2) xl:col-span-2">
-        <h1 className="text-xl font-bold">{pedido.cliente_nombre ?? 'Sin nombre'}</h1>
-        <Badge variant="secondary">{pedido.canal === 'aqui' ? 'Aquí' : 'Para llevar'}</Badge>
+        {/* Lo que se dijo en Cobrar manda sobre lo que guarda el borrador, que aún no lo sabe. */}
+        <h1 className="text-xl font-bold">
+          {nombrePedido ?? pedido.cliente_nombre ?? 'Sin nombre'}
+        </h1>
+        <Badge variant="secondary">
+          {(canal ?? pedido.canal) === 'aqui' ? 'Aquí' : 'Para llevar'}
+        </Badge>
       </header>
       {enLinea ? null : <AvisoSinConexion className="xl:col-span-2" />}
 

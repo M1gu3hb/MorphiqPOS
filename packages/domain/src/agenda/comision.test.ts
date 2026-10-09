@@ -149,6 +149,40 @@ describe('calcularComision · pregunta 5 · rehacer', () => {
   });
 });
 
+describe('calcularComision · el centavo (D-36)', () => {
+  it('SE REDONDEA COMO TODO EL SISTEMA: la mitad se aleja del cero', () => {
+    // Un tinte de raíz de $650: $560.34 sin IVA, al 40 % son $224.136. Truncar daba
+    // $224.13 y la conciliación del día, $224.14: un centavo de pleito por servicio.
+    const tinte = calcularComision(
+      regla({ tasaServicioBp: 4_000 }),
+      linea({ cobradoSinIvaCentavos: 56_034n, listaSinIvaCentavos: 56_034n }),
+    );
+    expect(tinte.montoCentavos).toBe(22_414n);
+
+    // Por debajo de la mitad baja: $215.52 al 40 % son $86.208.
+    const corte = calcularComision(
+      regla({ tasaServicioBp: 4_000 }),
+      linea({ cobradoSinIvaCentavos: 21_552n, listaSinIvaCentavos: 21_552n }),
+    );
+    expect(corte.montoCentavos).toBe(8_621n);
+
+    // Y la mitad exacta sube: 5 centavos al 50 % son 2.5.
+    const mitad = calcularComision(
+      regla({ tasaServicioBp: 5_000 }),
+      linea({ cobradoSinIvaCentavos: 5n, listaSinIvaCentavos: 5n }),
+    );
+    expect(mitad.montoCentavos).toBe(3n);
+  });
+
+  it('por debajo de la mitad NO sube: 0.4 centavos son cero', () => {
+    const comision = calcularComision(
+      regla({ tasaServicioBp: 4_000 }),
+      linea({ cobradoSinIvaCentavos: 1n, listaSinIvaCentavos: 1n }),
+    );
+    expect(comision.montoCentavos).toBe(0n);
+  });
+});
+
 describe('calcularComision · esquemas', () => {
   it('SIN COMISIÓN es un esquema, no una tasa de cero', () => {
     // La recepcionista y la asistente cobran así. Una tasa de cero se lee como

@@ -14,7 +14,17 @@ export default async function Pagina({
 }: {
   readonly searchParams: Promise<Readonly<Record<string, string | string[] | undefined>>>;
 }) {
-  const { pedido } = await searchParams;
+  const { pedido, canal, nombre } = await searchParams;
   const pedidoId = typeof pedido === 'string' && UUID.test(pedido.trim()) ? pedido.trim() : null;
-  return pedidoId === null ? <CobroYPropina /> : <CobroYPropina pedidoId={pedidoId} />;
+  if (pedidoId === null) return <CobroYPropina />;
+  // Lo que Cobrar dijo del pedido (bloque D de la 2.4): sólo los dos canales del mostrador y
+  // un nombre de los que se gritan; cualquier otra cosa se ignora.
+  const elCanal: 'aqui' | 'llevar' | undefined =
+    canal === 'aqui' || canal === 'llevar' ? canal : undefined;
+  const delCanal = elCanal === undefined ? {} : { canal: elCanal };
+  const delNombre =
+    typeof nombre === 'string' && nombre.trim() !== '' && nombre.trim().length <= 60
+      ? { nombrePedido: nombre.trim() }
+      : {};
+  return <CobroYPropina pedidoId={pedidoId} {...delCanal} {...delNombre} />;
 }

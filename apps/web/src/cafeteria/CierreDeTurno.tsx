@@ -31,6 +31,7 @@ import { Check, Milk, OctagonAlert, ShoppingBag, TriangleAlert } from 'lucide-re
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { cajaDeEstaTerminal } from '~/cliente/caja-de-la-terminal';
 import { comisionDeTerminal, type HojaDelServidor } from '~/corte/hoja';
 import { CorteEnPdf } from '~/corte/CorteEnPdf';
 
@@ -200,6 +201,29 @@ interface CierreDeTurnoProps {
   readonly canalesIniciales?: readonly CifraDelTurno[];
   readonly mermasIniciales?: readonly CifraDelTurno[];
   readonly onCerrado?: (sesionCajaId: string) => void;
+}
+
+/** El turno abierto de esta terminal, con SUS ventas y SUS gastos. */
+async function leerTurnoDeLaTerminal(senal: AbortSignal): Promise<{
+  readonly abierto: TurnoDeCierre | null;
+  readonly deVenta: readonly VentaDelTurno[];
+  readonly deGasto: readonly GastoDelTurno[];
+}> {
+  const abierto: TurnoDeCierre | null = await cajaDeEstaTerminal(senal);
+  if (abierto === null) return { abierto, deVenta: [], deGasto: [] };
+  const [deVenta, deGasto] = await Promise.all([
+    consultarPuente<VentaDelTurno>('Venta', {
+      filtro: { corte_caja_id: abierto.id },
+      limite: 400,
+      signal: senal,
+    }),
+    consultarPuente<GastoDelTurno>('GastoOperativo', {
+      filtro: { sesion_caja_id: abierto.id },
+      limite: 100,
+      signal: senal,
+    }),
+  ]);
+  return { abierto, deVenta, deGasto };
 }
 
 type TonoDelSemaforo = 'exito' | 'advertencia' | 'peligro';
@@ -463,14 +487,10 @@ export function CierreDeTurno({
     // booleano que sólo cambia en la limpieza, y la lectura no se cancelaría.
     const control = new AbortController();
     const senal = control.signal;
-    Promise.all([
-      consultarPuente<TurnoDeCierre>('CorteCaja', { limite: 5, signal: senal }),
-      consultarPuente<VentaDelTurno>('Venta', { limite: 400, signal: senal }),
-      consultarPuente<GastoDelTurno>('GastoOperativo', { limite: 100, signal: senal }),
-      leerFila(senal),
-    ])
-      .then(([turnos, deVenta, deGasto, enFila]) => {
-        const abierto = turnos.find((t) => t.estado === 'abierto') ?? null;
+    // El turno es el de ESTA terminal; las ventas y los gastos, los de ese turno. Leer la
+    // primera caja abierta del negocio enseñaba, con dos cajas, el turno de la otra.
+    Promise.all([leerTurnoDeLaTerminal(senal), leerFila(senal)])
+      .then(([{ abierto, deVenta, deGasto }, enFila]) => {
         setTurno(abierto);
         setVentas(deVenta);
         setGastos(deGasto);

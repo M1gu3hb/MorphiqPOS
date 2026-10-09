@@ -56,8 +56,11 @@ jobs:
       # "Prohibido mockear la base de datos en pruebas de integración. Un mock
       # no reproduce restricciones únicas, transacciones ni carreras — que es
       # exactamente lo que se está probando."
+      #
+      # La MISMA versión mayor que producción (Supabase corre 17.6): una base 16 dejaba pasar
+      # en CI lo que la 17 trata distinto, y dejaba fuera lo que sólo existe en la 17.
       postgres:
-        image: postgres:16.15-alpine
+        image: postgres:17.6-alpine
         env:
           POSTGRES_USER: morphiqpos
           POSTGRES_PASSWORD: morphiqpos_ci
@@ -128,6 +131,17 @@ jobs:
       # `centavosDe` (etapa 2.4, C.2).
       - name: Unidades del dinero del puente
         run: pnpm verify:unidades
+
+      # Lo que se dejó a medias, contado: «Alcance recortado», consultas sustituidas por una
+      # lista vacía, importes provisionales en cero y excepciones sin motivo (2.4, C.10).
+      - name: Nada a medias
+        run: pnpm verify:pendientes
+
+      # La matriz de permisos y las rutas del aislamiento SALEN del registro de comandos.
+      # Si alguien cambia los roles de un comando y no las regenera, las dos pruebas
+      # seguirían verdes comprobando permisos que ya no son los del código (2.4, D.3 y D.4).
+      - name: La matriz de permisos y el aislamiento, al día con los comandos
+        run: pnpm verify:matriz
 
       # El reseteo de una demo borra TODA tabla salvo las que conserva con su razón, en
       # el orden de las llaves foráneas: una tabla nueva no se puede quedar fuera (2.4, B.2).
@@ -372,7 +386,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16.15-alpine
+        image: postgres:17.6-alpine
         env:
           POSTGRES_USER: morphiqpos
           POSTGRES_PASSWORD: morphiqpos_ci

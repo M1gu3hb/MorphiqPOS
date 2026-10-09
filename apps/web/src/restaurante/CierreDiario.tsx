@@ -73,22 +73,19 @@ import {
   Vacio,
   type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
-import { ChevronDown, CircleCheck, Lock, OctagonAlert, TriangleAlert } from 'lucide-react';
+import { ChevronDown, Lock } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { cajaDeEstaTerminal } from '~/cliente/caja-de-la-terminal';
 import { CorteEnPdf } from '~/corte/CorteEnPdf';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
-import {
-  esperadoEnCaja,
-  resumirDia,
-  type Canal,
-  type GastoDelDia,
-  type VentaDelDia,
-} from './resumen-del-dia.ts';
+import { IconoDelTono, TINTE_DEL_TONO, semaforoDe } from './semaforo-del-arqueo';
+import { resumirDia, type Canal, type GastoDelDia, type VentaDelDia } from './resumen-del-dia.ts';
 
+export { semaforoDe, type Semaforo, type TonoDelArqueo } from './semaforo-del-arqueo';
 export {
   esperadoEnCaja,
   resumirDia,
@@ -104,9 +101,6 @@ const NOMBRE_DEL_CANAL: Readonly<Record<Canal, string>> = {
   tarjeta: 'Tarjeta',
   transferencia: 'Transferencia',
 };
-
-/** Por debajo de esto el descuadre es «se me fue un peso»; por encima, no. */
-const TOLERANCIA_CENTAVOS = 2000;
 
 /**
  * La venta del día tal como la nombra el puente. Los importes van en PESOS, y se leen
@@ -126,6 +120,23 @@ export interface DatosDelDia {
   /** Lo que se contó al abrir: la primera pieza del efectivo esperado. */
   readonly fondoInicial: number;
   readonly cajaAbierta: boolean;
+  /**
+   * Lo que debería haber en el cajón SEGÚN EL SERVIDOR (`caja.estado`), en centavos.
+   *
+   * `02-DINERO-Y-CAJA` §9.4, regla 2: «el esperado lo calcula el servidor, nunca la
+   * pantalla». Aquí se derivaba de las ventas y los gastos que el puente sirve, y esa
+   * cuenta no sabe de retiros, devoluciones, compras de contado ni entradas de cambio:
+   * con un retiro de $500 al banco, el semáforo decía «SOBRA» sobre un cajón exacto y
+   * quien cerraba no sabía a cuál creerle, si a la pantalla o al corte. Se pide con el
+   * conteo en cero —lo único que hace que `caja.estado` lo devuelva— y no se ENSEÑA hasta
+   * que hay un conteo escrito: el arqueo sigue a ciegas.
+   */
+  readonly esperadoDelServidor: number;
+}
+
+/** Lo que `caja.estado` contesta cuando se le pregunta con lo contado. */
+interface EsperadoDeLaCaja {
+  readonly efectivoEsperadoCentavos?: string;
 }
 
 /** Lo que devuelve `caja.cerrar`. Sus importes llegan como texto de BigInt. */
@@ -149,46 +160,6 @@ export interface MesaQueBloquea {
 export interface CierreDiarioProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly datosIniciales?: DatosDelDia;
-}
-
-/** Los tres tonos del arqueo: cuadra, se fue poco, se fue mucho. */
-export type TonoDelArqueo = 'exito' | 'atencion' | 'peligro';
-
-export interface Semaforo {
-  readonly texto: string;
-  readonly tono: TonoDelArqueo;
-}
-
-/** Dice la PALABRA además del color: el color nunca viaja solo. */
-export function semaforoDe(diferencia: number): Semaforo {
-  if (diferencia === 0) return { texto: 'Cuadra exacto', tono: 'exito' };
-  const falta = diferencia < 0;
-  if (Math.abs(diferencia) <= TOLERANCIA_CENTAVOS) {
-    return { texto: falta ? 'Falta poco' : 'Sobra poco', tono: 'atencion' };
-  }
-  const texto = falta ? 'FALTA dinero en el cajón' : 'SOBRA dinero en el cajón';
-  return { texto, tono: 'peligro' };
-}
-
-/** El tinte de la caja de cada tono: el fondo y el borde, nunca solos. */
-const TINTE_DEL_TONO: Readonly<Record<TonoDelArqueo, string>> = {
-  exito: 'border-exito/50 bg-exito/10',
-  atencion: 'border-advertencia/60 bg-advertencia/15',
-  peligro: 'border-peligro/50 bg-peligro/10',
-};
-
-/**
- * El icono de cada tono. Es la FORMA del estado —círculo, triángulo, octágono—,
- * así que el semáforo se lee también sin color.
- */
-function IconoDelTono({ tono }: { readonly tono: TonoDelArqueo }) {
-  if (tono === 'exito') {
-    return <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-exito" />;
-  }
-  if (tono === 'atencion') {
-    return <TriangleAlert aria-hidden="true" className="size-5 shrink-0 text-advertencia" />;
-  }
-  return <OctagonAlert aria-hidden="true" className="size-5 shrink-0 text-peligro" />;
 }
 
 /** Traduce el fallo a algo accionable. El 429 no es un código: es el estado. */
@@ -228,26 +199,27 @@ export function mesasQueBloquean(datos: DatosDelDia, ahora: number): readonly Me
     });
 }
 
-interface SesionDeCaja {
-  readonly estado: string | null;
-  readonly efectivo_inicial_contado: number | null;
-}
-
 async function leerElDia(signal: AbortSignal): Promise<DatosDelDia> {
-  const [ventas, gastos, mesas, sesiones] = await Promise.all([
+  const [ventas, gastos, mesas, sesion, estado] = await Promise.all([
     consultarPuente<VentaDelDia>('Venta', { limite: 500, signal }),
     consultarPuente<GastoDelDia>('GastoOperativo', { limite: 200, signal }),
     consultarPuente<MesaViva>('Mesa', { limite: 200, signal }),
-    consultarPuente<SesionDeCaja>('CorteCaja', { limite: 1, signal }),
+    // La caja de ESTA terminal, no la última que se abrió en el negocio.
+    cajaDeEstaTerminal(signal),
+    invocarComando<EsperadoDeLaCaja>(
+      '/api/caja/estado',
+      { efectivoContadoCentavos: 0 },
+      { signal },
+    ),
   ]);
-  const sesion = sesiones[0];
   return {
     ventas,
     gastos,
     mesas,
     fondoInicial:
       centavosDe('CorteCaja', 'efectivo_inicial_contado', sesion?.efectivo_inicial_contado) ?? 0,
-    cajaAbierta: sesion?.estado === 'abierto',
+    cajaAbierta: sesion !== null,
+    esperadoDelServidor: Number(estado.efectivoEsperadoCentavos ?? 0),
   };
 }
 
@@ -456,7 +428,8 @@ export function CierreDiario({ datosIniciales }: CierreDiarioProps) {
   const resumen = resumirDia(datos.ventas, datos.gastos);
   const cuenta = contado;
   const dejado = fondo ?? 0;
-  const esperado = esperadoEnCaja(datos, resumen);
+  // El del servidor: la pantalla no sabe de retiros, devoluciones ni compras de contado.
+  const esperado = datos.esperadoDelServidor;
   const semaforo = semaforoDe((cuenta ?? 0) - esperado);
   const totalDePropinas = CANALES.reduce((suman, canal) => suman + resumen.propinas[canal], 0);
   const filasDeCanal: readonly FilaDeCanal[] = CANALES.map((canal) => ({

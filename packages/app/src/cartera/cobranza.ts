@@ -244,6 +244,7 @@ export async function aplicarPagoDeCredito(
 
   const aplicado = BigInt(entrada.montoCentavos) - reparto.sobranteCentavos;
   const saldoAntes = vivos.reduce((a, d) => a + d.saldoCentavos, 0n);
+  await bajarSaldoDeLaFicha(ctx, entrada.clienteId, aplicado);
 
   return {
     pagoId: pago.id,
@@ -319,6 +320,7 @@ export const confirmarTransferencia = definirComando<
     );
 
     const saldados = await aplicarReparto(ctx, pago.id, vivos, reparto.aplicaciones);
+    await bajarSaldoDeLaFicha(ctx, pago.cliente_id, pago.monto_centavos - reparto.sobranteCentavos);
 
     await ctx.paso('confirmar', () =>
       ctx.tx
@@ -460,6 +462,51 @@ async function aplicarReparto(
   }
 
   return saldados;
+}
+
+/**
+ * EL SALDO DE LA FICHA BAJA CON EL PAGO (bloque D de la 2.4).
+ *
+ * La remisión de la ferretería sube `clientes.saldo_pendiente_centavos` (`ferreteria/
+ * credito.ts`), y ése es el número que leen la caja —«A cuenta: debe X de Y», y con él
+ * apaga «A cuenta» cuando pasa del límite— y la remisión al mirar el límite. El pago bajaba
+ * el documento y la remisión, nunca la ficha: el contratista que liquidaba todo seguía
+ * «debiendo», y a la siguiente obra la caja le negaba el crédito. Lo encontró la prueba de
+ * integración del día completo de la ferretería.
+ *
+ * Baja lo APLICADO —lo que quedó a cuenta no es deuda pagada— y nunca abajo de cero: el
+ * fiado de la tiendita lleva su saldo en los documentos y deja la ficha en cero. El renglón
+ * se bloquea antes de leerlo: la confirmación de una transferencia no pasa por
+ * `cargarCliente`, y dos pagos a la vez no pueden restar sobre el mismo saldo leído.
+ */
+async function bajarSaldoDeLaFicha(
+  ctx: ContextoComando<Transaccion>,
+  clienteId: string,
+  aplicadoCentavos: bigint,
+): Promise<void> {
+  if (aplicadoCentavos <= 0n) return;
+  const { organizacionId } = ctx.ambito;
+  const ficha = await ctx.paso('leer_saldo_de_la_ficha', () =>
+    ctx.tx
+      .selectFrom('clientes')
+      .select(['saldo_pendiente_centavos'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', clienteId)
+      .forUpdate()
+      .executeTakeFirst(),
+  );
+  if (ficha === undefined) return;
+  const antes = ficha.saldo_pendiente_centavos;
+  const despues = antes > aplicadoCentavos ? antes - aplicadoCentavos : 0n;
+  if (despues === antes) return;
+  await ctx.paso('bajar_saldo_de_la_ficha', () =>
+    ctx.tx
+      .updateTable('clientes')
+      .set({ saldo_pendiente_centavos: despues, updated_at: ctx.ahora })
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', clienteId)
+      .execute(),
+  );
 }
 
 /**

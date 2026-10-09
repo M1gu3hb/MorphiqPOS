@@ -460,7 +460,9 @@ const ESTETICA: readonly EntradaDeMenu[] = [
     etiqueta: 'Agenda',
     icono: 'CalendarDays',
     modulo: 'agenda',
-    permiso: 'ver_dashboard',
+    // La recepción y las estilistas la leen todo el día (D.1 de la 2.4): con
+    // `ver_dashboard` sólo la veía quien dirige.
+    permiso: 'ver_agenda',
   },
   {
     ruta: '/estetica-salon/agendar',

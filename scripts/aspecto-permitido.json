@@ -417,7 +417,7 @@
     },
     {
       "archivo": "apps/web/heredado/components/common/Sidebar.jsx",
-      "porque": "Veintinueve iconos NUEVOS, uno por cada entrada de menu que antes no existia. El menu lateral tenia doce entradas fijas y ninguna llevaba a una pantalla de modelo: las 61 respondian y solo se abrian tecleando la URL. Ahora cada plantilla trae el menu de SU negocio -mostrador, corte de material, agenda, cita, liquidacion, barra, recogida- y cada entrada necesita su icono. Ninguno de los que Miguel ya veia se quito.",
+      "porque": "Veintinueve iconos NUEVOS, uno por cada entrada de menu que antes no existia. El menu lateral tenia doce entradas fijas y ninguna llevaba a una pantalla de modelo: las 61 respondian y solo se abrian tecleando la URL. Ahora cada plantilla trae el menu de SU negocio -mostrador, corte de material, agenda, cita, liquidacion, barra, recogida- y cada entrada necesita su icono. Ninguno de los que Miguel ya veia se quito. Y el <nav> del menú lleva nombre, «Menú principal» (bloque D de la 2.4): las pantallas de modelo traen su propia navegación —las categorías del cobro— y un lector de pantalla tiene que distinguir la principal. Es un atributo: no cambia nada de lo que Miguel ve.",
       "testigos": [
         "+ icono:BellRing",
         "+ icono:CalendarDays",
@@ -447,7 +447,9 @@
         "+ icono:UserCheck",
         "+ icono:Users",
         "+ icono:Wallet",
-        "+ icono:Wrench"
+        "+ icono:Wrench",
+        "+ aria-label:Menú principal",
+        "+ label:Menú principal"
       ]
     },
     {

@@ -52,6 +52,13 @@
  */
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@morphiqpos/ui/primitivas/dialog';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import {
   Aviso,
@@ -86,6 +93,7 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { buscar, cercanas, normalizar, type MaterialDeMostrador } from './buscar-material';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { DescuentoDeVenta, type DescuentoElegido } from '~/venta/DescuentoDeVenta';
 import {
   claveDePartida,
   dejarParaCotizar,
@@ -290,6 +298,19 @@ export function Mostrador({
   /** El muro de la mora, dicho con lo que hay que hacer. */
   const [bloqueo, setBloqueo] = useState<string | null>(null);
   const [avisoDeEspera, setAvisoDeEspera] = useState<string | null>(null);
+  /**
+   * EL DESCUENTO QUE SE NEGOCIA AQUÍ (`02-DINERO-Y-CAJA §3`, bloque D de la 2.4): el
+   * mostradorista está en la conversación del «¿cuánto es lo menos?», con su tope; arriba
+   * de él, el supervisor teclea su PIN en esta misma pantalla. Viaja con la nota: la caja
+   * cobra el total que el cliente ya oyó. Cualquier cambio en las partidas lo quita —el
+   * tope es sobre lo que vale la nota, y la nota ya vale otra cosa—.
+   */
+  const [descuento, setDescuento] = useState<{
+    readonly elegido: DescuentoElegido;
+    /** Lo que valía la nota cuando se negoció: si cambia, el descuento ya no es ése. */
+    readonly base: number;
+  } | null>(null);
+  const [descontando, setDescontando] = useState(false);
   const textoDeEspera = useSyncExternalStore(suscribirseALaEspera, textoDeLaEspera, () => null);
   const enEspera = useMemo(() => notasEnEspera(textoDeEspera), [textoDeEspera]);
 
@@ -340,7 +361,15 @@ export function Mostrador({
     [consulta],
   );
   const resultados = useMemo(() => buscar(filas ?? [], palabras), [filas, palabras]);
-  const total = partidas.reduce((suma, p) => suma + precioDeLaPartida(p) * p.cantidad, 0);
+  const sinDescuento = partidas.reduce((suma, p) => suma + precioDeLaPartida(p) * p.cantidad, 0);
+  /** Uno que ya no cabe en la nota no se aplica: el servidor lo rechazaría igual. */
+  const aplicado =
+    descuento !== null &&
+    descuento.base === sinDescuento &&
+    descuento.elegido.centavos < sinDescuento
+      ? descuento.elegido
+      : null;
+  const total = sinDescuento - (aplicado?.centavos ?? 0);
   const sobreLimite = cliente !== null && cliente.saldoCentavos > cliente.limiteCentavos;
   const columnas = useMemo(() => columnasDeResultado(voc.titulo('producto')), [voc]);
 
@@ -350,7 +379,10 @@ export function Mostrador({
     function alTeclear(evento: KeyboardEvent): void {
       const enCampo = evento.target instanceof HTMLInputElement;
       if (evento.key === 'Escape') {
-        if (consulta === '') setPartidas([]);
+        if (consulta === '') {
+          setPartidas([]);
+          setDescuento(null);
+        }
         setConsulta('');
         return;
       }
@@ -419,6 +451,7 @@ export function Mostrador({
     if (partidas.length === 0) return;
     dejarParaCotizar(guardables());
     setPartidas([]);
+    setDescuento(null);
     enrutador.push('/ferreteria/cotizacion');
   }
 
@@ -432,6 +465,7 @@ export function Mostrador({
     }
     setPartidas([]);
     setNotaEnCaja(null);
+    setDescuento(null);
     setAvisoDeEspera(`Nota apartada: la ${String(apartada.numero)}. Se retoma con su número.`);
   }
 
@@ -449,6 +483,7 @@ export function Mostrador({
     if (!guardarLasNotasEnEspera(lista)) return;
     const porId = new Map(filas.map((m) => [m.id, m]));
     setNotaEnCaja(null);
+    setDescuento(null);
     setPartidas(
       nota.partidas.flatMap((g): Partida[] => {
         const material = porId.get(g.productoId);
@@ -495,6 +530,17 @@ export function Mostrador({
     return invocarComando<ResultadoNotaMostrador>('/api/venta/mandar-a-caja', {
       clienteId: cliente?.id ?? null,
       ...(eleccion?.obraId == null ? {} : { obraId: eleccion.obraId }),
+      ...(aplicado === null
+        ? {}
+        : {
+            descuento: {
+              centavos: aplicado.centavos,
+              motivo: aplicado.motivo,
+              ...(aplicado.autorizacion === undefined
+                ? {}
+                : { autorizacion: aplicado.autorizacion }),
+            },
+          }),
       partidas: partidas.map((p) => ({
         productoId: p.material.id,
         cantidad: p.cantidad,
@@ -509,6 +555,7 @@ export function Mostrador({
     try {
       const nota = await crearLaNota();
       setPartidas([]);
+      setDescuento(null);
       // El folio se queda a la vista: es el número que el cliente canta en la caja.
       setFolioEnCaja(nota.folio);
     } catch (fallo) {
@@ -541,6 +588,7 @@ export function Mostrador({
         ...(eleccion?.autorizadoId == null ? {} : { autorizadoId: eleccion.autorizadoId }),
       });
       setPartidas([]);
+      setDescuento(null);
       setFolioEnCaja(null);
       setNotaEnCaja(null);
     } catch (fallo) {
@@ -956,6 +1004,12 @@ export function Mostrador({
           <span className="text-sm text-texto-sutil">{partidas.length} partidas</span>
           <Dinero centavos={total} tamano="lg" />
         </p>
+        {aplicado === null ? null : (
+          <p className="flex flex-wrap items-baseline justify-end gap-(--espacio-1) text-sm text-texto-sutil">
+            descuento <Dinero centavos={aplicado.centavos} tamano="sm" />
+            {aplicado.autorizo === undefined ? null : <span>· autorizó {aplicado.autorizo}</span>}
+          </p>
+        )}
 
         <div className="grid gap-(--espacio-2)">
           <Button
@@ -977,6 +1031,18 @@ export function Mostrador({
             }}
           >
             {sobreLimite ? 'Remisión a cuenta · pasa del límite · F11' : 'Remisión a cuenta · F11'}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={partidas.length === 0 || enviando}
+            onClick={() => {
+              if (aplicado === null) setDescontando(true);
+              else setDescuento(null);
+            }}
+          >
+            {aplicado === null ? 'Descuento' : 'Quitar el descuento'}
           </Button>
           <div className="grid grid-cols-3 gap-(--espacio-1)">
             <Button type="button" variant="ghost" size="sm" onClick={abrirElCorte}>
@@ -1044,6 +1110,26 @@ export function Mostrador({
           )}
         </div>
       </Superficie>
+
+      <Dialog open={descontando} onOpenChange={setDescontando}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Descuento</DialogTitle>
+            <DialogDescription>
+              Hasta tu tope se aplica solo; arriba, lo autoriza un supervisor con su PIN.
+            </DialogDescription>
+          </DialogHeader>
+          {descontando ? (
+            <DescuentoDeVenta
+              base={sinDescuento}
+              onAplicar={(elegido) => {
+                setDescuento({ elegido, base: sinDescuento });
+                setDescontando(false);
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <ElegirClienteDelMostrador
         abierto={eligiendo}

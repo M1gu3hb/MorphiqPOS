@@ -109,3 +109,41 @@ export function componerElDia(
   }
   return filas.sort((a, b) => a.inicio.localeCompare(b.inicio));
 }
+
+/**
+ * A DÓNDE LLEVA «VER FÓRMULA»: a la cita en curso DE ESA CITA (D.1 de la 2.4).
+ *
+ * Empujaba `/estetica-salon/cita-en-curso` a secas y la pantalla abría sin cita: el botón
+ * de guardar la fórmula salía apagado y la estilista no tenía cómo capturarla desde su
+ * teléfono. La cita va en la dirección; de quién es lo dice la cita.
+ */
+export function rutaDeLaCita(citaId: string): string {
+  return `/estetica-salon/cita-en-curso?cita=${encodeURIComponent(citaId)}`;
+}
+
+/** La forma de `invocarComando` (`~/cliente/api`), lo que aquí se usa. */
+export type Invocar = <T>(ruta: string, cuerpo: Readonly<Record<string, unknown>>) => Promise<T>;
+
+/**
+ * LA PROPINA DE HOY, del servidor (`profesionales.mi_dia`, D.1 de la 2.4).
+ *
+ * «Hoy llevas» la dejaba en «sin dato todavía» para siempre: nadie la leía. Es lo que el
+ * ledger de propinas (`movimientos_propina`) dice de su día, con su signo —lo que recibió
+ * menos lo que ya se le entregó—. `null` si no se pudo leer, que NO es cero: pintar
+ * «$0.00» donde no llegó el dato le diría que hoy no le dejaron propina.
+ */
+export async function leerPropinaDelDia(
+  invocar: Invocar,
+  profesionalId: string,
+): Promise<number | null> {
+  try {
+    const dia = await invocar<{ readonly propinaDelDiaCentavos?: string }>(
+      `/api/profesionales/${encodeURIComponent(profesionalId)}/mi-dia`,
+      {},
+    );
+    const centavos = Number(dia.propinaDelDiaCentavos);
+    return dia.propinaDelDiaCentavos === undefined || !Number.isFinite(centavos) ? null : centavos;
+  } catch {
+    return null;
+  }
+}

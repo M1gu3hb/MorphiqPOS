@@ -26,9 +26,18 @@ import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { CorteEnPdf } from '~/corte/CorteEnPdf';
+import { CorteDeTurno } from '~/venta/CorteDeTurno';
+import { DevolucionDeVenta } from '~/venta/DevolucionDeVenta';
+import { GastoDeCaja } from '~/venta/GastoDeCaja';
+import { RetiroDeCaja } from '~/venta/RetiroDeCaja';
 
 import { CobrosDelDia } from './CobrosDelDia.tsx';
-import { useVocabulario } from '~/cliente/vocabulario';
+import {
+  estadoDelSalon,
+  type EstadoCajaDelSalon,
+  type EstadoDelSalon,
+  type RenglonDelDia,
+} from './estado-del-salon.ts';
 
 /**
  * PANTALLA · estetica-salon · caja-y-corte
@@ -71,6 +80,16 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * Debajo del resumen, cada cobro del día con su hora, a quién, cómo se pagó y quién
  * atendió (`CobrosDelDia`, de la hoja del corte). «Vive en el histórico de citas»
  * decía la cabecera, y ahí no estaba.
+ *
+ * ── Lo que sale del cajón durante el día (D.1 de la 2.4) ────────────────
+ * El gasto, la devolución y el retiro son los movimientos del §8.3 que el salón no
+ * podía registrar: el dinero salía a mano y el arqueo cerraba con un faltante sin
+ * explicación. Son las MISMAS piezas de la tienda (`src/venta/`), y como allá las ve
+ * quien administra —el servidor lo exige igual—. El corte de turno lo ve quien tenga la
+ * caja: es la recepcionista la que entrega el suyo, y no cierra el día.
+ *
+ * «El día» lee SÓLO lo que `caja.estado` devuelve (`estado-del-salon.ts`): pedía cinco
+ * campos que el comando no tiene y pintaba «$NaN» en todos sus renglones.
  */
 
 const RUTA_ESTADO = '/api/caja/estado';
@@ -103,25 +122,15 @@ export interface ResultadoDelCorte {
   readonly diferenciaCentavos: string;
 }
 
-export interface EstadoDelSalon {
-  readonly sesionCajaId: string | null;
-  readonly cobradoCentavos: string;
-  readonly liquidacionesCentavos: string;
-  readonly propinasEntregadasCentavos: string;
-  readonly rentasCobradasCentavos: string;
-  readonly citasSinCerrar: number;
-}
+export type { EstadoDelSalon } from './estado-del-salon.ts';
 
 export interface CajaYCorteProps {
   readonly estadoInicial?: EstadoDelSalon;
 }
 
-/** Un renglón del día. Con signo: lo que entró suma, lo que salió del cajón resta. */
-interface Movimiento {
-  readonly clave: string;
-  readonly concepto: string;
-  readonly nota?: string;
-  readonly centavos: number;
+/** El estado de la caja de ESTA terminal, ya en la forma de la pantalla. */
+async function leerEstado(): Promise<EstadoDelSalon> {
+  return estadoDelSalon(await invocarComando<EstadoCajaDelSalon>(RUTA_ESTADO, {}));
 }
 
 /** Lo que salió mal, y de quién: una corrección del tecleo o un rechazo del servidor. */
@@ -161,7 +170,7 @@ const DIFERENCIAS: Readonly<
 };
 
 /** El recibo del día: el concepto con su nota, y una sola columna de importes. */
-const COLUMNAS_DEL_DIA: readonly ColumnaDeTabla<Movimiento>[] = [
+const COLUMNAS_DEL_DIA: readonly ColumnaDeTabla<RenglonDelDia>[] = [
   {
     clave: 'concepto',
     titulo: 'Movimiento',
@@ -191,31 +200,6 @@ export function leerDiferencia(centavos: number): LecturaDeDiferencia {
 function mensajeDe(fallo: unknown): string {
   if (fallo instanceof ErrorApi) return fallo.message;
   return 'No se pudo. Vuelve a intentarlo.';
-}
-
-/** Los cuatro renglones del día, en el orden en que se explican: lo que entró y lo que salió. */
-function movimientosDe(estado: EstadoDelSalon, notaDePropina: string): readonly Movimiento[] {
-  return [
-    { clave: 'cobrado', concepto: 'Cobrado', centavos: Number(estado.cobradoCentavos) },
-    {
-      clave: 'rentas',
-      concepto: 'Rentas cobradas',
-      centavos: Number(estado.rentasCobradasCentavos),
-    },
-    // La salida más grande del día, y sale del mismo cajón: un corte que no la ve
-    // encuentra $18,000 de menos un viernes cada quince.
-    {
-      clave: 'liquidaciones',
-      concepto: 'Liquidaciones pagadas',
-      centavos: -Number(estado.liquidacionesCentavos),
-    },
-    {
-      clave: 'propinas',
-      concepto: 'Propinas entregadas',
-      nota: notaDePropina,
-      centavos: -Number(estado.propinasEntregadasCentavos),
-    },
-  ];
 }
 
 /** Lo que salió mal, JUNTO al botón que se tocó, y lo que NO pasó. */
@@ -273,7 +257,7 @@ function Encabezado({
 }
 
 /** El recibo del día. En la PC se queda abierto junto al arqueo: es la cascada. */
-function ElDia({ movimientos }: { readonly movimientos: readonly Movimiento[] }) {
+function ElDia({ movimientos }: { readonly movimientos: readonly RenglonDelDia[] }) {
   return (
     <section aria-labelledby="el-dia-titulo" className="flex flex-col gap-(--espacio-3)">
       <h2 id="el-dia-titulo" className="font-semibold">
@@ -356,7 +340,6 @@ function Resultado({
 }
 
 export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
-  const voc = useVocabulario();
   const [estado, setEstado] = useState<EstadoDelSalon | null>(estadoInicial ?? null);
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   // Cada lectura es un número: «Volver a leer» lo sube y el efecto lee otra vez.
@@ -382,7 +365,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     const cargar = (): void => {
-      invocarComando<EstadoDelSalon>(RUTA_ESTADO, {})
+      leerEstado()
         .then((datos) => {
           if (sigueMontada()) setEstado(datos);
         })
@@ -397,6 +380,11 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
     };
   }, [estadoInicial, intento]);
 
+  /** Vuelve a leer la caja: un gasto, una devolución o un retiro cambiaron el día. */
+  function recargar(): void {
+    setIntento((previo) => previo + 1);
+  }
+
   function abrir(): void {
     const centavos = fondo;
     if (centavos === null) {
@@ -406,7 +394,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
     setOcupado(true);
     setTropiezo(null);
     invocarComando(RUTA_ABRIR, { fondoInicialCentavos: centavos })
-      .then(() => invocarComando<EstadoDelSalon>(RUTA_ESTADO, {}))
+      .then(leerEstado)
       .then((datos) => {
         // Pintado YA, para que la línea «El día está abierto.» exista al enfocarla.
         flushSync(() => {
@@ -544,8 +532,6 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
   }
 
   const cerrado = corte !== null;
-  const notaDePropina = `La propina no es un gasto del salón: es dinero de ${voc.enFrase('cliente', true)} que pasó por el cajón.`;
-  const sinCerrar = estado.citasSinCerrar;
 
   return (
     <main className={MARCO}>
@@ -553,7 +539,7 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
 
       <div className={REJILLA}>
         <div className="flex flex-col gap-(--espacio-4)">
-          <ElDia movimientos={movimientosDe(estado, notaDePropina)} />
+          <ElDia movimientos={estado.renglones} />
           <CobrosDelDia
             sesionCajaId={corte?.sesionCajaId ?? estado.sesionCajaId}
             lectura={cerrado ? 1 : 0}
@@ -561,14 +547,19 @@ export function CajaYCorte({ estadoInicial }: CajaYCorteProps) {
         </div>
 
         <div className="flex flex-col gap-(--espacio-4)">
-          {sinCerrar > 0 && (
-            <Aviso
-              tono="atencion"
-              titulo={`Hay ${voc.conNumero('linea_orden', sinCerrar)} sin cerrar`}
-            >
-              Sin cerrarl{voc.terminacion('linea_orden', sinCerrar !== 1)}, el producto de cabina no
-              se descontó y el inventario de tinte queda inflado.
-            </Aviso>
+          {cerrado ? null : (
+            <>
+              {/* El corte de turno es de quien tiene la caja: entrega lo suyo y no cierra. */}
+              <CorteDeTurno />
+              {/* Lo que sale del cajón durante el día, de quien administra (§8.3). */}
+              {estado.puedeAdministrar ? (
+                <>
+                  <GastoDeCaja alRegistrar={recargar} />
+                  <RetiroDeCaja alRetirar={recargar} />
+                  <DevolucionDeVenta alDevolver={recargar} />
+                </>
+              ) : null}
+            </>
           )}
 
           {cerrado ? (

@@ -168,6 +168,8 @@ interface ServicioACobrar {
   readonly profesionalId: string;
   readonly precio: bigint;
   readonly nombre: string | null;
+  /** El costo del catálogo, por pieza. Nulo si el servicio ya no está en el catálogo. */
+  readonly costo: bigint | null;
 }
 
 interface CuentaLeida {
@@ -232,6 +234,7 @@ async function leerCuenta(
         'cs.precio_centavos as precio',
         'cs.estado as estado',
         'p.nombre as nombre',
+        'p.costo_unitario_centavos as costo',
       ])
       .where('cs.organizacion_id', '=', organizacionId)
       .where('cs.cita_id', '=', citaId)
@@ -507,6 +510,17 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
       );
       const folioTexto = `${serie}-${folio.toString()}`;
 
+      /**
+       * EL COSTO Y LA UTILIDAD, que la orden del salón dejaba en cero.
+       *
+       * Con los dos en cero, costo + utilidad no daba la venta y el margen del día decía
+       * que el salón no ganó nada con lo que cobró. Se toma el costo del catálogo de cada
+       * servicio —lo que ese servicio le cuesta al salón según su ficha— y la utilidad es
+       * lo que queda: la venta menos ese costo. La propina no entra a ninguno de los dos.
+       */
+      const costoDe = (servicio: ServicioACobrar): bigint => servicio.costo ?? 0n;
+      const costoTotal = servicios.reduce((suma, s) => suma + costoDe(s), 0n);
+
       const orden = await ctx.paso('crear_orden', () =>
         ctx.tx
           .insertInto('ordenes')
@@ -527,6 +541,8 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
             // La cita COMPLETA: el anticipo baja lo que se cobra hoy, no la venta,
             // que se reconoce entera el día del servicio (§6.1).
             total_centavos: cuenta.totalCentavos,
+            costo_total_centavos: costoTotal,
+            utilidad_centavos: cuenta.totalCentavos - costoTotal,
             cliente_id: cita.clienteId,
             empleado_cobra_id: empleoId,
             // LA CAJA QUE LA COBRÓ. El corte lee sus ventas por esta columna —tickets,
@@ -562,6 +578,8 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
               // línea y cada línea puede ser de otra persona.
               descuento_centavos: descuentoDeLinea,
               total_centavos: servicio.precio - descuentoDeLinea,
+              costo_unitario_centavos: costoDe(servicio),
+              utilidad_centavos: servicio.precio - descuentoDeLinea - costoDe(servicio),
               // El profesional va en CADA línea: sin él, una cita con dos personas
               // no se puede repartir y la comisión se le paga entera a una.
               profesional_id: servicio.profesionalId,

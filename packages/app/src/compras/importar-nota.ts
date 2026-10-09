@@ -35,7 +35,13 @@ import { definirComando } from '../definicion.ts';
  * el de 1/4 de OTRA línea.
  */
 
-const COMPRAS = ['gerente', 'administrador', 'dueno'] as const;
+/**
+ * Quien recibe la nota la importa (bloque D de la 2.4). `compras.recibir_entrada` admite al
+ * almacén y su menú le da «Entradas», pero importar el archivo le contestaba 403: el camino
+ * de las doscientas líneas era justo el que no podía usar. Importar sólo empareja —no
+ * escribe, no mueve dinero—; guardar la entrada es otro comando, con sus propios roles.
+ */
+const COMPRAS = ['almacen', 'gerente', 'administrador', 'dueno'] as const;
 
 /** Menos que esto son dos palabras sueltas coincidiendo: no es un empate. */
 const MINIMO_DE_PARECIDO = 0.6;

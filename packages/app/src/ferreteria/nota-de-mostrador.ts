@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { definirComando, type ContextoComando } from '../definicion.ts';
 import { ejecutarAgregarLinea } from '../venta/carrito.ts';
 import { cotizar } from '../venta/cotizar.ts';
+import { descontarLaOrden } from '../venta/descuento-de-mostrador.ts';
 import { valorarLinea } from '../venta/valorar.ts';
 
 /**
@@ -71,6 +72,21 @@ export const entradaCrearNotaMostrador = z.object({
   nombreLibre: z.string().trim().min(2).max(120).optional(),
   telefono: z.string().trim().max(30).optional(),
   partidas: z.array(partida).min(1).max(120),
+  /**
+   * EL DESCUENTO QUE SE NEGOCIÓ EN EL PASILLO (`02-DINERO-Y-CAJA §3`, bloque D de la 2.4):
+   * el mostradorista es quien está en la conversación del «¿cuánto es lo menos?», con su
+   * tope; arriba de él, el PIN de un supervisor tecleado en esta misma terminal. Viaja con
+   * la nota porque la caja cobra un total cerrado: descontar después sería cobrar otro
+   * número que el que el cliente oyó.
+   */
+  descuento: z
+    .object({
+      centavos: z.number().int().min(1).max(100_000_000),
+      motivo: z.string().trim().min(4).max(200),
+      /** La autorización firmada del supervisor, cuando pasa del tope de quien arma. */
+      autorizacion: z.string().min(20).max(2_000).optional(),
+    })
+    .optional(),
 });
 
 export interface ResultadoNotaMostrador {
@@ -261,6 +277,17 @@ export const crearNotaMostrador = definirComando<
       );
     }
 
+    // El descuento, con el tope de quien arma y la bitácora de quien autorizó: la MISMA
+    // regla que el carrito de la tienda (`descontarLaOrden`), no una copia.
+    const descuento =
+      entrada.descuento === undefined
+        ? null
+        : await descontarLaOrden(ctx, ordenId, {
+            descuentoCentavos: entrada.descuento.centavos,
+            motivo: entrada.descuento.motivo,
+            autorizacion: entrada.descuento.autorizacion,
+          });
+
     // EL TOTAL, con la MISMA cuenta que hará el cobro: `cotizar` suma las líneas
     // ya escritas y aplica el impuesto del negocio. Sumar aquí los subtotales a
     // mano daría otro número en cuanto el negocio tuviera IVA, y entonces la caja
@@ -282,6 +309,13 @@ export const crearNotaMostrador = definirComando<
         partidas: entrada.partidas.length,
         totalCentavos: total.toString(),
         clienteId: entrada.clienteId,
+        ...(descuento === null
+          ? {}
+          : {
+              descuentoCentavos: descuento.descuentoCentavos.toString(),
+              motivoDelDescuento: entrada.descuento?.motivo ?? null,
+              autorizadoPor: descuento.autorizadoPor,
+            }),
       },
     });
 

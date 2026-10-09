@@ -920,7 +920,9 @@ export function accionesDelTablero(page: Page, titulo = 'Buen día'): Locator {
  */
 export async function menuLateral(page: Page): Promise<Locator> {
   const hamburguesa = page.getByRole('button', { name: 'Abrir menú' });
-  const menu = page.getByRole('navigation').filter({ visible: true });
+  // Por su NOMBRE: las pantallas de modelo traen su propia navegación —las categorías del
+  // cobro de la cafetería— y «el primer <nav>» dejó de ser el menú.
+  const menu = page.getByRole('navigation', { name: 'Menú principal' }).filter({ visible: true });
 
   // Se espera a que exista UNA de las dos: en cuanto el marco hidrató, la decisión
   // de si hay que abrir el cajón ya es estable. Es una condición, no un tiempo.
@@ -1079,10 +1081,13 @@ export async function exigirLoSuyo(
   // formulario, y estas tres marcas son el `aria-label` de una región —un `aside`,
   // un `main`— que es donde vive el título de una pantalla que no puede gastar sitio
   // en un encabezado grande.
+  // Lo VISIBLE: una pantalla responsiva pinta el mismo texto dos veces —el paso a paso del
+  // teléfono y el encabezado de la tablet— y esconde uno según el ancho. Quedarse con el
+  // primero del DOM daba «no enseñó lo suyo» en tablet con la pantalla bien pintada.
   const suyo =
     marca instanceof RegExp
-      ? page.getByText(marca).first()
-      : page.locator(`[aria-label="${marca.etiqueta}"]`).first();
+      ? page.getByText(marca).filter({ visible: true }).first()
+      : page.locator(`[aria-label="${marca.etiqueta}"]`).filter({ visible: true }).first();
   const comoSeLlama = marca instanceof RegExp ? String(marca) : `aria-label «${marca.etiqueta}»`;
   await expect(
     suyo,

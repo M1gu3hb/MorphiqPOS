@@ -34,6 +34,8 @@ import {
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import { MovimientosDeCaja } from './MovimientosDeCaja';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 import { ChevronRight, CircleCheckBig, Search, SearchX, TriangleAlert } from 'lucide-react';
 
@@ -98,6 +100,37 @@ export interface ResumenDeTurno {
   readonly abierta: boolean;
   readonly ventasCentavos: string;
   readonly numeroVentas: number;
+  /** Si a esta sesión se le enseñan el gasto y la devolución (el servidor lo exige igual). */
+  readonly puedeAdministrar?: boolean;
+}
+
+/**
+ * EL FONDO SE CUENTA POR MONTONES (F-984, día completo del restaurante, 2.4): «$1,500» no
+ * dice si se puede dar cambio. El servidor ya lo guardaba desglosado y las otras cuatro
+ * cajas lo piden así; ésta pedía un solo importe, y `caja.abrir` lo metía entero en el
+ * montón de monedas —lo único honesto que se puede decir de un fondo sin forma—.
+ */
+const MONTONES = [
+  { clave: 'monedas', etiqueta: 'Monedas', ayuda: 'de $1, $2, $5 y $10' },
+  { clave: 'chicos', etiqueta: 'Billetes chicos', ayuda: 'de $20, $50 y $100' },
+  { clave: 'grandes', etiqueta: 'Billetes grandes', ayuda: 'de $200 y $500' },
+] as const;
+
+type Monton = (typeof MONTONES)[number]['clave'];
+
+const SIN_FONDO: Readonly<Record<Monton, number | null>> = {
+  monedas: null,
+  chicos: null,
+  grandes: null,
+};
+
+/** Lo que `caja.abrir` recibe: cada montón, en centavos; lo que no se tecleó, cero. */
+export function fondoParaAbrir(fondo: Readonly<Record<Monton, number | null>>) {
+  return {
+    fondoMonedasCentavos: fondo.monedas ?? 0,
+    fondoChicosCentavos: fondo.chicos ?? 0,
+    fondoGrandesCentavos: fondo.grandes ?? 0,
+  };
 }
 
 export interface CajaProps {
@@ -325,7 +358,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
   const [intento, setIntento] = useState(0);
   const [pestana, setPestana] = useState('pendientes');
   const [busqueda, setBusqueda] = useState('');
-  const [fondo, setFondo] = useState<number | null>(null);
+  const [fondo, setFondo] = useState<Readonly<Record<Monton, number | null>>>(SIN_FONDO);
   const [ahora, setAhora] = useState(() => Date.now());
   /** El ticket sin consumo que espera confirmación para eliminarse. */
   const [aEliminar, setAEliminar] = useState<FilaDeCaja | null>(null);
@@ -373,6 +406,18 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
       control.abort();
     };
   }, [filasIniciales, leerCaja, intento]);
+
+  /** Tras un movimiento del cajón: se vuelve a leer sin vaciar lo que se ve. */
+  function releerTurno(): void {
+    leerCaja(new AbortController().signal)
+      .then(({ pendientes, estado }) => {
+        setFilas(pendientes);
+        setTurno(estado);
+      })
+      .catch((fallo: unknown) => {
+        setError(fallo instanceof Error ? fallo.message : 'No se pudo releer la caja.');
+      });
+  }
 
   /** El estado se limpia EN EL CLIC, no en el efecto: el efecto sólo vuelve a leer. */
   function reintentar(): void {
@@ -422,9 +467,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
   };
 
   const alAbrirCaja = () => {
-    invocarComando('/api/caja/abrir', {
-      fondoInicialCentavos: fondo !== null && fondo > 0 ? fondo : 0,
-    })
+    invocarComando('/api/caja/abrir', fondoParaAbrir(fondo))
       .then(async () => leerCaja(new AbortController().signal))
       .then(({ pendientes, estado }) => {
         setFilas(pendientes);
@@ -502,10 +545,28 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
             </p>
           </div>
           {error === null ? null : <Aviso tono="peligro" titulo={error} />}
-          <div className="flex flex-col gap-(--espacio-2)">
-            <Label htmlFor="caja-fondo">Fondo inicial</Label>
-            <CampoDeDinero id="caja-fondo" autoFocus centavos={fondo} alCambiar={setFondo} />
-          </div>
+          {MONTONES.map((monton, indice) => (
+            <div key={monton.clave} className="flex flex-col gap-(--espacio-1)">
+              <Label htmlFor={`caja-fondo-${monton.clave}`}>
+                {monton.etiqueta} <span className="text-texto-sutil">{monton.ayuda}</span>
+              </Label>
+              <CampoDeDinero
+                id={`caja-fondo-${monton.clave}`}
+                autoFocus={indice === 0}
+                centavos={fondo[monton.clave]}
+                alCambiar={(centavos) => {
+                  setFondo((antes) => ({ ...antes, [monton.clave]: centavos }));
+                }}
+              />
+            </div>
+          ))}
+          <p className="flex items-baseline justify-between text-sm">
+            <span className="text-texto-sutil">Abres con</span>
+            <Dinero
+              centavos={MONTONES.reduce((suma, m) => suma + (fondo[m.clave] ?? 0), 0)}
+              tamano="lg"
+            />
+          </p>
           <Button size="lg" className="w-full" onClick={alAbrirCaja}>
             Abrir caja
           </Button>
@@ -636,6 +697,9 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
           <TabsTrigger value="historial" className={SOLO_PC}>
             Historial
           </TabsTrigger>
+          {/* El corte de turno, el retiro, el gasto y la devolución: lo que mueve el cajón
+              sin ser un cobro (§8.3). Antes no había dónde. */}
+          <TabsTrigger value="movimientos">Movimientos</TabsTrigger>
         </TabsList>
         <TabsContent value="buscar" className="mt-(--espacio-3) max-w-sm">
           <div className="relative">
@@ -658,6 +722,12 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
         </TabsContent>
         <TabsContent value="historial" className="mt-(--espacio-3) text-sm text-texto-sutil">
           Los cobros ya cerrados viven en Registros, con su folio y su corte.
+        </TabsContent>
+        <TabsContent value="movimientos" className="mt-(--espacio-3)">
+          <MovimientosDeCaja
+            puedeAdministrar={turno.puedeAdministrar === true}
+            alMover={releerTurno}
+          />
         </TabsContent>
       </Tabs>
 

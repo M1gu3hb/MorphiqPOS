@@ -6,6 +6,7 @@ import { Tablero as TableroDeCafeteria } from '~/cafeteria/Tablero';
 import { IrAlInicioDelRol } from '~/cliente/IrAlInicioDelRol';
 import { Tablero as TableroDeFerreteria } from '~/ferreteria/Tablero';
 import { sesionDelServidor } from '~/servidor/http';
+import { abreEnLaAgenda } from '~/servidor/inicio-del-salon';
 
 /**
  * LA PANTALLA DE INICIO, que no es la misma para los cinco modelos.
@@ -65,8 +66,11 @@ export default async function Pagina() {
   if (sesion?.paquete === 'ferreteria') return <TableroDeFerreteria />;
   if (sesion?.paquete === 'cafeteria') return <TableroDeCafeteria />;
 
-  // Y la estética no tiene tablero en la casa: tiene AGENDA.
-  if (sesion?.paquete === 'estetica') return <AgendaDelDia />;
+  // Y la estética no tiene tablero en la casa: tiene AGENDA. Para quien la puede leer: al
+  // almacén se le pintaba con el 403 del servidor, y va a su inicio como en los demás giros.
+  if (sesion?.paquete === 'estetica') {
+    return abreEnLaAgenda(sesion.rol) ? <AgendaDelDia /> : <IrAlInicioDelRol />;
+  }
 
   return <Dashboard />;
 }

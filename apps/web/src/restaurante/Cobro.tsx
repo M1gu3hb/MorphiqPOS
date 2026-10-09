@@ -5,7 +5,6 @@ import { Label } from '@morphiqpos/ui/primitivas/label';
 import {
   Aviso,
   CampoDeDinero,
-  Cifra,
   Dinero,
   ErrorDePantalla,
   Esqueleto,
@@ -13,7 +12,6 @@ import {
   Superficie,
   Tabla,
   Vacio,
-  type ColumnaDeTabla,
 } from '@morphiqpos/ui/sistema';
 import {
   ArrowLeftRight,
@@ -27,21 +25,25 @@ import {
   Split,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
-import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
+import { CancelarLaCuenta, DescuentoDeLaCuenta } from './AjustesDeLaCuenta';
+import { ParedDePropina } from './ParedDePropina';
 import {
   BASES,
   problemaDeLaPropina,
+  propinaPorConfirmar,
+  propinaPrevista,
   renglonesDePago,
   type Metodo,
   type MetodoBase,
 } from './pagos-del-cobro.ts';
+import { bloqueoDe, columnasDeLaCuenta } from './piezas-del-cobro';
 
 /**
  * PANTALLA · restaurante · cobro
@@ -95,7 +97,7 @@ type CampoTecleado = 'recibido' | MetodoBase;
  * Qué campo tiene un texto que NO es un importe. `CampoDeDinero` da `null` tanto
  * para el vacío como para «15OO»; su segundo argumento es lo que los distingue.
  */
-type Ilegibles = Readonly<Record<CampoTecleado, boolean>>;
+export type Ilegibles = Readonly<Record<CampoTecleado, boolean>>;
 const NADA_ILEGIBLE: Ilegibles = {
   recibido: false,
   efectivo: false,
@@ -115,10 +117,6 @@ const METODO: Readonly<Record<Metodo, { readonly etiqueta: string; readonly Icon
     transferencia: { etiqueta: 'Transferencia', Icono: ArrowLeftRight },
     mixto: { etiqueta: 'Mixto', Icono: Split },
   };
-/** Los `propina_tipo` que significan «todavía nadie la decidió». */
-const SIN_DECIDIR = ['pendiente', 'pendiente_cliente', 'decidir_en_caja'];
-/** En PUNTOS BASE, como viaja el porcentaje en el sistema. El 0 es «sin». */
-const PROPINAS = [1000, 1250, 1500, 0];
 /** Los renglones del esqueleto del desglose: los de una cuenta de cuatro personas. */
 const RENGLONES_DE_ESPERA = 5;
 /**
@@ -141,6 +139,9 @@ export interface CuentaPorCobrar {
   readonly total: number | null;
   readonly propina_monto: number | null;
   readonly propina_tipo: string | null;
+  /** El porcentaje que acordó el mesero (10, 12.5): el puente lo sirve de los puntos base. */
+  readonly propina_porcentaje: number | null;
+  readonly propina_origen: string | null;
 }
 
 /** La fila de `DetalleVenta`: sólo lo que el comensal reconoce de su cuenta. */
@@ -165,73 +166,6 @@ export interface CobroProps {
    * concreto: el cajero elige a Mesa 7 y habría cobrado la que estuviera primero.
    */
   readonly cuentaId?: string;
-}
-
-/**
- * El importe de una línea, en centavos. `DetalleVenta.total` llega en pesos y la unidad la
- * decide `centavosDe` contando dígitos; sin dato se pinta cero, como siempre se pintó.
- */
-function importeDe(linea: LineaDeCuenta): number {
-  return centavosDe('DetalleVenta', 'total', linea.total) ?? 0;
-}
-
-/** Qué impide cobrar, dicho con palabras y no sólo con un botón apagado. */
-function bloqueoDe(
-  pendiente: boolean,
-  total: number,
-  metodo: Metodo,
-  recibido: number | null,
-  suma: number,
-  ilegibles: Ilegibles,
-  voc: Vocabulario,
-): ReactNode {
-  if (pendiente) return 'Confirma la propina antes de cobrar.';
-  if (total <= 0) return `${voc.conDeterminante('este', 'orden')} no tiene importe que cobrar.`;
-  if (metodo === 'efectivo') {
-    // Ilegible no es vacío: sin esto, «15OO» cobraba como si hubiera pagado exacto.
-    if (ilegibles.recibido) return 'Lo recibido no es un importe.';
-    return recibido !== null && recibido > 0 && recibido < total ? 'Lo recibido no alcanza.' : null;
-  }
-  if (metodo !== 'mixto') return null;
-  // Antes que la suma: un campo ilegible contaría como cero y el «Faltan» mentiría.
-  if (BASES.some((base) => ilegibles[base])) return 'Alguno de los tres importes no es un número.';
-  if (suma === total) return null;
-  const falta = total - suma;
-  return falta > 0 ? (
-    <>
-      Faltan <Dinero centavos={falta} tamano="sm" /> por desglosar.
-    </>
-  ) : (
-    <>
-      Sobran <Dinero centavos={-falta} tamano="sm" />.
-    </>
-  );
-}
-
-/** Las columnas del desglose: la cantidad alineada, el platillo y su importe. */
-function columnasDeLaCuenta(platillo: string): readonly ColumnaDeTabla<LineaDeCuenta>[] {
-  return [
-    {
-      clave: 'cantidad',
-      titulo: 'Cant.',
-      numerica: true,
-      // En cifras tabulares y en su propia columna: una columna de «2», «12» que no
-      // está alineada se relee, y aquí se relee con gente esperando.
-      celda: (linea) => {
-        const cantidad = linea.cantidad ?? 1;
-        return (
-          <Cifra valor={cantidad} decimales={Number.isInteger(cantidad) ? 0 : 2} tamano="sm" />
-        );
-      },
-    },
-    { clave: 'platillo', titulo: platillo, celda: (linea) => linea.producto_nombre ?? platillo },
-    {
-      clave: 'importe',
-      titulo: 'Importe',
-      numerica: true,
-      celda: (linea) => <Dinero centavos={importeDe(linea)} tamano="sm" />,
-    },
-  ];
 }
 
 export function Cobro({
@@ -260,8 +194,6 @@ export function Cobro({
   const [propina, setPropina] = useState<number | null>(null);
   /** En el mixto, CON QUÉ se pagó la propina: sale de ese método, no «del efectivo». */
   const [metodoDePropina, setMetodoDePropina] = useState<MetodoBase>('efectivo');
-  /** La propina tecleada en «otra cantidad», antes de usarla. */
-  const [otraPropina, setOtraPropina] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [cambio, setCambio] = useState<number | null>(null);
   /** El cobro falló: la cuenta sigue en pantalla y NO se marcó como pagada. */
@@ -274,6 +206,8 @@ export function Cobro({
   // estado se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
   const [intentoDeLineas, setIntentoDeLineas] = useState(0);
+  /** La cuenta se canceló desde aquí: ya no hay nada que cobrar. */
+  const [cancelada, setCancelada] = useState(false);
 
   /**
    * LO TECLEADO ES DE ESTA CUENTA. Si la cuenta cambia —otra `?cuenta=`, o una
@@ -289,7 +223,6 @@ export function Cobro({
     setPartes(SIN_PARTES);
     setIlegibles(NADA_ILEGIBLE);
     setPropina(null);
-    setOtraPropina(null);
     setCambio(null);
     setError(null);
     if (lineasIniciales === undefined) {
@@ -355,6 +288,13 @@ export function Cobro({
     setIntento((previo) => previo + 1);
   }
 
+  /** Tras un descuento el total es otro: se relee la cuenta y sus líneas, sin vaciar. */
+  function alDescontar(): void {
+    setPropina(null);
+    setIntento((previo) => previo + 1);
+    setIntentoDeLineas((previo) => previo + 1);
+  }
+
   /** Se leyó la cuenta y no sus líneas: se releen SÓLO ésas, de la misma cuenta. */
   function releerLineas(): void {
     setFalloDeLineas(null);
@@ -364,9 +304,17 @@ export function Cobro({
 
   // En CENTAVOS: lo que se pinta y lo que viaja a `venta.cobrar` (`totalEsperadoCentavos`).
   const venta = centavosDe('Venta', 'total', cuenta?.total) ?? 0;
-  const suPropina = propina ?? centavosDe('Venta', 'propina_monto', cuenta?.propina_monto) ?? 0;
+  // La propina que el mesero ya acordó en la mesa cuenta (`pagos-del-cobro.ts`): leer
+  // sólo `propina_monto`, que antes de cobrar no existe, la cobraba como cero.
+  const deLaCuenta = {
+    tipo: cuenta?.propina_tipo ?? null,
+    origen: cuenta?.propina_origen ?? null,
+    porcentaje: cuenta?.propina_porcentaje ?? null,
+    pagadaCentavos: centavosDe('Venta', 'propina_monto', cuenta?.propina_monto),
+  };
+  const suPropina = propina ?? propinaPrevista(venta, deLaCuenta);
   const total = venta + suPropina;
-  const pendiente = propina === null && SIN_DECIDIR.includes(cuenta?.propina_tipo ?? '');
+  const pendiente = propina === null && propinaPorConfirmar(deLaCuenta);
   const suma = BASES.reduce((suman, base) => suman + (partes[base] ?? 0), 0);
   const bloqueo =
     bloqueoDe(pendiente, total, metodo, recibido, suma, ilegibles, voc) ??
@@ -457,8 +405,9 @@ export function Cobro({
     );
   }
 
-  // El vacío ENSEÑA de dónde salen las cuentas; no se disculpa por no tener.
-  if (cuenta === null) {
+  // El vacío ENSEÑA de dónde salen las cuentas; no se disculpa por no tener. Una cuenta
+  // recién cancelada aquí también deja la pantalla sin nada que cobrar.
+  if (cuenta === null || cancelada) {
     return (
       <div className="mx-auto max-w-lg p-(--espacio-4)">
         <Vacio
@@ -632,57 +581,7 @@ export function Cobro({
 
         {/* EL MURO de la propina: antes de los métodos, porque sin decidirla no se
             cobra. «Sin propina» pesa lo mismo que los porcentajes: es voluntaria. */}
-        {pendiente ? (
-          <div role="group" aria-label="Propina" className="flex flex-col gap-(--espacio-2)">
-            <Aviso tono="atencion" titulo="Confirma la propina antes de cobrar." />
-            <ul className="grid grid-cols-2 gap-(--espacio-2) sm:grid-cols-4">
-              {PROPINAS.map((puntos) => {
-                const importe = Math.round((venta * puntos) / 10000);
-                return (
-                  <li key={puntos}>
-                    <Superficie
-                      como="button"
-                      type="button"
-                      interactiva
-                      relleno={3}
-                      radio="md"
-                      onClick={() => {
-                        setPropina(importe);
-                      }}
-                      className="flex min-h-20 w-full flex-col items-center justify-center gap-(--espacio-1) text-center"
-                    >
-                      <span className="text-sm font-semibold">
-                        {puntos === 0 ? 'Sin propina' : `${String(puntos / 100)} %`}
-                      </span>
-                      <Dinero centavos={importe} tamano="xs" className="text-texto-sutil" />
-                    </Superficie>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="flex items-end gap-(--espacio-2)">
-              <span className="flex flex-1 flex-col gap-(--espacio-1)">
-                <Label htmlFor="cobro-otra-propina">Otra cantidad</Label>
-                <CampoDeDinero
-                  id="cobro-otra-propina"
-                  placeholder="0.00"
-                  centavos={otraPropina}
-                  alCambiar={setOtraPropina}
-                />
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={otraPropina === null}
-                onClick={() => {
-                  if (otraPropina !== null) setPropina(otraPropina);
-                }}
-              >
-                Usar
-              </Button>
-            </div>
-          </div>
-        ) : null}
+        {pendiente ? <ParedDePropina key={cuenta.id} venta={venta} alElegir={setPropina} /> : null}
 
         <div
           role="group"
@@ -804,6 +703,12 @@ export function Cobro({
           {enviando ? 'Cobrando…' : 'COBRAR · F12'}
         </Button>
         {bloqueo === null ? null : <p className="text-center text-sm font-medium">{bloqueo}</p>}
+        {/* Lo que cambia la cuenta antes de cobrarla: un descuento con su tope —y arriba de
+            él, el PIN del supervisor— o cancelarla con su motivo (la mesa que se fue). */}
+        <div className="grid grid-cols-2 gap-(--espacio-2)">
+          <DescuentoDeLaCuenta ordenId={cuenta.id} base={venta} alAplicar={alDescontar} />
+          <CancelarLaCuenta ordenId={cuenta.id} alCancelar={setCancelada} />
+        </div>
       </section>
 
       {/* La cuenta: siempre a la vista en PC; en tableta y teléfono, plegada en una

@@ -77,7 +77,10 @@ export interface PasivoDelLibro {
 
 export interface ComisionDelLibro {
   readonly profesional: string;
-  /** La base sobre la que corre la regla: el precio del servicio, sin propina. */
+  /**
+   * La base sobre la que corre la regla: lo cobrado del servicio sin IVA ni propina,
+   * después del descuento (`02-DINERO-Y-CAJA §7.2`, preguntas 1 y 2).
+   */
   readonly baseCentavos: bigint;
   /** La regla de esa profesional, en puntos base (4000 = 40 %). */
   readonly puntosBase: number;
