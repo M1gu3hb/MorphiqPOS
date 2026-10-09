@@ -83,8 +83,7 @@ export function clientesParaElegir(
     const previa = deuda.get(fila.cliente_id) ?? { saldo: 0, dias: 0 };
     deuda.set(fila.cliente_id, {
       saldo:
-        previa.saldo +
-        (centavosDe('CarteraPorObra', 'saldo_centavos', fila.saldo_centavos) ?? 0),
+        previa.saldo + (centavosDe('CarteraPorObra', 'saldo_centavos', fila.saldo_centavos) ?? 0),
       dias: Math.max(previa.dias, fila.dias_mas_viejo ?? 0),
     });
   }
@@ -123,10 +122,7 @@ export function filtrarClientes(
 }
 
 function sinAcentos(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
+  return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
 /** Quién puede recoger para esa obra: los de la obra y los del cliente en general. */

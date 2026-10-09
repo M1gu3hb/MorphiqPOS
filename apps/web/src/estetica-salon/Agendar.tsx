@@ -1,52 +1,5 @@
 'use client';
 
-import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import {
-  Aviso,
-  Cifra,
-  ErrorDePantalla,
-  Esqueleto,
-  Superficie,
-  Vacio,
-} from '@morphiqpos/ui/sistema';
-import {
-  CalendarClock,
-  CalendarSearch,
-  Check,
-  Scissors,
-  Search,
-  UserPlus,
-  UsersRound,
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useEffectEvent, useMemo, useState } from 'react';
-
-import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-
-import {
-  HUECOS_QUE_CABEN,
-  conOtraPersona as primerosConOtraPersona,
-  consumoDeLaReceta,
-  diaIso,
-  huecosParaOfrecer,
-  minutosDelServicio,
-  type Hueco,
-  type HuecoDelServidor,
-  type LineaDeReceta,
-  type ServicioConTiempos,
-} from './agendar-huecos.ts';
-import type { AsignacionGuardada } from './quien-da-el-servicio.ts';
-import { useVocabulario } from '~/cliente/vocabulario';
-
-import {
-  conExpedienteYFaltas,
-  type ExpedienteDeClienta,
-  type FaltaDeClienta,
-} from './ficha-de-clienta.ts';
-
 /**
  * PANTALLA · estetica-salon · agendar
  *
@@ -109,6 +62,53 @@ import {
  * 5. Al agendar se vuelve a la agenda; si venía de la lista de espera, la espera
  *    queda atada a su cita. Antes no pasaba nada: un segundo toque la duplicaba.
  */
+
+import { Button } from '@morphiqpos/ui/primitivas/button';
+import { Input } from '@morphiqpos/ui/primitivas/input';
+import { Label } from '@morphiqpos/ui/primitivas/label';
+import { Separator } from '@morphiqpos/ui/primitivas/separator';
+import {
+  Aviso,
+  Cifra,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Vacio,
+} from '@morphiqpos/ui/sistema';
+import {
+  CalendarClock,
+  CalendarSearch,
+  Check,
+  Scissors,
+  Search,
+  UserPlus,
+  UsersRound,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
+
+import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+
+import {
+  HUECOS_QUE_CABEN,
+  conOtraPersona as primerosConOtraPersona,
+  consumoDeLaReceta,
+  diaIso,
+  huecosParaOfrecer,
+  minutosDelServicio,
+  type Hueco,
+  type HuecoDelServidor,
+  type LineaDeReceta,
+  type ServicioConTiempos,
+} from './agendar-huecos.ts';
+import type { AsignacionGuardada } from './quien-da-el-servicio.ts';
+import { useVocabulario } from '~/cliente/vocabulario';
+
+import {
+  conExpedienteYFaltas,
+  type ExpedienteDeClienta,
+  type FaltaDeClienta,
+} from './ficha-de-clienta.ts';
 
 /** La rejilla del día del salón. Fuera de aquí no hay nada que ofrecer. */
 /** Dos semanas: la primera es la respuesta y la segunda es el plan B. */

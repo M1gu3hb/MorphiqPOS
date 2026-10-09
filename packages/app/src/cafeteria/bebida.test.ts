@@ -46,6 +46,11 @@ const AVENA = 'f1111111-1111-4111-8111-111111111111';
 const SIN_CREMA = 'f2222222-2222-4222-8222-222222222222';
 const OPCION_AJENA = 'f3333333-3333-4333-8333-333333333333';
 const OTRA_ORG = 'a9999999-9999-4999-8999-999999999999';
+const GRUPO_DE_OTRA_BEBIDA = 'e3333333-3333-4333-8333-333333333333';
+const GRUPO_TAMANO = 'e4444444-4444-4444-8444-444444444444';
+const DESCUENTO_DEL_FRAPPE = 'f4444444-4444-4444-8444-444444444444';
+const CHICO = 'f5555555-5555-4555-8555-555555555555';
+const GRANDE = 'f6666666-6666-4666-8666-666666666666';
 
 function opcion(id: string, cambios: Fila = {}): Fila {
   return {
@@ -64,8 +69,27 @@ function baseDe(extra: Partial<TablasFalsas> = {}): BaseFalsa {
     {
       productos: [producto({ precio_venta_centavos: 5_500n })],
       modificadores: [
-        { id: GRUPO_LECHE, organizacion_id: ORG, nombre: 'Leche', activo: true },
-        { id: GRUPO_AJENO, organizacion_id: OTRA_ORG, nombre: 'Leche', activo: true },
+        { id: GRUPO_LECHE, organizacion_id: ORG, nombre: 'Leche', activo: true, tipo: 'multiple' },
+        {
+          id: GRUPO_AJENO,
+          organizacion_id: OTRA_ORG,
+          nombre: 'Leche',
+          activo: true,
+          tipo: 'unica',
+        },
+        {
+          id: GRUPO_DE_OTRA_BEBIDA,
+          organizacion_id: ORG,
+          nombre: 'Del frappé',
+          activo: true,
+          tipo: 'multiple',
+        },
+        { id: GRUPO_TAMANO, organizacion_id: ORG, nombre: 'Tamaño', activo: true, tipo: 'unica' },
+      ],
+      // Esta bebida lleva la leche y el tamaño; el grupo del frappé NO es suyo.
+      producto_modificadores: [
+        { producto_id: PRODUCTO, modificador_id: GRUPO_LECHE },
+        { producto_id: PRODUCTO, modificador_id: GRUPO_TAMANO },
       ],
       modificador_opciones: [
         opcion(AVENA),
@@ -76,6 +100,18 @@ function baseDe(extra: Partial<TablasFalsas> = {}): BaseFalsa {
           delta_precio_centavos: -500n,
         }),
         opcion(OPCION_AJENA, { modificador_id: GRUPO_AJENO, nombre: 'Leche de otro negocio' }),
+        opcion(DESCUENTO_DEL_FRAPPE, {
+          modificador_id: GRUPO_DE_OTRA_BEBIDA,
+          nombre: 'Sin base de frappé',
+          precio_extra_centavos: 0n,
+          delta_precio_centavos: -3_000n,
+        }),
+        opcion(CHICO, { modificador_id: GRUPO_TAMANO, nombre: '12 oz', precio_extra_centavos: 0n }),
+        opcion(GRANDE, {
+          modificador_id: GRUPO_TAMANO,
+          nombre: '16 oz',
+          precio_extra_centavos: 1_200n,
+        }),
       ],
       ordenes: [],
       orden_lineas: [],
@@ -148,6 +184,28 @@ describe('F-027 · la bebida con sus opciones', () => {
     ).toBe('CONFIGURACION_INVALIDA');
     // Y no deja media bebida escrita.
     expect(base.filas('orden_lineas')).toEqual([]);
+  });
+
+  it('UNA OPCIÓN DE OTRA BEBIDA NO ENTRA: el descuento del frappé no abarata un latte (auditoría 2.4)', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(
+      await codigoDe(() =>
+        agregarBebida.ejecutar(ctx, bebida({ opciones: [DESCUENTO_DEL_FRAPPE] })),
+      ),
+    ).toBe('CONFIGURACION_INVALIDA');
+    expect(base.filas('orden_lineas')).toHaveLength(0);
+  });
+
+  it('DE UN GRUPO DE OPCIÓN ÚNICA, una sola: 12 y 16 oz en el mismo vaso no', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(
+      await codigoDe(() => agregarBebida.ejecutar(ctx, bebida({ opciones: [CHICO, GRANDE] }))),
+    ).toBe('CONFIGURACION_INVALIDA');
+    expect(base.filas('orden_lineas')).toHaveLength(0);
   });
 
   it('DOS BEBIDAS CAEN EN LA MISMA CUENTA', async () => {

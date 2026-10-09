@@ -23,10 +23,18 @@ export function TasaDeTerminal({ onDeclarada }: { readonly onDeclarada: (bp: num
   const [texto, setTexto] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
+  /** Lo tecleado no es una tasa: se dice al enviar, en vez de no hacer nada. */
+  const [ilegible, setIlegible] = useState(false);
   const bp = puntosBaseDe(texto);
 
   async function guardar(): Promise<void> {
-    if (bp === null) return;
+    if (bp === null) {
+      // Enter con el campo vacío o con «tres» no hacía nada —ni petición ni aviso—: un
+      // formulario mudo (lo cazó el rastreador en CI, auditoría de la 2.4).
+      setIlegible(true);
+      return;
+    }
+    setIlegible(false);
     setGuardando(true);
     setFallo(null);
     try {
@@ -65,15 +73,24 @@ export function TasaDeTerminal({ onDeclarada }: { readonly onDeclarada: (bp: num
             className="w-28 font-numeros tabular-nums"
             value={texto}
             aria-invalid={texto !== '' && bp === null}
+            aria-describedby={ilegible ? 'tasa-ilegible' : undefined}
             onChange={(evento) => {
               setTexto(evento.target.value);
+              setIlegible(false);
             }}
           />
         </div>
-        <Button type="submit" disabled={bp === null || guardando} cargando={guardando}>
+        <Button type="submit" disabled={guardando} cargando={guardando}>
           Guardar la tasa
         </Button>
       </div>
+      {ilegible && (
+        <Aviso
+          id="tasa-ilegible"
+          tono="atencion"
+          titulo="Escribe la tasa en porcentaje, como 3.6 (de 0 a 10 %)."
+        />
+      )}
       {fallo === null ? null : (
         <Aviso tono="peligro" titulo={fallo}>
           La tasa la guarda quien administra el negocio.

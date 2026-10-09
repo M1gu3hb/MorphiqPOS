@@ -6290,3 +6290,56 @@ por bloque: A+B, el dinero de C.1–C.6 y los comandos de C.7–C.14— encontr�
   bloqueo; carreras de `cobrar_cita` y de `caja.cerrar`; propina mixta del restaurante por
   método; puntos ciegos de `verify:unidades`; casco devuelto con signo que Postgres
   rechaza; `Math.abs` del ajuste; la utilidad con IVA dentro.
+
+## 08-10-2026 · Etapa 2.4 · la auditoría, tercera tanda, y lo que dijo la primera corrida de CI
+
+**CI sobre `fase-2.4`, por primera vez** (`workflow_dispatch`, corrida 37883610433: CI sólo
+corre en PR, y la rama no tenía). Con las demos ya naciendo con su id, la siembra funcionó y la
+mayoría de la matriz pasó. Lo que salió rojo, y qué se hizo:
+- **Formato** en dos archivos de la tanda anterior; **cobertura**: la etiqueta `PANTALLA ·
+  abarrotes · cobrar` había quedado en el renglón 71 y la puerta lee 60 (crecieron los
+  imports). Se subió la cabecera de esa pantalla y de otras seis que estaban a punto.
+- **Auditoría de dependencias**: Next 16.3.4 con un fallo CRÍTICO de ejecución remota en
+  `next/og` y uno de SSRF en la optimización de imágenes; sharp < 0.35.5 (librsvg) y
+  source-map-js < 1.2.2. Next y su plugin a 16.3.8, sharp 0.35.5 y dos `overrides`; `pnpm
+  audit --audit-level high --prod` queda en 2 bajas.
+- **El cierre de turno de la cafetería tenía un formulario mudo**: Enter con la tasa vacía no
+  hacía nada. Ahora lo dice.
+- **El PDF del corte del salón no bajó**: `caja.hoja_del_corte` falló con 25P02. Lo destapó
+  la clave estable de la tanda anterior —dos lecturas idénticas simultáneas comparten clave—,
+  pero el defecto es más viejo: `reclamarClave` atrapaba el 23505 de una clave duplicada
+  DENTRO de la transacción y luego consultaba en ella, ya abortada. **El camino «es un
+  reintento» nunca funcionó contra Postgres**: dos peticiones con la misma clave a la vez le
+  daban un 500 a la segunda. Ahora es `on conflict do nothing`: sin error, la transacción
+  sigue viva y el reintento se sirve.
+- Pendiente de la siguiente corrida: la galería de ferretería (el mostrador cambió en C.10 y
+  sus retratos hay que regenerarlos a propósito) y un `isEnabled` que esperó 15 s en el
+  rastreo de estética en «papel».
+
+**Tercera tanda de la auditoría, corregida:**
+- **El signo del cajón lo pone el tipo** (`montoConSigno`, en el repositorio): la devolución
+  del casco y la entrega de propina grababan un `retiro` POSITIVO, que Postgres rechaza
+  (`movimiento_signo_coherente`) —las dos funciones fallaban en la base real—; una prueba lo
+  esperaba así y se corrigió. Y el `ajuste` conserva su signo (`Math.abs` lo volvía positivo).
+- **El cobro de cita bloquea la cita** y sólo una cita sin cobrar pasa a cobrada: recepción y
+  la estilista cobrando a la vez sacaban dos órdenes y la comisión doble.
+- **El cierre de caja bloquea su sesión**: un cobro entre la suma y el cierre quedaba fuera
+  del esperado firmado.
+- **Las opciones de bebida se ligan a SU bebida** y un grupo de opción única admite una: con
+  el descuento de otra bebida un latte bajaba hasta $0. Y el subtotal ya no se multiplica con
+  `Number`.
+- **El puente**: `NoShow` recortado a la estilista; el teléfono del apartado sólo a caja; el
+  contrato «cocina nunca ve costos» mira también la COLUMNA, no sólo el nombre.
+- **El host manda dentro de `ORGANIZACION`**: un negocio real no se cuela por DNS en un
+  Preview de demos.
+- **El slug de la entrada con mayúsculas** lee el mismo negocio que el servidor; la etiqueta
+  del rol del giro llega al menú lateral y a Configuración → Accesos.
+
+**Lo que queda de la auditoría** (recomendados de menor riesgo, se cierran antes del PR o se
+dicen en el reporte): la propina mixta del restaurante repartida «de efectivo hacia abajo»;
+`confirmar_transferencia` sin guarda de estado; el abono con cheque al instante; la versión
+vigente de la regla de comisión; los canjes de la nota con rol de caja; el pasivo de sellos al
+cajero; sucursal y terminal en el cobro y los apartados; `solicitaEmpleoId`; `fijar_limite` sin
+bloqueo; los puntos ciegos de `verify:unidades`; la utilidad con IVA dentro; la confirmación de
+transferencias de la tienda; pruebas para las guardas de los guiones.
+

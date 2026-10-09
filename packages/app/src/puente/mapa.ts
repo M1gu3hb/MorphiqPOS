@@ -1528,6 +1528,8 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   NoShow: {
     tabla: 'no_shows',
     rolesLectura: [...OPERACION_RESTAURANTE],
+    // La estilista ve SUS faltas, no las del salón (auditoría de la 2.4).
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     escritura: 'lectura',
     ordenPorOmision: '-ocurrio_en',
     campos: {
@@ -2637,7 +2639,14 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       ...soloAutomaticos(['id']),
       orden_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
       nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
-      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
+      // El teléfono de quien apartó es un dato personal: la barra canta el NOMBRE, y el
+      // teléfono sólo lo lee quien cobra (auditoría de la 2.4).
+      telefono: {
+        rolesLectura: [...CAJA],
+        columna: 'telefono',
+        conversion: 'texto',
+        escribible: false,
+      },
       hora_prometida: { columna: 'hora_prometida', conversion: 'fecha', escribible: false },
       estado: { columna: 'estado', conversion: 'texto', escribible: false },
       encolado_en: { columna: 'encolado_en', conversion: 'fecha', escribible: false },

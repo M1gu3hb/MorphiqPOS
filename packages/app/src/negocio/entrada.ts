@@ -61,6 +61,9 @@ export function elegirNegocioDeLaEntrada<T extends { readonly slug: string }>(
 
 /** El slug de una ruta de entrada: `/n/<slug>/…` → `<slug>`; cualquier otra, `null`. */
 export function slugDeLaRutaDeEntrada(ruta: string | null | undefined): string | null {
-  const coincidencia = /^\/n\/([a-z0-9][a-z0-9-]{1,62})(?:\/|$)/.exec(ruta ?? '');
-  return coincidencia?.[1] ?? null;
+  // Sin distinguir mayúsculas, y devuelto en minúsculas (auditoría de la 2.4): el
+  // servidor ya las ignoraba, así que `/n/MH-Restaurante/login-pos` pintaba la página y
+  // el navegador, que no reconocía el slug, pedía la lista sin negocio y recibía un 404.
+  const coincidencia = /^\/n\/([a-z0-9][a-z0-9-]{1,62})(?:\/|$)/i.exec(ruta ?? '');
+  return coincidencia?.[1]?.toLocaleLowerCase('en-US') ?? null;
 }

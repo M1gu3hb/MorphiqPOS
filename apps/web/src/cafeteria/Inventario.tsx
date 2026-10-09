@@ -1,61 +1,5 @@
 'use client';
 
-import { Badge } from '@morphiqpos/ui/primitivas/badge';
-import { Button } from '@morphiqpos/ui/primitivas/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@morphiqpos/ui/primitivas/dialog';
-import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Label } from '@morphiqpos/ui/primitivas/label';
-import {
-  Aviso,
-  Cifra,
-  ErrorDePantalla,
-  Esqueleto,
-  EsqueletoDeLista,
-  ListaDeTarjetas,
-  Superficie,
-  Tabla,
-  Vacio,
-  type ColumnaDeTabla,
-  type TamanoDeDinero,
-  type TonoDeFila,
-} from '@morphiqpos/ui/sistema';
-import {
-  CircleCheck,
-  Coffee,
-  Milk,
-  Minus,
-  OctagonAlert,
-  Plus,
-  Search,
-  TriangleAlert,
-} from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react';
-
-import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { useVocabulario } from '~/cliente/vocabulario';
-
-import {
-  TOPE_DE_CARTONES,
-  avisoDeConteoInvalido,
-  cartonesDe,
-  primeraLecheInvalida,
-  seCuentaPorCartones,
-  type ConteoTecleado,
-} from './conteo-de-leche';
-
 /**
  * PANTALLA · cafeteria · inventario
  *
@@ -113,6 +57,62 @@ import {
  * en vez de fallar al pulsar —y un aviso dice por qué—. Recortados para caber
  * en un archivo: el buscador por código de barras y el histórico por insumo.
  */
+
+import { Badge } from '@morphiqpos/ui/primitivas/badge';
+import { Button } from '@morphiqpos/ui/primitivas/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@morphiqpos/ui/primitivas/dialog';
+import { Input } from '@morphiqpos/ui/primitivas/input';
+import { Label } from '@morphiqpos/ui/primitivas/label';
+import {
+  Aviso,
+  Cifra,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  ListaDeTarjetas,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+  type TamanoDeDinero,
+  type TonoDeFila,
+} from '@morphiqpos/ui/sistema';
+import {
+  CircleCheck,
+  Coffee,
+  Milk,
+  Minus,
+  OctagonAlert,
+  Plus,
+  Search,
+  TriangleAlert,
+} from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
+
+import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
+
+import {
+  TOPE_DE_CARTONES,
+  avisoDeConteoInvalido,
+  cartonesDe,
+  primeraLecheInvalida,
+  seCuentaPorCartones,
+  type ConteoTecleado,
+} from './conteo-de-leche';
 
 /** Rutas declaradas en `05-DATOS-Y-BACKEND.md` §6. Ninguna se inventa aquí. */
 const RUTA_AJUSTAR = '/api/inventario/ajustar';

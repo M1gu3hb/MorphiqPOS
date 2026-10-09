@@ -5,6 +5,7 @@ import { repoOrdenes, repoVentaCatalogo, type Transaccion } from '@morphiqpos/da
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
+import { porCantidad } from '../venta/escala.ts';
 import { valorarLinea } from '../venta/valorar.ts';
 
 /**
@@ -113,7 +114,7 @@ export const agregarBebida = definirComando<
     // Con su grupo, para congelar los dos nombres, y acotadas a esta
     // organización: sin el filtro, un id ajeno metería en la cuenta una opción
     // de otro negocio con el precio de otro negocio.
-    const elegidas = await leerOpciones(ctx, entrada.opciones);
+    const elegidas = await leerOpciones(ctx, producto.id, entrada.opciones);
     if (elegidas.length !== entrada.opciones.length) {
       throw new ErrorDominio(
         'CONFIGURACION_INVALIDA',
@@ -147,8 +148,9 @@ export const agregarBebida = definirComando<
       valorada.precio.precioUnitarioCentavos + delta > 0n
         ? valorada.precio.precioUnitarioCentavos + delta
         : 0n;
-    const cantidadNumero = Number(valorada.cantidad);
-    const subtotal = BigInt(Math.round(Number(unitario) * cantidadNumero));
+    // En enteros escalados, como el resto del dinero: aquí se multiplicaba con `Number` y
+    // `Math.round`, punto flotante en un importe (auditoría de la 2.4).
+    const subtotal = porCantidad(unitario, valorada.cantidad);
 
     const visual = await repoOrdenes.siguienteOrdenVisual(ctx.tx, organizacionId, ordenId);
     const lineaId = await ctx.paso('insertar_linea', () =>
@@ -261,7 +263,11 @@ type Contexto = Parameters<typeof agregarBebida.ejecutar>[0];
  * precio de otro. Y de paso el comando se puede probar sin falsear un planificador
  * de `join`, que es la otra mitad de lo que estas pruebas cuidan.
  */
-async function leerOpciones(ctx: Contexto, ids: readonly string[]): Promise<OpcionElegida[]> {
+async function leerOpciones(
+  ctx: Contexto,
+  productoId: string,
+  ids: readonly string[],
+): Promise<OpcionElegida[]> {
   if (ids.length === 0) return [];
 
   const opciones = await ctx.paso('leer_opciones', () =>
@@ -277,13 +283,38 @@ async function leerOpciones(ctx: Contexto, ids: readonly string[]): Promise<Opci
   const grupos = await ctx.paso('leer_grupos', () =>
     ctx.tx
       .selectFrom('modificadores')
-      .select(['id', 'nombre'])
+      .select(['id', 'nombre', 'tipo'])
       .where('organizacion_id', '=', ctx.ambito.organizacionId)
       .where('activo', '=', true)
       .where('id', 'in', [...new Set(opciones.map((o) => o.modificador_id))])
       .execute(),
   );
-  const porGrupo = new Map(grupos.map((g) => [g.id, g.nombre]));
+  // LOS GRUPOS DE ESTA BEBIDA (auditoría de la 2.4): una opción de otro producto —el
+  // «sin crema» del frappé en un americano— se aplicaba igual, y apilando descuentos de
+  // otras bebidas el precio bajaba hasta cero. Sólo cuentan los grupos ligados a ésta.
+  const deLaBebida = await ctx.paso('leer_grupos_de_la_bebida', () =>
+    ctx.tx
+      .selectFrom('producto_modificadores')
+      .select(['modificador_id'])
+      .where('producto_id', '=', productoId)
+      .execute(),
+  );
+  const ligados = new Set(deLaBebida.map((g) => g.modificador_id));
+  const porGrupo = new Map(grupos.filter((g) => ligados.has(g.id)).map((g) => [g.id, g.nombre]));
+  // Un grupo de opción ÚNICA (la leche, el tamaño) admite una sola: dos leches en el
+  // mismo latte no es una bebida, es una forma de sumar dos descuentos.
+  const unicas = new Set(grupos.filter((g) => g.tipo === 'unica').map((g) => g.id));
+  const porUnica = new Map<string, number>();
+  for (const opcion of opciones) {
+    if (!unicas.has(opcion.modificador_id)) continue;
+    const cuantas = (porUnica.get(opcion.modificador_id) ?? 0) + 1;
+    porUnica.set(opcion.modificador_id, cuantas);
+    if (cuantas > 1) {
+      throw new ErrorDominio('CONFIGURACION_INVALIDA', 'De ese grupo se elige una sola opción.', {
+        grupoId: opcion.modificador_id,
+      });
+    }
+  }
 
   const elegidas: OpcionElegida[] = [];
   for (const opcion of opciones) {

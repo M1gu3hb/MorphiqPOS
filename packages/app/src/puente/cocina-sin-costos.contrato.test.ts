@@ -25,11 +25,15 @@ function costosQueVeCocina(): readonly Hallazgo[] {
   for (const [entidad, mapa] of Object.entries(MAPA)) {
     const deLaEntidad = mapa.rolesLectura;
     const grupos: readonly Readonly<
-      Record<string, { readonly rolesLectura?: readonly string[] }>
+      Record<string, { readonly rolesLectura?: readonly string[]; readonly columna?: string }>
     >[] = [mapa.campos, mapa.derivados ?? {}, mapa.calculados ?? {}];
     for (const grupo of grupos) {
       for (const [campo, definicion] of Object.entries(grupo)) {
-        if (!ES_COSTO.test(campo)) continue;
+        // El NOMBRE o la COLUMNA (auditoría de la 2.4): un campo que se llame `importe` y
+        // lea `costo_unitario_centavos` también es un costo, y mirando sólo el nombre se
+        // colaba.
+        const columna = typeof definicion.columna === 'string' ? definicion.columna : '';
+        if (!ES_COSTO.test(campo) && !ES_COSTO.test(columna)) continue;
         const roles = definicion.rolesLectura ?? deLaEntidad;
         // Sin roles en ninguno de los dos niveles lo lee cualquiera, cocina incluida.
         if (roles === undefined || roles.includes('cocina')) hallazgos.push({ entidad, campo });

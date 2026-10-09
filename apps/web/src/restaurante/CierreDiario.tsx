@@ -1,52 +1,5 @@
 'use client';
 
-import { Button } from '@morphiqpos/ui/primitivas/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@morphiqpos/ui/primitivas/dialog';
-import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Switch } from '@morphiqpos/ui/primitivas/switch';
-import {
-  Aviso,
-  CampoDeDinero,
-  Cifra,
-  Dinero,
-  ErrorDePantalla,
-  Esqueleto,
-  Superficie,
-  Tabla,
-  Vacio,
-  type ColumnaDeTabla,
-} from '@morphiqpos/ui/sistema';
-import { ChevronDown, CircleCheck, Lock, OctagonAlert, TriangleAlert } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
-
-import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { CorteEnPdf } from '~/corte/CorteEnPdf';
-import { centavosDe } from '~/cliente/dinero-del-puente';
-import { useVocabulario } from '~/cliente/vocabulario';
-
-import {
-  esperadoEnCaja,
-  resumirDia,
-  type Canal,
-  type GastoDelDia,
-  type VentaDelDia,
-} from './resumen-del-dia.ts';
-
-export {
-  esperadoEnCaja,
-  resumirDia,
-  type GastoDelDia,
-  type ResumenDelDia,
-  type VentaDelDia,
-} from './resumen-del-dia.ts';
-
 /**
  * PANTALLA · restaurante · cierre-diario-y-arqueo
  *
@@ -96,6 +49,53 @@ export {
  * 4. Todo importe se pinta con `Dinero` y se teclea con `CampoDeDinero`, del
  *    sistema: la pantalla habla sólo en centavos.
  */
+
+import { Button } from '@morphiqpos/ui/primitivas/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@morphiqpos/ui/primitivas/dialog';
+import { Label } from '@morphiqpos/ui/primitivas/label';
+import { Switch } from '@morphiqpos/ui/primitivas/switch';
+import {
+  Aviso,
+  CampoDeDinero,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import { ChevronDown, CircleCheck, Lock, OctagonAlert, TriangleAlert } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+
+import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { CorteEnPdf } from '~/corte/CorteEnPdf';
+import { centavosDe } from '~/cliente/dinero-del-puente';
+import { useVocabulario } from '~/cliente/vocabulario';
+
+import {
+  esperadoEnCaja,
+  resumirDia,
+  type Canal,
+  type GastoDelDia,
+  type VentaDelDia,
+} from './resumen-del-dia.ts';
+
+export {
+  esperadoEnCaja,
+  resumirDia,
+  type GastoDelDia,
+  type ResumenDelDia,
+  type VentaDelDia,
+} from './resumen-del-dia.ts';
 
 const CANALES = ['efectivo', 'tarjeta', 'transferencia'] as const;
 

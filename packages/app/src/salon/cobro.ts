@@ -194,14 +194,18 @@ async function leerCuenta(
 ): Promise<CuentaLeida> {
   const { organizacionId } = ctx.ambito;
 
-  const cita = await ctx.paso('cargar_cita', () =>
-    ctx.tx
+  // Al COBRAR se bloquea la cita (auditoría de la 2.4): recepción y la estilista tocando
+  // COBRAR a la vez leían las dos «sin cobrar» y salían dos órdenes, dos juegos de pagos
+  // y la comisión doble. Con el renglón bloqueado, la segunda espera y ve «ya se cobró».
+  // Al cotizar (`bloquear` falso) no se bloquea: sólo se lee.
+  const cita = await ctx.paso('cargar_cita', () => {
+    const consulta = ctx.tx
       .selectFrom('citas')
       .select(['id', 'folio', 'estado', 'cliente_id as clienteId', 'es_rehacer as esRehacer'])
       .where('organizacion_id', '=', organizacionId)
-      .where('id', '=', citaId)
-      .executeTakeFirst(),
-  );
+      .where('id', '=', citaId);
+    return (bloquear ? consulta.forUpdate() : consulta).executeTakeFirst();
+  });
   if (cita === undefined) {
     throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Esa cita no existe en este negocio.');
   }
@@ -698,7 +702,7 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
         }
       }
 
-      await ctx.paso('cerrar_cita', () =>
+      const cerrada = await ctx.paso('cerrar_cita', () =>
         ctx.tx
           .updateTable('citas')
           // `estado` y `orden_id` en la MISMA escritura: la 132 lo exige
@@ -707,8 +711,14 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
           .set({ estado: 'cobrada', orden_id: orden.id, fin_real: ctx.ahora })
           .where('organizacion_id', '=', organizacionId)
           .where('id', '=', entrada.citaId)
-          .execute(),
+          // Segundo cerrojo: sólo una cita que no se ha cobrado pasa a cobrada.
+          .where('estado', '<>', 'cobrada')
+          .executeTakeFirst(),
       );
+      if (Number(cerrada.numUpdatedRows) !== 1) {
+        // Toda la transacción se deshace: la orden, los pagos y la comisión de este intento.
+        throw new ErrorDominio('ORDEN_NO_EDITABLE', 'Esa cita ya se cobró.');
+      }
 
       const propinaTotal = porCamino.mano + porCamino.cajon + porCamino.terminal;
       ctx.auditar({

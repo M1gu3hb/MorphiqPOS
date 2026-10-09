@@ -229,8 +229,7 @@ export const SIN_ESTADO = [
   {
     pantalla: 'estetica-salon/FotosDeLaCita',
     estado: 'cargando',
-    razon:
-      'Pieza de captura: no lee nada al montarse; mientras sube, la tesela dice «subiendo…».',
+    razon: 'Pieza de captura: no lee nada al montarse; mientras sube, la tesela dice «subiendo…».',
   },
   {
     pantalla: 'estetica-salon/LaCabinaContraLaAgenda',
@@ -241,14 +240,12 @@ export const SIN_ESTADO = [
   {
     pantalla: 'estetica-salon/LaCabinaContraLaAgenda',
     estado: 'cargando',
-    razon:
-      'Pieza de pregunta: no lee al montarse; mientras pregunta, el botón queda apagado.',
+    razon: 'Pieza de pregunta: no lee al montarse; mientras pregunta, el botón queda apagado.',
   },
   {
     pantalla: 'estetica-salon/NotaDeLaCita',
     estado: 'vacio',
-    razon:
-      'Pieza de captura: el campo vacío ES el estado vacío, con su texto de ayuda.',
+    razon: 'Pieza de captura: el campo vacío ES el estado vacío, con su texto de ayuda.',
   },
   {
     pantalla: 'estetica-salon/NotaDeLaCita',

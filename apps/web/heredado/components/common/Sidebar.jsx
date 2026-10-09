@@ -282,7 +282,7 @@ export default function Sidebar({ collapsed, onToggle }) {
             {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate">{posUser.nombre}</p>
-                <p className="text-[10px] text-sidebar-foreground/50">{ROLE_LABELS[posUser.rol]}</p>
+                <p className="text-[10px] text-sidebar-foreground/50">{posUser.etiqueta ?? ROLE_LABELS[posUser.rol]}</p>
               </div>
             )}
             {!collapsed && (

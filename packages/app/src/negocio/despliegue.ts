@@ -120,13 +120,30 @@ export function slugsConfigurados(valor: string | undefined): readonly string[] 
  * despliegue no sirve no se encuentra, y sin el PIN correcto de ESE empleo no se
  * entra igualmente. El cliente elige una persona, no un negocio.
  */
+/**
+ * EL HOST MANDA, PERO DENTRO DE LA LISTA (auditoría de la 2.4).
+ *
+ * El host de un negocio activo ganaba siempre, aunque `ORGANIZACION` no lo nombrara: con
+ * un dominio comodín, cualquier negocio de la base se servía —también los reales en un
+ * Preview que sólo debe servir demos, y sin sesión en las rutas públicas—. Ahora, si el
+ * despliegue declara su lista, el host sólo manda cuando es uno de ella; sin lista
+ * declarada (un despliegue de un cliente con su dominio) manda como antes.
+ */
+export function slugDelHostQueManda(
+  delHost: string | null,
+  configurados: readonly string[],
+): string | null {
+  if (delHost === null) return null;
+  return configurados.length === 0 || configurados.includes(delHost) ? delHost : null;
+}
+
 export async function negociosDelDespliegue(
   slugConfigurado: string | undefined,
   host?: string | null,
 ): Promise<readonly NegocioDelDespliegue[]> {
   const db = obtenerDb();
 
-  const delHost = slugDelHost(host);
+  const delHost = slugDelHostQueManda(slugDelHost(host), slugsConfigurados(slugConfigurado));
   if (delHost !== null) {
     const negocio = await repoNegocio.porSlug(db, delHost);
     // Un host que no es de nadie NO falla: cae al paso 2. `morphiqpos.app` a

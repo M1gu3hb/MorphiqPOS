@@ -142,9 +142,14 @@ export const registrarMovimientoCaja = definirComando<
     // El signo lo pone el servidor a partir del tipo, no el cliente. Un gasto
     // con monto positivo sumaría al arqueo en vez de restar, y el `check`
     // movimiento_signo_coherente lo rechazaría con un error ilegible.
+    //
+    // Y el AJUSTE conserva su signo: el esquema lo acepta negativo («un ajuste a la baja lo
+    // es») y aquí se le quitaba con `Math.abs`, así que todo ajuste sumaba al cajón
+    // (auditoría de la 2.4). Los demás tipos los normaliza el repositorio.
     const magnitud = BigInt(Math.abs(entrada.montoCentavos));
     const salida = entrada.tipo === 'gasto' || entrada.tipo === 'retiro';
-    const monto = salida ? -magnitud : magnitud;
+    const monto =
+      entrada.tipo === 'ajuste' ? BigInt(entrada.montoCentavos) : salida ? -magnitud : magnitud;
 
     await ctx.paso('registrar_movimiento', () =>
       repoCaja.registrarMovimiento(ctx.tx, {
@@ -197,7 +202,7 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
     }
 
     const sesion = await ctx.paso('cargar_caja', () =>
-      repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId),
+      repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId, true),
     );
     if (sesion === null) throw new ErrorDominio('CAJA_CERRADA', 'No hay una caja abierta.');
 

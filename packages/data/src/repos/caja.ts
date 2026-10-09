@@ -32,8 +32,15 @@ export async function sesionAbiertaDeTerminal(
   db: Kysely<Esquema> | Transaccion,
   organizacionId: string,
   terminalId: string,
+  /**
+   * `true` al CERRAR (auditoría de la 2.4): el cierre suma los movimientos y guarda el
+   * esperado; sin bloquear la sesión, un cobro que entraba entre la suma y el cierre
+   * quedaba fuera del esperado firmado. Con `FOR UPDATE` el cobro en curso termina antes
+   * —o, si llega después, ve la caja cerrada—.
+   */
+  bloquear = false,
 ): Promise<SesionAbierta | null> {
-  const fila = await db
+  const consulta = db
     .selectFrom('sesiones_caja')
     .select([
       'id',
@@ -45,8 +52,8 @@ export async function sesionAbiertaDeTerminal(
     ])
     .where('organizacion_id', '=', organizacionId)
     .where('terminal_id', '=', terminalId)
-    .where('estado', '=', 'abierta')
-    .executeTakeFirst();
+    .where('estado', '=', 'abierta');
+  const fila = await (bloquear ? consulta.forUpdate() : consulta).executeTakeFirst();
 
   return fila ?? null;
 }
@@ -140,12 +147,36 @@ export interface NuevoMovimiento {
   readonly organizacionId: string;
   readonly sesionCajaId: string;
   readonly tipo: string;
-  /** Con signo: entrada positiva, salida negativa. */
+  /**
+   * El importe. Para los tipos del tronco el signo lo pone `montoConSigno` por el tipo;
+   * para los demás (`ajuste`…) se guarda con el signo que traiga.
+   */
   readonly montoCentavos: bigint;
   readonly referenciaTipo: string | null;
   readonly referenciaId: string | null;
   readonly empleadoId: string | null;
   readonly motivo: string | null;
+}
+
+/** Los tipos que el `check movimiento_signo_coherente` (003) obliga a cada signo. */
+const SALEN_DEL_CAJON: readonly string[] = ['devolucion', 'gasto', 'retiro'];
+const ENTRAN_AL_CAJON: readonly string[] = ['apertura', 'venta', 'deposito', 'propina'];
+
+/**
+ * EL SIGNO LO PONE EL TIPO, en un solo sitio (auditoría de la 2.4).
+ *
+ * Dos comandos escribían un `retiro` POSITIVO —la devolución del casco y la entrega de
+ * propina— y la base lo rechaza (`movimiento_signo_coherente`): las dos funciones fallaban
+ * en cuanto tocaban Postgres de verdad, y la base falsa no mira `check`. Cada llamador
+ * decidía el signo a su manera; ahora el repositorio lo normaliza: lo que SALE del cajón,
+ * negativo; lo que ENTRA, positivo; los demás (`ajuste`, `liquidacion`…) tal cual vienen,
+ * porque su signo sí lo decide quien llama.
+ */
+export function montoConSigno(tipo: string, monto: bigint): bigint {
+  const magnitud = monto < 0n ? -monto : monto;
+  if (SALEN_DEL_CAJON.includes(tipo)) return -magnitud;
+  if (ENTRAN_AL_CAJON.includes(tipo)) return magnitud;
+  return monto;
 }
 
 export async function registrarMovimiento(
@@ -162,7 +193,7 @@ export async function registrarMovimiento(
       organizacion_id: movimiento.organizacionId,
       sesion_caja_id: movimiento.sesionCajaId,
       tipo: movimiento.tipo,
-      monto_centavos: movimiento.montoCentavos,
+      monto_centavos: montoConSigno(movimiento.tipo, movimiento.montoCentavos),
       referencia_tipo: movimiento.referenciaTipo,
       referencia_id: movimiento.referenciaId,
       empleado_id: movimiento.empleadoId,

@@ -1,5 +1,45 @@
 'use client';
 
+/**
+ * PANTALLA · abarrotes · cobrar
+ *
+ * El 90% del uso del sistema: 50 a 400 veces al día, siempre con fila detrás.
+ *
+ * ── Por qué el TOTAL es lo más grande de toda la aplicación ──────────────
+ * Porque **el cliente también lo lee, desde el otro lado del mostrador**, y porque decirlo
+ * en voz alta mientras se escanea es lo que hace avanzar la fila.
+ *
+ * ── Por qué no hay botón de «agregar» ────────────────────────────────────
+ * Escanear es el estado por omisión, no una acción. La captura vive en la ventana y no en un
+ * input, así que el foco **no se puede perder**. Lector y humano se separan por el RITMO
+ * —ocho o más caracteres a menos de 35 ms terminados en Enter—. Sin *cooldown*: seis
+ * refrescos iguales son seis lecturas y `× 6` en UNA línea.
+ *
+ * ── Lo que canta el lector (`cobro/escaneo.ts`) ──────────────────────────
+ * Un producto; la CAJA de 24 por el código de su presentación (F-147), que entra como
+ * «1 caja (24 pz)» a su precio y descuenta 24; una ETIQUETA de la báscula (F-148), que entra
+ * como su pesada ya resuelta —si el negocio declaró cómo etiqueta su báscula, en Productos—;
+ * o nada del catálogo: dos tonos que bajan y el ALTA RÁPIDA encima, con el código ya puesto.
+ *
+ * ── Tres canales, porque hay ruido ───────────────────────────────────────
+ * El pitido (`cliente/pitido.ts`), la línea resaltada un segundo y el nombre en la barra de
+ * estado. El color nunca va solo.
+ *
+ * ── El teclado ───────────────────────────────────────────────────────────
+ * F12 efectivo, F9 tarjeta, F10 transferencia, F11 fiado, F2 al buscador, F4 el cliente del
+ * fiado, F6 apartar o retomar, F7 un abono, Supr deshace la última línea, + / − la cantidad
+ * y Esc empieza de nuevo. Los ocho de siempre llevan su tecla donde está libre —F1, F3, F5 y
+ * F8— porque F2, F4, F6 y F7 ya son acciones (D-21).
+ *
+ * ── El fiado ─────────────────────────────────────────────────────────────
+ * F11 va a nombre de alguien: sin cliente, pide elegirlo (F4) antes de confirmar. La venta
+ * suma a ventas y no al cajón, y la deuda queda escrita en la misma transacción del cobro.
+ *
+ * ── Sin conexión ─────────────────────────────────────────────────────────
+ * No hay cola, por decisión (A-27, F-988 en EXCEPCIONES): sin red la pantalla lo DICE
+ * —«Sin internet. No se puede cobrar»— y CONFIRMAR no se deja pulsar.
+ */
+
 import type { LayoutEanInterno } from '@morphiqpos/domain/catalogo';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import {
@@ -66,46 +106,6 @@ import {
   type ProductoDeCobro,
 } from './cobro/lineas.ts';
 import { TECLAS_RAPIDAS, TeclasRapidas, teclaDe } from './cobro/TeclasRapidas.tsx';
-
-/**
- * PANTALLA · abarrotes · cobrar
- *
- * El 90% del uso del sistema: 50 a 400 veces al día, siempre con fila detrás.
- *
- * ── Por qué el TOTAL es lo más grande de toda la aplicación ──────────────
- * Porque **el cliente también lo lee, desde el otro lado del mostrador**, y porque decirlo
- * en voz alta mientras se escanea es lo que hace avanzar la fila.
- *
- * ── Por qué no hay botón de «agregar» ────────────────────────────────────
- * Escanear es el estado por omisión, no una acción. La captura vive en la ventana y no en un
- * input, así que el foco **no se puede perder**. Lector y humano se separan por el RITMO
- * —ocho o más caracteres a menos de 35 ms terminados en Enter—. Sin *cooldown*: seis
- * refrescos iguales son seis lecturas y `× 6` en UNA línea.
- *
- * ── Lo que canta el lector (`cobro/escaneo.ts`) ──────────────────────────
- * Un producto; la CAJA de 24 por el código de su presentación (F-147), que entra como
- * «1 caja (24 pz)» a su precio y descuenta 24; una ETIQUETA de la báscula (F-148), que entra
- * como su pesada ya resuelta —si el negocio declaró cómo etiqueta su báscula, en Productos—;
- * o nada del catálogo: dos tonos que bajan y el ALTA RÁPIDA encima, con el código ya puesto.
- *
- * ── Tres canales, porque hay ruido ───────────────────────────────────────
- * El pitido (`cliente/pitido.ts`), la línea resaltada un segundo y el nombre en la barra de
- * estado. El color nunca va solo.
- *
- * ── El teclado ───────────────────────────────────────────────────────────
- * F12 efectivo, F9 tarjeta, F10 transferencia, F11 fiado, F2 al buscador, F4 el cliente del
- * fiado, F6 apartar o retomar, F7 un abono, Supr deshace la última línea, + / − la cantidad
- * y Esc empieza de nuevo. Los ocho de siempre llevan su tecla donde está libre —F1, F3, F5 y
- * F8— porque F2, F4, F6 y F7 ya son acciones (D-21).
- *
- * ── El fiado ─────────────────────────────────────────────────────────────
- * F11 va a nombre de alguien: sin cliente, pide elegirlo (F4) antes de confirmar. La venta
- * suma a ventas y no al cajón, y la deuda queda escrita en la misma transacción del cobro.
- *
- * ── Sin conexión ─────────────────────────────────────────────────────────
- * No hay cola, por decisión (A-27, F-988 en EXCEPCIONES): sin red la pantalla lo DICE
- * —«Sin internet. No se puede cobrar»— y CONFIRMAR no se deja pulsar.
- */
 
 /** Un lector escribe cada carácter en menos de esto; una mano, jamás. */
 const MS_ENTRE_TECLAS = 35;

@@ -42,6 +42,10 @@ describe('slugDeLaRutaDeEntrada', () => {
     expect(slugDeLaRutaDeEntrada('/n/mh-restaurante')).toBe('mh-restaurante');
   });
 
+  it('con mayúsculas lee el MISMO negocio que el servidor, en minúsculas (auditoría 2.4)', () => {
+    expect(slugDeLaRutaDeEntrada('/n/Demo-Acople-Tienda/login-pos')).toBe('demo-acople-tienda');
+  });
+
   it('cualquier otra ruta no dice negocio', () => {
     expect(slugDeLaRutaDeEntrada('/login-pos')).toBeNull();
     expect(slugDeLaRutaDeEntrada('/nada/n/x')).toBeNull();

@@ -1,5 +1,56 @@
 'use client';
 
+/**
+ * PANTALLA · ferreteria · mostrador
+ *
+ * El 70 % del uso del modelo: 25 a 60 ventas al día con el mismo par de manos.
+ * La acción principal es BUSCAR, y por eso el foco arranca en el campo.
+ *
+ * ── Por qué arranca CON los ocho grupos y no en blanco ───────────────────
+ * `abarrotes` abre con la lista vacía y «escanea el primer producto». Aquí eso
+ * sería un error: la primera pregunta del mostradorista al cliente es «¿de qué
+ * es?», y los ocho grupos de línea son esa pregunta convertida en botones.
+ *
+ * ── Por qué los resultados son una TABLA en la PC y tarjetas en el pasillo ─
+ * En el mostrador se COMPARA —cinco tornillos de la misma medida, ¿galvanizado o
+ * negro?, ¿Truper o Pretul?—, y comparar es leer una columna de arriba abajo: medida,
+ * acabado, marca, precio, existencia y DÓNDE, cada una alineada. En la tableta del
+ * pasillo se camina hacia el rack, y la misma fila es una tarjeta con la ubicación
+ * en negritas. Es la misma lista con las mismas columnas (`TablaAdaptable`).
+ *
+ * ── Por qué el total NO es lo más grande ─────────────────────────────────
+ * Aquí el cliente no mira la pantalla: mira la pieza que le acaban de poner
+ * enfrente. El total importa al final, no durante.
+ *
+ * ── Por qué la franja del cliente está arriba y no en el cobro ───────────
+ * Porque en una remisión a crédito NO HAY COBRO. El saldo, el límite y quién
+ * recoge tienen que verse ANTES de despachar o no se ven nunca.
+ *
+ * ── Por qué no hay esqueleto mientras se teclea ──────────────────────────
+ * El índice vive en memoria del cliente y filtrar es local: por debajo de 100
+ * ms no hay nada que anunciar. El esqueleto es sólo para la HIDRATACIÓN del
+ * índice, que sí cruza la red, y una sola vez.
+ *
+ * ── La nota sobrevive a ir y volver, y la ficha le agrega (C.10 de la 2.4) ─
+ * F5 abre la ficha de la pieza que se está viendo; lo que ahí se agrega —la caja con
+ * su precio, o piezas— vuelve a esta nota, que vive en la pestaña y no se pierde al ir
+ * a la ficha, al corte o al alta (`nota-del-mostrador.ts`).
+ *
+ * ── A cuenta de quién, y la llave (C.10 de la 2.4) ───────────────────────
+ * El mostrador tenía la remisión entera —F11, la firma, el aviso del límite— y
+ * NINGUNA forma de elegir al cliente: ahora se elige (nombre o teléfono), con su
+ * obra y quién recoge, de la lista o a mano, y entonces se avisa. Si la mora lo
+ * bloquea, se dice dónde da el dueño la llave (Cuentas, con SU usuario) y la nota
+ * que ya se mandó a caja se REUSA al volver a F11: antes cada intento creaba otra.
+ *
+ * ── Las teclas, todas con su botón ───────────────────────────────────────
+ * F5 la ficha, F6 el corte de la pieza, F8 la nota como cotización, F9 apartarla
+ * mientras se atiende a otro (espera en este dispositivo con un número corto,
+ * `notas-en-espera.ts`), F11 a cuenta y F12 a caja. La equivalencia real (F-060)
+ * sale de `equivalencias`; mientras no exista, cero resultados aproxima por familia
+ * y lo dice en la pantalla.
+ */
+
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import {
@@ -54,57 +105,6 @@ import {
   suscribirseALaEspera,
   textoDeLaEspera,
 } from './notas-en-espera.ts';
-
-/**
- * PANTALLA · ferreteria · mostrador
- *
- * El 70 % del uso del modelo: 25 a 60 ventas al día con el mismo par de manos.
- * La acción principal es BUSCAR, y por eso el foco arranca en el campo.
- *
- * ── Por qué arranca CON los ocho grupos y no en blanco ───────────────────
- * `abarrotes` abre con la lista vacía y «escanea el primer producto». Aquí eso
- * sería un error: la primera pregunta del mostradorista al cliente es «¿de qué
- * es?», y los ocho grupos de línea son esa pregunta convertida en botones.
- *
- * ── Por qué los resultados son una TABLA en la PC y tarjetas en el pasillo ─
- * En el mostrador se COMPARA —cinco tornillos de la misma medida, ¿galvanizado o
- * negro?, ¿Truper o Pretul?—, y comparar es leer una columna de arriba abajo: medida,
- * acabado, marca, precio, existencia y DÓNDE, cada una alineada. En la tableta del
- * pasillo se camina hacia el rack, y la misma fila es una tarjeta con la ubicación
- * en negritas. Es la misma lista con las mismas columnas (`TablaAdaptable`).
- *
- * ── Por qué el total NO es lo más grande ─────────────────────────────────
- * Aquí el cliente no mira la pantalla: mira la pieza que le acaban de poner
- * enfrente. El total importa al final, no durante.
- *
- * ── Por qué la franja del cliente está arriba y no en el cobro ───────────
- * Porque en una remisión a crédito NO HAY COBRO. El saldo, el límite y quién
- * recoge tienen que verse ANTES de despachar o no se ven nunca.
- *
- * ── Por qué no hay esqueleto mientras se teclea ──────────────────────────
- * El índice vive en memoria del cliente y filtrar es local: por debajo de 100
- * ms no hay nada que anunciar. El esqueleto es sólo para la HIDRATACIÓN del
- * índice, que sí cruza la red, y una sola vez.
- *
- * ── La nota sobrevive a ir y volver, y la ficha le agrega (C.10 de la 2.4) ─
- * F5 abre la ficha de la pieza que se está viendo; lo que ahí se agrega —la caja con
- * su precio, o piezas— vuelve a esta nota, que vive en la pestaña y no se pierde al ir
- * a la ficha, al corte o al alta (`nota-del-mostrador.ts`).
- *
- * ── A cuenta de quién, y la llave (C.10 de la 2.4) ───────────────────────
- * El mostrador tenía la remisión entera —F11, la firma, el aviso del límite— y
- * NINGUNA forma de elegir al cliente: ahora se elige (nombre o teléfono), con su
- * obra y quién recoge, de la lista o a mano, y entonces se avisa. Si la mora lo
- * bloquea, se dice dónde da el dueño la llave (Cuentas, con SU usuario) y la nota
- * que ya se mandó a caja se REUSA al volver a F11: antes cada intento creaba otra.
- *
- * ── Las teclas, todas con su botón ───────────────────────────────────────
- * F5 la ficha, F6 el corte de la pieza, F8 la nota como cotización, F9 apartarla
- * mientras se atiende a otro (espera en este dispositivo con un número corto,
- * `notas-en-espera.ts`), F11 a cuenta y F12 a caja. La equivalencia real (F-060)
- * sale de `equivalencias`; mientras no exista, cero resultados aproxima por familia
- * y lo dice en la pantalla.
- */
 
 /** «¿De qué es?», convertido en botones. No son productos: son puntos de partida. */
 const GRUPOS = [

@@ -1,57 +1,5 @@
 'use client';
 
-import { Badge } from '@morphiqpos/ui/primitivas/badge';
-import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Checkbox } from '@morphiqpos/ui/primitivas/checkbox';
-import { Input } from '@morphiqpos/ui/primitivas/input';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@morphiqpos/ui/primitivas/sheet';
-import {
-  Aviso,
-  Cifra,
-  Dinero,
-  ErrorDePantalla,
-  Esqueleto,
-  EsqueletoDeLista,
-  Superficie,
-  Tabla,
-  VIAJE,
-  Vacio,
-  conTransicion,
-  dineroEnTexto,
-  type ColumnaDeTabla,
-} from '@morphiqpos/ui/sistema';
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  CornerDownRight,
-  FileSignature,
-  HandCoins,
-  Phone,
-  Search,
-  Send,
-  TriangleAlert,
-  UserPlus,
-} from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { flushSync } from 'react-dom';
-
-import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
-import { centavosDe } from '~/cliente/dinero-del-puente';
-import { useVocabulario } from '~/cliente/vocabulario';
-
-import { whatsappDe } from './cuenta-del-cliente.ts';
-import { EstadoDeCuenta } from './EstadoDeCuenta.tsx';
-import { LimiteDeCredito, LlaveDelDueno } from './LlaveYLimite.tsx';
-import { NuevoClienteDeCredito } from './NuevoClienteDeCredito.tsx';
-import { ObrasYQuienRecoge } from './ObrasYQuienRecoge.tsx';
-
 /**
  * PANTALLA · ferreteria · cuentas
  *
@@ -114,6 +62,58 @@ import { ObrasYQuienRecoge } from './ObrasYQuienRecoge.tsx';
  * escrito y sin mandar. `/api/credito/pago` está nombrada en `05-DATOS-Y-BACKEND` §6;
  * las lecturas van por el puente, que es el único camino de lectura.
  */
+
+import { Badge } from '@morphiqpos/ui/primitivas/badge';
+import { Button } from '@morphiqpos/ui/primitivas/button';
+import { Checkbox } from '@morphiqpos/ui/primitivas/checkbox';
+import { Input } from '@morphiqpos/ui/primitivas/input';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@morphiqpos/ui/primitivas/sheet';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  Superficie,
+  Tabla,
+  VIAJE,
+  Vacio,
+  conTransicion,
+  dineroEnTexto,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  CornerDownRight,
+  FileSignature,
+  HandCoins,
+  Phone,
+  Search,
+  Send,
+  TriangleAlert,
+  UserPlus,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
+
+import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
+import { useVocabulario } from '~/cliente/vocabulario';
+
+import { whatsappDe } from './cuenta-del-cliente.ts';
+import { EstadoDeCuenta } from './EstadoDeCuenta.tsx';
+import { LimiteDeCredito, LlaveDelDueno } from './LlaveYLimite.tsx';
+import { NuevoClienteDeCredito } from './NuevoClienteDeCredito.tsx';
+import { ObrasYQuienRecoge } from './ObrasYQuienRecoge.tsx';
 
 /** Los tres tramos de antigüedad. El color SIEMPRE viaja con su palabra. */
 const SEMAFORO = [

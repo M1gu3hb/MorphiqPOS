@@ -1,53 +1,5 @@
 'use client';
 
-import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Label } from '@morphiqpos/ui/primitivas/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@morphiqpos/ui/primitivas/select';
-import {
-  Aviso,
-  CampoDeDinero,
-  Cifra,
-  Dinero,
-  ErrorDePantalla,
-  Esqueleto,
-  EsqueletoDeLista,
-  Superficie,
-  Tabla,
-  Vacio,
-  dineroEnTexto,
-  textoParaCampo,
-  type ColumnaDeTabla,
-} from '@morphiqpos/ui/sistema';
-import {
-  ArrowRight,
-  Check,
-  ClipboardList,
-  Copy,
-  History,
-  PackageOpen,
-  Phone,
-  Send,
-  TriangleAlert,
-  Truck,
-  X,
-} from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-
-import { KardexDelProducto } from '~/abarrotes/KardexDelProducto';
-import { ErrorApi, consultarPuente, invocarComando, subirImagen } from '~/cliente/api';
-import { useVocabulario } from '~/cliente/vocabulario';
-
-import { ContraElPedido } from './ContraElPedido.tsx';
-import { importeDe, pesosDe } from './entrada-del-archivo.ts';
-import { ImportarLaNota, type NotaDelArchivo } from './ImportarLaNota.tsx';
-
 /**
  * PANTALLA · ferreteria · entradas
  *
@@ -120,6 +72,54 @@ import { ImportarLaNota, type NotaDelArchivo } from './ImportarLaNota.tsx';
  * Se sube (sólo quien administra puede subir archivos) y viaja con la entrada: queda
  * en las notas de la compra, para conciliar el papel cuando el proveedor reclame.
  */
+
+import { Button } from '@morphiqpos/ui/primitivas/button';
+import { Input } from '@morphiqpos/ui/primitivas/input';
+import { Label } from '@morphiqpos/ui/primitivas/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@morphiqpos/ui/primitivas/select';
+import {
+  Aviso,
+  CampoDeDinero,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  EsqueletoDeLista,
+  Superficie,
+  Tabla,
+  Vacio,
+  dineroEnTexto,
+  textoParaCampo,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  ArrowRight,
+  Check,
+  ClipboardList,
+  Copy,
+  History,
+  PackageOpen,
+  Phone,
+  Send,
+  TriangleAlert,
+  Truck,
+  X,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { KardexDelProducto } from '~/abarrotes/KardexDelProducto';
+import { ErrorApi, consultarPuente, invocarComando, subirImagen } from '~/cliente/api';
+import { useVocabulario } from '~/cliente/vocabulario';
+
+import { ContraElPedido } from './ContraElPedido.tsx';
+import { importeDe, pesosDe } from './entrada-del-archivo.ts';
+import { ImportarLaNota, type NotaDelArchivo } from './ImportarLaNota.tsx';
 
 /** Debería venir del proveedor; mientras ese campo no exista, vive aquí. */
 const MINIMO_PEDIDO_CENTAVOS = 2_500_000;
