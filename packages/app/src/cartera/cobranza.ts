@@ -9,6 +9,9 @@ import { definirComando, type ContextoComando } from '../definicion.ts';
 
 import { cargarCliente, documentosVivos } from './documento.ts';
 
+/** Lo que entra pero no baja la deuda hasta que alguien mira el banco. */
+const POR_CONFIRMAR: readonly string[] = ['transferencia', 'cheque'];
+
 /**
  * F-613, F-614, F-615, F-616 y F-617 · Cobrar, medir, avisar y cortar.
  *
@@ -143,7 +146,11 @@ export async function aplicarPagoDeCredito(
   // único que puede hacer es no creérselo hasta que alguien mire el banco.
   // Aplicarla de inmediato es cómo un comprobante falso de $12,000 sale por
   // la puerta convertido en material.
-  const pendiente = entrada.metodo === 'transferencia';
+  //
+  // Y el CHEQUE igual (auditoría de la 2.4): se aplicaba al instante, y un cheque sin
+  // fondos dejaba la deuda saldada sin que entrara un peso. Se confirma cuando el banco
+  // lo paga, por el mismo camino que la transferencia.
+  const pendiente = POR_CONFIRMAR.includes(entrada.metodo);
 
   // `repartirPago` es la función que E6 escribió para F-614 en ferretería, y
   // sirve TAL CUAL para el fiado de una tiendita: es la comprobación campo por
@@ -283,15 +290,19 @@ export const confirmarTransferencia = definirComando<
         .select(['id', 'cliente_id', 'monto_centavos', 'metodo', 'confirmado'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.pagoId)
+        // BLOQUEADO (auditoría de la 2.4): dos confirmaciones a la vez —dos pestañas—
+        // leían «sin confirmar» las dos y el pago se aplicaba dos veces. Con el renglón
+        // bloqueado, la segunda espera y lee «ya estaba confirmada».
+        .forUpdate()
         .executeTakeFirst(),
     );
     if (pago === undefined) {
       throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese pago no existe en este negocio.');
     }
-    if (pago.metodo !== 'transferencia') {
+    if (!POR_CONFIRMAR.includes(pago.metodo)) {
       throw new ErrorDominio(
         'CONFIGURACION_CONFLICTO',
-        'Sólo las transferencias se confirman: lo demás ya entró al cajón.',
+        'Sólo las transferencias y los cheques se confirman: lo demás ya entró.',
       );
     }
     // Confirmar dos veces aplicaría el pago dos veces y le regalaría el doble al
@@ -364,7 +375,7 @@ export const transferenciasPendientes = definirComando<
         .selectFrom('pagos_credito')
         .select(['id', 'cliente_id', 'monto_centavos', 'referencia', 'created_at'])
         .where('organizacion_id', '=', organizacionId)
-        .where('metodo', '=', 'transferencia')
+        .where('metodo', 'in', [...POR_CONFIRMAR])
         .where('confirmado', '=', false)
         .where('created_at', '>=', desde)
         .orderBy('created_at', 'asc')

@@ -25,6 +25,7 @@ import { flushSync } from 'react-dom';
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe, valorDelPuente } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { PorConfirmarEnElBanco } from './PorConfirmarEnElBanco.tsx';
 
 /**
  * PANTALLA · abarrotes · fiado
@@ -767,6 +768,19 @@ export function Fiado({ filasIniciales, onAbonoRegistrado }: FiadoProps) {
           />
         )}
       </div>
+
+      {/* Lo abonado por transferencia o con cheque, hasta que se ve en el banco. Al
+          confirmarlo la deuda baja: se vuelve a leer la cartera. */}
+      {filasIniciales === undefined ? (
+        <PorConfirmarEnElBanco
+          nombreDe={(clienteId) =>
+            filas.find((f) => f.cliente_id === clienteId)?.nombre ?? 'Cliente'
+          }
+          alConfirmar={() => {
+            setIntento((previo) => previo + 1);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

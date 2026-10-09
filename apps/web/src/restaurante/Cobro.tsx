@@ -35,6 +35,14 @@ import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 
+import {
+  BASES,
+  problemaDeLaPropina,
+  renglonesDePago,
+  type Metodo,
+  type MetodoBase,
+} from './pagos-del-cobro.ts';
+
 /**
  * PANTALLA · restaurante · cobro
  *
@@ -80,10 +88,7 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * («15OO») apaga COBRAR y lo dice.
  */
 
-const METODOS = ['efectivo', 'tarjeta', 'transferencia', 'mixto'] as const;
-type Metodo = (typeof METODOS)[number];
-type MetodoBase = Exclude<Metodo, 'mixto'>;
-const BASES: readonly MetodoBase[] = ['efectivo', 'tarjeta', 'transferencia'];
+const METODOS: readonly Metodo[] = ['efectivo', 'tarjeta', 'transferencia', 'mixto'];
 /** Los campos donde se teclea un importe: «Recibido» y los tres del desglose. */
 type CampoTecleado = 'recibido' | MetodoBase;
 /**
@@ -203,34 +208,6 @@ function bloqueoDe(
   );
 }
 
-/**
- * Los renglones de `venta.cobrar`. La propina se reconoce de efectivo hacia
- * abajo: el billete que el comensal deja de más va a la bolsa del mesero esa
- * misma noche, y la de tarjeta espera a la liquidación.
- */
-function renglonesDePago(
-  metodo: Metodo,
-  partes: Readonly<Record<MetodoBase, number | null>>,
-  venta: number,
-  propina: number,
-  recibido: number | null,
-): readonly Record<string, unknown>[] {
-  if (metodo !== 'mixto') {
-    const enMano =
-      metodo === 'efectivo' && recibido !== null && recibido > 0
-        ? { recibidoCentavos: recibido }
-        : {};
-    return [{ metodo, montoCentavos: venta, propinaCentavos: propina, ...enMano }];
-  }
-  let porAsignar = propina;
-  return BASES.map((base) => {
-    const importe = partes[base] ?? 0;
-    const suya = Math.min(importe, porAsignar);
-    porAsignar -= suya;
-    return { metodo: base, montoCentavos: importe - suya, propinaCentavos: suya };
-  }).filter((renglon) => renglon.montoCentavos > 0 || renglon.propinaCentavos > 0);
-}
-
 /** Las columnas del desglose: la cantidad alineada, el platillo y su importe. */
 function columnasDeLaCuenta(platillo: string): readonly ColumnaDeTabla<LineaDeCuenta>[] {
   return [
@@ -281,6 +258,8 @@ export function Cobro({
   const [partes, setPartes] = useState<Readonly<Record<MetodoBase, number | null>>>(SIN_PARTES);
   const [ilegibles, setIlegibles] = useState<Ilegibles>(NADA_ILEGIBLE);
   const [propina, setPropina] = useState<number | null>(null);
+  /** En el mixto, CON QUÉ se pagó la propina: sale de ese método, no «del efectivo». */
+  const [metodoDePropina, setMetodoDePropina] = useState<MetodoBase>('efectivo');
   /** La propina tecleada en «otra cantidad», antes de usarla. */
   const [otraPropina, setOtraPropina] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -389,7 +368,9 @@ export function Cobro({
   const total = venta + suPropina;
   const pendiente = propina === null && SIN_DECIDIR.includes(cuenta?.propina_tipo ?? '');
   const suma = BASES.reduce((suman, base) => suman + (partes[base] ?? 0), 0);
-  const bloqueo = bloqueoDe(pendiente, total, metodo, recibido, suma, ilegibles, voc);
+  const bloqueo =
+    bloqueoDe(pendiente, total, metodo, recibido, suma, ilegibles, voc) ??
+    (metodo === 'mixto' ? problemaDeLaPropina(partes, suPropina, metodoDePropina) : null);
 
   async function cobrar(id: string): Promise<void> {
     // Sin red no se cobra (F-988, A-27): no hay cola que guarde el cobro para después.
@@ -399,7 +380,7 @@ export function Cobro({
     try {
       const hecho = await invocarComando<{ readonly cambioCentavos: string }>('/api/venta/cobrar', {
         ordenId: id,
-        pagos: renglonesDePago(metodo, partes, venta, suPropina, recibido),
+        pagos: renglonesDePago(metodo, partes, venta, suPropina, recibido, metodoDePropina),
         totalEsperadoCentavos: venta,
         propinaOrigen: 'caja',
       });
@@ -784,6 +765,30 @@ export function Cobro({
                 />
               </div>
             ))}
+            {suPropina > 0 ? (
+              <div
+                role="radiogroup"
+                aria-label="Con qué se pagó la propina"
+                className="flex flex-wrap items-center gap-(--espacio-2) sm:col-span-3"
+              >
+                <span className="text-sm text-texto-sutil">La propina se pagó con</span>
+                {BASES.map((base) => (
+                  <Button
+                    key={base}
+                    type="button"
+                    size="sm"
+                    role="radio"
+                    aria-checked={metodoDePropina === base}
+                    variant={metodoDePropina === base ? 'default' : 'outline'}
+                    onClick={() => {
+                      setMetodoDePropina(base);
+                    }}
+                  >
+                    {METODO[base].etiqueta}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
 

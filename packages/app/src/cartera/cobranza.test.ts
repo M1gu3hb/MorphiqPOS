@@ -310,6 +310,22 @@ describe('F-614 y F-615 · registrar el pago', () => {
     expect(base.campo('pagos_credito', 'confirmado')).toBe(false);
   });
 
+  it('EL CHEQUE TAMPOCO baja el saldo hasta que el banco lo paga (auditoría de la 2.4)', async () => {
+    // Se aplicaba al instante: un cheque sin fondos dejaba la deuda saldada.
+    const base = baseDe({ documentos_credito: [documento()], sesiones_caja: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await registrarPagoCredito.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 10_000,
+      metodo: 'cheque',
+      referencia: 'Banorte 001122',
+    });
+
+    expect(salida.pendienteDeConfirmar).toBe(true);
+    expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(100_000n);
+  });
+
   it('el efectivo SE APLICA en el momento: ya está en el cajón', async () => {
     const base = baseDe({ documentos_credito: [documento()] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
