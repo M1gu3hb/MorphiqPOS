@@ -89,6 +89,35 @@ export const cobrarOrden = definirComando<
       });
     }
 
+    // 1.2 · Una nota que ya salió FIRMADA a crédito no se cobra otra vez (auditoría de
+    //       la 2.4). La remisión subió el saldo del cliente por esa entrega; cobrarla
+    //       además en caja metería el mismo material dos veces en el dinero. Se bloquea
+    //       la orden primero: una remisión simultánea de la misma nota también la
+    //       bloquea, así que una de las dos espera y después ve a la otra.
+    await ctx.paso('bloquear_orden', () =>
+      ctx.tx
+        .selectFrom('ordenes')
+        .select('id')
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', entrada.ordenId)
+        .forUpdate()
+        .executeTakeFirst(),
+    );
+    const remitida = await ctx.paso('mirar_remision', () =>
+      ctx.tx
+        .selectFrom('remisiones')
+        .select('folio')
+        .where('organizacion_id', '=', organizacionId)
+        .where('orden_id', '=', entrada.ordenId)
+        .executeTakeFirst(),
+    );
+    if (remitida !== undefined) {
+      throw new ErrorDominio(
+        'ORDEN_NO_EDITABLE',
+        `Esa nota ya salió a crédito con la remisión ${remitida.folio}: se cobra en Cuentas, no en caja.`,
+      );
+    }
+
     // 1.5 · F-331 y F-328 · El canal y el nombre del vaso se sellan ANTES de
     //       cotizar, porque el canal decide qué insumos explota la receta: si se
     //       escribiera después, el descuento de stock se haría con el canal

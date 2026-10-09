@@ -203,24 +203,25 @@ export type ExtrasDelServidor =
         insumo: string;
         cantidad: string;
         unidad: string;
-        costoCentavos: string;
+        /** `null` para quien no ve costos: el servidor lo quita (auditoría de la 2.4). */
+        costoCentavos: string | null;
       }[];
       readonly consumoDeLaCasa: readonly {
         tipo: string;
         producto: string;
         cantidad: string;
         unidad: string;
-        costoCentavos: string;
+        costoCentavos: string | null;
         autorizo: string | null;
         motivo: string;
       }[];
       readonly sellos: {
         readonly otorgados: number;
         readonly canjes: number;
-        readonly costoCanjesCentavos: string;
+        readonly costoCanjesCentavos: string | null;
         readonly sellosVivos: string;
         readonly clientesConSaldo: number;
-        readonly costoPremioCentavos: string;
+        readonly costoPremioCentavos: string | null;
         readonly sellosPorPremio: number;
       };
       readonly noRecogidos: readonly {
@@ -291,7 +292,7 @@ export type ExtrasDelServidor =
         piezas: number;
         estado: string;
         dias: number;
-        costoCentavos: string;
+        costoCentavos: string | null;
       }[];
       readonly autorizaciones: readonly {
         hora: string;

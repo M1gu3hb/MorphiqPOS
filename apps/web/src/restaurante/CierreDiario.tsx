@@ -31,6 +31,22 @@ import { CorteEnPdf } from '~/corte/CorteEnPdf';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  esperadoEnCaja,
+  resumirDia,
+  type Canal,
+  type GastoDelDia,
+  type VentaDelDia,
+} from './resumen-del-dia.ts';
+
+export {
+  esperadoEnCaja,
+  resumirDia,
+  type GastoDelDia,
+  type ResumenDelDia,
+  type VentaDelDia,
+} from './resumen-del-dia.ts';
+
 /**
  * PANTALLA · restaurante · cierre-diario-y-arqueo
  *
@@ -82,7 +98,6 @@ import { useVocabulario } from '~/cliente/vocabulario';
  */
 
 const CANALES = ['efectivo', 'tarjeta', 'transferencia'] as const;
-type Canal = (typeof CANALES)[number];
 
 const NOMBRE_DEL_CANAL: Readonly<Record<Canal, string>> = {
   efectivo: 'Efectivo',
@@ -97,27 +112,6 @@ const TOLERANCIA_CENTAVOS = 2000;
  * La venta del día tal como la nombra el puente. Los importes van en PESOS, y se leen
  * sólo por `centavosDe`: la unidad la decide la conversión del campo, no quien lo lee.
  */
-export interface VentaDelDia {
-  readonly id: string;
-  readonly estado: string | null;
-  readonly total: number | null;
-  readonly costo_total_snapshot: number | null;
-  readonly propina_efectivo: number | null;
-  readonly propina_tarjeta: number | null;
-  readonly propina_transferencia: number | null;
-  readonly monto_efectivo: number | null;
-  readonly monto_tarjeta: number | null;
-  readonly monto_transferencia: number | null;
-  readonly usuario_mesero_nombre: string | null;
-  readonly fecha_apertura: string | null;
-}
-
-export interface GastoDelDia {
-  readonly id: string;
-  readonly monto: number | null;
-  readonly metodo_pago: string | null;
-}
-
 export interface MesaViva {
   readonly id: string;
   readonly numero: number | null;
@@ -155,82 +149,6 @@ export interface MesaQueBloquea {
 export interface CierreDiarioProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly datosIniciales?: DatosDelDia;
-}
-
-/** Un gasto, en centavos. Sin monto cuenta como cero: no suma, y no rompe la suma. */
-function montoDe(gasto: GastoDelDia): number {
-  return centavosDe('GastoOperativo', 'monto', gasto.monto) ?? 0;
-}
-
-export interface ResumenDelDia {
-  readonly ventas: number;
-  readonly tickets: number;
-  readonly promedio: number;
-  readonly costo: number;
-  readonly utilidad: number;
-  /** En puntos base sobre la venta: 6543 se lee 65.43 %. */
-  readonly margen: number;
-  readonly gastos: number;
-  readonly neta: number;
-  readonly propinas: Readonly<Record<Canal, number>>;
-  readonly porCanal: Readonly<Record<Canal, number>>;
-  readonly gastosEnEfectivo: number;
-}
-
-/**
- * El resumen del día, SIN propinas dentro del dinero del negocio.
- *
- * La propina no es venta ni margen: es dinero de los meseros que pasó por la
- * caja. Mezclarla infla la utilidad del día, y quien lea el PDF creerá que ganó
- * lo que en realidad debe.
- */
-export function resumirDia(
-  ventas: readonly VentaDelDia[],
-  gastos: readonly GastoDelDia[],
-): ResumenDelDia {
-  const pagadas = ventas.filter((venta) => venta.estado === 'pagada');
-  // Cada lector ya devuelve CENTAVOS —pasa por `centavosDe`—; lo que no vino suma cero.
-  const suma = (lee: (venta: VentaDelDia) => number | null): number =>
-    pagadas.reduce((total, venta) => total + (lee(venta) ?? 0), 0);
-  const total = suma((venta) => centavosDe('Venta', 'total', venta.total));
-  const costo = suma((venta) =>
-    centavosDe('Venta', 'costo_total_snapshot', venta.costo_total_snapshot),
-  );
-  const utilidad = total - costo;
-  const operativos = gastos.reduce((lleva, gasto) => lleva + montoDe(gasto), 0);
-  return {
-    ventas: total,
-    tickets: pagadas.length,
-    promedio: pagadas.length === 0 ? 0 : Math.round(total / pagadas.length),
-    costo,
-    utilidad,
-    margen: total === 0 ? 0 : Math.round((utilidad * 10000) / total),
-    gastos: operativos,
-    neta: utilidad - operativos,
-    propinas: {
-      efectivo: suma((venta) => centavosDe('Venta', 'propina_efectivo', venta.propina_efectivo)),
-      tarjeta: suma((venta) => centavosDe('Venta', 'propina_tarjeta', venta.propina_tarjeta)),
-      transferencia: suma((venta) =>
-        centavosDe('Venta', 'propina_transferencia', venta.propina_transferencia),
-      ),
-    },
-    porCanal: {
-      efectivo: suma((venta) => centavosDe('Venta', 'monto_efectivo', venta.monto_efectivo)),
-      tarjeta: suma((venta) => centavosDe('Venta', 'monto_tarjeta', venta.monto_tarjeta)),
-      transferencia: suma((venta) =>
-        centavosDe('Venta', 'monto_transferencia', venta.monto_transferencia),
-      ),
-    },
-    gastosEnEfectivo: gastos
-      .filter((gasto) => gasto.metodo_pago === 'efectivo' || gasto.metodo_pago === null)
-      .reduce((lleva, gasto) => lleva + montoDe(gasto), 0),
-  };
-}
-
-/** Lo que DEBERÍA haber en el cajón. No se enseña hasta que hay un conteo. */
-export function esperadoEnCaja(datos: DatosDelDia, resumen: ResumenDelDia): number {
-  const entra = resumen.porCanal.efectivo + resumen.propinas.efectivo;
-  return datos.fondoInicial + entra - resumen.gastosEnEfectivo;
 }
 
 /** Los tres tonos del arqueo: cuadra, se fue poco, se fue mucho. */
@@ -401,6 +319,8 @@ export function CierreDiario({ datosIniciales }: CierreDiarioProps) {
   /** Lo que se contó en el cajón. `null` es «todavía no hay un importe», nunca cero. */
   const [contado, setContado] = useState<number | null>(null);
   const [fondo, setFondo] = useState<number | null>(null);
+  /** «1OOO» no es un fondo: se dice y no se cierra, en vez de cerrar sin él. */
+  const [fondoIlegible, setFondoIlegible] = useState(false);
   const [alImprimir, setAlImprimir] = useState(true);
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
   const [releyendo, setReleyendo] = useState(false);
@@ -624,9 +544,12 @@ export function CierreDiario({ datosIniciales }: CierreDiarioProps) {
       // Un NÚMERO, no su texto: `caja.cerrar` valida `efectivoContadoCentavos` como entero y
       // rechazaba el `String(…)` que iba aquí, así que este botón no cerraba nunca (C.6 de
       // la 2.4; el e2e cerraba por la API y no lo veía). Y el fondo que se deja es un campo.
+      // Sin fondo escrito NO se manda (auditoría de la 2.4): mandar cero decía «no dejé
+      // nada» —todo lo contado se retiraba y el turno de mañana esperaba $0—, cuando lo
+      // que pasó es que nadie lo dijo. El contrato lo distingue: ausente es «no se dijo».
       const hecho = await invocarComando<ResultadoDelCierre>('/api/caja/cerrar', {
         efectivoContadoCentavos: contadoCentavos,
-        fondoDejadoCentavos: dejado,
+        ...(fondo === null ? {} : { fondoDejadoCentavos: fondo }),
       });
       setDialogo(null);
       setCorte(hecho);
@@ -678,7 +601,22 @@ export function CierreDiario({ datosIniciales }: CierreDiarioProps) {
           </div>
           <div className="flex flex-col gap-(--espacio-1)">
             <Label htmlFor="fondo">Dinero dejado en caja (fondo)</Label>
-            <CampoDeDinero id="fondo" placeholder="0.00" centavos={fondo} alCambiar={setFondo} />
+            <CampoDeDinero
+              id="fondo"
+              placeholder="0.00"
+              centavos={fondo}
+              aria-invalid={fondoIlegible}
+              aria-describedby={fondoIlegible ? 'fondo-ilegible' : undefined}
+              alCambiar={(centavos, detalle) => {
+                setFondo(centavos);
+                setFondoIlegible(!detalle.valido);
+              }}
+            />
+            {fondoIlegible && (
+              <p id="fondo-ilegible" className="text-sm text-peligro">
+                Eso no es un importe: escríbelo como 1000 o 1,000.00.
+              </p>
+            )}
           </div>
         </div>
 
@@ -722,7 +660,7 @@ export function CierreDiario({ datosIniciales }: CierreDiarioProps) {
         <Button
           size="lg"
           className="h-[calc(var(--altura-control)*1.5)] w-full text-lg"
-          disabled={enviando || cuenta === null}
+          disabled={enviando || cuenta === null || fondoIlegible}
           cargando={releyendo}
           onClick={() => {
             void pedirCierre();

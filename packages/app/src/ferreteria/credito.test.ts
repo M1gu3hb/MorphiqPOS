@@ -58,7 +58,32 @@ function ferreteria(extra: Partial<TablasFalsas> = {}): TablasFalsas {
         tope_por_salida_centavos: null,
       },
     ],
-    ordenes: [{ id: ORDEN, organizacion_id: ORG, estado: 'cobrada' }],
+    // La nota que sale firmada: cobrable y con su total de $6,000 en una línea. El
+    // importe lo pone la ORDEN (auditoría de la 2.4); la pantalla sólo lo confirma.
+    ordenes: [{ id: ORDEN, organizacion_id: ORG, estado: 'confirmada' }],
+    orden_lineas: [
+      {
+        id: 'l1111111-1111-4111-8111-111111111111',
+        organizacion_id: ORG,
+        orden_id: ORDEN,
+        producto_id: 'p1111111-1111-4111-8111-111111111111',
+        producto_nombre: 'Varilla 3/8',
+        sku: null,
+        cantidad: '60',
+        unidad: 'pieza',
+        precio_unitario_centavos: 10_000n,
+        costo_unitario_centavos: 6_000n,
+        descuento_centavos: 0n,
+        subtotal_centavos: 600_000n,
+        total_centavos: 600_000n,
+        es_mayoreo: false,
+        tipo_venta: 'precio_fijo',
+        orden_visual: 1,
+        cantidad_base_consumo: null,
+        anulada_en: null,
+      },
+    ],
+    configuracion: [],
     remisiones: [],
     documentos_credito: [],
     ...extra,
@@ -433,6 +458,44 @@ describe('credito.registrar_remision', () => {
       'CONFIGURACION_CONFLICTO',
     );
     expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(600_000n);
+  });
+
+  it('EL IMPORTE LO PONE LA ORDEN: una nota de $6,000 no se remite por $1 (auditoría 2.4)', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(
+      await codigoDe(() => registrarRemision.ejecutar(ctx, remision({ importeCentavos: 100 }))),
+    ).toBe('TOTAL_DESACTUALIZADO');
+    expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(0n);
+    expect(base.filas('remisiones')).toHaveLength(0);
+  });
+
+  it('una nota ya cobrada no sale además firmada a crédito', async () => {
+    const base = baseDe({ ordenes: [{ id: ORDEN, organizacion_id: ORG, estado: 'pagada' }] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(await codigoDe(() => registrarRemision.ejecutar(ctx, remision()))).toBe(
+      'ORDEN_NO_EDITABLE',
+    );
+    expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(0n);
+  });
+
+  it('una nota de OTRO negocio contesta como inexistente', async () => {
+    const base = baseDe({
+      ordenes: [
+        {
+          id: ORDEN,
+          organizacion_id: 'f9999999-9999-4999-8999-999999999999',
+          estado: 'confirmada',
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(await codigoDe(() => registrarRemision.ejecutar(ctx, remision()))).toBe(
+      'ORDEN_NO_ENCONTRADA',
+    );
   });
 
   it('LA REMISIÓN LLEVA SU PROPIA SERIE de folio', async () => {

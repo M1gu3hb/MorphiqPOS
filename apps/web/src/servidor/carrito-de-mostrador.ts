@@ -1,10 +1,13 @@
 import 'server-only';
 
 import { agregarBebida } from '@morphiqpos/app/cafeteria';
+import { cuerpoDentroDelLimite } from '@morphiqpos/app/http';
+import { validarEntorno } from '@morphiqpos/contracts';
 import { agregarLinea, crearOrden, vaciarOrden } from '@morphiqpos/app/venta';
 import { z } from 'zod';
 
 import { manejadorDeComando } from './ruta.ts';
+import { peticionDeEscrituraValida } from './seguridad-http.ts';
 
 /**
  * EL CARRITO DEL MOSTRADOR, ARMADO EN EL SERVIDOR EN UN SOLO VIAJE.
@@ -63,13 +66,51 @@ export function respuestaJson(estado: number, cuerpo: unknown): Response {
   });
 }
 
+/** Una clave de idempotencia con forma de clave: la que genera el navegador, sin espacios. */
+const CLAVE = /^[A-Za-z0-9_-]{8,100}$/;
+
+function rechazo(estado: number, codigo: string, mensaje: string): Response {
+  return respuestaJson(estado, { ok: false, error: { codigo, mensaje } });
+}
+
+/**
+ * LA FRONTERA de las rutas que componen comandos (auditoría de la 2.4).
+ *
+ * `cobrar-mostrador` y `suspender-mostrador` leían y validaban el cuerpo ANTES de mirar
+ * nada: el origen, el tamaño y la sesión los revisaba cada comando interno sobre un
+ * cuerpo ya re-serializado, así que un JSON de cien megas se parseaba entero. Y si la
+ * petición no traía `Idempotency-Key`, `pasosDe` inventaba una por petición: cada
+ * reintento era otro cobro. Ahora, antes de leer una línea: escritura válida (origen,
+ * JSON, cabecera propia), cuerpo dentro del límite, y la clave presente.
+ */
+export function fronteraDelMostrador(peticion: Request): Response | null {
+  const entorno = validarEntorno(process.env);
+  if (!peticionDeEscrituraValida(peticion, entorno.APP_URL, entorno.APP_URL_ALTERNAS)) {
+    return rechazo(403, 'SIN_PERMISO', 'Petición de escritura rechazada.');
+  }
+  if (!cuerpoDentroDelLimite(peticion.headers)) {
+    return rechazo(413, 'ENTRADA_INVALIDA', 'La venta llegó demasiado grande. No se cobró nada.');
+  }
+  const clave = peticion.headers.get('idempotency-key') ?? '';
+  if (!CLAVE.test(clave)) {
+    return rechazo(
+      400,
+      'ENTRADA_INVALIDA',
+      'Falta la clave de la venta: sin ella un reintento cobraría dos veces. No se cobró nada.',
+    );
+  }
+  return null;
+}
+
 /**
  * Una petición hermana para cada paso: las MISMAS cabeceras —la cookie de sesión y la del
  * dispositivo, que es de donde sale el ámbito—, otro cuerpo y otra clave de idempotencia.
  * La URL se conserva porque `peticionDeEscrituraValida` compara el origen con `APP_URL`.
  */
 export function pasosDe(peticion: Request): (datos: unknown, sufijo: string) => Request {
-  const clave = peticion.headers.get('idempotency-key') ?? crypto.randomUUID();
+  // La frontera ya exigió la clave; si alguien llama sin pasar por ella, no se inventa
+  // una por petición —eso era cobrar dos veces en el reintento—: se rechaza el paso.
+  const clave = peticion.headers.get('idempotency-key') ?? '';
   return (datos, sufijo) => {
     const texto = JSON.stringify(datos);
     const cabeceras = new Headers(peticion.headers);

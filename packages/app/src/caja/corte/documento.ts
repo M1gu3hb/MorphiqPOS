@@ -11,6 +11,7 @@ import { diasHastaLaVisita, sugerirPedido } from '@morphiqpos/domain/inventario'
 import { sql } from 'kysely';
 import { z } from 'zod';
 
+import { sinCostosSiNoLosVe } from './sin-costos.ts';
 import { definirComando } from '../../definicion.ts';
 import * as consultas from './consultas.ts';
 import * as mostrador from './extras-mostrador.ts';
@@ -58,6 +59,16 @@ export interface NegocioDelCorte {
   readonly comisionTerminalBp: number | null;
 }
 
+/**
+ * Una fila con su COSTO ocultable: `null` para quien no ve costos. El servidor lo
+ * quita; esconderlo sólo en la pantalla dejaba el costo en la respuesta (auditoría
+ * de la 2.4: merma de barra, consumo de la casa, sellos, garantías y el margen
+ * objetivo llegaban completos a un cajero sin permiso).
+ */
+type ConCostoOculto<T extends { readonly costoCentavos: string }> = Omit<T, 'costoCentavos'> & {
+  readonly costoCentavos: string | null;
+};
+
 export type ExtrasDelCorte =
   | {
       readonly plantilla: 'restaurante';
@@ -69,9 +80,16 @@ export type ExtrasDelCorte =
       readonly consumoPorCanal: readonly extras.ConsumoDelCanal[];
       readonly modificadores: readonly extras.ModificadorUsado[];
       readonly reparto: readonly extras.ParteDelReparto[];
-      readonly mermaDeBarra: readonly extras.MermaDeBarra[];
-      readonly consumoDeLaCasa: readonly extras.ConsumoDeLaCasa[];
-      readonly sellos: extras.SellosDelTurno & { readonly sellosPorPremio: number };
+      readonly mermaDeBarra: readonly ConCostoOculto<extras.MermaDeBarra>[];
+      readonly consumoDeLaCasa: readonly ConCostoOculto<extras.ConsumoDeLaCasa>[];
+      readonly sellos: Omit<
+        extras.SellosDelTurno,
+        'costoCanjesCentavos' | 'costoPremioCentavos'
+      > & {
+        readonly sellosPorPremio: number;
+        readonly costoCanjesCentavos: string | null;
+        readonly costoPremioCentavos: string | null;
+      };
       readonly noRecogidos: readonly (Omit<extras.NoRecogido, 'costoCentavos'> & {
         readonly costoCentavos: string | null;
       })[];
@@ -88,7 +106,7 @@ export type ExtrasDelCorte =
       readonly compras: readonly mostrador.CompraDelDia[];
       readonly cuentasPorPagar: readonly mostrador.CuentaPorPagar[];
       readonly deudaConProveedoresCentavos: string;
-      readonly garantias: readonly mostrador.GarantiaAbierta[];
+      readonly garantias: readonly ConCostoOculto<mostrador.GarantiaAbierta>[];
       readonly autorizaciones: readonly mostrador.Autorizacion[];
       readonly faltantes: readonly (Omit<mostrador.Faltante, 'costoCentavos'> & {
         readonly costoCentavos: string | null;
@@ -121,8 +139,13 @@ export interface HojaDelCorte {
     readonly costoCentavos: string | null;
   };
   readonly ventas: readonly consultas.VentaDelDetalle[];
-  readonly productos: readonly (Omit<consultas.ProductoVendido, 'costoCentavos'> & {
+  readonly productos: readonly (Omit<
+    consultas.ProductoVendido,
+    'costoCentavos' | 'margenObjetivoBp'
+  > & {
     readonly costoCentavos: string | null;
+    /** Con el precio, el margen objetivo DA el costo: se oculta igual. */
+    readonly margenObjetivoBp: number | null;
   })[];
   readonly porPersona: readonly consultas.VentasDePersona[];
   readonly gastos: readonly consultas.GastoDelCorte[];
@@ -198,36 +221,42 @@ export const hojaDelCorte = definirComando<Transaccion, typeof entradaHojaDelCor
       ),
     );
 
-    return {
-      verCostos,
-      negocio: negocioDe(crudo.nombre, valores, sesion),
-      sesion,
-      movimientos,
-      conteo,
-      metodos,
-      resumen: { ...resumen, costoCentavos: verCostos ? resumen.costoCentavos : null },
-      ventas,
-      productos: productos.map((p) => ({
-        ...p,
-        costoCentavos: verCostos ? p.costoCentavos : null,
-      })),
-      porPersona,
-      gastos,
-      cancelaciones,
-      descuentosPorUsuario,
-      alertas: alertas.map((a) =>
-        alertaDelCorte(
-          verCostos ? a : { ...a, costoUnitarioCentavos: null },
-          sesion.cerradaEn ?? ctx.ahora,
+    // La última pasada: sin un solo costo para quien no los ve, por campo que se
+    // olvidara arriba (`sin-costos.ts`).
+    return sinCostosSiNoLosVe(
+      {
+        verCostos,
+        negocio: negocioDe(crudo.nombre, valores, sesion),
+        sesion,
+        movimientos,
+        conteo,
+        metodos,
+        resumen: { ...resumen, costoCentavos: verCostos ? resumen.costoCentavos : null },
+        ventas,
+        productos: productos.map((p) => ({
+          ...p,
+          costoCentavos: verCostos ? p.costoCentavos : null,
+          margenObjetivoBp: verCostos ? p.margenObjetivoBp : null,
+        })),
+        porPersona,
+        gastos,
+        cancelaciones,
+        descuentosPorUsuario,
+        alertas: alertas.map((a) =>
+          alertaDelCorte(
+            verCostos ? a : { ...a, costoUnitarioCentavos: null },
+            sesion.cerradaEn ?? ctx.ahora,
+          ),
         ),
-      ),
-      insumos: verCostos ? insumos : null,
-      salidasSinVenta: salidas.map((s) => ({
-        ...s,
-        costoCentavos: verCostos ? s.costoCentavos : null,
-      })),
-      extras: delGiro,
-    };
+        insumos: verCostos ? insumos : null,
+        salidasSinVenta: salidas.map((s) => ({
+          ...s,
+          costoCentavos: verCostos ? s.costoCentavos : null,
+        })),
+        extras: delGiro,
+      },
+      verCostos,
+    );
   },
 });
 
@@ -306,10 +335,15 @@ async function extrasDe(
       consumoPorCanal,
       modificadores,
       reparto,
-      mermaDeBarra,
-      consumoDeLaCasa,
+      mermaDeBarra: mermaDeBarra.map((m) => ({ ...m, costoCentavos: costo(m.costoCentavos) })),
+      consumoDeLaCasa: consumoDeLaCasa.map((c) => ({
+        ...c,
+        costoCentavos: costo(c.costoCentavos),
+      })),
       sellos: {
         ...sellos,
+        costoCanjesCentavos: costo(sellos.costoCanjesCentavos),
+        costoPremioCentavos: costo(sellos.costoPremioCentavos),
         sellosPorPremio:
           typeof porPremio === 'number' && porPremio > 0
             ? porPremio
@@ -378,7 +412,7 @@ async function extrasDe(
     compras,
     cuentasPorPagar,
     deudaConProveedoresCentavos: deuda,
-    garantias,
+    garantias: garantias.map((g) => ({ ...g, costoCentavos: costo(g.costoCentavos) })),
     autorizaciones,
     faltantes: faltantes.map((f) => ({ ...f, costoCentavos: costo(f.costoCentavos) })),
     servicios,

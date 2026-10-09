@@ -55,6 +55,6 @@ export function cifrasDeMerma(hoja: HojaDelServidor): readonly CifraDelTurno[] {
     etiqueta: m.motivo ?? 'Sin motivo',
     valor:
       `${m.cantidad} ${m.unidad} de ${m.insumo}` +
-      (hoja.verCostos ? ` · ${pesos(m.costoCentavos)}` : ''),
+      (hoja.verCostos && m.costoCentavos !== null ? ` · ${pesos(m.costoCentavos)}` : ''),
   }));
 }

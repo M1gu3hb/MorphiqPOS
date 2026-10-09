@@ -24,6 +24,10 @@ vi.mock('@morphiqpos/app/venta', () => ({
 vi.mock('@morphiqpos/app/cafeteria', () => ({
   agregarBebida: { nombre: 'cafeteria.agregar_bebida' },
 }));
+vi.mock('@morphiqpos/contracts', async (original) => ({
+  ...(await original<typeof import('@morphiqpos/contracts')>()),
+  validarEntorno: () => ({ APP_URL: 'http://localhost', APP_URL_ALTERNAS: '' }),
+}));
 vi.mock('./ruta.ts', () => ({
   manejadorDeComando:
     (comando: { readonly nombre: string }) =>
@@ -38,7 +42,7 @@ vi.mock('./ruta.ts', () => ({
     },
 }));
 
-const { armarCarrito, pasosDe } = await import('./carrito-de-mostrador.ts');
+const { armarCarrito, fronteraDelMostrador, pasosDe } = await import('./carrito-de-mostrador.ts');
 
 const peticion = new Request('http://localhost/api/venta/cobrar-mostrador', {
   method: 'POST',
@@ -97,5 +101,42 @@ describe('armar el carrito del mostrador', () => {
       { productoId: '22222222-2222-4222-8222-222222222222', cantidad: '1', nota: 'sin espuma' },
     ]);
     expect(llamadas.at(-1)?.comando).toBe('cafeteria.agregar_bebida');
+  });
+});
+
+describe('la frontera del mostrador (auditoría de la 2.4)', () => {
+  function peticionCon(cabeceras: Record<string, string>): Request {
+    return new Request('http://localhost/api/venta/cobrar-mostrador', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-morphiqpos-request': '1',
+        origin: 'http://localhost',
+        'content-length': '120',
+        'idempotency-key': 'venta-0001',
+        ...cabeceras,
+      },
+    });
+  }
+
+  it('deja pasar una escritura propia, del tamaño debido y con su clave', () => {
+    expect(fronteraDelMostrador(peticionCon({}))).toBeNull();
+  });
+
+  it('SIN CLAVE no se cobra: un reintento sería otra venta', () => {
+    const sinClave = new Request('http://localhost/api/venta/cobrar-mostrador', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-morphiqpos-request': '1',
+        'content-length': '120',
+      },
+    });
+    expect(fronteraDelMostrador(sinClave)?.status).toBe(400);
+  });
+
+  it('otro origen, 403; sin longitud declarada o enorme, 413 — antes de leer el cuerpo', () => {
+    expect(fronteraDelMostrador(peticionCon({ origin: 'https://otro.example' }))?.status).toBe(403);
+    expect(fronteraDelMostrador(peticionCon({ 'content-length': '999999999' }))?.status).toBe(413);
   });
 });

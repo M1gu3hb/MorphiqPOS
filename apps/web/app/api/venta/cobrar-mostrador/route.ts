@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   LineaDeMostrador,
   armarCarrito,
+  fronteraDelMostrador,
   datosSiSalio,
   pasosDe,
   respuestaJson,
@@ -80,6 +81,8 @@ const Entrada = z.object({
 const cobrar = manejadorDeComando(cobrarOrden);
 
 export async function POST(peticion: Request): Promise<Response> {
+  const frontera = fronteraDelMostrador(peticion);
+  if (frontera !== null) return frontera;
   const cuerpo: unknown = await peticion.json().catch(() => null);
   const validada = Entrada.safeParse(cuerpo);
   if (!validada.success) {

@@ -208,8 +208,12 @@ export function corteDeCafeteria(
               { etiqueta: 'Sellos otorgados en el turno', valor: texto(sellos.otorgados) },
               {
                 etiqueta: 'Canjes del turno',
+                // El costo de lo canjeado es COSTO: sólo para quien lo ve. Se imprimía
+                // sin guarda (auditoría de la 2.4); ahora tampoco llega del servidor.
                 valor: texto(
-                  `${String(sellos.canjes)} · costo ${pesos(sellos.costoCanjesCentavos)}`,
+                  hoja.verCostos && sellos.costoCanjesCentavos !== null
+                    ? `${String(sellos.canjes)} · costo ${pesos(sellos.costoCanjesCentavos)}`
+                    : String(sellos.canjes),
                 ),
               },
               {
@@ -217,14 +221,18 @@ export function corteDeCafeteria(
                 valor: texto(sellos.sellosVivos),
                 fuerte: true,
               },
-              {
-                etiqueta: 'Costo si se canjearan todos',
-                valor: dinero(
-                  Math.floor(Number(sellos.sellosVivos) / sellos.sellosPorPremio) *
-                    centavos(sellos.costoPremioCentavos),
-                ),
-                fuerte: true,
-              },
+              ...(hoja.verCostos && sellos.costoPremioCentavos !== null
+                ? [
+                    {
+                      etiqueta: 'Costo si se canjearan todos',
+                      valor: dinero(
+                        Math.floor(Number(sellos.sellosVivos) / sellos.sellosPorPremio) *
+                          centavos(sellos.costoPremioCentavos),
+                      ),
+                      fuerte: true,
+                    },
+                  ]
+                : []),
             ],
           },
         ];

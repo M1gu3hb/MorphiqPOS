@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+/** Recorre cientos de archivos: bajo la carga de la suite entera, 5 s no alcanzan. */
+const LEE_EL_DISCO = 30_000;
+
 /**
  * C.5 de la etapa 2.4 · UNA TECLA IMPRESA ES UNA PROMESA.
  *
@@ -67,14 +70,18 @@ describe('las teclas F impresas se escuchan', () => {
     expect(teclaEscuchada("if (evento.key === 'F2') {}", 'F12')).toBe(false);
   });
 
-  it('CADA tecla impresa en apps/web/src tiene quien la escuche en su archivo', () => {
-    const muertas: string[] = [];
-    for (const ruta of archivos(RAIZ)) {
-      const codigo = readFileSync(ruta, 'utf8');
-      for (const tecla of teclasImpresas(codigo)) {
-        if (!teclaEscuchada(codigo, tecla)) muertas.push(`${relative(RAIZ, ruta)} · ${tecla}`);
+  it(
+    'CADA tecla impresa en apps/web/src tiene quien la escuche en su archivo',
+    () => {
+      const muertas: string[] = [];
+      for (const ruta of archivos(RAIZ)) {
+        const codigo = readFileSync(ruta, 'utf8');
+        for (const tecla of teclasImpresas(codigo)) {
+          if (!teclaEscuchada(codigo, tecla)) muertas.push(`${relative(RAIZ, ruta)} · ${tecla}`);
+        }
       }
-    }
-    expect(muertas, 'Teclas impresas que el teclado no escucha: botones muertos.').toEqual([]);
-  });
+      expect(muertas, 'Teclas impresas que el teclado no escucha: botones muertos.').toEqual([]);
+    },
+    LEE_EL_DISCO,
+  );
 });

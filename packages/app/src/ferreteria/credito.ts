@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
-import { repoFolios, type Transaccion } from '@morphiqpos/data';
+import { repoFolios, repoOrdenes, type Transaccion } from '@morphiqpos/data';
 import {
   evaluarSalidaACredito,
   type Evaluacion,
@@ -12,6 +12,7 @@ import { z } from 'zod';
 
 import { insertarDocumento } from '../cartera/documento.ts';
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { cotizar, exigirTotalVigente } from '../venta/cotizar.ts';
 
 /**
  * F-638, F-639 y F-606 · El material que sale firmado.
@@ -117,6 +118,35 @@ export const registrarRemision = definirComando<
       );
     }
 
+    // EL IMPORTE LO PONE LA ORDEN, no la pantalla (auditoría de la 2.4). Antes el
+    // documento, el saldo del cliente y la evaluación del límite usaban el
+    // `importeCentavos` que mandaba el navegador sin compararlo con nada: una nota de
+    // $6,000 se podía remitir por $1, el límite decía «libre» y el material salía.
+    // Ahora se BLOQUEA la orden —un cobro simultáneo de la misma nota espera a esta
+    // remisión y luego la ve—, tiene que seguir cobrable y su total lo calcula el
+    // servidor; el importe de la pantalla sólo se compara, como en `venta.cobrar`.
+    const orden = await ctx.paso('bloquear_orden', () =>
+      ctx.tx
+        .selectFrom('ordenes')
+        .select(['id', 'estado'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', entrada.ordenId)
+        .forUpdate()
+        .executeTakeFirst(),
+    );
+    if (orden === undefined) {
+      throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Esa nota ya no existe.');
+    }
+    if (!(repoOrdenes.ESTADOS_COBRABLES as readonly string[]).includes(orden.estado)) {
+      throw new ErrorDominio('ORDEN_NO_EDITABLE', 'Esa nota ya se cobró o se canceló.', {
+        estado: orden.estado,
+      });
+    }
+    const { totales } = await ctx.paso('cotizar', () =>
+      cotizar(ctx.tx, organizacionId, entrada.ordenId),
+    );
+    exigirTotalVigente(totales.totalCentavos, entrada.importeCentavos);
+
     const { evaluacion, cliente, autorizado } = await evaluar(ctx, entrada);
 
     // La mora es lo ÚNICO que bloquea, y siempre con llave del dueño. Todo lo
@@ -137,6 +167,7 @@ export const registrarRemision = definirComando<
       ctx.tx
         .selectFrom('remisiones')
         .select(['id'])
+        .where('organizacion_id', '=', organizacionId)
         .where('orden_id', '=', entrada.ordenId)
         .executeTakeFirst(),
     );
@@ -158,7 +189,7 @@ export const registrarRemision = definirComando<
     // deja ver, desde el documento, de qué consecutivo salió.
     const folio = `${tomado.serie}-${tomado.folio.toString()}`;
 
-    const importe = BigInt(entrada.importeCentavos);
+    const importe = totales.totalCentavos;
     const remision = await ctx.paso('anotar_remision', () =>
       ctx.tx
         .insertInto('remisiones')

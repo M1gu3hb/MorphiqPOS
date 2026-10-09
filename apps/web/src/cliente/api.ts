@@ -1,5 +1,7 @@
 import type { ErrorComando, Resultado } from '@morphiqpos/contracts';
 
+import { crearRegistroDeIntentos } from './claves-de-intento.ts';
+
 /**
  * El único camino del navegador al servidor (F1.1-X-01).
  *
@@ -8,8 +10,10 @@ import type { ErrorComando, Resultado } from '@morphiqpos/contracts';
  * que se olvide de mandarla duplica un cobro en el primer doble clic, y no se
  * descubre hasta que un arqueo no cuadre.
  *
- * Aquí la clave se genera sola y se conserva entre reintentos, así que
- * olvidarla no es una opción disponible.
+ * Aquí la clave se genera sola y se conserva entre reintentos DEL MISMO PEDIDO
+ * (`claves-de-intento.ts`): la misma ruta con el mismo cuerpo, mientras no haya una
+ * respuesta definitiva, lleva la misma clave. Hasta la auditoría de la 2.4 esta frase
+ * decía eso y el código generaba una clave nueva en cada llamada.
  *
  * ── Sobre la fusión de los dos carriles ────────────────────────────────────
  * Había dos clientes distintos, uno por carril. Este es el que conserva la
@@ -57,19 +61,28 @@ export async function invocarComando<T>(
   entrada: unknown,
   opciones: OpcionesComando = {},
 ): Promise<T> {
+  const cuerpo = JSON.stringify(entrada);
+  const firma = `${ruta} ${cuerpo}`;
+  const clave = opciones.idempotencyKey ?? INTENTOS.claveDe(firma, Date.now());
+  // Si `fetch` lanza —sin red, abortado— la clave se QUEDA: no se sabe si llegó, y el
+  // reintento tiene que poder recibir el resultado guardado en vez de repetirlo.
   const respuesta = await fetch(ruta, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'idempotency-key': opciones.idempotencyKey ?? nuevaClave(),
+      'idempotency-key': clave,
       [CABECERA_PETICION_PROPIA]: '1',
     },
-    body: JSON.stringify(entrada),
+    body: cuerpo,
     credentials: 'same-origin',
     ...(opciones.signal === undefined ? {} : { signal: opciones.signal }),
   });
+  if (opciones.idempotencyKey === undefined) INTENTOS.respondio(firma, respuesta.status);
   return leerResultado<T>(respuesta);
 }
+
+/** Los pedidos de escritura sin respuesta definitiva, con su clave. Uno por pestaña. */
+const INTENTOS = crearRegistroDeIntentos(() => nuevaClave());
 
 /** Alias histórico del carril B. Misma función, mismas garantías. */
 export const ejecutarApi = <T>(ruta: string, entrada: unknown): Promise<T> =>

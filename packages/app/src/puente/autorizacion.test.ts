@@ -10,6 +10,9 @@ import { consultar } from './consultar.ts';
 import { entidadMapeada, MAPA } from './mapa.ts';
 import { rolMH } from './roles.ts';
 
+/** Recorre cientos de archivos: bajo la carga de la suite entera, 5 s no alcanzan. */
+const LEE_EL_DISCO = 30_000;
+
 const TODAS_LAS_ENTIDADES = [...Object.keys(MAPA), 'DescuentoInventarioVenta'] as const;
 const FUENTE_MAPA =
   process.env['MORPHIQPOS_MAPA_SOURCE_PATH'] ??
@@ -211,18 +214,22 @@ describe('§7.5 · el estado de liquidación de la propina', () => {
     expect(rolMH('cajero')).toBe('caja');
   });
 
-  it('ninguna otra pantalla lee ni monta el panel de propinas', () => {
-    // El contraste que hace honesta a la prueba anterior: si mañana alguien
-    // mete la pestaña de propinas en Caja —que el cajero SÍ abre—, la premisa
-    // cambia y esto se pone en rojo antes de que el panel mienta.
-    expect(heredadosQueContienen('propina_liquidada')).toEqual([
-      'components/propinas/LiquidarPropinasDialog.jsx',
-      'components/propinas/PropinasDashboardSection.jsx',
-      'components/propinas/PropinasRegistros.jsx',
-    ]);
-    expect(heredadosQueContienen('propinas/PropinasDashboardSection')).toEqual([
-      'pages/Dashboard.jsx',
-    ]);
-    expect(heredadosQueContienen('propinas/PropinasRegistros')).toEqual(['pages/Registros.jsx']);
-  });
+  it(
+    'ninguna otra pantalla lee ni monta el panel de propinas',
+    () => {
+      // El contraste que hace honesta a la prueba anterior: si mañana alguien
+      // mete la pestaña de propinas en Caja —que el cajero SÍ abre—, la premisa
+      // cambia y esto se pone en rojo antes de que el panel mienta.
+      expect(heredadosQueContienen('propina_liquidada')).toEqual([
+        'components/propinas/LiquidarPropinasDialog.jsx',
+        'components/propinas/PropinasDashboardSection.jsx',
+        'components/propinas/PropinasRegistros.jsx',
+      ]);
+      expect(heredadosQueContienen('propinas/PropinasDashboardSection')).toEqual([
+        'pages/Dashboard.jsx',
+      ]);
+      expect(heredadosQueContienen('propinas/PropinasRegistros')).toEqual(['pages/Registros.jsx']);
+    },
+    LEE_EL_DISCO,
+  );
 });

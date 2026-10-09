@@ -6221,3 +6221,66 @@ pieza («Lo agregado desde la ficha no llegó a la nota del mostrador.»). La ti
 compra, sigue en verde. Un tropiezo del e2e, dicho: F5 se presionaba antes de que React pintara los
 resultados; ahora espera la búsqueda pintada, no un tiempo. `verify:pendientes`: quedan 6 (Material,
 Mostrador, TrabajosDeMostrador, Cuentas, CorteDeMaterial y el portal del comensal).
+
+## 08-10-2026 · Etapa 2.4 · se retoma: C.10 cerrado y la auditoría de lo hecho
+
+**Dónde se retomó.** La sesión anterior dejó sin commitear la quinta tanda de C.10
+(ferretería: mostrador, cuentas, cotización, corte de material); tipos y 290 pruebas en
+verde, se protegió en `8a208ce`. Se terminó en `003b940`: surtir la lista del albañil
+(`lista_trabajo.surtir`, la columna `surtida` no la escribía nadie), el retazo cobrado a su
+precio de remate EN EL SERVIDOR, y el corte por tipo (tubo: la medida elige el pedazo más
+chico; lámina: ancho × alto). `verify:pendientes`: queda 1, el portal del comensal (C.11).
+
+**La auditoría de lo que hizo la 2.4 hasta aquí** —tres revisiones de sólo lectura, una
+por bloque: A+B, el dinero de C.1–C.6 y los comandos de C.7–C.14— encontró 2 bloqueantes,
+9 críticos y ~25 recomendados. Los BLOQUEANTES y los CRÍTICOS de dinero, ya corregidos:
+
+1. **BLOQUEANTE · las demos nacían con id aleatorio** (`db:alta-negocio`) y la lista de
+   demos decide por id: en una base nueva —la de CI— la siembra no encontraba ninguna y el
+   reseteo las rechazaba. CI sólo corre en PR, por eso nadie lo vio. Ahora la demo nace
+   con SU id, y un slug de demo con otro id se niega con la explicación.
+2. **BLOQUEANTE · la remisión a crédito usaba el importe del navegador**
+   (`credito.registrar_remision`): una nota de $6,000 se remitía por $1, el límite decía
+   «libre» y el material salía. Ahora bloquea la orden, exige que siga cobrable, el total
+   lo calcula el servidor y el de la pantalla sólo se compara. Y `venta.cobrar` se niega a
+   cobrar una nota que ya salió firmada (antes se podía cobrar además en caja).
+3. **El cierre diario del restaurante contaba DOS veces la propina en efectivo**: `monto_*`
+   de la vista 057 es venta + propina y se leía como venta. Fondo $1,000, venta $500,
+   propina $75: el cajón tiene $1,575 y la pantalla esperaba $1,650 («FALTA $75»). Las
+   cuentas salen a `restaurante/resumen-del-dia.ts`, con pruebas por primera vez.
+4. **El fondo vacío viajaba como $0** en ese mismo cierre (todo lo contado se «retiraba» y
+   mañana se esperaba $0); y «1OOO» igual. Ahora no se manda si no se dijo, y lo ilegible
+   bloquea el cierre con su aviso.
+5. **El corte mandaba costos a quien no los ve** (merma de barra, consumo de la casa, los
+   costos de los sellos —impresos sin guarda—, garantías, margen objetivo). Una última
+   pasada del servidor (`caja/corte/sin-costos.ts`) deja en nulo toda clave `costo*` y
+   `margen*` a cualquier profundidad.
+6. **Las claves de idempotencia se regeneraban en cada clic.** `invocarComando` decía que la
+   clave «se conserva entre reintentos» y no: un abono cuya respuesta se perdía, reintentado,
+   se registraba dos veces (deuda abajo dos veces, el cajón esperando el doble). Ahora la
+   clave se ata a la firma ruta + cuerpo hasta una respuesta definitiva
+   (`cliente/claves-de-intento.ts`), para TODAS las pantallas. Y las rutas que componen
+   comandos (`cobrar-mostrador`, `suspender-mostrador`) revisan origen, tamaño y clave ANTES
+   de leer el cuerpo (`fronteraDelMostrador`); sin clave, 400.
+7. De A+B: `db:bootstrap` sólo da el PRIMER acceso fuera de las demos (la regla era
+   negativa: un quinto cliente no estaría en ninguna lista); los `humo-*` comprueban el
+   `organizacionId` que devuelve la entrada; el DELETE de `humo-archivos` contestaba 403
+   (no mandaba JSON) y dejaba la imagen; una URL de base con el usuario codificado
+   (`%77yqmz…`) ya no esconde el proyecto real.
+
+**Lo que queda de la auditoría, en orden** (se va tachando aquí):
+- C · el límite de crédito se salta con dos fiados simultáneos (sin `FOR UPDATE`).
+- C · la estilista lee expediente, fotos y fórmulas de clientas ajenas; inicia y cierra
+  citas ajenas; `profesionales.lista` da a todas.
+- C · URL de foto sin validar (`javascript:` o externa) en expediente y mostrador.
+- C · pedido público: IP del primer `x-forwarded-for`, slug sin validar antes de contar, sin
+  tope de unidades, sin clave obligatoria, carrera en la clave.
+- R · el Host manda sobre `ORGANIZACION`; etiqueta de rol tras entrar; slug con mayúsculas;
+  puente: `NoShow` sin recorte, teléfono del pedido a cocina, gramajes a cocina, y el
+  contrato de cocina que no mira la columna; `confirmar_transferencia` sin guarda; abono con
+  tarjeta/cheque sin confirmación; versión de la regla de comisión; canjes de la nota con
+  cajero; pasivo de sellos al cajero; sucursal/terminal sin fijar en cobro y anticipados;
+  opciones de bebida no ligadas al producto; `solicitaEmpleoId`; `fijar_limite` sin
+  bloqueo; carreras de `cobrar_cita` y de `caja.cerrar`; propina mixta del restaurante por
+  método; puntos ciegos de `verify:unidades`; casco devuelto con signo que Postgres
+  rechaza; `Math.abs` del ajuste; la utilidad con IVA dentro.
