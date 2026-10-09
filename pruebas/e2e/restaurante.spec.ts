@@ -100,8 +100,11 @@ const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
   // «Cuenta actual», no «Pedido actual»: la marca afirma TAMBIÉN el vocabulario
   // del giro —«pedido» es de la cafetería— y se cae el día que alguien lo cambie.
   ['mesa-activa', /Cuenta actual|Mesa/],
-  // El portal es el de Miguel (D-25): sin token en la dirección dice que no hay mesa.
-  ['portal-del-comensal', /Mesa no encontrada/i],
+  // El portal es el de Miguel (D-25). Sin token en la dirección el QR no vale y lo dice
+  // con su pantalla —«QR inválido»—; con uno que no es de nadie, «Mesa no encontrada».
+  // Las dos son contenido suyo. (CI lo vio: decía sólo la segunda y la primera es la
+  // que sale sin token.)
+  ['portal-del-comensal', /QR inválido|Mesa no encontrada/i],
   ['precuenta', /Aquí se imprime la precuenta|PRE-CUENTA/],
   // «Platillos», que es como un restaurante llama a su catálogo.
   ['productos', /Platillos|margen sano/],

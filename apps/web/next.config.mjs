@@ -85,11 +85,13 @@ const nextConfig = {
   /**
    * «La mesa que se expande hasta ser la cuenta» cruza una NAVEGACIÓN: la tesela vive
    * en `/restaurante/mapa-de-mesas` y la cabecera de la cuenta en otra ruta. Sólo el
-   * enrutador puede envolver el cambio de página en `document.startViewTransition`, y
-   * lo hace con esta bandera: sin ella los dos `<ViewTransition name>` existen y no
-   * se animan nunca. Donde el navegador no la soporta, la página cambia igual.
+   * enrutador puede envolver el cambio de página en `document.startViewTransition`.
+   * Hasta Next 16.2 eso pedía `experimental.viewTransition`; desde la 16.3 las
+   * navegaciones del App Router ya son transiciones y los `<ViewTransition name>` se
+   * animan sin bandera (`docs/01-app/02-guides/view-transitions.md`), y la bandera vieja
+   * sale como «Unrecognized key» al arrancar. Donde el navegador no la soporta, la
+   * página cambia igual.
    */
-  experimental: { viewTransition: true },
 
   async headers() {
     return [{ source: '/:path*', headers: cabecerasDeSeguridad }];

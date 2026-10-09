@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./fallos": "./src/fallos.ts",
     "./datos": "./src/datos.ts",
-    "./postgres": "./src/postgres.ts"
+    "./postgres": "./src/postgres.ts",
+    "./conciliacion": "./src/conciliacion.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

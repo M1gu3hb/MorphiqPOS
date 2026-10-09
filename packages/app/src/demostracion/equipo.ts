@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { Giro } from '@morphiqpos/contracts';
+import { equipoDeDemo, type EmpleadoDemo } from '@morphiqpos/contracts/negocios/equipo';
 import type { Transaccion } from '@morphiqpos/data';
 
 import { hashearPin } from '../identidad/pin.ts';
@@ -34,73 +35,15 @@ import { hashearPin } from '../identidad/pin.ts';
  * pantalla de acceso con nombres genéricos se ve como un sistema sin terminar.
  */
 
-export interface EmpleadoDemo {
-  readonly nombre: string;
-  readonly apellidos: string;
-  /** Uno de los siete roles del servidor. */
-  readonly rol: string;
-  readonly pin: string;
-  readonly color: string;
-}
-
-/** El PIN de cada rol. Distintos para que se distingan al revisar. */
-const PIN = {
-  gerente: '2345',
-  cajero: '3456',
-  atiende: '4567',
-  prepara: '5678',
-  almacen: '6789',
-} as const;
-
-const RESTAURANTE: readonly EmpleadoDemo[] = [
-  { nombre: 'Beatriz', apellidos: 'Salgado', rol: 'gerente', pin: PIN.gerente, color: '#be123c' },
-  { nombre: 'Rosa', apellidos: 'Miranda', rol: 'cajero', pin: PIN.cajero, color: '#16a34a' },
-  { nombre: 'Lupita', apellidos: 'Ramírez', rol: 'mesero', pin: PIN.atiende, color: '#7c3aed' },
-  { nombre: 'Toño', apellidos: 'Barrera', rol: 'cocina', pin: PIN.prepara, color: '#d97706' },
-  { nombre: 'Nacho', apellidos: 'Peralta', rol: 'almacen', pin: PIN.almacen, color: '#0f766e' },
-];
-
-const CAFETERIA: readonly EmpleadoDemo[] = [
-  { nombre: 'Fernanda', apellidos: 'Lozano', rol: 'gerente', pin: PIN.gerente, color: '#be123c' },
-  { nombre: 'Diana', apellidos: 'Arreola', rol: 'cajero', pin: PIN.cajero, color: '#16a34a' },
-  // El barista PREPARA: su rol en el servidor es `cocina`, y su pantalla es la
-  // barra. El nombre que lee en el menú lo pone el diccionario del giro.
-  { nombre: 'Emilio', apellidos: 'Cázares', rol: 'cocina', pin: PIN.prepara, color: '#d97706' },
-  { nombre: 'Sergio', apellidos: 'Pineda', rol: 'almacen', pin: PIN.almacen, color: '#0f766e' },
-];
-
-const TIENDA: readonly EmpleadoDemo[] = [
-  { nombre: 'Laura', apellidos: 'Beltrán', rol: 'gerente', pin: PIN.gerente, color: '#be123c' },
-  { nombre: 'Jesica', apellidos: 'Ovalle', rol: 'cajero', pin: PIN.cajero, color: '#16a34a' },
-  { nombre: 'Poncho', apellidos: 'Mendoza', rol: 'almacen', pin: PIN.almacen, color: '#0f766e' },
-];
-
-const FERRETERIA: readonly EmpleadoDemo[] = [
-  { nombre: 'Elena', apellidos: 'Zúñiga', rol: 'gerente', pin: PIN.gerente, color: '#be123c' },
-  // El mostradorista COBRA: su rol es `cajero`. La palabra la pone el giro.
-  { nombre: 'Karla', apellidos: 'Estrada', rol: 'cajero', pin: PIN.cajero, color: '#16a34a' },
-  { nombre: 'Rubén', apellidos: 'Garza', rol: 'almacen', pin: PIN.almacen, color: '#0f766e' },
-];
+export type { EmpleadoDemo };
 
 /**
- * Dos estilistas, y no es un adorno: la agenda de un salón se lee POR COLUMNA.
- * Con una sola profesional no hay nada que demostrar del solape, del hueco de
- * las 3 pm ni de la comisión por persona, que son el negocio de este modelo.
+ * El equipo de cada giro. La TABLA vive en `@morphiqpos/contracts/negocios/equipo`
+ * desde la 2.4: la leen también las pruebas de extremo a extremo, que entran con el
+ * rol que toca a cada paso del día. Aquí sólo se decide qué giro siembra cuál.
  */
-const ESTETICA: readonly EmpleadoDemo[] = [
-  { nombre: 'Paty', apellidos: 'Villalobos', rol: 'gerente', pin: PIN.gerente, color: '#be123c' },
-  { nombre: 'Nayeli', apellidos: 'Cortés', rol: 'cajero', pin: PIN.cajero, color: '#16a34a' },
-  { nombre: 'Karla', apellidos: 'Domínguez', rol: 'mesero', pin: PIN.atiende, color: '#7c3aed' },
-  { nombre: 'Dany', apellidos: 'Robles', rol: 'mesero', pin: '4568', color: '#c026d3' },
-  { nombre: 'Sandra', apellidos: 'Ochoa', rol: 'almacen', pin: PIN.almacen, color: '#0f766e' },
-];
-
 export function equipoDelGiro(giro: Giro): readonly EmpleadoDemo[] {
-  if (giro === 'restaurante') return RESTAURANTE;
-  if (giro === 'cafeteria') return CAFETERIA;
-  if (giro === 'ferreteria') return FERRETERIA;
-  if (giro === 'estetica') return ESTETICA;
-  return TIENDA;
+  return equipoDeDemo(giro);
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Giro } from '@morphiqpos/contracts';
+import { DUENO_DE_DEMO } from '@morphiqpos/contracts/negocios/equipo';
 
 import type { AparienciaGuardada } from '../configuracion/apariencia.ts';
 
@@ -95,4 +96,4 @@ export const TOPES_DE_DESCUENTO: readonly {
 ];
 
 /** El PIN del dueño de cada demo, el que pone `db:bootstrap` (ACCESOS-DEMO §2). */
-export const PIN_DEL_DUENO_DE_DEMO = '1234';
+export const PIN_DEL_DUENO_DE_DEMO: string = DUENO_DE_DEMO.pin;

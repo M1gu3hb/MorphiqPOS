@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./errores": "./src/errores/index.ts",
     "./entorno": "./src/entorno/index.ts",
-    "./negocios": "./src/negocios/index.ts"
+    "./negocios": "./src/negocios/index.ts",
+    "./negocios/equipo": "./src/negocios/equipo-demo.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

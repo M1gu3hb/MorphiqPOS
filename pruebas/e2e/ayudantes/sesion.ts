@@ -184,8 +184,27 @@ const PERSONA_DEMO = process.env['MORPHIQPOS_DEMO_PERSONA'] ?? '';
  * pantalla de acceso de un despliegue con varios negocios no enseña a nadie sin
  * dirección, así que la suite entra por la de SU demo, y pide la lista de SU demo.
  */
-const ENTRADA_DEMO = `/n/${SLUG_DEMO}/login-pos`;
-const EMPLEADOS_DEMO = `/api/auth/empleados?negocio=${encodeURIComponent(SLUG_DEMO)}`;
+export function entradaDe(slug: string): string {
+  return `/n/${slug}/login-pos`;
+}
+
+/** La lista de quién puede entrar en ESA demo, la misma que pide su pantalla de acceso. */
+export function empleadosDe(slug: string): string {
+  return `/api/auth/empleados?negocio=${encodeURIComponent(slug)}`;
+}
+
+/**
+ * Quién entra, cuando no es la persona de la corrida.
+ *
+ * El día completo de cada giro (bloque D de la 2.4) entra con el ROL que toca a cada
+ * paso —la cajera cobra, el mesero comanda, la estilista ve su día— y no con el dueño
+ * para todo. Sin esto, cada prueba entra con `MORPHIQPOS_DEMO_PERSONA`.
+ */
+export interface QuienEntra {
+  readonly slug: string;
+  readonly nombre: string;
+  readonly pin: string;
+}
 
 /** La plantilla de comando de A3 §4.1, con el giro que pide cada modelo. */
 function comandoDeAlta(giro: string): string {
@@ -255,8 +274,13 @@ interface RespuestaDeEmpleados {
 export async function exigirDemostracion(
   playwright: PlaywrightWorkerArgs['playwright'],
   info: TestInfo,
+  /** La demo, cuando la declara la prueba y no el entorno (el día completo de cada giro). */
+  slug?: string,
 ): Promise<void> {
-  if (SLUG_DEMO === '') {
+  const delEntorno = slug === undefined;
+  const SLUG = slug ?? SLUG_DEMO;
+  const EMPLEADOS = empleadosDe(SLUG);
+  if (SLUG === '') {
     throw new Error(
       [
         'Falta MORPHIQPOS_ORG_DEMO.',
@@ -276,11 +300,11 @@ export async function exigirDemostracion(
   // LA REGLA POSITIVA (bloque B de la 2.4): la suite corre sólo sobre una de las cinco
   // demos declaradas por ID en `packages/contracts/src/negocios`. Antes de abrir una
   // conexión, porque todo lo de abajo ya habla con el despliegue.
-  if (demoPorSlug(SLUG_DEMO) === null) {
-    const real = negocioReal(SLUG_DEMO);
+  if (demoPorSlug(SLUG) === null) {
+    const real = negocioReal(SLUG);
     throw new Error(
       [
-        `ALTO. MORPHIQPOS_ORG_DEMO dice «${SLUG_DEMO}», que no es una demostración.`,
+        `ALTO. MORPHIQPOS_ORG_DEMO dice «${SLUG}», que no es una demostración.`,
         real === null
           ? 'No está en la lista de demos de packages/contracts/src/negocios.'
           : `Es ${real.nombre}: un NEGOCIO REAL que cobra. Nunca se prueba.`,
@@ -290,7 +314,7 @@ export async function exigirDemostracion(
     );
   }
 
-  if (!/^\d{4}$/.test(PIN_DEMO)) {
+  if (delEntorno && !/^\d{4}$/.test(PIN_DEMO)) {
     throw new Error(
       [
         `MORPHIQPOS_DEMO_PIN tiene que ser de CUATRO dígitos (llegó «${PIN_DEMO}»).`,
@@ -301,7 +325,7 @@ export async function exigirDemostracion(
         'puede teclear en esa pantalla, y la prueba se quedaría esperando un salto que',
         'nadie va a dar.',
         '',
-        `  pnpm db:bootstrap --org ${SLUG_DEMO} --persona "Demo" --pin 1234`,
+        `  pnpm db:bootstrap --org ${SLUG} --persona "Demo" --pin 1234`,
       ].join('\n'),
     );
   }
@@ -324,18 +348,18 @@ export async function exigirDemostracion(
     // por eso sirve de precondición: contesta ANTES de que exista sesión. Desde la 2.4
     // se le pregunta por UN negocio —el de esta corrida— y sólo contesta con él si el
     // despliegue lo sirve; si no, 404, igual que si no existiera.
-    const respuesta = await contexto.get(EMPLEADOS_DEMO);
+    const respuesta = await contexto.get(EMPLEADOS);
 
     if (respuesta.status() !== 200) {
       throw new Error(
         [
-          `El despliegue no sirve a «${SLUG_DEMO}»: ${EMPLEADOS_DEMO} → ${respuesta.status()}.`,
+          `El despliegue no sirve a «${SLUG}»: ${EMPLEADOS} → ${respuesta.status()}.`,
           `URL: ${respuesta.url()}`,
           '',
           'Cuatro cosas lo explican, en orden de probabilidad:',
           '',
           `1 · Un 404: el despliegue no sirve a esta demo. \`ORGANIZACION\` tiene que`,
-          `    incluir «${SLUG_DEMO}» EN EL ENTORNO DEL SERVIDOR, no sólo aquí. Contra el`,
+          `    incluir «${SLUG}» EN EL ENTORNO DEL SERVIDOR, no sólo aquí. Contra el`,
           '    preview se pone con `vercel env add ORGANIZACION preview` y hay que',
           '    REDESPLEGAR: las variables se aplican al construir, no en caliente.',
           '',
@@ -375,19 +399,14 @@ export async function exigirDemostracion(
      * que es de ESTA demo y sólo de ella: el negocio, la lista de negocios y cada una
      * de las personas. Cualquier otra forma, y no se sigue.
      */
-    const ajenas = todos.filter((u) => u.negocioSlug !== SLUG_DEMO);
-    if (
-      servido !== SLUG_DEMO ||
-      negocios.length !== 1 ||
-      negocios[0] !== SLUG_DEMO ||
-      ajenas.length > 0
-    ) {
+    const ajenas = todos.filter((u) => u.negocioSlug !== SLUG);
+    if (servido !== SLUG || negocios.length !== 1 || negocios[0] !== SLUG || ajenas.length > 0) {
       const vivo = [servido, ...negocios, ...todos.map((u) => u.negocioSlug ?? '')].find((slug) =>
         SLUGS_VIVOS.includes(slug),
       );
       throw new Error(
         [
-          `ALTO. ${EMPLEADOS_DEMO} no contestó con «${SLUG_DEMO}» y sólo con él.`,
+          `ALTO. ${EMPLEADOS} no contestó con «${SLUG}» y sólo con él.`,
           '',
           `  slug: «${servido}» · negocios: [${negocios.join(', ')}]`,
           `  ${String(todos.length)} personas, ${String(ajenas.length)} sin la marca de esta demo` +
@@ -418,11 +437,11 @@ export async function exigirDemostracion(
     if (todos.length === 0) {
       throw new Error(
         [
-          `La demo «${SLUG_DEMO}» existe y no tiene a nadie dado de alta, así que no hay`,
+          `La demo «${SLUG}» existe y no tiene a nadie dado de alta, así que no hay`,
           'forma de entrar. `alta-negocio` crea la organización y su primera sucursal;',
           'el dueño con PIN lo crea `bootstrap`, que es otro paso:',
           '',
-          `  pnpm db:bootstrap --org ${SLUG_DEMO} --persona "Demo" --pin ${PIN_DEMO}`,
+          `  pnpm db:bootstrap --org ${SLUG} --persona "Demo" --pin ${PIN_DEMO}`,
         ].join('\n'),
       );
     }
@@ -455,21 +474,24 @@ export async function exigirDemostracion(
  * empezaría a fallar con 429 al azar, que es el peor fallo posible: parece
  * fragilidad y es aritmética.
  */
-export async function entrar(page: Page): Promise<string> {
-  const respuesta = await page.request.get(EMPLEADOS_DEMO);
+export async function entrar(page: Page, quien?: QuienEntra): Promise<string> {
+  const SLUG = quien?.slug ?? SLUG_DEMO;
+  const PERSONA = quien?.nombre ?? PERSONA_DEMO;
+  const PIN = quien?.pin ?? PIN_DEMO;
+  const respuesta = await page.request.get(empleadosDe(SLUG));
   const cuerpo = (await respuesta.json()) as RespuestaDeEmpleados;
 
   /**
    * Sólo la gente DE ESTA demo, y nadie sin marca: `exigirDemostracion` ya exigió que
-   * cada persona traiga `negocioSlug === SLUG_DEMO`, y aquí se vuelve a filtrar con la
+   * cada persona traiga `negocioSlug === SLUG`, y aquí se vuelve a filtrar con la
    * misma regla, sin el `undefined` de antes (bloque A de la 2.4).
    */
-  const usuarios = (cuerpo.datos?.usuarios ?? []).filter((u) => u.negocioSlug === SLUG_DEMO);
+  const usuarios = (cuerpo.datos?.usuarios ?? []).filter((u) => u.negocioSlug === SLUG);
 
   // `toLocaleLowerCase('es-MX')` en los dos lados: comparar con el `toLowerCase()`
   // invariante haría que «MARÍA» y «maría» no casaran en algunas configuraciones, y el
   // fallo diría «esa persona no está dada de alta» sobre alguien que sí está.
-  const buscado = PERSONA_DEMO.toLocaleLowerCase('es-MX');
+  const buscado = PERSONA.toLocaleLowerCase('es-MX');
 
   // Con VARIAS personas dadas de alta, «la primera» es una lotería.
   //
@@ -479,7 +501,7 @@ export async function entrar(page: Page): Promise<string> {
   // almacenista — y el PIN de la corrida no es el suyo. El fallo salía cuatro
   // líneas más abajo, en `waitForURL`, diciendo «no salió de /login-pos»: el PIN
   // era correcto, para otra persona.
-  if (PERSONA_DEMO === '' && usuarios.length > 1) {
+  if (PERSONA === '' && usuarios.length > 1) {
     throw new Error(
       [
         `La demo tiene ${String(usuarios.length)} personas dadas de alta y esta corrida no dijo`,
@@ -496,22 +518,22 @@ export async function entrar(page: Page): Promise<string> {
   }
 
   const elegido =
-    PERSONA_DEMO === ''
+    PERSONA === ''
       ? usuarios[0]
       : usuarios.find((u) => u.nombre.toLocaleLowerCase('es-MX') === buscado);
 
   if (elegido === undefined) {
     throw new Error(
       [
-        PERSONA_DEMO === ''
+        PERSONA === ''
           ? 'La demo no devolvió ningún empleado con el que entrar.'
-          : `MORPHIQPOS_DEMO_PERSONA dice «${PERSONA_DEMO}» y la demo no tiene a nadie así.`,
+          : `MORPHIQPOS_DEMO_PERSONA dice «${PERSONA}» y la demo no tiene a nadie así.`,
         `Dados de alta: ${usuarios.map((u) => u.nombre).join(', ') || '(ninguno)'}`,
       ].join('\n'),
     );
   }
 
-  await page.goto(ENTRADA_DEMO);
+  await page.goto(entradaDe(SLUG));
 
   /**
    * LA TARJETA DE ESTA PERSONA, EN ESTE NEGOCIO.
@@ -588,7 +610,7 @@ export async function entrar(page: Page): Promise<string> {
 
   // El teclado son botones con el dígito como nombre accesible. `exact` porque sin
   // él «1» también casaría con «10» si algún día hay uno.
-  for (const digito of PIN_DEMO) {
+  for (const digito of PIN) {
     await page.getByRole('button', { name: digito, exact: true }).click();
   }
 
@@ -917,6 +939,36 @@ export function entradaDeMenu(menu: Locator, etiqueta: string): Locator {
   return menu.getByRole('link', { name: etiqueta, exact: true });
 }
 
+/**
+ * LLEGA A UNA PANTALLA TOCANDO EL MENÚ, como lo hace quien trabaja (D.1 de la 2.4).
+ *
+ * `abrirPantalla` teclea la URL, y eso prueba que la pantalla existe, no que esa persona
+ * puede llegar a ella: un cajero sin «Caja» en su menú no tiene caja, aunque la ruta
+ * responda. El día completo navega por aquí, así que cada paso afirma también que la
+ * entrada está en el menú DE ESE ROL, con la etiqueta de su giro. En el teléfono el
+ * menú es un cajón: se abre, se toca y se cierra solo al navegar.
+ */
+export async function irPorElMenu(
+  page: Page,
+  etiqueta: string,
+  marca: MarcaDePantalla,
+): Promise<void> {
+  const menu = await menuLateral(page);
+  const entrada = entradaDeMenu(menu, etiqueta);
+  await expect(
+    entrada,
+    `El menú de esta persona no tiene «${etiqueta}». Sale de \`navegacionParaRolYPlantilla\` ` +
+      '(la plantilla del negocio y el permiso del rol): si falta, esta persona no puede llegar ' +
+      'a esa pantalla aunque la ruta responda.',
+  ).toBeVisible();
+  const destino = (await entrada.getAttribute('href')) ?? '';
+  expect(destino, `«${etiqueta}» del menú no lleva a ninguna parte.`).not.toBe('');
+  await entrada.click();
+  const camino = new URL(destino, page.url()).pathname;
+  await page.waitForURL((url) => url.pathname === camino);
+  await exigirLoSuyo(page, camino, marca);
+}
+
 /** Lo que el menú de este negocio tiene que decir, y lo que no puede decir. */
 export interface Sustantivos {
   /** Las etiquetas que SÍ, con la entidad de la que salen, para que el fallo se lea. */
@@ -1011,6 +1063,18 @@ export async function abrirPantalla(
       'navegador» (F2.3-REGLAS §8, condición 6).',
   ).toBe(200);
 
+  await exigirLoSuyo(page, ruta, marca);
+}
+
+/**
+ * Lo que una pantalla ya abierta tiene que enseñar: su marca, y no el muro genérico.
+ * Lo comparten `abrirPantalla` (por la URL) e `irPorElMenu` (tocando el menú).
+ */
+export async function exigirLoSuyo(
+  page: Page,
+  ruta: string,
+  marca: MarcaDePantalla,
+): Promise<void> {
   // Por ATRIBUTO y no con `getByLabel`: ése busca la etiqueta de un control de
   // formulario, y estas tres marcas son el `aria-label` de una región —un `aside`,
   // un `main`— que es donde vive el título de una pantalla que no puede gastar sitio

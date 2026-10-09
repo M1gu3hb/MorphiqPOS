@@ -6343,3 +6343,44 @@ cajero; sucursal y terminal en el cobro y los apartados; `solicitaEmpleoId`; `fi
 bloqueo; los puntos ciegos de `verify:unidades`; la utilidad con IVA dentro; la confirmación de
 transferencias de la tienda; pruebas para las guardas de los guiones.
 
+
+## 08-10-2026 · Etapa 2.4 · Bloque D arranca: la infraestructura del día completo
+
+**Lo que hay, y dónde vive:**
+- **El equipo de cada demo, en un solo sitio**: `packages/contracts/src/negocios/equipo-demo.ts`.
+  Lo lee la siembra (`demostracion/equipo.ts`, que ya no tiene copia) y lo leen las pruebas.
+- **Entrar con el rol que toca** (`pruebas/e2e/ayudantes/roles.ts`): cada persona entra UNA vez
+  por la pantalla de acceso —su tarjeta y su PIN— y su sesión se guarda con `storageState`
+  (`pruebas/e2e/.sesiones`, fuera del repo). `entrar()` y `exigirDemostracion()` aceptan la
+  demo y la persona explícitas; sin ellas, siguen leyendo el entorno.
+- **Navegar por el menú** (`irPorElMenu`): cada paso del día llega a su pantalla tocando el
+  menú DE ESE ROL, no tecleando la URL.
+- **La conciliación al centavo** (`packages/testing/src/conciliacion.ts`, D.2): libro de lo
+  que se hizo contra los registros crudos del servidor, por caja de sesión. Nueve reglas con
+  nombre. Vista ROJA con un centavo de más en un cobro (prueba propia) y validada con 11
+  mutaciones (10 destructivas que fallan, 1 inocua que pasa). El adaptador del navegador lee
+  ventas, cortes, movimientos de caja y el ledger de inventario por el puente.
+- **Una base desechable en la laptop** (`scripts/base-desechable.mjs`, D-27): un clúster de
+  PostgreSQL propio en un directorio temporal y el puerto 5435, con las 109 migraciones y las
+  cinco demos dadas de alta y sembradas. Migra dentro del proceso y QUITA
+  `MORPHIQPOS_SUPABASE_PROJECT_REF`: nunca toca el proyecto vivo.
+- `next.config.mjs` sin `experimental.viewTransition`: Next 16.3 ya no la reconoce (salía como
+  «Unrecognized key» al arrancar) y las transiciones del App Router funcionan sin ella.
+- La galería regenerada en CI de cafetería, tienda, ferretería y estética (109 retratos). La
+  del restaurante no llegó a regenerarse: su suite cayó antes por la marca del portal del
+  comensal, que sin token dice «QR inválido» (corregida).
+
+**Lo que el bloque D ya destapó, antes de la primera prueba en el navegador:**
+- **Las dos cajas de la cafetería no pueden existir** (F-235): `multiples.ts` dice que la base
+  sólo impide dos sesiones en la MISMA terminal, y la 046 creó además
+  `sesiones_caja_una_abierta_por_sucursal`. Su `02-DINERO-Y-CAJA §8.1` pide dos cajas los
+  fines de semana. Se arregla en el día de la cafetería.
+- **El cobro de la tienda no tiene mixto, descuento, cancelación ni devolución**, y su caja no
+  registra gastos ni el corte de turno que no cierra (F-233), aunque su `02-DINERO-Y-CAJA` los
+  define y el backend tiene `venta.autorizar_descuento`, `gastos.registrar` y
+  `caja.corte_turno`. **No hay devolución de venta en ningún modelo**: `venta.devolver` es la
+  del pedido de barra (total, sólo en la fila). Se construyen como piezas compartidas.
+
+**En qué voy:** el día completo de la tienda, empezando por las piezas compartidas que le
+faltan (devolución total y parcial, descuento con PIN de supervisor, gasto de caja, corte de
+turno).
