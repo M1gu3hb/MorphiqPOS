@@ -35,6 +35,10 @@ import { ProveedorDeApariencia } from './Apariencia';
  * Sin proveedor, `useConfig()` devuelve el `DEFAULT_CONFIG` del contexto —que es
  * exactamente lo que la pantalla de acceso necesita: la marca de la plataforma—, así
  * que no se pierde nada. Con sesión se monta igual que siempre.
+ *
+ * Y lo mismo para la pregunta de QUIÉN está dentro: `POSAuthProvider` se monta siempre
+ * —la pantalla de acceso necesita su `login`—, pero sin cookie no le pregunta al servidor
+ * (`/api/catalogo/sesion` contestaría 401: nadie).
  */
 export function Proveedores({
   children,
@@ -50,7 +54,7 @@ export function Proveedores({
     <ProveedorDeApariencia estiloInicial={estilo}>
       <ThemeProvider>
         <QueryClientProvider client={queryClientInstance}>
-          <POSAuthProvider>
+          <POSAuthProvider conSesion={conSesion}>
             {conSesion ? <ConfigProvider>{children}</ConfigProvider> : children}
           </POSAuthProvider>
           <Toaster />

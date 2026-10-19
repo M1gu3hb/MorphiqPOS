@@ -33,13 +33,29 @@ function leerGuardado() {
  * Lo guardado se pinta mientras llega la respuesta, para que la barra no parpadee. Y la
  * respuesta se descarta si mientras tanto alguien ENTRÓ o SALIÓ: una pregunta que salió
  * antes del PIN no puede sacar a quien acaba de entrar.
+ *
+ * SIN COOKIE NO SE PREGUNTA (`conSesion`, que el servidor lee de la petición, igual que
+ * para `ConfigProvider`). La respuesta ya se sabe —no hay nadie— y preguntarla escribía un
+ * 401 en la consola de cada pantalla de acceso, antes de que nadie tecleara su PIN: el
+ * rastreador lo cuenta como respuesta rota, y con razón, porque un 401 permanente enseña a
+ * no mirar los que sí importan. Lo guardado de una sesión anterior se borra, como con ese 401.
  */
-export function POSAuthProvider({ children }) {
+export function POSAuthProvider({ children, conSesion = true }) {
   const [posUser, setPosUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const version = useRef(0);
 
   useEffect(() => {
+    if (!conSesion) {
+      try {
+        sessionStorage.removeItem(CLAVE);
+      } catch {
+        // Nada que borrar.
+      }
+      setPosUser(null);
+      setIsLoading(false);
+      return undefined;
+    }
     const guardado = leerGuardado();
     const alPreguntar = version.current;
     if (guardado) {
@@ -75,7 +91,7 @@ export function POSAuthProvider({ children }) {
     return () => {
       vigente = false;
     };
-  }, []);
+  }, [conSesion]);
 
   const login = (user) => {
     version.current += 1;
