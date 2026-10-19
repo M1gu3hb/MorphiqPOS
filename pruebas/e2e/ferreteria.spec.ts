@@ -618,6 +618,35 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
       })
       .toBeCloseTo(cableAntes - (MEDIDA_DEL_CORTE + MERMA_DEL_CABLE), 2);
 
+    // ── 6b · LA NOTA DEL CORTE, COBRADA EN LA CAJA ──────────────────────────
+    // El corte abre su nota y la manda a la caja —su acuse lo dice: «está en la caja»—. Y
+    // desde el muro del cierre (`caja/sesion.ts`, 0178217) el turno no cierra con una nota
+    // mandada y sin cobrar: «cóbralas o cancélalas con su motivo antes de cerrar». Esta
+    // suite se escribió antes del muro y cerraba con la del cable pendiente; lo que hace una
+    // cajera es cobrársela al cliente del cable, y eso entra al esperado del cajón.
+    const folioDelCorte = /N-\d+/.exec(await corte.innerText())?.[0] ?? '';
+    expect(folioDelCorte, 'El acuse del corte no dice el folio de su nota.').not.toBe('');
+    await abrirPantalla(page, '/ferreteria/caja', /Notas pendientes/);
+    const notaDelCorte = page
+      .getByRole('button', { name: new RegExp(comoTexto(folioDelCorte) + '(?![0-9])') })
+      .first();
+    await expect(
+      notaDelCorte,
+      `La nota del corte ${folioDelCorte} no llegó a las pendientes de la caja.`,
+    ).toBeVisible({ timeout: 30_000 });
+    await notaDelCorte.click();
+    const totalDelCorte = await totalEnPantalla(page);
+    await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
+    await page
+      .getByRole('button', { name: /^Recibido \d+ pesos$/ })
+      .first()
+      .click();
+    await page.getByRole('button', { name: 'Cobrar en efectivo' }).click();
+    await expect(
+      page.getByRole('status').filter({ hasText: /cobrada/ }),
+      `La nota del corte ${folioDelCorte} no se cobró.`,
+    ).toBeVisible({ timeout: 30_000 });
+
     // ── 7 · EL CORTE DE CAJA · el fondo más la venta, al centavo ───────────
     //
     // Y cerrar es lo que hace REPETIBLE la corrida: la base permite UNA sesión
@@ -649,7 +678,7 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // ── EL CORTE, POR SU PANTALLA, Y SU PDF (C.6 de la 2.4) ────────────────
     // Cerraba por la API porque la ferretería no tenía pantalla de corte. Ahora es la de
     // abarrotes, en su dirección: a ciegas, con lo que se deja, y el PDF de su §9.3.
-    const esperadoCentavos = FONDO_CENTAVOS + totalCentavos;
+    const esperadoCentavos = FONDO_CENTAVOS + totalCentavos + totalDelCorte;
     await abrirPantalla(page, '/ferreteria/cortes', /Cortes/);
     await page.locator('#sueltos').fill((esperadoCentavos / 100).toFixed(2));
     await page.locator('#dejado-en-el-cajon').fill((FONDO_CENTAVOS / 100).toFixed(2));
