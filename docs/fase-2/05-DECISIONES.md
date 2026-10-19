@@ -885,6 +885,54 @@ quiere ver).
 **Consecuencias.** Cinco trabajos más por empujón, en paralelo; si uno se pone rojo, el
 artefacto `jornada-<modelo>` trae la traza.
 
+## D-40 · 19-10-2026 · La cuota de entrada de la red cuenta los PIN que fallan
+
+**Contexto.** `/api/auth/entrar` admite 20 intentos por red en cinco minutos
+(`LIMITES.entrar`). El comentario decía «veinte PIN fallidos», y el contador sumaba TODAS las
+entradas, también las correctas. Todas las cajas de un negocio salen a internet por la misma
+IP, y la tableta del restaurante pasa de mesero en mesero (`AccesoPorPin`): en una comida
+llena, veinte entradas correctas en cinco minutos dejaban al restaurante entero sin entrar
+(«Demasiados intentos desde esta red»). Lo destapó CI: la matriz de permisos entra con las 25
+personas de las cinco demos y la 21.ª recibía 429.
+
+**Decisión.** Reservar y devolver. El intento se sigue contando ANTES de verificar, con la
+misma sentencia atómica (`contarIntento`), y la entrada con el PIN correcto lo devuelve
+(`devolver` → `devolverIntento`, que nunca baja de cero). Lo que falla —PIN equivocado,
+credencial bloqueada, empleo de otro negocio, cuerpo mal formado— conserva su intento.
+
+**Alternativas.** (1) Leer el contador antes y sumar sólo al fallar: veinte peticiones en
+paralelo leerían «0» y pasarían todas, que es el agujero que la sentencia única existe para
+cerrar. (2) Subir el tope: sigue contando lo que no es un ataque, sólo más tarde. (3) Partir
+la matriz de CI en un trabajo por demo: escondería el defecto del restaurante en vez de
+arreglarlo.
+
+**Consecuencias.** El barrido sigue topando en veinte fallos por red (cada petición en vuelo
+ocupa su lugar mientras se verifica). Un negocio que entra bien no gasta su cuota. Si la base
+falla al devolver, se registra y la entrada sigue: el contador queda más alto, nunca más
+abierto. Pruebas: `auth-entrar-cuota.test.ts` (la ruta, con sus mutaciones) y
+`limite.integracion.test.ts` (la SQL contra Postgres).
+
+## D-41 · 19-10-2026 · La matriz de permisos pregunta sin ejecutar: el cuerpo inerte
+
+**Contexto.** La matriz mandaba `{}` a cada ruta con cada rol, y su cabecera decía «seguro
+contra cualquier base». No lo era: cinco comandos que escriben aceptan `{}`
+(`venta.crear_orden`, `catalogo.fiscal_masivo`, `inventario.valuar`,
+`restaurante.limpiar_solicitudes` y `restaurante.vaciar_solicitudes`), y con el rol que sí
+puede, la matriz los ejecutaba. En la base desechable de CI no se notaba; contra el preview,
+que escribe en la base compartida, habría abierto órdenes y vaciado solicitudes en las demos.
+
+**Decisión.** La matriz manda un texto JSON que no es la entrada de ningún comando
+(`packages/app/src/pruebas/cuerpo-inerte.ts`). El rol se comprueba antes que la entrada, así
+que donde el rol no está sigue siendo 403, y donde está es un 400 de zod: nada se ejecuta.
+`validacion/cuerpo-inerte.contrato.test.ts` lo comprueba contra los 263 comandos del registro
+y exige que la matriz lo use.
+
+**Alternativas.** Un cuerpo «inválido» por comando (una lista que se queda atrás); saltar en
+la matriz los comandos que aceptan `{}` (dejaría su permiso sin probar).
+
+**Consecuencias.** La matriz se puede correr contra el preview —que escribe en la base
+compartida— sin tocar las demos más que con las sesiones de quien entra.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

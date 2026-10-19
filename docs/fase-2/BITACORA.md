@@ -6608,5 +6608,34 @@ producción, sin dejar nada. **NO aplicadas: falta el respaldo.** Esta sesión n
 `DATABASE_URL` ni la clave de servicio, y vaciar los datos por el conector los habría
 expuesto. Plan, comandos y vuelta atrás en `docs/fase-2/MIGRACIONES-181-182.md`.
 
+**El primer CI de las jornadas (`c594ddf`, corrida 39312758483), leído trabajo por trabajo:**
+tienda, cafetería y ferretería en verde en CI; formato, tipos, unitarias y build en verde. Lo
+rojo, con su causa y no con su síntoma:
+- *Contratos y mutaciones:* dos mutaciones buscaban el texto de antes de D-36 y del validador de
+  URL. Apuntan ahora al código vigente; 104 rechazadas en local.
+- *Permisos por rol:* 429 al PIN de la estética. La cuota de entrada de la red contaba también
+  las entradas CORRECTAS —el comentario decía «veinte PIN fallidos»—: la matriz entra con 25
+  personas y la 21.ª chocaba. No es un detalle de CI: todas las cajas de un negocio salen por la
+  misma IP y la tableta del restaurante pasa de mesero en mesero. **D-40**: el intento se
+  reserva antes de verificar y la entrada correcta lo devuelve.
+- *La matriz misma:* decía «segura contra cualquier base» y no lo era: cinco comandos que
+  escriben aceptan `{}` y la matriz los EJECUTABA con el rol que puede. **D-41**: el cuerpo
+  inerte. Comprobado contando las 136 tablas antes y después de la matriz entera: sólo cambian
+  `limite_tasa` y `auditoria` (2,628 filas, todas `denegado`: 2,244 `SIN_PERMISO` y 384
+  `PAQUETE_NO_INCLUYE`).
+- *Rastreo, los cinco:* `401 /api/catalogo/sesion`. El proveedor de sesión del heredado
+  pregunta «¿quién está dentro?» al montarse, también en la pantalla de acceso, donde la
+  respuesta es «nadie». Llegó con `5a94938` (Bloque D, en `fase-2.4`) y ningún CI corrió
+  después. Mismo arreglo que el de `ConfigProvider` en la 2.3: sin cookie no se pregunta.
+- *Restaurante:* la spec del día no existía en la rama (la escribe un subagente). *Estética:*
+  la spec heredada a medias; la reescribe el otro subagente.
+- Y el ruido: el `healthcheck` de Postgres preguntaba por una base que no existe y escribía un
+  `FATAL` cada cinco segundos en el registro de cada trabajo; ahora pregunta por la suya.
+- *Lo que no existe se contesta:* la lista de trabajo y la nota de mostrador guardaban el
+  cliente, la obra y el material tal como llegaban, y un id que no existe lo paraba la llave
+  foránea con un 500. Ahora se comprueban antes de escribir (`ferreteria/cliente-y-obra.ts`),
+  con prueba contra Postgres vista roja sin el cambio (`ERROR_INTERNO` en los cuatro casos). Y
+  el aislamiento lo exige de TODAS las rutas: con ids que no existen, ninguna contesta 5xx.
+
 **En qué voy:** integrar lo de los dos subagentes cuando entreguen; el PR contra `main`; el CI
 sobre el SHA del PR; el preview; `07-ESTADO.md` y el reporte 020.
