@@ -479,7 +479,7 @@ async function aplicarReparto(
  * se bloquea antes de leerlo: la confirmación de una transferencia no pasa por
  * `cargarCliente`, y dos pagos a la vez no pueden restar sobre el mismo saldo leído.
  */
-async function bajarSaldoDeLaFicha(
+export async function bajarSaldoDeLaFicha(
   ctx: ContextoComando<Transaccion>,
   clienteId: string,
   aplicadoCentavos: bigint,
@@ -517,7 +517,7 @@ async function bajarSaldoDeLaFicha(
  * deja su documento; el pago se aplica al documento y aquí baja lo mismo en la remisión,
  * para que las dos cuentas no se separen al primer abono. Nunca abajo de cero.
  */
-async function espejarEnLaRemision(
+export async function espejarEnLaRemision(
   ctx: ContextoComando<Transaccion>,
   documentoId: string,
   montoCentavos: bigint,

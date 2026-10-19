@@ -29,6 +29,7 @@ import {
   type Seccion,
   type Valor,
 } from './hoja.ts';
+import { devolucionesDelDia } from './devoluciones.ts';
 import { corteDeFerreteria, corteDeTienda } from './giros-mostrador.ts';
 import { corteDeEstetica } from './giros-salon.ts';
 
@@ -122,6 +123,7 @@ export function corteDeRestaurante(
     ...gastos(hoja),
     ...inventarioBajo(hoja),
     ...cancelaciones(hoja),
+    ...devolucionesDelDia(hoja),
   ]);
 }
 
@@ -369,6 +371,7 @@ export function corteDeCafeteria(
         ],
       ),
       ...cancelaciones(hoja, 'Cancelaciones y no recogidos', noRecogidos),
+      ...devolucionesDelDia(hoja),
     ],
     'Responsable del turno',
   );

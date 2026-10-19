@@ -201,8 +201,23 @@ export interface ResumenDeVentas {
   readonly costoCentavos: string;
 }
 
-/** Lo COBRADO en la sesión. Una orden cancelada o dividida no es venta. */
+/**
+ * Lo COBRADO y vivo. Una orden cancelada o dividida no es venta. El corte cuenta además la
+ * devuelta entera por documento —ver `ORDEN_VENDIDA`—, que sigue siendo venta de su día.
+ */
 export const ESTADOS_VENDIDOS = ['pagada', 'parcialmente_reembolsada'] as const;
+
+/**
+ * UNA ORDEN VENDIDA EN ESTA CAJA, en SQL sobre el alias `o` (cierre de la 2.4).
+ *
+ * Cobrada, devuelta en parte, o devuelta ENTERA por un documento de devolución (178): la
+ * devuelta sigue siendo venta de SU día, y la devolución resta del día en que se hace
+ * («el histórico no se toca», ferretería §1). Antes una venta devuelta entera mañana
+ * desaparecía del corte de hoy —ya cerrado— y la devolución no restaba en ninguno. Lo que
+ * el pedido de barra reembolsó (`venta.devolver`: sus pagos en `reembolsado`, sin
+ * documento) no se vendió y no entra.
+ */
+export const ORDEN_VENDIDA = sql`(o.estado in ('pagada', 'parcialmente_reembolsada') or (o.estado = 'reembolsada' and exists (select 1 from devoluciones dv where dv.organizacion_id = o.organizacion_id and dv.orden_id = o.id)))`;
 
 export async function resumenDeVentas(
   tx: Transaccion,
@@ -218,7 +233,7 @@ export async function resumenDeVentas(
       from ordenes o
      where o.organizacion_id = ${organizacionId}
        and o.sesion_caja_id = ${sesionCajaId}
-       and o.estado in ('pagada', 'parcialmente_reembolsada')
+       and ${ORDEN_VENDIDA}
   `.execute(tx);
   return (
     rows[0] ?? {
@@ -280,7 +295,7 @@ export async function detalleDeVentas(
              on ev.id = coalesce(o.mostradorista_id, o.empleado_atiende_id, o.empleado_cobra_id)
      where o.organizacion_id = ${organizacionId}
        and o.sesion_caja_id = ${sesionCajaId}
-       and o.estado in ('pagada', 'parcialmente_reembolsada')
+       and ${ORDEN_VENDIDA}
      order by coalesce(o.cobrada_en, o.cerrada_en, o.updated_at)
      limit ${TOPE_DE_FILAS}
   `.execute(tx);
@@ -335,7 +350,7 @@ export async function productosVendidos(
       left join categorias cat on cat.id = pr.categoria_id and cat.organizacion_id = l.organizacion_id
      where l.organizacion_id = ${organizacionId}
        and o.sesion_caja_id = ${sesionCajaId}
-       and o.estado in ('pagada', 'parcialmente_reembolsada')
+       and ${ORDEN_VENDIDA}
        and l.anulada_en is null
      group by l.producto_nombre, l.producto_id
      order by sum(l.utilidad_centavos) desc, sum(l.total_centavos) desc
@@ -370,7 +385,7 @@ export async function ventasPorPersona(
              on ev.id = coalesce(o.mostradorista_id, o.empleado_atiende_id, o.empleado_cobra_id)
      where o.organizacion_id = ${organizacionId}
        and o.sesion_caja_id = ${sesionCajaId}
-       and o.estado in ('pagada', 'parcialmente_reembolsada')
+       and ${ORDEN_VENDIDA}
      group by ev.nombre
      order by sum(o.total_centavos) desc
   `.execute(tx);
@@ -478,7 +493,7 @@ export async function descuentosPorUsuario(
       left join empleados_visibles ev on ev.id = o.empleado_cobra_id
      where o.organizacion_id = ${organizacionId}
        and o.sesion_caja_id = ${sesionCajaId}
-       and o.estado in ('pagada', 'parcialmente_reembolsada')
+       and ${ORDEN_VENDIDA}
        and o.descuento_centavos > 0
      group by ev.nombre
      order by sum(o.descuento_centavos) desc

@@ -1339,14 +1339,20 @@ export interface Devoluciones {
   organizacion_id: string;
   sucursal_id: string;
   orden_id: string;
-  /** La caja de la que salió el efectivo; nula cuando no tocó el cajón. */
+  /**
+   * La caja de la terminal donde se hizo: de su cajón salió el efectivo y en su corte
+   * cuenta la devolución. Nula sólo si no había caja abierta y no salió efectivo.
+   */
   sesion_caja_id: string | null;
   empleado_id: string;
-  metodo: 'efectivo' | 'tarjeta' | 'transferencia';
+  /** 182 · `fiado` y `credito` bajan el saldo que se debe en vez de devolver dinero. */
+  metodo: 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado' | 'credito';
   monto_centavos: bigint;
   motivo: string;
   regresa_al_inventario: Generated<boolean>;
   created_at: Generated<Date>;
+  /** 182 · El documento de cartera cuyo saldo bajó. Sólo (y siempre) en una devolución a cuenta. */
+  documento_credito_id: string | null;
 }
 
 /** D-29 · Lo devuelto de cada línea, y cuánto dinero. */

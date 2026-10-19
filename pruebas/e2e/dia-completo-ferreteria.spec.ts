@@ -577,7 +577,9 @@ test.describe('el día completo de la ferretería', () => {
       });
 
       // La remisión: venta del día que NO entra al cajón (`02 §1`, `§6.3`).
-      let credito = { ventaId: '', totalCentavos: 0 };
+      let credito = { ventaId: '', folio: '', totalCentavos: 0 };
+      // Lo que el ingeniero regresó a su cuenta: baja lo que debe, y de ahí lo que paga.
+      let devueltoACuenta = 0;
       await test.step('el ingeniero se lleva pintura a su cuenta: remisión firmada, sin dinero', async () => {
         await irPorElMenu(karla, 'Mostrador', MARCA.mostrador);
         const antes = await ventasDeAntes(karla);
@@ -601,7 +603,7 @@ test.describe('el día completo de la ferretería', () => {
         // Es venta del día con método `credito` (`02 §1`, «Material entregado con remisión
         // firmada»): con folio de ticket, como cualquier venta. No suma un peso al cajón.
         const venta = await exigirVentaCobrada(karla, total, antes);
-        credito = { ventaId: venta.id ?? '', totalCentavos: total };
+        credito = { ventaId: venta.id ?? '', folio: venta.folio ?? '', totalCentavos: total };
         // Y el material salió: el almacén lo sabe (`02 §6.3`, «baja el stock»).
         await expect
           .poll(async () => existenciaDe(dueno, MATERIAL.pintura), {
@@ -919,6 +921,36 @@ test.describe('el día completo de la ferretería', () => {
         libro.movimiento(sesion, 'devolución de una cinta de aislar', -parcial);
       });
 
+      // `02 §8.3`: «Devolución de venta a crédito · Encargado · cero · Resta de ventas y del
+      // saldo» (182). Antes no se podía: la devolución exigía el método con que se pagó y
+      // `credito` no era uno de los tres.
+      await test.step('el ingeniero regresa un bote de pintura de su remisión: baja su cuenta, el cajón quieto', async () => {
+        const devolucion = elena.locator('[aria-labelledby="devolucion-titulo"]');
+        await devolucion.locator('#devolucion-folio').fill(credito.folio);
+        await devolucion.getByRole('button', { name: 'Buscar la venta' }).click();
+        await devolucion.getByLabel(`Cuánto regresa de ${MATERIAL.pintura}`).first().fill('1');
+        await devolucion.getByRole('button', { name: /^A su cuenta \(crédito\) · hasta/ }).click();
+        await devolucion.locator('#devolucion-motivo').fill('le sobró un bote de la obra');
+        const sale = devolucion.locator('[aria-live="polite"]').filter({ hasText: 'Se devuelven' });
+        devueltoACuenta = Math.round(
+          Number(
+            /\$([\d,]+\.\d{2})/.exec(await sale.innerText())?.[1]?.replace(/,/g, '') ?? 'NaN',
+          ) * 100,
+        );
+        expect(devueltoACuenta).toBe(totalDe(precios, [[MATERIAL.pintura, 1]]));
+        await devolucion.getByRole('button', { name: 'Devolver', exact: true }).click();
+        await expect(devolucion.getByText(/del cajón no salió nada/)).toBeVisible({
+          timeout: 30_000,
+        });
+        // Cero en el cajón: el libro no anota movimiento. Y el bote vuelve al almacén.
+        await expect
+          .poll(async () => existenciaDe(dueno, MATERIAL.pintura), {
+            message: 'La devolución a cuenta no regresó la pintura al almacén.',
+            timeout: 20_000,
+          })
+          .toBe(pinturaAntes - 1);
+      });
+
       await test.step('Elena paga la gasolina de la camioneta y saca $1,000 al banco', async () => {
         const gasto = elena.locator('[aria-labelledby="gasto-titulo"]');
         await gasto.locator('#gasto-monto').fill('120.00');
@@ -946,7 +978,7 @@ test.describe('el día completo de la ferretería', () => {
           .getByRole('group', { name: 'Método del pago' })
           .getByRole('button', { name: 'Efectivo' })
           .click();
-        // La remisión más vieja viene marcada: es la de hoy, entera.
+        // La remisión más vieja viene marcada: es la de hoy, menos el bote que regresó.
         await expect(
           ficha.getByRole('table', { name: 'Remisiones abiertas' }).getByRole('checkbox'),
         ).toBeChecked({ timeout: 30_000 });
@@ -956,8 +988,19 @@ test.describe('el día completo de la ferretería', () => {
         });
         // `02 §1` PRUEBA 1: «+ pagos de crédito recibidos en efectivo». Es cobranza: la venta
         // ya se reconoció al entregar, y aquí sólo entra el dinero y baja el saldo.
-        libro.movimiento(sesion, 'pago de la remisión del ingeniero', credito.totalCentavos);
-        libro.pasivo('abono_credito', credito.totalCentavos);
+        const debe = credito.totalCentavos - devueltoACuenta;
+        libro.movimiento(sesion, 'pago de la remisión del ingeniero', debe);
+        libro.pasivo('abono_credito', debe);
+        // La cartera, contra el servidor: remitió dos botes, regresó uno y pagó el otro.
+        const [cuenta] = await consultarPuente<{ saldo_pendiente_centavos?: number | null }>(
+          dueno,
+          'Cliente',
+          { filtro: { nombre: INGENIERO }, limite: 1 },
+        );
+        expect(
+          cuenta?.saldo_pendiente_centavos ?? Number.NaN,
+          'Remitió dos botes, regresó uno y pagó el otro: el ingeniero no debe nada.',
+        ).toBe(0);
       });
 
       // ── 19:30 · EL CONTEO, CON DIFERENCIA Y SU AJUSTE ───────────────────────

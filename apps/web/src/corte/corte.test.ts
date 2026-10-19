@@ -88,6 +88,7 @@ function hoja(extras: ExtrasDelServidor, cambios: Partial<HojaDelServidor> = {})
     porPersona: [],
     gastos: [],
     cancelaciones: [],
+    devoluciones: [],
     descuentosPorUsuario: [],
     alertas: [],
     insumos: [],
@@ -221,6 +222,67 @@ describe('las reglas de los cinco cortes', () => {
     expect(
       celda(doc.secciones, 'Resumen financiero (sin propinas)', 'Utilidad neta estimada')?.valor,
     ).toEqual({ tipo: 'dinero', centavos: 325_000 - 120_000 - 5_000 });
+  });
+
+  // La devolución resta de la venta del día en que se hace (178, 182): el total se dice
+  // bruto, después lo devuelto y la venta neta; el costo de lo que REGRESÓ al almacén deja
+  // de ser costo de ventas, y lo que no regresó (ya preparado, dañado) sigue siéndolo.
+  it('con devoluciones: total bruto, lo devuelto, la venta neta y la utilidad sobre la neta', () => {
+    const doc = documentoDelCorte(
+      hoja(RESTAURANTE, {
+        devoluciones: [
+          {
+            folio: 'A-7',
+            devueltaEn: '2026-10-19T18:00:00.000Z',
+            metodo: 'efectivo',
+            montoCentavos: '20000',
+            motivo: 'Llegó frío',
+            quien: 'Beatriz',
+            regresoAlInventario: false,
+            costoDevueltoCentavos: '0',
+          },
+          {
+            folio: 'A-3',
+            devueltaEn: '2026-10-19T19:00:00.000Z',
+            metodo: 'credito',
+            montoCentavos: '5000',
+            motivo: 'Sobró de la obra',
+            quien: 'Beatriz',
+            regresoAlInventario: true,
+            costoDevueltoCentavos: '2000',
+          },
+        ],
+      }),
+    );
+    const resumen = 'Resumen financiero (sin propinas)';
+    expect(celda(doc.secciones, resumen, 'Total ventas')?.valor).toEqual({
+      tipo: 'dinero',
+      centavos: 325_000,
+    });
+    expect(celda(doc.secciones, resumen, 'Devoluciones')?.valor).toEqual({
+      tipo: 'dinero',
+      centavos: -25_000,
+    });
+    expect(celda(doc.secciones, resumen, 'Venta neta')?.valor).toEqual({
+      tipo: 'dinero',
+      centavos: 300_000,
+    });
+    // Costo 120,000 menos los 2,000 de lo que regresó al almacén.
+    expect(celda(doc.secciones, resumen, 'Utilidad bruta')?.valor).toEqual({
+      tipo: 'dinero',
+      centavos: 300_000 - 118_000,
+    });
+    const tabla = doc.secciones.find((s) => s.titulo === 'Devoluciones');
+    expect(tabla?.tipo === 'tabla' && tabla.filas.map((f) => f[2])).toEqual([
+      { tipo: 'texto', texto: 'Efectivo, del cajón' },
+      { tipo: 'texto', texto: 'Crédito: baja su saldo' },
+    ]);
+  });
+
+  it('sin devoluciones, ni la sección ni la venta neta: el total es la venta', () => {
+    const doc = documentoDelCorte(hoja(RESTAURANTE));
+    expect(titulos(doc.secciones)).not.toContain('Devoluciones');
+    expect(celda(doc.secciones, 'Resumen financiero (sin propinas)', 'Venta neta')).toBeUndefined();
   });
 });
 

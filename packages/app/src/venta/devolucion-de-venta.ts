@@ -7,6 +7,12 @@ import { centavos, redondear, repartirPorPesos } from '@morphiqpos/domain/dinero
 import { calcularConsumo } from '@morphiqpos/domain/inventario';
 import { z } from 'zod';
 
+import {
+  abonarDevolucion,
+  cobradoDelDocumento,
+  documentoDeLaVenta,
+  esACuenta,
+} from '../cartera/nota-de-credito.ts';
 import { definirComando, type ContextoComando } from '../definicion.ts';
 
 import { cantidadAConsumir } from './presentacion.ts';
@@ -32,6 +38,15 @@ import { cantidadAConsumir } from './presentacion.ts';
  * efectivo una compra pagada con tarjeta es la forma más vieja de sacar dinero del cajón.
  * En efectivo, del cajón de ESTA terminal, con su sesión bloqueada; con tarjeta o
  * transferencia, no toca el cajón y queda por reversar en la terminal o el banco.
+ *
+ * A CUENTA (182): lo que se vendió fiado o a crédito se devuelve BAJANDO lo que el cliente
+ * debe de esa venta —su documento, su remisión y su ficha (`cartera/nota-de-credito.ts`)—,
+ * nunca con dinero: «Devolución de venta a crédito · cero · Resta de ventas y del saldo»
+ * (ferretería §8.3). Sólo hasta lo que todavía se debe: lo que el cliente ya abonó a esa
+ * venta entró por cobranza, y se devuelve por el método con que lo abonó.
+ *
+ * Toda devolución lleva la caja de la terminal donde se hace, aunque no toque el cajón: es
+ * la que la cuenta en su corte, el día en que se devuelve.
  *
  * ── La mercancía ─────────────────────────────────────────────────────────────
  * Regresa al almacén a su costo con un movimiento `devolucion` POSITIVO referido a este
@@ -63,7 +78,7 @@ export const entradaDevolverVenta = z.object({
       (lineas) => new Set(lineas.map((l) => l.ordenLineaId)).size === lineas.length,
       'Cada línea de la venta va una sola vez.',
     ),
-  metodo: z.enum(['efectivo', 'tarjeta', 'transferencia']),
+  metodo: z.enum(['efectivo', 'tarjeta', 'transferencia', 'fiado', 'credito']),
   motivo: z.string().trim().min(4).max(200),
   regresaAlInventario: z.boolean().default(true),
 });
@@ -129,7 +144,13 @@ async function yaDevuelto(
   return suma;
 }
 
-/** Lo que entró por cada método (sin propina) menos lo ya devuelto por él. */
+/**
+ * Lo que entró por cada método (sin propina) menos lo ya devuelto por él.
+ *
+ * En una venta a cuenta, el método a cuenta vale lo que TODAVÍA se debe de ella —no lo que
+ * se fió—, y lo que el cliente abonó después por cobranza se suma a su método: es dinero
+ * de esta venta, y se devuelve por donde entró.
+ */
 async function disponiblePorMetodo(
   ctx: ContextoComando<Transaccion>,
   ordenId: string,
@@ -150,7 +171,21 @@ async function disponiblePorMetodo(
     .execute();
   const disponible = new Map<string, bigint>();
   for (const p of pagos) disponible.set(p.metodo, (disponible.get(p.metodo) ?? 0n) + p.monto);
+  const documento = pagos.some((p) => esACuenta(p.metodo))
+    ? await documentoDeLaVenta(ctx.tx, organizacionId, ordenId)
+    : null;
+  if (documento !== null) {
+    const cobrado = await cobradoDelDocumento(ctx.tx, organizacionId, documento.id);
+    for (const [metodo, centavos] of cobrado) {
+      disponible.set(metodo, (disponible.get(metodo) ?? 0n) + centavos);
+    }
+  }
   for (const d of devueltas) disponible.set(d.metodo, (disponible.get(d.metodo) ?? 0n) - d.monto);
+  // Lo devuelto a cuenta ya bajó el documento: su saldo es el tope que queda.
+  for (const metodo of [...disponible.keys()].filter(esACuenta)) {
+    const debe = documento?.saldoCentavos ?? 0n;
+    if ((disponible.get(metodo) ?? 0n) > debe) disponible.set(metodo, debe);
+  }
   return disponible;
 }
 
@@ -429,7 +464,21 @@ export const devolverVenta = definirComando<
         throw new ErrorDominio('CAJA_CERRADA', 'Abre la caja para poder devolver el efectivo.');
       }
       sesionCajaId = sesion.id;
+    } else if (terminalId !== null) {
+      // Sin dinero en el cajón, la caja de la terminal se NOMBRA y no se bloquea: es la
+      // que cuenta la devolución en su corte del día.
+      const sesion = await ctx.paso('leer_caja', () =>
+        repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId),
+      );
+      sesionCajaId = sesion?.id ?? null;
     }
+
+    // A cuenta: baja lo que el cliente debe de esta venta, con la cartera en fila.
+    const documento = esACuenta(entrada.metodo)
+      ? await ctx.paso('abonar_a_la_cuenta', () =>
+          abonarDevolucion(ctx, { ordenId: orden.id, montoCentavos: monto }),
+        )
+      : null;
 
     const devolucion = await ctx.paso('anotar_devolucion', () =>
       ctx.tx
@@ -444,6 +493,7 @@ export const devolverVenta = definirComando<
           monto_centavos: monto,
           motivo: entrada.motivo,
           regresa_al_inventario: entrada.regresaAlInventario,
+          documento_credito_id: documento?.id ?? null,
           created_at: ctx.ahora,
         })
         .returning('id')
@@ -469,7 +519,7 @@ export const devolverVenta = definirComando<
       contrapartidasDeComision(ctx, devueltas, vendidas, previo, entrada.motivo),
     );
 
-    if (sesionCajaId !== null) {
+    if (entrada.metodo === 'efectivo' && sesionCajaId !== null) {
       await ctx.paso('sacar_del_cajon', () =>
         repoCaja.registrarMovimiento(ctx.tx, {
           organizacionId,
@@ -521,6 +571,12 @@ export const devolverVenta = definirComando<
         lineas: devueltas,
         regresaAlInventario: entrada.regresaAlInventario,
         contrapartidasDeComision: contrapartidas,
+        ...(documento === null
+          ? {}
+          : {
+              documentoCreditoId: documento.id,
+              saldoDelDocumentoCentavos: documento.saldoCentavos.toString(),
+            }),
       },
     });
 
@@ -591,12 +647,19 @@ export const ventaParaDevolver = definirComando<
     if (entrada.ordenId !== undefined) {
       consulta = consulta.where('id', '=', entrada.ordenId);
     } else {
-      // El ticket dice «A-123» o «123»: el folio es el número del final.
-      const numero = /(\d+)$/.exec(entrada.folio ?? '')?.[1];
+      // El ticket dice «A-123» o «123»: el folio es el número del final, y la serie, si
+      // viene, también cuenta. Se busca EN ESTA SUCURSAL: con dos sucursales el mismo número
+      // existe dos veces, y tomar la primera que salga hacía decir «no hay una venta con ese
+      // folio» con la venta de aquí en la base.
+      const partes = /^\s*(?:([A-Za-z]+)\s*-?\s*)?(\d+)\s*$/.exec(entrada.folio ?? '');
+      const numero = partes?.[2];
       if (numero === undefined) {
         throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Ese folio no tiene número.');
       }
       consulta = consulta.where('folio', '=', BigInt(numero));
+      if (sucursalId !== null) consulta = consulta.where('sucursal_id', '=', sucursalId);
+      const serie = partes?.[1];
+      if (serie !== undefined) consulta = consulta.where('serie', '=', serie.toUpperCase());
     }
     const orden = await ctx.paso('leer_orden', () => consulta.executeTakeFirst());
     // De otra sucursal se contesta igual que si no existiera.

@@ -74,3 +74,6 @@ supabase/.temp/
 # no hacia nada y el archivo sobrevivia solo por estar ya rastreado. El dia
 # que alguien lo sacara del indice, desapareceria sin que nadie lo notara.
 !.env.example
+
+# Los worktrees aislados de los agentes de desarrollo: nunca son parte de la entrega.
+.claude/worktrees/

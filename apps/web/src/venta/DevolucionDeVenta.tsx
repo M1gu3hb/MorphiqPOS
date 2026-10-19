@@ -46,6 +46,9 @@ const ETIQUETA_METODO: Readonly<Record<string, string>> = {
   efectivo: 'Efectivo',
   tarjeta: 'Tarjeta',
   transferencia: 'Transferencia',
+  // 182 · lo vendido a cuenta se devuelve bajando lo que se debe: no sale un peso.
+  fiado: 'A su cuenta (fiado)',
+  credito: 'A su cuenta (crédito)',
 };
 
 function mensajeDe(fallo: unknown, porDefecto: string): string {
@@ -321,8 +324,18 @@ export function DevolucionDeVenta({ alDevolver }: { readonly alDevolver: () => v
       {hecha === null ? null : (
         <Aviso tono="exito" titulo="Devolución hecha">
           <p className="inline-flex flex-wrap items-baseline gap-(--espacio-1)">
-            Salieron <Dinero centavos={Number(hecha.montoCentavos)} tamano="sm" /> por{' '}
-            {(ETIQUETA_METODO[hecha.metodo] ?? hecha.metodo).toLowerCase()}. La venta quedó{' '}
+            {hecha.metodo === 'fiado' || hecha.metodo === 'credito' ? (
+              <>
+                Bajaron <Dinero centavos={Number(hecha.montoCentavos)} tamano="sm" /> de lo que
+                debe; del cajón no salió nada.
+              </>
+            ) : (
+              <>
+                Salieron <Dinero centavos={Number(hecha.montoCentavos)} tamano="sm" /> por{' '}
+                {(ETIQUETA_METODO[hecha.metodo] ?? hecha.metodo).toLowerCase()}.
+              </>
+            )}{' '}
+            La venta quedó{' '}
             {hecha.estado === 'reembolsada' ? 'devuelta completa' : 'devuelta en parte'}.
           </p>
         </Aviso>

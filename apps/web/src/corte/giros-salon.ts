@@ -17,6 +17,7 @@ import {
   type HojaDelServidor,
   type Seccion,
 } from './hoja.ts';
+import { devolucionesDelDia } from './devoluciones.ts';
 
 /**
  * EL CORTE DEL DÍA DEL SALÓN (C.6 de la 2.4), en el orden de su §9.3.
@@ -245,6 +246,7 @@ export function corteDeEstetica(hoja: HojaDelServidor, extras: ExtrasDelSalon): 
     ...cortesias(extras),
     ...gastos(hoja, 'Gastos y compras del día'),
     ...cancelaciones(hoja, 'Cancelaciones y descuentos'),
+    ...devolucionesDelDia(hoja),
     ...efectoEnComision(extras),
     ...descuentosPorUsuario(hoja),
   ];

@@ -115,6 +115,17 @@ export interface HojaDelServidor {
     ventas: number;
     montoCentavos: string;
   }[];
+  /** Lo devuelto en esta caja (178, 182): resta de la venta del día en que se hace. */
+  readonly devoluciones: readonly {
+    folio: string | null;
+    devueltaEn: string;
+    metodo: string;
+    montoCentavos: string;
+    motivo: string;
+    quien: string | null;
+    regresoAlInventario: boolean;
+    costoDevueltoCentavos: string | null;
+  }[];
   readonly alertas: readonly AlertaDeLaHoja[];
   readonly insumos:
     | readonly {
@@ -466,6 +477,7 @@ export const METODO: Readonly<Record<string, string>> = {
   tarjeta: 'Tarjeta',
   transferencia: 'Transferencia',
   fiado: 'Fiado',
+  credito: 'Crédito (remisión)',
   puntos: 'Puntos',
   monedero: 'Monedero',
   cheque: 'Cheque',
@@ -609,7 +621,21 @@ export function cascada(hoja: HojaDelServidor): readonly Seccion[] {
 export const totalDeGastos = (hoja: HojaDelServidor): number =>
   hoja.gastos.reduce((suma, g) => suma + centavos(g.montoCentavos), 0);
 
-/** El resumen financiero, sin propina. Con costos sólo si el servidor los mandó. */
+/** Todo lo devuelto en la caja, por cualquier método: lo que la venta neta resta. */
+export const totalDevuelto = (hoja: HojaDelServidor): number =>
+  hoja.devoluciones.reduce((suma, d) => suma + centavos(d.montoCentavos), 0);
+
+/** El costo de lo devuelto que REGRESÓ al almacén: deja de ser costo de ventas. */
+const costoDevuelto = (hoja: HojaDelServidor): number =>
+  hoja.devoluciones.reduce((suma, d) => suma + centavos(d.costoDevueltoCentavos), 0);
+
+/**
+ * El resumen financiero, sin propina. Con costos sólo si el servidor los mandó.
+ *
+ * Con devoluciones en la caja, el total de ventas se dice BRUTO —lo cobrado hoy, el
+ * histórico no se toca—, después lo devuelto y la VENTA NETA, que es sobre la que se
+ * calculan la utilidad y el margen (cierre de la 2.4).
+ */
 export function resumenFinanciero(
   hoja: HojaDelServidor,
   titulo: string,
@@ -618,13 +644,21 @@ export function resumenFinanciero(
   estimados: readonly { readonly etiqueta: string; readonly centavos: number }[] = [],
 ): Seccion {
   const r = hoja.resumen;
-  const total = centavos(r.totalCentavos);
+  const bruto = centavos(r.totalCentavos);
+  const devuelto = totalDevuelto(hoja);
+  const total = bruto - devuelto;
   const celdas: Celda[] = [
-    { etiqueta: 'Total ventas', valor: dinero(total), fuerte: true },
+    { etiqueta: 'Total ventas', valor: dinero(bruto), fuerte: devuelto === 0 },
+    ...(devuelto === 0
+      ? []
+      : [
+          { etiqueta: 'Devoluciones', valor: dinero(-devuelto) },
+          { etiqueta: 'Venta neta', valor: dinero(total), fuerte: true },
+        ]),
     { etiqueta: 'Nº de tickets', valor: texto(r.tickets) },
     {
       etiqueta: 'Ticket promedio',
-      valor: dinero(r.tickets === 0 ? 0 : Math.round(total / r.tickets)),
+      valor: dinero(r.tickets === 0 ? 0 : Math.round(bruto / r.tickets)),
     },
     ...antesDeLosMetodos,
     ...hoja.metodos.map((m) => ({
@@ -636,7 +670,7 @@ export function resumenFinanciero(
     celdas.push({ etiqueta: 'Descuentos', valor: dinero(r.descuentoCentavos) });
   }
   if (r.costoCentavos !== null) {
-    const costo = centavos(r.costoCentavos);
+    const costo = centavos(r.costoCentavos) - costoDevuelto(hoja);
     const gastos = totalDeGastos(hoja);
     celdas.push(
       { etiqueta: 'Costo de ventas', valor: dinero(costo) },

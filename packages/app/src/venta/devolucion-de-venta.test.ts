@@ -157,11 +157,13 @@ describe('D-29 · devolver todo', () => {
 
     expect(final.estado).toBe('reembolsada');
     expect(final.montoCentavos).toBe('5000');
-    // Con tarjeta el cajón no se toca: sólo el efectivo dejó movimiento.
+    // Con tarjeta el cajón no se toca: sólo el efectivo dejó movimiento. La devolución sí
+    // NOMBRA la caja de la terminal donde se hizo (182): es la que la cuenta en su corte.
     expect(base.filas('movimientos_caja')).toHaveLength(1);
     expect(base.filas('devoluciones')[1]).toMatchObject({
       metodo: 'tarjeta',
-      sesion_caja_id: null,
+      sesion_caja_id: SESION_CAJA,
+      documento_credito_id: null,
     });
   });
 

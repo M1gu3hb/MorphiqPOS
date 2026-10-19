@@ -3,7 +3,7 @@ import 'server-only';
 import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 
-import { TOPE_DE_FILAS, hastaDe, type Ventana } from './consultas.ts';
+import { ORDEN_VENDIDA, TOPE_DE_FILAS, hastaDe, type Ventana } from './consultas.ts';
 
 /**
  * LO PROPIO DEL CORTE DE MOSTRADOR —tienda y ferretería— (C.6 de la 2.4): la cartera, lo
@@ -454,7 +454,7 @@ export async function serviciosDeMostrador(
       join ordenes o on o.id = l.orden_id and o.organizacion_id = l.organizacion_id
      where sm.organizacion_id = ${organizacionId}
        and o.sesion_caja_id = ${sesionCajaId}
-       and o.estado in ('pagada', 'parcialmente_reembolsada')
+       and ${ORDEN_VENDIDA}
      group by sm.tipo
      order by sum(l.total_centavos) desc
   `.execute(tx);

@@ -3,7 +3,7 @@ import 'server-only';
 import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 
-import { TOPE_DE_FILAS, hastaDe, type Ventana } from './consultas.ts';
+import { ORDEN_VENDIDA, TOPE_DE_FILAS, hastaDe, type Ventana } from './consultas.ts';
 
 /**
  * LO PROPIO DE CADA GIRO en su corte (C.6 de la 2.4), según su `02-DINERO-Y-CAJA.md` §9.3.
@@ -68,7 +68,7 @@ export async function ventasPorCanal(
       from ordenes o
      where o.organizacion_id = ${organizacionId}
        and o.sesion_caja_id = ${sesionCajaId}
-       and o.estado in ('pagada', 'parcialmente_reembolsada')
+       and ${ORDEN_VENDIDA}
      group by o.canal
      order by sum(o.total_centavos) desc
   `.execute(tx);
@@ -267,7 +267,7 @@ export async function modificadoresUsados(
       join ordenes o on o.id = l.orden_id and o.organizacion_id = l.organizacion_id
      where l.organizacion_id = ${organizacionId}
        and o.sesion_caja_id = ${sesionCajaId}
-       and o.estado in ('pagada', 'parcialmente_reembolsada')
+       and ${ORDEN_VENDIDA}
        and l.anulada_en is null
      group by l.producto_nombre, m.opcion_nombre
      order by count(*) desc

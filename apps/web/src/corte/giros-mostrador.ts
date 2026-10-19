@@ -27,6 +27,7 @@ import {
   type Seccion,
   type Valor,
 } from './hoja.ts';
+import { devolucionesDelDia } from './devoluciones.ts';
 
 /**
  * LOS CORTES DE MOSTRADOR: la tienda y la ferretería (C.6 de la 2.4).
@@ -298,6 +299,7 @@ export function corteDeTienda(
       { columna: { titulo: 'Visita' }, de: diaDeVisita },
     ),
     ...cancelaciones(hoja, 'Cancelaciones'),
+    ...devolucionesDelDia(hoja),
     ...descuentosPorUsuario(hoja),
   ];
 }
@@ -503,6 +505,7 @@ export function corteDeFerreteria(
       },
     ),
     ...cancelaciones(hoja, 'Cancelaciones y autorizaciones'),
+    ...devolucionesDelDia(hoja),
     ...descuentosPorUsuario(hoja),
     ...tablaSiHay({
       tipo: 'tabla',

@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { sinCostosSiNoLosVe } from './sin-costos.ts';
 import { definirComando } from '../../definicion.ts';
 import * as consultas from './consultas.ts';
+import { devolucionesDelCorte, type DevolucionDelCorte } from './devoluciones.ts';
 import * as mostrador from './extras-mostrador.ts';
 import * as salon from './extras-salon.ts';
 import * as extras from './extras.ts';
@@ -150,6 +151,13 @@ export interface HojaDelCorte {
   readonly porPersona: readonly consultas.VentasDePersona[];
   readonly gastos: readonly consultas.GastoDelCorte[];
   readonly cancelaciones: readonly consultas.Cancelacion[];
+  /**
+   * Lo devuelto EN ESTA CAJA, de ventas de hoy o de otro día: resta de la venta del día en
+   * que se hace. El costo de lo que regresó al almacén sólo para quien ve costos.
+   */
+  readonly devoluciones: readonly (Omit<DevolucionDelCorte, 'costoDevueltoCentavos'> & {
+    readonly costoDevueltoCentavos: string | null;
+  })[];
   readonly descuentosPorUsuario: readonly consultas.DescuentoDeUsuario[];
   readonly alertas: readonly AlertaDelCorte[];
   /** Consumo teórico de insumo. `null` para quien no ve costos. */
@@ -198,17 +206,17 @@ export const hojaDelCorte = definirComando<Transaccion, typeof entradaHojaDelCor
           consultas.gastosDelCorte(tx, organizacionId, id),
         ]),
       );
-    const [cancelaciones, descuentosPorUsuario, alertas, insumos, salidas] = await ctx.paso(
-      'leer_control',
-      () =>
+    const [cancelaciones, descuentosPorUsuario, alertas, insumos, salidas, devoluciones] =
+      await ctx.paso('leer_control', () =>
         Promise.all([
           consultas.cancelacionesDelCorte(tx, organizacionId, sesion),
           consultas.descuentosPorUsuario(tx, organizacionId, id),
           consultas.alertasDeInventario(tx, organizacionId, sesion.cerradaEn ?? ctx.ahora),
           consultas.insumosConsumidos(tx, organizacionId, id),
           consultas.salidasSinVenta(tx, organizacionId, sesion),
+          devolucionesDelCorte(tx, organizacionId, id),
         ]),
-    );
+      );
     const delGiro = await ctx.paso('leer_extras', () =>
       extrasDe(
         tx,
@@ -241,6 +249,10 @@ export const hojaDelCorte = definirComando<Transaccion, typeof entradaHojaDelCor
         porPersona,
         gastos,
         cancelaciones,
+        devoluciones: devoluciones.map((d) => ({
+          ...d,
+          costoDevueltoCentavos: verCostos ? d.costoDevueltoCentavos : null,
+        })),
         descuentosPorUsuario,
         alertas: alertas.map((a) =>
           alertaDelCorte(
