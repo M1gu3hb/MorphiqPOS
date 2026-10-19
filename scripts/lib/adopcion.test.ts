@@ -30,13 +30,10 @@ export function Pantalla({ filas, estado, total }) {
 }`;
 
 function hallazgos(texto: string): Hallazgo[] {
-  const { hallazgos: lista, pinta } = analizarPantalla(texto) as {
-    hallazgos: Hallazgo[];
-    pinta: Record<string, boolean>;
-  };
+  const { hallazgos: lista, pinta } = analizarPantalla(texto);
   const faltan = Object.entries(pinta)
     .filter(([, si]) => !si)
-    .map(([estado]) => ({ condicion: '1.4', motivo: `no pinta ${estado}` }));
+    .map(([estado]) => ({ condicion: '1.4' as const, motivo: `no pinta ${estado}`, linea: 0 }));
   return [...lista, ...faltan];
 }
 
