@@ -296,6 +296,7 @@ export const guardarFotoDeServicio = definirComando<
   escribe: true,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { citaServicioId: 'cita_servicios' },
   entrada: entradaFotoDeServicio,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

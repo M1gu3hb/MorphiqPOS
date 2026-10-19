@@ -63,6 +63,7 @@ export const repartirBote = definirComando<Transaccion, typeof entradaRepartirBo
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { sesionCajaId: 'sesiones_caja' },
   entrada: entradaRepartirBote,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -235,6 +236,7 @@ export const ajustarPresencia = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { presenciaId: 'presencias_turno' },
   entrada: entradaAjustarPresencia,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

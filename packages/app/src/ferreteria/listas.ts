@@ -204,6 +204,7 @@ export const cerrarListaTrabajo = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { listaId: 'listas_trabajo' },
   entrada: entradaCerrarLista,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

@@ -60,6 +60,7 @@ export const cobrarOrden = definirComando<
   escribe: true,
   roles: ['cajero', 'gerente', 'administrador', 'dueno'],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaCobrarOrdenConPropina,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;

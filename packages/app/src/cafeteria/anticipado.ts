@@ -67,6 +67,7 @@ export const programarPedido = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaProgramarPedido,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;
@@ -176,6 +177,7 @@ export const encolarPedido = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaEncolarPedido,
   async ejecutar(ctx, entrada) {
     const pedido = await cargar(ctx, entrada.pedidoId);
@@ -242,6 +244,7 @@ export const entregarAnticipado = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaEntregarAnticipado,
   async ejecutar(ctx, entrada) {
     const pedido = await cargar(ctx, entrada.pedidoId);

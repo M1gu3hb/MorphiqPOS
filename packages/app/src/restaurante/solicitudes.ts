@@ -239,6 +239,7 @@ export const atenderSolicitud = definirComando<
   escribe: true,
   roles: [...ROLES_DE_SALA],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { solicitudId: 'solicitudes_qr' },
   entrada: entradaAtenderSolicitud,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -513,6 +514,7 @@ export const asignarMesero = definirComando<
   escribe: true,
   roles: [...ROLES_DE_SALA],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { mesaId: 'mesas' },
   modulo: 'mesero',
   entrada: entradaAsignarMesero,
   async ejecutar(ctx, entrada) {

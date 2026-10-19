@@ -210,6 +210,7 @@ export const agendaDelDia = definirComando<
   escribe: false,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaAgendaDelDia,
   async ejecutar(ctx, entrada) {
     // EL DÍA DEL NEGOCIO, no el de Greenwich. Ver `limitesDelDia`.
@@ -294,6 +295,7 @@ export const huecosDisponibles = definirComando<Transaccion, typeof entradaHueco
     escribe: false,
     roles: [...CABINA],
     paquetes: PAQUETES_TODOS,
+    sucursal: { profesionalId: 'profesionales' },
     entrada: entradaHuecos,
     async ejecutar(ctx, entrada) {
       // Los dos extremos, en la zona del negocio: ofrecer huecos con el día en UTC
@@ -351,6 +353,7 @@ export const proximosHuecos = definirComando<
   escribe: false,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaProximosHuecos,
   async ejecutar(ctx, entrada) {
     // Desde AHORA y no desde hoy a las cero: ofrecer las nueve de la mañana a

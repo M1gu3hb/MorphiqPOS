@@ -56,6 +56,7 @@ export const autorizarDescuento = definirComando<
   escribe: true,
   roles: [...ROLES_QUE_AUTORIZAN],
   paquetes: PAQUETES_TODOS,
+  sucursal: { ordenId: 'ordenes', solicitaEmpleoId: 'empleos' },
   entrada: entradaAutorizarDescuento,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId, sucursalId, rol } = ctx.ambito;

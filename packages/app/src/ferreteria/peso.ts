@@ -176,6 +176,7 @@ export const conteoPorPeso = definirComando<
   escribe: true,
   roles: [...CONTEO],
   paquetes: PAQUETES_TODOS,
+  sucursal: { tomaId: 'tomas_inventario' },
   entrada: entradaConteoPorPeso,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

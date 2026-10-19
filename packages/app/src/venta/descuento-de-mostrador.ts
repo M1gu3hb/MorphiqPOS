@@ -69,6 +69,7 @@ export const aplicarDescuento = definirComando<
   escribe: true,
   roles: [...ROLES_DE_VENTA],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaAplicarDescuento,
   async ejecutar(ctx, entrada) {
     await ctx.paso('exigir_borrador', () =>

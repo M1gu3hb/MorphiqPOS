@@ -103,6 +103,7 @@ export const abrirPieza = definirComando<Transaccion, typeof entradaAbrirPieza, 
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenId: 'almacenes', ubicacionId: 'ubicaciones' },
   entrada: entradaAbrirPieza,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -273,6 +274,7 @@ export const marcarRetazo = definirComando<Transaccion, typeof entradaMarcarReta
     escribe: true,
     roles: [...MOSTRADOR],
     paquetes: PAQUETES_TODOS,
+    sucursal: { piezaId: 'piezas_abiertas' },
     entrada: entradaMarcarRetazo,
     async ejecutar(ctx, entrada) {
       const { organizacionId } = ctx.ambito;

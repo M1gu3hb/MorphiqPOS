@@ -50,6 +50,19 @@ export interface Fabrica {
    * declaran perilla son la mayoría, y hacerles fallar aquí probaría otra cosa.
    */
   ponerModulos(modulos: readonly Modulo[] | null): void;
+  /**
+   * Los ids que la base falsa dice que son de OTRA sucursal (D-36). Por omisión ninguno:
+   * esta base no tiene sucursales, y la frontera se prueba contra Postgres
+   * (`frontera-de-comandos.integracion.test.ts`). Las pruebas del envoltorio la usan para
+   * afirmar qué hace con un id de fuera.
+   */
+  ponerFueraDeLaSucursal(ids: readonly string[]): void;
+  /** Las preguntas que el envoltorio le hizo a la frontera, en orden. */
+  readonly preguntasDeFrontera: {
+    readonly sucursalId: string | null;
+    readonly tabla: string;
+    readonly ids: readonly string[];
+  }[];
   /** Filas de auditoría efectivamente confirmadas. */
   auditoriaConfirmada(): readonly FilaAuditoria[];
 }
@@ -68,6 +81,8 @@ export function crearFabrica(paqueteInicial: Paquete | null = 'tienda'): Fabrica
   let paquete: Paquete | null = paqueteInicial;
   /** `undefined` = la prueba no configuró perillas; `null` = no se pudo leer. */
   let modulos: ReadonlySet<Modulo> | null | undefined;
+  let fueraDeLaSucursal: ReadonlySet<string> = new Set();
+  const preguntasDeFrontera: Fabrica['preguntasDeFrontera'] = [];
   let siguienteTx = 0;
 
   /** Escrituras de la transacción en curso, aún sin confirmar. */
@@ -111,6 +126,11 @@ export function crearFabrica(paqueteInicial: Paquete | null = 'tienda'): Fabrica
       // pudo leer el perfil»— y se pide a propósito con `ponerModulos(null)`,
       // que es el caso que obliga al envoltorio a fallar CERRADO.
       return modulos === undefined ? TODOS_ENCENDIDOS : modulos;
+    },
+
+    async fueraDeLaSucursal(_tx, _organizacionId, sucursalId, tabla, ids) {
+      preguntasDeFrontera.push({ sucursalId, tabla, ids: [...ids] });
+      return new Set(ids.filter((id) => fueraDeLaSucursal.has(id)));
     },
 
     async reclamarClave(_tx, datos) {
@@ -173,6 +193,10 @@ export function crearFabrica(paqueteInicial: Paquete | null = 'tienda'): Fabrica
     ponerModulos(nuevos) {
       modulos = nuevos === null ? null : new Set(nuevos);
     },
+    ponerFueraDeLaSucursal(ids) {
+      fueraDeLaSucursal = new Set(ids);
+    },
+    preguntasDeFrontera,
     auditoriaConfirmada() {
       return base.confirmadas
         .filter((e) => e.tabla === 'auditoria')

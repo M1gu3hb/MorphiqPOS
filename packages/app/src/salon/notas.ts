@@ -34,6 +34,7 @@ export const anotarCita = definirComando<
   escribe: true,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { citaId: 'citas' },
   entrada: entradaAnotarCita,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

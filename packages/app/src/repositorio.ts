@@ -1,5 +1,7 @@
 import type { Modulo, Paquete } from '@morphiqpos/contracts';
 
+import type { TablaDeSucursal } from './sucursal/frontera.ts';
+
 /**
  * Lo único que el envoltorio necesita de la base.
  *
@@ -63,6 +65,20 @@ export interface RepositorioComandos<TX> {
    * pueden apagar.
    */
   leerModulosActivos(tx: TX, organizacionId: string): Promise<ReadonlySet<Modulo> | null>;
+
+  /**
+   * De `ids` —de la tabla `tabla`—, los que existen en la organización y son de OTRA
+   * sucursal que `sucursalId` (D-36). Con `sucursalId` nulo, toda fila que sea de una
+   * sucursal. Sólo se llama cuando el comando declara `sucursal` y su ámbito tiene
+   * frontera (`fronteraDelAmbito`).
+   */
+  fueraDeLaSucursal(
+    tx: TX,
+    organizacionId: string,
+    sucursalId: string | null,
+    tabla: TablaDeSucursal,
+    ids: readonly string[],
+  ): Promise<ReadonlySet<string>>;
 
   /** Reclama la clave DENTRO de la transacción del comando. */
   reclamarClave(tx: TX, datos: DatosReclamacion): Promise<Reclamacion>;

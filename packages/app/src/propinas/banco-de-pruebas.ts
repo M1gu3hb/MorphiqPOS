@@ -143,7 +143,7 @@ export function armarBanco(paquete: Paquete, respuestas: readonly (readonly unkn
 /**
  * El repositorio del envoltorio, con la transacción de verdad.
  *
- * `crearFabrica` lo declara sobre `TxFalsa`; ninguna de sus seis funciones mira
+ * `crearFabrica` lo declara sobre `TxFalsa`; ninguna de sus funciones mira
  * la transacción —guardan en memoria—, así que se reenvían con la que sea. Se
  * reescribe a mano en vez de forzar el tipo con un `as unknown as` para que un
  * cambio de firma en `RepositorioComandos` rompa aquí en vez de colarse.
@@ -152,6 +152,8 @@ function repositorioSobre(memoria: RepositorioComandos<unknown>): RepositorioCom
   return {
     leerPaquete: (tx, organizacionId) => memoria.leerPaquete(tx, organizacionId),
     leerModulosActivos: (tx, organizacionId) => memoria.leerModulosActivos(tx, organizacionId),
+    fueraDeLaSucursal: (tx, organizacionId, sucursalId, tabla, ids) =>
+      memoria.fueraDeLaSucursal(tx, organizacionId, sucursalId, tabla, ids),
     reclamarClave: (tx, datos) => memoria.reclamarClave(tx, datos),
     leerEjecucion: (tx, organizacionId, comando, clave) =>
       memoria.leerEjecucion(tx, organizacionId, comando, clave),

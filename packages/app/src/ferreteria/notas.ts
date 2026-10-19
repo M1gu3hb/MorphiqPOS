@@ -83,6 +83,7 @@ export const apartarNota = definirComando<Transaccion, typeof entradaApartarNota
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { notaId: 'notas_mostrador' },
   entrada: entradaApartarNota,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -143,6 +144,7 @@ export const entregarNota = definirComando<Transaccion, typeof entradaEntregarNo
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { notaId: 'notas_mostrador' },
   entrada: entradaEntregarNota,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -207,6 +209,7 @@ export const cancelarNota = definirComando<Transaccion, typeof entradaCancelarNo
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { notaId: 'notas_mostrador' },
   entrada: entradaCancelarNota,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

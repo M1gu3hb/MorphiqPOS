@@ -116,6 +116,7 @@ export const registrarRemision = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaRegistrarRemision,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;

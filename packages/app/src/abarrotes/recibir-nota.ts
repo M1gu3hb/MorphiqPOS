@@ -222,6 +222,7 @@ export const recibirNota = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { almacenId: 'almacenes' },
   entrada: entradaRecibirNota,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

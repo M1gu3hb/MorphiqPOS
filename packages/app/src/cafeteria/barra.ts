@@ -76,6 +76,7 @@ export const llamarPedido = definirComando<
   escribe: true,
   roles: [...ROLES_DE_BARRA],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaLlamarPedido,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -156,6 +157,7 @@ export const entregarPedidoDeBarra = definirComando<
   escribe: true,
   roles: [...ROLES_DE_BARRA],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaPedidoDeBarra,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -209,6 +211,7 @@ export const marcarNoRecogido = definirComando<
   escribe: true,
   roles: [...ROLES_DE_BARRA],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaPedidoDeBarra,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -265,6 +268,7 @@ export const deshacerEntrega = definirComando<
   escribe: true,
   roles: [...ROLES_DE_BARRA],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaPedidoDeBarra,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

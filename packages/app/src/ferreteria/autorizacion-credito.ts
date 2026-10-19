@@ -109,6 +109,7 @@ export const autorizarVentaACredito = definirComando<
   escribe: true,
   roles: [...LLAVE],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { solicitaEmpleoId: 'empleos', ordenId: 'ordenes' },
   entrada: entradaAutorizarCredito,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;

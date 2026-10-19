@@ -86,6 +86,7 @@ export const liquidarProfesional = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaLiquidar,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;
@@ -270,6 +271,7 @@ export const vistaPreviaDeLiquidacion = definirComando<
   escribe: false,
   roles: [...ROLES],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaVistaPrevia,
   async ejecutar(ctx, entrada) {
     if (entrada.periodoHasta < entrada.periodoDesde) {

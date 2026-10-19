@@ -103,6 +103,7 @@ export const registrarCaducidad = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { almacenId: 'almacenes', compraId: 'compras' },
   entrada: entradaRegistrarCaducidad,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -207,6 +208,7 @@ export const proximasACaducar = definirComando<
   escribe: false,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { almacenId: 'almacenes' },
   entrada: entradaProximasACaducar,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -292,6 +294,7 @@ export const consumirCaducidad = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { caducidadId: 'caducidades' },
   entrada: entradaConsumirCaducidad,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

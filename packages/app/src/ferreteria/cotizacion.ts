@@ -432,6 +432,7 @@ export const versionarCotizacion = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaVersionarCotizacion,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;
@@ -512,6 +513,7 @@ export const registrarEnvio = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaRegistrarEnvio,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -553,6 +555,7 @@ export const registrarAprobacion = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaRegistrarAprobacion,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -603,6 +606,7 @@ export const convertirCotizacion = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones', ordenId: 'ordenes' },
   entrada: entradaConvertirCotizacion,
   async ejecutar(ctx, entrada) {
     await ganarCotizacion(ctx, entrada.cotizacionId, entrada.ordenId);
@@ -668,6 +672,7 @@ export const registrarSurtido = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaRegistrarSurtido,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -745,6 +750,7 @@ export const cerrarCotizacion = definirComando<
   escribe: true,
   roles: [...AUTORIZA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaCerrarCotizacion,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

@@ -52,6 +52,10 @@ export const establecerPin = definirComando<
   escribe: true,
   roles: [...SOLO_MANDOS],
   paquetes: PAQUETES_TODOS,
+  sinFrontera: {
+    empleado:
+      'El equipo es del negocio: el dueño y el administrador ponen el PIN de la gente de todas las sucursales, también desde la terminal de una.',
+  },
   entrada: entradaEstablecerPin,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

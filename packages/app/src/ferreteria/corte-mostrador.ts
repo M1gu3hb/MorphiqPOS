@@ -115,6 +115,7 @@ export const cortarYAgregar = definirComando<
   escribe: true,
   roles: ['dueno', 'administrador', 'gerente', 'cajero', 'almacen', 'mesero'],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { piezaId: 'piezas_abiertas' },
   entrada: entradaCortarYAgregar,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId } = ctx.ambito;

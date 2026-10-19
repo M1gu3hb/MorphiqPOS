@@ -1,5 +1,4 @@
-import { conTransaccion, obtenerDb } from '@morphiqpos/data';
-import { sql } from 'kysely';
+import { conTransaccion } from '@morphiqpos/data';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -15,6 +14,7 @@ import {
   type SucursalReal,
 } from '../pruebas/negocio-real.ts';
 import { consultar } from './consultar.ts';
+import { columnasDelEsquema, fallasDeFrontera } from '../pruebas/frontera-del-esquema.ts';
 import { MAPA, entidadMapeada } from './mapa.ts';
 
 /**
@@ -156,50 +156,13 @@ describe('dos sucursales de un negocio, por el puente (D-36)', () => {
 
 describe('cada frontera del puente, contra el esquema migrado', () => {
   it('declara columnas que existen, y no ignora una sucursal que su fila tiene', async () => {
-    const filas = await sql<{ tabla: string; columna: string }>`
-      select table_name as tabla, column_name as columna
-        from information_schema.columns
-       where table_schema = 'public'`.execute(obtenerDb());
-    const columnas = new Map<string, Set<string>>();
-    for (const { tabla, columna } of filas.rows) {
-      const de = columnas.get(tabla) ?? new Set<string>();
-      de.add(columna);
-      columnas.set(tabla, de);
-    }
-
-    const fallas: string[] = [];
-    for (const nombre of [...Object.keys(MAPA), 'DescuentoInventarioVenta']) {
+    const columnas = await columnasDelEsquema();
+    const fallas = [...Object.keys(MAPA), 'DescuentoInventarioVenta'].flatMap((nombre) => {
       const entidad = entidadMapeada(nombre);
-      if (entidad === null) continue;
-      const suyas = columnas.get(entidad.tabla);
-      const frontera = entidad.sucursal;
-      if (suyas === undefined) {
-        fallas.push(`${nombre}: «${entidad.tabla}» no existe`);
-        continue;
-      }
-      if (!suyas.has('organizacion_id')) fallas.push(`${nombre}: sin organizacion_id`);
-      if (
-        suyas.has('sucursal_id') &&
-        !('columna' in frontera && frontera.columna === 'sucursal_id')
-      ) {
-        fallas.push(`${nombre}: su fila tiene sucursal_id y la frontera no la usa`);
-      }
-      if ('columna' in frontera && !suyas.has(frontera.columna)) {
-        fallas.push(`${nombre}: no tiene «${frontera.columna}»`);
-      }
-      if ('porPadre' in frontera) {
-        const padre = columnas.get(frontera.porPadre.tabla);
-        if (!suyas.has(frontera.porPadre.columna)) {
-          fallas.push(`${nombre}: no tiene «${frontera.porPadre.columna}»`);
-        }
-        if (padre?.has('organizacion_id') !== true) {
-          fallas.push(`${nombre}: el padre «${frontera.porPadre.tabla}» no tiene organizacion_id`);
-        }
-        if (padre?.has(frontera.porPadre.columnaSucursal ?? 'sucursal_id') !== true) {
-          fallas.push(`${nombre}: el padre «${frontera.porPadre.tabla}» no dice su sucursal`);
-        }
-      }
-    }
+      return entidad === null
+        ? [`${nombre}: no está en el mapa`]
+        : fallasDeFrontera(nombre, entidad.tabla, entidad.sucursal, columnas);
+    });
     expect(fallas).toEqual([]);
   });
 });

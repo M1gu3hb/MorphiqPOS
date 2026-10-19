@@ -57,6 +57,7 @@ export const guardarFotoDeMostrador = definirComando<
   escribe: true,
   roles: [...CATALOGO],
   paquetes: PAQUETES_TODOS,
+  sucursal: { ubicacionId: 'ubicaciones' },
   entrada: entradaFotoDeMostrador,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

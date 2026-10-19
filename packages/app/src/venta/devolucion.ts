@@ -79,6 +79,7 @@ export const devolverPedido = definirComando<
   escribe: true,
   roles: [...CIERRA_TURNO],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaDevolverPedido,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId, empleoId } = ctx.ambito;

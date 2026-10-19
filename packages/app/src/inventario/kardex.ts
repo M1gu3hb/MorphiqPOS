@@ -91,6 +91,7 @@ export const kardexDeInsumo = definirComando<Transaccion, typeof entradaKardex, 
   escribe: false,
   roles: [...ROLES],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenId: 'almacenes' },
   modulo: 'movimientos_inventario',
   entrada: entradaKardex,
   async ejecutar(ctx, entrada) {

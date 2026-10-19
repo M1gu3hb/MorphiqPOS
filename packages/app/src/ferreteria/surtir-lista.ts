@@ -178,6 +178,7 @@ export const renglonesDeLista = definirComando<
   escribe: false,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { listaId: 'listas_trabajo' },
   entrada: entradaRenglonesDeLista,
   async ejecutar(ctx, entrada) {
     const lista = await leerLista(ctx, entrada.listaId);
@@ -344,6 +345,7 @@ export const surtirLista = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { listaId: 'listas_trabajo', 'renglones[].renglonId': 'lineas_lista_trabajo' },
   entrada: entradaSurtirLista,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

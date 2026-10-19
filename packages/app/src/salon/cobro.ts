@@ -349,6 +349,7 @@ export const cotizarCita = definirComando<Transaccion, typeof entradaCotizarCita
     escribe: false,
     roles: [...ROLES],
     paquetes: PAQUETES_TODOS,
+    sucursal: { citaId: 'citas' },
     entrada: entradaCotizarCita,
     async ejecutar(ctx, entrada) {
       const { cita, servicios, impuesto, cuenta } = await leerCuenta(
@@ -421,6 +422,7 @@ export const cobrarCita = definirComando<Transaccion, typeof entradaCobrarCita, 
     escribe: true,
     roles: [...ROLES],
     paquetes: PAQUETES_TODOS,
+    sucursal: { citaId: 'citas', 'propinas[].profesionalId': 'profesionales' },
     entrada: entradaCobrarCita,
     async ejecutar(ctx, entrada) {
       const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;

@@ -68,6 +68,7 @@ export const relevarResponsable = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { empleadoSaleId: 'empleos', empleadoEntraId: 'empleos' },
   modulo: 'mesero',
   entrada: entradaRelevarResponsable,
   async ejecutar(ctx, entrada) {

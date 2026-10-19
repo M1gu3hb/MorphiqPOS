@@ -281,6 +281,7 @@ export const confirmarTransferencia = definirComando<
   escribe: true,
   roles: [...ROLES_DE_MURO],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { pagoId: 'pagos_credito' },
   entrada: entradaConfirmarTransferencia,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

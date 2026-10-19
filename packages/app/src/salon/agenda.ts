@@ -79,6 +79,7 @@ export const agendarCita = definirComando<Transaccion, typeof entradaAgendarCita
   // tanto se declara en todos, igual que hizo `cafeteria`: declarar un paquete
   // que no existe apagaría el comando justo para quien lo necesita.
   paquetes: PAQUETES_TODOS,
+  sucursal: { 'servicios[].profesionalId': 'profesionales' },
   entrada: entradaAgendarCita,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId } = ctx.ambito;

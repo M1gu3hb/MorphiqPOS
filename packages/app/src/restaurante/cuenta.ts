@@ -63,6 +63,7 @@ export const solicitarCuenta = definirComando<
   escribe: true,
   roles: [...ROLES_DE_SALA],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaSolicitarCuenta,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

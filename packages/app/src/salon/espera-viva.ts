@@ -34,6 +34,7 @@ export const cancelarEspera = definirComando<
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { esperaId: 'lista_espera_citas' },
   entrada: entradaCancelarEspera,
   async ejecutar(ctx, entrada) {
     await exigirEspera(ctx, entrada.esperaId);

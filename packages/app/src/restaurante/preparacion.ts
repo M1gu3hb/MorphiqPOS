@@ -53,6 +53,7 @@ export const transicionarPedido = definirComando<
   escribe: true,
   roles: [...ROLES_DE_COCINA],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { comandaId: 'comandas', comandaItemId: 'comanda_items' },
   modulo: 'cocina',
   entrada: entradaTransicionarPedido,
   async ejecutar(ctx, entrada) {
@@ -198,6 +199,7 @@ export const entregarPedidos = definirComando<
   escribe: true,
   roles: [...ROLES_DE_COCINA],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { ordenId: 'ordenes' },
   modulo: 'cocina',
   entrada: entradaEntregarPedidos,
   async ejecutar(ctx, entrada) {

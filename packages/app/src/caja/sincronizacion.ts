@@ -20,6 +20,7 @@ export const encolarSincronizacionCorte = definirComando<
   escribe: true,
   roles: [...ROLES_DE_CAJA],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { corteId: 'sesiones_caja' },
   entrada: entradaEncolarSincronizacionCorte,
   async ejecutar(ctx, entrada) {
     const corte = await ctx.paso('comprobar_corte', () =>

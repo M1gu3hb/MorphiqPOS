@@ -67,6 +67,7 @@ export const cancelarOrden = definirComando<
   escribe: true,
   roles: [...ROLES_DE_CANCELACION],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaCancelarOrden,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

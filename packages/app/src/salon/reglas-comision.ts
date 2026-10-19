@@ -186,6 +186,7 @@ export const asignarRegla = definirComando<
   escribe: true,
   roles: [...DIRECCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaAsignarRegla,
   async ejecutar(ctx, entrada) {
     if (entrada.reglaId !== null) await leerRegla(ctx, entrada.reglaId);

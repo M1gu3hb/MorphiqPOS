@@ -100,6 +100,7 @@ export const marcarNoLlego = definirComando<
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { citaId: 'citas' },
   entrada: entradaMarcarNoLlego,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -154,6 +155,7 @@ export const cancelarCita = definirComando<Transaccion, typeof entradaCancelarCi
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { citaId: 'citas' },
   entrada: entradaCancelarCita,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -202,6 +204,7 @@ export const iniciarCita = definirComando<Transaccion, typeof entradaIniciarCita
   escribe: true,
   roles: [...PROFESIONAL],
   paquetes: PAQUETES_TODOS,
+  sucursal: { citaId: 'citas' },
   entrada: entradaIniciarCita,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -242,6 +245,7 @@ export const cerrarServicio = definirComando<
   escribe: true,
   roles: [...PROFESIONAL],
   paquetes: PAQUETES_TODOS,
+  sucursal: { citaServicioId: 'cita_servicios', almacenId: 'almacenes' },
   entrada: entradaCerrarServicio,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

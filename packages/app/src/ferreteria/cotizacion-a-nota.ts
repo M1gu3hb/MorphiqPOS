@@ -46,6 +46,7 @@ export const convertirCotizacionEnNota = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaConvertirEnNota,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

@@ -73,6 +73,7 @@ export const abrirPresencia = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { quienEntraId: 'empleos' },
   entrada: entradaAbrirPresencia,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId } = ctx.ambito;

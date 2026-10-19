@@ -113,6 +113,7 @@ export const abrirConteo = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { almacenId: 'almacenes' },
   entrada: entradaAbrirConteo,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -186,6 +187,7 @@ export const capturarConteo = definirComando<
   // vez una toma anual.
   roles: ['cajero', ...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { tomaId: 'tomas_inventario' },
   entrada: entradaCapturarConteo,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -264,6 +266,7 @@ export const cerrarConteo = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { tomaId: 'tomas_inventario' },
   entrada: entradaCerrarConteo,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

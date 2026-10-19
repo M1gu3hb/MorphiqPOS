@@ -96,6 +96,7 @@ export const guardarServicio = definirComando<
   escribe: true,
   roles: [...DIRECCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { 'profesionales[].profesionalId': 'profesionales' },
   entrada: entradaGuardarServicio,
   async ejecutar(ctx, entrada) {
     const organizacionId = ctx.ambito.organizacionId;

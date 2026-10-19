@@ -99,6 +99,7 @@ export const recibirGarantia = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { ordenId: 'ordenes', almacenId: 'almacenes' },
   entrada: entradaRecibirGarantia,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;
@@ -218,6 +219,7 @@ export const resolverGarantia = definirComando<
   escribe: true,
   roles: [...DIRECCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { garantiaId: 'garantias_proveedor' },
   entrada: entradaResolverGarantia,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

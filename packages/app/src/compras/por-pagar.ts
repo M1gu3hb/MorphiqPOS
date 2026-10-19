@@ -126,6 +126,7 @@ export const registrarPorPagar = definirComando<
   escribe: true,
   roles: [...COMPRAS],
   paquetes: PAQUETES_TODOS,
+  sucursal: { compraId: 'compras' },
   entrada: entradaRegistrarPorPagar,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -203,6 +204,7 @@ export const pagarAProveedor = definirComando<
   escribe: true,
   roles: [...COMPRAS],
   paquetes: PAQUETES_TODOS,
+  sucursal: { sesionCajaId: 'sesiones_caja' },
   entrada: entradaPagarAProveedor,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

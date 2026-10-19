@@ -74,6 +74,7 @@ export const registrarServicio = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { ordenLineaId: 'orden_lineas', almacenId: 'almacenes' },
   entrada: entradaRegistrarServicio,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

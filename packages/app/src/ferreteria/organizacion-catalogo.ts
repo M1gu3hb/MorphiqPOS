@@ -189,6 +189,7 @@ export const asignarUbicacion = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenId: 'almacenes' },
   entrada: entradaAsignarUbicacion,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

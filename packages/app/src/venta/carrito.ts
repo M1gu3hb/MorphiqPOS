@@ -85,6 +85,7 @@ export const agregarLinea = definirComando<
   escribe: true,
   roles: [...ROLES_DE_VENTA],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaAgregarLinea,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -263,6 +264,7 @@ export const vaciarOrden = definirComando<
   escribe: true,
   roles: [...ROLES_DE_VENTA],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaVaciarOrden,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -292,6 +294,7 @@ export const quitarLinea = definirComando<
   escribe: true,
   roles: [...ROLES_DE_VENTA],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes', lineaId: 'orden_lineas' },
   entrada: entradaQuitarLinea,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -320,6 +323,7 @@ export const cambiarCantidad = definirComando<
   escribe: true,
   roles: [...ROLES_DE_VENTA],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes', lineaId: 'orden_lineas' },
   entrada: entradaCambiarCantidad,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

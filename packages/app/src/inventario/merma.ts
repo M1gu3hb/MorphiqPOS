@@ -68,6 +68,7 @@ export const registrarMerma = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenId: 'almacenes' },
   modulo: 'movimientos_inventario',
   entrada: entradaRegistrarMerma,
   async ejecutar(ctx, entrada) {

@@ -49,6 +49,7 @@ export const otorgarSellos = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaOtorgarSellos,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;
@@ -154,6 +155,7 @@ export const canjearPremio = definirComando<Transaccion, typeof entradaCanjear, 
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaCanjear,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;

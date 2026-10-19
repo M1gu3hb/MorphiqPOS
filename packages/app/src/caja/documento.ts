@@ -80,6 +80,7 @@ export const documentoDeCorte = definirComando<
   escribe: false,
   roles: [...DIRECCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { corteId: 'sesiones_caja' },
   entrada: entradaDocumentoDeCorte,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

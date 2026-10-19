@@ -1,6 +1,8 @@
 import type { Ambito, Modulo, Paquete, Rol } from '@morphiqpos/contracts';
 import type { ZodType } from 'zod';
 
+import { segmentosDe, type FronteraDelComando } from './sucursal/frontera.ts';
+
 /**
  * La forma de un comando y las comprobaciones que se hacen al DEFINIRLO.
  *
@@ -80,6 +82,21 @@ export interface DefinicionComando<TX, E extends ZodType, S> {
    * cliente sin poder vender.
    */
   readonly modulo?: Modulo;
+  /**
+   * LA FRONTERA POR SUCURSAL (D-36): qué campos de la entrada son ids de algo que es de UNA
+   * sucursal —`{ ordenId: 'ordenes', 'lineas[].ordenLineaId': 'orden_lineas' }`—. El
+   * envoltorio cambia los que son de otra sucursal por uno que no existe antes de llamar a
+   * `ejecutar`, y el comando contesta lo que contesta a un id al azar
+   * (`sucursal/frontera.ts`). `definirComando` comprueba que cada camino exista en
+   * `entrada`: uno mal escrito no protegería nada y nadie se enteraría.
+   */
+  readonly sucursal?: FronteraDelComando;
+  /**
+   * Los ids que PARECEN de una sucursal y a propósito no se acotan, cada uno con su razón:
+   * el almacén DESTINO de un traspaso es de otra sucursal por definición. Lo pide el
+   * contrato de `verify:matriz`, que no deja un id de sucursal sin decidir.
+   */
+  readonly sinFrontera?: Readonly<Record<string, string>>;
   readonly entrada: E;
   readonly ejecutar: (ctx: ContextoComando<TX>, entrada: E['_output']) => Promise<S>;
 }
@@ -119,6 +136,17 @@ export function definirComando<TX, E extends ZodType, S>(
     );
   }
 
+  for (const camino of [
+    ...Object.keys(definicion.sucursal ?? {}),
+    ...Object.keys(definicion.sinFrontera ?? {}),
+  ]) {
+    if (tieneElCamino(entrada, segmentosDe(camino))) continue;
+    throw new Error(
+      `El comando "${nombre}" declara la frontera de "${camino}", y su entrada no tiene ese ` +
+        'campo. Un camino mal escrito no acota nada y la frontera parecería puesta (D-36).',
+    );
+  }
+
   for (const clave of clavesDeclaradas(entrada)) {
     if (!CLAVES_DE_AMBITO.has(clave)) continue;
     throw new Error(
@@ -135,4 +163,39 @@ export function definirComando<TX, E extends ZodType, S>(
 function clavesDeclaradas(esquema: ZodType): readonly string[] {
   const forma = (esquema as { shape?: Readonly<Record<string, unknown>> }).shape;
   return forma === undefined ? [] : Object.keys(forma);
+}
+
+/**
+ * ¿Tiene `esquema` el campo de `segmentos`? Recorre objetos, arreglos (`[]`) y lo que
+ * envuelve a un esquema sin cambiar su forma —opcional, nulo, por omisión, tubería, unión—.
+ */
+function tieneElCamino(esquema: unknown, segmentos: readonly string[]): boolean {
+  const def = (esquema as { _zod?: { def?: Readonly<Record<string, unknown>> } } | null)?._zod?.def;
+  if (def === undefined) return false;
+  switch (def['type']) {
+    case 'optional':
+    case 'nullable':
+    case 'default':
+    case 'prefault':
+    case 'readonly':
+    case 'catch':
+    case 'nonoptional':
+      return tieneElCamino(def['innerType'], segmentos);
+    case 'pipe':
+      return tieneElCamino(def['in'], segmentos);
+    case 'union':
+      return (def['options'] as readonly unknown[]).some((o) => tieneElCamino(o, segmentos));
+    case 'intersection':
+      return tieneElCamino(def['left'], segmentos) || tieneElCamino(def['right'], segmentos);
+    default:
+      break;
+  }
+  const [primero, ...resto] = segmentos;
+  if (primero === undefined) return true;
+  if (primero === '[]') return def['type'] === 'array' && tieneElCamino(def['element'], resto);
+  if (def['type'] !== 'object') return false;
+  const forma = def['shape'] as Readonly<Record<string, unknown>>;
+  return (
+    Object.prototype.hasOwnProperty.call(forma, primero) && tieneElCamino(forma[primero], resto)
+  );
 }

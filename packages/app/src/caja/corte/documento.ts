@@ -174,6 +174,7 @@ export const hojaDelCorte = definirComando<Transaccion, typeof entradaHojaDelCor
   escribe: false,
   roles: [...ROLES_DE_CAJA],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { sesionCajaId: 'sesiones_caja' },
   entrada: entradaHojaDelCorte,
   async ejecutar(ctx, entrada) {
     const { organizacionId, rol } = ctx.ambito;

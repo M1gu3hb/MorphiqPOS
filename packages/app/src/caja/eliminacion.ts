@@ -63,6 +63,7 @@ export const eliminarCorte = definirComando<
   escribe: true,
   roles: SOLO_DUENO,
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { corteId: 'sesiones_caja' },
   entrada: entradaEliminarCorte,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

@@ -105,6 +105,7 @@ export const contarLeche = definirComando<
   escribe: false,
   roles: [...BARRA],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { almacenId: 'almacenes' },
   entrada: entradaContarLeche,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

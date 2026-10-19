@@ -200,6 +200,7 @@ export const abrirProducto = definirComando<
   escribe: true,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenVentaId: 'almacenes', almacenCabinaId: 'almacenes' },
   entrada: entradaAbrirProducto,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -323,6 +324,7 @@ export const alcanzaLaCabina = definirComando<
   escribe: false,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenCabinaId: 'almacenes' },
   entrada: entradaAlcanzaCabina,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

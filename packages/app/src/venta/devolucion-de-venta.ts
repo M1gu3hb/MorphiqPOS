@@ -376,6 +376,7 @@ export const devolverVenta = definirComando<
   escribe: true,
   roles: [...QUIEN_DEVUELVE],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { ordenId: 'ordenes', 'lineas[].ordenLineaId': 'orden_lineas' },
   entrada: entradaDevolverVenta,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;
@@ -637,6 +638,7 @@ export const ventaParaDevolver = definirComando<
   escribe: false,
   roles: [...QUIEN_DEVUELVE],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaVentaParaDevolver,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId } = ctx.ambito;

@@ -111,6 +111,7 @@ export const suspenderVenta = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaSuspender,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId } = ctx.ambito;

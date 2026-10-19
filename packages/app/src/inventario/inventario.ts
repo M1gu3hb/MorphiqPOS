@@ -132,6 +132,7 @@ export const inventarioInicial = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { almacenId: 'almacenes' },
   modulo: 'inventario',
   entrada: entradaInventarioInicial,
   async ejecutar(ctx, entrada) {
@@ -185,6 +186,7 @@ export const ajustarStock = definirComando<
   escribe: true,
   roles: ROLES,
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { almacenId: 'almacenes' },
   modulo: 'inventario',
   entrada: entradaAjustarStock,
   async ejecutar(ctx, entrada) {

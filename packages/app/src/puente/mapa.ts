@@ -106,6 +106,18 @@ const PREPARACION = [...DIRECCION, 'cocina'] as const;
  */
 const DE_SU_SUCURSAL = { columna: 'sucursal_id' } as const satisfies FronteraDeSucursal;
 
+/**
+ * La sucursal que admite NULO: la fila sin sucursal es del negocio entero y la ven todas. Es
+ * lo que escribe un comando cuando quien opera no trae sucursal —el dueño desde su teléfono
+ * agenda una cita, da de alta a una profesional—, y con la igualdad sola esa fila
+ * desaparecería para la recepción que la tiene que atender. Toda columna `sucursal_id` que
+ * admite nulo se declara así; lo exige el contrato contra el esquema.
+ */
+const DE_SU_SUCURSAL_O_DEL_NEGOCIO = {
+  columna: 'sucursal_id',
+  nulaEsDelNegocio: true,
+} as const satisfies FronteraDeSucursal;
+
 const DEL_NEGOCIO = {
   catalogo: {
     delNegocio:
@@ -1304,7 +1316,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   OcupacionMesa: {
     tabla: 'ocupacion_mesas',
-    sucursal: DE_SU_SUCURSAL,
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...DIRECCION],
     escritura: 'lectura',
     ordenPorOmision: '-inicio',
@@ -1447,7 +1459,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Profesional: {
     tabla: 'profesionales',
-    sucursal: { columna: 'sucursal_id', nulaEsDelNegocio: true },
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     soloDeQuienEntra: { roles: ['mesero'], columna: 'id' },
     // La agenda entera se lee por columna y por color: si el mostrador no puede
     // leer quién atiende, no hay pantalla que pintar.
@@ -1483,7 +1495,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Cita: {
     tabla: 'citas',
-    sucursal: DE_SU_SUCURSAL,
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     soloDeQuienEntra: { roles: ['mesero'], columna: 'id', porServicio: true },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
@@ -1530,7 +1542,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   CitaServicio: {
     tabla: 'cita_servicios',
-    sucursal: { porPadre: { columna: 'cita_id', tabla: 'citas' } },
+    sucursal: { porPadre: { columna: 'cita_id', tabla: 'citas', nulaEsDelNegocio: true } },
     soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
@@ -1603,7 +1615,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   NoShow: {
     tabla: 'no_shows',
-    sucursal: { porPadre: { columna: 'cita_id', tabla: 'citas' } },
+    sucursal: { porPadre: { columna: 'cita_id', tabla: 'citas', nulaEsDelNegocio: true } },
     rolesLectura: [...OPERACION_RESTAURANTE],
     // La estilista ve SUS faltas, no las del salón (auditoría de la 2.4).
     soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
@@ -1787,7 +1799,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Liquidacion: {
     tabla: 'liquidaciones',
-    sucursal: DE_SU_SUCURSAL,
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     rolesLectura: [...DIRECCION, 'mesero'],
     escritura: 'comando',
@@ -2044,7 +2056,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   NotaDeCaja: {
     tabla: 'notas_de_caja',
-    sucursal: DE_SU_SUCURSAL,
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     // El cajero cobra y el mostradorista pregunta «¿ya pagaron la mía?». Los dos.
     rolesLectura: [...CAJA, 'mesero'],
     escritura: 'comando',
@@ -2244,7 +2256,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   ZonaAnaquel: {
     tabla: 'zonas_anaquel',
-    sucursal: DE_SU_SUCURSAL,
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...INVENTARIO, 'cajero'],
     escritura: 'comando',
     // Por el recorrido físico de la tienda: contar saltando de la reja al
@@ -2404,7 +2416,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   PagoCredito: {
     tabla: 'pagos_credito',
-    sucursal: { columna: 'sucursal_id', nulaEsDelNegocio: true },
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: '-created_at',
@@ -2530,7 +2542,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   ListaDeTrabajo: {
     tabla: 'listas_de_trabajo',
-    sucursal: DE_SU_SUCURSAL,
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...CAJA],
     escritura: 'lectura',
     // La última capturada primero: es la que el albañil acaba de dictar.
@@ -2710,7 +2722,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   /** Cada recarga y cada pago de servicio, con sus importes SEPARADOS. */
   OperacionComision: {
     tabla: 'operaciones_comision',
-    sucursal: DE_SU_SUCURSAL,
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -2819,7 +2831,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   TiempoPreparacion: {
     tabla: 'tiempos_preparacion',
-    sucursal: DE_SU_SUCURSAL,
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     // Cocina SÍ lee esto: es su propio desempeño, no el margen del negocio.
     rolesLectura: [...PREPARACION],
     escritura: 'lectura',
@@ -2983,7 +2995,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   PedidoPreparacion: {
     tabla: 'comandas',
-    sucursal: DE_SU_SUCURSAL,
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -3078,7 +3090,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   PedidoPreparacionItem: {
     tabla: 'comanda_items',
-    sucursal: { porPadre: { columna: 'comanda_id', tabla: 'comandas' } },
+    sucursal: { porPadre: { columna: 'comanda_id', tabla: 'comandas', nulaEsDelNegocio: true } },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: 'orden_visual',

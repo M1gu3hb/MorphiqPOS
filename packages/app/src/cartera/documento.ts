@@ -67,6 +67,7 @@ export const emitirDocumentoCredito = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { origenId: ['ordenes', 'remisiones', 'notas_mostrador'] },
   entrada: entradaEmitirDocumento,
   async ejecutar(ctx, entrada) {
     const emitido = await emitirDocumento(ctx, entrada);

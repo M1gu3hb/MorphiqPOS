@@ -33,6 +33,7 @@ export const totalizarBorrador = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaTotalizar,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

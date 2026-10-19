@@ -150,6 +150,10 @@ export const guardarEmpleado = definirComando<
   escribe: true,
   roles: [...SOLO_MANDOS],
   paquetes: PAQUETES_TODOS,
+  sinFrontera: {
+    empleado:
+      'El equipo es del negocio: el dueño y el administrador dan de alta y editan a la gente de todas las sucursales, también desde la terminal de una.',
+  },
   entrada: entradaGuardarEmpleado,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, rol: rolDeQuienManda, empleoId: yo } = ctx.ambito;

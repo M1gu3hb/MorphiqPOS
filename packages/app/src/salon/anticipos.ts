@@ -63,6 +63,7 @@ export const recibirAnticipo = definirComando<
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { citaId: 'citas' },
   entrada: entradaRecibirAnticipo,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -201,6 +202,7 @@ export const aplicarAnticipo = definirComando<
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { anticipoId: 'anticipos_cita', ordenId: 'ordenes' },
   entrada: entradaAplicarAnticipo,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

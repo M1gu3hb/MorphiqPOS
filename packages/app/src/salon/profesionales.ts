@@ -214,6 +214,7 @@ export const miDia = definirComando<Transaccion, typeof entradaMiDia, ResultadoM
   escribe: false,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaMiDia,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -408,6 +409,7 @@ export const comisionesDelProfesional = definirComando<
   escribe: false,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaComisionesDe,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -454,6 +456,7 @@ export const comprobanteDeLiquidacion = definirComando<
   escribe: false,
   roles: [...DIRECCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { liquidacionId: 'liquidaciones' },
   entrada: entradaComprobante,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
